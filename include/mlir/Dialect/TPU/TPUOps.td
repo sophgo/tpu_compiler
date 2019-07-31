@@ -30,9 +30,127 @@ include "mlir/IR/OpBase.td"
 
 def TPU_Dialect : Dialect {
   let name = "tpu";
+
+  let description = [{
+    The TPU dialect.
+
+    This dialect maps to TPU operations.
+  }];
+
+  let cppNamespace = "tpu";
 }
+
+//===----------------------------------------------------------------------===//
+// Activation function enum definitions.
+//===----------------------------------------------------------------------===//
+
+// Allowed activation function cases
+def TPU_AF_None  : StrEnumAttrCase<"NONE">;
+def TPU_AF_Relu  : StrEnumAttrCase<"RELU">;
+def TPU_AF_Relu1 : StrEnumAttrCase<"RELU_N1_TO_1">;
+def TPU_AF_Relu6 : StrEnumAttrCase<"RELU6">;
+def TPU_AF_Tanh  : StrEnumAttrCase<"TANH">;
+def TPU_AF_Sign  : StrEnumAttrCase<"SIGN_BIT">;
+
+def TPU_AFAttr : StrEnumAttr<
+    "ActivationFunctionType", "fused activation enum", [
+      TPU_AF_None,  TPU_AF_Relu, TPU_AF_Relu1,
+      TPU_AF_Relu6, TPU_AF_Tanh, TPU_AF_Sign
+    ]>;
+
+//===----------------------------------------------------------------------===//
+// Padding enum definitions.
+//===----------------------------------------------------------------------===//
+
+// Allowed padding cases
+def TPU_PAD_Same  : StrEnumAttrCase<"SAME">;
+def TPU_PAD_Valid : StrEnumAttrCase<"VALID">;
+
+def TPU_PaddingAttr : StrEnumAttr<"Padding", "padding enum", [
+      TPU_PAD_Same, TPU_PAD_Valid
+    ]>;
+
+//===----------------------------------------------------------------------===//
+// TPU op base class.
+//===----------------------------------------------------------------------===//
 
 class TPU_Op<string mnemonic, list<OpTrait> traits = []> :
     Op<TPU_Dialect, mnemonic, traits>;
+
+class TPU_ConvOp<string mnemonic, string opSummary> :
+    TPU_Op<mnemonic, []> {
+  let summary = opSummary # " operator";
+
+  let description = [{
+    Performs convolution operation on inputs.
+
+    Inputs:
+      `inputs[0]`: required: the input activation tensor
+      `inputs[1]`: required: the filter weight tensor
+      `inputs[2]`: optional: the bias tensor
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    AnyTensor:$filter,
+    AnyTensor:$bias,
+    I32Attr:$dilation_h_factor,
+    I32Attr:$dilation_w_factor,
+    TPU_AFAttr:$fused_activation_function,
+    TPU_PaddingAttr:$padding,
+    I32Attr:$stride_h,
+    I32Attr:$stride_w
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
+//===----------------------------------------------------------------------===//
+// TPU op definitions.
+//===----------------------------------------------------------------------===//
+def TPU_AveragePool2DOp : TPU_Op<"average_pool_2d", []> {
+  let summary = "Average_pool_2d operator";
+
+  let description = [{
+    Performs average-pooling operation on input.
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    I32Attr:$filter_height,
+    I32Attr:$filter_width,
+    TPU_PaddingAttr:$padding,
+    I32Attr:$stride_h,
+    I32Attr:$stride_w,
+    TPU_AFAttr:$fused_activation_function
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
+def TPU_MaxPool2DOp : TPU_Op<"max_pool_2d", []> {
+  let summary = "Max Pool 2D op";
+
+  let description = [{
+    Performs max pool 2D on input.
+
+    Inputs:
+      `inputs[0]`: required: the input tensor
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    TPU_PaddingAttr:$padding,
+    I32Attr:$stride_w,
+    I32Attr:$stride_h,
+    I32Attr:$filter_width,
+    I32Attr:$filter_height,
+    TPU_AFAttr:$fused_activation_function
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
+def TPU_Conv2DOp : TPU_ConvOp<"conv_2d", "Convolution">;
 
 #endif // TPU_OPS
