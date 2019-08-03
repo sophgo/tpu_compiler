@@ -25,31 +25,51 @@
 #include "mlir/IR/Builders.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/StandardOps/Ops.h"
+#include "llvm/Support/raw_ostream.h"
 
 using namespace mlir;
 
 namespace {
 
-class TpuKernelOutliningPass : public ModulePass<TpuKernelOutliningPass> {
+class TpuOpsOutliningPass : public ModulePass<TpuOpsOutliningPass> {
 public:
+  explicit TpuOpsOutliningPass(llvm::raw_ostream &os = llvm::errs()) : os(os) {}
+
   void runOnModule() override {
     ModuleManager moduleManager(getModule());
+
+    // Compute the operation statistics for each function in the module.
+    os << "Modules:\n";
+    os << "-----------------------\n";
+    for (auto &module : getModule()) {
+      os << module.getName() << "\n";
+      //op.walk([&](Operation *op) { ++opCount[op->getName().getStringRef()]; });
+    }
+    os << "-----------------------\n";
+
+    os << "Funcs:\n";
+    os << "-----------------------\n";
     for (auto func : getModule().getOps<FuncOp>()) {
+      os << func.getName() << "\n";
       //func.walk<mlir::tpu::LaunchOp>([&](mlir::tpu::LaunchOp op) {
         //FuncOp outlinedFunc = outlineKernelFunc(op);
         //moduleManager.insert(outlinedFunc);
         //convertToLaunchFuncOp(op, outlinedFunc);
       //});
     }
+    os << "-----------------------\n";
   }
+
+private:
+  llvm::raw_ostream &os;
 };
 
 } // namespace
 
-ModulePassBase *mlir::createTpuKernelOutliningPass() {
-  return new TpuKernelOutliningPass();
+ModulePassBase *mlir::createTpuOpsOutliningPass() {
+  return new TpuOpsOutliningPass();
 }
 
-static PassRegistration<TpuKernelOutliningPass>
-    pass("tpu-kernel-outlining",
-         "Outline tpu.launch bodies to kernel functions.");
+static PassRegistration<TpuOpsOutliningPass>
+    pass("tpu-ops-outlining",
+         "Outline tpu ops.");

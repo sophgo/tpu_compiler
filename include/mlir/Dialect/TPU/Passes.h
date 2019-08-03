@@ -26,7 +26,7 @@ namespace mlir {
 
 class ModulePassBase;
 
-ModulePassBase *createTpuKernelOutliningPass();
+ModulePassBase *createTpuOpsOutliningPass();
 
 } // namespace mlir
 
