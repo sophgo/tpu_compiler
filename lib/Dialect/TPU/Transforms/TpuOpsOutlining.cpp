@@ -38,26 +38,40 @@ public:
   void runOnModule() override {
     ModuleManager moduleManager(getModule());
 
-    // Compute the operation statistics for each function in the module.
     os << "Modules:\n";
     os << "-----------------------\n";
     for (auto &module : getModule()) {
       os << module.getName() << "\n";
-      //op.walk([&](Operation *op) { ++opCount[op->getName().getStringRef()]; });
+      module.walk([&](Operation *op) {
+        os << " > " << op->getName() << "\n";
+      });
     }
-    os << "-----------------------\n";
+    os << "\n";
 
     os << "Funcs:\n";
     os << "-----------------------\n";
     for (auto func : getModule().getOps<FuncOp>()) {
       os << func.getName() << "\n";
+      func.walk([&](Operation *op) {
+        os << " > " << op->getName() << "\n";
+      });
       //func.walk<mlir::tpu::LaunchOp>([&](mlir::tpu::LaunchOp op) {
         //FuncOp outlinedFunc = outlineKernelFunc(op);
         //moduleManager.insert(outlinedFunc);
         //convertToLaunchFuncOp(op, outlinedFunc);
       //});
     }
+    os << "\n";
+
+    os << "Funcs walk Conv2DOp:\n";
     os << "-----------------------\n";
+    for (auto func : getModule().getOps<FuncOp>()) {
+      os << func.getName() << "\n";
+      func.walk<mlir::tpu::Conv2DOp>([&](mlir::tpu::Conv2DOp op) {
+        os << " > " << op.getOperationName() << "\n";
+      });
+    }
+    os << "\n";
   }
 
 private:
