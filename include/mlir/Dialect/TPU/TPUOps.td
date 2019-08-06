@@ -78,7 +78,7 @@ class TPU_Op<string mnemonic, list<OpTrait> traits = []> :
     Op<TPU_Dialect, mnemonic, traits>;
 
 class TPU_ConvOp<string mnemonic, string opSummary> :
-    TPU_Op<mnemonic, []> {
+    TPU_Op<mnemonic, [NoSideEffect]> {
   let summary = opSummary # " operator";
 
   let description = [{
@@ -108,7 +108,8 @@ class TPU_ConvOp<string mnemonic, string opSummary> :
 //===----------------------------------------------------------------------===//
 // TPU op definitions.
 //===----------------------------------------------------------------------===//
-def TPU_AveragePool2DOp : TPU_Op<"average_pool_2d", []> {
+def TPU_AveragePool2DOp :
+    TPU_Op<"average_pool_2d", [NoSideEffect]> {
   let summary = "Average_pool_2d operator";
 
   let description = [{
@@ -128,7 +129,7 @@ def TPU_AveragePool2DOp : TPU_Op<"average_pool_2d", []> {
   let results = (outs AnyTensor:$output);
 }
 
-def TPU_MaxPool2DOp : TPU_Op<"max_pool_2d", []> {
+def TPU_MaxPool2DOp : TPU_Op<"max_pool_2d", [NoSideEffect]> {
   let summary = "Max Pool 2D op";
 
   let description = [{
@@ -152,5 +153,31 @@ def TPU_MaxPool2DOp : TPU_Op<"max_pool_2d", []> {
 }
 
 def TPU_Conv2DOp : TPU_ConvOp<"conv_2d", "Convolution">;
+
+def TPU_ReluOp: TPU_Op<"relu", [NoSideEffect, SameOperandsAndResultType]> {
+  let summary = "Relu operator";
+
+  let description = [{
+    Element-wise Relu operator
+      x -> max(0, x)
+  }];
+
+  let arguments = (ins AnyTensor:$x);
+
+  let results = (outs AnyTensor:$y);
+}
+
+def TPU_ReshapeOp: TPU_Op<"reshape", [NoSideEffect]> {
+  let summary = "Reshape operator";
+
+  let description = [{
+    Produces a tensor with the same values but different static shape defined
+    by the output type.
+  }];
+
+  let arguments = (ins AnyTensor:$input);
+
+  let results = (outs AnyTensor:$output);
+}
 
 #endif // TPU_OPS
