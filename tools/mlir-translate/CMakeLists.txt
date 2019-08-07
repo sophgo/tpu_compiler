@@ -3,6 +3,9 @@ set(LIBS
   MLIRPass
   MLIRSPIRV
   MLIRSPIRVSerialization
+  MLIRTPU
+  MLIRTPUTranslate
+  MLIRStandardOps
   MLIRTargetLLVMIR
   MLIRTargetNVVMIR
   MLIRTargetROCDLIR

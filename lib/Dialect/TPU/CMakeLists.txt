@@ -8,3 +8,5 @@ add_llvm_library(MLIRTPU
 )
 add_dependencies(MLIRTPU MLIRTPUOpsIncGen MLIRIR LLVMSupport)
 target_link_libraries(MLIRTPU MLIRIR MLIRStandardOps LLVMSupport)
+
+add_subdirectory(Translate)
