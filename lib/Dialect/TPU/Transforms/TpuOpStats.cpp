@@ -1,4 +1,4 @@
-//===- KernelOutlining.cpp - Implementation of TPU outling ---------===//
+//===- TpuOpStats.cpp - Implementation of TPU Op Stats ---------===//
 //
 // Copyright 2019 The MLIR Authors.
 //
@@ -15,7 +15,7 @@
 // limitations under the License.
 // =============================================================================
 //
-// This file implements the TPU dialect outlining pass.
+// This file implements the TPU dialect OP Stats pass.
 //
 //===----------------------------------------------------------------------===//
 
@@ -31,9 +31,9 @@ using namespace mlir;
 
 namespace {
 
-class TpuOpsOutliningPass : public ModulePass<TpuOpsOutliningPass> {
+class PrintTpuOpStatsPass : public ModulePass<PrintTpuOpStatsPass> {
 public:
-  explicit TpuOpsOutliningPass(llvm::raw_ostream &os = llvm::errs()) : os(os) {}
+  explicit PrintTpuOpStatsPass(llvm::raw_ostream &os = llvm::errs()) : os(os) {}
 
   void runOnModule() override {
     ModuleManager moduleManager(getModule());
@@ -92,10 +92,10 @@ private:
 
 } // namespace
 
-ModulePassBase *mlir::createTpuOpsOutliningPass() {
-  return new TpuOpsOutliningPass();
+ModulePassBase *mlir::createPrintTpuOpStatsPass() {
+  return new PrintTpuOpStatsPass();
 }
 
-static PassRegistration<TpuOpsOutliningPass>
-    pass("tpu-ops-outlining",
-         "Outline tpu ops.");
+static PassRegistration<PrintTpuOpStatsPass>
+    pass("print-tpu-op-stats",
+         "Print statistics of TPU operations.");
