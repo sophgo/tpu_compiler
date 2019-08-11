@@ -41,9 +41,17 @@ public:
     os << "Modules:\n";
     os << "-----------------------\n";
     for (auto &module : getModule()) {
-      os << module.getName() << "\n";
       module.walk([&](Operation *op) {
-        os << " > " << op->getName() << "\n";
+        FuncOp funcOp = llvm::dyn_cast_or_null<FuncOp>(op);
+        if (funcOp) {
+          os << op->getName() << " : " << funcOp.getName() << "\n";
+          FunctionType type = funcOp.getType();
+          //type.print(os);
+          type.dump();
+          os << "\n";
+        } else {
+          os << " > " << op->getName() << "\n";
+        }
       });
     }
     os << "\n";
@@ -55,11 +63,15 @@ public:
       func.walk([&](Operation *op) {
         os << " > " << op->getName() << "\n";
       });
-      //func.walk<mlir::tpu::LaunchOp>([&](mlir::tpu::LaunchOp op) {
-        //FuncOp outlinedFunc = outlineKernelFunc(op);
-        //moduleManager.insert(outlinedFunc);
-        //convertToLaunchFuncOp(op, outlinedFunc);
-      //});
+    }
+    os << "\n";
+
+    os << "Module walk Conv2DOp:\n";
+    os << "-----------------------\n";
+    for (auto &module : getModule()) {
+      module.walk<mlir::tpu::Conv2DOp>([&](mlir::tpu::Conv2DOp op) {
+        os << " > " << op.getOperationName() << "\n";
+      });
     }
     os << "\n";
 

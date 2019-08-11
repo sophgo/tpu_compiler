@@ -6,13 +6,16 @@
 
 // OUTLINING-LABEL: Modules:
 // OUTLINING-NEXT: -----------------------
-// OUTLINING-NEXT: func
 // OUTLINING-NEXT:  > std.constant
 
 // OUTLINING-LABEL: Funcs:
 // OUTLINING-NEXT: -----------------------
 // OUTLINING-NEXT: main
 // OUTLINING-NEXT:  > std.constant
+
+// OUTLINING-LABEL: Module walk Conv2DOp:
+// OUTLINING-NEXT: -----------------------
+// OUTLINING-NEXT:  > tpu.conv_2d
 
 // OUTLINING-LABEL: Funcs walk Conv2DOp:
 // OUTLINING-NEXT: -----------------------

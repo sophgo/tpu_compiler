@@ -38,8 +38,10 @@ static Block *createOneBlockFunction(Builder builder, ModuleOp module) {
   auto fn = FuncOp::create(builder.getUnknownLoc(), "tpu_module", fnType);
   module.push_back(fn);
 
-  fn.addEntryBlock();
-  auto *block = &fn.front();
+  //fn.addEntryBlock();
+  //auto *block = &fn.front();
+  /// auto &block = *fn.addEntryBlock();
+  auto *block = fn.addEntryBlock();
 
   mlir::Type elementType = mlir::FloatType::getF32(builder.getContext());
   auto result_type = builder.getTensorType({1, 16, 28, 28}, elementType);
