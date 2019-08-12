@@ -29,6 +29,48 @@
 
 using namespace mlir;
 
+static int64_t calcConv2DOpMacCount(tpu::Conv2DOp &op, const bool debug = false) {
+  llvm::raw_ostream &os = (debug == true) ? llvm::errs() : llvm::nulls();
+
+  auto dh = op.dilation_h_factor();  // APInt, use .getLimitedValue(); to get uint65_t
+  auto dw = op.dilation_w_factor();
+  auto sh = op.stride_h();
+  auto sw = op.stride_w();
+  os << "  >> " << "sh: " << sh << ", sw: " << sw << ", dh : " << dh << ", dw: " << dw << "\n";
+
+  auto input_type = op.input()->getType().cast<TensorType>();
+  std::vector<int64_t> i_s(input_type.getShape());
+  os << "  >> " << "input shape  : "
+      << i_s[0] << "," << i_s[1] << "," << i_s[2] << "," << i_s[3] << "\n";
+  auto output_type = op.output()->getType().cast<TensorType>();
+  std::vector<int64_t> o_s(output_type.getShape());
+  os << "  >> " << "output shape : "
+      << o_s[0] << "," << o_s[1] << "," << o_s[2] << "," << o_s[3] << "\n";
+  auto filter_type = op.filter()->getType().cast<TensorType>();
+  std::vector<int64_t> f_s(filter_type.getShape());
+  os << "  >> " << "filter shape : "
+      << f_s[0] << "," << f_s[1] << "," << f_s[2] << "," << f_s[3] << "\n";
+
+  assert((i_s[0] == o_s[0]) && "input N not equal to output N");
+  auto n = i_s[0];
+  if (n == -1) {
+    os << "  >> " << "No determined N, use batch size 1" << "\n";
+    n = 1;
+  }
+
+  auto oc = f_s[0];
+  auto ic = f_s[1];
+  auto kh = f_s[2];
+  auto kw = f_s[3];
+  auto oh = o_s[2];
+  auto ow = o_s[3];
+
+  auto mac_count = ow * oh * kh * kw * ic * oc * n;
+  //os << "  >> " << "MAC count : " << mac_count << ", OP count : " << mac_count * 2 << "\n";
+
+  return mac_count;
+}
+
 namespace {
 
 class PrintTpuOpStatsPass : public ModulePass<PrintTpuOpStatsPass> {
@@ -71,6 +113,10 @@ public:
     for (auto &module : getModule()) {
       module.walk<mlir::tpu::Conv2DOp>([&](mlir::tpu::Conv2DOp op) {
         os << " > " << op.getOperationName() << "\n";
+        auto mac_count = calcConv2DOpMacCount(op);
+        os << "  >> " << "MAC count : " << mac_count << ", OP count : " << mac_count * 2 << "\n";
+        op.dump();
+        os << "\n";
       });
     }
     os << "\n";
@@ -81,6 +127,8 @@ public:
       os << func.getName() << "\n";
       func.walk<mlir::tpu::Conv2DOp>([&](mlir::tpu::Conv2DOp op) {
         os << " > " << op.getOperationName() << "\n";
+        //op.dump();
+        //os << "\n";
       });
     }
     os << "\n";

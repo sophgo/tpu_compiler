@@ -60,9 +60,7 @@
 // OUTLINING-LABEL: Module walk Conv2DOp:
 // OUTLINING-NEXT: -----------------------
 // OUTLINING-NEXT:  > tpu.conv_2d
-// OUTLINING-NEXT:  > tpu.conv_2d
-// OUTLINING-NEXT:  > tpu.conv_2d
-// OUTLINING-NEXT:  > tpu.conv_2d
+// OUTLINING-NEXT:   >> MAC count : 338688, OP count : 677376
 
 // OUTLINING-LABEL: Funcs walk Conv2DOp:
 // OUTLINING-NEXT: -----------------------
