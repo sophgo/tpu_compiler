@@ -29,15 +29,6 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/MemoryBuffer.h"
 
-#include "caffe/caffe.hpp"
-#include "caffe/util/upgrade_proto.hpp"
-#include "caffe/util/signal_handler.h"
-
-#include <cstring>
-#include <map>
-#include <string>
-#include <vector>
-
 using namespace mlir;
 
 // Adds a one-block function named as `tpu_module` to `module` and returns the
@@ -83,23 +74,11 @@ static OwningModuleRef caffeToMlirTranslate(llvm::StringRef inputFilename,
                                   MLIRContext *context) {
   Builder builder(context);
 
-  //std::string errorMessage;
-  //auto file = openInputFile(inputFilename, &errorMessage);
-  //if (!file) {
-  //  emitError(UnknownLoc::get(context), errorMessage);
-  //  return {};
-  //}
-  caffe::NetParameter param1;
-  caffe::ReadNetParamsFromTextFileOrDie(inputFilename, &param1);
-  param1.mutable_state()->set_phase(caffe::TEST);
-  caffe::Net<float> net1(param1);
-  for (int i = 0; i <= net1.layers().size() - 1; ++i) {
-    //LOG(INFO) << "> [" << std::left << std::setw(12) << std::setfill(' ') << net1.layers()[i]->type()
-    //    << std::setw(0) << "] " << net1.layers()[i]->layer_param().name();
-    auto layer = net1.layers()[i];
-    auto layer_param = layer->layer_param();
-    std::cout << "> [" << std::left << std::setw(12) << std::setfill(' ') << layer->type()
-        << std::setw(0) << "] " << layer_param.name() << "\n";
+  std::string errorMessage;
+  auto file = openInputFile(inputFilename, &errorMessage);
+  if (!file) {
+    emitError(UnknownLoc::get(context), errorMessage);
+    return {};
   }
 
   // wrapping the converted TPU ModuleOp inside a MLIR module.
@@ -112,7 +91,7 @@ static OwningModuleRef caffeToMlirTranslate(llvm::StringRef inputFilename,
 }
 
 static TranslateToMLIRRegistration
-    registration("caffe-to-mlir",
+    registration("caffe-to-mlir-v1",
                  [](StringRef inputFilename, MLIRContext *context) {
                    return caffeToMlirTranslate(inputFilename, context);
                  });

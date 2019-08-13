@@ -113,6 +113,7 @@ public:
     for (auto &module : getModule()) {
       module.walk<mlir::tpu::Conv2DOp>([&](mlir::tpu::Conv2DOp op) {
         os << " > " << op.getOperationName() << "\n";
+        //auto mac_count = calcConv2DOpMacCount(op, true);
         auto mac_count = calcConv2DOpMacCount(op);
         os << "  >> " << "MAC count : " << mac_count << ", OP count : " << mac_count * 2 << "\n";
         op.dump();
