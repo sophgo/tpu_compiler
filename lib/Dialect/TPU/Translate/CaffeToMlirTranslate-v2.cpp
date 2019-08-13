@@ -83,20 +83,18 @@ static OwningModuleRef caffeToMlirTranslate(llvm::StringRef inputFilename,
                                   MLIRContext *context) {
   Builder builder(context);
 
-  //std::string errorMessage;
-  //auto file = openInputFile(inputFilename, &errorMessage);
-  //if (!file) {
-  //  emitError(UnknownLoc::get(context), errorMessage);
-  //  return {};
-  //}
-  caffe::NetParameter param1;
-  caffe::ReadNetParamsFromTextFileOrDie(inputFilename, &param1);
-  param1.mutable_state()->set_phase(caffe::TEST);
-  caffe::Net<float> net1(param1);
-  for (int i = 0; i <= net1.layers().size() - 1; ++i) {
+  caffe::NetParameter param;
+  caffe::ReadNetParamsFromTextFileOrDie(inputFilename, &param);
+  param.mutable_state()->set_phase(caffe::TEST);
+  caffe::Net<float> net(param);
+
+  // 1. find input, and output, construct the function argument
+  // 2. convert all layers
+  // 3. handle split node
+  for (int i = 0; i <= net.layers().size() - 1; ++i) {
     //LOG(INFO) << "> [" << std::left << std::setw(12) << std::setfill(' ') << net1.layers()[i]->type()
     //    << std::setw(0) << "] " << net1.layers()[i]->layer_param().name();
-    auto layer = net1.layers()[i];
+    auto layer = net.layers()[i];
     auto layer_param = layer->layer_param();
     std::cout << "> [" << std::left << std::setw(12) << std::setfill(' ') << layer->type()
         << std::setw(0) << "] " << layer_param.name() << "\n";

@@ -33,9 +33,10 @@ using namespace mlir;
 
 // Adds a one-block function named as `tpu_module` to `module` and returns the
 // block. The created block will be terminated by `std.return`.
-static Block *createOneBlockFunction(Builder builder, ModuleOp module) {
-  auto fnType = builder.getFunctionType(/*inputs=*/{}, /*results=*/{});
-  auto fn = FuncOp::create(builder.getUnknownLoc(), "tpu_module", fnType);
+static Block *createOneBlockFunction(Builder builder, ModuleOp module,
+    ArrayRef<mlir::Type> inputs, ArrayRef<mlir::Type> outputs) {
+  auto fnType = builder.getFunctionType(inputs, outputs);
+  auto fn = FuncOp::create(builder.getUnknownLoc(), "tpu_func", fnType);
   module.push_back(fn);
 
   //fn.addEntryBlock();
@@ -43,18 +44,20 @@ static Block *createOneBlockFunction(Builder builder, ModuleOp module) {
   /// auto &block = *fn.addEntryBlock();
   auto *block = fn.addEntryBlock();
 
+  mlir::Value *input = fn.getArgument(0);
+
   mlir::Type elementType = mlir::FloatType::getF32(builder.getContext());
   auto result_type = builder.getTensorType({1, 16, 28, 28}, elementType);
-  auto input_type = builder.getTensorType({1, 3, 28, 28}, elementType);
-  auto input_attr = builder.getZeroAttr(input_type);
-  auto input = OpBuilder(block).create<ConstantOp>(builder.getUnknownLoc(), input_type, input_attr);
+  //auto input_type = builder.getTensorType({1, 3, 28, 28}, elementType);
+  //auto input_attr = builder.getZeroAttr(input_type);
+  //auto input = OpBuilder(block).create<ConstantOp>(builder.getUnknownLoc(), input_type, input_attr);
   auto filter_type = builder.getTensorType({16, 3, 3, 3}, elementType);
   auto filter_attr = builder.getZeroAttr(filter_type);
   auto filter = OpBuilder(block).create<ConstantOp>(builder.getUnknownLoc(), filter_type, filter_attr);
   auto bias_type = builder.getTensorType({16}, elementType);
   auto bias_attr = builder.getZeroAttr(bias_type);
   auto bias = OpBuilder(block).create<ConstantOp>(builder.getUnknownLoc(), bias_type, bias_attr);
-  OpBuilder(block).create<tpu::Conv2DOp>(
+  auto inst = OpBuilder(block).create<tpu::Conv2DOp>(
         builder.getUnknownLoc(), result_type, input, filter, bias,
         /*dilation_h_factor=*/builder.getI32IntegerAttr(1),
         /*dilation_w_factor=*/builder.getI32IntegerAttr(1),
@@ -63,7 +66,8 @@ static Block *createOneBlockFunction(Builder builder, ModuleOp module) {
         /*stride_h=*/builder.getI32IntegerAttr(1),
         /*stride_w=*/builder.getI32IntegerAttr(1));
 
-  OpBuilder(block).create<ReturnOp>(builder.getUnknownLoc());
+  llvm::ArrayRef<mlir::Value *> results = {inst.getResult()};
+  OpBuilder(block).create<ReturnOp>(builder.getUnknownLoc(), results);
 
   return block;
 }
@@ -84,7 +88,13 @@ static OwningModuleRef caffeToMlirTranslate(llvm::StringRef inputFilename,
   // wrapping the converted TPU ModuleOp inside a MLIR module.
   OwningModuleRef module(ModuleOp::create(
       FileLineColLoc::get(inputFilename, /*line=*/0, /*column=*/0, context)));
-  Block *block = createOneBlockFunction(builder, module.get());
+
+  mlir::Type elementType = mlir::FloatType::getF32(builder.getContext());
+  auto output_type = builder.getTensorType({1, 16, 28, 28}, elementType);
+  auto input_type = builder.getTensorType({1, 3, 28, 28}, elementType);
+  llvm::ArrayRef<mlir::Type> inputs = {input_type};
+  llvm::ArrayRef<mlir::Type> outputs = {output_type};
+  Block *block = createOneBlockFunction(builder, module.get(), inputs, outputs);
   //block->push_front(tpuModule->getOperation());
 
   return module;
