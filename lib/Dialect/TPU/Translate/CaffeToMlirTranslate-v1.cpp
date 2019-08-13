@@ -31,6 +31,67 @@
 
 using namespace mlir;
 
+static mlir::Value *addConv2dOpInBlock(Builder builder, Block *block,
+    mlir::Type elementType, mlir::Value *input, int64_t n,
+    int64_t ic, int64_t ih, int64_t iw, int64_t oc, int64_t oh, int64_t ow,
+    int64_t kh, int64_t kw, int64_t sh, int64_t sw, int64_t dh, int64_t dw) {
+  auto filter_type = builder.getTensorType({oc, ic, kh, kw}, elementType);
+  auto filter_attr = builder.getZeroAttr(filter_type);
+  auto filter = OpBuilder(block).create<ConstantOp>(builder.getUnknownLoc(),
+      filter_type, filter_attr);
+  auto bias_type = builder.getTensorType({oc}, elementType);
+  auto bias_attr = builder.getZeroAttr(bias_type);
+  auto bias = OpBuilder(block).create<ConstantOp>(builder.getUnknownLoc(),
+      bias_type, bias_attr);
+  auto result_type = builder.getTensorType({n, oc, oh, ow}, elementType);
+  auto op = OpBuilder(block).create<tpu::Conv2DOp>(
+        builder.getUnknownLoc(), result_type, input, filter, bias,
+        /*dilation_h_factor=*/builder.getI32IntegerAttr(dh),
+        /*dilation_w_factor=*/builder.getI32IntegerAttr(dw),
+        /*fused_activation_function=*/builder.getStringAttr("NONE"),
+        /*padding=*/builder.getStringAttr("SAME"),
+        /*stride_h=*/builder.getI32IntegerAttr(sh),
+        /*stride_w=*/builder.getI32IntegerAttr(sw));
+  auto result = op.getResult();
+  return result;
+}
+
+static mlir::Value *addReluOpInBlock(Builder builder, Block *block,
+    mlir::Type elementType, mlir::Value *input, int64_t n,
+    int64_t c, int64_t h, int64_t w) {
+  auto result_type = builder.getTensorType({n, c, h, w}, elementType);
+  auto op = OpBuilder(block).create<tpu::ReluOp>(
+        builder.getUnknownLoc(), result_type, input);
+  auto result = op.getResult();
+  return result;
+}
+
+static mlir::Value *addAveragePool2DOpInBlock(Builder builder, Block *block,
+    mlir::Type elementType, mlir::Value *input, int64_t n,
+    int64_t c, int64_t ih, int64_t iw, int64_t oh, int64_t ow,
+    int64_t kh, int64_t kw, int64_t sh, int64_t sw) {
+  auto result_type = builder.getTensorType({n, c, oh, ow}, elementType);
+  auto op = OpBuilder(block).create<tpu::AveragePool2DOp>(
+        builder.getUnknownLoc(), result_type, input,
+        /*filter_height=*/builder.getI32IntegerAttr(kh),
+        /*filter_width=*/builder.getI32IntegerAttr(kw),
+        /*padding=*/builder.getStringAttr("VALID"),
+        /*stride_h=*/builder.getI32IntegerAttr(sh),
+        /*stride_w=*/builder.getI32IntegerAttr(sw),
+        /*fused_activation_function=*/builder.getStringAttr("NONE"));
+  auto result = op.getResult();
+  return result;
+}
+
+static mlir::Value *addReshapeOpInBlock(Builder builder, Block *block,
+    mlir::Type elementType, mlir::Value *input, llvm::ArrayRef<int64_t> shape) {
+  auto result_type = builder.getTensorType(shape, elementType);
+  auto op = OpBuilder(block).create<tpu::ReshapeOp>(
+        builder.getUnknownLoc(), result_type, input);
+  auto result = op.getResult();
+  return result;
+}
+
 // Adds a one-block function named as `tpu_module` to `module` and returns the
 // block. The created block will be terminated by `std.return`.
 static Block *createOneBlockFunction(Builder builder, ModuleOp module,
@@ -43,32 +104,6 @@ static Block *createOneBlockFunction(Builder builder, ModuleOp module,
   //auto *block = &fn.front();
   /// auto &block = *fn.addEntryBlock();
   auto *block = fn.addEntryBlock();
-
-  mlir::Value *input = fn.getArgument(0);
-
-  mlir::Type elementType = mlir::FloatType::getF32(builder.getContext());
-  auto result_type = builder.getTensorType({1, 16, 28, 28}, elementType);
-  //auto input_type = builder.getTensorType({1, 3, 28, 28}, elementType);
-  //auto input_attr = builder.getZeroAttr(input_type);
-  //auto input = OpBuilder(block).create<ConstantOp>(builder.getUnknownLoc(), input_type, input_attr);
-  auto filter_type = builder.getTensorType({16, 3, 3, 3}, elementType);
-  auto filter_attr = builder.getZeroAttr(filter_type);
-  auto filter = OpBuilder(block).create<ConstantOp>(builder.getUnknownLoc(), filter_type, filter_attr);
-  auto bias_type = builder.getTensorType({16}, elementType);
-  auto bias_attr = builder.getZeroAttr(bias_type);
-  auto bias = OpBuilder(block).create<ConstantOp>(builder.getUnknownLoc(), bias_type, bias_attr);
-  auto inst = OpBuilder(block).create<tpu::Conv2DOp>(
-        builder.getUnknownLoc(), result_type, input, filter, bias,
-        /*dilation_h_factor=*/builder.getI32IntegerAttr(1),
-        /*dilation_w_factor=*/builder.getI32IntegerAttr(1),
-        /*fused_activation_function=*/builder.getStringAttr("NONE"),
-        /*padding=*/builder.getStringAttr("SAME"),
-        /*stride_h=*/builder.getI32IntegerAttr(1),
-        /*stride_w=*/builder.getI32IntegerAttr(1));
-
-  llvm::ArrayRef<mlir::Value *> results = {inst.getResult()};
-  OpBuilder(block).create<ReturnOp>(builder.getUnknownLoc(), results);
-
   return block;
 }
 
@@ -90,12 +125,37 @@ static OwningModuleRef caffeToMlirTranslate(llvm::StringRef inputFilename,
       FileLineColLoc::get(inputFilename, /*line=*/0, /*column=*/0, context)));
 
   mlir::Type elementType = mlir::FloatType::getF32(builder.getContext());
-  auto output_type = builder.getTensorType({1, 16, 28, 28}, elementType);
-  auto input_type = builder.getTensorType({1, 3, 28, 28}, elementType);
+
+  auto input_type = builder.getTensorType({1, 1, 28, 28}, elementType);
+  auto output_type = builder.getTensorType({1, 10}, elementType);
   llvm::ArrayRef<mlir::Type> inputs = {input_type};
   llvm::ArrayRef<mlir::Type> outputs = {output_type};
   Block *block = createOneBlockFunction(builder, module.get(), inputs, outputs);
-  //block->push_front(tpuModule->getOperation());
+
+  //
+  // construct a mnist cnn
+  //
+  //mlir::Value *input = fn.getArgument(0);
+  mlir::Value *input = block->getArgument(0);
+  auto c1 = addConv2dOpInBlock(builder, block, elementType, input,
+      /*I_NCHW*/1, 1, 28, 28, /*O_CHW*/16, 14, 14, /*k/s/d*/3, 3, 2, 2, 1, 1);
+  auto r1 = addReluOpInBlock(builder, block, elementType, c1,
+      1, 16, 14, 14);
+  auto c2 = addConv2dOpInBlock(builder, block, elementType, r1,
+      /*I_NCHW*/1, 16, 14, 14, /*O_CHW*/16, 7, 7, /*k/s/d*/3, 3, 2, 2, 1, 1);
+  auto r2 = addReluOpInBlock(builder, block, elementType, c2,
+      1, 16, 7, 7);
+  auto c3 = addConv2dOpInBlock(builder, block, elementType, r2,
+      /*I_NCHW*/1, 16, 7, 7, /*O_CHW*/10, 4, 4, /*k/s/d*/3, 3, 2, 2, 1, 1);
+  auto r3 = addReluOpInBlock(builder, block, elementType, c3,
+      1, 10, 4, 4);
+  auto avg = addAveragePool2DOpInBlock(builder, block, elementType, r3,
+      1, 10, 4, 4, 1, 1, 4, 4, 1, 1);
+  auto output = addReshapeOpInBlock(builder, block, elementType, avg,
+      llvm::ArrayRef<int64_t>({1, 10}));
+
+  llvm::ArrayRef<mlir::Value *> results = {output};
+  OpBuilder(block).create<ReturnOp>(builder.getUnknownLoc(), results);
 
   return module;
 }
