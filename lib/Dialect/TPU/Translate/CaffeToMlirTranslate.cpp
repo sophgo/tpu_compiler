@@ -37,77 +37,49 @@
 #include <map>
 #include <string>
 #include <vector>
+#include <unordered_map>
 
 using namespace mlir;
 
-// Adds a one-block function named as `tpu_module` to `module` and returns the
-// block. The created block will be terminated by `std.return`.
-static Block *createOneBlockFunction(Builder builder, ModuleOp module) {
-  auto fnType = builder.getFunctionType(/*inputs=*/{}, /*results=*/{});
-  auto fn = FuncOp::create(builder.getUnknownLoc(), "tpu_module", fnType);
-  module.push_back(fn);
+// Importer that takes an Caffe model and imports it as an MLIR module in the TPU
+// dialect.
+class CaffeImporter {
+ public:
+  explicit CaffeImporter(mlir::ModuleOp module,
+      std::unordered_map<std::string, std::string>* caffe_to_mlir_name_map)
+      : module_(module),
+        builder_(module.getContext()),
+        function_name_map_(caffe_to_mlir_name_map) {}
 
-  //fn.addEntryBlock();
-  //auto *block = &fn.front();
-  /// auto &block = *fn.addEntryBlock();
-  auto *block = fn.addEntryBlock();
+  // Import the Caffe model file into the MLIR Module.
+  LogicalResult Import(const llvm::StringRef inputFilename) {
+    return failure();
+  }
 
-  mlir::Type elementType = mlir::FloatType::getF32(builder.getContext());
-  auto result_type = builder.getTensorType({1, 16, 28, 28}, elementType);
-  auto input_type = builder.getTensorType({1, 3, 28, 28}, elementType);
-  auto input_attr = builder.getZeroAttr(input_type);
-  auto input = OpBuilder(block).create<ConstantOp>(builder.getUnknownLoc(), input_type, input_attr);
-  auto filter_type = builder.getTensorType({16, 3, 3, 3}, elementType);
-  auto filter_attr = builder.getZeroAttr(filter_type);
-  auto filter = OpBuilder(block).create<ConstantOp>(builder.getUnknownLoc(), filter_type, filter_attr);
-  auto bias_type = builder.getTensorType({16}, elementType);
-  auto bias_attr = builder.getZeroAttr(bias_type);
-  auto bias = OpBuilder(block).create<ConstantOp>(builder.getUnknownLoc(), bias_type, bias_attr);
-  OpBuilder(block).create<tpu::Conv2DOp>(
-        builder.getUnknownLoc(), result_type, input, filter, bias,
-        /*dilation_h_factor=*/builder.getI32IntegerAttr(1),
-        /*dilation_w_factor=*/builder.getI32IntegerAttr(1),
-        /*fused_activation_function=*/builder.getStringAttr("NONE"),
-        /*padding=*/builder.getStringAttr("SAME"),
-        /*stride_h=*/builder.getI32IntegerAttr(1),
-        /*stride_w=*/builder.getI32IntegerAttr(1));
+  // Import the Caffe Net into the MLIR Module.
+  // Status Import(const caffe::Net& net);
 
-  OpBuilder(block).create<ReturnOp>(builder.getUnknownLoc());
+ private:
+  mlir::ModuleOp module_;
+  mlir::Builder builder_;
 
-  return block;
-}
+  //std::unordered_map<std::string, mlir::FuncOp> function_map_;
+  std::unordered_map<std::string, std::string>* function_name_map_;
+};
 
 // Translate CaffeModel in the file named as `inputFilename` and returns a
 // module in TPU Dialect.
 static OwningModuleRef caffeToMlirTranslate(llvm::StringRef inputFilename,
                                   MLIRContext *context) {
-  Builder builder(context);
-
-  //std::string errorMessage;
-  //auto file = openInputFile(inputFilename, &errorMessage);
-  //if (!file) {
-  //  emitError(UnknownLoc::get(context), errorMessage);
-  //  return {};
-  //}
-  caffe::NetParameter param1;
-  caffe::ReadNetParamsFromTextFileOrDie(inputFilename, &param1);
-  param1.mutable_state()->set_phase(caffe::TEST);
-  caffe::Net<float> net1(param1);
-  for (int i = 0; i <= net1.layers().size() - 1; ++i) {
-    //LOG(INFO) << "> [" << std::left << std::setw(12) << std::setfill(' ') << net1.layers()[i]->type()
-    //    << std::setw(0) << "] " << net1.layers()[i]->layer_param().name();
-    auto layer = net1.layers()[i];
-    auto layer_param = layer->layer_param();
-    std::cout << "> [" << std::left << std::setw(12) << std::setfill(' ') << layer->type()
-        << std::setw(0) << "] " << layer_param.name() << "\n";
+  mlir::OwningModuleRef module =
+      mlir::ModuleOp::create(mlir::UnknownLoc::get(context));
+  std::unordered_map<std::string, std::string> caffe_to_mlir_name;
+  CaffeImporter importer(module.get(), &caffe_to_mlir_name);
+  auto status = importer.Import(inputFilename);
+  if (failed(status)) {
+    mlir::emitError(mlir::UnknownLoc::get(context));
   }
-
-  // wrapping the converted TPU ModuleOp inside a MLIR module.
-  OwningModuleRef module(ModuleOp::create(
-      FileLineColLoc::get(inputFilename, /*line=*/0, /*column=*/0, context)));
-  Block *block = createOneBlockFunction(builder, module.get());
-  //block->push_front(tpuModule->getOperation());
-
+  assert(succeeded(status));
   return module;
 }
 
