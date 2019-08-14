@@ -150,7 +150,7 @@ static OwningModuleRef caffeToMlirTranslate(llvm::StringRef inputFilename,
   auto r3 = addReluOpInBlock(builder, block, elementType, c3,
       1, 10, 4, 4);
   auto avg = addAveragePool2DOpInBlock(builder, block, elementType, r3,
-      1, 10, 4, 4, 1, 1, 4, 4, 1, 1);
+      /*I_NCHW*/1, 10, 4, 4, /*O_HW*/1, 1, /*k/s*/4, 4, 1, 1);
   auto output = addReshapeOpInBlock(builder, block, elementType, avg,
       llvm::ArrayRef<int64_t>({1, 10}));
 
