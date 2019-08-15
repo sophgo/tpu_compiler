@@ -108,8 +108,9 @@ class TPU_ConvOp<string mnemonic, string opSummary> :
 //===----------------------------------------------------------------------===//
 // TPU op definitions.
 //===----------------------------------------------------------------------===//
-def TPU_AveragePool2DOp :
-    TPU_Op<"average_pool_2d", [NoSideEffect]> {
+def TPU_Conv2DOp : TPU_ConvOp<"conv_2d", "Convolution">;
+
+def TPU_AveragePool2DOp : TPU_Op<"average_pool_2d", [NoSideEffect]> {
   let summary = "Average_pool_2d operator";
 
   let description = [{
@@ -132,9 +133,8 @@ def TPU_AveragePool2DOp :
   let results = (outs AnyTensor:$output);
 }
 
-def TPU_MaxPool2DOp :
-    TPU_Op<"max_pool_2d", [NoSideEffect]> {
-  let summary = "Max Pool 2D op";
+def TPU_MaxPool2DOp : TPU_Op<"max_pool_2d", [NoSideEffect]> {
+  let summary = "Max Pool 2D operator";
 
   let description = [{
     Performs max pool 2D on input.
@@ -156,7 +156,18 @@ def TPU_MaxPool2DOp :
   let results = (outs AnyTensor:$output);
 }
 
-def TPU_Conv2DOp : TPU_ConvOp<"conv_2d", "Convolution">;
+def TPU_FullyConnectedOp : TPU_Op<"fully_connected", [NoSideEffect]> {
+  let summary = "Fully connected operator";
+
+  let arguments = (
+    ins AnyTensor:$input,
+    AnyTensor:$weight,
+    AnyTensor:$bias,
+    TPU_AFAttr:$fused_activation_function
+  );
+
+  let results = (outs AnyTensor:$output);
+}
 
 def TPU_ReluOp: TPU_Op<"relu", [NoSideEffect, SameOperandsAndResultType]> {
   let summary = "Relu operator";
@@ -167,6 +178,41 @@ def TPU_ReluOp: TPU_Op<"relu", [NoSideEffect, SameOperandsAndResultType]> {
   }];
 
   let arguments = (ins AnyTensor:$x);
+
+  let results = (outs AnyTensor:$y);
+}
+
+def TPU_BatchNormOp: TPU_Op<"batch_norm", [NoSideEffect, SameOperandsAndResultType]> {
+  let summary = "BatchNorm operator";
+
+  let description = [{
+    Normalizes an array across batch and spatial dimensions.
+  }];
+
+  let arguments = (
+    ins AnyTensor:$x,
+    AnyTensor:$scale,
+    AnyTensor:$offset,
+    AnyTensor:$mean,
+    AnyTensor:$variance,
+    F32Attr:$epsilon
+  );
+
+  let results = (outs AnyTensor:$y);
+}
+
+def TPU_ScaleOp: TPU_Op<"scale", [NoSideEffect, SameOperandsAndResultType]> {
+  let summary = "Scale operator";
+
+  let description = [{
+    Performs scale on input.
+  }];
+
+  let arguments = (
+    ins AnyTensor:$x,
+    AnyTensor:$scale,
+    AnyTensor:$offset
+  );
 
   let results = (outs AnyTensor:$y);
 }

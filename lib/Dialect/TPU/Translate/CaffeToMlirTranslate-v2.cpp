@@ -43,7 +43,7 @@
 using namespace mlir;
 
 //===----------------------------------------------------------------------===//
-// Caffe Helper functions
+// Helper functions
 //===----------------------------------------------------------------------===//
 static mlir::Type getMlirTypeFromCaffeShape(Builder builder,
     const std::vector<int> shape, mlir::Type elementType) {
@@ -79,8 +79,8 @@ static void printCaffeNetAllLayer(const caffe::Net<float>& net) {
 
 // because there is no base class for ConvolutionParameter, PoolingParameter
 // use macro to handle Kernel, Stride, Pad, and Dilation
-// unfortunately, PoolingParameter has slightly different struction
-// in the end, we have to implement another set of macro
+// unfortunately, PoolingParameter has slightly different structions
+// in the end, we have to implement separate set of macros for Pooling
 #define getKernelSizeFromCaffeParam(_k_, _param_) \
 do { \
   const int _num_spatial_axes_ = 2; \
@@ -139,7 +139,7 @@ do { \
   } \
 } while(0)
 
-// unfortunately, PoolingParameter has slightly different struction
+// unfortunately, PoolingParameter has slightly different structions
 #define getKernelSizeFromCaffeParam_Pooling(_k_, _param_) \
 do { \
   if (_param_.has_kernel_h() && _param_.has_kernel_w()) { \
@@ -179,7 +179,7 @@ do { \
 } while(0)
 
 //===----------------------------------------------------------------------===//
-// Create Operation
+// Create Operations from Caffe Proto
 //===----------------------------------------------------------------------===//
 static mlir::Value *addConv2dOpInBlockFromCaffe(Builder builder, Block *block,
     mlir::Type elementType, mlir::Value *input_var,
@@ -327,6 +327,7 @@ static mlir::Value *addPoolingOpInBlockFromCaffe(Builder builder, Block *block,
       << ", global_pooling: " << is_global_pooling
       << "\n";
 
+  // construct OP
   auto result_type = builder.getTensorType({n, c, ofmap[0], ofmap[1]}, elementType);
   if (is_average_pooling) {
     auto op = OpBuilder(block).create<tpu::AveragePool2DOp>(
@@ -353,12 +354,84 @@ static mlir::Value *addPoolingOpInBlockFromCaffe(Builder builder, Block *block,
   }
 }
 
-static mlir::Value *addReshapeOpInBlock(Builder builder, Block *block,
-    mlir::Value *input_value, mlir::Type output_type) {
-  auto op = OpBuilder(block).create<tpu::ReshapeOp>(
-        builder.getUnknownLoc(), output_type, input_value);
-  auto result = op.getResult();
-  return result;
+static mlir::Value *addFullyConnectedOpInBlockFromCaffe(Builder builder, Block *block,
+    mlir::Type elementType, mlir::Value *input_var,
+    const caffe::InnerProductParameter& fc_param) {
+  //auto fc_param = layer_param.inner_product_param();
+
+  bool with_bias, with_transpose;
+  // M is the batch_size, K is input number, N is output number
+  // (M, K) * (K, N) => (M, N)
+  int64_t M, K, N;
+
+  with_bias = fc_param.bias_term();
+  with_transpose = fc_param.transpose();
+  // N is the output num
+  N = fc_param.num_output();
+
+  // get input shape from input var
+  LLVM_DEBUG(input_var->getType().dump(););
+  llvm::ArrayRef<int64_t> input_var_shape =
+      input_var->getType().dyn_cast<mlir::TensorType>().getShape();
+
+  bool reshape_first = false;
+  if (input_var_shape.size() == 2) {
+    M = input_var_shape[0];
+    K = input_var_shape[1];
+  } else {
+    reshape_first = true;
+    M = input_var_shape[0];
+    K = 1;
+    for (size_t i = 1; i <= input_var_shape.size() - 1; ++i) {
+      K *= input_var_shape[i];
+    }
+  }
+
+  std::cout
+      << "   M: " << M
+      << ", K: " << K
+      << ", N: " << N
+      << ", with_bias: " << with_bias
+      << ", with_transpose: " << with_transpose
+      << "\n";
+
+  // not support transpose for now
+  assert(!with_transpose);
+
+  mlir::Value *fc_input_var = input_var;
+  // construct reshape OP
+  if (reshape_first) {
+    auto fc_input_type = builder.getTensorType({M, K}, elementType);
+    auto reshape_op = OpBuilder(block).create<tpu::ReshapeOp>(
+        builder.getUnknownLoc(), fc_input_type, input_var);
+    fc_input_var = reshape_op.getResult();
+  }
+
+  // construct the fully_connected OP
+  auto weight_type = builder.getTensorType({K, N}, elementType);
+  auto weight_attr = builder.getZeroAttr(weight_type);
+  auto weight = OpBuilder(block).create<ConstantOp>(builder.getUnknownLoc(),
+      weight_type, weight_attr);
+  #if 0 // TODO: don't how to handle optional operand
+  mlir::Value *bias = nullptr;
+  if (with_bias) {
+    auto bias_type = builder.getTensorType({N}, elementType);
+    auto bias_attr = builder.getZeroAttr(bias_type);
+    bias = OpBuilder(block).create<ConstantOp>(builder.getUnknownLoc(),
+        bias_type, bias_attr);
+  }
+  #else // # if 0
+  auto bias_type = builder.getTensorType({N}, elementType);
+  auto bias_attr = builder.getZeroAttr(bias_type);
+  auto bias = OpBuilder(block).create<ConstantOp>(builder.getUnknownLoc(),
+      bias_type, bias_attr);
+  #endif // # if 0
+  auto result_type = builder.getTensorType({M, N}, elementType);
+  auto op = OpBuilder(block).create<tpu::FullyConnectedOp>(
+        builder.getUnknownLoc(), result_type, fc_input_var, weight, bias,
+        /*fused_activation_function=*/builder.getStringAttr("NONE"));
+  auto result_var = op.getResult();
+  return result_var;
 }
 
 // Adds a one-block function named as `tpu_module` to `module` and returns the
@@ -400,6 +473,7 @@ static OwningModuleRef caffeToMlirTranslate(llvm::StringRef inputFilename,
 
   // find caffe model inputs and outputs
   std::vector<mlir::Type> net_input_type_vec;
+  std::vector<std::string> net_input_name_vec;
   for (int i = 0; i <= net.num_inputs() - 1; ++i) {
     int index = net.input_blob_indices()[i];
     std::cout << "net input [" << i << "] - [" << index << "] : "
@@ -409,8 +483,10 @@ static OwningModuleRef caffeToMlirTranslate(llvm::StringRef inputFilename,
         << "\n";
     net_input_type_vec.push_back(getMlirTypeFromCaffeShape(builder,
         net.input_blobs()[i]->shape(), elementType));
+    net_input_name_vec.push_back(net.blob_names()[index]);
   }
   std::vector<mlir::Type> net_output_type_vec;
+  std::vector<std::string> net_output_name_vec;
   for (int i = 0; i <= net.num_outputs() - 1; ++i) {
     int index = net.output_blob_indices()[i];
     std::cout << "net output[" << i << "] - [" << index << "] : "
@@ -420,6 +496,7 @@ static OwningModuleRef caffeToMlirTranslate(llvm::StringRef inputFilename,
         << "\n";
     net_output_type_vec.push_back(getMlirTypeFromCaffeShape(builder,
         net.output_blobs()[i]->shape(), elementType));
+    net_output_name_vec.push_back(net.blob_names()[index]);
   }
 
   // create Function Op with arguments and returns type
@@ -441,6 +518,9 @@ static OwningModuleRef caffeToMlirTranslate(llvm::StringRef inputFilename,
     if (strcmp(layer->type(), "Input") == 0) {
       assert(layer_param.bottom_size() == 0 && layer_param.top_size() == 1);
       tensor_map[layer_param.top(0)] = func_arg0_var;
+      // sanity check
+      assert(net_input_name_vec.size() == 1);
+      assert(net_input_name_vec[0].compare(layer_param.top(0)) == 0);
 
     } else if (strcmp(layer->type(), "Split") == 0) {
       assert(layer_param.bottom_size() == 1 && layer_param.top_size() == 2);
@@ -498,11 +578,13 @@ static OwningModuleRef caffeToMlirTranslate(llvm::StringRef inputFilename,
       tensor_map[layer_param.top(0)] = result_var;
 
     } else if (strcmp(layer->type(), "InnerProduct") == 0) {
+      assert(layer_param.has_inner_product_param());
       assert(layer_param.bottom_size() == 1 && layer_param.top_size() == 1);
       mlir::Value *input_var = tensor_map.find(layer_param.bottom(0))->second;
       assert(input_var);
-      // TODO: bypass for now
-      tensor_map[layer_param.top(0)] = input_var;
+      mlir::Value *result_var = addFullyConnectedOpInBlockFromCaffe(builder, block,
+          elementType, input_var, layer_param.inner_product_param());
+      tensor_map[layer_param.top(0)] = result_var;
 
     } else if (strcmp(layer->type(), "Softmax") == 0) {
       std::cout << "    SKIP" << "\n";
@@ -518,14 +600,15 @@ static OwningModuleRef caffeToMlirTranslate(llvm::StringRef inputFilename,
     }
   }
 
-  // add fake input and reshape
+  // find the result by lookup for the networt output blob_name
   // support only one output for now
   assert(func_ret_type.size() == 1);
-  auto reshape_output = addReshapeOpInBlock(builder, block, func_arg0_var,
-      func_ret_type[0]);
+  assert(net_output_name_vec.size() == 1);
+  mlir::Value *func_ret0_var = tensor_map.find(net_output_name_vec[0])->second;
+  assert(func_ret0_var);
 
   // 4. return Op
-  llvm::ArrayRef<mlir::Value *> func_ret_var = {reshape_output};
+  llvm::ArrayRef<mlir::Value *> func_ret_var = {func_ret0_var};
   OpBuilder(block).create<ReturnOp>(builder.getUnknownLoc(), func_ret_var);
 
   return module;
