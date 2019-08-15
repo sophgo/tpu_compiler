@@ -43,7 +43,7 @@
 using namespace mlir;
 
 //===----------------------------------------------------------------------===//
-// Helper functions
+// Caffe Helper functions
 //===----------------------------------------------------------------------===//
 static mlir::Type getMlirTypeFromCaffeShape(Builder builder,
     const std::vector<int> shape, mlir::Type elementType) {
@@ -77,6 +77,107 @@ static void printCaffeNetAllLayer(const caffe::Net<float>& net) {
   }
 }
 
+// because there is no base class for ConvolutionParameter, PoolingParameter
+// use macro to handle Kernel, Stride, Pad, and Dilation
+// unfortunately, PoolingParameter has slightly different struction
+// in the end, we have to implement another set of macro
+#define getKernelSizeFromCaffeParam(_k_, _param_) \
+do { \
+  const int _num_spatial_axes_ = 2; \
+  if (_param_.has_kernel_h() && _param_.has_kernel_w()) { \
+    assert(_param_.kernel_size_size() == 0); \
+    _k_.push_back(_param_.kernel_h()); \
+    _k_.push_back(_param_.kernel_w()); \
+  } else { \
+    const int _num_kernel_dims_ = _param_.kernel_size_size(); \
+    for (int i = 0; i < _num_spatial_axes_; ++i) { \
+      _k_.push_back(_param_.kernel_size((_num_kernel_dims_ == 1) ? 0 : i)); \
+    } \
+  } \
+} while(0)
+
+#define getStrideFromCaffeParam(_s_, _param_) \
+do { \
+  const int _num_spatial_axes_ = 2; \
+  if (_param_.has_stride_h() && _param_.has_stride_w()) { \
+    assert(_param_.stride_size() == 0); \
+    _s_.push_back(_param_.stride_h()); \
+    _s_.push_back(_param_.stride_w()); \
+  } else { \
+    const int _num_stride_dims_ = _param_.stride_size(); \
+    for (int i = 0; i < _num_spatial_axes_; ++i) { \
+      _s_.push_back(_param_.stride((_num_stride_dims_ == 1) ? 0 : i)); \
+    } \
+  } \
+} while(0)
+
+#define getPadFromCaffeParam(_p_, _param_) \
+do { \
+  const int _num_spatial_axes_ = 2; \
+  if (_param_.has_pad_h() && _param_.has_pad_w()) { \
+    assert(_param_.pad_size() == 0); \
+    _p_.push_back(_param_.pad_h()); \
+    _p_.push_back(_param_.pad_w()); \
+  } else { \
+    const int _num_pad_dims_ = _param_.pad_size(); \
+    const int kDefaultPad = 0; \
+    for (int i = 0; i < _num_spatial_axes_; ++i) { \
+      _p_.push_back((_num_pad_dims_ == 0) ? kDefaultPad : \
+          _param_.pad((_num_pad_dims_ == 1) ? 0 : i)); \
+    } \
+  } \
+} while(0)
+
+#define getDilationFromCaffeParam(_d_, _param_) \
+do { \
+  const int _num_spatial_axes_ = 2; \
+  const int _num_dilation_dims_ = _param_.dilation_size(); \
+  const int kDefaultDilation = 1; \
+  for (int i = 0; i < _num_spatial_axes_; ++i) { \
+    _d_.push_back((_num_dilation_dims_ == 0) ? kDefaultDilation : \
+        _param_.dilation((_num_dilation_dims_ == 1) ? 0 : i)); \
+  } \
+} while(0)
+
+// unfortunately, PoolingParameter has slightly different struction
+#define getKernelSizeFromCaffeParam_Pooling(_k_, _param_) \
+do { \
+  if (_param_.has_kernel_h() && _param_.has_kernel_w()) { \
+    assert(!_param_.has_kernel_size()); \
+    _k_.push_back(_param_.kernel_h()); \
+    _k_.push_back(_param_.kernel_w()); \
+  } else { \
+    assert(_param_.has_kernel_size()); \
+    _k_.push_back(_param_.kernel_size()); \
+    _k_.push_back(_param_.kernel_size()); \
+  } \
+} while(0)
+
+#define getStrideFromCaffeParam_Pooling(_s_, _param_) \
+do { \
+  if (_param_.has_stride_h() && _param_.has_stride_w()) { \
+    assert(!_param_.has_stride()); \
+    _s_.push_back(_param_.stride_h()); \
+    _s_.push_back(_param_.stride_w()); \
+  } else { \
+    assert(_param_.has_stride()); \
+    _s_.push_back(_param_.stride()); \
+    _s_.push_back(_param_.stride()); \
+  } \
+} while(0)
+
+#define getPadFromCaffeParam_Pooling(_p_, _param_) \
+do { \
+  if (_param_.has_pad_h() && _param_.has_pad_w()) { \
+    assert(!_param_.has_pad() == 0); \
+    _p_.push_back(_param_.pad_h()); \
+    _p_.push_back(_param_.pad_w()); \
+  } else { \
+    _p_.push_back(_param_.pad()); \
+    _p_.push_back(_param_.pad()); \
+  } \
+} while(0)
+
 //===----------------------------------------------------------------------===//
 // Create Operation
 //===----------------------------------------------------------------------===//
@@ -84,83 +185,52 @@ static mlir::Value *addConv2dOpInBlockFromCaffe(Builder builder, Block *block,
     mlir::Type elementType, mlir::Value *input_var,
     const caffe::ConvolutionParameter& conv_param) {
   //auto conv_param = layer_param.convolution_param();
-  std::vector<int64_t> k, s, d, p;
-  int64_t oc = conv_param.num_output();
-  const int num_spatial_axes = 2;
-  if (conv_param.has_kernel_h() && conv_param.has_kernel_w()) {
-    assert(conv_param.kernel_size_size() == 0);
-    k.push_back(conv_param.kernel_h());
-    k.push_back(conv_param.kernel_w());
-  } else {
-    const int num_kernel_dims = conv_param.kernel_size_size();
-    for (int i = 0; i < num_spatial_axes; ++i) {
-      k.push_back(conv_param.kernel_size((num_kernel_dims == 1) ? 0 : i));
-    }
-  }
-  if (conv_param.has_stride_h() && conv_param.has_stride_w()) {
-    assert(conv_param.stride_size() == 0);
-    s.push_back(conv_param.stride_h());
-    s.push_back(conv_param.stride_w());
-  } else {
-    const int num_stride_dims = conv_param.stride_size();
-    for (int i = 0; i < num_spatial_axes; ++i) {
-      s.push_back(conv_param.stride((num_stride_dims == 1) ? 0 : i));
-    }
-  }
-  if (conv_param.has_pad_h() && conv_param.has_pad_w()) {
-    assert(conv_param.pad_size() == 0);
-    p.push_back(conv_param.pad_h());
-    p.push_back(conv_param.pad_w());
-  } else {
-    const int num_pad_dims = conv_param.pad_size();
-    const int kDefaultPad = 0;
-    for (int i = 0; i < num_spatial_axes; ++i) {
-      p.push_back((num_pad_dims == 0) ? kDefaultPad :
-          conv_param.pad((num_pad_dims == 1) ? 0 : i));
-    }
-  }
-  const int num_dilation_dims = conv_param.dilation_size();
-  const int kDefaultDilation = 1;
-  for (int i = 0; i < num_spatial_axes; ++i) {
-    d.push_back((num_dilation_dims == 0) ? kDefaultDilation :
-        conv_param.dilation((num_dilation_dims == 1) ? 0 : i));
-  }
+  bool with_bias;
+  int64_t n, ic, oc, group;
+  std::vector<int64_t> k, s, p, d;
+  std::vector<int64_t> ifmap, ofmap;  // spatial dims only (height and width)
 
-  std::cout << "bias: " << conv_param.bias_term()
-      << ", OC: " << oc
-      << ", K: " << k[0] << " * " << k[1]
-      << ", S: " << s[0] << " * " << s[1]
-      << ", P: " << p[0] << " * " << p[1]
-      << ", D: " << d[0] << " * " << d[1]
-      << "\n";
+  getKernelSizeFromCaffeParam(k, conv_param);
+  getStrideFromCaffeParam(s, conv_param);
+  getPadFromCaffeParam(p, conv_param);
+  getDilationFromCaffeParam(d, conv_param);
+  with_bias = conv_param.bias_term();
+  oc = conv_param.num_output();
+  group = conv_param.group();
+  // TODO: don't support group for now
+  assert(group == 1);
 
-  // current input shape
-  input_var->getType().dump();
-  std::cout << "\n";
-  int64_t n, ic;
-  std::vector<int64_t> ifmap;
-  llvm::ArrayRef<int64_t> ifmap_shape =
+  // get input shape from input var
+  LLVM_DEBUG(input_var->getType().dump(););
+  llvm::ArrayRef<int64_t> input_var_shape =
       input_var->getType().dyn_cast<mlir::TensorType>().getShape();
-  assert(ifmap_shape.size() == 4);
-  n = ifmap_shape[0];
-  ic = ifmap_shape[1];
-  ifmap.push_back(ifmap_shape[2]);
-  ifmap.push_back(ifmap_shape[3]);
+  assert(input_var_shape.size() == 4);
+  n = input_var_shape[0];
+  ic = input_var_shape[1];
+  ifmap.push_back(input_var_shape[2]);
+  ifmap.push_back(input_var_shape[3]);
 
-  std::cout << "N: " << n
-      << ", IC: " << ic
-      << ", IH*IW: " << ifmap[0] << " * " << ifmap[1]
-      << "\n";
-
-  // inferred output shape
-  std::vector<int64_t> ofmap;
+  // get ofmap shape by inference
   // does not support dilation for now
   assert(d[0] == 1 && d[1] == 1);
   ofmap.push_back((ifmap[0] - k[0] + 2 * p[0]) / s[0] + 1);
   ofmap.push_back((ifmap[1] - k[1] + 2 * p[1]) / s[1] + 1);
 
   std::cout
-      << "OH*OW: " << ofmap[0] << " * " << ofmap[1]
+      << "   N: " << n
+      << ", IC: " << ic
+      << ", IH*IW: " << ifmap[0] << " * " << ifmap[1]
+      << ", OC: " << oc
+      << ", OH*OW: " << ofmap[0] << " * " << ofmap[1]
+      << "\n";
+
+  std::cout
+      << "   with_bias: " << with_bias
+      << ", K: " << k[0] << " * " << k[1]
+      << ", S: " << s[0] << " * " << s[1]
+      << ", P: " << p[0] << " * " << p[1]
+      << ", D: " << d[0] << " * " << d[1]
+      << ", group: " << group
       << "\n";
 
   // construct OP
@@ -168,10 +238,20 @@ static mlir::Value *addConv2dOpInBlockFromCaffe(Builder builder, Block *block,
   auto filter_attr = builder.getZeroAttr(filter_type);
   auto filter = OpBuilder(block).create<ConstantOp>(builder.getUnknownLoc(),
       filter_type, filter_attr);
+  #if 0 // TODO: don't how to handle optional operand
+  mlir::Value *bias = nullptr;
+  if (with_bias) {
+    auto bias_type = builder.getTensorType({oc}, elementType);
+    auto bias_attr = builder.getZeroAttr(bias_type);
+    bias = OpBuilder(block).create<ConstantOp>(builder.getUnknownLoc(),
+        bias_type, bias_attr);
+  }
+  #else // # if 0
   auto bias_type = builder.getTensorType({oc}, elementType);
   auto bias_attr = builder.getZeroAttr(bias_type);
   auto bias = OpBuilder(block).create<ConstantOp>(builder.getUnknownLoc(),
       bias_type, bias_attr);
+  #endif // # if 0
   auto result_type = builder.getTensorType({n, oc, ofmap[0], ofmap[1]}, elementType);
   auto op = OpBuilder(block).create<tpu::Conv2DOp>(
       builder.getUnknownLoc(), result_type, input_var, filter, bias,
@@ -183,6 +263,94 @@ static mlir::Value *addConv2dOpInBlockFromCaffe(Builder builder, Block *block,
       /*stride_w=*/builder.getI32IntegerAttr(s[1]));
   auto result_var = op.getResult();
   return result_var;
+}
+
+static mlir::Value *addPoolingOpInBlockFromCaffe(Builder builder, Block *block,
+    mlir::Type elementType, mlir::Value *input_var,
+    const caffe::PoolingParameter& pooling_param) {
+  //auto pooling_param = layer_param.pooling_param();
+
+  bool is_average_pooling;
+  bool is_global_pooling;
+  int64_t n, c;
+  std::vector<int64_t> k, s, p;
+  std::vector<int64_t> ifmap, ofmap;  // spatial dims only (height and width)
+
+  if (pooling_param.pool() == caffe::PoolingParameter_PoolMethod_AVE) {
+    is_average_pooling = true;
+  } else if (pooling_param.pool() == caffe::PoolingParameter_PoolMethod_MAX) {
+    is_average_pooling = false;
+  } else {
+    assert(false);
+  }
+
+  // get input shape from input var
+  LLVM_DEBUG(input_var->getType().dump(););
+  llvm::ArrayRef<int64_t> input_var_shape =
+      input_var->getType().dyn_cast<mlir::TensorType>().getShape();
+  assert(input_var_shape.size() == 4);
+  n = input_var_shape[0];
+  c = input_var_shape[1];
+  ifmap.push_back(input_var_shape[2]);
+  ifmap.push_back(input_var_shape[3]);
+
+  is_global_pooling = pooling_param.global_pooling();
+  if (is_global_pooling) {
+    k.push_back(ifmap[0]);
+    k.push_back(ifmap[1]);
+  } else {
+    getKernelSizeFromCaffeParam_Pooling(k, pooling_param);
+  }
+  getStrideFromCaffeParam_Pooling(s, pooling_param);
+  getPadFromCaffeParam_Pooling(p, pooling_param);
+
+  // get ofmap shape by inference
+  ofmap.push_back((ifmap[0] - k[0] + 2 * p[0]) / s[0] + 1);
+  ofmap.push_back((ifmap[1] - k[1] + 2 * p[1]) / s[1] + 1);
+  if (is_global_pooling) {
+    assert(p[0] == 0 && p[1] == 0 && s[0] == 1 && s[1] == 1);
+    assert(ofmap[0] == 1 && ofmap[1] == 1);
+  }
+
+  std::cout
+      << "   N: " << n
+      << ", C: " << c
+      << ", IH*IW: " << ifmap[0] << " * " << ifmap[1]
+      << ", OH*OW: " << ofmap[0] << " * " << ofmap[1]
+      << ", type: " << (is_average_pooling ? "AVG" : "MAX")
+      << "\n";
+
+  std::cout
+      << "   K: " << k[0] << " * " << k[1]
+      << ", S: " << s[0] << " * " << s[1]
+      << ", P: " << p[0] << " * " << p[1]
+      << ", global_pooling: " << is_global_pooling
+      << "\n";
+
+  auto result_type = builder.getTensorType({n, c, ofmap[0], ofmap[1]}, elementType);
+  if (is_average_pooling) {
+    auto op = OpBuilder(block).create<tpu::AveragePool2DOp>(
+        builder.getUnknownLoc(), result_type, input_var,
+        /*filter_height=*/builder.getI32IntegerAttr(k[0]),
+        /*filter_width=*/builder.getI32IntegerAttr(k[1]),
+        /*padding=*/builder.getStringAttr("VALID"),
+        /*stride_h=*/builder.getI32IntegerAttr(s[0]),
+        /*stride_w=*/builder.getI32IntegerAttr(s[1]),
+        /*fused_activation_function=*/builder.getStringAttr("NONE"));
+    auto result_var = op.getResult();
+    return result_var;
+  } else {
+    auto op = OpBuilder(block).create<tpu::MaxPool2DOp>(
+        builder.getUnknownLoc(), result_type, input_var,
+        /*filter_height=*/builder.getI32IntegerAttr(k[0]),
+        /*filter_width=*/builder.getI32IntegerAttr(k[1]),
+        /*padding=*/builder.getStringAttr("VALID"),
+        /*stride_h=*/builder.getI32IntegerAttr(s[0]),
+        /*stride_w=*/builder.getI32IntegerAttr(s[1]),
+        /*fused_activation_function=*/builder.getStringAttr("NONE"));
+    auto result_var = op.getResult();
+    return result_var;
+  }
 }
 
 static mlir::Value *addReshapeOpInBlock(Builder builder, Block *block,
@@ -273,77 +441,77 @@ static OwningModuleRef caffeToMlirTranslate(llvm::StringRef inputFilename,
     if (strcmp(layer->type(), "Input") == 0) {
       assert(layer_param.bottom_size() == 0 && layer_param.top_size() == 1);
       tensor_map[layer_param.top(0)] = func_arg0_var;
+
+    } else if (strcmp(layer->type(), "Split") == 0) {
+      assert(layer_param.bottom_size() == 1 && layer_param.top_size() == 2);
+      mlir::Value *input_var = tensor_map.find(layer_param.bottom(0))->second;
+      assert(input_var);
+      // bypass, by registering top and bottom blob_name to the same mlir tensor
+      tensor_map[layer_param.top(0)] = input_var;
+      tensor_map[layer_param.top(1)] = input_var;
+
     } else if (strcmp(layer->type(), "Convolution") == 0) {
+      assert(layer_param.has_convolution_param());
       assert(layer_param.bottom_size() == 1 && layer_param.top_size() == 1);
       mlir::Value *input_var = tensor_map.find(layer_param.bottom(0))->second;
       assert(input_var);
-      assert(layer_param.has_convolution_param());
       mlir::Value *result_var = addConv2dOpInBlockFromCaffe(builder, block,
           elementType, input_var, layer_param.convolution_param());
       tensor_map[layer_param.top(0)] = result_var;
+
     } else if (strcmp(layer->type(), "BatchNorm") == 0) {
       assert(layer_param.bottom_size() == 1 && layer_param.top_size() == 1);
-      mlir::Value *input = tensor_map.find(layer_param.bottom(0))->second;
-      assert(input);
+      mlir::Value *input_var = tensor_map.find(layer_param.bottom(0))->second;
+      assert(input_var);
+      // TODO: bypass for now
+      tensor_map[layer_param.top(0)] = input_var;
 
-      // bypass for now
-      tensor_map[layer_param.top(0)] = input;
     } else if (strcmp(layer->type(), "Scale") == 0) {
       assert(layer_param.bottom_size() == 1 && layer_param.top_size() == 1);
-      mlir::Value *input = tensor_map.find(layer_param.bottom(0))->second;
-      assert(input);
+      mlir::Value *input_var = tensor_map.find(layer_param.bottom(0))->second;
+      assert(input_var);
+      // TODO: bypass for now
+      tensor_map[layer_param.top(0)] = input_var;
 
-      // bypass for now
-      tensor_map[layer_param.top(0)] = input;
     } else if (strcmp(layer->type(), "ReLU") == 0) {
       assert(layer_param.bottom_size() == 1 && layer_param.top_size() == 1);
-      mlir::Value *input = tensor_map.find(layer_param.bottom(0))->second;
-      assert(input);
+      mlir::Value *input_var = tensor_map.find(layer_param.bottom(0))->second;
+      assert(input_var);
+      // TODO: bypass for now
+      tensor_map[layer_param.top(0)] = input_var;
 
-      // bypass for now
-      tensor_map[layer_param.top(0)] = input;
     } else if (strcmp(layer->type(), "Eltwise") == 0) {
       assert(layer_param.bottom_size() == 2 && layer_param.top_size() == 1);
-      mlir::Value *input_1 = tensor_map.find(layer_param.bottom(0))->second;
-      assert(input_1);
-      mlir::Value *input_2 = tensor_map.find(layer_param.bottom(0))->second;
-      assert(input_2);
+      mlir::Value *input_1_var = tensor_map.find(layer_param.bottom(0))->second;
+      mlir::Value *input_2_var = tensor_map.find(layer_param.bottom(0))->second;
+      assert(input_1_var && input_2_var);
+      // TODO: bypass for now, use input_1_var
+      tensor_map[layer_param.top(0)] = input_1_var;
 
-      // bypass for now
-      tensor_map[layer_param.top(0)] = input_1;
     } else if (strcmp(layer->type(), "Pooling") == 0) {
+      assert(layer_param.has_pooling_param());
       assert(layer_param.bottom_size() == 1 && layer_param.top_size() == 1);
-      mlir::Value *input = tensor_map.find(layer_param.bottom(0))->second;
-      assert(input);
+      mlir::Value *input_var = tensor_map.find(layer_param.bottom(0))->second;
+      assert(input_var);
+      mlir::Value *result_var = addPoolingOpInBlockFromCaffe(builder, block,
+          elementType, input_var, layer_param.pooling_param());
+      tensor_map[layer_param.top(0)] = result_var;
 
-      // bypass for now
-      tensor_map[layer_param.top(0)] = input;
     } else if (strcmp(layer->type(), "InnerProduct") == 0) {
       assert(layer_param.bottom_size() == 1 && layer_param.top_size() == 1);
-      mlir::Value *input = tensor_map.find(layer_param.bottom(0))->second;
-      assert(input);
+      mlir::Value *input_var = tensor_map.find(layer_param.bottom(0))->second;
+      assert(input_var);
+      // TODO: bypass for now
+      tensor_map[layer_param.top(0)] = input_var;
 
-      // bypass for now
-      tensor_map[layer_param.top(0)] = input;
-    } else if (strcmp(layer->type(), "Split") == 0) {
-      assert(layer_param.bottom_size() == 1 && layer_param.top_size() == 2);
-      mlir::Value *input = tensor_map.find(layer_param.bottom(0))->second;
-      assert(input);
-
-      // bypass
-      // by registering blob_name to the same mlir tensor
-      tensor_map[layer_param.top(0)] = input;
-      tensor_map[layer_param.top(1)] = input;
     } else if (strcmp(layer->type(), "Softmax") == 0) {
       std::cout << "    SKIP" << "\n";
       assert(layer_param.bottom_size() == 1 && layer_param.top_size() == 1);
-      std::cout << "btm: " << layer_param.bottom(0) << "\n";
-      std::cout << "top: " << layer_param.top(0) << "\n";
-      mlir::Value *input = tensor_map.find(layer_param.bottom(0))->second;
-      assert(input);
+      mlir::Value *input_var = tensor_map.find(layer_param.bottom(0))->second;
+      assert(input_var);
+      // TODO: bypass
+      tensor_map[layer_param.top(0)] = input_var;
 
-      // bypass for now
-      tensor_map[layer_param.top(0)] = input;
     } else {
       std::cout << "    UNKNOWN" << "\n";
       assert(false);

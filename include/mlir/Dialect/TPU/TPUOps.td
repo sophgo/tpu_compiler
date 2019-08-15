@@ -114,6 +114,9 @@ def TPU_AveragePool2DOp :
 
   let description = [{
     Performs average-pooling operation on input.
+
+    Inputs:
+      `inputs[0]`: required: the input tensor
   }];
 
   let arguments = (
@@ -129,7 +132,8 @@ def TPU_AveragePool2DOp :
   let results = (outs AnyTensor:$output);
 }
 
-def TPU_MaxPool2DOp : TPU_Op<"max_pool_2d", [NoSideEffect]> {
+def TPU_MaxPool2DOp :
+    TPU_Op<"max_pool_2d", [NoSideEffect]> {
   let summary = "Max Pool 2D op";
 
   let description = [{
@@ -141,11 +145,11 @@ def TPU_MaxPool2DOp : TPU_Op<"max_pool_2d", [NoSideEffect]> {
 
   let arguments = (
     ins AnyTensor:$input,
-    TPU_PaddingAttr:$padding,
-    I32Attr:$stride_w,
-    I32Attr:$stride_h,
-    I32Attr:$filter_width,
     I32Attr:$filter_height,
+    I32Attr:$filter_width,
+    TPU_PaddingAttr:$padding,
+    I32Attr:$stride_h,
+    I32Attr:$stride_w,
     TPU_AFAttr:$fused_activation_function
   );
 
