@@ -60,16 +60,18 @@
 // OUTLINING-LABEL: Module walk Conv2DOp:
 // OUTLINING-NEXT: -----------------------
 // OUTLINING-NEXT:  > tpu.conv_2d
-// OUTLINING-NEXT:   >> MAC count : 338688, OP count : 677376
+// OUTLINING-NEXT:  >> MAC: 338688, OPs: 677376
 
 // OUTLINING-LABEL: Funcs walk Conv2DOp:
 // OUTLINING-NEXT: -----------------------
 // OUTLINING-NEXT: test_conv_2d
 // OUTLINING-NEXT:  > tpu.conv_2d
+// OUTLINING-NEXT: func total MAC: 338688, total OPs: 677376
 // OUTLINING-NEXT: main
 // OUTLINING-NEXT:  > tpu.conv_2d
 // OUTLINING-NEXT:  > tpu.conv_2d
 // OUTLINING-NEXT:  > tpu.conv_2d
+// OUTLINING-NEXT: func total MAC: 164160, total OPs: 328320
 
 module {
   func @test_conv_2d(%arg0: tensor<1x3x28x28xf32>) -> tensor<1x16x28x28xf32> {

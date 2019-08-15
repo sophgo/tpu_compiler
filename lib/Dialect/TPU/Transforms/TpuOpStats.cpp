@@ -145,7 +145,8 @@ public:
         os << " > " << op.getOperationName() << "\n";
         //auto mac_count = calcConv2DOpMacCount(op, true);
         auto mac_count = calcConv2DOpMacCount(op);
-        os << "  >> " << "MAC count : " << mac_count << ", OP count : " << mac_count * 2 << "\n";
+        os << "  >> MAC: " << mac_count
+            << ", OPs: " << mac_count * 2 << "\n";
         //op.dump();
         //os << "\n";
       });
@@ -165,8 +166,8 @@ public:
         os << " > " << op.getOperationName() << "\n";
         tatal_mac_count += calcFullyConnectedOpMacCount(op);
       });
-      os << func.getName() << " total MAC: " << tatal_mac_count
-          << ", tatal OPs: " << tatal_mac_count * 2 << "\n";
+      os << "func total MAC: " << tatal_mac_count
+          << ", total OPs: " << tatal_mac_count * 2 << "\n";
     }
     os << "\n";
   }
