@@ -600,7 +600,7 @@ static OwningModuleRef caffeToMlirTranslate(llvm::StringRef inputFilename,
     }
   }
 
-  // find the result by lookup for the networt output blob_name
+  // find the result by looking up tensor_map for the networt output blob_name
   // support only one output for now
   assert(func_ret_type.size() == 1);
   assert(net_output_name_vec.size() == 1);

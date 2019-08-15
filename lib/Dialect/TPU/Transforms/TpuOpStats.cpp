@@ -66,7 +66,37 @@ static int64_t calcConv2DOpMacCount(tpu::Conv2DOp &op, const bool debug = false)
   auto ow = o_s[3];
 
   auto mac_count = ow * oh * kh * kw * ic * oc * n;
-  //os << "  >> " << "MAC count : " << mac_count << ", OP count : " << mac_count * 2 << "\n";
+  os << "  >> " << "MAC count : " << mac_count << ", OP count : " << mac_count * 2 << "\n";
+
+  return mac_count;
+}
+
+static int64_t calcFullyConnectedOpMacCount(tpu::FullyConnectedOp &op, const bool debug = false) {
+  llvm::raw_ostream &os = (debug == true) ? llvm::errs() : llvm::nulls();
+
+  auto input_type = op.input()->getType().cast<TensorType>();
+  std::vector<int64_t> i_s(input_type.getShape());
+  os << "  >> " << "input shape  : " << i_s[0] << "," << i_s[1] << "\n";
+  auto output_type = op.output()->getType().cast<TensorType>();
+  std::vector<int64_t> o_s(output_type.getShape());
+  os << "  >> " << "output shape : " << o_s[0] << "," << o_s[1] << "\n";
+  auto weight_type = op.weight()->getType().cast<TensorType>();
+  std::vector<int64_t> w_s(weight_type.getShape());
+  os << "  >> " << "weight shape : " << w_s[0] << "," << w_s[1] << "\n";
+
+  assert((i_s[0] == o_s[0]) && "input M not equal to output M");
+  auto M = i_s[0];
+  if (M == -1) {
+    os << "  >> " << "No determined N, use batch size 1" << "\n";
+    M = 1;
+  }
+  assert((i_s[1] == w_s[0]) && "input K not equal to weight K");
+  auto K = i_s[1];
+  assert((w_s[1] == o_s[1]) && "weight N not equal to output N");
+  auto N = o_s[1];
+
+  auto mac_count = M * K * N;
+  os << "  >> " << "MAC count : " << mac_count << ", OP count : " << mac_count * 2 << "\n";
 
   return mac_count;
 }
@@ -116,8 +146,8 @@ public:
         //auto mac_count = calcConv2DOpMacCount(op, true);
         auto mac_count = calcConv2DOpMacCount(op);
         os << "  >> " << "MAC count : " << mac_count << ", OP count : " << mac_count * 2 << "\n";
-        op.dump();
-        os << "\n";
+        //op.dump();
+        //os << "\n";
       });
     }
     os << "\n";
@@ -125,12 +155,18 @@ public:
     os << "Funcs walk Conv2DOp:\n";
     os << "-----------------------\n";
     for (auto func : getModule().getOps<FuncOp>()) {
+      int64_t tatal_mac_count = 0;
       os << func.getName() << "\n";
       func.walk<mlir::tpu::Conv2DOp>([&](mlir::tpu::Conv2DOp op) {
         os << " > " << op.getOperationName() << "\n";
-        //op.dump();
-        //os << "\n";
+        tatal_mac_count += calcConv2DOpMacCount(op);
       });
+      func.walk<mlir::tpu::FullyConnectedOp>([&](mlir::tpu::FullyConnectedOp op) {
+        os << " > " << op.getOperationName() << "\n";
+        tatal_mac_count += calcFullyConnectedOpMacCount(op);
+      });
+      os << func.getName() << " total MAC: " << tatal_mac_count
+          << ", tatal OPs: " << tatal_mac_count * 2 << "\n";
     }
     os << "\n";
   }
