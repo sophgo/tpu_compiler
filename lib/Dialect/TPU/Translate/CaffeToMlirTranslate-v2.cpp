@@ -77,6 +77,9 @@ static void printCaffeNetAllLayer(const caffe::Net<float>& net) {
   }
 }
 
+#define calcConv2DSpatialOutput(_i_, _k_, _s_, _p_, _d_) \
+    (((_i_) + 2 * (_p_) - (_d_) * ((_k_) - 1) - 1) / (_s_) + 1)
+
 // because there is no base class for ConvolutionParameter, PoolingParameter
 // use macro to handle Kernel, Stride, Pad, and Dilation
 // unfortunately, PoolingParameter has slightly different structions
@@ -212,9 +215,8 @@ static mlir::Value *addConv2dOpInBlockFromCaffe(Builder builder, Block *block,
 
   // get ofmap shape by inference
   // does not support dilation for now
-  assert(d[0] == 1 && d[1] == 1);
-  ofmap.push_back((ifmap[0] - k[0] + 2 * p[0]) / s[0] + 1);
-  ofmap.push_back((ifmap[1] - k[1] + 2 * p[1]) / s[1] + 1);
+  ofmap.push_back(calcConv2DSpatialOutput(ifmap[0], k[0], s[0], p[0], d[0]));
+  ofmap.push_back(calcConv2DSpatialOutput(ifmap[1], k[1], s[1], p[1], d[1]));
 
   std::cout
       << "   N: " << n
@@ -258,7 +260,7 @@ static mlir::Value *addConv2dOpInBlockFromCaffe(Builder builder, Block *block,
       /*dilation_h_factor=*/builder.getI32IntegerAttr(d[0]),
       /*dilation_w_factor=*/builder.getI32IntegerAttr(d[1]),
       /*fused_activation_function=*/builder.getStringAttr("NONE"),
-      /*padding=*/builder.getStringAttr("SAME"),
+      /*padding=*/(p[0] || p[1]) ? builder.getStringAttr("SAME") : builder.getStringAttr("VALID"),
       /*stride_h=*/builder.getI32IntegerAttr(s[0]),
       /*stride_w=*/builder.getI32IntegerAttr(s[1]));
   auto result_var = op.getResult();
@@ -334,7 +336,7 @@ static mlir::Value *addPoolingOpInBlockFromCaffe(Builder builder, Block *block,
         builder.getUnknownLoc(), result_type, input_var,
         /*filter_height=*/builder.getI32IntegerAttr(k[0]),
         /*filter_width=*/builder.getI32IntegerAttr(k[1]),
-        /*padding=*/builder.getStringAttr("VALID"),
+        /*padding=*/(p[0] || p[1]) ? builder.getStringAttr("SAME") : builder.getStringAttr("VALID"),
         /*stride_h=*/builder.getI32IntegerAttr(s[0]),
         /*stride_w=*/builder.getI32IntegerAttr(s[1]),
         /*fused_activation_function=*/builder.getStringAttr("NONE"));
@@ -345,7 +347,7 @@ static mlir::Value *addPoolingOpInBlockFromCaffe(Builder builder, Block *block,
         builder.getUnknownLoc(), result_type, input_var,
         /*filter_height=*/builder.getI32IntegerAttr(k[0]),
         /*filter_width=*/builder.getI32IntegerAttr(k[1]),
-        /*padding=*/builder.getStringAttr("VALID"),
+        /*padding=*/(p[0] || p[1]) ? builder.getStringAttr("SAME") : builder.getStringAttr("VALID"),
         /*stride_h=*/builder.getI32IntegerAttr(s[0]),
         /*stride_w=*/builder.getI32IntegerAttr(s[1]),
         /*fused_activation_function=*/builder.getStringAttr("NONE"));
