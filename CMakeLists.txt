@@ -6,11 +6,6 @@ set(MLIR_TABLEGEN_EXE mlir-tblgen)
 set(MLIR_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 set(MLIR_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR})
 
-# TODO: Temporary, remove when no longer needed.
-set(CMAKE_CXX_STANDARD 11)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
-
 # To setup RPATH for external libraries, e.g. Caffe
 # set(CMAKE_SKIP_BUILD_RPATH  FALSE)  # no need
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
