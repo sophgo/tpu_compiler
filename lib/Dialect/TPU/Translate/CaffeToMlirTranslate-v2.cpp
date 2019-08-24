@@ -455,7 +455,7 @@ static Block *createOneBlockFunction(Builder builder, ModuleOp module,
 // Translate CaffeModel in the file named as `inputFilename` and returns a
 // module in TPU Dialect.
 static OwningModuleRef caffeToMlirTranslate(llvm::StringRef inputFilename,
-    llvm::StringRef caffemodelFilename, MLIRContext *context) {
+    llvm::StringRef caffemodelFilename, uint weightAlign, MLIRContext *context) {
   // builder and module
   Builder builder(context);
   OwningModuleRef module(ModuleOp::create(
@@ -615,7 +615,7 @@ static OwningModuleRef caffeToMlirTranslate(llvm::StringRef inputFilename,
   OpBuilder(block).create<ReturnOp>(builder.getUnknownLoc(), func_ret_var);
 
   // handle weight
-  llvm::errs() << caffemodelFilename << "\n";
+  llvm::errs() << caffemodelFilename << ", align " << weightAlign << "\n";
 
   return module;
 }
@@ -625,11 +625,16 @@ static llvm::cl::OptionCategory clOptionsCategory("caffe translate options");
 static llvm::cl::opt<std::string> clCaffeModelFilename(
     "caffe-model",
     llvm::cl::desc("Specify the caffemodel filename"),
-    llvm::cl::ZeroOrMore, llvm::cl::cat(clOptionsCategory));
+    llvm::cl::cat(clOptionsCategory));
+
+static llvm::cl::opt<uint> clWeightAlign(
+    "weight-align",
+    llvm::cl::desc("Specify the alignment for each weight"),
+    llvm::cl::init(32), llvm::cl::cat(clOptionsCategory));
 
 static TranslateToMLIRRegistration
     registration("caffe-to-mlir-v2",
                  [](StringRef inputFilename, MLIRContext *context) {
                    return caffeToMlirTranslate(inputFilename, clCaffeModelFilename,
-                       context);
+                       clWeightAlign, context);
                  });
