@@ -28,6 +28,7 @@
 #include "mlir/Translation.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/CommandLine.h"
 
 #include "caffe/caffe.hpp"
 #include "caffe/util/upgrade_proto.hpp"
@@ -454,7 +455,7 @@ static Block *createOneBlockFunction(Builder builder, ModuleOp module,
 // Translate CaffeModel in the file named as `inputFilename` and returns a
 // module in TPU Dialect.
 static OwningModuleRef caffeToMlirTranslate(llvm::StringRef inputFilename,
-                                  MLIRContext *context) {
+    llvm::StringRef caffemodelFilename, MLIRContext *context) {
   // builder and module
   Builder builder(context);
   OwningModuleRef module(ModuleOp::create(
@@ -613,11 +614,22 @@ static OwningModuleRef caffeToMlirTranslate(llvm::StringRef inputFilename,
   llvm::ArrayRef<mlir::Value *> func_ret_var = {func_ret0_var};
   OpBuilder(block).create<ReturnOp>(builder.getUnknownLoc(), func_ret_var);
 
+  // handle weight
+  llvm::errs() << caffemodelFilename << "\n";
+
   return module;
 }
+
+static llvm::cl::OptionCategory clOptionsCategory("caffe translate options");
+
+static llvm::cl::opt<std::string> clCaffeModelFilename(
+    "caffe-model",
+    llvm::cl::desc("Specify the caffemodel filename"),
+    llvm::cl::ZeroOrMore, llvm::cl::cat(clOptionsCategory));
 
 static TranslateToMLIRRegistration
     registration("caffe-to-mlir-v2",
                  [](StringRef inputFilename, MLIRContext *context) {
-                   return caffeToMlirTranslate(inputFilename, context);
+                   return caffeToMlirTranslate(inputFilename, clCaffeModelFilename,
+                       context);
                  });
