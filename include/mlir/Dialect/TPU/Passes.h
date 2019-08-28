@@ -26,8 +26,8 @@ namespace mlir {
 
 class ModulePassBase;
 
-ModulePassBase *createPrintTpuOpStatsPass();
-ModulePassBase *createPrintTpuOpStatsPass_v0();
+std::unique_ptr<ModulePassBase> createPrintTpuOpStatsPass();
+std::unique_ptr<ModulePassBase> createPrintTpuOpStatsPass_v0();
 
 } // namespace mlir
 

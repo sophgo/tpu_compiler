@@ -1,0 +1,20 @@
+add_llvm_executable(mlir-tpu-interpreter
+  mlir-tpu-interpreter.cpp
+)
+llvm_update_compile_flags(mlir-tpu-interpreter)
+whole_archive_link(mlir-tpu-interpreter
+  MLIRTPU
+  MLIRStandardOps
+  MLIRTransforms
+  MLIRTranslation
+)
+target_link_libraries(mlir-tpu-interpreter PRIVATE
+  MLIRAnalysis
+  MLIREDSC
+  MLIRIR
+  MLIRParser
+  MLIRTransforms
+  MLIRSupport
+  LLVMCore
+  LLVMSupport
+)

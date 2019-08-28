@@ -161,8 +161,8 @@ private:
 
 } // namespace
 
-ModulePassBase *mlir::createPrintTpuOpStatsPass_v0() {
-  return new PrintTpuOpStatsPass_v0();
+std::unique_ptr<ModulePassBase> mlir::createPrintTpuOpStatsPass_v0() {
+  return std::make_unique<PrintTpuOpStatsPass_v0>();
 }
 
 /// TPU OP Stats v0 is just print all conv layer shapes

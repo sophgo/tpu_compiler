@@ -178,8 +178,8 @@ private:
 
 } // namespace
 
-ModulePassBase *mlir::createPrintTpuOpStatsPass() {
-  return new PrintTpuOpStatsPass();
+std::unique_ptr<ModulePassBase> mlir::createPrintTpuOpStatsPass() {
+  return std::make_unique<PrintTpuOpStatsPass>();
 }
 
 static PassRegistration<PrintTpuOpStatsPass>

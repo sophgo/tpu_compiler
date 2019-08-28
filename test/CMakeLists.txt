@@ -36,6 +36,7 @@ set(MLIR_TEST_DEPENDS
   mlir-opt
   mlir-sdbm-api-test
   mlir-tblgen
+  mlir-tpu-interpreter
   mlir-translate
   cblas
   cblas_interface
