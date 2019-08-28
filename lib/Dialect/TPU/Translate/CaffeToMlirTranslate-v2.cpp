@@ -193,6 +193,7 @@ do { \
 static mlir::Value *addConv2dOpInBlockFromCaffe(Builder builder, Block *block,
     mlir::Type elementType, mlir::Value *input_var,
     caffe::Layer<float> *layer,
+    mlir::Value *weight_var,
     llvm::raw_fd_ostream *weight_os = NULL) {
   auto layer_param = layer->layer_param();
   auto conv_param = layer_param.convolution_param();
@@ -281,9 +282,12 @@ static mlir::Value *addConv2dOpInBlockFromCaffe(Builder builder, Block *block,
 
   // construct OP
   auto filter_type = builder.getTensorType({oc, ic, k[0], k[1]}, elementType);
-  auto filter_attr = builder.getZeroAttr(filter_type);
-  auto filter = OpBuilder(block).create<ConstantOp>(builder.getUnknownLoc(),
-      filter_type, filter_attr);
+  //auto filter_attr = builder.getZeroAttr(filter_type);
+  //auto filter = OpBuilder(block).create<ConstantOp>(builder.getUnknownLoc(),
+  //    filter_type, filter_attr);
+  auto filter = OpBuilder(block).create<tpu::LoadWeightOp>(
+      builder.getUnknownLoc(), filter_type, weight_var,
+      /*offset=*/builder.getI64IntegerAttr(pos_filter));
   #if 0 // TODO: don't know how to handle optional operand
   mlir::Value *bias = nullptr;
   if (with_bias) {
@@ -294,9 +298,12 @@ static mlir::Value *addConv2dOpInBlockFromCaffe(Builder builder, Block *block,
   }
   #else // # if 0
   auto bias_type = builder.getTensorType({oc}, elementType);
-  auto bias_attr = builder.getZeroAttr(bias_type);
-  auto bias = OpBuilder(block).create<ConstantOp>(builder.getUnknownLoc(),
-      bias_type, bias_attr);
+  //auto bias_attr = builder.getZeroAttr(bias_type);
+  //auto bias = OpBuilder(block).create<ConstantOp>(builder.getUnknownLoc(),
+  //    bias_type, bias_attr);
+  auto bias = OpBuilder(block).create<tpu::LoadWeightOp>(
+      builder.getUnknownLoc(), bias_type, weight_var,
+      /*offset=*/builder.getI64IntegerAttr(pos_bias));
   #endif // # if 0
   auto result_type = builder.getTensorType({n, oc, ofmap[0], ofmap[1]}, elementType);
   auto op = OpBuilder(block).create<tpu::Conv2DOp>(
@@ -514,13 +521,13 @@ static OwningModuleRef caffeToMlirTranslate(llvm::StringRef inputFilename,
   net.CopyTrainedLayersFrom(caffemodelFilename);
 
   auto weightFilename = llvm::sys::path::stem(caffemodelFilename).str() + ".weight";
-  std::vector<int> v(100) ; // vector with 100 ints.
-  std::iota (std::begin(v), std::end(v), 0);
+  //std::vector<int> v(100) ; // vector with 100 ints.
+  //std::iota (std::begin(v), std::end(v), 0);
 
   std::error_code ec;
   llvm::raw_fd_ostream weight_os(weightFilename, ec);
-  weight_os.write(reinterpret_cast<const char*>(v.data()), v.size() * sizeof(int));
-  llvm::errs() << "file pos " << weight_os.tell() << "\n";
+  //weight_os.write(reinterpret_cast<const char*>(v.data()), v.size() * sizeof(int));
+  //llvm::errs() << "file pos " << weight_os.tell() << "\n";
 
   //std::ofstream os;
   //os.open(weightFilename.c_str(), std::ios::out | std::ios::binary);
@@ -535,9 +542,6 @@ static OwningModuleRef caffeToMlirTranslate(llvm::StringRef inputFilename,
 
   // dump all layers
   LLVM_DEBUG(printCaffeNetAllLayer(net););
-
-  // create a map for mapping blob_name and a mlir tensor value
-  std::map<std::string, mlir::Value *> tensor_map;
 
   // find caffe model inputs and outputs
   std::vector<mlir::Type> net_input_type_vec;
@@ -577,6 +581,14 @@ static OwningModuleRef caffeToMlirTranslate(llvm::StringRef inputFilename,
   assert(func_arg_type.size() == 1);
   mlir::Value *func_arg0_var = block->getArgument(0);
 
+  auto weight_type = builder.getMemRefType({0x100000000}, elementType);
+  auto weight_attr = builder.getStringAttr(weightFilename);
+  auto weight_var = OpBuilder(block).create<tpu::LoadFileOp>(builder.getUnknownLoc(),
+      weight_type, weight_attr);
+
+  // create a map for mapping blob_name and a mlir tensor value
+  std::map<std::string, mlir::Value *> tensor_map;
+
   // convert layers
   for (size_t i = 0; i <= net.layers().size() - 1; ++i) {
     auto layer = net.layers()[i].get();
@@ -604,7 +616,7 @@ static OwningModuleRef caffeToMlirTranslate(llvm::StringRef inputFilename,
       mlir::Value *input_var = tensor_map.find(layer_param.bottom(0))->second;
       assert(input_var);
       mlir::Value *result_var = addConv2dOpInBlockFromCaffe(builder, block,
-          elementType, input_var, layer, &weight_os);
+          elementType, input_var, layer, weight_var, &weight_os);
       tensor_map[layer_param.top(0)] = result_var;
 
     } else if (strcmp(layer->type(), "BatchNorm") == 0) {

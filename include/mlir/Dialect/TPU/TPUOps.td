@@ -106,6 +106,42 @@ class TPU_ConvOp<string mnemonic, string opSummary> :
 }
 
 //===----------------------------------------------------------------------===//
+// TPU Load/Store op definitions.
+//===----------------------------------------------------------------------===//
+def TPU_LoadFileOp : TPU_Op<"load_file", [NoSideEffect]> {
+  let summary = "load_file operator";
+
+  let description = [{
+    Load weight from a file into a memref.
+  }];
+
+  let arguments = (
+    ins StrAttr:$filename
+  );
+
+  let results = (outs AnyMemRef:$memref);
+}
+
+def TPU_LoadWeightOp : TPU_Op<"load_weight", [NoSideEffect]> {
+  let summary = "load_weight operator";
+
+  let description = [{
+    Load weight for a memref into a tensor.
+
+    Inputs:
+      `memref`: required: the weight memref
+      `offset`: required: the offset inside the memref
+  }];
+
+  let arguments = (
+    ins AnyMemRef:$memref,
+    NonNegativeI64Attr:$offset
+  );
+
+  let results = (outs AnyTensor:$tensor);
+}
+
+//===----------------------------------------------------------------------===//
 // TPU op definitions.
 //===----------------------------------------------------------------------===//
 def TPU_Conv2DOp : TPU_ConvOp<"conv_2d", "Convolution">;
