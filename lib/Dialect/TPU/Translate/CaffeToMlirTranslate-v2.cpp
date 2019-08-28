@@ -29,12 +29,17 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/Path.h"
+#include "llvm/Support/ToolOutputFile.h"
+#include "mlir/Support/LogicalResult.h"
 
 #include "caffe/caffe.hpp"
 #include "caffe/util/upgrade_proto.hpp"
 #include "caffe/util/signal_handler.h"
 
+#include <iostream>
 #include <cstring>
+#include <numeric>
 #include <map>
 #include <string>
 #include <vector>
@@ -183,13 +188,15 @@ do { \
 } while(0)
 
 //===----------------------------------------------------------------------===//
-// Create Operations from Caffe Proto
+// Create Operations from Caffe Proto, and extract weight
 //===----------------------------------------------------------------------===//
 static mlir::Value *addConv2dOpInBlockFromCaffe(Builder builder, Block *block,
     mlir::Type elementType, mlir::Value *input_var,
-    const caffe::ConvolutionParameter& conv_param) {
-  //auto conv_param = layer_param.convolution_param();
-  bool with_bias;
+    caffe::Layer<float> *layer,
+    llvm::raw_fd_ostream *weight_os = NULL) {
+  auto layer_param = layer->layer_param();
+  auto conv_param = layer_param.convolution_param();
+  bool with_bias = conv_param.bias_term();
   int64_t n, ic, oc, group;
   std::vector<int64_t> k, s, p, d;
   std::vector<int64_t> ifmap, ofmap;  // spatial dims only (height and width)
@@ -198,7 +205,6 @@ static mlir::Value *addConv2dOpInBlockFromCaffe(Builder builder, Block *block,
   getStrideFromCaffeParam(s, conv_param);
   getPadFromCaffeParam(p, conv_param);
   getDilationFromCaffeParam(d, conv_param);
-  with_bias = conv_param.bias_term();
   oc = conv_param.num_output();
   group = conv_param.group();
   // TODO: don't support group for now
@@ -219,16 +225,16 @@ static mlir::Value *addConv2dOpInBlockFromCaffe(Builder builder, Block *block,
   ofmap.push_back(calcConv2DSpatialOutput(ifmap[0], k[0], s[0], p[0], d[0]));
   ofmap.push_back(calcConv2DSpatialOutput(ifmap[1], k[1], s[1], p[1], d[1]));
 
-  std::cout
-      << "   N: " << n
+  llvm::errs()
+      << "  N: " << n
       << ", IC: " << ic
       << ", IH*IW: " << ifmap[0] << " * " << ifmap[1]
       << ", OC: " << oc
       << ", OH*OW: " << ofmap[0] << " * " << ofmap[1]
       << "\n";
 
-  std::cout
-      << "   with_bias: " << with_bias
+  llvm::errs()
+      << "  with_bias: " << with_bias
       << ", K: " << k[0] << " * " << k[1]
       << ", S: " << s[0] << " * " << s[1]
       << ", P: " << p[0] << " * " << p[1]
@@ -236,12 +242,49 @@ static mlir::Value *addConv2dOpInBlockFromCaffe(Builder builder, Block *block,
       << ", group: " << group
       << "\n";
 
+  size_t pos_filter, pos_bias;
+  if (weight_os) {
+    // - blobs_[0] holds the filter weights
+    // - blobs_[1] holds the biases (optional)
+    assert(layer->blobs().size() == 1 || layer->blobs().size() == 2);
+
+    // filter weights
+    const caffe::Blob<float> *blob_filter = layer->blobs()[0].get();
+    llvm::errs() << "  filter shape " << blob_filter->shape_string() << "\n";
+    std::vector<int> filter_shape = blob_filter->shape();
+    assert(filter_shape.size() == 4);
+    assert(filter_shape[0] == oc);
+    assert(filter_shape[1] == ic);
+    assert(filter_shape[2] == k[0]);
+    assert(filter_shape[3] == k[1]);
+    pos_filter = weight_os->tell();
+    weight_os->write(reinterpret_cast<const char*>(blob_filter->cpu_data()), blob_filter->count() * sizeof(float));
+    llvm::errs() << "  filter: " << llvm::format_hex(pos_filter, 10)
+                 << " --> " << llvm::format_hex(weight_os->tell(), 10) << "\n";
+
+    // bias
+    if (with_bias) {
+      assert(layer->blobs().size() == 2);
+      const caffe::Blob<float> *blob_bias = layer->blobs()[1].get();
+      llvm::errs() << "  bias shape " << blob_bias->shape_string() << "\n";
+      std::vector<int> bias_shape = blob_bias->shape();
+      assert(bias_shape.size() == 1);
+      assert(bias_shape[0] == oc);
+      pos_bias = weight_os->tell();
+      weight_os->write(reinterpret_cast<const char*>(blob_bias->cpu_data()), blob_bias->count() * sizeof(float));
+      llvm::errs() << "  bias: " << llvm::format_hex(pos_bias, 10)
+                   << " --> " << llvm::format_hex(weight_os->tell(), 10) << "\n";
+    } else {
+      assert(layer->blobs().size() == 1);
+    }
+  }
+
   // construct OP
   auto filter_type = builder.getTensorType({oc, ic, k[0], k[1]}, elementType);
   auto filter_attr = builder.getZeroAttr(filter_type);
   auto filter = OpBuilder(block).create<ConstantOp>(builder.getUnknownLoc(),
       filter_type, filter_attr);
-  #if 0 // TODO: don't how to handle optional operand
+  #if 0 // TODO: don't know how to handle optional operand
   mlir::Value *bias = nullptr;
   if (with_bias) {
     auto bias_type = builder.getTensorType({oc}, elementType);
@@ -315,16 +358,16 @@ static mlir::Value *addPoolingOpInBlockFromCaffe(Builder builder, Block *block,
     assert(ofmap[0] == 1 && ofmap[1] == 1);
   }
 
-  std::cout
-      << "   N: " << n
+  llvm::errs()
+      << "  N: " << n
       << ", C: " << c
       << ", IH*IW: " << ifmap[0] << " * " << ifmap[1]
       << ", OH*OW: " << ofmap[0] << " * " << ofmap[1]
       << ", type: " << (is_average_pooling ? "AVG" : "MAX")
       << "\n";
 
-  std::cout
-      << "   K: " << k[0] << " * " << k[1]
+  llvm::errs()
+      << "  K: " << k[0] << " * " << k[1]
       << ", S: " << s[0] << " * " << s[1]
       << ", P: " << p[0] << " * " << p[1]
       << ", global_pooling: " << is_global_pooling
@@ -390,8 +433,8 @@ static mlir::Value *addFullyConnectedOpInBlockFromCaffe(Builder builder, Block *
     }
   }
 
-  std::cout
-      << "   M: " << M
+  llvm::errs()
+      << "  M: " << M
       << ", K: " << K
       << ", N: " << N
       << ", with_bias: " << with_bias
@@ -463,10 +506,32 @@ static OwningModuleRef caffeToMlirTranslate(llvm::StringRef inputFilename,
   mlir::Type elementType = mlir::FloatType::getF32(builder.getContext());
 
   // init caffe net
-  caffe::NetParameter param;
-  caffe::ReadNetParamsFromTextFileOrDie(inputFilename, &param);
-  param.mutable_state()->set_phase(caffe::TEST);
-  caffe::Net<float> net(param);
+  //caffe::NetParameter param;
+  //caffe::ReadNetParamsFromTextFileOrDie(inputFilename, &param);
+  //param.mutable_state()->set_phase(caffe::TEST);
+  //caffe::Net<float> net(param);
+  caffe::Net<float> net(inputFilename, caffe::TEST);
+  net.CopyTrainedLayersFrom(caffemodelFilename);
+
+  auto weightFilename = llvm::sys::path::stem(caffemodelFilename).str() + ".weight";
+  std::vector<int> v(100) ; // vector with 100 ints.
+  std::iota (std::begin(v), std::end(v), 0);
+
+  std::error_code ec;
+  llvm::raw_fd_ostream weight_os(weightFilename, ec);
+  weight_os.write(reinterpret_cast<const char*>(v.data()), v.size() * sizeof(int));
+  llvm::errs() << "file pos " << weight_os.tell() << "\n";
+
+  //std::ofstream os;
+  //os.open(weightFilename.c_str(), std::ios::out | std::ios::binary);
+  //os.write(reinterpret_cast<const char*>(v.data()), v.size() * sizeof(int));
+  //os.close();
+
+  //auto weight_file = openOutputFile(weightFilename);
+  //assert(weight_file);
+  //weight_file->os().write(reinterpret_cast<char *>(v.data()), v.size() * sizeof(int));
+  //llvm::errs() << "file pos " << weight_file->os().tell() << "\n";
+  //weight_file->keep();
 
   // dump all layers
   LLVM_DEBUG(printCaffeNetAllLayer(net););
@@ -479,7 +544,7 @@ static OwningModuleRef caffeToMlirTranslate(llvm::StringRef inputFilename,
   std::vector<std::string> net_input_name_vec;
   for (int i = 0; i <= net.num_inputs() - 1; ++i) {
     int index = net.input_blob_indices()[i];
-    std::cout << "net input [" << i << "] - [" << index << "] : "
+    llvm::errs() << "net input [" << i << "] - [" << index << "] : "
         << ", blob: " << net.blob_names()[index]
         << ", shape: " << net.input_blobs()[i]->shape_string()
         << ", layer: " << net.layer_names()[index]
@@ -492,7 +557,7 @@ static OwningModuleRef caffeToMlirTranslate(llvm::StringRef inputFilename,
   std::vector<std::string> net_output_name_vec;
   for (int i = 0; i <= net.num_outputs() - 1; ++i) {
     int index = net.output_blob_indices()[i];
-    std::cout << "net output[" << i << "] - [" << index << "] : "
+    llvm::errs() << "net output[" << i << "] - [" << index << "] : "
         << "blob: " << net.blob_names()[index]
         << ", shape: " << net.output_blobs()[i]->shape_string()
         << ", layer: " << net.layer_names()[index]
@@ -539,7 +604,7 @@ static OwningModuleRef caffeToMlirTranslate(llvm::StringRef inputFilename,
       mlir::Value *input_var = tensor_map.find(layer_param.bottom(0))->second;
       assert(input_var);
       mlir::Value *result_var = addConv2dOpInBlockFromCaffe(builder, block,
-          elementType, input_var, layer_param.convolution_param());
+          elementType, input_var, layer, &weight_os);
       tensor_map[layer_param.top(0)] = result_var;
 
     } else if (strcmp(layer->type(), "BatchNorm") == 0) {
@@ -590,7 +655,7 @@ static OwningModuleRef caffeToMlirTranslate(llvm::StringRef inputFilename,
       tensor_map[layer_param.top(0)] = result_var;
 
     } else if (strcmp(layer->type(), "Softmax") == 0) {
-      std::cout << "    SKIP" << "\n";
+      llvm::errs() << "    SKIP" << "\n";
       assert(layer_param.bottom_size() == 1 && layer_param.top_size() == 1);
       mlir::Value *input_var = tensor_map.find(layer_param.bottom(0))->second;
       assert(input_var);
@@ -598,7 +663,7 @@ static OwningModuleRef caffeToMlirTranslate(llvm::StringRef inputFilename,
       tensor_map[layer_param.top(0)] = input_var;
 
     } else {
-      std::cout << "    UNKNOWN" << "\n";
+      llvm::errs() << "    UNKNOWN" << "\n";
       assert(false);
     }
   }
@@ -616,7 +681,7 @@ static OwningModuleRef caffeToMlirTranslate(llvm::StringRef inputFilename,
 
   // handle weight
   llvm::errs() << caffemodelFilename << ", align " << weightAlign << "\n";
-
+  llvm::errs() << weightFilename << "\n";
   return module;
 }
 
