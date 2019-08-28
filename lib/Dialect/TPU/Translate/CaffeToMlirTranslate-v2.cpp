@@ -581,10 +581,10 @@ static OwningModuleRef caffeToMlirTranslate(llvm::StringRef inputFilename,
   assert(func_arg_type.size() == 1);
   mlir::Value *func_arg0_var = block->getArgument(0);
 
-  auto weight_type = builder.getMemRefType({0x100000000}, elementType);
+  auto weight_type = builder.getMemRefType({0x80000000}, elementType);
   auto weight_attr = builder.getStringAttr(weightFilename);
-  auto weight_var = OpBuilder(block).create<tpu::LoadFileOp>(builder.getUnknownLoc(),
-      weight_type, weight_attr);
+  auto weight_var = OpBuilder(block).create<tpu::LoadFileOp>(
+      builder.getUnknownLoc(), weight_type, weight_attr);
 
   // create a map for mapping blob_name and a mlir tensor value
   std::map<std::string, mlir::Value *> tensor_map;
