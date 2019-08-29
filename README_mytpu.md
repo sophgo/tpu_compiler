@@ -12,6 +12,8 @@ $ diff resnet-50-v2.mlir ../llvm/projects/mlir/resnet-50_20190816_29a4a80f-v2.ml
 $ ./bin/mlir-opt -print-tpu-op-stats -verify-each=true resnet-50-v2.mlir
 $ ./bin/mlir-opt -print-tpu-op-stats-v0 -verify-each=true resnet-50-v2.mlir
 
+$ ./bin/mlir-tpu-interpreter resnet-50-v2.mlir
+
 # User work flow
 1. translate from caffe mode to tg dialect
 ```

@@ -23,6 +23,7 @@
 
 #include "mlir/Dialect/TPU/TPUDialect.h"
 #include "mlir/Dialect/TPU/Passes.h"
+#include "mlir/Dialect/TPU/Interpreter.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Function.h"
 #include "mlir/IR/Module.h"
@@ -85,7 +86,7 @@ int TpuInterpreterMain(
   return exitCode;
 }
 
-}
+} // namespace mlir
 
 static LogicalResult runMLIRPasses(ModuleOp m) {
   // As we gradually lower, the IR is inconsistent between passes. So do not
@@ -98,6 +99,9 @@ static LogicalResult runMLIRPasses(ModuleOp m) {
     return failure();
 
   if (failed(m.verify()))
+    return failure();
+
+  if (failed(runTpuModule(m)))
     return failure();
 
   return success();
