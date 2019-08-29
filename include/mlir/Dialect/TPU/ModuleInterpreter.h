@@ -46,11 +46,18 @@ protected:
   explicit ModuleInterpreter(ModuleOp module) : mlirModule(module) {}
   virtual ~ModuleInterpreter() {}
 
+  virtual LogicalResult runOperation(Operation &op);
+
 private:
   LogicalResult runFunctions();
+  LogicalResult runOneFunction(FuncOp func);
+  LogicalResult runBlock(Block &bb);
 
   // Original and translated module.
   ModuleOp mlirModule;
+
+protected:
+  llvm::DenseMap<Value *, std::vector<float> *> valueMapping;
 };
 
 } // namespace mlir

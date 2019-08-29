@@ -27,22 +27,111 @@
 #include "mlir/IR/Module.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/Block.h"
-#include "mlir/IR/Module.h"
+#include "mlir/IR/Operation.h"
 #include "mlir/IR/Value.h"
 #include "mlir/Parser.h"
 #include "mlir/Support/FileUtilities.h"
 
+#include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Support/Casting.h"
 #include "llvm/Support/MemoryBuffer.h"
 
 namespace mlir {
+
+LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
+  // #include "mlir/Dialect/LLVMIR/LLVMConversions.inc"
+  if (auto loadFileOp = dyn_cast<tpu::LoadFileOp>(opInst)) {
+    llvm::errs() << "LoadFileOp" << "\n";
+    return success();
+  }
+  if (auto loadWeightOp = dyn_cast<tpu::LoadWeightOp>(opInst)) {
+    llvm::errs() << "LoadWeightOp" << "\n";
+    return success();
+  }
+  if (auto conv2DOp = dyn_cast<tpu::Conv2DOp>(opInst)) {
+    llvm::errs() << "Conv2DOp" << "\n";
+    return success();
+  }
+  if (auto averagePool2DOp = dyn_cast<tpu::AveragePool2DOp>(opInst)) {
+    llvm::errs() << "AveragePool2DOp" << "\n";
+    return success();
+  }
+  if (auto maxPool2DOp = dyn_cast<tpu::MaxPool2DOp>(opInst)) {
+    llvm::errs() << "MaxPool2DOp" << "\n";
+    return success();
+  }
+  if (auto fullyConnectedOp = dyn_cast<tpu::FullyConnectedOp>(opInst)) {
+    llvm::errs() << "FullyConnectedOp" << "\n";
+    return success();
+  }
+  if (auto reluOp = dyn_cast<tpu::ReluOp>(opInst)) {
+    llvm::errs() << "ReluOp" << "\n";
+    return success();
+  }
+  if (auto batchNormOp = dyn_cast<tpu::BatchNormOp>(opInst)) {
+    llvm::errs() << "BatchNormOp" << "\n";
+    return success();
+  }
+  if (auto scaleOp = dyn_cast<tpu::ScaleOp>(opInst)) {
+    llvm::errs() << "ScaleOp" << "\n";
+    return success();
+  }
+  if (auto reshapeOp = dyn_cast<tpu::ReshapeOp>(opInst)) {
+    llvm::errs() << "ReshapeOp" << "\n";
+    return success();
+  }
+
+  return opInst.emitError("unsupported operation: ")
+         << opInst.getName();
+}
+
+LogicalResult ModuleInterpreter::runBlock(Block &bb) {
+  // Traverse operations.
+  for (auto &op : bb) {
+    if (failed(runOperation(op)))
+      return failure();
+  }
+
+  return success();
+}
+
+LogicalResult ModuleInterpreter::runOneFunction(FuncOp func) {
+  llvm::errs() << "func " << func.getName() << "\n";
+  // Clear the value mappings, it is only relevant within one function.
+  valueMapping.clear();
+  // Add function arguments to the value remapping table.
+  unsigned int argIdx = 0;
+  for (auto arg : func.getArguments()) {
+    llvm::errs() << "arg " << argIdx << ": ";
+    arg->getType().dump();
+    llvm::errs() << "\n";
+
+    //BlockArgument *mlirArg = arg;
+
+    //valueMapping[mlirArg] = &input_tensor;
+    argIdx++;
+  }
+
+  // Then, convert blocks one by one.
+  for (Block &bb : func.getBlocks()) {
+    if (failed(runBlock(bb)))
+      return failure();
+  }
+
+  return success();
+}
 
 LogicalResult ModuleInterpreter::runFunctions() {
   for (FuncOp function : mlirModule.getOps<FuncOp>()) {
     llvm::errs() << "run " << function.getName() << "\n";
 
-    //if (failed(convertOneFunction(function)))
-    //  return failure();
+    if (!function.getName().equals("tpu_func")) {
+      //continue;
+      assert(0);
+    }
+    if (failed(runOneFunction(function)))
+      return failure();
   }
 
   return success();

@@ -3,12 +3,12 @@ add_llvm_executable(mlir-tpu-interpreter
 )
 llvm_update_compile_flags(mlir-tpu-interpreter)
 whole_archive_link(mlir-tpu-interpreter
-  MLIRTPU
   MLIRStandardOps
   MLIRTransforms
   MLIRTranslation
 )
 target_link_libraries(mlir-tpu-interpreter PRIVATE
+  MLIRTPU
   MLIRAnalysis
   MLIREDSC
   MLIRIR
