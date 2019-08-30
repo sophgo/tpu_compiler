@@ -53,6 +53,26 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
   if (auto conv2DOp = dyn_cast<tpu::Conv2DOp>(opInst)) {
     llvm::errs() << "Conv2DOp" << "\n";
     //conv2DOp.dump();
+    unsigned int operandIdx = 0;
+    for (auto *operand : conv2DOp.getOperands()) {
+      llvm::errs() << "  operand[" << operandIdx << "] ";
+      operand->getType().dump();
+      llvm::errs() << "\n";
+
+      // find operand in valueMapping
+      auto data_vec = valueMapping.lookup(operand);
+      if (data_vec) {
+        llvm::errs() << "    found in map\n";
+      } else {
+        llvm::errs() << "    didn't find\n";
+      }
+      operandIdx++;
+    }
+    auto result = conv2DOp.getResult();
+    llvm::errs() << "  result ";
+    result->getType().dump();
+    llvm::errs() << "\n";
+
     return success();
   }
   if (auto averagePool2DOp = dyn_cast<tpu::AveragePool2DOp>(opInst)) {
@@ -86,6 +106,10 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
   if (auto returnOp = dyn_cast<ReturnOp>(opInst)) {
     llvm::errs() << "ReturnOp" << "\n";
+    // Add function results to the value remapping table.
+    //copy the value into outputs
+    assert(outputs.size() == 1);
+    //valueMapping[res] = outputs[0];
     return success();
   }
 
@@ -107,18 +131,19 @@ LogicalResult ModuleInterpreter::runOneFunction(FuncOp func) {
   llvm::errs() << "func " << func.getName() << "\n";
   // Clear the value mappings, it is only relevant within one function.
   valueMapping.clear();
+
   // Add function arguments to the value remapping table.
   unsigned int argIdx = 0;
+  assert(inputs.size() == 1);
   for (auto arg : func.getArguments()) {
     llvm::errs() << "arg " << argIdx << ": ";
     arg->getType().dump();
     llvm::errs() << "\n";
 
-    //BlockArgument *mlirArg = arg;
-
-    //valueMapping[mlirArg] = &input_tensor;
+    valueMapping[arg] = inputs[0];
     argIdx++;
   }
+  assert(argIdx == 1);
 
   // Then, convert blocks one by one.
   for (Block &bb : func.getBlocks()) {
@@ -144,8 +169,10 @@ LogicalResult ModuleInterpreter::runFunctions() {
   return success();
 }
 
-LogicalResult runTpuModule(ModuleOp m) {
-  return ModuleInterpreter::runModule<>(m);
+LogicalResult runTpuModule(ModuleOp m,
+    std::vector<std::vector<float> *> &inputs,
+    std::vector<std::vector<float> *> &outputs) {
+  return ModuleInterpreter::runModule<>(m, inputs, outputs);
 }
 
 } // namespace mlir

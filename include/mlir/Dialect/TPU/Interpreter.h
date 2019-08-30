@@ -29,7 +29,9 @@ namespace mlir {
 
 class ModuleOp;
 
-LogicalResult runTpuModule(ModuleOp m);
+LogicalResult runTpuModule(ModuleOp m,
+    std::vector<std::vector<float> *> &inputs,
+    std::vector<std::vector<float> *> &outputs);
 
 } // namespace mlir
 

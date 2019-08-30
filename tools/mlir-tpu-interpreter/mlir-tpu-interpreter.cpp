@@ -82,6 +82,15 @@ int TpuInterpreterMain(
     if (failed(mlirTransformer(m.get())))
       return EXIT_FAILURE;
 
+  std::vector<float> input(1*3*224*224);
+  std::vector<float> output(1*1000);
+  std::fill (std::begin(input), std::end(input), 1.0f);
+  std::vector<std::vector<float> *> inputs({&input});
+  std::vector<std::vector<float> *> outputs({&output});
+
+  if (failed(runTpuModule(m.get(), inputs, outputs)))
+    return EXIT_FAILURE;
+
   int exitCode = EXIT_SUCCESS;
   return exitCode;
 }
@@ -99,9 +108,6 @@ static LogicalResult runMLIRPasses(ModuleOp m) {
     return failure();
 
   if (failed(m.verify()))
-    return failure();
-
-  if (failed(runTpuModule(m)))
     return failure();
 
   return success();

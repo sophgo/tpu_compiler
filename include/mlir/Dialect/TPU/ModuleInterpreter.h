@@ -32,9 +32,11 @@ class ModuleOp;
 class ModuleInterpreter {
 public:
   template <typename T = ModuleInterpreter>
-  static LogicalResult runModule(ModuleOp m) {
+  static LogicalResult runModule(ModuleOp m,
+      std::vector<std::vector<float> *> &inputs,
+      std::vector<std::vector<float> *> &outputs) {
 
-    T interpreter(m);
+    T interpreter(m, inputs, outputs);
     if (failed(interpreter.runFunctions()))
       return failure();
 
@@ -43,7 +45,10 @@ public:
 
 protected:
   // Interpret the given MLIR module expressed in MLIR TPU IR dialect
-  explicit ModuleInterpreter(ModuleOp module) : mlirModule(module) {}
+  explicit ModuleInterpreter(ModuleOp module,
+      std::vector<std::vector<float> *> &inputs,
+      std::vector<std::vector<float> *> &outputs)
+      : mlirModule(module), inputs(inputs), outputs(outputs) {}
   virtual ~ModuleInterpreter() {}
 
   virtual LogicalResult runOperation(Operation &op);
@@ -55,6 +60,8 @@ private:
 
   // Original and translated module.
   ModuleOp mlirModule;
+  std::vector<std::vector<float> *> &inputs;
+  std::vector<std::vector<float> *> &outputs;
 
 protected:
   llvm::DenseMap<Value *, std::vector<float> *> valueMapping;
