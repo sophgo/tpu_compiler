@@ -29,6 +29,7 @@
 #include "mlir/IR/Block.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/Value.h"
+#include "mlir/Dialect/StandardOps/Ops.h"
 #include "mlir/Parser.h"
 #include "mlir/Support/FileUtilities.h"
 
@@ -51,6 +52,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
   }
   if (auto conv2DOp = dyn_cast<tpu::Conv2DOp>(opInst)) {
     llvm::errs() << "Conv2DOp" << "\n";
+    //conv2DOp.dump();
     return success();
   }
   if (auto averagePool2DOp = dyn_cast<tpu::AveragePool2DOp>(opInst)) {
@@ -79,6 +81,11 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
   }
   if (auto reshapeOp = dyn_cast<tpu::ReshapeOp>(opInst)) {
     llvm::errs() << "ReshapeOp" << "\n";
+    return success();
+  }
+
+  if (auto returnOp = dyn_cast<ReturnOp>(opInst)) {
+    llvm::errs() << "ReturnOp" << "\n";
     return success();
   }
 

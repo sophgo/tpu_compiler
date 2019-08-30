@@ -259,7 +259,8 @@ static mlir::Value *addConv2dOpInBlockFromCaffe(Builder builder, Block *block,
     assert(filter_shape[2] == k[0]);
     assert(filter_shape[3] == k[1]);
     pos_filter = weight_os->tell();
-    weight_os->write(reinterpret_cast<const char*>(blob_filter->cpu_data()), blob_filter->count() * sizeof(float));
+    weight_os->write(reinterpret_cast<const char*>(blob_filter->cpu_data()),
+        blob_filter->count() * sizeof(float));
     llvm::errs() << "  filter: " << llvm::format_hex(pos_filter, 10)
                  << " --> " << llvm::format_hex(weight_os->tell(), 10) << "\n";
 
@@ -272,9 +273,11 @@ static mlir::Value *addConv2dOpInBlockFromCaffe(Builder builder, Block *block,
       assert(bias_shape.size() == 1);
       assert(bias_shape[0] == oc);
       pos_bias = weight_os->tell();
-      weight_os->write(reinterpret_cast<const char*>(blob_bias->cpu_data()), blob_bias->count() * sizeof(float));
+      weight_os->write(reinterpret_cast<const char*>(blob_bias->cpu_data()),
+          blob_bias->count() * sizeof(float));
       llvm::errs() << "  bias: " << llvm::format_hex(pos_bias, 10)
-                   << " --> " << llvm::format_hex(weight_os->tell(), 10) << "\n";
+                   << " --> " << llvm::format_hex(weight_os->tell(), 10)
+                   << "\n";
     } else {
       assert(layer->blobs().size() == 1);
     }
@@ -311,7 +314,8 @@ static mlir::Value *addConv2dOpInBlockFromCaffe(Builder builder, Block *block,
       /*dilation_h_factor=*/builder.getI32IntegerAttr(d[0]),
       /*dilation_w_factor=*/builder.getI32IntegerAttr(d[1]),
       /*fused_activation_function=*/builder.getStringAttr("NONE"),
-      /*padding=*/(p[0] || p[1]) ? builder.getStringAttr("SAME") : builder.getStringAttr("VALID"),
+      /*padding=*/(p[0] || p[1]) ? builder.getStringAttr("SAME")
+                                 : builder.getStringAttr("VALID"),
       /*stride_h=*/builder.getI32IntegerAttr(s[0]),
       /*stride_w=*/builder.getI32IntegerAttr(s[1]));
   auto result_var = op.getResult();
@@ -387,7 +391,8 @@ static mlir::Value *addPoolingOpInBlockFromCaffe(Builder builder, Block *block,
         builder.getUnknownLoc(), result_type, input_var,
         /*filter_height=*/builder.getI32IntegerAttr(k[0]),
         /*filter_width=*/builder.getI32IntegerAttr(k[1]),
-        /*padding=*/(p[0] || p[1]) ? builder.getStringAttr("SAME") : builder.getStringAttr("VALID"),
+        /*padding=*/(p[0] || p[1]) ? builder.getStringAttr("SAME")
+                                   : builder.getStringAttr("VALID"),
         /*stride_h=*/builder.getI32IntegerAttr(s[0]),
         /*stride_w=*/builder.getI32IntegerAttr(s[1]),
         /*fused_activation_function=*/builder.getStringAttr("NONE"));
@@ -398,7 +403,8 @@ static mlir::Value *addPoolingOpInBlockFromCaffe(Builder builder, Block *block,
         builder.getUnknownLoc(), result_type, input_var,
         /*filter_height=*/builder.getI32IntegerAttr(k[0]),
         /*filter_width=*/builder.getI32IntegerAttr(k[1]),
-        /*padding=*/(p[0] || p[1]) ? builder.getStringAttr("SAME") : builder.getStringAttr("VALID"),
+        /*padding=*/(p[0] || p[1]) ? builder.getStringAttr("SAME")
+                                   : builder.getStringAttr("VALID"),
         /*stride_h=*/builder.getI32IntegerAttr(s[0]),
         /*stride_w=*/builder.getI32IntegerAttr(s[1]),
         /*fused_activation_function=*/builder.getStringAttr("NONE"));
@@ -409,16 +415,16 @@ static mlir::Value *addPoolingOpInBlockFromCaffe(Builder builder, Block *block,
 
 static mlir::Value *addFullyConnectedOpInBlockFromCaffe(Builder builder, Block *block,
     mlir::Type elementType, mlir::Value *input_var,
-    const caffe::InnerProductParameter& fc_param) {
-  //auto fc_param = layer_param.inner_product_param();
-
-  bool with_bias, with_transpose;
+    caffe::Layer<float> *layer,
+    mlir::Value *weight_var,
+    llvm::raw_fd_ostream *weight_os = NULL) {
+  auto layer_param = layer->layer_param();
+  auto fc_param = layer_param.inner_product_param();
+  bool with_bias = fc_param.bias_term();
+  bool with_transpose = fc_param.transpose();
   // M is the batch_size, K is input number, N is output number
   // (M, K) * (K, N) => (M, N)
   int64_t M, K, N;
-
-  with_bias = fc_param.bias_term();
-  with_transpose = fc_param.transpose();
   // N is the output num
   N = fc_param.num_output();
 
@@ -460,11 +466,52 @@ static mlir::Value *addFullyConnectedOpInBlockFromCaffe(Builder builder, Block *
     fc_input_var = reshape_op.getResult();
   }
 
+  size_t pos_filter, pos_bias;
+  if (weight_os) {
+    // - blobs_[0] holds the filter weights
+    // - blobs_[1] holds the biases (optional)
+    assert(layer->blobs().size() == 1 || layer->blobs().size() == 2);
+
+    // filter weights
+    const caffe::Blob<float> *blob_filter = layer->blobs()[0].get();
+    llvm::errs() << "  filter shape " << blob_filter->shape_string() << "\n";
+    std::vector<int> filter_shape = blob_filter->shape();
+    assert(filter_shape.size() == 2);
+    assert(filter_shape[0] == N);
+    assert(filter_shape[1] == K);
+    pos_filter = weight_os->tell();
+    weight_os->write(reinterpret_cast<const char*>(blob_filter->cpu_data()),
+        blob_filter->count() * sizeof(float));
+    llvm::errs() << "  filter: " << llvm::format_hex(pos_filter, 10)
+                 << " --> " << llvm::format_hex(weight_os->tell(), 10) << "\n";
+
+    // bias
+    if (with_bias) {
+      assert(layer->blobs().size() == 2);
+      const caffe::Blob<float> *blob_bias = layer->blobs()[1].get();
+      llvm::errs() << "  bias shape " << blob_bias->shape_string() << "\n";
+      std::vector<int> bias_shape = blob_bias->shape();
+      assert(bias_shape.size() == 1);
+      assert(bias_shape[0] == N);
+      pos_bias = weight_os->tell();
+      weight_os->write(reinterpret_cast<const char*>(blob_bias->cpu_data()),
+          blob_bias->count() * sizeof(float));
+      llvm::errs() << "  bias: " << llvm::format_hex(pos_bias, 10)
+                   << " --> " << llvm::format_hex(weight_os->tell(), 10)
+                   << "\n";
+    } else {
+      assert(layer->blobs().size() == 1);
+    }
+  }
+
   // construct the fully_connected OP
-  auto weight_type = builder.getTensorType({K, N}, elementType);
-  auto weight_attr = builder.getZeroAttr(weight_type);
-  auto weight = OpBuilder(block).create<ConstantOp>(builder.getUnknownLoc(),
-      weight_type, weight_attr);
+  auto filter_type = builder.getTensorType({K, N}, elementType);
+  //auto filter_attr = builder.getZeroAttr(weight_type);
+  //auto filter = OpBuilder(block).create<ConstantOp>(builder.getUnknownLoc(),
+  //    filter_type, filter_attr);
+  auto filter = OpBuilder(block).create<tpu::LoadWeightOp>(
+      builder.getUnknownLoc(), filter_type, weight_var,
+      /*offset=*/builder.getI64IntegerAttr(pos_filter));
   #if 0 // TODO: don't how to handle optional operand
   mlir::Value *bias = nullptr;
   if (with_bias) {
@@ -475,13 +522,16 @@ static mlir::Value *addFullyConnectedOpInBlockFromCaffe(Builder builder, Block *
   }
   #else // # if 0
   auto bias_type = builder.getTensorType({N}, elementType);
-  auto bias_attr = builder.getZeroAttr(bias_type);
-  auto bias = OpBuilder(block).create<ConstantOp>(builder.getUnknownLoc(),
-      bias_type, bias_attr);
+  //auto bias_attr = builder.getZeroAttr(bias_type);
+  //auto bias = OpBuilder(block).create<ConstantOp>(builder.getUnknownLoc(),
+  //    bias_type, bias_attr);
+  auto bias = OpBuilder(block).create<tpu::LoadWeightOp>(
+      builder.getUnknownLoc(), bias_type, weight_var,
+      /*offset=*/builder.getI64IntegerAttr(pos_bias));
   #endif // # if 0
   auto result_type = builder.getTensorType({M, N}, elementType);
   auto op = OpBuilder(block).create<tpu::FullyConnectedOp>(
-        builder.getUnknownLoc(), result_type, fc_input_var, weight, bias,
+        builder.getUnknownLoc(), result_type, fc_input_var, filter, bias,
         /*fused_activation_function=*/builder.getStringAttr("NONE"));
   auto result_var = op.getResult();
   return result_var;
@@ -663,7 +713,7 @@ static OwningModuleRef caffeToMlirTranslate(llvm::StringRef inputFilename,
       mlir::Value *input_var = tensor_map.find(layer_param.bottom(0))->second;
       assert(input_var);
       mlir::Value *result_var = addFullyConnectedOpInBlockFromCaffe(builder, block,
-          elementType, input_var, layer_param.inner_product_param());
+          elementType, input_var, layer, weight_var, &weight_os);
       tensor_map[layer_param.top(0)] = result_var;
 
     } else if (strcmp(layer->type(), "Softmax") == 0) {
