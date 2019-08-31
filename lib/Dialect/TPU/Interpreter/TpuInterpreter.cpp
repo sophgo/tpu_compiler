@@ -38,6 +38,9 @@
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/MemoryBuffer.h"
 
+#include <numeric>
+#include <functional>
+
 namespace mlir {
 
 LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
@@ -56,20 +59,10 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     auto offset = loadWeightOp.offset().getLimitedValue();
     llvm::errs() << "  offset " << offset << "\n";
     auto result = loadWeightOp.getResult();
-    llvm::errs() << "  result ";
-    result->getType().dump();
-    llvm::errs() << "\n";
+    llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";
     std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
-    int64_t size = 1;
-    if(shape.size() == 4) {
-      size *= shape[0] * shape[1] * shape[2] * shape[3];
-    } else if(shape.size() == 2) {
-      size *= shape[0] * shape[1];
-    } else if(shape.size() == 1) {
-      size *= shape[0];
-    } else {
-      assert(0);
-    }
+    assert(shape.size() <= 4);
+    auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());;
     auto weight_data = std::make_unique<std::vector<float> >(size);
 
     weight_is.get()->seekg(offset, std::ios::beg);
@@ -79,17 +72,13 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
     return success();
   }
-  if (auto conv2DOp = dyn_cast<tpu::Conv2DOp>(opInst)) {
+  if (auto op = dyn_cast<tpu::Conv2DOp>(opInst)) {
     llvm::errs() << "Conv2DOp" << "\n";
-    //conv2DOp.dump();
+    //op.dump();
     unsigned int operandIdx = 0;
-    for (auto *operand : conv2DOp.getOperands()) {
-      llvm::errs() << "  operand[" << operandIdx << "] ";
-      operand->getType().dump();
-      llvm::errs() << "\n";
-
+    for (auto *operand : op.getOperands()) {
+      llvm::errs() << "  operand[" << operandIdx << "] "; operand->getType().dump(); llvm::errs() << "\n";
       // find operand in valueMapping
-      //auto data_vec = valueMapping.lookup(operand).get();
       auto it = valueMapping.find(operand);
       if (it == valueMapping.end()) {
         llvm::errs() << "    didn't find\n";
@@ -101,21 +90,11 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       }
       operandIdx++;
     }
-    auto result = conv2DOp.getResult();
-    llvm::errs() << "  result ";
-    result->getType().dump();
-    llvm::errs() << "\n";
+    auto result = op.getResult();
+    llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";
     std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
-    int64_t size = 1;
-    if(shape.size() == 4) {
-      size *= shape[0] * shape[1] * shape[2] * shape[3];
-    } else if(shape.size() == 2) {
-      size *= shape[0] * shape[1];
-    } else if(shape.size() == 1) {
-      size *= shape[0];
-    } else {
-      assert(0);
-    }
+    assert(shape.size() <= 4);
+    auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());;
     auto result_data = std::make_unique<std::vector<float> >(size);
 
     // TODO: do the actual compute here
@@ -124,16 +103,95 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
     return success();
   }
-  if (auto averagePool2DOp = dyn_cast<tpu::AveragePool2DOp>(opInst)) {
+  if (auto op = dyn_cast<tpu::AveragePool2DOp>(opInst)) {
     llvm::errs() << "AveragePool2DOp" << "\n";
+    //op.dump();
+    {
+      auto operand = op.getOperand();
+      llvm::errs() << "  operand[0] "; operand->getType().dump(); llvm::errs() << "\n";
+      // find operand in valueMapping
+      auto it = valueMapping.find(operand);
+      if (it == valueMapping.end()) {
+        llvm::errs() << "    didn't find\n";
+        assert(0);
+      } else {
+        llvm::errs() << "    found in map\n";
+        auto vec = it->second.get();
+        llvm::errs() << "      vec size = " << vec->size() << "\n";
+      }
+    }
+    auto result = op.getResult();
+    llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";
+    std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
+    assert(shape.size() <= 4);
+    auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());;
+    auto result_data = std::make_unique<std::vector<float> >(size);
+
+    // TODO: do the actual compute here
+
+    valueMapping[result] = std::move(result_data);
+
     return success();
   }
-  if (auto maxPool2DOp = dyn_cast<tpu::MaxPool2DOp>(opInst)) {
+  if (auto op = dyn_cast<tpu::MaxPool2DOp>(opInst)) {
     llvm::errs() << "MaxPool2DOp" << "\n";
+    //op.dump();
+    {
+      auto operand = op.getOperand();
+      llvm::errs() << "  operand[0] "; operand->getType().dump(); llvm::errs() << "\n";
+      // find operand in valueMapping
+      auto it = valueMapping.find(operand);
+      if (it == valueMapping.end()) {
+        llvm::errs() << "    didn't find\n";
+        assert(0);
+      } else {
+        llvm::errs() << "    found in map\n";
+        auto vec = it->second.get();
+        llvm::errs() << "      vec size = " << vec->size() << "\n";
+      }
+    }
+    auto result = op.getResult();
+    llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";
+    std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
+    assert(shape.size() <= 4);
+    auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());;
+    auto result_data = std::make_unique<std::vector<float> >(size);
+
+    // TODO: do the actual compute here
+
+    valueMapping[result] = std::move(result_data);
+
     return success();
   }
-  if (auto fullyConnectedOp = dyn_cast<tpu::FullyConnectedOp>(opInst)) {
+  if (auto op = dyn_cast<tpu::FullyConnectedOp>(opInst)) {
     llvm::errs() << "FullyConnectedOp" << "\n";
+    //op.dump();
+    unsigned int operandIdx = 0;
+    for (auto *operand : op.getOperands()) {
+      llvm::errs() << "  operand[" << operandIdx << "] "; operand->getType().dump(); llvm::errs() << "\n";
+      // find operand in valueMapping
+      auto it = valueMapping.find(operand);
+      if (it == valueMapping.end()) {
+        llvm::errs() << "    didn't find\n";
+        assert(0);
+      } else {
+        llvm::errs() << "    found in map\n";
+        auto vec = it->second.get();
+        llvm::errs() << "      vec size = " << vec->size() << "\n";
+      }
+      operandIdx++;
+    }
+    auto result = op.getResult();
+    llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";
+    std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
+    assert(shape.size() <= 4);
+    auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());;
+    auto result_data = std::make_unique<std::vector<float> >(size);
+
+    // TODO: do the actual compute here
+
+    valueMapping[result] = std::move(result_data);
+
     return success();
   }
   if (auto reluOp = dyn_cast<tpu::ReluOp>(opInst)) {
@@ -148,8 +206,34 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     llvm::errs() << "ScaleOp" << "\n";
     return success();
   }
-  if (auto reshapeOp = dyn_cast<tpu::ReshapeOp>(opInst)) {
+  if (auto op = dyn_cast<tpu::ReshapeOp>(opInst)) {
     llvm::errs() << "ReshapeOp" << "\n";
+    //op.dump();
+    {
+      auto operand = op.getOperand();
+      llvm::errs() << "  operand[0] "; operand->getType().dump(); llvm::errs() << "\n";
+      // find operand in valueMapping
+      auto it = valueMapping.find(operand);
+      if (it == valueMapping.end()) {
+        llvm::errs() << "    didn't find\n";
+        assert(0);
+      } else {
+        llvm::errs() << "    found in map\n";
+        auto vec = it->second.get();
+        llvm::errs() << "      vec size = " << vec->size() << "\n";
+      }
+    }
+    auto result = op.getResult();
+    llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";
+    std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
+    assert(shape.size() <= 4);
+    auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());;
+    auto result_data = std::make_unique<std::vector<float> >(size);
+
+    // TODO: do the actual compute here
+
+    valueMapping[result] = std::move(result_data);
+
     return success();
   }
 
