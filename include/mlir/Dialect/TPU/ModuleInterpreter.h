@@ -24,6 +24,9 @@
 
 #include "mlir/IR/Module.h"
 
+#include <iostream>
+#include <fstream>
+
 namespace mlir {
 
 class ModuleOp;
@@ -63,8 +66,11 @@ private:
   std::vector<std::vector<float> *> &inputs;
   std::vector<std::vector<float> *> &outputs;
 
+  // weight file input stream
+  std::unique_ptr<std::ifstream> weight_is;
+
 protected:
-  llvm::DenseMap<Value *, std::vector<float> *> valueMapping;
+  llvm::DenseMap<Value *, std::unique_ptr<std::vector<float> > > valueMapping;
 };
 
 } // namespace mlir

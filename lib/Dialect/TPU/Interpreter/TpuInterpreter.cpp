@@ -44,10 +44,39 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
   // #include "mlir/Dialect/LLVMIR/LLVMConversions.inc"
   if (auto loadFileOp = dyn_cast<tpu::LoadFileOp>(opInst)) {
     llvm::errs() << "LoadFileOp" << "\n";
+    auto filename = loadFileOp.getAttrOfType<StringAttr>("filename").getValue();
+    llvm::errs() << "  filename " << filename << "\n";
+    weight_is = std::make_unique<std::ifstream>(filename.str(),
+        std::ios::in | std::ios::binary);
+
     return success();
   }
   if (auto loadWeightOp = dyn_cast<tpu::LoadWeightOp>(opInst)) {
     llvm::errs() << "LoadWeightOp" << "\n";
+    auto offset = loadWeightOp.offset().getLimitedValue();
+    llvm::errs() << "  offset " << offset << "\n";
+    auto result = loadWeightOp.getResult();
+    llvm::errs() << "  result ";
+    result->getType().dump();
+    llvm::errs() << "\n";
+    std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
+    int64_t size = 1;
+    if(shape.size() == 4) {
+      size *= shape[0] * shape[1] * shape[2] * shape[3];
+    } else if(shape.size() == 2) {
+      size *= shape[0] * shape[1];
+    } else if(shape.size() == 1) {
+      size *= shape[0];
+    } else {
+      assert(0);
+    }
+    auto weight_data = std::make_unique<std::vector<float> >(size);
+
+    weight_is.get()->seekg(offset, std::ios::beg);
+    weight_is.get()->read((char*)weight_data.get()->data(), size * sizeof(float));
+
+    valueMapping[result] = std::move(weight_data);
+
     return success();
   }
   if (auto conv2DOp = dyn_cast<tpu::Conv2DOp>(opInst)) {
@@ -60,11 +89,15 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       llvm::errs() << "\n";
 
       // find operand in valueMapping
-      auto data_vec = valueMapping.lookup(operand);
-      if (data_vec) {
-        llvm::errs() << "    found in map\n";
-      } else {
+      //auto data_vec = valueMapping.lookup(operand).get();
+      auto it = valueMapping.find(operand);
+      if (it == valueMapping.end()) {
         llvm::errs() << "    didn't find\n";
+        assert(0);
+      } else {
+        llvm::errs() << "    found in map\n";
+        auto vec = it->second.get();
+        llvm::errs() << "      vec size = " << vec->size() << "\n";
       }
       operandIdx++;
     }
@@ -72,6 +105,22 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     llvm::errs() << "  result ";
     result->getType().dump();
     llvm::errs() << "\n";
+    std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
+    int64_t size = 1;
+    if(shape.size() == 4) {
+      size *= shape[0] * shape[1] * shape[2] * shape[3];
+    } else if(shape.size() == 2) {
+      size *= shape[0] * shape[1];
+    } else if(shape.size() == 1) {
+      size *= shape[0];
+    } else {
+      assert(0);
+    }
+    auto result_data = std::make_unique<std::vector<float> >(size);
+
+    // TODO: do the actual compute here
+
+    valueMapping[result] = std::move(result_data);
 
     return success();
   }
@@ -140,7 +189,11 @@ LogicalResult ModuleInterpreter::runOneFunction(FuncOp func) {
     arg->getType().dump();
     llvm::errs() << "\n";
 
-    valueMapping[arg] = inputs[0];
+    // copy the inputs[0] into a unique_ptr pointed vector
+    // TODO: pass input as unique_ptr directly
+    auto input = std::make_unique<std::vector<float> >();
+    input.get()->swap(*inputs[0]);
+    valueMapping[arg] = std::move(input);
     argIdx++;
   }
   assert(argIdx == 1);
