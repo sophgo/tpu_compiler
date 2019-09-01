@@ -237,12 +237,30 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     return success();
   }
 
-  if (auto returnOp = dyn_cast<ReturnOp>(opInst)) {
+  if (auto op = dyn_cast<ReturnOp>(opInst)) {
     llvm::errs() << "ReturnOp" << "\n";
-    // Add function results to the value remapping table.
+    //op.dump();
+    std::vector<float> *return_vec;
+    unsigned int operandIdx = 0;
+    for (auto *operand : op.getOperands()) {
+      llvm::errs() << "  operand[" << operandIdx << "] "; operand->getType().dump(); llvm::errs() << "\n";
+      // find operand in valueMapping
+      auto it = valueMapping.find(operand);
+      if (it == valueMapping.end()) {
+        llvm::errs() << "    didn't find\n";
+        assert(0);
+      } else {
+        llvm::errs() << "    found in map\n";
+        return_vec = it->second.get();
+        llvm::errs() << "      vec size = " << return_vec->size() << "\n";
+      }
+      operandIdx++;
+    }
+
     //copy the value into outputs
     assert(outputs.size() == 1);
-    //valueMapping[res] = outputs[0];
+    outputs[0]->swap(*return_vec);
+
     return success();
   }
 
