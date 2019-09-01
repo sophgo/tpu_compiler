@@ -205,20 +205,7 @@ def TPU_FullyConnectedOp : TPU_Op<"fully_connected", [NoSideEffect]> {
   let results = (outs AnyTensor:$output);
 }
 
-def TPU_ReluOp: TPU_Op<"relu", [NoSideEffect, SameOperandsAndResultType]> {
-  let summary = "Relu operator";
-
-  let description = [{
-    Element-wise Relu operator
-      x -> max(0, x)
-  }];
-
-  let arguments = (ins AnyTensor:$x);
-
-  let results = (outs AnyTensor:$y);
-}
-
-def TPU_BatchNormOp: TPU_Op<"batch_norm", [NoSideEffect, SameOperandsAndResultType]> {
+def TPU_BatchNormOp: TPU_Op<"batch_norm", [NoSideEffect]> {
   let summary = "BatchNorm operator";
 
   let description = [{
@@ -227,17 +214,14 @@ def TPU_BatchNormOp: TPU_Op<"batch_norm", [NoSideEffect, SameOperandsAndResultTy
 
   let arguments = (
     ins AnyTensor:$x,
-    AnyTensor:$scale,
-    AnyTensor:$offset,
     AnyTensor:$mean,
-    AnyTensor:$variance,
-    F32Attr:$epsilon
+    AnyTensor:$variance
   );
 
   let results = (outs AnyTensor:$y);
 }
 
-def TPU_ScaleOp: TPU_Op<"scale", [NoSideEffect, SameOperandsAndResultType]> {
+def TPU_ScaleOp: TPU_Op<"scale", [NoSideEffect]> {
   let summary = "Scale operator";
 
   let description = [{
@@ -247,7 +231,37 @@ def TPU_ScaleOp: TPU_Op<"scale", [NoSideEffect, SameOperandsAndResultType]> {
   let arguments = (
     ins AnyTensor:$x,
     AnyTensor:$scale,
-    AnyTensor:$offset
+    AnyTensor:$bias
+  );
+
+  let results = (outs AnyTensor:$y);
+}
+
+def TPU_ReluOp: TPU_Op<"relu", [NoSideEffect, SameOperandsAndResultType]> {
+  let summary = "Relu operator";
+
+  let description = [{
+    Element-wise Relu operator
+      x -> max(0, x)
+  }];
+
+  let arguments = (
+    ins AnyTensor:$x,
+    F32Attr:$negative_slope);
+
+  let results = (outs AnyTensor:$y);
+}
+
+def TPU_EltwiseOp: TPU_Op<"eltwise", [NoSideEffect, SameOperandsAndResultType]> {
+  let summary = "Eltwise operator";
+
+  let description = [{
+    Performs eltwase operation on inputs.
+  }];
+
+  let arguments = (
+    ins AnyTensor:$x1,
+    AnyTensor:$x2
   );
 
   let results = (outs AnyTensor:$y);

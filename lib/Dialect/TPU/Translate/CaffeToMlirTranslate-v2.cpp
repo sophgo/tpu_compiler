@@ -196,6 +196,7 @@ static mlir::Value *addConv2dOpInBlockFromCaffe(Builder builder, Block *block,
     mlir::Value *weight_var,
     llvm::raw_fd_ostream *weight_os = NULL) {
   auto layer_param = layer->layer_param();
+  assert(layer_param.has_convolution_param());
   auto conv_param = layer_param.convolution_param();
   bool with_bias = conv_param.bias_term();
   int64_t n, ic, oc, group;
@@ -322,10 +323,260 @@ static mlir::Value *addConv2dOpInBlockFromCaffe(Builder builder, Block *block,
   return result_var;
 }
 
+static mlir::Value *addBatchNormOpInBlockFromCaffe(Builder builder, Block *block,
+    mlir::Type elementType, mlir::Value *input_var,
+    caffe::Layer<float> *layer,
+    mlir::Value *weight_var,
+    llvm::raw_fd_ostream *weight_os = NULL) {
+  auto layer_param = layer->layer_param();
+  assert(layer_param.has_batch_norm_param());
+  auto batch_norm_param = layer_param.batch_norm_param();
+  //float epsilon = batch_norm_param.eps();
+
+  int64_t n, c, h, w;
+  // get input shape from input vars
+  LLVM_DEBUG(input_var->getType().dump(););
+  llvm::ArrayRef<int64_t> input_var_shape =
+      input_var->getType().dyn_cast<mlir::TensorType>().getShape();
+  assert(input_var_shape.size() == 4);
+  n = input_var_shape[0];
+  c = input_var_shape[1];
+  h = input_var_shape[2];
+  w = input_var_shape[3];
+
+  llvm::errs()
+      << "  N: " << n
+      << ", C: " << c
+      << ", IH*IW: " << h << " * " << w
+      << "\n";
+
+  size_t pos_mean, pos_variance;
+  if (weight_os) {
+    // - blobs_[2] holds the scale, which is one scalar data
+    // - blobs_[0] holds the mean
+    // - blobs_[1] holds the variance
+    assert(layer->blobs().size() == 3);
+
+    // scale
+    const caffe::Blob<float> *blob_scale = layer->blobs()[2].get();
+    llvm::errs() << "  scale shape " << blob_scale->shape_string() << "\n";
+    std::vector<int> scale_shape = blob_scale->shape();
+    assert(scale_shape.size() == 1);
+    assert(scale_shape[0] == 1);
+    float scale = *((const float *)blob_scale->cpu_data());
+    llvm::errs() << "  scale: " << scale << "\n";
+
+    // mean weights
+    const caffe::Blob<float> *blob_mean = layer->blobs()[0].get();
+    llvm::errs() << "  mean shape " << blob_mean->shape_string() << "\n";
+    std::vector<int> mean_shape = blob_mean->shape();
+    assert(mean_shape.size() == 1);
+    assert(mean_shape[0] == c);
+    pos_mean = weight_os->tell();
+    weight_os->write(reinterpret_cast<const char*>(blob_mean->cpu_data()),
+        blob_mean->count() * sizeof(float));
+    llvm::errs() << "  mean: " << llvm::format_hex(pos_mean, 10)
+                 << " --> " << llvm::format_hex(weight_os->tell(), 10) << "\n";
+
+    // variance weights
+    const caffe::Blob<float> *blob_variance = layer->blobs()[1].get();
+    llvm::errs() << "  variance shape " << blob_variance->shape_string() << "\n";
+    std::vector<int> variance_shape = blob_variance->shape();
+    assert(variance_shape.size() == 1);
+    assert(variance_shape[0] == c);
+    pos_variance = weight_os->tell();
+    weight_os->write(reinterpret_cast<const char*>(blob_variance->cpu_data()),
+        blob_variance->count() * sizeof(float));
+    llvm::errs() << "  variance: " << llvm::format_hex(pos_variance, 10)
+                 << " --> " << llvm::format_hex(weight_os->tell(), 10) << "\n";
+  }
+
+  // construct OP
+  auto mean_type = builder.getTensorType({c}, elementType);
+  auto mean = OpBuilder(block).create<tpu::LoadWeightOp>(
+      builder.getUnknownLoc(), mean_type, weight_var,
+      /*offset=*/builder.getI64IntegerAttr(pos_mean));
+  auto variance_type = builder.getTensorType({c}, elementType);
+  auto variance = OpBuilder(block).create<tpu::LoadWeightOp>(
+      builder.getUnknownLoc(), variance_type, weight_var,
+      /*offset=*/builder.getI64IntegerAttr(pos_variance));
+  auto result_type = builder.getTensorType({n, c, h, w}, elementType);
+  auto op = OpBuilder(block).create<tpu::BatchNormOp>(
+      builder.getUnknownLoc(), result_type, input_var, mean, variance);
+  auto result_var = op.getResult();
+  return result_var;
+}
+
+static mlir::Value *addScaleOpInBlockFromCaffe(Builder builder, Block *block,
+    mlir::Type elementType, mlir::Value *input_var,
+    caffe::Layer<float> *layer,
+    mlir::Value *weight_var,
+    llvm::raw_fd_ostream *weight_os = NULL) {
+  auto layer_param = layer->layer_param();
+  assert(layer_param.has_scale_param());
+  auto scale_param = layer_param.scale_param();
+  bool with_bias = scale_param.bias_term();
+
+  int64_t n, c, h, w;
+  // get input shape from input vars
+  LLVM_DEBUG(input_var->getType().dump(););
+  llvm::ArrayRef<int64_t> input_var_shape =
+      input_var->getType().dyn_cast<mlir::TensorType>().getShape();
+  assert(input_var_shape.size() == 4);
+  n = input_var_shape[0];
+  c = input_var_shape[1];
+  h = input_var_shape[2];
+  w = input_var_shape[3];
+
+  llvm::errs()
+      << "  N: " << n
+      << ", C: " << c
+      << ", IH*IW: " << h << " * " << w
+      << "\n";
+
+  size_t pos_scale, pos_bias;
+  if (weight_os) {
+    // - blobs_[0] holds the scale
+    // - blobs_[1] holds the biases (optional)
+    // sometimes, offset is hold in a aublayer (bias layer) blob_[0]
+    assert(layer->blobs().size() == 1 || layer->blobs().size() == 2);
+
+    // scale weights
+    const caffe::Blob<float> *blob_scale = layer->blobs()[0].get();
+    llvm::errs() << "  scale shape " << blob_scale->shape_string() << "\n";
+    std::vector<int> scale_shape = blob_scale->shape();
+    assert(scale_shape.size() == 1);
+    assert(scale_shape[0] == c);
+    pos_scale = weight_os->tell();
+    weight_os->write(reinterpret_cast<const char*>(blob_scale->cpu_data()),
+        blob_scale->count() * sizeof(float));
+    llvm::errs() << "  scale: " << llvm::format_hex(pos_scale, 10)
+                 << " --> " << llvm::format_hex(weight_os->tell(), 10) << "\n";
+
+    // bias
+    if (with_bias) {
+      assert(layer->blobs().size() == 2);
+      const caffe::Blob<float> *blob_bias = layer->blobs()[1].get();
+      llvm::errs() << "  bias shape " << blob_bias->shape_string() << "\n";
+      std::vector<int> bias_shape = blob_bias->shape();
+      assert(bias_shape.size() == 1);
+      assert(bias_shape[0] == c);
+      pos_bias = weight_os->tell();
+      weight_os->write(reinterpret_cast<const char*>(blob_bias->cpu_data()),
+          blob_bias->count() * sizeof(float));
+      llvm::errs() << "  bias: " << llvm::format_hex(pos_bias, 10)
+                   << " --> " << llvm::format_hex(weight_os->tell(), 10)
+                   << "\n";
+    } else {
+      assert(layer->blobs().size() == 1);
+    }
+  }
+
+  // construct OP
+  auto scale_type = builder.getTensorType({c}, elementType);
+  auto scale = OpBuilder(block).create<tpu::LoadWeightOp>(
+      builder.getUnknownLoc(), scale_type, weight_var,
+      /*offset=*/builder.getI64IntegerAttr(pos_scale));
+  #if 0 // TODO: don't know how to handle optional operand
+  mlir::Value *bias = nullptr;
+  if (with_bias) {
+    auto bias_type = builder.getTensorType({oc}, elementType);
+    auto bias_attr = builder.getZeroAttr(bias_type);
+    bias = OpBuilder(block).create<ConstantOp>(builder.getUnknownLoc(),
+        bias_type, bias_attr);
+  }
+  #else // # if 0
+  auto bias_type = builder.getTensorType({c}, elementType);
+  auto bias = OpBuilder(block).create<tpu::LoadWeightOp>(
+      builder.getUnknownLoc(), bias_type, weight_var,
+      /*offset=*/builder.getI64IntegerAttr(pos_bias));
+  #endif // # if 0
+  auto result_type = builder.getTensorType({n, c, h, w}, elementType);
+  auto op = OpBuilder(block).create<tpu::ScaleOp>(
+      builder.getUnknownLoc(), result_type, input_var, scale, bias);
+  auto result_var = op.getResult();
+  return result_var;
+}
+
+static mlir::Value *addReluOpInBlockFromCaffe(Builder builder, Block *block,
+    mlir::Type elementType, mlir::Value *input_var,
+    caffe::Layer<float> *layer) {
+  auto layer_param = layer->layer_param();
+  //assert(layer_param.has_relu_param());
+  auto relu_param = layer_param.relu_param();
+  float negative_slope = relu_param.negative_slope();
+
+  int64_t n, c, h, w;
+  // get input shape from input vars
+  LLVM_DEBUG(input_var->getType().dump(););
+  llvm::ArrayRef<int64_t> input_var_shape =
+      input_var->getType().dyn_cast<mlir::TensorType>().getShape();
+  assert(input_var_shape.size() == 4);
+  n = input_var_shape[0];
+  c = input_var_shape[1];
+  h = input_var_shape[2];
+  w = input_var_shape[3];
+
+  llvm::errs()
+      << "  N: " << n
+      << ", C: " << c
+      << ", IH*IW: " << h << " * " << w
+      << "\n";
+
+  // construct OP
+  auto result_type = builder.getTensorType({n, c, h, w}, elementType);
+  auto op = OpBuilder(block).create<tpu::ReluOp>(
+      builder.getUnknownLoc(), result_type, input_var,
+      /*negative_slope=*/builder.getF32FloatAttr(negative_slope));
+  auto result_var = op.getResult();
+  return result_var;
+}
+
+static mlir::Value *addEltwiseOpInBlockFromCaffe(Builder builder, Block *block,
+    mlir::Type elementType, mlir::Value *input_1_var, mlir::Value *input_2_var,
+    caffe::Layer<float> *layer) {
+  auto layer_param = layer->layer_param();
+  //assert(layer_param.has_eltwise_param());
+  auto eltwise_param = layer_param.eltwise_param();
+  assert(eltwise_param.coeff_size() == 0);
+  assert(eltwise_param.operation() == caffe::EltwiseParameter_EltwiseOp_SUM);
+
+  int64_t n, c, h, w;
+  // get input shape from input vars
+  LLVM_DEBUG(input_1_var->getType().dump(););
+  llvm::ArrayRef<int64_t> input_1_var_shape =
+      input_1_var->getType().dyn_cast<mlir::TensorType>().getShape();
+  assert(input_1_var_shape.size() == 4);
+  n = input_1_var_shape[0];
+  c = input_1_var_shape[1];
+  h = input_1_var_shape[2];
+  w = input_1_var_shape[3];
+
+  LLVM_DEBUG(input_2_var->getType().dump(););
+  llvm::ArrayRef<int64_t> input_2_var_shape =
+      input_2_var->getType().dyn_cast<mlir::TensorType>().getShape();
+  assert(input_2_var_shape == input_1_var_shape);
+
+  llvm::errs()
+      << "  N: " << n
+      << ", C: " << c
+      << ", IH*IW: " << h << " * " << w
+      << "\n";
+
+  // construct OP
+  auto result_type = builder.getTensorType({n, c, h, w}, elementType);
+  auto op = OpBuilder(block).create<tpu::EltwiseOp>(
+      builder.getUnknownLoc(), result_type, input_1_var, input_2_var);
+  auto result_var = op.getResult();
+  return result_var;
+}
+
 static mlir::Value *addPoolingOpInBlockFromCaffe(Builder builder, Block *block,
     mlir::Type elementType, mlir::Value *input_var,
-    const caffe::PoolingParameter& pooling_param) {
-  //auto pooling_param = layer_param.pooling_param();
+    caffe::Layer<float> *layer) {
+  auto layer_param = layer->layer_param();
+  assert(layer_param.has_pooling_param());
+  auto pooling_param = layer_param.pooling_param();
 
   bool is_average_pooling;
   bool is_global_pooling;
@@ -661,7 +912,6 @@ static OwningModuleRef caffeToMlirTranslate(llvm::StringRef inputFilename,
       tensor_map[layer_param.top(1)] = input_var;
 
     } else if (strcmp(layer->type(), "Convolution") == 0) {
-      assert(layer_param.has_convolution_param());
       assert(layer_param.bottom_size() == 1 && layer_param.top_size() == 1);
       mlir::Value *input_var = tensor_map.find(layer_param.bottom(0))->second;
       assert(input_var);
@@ -673,38 +923,41 @@ static OwningModuleRef caffeToMlirTranslate(llvm::StringRef inputFilename,
       assert(layer_param.bottom_size() == 1 && layer_param.top_size() == 1);
       mlir::Value *input_var = tensor_map.find(layer_param.bottom(0))->second;
       assert(input_var);
-      // TODO: bypass for now
-      tensor_map[layer_param.top(0)] = input_var;
+      mlir::Value *result_var = addBatchNormOpInBlockFromCaffe(builder, block,
+          elementType, input_var, layer, weight_var, &weight_os);
+      tensor_map[layer_param.top(0)] = result_var;
 
     } else if (strcmp(layer->type(), "Scale") == 0) {
       assert(layer_param.bottom_size() == 1 && layer_param.top_size() == 1);
       mlir::Value *input_var = tensor_map.find(layer_param.bottom(0))->second;
       assert(input_var);
-      // TODO: bypass for now
-      tensor_map[layer_param.top(0)] = input_var;
+      mlir::Value *result_var = addScaleOpInBlockFromCaffe(builder, block,
+          elementType, input_var, layer, weight_var, &weight_os);
+      tensor_map[layer_param.top(0)] = result_var;
 
     } else if (strcmp(layer->type(), "ReLU") == 0) {
       assert(layer_param.bottom_size() == 1 && layer_param.top_size() == 1);
       mlir::Value *input_var = tensor_map.find(layer_param.bottom(0))->second;
       assert(input_var);
-      // TODO: bypass for now
-      tensor_map[layer_param.top(0)] = input_var;
+      mlir::Value *result_var = addReluOpInBlockFromCaffe(builder, block,
+          elementType, input_var, layer);
+      tensor_map[layer_param.top(0)] = result_var;
 
     } else if (strcmp(layer->type(), "Eltwise") == 0) {
       assert(layer_param.bottom_size() == 2 && layer_param.top_size() == 1);
       mlir::Value *input_1_var = tensor_map.find(layer_param.bottom(0))->second;
       mlir::Value *input_2_var = tensor_map.find(layer_param.bottom(0))->second;
       assert(input_1_var && input_2_var);
-      // TODO: bypass for now, use input_1_var
-      tensor_map[layer_param.top(0)] = input_1_var;
+      mlir::Value *result_var = addEltwiseOpInBlockFromCaffe(builder, block,
+          elementType, input_1_var, input_2_var, layer);
+      tensor_map[layer_param.top(0)] = result_var;
 
     } else if (strcmp(layer->type(), "Pooling") == 0) {
-      assert(layer_param.has_pooling_param());
       assert(layer_param.bottom_size() == 1 && layer_param.top_size() == 1);
       mlir::Value *input_var = tensor_map.find(layer_param.bottom(0))->second;
       assert(input_var);
       mlir::Value *result_var = addPoolingOpInBlockFromCaffe(builder, block,
-          elementType, input_var, layer_param.pooling_param());
+          elementType, input_var, layer);
       tensor_map[layer_param.top(0)] = result_var;
 
     } else if (strcmp(layer->type(), "InnerProduct") == 0) {

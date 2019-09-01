@@ -61,7 +61,8 @@ static mlir::Value *addReluOpInBlock(Builder builder, Block *block,
     int64_t c, int64_t h, int64_t w) {
   auto result_type = builder.getTensorType({n, c, h, w}, elementType);
   auto op = OpBuilder(block).create<tpu::ReluOp>(
-        builder.getUnknownLoc(), result_type, input);
+      builder.getUnknownLoc(), result_type, input,
+      /*negative_slope=*/builder.getF32FloatAttr(1.0f));
   auto result = op.getResult();
   return result;
 }
