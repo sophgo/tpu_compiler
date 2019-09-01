@@ -31,6 +31,7 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/ToolOutputFile.h"
+#include "llvm/Support/Format.h"
 #include "mlir/Support/LogicalResult.h"
 
 #include "caffe/caffe.hpp"
@@ -61,24 +62,18 @@ static mlir::Type getMlirTypeFromCaffeShape(Builder builder,
 
 static void printCaffeLayerParam(const caffe::Layer<float>* layer) {
   auto layer_param = layer->layer_param();
-  std::cout << std::left << std::setfill(' ')
-      << ">> [" << std::setw(12) << layer->type() << std::setw(0) << "] "
-      << layer_param.name() << "\n";
+  llvm::errs() << llvm::format(">> [%-12s] %s\n", layer->type(), layer_param.name().c_str());
   for (int i = 0; i <= layer_param.bottom_size() - 1; ++i) {
-    std::cout << "btm: " << layer_param.bottom(i) << "\n";
+    llvm::errs() << "btm: " << layer_param.bottom(i) << "\n";
   }
   for (int i = 0; i <= layer_param.top_size() - 1; ++i) {
-    std::cout << "top: " << layer_param.top(i) << "\n";
+    llvm::errs() << "top: " << layer_param.top(i) << "\n";
   }
 }
 
 static void printCaffeNetAllLayer(const caffe::Net<float>& net) {
   for (size_t i = 0; i <= net.layers().size() - 1; ++i) {
     auto layer = net.layers()[i].get();
-    //auto layer_param = layer->layer_param();
-    //std::cout << std::left << std::setfill(' ')
-    //    << ">> [" << std::setw(12) << layer->type() << std::setw(0) << "] "
-    //    << layer_param.name() << "\n";
     printCaffeLayerParam(layer);
   }
 }
