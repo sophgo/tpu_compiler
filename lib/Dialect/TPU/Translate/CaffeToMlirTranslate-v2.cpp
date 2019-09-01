@@ -286,29 +286,21 @@ static mlir::Value *addConv2dOpInBlockFromCaffe(Builder builder, Block *block,
 
   // construct OP
   auto filter_type = builder.getTensorType({oc, ic, k[0], k[1]}, elementType);
-  //auto filter_attr = builder.getZeroAttr(filter_type);
-  //auto filter = OpBuilder(block).create<ConstantOp>(builder.getUnknownLoc(),
-  //    filter_type, filter_attr);
   auto filter = OpBuilder(block).create<tpu::LoadWeightOp>(
       builder.getUnknownLoc(), filter_type, weight_var,
       /*offset=*/builder.getI64IntegerAttr(pos_filter));
-  #if 0 // TODO: don't know how to handle optional operand
+  // TODO: don't know how to handle optional operand, use Zero tensor for now
   mlir::Value *bias = nullptr;
-  if (with_bias) {
-    auto bias_type = builder.getTensorType({oc}, elementType);
-    auto bias_attr = builder.getZeroAttr(bias_type);
-    bias = OpBuilder(block).create<ConstantOp>(builder.getUnknownLoc(),
-        bias_type, bias_attr);
-  }
-  #else // # if 0
   auto bias_type = builder.getTensorType({oc}, elementType);
-  //auto bias_attr = builder.getZeroAttr(bias_type);
-  //auto bias = OpBuilder(block).create<ConstantOp>(builder.getUnknownLoc(),
-  //    bias_type, bias_attr);
-  auto bias = OpBuilder(block).create<tpu::LoadWeightOp>(
-      builder.getUnknownLoc(), bias_type, weight_var,
-      /*offset=*/builder.getI64IntegerAttr(pos_bias));
-  #endif // # if 0
+  if (with_bias) {
+    bias = OpBuilder(block).create<tpu::LoadWeightOp>(
+        builder.getUnknownLoc(), bias_type, weight_var,
+        /*offset=*/builder.getI64IntegerAttr(pos_bias));
+  } else {
+    auto zero_attr = builder.getZeroAttr(bias_type);
+    bias = OpBuilder(block).create<ConstantOp>(builder.getUnknownLoc(),
+        bias_type, zero_attr);
+  }
   auto result_type = builder.getTensorType({n, oc, ofmap[0], ofmap[1]}, elementType);
   auto op = OpBuilder(block).create<tpu::Conv2DOp>(
       builder.getUnknownLoc(), result_type, input_var, filter, bias,
@@ -477,20 +469,18 @@ static mlir::Value *addScaleOpInBlockFromCaffe(Builder builder, Block *block,
   auto scale = OpBuilder(block).create<tpu::LoadWeightOp>(
       builder.getUnknownLoc(), scale_type, weight_var,
       /*offset=*/builder.getI64IntegerAttr(pos_scale));
-  #if 0 // TODO: don't know how to handle optional operand
+  // TODO: don't know how to handle optional operand, use Zero tensor for now
   mlir::Value *bias = nullptr;
-  if (with_bias) {
-    auto bias_type = builder.getTensorType({oc}, elementType);
-    auto bias_attr = builder.getZeroAttr(bias_type);
-    bias = OpBuilder(block).create<ConstantOp>(builder.getUnknownLoc(),
-        bias_type, bias_attr);
-  }
-  #else // # if 0
   auto bias_type = builder.getTensorType({c}, elementType);
-  auto bias = OpBuilder(block).create<tpu::LoadWeightOp>(
-      builder.getUnknownLoc(), bias_type, weight_var,
-      /*offset=*/builder.getI64IntegerAttr(pos_bias));
-  #endif // # if 0
+  if (with_bias) {
+    bias = OpBuilder(block).create<tpu::LoadWeightOp>(
+        builder.getUnknownLoc(), bias_type, weight_var,
+        /*offset=*/builder.getI64IntegerAttr(pos_bias));
+  } else {
+    auto zero_attr = builder.getZeroAttr(bias_type);
+    bias = OpBuilder(block).create<ConstantOp>(builder.getUnknownLoc(),
+        bias_type, zero_attr);
+  }
   auto result_type = builder.getTensorType({n, c, h, w}, elementType);
   auto op = OpBuilder(block).create<tpu::ScaleOp>(
       builder.getUnknownLoc(), result_type, input_var, scale, bias);
@@ -757,29 +747,21 @@ static mlir::Value *addFullyConnectedOpInBlockFromCaffe(Builder builder, Block *
 
   // construct the fully_connected OP
   auto filter_type = builder.getTensorType({K, N}, elementType);
-  //auto filter_attr = builder.getZeroAttr(weight_type);
-  //auto filter = OpBuilder(block).create<ConstantOp>(builder.getUnknownLoc(),
-  //    filter_type, filter_attr);
   auto filter = OpBuilder(block).create<tpu::LoadWeightOp>(
       builder.getUnknownLoc(), filter_type, weight_var,
       /*offset=*/builder.getI64IntegerAttr(pos_filter));
-  #if 0 // TODO: don't how to handle optional operand
+  // TODO: don't know how to handle optional operand, use Zero tensor for now
   mlir::Value *bias = nullptr;
-  if (with_bias) {
-    auto bias_type = builder.getTensorType({N}, elementType);
-    auto bias_attr = builder.getZeroAttr(bias_type);
-    bias = OpBuilder(block).create<ConstantOp>(builder.getUnknownLoc(),
-        bias_type, bias_attr);
-  }
-  #else // # if 0
   auto bias_type = builder.getTensorType({N}, elementType);
-  //auto bias_attr = builder.getZeroAttr(bias_type);
-  //auto bias = OpBuilder(block).create<ConstantOp>(builder.getUnknownLoc(),
-  //    bias_type, bias_attr);
-  auto bias = OpBuilder(block).create<tpu::LoadWeightOp>(
-      builder.getUnknownLoc(), bias_type, weight_var,
-      /*offset=*/builder.getI64IntegerAttr(pos_bias));
-  #endif // # if 0
+  if (with_bias) {
+    bias = OpBuilder(block).create<tpu::LoadWeightOp>(
+        builder.getUnknownLoc(), bias_type, weight_var,
+        /*offset=*/builder.getI64IntegerAttr(pos_bias));
+  } else {
+    auto zero_attr = builder.getZeroAttr(bias_type);
+    bias = OpBuilder(block).create<ConstantOp>(builder.getUnknownLoc(),
+        bias_type, zero_attr);
+  }
   auto result_type = builder.getTensorType({M, N}, elementType);
   auto op = OpBuilder(block).create<tpu::FullyConnectedOp>(
         builder.getUnknownLoc(), result_type, fc_input_var, filter, bias,
