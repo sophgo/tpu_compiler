@@ -1,3 +1,9 @@
+if(NOT tpu_LINKER_LIBS)
+  set(tpu_LINKER_LIBS "")
+endif(NOT tpu_LINKER_LIBS)
+list(APPEND tpu_LINKER_LIBS
+  mkldnn)
+
 add_llvm_library(MLIRTPU
   IR/TPUDialect.cpp
   IR/DialectRegistration.cpp
@@ -9,6 +15,6 @@ add_llvm_library(MLIRTPU
   ${MLIR_MAIN_INCLUDE_DIR}/mlir/Dialect/TPU
 )
 add_dependencies(MLIRTPU MLIRTPUOpsIncGen MLIRIR LLVMSupport)
-target_link_libraries(MLIRTPU MLIRIR MLIRStandardOps LLVMSupport)
+target_link_libraries(MLIRTPU MLIRIR MLIRStandardOps LLVMSupport ${tpu_LINKER_LIBS})
 
 add_subdirectory(Translate)

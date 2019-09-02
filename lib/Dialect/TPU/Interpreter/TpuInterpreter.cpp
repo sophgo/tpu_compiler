@@ -41,6 +41,141 @@
 #include <numeric>
 #include <functional>
 
+#define USE_MKLDNN
+
+#ifdef USE_MKLDNN
+#include <assert.h>
+
+#include <chrono>
+#include <iostream>
+#include <numeric>
+#include <string>
+#include <unordered_map>
+#include <vector>
+
+#include "mkldnn.hpp"
+
+using namespace mkldnn;
+
+using namespace std;
+
+//static memory::dim product(const memory::dims &dims) {
+//    return std::accumulate(dims.begin(), dims.end(), (memory::dim)1,
+//            std::multiplies<memory::dim>());
+//}
+
+static int mkldnn_conv(float *input, float *weight, float *bias,
+    float *output, int n, int ic, int ih, int iw, int oc, int oh, int ow,
+    int kh, int kw, int sh, int sw, int ph, int pw) {
+  using tag = memory::format_tag;
+  using dt = memory::data_type;
+
+  engine eng(engine::kind::cpu, 0);
+  stream s(eng);
+
+  std::vector<primitive> net;
+  std::vector<std::unordered_map<int, memory>> net_args;
+
+  const memory::dim batch = n;
+  memory::dims conv_src_tz = { batch, ic, ih, iw };
+  memory::dims conv_weights_tz = { oc, ic, kh, kw };
+  memory::dims conv_bias_tz = { oc };
+  memory::dims conv_dst_tz = { batch, oc, oh, ow };
+  memory::dims conv_strides = { sh, sw };
+  memory::dims conv_padding = { ph, pw };
+
+  //std::vector<float> conv_src(product(conv_src_tz));
+  //std::vector<float> conv_dst(product(conv_dst_tz));
+  //std::vector<float> conv_weights(product(conv_weights_tz));
+  //std::vector<float> conv_bias(product(conv_bias_tz));
+
+  if (!bias) {
+    auto zero_bias = new std::vector<float>(oc, 0.0f);
+    bias = zero_bias->data();
+  }
+
+  // memory
+  auto user_conv_src_memory = memory(
+      { { conv_src_tz }, dt::f32, tag::nchw }, eng, input);
+  auto user_conv_weights_memory = memory(
+      { { conv_weights_tz }, dt::f32, tag::oihw }, eng, weight);
+  auto user_conv_bias_memory = memory(
+      { { conv_bias_tz }, dt::f32, tag::x }, eng, bias);
+  auto user_conv_dst_memory = memory(
+      { { conv_dst_tz }, dt::f32, tag::nchw }, eng, output);
+
+  // md
+  auto conv_src_md = memory::desc({ conv_src_tz }, dt::f32, tag::any);
+  auto conv_bias_md = memory::desc({ conv_bias_tz }, dt::f32, tag::any);
+  auto conv_weights_md
+      = memory::desc({ conv_weights_tz }, dt::f32, tag::any);
+  auto conv_dst_md = memory::desc({ conv_dst_tz }, dt::f32, tag::any);
+
+  // conv desc
+  auto conv_desc = convolution_forward::desc(prop_kind::forward_inference,
+      algorithm::convolution_direct, conv_src_md, conv_weights_md, conv_bias_md,
+      conv_dst_md, conv_strides, conv_padding, conv_padding);
+  auto conv_prim_desc = convolution_forward::primitive_desc(conv_desc, eng);
+
+  // do reorder if needed
+  auto conv_src_memory = user_conv_src_memory;
+  if (conv_prim_desc.src_desc() != user_conv_src_memory.get_desc()) {
+    conv_src_memory = memory(conv_prim_desc.src_desc(), eng);
+    net.push_back(reorder(user_conv_src_memory, conv_src_memory));
+    net_args.push_back({ { MKLDNN_ARG_FROM, user_conv_src_memory },
+        { MKLDNN_ARG_TO, conv_src_memory } });
+  }
+  auto conv_weights_memory = user_conv_weights_memory;
+  if (conv_prim_desc.weights_desc() != user_conv_weights_memory.get_desc()) {
+    conv_weights_memory = memory(conv_prim_desc.weights_desc(), eng);
+    reorder(user_conv_weights_memory, conv_weights_memory)
+        .execute(s, user_conv_weights_memory, conv_weights_memory);
+  }
+  auto conv_bias_memory = user_conv_bias_memory;
+
+  auto conv_dst_memory = memory(conv_prim_desc.dst_desc(), eng);
+
+  net.push_back(convolution_forward(conv_prim_desc));
+  net_args.push_back({ { MKLDNN_ARG_SRC, conv_src_memory },
+      { MKLDNN_ARG_WEIGHTS, conv_weights_memory },
+      { MKLDNN_ARG_BIAS, conv_bias_memory },
+      { MKLDNN_ARG_DST, conv_dst_memory } });
+
+  // reorder or copy the output
+  if (conv_dst_memory != user_conv_dst_memory) {
+    net.push_back(reorder(conv_dst_memory, user_conv_dst_memory));
+    net_args.push_back({ { MKLDNN_ARG_FROM, conv_dst_memory },
+        { MKLDNN_ARG_TO, user_conv_dst_memory } });
+  }
+
+  // run
+  assert(net.size() == net_args.size() && "something is missing");
+  for (size_t i = 0; i < net.size(); ++i)
+      net.at(i).execute(s, net_args.at(i));
+
+  s.wait();
+
+  return 0;
+}
+#endif // #ifdef USE_MKLDNN
+
+#define calcConv2DSpatialOutput(_i_, _k_, _s_, _p_, _d_) \
+    (((_i_) + 2 * (_p_) - (_d_) * ((_k_) - 1) - 1) / (_s_) + 1)
+
+static int64_t findPadForSamePadding(int64_t i, int64_t o, int64_t k, int64_t s, int64_t d) {
+  //llvm::errs() << "i: " << i << ", o: " << o << ", k: " << k << ", s: " << s << ", d: " << d << "\n";
+  if (k == 1) {
+    return 0;
+  }
+  for (int64_t p = 1; p <= k - 1; ++p) {
+    if (calcConv2DSpatialOutput(i, k, s, p, d) == o) {
+      return p;
+    }
+  }
+  assert(false);
+  return 0;
+}
+
 namespace mlir {
 
 LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
@@ -75,6 +210,8 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
   if (auto op = dyn_cast<tpu::Conv2DOp>(opInst)) {
     llvm::errs() << "Conv2DOp" << "\n";
     //op.dump();
+    assert(op.getNumOperands() == 3);
+    std::vector<std::vector<float> *> operand_tensors;
     unsigned int operandIdx = 0;
     for (auto *operand : op.getOperands()) {
       llvm::errs() << "  operand[" << operandIdx << "] "; operand->getType().dump(); llvm::errs() << "\n";
@@ -91,19 +228,64 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
         } else {
           llvm::errs() << "      vec is nullptr\n";
         }
+        operand_tensors.push_back(vec);
       }
       operandIdx++;
     }
+
     auto result = op.getResult();
     llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";
     std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
     assert(shape.size() <= 4);
     auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());;
-    auto result_data = std::make_unique<std::vector<float> >(size);
+    auto result_tensor = std::make_unique<std::vector<float> >(size);
 
     // TODO: do the actual compute here
+    int n, ic, ih, iw, oc, oh, ow, kh, kw, sh, sw, ph, pw, dh, dw;
+    dh = op.dilation_h_factor().getLimitedValue();  // APInt, use .getLimitedValue(); to get uint65_t
+    dw = op.dilation_w_factor().getLimitedValue();
+    sh = op.stride_h().getLimitedValue();
+    sw = op.stride_w().getLimitedValue();
+    auto input_type = op.input()->getType().cast<TensorType>();
+    std::vector<int64_t> i_s(input_type.getShape());
+    auto output_type = op.output()->getType().cast<TensorType>();
+    std::vector<int64_t> o_s(output_type.getShape());
+    auto filter_type = op.filter()->getType().cast<TensorType>();
+    std::vector<int64_t> f_s(filter_type.getShape());
+    assert((i_s[0] == o_s[0]) && "input N not equal to output N");
+    n = i_s[0];
+    ih = i_s[2];
+    iw = i_s[3];
+    oc = f_s[0];
+    ic = f_s[1];
+    kh = f_s[2];
+    kw = f_s[3];
+    oh = o_s[2];
+    ow = o_s[3];
+    auto padding_attr = op.getAttrOfType<StringAttr>("padding");
+    if (padding_attr.getValue() == "SAME") {
+      ph = findPadForSamePadding(ih, oh, kh, sh, dh);
+      pw = findPadForSamePadding(iw, ow, kw, sw, dw);
+    } else if (padding_attr.getValue() == "VALID") {
+      ph = 0;
+      pw = 0;
+    } else {
+      assert(false);
+    }
+    float *mkldnn_input = (float *)operand_tensors[0]->data();
+    float *mkldnn_weight = (float *)operand_tensors[1]->data();
+    float *mkldnn_bias = nullptr;
+    if (operand_tensors[2]) {
+      mkldnn_bias = (float *)operand_tensors[2]->data();
+    }
+    float *mkldnn_output = (float *)result_tensor.get()->data();
+    int mkldnn_ret = mkldnn_conv(mkldnn_input, mkldnn_weight, mkldnn_bias, mkldnn_output,
+        n, ic, ih, iw, oc, oh, ow, kh, kw, sh, sw, ph, pw);
+    assert(mkldnn_ret == 0);
+    //dump_data_float_abs("mkldnn_output", mkldnn_output, n, oc, oh, ow);
+    // TODO: End of compute, need refactor
 
-    valueMapping[result] = std::move(result_data);
+    valueMapping[result] = std::move(result_tensor);
 
     return success();
   }
@@ -136,6 +318,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     auto result_data = std::make_unique<std::vector<float> >(size);
 
     // TODO: do the actual compute here
+    // TODO: End of compute, need refactor
 
     valueMapping[result] = std::move(result_data);
 
@@ -170,6 +353,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     auto result_data = std::make_unique<std::vector<float> >(size);
 
     // TODO: do the actual compute here
+    // TODO: End of compute, need refactor
 
     valueMapping[result] = std::move(result_data);
 
@@ -205,6 +389,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     auto result_data = std::make_unique<std::vector<float> >(size);
 
     // TODO: do the actual compute here
+    // TODO: End of compute, need refactor
 
     valueMapping[result] = std::move(result_data);
 
@@ -239,6 +424,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     auto result_data = std::make_unique<std::vector<float> >(size);
 
     // TODO: do the actual compute here
+    // TODO: End of compute, need refactor
 
     valueMapping[result] = std::move(result_data);
     return success();
@@ -273,6 +459,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     auto result_data = std::make_unique<std::vector<float> >(size);
 
     // TODO: do the actual compute here
+    // TODO: End of compute, need refactor
 
     valueMapping[result] = std::move(result_data);
     return success();
@@ -307,6 +494,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     auto result_data = std::make_unique<std::vector<float> >(size);
 
     // TODO: do the actual compute here
+    // TODO: End of compute, need refactor
 
     valueMapping[result] = std::move(result_data);
     return success();
@@ -341,6 +529,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     auto result_data = std::make_unique<std::vector<float> >(size);
 
     // TODO: do the actual compute here
+    // TODO: End of compute, need refactor
 
     valueMapping[result] = std::move(result_data);
     return success();
@@ -374,6 +563,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     auto result_data = std::make_unique<std::vector<float> >(size);
 
     // TODO: do the actual compute here
+    // TODO: End of compute, need refactor
 
     valueMapping[result] = std::move(result_data);
 

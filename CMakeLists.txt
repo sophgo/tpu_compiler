@@ -69,6 +69,18 @@ endif()
 
 set(MLIR_CUDA_RUNNER_ENABLED 0 CACHE BOOL "Enable building the mlir CUDA runner")
 
+if(NOT DEFINED MKLDNN_PATH)
+  set(MKLDNN_PATH $ENV{MKLDNN_PATH})
+endif()
+if(NOT DEFINED MKLDNN_PATH)
+  message(FATAL_ERROR "Please set MKLDNN_PATH to point to the MKLDNN source installation")
+else(NOT DEFINED MKLDNN_PATH)
+  message(STATUS "MKLDNN_PATH ${MKLDNN_PATH}")
+endif()
+#add_definitions(-DUSE_MKLDNN=1)
+include_directories(${MKLDNN_PATH}/install/include)
+link_directories(${MKLDNN_PATH}/install/lib)
+
 include_directories( "include")
 include_directories( ${MLIR_INCLUDE_DIR})
 

@@ -1,5 +1,5 @@
 # To build
-$ cmake -G Ninja ../llvm -DLLVM_BUILD_EXAMPLES=ON -DLLVM_TARGETS_TO_BUILD="host" -DCAFFE_PATH="~/work/caffe" -DLLVM_ENABLE_RTTI=ON -DLLVM_ENABLE_EH=ON
+$ cmake -G Ninja ../llvm -DLLVM_BUILD_EXAMPLES=ON -DLLVM_TARGETS_TO_BUILD="host" -DCAFFE_PATH="~/work/caffe" -DMKLDNN_PATH="~/work/MKLDNN" -DLLVM_ENABLE_RTTI=ON -DLLVM_ENABLE_EH=ON
 $ cmake --build . --target check-mlir
 
 Extra regression
