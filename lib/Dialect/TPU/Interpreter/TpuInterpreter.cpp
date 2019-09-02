@@ -157,6 +157,75 @@ static int mkldnn_conv(float *input, float *weight, float *bias,
 
   return 0;
 }
+
+static int mkldnn_pool(float *input, float *output,
+    int n, int c, int ih, int iw, int oh, int ow,
+    int kh, int kw, int sh, int sw, int ph, int pw,
+    bool is_avg) {
+  using tag = memory::format_tag;
+  using dt = memory::data_type;
+
+  engine eng(engine::kind::cpu, 0);
+  stream s(eng);
+
+  std::vector<primitive> net;
+  std::vector<std::unordered_map<int, memory>> net_args;
+
+  const memory::dim batch = n;
+  memory::dims src_tz = { batch, c, ih, iw };
+  memory::dims dst_tz = { batch, c, oh, ow };
+  memory::dims kernel = { kh, kw };
+  memory::dims strides = { sh, sw };
+  memory::dims padding = { ph, pw };
+
+  // memory
+  auto user_src_memory = memory(
+      { { src_tz }, dt::f32, tag::nchw }, eng, input);
+  auto user_dst_memory = memory(
+      { { dst_tz }, dt::f32, tag::nchw }, eng, output);
+
+  // md
+  //auto src_md = memory::desc({ src_tz }, dt::f32, tag::any);
+  //auto dst_md = memory::desc({ dst_tz }, dt::f32, tag::any);
+
+  // pool desc
+  auto pool_desc = pooling_forward::desc(prop_kind::forward_inference,
+      is_avg ? algorithm::pooling_avg : algorithm::pooling_max,
+      user_src_memory.get_desc(), user_dst_memory.get_desc(),
+      strides, kernel, padding, padding);
+  auto prim_desc = pooling_forward::primitive_desc(pool_desc, eng);
+
+  // do reorder if needed
+  auto src_memory = user_src_memory;
+  if (prim_desc.src_desc() != user_src_memory.get_desc()) {
+    src_memory = memory(prim_desc.src_desc(), eng);
+    net.push_back(reorder(user_src_memory, src_memory));
+    net_args.push_back({ { MKLDNN_ARG_FROM, user_src_memory },
+        { MKLDNN_ARG_TO, src_memory } });
+  }
+
+  auto dst_memory = memory(prim_desc.dst_desc(), eng);
+
+  net.push_back(pooling_forward(prim_desc));
+  net_args.push_back({ { MKLDNN_ARG_SRC, src_memory },
+      { MKLDNN_ARG_DST, dst_memory } });
+
+  // reorder or copy the output
+  if (dst_memory != user_dst_memory) {
+    net.push_back(reorder(dst_memory, user_dst_memory));
+    net_args.push_back({ { MKLDNN_ARG_FROM, dst_memory },
+        { MKLDNN_ARG_TO, user_dst_memory } });
+  }
+
+  // run
+  assert(net.size() == net_args.size() && "something is missing");
+  for (size_t i = 0; i < net.size(); ++i)
+      net.at(i).execute(s, net_args.at(i));
+
+  s.wait();
+
+  return 0;
+}
 #endif // #ifdef USE_MKLDNN
 
 #define calcConv2DSpatialOutput(_i_, _k_, _s_, _p_, _d_) \
@@ -292,6 +361,8 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
   if (auto op = dyn_cast<tpu::AveragePool2DOp>(opInst)) {
     llvm::errs() << "AveragePool2DOp" << "\n";
     //op.dump();
+    //assert(op.getNumOperands() == 1);
+    std::vector<std::vector<float> *> operand_tensors;
     {
       auto operand = op.getOperand();
       llvm::errs() << "  operand[0] "; operand->getType().dump(); llvm::errs() << "\n";
@@ -308,6 +379,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
         } else {
           llvm::errs() << "      vec is nullptr\n";
         }
+        operand_tensors.push_back(vec);
       }
     }
     auto result = op.getResult();
@@ -315,18 +387,53 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
     assert(shape.size() <= 4);
     auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());;
-    auto result_data = std::make_unique<std::vector<float> >(size);
+    auto result_tensor = std::make_unique<std::vector<float> >(size);
 
     // TODO: do the actual compute here
+    int n, c, ih, iw, oh, ow, kh, kw, sh, sw, ph, pw;
+    kh = op.filter_height().getLimitedValue();
+    kw = op.filter_width().getLimitedValue();
+    sh = op.stride_h().getLimitedValue();
+    sw = op.stride_w().getLimitedValue();
+    auto input_type = op.input()->getType().cast<TensorType>();
+    std::vector<int64_t> i_s(input_type.getShape());
+    auto output_type = op.output()->getType().cast<TensorType>();
+    std::vector<int64_t> o_s(output_type.getShape());
+    assert((i_s[0] == o_s[0]) && "input N not equal to output N");
+    assert((i_s[1] == o_s[1]) && "input C not equal to output C");
+    n = i_s[0];
+    c = i_s[1];
+    ih = i_s[2];
+    iw = i_s[3];
+    oh = o_s[2];
+    ow = o_s[3];
+    auto padding_attr = op.getAttrOfType<StringAttr>("padding");
+    if (padding_attr.getValue() == "SAME") {
+      ph = findPadForSamePadding(ih, oh, kh, sh, 1);
+      pw = findPadForSamePadding(iw, ow, kw, sw, 1);
+    } else if (padding_attr.getValue() == "VALID") {
+      ph = 0;
+      pw = 0;
+    } else {
+      assert(false);
+    }
+    float *mkldnn_input = (float *)operand_tensors[0]->data();
+    float *mkldnn_output = (float *)result_tensor.get()->data();
+    int mkldnn_ret = mkldnn_pool(mkldnn_input, mkldnn_output,
+        n, c, ih, iw, oh, ow, kh, kw, sh, sw, ph, pw, true);
+    assert(mkldnn_ret == 0);
+    //dump_data_float_abs("mkldnn_output", mkldnn_output, n, c, oh, ow);
     // TODO: End of compute, need refactor
 
-    valueMapping[result] = std::move(result_data);
+    valueMapping[result] = std::move(result_tensor);
 
     return success();
   }
   if (auto op = dyn_cast<tpu::MaxPool2DOp>(opInst)) {
     llvm::errs() << "MaxPool2DOp" << "\n";
     //op.dump();
+    //assert(op.getNumOperands() == 1);
+    std::vector<std::vector<float> *> operand_tensors;
     {
       auto operand = op.getOperand();
       llvm::errs() << "  operand[0] "; operand->getType().dump(); llvm::errs() << "\n";
@@ -343,6 +450,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
         } else {
           llvm::errs() << "      vec is nullptr\n";
         }
+        operand_tensors.push_back(vec);
       }
     }
     auto result = op.getResult();
@@ -350,12 +458,45 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
     assert(shape.size() <= 4);
     auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());;
-    auto result_data = std::make_unique<std::vector<float> >(size);
+    auto result_tensor = std::make_unique<std::vector<float> >(size);
 
     // TODO: do the actual compute here
+    int n, c, ih, iw, oh, ow, kh, kw, sh, sw, ph, pw;
+    kh = op.filter_height().getLimitedValue();
+    kw = op.filter_width().getLimitedValue();
+    sh = op.stride_h().getLimitedValue();
+    sw = op.stride_w().getLimitedValue();
+    auto input_type = op.input()->getType().cast<TensorType>();
+    std::vector<int64_t> i_s(input_type.getShape());
+    auto output_type = op.output()->getType().cast<TensorType>();
+    std::vector<int64_t> o_s(output_type.getShape());
+    assert((i_s[0] == o_s[0]) && "input N not equal to output N");
+    assert((i_s[1] == o_s[1]) && "input C not equal to output C");
+    n = i_s[0];
+    c = i_s[1];
+    ih = i_s[2];
+    iw = i_s[3];
+    oh = o_s[2];
+    ow = o_s[3];
+    auto padding_attr = op.getAttrOfType<StringAttr>("padding");
+    if (padding_attr.getValue() == "SAME") {
+      ph = findPadForSamePadding(ih, oh, kh, sh, 1);
+      pw = findPadForSamePadding(iw, ow, kw, sw, 1);
+    } else if (padding_attr.getValue() == "VALID") {
+      ph = 0;
+      pw = 0;
+    } else {
+      assert(false);
+    }
+    float *mkldnn_input = (float *)operand_tensors[0]->data();
+    float *mkldnn_output = (float *)result_tensor.get()->data();
+    int mkldnn_ret = mkldnn_pool(mkldnn_input, mkldnn_output,
+        n, c, ih, iw, oh, ow, kh, kw, sh, sw, ph, pw, false);
+    assert(mkldnn_ret == 0);
+    //dump_data_float_abs("mkldnn_output", mkldnn_output, n, c, oh, ow);
     // TODO: End of compute, need refactor
 
-    valueMapping[result] = std::move(result_data);
+    valueMapping[result] = std::move(result_tensor);
 
     return success();
   }
