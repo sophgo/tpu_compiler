@@ -311,6 +311,18 @@ static int mkldnn_ip(float *input, float *weight, float *bias,
 }
 #endif // #ifdef USE_MKLDNN
 
+static int my_relu(float *input, float *output,
+    int n, int c, int h, int w, float negative_slope) {
+  for (int i = 0; i < n * c * h * w; ++i) {
+    if (input[i] >= 0) {
+      output[i] = input[i];
+    } else {
+      output[i] = negative_slope * input[i];
+    }
+  }
+  return 0;
+}
+
 #define calcConv2DSpatialOutput(_i_, _k_, _s_, _p_, _d_) \
     (((_i_) + 2 * (_p_) - (_d_) * ((_k_) - 1) - 1) / (_s_) + 1)
 
@@ -653,6 +665,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
   if (auto op = dyn_cast<tpu::ReluOp>(opInst)) {
     llvm::errs() << "ReluOp" << "\n";
     //op.dump();
+    std::vector<std::vector<float> *> operand_tensors;
     {
       auto operand = op.getOperand();
       llvm::errs() << "  operand[0] "; operand->getType().dump(); llvm::errs() << "\n";
@@ -669,19 +682,38 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
         } else {
           llvm::errs() << "      vec is nullptr\n";
         }
+        operand_tensors.push_back(vec);
       }
     }
+
     auto result = op.getResult();
     llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";
     std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
     assert(shape.size() <= 4);
     auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());;
-    auto result_data = std::make_unique<std::vector<float> >(size);
+    auto result_tensor = std::make_unique<std::vector<float> >(size);
 
     // TODO: do the actual compute here
+    int n, c, h, w;
+    float negative_slope = op.negative_slope().convertToFloat();
+    llvm::errs() << "  negative_slope " << negative_slope << "\n";
+    auto input_type = op.x()->getType().cast<TensorType>();
+    std::vector<int64_t> i_s(input_type.getShape());
+    auto output_type = op.y()->getType().cast<TensorType>();
+    std::vector<int64_t> o_s(output_type.getShape());
+    assert((i_s == o_s) && "input shape not equal to output shape");
+    n = i_s[0];
+    c = i_s[1];
+    h = i_s[2];
+    w = i_s[3];
+    float *input = (float *)operand_tensors[0]->data();
+    float *output = (float *)result_tensor.get()->data();
+    int ret = my_relu(input, output, n, c, h, w, negative_slope);
+    assert(ret == 0);
+    //dump_data_float_abs("mkldnn_output", mkldnn_output, n, c, oh, ow);
     // TODO: End of compute, need refactor
 
-    valueMapping[result] = std::move(result_data);
+    valueMapping[result] = std::move(result_tensor);
     return success();
   }
   if (auto op = dyn_cast<tpu::BatchNormOp>(opInst)) {
