@@ -111,12 +111,12 @@ static void dumpFullyConnectedOpParam(tpu::FullyConnectedOp &op, const bool verb
   std::vector<int64_t> i_s(input_type.getShape());
   auto output_type = op.output()->getType().cast<TensorType>();
   std::vector<int64_t> o_s(output_type.getShape());
-  auto weight_type = op.weight()->getType().cast<TensorType>();
-  std::vector<int64_t> w_s(weight_type.getShape());
+  auto filter_type = op.filter()->getType().cast<TensorType>();
+  std::vector<int64_t> f_s(filter_type.getShape());
 
   os << "  >> " << "input shape  : " << i_s[0] << "," << i_s[1] << "\n";
   os << "  >> " << "output shape : " << o_s[0] << "," << o_s[1] << "\n";
-  os << "  >> " << "weight shape : " << w_s[0] << "," << w_s[1] << "\n";
+  os << "  >> " << "filter shape : " << f_s[0] << "," << f_s[1] << "\n";
 
   assert((i_s[0] == o_s[0]) && "input M not equal to output M");
   auto M = i_s[0];
@@ -124,9 +124,9 @@ static void dumpFullyConnectedOpParam(tpu::FullyConnectedOp &op, const bool verb
     os << "  >> " << "No determined N, use batch size 1" << "\n";
     M = 1;
   }
-  assert((i_s[1] == w_s[0]) && "input K not equal to weight K");
+  assert((i_s[1] == f_s[1]) && "input K not equal to filter K");
   auto K = i_s[1];
-  assert((w_s[1] == o_s[1]) && "weight N not equal to output N");
+  assert((f_s[0] == o_s[1]) && "filter N not equal to output N");
   auto N = o_s[1];
 
   llvm::errs() << M << ", " << K << ", " << N <<"\n";

@@ -226,6 +226,89 @@ static int mkldnn_pool(float *input, float *output,
 
   return 0;
 }
+
+static int mkldnn_ip(float *input, float *weight, float *bias,
+    float *output, int m, int k, int n, bool transpose) {
+  using tag = memory::format_tag;
+  using dt = memory::data_type;
+
+  engine eng(engine::kind::cpu, 0);
+  stream s(eng);
+
+  std::vector<primitive> net;
+  std::vector<std::unordered_map<int, memory>> net_args;
+
+  memory::dims src_tz = { m, k };
+  memory::dims weights_tz = { n, k };
+  memory::dims bias_tz = { n };
+  memory::dims dst_tz = { m, n };
+
+  if (!bias) {
+    auto zero_bias = new std::vector<float>(n, 0.0f);
+    bias = zero_bias->data();
+  }
+
+  // memory
+  auto user_src_memory = memory(
+      { { src_tz }, dt::f32, tag::nc }, eng, input);
+  auto user_weights_memory = memory(
+      { { weights_tz }, dt::f32, tag::oi }, eng, weight);
+  auto user_bias_memory = memory(
+      { { bias_tz }, dt::f32, tag::x }, eng, bias);
+  auto user_dst_memory = memory(
+      { { dst_tz }, dt::f32, tag::nc }, eng, output);
+
+  // md
+  auto src_md = memory::desc({ src_tz }, dt::f32, tag::any);
+  auto weights_md = memory::desc({ weights_tz }, dt::f32, tag::any);
+  auto bias_md = memory::desc({ bias_tz }, dt::f32, tag::any);
+  auto dst_md = memory::desc({ dst_tz }, dt::f32, tag::any);
+
+  // fc desc
+  auto fc_desc = inner_product_forward::desc(prop_kind::forward_inference,
+      src_md, weights_md, bias_md, dst_md);
+  auto fc_prim_desc = inner_product_forward::primitive_desc(fc_desc, eng);
+
+  // do reorder if needed
+  auto src_memory = user_src_memory;
+  if (fc_prim_desc.src_desc() != user_src_memory.get_desc()) {
+    src_memory = memory(fc_prim_desc.src_desc(), eng);
+    net.push_back(reorder(user_src_memory, src_memory));
+    net_args.push_back({ { MKLDNN_ARG_FROM, user_src_memory },
+        { MKLDNN_ARG_TO, src_memory } });
+  }
+  auto weights_memory = user_weights_memory;
+  if (fc_prim_desc.weights_desc() != user_weights_memory.get_desc()) {
+    weights_memory = memory(fc_prim_desc.weights_desc(), eng);
+    reorder(user_weights_memory, weights_memory)
+        .execute(s, user_weights_memory, weights_memory);
+  }
+  auto bias_memory = user_bias_memory;
+
+  auto dst_memory = memory(fc_prim_desc.dst_desc(), eng);
+
+  net.push_back(inner_product_forward(fc_prim_desc));
+  net_args.push_back({ { MKLDNN_ARG_SRC, src_memory },
+      { MKLDNN_ARG_WEIGHTS, weights_memory },
+      { MKLDNN_ARG_BIAS, bias_memory },
+      { MKLDNN_ARG_DST, dst_memory } });
+
+  // reorder or copy the output
+  if (dst_memory != user_dst_memory) {
+    net.push_back(reorder(dst_memory, user_dst_memory));
+    net_args.push_back({ { MKLDNN_ARG_FROM, dst_memory },
+        { MKLDNN_ARG_TO, user_dst_memory } });
+  }
+
+  // run
+  assert(net.size() == net_args.size() && "something is missing");
+  for (size_t i = 0; i < net.size(); ++i)
+      net.at(i).execute(s, net_args.at(i));
+
+  s.wait();
+
+  return 0;
+}
 #endif // #ifdef USE_MKLDNN
 
 #define calcConv2DSpatialOutput(_i_, _k_, _s_, _p_, _d_) \
@@ -305,7 +388,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     auto result = op.getResult();
     llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";
     std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
-    assert(shape.size() <= 4);
+    assert(shape.size() == 4);
     auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());;
     auto result_tensor = std::make_unique<std::vector<float> >(size);
 
@@ -503,6 +586,8 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
   if (auto op = dyn_cast<tpu::FullyConnectedOp>(opInst)) {
     llvm::errs() << "FullyConnectedOp" << "\n";
     //op.dump();
+    assert(op.getNumOperands() == 3);
+    std::vector<std::vector<float> *> operand_tensors;
     unsigned int operandIdx = 0;
     for (auto *operand : op.getOperands()) {
       llvm::errs() << "  operand[" << operandIdx << "] "; operand->getType().dump(); llvm::errs() << "\n";
@@ -519,20 +604,49 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
         } else {
           llvm::errs() << "      vec is nullptr\n";
         }
+        operand_tensors.push_back(vec);
       }
       operandIdx++;
     }
+
     auto result = op.getResult();
     llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";
     std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
-    assert(shape.size() <= 4);
+    assert(shape.size() == 2);
     auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());;
-    auto result_data = std::make_unique<std::vector<float> >(size);
+    auto result_tensor = std::make_unique<std::vector<float> >(size);
 
     // TODO: do the actual compute here
+    int m, k, n;
+    bool transpose = false;
+    auto input_type = op.input()->getType().cast<TensorType>();
+    std::vector<int64_t> i_s(input_type.getShape());
+    auto output_type = op.output()->getType().cast<TensorType>();
+    std::vector<int64_t> o_s(output_type.getShape());
+    auto filter_type = op.filter()->getType().cast<TensorType>();
+    std::vector<int64_t> f_s(filter_type.getShape());
+    assert((i_s[0] == o_s[0]) && "input M not equal to output M");
+    m = i_s[0];
+    // assuming transpose is false
+    assert((i_s[1] == f_s[1]) && "input K not equal to filter K");
+    k = i_s[1];
+    assert((f_s[0] == o_s[1]) && "filter N not equal to output N");
+    n = o_s[1];
+
+    float *mkldnn_input = (float *)operand_tensors[0]->data();
+    float *mkldnn_weight = (float *)operand_tensors[1]->data();
+    float *mkldnn_bias = nullptr;
+    if (operand_tensors[2]) {
+      mkldnn_bias = (float *)operand_tensors[2]->data();
+    }
+    float *mkldnn_output = (float *)result_tensor.get()->data();
+    int mkldnn_ret = mkldnn_ip(mkldnn_input, mkldnn_weight, mkldnn_bias,
+        mkldnn_output, m, k, n, transpose);
+    assert(mkldnn_ret == 0);
+    //dump_data_float_abs("mkldnn_output", mkldnn_output, 1, 1, m, n);
     // TODO: End of compute, need refactor
 
-    valueMapping[result] = std::move(result_data);
+    valueMapping[result] = std::move(result_tensor);
 
     return success();
   }

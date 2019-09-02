@@ -741,7 +741,7 @@ static mlir::Value *addFullyConnectedOpInBlockFromCaffe(Builder builder, Block *
   }
 
   // construct the fully_connected OP
-  auto filter_type = builder.getTensorType({K, N}, elementType);
+  auto filter_type = builder.getTensorType({N, K}, elementType);
   auto filter = OpBuilder(block).create<tpu::LoadWeightOp>(
       builder.getUnknownLoc(), filter_type, weight_var,
       /*offset=*/builder.getI64IntegerAttr(pos_filter));

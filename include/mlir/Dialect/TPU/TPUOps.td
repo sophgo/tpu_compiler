@@ -197,7 +197,7 @@ def TPU_FullyConnectedOp : TPU_Op<"fully_connected", [NoSideEffect]> {
 
   let arguments = (
     ins AnyTensor:$input,
-    AnyTensor:$weight,
+    AnyTensor:$filter,
     AnyTensor:$bias,
     TPU_AFAttr:$fused_activation_function
   );
