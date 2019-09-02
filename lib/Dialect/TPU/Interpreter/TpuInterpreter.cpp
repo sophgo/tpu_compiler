@@ -323,6 +323,61 @@ static int my_relu(float *input, float *output,
   return 0;
 }
 
+// Y = (X-mean(X))/(sqrt(var(X)+eps))
+static int my_bn(float *input, float *mean, float *variance, float *scale,
+    float *output, int n, int c, int h, int w) {
+  float eps = 1.0e-5;
+  float scale_factor = 1 / scale[0];
+  for (int i = 0; i < c; ++i) {
+    mean[i] = mean[i] * scale_factor;
+    variance[i] = variance[i] * scale_factor;
+  }
+  for (int ni = 0; ni < n; ++ni) {
+    for (int ci = 0; ci < c; ++ci) {
+      for (int i = 0; i < h * w; ++i) {
+        auto x = input[ni * c * h * w + ci * h * w + i] - mean[ci];
+        auto d = sqrt(variance[ci] + eps);
+        output[ni * c * h * w + ci * h * w + i] = x / d;
+      }
+    }
+  }
+  return 0;
+}
+
+static int my_scale(float *input, float *scale, float *bias,
+    float *output, int n, int c, int h, int w) {
+  for (int ni = 0; ni < n; ++ni) {
+    for (int ci = 0; ci < c; ++ci) {
+      for (int i = 0; i < h * w; ++i) {
+        auto x = input[ni * c * h * w + ci * h * w + i];
+        auto y = x * scale[ci] + bias[ci];
+        output[ni * c * h * w + ci * h * w + i] = y;
+      }
+    }
+  }
+  return 0;
+}
+
+static int my_eltwise(float *input_1, float *input_2, float *output,
+    int n, int c, int h, int w, int op) {
+  for (int i = 0; i < n * c * h * w; ++i) {
+    switch (op) {
+    case 0: //caffe::EltwiseParameter_EltwiseOp_PROD:
+      output[i] = input_1[i] * input_2[i];
+      break;
+    case 1: //caffe::EltwiseParameter_EltwiseOp_SUM:
+      output[i] = input_1[i] + input_2[i];
+      break;
+    case 2: //caffe::EltwiseParameter_EltwiseOp_MAX:
+      output[i] = input_1[i] > input_2[i] ? input_1[i] : input_2[i];
+      break;
+    default:
+      assert(0);
+    }
+  }
+  return 0;
+}
+
 #define calcConv2DSpatialOutput(_i_, _k_, _s_, _p_, _d_) \
     (((_i_) + 2 * (_p_) - (_d_) * ((_k_) - 1) - 1) / (_s_) + 1)
 
@@ -361,7 +416,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";
     std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
     assert(shape.size() <= 4);
-    auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());;
+    auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
     auto weight_data = std::make_unique<std::vector<float> >(size);
 
     weight_is.get()->seekg(offset, std::ios::beg);
@@ -401,7 +456,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";
     std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
     assert(shape.size() == 4);
-    auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());;
+    auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
     auto result_tensor = std::make_unique<std::vector<float> >(size);
 
     // TODO: do the actual compute here
@@ -481,7 +536,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";
     std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
     assert(shape.size() <= 4);
-    auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());;
+    auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
     auto result_tensor = std::make_unique<std::vector<float> >(size);
 
     // TODO: do the actual compute here
@@ -552,7 +607,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";
     std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
     assert(shape.size() <= 4);
-    auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());;
+    auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
     auto result_tensor = std::make_unique<std::vector<float> >(size);
 
     // TODO: do the actual compute here
@@ -625,7 +680,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";
     std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
     assert(shape.size() == 2);
-    auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());;
+    auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
     auto result_tensor = std::make_unique<std::vector<float> >(size);
 
     // TODO: do the actual compute here
@@ -690,7 +745,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";
     std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
     assert(shape.size() <= 4);
-    auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());;
+    auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
     auto result_tensor = std::make_unique<std::vector<float> >(size);
 
     // TODO: do the actual compute here
@@ -719,6 +774,8 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
   if (auto op = dyn_cast<tpu::BatchNormOp>(opInst)) {
     llvm::errs() << "BatchNormOp" << "\n";
     //op.dump();
+    assert(op.getNumOperands() == 4);
+    std::vector<std::vector<float> *> operand_tensors;
     unsigned int operandIdx = 0;
     for (auto *operand : op.getOperands()) {
       llvm::errs() << "  operand[" << operandIdx << "] "; operand->getType().dump(); llvm::errs() << "\n";
@@ -735,25 +792,47 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
         } else {
           llvm::errs() << "      vec is nullptr\n";
         }
+        operand_tensors.push_back(vec);
       }
       operandIdx++;
     }
+
     auto result = op.getResult();
     llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";
     std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
     assert(shape.size() <= 4);
-    auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());;
-    auto result_data = std::make_unique<std::vector<float> >(size);
+    auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
+    auto result_tensor = std::make_unique<std::vector<float> >(size);
 
     // TODO: do the actual compute here
+    int n, c, h, w;
+    auto input_type = op.x()->getType().cast<TensorType>();
+    std::vector<int64_t> i_s(input_type.getShape());
+    auto output_type = op.y()->getType().cast<TensorType>();
+    std::vector<int64_t> o_s(output_type.getShape());
+    assert((i_s == o_s) && "input shape not equal to output shape");
+    n = i_s[0];
+    c = i_s[1];
+    h = i_s[2];
+    w = i_s[3];
+    float *input = (float *)operand_tensors[0]->data();
+    float *mean = (float *)operand_tensors[1]->data();
+    float *variance = (float *)operand_tensors[2]->data();
+    float *scale = (float *)operand_tensors[3]->data();
+    float *output = (float *)result_tensor.get()->data();
+    int ret = my_bn(input, mean, variance, scale, output, n, c, h, w);
+    assert(ret == 0);
+    //dump_data_float_abs("mkldnn_output", mkldnn_output, n, c, oh, ow);
     // TODO: End of compute, need refactor
 
-    valueMapping[result] = std::move(result_data);
+    valueMapping[result] = std::move(result_tensor);
     return success();
   }
   if (auto op = dyn_cast<tpu::ScaleOp>(opInst)) {
     llvm::errs() << "ScaleOp" << "\n";
     //op.dump();
+    assert(op.getNumOperands() == 3);
+    std::vector<std::vector<float> *> operand_tensors;
     unsigned int operandIdx = 0;
     for (auto *operand : op.getOperands()) {
       llvm::errs() << "  operand[" << operandIdx << "] "; operand->getType().dump(); llvm::errs() << "\n";
@@ -770,25 +849,46 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
         } else {
           llvm::errs() << "      vec is nullptr\n";
         }
+        operand_tensors.push_back(vec);
       }
       operandIdx++;
     }
+
     auto result = op.getResult();
     llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";
     std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
     assert(shape.size() <= 4);
-    auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());;
-    auto result_data = std::make_unique<std::vector<float> >(size);
+    auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
+    auto result_tensor = std::make_unique<std::vector<float> >(size);
 
     // TODO: do the actual compute here
+    int n, c, h, w;
+    auto input_type = op.x()->getType().cast<TensorType>();
+    std::vector<int64_t> i_s(input_type.getShape());
+    auto output_type = op.y()->getType().cast<TensorType>();
+    std::vector<int64_t> o_s(output_type.getShape());
+    assert((i_s == o_s) && "input shape not equal to output shape");
+    n = i_s[0];
+    c = i_s[1];
+    h = i_s[2];
+    w = i_s[3];
+    float *input = (float *)operand_tensors[0]->data();
+    float *scale = (float *)operand_tensors[1]->data();
+    float *bias = (float *)operand_tensors[2]->data();
+    float *output = (float *)result_tensor.get()->data();
+    int ret = my_scale(input, scale, bias, output, n, c, h, w);
+    assert(ret == 0);
+    //dump_data_float_abs("mkldnn_output", mkldnn_output, n, c, oh, ow);
     // TODO: End of compute, need refactor
 
-    valueMapping[result] = std::move(result_data);
+    valueMapping[result] = std::move(result_tensor);
     return success();
   }
   if (auto op = dyn_cast<tpu::EltwiseOp>(opInst)) {
-    llvm::errs() << "ScaleOp" << "\n";
+    llvm::errs() << "EltwiseOp" << "\n";
     //op.dump();
+    assert(op.getNumOperands() == 2);
+    std::vector<std::vector<float> *> operand_tensors;
     unsigned int operandIdx = 0;
     for (auto *operand : op.getOperands()) {
       llvm::errs() << "  operand[" << operandIdx << "] "; operand->getType().dump(); llvm::errs() << "\n";
@@ -805,25 +905,47 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
         } else {
           llvm::errs() << "      vec is nullptr\n";
         }
+        operand_tensors.push_back(vec);
       }
       operandIdx++;
     }
+
     auto result = op.getResult();
     llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";
     std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
     assert(shape.size() <= 4);
-    auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());;
-    auto result_data = std::make_unique<std::vector<float> >(size);
+    auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
+    auto result_tensor = std::make_unique<std::vector<float> >(size);
 
     // TODO: do the actual compute here
+    int n, c, h, w;
+    auto input_1_type = op.x1()->getType().cast<TensorType>();
+    std::vector<int64_t> i1_s(input_1_type.getShape());
+    auto input_2_type = op.x2()->getType().cast<TensorType>();
+    std::vector<int64_t> i2_s(input_2_type.getShape());
+    auto output_type = op.y()->getType().cast<TensorType>();
+    std::vector<int64_t> o_s(output_type.getShape());
+    assert((i1_s == i2_s) && "two input shapes not equal");
+    assert((i1_s == o_s) && "input shape not equal to output shape");
+    n = o_s[0];
+    c = o_s[1];
+    h = o_s[2];
+    w = o_s[3];
+    float *input_1 = (float *)operand_tensors[0]->data();
+    float *input_2 = (float *)operand_tensors[1]->data();
+    float *output = (float *)result_tensor.get()->data();
+    int ret = my_eltwise(input_1, input_2, output, n, c, h, w, 1);
+    assert(ret == 0);
+    //dump_data_float_abs("mkldnn_output", mkldnn_output, n, c, oh, ow);
     // TODO: End of compute, need refactor
 
-    valueMapping[result] = std::move(result_data);
+    valueMapping[result] = std::move(result_tensor);
     return success();
   }
   if (auto op = dyn_cast<tpu::ReshapeOp>(opInst)) {
     llvm::errs() << "ReshapeOp" << "\n";
     //op.dump();
+    std::vector<std::vector<float> *> operand_tensors;
     {
       auto operand = op.getOperand();
       llvm::errs() << "  operand[0] "; operand->getType().dump(); llvm::errs() << "\n";
@@ -840,19 +962,32 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
         } else {
           llvm::errs() << "      vec is nullptr\n";
         }
+        operand_tensors.push_back(vec);
       }
     }
+
     auto result = op.getResult();
     llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";
     std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
     assert(shape.size() <= 4);
-    auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());;
-    auto result_data = std::make_unique<std::vector<float> >(size);
+    auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
+    auto result_tensor = std::make_unique<std::vector<float> >(size);
 
     // TODO: do the actual compute here
+    auto input_type = op.input()->getType().cast<TensorType>();
+    std::vector<int64_t> i_s(input_type.getShape());
+    auto output_type = op.output()->getType().cast<TensorType>();
+    std::vector<int64_t> o_s(output_type.getShape());
+    auto i_size = std::accumulate(std::begin(i_s), std::end(i_s), 1, std::multiplies<>());
+    auto o_size = std::accumulate(std::begin(o_s), std::end(o_s), 1, std::multiplies<>());
+    assert((i_size == o_size) && "input size not equal to output size");
+
+    // use copy for now
+    result_tensor.get()->swap(*operand_tensors[0]);
+
     // TODO: End of compute, need refactor
 
-    valueMapping[result] = std::move(result_data);
+    valueMapping[result] = std::move(result_tensor);
 
     return success();
   }

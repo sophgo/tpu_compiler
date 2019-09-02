@@ -44,6 +44,49 @@
 
 using namespace mlir;
 
+static void dump_data_float_abs(const char * const desc, const void * const addr,
+    int n, int c, int h, int w)
+{
+#define ABS_LEN 4
+#define ABS_COUNT 1
+  int ni, ci, hi, wi;
+  int off;
+  const float *data = (const float *)addr;
+
+  /* Output description if given. */
+  if (desc != NULL)
+    printf("%s: abs, n=%d, c=%d, h=%d, w=%d\n", desc, n, c, h, w);
+
+  /* Process first and last 4 col and 4 raw in the data. */
+  for (ni = 0; ni < n; ni++) {
+    for (ci = 0; ci < c; ci++) {
+      if ((ni * c + ci) == ABS_COUNT)
+        printf("\n .\n .\n .\n");
+      if ((ni * c + ci) >= ABS_COUNT && (ni * c + ci) <= (n * c - ABS_COUNT - 1))
+        continue;
+      printf("=== n = %02d, c = %02d ===\n", ni, ci);
+      for (hi = 0; hi < h; hi++) {
+        if (hi == ABS_LEN)
+          printf(" ... \n");
+        if (hi >= ABS_LEN && hi <= h - ABS_LEN - 1)
+          continue;
+        printf("[ ");
+        for (wi = 0; wi < w; wi++) {
+          if (wi == ABS_LEN)
+            printf(" ... ");
+          if (wi >= ABS_LEN && wi <= w - ABS_LEN - 1)
+            continue;
+          off = ni * (c * h * w) + ci * (h * w) + hi * w + wi;
+          if (data[off] >= 0)
+            printf(" ");
+          printf("%2.2f ", data[off]);
+        }
+        printf("]\n");
+      }
+    }
+  }
+}
+
 static llvm::cl::opt<std::string> inputFilename(llvm::cl::Positional,
                                                 llvm::cl::desc("<input file>"),
                                                 llvm::cl::init("-"));
@@ -90,6 +133,8 @@ int TpuInterpreterMain(
 
   if (failed(runTpuModule(m.get(), inputs, outputs)))
     return EXIT_FAILURE;
+
+  dump_data_float_abs("output", outputs[0]->data(), 1, 1, 10, 100);
 
   int exitCode = EXIT_SUCCESS;
   return exitCode;
