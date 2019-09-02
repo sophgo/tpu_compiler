@@ -215,7 +215,8 @@ def TPU_BatchNormOp: TPU_Op<"batch_norm", [NoSideEffect]> {
   let arguments = (
     ins AnyTensor:$x,
     AnyTensor:$mean,
-    AnyTensor:$variance
+    AnyTensor:$variance,
+    AnyTensor:$scale
   );
 
   let results = (outs AnyTensor:$y);

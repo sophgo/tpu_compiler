@@ -337,21 +337,12 @@ static mlir::Value *addBatchNormOpInBlockFromCaffe(Builder builder, Block *block
       << ", IH*IW: " << h << " * " << w
       << "\n";
 
-  size_t pos_mean, pos_variance;
+  size_t pos_mean, pos_variance, pos_scale;
   if (weight_os) {
     // - blobs_[2] holds the scale, which is one scalar data
     // - blobs_[0] holds the mean
     // - blobs_[1] holds the variance
     assert(layer->blobs().size() == 3);
-
-    // scale
-    const caffe::Blob<float> *blob_scale = layer->blobs()[2].get();
-    llvm::errs() << "  scale shape " << blob_scale->shape_string() << "\n";
-    std::vector<int> scale_shape = blob_scale->shape();
-    assert(scale_shape.size() == 1);
-    assert(scale_shape[0] == 1);
-    float scale = *((const float *)blob_scale->cpu_data());
-    llvm::errs() << "  scale: " << scale << "\n";
 
     // mean weights
     const caffe::Blob<float> *blob_mean = layer->blobs()[0].get();
@@ -376,6 +367,20 @@ static mlir::Value *addBatchNormOpInBlockFromCaffe(Builder builder, Block *block
         blob_variance->count() * sizeof(float));
     llvm::errs() << "  variance: " << llvm::format_hex(pos_variance, 10)
                  << " --> " << llvm::format_hex(weight_os->tell(), 10) << "\n";
+
+    // scale is also a learnable param
+    const caffe::Blob<float> *blob_scale = layer->blobs()[2].get();
+    llvm::errs() << "  scale shape " << blob_scale->shape_string() << "\n";
+    std::vector<int> scale_shape = blob_scale->shape();
+    assert(scale_shape.size() == 1);
+    assert(scale_shape[0] == 1);
+    float scale_value = *((const float *)blob_scale->cpu_data());
+    llvm::errs() << "  scale: " << scale_value << "\n";
+    pos_scale = weight_os->tell();
+    weight_os->write(reinterpret_cast<const char*>(blob_scale->cpu_data()),
+        blob_scale->count() * sizeof(float));
+    llvm::errs() << "  scale: " << llvm::format_hex(pos_scale, 10)
+                 << " --> " << llvm::format_hex(weight_os->tell(), 10) << "\n";
   }
 
   // construct OP
@@ -387,9 +392,13 @@ static mlir::Value *addBatchNormOpInBlockFromCaffe(Builder builder, Block *block
   auto variance = OpBuilder(block).create<tpu::LoadWeightOp>(
       builder.getUnknownLoc(), variance_type, weight_var,
       /*offset=*/builder.getI64IntegerAttr(pos_variance));
+  auto scale_type = builder.getTensorType({1}, elementType);
+  auto scale = OpBuilder(block).create<tpu::LoadWeightOp>(
+      builder.getUnknownLoc(), scale_type, weight_var,
+      /*offset=*/builder.getI64IntegerAttr(pos_scale));
   auto result_type = builder.getTensorType({n, c, h, w}, elementType);
   auto op = OpBuilder(block).create<tpu::BatchNormOp>(
-      builder.getUnknownLoc(), result_type, input_var, mean, variance);
+      builder.getUnknownLoc(), result_type, input_var, mean, variance, scale);
   auto result_var = op.getResult();
   return result_var;
 }
