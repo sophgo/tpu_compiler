@@ -526,6 +526,33 @@ static mlir::Value *addReluOpInBlockFromCaffe(Builder builder, Block *block,
   return result_var;
 }
 
+static mlir::Value *addSoftmaxOpInBlockFromCaffe(Builder builder, Block *block,
+    mlir::Type elementType, mlir::Value *input_var,
+    caffe::Layer<float> *layer) {
+  auto layer_param = layer->layer_param();
+
+  int64_t n, c, h, w;
+  // get input shape from input vars
+  LLVM_DEBUG(input_var->getType().dump(););
+  llvm::ArrayRef<int64_t> input_var_shape =
+      input_var->getType().dyn_cast<mlir::TensorType>().getShape();
+  assert(input_var_shape.size() == 2);
+  n = input_var_shape[0];
+  c = input_var_shape[1];
+
+  llvm::errs()
+      << "  N: " << n
+      << ", C: " << c
+      << "\n";
+
+  // construct OP
+  auto result_type = builder.getTensorType({n, c}, elementType);
+  auto op = OpBuilder(block).create<tpu::SoftmaxOp>(
+      builder.getUnknownLoc(), result_type, input_var);
+  auto result_var = op.getResult();
+  return result_var;
+}
+
 static mlir::Value *addEltwiseOpInBlockFromCaffe(Builder builder, Block *block,
     mlir::Type elementType, mlir::Value *input_1_var, mlir::Value *input_2_var,
     caffe::Layer<float> *layer) {
@@ -960,8 +987,9 @@ static OwningModuleRef caffeToMlirTranslate(llvm::StringRef inputFilename,
       assert(layer_param.bottom_size() == 1 && layer_param.top_size() == 1);
       mlir::Value *input_var = tensor_map.find(layer_param.bottom(0))->second;
       assert(input_var);
-      // TODO: bypass
-      tensor_map[layer_param.top(0)] = input_var;
+      mlir::Value *result_var = addSoftmaxOpInBlockFromCaffe(builder, block,
+          elementType, input_var, layer);
+      tensor_map[layer_param.top(0)] = result_var;
 
     } else {
       llvm::errs() << "    UNKNOWN" << "\n";

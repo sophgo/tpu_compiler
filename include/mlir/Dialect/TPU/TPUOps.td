@@ -253,6 +253,20 @@ def TPU_ReluOp: TPU_Op<"relu", [NoSideEffect, SameOperandsAndResultType]> {
   let results = (outs AnyTensor:$y);
 }
 
+def TPU_SoftmaxOp: TPU_Op<"softmax", [NoSideEffect, SameOperandsAndResultType]> {
+  let summary = "Softmax operator";
+
+  let description = [{
+    Perform softmax on input.
+  }];
+
+  let arguments = (
+    ins AnyTensor:$x
+  );
+
+  let results = (outs AnyTensor:$y);
+}
+
 def TPU_EltwiseOp: TPU_Op<"eltwise", [NoSideEffect, SameOperandsAndResultType]> {
   let summary = "Eltwise operator";
 

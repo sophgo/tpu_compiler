@@ -358,6 +358,34 @@ static int my_scale(float *input, float *scale, float *bias,
   return 0;
 }
 
+#include <math.h>
+
+static int my_softmax(float *input, float *output, int n, int c) {
+  // find max and subtract the max to avoid numerical issues
+  float max_input = input[0];
+  for (int i = 0; i < n * c; ++i) {
+    if (input[i] > max_input)
+      max_input = input[i];
+  }
+  // do softmax
+  float *ex = (float *)malloc(c * sizeof(float));
+  for (int ni = 0; ni < n; ++ni) {
+    float sum_of_ex = 0.0f;
+    for (int ci = 0; ci < c; ++ci) {
+      int i = ni * c + ci;
+      float x = input[i] - max_input;
+      ex[ci] = exp(x);
+      sum_of_ex += ex[ci];
+    }
+    for (int ci = 0; ci < c; ++ci) {
+      int i = ni * c + ci;
+      output[i] = ex[ci] / sum_of_ex;
+    }
+  }
+  free(ex);
+  return 0;
+}
+
 static int my_eltwise(float *input_1, float *input_2, float *output,
     int n, int c, int h, int w, int op) {
   for (int i = 0; i < n * c * h * w; ++i) {
@@ -771,6 +799,56 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     valueMapping[result] = std::move(result_tensor);
     return success();
   }
+  if (auto op = dyn_cast<tpu::SoftmaxOp>(opInst)) {
+    llvm::errs() << "SoftmaxOp" << "\n";
+    //op.dump();
+    std::vector<std::vector<float> *> operand_tensors;
+    {
+      auto operand = op.getOperand();
+      llvm::errs() << "  operand[0] "; operand->getType().dump(); llvm::errs() << "\n";
+      // find operand in valueMapping
+      auto it = valueMapping.find(operand);
+      if (it == valueMapping.end()) {
+        llvm::errs() << "    didn't find\n";
+        assert(0);
+      } else {
+        llvm::errs() << "    found in map\n";
+        auto vec = it->second.get();
+        if (vec) {
+          llvm::errs() << "      vec size = " << vec->size() << "\n";
+        } else {
+          llvm::errs() << "      vec is nullptr\n";
+        }
+        operand_tensors.push_back(vec);
+      }
+    }
+
+    auto result = op.getResult();
+    llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";
+    std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
+    assert(shape.size() == 2);
+    auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
+    auto result_tensor = std::make_unique<std::vector<float> >(size);
+
+    // TODO: do the actual compute here
+    int n, c;
+    auto input_type = op.x()->getType().cast<TensorType>();
+    std::vector<int64_t> i_s(input_type.getShape());
+    auto output_type = op.y()->getType().cast<TensorType>();
+    std::vector<int64_t> o_s(output_type.getShape());
+    assert((i_s == o_s) && "input shape not equal to output shape");
+    n = i_s[0];
+    c = i_s[1];
+    float *input = (float *)operand_tensors[0]->data();
+    float *output = (float *)result_tensor.get()->data();
+    int ret = my_softmax(input, output, n, c);
+    assert(ret == 0);
+    //dump_data_float_abs("mkldnn_output", mkldnn_output, n, c, oh, ow);
+    // TODO: End of compute, need refactor
+
+    valueMapping[result] = std::move(result_tensor);
+    return success();
+  }
   if (auto op = dyn_cast<tpu::BatchNormOp>(opInst)) {
     llvm::errs() << "BatchNormOp" << "\n";
     //op.dump();
@@ -984,7 +1062,6 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
     // use copy for now
     result_tensor.get()->swap(*operand_tensors[0]);
-
     // TODO: End of compute, need refactor
 
     valueMapping[result] = std::move(result_tensor);
