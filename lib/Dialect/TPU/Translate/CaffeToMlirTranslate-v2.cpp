@@ -531,7 +531,7 @@ static mlir::Value *addSoftmaxOpInBlockFromCaffe(Builder builder, Block *block,
     caffe::Layer<float> *layer) {
   auto layer_param = layer->layer_param();
 
-  int64_t n, c, h, w;
+  int64_t n, c;
   // get input shape from input vars
   LLVM_DEBUG(input_var->getType().dump(););
   llvm::ArrayRef<int64_t> input_var_shape =
