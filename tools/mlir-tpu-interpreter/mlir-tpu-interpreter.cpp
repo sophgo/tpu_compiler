@@ -87,9 +87,55 @@ static void dump_data_float_abs(const char * const desc, const void * const addr
   }
 }
 
+static size_t read_bianry_file(std::string filename, std::vector<float> &v,
+    size_t size = 0) {
+  std::ifstream is;
+  is.open(filename.c_str(), std::ios::in | std::ios::binary);
+  // use size in argument first
+  if (size == 0) {
+    // if vector is pre-allocated, use the vector size
+    if (v.size() != 0) {
+      size = v.size() * sizeof(float);
+    } else {
+      // finally, use the file total size
+      is.seekg(0, is.end);
+      size = is.tellg();
+      is.seekg(0, is.beg);
+    }
+  }
+  if (v.size() < size) {
+    v.resize(size);
+  }
+  llvm::errs() << "read " << size << " bytes from " << filename << "\n";
+  is.read(reinterpret_cast<char*>(v.data()), size);
+  is.close();
+  return size;
+}
+
+static size_t write_bianry_file(std::string filename, std::vector<float> &v,
+    size_t size = 0) {
+  std::ofstream os;
+  os.open(filename.c_str(), std::ios::out | std::ios::binary);
+  if (size == 0) {
+    size = v.size() * sizeof(float);
+  }
+  llvm::errs() << "write " << size << " bytes to " << filename << "\n";
+  os.write(reinterpret_cast<const char*>(v.data()), size);
+  os.close();
+  return size;
+}
+
 static llvm::cl::opt<std::string> inputFilename(llvm::cl::Positional,
                                                 llvm::cl::desc("<input file>"),
                                                 llvm::cl::init("-"));
+
+static llvm::cl::opt<std::string> inputTensorFilename("tensor-in",
+    llvm::cl::desc("Input Tensor Filename"),
+    llvm::cl::init("-"));
+
+static llvm::cl::opt<std::string> outputTensorFilename("tensor-out",
+    llvm::cl::desc("Output Tensor Filename"),
+    llvm::cl::init("-"));
 
 static OwningModuleRef parseMLIRInput(StringRef inputFilename,
                                       MLIRContext *context) {
@@ -127,14 +173,20 @@ int TpuInterpreterMain(
 
   std::vector<float> input(1*3*224*224);
   std::vector<float> output(1*1000);
-  std::fill (std::begin(input), std::end(input), 1.0f);
+  //std::fill (std::begin(input), std::end(input), 1.0f);
+  read_bianry_file(inputTensorFilename, input);
+
   std::vector<std::vector<float> *> inputs({&input});
   std::vector<std::vector<float> *> outputs({&output});
 
   if (failed(runTpuModule(m.get(), inputs, outputs)))
     return EXIT_FAILURE;
 
-  dump_data_float_abs("output", outputs[0]->data(), 1, 1, 10, 100);
+  if (outputTensorFilename == "-") {
+    dump_data_float_abs("output", outputs[0]->data(), 1, 1, 10, 100);
+  } else {
+    write_bianry_file(outputTensorFilename, output);
+  }
 
   int exitCode = EXIT_SUCCESS;
   return exitCode;

@@ -2,7 +2,7 @@
 $ cmake -G Ninja ../llvm -DLLVM_BUILD_EXAMPLES=ON -DLLVM_TARGETS_TO_BUILD="host" -DCAFFE_PATH="~/work/caffe" -DMKLDNN_PATH="~/work/MKLDNN" -DLLVM_ENABLE_RTTI=ON -DLLVM_ENABLE_EH=ON
 $ cmake --build . --target check-mlir
 
-Extra regression
+# Extra regression
 $ ./bin/mlir-translate --caffe-to-mlir-v2 /data/models/caffe/ResNet-50-deploy.prototxt -o resnet-50-v2.mlir
 
 $ ./bin/mlir-translate --caffe-to-mlir-v2 /data/models/caffe/ResNet-50-deploy.prototxt --caffe-model /data/models/caffe/ResNet-50-model.caffemodel -o resnet-50-v2.mlir
@@ -13,6 +13,19 @@ $ ./bin/mlir-opt -print-tpu-op-stats -verify-each=true resnet-50-v2.mlir
 $ ./bin/mlir-opt -print-tpu-op-stats-v0 -verify-each=true resnet-50-v2.mlir
 
 $ ./bin/mlir-tpu-interpreter resnet-50-v2.mlir
+
+# bmnet model
+$ ./bin/mlir-translate --caffe-to-mlir-v2 \
+/data/release/bmnet_models/resnet50/resnet50_deploy.prototxt \
+--caffe-model /data/release/bmnet_models/resnet50/resnet50.caffemodel \
+-o resnet-50.mlir
+
+$ ./bin/mlir-tpu-interpreter resnet-50.mlir \
+--tensor-in /data/release/bmnet_models/resnet50/resnet50_input_1_3_224_224.bin \
+--tensor-out out.bin
+
+$ ~/work/my_models/tests/numpy_bin_dump.py out.bin float32 1 1 1 1000
+$ ~/work/my_models/tests/numpy_bin_dump.py /data/release/bmnet_models/resnet50/resnet50_output_1_3_224_224_ref.bin float32 1 1 1 1000
 
 # User work flow
 1. translate from caffe mode to tg dialect
