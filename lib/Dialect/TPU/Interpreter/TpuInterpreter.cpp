@@ -55,18 +55,45 @@
 
 #include "mkldnn.hpp"
 
+//#define DUMP_FLAG
+
 using namespace mkldnn;
 
 using namespace std;
 
-//static memory::dim product(const memory::dims &dims) {
-//    return std::accumulate(dims.begin(), dims.end(), (memory::dim)1,
-//            std::multiplies<memory::dim>());
-//}
+#ifdef DUMP_FLAG
+static size_t write_bianry_file(std::string filename, const char *data,
+    size_t size = 0) {
+  std::ofstream os;
+  os.open(filename.c_str(), std::ios::out | std::ios::binary);
+  llvm::errs() << "write " << size << " bytes to " << filename << "\n";
+  os.write(data, size);
+  os.close();
+  return size;
+}
+#endif // DUMP_FLAG
 
 static int mkldnn_conv(float *input, float *weight, float *bias,
     float *output, int n, int ic, int ih, int iw, int oc, int oh, int ow,
     int kh, int kw, int sh, int sw, int ph, int pw) {
+#ifdef DUMP_FLAG
+  static int conv_idx = 0;
+  std::string prefix = std::string("conv") + std::to_string(conv_idx);
+  if (conv_idx == 0) {
+    write_bianry_file(prefix + std::string("_in.bin"),
+        (const char *)input, n * ic * ih * iw * sizeof(float));
+    write_bianry_file(prefix + std::string("_filter.bin"),
+        (const char *)weight, oc * ic * kh * kw * sizeof(float));
+    write_bianry_file(prefix + std::string("_bias.bin"),
+        (const char *)bias, oc * sizeof(float));
+  }
+#endif // DUMP_FLAG
+
+  if (!bias) {
+    auto zero_bias = new std::vector<float>(oc, 0.0f);
+    bias = zero_bias->data();
+  }
+
   using tag = memory::format_tag;
   using dt = memory::data_type;
 
@@ -77,75 +104,65 @@ static int mkldnn_conv(float *input, float *weight, float *bias,
   std::vector<std::unordered_map<int, memory>> net_args;
 
   const memory::dim batch = n;
-  memory::dims conv_src_tz = { batch, ic, ih, iw };
-  memory::dims conv_weights_tz = { oc, ic, kh, kw };
-  memory::dims conv_bias_tz = { oc };
-  memory::dims conv_dst_tz = { batch, oc, oh, ow };
-  memory::dims conv_strides = { sh, sw };
-  memory::dims conv_padding = { ph, pw };
-
-  //std::vector<float> conv_src(product(conv_src_tz));
-  //std::vector<float> conv_dst(product(conv_dst_tz));
-  //std::vector<float> conv_weights(product(conv_weights_tz));
-  //std::vector<float> conv_bias(product(conv_bias_tz));
-
-  if (!bias) {
-    auto zero_bias = new std::vector<float>(oc, 0.0f);
-    bias = zero_bias->data();
-  }
+  memory::dims src_tz = { batch, ic, ih, iw };
+  memory::dims weights_tz = { oc, ic, kh, kw };
+  memory::dims bias_tz = { oc };
+  memory::dims dst_tz = { batch, oc, oh, ow };
+  memory::dims strides = { sh, sw };
+  memory::dims padding = { ph, pw };
 
   // memory
-  auto user_conv_src_memory = memory(
-      { { conv_src_tz }, dt::f32, tag::nchw }, eng, input);
-  auto user_conv_weights_memory = memory(
-      { { conv_weights_tz }, dt::f32, tag::oihw }, eng, weight);
-  auto user_conv_bias_memory = memory(
-      { { conv_bias_tz }, dt::f32, tag::x }, eng, bias);
-  auto user_conv_dst_memory = memory(
-      { { conv_dst_tz }, dt::f32, tag::nchw }, eng, output);
+  auto user_src_memory = memory(
+      { { src_tz }, dt::f32, tag::nchw }, eng, input);
+  auto user_weights_memory = memory(
+      { { weights_tz }, dt::f32, tag::oihw }, eng, weight);
+  auto user_bias_memory = memory(
+      { { bias_tz }, dt::f32, tag::x }, eng, bias);
+  auto user_dst_memory = memory(
+      { { dst_tz }, dt::f32, tag::nchw }, eng, output);
 
   // md
-  auto conv_src_md = memory::desc({ conv_src_tz }, dt::f32, tag::any);
-  auto conv_bias_md = memory::desc({ conv_bias_tz }, dt::f32, tag::any);
-  auto conv_weights_md
-      = memory::desc({ conv_weights_tz }, dt::f32, tag::any);
-  auto conv_dst_md = memory::desc({ conv_dst_tz }, dt::f32, tag::any);
+  //auto src_md     = memory::desc({ src_tz }, dt::f32, tag::any);
+  //auto bias_md    = memory::desc({ bias_tz }, dt::f32, tag::any);
+  //auto weights_md = memory::desc({ weights_tz }, dt::f32, tag::any);
+  //auto dst_md     = memory::desc({ dst_tz }, dt::f32, tag::any);
 
   // conv desc
   auto conv_desc = convolution_forward::desc(prop_kind::forward_inference,
-      algorithm::convolution_direct, conv_src_md, conv_weights_md, conv_bias_md,
-      conv_dst_md, conv_strides, conv_padding, conv_padding);
+      algorithm::convolution_direct, user_src_memory.get_desc(),
+      user_weights_memory.get_desc(), user_bias_memory.get_desc(),
+      user_dst_memory.get_desc(), strides, padding, padding);
   auto conv_prim_desc = convolution_forward::primitive_desc(conv_desc, eng);
 
   // do reorder if needed
-  auto conv_src_memory = user_conv_src_memory;
-  if (conv_prim_desc.src_desc() != user_conv_src_memory.get_desc()) {
-    conv_src_memory = memory(conv_prim_desc.src_desc(), eng);
-    net.push_back(reorder(user_conv_src_memory, conv_src_memory));
-    net_args.push_back({ { MKLDNN_ARG_FROM, user_conv_src_memory },
-        { MKLDNN_ARG_TO, conv_src_memory } });
+  auto src_memory = user_src_memory;
+  if (conv_prim_desc.src_desc() != user_src_memory.get_desc()) {
+    src_memory = memory(conv_prim_desc.src_desc(), eng);
+    net.push_back(reorder(user_src_memory, src_memory));
+    net_args.push_back({ { MKLDNN_ARG_FROM, user_src_memory },
+        { MKLDNN_ARG_TO, src_memory } });
   }
-  auto conv_weights_memory = user_conv_weights_memory;
-  if (conv_prim_desc.weights_desc() != user_conv_weights_memory.get_desc()) {
-    conv_weights_memory = memory(conv_prim_desc.weights_desc(), eng);
-    reorder(user_conv_weights_memory, conv_weights_memory)
-        .execute(s, user_conv_weights_memory, conv_weights_memory);
+  auto weights_memory = user_weights_memory;
+  if (conv_prim_desc.weights_desc() != user_weights_memory.get_desc()) {
+    weights_memory = memory(conv_prim_desc.weights_desc(), eng);
+    reorder(user_weights_memory, weights_memory)
+        .execute(s, user_weights_memory, weights_memory);
   }
-  auto conv_bias_memory = user_conv_bias_memory;
+  auto bias_memory = user_bias_memory;
 
-  auto conv_dst_memory = memory(conv_prim_desc.dst_desc(), eng);
+  auto dst_memory = memory(conv_prim_desc.dst_desc(), eng);
 
   net.push_back(convolution_forward(conv_prim_desc));
-  net_args.push_back({ { MKLDNN_ARG_SRC, conv_src_memory },
-      { MKLDNN_ARG_WEIGHTS, conv_weights_memory },
-      { MKLDNN_ARG_BIAS, conv_bias_memory },
-      { MKLDNN_ARG_DST, conv_dst_memory } });
+  net_args.push_back({ { MKLDNN_ARG_SRC, src_memory },
+      { MKLDNN_ARG_WEIGHTS, weights_memory },
+      { MKLDNN_ARG_BIAS, bias_memory },
+      { MKLDNN_ARG_DST, dst_memory } });
 
   // reorder or copy the output
-  if (conv_dst_memory != user_conv_dst_memory) {
-    net.push_back(reorder(conv_dst_memory, user_conv_dst_memory));
-    net_args.push_back({ { MKLDNN_ARG_FROM, conv_dst_memory },
-        { MKLDNN_ARG_TO, user_conv_dst_memory } });
+  if (dst_memory != user_dst_memory) {
+    net.push_back(reorder(dst_memory, user_dst_memory));
+    net_args.push_back({ { MKLDNN_ARG_FROM, dst_memory },
+        { MKLDNN_ARG_TO, user_dst_memory } });
   }
 
   // run
@@ -154,6 +171,14 @@ static int mkldnn_conv(float *input, float *weight, float *bias,
       net.at(i).execute(s, net_args.at(i));
 
   s.wait();
+
+#ifdef DUMP_FLAG
+  if (conv_idx == 0) {
+    write_bianry_file(prefix + std::string("_output.bin"),
+        (const char *)output, n * oc * oh * ow * sizeof(float));
+  }
+  conv_idx ++;
+#endif // DUMP_FLAG
 
   return 0;
 }
