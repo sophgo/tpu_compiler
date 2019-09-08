@@ -632,10 +632,42 @@ static mlir::Value *addPoolingOpInBlockFromCaffe(Builder builder, Block *block,
   }
   getStrideFromCaffeParam_Pooling(s, pooling_param);
   getPadFromCaffeParam_Pooling(p, pooling_param);
+  if (is_global_pooling) {
+    assert(p[0] == 0 && p[1] == 0);
+  }
+  //
+  // Fix caffe pooling padding
+  //
+  //  pooled_height_ = static_cast<int>(ceil(static_cast<float>(
+  //      height_ + 2 * pad_h_ - kernel_h_) / stride_h_)) + 1;
+  //  pooled_width_ = static_cast<int>(ceil(static_cast<float>(
+  //      width_ + 2 * pad_w_ - kernel_w_) / stride_w_)) + 1;
+#if 0
+  if (s[0] == 2 && s[1] == 2) {
+    if( (ifmap[0] + 2 * p[0] - k[0]) % s[0] ) {
+      assert(p[0] == 0);
+      p[0] = 1;
+    }
+    if( (ifmap[1] + 2 * p[1] - k[1]) % s[1] ) {
+      assert(p[1] == 0);
+      p[1] = 1;
+    }
+  } else {
+    // only support stride = 2 if not global pooling
+    assert(ifmap[0] == k[0] && ifmap[1] == k[1]);
+  }
 
   // get ofmap shape by inference
   ofmap.push_back((ifmap[0] - k[0] + 2 * p[0]) / s[0] + 1);
   ofmap.push_back((ifmap[1] - k[1] + 2 * p[1]) / s[1] + 1);
+#else
+  // DO NOT fix padding, fix ofmap height and width
+  ofmap.push_back(static_cast<int>(ceil(static_cast<float>(
+        ifmap[0] + 2 * p[0] - k[0]) / s[0])) + 1);
+  ofmap.push_back(static_cast<int>(ceil(static_cast<float>(
+        ifmap[1] + 2 * p[1] - k[1]) / s[1])) + 1);
+#endif
+
   if (is_global_pooling) {
     assert(p[0] == 0 && p[1] == 0 && s[0] == 1 && s[1] == 1);
     assert(ofmap[0] == 1 && ofmap[1] == 1);
@@ -959,7 +991,7 @@ static OwningModuleRef caffeToMlirTranslate(llvm::StringRef inputFilename,
     } else if (strcmp(layer->type(), "Eltwise") == 0) {
       assert(layer_param.bottom_size() == 2 && layer_param.top_size() == 1);
       mlir::Value *input_1_var = tensor_map.find(layer_param.bottom(0))->second;
-      mlir::Value *input_2_var = tensor_map.find(layer_param.bottom(0))->second;
+      mlir::Value *input_2_var = tensor_map.find(layer_param.bottom(1))->second;
       assert(input_1_var && input_2_var);
       mlir::Value *result_var = addEltwiseOpInBlockFromCaffe(builder, block,
           elementType, input_1_var, input_2_var, layer);

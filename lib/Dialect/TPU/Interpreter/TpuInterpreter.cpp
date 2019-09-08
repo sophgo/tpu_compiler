@@ -55,7 +55,7 @@
 
 #include "mkldnn.hpp"
 
-//#define DUMP_FLAG
+#define DUMP_FLAG
 
 using namespace mkldnn;
 
@@ -76,10 +76,15 @@ static size_t write_bianry_file(std::string filename, const char *data,
 static int mkldnn_conv(float *input, float *weight, float *bias,
     float *output, int n, int ic, int ih, int iw, int oc, int oh, int ow,
     int kh, int kw, int sh, int sw, int ph, int pw) {
+  if (!bias) {
+    auto zero_bias = new std::vector<float>(oc, 0.0f);
+    bias = zero_bias->data();
+  }
+
 #ifdef DUMP_FLAG
   static int conv_idx = 0;
   std::string prefix = std::string("conv") + std::to_string(conv_idx);
-  if (conv_idx == 0) {
+  if (conv_idx < 2) {
     write_bianry_file(prefix + std::string("_in.bin"),
         (const char *)input, n * ic * ih * iw * sizeof(float));
     write_bianry_file(prefix + std::string("_filter.bin"),
@@ -88,11 +93,9 @@ static int mkldnn_conv(float *input, float *weight, float *bias,
         (const char *)bias, oc * sizeof(float));
   }
 #endif // DUMP_FLAG
-
-  if (!bias) {
-    auto zero_bias = new std::vector<float>(oc, 0.0f);
-    bias = zero_bias->data();
-  }
+  llvm::errs() << "  k: (" << kh << "*" << kw << "), "
+               << "s: (" << sh << "*" << sw << "), "
+               << "p: (" << ph << "*" << pw << ")" << "\n";
 
   using tag = memory::format_tag;
   using dt = memory::data_type;
@@ -122,16 +125,15 @@ static int mkldnn_conv(float *input, float *weight, float *bias,
       { { dst_tz }, dt::f32, tag::nchw }, eng, output);
 
   // md
-  //auto src_md     = memory::desc({ src_tz }, dt::f32, tag::any);
-  //auto bias_md    = memory::desc({ bias_tz }, dt::f32, tag::any);
-  //auto weights_md = memory::desc({ weights_tz }, dt::f32, tag::any);
-  //auto dst_md     = memory::desc({ dst_tz }, dt::f32, tag::any);
+  auto src_md     = memory::desc({ src_tz }, dt::f32, tag::any);
+  auto weights_md = memory::desc({ weights_tz }, dt::f32, tag::any);
+  auto bias_md    = memory::desc({ bias_tz }, dt::f32, tag::any);
+  auto dst_md     = memory::desc({ dst_tz }, dt::f32, tag::any);
 
   // conv desc
   auto conv_desc = convolution_forward::desc(prop_kind::forward_inference,
-      algorithm::convolution_direct, user_src_memory.get_desc(),
-      user_weights_memory.get_desc(), user_bias_memory.get_desc(),
-      user_dst_memory.get_desc(), strides, padding, padding);
+      algorithm::convolution_direct, src_md, weights_md, bias_md, dst_md,
+      strides, padding, padding);
   auto conv_prim_desc = convolution_forward::primitive_desc(conv_desc, eng);
 
   // do reorder if needed
@@ -173,8 +175,8 @@ static int mkldnn_conv(float *input, float *weight, float *bias,
   s.wait();
 
 #ifdef DUMP_FLAG
-  if (conv_idx == 0) {
-    write_bianry_file(prefix + std::string("_output.bin"),
+  if (conv_idx < 2) {
+    write_bianry_file(prefix + std::string("_out.bin"),
         (const char *)output, n * oc * oh * ow * sizeof(float));
   }
   conv_idx ++;
@@ -187,6 +189,61 @@ static int mkldnn_pool(float *input, float *output,
     int n, int c, int ih, int iw, int oh, int ow,
     int kh, int kw, int sh, int sw, int ph, int pw,
     bool is_avg) {
+  int p_t = ph;
+  int p_b = ph;
+  int p_l = pw;
+  int p_r = pw;
+  // Fix padding
+  if ( (ih - kh) % sh ) {
+    assert(sh == 2);
+    assert(oh == static_cast<int>(ceil(static_cast<float>(
+        ih + 2 * ph - kh) / sh)) + 1);
+    // caffe will pass ph == 0 (padding == "SAME") here
+    // by passing ph == 0, caffe actually means
+    // p_top = 0, p_bottom = 1
+    // if ph == 1 is passed (padding == "SAME")
+    // we handle it with the opposite of caffe, i.e.
+    // p_top = 1, p_bottom = 0
+    if (ph == 0) {
+      p_b = 1;
+    } else {
+      assert(ph == 1);
+      p_b = 0;
+    }
+    assert(ph == 0);  // put a reminder here, just in case we met the case
+  }
+  if ( (iw - kw) % sw ) {
+    assert(sw == 2);
+    assert(ow == static_cast<int>(ceil(static_cast<float>(
+        iw + 2 * pw - kw) / sw)) + 1);
+    // caffe will pass pw == 0 (padding == "SAME") here
+    // by passing pw == 0, caffe actually means
+    // p_left = 0, p_right = 1
+    // if pw == 1 is passed (padding == "SAME")
+    // we handle it with the opposite of caffe, i.e.
+    // p_left = 1, p_right = 0
+    if (pw == 0) {
+      p_r = 1;
+    } else {
+      assert(pw == 1);
+      p_r = 0;
+    }
+    assert(pw == 0);  // put a reminder here, just in case we met the case
+  }
+
+#ifdef DUMP_FLAG
+  static int dump_idx = 0;
+  std::string prefix = std::string("pool") + std::to_string(dump_idx);
+  if (dump_idx == 0) {
+    write_bianry_file(prefix + std::string("_in.bin"),
+        (const char *)input, n * c * ih * iw * sizeof(float));
+  }
+#endif // DUMP_FLAG
+  llvm::errs() << "  k: (" << kh << "*" << kw << "), "
+               << "s: (" << sh << "*" << sw << "), "
+               << "p: (" << p_t << "-" << p_b
+               << "*" << p_l << "-" << p_r << ")" << "\n";
+
   using tag = memory::format_tag;
   using dt = memory::data_type;
 
@@ -201,7 +258,8 @@ static int mkldnn_pool(float *input, float *output,
   memory::dims dst_tz = { batch, c, oh, ow };
   memory::dims kernel = { kh, kw };
   memory::dims strides = { sh, sw };
-  memory::dims padding = { ph, pw };
+  memory::dims padding_t_l = { p_t, p_l };
+  memory::dims padding_b_r = { p_b, p_r };
 
   // memory
   auto user_src_memory = memory(
@@ -217,7 +275,7 @@ static int mkldnn_pool(float *input, float *output,
   auto pool_desc = pooling_forward::desc(prop_kind::forward_inference,
       is_avg ? algorithm::pooling_avg : algorithm::pooling_max,
       user_src_memory.get_desc(), user_dst_memory.get_desc(),
-      strides, kernel, padding, padding);
+      strides, kernel, padding_t_l, padding_b_r);
   auto prim_desc = pooling_forward::primitive_desc(pool_desc, eng);
 
   // do reorder if needed
@@ -249,11 +307,28 @@ static int mkldnn_pool(float *input, float *output,
 
   s.wait();
 
+#ifdef DUMP_FLAG
+  if (dump_idx == 0) {
+    write_bianry_file(prefix + std::string("_out.bin"),
+        (const char *)output, n * c * oh * ow * sizeof(float));
+  }
+  dump_idx ++;
+#endif // DUMP_FLAG
+
   return 0;
 }
 
 static int mkldnn_ip(float *input, float *weight, float *bias,
     float *output, int m, int k, int n, bool transpose) {
+#ifdef DUMP_FLAG
+  static int dump_idx = 0;
+  std::string prefix = std::string("ip") + std::to_string(dump_idx);
+  if (dump_idx == 0) {
+    write_bianry_file(prefix + std::string("_in.bin"),
+        (const char *)input, m * k * sizeof(float));
+  }
+#endif // DUMP_FLAG
+
   using tag = memory::format_tag;
   using dt = memory::data_type;
 
@@ -332,12 +407,31 @@ static int mkldnn_ip(float *input, float *weight, float *bias,
 
   s.wait();
 
+#ifdef DUMP_FLAG
+  if (dump_idx == 0) {
+    write_bianry_file(prefix + std::string("_out.bin"),
+        (const char *)output, m * n * sizeof(float));
+  }
+  dump_idx ++;
+#endif // DUMP_FLAG
+
   return 0;
 }
 #endif // #ifdef USE_MKLDNN
 
 static int my_relu(float *input, float *output,
     int n, int c, int h, int w, float negative_slope) {
+#ifdef DUMP_FLAG
+  static int dump_idx = 0;
+  std::string prefix = std::string("relu") + std::to_string(dump_idx);
+  if (dump_idx < 4) {
+    write_bianry_file(prefix + std::string("_in.bin"),
+        (const char *)input, n * c * h * w * sizeof(float));
+  }
+#endif // DUMP_FLAG
+  llvm::errs() << "  n: " << n << ", c: " << c
+               << ", h: " << h << ", w: " << w << "\n";
+
   for (int i = 0; i < n * c * h * w; ++i) {
     if (input[i] >= 0) {
       output[i] = input[i];
@@ -345,6 +439,13 @@ static int my_relu(float *input, float *output,
       output[i] = negative_slope * input[i];
     }
   }
+#ifdef DUMP_FLAG
+  if (dump_idx < 4) {
+    write_bianry_file(prefix + std::string("_out.bin"),
+        (const char *)output, n * c * h * w * sizeof(float));
+  }
+  dump_idx ++;
+#endif // DUMP_FLAG
   return 0;
 }
 
@@ -371,6 +472,15 @@ static int my_bn(float *input, float *mean, float *variance, float *scale,
 
 static int my_scale(float *input, float *scale, float *bias,
     float *output, int n, int c, int h, int w) {
+#ifdef DUMP_FLAG
+  static int dump_idx = 0;
+  std::string prefix = std::string("scale") + std::to_string(dump_idx);
+  if (dump_idx == 1 || dump_idx == 4) {
+    write_bianry_file(prefix + std::string("_in.bin"),
+        (const char *)input, n * c * h * w * sizeof(float));
+  }
+#endif // DUMP_FLAG
+
   for (int ni = 0; ni < n; ++ni) {
     for (int ci = 0; ci < c; ++ci) {
       for (int i = 0; i < h * w; ++i) {
@@ -380,12 +490,29 @@ static int my_scale(float *input, float *scale, float *bias,
       }
     }
   }
+
+#ifdef DUMP_FLAG
+  if (dump_idx == 1 || dump_idx == 4) {
+    write_bianry_file(prefix + std::string("_out.bin"),
+        (const char *)output, n * c * h * w * sizeof(float));
+  }
+  dump_idx ++;
+#endif // DUMP_FLAG
   return 0;
 }
 
 #include <math.h>
 
 static int my_softmax(float *input, float *output, int n, int c) {
+#ifdef DUMP_FLAG
+  static int dump_idx = 0;
+  std::string prefix = std::string("softmax") + std::to_string(dump_idx);
+  if (dump_idx == 0) {
+    write_bianry_file(prefix + std::string("_in.bin"),
+        (const char *)input, n * c * sizeof(float));
+  }
+#endif // DUMP_FLAG
+
   // find max and subtract the max to avoid numerical issues
   float max_input = input[0];
   for (int i = 0; i < n * c; ++i) {
@@ -408,11 +535,30 @@ static int my_softmax(float *input, float *output, int n, int c) {
     }
   }
   free(ex);
+
+#ifdef DUMP_FLAG
+  if (dump_idx == 0) {
+    write_bianry_file(prefix + std::string("_out.bin"),
+        (const char *)output, n * c * sizeof(float));
+  }
+  dump_idx ++;
+#endif // DUMP_FLAG
   return 0;
 }
 
 static int my_eltwise(float *input_1, float *input_2, float *output,
     int n, int c, int h, int w, int op) {
+#ifdef DUMP_FLAG
+  static int dump_idx = 0;
+  std::string prefix = std::string("eltwise") + std::to_string(dump_idx);
+  if (dump_idx < 4) {
+    write_bianry_file(prefix + std::string("_1_in.bin"),
+        (const char *)input_1, n * c * h * w * sizeof(float));
+    write_bianry_file(prefix + std::string("_2_in.bin"),
+        (const char *)input_2, n * c * h * w * sizeof(float));
+  }
+#endif // DUMP_FLAG
+
   for (int i = 0; i < n * c * h * w; ++i) {
     switch (op) {
     case 0: //caffe::EltwiseParameter_EltwiseOp_PROD:
@@ -428,6 +574,14 @@ static int my_eltwise(float *input_1, float *input_2, float *output,
       assert(0);
     }
   }
+#ifdef DUMP_FLAG
+  if (dump_idx < 4) {
+    write_bianry_file(prefix + std::string("_out.bin"),
+        (const char *)output, n * c * h * w * sizeof(float));
+  }
+  dump_idx ++;
+#endif // DUMP_FLAG
+
   return 0;
 }
 
