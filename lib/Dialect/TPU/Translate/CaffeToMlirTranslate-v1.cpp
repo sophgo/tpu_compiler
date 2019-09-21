@@ -44,14 +44,17 @@ static mlir::Value *addConv2dOpInBlock(Builder builder, Block *block,
   auto bias = OpBuilder(block).create<ConstantOp>(builder.getUnknownLoc(),
       bias_type, bias_attr);
   auto result_type = builder.getTensorType({n, oc, oh, ow}, elementType);
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder.getNamedAttr("dilation_h_factor", builder.getI32IntegerAttr(dh)));
+  attrs.push_back(builder.getNamedAttr("dilation_w_factor", builder.getI32IntegerAttr(dw)));
+  attrs.push_back(builder.getNamedAttr("fused_activation_function", builder.getStringAttr("NONE")));
+  attrs.push_back(builder.getNamedAttr("padding", builder.getStringAttr("SAME")));
+  attrs.push_back(builder.getNamedAttr("stride_h", builder.getI32IntegerAttr(sh)));
+  attrs.push_back(builder.getNamedAttr("stride_w", builder.getI32IntegerAttr(sw)));
   auto op = OpBuilder(block).create<tpu::Conv2DOp>(
-        builder.getUnknownLoc(), result_type, input, filter, bias,
-        /*dilation_h_factor=*/builder.getI32IntegerAttr(dh),
-        /*dilation_w_factor=*/builder.getI32IntegerAttr(dw),
-        /*fused_activation_function=*/builder.getStringAttr("NONE"),
-        /*padding=*/builder.getStringAttr("SAME"),
-        /*stride_h=*/builder.getI32IntegerAttr(sh),
-        /*stride_w=*/builder.getI32IntegerAttr(sw));
+      builder.getUnknownLoc(), result_type,
+      ArrayRef<Value *>{input, filter, bias},
+      ArrayRef<NamedAttribute>{attrs});
   auto result = op.getResult();
   return result;
 }

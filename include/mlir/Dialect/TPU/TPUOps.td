@@ -93,10 +93,10 @@ class TPU_ConvOp<string mnemonic, string opSummary> :
   let arguments = (
     ins AnyTensor:$input,
     AnyTensor:$filter,
-    AnyTensor:$bias,
-    I32Attr:$dilation_h_factor,
-    I32Attr:$dilation_w_factor,
-    TPU_AFAttr:$fused_activation_function,
+    Variadic<AnyTensor>:$bias,
+    DefaultValuedAttr<I32Attr, "1">:$dilation_h_factor,
+    DefaultValuedAttr<I32Attr, "1">:$dilation_w_factor,
+    DefaultValuedAttr<TPU_AFAttr, "NONE">:$fused_activation_function,
     TPU_PaddingAttr:$padding,
     I32Attr:$stride_h,
     I32Attr:$stride_w
@@ -163,7 +163,7 @@ def TPU_AveragePool2DOp : TPU_Op<"average_pool_2d", [NoSideEffect]> {
     TPU_PaddingAttr:$padding,
     I32Attr:$stride_h,
     I32Attr:$stride_w,
-    TPU_AFAttr:$fused_activation_function
+    DefaultValuedAttr<TPU_AFAttr, "NONE">:$fused_activation_function
   );
 
   let results = (outs AnyTensor:$output);
@@ -186,7 +186,7 @@ def TPU_MaxPool2DOp : TPU_Op<"max_pool_2d", [NoSideEffect]> {
     TPU_PaddingAttr:$padding,
     I32Attr:$stride_h,
     I32Attr:$stride_w,
-    TPU_AFAttr:$fused_activation_function
+    DefaultValuedAttr<TPU_AFAttr, "NONE">:$fused_activation_function
   );
 
   let results = (outs AnyTensor:$output);
@@ -198,8 +198,8 @@ def TPU_FullyConnectedOp : TPU_Op<"fully_connected", [NoSideEffect]> {
   let arguments = (
     ins AnyTensor:$input,
     AnyTensor:$filter,
-    AnyTensor:$bias,
-    TPU_AFAttr:$fused_activation_function
+    Variadic<AnyTensor>:$bias,
+    DefaultValuedAttr<TPU_AFAttr, "NONE">:$fused_activation_function
   );
 
   let results = (outs AnyTensor:$output);
@@ -232,7 +232,7 @@ def TPU_ScaleOp: TPU_Op<"scale", [NoSideEffect]> {
   let arguments = (
     ins AnyTensor:$x,
     AnyTensor:$scale,
-    AnyTensor:$bias
+    Variadic<AnyTensor>:$bias
   );
 
   let results = (outs AnyTensor:$y);

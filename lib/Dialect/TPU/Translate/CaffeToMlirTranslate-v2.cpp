@@ -186,10 +186,8 @@ do { \
 // Create Operations from Caffe Proto, and extract weight
 //===----------------------------------------------------------------------===//
 static mlir::Value *addConv2dOpInBlockFromCaffe(Builder builder, Block *block,
-    mlir::Type elementType, mlir::Value *input_var,
-    caffe::Layer<float> *layer,
-    mlir::Value *weight_var,
-    llvm::raw_fd_ostream *weight_os = NULL) {
+    mlir::Type elementType, mlir::Value *input_var, caffe::Layer<float> *layer,
+    mlir::Value *weight_var, llvm::raw_fd_ostream *weight_os = NULL) {
   auto layer_param = layer->layer_param();
   assert(layer_param.has_convolution_param());
   auto conv_param = layer_param.convolution_param();
@@ -280,32 +278,32 @@ static mlir::Value *addConv2dOpInBlockFromCaffe(Builder builder, Block *block,
   }
 
   // construct OP
+  std::vector<Value *> operands;
+  operands.push_back(input_var);
   auto filter_type = builder.getTensorType({oc, ic, k[0], k[1]}, elementType);
   auto filter = OpBuilder(block).create<tpu::LoadWeightOp>(
       builder.getUnknownLoc(), filter_type, weight_var,
       /*offset=*/builder.getI64IntegerAttr(pos_filter));
-  // TODO: don't know how to handle optional operand, use Zero tensor for now
-  mlir::Value *bias = nullptr;
-  auto bias_type = builder.getTensorType({oc}, elementType);
+  operands.push_back(filter);
   if (with_bias) {
-    bias = OpBuilder(block).create<tpu::LoadWeightOp>(
+    auto bias_type = builder.getTensorType({oc}, elementType);
+    auto bias = OpBuilder(block).create<tpu::LoadWeightOp>(
         builder.getUnknownLoc(), bias_type, weight_var,
         /*offset=*/builder.getI64IntegerAttr(pos_bias));
-  } else {
-    auto zero_attr = builder.getZeroAttr(bias_type);
-    bias = OpBuilder(block).create<ConstantOp>(builder.getUnknownLoc(),
-        bias_type, zero_attr);
+    operands.push_back(bias);
   }
   auto result_type = builder.getTensorType({n, oc, ofmap[0], ofmap[1]}, elementType);
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder.getNamedAttr("dilation_h_factor", builder.getI32IntegerAttr(d[0])));
+  attrs.push_back(builder.getNamedAttr("dilation_w_factor", builder.getI32IntegerAttr(d[1])));
+  //attrs.push_back(builder.getNamedAttr("fused_activation_function", builder.getStringAttr("NONE")));
+  attrs.push_back(builder.getNamedAttr("padding", (p[0] || p[1]) ? builder.getStringAttr("SAME")
+                                                                  : builder.getStringAttr("VALID")));
+  attrs.push_back(builder.getNamedAttr("stride_h", builder.getI32IntegerAttr(s[0])));
+  attrs.push_back(builder.getNamedAttr("stride_w", builder.getI32IntegerAttr(s[1])));
   auto op = OpBuilder(block).create<tpu::Conv2DOp>(
-      builder.getUnknownLoc(), result_type, input_var, filter, bias,
-      /*dilation_h_factor=*/builder.getI32IntegerAttr(d[0]),
-      /*dilation_w_factor=*/builder.getI32IntegerAttr(d[1]),
-      /*fused_activation_function=*/builder.getStringAttr("NONE"),
-      /*padding=*/(p[0] || p[1]) ? builder.getStringAttr("SAME")
-                                 : builder.getStringAttr("VALID"),
-      /*stride_h=*/builder.getI32IntegerAttr(s[0]),
-      /*stride_w=*/builder.getI32IntegerAttr(s[1]));
+      builder.getUnknownLoc(), result_type,
+      ArrayRef<Value *>{operands}, ArrayRef<NamedAttribute>{attrs});
   auto result_var = op.getResult();
   return result_var;
 }
@@ -469,25 +467,24 @@ static mlir::Value *addScaleOpInBlockFromCaffe(Builder builder, Block *block,
   }
 
   // construct OP
+  std::vector<Value *> operands;
+  operands.push_back(input_var);
   auto scale_type = builder.getTensorType({c}, elementType);
   auto scale = OpBuilder(block).create<tpu::LoadWeightOp>(
       builder.getUnknownLoc(), scale_type, weight_var,
       /*offset=*/builder.getI64IntegerAttr(pos_scale));
-  // TODO: don't know how to handle optional operand, use Zero tensor for now
-  mlir::Value *bias = nullptr;
-  auto bias_type = builder.getTensorType({c}, elementType);
+  operands.push_back(scale);
   if (with_bias) {
-    bias = OpBuilder(block).create<tpu::LoadWeightOp>(
+    auto bias_type = builder.getTensorType({c}, elementType);
+    auto bias = OpBuilder(block).create<tpu::LoadWeightOp>(
         builder.getUnknownLoc(), bias_type, weight_var,
         /*offset=*/builder.getI64IntegerAttr(pos_bias));
-  } else {
-    auto zero_attr = builder.getZeroAttr(bias_type);
-    bias = OpBuilder(block).create<ConstantOp>(builder.getUnknownLoc(),
-        bias_type, zero_attr);
+    operands.push_back(bias);
   }
   auto result_type = builder.getTensorType({n, c, h, w}, elementType);
   auto op = OpBuilder(block).create<tpu::ScaleOp>(
-      builder.getUnknownLoc(), result_type, input_var, scale, bias);
+      builder.getUnknownLoc(), result_type, ArrayRef<Value *>{operands},
+      ArrayRef<NamedAttribute>{});
   auto result_var = op.getResult();
   return result_var;
 }
@@ -809,26 +806,24 @@ static mlir::Value *addFullyConnectedOpInBlockFromCaffe(Builder builder, Block *
   }
 
   // construct the fully_connected OP
+  std::vector<Value *> operands;
+  operands.push_back(fc_input_var);
   auto filter_type = builder.getTensorType({N, K}, elementType);
   auto filter = OpBuilder(block).create<tpu::LoadWeightOp>(
       builder.getUnknownLoc(), filter_type, weight_var,
       /*offset=*/builder.getI64IntegerAttr(pos_filter));
-  // TODO: don't know how to handle optional operand, use Zero tensor for now
-  mlir::Value *bias = nullptr;
-  auto bias_type = builder.getTensorType({N}, elementType);
+  operands.push_back(filter);
   if (with_bias) {
-    bias = OpBuilder(block).create<tpu::LoadWeightOp>(
+    auto bias_type = builder.getTensorType({N}, elementType);
+    auto bias = OpBuilder(block).create<tpu::LoadWeightOp>(
         builder.getUnknownLoc(), bias_type, weight_var,
         /*offset=*/builder.getI64IntegerAttr(pos_bias));
-  } else {
-    auto zero_attr = builder.getZeroAttr(bias_type);
-    bias = OpBuilder(block).create<ConstantOp>(builder.getUnknownLoc(),
-        bias_type, zero_attr);
+    operands.push_back(bias);
   }
   auto result_type = builder.getTensorType({M, N}, elementType);
   auto op = OpBuilder(block).create<tpu::FullyConnectedOp>(
-        builder.getUnknownLoc(), result_type, fc_input_var, filter, bias,
-        /*fused_activation_function=*/builder.getStringAttr("NONE"));
+        builder.getUnknownLoc(), result_type,
+        ArrayRef<Value *>{operands}, ArrayRef<NamedAttribute>{});
   auto result_var = op.getResult();
   return result_var;
 }

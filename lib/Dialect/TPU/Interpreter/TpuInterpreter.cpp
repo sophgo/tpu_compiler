@@ -320,6 +320,11 @@ static int mkldnn_pool(float *input, float *output,
 
 static int mkldnn_ip(float *input, float *weight, float *bias,
     float *output, int m, int k, int n, bool transpose) {
+  if (!bias) {
+    auto zero_bias = new std::vector<float>(n, 0.0f);
+    bias = zero_bias->data();
+  }
+
 #ifdef DUMP_FLAG
   static int dump_idx = 0;
   std::string prefix = std::string("ip") + std::to_string(dump_idx);
@@ -485,7 +490,10 @@ static int my_scale(float *input, float *scale, float *bias,
     for (int ci = 0; ci < c; ++ci) {
       for (int i = 0; i < h * w; ++i) {
         auto x = input[ni * c * h * w + ci * h * w + i];
-        auto y = x * scale[ci] + bias[ci];
+        auto y = x * scale[ci];
+        if (bias) {
+          y += bias[ci];
+        }
         output[ni * c * h * w + ci * h * w + i] = y;
       }
     }
@@ -636,7 +644,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
   if (auto op = dyn_cast<tpu::Conv2DOp>(opInst)) {
     llvm::errs() << "Conv2DOp" << "\n";
     //op.dump();
-    assert(op.getNumOperands() == 3);
+    //assert(op.getNumOperands() == 3);
     std::vector<std::vector<float> *> operand_tensors;
     unsigned int operandIdx = 0;
     for (auto *operand : op.getOperands()) {
@@ -701,7 +709,8 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     float *mkldnn_input = (float *)operand_tensors[0]->data();
     float *mkldnn_weight = (float *)operand_tensors[1]->data();
     float *mkldnn_bias = nullptr;
-    if (operand_tensors[2]) {
+    if (operand_tensors.size() > 2) {
+      assert(operand_tensors.size() == 3);
       mkldnn_bias = (float *)operand_tensors[2]->data();
     }
     float *mkldnn_output = (float *)result_tensor.get()->data();
@@ -860,7 +869,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
   if (auto op = dyn_cast<tpu::FullyConnectedOp>(opInst)) {
     llvm::errs() << "FullyConnectedOp" << "\n";
     //op.dump();
-    assert(op.getNumOperands() == 3);
+    //assert(op.getNumOperands() == 3);
     std::vector<std::vector<float> *> operand_tensors;
     unsigned int operandIdx = 0;
     for (auto *operand : op.getOperands()) {
@@ -910,7 +919,8 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     float *mkldnn_input = (float *)operand_tensors[0]->data();
     float *mkldnn_weight = (float *)operand_tensors[1]->data();
     float *mkldnn_bias = nullptr;
-    if (operand_tensors[2]) {
+    if (operand_tensors.size() > 2) {
+      assert(operand_tensors.size() == 3);
       mkldnn_bias = (float *)operand_tensors[2]->data();
     }
     float *mkldnn_output = (float *)result_tensor.get()->data();
@@ -1088,7 +1098,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
   if (auto op = dyn_cast<tpu::ScaleOp>(opInst)) {
     llvm::errs() << "ScaleOp" << "\n";
     //op.dump();
-    assert(op.getNumOperands() == 3);
+    //assert(op.getNumOperands() == 3);
     std::vector<std::vector<float> *> operand_tensors;
     unsigned int operandIdx = 0;
     for (auto *operand : op.getOperands()) {
@@ -1131,7 +1141,11 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     w = i_s[3];
     float *input = (float *)operand_tensors[0]->data();
     float *scale = (float *)operand_tensors[1]->data();
-    float *bias = (float *)operand_tensors[2]->data();
+    float *bias = nullptr;
+    if (operand_tensors.size() > 2) {
+      assert(operand_tensors.size() == 3);
+      bias = (float *)operand_tensors[2]->data();
+    }
     float *output = (float *)result_tensor.get()->data();
     int ret = my_scale(input, scale, bias, output, n, c, h, w);
     assert(ret == 0);
