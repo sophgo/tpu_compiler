@@ -29,17 +29,15 @@ $ ln -s mkldnn_lnx_1.0.2_cpu_gomp install
 
 ## build
 ```
-$ cmake -G Ninja ../llvm -DLLVM_BUILD_EXAMPLES=ON -DLLVM_TARGETS_TO_BUILD="host" -DCAFFE_PATH="~/work/caffe" -DMKLDNN_PATH="~/work/MKLDNN" -DLLVM_ENABLE_RTTI=ON -DLLVM_ENABLE_EH=ON
+$ cmake -G Ninja ../llvm -DLLVM_BUILD_EXAMPLES=ON -DLLVM_TARGETS_TO_BUILD="host" -DCAFFE_PATH="~/work/caffe/install" -DMKLDNN_PATH="~/work/MKLDNN/install" -DLLVM_ENABLE_RTTI=ON -DLLVM_ENABLE_EH=ON
 $ cmake --build . --target check-mlir
 ```
 
-# Extra regression
+### Extra regression
 ```
-$ ./bin/mlir-translate --caffe-to-mlir-v2 /data/models/caffe/ResNet-50-deploy.prototxt -o resnet-50-v2.mlir
-
 $ ./bin/mlir-translate --caffe-to-mlir-v2 /data/models/caffe/ResNet-50-deploy.prototxt --caffe-model /data/models/caffe/ResNet-50-model.caffemodel -o resnet-50-v2.mlir
 
-$ diff resnet-50-v2.mlir ../llvm/projects/mlir/resnet-50_20190901_d46a84fb.mlir
+$ diff resnet-50-v2.mlir ../llvm/projects/mlir/resnet-50_20190921_e92b6c5c.mlir
 
 $ ./bin/mlir-opt -print-tpu-op-stats -verify-each=true resnet-50-v2.mlir
 $ ./bin/mlir-opt -print-tpu-op-stats-v0 -verify-each=true resnet-50-v2.mlir
@@ -47,22 +45,62 @@ $ ./bin/mlir-opt -print-tpu-op-stats-v0 -verify-each=true resnet-50-v2.mlir
 $ ./bin/mlir-tpu-interpreter resnet-50-v2.mlir
 ```
 
-bmnet model
+### bmnet model
 ```
 $ ./bin/mlir-translate --caffe-to-mlir-v2 \
 /data/release/bmnet_models/resnet50/resnet50_deploy.prototxt \
 --caffe-model /data/release/bmnet_models/resnet50/resnet50.caffemodel \
--o resnet-50.mlir
+-o resnet-50-v2.mlir
 
-$ ./bin/mlir-tpu-interpreter resnet-50.mlir \
+$ ./bin/mlir-tpu-interpreter resnet-50-v2.mlir \
 --tensor-in /data/release/bmnet_models/resnet50/resnet50_input_1_3_224_224.bin \
 --tensor-out out.bin
 
-$ ~/work/my_models/tests/numpy_bin_dump.py out.bin float32 1 1 1 1000
-$ ~/work/my_models/tests/numpy_bin_dump.py /data/release/bmnet_models/resnet50/resnet50_output_1_3_224_224_ref.bin float32 1 1 1 1000
+$ ~/work/my_models/tests/numpy_bin_dump.py out.bin float32 1 1 1 1000 5
+$ ~/work/my_models/tests/numpy_bin_dump.py /data/release/bmnet_models/resnet50/resnet50_output_1_3_224_224_ref.bin float32 1 1 1 1000 5
+```
+
+### bmnet int8 model
+
+int8 caffemodel weight is still stored as float32, however they have been quantized.
+i.e. with in range (-127, 128)
+
+quantization-table is provided outside of the caffemodel.
+quantization-table contains 3 types information
+- threshold_y
+- right_shift_width
+- threshold_x_quantized
+
+```
+# link to caffe_int8 project
+$ cmake -G Ninja ../llvm -DLLVM_BUILD_EXAMPLES=ON -DLLVM_TARGETS_TO_BUILD="host" -DCAFFE_PATH="~/work_xtalvision/install_caffe" -DMKLDNN_PATH="~/work/MKLDNN/install" -DLLVM_ENABLE_RTTI=ON -DLLVM_ENABLE_EH=ON
+$ cmake --build . --target check-mlir
+
+$ ./bin/mlir-translate --caffe-to-mlir-v3 \
+/data/release/bmnet_models/resnet50/resnet50_deploy.prototxt \
+--caffe-model-int8 ~/work_xtalvision/calibration_caffe/build/bmnet_resnet50_int8.1x10.caffemodel \
+--quant-table ~/work_xtalvision/calibration_caffe/build/bmnet_resnet50_calibration_table.1x10.prototxt \
+-o resnet-50_int8-v3.mlir
+
+$ ./bin/mlir-tpu-interpreter resnet-50_int8-v3.mlir \
+--tensor-in /data/release/bmnet_models/resnet50/int8/resnet50_input_1_3_224_224.bin \
+--tensor-out out_int8.bin
+
+$ ~/work/my_models/tests/numpy_bin_dump.py out_int8.bin int8 1 1 1 1000 5
+$ ~/work/my_models/tests/numpy_bin_dump.py /data/release/bmnet_models/resnet50/int8/resnet50_output_1_3_224_224_ref_int8.bin int8 1 1 1 1000 5
 ```
 
 # User work flow
+
+sample nvdla flow
+```
+./nvdla_compiler [-options] --prototxt <prototxt_file> --caffemodel <caffemodel_file> -o <outputpath>
+./nvdla_compiler -h
+./nvdla_runtime --loadable <loadable_file>
+./nvdla_runtime --loadable <loadable_file> --image <image_file>
+./nvdla_runtime -s
+```
+
 1. translate from caffe mode to tg dialect
 ```
 ./bin/mlir-translate --caffe-to-mlir /data/models/caffe/ResNet-50-deploy.prototxt -o resnet.mlir

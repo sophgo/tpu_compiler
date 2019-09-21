@@ -8,7 +8,7 @@ if(NOT DEFINED CAFFE_PATH)
 else(NOT DEFINED CAFFE_PATH)
   message(STATUS "CAFFE_PATH ${CAFFE_PATH}")
 endif()
-include(${CAFFE_PATH}/install/share/Caffe/CaffeConfig.cmake)
+include(${CAFFE_PATH}/share/Caffe/CaffeConfig.cmake)
 find_package(Caffe REQUIRED)
 include_directories(${Caffe_INCLUDE_DIRS})
 add_definitions(${Caffe_DEFINITIONS})    # ex. -DCPU_ONLY
