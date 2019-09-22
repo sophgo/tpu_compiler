@@ -99,7 +99,8 @@ class TPU_ConvOp<string mnemonic, string opSummary> :
     DefaultValuedAttr<TPU_AFAttr, "NONE">:$fused_activation_function,
     TPU_PaddingAttr:$padding,
     I32Attr:$stride_h,
-    I32Attr:$stride_w
+    I32Attr:$stride_w,
+    OptionalAttr<F32Attr>:$threshold_y
   );
 
   let results = (outs AnyTensor:$output);
@@ -163,7 +164,8 @@ def TPU_AveragePool2DOp : TPU_Op<"average_pool_2d", [NoSideEffect]> {
     TPU_PaddingAttr:$padding,
     I32Attr:$stride_h,
     I32Attr:$stride_w,
-    DefaultValuedAttr<TPU_AFAttr, "NONE">:$fused_activation_function
+    DefaultValuedAttr<TPU_AFAttr, "NONE">:$fused_activation_function,
+    OptionalAttr<F32Attr>:$threshold_y
   );
 
   let results = (outs AnyTensor:$output);
@@ -186,7 +188,8 @@ def TPU_MaxPool2DOp : TPU_Op<"max_pool_2d", [NoSideEffect]> {
     TPU_PaddingAttr:$padding,
     I32Attr:$stride_h,
     I32Attr:$stride_w,
-    DefaultValuedAttr<TPU_AFAttr, "NONE">:$fused_activation_function
+    DefaultValuedAttr<TPU_AFAttr, "NONE">:$fused_activation_function,
+    OptionalAttr<F32Attr>:$threshold_y
   );
 
   let results = (outs AnyTensor:$output);
@@ -199,7 +202,8 @@ def TPU_FullyConnectedOp : TPU_Op<"fully_connected", [NoSideEffect]> {
     ins AnyTensor:$input,
     AnyTensor:$filter,
     Variadic<AnyTensor>:$bias,
-    DefaultValuedAttr<TPU_AFAttr, "NONE">:$fused_activation_function
+    DefaultValuedAttr<TPU_AFAttr, "NONE">:$fused_activation_function,
+    OptionalAttr<F32Attr>:$threshold_y
   );
 
   let results = (outs AnyTensor:$output);
@@ -216,7 +220,8 @@ def TPU_BatchNormOp: TPU_Op<"batch_norm", [NoSideEffect]> {
     ins AnyTensor:$x,
     AnyTensor:$mean,
     AnyTensor:$variance,
-    AnyTensor:$scale
+    AnyTensor:$scale,
+    OptionalAttr<F32Attr>:$threshold_y
   );
 
   let results = (outs AnyTensor:$y);
@@ -232,7 +237,8 @@ def TPU_ScaleOp: TPU_Op<"scale", [NoSideEffect]> {
   let arguments = (
     ins AnyTensor:$x,
     AnyTensor:$scale,
-    Variadic<AnyTensor>:$bias
+    Variadic<AnyTensor>:$bias,
+    OptionalAttr<F32Attr>:$threshold_y
   );
 
   let results = (outs AnyTensor:$y);
@@ -248,7 +254,9 @@ def TPU_ReluOp: TPU_Op<"relu", [NoSideEffect, SameOperandsAndResultType]> {
 
   let arguments = (
     ins AnyTensor:$x,
-    F32Attr:$negative_slope);
+    F32Attr:$negative_slope,
+    OptionalAttr<F32Attr>:$threshold_y
+  );
 
   let results = (outs AnyTensor:$y);
 }
@@ -276,7 +284,8 @@ def TPU_EltwiseOp: TPU_Op<"eltwise", [NoSideEffect, SameOperandsAndResultType]> 
 
   let arguments = (
     ins AnyTensor:$x1,
-    AnyTensor:$x2
+    AnyTensor:$x2,
+    OptionalAttr<F32Attr>:$threshold_y
   );
 
   let results = (outs AnyTensor:$y);

@@ -18,6 +18,7 @@ list(APPEND translate_LINKER_LIBS
 add_llvm_library(MLIRTPUTranslate
   CaffeToMlirTranslate-v1.cpp
   CaffeToMlirTranslate-v2.cpp
+  CaffeToMlirTranslate-v3.cpp
   CaffeToMlirTranslate.cpp
 
   ADDITIONAL_HEADER_DIRS

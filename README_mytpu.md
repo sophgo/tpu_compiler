@@ -1,5 +1,7 @@
 # To build
+
 ## prerequsit
+
 1. Caffe
 ```
 $ cd ~/work
@@ -102,50 +104,79 @@ sample nvdla flow
 ```
 
 1. translate from caffe mode to tg dialect
-```
-./bin/mlir-translate --caffe-to-mlir /data/models/caffe/ResNet-50-deploy.prototxt -o resnet.mlir
 
-./bin/mlir-translate \
+```
+$ ./bin/mlir-translate --caffe-to-mlir /data/models/caffe/ResNet-50-deploy.prototxt -o resnet.mlir
+
+$ ./bin/mlir-translate \
     --caffe-to-mlir /data/models/caffe/ResNet-50-deploy.prototxt \
     --caffe-model /data/models/caffe/ResNet-50-model.caffemodel \
     -o resnet.mlir
 
 - output a weight.bin
-- weight.bin file name is described in .mlir file memref load op (or some op)
+- weight.bin file name is described in .mlir file memref load op
   - with total size to check
   - [-a weight_align_size]
 - in mlir, each weight tensor has an offset attribute describing the offset in weight.bin
 ```
 
-2. run tg net fp32 inference with cpu
-```
-./bin/mlir-tpu-interpreter resnet.mlir -i input.bin -o output.bin
-```
+1. run fp32 inference with cpu
 
-3. model level optimization (with weight transform)
-3.1 fuse bn/scale into conv
 ```
-./bin/mlir-opt --fuse-bn-scale-into-conv resnet.mlir -o resnet-opt.mlir
+$ ./bin/mlir-tpu-interpreter resnet.mlir --tensor-in input.bin --tensor-in output.bin
+
+- TODO: handle multiple outputs
 ```
 
-4. quantization, conversion to tg int8 dialect
+1. model level optimization (with weight transform)
 
-5. (extra) translate from caffe int8 model to tg int8 dialect
+1.1 fuse bn/scale into conv
 
-6. run tg net int8 inference with cpu
+```
+$ ./bin/mlir-opt --fuse-bn-scale-into-conv resnet.mlir -o resnet-opt.mlir
+```
 
-7. codegen directly from tg dialect into bmkernel script (asm)
+1. calibration
 
-8. bmkernel to bmodel assembly
+The only information we need from the calibration process is to obtain a threshold value for each
+activation tensor. The threshold is calculated based on histogram of each tensor during runtime.
+KLD is used to generate the threshold for now. All other information can be devived later in compiler.
 
-9. bmodel to bmkernel script disassembly
+we use calibration_caffe for now. TODO: do calibration based on fp32 inference
 
-10. tg level optimization pass (no weight transform)
-10.1 fuse activation into conv/fc
+1. quantization, conversion from fp32 to int8
 
-10.2 fuse pooling
+Based on calibration table(a map of tensor name and its threshold).
+```
+$ ./bin/mlir-opt \
+    --quantization-int8 resnet.mlir \
+    -o resnet-int8.mlir
+```
 
-11. tg to tl lowering
+1. (extra) translate from caffe int8 model directly
+
+1. run int8 inference with cpu
+
+1. python wrapper to run inference
+
+1. calibration with mlir python wrapper
+
+2. accuracy regression
+
+3. codegen directly from tg dialect into bmkernel script (asm)
+
+4. bmkernel to bmodel assembly
+
+5. bmodel to bmkernel script disassembly
+
+6. tg level optimization pass (no weight transform)
+
+1.1 fuse activation into conv/fc
+
+1.2 fuse pooling
+
+1. tg to tl lowering
+
 clustering/slice handling
 
-12. auto clustering (layer_group)
+1. auto clustering (layer_group)
