@@ -88,107 +88,6 @@ static void printCaffeNetAllLayer(const caffe::Net<float>& net) {
 #define calcConv2DSpatialOutput(_i_, _k_, _s_, _p_, _d_) \
     (((_i_) + 2 * (_p_) - (_d_) * ((_k_) - 1) - 1) / (_s_) + 1)
 
-// because there is no base class for ConvolutionParameter, PoolingParameter
-// use macro to handle Kernel, Stride, Pad, and Dilation
-// unfortunately, PoolingParameter has slightly different structions
-// in the end, we have to implement separate set of macros for Pooling
-#define getKernelSizeFromCaffeParam(_k_, _param_) \
-do { \
-  const int _num_spatial_axes_ = 2; \
-  if (_param_.has_kernel_h() && _param_.has_kernel_w()) { \
-    assert(_param_.kernel_size_size() == 0); \
-    _k_.push_back(_param_.kernel_h()); \
-    _k_.push_back(_param_.kernel_w()); \
-  } else { \
-    const int _num_kernel_dims_ = _param_.kernel_size_size(); \
-    for (int i = 0; i < _num_spatial_axes_; ++i) { \
-      _k_.push_back(_param_.kernel_size((_num_kernel_dims_ == 1) ? 0 : i)); \
-    } \
-  } \
-} while(0)
-
-#define getStrideFromCaffeParam(_s_, _param_) \
-do { \
-  const int _num_spatial_axes_ = 2; \
-  if (_param_.has_stride_h() && _param_.has_stride_w()) { \
-    assert(_param_.stride_size() == 0); \
-    _s_.push_back(_param_.stride_h()); \
-    _s_.push_back(_param_.stride_w()); \
-  } else { \
-    const int _num_stride_dims_ = _param_.stride_size(); \
-    for (int i = 0; i < _num_spatial_axes_; ++i) { \
-      _s_.push_back(_param_.stride((_num_stride_dims_ == 1) ? 0 : i)); \
-    } \
-  } \
-} while(0)
-
-#define getPadFromCaffeParam(_p_, _param_) \
-do { \
-  const int _num_spatial_axes_ = 2; \
-  if (_param_.has_pad_h() && _param_.has_pad_w()) { \
-    assert(_param_.pad_size() == 0); \
-    _p_.push_back(_param_.pad_h()); \
-    _p_.push_back(_param_.pad_w()); \
-  } else { \
-    const int _num_pad_dims_ = _param_.pad_size(); \
-    const int kDefaultPad = 0; \
-    for (int i = 0; i < _num_spatial_axes_; ++i) { \
-      _p_.push_back((_num_pad_dims_ == 0) ? kDefaultPad : \
-          _param_.pad((_num_pad_dims_ == 1) ? 0 : i)); \
-    } \
-  } \
-} while(0)
-
-#define getDilationFromCaffeParam(_d_, _param_) \
-do { \
-  const int _num_spatial_axes_ = 2; \
-  const int _num_dilation_dims_ = _param_.dilation_size(); \
-  const int kDefaultDilation = 1; \
-  for (int i = 0; i < _num_spatial_axes_; ++i) { \
-    _d_.push_back((_num_dilation_dims_ == 0) ? kDefaultDilation : \
-        _param_.dilation((_num_dilation_dims_ == 1) ? 0 : i)); \
-  } \
-} while(0)
-
-// unfortunately, PoolingParameter has slightly different structions
-#define getKernelSizeFromCaffeParam_Pooling(_k_, _param_) \
-do { \
-  if (_param_.has_kernel_h() && _param_.has_kernel_w()) { \
-    assert(!_param_.has_kernel_size()); \
-    _k_.push_back(_param_.kernel_h()); \
-    _k_.push_back(_param_.kernel_w()); \
-  } else { \
-    assert(_param_.has_kernel_size()); \
-    _k_.push_back(_param_.kernel_size()); \
-    _k_.push_back(_param_.kernel_size()); \
-  } \
-} while(0)
-
-#define getStrideFromCaffeParam_Pooling(_s_, _param_) \
-do { \
-  if (_param_.has_stride_h() && _param_.has_stride_w()) { \
-    assert(!_param_.has_stride()); \
-    _s_.push_back(_param_.stride_h()); \
-    _s_.push_back(_param_.stride_w()); \
-  } else { \
-    assert(_param_.has_stride()); \
-    _s_.push_back(_param_.stride()); \
-    _s_.push_back(_param_.stride()); \
-  } \
-} while(0)
-
-#define getPadFromCaffeParam_Pooling(_p_, _param_) \
-do { \
-  if (_param_.has_pad_h() && _param_.has_pad_w()) { \
-    assert(!_param_.has_pad() == 0); \
-    _p_.push_back(_param_.pad_h()); \
-    _p_.push_back(_param_.pad_w()); \
-  } else { \
-    _p_.push_back(_param_.pad()); \
-    _p_.push_back(_param_.pad()); \
-  } \
-} while(0)
-
 //===----------------------------------------------------------------------===//
 // Create Operations from Caffe Proto, and extract weight
 //===----------------------------------------------------------------------===//
@@ -197,52 +96,56 @@ static mlir::Value *addConv2dOpInBlockFromCaffe(Builder builder, Block *block,
     mlir::Value *weight_var, llvm::raw_fd_ostream *weight_os = NULL) {
   auto layer_param = layer->layer_param();
   assert(layer_param.has_convolution_param());
-  auto conv_param = layer_param.convolution_param();
-  bool with_bias = conv_param.bias_term();
+  auto p = layer_param.convolution_param();
   int64_t n, ic, oc, group;
-  std::vector<int64_t> k, s, p, d;
-  std::vector<int64_t> ifmap, ofmap;  // spatial dims only (height and width)
+  std::vector<int64_t> kernel(2), stride(2), padding(2), dilation(2);
+  std::vector<int64_t> ifmap(2), ofmap(2); // spatial dims only (height and width)
 
-  getKernelSizeFromCaffeParam(k, conv_param);
-  getStrideFromCaffeParam(s, conv_param);
-  getPadFromCaffeParam(p, conv_param);
-  getDilationFromCaffeParam(d, conv_param);
-  oc = conv_param.num_output();
-  group = conv_param.group();
+  bool with_bias = p.bias_term();
+  oc = p.num_output();
+  group  = p.has_group()? p.group() : 1;
+  kernel[0] = p.has_kernel_h() ? p.kernel_h() : p.kernel_size_size() > 1 ? p.kernel_size(1) : p.kernel_size(0);
+  kernel[1] = p.has_kernel_w() ? p.kernel_w() : p.kernel_size(0);
+  stride[0] = p.has_stride_h() ? p.stride_h() : p.stride_size() > 1 ? p.stride(1) : p.stride_size() > 0 ? p.stride(0) : 1;
+  stride[1] = p.has_stride_w() ? p.stride_w() : p.stride_size() > 0 ? p.stride(0) : 1;
+  padding[0] = p.has_pad_h() ? p.pad_h() : p.pad_size() > 1 ? p.pad(1) : p.pad_size() > 0 ? p.pad(0) : 0;
+  padding[1] = p.has_pad_w() ? p.pad_w() : p.pad_size() > 0 ? p.pad(0) : 0;
+  dilation[0] = p.dilation_size() > 1 ? p.dilation(1) : p.dilation_size() > 0 ? p.dilation(0) : 1;
+  dilation[1] = p.dilation_size() > 0 ? p.dilation(0) : 1;
+
   // TODO: don't support group for now
   assert(group == 1);
+  assert( (dilation[0] == 1) && (dilation[1] == 1) );
 
   // get input shape from input var
-  LLVM_DEBUG(input_var->getType().dump(););
-  llvm::ArrayRef<int64_t> input_var_shape =
-      input_var->getType().dyn_cast<mlir::TensorType>().getShape();
-  assert(input_var_shape.size() == 4);
-  n = input_var_shape[0];
-  ic = input_var_shape[1];
-  ifmap.push_back(input_var_shape[2]);
-  ifmap.push_back(input_var_shape[3]);
+  DEBUG_WITH_TYPE(DEBUG_TYPE"_VERBOSE", input_var->getType().dump(););
+  llvm::ArrayRef<int64_t> input_shape = input_var->getType().dyn_cast<mlir::TensorType>().getShape();
+  assert(input_shape.size() == 4);
+  n = input_shape[0];
+  ic = input_shape[1];
+  ifmap[0] = input_shape[2];
+  ifmap[1] = input_shape[3];
+  // get output shape from inference
+  ofmap[0] = calcConv2DSpatialOutput(ifmap[0], kernel[0], stride[0], padding[0], dilation[0]);
+  ofmap[1] = calcConv2DSpatialOutput(ifmap[1], kernel[1], stride[1], padding[1], dilation[1]);
 
-  // get ofmap shape by inference
-  // does not support dilation for now
-  ofmap.push_back(calcConv2DSpatialOutput(ifmap[0], k[0], s[0], p[0], d[0]));
-  ofmap.push_back(calcConv2DSpatialOutput(ifmap[1], k[1], s[1], p[1], d[1]));
-
-  llvm::errs()
-      << "  N: " << n
-      << ", IC: " << ic
-      << ", IH*IW: " << ifmap[0] << " * " << ifmap[1]
-      << ", OC: " << oc
-      << ", OH*OW: " << ofmap[0] << " * " << ofmap[1]
-      << "\n";
-
-  llvm::errs()
-      << "  with_bias: " << with_bias
-      << ", K: " << k[0] << " * " << k[1]
-      << ", S: " << s[0] << " * " << s[1]
-      << ", P: " << p[0] << " * " << p[1]
-      << ", D: " << d[0] << " * " << d[1]
-      << ", group: " << group
-      << "\n";
+  LLVM_DEBUG(
+    llvm::errs()
+        << "  N: " << n
+        << ", IC: " << ic
+        << ", IH*IW: " << ifmap[0] << " * " << ifmap[1]
+        << ", OC: " << oc
+        << ", OH*OW: " << ofmap[0] << " * " << ofmap[1]
+        << "\n";
+    llvm::errs()
+        << "  with_bias: " << with_bias
+        << ", K: " << kernel[0]   << " * " << kernel[1]
+        << ", S: " << stride[0]   << " * " << stride[1]
+        << ", P: " << padding[0]  << " * " << padding[1]
+        << ", D: " << dilation[0] << " * " << dilation[1]
+        << ", group: " << group
+        << "\n";
+  );
 
   size_t pos_filter, pos_bias;
   if (weight_os) {
@@ -257,8 +160,8 @@ static mlir::Value *addConv2dOpInBlockFromCaffe(Builder builder, Block *block,
     assert(filter_shape.size() == 4);
     assert(filter_shape[0] == oc);
     assert(filter_shape[1] == ic);
-    assert(filter_shape[2] == k[0]);
-    assert(filter_shape[3] == k[1]);
+    assert(filter_shape[2] == kernel[0]);
+    assert(filter_shape[3] == kernel[1]);
     pos_filter = weight_os->tell();
     weight_os->write(reinterpret_cast<const char*>(blob_filter->cpu_data()),
         blob_filter->count() * sizeof(float));
@@ -287,7 +190,7 @@ static mlir::Value *addConv2dOpInBlockFromCaffe(Builder builder, Block *block,
   // construct OP
   std::vector<Value *> operands;
   operands.push_back(input_var);
-  auto filter_type = builder.getTensorType({oc, ic, k[0], k[1]}, elementType);
+  auto filter_type = builder.getTensorType({oc, ic, kernel[0], kernel[1]}, elementType);
   auto filter = OpBuilder(block).create<tpu::LoadWeightOp>(
       builder.getUnknownLoc(), filter_type, weight_var,
       /*offset=*/builder.getI64IntegerAttr(pos_filter));
@@ -301,13 +204,13 @@ static mlir::Value *addConv2dOpInBlockFromCaffe(Builder builder, Block *block,
   }
   auto result_type = builder.getTensorType({n, oc, ofmap[0], ofmap[1]}, elementType);
   std::vector<NamedAttribute> attrs;
-  attrs.push_back(builder.getNamedAttr("dilation_h_factor", builder.getI32IntegerAttr(d[0])));
-  attrs.push_back(builder.getNamedAttr("dilation_w_factor", builder.getI32IntegerAttr(d[1])));
+  attrs.push_back(builder.getNamedAttr("dilation_h_factor", builder.getI32IntegerAttr(dilation[0])));
+  attrs.push_back(builder.getNamedAttr("dilation_w_factor", builder.getI32IntegerAttr(dilation[1])));
   //attrs.push_back(builder.getNamedAttr("fused_activation_function", builder.getStringAttr("NONE")));
-  attrs.push_back(builder.getNamedAttr("padding", (p[0] || p[1]) ? builder.getStringAttr("SAME")
-                                                                  : builder.getStringAttr("VALID")));
-  attrs.push_back(builder.getNamedAttr("stride_h", builder.getI32IntegerAttr(s[0])));
-  attrs.push_back(builder.getNamedAttr("stride_w", builder.getI32IntegerAttr(s[1])));
+  attrs.push_back(builder.getNamedAttr("padding", (padding[0] || padding[1])
+                  ? builder.getStringAttr("SAME") : builder.getStringAttr("VALID")));
+  attrs.push_back(builder.getNamedAttr("stride_h", builder.getI32IntegerAttr(stride[0])));
+  attrs.push_back(builder.getNamedAttr("stride_w", builder.getI32IntegerAttr(stride[1])));
   auto op = OpBuilder(block).create<tpu::Conv2DOp>(
       builder.getUnknownLoc(), result_type,
       ArrayRef<Value *>{operands}, ArrayRef<NamedAttribute>{attrs});
@@ -327,7 +230,7 @@ static mlir::Value *addBatchNormOpInBlockFromCaffe(Builder builder, Block *block
 
   int64_t n, c, h, w;
   // get input shape from input vars
-  LLVM_DEBUG(input_var->getType().dump(););
+  DEBUG_WITH_TYPE(DEBUG_TYPE"_VERBOSE", input_var->getType().dump(););
   llvm::ArrayRef<int64_t> input_var_shape =
       input_var->getType().dyn_cast<mlir::TensorType>().getShape();
   assert(input_var_shape.size() == 4);
@@ -336,11 +239,13 @@ static mlir::Value *addBatchNormOpInBlockFromCaffe(Builder builder, Block *block
   h = input_var_shape[2];
   w = input_var_shape[3];
 
-  llvm::errs()
-      << "  N: " << n
-      << ", C: " << c
-      << ", IH*IW: " << h << " * " << w
-      << "\n";
+  LLVM_DEBUG(
+    llvm::errs()
+        << "  N: " << n
+        << ", C: " << c
+        << ", IH*IW: " << h << " * " << w
+        << "\n";
+  );
 
   size_t pos_mean, pos_variance, pos_scale;
   if (weight_os) {
@@ -403,7 +308,9 @@ static mlir::Value *addBatchNormOpInBlockFromCaffe(Builder builder, Block *block
       /*offset=*/builder.getI64IntegerAttr(pos_scale));
   auto result_type = builder.getTensorType({n, c, h, w}, elementType);
   auto op = OpBuilder(block).create<tpu::BatchNormOp>(
-      builder.getUnknownLoc(), result_type, input_var, mean, variance, scale);
+      builder.getUnknownLoc(), result_type,
+      ArrayRef<Value *>{input_var, mean, variance, scale},
+      ArrayRef<NamedAttribute>{});
   auto result_var = op.getResult();
   return result_var;
 }
@@ -420,7 +327,7 @@ static mlir::Value *addScaleOpInBlockFromCaffe(Builder builder, Block *block,
 
   int64_t n, c, h, w;
   // get input shape from input vars
-  LLVM_DEBUG(input_var->getType().dump(););
+  DEBUG_WITH_TYPE(DEBUG_TYPE"_VERBOSE", input_var->getType().dump(););
   llvm::ArrayRef<int64_t> input_var_shape =
       input_var->getType().dyn_cast<mlir::TensorType>().getShape();
   assert(input_var_shape.size() == 4);
@@ -429,11 +336,13 @@ static mlir::Value *addScaleOpInBlockFromCaffe(Builder builder, Block *block,
   h = input_var_shape[2];
   w = input_var_shape[3];
 
-  llvm::errs()
-      << "  N: " << n
-      << ", C: " << c
-      << ", IH*IW: " << h << " * " << w
-      << "\n";
+  LLVM_DEBUG(
+    llvm::errs()
+        << "  N: " << n
+        << ", C: " << c
+        << ", IH*IW: " << h << " * " << w
+        << "\n";
+  );
 
   size_t pos_scale, pos_bias;
   if (weight_os) {
@@ -506,26 +415,29 @@ static mlir::Value *addReluOpInBlockFromCaffe(Builder builder, Block *block,
 
   int64_t n, c, h, w;
   // get input shape from input vars
-  LLVM_DEBUG(input_var->getType().dump(););
-  llvm::ArrayRef<int64_t> input_var_shape =
-      input_var->getType().dyn_cast<mlir::TensorType>().getShape();
-  assert(input_var_shape.size() == 4);
-  n = input_var_shape[0];
-  c = input_var_shape[1];
-  h = input_var_shape[2];
-  w = input_var_shape[3];
+  DEBUG_WITH_TYPE(DEBUG_TYPE"_VERBOSE", input_var->getType().dump(););
+  llvm::ArrayRef<int64_t> input_shape = input_var->getType().dyn_cast<mlir::TensorType>().getShape();
+  assert(input_shape.size() == 4);
+  n = input_shape[0];
+  c = input_shape[1];
+  h = input_shape[2];
+  w = input_shape[3];
 
-  llvm::errs()
-      << "  N: " << n
-      << ", C: " << c
-      << ", IH*IW: " << h << " * " << w
-      << "\n";
+  LLVM_DEBUG(
+    llvm::errs()
+        << "  N: " << n
+        << ", C: " << c
+        << ", IH*IW: " << h << " * " << w
+        << "\n";
+  );
 
   // construct OP
   auto result_type = builder.getTensorType({n, c, h, w}, elementType);
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder.getNamedAttr("negative_slope", builder.getF32FloatAttr(negative_slope)));
   auto op = OpBuilder(block).create<tpu::ReluOp>(
-      builder.getUnknownLoc(), result_type, input_var,
-      /*negative_slope=*/builder.getF32FloatAttr(negative_slope));
+      builder.getUnknownLoc(), result_type, ArrayRef<Value *>{input_var},
+      ArrayRef<NamedAttribute>{attrs});
   auto result_var = op.getResult();
   return result_var;
 }
@@ -537,17 +449,19 @@ static mlir::Value *addSoftmaxOpInBlockFromCaffe(Builder builder, Block *block,
 
   int64_t n, c;
   // get input shape from input vars
-  LLVM_DEBUG(input_var->getType().dump(););
+  DEBUG_WITH_TYPE(DEBUG_TYPE"_VERBOSE", input_var->getType().dump(););
   llvm::ArrayRef<int64_t> input_var_shape =
       input_var->getType().dyn_cast<mlir::TensorType>().getShape();
   assert(input_var_shape.size() == 2);
   n = input_var_shape[0];
   c = input_var_shape[1];
 
-  llvm::errs()
-      << "  N: " << n
-      << ", C: " << c
-      << "\n";
+  LLVM_DEBUG(
+    llvm::errs()
+        << "  N: " << n
+        << ", C: " << c
+        << "\n";
+  );
 
   // construct OP
   auto result_type = builder.getTensorType({n, c}, elementType);
@@ -568,30 +482,34 @@ static mlir::Value *addEltwiseOpInBlockFromCaffe(Builder builder, Block *block,
 
   int64_t n, c, h, w;
   // get input shape from input vars
-  LLVM_DEBUG(input_1_var->getType().dump(););
-  llvm::ArrayRef<int64_t> input_1_var_shape =
+  DEBUG_WITH_TYPE(DEBUG_TYPE"_VERBOSE", input_1_var->getType().dump(););
+  llvm::ArrayRef<int64_t> input_1_shape =
       input_1_var->getType().dyn_cast<mlir::TensorType>().getShape();
-  assert(input_1_var_shape.size() == 4);
-  n = input_1_var_shape[0];
-  c = input_1_var_shape[1];
-  h = input_1_var_shape[2];
-  w = input_1_var_shape[3];
+  assert(input_1_shape.size() == 4);
+  n = input_1_shape[0];
+  c = input_1_shape[1];
+  h = input_1_shape[2];
+  w = input_1_shape[3];
 
-  LLVM_DEBUG(input_2_var->getType().dump(););
-  llvm::ArrayRef<int64_t> input_2_var_shape =
+  DEBUG_WITH_TYPE(DEBUG_TYPE"_VERBOSE", input_2_var->getType().dump(););
+  llvm::ArrayRef<int64_t> input_2_shape =
       input_2_var->getType().dyn_cast<mlir::TensorType>().getShape();
-  assert(input_2_var_shape == input_1_var_shape);
+  assert(input_2_shape == input_1_shape);
 
-  llvm::errs()
-      << "  N: " << n
-      << ", C: " << c
-      << ", IH*IW: " << h << " * " << w
-      << "\n";
+  LLVM_DEBUG(
+    llvm::errs()
+        << "  N: " << n
+        << ", C: " << c
+        << ", IH*IW: " << h << " * " << w
+        << "\n";
+  );
 
   // construct OP
   auto result_type = builder.getTensorType({n, c, h, w}, elementType);
   auto op = OpBuilder(block).create<tpu::EltwiseOp>(
-      builder.getUnknownLoc(), result_type, input_1_var, input_2_var);
+      builder.getUnknownLoc(), result_type,
+      ArrayRef<Value *>{input_1_var, input_2_var},
+      ArrayRef<NamedAttribute>{});
   auto result_var = op.getResult();
   return result_var;
 }
@@ -601,44 +519,43 @@ static mlir::Value *addPoolingOpInBlockFromCaffe(Builder builder, Block *block,
     caffe::Layer<float> *layer) {
   auto layer_param = layer->layer_param();
   assert(layer_param.has_pooling_param());
-  auto pooling_param = layer_param.pooling_param();
+  auto p = layer_param.pooling_param();
 
   bool is_average_pooling;
   bool is_global_pooling;
   int64_t n, c;
-  std::vector<int64_t> k, s, p;
-  std::vector<int64_t> ifmap, ofmap;  // spatial dims only (height and width)
+  std::vector<int64_t> kernel(2), stride(2), padding(2);
+  std::vector<int64_t> ifmap(2), ofmap(2);  // spatial dims only (height and width)
 
-  if (pooling_param.pool() == caffe::PoolingParameter_PoolMethod_AVE) {
+  if (p.pool() == caffe::PoolingParameter_PoolMethod_AVE) {
     is_average_pooling = true;
-  } else if (pooling_param.pool() == caffe::PoolingParameter_PoolMethod_MAX) {
+  } else if (p.pool() == caffe::PoolingParameter_PoolMethod_MAX) {
     is_average_pooling = false;
   } else {
-    assert(false);
+    assert(false && "Invalid pool type");
   }
+  is_global_pooling = p.global_pooling();
 
   // get input shape from input var
-  LLVM_DEBUG(input_var->getType().dump(););
-  llvm::ArrayRef<int64_t> input_var_shape =
-      input_var->getType().dyn_cast<mlir::TensorType>().getShape();
-  assert(input_var_shape.size() == 4);
-  n = input_var_shape[0];
-  c = input_var_shape[1];
-  ifmap.push_back(input_var_shape[2]);
-  ifmap.push_back(input_var_shape[3]);
+  DEBUG_WITH_TYPE(DEBUG_TYPE"_VERBOSE", input_var->getType().dump(););
+  llvm::ArrayRef<int64_t> input_shape = input_var->getType().dyn_cast<mlir::TensorType>().getShape();
+  assert(input_shape.size() == 4);
+  n = input_shape[0];
+  c = input_shape[1];
+  ifmap[0] = input_shape[2];
+  ifmap[1] = input_shape[3];
 
-  is_global_pooling = pooling_param.global_pooling();
   if (is_global_pooling) {
-    k.push_back(ifmap[0]);
-    k.push_back(ifmap[1]);
+    kernel[0] = ifmap[0];
+    kernel[1] = ifmap[1];
   } else {
-    getKernelSizeFromCaffeParam_Pooling(k, pooling_param);
+    kernel[0] = p.has_kernel_h() ? p.kernel_h() : p.kernel_size();
+    kernel[1] = p.has_kernel_w() ? p.kernel_w() : p.kernel_size();
   }
-  getStrideFromCaffeParam_Pooling(s, pooling_param);
-  getPadFromCaffeParam_Pooling(p, pooling_param);
-  if (is_global_pooling) {
-    assert(p[0] == 0 && p[1] == 0);
-  }
+  stride[0]  = p.has_stride_h() ? p.stride_h() : p.has_stride() ? p.stride() : 1;
+  stride[1]  = p.has_stride_w() ? p.stride_w() : p.has_stride() ? p.stride() : 1;
+  padding[0] = p.has_pad_h() ? p.pad_h() : p.has_pad() ? p.pad() : 0;
+  padding[1] = p.has_pad_w() ? p.pad_w() : p.has_pad() ? p.pad() : 0;
   //
   // Fix caffe pooling padding
   //
@@ -646,76 +563,55 @@ static mlir::Value *addPoolingOpInBlockFromCaffe(Builder builder, Block *block,
   //      height_ + 2 * pad_h_ - kernel_h_) / stride_h_)) + 1;
   //  pooled_width_ = static_cast<int>(ceil(static_cast<float>(
   //      width_ + 2 * pad_w_ - kernel_w_) / stride_w_)) + 1;
-#if 0
-  if (s[0] == 2 && s[1] == 2) {
-    if( (ifmap[0] + 2 * p[0] - k[0]) % s[0] ) {
-      assert(p[0] == 0);
-      p[0] = 1;
-    }
-    if( (ifmap[1] + 2 * p[1] - k[1]) % s[1] ) {
-      assert(p[1] == 0);
-      p[1] = 1;
-    }
-  } else {
-    // only support stride = 2 if not global pooling
-    assert(ifmap[0] == k[0] && ifmap[1] == k[1]);
-  }
-
-  // get ofmap shape by inference
-  ofmap.push_back((ifmap[0] - k[0] + 2 * p[0]) / s[0] + 1);
-  ofmap.push_back((ifmap[1] - k[1] + 2 * p[1]) / s[1] + 1);
-#else
-  // DO NOT fix padding, fix ofmap height and width
-  ofmap.push_back(static_cast<int>(ceil(static_cast<float>(
-        ifmap[0] + 2 * p[0] - k[0]) / s[0])) + 1);
-  ofmap.push_back(static_cast<int>(ceil(static_cast<float>(
-        ifmap[1] + 2 * p[1] - k[1]) / s[1])) + 1);
-#endif
+  //
+  ofmap[0] = (static_cast<int>(ceil(static_cast<float>(
+        ifmap[0] + 2 * padding[0] - kernel[0]) / stride[0])) + 1);
+  ofmap[1] = (static_cast<int>(ceil(static_cast<float>(
+        ifmap[1] + 2 * padding[1] - kernel[1]) / stride[1])) + 1);
 
   if (is_global_pooling) {
-    assert(p[0] == 0 && p[1] == 0 && s[0] == 1 && s[1] == 1);
-    assert(ofmap[0] == 1 && ofmap[1] == 1);
+    assert( (padding[0] == 0) && (padding[1] == 0) );
+    assert( (stride[0] == 1) && (stride[1] == 1) );
+    assert( (ofmap[0] == 1) && (ofmap[1] == 1) );
   }
 
-  llvm::errs()
-      << "  N: " << n
-      << ", C: " << c
-      << ", IH*IW: " << ifmap[0] << " * " << ifmap[1]
-      << ", OH*OW: " << ofmap[0] << " * " << ofmap[1]
-      << ", type: " << (is_average_pooling ? "AVG" : "MAX")
-      << "\n";
-
-  llvm::errs()
-      << "  K: " << k[0] << " * " << k[1]
-      << ", S: " << s[0] << " * " << s[1]
-      << ", P: " << p[0] << " * " << p[1]
-      << ", global_pooling: " << is_global_pooling
-      << "\n";
+  LLVM_DEBUG(
+    llvm::errs()
+        << "  N: " << n
+        << ", C: " << c
+        << ", IH*IW: " << ifmap[0] << " * " << ifmap[1]
+        << ", OH*OW: " << ofmap[0] << " * " << ofmap[1]
+        << ", type: " << (is_average_pooling ? "AVG" : "MAX")
+        << "\n";
+    llvm::errs()
+        << "  K: " << kernel[0] << " * " << kernel[1]
+        << ", S: " << stride[0] << " * " << stride[1]
+        << ", P: " << padding[0] << " * " << padding[1]
+        << ", global_pooling: " << is_global_pooling
+        << "\n";
+  );
 
   // construct OP
   auto result_type = builder.getTensorType({n, c, ofmap[0], ofmap[1]}, elementType);
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder.getNamedAttr("filter_height", builder.getI32IntegerAttr(kernel[0])));
+  attrs.push_back(builder.getNamedAttr("filter_width", builder.getI32IntegerAttr(kernel[1])));
+  attrs.push_back(builder.getNamedAttr("padding",
+      (padding[0] || padding[1]) ? builder.getStringAttr("SAME") : builder.getStringAttr("VALID")));
+  attrs.push_back(builder.getNamedAttr("stride_h", builder.getI32IntegerAttr(stride[0])));
+  attrs.push_back(builder.getNamedAttr("stride_w", builder.getI32IntegerAttr(stride[1])));
+  attrs.push_back(builder.getNamedAttr("fused_activation_function", builder.getStringAttr("NONE")));
+
   if (is_average_pooling) {
     auto op = OpBuilder(block).create<tpu::AveragePool2DOp>(
-        builder.getUnknownLoc(), result_type, input_var,
-        /*filter_height=*/builder.getI32IntegerAttr(k[0]),
-        /*filter_width=*/builder.getI32IntegerAttr(k[1]),
-        /*padding=*/(p[0] || p[1]) ? builder.getStringAttr("SAME")
-                                   : builder.getStringAttr("VALID"),
-        /*stride_h=*/builder.getI32IntegerAttr(s[0]),
-        /*stride_w=*/builder.getI32IntegerAttr(s[1]),
-        /*fused_activation_function=*/builder.getStringAttr("NONE"));
+        builder.getUnknownLoc(), result_type, ArrayRef<Value *>{input_var},
+        ArrayRef<NamedAttribute>{attrs});
     auto result_var = op.getResult();
     return result_var;
   } else {
     auto op = OpBuilder(block).create<tpu::MaxPool2DOp>(
-        builder.getUnknownLoc(), result_type, input_var,
-        /*filter_height=*/builder.getI32IntegerAttr(k[0]),
-        /*filter_width=*/builder.getI32IntegerAttr(k[1]),
-        /*padding=*/(p[0] || p[1]) ? builder.getStringAttr("SAME")
-                                   : builder.getStringAttr("VALID"),
-        /*stride_h=*/builder.getI32IntegerAttr(s[0]),
-        /*stride_w=*/builder.getI32IntegerAttr(s[1]),
-        /*fused_activation_function=*/builder.getStringAttr("NONE"));
+        builder.getUnknownLoc(), result_type, ArrayRef<Value *>{input_var},
+        ArrayRef<NamedAttribute>{attrs});
     auto result_var = op.getResult();
     return result_var;
   }
@@ -727,43 +623,42 @@ static mlir::Value *addFullyConnectedOpInBlockFromCaffe(Builder builder, Block *
     mlir::Value *weight_var,
     llvm::raw_fd_ostream *weight_os = NULL) {
   auto layer_param = layer->layer_param();
-  auto fc_param = layer_param.inner_product_param();
-  bool with_bias = fc_param.bias_term();
-  bool with_transpose = fc_param.transpose();
+  auto p = layer_param.inner_product_param();
+  bool with_bias = p.bias_term();
+  bool with_transpose = p.transpose();
   // M is the batch_size, K is input number, N is output number
   // (M, K) * (K, N) => (M, N)
   int64_t M, K, N;
   // N is the output num
-  N = fc_param.num_output();
+  N = p.num_output();
 
   // get input shape from input var
-  LLVM_DEBUG(input_var->getType().dump(););
-  llvm::ArrayRef<int64_t> input_var_shape =
-      input_var->getType().dyn_cast<mlir::TensorType>().getShape();
-
+  DEBUG_WITH_TYPE(DEBUG_TYPE"_VERBOSE", input_var->getType().dump());
+  llvm::ArrayRef<int64_t> input_shape = input_var->getType().dyn_cast<mlir::TensorType>().getShape();
   bool reshape_first = false;
-  if (input_var_shape.size() == 2) {
-    M = input_var_shape[0];
-    K = input_var_shape[1];
+  if (input_shape.size() == 2) {
+    M = input_shape[0];
+    K = input_shape[1];
   } else {
     reshape_first = true;
-    M = input_var_shape[0];
+    M = input_shape[0];
     K = 1;
-    for (size_t i = 1; i <= input_var_shape.size() - 1; ++i) {
-      K *= input_var_shape[i];
+    for (size_t i = 1; i <= input_shape.size() - 1; ++i) {
+      K *= input_shape[i];
     }
   }
-
-  llvm::errs()
-      << "  M: " << M
-      << ", K: " << K
-      << ", N: " << N
-      << ", with_bias: " << with_bias
-      << ", with_transpose: " << with_transpose
-      << "\n";
-
   // not support transpose for now
   assert(!with_transpose);
+
+  LLVM_DEBUG(
+    llvm::errs()
+        << "  M: " << M
+        << ", K: " << K
+        << ", N: " << N
+        << ", with_bias: " << with_bias
+        << ", with_transpose: " << with_transpose
+        << "\n";
+  );
 
   mlir::Value *fc_input_var = input_var;
   // construct reshape OP
@@ -921,18 +816,21 @@ static OwningModuleRef caffeToMlirTranslate(llvm::StringRef inputFilename,
   //weight_file->keep();
 
   // dump all layers
-  LLVM_DEBUG(printCaffeNetAllLayer(net););
+  DEBUG_WITH_TYPE(DEBUG_TYPE"_VERBOSE", printCaffeNetAllLayer(net););
 
   // find caffe model inputs and outputs
   std::vector<mlir::Type> net_input_type_vec;
   std::vector<std::string> net_input_name_vec;
   for (int i = 0; i <= net.num_inputs() - 1; ++i) {
     int index = net.input_blob_indices()[i];
-    llvm::errs() << "net input [" << i << "] - [" << index << "] : "
-        << ", blob: " << net.blob_names()[index]
-        << ", shape: " << net.input_blobs()[i]->shape_string()
-        << ", layer: " << net.layer_names()[index]
-        << "\n";
+    LLVM_DEBUG(
+      llvm::errs()
+          << "net input [" << i << "] - [" << index << "] : "
+          << ", blob: " << net.blob_names()[index]
+          << ", shape: " << net.input_blobs()[i]->shape_string()
+          << ", layer: " << net.layer_names()[index]
+          << "\n";
+    );
     net_input_type_vec.push_back(getMlirTypeFromCaffeShape(builder,
         net.input_blobs()[i]->shape(), elementType));
     net_input_name_vec.push_back(net.blob_names()[index]);
@@ -941,11 +839,14 @@ static OwningModuleRef caffeToMlirTranslate(llvm::StringRef inputFilename,
   std::vector<std::string> net_output_name_vec;
   for (int i = 0; i <= net.num_outputs() - 1; ++i) {
     int index = net.output_blob_indices()[i];
-    llvm::errs() << "net output[" << i << "] - [" << index << "] : "
-        << "blob: " << net.blob_names()[index]
-        << ", shape: " << net.output_blobs()[i]->shape_string()
-        << ", layer: " << net.layer_names()[index]
-        << "\n";
+    LLVM_DEBUG(
+      llvm::errs()
+          << "net output[" << i << "] - [" << index << "] : "
+          << "blob: " << net.blob_names()[index]
+          << ", shape: " << net.output_blobs()[i]->shape_string()
+          << ", layer: " << net.layer_names()[index]
+          << "\n";
+    );
     net_output_type_vec.push_back(getMlirTypeFromCaffeShape(builder,
         net.output_blobs()[i]->shape(), elementType));
     net_output_name_vec.push_back(net.blob_names()[index]);

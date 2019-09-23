@@ -63,9 +63,11 @@ static mlir::Value *addReluOpInBlock(Builder builder, Block *block,
     mlir::Type elementType, mlir::Value *input, int64_t n,
     int64_t c, int64_t h, int64_t w) {
   auto result_type = builder.getTensorType({n, c, h, w}, elementType);
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder.getNamedAttr("negative_slope", builder.getF32FloatAttr(1.0f)));
   auto op = OpBuilder(block).create<tpu::ReluOp>(
-      builder.getUnknownLoc(), result_type, input,
-      /*negative_slope=*/builder.getF32FloatAttr(1.0f));
+      builder.getUnknownLoc(), result_type, ArrayRef<Value *>{input},
+      ArrayRef<NamedAttribute>{attrs});
   auto result = op.getResult();
   return result;
 }
@@ -75,14 +77,16 @@ static mlir::Value *addAveragePool2DOpInBlock(Builder builder, Block *block,
     int64_t c, int64_t ih, int64_t iw, int64_t oh, int64_t ow,
     int64_t kh, int64_t kw, int64_t sh, int64_t sw) {
   auto result_type = builder.getTensorType({n, c, oh, ow}, elementType);
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder.getNamedAttr("filter_height", builder.getI32IntegerAttr(kh)));
+  attrs.push_back(builder.getNamedAttr("filter_width", builder.getI32IntegerAttr(kw)));
+  attrs.push_back(builder.getNamedAttr("padding", builder.getStringAttr("VALID")));
+  attrs.push_back(builder.getNamedAttr("stride_h", builder.getI32IntegerAttr(sh)));
+  attrs.push_back(builder.getNamedAttr("stride_w", builder.getI32IntegerAttr(sw)));
+  attrs.push_back(builder.getNamedAttr("fused_activation_function", builder.getStringAttr("NONE")));
   auto op = OpBuilder(block).create<tpu::AveragePool2DOp>(
-        builder.getUnknownLoc(), result_type, input,
-        /*filter_height=*/builder.getI32IntegerAttr(kh),
-        /*filter_width=*/builder.getI32IntegerAttr(kw),
-        /*padding=*/builder.getStringAttr("VALID"),
-        /*stride_h=*/builder.getI32IntegerAttr(sh),
-        /*stride_w=*/builder.getI32IntegerAttr(sw),
-        /*fused_activation_function=*/builder.getStringAttr("NONE"));
+        builder.getUnknownLoc(), result_type, ArrayRef<Value *>{input},
+        ArrayRef<NamedAttribute>{attrs});
   auto result = op.getResult();
   return result;
 }

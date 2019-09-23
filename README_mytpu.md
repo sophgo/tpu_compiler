@@ -180,3 +180,20 @@ $ ./bin/mlir-opt \
 clustering/slice handling
 
 1. auto clustering (layer_group)
+
+# Debug tips
+
+put all debug print inside LLVM_DEBUG() macro
+
+define "DEBUG_TYPE" for fine grained debug info
+
+runtime
+  -debug to enable all LLVM_DEBUG()
+  -debug-only=dgb_type1,dgb_type2
+
+DEBUG_TYPE defined
+```
+caffe-to-mlir-v2            - caffe importer v2
+caffe-to-mlir-v2_VERBOSE    - caffe importer v2
+caffe-to-mlir-v3            - caffe importer v3
+```
