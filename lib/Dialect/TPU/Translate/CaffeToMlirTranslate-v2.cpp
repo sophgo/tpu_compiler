@@ -973,15 +973,15 @@ static OwningModuleRef caffeToMlirTranslate(llvm::StringRef inputFilename,
   return module;
 }
 
-static llvm::cl::OptionCategory clOptionsCategory("caffe translate options");
+static llvm::cl::OptionCategory clOptionsCategory("caffe translate options v2");
 
 static llvm::cl::opt<std::string> clCaffeModelFilename(
-    "caffe-model",
+    "caffe-model-v2",
     llvm::cl::desc("Specify the caffemodel filename"),
     llvm::cl::cat(clOptionsCategory));
 
 static llvm::cl::opt<uint> clWeightAlign(
-    "weight-align",
+    "weight-align-v2",
     llvm::cl::desc("Specify the alignment for each weight"),
     llvm::cl::init(32), llvm::cl::cat(clOptionsCategory));
 

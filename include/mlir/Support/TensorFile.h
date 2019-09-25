@@ -70,7 +70,6 @@ public:
     }
     cnpy::npz_save(filename.str(), name.str(), &data[0], shape_npz,
         (map.empty()) ? "w" : "a");
-    llvm::errs() << "save a tensor\n";
     // TODO: rewrite with a more efficient way
     load();
     return success();

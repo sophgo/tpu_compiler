@@ -52,8 +52,18 @@ $ cmake --build . --target check-mlir
 ```
 
 ### Extra regression
+
 ```
-$ ./bin/mlir-translate --caffe-to-mlir-v2 /data/models/caffe/ResNet-50-deploy.prototxt --caffe-model /data/models/caffe/ResNet-50-model.caffemodel -o resnet-50-v2.mlir
+$ ./bin/mlir-translate --caffe-to-mlir /data/models/caffe/ResNet-50-deploy.prototxt --caffe-model /data/models/caffe/ResNet-50-model.caffemodel -o resnet-50.mlir
+
+$ ./bin/mlir-translate --caffe-to-mlir /data/models/caffe/ResNet-50-deploy.prototxt --caffe-model /data/models/caffe/ResNet-50-model.caffemodel -o resnet-50.mlir --debug
+
+$ ./bin/mlir-translate --caffe-to-mlir /data/models/caffe/ResNet-50-deploy.prototxt --caffe-model /data/models/caffe/ResNet-50-model.caffemodel -o resnet-50.mlir --debug-only=caffe-to-mlir_VERBOSE
+```
+
+v2
+```
+$ ./bin/mlir-translate --caffe-to-mlir-v2 /data/models/caffe/ResNet-50-deploy.prototxt --caffe-model-v2 /data/models/caffe/ResNet-50-model.caffemodel -o resnet-50-v2.mlir
 
 $ diff resnet-50-v2.mlir ../llvm/projects/mlir/resnet-50_20190921_e92b6c5c.mlir
 
