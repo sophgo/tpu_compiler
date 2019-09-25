@@ -629,28 +629,28 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
   }
   if (auto loadWeightOp = dyn_cast<tpu::LoadWeightOp>(opInst)) {
     llvm::errs() << "LoadWeightOp" << "\n";
-    assert(loadWeightOp.offset().hasValue());
-    auto offset = loadWeightOp.offset().getValue().getLimitedValue();
-    llvm::errs() << "  offset " << offset << "\n";
+
     auto result = loadWeightOp.getResult();
     llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";
-    std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
-    assert(shape.size() <= 4);
-    auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
-    auto weight_data = std::make_unique<std::vector<float> >(size);
-
-    weight_is.get()->seekg(offset, std::ios::beg);
-    weight_is.get()->read((char*)weight_data.get()->data(), size * sizeof(float));
-
-    //valueMapping[result] = std::move(weight_data);
-
     if (loadWeightOp.name().hasValue()) {
       auto tensor_name = loadWeightOp.name().getValue();
       llvm::errs() << "  tensor_name " << tensor_name << "\n";
       auto type = result->getType().cast<TensorType>();
       auto tensor = weight_file->readTensor<float>(tensor_name, type);
+
       valueMapping[result] = std::move(tensor);
     } else {
+      assert(loadWeightOp.offset().hasValue());
+      auto offset = loadWeightOp.offset().getValue().getLimitedValue();
+      llvm::errs() << "  offset " << offset << "\n";
+      std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
+      assert(shape.size() <= 4);
+      auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
+      auto weight_data = std::make_unique<std::vector<float> >(size);
+
+      weight_is.get()->seekg(offset, std::ios::beg);
+      weight_is.get()->read((char*)weight_data.get()->data(), size * sizeof(float));
+
       valueMapping[result] = std::move(weight_data);
     }
     return success();
