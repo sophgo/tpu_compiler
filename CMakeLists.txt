@@ -81,6 +81,17 @@ endif()
 include_directories(${MKLDNN_PATH}/include)
 link_directories(${MKLDNN_PATH}/lib)
 
+if(NOT DEFINED CNPY_PATH)
+  set(MKLDNN_PATH $ENV{CNPY_PATH})
+endif()
+if(NOT DEFINED CNPY_PATH)
+  message(FATAL_ERROR "Please set CNPY_PATH to point to the CNPY installation path")
+else(NOT DEFINED CNPY_PATH)
+  message(STATUS "CNPY_PATH ${CNPY_PATH}")
+endif()
+include_directories(${CNPY_PATH}/include)
+link_directories(${CNPY_PATH}/lib)
+
 include_directories( "include")
 include_directories( ${MLIR_INCLUDE_DIR})
 

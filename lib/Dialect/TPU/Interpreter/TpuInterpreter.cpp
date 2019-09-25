@@ -32,10 +32,12 @@
 #include "mlir/Dialect/StandardOps/Ops.h"
 #include "mlir/Parser.h"
 #include "mlir/Support/FileUtilities.h"
+#include "mlir/Support/TensorFile.h"
 
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/Path.h"
 #include "llvm/Support/MemoryBuffer.h"
 
 #include <numeric>
@@ -620,12 +622,15 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     llvm::errs() << "  filename " << filename << "\n";
     weight_is = std::make_unique<std::ifstream>(filename.str(),
         std::ios::in | std::ios::binary);
+    auto filename_tensorfile = llvm::sys::path::stem(filename).str() + ".npz";
+    weight_file = openInputTensorFile(filename_tensorfile);
 
     return success();
   }
   if (auto loadWeightOp = dyn_cast<tpu::LoadWeightOp>(opInst)) {
     llvm::errs() << "LoadWeightOp" << "\n";
-    auto offset = loadWeightOp.offset().getLimitedValue();
+    assert(loadWeightOp.offset().hasValue());
+    auto offset = loadWeightOp.offset().getValue().getLimitedValue();
     llvm::errs() << "  offset " << offset << "\n";
     auto result = loadWeightOp.getResult();
     llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";
@@ -637,8 +642,17 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     weight_is.get()->seekg(offset, std::ios::beg);
     weight_is.get()->read((char*)weight_data.get()->data(), size * sizeof(float));
 
-    valueMapping[result] = std::move(weight_data);
+    //valueMapping[result] = std::move(weight_data);
 
+    if (loadWeightOp.name().hasValue()) {
+      auto tensor_name = loadWeightOp.name().getValue();
+      llvm::errs() << "  tensor_name " << tensor_name << "\n";
+      auto type = result->getType().cast<TensorType>();
+      auto tensor = weight_file->readTensor<float>(tensor_name, type);
+      valueMapping[result] = std::move(tensor);
+    } else {
+      valueMapping[result] = std::move(weight_data);
+    }
     return success();
   }
   if (auto op = dyn_cast<tpu::Conv2DOp>(opInst)) {

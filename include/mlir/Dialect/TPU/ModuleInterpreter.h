@@ -23,6 +23,7 @@
 #define MLIR_DIALECT_TPU_MODULEINTERPRETER_H_
 
 #include "mlir/IR/Module.h"
+#include "mlir/Support/TensorFile.h"
 
 #include <iostream>
 #include <fstream>
@@ -68,6 +69,7 @@ private:
 
   // weight file input stream
   std::unique_ptr<std::ifstream> weight_is;
+  std::unique_ptr<TensorFile> weight_file;
 
 protected:
   llvm::DenseMap<Value *, std::unique_ptr<std::vector<float> > > valueMapping;

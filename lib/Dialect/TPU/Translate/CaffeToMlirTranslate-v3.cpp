@@ -25,6 +25,7 @@
 #include "mlir/IR/Module.h"
 #include "mlir/Dialect/StandardOps/Ops.h"
 #include "mlir/Support/FileUtilities.h"
+#include "mlir/Support/TensorFile.h"
 #include "mlir/Translation.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/MemoryBuffer.h"
@@ -93,7 +94,8 @@ static void printCaffeNetAllLayer(const caffe::Net<float>& net) {
 //===----------------------------------------------------------------------===//
 static mlir::Value *addConv2dOpInBlockFromCaffe(Builder builder, Block *block,
     mlir::Type elementType, mlir::Value *input_var, caffe::Layer<float> *layer,
-    mlir::Value *weight_var, llvm::raw_fd_ostream *weight_os = NULL) {
+    mlir::Value *weight_var, llvm::raw_fd_ostream *weight_os = NULL,
+    mlir::TensorFile *weightTensorFile = NULL) {
   auto layer_param = layer->layer_param();
   assert(layer_param.has_convolution_param());
   auto p = layer_param.convolution_param();
@@ -190,16 +192,28 @@ static mlir::Value *addConv2dOpInBlockFromCaffe(Builder builder, Block *block,
   // construct OP
   std::vector<Value *> operands;
   operands.push_back(input_var);
+
+  auto filter_tensorname = layer->layer_param().name()+"_0";
   auto filter_type = builder.getTensorType({oc, ic, kernel[0], kernel[1]}, elementType);
+  std::vector<NamedAttribute> filter_attrs;
+  filter_attrs.push_back(builder.getNamedAttr("offset", builder.getI64IntegerAttr(pos_filter)));
+  filter_attrs.push_back(builder.getNamedAttr("name", builder.getStringAttr(filter_tensorname)));
   auto filter = OpBuilder(block).create<tpu::LoadWeightOp>(
-      builder.getUnknownLoc(), filter_type, weight_var,
-      /*offset=*/builder.getI64IntegerAttr(pos_filter));
+      builder.getUnknownLoc(), filter_type,
+      ArrayRef<Value *>{weight_var}, ArrayRef<NamedAttribute>{filter_attrs});
   operands.push_back(filter);
+
+  const caffe::Blob<float> *blob_filter = layer->blobs()[0].get();
+  weightTensorFile->addTensor(filter_tensorname, blob_filter->cpu_data(),
+      filter_type);
+
   if (with_bias) {
     auto bias_type = builder.getTensorType({oc}, elementType);
+    std::vector<NamedAttribute> bias_attrs;
+    bias_attrs.push_back(builder.getNamedAttr("offset", builder.getI64IntegerAttr(pos_bias)));
     auto bias = OpBuilder(block).create<tpu::LoadWeightOp>(
-        builder.getUnknownLoc(), bias_type, weight_var,
-        /*offset=*/builder.getI64IntegerAttr(pos_bias));
+        builder.getUnknownLoc(), bias_type,
+        ArrayRef<Value *>{weight_var}, ArrayRef<NamedAttribute>{bias_attrs});
     operands.push_back(bias);
   }
   auto result_type = builder.getTensorType({n, oc, ofmap[0], ofmap[1]}, elementType);
@@ -295,17 +309,23 @@ static mlir::Value *addBatchNormOpInBlockFromCaffe(Builder builder, Block *block
 
   // construct OP
   auto mean_type = builder.getTensorType({c}, elementType);
+  std::vector<NamedAttribute> mean_attrs;
+  mean_attrs.push_back(builder.getNamedAttr("offset", builder.getI64IntegerAttr(pos_mean)));
   auto mean = OpBuilder(block).create<tpu::LoadWeightOp>(
-      builder.getUnknownLoc(), mean_type, weight_var,
-      /*offset=*/builder.getI64IntegerAttr(pos_mean));
+      builder.getUnknownLoc(), mean_type,
+      ArrayRef<Value *>{weight_var}, ArrayRef<NamedAttribute>{mean_attrs});
   auto variance_type = builder.getTensorType({c}, elementType);
+  std::vector<NamedAttribute> variance_attrs;
+  variance_attrs.push_back(builder.getNamedAttr("offset", builder.getI64IntegerAttr(pos_variance)));
   auto variance = OpBuilder(block).create<tpu::LoadWeightOp>(
-      builder.getUnknownLoc(), variance_type, weight_var,
-      /*offset=*/builder.getI64IntegerAttr(pos_variance));
+      builder.getUnknownLoc(), variance_type,
+      ArrayRef<Value *>{weight_var}, ArrayRef<NamedAttribute>{variance_attrs});
   auto scale_type = builder.getTensorType({1}, elementType);
+  std::vector<NamedAttribute> scale_attrs;
+  scale_attrs.push_back(builder.getNamedAttr("offset", builder.getI64IntegerAttr(pos_scale)));
   auto scale = OpBuilder(block).create<tpu::LoadWeightOp>(
-      builder.getUnknownLoc(), scale_type, weight_var,
-      /*offset=*/builder.getI64IntegerAttr(pos_scale));
+      builder.getUnknownLoc(), scale_type,
+      ArrayRef<Value *>{weight_var}, ArrayRef<NamedAttribute>{scale_attrs});
   auto result_type = builder.getTensorType({n, c, h, w}, elementType);
   auto op = OpBuilder(block).create<tpu::BatchNormOp>(
       builder.getUnknownLoc(), result_type,
@@ -386,15 +406,19 @@ static mlir::Value *addScaleOpInBlockFromCaffe(Builder builder, Block *block,
   std::vector<Value *> operands;
   operands.push_back(input_var);
   auto scale_type = builder.getTensorType({c}, elementType);
+  std::vector<NamedAttribute> scale_attrs;
+  scale_attrs.push_back(builder.getNamedAttr("offset", builder.getI64IntegerAttr(pos_scale)));
   auto scale = OpBuilder(block).create<tpu::LoadWeightOp>(
-      builder.getUnknownLoc(), scale_type, weight_var,
-      /*offset=*/builder.getI64IntegerAttr(pos_scale));
+      builder.getUnknownLoc(), scale_type,
+      ArrayRef<Value *>{weight_var}, ArrayRef<NamedAttribute>{scale_attrs});
   operands.push_back(scale);
   if (with_bias) {
     auto bias_type = builder.getTensorType({c}, elementType);
+    std::vector<NamedAttribute> bias_attrs;
+    bias_attrs.push_back(builder.getNamedAttr("offset", builder.getI64IntegerAttr(pos_bias)));
     auto bias = OpBuilder(block).create<tpu::LoadWeightOp>(
-        builder.getUnknownLoc(), bias_type, weight_var,
-        /*offset=*/builder.getI64IntegerAttr(pos_bias));
+        builder.getUnknownLoc(), bias_type,
+        ArrayRef<Value *>{weight_var}, ArrayRef<NamedAttribute>{bias_attrs});
     operands.push_back(bias);
   }
   auto result_type = builder.getTensorType({n, c, h, w}, elementType);
@@ -711,15 +735,19 @@ static mlir::Value *addFullyConnectedOpInBlockFromCaffe(Builder builder, Block *
   std::vector<Value *> operands;
   operands.push_back(fc_input_var);
   auto filter_type = builder.getTensorType({N, K}, elementType);
+  std::vector<NamedAttribute> filter_attrs;
+  filter_attrs.push_back(builder.getNamedAttr("offset", builder.getI64IntegerAttr(pos_filter)));
   auto filter = OpBuilder(block).create<tpu::LoadWeightOp>(
-      builder.getUnknownLoc(), filter_type, weight_var,
-      /*offset=*/builder.getI64IntegerAttr(pos_filter));
+      builder.getUnknownLoc(), filter_type,
+      ArrayRef<Value *>{weight_var}, ArrayRef<NamedAttribute>{filter_attrs});
   operands.push_back(filter);
   if (with_bias) {
     auto bias_type = builder.getTensorType({N}, elementType);
+    std::vector<NamedAttribute> bias_attrs;
+    bias_attrs.push_back(builder.getNamedAttr("offset", builder.getI64IntegerAttr(pos_bias)));
     auto bias = OpBuilder(block).create<tpu::LoadWeightOp>(
-        builder.getUnknownLoc(), bias_type, weight_var,
-        /*offset=*/builder.getI64IntegerAttr(pos_bias));
+        builder.getUnknownLoc(), bias_type,
+        ArrayRef<Value *>{weight_var}, ArrayRef<NamedAttribute>{bias_attrs});
     operands.push_back(bias);
   }
   auto result_type = builder.getTensorType({M, N}, elementType);
@@ -818,6 +846,9 @@ static OwningModuleRef caffeToMlirTranslate(llvm::StringRef inputFilename,
   // dump all layers
   DEBUG_WITH_TYPE(DEBUG_TYPE"_VERBOSE", printCaffeNetAllLayer(net););
 
+  auto weightTensorFilename = llvm::sys::path::stem(caffemodelFilename).str() + ".npz";
+  auto weightTensorFile = openOutputTensorFile(weightTensorFilename);
+
   // find caffe model inputs and outputs
   std::vector<mlir::Type> net_input_type_vec;
   std::vector<std::string> net_input_name_vec;
@@ -896,7 +927,7 @@ static OwningModuleRef caffeToMlirTranslate(llvm::StringRef inputFilename,
       mlir::Value *input_var = tensor_map.find(layer_param.bottom(0))->second;
       assert(input_var);
       mlir::Value *result_var = addConv2dOpInBlockFromCaffe(builder, block,
-          elementType, input_var, layer, weight_var, &weight_os);
+          elementType, input_var, layer, weight_var, &weight_os, weightTensorFile.get());
       tensor_map[layer_param.top(0)] = result_var;
 
     } else if (strcmp(layer->type(), "BatchNorm") == 0) {

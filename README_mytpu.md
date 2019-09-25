@@ -29,9 +29,25 @@ $ tar zxf mkldnn_lnx_1.0.2_cpu_gomp.tgz
 $ ln -s mkldnn_lnx_1.0.2_cpu_gomp install
 ```
 
+3. CNPY
+https://github.com/rogersce/cnpy
+```
+$ git clone https://github.com/rogersce/cnpy.git
+$ cd ~/work/cnpy
+$ mkdir build
+$ mkdir install
+$ cd build
+$ cmake -DCMAKE_INSTALL_PREFIX=../install ..
+$ cmake --build . --target install
+```
+
 ## build
 ```
-$ cmake -G Ninja ../llvm -DLLVM_BUILD_EXAMPLES=ON -DLLVM_TARGETS_TO_BUILD="host" -DCAFFE_PATH="~/work/caffe/install" -DMKLDNN_PATH="~/work/MKLDNN/install" -DLLVM_ENABLE_RTTI=ON -DLLVM_ENABLE_EH=ON
+$ cmake -G Ninja ../llvm -DLLVM_BUILD_EXAMPLES=ON -DLLVM_TARGETS_TO_BUILD="host" -DCAFFE_PATH="~/work/caffe/install" -DMKLDNN_PATH="~/work/MKLDNN/install" -DCNPY_PATH="~/work/cnpy/install" -DLLVM_ENABLE_RTTI=ON -DLLVM_ENABLE_EH=ON
+
+# link to caffe_int8 project
+$ cmake -G Ninja ../llvm -DLLVM_BUILD_EXAMPLES=ON -DLLVM_TARGETS_TO_BUILD="host" -DCAFFE_PATH="~/work_xtalvision/install_caffe" -DMKLDNN_PATH="~/work/MKLDNN/install" -DCNPY_PATH="~/work/cnpy/install" -DLLVM_ENABLE_RTTI=ON -DLLVM_ENABLE_EH=ON
+
 $ cmake --build . --target check-mlir
 ```
 
@@ -74,10 +90,6 @@ quantization-table contains 3 types information
 - threshold_x_quantized
 
 ```
-# link to caffe_int8 project
-$ cmake -G Ninja ../llvm -DLLVM_BUILD_EXAMPLES=ON -DLLVM_TARGETS_TO_BUILD="host" -DCAFFE_PATH="~/work_xtalvision/install_caffe" -DMKLDNN_PATH="~/work/MKLDNN/install" -DLLVM_ENABLE_RTTI=ON -DLLVM_ENABLE_EH=ON
-$ cmake --build . --target check-mlir
-
 $ ./bin/mlir-translate --caffe-to-mlir-v3 \
 /data/release/bmnet_models/resnet50/resnet50_deploy.prototxt \
 --caffe-model-int8 ~/work_xtalvision/calibration_caffe/build/bmnet_resnet50_int8.1x10.caffemodel \

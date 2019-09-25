@@ -1,5 +1,6 @@
 set(LLVM_OPTIONAL_SOURCES
   FileUtilities.cpp
+  TensorFile.cpp
   JitRunner.cpp
   MlirOptMain.cpp
   StorageUniquer.cpp
@@ -9,13 +10,14 @@ set(LLVM_OPTIONAL_SOURCES
 
 add_llvm_library(MLIRSupport
   FileUtilities.cpp
+  TensorFile.cpp
   StorageUniquer.cpp
   ToolUtilities.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${MLIR_MAIN_INCLUDE_DIR}/mlir/Support
   )
-target_link_libraries(MLIRSupport LLVMSupport)
+target_link_libraries(MLIRSupport LLVMSupport cnpy)
 
 add_llvm_library(MLIROptMain
   MlirOptMain.cpp

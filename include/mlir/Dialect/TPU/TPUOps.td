@@ -136,7 +136,8 @@ def TPU_LoadWeightOp : TPU_Op<"load_weight", [NoSideEffect]> {
 
   let arguments = (
     ins AnyMemRef:$memref,
-    NonNegativeI64Attr:$offset
+    OptionalAttr<NonNegativeI64Attr>:$offset,
+    OptionalAttr<StrAttr>:$name
   );
 
   let results = (outs AnyTensor:$tensor);
