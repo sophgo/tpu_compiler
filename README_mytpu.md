@@ -59,6 +59,10 @@ $ ./bin/mlir-translate --caffe-to-mlir /data/models/caffe/ResNet-50-deploy.proto
 $ ./bin/mlir-translate --caffe-to-mlir /data/models/caffe/ResNet-50-deploy.prototxt --caffe-model /data/models/caffe/ResNet-50-model.caffemodel -o resnet-50.mlir --debug
 
 $ ./bin/mlir-translate --caffe-to-mlir /data/models/caffe/ResNet-50-deploy.prototxt --caffe-model /data/models/caffe/ResNet-50-model.caffemodel -o resnet-50.mlir --debug-only=caffe-to-mlir_VERBOSE
+
+$ ./bin/mlir-tpu-interpreter resnet-50.mlir \
+--tensor-in /data/release/bmnet_models/resnet50/resnet50_input_1_3_224_224.bin \
+--tensor-out out.bin
 ```
 
 v2
@@ -114,7 +118,7 @@ $ ~/work/my_models/tests/numpy_bin_dump.py out_int8.bin int8 1 1 1 1000 5
 $ ~/work/my_models/tests/numpy_bin_dump.py /data/release/bmnet_models/resnet50/int8/resnet50_output_1_3_224_224_ref_int8.bin int8 1 1 1 1000 5
 ```
 
-# User work flow
+# Work flow
 
 sample nvdla flow
 ```
@@ -125,83 +129,109 @@ sample nvdla flow
 ./nvdla_runtime -s
 ```
 
-1. translate from caffe mode to tg dialect
+## 1. translate from caffe model to tpu dialect
 
+translate
 ```
-$ ./bin/mlir-translate --caffe-to-mlir /data/models/caffe/ResNet-50-deploy.prototxt -o resnet.mlir
-
 $ ./bin/mlir-translate \
     --caffe-to-mlir /data/models/caffe/ResNet-50-deploy.prototxt \
     --caffe-model /data/models/caffe/ResNet-50-model.caffemodel \
-    -o resnet.mlir
+    -o resnet-50.mlir
 
-- output a weight.bin
-- weight.bin file name is described in .mlir file memref load op
-  - with total size to check
-  - [-a weight_align_size]
-- in mlir, each weight tensor has an offset attribute describing the offset in weight.bin
+- output together with a weight file in npz format
+- weight file name is described in .mlir file memref loadFile op
+- each weight tensor save as a npy file inside the npz, with a array name. eg. conv1_0, conv1_1, etc.
 ```
 
-1. run fp32 inference with cpu
-
+check
 ```
-$ ./bin/mlir-tpu-interpreter resnet.mlir --tensor-in input.bin --tensor-in output.bin
+$ vim resnet-50.mlir
+$ python npz_list.py ResNet-50-model.npz
+```
+
+## 2. run fp32 inference with interpreter
+
+inference
+```
+$ ./bin/mlir-tpu-interpreter resnet-50.mlir \
+--tensor-in /data/release/bmnet_models/resnet50/resnet50_input_1_3_224_224.bin \
+--tensor-out out.bin
 
 - TODO: handle multiple outputs
 ```
 
-1. model level optimization (with weight transform)
-
-1.1 fuse bn/scale into conv
-
+check
 ```
-$ ./bin/mlir-opt --fuse-bn-scale-into-conv resnet.mlir -o resnet-opt.mlir
+$ python bin_dump.py out.bin float32 1 1 1 1000 5
+$ diff out.bin /data/release/bmnet_models/resnet50/resnet50_output_1_3_224_224_ref.bin
 ```
 
-1. calibration
+## 3. model level optimization (with weight transform)
+
+### 3.1 convert bn to scale
+
+```
+$ ./bin/mlir-opt \
+    --convert-bn-to-scale \
+    resnet-50.mlir \
+    -o resnet-50-opt1.mlir
+```
+
+### 3.2 fold scale
+
+fold multiple scale into one
+
+### 3.3 merge scale into conv
+
+### 3.4 merge relu into conv
+
+## 4. calibration
 
 The only information we need from the calibration process is to obtain a threshold value for each
 activation tensor. The threshold is calculated based on histogram of each tensor during runtime.
 KLD is used to generate the threshold for now. All other information can be devived later in compiler.
 
-we use calibration_caffe for now. TODO: do calibration based on fp32 inference
+we use calibration_caffe for now. TODO: do calibration based on mlir-interpreter
 
-1. quantization, conversion from fp32 to int8
+## 5. quantization
 
-Based on calibration table(a map of tensor name and its threshold).
+We do not import int8 caffemodel directly (the old version int8 caffemodel format is obsoleted). We convert from mlir fp32 into mlir int8, based on the calibration table (a map of tensor name and its threshold).
 ```
 $ ./bin/mlir-opt \
-    --quantization-int8 resnet.mlir \
-    -o resnet-int8.mlir
+    --quantization-int8 \
+    resnet-50.mlir \
+    -o resnet-50-int8.mlir
 ```
 
-1. (extra) translate from caffe int8 model directly
+## 6. run int8 inference with interpreter
 
-1. run int8 inference with cpu
+## 7. python wrapper for interpreter
 
-1. python wrapper to run inference
+## 8. calibration with interpreter
 
-1. calibration with mlir python wrapper
+## 9. accuracy regression
 
-2. accuracy regression
+## 10. codegen from tpu dialect
 
-3. codegen directly from tg dialect into bmkernel script (asm)
+Codegen into bmkernel script (asm)
 
-4. bmkernel to bmodel assembly
+## 11. bmkernel to bmodel assembly
 
-5. bmodel to bmkernel script disassembly
+## 12. bmodel to bmkernel script disassembly
 
-6. tg level optimization pass (no weight transform)
+## 13. tg level optimization pass (no weight transform)
 
 1.1 fuse activation into conv/fc
 
 1.2 fuse pooling
 
-1. tg to tl lowering
+## 14. tg to tl lowering
 
 clustering/slice handling
 
-1. auto clustering (layer_group)
+## 15. auto clustering (layer_group)
+
+## 16. affine and searching
 
 # Debug tips
 
@@ -215,6 +245,8 @@ runtime
 
 DEBUG_TYPE defined
 ```
+caffe-to-mlir               - caffe importer
+caffe-to-mlir_VERBOSE       - caffe importer verbose
 caffe-to-mlir-v2            - caffe importer v2
 caffe-to-mlir-v2_VERBOSE    - caffe importer v2
 caffe-to-mlir-v3            - caffe importer v3
