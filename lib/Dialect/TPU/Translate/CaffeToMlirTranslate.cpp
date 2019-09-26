@@ -659,7 +659,7 @@ void CaffeImporter::convertScaleLayer(mlir::Block *block,
   auto result_type = builder_.getTensorType({n, c, h, w}, elementType_);
   auto op = OpBuilder(block).create<tpu::ScaleOp>(
       builder_.getUnknownLoc(), result_type,
-       ArrayRef<Value *>{operands}, ArrayRef<NamedAttribute>{});
+      ArrayRef<Value *>{operands}, ArrayRef<NamedAttribute>{});
   auto result_var = op.getResult();
 
   tensor_map_[layer_param.top(0)] = result_var;

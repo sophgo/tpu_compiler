@@ -7,8 +7,9 @@ list(APPEND tpu_LINKER_LIBS
 add_llvm_library(MLIRTPU
   IR/TPUDialect.cpp
   IR/DialectRegistration.cpp
-  Transforms/TpuOpStats-v0.cpp
-  Transforms/TpuOpStats.cpp
+  Analysis/TpuOpStats-v0.cpp
+  Analysis/TpuOpStats.cpp
+  Transforms/ConvertBnToScale.cpp
   Interpreter/TpuInterpreter.cpp
 
   ADDITIONAL_HEADER_DIRS
