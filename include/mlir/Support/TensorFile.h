@@ -76,9 +76,9 @@ public:
   }
 
   template<typename T>
-  LogicalResult addTensor(llvm::StringRef name, const std::vector<T> data,
+  LogicalResult addTensor(llvm::StringRef name, const std::vector<T> *data,
       TensorType &type) {
-    return addTensor(name, &data[0], type);
+    return addTensor(name, data->data(), type);
   }
 
   /// read a tensor from file
@@ -114,6 +114,7 @@ public:
 
   /// delete a tensor from file
   /// if the name is not found, return failure()
+  template<typename T>
   LogicalResult deleteTensor(llvm::StringRef name) {
     if (readOnly)
       return failure();
@@ -124,17 +125,17 @@ public:
     }
     map.erase(it);
     // TODO: rewrite with a more efficient way
-    auto ret = save();
+    auto ret = save<T>();
     assert(succeeded(ret));
     return success();
   }
 
 private:
   /// save the file
+  template<typename T>
   LogicalResult save() {
     for (auto it = map.begin(); it != map.end(); ++it) {
-      auto arr = it->second;
-      cnpy::npz_save(filename.str(), it->first, arr.data_holder->data(), arr.shape,
+      cnpy::npz_save(filename.str(), it->first, it->second.as_vec<T>(),
         (it == map.begin()) ? "w" : "a");
     }
     return success();
