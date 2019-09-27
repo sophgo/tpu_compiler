@@ -174,7 +174,14 @@ $ diff out.bin /data/release/bmnet_models/resnet50/resnet50_output_1_3_224_224_r
 $ ./bin/mlir-opt \
     --convert-bn-to-scale \
     resnet-50.mlir \
-    -o resnet-50-opt1.mlir
+    > resnet-50-opt1.mlir
+```
+
+check
+```
+$ ./bin/mlir-tpu-interpreter resnet-50-opt1.mlir \
+--tensor-in /data/release/bmnet_models/resnet50/resnet50_input_1_3_224_224.bin \
+--tensor-out out-opt1.bin
 ```
 
 ### 3.2 fold scale

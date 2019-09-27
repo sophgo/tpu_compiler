@@ -26,19 +26,35 @@
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
+#include "mlir/Support/TensorFile.h"
 #include "llvm/Support/raw_ostream.h"
 
 using namespace mlir;
 
 namespace {
 
+#if 0
 struct TpuBatchNormOpPattern : public OpRewritePattern<tpu::BatchNormOp> {
   using OpRewritePattern<tpu::BatchNormOp>::OpRewritePattern;
 
   PatternMatchResult matchAndRewrite(tpu::BatchNormOp op,
                                      PatternRewriter &rewriter) const {
     llvm::errs() << "match " << op.getOperationName() << "\n";
-    // rewrite all.
+
+    // TODO: optimize performance
+
+    // find tensor filename
+    tpu::LoadWeightOp one_weight_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
+        op.getOperand(1)->getDefiningOp());
+    assert (one_weight_op);
+    tpu::LoadFileOp loadFileOp = llvm::dyn_cast_or_null<tpu::LoadFileOp>(
+        one_weight_op.getOperand()->getDefiningOp());
+    assert (loadFileOp);
+    auto filename = loadFileOp.getAttrOfType<StringAttr>("filename").getValue();
+    llvm::errs() << "LoadFileOp filename " << filename << "\n";
+    auto weightTensorFile = openTensorFile(filename);
+
+    // rewrite all. noted the 4th operand of bn will be removed automatically.
     rewriter.replaceOpWithNewOp<tpu::ScaleOp>(
         op, op.getResult()->getType(),
         ArrayRef<Value *>{op.getOperand(0), op.getOperand(1), op.getOperand(2)},
@@ -48,6 +64,90 @@ struct TpuBatchNormOpPattern : public OpRewritePattern<tpu::BatchNormOp> {
     //return matchFailure();
   }
 };
+#endif
+
+struct TpuBatchNormOpPattern : public RewritePattern {
+  TpuBatchNormOpPattern(MLIRContext *context, TensorFile *weightTensorFile)
+      : RewritePattern("tpu.batch_norm", 1, context),
+        weightTensorFile_(weightTensorFile) {}
+
+  PatternMatchResult matchAndRewrite(Operation *op,
+                                     PatternRewriter &rewriter) const override {
+    auto bnOp = cast<tpu::BatchNormOp>(op);
+    assert(op->getNumOperands() == 4);
+    llvm::errs() << bnOp.getOperationName() << "\n";
+    auto loc = op->getLoc();
+
+    // TODO: get op_name directly
+    auto mean_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
+          bnOp.getOperand(1)->getDefiningOp());
+    std::string mean_name = mean_op.name().getValue();
+    std::string op_name = mean_name.substr(0, mean_name.size()-2);
+    llvm::errs() << "BatchNorm Op: " << op_name << "\n";
+    auto weightFileVar = mean_op.getOperand();
+
+    // find mean, variance, scale tensor, and delete them
+    std::vector<std::unique_ptr<std::vector<float> > > bnWeights(3);
+    for (int i = 0; i < 3; ++i) {
+      auto weight_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
+          bnOp.getOperand(i + 1)->getDefiningOp());
+      assert(weight_op);
+      assert(weight_op.name().hasValue());
+      auto tensor_name = weight_op.name().getValue();
+      llvm::errs() << "  weight[" << i << "] : " << tensor_name << "\n";
+      auto type = weight_op.getResult()->getType().cast<TensorType>();
+      bnWeights[i] = weightTensorFile_->readTensor<float>(tensor_name, type);
+      // delete the tensor from the weight file
+      weightTensorFile_->deleteTensor<float>(tensor_name);
+    }
+
+    // convert tensors
+    llvm::errs() << "  mean size: " << bnWeights[0]->size() << "\n";
+    llvm::errs() << "  variance size: " << bnWeights[1]->size() << "\n";
+    llvm::errs() << "  scale size: " << bnWeights[2]->size() << "\n";
+    int oc = (int)bnWeights[0]->size();
+    std::vector<float> new_scale(oc);
+    std::vector<float> new_bias(oc);
+
+    float *mean = (float *)bnWeights[0]->data();
+    float *variance = (float *)bnWeights[1]->data();
+    float *scale = (float *)bnWeights[2]->data();
+
+    float eps = 1.0e-5;
+    float scale_factor = 1 / scale[0];
+    for (int i = 0; i < oc; ++i) {
+      mean[i] = mean[i] * scale_factor;
+      variance[i] = variance[i] * scale_factor;
+      new_scale[i] = 1.0 / sqrt(variance[i] + eps);
+      new_bias[i] = -1.0 * new_scale[i] * mean[i];
+    }
+    std::vector<std::vector<float> *> newWeights{ &new_scale, &new_bias };
+
+    std::vector<Value *> newOperands;
+    newOperands.push_back(bnOp.getOperand(0));
+    // add new scale and bias ops
+    for (int i = 0; i < 2; ++i) {
+      auto tensor_name = op_name + "_to_scale_" + std::to_string(i);
+      llvm::errs() << "  new_weight[" << i << "] : " << tensor_name << "\n";
+      auto type = rewriter.getTensorType({oc}, FloatType::getF32(rewriter.getContext()));
+      weightTensorFile_->addTensor<float>(tensor_name, newWeights[i], type);
+      std::vector<NamedAttribute> attrs;
+      attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(tensor_name)));
+      auto new_weight_op = rewriter.create<tpu::LoadWeightOp>(loc, type,
+          ArrayRef<Value *>{weightFileVar}, ArrayRef<NamedAttribute>{attrs});
+      newOperands.push_back(new_weight_op);
+    }
+
+    // replace bn with scale
+    rewriter.replaceOpWithNewOp<tpu::ScaleOp>(
+        bnOp, bnOp.getResult()->getType(),
+        ArrayRef<Value *>{newOperands}, ArrayRef<NamedAttribute>{});
+
+    return matchSuccess();
+  }
+
+  TensorFile *weightTensorFile_;
+};
 
 class ConvertBnToScalePass : public FunctionPass<ConvertBnToScalePass> {
 public:
@@ -56,14 +156,18 @@ public:
   void runOnFunction() override {
     auto fn = getFunction();
 
+    // find tensor filename
     //OpBuilder b(fn.getBody());
-    //fn.walk<mlir::tpu::BatchNormOp>([&](mlir::tpu::BatchNormOp op) {
-    //  os << " > " << op.getOperationName() << "\n";
-    //});
+    llvm::StringRef filename;
+    fn.walk<tpu::LoadFileOp>([&](tpu::LoadFileOp op) {
+      filename = op.getAttrOfType<StringAttr>("filename").getValue();
+      llvm::errs() << "LoadFileOp filename " << filename << "\n";
+    });
+    auto weightTensorFile = openTensorFile(filename);
 
     OwningRewritePatternList patterns;
     auto *context = &getContext();
-    patterns.insert<TpuBatchNormOpPattern>(context);
+    patterns.insert<TpuBatchNormOpPattern>(context, weightTensorFile.get());
     applyPatternsGreedily(fn, patterns);
   }
 
