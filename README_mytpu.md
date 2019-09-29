@@ -188,6 +188,20 @@ $ ./bin/mlir-tpu-interpreter resnet-50-opt1.mlir \
 
 fold multiple scale into one
 
+```
+$ ./bin/mlir-opt \
+    --fold-scale \
+    resnet-50-opt1.mlir \
+    > resnet-50-opt2.mlir
+```
+
+check
+```
+$ ./bin/mlir-tpu-interpreter resnet-50-opt2.mlir \
+--tensor-in /data/release/bmnet_models/resnet50/resnet50_input_1_3_224_224.bin \
+--tensor-out out-opt2.bin
+```
+
 ### 3.3 merge scale into conv
 
 ### 3.4 merge relu into conv

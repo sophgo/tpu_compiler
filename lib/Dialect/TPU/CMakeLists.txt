@@ -10,6 +10,7 @@ add_llvm_library(MLIRTPU
   Analysis/TpuOpStats-v0.cpp
   Analysis/TpuOpStats.cpp
   Transforms/ConvertBnToScale.cpp
+  Transforms/FoldScale.cpp
   Interpreter/TpuInterpreter.cpp
 
   ADDITIONAL_HEADER_DIRS
