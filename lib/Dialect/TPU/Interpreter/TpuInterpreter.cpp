@@ -57,7 +57,7 @@
 
 #include "mkldnn.hpp"
 
-#define DUMP_FLAG
+//#define DUMP_FLAG
 
 using namespace mkldnn;
 
