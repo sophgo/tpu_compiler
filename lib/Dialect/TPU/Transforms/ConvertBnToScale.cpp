@@ -78,13 +78,12 @@ struct TpuBatchNormOpPattern : public RewritePattern {
     llvm::errs() << bnOp.getOperationName() << "\n";
     auto loc = op->getLoc();
 
-    // TODO: get op_name directly
-    auto mean_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
-          bnOp.getOperand(1)->getDefiningOp());
-    std::string mean_name = mean_op.name().getValue();
-    std::string op_name = mean_name.substr(0, mean_name.size()-2);
+    // op_name
+    std::string op_name = bnOp.getAttrOfType<StringAttr>("name").getValue().str();
     llvm::errs() << "BatchNorm Op: " << op_name << "\n";
-    auto weightFileVar = mean_op.getOperand();
+    auto one_weight_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
+          bnOp.getOperand(1)->getDefiningOp());
+    auto weightFileVar = one_weight_op.getOperand();
 
     // find mean, variance, scale tensor, and delete them
     std::vector<std::unique_ptr<std::vector<float> > > bnWeights(3);
@@ -139,6 +138,9 @@ struct TpuBatchNormOpPattern : public RewritePattern {
     }
 
     // replace bn with scale
+    // keep the op_name because the calibration table is using this name
+    std::vector<NamedAttribute> attrs;
+    attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(op_name)));
     rewriter.replaceOpWithNewOp<tpu::ScaleOp>(
         bnOp, bnOp.getResult()->getType(),
         ArrayRef<Value *>{newOperands}, ArrayRef<NamedAttribute>{});

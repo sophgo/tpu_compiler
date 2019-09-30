@@ -364,6 +364,7 @@ void CaffeImporter::convertConvolutionLayer(mlir::Block *block,
                   ? builder_.getStringAttr("SAME") : builder_.getStringAttr("VALID")));
   attrs.push_back(builder_.getNamedAttr("stride_h", builder_.getI32IntegerAttr(stride[0])));
   attrs.push_back(builder_.getNamedAttr("stride_w", builder_.getI32IntegerAttr(stride[1])));
+  attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name())));
   auto op = OpBuilder(block).create<tpu::Conv2DOp>(
       builder_.getUnknownLoc(), result_type,
       ArrayRef<Value *>{operands}, ArrayRef<NamedAttribute>{attrs});
@@ -537,7 +538,7 @@ void CaffeImporter::convertPoolingLayer(mlir::Block *block,
   attrs.push_back(builder_.getNamedAttr("stride_h", builder_.getI32IntegerAttr(stride[0])));
   attrs.push_back(builder_.getNamedAttr("stride_w", builder_.getI32IntegerAttr(stride[1])));
   attrs.push_back(builder_.getNamedAttr("fused_activation_function", builder_.getStringAttr("NONE")));
-
+  attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name())));
   mlir::Value* result_var;
   if (is_average_pooling) {
     auto op = OpBuilder(block).create<tpu::AveragePool2DOp>(
@@ -605,9 +606,11 @@ void CaffeImporter::convertBatchNormLayer(mlir::Block *block,
 
   // construct OP
   auto result_type = builder_.getTensorType({n, c, h, w}, elementType_);
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name())));
   auto op = OpBuilder(block).create<tpu::BatchNormOp>(
       builder_.getUnknownLoc(), result_type,
-      ArrayRef<Value *>{operands}, ArrayRef<NamedAttribute>{});
+      ArrayRef<Value *>{operands}, ArrayRef<NamedAttribute>{attrs});
   auto result_var = op.getResult();
 
   tensor_map_[layer_param.top(0)] = result_var;
@@ -657,9 +660,11 @@ void CaffeImporter::convertScaleLayer(mlir::Block *block,
 
   // construct OP
   auto result_type = builder_.getTensorType({n, c, h, w}, elementType_);
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name())));
   auto op = OpBuilder(block).create<tpu::ScaleOp>(
       builder_.getUnknownLoc(), result_type,
-      ArrayRef<Value *>{operands}, ArrayRef<NamedAttribute>{});
+      ArrayRef<Value *>{operands}, ArrayRef<NamedAttribute>{attrs});
   auto result_var = op.getResult();
 
   tensor_map_[layer_param.top(0)] = result_var;
@@ -693,6 +698,7 @@ void CaffeImporter::convertReLULayer(mlir::Block *block,
   auto result_type = builder_.getTensorType({n, c, h, w}, elementType_);
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder_.getNamedAttr("negative_slope", builder_.getF32FloatAttr(negative_slope)));
+  attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name())));
   auto op = OpBuilder(block).create<tpu::ReluOp>(
       builder_.getUnknownLoc(), result_type,
       ArrayRef<Value *>{input_var}, ArrayRef<NamedAttribute>{attrs});
@@ -729,9 +735,11 @@ void CaffeImporter::convertEltwiseLayer(mlir::Block *block,
 
   // construct OP
   auto result_type = builder_.getTensorType({n, c, h, w}, elementType_);
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name())));
   auto op = OpBuilder(block).create<tpu::EltwiseOp>(
       builder_.getUnknownLoc(), result_type,
-      ArrayRef<Value *>{input_vars}, ArrayRef<NamedAttribute>{});
+      ArrayRef<Value *>{input_vars}, ArrayRef<NamedAttribute>{attrs});
   auto result_var = op.getResult();
 
   tensor_map_[layer_param.top(0)] = result_var;
@@ -758,9 +766,11 @@ void CaffeImporter::convertSoftmaxLayer(mlir::Block *block,
 
   // construct OP
   auto result_type = builder_.getTensorType({n, c}, elementType_);
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name())));
   auto op = OpBuilder(block).create<tpu::SoftmaxOp>(
       builder_.getUnknownLoc(), result_type,
-      ArrayRef<Value *>{input_var}, ArrayRef<NamedAttribute>{});
+      ArrayRef<Value *>{input_var}, ArrayRef<NamedAttribute>{attrs});
   auto result_var = op.getResult();
 
   tensor_map_[layer_param.top(0)] = result_var;

@@ -174,7 +174,7 @@ $ diff out.bin /data/release/bmnet_models/resnet50/resnet50_output_1_3_224_224_r
 $ ./bin/mlir-opt \
     --convert-bn-to-scale \
     resnet-50.mlir \
-    > resnet-50-opt1.mlir
+    -o resnet-50-opt1.mlir
 ```
 
 check
@@ -192,7 +192,7 @@ fold multiple scale into one
 $ ./bin/mlir-opt \
     --fold-scale \
     resnet-50-opt1.mlir \
-    > resnet-50-opt2.mlir
+    -o resnet-50-opt2.mlir
 ```
 
 check

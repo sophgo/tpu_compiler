@@ -490,7 +490,8 @@ static mlir::Value *addSoftmaxOpInBlockFromCaffe(Builder builder, Block *block,
   // construct OP
   auto result_type = builder.getTensorType({n, c}, elementType);
   auto op = OpBuilder(block).create<tpu::SoftmaxOp>(
-      builder.getUnknownLoc(), result_type, input_var);
+      builder.getUnknownLoc(), result_type, ArrayRef<Value *>{input_var},
+      ArrayRef<NamedAttribute>{});
   auto result_var = op.getResult();
   return result_var;
 }

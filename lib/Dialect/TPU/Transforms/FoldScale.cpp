@@ -51,13 +51,12 @@ struct TpuFoldScalePattern : public RewritePattern {
       return matchFailure();
     auto formerScaleOp = cast<tpu::ScaleOp>(formerOp);
 
-    // TODO: get op_name directly
-    auto cur_weight_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
-          laterScaleOp.getOperand(1)->getDefiningOp());
-    std::string cur_weight_name = cur_weight_op.name().getValue();
-    std::string op_name = cur_weight_name.substr(0, cur_weight_name.size()-2);
+    // op_name from the later scale
+    std::string op_name = laterScaleOp.getAttrOfType<StringAttr>("name").getValue().str();
     llvm::errs() << "Scale Op: " << op_name << "\n";
-    auto weightFileVar = cur_weight_op.getOperand();
+    auto one_weight_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
+          laterScaleOp.getOperand(1)->getDefiningOp());
+    auto weightFileVar = one_weight_op.getOperand();
 
     // find scale and bias tensor for both later and former scale_op
     std::vector<std::unique_ptr<std::vector<float> > > laterWeights(2);
@@ -124,6 +123,8 @@ struct TpuFoldScalePattern : public RewritePattern {
 
     // replace the later scale with the new scale
     // the former one will be removed automatically
+    std::vector<NamedAttribute> attrs;
+    attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(op_name)));
     rewriter.replaceOpWithNewOp<tpu::ScaleOp>(
         laterScaleOp, formerScaleOp.getResult()->getType(),
         ArrayRef<Value *>{newOperands}, ArrayRef<NamedAttribute>{});
