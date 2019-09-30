@@ -80,6 +80,11 @@ int main(int argc, char **argv) {
     exit(1);
   }
 
-  return failed(MlirOptMain(output->os(), std::move(file), passPipeline,
+  auto status = MlirOptMain(output->os(), std::move(file), passPipeline,
                             splitInputFile, verifyDiagnostics, verifyPasses));
+  auto status = MlirOptMain(output->os(), std::move(file), passList,
+                            splitInputFile, verifyDiagnostics, verifyPasses);
+
+  output->keep();
+  return failed(status);
 }
