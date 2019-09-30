@@ -143,7 +143,7 @@ struct TpuBatchNormOpPattern : public RewritePattern {
     attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(op_name)));
     rewriter.replaceOpWithNewOp<tpu::ScaleOp>(
         bnOp, bnOp.getResult()->getType(),
-        ArrayRef<Value *>{newOperands}, ArrayRef<NamedAttribute>{});
+        ArrayRef<Value *>{newOperands}, ArrayRef<NamedAttribute>{attrs});
 
     return matchSuccess();
   }

@@ -166,7 +166,9 @@ $ python bin_dump.py out.bin float32 1 1 1 1000 5
 $ diff out.bin /data/release/bmnet_models/resnet50/resnet50_output_1_3_224_224_ref.bin
 ```
 
-## 3. model level optimization (with weight transform)
+## 3. Pre-Quantization optimization
+
+graph level, on float32 domain, with weight transform
 
 ### 3.1 convert bn to scale
 
@@ -204,7 +206,21 @@ $ ./bin/mlir-tpu-interpreter resnet-50-opt2.mlir \
 
 ### 3.3 merge scale into conv
 
-### 3.4 merge relu into conv
+```
+$ ./bin/mlir-opt \
+    --fuse-scale-into-conv \
+    resnet-50-opt2.mlir \
+    -o resnet-50-opt3.mlir
+```
+
+check
+```
+$ ./bin/mlir-tpu-interpreter resnet-50-opt3.mlir \
+--tensor-in /data/release/bmnet_models/resnet50/resnet50_input_1_3_224_224.bin \
+--tensor-out out-opt3.bin
+```
+
+### 3.4 Pass Manager
 
 ## 4. calibration
 

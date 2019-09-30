@@ -32,6 +32,7 @@ std::unique_ptr<ModulePassBase> createPrintTpuOpStatsPass_v0();
 
 std::unique_ptr<FunctionPassBase> createConvertBnToScalePass();
 std::unique_ptr<FunctionPassBase> createFoldScalePass();
+std::unique_ptr<FunctionPassBase> createFuseScaleIntoConvPass();
 } // namespace mlir
 
 #endif // MLIR_DIALECT_TPU_PASSES_H_
