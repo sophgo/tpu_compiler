@@ -184,6 +184,7 @@ check
 $ ./bin/mlir-tpu-interpreter resnet-50-opt1.mlir \
 --tensor-in /data/release/bmnet_models/resnet50/resnet50_input_1_3_224_224.bin \
 --tensor-out out-opt1.bin
+$ python bin_compare.py out.bin out-opt1.bin float32 1 1 1 1000 5
 ```
 
 ### 3.2 fold scale
@@ -202,6 +203,7 @@ check
 $ ./bin/mlir-tpu-interpreter resnet-50-opt2.mlir \
 --tensor-in /data/release/bmnet_models/resnet50/resnet50_input_1_3_224_224.bin \
 --tensor-out out-opt2.bin
+$ python bin_compare.py out.bin out-opt2.bin float32 1 1 1 1000 5
 ```
 
 ### 3.3 merge scale into conv
@@ -218,6 +220,7 @@ check
 $ ./bin/mlir-tpu-interpreter resnet-50-opt3.mlir \
 --tensor-in /data/release/bmnet_models/resnet50/resnet50_input_1_3_224_224.bin \
 --tensor-out out-opt3.bin
+$ python bin_compare.py out.bin out-opt3.bin float32 1 1 1 1000 5
 ```
 
 ### 3.4 Pass Manager
@@ -230,14 +233,43 @@ KLD is used to generate the threshold for now. All other information can be devi
 
 we use calibration_caffe for now. TODO: do calibration based on mlir-interpreter
 
+### 4.1 import calibration-table from prototxt file
+
+```
+$ ./bin/mlir-opt \
+    --import-calibration-table \
+    --calibration-table bmnet_resnet50_calibration_table.1x10 \
+    resnet-50.mlir \
+    -o resnet-50-cali.mlir
+```
+
+```
+$ ./bin/mlir-opt \
+    --import-calibration-table \
+    --calibration-table bmnet_resnet50_calibration_table.1x10 \
+    resnet-50-opt3.mlir \
+    -o resnet-50-cali.mlir
+```
+
+### 4.2 do calibration with mlir-interpreter
+
 ## 5. quantization
 
 We do not import int8 caffemodel directly (the old version int8 caffemodel format is obsoleted). We convert from mlir fp32 into mlir int8, based on the calibration table (a map of tensor name and its threshold).
+
 ```
 $ ./bin/mlir-opt \
     --quantization-int8 \
-    resnet-50.mlir \
-    -o resnet-50-int8.mlir
+    resnet-50-cali.mlir \
+    -o resnet-50-quant-int8.mlir
+```
+
+```
+$ ./bin/mlir-opt \
+    --quantization-int8 \
+    --enable-per-channel \
+    resnet-50-cali.mlir \
+    -o resnet-50-quant-int8-per-channel.mlir
 ```
 
 ## 6. run int8 inference with interpreter

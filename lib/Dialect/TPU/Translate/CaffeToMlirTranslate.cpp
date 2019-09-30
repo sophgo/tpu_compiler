@@ -442,9 +442,11 @@ void CaffeImporter::convertInnerProductLayer(mlir::Block *block,
 
   // construct OP
   auto result_type = builder_.getTensorType({M, N}, elementType_);
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name())));
   auto op = OpBuilder(block).create<tpu::FullyConnectedOp>(
       builder_.getUnknownLoc(), result_type,
-      ArrayRef<Value *>{operands}, ArrayRef<NamedAttribute>{});
+      ArrayRef<Value *>{operands}, ArrayRef<NamedAttribute>{attrs});
   auto result_var = op.getResult();
 
   tensor_map_[layer_param.top(0)] = result_var;

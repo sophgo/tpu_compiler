@@ -12,6 +12,7 @@ add_llvm_library(MLIRTPU
   Transforms/ConvertBnToScale.cpp
   Transforms/FoldScale.cpp
   Transforms/FuseScaleIntoConv.cpp
+  Conversion/ImportCalibrationTable.cpp
   Interpreter/TpuInterpreter.cpp
 
   ADDITIONAL_HEADER_DIRS
