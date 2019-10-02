@@ -35,6 +35,7 @@ std::unique_ptr<FunctionPassBase> createFoldScalePass();
 std::unique_ptr<FunctionPassBase> createFuseScaleIntoConvPass();
 
 std::unique_ptr<FunctionPassBase> createImportCalibrationTablePass();
+std::unique_ptr<FunctionPassBase> createQuantizeInt8PerLayerPass();
 } // namespace mlir
 
 #endif // MLIR_DIALECT_TPU_PASSES_H_

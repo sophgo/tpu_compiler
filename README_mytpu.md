@@ -167,6 +167,8 @@ we use calibration_caffe for now. But only use the threshold_y.
 
 #### 4.1 import calibration-table from prototxt file
 
+Import calibration table from externel file. The calibration table is simply a map of operation name vs. their threshold_y.
+
 ```
 $ ./bin/mlir-opt \
     --import-calibration-table \
@@ -189,23 +191,23 @@ $ ./bin/mlir-opt \
 
 ### 5. quantization
 
-We do not import int8 caffemodel directly (the old version int8 caffemodel format is obsoleted). We convert from mlir fp32 into mlir int8, based on the calibration table (a map of tensor name and its threshold).
+We do not import int8 caffemodel directly (the old version int8 caffemodel format is obsoleted). We do quantization from mlir fp32 model to mlir int8 model, based on threshold_y information of each operation.
 
 #### 5.1 int8 per-layer quantization
 
 ```
 $ ./bin/mlir-opt \
-    --quantization-int8 \
+    --quant-int8 \
     resnet-50-cali.mlir \
-    -o resnet-50-quant-int8.mlir
+    -o resnet-50-quant-int8-per-layer.mlir
 ```
 
 #### 5.2 int8 per-channel quantization
 
 ```
 $ ./bin/mlir-opt \
-    --quantization-int8 \
-    --enable-per-channel \
+    --quant-int8 \
+    --enable-conv-per-channel \
     resnet-50-cali.mlir \
     -o resnet-50-quant-int8-per-channel.mlir
 ```

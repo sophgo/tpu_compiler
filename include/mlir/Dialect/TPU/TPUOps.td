@@ -278,6 +278,7 @@ def TPU_SoftmaxOp: TPU_Op<"softmax", [NoSideEffect, SameOperandsAndResultType]> 
 
   let arguments = (
     ins AnyTensor:$x,
+    OptionalAttr<F32Attr>:$threshold_y,
     OptionalAttr<StrAttr>:$name
   );
 
