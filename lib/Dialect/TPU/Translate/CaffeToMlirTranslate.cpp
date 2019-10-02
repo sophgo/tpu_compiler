@@ -546,6 +546,11 @@ void CaffeImporter::convertPoolingLayer(mlir::Block *block,
   // construct OP
   auto result_type = builder_.getTensorType({n, c, ofmap[0], ofmap[1]}, elementType_);
   std::vector<NamedAttribute> attrs;
+  if (is_average_pooling) {
+    attrs.push_back(builder_.getNamedAttr("pool", builder_.getStringAttr("AVE")));
+  } else {
+    attrs.push_back(builder_.getNamedAttr("pool", builder_.getStringAttr("MAX")));
+  }
   attrs.push_back(builder_.getNamedAttr("filter_height", builder_.getI32IntegerAttr(kernel[0])));
   attrs.push_back(builder_.getNamedAttr("filter_width", builder_.getI32IntegerAttr(kernel[1])));
   attrs.push_back(builder_.getNamedAttr("padding",
@@ -554,18 +559,10 @@ void CaffeImporter::convertPoolingLayer(mlir::Block *block,
   attrs.push_back(builder_.getNamedAttr("stride_w", builder_.getI32IntegerAttr(stride[1])));
   attrs.push_back(builder_.getNamedAttr("fused_activation_function", builder_.getStringAttr("NONE")));
   attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name())));
-  mlir::Value* result_var;
-  if (is_average_pooling) {
-    auto op = OpBuilder(block).create<tpu::AveragePool2DOp>(
-        builder_.getUnknownLoc(), result_type, ArrayRef<Value *>{input_var},
-        ArrayRef<NamedAttribute>{attrs});
-    result_var = op.getResult();
-  } else {
-    auto op = OpBuilder(block).create<tpu::MaxPool2DOp>(
-        builder_.getUnknownLoc(), result_type, ArrayRef<Value *>{input_var},
-        ArrayRef<NamedAttribute>{attrs});
-    result_var = op.getResult();
-  }
+  auto op = OpBuilder(block).create<tpu::Pool2DOp>(
+      builder_.getUnknownLoc(), result_type, ArrayRef<Value *>{input_var},
+      ArrayRef<NamedAttribute>{attrs});
+  auto result_var = op.getResult();
 
   tensor_map_[layer_param.top(0)] = result_var;
 }

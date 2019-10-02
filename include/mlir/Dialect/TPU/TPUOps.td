@@ -71,6 +71,19 @@ def TPU_PaddingAttr : StrEnumAttr<"Padding", "padding enum", [
     ]>;
 
 //===----------------------------------------------------------------------===//
+// Pool method enum definitions.
+//===----------------------------------------------------------------------===//
+
+// Allowed pool method cases
+def TPU_POOL_AVE  : StrEnumAttrCase<"AVE">;
+def TPU_POOL_MAX  : StrEnumAttrCase<"MAX">;
+
+def TPU_PoolAttr : StrEnumAttr<
+    "PoolMethodType", "pool method enum", [
+      TPU_POOL_AVE,  TPU_POOL_MAX
+    ]>;
+
+//===----------------------------------------------------------------------===//
 // TPU op base class.
 //===----------------------------------------------------------------------===//
 
@@ -149,11 +162,11 @@ def TPU_LoadWeightOp : TPU_Op<"load_weight", [NoSideEffect]> {
 //===----------------------------------------------------------------------===//
 def TPU_Conv2DOp : TPU_ConvOp<"conv_2d", "Convolution">;
 
-def TPU_AveragePool2DOp : TPU_Op<"average_pool_2d", [NoSideEffect]> {
-  let summary = "Average_pool_2d operator";
+def TPU_Pool2DOp : TPU_Op<"pool_2d", [NoSideEffect]> {
+  let summary = "pool_2d operator";
 
   let description = [{
-    Performs average-pooling operation on input.
+    Performs pooling operation on input.
 
     Inputs:
       `inputs[0]`: required: the input tensor
@@ -161,31 +174,7 @@ def TPU_AveragePool2DOp : TPU_Op<"average_pool_2d", [NoSideEffect]> {
 
   let arguments = (
     ins AnyTensor:$input,
-    I32Attr:$filter_height,
-    I32Attr:$filter_width,
-    TPU_PaddingAttr:$padding,
-    I32Attr:$stride_h,
-    I32Attr:$stride_w,
-    DefaultValuedAttr<TPU_AFAttr, "NONE">:$fused_activation_function,
-    OptionalAttr<F32Attr>:$threshold_y,
-    OptionalAttr<StrAttr>:$name
-  );
-
-  let results = (outs AnyTensor:$output);
-}
-
-def TPU_MaxPool2DOp : TPU_Op<"max_pool_2d", [NoSideEffect]> {
-  let summary = "Max Pool 2D operator";
-
-  let description = [{
-    Performs max pool 2D on input.
-
-    Inputs:
-      `inputs[0]`: required: the input tensor
-  }];
-
-  let arguments = (
-    ins AnyTensor:$input,
+    TPU_PoolAttr:$pool,
     I32Attr:$filter_height,
     I32Attr:$filter_width,
     TPU_PaddingAttr:$padding,

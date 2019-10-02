@@ -24,7 +24,7 @@
 // OUTLINING-NEXT:  > tpu.relu
 // OUTLINING-NEXT:  > tpu.conv_2d
 // OUTLINING-NEXT:  > tpu.relu
-// OUTLINING-NEXT:  > tpu.average_pool_2d
+// OUTLINING-NEXT:  > tpu.pool_2d
 // OUTLINING-NEXT:  > tpu.reshape
 // OUTLINING-NEXT:  > std.return
 // OUTLINING-NEXT: func : main
@@ -52,7 +52,7 @@
 // OUTLINING-NEXT:  > tpu.relu
 // OUTLINING-NEXT:  > tpu.conv_2d
 // OUTLINING-NEXT:  > tpu.relu
-// OUTLINING-NEXT:  > tpu.average_pool_2d
+// OUTLINING-NEXT:  > tpu.pool_2d
 // OUTLINING-NEXT:  > tpu.reshape
 // OUTLINING-NEXT:  > std.return
 // OUTLINING-NEXT:  > func
@@ -94,7 +94,7 @@ module {
     %3 = "tpu.relu"(%2) {negative_slope = 0.000000e+00 : f32} : (tensor<?x16x7x7xf32>) -> tensor<?x16x7x7xf32>
     %4 = "tpu.conv_2d"(%3, %w_2, %b_2) {dilation_h_factor = 1 : i32, dilation_w_factor = 1 : i32, fused_activation_function = "NONE", padding = "SAME", stride_h = 2 : i32, stride_w = 2 : i32} : (tensor<?x16x7x7xf32>, tensor<10x16x3x3xf32>, tensor<10xf32>) -> tensor<?x10x4x4xf32>
     %5 = "tpu.relu"(%4) {negative_slope = 0.000000e+00 : f32} : (tensor<?x10x4x4xf32>) -> tensor<?x10x4x4xf32>
-    %6 = "tpu.average_pool_2d"(%5) {filter_height = 4 : i32, filter_width = 4 : i32, fused_activation_function = "NONE", padding = "VALID", stride_h = 1 : i32, stride_w = 1 : i32} : (tensor<?x10x4x4xf32>) -> tensor<?x10x1x1xf32>
+    %6 = "tpu.pool_2d"(%5) {pool = "AVE", filter_height = 4 : i32, filter_width = 4 : i32, fused_activation_function = "NONE", padding = "VALID", stride_h = 1 : i32, stride_w = 1 : i32} : (tensor<?x10x4x4xf32>) -> tensor<?x10x1x1xf32>
     %7 = "tpu.reshape"(%6) : (tensor<?x10x1x1xf32>) -> tensor<?x10xf32>
     return %7 : tensor<?x10xf32>
   }

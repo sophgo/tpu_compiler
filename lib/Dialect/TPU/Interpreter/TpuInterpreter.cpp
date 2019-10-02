@@ -781,8 +781,8 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
     return success();
   }
-  if (auto op = dyn_cast<tpu::AveragePool2DOp>(opInst)) {
-    llvm::errs() << "AveragePool2DOp" << "\n";
+  if (auto op = dyn_cast<tpu::Pool2DOp>(opInst)) {
+    llvm::errs() << "Pool2DOp" << "\n";
     //op.dump();
     //assert(op.getNumOperands() == 1);
     std::vector<std::vector<float> *> operand_tensors;
@@ -813,6 +813,15 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     auto result_tensor = std::make_unique<std::vector<float> >(size);
 
     // TODO: do the actual compute here
+    auto pool_method = op.getAttrOfType<StringAttr>("pool");
+    bool is_average_pool;
+    if (pool_method.getValue() == "AVE") {
+      is_average_pool = true;
+    } else if (pool_method.getValue() == "MAX") {
+      is_average_pool = false;
+    } else {
+      assert(false);
+    }
     int n, c, ih, iw, oh, ow, kh, kw, sh, sw, ph, pw;
     kh = op.filter_height().getLimitedValue();
     kw = op.filter_width().getLimitedValue();
@@ -843,78 +852,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     float *mkldnn_input = (float *)operand_tensors[0]->data();
     float *mkldnn_output = (float *)result_tensor.get()->data();
     int mkldnn_ret = mkldnn_pool(mkldnn_input, mkldnn_output,
-        n, c, ih, iw, oh, ow, kh, kw, sh, sw, ph, pw, true);
-    assert(mkldnn_ret == 0);
-    //dump_data_float_abs("mkldnn_output", mkldnn_output, n, c, oh, ow);
-    // TODO: End of compute, need refactor
-
-    valueMapping[result] = std::move(result_tensor);
-
-    return success();
-  }
-  if (auto op = dyn_cast<tpu::MaxPool2DOp>(opInst)) {
-    llvm::errs() << "MaxPool2DOp" << "\n";
-    //op.dump();
-    //assert(op.getNumOperands() == 1);
-    std::vector<std::vector<float> *> operand_tensors;
-    {
-      auto operand = op.getOperand();
-      llvm::errs() << "  operand[0] "; operand->getType().dump(); llvm::errs() << "\n";
-      // find operand in valueMapping
-      auto it = valueMapping.find(operand);
-      if (it == valueMapping.end()) {
-        llvm::errs() << "    didn't find\n";
-        assert(0);
-      } else {
-        llvm::errs() << "    found in map\n";
-        auto vec = it->second.get();
-        if (vec) {
-          llvm::errs() << "      vec size = " << vec->size() << "\n";
-        } else {
-          llvm::errs() << "      vec is nullptr\n";
-        }
-        operand_tensors.push_back(vec);
-      }
-    }
-    auto result = op.getResult();
-    llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";
-    std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
-    assert(shape.size() <= 4);
-    auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
-    auto result_tensor = std::make_unique<std::vector<float> >(size);
-
-    // TODO: do the actual compute here
-    int n, c, ih, iw, oh, ow, kh, kw, sh, sw, ph, pw;
-    kh = op.filter_height().getLimitedValue();
-    kw = op.filter_width().getLimitedValue();
-    sh = op.stride_h().getLimitedValue();
-    sw = op.stride_w().getLimitedValue();
-    auto input_type = op.input()->getType().cast<TensorType>();
-    std::vector<int64_t> i_s(input_type.getShape());
-    auto output_type = op.output()->getType().cast<TensorType>();
-    std::vector<int64_t> o_s(output_type.getShape());
-    assert((i_s[0] == o_s[0]) && "input N not equal to output N");
-    assert((i_s[1] == o_s[1]) && "input C not equal to output C");
-    n = i_s[0];
-    c = i_s[1];
-    ih = i_s[2];
-    iw = i_s[3];
-    oh = o_s[2];
-    ow = o_s[3];
-    auto padding_attr = op.getAttrOfType<StringAttr>("padding");
-    if (padding_attr.getValue() == "SAME") {
-      ph = findPadForSamePadding(ih, oh, kh, sh, 1);
-      pw = findPadForSamePadding(iw, ow, kw, sw, 1);
-    } else if (padding_attr.getValue() == "VALID") {
-      ph = 0;
-      pw = 0;
-    } else {
-      assert(false);
-    }
-    float *mkldnn_input = (float *)operand_tensors[0]->data();
-    float *mkldnn_output = (float *)result_tensor.get()->data();
-    int mkldnn_ret = mkldnn_pool(mkldnn_input, mkldnn_output,
-        n, c, ih, iw, oh, ow, kh, kw, sh, sw, ph, pw, false);
+        n, c, ih, iw, oh, ow, kh, kw, sh, sw, ph, pw, is_average_pool);
     assert(mkldnn_ret == 0);
     //dump_data_float_abs("mkldnn_output", mkldnn_output, n, c, oh, ow);
     // TODO: End of compute, need refactor

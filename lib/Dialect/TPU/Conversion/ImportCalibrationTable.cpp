@@ -85,8 +85,7 @@ public:
       addThresholdAttr<tpu::InputOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::Conv2DOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::FullyConnectedOp>(builder, threshold_map, op);
-      addThresholdAttr<tpu::AveragePool2DOp>(builder, threshold_map, op);
-      addThresholdAttr<tpu::MaxPool2DOp>(builder, threshold_map, op);
+      addThresholdAttr<tpu::Pool2DOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::BatchNormOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::ScaleOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::ReluOp>(builder, threshold_map, op);

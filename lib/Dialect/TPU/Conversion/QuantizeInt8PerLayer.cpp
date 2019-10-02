@@ -52,8 +52,7 @@ public:
       QuantizeLayer<tpu::InputOp>(builder, op);
       QuantizeLayer<tpu::Conv2DOp>(builder, op);
       QuantizeLayer<tpu::FullyConnectedOp>(builder, op);
-      QuantizeLayer<tpu::AveragePool2DOp>(builder, op);
-      QuantizeLayer<tpu::MaxPool2DOp>(builder, op);
+      QuantizeLayer<tpu::Pool2DOp>(builder, op);
       QuantizeLayer<tpu::BatchNormOp>(builder, op);
       QuantizeLayer<tpu::ScaleOp>(builder, op);
       QuantizeLayer<tpu::ReluOp>(builder, op);
