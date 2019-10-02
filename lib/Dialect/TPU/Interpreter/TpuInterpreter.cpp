@@ -655,6 +655,49 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     }
     return success();
   }
+  if (auto op = dyn_cast<tpu::InputOp>(opInst)) {
+    llvm::errs() << "InputOp" << "\n";
+    //op.dump();
+    //assert(op.getNumOperands() == 3);
+    std::vector<std::vector<float> *> operand_tensors;
+    unsigned int operandIdx = 0;
+    {
+      auto operand = op.getOperand();
+      llvm::errs() << "  operand[" << operandIdx << "] "; operand->getType().dump(); llvm::errs() << "\n";
+      // find operand in valueMapping
+      auto it = valueMapping.find(operand);
+      if (it == valueMapping.end()) {
+        llvm::errs() << "    didn't find\n";
+        assert(0);
+      } else {
+        llvm::errs() << "    found in map\n";
+        auto vec = it->second.get();
+        if (vec) {
+          llvm::errs() << "      vec size = " << vec->size() << "\n";
+        } else {
+          llvm::errs() << "      vec is nullptr\n";
+        }
+        operand_tensors.push_back(vec);
+      }
+      operandIdx++;
+    }
+
+    auto result = op.getResult();
+    llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";
+    std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
+    assert(shape.size() == 4);
+    auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
+    auto result_tensor = std::make_unique<std::vector<float> >(size);
+
+    // TODO: do the actual compute here
+    // use copy for now
+    result_tensor->swap(*operand_tensors[0]);
+    // TODO: End of compute, need refactor
+
+    valueMapping[result] = std::move(result_tensor);
+
+    return success();
+  }
   if (auto op = dyn_cast<tpu::Conv2DOp>(opInst)) {
     llvm::errs() << "Conv2DOp" << "\n";
     //op.dump();
@@ -1310,9 +1353,9 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       operandIdx++;
     }
 
-    //copy the value into outputs
-    assert(outputs.size() == 1);
-    outputs[0]->swap(*return_vec);
+    //copy the value into outputs_
+    assert(outputs_.size() == 1);
+    outputs_[0]->swap(*return_vec);
 
     return success();
   }
@@ -1338,16 +1381,16 @@ LogicalResult ModuleInterpreter::runOneFunction(FuncOp func) {
 
   // Add function arguments to the value remapping table.
   unsigned int argIdx = 0;
-  assert(inputs.size() == 1);
+  assert(inputs_.size() == 1);
   for (auto arg : func.getArguments()) {
     llvm::errs() << "arg " << argIdx << ": ";
     arg->getType().dump();
     llvm::errs() << "\n";
 
-    // copy the inputs[0] into a unique_ptr pointed vector
+    // copy the inputs_[0] into a unique_ptr pointed vector
     // TODO: pass input as unique_ptr directly
     auto input = std::make_unique<std::vector<float> >();
-    input.get()->swap(*inputs[0]);
+    input->swap(*inputs_[0]);
     valueMapping[arg] = std::move(input);
     argIdx++;
   }

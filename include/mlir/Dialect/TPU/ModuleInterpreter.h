@@ -52,7 +52,7 @@ protected:
   explicit ModuleInterpreter(ModuleOp module,
       std::vector<std::vector<float> *> &inputs,
       std::vector<std::vector<float> *> &outputs)
-      : mlirModule(module), inputs(inputs), outputs(outputs) {}
+      : mlirModule(module), inputs_(inputs), outputs_(outputs) {}
   virtual ~ModuleInterpreter() {}
 
   virtual LogicalResult runOperation(Operation &op);
@@ -64,8 +64,8 @@ private:
 
   // Original and translated module.
   ModuleOp mlirModule;
-  std::vector<std::vector<float> *> &inputs;
-  std::vector<std::vector<float> *> &outputs;
+  std::vector<std::vector<float> *> &inputs_;
+  std::vector<std::vector<float> *> &outputs_;
 
   // weight file input stream
   std::unique_ptr<std::ifstream> weight_is;

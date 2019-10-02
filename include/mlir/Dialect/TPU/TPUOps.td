@@ -301,6 +301,22 @@ def TPU_EltwiseOp: TPU_Op<"eltwise", [NoSideEffect, SameOperandsAndResultType]> 
   let results = (outs AnyTensor:$y);
 }
 
+def TPU_InputOp: TPU_Op<"input", [NoSideEffect]> {
+  let summary = "Input operator";
+
+  let description = [{
+    Produces a tensor from function input, primarily for carrying threshold_y.
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    OptionalAttr<F32Attr>:$threshold_y,
+    OptionalAttr<StrAttr>:$name
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
 def TPU_ReshapeOp: TPU_Op<"reshape", [NoSideEffect]> {
   let summary = "Reshape operator";
 

@@ -82,6 +82,7 @@ public:
         convOp.setAttr("threshold_y", builder.getF32FloatAttr(threshold));
       }
       #endif
+      addThresholdAttr<tpu::InputOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::Conv2DOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::FullyConnectedOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::AveragePool2DOp>(builder, threshold_map, op);

@@ -269,7 +269,20 @@ void CaffeImporter::convertInputLayer(mlir::Block *block,
   auto layer_param = layer->layer_param();
   assert(layer_param.bottom_size() == 0 && layer_param.top_size() == 1);
 
-  tensor_map_[layer_param.top(0)] = block->getArgument(0);
+  std::vector<Value *> operands;
+  operands.push_back(block->getArgument(0));
+
+  auto result_type = block->getArgument(0)->getType();
+  std::vector<NamedAttribute> attrs;
+  // note input is a inserted layer, we should use top blob name rather than layer_name
+  //attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name())));
+  attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.top(0))));
+  auto op = OpBuilder(block).create<tpu::InputOp>(
+      builder_.getUnknownLoc(), result_type,
+      ArrayRef<Value *>{operands}, ArrayRef<NamedAttribute>{attrs});
+  auto result_var = op.getResult();
+
+  tensor_map_[layer_param.top(0)] = result_var;
 }
 
 void CaffeImporter::convertSplitLayer(mlir::Block *block,
