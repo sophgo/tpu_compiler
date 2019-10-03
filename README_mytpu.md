@@ -225,6 +225,20 @@ $ ./bin/mlir-opt \
     -o resnet-50-quant-int8-per-channel.mlir
 ```
 
+
+check
+```
+$ vim resnet-50-quant-int8-per-channel.mlir
+$ python npz_dump.py ResNet-50-model.npz scale_conv1_quant_int8_0
+$ python npz_dump.py ResNet-50-model.npz scale_conv1_quant_int8_1
+$ python npz_dump.py ResNet-50-model.npz scale_conv1_quant_int8_rshift
+
+$ ./bin/mlir-tpu-interpreter resnet-50-quant-int8-per-channel.mlir \
+--tensor-in /data/release/bmnet_models/resnet50/resnet50_input_1_3_224_224.bin \
+--tensor-out out-quant-int8-per-channel.bin
+$ python bin_compare.py out.bin out-quant-int8-per-channel.bin float32 1 1 1 1000 5
+```
+
 #### 5.3 bf16 quantization
 
 * TODO

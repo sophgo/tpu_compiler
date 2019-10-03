@@ -879,7 +879,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
         assert(operand_tensors.size() == 3);
         mkldnn_bias = (float *)operand_tensors[2]->data();
       }
-    } else if (op.quant() == "INT8") {
+    } else if (op.quant() == "INT8" || op.quant() == "INT8_PER_CHANNEL") {
       if (operand_tensors.size() > 3) {
         assert(operand_tensors.size() == 4);
         mkldnn_bias = (float *)operand_tensors[2]->data();
@@ -897,7 +897,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     // copy the input first
     std::vector<float> input_copy(*operand_tensors[0]);
     mkldnn_input = input_copy.data();
-    if (op.quant() == "INT8") {
+    if (op.quant() == "INT8" || op.quant() == "INT8_PER_CHANNEL") {
       float threshold_x;
       auto status = getPreviousOpThreshold(op, &threshold_x);
       llvm::errs() << "  conv input quantize, threshold_x = " << std::to_string(threshold_x) << "\n";
@@ -918,13 +918,23 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       for (int i = 0; i < size; ++i) {
         mkldnn_output[i] = (float)rshiftAndSaturate(mkldnn_output[i], (uint32_t)rshift[0]);
       }
+    } else if (op.quant() == "INT8_PER_CHANNEL") {
+      int inner_size = size / oc;
+      for (int i = 0; i < oc; ++i) {
+        for (int j = 0; j < inner_size; ++j) {
+          mkldnn_output[i * inner_size + j] =
+              (float)rshiftAndSaturate(mkldnn_output[i * inner_size + j],
+                                       (uint32_t)rshift[i]);
+        }
+      }
     }
 
     // do dequantize on output
     // remove this when the network is full int8, and passed legalization
-    if (op.quant() == "INT8") {
+    if (op.quant() == "INT8" || op.quant() == "INT8_PER_CHANNEL") {
       float threshold_y = op.threshold_y().getValue().convertToFloat();
-      llvm::errs() << "  conv output dequantize, threshold_y = " << std::to_string(threshold_y) << "\n";
+      llvm::errs() << "  conv output dequantize, threshold_y = "
+                   << std::to_string(threshold_y) << "\n";
       for (int i = 0; i < size; ++i) {
         mkldnn_output[i] = mkldnn_output[i] * threshold_y / 128.0;
       }
