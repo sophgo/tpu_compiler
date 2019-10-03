@@ -48,12 +48,13 @@ def TPU_Dialect : Dialect {
 def TPU_Quant_None    : StrEnumAttrCase<"NONE">;
 def TPU_Quant_Int8    : StrEnumAttrCase<"INT8">;
 def TPU_Quant_Int8_PC : StrEnumAttrCase<"INT8_PER_CHANNEL">;
+def TPU_Quant_Int8_M  : StrEnumAttrCase<"INT8_MULTIPLIER">;
 def TPU_Quant_BF16    : StrEnumAttrCase<"BF16">;
 
 def TPU_QuantAttr : StrEnumAttr<
     "QuantizeFlag", "quantization flag enum", [
       TPU_Quant_None,  TPU_Quant_Int8, TPU_Quant_Int8_PC,
-      TPU_Quant_BF16
+      TPU_Quant_Int8_M, TPU_Quant_BF16
     ]>;
 
 //===----------------------------------------------------------------------===//

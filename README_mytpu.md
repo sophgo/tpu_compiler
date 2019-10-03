@@ -238,6 +238,30 @@ $ ./bin/mlir-tpu-interpreter resnet-50-quant-int8-per-channel.mlir \
 $ python bin_compare.py out.bin out-quant-int8-per-channel.bin float32 1 1 1 1000 5
 ```
 
+#### 5.3 int8 per-channel multiplier quantization
+
+```
+$ ./bin/mlir-opt \
+    --quant-int8 \
+    --enable-conv-per-channel \
+    --enable-conv-multiplier \
+    resnet-50-cali.mlir \
+    -o resnet-50-quant-int8-multiplier.mlir
+```
+
+check
+```
+$ vim resnet-50-quant-int8-multiplier.mlir
+$ python npz_dump.py ResNet-50-model.npz scale_conv1_quant_int8_0
+$ python npz_dump.py ResNet-50-model.npz scale_conv1_quant_int8_1
+$ python npz_dump.py ResNet-50-model.npz scale_conv1_quant_int8_multiplier
+
+$ ./bin/mlir-tpu-interpreter resnet-50-quant-int8-multiplier.mlir \
+--tensor-in /data/release/bmnet_models/resnet50/resnet50_input_1_3_224_224.bin \
+--tensor-out out-quant-int8-multiplier.bin
+$ python bin_compare.py out.bin out-quant-int8-multiplier.bin float32 1 1 1 1000 5
+```
+
 #### 5.3 bf16 quantization
 
 * TODO

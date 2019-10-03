@@ -643,6 +643,27 @@ static inline int8_t rshiftAndSaturate(float v, uint32_t rshift) {
   return (int8_t)q_i;
 }
 
+static inline int8_t divideMultiplierAndSaturate(float v, float multiplier) {
+  float q_f = v / multiplier;
+  #if 0
+  // away_from_zero
+  int q_i = (q_f >= 0) ? (int)ceil(q_f) : (int)floor(q_f);
+  #else
+  int q_i = (int)roundf(q_f);
+  #endif
+  //assert( (q <= 127) && (q >= -128) );
+  if ( (q_i > 127) || (q_i < -128) ) {
+    llvm::errs() << "  element exceeds limits [-128, 127] : "
+                 << v << " -> " << q_i << "\n";
+  }
+  if ( q_i > 127 )
+    q_i = 127;
+  if ( q_i < -128 )
+    q_i = -128;
+
+  return (int8_t)q_i;
+}
+
 namespace mlir {
 
 static LogicalResult getPreviousOpThreshold(Operation *op, float *threshold) {
@@ -880,6 +901,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     float *mkldnn_weight = (float *)operand_tensors[1]->data();
     float *mkldnn_bias = nullptr;
     float *rshift = nullptr;
+    float *multiplier = nullptr;
     if (op.quant() == "NONE") {
       if (operand_tensors.size() > 2) {
         assert(operand_tensors.size() == 3);
@@ -894,6 +916,15 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
         assert(operand_tensors.size() == 3);
         rshift = (float *)operand_tensors[2]->data();
       }
+    } else if (op.quant() == "INT8_MULTIPLIER") {
+      if (operand_tensors.size() > 3) {
+        assert(operand_tensors.size() == 4);
+        mkldnn_bias = (float *)operand_tensors[2]->data();
+        multiplier = (float *)operand_tensors[3]->data();
+      } else {
+        assert(operand_tensors.size() == 3);
+        multiplier = (float *)operand_tensors[2]->data();
+      }
     } else {
       assert(false);
     }
@@ -903,7 +934,8 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     // copy the input first
     std::vector<float> input_copy(*operand_tensors[0]);
     mkldnn_input = input_copy.data();
-    if (op.quant() == "INT8" || op.quant() == "INT8_PER_CHANNEL") {
+    if (op.quant() == "INT8" || op.quant() == "INT8_PER_CHANNEL"
+        || op.quant() == "INT8_MULTIPLIER") {
       float threshold_x;
       auto status = getPreviousOpThreshold(op, &threshold_x);
       llvm::errs() << "  conv input quantize, threshold_x = " << std::to_string(threshold_x) << "\n";
@@ -921,10 +953,12 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
     // rshift and saturate on output
     if (op.quant() == "INT8") {
+      assert(rshift);
       for (int i = 0; i < size; ++i) {
         mkldnn_output[i] = (float)rshiftAndSaturate(mkldnn_output[i], (uint32_t)rshift[0]);
       }
     } else if (op.quant() == "INT8_PER_CHANNEL") {
+      assert(rshift);
       int inner_size = size / oc;
       for (int i = 0; i < oc; ++i) {
         for (int j = 0; j < inner_size; ++j) {
@@ -933,11 +967,22 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
                                        (uint32_t)rshift[i]);
         }
       }
+    } else if (op.quant() == "INT8_MULTIPLIER") {
+      assert(multiplier);
+      int inner_size = size / oc;
+      for (int i = 0; i < oc; ++i) {
+        for (int j = 0; j < inner_size; ++j) {
+          mkldnn_output[i * inner_size + j] =
+              (float)divideMultiplierAndSaturate(mkldnn_output[i * inner_size + j],
+                                       multiplier[i]);
+        }
+      }
     }
 
     // do dequantize on output
     // remove this when the network is full int8, and passed legalization
-    if (op.quant() == "INT8" || op.quant() == "INT8_PER_CHANNEL") {
+    if (op.quant() == "INT8" || op.quant() == "INT8_PER_CHANNEL"
+        || op.quant() == "INT8_MULTIPLIER") {
       float threshold_y = op.threshold_y().getValue().convertToFloat();
       llvm::errs() << "  conv output dequantize, threshold_y = "
                    << std::to_string(threshold_y) << "\n";
