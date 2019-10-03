@@ -32,6 +32,8 @@
 
 #include <sstream>
 #include <fstream>
+#include <math.h>
+
 using namespace mlir;
 
 static llvm::cl::OptionCategory clOptionsCategory("quantization options");
@@ -60,9 +62,24 @@ static inline uint32_t findRShift(float max_weight, float threshold_y,
 static inline int8_t quantizeFilter(float w, float threshold_y,
     float threshold_x, uint32_t rshift) {
   float factor = (threshold_x / threshold_y) * (1 << rshift);
-  int q = w * factor;
-  assert( (q <= 127) && (q >= -128) );
-  return (int8_t)q;
+  float q_f = w * factor;
+  #if 0
+  // away_from_zero
+  int q_i = (q_f >= 0) ? (int)ceil(q_f) : (int)floor(q_f);
+  #else
+  int q_i = (int)roundf(q_f);
+  #endif
+  if ( (q_i > 127) || (q_i < -128) ) {
+    llvm::errs() << "  element exceeds limits [-128, 127] : "
+                 << w << " -> " << q_i << "\n";
+  }
+  //assert( (q_i <= 127) && (q_i >= -128) );
+  if ( q_i > 127 )
+    q_i = 127;
+  if ( q_i < -128 )
+    q_i = -128;
+
+  return (int8_t)q_i;
 }
 
 static inline int16_t quantizeBiasI16(float w, float threshold_y,

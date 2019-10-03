@@ -623,18 +623,24 @@ static int64_t findPadForSamePadding(int64_t i, int64_t o, int64_t k, int64_t s,
 }
 
 static inline int8_t rshiftAndSaturate(float v, uint32_t rshift) {
-  float q = v / (1 << rshift);
+  float q_f = v / (1 << rshift);
+  #if 0
+  // away_from_zero
+  int q_i = (q_f >= 0) ? (int)ceil(q_f) : (int)floor(q_f);
+  #else
+  int q_i = (int)roundf(q_f);
+  #endif
   //assert( (q <= 127) && (q >= -128) );
-  if ( (q > 127) || (q < -128) ) {
+  if ( (q_i > 127) || (q_i < -128) ) {
     llvm::errs() << "  element exceeds limits [-128, 127] : "
-                 << v << " -> " << q << "\n";
+                 << v << " -> " << q_i << "\n";
   }
-  if ( q > 127 )
-    q = 127;
-  if ( q < -128 )
-    q = -128;
+  if ( q_i > 127 )
+    q_i = 127;
+  if ( q_i < -128 )
+    q_i = -128;
 
-  return (int8_t)q;
+  return (int8_t)q_i;
 }
 
 namespace mlir {

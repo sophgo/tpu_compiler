@@ -225,7 +225,6 @@ $ ./bin/mlir-opt \
     -o resnet-50-quant-int8-per-channel.mlir
 ```
 
-
 check
 ```
 $ vim resnet-50-quant-int8-per-channel.mlir
