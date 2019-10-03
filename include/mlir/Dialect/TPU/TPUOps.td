@@ -45,6 +45,22 @@ def TPU_Dialect : Dialect {
 //===----------------------------------------------------------------------===//
 
 // Allowed activation function cases
+def TPU_Quant_None    : StrEnumAttrCase<"NONE">;
+def TPU_Quant_Int8    : StrEnumAttrCase<"INT8">;
+def TPU_Quant_Int8_PC : StrEnumAttrCase<"INT8_PER_CHANNEL">;
+def TPU_Quant_BF16    : StrEnumAttrCase<"BF16">;
+
+def TPU_QuantAttr : StrEnumAttr<
+    "QuantizeFlag", "quantization flag enum", [
+      TPU_Quant_None,  TPU_Quant_Int8, TPU_Quant_Int8_PC,
+      TPU_Quant_BF16
+    ]>;
+
+//===----------------------------------------------------------------------===//
+// Activation function enum definitions.
+//===----------------------------------------------------------------------===//
+
+// Allowed activation function cases
 def TPU_AF_None  : StrEnumAttrCase<"NONE">;
 def TPU_AF_Relu  : StrEnumAttrCase<"RELU">;
 def TPU_AF_Relu1 : StrEnumAttrCase<"RELU_N1_TO_1">;
@@ -114,7 +130,8 @@ class TPU_ConvOp<string mnemonic, string opSummary> :
     I32Attr:$stride_h,
     I32Attr:$stride_w,
     OptionalAttr<F32Attr>:$threshold_y,
-    OptionalAttr<StrAttr>:$name
+    OptionalAttr<StrAttr>:$name,
+    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
   );
 
   let results = (outs AnyTensor:$output);
@@ -182,7 +199,8 @@ def TPU_Pool2DOp : TPU_Op<"pool_2d", [NoSideEffect]> {
     I32Attr:$stride_w,
     DefaultValuedAttr<TPU_AFAttr, "NONE">:$fused_activation_function,
     OptionalAttr<F32Attr>:$threshold_y,
-    OptionalAttr<StrAttr>:$name
+    OptionalAttr<StrAttr>:$name,
+    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
   );
 
   let results = (outs AnyTensor:$output);
@@ -315,7 +333,10 @@ def TPU_ReshapeOp: TPU_Op<"reshape", [NoSideEffect]> {
     by the output type.
   }];
 
-  let arguments = (ins AnyTensor:$input);
+  let arguments = (
+    ins AnyTensor:$input,
+    OptionalAttr<StrAttr>:$name
+  );
 
   let results = (outs AnyTensor:$output);
 }

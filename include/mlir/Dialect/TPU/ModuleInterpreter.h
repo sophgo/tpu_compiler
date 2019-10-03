@@ -72,7 +72,7 @@ private:
   std::unique_ptr<TensorFile> weight_file;
 
 protected:
-  llvm::DenseMap<Value *, std::unique_ptr<std::vector<float> > > valueMapping;
+  std::map<Value *, std::unique_ptr<std::vector<float> > > valueMapping;
 };
 
 } // namespace mlir

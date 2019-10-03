@@ -64,7 +64,7 @@ translate
 ```
 $ ./bin/mlir-translate \
     --caffe-to-mlir /data/models/caffe/ResNet-50-deploy.prototxt \
-    --caffe-model /data/models/caffe/ResNet-50-model.caffemodel \
+    --caffemodel /data/models/caffe/ResNet-50-model.caffemodel \
     -o resnet-50.mlir
 
 - output together with a weight file in npz format
@@ -199,7 +199,20 @@ We do not import int8 caffemodel directly (the old version int8 caffemodel forma
 $ ./bin/mlir-opt \
     --quant-int8 \
     resnet-50-cali.mlir \
-    -o resnet-50-quant-int8-per-layer.mlir
+    -o resnet-50-quant-int8.mlir
+```
+
+check
+```
+$ vim resnet-50-quant-int8.mlir
+$ python npz_dump.py ResNet-50-model.npz scale_conv1_quant_int8_0
+$ python npz_dump.py ResNet-50-model.npz scale_conv1_quant_int8_1
+$ python npz_dump.py ResNet-50-model.npz scale_conv1_quant_int8_rshift
+
+$ ./bin/mlir-tpu-interpreter resnet-50-quant-int8.mlir \
+--tensor-in /data/release/bmnet_models/resnet50/resnet50_input_1_3_224_224.bin \
+--tensor-out out-quant-int8.bin
+$ python bin_compare.py out.bin out-quant-int8.bin float32 1 1 1 1000 5
 ```
 
 #### 5.2 int8 per-channel quantization
@@ -248,6 +261,8 @@ clustering/slice handling
 
 ## Debug tips
 
+### print flags
+
 put all debug print inside LLVM_DEBUG() macro
 
 define "DEBUG_TYPE" for fine grained debug info
@@ -262,16 +277,38 @@ caffe-to-mlir               - caffe importer
 caffe-to-mlir_VERBOSE       - caffe importer verbose
 ```
 
-### translate debug
+#### translate debug
 
 ```
-$ ./bin/mlir-translate --caffe-to-mlir /data/models/caffe/ResNet-50-deploy.prototxt --caffe-model /data/models/caffe/ResNet-50-model.caffemodel -o resnet-50.mlir
+$ ./bin/mlir-translate --caffe-to-mlir /data/models/caffe/ResNet-50-deploy.prototxt --caffemodel /data/models/caffe/ResNet-50-model.caffemodel -o resnet-50.mlir
 
-$ ./bin/mlir-translate --caffe-to-mlir /data/models/caffe/ResNet-50-deploy.prototxt --caffe-model /data/models/caffe/ResNet-50-model.caffemodel -o resnet-50.mlir --debug
+$ ./bin/mlir-translate --caffe-to-mlir /data/models/caffe/ResNet-50-deploy.prototxt --caffemodel /data/models/caffe/ResNet-50-model.caffemodel -o resnet-50.mlir --debug
 
-$ ./bin/mlir-translate --caffe-to-mlir /data/models/caffe/ResNet-50-deploy.prototxt --caffe-model /data/models/caffe/ResNet-50-model.caffemodel -o resnet-50.mlir --debug-only=caffe-to-mlir_VERBOSE
+$ ./bin/mlir-translate --caffe-to-mlir /data/models/caffe/ResNet-50-deploy.prototxt --caffemodel /data/models/caffe/ResNet-50-model.caffemodel -o resnet-50.mlir --debug-only=caffe-to-mlir_VERBOSE
 
 $ ./bin/mlir-tpu-interpreter resnet-50.mlir \
 --tensor-in /data/release/bmnet_models/resnet50/resnet50_input_1_3_224_224.bin \
 --tensor-out out.bin
+```
+
+### dump all tensors
+
+add the flag `--dump-all-tensor=` when run interpreter
+```
+--dump-all-tensor=tensor_all.npz
+```
+
+e.g.
+```
+$ ./bin/mlir-tpu-interpreter \
+    resnet-50.mlir \
+    --tensor-in /data/release/bmnet_models/resnet50/resnet50_input_1_3_224_224.bin \
+    --tensor-out out.bin \
+    --dump-all-tensor=tensor_all.npz
+
+$ ./bin/mlir-tpu-interpreter \
+    resnet-50-quant-int8.mlir \
+    --tensor-in /data/release/bmnet_models/resnet50/resnet50_input_1_3_224_224.bin \
+    --tensor-out out-quant-int8.bin \
+    --dump-all-tensor=tensor_all_quant-int8.npz
 ```

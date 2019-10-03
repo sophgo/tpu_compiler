@@ -432,8 +432,12 @@ void CaffeImporter::convertInnerProductLayer(mlir::Block *block,
   // construct reshape OP
   if (reshape_first) {
     auto fc_input_type = builder_.getTensorType({M, K}, elementType_);
+    std::vector<NamedAttribute> attrs;
+    attrs.push_back(builder_.getNamedAttr("name",
+        builder_.getStringAttr(layer_param.name() + "_reshape")));
     auto reshape_op = OpBuilder(block).create<tpu::ReshapeOp>(
-        builder_.getUnknownLoc(), fc_input_type, input_var);
+        builder_.getUnknownLoc(), fc_input_type,
+        ArrayRef<Value *>{input_var}, ArrayRef<NamedAttribute>{attrs});
     fc_input_var = reshape_op.getResult();
   }
 
@@ -829,7 +833,7 @@ static OwningModuleRef caffeToMlirTranslate(llvm::StringRef inputFilename,
 static llvm::cl::OptionCategory clOptionsCategory("caffe translate options");
 
 static llvm::cl::opt<std::string> clCaffeModelFilename(
-    "caffe-model",
+    "caffemodel",
     llvm::cl::desc("Specify the caffemodel filename"),
     llvm::cl::cat(clOptionsCategory));
 
