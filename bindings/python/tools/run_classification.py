@@ -83,20 +83,22 @@ if __name__ == '__main__':
     orig_img = data[0].asnumpy().astype('uint8')
     img = np.transpose(orig_img[0], (2, 0, 1))
     img_swap = img[[2,1,0], :, :]
-    print('mean int8', np.mean(np.reshape(img_swap, (3, -1)), axis=1))
-    print('std int8', np.std(np.reshape(img_swap, (3, -1)), axis=1))
+    # print('img mean int8', np.mean(np.reshape(img_swap, (3, -1)), axis=1))
+    # print('img std int8', np.std(np.reshape(img_swap, (3, -1)), axis=1))
     d = img_swap.astype(np.float32)
     mean = np.load(args.mean_file)
     # expand to 4-D again
     x = np.expand_dims(d, axis=0)
     x -= mean
+    # print('x mean int8', np.mean(np.reshape(x, (3, -1)), axis=1))
+    # print('x std int8', np.std(np.reshape(x, (3, -1)), axis=1))
     #inputs = np.ascontiguousarray(img)
 
     # Perform forward pass
     if True:
-      print('x.shape', x.shape)
+      # print('x.shape', x.shape)
       res = module.run(x)
-      print('res.shape', res.shape)
+      # print('res.shape', res.shape)
 
     # Update accuracy metrics
     outputs = [mx.nd.array(res)]

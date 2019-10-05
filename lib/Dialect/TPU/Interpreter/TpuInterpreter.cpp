@@ -44,6 +44,8 @@
 #include <numeric>
 #include <functional>
 
+#define DEBUG_TYPE "interpreter"
+
 #define USE_MKLDNN
 
 #ifdef USE_MKLDNN
@@ -105,9 +107,11 @@ static int mkldnn_conv(float *input, float *weight, float *bias,
         (const char *)bias, oc * sizeof(float));
   }
 #endif // DUMP_FLAG
-  llvm::errs() << "  k: (" << kh << "*" << kw << "), "
-               << "s: (" << sh << "*" << sw << "), "
-               << "p: (" << ph << "*" << pw << ")" << "\n";
+  LLVM_DEBUG(
+    llvm::errs() << "  k: (" << kh << "*" << kw << "), "
+                 << "s: (" << sh << "*" << sw << "), "
+                 << "p: (" << ph << "*" << pw << ")" << "\n";
+  );
 
   using tag = memory::format_tag;
   using dt = memory::data_type;
@@ -251,10 +255,12 @@ static int mkldnn_pool(float *input, float *output,
         (const char *)input, n * c * ih * iw * sizeof(float));
   }
 #endif // DUMP_FLAG
-  llvm::errs() << "  k: (" << kh << "*" << kw << "), "
-               << "s: (" << sh << "*" << sw << "), "
-               << "p: (" << p_t << "-" << p_b
-               << "*" << p_l << "-" << p_r << ")" << "\n";
+  LLVM_DEBUG(
+    llvm::errs() << "  k: (" << kh << "*" << kw << "), "
+                 << "s: (" << sh << "*" << sw << "), "
+                 << "p: (" << p_t << "-" << p_b
+                 << "*" << p_l << "-" << p_r << ")" << "\n";
+  );
 
   using tag = memory::format_tag;
   using dt = memory::data_type;
@@ -446,8 +452,10 @@ static int my_relu(float *input, float *output,
         (const char *)input, n * c * h * w * sizeof(float));
   }
 #endif // DUMP_FLAG
-  llvm::errs() << "  n: " << n << ", c: " << c
-               << ", h: " << h << ", w: " << w << "\n";
+  LLVM_DEBUG(
+    llvm::errs() << "  n: " << n << ", c: " << c
+                 << ", h: " << h << ", w: " << w << "\n";
+  );
 
   for (int i = 0; i < n * c * h * w; ++i) {
     if (input[i] >= 0) {
@@ -631,10 +639,12 @@ static inline int8_t rshiftAndSaturate(float v, uint32_t rshift) {
   int q_i = (int)roundf(q_f);
   #endif
   //assert( (q <= 127) && (q >= -128) );
-  if ( (q_i > 127) || (q_i < -128) ) {
-    llvm::errs() << "  element exceeds limits [-128, 127] : "
-                 << v << " -> " << q_i << "\n";
-  }
+  DEBUG_WITH_TYPE(DEBUG_TYPE"_WARNING",
+    if ( (q_i > 127) || (q_i < -128) ) {
+      llvm::errs() << "  element exceeds limits [-128, 127] : "
+                   << v << " -> " << q_i << "\n";
+    }
+  );
   if ( q_i > 127 )
     q_i = 127;
   if ( q_i < -128 )
@@ -652,10 +662,12 @@ static inline int8_t divideMultiplierAndSaturate(float v, float multiplier) {
   int q_i = (int)roundf(q_f);
   #endif
   //assert( (q <= 127) && (q >= -128) );
-  if ( (q_i > 127) || (q_i < -128) ) {
-    llvm::errs() << "  element exceeds limits [-128, 127] : "
-                 << v << " -> " << q_i << "\n";
-  }
+  DEBUG_WITH_TYPE(DEBUG_TYPE"_WARNING",
+    if ( (q_i > 127) || (q_i < -128) ) {
+      llvm::errs() << "  element exceeds limits [-128, 127] : "
+                   << v << " -> " << q_i << "\n";
+    }
+  );
   if ( q_i > 127 )
     q_i = 127;
   if ( q_i < -128 )
@@ -752,9 +764,9 @@ static llvm::StringRef getOpName(Operation *op) {
 LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
   // #include "mlir/Dialect/LLVMIR/LLVMConversions.inc"
   if (auto loadFileOp = dyn_cast<tpu::LoadFileOp>(opInst)) {
-    llvm::errs() << "LoadFileOp" << "\n";
+    LLVM_DEBUG(llvm::errs() << "LoadFileOp" << "\n";);
     auto filename = loadFileOp.getAttrOfType<StringAttr>("filename").getValue();
-    llvm::errs() << "  filename " << filename << "\n";
+    LLVM_DEBUG(llvm::errs() << "  filename " << filename << "\n";);
     weight_is = std::make_unique<std::ifstream>(filename.str(),
         std::ios::in | std::ios::binary);
     auto filename_tensorfile = llvm::sys::path::stem(filename).str() + ".npz";
@@ -763,13 +775,13 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     return success();
   }
   if (auto loadWeightOp = dyn_cast<tpu::LoadWeightOp>(opInst)) {
-    llvm::errs() << "LoadWeightOp" << "\n";
+    LLVM_DEBUG(llvm::errs() << "LoadWeightOp" << "\n";);
 
     auto result = loadWeightOp.getResult();
-    llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";
+    LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";);
     if (loadWeightOp.name().hasValue()) {
       auto tensor_name = loadWeightOp.name().getValue();
-      llvm::errs() << "  tensor_name " << tensor_name << "\n";
+      LLVM_DEBUG(llvm::errs() << "  tensor_name " << tensor_name << "\n";);
       auto type = result->getType().cast<TensorType>();
       auto tensor = weight_file->readTensor<float>(tensor_name, type);
 
@@ -777,7 +789,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     } else {
       assert(loadWeightOp.offset().hasValue());
       auto offset = loadWeightOp.offset().getValue().getLimitedValue();
-      llvm::errs() << "  offset " << offset << "\n";
+      LLVM_DEBUG(llvm::errs() << "  offset " << offset << "\n";);
       std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
       assert(shape.size() <= 4);
       auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
@@ -791,24 +803,24 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     return success();
   }
   if (auto op = dyn_cast<tpu::InputOp>(opInst)) {
-    llvm::errs() << "InputOp" << "\n";
+    LLVM_DEBUG(llvm::errs() << "InputOp" << "\n";);
     //op.dump();
     //assert(op.getNumOperands() == 3);
     std::vector<std::vector<float> *> operand_tensors;
     unsigned int operandIdx = 0;
     {
       auto operand = op.getOperand();
-      llvm::errs() << "  operand[" << operandIdx << "] "; operand->getType().dump(); llvm::errs() << "\n";
+      LLVM_DEBUG(llvm::errs() << "  operand[" << operandIdx << "] "; operand->getType().dump(); llvm::errs() << "\n";);
       // find operand in valueMapping
       auto it = valueMapping.find(operand);
       if (it == valueMapping.end()) {
         llvm::errs() << "    didn't find\n";
         assert(0);
       } else {
-        llvm::errs() << "    found in map\n";
+        LLVM_DEBUG(llvm::errs() << "    found in map\n";);
         auto vec = it->second.get();
         if (vec) {
-          llvm::errs() << "      vec size = " << vec->size() << "\n";
+          LLVM_DEBUG(llvm::errs() << "      vec size = " << vec->size() << "\n";);
         } else {
           llvm::errs() << "      vec is nullptr\n";
         }
@@ -818,7 +830,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     }
 
     auto result = op.getResult();
-    llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";
+    LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";);
     std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
     assert(shape.size() == 4);
     auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
@@ -834,23 +846,23 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     return success();
   }
   if (auto op = dyn_cast<tpu::Conv2DOp>(opInst)) {
-    llvm::errs() << "Conv2DOp" << "\n";
+    LLVM_DEBUG(llvm::errs() << "Conv2DOp" << "\n";);
     //op.dump();
     //assert(op.getNumOperands() == 3);
     std::vector<std::vector<float> *> operand_tensors;
     unsigned int operandIdx = 0;
     for (auto *operand : op.getOperands()) {
-      llvm::errs() << "  operand[" << operandIdx << "] "; operand->getType().dump(); llvm::errs() << "\n";
+      LLVM_DEBUG(llvm::errs() << "  operand[" << operandIdx << "] "; operand->getType().dump(); llvm::errs() << "\n";);
       // find operand in valueMapping
       auto it = valueMapping.find(operand);
       if (it == valueMapping.end()) {
         llvm::errs() << "    didn't find\n";
         assert(0);
       } else {
-        llvm::errs() << "    found in map\n";
+        LLVM_DEBUG(llvm::errs() << "    found in map\n";);
         auto vec = it->second.get();
         if (vec) {
-          llvm::errs() << "      vec size = " << vec->size() << "\n";
+          LLVM_DEBUG(llvm::errs() << "      vec size = " << vec->size() << "\n";);
         } else {
           llvm::errs() << "      vec is nullptr\n";
         }
@@ -860,7 +872,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     }
 
     auto result = op.getResult();
-    llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";
+    LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";);
     std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
     assert(shape.size() == 4);
     auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
@@ -938,7 +950,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
         || op.quant() == "INT8_MULTIPLIER") {
       float threshold_x;
       auto status = getPreviousOpThreshold(op, &threshold_x);
-      llvm::errs() << "  conv input quantize, threshold_x = " << std::to_string(threshold_x) << "\n";
+      LLVM_DEBUG(llvm::errs() << "  conv input quantize, threshold_x = " << std::to_string(threshold_x) << "\n";);
       assert(succeeded(status));
       for (size_t i = 0; i < operand_tensors[0]->size(); ++i) {
         mkldnn_input[i] = mkldnn_input[i] * 128.0 / threshold_x;
@@ -984,8 +996,8 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     if (op.quant() == "INT8" || op.quant() == "INT8_PER_CHANNEL"
         || op.quant() == "INT8_MULTIPLIER") {
       float threshold_y = op.threshold_y().getValue().convertToFloat();
-      llvm::errs() << "  conv output dequantize, threshold_y = "
-                   << std::to_string(threshold_y) << "\n";
+      LLVM_DEBUG(llvm::errs() << "  conv output dequantize, threshold_y = "
+                   << std::to_string(threshold_y) << "\n";);
       for (int i = 0; i < size; ++i) {
         mkldnn_output[i] = mkldnn_output[i] * threshold_y / 128.0;
       }
@@ -997,23 +1009,23 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     return success();
   }
   if (auto op = dyn_cast<tpu::Pool2DOp>(opInst)) {
-    llvm::errs() << "Pool2DOp" << "\n";
+    LLVM_DEBUG(llvm::errs() << "Pool2DOp" << "\n";);
     //op.dump();
     //assert(op.getNumOperands() == 1);
     std::vector<std::vector<float> *> operand_tensors;
     {
       auto operand = op.getOperand();
-      llvm::errs() << "  operand[0] "; operand->getType().dump(); llvm::errs() << "\n";
+      LLVM_DEBUG(llvm::errs() << "  operand[0] "; operand->getType().dump(); llvm::errs() << "\n";);
       // find operand in valueMapping
       auto it = valueMapping.find(operand);
       if (it == valueMapping.end()) {
         llvm::errs() << "    didn't find\n";
         assert(0);
       } else {
-        llvm::errs() << "    found in map\n";
+        LLVM_DEBUG(llvm::errs() << "    found in map\n";);
         auto vec = it->second.get();
         if (vec) {
-          llvm::errs() << "      vec size = " << vec->size() << "\n";
+          LLVM_DEBUG(llvm::errs() << "      vec size = " << vec->size() << "\n";);
         } else {
           llvm::errs() << "      vec is nullptr\n";
         }
@@ -1021,7 +1033,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       }
     }
     auto result = op.getResult();
-    llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";
+    LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";);
     std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
     assert(shape.size() <= 4);
     auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
@@ -1077,23 +1089,23 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     return success();
   }
   if (auto op = dyn_cast<tpu::FullyConnectedOp>(opInst)) {
-    llvm::errs() << "FullyConnectedOp" << "\n";
+    LLVM_DEBUG(llvm::errs() << "FullyConnectedOp" << "\n";);
     //op.dump();
     //assert(op.getNumOperands() == 3);
     std::vector<std::vector<float> *> operand_tensors;
     unsigned int operandIdx = 0;
     for (auto *operand : op.getOperands()) {
-      llvm::errs() << "  operand[" << operandIdx << "] "; operand->getType().dump(); llvm::errs() << "\n";
+      LLVM_DEBUG(llvm::errs() << "  operand[" << operandIdx << "] "; operand->getType().dump(); llvm::errs() << "\n";);
       // find operand in valueMapping
       auto it = valueMapping.find(operand);
       if (it == valueMapping.end()) {
         llvm::errs() << "    didn't find\n";
         assert(0);
       } else {
-        llvm::errs() << "    found in map\n";
+        LLVM_DEBUG(llvm::errs() << "    found in map\n";);
         auto vec = it->second.get();
         if (vec) {
-          llvm::errs() << "      vec size = " << vec->size() << "\n";
+          LLVM_DEBUG(llvm::errs() << "      vec size = " << vec->size() << "\n";);
         } else {
           llvm::errs() << "      vec is nullptr\n";
         }
@@ -1103,7 +1115,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     }
 
     auto result = op.getResult();
-    llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";
+    LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";);
     std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
     assert(shape.size() == 2);
     auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
@@ -1145,22 +1157,22 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     return success();
   }
   if (auto op = dyn_cast<tpu::ReluOp>(opInst)) {
-    llvm::errs() << "ReluOp" << "\n";
+    LLVM_DEBUG(llvm::errs() << "ReluOp" << "\n";);
     //op.dump();
     std::vector<std::vector<float> *> operand_tensors;
     {
       auto operand = op.getOperand();
-      llvm::errs() << "  operand[0] "; operand->getType().dump(); llvm::errs() << "\n";
+      LLVM_DEBUG(llvm::errs() << "  operand[0] "; operand->getType().dump(); llvm::errs() << "\n";);
       // find operand in valueMapping
       auto it = valueMapping.find(operand);
       if (it == valueMapping.end()) {
         llvm::errs() << "    didn't find\n";
         assert(0);
       } else {
-        llvm::errs() << "    found in map\n";
+        LLVM_DEBUG(llvm::errs() << "    found in map\n";);
         auto vec = it->second.get();
         if (vec) {
-          llvm::errs() << "      vec size = " << vec->size() << "\n";
+          LLVM_DEBUG(llvm::errs() << "      vec size = " << vec->size() << "\n";);
         } else {
           llvm::errs() << "      vec is nullptr\n";
         }
@@ -1169,7 +1181,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     }
 
     auto result = op.getResult();
-    llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";
+    LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";);
     std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
     assert(shape.size() <= 4);
     auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
@@ -1178,7 +1190,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     // TODO: do the actual compute here
     int n, c, h, w;
     float negative_slope = op.negative_slope().convertToFloat();
-    llvm::errs() << "  negative_slope " << negative_slope << "\n";
+    LLVM_DEBUG(llvm::errs() << "  negative_slope " << negative_slope << "\n";);
     auto input_type = op.x()->getType().cast<TensorType>();
     std::vector<int64_t> i_s(input_type.getShape());
     auto output_type = op.y()->getType().cast<TensorType>();
@@ -1199,22 +1211,22 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     return success();
   }
   if (auto op = dyn_cast<tpu::SoftmaxOp>(opInst)) {
-    llvm::errs() << "SoftmaxOp" << "\n";
+    LLVM_DEBUG(llvm::errs() << "SoftmaxOp" << "\n";);
     //op.dump();
     std::vector<std::vector<float> *> operand_tensors;
     {
       auto operand = op.getOperand();
-      llvm::errs() << "  operand[0] "; operand->getType().dump(); llvm::errs() << "\n";
+      LLVM_DEBUG(llvm::errs() << "  operand[0] "; operand->getType().dump(); llvm::errs() << "\n";);
       // find operand in valueMapping
       auto it = valueMapping.find(operand);
       if (it == valueMapping.end()) {
         llvm::errs() << "    didn't find\n";
         assert(0);
       } else {
-        llvm::errs() << "    found in map\n";
+        LLVM_DEBUG(llvm::errs() << "    found in map\n";);
         auto vec = it->second.get();
         if (vec) {
-          llvm::errs() << "      vec size = " << vec->size() << "\n";
+          LLVM_DEBUG(llvm::errs() << "      vec size = " << vec->size() << "\n";);
         } else {
           llvm::errs() << "      vec is nullptr\n";
         }
@@ -1223,7 +1235,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     }
 
     auto result = op.getResult();
-    llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";
+    LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";);
     std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
     assert(shape.size() == 2);
     auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
@@ -1249,23 +1261,23 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     return success();
   }
   if (auto op = dyn_cast<tpu::BatchNormOp>(opInst)) {
-    llvm::errs() << "BatchNormOp" << "\n";
+    LLVM_DEBUG(llvm::errs() << "BatchNormOp" << "\n";);
     //op.dump();
     assert(op.getNumOperands() == 4);
     std::vector<std::vector<float> *> operand_tensors;
     unsigned int operandIdx = 0;
     for (auto *operand : op.getOperands()) {
-      llvm::errs() << "  operand[" << operandIdx << "] "; operand->getType().dump(); llvm::errs() << "\n";
+      LLVM_DEBUG(llvm::errs() << "  operand[" << operandIdx << "] "; operand->getType().dump(); llvm::errs() << "\n";);
       // find operand in valueMapping
       auto it = valueMapping.find(operand);
       if (it == valueMapping.end()) {
         llvm::errs() << "    didn't find\n";
         assert(0);
       } else {
-        llvm::errs() << "    found in map\n";
+        LLVM_DEBUG(llvm::errs() << "    found in map\n";);
         auto vec = it->second.get();
         if (vec) {
-          llvm::errs() << "      vec size = " << vec->size() << "\n";
+          LLVM_DEBUG(llvm::errs() << "      vec size = " << vec->size() << "\n";);
         } else {
           llvm::errs() << "      vec is nullptr\n";
         }
@@ -1275,7 +1287,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     }
 
     auto result = op.getResult();
-    llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";
+    LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";);
     std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
     assert(shape.size() <= 4);
     auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
@@ -1306,23 +1318,23 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     return success();
   }
   if (auto op = dyn_cast<tpu::ScaleOp>(opInst)) {
-    llvm::errs() << "ScaleOp" << "\n";
+    LLVM_DEBUG(llvm::errs() << "ScaleOp" << "\n";);
     //op.dump();
     //assert(op.getNumOperands() == 3);
     std::vector<std::vector<float> *> operand_tensors;
     unsigned int operandIdx = 0;
     for (auto *operand : op.getOperands()) {
-      llvm::errs() << "  operand[" << operandIdx << "] "; operand->getType().dump(); llvm::errs() << "\n";
+      LLVM_DEBUG(llvm::errs() << "  operand[" << operandIdx << "] "; operand->getType().dump(); llvm::errs() << "\n";);
       // find operand in valueMapping
       auto it = valueMapping.find(operand);
       if (it == valueMapping.end()) {
         llvm::errs() << "    didn't find\n";
         assert(0);
       } else {
-        llvm::errs() << "    found in map\n";
+        LLVM_DEBUG(llvm::errs() << "    found in map\n";);
         auto vec = it->second.get();
         if (vec) {
-          llvm::errs() << "      vec size = " << vec->size() << "\n";
+          LLVM_DEBUG(llvm::errs() << "      vec size = " << vec->size() << "\n";);
         } else {
           llvm::errs() << "      vec is nullptr\n";
         }
@@ -1332,7 +1344,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     }
 
     auto result = op.getResult();
-    llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";
+    LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";);
     std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
     assert(shape.size() <= 4);
     auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
@@ -1366,23 +1378,23 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     return success();
   }
   if (auto op = dyn_cast<tpu::EltwiseOp>(opInst)) {
-    llvm::errs() << "EltwiseOp" << "\n";
+    LLVM_DEBUG(llvm::errs() << "EltwiseOp" << "\n";);
     //op.dump();
     assert(op.getNumOperands() == 2);
     std::vector<std::vector<float> *> operand_tensors;
     unsigned int operandIdx = 0;
     for (auto *operand : op.getOperands()) {
-      llvm::errs() << "  operand[" << operandIdx << "] "; operand->getType().dump(); llvm::errs() << "\n";
+      LLVM_DEBUG(llvm::errs() << "  operand[" << operandIdx << "] "; operand->getType().dump(); llvm::errs() << "\n";);
       // find operand in valueMapping
       auto it = valueMapping.find(operand);
       if (it == valueMapping.end()) {
         llvm::errs() << "    didn't find\n";
         assert(0);
       } else {
-        llvm::errs() << "    found in map\n";
+        LLVM_DEBUG(llvm::errs() << "    found in map\n";);
         auto vec = it->second.get();
         if (vec) {
-          llvm::errs() << "      vec size = " << vec->size() << "\n";
+          LLVM_DEBUG(llvm::errs() << "      vec size = " << vec->size() << "\n";);
         } else {
           llvm::errs() << "      vec is nullptr\n";
         }
@@ -1392,7 +1404,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     }
 
     auto result = op.getResult();
-    llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";
+    LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";);
     std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
     assert(shape.size() <= 4);
     auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
@@ -1424,22 +1436,22 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     return success();
   }
   if (auto op = dyn_cast<tpu::ReshapeOp>(opInst)) {
-    llvm::errs() << "ReshapeOp" << "\n";
+    LLVM_DEBUG(llvm::errs() << "ReshapeOp" << "\n";);
     //op.dump();
     std::vector<std::vector<float> *> operand_tensors;
     {
       auto operand = op.getOperand();
-      llvm::errs() << "  operand[0] "; operand->getType().dump(); llvm::errs() << "\n";
+      LLVM_DEBUG(llvm::errs() << "  operand[0] "; operand->getType().dump(); llvm::errs() << "\n";);
       // find operand in valueMapping
       auto it = valueMapping.find(operand);
       if (it == valueMapping.end()) {
         llvm::errs() << "    didn't find\n";
         assert(0);
       } else {
-        llvm::errs() << "    found in map\n";
+        LLVM_DEBUG(llvm::errs() << "    found in map\n";);
         auto vec = it->second.get();
         if (vec) {
-          llvm::errs() << "      vec size = " << vec->size() << "\n";
+          LLVM_DEBUG(llvm::errs() << "      vec size = " << vec->size() << "\n";);
         } else {
           llvm::errs() << "      vec is nullptr\n";
         }
@@ -1448,7 +1460,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     }
 
     auto result = op.getResult();
-    llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";
+    LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";);
     std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
     assert(shape.size() <= 4);
     auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
@@ -1473,7 +1485,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
   }
 
   if (auto op = dyn_cast<ConstantOp>(opInst)) {
-    llvm::errs() << "ConstantOp" << "\n";
+    LLVM_DEBUG(llvm::errs() << "ConstantOp" << "\n";);
     //op.dump();
     // TODO: use specific Op for null operand
     // only support zero constant for now
@@ -1487,21 +1499,21 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
   }
 
   if (auto op = dyn_cast<ReturnOp>(opInst)) {
-    llvm::errs() << "ReturnOp" << "\n";
+    LLVM_DEBUG(llvm::errs() << "ReturnOp" << "\n";);
     //op.dump();
     std::vector<float> *return_vec;
     unsigned int operandIdx = 0;
     for (auto *operand : op.getOperands()) {
-      llvm::errs() << "  operand[" << operandIdx << "] "; operand->getType().dump(); llvm::errs() << "\n";
+      LLVM_DEBUG(llvm::errs() << "  operand[" << operandIdx << "] "; operand->getType().dump(); llvm::errs() << "\n";);
       // find operand in valueMapping
       auto it = valueMapping.find(operand);
       if (it == valueMapping.end()) {
         llvm::errs() << "    didn't find\n";
         assert(0);
       } else {
-        llvm::errs() << "    found in map\n";
+        LLVM_DEBUG(llvm::errs() << "    found in map\n";);
         return_vec = it->second.get();
-        llvm::errs() << "      vec size = " << return_vec->size() << "\n";
+        LLVM_DEBUG(llvm::errs() << "      vec size = " << return_vec->size() << "\n";);
       }
       operandIdx++;
     }
@@ -1528,7 +1540,7 @@ LogicalResult ModuleInterpreter::runBlock(Block &bb) {
 }
 
 LogicalResult ModuleInterpreter::runOneFunction(FuncOp func) {
-  llvm::errs() << "func " << func.getName() << "\n";
+  LLVM_DEBUG(llvm::errs() << "func " << func.getName() << "\n";);
   // Clear the value mappings, it is only relevant within one function.
   valueMapping.clear();
 
@@ -1536,9 +1548,11 @@ LogicalResult ModuleInterpreter::runOneFunction(FuncOp func) {
   unsigned int argIdx = 0;
   assert(inputs_.size() == 1);
   for (auto arg : func.getArguments()) {
-    llvm::errs() << "arg " << argIdx << ": ";
-    arg->getType().dump();
-    llvm::errs() << "\n";
+    LLVM_DEBUG(
+      llvm::errs() << "arg " << argIdx << ": ";
+      arg->getType().dump();
+      llvm::errs() << "\n";
+    );
 
     // copy the inputs_[0] into a unique_ptr pointed vector
     // TODO: pass input as unique_ptr directly
@@ -1557,7 +1571,7 @@ LogicalResult ModuleInterpreter::runOneFunction(FuncOp func) {
 
   if (clAllTensorFilename != "-") {
     // dump all values
-    llvm::errs() << "valueMapping size " << valueMapping.size() << "\n";
+    LLVM_DEBUG(llvm::errs() << "valueMapping size " << valueMapping.size() << "\n";);
     auto TensorOut = openOutputTensorFile(clAllTensorFilename);
     for (auto it = valueMapping.begin(); it != valueMapping.end(); it++ ) {
       auto op = it->first->getDefiningOp();
@@ -1565,11 +1579,11 @@ LogicalResult ModuleInterpreter::runOneFunction(FuncOp func) {
         //it->first->dump();
         continue;
       }
-      llvm::errs() << op->getName() << " : " << getOpName(op) << "\n";
+      LLVM_DEBUG(llvm::errs() << op->getName() << " : " << getOpName(op) << "\n";);
       auto vec = it->second.get();
       assert(vec);
       auto type = it->first->getType().dyn_cast<mlir::TensorType>();
-      llvm::errs() << "  vec size = " << vec->size() << "\n";
+      LLVM_DEBUG(llvm::errs() << "  vec size = " << vec->size() << "\n";);
       TensorOut->addTensor(getOpName(op), vec, type);
     }
   }
@@ -1579,7 +1593,7 @@ LogicalResult ModuleInterpreter::runOneFunction(FuncOp func) {
 
 LogicalResult ModuleInterpreter::runFunctions() {
   for (FuncOp function : mlirModule.getOps<FuncOp>()) {
-    llvm::errs() << "run " << function.getName() << "\n";
+    LLVM_DEBUG(llvm::errs() << "run " << function.getName() << "\n";);
 
     if (!function.getName().equals("tpu_func")) {
       //continue;
