@@ -100,6 +100,8 @@ add_subdirectory(lib)
 add_subdirectory(tools)
 add_subdirectory(unittests)
 add_subdirectory(test)
+add_subdirectory(third_party)
+add_subdirectory(bindings/python)
 
 if( LLVM_INCLUDE_EXAMPLES )
   add_subdirectory(examples)

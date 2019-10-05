@@ -45,6 +45,16 @@ $ cmake -DCMAKE_INSTALL_PREFIX=../install ..
 $ cmake --build . --target install
 ```
 
+4. pybind11
+
+clone pybind11 into third_party
+```
+$ cd mlir/third_party
+$ git clone https://github.com/pybind/pybind11
+```
+
+TODO: add as submodule
+
 ### build mlir
 
 ```
@@ -76,6 +86,7 @@ check
 ```
 $ vim resnet-50.mlir
 $ python npz_list.py ResNet-50-model.npz
+$ python npz_dump.py ResNet-50-model.npz conv1_0
 ```
 
 ### 2. run fp32 inference with mlir-tpu-interpreter
@@ -266,15 +277,41 @@ $ python bin_compare.py out.bin out-quant-int8-multiplier.bin float32 1 1 1 1000
 
 * TODO
 
-### 6. run quantized model with interpreter
+### 6. python wrapper for interpreter
 
-### 7. python wrapper for interpreter
+#### 6.1 python wrapper
 
-### 8. calibration with interpreter
+clone pybind11 into third_party
+```
+$ cd third_party
+$ git clone https://github.com/pybind/pybind11
+```
 
-### 9. accuracy regression
+TODO: add as submodule
 
-### 10. codegen from tpu dialect
+to build pymlir.so
+```
+$ cmake --build . --target pymlir
+```
+
+find pymlir.so in ./lib, to setup PYTHONPATH
+```
+$ export PYTHONPATH=./lib:$PYTHONPATH
+```
+
+#### 6.3 run inference
+
+set PYTHONPATH first
+```
+$ python ../llvm/projects/mlir/bindings/python/tools/run_inference.py \
+    resnet-50.mlir
+```
+
+#### 6.4 accuracy regression
+
+### 7. calibration with interpreter (python version)
+
+### 8. codegen from tpu dialect
 
 Codegen into bmkernel script (asm)
 
