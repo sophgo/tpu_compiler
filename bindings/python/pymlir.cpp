@@ -47,28 +47,15 @@ static OwningModuleRef parseMLIRInput(StringRef inputFilename,
   return OwningModuleRef(parseSourceFile(sourceMgr, context));
 }
 
-#if 0
-int TpuInterpreterMain(std::string filename,
-    int argc, char **argv,
+static int runTpuInterpreter(OwningModuleRef &m,
+    std::vector<float> &input, std::vector<float> &output,
     llvm::function_ref<LogicalResult(mlir::ModuleOp)> mlirTransformer) {
-
-  llvm::cl::ParseCommandLineOptions(argc, argv, "MLIR TPU interpreter driver\n");
-
-  MLIRContext context;
-  auto m = parseMLIRInput(inputFilename, &context);
-  if (!m) {
-    llvm::errs() << "could not parse the input IR\n";
-    return 1;
-  }
-
   if (mlirTransformer)
     if (failed(mlirTransformer(m.get())))
       return EXIT_FAILURE;
 
-  std::vector<float> input(1*3*224*224);
-  std::vector<float> output(1*1000);
-  //std::fill (std::begin(input), std::end(input), 1.0f);
-  read_bianry_file(inputTensorFilename, input);
+  //std::vector<float> input(1*3*224*224);
+  //std::vector<float> output(1*1000);
 
   std::vector<std::vector<float> *> inputs({&input});
   std::vector<std::vector<float> *> outputs({&output});
@@ -76,16 +63,9 @@ int TpuInterpreterMain(std::string filename,
   if (failed(runTpuModule(m.get(), inputs, outputs)))
     return EXIT_FAILURE;
 
-  if (outputTensorFilename == "-") {
-    dump_data_float_abs("output", outputs[0]->data(), 1, 1, 10, 100);
-  } else {
-    write_bianry_file(outputTensorFilename, output);
-  }
-
   int exitCode = EXIT_SUCCESS;
   return exitCode;
 }
-#endif
 
 // ----------------
 // Python interface
@@ -114,6 +94,38 @@ public:
     module->dump();
   }
 
+  // wrap C++ function with NumPy array IO
+  py::array run(py::array_t<float, py::array::c_style | py::array::forcecast> array) {
+    std::vector<float> input(array.size());
+    // copy py::array -> std::vector
+    std::memcpy(input.data(), array.data(), array.size() * sizeof(float));
+
+    // run intererence
+    std::vector<float> output(1*1000);
+    int status = runTpuInterpreter(module, input, output, nullptr);
+    assert(status == EXIT_SUCCESS);
+
+    // return NumPy array
+    //ssize_t ndim = array.ndim();
+    //std::vector<ssize_t> shape(ndim);
+    //shape.assign(array.shape(), array.shape() + ndim);
+    //std::vector<ssize_t> strides(ndim);
+    //strides.assign(array.strides(), array.strides() + ndim);
+
+    //ssize_t ndim = 2;
+    //std::vector<ssize_t> shape(1, 1000);
+    //std::vector<ssize_t> strides(1000 * sizeof(float), sizeof(float));
+
+    return py::array(py::buffer_info(
+      output.data(),                           /* data as contiguous array  */
+      sizeof(float),                           /* size of one scalar        */
+      py::format_descriptor<float>::format(),  /* data type                 */
+      2, //ndim,                                    /* number of dimensions      */
+      {1, 1000}, //shape,                                   /* shape of the matrix       */
+      {1000 * sizeof(float), sizeof(float)} //strides                                  /* strides for each axis     */
+    ));
+  }
+
 private:
   MLIRContext context;
   OwningModuleRef module;
@@ -129,5 +141,7 @@ PYBIND11_MODULE(pymlir,m)
     .def("load", &py_module::load,
          "load module from IR")
     .def("dump", &py_module::dump,
-         "dump module");
+         "dump module")
+    .def("run", &py_module::run,
+         "run module inference with input array, and return output array");
 }

@@ -303,8 +303,12 @@ $ export PYTHONPATH=./lib:$PYTHONPATH
 
 set PYTHONPATH first
 ```
+$ python bin_to_npy.py \
+    /data/release/bmnet_models/resnet50/resnet50_input_1_3_224_224.bin \
+    float32 1 3 224 224 \
+    resnet50_input_1_3_224_224.npy
 $ python ../llvm/projects/mlir/bindings/python/tools/run_inference.py \
-    resnet-50.mlir
+    resnet-50.mlir resnet50_input_1_3_224_224.npy
 ```
 
 #### 6.4 accuracy regression
