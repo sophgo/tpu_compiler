@@ -299,7 +299,7 @@ find pymlir.so in ./lib, to setup PYTHONPATH
 $ export PYTHONPATH=./lib:$PYTHONPATH
 ```
 
-#### 6.3 run inference
+#### 6.2 run inference
 
 set PYTHONPATH first
 ```
@@ -311,7 +311,18 @@ $ python ../llvm/projects/mlir/bindings/python/tools/run_inference.py \
     resnet-50.mlir resnet50_input_1_3_224_224.npy
 ```
 
-#### 6.4 accuracy regression
+#### 6.3 accuracy regression
+
+use mxnet.gluon to load data
+```
+$ pip install --user mxnet
+$ pip install --user gluoncv
+
+$ python ../llvm/projects/mlir/bindings/python/tools/run_classification.py \
+--model=resnet-50.mlir \
+--dataset=/data/dataset/imagenet/img_val_extracted \
+--count=100
+```
 
 ### 7. calibration with interpreter (python version)
 
