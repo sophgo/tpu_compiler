@@ -321,6 +321,7 @@ $ pip install --user gluoncv
 $ python ../llvm/projects/mlir/bindings/python/tools/run_classification.py \
 --model=resnet-50.mlir \
 --dataset=/data/dataset/imagenet/img_val_extracted \
+--mean_file=../llvm/projects/mlir/bindings/python/tools/mean_resize.npy \
 --count=100
 ```
 

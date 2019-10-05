@@ -16,6 +16,7 @@ import pymlir
 parser = argparse.ArgumentParser(description="Classification Evaluation on ImageNet Dataset.")
 parser.add_argument("--model", type=str)
 parser.add_argument("--dataset", type=str, help="The root directory of the ImageNet dataset.")
+parser.add_argument("--mean_file", type=str, help="the resized ImageNet dataset mean file.")
 parser.add_argument("--count", type=int, default=50000)
 parser.add_argument("--dump_data", type=bool, default=False)
 parser.add_argument("--show", type=bool, default=False)
@@ -81,26 +82,14 @@ if __name__ == '__main__':
     # Do more transform
     orig_img = data[0].asnumpy().astype('uint8')
     img = np.transpose(orig_img[0], (2, 0, 1))
-    d = img.astype(np.float32)
-    scale = 0.40
-    delta = 0.03
-    # R_MEAN = 255 * (0.485 - delta)
-    # G_MEAN = 255 * (0.456 - delta)
-    # B_MEAN = 255 * (0.406 - delta)
-    R_MEAN = np.mean(d[0].ravel())
-    G_MEAN = np.mean(d[1].ravel())
-    B_MEAN = np.mean(d[2].ravel())
-    d[0] = d[0] - R_MEAN
-    d[1] = d[1] - G_MEAN
-    d[2] = d[2] - B_MEAN
-    d = d * scale
-    # img = d.astype(np.int8)
-    # print('mean int8', np.mean(np.reshape(img, (3, -1)), axis=1))
-    # print('std int8', np.std(np.reshape(img, (3, -1)), axis=1))
+    img_swap = img[[2,1,0], :, :]
+    print('mean int8', np.mean(np.reshape(img_swap, (3, -1)), axis=1))
+    print('std int8', np.std(np.reshape(img_swap, (3, -1)), axis=1))
+    d = img_swap.astype(np.float32)
+    mean = np.load(args.mean_file)
     # expand to 4-D again
     x = np.expand_dims(d, axis=0)
-    # print('image shape', img.shape)
-    # print('image dtype', img.dtype)
+    x -= mean
     #inputs = np.ascontiguousarray(img)
 
     # Perform forward pass
