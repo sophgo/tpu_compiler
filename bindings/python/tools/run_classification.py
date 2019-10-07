@@ -123,5 +123,5 @@ if __name__ == '__main__':
   # Print results
   _, top1 = acc_top1.get()
   _, top5 = acc_top5.get()
-  print("Top-1 accuracy: {}, Top-5 accuracy: {}".format(top1, top5))
+  print("Top-1 accuracy: {:.4f}, Top-5 accuracy: {:.4f}".format(top1, top5))
 

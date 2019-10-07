@@ -13,7 +13,7 @@ add_llvm_library(MLIRTPU
   Transforms/FoldScale.cpp
   Transforms/FuseScaleIntoConv.cpp
   Conversion/ImportCalibrationTable.cpp
-  Conversion/QuantizeInt8PerLayer.cpp
+  Conversion/QuantizeInt8.cpp
   Interpreter/TpuInterpreter.cpp
 
   ADDITIONAL_HEADER_DIRS
