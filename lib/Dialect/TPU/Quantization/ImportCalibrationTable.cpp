@@ -21,6 +21,7 @@
 
 #include "mlir/Dialect/TPU/TPUDialect.h"
 #include "mlir/Dialect/TPU/Passes.h"
+#include "mlir/Dialect/TPU/QuantizationUtils.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/StandardTypes.h"
@@ -42,6 +43,46 @@ static llvm::cl::opt<std::string> clCalibrationTableFilename(
     llvm::cl::cat(clOptionsCategory));
 
 namespace {
+
+/// bypass pool quantization by assigning threshold_y same as threshold_x.
+/// for max pooling, threshold_y is always larger than threshold_x,
+/// however, if one value exceed the quantization range, it has been saturated
+/// already, an extra multiplier does not help.
+/// for avg pooling, threshold_y is smaller than threshold_x,
+/// we shall keep the quantization (i.e. multiply with a multiplier)
+struct BypassPoolQuantPattern : public OpRewritePattern<tpu::Pool2DOp> {
+  using OpRewritePattern<tpu::Pool2DOp>::OpRewritePattern;
+
+  PatternMatchResult matchAndRewrite(tpu::Pool2DOp op,
+                                     PatternRewriter &rewriter) const {
+    float threshold_x;
+    auto status = getPreviousOpThreshold(op, &threshold_x);
+    assert(succeeded(status));
+    float threshold_y = op.threshold_y().getValue().convertToFloat();
+    if (threshold_y > threshold_x) {
+      op.setAttr("threshold_y", rewriter.getF32FloatAttr(threshold_x));
+      return matchSuccess();
+    } else {
+      return matchFailure();
+    }
+  }
+};
+
+/// bypass relu quantization by assigning threshold_y same as threshold_x.
+/// for same reason as bypassing max pool.
+struct BypassReluQuantPattern : public OpRewritePattern<tpu::ReluOp> {
+  using OpRewritePattern<tpu::ReluOp>::OpRewritePattern;
+
+  PatternMatchResult matchAndRewrite(tpu::ReluOp op,
+                                     PatternRewriter &rewriter) const {
+    float threshold_x;
+    auto status = getPreviousOpThreshold(op, &threshold_x);
+    assert(succeeded(status));
+    op.setAttr("threshold_y", rewriter.getF32FloatAttr(threshold_x));
+
+    return matchSuccess();
+  }
+};
 
 class ImportCalibrationTablePass : public FunctionPass<ImportCalibrationTablePass> {
 public:
@@ -71,17 +112,6 @@ public:
     fn.walk([&](Operation *op) {
       os << op->getName() << "\n";
 
-      # if 0
-      auto convOp = llvm::dyn_cast_or_null<tpu::Conv2DOp>(op);
-      if (convOp) {
-        assert(convOp.name().hasValue());
-        std::string op_name = convOp.name().getValue().str();
-        assert(threshold_map[op_name]);
-        float threshold = threshold_map[op_name];
-        os << " > " << op_name << ", " << threshold << "\n";
-        convOp.setAttr("threshold_y", builder.getF32FloatAttr(threshold));
-      }
-      #endif
       addThresholdAttr<tpu::InputOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::Conv2DOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::FullyConnectedOp>(builder, threshold_map, op);
@@ -92,6 +122,11 @@ public:
       addThresholdAttr<tpu::EltwiseOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::SoftmaxOp>(builder, threshold_map, op);
     });
+
+    OwningRewritePatternList patterns;
+    //auto *context = &getContext();
+    patterns.insert<BypassPoolQuantPattern, BypassReluQuantPattern>(context);
+    applyPatternsGreedily(fn, patterns);
   }
 
 private:

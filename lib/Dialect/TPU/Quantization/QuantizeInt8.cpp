@@ -21,6 +21,7 @@
 
 #include "mlir/Dialect/TPU/TPUDialect.h"
 #include "mlir/Dialect/TPU/Passes.h"
+#include "mlir/Dialect/TPU/QuantizationUtils.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/StandardTypes.h"
@@ -151,49 +152,7 @@ static inline int32_t quantizeBiasMultiplier(float w, float threshold_y,
   return (int32_t)q;
 }
 
-static LogicalResult getPreviousOpThreshold(Operation *op, float *threshold) {
-  if (op->getNumOperands() == 0) {
-    return failure();
-  }
-  auto formerOp = op->getOperand(0)->getDefiningOp();
-  if (auto cast_op = llvm::dyn_cast_or_null<tpu::InputOp>(formerOp)) {
-    *threshold = cast_op.threshold_y().getValue().convertToFloat();
-    return success();
-  }
-  if (auto cast_op = llvm::dyn_cast_or_null<tpu::Conv2DOp>(formerOp)) {
-    *threshold = cast_op.threshold_y().getValue().convertToFloat();
-    return success();
-  }
-  if (auto cast_op = llvm::dyn_cast_or_null<tpu::FullyConnectedOp>(formerOp)) {
-    *threshold = cast_op.threshold_y().getValue().convertToFloat();
-    return success();
-  }
-  if (auto cast_op = llvm::dyn_cast_or_null<tpu::Pool2DOp>(formerOp)) {
-    *threshold = cast_op.threshold_y().getValue().convertToFloat();
-    return success();
-  }
-  if (auto cast_op = llvm::dyn_cast_or_null<tpu::BatchNormOp>(formerOp)) {
-    *threshold = cast_op.threshold_y().getValue().convertToFloat();
-    return success();
-  }
-  if (auto cast_op = llvm::dyn_cast_or_null<tpu::ScaleOp>(formerOp)) {
-    *threshold = cast_op.threshold_y().getValue().convertToFloat();
-    return success();
-  }
-  if (auto cast_op = llvm::dyn_cast_or_null<tpu::ReluOp>(formerOp)) {
-    *threshold = cast_op.threshold_y().getValue().convertToFloat();
-    return success();
-  }
-  if (auto cast_op = llvm::dyn_cast_or_null<tpu::EltwiseOp>(formerOp)) {
-    *threshold = cast_op.threshold_y().getValue().convertToFloat();
-    return success();
-  }
-  if (auto cast_op = llvm::dyn_cast_or_null<tpu::SoftmaxOp>(formerOp)) {
-    *threshold = cast_op.threshold_y().getValue().convertToFloat();
-    return success();
-  }
-  return failure();
-}
+namespace {
 
 template<typename T>
 static LogicalResult getOpThreshold(T &op, float *threshold_y, float *threshold_x) {
@@ -207,8 +166,6 @@ static LogicalResult getOpThreshold(T &op, float *threshold_y, float *threshold_
       << "\n";
   return status;
 }
-
-namespace {
 
 struct TpuQuantConv2DOpPattern : public RewritePattern {
   TpuQuantConv2DOpPattern(MLIRContext *context, TensorFile *weightTensorFile,
