@@ -540,6 +540,33 @@ struct TpuQuantFullyConnectedOpPattern : public RewritePattern {
   Value* weightFileVar_;
 };
 
+struct TpuQuantPool2DOpPattern : public RewritePattern {
+  TpuQuantPool2DOpPattern(MLIRContext *context, TensorFile *weightTensorFile,
+      Value* weightFileVar)
+      : RewritePattern("tpu.pool_2d", 1, context),
+        weightTensorFile_(weightTensorFile),
+        weightFileVar_(weightFileVar) {}
+
+  PatternMatchResult matchAndRewrite(Operation *op,
+                                     PatternRewriter &rewriter) const override {
+    auto poolOp = cast<tpu::Pool2DOp>(op);
+    std::string op_name = poolOp.getAttrOfType<StringAttr>("name").getValue().str();
+    //auto loc = op->getLoc();
+
+    if (poolOp.quant() != "NONE") {
+      llvm::errs() << poolOp.name() << " quantized already\n";
+      return matchFailure();
+    }
+
+    poolOp.setAttr("quant", rewriter.getStringAttr("INT8"));
+
+    return matchSuccess();
+  }
+
+  TensorFile *weightTensorFile_;
+  Value* weightFileVar_;
+};
+
 struct TpuQuantEltwiseOpPattern : public RewritePattern {
   TpuQuantEltwiseOpPattern(MLIRContext *context, TensorFile *weightTensorFile,
       Value* weightFileVar)
@@ -596,6 +623,7 @@ public:
     auto *context = &getContext();
     patterns.insert<TpuQuantConv2DOpPattern>(context, weightTensorFile.get(), weightFileVar);
     patterns.insert<TpuQuantFullyConnectedOpPattern>(context, weightTensorFile.get(), weightFileVar);
+    patterns.insert<TpuQuantPool2DOpPattern>(context, weightTensorFile.get(), weightFileVar);
     patterns.insert<TpuQuantEltwiseOpPattern>(context, weightTensorFile.get(), weightFileVar);
     applyPatternsGreedily(fn, patterns);
   }

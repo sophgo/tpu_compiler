@@ -1046,11 +1046,72 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       assert(false);
     }
     float *mkldnn_input = (float *)operand_tensors[0]->data();
+
+    // for INT8, get threshold_x and make copy of input first
+    std::vector<float> input_copy;
+    float threshold_x;
+    float threshold_y;
+    if (op.quant() == "INT8" && is_average_pool) {
+      // make copy
+      std::vector<float> &src_vec = *operand_tensors[0];
+      std::copy(src_vec.begin(), src_vec.end(), back_inserter(input_copy));
+      mkldnn_input = input_copy.data();
+
+      // get threshold_x
+      auto status = getPreviousOpThreshold(op, &threshold_x);
+      assert(succeeded(status));
+      // get threshold_y
+      threshold_y = op.threshold_y().getValue().convertToFloat();
+    }
+
+    // do quantize on input
+    // remove this when the network is full int8, and passed legalization
+    if (op.quant() == "INT8" && is_average_pool) {
+      for (size_t i = 0; i < operand_tensors[0]->size(); ++i) {
+        mkldnn_input[i] = mkldnn_input[i] * 128.0 / threshold_x;
+      }
+    }
+
     float *mkldnn_output = (float *)result_tensor.get()->data();
     int mkldnn_ret = mkldnn_pool(mkldnn_input, mkldnn_output,
         n, c, ih, iw, oh, ow, kh, kw, sh, sw, ph, pw, is_average_pool);
     assert(mkldnn_ret == 0);
     //dump_data_float_abs("mkldnn_output", mkldnn_output, n, c, oh, ow);
+
+    // do quantize for average pooling, max poolings are bypassed
+    if (op.quant() == "INT8" && is_average_pool) {
+      // determine multiplier and rshift according to threshold_x
+      // scale = threshold_x / threshold_y
+      // scale will be implemented by hardware as
+      // scale = multiplier / (1 << rshift)
+      // find a rshift, that put max(multiplier) into range (64, 127)
+      uint32_t rshift;
+      int8_t multiplier;
+      rshift = findRShiftFromScale(threshold_x / threshold_y);
+      float scale = threshold_x / threshold_y;
+      multiplier = (int8_t)(scale * (1 << rshift));
+
+      // apply multiplier
+      for (int i = 0; i < size; ++i) {
+        mkldnn_output[i] = mkldnn_output[i] * multiplier;
+      }
+
+      // rshift and saturate on output
+      for (int i = 0; i < size; ++i) {
+        mkldnn_output[i] = (float)rshiftAndSaturate(mkldnn_output[i], (uint32_t)rshift);
+      }
+    }
+
+    // do dequantize on output
+    // remove this when the network is full int8, and passed legalization
+    if (op.quant() == "INT8" && is_average_pool) {
+      LLVM_DEBUG(llvm::errs() << "  avg pool output dequantize, threshold_y = "
+                 << std::to_string(threshold_y) << "\n";);
+      for (int i = 0; i < size; ++i) {
+        mkldnn_output[i] = mkldnn_output[i] * threshold_y / 128.0;
+      }
+    }
+
     // TODO: End of compute, need refactor
 
     valueMapping[result] = std::move(result_tensor);
