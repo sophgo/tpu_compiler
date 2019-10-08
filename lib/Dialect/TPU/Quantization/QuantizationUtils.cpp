@@ -5,7 +5,7 @@
 
 namespace mlir {
 
-LogicalResult getPreviousOpThreshold(Operation *op, float *threshold, int index = 0) {
+LogicalResult getPreviousOpThreshold(Operation *op, float *threshold, uint index = 0) {
   if ( op->getNumOperands() < (index + 1) ) {
     assert(false);
     return failure();

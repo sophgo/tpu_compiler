@@ -345,4 +345,43 @@ def TPU_ReshapeOp: TPU_Op<"reshape", [NoSideEffect]> {
   let results = (outs AnyTensor:$output);
 }
 
+//===----------------------------------------------------------------------===//
+// TPU Quantization op definitions.
+//===----------------------------------------------------------------------===//
+def TPU_QuantizationOp: TPU_Op<"quantization", [NoSideEffect]> {
+  let summary = "Quantization operator";
+
+  let description = [{
+    Quantize a activation tensor into int8, according to its threshold value.
+      Q(x) = x * 128 / threshold, and saturate to (-128, 127) range
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    OptionalAttr<F32Attr>:$threshold,
+    OptionalAttr<StrAttr>:$name,
+    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
+def TPU_DequantizationOp: TPU_Op<"dequantization", [NoSideEffect]> {
+  let summary = "Dequantization operator";
+
+  let description = [{
+    Dequantize a activation tensor from int8 back to float.
+      x = Q(x) * threshold / 128
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    OptionalAttr<F32Attr>:$threshold,
+    OptionalAttr<StrAttr>:$name,
+    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
 #endif // TPU_OPS

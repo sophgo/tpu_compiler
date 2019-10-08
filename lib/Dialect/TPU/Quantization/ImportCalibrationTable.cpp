@@ -85,7 +85,7 @@ struct BypassReluQuantPattern : public OpRewritePattern<tpu::ReluOp> {
 };
 
 /// there is no calibration result for reshape op, assign threshold_y as threshold_x
-struct AssignReshapeQuantPattern : public OpRewritePattern<tpu::ReshapeOp> {
+struct AssignReshapeThresholdPattern : public OpRewritePattern<tpu::ReshapeOp> {
   using OpRewritePattern<tpu::ReshapeOp>::OpRewritePattern;
 
   PatternMatchResult matchAndRewrite(tpu::ReshapeOp op,
@@ -140,7 +140,8 @@ public:
 
     OwningRewritePatternList patterns;
     //auto *context = &getContext();
-    patterns.insert<BypassPoolQuantPattern, BypassReluQuantPattern, AssignReshapeQuantPattern>(context);
+    patterns.insert<BypassPoolQuantPattern, BypassReluQuantPattern,
+        AssignReshapeThresholdPattern>(context);
     applyPatternsGreedily(fn, patterns);
   }
 

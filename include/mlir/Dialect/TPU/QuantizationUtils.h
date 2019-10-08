@@ -27,7 +27,7 @@
 
 namespace mlir {
 
-LogicalResult getPreviousOpThreshold(Operation *op, float *threshold, int index = 0);
+LogicalResult getPreviousOpThreshold(Operation *op, float *threshold, uint index = 0);
 
 } // namespace mlir
 

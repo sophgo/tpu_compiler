@@ -62,6 +62,7 @@
 #include "mkldnn.hpp"
 
 //#define DUMP_FLAG
+//#define QUANT_DEQUANT_EVERY_LAYER
 
 using namespace mkldnn;
 
@@ -808,6 +809,18 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     // TODO: do the actual compute here
     // use copy for now
     result_tensor->swap(*operand_tensors[0]);
+
+    // do quantize on input data
+    if (0) {
+      float *output = (float *)result_tensor.get()->data();
+      float threshold_y = op.threshold_y().getValue().convertToFloat();
+      LLVM_DEBUG(llvm::errs() << "  input data quantize, threshold_y = "
+                   << std::to_string(threshold_y) << "\n";);
+      for (int i = 0; i < size; ++i) {
+        output[i] = output[i] * 128.0 / threshold_y;
+      }
+    }
+
     // TODO: End of compute, need refactor
 
     valueMapping[result] = std::move(result_tensor);
@@ -910,6 +923,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       assert(false);
     }
 
+#ifdef QUANT_DEQUANT_EVERY_LAYER
     // do quantize on input
     // remove this when the network is full int8, and passed legalization
     // copy the input first
@@ -925,6 +939,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
         mkldnn_input[i] = mkldnn_input[i] * 128.0 / threshold_x;
       }
     }
+#endif
 
     float *mkldnn_output = (float *)result_tensor.get()->data();
     int mkldnn_ret = mkldnn_conv(mkldnn_input, mkldnn_weight, mkldnn_bias, mkldnn_output,
@@ -960,6 +975,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       }
     }
 
+#ifdef QUANT_DEQUANT_EVERY_LAYER
     // do dequantize on output
     // remove this when the network is full int8, and passed legalization
     if (op.quant() == "INT8" || op.quant() == "INT8_PER_CHANNEL"
@@ -971,6 +987,8 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
         mkldnn_output[i] = mkldnn_output[i] * threshold_y / 128.0;
       }
     }
+#endif
+
     // TODO: End of compute, need refactor
 
     valueMapping[result] = std::move(result_tensor);
@@ -1064,6 +1082,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       threshold_y = op.threshold_y().getValue().convertToFloat();
     }
 
+#ifdef QUANT_DEQUANT_EVERY_LAYER
     // do quantize on input
     // remove this when the network is full int8, and passed legalization
     if (op.quant() == "INT8" && is_average_pool) {
@@ -1071,6 +1090,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
         mkldnn_input[i] = mkldnn_input[i] * 128.0 / threshold_x;
       }
     }
+#endif
 
     float *mkldnn_output = (float *)result_tensor.get()->data();
     int mkldnn_ret = mkldnn_pool(mkldnn_input, mkldnn_output,
@@ -1102,6 +1122,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       }
     }
 
+#ifdef QUANT_DEQUANT_EVERY_LAYER
     // do dequantize on output
     // remove this when the network is full int8, and passed legalization
     if (op.quant() == "INT8" && is_average_pool) {
@@ -1111,7 +1132,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
         mkldnn_output[i] = mkldnn_output[i] * threshold_y / 128.0;
       }
     }
-
+#endif
     // TODO: End of compute, need refactor
 
     valueMapping[result] = std::move(result_tensor);
@@ -1190,6 +1211,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       assert(false);
     }
 
+#ifdef QUANT_DEQUANT_EVERY_LAYER
     // do quantize on input
     // remove this when the network is full int8, and passed legalization
     // copy the input first
@@ -1204,6 +1226,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
         mkldnn_input[i] = mkldnn_input[i] * 128.0 / threshold_x;
       }
     }
+#endif
 
     float *mkldnn_output = (float *)result_tensor.get()->data();
     int mkldnn_ret = mkldnn_ip(mkldnn_input, mkldnn_weight, mkldnn_bias,
@@ -1219,6 +1242,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       }
     }
 
+#ifdef QUANT_DEQUANT_EVERY_LAYER
     // do dequantize on output
     // remove this when the network is full int8, and passed legalization
     if (op.quant() == "INT8") {
@@ -1229,6 +1253,8 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
         mkldnn_output[i] = mkldnn_output[i] * threshold_y / 128.0;
       }
     }
+#endif
+
     // TODO: End of compute, need refactor
 
     valueMapping[result] = std::move(result_tensor);
@@ -1330,6 +1356,18 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     n = i_s[0];
     c = i_s[1];
     float *input = (float *)operand_tensors[0]->data();
+
+    // do dequantization
+    if (0) {
+      float threshold_x;
+      auto status = getPreviousOpThreshold(op, &threshold_x);
+      LLVM_DEBUG(llvm::errs() << "  softmax dequantize, threshold_x = " << std::to_string(threshold_x) << "\n";);
+      assert(succeeded(status));
+      for (size_t i = 0; i < operand_tensors[0]->size(); ++i) {
+        input[i] = input[i] * threshold_x / 128.0;
+      }
+    }
+
     float *output = (float *)result_tensor.get()->data();
     int ret = my_softmax(input, output, n, c);
     assert(ret == 0);
@@ -1529,6 +1567,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       threshold_y = op.threshold_y().getValue().convertToFloat();
     }
 
+#ifdef QUANT_DEQUANT_EVERY_LAYER
     // do quantize on input
     // remove this when the network is full int8, and passed legalization
     if (op.quant() == "INT8") {
@@ -1538,6 +1577,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
         }
       }
     }
+#endif
 
     // determine multiplier and rshift according each threshold_x
     // scale[i] = threshold_x[i] / threshold_y
@@ -1579,6 +1619,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       }
     }
 
+#ifdef QUANT_DEQUANT_EVERY_LAYER
     // do dequantize on output
     // remove this when the network is full int8, and passed legalization
     if (op.quant() == "INT8") {
@@ -1588,6 +1629,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
         output[i] = output[i] * threshold_y / 128.0;
       }
     }
+#endif
     // TODO: End of compute, need refactor
 
     valueMapping[result] = std::move(result_tensor);
@@ -1635,6 +1677,106 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
     // use copy for now
     result_tensor.get()->swap(*operand_tensors[0]);
+    // TODO: End of compute, need refactor
+
+    valueMapping[result] = std::move(result_tensor);
+
+    return success();
+  }
+  if (auto op = dyn_cast<tpu::QuantizationOp>(opInst)) {
+    LLVM_DEBUG(llvm::errs() << "QuantizationOp" << "\n";);
+    //op.dump();
+    //assert(op.getNumOperands() == 3);
+    std::vector<std::vector<float> *> operand_tensors;
+    unsigned int operandIdx = 0;
+    {
+      auto operand = op.getOperand();
+      LLVM_DEBUG(llvm::errs() << "  operand[" << operandIdx << "] "; operand->getType().dump(); llvm::errs() << "\n";);
+      // find operand in valueMapping
+      auto it = valueMapping.find(operand);
+      if (it == valueMapping.end()) {
+        llvm::errs() << "    didn't find\n";
+        assert(0);
+      } else {
+        LLVM_DEBUG(llvm::errs() << "    found in map\n";);
+        auto vec = it->second.get();
+        if (vec) {
+          LLVM_DEBUG(llvm::errs() << "      vec size = " << vec->size() << "\n";);
+        } else {
+          llvm::errs() << "      vec is nullptr\n";
+        }
+        operand_tensors.push_back(vec);
+      }
+      operandIdx++;
+    }
+
+    auto result = op.getResult();
+    LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";);
+    std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
+    auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
+    auto result_tensor = std::make_unique<std::vector<float> >(size);
+
+    // TODO: do the actual compute here
+    if (op.quant() == "INT8") {
+      float *input = (float *)operand_tensors[0]->data();
+      float *output = (float *)result_tensor.get()->data();
+      float threshold = op.threshold().getValue().convertToFloat();
+      LLVM_DEBUG(llvm::errs() << "  quantization, threshold = "
+                   << std::to_string(threshold) << "\n";);
+      for (int i = 0; i < size; ++i) {
+        output[i] = input[i] * 128.0 / threshold;
+      }
+    }
+    // TODO: End of compute, need refactor
+
+    valueMapping[result] = std::move(result_tensor);
+
+    return success();
+  }
+  if (auto op = dyn_cast<tpu::DequantizationOp>(opInst)) {
+    LLVM_DEBUG(llvm::errs() << "DequantizationOp" << "\n";);
+    //op.dump();
+    //assert(op.getNumOperands() == 3);
+    std::vector<std::vector<float> *> operand_tensors;
+    unsigned int operandIdx = 0;
+    {
+      auto operand = op.getOperand();
+      LLVM_DEBUG(llvm::errs() << "  operand[" << operandIdx << "] "; operand->getType().dump(); llvm::errs() << "\n";);
+      // find operand in valueMapping
+      auto it = valueMapping.find(operand);
+      if (it == valueMapping.end()) {
+        llvm::errs() << "    didn't find\n";
+        assert(0);
+      } else {
+        LLVM_DEBUG(llvm::errs() << "    found in map\n";);
+        auto vec = it->second.get();
+        if (vec) {
+          LLVM_DEBUG(llvm::errs() << "      vec size = " << vec->size() << "\n";);
+        } else {
+          llvm::errs() << "      vec is nullptr\n";
+        }
+        operand_tensors.push_back(vec);
+      }
+      operandIdx++;
+    }
+
+    auto result = op.getResult();
+    LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";);
+    std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
+    auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
+    auto result_tensor = std::make_unique<std::vector<float> >(size);
+
+    // TODO: do the actual compute here
+    if (op.quant() == "INT8") {
+      float *input = (float *)operand_tensors[0]->data();
+      float *output = (float *)result_tensor.get()->data();
+      float threshold = op.threshold().getValue().convertToFloat();
+      LLVM_DEBUG(llvm::errs() << "  quantization, threshold = "
+                   << std::to_string(threshold) << "\n";);
+      for (int i = 0; i < size; ++i) {
+        output[i] = input[i] * threshold / 128.0;
+      }
+    }
     // TODO: End of compute, need refactor
 
     valueMapping[result] = std::move(result_tensor);
