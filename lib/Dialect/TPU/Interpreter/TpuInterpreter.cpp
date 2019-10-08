@@ -677,6 +677,18 @@ static inline int8_t divideMultiplierAndSaturate(float v, float multiplier) {
   return (int8_t)q_i;
 }
 
+static uint32_t findRShiftFromScale(float scale) {
+  // scale = numerator / (1 << rshift)
+  // find a rshift put the numerator in range (64, 127)
+  assert(scale < 128);
+  for (uint32_t rshift = 0; rshift < 32; ++rshift) {
+    if ( (scale * (1 << rshift)) >= 64 )
+      return rshift;
+  }
+  assert(false);
+  return 31;
+}
+
 namespace mlir {
 
 static llvm::StringRef getOpName(Operation *op) {
@@ -1417,6 +1429,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     auto result_tensor = std::make_unique<std::vector<float> >(size);
 
     // TODO: do the actual compute here
+#define MAX_ELTWISE_INPUT (2)
     int n, c, h, w;
     auto input_1_type = op.x1()->getType().cast<TensorType>();
     std::vector<int64_t> i1_s(input_1_type.getShape());
@@ -1430,12 +1443,90 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     c = o_s[1];
     h = o_s[2];
     w = o_s[3];
-    float *input_1 = (float *)operand_tensors[0]->data();
-    float *input_2 = (float *)operand_tensors[1]->data();
+    float *input[MAX_ELTWISE_INPUT];
+    for (int index = 0; index < MAX_ELTWISE_INPUT; ++index) {
+      input[index] = (float *)operand_tensors[index]->data();
+    }
     float *output = (float *)result_tensor.get()->data();
-    int ret = my_eltwise(input_1, input_2, output, n, c, h, w, 1);
+
+    // for INT8, get threshold_x and make copy of input first
+    std::vector<float> input_copy[MAX_ELTWISE_INPUT];
+    std::vector<float> threshold_x(MAX_ELTWISE_INPUT);
+    float threshold_y;
+    if (op.quant() == "INT8") {
+      for (int index = 0; index < MAX_ELTWISE_INPUT; ++index) {
+        // make copy
+        std::vector<float> &src_vec = *operand_tensors[index];
+        std::copy(src_vec.begin(), src_vec.end(), back_inserter(input_copy[index]));
+        input[index] = input_copy[index].data();
+
+        // get threshold_x
+        auto status = getPreviousOpThreshold(op, &threshold_x[index], index);
+        assert(succeeded(status));
+      }
+      // get threshold_y
+      threshold_y = op.threshold_y().getValue().convertToFloat();
+    }
+
+    // do quantize on input
+    // remove this when the network is full int8, and passed legalization
+    if (op.quant() == "INT8") {
+      for (int index = 0; index < MAX_ELTWISE_INPUT; ++index) {
+        for (size_t i = 0; i < operand_tensors[index]->size(); ++i) {
+          input[index][i] = input[index][i] * 128.0 / threshold_x[index];
+        }
+      }
+    }
+
+    // determine multiplier and rshift according each threshold_x
+    // scale[i] = threshold_x[i] / threshold_y
+    // each scale will be implemented by hardware as
+    // scale[i] = multiplier / (1 << rshift)
+    // find a rshift, that put max(multiplier) into range (64, 127)
+    uint32_t rshift;
+    int8_t multiplier[MAX_ELTWISE_INPUT];
+    if (op.quant() == "INT8") {
+      // determine rshift for all inputs, and multiplier for each input
+      // use max threshold_x to find rshift first
+      float max_threshold_x = *std::max_element(
+          std::begin(threshold_x), std::end(threshold_x));
+      rshift = findRShiftFromScale(max_threshold_x / threshold_y);
+      for (int index = 0; index < 2; ++index) {
+        float scale = threshold_x[index] / threshold_y;
+        multiplier[index] = (int8_t)(scale * (1 << rshift));
+      }
+    }
+
+    // apply multiplier
+    if (op.quant() == "INT8") {
+      for (int index = 0; index < MAX_ELTWISE_INPUT; ++index) {
+        for (size_t i = 0; i < operand_tensors[index]->size(); ++i) {
+          input[index][i] = input[index][i] * multiplier[index];
+        }
+      }
+    }
+
+    int ret = my_eltwise(input[0], input[1], output, n, c, h, w, 1);
     assert(ret == 0);
-    //dump_data_float_abs("mkldnn_output", mkldnn_output, n, c, oh, ow);
+    //dump_data_float_abs("output", mkldnn_output, n, c, oh, ow);
+
+    // rshift and saturate on output
+    if (op.quant() == "INT8") {
+      //assert(rshift);
+      for (int i = 0; i < size; ++i) {
+        output[i] = (float)rshiftAndSaturate(output[i], (uint32_t)rshift);
+      }
+    }
+
+    // do dequantize on output
+    // remove this when the network is full int8, and passed legalization
+    if (op.quant() == "INT8") {
+      LLVM_DEBUG(llvm::errs() << "  fc output dequantize, threshold_y = "
+                   << std::to_string(threshold_y) << "\n";);
+      for (int i = 0; i < size; ++i) {
+        output[i] = output[i] * threshold_y / 128.0;
+      }
+    }
     // TODO: End of compute, need refactor
 
     valueMapping[result] = std::move(result_tensor);

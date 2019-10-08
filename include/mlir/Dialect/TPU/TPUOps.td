@@ -305,7 +305,8 @@ def TPU_EltwiseOp: TPU_Op<"eltwise", [NoSideEffect, SameOperandsAndResultType]> 
     ins AnyTensor:$x1,
     AnyTensor:$x2,
     OptionalAttr<F32Attr>:$threshold_y,
-    OptionalAttr<StrAttr>:$name
+    OptionalAttr<StrAttr>:$name,
+    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
   );
 
   let results = (outs AnyTensor:$y);

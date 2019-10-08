@@ -5,11 +5,12 @@
 
 namespace mlir {
 
-LogicalResult getPreviousOpThreshold(Operation *op, float *threshold) {
-  if (op->getNumOperands() == 0) {
+LogicalResult getPreviousOpThreshold(Operation *op, float *threshold, int index = 0) {
+  if ( op->getNumOperands() < (index + 1) ) {
+    assert(false);
     return failure();
   }
-  auto formerOp = op->getOperand(0)->getDefiningOp();
+  auto formerOp = op->getOperand(index)->getDefiningOp();
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::InputOp>(formerOp)) {
     *threshold = cast_op.threshold_y().getValue().convertToFloat();
     return success();

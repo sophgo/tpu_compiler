@@ -540,6 +540,41 @@ struct TpuQuantFullyConnectedOpPattern : public RewritePattern {
   Value* weightFileVar_;
 };
 
+struct TpuQuantEltwiseOpPattern : public RewritePattern {
+  TpuQuantEltwiseOpPattern(MLIRContext *context, TensorFile *weightTensorFile,
+      Value* weightFileVar)
+      : RewritePattern("tpu.eltwise", 1, context),
+        weightTensorFile_(weightTensorFile),
+        weightFileVar_(weightFileVar) {}
+
+  PatternMatchResult matchAndRewrite(Operation *op,
+                                     PatternRewriter &rewriter) const override {
+    auto eltOp = cast<tpu::EltwiseOp>(op);
+    std::string op_name = eltOp.getAttrOfType<StringAttr>("name").getValue().str();
+    //auto loc = op->getLoc();
+
+    if (eltOp.quant() != "NONE") {
+      llvm::errs() << eltOp.name() << " quantized already\n";
+      return matchFailure();
+    }
+
+    // replace with the new op
+    //auto origAttrs = eltOp.getAttrs();
+    //std::vector<NamedAttribute> newAttrs(origAttrs.begin(), origAttrs.end());
+    //newAttrs.push_back(rewriter.getNamedAttr("quant", rewriter.getStringAttr("INT8")));
+    //rewriter.replaceOpWithNewOp<tpu::FullyConnectedOp>(
+    //    fcOp, fcOp.getResult()->getType(),
+    //    ArrayRef<Value *>{newOperands}, ArrayRef<NamedAttribute>{newAttrs});
+
+    eltOp.setAttr("quant", rewriter.getStringAttr("INT8"));
+
+    return matchSuccess();
+  }
+
+  TensorFile *weightTensorFile_;
+  Value* weightFileVar_;
+};
+
 class QuantizeInt8Pass : public FunctionPass<QuantizeInt8Pass> {
 public:
   explicit QuantizeInt8Pass(llvm::raw_ostream &os = llvm::errs()) : os(os) {}
@@ -561,6 +596,7 @@ public:
     auto *context = &getContext();
     patterns.insert<TpuQuantConv2DOpPattern>(context, weightTensorFile.get(), weightFileVar);
     patterns.insert<TpuQuantFullyConnectedOpPattern>(context, weightTensorFile.get(), weightFileVar);
+    patterns.insert<TpuQuantEltwiseOpPattern>(context, weightTensorFile.get(), weightFileVar);
     applyPatternsGreedily(fn, patterns);
   }
 
