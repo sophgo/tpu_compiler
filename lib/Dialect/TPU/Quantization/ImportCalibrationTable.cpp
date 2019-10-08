@@ -84,6 +84,21 @@ struct BypassReluQuantPattern : public OpRewritePattern<tpu::ReluOp> {
   }
 };
 
+/// there is no calibration result for reshape op, assign threshold_y as threshold_x
+struct AssignReshapeQuantPattern : public OpRewritePattern<tpu::ReshapeOp> {
+  using OpRewritePattern<tpu::ReshapeOp>::OpRewritePattern;
+
+  PatternMatchResult matchAndRewrite(tpu::ReshapeOp op,
+                                     PatternRewriter &rewriter) const {
+    float threshold_x;
+    auto status = getPreviousOpThreshold(op, &threshold_x);
+    assert(succeeded(status));
+    op.setAttr("threshold_y", rewriter.getF32FloatAttr(threshold_x));
+
+    return matchSuccess();
+  }
+};
+
 class ImportCalibrationTablePass : public FunctionPass<ImportCalibrationTablePass> {
 public:
   explicit ImportCalibrationTablePass(llvm::raw_ostream &os = llvm::errs()) : os(os) {}
@@ -125,7 +140,7 @@ public:
 
     OwningRewritePatternList patterns;
     //auto *context = &getContext();
-    patterns.insert<BypassPoolQuantPattern, BypassReluQuantPattern>(context);
+    patterns.insert<BypassPoolQuantPattern, BypassReluQuantPattern, AssignReshapeQuantPattern>(context);
     applyPatternsGreedily(fn, patterns);
   }
 

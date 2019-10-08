@@ -216,7 +216,8 @@ def TPU_FullyConnectedOp : TPU_Op<"fully_connected", [NoSideEffect]> {
     Variadic<AnyTensor>:$bias,
     DefaultValuedAttr<TPU_AFAttr, "NONE">:$fused_activation_function,
     OptionalAttr<F32Attr>:$threshold_y,
-    OptionalAttr<StrAttr>:$name
+    OptionalAttr<StrAttr>:$name,
+    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
   );
 
   let results = (outs AnyTensor:$output);
@@ -336,6 +337,7 @@ def TPU_ReshapeOp: TPU_Op<"reshape", [NoSideEffect]> {
 
   let arguments = (
     ins AnyTensor:$input,
+    OptionalAttr<F32Attr>:$threshold_y,
     OptionalAttr<StrAttr>:$name
   );
 

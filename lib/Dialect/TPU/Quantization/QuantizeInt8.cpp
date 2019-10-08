@@ -154,19 +154,6 @@ static inline int32_t quantizeBiasMultiplier(float w, float threshold_y,
 
 namespace {
 
-template<typename T>
-static LogicalResult getOpThreshold(T &op, float *threshold_y, float *threshold_x) {
-  assert(op.name().hasValue());
-  std::string op_name = op.name().getValue().str();
-  *threshold_y = op.threshold_y().getValue().convertToFloat();
-  auto status = getPreviousOpThreshold(op, threshold_x);
-  llvm::errs() << " > " << op_name << ", threshold_y = " << std::to_string(*threshold_y)
-      << ", threshold_x = "
-      << (succeeded(status) ? std::to_string(*threshold_x) : std::string("not present"))
-      << "\n";
-  return status;
-}
-
 struct TpuQuantConv2DOpPattern : public RewritePattern {
   TpuQuantConv2DOpPattern(MLIRContext *context, TensorFile *weightTensorFile,
       Value* weightFileVar)
@@ -177,6 +164,7 @@ struct TpuQuantConv2DOpPattern : public RewritePattern {
   PatternMatchResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
     auto convOp = cast<tpu::Conv2DOp>(op);
+    std::string op_name = convOp.getAttrOfType<StringAttr>("name").getValue().str();
     auto loc = op->getLoc();
 
     if (convOp.quant() != "NONE") {
@@ -185,8 +173,13 @@ struct TpuQuantConv2DOpPattern : public RewritePattern {
     }
 
     float threshold_y, threshold_x;
-    assert(succeeded(getOpThreshold<tpu::Conv2DOp>(convOp,
-                     &threshold_y, &threshold_x)));
+    auto status = getPreviousOpThreshold(op, &threshold_x);
+    assert(succeeded(status));
+    threshold_y = convOp.threshold_y().getValue().convertToFloat();
+    llvm::errs() << " > " << op_name << ", threshold_y = " << std::to_string(threshold_y)
+        << ", threshold_x = "
+        << (succeeded(status) ? std::to_string(threshold_x) : std::string("not present"))
+        << "\n";
 
     // find filter and bias tensor
     std::vector<std::unique_ptr<std::vector<float> > > weights(2);
@@ -332,7 +325,6 @@ struct TpuQuantConv2DOpPattern : public RewritePattern {
     // add new filter and bias weight
     std::vector<std::vector<float> *> newWeights{ &new_filter, &new_bias };
     std::vector<std::vector<int64_t> > weightShapes{ filter_shape, std::vector<int64_t>{oc} };
-    std::string op_name = convOp.getAttrOfType<StringAttr>("name").getValue().str();
     for (int i = 0; i < 2; ++i) {
       if (!bias && i == 1)
         continue;
@@ -406,6 +398,148 @@ struct TpuQuantConv2DOpPattern : public RewritePattern {
   Value* weightFileVar_;
 };
 
+struct TpuQuantFullyConnectedOpPattern : public RewritePattern {
+  TpuQuantFullyConnectedOpPattern(MLIRContext *context, TensorFile *weightTensorFile,
+      Value* weightFileVar)
+      : RewritePattern("tpu.fully_connected", 1, context),
+        weightTensorFile_(weightTensorFile),
+        weightFileVar_(weightFileVar) {}
+
+  PatternMatchResult matchAndRewrite(Operation *op,
+                                     PatternRewriter &rewriter) const override {
+    auto fcOp = cast<tpu::FullyConnectedOp>(op);
+    std::string op_name = fcOp.getAttrOfType<StringAttr>("name").getValue().str();
+    auto loc = op->getLoc();
+
+    if (fcOp.quant() != "NONE") {
+      llvm::errs() << fcOp.name() << " quantized already\n";
+      return matchFailure();
+    }
+
+    float threshold_y, threshold_x;
+    auto status = getPreviousOpThreshold(op, &threshold_x);
+    assert(succeeded(status));
+    threshold_y = fcOp.threshold_y().getValue().convertToFloat();
+    llvm::errs() << " > " << op_name << ", threshold_y = " << std::to_string(threshold_y)
+        << ", threshold_x = "
+        << (succeeded(status) ? std::to_string(threshold_x) : std::string("not present"))
+        << "\n";
+
+    // find filter and bias tensor
+    std::vector<std::unique_ptr<std::vector<float> > > weights(2);
+    for (unsigned i = 0; i < fcOp.getNumOperands() - 1; ++i) {
+      auto weight_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
+          fcOp.getOperand(i + 1)->getDefiningOp());
+      assert(weight_op);
+      assert(weight_op.name().hasValue());
+      auto tensor_name = weight_op.name().getValue();
+      llvm::errs() << "  weight[" << i << "] : " << tensor_name << "\n";
+      auto type = weight_op.getResult()->getType().cast<TensorType>();
+      weights[i] = weightTensorFile_->readTensor<float>(tensor_name, type);
+      // delete the tensor from the weight file
+       weightTensorFile_->deleteTensor<float>(tensor_name);
+    }
+    float *filter = (float *)weights[0]->data();
+    float *bias = nullptr;
+    if (weights[1]) {
+      bias = (float *)weights[1]->data();
+    }
+
+    // create new tensors for quantized fliter and bias
+    auto filter_type = fcOp.filter()->getType().cast<TensorType>();
+    std::vector<int64_t> filter_shape(filter_type.getShape());
+    assert(filter_shape.size() == 2);
+    int64_t filter_size = std::accumulate(std::begin(filter_shape),
+        std::end(filter_shape), 1, std::multiplies<>());
+    assert(filter_size == (int64_t)weights[0]->size());
+    int64_t n = filter_shape[0];
+    //std::vector<int8_t> new_filter(filter_size);
+    //std::vector<int8_t> new_bias(oc);
+    // TODO: use float for now, need to change to int8
+    std::vector<float> new_filter(filter_size);
+    std::vector<float> new_bias(n);
+
+    // quantization
+    // TODO: use only float in weight file for now
+    std::vector<float> rshift(1);
+    // find the max fabs weight value
+    float max_filter_abs = fabs(filter[0]);
+    for (int i = 0; i < filter_size; ++i) {
+      if ( fabs(filter[i]) > max_filter_abs ) {
+          max_filter_abs = fabs(filter[i]);
+      }
+    }
+    llvm::errs() << "  max filter : " << max_filter_abs << "\n";
+
+    // find rshift
+    // Q(W) = W * (threshold_x / threshold_y) * (1 << rshift)
+    // find a rshift put the Q(max_filter_abs) in range (64, 127)
+    assert(threshold_x);
+    rshift[0] = (float)findRShift(max_filter_abs, threshold_y, threshold_x);
+    llvm::errs() << "  rshift : " << rshift[0] << "\n";
+
+    // quantize weight
+    for (int i = 0; i < filter_size; ++i) {
+      new_filter[i] = (float)quantizeFilterRShift(filter[i], threshold_y,
+                                 threshold_x, (uint32_t)rshift[0]);
+    }
+    if (bias) {
+      for (int i = 0; i < n; ++i) {
+        new_bias[i] = (float)quantizeBiasRShiftI16(bias[i], threshold_y,
+                                 (uint32_t)rshift[0]);
+      }
+    }
+
+    // update op
+    std::vector<Value *> newOperands;
+    newOperands.push_back(fcOp.getOperand(0));
+
+    // add new filter and bias weight
+    std::vector<std::vector<float> *> newWeights{ &new_filter, &new_bias };
+    std::vector<std::vector<int64_t> > weightShapes{ filter_shape, std::vector<int64_t>{n} };
+    for (int i = 0; i < 2; ++i) {
+      if (!bias && i == 1)
+        continue;
+      auto tensor_name = op_name + "_quant_int8_" + std::to_string(i);
+      llvm::errs() << "  new_weight[" << i << "] : " << tensor_name << "\n";
+      auto type = rewriter.getTensorType(weightShapes[i], FloatType::getF32(rewriter.getContext()));
+      weightTensorFile_->addTensor<float>(tensor_name, newWeights[i], type);
+      std::vector<NamedAttribute> attrs;
+      attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(tensor_name)));
+      auto new_weight_op = rewriter.create<tpu::LoadWeightOp>(op->getLoc(), type,
+          ArrayRef<Value *>{weightFileVar_}, ArrayRef<NamedAttribute>{attrs});
+      newOperands.push_back(new_weight_op);
+    }
+
+    // add rshift to weight
+    auto tensor_name = op_name + "_quant_int8_rshift";
+    llvm::errs() << "  new_weight[rshift] : " << tensor_name << "\n";
+    auto type = rewriter.getTensorType(std::vector<int64_t>{1},
+        IntegerType::get(32, rewriter.getContext()));
+    // TODO: use only float in weight file for now
+    //weightTensorFile_->addTensor<uint32_t>(tensor_name, &rshift, type);
+    weightTensorFile_->addTensor<float>(tensor_name, &rshift, type);
+    std::vector<NamedAttribute> attrs;
+    attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(tensor_name)));
+    auto new_weight_op = rewriter.create<tpu::LoadWeightOp>(loc, type,
+        ArrayRef<Value *>{weightFileVar_}, ArrayRef<NamedAttribute>{attrs});
+    newOperands.push_back(new_weight_op);
+
+    // replace with the new fc op
+    auto origAttrs = fcOp.getAttrs();
+    std::vector<NamedAttribute> newAttrs(origAttrs.begin(), origAttrs.end());
+    newAttrs.push_back(rewriter.getNamedAttr("quant", rewriter.getStringAttr("INT8")));
+    rewriter.replaceOpWithNewOp<tpu::FullyConnectedOp>(
+        fcOp, fcOp.getResult()->getType(),
+        ArrayRef<Value *>{newOperands}, ArrayRef<NamedAttribute>{newAttrs});
+
+    return matchSuccess();
+  }
+
+  TensorFile *weightTensorFile_;
+  Value* weightFileVar_;
+};
+
 class QuantizeInt8Pass : public FunctionPass<QuantizeInt8Pass> {
 public:
   explicit QuantizeInt8Pass(llvm::raw_ostream &os = llvm::errs()) : os(os) {}
@@ -426,6 +560,7 @@ public:
     OwningRewritePatternList patterns;
     auto *context = &getContext();
     patterns.insert<TpuQuantConv2DOpPattern>(context, weightTensorFile.get(), weightFileVar);
+    patterns.insert<TpuQuantFullyConnectedOpPattern>(context, weightTensorFile.get(), weightFileVar);
     applyPatternsGreedily(fn, patterns);
   }
 

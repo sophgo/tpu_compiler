@@ -42,6 +42,10 @@ LogicalResult getPreviousOpThreshold(Operation *op, float *threshold) {
     *threshold = cast_op.threshold_y().getValue().convertToFloat();
     return success();
   }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::ReshapeOp>(formerOp)) {
+    *threshold = cast_op.threshold_y().getValue().convertToFloat();
+    return success();
+  }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::SoftmaxOp>(formerOp)) {
     *threshold = cast_op.threshold_y().getValue().convertToFloat();
     return success();

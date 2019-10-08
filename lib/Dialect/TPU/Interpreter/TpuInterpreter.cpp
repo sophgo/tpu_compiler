@@ -22,6 +22,7 @@
 
 #include "mlir/Dialect/TPU/TPUDialect.h"
 #include "mlir/Dialect/TPU/Interpreter.h"
+#include "mlir/Dialect/TPU/QuantizationUtils.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Function.h"
 #include "mlir/IR/Module.h"
@@ -678,50 +679,6 @@ static inline int8_t divideMultiplierAndSaturate(float v, float multiplier) {
 
 namespace mlir {
 
-static LogicalResult getPreviousOpThreshold(Operation *op, float *threshold) {
-  if (op->getNumOperands() == 0) {
-    return failure();
-  }
-  auto formerOp = op->getOperand(0)->getDefiningOp();
-  if (auto cast_op = llvm::dyn_cast_or_null<tpu::InputOp>(formerOp)) {
-    *threshold = cast_op.threshold_y().getValue().convertToFloat();
-    return success();
-  }
-  if (auto cast_op = llvm::dyn_cast_or_null<tpu::Conv2DOp>(formerOp)) {
-    *threshold = cast_op.threshold_y().getValue().convertToFloat();
-    return success();
-  }
-  if (auto cast_op = llvm::dyn_cast_or_null<tpu::FullyConnectedOp>(formerOp)) {
-    *threshold = cast_op.threshold_y().getValue().convertToFloat();
-    return success();
-  }
-  if (auto cast_op = llvm::dyn_cast_or_null<tpu::Pool2DOp>(formerOp)) {
-    *threshold = cast_op.threshold_y().getValue().convertToFloat();
-    return success();
-  }
-  if (auto cast_op = llvm::dyn_cast_or_null<tpu::BatchNormOp>(formerOp)) {
-    *threshold = cast_op.threshold_y().getValue().convertToFloat();
-    return success();
-  }
-  if (auto cast_op = llvm::dyn_cast_or_null<tpu::ScaleOp>(formerOp)) {
-    *threshold = cast_op.threshold_y().getValue().convertToFloat();
-    return success();
-  }
-  if (auto cast_op = llvm::dyn_cast_or_null<tpu::ReluOp>(formerOp)) {
-    *threshold = cast_op.threshold_y().getValue().convertToFloat();
-    return success();
-  }
-  if (auto cast_op = llvm::dyn_cast_or_null<tpu::EltwiseOp>(formerOp)) {
-    *threshold = cast_op.threshold_y().getValue().convertToFloat();
-    return success();
-  }
-  if (auto cast_op = llvm::dyn_cast_or_null<tpu::SoftmaxOp>(formerOp)) {
-    *threshold = cast_op.threshold_y().getValue().convertToFloat();
-    return success();
-  }
-  return failure();
-}
-
 static llvm::StringRef getOpName(Operation *op) {
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(op)) {
     return cast_op.name().getValue();
@@ -1141,15 +1098,64 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     float *mkldnn_input = (float *)operand_tensors[0]->data();
     float *mkldnn_weight = (float *)operand_tensors[1]->data();
     float *mkldnn_bias = nullptr;
-    if (operand_tensors.size() > 2) {
-      assert(operand_tensors.size() == 3);
-      mkldnn_bias = (float *)operand_tensors[2]->data();
+    float *rshift = nullptr;
+    if (op.quant() == "NONE") {
+      if (operand_tensors.size() > 2) {
+        assert(operand_tensors.size() == 3);
+        mkldnn_bias = (float *)operand_tensors[2]->data();
+      }
+    } else if (op.quant() == "INT8") {
+      if (operand_tensors.size() > 3) {
+        assert(operand_tensors.size() == 4);
+        mkldnn_bias = (float *)operand_tensors[2]->data();
+        rshift = (float *)operand_tensors[3]->data();
+      } else {
+        assert(operand_tensors.size() == 3);
+        rshift = (float *)operand_tensors[2]->data();
+      }
+    } else {
+      assert(false);
     }
+
+    // do quantize on input
+    // remove this when the network is full int8, and passed legalization
+    // copy the input first
+    std::vector<float> input_copy(*operand_tensors[0]);
+    mkldnn_input = input_copy.data();
+    if (op.quant() == "INT8") {
+      float threshold_x;
+      auto status = getPreviousOpThreshold(op, &threshold_x);
+      LLVM_DEBUG(llvm::errs() << "  fc input quantize, threshold_x = " << std::to_string(threshold_x) << "\n";);
+      assert(succeeded(status));
+      for (size_t i = 0; i < operand_tensors[0]->size(); ++i) {
+        mkldnn_input[i] = mkldnn_input[i] * 128.0 / threshold_x;
+      }
+    }
+
     float *mkldnn_output = (float *)result_tensor.get()->data();
     int mkldnn_ret = mkldnn_ip(mkldnn_input, mkldnn_weight, mkldnn_bias,
         mkldnn_output, m, k, n, transpose);
     assert(mkldnn_ret == 0);
     //dump_data_float_abs("mkldnn_output", mkldnn_output, 1, 1, m, n);
+
+    // rshift and saturate on output
+    if (op.quant() == "INT8") {
+      assert(rshift);
+      for (int i = 0; i < size; ++i) {
+        mkldnn_output[i] = (float)rshiftAndSaturate(mkldnn_output[i], (uint32_t)rshift[0]);
+      }
+    }
+
+    // do dequantize on output
+    // remove this when the network is full int8, and passed legalization
+    if (op.quant() == "INT8") {
+      float threshold_y = op.threshold_y().getValue().convertToFloat();
+      LLVM_DEBUG(llvm::errs() << "  fc output dequantize, threshold_y = "
+                   << std::to_string(threshold_y) << "\n";);
+      for (int i = 0; i < size; ++i) {
+        mkldnn_output[i] = mkldnn_output[i] * threshold_y / 128.0;
+      }
+    }
     // TODO: End of compute, need refactor
 
     valueMapping[result] = std::move(result_tensor);
