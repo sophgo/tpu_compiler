@@ -187,6 +187,8 @@ public:
     auto *context = &getContext();
     patterns.insert<TpuFuseScaleIntoConvPattern>(context, weightTensorFile.get());
     applyPatternsGreedily(fn, patterns);
+
+    weightTensorFile->keep();
   }
 
 private:

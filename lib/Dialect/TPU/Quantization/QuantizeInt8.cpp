@@ -769,6 +769,8 @@ public:
     // Fold and remove consecutive Dequant and Quant
     patterns_s.insert<TpuSimplifyQuantDequantPattern>(context);
     applyPatternsGreedily(fn, patterns_s);
+
+    weightTensorFile->keep();
   }
 
 private:

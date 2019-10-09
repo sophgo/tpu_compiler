@@ -1886,6 +1886,7 @@ LogicalResult ModuleInterpreter::runOneFunction(FuncOp func) {
       LLVM_DEBUG(llvm::errs() << "  vec size = " << vec->size() << "\n";);
       TensorOut->addTensor(getOpName(op), vec, type);
     }
+    TensorOut->keep();
   }
 
   return success();

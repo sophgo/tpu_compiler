@@ -812,6 +812,8 @@ LogicalResult CaffeImporter::Import(const llvm::StringRef inputFilename,
   ConvertLayers(block, net);
   AddReturnOp(block, net_outputs);
 
+  weightFile_->keep();
+
   return success();
 }
 

@@ -46,6 +46,8 @@ public:
     if (!newCreate) {
       auto ret = load();
       assert(succeeded(ret));
+    } else {
+      map.clear();
     }
   }
 
@@ -68,10 +70,7 @@ public:
     for (auto it = shape.begin(); it != shape.end(); ++it) {
       shape_npz.push_back((size_t)*it);
     }
-    cnpy::npz_save(filename.str(), name.str(), &data[0], shape_npz,
-        (map.empty()) ? "w" : "a");
-    // TODO: rewrite with a more efficient way
-    load();
+    cnpy::npz_add_array(map, name.str(), &data[0], shape_npz);
     return success();
   }
 
@@ -124,25 +123,17 @@ public:
       return failure();
     }
     map.erase(it);
-    // TODO: rewrite with a more efficient way
-    auto ret = save<T>();
-    assert(succeeded(ret));
     return success();
+  }
+
+  void keep(void) {
+    // TODO: assuming all tensors are in float
+    cnpy::npz_save_all<float>(filename.str(), map);
   }
 
 private:
-  /// save the file
-  template<typename T>
-  LogicalResult save() {
-    for (auto it = map.begin(); it != map.end(); ++it) {
-      cnpy::npz_save(filename.str(), it->first, it->second.as_vec<T>(),
-        (it == map.begin()) ? "w" : "a");
-    }
-    return success();
-  }
-
   /// load the file
-  LogicalResult load() {
+  LogicalResult load(void) {
     map = cnpy::npz_load(filename.str());
     assert(map.size() > 0);
     return success();

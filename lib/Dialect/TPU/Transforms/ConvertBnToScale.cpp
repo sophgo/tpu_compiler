@@ -33,39 +33,6 @@ using namespace mlir;
 
 namespace {
 
-#if 0
-struct TpuBatchNormOpPattern : public OpRewritePattern<tpu::BatchNormOp> {
-  using OpRewritePattern<tpu::BatchNormOp>::OpRewritePattern;
-
-  PatternMatchResult matchAndRewrite(tpu::BatchNormOp op,
-                                     PatternRewriter &rewriter) const {
-    llvm::errs() << "match " << op.getOperationName() << "\n";
-
-    // TODO: optimize performance
-
-    // find tensor filename
-    tpu::LoadWeightOp one_weight_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
-        op.getOperand(1)->getDefiningOp());
-    assert (one_weight_op);
-    tpu::LoadFileOp loadFileOp = llvm::dyn_cast_or_null<tpu::LoadFileOp>(
-        one_weight_op.getOperand()->getDefiningOp());
-    assert (loadFileOp);
-    auto filename = loadFileOp.getAttrOfType<StringAttr>("filename").getValue();
-    llvm::errs() << "LoadFileOp filename " << filename << "\n";
-    auto weightTensorFile = openTensorFile(filename);
-
-    // rewrite all. noted the 4th operand of bn will be removed automatically.
-    rewriter.replaceOpWithNewOp<tpu::ScaleOp>(
-        op, op.getResult()->getType(),
-        ArrayRef<Value *>{op.getOperand(0), op.getOperand(1), op.getOperand(2)},
-        ArrayRef<NamedAttribute>{});
-
-    return matchSuccess();
-    //return matchFailure();
-  }
-};
-#endif
-
 struct TpuBatchNormOpPattern : public RewritePattern {
   TpuBatchNormOpPattern(MLIRContext *context, TensorFile *weightTensorFile)
       : RewritePattern("tpu.batch_norm", 1, context),
@@ -171,6 +138,8 @@ public:
     auto *context = &getContext();
     patterns.insert<TpuBatchNormOpPattern>(context, weightTensorFile.get());
     applyPatternsGreedily(fn, patterns);
+
+    weightTensorFile->keep();
   }
 
 private:

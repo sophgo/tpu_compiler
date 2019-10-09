@@ -155,6 +155,8 @@ public:
     auto *context = &getContext();
     patterns.insert<TpuFoldScalePattern>(context, weightTensorFile.get());
     applyPatternsGreedily(fn, patterns);
+
+    weightTensorFile->keep();
   }
 
 private:
