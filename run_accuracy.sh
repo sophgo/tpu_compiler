@@ -28,11 +28,10 @@ python ../llvm/projects/mlir/bindings/python/tools/run_classification.py \
 --mean_file=../llvm/projects/mlir/bindings/python/tools/mean_resize.npy \
 --count=$1
 
-cp ResNet-50-model_bak.npz ResNet-50-model.npz
+cp ResNet-50-model-opt3.npz ResNet-50-model.npz
 
 python ../llvm/projects/mlir/bindings/python/tools/run_classification.py \
---model=resnet-50.mlir \
+--model=resnet-50-opt3.mlir \
 --dataset=/data/dataset/imagenet/img_val_extracted \
 --mean_file=../llvm/projects/mlir/bindings/python/tools/mean_resize.npy \
 --count=$1
-

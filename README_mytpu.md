@@ -330,9 +330,9 @@ result of resnet-50 accuracy (fp32, int8, int8-per-channel, int8-multiplier)
 | mode | Top-1 accuracy | Top-5 accuracy |
 | ---  | ---            | ---            |
 | fp32             | 0.7820 | 0.9386 |
-| int8 Per-layer   | 0.7758 | 0.9352 |
-| int8 Per-channel | 0.7802 | 0.9363 |
-| int8 Multiplier  | 0.7802 | 0.9395 |
+| int8 Per-layer   | 0.7799 | 0.9372 |
+| int8 Per-channel | 0.7801 | 0.9393 |
+| int8 Multiplier  | 0.7815 | 0.9388 |
 
 ### 7. calibration with interpreter (python version)
 
