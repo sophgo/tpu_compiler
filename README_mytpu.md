@@ -97,7 +97,7 @@ $ python npz_dump.py ResNet-50-model.npz conv1_0
 inference
 ```
 $ ./bin/mlir-tpu-interpreter resnet-50.mlir \
-    --tensor-in /data/release/bmnet_models/resnet50/resnet50_input_1_3_224_224.bin \
+    --tensor-in test_cat_in_fp32.bin \
     --tensor-out out.bin
 ```
 
@@ -106,7 +106,7 @@ $ ./bin/mlir-tpu-interpreter resnet-50.mlir \
 check
 ```
 $ python bin_dump.py out.bin float32 1 1 1 1000 5
-$ python bin_compare.py out.bin /data/release/bmnet_models/resnet50/resnet50_output_1_3_224_224_ref.bin float32 1 1 1 1000 5
+$ python bin_compare.py out.bin test_cat_out_fp32.bin float32 1 1 1 1000 5
 ```
 
 ### 3. Pre-Quantization optimization
@@ -125,7 +125,7 @@ $ ./bin/mlir-opt \
 check
 ```
 $ ./bin/mlir-tpu-interpreter resnet-50-opt1.mlir \
-    --tensor-in /data/release/bmnet_models/resnet50/resnet50_input_1_3_224_224.bin \
+    --tensor-in test_cat_in_fp32.bin \
     --tensor-out out-opt1.bin
 $ python bin_compare.py out.bin out-opt1.bin float32 1 1 1 1000 5
 ```
@@ -144,7 +144,7 @@ $ ./bin/mlir-opt \
 check
 ```
 $ ./bin/mlir-tpu-interpreter resnet-50-opt2.mlir \
-    --tensor-in /data/release/bmnet_models/resnet50/resnet50_input_1_3_224_224.bin \
+    --tensor-in test_cat_in_fp32.bin \
     --tensor-out out-opt2.bin
 $ python bin_compare.py out.bin out-opt2.bin float32 1 1 1 1000 5
 ```
@@ -161,7 +161,7 @@ $ ./bin/mlir-opt \
 check
 ```
 $ ./bin/mlir-tpu-interpreter resnet-50-opt3.mlir \
-    --tensor-in /data/release/bmnet_models/resnet50/resnet50_input_1_3_224_224.bin \
+    --tensor-in test_cat_in_fp32.bin \
     --tensor-out out-opt3.bin
 $ python bin_compare.py out.bin out-opt3.bin float32 1 1 1 1000 5
 ```
@@ -191,17 +191,9 @@ $ ./bin/mlir-opt \
     -o resnet-50-cali.mlir
 ```
 
-```
-$ ./bin/mlir-opt \
-    --import-calibration-table \
-    --calibration-table bmnet_resnet50_calibration_table.1x10 \
-    resnet-50.mlir \
-    -o resnet-50-cali.mlir
-```
-
 #### 4.2 do calibration with mlir-interpreter
 
-* TODO: finish python wrapper first
+* TODO:
 
 ### 5. quantization
 
@@ -210,6 +202,7 @@ We do not import int8 caffemodel directly (the old version int8 caffemodel forma
 #### 5.1 int8 per-layer quantization
 
 ```
+$ cp ResNet-50-model-opt3.npz ResNet-50-model.npz
 $ ./bin/mlir-opt \
     --quant-int8 \
     resnet-50-cali.mlir \
@@ -224,7 +217,7 @@ $ python npz_dump.py ResNet-50-model.npz scale_conv1_quant_int8_1
 $ python npz_dump.py ResNet-50-model.npz scale_conv1_quant_int8_rshift
 
 $ ./bin/mlir-tpu-interpreter resnet-50-quant-int8.mlir \
-    --tensor-in /data/release/bmnet_models/resnet50/resnet50_input_1_3_224_224.bin \
+    --tensor-in test_cat_in_fp32.bin \
     --tensor-out out-quant-int8.bin
 $ python bin_compare.py out.bin out-quant-int8.bin float32 1 1 1 1000 5
 ```
@@ -232,6 +225,7 @@ $ python bin_compare.py out.bin out-quant-int8.bin float32 1 1 1 1000 5
 #### 5.2 int8 per-channel quantization
 
 ```
+$ cp ResNet-50-model-opt3.npz ResNet-50-model.npz
 $ ./bin/mlir-opt \
     --quant-int8 \
     --enable-conv-per-channel \
@@ -247,7 +241,7 @@ $ python npz_dump.py ResNet-50-model.npz scale_conv1_quant_int8_1
 $ python npz_dump.py ResNet-50-model.npz scale_conv1_quant_int8_rshift
 
 $ ./bin/mlir-tpu-interpreter resnet-50-quant-int8-per-channel.mlir \
-    --tensor-in /data/release/bmnet_models/resnet50/resnet50_input_1_3_224_224.bin \
+    --tensor-in test_cat_in_fp32.bin \
     --tensor-out out-quant-int8-per-channel.bin
 $ python bin_compare.py out.bin out-quant-int8-per-channel.bin float32 1 1 1 1000 5
 ```
@@ -255,6 +249,7 @@ $ python bin_compare.py out.bin out-quant-int8-per-channel.bin float32 1 1 1 100
 #### 5.3 int8 per-channel multiplier quantization
 
 ```
+$ cp ResNet-50-model-opt3.npz ResNet-50-model.npz
 $ ./bin/mlir-opt \
     --quant-int8 \
     --enable-conv-per-channel \
@@ -271,7 +266,7 @@ $ python npz_dump.py ResNet-50-model.npz scale_conv1_quant_int8_1
 $ python npz_dump.py ResNet-50-model.npz scale_conv1_quant_int8_multiplier
 
 $ ./bin/mlir-tpu-interpreter resnet-50-quant-int8-multiplier.mlir \
-    --tensor-in /data/release/bmnet_models/resnet50/resnet50_input_1_3_224_224.bin \
+    --tensor-in test_cat_in_fp32.bin \
     --tensor-out out-quant-int8-multiplier.bin
 $ python bin_compare.py out.bin out-quant-int8-multiplier.bin float32 1 1 1 1000 5
 ```
@@ -344,6 +339,7 @@ result of resnet-50 accuracy (fp32, int8, int8-per-channel, int8-multiplier)
 #### 8.1 assign weight address
 
 ```
+$ cp ResNet-50-model_quant_int8.npz ResNet-50-model.npz
 $ ./bin/mlir-opt \
     --assign-weight-address \
     --tpu-weight-address-align=16 \
@@ -371,14 +367,21 @@ $ ./bin/mlir-opt \
 use interpreter for now, need to refactor into translator
 ```
 $ ./bin/mlir-tpu-interpreter resnet-50-quant-int8-addr2.mlir \
-    --tensor-in /data/release/bmnet_models/resnet50/resnet50_input_1_3_224_224.bin \
+    --tensor-in test_cat_in_fp32.bin \
     --tensor-out out-quant-int8.bin
 ```
 
-run test
+run test, `test_cat_in_int8.bin` is a int8 bin file. This is the quantization result of
+`test_cat_in_fp32.bin`.
+
 ```
+$ python ./bin_fp32_to_int8.py \
+    test_cat_in_fp32.bin \
+    test_cat_in_int8.bin \
+    1 3 224 224 \
+    161.008057
 $ ./test/test_bmnet \
-    /data/release/bmnet_models/resnet50/int8/resnet50_input_1_3_224_224.bin \
+    test_cat_in_int8.bin \
     ~/work/llvm-project/build/ResNet-50-model.bin \
     ~/work/llvm-project/build/cmdbuf.bin \
     out_new.bin \
