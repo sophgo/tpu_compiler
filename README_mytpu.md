@@ -386,6 +386,7 @@ $ ./test/test_bmnet \
     ~/work/llvm-project/build/cmdbuf.bin \
     out_new.bin \
     1000 150528 25542640 1
+$ python ./bin_dump.py out_new.bin int8 1 1 1 1000 5
 ```
 
 ### 11. bmkernel to bmodel assembly
