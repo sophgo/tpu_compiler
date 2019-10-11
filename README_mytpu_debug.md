@@ -78,9 +78,20 @@ $ python ./npz_dump.py tensor_all_quant-int8.npz pool1
 
 ```
 # weight, conv1 filter
-$ python ./bin_extract.py out_new.bin out_conv1_0.bin 0x01856f10 9408
-$ python ./bin_extract.py out_new.bin out_conv1_1.bin 0x01856ed0 64
-$ python ./bin_extract.py out_new.bin out_conv1_2.bin 0x01856ec0 1
+$ python ./bin_extract.py ~/work/llvm-project/build/ResNet-50-model.bin \
+    out_conv1_0.bin int8 0x01856f10 9408
+$ python ./bin_extract.py ~/work/llvm-project/build/ResNet-50-model.bin \
+    out_conv1_1.bin int8 0x01856ed0 64
+$ python ./bin_extract.py ~/work/llvm-project/build/ResNet-50-model.bin \
+    out_conv1_2.bin int8 0x01856ec0 1
+
+$ python ./bin_dump.py out_conv1_0.bin int8 64 3 7 7
+$ python ./bin_dump.py out_conv1_1.bin int8 1 1 1 64
+$ python ./bin_dump.py out_conv1_2.bin int8 1 1 1 1
+
+$ python ./npz_dump.py tensor_all_quant-int8.npz scale_conv1_quant_int8_0
+$ python ./npz_dump.py tensor_all_quant-int8.npz scale_conv1_quant_int8_1
+$ python ./npz_dump.py tensor_all_quant-int8.npz scale_conv1_quant_int8_rshift
 ```
 
 ## get the neuron map

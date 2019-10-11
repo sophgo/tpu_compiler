@@ -59,21 +59,40 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
     auto type = weightOp.getResult()->getType().cast<TensorType>();
     auto weight = weightTensorFile_->readTensor<float>(tensor_name, type);
 
-    // cast into int8
-    std::vector<int8_t> weight_int8(weight->begin(), weight->end());
+    auto curPos = weightBinaryFile_->tell();
 
-    // pad to alignment
-    if (weight->size() % alignment_) {
-      size_t pad = alignment_ - (weight->size() % alignment_);
-      for (size_t i = 0; i < pad; ++i) {
-        weight_int8.push_back(-128); // assign a special value for debugging
+    if (weightOp.storage() == "INT8") {
+      // cast into int8
+      std::vector<int8_t> weight_int8(weight->begin(), weight->end());
+      // pad to alignment
+      if ( weight_int8.size() % alignment_ ) {
+        size_t pad = alignment_ - (weight_int8.size() % alignment_);
+        for (size_t i = 0; i < pad; ++i) {
+          weight_int8.push_back(-128); // assign a special value for debugging
+        }
       }
+      weightBinaryFile_->write(reinterpret_cast<const char*>(weight_int8.data()),
+          weight_int8.size() * sizeof(int8_t));
+    } else if (weightOp.storage() == "INT16") {
+      // cast into int8
+      std::vector<int16_t> weight_int16(weight->begin(), weight->end());
+      // pad to alignment
+      if ( weight_int16.capacity() % alignment_ ) {
+        size_t pad = ( alignment_ - ( weight_int16.capacity() % alignment_ ) )
+                     / sizeof(uint16_t);
+        for (size_t i = 0; i < pad; ++i) {
+          weight_int16.push_back(-32768); // assign a special value for debugging
+        }
+      }
+      weightBinaryFile_->write(reinterpret_cast<const char*>(weight_int16.data()),
+          weight_int16.size() * sizeof(int16_t));
+    } else if (weightOp.storage() == "NONE") {
+    } else {
+      llvm::errs() << tensor_name << " weight storage type "
+                   << weightOp.storage() << "\n";
+      assert(0 && "not supported weight storage type");
     }
 
-    // write to binary file
-    auto curPos = weightBinaryFile_->tell();
-    weightBinaryFile_->write(reinterpret_cast<const char*>(weight_int8.data()),
-        weight_int8.size() * sizeof(int8_t));
     auto newPos = weightBinaryFile_->tell();
 
     llvm::errs() << llvm::format("[%-36s][%8d] : [ ",

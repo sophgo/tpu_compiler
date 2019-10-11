@@ -41,10 +41,10 @@ def TPU_Dialect : Dialect {
 }
 
 //===----------------------------------------------------------------------===//
-// Activation function enum definitions.
+// Quantization methods enum definitions.
 //===----------------------------------------------------------------------===//
 
-// Allowed activation function cases
+// Allowed quantization methods cases
 def TPU_Quant_None    : StrEnumAttrCase<"NONE">;
 def TPU_Quant_Int8    : StrEnumAttrCase<"INT8">;
 def TPU_Quant_Int8_PC : StrEnumAttrCase<"INT8_PER_CHANNEL">;
@@ -55,6 +55,25 @@ def TPU_QuantAttr : StrEnumAttr<
     "QuantizeFlag", "quantization flag enum", [
       TPU_Quant_None,  TPU_Quant_Int8, TPU_Quant_Int8_PC,
       TPU_Quant_Int8_M, TPU_Quant_BF16
+    ]>;
+
+//===----------------------------------------------------------------------===//
+// Weight storage type enum definitions.
+//===----------------------------------------------------------------------===//
+
+// Allowed weight storage type cases, defines how each weight element is stored
+// in the generated weight.bin file
+def TPU_Weight_None   : StrEnumAttrCase<"NONE">;
+def TPU_Weight_Int8   : StrEnumAttrCase<"INT8">;
+def TPU_Weight_Int16  : StrEnumAttrCase<"INT16">;
+def TPU_Weight_Int32  : StrEnumAttrCase<"INT32">;
+def TPU_Weight_BF16   : StrEnumAttrCase<"BF16">;
+def TPU_Weight_FP32   : StrEnumAttrCase<"FP32">;
+
+def TPU_WeightAttr : StrEnumAttr<
+    "WeightStorageFlag", "weight storage flag enum", [
+      TPU_Weight_None,  TPU_Weight_Int8, TPU_Weight_Int16,
+      TPU_Weight_Int32, TPU_Weight_BF16, TPU_Weight_FP32
     ]>;
 
 //===----------------------------------------------------------------------===//
@@ -163,13 +182,16 @@ def TPU_LoadWeightOp : TPU_Op<"load_weight", [NoSideEffect]> {
     Load weight for a memref into a tensor.
 
     Inputs:
-      `memref`: required: the weight memref
-      `offset`: required: the offset inside the memref
+      `memref` : required: the weight memref
+      `name`   : optional: name of the weight
+      `storage`: default : type to store to a bin file
+      `offset` : optional: the offset inside the memref
   }];
 
   let arguments = (
     ins AnyMemRef:$memref,
     OptionalAttr<StrAttr>:$name,
+    DefaultValuedAttr<TPU_WeightAttr, "FP32">:$storage,
     OptionalAttr<NonNegativeI64Attr>:$offset
   );
 

@@ -94,16 +94,16 @@ static inline int16_t quantizeBiasRShiftI16(float w, float threshold_y,
     uint32_t rshift) {
   float factor = (128.0f / threshold_y) * (1 << rshift);
   int q = w * factor;
-  if ( (q > 65535) || (q < -65536) ) {
-    llvm::errs() << "  element exceeds limits [-65536, 65535] : "
+  if ( (q > 32767) || (q < -32768) ) {
+    llvm::errs() << "  element exceeds limits [-32768, 32767] : "
                  << std::to_string(w) << " -> " << std::to_string(q)
                  << ", rshift = " << rshift << "\n";
   }
-  assert( (q <= 65535) && (q >= -65536) );
-  if ( q > 65535 )
-    q = 65535;
-  if ( q < -65536 )
-    q = -65536;
+  assert( (q <= 32767) && (q >= -32768) );
+  if ( q > 32767 )
+    q = 32767;
+  if ( q < -32768 )
+    q = -32768;
   return (int16_t)q;
 }
 
@@ -335,6 +335,13 @@ struct TpuQuantConv2DOpPattern : public RewritePattern {
       weightTensorFile_->addTensor<float>(tensor_name, newWeights[i], type);
       std::vector<NamedAttribute> attrs;
       attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(tensor_name)));
+      if (i == 0) {
+        // filter store as INT8
+        attrs.push_back(rewriter.getNamedAttr("storage", rewriter.getStringAttr("INT8")));
+      } else if (i == 1) {
+        // bias store as INT16
+        attrs.push_back(rewriter.getNamedAttr("storage", rewriter.getStringAttr("INT16")));
+      }
       auto new_weight_op = rewriter.create<tpu::LoadWeightOp>(op->getLoc(), type,
           ArrayRef<Value *>{weightFileVar_}, ArrayRef<NamedAttribute>{attrs});
       newOperands.push_back(new_weight_op);
@@ -351,6 +358,8 @@ struct TpuQuantConv2DOpPattern : public RewritePattern {
       weightTensorFile_->addTensor<float>(tensor_name, &rshift, type);
       std::vector<NamedAttribute> attrs;
       attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(tensor_name)));
+      // no need to store per-channel rshift
+      attrs.push_back(rewriter.getNamedAttr("storage", rewriter.getStringAttr("NONE")));
       auto new_weight_op = rewriter.create<tpu::LoadWeightOp>(loc, type,
           ArrayRef<Value *>{weightFileVar_}, ArrayRef<NamedAttribute>{attrs});
       newOperands.push_back(new_weight_op);
@@ -371,6 +380,8 @@ struct TpuQuantConv2DOpPattern : public RewritePattern {
         weightTensorFile_->addTensor<float>(tensor_name, &multiplier, type);
         attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(tensor_name)));
       }
+      // per-channel rshift or multiplier store as INT32
+      attrs.push_back(rewriter.getNamedAttr("storage", rewriter.getStringAttr("INT32")));
       auto new_weight_op = rewriter.create<tpu::LoadWeightOp>(loc, type,
           ArrayRef<Value *>{weightFileVar_}, ArrayRef<NamedAttribute>{attrs});
       newOperands.push_back(new_weight_op);
@@ -507,6 +518,13 @@ struct TpuQuantFullyConnectedOpPattern : public RewritePattern {
       weightTensorFile_->addTensor<float>(tensor_name, newWeights[i], type);
       std::vector<NamedAttribute> attrs;
       attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(tensor_name)));
+      if (i == 0) {
+        // filter store as INT8
+        attrs.push_back(rewriter.getNamedAttr("storage", rewriter.getStringAttr("INT8")));
+      } else if (i == 1) {
+        // bias store as INT16
+        attrs.push_back(rewriter.getNamedAttr("storage", rewriter.getStringAttr("INT16")));
+      }
       auto new_weight_op = rewriter.create<tpu::LoadWeightOp>(op->getLoc(), type,
           ArrayRef<Value *>{weightFileVar_}, ArrayRef<NamedAttribute>{attrs});
       newOperands.push_back(new_weight_op);
@@ -522,6 +540,7 @@ struct TpuQuantFullyConnectedOpPattern : public RewritePattern {
     weightTensorFile_->addTensor<float>(tensor_name, &rshift, type);
     std::vector<NamedAttribute> attrs;
     attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(tensor_name)));
+    attrs.push_back(rewriter.getNamedAttr("storage", rewriter.getStringAttr("NONE")));
     auto new_weight_op = rewriter.create<tpu::LoadWeightOp>(loc, type,
         ArrayRef<Value *>{weightFileVar_}, ArrayRef<NamedAttribute>{attrs});
     newOperands.push_back(new_weight_op);
