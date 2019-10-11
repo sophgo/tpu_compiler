@@ -97,8 +97,8 @@ $ python npz_dump.py ResNet-50-model.npz conv1_0
 inference
 ```
 $ ./bin/mlir-tpu-interpreter resnet-50.mlir \
---tensor-in /data/release/bmnet_models/resnet50/resnet50_input_1_3_224_224.bin \
---tensor-out out.bin
+    --tensor-in /data/release/bmnet_models/resnet50/resnet50_input_1_3_224_224.bin \
+    --tensor-out out.bin
 ```
 
 * TODO: handle multiple outputs (use npz for inputs and output)
@@ -125,8 +125,8 @@ $ ./bin/mlir-opt \
 check
 ```
 $ ./bin/mlir-tpu-interpreter resnet-50-opt1.mlir \
---tensor-in /data/release/bmnet_models/resnet50/resnet50_input_1_3_224_224.bin \
---tensor-out out-opt1.bin
+    --tensor-in /data/release/bmnet_models/resnet50/resnet50_input_1_3_224_224.bin \
+    --tensor-out out-opt1.bin
 $ python bin_compare.py out.bin out-opt1.bin float32 1 1 1 1000 5
 ```
 
@@ -144,8 +144,8 @@ $ ./bin/mlir-opt \
 check
 ```
 $ ./bin/mlir-tpu-interpreter resnet-50-opt2.mlir \
---tensor-in /data/release/bmnet_models/resnet50/resnet50_input_1_3_224_224.bin \
---tensor-out out-opt2.bin
+    --tensor-in /data/release/bmnet_models/resnet50/resnet50_input_1_3_224_224.bin \
+    --tensor-out out-opt2.bin
 $ python bin_compare.py out.bin out-opt2.bin float32 1 1 1 1000 5
 ```
 
@@ -161,8 +161,8 @@ $ ./bin/mlir-opt \
 check
 ```
 $ ./bin/mlir-tpu-interpreter resnet-50-opt3.mlir \
---tensor-in /data/release/bmnet_models/resnet50/resnet50_input_1_3_224_224.bin \
---tensor-out out-opt3.bin
+    --tensor-in /data/release/bmnet_models/resnet50/resnet50_input_1_3_224_224.bin \
+    --tensor-out out-opt3.bin
 $ python bin_compare.py out.bin out-opt3.bin float32 1 1 1 1000 5
 ```
 
@@ -224,8 +224,8 @@ $ python npz_dump.py ResNet-50-model.npz scale_conv1_quant_int8_1
 $ python npz_dump.py ResNet-50-model.npz scale_conv1_quant_int8_rshift
 
 $ ./bin/mlir-tpu-interpreter resnet-50-quant-int8.mlir \
---tensor-in /data/release/bmnet_models/resnet50/resnet50_input_1_3_224_224.bin \
---tensor-out out-quant-int8.bin
+    --tensor-in /data/release/bmnet_models/resnet50/resnet50_input_1_3_224_224.bin \
+    --tensor-out out-quant-int8.bin
 $ python bin_compare.py out.bin out-quant-int8.bin float32 1 1 1 1000 5
 ```
 
@@ -247,8 +247,8 @@ $ python npz_dump.py ResNet-50-model.npz scale_conv1_quant_int8_1
 $ python npz_dump.py ResNet-50-model.npz scale_conv1_quant_int8_rshift
 
 $ ./bin/mlir-tpu-interpreter resnet-50-quant-int8-per-channel.mlir \
---tensor-in /data/release/bmnet_models/resnet50/resnet50_input_1_3_224_224.bin \
---tensor-out out-quant-int8-per-channel.bin
+    --tensor-in /data/release/bmnet_models/resnet50/resnet50_input_1_3_224_224.bin \
+    --tensor-out out-quant-int8-per-channel.bin
 $ python bin_compare.py out.bin out-quant-int8-per-channel.bin float32 1 1 1 1000 5
 ```
 
@@ -271,8 +271,8 @@ $ python npz_dump.py ResNet-50-model.npz scale_conv1_quant_int8_1
 $ python npz_dump.py ResNet-50-model.npz scale_conv1_quant_int8_multiplier
 
 $ ./bin/mlir-tpu-interpreter resnet-50-quant-int8-multiplier.mlir \
---tensor-in /data/release/bmnet_models/resnet50/resnet50_input_1_3_224_224.bin \
---tensor-out out-quant-int8-multiplier.bin
+    --tensor-in /data/release/bmnet_models/resnet50/resnet50_input_1_3_224_224.bin \
+    --tensor-out out-quant-int8-multiplier.bin
 $ python bin_compare.py out.bin out-quant-int8-multiplier.bin float32 1 1 1 1000 5
 ```
 
@@ -322,10 +322,10 @@ $ pip install --user mxnet
 $ pip install --user gluoncv
 
 $ python ../llvm/projects/mlir/bindings/python/tools/run_classification.py \
---model=resnet-50.mlir \
---dataset=/data/dataset/imagenet/img_val_extracted \
---mean_file=../llvm/projects/mlir/bindings/python/tools/mean_resize.npy \
---count=100
+    --model=resnet-50.mlir \
+    --dataset=/data/dataset/imagenet/img_val_extracted \
+    --mean_file=../llvm/projects/mlir/bindings/python/tools/mean_resize.npy \
+    --count=100
 ```
 
 result of resnet-50 accuracy (fp32, int8, int8-per-channel, int8-multiplier)
@@ -341,7 +341,19 @@ result of resnet-50 accuracy (fp32, int8, int8-per-channel, int8-multiplier)
 
 ### 8. codegen from tpu dialect
 
-Codegen into bmkernel script (asm)
+#### 8.1 assign weight address
+
+```
+$ ./bin/mlir-opt \
+    --assign-weight-address \
+    --tpu-weight-address-align=16 \
+    resnet-50-quant-int8.mlir \
+    -o resnet-50-quant-int8-addr1.mlir
+```
+
+#### 8.2 assign neuron address
+
+#### 8.3 generate cmdbuf
 
 ### 11. bmkernel to bmodel assembly
 

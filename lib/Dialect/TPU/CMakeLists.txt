@@ -12,6 +12,7 @@ add_llvm_library(MLIRTPU
   Transforms/ConvertBnToScale.cpp
   Transforms/FoldScale.cpp
   Transforms/FuseScaleIntoConv.cpp
+  Transforms/AssignWeightAddress.cpp
   Quantization/ImportCalibrationTable.cpp
   Quantization/QuantizeInt8.cpp
   Quantization/QuantizationUtils.cpp
