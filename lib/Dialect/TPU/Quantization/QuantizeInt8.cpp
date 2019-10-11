@@ -655,7 +655,7 @@ struct TpuAddQuantAfterInputOpPattern : public OpRewritePattern<tpu::InputOp> {
     llvm::errs() << op.name() << " add quantization op after Input\n";
     float threshold_y = op.threshold_y().getValue().convertToFloat();
     std::string op_name = op.getAttrOfType<StringAttr>("name").getValue().str();
-    addQuantOpAfterOp<tpu::InputOp>(rewriter, op, threshold_y, op_name);
+    addQuantOpAfterOp<tpu::InputOp>(rewriter, op, threshold_y, op_name + "_quant");
 
     return matchSuccess();
   }
@@ -699,10 +699,10 @@ struct TpuAddQuantAndDequantForSoftmaxOpPattern : public OpRewritePattern<tpu::S
     float threshold_x;
     auto status = getPreviousOpThreshold(op, &threshold_x);
     assert(succeeded(status));
-    addDequantOpBeforeOp<tpu::SoftmaxOp>(rewriter, op, threshold_x, op_name);
+    addDequantOpBeforeOp<tpu::SoftmaxOp>(rewriter, op, threshold_x, op_name + "_quant");
 
     float threshold_y = op.threshold_y().getValue().convertToFloat();
-    addQuantOpAfterOp<tpu::SoftmaxOp>(rewriter, op, threshold_y, op_name);
+    addQuantOpAfterOp<tpu::SoftmaxOp>(rewriter, op, threshold_y, op_name + "_dequant");
 
     return matchSuccess();
   }

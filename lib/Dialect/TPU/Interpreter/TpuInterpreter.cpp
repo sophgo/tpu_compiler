@@ -63,7 +63,7 @@
 
 //#define DUMP_FLAG
 //#define QUANT_DEQUANT_EVERY_LAYER
-#define ENABLE_GEN_CMDBUF
+//#define ENABLE_GEN_CMDBUF
 
 using namespace mkldnn;
 
@@ -639,27 +639,31 @@ static int64_t findPadForSamePadding(int64_t i, int64_t o, int64_t k, int64_t s,
   return 0;
 }
 
-static inline int8_t rshiftAndSaturate(float v, uint32_t rshift) {
-  float q_f = v / (1 << rshift);
+static inline int8_t saturateInt8(float v) {
   #if 0
   // away_from_zero
   int q_i = (q_f >= 0) ? (int)ceil(q_f) : (int)floor(q_f);
   #else
-  int q_i = (int)roundf(q_f);
+  int q = (int)roundf(v);
   #endif
   //assert( (q <= 127) && (q >= -128) );
   DEBUG_WITH_TYPE(DEBUG_TYPE"_WARNING",
-    if ( (q_i > 127) || (q_i < -128) ) {
+    if ( (q > 127) || (q < -128) ) {
       llvm::errs() << "  element exceeds limits [-128, 127] : "
-                   << v << " -> " << q_i << "\n";
+                   << v << " -> " << q << "\n";
     }
   );
-  if ( q_i > 127 )
-    q_i = 127;
-  if ( q_i < -128 )
-    q_i = -128;
+  if ( q > 127 )
+    q = 127;
+  if ( q < -128 )
+    q = -128;
 
-  return (int8_t)q_i;
+  return (int8_t)q;
+}
+
+static inline int8_t rshiftAndSaturate(float v, uint32_t rshift) {
+  return saturateInt8(v / (1 << rshift));
+
 }
 
 static inline int8_t divideMultiplierAndSaturate(float v, float multiplier) {
@@ -949,7 +953,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       LLVM_DEBUG(llvm::errs() << "  conv input quantize, threshold_x = " << std::to_string(threshold_x) << "\n";);
       assert(succeeded(status));
       for (size_t i = 0; i < operand_tensors[0]->size(); ++i) {
-        mkldnn_input[i] = mkldnn_input[i] * 128.0 / threshold_x;
+        mkldnn_input[i] = (float)saturateInt8(mkldnn_input[i] * 128.0 / threshold_x);
       }
     }
 #endif
@@ -1173,7 +1177,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     // remove this when the network is full int8, and passed legalization
     if (op.quant() == "INT8" && is_average_pool) {
       for (size_t i = 0; i < operand_tensors[0]->size(); ++i) {
-        mkldnn_input[i] = mkldnn_input[i] * 128.0 / threshold_x;
+        mkldnn_input[i] = (float)saturateInt8(mkldnn_input[i] * 128.0 / threshold_x);
       }
     }
 #endif
@@ -1349,7 +1353,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       LLVM_DEBUG(llvm::errs() << "  fc input quantize, threshold_x = " << std::to_string(threshold_x) << "\n";);
       assert(succeeded(status));
       for (size_t i = 0; i < operand_tensors[0]->size(); ++i) {
-        mkldnn_input[i] = mkldnn_input[i] * 128.0 / threshold_x;
+        mkldnn_input[i] = (float)saturateInt8(mkldnn_input[i] * 128.0 / threshold_x);
       }
     }
 #endif
@@ -1778,7 +1782,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     if (op.quant() == "INT8") {
       for (int index = 0; index < MAX_ELTWISE_INPUT; ++index) {
         for (size_t i = 0; i < operand_tensors[index]->size(); ++i) {
-          input[index][i] = input[index][i] * 128.0 / threshold_x[index];
+          input[index][i] = (float)saturateInt8(input[index][i] * 128.0 / threshold_x[index]);
         }
       }
     }
@@ -1964,7 +1968,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       LLVM_DEBUG(llvm::errs() << "  quantization, threshold = "
                    << std::to_string(threshold) << "\n";);
       for (int i = 0; i < size; ++i) {
-        output[i] = input[i] * 128.0 / threshold;
+        output[i] = (float)saturateInt8(input[i] * 128.0 / threshold);
       }
     }
     // TODO: End of compute, need refactor
