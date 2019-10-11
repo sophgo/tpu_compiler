@@ -98,6 +98,10 @@ public:
     auto *context = &getContext();
     patterns.insert<TpuQuantizationOpPattern<tpu::QuantizationOp> >(
         context, "tpu.quantization", &pos, clNeuronAlignment);
+    // assigne quantizationOp first, as input has to be at address 0
+    // TODO: remove this constrain, input should be able to be any address
+    applyPatternsGreedily(fn, patterns);
+    patterns.clear();
     patterns.insert<TpuQuantizationOpPattern<tpu::Conv2DOp> >(
         context, "tpu.conv_2d", &pos, clNeuronAlignment);
     patterns.insert<TpuQuantizationOpPattern<tpu::FullyConnectedOp> >(
