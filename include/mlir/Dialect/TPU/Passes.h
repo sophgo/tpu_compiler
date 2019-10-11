@@ -38,6 +38,8 @@ std::unique_ptr<FunctionPassBase> createImportCalibrationTablePass();
 std::unique_ptr<FunctionPassBase> createQuantizeInt8Pass();
 
 std::unique_ptr<FunctionPassBase> createAssignWeightAddressPass();
+std::unique_ptr<FunctionPassBase> createAssignNeuronAddressPass();
+
 } // namespace mlir
 
 #endif // MLIR_DIALECT_TPU_PASSES_H_

@@ -353,6 +353,14 @@ $ ./bin/mlir-opt \
 
 #### 8.2 assign neuron address
 
+```
+$ ./bin/mlir-opt \
+    --assign-neuron-address \
+    --tpu-neuron-address-align=16 \
+    resnet-50-quant-int8-addr1.mlir \
+    -o resnet-50-quant-int8-addr2.mlir
+```
+
 #### 8.3 generate cmdbuf
 
 ### 11. bmkernel to bmodel assembly
