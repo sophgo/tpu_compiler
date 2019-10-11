@@ -63,6 +63,7 @@
 
 //#define DUMP_FLAG
 //#define QUANT_DEQUANT_EVERY_LAYER
+//#define ENABLE_GEN_CMDBUF
 
 using namespace mkldnn;
 
@@ -76,6 +77,12 @@ static llvm::cl::opt<std::string> clAllTensorFilename(
     llvm::cl::desc("dump all tensor into a npz file"),
     llvm::cl::init("-"),
     llvm::cl::cat(clOptionsCategory));
+
+#ifdef ENABLE_GEN_CMDBUF
+#include "BM1880v2BackendContext.h"
+#include "bmnet_tg_api.h"
+static BM1880v2BackendContext *bm1880v2_ctx = nullptr;
+#endif
 
 #ifdef DUMP_FLAG
 static size_t write_bianry_file(std::string filename, const char *data,
@@ -994,10 +1001,64 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       }
     }
 #endif
-
     // TODO: End of compute, need refactor
 
     valueMapping[result] = std::move(result_tensor);
+
+#ifdef ENABLE_GEN_CMDBUF
+    bmnet_conv_parallel_fixed_forward_bmkernel(
+        *bm1880v2_ctx,
+        0, // stream_id,
+        0, // inst_id,
+        0, // layer_id,
+        nullptr, // depends
+        0, // depends_len
+        0x1000, // input_data_gaddr,
+        0x2000, // output_data_gaddr,
+        0x3000, // weight_data_gaddr,
+        0x4000, // bias_data_gaddr,
+        INVALID_GLOBAL_ADDR, // bn_mean_data_gaddr,
+        INVALID_GLOBAL_ADDR, // bn_variance_data_gaddr,
+        INVALID_GLOBAL_ADDR,
+        INVALID_GLOBAL_ADDR,
+        n,
+        ic,
+        ih,
+        iw,
+        1, // group,
+        oc,
+        kh,
+        kw,
+        dh,
+        dw,
+        ph, // pad_h_top,
+        ph, // pad_h_bottom,
+        pw, // pad_w_left,
+        pw, // pad_w_right,
+        sh,
+        sw,
+        0, // result_add
+        1, // bias_term,
+        0, // do_bn,
+        0, // do_scale,
+        0, // do_scale_bias,
+        0, // do_activation,
+        1.0f, // bn_scale,
+        1e-5, // eps,
+        0, // param.activation(), method
+        nullptr, // activation_arg,
+        INVALID_GLOBAL_ADDR, //global_slope_gaddr,
+        false, //channel_shared,
+        0, //activation_gt_scale,
+        0, //activation_gt_rshift,
+        0, //activation_le_scale, // slope, TODO
+        0, //activation_le_rshift,
+        (int)rshift[0], //right_shift_width,
+        0, //bn_right_shift_width,
+        0, //scale_right_shift_width,
+        false //use_winograd
+        );
+#endif
 
     return success();
   }
@@ -1104,6 +1165,8 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     assert(mkldnn_ret == 0);
     //dump_data_float_abs("mkldnn_output", mkldnn_output, n, c, oh, ow);
 
+    uint32_t rshift = 0;
+    int8_t multiplier = 0;
     // do quantize for average pooling, max poolings are bypassed
     if (op.quant() == "INT8" && is_average_pool) {
       // determine multiplier and rshift according to threshold_x
@@ -1111,8 +1174,8 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       // scale will be implemented by hardware as
       // scale = multiplier / (1 << rshift)
       // find a rshift, that put max(multiplier) into range (64, 127)
-      uint32_t rshift;
-      int8_t multiplier;
+      //uint32_t rshift;
+      //int8_t multiplier;
       rshift = findRShiftFromScale(threshold_x / threshold_y);
       float scale = threshold_x / threshold_y;
       multiplier = (int8_t)(scale * (1 << rshift));
@@ -1142,6 +1205,41 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     // TODO: End of compute, need refactor
 
     valueMapping[result] = std::move(result_tensor);
+
+#ifdef ENABLE_GEN_CMDBUF
+    // gen cmdbuf
+    int threshold_x_quantized = multiplier;
+    bmnet_pooling_fixed_forward_bmkernel(
+        *bm1880v2_ctx,
+        0, // stream_id,
+        0, // inst_id,
+        0, // layer_id,
+        nullptr, // depends
+        0, // depends_len
+        0x1000, // input_data_gaddr,
+        0x2000, // output_data_gaddr,
+        0x3000, // weight_data_gaddr,
+        0x4000, // bias_data_gaddr,
+        n,
+        c,
+        ih,
+        iw,
+        kh,
+        kw,
+        ph, // int pad_top,
+        ph, // int pad_bot,
+        pw, // int pad_left,
+        pw, // int pad_right,
+        sh, // int stride_h,
+        sw, // int stride_w,
+        is_average_pool, //is_avg_pooling,
+        0.0f, // float avg_const,  // default(passing 0.0f) is 1/kh*kw
+        0, // int do_relu,
+        rshift, //int right_shift_width,
+        &threshold_x_quantized,
+        true);
+    // gen cmdbuf end
+#endif
 
     return success();
   }
@@ -1265,6 +1363,35 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
     valueMapping[result] = std::move(result_tensor);
 
+#ifdef ENABLE_GEN_CMDBUF
+    bmnet_fc_fixed_forward_bmkernel(
+        *bm1880v2_ctx,
+        0, // stream_id,
+        0, // inst_id,
+        0, // layer_id,
+        nullptr, // depends
+        0, // depends_len
+        0x1000, // input_data_gaddr,
+        0x3000, // weight_data_gaddr,
+        0x4000, // bias_data_gaddr,
+        0x2000, // output_data_gaddr,
+        m, // int in_row,
+        k, // int in_col,
+        n, // int out_col,
+        1, // int have_bias,
+        0, // do_activation,
+        0, // activation_method,
+        INVALID_GLOBAL_ADDR, // activation_ga_slope,
+        0, // int activation_channel_shared,
+        0, // int activation_gt_scale,
+        0, // int activation_gt_rshift,
+        0, // int activation_le_scale,
+        0, // int activation_le_rshift,
+        false, // weight_tp,
+        3, // int left_shift_width, // #define DEFAULT_FC_LEFT_SHIFT 3
+        rshift[0]);
+#endif
+
     return success();
   }
   if (auto op = dyn_cast<tpu::ReluOp>(opInst)) {
@@ -1319,6 +1446,24 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     // TODO: End of compute, need refactor
 
     valueMapping[result] = std::move(result_tensor);
+
+#ifdef ENABLE_GEN_CMDBUF
+    bmnet_relu_fixed_forward_bmkernel(
+        *bm1880v2_ctx,
+        0, // stream_id,
+        0, // inst_id,
+        0, // layer_id,
+        nullptr, // depends
+        0, // depends_len
+        0x1000, // input_data_gaddr,
+        0x2000, // output_data_gaddr,
+        0.0f, // float negative_slope,
+        n,
+        c,
+        h,
+        w);
+#endif
+
     return success();
   }
   if (auto op = dyn_cast<tpu::SoftmaxOp>(opInst)) {
@@ -1438,6 +1583,11 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     // TODO: End of compute, need refactor
 
     valueMapping[result] = std::move(result_tensor);
+
+#ifdef ENABLE_GEN_CMDBUF
+    assert(false && "GEN_CMDBUF does not support bn, bn should change to scale");
+#endif
+
     return success();
   }
   if (auto op = dyn_cast<tpu::ScaleOp>(opInst)) {
@@ -1498,6 +1648,11 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     // TODO: End of compute, need refactor
 
     valueMapping[result] = std::move(result_tensor);
+
+#ifdef ENABLE_GEN_CMDBUF
+    assert(false && "GEN_CMDBUF does not support scale, scale should merge into conv");
+#endif
+
     return success();
   }
   if (auto op = dyn_cast<tpu::EltwiseOp>(opInst)) {
@@ -1639,6 +1794,38 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     // TODO: End of compute, need refactor
 
     valueMapping[result] = std::move(result_tensor);
+
+#ifdef ENABLE_GEN_CMDBUF
+    // gen cmd
+    gaddr_t ga_inputs[2] = {0x1000, 0x2000};
+    int threshold_x_quantized[MAX_ELTWISE_INPUT];
+    for (int i; i < MAX_ELTWISE_INPUT; ++i) {
+      threshold_x_quantized[i] = multiplier[i];
+    }
+    const int coeffs[2] = {1, 1};
+    bmnet_eltwise_fixed_forward_bmkernel(
+        *bm1880v2_ctx,
+        0, // stream_id,
+        0, // inst_id,
+        0, // layer_id,
+        nullptr, // depends
+        0, // depends_len
+        ga_inputs, // gaddr_t ga_input[],
+        0x3000, // gaddr_t ga_output,
+        2, // int input_size,
+        1, // int op,  0, prod, 1, sum, 2, max
+        n,
+        c,
+        h,
+        w,
+        false, // bool do_relu,
+        0.0f, // float relu_slope,
+        rshift, //int right_shift_width,
+        threshold_x_quantized,
+        coeffs);
+    // gen cmd end
+#endif
+
     return success();
   }
   if (auto op = dyn_cast<tpu::ReshapeOp>(opInst)) {
@@ -1869,11 +2056,24 @@ LogicalResult ModuleInterpreter::runOneFunction(FuncOp func) {
   }
   assert(argIdx == 1);
 
+#ifdef ENABLE_GEN_CMDBUF
+  std::vector<int8_t> weight_data;
+  bm1880v2_ctx = new BM1880v2BackendContext(BM_CHIP_BM1880v2, 1, weight_data);
+#endif
+
   // Then, run blocks one by one.
   for (Block &bb : func.getBlocks()) {
     if (failed(runBlock(bb)))
       return failure();
   }
+
+#ifdef ENABLE_GEN_CMDBUF
+  bm1880v2_ctx->submit();
+  std::vector<uint8_t> cmdbuf;
+  bm1880v2_ctx->read_cmdbuf(cmdbuf);
+  std::fstream output("cmdbuf.bin", std::ios::out | std::ios::trunc | std::ios::binary);
+  output.write((char *)cmdbuf.data(), cmdbuf.size());
+#endif
 
   if (clAllTensorFilename != "-") {
     // dump all values

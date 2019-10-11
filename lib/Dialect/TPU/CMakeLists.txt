@@ -2,7 +2,7 @@ if(NOT tpu_LINKER_LIBS)
   set(tpu_LINKER_LIBS "")
 endif(NOT tpu_LINKER_LIBS)
 list(APPEND tpu_LINKER_LIBS
-  mkldnn)
+  mkldnn bmkernel)
 
 add_llvm_library(MLIRTPU
   IR/TPUDialect.cpp
@@ -16,6 +16,13 @@ add_llvm_library(MLIRTPU
   Quantization/QuantizeInt8.cpp
   Quantization/QuantizationUtils.cpp
   Interpreter/TpuInterpreter.cpp
+  Interpreter/BM1880v2BackendContext.cpp
+  Interpreter/dma_legacy_bmkernel.cpp
+  Interpreter/conv_parallel_bmkernel.cpp
+  Interpreter/fc_parallel_bmkernel.cpp
+  Interpreter/pooling_bmkernel.cpp
+  Interpreter/relu_bmkernel.cpp
+  Interpreter/eltwise_bmkernel.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${MLIR_MAIN_INCLUDE_DIR}/mlir/Dialect/TPU

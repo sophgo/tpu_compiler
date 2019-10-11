@@ -92,6 +92,17 @@ endif()
 include_directories(${CNPY_PATH}/include)
 link_directories(${CNPY_PATH}/lib)
 
+if(NOT DEFINED BMKERNEL_PATH)
+  set(MKLDNN_PATH $ENV{BMKERNEL_PATH})
+endif()
+if(NOT DEFINED BMKERNEL_PATH)
+  message(FATAL_ERROR "Please set BMKERNEL_PATH to point to the BMKERNEL installation path")
+else(NOT DEFINED BMKERNEL_PATH)
+  message(STATUS "BMKERNEL_PATH ${BMKERNEL_PATH}")
+endif()
+include_directories(${BMKERNEL_PATH}/include)
+link_directories(${BMKERNEL_PATH}/lib)
+
 include_directories( "include")
 include_directories( ${MLIR_INCLUDE_DIR})
 
