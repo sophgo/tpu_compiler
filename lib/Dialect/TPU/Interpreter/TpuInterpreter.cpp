@@ -63,7 +63,7 @@
 
 //#define DUMP_FLAG
 //#define QUANT_DEQUANT_EVERY_LAYER
-//#define ENABLE_GEN_CMDBUF
+#define ENABLE_GEN_CMDBUF
 
 using namespace mkldnn;
 
@@ -1006,6 +1006,25 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     valueMapping[result] = std::move(result_tensor);
 
 #ifdef ENABLE_GEN_CMDBUF
+    gaddr_t input_gaddr = getPreviousOpAddress(op);
+    gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
+    gaddr_t filter_gaddr = getWeightOpAddress(op.getOperand(1)->getDefiningOp());
+    int with_bias = 0;
+    gaddr_t bias_gaddr = INVALID_GLOBAL_ADDR;
+    if (op.quant() == "NONE") {
+      if (operand_tensors.size() > 2) {
+        with_bias = 1;
+      }
+    } else if (op.quant() == "INT8" || op.quant() == "INT8_PER_CHANNEL"
+               || op.quant() == "INT8_MULTIPLIER") {
+      if (operand_tensors.size() > 3) {
+        with_bias = 1;
+      }
+    }
+    if (with_bias) {
+      bias_gaddr = getWeightOpAddress(op.getOperand(2)->getDefiningOp());
+    }
+
     bmnet_conv_parallel_fixed_forward_bmkernel(
         *bm1880v2_ctx,
         0, // stream_id,
@@ -1013,10 +1032,10 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
         0, // layer_id,
         nullptr, // depends
         0, // depends_len
-        0x1000, // input_data_gaddr,
-        0x2000, // output_data_gaddr,
-        0x3000, // weight_data_gaddr,
-        0x4000, // bias_data_gaddr,
+        input_gaddr, // input_data_gaddr,
+        output_gaddr, // output_data_gaddr,
+        filter_gaddr, // weight_data_gaddr,
+        bias_gaddr, // bias_data_gaddr,
         INVALID_GLOBAL_ADDR, // bn_mean_data_gaddr,
         INVALID_GLOBAL_ADDR, // bn_variance_data_gaddr,
         INVALID_GLOBAL_ADDR,
@@ -1038,7 +1057,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
         sh,
         sw,
         0, // result_add
-        1, // bias_term,
+        with_bias, // bias_term,
         0, // do_bn,
         0, // do_scale,
         0, // do_scale_bias,
@@ -1208,6 +1227,9 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
 #ifdef ENABLE_GEN_CMDBUF
     // gen cmdbuf
+    gaddr_t input_gaddr = getPreviousOpAddress(op);
+    gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
+
     int threshold_x_quantized = multiplier;
     bmnet_pooling_fixed_forward_bmkernel(
         *bm1880v2_ctx,
@@ -1216,10 +1238,10 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
         0, // layer_id,
         nullptr, // depends
         0, // depends_len
-        0x1000, // input_data_gaddr,
-        0x2000, // output_data_gaddr,
-        0x3000, // weight_data_gaddr,
-        0x4000, // bias_data_gaddr,
+        input_gaddr, // input_data_gaddr,
+        output_gaddr, // output_data_gaddr,
+        INVALID_GLOBAL_ADDR, // index_data_gaddr,
+        INVALID_GLOBAL_ADDR, // o_findex_data_gaddr,
         n,
         c,
         ih,
@@ -1364,6 +1386,25 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     valueMapping[result] = std::move(result_tensor);
 
 #ifdef ENABLE_GEN_CMDBUF
+    gaddr_t input_gaddr = getPreviousOpAddress(op);
+    gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
+    gaddr_t filter_gaddr = getWeightOpAddress(op.getOperand(1)->getDefiningOp());
+    int with_bias = 0;
+    gaddr_t bias_gaddr = INVALID_GLOBAL_ADDR;
+    if (op.quant() == "NONE") {
+      if (operand_tensors.size() > 2) {
+        with_bias = 1;
+      }
+    } else if (op.quant() == "INT8" || op.quant() == "INT8_PER_CHANNEL"
+               || op.quant() == "INT8_MULTIPLIER") {
+      if (operand_tensors.size() > 3) {
+        with_bias = 1;
+      }
+    }
+    if (with_bias) {
+      bias_gaddr = getWeightOpAddress(op.getOperand(2)->getDefiningOp());
+    }
+
     bmnet_fc_fixed_forward_bmkernel(
         *bm1880v2_ctx,
         0, // stream_id,
@@ -1371,10 +1412,10 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
         0, // layer_id,
         nullptr, // depends
         0, // depends_len
-        0x1000, // input_data_gaddr,
-        0x3000, // weight_data_gaddr,
-        0x4000, // bias_data_gaddr,
-        0x2000, // output_data_gaddr,
+        input_gaddr, // input_data_gaddr,
+        filter_gaddr, // weight_data_gaddr,
+        bias_gaddr, // bias_data_gaddr,
+        output_gaddr, // output_data_gaddr,
         m, // int in_row,
         k, // int in_col,
         n, // int out_col,
@@ -1448,6 +1489,9 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     valueMapping[result] = std::move(result_tensor);
 
 #ifdef ENABLE_GEN_CMDBUF
+    gaddr_t input_gaddr = getPreviousOpAddress(op);
+    gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
+
     bmnet_relu_fixed_forward_bmkernel(
         *bm1880v2_ctx,
         0, // stream_id,
@@ -1455,8 +1499,8 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
         0, // layer_id,
         nullptr, // depends
         0, // depends_len
-        0x1000, // input_data_gaddr,
-        0x2000, // output_data_gaddr,
+        input_gaddr, // input_data_gaddr,
+        output_gaddr, // output_data_gaddr,
         0.0f, // float negative_slope,
         n,
         c,
@@ -1796,8 +1840,11 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     valueMapping[result] = std::move(result_tensor);
 
 #ifdef ENABLE_GEN_CMDBUF
-    // gen cmd
-    gaddr_t ga_inputs[2] = {0x1000, 0x2000};
+    gaddr_t ga_inputs[2];
+    ga_inputs[0] = getPreviousOpAddress(op, 0);
+    ga_inputs[1] = getPreviousOpAddress(op, 1);
+    gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
+
     int threshold_x_quantized[MAX_ELTWISE_INPUT];
     for (int i; i < MAX_ELTWISE_INPUT; ++i) {
       threshold_x_quantized[i] = multiplier[i];
@@ -1811,7 +1858,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
         nullptr, // depends
         0, // depends_len
         ga_inputs, // gaddr_t ga_input[],
-        0x3000, // gaddr_t ga_output,
+        output_gaddr, // gaddr_t ga_output,
         2, // int input_size,
         1, // int op,  0, prod, 1, sum, 2, max
         n,

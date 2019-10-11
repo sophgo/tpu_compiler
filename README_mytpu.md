@@ -359,9 +359,31 @@ $ ./bin/mlir-opt \
     --tpu-neuron-address-align=16 \
     resnet-50-quant-int8-addr1.mlir \
     -o resnet-50-quant-int8-addr2.mlir
+
+[data                                ][  150528] : [ 0x00000000 --> 0x00024c00 ]
+[fc1000                              ][    1008] : [ 0x00024c00 --> 0x00024ff0 ]
+... ...
+[scale_conv1                         ][  802816] : [ 0x01797ff0 --> 0x0185bff0 ]
 ```
 
 #### 8.3 generate cmdbuf
+
+use interpreter for now, need to refactor into translator
+```
+$ ./bin/mlir-tpu-interpreter resnet-50-quant-int8-addr2.mlir \
+    --tensor-in /data/release/bmnet_models/resnet50/resnet50_input_1_3_224_224.bin \
+    --tensor-out out-quant-int8.bin
+```
+
+run test
+```
+$ ./test/test_bmnet \
+    /data/release/bmnet_models/resnet50/int8/resnet50_input_1_3_224_224.bin \
+    ~/work/llvm-project/build/ResNet-50-model.bin \
+    ~/work/llvm-project/build/cmdbuf.bin \
+    out_new.bin \
+    1000 150528 25542640 1
+```
 
 ### 11. bmkernel to bmodel assembly
 

@@ -29,6 +29,9 @@ namespace mlir {
 
 LogicalResult getPreviousOpThreshold(Operation *op, float *threshold, uint index = 0);
 
+uint64_t getPreviousOpAddress(Operation *op, uint index = 0);
+uint64_t getWeightOpAddress(Operation *op);
+
 } // namespace mlir
 
 #endif // MLIR_DIALECT_TPU_QUANTIZATIONUTILS_H_
