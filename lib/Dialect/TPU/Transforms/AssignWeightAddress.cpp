@@ -37,6 +37,21 @@
 using namespace mlir;
 
 namespace {
+static void transposeConvolutionFilter(std::vector<int8_t> &w, std::vector<int64_t> &s) {
+  assert(s.size() == 4);
+  int oc = s[0];
+  int ic = s[1];
+  int ks = s[2] * s[3];
+  std::vector<int8_t> w_t(w.size());
+  for (int i = 0; i < oc; i++) {
+    for (int j = 0; j < ic; j++) {
+      for (int k = 0; k < ks; k++) {
+        w_t[i * ic * ks + k * ic + j] = w[i * ic * ks + j * ks + k];
+      }
+    }
+  }
+  w.assign(w_t.begin(), w_t.end());
+}
 
 struct TpuLoadWeightOpPattern : public RewritePattern {
   TpuLoadWeightOpPattern(MLIRContext *context, TensorFile *weightTensorFile,
@@ -64,6 +79,15 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
     if (weightOp.storage() == "INT8") {
       // cast into int8
       std::vector<int8_t> weight_int8(weight->begin(), weight->end());
+      // TODO: the transpose was added to workaround a hardware bug
+      // TODO: we should remove this transpose if we can verify the tdma tput is the same
+      // transpose if this is conv filter weight
+      // TODO: this is tricky, we assume any 4 dim weight tensor is a conv filter
+      std::vector<int64_t> shape = type.getShape();
+      if (shape.size() == 4) {
+        transposeConvolutionFilter(weight_int8, shape);
+      }
+      // TODO: end of workaround transpose
       // pad to alignment
       if ( weight_int8.size() % alignment_ ) {
         size_t pad = alignment_ - (weight_int8.size() % alignment_);
