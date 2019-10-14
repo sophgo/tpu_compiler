@@ -328,21 +328,25 @@ result of resnet-50 accuracy (fp32, int8, int8-per-channel, int8-multiplier)
 | mode | Top-1 accuracy | Top-5 accuracy |
 | ---  | ---            | ---            |
 | fp32             | 0.7820 | 0.9386 |
-| int8 Per-layer   | 0.7799 | 0.9372 |
-| int8 Per-channel | 0.7801 | 0.9393 |
-| int8 Multiplier  | 0.7815 | 0.9388 |
+| int8 Per-layer   | 0.7789 | 0.9368 |
+| int8 Per-channel | 0.7786 | 0.9392 |
+| int8 Multiplier  | 0.7815 | 0.9391 |
 
 ### 7. calibration with interpreter (python version)
 
 ### 8. codegen from tpu dialect
 
-#### 8.1 assign weight address
+#### 8.1 assign weight address and genenrate weight bin file
+
+This also handle weight transpose if needed.
+TODO: handle transpose more explicitly, and try to remove the unessesary transpose.
 
 ```
 $ cp ResNet-50-model_quant_int8.npz ResNet-50-model.npz
 $ ./bin/mlir-opt \
     --assign-weight-address \
     --tpu-weight-address-align=16 \
+    --tpu-weight-map-filename=weight_map.csv \
     resnet-50-quant-int8.mlir \
     -o resnet-50-quant-int8-addr1.mlir
 ```
@@ -353,6 +357,7 @@ $ ./bin/mlir-opt \
 $ ./bin/mlir-opt \
     --assign-neuron-address \
     --tpu-neuron-address-align=16 \
+    --tpu-neuron-map-filename=neuron_map.csv \
     resnet-50-quant-int8-addr1.mlir \
     -o resnet-50-quant-int8-addr2.mlir
 
@@ -370,16 +375,22 @@ $ ./bin/mlir-tpu-interpreter resnet-50-quant-int8-addr2.mlir \
     --tensor-in test_cat_in_fp32.bin \
     --tensor-out out-quant-int8.bin
 ```
+get a cmdbuf.bin
+
+#### 8.4 run test with runtime
 
 run test, `test_cat_in_int8.bin` is a int8 bin file. This is the quantization result of
 `test_cat_in_fp32.bin`.
 
 ```
+# quantize the input with its threshold
 $ python ./bin_fp32_to_int8.py \
     test_cat_in_fp32.bin \
     test_cat_in_int8.bin \
     1 3 224 224 \
     161.008057
+
+# run test
 $ ./test/test_bmnet \
     test_cat_in_int8.bin \
     ~/work/llvm-project/build/ResNet-50-model.bin \
@@ -387,7 +398,45 @@ $ ./test/test_bmnet \
     out_new.bin \
     1000 150528 25542640 1
 $ python ./bin_dump.py out_new.bin int8 1 1 1 1000 5
+
+# to dump all neuron
+$ ./test/test_bmnet \
+    test_cat_in_int8.bin \
+    ~/work/llvm-project/build/ResNet-50-model.bin \
+    ~/work/llvm-project/build/cmdbuf.bin \
+    out_new.bin \
+    25542640 0 25542640 1
+$ python ./bin_extract.py out_all.bin out_fc1000.bin int8 0x00024c00 1000
+$ python ./bin_dump.py out_fc1000.bin int8 1 1 1 1000 5
 ```
+
+#### 8.5 compare output
+
+To save bin file into npz, based on neuron_map.csv info.
+```
+$ python ./bin_to_npz.py out_all.bin neuron_map.csv out_all.npz
+
+# see content
+$ python ./npz_list.py out_all.npz
+$ python ./npz_dump.py out_all.npz data_quant
+$ python ./npz_dump.py out_all.npz fc1000 5
+$ python ./npz_dump.py out_all.npz scale_conv1
+```
+
+Compare out_all.npz with the interpreter dump-all-tensor output.
+```
+$ python ./npz_compare.py out_all.npz tensor_all_quant-int8.npz int8 [show] [5]
+```
+
+#### 8.6 meta info
+
+TODO: to output following information from compiler to runtime in a more formal way
+
+- batch size
+- input threshold
+- output size (multiple output)
+- output offset (multiple output)
+- total neuron size
 
 ### 11. bmkernel to bmodel assembly
 
