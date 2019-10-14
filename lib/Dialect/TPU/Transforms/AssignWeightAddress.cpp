@@ -27,12 +27,14 @@
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Support/TensorFile.h"
+#include "mlir/Support/FileUtilities.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Path.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/ToolOutputFile.h"
 
 using namespace mlir;
 
@@ -86,10 +88,12 @@ static void transposeBiasInt16(std::vector<int16_t> &w_int16) {
 
 struct TpuLoadWeightOpPattern : public RewritePattern {
   TpuLoadWeightOpPattern(MLIRContext *context, TensorFile *weightTensorFile,
-      llvm::raw_fd_ostream *weightBinaryFile, size_t alignment)
+      llvm::raw_fd_ostream *weightBinaryFile, llvm::raw_ostream &map_os,
+      size_t alignment)
       : RewritePattern("tpu.load_weight", 1, context),
         weightTensorFile_(weightTensorFile),
         weightBinaryFile_(weightBinaryFile),
+        map_os_(map_os),
         alignment_(alignment) {}
 
   PatternMatchResult matchAndRewrite(Operation *op,
@@ -156,6 +160,7 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
     }
 
     auto newPos = weightBinaryFile_->tell();
+    map_os_ << tensor_name << "," << llvm::format_hex(curPos, 10) << "\n";
 
     llvm::errs() << llvm::format("[%-36s][%8d] : [ ",
                                  tensor_name.str().c_str(), weight->size())
@@ -170,6 +175,7 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
 
   TensorFile *weightTensorFile_;
   llvm::raw_fd_ostream *weightBinaryFile_;
+  llvm::raw_ostream &map_os_;
   size_t alignment_;
 };
 
@@ -177,6 +183,11 @@ static llvm::cl::opt<size_t> clWeightAlignment(
     "tpu-weight-address-align",
     llvm::cl::desc("Specify the alignment for weight"),
     llvm::cl::init(16));
+
+static llvm::cl::opt<std::string> clWeightMapFilename(
+    "tpu-weight-map-filename",
+    llvm::cl::desc("record weight offset with its name into a csv map file"),
+    llvm::cl::init("-"));
 
 class AssignWeightAddressPass : public FunctionPass<AssignWeightAddressPass> {
 public:
@@ -201,13 +212,28 @@ public:
     std::error_code ec;
     llvm::raw_fd_ostream weightBinaryFile(filename_bin, ec);
 
+    // create a map file
+    std::unique_ptr<llvm::ToolOutputFile> weightMapFile = nullptr;
+    if (clWeightMapFilename != "-") {
+      std::string errorMessage;
+      weightMapFile = openOutputFile(clWeightMapFilename, &errorMessage);
+      if (!weightMapFile) {
+        llvm::errs() << errorMessage << "\n";
+        exit(1);
+      }
+    }
+
     OwningRewritePatternList patterns;
     auto *context = &getContext();
     patterns.insert<TpuLoadWeightOpPattern>(context, weightTensorFile.get(),
-        &weightBinaryFile, clWeightAlignment);
+        &weightBinaryFile, weightMapFile->os(), clWeightAlignment);
     applyPatternsGreedily(fn, patterns);
 
     weightBinaryFile.close();
+
+    if (weightMapFile) {
+      weightMapFile->keep();
+    }
   }
 
 private:
