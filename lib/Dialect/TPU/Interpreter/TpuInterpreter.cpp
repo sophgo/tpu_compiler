@@ -63,7 +63,7 @@
 
 //#define DUMP_FLAG
 //#define QUANT_DEQUANT_EVERY_LAYER
-//#define ENABLE_GEN_CMDBUF
+#define ENABLE_GEN_CMDBUF
 
 using namespace mkldnn;
 
@@ -1261,8 +1261,8 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
         is_average_pool, //is_avg_pooling,
         0.0f, // float avg_const,  // default(passing 0.0f) is 1/kh*kw
         0, // int do_relu,
-        rshift, //int right_shift_width,
-        &threshold_x_quantized,
+        is_average_pool ? rshift : 0, //int right_shift_width,
+        is_average_pool ? &threshold_x_quantized : nullptr, // &threshold_x_quantized,
         true);
     // gen cmdbuf end
 #endif
@@ -1850,8 +1850,8 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
 
     int threshold_x_quantized[MAX_ELTWISE_INPUT];
-    for (int i; i < MAX_ELTWISE_INPUT; ++i) {
-      threshold_x_quantized[i] = multiplier[i];
+    for (int i = 0; i < MAX_ELTWISE_INPUT; ++i) {
+      threshold_x_quantized[i] = (int)multiplier[i];
     }
     const int coeffs[2] = {1, 1};
     bmnet_eltwise_fixed_forward_bmkernel(
