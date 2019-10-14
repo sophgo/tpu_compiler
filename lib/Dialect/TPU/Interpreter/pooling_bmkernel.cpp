@@ -360,8 +360,12 @@ static void pooling_forward_slice(const BM1880v2BackendContext &ctx, u32 layer_i
     pad_bot = s->pad_bot + s->extra_pad_b;
   }
 
-  int threshold_x_quantized = all->threshold_x_quantized[0];
-  int right_shift_width = all->right_shift_width;
+  int threshold_x_quantized = 1;
+  int right_shift_width = 0;
+  if (all->threshold_x_quantized) {
+    threshold_x_quantized = all->threshold_x_quantized[0];
+    right_shift_width = all->right_shift_width;
+  }
   LOG(INFO) << "threshold_x_quantized =" << threshold_x_quantized
             << ",right_shift_width =" << right_shift_width;
 
