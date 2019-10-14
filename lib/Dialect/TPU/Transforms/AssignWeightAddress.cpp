@@ -37,20 +37,51 @@
 using namespace mlir;
 
 namespace {
+
 static void transposeConvolutionFilter(std::vector<int8_t> &w, std::vector<int64_t> &s) {
   assert(s.size() == 4);
   int oc = s[0];
   int ic = s[1];
   int ks = s[2] * s[3];
   std::vector<int8_t> w_t(w.size());
-  for (int i = 0; i < oc; i++) {
-    for (int j = 0; j < ic; j++) {
-      for (int k = 0; k < ks; k++) {
-        w_t[i * ic * ks + k * ic + j] = w[i * ic * ks + j * ks + k];
+  if (ks == 1) {
+    return;
+  } else {
+    // for other conv, transpose ic <-> kh*kw
+    for (int i = 0; i < oc; i++) {
+      for (int j = 0; j < ic; j++) {
+        for (int k = 0; k < ks; k++) {
+          w_t[i * ic * ks + k * ic + j] = w[i * ic * ks + j * ks + k];
+        }
       }
     }
   }
   w.assign(w_t.begin(), w_t.end());
+}
+
+static void transposeFullyConnectedFilter(std::vector<int8_t> &w, std::vector<int64_t> &s) {
+  assert(s.size() == 2);
+  int row = s[0];
+  int col = s[1];
+  std::vector<int8_t> w_t(w.size());
+  for (int i = 0; i < row; i++) {
+    for (int j = 0; j < col; j++) {
+      w_t[j * row + i] = w[i * col  + j];
+    }
+  }
+  w.assign(w_t.begin(), w_t.end());
+}
+
+static void transposeBiasInt16(std::vector<int16_t> &w_int16) {
+  int8_t *ptr = reinterpret_cast<int8_t *>(w_int16.data());
+  std::vector<int8_t> w(ptr, ptr + w_int16.size() * sizeof(int16_t));
+  std::vector<int8_t> w_t(w.size());
+  for (size_t i = 0; i < w_int16.size(); i++) {
+    for (size_t j = 0; j < 2; j++) {
+      w_t[j * w_int16.size() + i] = w[i * 2 + j];
+    }
+  }
+  memcpy(ptr, w_t.data(), w_t.size());
 }
 
 struct TpuLoadWeightOpPattern : public RewritePattern {
@@ -87,6 +118,10 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
       if (shape.size() == 4) {
         transposeConvolutionFilter(weight_int8, shape);
       }
+      // TODO: this is tricky, we assume any 2 dim weight tensor is a fc filter
+      if (shape.size() == 2) {
+        transposeFullyConnectedFilter(weight_int8, shape);
+      }
       // TODO: end of workaround transpose
       // pad to alignment
       if ( weight_int8.size() % alignment_ ) {
@@ -100,6 +135,9 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
     } else if (weightOp.storage() == "INT16") {
       // cast into int8
       std::vector<int16_t> weight_int16(weight->begin(), weight->end());
+      // TODO: bias are also transposed, should consider removing
+      transposeBiasInt16(weight_int16);
+      // TODO end of workaround transpose
       // pad to alignment
       if ( weight_int16.capacity() % alignment_ ) {
         size_t pad = ( alignment_ - ( weight_int16.capacity() % alignment_ ) )
