@@ -641,10 +641,20 @@ static int64_t findPadForSamePadding(int64_t i, int64_t o, int64_t k, int64_t s,
 
 static inline int8_t saturateInt8(float v) {
   #if 0
+  // cast
+  int q = (int)v;
+  #elif 0
   // away_from_zero
-  int q_i = (q_f >= 0) ? (int)ceil(q_f) : (int)floor(q_f);
-  #else
+  int q = (v >= 0) ? (int)ceil(v) : (int)floor(v);
+  #elif 0
+  // round
   int q = (int)roundf(v);
+  #elif 0
+  // trancate, (towards zero)
+  int q = (v >= 0) ? (int)floor(v) : (int)ceil(v);
+  #else
+  // from caffe_int8
+  int q = floor(v + 0.5);
   #endif
   //assert( (q <= 127) && (q >= -128) );
   DEBUG_WITH_TYPE(DEBUG_TYPE"_WARNING",
