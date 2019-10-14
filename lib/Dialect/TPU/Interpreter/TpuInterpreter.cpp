@@ -711,6 +711,18 @@ static uint32_t findRShiftFromScale(float scale) {
   return 31;
 }
 
+static uint32_t findRShiftFromUnsignedScale(float scale) {
+  // scale = numerator / (1 << rshift)
+  // find a rshift put the numerator in range (128, 255)
+  assert(scale < 256);
+  for (uint32_t rshift = 0; rshift < 32; ++rshift) {
+    if ( (scale * (1 << rshift)) >= 128 )
+      return rshift;
+  }
+  assert(false);
+  return 31;
+}
+
 namespace mlir {
 
 static llvm::StringRef getOpName(Operation *op) {
@@ -1199,7 +1211,8 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     //dump_data_float_abs("mkldnn_output", mkldnn_output, n, c, oh, ow);
 
     uint32_t rshift = 0;
-    int8_t multiplier = 0;
+    // multiplier is taking avg_const into account
+    uint8_t multiplier = 0;
     // do quantize for average pooling, max poolings are bypassed
     if (op.quant() == "INT8" && is_average_pool) {
       // determine multiplier and rshift according to threshold_x
@@ -1209,13 +1222,16 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       // find a rshift, that put max(multiplier) into range (64, 127)
       //uint32_t rshift;
       //int8_t multiplier;
-      rshift = findRShiftFromScale(threshold_x / threshold_y);
       float scale = threshold_x / threshold_y;
-      multiplier = (int8_t)(scale * (1 << rshift));
+      float scale_and_avg_const = scale / (kh * kw);
+      rshift = findRShiftFromUnsignedScale(scale_and_avg_const);
+      multiplier = (scale_and_avg_const * (1 << rshift));
 
       // apply multiplier
       for (int i = 0; i < size; ++i) {
-        mkldnn_output[i] = mkldnn_output[i] * multiplier;
+        // restore sum value first
+        int sum = (int)(mkldnn_output[i] * kh * kw + 0.5);
+        mkldnn_output[i] = (float)(sum * multiplier);
       }
 
       // rshift and saturate on output
@@ -1930,7 +1946,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     assert((i_size == o_size) && "input size not equal to output size");
 
     // use copy for now
-    result_tensor.get()->swap(*operand_tensors[0]);
+    result_tensor.get()->assign(operand_tensors[0]->begin(), operand_tensors[0]->end());
     // TODO: End of compute, need refactor
 
     valueMapping[result] = std::move(result_tensor);

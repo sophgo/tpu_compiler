@@ -347,13 +347,13 @@ static void pooling_forward_slice(const BM1880v2BackendContext &ctx, u32 layer_i
 
   float avg_const = s->avg_const;
   ASSERT(avg_const == 0.0f);
-  uint8_t avg_const_fixed = 0;
-  int rshift = 0;
-  if (s->is_avg_pooling && avg_const == 0.0f) {
-    rshift = avg_quantize_rshift(static_cast<float>(s->kh) * s->kw, &avg_const_fixed);
-    DEBUG_BMNET(
-        llvm::errs() << llvm::format("avg_const_fixed=%u,avg_rshift=%d\n", avg_const_fixed, rshift));
-  }
+  //uint8_t avg_const_fixed = 0;
+  //int rshift = 0;
+  //if (s->is_avg_pooling && avg_const == 0.0f) {
+  //  rshift = avg_quantize_rshift(static_cast<float>(s->kh) * s->kw, &avg_const_fixed);
+  //  DEBUG_BMNET(
+  //      llvm::errs() << llvm::format("avg_const_fixed=%u,avg_rshift=%d\n", avg_const_fixed, rshift));
+  //}
 
   int pad_bot = s->pad_bot;
   if (s->last_column) {
@@ -396,12 +396,14 @@ static void pooling_forward_slice(const BM1880v2BackendContext &ctx, u32 layer_i
     ctx.tiu_element_wise_mul(&p2);
   } else {
     // ASSERT(0); // TODO(wwcai)
-    int rshift_quantized = rshift + right_shift_width;
-    int avg_const_quantized = static_cast<int>(avg_const_fixed) * threshold_x_quantized;
-    while (avg_const_quantized > 255) {
-      avg_const_quantized >>= 1;
-      rshift_quantized--;
-    }
+    //int rshift_quantized = rshift + right_shift_width;
+    //int avg_const_quantized = static_cast<int>(avg_const_fixed) * threshold_x_quantized;
+    //while (avg_const_quantized > 255) {
+    //  avg_const_quantized >>= 1;
+    //  rshift_quantized--;
+    //}
+    int rshift_quantized = right_shift_width;
+    int avg_const_quantized = threshold_x_quantized;
     bmk1880v2_tiu_average_pooling_param_t param;
     param.ofmap = ofmap;
     param.ifmap = ifmap;
