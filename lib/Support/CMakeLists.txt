@@ -18,6 +18,8 @@ add_llvm_library(MLIRSupport
   ${MLIR_MAIN_INCLUDE_DIR}/mlir/Support
   )
 target_link_libraries(MLIRSupport LLVMSupport cnpy)
+add_dependencies(MLIRSupport
+  CNPY)
 
 add_llvm_library(MLIROptMain
   MlirOptMain.cpp
