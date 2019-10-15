@@ -57,14 +57,37 @@ TODO: add as submodule
 
 ### build mlir
 
+check out llvm-project
+
 ```
+$ git clone https://github.com/llvm/llvm-project.git
+# checkout the certain point that we start the project
+# TODO: update to latest later
+$ git checkout -b mydev 6d5a8c92b
+```
+
+checkout mlir into `llvm-project/llvm/projects` dir.
+```
+$ git clone xxx/mlir.git llvm-project/llvm/projects/mlir
+$ cd llvm-project/llvm/projects/mlir
+$ git checkout -b mytpu origin/mytpu
+```
+
+```
+$ cd llvm-project
+$ mkdir build
+$ cd build
+
 $ cmake -G Ninja ../llvm -DLLVM_BUILD_EXAMPLES=ON -DLLVM_TARGETS_TO_BUILD="host" -DCAFFE_PATH="~/work/caffe/install" -DMKLDNN_PATH="~/work/MKLDNN/install" -DCNPY_PATH="~/work/cnpy/install" -DLLVM_ENABLE_RTTI=ON -DLLVM_ENABLE_EH=ON
 
-# link with caffe_int8 project
-$ cmake -G Ninja ../llvm -DLLVM_BUILD_EXAMPLES=ON -DLLVM_TARGETS_TO_BUILD="host" -DCAFFE_PATH="~/work_xtalvision/install_caffe" -DMKLDNN_PATH="~/work/MKLDNN/install" -DCNPY_PATH="~/work/cnpy/install" -DLLVM_ENABLE_RTTI=ON -DLLVM_ENABLE_EH=ON
+# link with caffe project
+$ cmake -G Ninja ../llvm -DLLVM_BUILD_EXAMPLES=ON -DLLVM_TARGETS_TO_BUILD="host" -DCAFFE_PATH="~/work_cvitek/install_caffe" -DMKLDNN_PATH="~/work/MKLDNN/install" -DCNPY_PATH="~/work/cnpy/install" -DLLVM_ENABLE_RTTI=ON -DLLVM_ENABLE_EH=ON
 
 # link with bmkernel
-$ cmake -G Ninja ../llvm -DLLVM_BUILD_EXAMPLES=ON -DLLVM_TARGETS_TO_BUILD="host" -DCAFFE_PATH="~/work_xtalvision/install_caffe" -DMKLDNN_PATH="~/work/MKLDNN/install" -DCNPY_PATH="~/work/cnpy/install" -DBMKERNEL_PATH="~/work_xtalvision/install_bmkernel" -DLLVM_ENABLE_RTTI=ON -DLLVM_ENABLE_EH=ON
+$ cmake -G Ninja ../llvm -DLLVM_BUILD_EXAMPLES=ON -DLLVM_TARGETS_TO_BUILD="host" -DCAFFE_PATH="~/work_cvitek/install_caffe" -DMKLDNN_PATH="~/work/MKLDNN/install" -DCNPY_PATH="~/work/cnpy/install" -DBMKERNEL_PATH="~/work_cvitek/install_bmkernel" -DLLVM_ENABLE_RTTI=ON -DLLVM_ENABLE_EH=ON
+
+# specify install path
+$ cmake -G Ninja ../llvm -DLLVM_BUILD_EXAMPLES=ON -DLLVM_TARGETS_TO_BUILD="host" -DCAFFE_PATH="~/work_cvitek/install_caffe" -DMKLDNN_PATH="~/work/MKLDNN/install" -DBMKERNEL_PATH="~/work_cvitek/install_bmkernel" -DCMAKE_INSTALL_PREFIX=~/work_cvitek/install_mlir -DLLVM_ENABLE_RTTI=ON -DLLVM_ENABLE_EH=ON
 
 $ cmake --build . --target check-mlir
 ```
