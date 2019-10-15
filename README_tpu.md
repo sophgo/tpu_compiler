@@ -1,63 +1,14 @@
 # mlir-tpu
 
-## build
+## Get Code and Build
 
-### prerequsit
+### 1. Prerequsit
 
-1. Caffe
+Tested with Ubuntu 18.04
 
-```
-$ cd ~/work
-$ git clone caffe_int8
+### 2. Clone llvm-project and mlir
 
-$ mkdir build
-$ mkdir install
-$ cd build
-$ cmake ..
-$ cmake -DUSE_OPENCV=OFF -DCMAKE_INSTALL_PREFIX=../install ..
-$ make -j20 all
-$ make install
-```
-
-2. MKLDNN
-
-https://github.com/intel/mkl-dnn/releases
-
-```
-$ mkdir -p ~/work/MKLDNN
-$ cd ~/work/MKLDNN
-$ wget https://github.com/intel/mkl-dnn/releases/download/v1.0.2/mkldnn_lnx_1.0.2_cpu_gomp.tgz
-$ tar zxf mkldnn_lnx_1.0.2_cpu_gomp.tgz
-$ ln -s mkldnn_lnx_1.0.2_cpu_gomp install
-```
-
-3. CNPY
-
-https://github.com/rogersce/cnpy
-
-```
-$ git clone https://github.com/rogersce/cnpy.git
-$ cd ~/work/cnpy
-$ mkdir build
-$ mkdir install
-$ cd build
-$ cmake -DCMAKE_INSTALL_PREFIX=../install ..
-$ cmake --build . --target install
-```
-
-4. pybind11
-
-clone pybind11 into third_party
-```
-$ cd mlir/third_party
-$ git clone https://github.com/pybind/pybind11
-```
-
-TODO: add as submodule
-
-### build mlir
-
-check out llvm-project
+Clone llvm-project
 
 ```
 $ git clone https://github.com/llvm/llvm-project.git
@@ -66,28 +17,42 @@ $ git clone https://github.com/llvm/llvm-project.git
 $ git checkout -b mydev 6d5a8c92b
 ```
 
-checkout mlir into `llvm-project/llvm/projects` dir.
+Clone mlir into `llvm-project/llvm/projects` directory.
+
 ```
-$ git clone xxx/mlir.git llvm-project/llvm/projects/mlir
+$ git clone git@xxx:mlir.git llvm-project/llvm/projects/mlir
 $ cd llvm-project/llvm/projects/mlir
-$ git checkout -b mytpu origin/mytpu
+$ git checkout -b tpu origin/tpu
 ```
+
+### 3. Third Party Libraries
+
+Some libraries are tree build, some rely on manually build for now.\
+Read third_party/README.md for details.
+
+1. pybind11
+1. Caffe
+1. MKLDNN
+1. CNPY
+
+### 4. External Projects
+
+All rely on manually build.\
+Read externals/README.md for details.
+
+1. bmkernel
+1. cmodel
+1. runtime
+1. builder
+
+### 5. Build mlir-tpu
 
 ```
 $ cd llvm-project
 $ mkdir build
 $ cd build
 
-$ cmake -G Ninja ../llvm -DLLVM_BUILD_EXAMPLES=ON -DLLVM_TARGETS_TO_BUILD="host" -DCAFFE_PATH="~/work/caffe/install" -DMKLDNN_PATH="~/work/MKLDNN/install" -DCNPY_PATH="~/work/cnpy/install" -DLLVM_ENABLE_RTTI=ON -DLLVM_ENABLE_EH=ON
-
-# link with caffe project
-$ cmake -G Ninja ../llvm -DLLVM_BUILD_EXAMPLES=ON -DLLVM_TARGETS_TO_BUILD="host" -DCAFFE_PATH="~/work_cvitek/install_caffe" -DMKLDNN_PATH="~/work/MKLDNN/install" -DCNPY_PATH="~/work/cnpy/install" -DLLVM_ENABLE_RTTI=ON -DLLVM_ENABLE_EH=ON
-
-# link with bmkernel
-$ cmake -G Ninja ../llvm -DLLVM_BUILD_EXAMPLES=ON -DLLVM_TARGETS_TO_BUILD="host" -DCAFFE_PATH="~/work_cvitek/install_caffe" -DMKLDNN_PATH="~/work/MKLDNN/install" -DCNPY_PATH="~/work/cnpy/install" -DBMKERNEL_PATH="~/work_cvitek/install_bmkernel" -DLLVM_ENABLE_RTTI=ON -DLLVM_ENABLE_EH=ON
-
-# specify install path
-$ cmake -G Ninja ../llvm -DLLVM_BUILD_EXAMPLES=ON -DLLVM_TARGETS_TO_BUILD="host" -DCAFFE_PATH="~/work_cvitek/install_caffe" -DMKLDNN_PATH="~/work/MKLDNN/install" -DBMKERNEL_PATH="~/work_cvitek/install_bmkernel" -DCMAKE_INSTALL_PREFIX=~/work_cvitek/install_mlir -DLLVM_ENABLE_RTTI=ON -DLLVM_ENABLE_EH=ON
+$ cmake -G Ninja ../llvm -DLLVM_BUILD_EXAMPLES=ON -DLLVM_TARGETS_TO_BUILD="host" -DCAFFE_PATH="~/work_cvitek/install_caffe" -DMKLDNN_PATH="~/work_cvitek/install_mkldnn" -DBMKERNEL_PATH="~/work_cvitek/install_bmkernel" -DCMAKE_INSTALL_PREFIX=~/work_cvitek/install_mlir -DLLVM_ENABLE_RTTI=ON -DLLVM_ENABLE_EH=ON
 
 $ cmake --build . --target check-mlir
 ```
@@ -102,11 +67,11 @@ $ ./bin/mlir-translate \
     --caffe-to-mlir /data/models/caffe/ResNet-50-deploy.prototxt \
     --caffemodel /data/models/caffe/ResNet-50-model.caffemodel \
     -o resnet-50.mlir
+```
 
 - output together with a weight file in npz format
 - weight file name is described in .mlir file memref loadFile op
-- each weight tensor save as a npy file inside the npz, with a array name. eg. conv1_0, conv1_1, etc.
-```
+- each weight tensor save as a npy file inside the npz, with name. eg. conv1_0, conv1_1, etc.
 
 check
 ```
