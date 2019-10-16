@@ -40,10 +40,12 @@ Read third_party/README.md for details.
 All rely on manually build.\
 Read externals/README.md for details.
 
+1. python_tools
 1. bmkernel
-1. cmodel
-1. runtime
-1. builder
+1. cmodel (for testing only)
+1. bmbuilder (for testing only)
+1. support (for testing only)
+1. runtime (for testing only)
 
 ### 5. Build mlir-tpu
 
@@ -55,6 +57,9 @@ $ cd build
 $ cmake -G Ninja ../llvm -DLLVM_BUILD_EXAMPLES=ON -DLLVM_TARGETS_TO_BUILD="host" -DCAFFE_PATH="~/work_cvitek/install_caffe" -DMKLDNN_PATH="~/work_cvitek/install_mkldnn" -DBMKERNEL_PATH="~/work_cvitek/install_bmkernel" -DCMAKE_INSTALL_PREFIX=~/work_cvitek/install_mlir -DLLVM_ENABLE_RTTI=ON -DLLVM_ENABLE_EH=ON
 
 $ cmake --build . --target check-mlir
+
+# build pybind11 wrapper
+$ cmake --build . --target pymlir
 ```
 
 ## Work flow
@@ -94,6 +99,7 @@ $ ./bin/mlir-tpu-interpreter resnet-50.mlir \
 check
 ```
 $ python bin_dump.py out.bin float32 1 1 1 1000 5
+$ python bin_dump.py test_cat_out_fp32.bin float32 1 1 1 1000 5
 $ python bin_compare.py out.bin test_cat_out_fp32.bin float32 1 1 1 1000 5
 ```
 
@@ -187,6 +193,11 @@ $ ./bin/mlir-opt \
 
 We do not import int8 caffemodel directly (the old version int8 caffemodel format is obsoleted). We do quantization from mlir fp32 model to mlir int8 model, based on threshold_y information of each operation.
 
+Before we try different version of quantization, save the weight file first
+```
+$ cp ResNet-50-model.npz  ResNet-50-model-opt3.npz
+```
+
 #### 5.1 int8 per-layer quantization
 
 ```
@@ -273,8 +284,6 @@ $ cd third_party
 $ git clone https://github.com/pybind/pybind11
 ```
 
-TODO: add as submodule
-
 to build pymlir.so
 ```
 $ cmake --build . --target pymlir
@@ -285,16 +294,17 @@ find pymlir.so in ./lib, to setup PYTHONPATH
 $ export PYTHONPATH=./lib:$PYTHONPATH
 ```
 
-#### 6.2 run inference
+#### 6.2 run inference with python
 
-set PYTHONPATH first
+Convert test input to be bin, as current python test code take npy file as input.
+
 ```
 $ python bin_to_npy.py \
-    /data/release/bmnet_models/resnet50/resnet50_input_1_3_224_224.bin \
+    test_cat_in_fp32.bin \
     float32 1 3 224 224 \
     resnet50_input_1_3_224_224.npy
 $ python ../llvm/projects/mlir/bindings/python/tools/run_inference.py \
-    resnet-50.mlir resnet50_input_1_3_224_224.npy
+    resnet-50.mlir resnet50_input_1_3_224_224.npy 5
 ```
 
 #### 6.3 accuracy regression
@@ -311,7 +321,7 @@ $ python ../llvm/projects/mlir/bindings/python/tools/run_classification.py \
     --count=100
 ```
 
-result of resnet-50 accuracy (fp32, int8, int8-per-channel, int8-multiplier)
+result of resnet-50 accuracy with count=10000 (fp32, int8, int8-per-channel, int8-multiplier)
 
 | mode | Top-1 accuracy | Top-5 accuracy |
 | ---  | ---            | ---            |
@@ -321,6 +331,8 @@ result of resnet-50 accuracy (fp32, int8, int8-per-channel, int8-multiplier)
 | int8 Multiplier  | 0.7815 | 0.9391 |
 
 ### 7. calibration with interpreter (python version)
+
+TODO:
 
 ### 8. codegen from tpu dialect
 
@@ -379,10 +391,11 @@ $ python ./bin_fp32_to_int8.py \
     161.008057
 
 # run test
+$ cd runtime_build (link to ../llvm/projects/mlir/externals/runtime/build/)
 $ ./test/test_bmnet \
     test_cat_in_int8.bin \
-    ~/work/llvm-project/build/ResNet-50-model.bin \
-    ~/work/llvm-project/build/cmdbuf.bin \
+    ~/work_cvitek/llvm-project/build/ResNet-50-model.bin \
+    ~/work_cvitek/llvm-project/build/cmdbuf.bin \
     out_new.bin \
     1000 150528 25542640 1
 $ python ./bin_dump.py out_new.bin int8 1 1 1 1000 5
@@ -390,9 +403,9 @@ $ python ./bin_dump.py out_new.bin int8 1 1 1 1000 5
 # to dump all neuron
 $ ./test/test_bmnet \
     test_cat_in_int8.bin \
-    ~/work/llvm-project/build/ResNet-50-model.bin \
-    ~/work/llvm-project/build/cmdbuf.bin \
-    out_new.bin \
+    ~/work_cvitek/llvm-project/build/ResNet-50-model.bin \
+    ~/work_cvitek/llvm-project/build/cmdbuf.bin \
+    out_all.bin \
     25542640 0 25542640 1
 $ python ./bin_extract.py out_all.bin out_fc1000.bin int8 0x00024c00 1000
 $ python ./bin_dump.py out_fc1000.bin int8 1 1 1 1000 5
@@ -401,6 +414,7 @@ $ python ./bin_dump.py out_fc1000.bin int8 1 1 1 1000 5
 #### 8.5 compare output
 
 To save bin file into npz, based on neuron_map.csv info.
+
 ```
 $ python ./bin_to_npz.py out_all.bin neuron_map.csv out_all.npz
 
@@ -409,6 +423,16 @@ $ python ./npz_list.py out_all.npz
 $ python ./npz_dump.py out_all.npz data_quant
 $ python ./npz_dump.py out_all.npz fc1000 5
 $ python ./npz_dump.py out_all.npz scale_conv1
+```
+
+To generate reference `dump-all-tensor`
+```
+$ cp ResNet-50-model_quant_int8.npz ResNet-50-model.npz
+$ ./bin/mlir-tpu-interpreter \
+    resnet-50-quant-int8.mlir \
+    --tensor-in test_cat_in_fp32.bin \
+    --tensor-out out-quant-int8.bin \
+    --dump-all-tensor=tensor_all_quant-int8.npz
 ```
 
 Compare out_all.npz with the interpreter dump-all-tensor output.

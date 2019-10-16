@@ -63,7 +63,7 @@
 
 //#define DUMP_FLAG
 //#define QUANT_DEQUANT_EVERY_LAYER
-#define ENABLE_GEN_CMDBUF
+//#define ENABLE_GEN_CMDBUF
 
 using namespace mkldnn;
 
