@@ -390,9 +390,14 @@ $ python ./bin_fp32_to_int8.py \
     1 3 224 224 \
     161.008057
 
+# lib paths
+$ export LD_LIBRARY_PATH=~/work_cvitek/install_bmkernel/lib:$LD_LIBRARY_PATH
+$ export LD_LIBRARY_PATH=~/work_cvitek/install_support/lib:$LD_LIBRARY_PATH
+$ export LD_LIBRARY_PATH=~/work_cvitek/install_bmbuilder/lib:$LD_LIBRARY_PATH
+$ export LD_LIBRARY_PATH=~/work_cvitek/install_cmodel/lib:$LD_LIBRARY_PATH
+
 # run test
-$ cd runtime_build (link to ../llvm/projects/mlir/externals/runtime/build/)
-$ ./test/test_bmnet \
+$ ~/work_cvitek/install_runtime/bin/test_bmnet \
     test_cat_in_int8.bin \
     ~/work_cvitek/llvm-project/build/ResNet-50-model.bin \
     ~/work_cvitek/llvm-project/build/cmdbuf.bin \
@@ -401,7 +406,7 @@ $ ./test/test_bmnet \
 $ python ./bin_dump.py out_new.bin int8 1 1 1 1000 5
 
 # to dump all neuron
-$ ./test/test_bmnet \
+$ ~/work_cvitek/install_runtime/bin/test_bmnet \
     test_cat_in_int8.bin \
     ~/work_cvitek/llvm-project/build/ResNet-50-model.bin \
     ~/work_cvitek/llvm-project/build/cmdbuf.bin \
@@ -521,3 +526,29 @@ $ ./bin/mlir-tpu-interpreter \
     --tensor-out out-quant-int8.bin \
     --dump-all-tensor=tensor_all_quant-int8.npz
 ```
+
+## Regression
+
+### 1. fp32
+
+Translate from caffe into mlir.
+
+Run original mlir interpreter, check output are `similarity @1e-5` against reference output.
+
+Run opt1, opt2, opt3 optimization, and run interpreter respectly, check output  `similarity @1e-5` against the orignal output.
+
+### 2. int8
+
+Quantize to int8, using int8, pre-channel int8 and multiplier int8
+Run interperter, check output against pre-saved output, need to be bit-accurate same as the output.
+The pre-saved output has been manually check against the fp32 output. (as well pass run_accuracy test)
+
+### 3. cmdbuf
+
+Run interpreter with --dump-tensor-all
+Run test_bmnet, output all neuron
+Compare all neuron with dump-tensor-all result, need to be bit-accurate same.
+
+### 4. run accuracy
+
+(This is too slow, skip it in commit regression, maybe run it daily)

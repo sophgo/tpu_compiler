@@ -1,6 +1,7 @@
 #~/bin/bash
 
 # copy into build dir to run
+# assuming run after regression_1_fp32.sh and regression_2_int8.sh
 
 export PYTHONPATH=./lib:$PYTHONPATH
 
