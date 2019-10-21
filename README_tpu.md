@@ -372,6 +372,7 @@ $ ./bin/mlir-opt \
 use interpreter for now, need to refactor into translator
 ```
 $ ./bin/mlir-tpu-interpreter resnet-50-quant-int8-addr2.mlir \
+    --generate-cmdbuf=cmdbuf.bin \
     --tensor-in test_cat_in_fp32.bin \
     --tensor-out out-quant-int8.bin
 ```

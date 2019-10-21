@@ -31,16 +31,34 @@ cp ResNet-50-model.npz ResNet-50-model-opt3.npz
     resnet-50-opt3.mlir \
     -o resnet-50-cali.mlir
 
+################################
 # quantization 1: per-layer int8
+################################
 cp ResNet-50-model-opt3.npz ResNet-50-model.npz
 ./bin/mlir-opt \
     --quant-int8 \
     resnet-50-cali.mlir \
     -o resnet-50-quant-int8.mlir
-cp ResNet-50-model.npz ResNet-50-model_quant_int8.npz
+
+# assign weight address
+./bin/mlir-opt \
+    --assign-weight-address \
+    --tpu-weight-address-align=16 \
+    --tpu-weight-map-filename=weight_map.csv \
+    resnet-50-quant-int8.mlir \
+    -o resnet-50-quant-int8-addr1.mlir
+
+# assign neuron address
+./bin/mlir-opt \
+    --assign-neuron-address \
+    --tpu-neuron-address-align=16 \
+    --tpu-neuron-map-filename=neuron_map.csv \
+    resnet-50-quant-int8-addr1.mlir \
+    -o resnet-50-quant-int8-addr2.mlir
 
 # run interpreter, and generate cmdbuf at the same time
-./bin/mlir-tpu-interpreter resnet-50-quant-int8.mlir \
+./bin/mlir-tpu-interpreter resnet-50-quant-int8-addr2.mlir \
+    --generate-cmdbuf=cmdbuf.bin \
     --tensor-in $DATA_DIR/test_cat_in_fp32.bin \
     --tensor-out out-quant-int8.bin \
     --dump-all-tensor=tensor_all_quant-int8.npz
