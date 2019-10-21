@@ -63,7 +63,7 @@
 
 //#define DUMP_FLAG
 //#define QUANT_DEQUANT_EVERY_LAYER
-//#define ENABLE_GEN_CMDBUF
+#define ENABLE_GEN_CMDBUF
 
 using namespace mkldnn;
 
@@ -75,6 +75,12 @@ static llvm::cl::OptionCategory clOptionsCategory("interpreter options");
 static llvm::cl::opt<std::string> clAllTensorFilename(
     "dump-all-tensor",
     llvm::cl::desc("dump all tensor into a npz file"),
+    llvm::cl::init("-"),
+    llvm::cl::cat(clOptionsCategory));
+
+static llvm::cl::opt<std::string> clCmdBufFilename(
+    "generate-cmdbuf",
+    llvm::cl::desc("generate cmdbuf and save into a bin file"),
     llvm::cl::init("-"),
     llvm::cl::cat(clOptionsCategory));
 
@@ -1032,6 +1038,8 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     valueMapping[result] = std::move(result_tensor);
 
 #ifdef ENABLE_GEN_CMDBUF
+    if (clCmdBufFilename != "-") {
+
     gaddr_t input_gaddr = getPreviousOpAddress(op);
     gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
     gaddr_t filter_gaddr = getWeightOpAddress(op.getOperand(1)->getDefiningOp());
@@ -1103,6 +1111,8 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
         0, //scale_right_shift_width,
         false //use_winograd
         );
+
+    } // clCmdBufFilename
 #endif
 
     return success();
@@ -1256,6 +1266,8 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     valueMapping[result] = std::move(result_tensor);
 
 #ifdef ENABLE_GEN_CMDBUF
+    if (clCmdBufFilename != "-") {
+
     // gen cmdbuf
     gaddr_t input_gaddr = getPreviousOpAddress(op);
     gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
@@ -1291,6 +1303,8 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
         is_average_pool ? &threshold_x_quantized : nullptr, // &threshold_x_quantized,
         true);
     // gen cmdbuf end
+
+    } // clCmdBufFilename
 #endif
 
     return success();
@@ -1416,6 +1430,8 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     valueMapping[result] = std::move(result_tensor);
 
 #ifdef ENABLE_GEN_CMDBUF
+    if (clCmdBufFilename != "-") {
+
     gaddr_t input_gaddr = getPreviousOpAddress(op);
     gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
     gaddr_t filter_gaddr = getWeightOpAddress(op.getOperand(1)->getDefiningOp());
@@ -1461,6 +1477,8 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
         false, // weight_tp,
         3, // int left_shift_width, // #define DEFAULT_FC_LEFT_SHIFT 3
         rshift[0]);
+
+    } // clCmdBufFilename
 #endif
 
     return success();
@@ -1519,6 +1537,8 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     valueMapping[result] = std::move(result_tensor);
 
 #ifdef ENABLE_GEN_CMDBUF
+    if (clCmdBufFilename != "-") {
+
     gaddr_t input_gaddr = getPreviousOpAddress(op);
     gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
 
@@ -1536,6 +1556,8 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
         c,
         h,
         w);
+
+    } // clCmdBufFilename
 #endif
 
     return success();
@@ -1659,7 +1681,11 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     valueMapping[result] = std::move(result_tensor);
 
 #ifdef ENABLE_GEN_CMDBUF
+    if (clCmdBufFilename != "-") {
+
     assert(false && "GEN_CMDBUF does not support bn, bn should change to scale");
+
+    }
 #endif
 
     return success();
@@ -1724,7 +1750,11 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     valueMapping[result] = std::move(result_tensor);
 
 #ifdef ENABLE_GEN_CMDBUF
+    if (clCmdBufFilename != "-") {
+
     assert(false && "GEN_CMDBUF does not support scale, scale should merge into conv");
+
+    }
 #endif
 
     return success();
@@ -1870,6 +1900,8 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     valueMapping[result] = std::move(result_tensor);
 
 #ifdef ENABLE_GEN_CMDBUF
+    if (clCmdBufFilename != "-") {
+
     gaddr_t ga_inputs[2];
     ga_inputs[0] = getPreviousOpAddress(op, 0);
     ga_inputs[1] = getPreviousOpAddress(op, 1);
@@ -1901,6 +1933,8 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
         threshold_x_quantized,
         coeffs);
     // gen cmd end
+
+    } // clCmdBufFilename
 #endif
 
     return success();
@@ -2145,11 +2179,13 @@ LogicalResult ModuleInterpreter::runOneFunction(FuncOp func) {
   }
 
 #ifdef ENABLE_GEN_CMDBUF
-  bm1880v2_ctx->submit();
-  std::vector<uint8_t> cmdbuf;
-  bm1880v2_ctx->read_cmdbuf(cmdbuf);
-  std::fstream output("cmdbuf.bin", std::ios::out | std::ios::trunc | std::ios::binary);
-  output.write((char *)cmdbuf.data(), cmdbuf.size());
+  if (clCmdBufFilename != "-") {
+    bm1880v2_ctx->submit();
+    std::vector<uint8_t> cmdbuf;
+    bm1880v2_ctx->read_cmdbuf(cmdbuf);
+    std::fstream output(clCmdBufFilename, std::ios::out | std::ios::trunc | std::ios::binary);
+    output.write((char *)cmdbuf.data(), cmdbuf.size());
+  }
 #endif
 
   if (clAllTensorFilename != "-") {
