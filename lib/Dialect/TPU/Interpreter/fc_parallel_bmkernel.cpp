@@ -770,6 +770,7 @@ static void fc_forward_parallel_slice_input_col_num(
       p.b_is_const = 1;
       p.rshift_bits = activation_gt_rshift;
       p.layer_id = layer_id;
+      p.relu_enable = 0;
       ctx.tiu_element_wise_mul(&p);
     }
 
@@ -802,6 +803,8 @@ static void fc_forward_parallel_slice_input_col_num(
       p.pad_right = 0;
       p.stride_h = 1;
       p.stride_w = 1;
+      p.dilation_h = 1;
+      p.dilation_w = 1;
       p.rshift_bits = activation_le_rshift;
       p.relu_enable = 0;
       p.layer_id = layer_id;
@@ -1482,7 +1485,8 @@ static void fc_slicing_multi_dimention(
     int have_bias, int do_activation, int activation_method, gaddr_t activation_ga_slope,
     int activation_channel_shared, int activation_gt_scale, int activation_gt_rshift,
     int activation_le_scale, int activation_le_rshift, bool weight_tp, int left_shift_width,
-    int right_shift_width) {
+    int right_shift_width, int threshold_x_quantized_len, const int *threshold_x_quantized,
+    const int *right_shift_array) {
   // Y(M, K) = L(M, K) * R(K, N) + B(1, N)
   u32 M = static_cast<u32>(input_row_num);
   u32 K = static_cast<u32>(input_col_num);
@@ -1492,6 +1496,12 @@ static void fc_slicing_multi_dimention(
                                         "  Y(%d, %d) = L(%d, %d) * R(%d, %d) + B(%d, %d)\n",
                                         M, N, M, K, K, N, 1, N));
 
+  // for (int i = 0; i < threshold_x_quantized_len; i++) {
+  //  VLOG(3) << "threshold_x_quantized/right_shift_array[" << i << "]:" << threshold_x_quantized[i]
+  //          << "/" << right_shift_array[i];
+  //}
+
+  // When across_spatial, a large number of square sums need to be calculated,
   // Split N <= max total eu number
   u32 total_eu = ctx.hw.npu_num * ctx.hw.eu_num;
   u32 tiled_N = (N >= total_eu) ? total_eu : N;
@@ -1735,8 +1745,7 @@ static void fc_slicing_multi_dimention(
         matrix_multiplication(ctx, p);
       }
 
-      // Integrate activation method later
-      // Store tiled_Y to global memory, handle activation later
+      // Store tiled_Y to global memory
       if (is_last_tile) {
         ctx.tdma_store_stride(&tl_tiled_Y, global_offset_top_data + offset_N,
                               {N},  // original column width
@@ -1746,41 +1755,162 @@ static void fc_slicing_multi_dimention(
     }  // for (u32 offset_K = 0; offset_K < K; offset_K += tiled_K)
   }    // for (u32 offst_N = 0; offset_N < N; offset_N += tiled_N)
 
-  if (do_activation && activation_method == RELU) {
-#if 1
-  // do nothing
-#else
-    ASSERT((M * N) <= total_mem_size);
+  // RELU already fused into matrix multiplication
+  // Only handle PRELU here
+  if (do_activation && activation_method == PRELU) {
+    DEBUG_BMNET(llvm::errs() << "  PRELU =>" << "/n");
 
-    // Load Y from global memory
-    bmk1880v2_matrix_lmem_t ml_top;
-    ml_top.start_address = 0;  // Start of LMEM
-    ml_top.fmt = FMT_I8;
-    ml_top.shape = ctx.matrix_lmem_default_shape(M, N);
-    ml_top.stride = ctx.matrix_lmem_default_stride(ml_top.shape);
-    ctx.tdma_load(&ml_top, global_offset_top_data, CTRL_NEURON);
+    ASSERT(!activation_channel_shared);  // TODO
+    int bank_size = LOCAL_MEM_SIZE / LOCAL_MEM_BANKS;
 
-    // Convert to tensor format
-    bmk1880v2_tensor_lmem_t tl_top;
-    tl_top.start_address = ml_top.start_address;
-    tl_top.fmt = FMT_I8;
-    tl_top.shape = {ml_top.shape.n, ml_top.shape.c, 1, ml_top.shape.w};
-    tl_top.stride = {ml_top.stride.n, ml_top.stride.c, ml_top.stride.h, 1};
+    /*
+     * we need to use depthwise to implement PRELU, so the input should
+     * be tensor. Besided Matrix shares the same prelu weight within the
+     * same column, so we store the result matrix first and read it back
+     * later with the special tensor format.
+     */
+    // shape of tl_top change dynamically,
+    // tl_top_shape is not consitent with shape of tl_top
+    // Initialize shape from input_row_num, weight_col_num
+    bmk1880v2_matrix_lmem_t tl_top_data_int8;
+    tl_top_data_int8.start_address = 3 * bank_size;
+    tl_top_data_int8.fmt = FMT_I8;
+    tl_top_data_int8.shape = ctx.matrix_lmem_default_shape(input_row_num, weight_col_num);
+    tl_top_data_int8.stride = ctx.matrix_lmem_default_stride(tl_top_data_int8.shape);
 
-    bmk1880v2_tiu_element_wise_max_param_t p;
-    p.a = &tl_top;
-    p.max = &tl_top;
-    p.b_val = 0;
-    p.b_is_const = 1;
-    p.b_is_signed = 1;
-    ctx.tiu_element_wise_max(&p);
+    bmk1880v2_tensor_lmem_shape_t tl_ifmap_shape = {static_cast<u32>(input_row_num),
+                                                    static_cast<u32>(weight_col_num), 1, 1};
+    bmk1880v2_tensor_tgmem_shape_t ts_ifmap_shape = {static_cast<u32>(input_row_num),
+                                                     static_cast<u32>(weight_col_num), 1, 1};
 
-    // Store back to global memory
-    ctx.tdma_store(&ml_top, global_offset_top_data, CTRL_NEURON);
-#endif
-  } else if (do_activation && activation_method == PRELU) {
-    // TODO
-    ASSERT(0);
+    bmk1880v2_tensor_lmem_t tl_fc_data;
+    tl_fc_data.start_address = 3 * bank_size + tl_top_data_int8.shape.n * tl_top_data_int8.stride.n;
+    tl_fc_data.fmt = FMT_I8;
+    tl_fc_data.shape = tl_ifmap_shape;
+    tl_fc_data.stride = ctx.tensor_lmem_default_stride(tl_ifmap_shape, 1);
+
+    // load fc_reslut from global memory
+    DEBUG_BMNET(llvm::errs() << llvm::format("    tdma_load: tl_fc_data\n"
+                                          "       dst (%d, %d, %d, %d), laddr 0x%lx, gaddr 0x%lx\n",
+                                          tl_fc_data.shape.n, tl_fc_data.shape.c,
+                                          tl_fc_data.shape.h, tl_fc_data.shape.w,
+                                          tl_fc_data.start_address, global_offset_top_data));
+
+    ctx.tdma_load(&tl_fc_data, global_offset_top_data, CTRL_NEURON);
+
+    bmk1880v2_tensor_lmem_shape_t tl_prelu_shape = {1, static_cast<u32>(weight_col_num), 1, 1};
+    bmk1880v2_tensor_tgmem_shape_t ts_prelu_shape = {1, static_cast<u32>(weight_col_num), 1, 1};
+    bmk1880v2_tensor_lmem_t tl_prelu;
+    tl_prelu.start_address = 4 * bank_size;
+    tl_prelu.shape = tl_prelu_shape;
+    tl_prelu.stride = ctx.tensor_lmem_default_stride(tl_prelu.shape, 1);
+    tl_prelu.fmt = FMT_I8;
+
+    DEBUG_BMNET(llvm::errs() << llvm::format("    tdma_load: tl_prelu\n"
+                                          "       dst (%d, %d, %d, %d), laddr 0x%lx, gaddr 0x%lx\n",
+                                          tl_prelu.shape.n, tl_prelu.shape.c, tl_prelu.shape.h,
+                                          tl_prelu.shape.w, tl_prelu.start_address,
+                                          activation_ga_slope));
+
+    ctx.tdma_load(&tl_prelu, activation_ga_slope, CTRL_WEIGHT);
+
+    bmk1880v2_tensor_lmem_t tl_relu;
+    tl_relu = tl_fc_data;
+    tl_relu.start_address = 5 * bank_size;
+
+    bmk1880v2_tensor_lmem_t tl_neg;
+    tl_neg = tl_fc_data;
+    tl_neg.start_address = 6 * bank_size;
+
+    // 0. relu = relu(tl_fc_data_int8)
+    // 1. relu = (relu * gt_scale) >> gt_rshift
+    // 2. neg = neg(0, botom)
+    // 3. neg (n,c,h,w) = (neg(n,c,h,w) * slope(1,c,1,1)) >> le_rshift
+    // 4. tl_fc_data = or relu, neg
+
+    // 0. relu = relu(tl_fc_data_int8)
+    {
+      bmk1880v2_tiu_element_wise_max_param_t p;
+      p.max = &tl_relu;
+      p.a = &tl_fc_data;
+      p.b_is_const = 1;
+      p.b_is_signed = 1;
+      p.b_val = 0;
+      p.layer_id = layer_id;
+      ctx.tiu_element_wise_max(&p);
+    }
+
+    // 1. relu = (relu * gt_scale) >> gt_rshift
+    {
+      bmk1880v2_tiu_element_wise_mul_param_t p;
+      p.res_high = nullptr;
+      p.res_low = &tl_relu;
+      p.a = &tl_relu;
+      p.b_val = activation_gt_scale;
+      p.b_is_signed = true;
+      p.b_is_const = 1;
+      p.rshift_bits = activation_gt_rshift;
+      p.layer_id = layer_id;
+      p.relu_enable = 0;
+      ctx.tiu_element_wise_mul(&p);
+    }
+
+    // 2. neg = neg(0, botom)
+    {
+      bmk1880v2_tiu_element_wise_min_param_t p;
+      p.min = &tl_neg;
+      p.a = &tl_fc_data;
+      p.b_is_const = 1;
+      p.b_val = 0;
+      p.b_is_signed = 1;
+      p.layer_id = layer_id;
+      ctx.tiu_element_wise_min(&p);
+    }
+
+    // 3. neg (n,c,h,w) = (neg(n,c,h,w) * slope(1,c,1,1)) >> le_rshift
+    {
+      bmk1880v2_tiu_depthwise_convolution_param_t p;
+      p.ofmap = &tl_neg;
+      p.ifmap = &tl_neg;
+      p.weight = &tl_prelu;
+      p.bias = nullptr;
+      p.ins_h = 0;
+      p.ins_last_h = 0;
+      p.ins_w = 0;
+      p.ins_last_w = 0;
+      p.pad_top = 0;
+      p.pad_bottom = 0;
+      p.pad_left = 0;
+      p.pad_right = 0;
+      p.stride_h = 1;
+      p.stride_w = 1;
+      p.dilation_h = 1;
+      p.dilation_w = 1;
+      p.rshift_bits = activation_le_rshift;
+      p.relu_enable = 0;
+      p.layer_id = layer_id;
+      ctx.tiu_depthwise_convolution(&p);
+    }
+
+    // 4. tl_fc_data = or relu, neg
+    {
+      bmk1880v2_tiu_element_wise_or_int8_param_t p;
+      p.res = &tl_fc_data;
+      p.a = &tl_relu;
+      p.b = &tl_neg;
+      p.layer_id = layer_id;
+      ctx.tiu_element_wise_or_int8(&p);
+    }
+
+    DEBUG_BMNET(llvm::errs() << llvm::format("    tdma_store: tl_fc_data\n"
+                                          "       dst (%d, %d, %d, %d), laddr 0x%lx, gaddr 0x%lx\n",
+                                          tl_fc_data.shape.n, tl_fc_data.shape.c,
+                                          tl_fc_data.shape.h, tl_fc_data.shape.w,
+                                          tl_fc_data.start_address, global_offset_top_data));
+
+    ctx.tdma_store(&tl_fc_data, global_offset_top_data, CTRL_NEURON);
+
+    DEBUG_BMNET(llvm::errs() << "  <= PRELU" << "/n");
   }
 }
 
@@ -1891,7 +2021,8 @@ void bmnet_fc_fixed_forward_bmkernel(
     gaddr_t top_data_gaddr, int in_row, int in_col, int out_col, int have_bias, int do_activation,
     int activation_method, gaddr_t activation_ga_slope, int activation_channel_shared,
     int activation_gt_scale, int activation_gt_rshift, int activation_le_scale,
-    int activation_le_rshift, bool weight_tp, int left_shift_width, int right_shift_width) {
+    int activation_le_rshift, bool weight_tp, int left_shift_width, int right_shift_width,
+    int threshold_x_quantized_len, const int *threshold_x_quantized, const int *right_shift_array) {
   DEBUG_BMNET(llvm::errs() << llvm::format("bmnet_fc_fixed_forward_bmkernel\n"
                                         "    in (%d, %d), out (%d), has_bias %d, do_activation %d, "
                                         "activation_method %d, weight_tp %d\n",
@@ -1902,7 +2033,8 @@ void bmnet_fc_fixed_forward_bmkernel(
                              top_data_gaddr, in_row, in_col, out_col, have_bias, do_activation,
                              activation_method, activation_ga_slope, activation_channel_shared,
                              activation_gt_scale, activation_gt_rshift, activation_le_scale,
-                             activation_le_rshift, weight_tp, left_shift_width, right_shift_width);
+                             activation_le_rshift, weight_tp, left_shift_width, right_shift_width,
+                             threshold_x_quantized_len, threshold_x_quantized, right_shift_array);
 #if 0
   // choose node_id as current active node
   fc_forward_bmkernel_in_node(ctx, bottom_data_gaddr, weight_data_gaddr, bias_data_gaddr,

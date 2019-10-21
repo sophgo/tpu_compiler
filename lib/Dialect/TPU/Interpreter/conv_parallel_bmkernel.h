@@ -66,6 +66,7 @@ typedef struct {
   int oc;
   int ic;
   int h;
+  int w;
 } SLICES;
 
 class BM1880v2ConvFixed {
@@ -170,7 +171,6 @@ class BM1880v2ConvFixed {
   int right_shift_width;
   int bn_right_shift_width;
   int scale_right_shift_width;
-  bool use_winograd;
   u32 layer_id;
 };
 
@@ -182,12 +182,12 @@ class BM1880v2ConvFixedParallel : public BM1880v2ConvFixed {
   ~BM1880v2ConvFixedParallel() {}
 };
 
-class BM1880v2ConvFixedParallelOpt : public BM1880v2ConvFixed {
+class BM1880v2ConvFixedParallelv2 : public BM1880v2ConvFixed {
  public:
-  BM1880v2ConvFixedParallelOpt(ConvFixed_ARGS &args) : BM1880v2ConvFixed(args) {}
+  BM1880v2ConvFixedParallelv2(ConvFixed_ARGS &args) : BM1880v2ConvFixed(args) {}
   void do_conv(const BM1880v2BackendContext &ctx);
   int split(const BM1880v2BackendContext &ctx);
-  ~BM1880v2ConvFixedParallelOpt() {}
+  ~BM1880v2ConvFixedParallelv2() {}
 };
 
 class BM1880v2ConvFixedSerial : public BM1880v2ConvFixed {

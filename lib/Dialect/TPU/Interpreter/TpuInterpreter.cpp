@@ -1109,7 +1109,10 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
         (int)rshift[0], //right_shift_width,
         0, //bn_right_shift_width,
         0, //scale_right_shift_width,
-        false //use_winograd
+        false, //use_winograd
+        0, //int threshold_x_quantized_len,
+        nullptr, //const int *threshold_x_quantized,
+        nullptr //const int *right_shift_array
         );
 
     } // clCmdBufFilename
@@ -1476,7 +1479,11 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
         0, // int activation_le_rshift,
         false, // weight_tp,
         3, // int left_shift_width, // #define DEFAULT_FC_LEFT_SHIFT 3
-        rshift[0]);
+        rshift[0],
+        0, //int threshold_x_quantized_len,
+        nullptr, //const int *threshold_x_quantized,
+        nullptr //const int *right_shift_array
+        );
 
     } // clCmdBufFilename
 #endif
@@ -1555,7 +1562,11 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
         n,
         c,
         h,
-        w);
+        w,
+        0, // int threshold_x_quantized_len,
+        nullptr, // const int *threshold_x_quantized,
+        nullptr //const int *right_shift_array
+        );
 
     } // clCmdBufFilename
 #endif

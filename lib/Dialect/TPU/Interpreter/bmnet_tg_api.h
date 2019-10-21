@@ -52,7 +52,10 @@ void bmnet_conv_parallel_fixed_forward_bmkernel(
     int right_shift_width,
     int bn_right_shift_width,
     int scale_right_shift_width,
-    bool use_winograd);
+    bool use_winograd,
+    int threshold_x_quantized_len,
+    const int *threshold_x_quantized,
+    const int *right_shift_array);
 
 void bmnet_fc_fixed_forward_bmkernel(
     const BM1880v2BackendContext &ctx,
@@ -79,7 +82,10 @@ void bmnet_fc_fixed_forward_bmkernel(
     int activation_le_rshift,
     bool weight_tp,
     int left_shift_width,
-    int right_shift_width);
+    int right_shift_width,
+    int threshold_x_quantized_len,
+    const int *threshold_x_quantized,
+    const int *right_shift_array);
 
 void bmnet_pooling_fixed_forward_bmkernel(
     const BM1880v2BackendContext &ctx,
@@ -124,7 +130,10 @@ void bmnet_relu_fixed_forward_bmkernel(
     int input_n,
     int input_c,
     int input_h,
-    int input_w);
+    int input_w,
+    int threshold_x_quantized_len,
+    const int *threshold_x_quantized,
+    const int *right_shift_array);
 
 void bmnet_eltwise_fixed_forward_bmkernel(
     const BM1880v2BackendContext &ctx,

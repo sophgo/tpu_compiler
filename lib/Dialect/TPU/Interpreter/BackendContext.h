@@ -65,6 +65,9 @@ class BM188xBackendContext : public BackendContext {
   virtual void parallel_enable() const = 0;
   virtual void parallel_disable() const = 0;
 
+  virtual void set_layer_id(u16 layer_id) const = 0;
+  virtual int layer_id() const =0;
+
   //void build(NetParameter &net, const char *term_layer = nullptr) override;
   //void enter() override;
   //void exit() override;

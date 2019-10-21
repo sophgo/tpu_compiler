@@ -8,6 +8,7 @@
 #include <bmkernel/bm_kernel.h>
 #include <bmkernel/bm_kernel_legacy.h>
 #include <bmkernel/bm1880v2/bmkernel_1880v2.h>
+#include <bmkernel/bm1880v2/compression.h>
 #include "BackendContext.h"
 #include <vector>
 
@@ -35,6 +36,10 @@ class BM1880v2BackendContext : public BM188xBackendContext {
   void parallel_enable() const override { return bmk1880v2_parallel_enable(bmk_); }
 
   void parallel_disable() const override { return bmk1880v2_parallel_disable(bmk_); }
+
+  void set_layer_id(u16 layer_id) const override { bmk1880v2_set_layer_id(bmk_, layer_id); }
+
+  int layer_id() const override { return bmk1880v2_layer_id(bmk_); }
 
   void create_streams(int nr_streams) const { return bmk1880v2_create_streams(bmk_, nr_streams); }
 
@@ -189,8 +194,7 @@ class BM1880v2BackendContext : public BM188xBackendContext {
   }
 
   bmk1880v2_op_t *tdma_g2g_tensor_copy(const bmk1880v2_tdma_tg2tg_tensor_copy_param_t *p) const {
-    return bmk1880v2_tdma_g2g_tensor_copy(bmk_, p);  //<! G2L -> L2G
-    // return bmk1880v2_tdma_tg2tg_general_copy(bmk_, p);
+    return bmk1880v2_tdma_tg2tg_tensor_copy(bmk_, p);
   }
 
   bmk1880v2_op_t *tiu_element_wise_mul(const bmk1880v2_tiu_element_wise_mul_param_t *p) const {
@@ -313,6 +317,10 @@ class BM1880v2BackendContext : public BM188xBackendContext {
     return bmk1880v2_lmem_alloc_tensor(bmk_, s, fmt, eu_align);
   }
 
+  u32 lmem_tensor_to_size(bmk1880v2_tensor_lmem_shape_t s, int eu_align) const {
+    return bmk1880v2_lmem_tensor_to_size(bmk_, s, eu_align);
+  }
+
   void lmem_free_tensor(const bmk1880v2_tensor_lmem_t *t) const {
     return bmk1880v2_lmem_free_tensor(bmk_, t);
   }
@@ -384,6 +392,8 @@ class BM1880v2BackendContext : public BM188xBackendContext {
   void tdma_load_stride(bmk1880v2_matrix_lmem_t *tlp, u64 ga_src,
                         bmk1880v2_matrix_tgmem_stride_t ts_stride, ctrl_t ctrl) const;
 
+  bool is_compress(int n, int c, int h, int w, int stride_n, int stride_c, int stride_h, u64 ga_src,
+                   ctrl_t ctrl) const;
   void tdma_load(bmk1880v2_matrix_lmem_t *tlp, u64 ga_src, ctrl_t ctrl) const;
 
   void tdma_store_stride(bmk1880v2_matrix_lmem_t *tlp, u64 ga_dst,

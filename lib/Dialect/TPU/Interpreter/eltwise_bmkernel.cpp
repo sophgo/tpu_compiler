@@ -164,6 +164,7 @@ void bmnet_eltwise_fixed_forward_bmkernel(const BM1880v2BackendContext &ctx, u32
         p.b_is_const = true;
         p.rshift_bits = 0;
         p.layer_id = layer_id;
+        p.relu_enable = 0;
         ctx.tiu_element_wise_mul(&p);
 
         for (int i = 1; i < input_size - 1; ++i) {
@@ -180,6 +181,7 @@ void bmnet_eltwise_fixed_forward_bmkernel(const BM1880v2BackendContext &ctx, u32
           p3.lshift_bits = 0;
           p3.rshift_bits = 0;
           p3.layer_id = layer_id;
+          p3.relu_enable = 0;
           ctx.tiu_element_wise_mac(&p3);
         }
 
@@ -196,6 +198,7 @@ void bmnet_eltwise_fixed_forward_bmkernel(const BM1880v2BackendContext &ctx, u32
         p3.lshift_bits = 0;
         p3.rshift_bits = right_shift_width;
         p3.layer_id = layer_id;
+        p3.relu_enable = 0;
         ctx.tiu_element_wise_mac(&p3);
         break;
       }

@@ -9,7 +9,7 @@ BM1880v2BackendContext::BM1880v2BackendContext(int chip_ver, int nodechip_num,
   hw.local_mem_shift = 15;
   hw.local_mem_banks = 8;
   hw.nodechip_shift = get_num_shift(nodechip_num);
-  hw.npu_shift = 4;
+  hw.npu_shift = 5;
   hw.eu_shift = 4;
   hw.global_mem_size = 1ULL << 32;
   hw.local_mem_size = 1 << hw.local_mem_shift;

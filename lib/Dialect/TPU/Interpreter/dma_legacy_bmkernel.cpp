@@ -26,6 +26,55 @@
 //   1880 bmk keeps eu-aligned info and calculate stride info.
 //   1880v2 bmk does not keep eu-aligned info, use need to calculate stride info.
 //
+//<! FIXME: move to LIR
+bool BM1880v2BackendContext::is_compress(int n, int c, int h, int w, int stride_n, int stride_c,
+                                         int stride_h, u64 ga_src, ctrl_t ctrl) const {
+  u64 offset = ga_src;
+  int len = n * c * h * w * INT8_SIZE;
+  bool is_compress = false;
+  bool is_continue = stride_n == c * h * w && stride_c == h * w && stride_h == w;
+  bool is_align_eu = !(ga_src % 0x10);  //<! hw bus width align
+  //bool is_cic_check = !this->get_weight_optimized();
+  static std::vector<u64> compressed_ga;  //<! FIXME: not declare here
+  bool is_compressed =
+      std::find(compressed_ga.begin(), compressed_ga.end(), offset) != compressed_ga.end();
+
+  //if (is_cic_check) {
+  //  llvm::errs() << "offset (" << offset << ") large than weight_size_(" << weight_size_ << "), 81";
+  //  return false;
+  //}
+
+  if (is_compressed) {
+    llvm::errs() << "offset/len  (" << offset << "/" << len << ") has compressed, 81";
+    return true;
+  }
+
+  if (is_continue && is_align_eu) {
+    int8_t *weight = reinterpret_cast<int8_t *>(weight_);
+    int is_signed = 1;
+    int compress_md = 0;
+    compress_addr_info compressed_data;
+    u8 *res = compress(reinterpret_cast<u8 *>(&weight[offset]), len, compress_md, is_signed,
+                       &compressed_data);
+
+    if (compressed_data.total_size >= len) {
+      llvm::errs() << "compressed sz(" << compressed_data.total_size << ") large than before(" << len
+                << "), 81";
+      return false;
+    }
+
+    // update original buffer to compressed
+    memcpy((void *)(&weight[offset]), (void *)res, compressed_data.total_size);
+
+    is_compress = true;
+    compressed_ga.push_back(offset);
+
+    float compress_per = ((len - compressed_data.total_size) / static_cast<float>(len)) * 100;
+    llvm::errs() << "compress percentage:" << compress_per << "%";
+  }
+  return is_compress;
+}
+
 void BM1880v2BackendContext::tdma_load_stride(bmk1880v2_tensor_lmem_t *tlp, u64 ga_src,
                                               bmk1880v2_tensor_tgmem_stride_t ts_stride,
                                               ctrl_t ctrl) const {
@@ -68,7 +117,24 @@ void BM1880v2BackendContext::tdma_load_stride(bmk1880v2_tensor_lmem_t *tlp, u64 
     bmk1880v2_tdma_tg2l_tensor_copy_param_t p1;
     p1.src = &ts_data;
     p1.dst = tlp;
-    this->tdma_g2l_tensor_copy(&p1);
+
+    //<! FIXME: also apply in neuron
+    if (!isNeuron && is_compress(tlp->shape.n, tlp->shape.c, tlp->shape.h, tlp->shape.w,
+                                 ts_stride.n, ts_stride.c, ts_stride.h, ga_src, ctrl)) {
+      bmk1880v2_tdma_tg2l_tensor_copy_decompressed_param_t p2;
+      bmk1880v2_compressed_tensor_tgmem_t ts_data1;
+      ts_data1.base_reg_index = ts_data.base_reg_index;
+      ts_data1.start_address = ts_data.start_address;
+      ts_data1.shape = ts_data.shape;
+      ts_data1.stride = ts_data.stride;
+      ts_data1.bit_length = 8;  // 1 byte
+
+      p2.src = &ts_data1;
+      p2.dst = tlp;
+      this->tdma_g2l_tensor_copy_decompressed(&p2);
+    } else {
+      this->tdma_g2l_tensor_copy(&p1);
+    }
   }
 }
 
@@ -488,7 +554,15 @@ void BM1880v2BackendContext::tdma_load_stride(bmk1880v2_matrix_lmem_t *tlp, u64 
     bmk1880v2_tdma_tg2l_matrix_copy_param_t p1;
     p1.src = &ts_data;
     p1.dst = tlp;
-    this->tdma_g2l_matrix_copy(&p1);
+
+    // if (is_compress(1, 1, p1.src->shape.row, p1.src->shape.col,
+    //      1, 1, ts_stride.row,
+    //      ga_src, ctrl)){
+    //  //TODO matrix to tensor
+    //  this->tdma_g2l_matrix_copy(&p1);
+    //}
+    // else
+    { this->tdma_g2l_matrix_copy(&p1); }
   }
 }
 
