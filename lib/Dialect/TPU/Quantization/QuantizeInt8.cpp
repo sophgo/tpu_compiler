@@ -21,7 +21,8 @@
 
 #include "mlir/Dialect/TPU/TPUDialect.h"
 #include "mlir/Dialect/TPU/Passes.h"
-#include "mlir/Dialect/TPU/QuantizationUtils.h"
+#include "mlir/Dialect/TPU/TPUOperationSupport.h"
+#include "mlir/Dialect/TPU/QuantizationArithmetic.h"
 #include "mlir/Dialect/StandardOps/Ops.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
@@ -52,107 +53,6 @@ static llvm::cl::opt<bool> clQuantConvMultiplier(
     llvm::cl::init(false),
     llvm::cl::cat(clOptionsCategory));
 
-static inline uint32_t findRShift(float max_weight, float threshold_y,
-    float threshold_x) {
-  // Q(W) = W * (threshold_x / threshold_y) * (1 << rshift)
-  // find a rshift put the Q(max_filter_abs) in range (64, 127)
-  assert(threshold_y > 0);
-  float a = max_weight * threshold_x / threshold_y;
-  assert(a < 128);
-  for (uint32_t rshift = 0; rshift < 32; ++rshift) {
-    if ( (a * (1 << rshift)) >= 64 )
-      return rshift;
-  }
-  assert(false);
-  return 31;
-}
-
-static inline int8_t quantizeFilterRShift(float w, float threshold_y,
-    float threshold_x, uint32_t rshift) {
-  float factor = (threshold_x / threshold_y) * (1 << rshift);
-  float q_f = w * factor;
-  #if 0
-  // away_from_zero
-  int q_i = (q_f >= 0) ? (int)ceil(q_f) : (int)floor(q_f);
-  #else
-  int q_i = (int)roundf(q_f);
-  #endif
-  if ( (q_i > 127) || (q_i < -128) ) {
-    llvm::errs() << "  element exceeds limits [-128, 127] : "
-                 << w << " -> " << q_i << "\n";
-  }
-  //assert( (q_i <= 127) && (q_i >= -128) );
-  if ( q_i > 127 )
-    q_i = 127;
-  if ( q_i < -128 )
-    q_i = -128;
-
-  return (int8_t)q_i;
-}
-
-static inline int16_t quantizeBiasRShiftI16(float w, float threshold_y,
-    uint32_t rshift) {
-  float factor = (128.0f / threshold_y) * (1 << rshift);
-  int q = w * factor;
-  if ( (q > 32767) || (q < -32768) ) {
-    llvm::errs() << "  element exceeds limits [-32768, 32767] : "
-                 << std::to_string(w) << " -> " << std::to_string(q)
-                 << ", rshift = " << rshift << "\n";
-  }
-  assert( (q <= 32767) && (q >= -32768) );
-  if ( q > 32767 )
-    q = 32767;
-  if ( q < -32768 )
-    q = -32768;
-  return (int16_t)q;
-}
-
-static inline int32_t quantizeBiasRShiftI32(float w, float threshold_y,
-    uint32_t rshift) {
-  float factor = (128.0f / threshold_y) * (1 << rshift);
-  int32_t q = (int32_t)(w * factor);
-  return (int32_t)q;
-}
-
-static inline float findMultiplier(float max_weight, float threshold_y,
-    float threshold_x) {
-  // Q(W) = W * (threshold_x / threshold_y) * M
-  // find a M put the Q(max_filter_abs) = 127
-  assert(threshold_y > 0);
-  float m = 127.0f * threshold_y / (max_weight * threshold_x);
-  return m;
-}
-
-static inline int8_t quantizeFilterMultiplier(float w, float threshold_y,
-    float threshold_x, float multiplier) {
-  float factor = (threshold_x / threshold_y) * multiplier;
-  float q_f = w * factor;
-  #if 0
-  // away_from_zero
-  int q_i = (q_f >= 0) ? (int)ceil(q_f) : (int)floor(q_f);
-  #else
-  int q_i = (int)roundf(q_f);
-  #endif
-  if ( (q_i > 127) || (q_i < -128) ) {
-    llvm::errs() << "  element exceeds limits [-128, 127] : "
-                 << w << " -> " << q_i << "\n";
-  }
-  //assert( (q_i <= 127) && (q_i >= -128) );
-  if ( q_i > 127 )
-    q_i = 127;
-  if ( q_i < -128 )
-    q_i = -128;
-
-  return (int8_t)q_i;
-}
-
-static inline int32_t quantizeBiasMultiplier(float w, float threshold_y,
-    float multiplier) {
-  float factor = (128.0f / threshold_y) * multiplier;
-  int32_t q = (int32_t)(w * factor);
-  return (int32_t)q;
-}
-
 namespace {
 
 struct TpuQuantConv2DOpPattern : public RewritePattern {
@@ -173,14 +73,10 @@ struct TpuQuantConv2DOpPattern : public RewritePattern {
       return matchFailure();
     }
 
-    float threshold_y, threshold_x;
-    auto status = getPreviousOpThreshold(op, &threshold_x);
-    assert(succeeded(status));
-    threshold_y = convOp.threshold_y().getValue().convertToFloat();
+    float threshold_x = getPreviousOpThreshold(op);
+    float threshold_y = convOp.threshold_y().getValue().convertToFloat();
     llvm::errs() << " > " << op_name << ", threshold_y = " << std::to_string(threshold_y)
-        << ", threshold_x = "
-        << (succeeded(status) ? std::to_string(threshold_x) : std::string("not present"))
-        << "\n";
+                 << ", threshold_x = " << std::to_string(threshold_x) << "\n";
 
     // find filter and bias tensor
     std::vector<std::unique_ptr<std::vector<float> > > weights(2);
@@ -221,7 +117,7 @@ struct TpuQuantConv2DOpPattern : public RewritePattern {
     // TODO: use only float in weight file for now
     std::vector<float> rshift(1);
     std::vector<float> rshift_per_channel(oc);
-    std::vector<float> multiplier(oc);
+    std::vector<float> multiplier_per_channel(oc);
     if (!clQuantConvPerChannel) {
       assert(!clQuantConvMultiplier && "enable per channel before enable multiplier");
       // find the max fabs weight value
@@ -231,12 +127,9 @@ struct TpuQuantConv2DOpPattern : public RewritePattern {
           max_filter_abs = fabs(filter[i]);
         }
       }
-      llvm::errs() << "  max filter : " << max_filter_abs << "\n";
+      llvm::errs() << "  max_filter : " << std::to_string(max_filter_abs) << "\n";
 
       // find rshift
-      // Q(W) = W * (threshold_x / threshold_y) * (1 << rshift)
-      // find a rshift put the Q(max_filter_abs) in range (64, 127)
-      assert(threshold_x);
       rshift[0] = (float)findRShift(max_filter_abs, threshold_y, threshold_x);
       llvm::errs() << "  rshift : " << rshift[0] << "\n";
 
@@ -263,14 +156,12 @@ struct TpuQuantConv2DOpPattern : public RewritePattern {
         }
       }
       for (int i = 0; i < oc; ++i) {
-        llvm::errs() << "  max filter[" << i << "] : " << max_filter_abs[i] << "\n";
+        llvm::errs() << "  max_filter[" << i << "] : "
+                     << std::to_string(max_filter_abs[i]) << "\n";
       }
 
       if (!clQuantConvMultiplier) {
         // find rshift
-        // Q(W) = W * (threshold_x / threshold_y) * (1 << rshift)
-        // find a rshift put the Q(max_filter_abs) in range (64, 127)
-        assert(threshold_x);
         for (int i = 0; i < oc; ++i) {
           rshift_per_channel[i] = (float)findRShift(max_filter_abs[i],
                                                     threshold_y, threshold_x);
@@ -293,27 +184,34 @@ struct TpuQuantConv2DOpPattern : public RewritePattern {
           }
         }
       } else {
-        // find muliplier
-        assert(threshold_x);
+        // find qscale
         for (int i = 0; i < oc; ++i) {
-          multiplier[i] = findMultiplier(max_filter_abs[i], threshold_y, threshold_x);
-          llvm::errs() << "  multiplier[" << i << "] : "
-                       << std::to_string(multiplier[i]) << "\n";
+          float qscale = findQScale(max_filter_abs[i], threshold_y, threshold_x);
+          uint32_t multiplier;
+          rshift_per_channel[i] = (float)findRShiftAndMultiplierFromQScale(qscale,
+              127,  &multiplier);
+          multiplier_per_channel[i] = (float)multiplier;
+          llvm::errs() << "  [multiplier : rshift][" << i << "] = ["
+                       << std::to_string(multiplier_per_channel[i]) << " : "
+                       << std::to_string(rshift_per_channel[i]) << "]\n";
         }
 
         // quantize weight
         for (int i = 0; i < oc; ++i) {
           for (int j = 0; j < inner_size; ++j) {
             new_filter[inner_size * i + j] =
-                (float)quantizeFilterMultiplier(filter[inner_size * i + j],
-                                                threshold_y, threshold_x,
-                                                multiplier[i]);
+                (float)quantizeFilterRShiftAndMultiplier(filter[inner_size * i + j],
+                                                         threshold_y, threshold_x,
+                                                         rshift_per_channel[i],
+                                                         multiplier_per_channel[i]);
           }
         }
         if (bias) {
           for (int i = 0; i < oc; ++i) {
-            new_bias[i] = (float)quantizeBiasMultiplier(bias[i], threshold_y,
-                                                        multiplier[i]);
+            new_bias[i] =
+                (float)quantizeBiasRShiftAndMultiplier(bias[i], threshold_y,
+                                                       rshift_per_channel[i],
+                                                       multiplier_per_channel[i]);
           }
         }
       }
@@ -347,7 +245,7 @@ struct TpuQuantConv2DOpPattern : public RewritePattern {
       newOperands.push_back(new_weight_op);
     }
 
-    // add rshift to weight
+    // add rshift and multiplier (if present) to weight
     if (!clQuantConvPerChannel) {
       auto tensor_name = op_name + "_quant_int8_rshift";
       llvm::errs() << "  new_weight[rshift] : " << tensor_name << "\n";
@@ -364,27 +262,57 @@ struct TpuQuantConv2DOpPattern : public RewritePattern {
           ArrayRef<Value *>{weightFileVar_}, ArrayRef<NamedAttribute>{attrs});
       newOperands.push_back(new_weight_op);
     } else {
-      auto type = rewriter.getTensorType(std::vector<int64_t>{oc},
-          IntegerType::get(32, rewriter.getContext()));
-      std::vector<NamedAttribute> attrs;
       if (!clQuantConvMultiplier) {
+        auto type = rewriter.getTensorType(std::vector<int64_t>{oc},
+            IntegerType::get(32, rewriter.getContext()));
+        std::vector<NamedAttribute> attrs;
         auto tensor_name = op_name + "_quant_int8_rshift";
         llvm::errs() << "  new_weight[rshift] : " << tensor_name << "\n";
         // TODO: use only float in weight file for now
         //weightTensorFile_->addTensor<uint32_t>(tensor_name, &rshift, type);
         weightTensorFile_->addTensor<float>(tensor_name, &rshift_per_channel, type);
         attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(tensor_name)));
+
+        // per-channel rshift store as INT32
+        attrs.push_back(rewriter.getNamedAttr("storage", rewriter.getStringAttr("UINT32")));
+        auto new_weight_op = rewriter.create<tpu::LoadWeightOp>(loc, type,
+            ArrayRef<Value *>{weightFileVar_}, ArrayRef<NamedAttribute>{attrs});
+        newOperands.push_back(new_weight_op);
       } else {
+        {
+        auto type = rewriter.getTensorType(std::vector<int64_t>{oc},
+            IntegerType::get(32, rewriter.getContext()));
+        std::vector<NamedAttribute> attrs;
+        auto tensor_name = op_name + "_quant_int8_rshift";
+        llvm::errs() << "  new_weight[rshift] : " << tensor_name << "\n";
+        // TODO: use only float in weight file for now
+        //weightTensorFile_->addTensor<uint32_t>(tensor_name, &rshift, type);
+        weightTensorFile_->addTensor<float>(tensor_name, &rshift_per_channel, type);
+        attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(tensor_name)));
+        // per-channel rshift or multiplier store as UINT32
+        attrs.push_back(rewriter.getNamedAttr("storage", rewriter.getStringAttr("UINT32")));
+        auto new_weight_op = rewriter.create<tpu::LoadWeightOp>(loc, type,
+            ArrayRef<Value *>{weightFileVar_}, ArrayRef<NamedAttribute>{attrs});
+        newOperands.push_back(new_weight_op);
+        }
+
+        {
+        auto type = rewriter.getTensorType(std::vector<int64_t>{oc},
+            IntegerType::get(32, rewriter.getContext()));
+        std::vector<NamedAttribute> attrs;
         auto tensor_name = op_name + "_quant_int8_multiplier";
         llvm::errs() << "  new_weight[multiplier] : " << tensor_name << "\n";
-        weightTensorFile_->addTensor<float>(tensor_name, &multiplier, type);
+        // TODO: use only float in weight file for now
+        //weightTensorFile_->addTensor<uint32_t>(tensor_name, &multiplier, type);
+        weightTensorFile_->addTensor<float>(tensor_name, &multiplier_per_channel, type);
         attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(tensor_name)));
+        // per-channel rshift or multiplier store as UINT32
+        attrs.push_back(rewriter.getNamedAttr("storage", rewriter.getStringAttr("UINT32")));
+        auto new_weight_op = rewriter.create<tpu::LoadWeightOp>(loc, type,
+            ArrayRef<Value *>{weightFileVar_}, ArrayRef<NamedAttribute>{attrs});
+        newOperands.push_back(new_weight_op);
+        }
       }
-      // per-channel rshift or multiplier store as INT32
-      attrs.push_back(rewriter.getNamedAttr("storage", rewriter.getStringAttr("INT32")));
-      auto new_weight_op = rewriter.create<tpu::LoadWeightOp>(loc, type,
-          ArrayRef<Value *>{weightFileVar_}, ArrayRef<NamedAttribute>{attrs});
-      newOperands.push_back(new_weight_op);
     }
 
     // replace with the new conv op
@@ -428,14 +356,10 @@ struct TpuQuantFullyConnectedOpPattern : public RewritePattern {
       return matchFailure();
     }
 
-    float threshold_y, threshold_x;
-    auto status = getPreviousOpThreshold(op, &threshold_x);
-    assert(succeeded(status));
-    threshold_y = fcOp.threshold_y().getValue().convertToFloat();
+    float threshold_x = getPreviousOpThreshold(op);
+    float threshold_y = fcOp.threshold_y().getValue().convertToFloat();
     llvm::errs() << " > " << op_name << ", threshold_y = " << std::to_string(threshold_y)
-        << ", threshold_x = "
-        << (succeeded(status) ? std::to_string(threshold_x) : std::string("not present"))
-        << "\n";
+                 << ", threshold_x = " << std::to_string(threshold_x) << "\n";
 
     // find filter and bias tensor
     std::vector<std::unique_ptr<std::vector<float> > > weights(2);
@@ -693,9 +617,7 @@ struct TpuAddQuantBeforeReturnOpPattern : public OpRewritePattern<ReturnOp> {
     }
 
     llvm::errs() << " add dequantization op defore Return\n";
-    float threshold_x;
-    auto status = getPreviousOpThreshold(op, &threshold_x);
-    assert(succeeded(status));
+    float threshold_x = getPreviousOpThreshold(op);
     addDequantOpBeforeOp<ReturnOp>(rewriter, op, threshold_x, "return");
 
     return matchSuccess();
@@ -715,9 +637,8 @@ struct TpuAddQuantAndDequantForSoftmaxOpPattern : public OpRewritePattern<tpu::S
 
     llvm::errs() << op.name() << " insert quant and dequant\n";
     std::string op_name = op.getAttrOfType<StringAttr>("name").getValue().str();
-    float threshold_x;
-    auto status = getPreviousOpThreshold(op, &threshold_x);
-    assert(succeeded(status));
+
+    float threshold_x = getPreviousOpThreshold(op);
     addDequantOpBeforeOp<tpu::SoftmaxOp>(rewriter, op, threshold_x, op_name + "_quant");
 
     float threshold_y = op.threshold_y().getValue().convertToFloat();

@@ -21,7 +21,7 @@
 
 #include "mlir/Dialect/TPU/TPUDialect.h"
 #include "mlir/Dialect/TPU/Passes.h"
-#include "mlir/Dialect/TPU/QuantizationUtils.h"
+#include "mlir/Dialect/TPU/TPUOperationSupport.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/StandardTypes.h"
@@ -55,9 +55,7 @@ struct BypassPoolQuantPattern : public OpRewritePattern<tpu::Pool2DOp> {
 
   PatternMatchResult matchAndRewrite(tpu::Pool2DOp op,
                                      PatternRewriter &rewriter) const {
-    float threshold_x;
-    auto status = getPreviousOpThreshold(op, &threshold_x);
-    assert(succeeded(status));
+    float threshold_x = getPreviousOpThreshold(op);
     float threshold_y = op.threshold_y().getValue().convertToFloat();
     if (threshold_y > threshold_x) {
       op.setAttr("threshold_y", rewriter.getF32FloatAttr(threshold_x));
@@ -75,9 +73,7 @@ struct BypassReluQuantPattern : public OpRewritePattern<tpu::ReluOp> {
 
   PatternMatchResult matchAndRewrite(tpu::ReluOp op,
                                      PatternRewriter &rewriter) const {
-    float threshold_x;
-    auto status = getPreviousOpThreshold(op, &threshold_x);
-    assert(succeeded(status));
+    float threshold_x = getPreviousOpThreshold(op);
     op.setAttr("threshold_y", rewriter.getF32FloatAttr(threshold_x));
 
     return matchSuccess();
@@ -90,9 +86,7 @@ struct AssignReshapeThresholdPattern : public OpRewritePattern<tpu::ReshapeOp> {
 
   PatternMatchResult matchAndRewrite(tpu::ReshapeOp op,
                                      PatternRewriter &rewriter) const {
-    float threshold_x;
-    auto status = getPreviousOpThreshold(op, &threshold_x);
-    assert(succeeded(status));
+    float threshold_x = getPreviousOpThreshold(op);
     op.setAttr("threshold_y", rewriter.getF32FloatAttr(threshold_x));
 
     return matchSuccess();

@@ -5,57 +5,91 @@
 
 namespace mlir {
 
-LogicalResult getPreviousOpThreshold(Operation *op, float *threshold, uint index = 0) {
+llvm::StringRef getOpName(Operation *op) {
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(op)) {
+    return cast_op.name().getValue();
+  }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::InputOp>(op)) {
+    return cast_op.name().getValue();
+  }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::Conv2DOp>(op)) {
+    return cast_op.name().getValue();
+  }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::FullyConnectedOp>(op)) {
+    return cast_op.name().getValue();
+  }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::Pool2DOp>(op)) {
+    return cast_op.name().getValue();
+  }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::BatchNormOp>(op)) {
+    return cast_op.name().getValue();
+  }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::ScaleOp>(op)) {
+    return cast_op.name().getValue();
+  }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::ReluOp>(op)) {
+    return cast_op.name().getValue();
+  }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::EltwiseOp>(op)) {
+    return cast_op.name().getValue();
+  }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::SoftmaxOp>(op)) {
+    return cast_op.name().getValue();
+  }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::ReshapeOp>(op)) {
+    return cast_op.name().getValue();
+  }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::QuantizationOp>(op)) {
+    return cast_op.name().getValue();
+  }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::DequantizationOp>(op)) {
+    return cast_op.name().getValue();
+  }
+  llvm::errs() << op->getName() << "\n";
+  assert(false);
+  return "not_found";
+}
+
+float getPreviousOpThreshold(Operation *op, uint index = 0) {
   if ( op->getNumOperands() < (index + 1) ) {
     assert(false);
-    return failure();
+    return NAN;
   }
   auto formerOp = op->getOperand(index)->getDefiningOp();
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::InputOp>(formerOp)) {
-    *threshold = cast_op.threshold_y().getValue().convertToFloat();
-    return success();
+    return cast_op.threshold_y().getValue().convertToFloat();
   }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::Conv2DOp>(formerOp)) {
-    *threshold = cast_op.threshold_y().getValue().convertToFloat();
-    return success();
+    return cast_op.threshold_y().getValue().convertToFloat();
   }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::FullyConnectedOp>(formerOp)) {
-    *threshold = cast_op.threshold_y().getValue().convertToFloat();
-    return success();
+    return cast_op.threshold_y().getValue().convertToFloat();
   }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::Pool2DOp>(formerOp)) {
-    *threshold = cast_op.threshold_y().getValue().convertToFloat();
-    return success();
+    return cast_op.threshold_y().getValue().convertToFloat();
   }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::BatchNormOp>(formerOp)) {
-    *threshold = cast_op.threshold_y().getValue().convertToFloat();
-    return success();
+    return cast_op.threshold_y().getValue().convertToFloat();
   }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::ScaleOp>(formerOp)) {
-    *threshold = cast_op.threshold_y().getValue().convertToFloat();
-    return success();
+    return cast_op.threshold_y().getValue().convertToFloat();
   }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::ReluOp>(formerOp)) {
-    *threshold = cast_op.threshold_y().getValue().convertToFloat();
-    return success();
+    return cast_op.threshold_y().getValue().convertToFloat();
   }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::EltwiseOp>(formerOp)) {
-    *threshold = cast_op.threshold_y().getValue().convertToFloat();
-    return success();
+    return cast_op.threshold_y().getValue().convertToFloat();
   }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::ReshapeOp>(formerOp)) {
-    *threshold = cast_op.threshold_y().getValue().convertToFloat();
-    return success();
+    return cast_op.threshold_y().getValue().convertToFloat();
   }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::SoftmaxOp>(formerOp)) {
-    *threshold = cast_op.threshold_y().getValue().convertToFloat();
-    return success();
+    return cast_op.threshold_y().getValue().convertToFloat();
   }
-  assert(0);
-  return failure();
+  assert(false);
+  return NAN;
 }
 
-// TODO: move to some other place
 uint64_t getPreviousOpAddress(Operation *op, uint index = 0) {
   if ( op->getNumOperands() < (index + 1) ) {
     assert(false);

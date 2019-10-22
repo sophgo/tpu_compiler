@@ -64,16 +64,19 @@ def TPU_QuantAttr : StrEnumAttr<
 // Allowed weight storage type cases, defines how each weight element is stored
 // in the generated weight.bin file
 def TPU_Weight_None   : StrEnumAttrCase<"NONE">;
-def TPU_Weight_Int8   : StrEnumAttrCase<"INT8">;
-def TPU_Weight_Int16  : StrEnumAttrCase<"INT16">;
-def TPU_Weight_Int32  : StrEnumAttrCase<"INT32">;
+def TPU_Weight_S8     : StrEnumAttrCase<"INT8">;
+def TPU_Weight_U8     : StrEnumAttrCase<"UINT8">;
+def TPU_Weight_S16    : StrEnumAttrCase<"INT16">;
+def TPU_Weight_U16    : StrEnumAttrCase<"UINT16">;
+def TPU_Weight_S32    : StrEnumAttrCase<"INT32">;
+def TPU_Weight_U32    : StrEnumAttrCase<"UINT32">;
 def TPU_Weight_BF16   : StrEnumAttrCase<"BF16">;
 def TPU_Weight_FP32   : StrEnumAttrCase<"FP32">;
 
 def TPU_WeightAttr : StrEnumAttr<
     "WeightStorageFlag", "weight storage flag enum", [
-      TPU_Weight_None,  TPU_Weight_Int8, TPU_Weight_Int16,
-      TPU_Weight_Int32, TPU_Weight_BF16, TPU_Weight_FP32
+      TPU_Weight_None, TPU_Weight_S8, TPU_Weight_U8, TPU_Weight_S16, TPU_Weight_U16,
+      TPU_Weight_S32, TPU_Weight_U32, TPU_Weight_BF16, TPU_Weight_FP32
     ]>;
 
 //===----------------------------------------------------------------------===//

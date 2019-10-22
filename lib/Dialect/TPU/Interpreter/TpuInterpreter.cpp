@@ -21,8 +21,9 @@
 
 
 #include "mlir/Dialect/TPU/TPUDialect.h"
+#include "mlir/Dialect/TPU/TPUOperationSupport.h"
 #include "mlir/Dialect/TPU/Interpreter.h"
-#include "mlir/Dialect/TPU/QuantizationUtils.h"
+#include "mlir/Dialect/TPU/QuantizationArithmetic.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Function.h"
 #include "mlir/IR/Module.h"
@@ -645,136 +646,7 @@ static int64_t findPadForSamePadding(int64_t i, int64_t o, int64_t k, int64_t s,
   return 0;
 }
 
-static inline int8_t saturateInt8(float v) {
-  #if 0
-  // cast
-  int q = (int)v;
-  #elif 0
-  // away_from_zero
-  int q = (v >= 0) ? (int)ceil(v) : (int)floor(v);
-  #elif 0
-  // round
-  int q = (int)roundf(v);
-  #elif 0
-  // trancate, (towards zero)
-  int q = (v >= 0) ? (int)floor(v) : (int)ceil(v);
-  #else
-  // from caffe_int8
-  int q = floor(v + 0.5);
-  #endif
-  //assert( (q <= 127) && (q >= -128) );
-  DEBUG_WITH_TYPE(DEBUG_TYPE"_WARNING",
-    if ( (q > 127) || (q < -128) ) {
-      llvm::errs() << "  element exceeds limits [-128, 127] : "
-                   << v << " -> " << q << "\n";
-    }
-  );
-  if ( q > 127 )
-    q = 127;
-  if ( q < -128 )
-    q = -128;
-
-  return (int8_t)q;
-}
-
-static inline int8_t rshiftAndSaturate(float v, uint32_t rshift) {
-  return saturateInt8(v / (1 << rshift));
-
-}
-
-static inline int8_t divideMultiplierAndSaturate(float v, float multiplier) {
-  float q_f = v / multiplier;
-  #if 0
-  // away_from_zero
-  int q_i = (q_f >= 0) ? (int)ceil(q_f) : (int)floor(q_f);
-  #else
-  int q_i = (int)roundf(q_f);
-  #endif
-  //assert( (q <= 127) && (q >= -128) );
-  DEBUG_WITH_TYPE(DEBUG_TYPE"_WARNING",
-    if ( (q_i > 127) || (q_i < -128) ) {
-      llvm::errs() << "  element exceeds limits [-128, 127] : "
-                   << v << " -> " << q_i << "\n";
-    }
-  );
-  if ( q_i > 127 )
-    q_i = 127;
-  if ( q_i < -128 )
-    q_i = -128;
-
-  return (int8_t)q_i;
-}
-
-static uint32_t findRShiftFromScale(float scale) {
-  // scale = numerator / (1 << rshift)
-  // find a rshift put the numerator in range (64, 127)
-  assert(scale < 128);
-  for (uint32_t rshift = 0; rshift < 32; ++rshift) {
-    if ( (scale * (1 << rshift)) >= 64 )
-      return rshift;
-  }
-  assert(false);
-  return 31;
-}
-
-static uint32_t findRShiftFromUnsignedScale(float scale) {
-  // scale = numerator / (1 << rshift)
-  // find a rshift put the numerator in range (128, 255)
-  assert(scale < 256);
-  for (uint32_t rshift = 0; rshift < 32; ++rshift) {
-    if ( (scale * (1 << rshift)) >= 128 )
-      return rshift;
-  }
-  assert(false);
-  return 31;
-}
-
 namespace mlir {
-
-static llvm::StringRef getOpName(Operation *op) {
-  if (auto cast_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(op)) {
-    return cast_op.name().getValue();
-  }
-  if (auto cast_op = llvm::dyn_cast_or_null<tpu::InputOp>(op)) {
-    return cast_op.name().getValue();
-  }
-  if (auto cast_op = llvm::dyn_cast_or_null<tpu::Conv2DOp>(op)) {
-    return cast_op.name().getValue();
-  }
-  if (auto cast_op = llvm::dyn_cast_or_null<tpu::FullyConnectedOp>(op)) {
-    return cast_op.name().getValue();
-  }
-  if (auto cast_op = llvm::dyn_cast_or_null<tpu::Pool2DOp>(op)) {
-    return cast_op.name().getValue();
-  }
-  if (auto cast_op = llvm::dyn_cast_or_null<tpu::BatchNormOp>(op)) {
-    return cast_op.name().getValue();
-  }
-  if (auto cast_op = llvm::dyn_cast_or_null<tpu::ScaleOp>(op)) {
-    return cast_op.name().getValue();
-  }
-  if (auto cast_op = llvm::dyn_cast_or_null<tpu::ReluOp>(op)) {
-    return cast_op.name().getValue();
-  }
-  if (auto cast_op = llvm::dyn_cast_or_null<tpu::EltwiseOp>(op)) {
-    return cast_op.name().getValue();
-  }
-  if (auto cast_op = llvm::dyn_cast_or_null<tpu::SoftmaxOp>(op)) {
-    return cast_op.name().getValue();
-  }
-  if (auto cast_op = llvm::dyn_cast_or_null<tpu::ReshapeOp>(op)) {
-    return cast_op.name().getValue();
-  }
-  if (auto cast_op = llvm::dyn_cast_or_null<tpu::QuantizationOp>(op)) {
-    return cast_op.name().getValue();
-  }
-  if (auto cast_op = llvm::dyn_cast_or_null<tpu::DequantizationOp>(op)) {
-    return cast_op.name().getValue();
-  }
-  llvm::errs() << op->getName() << "\n";
-  assert(false);
-  return "not_found";
-}
 
 LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
   // #include "mlir/Dialect/LLVMIR/LLVMConversions.inc"
@@ -956,13 +828,15 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
         rshift = (float *)operand_tensors[2]->data();
       }
     } else if (op.quant() == "INT8_MULTIPLIER") {
-      if (operand_tensors.size() > 3) {
-        assert(operand_tensors.size() == 4);
+      if (operand_tensors.size() > 4) {
+        assert(operand_tensors.size() == 5);
         mkldnn_bias = (float *)operand_tensors[2]->data();
-        multiplier = (float *)operand_tensors[3]->data();
+        rshift = (float *)operand_tensors[3]->data();
+        multiplier = (float *)operand_tensors[4]->data();
       } else {
-        assert(operand_tensors.size() == 3);
-        multiplier = (float *)operand_tensors[2]->data();
+        assert(operand_tensors.size() == 4);
+        rshift = (float *)operand_tensors[2]->data();
+        multiplier = (float *)operand_tensors[3]->data();
       }
     } else {
       assert(false);
@@ -976,10 +850,9 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     mkldnn_input = input_copy.data();
     if (op.quant() == "INT8" || op.quant() == "INT8_PER_CHANNEL"
         || op.quant() == "INT8_MULTIPLIER") {
-      float threshold_x;
-      auto status = getPreviousOpThreshold(op, &threshold_x);
-      LLVM_DEBUG(llvm::errs() << "  conv input quantize, threshold_x = " << std::to_string(threshold_x) << "\n";);
-      assert(succeeded(status));
+      float threshold_x = getPreviousOpThreshold(op);
+      LLVM_DEBUG(llvm::errs() << "  conv input quantize, threshold_x = "
+                              << std::to_string(threshold_x) << "\n";);
       for (size_t i = 0; i < operand_tensors[0]->size(); ++i) {
         mkldnn_input[i] = (float)saturateInt8(mkldnn_input[i] * 128.0 / threshold_x);
       }
@@ -996,7 +869,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     if (op.quant() == "INT8") {
       assert(rshift);
       for (int i = 0; i < size; ++i) {
-        mkldnn_output[i] = (float)rshiftAndSaturate(mkldnn_output[i], (uint32_t)rshift[0]);
+        mkldnn_output[i] = (float)applyRShiftAndSaturateInt8(mkldnn_output[i], (uint32_t)rshift[0]);
       }
     } else if (op.quant() == "INT8_PER_CHANNEL") {
       assert(rshift);
@@ -1004,7 +877,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       for (int i = 0; i < oc; ++i) {
         for (int j = 0; j < inner_size; ++j) {
           mkldnn_output[i * inner_size + j] =
-              (float)rshiftAndSaturate(mkldnn_output[i * inner_size + j],
+              (float)applyRShiftAndSaturateInt8(mkldnn_output[i * inner_size + j],
                                        (uint32_t)rshift[i]);
         }
       }
@@ -1014,8 +887,8 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       for (int i = 0; i < oc; ++i) {
         for (int j = 0; j < inner_size; ++j) {
           mkldnn_output[i * inner_size + j] =
-              (float)divideMultiplierAndSaturate(mkldnn_output[i * inner_size + j],
-                                       multiplier[i]);
+              (float)applyMultiplierAndRShiftAndSaturateInt8(mkldnn_output[i * inner_size + j],
+                                                             rshift[i], multiplier[i]);
         }
       }
     }
@@ -1200,10 +1073,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       std::copy(src_vec.begin(), src_vec.end(), back_inserter(input_copy));
       mkldnn_input = input_copy.data();
 
-      // get threshold_x
-      auto status = getPreviousOpThreshold(op, &threshold_x);
-      assert(succeeded(status));
-      // get threshold_y
+      threshold_x = getPreviousOpThreshold(op);
       threshold_y = op.threshold_y().getValue().convertToFloat();
     }
 
@@ -1225,7 +1095,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
     uint32_t rshift = 0;
     // multiplier is taking avg_const into account
-    uint8_t multiplier = 0;
+    uint32_t multiplier = 0;
     // do quantize for average pooling, max poolings are bypassed
     if (op.quant() == "INT8" && is_average_pool) {
       // determine multiplier and rshift according to threshold_x
@@ -1237,19 +1107,15 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       //int8_t multiplier;
       float scale = threshold_x / threshold_y;
       float scale_and_avg_const = scale / (kh * kw);
-      rshift = findRShiftFromUnsignedScale(scale_and_avg_const);
-      multiplier = (scale_and_avg_const * (1 << rshift));
+      //rshift = findRShiftAndMultiplierFromQScale(scale_and_avg_const, 127, &multiplier);
+      rshift = findRShiftAndMultiplierFromQScale(scale_and_avg_const, 255, &multiplier);
 
-      // apply multiplier
+      // apply multiplier, rshift and saturate
       for (int i = 0; i < size; ++i) {
         // restore sum value first
         int sum = (int)(mkldnn_output[i] * kh * kw + 0.5);
-        mkldnn_output[i] = (float)(sum * multiplier);
-      }
-
-      // rshift and saturate on output
-      for (int i = 0; i < size; ++i) {
-        mkldnn_output[i] = (float)rshiftAndSaturate(mkldnn_output[i], (uint32_t)rshift);
+        mkldnn_output[i] = (float)applyMultiplierAndRShiftAndSaturateInt8(
+                                      sum, rshift, multiplier);
       }
     }
 
@@ -1391,10 +1257,9 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     std::vector<float> input_copy(*operand_tensors[0]);
     mkldnn_input = input_copy.data();
     if (op.quant() == "INT8") {
-      float threshold_x;
-      auto status = getPreviousOpThreshold(op, &threshold_x);
-      LLVM_DEBUG(llvm::errs() << "  fc input quantize, threshold_x = " << std::to_string(threshold_x) << "\n";);
-      assert(succeeded(status));
+      float threshold_x = getPreviousOpThreshold(op;
+      LLVM_DEBUG(llvm::errs() << "  fc input quantize, threshold_x = "
+                              << std::to_string(threshold_x) << "\n";);
       for (size_t i = 0; i < operand_tensors[0]->size(); ++i) {
         mkldnn_input[i] = (float)saturateInt8(mkldnn_input[i] * 128.0 / threshold_x);
       }
@@ -1411,7 +1276,8 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     if (op.quant() == "INT8") {
       assert(rshift);
       for (int i = 0; i < size; ++i) {
-        mkldnn_output[i] = (float)rshiftAndSaturate(mkldnn_output[i], (uint32_t)rshift[0]);
+        mkldnn_output[i] = (float)applyRShiftAndSaturateInt8(mkldnn_output[i],
+                                                             (uint32_t)rshift[0]);
       }
     }
 
@@ -1496,7 +1362,8 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     std::vector<std::vector<float> *> operand_tensors;
     {
       auto operand = op.getOperand();
-      LLVM_DEBUG(llvm::errs() << "  operand[0] "; operand->getType().dump(); llvm::errs() << "\n";);
+      LLVM_DEBUG(llvm::errs()
+          << "  operand[0] "; operand->getType().dump(); llvm::errs() << "\n";);
       // find operand in valueMapping
       auto it = valueMapping.find(operand);
       if (it == valueMapping.end()) {
@@ -1617,10 +1484,9 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
     // do dequantization
     if (0) {
-      float threshold_x;
-      auto status = getPreviousOpThreshold(op, &threshold_x);
-      LLVM_DEBUG(llvm::errs() << "  softmax dequantize, threshold_x = " << std::to_string(threshold_x) << "\n";);
-      assert(succeeded(status));
+      float threshold_x = getPreviousOpThreshold(op);
+      LLVM_DEBUG(llvm::errs() << "  softmax dequantize, threshold_x = "
+                              << std::to_string(threshold_x) << "\n";);
       for (size_t i = 0; i < operand_tensors[0]->size(); ++i) {
         input[i] = input[i] * threshold_x / 128.0;
       }
@@ -1836,8 +1702,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
         input[index] = input_copy[index].data();
 
         // get threshold_x
-        auto status = getPreviousOpThreshold(op, &threshold_x[index], index);
-        assert(succeeded(status));
+        threshold_x[index] = getPreviousOpThreshold(op, index);
       }
       // get threshold_y
       threshold_y = op.threshold_y().getValue().convertToFloat();
@@ -1867,10 +1732,10 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       // use max threshold_x to find rshift first
       float max_threshold_x = *std::max_element(
           std::begin(threshold_x), std::end(threshold_x));
-      rshift = findRShiftFromScale(max_threshold_x / threshold_y);
+      rshift = findRShiftAndMultiplierFromQScale(max_threshold_x / threshold_y);
       for (int index = 0; index < 2; ++index) {
-        float scale = threshold_x[index] / threshold_y;
-        multiplier[index] = (int8_t)(scale * (1 << rshift));
+        float qscale = threshold_x[index] / threshold_y;
+        multiplier[index] = (int8_t)findMultiplierFromQScaleAndRShift(qscale, rshift);
       }
     }
 
@@ -1891,7 +1756,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     if (op.quant() == "INT8") {
       //assert(rshift);
       for (int i = 0; i < size; ++i) {
-        output[i] = (float)rshiftAndSaturate(output[i], (uint32_t)rshift);
+        output[i] = (float)applyRShiftAndSaturateInt8(output[i], (uint32_t)rshift);
       }
     }
 
@@ -2006,7 +1871,8 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     unsigned int operandIdx = 0;
     {
       auto operand = op.getOperand();
-      LLVM_DEBUG(llvm::errs() << "  operand[" << operandIdx << "] "; operand->getType().dump(); llvm::errs() << "\n";);
+      LLVM_DEBUG(llvm::errs() << "  operand[" << operandIdx << "] ";
+                 operand->getType().dump(); llvm::errs() << "\n";);
       // find operand in valueMapping
       auto it = valueMapping.find(operand);
       if (it == valueMapping.end()) {
@@ -2039,7 +1905,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       LLVM_DEBUG(llvm::errs() << "  quantization, threshold = "
                    << std::to_string(threshold) << "\n";);
       for (int i = 0; i < size; ++i) {
-        output[i] = (float)saturateInt8(input[i] * 128.0 / threshold);
+        output[i] = (float)quantizeNeuron(input[i], threshold);
       }
     }
     // TODO: End of compute, need refactor
@@ -2089,7 +1955,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       LLVM_DEBUG(llvm::errs() << "  quantization, threshold = "
                    << std::to_string(threshold) << "\n";);
       for (int i = 0; i < size; ++i) {
-        output[i] = input[i] * threshold / 128.0;
+        output[i] = dequantizeNeuron((int8_t)input[i], threshold);
       }
     }
     // TODO: End of compute, need refactor
@@ -2179,8 +2045,10 @@ LogicalResult ModuleInterpreter::runOneFunction(FuncOp func) {
   assert(argIdx == 1);
 
 #ifdef ENABLE_GEN_CMDBUF
-  std::vector<int8_t> weight_data;
-  bm1880v2_ctx = new BM1880v2BackendContext(BM_CHIP_BM1880v2, 1, weight_data);
+  if (clCmdBufFilename != "-") {
+    std::vector<int8_t> weight_data;
+    bm1880v2_ctx = new BM1880v2BackendContext(BM_CHIP_BM1880v2, 1, weight_data);
+  }
 #endif
 
   // Then, run blocks one by one.

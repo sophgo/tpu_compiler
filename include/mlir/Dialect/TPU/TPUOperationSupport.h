@@ -19,19 +19,19 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef MLIR_DIALECT_TPU_QUANTIZATIONUTILS_H_
-#define MLIR_DIALECT_TPU_QUANTIZATIONUTILS_H_
+#ifndef MLIR_DIALECT_TPU_OPERATION_SUPPORT_H_
+#define MLIR_DIALECT_TPU_OPERATION_SUPPORT_H_
 
 #include "mlir/IR/Operation.h"
 #include "mlir/Support/LogicalResult.h"
 
 namespace mlir {
 
-LogicalResult getPreviousOpThreshold(Operation *op, float *threshold, uint index = 0);
-
+llvm::StringRef getOpName(Operation *op);
+float getPreviousOpThreshold(Operation *op, uint index = 0);
 uint64_t getPreviousOpAddress(Operation *op, uint index = 0);
 uint64_t getWeightOpAddress(Operation *op);
 
 } // namespace mlir
 
-#endif // MLIR_DIALECT_TPU_QUANTIZATIONUTILS_H_
+#endif // MLIR_DIALECT_TPU_OPERATION_SUPPORT_H_

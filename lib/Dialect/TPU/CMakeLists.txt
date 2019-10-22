@@ -7,6 +7,7 @@ list(APPEND tpu_LINKER_LIBS
 add_llvm_library(MLIRTPU
   IR/TPUDialect.cpp
   IR/DialectRegistration.cpp
+  IR/TPUOperationSupport.cpp
   Analysis/TpuOpStats-v0.cpp
   Analysis/TpuOpStats.cpp
   Transforms/ConvertBnToScale.cpp
@@ -14,9 +15,9 @@ add_llvm_library(MLIRTPU
   Transforms/FuseScaleIntoConv.cpp
   Transforms/AssignWeightAddress.cpp
   Transforms/AssignNeuronAddress.cpp
+  Quantization/QuantizationArithmetic.cpp
   Quantization/ImportCalibrationTable.cpp
   Quantization/QuantizeInt8.cpp
-  Quantization/QuantizationUtils.cpp
   Interpreter/TpuInterpreter.cpp
   Interpreter/BM1880v2BackendContext.cpp
   Interpreter/dma_legacy_bmkernel.cpp
