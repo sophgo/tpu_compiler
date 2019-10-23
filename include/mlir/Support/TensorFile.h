@@ -58,6 +58,7 @@ public:
   template<typename T>
   LogicalResult addTensor(llvm::StringRef name, const T* data,
       TensorType &type) {
+    assert(!readOnly);
     if (readOnly)
       return failure();
     auto it = map.find(name.str());
@@ -77,6 +78,7 @@ public:
   template<typename T>
   LogicalResult addTensor(llvm::StringRef name, const std::vector<T> *data,
       TensorType &type) {
+    assert(!readOnly);
     return addTensor(name, data->data(), type);
   }
 
@@ -115,6 +117,7 @@ public:
   /// if the name is not found, return failure()
   template<typename T>
   LogicalResult deleteTensor(llvm::StringRef name) {
+    assert(!readOnly);
     if (readOnly)
       return failure();
     auto it = map.find(name.str());
@@ -127,6 +130,7 @@ public:
   }
 
   void keep(void) {
+    assert(!readOnly);
     // TODO: assuming all tensors are in float
     cnpy::npz_save_all<float>(filename.str(), map);
   }
