@@ -32,7 +32,7 @@ uint32_t findRShift(float max_weight, float threshold_y, float threshold_x) {
 ///   find a QScale so that Q(max_weight) = 127
 /// used in BM1880v2 per-channel mode
 /// During runtime
-///   HW needs to multiple the accumulated result by QScale before saturate to Int8
+///   HW multiples the accumulated result by QScale before saturate to Int8
 ///   QScale is then decomposed into a multipler and a rshift
 ///   => QScale = Multiplier / (1 << RShift)
 ///   where Multiplier is an interger
@@ -45,25 +45,41 @@ float findQScale(float max_weight, float threshold_y, float threshold_x) {
 /// find RShift and Multiplier from QScale
 ///   QScale = Multiplier / (1 << RShift)
 ///   Multiplier is an integer
-///   Sometimes Multiplier is limited to be int8_t or uint8_t
-///   Sometimes Multiplier could be uint32_t
-/// used in BM1880v2 per-channel mode
-///   if 'uint32_t *multiplier' is present, return multipler together
+/// case 1: specifically multiply a int8/uint8 multplier, then rshift
+///   used in layers like element_wise, pooling, concat, etc
+///   qdm is false
+///   a max_multiplier (127 or 255 normally) has to be provided
+/// case 2: dqm mode
+///   used in BM1880v2 per-channel conv mode
+///   qdm is true
+///   reference to [arxiv 1712.05877]
+///     choose the int32 value nearest to 2^31 * M0, M0 in [0.5, 1]
+///     this value is always at least 2^30 and have at least 30 bits accuracy
+///   the max_multiplier argument is ignored, fixed to (1 << 31)
+/// if 'uint32_t *multiplier' is present, return multipler alongside
 uint32_t findRShiftAndMultiplierFromQScale(float qscale,
-    uint32_t max_multiplier = 127,  uint32_t *multiplier = nullptr) {
-  // TODO: refine max_mutliplier
+    uint32_t *multiplier = nullptr, bool qdm = false,
+    uint32_t max_multiplier = 127) {
+  if (qdm) {
+    max_multiplier = (1 << 31);
+  }
   assert(qscale < max_multiplier);
-  for (uint32_t rshift = 0; rshift < 32; ++rshift) {
-    if ( (qscale * (1 << (rshift + 1))) >= max_multiplier ) {
+  for (uint32_t rshift = 0; rshift < 63; ++rshift) {
+    if ( ((double)qscale * (1ULL << (rshift + 1))) >= (double)max_multiplier ) {
       if (multiplier) {
-        *multiplier = (uint32_t)(qscale * (1 << rshift));
+        *multiplier = (uint32_t)((double)qscale * (1ULL << rshift));
       }
-      return rshift;
+      if (qdm) {
+        return rshift - 31;
+      } else {
+        return rshift;
+      }
     }
   }
-  llvm::errs() << "failed to find rshift, qscale = " << std::to_string(qscale) << "\n";
+  llvm::errs() << "failed to find rshift, qscale = "
+               << std::to_string(qscale) << "\n";
   assert(false);
-  return 32;
+  return 64;
 }
 
 /// find Multiplier from QScale and RShift
@@ -94,7 +110,8 @@ static inline int8_t saturateInt8(float f) {
   //assert( (q <= 127) && (q >= -128) );
   DEBUG_WITH_TYPE(DEBUG_TYPE"_WARNING",
     if ( (q > 127) || (q < -128) ) {
-      llvm::errs() << "exceeds limits [-128, 127] : " << std::to_string(f) << "\n";
+      llvm::errs() << "exceeds limits [-128, 127] : "
+                   << std::to_string(f) << "\n";
     }
   );
   if ( q > 127 )
@@ -124,7 +141,8 @@ static inline int16_t saturateInt16(float f) {
   int q = floor(f + 0.5);
   #endif
   if ( (q > 32767) || (q < -32768) ) {
-    llvm::errs() << "exceeds limits [-32768, 32767] : " << std::to_string(f) << "\n";
+    llvm::errs() << "exceeds limits [-32768, 32767] : "
+                 << std::to_string(f) << "\n";
   }
   assert( (q <= 32767) && (q >= -32768) );
   if ( q > 32767 )
@@ -164,8 +182,8 @@ static inline int32_t saturateInt32(float f) {
 /// used in BM1880 or BM1880v2 legacy per-layer mode
 int8_t quantizeFilterRShift(float w, float threshold_y, float threshold_x,
     uint32_t rshift) {
-  float factor = (threshold_x / threshold_y) * (1 << rshift);
-  float q_f = w * factor;
+  double factor = (threshold_x / threshold_y) * (1 << rshift);
+  float q_f = (float)(w * factor);
   return saturateInt8(q_f);
 }
 
@@ -173,8 +191,8 @@ int8_t quantizeFilterRShift(float w, float threshold_y, float threshold_x,
 ///   Q(B) = B * (128.0f / threshold_y) * (1 << rshift)
 /// used in BM1880 or BM1880v2 legacy per-layer mode (16bit bias)
 int16_t quantizeBiasRShiftI16(float w, float threshold_y, uint32_t rshift) {
-  float factor = (128.0f / threshold_y) * (1 << rshift);
-  float q_f = w * factor;
+  double factor = (128.0f / threshold_y) * (1 << rshift);
+  float q_f = (float)(w * factor);
   return saturateInt16(q_f);
 }
 
@@ -182,8 +200,8 @@ int16_t quantizeBiasRShiftI16(float w, float threshold_y, uint32_t rshift) {
 ///   Q(B) = B * (128.0f / threshold_y) * (1 << rshift)
 /// used in BM1880v2 per-channel mode (32bit bias), by with no multiplier
 int32_t quantizeBiasRShiftI32(float w, float threshold_y, uint32_t rshift) {
-  float factor = (128.0f / threshold_y) * (1 << rshift);
-  float q_f = w * factor;
+  double factor = (128.0f / threshold_y) * (1 << rshift);
+  float q_f = (float)(w * factor);
   return saturateInt32(q_f);
 }
 
@@ -192,9 +210,14 @@ int32_t quantizeBiasRShiftI32(float w, float threshold_y, uint32_t rshift) {
 ///   QScale = Multiplier / (1 << RShift)
 /// used in BM1880 or BM1880v2 legacy per-layer mode
 int8_t quantizeFilterRShiftAndMultiplier(float w, float threshold_y,
-    float threshold_x, uint32_t rshift, uint32_t multiplier) {
-  float factor = (threshold_x / threshold_y) * (1 << rshift) / multiplier;
-  float q_f = w * factor;
+    float threshold_x, uint32_t rshift, uint32_t multiplier,
+    bool qdm = false) {
+  if (qdm) {
+    rshift += 31;
+  }
+  double factor = (double)(threshold_x / threshold_y)
+                  * (1ULL << rshift) / multiplier;
+  float q_f = (float)(w * factor);
   return saturateInt8(q_f);
 }
 
@@ -203,9 +226,13 @@ int8_t quantizeFilterRShiftAndMultiplier(float w, float threshold_y,
 ///   QScale = Multiplier * (1 << RShift)
 /// used in BM1880v2 per-channel mode (32bit bias)
 int32_t quantizeBiasRShiftAndMultiplier(float w, float threshold_y,
-    uint32_t rshift, uint32_t multiplier) {
-  float factor = (128.0f / threshold_y) * (1 << rshift) / multiplier;
-  float q_f = w * factor;
+    uint32_t rshift, uint32_t multiplier, bool qdm = false) {
+  if (qdm) {
+    rshift += 31;
+  }
+  double factor = (double)(128.0f / threshold_y)
+                  * (1ULL << rshift) / multiplier;
+  float q_f = (float)(w * factor);
   return saturateInt32(q_f);
 }
 
@@ -214,12 +241,50 @@ int8_t applyRShiftAndSaturateInt8(float v, uint32_t rshift) {
   return saturateInt8(v / (1 << rshift));
 }
 
+// USE_GOOGLE_GEMMLOWP_QDM
+typedef int32_t s32;
+static inline s32 RoundingDivideByPOT(s32 x, int exponent)
+{
+  const s32 shift_vec = -exponent;
+  const s32 fixup = (x & shift_vec) >> 31;
+  const s32 fixed_up_x = x + fixup;
+
+  s32 nudge = 1 << (exponent - 1);
+  s32 val = (fixed_up_x + nudge) >> exponent;
+
+  return val;
+}
+
+static inline s32 SaturatingRoundingDoublingHighMul(s32 a, s32 b)
+{
+  std::int64_t a_64(a);
+  std::int64_t b_64(b);
+  std::int64_t ab_64 = a_64 * b_64;
+  s32 nudge = ab_64 >= 0 ? (1 << 30) : (1 - (1 << 30));
+  s32 ab_x2_high32 = static_cast<s32>((ab_64 + nudge) / (1ll << 31));
+
+  return ab_x2_high32;
+}
+// END_GOOGLE_GEMMLOWP_QDM
+
 /// Simulate HW behavior, after accumuation
 /// apply multiplier, do rshift, and then saturate to INT8
 /// used in BM1880v2 per-channel mode (32bit bias)
+/// qdm mode
+///   use GOOGLE GEMMLOWP QDM multiply and shift
+///   during multiply, a factor of (1 << 31) has been devided
 int8_t applyMultiplierAndRShiftAndSaturateInt8(float v,
-    uint32_t rshift, uint32_t multiplier) {
-  return saturateInt8(v * multiplier / (1 << rshift));
+    uint32_t rshift, uint32_t multiplier, bool qdm = false) {
+  if (qdm) {
+    int32_t q = RoundingDivideByPOT(
+        SaturatingRoundingDoublingHighMul((int32_t)v, (int32_t)multiplier),
+        rshift);
+    //llvm::errs() << "v,rshift,multiplier,q = " << v << ","
+    //             << rshift << "," << multiplier << "," << q << "\n";
+    return saturateInt8((float)q);
+  } else {
+    return saturateInt8(v * multiplier / (1 << rshift));
+  }
 }
 
 /// Quantize a Neuron value into INT8, given threshold

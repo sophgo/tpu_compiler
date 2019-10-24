@@ -29,7 +29,8 @@ namespace mlir {
 uint32_t findRShift(float max_weight, float threshold_y, float threshold_x);
 float findQScale(float max_weight, float threshold_y, float threshold_x);
 uint32_t findRShiftAndMultiplierFromQScale(float qscale,
-    uint32_t max_multiplier = 127,  uint32_t *multiplier = nullptr);
+    uint32_t *multiplier = nullptr, bool qdm = false,
+    uint32_t max_multiplier = 127);
 uint32_t findMultiplierFromQScaleAndRShift(float qscale, uint32_t rshift);
 
 int8_t quantizeFilterRShift(float w, float threshold_y, float threshold_x,
@@ -37,13 +38,14 @@ int8_t quantizeFilterRShift(float w, float threshold_y, float threshold_x,
 int16_t quantizeBiasRShiftI16(float w, float threshold_y, uint32_t rshift);
 int32_t quantizeBiasRShiftI32(float w, float threshold_y, uint32_t rshift);
 int8_t quantizeFilterRShiftAndMultiplier(float w, float threshold_y,
-    float threshold_x, uint32_t rshift, uint32_t multiplier);
+    float threshold_x, uint32_t rshift, uint32_t multiplier,
+    bool qdm = false);
 int32_t quantizeBiasRShiftAndMultiplier(float w, float threshold_y,
-    uint32_t rshift, uint32_t multiplier);
+    uint32_t rshift, uint32_t multiplier, bool qdm = false);
 
 int8_t applyRShiftAndSaturateInt8(float v, uint32_t rshift);
 int8_t applyMultiplierAndRShiftAndSaturateInt8(float v,
-    uint32_t rshift, uint32_t multiplier);
+    uint32_t rshift, uint32_t multiplier, bool qdm = false);
 
 int8_t quantizeNeuron(float v, float threshold);
 float dequantizeNeuron(int8_t q, float threshold);

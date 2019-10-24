@@ -893,7 +893,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
         for (int j = 0; j < inner_size; ++j) {
           mkldnn_output[i * inner_size + j] =
               (float)applyMultiplierAndRShiftAndSaturateInt8(mkldnn_output[i * inner_size + j],
-                                                             rshift[i], multiplier[i]);
+                                                             rshift[i], multiplier[i], true);
         }
       }
     }
@@ -1174,8 +1174,8 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       //int8_t multiplier;
       float scale = threshold_x / threshold_y;
       float scale_and_avg_const = scale / (kh * kw);
-      //rshift = findRShiftAndMultiplierFromQScale(scale_and_avg_const, 127, &multiplier);
-      rshift = findRShiftAndMultiplierFromQScale(scale_and_avg_const, 255, &multiplier);
+      //rshift = findRShiftAndMultiplierFromQScale(scale_and_avg_const, &multiplier, false, 127);
+      rshift = findRShiftAndMultiplierFromQScale(scale_and_avg_const, &multiplier, false, 255);
 
       // apply multiplier, rshift and saturate
       for (int i = 0; i < size; ++i) {

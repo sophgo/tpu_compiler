@@ -189,7 +189,7 @@ struct TpuQuantConv2DOpPattern : public RewritePattern {
           float qscale = findQScale(max_filter_abs[i], threshold_y, threshold_x);
           uint32_t multiplier;
           rshift_per_channel[i] = (float)findRShiftAndMultiplierFromQScale(qscale,
-              127,  &multiplier);
+              &multiplier, true);
           multiplier_per_channel[i] = (float)multiplier;
           llvm::errs() << "  [multiplier : rshift][" << i << "] = ["
                        << std::to_string(multiplier_per_channel[i]) << " : "
@@ -203,7 +203,8 @@ struct TpuQuantConv2DOpPattern : public RewritePattern {
                 (float)quantizeFilterRShiftAndMultiplier(filter[inner_size * i + j],
                                                          threshold_y, threshold_x,
                                                          rshift_per_channel[i],
-                                                         multiplier_per_channel[i]);
+                                                         multiplier_per_channel[i],
+                                                         true);
           }
         }
         if (bias) {
@@ -211,7 +212,8 @@ struct TpuQuantConv2DOpPattern : public RewritePattern {
             new_bias[i] =
                 (float)quantizeBiasRShiftAndMultiplier(bias[i], threshold_y,
                                                        rshift_per_channel[i],
-                                                       multiplier_per_channel[i]);
+                                                       multiplier_per_channel[i],
+                                                       true);
           }
         }
       }
