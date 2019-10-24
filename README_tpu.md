@@ -265,7 +265,7 @@ $ python npz_dump.py ResNet-50-model.npz scale_conv1_quant_int8_1
 $ python npz_dump.py ResNet-50-model.npz scale_conv1_quant_int8_multiplier
 
 $ ./bin/mlir-tpu-interpreter resnet-50-quant-int8-multiplier.mlir \
-    --tensor-in test_cat_in_fp32.bin \
+    --tensor-in ~/work_cvitek/llvm-project/llvm/projects/mlir/data/test_cat_in_fp32.bin \
     --tensor-out out-quant-int8-multiplier.bin
 $ python bin_compare.py out.bin out-quant-int8-multiplier.bin float32 1 1 1 1000 5
 ```
@@ -405,7 +405,7 @@ get a cmdbuf.bin
 ```
 $ ./bin/mlir-tpu-interpreter resnet-50-quant-int8-multiplier-addr2.mlir \
     --generate-cmdbuf=cmdbuf-multiplier.bin \
-    --tensor-in test_cat_in_fp32.bin \
+    --tensor-in ~/work_cvitek/llvm-project/llvm/projects/mlir/data/test_cat_in_fp32.bin \
     --tensor-out out-quant-int8-multiplier.bin
 ```
 get a cmdbuf-multiplier.bin
