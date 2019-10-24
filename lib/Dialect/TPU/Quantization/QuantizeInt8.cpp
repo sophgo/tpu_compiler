@@ -237,8 +237,13 @@ struct TpuQuantConv2DOpPattern : public RewritePattern {
         // filter store as INT8
         attrs.push_back(rewriter.getNamedAttr("storage", rewriter.getStringAttr("INT8")));
       } else if (i == 1) {
-        // bias store as INT16
-        attrs.push_back(rewriter.getNamedAttr("storage", rewriter.getStringAttr("INT16")));
+        if (!clQuantConvPerChannel) {
+          // bias store as INT16
+          attrs.push_back(rewriter.getNamedAttr("storage", rewriter.getStringAttr("INT16")));
+        } else {
+          // bias store as INT16 for qdm version
+          attrs.push_back(rewriter.getNamedAttr("storage", rewriter.getStringAttr("INT32")));
+        }
       }
       auto new_weight_op = rewriter.create<tpu::LoadWeightOp>(op->getLoc(), type,
           ArrayRef<Value *>{weightFileVar_}, ArrayRef<NamedAttribute>{attrs});
@@ -290,7 +295,7 @@ struct TpuQuantConv2DOpPattern : public RewritePattern {
         weightTensorFile_->addTensor<float>(tensor_name, &rshift_per_channel, type);
         attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(tensor_name)));
         // per-channel rshift or multiplier store as UINT32
-        attrs.push_back(rewriter.getNamedAttr("storage", rewriter.getStringAttr("UINT32")));
+        attrs.push_back(rewriter.getNamedAttr("storage", rewriter.getStringAttr("UINT8")));
         auto new_weight_op = rewriter.create<tpu::LoadWeightOp>(loc, type,
             ArrayRef<Value *>{weightFileVar_}, ArrayRef<NamedAttribute>{attrs});
         newOperands.push_back(new_weight_op);

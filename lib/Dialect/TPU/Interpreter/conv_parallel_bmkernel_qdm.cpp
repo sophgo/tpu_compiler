@@ -46,7 +46,7 @@
 // Split n, oh, ow, oc.
 // Split oc as the number of lanes.
 // Not split ic since it needs 32b ofmap for partial sum.
-int BM1880v2ConvFixedParallelv2::split(const BM1880v2BackendContext &ctx) {
+int BM1880v2ConvFixedParallelv2_qdm::split(const BM1880v2BackendContext &ctx) {
   int ic = input_c / groups;
   int oc = output_c / groups;
   int kh_extent = dilation_h * (kh - 1) + 1;
@@ -58,7 +58,7 @@ int BM1880v2ConvFixedParallelv2::split(const BM1880v2BackendContext &ctx) {
   int n = input_n;
 
   DEBUG_BMNET(llvm::errs() << llvm::format(
-                  "BM1880v2ConvFixedParallelv2::split =>\n"
+                  "BM1880v2ConvFixedParallelv2_qdm::split =>\n"
                   "  groups %d, ifmap (%d, %d, %d, %d), ofmap(%d, %d, %d, %d)\n"
                   "  kernel (%d, %d), pad (top=%d, bot=%d, left=%d, right=%d)\n"
                   "  stride (%d, %d), dilation (%d, %d)\n",
@@ -79,8 +79,11 @@ int BM1880v2ConvFixedParallelv2::split(const BM1880v2BackendContext &ctx) {
 
   u32 coeff_oc_step_size = 0;
   if (do_bias) {
-    // 16 bit
-    coeff_oc_step_size += ctx.lmem_tensor_to_size(coeff_shape_i16, /*eu_align=*/0);
+    bmk1880v2_tensor_lmem_shape_t coeff_shape_9byte = ctx.shape_t4(1, oc_step, 1, 9);
+    coeff_oc_step_size += ctx.lmem_tensor_to_size(coeff_shape_9byte, /*eu_align=*/0);
+  } else {
+    bmk1880v2_tensor_lmem_shape_t coeff_shape_5byte = ctx.shape_t4(1, oc_step, 1, 5);
+    coeff_oc_step_size += ctx.lmem_tensor_to_size(coeff_shape_5byte, /*eu_align=*/0);
   }
 
   // prelu needs extra tl_slope compared to leaky relu.
@@ -160,7 +163,7 @@ int BM1880v2ConvFixedParallelv2::split(const BM1880v2BackendContext &ctx) {
                   ", coeff_oc_step_size %d, total_needed %d\n",
                   slices.n, slices.oc, slices.ic, slices.h, slices.w, n_step, oh_step, ih_step,
                   coeff_oc_step_size, total_needed));
-          DEBUG_BMNET(llvm::errs() << "<= BM1880v2ConvFixedParallelv2::split succeed" << "/n");
+          DEBUG_BMNET(llvm::errs() << "<= BM1880v2ConvFixedParallelv2_qdm::split succeed" << "/n");
           return total_needed;
         }
 
@@ -170,8 +173,8 @@ int BM1880v2ConvFixedParallelv2::split(const BM1880v2BackendContext &ctx) {
 
   }  // for (slices.w = 1; slices.w <= ow; ++slices.ow)
 
-  llvm::errs() << "BM1880v2ConvFixedParallelv2::split fail";
-  DEBUG_BMNET(llvm::errs() << "<= BM1880v2ConvFixedParallelv2::split fail" << "/n");
+  llvm::errs() << "BM1880v2ConvFixedParallelv2_qdm::split fail";
+  DEBUG_BMNET(llvm::errs() << "<= BM1880v2ConvFixedParallelv2_qdm::split fail" << "/n");
 
   return SPLIT_FAILED;
 }
@@ -272,10 +275,12 @@ static void ConvReuseWeight(const BM1880v2BackendContext &ctx, u32 layer_id, gad
   bmk1880v2_tensor_lmem_shape_t ifmap_shape_ = ctx.shape_t4(n_step, ic_step, ih_step, input_w);
   bmk1880v2_tensor_lmem_shape_t ofmap_shape_ = ctx.shape_t4(n_step, oc_step, oh_step, ow);
 
-  bmk1880v2_tensor_lmem_t *tl_weight[2] = {nullptr, nullptr}, *tl_bias[2] = {nullptr, nullptr};
+  bmk1880v2_tensor_lmem_t *tl_weight[2] = {nullptr, nullptr};
+  bmk1880v2_tensor_lmem_t *tl_chl_quan_param[2] = {nullptr, nullptr};
   bmk1880v2_tensor_lmem_t *tl_bn_mean[2] = {nullptr, nullptr},
                           *tl_bn_variance[2] = {nullptr, nullptr};
-  bmk1880v2_tensor_lmem_t *tl_scale[2] = {nullptr, nullptr}, *tl_scale_bias[2] = {nullptr, nullptr};
+  bmk1880v2_tensor_lmem_t *tl_scale[2] = {nullptr, nullptr},
+                          *tl_scale_bias[2] = {nullptr, nullptr};
   bmk1880v2_tensor_lmem_t *tl_slope[2] = {nullptr, nullptr};
   bmk1880v2_tensor_lmem_t *tl_ifmap[2] = {nullptr};
   bmk1880v2_tensor_lmem_t *tl_ofmap[2] = {nullptr};
@@ -312,12 +317,17 @@ static void ConvReuseWeight(const BM1880v2BackendContext &ctx, u32 layer_id, gad
 
   bmk1880v2_tensor_lmem_shape_t coeff_shape_i8 = ctx.shape_t4(1, oc_step, 1, 1);
   bmk1880v2_tensor_lmem_shape_t coeff_shape_i16 = ctx.shape_t4(2, oc_step, 1, 1);
+
   if (do_bias) {
-    // 16 bit
-    tl_bias[0] = ctx.lmem_alloc_tensor(coeff_shape_i16, FMT_I8, /*eu_align=*/0);
-    tl_bias[1] = ctx.lmem_alloc_tensor(coeff_shape_i16, FMT_I8, /*eu_aling=*/0);
-    ASSERT(tl_bias[0] && tl_bias[1]);
+    bmk1880v2_tensor_lmem_shape_t coeff_shape_9byte = ctx.shape_t4(1, oc_step, 1, 9);
+    tl_chl_quan_param[0] = ctx.lmem_alloc_tensor(coeff_shape_9byte, FMT_U8, /*eu_align=*/0);
+    tl_chl_quan_param[1] = ctx.lmem_alloc_tensor(coeff_shape_9byte, FMT_U8, /*eu_align=*/0);
+  } else {
+    bmk1880v2_tensor_lmem_shape_t coeff_shape_5byte = ctx.shape_t4(1, oc_step, 1, 5);
+    tl_chl_quan_param[0] = ctx.lmem_alloc_tensor(coeff_shape_5byte, FMT_U8, /*eu_align=*/0);
+    tl_chl_quan_param[1] = ctx.lmem_alloc_tensor(coeff_shape_5byte, FMT_U8, /*eu_align=*/0);
   }
+  ASSERT(tl_chl_quan_param[0] && tl_chl_quan_param[1]);
 
   // Both prelu and leaky relu needs tl_neg, tl_relu.
   if (do_activation && ((activation_method == PRELU) ||
@@ -382,22 +392,32 @@ static void ConvReuseWeight(const BM1880v2BackendContext &ctx, u32 layer_id, gad
       coeff_shape_i16 = ctx.shape_t4(2, cur_oc, 1, 1);
 
       if (do_bias) {
-        // 16 bit
-        // bmk does not keep eu-align info, user need to update stride if shape changed
-        tl_bias[coeff_flip]->shape = coeff_shape_i16;
-        tl_bias[coeff_flip]->stride =
-            ctx.tensor_lmem_default_stride(tl_bias[coeff_flip]->shape, /*eu_aign=*/0);
+        tl_chl_quan_param[coeff_flip]->shape = ctx.shape_t4(1, cur_oc, 1, 9);
+        tl_chl_quan_param[coeff_flip]->stride =
+            ctx.tensor_lmem_default_stride(tl_chl_quan_param[coeff_flip]->shape, /*eu_aign=*/0);
+
+        //bmk1880v2_tensor_tgmem_stride_t gstride = {static_cast<u32>(output_c) * 9, 9, 9};
 
         DEBUG_BMNET(llvm::errs() << llvm::format(
-                        "  [ig=%d][oc_pos=%d] tdma_load_stride:\n"
-                        "    tl_bias gaddr 0x%lx, laddr 0x%x, shape (%d, %d, "
-                        "%d, %d), stride (%d, %d, %d)\n",
-                        ig, oc_pos, ga_bias + coeff_offset, tl_bias[coeff_flip]->start_address,
-                        tl_bias[coeff_flip]->shape.n, tl_bias[coeff_flip]->shape.c,
-                        tl_bias[coeff_flip]->shape.h, tl_bias[coeff_flip]->shape.w, bias_gstride.n,
-                        bias_gstride.c, bias_gstride.h));
-        ctx.tdma_load_stride(tl_bias[coeff_flip], ga_bias + coeff_offset, bias_gstride,
-                             CTRL_WEIGHT);
+            "  [ig=%d][oc_pos=%d] tdma_load_stride:\n"
+            "    tl_chl_quan_param gaddr 0x%lx, laddr 0x%x, shape (%d, %d, %d, %d)\n",
+            ig, oc_pos, ga_bias + coeff_offset, tl_chl_quan_param[coeff_flip]->start_address,
+            tl_chl_quan_param[coeff_flip]->shape.n, tl_chl_quan_param[coeff_flip]->shape.c,
+            tl_chl_quan_param[coeff_flip]->shape.h, tl_chl_quan_param[coeff_flip]->shape.w));
+        ctx.tdma_load(tl_chl_quan_param[coeff_flip], ga_bias + coeff_offset * 9, CTRL_WEIGHT);
+      } else {
+        tl_chl_quan_param[coeff_flip]->shape = ctx.shape_t4(1, cur_oc, 1, 5);
+        tl_chl_quan_param[coeff_flip]->stride =
+            ctx.tensor_lmem_default_stride(tl_chl_quan_param[coeff_flip]->shape, /*eu_aign=*/0);
+
+        //bmk1880v2_tensor_tgmem_stride_t gstride = {static_cast<u32>(output_c) * 5, 5, 5};
+        DEBUG_BMNET(llvm::errs() << llvm::format(
+            "  [ig=%d][oc_pos=%d] tdma_load_stride:\n"
+            "    tl_chl_quan_param gaddr 0x%lx, laddr 0x%x, shape (%d, %d, %d, %d)\n",
+            ig, oc_pos, ga_bias + coeff_offset, tl_chl_quan_param[coeff_flip]->start_address,
+            tl_chl_quan_param[coeff_flip]->shape.n, tl_chl_quan_param[coeff_flip]->shape.c,
+            tl_chl_quan_param[coeff_flip]->shape.h, tl_chl_quan_param[coeff_flip]->shape.w));
+        ctx.tdma_load(tl_chl_quan_param[coeff_flip], ga_bias + coeff_offset * 5, CTRL_WEIGHT);
       }
 
       if (do_activation && activation_method == PRELU) {
@@ -555,11 +575,17 @@ static void ConvReuseWeight(const BM1880v2BackendContext &ctx, u32 layer_id, gad
             ctx.parallel_enable();
 
             {
-              bmk1880v2_tiu_convolution_param_t param;
+              // TODO: this looks weird
+              // Reshape per channel quantization data for TIU
+              tl_chl_quan_param[coeff_flip]->shape = ctx.shape_t4(1, cur_oc, 1, 1);
+              tl_chl_quan_param[coeff_flip]->stride =
+                    ctx.tensor_lmem_default_stride(tl_chl_quan_param[coeff_flip]->shape, /*eu_aign=*/0);
+
+              bmk1880v2_tiu_convolution_qdm_param_t param;
               param.ofmap = tl_ofmap[flip];
               param.ifmap = tl_ifmap[flip];
               param.weight = tl_weight[coeff_flip];
-              param.bias = tl_bias[coeff_flip];
+              param.chl_quan_param = tl_chl_quan_param[coeff_flip];
               param.ins_h = param.ins_last_h = 0;
               param.ins_w = param.ins_last_w = 0;
               param.pad_top = ph_top;
@@ -570,8 +596,8 @@ static void ConvReuseWeight(const BM1880v2BackendContext &ctx, u32 layer_id, gad
               param.stride_w = stride_w;
               param.dilation_h = dilation_h;
               param.dilation_w = dilation_w;
+              param.has_bias = do_bias ? 1 : 0;
               param.relu_enable = fused_conv_relu;
-              param.rshift_bits = right_shift_width;
               param.enable_double_conv = 0;
               param.ps32_mode = 0;
               param.w_is_const = 0;
@@ -590,7 +616,20 @@ static void ConvReuseWeight(const BM1880v2BackendContext &ctx, u32 layer_id, gad
                               param.ofmap->shape.n, param.ofmap->shape.c, param.ofmap->shape.h,
                               param.ofmap->shape.w));
 
-              ctx.tiu_convolution(&param);
+              ctx.tiu_convolution_qdm(&param);
+
+              #if 0
+              // to restore the reshape
+              if (do_bias) {
+                tl_chl_quan_param[coeff_flip]->shape = ctx.shape_t4(1, cur_oc, 1, 9);
+                tl_chl_quan_param[coeff_flip]->stride =
+                    ctx.tensor_lmem_default_stride(tl_chl_quan_param[coeff_flip]->shape, /*eu_aign=*/0);
+              } else {
+                tl_chl_quan_param[coeff_flip]->shape = ctx.shape_t4(1, cur_oc, 1, 5);
+                tl_chl_quan_param[coeff_flip]->stride =
+                  ctx.tensor_lmem_default_stride(tl_chl_quan_param[coeff_flip]->shape, /*eu_aign=*/0);
+              }
+              #endif
             }
 
             bmk1880v2_tiu_depthwise_convolution_param_t param;
@@ -882,10 +921,8 @@ static void ConvReuseWeight(const BM1880v2BackendContext &ctx, u32 layer_id, gad
     ctx.lmem_free_tensor(tl_relu);
     ctx.lmem_free_tensor(tl_neg);
   }
-  if (do_bias) {
-    ctx.lmem_free_tensor(tl_bias[1]);
-    ctx.lmem_free_tensor(tl_bias[0]);
-  }
+  ctx.lmem_free_tensor(tl_chl_quan_param[1]);
+  ctx.lmem_free_tensor(tl_chl_quan_param[0]);
   ctx.lmem_free_tensor(tl_ofmap[1]);
   ctx.lmem_free_tensor(tl_ofmap[0]);
   ctx.lmem_free_tensor(tl_ifmap[1]);
@@ -973,10 +1010,12 @@ static void ConvReuseActivation(const BM1880v2BackendContext &ctx, u32 layer_id,
   bmk1880v2_tensor_lmem_shape_t ifmap_shape_ = ctx.shape_t4(n_step, ic_step, ih_step, input_w);
   bmk1880v2_tensor_lmem_shape_t ofmap_shape_ = ctx.shape_t4(n_step, oc_step, oh_step, ow);
 
-  bmk1880v2_tensor_lmem_t *tl_weight[2] = {nullptr, nullptr}, *tl_bias[2] = {nullptr, nullptr};
+  bmk1880v2_tensor_lmem_t *tl_weight[2] = {nullptr, nullptr};
+  bmk1880v2_tensor_lmem_t *tl_chl_quan_param[2] = {nullptr, nullptr};
   bmk1880v2_tensor_lmem_t *tl_bn_mean[2] = {nullptr, nullptr},
                           *tl_bn_variance[2] = {nullptr, nullptr};
-  bmk1880v2_tensor_lmem_t *tl_scale[2] = {nullptr, nullptr}, *tl_scale_bias[2] = {nullptr, nullptr};
+  bmk1880v2_tensor_lmem_t *tl_scale[2] = {nullptr, nullptr},
+                          *tl_scale_bias[2] = {nullptr, nullptr};
   bmk1880v2_tensor_lmem_t *tl_slope[2] = {nullptr, nullptr};
   bmk1880v2_tensor_lmem_t *tl_ifmap[2] = {nullptr};
   bmk1880v2_tensor_lmem_t *tl_ofmap[2] = {nullptr};
@@ -1013,12 +1052,17 @@ static void ConvReuseActivation(const BM1880v2BackendContext &ctx, u32 layer_id,
 
   bmk1880v2_tensor_lmem_shape_t coeff_shape_i8 = ctx.shape_t4(1, oc_step, 1, 1);
   bmk1880v2_tensor_lmem_shape_t coeff_shape_i16 = ctx.shape_t4(2, oc_step, 1, 1);
+
   if (do_bias) {
-    // 16 bit
-    tl_bias[0] = ctx.lmem_alloc_tensor(coeff_shape_i16, FMT_I8, /*eu_align=*/0);
-    tl_bias[1] = ctx.lmem_alloc_tensor(coeff_shape_i16, FMT_I8, /*eu_aling=*/0);
-    ASSERT(tl_bias[0] && tl_bias[1]);
+    bmk1880v2_tensor_lmem_shape_t coeff_shape_9byte = ctx.shape_t4(1, oc_step, 1, 9);
+    tl_chl_quan_param[0] = ctx.lmem_alloc_tensor(coeff_shape_9byte, FMT_U8, /*eu_align=*/0);
+    tl_chl_quan_param[1] = ctx.lmem_alloc_tensor(coeff_shape_9byte, FMT_U8, /*eu_align=*/0);
+  } else {
+    bmk1880v2_tensor_lmem_shape_t coeff_shape_5byte = ctx.shape_t4(1, oc_step, 1, 5);
+    tl_chl_quan_param[0] = ctx.lmem_alloc_tensor(coeff_shape_5byte, FMT_U8, /*eu_align=*/0);
+    tl_chl_quan_param[1] = ctx.lmem_alloc_tensor(coeff_shape_5byte, FMT_U8, /*eu_align=*/0);
   }
+  ASSERT(tl_chl_quan_param[0] && tl_chl_quan_param[1]);
 
   // Both prelu and leaky relu needs tl_neg, tl_relu.
   if (do_activation && ((activation_method == PRELU) ||
@@ -1151,24 +1195,37 @@ static void ConvReuseActivation(const BM1880v2BackendContext &ctx, u32 layer_id,
             coeff_shape_i16 = ctx.shape_t4(2, cur_oc, 1, 1);
 
             if (do_bias) {
-              // 16 bit
-              // bmk does not keep eu-align info, user need to update stride if shape changed
-              tl_bias[coeff_flip]->shape = coeff_shape_i16;
-              tl_bias[coeff_flip]->stride =
-                  ctx.tensor_lmem_default_stride(tl_bias[coeff_flip]->shape, /*eu_aign=*/0);
+              tl_chl_quan_param[coeff_flip]->shape = ctx.shape_t4(1, cur_oc, 1, 9);
+              tl_chl_quan_param[coeff_flip]->stride =
+                  ctx.tensor_lmem_default_stride(tl_chl_quan_param[coeff_flip]->shape, /*eu_aign=*/0);
 
+              //bmk1880v2_tensor_tgmem_stride_t gstride = {static_cast<u32>(output_c) * 9, 9, 9};
+              u64 chl_quan_offset = coeff_offset * 9;
               DEBUG_BMNET(
                   llvm::errs() << llvm::format(
                       "  [ig=%d][n_pos=%d][oh_pos=%d][ow_pos=%d][oc_pos=%d] tdma_load_stride:\n"
-                      "    tl_bias gaddr 0x%lx, laddr 0x%x, shape (%d, %d, "
-                      "%d, %d), stride (%d, %d, %d)\n",
-                      ig, n_pos, oh_pos, ow_pos, oc_pos, ga_bias + coeff_offset,
-                      tl_bias[coeff_flip]->start_address, tl_bias[coeff_flip]->shape.n,
-                      tl_bias[coeff_flip]->shape.c, tl_bias[coeff_flip]->shape.h,
-                      tl_bias[coeff_flip]->shape.w, bias_gstride.n, bias_gstride.c,
-                      bias_gstride.h));
-              ctx.tdma_load_stride(tl_bias[coeff_flip], ga_bias + coeff_offset, bias_gstride,
-                                   CTRL_WEIGHT);
+                      "    tl_chl_quan_param gaddr 0x%lx, laddr 0x%x, shape (%d, %d, %d, %d)\n",
+                      ig, n_pos, oh_pos, ow_pos, oc_pos, ga_bias + chl_quan_offset,
+                      tl_chl_quan_param[coeff_flip]->start_address, tl_chl_quan_param[coeff_flip]->shape.n,
+                      tl_chl_quan_param[coeff_flip]->shape.c, tl_chl_quan_param[coeff_flip]->shape.h,
+                      tl_chl_quan_param[coeff_flip]->shape.w));
+              ctx.tdma_load(tl_chl_quan_param[coeff_flip], ga_bias + chl_quan_offset, CTRL_WEIGHT);
+            } else {
+              tl_chl_quan_param[coeff_flip]->shape = ctx.shape_t4(1, cur_oc, 1, 5);
+              tl_chl_quan_param[coeff_flip]->stride =
+                  ctx.tensor_lmem_default_stride(tl_chl_quan_param[coeff_flip]->shape, /*eu_aign=*/0);
+
+              //bmk1880v2_tensor_tgmem_stride_t gstride = {static_cast<u32>(output_c) * 5, 5, 5};
+              u64 chl_quan_offset = coeff_offset * 5;
+              DEBUG_BMNET(
+                  llvm::errs() << llvm::format(
+                      "  [ig=%d][n_pos=%d][oh_pos=%d][ow_pos=%d][oc_pos=%d] tdma_load_stride:\n"
+                      "    tl_chl_quan_param gaddr 0x%lx, laddr 0x%x, shape (%d, %d, %d, %d)\n",
+                      ig, n_pos, oh_pos, ow_pos, oc_pos, ga_bias + chl_quan_offset,
+                      tl_chl_quan_param[coeff_flip]->start_address, tl_chl_quan_param[coeff_flip]->shape.n,
+                      tl_chl_quan_param[coeff_flip]->shape.c, tl_chl_quan_param[coeff_flip]->shape.h,
+                      tl_chl_quan_param[coeff_flip]->shape.w));
+              ctx.tdma_load(tl_chl_quan_param[coeff_flip], ga_bias + chl_quan_offset, CTRL_WEIGHT);
             }
 
             if (do_activation && activation_method == PRELU) {
@@ -1260,11 +1317,17 @@ static void ConvReuseActivation(const BM1880v2BackendContext &ctx, u32 layer_id,
             ctx.parallel_enable();
 
             {
-              bmk1880v2_tiu_convolution_param_t param;
+              // TODO: this looks weird
+              // Reshape per channel quantization data for TIU
+              tl_chl_quan_param[coeff_flip]->shape = ctx.shape_t4(1, cur_oc, 1, 1);
+              tl_chl_quan_param[coeff_flip]->stride =
+                    ctx.tensor_lmem_default_stride(tl_chl_quan_param[coeff_flip]->shape, /*eu_aign=*/0);
+
+              bmk1880v2_tiu_convolution_qdm_param_t param;
               param.ofmap = tl_ofmap[coeff_flip];
               param.ifmap = tl_ifmap[flip];
               param.weight = tl_weight[coeff_flip];
-              param.bias = tl_bias[coeff_flip];
+              param.chl_quan_param = tl_chl_quan_param[coeff_flip];
               param.ins_h = param.ins_last_h = 0;
               param.ins_w = param.ins_last_w = 0;
               param.pad_top = ph_top;
@@ -1275,8 +1338,8 @@ static void ConvReuseActivation(const BM1880v2BackendContext &ctx, u32 layer_id,
               param.stride_w = stride_w;
               param.dilation_h = dilation_h;
               param.dilation_w = dilation_w;
+              param.has_bias = do_bias ? 1 : 0;
               param.relu_enable = fused_conv_relu;
-              param.rshift_bits = right_shift_width;
               param.enable_double_conv = 0;
               param.ps32_mode = 0;
               param.w_is_const = 0;
@@ -1295,7 +1358,20 @@ static void ConvReuseActivation(const BM1880v2BackendContext &ctx, u32 layer_id,
                               param.ofmap->shape.n, param.ofmap->shape.c, param.ofmap->shape.h,
                               param.ofmap->shape.w));
 
-              ctx.tiu_convolution(&param);
+              ctx.tiu_convolution_qdm(&param);
+
+              #if 0
+              // to restore the reshape
+              if (do_bias) {
+                tl_chl_quan_param[coeff_flip]->shape = ctx.shape_t4(1, cur_oc, 1, 9);
+                tl_chl_quan_param[coeff_flip]->stride =
+                    ctx.tensor_lmem_default_stride(tl_chl_quan_param[coeff_flip]->shape, /*eu_aign=*/0);
+              } else {
+                tl_chl_quan_param[coeff_flip]->shape = ctx.shape_t4(1, cur_oc, 1, 5);
+                tl_chl_quan_param[coeff_flip]->stride =
+                  ctx.tensor_lmem_default_stride(tl_chl_quan_param[coeff_flip]->shape, /*eu_aign=*/0);
+              }
+              #endif
             }
 
             bmk1880v2_tiu_depthwise_convolution_param_t param;
@@ -1588,10 +1664,8 @@ static void ConvReuseActivation(const BM1880v2BackendContext &ctx, u32 layer_id,
     ctx.lmem_free_tensor(tl_relu);
     ctx.lmem_free_tensor(tl_neg);
   }
-  if (do_bias) {
-    ctx.lmem_free_tensor(tl_bias[1]);
-    ctx.lmem_free_tensor(tl_bias[0]);
-  }
+  ctx.lmem_free_tensor(tl_chl_quan_param[1]);
+  ctx.lmem_free_tensor(tl_chl_quan_param[0]);
   ctx.lmem_free_tensor(tl_ofmap[1]);
   ctx.lmem_free_tensor(tl_ofmap[0]);
   ctx.lmem_free_tensor(tl_ifmap[1]);
@@ -1602,7 +1676,7 @@ static void ConvReuseActivation(const BM1880v2BackendContext &ctx, u32 layer_id,
   DEBUG_BMNET(llvm::errs() << "<= ConvReuseActivation" << "/n");
 }
 
-void BM1880v2ConvFixedParallelv2::do_conv(const BM1880v2BackendContext &ctx) {
+void BM1880v2ConvFixedParallelv2_qdm::do_conv(const BM1880v2BackendContext &ctx) {
   bool isReuseActivation = false;
 
   // 1x1 convolution uses the whole input feature map
@@ -1641,7 +1715,7 @@ void BM1880v2ConvFixedParallelv2::do_conv(const BM1880v2BackendContext &ctx) {
 
 static BM1880v2ConvFixed *find_best_conv_method(const BM1880v2BackendContext &ctx,
                                                 ConvFixed_ARGS &args) {
-  BM1880v2ConvFixed *conv_parallelv2 = new BM1880v2ConvFixedParallelv2(args);
+  BM1880v2ConvFixed *conv_parallelv2 = new BM1880v2ConvFixedParallelv2_qdm(args);
   int slices_num_parallelv2 = conv_parallelv2->split(ctx);
 
   ASSERT(slices_num_parallelv2 != SPLIT_FAILED);
@@ -1650,7 +1724,7 @@ static BM1880v2ConvFixed *find_best_conv_method(const BM1880v2BackendContext &ct
 
 // Split n, oh, ow, oc.
 // Split oc as the number of lanes.
-// Borrowed from BM1880v2ConvFixedParallelv2::split
+// Borrowed from BM1880v2ConvFixedParallelv2_qdm::split
 static int BM1880v2DepthwiseConvSplit(const BM1880v2BackendContext &ctx, int input_n, int input_c,
                                       int input_h, int input_w, u16 kh, u16 kw, u16 dilation_h,
                                       u16 dilation_w, u8 pad_top, u8 pad_bottom, u8 pad_left,
@@ -1669,7 +1743,7 @@ static int BM1880v2DepthwiseConvSplit(const BM1880v2BackendContext &ctx, int inp
   int n = input_n;
 
   DEBUG_BMNET(llvm::errs() << llvm::format(
-                  "BM1880v2ConvFixedParallelv2::split =>\n"
+                  "BM1880v2ConvFixedParallelv2_qdm::split =>\n"
                   "  ifmap (%d, %d, %d, %d), ofmap(%d, %d, %d, %d)\n"
                   "  kernel (%d, %d), pad (top=%d, bot=%d, left=%d, right=%d)\n"
                   "  stride (%d, %d), dilation (%d, %d)\n",
@@ -1788,7 +1862,7 @@ static int BM1880v2DepthwiseConvSplit(const BM1880v2BackendContext &ctx, int inp
   return SPLIT_FAILED;
 }
 
-// Borrowed from BM1880v2ConvFixedParallelv2::do_conv
+// Borrowed from BM1880v2ConvFixedParallelv2_qdm::do_conv
 static void BM1880v2DepthwiseConv(
     const BM1880v2BackendContext &ctx, u32 layer_id, gaddr_t ga_ifmap, gaddr_t ga_ofmap,
     gaddr_t ga_weight, gaddr_t ga_bias, gaddr_t ga_bn_mean, gaddr_t ga_bn_variance,
@@ -2437,7 +2511,7 @@ static void BM1880v2DepthwiseConv(
   ctx.lmem_free_tensor(tl_weight[0]);
 }
 
-void bmnet_conv_parallel_fixed_forward_bmkernel(
+void bmnet_conv_parallel_fixed_forward_bmkernel_qdm(
     const BM1880v2BackendContext &ctx, u32 stream_id, u32 inst_id, u32 layer_id, const u32 *depends,
     u32 depends_len, gaddr_t ga_ifmap, gaddr_t ga_ofmap, gaddr_t ga_weight, gaddr_t ga_bias,
     gaddr_t ga_bn_mean, gaddr_t ga_bn_variance, gaddr_t ga_scale, gaddr_t ga_scale_bias,

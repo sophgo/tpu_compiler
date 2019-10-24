@@ -190,6 +190,14 @@ class BM1880v2ConvFixedParallelv2 : public BM1880v2ConvFixed {
   ~BM1880v2ConvFixedParallelv2() {}
 };
 
+class BM1880v2ConvFixedParallelv2_qdm : public BM1880v2ConvFixed {
+ public:
+  BM1880v2ConvFixedParallelv2_qdm(ConvFixed_ARGS &args) : BM1880v2ConvFixed(args) {}
+  void do_conv(const BM1880v2BackendContext &ctx);
+  int split(const BM1880v2BackendContext &ctx);
+  ~BM1880v2ConvFixedParallelv2_qdm() {}
+};
+
 class BM1880v2ConvFixedSerial : public BM1880v2ConvFixed {
  public:
   BM1880v2ConvFixedSerial(ConvFixed_ARGS &args) : BM1880v2ConvFixed(args) {}

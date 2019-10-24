@@ -326,9 +326,9 @@ result of resnet-50 accuracy with count=10000 (fp32, int8, int8-per-channel, int
 | mode | Top-1 accuracy | Top-5 accuracy |
 | ---  | ---            | ---            |
 | fp32             | 0.7820 | 0.9386 |
-| int8 Per-layer   | 0.7789 | 0.9368 |
-| int8 Per-channel | 0.7786 | 0.9392 |
-| int8 Multiplier  | 0.7815 | 0.9391 |
+| int8 Per-layer   | 0.7788 | 0.9374 |
+| int8 Per-channel | 0.7805 | 0.9395 |
+| int8 Multiplier  | 0.7806 | 0.9394 |
 
 ### 7. calibration with interpreter (python version)
 
@@ -351,6 +351,16 @@ $ ./bin/mlir-opt \
     -o resnet-50-quant-int8-addr1.mlir
 ```
 
+```
+$ cp ResNet-50-model_quant_int8_multiplier.npz ResNet-50-model.npz
+$ ./bin/mlir-opt \
+    --assign-weight-address \
+    --tpu-weight-address-align=16 \
+    --tpu-weight-map-filename=weight_map.csv \
+    resnet-50-quant-int8-multiplier.mlir \
+    -o resnet-50-quant-int8-multiplier-addr1.mlir
+```
+
 #### 8.2 assign neuron address
 
 ```
@@ -360,6 +370,20 @@ $ ./bin/mlir-opt \
     --tpu-neuron-map-filename=neuron_map.csv \
     resnet-50-quant-int8-addr1.mlir \
     -o resnet-50-quant-int8-addr2.mlir
+
+[data                                ][  150528] : [ 0x00000000 --> 0x00024c00 ]
+[fc1000                              ][    1008] : [ 0x00024c00 --> 0x00024ff0 ]
+... ...
+[scale_conv1                         ][  802816] : [ 0x01797ff0 --> 0x0185bff0 ]
+```
+
+```
+$ ./bin/mlir-opt \
+    --assign-neuron-address \
+    --tpu-neuron-address-align=16 \
+    --tpu-neuron-map-filename=neuron_map.csv \
+    resnet-50-quant-int8-multiplier-addr1.mlir \
+    -o resnet-50-quant-int8-multiplier-addr2.mlir
 
 [data                                ][  150528] : [ 0x00000000 --> 0x00024c00 ]
 [fc1000                              ][    1008] : [ 0x00024c00 --> 0x00024ff0 ]
@@ -377,6 +401,14 @@ $ ./bin/mlir-tpu-interpreter resnet-50-quant-int8-addr2.mlir \
     --tensor-out out-quant-int8.bin
 ```
 get a cmdbuf.bin
+
+```
+$ ./bin/mlir-tpu-interpreter resnet-50-quant-int8-multiplier-addr2.mlir \
+    --generate-cmdbuf=cmdbuf-multiplier.bin \
+    --tensor-in test_cat_in_fp32.bin \
+    --tensor-out out-quant-int8-multiplier.bin
+```
+get a cmdbuf-multiplier.bin
 
 #### 8.4 run test with runtime
 
@@ -396,21 +428,46 @@ $ export LD_LIBRARY_PATH=~/work_cvitek/install_bmkernel/lib:$LD_LIBRARY_PATH
 $ export LD_LIBRARY_PATH=~/work_cvitek/install_support/lib:$LD_LIBRARY_PATH
 $ export LD_LIBRARY_PATH=~/work_cvitek/install_bmbuilder/lib:$LD_LIBRARY_PATH
 $ export LD_LIBRARY_PATH=~/work_cvitek/install_cmodel/lib:$LD_LIBRARY_PATH
+```
 
+quant-int8 per layer
+```
 # run test
 $ ~/work_cvitek/install_runtime/bin/test_bmnet \
     test_cat_in_int8.bin \
     ~/work_cvitek/llvm-project/build/ResNet-50-model.bin \
     ~/work_cvitek/llvm-project/build/cmdbuf.bin \
-    out_new.bin \
+    out_cmodel.bin \
     1000 150528 25542640 1
-$ python ./bin_dump.py out_new.bin int8 1 1 1 1000 5
+$ python ./bin_dump.py out_cmodel.bin int8 1 1 1 1000 5
 
 # to dump all neuron
 $ ~/work_cvitek/install_runtime/bin/test_bmnet \
     test_cat_in_int8.bin \
     ~/work_cvitek/llvm-project/build/ResNet-50-model.bin \
     ~/work_cvitek/llvm-project/build/cmdbuf.bin \
+    out_all.bin \
+    25542640 0 25542640 1
+$ python ./bin_extract.py out_all.bin out_fc1000.bin int8 0x00024c00 1000
+$ python ./bin_dump.py out_fc1000.bin int8 1 1 1 1000 5
+```
+
+quant-int8 per channel with multiplier
+```
+# run test
+$ ~/work_cvitek/install_runtime/bin/test_bmnet \
+    ~/work_cvitek/llvm-project/llvm/projects/mlir/data/test_cat_in_int8.bin \
+    ~/work_cvitek/llvm-project/build/ResNet-50-model.bin \
+    ~/work_cvitek/llvm-project/build/cmdbuf-multiplier.bin \
+    out_cmodel.bin \
+    1000 150528 25542640 1
+$ python ./bin_dump.py out_cmodel.bin int8 1 1 1 1000 5
+
+# to dump all neuron
+$ ~/work_cvitek/install_runtime/bin/test_bmnet \
+    ~/work_cvitek/llvm-project/llvm/projects/mlir/data/test_cat_in_int8.bin \
+    ~/work_cvitek/llvm-project/build/ResNet-50-model.bin \
+    ~/work_cvitek/llvm-project/build/cmdbuf-multiplier.bin \
     out_all.bin \
     25542640 0 25542640 1
 $ python ./bin_extract.py out_all.bin out_fc1000.bin int8 0x00024c00 1000
@@ -436,14 +493,24 @@ To generate reference `dump-all-tensor`
 $ cp ResNet-50-model_quant_int8.npz ResNet-50-model.npz
 $ ./bin/mlir-tpu-interpreter \
     resnet-50-quant-int8.mlir \
-    --tensor-in test_cat_in_fp32.bin \
+    --tensor-in ~/work_cvitek/llvm-project/llvm/projects/mlir/data/test_cat_in_fp32.bin \
     --tensor-out out-quant-int8.bin \
     --dump-all-tensor=tensor_all_quant-int8.npz
+
+# compare out_all.npz with the interpreter dump-all-tensor output.
+$ python ./npz_compare.py out_all.npz tensor_all_quant-int8.npz int8 [show] [5]
 ```
 
-Compare out_all.npz with the interpreter dump-all-tensor output.
 ```
-$ python ./npz_compare.py out_all.npz tensor_all_quant-int8.npz int8 [show] [5]
+$ cp ResNet-50-model_quant_int8_multiplier.npz ResNet-50-model.npz
+$ ./bin/mlir-tpu-interpreter \
+    resnet-50-quant-int8-multiplier.mlir \
+    --tensor-in ~/work_cvitek/llvm-project/llvm/projects/mlir/data/test_cat_in_fp32.bin \
+    --tensor-out out-quant-int8-multiplier.bin \
+    --dump-all-tensor=tensor_all_quant-int8-multiplier.npz
+
+# compare out_all.npz with the interpreter dump-all-tensor output.
+$ python ./npz_compare.py out_all.npz tensor_all_quant-int8-multiplier.npz int8 [show] [5]
 ```
 
 #### 8.6 meta info

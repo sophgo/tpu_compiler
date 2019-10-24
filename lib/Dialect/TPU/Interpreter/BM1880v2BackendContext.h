@@ -272,6 +272,10 @@ class BM1880v2BackendContext : public BM188xBackendContext {
     return bmk1880v2_tiu_convolution(bmk_, p);
   }
 
+  bmk1880v2_op_t *tiu_convolution_qdm(const bmk1880v2_tiu_convolution_qdm_param_t *p) const {
+    return bmk1880v2_tiu_convolution_qdm(bmk_, p);
+  }
+
   bmk1880v2_op_t *tiu_max_pooling(const bmk1880v2_tiu_max_pooling_param_t *p) const {
     return bmk1880v2_tiu_max_pooling(bmk_, p);
   }

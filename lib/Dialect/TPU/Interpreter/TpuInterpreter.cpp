@@ -833,10 +833,15 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
         mkldnn_bias = (float *)operand_tensors[2]->data();
         rshift = (float *)operand_tensors[3]->data();
         multiplier = (float *)operand_tensors[4]->data();
-      } else {
-        assert(operand_tensors.size() == 4);
+      } else if (operand_tensors.size() == 4) {
         rshift = (float *)operand_tensors[2]->data();
         multiplier = (float *)operand_tensors[3]->data();
+      } else {
+        assert(operand_tensors.size() == 3);
+        // fake some data for now, we only needs the cmdbuf for now
+        mkldnn_bias = (float *)operand_tensors[1]->data();
+        rshift = (float *)operand_tensors[1]->data();
+        multiplier = (float *)operand_tensors[1]->data();
       }
     } else {
       assert(false);
@@ -878,7 +883,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
         for (int j = 0; j < inner_size; ++j) {
           mkldnn_output[i * inner_size + j] =
               (float)applyRShiftAndSaturateInt8(mkldnn_output[i * inner_size + j],
-                                       (uint32_t)rshift[i]);
+                                                (uint32_t)rshift[i]);
         }
       }
     } else if (op.quant() == "INT8_MULTIPLIER") {
@@ -916,17 +921,13 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     gaddr_t input_gaddr = getPreviousOpAddress(op);
     gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
     gaddr_t filter_gaddr = getWeightOpAddress(op.getOperand(1)->getDefiningOp());
-    int with_bias = 0;
+
+    if (op.quant() == "INT8") {
+
     gaddr_t bias_gaddr = INVALID_GLOBAL_ADDR;
-    if (op.quant() == "NONE") {
-      if (operand_tensors.size() > 2) {
-        with_bias = 1;
-      }
-    } else if (op.quant() == "INT8" || op.quant() == "INT8_PER_CHANNEL"
-               || op.quant() == "INT8_MULTIPLIER") {
-      if (operand_tensors.size() > 3) {
-        with_bias = 1;
-      }
+    int with_bias = 0;
+    if (operand_tensors.size() > 3) {
+      with_bias = 1;
     }
     if (with_bias) {
       bias_gaddr = getWeightOpAddress(op.getOperand(2)->getDefiningOp());
@@ -987,6 +988,72 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
         nullptr, //const int *threshold_x_quantized,
         nullptr //const int *right_shift_array
         );
+
+    } else if (op.quant() == "INT8_MULTIPLIER") {
+
+    gaddr_t bias_gaddr = getWeightOpAddress(op.getOperand(2)->getDefiningOp());
+    // TODO: assuming always with_bias
+    int with_bias = 1;
+
+    bmnet_conv_parallel_fixed_forward_bmkernel_qdm(
+        *bm1880v2_ctx,
+        0, // stream_id,
+        0, // inst_id,
+        0, // layer_id,
+        nullptr, // depends
+        0, // depends_len
+        input_gaddr, // input_data_gaddr,
+        output_gaddr, // output_data_gaddr,
+        filter_gaddr, // weight_data_gaddr,
+        bias_gaddr, // bias_data_gaddr,
+        INVALID_GLOBAL_ADDR, // bn_mean_data_gaddr,
+        INVALID_GLOBAL_ADDR, // bn_variance_data_gaddr,
+        INVALID_GLOBAL_ADDR,
+        INVALID_GLOBAL_ADDR,
+        n,
+        ic,
+        ih,
+        iw,
+        1, // group,
+        oc,
+        kh,
+        kw,
+        dh,
+        dw,
+        ph, // pad_h_top,
+        ph, // pad_h_bottom,
+        pw, // pad_w_left,
+        pw, // pad_w_right,
+        sh,
+        sw,
+        0, // result_add
+        with_bias, // bias_term,
+        0, // do_bn,
+        0, // do_scale,
+        0, // do_scale_bias,
+        0, // do_activation,
+        1.0f, // bn_scale,
+        1e-5, // eps,
+        0, // param.activation(), method
+        nullptr, // activation_arg,
+        INVALID_GLOBAL_ADDR, //global_slope_gaddr,
+        false, //channel_shared,
+        0, //activation_gt_scale,
+        0, //activation_gt_rshift,
+        0, //activation_le_scale, // slope, TODO
+        0, //activation_le_rshift,
+        (int)rshift[0], //right_shift_width,
+        0, //bn_right_shift_width,
+        0, //scale_right_shift_width,
+        false, //use_winograd
+        0, //int threshold_x_quantized_len,
+        nullptr, //const int *threshold_x_quantized,
+        nullptr //const int *right_shift_array
+        );
+
+    } else {
+      assert(false);
+    }
 
     } // clCmdBufFilename
 #endif

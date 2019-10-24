@@ -38,8 +38,6 @@
 
 using namespace mlir;
 
-namespace {
-
 static void transposeConvolutionFilter(std::vector<int8_t> &w, std::vector<int64_t> &s) {
   assert(s.size() == 4);
   int oc = s[0];
@@ -85,6 +83,150 @@ static void transposeBiasInt16(std::vector<int16_t> &w_int16) {
   }
   memcpy(ptr, w_t.data(), w_t.size());
 }
+
+namespace {
+
+struct TpuConv2DOpPattern : public RewritePattern {
+  TpuConv2DOpPattern(MLIRContext *context, TensorFile *weightTensorFile)
+      : RewritePattern("tpu.conv_2d", 1, context),
+        weightTensorFile_(weightTensorFile) {}
+
+  PatternMatchResult matchAndRewrite(Operation *op,
+                                     PatternRewriter &rewriter) const override {
+    auto convOp = cast<tpu::Conv2DOp>(op);
+    if (convOp.quant() != "INT8_MULTIPLIER") {
+      return matchFailure();
+    }
+
+    // for per-channel multiplier mode
+    // we need to pack rshift, multiplier and bias into one weight
+    // layout is: [bias_4byte] multiplier_4byte rshift_1byte
+    // with bias 9 bytes, w/o bias 5 bytes, for each output channel
+    std::string op_name = convOp.name().getValue().str();
+    llvm::errs() << op_name
+                 << ", pack Conv2D rshift multipler and bias\n";
+    bool has_bias = false;
+    if (convOp.getNumOperands() == 5) {
+      has_bias = true;
+      llvm::errs() << "  with bias\n";
+    } else if (convOp.getNumOperands() == 4) {
+      llvm::errs() << "  no bias\n";
+    } else {
+      llvm::errs() << "  already processed\n";
+      assert(convOp.getNumOperands() == 3);
+      return matchFailure();
+    }
+
+    std::vector<std::unique_ptr<std::vector<float> > > weights;
+    for (unsigned i = 2; i < convOp.getNumOperands(); ++i) {
+      auto weightOp = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
+          convOp.getOperand(i)->getDefiningOp());
+      assert(weightOp);
+      assert(weightOp.name().hasValue());
+      auto tensor_name = weightOp.name().getValue();
+      llvm::errs() << "  weight[" << i << "] : " << tensor_name << "\n";
+      auto type = weightOp.getResult()->getType().cast<TensorType>();
+      auto weight = weightTensorFile_->readTensor<float>(tensor_name, type);
+      weights.push_back(std::move(weight));
+      // delete the tensor from the weight file
+      weightTensorFile_->deleteTensor<float>(tensor_name);
+      // mark weightOp as no storage
+      weightOp.setAttr("storage", rewriter.getStringAttr("NONE"));
+    }
+
+    float *bias = nullptr;
+    float *multiplier = nullptr;
+    float *rshift = nullptr;
+    if (has_bias) {
+      assert(weights.size() == 3);
+      bias = (float *)weights[0]->data();
+      multiplier = (float *)weights[2]->data();
+      rshift = (float *)weights[1]->data();
+    } else {
+      assert(weights.size() == 2);
+      multiplier = (float *)weights[1]->data();
+      rshift = (float *)weights[0]->data();
+    }
+
+    // pack the weights
+    auto filter_type = convOp.filter()->getType().cast<TensorType>();
+    std::vector<int64_t> filter_shape(filter_type.getShape());
+    assert(filter_shape.size() == 4);
+    int64_t oc = filter_shape[0];
+
+    int64_t isz = has_bias ? 9 : 5;
+    std::vector<float> newWeight(oc * isz);
+    std::vector<int64_t> newWeightShape = std::vector<int64_t>{oc, 1, isz};
+
+    float *ptr = (float *)newWeight.data();;
+    for (int i = 0; i < oc; i++) {
+      if (has_bias) {
+        uint32_t val = (uint32_t)bias[i];
+        *ptr = (float)(val & 0xff);
+        ptr++;
+        *ptr = (float)((val >> 8) & 0xff);
+        ptr++;
+        *ptr = (float)((val >> 16) & 0xff);
+        ptr++;
+        *ptr = (float)((val >> 24) & 0xff);
+        ptr++;
+      }
+
+      {
+        uint32_t val = (uint32_t)multiplier[i];
+        *ptr = (float)(val & 0xff);
+        ptr++;
+        *ptr = (float)((val >> 8) & 0xff);
+        ptr++;
+        *ptr = (float)((val >> 16) & 0xff);
+        ptr++;
+        *ptr = (float)((val >> 24) & 0xff);
+        ptr++;
+      }
+
+      {
+        uint8_t val = (uint8_t)rshift[i];
+        *ptr = (float)val;
+        ptr++;
+      }
+    }
+
+    // update the convOp
+    std::vector<Value *> newOperands;
+    newOperands.push_back(convOp.getOperand(0));
+    newOperands.push_back(convOp.getOperand(1));
+    // add new weight
+    {
+      // find weightFileVar
+      auto oneWeightOp = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
+          convOp.getOperand(1)->getDefiningOp());
+      auto weightFileVar = oneWeightOp.getOperand();
+
+      auto tensor_name = op_name + "_per_channel";
+      auto type = rewriter.getTensorType(newWeightShape,
+          FloatType::getF32(rewriter.getContext()));
+      llvm::errs() << "  newWeight : " << tensor_name << "\n";
+      weightTensorFile_->addTensor<float>(tensor_name, &newWeight, type);
+      std::vector<NamedAttribute> attrs;
+      attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(tensor_name)));
+      attrs.push_back(rewriter.getNamedAttr("storage", rewriter.getStringAttr("UINT8")));
+      auto newWeightOp = rewriter.create<tpu::LoadWeightOp>(op->getLoc(), type,
+          ArrayRef<Value *>{weightFileVar}, ArrayRef<NamedAttribute>{attrs});
+      newOperands.push_back(newWeightOp);
+    }
+
+    // replace the convOp
+    auto origAttrs = convOp.getAttrs();
+    std::vector<NamedAttribute> newAttrs(origAttrs.begin(), origAttrs.end());
+    rewriter.replaceOpWithNewOp<tpu::Conv2DOp>(
+        convOp, convOp.getResult()->getType(),
+        ArrayRef<Value *>{newOperands}, ArrayRef<NamedAttribute>{newAttrs});
+
+    return matchSuccess();
+  }
+
+  TensorFile *weightTensorFile_;
+};
 
 struct TpuLoadWeightOpPattern : public RewritePattern {
   TpuLoadWeightOpPattern(MLIRContext *context, TensorFile *weightTensorFile,
@@ -136,6 +278,18 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
       }
       weightBinaryFile_->write(reinterpret_cast<const char*>(weight_int8.data()),
           weight_int8.size() * sizeof(int8_t));
+    } else if (weightOp.storage() == "UINT8") {
+      // cast into int8
+      std::vector<uint8_t> weight_uint8(weight->begin(), weight->end());
+      // pad to alignment
+      if ( weight_uint8.size() % alignment_ ) {
+        size_t pad = alignment_ - (weight_uint8.size() % alignment_);
+        for (size_t i = 0; i < pad; ++i) {
+          weight_uint8.push_back(0xff); // assign a special value for debugging
+        }
+      }
+      weightBinaryFile_->write(reinterpret_cast<const char*>(weight_uint8.data()),
+          weight_uint8.size() * sizeof(uint8_t));
     } else if (weightOp.storage() == "INT16") {
       // cast into int8
       std::vector<int16_t> weight_int16(weight->begin(), weight->end());
@@ -205,7 +359,7 @@ public:
       // NOTE: we didn't assign the LoadFile filename to .bin file
       // keep with npz file so that we can still run interpreter
     });
-    auto weightTensorFile = openInputTensorFile(filename_npz);
+    auto weightTensorFile = openTensorFile(filename_npz);
 
     // create a bin file
     auto filename_bin = llvm::sys::path::stem(filename_npz.str()).str() + ".bin";
@@ -225,6 +379,18 @@ public:
 
     OwningRewritePatternList patterns;
     auto *context = &getContext();
+
+    // merge conv rshift/multiplier/bias into one weight first
+    patterns.insert<TpuConv2DOpPattern>(context, weightTensorFile.get());
+    applyPatternsGreedily(fn, patterns);
+    patterns.clear();
+
+    // don't keep this file by default, remove comment for debug only
+    weightTensorFile->keep();
+
+    // TODO: apply transpose in pattern match
+
+    // assign address and generate bin file
     patterns.insert<TpuLoadWeightOpPattern>(context, weightTensorFile.get(),
         &weightBinaryFile, weightMapFile->os(), clWeightAlignment);
     applyPatternsGreedily(fn, patterns);
