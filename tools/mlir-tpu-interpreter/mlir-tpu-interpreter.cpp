@@ -91,6 +91,10 @@ static size_t read_bianry_file(std::string filename, std::vector<float> &v,
     size_t size = 0) {
   std::ifstream is;
   is.open(filename.c_str(), std::ios::in | std::ios::binary);
+  if (!is) {
+    llvm::errs() << "Open " << filename << " failed.\n";
+    assert(0);
+  }
   // use size in argument first
   if (size == 0) {
     // if vector is pre-allocated, use the vector size
