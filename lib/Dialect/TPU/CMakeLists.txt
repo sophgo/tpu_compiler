@@ -19,6 +19,7 @@ add_llvm_library(MLIRTPU
   Quantization/ImportCalibrationTable.cpp
   Quantization/QuantizeInt8.cpp
   Interpreter/TpuInterpreter.cpp
+  Interpreter/NativeCpuImplementation.cpp
   Interpreter/BM1880v2BackendContext.cpp
   Interpreter/dma_legacy_bmkernel.cpp
   Interpreter/conv_parallel_bmkernel.cpp
