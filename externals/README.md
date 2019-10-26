@@ -2,9 +2,11 @@
 
 CViTek developed and maintained projects that are used by mlir-tpu.
 
-Right now, all of them rely on manually build.
+Right now, all of them rely on manually build, except backend.
 
-Should consider change to tree build later.
+Backend project rely on llvm (Debug, format, etc.), support tree build only.
+
+Should update all projects to support tree build later.
 
 ## python_tools
 
@@ -27,6 +29,15 @@ $ cmake -G Ninja -DCHIP=BM1880v2 -DCMAKE_INSTALL_PREFIX=~/work_cvitek/install_bm
 $ cmake --build . --target install
 ```
 Read bmkernel/README.md for more details.
+
+## backend
+
+- git@xxx:../backend.git
+- TPU Dialect link to this library for code gen
+- dependencies
+  * bmkernel
+
+Only support tree build for now, as it is using some llvm debug facilities.
 
 ## cmodel
 

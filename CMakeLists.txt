@@ -96,6 +96,7 @@ include_directories( "include")
 include_directories( ${MLIR_INCLUDE_DIR})
 
 include_directories( "third_party/cnpy" )
+include_directories( "externals/backend/include" )
 
 add_subdirectory(include/mlir)
 add_subdirectory(lib)
@@ -103,6 +104,7 @@ add_subdirectory(tools)
 add_subdirectory(unittests)
 add_subdirectory(test)
 add_subdirectory(third_party)
+add_subdirectory(externals)
 add_subdirectory(bindings/python)
 
 if( LLVM_INCLUDE_EXAMPLES )

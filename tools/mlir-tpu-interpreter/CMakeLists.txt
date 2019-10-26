@@ -9,6 +9,7 @@ whole_archive_link(mlir-tpu-interpreter
 )
 target_link_libraries(mlir-tpu-interpreter PRIVATE
   MLIRTPU
+  MLIRTPUInterpreter
   MLIRAnalysis
   MLIREDSC
   MLIRIR

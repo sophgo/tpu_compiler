@@ -69,9 +69,8 @@ static llvm::cl::opt<std::string> clCmdBufFilename(
     llvm::cl::cat(clOptionsCategory));
 
 #ifdef ENABLE_GEN_CMDBUF
-#include "BM1880v2BackendContext.h"
-#include "bmnet_tg_api.h"
-static BM1880v2BackendContext *bm1880v2_ctx = nullptr;
+#include "backend/backend_tg_api.h"
+static BM1880v2BackendContext *backend_ctx = nullptr;
 #endif
 
 #define calcConv2DSpatialOutput(_i_, _k_, _s_, _p_, _d_) \
@@ -379,7 +378,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     }
 
     bmnet_conv_parallel_fixed_forward_bmkernel(
-        *bm1880v2_ctx,
+        *backend_ctx,
         0, // stream_id,
         0, // inst_id,
         0, // layer_id,
@@ -441,7 +440,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     int with_bias = 1;
 
     bmnet_conv_parallel_fixed_forward_bmkernel_qdm(
-        *bm1880v2_ctx,
+        *backend_ctx,
         0, // stream_id,
         0, // inst_id,
         0, // layer_id,
@@ -655,7 +654,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
     int threshold_x_quantized = multiplier;
     bmnet_pooling_fixed_forward_bmkernel(
-        *bm1880v2_ctx,
+        *backend_ctx,
         0, // stream_id,
         0, // inst_id,
         0, // layer_id,
@@ -833,7 +832,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     }
 
     bmnet_fc_fixed_forward_bmkernel(
-        *bm1880v2_ctx,
+        *backend_ctx,
         0, // stream_id,
         0, // inst_id,
         0, // layer_id,
@@ -929,7 +928,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
 
     bmnet_relu_fixed_forward_bmkernel(
-        *bm1880v2_ctx,
+        *backend_ctx,
         0, // stream_id,
         0, // inst_id,
         0, // layer_id,
@@ -1301,7 +1300,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     }
     const int coeffs[2] = {1, 1};
     bmnet_eltwise_fixed_forward_bmkernel(
-        *bm1880v2_ctx,
+        *backend_ctx,
         0, // stream_id,
         0, // inst_id,
         0, // layer_id,
@@ -1559,7 +1558,7 @@ LogicalResult ModuleInterpreter::runOneFunction(FuncOp func) {
 #ifdef ENABLE_GEN_CMDBUF
   if (clCmdBufFilename != "-") {
     std::vector<int8_t> weight_data;
-    bm1880v2_ctx = new BM1880v2BackendContext(BM_CHIP_BM1880v2, 1, weight_data);
+    backend_ctx = bmnet_create_backend_context(weight_data);
   }
 #endif
 
@@ -1571,9 +1570,9 @@ LogicalResult ModuleInterpreter::runOneFunction(FuncOp func) {
 
 #ifdef ENABLE_GEN_CMDBUF
   if (clCmdBufFilename != "-") {
-    bm1880v2_ctx->submit();
+    bmnet_submit(backend_ctx);
     std::vector<uint8_t> cmdbuf;
-    bm1880v2_ctx->read_cmdbuf(cmdbuf);
+    bmnet_read_cmdbuf(backend_ctx, cmdbuf);
     std::fstream output(clCmdBufFilename, std::ios::out | std::ios::trunc | std::ios::binary);
     output.write((char *)cmdbuf.data(), cmdbuf.size());
   }
