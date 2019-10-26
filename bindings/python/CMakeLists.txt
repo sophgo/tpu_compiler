@@ -20,6 +20,7 @@ target_link_libraries(pymlir PRIVATE
   MLIRTransforms
   MLIRTranslation
   MLIRTPU
+  MLIRTPUInterpreter
   MLIRAnalysis
   MLIREDSC
   MLIRIR
