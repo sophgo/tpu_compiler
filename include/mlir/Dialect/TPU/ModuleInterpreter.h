@@ -34,6 +34,8 @@ class ModuleOp;
 
 // Implementation class for module interpreter.
 class ModuleInterpreter {
+  typedef std::map<Value *, std::shared_ptr<std::vector<float> > > value_map_t;
+
 public:
   template <typename T = ModuleInterpreter>
   static LogicalResult runModule(ModuleOp m,
@@ -62,6 +64,9 @@ private:
   LogicalResult runOneFunction(FuncOp func);
   LogicalResult runBlock(Block &bb);
 
+  std::vector<std::shared_ptr<std::vector<float> > >
+      getOperandTensors(Operation &opInst, value_map_t &valueMapping);
+
   // Original and translated module.
   ModuleOp mlirModule;
   std::vector<std::vector<float> *> &inputs_;
@@ -72,7 +77,7 @@ private:
   std::unique_ptr<TensorFile> weight_file;
 
 protected:
-  std::map<Value *, std::unique_ptr<std::vector<float> > > valueMapping;
+  value_map_t valueMapping;
 };
 
 } // namespace mlir
