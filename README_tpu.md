@@ -162,6 +162,16 @@ $ python bin_compare.py out.bin out-opt3.bin float32 1 1 1 1000 5
 
 #### 3.4 Pass Manager
 
+All-in-one
+```
+$ ./bin/mlir-opt \
+    --convert-bn-to-scale \
+    --fold-scale \
+    --fuse-scale-into-conv \
+    resnet-50.mlir \
+    -o resnet-50-opt.mlir
+```
+
 * TODO: to select and run multiple passes at once
 
 ### 4. calibration
@@ -392,6 +402,13 @@ $ ./bin/mlir-opt \
 ```
 
 #### 8.3 generate cmdbuf
+
+```
+$ ./bin/mlir-translate resnet-50-quant-int8-addr2.mlir \
+    --mlir-to-cmdbuf \
+    -o cmdbuf_new.bin \
+    --debug-only=mlir-to-cmdbuf
+```
 
 use interpreter for now, need to refactor into translator
 ```
