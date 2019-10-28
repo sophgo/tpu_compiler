@@ -62,12 +62,16 @@ cp ResNet-50-model-opt3.npz ResNet-50-model.npz
     resnet-50-quant-int8-addr1.mlir \
     -o resnet-50-quant-int8-addr2.mlir
 
-# run interpreter, and generate cmdbuf at the same time
+# run interpreter, to generate reference tensor all npz
 ./bin/mlir-tpu-interpreter resnet-50-quant-int8-addr2.mlir \
-    --generate-cmdbuf=cmdbuf.bin \
     --tensor-in $DATA_DIR/test_cat_in_fp32.bin \
     --tensor-out out-quant-int8.bin \
     --dump-all-tensor=tensor_all_quant-int8.npz
+
+# run translate, generate cmdbuf
+./bin/mlir-translate resnet-50-quant-int8-addr2.mlir \
+    --mlir-to-cmdbuf \
+    -o cmdbuf.bin
 
 # run cmdbuf
 ~/work_cvitek/install_runtime/bin/test_bmnet \
@@ -118,12 +122,6 @@ cp ResNet-50-model-opt3.npz ResNet-50-model.npz
     resnet-50-quant-int8-multiplier-addr1.mlir \
     -o resnet-50-quant-int8-multiplier-addr2.mlir
 
-# run interpreter, to generate cmdbuf
-./bin/mlir-tpu-interpreter resnet-50-quant-int8-multiplier-addr2.mlir \
-    --generate-cmdbuf=cmdbuf-multiplier.bin \
-    --tensor-in $DATA_DIR/test_cat_in_fp32.bin \
-    --tensor-out out-quant-int8-multiplier.bin
-
 # run interpreter, to generate reference tensor all npz
 cp ResNet-50-model_quant_int8_multiplier.npz ResNet-50-model.npz
 ./bin/mlir-tpu-interpreter \
@@ -131,6 +129,11 @@ cp ResNet-50-model_quant_int8_multiplier.npz ResNet-50-model.npz
     --tensor-in $DATA_DIR/test_cat_in_fp32.bin \
     --tensor-out out-quant-int8-multiplier.bin \
     --dump-all-tensor=tensor_all_quant-int8-multiplier.npz
+
+# run translate, generate cmdbuf
+./bin/mlir-translate resnet-50-quant-int8-multiplier-addr2.mlir \
+    --mlir-to-cmdbuf \
+    -o cmdbuf-multiplier.bin
 
 # run cmdbuf
 ~/work_cvitek/install_runtime/bin/test_bmnet \

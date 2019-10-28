@@ -437,7 +437,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
         0, //activation_gt_rshift,
         0, //activation_le_scale, // slope, TODO
         0, //activation_le_rshift,
-        (int)rshift[0], //right_shift_width,
+        0, //(int)rshift[0], //right_shift_width,
         0, //bn_right_shift_width,
         0, //scale_right_shift_width,
         false, //use_winograd

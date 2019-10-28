@@ -451,7 +451,7 @@ quant-int8 per layer
 ```
 # run test
 $ ~/work_cvitek/install_runtime/bin/test_bmnet \
-    test_cat_in_int8.bin \
+    ~/work_cvitek/llvm-project/llvm/projects/mlir/data/test_cat_in_int8.bin \
     ~/work_cvitek/llvm-project/build/ResNet-50-model.bin \
     ~/work_cvitek/llvm-project/build/cmdbuf.bin \
     out_cmodel.bin \
@@ -460,7 +460,7 @@ $ python ./bin_dump.py out_cmodel.bin int8 1 1 1 1000 5
 
 # to dump all neuron
 $ ~/work_cvitek/install_runtime/bin/test_bmnet \
-    test_cat_in_int8.bin \
+    ~/work_cvitek/llvm-project/llvm/projects/mlir/data/test_cat_in_int8.bin \
     ~/work_cvitek/llvm-project/build/ResNet-50-model.bin \
     ~/work_cvitek/llvm-project/build/cmdbuf.bin \
     out_all.bin \

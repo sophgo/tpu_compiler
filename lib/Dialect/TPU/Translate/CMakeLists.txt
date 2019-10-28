@@ -27,4 +27,5 @@ target_link_libraries(MLIRTPUTranslate
   MLIRIR
   MLIRTPU
   MLIRSupport
+  backend
   ${translate_LINKER_LIBS})
