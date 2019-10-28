@@ -386,7 +386,7 @@ public:
     patterns.clear();
 
     // don't keep this file by default, remove comment for debug only
-    weightTensorFile->keep();
+    // weightTensorFile->keep();
 
     // TODO: apply transpose in pattern match
 
