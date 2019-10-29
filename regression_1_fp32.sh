@@ -10,7 +10,6 @@ export DATA_DIR=$MLIR_BASE_DIR/data
     --caffe-to-mlir /data/models/caffe/ResNet-50-deploy.prototxt \
     --caffemodel /data/models/caffe/ResNet-50-model.caffemodel \
     -o resnet-50.mlir
-cp ResNet-50-model.npz ResNet-50-model_bak.npz
 
 # test mlir interpreter
 ./bin/mlir-tpu-interpreter resnet-50.mlir \
@@ -24,7 +23,6 @@ python ../llvm/projects/mlir/externals/python_tools/bin_compare.py \
     --convert-bn-to-scale \
     resnet-50.mlir \
     -o resnet-50-opt1.mlir
-cp ResNet-50-model.npz ResNet-50-model-opt1.npz
 
 # test opt1
 ./bin/mlir-tpu-interpreter resnet-50-opt1.mlir \
@@ -38,7 +36,6 @@ python ../llvm/projects/mlir/externals/python_tools/bin_compare.py \
     --fold-scale \
     resnet-50-opt1.mlir \
     -o resnet-50-opt2.mlir
-cp ResNet-50-model.npz ResNet-50-model-opt2.npz
 
 # test opt2
 ./bin/mlir-tpu-interpreter resnet-50-opt2.mlir \
@@ -52,7 +49,6 @@ python ../llvm/projects/mlir/externals/python_tools/bin_compare.py \
     --fuse-scale-into-conv \
     resnet-50-opt2.mlir \
     -o resnet-50-opt3.mlir
-cp ResNet-50-model.npz ResNet-50-model-opt3.npz
 
 # test opt3
 ./bin/mlir-tpu-interpreter resnet-50-opt3.mlir \

@@ -166,6 +166,7 @@ $ ./bin/mlir-opt \
     --assign-weight-address \
     --tpu-weight-address-align=16 \
     --tpu-weight-map-filename=weight_map.csv \
+    --tpu-weight-bin-filename=weight.bin \
     --assign-neuron-address \
     --tpu-neuron-address-align=16 \
     --tpu-neuron-map-filename=neuron_map.csv \
@@ -183,7 +184,7 @@ quant-int8 per channel with multiplier
 # run test
 $ $TPU_BASE/install_runtime/bin/test_bmnet \
     $TPU_DATA_PATH/test_cat_in_int8.bin \
-    ResNet-50-model.bin \
+    weight.bin \
     resnet-50_cmdbuf.bin \
     out_cmodel.bin \
     1000 150528 25542640 1
@@ -192,7 +193,7 @@ $ python ./bin_dump.py out_cmodel.bin int8 1 1 1 1000 5
 # to dump all neuron
 $ $TPU_BASE/install_runtime/bin/test_bmnet \
     $TPU_DATA_PATH/test_cat_in_int8.bin \
-    ResNet-50-model.bin \
+    weight.bin \
     resnet-50_cmdbuf.bin \
     out_all.bin \
     25542640 0 25542640 1

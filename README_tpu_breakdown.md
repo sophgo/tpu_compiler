@@ -239,17 +239,14 @@ $ cp ResNet-50-model.npz  ResNet-50-model-opt.npz
 #### 5.1 int8 per-layer quantization
 
 ```
-$ cp ResNet-50-model-opt.npz ResNet-50-model.npz
 $ ./bin/mlir-opt \
     --quant-int8 \
     resnet-50-cali.mlir \
     -o resnet-50-quant-int8.mlir
-$ cp ResNet-50-model.npz ResNet-50-model_quant_int8.npz
 ```
 
 check
 ```
-$ vim resnet-50-quant-int8.mlir
 $ python npz_dump.py ResNet-50-model.npz scale_conv1_quant_int8_0
 $ python npz_dump.py ResNet-50-model.npz scale_conv1_quant_int8_1
 $ python npz_dump.py ResNet-50-model.npz scale_conv1_quant_int8_rshift
@@ -263,18 +260,15 @@ $ python bin_compare.py out.bin out-quant-int8.bin float32 1 1 1 1000 5
 #### 5.2 int8 per-channel quantization
 
 ```
-$ cp ResNet-50-model-opt.npz ResNet-50-model.npz
 $ ./bin/mlir-opt \
     --quant-int8 \
     --enable-conv-per-channel \
     resnet-50-cali.mlir \
     -o resnet-50-quant-int8-per-channel.mlir
-$ cp ResNet-50-model.npz ResNet-50-model_quant_int8_per_channel.npz
 ```
 
 check
 ```
-$ vim resnet-50-quant-int8-per-channel.mlir
 $ python npz_dump.py ResNet-50-model.npz scale_conv1_quant_int8_0
 $ python npz_dump.py ResNet-50-model.npz scale_conv1_quant_int8_1
 $ python npz_dump.py ResNet-50-model.npz scale_conv1_quant_int8_rshift
@@ -288,19 +282,16 @@ $ python bin_compare.py out.bin out-quant-int8-per-channel.bin float32 1 1 1 100
 #### 5.3 int8 per-channel multiplier quantization
 
 ```
-$ cp ResNet-50-model-opt.npz ResNet-50-model.npz
 $ ./bin/mlir-opt \
     --quant-int8 \
     --enable-conv-per-channel \
     --enable-conv-multiplier \
     resnet-50-cali.mlir \
     -o resnet-50-quant-int8-multiplier.mlir
-$ cp ResNet-50-model.npz ResNet-50-model_quant_int8_multiplier.npz
 ```
 
 check
 ```
-$ vim resnet-50-quant-int8-multiplier.mlir
 $ python npz_dump.py ResNet-50-model.npz scale_conv1_quant_int8_0
 $ python npz_dump.py ResNet-50-model.npz scale_conv1_quant_int8_1
 $ python npz_dump.py ResNet-50-model.npz scale_conv1_quant_int8_multiplier
@@ -384,25 +375,23 @@ This also handle weight transpose if needed.
 * TODO: handle transpose more explicitly, and try removing the unessesary transpose.
 
 ```
-$ cp ResNet-50-model_quant_int8.npz ResNet-50-model.npz
 $ ./bin/mlir-opt \
     --assign-weight-address \
     --tpu-weight-address-align=16 \
     --tpu-weight-map-filename=weight_map.csv \
+    --tpu-weight-bin-filename=weight_int8.bin \
     resnet-50-quant-int8.mlir \
     -o resnet-50-quant-int8-addr1.mlir
-$ cp ResNet-50-model.bin ResNet-50-model_quant_int8.bin
 ```
 
 ```
-$ cp ResNet-50-model_quant_int8_multiplier.npz ResNet-50-model.npz
 $ ./bin/mlir-opt \
     --assign-weight-address \
     --tpu-weight-address-align=16 \
     --tpu-weight-map-filename=weight_map.csv \
+    --tpu-weight-bin-filename=weight_int8-multiplier.bin \
     resnet-50-quant-int8-multiplier.mlir \
     -o resnet-50-quant-int8-multiplier-addr1.mlir
-$ cp ResNet-50-model.bin ResNet-50-model_quant_int8_multiplier.bin
 ```
 
 #### 8.2 assign neuron address
@@ -505,7 +494,7 @@ quant-int8 per layer
 # run test
 $ $TPU_BASE/install_runtime/bin/test_bmnet \
     $TPU_DATA_PATH/test_cat_in_int8.bin \
-    ResNet-50-model_quant_int8.bin \
+    weight_int8.bin \
     cmdbuf.bin \
     out_cmodel.bin \
     1000 150528 25542640 1
@@ -514,7 +503,7 @@ $ python ./bin_dump.py out_cmodel.bin int8 1 1 1 1000 5
 # to dump all neuron
 $ $TPU_BASE/install_runtime/bin/test_bmnet \
     $TPU_DATA_PATH/test_cat_in_int8.bin \
-    ResNet-50-model_quant_int8.bin \
+    weight_int8.bin \
     cmdbuf.bin \
     out_all.bin \
     25542640 0 25542640 1
@@ -527,7 +516,7 @@ quant-int8 per channel with multiplier
 # run test
 $ $TPU_BASE/install_runtime/bin/test_bmnet \
     $TPU_DATA_PATH/test_cat_in_int8.bin \
-    ResNet-50-model_quant_int8_multiplier.bin \
+    weight_int8-multiplier.bin \
     cmdbuf-multiplier.bin \
     out_cmodel.bin \
     1000 150528 25542640 1
@@ -536,7 +525,7 @@ $ python ./bin_dump.py out_cmodel.bin int8 1 1 1 1000 5
 # to dump all neuron
 $ $TPU_BASE/install_runtime/bin/test_bmnet \
     $TPU_DATA_PATH/test_cat_in_int8.bin \
-    ResNet-50-model_quant_int8_multiplier.bin \
+    weight_int8-multiplier.bin \
     cmdbuf-multiplier.bin \
     out_all.bin \
     25542640 0 25542640 1
@@ -560,7 +549,6 @@ $ python ./npz_dump.py out_all.npz scale_conv1
 
 To generate reference `dump-all-tensor`
 ```
-$ cp ResNet-50-model_quant_int8.npz ResNet-50-model.npz
 $ ./bin/mlir-tpu-interpreter \
     resnet-50-quant-int8.mlir \
     --tensor-in ~/work_cvitek/llvm-project/llvm/projects/mlir/data/test_cat_in_fp32.bin \
@@ -572,7 +560,6 @@ $ python ./npz_compare.py out_all.npz tensor_all_quant-int8.npz int8 [show] [5]
 ```
 
 ```
-$ cp ResNet-50-model_quant_int8_multiplier.npz ResNet-50-model.npz
 $ ./bin/mlir-tpu-interpreter \
     resnet-50-quant-int8-multiplier.mlir \
     --tensor-in ~/work_cvitek/llvm-project/llvm/projects/mlir/data/test_cat_in_fp32.bin \

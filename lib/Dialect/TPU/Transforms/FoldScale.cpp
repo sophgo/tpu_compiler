@@ -143,7 +143,6 @@ public:
     auto fn = getFunction();
 
     // find tensor filename
-    //OpBuilder b(fn.getBody());
     llvm::StringRef filename;
     fn.walk<tpu::LoadFileOp>([&](tpu::LoadFileOp op) {
       filename = op.getAttrOfType<StringAttr>("filename").getValue();
@@ -156,7 +155,13 @@ public:
     patterns.insert<TpuFoldScalePattern>(context, weightTensorFile.get());
     applyPatternsGreedily(fn, patterns);
 
-    weightTensorFile->keep();
+    std::string newName;
+    weightTensorFile->keep(true, &newName);
+    fn.walk<tpu::LoadFileOp>([&](tpu::LoadFileOp op) {
+      OpBuilder b(fn.getBody());
+      op.setAttr("filename", b.getStringAttr(newName));
+      llvm::errs() << "LoadFileOp filename updated to " << newName << "\n";
+    });
   }
 
 private:

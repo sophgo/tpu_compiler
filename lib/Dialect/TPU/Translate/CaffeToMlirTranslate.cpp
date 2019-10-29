@@ -72,7 +72,7 @@ private:
       std::map<std::string, mlir::Type> &outputs);
 
   void AddLoadFileOp(mlir::Block *block,
-      const llvm::StringRef weightFilename);
+      const llvm::StringRef &weightFilename);
 
   void ConvertLayers(mlir::Block *block, caffe::Net<float> &net);
 
@@ -181,7 +181,7 @@ mlir::Block* CaffeImporter::CreateOneBlockFunction(
 }
 
 void CaffeImporter::AddLoadFileOp(mlir::Block *block,
-    const llvm::StringRef weightFilename) {
+    const llvm::StringRef &weightFilename) {
   auto weight_type = builder_.getMemRefType({0x80000000}, elementType_);
   auto weight_attr = builder_.getStringAttr(weightFilename);
   weightFileVar_ = OpBuilder(block).create<tpu::LoadFileOp>(
@@ -798,7 +798,8 @@ LogicalResult CaffeImporter::Import(const llvm::StringRef inputFilename,
   net.CopyTrainedLayersFrom(caffemodelFilename);
   DEBUG_WITH_TYPE(DEBUG_TYPE"_VERBOSE", printCaffeNetAllLayer(net););
 
-  auto weightFilename = llvm::sys::path::stem(caffemodelFilename).str() + ".npz";
+  auto weightFilename = TensorFile::generateName(
+      llvm::sys::path::stem(caffemodelFilename), 0);
   weightFile_ = openOutputTensorFile(weightFilename);
 
   elementType_ = mlir::FloatType::getF32(builder_.getContext());

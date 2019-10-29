@@ -343,15 +343,20 @@ static llvm::cl::opt<std::string> clWeightMapFilename(
     llvm::cl::desc("record weight offset with its name into a csv map file"),
     llvm::cl::init("-"));
 
+static llvm::cl::opt<std::string> clWeightBinFilename(
+    "tpu-weight-bin-filename",
+    llvm::cl::desc("weight bin filename"),
+    llvm::cl::init("-"));
+
 class AssignWeightAddressPass : public FunctionPass<AssignWeightAddressPass> {
 public:
   explicit AssignWeightAddressPass(llvm::raw_ostream &os = llvm::errs()) : os(os) {}
 
   void runOnFunction() override {
     auto fn = getFunction();
+    //OpBuilder b(fn.getBody());
 
     // find tensor filename
-    //OpBuilder b(fn.getBody());
     llvm::StringRef filename_npz;
     fn.walk<tpu::LoadFileOp>([&](tpu::LoadFileOp op) {
       filename_npz = op.getAttrOfType<StringAttr>("filename").getValue();
@@ -362,9 +367,9 @@ public:
     auto weightTensorFile = openTensorFile(filename_npz);
 
     // create a bin file
-    auto filename_bin = llvm::sys::path::stem(filename_npz.str()).str() + ".bin";
     std::error_code ec;
-    llvm::raw_fd_ostream weightBinaryFile(filename_bin, ec);
+    assert(clWeightBinFilename != "-");
+    llvm::raw_fd_ostream weightBinaryFile(clWeightBinFilename, ec);
 
     // create a map file
     std::unique_ptr<llvm::ToolOutputFile> weightMapFile = nullptr;

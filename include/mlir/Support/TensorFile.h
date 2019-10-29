@@ -25,16 +25,26 @@
 #include "mlir/Support/LLVM.h"
 #include "mlir/Support/LogicalResult.h"
 #include "mlir/IR/StandardTypes.h"
+#include "llvm/ADT/Twine.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Support/Format.h"
+#include "llvm/Support/Path.h"
 
 #include <string>
 #include <system_error>
+#include <ctime>
 
 #include "cnpy.h"
 
-namespace llvm {
-class StringRef;
-} // namespace llvm
+#include <iomanip>
+template< typename T >
+static std::string int_to_hex( T i )
+{
+  std::stringstream stream;
+  stream << std::setfill ('0') << std::setw(sizeof(T)*2)
+         << std::hex << i;
+  return stream.str();
+}
 
 namespace mlir {
 
@@ -52,6 +62,33 @@ public:
   }
 
   ~TensorFile() {}
+
+  static std::string generateName(llvm::StringRef base, int index) {
+    srand(time(0));
+    uint32_t unique = (uint32_t)random();
+    std::string name = base.str()
+                       + "_" + std::to_string(index)
+                       + "_" + int_to_hex<uint32_t>(unique)
+                       + ".npz";
+    return name;
+  }
+
+  static std::string incrementName(llvm::StringRef name) {
+    auto stem = llvm::sys::path::stem(name);
+    SmallVector<StringRef, 100> ss;
+    stem.split(ss, '_');
+    std::string base;
+    for (unsigned i = 0, e = ss.size(); i < e; ++i) {
+      //llvm::errs() << " ss: " << ss[i] << "\n";
+      if (i < e - 2)
+        base += ss[i];
+    }
+    unsigned long long index;
+    ss[ss.size() - 2].consumeInteger(0, index);
+    //llvm::errs() << " index : " << index << "\n";
+    //llvm::errs() << " base  : " << base << "\n";
+    return generateName(base, index + 1);
+  }
 
   /// add a new tensor to file
   /// if the name is already used, return failure()
@@ -129,10 +166,20 @@ public:
     return success();
   }
 
-  void keep(void) {
+  void keep(bool incIndex = false, std::string *newName = nullptr) {
     assert(!readOnly);
     // TODO: assuming all tensors are in float
-    cnpy::npz_save_all<float>(filename.str(), map);
+    if (incIndex) {
+      auto fileInc = TensorFile::incrementName(filename);
+      cnpy::npz_save_all<float>(fileInc, map);
+      filename = StringRef(fileInc);
+      //llvm::errs() << "save TensorFile to " << filename << "\n";
+      if (newName) {
+        *newName = filename.str();
+      }
+    } else {
+      cnpy::npz_save_all<float>(filename.str(), map);
+    }
   }
 
 private:

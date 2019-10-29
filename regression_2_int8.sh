@@ -22,7 +22,6 @@ export DATA_DIR=$MLIR_BASE_DIR/data
     --fuse-scale-into-conv \
     resnet-50-opt2.mlir \
     -o resnet-50-opt3.mlir
-cp ResNet-50-model.npz ResNet-50-model-opt3.npz
 
 # import calibration table
 ./bin/mlir-opt \
@@ -32,12 +31,10 @@ cp ResNet-50-model.npz ResNet-50-model-opt3.npz
     -o resnet-50-cali.mlir
 
 # quantization 1: per-layer int8
-cp ResNet-50-model-opt3.npz ResNet-50-model.npz
 ./bin/mlir-opt \
     --quant-int8 \
     resnet-50-cali.mlir \
     -o resnet-50-quant-int8.mlir
-cp ResNet-50-model.npz ResNet-50-model_quant_int8.npz
 
 ./bin/mlir-tpu-interpreter resnet-50-quant-int8.mlir \
     --tensor-in $DATA_DIR/test_cat_in_fp32.bin \
@@ -51,13 +48,11 @@ python ../llvm/projects/mlir/externals/python_tools/bin_fp32_to_int8.py \
 diff out_fc1000_int8.bin $DATA_DIR/test_cat_out_fc1000-int8.bin
 
 # quantization 2: per-channel int8
-cp ResNet-50-model-opt3.npz ResNet-50-model.npz
 ./bin/mlir-opt \
     --quant-int8 \
     --enable-conv-per-channel \
     resnet-50-cali.mlir \
     -o resnet-50-quant-int8-per-channel.mlir
-cp ResNet-50-model.npz ResNet-50-model_quant_int8_per_channel.npz
 
 ./bin/mlir-tpu-interpreter resnet-50-quant-int8-per-channel.mlir \
     --tensor-in $DATA_DIR/test_cat_in_fp32.bin \
@@ -71,14 +66,12 @@ python ../llvm/projects/mlir/externals/python_tools/bin_fp32_to_int8.py \
 diff out_fc1000_int8.bin $DATA_DIR/test_cat_out_fc1000-int8-per-channel.bin
 
 # quantization 3: per-channel int8 with multiplier
-cp ResNet-50-model-opt3.npz ResNet-50-model.npz
 ./bin/mlir-opt \
     --quant-int8 \
     --enable-conv-per-channel \
     --enable-conv-multiplier \
     resnet-50-cali.mlir \
     -o resnet-50-quant-int8-multiplier.mlir
-cp ResNet-50-model.npz ResNet-50-model_quant_int8_multiplier.npz
 
 ./bin/mlir-tpu-interpreter resnet-50-quant-int8-multiplier.mlir \
     --tensor-in $DATA_DIR/test_cat_in_fp32.bin \

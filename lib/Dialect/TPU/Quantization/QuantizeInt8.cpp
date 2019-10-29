@@ -684,7 +684,7 @@ public:
     llvm::StringRef filename;
     Value* weightFileVar;
     fn.walk<tpu::LoadFileOp>([&](tpu::LoadFileOp op) {
-      filename = op.getAttrOfType<StringAttr>("filename").getValue();
+      filename = op.filename();
       llvm::errs() << "LoadFileOp filename " << filename << "\n";
       weightFileVar = op.getResult();
     });
@@ -717,7 +717,13 @@ public:
     patterns_s.insert<TpuSimplifyQuantDequantPattern>(context);
     applyPatternsGreedily(fn, patterns_s);
 
-    weightTensorFile->keep();
+    std::string newName;
+    weightTensorFile->keep(true, &newName);
+    fn.walk<tpu::LoadFileOp>([&](tpu::LoadFileOp op) {
+      OpBuilder opBuilder(context);
+      op.setAttr("filename", opBuilder.getStringAttr(newName));
+      llvm::errs() << "LoadFileOp filename updated to " << newName << "\n";
+    });
   }
 
 private:
