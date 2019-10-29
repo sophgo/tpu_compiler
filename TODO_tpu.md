@@ -11,7 +11,7 @@
 
 ## 5. Write BF16 backend, and pass Resnet-50
 
-## -------------- Tapeout (31/10)   ------------------
+## -------------- Tapeout (30/11)   ------------------
 
 ## * more network: Mobilenet-V2, SSD, YOLOv3
 
@@ -62,3 +62,7 @@
 ## * relu6, update in threshold_y of conv
 
 ## * prelu/leaky relu accuracy testing (convert to relu)
+
+## * Refactor backend interface
+
+## * Refactor interpreter/translate code, reuse Op parameters parser
