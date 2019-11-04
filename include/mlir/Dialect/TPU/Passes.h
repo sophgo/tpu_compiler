@@ -33,7 +33,7 @@ std::unique_ptr<ModulePassBase> createPrintTpuOpStatsPass_v0();
 std::unique_ptr<FunctionPassBase> createConvertBnToScalePass();
 std::unique_ptr<FunctionPassBase> createFoldScalePass();
 std::unique_ptr<FunctionPassBase> createFuseScaleIntoConvPass();
-std::unique_ptr<FunctionPassBase> createFuseReluIntoConvPass();
+std::unique_ptr<FunctionPassBase> createFuseReluPass();
 
 std::unique_ptr<FunctionPassBase> createImportCalibrationTablePass();
 std::unique_ptr<FunctionPassBase> createQuantizeInt8Pass();

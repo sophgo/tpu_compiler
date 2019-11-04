@@ -317,6 +317,7 @@ def TPU_EltwiseOp: TPU_Op<"eltwise", [NoSideEffect, SameOperandsAndResultType]> 
   let arguments = (
     ins AnyTensor:$x1,
     AnyTensor:$x2,
+    DefaultValuedAttr<TPU_AFAttr, "NONE">:$fused_activation_function,
     OptionalAttr<StrAttr>:$name,
     OptionalAttr<NonNegativeI64Attr>:$offset,
     OptionalAttr<F32Attr>:$threshold_y,

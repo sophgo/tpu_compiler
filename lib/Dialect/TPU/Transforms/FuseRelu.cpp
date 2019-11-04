@@ -34,8 +34,8 @@ using namespace mlir;
 
 namespace {
 
-struct TpuFuseReluIntoConvPattern : public RewritePattern {
-  TpuFuseReluIntoConvPattern(MLIRContext *context)
+struct TpuFuseReluPattern : public RewritePattern {
+  TpuFuseReluPattern(MLIRContext *context)
       : RewritePattern("tpu.relu", 1, context) {}
 
   PatternMatchResult matchAndRewrite(Operation *op,
@@ -43,32 +43,41 @@ struct TpuFuseReluIntoConvPattern : public RewritePattern {
     auto reluOp = cast<tpu::ReluOp>(op);
     llvm::errs() << reluOp.getOperationName() << "\n";
 
-    // match consecutive relu operations
+    // match relu Op that is following conv or eltwise Ops
     auto formerOp = op->getOperand(0)->getDefiningOp();
-    if (!matchPattern(formerOp, m_Op<tpu::Conv2DOp>()))
-      return matchFailure();
-    auto convOp = cast<tpu::Conv2DOp>(formerOp);
-    assert(convOp.fused_activation_function() == "NONE");
 
-    // set fused_activation_function for conv Op
-    convOp.setAttr("fused_activation_function", rewriter.getStringAttr("RELU"));
+    if (matchPattern(formerOp, m_Op<tpu::Conv2DOp>())) {
+      auto convOp = cast<tpu::Conv2DOp>(formerOp);
+      assert(convOp.fused_activation_function() == "NONE");
+      // set fused_activation_function for conv Op
+      convOp.setAttr("fused_activation_function", rewriter.getStringAttr("RELU"));
+      // remove the relu Op
+      rewriter.replaceOp(op, {op->getOperand(0)});
+      return matchSuccess();
+    } else if (matchPattern(formerOp, m_Op<tpu::EltwiseOp>())) {
+      auto eltOp = cast<tpu::EltwiseOp>(formerOp);
+      assert(eltOp.fused_activation_function() == "NONE");
+      // set fused_activation_function for conv Op
+      eltOp.setAttr("fused_activation_function", rewriter.getStringAttr("RELU"));
+      // remove the relu Op
+      rewriter.replaceOp(op, {op->getOperand(0)});
+      return matchSuccess();
+    }
 
-    // remove the relu Op
-    rewriter.replaceOp(op, {op->getOperand(0)});
-
-    return matchSuccess();
+    assert(0);
+    return matchFailure();
   }
 };
 
-class FuseReluIntoConvPass : public FunctionPass<FuseReluIntoConvPass> {
+class FuseReluPass : public FunctionPass<FuseReluPass> {
 public:
-  explicit FuseReluIntoConvPass(llvm::raw_ostream &os = llvm::errs()) : os(os) {}
+  explicit FuseReluPass(llvm::raw_ostream &os = llvm::errs()) : os(os) {}
 
   void runOnFunction() override {
     auto fn = getFunction();
     OwningRewritePatternList patterns;
     auto *context = &getContext();
-    patterns.insert<TpuFuseReluIntoConvPattern>(context);
+    patterns.insert<TpuFuseReluPattern>(context);
     applyPatternsGreedily(fn, patterns);
   }
 
@@ -78,10 +87,10 @@ private:
 
 } // namespace
 
-std::unique_ptr<FunctionPassBase> mlir::createFuseReluIntoConvPass() {
-  return std::make_unique<FuseReluIntoConvPass>();
+std::unique_ptr<FunctionPassBase> mlir::createFuseReluPass() {
+  return std::make_unique<FuseReluPass>();
 }
 
-static PassRegistration<FuseReluIntoConvPass>
-    pass("fuse-relu-into-conv",
-         "Fuse relu op into conv op");
+static PassRegistration<FuseReluPass>
+    pass("fuse-relu",
+         "Fuse relu op into previous op (conv/eltwise etc)");
