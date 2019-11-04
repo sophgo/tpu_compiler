@@ -13,6 +13,7 @@ add_llvm_library(MLIRTPU
   Transforms/ConvertBnToScale.cpp
   Transforms/FoldScale.cpp
   Transforms/FuseScaleIntoConv.cpp
+  Transforms/FuseReluIntoConv.cpp
   Transforms/AssignWeightAddress.cpp
   Transforms/AssignNeuronAddress.cpp
   Quantization/QuantizationArithmetic.cpp
