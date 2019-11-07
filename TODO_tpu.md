@@ -19,6 +19,10 @@
 
 ## * Accuracy tuning & regression: Mobilenet-V2, YOLOv3, u-net
 
+## * Handle meta info, build bmodel
+
+## * CPU ops integration
+
 ## -------------- Chip Back (31/01) ----------------
 
 ## * Add basic ONNX frontend

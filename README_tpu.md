@@ -92,14 +92,14 @@ $ ./bin/mlir-translate \
     -o resnet-50.mlir
 ```
 
-check with inference
+### 2. run inference with mlir-tpu-interpreter or python wrapper
+
+run with interpreter
 ```
 $ ./bin/mlir-tpu-interpreter resnet-50.mlir \
     --tensor-in $TPU_DATA_PATH/test_cat_in_fp32.bin \
     --tensor-out out.bin
 ```
-
-* TODO: handle multiple outputs (use npz for inputs and output)
 
 check
 ```
@@ -108,7 +108,13 @@ $ python bin_dump.py $TPU_DATA_PATH/test_cat_out_fp32.bin float32 1 1 1 1000 5
 $ python bin_compare.py out.bin $TPU_DATA_PATH/test_cat_out_fp32.bin float32 1 1 1 1000 5
 ```
 
-### 2. Pre-Quantization optimization
+with python bindings
+```
+$ python ../llvm/projects/mlir/bindings/python/tools/run_inference.py \
+    resnet-50.mlir resnet50_input_1_3_224_224.npy 5
+```
+
+### 3. Pre-Quantization optimization
 
 graph level, on float32 domain, with weight transform.
 
@@ -136,18 +142,42 @@ $ ./bin/mlir-tpu-interpreter resnet-50-opt.mlir \
 $ python bin_compare.py out.bin out-opt.bin float32 1 1 1 1000 5
 ```
 
-### 3. quantization
+### 4. calibration
 
-int8 per-channel multiplier quantization
+The only information we need from the calibration process is a threshold value
+for each neuron tensor (threshold_y). we use `calibration_caffe` result for now.
 
 ```
 $ ./bin/mlir-opt \
     --import-calibration-table \
     --calibration-table $TPU_DATA_PATH/bmnet_resnet50_calibration_table.1x10 \
+    resnet-50-opt.mlir \
+    -o resnet-50-cali.mlir
+```
+
+TODO: do calibration with mlir-interpreter pybind
+
+### 5. Post-Calibration optimization
+
+Some optimization need to take place before quantization but after calibration.
+
+```
+$ ./bin/mlir-opt \
+    --fuse-relu \
+    resnet-50-cali.mlir \
+    -o resnet-50-opt-post-cali.mlir
+```
+
+### 6. quantization
+
+int8 per-channel multiplier quantization
+
+```
+$ ./bin/mlir-opt \
     --quant-int8 \
     --enable-conv-per-channel \
     --enable-conv-multiplier \
-    resnet-50-opt.mlir \
+    resnet-50-opt-post-cali.mlir \
     -o resnet-50-int8.mlir
 ```
 
@@ -159,7 +189,11 @@ $ ./bin/mlir-tpu-interpreter resnet-50-int8.mlir \
 $ python bin_compare.py out.bin out-int8.bin float32 1 1 1 1000 5
 ```
 
-### 5. generate cmdbuf from tpu dialect
+### 7. Post-Quantization optimization
+
+TODO
+
+### 8. generate cmdbuf from tpu dialect
 
 ```
 $ ./bin/mlir-opt \
@@ -176,7 +210,7 @@ $ ./bin/mlir-opt \
     -o resnet-50_cmdbuf.bin
 ```
 
-### 6. run cmdbuf with runtime
+### 8. run cmdbuf with runtime
 
 quant-int8 per channel with multiplier
 
@@ -187,7 +221,7 @@ $ $TPU_BASE/install_runtime/bin/test_bmnet \
     weight.bin \
     resnet-50_cmdbuf.bin \
     out_cmodel.bin \
-    1000 150528 25542640 1
+    1000 150528 16460784 1
 $ python ./bin_dump.py out_cmodel.bin int8 1 1 1 1000 5
 
 # to dump all neuron
@@ -196,7 +230,7 @@ $ $TPU_BASE/install_runtime/bin/test_bmnet \
     weight.bin \
     resnet-50_cmdbuf.bin \
     out_all.bin \
-    25542640 0 25542640 1
+    16460784 0 16460784 1
 $ python ./bin_extract.py out_all.bin out_fc1000.bin int8 0x00024c00 1000
 $ python ./bin_dump.py out_fc1000.bin int8 1 1 1 1000 5
 ```

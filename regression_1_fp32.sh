@@ -57,5 +57,18 @@ python ../llvm/projects/mlir/externals/python_tools/bin_compare.py \
 python ../llvm/projects/mlir/externals/python_tools/bin_compare.py \
     out.bin out-opt3.bin float32 1 1 1 1000 5 5
 
+# opt4, fuse relu into conv
+./bin/mlir-opt \
+    --fuse-relu \
+    resnet-50-opt3.mlir \
+    -o resnet-50-opt4.mlir
+
+# test opt4
+./bin/mlir-tpu-interpreter resnet-50-opt4.mlir \
+    --tensor-in $DATA_DIR/test_cat_in_fp32.bin \
+    --tensor-out out-opt4.bin
+python ../llvm/projects/mlir/externals/python_tools/bin_compare.py \
+    out.bin out-opt4.bin float32 1 1 1 1000 5 5
+
 # VERDICT
 echo $0 PASSED

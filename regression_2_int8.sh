@@ -5,11 +5,13 @@ export TPU_BASE_DIR=../..
 export MLIR_BASE_DIR=$TPU_BASE_DIR/llvm-project/llvm/projects/mlir
 export DATA_DIR=$MLIR_BASE_DIR/data
 
-# translate from caffe, apply all possible pre-calibration optimizations
+# translate from caffe
 ./bin/mlir-translate \
     --caffe-to-mlir /data/models/caffe/ResNet-50-deploy.prototxt \
     --caffemodel /data/models/caffe/ResNet-50-model.caffemodel \
     -o resnet-50.mlir
+
+# apply all possible pre-calibration optimizations
 ./bin/mlir-opt \
     --convert-bn-to-scale \
     resnet-50.mlir \
@@ -30,10 +32,16 @@ export DATA_DIR=$MLIR_BASE_DIR/data
     resnet-50-opt3.mlir \
     -o resnet-50-cali.mlir
 
+# apply all possible post-calibration optimizations
+./bin/mlir-opt \
+    --fuse-relu \
+    resnet-50-cali.mlir \
+    -o resnet-50-opt-post-cali.mlir
+
 # quantization 1: per-layer int8
 ./bin/mlir-opt \
     --quant-int8 \
-    resnet-50-cali.mlir \
+    resnet-50-opt-post-cali.mlir \
     -o resnet-50-quant-int8.mlir
 
 ./bin/mlir-tpu-interpreter resnet-50-quant-int8.mlir \
@@ -51,7 +59,7 @@ diff out_fc1000_int8.bin $DATA_DIR/test_cat_out_fc1000-int8.bin
 ./bin/mlir-opt \
     --quant-int8 \
     --enable-conv-per-channel \
-    resnet-50-cali.mlir \
+    resnet-50-opt-post-cali.mlir \
     -o resnet-50-quant-int8-per-channel.mlir
 
 ./bin/mlir-tpu-interpreter resnet-50-quant-int8-per-channel.mlir \
@@ -70,7 +78,7 @@ diff out_fc1000_int8.bin $DATA_DIR/test_cat_out_fc1000-int8-per-channel.bin
     --quant-int8 \
     --enable-conv-per-channel \
     --enable-conv-multiplier \
-    resnet-50-cali.mlir \
+    resnet-50-opt-post-cali.mlir \
     -o resnet-50-quant-int8-multiplier.mlir
 
 ./bin/mlir-tpu-interpreter resnet-50-quant-int8-multiplier.mlir \

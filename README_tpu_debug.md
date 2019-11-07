@@ -54,11 +54,11 @@ $ python ./bin_dump.py out_data_quant.bin int8 1 3 224 224
 $ python ./npz_dump.py tensor_all_quant-int8.npz data_quant
 
 
-# extract conv1 (0x01797ff0 = 24739824)
-$ python ./bin_extract.py out_new.bin out_conv1.bin int8 0x01797ff0 802816
+# extract conv1
+$ python ./bin_extract.py out_all.bin out_conv1.bin int8 0x00eeebf0 802816
 $ python ./bin_dump.py out_conv1.bin int8 1 64 112 112
 # ref
-$ python ./npz_dump.py tensor_all_quant-int8.npz scale_conv1
+$ python ./npz_dump.py tensor_all-int8.npz scale_conv1
 
 
 # extract conv1_relu (0x016d3ff0 = 23937008)

@@ -75,9 +75,13 @@ $ cd build
 $ cmake -G Ninja ../llvm -DLLVM_BUILD_EXAMPLES=ON -DLLVM_TARGETS_TO_BUILD="host" -DCAFFE_PATH=$TPU_BASE/install_caffe -DMKLDNN_PATH=$TPU_BASE/install_mkldnn -DBMKERNEL_PATH=$TPU_BASE/install_bmkernel -DCMAKE_INSTALL_PREFIX=$TPU_BASE/install_mlir -DLLVM_ENABLE_RTTI=ON -DLLVM_ENABLE_EH=ON
 
 $ cmake --build . --target check-mlir
+```
 
-# build pybind11 wrapper
+build pybind11 wrapper
+```
 $ cmake --build . --target pymlir
+# find pymlir.so in ./lib (assuming in build dir), to setup PYTHONPATH
+$ export PYTHONPATH=./lib:$PYTHONPATH
 ```
 
 ## Work flow
@@ -94,7 +98,8 @@ $ ./bin/mlir-translate \
 
 - output together with a weight file in npz format
 - weight file name is described in .mlir file memref loadFile op
-- each weight tensor save as a npy file inside the npz, with name. eg. conv1_0, conv1_1, etc.
+- each weight tensor save as a npy file inside the npz,
+with name. eg. conv1_0, conv1_1, etc.
 
 check
 ```
@@ -103,7 +108,9 @@ $ python npz_list.py ResNet-50-model.npz
 $ python npz_dump.py ResNet-50-model.npz conv1_0
 ```
 
-### 2. run fp32 inference with mlir-tpu-interpreter
+### 2. run inference with mlir-tpu-interpreter or python wrapper
+
+#### 2.1 run with interpreter
 
 inference
 ```
@@ -118,8 +125,52 @@ check
 ```
 $ python bin_dump.py out.bin float32 1 1 1 1000 5
 $ python bin_dump.py $TPU_DATA_PATH/test_cat_out_fp32.bin float32 1 1 1 1000 5
-$ python bin_compare.py out.bin $TPU_DATA_PATH/test_cat_out_fp32.bin float32 1 1 1 1000 5
+$ python bin_compare.py out.bin \
+    $TPU_DATA_PATH/test_cat_out_fp32.bin float32 1 1 1 1000 5
 ```
+
+#### 2.2 run with interpreter pybind
+
+Convert input into npy, as current python test code take npy file as input.
+
+```
+$ python bin_to_npy.py \
+    $TPU_DATA_PATH/test_cat_in_fp32.bin \
+    float32 1 3 224 224 \
+    resnet50_input_1_3_224_224.npy
+```
+
+run inference
+```
+$ python ../llvm/projects/mlir/bindings/python/tools/run_inference.py \
+    resnet-50.mlir resnet50_input_1_3_224_224.npy 5
+```
+
+#### 2.3 accuracy regression with pybind
+
+Currently, we use mxnet.gluon to load data
+```
+$ pip install --user mxnet
+$ pip install --user gluoncv
+```
+
+Run classification test, with accuracy output.
+```
+$ python ../llvm/projects/mlir/bindings/python/tools/run_classification.py \
+    --model=resnet-50.mlir \
+    --dataset=/data/dataset/imagenet/img_val_extracted \
+    --mean_file=../llvm/projects/mlir/bindings/python/tools/mean_resize.npy \
+    --count=100
+```
+
+result of resnet-50 accuracy with count=10000 (fp32, int8, int8-per-channel, int8-multiplier)
+
+| mode | Top-1 accuracy | Top-5 accuracy |
+| ---  | ---            | ---            |
+| fp32             | 0.7820 | 0.9386 |
+| int8 Per-layer   | 0.7788 | 0.9374 |
+| int8 Per-channel | 0.7805 | 0.9395 |
+| int8 Multiplier  | 0.7806 | 0.9394 |
 
 ### 3. Pre-Quantization optimization
 
@@ -178,9 +229,8 @@ $ ./bin/mlir-tpu-interpreter resnet-50-opt3.mlir \
 $ python bin_compare.py out.bin out-opt3.bin float32 1 1 1 1000 5
 ```
 
-#### 3.4 Pass Manager
+#### 3.4 All-in-one
 
-All-in-one
 ```
 $ ./bin/mlir-opt \
     --convert-bn-to-scale \
@@ -203,7 +253,9 @@ $ python bin_compare.py out.bin out-opt.bin float32 1 1 1 1000 5
 The only information we need from the calibration process is a threshold value
 for each neuron tensor (threshold_y). The threshold is calculated based on
 histogram of each tensor during runtime. KLD is used to generate the threshold
-for now. Other information (rshift, multiplier, etc.) are derived later in compiler.
+for now. Other information (rshift, multiplier, etc., either per-layer or
+per-channel) are derived in compiler, based on the threshold_y and the value of
+weight.
 
 we use `calibration_caffe` for now. But use `threshold_y` of each layer only.
 
@@ -211,7 +263,8 @@ we use `calibration_caffe` for now. But use `threshold_y` of each layer only.
 
 #### 4.1 import calibration-table from prototxt file
 
-Import calibration table from externel file. The calibration table is simply a map of operation name vs. their threshold_y.
+Import calibration table from externel file. The calibration table is simply
+a map of operation name vs. their threshold_y.
 
 ```
 $ ./bin/mlir-opt \
@@ -221,11 +274,37 @@ $ ./bin/mlir-opt \
     -o resnet-50-cali.mlir
 ```
 
-#### 4.2 do calibration with mlir-interpreter
+#### 4.2 do calibration with mlir-interpreter python wrapper
 
 * TODO:
 
-### 5. quantization
+### 5. Post-Calibration optimization
+
+Some optimization need to take place before quantization but after calibration.
+
+#### 5.1 merge activation function into conv/eltwise/fullyconnect Ops
+
+This needs to be done after calibration because we need to check threshold_y range
+of both layers before merge them. This is need to be done before quantization,
+because some activation functions, like `relu6`, will impose a new threshold_y to
+the merged preceding Ops, therefore affect the quantization precess.
+
+```
+$ ./bin/mlir-opt \
+    --fuse-relu \
+    resnet-50-cali.mlir \
+    -o resnet-50-opt-post-cali.mlir
+```
+
+check
+```
+$ ./bin/mlir-tpu-interpreter resnet-50-opt-post-cali.mlir \
+    --tensor-in $TPU_DATA_PATH/test_cat_in_fp32.bin \
+    --tensor-out out-opt-post-cali.bin
+$ python bin_compare.py out.bin out-opt-post-cali.bin float32 1 1 1 1000 5
+```
+
+### 6. quantization
 
 We do not import int8 caffemodel directly (the legacy version int8 caffemodel
 format is obsoleted). We do quantization from mlir fp32 model to mlir int8
@@ -236,12 +315,12 @@ Before we try different version of quantization, save the weight file first
 $ cp ResNet-50-model.npz  ResNet-50-model-opt.npz
 ```
 
-#### 5.1 int8 per-layer quantization
+#### 6.1 int8 per-layer quantization
 
 ```
 $ ./bin/mlir-opt \
     --quant-int8 \
-    resnet-50-cali.mlir \
+    resnet-50-opt-post-cali.mlir \
     -o resnet-50-quant-int8.mlir
 ```
 
@@ -257,13 +336,13 @@ $ ./bin/mlir-tpu-interpreter resnet-50-quant-int8.mlir \
 $ python bin_compare.py out.bin out-quant-int8.bin float32 1 1 1 1000 5
 ```
 
-#### 5.2 int8 per-channel quantization
+#### 6.2 int8 per-channel quantization
 
 ```
 $ ./bin/mlir-opt \
     --quant-int8 \
     --enable-conv-per-channel \
-    resnet-50-cali.mlir \
+    resnet-50-opt-post-cali.mlir \
     -o resnet-50-quant-int8-per-channel.mlir
 ```
 
@@ -279,14 +358,14 @@ $ ./bin/mlir-tpu-interpreter resnet-50-quant-int8-per-channel.mlir \
 $ python bin_compare.py out.bin out-quant-int8-per-channel.bin float32 1 1 1 1000 5
 ```
 
-#### 5.3 int8 per-channel multiplier quantization
+#### 6.3 int8 per-channel multiplier quantization
 
 ```
 $ ./bin/mlir-opt \
     --quant-int8 \
     --enable-conv-per-channel \
     --enable-conv-multiplier \
-    resnet-50-cali.mlir \
+    resnet-50-opt-post-cali.mlir \
     -o resnet-50-quant-int8-multiplier.mlir
 ```
 
@@ -302,69 +381,13 @@ $ ./bin/mlir-tpu-interpreter resnet-50-quant-int8-multiplier.mlir \
 $ python bin_compare.py out.bin out-quant-int8-multiplier.bin float32 1 1 1 1000 5
 ```
 
-#### 5.3 bf16 quantization
+#### 6.4 bf16 quantization
 
 * TODO
 
-### 6. python wrapper for interpreter
+### 7. Post-Quantization optimization
 
-#### 6.1 python wrapper
-
-clone pybind11 into third_party
-```
-$ cd third_party
-$ git clone https://github.com/pybind/pybind11
-```
-
-to build pymlir.so
-```
-$ cmake --build . --target pymlir
-```
-
-find pymlir.so in ./lib, to setup PYTHONPATH
-```
-$ export PYTHONPATH=./lib:$PYTHONPATH
-```
-
-#### 6.2 run inference with python
-
-Convert test input to be bin, as current python test code take npy file as input.
-
-```
-$ python bin_to_npy.py \
-    $TPU_DATA_PATH/test_cat_in_fp32.bin \
-    float32 1 3 224 224 \
-    resnet50_input_1_3_224_224.npy
-$ python ../llvm/projects/mlir/bindings/python/tools/run_inference.py \
-    resnet-50.mlir resnet50_input_1_3_224_224.npy 5
-```
-
-#### 6.3 accuracy regression
-
-use mxnet.gluon to load data
-```
-$ pip install --user mxnet
-$ pip install --user gluoncv
-
-$ python ../llvm/projects/mlir/bindings/python/tools/run_classification.py \
-    --model=resnet-50.mlir \
-    --dataset=/data/dataset/imagenet/img_val_extracted \
-    --mean_file=../llvm/projects/mlir/bindings/python/tools/mean_resize.npy \
-    --count=100
-```
-
-result of resnet-50 accuracy with count=10000 (fp32, int8, int8-per-channel, int8-multiplier)
-
-| mode | Top-1 accuracy | Top-5 accuracy |
-| ---  | ---            | ---            |
-| fp32             | 0.7820 | 0.9386 |
-| int8 Per-layer   | 0.7788 | 0.9374 |
-| int8 Per-channel | 0.7805 | 0.9395 |
-| int8 Multiplier  | 0.7806 | 0.9394 |
-
-### 7. calibration with interpreter (python version)
-
-TODO:
+Some optimizations need to take place after quantization.
 
 ### 8. codegen from tpu dialect
 
@@ -579,24 +602,6 @@ TODO: to output following information from compiler to runtime in a more formal 
 - output size (multiple output)
 - output offset (multiple output)
 - total neuron size
-
-### 11. bmkernel to bmodel assembly
-
-### 12. bmodel to bmkernel script disassembly
-
-### 13. tg level optimization pass (no weight transform)
-
-1.1 fuse activation into conv/fc
-
-1.2 fuse pooling
-
-### 14. tg to tl lowering
-
-clustering/slice handling
-
-### 15. auto clustering (layer_group)
-
-### 16. affine and searching
 
 ## Debug tips
 

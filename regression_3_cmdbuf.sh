@@ -11,12 +11,13 @@ export LD_LIBRARY_PATH=$TPU_BASE_DIR/install_support/lib:$LD_LIBRARY_PATH
 export LD_LIBRARY_PATH=$TPU_BASE_DIR/install_bmbuilder/lib:$LD_LIBRARY_PATH
 export LD_LIBRARY_PATH=$TPU_BASE_DIR/install_cmodel/lib:$LD_LIBRARY_PATH
 
-# translate from caffe, apply all possible pre-calibration optimizations
+# translate from caffe
 ./bin/mlir-translate \
     --caffe-to-mlir /data/models/caffe/ResNet-50-deploy.prototxt \
     --caffemodel /data/models/caffe/ResNet-50-model.caffemodel \
     -o resnet-50.mlir
 
+# apply all possible pre-calibration optimizations
 ./bin/mlir-opt \
     --convert-bn-to-scale \
     --fold-scale \
@@ -31,12 +32,18 @@ export LD_LIBRARY_PATH=$TPU_BASE_DIR/install_cmodel/lib:$LD_LIBRARY_PATH
     resnet-50-opt.mlir \
     -o resnet-50-cali.mlir
 
+# apply all possible post-calibration optimizations
+./bin/mlir-opt \
+    --fuse-relu \
+    resnet-50-cali.mlir \
+    -o resnet-50-opt-post-cali.mlir
+
 ################################
 # quantization 1: per-layer int8
 ################################
 ./bin/mlir-opt \
     --quant-int8 \
-    resnet-50-cali.mlir \
+    resnet-50-opt-post-cali.mlir \
     -o resnet-50-quant-int8.mlir
 
 # assign weight address & neuron address
@@ -59,7 +66,7 @@ export LD_LIBRARY_PATH=$TPU_BASE_DIR/install_cmodel/lib:$LD_LIBRARY_PATH
     weight.bin \
     cmdbuf.bin \
     out_all.bin \
-    25542640 0 25542640 1
+    16460784 0 16460784 1
 python ../llvm/projects/mlir/externals/python_tools/bin_extract.py \
     out_all.bin out_fc1000.bin int8 0x00024c00 1000
 diff out_fc1000.bin $DATA_DIR/test_cat_out_fc1000-int8.bin
@@ -89,7 +96,7 @@ python ../llvm/projects/mlir/externals/python_tools/npz_compare.py \
     --quant-int8 \
     --enable-conv-per-channel \
     --enable-conv-multiplier \
-    resnet-50-cali.mlir \
+    resnet-50-opt-post-cali.mlir \
     -o resnet-50-quant-int8-multiplier.mlir
 
 # assign weight address & neuron address
@@ -112,7 +119,7 @@ python ../llvm/projects/mlir/externals/python_tools/npz_compare.py \
     weight-multiplier.bin \
     cmdbuf-multiplier.bin \
     out_all.bin \
-    25542640 0 25542640 1
+    16460784 0 16460784 1
 python ../llvm/projects/mlir/externals/python_tools/bin_extract.py \
     out_all.bin out_fc1000.bin int8 0x00024c00 1000
 diff out_fc1000.bin $DATA_DIR/test_cat_out_fc1000-int8-multiplier.bin
