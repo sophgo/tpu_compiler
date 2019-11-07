@@ -116,7 +116,13 @@ static LogicalResult runOperation(Operation &opInst) {
     } else {
       assert(false);
     }
-
+    bool do_relu = false;
+    if (op.fused_activation_function() == "NONE") {
+    } else if (op.fused_activation_function() == "RELU") {
+      do_relu = true;
+    } else {
+      assert(0);
+    }
 
     gaddr_t input_gaddr = getPreviousOpAddress(op);
     gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
@@ -172,10 +178,10 @@ static LogicalResult runOperation(Operation &opInst) {
         0, // do_bn,
         0, // do_scale,
         0, // do_scale_bias,
-        0, // do_activation,
+        do_relu ? 1 : 0, // do_activation,
         1.0f, // bn_scale,
         1e-5, // eps,
-        0, // param.activation(), method
+        0, // param.activation(), method, 0 -> RELU, all others are invalide for now
         nullptr, // activation_arg,
         INVALID_GLOBAL_ADDR, //global_slope_gaddr,
         false, //channel_shared,
@@ -234,10 +240,10 @@ static LogicalResult runOperation(Operation &opInst) {
         0, // do_bn,
         0, // do_scale,
         0, // do_scale_bias,
-        0, // do_activation,
+        do_relu ? 1 : 0, // do_activation,
         1.0f, // bn_scale,
         1e-5, // eps,
-        0, // param.activation(), method
+        0, // param.activation(), method, 0 -> RELU, all others are invalide for now
         nullptr, // activation_arg,
         INVALID_GLOBAL_ADDR, //global_slope_gaddr,
         false, //channel_shared,
@@ -434,6 +440,7 @@ static LogicalResult runOperation(Operation &opInst) {
   }
   if (auto op = dyn_cast<tpu::ReluOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "ReluOp" << "\n";);
+    assert(0 && "consider fuse relu first");
 
     int n, c, h, w;
     float negative_slope = op.negative_slope().convertToFloat();
@@ -517,6 +524,13 @@ static LogicalResult runOperation(Operation &opInst) {
         multiplier[index] = (int8_t)findMultiplierFromQScaleAndRShift(qscale, rshift);
       }
     }
+    bool do_relu = false;
+    if (op.fused_activation_function() == "NONE") {
+    } else if (op.fused_activation_function() == "RELU") {
+      do_relu = true;
+    } else {
+      assert(0);
+    }
 
     gaddr_t ga_inputs[2];
     ga_inputs[0] = getPreviousOpAddress(op, 0);
@@ -543,7 +557,7 @@ static LogicalResult runOperation(Operation &opInst) {
         c,
         h,
         w,
-        false, // bool do_relu,
+        do_relu, // bool do_relu,
         0.0f, // float relu_slope,
         rshift, //int right_shift_width,
         threshold_x_quantized,
