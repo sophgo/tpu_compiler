@@ -265,6 +265,13 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     assert(mkldnn_ret == 0);
     //dump_data_float_abs("mkldnn_output", mkldnn_output, n, oc, oh, ow);
 
+    if (op.fused_activation_function() == "NONE") {
+    } else if (op.fused_activation_function() == "RELU") {
+      my_relu(mkldnn_output, mkldnn_output, n, oc, oh, ow, 0.0f);
+    } else {
+      assert(0);
+    }
+
     // rshift and saturate on output
     if (op.quant() == "INT8") {
       assert(rshift);
@@ -1057,6 +1064,13 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     int ret = my_eltwise(input[0], input[1], output, n, c, h, w, 1);
     assert(ret == 0);
     //dump_data_float_abs("output", mkldnn_output, n, c, oh, ow);
+
+    if (op.fused_activation_function() == "NONE") {
+    } else if (op.fused_activation_function() == "RELU") {
+      my_relu(output, output, n, c, h, w, 0.0f);
+    } else {
+      assert(0);
+    }
 
     // rshift and saturate on output
     if (op.quant() == "INT8") {
