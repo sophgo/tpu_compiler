@@ -171,14 +171,14 @@ public:
     // TODO: assuming all tensors are in float
     if (incIndex) {
       auto fileInc = TensorFile::incrementName(filename);
-      cnpy::npz_save_all<float>(fileInc, map);
+      cnpy::npz_save_all(fileInc, map);
       filename = StringRef(fileInc);
       //llvm::errs() << "save TensorFile to " << filename << "\n";
       if (newName) {
         *newName = filename.str();
       }
     } else {
-      cnpy::npz_save_all<float>(filename.str(), map);
+      cnpy::npz_save_all(filename.str(), map);
     }
   }
 
