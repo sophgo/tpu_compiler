@@ -1,4 +1,5 @@
 #include "mlir/Dialect/TPU/TPUDialect.h"
+#include "mlir/Dialect/TPU/QuantizationArithmetic.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/StandardTypes.h"
 #include "llvm/Support/raw_ostream.h"
@@ -58,8 +59,7 @@ float findQScale(float max_weight, float threshold_y, float threshold_x) {
 ///   the max_multiplier argument is ignored, fixed to (1 << 31)
 /// if 'uint32_t *multiplier' is present, return multipler alongside
 uint32_t findRShiftAndMultiplierFromQScale(float qscale,
-    uint32_t *multiplier = nullptr, bool qdm = false,
-    uint32_t max_multiplier = 127) {
+    uint32_t *multiplier, bool qdm, uint32_t max_multiplier) {
   if (qdm) {
     max_multiplier = (1 << 31);
   }
@@ -210,8 +210,7 @@ int32_t quantizeBiasRShiftI32(float w, float threshold_y, uint32_t rshift) {
 ///   QScale = Multiplier / (1 << RShift)
 /// used in BM1880 or BM1880v2 legacy per-layer mode
 int8_t quantizeFilterRShiftAndMultiplier(float w, float threshold_y,
-    float threshold_x, uint32_t rshift, uint32_t multiplier,
-    bool qdm = false) {
+    float threshold_x, uint32_t rshift, uint32_t multiplier, bool qdm) {
   if (qdm) {
     rshift += 31;
   }
@@ -226,7 +225,7 @@ int8_t quantizeFilterRShiftAndMultiplier(float w, float threshold_y,
 ///   QScale = Multiplier * (1 << RShift)
 /// used in BM1880v2 per-channel mode (32bit bias)
 int32_t quantizeBiasRShiftAndMultiplier(float w, float threshold_y,
-    uint32_t rshift, uint32_t multiplier, bool qdm = false) {
+    uint32_t rshift, uint32_t multiplier, bool qdm) {
   if (qdm) {
     rshift += 31;
   }
@@ -274,7 +273,7 @@ static inline s32 SaturatingRoundingDoublingHighMul(s32 a, s32 b)
 ///   use GOOGLE GEMMLOWP QDM multiply and shift
 ///   during multiply, a factor of (1 << 31) has been devided
 int8_t applyMultiplierAndRShiftAndSaturateInt8(float v,
-    uint32_t rshift, uint32_t multiplier, bool qdm = false) {
+    uint32_t rshift, uint32_t multiplier, bool qdm) {
   if (qdm) {
     int32_t q = RoundingDivideByPOT(
         SaturatingRoundingDoublingHighMul((int32_t)v, (int32_t)multiplier),
@@ -295,6 +294,88 @@ int8_t quantizeNeuron(float v, float threshold) {
 /// DeQuantize a Neuron value from INT8, given threshold
 float dequantizeNeuron(int8_t q, float threshold) {
   return (float)q * threshold / 128.0;
+}
+
+///
+/// BFLOAT16 support
+/// from tensorflow
+///   tensorflow/tensorflow/core/framework/bfloat16.cc
+///   tensorflow/tensorflow/core/framework/bfloat16.h
+///
+
+// Compact 16-bit encoding of floating point numbers. This representation uses
+// 1 bit for the sign, 8 bits for the exponent and 7 bits for the mantissa.  It
+// is assumed that floats are in IEEE 754 format so the representation is just
+// bits 16-31 of a single precision float.
+//
+// NOTE: The IEEE floating point standard defines a float16 format that
+// is different than this format (it has fewer bits of exponent and more
+// bits of mantissa).  We don't use that format here because conversion
+// to/from 32-bit floats is more complex for that format, and the
+// conversion for this format is very simple.
+//
+// Because of the existing IEEE float16 type, we do not name our representation
+// "float16" but just use "uint16".
+//
+// <-----our 16bits float------->
+// s e e e e e e e e f f f f f f f f f f f f f f f f f f f f f f f
+// <------------------------------float-------------------------->
+// 3 3             2 2             1 1                           0
+// 1 0             3 2             5 4                           0
+//
+//
+// This type only supports conversion back and forth with float.
+//
+// This file must be compilable by nvcc.
+//
+// The type is defined in framework/numeric_types.h.
+
+void FloatToBFloat16(const float* src, bfloat16* dst, size_t size,
+    bool rounding) {
+  // const uint16_t* p = reinterpret_cast<const uint16_t*>(src);
+  const uint16_t* p = nullptr;
+  /// if rounding is prefered than trancating
+  /// float_val *= 1.001957f;
+  float *src_round = nullptr;
+  if (rounding) {
+    src_round = (float *)malloc(size * sizeof(float));
+    for (size_t i = 0; i < size; i++) {
+      src_round[i] = src[i] * 1.001957f;
+    }
+    p = reinterpret_cast<const uint16_t*>(src_round);
+  } else {
+    p = reinterpret_cast<const uint16_t*>(src);
+  }
+
+  uint16_t* q = reinterpret_cast<uint16_t*>(dst);
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+  for (; size != 0; p += 2, q++, size--) {
+    *q = p[0];
+  }
+#else
+  for (; size != 0; p += 2, q++, size--) {
+    *q = p[1];
+  }
+#endif
+  if (rounding) {
+    free(src_round);
+  }
+}
+
+void BFloat16ToFloat(const bfloat16* src, float* dst, size_t size) {
+  const uint16_t* p = reinterpret_cast<const uint16_t*>(src);
+  uint16_t* q = reinterpret_cast<uint16_t*>(dst);
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+  for (; size != 0; p++, q += 2, size--) {
+    q[0] = *p;
+    q[1] = 0;
+  }
+#else
+  for (; size != 0; p++, q += 2, size--) {
+    q[0] = 0;
+    q[1] = *p;
+  }
+#endif
 }
 
 } // namespace

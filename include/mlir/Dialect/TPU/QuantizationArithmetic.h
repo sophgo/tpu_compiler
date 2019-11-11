@@ -26,6 +26,9 @@
 
 namespace mlir {
 
+///
+/// INT8
+///
 uint32_t findRShift(float max_weight, float threshold_y, float threshold_x);
 float findQScale(float max_weight, float threshold_y, float threshold_x);
 uint32_t findRShiftAndMultiplierFromQScale(float qscale,
@@ -49,6 +52,19 @@ int8_t applyMultiplierAndRShiftAndSaturateInt8(float v,
 
 int8_t quantizeNeuron(float v, float threshold);
 float dequantizeNeuron(int8_t q, float threshold);
+
+///
+/// BF16
+///
+struct bfloat16 {
+  bfloat16() {}
+  explicit bfloat16(const uint16_t v) : value(v) {}
+  uint16_t value;
+};
+
+void FloatToBFloat16(const float* src, bfloat16* dst, size_t size,
+    bool rounding = false);
+void BFloat16ToFloat(const bfloat16* src, float* dst, size_t size);
 
 } // namespace mlir
 
