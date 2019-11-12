@@ -122,27 +122,30 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
     auto result = loadWeightOp.getResult();
     LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";);
-    if (loadWeightOp.name().hasValue()) {
-      auto tensor_name = loadWeightOp.name().getValue();
-      LLVM_DEBUG(llvm::errs() << "  tensor_name " << tensor_name << "\n";);
-      auto type = result->getType().cast<TensorType>();
-      auto tensor = weight_file->readTensor<float>(tensor_name, type);
+    assert(loadWeightOp.name().hasValue());
+    auto tensor_name = loadWeightOp.name().getValue();
+    LLVM_DEBUG(llvm::errs() << "  tensor_name " << tensor_name << "\n";);
 
-      valueMapping[result] = std::move(tensor);
+    auto type = result->getType().cast<TensorType>();
+    std::unique_ptr<std::vector<float> > tensor= nullptr;
+    if (type.getElementType().isF32()) {
+      tensor = std::move(weight_file->readTensor<float>(tensor_name, type));
+    } else if (type.getElementType().isInteger(8)) {
+      // TODO: we still save int8 weight as fp32 for now
+      assert(0);
+    } else if (type.getElementType().isBF16()) {
+      auto tensor_bf16 = weight_file->readTensor<bfloat16>(tensor_name, type);
+
+      // TODO: convert bf16 to fp32 here for now
+      // as valueMapping is hardcoded as std::vector<float>
+      // TODO: more generic valueMapping
+      tensor = std::move(std::make_unique<std::vector<float> >(tensor_bf16->size()));
+      BFloat16ToFloat(tensor_bf16->data(), tensor->data(), tensor_bf16->size());
     } else {
-      assert(loadWeightOp.offset().hasValue());
-      auto offset = loadWeightOp.offset().getValue().getLimitedValue();
-      LLVM_DEBUG(llvm::errs() << "  offset " << offset << "\n";);
-      std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
-      assert(shape.size() <= 4);
-      auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
-      auto weight_data = std::make_unique<std::vector<float> >(size);
-
-      weight_is.get()->seekg(offset, std::ios::beg);
-      weight_is.get()->read((char*)weight_data.get()->data(), size * sizeof(float));
-
-      valueMapping[result] = std::move(weight_data);
+      assert(0);
     }
+
+    valueMapping[result] = std::move(tensor);
     return success();
   }
   if (auto op = dyn_cast<tpu::InputOp>(opInst)) {
@@ -237,6 +240,12 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
         mkldnn_bias = (float *)opdT[1]->data();
         rshift = (float *)opdT[1]->data();
         multiplier = (float *)opdT[1]->data();
+      }
+    } else if (op.quant() == "BF16") {
+      // bf16 has been convert to float32 when loading
+      if (opdT.size() > 2) {
+        assert(opdT.size() == 3);
+        mkldnn_bias = (float *)opdT[2]->data();
       }
     } else {
       assert(false);
@@ -670,6 +679,12 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       } else {
         assert(opdT.size() == 3);
         rshift = (float *)opdT[2]->data();
+      }
+    } else if (op.quant() == "BF16") {
+      // bf16 has been convert to float32 when loading
+      if (opdT.size() > 2) {
+        assert(opdT.size() == 3);
+        mkldnn_bias = (float *)opdT[2]->data();
       }
     } else {
       assert(false);
@@ -1174,13 +1189,17 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     // TODO: do the actual compute here
     if (op.quant() == "INT8") {
       float *input = (float *)opdT[0]->data();
-      float *output = (float *)resultT.get()->data();
+      float *output = (float *)resultT->data();
       float threshold = op.threshold().getValue().convertToFloat();
       LLVM_DEBUG(llvm::errs() << "  quantization, threshold = "
                    << std::to_string(threshold) << "\n";);
       for (int i = 0; i < size; ++i) {
         output[i] = (float)quantizeNeuron(input[i], threshold);
       }
+    } else if (op.quant() == "BF16") {
+      resultT->assign(opdT[0]->begin(), opdT[0]->end());
+    } else {
+      assert(0);
     }
     // TODO: End of compute, need refactor
 
@@ -1200,13 +1219,17 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     // TODO: do the actual compute here
     if (op.quant() == "INT8") {
       float *input = (float *)opdT[0]->data();
-      float *output = (float *)resultT.get()->data();
+      float *output = (float *)resultT->data();
       float threshold = op.threshold().getValue().convertToFloat();
       LLVM_DEBUG(llvm::errs() << "  quantization, threshold = "
                    << std::to_string(threshold) << "\n";);
       for (int i = 0; i < size; ++i) {
         output[i] = dequantizeNeuron((int8_t)input[i], threshold);
       }
+    } else if (op.quant() == "BF16") {
+      resultT->assign(opdT[0]->begin(), opdT[0]->end());
+    } else {
+      assert(0);
     }
     // TODO: End of compute, need refactor
 
@@ -1308,6 +1331,9 @@ LogicalResult ModuleInterpreter::runOneFunction(FuncOp func) {
       auto op = it->first->getDefiningOp();
       if (!op) {
         //it->first->dump();
+        continue;
+      }
+      if (auto loadWeightOp = dyn_cast<tpu::LoadWeightOp>(op)) {
         continue;
       }
       LLVM_DEBUG(llvm::errs() << op->getName() << " : " << getOpName(op) << "\n";);

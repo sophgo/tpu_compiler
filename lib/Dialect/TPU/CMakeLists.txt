@@ -19,6 +19,7 @@ add_llvm_library(MLIRTPU
   Quantization/QuantizationArithmetic.cpp
   Quantization/ImportCalibrationTable.cpp
   Quantization/QuantizeInt8.cpp
+  Quantization/QuantizeBf16.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${MLIR_MAIN_INCLUDE_DIR}/mlir/Dialect/TPU

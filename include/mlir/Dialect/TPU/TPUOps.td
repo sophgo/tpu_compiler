@@ -63,6 +63,7 @@ def TPU_QuantAttr : StrEnumAttr<
 
 // Allowed weight storage type cases, defines how each weight element is stored
 // in the generated weight.bin file
+// BF16 is an alias of UINT16
 def TPU_Weight_None   : StrEnumAttrCase<"NONE">;
 def TPU_Weight_S8     : StrEnumAttrCase<"INT8">;
 def TPU_Weight_U8     : StrEnumAttrCase<"UINT8">;
@@ -188,7 +189,6 @@ def TPU_LoadWeightOp : TPU_Op<"load_weight", [NoSideEffect]> {
       `memref` : required: the weight memref
       `name`   : optional: name of the weight
       `storage`: default : type to store to a bin file
-      `offset` : optional: the offset inside the memref
   }];
 
   let arguments = (

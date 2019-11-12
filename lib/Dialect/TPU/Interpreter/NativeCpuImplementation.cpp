@@ -5,7 +5,7 @@
 #include <functional>
 #include <assert.h>
 #include <chrono>
-#include <iostream>
+#include <fstream>
 #include <string>
 #include <unordered_map>
 #include <vector>

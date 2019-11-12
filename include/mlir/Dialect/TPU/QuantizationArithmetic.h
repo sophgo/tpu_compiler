@@ -56,14 +56,15 @@ float dequantizeNeuron(int8_t q, float threshold);
 ///
 /// BF16
 ///
-struct bfloat16 {
-  bfloat16() {}
-  explicit bfloat16(const uint16_t v) : value(v) {}
-  uint16_t value;
-};
+//struct bfloat16 {
+//  bfloat16() {}
+//  explicit bfloat16(const uint16_t v) : value(v) {}
+//  uint16_t value;
+//};
+typedef uint16_t bfloat16;
 
 void FloatToBFloat16(const float* src, bfloat16* dst, size_t size,
-    bool rounding = false);
+    bool rounding = true);
 void BFloat16ToFloat(const bfloat16* src, float* dst, size_t size);
 
 } // namespace mlir

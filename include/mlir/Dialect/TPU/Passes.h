@@ -37,6 +37,7 @@ std::unique_ptr<FunctionPassBase> createFuseReluPass();
 
 std::unique_ptr<FunctionPassBase> createImportCalibrationTablePass();
 std::unique_ptr<FunctionPassBase> createQuantizeInt8Pass();
+std::unique_ptr<FunctionPassBase> createQuantizeBf16Pass();
 
 std::unique_ptr<FunctionPassBase> createAssignWeightAddressPass();
 std::unique_ptr<FunctionPassBase> createAssignNeuronAddressPass();

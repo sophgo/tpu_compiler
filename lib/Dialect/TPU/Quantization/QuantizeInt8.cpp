@@ -256,10 +256,12 @@ struct TpuQuantConv2DOpPattern : public RewritePattern {
     if (!clQuantConvPerChannel) {
       auto tensor_name = op_name + "_quant_int8_rshift";
       llvm::errs() << "  new_weight[rshift] : " << tensor_name << "\n";
-      auto type = rewriter.getTensorType(std::vector<int64_t>{1},
-          IntegerType::get(32, rewriter.getContext()));
       // TODO: use only float in weight file for now
+      //auto type = rewriter.getTensorType(std::vector<int64_t>{1},
+      //    IntegerType::get(32, rewriter.getContext()));
       //weightTensorFile_->addTensor<uint32_t>(tensor_name, &rshift, type);
+      auto type = rewriter.getTensorType(std::vector<int64_t>{1},
+          FloatType::getF32(rewriter.getContext()));
       weightTensorFile_->addTensor<float>(tensor_name, &rshift, type);
       std::vector<NamedAttribute> attrs;
       attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(tensor_name)));
@@ -270,13 +272,15 @@ struct TpuQuantConv2DOpPattern : public RewritePattern {
       newOperands.push_back(new_weight_op);
     } else {
       if (!clQuantConvMultiplier) {
-        auto type = rewriter.getTensorType(std::vector<int64_t>{oc},
-            IntegerType::get(32, rewriter.getContext()));
         std::vector<NamedAttribute> attrs;
         auto tensor_name = op_name + "_quant_int8_rshift";
         llvm::errs() << "  new_weight[rshift] : " << tensor_name << "\n";
         // TODO: use only float in weight file for now
+        //auto type = rewriter.getTensorType(std::vector<int64_t>{oc},
+        //    IntegerType::get(32, rewriter.getContext()));
         //weightTensorFile_->addTensor<uint32_t>(tensor_name, &rshift, type);
+        auto type = rewriter.getTensorType(std::vector<int64_t>{oc},
+            FloatType::getF32(rewriter.getContext()));
         weightTensorFile_->addTensor<float>(tensor_name, &rshift_per_channel, type);
         attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(tensor_name)));
 
@@ -287,13 +291,15 @@ struct TpuQuantConv2DOpPattern : public RewritePattern {
         newOperands.push_back(new_weight_op);
       } else {
         {
-        auto type = rewriter.getTensorType(std::vector<int64_t>{oc},
-            IntegerType::get(32, rewriter.getContext()));
         std::vector<NamedAttribute> attrs;
         auto tensor_name = op_name + "_quant_int8_rshift";
         llvm::errs() << "  new_weight[rshift] : " << tensor_name << "\n";
         // TODO: use only float in weight file for now
+        //auto type = rewriter.getTensorType(std::vector<int64_t>{oc},
+        //    IntegerType::get(32, rewriter.getContext()));
         //weightTensorFile_->addTensor<uint32_t>(tensor_name, &rshift, type);
+        auto type = rewriter.getTensorType(std::vector<int64_t>{oc},
+            FloatType::getF32(rewriter.getContext()));
         weightTensorFile_->addTensor<float>(tensor_name, &rshift_per_channel, type);
         attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(tensor_name)));
         // per-channel rshift or multiplier store as UINT32
@@ -304,13 +310,15 @@ struct TpuQuantConv2DOpPattern : public RewritePattern {
         }
 
         {
-        auto type = rewriter.getTensorType(std::vector<int64_t>{oc},
-            IntegerType::get(32, rewriter.getContext()));
         std::vector<NamedAttribute> attrs;
         auto tensor_name = op_name + "_quant_int8_multiplier";
         llvm::errs() << "  new_weight[multiplier] : " << tensor_name << "\n";
         // TODO: use only float in weight file for now
+        //auto type = rewriter.getTensorType(std::vector<int64_t>{oc},
+        //    IntegerType::get(32, rewriter.getContext()));
         //weightTensorFile_->addTensor<uint32_t>(tensor_name, &multiplier, type);
+        auto type = rewriter.getTensorType(std::vector<int64_t>{oc},
+            FloatType::getF32(rewriter.getContext()));
         weightTensorFile_->addTensor<float>(tensor_name, &multiplier_per_channel, type);
         attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(tensor_name)));
         // per-channel rshift or multiplier store as UINT32
@@ -464,10 +472,12 @@ struct TpuQuantFullyConnectedOpPattern : public RewritePattern {
     // add rshift to weight
     auto tensor_name = op_name + "_quant_int8_rshift";
     llvm::errs() << "  new_weight[rshift] : " << tensor_name << "\n";
-    auto type = rewriter.getTensorType(std::vector<int64_t>{1},
-        IntegerType::get(32, rewriter.getContext()));
     // TODO: use only float in weight file for now
+    //auto type = rewriter.getTensorType(std::vector<int64_t>{1},
+    //    IntegerType::get(32, rewriter.getContext()));
     //weightTensorFile_->addTensor<uint32_t>(tensor_name, &rshift, type);
+    auto type = rewriter.getTensorType(std::vector<int64_t>{1},
+        FloatType::getF32(rewriter.getContext()));
     weightTensorFile_->addTensor<float>(tensor_name, &rshift, type);
     std::vector<NamedAttribute> attrs;
     attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(tensor_name)));

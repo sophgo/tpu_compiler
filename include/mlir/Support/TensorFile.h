@@ -30,6 +30,7 @@
 #include "llvm/Support/Format.h"
 #include "llvm/Support/Path.h"
 
+#include <type_traits>
 #include <string>
 #include <system_error>
 #include <ctime>
@@ -37,9 +38,8 @@
 #include "cnpy.h"
 
 #include <iomanip>
-template< typename T >
-static std::string int_to_hex( T i )
-{
+template<typename T >
+static std::string int_to_hex( T i ) {
   std::stringstream stream;
   stream << std::setfill ('0') << std::setw(sizeof(T)*2)
          << std::hex << i;
@@ -47,6 +47,27 @@ static std::string int_to_hex( T i )
 }
 
 namespace mlir {
+
+template< typename T>
+static bool check_type(Type eltType) {
+  if ( eltType.isBF16() ) {
+    // we use uint16_t to represent BF16 (same as tensorflow)
+    return std::is_same<T, uint16_t>::value;
+  } else if ( eltType.isF32() ) {
+    return std::is_same<T, float>::value;
+  } else if ( eltType.isInteger(8) ) {
+    return std::is_same<T, int8_t>::value;
+  } else if ( eltType.isInteger(16) ) {
+    return std::is_same<T, int16_t>::value;
+  } else if ( eltType.isInteger(32) ) {
+    return std::is_same<T, uint32_t>::value;
+  } else {
+    // eltType.isF16()
+    // eltType.isF64()
+    // ...
+    return false;
+  }
+}
 
 class TensorFile {
 public:
@@ -96,8 +117,7 @@ public:
   LogicalResult addTensor(llvm::StringRef name, const T* data,
       TensorType &type) {
     assert(!readOnly);
-    if (readOnly)
-      return failure();
+    assert(check_type<T>(type.getElementType()) == true);
     auto it = map.find(name.str());
     if (it != map.end()) {
       llvm::errs() << "failed to add tensor " << name.str() << ", already exist\n";
@@ -116,6 +136,7 @@ public:
   LogicalResult addTensor(llvm::StringRef name, const std::vector<T> *data,
       TensorType &type) {
     assert(!readOnly);
+    assert(check_type<T>(type.getElementType()) == true);
     return addTensor(name, data->data(), type);
   }
 
@@ -141,6 +162,7 @@ public:
   template<typename T>
   std::unique_ptr<std::vector<T> > readTensor(llvm::StringRef name,
       TensorType &type) {
+    assert(check_type<T>(type.getElementType()) == true);
     std::vector<int64_t> shape = type.getShape();
     assert(shape.size() <= 4);
     auto count = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
@@ -168,7 +190,6 @@ public:
 
   void keep(bool incIndex = false, std::string *newName = nullptr) {
     assert(!readOnly);
-    // TODO: assuming all tensors are in float
     if (incIndex) {
       auto fileInc = TensorFile::incrementName(filename);
       cnpy::npz_save_all(fileInc, map);
