@@ -37,6 +37,12 @@
 
 ## * update llvm-project and mlir to the latest
 
+## * Use DenseElementAttr and elideElementsAttrIfLarger to hold weight
+
+(but BF16 is not supported well)
+
+## * change value_map_t to support different data type
+
 ## * Pass Manager to hold the whole sequance
 
 ## * Multiple inputs/outputs support (npz file)

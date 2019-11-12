@@ -10,6 +10,7 @@ rm -f *.mlir *.bin *.npz *.csv
 $DIR/regression_1_fp32.sh
 $DIR/regression_2_int8.sh
 $DIR/regression_3_cmdbuf.sh
+$DIR/regression_4_bf16.sh
 
 # VERDICT
 echo $0 PASSED
