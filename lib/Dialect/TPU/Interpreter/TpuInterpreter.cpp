@@ -268,7 +268,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     }
 #endif
 
-    float *mkldnn_output = (float *)resultT.get()->data();
+    float *mkldnn_output = (float *)resultT->data();
     int mkldnn_ret = mkldnn_conv(mkldnn_input, mkldnn_weight, mkldnn_bias, mkldnn_output,
         n, ic, ih, iw, oc, oh, ow, kh, kw, sh, sw, ph, pw);
     assert(mkldnn_ret == 0);
@@ -307,6 +307,10 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
                                                              rshift[i], multiplier[i], true);
         }
       }
+    } else if (op.quant() == "BF16") {
+      auto tensor_bf16 = std::make_unique<std::vector<bfloat16> >(resultT->size());
+      FloatToBFloat16(resultT->data(), tensor_bf16->data(), resultT->size()); // with rounding
+      BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
     }
 
 #ifdef QUANT_DEQUANT_EVERY_LAYER
@@ -544,7 +548,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     }
 #endif
 
-    float *mkldnn_output = (float *)resultT.get()->data();
+    float *mkldnn_output = (float *)resultT->data();
     int mkldnn_ret = mkldnn_pool(mkldnn_input, mkldnn_output,
         n, c, ih, iw, oh, ow, kh, kw, sh, sw, ph, pw, is_average_pool);
     assert(mkldnn_ret == 0);
@@ -574,6 +578,12 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
         mkldnn_output[i] = (float)applyMultiplierAndRShiftAndSaturateInt8(
                                       sum, rshift, multiplier);
       }
+    }
+
+    if (op.quant() == "BF16" && is_average_pool) {
+      auto tensor_bf16 = std::make_unique<std::vector<bfloat16> >(resultT->size());
+      FloatToBFloat16(resultT->data(), tensor_bf16->data(), resultT->size()); // with rounding
+      BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
     }
 
 #ifdef QUANT_DEQUANT_EVERY_LAYER
@@ -706,7 +716,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     }
 #endif
 
-    float *mkldnn_output = (float *)resultT.get()->data();
+    float *mkldnn_output = (float *)resultT->data();
     int mkldnn_ret = mkldnn_ip(mkldnn_input, mkldnn_weight, mkldnn_bias,
         mkldnn_output, m, k, n, transpose);
     assert(mkldnn_ret == 0);
@@ -719,6 +729,10 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
         mkldnn_output[i] = (float)applyRShiftAndSaturateInt8(mkldnn_output[i],
                                                              (uint32_t)rshift[0]);
       }
+    } else if (op.quant() == "BF16") {
+      auto tensor_bf16 = std::make_unique<std::vector<bfloat16> >(resultT->size());
+      FloatToBFloat16(resultT->data(), tensor_bf16->data(), resultT->size()); // with rounding
+      BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
     }
 
 #ifdef QUANT_DEQUANT_EVERY_LAYER
@@ -1016,7 +1030,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     for (int index = 0; index < MAX_ELTWISE_INPUT; ++index) {
       input[index] = (float *)opdT[index]->data();
     }
-    float *output = (float *)resultT.get()->data();
+    float *output = (float *)resultT->data();
 
     // for INT8, get threshold_x and make copy of input first
     std::vector<float> input_copy[MAX_ELTWISE_INPUT];
@@ -1093,6 +1107,10 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       for (int i = 0; i < size; ++i) {
         output[i] = (float)applyRShiftAndSaturateInt8(output[i], (uint32_t)rshift);
       }
+    } else if (op.quant() == "BF16") {
+      auto tensor_bf16 = std::make_unique<std::vector<bfloat16> >(resultT->size());
+      FloatToBFloat16(resultT->data(), tensor_bf16->data(), resultT->size()); // with rounding
+      BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
     }
 
 #ifdef QUANT_DEQUANT_EVERY_LAYER

@@ -64,7 +64,7 @@ float dequantizeNeuron(int8_t q, float threshold);
 typedef uint16_t bfloat16;
 
 void FloatToBFloat16(const float* src, bfloat16* dst, size_t size,
-    bool rounding = true);
+    bool rounding = false);
 void BFloat16ToFloat(const bfloat16* src, float* dst, size_t size);
 
 } // namespace mlir
