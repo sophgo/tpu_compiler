@@ -50,23 +50,29 @@ namespace mlir {
 
 template< typename T>
 static bool check_type(Type eltType) {
+  bool same;
   if ( eltType.isBF16() ) {
     // we use uint16_t to represent BF16 (same as tensorflow)
-    return std::is_same<T, uint16_t>::value;
+    same = std::is_same<T, uint16_t>::value;
   } else if ( eltType.isF32() ) {
-    return std::is_same<T, float>::value;
+    same = std::is_same<T, float>::value;
   } else if ( eltType.isInteger(8) ) {
-    return std::is_same<T, int8_t>::value;
+    same = std::is_same<T, int8_t>::value;
   } else if ( eltType.isInteger(16) ) {
-    return std::is_same<T, int16_t>::value;
+    same = std::is_same<T, int16_t>::value;
   } else if ( eltType.isInteger(32) ) {
-    return std::is_same<T, uint32_t>::value;
+    same = std::is_same<T, uint32_t>::value;
   } else {
     // eltType.isF16()
     // eltType.isF64()
     // ...
-    return false;
+    same = false;
   }
+  if (same != true) {
+    eltType.dump();
+    llvm::errs() << "\nnot equal to Type " << typeid(T).name() << "\n";
+  }
+  return same;
 }
 
 class TensorFile {

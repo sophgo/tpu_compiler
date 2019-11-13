@@ -249,15 +249,14 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
     // read the tensor
     auto tensor_name = weightOp.name().getValue();
     auto type = weightOp.getResult()->getType().cast<TensorType>();
-    auto weight = weightTensorFile_->readTensor<float>(tensor_name, type);
-
     auto curPos = weightBinaryFile_->tell();
-
+    size_t size;
     if (weightOp.storage() == "INT8") {
+      auto weight = weightTensorFile_->readTensor<float>(tensor_name, type);
+      size = weight->size();
       // cast into int8
       std::vector<int8_t> weight_int8(weight->begin(), weight->end());
-      // TODO: the transpose was added to workaround a hardware bug
-      // TODO: we should remove this transpose if we can verify the tdma tput is the same
+      // hw design needs transpose on filters
       // transpose if this is conv filter weight
       // TODO: this is tricky, we assume any 4 dim weight tensor is a conv filter
       std::vector<int64_t> shape = type.getShape();
@@ -268,7 +267,6 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
       if (shape.size() == 2) {
         transposeFullyConnectedFilter(weight_int8, shape);
       }
-      // TODO: end of workaround transpose
       // pad to alignment
       if ( weight_int8.size() % alignment_ ) {
         size_t pad = alignment_ - (weight_int8.size() % alignment_);
@@ -279,6 +277,8 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
       weightBinaryFile_->write(reinterpret_cast<const char*>(weight_int8.data()),
           weight_int8.size() * sizeof(int8_t));
     } else if (weightOp.storage() == "UINT8") {
+      auto weight = weightTensorFile_->readTensor<float>(tensor_name, type);
+      size = weight->size();
       // cast into int8
       std::vector<uint8_t> weight_uint8(weight->begin(), weight->end());
       // pad to alignment
@@ -291,11 +291,12 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
       weightBinaryFile_->write(reinterpret_cast<const char*>(weight_uint8.data()),
           weight_uint8.size() * sizeof(uint8_t));
     } else if (weightOp.storage() == "INT16") {
+      auto weight = weightTensorFile_->readTensor<float>(tensor_name, type);
+      size = weight->size();
       // cast into int8
       std::vector<int16_t> weight_int16(weight->begin(), weight->end());
-      // TODO: bias are also transposed, should consider removing
+      // bias are also transposed
       transposeBiasInt16(weight_int16);
-      // TODO end of workaround transpose
       // pad to alignment
       if ( weight_int16.capacity() % alignment_ ) {
         size_t pad = ( alignment_ - ( weight_int16.capacity() % alignment_ ) )
@@ -306,6 +307,22 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
       }
       weightBinaryFile_->write(reinterpret_cast<const char*>(weight_int16.data()),
           weight_int16.size() * sizeof(int16_t));
+    } else if (weightOp.storage() == "BF16") {
+      auto weight = weightTensorFile_->readTensor<uint16_t>(tensor_name, type);
+      size = weight->size();
+      std::vector<uint16_t> weight_bf16(weight->begin(), weight->end());
+      // TODO: don't know if we need transpose yet
+      //transposeBf16(weight_bf16);
+      // pad to alignment
+      if ( weight_bf16.capacity() % alignment_ ) {
+        size_t pad = ( alignment_ - ( weight_bf16.capacity() % alignment_ ) )
+                     / sizeof(uint16_t);
+        for (size_t i = 0; i < pad; ++i) {
+          weight_bf16.push_back(0xffff); // assign a special value for debugging
+        }
+      }
+      weightBinaryFile_->write(reinterpret_cast<const char*>(weight_bf16.data()),
+          weight_bf16.size() * sizeof(uint16_t));
     } else if (weightOp.storage() == "NONE") {
     } else {
       llvm::errs() << tensor_name << " weight storage type "
@@ -317,7 +334,7 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
     map_os_ << tensor_name << "," << llvm::format_hex(curPos, 10) << "\n";
 
     llvm::errs() << llvm::format("[%-36s][%8d] : [ ",
-                                 tensor_name.str().c_str(), weight->size())
+                                 tensor_name.str().c_str(), size)
                  << llvm::format_hex(curPos, 10) << " --> "
                  << llvm::format_hex(newPos, 10) << " ]\n";
 

@@ -9,8 +9,9 @@ rm -f *.mlir *.bin *.npz *.csv
 # run tests
 $DIR/regression_1_fp32.sh
 $DIR/regression_2_int8.sh
-$DIR/regression_3_cmdbuf.sh
+$DIR/regression_3_int8_cmdbuf.sh
 $DIR/regression_4_bf16.sh
+$DIR/regression_5_bf16_cmdbuf.sh
 
 # VERDICT
 echo $0 PASSED

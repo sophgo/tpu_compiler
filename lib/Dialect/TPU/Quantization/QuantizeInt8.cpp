@@ -518,7 +518,6 @@ struct TpuQuantPool2DOpPattern : public RewritePattern {
       llvm::errs() << poolOp.name() << " quantized already\n";
       return matchFailure();
     }
-
     poolOp.setAttr("quant", rewriter.getStringAttr("INT8"));
 
     return matchSuccess();
@@ -545,15 +544,6 @@ struct TpuQuantEltwiseOpPattern : public RewritePattern {
       llvm::errs() << eltOp.name() << " quantized already\n";
       return matchFailure();
     }
-
-    // replace with the new op
-    //auto origAttrs = eltOp.getAttrs();
-    //std::vector<NamedAttribute> newAttrs(origAttrs.begin(), origAttrs.end());
-    //newAttrs.push_back(rewriter.getNamedAttr("quant", rewriter.getStringAttr("INT8")));
-    //rewriter.replaceOpWithNewOp<tpu::FullyConnectedOp>(
-    //    fcOp, fcOp.getResult()->getType(),
-    //    ArrayRef<Value *>{newOperands}, ArrayRef<NamedAttribute>{newAttrs});
-
     eltOp.setAttr("quant", rewriter.getStringAttr("INT8"));
 
     return matchSuccess();

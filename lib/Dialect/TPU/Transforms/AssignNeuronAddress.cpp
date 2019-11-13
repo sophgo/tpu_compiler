@@ -59,8 +59,17 @@ struct TpuQuantizationOpPattern : public RewritePattern {
     auto curPos = *pos_;
     auto type = castOp.getResult()->getType().template cast<TensorType>();
     std::vector<int64_t> shape = type.getShape();
-    auto count = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
-    auto size = count * sizeof(int8_t);
+    auto count = std::accumulate(std::begin(shape), std::end(shape),
+                                 1, std::multiplies<>());
+    size_t size;
+    if (castOp.quant() == "INT8" || castOp.quant() == "INT8_PER_CHANNEL"
+        || castOp.quant() == "INT8_MULTIPLIER") {
+      size = count * sizeof(int8_t);
+    } else if (castOp.quant() == "BF16") {
+      size = count * sizeof(uint16_t);
+    } else {
+      assert(0);
+    }
     // pad to alignment
     if (size % alignment_) {
       size = size + alignment_ - (size % alignment_);
@@ -134,8 +143,9 @@ public:
         context, "tpu.fully_connected", &pos, neuronMapFile->os(), clNeuronAlignment);
     patterns.insert<TpuQuantizationOpPattern<tpu::Pool2DOp> >(
         context, "tpu.pool_2d", &pos, neuronMapFile->os(), clNeuronAlignment);
-    patterns.insert<TpuQuantizationOpPattern<tpu::ReluOp> >(
-        context, "tpu.relu", &pos, neuronMapFile->os(), clNeuronAlignment);
+    // assuming all relu Ops fused
+    //patterns.insert<TpuQuantizationOpPattern<tpu::ReluOp> >(
+    //    context, "tpu.relu", &pos, neuronMapFile->os(), clNeuronAlignment);
     patterns.insert<TpuQuantizationOpPattern<tpu::EltwiseOp> >(
         context, "tpu.eltwise", &pos, neuronMapFile->os(), clNeuronAlignment);
     applyPatternsGreedily(fn, patterns);
