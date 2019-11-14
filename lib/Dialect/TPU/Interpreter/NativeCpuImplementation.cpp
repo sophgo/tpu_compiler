@@ -33,7 +33,7 @@ static size_t write_bianry_file(std::string filename, const char *data,
 
 int mkldnn_conv(float *input, float *weight, float *bias,
     float *output, int n, int ic, int ih, int iw, int oc, int oh, int ow,
-    int kh, int kw, int sh, int sw, int ph, int pw) {
+    int kh, int kw, int sh, int sw, int ph, int pw, int g) {
   if (!bias) {
     auto zero_bias = new std::vector<float>(oc, 0.0f);
     bias = zero_bias->data();
@@ -46,7 +46,7 @@ int mkldnn_conv(float *input, float *weight, float *bias,
     write_bianry_file(prefix + std::string("_in.bin"),
         (const char *)input, n * ic * ih * iw * sizeof(float));
     write_bianry_file(prefix + std::string("_filter.bin"),
-        (const char *)weight, oc * ic * kh * kw * sizeof(float));
+        (const char *)weight, g * (oc/g) * (ic/g) * kh * kw * sizeof(float));
     write_bianry_file(prefix + std::string("_bias.bin"),
         (const char *)bias, oc * sizeof(float));
   }
@@ -54,7 +54,8 @@ int mkldnn_conv(float *input, float *weight, float *bias,
   LLVM_DEBUG(
     llvm::errs() << "  k: (" << kh << "*" << kw << "), "
                  << "s: (" << sh << "*" << sw << "), "
-                 << "p: (" << ph << "*" << pw << ")" << "\n";
+                 << "p: (" << ph << "*" << pw << "), "
+                 << "g: " << g << "\n";
   );
 
   using tag = memory::format_tag;
@@ -68,7 +69,8 @@ int mkldnn_conv(float *input, float *weight, float *bias,
 
   const memory::dim batch = n;
   memory::dims src_tz = { batch, ic, ih, iw };
-  memory::dims weights_tz = { oc, ic, kh, kw };
+  memory::dims weights_tz = (g != 1) ? memory::dims{g, oc/g, ic/g, kh, kw}
+                                    : memory::dims{oc, ic, kh, kw};
   memory::dims bias_tz = { oc };
   memory::dims dst_tz = { batch, oc, oh, ow };
   memory::dims strides = { sh, sw };
@@ -77,8 +79,9 @@ int mkldnn_conv(float *input, float *weight, float *bias,
   // memory
   auto user_src_memory = memory(
       { { src_tz }, dt::f32, tag::nchw }, eng, input);
-  auto user_weights_memory = memory(
-      { { weights_tz }, dt::f32, tag::oihw }, eng, weight);
+  auto user_weights_memory = (g != 1)
+      ? memory({ { weights_tz }, dt::f32, tag::goihw }, eng, weight)
+      : memory({ { weights_tz }, dt::f32, tag::oihw }, eng, weight);
   auto user_bias_memory = memory(
       { { bias_tz }, dt::f32, tag::x }, eng, bias);
   auto user_dst_memory = memory(

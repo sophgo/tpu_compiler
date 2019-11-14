@@ -170,7 +170,6 @@ public:
       TensorType &type) {
     assert(check_type<T>(type.getElementType()) == true);
     std::vector<int64_t> shape = type.getShape();
-    assert(shape.size() <= 4);
     auto count = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
     auto data = std::make_unique<std::vector<T> >(count);
     auto ret = readTensor(name, (T*)data.get()->data(), count);

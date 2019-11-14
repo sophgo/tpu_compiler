@@ -68,6 +68,11 @@ static llvm::cl::opt<std::string> clCmdBufFilename(
     llvm::cl::init("-"),
     llvm::cl::cat(clOptionsCategory));
 
+static llvm::cl::opt<float> clInputScale(
+    "input-scale",
+    llvm::cl::desc("input scale to apply on the input values"),
+    llvm::cl::cat(clOptionsCategory));
+
 #ifdef ENABLE_GEN_CMDBUF
 #include "backend/backend_tg_api.h"
 static BM1880v2BackendContext *backend_ctx = nullptr;
@@ -161,6 +166,16 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     // use copy for now
     resultT->assign(opdT[0]->begin(), opdT[0]->end());
 
+    float inputScale =
+        (clInputScale.getNumOccurrences() > 0) ? clInputScale : 1.0f;
+
+    if (inputScale != 1.0f) {
+      llvm::errs() << "Apply input_scale = " << clInputScale << "\n";
+      for(auto it = resultT->begin(); it != resultT->end(); it++ ) {
+        *it *= inputScale;
+      }
+    }
+
     valueMapping[result] = std::move(resultT);
 
     return success();
@@ -176,7 +191,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     auto resultT = std::make_unique<std::vector<float> >(size);
 
     // TODO: do the actual compute here
-    int n, ic, ih, iw, oc, oh, ow, kh, kw, sh, sw, ph, pw, dh, dw;
+    int n, ic, ih, iw, oc, oh, ow, kh, kw, sh, sw, ph, pw, dh, dw, g;
     dh = op.dilation_h_factor().getLimitedValue();  // APInt, use .getLimitedValue(); to get uint65_t
     dw = op.dilation_w_factor().getLimitedValue();
     sh = op.stride_h().getLimitedValue();
@@ -189,14 +204,15 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     std::vector<int64_t> f_s(filter_type.getShape());
     assert((i_s[0] == o_s[0]) && "input N not equal to output N");
     n = i_s[0];
+    ic = i_s[1];
     ih = i_s[2];
     iw = i_s[3];
-    oc = f_s[0];
-    ic = f_s[1];
-    kh = f_s[2];
-    kw = f_s[3];
+    oc = o_s[1];
     oh = o_s[2];
     ow = o_s[3];
+    auto f_dim = f_s.size();
+    kh = f_s[f_dim - 1];
+    kw = f_s[f_dim - 1];
     if (op.padding() == "SAME") {
       ph = findPadForSamePadding(ih, oh, kh, sh, dh);
       pw = findPadForSamePadding(iw, ow, kw, sw, dw);
@@ -205,6 +221,13 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       pw = 0;
     } else {
       assert(false);
+    }
+    g = op.group().getLimitedValue();
+    if (g != 1) {
+      // only support depthwise group for now (not support normal group)
+      assert(f_s.size() == 5 && g == f_s[0]);
+      assert(f_s[1] == 1 && f_s[2] == 1);
+      assert(g == ic && g == oc);
     }
     float *mkldnn_input = (float *)opdT[0]->data();
     float *mkldnn_weight = (float *)opdT[1]->data();
@@ -270,7 +293,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
     float *mkldnn_output = (float *)resultT->data();
     int mkldnn_ret = mkldnn_conv(mkldnn_input, mkldnn_weight, mkldnn_bias, mkldnn_output,
-        n, ic, ih, iw, oc, oh, ow, kh, kw, sh, sw, ph, pw);
+        n, ic, ih, iw, oc, oh, ow, kh, kw, sh, sw, ph, pw, g);
     assert(mkldnn_ret == 0);
     //dump_data_float_abs("mkldnn_output", mkldnn_output, n, oc, oh, ow);
 
@@ -878,7 +901,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     auto result = op.getResult();
     LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";);
     std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
-    assert(shape.size() == 2);
+    assert(shape.size() == 2 || shape.size() == 4);
     auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
     auto resultT = std::make_unique<std::vector<float> >(size);
 
@@ -891,6 +914,9 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     assert((i_s == o_s) && "input shape not equal to output shape");
     n = i_s[0];
     c = i_s[1];
+    if (i_s.size() == 4) {
+      assert(i_s[2] == 1 && i_s[3] == 1);
+    }
     float *input = (float *)opdT[0]->data();
 
     // do dequantization

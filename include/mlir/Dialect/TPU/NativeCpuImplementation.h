@@ -3,7 +3,7 @@
 
 int mkldnn_conv(float *input, float *weight, float *bias,
     float *output, int n, int ic, int ih, int iw, int oc, int oh, int ow,
-    int kh, int kw, int sh, int sw, int ph, int pw);
+    int kh, int kw, int sh, int sw, int ph, int pw, int g);
 
 int mkldnn_pool(float *input, float *output,
     int n, int c, int ih, int iw, int oh, int ow,

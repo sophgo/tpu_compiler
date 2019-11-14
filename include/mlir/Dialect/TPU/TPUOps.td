@@ -153,6 +153,7 @@ class TPU_ConvOp<string mnemonic, string opSummary> :
     TPU_PaddingAttr:$padding,
     I32Attr:$stride_h,
     I32Attr:$stride_w,
+    DefaultValuedAttr<I32Attr, "1">:$group,
     OptionalAttr<StrAttr>:$name,
     OptionalAttr<NonNegativeI64Attr>:$offset,
     OptionalAttr<F32Attr>:$threshold_y,

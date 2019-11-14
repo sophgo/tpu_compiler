@@ -301,13 +301,13 @@ void CaffeImporter::convertConvolutionLayer(mlir::Block *block,
   auto layer_param = layer->layer_param();
   assert(layer_param.has_convolution_param());
   auto p = layer_param.convolution_param();
-  int64_t n, ic, oc, group;
+  int64_t n, ic, oc, g;
   std::vector<int64_t> kernel(2), stride(2), padding(2), dilation(2);
   std::vector<int64_t> ifmap(2), ofmap(2); // spatial dims only (height and width)
 
   bool with_bias = p.bias_term();
   oc = p.num_output();
-  group  = p.has_group()? p.group() : 1;
+  g  = p.has_group()? p.group() : 1;
   kernel[0] = p.has_kernel_h() ? p.kernel_h() : p.kernel_size_size() > 1 ? p.kernel_size(1) : p.kernel_size(0);
   kernel[1] = p.has_kernel_w() ? p.kernel_w() : p.kernel_size(0);
   stride[0] = p.has_stride_h() ? p.stride_h() : p.stride_size() > 1 ? p.stride(1) : p.stride_size() > 0 ? p.stride(0) : 1;
@@ -317,10 +317,7 @@ void CaffeImporter::convertConvolutionLayer(mlir::Block *block,
   dilation[0] = p.dilation_size() > 1 ? p.dilation(1) : p.dilation_size() > 0 ? p.dilation(0) : 1;
   dilation[1] = p.dilation_size() > 0 ? p.dilation(0) : 1;
 
-  // TODO: don't support group for now
-  assert(group == 1);
   assert( (dilation[0] == 1) && (dilation[1] == 1) );
-
   // get input shape from input var
   llvm::ArrayRef<int64_t> input_shape =
       input_var->getType().dyn_cast<mlir::TensorType>().getShape();
@@ -332,6 +329,10 @@ void CaffeImporter::convertConvolutionLayer(mlir::Block *block,
   // get output shape from inference
   ofmap[0] = calcConv2DSpatialOutput(ifmap[0], kernel[0], stride[0], padding[0], dilation[0]);
   ofmap[1] = calcConv2DSpatialOutput(ifmap[1], kernel[1], stride[1], padding[1], dilation[1]);
+  // if group is not 1, assume it is dw conv for now
+  if (g != 1) {
+    assert(g == ic && g == oc);
+  }
 
   LLVM_DEBUG(
     llvm::errs()
@@ -347,7 +348,7 @@ void CaffeImporter::convertConvolutionLayer(mlir::Block *block,
         << ", S: " << stride[0]   << " * " << stride[1]
         << ", P: " << padding[0]  << " * " << padding[1]
         << ", D: " << dilation[0] << " * " << dilation[1]
-        << ", group: " << group
+        << ", group: " << g
         << "\n";
   );
 
@@ -357,7 +358,12 @@ void CaffeImporter::convertConvolutionLayer(mlir::Block *block,
   // - blobs_[0] holds the filter weights
   // - blobs_[1] holds the biases (optional)
   auto filter_name = layer->layer_param().name()+"_0";
-  auto filter_type = builder_.getTensorType({oc, ic, kernel[0], kernel[1]}, elementType_);
+  TensorType filter_type;
+  if (g != 1) {
+    filter_type = builder_.getTensorType({g, oc/g, ic/g, kernel[0], kernel[1]}, elementType_);
+  } else {
+    filter_type = builder_.getTensorType({oc, ic, kernel[0], kernel[1]}, elementType_);
+  }
   weightFile_->addTensor(filter_name, layer->blobs()[0].get()->cpu_data(), filter_type);
   operands.push_back(AddLoadWeightOp(block, filter_name, filter_type));
   if (with_bias) {
@@ -377,6 +383,7 @@ void CaffeImporter::convertConvolutionLayer(mlir::Block *block,
                   ? builder_.getStringAttr("SAME") : builder_.getStringAttr("VALID")));
   attrs.push_back(builder_.getNamedAttr("stride_h", builder_.getI32IntegerAttr(stride[0])));
   attrs.push_back(builder_.getNamedAttr("stride_w", builder_.getI32IntegerAttr(stride[1])));
+  attrs.push_back(builder_.getNamedAttr("group", builder_.getI32IntegerAttr(g)));
   attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name())));
   auto op = OpBuilder(block).create<tpu::Conv2DOp>(
       builder_.getUnknownLoc(), result_type,
@@ -769,9 +776,15 @@ void CaffeImporter::convertSoftmaxLayer(mlir::Block *block,
   int64_t n, c;
   llvm::ArrayRef<int64_t> input_var_shape =
       input_var->getType().dyn_cast<mlir::TensorType>().getShape();
-  assert(input_var_shape.size() == 2);
-  n = input_var_shape[0];
-  c = input_var_shape[1];
+  if (input_var_shape.size() == 2) {
+    n = input_var_shape[0];
+    c = input_var_shape[1];
+  } else if (input_var_shape.size() == 4) {
+    n = input_var_shape[0];
+    c = input_var_shape[1] * input_var_shape[2] * input_var_shape[3];
+  } else {
+    assert(0);
+  }
 
   LLVM_DEBUG(
     llvm::errs()
@@ -781,7 +794,8 @@ void CaffeImporter::convertSoftmaxLayer(mlir::Block *block,
   );
 
   // construct OP
-  auto result_type = builder_.getTensorType({n, c}, elementType_);
+  //auto result_type = builder_.getTensorType({n, c}, elementType_);
+  auto result_type = input_var->getType();
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name())));
   auto op = OpBuilder(block).create<tpu::SoftmaxOp>(

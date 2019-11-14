@@ -17,6 +17,8 @@ parser = argparse.ArgumentParser(description="Classification Evaluation on Image
 parser.add_argument("--model", type=str)
 parser.add_argument("--dataset", type=str, help="The root directory of the ImageNet dataset.")
 parser.add_argument("--mean_file", type=str, help="the resized ImageNet dataset mean file.")
+parser.add_argument("--input_scale", type=float,
+                    help="Multiply input features by this scale.")
 parser.add_argument("--count", type=int, default=50000)
 parser.add_argument("--dump_data", type=bool, default=False)
 parser.add_argument("--show", type=bool, default=False)
@@ -38,7 +40,7 @@ if __name__ == '__main__':
   ctx = [mx.cpu()]
 
   batch_size = 1
-  num_batches = int(args.count/batch_size)
+  num_batches = int(args.count)/batch_size
 
   # load model
   module = pymlir.module()
@@ -90,6 +92,8 @@ if __name__ == '__main__':
     # expand to 4-D again
     x = np.expand_dims(d, axis=0)
     x -= mean
+    if args.input_scale is not None:
+      x *= float(args.input_scale)
     # print('x mean int8', np.mean(np.reshape(x, (3, -1)), axis=1))
     # print('x std int8', np.std(np.reshape(x, (3, -1)), axis=1))
     #inputs = np.ascontiguousarray(img)
