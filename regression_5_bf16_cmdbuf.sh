@@ -26,17 +26,25 @@ export LD_LIBRARY_PATH=$TPU_BASE_DIR/install_cmodel/lib:$LD_LIBRARY_PATH
     resnet-50.mlir \
     -o resnet-50-opt.mlir
 
+'''
 # run interpreter, to generate reference tensor all npz
 ./bin/mlir-tpu-interpreter resnet-50-quant-bf16.mlir \
     --tensor-in $DATA_DIR/test_cat_in_fp32.bin \
     --tensor-out out-quant-bf16.bin \
     --dump-all-tensor=tensor_all_quant-bf16.npz
+'''
 
 # quantization
 ./bin/mlir-opt \
     --quant-bf16 \
     resnet-50-opt.mlir \
     -o resnet-50-quant-bf16.mlir
+
+# run interpreter, to generate reference tensor all npz
+./bin/mlir-tpu-interpreter resnet-50-quant-bf16.mlir \
+    --tensor-in $TPU_DATA_PATH/test_cat_in_fp32.bin \
+    --tensor-out out-quant-bf16.bin \
+    --dump-all-tensor=tensor_all_quant-bf16.npz
 
 # assign weight address & neuron address
 ./bin/mlir-opt \

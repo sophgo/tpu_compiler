@@ -259,6 +259,50 @@ static LogicalResult runOperation(Operation &opInst) {
         nullptr, //const int *threshold_x_quantized,
         nullptr //const int *right_shift_array
         );
+    } else if (op.quant() == "BF16") {
+
+      gaddr_t bias_gaddr = getWeightOpAddress(op.getOperand(2)->getDefiningOp());
+      // TODO: assuming always with_bias
+      int with_bias = 1;
+
+      bmnet_bf16_conv_forward_kernel(
+        *backend_ctx,
+        0,  // layer_id
+        input_gaddr,
+        output_gaddr,
+        filter_gaddr,
+        bias_gaddr,
+        INVALID_GLOBAL_ADDR,  // ga_bn_mean
+        INVALID_GLOBAL_ADDR, // ga_bn_variance
+        INVALID_GLOBAL_ADDR, // ga_scale
+        INVALID_GLOBAL_ADDR, // ga_scale_bias
+        n,
+        ic,
+        ih,
+        iw,
+        1, // group
+        oc,
+        kh,
+        kw,
+        dh,
+        dw,
+        ph, // pad_h_top
+        ph, // pd_h_bottom
+        pw, // pad_w_left
+        pw, // pad_w_right
+        sh,
+        sw,
+        with_bias,
+        0, // do_bn
+        0, // do_scale
+        0, // do_scale_bias
+        do_relu ? 1 : 0,
+        1.0f, // bn_scale
+        1e-5, // eps
+        0, // param.activation(), method, 0 -> RELU, all others are invalide for now
+        nullptr, // activation_arg,
+        INVALID_GLOBAL_ADDR //global_slope_gaddr
+      );
 
     } else {
       assert(false);
