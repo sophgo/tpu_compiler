@@ -541,16 +541,31 @@ static LogicalResult runOperation(Operation &opInst) {
     h = o_s[2];
     w = o_s[3];
 
-    std::vector<float> threshold_x(MAX_ELTWISE_INPUT);
-    float threshold_y;
-    // determine multiplier and rshift according each threshold_x
-    // scale[i] = threshold_x[i] / threshold_y
-    // each scale will be implemented by hardware as
-    // scale[i] = multiplier / (1 << rshift)
-    // find a rshift, that put max(multiplier) into range (64, 127)
-    uint32_t rshift;
-    int8_t multiplier[MAX_ELTWISE_INPUT];
+    bool do_relu = false;
+    if (op.fused_activation_function() == "NONE") {
+    } else if (op.fused_activation_function() == "RELU") {
+      do_relu = true;
+    } else {
+      assert(0);
+    }
+
     if (op.quant() == "INT8") {
+      gaddr_t ga_inputs[2];
+      ga_inputs[0] = getPreviousOpAddress(op, 0);
+      ga_inputs[1] = getPreviousOpAddress(op, 1);
+      gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
+
+
+      std::vector<float> threshold_x(MAX_ELTWISE_INPUT);
+      float threshold_y;
+      // determine multiplier and rshift according each threshold_x
+      // scale[i] = threshold_x[i] / threshold_y
+      // each scale will be implemented by hardware as
+      // scale[i] = multiplier / (1 << rshift)
+      // find a rshift, that put max(multiplier) into range (64, 127)
+      uint32_t rshift;
+      int8_t multiplier[MAX_ELTWISE_INPUT];
+
       for (int index = 0; index < MAX_ELTWISE_INPUT; ++index) {
         // get threshold_x
         threshold_x[index] = getPreviousOpThreshold(op, index);
@@ -567,45 +582,38 @@ static LogicalResult runOperation(Operation &opInst) {
         float qscale = threshold_x[index] / threshold_y;
         multiplier[index] = (int8_t)findMultiplierFromQScaleAndRShift(qscale, rshift);
       }
-    }
-    bool do_relu = false;
-    if (op.fused_activation_function() == "NONE") {
-    } else if (op.fused_activation_function() == "RELU") {
-      do_relu = true;
-    } else {
-      assert(0);
+
+      int threshold_x_quantized[MAX_ELTWISE_INPUT];
+
+      for (int i = 0; i < MAX_ELTWISE_INPUT; ++i) {
+        threshold_x_quantized[i] = (int)multiplier[i];
+      }
+      const int coeffs[2] = {1, 1};
+      bmnet_eltwise_fixed_forward_bmkernel(
+          *backend_ctx,
+          0, // stream_id,
+          0, // inst_id,
+          0, // layer_id,
+          nullptr, // depends
+          0, // depends_len
+          ga_inputs, // gaddr_t ga_input[],
+          output_gaddr, // gaddr_t ga_output,
+          2, // int input_size,
+          1, // int op,  0, prod, 1, sum, 2, max
+          n,
+          c,
+          h,
+          w,
+          do_relu, // bool do_relu,
+          0.0f, // float relu_slope,
+          rshift, //int right_shift_width,
+          threshold_x_quantized,
+          coeffs);
+
+    } else if (op.quant() == "BF16") {
+
     }
 
-    gaddr_t ga_inputs[2];
-    ga_inputs[0] = getPreviousOpAddress(op, 0);
-    ga_inputs[1] = getPreviousOpAddress(op, 1);
-    gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
-
-    int threshold_x_quantized[MAX_ELTWISE_INPUT];
-    for (int i = 0; i < MAX_ELTWISE_INPUT; ++i) {
-      threshold_x_quantized[i] = (int)multiplier[i];
-    }
-    const int coeffs[2] = {1, 1};
-    bmnet_eltwise_fixed_forward_bmkernel(
-        *backend_ctx,
-        0, // stream_id,
-        0, // inst_id,
-        0, // layer_id,
-        nullptr, // depends
-        0, // depends_len
-        ga_inputs, // gaddr_t ga_input[],
-        output_gaddr, // gaddr_t ga_output,
-        2, // int input_size,
-        1, // int op,  0, prod, 1, sum, 2, max
-        n,
-        c,
-        h,
-        w,
-        do_relu, // bool do_relu,
-        0.0f, // float relu_slope,
-        rshift, //int right_shift_width,
-        threshold_x_quantized,
-        coeffs);
     // gen cmd end
 
     return success();
