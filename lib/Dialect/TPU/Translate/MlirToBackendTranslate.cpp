@@ -439,46 +439,50 @@ static LogicalResult runOperation(Operation &opInst) {
       if (opInst.getNumOperands() > 3) {
         with_bias = 1;
       }
+
+      int rshift_opd_index = 2;
+      if (with_bias) {
+        bias_gaddr = getWeightOpAddress(op.getOperand(2)->getDefiningOp());
+        rshift_opd_index = 3;
+      }
+      int8_t rshift = getRshiftFromOperandTensor(opInst, rshift_opd_index);
+
+      bmnet_fc_fixed_forward_bmkernel(
+          *backend_ctx,
+          0, // stream_id,
+          0, // inst_id,
+          0, // layer_id,
+          nullptr, // depends
+          0, // depends_len
+          input_gaddr, // input_data_gaddr,
+          filter_gaddr, // weight_data_gaddr,
+          bias_gaddr, // bias_data_gaddr,
+          output_gaddr, // output_data_gaddr,
+          m, // int in_row,
+          k, // int in_col,
+          n, // int out_col,
+          1, // int have_bias,
+          0, // do_activation,
+          0, // activation_method,
+          INVALID_GLOBAL_ADDR, // activation_ga_slope,
+          0, // int activation_channel_shared,
+          0, // int activation_gt_scale,
+          0, // int activation_gt_rshift,
+          0, // int activation_le_scale,
+          0, // int activation_le_rshift,
+          false, // weight_tp,
+          3, // int left_shift_width, // #define DEFAULT_FC_LEFT_SHIFT 3
+          (int)rshift, // rshift
+          0, //int threshold_x_quantized_len,
+          nullptr, //const int *threshold_x_quantized,
+          nullptr //const int *right_shift_array
+          );
+
+    } else if (op.quant() == "BF16") {
+
     } else {
       assert(0);
     }
-    int rshift_opd_index = 2;
-    if (with_bias) {
-      bias_gaddr = getWeightOpAddress(op.getOperand(2)->getDefiningOp());
-      rshift_opd_index = 3;
-    }
-    int8_t rshift = getRshiftFromOperandTensor(opInst, rshift_opd_index);
-
-    bmnet_fc_fixed_forward_bmkernel(
-        *backend_ctx,
-        0, // stream_id,
-        0, // inst_id,
-        0, // layer_id,
-        nullptr, // depends
-        0, // depends_len
-        input_gaddr, // input_data_gaddr,
-        filter_gaddr, // weight_data_gaddr,
-        bias_gaddr, // bias_data_gaddr,
-        output_gaddr, // output_data_gaddr,
-        m, // int in_row,
-        k, // int in_col,
-        n, // int out_col,
-        1, // int have_bias,
-        0, // do_activation,
-        0, // activation_method,
-        INVALID_GLOBAL_ADDR, // activation_ga_slope,
-        0, // int activation_channel_shared,
-        0, // int activation_gt_scale,
-        0, // int activation_gt_rshift,
-        0, // int activation_le_scale,
-        0, // int activation_le_rshift,
-        false, // weight_tp,
-        3, // int left_shift_width, // #define DEFAULT_FC_LEFT_SHIFT 3
-        (int)rshift, // rshift
-        0, //int threshold_x_quantized_len,
-        nullptr, //const int *threshold_x_quantized,
-        nullptr //const int *right_shift_array
-        );
 
     return success();
   }
@@ -611,7 +615,7 @@ static LogicalResult runOperation(Operation &opInst) {
           coeffs);
 
     } else if (op.quant() == "BF16") {
-
+      // assert(false);
     }
 
     // gen cmd end
