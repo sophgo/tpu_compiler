@@ -24,6 +24,7 @@ if len(sys.argv) == 4:
   K = int(sys.argv[3])
 
 module = pymlir.module()
+print('load module ', sys.argv[1])
 module.load(sys.argv[1])
 print("load module done")
 # module.dump()

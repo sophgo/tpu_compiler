@@ -167,10 +167,25 @@ result of resnet-50 accuracy with count=10000 (fp32, int8, int8-per-channel, int
 
 | mode | Top-1 accuracy | Top-5 accuracy |
 | ---  | ---            | ---            |
-| fp32             | 0.7820 | 0.9386 |
-| int8 Per-layer   | 0.7788 | 0.9374 |
-| int8 Per-channel | 0.7805 | 0.9395 |
-| int8 Multiplier  | 0.7806 | 0.9394 |
+| fp32             | 0.7318 | 0.9120 |
+| int8 Per-layer   | 0.7206 | 0.9108 |
+| int8 Per-channel | 0.7355 | 0.9146 |
+| int8 Multiplier  | 0.7318 | 0.9120 |
+| fp16             | 0.7240 | 0.9085 |
+
+| fp32 - pytorch   | 0.7486 | 0.9221 |
+| fp16 - pytorch   | 0.7504 | 0.9223 |
+| int8 Multiplier  | 0.7476 | 0.9174 |
+| int8 Per-channel | 0.7498 | 0.9200 |
+| int8 Per-layer   | 0.7446 | 0.9171 |
+
+mobilenet-v2
+| fp32             | 0.7210 | 0.9068 |
+| fp32 - pytorch   | 0.7178 | 0.9029 |
+
+mobilenet-v1
+| fp32             | 0.6990 | 0.8965 |
+| fp32 - pytorch   | 0.7215 | 0.9073 |
 
 ### 3. Pre-Quantization optimization
 
