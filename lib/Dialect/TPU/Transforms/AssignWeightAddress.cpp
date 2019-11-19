@@ -38,12 +38,13 @@
 
 using namespace mlir;
 
-static void transposeConvolutionFilter(std::vector<int8_t> &w, std::vector<int64_t> &s) {
+template<typename T>
+static void transposeConvolutionFilter(std::vector<T> &w, std::vector<int64_t> &s) {
   assert(s.size() == 4);
   int oc = s[0];
   int ic = s[1];
   int ks = s[2] * s[3];
-  std::vector<int8_t> w_t(w.size());
+  std::vector<T> w_t(w.size());
   if (ks == 1) {
     return;
   } else {
@@ -59,11 +60,12 @@ static void transposeConvolutionFilter(std::vector<int8_t> &w, std::vector<int64
   w.assign(w_t.begin(), w_t.end());
 }
 
-static void transposeFullyConnectedFilter(std::vector<int8_t> &w, std::vector<int64_t> &s) {
+template<typename T>
+static void transposeFullyConnectedFilter(std::vector<T> &w, std::vector<int64_t> &s) {
   assert(s.size() == 2);
   int row = s[0];
   int col = s[1];
-  std::vector<int8_t> w_t(w.size());
+  std::vector<T> w_t(w.size());
   for (int i = 0; i < row; i++) {
     for (int j = 0; j < col; j++) {
       w_t[j * row + i] = w[i * col  + j];
@@ -256,17 +258,19 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
       size = weight->size();
       // cast into int8
       std::vector<int8_t> weight_int8(weight->begin(), weight->end());
+
       // hw design needs transpose on filters
       // transpose if this is conv filter weight
       // TODO: this is tricky, we assume any 4 dim weight tensor is a conv filter
       std::vector<int64_t> shape = type.getShape();
       if (shape.size() == 4) {
-        transposeConvolutionFilter(weight_int8, shape);
+        transposeConvolutionFilter<int8_t>(weight_int8, shape);
       }
       // TODO: this is tricky, we assume any 2 dim weight tensor is a fc filter
       if (shape.size() == 2) {
-        transposeFullyConnectedFilter(weight_int8, shape);
+        transposeFullyConnectedFilter<int8_t>(weight_int8, shape);
       }
+
       // pad to alignment
       if ( weight_int8.size() % alignment_ ) {
         size_t pad = alignment_ - (weight_int8.size() % alignment_);
@@ -311,8 +315,29 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
       auto weight = weightTensorFile_->readTensor<uint16_t>(tensor_name, type);
       size = weight->size();
       std::vector<uint16_t> weight_bf16(weight->begin(), weight->end());
-      // TODO: don't know if we need transpose yet
-      //transposeBf16(weight_bf16);
+
+      // hw design needs transpose on filters
+      // transpose if this is conv filter weight
+      // TODO: this is tricky, we assume any 4 dim weight tensor is a conv filter
+      std::vector<int64_t> shape = type.getShape();
+      if (shape.size() == 4) {
+        transposeConvolutionFilter<uint16_t>(weight_bf16, shape);
+      }
+      // TODO: this is tricky, we assume any 2 dim weight tensor is a fc filter
+      if (shape.size() == 2) {
+        transposeFullyConnectedFilter<uint16_t>(weight_bf16, shape);
+      }
+      // TODO: this is even more tricky (FIXME asap), assume 1 dim tensor is bias
+      // for bm1880v2, bias is fp32, but store as 2 separate stripe
+      // one for high 16-bit, one for low-16 bit
+      // we use the quantized bf16 bias as high 16-bit, and add a zero stripe low 16-bit
+      if (shape.size() == 1) {
+        size_t sz = weight_bf16.size();
+        for (size_t i = 0; i < sz; ++i) {
+          weight_bf16.push_back(0x0000);
+        }
+      }
+
       // pad to alignment
       if ( weight_bf16.capacity() % alignment_ ) {
         size_t pad = ( alignment_ - ( weight_bf16.capacity() % alignment_ ) )

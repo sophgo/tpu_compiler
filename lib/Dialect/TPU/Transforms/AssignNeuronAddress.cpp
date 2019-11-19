@@ -62,11 +62,14 @@ struct TpuQuantizationOpPattern : public RewritePattern {
     auto count = std::accumulate(std::begin(shape), std::end(shape),
                                  1, std::multiplies<>());
     size_t size;
+    std::string dtype;
     if (castOp.quant() == "INT8" || castOp.quant() == "INT8_PER_CHANNEL"
         || castOp.quant() == "INT8_MULTIPLIER") {
       size = count * sizeof(int8_t);
+      dtype = "int8";
     } else if (castOp.quant() == "BF16") {
       size = count * sizeof(uint16_t);
+      dtype = "uint16";
     } else {
       assert(0);
     }
@@ -84,7 +87,8 @@ struct TpuQuantizationOpPattern : public RewritePattern {
     // expand to dims=4
     while (shape.size() < 4)
       shape.insert(shape.begin(), 1);
-    map_os_ << castOp.name() << "," << llvm::format_hex(curPos, 10) << ",int8,"
+    map_os_ << castOp.name() << "," << llvm::format_hex(curPos, 10) << ","
+            << dtype << ","
             << shape[0] << "," << shape[1] << ","
             << shape[2] << "," << shape[3] << "\n";
 

@@ -165,6 +165,7 @@ $ python ../llvm/projects/mlir/bindings/python/tools/run_classification.py \
 
 result of resnet-50 accuracy with count=10000 (fp32, int8, int8-per-channel, int8-multiplier)
 
+gluoncv (10000)
 | mode | Top-1 accuracy | Top-5 accuracy |
 | ---  | ---            | ---            |
 | fp32             | 0.7318 | 0.9120 |
@@ -173,19 +174,53 @@ result of resnet-50 accuracy with count=10000 (fp32, int8, int8-per-channel, int
 | int8 Multiplier  | 0.7318 | 0.9120 |
 | fp16             | 0.7240 | 0.9085 |
 
-| fp32 - pytorch   | 0.7486 | 0.9221 |
-| fp16 - pytorch   | 0.7504 | 0.9223 |
-| int8 Multiplier  | 0.7476 | 0.9174 |
-| int8 Per-channel | 0.7498 | 0.9200 |
+pytorch (10000)
+| mode | Top-1 accuracy | Top-5 accuracy |
+| ---  | ---            | ---            |
+| fp32             | 0.7486 | 0.9221 |
 | int8 Per-layer   | 0.7446 | 0.9171 |
+| int8 Per-channel | 0.7498 | 0.9200 |
+| int8 Multiplier  | 0.7476 | 0.9174 |
+| fp16             | 0.7504 | 0.9223 |
 
 mobilenet-v2
-| fp32             | 0.7210 | 0.9068 |
+| shicai           | 0.7190 | 0.9049 |
+| fp32 - gluoncv   | 0.7210 | 0.9068 |
 | fp32 - pytorch   | 0.7178 | 0.9029 |
 
 mobilenet-v1
-| fp32             | 0.6990 | 0.8965 |
+| shicai           | 0.7081 | 0.8985 |
+| fp32 - gluoncv   | 0.6990 | 0.8965 |
 | fp32 - pytorch   | 0.7215 | 0.9073 |
+
+20191119
+gluoncv (5000)
+| mode | Top-1 accuracy | Top-5 accuracy |
+| ---  | ---            | ---            |
+| fp32             | 0.7248 | 0.9102 |
+| int8 Per-layer   | 0.7214 | 0.9136 |
+| int8 Per-channel | 0.7196 | 0.9082 |
+| int8 Multiplier  | 0.7120 | 0.9124 |
+| fp16             | 0.7324 | 0.9114 |
+
+pytorch (5000)
+| mode | Top-1 accuracy | Top-5 accuracy |
+| ---  | ---            | ---            |
+| fp32             | 0.7424 | 0.9184 |
+| int8 Per-layer   | 0.7386 | 0.9154 |
+| int8 Per-channel | 0.7422 | 0.9142 |
+| int8 Multiplier  | 0.7550 | 0.9238 |
+| fp16             | 0.7616 | 0.9288 |
+
+mobilenet-v2
+| shicai           | 0.7190 | 0.9049 |
+| fp32 - gluoncv   | 0.7202 | 0.9098 |
+| fp32 - pytorch   | 0.7166 | 0.9054 |
+
+mobilenet-v1
+| shicai           | 0.7081	| 0.8985 |
+| fp32 - gluoncv   | 0.6960 | 0.8966 |
+| fp32 - pytorch   | 0.7210 | 0.9040 |
 
 ### 3. Pre-Quantization optimization
 

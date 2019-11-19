@@ -60,7 +60,6 @@ $ python ./bin_dump.py out_conv1.bin int8 1 64 112 112
 # ref
 $ python ./npz_dump.py tensor_all-int8.npz scale_conv1
 
-
 # extract conv1_relu (0x016d3ff0 = 23937008)
 $ python ./bin_extract.py out_new.bin out_conv1_relu.bin int8 0x016d3ff0 802816
 $ python ./bin_dump.py out_conv1_relu.bin int8 1 64 112 112
@@ -310,3 +309,38 @@ $ python ./npz_dump.py tensor_all_quant-int8.npz scale_conv1_quant_int8_1
 [conv1_relu                          ][  802816] : [ 0x016d3ff0 --> 0x01797ff0 ]
 [scale_conv1                         ][  802816] : [ 0x01797ff0 --> 0x0185bff0 ]
 ```
+
+## resnet50 bf16 debug
+
+python ../llvm/projects/mlir/externals/python_tools/bin_extract.py out_all.bin out_conv1.bin bf16 0x01ddd7d0 802816
+python ../llvm/projects/mlir/externals/python_tools/bin_bf16_to_fp32.py out_conv1.bin out_conv1_fp32.bin
+python ../llvm/projects/mlir/externals/python_tools/bin_dump.py out_conv1_fp32.bin float32 1 64 112 112 [-1] > b_out.txt
+
+python ../llvm/projects/mlir/externals/python_tools/npz_dump.py tensor_all-bf16.npz scale_conv1 [-1] > a_ref.txt
+
+- input in bf16
+python ../llvm/projects/mlir/externals/python_tools/bin_bf16_to_fp32.py conv0_in.bin conv0_in_fp32.bin
+python ../llvm/projects/mlir/externals/python_tools/bin_dump.py conv0_in_fp32.bin float32 1 3 26 224
+
+python ../llvm/projects/mlir/externals/python_tools/bin_dump.py ../llvm/projects/mlir/data/test_cat_in_fp32.bin float32 1 3 224 224
+python ../llvm/projects/mlir/externals/python_tools/npz_dump.py tensor_all-bf16.npz data_quant
+
+- filter in bf16
+python ../llvm/projects/mlir/externals/python_tools/bin_dump.py conv0_filter.bin uint16 32 3 7 7
+
+python ../llvm/projects/mlir/externals/python_tools/bin_bf16_to_fp32.py conv0_filter.bin conv0_filter_fp32.bin
+python ../llvm/projects/mlir/externals/python_tools/bin_dump.py conv0_filter_fp32.bin float32 32 3 7 7
+
+python ../llvm/projects/mlir/externals/python_tools/npz_dump.py ResNet-50-model_4_1974f9d4.npz scale_conv1_quant_bf16_0   (uint16)
+
+python ../llvm/projects/mlir/externals/python_tools/npz_dump.py ResNet-50-model_3_1974f9d4.npz scale_conv1_fuse_scale_0   (fp32)
+
+- bias in fp32
+python ../llvm/projects/mlir/externals/python_tools/bin_dump.py conv0_bias.bin float32 1 1 1 32
+
+python ../llvm/projects/mlir/externals/python_tools/npz_dump.py ResNet-50-model_3_1974f9d4.npz scale_conv1_fuse_scale_1
+
+- output in fp32
+python ../llvm/projects/mlir/externals/python_tools/bin_dump.py conv0_tmp_out.bin float32 1 32 12 112
+python ../llvm/projects/mlir/externals/python_tools/bin_dump.py conv4_tmp_out.bin float32 1 32 12 112
+python ../llvm/projects/mlir/externals/python_tools/bin_dump.py conv5_tmp_out.bin float32 1 32 12 112

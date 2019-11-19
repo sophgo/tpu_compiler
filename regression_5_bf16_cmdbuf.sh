@@ -40,7 +40,7 @@ export LD_LIBRARY_PATH=$TPU_BASE_DIR/install_cmodel/lib:$LD_LIBRARY_PATH
 
 # run interpreter, to generate reference tensor all npz
 ./bin/mlir-tpu-interpreter resnet-50-quant-bf16.mlir \
-    --tensor-in $TPU_DATA_PATH/test_cat_in_fp32.bin \
+    --tensor-in $DATA_DIR/test_cat_in_fp32.bin \
     --tensor-out out-quant-bf16.bin \
     --dump-all-tensor=tensor_all_quant-bf16.npz
 
@@ -56,8 +56,6 @@ export LD_LIBRARY_PATH=$TPU_BASE_DIR/install_cmodel/lib:$LD_LIBRARY_PATH
     resnet-50-quant-bf16.mlir \
     -o resnet-50-quant-bf16-addr.mlir
 
-if false; then
-
 # assign weight address & neuron address
 ./bin/mlir-translate \
     --mlir-to-cmdbuf \
@@ -70,16 +68,19 @@ if false; then
     weight_bf16.bin \
     cmdbuf_bf16.bin \
     out_all.bin \
-    16460784 0 16460784 1
+    32921552 0 32921552 1
 python ../llvm/projects/mlir/externals/python_tools/bin_extract.py \
-    out_all.bin out_fc1000.bin bf16 0x00024c00 1000
+    out_all.bin out_fc1000.bin bf16 0x00049800 1000
+
+if false; then
+
 diff out_fc1000.bin $DATA_DIR/test_cat_out_fc1000-bf16.bin
 
 # compare all tensors
 python ../llvm/projects/mlir/externals/python_tools/bin_to_npz.py \
-    out_all.bin neuron_map.csv out_all.npz
+    out_all.bin neuron_map_bf16.csv out_all_bf16.npz
 python ../llvm/projects/mlir/externals/python_tools/npz_compare.py \
-    out_all.npz tensor_all_quant-int8.npz int8 show 5
+    out_all_bf16.npz tensor_all_quant-int8.npz int8 show 5
 
 fi
 

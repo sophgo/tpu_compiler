@@ -21,7 +21,6 @@ if [ ! -e $MKLDNN_PATH ]; then
   rm mkldnn_lnx_1.0.2_cpu_gomp.tgz
 fi
 
-
 # build bmkernel
 if [ ! -e $MLIR_SRC_PATH/externals/bmkernel/build ]; then
   mkdir $MLIR_SRC_PATH/externals/bmkernel/build
