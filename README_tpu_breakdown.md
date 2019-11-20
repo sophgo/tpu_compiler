@@ -202,7 +202,6 @@ gluoncv (5000)
 | int8 Per-channel | 0.7196 | 0.9082 |
 | int8 Multiplier  | 0.7120 | 0.9124 |
 | fp16             | 0.7324 | 0.9114 |
-
 pytorch (5000)
 | mode | Top-1 accuracy | Top-5 accuracy |
 | ---  | ---            | ---            |
@@ -216,6 +215,12 @@ mobilenet-v2
 | shicai           | 0.7190 | 0.9049 |
 | fp32 - gluoncv   | 0.7202 | 0.9098 |
 | fp32 - pytorch   | 0.7166 | 0.9054 |
+
+mobilenet-v2 pytorch (10000)
+| fp32             | 0.7105 | 0.8992 |
+| int8 Per-layer   | 0.4298 | 0.6840 |
+| int8 Per-channel | 0.6923 | 0.8892 |
+| fp32 Multiplier  | 0.6976 | 0.8904 |
 
 mobilenet-v1
 | shicai           | 0.7081	| 0.8985 |

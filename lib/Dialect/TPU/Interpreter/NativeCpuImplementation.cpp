@@ -437,7 +437,7 @@ int my_bn(float *input, float *mean, float *variance, float *scale,
         output[ni * c * h * w + ci * h * w + i] = x / d;
         if (fabs(variance[ci]) <= eps && fabs(mean[ci]) <= 1e-8
             && fabs(input[ni * c * h * w + ci * h * w + i]) >= eps) {
-          llvm::errs() << "BN: var too small, i=" << i
+          llvm::errs() << "WARNING: BN: var too small, i=" << i
                        << ", v=" << std::to_string(variance[ci])
                        << ", m=" << std::to_string(mean[ci])
                        << "\n               "
@@ -446,7 +446,7 @@ int my_bn(float *input, float *mean, float *variance, float *scale,
                        << ", d=" << std::to_string(d)
                        << ", o=" << std::to_string(output[ni * c * h * w + ci * h * w + i])
                        << "\n";
-          assert(0);
+          //assert(0);
         }
       }
     }
