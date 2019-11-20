@@ -553,13 +553,12 @@ static LogicalResult runOperation(Operation &opInst) {
       assert(0);
     }
 
+    gaddr_t ga_inputs[2];
+    ga_inputs[0] = getPreviousOpAddress(op, 0);
+    ga_inputs[1] = getPreviousOpAddress(op, 1);
+    gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
+
     if (op.quant() == "INT8") {
-      gaddr_t ga_inputs[2];
-      ga_inputs[0] = getPreviousOpAddress(op, 0);
-      ga_inputs[1] = getPreviousOpAddress(op, 1);
-      gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
-
-
       std::vector<float> threshold_x(MAX_ELTWISE_INPUT);
       float threshold_y;
       // determine multiplier and rshift according each threshold_x
@@ -615,7 +614,23 @@ static LogicalResult runOperation(Operation &opInst) {
           coeffs);
 
     } else if (op.quant() == "BF16") {
-      // assert(false);
+      const float coeffs[2] = {1.0, 1.0};
+
+      bf16_eltwise_forward_kernel(
+          *backend_ctx,
+          0, // layer_id
+          ga_inputs, // gaddr_t ga_input[]
+          output_gaddr, // gaddr_t ga_output
+          2, // int input_size
+          1, // int op, 0: prod, 1: sum, 2: max
+          n,
+          c,
+          h,
+          w,
+          do_relu, // bool do_relu
+          0.0f, // float relu_slope
+          coeffs
+      );
     }
 
     // gen cmd end
