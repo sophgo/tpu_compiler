@@ -101,12 +101,22 @@ struct TpuQuantConv2DOpPattern : public RewritePattern {
     // create new tensors for quantized fliter and bias
     auto filter_type = convOp.filter()->getType().cast<TensorType>();
     std::vector<int64_t> filter_shape(filter_type.getShape());
-    assert(filter_shape.size() == 4);
     int64_t filter_size = std::accumulate(std::begin(filter_shape),
         std::end(filter_shape), 1, std::multiplies<>());
     assert(filter_size == (int64_t)weights[0]->size());
-    int64_t oc = filter_shape[0];
-    int64_t inner_size = filter_shape[1] * filter_shape[2] * filter_shape[3];
+    int64_t oc, inner_size;
+    //assert(filter_shape.size() == 4 || filter_shape.size() == 5);
+    if (filter_shape.size() == 4) {
+      oc = filter_shape[0];
+      inner_size = filter_shape[1] * filter_shape[2] * filter_shape[3];
+    } else if (filter_shape.size() == 5) {
+      assert(convOp.group() != 1);
+      // g, oc/g, ic/g, kh, kw
+      oc = filter_shape[0] * filter_shape[1];
+      inner_size = filter_shape[2] * filter_shape[3] * filter_shape[4];
+    } else {
+      assert(0);
+    }
     //std::vector<int8_t> new_filter(filter_size);
     //std::vector<int8_t> new_bias(oc);
     // TODO: use float for now, need to change to int8

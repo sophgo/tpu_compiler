@@ -147,8 +147,14 @@ private:
       if (cast_op) {
         assert(cast_op.name().hasValue());
         std::string op_name = cast_op.name().getValue().str();
-        assert(threshold_map[op_name]);
-        float threshold = threshold_map[op_name];
+        float threshold;
+        // FIXME: sometimes these is no softmax threshold present, use 1.0
+        if (llvm::dyn_cast_or_null<tpu::SoftmaxOp>(op) && !threshold_map[op_name]) {
+          threshold = 1.0f;
+        } else {
+          assert(threshold_map[op_name]);
+          threshold = threshold_map[op_name];
+        }
         os << " > " << op_name << ", " << threshold << "\n";
         cast_op.setAttr("threshold_y", builder.getF32FloatAttr(threshold));
       }

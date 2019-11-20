@@ -5,25 +5,29 @@
 
 ## 2. Resnet-50 Per-Channel with Multiplier pass PXP
 
-## 3. Resnet-50 with compression support
-
-## 4. Optimize Resnet-50 performance
-
-## 5. Write BF16 backend, and pass Resnet-50
+## 3. Write BF16 backend, and pass Resnet-50
 
 ## -------------- Tapeout (30/11)   ------------------
 
-## * more network: Mobilenet-V2, SSD, YOLOv3
+## 1. Optimize Resnet-50 performance
+
+## 2. more network: Mobilenet-V1/V2, YOLOv3, SSD
+
+## 3. Resnet-50 with compression support
+
+## 4. Handle meta info, build bmodel
+
+## 5. Accuracy tuning & regression: Mobilenet-V2, YOLOv3
+
+## -------------- End of Year (31/12) ----------------
+
+## * more network: Efficient-Net, NasNet, u-net, etc.
 
 ## * Calibration using pymlir
 
-## * Accuracy tuning & regression: Mobilenet-V2, YOLOv3, u-net
-
-## * Handle meta info, build bmodel
-
 ## * CPU ops integration
 
-## -------------- Chip Back (31/01) ----------------
+## -------------- Chip Back (31/01) ------------------
 
 ## * Add basic ONNX frontend
 
@@ -31,7 +35,7 @@
 
 ## * Code cleanup for frontend open source
 
-## -------------- V0.1 Release ---------------
+## -------------- V0.1 Release (29/02) ---------------
 
 # Backlog
 

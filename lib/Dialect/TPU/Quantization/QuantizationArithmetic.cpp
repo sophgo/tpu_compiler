@@ -19,6 +19,11 @@ namespace mlir {
 uint32_t findRShift(float max_weight, float threshold_y, float threshold_x) {
   assert(threshold_y > 0 && threshold_x > 0);
   float a = max_weight * threshold_x / threshold_y;
+  if (a >= 128) {
+    llvm::errs() << "WARNING: findRshift, max_weight too large "
+                 << std::to_string(max_weight) << "\n";
+    return 0;
+  }
   assert(a < 128);
   for (uint32_t rshift = 0; rshift < 32; ++rshift) {
     if ( (a * (1 << rshift)) >= 64 )
@@ -144,7 +149,7 @@ static inline int16_t saturateInt16(float f) {
     llvm::errs() << "exceeds limits [-32768, 32767] : "
                  << std::to_string(f) << "\n";
   }
-  assert( (q <= 32767) && (q >= -32768) );
+  //assert( (q <= 32767) && (q >= -32768) );
   if ( q > 32767 )
     q = 32767;
   if ( q < -32768 )
