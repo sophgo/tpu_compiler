@@ -246,5 +246,5 @@ $ ./bin/mlir-tpu-interpreter \
 
 $ python ./bin_to_npz.py out_all.bin neuron_map.csv out_all.npz
 
-$ python ./npz_compare.py out_all.npz tensor_all-int8.npz int8
+$ python ./npz_compare.py out_all.npz tensor_all-int8.npz
 ```

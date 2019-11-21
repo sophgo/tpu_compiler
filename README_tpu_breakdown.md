@@ -217,10 +217,16 @@ mobilenet-v2
 | fp32 - pytorch   | 0.7166 | 0.9054 |
 
 mobilenet-v2 pytorch (10000)
-| fp32             | 0.7105 | 0.8992 |
-| int8 Per-layer   | 0.4298 | 0.6840 |
-| int8 Per-channel | 0.6923 | 0.8892 |
-| fp32 Multiplier  | 0.6976 | 0.8904 |
+| fp32             | 0.7129 | 0.9003 |
+| int8 Per-layer   | 0.4339 | 0.6886 |
+| int8 Per-channel | 0.6999 | 0.8861 |
+| int8 Multiplier  | 0.7000 | 0.8908 |
+
+mobilenet-v2 gluoncv (10000)
+| fp32             | 0.7162 | 0.9020 |
+| int8 Per-layer   | 0.4058 | 0.6728 |
+| int8 Per-channel | 0.6789 | 0.8807 |
+| int8 Multiplier  | 0.6801 | 0.8817 |
 
 mobilenet-v1
 | shicai           | 0.7081	| 0.8985 |
@@ -634,7 +640,7 @@ $ ./bin/mlir-tpu-interpreter \
     --dump-all-tensor=tensor_all_quant-int8.npz
 
 # compare out_all.npz with the interpreter dump-all-tensor output.
-$ python ./npz_compare.py out_all.npz tensor_all_quant-int8.npz int8 [show] [5]
+$ python ./npz_compare.py out_all.npz tensor_all_quant-int8.npz [show] [5]
 ```
 
 ```
@@ -645,7 +651,7 @@ $ ./bin/mlir-tpu-interpreter \
     --dump-all-tensor=tensor_all_quant-int8-multiplier.npz
 
 # compare out_all.npz with the interpreter dump-all-tensor output.
-$ python ./npz_compare.py out_all.npz tensor_all_quant-int8-multiplier.npz int8 [show] [5]
+$ python ./npz_compare.py out_all.npz tensor_all_quant-int8-multiplier.npz [show] [5]
 ```
 
 #### 8.6 meta info

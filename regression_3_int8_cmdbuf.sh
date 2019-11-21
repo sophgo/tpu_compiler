@@ -81,7 +81,7 @@ diff out_fc1000.bin $DATA_DIR/test_cat_out_fc1000-int8.bin
 python ../llvm/projects/mlir/externals/python_tools/bin_to_npz.py \
     out_all.bin neuron_map.csv out_all.npz
 python ../llvm/projects/mlir/externals/python_tools/npz_compare.py \
-    out_all.npz tensor_all_quant-int8.npz int8 show 5
+    out_all.npz tensor_all_quant-int8.npz show 5
 
 ################################
 # quantization 2: per-channel int8
@@ -135,7 +135,7 @@ diff out_fc1000.bin $DATA_DIR/test_cat_out_fc1000-int8-multiplier.bin
 python ../llvm/projects/mlir/externals/python_tools/bin_to_npz.py \
     out_all.bin neuron_map.csv out_all.npz
 python ../llvm/projects/mlir/externals/python_tools/npz_compare.py \
-    out_all.npz tensor_all_quant-int8-multiplier.npz int8 show 5
+    out_all.npz tensor_all_quant-int8-multiplier.npz show 5
 
 # VERDICT
 echo $0 PASSED
