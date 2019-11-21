@@ -350,13 +350,18 @@ static LogicalResult runOperation(Operation &opInst) {
       assert(false);
     }
 
-    // for INT8, get threshold_x and make copy of input first
-    float threshold_x;
-    float threshold_y;
-    uint32_t rshift = 0;
-    // multiplier is taking avg_const into account
-    uint32_t multiplier = 0;
+    // gen cmdbuf
+    gaddr_t input_gaddr = getPreviousOpAddress(op);
+    gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
+
     if (op.quant() == "INT8" && is_average_pool) {
+      // for INT8, get threshold_x and make copy of input first
+      float threshold_x;
+      float threshold_y;
+      uint32_t rshift = 0;
+      // multiplier is taking avg_const into account
+      uint32_t multiplier = 0;
+
       threshold_x = getPreviousOpThreshold(op);
       threshold_y = op.threshold_y().getValue().convertToFloat();
       // determine multiplier and rshift according to threshold_x
@@ -370,46 +375,68 @@ static LogicalResult runOperation(Operation &opInst) {
       float scale_and_avg_const = scale / (kh * kw);
       //rshift = findRShiftAndMultiplierFromQScale(scale_and_avg_const, &multiplier, false, 127);
       rshift = findRShiftAndMultiplierFromQScale(scale_and_avg_const, &multiplier, false, 255);
-    }
 
-    // gen cmdbuf
-    gaddr_t input_gaddr = getPreviousOpAddress(op);
-    gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
-
-    int threshold_x_quantized = multiplier;
-    bmnet_pooling_fixed_forward_bmkernel(
-        *backend_ctx,
-        0, // stream_id,
-        0, // inst_id,
-        0, // layer_id,
-        nullptr, // depends
-        0, // depends_len
-        input_gaddr, // input_data_gaddr,
-        output_gaddr, // output_data_gaddr,
-        INVALID_GLOBAL_ADDR, // index_data_gaddr,
-        INVALID_GLOBAL_ADDR, // o_findex_data_gaddr,
-        n,
-        c,
-        ih,
-        iw,
-        kh,
-        kw,
-        ph, // int pad_top,
-        ph, // int pad_bot,
-        pw, // int pad_left,
-        pw, // int pad_right,
-        sh, // int stride_h,
-        sw, // int stride_w,
-        is_average_pool, //is_avg_pooling,
-        0.0f, // float avg_const,  // default(passing 0.0f) is 1/kh*kw
-        0, // int do_relu,
-        is_average_pool ? rshift : 0, //int right_shift_width,
-        is_average_pool ? &threshold_x_quantized : nullptr, // &threshold_x_quantized,
-        true);
+      int threshold_x_quantized = multiplier;
+      bmnet_pooling_fixed_forward_bmkernel(
+          *backend_ctx,
+          0, // stream_id,
+          0, // inst_id,
+          0, // layer_id,
+          nullptr, // depends
+          0, // depends_len
+          input_gaddr, // input_data_gaddr,
+          output_gaddr, // output_data_gaddr,
+          INVALID_GLOBAL_ADDR, // index_data_gaddr,
+          INVALID_GLOBAL_ADDR, // o_findex_data_gaddr,
+          n,
+          c,
+          ih,
+          iw,
+          kh,
+          kw,
+          ph, // int pad_top,
+          ph, // int pad_bot,
+          pw, // int pad_left,
+          pw, // int pad_right,
+          sh, // int stride_h,
+          sw, // int stride_w,
+          is_average_pool, //is_avg_pooling,
+          0.0f, // float avg_const,  // default(passing 0.0f) is 1/kh*kw
+          0, // int do_relu,
+          is_average_pool ? rshift : 0, //int right_shift_width,
+          is_average_pool ? &threshold_x_quantized : nullptr, // &threshold_x_quantized,
+          true);
+   }
+   else if (op.quant() == "BF16") {
+     bf16_pooling_forward_kernel(
+         *backend_ctx,
+         0, // layer_id,
+         input_gaddr, // input_data_gaddr,
+         output_gaddr, // output_data_gaddr,
+         INVALID_GLOBAL_ADDR, // index_data_gaddr,
+         INVALID_GLOBAL_ADDR, // o_findex_data_gaddr,
+         n,
+         c,
+         ih,
+         iw,
+         kh,
+         kw,
+         ph, // int pad_top,
+         ph, // int pad_bot,
+         pw, // int pad_left,
+         pw, // int pad_right,
+         sh, // int stride_h,
+         sw, // int stride_w,
+         is_average_pool, //is_avg_pooling,
+         0.0f, // float avg_const,  // default(passing 0.0f) is 1/kh*kw
+         0, // int do_relu,
+         true);
+   }
     // gen cmdbuf end
 
     return success();
   }
+
   if (auto op = dyn_cast<tpu::FullyConnectedOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "FullyConnectedOp" << "\n";);
 
