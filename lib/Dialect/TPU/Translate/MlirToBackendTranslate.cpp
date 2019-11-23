@@ -462,14 +462,15 @@ static LogicalResult runOperation(Operation &opInst) {
     gaddr_t filter_gaddr = getWeightOpAddress(op.getOperand(1)->getDefiningOp());
     gaddr_t bias_gaddr = INVALID_GLOBAL_ADDR;
     int with_bias = 0;
+    if (opInst.getNumOperands() > 2) {
+      with_bias = 1;
+      bias_gaddr = getWeightOpAddress(op.getOperand(2)->getDefiningOp());
+    }
+
     if (op.quant() == "INT8") {
-      if (opInst.getNumOperands() > 3) {
-        with_bias = 1;
-      }
 
       int rshift_opd_index = 2;
       if (with_bias) {
-        bias_gaddr = getWeightOpAddress(op.getOperand(2)->getDefiningOp());
         rshift_opd_index = 3;
       }
       int8_t rshift = getRshiftFromOperandTensor(opInst, rshift_opd_index);
@@ -488,7 +489,7 @@ static LogicalResult runOperation(Operation &opInst) {
           m, // int in_row,
           k, // int in_col,
           n, // int out_col,
-          1, // int have_bias,
+          with_bias, // int have_bias,
           0, // do_activation,
           0, // activation_method,
           INVALID_GLOBAL_ADDR, // activation_ga_slope,
@@ -506,7 +507,24 @@ static LogicalResult runOperation(Operation &opInst) {
           );
 
     } else if (op.quant() == "BF16") {
+      // Note:
+      //  1880v2 tdma does not support transposed matrix load
+      //  Weight tranpose must be handled before backend
 
+      bf16_fc_forward_kernel(
+        *backend_ctx,
+        0, // layer_id
+        input_gaddr, // input_data_gaddr
+        filter_gaddr, // weight_data_gaddr
+        bias_gaddr, // bias_data_gaddr
+        output_gaddr, // output_data_gaddr
+        m, // int in_row
+        k, // int in_col
+        n, // in out_col,
+        with_bias, // has_bias
+        0, // do_activation
+        0  // activation_method
+      );
     } else {
       assert(0);
     }
