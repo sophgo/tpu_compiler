@@ -29,3 +29,6 @@ target_link_libraries(MLIRTPUTranslate
   MLIRSupport
   backend
   ${translate_LINKER_LIBS})
+
+add_dependencies(MLIRTPUTranslate
+  CViBackend)
