@@ -211,7 +211,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     oh = o_s[2];
     ow = o_s[3];
     auto f_dim = f_s.size();
-    kh = f_s[f_dim - 1];
+    kh = f_s[f_dim - 2];
     kw = f_s[f_dim - 1];
     if (op.padding() == "SAME") {
       ph = findPadForSamePadding(ih, oh, kh, sh, dh);
@@ -228,7 +228,10 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       assert(f_s.size() == 5 && g == f_s[0]);
       assert(f_s[1] == 1 && f_s[2] == 1);
       assert(g == ic && g == oc);
+    } else {
+      assert(f_s.size() == 4);
     }
+
     float *mkldnn_input = (float *)opdT[0]->data();
     float *mkldnn_weight = (float *)opdT[1]->data();
     float *mkldnn_bias = nullptr;

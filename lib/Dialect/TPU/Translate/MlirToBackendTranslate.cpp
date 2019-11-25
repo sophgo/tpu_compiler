@@ -86,7 +86,7 @@ static LogicalResult runOperation(Operation &opInst) {
   if (auto op = dyn_cast<tpu::Conv2DOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "Conv2DOp" << "\n";);
 
-    int n, ic, ih, iw, oc, oh, ow, kh, kw, sh, sw, ph, pw, dh, dw;
+    int n, ic, ih, iw, oc, oh, ow, kh, kw, sh, sw, ph, pw, dh, dw, g;
     dh = op.dilation_h_factor().getLimitedValue();  // APInt, use .getLimitedValue(); to get uint65_t
     dw = op.dilation_w_factor().getLimitedValue();
     sh = op.stride_h().getLimitedValue();
@@ -99,14 +99,15 @@ static LogicalResult runOperation(Operation &opInst) {
     std::vector<int64_t> f_s(filter_type.getShape());
     assert((i_s[0] == o_s[0]) && "input N not equal to output N");
     n = i_s[0];
+    ic = i_s[1];
     ih = i_s[2];
     iw = i_s[3];
-    oc = f_s[0];
-    ic = f_s[1];
-    kh = f_s[2];
-    kw = f_s[3];
+    oc = o_s[1];
     oh = o_s[2];
     ow = o_s[3];
+    auto f_dim = f_s.size();
+    kh = f_s[f_dim - 2];
+    kw = f_s[f_dim - 1];
     if (op.padding() == "SAME") {
       ph = findPadForSamePadding(ih, oh, kh, sh, dh);
       pw = findPadForSamePadding(iw, ow, kw, sw, dw);
@@ -116,6 +117,16 @@ static LogicalResult runOperation(Operation &opInst) {
     } else {
       assert(false);
     }
+    g = op.group().getLimitedValue();
+    if (g != 1) {
+      // only support depthwise group for now (not support normal group)
+      assert(f_s.size() == 5 && g == f_s[0]);
+      assert(f_s[1] == 1 && f_s[2] == 1);
+      assert(g == ic && g == oc);
+    } else {
+      assert(f_s.size() == 4);
+    }
+
     bool do_relu = false;
     if (op.fused_activation_function() == "NONE") {
     } else if (op.fused_activation_function() == "RELU") {
@@ -161,7 +172,7 @@ static LogicalResult runOperation(Operation &opInst) {
         ic,
         ih,
         iw,
-        1, // group,
+        g, // group,
         oc,
         kh,
         kw,
@@ -223,7 +234,7 @@ static LogicalResult runOperation(Operation &opInst) {
         ic,
         ih,
         iw,
-        1, // group,
+        g, // group,
         oc,
         kh,
         kw,

@@ -153,8 +153,15 @@ struct TpuConv2DOpPattern : public RewritePattern {
     // pack the weights
     auto filter_type = convOp.filter()->getType().cast<TensorType>();
     std::vector<int64_t> filter_shape(filter_type.getShape());
-    assert(filter_shape.size() == 4);
-    int64_t oc = filter_shape[0];
+    int64_t oc;
+    auto g = convOp.group().getLimitedValue();
+    if (g != 1) {
+      assert(filter_shape.size() == 5);
+      oc = filter_shape[0] * filter_shape[1];
+    } else {
+      assert(filter_shape.size() == 4);
+      oc = filter_shape[0];
+    }
 
     int64_t isz = has_bias ? 9 : 5;
     std::vector<float> newWeight(oc * isz);
@@ -349,6 +356,8 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
       weightBinaryFile_->write(reinterpret_cast<const char*>(weight_bf16.data()),
           weight_bf16.size() * sizeof(uint16_t));
     } else if (weightOp.storage() == "NONE") {
+      weightOp.setAttr("offset", rewriter.getI64IntegerAttr(-1));
+      return matchSuccess();
     } else {
       llvm::errs() << tensor_name << " weight storage type "
                    << weightOp.storage() << "\n";
@@ -363,7 +372,7 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
                  << llvm::format_hex(curPos, 10) << " --> "
                  << llvm::format_hex(newPos, 10) << " ]\n";
 
-    // assign the addres to weightOp
+    // assign the address to weightOp
     weightOp.setAttr("offset", rewriter.getI64IntegerAttr(curPos));
 
     return matchSuccess();
