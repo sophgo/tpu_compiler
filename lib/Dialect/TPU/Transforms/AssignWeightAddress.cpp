@@ -356,7 +356,6 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
       weightBinaryFile_->write(reinterpret_cast<const char*>(weight_bf16.data()),
           weight_bf16.size() * sizeof(uint16_t));
     } else if (weightOp.storage() == "NONE") {
-      weightOp.setAttr("offset", rewriter.getI64IntegerAttr(-1));
       return matchSuccess();
     } else {
       llvm::errs() << tensor_name << " weight storage type "
