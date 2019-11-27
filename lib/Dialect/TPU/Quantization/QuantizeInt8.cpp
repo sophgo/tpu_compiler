@@ -197,6 +197,13 @@ struct TpuQuantConv2DOpPattern : public RewritePattern {
         // find qscale
         for (int i = 0; i < oc; ++i) {
           float qscale = findQScale(max_filter_abs[i], threshold_y, threshold_x);
+
+          // 1880v2 only supports right shift, avoid left shift
+          if (qscale >= 1.0) {
+            max_filter_abs[i] = 0.99 * max_filter_abs[i] / qscale;
+            qscale = findQScale(max_filter_abs[i], threshold_y, threshold_x);
+          }
+
           uint32_t multiplier;
           rshift_per_channel[i] = (float)findRShiftAndMultiplierFromQScale(qscale,
               &multiplier, true);
