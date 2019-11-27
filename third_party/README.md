@@ -28,14 +28,37 @@ Some of them are using tree build, some rely on manually build for now.
 ## caffe
 
 - https://github.com/BVLC/caffe
-- orignial version (could use caffe_int8 project as well)
-- munually build for now
+- Use tpu branch (based on intel branch, for SSD/YOLO etc.)
+  * Intel branch can't use Ninja
+  * Disable followings compilation options
+    * USE_OPENMP
+    * USE_MKLDNN_AS_DEFAULT_ENGINE
+    * USE_MLSL
+  * Disable CompileNet(), which includes
+    * RemoveBNScale<Dtype>
+    * CompilationRuleRemoveScale
+    * CompilationRuleConvReluFusion
+    * CompilationRuleFuseBnRelu
+    * CompilationRuleBNInplace
+    * CompilationRuleSparse
+    * CompilationRuleConvSumFusion
+    * CompilationRuleFuseFCRelu
+- munually build
 - build
 
 ```
 $ cd third_party/caffe
 $ mkdir build
 $ cd build
-$ cmake -G Ninja -DUSE_OPENCV=OFF -DCMAKE_INSTALL_PREFIX=~/work_cvitek/install_caffe ..
+
+$ MKLDNNROOT=./external/mkldnn/install \
+    cmake -DUSE_OPENCV=OFF -DDISABLE_MKLDNN_DOWNLOAD=1 \
+    -DUSE_OPENMP=OFF -DUSE_MKLDNN_AS_DEFAULT_ENGINE=OFF -DUSE_MLSL=OFF \
+    -DCMAKE_INSTALL_PREFIX=~/work_cvitek/install_caffe ..
 $ cmake --build . --target install
+```
+
+Also need to copy external/mkl/* to caffe install dir
+```
+$ cd third_party/caffe/external/mkl ~/work_cvitek/install_caffe -a
 ```

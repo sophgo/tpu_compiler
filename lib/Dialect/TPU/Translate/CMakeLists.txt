@@ -11,9 +11,21 @@ endif()
 include(${CAFFE_PATH}/share/Caffe/CaffeConfig.cmake)
 find_package(Caffe REQUIRED)
 include_directories(${Caffe_INCLUDE_DIRS})
+include_directories(${CAFFE_PATH}/mkl/mklml/include)
 add_definitions(${Caffe_DEFINITIONS})    # ex. -DCPU_ONLY
 list(APPEND translate_LINKER_LIBS
   ${Caffe_LIBRARIES})
+# use followings if build caffe with make rather than cmake
+if(0)
+  include_directories(${CAFFE_PATH}/include)
+  link_directories(${CAFFE_PATH}/lib)
+  add_definitions(-DCPU_ONLY)
+  list(APPEND translate_LINKER_LIBS
+    caffe
+    caffeproto
+    protobuf
+    boost_system)
+endif()
 
 add_llvm_library(MLIRTPUTranslate
   CaffeToMlirTranslate.cpp

@@ -4,15 +4,6 @@ set -e
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 source $DIR/envsetup.sh
 
-# build caffe
-if [ ! -e $MLIR_SRC_PATH/third_party/caffe/build ]; then
-  mkdir $MLIR_SRC_PATH/third_party/caffe/build
-fi
-pushd $MLIR_SRC_PATH/third_party/caffe/build
-cmake -G Ninja -DUSE_OPENCV=OFF -DCMAKE_INSTALL_PREFIX=$CAFFE_PATH ..
-cmake --build . --target install
-popd
-
 # download and unzip mkldnn
 if [ ! -e $MKLDNN_PATH ]; then
   wget https://github.com/intel/mkl-dnn/releases/download/v1.0.2/mkldnn_lnx_1.0.2_cpu_gomp.tgz
@@ -20,6 +11,21 @@ if [ ! -e $MKLDNN_PATH ]; then
   mv mkldnn_lnx_1.0.2_cpu_gomp $MKLDNN_PATH
   rm mkldnn_lnx_1.0.2_cpu_gomp.tgz
 fi
+
+# build caffe
+# based on intel branch, will download mkl/mlsl automatically
+# copy external/mkl/* into $CAFFE_PATH as well
+if [ ! -e $MLIR_SRC_PATH/third_party/caffe/build ]; then
+  mkdir $MLIR_SRC_PATH/third_party/caffe/build
+fi
+pushd $MLIR_SRC_PATH/third_party/caffe/build
+MKLDNNROOT=$MLIR_SRC_PATH/third_party/caffe/external/mkldnn/install \
+    cmake -DUSE_OPENCV=OFF -DDISABLE_MKLDNN_DOWNLOAD=1 \
+    -DUSE_OPENMP=OFF -DUSE_MKLDNN_AS_DEFAULT_ENGINE=OFF -DUSE_MLSL=OFF  \
+    -DCMAKE_INSTALL_PREFIX=$CAFFE_PATH ..
+cmake --build . --target install
+cp ../external/mkl $CAFFE_PATH -a
+popd
 
 # build bmkernel
 if [ ! -e $MLIR_SRC_PATH/externals/bmkernel/build ]; then

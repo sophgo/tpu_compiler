@@ -16,8 +16,12 @@ git clone ssh://git@10.34.33.3:8422/mlir-tpu/cnpy.git
 #git checkout -b tpu origin/tpu
 #popd
 
-git clone ssh://git@10.34.33.3:8422/mlir-tpu/pybind11.git
 git clone ssh://git@10.34.33.3:8422/mlir-tpu/caffe.git
+#pushd caffe
+#git checkout -b tpu origin/tpu
+#popd
+
+git clone ssh://git@10.34.33.3:8422/mlir-tpu/pybind11.git
 
 git clone ssh://git@10.34.33.3:8422/mlir-tpu/python_tools.git
 git clone ssh://git@10.34.33.3:8422/mlir-tpu/backend.git

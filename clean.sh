@@ -20,4 +20,3 @@ rm -rf $MLIR_SRC_PATH/externals/bmbuilder/build
 rm -rf $MLIR_SRC_PATH/externals/runtime/build
 
 rm -rf $TPU_BASE/llvm-project/build
-
