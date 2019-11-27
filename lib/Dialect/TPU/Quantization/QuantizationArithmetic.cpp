@@ -253,7 +253,8 @@ static inline s32 RoundingDivideByPOT(s32 x, int exponent)
   const s32 fixup = (x & shift_vec) >> 31;
   const s32 fixed_up_x = x + fixup;
 
-  s32 nudge = 1 << (exponent - 1);
+  // Handel positive right shift
+  s32 nudge = (exponent > 0) ? (1 << (exponent - 1)) : 0;
   s32 val = (fixed_up_x + nudge) >> exponent;
 
   return val;
