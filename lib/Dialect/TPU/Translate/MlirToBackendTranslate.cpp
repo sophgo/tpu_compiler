@@ -291,7 +291,7 @@ static LogicalResult runOperation(Operation &opInst) {
         ic,
         ih,
         iw,
-        1, // group
+        g, // group
         oc,
         kh,
         kw,
@@ -310,7 +310,7 @@ static LogicalResult runOperation(Operation &opInst) {
         do_relu ? 1 : 0,
         1.0f, // bn_scale
         1e-5, // eps
-        0, // param.activation(), method, 0 -> RELU, all others are invalide for now
+        0, // param.activation(), method, 0 -> RELU, all others are invalid for now
         nullptr, // activation_arg,
         INVALID_GLOBAL_ADDR //global_slope_gaddr
       );
