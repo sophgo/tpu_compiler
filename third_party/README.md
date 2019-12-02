@@ -43,6 +43,8 @@ Some of them are using tree build, some rely on manually build for now.
     * CompilationRuleSparse
     * CompilationRuleConvSumFusion
     * CompilationRuleFuseFCRelu
+  * Use mkldnn in caffe/external/mkldnn/install
+    * assign MKLDNNROOT
 - munually build
 - build
 
@@ -51,7 +53,7 @@ $ cd third_party/caffe
 $ mkdir build
 $ cd build
 
-$ MKLDNNROOT=./external/mkldnn/install \
+$ MKLDNNROOT=$MLIR_SRC_PATH/third_party/caffe/external/mkldnn/install \
     cmake -DUSE_OPENCV=OFF -DDISABLE_MKLDNN_DOWNLOAD=1 \
     -DUSE_OPENMP=OFF -DUSE_MKLDNN_AS_DEFAULT_ENGINE=OFF -DUSE_MLSL=OFF \
     -DCMAKE_INSTALL_PREFIX=~/work_cvitek/install_caffe ..
