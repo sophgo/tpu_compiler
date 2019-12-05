@@ -17,6 +17,15 @@
 
 ## 4. Handle meta info, build bmodel
 
+* input shape
+* outputs number and shapes
+* outputs tensor offset
+* threshold for input quantization
+* threshold for output dequantization
+* input_scale
+* input_mean
+* batch_size
+
 ## 5. Accuracy tuning & regression: Mobilenet-V2, YOLOv3
 
 ## -------------- End of Year (31/12) ----------------

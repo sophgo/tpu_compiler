@@ -569,7 +569,7 @@ run test, `test_cat_in_int8.bin` is a int8 bin file. This is the quantization re
 $ python ./bin_fp32_to_int8.py \
     test_cat_in_fp32.bin \
     test_cat_in_int8.bin \
-    1 3 224 224 \
+    1.0 \
     161.008057
 ```
 

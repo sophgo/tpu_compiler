@@ -19,7 +19,7 @@ $ python ./npz_dump.py tensor_all_quant-int8.npz data_quant
 
 $ python ./npz_to_bin.py tensor_all_quant-int8.npz data_quant
 $ mv data_quant.bin test_cat_in_quant-int8.bin
-$ python ./bin_fp32_to_int8.py test_cat_in_quant-int8.bin test_cat_in_int8.bin 1 3 224 224
+$ python ./bin_fp32_to_int8.py test_cat_in_quant-int8.bin test_cat_in_int8.bin
 
 $ python ./bin_dump.py test_cat_in_int8.bin int8 1 3 224 224
 ```

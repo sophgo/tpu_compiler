@@ -39,6 +39,17 @@ export LD_LIBRARY_PATH=$TPU_BASE_DIR/install_cmodel/lib:$LD_LIBRARY_PATH
     -o resnet-50-opt-post-cali.mlir
 
 ################################
+# prepare int8 input
+################################
+python ../llvm/projects/mlir/externals/python_tools/bin_fp32_to_int8.py \
+    $DATA_DIR/test_cat_in_fp32.bin \
+    in_int8.bin \
+    1.0 \
+    161.008057
+# check
+diff in_int8.bin $DATA_DIR/test_cat_in_int8.bin
+
+################################
 # quantization 1: per-layer int8
 ################################
 ./bin/mlir-opt \
@@ -62,7 +73,7 @@ export LD_LIBRARY_PATH=$TPU_BASE_DIR/install_cmodel/lib:$LD_LIBRARY_PATH
 
 # run cmdbuf
 ~/work_cvitek/install_runtime/bin/test_bmnet \
-    $DATA_DIR/test_cat_in_int8.bin \
+    in_int8.bin \
     weight.bin \
     cmdbuf.bin \
     out_all.bin \
@@ -115,7 +126,7 @@ python ../llvm/projects/mlir/externals/python_tools/npz_compare.py \
 
 # run cmdbuf
 ~/work_cvitek/install_runtime/bin/test_bmnet \
-    $DATA_DIR/test_cat_in_int8.bin \
+    in_int8.bin \
     weight-multiplier.bin \
     cmdbuf-multiplier.bin \
     out_all.bin \

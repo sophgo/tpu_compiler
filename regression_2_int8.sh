@@ -52,7 +52,7 @@ export DATA_DIR=$MLIR_BASE_DIR/data
 python ../llvm/projects/mlir/externals/python_tools/npz_to_bin.py \
     tensor_all.npz fc1000 out_fc1000.bin
 python ../llvm/projects/mlir/externals/python_tools/bin_fp32_to_int8.py \
-    out_fc1000.bin out_fc1000_int8.bin 1 1 1 1000
+    out_fc1000.bin out_fc1000_int8.bin
 diff out_fc1000_int8.bin $DATA_DIR/test_cat_out_fc1000-int8.bin
 
 # quantization 2: per-channel int8
@@ -70,7 +70,7 @@ diff out_fc1000_int8.bin $DATA_DIR/test_cat_out_fc1000-int8.bin
 python ../llvm/projects/mlir/externals/python_tools/npz_to_bin.py \
     tensor_all.npz fc1000 out_fc1000.bin
 python ../llvm/projects/mlir/externals/python_tools/bin_fp32_to_int8.py \
-    out_fc1000.bin out_fc1000_int8.bin 1 1 1 1000
+    out_fc1000.bin out_fc1000_int8.bin
 diff out_fc1000_int8.bin $DATA_DIR/test_cat_out_fc1000-int8-per-channel.bin
 
 # quantization 3: per-channel int8 with multiplier
@@ -89,7 +89,7 @@ diff out_fc1000_int8.bin $DATA_DIR/test_cat_out_fc1000-int8-per-channel.bin
 python ../llvm/projects/mlir/externals/python_tools/npz_to_bin.py \
     tensor_all.npz fc1000 out_fc1000.bin
 python ../llvm/projects/mlir/externals/python_tools/bin_fp32_to_int8.py \
-    out_fc1000.bin out_fc1000_int8.bin 1 1 1 1000
+    out_fc1000.bin out_fc1000_int8.bin
 diff out_fc1000_int8.bin $DATA_DIR/test_cat_out_fc1000-int8-multiplier.bin
 
 # VERDICT

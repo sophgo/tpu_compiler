@@ -53,7 +53,7 @@ export DATA_DIR=$MLIR_BASE_DIR/data
 python ../llvm/projects/mlir/externals/python_tools/npz_to_bin.py \
     tensor_all.npz fc7 out_fc7.bin
 python ../llvm/projects/mlir/externals/python_tools/bin_fp32_to_int8.py \
-    out_fc7.bin out_fc7_int8.bin 1 1 1 1000
+    out_fc7.bin out_fc7_int8.bin
 # python ../llvm/projects/mlir/externals/python_tools/bin_dump.py out_fc7_int8.bin int8 1 1 1 1000 5
 diff out_fc7_int8.bin $DATA_DIR/test_cat_out_fc7-int8.bin
 
@@ -73,7 +73,7 @@ diff out_fc7_int8.bin $DATA_DIR/test_cat_out_fc7-int8.bin
 python ../llvm/projects/mlir/externals/python_tools/npz_to_bin.py \
     tensor_all.npz fc7 out_fc7.bin
 python ../llvm/projects/mlir/externals/python_tools/bin_fp32_to_int8.py \
-    out_fc7.bin out_fc7_int8.bin 1 1 1 1000
+    out_fc7.bin out_fc7_int8.bin
 # python ../llvm/projects/mlir/externals/python_tools/bin_dump.py out_fc7_int8.bin int8 1 1 1 1000 5
 diff out_fc7_int8.bin $DATA_DIR/test_cat_out_fc7-int8-per-channel.bin
 
@@ -94,7 +94,7 @@ diff out_fc7_int8.bin $DATA_DIR/test_cat_out_fc7-int8-per-channel.bin
 python ../llvm/projects/mlir/externals/python_tools/npz_to_bin.py \
     tensor_all.npz fc7 out_fc7.bin
 python ../llvm/projects/mlir/externals/python_tools/bin_fp32_to_int8.py \
-    out_fc7.bin out_fc7_int8.bin 1 1 1 1000
+    out_fc7.bin out_fc7_int8.bin
 # python ../llvm/projects/mlir/externals/python_tools/bin_dump.py out_fc7_int8.bin int8 1 1 1 1000 5
 diff out_fc7_int8.bin $DATA_DIR/test_cat_out_fc7-int8-multiplier.bin
 
