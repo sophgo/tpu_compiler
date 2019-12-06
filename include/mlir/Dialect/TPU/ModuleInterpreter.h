@@ -22,6 +22,7 @@
 #ifndef MLIR_DIALECT_TPU_MODULEINTERPRETER_H_
 #define MLIR_DIALECT_TPU_MODULEINTERPRETER_H_
 
+#include "mlir/Dialect/TPU/TPUOperationSupport.h"
 #include "mlir/IR/Module.h"
 #include "mlir/Support/TensorFile.h"
 
@@ -48,6 +49,37 @@ public:
 
     return success();
   }
+  template <typename T = ModuleInterpreter>
+  static LogicalResult runModuleAndGetValueMap(ModuleOp m,
+      std::vector<std::vector<float> *> &inputs,
+      std::vector<std::vector<float> *> &outputs,
+      std::map<std::string, std::pair<std::vector<int64_t>, std::vector<float>>> &tensorMap) {
+
+    T interpreter(m, inputs, outputs);
+    if (failed(interpreter.runFunctions()))
+      return failure();
+
+    value_map_t valueMap = interpreter.getValueMap();
+    for (auto it = valueMap.begin(); it != valueMap.end(); it++) {
+      auto op = it->first->getDefiningOp();
+      if (!op) {
+        //it->first->dump();
+        continue;
+      }
+      if (auto loadWeightOp = dyn_cast<tpu::LoadWeightOp>(op)) {
+        continue;
+      }
+
+      auto vec = it->second.get();
+      assert(vec);
+      auto result = op->getResult(0);
+      std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
+
+      tensorMap[getOpName(op).str()] = std::make_pair(shape, *vec);
+    }
+
+    return success();
+  }
 
 protected:
   // Interpret the given MLIR module expressed in MLIR TPU IR dialect
@@ -66,6 +98,8 @@ private:
 
   std::vector<std::shared_ptr<std::vector<float> > >
       getOperandTensors(Operation &opInst, value_map_t &valueMapping);
+
+  value_map_t getValueMap() { return valueMapping; }
 
   // Original and translated module.
   ModuleOp mlirModule;

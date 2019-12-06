@@ -32,6 +32,8 @@
 
 using namespace mlir;
 
+typedef std::map<std::string, std::pair<std::vector<int64_t>, std::vector<float>>> tensor_map_t;
+
 static OwningModuleRef parseMLIRInput(StringRef inputFilename,
                                       MLIRContext *context) {
   // Set up the input file.
@@ -47,9 +49,8 @@ static OwningModuleRef parseMLIRInput(StringRef inputFilename,
   return OwningModuleRef(parseSourceFile(sourceMgr, context));
 }
 
-static int runTpuInterpreter(OwningModuleRef &m,
-    std::vector<float> &input, std::vector<float> &output,
-    llvm::function_ref<LogicalResult(mlir::ModuleOp)> mlirTransformer) {
+static int runTpuInterpreter(OwningModuleRef &m, std::vector<float> &input, std::vector<float> &output,
+    llvm::function_ref<LogicalResult(mlir::ModuleOp)> mlirTransformer, tensor_map_t &tensorMap) {
   if (mlirTransformer)
     if (failed(mlirTransformer(m.get())))
       return EXIT_FAILURE;
@@ -60,7 +61,7 @@ static int runTpuInterpreter(OwningModuleRef &m,
   std::vector<std::vector<float> *> inputs({&input});
   std::vector<std::vector<float> *> outputs({&output});
 
-  if (failed(runTpuModule(m.get(), inputs, outputs)))
+  if (failed(ModuleInterpreter::runModuleAndGetValueMap<>(m.get(), inputs, outputs, tensorMap)))
     return EXIT_FAILURE;
 
   int exitCode = EXIT_SUCCESS;
@@ -72,6 +73,25 @@ static int runTpuInterpreter(OwningModuleRef &m,
 // ----------------
 
 namespace py = pybind11;
+
+static py::array getPythonArray(std::vector<float> &vec, const std::vector<int64_t> &shape)
+{
+  std::vector<unsigned> stride_v(shape.size(), sizeof(float));
+  for (int i = shape.size()-1; i > 0; i--) {
+    for (int j = 0; j < i; j++) {
+      stride_v[j] *= shape[i];
+    }
+  }
+
+  return py::array(py::buffer_info(
+    vec.data(),                           /* data as contiguous array  */
+    sizeof(float),                           /* size of one scalar        */
+    py::format_descriptor<float>::format(),  /* data type                 */
+    shape.size(), //ndim,                                    /* number of dimensions      */
+    shape, //shape,                                   /* shape of the matrix       */
+    stride_v //strides                                  /* strides for each axis     */
+  ));
+}
 
 // Static initialization for standard op dialect registration.
 static DialectRegistration<StandardOpsDialect> StandardOps;
@@ -94,6 +114,38 @@ public:
     module->dump();
   }
 
+  py::dict getAllTensor() {
+    py::dict ret;
+    for (auto it = tensorMap_.begin(); it != tensorMap_.end(); it++) {
+      auto op = it->first;
+      auto data = it->second.second;
+      auto shape = it->second.first;
+
+      py::str py_s(op);
+      res[py_s] = getPythonArray(data, shape);
+
+    }
+
+    return ret;
+  }
+
+  py::array getTensor(std::string op_name) {
+    py::array ret;
+
+    for (auto it = tensorMap_.begin(); it != tensorMap_.end(); it++ ) {
+      auto op = it->first;
+
+      if (op == op_name) {
+        auto data = it->second.second;
+        auto shape = it->second.first;
+        ret = getPythonArray(data, shape);
+        break;
+      }
+    }
+
+    return ret;
+  }
+
   // wrap C++ function with NumPy array IO
   py::array run(py::array_t<float, py::array::c_style | py::array::forcecast> array) {
     std::vector<float> input(array.size());
@@ -102,7 +154,7 @@ public:
 
     // run intererence
     std::vector<float> output(1*1000);
-    int status = runTpuInterpreter(module, input, output, nullptr);
+    int status = runTpuInterpreter(module, input, output, nullptr, tensorMap_);
     assert(status == EXIT_SUCCESS);
 
     // return NumPy array
@@ -129,6 +181,7 @@ public:
 private:
   MLIRContext context;
   OwningModuleRef module;
+  tensor_map_t tensorMap_;
 };
 
 // wrap as Python module
@@ -142,6 +195,10 @@ PYBIND11_MODULE(pymlir,m)
          "load module from IR")
     .def("dump", &py_module::dump,
          "dump module")
+    .def("get_all_tensor", &py_module::getAllTensor,
+         "dump all tensor data")
+    .def("get_tensor", &py_module::getTensor,
+         "get one tensor data")
     .def("run", &py_module::run,
          "run module inference with input array, and return output array");
 }
