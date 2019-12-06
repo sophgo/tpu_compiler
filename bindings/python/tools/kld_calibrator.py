@@ -10,15 +10,9 @@ def is_all_zero(data):
             return False
     return True
 
-def second(elem):
-  return elem[1]
-def get_topk(a, k):
-  idx = np.argpartition(-a.ravel(),k)[:k]
-  # return np.column_stack(np.unravel_index(idx, a.shape))
-  topk = list(zip(idx, np.take(a, idx)))
-  #return topk
-  topk.sort(key=second, reverse=True)
-  return topk
+def warn_zeros(layer_name):
+    print("WARNING: layer {} is all zeros. Please check the input data correctness.".format(layer_name))
+    exit(-1)
 
 class KLD_Calibrator(object):
     def __init__(self, args, preprocess_func):
@@ -57,7 +51,7 @@ class KLD_Calibrator(object):
 
                 if t.size > 0:
                     if is_all_zero(t):
-                        warn_zeros(layer_caffe.name, b.name)
+                        warn_zeros(item)
                     data_max[item] = max(data_max[item], np.max(t))
 
             idx += 1
