@@ -8,20 +8,20 @@ $ ./bin/mlir-tpu-interpreter resnet-50-quant-int8-addr2.mlir \
     --tensor-out out-quant-int8.bin \
     --dump-all-tensor=tensor_all_quant-int8.npz
 
-$ python ./npz_list.py tensor_all_quant-int8.npz
+$ npz_list.py tensor_all_quant-int8.npz
 ```
 
 ## get quantized input data
 
 dump, save, and show
 ```
-$ python ./npz_dump.py tensor_all_quant-int8.npz data_quant
+$ npz_dump.py tensor_all_quant-int8.npz data_quant
 
-$ python ./npz_to_bin.py tensor_all_quant-int8.npz data_quant
+$ npz_to_bin.py tensor_all_quant-int8.npz data_quant
 $ mv data_quant.bin test_cat_in_quant-int8.bin
-$ python ./bin_fp32_to_int8.py test_cat_in_quant-int8.bin test_cat_in_int8.bin
+$ bin_fp32_to_int8.py test_cat_in_quant-int8.bin test_cat_in_int8.bin
 
-$ python ./bin_dump.py test_cat_in_int8.bin int8 1 3 224 224
+$ bin_dump.py test_cat_in_int8.bin int8 1 3 224 224
 ```
 Note `test_cat_in_quant-int8.bin` is still saved in float32
 
@@ -48,98 +48,98 @@ $ ./test/test_bmnet \
 
 ```
 # extract input
-$ python ./bin_extract.py out_new.bin out_data_quant.bin int8 0 150528
-$ python ./bin_dump.py out_data_quant.bin int8 1 3 224 224
+$ bin_extract.py out_new.bin out_data_quant.bin int8 0 150528
+$ bin_dump.py out_data_quant.bin int8 1 3 224 224
 # ref
-$ python ./npz_dump.py tensor_all_quant-int8.npz data_quant
+$ npz_dump.py tensor_all_quant-int8.npz data_quant
 
 
 # extract conv1
-$ python ./bin_extract.py out_all.bin out_conv1.bin int8 0x00eeebf0 802816
-$ python ./bin_dump.py out_conv1.bin int8 1 64 112 112
+$ bin_extract.py out_all.bin out_conv1.bin int8 0x00eeebf0 802816
+$ bin_dump.py out_conv1.bin int8 1 64 112 112
 # ref
-$ python ./npz_dump.py tensor_all-int8.npz scale_conv1
+$ npz_dump.py tensor_all-int8.npz scale_conv1
 
 # extract conv1_relu (0x016d3ff0 = 23937008)
-$ python ./bin_extract.py out_new.bin out_conv1_relu.bin int8 0x016d3ff0 802816
-$ python ./bin_dump.py out_conv1_relu.bin int8 1 64 112 112
+$ bin_extract.py out_new.bin out_conv1_relu.bin int8 0x016d3ff0 802816
+$ bin_dump.py out_conv1_relu.bin int8 1 64 112 112
 # ref
-$ python ./npz_dump.py tensor_all_quant-int8.npz conv1_relu
+$ npz_dump.py tensor_all_quant-int8.npz conv1_relu
 
 
 # extract pool1 (0x016a2ff0 = 23736304)
-$ python ./bin_extract.py out_new.bin out_pool1.bin int8 0x016a2ff0 200704
-$ python ./bin_dump.py out_pool1.bin int8 1 64 56 56
+$ bin_extract.py out_new.bin out_pool1.bin int8 0x016a2ff0 200704
+$ bin_dump.py out_pool1.bin int8 1 64 56 56
 # ref
-$ python ./npz_dump.py tensor_all_quant-int8.npz pool1
+$ npz_dump.py tensor_all_quant-int8.npz pool1
 
 [scale2a_branch1                     ][  802816] : [ 0x015deff0 --> 0x016a2ff0 ]
-$ python ./bin_extract.py out_new.bin out_scale2a_branch1.bin int8 0x015deff0 802816
-$ python ./bin_dump.py out_scale2a_branch1.bin int8 1 256 56 56
+$ bin_extract.py out_new.bin out_scale2a_branch1.bin int8 0x015deff0 802816
+$ bin_dump.py out_scale2a_branch1.bin int8 1 256 56 56
 # ref
-$ python ./npz_dump.py tensor_all_quant-int8.npz scale2a_branch1
+$ npz_dump.py tensor_all_quant-int8.npz scale2a_branch1
 
 [scale2a_branch2c                    ][  802816] : [ 0x01456ff0 --> 0x0151aff0 ]
-$ python ./bin_extract.py out_new.bin out_scale2a_branch2c.bin int8 0x01456ff0 802816
-$ python ./bin_dump.py out_scale2a_branch2c.bin int8 1 256 56 56
+$ bin_extract.py out_new.bin out_scale2a_branch2c.bin int8 0x01456ff0 802816
+$ bin_dump.py out_scale2a_branch2c.bin int8 1 256 56 56
 # ref
-$ python ./npz_dump.py tensor_all_quant-int8.npz scale2a_branch2c
+$ npz_dump.py tensor_all_quant-int8.npz scale2a_branch2c
 
 [res2a                               ][  802816] : [ 0x01392ff0 --> 0x01456ff0 ]
-$ python ./bin_extract.py out_new.bin out_res2a.bin int8 0x01392ff0 802816
-$ python ./bin_dump.py out_res2a.bin int8 1 256 56 56
+$ bin_extract.py out_new.bin out_res2a.bin int8 0x01392ff0 802816
+$ bin_dump.py out_res2a.bin int8 1 256 56 56
 # ref
-$ python ./npz_dump.py tensor_all_quant-int8.npz res2a
+$ npz_dump.py tensor_all_quant-int8.npz res2a
 
 [res2a_relu                          ][  802816] : [ 0x012ceff0 --> 0x01392ff0 ]
 [scale2b_branch2a                    ][  200704] : [ 0x0129dff0 --> 0x012ceff0 ]
-$ python ./bin_extract.py out_new.bin out_scale2b_branch2a.bin int8 0x0129dff0 200704
-$ python ./bin_dump.py out_scale2b_branch2a.bin int8 1 64 56 56
+$ bin_extract.py out_new.bin out_scale2b_branch2a.bin int8 0x0129dff0 200704
+$ bin_dump.py out_scale2b_branch2a.bin int8 1 64 56 56
 # ref
-$ python ./npz_dump.py tensor_all_quant-int8.npz scale2b_branch2a
+$ npz_dump.py tensor_all_quant-int8.npz scale2b_branch2a
 
 [res2b_branch2a_relu                 ][  200704] : [ 0x0126cff0 --> 0x0129dff0 ]
 [scale2b_branch2b                    ][  200704] : [ 0x0123bff0 --> 0x0126cff0 ]
-$ python ./bin_extract.py out_new.bin out_scale2b_branch2b.bin int8 0x0123bff0 200704
-$ python ./bin_dump.py out_scale2b_branch2b.bin int8 1 64 56 56
+$ bin_extract.py out_new.bin out_scale2b_branch2b.bin int8 0x0123bff0 200704
+$ bin_dump.py out_scale2b_branch2b.bin int8 1 64 56 56
 # ref
-$ python ./npz_dump.py tensor_all_quant-int8.npz scale2b_branch2b
+$ npz_dump.py tensor_all_quant-int8.npz scale2b_branch2b
 
 [res2b_branch2b_relu                 ][  200704] : [ 0x0120aff0 --> 0x0123bff0 ]
 [scale2b_branch2c                    ][  802816] : [ 0x01146ff0 --> 0x0120aff0 ]
-$ python ./bin_extract.py out_new.bin out_scale2b_branch2c.bin int8 0x01146ff0 802816
-$ python ./bin_dump.py out_scale2b_branch2c.bin int8 1 256 56 56
+$ bin_extract.py out_new.bin out_scale2b_branch2c.bin int8 0x01146ff0 802816
+$ bin_dump.py out_scale2b_branch2c.bin int8 1 256 56 56
 # ref
-$ python ./npz_dump.py tensor_all_quant-int8.npz scale2b_branch2c
+$ npz_dump.py tensor_all_quant-int8.npz scale2b_branch2c
 
 
 [res2b                               ][  802816] : [ 0x01082ff0 --> 0x01146ff0 ]
-$ python ./bin_extract.py out_new.bin out_res2b.bin int8 0x01082ff0 802816
-$ python ./bin_dump.py out_res2b.bin int8 1 256 56 56
+$ bin_extract.py out_new.bin out_res2b.bin int8 0x01082ff0 802816
+$ bin_dump.py out_res2b.bin int8 1 256 56 56
 # ref
-$ python ./npz_dump.py tensor_all_quant-int8.npz res2b
+$ npz_dump.py tensor_all_quant-int8.npz res2b
 
 [res2c                               ][  802816] : [ 0x00d72ff0 --> 0x00e36ff0 ]
-$ python ./bin_extract.py out_new.bin out_res2c.bin int8 0x00d72ff0 802816
-$ python ./bin_dump.py out_res2c.bin int8 1 256 56 56
+$ bin_extract.py out_new.bin out_res2c.bin int8 0x00d72ff0 802816
+$ bin_dump.py out_res2c.bin int8 1 256 56 56
 # ref
-$ python ./npz_dump.py tensor_all_quant-int8.npz res2c
+$ npz_dump.py tensor_all_quant-int8.npz res2c
 
 [res3a                               ][  401408] : [ 0x00b26ff0 --> 0x00b88ff0 ]
-$ python ./bin_extract.py out_new.bin out_res3a.bin int8 0x00b26ff0 401408
-$ python ./bin_dump.py out_res3a.bin int8 1 512 28 28
+$ bin_extract.py out_new.bin out_res3a.bin int8 0x00b26ff0 401408
+$ bin_dump.py out_res3a.bin int8 1 512 28 28
 # ref
-$ python ./npz_dump.py tensor_all_quant-int8.npz res3a
+$ npz_dump.py tensor_all_quant-int8.npz res3a
 
 [res3b                               ][  401408] : [ 0x0099eff0 --> 0x00a00ff0 ]
 [res3c                               ][  401408] : [ 0x00816ff0 --> 0x00878ff0 ]
 [res3d                               ][  401408] : [ 0x0068eff0 --> 0x006f0ff0 ]
 
 [res4a                               ][  200704] : [ 0x00568ff0 --> 0x00599ff0 ]
-$ python ./bin_extract.py out_new.bin out_res4a.bin int8 0x00568ff0 200704
-$ python ./bin_dump.py out_res4a.bin int8 1 1024 14 14
+$ bin_extract.py out_new.bin out_res4a.bin int8 0x00568ff0 200704
+$ bin_dump.py out_res4a.bin int8 1 1024 14 14
 # ref
-$ python ./npz_dump.py tensor_all_quant-int8.npz res4a
+$ npz_dump.py tensor_all_quant-int8.npz res4a
 
 [res4b                               ][  200704] : [ 0x004a4ff0 --> 0x004d5ff0 ]
 [res4c                               ][  200704] : [ 0x003e0ff0 --> 0x00411ff0 ]
@@ -150,37 +150,37 @@ $ python ./npz_dump.py tensor_all_quant-int8.npz res4a
 [res5b                               ][  100352] : [ 0x0009fff0 --> 0x000b87f0 ]
 
 [res5c                               ][  100352] : [ 0x0003dff0 --> 0x000567f0 ]
-$ python ./bin_extract.py out_new.bin out_res5c.bin int8 0x0003dff0 100352
-$ python ./bin_dump.py out_res5c.bin int8 1 2048 7 7
+$ bin_extract.py out_new.bin out_res5c.bin int8 0x0003dff0 100352
+$ bin_dump.py out_res5c.bin int8 1 2048 7 7
 # ref
-$ python ./npz_dump.py tensor_all_quant-int8.npz res5c
+$ npz_dump.py tensor_all_quant-int8.npz res5c
 
 [pool5                               ][    2048] : [ 0x00024ff0 --> 0x000257f0 ]
-$ python ./bin_extract.py out_new.bin out_pool5.bin int8 0x00024ff0 2048
-$ python ./bin_dump.py out_pool5.bin int8 1 1 1 2048
+$ bin_extract.py out_new.bin out_pool5.bin int8 0x00024ff0 2048
+$ bin_dump.py out_pool5.bin int8 1 1 1 2048
 # ref
-$ python ./npz_dump.py tensor_all_quant-int8.npz res5c
+$ npz_dump.py tensor_all_quant-int8.npz res5c
 
 # extract output (0x00024c00)
-$ python ./bin_extract.py out_new.bin out_fc1000.bin int8 0x00024c00 1000
-$ python ./bin_dump.py out_fc1000.bin int8 1 1 1 1000 5
+$ bin_extract.py out_new.bin out_fc1000.bin int8 0x00024c00 1000
+$ bin_dump.py out_fc1000.bin int8 1 1 1 1000 5
 # ref
-$ python ./npz_dump.py tensor_all_quant-int8.npz fc1000 5
+$ npz_dump.py tensor_all_quant-int8.npz fc1000 5
 
 ```
 
 ```
 # weight, conv1 filter
-$ python ./bin_extract.py ~/work/llvm-project/build/ResNet-50-model.bin \
+$ bin_extract.py ~/work/llvm-project/build/ResNet-50-model.bin \
     out_conv1_0.bin int8 0x0185d758 9408
-$ python ./bin_extract.py ~/work/llvm-project/build/ResNet-50-model.bin \
+$ bin_extract.py ~/work/llvm-project/build/ResNet-50-model.bin \
     out_conv1_1.bin int8 0x0185d6d8 128
 
-$ python ./bin_dump.py out_conv1_0.bin int8 64 3 7 7
-$ python ./bin_dump.py out_conv1_1.bin int16 1 1 1 64
+$ bin_dump.py out_conv1_0.bin int8 64 3 7 7
+$ bin_dump.py out_conv1_1.bin int16 1 1 1 64
 
-$ python ./npz_dump.py tensor_all_quant-int8.npz scale_conv1_quant_int8_0
-$ python ./npz_dump.py tensor_all_quant-int8.npz scale_conv1_quant_int8_1
+$ npz_dump.py tensor_all_quant-int8.npz scale_conv1_quant_int8_0
+$ npz_dump.py tensor_all_quant-int8.npz scale_conv1_quant_int8_1
 ```
 
 ## get the neuron map
@@ -312,35 +312,35 @@ $ python ./npz_dump.py tensor_all_quant-int8.npz scale_conv1_quant_int8_1
 
 ## resnet50 bf16 debug
 
-python ../llvm/projects/mlir/externals/python_tools/bin_extract.py out_all.bin out_conv1.bin bf16 0x01ddd7d0 802816
-python ../llvm/projects/mlir/externals/python_tools/bin_bf16_to_fp32.py out_conv1.bin out_conv1_fp32.bin
-python ../llvm/projects/mlir/externals/python_tools/bin_dump.py out_conv1_fp32.bin float32 1 64 112 112 [-1] > b_out.txt
+bin_extract.py out_all.bin out_conv1.bin bf16 0x01ddd7d0 802816
+bin_bf16_to_fp32.py out_conv1.bin out_conv1_fp32.bin
+bin_dump.py out_conv1_fp32.bin float32 1 64 112 112 [-1] > b_out.txt
 
-python ../llvm/projects/mlir/externals/python_tools/npz_dump.py tensor_all-bf16.npz scale_conv1 [-1] > a_ref.txt
+npz_dump.py tensor_all-bf16.npz scale_conv1 [-1] > a_ref.txt
 
 - input in bf16
-python ../llvm/projects/mlir/externals/python_tools/bin_bf16_to_fp32.py conv0_in.bin conv0_in_fp32.bin
-python ../llvm/projects/mlir/externals/python_tools/bin_dump.py conv0_in_fp32.bin float32 1 3 26 224
+bin_bf16_to_fp32.py conv0_in.bin conv0_in_fp32.bin
+bin_dump.py conv0_in_fp32.bin float32 1 3 26 224
 
-python ../llvm/projects/mlir/externals/python_tools/bin_dump.py ../llvm/projects/mlir/data/test_cat_in_fp32.bin float32 1 3 224 224
-python ../llvm/projects/mlir/externals/python_tools/npz_dump.py tensor_all-bf16.npz data_quant
+bin_dump.py ../llvm/projects/mlir/data/test_cat_in_fp32.bin float32 1 3 224 224
+npz_dump.py tensor_all-bf16.npz data_quant
 
 - filter in bf16
-python ../llvm/projects/mlir/externals/python_tools/bin_dump.py conv0_filter.bin uint16 32 3 7 7
+bin_dump.py conv0_filter.bin uint16 32 3 7 7
 
-python ../llvm/projects/mlir/externals/python_tools/bin_bf16_to_fp32.py conv0_filter.bin conv0_filter_fp32.bin
-python ../llvm/projects/mlir/externals/python_tools/bin_dump.py conv0_filter_fp32.bin float32 32 3 7 7
+bin_bf16_to_fp32.py conv0_filter.bin conv0_filter_fp32.bin
+bin_dump.py conv0_filter_fp32.bin float32 32 3 7 7
 
-python ../llvm/projects/mlir/externals/python_tools/npz_dump.py ResNet-50-model_4_1974f9d4.npz scale_conv1_quant_bf16_0   (uint16)
+npz_dump.py ResNet-50-model_4_1974f9d4.npz scale_conv1_quant_bf16_0   (uint16)
 
-python ../llvm/projects/mlir/externals/python_tools/npz_dump.py ResNet-50-model_3_1974f9d4.npz scale_conv1_fuse_scale_0   (fp32)
+npz_dump.py ResNet-50-model_3_1974f9d4.npz scale_conv1_fuse_scale_0   (fp32)
 
 - bias in fp32
-python ../llvm/projects/mlir/externals/python_tools/bin_dump.py conv0_bias.bin float32 1 1 1 32
+bin_dump.py conv0_bias.bin float32 1 1 1 32
 
-python ../llvm/projects/mlir/externals/python_tools/npz_dump.py ResNet-50-model_3_1974f9d4.npz scale_conv1_fuse_scale_1
+npz_dump.py ResNet-50-model_3_1974f9d4.npz scale_conv1_fuse_scale_1
 
 - output in fp32
-python ../llvm/projects/mlir/externals/python_tools/bin_dump.py conv0_tmp_out.bin float32 1 32 12 112
-python ../llvm/projects/mlir/externals/python_tools/bin_dump.py conv4_tmp_out.bin float32 1 32 12 112
-python ../llvm/projects/mlir/externals/python_tools/bin_dump.py conv5_tmp_out.bin float32 1 32 12 112
+bin_dump.py conv0_tmp_out.bin float32 1 32 12 112
+bin_dump.py conv4_tmp_out.bin float32 1 32 12 112
+bin_dump.py conv5_tmp_out.bin float32 1 32 12 112

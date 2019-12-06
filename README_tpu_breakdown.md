@@ -5,9 +5,7 @@
 ### 0. Setup path
 
 ```
-$ export TPU_BASE=~/work_cvitek
-$ export TPU_DATA_PATH=$TPU_BASE/llvm-project/llvm/projects/mlir/data
-$ export TPU_MODEL_PATH=/data/models
+$ source envsetup.sh
 ```
 
 ### 1. Prerequsit
@@ -57,14 +55,6 @@ Read externals/README.md for details.
 1. support (for testing only)
 1. runtime (for testing only)
 
-setup external lib paths
-```
-$ export LD_LIBRARY_PATH=$TPU_BASE/install_bmkernel/lib:$LD_LIBRARY_PATH
-$ export LD_LIBRARY_PATH=$TPU_BASE/install_support/lib:$LD_LIBRARY_PATH
-$ export LD_LIBRARY_PATH=$TPU_BASE/install_bmbuilder/lib:$LD_LIBRARY_PATH
-$ export LD_LIBRARY_PATH=$TPU_BASE/install_cmodel/lib:$LD_LIBRARY_PATH
-```
-
 ### 5. Build mlir-tpu
 
 ```
@@ -91,8 +81,8 @@ $ export PYTHONPATH=./lib:$PYTHONPATH
 translate
 ```
 $ ./bin/mlir-translate \
-    --caffe-to-mlir $TPU_MODEL_PATH/caffe/ResNet-50-deploy.prototxt \
-    --caffemodel $TPU_MODEL_PATH/caffe/ResNet-50-model.caffemodel \
+    --caffe-to-mlir $MODEL_PATH/caffe/ResNet-50-deploy.prototxt \
+    --caffemodel $MODEL_PATH/caffe/ResNet-50-model.caffemodel \
     -o resnet-50.mlir
 ```
 
@@ -115,7 +105,7 @@ $ python npz_dump.py ResNet-50-model.npz conv1_0
 inference
 ```
 $ ./bin/mlir-tpu-interpreter resnet-50.mlir \
-    --tensor-in $TPU_DATA_PATH/test_cat_in_fp32.bin \
+    --tensor-in $DATA_PATH/test_cat_in_fp32.bin \
     --tensor-out out.bin
 ```
 
@@ -124,9 +114,9 @@ $ ./bin/mlir-tpu-interpreter resnet-50.mlir \
 check
 ```
 $ python bin_dump.py out.bin float32 1 1 1 1000 5
-$ python bin_dump.py $TPU_DATA_PATH/test_cat_out_fp32.bin float32 1 1 1 1000 5
+$ python bin_dump.py $DATA_PATH/test_cat_out_fp32.bin float32 1 1 1 1000 5
 $ python bin_compare.py out.bin \
-    $TPU_DATA_PATH/test_cat_out_fp32.bin float32 1 1 1 1000 5
+    $DATA_PATH/test_cat_out_fp32.bin float32 1 1 1 1000 5
 ```
 
 #### 2.2 run with interpreter pybind
@@ -135,7 +125,7 @@ Convert input into npy, as current python test code take npy file as input.
 
 ```
 $ python bin_to_npy.py \
-    $TPU_DATA_PATH/test_cat_in_fp32.bin \
+    $DATA_PATH/test_cat_in_fp32.bin \
     float32 1 3 224 224 \
     resnet50_input_1_3_224_224.npy
 ```
@@ -249,7 +239,7 @@ $ ./bin/mlir-opt \
 check
 ```
 $ ./bin/mlir-tpu-interpreter resnet-50-opt1.mlir \
-    --tensor-in $TPU_DATA_PATH/test_cat_in_fp32.bin \
+    --tensor-in $DATA_PATH/test_cat_in_fp32.bin \
     --tensor-out out-opt1.bin
 $ python bin_compare.py out.bin out-opt1.bin float32 1 1 1 1000 5
 ```
@@ -268,7 +258,7 @@ $ ./bin/mlir-opt \
 check
 ```
 $ ./bin/mlir-tpu-interpreter resnet-50-opt2.mlir \
-    --tensor-in $TPU_DATA_PATH/test_cat_in_fp32.bin \
+    --tensor-in $DATA_PATH/test_cat_in_fp32.bin \
     --tensor-out out-opt2.bin
 $ python bin_compare.py out.bin out-opt2.bin float32 1 1 1 1000 5
 ```
@@ -285,7 +275,7 @@ $ ./bin/mlir-opt \
 check
 ```
 $ ./bin/mlir-tpu-interpreter resnet-50-opt3.mlir \
-    --tensor-in $TPU_DATA_PATH/test_cat_in_fp32.bin \
+    --tensor-in $DATA_PATH/test_cat_in_fp32.bin \
     --tensor-out out-opt3.bin
 $ python bin_compare.py out.bin out-opt3.bin float32 1 1 1 1000 5
 ```
@@ -304,7 +294,7 @@ $ ./bin/mlir-opt \
 check
 ```
 $ ./bin/mlir-tpu-interpreter resnet-50-opt.mlir \
-    --tensor-in $TPU_DATA_PATH/test_cat_in_fp32.bin \
+    --tensor-in $DATA_PATH/test_cat_in_fp32.bin \
     --tensor-out out-opt.bin
 $ python bin_compare.py out.bin out-opt.bin float32 1 1 1 1000 5
 ```
@@ -330,7 +320,7 @@ a map of operation name vs. their threshold_y.
 ```
 $ ./bin/mlir-opt \
     --import-calibration-table \
-    --calibration-table $TPU_DATA_PATH/bmnet_resnet50_calibration_table.1x10 \
+    --calibration-table $DATA_PATH/bmnet_resnet50_calibration_table.1x10 \
     resnet-50-opt.mlir \
     -o resnet-50-cali.mlir
 ```
@@ -360,7 +350,7 @@ $ ./bin/mlir-opt \
 check
 ```
 $ ./bin/mlir-tpu-interpreter resnet-50-opt-post-cali.mlir \
-    --tensor-in $TPU_DATA_PATH/test_cat_in_fp32.bin \
+    --tensor-in $DATA_PATH/test_cat_in_fp32.bin \
     --tensor-out out-opt-post-cali.bin
 $ python bin_compare.py out.bin out-opt-post-cali.bin float32 1 1 1 1000 5
 ```
@@ -392,7 +382,7 @@ $ python npz_dump.py ResNet-50-model.npz scale_conv1_quant_int8_1
 $ python npz_dump.py ResNet-50-model.npz scale_conv1_quant_int8_rshift
 
 $ ./bin/mlir-tpu-interpreter resnet-50-quant-int8.mlir \
-    --tensor-in $TPU_DATA_PATH/test_cat_in_fp32.bin \
+    --tensor-in $DATA_PATH/test_cat_in_fp32.bin \
     --tensor-out out-quant-int8.bin
 $ python bin_compare.py out.bin out-quant-int8.bin float32 1 1 1 1000 5
 ```
@@ -414,7 +404,7 @@ $ python npz_dump.py ResNet-50-model.npz scale_conv1_quant_int8_1
 $ python npz_dump.py ResNet-50-model.npz scale_conv1_quant_int8_rshift
 
 $ ./bin/mlir-tpu-interpreter resnet-50-quant-int8-per-channel.mlir \
-    --tensor-in $TPU_DATA_PATH/test_cat_in_fp32.bin \
+    --tensor-in $DATA_PATH/test_cat_in_fp32.bin \
     --tensor-out out-quant-int8-per-channel.bin
 $ python bin_compare.py out.bin out-quant-int8-per-channel.bin float32 1 1 1 1000 5
 ```
@@ -437,7 +427,7 @@ $ python npz_dump.py ResNet-50-model.npz scale_conv1_quant_int8_1
 $ python npz_dump.py ResNet-50-model.npz scale_conv1_quant_int8_multiplier
 
 $ ./bin/mlir-tpu-interpreter resnet-50-quant-int8-multiplier.mlir \
-    --tensor-in $TPU_DATA_PATH/test_cat_in_fp32.bin \
+    --tensor-in $DATA_PATH/test_cat_in_fp32.bin \
     --tensor-out out-quant-int8-multiplier.bin
 $ python bin_compare.py out.bin out-quant-int8-multiplier.bin float32 1 1 1 1000 5
 ```
@@ -566,7 +556,7 @@ run test, `test_cat_in_int8.bin` is a int8 bin file. This is the quantization re
 `test_cat_in_fp32.bin`.
 ```
 # quantize the input with its threshold
-$ python ./bin_fp32_to_int8.py \
+$ bin_fp32_to_int8.py \
     test_cat_in_fp32.bin \
     test_cat_in_int8.bin \
     1.0 \
@@ -577,44 +567,44 @@ quant-int8 per layer
 ```
 # run test
 $ $TPU_BASE/install_runtime/bin/test_bmnet \
-    $TPU_DATA_PATH/test_cat_in_int8.bin \
+    $DATA_PATH/test_cat_in_int8.bin \
     weight_int8.bin \
     cmdbuf.bin \
     out_cmodel.bin \
     1000 150528 25542640 1
-$ python ./bin_dump.py out_cmodel.bin int8 1 1 1 1000 5
+$ bin_dump.py out_cmodel.bin int8 1 1 1 1000 5
 
 # to dump all neuron
 $ $TPU_BASE/install_runtime/bin/test_bmnet \
-    $TPU_DATA_PATH/test_cat_in_int8.bin \
+    $DATA_PATH/test_cat_in_int8.bin \
     weight_int8.bin \
     cmdbuf.bin \
     out_all.bin \
     25542640 0 25542640 1
-$ python ./bin_extract.py out_all.bin out_fc1000.bin int8 0x00024c00 1000
-$ python ./bin_dump.py out_fc1000.bin int8 1 1 1 1000 5
+$ bin_extract.py out_all.bin out_fc1000.bin int8 0x00024c00 1000
+$ bin_dump.py out_fc1000.bin int8 1 1 1 1000 5
 ```
 
 quant-int8 per channel with multiplier
 ```
 # run test
 $ $TPU_BASE/install_runtime/bin/test_bmnet \
-    $TPU_DATA_PATH/test_cat_in_int8.bin \
+    $DATA_PATH/test_cat_in_int8.bin \
     weight_int8-multiplier.bin \
     cmdbuf-multiplier.bin \
     out_cmodel.bin \
     1000 150528 25542640 1
-$ python ./bin_dump.py out_cmodel.bin int8 1 1 1 1000 5
+$ bin_dump.py out_cmodel.bin int8 1 1 1 1000 5
 
 # to dump all neuron
 $ $TPU_BASE/install_runtime/bin/test_bmnet \
-    $TPU_DATA_PATH/test_cat_in_int8.bin \
+    $DATA_PATH/test_cat_in_int8.bin \
     weight_int8-multiplier.bin \
     cmdbuf-multiplier.bin \
     out_all.bin \
     25542640 0 25542640 1
-$ python ./bin_extract.py out_all.bin out_fc1000.bin int8 0x00024c00 1000
-$ python ./bin_dump.py out_fc1000.bin int8 1 1 1 1000 5
+$ bin_extract.py out_all.bin out_fc1000.bin int8 0x00024c00 1000
+$ bin_dump.py out_fc1000.bin int8 1 1 1 1000 5
 ```
 
 #### 8.5 compare output
@@ -622,13 +612,13 @@ $ python ./bin_dump.py out_fc1000.bin int8 1 1 1 1000 5
 To save bin file into npz, based on neuron_map.csv info.
 
 ```
-$ python ./bin_to_npz.py out_all.bin neuron_map.csv out_all.npz
+$ bin_to_npz.py out_all.bin neuron_map.csv out_all.npz
 
 # see content
-$ python ./npz_list.py out_all.npz
-$ python ./npz_dump.py out_all.npz data_quant
-$ python ./npz_dump.py out_all.npz fc1000 5
-$ python ./npz_dump.py out_all.npz scale_conv1
+$ npz_list.py out_all.npz
+$ npz_dump.py out_all.npz data_quant
+$ npz_dump.py out_all.npz fc1000 5
+$ npz_dump.py out_all.npz scale_conv1
 ```
 
 To generate reference `dump-all-tensor`
@@ -640,7 +630,7 @@ $ ./bin/mlir-tpu-interpreter \
     --dump-all-tensor=tensor_all_quant-int8.npz
 
 # compare out_all.npz with the interpreter dump-all-tensor output.
-$ python ./npz_compare.py out_all.npz tensor_all_quant-int8.npz [show] [5]
+$ npz_compare.py out_all.npz tensor_all_quant-int8.npz [show] [5]
 ```
 
 ```
@@ -651,7 +641,7 @@ $ ./bin/mlir-tpu-interpreter \
     --dump-all-tensor=tensor_all_quant-int8-multiplier.npz
 
 # compare out_all.npz with the interpreter dump-all-tensor output.
-$ python ./npz_compare.py out_all.npz tensor_all_quant-int8-multiplier.npz [show] [5]
+$ npz_compare.py out_all.npz tensor_all_quant-int8-multiplier.npz [show] [5]
 ```
 
 #### 8.6 meta info
@@ -685,11 +675,11 @@ caffe-to-mlir_VERBOSE       - caffe importer verbose
 #### translate debug
 
 ```
-$ ./bin/mlir-translate --caffe-to-mlir /data/models/caffe/ResNet-50-deploy.prototxt --caffemodel /data/models/caffe/ResNet-50-model.caffemodel -o resnet-50.mlir
+$ ./bin/mlir-translate --caffe-to-mlir $MODEL_PATH/caffe/ResNet-50-deploy.prototxt --caffemodel $MODEL_PATH/caffe/ResNet-50-model.caffemodel -o resnet-50.mlir
 
-$ ./bin/mlir-translate --caffe-to-mlir /data/models/caffe/ResNet-50-deploy.prototxt --caffemodel /data/models/caffe/ResNet-50-model.caffemodel -o resnet-50.mlir --debug
+$ ./bin/mlir-translate --caffe-to-mlir $MODEL_PATH/caffe/ResNet-50-deploy.prototxt --caffemodel $MODEL_PATH/caffe/ResNet-50-model.caffemodel -o resnet-50.mlir --debug
 
-$ ./bin/mlir-translate --caffe-to-mlir /data/models/caffe/ResNet-50-deploy.prototxt --caffemodel /data/models/caffe/ResNet-50-model.caffemodel -o resnet-50.mlir --debug-only=caffe-to-mlir_VERBOSE
+$ ./bin/mlir-translate --caffe-to-mlir $MODEL_PATH/caffe/ResNet-50-deploy.prototxt --caffemodel $MODEL_PATH/caffe/ResNet-50-model.caffemodel -o resnet-50.mlir --debug-only=caffe-to-mlir_VERBOSE
 
 $ ./bin/mlir-tpu-interpreter resnet-50.mlir \
 --tensor-in /data/release/bmnet_models/resnet50/resnet50_input_1_3_224_224.bin \

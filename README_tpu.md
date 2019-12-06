@@ -5,9 +5,7 @@
 ### 0. Setup path
 
 ```
-$ export TPU_BASE=~/work_cvitek
-$ export TPU_DATA_PATH=$TPU_BASE/llvm-project/llvm/projects/mlir/data
-$ export TPU_MODEL_PATH=/data/models
+$ source envsetup.sh
 ```
 
 ### 1. Prerequsit
@@ -57,14 +55,6 @@ Read externals/README.md for details.
 1. support (for testing only)
 1. runtime (for testing only)
 
-setup external lib paths
-```
-$ export LD_LIBRARY_PATH=$TPU_BASE/install_bmkernel/lib:$LD_LIBRARY_PATH
-$ export LD_LIBRARY_PATH=$TPU_BASE/install_support/lib:$LD_LIBRARY_PATH
-$ export LD_LIBRARY_PATH=$TPU_BASE/install_bmbuilder/lib:$LD_LIBRARY_PATH
-$ export LD_LIBRARY_PATH=$TPU_BASE/install_cmodel/lib:$LD_LIBRARY_PATH
-```
-
 ### 5. Build mlir-tpu
 
 ```
@@ -87,8 +77,8 @@ $ cmake --build . --target pymlir
 translate
 ```
 $ ./bin/mlir-translate \
-    --caffe-to-mlir $TPU_MODEL_PATH/caffe/ResNet-50-deploy.prototxt \
-    --caffemodel $TPU_MODEL_PATH/caffe/ResNet-50-model.caffemodel \
+    --caffe-to-mlir $MODEL_PATH/caffe/ResNet-50-deploy.prototxt \
+    --caffemodel $MODEL_PATH/caffe/ResNet-50-model.caffemodel \
     -o resnet-50.mlir
 ```
 
@@ -97,15 +87,15 @@ $ ./bin/mlir-translate \
 run with interpreter
 ```
 $ ./bin/mlir-tpu-interpreter resnet-50.mlir \
-    --tensor-in $TPU_DATA_PATH/test_cat_in_fp32.bin \
+    --tensor-in $DATA_PATH/test_cat_in_fp32.bin \
     --tensor-out out.bin
 ```
 
 check
 ```
-$ python bin_dump.py out.bin float32 1 1 1 1000 5
-$ python bin_dump.py $TPU_DATA_PATH/test_cat_out_fp32.bin float32 1 1 1 1000 5
-$ python bin_compare.py out.bin $TPU_DATA_PATH/test_cat_out_fp32.bin float32 1 1 1 1000 5
+$ bin_dump.py out.bin float32 1 1 1 1000 5
+$ bin_dump.py $DATA_PATH/test_cat_out_fp32.bin float32 1 1 1 1000 5
+$ bin_compare.py out.bin $DATA_PATH/test_cat_out_fp32.bin float32 1 1 1 1000 5
 ```
 
 with python bindings
@@ -137,7 +127,7 @@ $ ./bin/mlir-opt \
 check with inference
 ```
 $ ./bin/mlir-tpu-interpreter resnet-50-opt.mlir \
-    --tensor-in $TPU_DATA_PATH/test_cat_in_fp32.bin \
+    --tensor-in $DATA_PATH/test_cat_in_fp32.bin \
     --tensor-out out-opt.bin
 $ python bin_compare.py out.bin out-opt.bin float32 1 1 1 1000 5
 ```
@@ -150,7 +140,7 @@ for each neuron tensor (threshold_y). we use `calibration_caffe` result for now.
 ```
 $ ./bin/mlir-opt \
     --import-calibration-table \
-    --calibration-table $TPU_DATA_PATH/bmnet_resnet50_calibration_table.1x10 \
+    --calibration-table $DATA_PATH/bmnet_resnet50_calibration_table.1x10 \
     resnet-50-opt.mlir \
     -o resnet-50-cali.mlir
 ```
@@ -184,9 +174,9 @@ $ ./bin/mlir-opt \
 check with inference
 ```
 $ ./bin/mlir-tpu-interpreter resnet-50-int8.mlir \
-    --tensor-in $TPU_DATA_PATH/test_cat_in_fp32.bin \
+    --tensor-in $DATA_PATH/test_cat_in_fp32.bin \
     --tensor-out out-int8.bin
-$ python bin_compare.py out.bin out-int8.bin float32 1 1 1 1000 5
+$ bin_compare.py out.bin out-int8.bin float32 1 1 1 1000 5
 ```
 
 ### 7. Post-Quantization optimization
@@ -217,22 +207,22 @@ quant-int8 per channel with multiplier
 ```
 # run test
 $ $TPU_BASE/install_runtime/bin/test_bmnet \
-    $TPU_DATA_PATH/test_cat_in_int8.bin \
+    $DATA_PATH/test_cat_in_int8.bin \
     weight.bin \
     resnet-50_cmdbuf.bin \
     out_cmodel.bin \
     1000 150528 16460784 1
-$ python ./bin_dump.py out_cmodel.bin int8 1 1 1 1000 5
+$ bin_dump.py out_cmodel.bin int8 1 1 1 1000 5
 
 # to dump all neuron
 $ $TPU_BASE/install_runtime/bin/test_bmnet \
-    $TPU_DATA_PATH/test_cat_in_int8.bin \
+    $DATA_PATH/test_cat_in_int8.bin \
     weight.bin \
     resnet-50_cmdbuf.bin \
     out_all.bin \
     16460784 0 16460784 1
-$ python ./bin_extract.py out_all.bin out_fc1000.bin int8 0x00024c00 1000
-$ python ./bin_dump.py out_fc1000.bin int8 1 1 1 1000 5
+$ bin_extract.py out_all.bin out_fc1000.bin int8 0x00024c00 1000
+$ bin_dump.py out_fc1000.bin int8 1 1 1 1000 5
 ```
 
 compare output
@@ -244,7 +234,7 @@ $ ./bin/mlir-tpu-interpreter \
     --tensor-out out-int8.bin \
     --dump-all-tensor=tensor_all-int8.npz
 
-$ python ./bin_to_npz.py out_all.bin neuron_map.csv out_all.npz
+$ bin_to_npz.py out_all.bin neuron_map.csv out_all.npz
 
-$ python ./npz_compare.py out_all.npz tensor_all-int8.npz
+$ npz_compare.py out_all.npz tensor_all-int8.npz
 ```
