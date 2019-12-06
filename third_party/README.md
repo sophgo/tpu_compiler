@@ -52,15 +52,40 @@ Some of them are using tree build, some rely on manually build for now.
 $ cd third_party/caffe
 $ mkdir build
 $ cd build
+Assuming install to $TPU_BASE/install_caffe
+$ export CAFFE_PATH=$TPU_BASE/install_caffe
+```
 
-$ MKLDNNROOT=$MLIR_SRC_PATH/third_party/caffe/external/mkldnn/install \
+Ubuntu 18.04 (use prebuilt mkldnn)
+```
+$ MKLDNNROOT=$MLIR_SRC_PATH/third_party/caffe/external/mkldnn/install_ubuntu1804 \
     cmake -DUSE_OPENCV=OFF -DDISABLE_MKLDNN_DOWNLOAD=1 \
     -DUSE_OPENMP=OFF -DUSE_MKLDNN_AS_DEFAULT_ENGINE=OFF -DUSE_MLSL=OFF \
-    -DCMAKE_INSTALL_PREFIX=~/work_cvitek/install_caffe ..
+    -DCMAKE_INSTALL_PREFIX=$CAFFE_PATH ..
 $ cmake --build . --target install
+```
+
+Ubuntu 16.04 (use prebuilt mkldnn)
+```
+$ MKLDNNROOT=$MLIR_SRC_PATH/third_party/caffe/external/mkldnn/install_ubuntu1604 \
+    cmake -DUSE_OPENCV=OFF -DDISABLE_MKLDNN_DOWNLOAD=1 \
+    -DUSE_OPENMP=OFF -DUSE_MKLDNN_AS_DEFAULT_ENGINE=OFF -DUSE_MLSL=OFF \
+    -DCMAKE_INSTALL_PREFIX=$CAFFE_PATH ..
+$ cmake --build . --target install
+```
+
+For other distributions (build and download on the fly)
+```
+$ cmake -DUSE_OPENCV=OFF \
+    -DUSE_OPENMP=OFF -DUSE_MKLDNN_AS_DEFAULT_ENGINE=OFF -DUSE_MLSL=OFF \
+    -DCMAKE_INSTALL_PREFIX=$CAFFE_PATH ..
+$ cmake --build . --target install
+May need to fix followings during build
+$ cd $MLIR_SRC_PATH/third_party/caffe/external/mkldnn/install
+$ ln -s lib lib64
 ```
 
 Also need to copy external/mkl/* to caffe install dir
 ```
-$ cd third_party/caffe/external/mkl ~/work_cvitek/install_caffe -a
+$ cd $MLIR_SRC_PATH/third_party/caffe/external/mkl $CAFFE_PATH -a
 ```
