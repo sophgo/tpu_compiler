@@ -122,7 +122,7 @@ public:
       auto shape = it->second.first;
 
       py::str py_s(op);
-      res[py_s] = getPythonArray(data, shape);
+      ret[py_s] = getPythonArray(data, shape);
 
     }
 
