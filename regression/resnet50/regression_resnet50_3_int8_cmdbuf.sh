@@ -50,6 +50,12 @@ mlir-opt \
     resnet50_opt_post_cali.mlir \
     -o resnet50_quant_int8_per_layer.mlir
 
+# assign layer id
+mlir-opt \
+    --assign-layer-id \
+    resnet50_quant_int8_per_layer.mlir \
+    -o resnet50_quant_int8_per_layer_id.mlir
+
 # assign weight address & neuron address
 mlir-opt \
     --assign-weight-address \
@@ -59,7 +65,7 @@ mlir-opt \
     --assign-neuron-address \
     --tpu-neuron-address-align=16 \
     --tpu-neuron-map-filename=neuron_map.csv \
-    resnet50_quant_int8_per_layer.mlir | \
+    resnet50_quant_int8_per_layer_id.mlir | \
   mlir-translate \
     --mlir-to-cmdbuf \
     -o cmdbuf.bin
@@ -101,6 +107,12 @@ mlir-opt \
     resnet50_opt_post_cali.mlir \
     -o resnet50_quant_int8_multiplier.mlir
 
+# assign layer id
+mlir-opt \
+    --assign-layer-id \
+    resnet50_quant_int8_multiplier.mlir \
+    -o resnet50_quant_int8_multiplier_id.mlir
+
 # assign weight address & neuron address
 mlir-opt \
     --assign-weight-address \
@@ -110,7 +122,7 @@ mlir-opt \
     --assign-neuron-address \
     --tpu-neuron-address-align=16 \
     --tpu-neuron-map-filename=neuron_map.csv \
-    resnet50_quant_int8_multiplier.mlir | \
+    resnet50_quant_int8_multiplier_id.mlir | \
   mlir-translate \
     --mlir-to-cmdbuf \
     -o cmdbuf.bin

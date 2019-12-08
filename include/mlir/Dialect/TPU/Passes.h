@@ -42,6 +42,8 @@ std::unique_ptr<FunctionPassBase> createQuantizeBf16Pass();
 std::unique_ptr<FunctionPassBase> createAssignWeightAddressPass();
 std::unique_ptr<FunctionPassBase> createAssignNeuronAddressPass();
 
+std::unique_ptr<FunctionPassBase> createAssignLayerIdPass();
+
 } // namespace mlir
 
 #endif // MLIR_DIALECT_TPU_PASSES_H_

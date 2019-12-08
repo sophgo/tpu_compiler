@@ -157,6 +157,7 @@ class TPU_ConvOp<string mnemonic, string opSummary> :
     OptionalAttr<StrAttr>:$name,
     OptionalAttr<NonNegativeI64Attr>:$offset,
     OptionalAttr<F32Attr>:$threshold_y,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
     DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
   );
 
@@ -196,7 +197,8 @@ def TPU_LoadWeightOp : TPU_Op<"load_weight", [NoSideEffect]> {
     ins AnyMemRef:$memref,
     OptionalAttr<StrAttr>:$name,
     DefaultValuedAttr<TPU_WeightAttr, "FP32">:$storage,
-    OptionalAttr<NonNegativeI64Attr>:$offset
+    OptionalAttr<NonNegativeI64Attr>:$offset,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
   );
 
   let results = (outs AnyTensor:$tensor);
@@ -229,6 +231,7 @@ def TPU_Pool2DOp : TPU_Op<"pool_2d", [NoSideEffect]> {
     OptionalAttr<StrAttr>:$name,
     OptionalAttr<NonNegativeI64Attr>:$offset,
     OptionalAttr<F32Attr>:$threshold_y,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
     DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
   );
 
@@ -246,6 +249,7 @@ def TPU_FullyConnectedOp : TPU_Op<"fully_connected", [NoSideEffect]> {
     OptionalAttr<StrAttr>:$name,
     OptionalAttr<NonNegativeI64Attr>:$offset,
     OptionalAttr<F32Attr>:$threshold_y,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
     DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
   );
 
@@ -302,7 +306,8 @@ def TPU_ReluOp: TPU_Op<"relu", [NoSideEffect, SameOperandsAndResultType]> {
     F32Attr:$negative_slope,
     OptionalAttr<StrAttr>:$name,
     OptionalAttr<NonNegativeI64Attr>:$offset,
-    OptionalAttr<F32Attr>:$threshold_y
+    OptionalAttr<F32Attr>:$threshold_y,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
   );
 
   let results = (outs AnyTensor:$y);
@@ -322,6 +327,7 @@ def TPU_EltwiseOp: TPU_Op<"eltwise", [NoSideEffect, SameOperandsAndResultType]> 
     OptionalAttr<StrAttr>:$name,
     OptionalAttr<NonNegativeI64Attr>:$offset,
     OptionalAttr<F32Attr>:$threshold_y,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
     DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
   );
 

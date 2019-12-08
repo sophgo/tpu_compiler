@@ -139,6 +139,8 @@ static LogicalResult runOperation(Operation &opInst) {
     gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
     gaddr_t filter_gaddr = getWeightOpAddress(op.getOperand(1)->getDefiningOp());
 
+    int layer_id = op.layer_id().getValue().getLimitedValue();
+
     if (op.quant() == "INT8") {
 
     gaddr_t bias_gaddr = INVALID_GLOBAL_ADDR;
@@ -157,7 +159,7 @@ static LogicalResult runOperation(Operation &opInst) {
         *backend_ctx,
         0, // stream_id,
         0, // inst_id,
-        0, // layer_id,
+        layer_id, // layer_id,
         nullptr, // depends
         0, // depends_len
         input_gaddr, // input_data_gaddr,
@@ -218,7 +220,7 @@ static LogicalResult runOperation(Operation &opInst) {
         *backend_ctx,
         0, // stream_id,
         0, // inst_id,
-        0, // layer_id,
+        layer_id, // layer_id,
         nullptr, // depends
         0, // depends_len
         input_gaddr, // input_data_gaddr,
@@ -276,7 +278,7 @@ static LogicalResult runOperation(Operation &opInst) {
 
       bmnet_bf16_conv_forward_kernel(
         *backend_ctx,
-        0,  // layer_id
+        layer_id,  // layer_id
         input_gaddr,
         output_gaddr,
         filter_gaddr,
@@ -383,6 +385,7 @@ static LogicalResult runOperation(Operation &opInst) {
     // gen cmdbuf
     gaddr_t input_gaddr = getPreviousOpAddress(op);
     gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
+    int layer_id = op.layer_id().getValue().getLimitedValue();
 
     if (op.quant() == "INT8") {
       int threshold_x_quantized = multiplier;
@@ -390,7 +393,7 @@ static LogicalResult runOperation(Operation &opInst) {
           *backend_ctx,
           0, // stream_id,
           0, // inst_id,
-          0, // layer_id,
+          layer_id, // layer_id,
           nullptr, // depends
           0, // depends_len
           input_gaddr, // input_data_gaddr,
@@ -419,7 +422,7 @@ static LogicalResult runOperation(Operation &opInst) {
     else if (op.quant() == "BF16") {
       bf16_pooling_forward_kernel(
           *backend_ctx,
-          0, // layer_id,
+          layer_id, // layer_id,
           input_gaddr, // input_data_gaddr,
           output_gaddr, // output_data_gaddr,
           INVALID_GLOBAL_ADDR, // index_data_gaddr,
@@ -476,6 +479,8 @@ static LogicalResult runOperation(Operation &opInst) {
       bias_gaddr = getWeightOpAddress(op.getOperand(2)->getDefiningOp());
     }
 
+    int layer_id = op.layer_id().getValue().getLimitedValue();
+
     if (op.quant() == "INT8") {
 
       int rshift_opd_index = 2;
@@ -488,7 +493,7 @@ static LogicalResult runOperation(Operation &opInst) {
           *backend_ctx,
           0, // stream_id,
           0, // inst_id,
-          0, // layer_id,
+          layer_id, // layer_id,
           nullptr, // depends
           0, // depends_len
           input_gaddr, // input_data_gaddr,
@@ -522,7 +527,7 @@ static LogicalResult runOperation(Operation &opInst) {
 
       bf16_fc_forward_kernel(
         *backend_ctx,
-        0, // layer_id
+        layer_id, // layer_id
         input_gaddr, // input_data_gaddr
         filter_gaddr, // weight_data_gaddr
         bias_gaddr, // bias_data_gaddr
@@ -560,11 +565,13 @@ static LogicalResult runOperation(Operation &opInst) {
     gaddr_t input_gaddr = getPreviousOpAddress(op);
     gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
 
+    int layer_id = op.layer_id().getValue().getLimitedValue();
+
     bmnet_relu_fixed_forward_bmkernel(
         *backend_ctx,
         0, // stream_id,
         0, // inst_id,
-        0, // layer_id,
+        layer_id, // layer_id,
         nullptr, // depends
         0, // depends_len
         input_gaddr, // input_data_gaddr,
@@ -612,6 +619,8 @@ static LogicalResult runOperation(Operation &opInst) {
     ga_inputs[1] = getPreviousOpAddress(op, 1);
     gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
 
+    int layer_id = op.layer_id().getValue().getLimitedValue();
+
     if (op.quant() == "INT8") {
       std::vector<float> threshold_x(MAX_ELTWISE_INPUT);
       float threshold_y;
@@ -650,7 +659,7 @@ static LogicalResult runOperation(Operation &opInst) {
           *backend_ctx,
           0, // stream_id,
           0, // inst_id,
-          0, // layer_id,
+          layer_id, // layer_id,
           nullptr, // depends
           0, // depends_len
           ga_inputs, // gaddr_t ga_input[],
@@ -672,7 +681,7 @@ static LogicalResult runOperation(Operation &opInst) {
 
       bf16_eltwise_forward_kernel(
           *backend_ctx,
-          0, // layer_id
+          layer_id, // layer_id
           ga_inputs, // gaddr_t ga_input[]
           output_gaddr, // gaddr_t ga_output
           2, // int input_size
