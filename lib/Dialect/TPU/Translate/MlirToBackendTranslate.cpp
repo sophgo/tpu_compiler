@@ -204,9 +204,8 @@ static LogicalResult runOperation(Operation &opInst) {
         0, //bn_right_shift_width,
         0, //scale_right_shift_width,
         false, //use_winograd
-        0, //int threshold_x_quantized_len,
-        nullptr, //const int *threshold_x_quantized,
-        nullptr //const int *right_shift_array
+        0, // right_shift_array_len
+        0 // ga_per_channel
         );
 
     } else if (op.quant() == "INT8_MULTIPLIER") {
@@ -215,7 +214,7 @@ static LogicalResult runOperation(Operation &opInst) {
     // TODO: assuming always with_bias
     int with_bias = 1;
 
-    bmnet_conv_parallel_fixed_forward_bmkernel_qdm(
+    bmnet_conv_parallel_fixed_forward_bmkernel(
         *backend_ctx,
         0, // stream_id,
         0, // inst_id,
@@ -266,9 +265,8 @@ static LogicalResult runOperation(Operation &opInst) {
         0, //bn_right_shift_width,
         0, //scale_right_shift_width,
         false, //use_winograd
-        0, //int threshold_x_quantized_len,
-        nullptr, //const int *threshold_x_quantized,
-        nullptr //const int *right_shift_array
+        oc, // right_shift_array_len
+        bias_gaddr // ga_per_channel
         );
     } else if (op.quant() == "BF16") {
 
