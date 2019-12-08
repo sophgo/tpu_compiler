@@ -45,6 +45,7 @@ mlir-opt \
     --assign-neuron-address \
     --tpu-neuron-address-align=16 \
     --tpu-neuron-map-filename=neuron_map_bf16.csv \
+    --assign-layer-id \
     resnet50_quant_bf16.mlir \
     -o resnet50_quant_bf16_addr.mlir
 

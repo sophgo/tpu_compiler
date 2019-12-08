@@ -59,6 +59,7 @@ mlir-opt \
     --assign-neuron-address \
     --tpu-neuron-address-align=16 \
     --tpu-neuron-map-filename=neuron_map.csv \
+    --assign-layer-id \
     mobilenet_v2_quant_int8_per_layer.mlir | \
   mlir-translate \
     --mlir-to-cmdbuf \
@@ -111,6 +112,7 @@ mlir-opt \
     --assign-neuron-address \
     --tpu-neuron-address-align=16 \
     --tpu-neuron-map-filename=neuron_map.csv \
+    --assign-layer-id \
     mobilenet_v2_quant_int8_multiplier.mlir | \
   mlir-translate \
     --mlir-to-cmdbuf \
