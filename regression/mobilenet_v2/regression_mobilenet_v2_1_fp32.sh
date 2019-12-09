@@ -70,5 +70,18 @@ mlir-tpu-interpreter mobilenet_v2_opt4.mlir \
     --tensor-out out_opt4.bin
 bin_compare.py out.bin out_opt4.bin float32 1 1 1 1000 5 5
 
+# opt5, fuse eltwise with conv
+mlir-opt \
+    --fuse-eltwise \
+    mobilenet_v2_opt4.mlir \
+    -o mobilenet_v2_opt5.mlir
+
+# test opt5
+mlir-tpu-interpreter mobilenet_v2_opt5.mlir \
+    --input-scale 0.017 \
+    --tensor-in $DATA_PATH/test_cat_in_fp32.bin \
+    --tensor-out out_opt5.bin
+bin_compare.py out.bin out_opt5.bin float32 1 1 1 1000 5 5
+
 # VERDICT
 echo $0 PASSED

@@ -69,10 +69,10 @@ static LogicalResult runOperation(Operation &opInst) {
   if (auto op = dyn_cast<tpu::Conv2DOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "Conv2DOp" << "\n";);
 
+    bool with_bias, do_relu;
     int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, ph, pw, dh, dw;
-    bool do_relu;
     getConv2DOpParam(op, n, ic, ih, iw, oc, oh, ow, g,
-                     kh, kw, sh, sw, ph, pw, dh, dw, do_relu);
+                     kh, kw, sh, sw, ph, pw, dh, dw, with_bias, do_relu);
 
     gaddr_t input_gaddr = getPreviousOpAddress(op);
     gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
@@ -83,7 +83,7 @@ static LogicalResult runOperation(Operation &opInst) {
     if (op.quant() == "INT8") {
 
     gaddr_t bias_gaddr = INVALID_GLOBAL_ADDR;
-    int with_bias = 0;
+    //int with_bias = 0;
     if (opInst.getNumOperands() > 3) {
       with_bias = 1;
     }
@@ -262,7 +262,6 @@ static LogicalResult runOperation(Operation &opInst) {
   }
   if (auto op = dyn_cast<tpu::Pool2DOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "Pool2DOp" << "\n";);
-    auto pool_method = op.getAttrOfType<StringAttr>("pool");
 
     bool is_average_pool, do_relu;
     int n, c, ih, iw, oh, ow, kh, kw, sh, sw, ph, pw;
@@ -360,16 +359,16 @@ static LogicalResult runOperation(Operation &opInst) {
   if (auto op = dyn_cast<tpu::FullyConnectedOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "FullyConnectedOp" << "\n";);
 
-    bool transpose, do_relu;
+    bool with_transpose, with_bias, do_relu;
     int m, k, n;
-    getFullyConnectedOpParam(op, transpose, m, k, n, do_relu);
-    assert(transpose == false);
+    getFullyConnectedOpParam(op, with_transpose, m, k, n, with_bias, do_relu);
+    assert(with_transpose == false);
 
     gaddr_t input_gaddr = getPreviousOpAddress(op);
     gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
     gaddr_t filter_gaddr = getWeightOpAddress(op.getOperand(1)->getDefiningOp());
     gaddr_t bias_gaddr = INVALID_GLOBAL_ADDR;
-    int with_bias = 0;
+    //int with_bias = 0;
     if (opInst.getNumOperands() > 2) {
       with_bias = 1;
       bias_gaddr = getWeightOpAddress(op.getOperand(2)->getDefiningOp());

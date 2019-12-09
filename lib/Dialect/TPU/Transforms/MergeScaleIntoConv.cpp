@@ -158,6 +158,7 @@ struct TpuMergeScaleIntoConvPattern : public RewritePattern {
 
     // replace the scale with the new conv op
     // the former conv op one will be removed automatically
+    convOp.setAttr("with_bias", rewriter.getBoolAttr(true));
     auto origAttrs = convOp.getAttrs();
     //update name with the later op name, because this name is for calibration table
     std::vector<NamedAttribute> newAttrs(origAttrs.begin(), origAttrs.end());

@@ -159,80 +159,64 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
     auto resultT = std::make_unique<std::vector<float> >(size);
 
+    bool with_bias, do_relu;
     int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, ph, pw, dh, dw;
-    bool do_relu;
     getConv2DOpParam(op, n, ic, ih, iw, oc, oh, ow, g,
-                     kh, kw, sh, sw, ph, pw, dh, dw, do_relu);
+                     kh, kw, sh, sw, ph, pw, dh, dw, with_bias, do_relu);
 
-    float *mkldnn_input = (float *)opdT[0]->data();
-    float *mkldnn_weight = (float *)opdT[1]->data();
-    float *mkldnn_bias = nullptr;
-    float *rshift = nullptr;
-    float *multiplier = nullptr;
-    if (op.quant() == "NONE") {
-      if (opdT.size() > 2) {
-        assert(opdT.size() == 3);
-        mkldnn_bias = (float *)opdT[2]->data();
-      }
-    } else if (op.quant() == "INT8" || op.quant() == "INT8_PER_CHANNEL") {
-      if (opdT.size() > 3) {
-        assert(opdT.size() == 4);
-        mkldnn_bias = (float *)opdT[2]->data();
-        rshift = (float *)opdT[3]->data();
-      } else {
-        assert(opdT.size() == 3);
-        rshift = (float *)opdT[2]->data();
-      }
-    } else if (op.quant() == "INT8_MULTIPLIER") {
-      if (opdT.size() > 4) {
-        assert(opdT.size() == 5);
-        mkldnn_bias = (float *)opdT[2]->data();
-        rshift = (float *)opdT[3]->data();
-        multiplier = (float *)opdT[4]->data();
-      } else if (opdT.size() == 4) {
-        rshift = (float *)opdT[2]->data();
-        multiplier = (float *)opdT[3]->data();
-      } else {
-        assert(opdT.size() == 3);
-        // fake some data for now, we only needs the cmdbuf for now
-        mkldnn_bias = (float *)opdT[1]->data();
-        rshift = (float *)opdT[1]->data();
-        multiplier = (float *)opdT[1]->data();
-      }
-    } else if (op.quant() == "BF16") {
-      // bf16 has been convert to float32 when loading
-      if (opdT.size() > 2) {
-        assert(opdT.size() == 3);
-        mkldnn_bias = (float *)opdT[2]->data();
-      }
-    } else {
-      assert(false);
+    std::shared_ptr<std::vector<float> > input = opdT[0];
+    std::shared_ptr<std::vector<float> > filter = opdT[1];
+    std::shared_ptr<std::vector<float> > bias = nullptr;
+    std::shared_ptr<std::vector<float> > rshift = nullptr;
+    std::shared_ptr<std::vector<float> > multiplier = nullptr;
+    std::shared_ptr<std::vector<float> > per_channel_info = nullptr;
+    std::shared_ptr<std::vector<float> > eltwise_input = nullptr;
+    if (op.per_channel_info_is_aggregated()) {
+      llvm::errs() << "Not support interpret with per_channel_info aggreated\n";
+      assert(0);
     }
+    getConv2DOpVariadicTensors(op, opdT, bias, rshift, multiplier,
+        per_channel_info, eltwise_input);
 
-    float *mkldnn_output = (float *)resultT->data();
-    int mkldnn_ret = mkldnn_conv(mkldnn_input, mkldnn_weight, mkldnn_bias, mkldnn_output,
+    float *output_data = resultT->data();
+    int mkldnn_ret = mkldnn_conv(input->data(), filter->data(),
+        bias?bias->data():nullptr, output_data,
         n, ic, ih, iw, oc, oh, ow, kh, kw, sh, sw, ph, pw, g);
     assert(mkldnn_ret == 0);
     //dump_data_float_abs("mkldnn_output", mkldnn_output, n, oc, oh, ow);
 
     if (do_relu) {
-      my_relu(mkldnn_output, mkldnn_output, n, oc, oh, ow, 0.0f);
+      my_relu(output_data, output_data, n, oc, oh, ow, 0.0f);
+    }
+
+    if (op.fused_eltwise_method() == "SUM") {
+      assert(eltwise_input);
+      my_eltwise(eltwise_input->data(), output_data, output_data, n, oc, oh, ow, 1);
+
+      if (op.fused_activation_function_after_eltwise() == "RELU") {
+        my_relu(output_data, output_data, n, oc, oh, ow, 0.0f);
+      } else {
+        assert(op.fused_activation_function_after_eltwise() == "NONE");
+      }
+    } else {
+      assert(eltwise_input == nullptr);
+      assert(op.fused_eltwise_method() == "NONE");
     }
 
     // rshift and saturate on output
     if (op.quant() == "INT8") {
       assert(rshift);
       for (int i = 0; i < size; ++i) {
-        mkldnn_output[i] = (float)applyRShiftAndSaturateInt8(mkldnn_output[i], (uint32_t)rshift[0]);
+        output_data[i] = (float)applyRShiftAndSaturateInt8(output_data[i],
+            (uint32_t)rshift->at(0));
       }
     } else if (op.quant() == "INT8_PER_CHANNEL") {
       assert(rshift);
       int inner_size = size / oc;
       for (int i = 0; i < oc; ++i) {
         for (int j = 0; j < inner_size; ++j) {
-          mkldnn_output[i * inner_size + j] =
-              (float)applyRShiftAndSaturateInt8(mkldnn_output[i * inner_size + j],
-                                                (uint32_t)rshift[i]);
+          output_data[i * inner_size + j] = (float)applyRShiftAndSaturateInt8(
+              output_data[i * inner_size + j], (uint32_t)rshift->at(i));
         }
       }
     } else if (op.quant() == "INT8_MULTIPLIER") {
@@ -240,9 +224,10 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       int inner_size = size / oc;
       for (int i = 0; i < oc; ++i) {
         for (int j = 0; j < inner_size; ++j) {
-          mkldnn_output[i * inner_size + j] =
-              (float)applyMultiplierAndRShiftAndSaturateInt8(mkldnn_output[i * inner_size + j],
-                                                             rshift[i], multiplier[i], true);
+          output_data[i * inner_size + j] =
+              (float)applyMultiplierAndRShiftAndSaturateInt8(
+                  output_data[i * inner_size + j],
+                  rshift->at(i), multiplier->at(i), true);
         }
       }
     } else if (op.quant() == "BF16") {
@@ -270,7 +255,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     getPool2DOpParam(op, is_average_pool, n, c, ih, iw, oh, ow,
                      kh, kw, sh, sw, ph, pw, do_relu);
 
-    float *mkldnn_input = (float *)opdT[0]->data();
+    std::shared_ptr<std::vector<float> > input = opdT[0];
 
     // for INT8, get threshold_x and make copy of input first
     std::vector<float> input_copy;
@@ -278,16 +263,16 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     float threshold_y;
     if (op.quant() == "INT8" && is_average_pool) {
       // make copy
-      std::vector<float> &src_vec = *opdT[0];
-      std::copy(src_vec.begin(), src_vec.end(), back_inserter(input_copy));
-      mkldnn_input = input_copy.data();
-
+      auto input_copy = make_shared<std::vector<float> >();
+      input_copy->assign(input->begin(), input->end());
+      input = input_copy;
+      // get threshold
       threshold_x = getPreviousOpThreshold(op);
       threshold_y = op.threshold_y().getValue().convertToFloat();
     }
 
-    float *mkldnn_output = (float *)resultT->data();
-    int mkldnn_ret = mkldnn_pool(mkldnn_input, mkldnn_output,
+    float *output_data = resultT->data();
+    int mkldnn_ret = mkldnn_pool(input->data(), output_data,
         n, c, ih, iw, oh, ow, kh, kw, sh, sw, ph, pw, is_average_pool);
     assert(mkldnn_ret == 0);
     //dump_data_float_abs("mkldnn_output", mkldnn_output, n, c, oh, ow);
@@ -306,14 +291,16 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       //int8_t multiplier;
       float scale = threshold_x / threshold_y;
       float scale_and_avg_const = scale / (kh * kw);
-      //rshift = findRShiftAndMultiplierFromQScale(scale_and_avg_const, &multiplier, false, 127);
-      rshift = findRShiftAndMultiplierFromQScale(scale_and_avg_const, &multiplier, false, 255);
+      //rshift = findRShiftAndMultiplierFromQScale(scale_and_avg_const,
+      //                                           &multiplier, false, 127);
+      rshift = findRShiftAndMultiplierFromQScale(scale_and_avg_const,
+                                                 &multiplier, false, 255);
 
       // apply multiplier, rshift and saturate
       for (int i = 0; i < size; ++i) {
         // restore sum value first
-        int sum = (int)(mkldnn_output[i] * kh * kw + 0.5);
-        mkldnn_output[i] = (float)applyMultiplierAndRShiftAndSaturateInt8(
+        int sum = (int)(output_data[i] * kh * kw + 0.5);
+        output_data[i] = (float)applyMultiplierAndRShiftAndSaturateInt8(
                                       sum, rshift, multiplier);
       }
     }
@@ -338,51 +325,29 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
     auto resultT = std::make_unique<std::vector<float> >(size);
 
-    bool transpose, do_relu;
+    bool with_transpose, with_bias, do_relu;
     int m, k, n;
-    getFullyConnectedOpParam(op, transpose, m, k, n, do_relu);
-    assert(transpose == false);
+    getFullyConnectedOpParam(op, with_transpose, m, k, n, with_bias, do_relu);
+    assert(with_transpose == false);
 
-    float *mkldnn_input = (float *)opdT[0]->data();
-    float *mkldnn_weight = (float *)opdT[1]->data();
-    float *mkldnn_bias = nullptr;
-    float *rshift = nullptr;
-    if (op.quant() == "NONE") {
-      if (opdT.size() > 2) {
-        assert(opdT.size() == 3);
-        mkldnn_bias = (float *)opdT[2]->data();
-      }
-    } else if (op.quant() == "INT8") {
-      if (opdT.size() > 3) {
-        assert(opdT.size() == 4);
-        mkldnn_bias = (float *)opdT[2]->data();
-        rshift = (float *)opdT[3]->data();
-      } else {
-        assert(opdT.size() == 3);
-        rshift = (float *)opdT[2]->data();
-      }
-    } else if (op.quant() == "BF16") {
-      // bf16 has been convert to float32 when loading
-      if (opdT.size() > 2) {
-        assert(opdT.size() == 3);
-        mkldnn_bias = (float *)opdT[2]->data();
-      }
-    } else {
-      assert(false);
-    }
+    std::shared_ptr<std::vector<float> > input = opdT[0];
+    std::shared_ptr<std::vector<float> > filter = opdT[1];
+    std::shared_ptr<std::vector<float> > bias = nullptr;
+    std::shared_ptr<std::vector<float> > rshift = nullptr;
+    getFullyConnectedOpVariadicTensors(op, opdT, bias, rshift);
 
-    float *mkldnn_output = (float *)resultT->data();
-    int mkldnn_ret = mkldnn_ip(mkldnn_input, mkldnn_weight, mkldnn_bias,
-        mkldnn_output, m, k, n, transpose);
+    float *output_data = (float *)resultT->data();
+    int mkldnn_ret = mkldnn_ip(input->data(), filter->data(),
+        bias?bias->data():nullptr, output_data, m, k, n, with_transpose);
     assert(mkldnn_ret == 0);
-    //dump_data_float_abs("mkldnn_output", mkldnn_output, 1, 1, m, n);
+    //dump_data_float_abs("output_data", output_data, 1, 1, m, n);
 
     // rshift and saturate on output
     if (op.quant() == "INT8") {
       assert(rshift);
       for (int i = 0; i < size; ++i) {
-        mkldnn_output[i] = (float)applyRShiftAndSaturateInt8(mkldnn_output[i],
-                                                             (uint32_t)rshift[0]);
+        output_data[i] = (float)applyRShiftAndSaturateInt8(output_data[i],
+                                                           (uint32_t)rshift->at(0));
       }
     } else if (op.quant() == "BF16") {
       auto tensor_bf16 = std::make_unique<std::vector<bfloat16> >(resultT->size());

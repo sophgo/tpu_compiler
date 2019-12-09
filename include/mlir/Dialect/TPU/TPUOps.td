@@ -152,15 +152,30 @@ class TPU_ConvOp<string mnemonic, string opSummary> :
     Performs convolution operation on inputs.
 
     Inputs:
-      `inputs[0]`: required: the input activation tensor
-      `inputs[1]`: required: the filter weight tensor
-      `inputs[2]`: optional: the bias tensor
+      `inputs[0]`  : required: the input activation tensor.
+      `inputs[1]`  : required: the filter weight tensor.
+      `inputs[2~5]`: variadic: other input tensors depends on attributes
+          - if `with_bias` is true, and `per_channel_info_is_aggregated` is
+            false, a dedicated `bias` tensor will be present.
+          - for `INT8` quantization, before assignWeightAddress stage,
+            `rshift` tensor will be present.
+          - for `INT8_MULTIPLIER`, before assignWeightAddress stage,
+            `multiplier` tensor will be present.
+          - for `INT8` quantization, after assignWeightAddress, `bias`
+            and `rshift` and `multiplier` will be aggregated as one tensor
+            therefore `per_channel_info` tensor will be present, and `bias`
+            tensor will not be present.
+          - if `fused_eltwise_method` is not `NONE`, another input tensor will
+            be present as a `eltwise_input` tensor.
+          - no matter whether a tensor is present, they present in the order
+            we described above
   }];
 
   let arguments = (
     ins AnyTensor:$input,
     AnyTensor:$filter,
-    Variadic<AnyTensor>:$bias,
+    Variadic<AnyTensor>:$variadic_tensors,
+    BoolAttr:$with_bias,
     DefaultValuedAttr<I32Attr, "1">:$dilation_h_factor,
     DefaultValuedAttr<I32Attr, "1">:$dilation_w_factor,
     DefaultValuedAttr<TPU_AFAttr, "NONE">:$fused_activation_function,
@@ -172,6 +187,7 @@ class TPU_ConvOp<string mnemonic, string opSummary> :
     I32Attr:$stride_w,
     DefaultValuedAttr<I32Attr, "1">:$group,
     OptionalAttr<StrAttr>:$name,
+    DefaultValuedAttr<BoolAttr, "false">:$per_channel_info_is_aggregated,
     OptionalAttr<NonNegativeI64Attr>:$offset,
     OptionalAttr<F32Attr>:$threshold_y,
     OptionalAttr<NonNegativeI32Attr>:$layer_id,
@@ -262,6 +278,8 @@ def TPU_FullyConnectedOp : TPU_Op<"fully_connected", [NoSideEffect]> {
     ins AnyTensor:$input,
     AnyTensor:$filter,
     Variadic<AnyTensor>:$bias,
+    BoolAttr:$with_bias,
+    DefaultValuedAttr<BoolAttr, "false">:$with_transpose,
     DefaultValuedAttr<TPU_AFAttr, "NONE">:$fused_activation_function,
     OptionalAttr<StrAttr>:$name,
     OptionalAttr<NonNegativeI64Attr>:$offset,

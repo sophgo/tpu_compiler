@@ -376,6 +376,7 @@ void CaffeImporter::convertConvolutionLayer(mlir::Block *block,
   // construct OP
   auto result_type = builder_.getTensorType({n, oc, ofmap[0], ofmap[1]}, elementType_);
   std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder_.getNamedAttr("with_bias", builder_.getBoolAttr(with_bias)));
   attrs.push_back(builder_.getNamedAttr("dilation_h_factor", builder_.getI32IntegerAttr(dilation[0])));
   attrs.push_back(builder_.getNamedAttr("dilation_w_factor", builder_.getI32IntegerAttr(dilation[1])));
   //attrs.push_back(builder.getNamedAttr("fused_activation_function", builder.getStringAttr("NONE")));
@@ -467,6 +468,8 @@ void CaffeImporter::convertInnerProductLayer(mlir::Block *block,
   // construct OP
   auto result_type = builder_.getTensorType({M, N}, elementType_);
   std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder_.getNamedAttr("with_bias", builder_.getBoolAttr(with_bias)));
+  attrs.push_back(builder_.getNamedAttr("with_transpose", builder_.getBoolAttr(with_transpose)));
   attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name())));
   auto op = OpBuilder(block).create<tpu::FullyConnectedOp>(
       builder_.getUnknownLoc(), result_type,

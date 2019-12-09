@@ -154,7 +154,7 @@ static int64_t findPadForSamePadding(int64_t i, int64_t o, int64_t k, int64_t s,
 void getConv2DOpParam(tpu::Conv2DOp &op,
     int &n, int &ic, int &ih, int &iw, int &oc, int &oh, int &ow, int &g,
     int &kh, int &kw, int &sh, int &sw, int &ph, int &pw, int &dh, int &dw,
-    bool &do_relu) {
+    bool &with_bias, bool &do_relu) {
   dh = op.dilation_h_factor().getLimitedValue();
   dw = op.dilation_w_factor().getLimitedValue();
   sh = op.stride_h().getLimitedValue();
@@ -201,6 +201,7 @@ void getConv2DOpParam(tpu::Conv2DOp &op,
   } else {
     assert(0);
   }
+  with_bias = op.with_bias();
 }
 
 void getPool2DOpParam(tpu::Pool2DOp &op,
@@ -250,8 +251,8 @@ void getPool2DOpParam(tpu::Pool2DOp &op,
 }
 
 void getFullyConnectedOpParam(tpu::FullyConnectedOp &op,
-    bool &transpose, int &m, int &k, int &n, bool &do_relu) {
-  transpose = false;
+    bool &with_transpose, int &m, int &k, int &n,
+    bool &with_bias, bool &do_relu) {
   auto input_type = op.input()->getType().cast<TensorType>();
   std::vector<int64_t> i_s(input_type.getShape());
   auto output_type = op.output()->getType().cast<TensorType>();
@@ -270,6 +271,72 @@ void getFullyConnectedOpParam(tpu::FullyConnectedOp &op,
   } else if (op.fused_activation_function() == "RELU") {
     do_relu = true;
   } else {
+    assert(0);
+  }
+  with_transpose = op.with_transpose();
+  with_bias = op.with_bias();
+}
+
+void getConv2DOpVariadicTensors(tpu::Conv2DOp &op,
+    std::vector<std::shared_ptr<std::vector<float> > > &opdT,
+    std::shared_ptr<std::vector<float> > &bias,
+    std::shared_ptr<std::vector<float> > &rshift,
+    std::shared_ptr<std::vector<float> > &multiplier,
+    std::shared_ptr<std::vector<float> > &per_channel_info,
+    std::shared_ptr<std::vector<float> > &eltwise_input) {
+  unsigned idx = 2;  // first 2 opdT are always input and filter
+  if (op.per_channel_info_is_aggregated()) {
+    // only INT8 related quantization use aggregated per_channel_info
+    assert(op.quant() == "INT8" || op.quant() == "INT8_PER_CHANNEL"
+           || op.quant() == "INT8_MULTIPLIER");
+    per_channel_info = opdT[idx];
+    idx += 1;
+  }
+  else {
+    if (op.with_bias()) {
+      bias = opdT[idx];
+      idx += 1;
+    }
+
+    if (op.quant() == "INT8" || op.quant() == "INT8_PER_CHANNEL"
+           || op.quant() == "INT8_MULTIPLIER") {
+      rshift = opdT[idx];
+      idx += 1;
+    }
+
+    if (op.quant() == "INT8_MULTIPLIER") {
+      multiplier = opdT[idx];
+      idx += 1;
+    }
+  }
+  if (op.fused_eltwise_method() != "NONE") {
+    eltwise_input = opdT[idx];
+    idx += 1;
+  }
+  if (idx != opdT.size()) {
+    llvm::errs() << op.name() << ": opdT.size=" << opdT.size()
+                 << ", idx=" << idx << "\n";
+    assert(0);
+  }
+}
+
+
+void getFullyConnectedOpVariadicTensors(tpu::FullyConnectedOp &op,
+    std::vector<std::shared_ptr<std::vector<float> > > &opdT,
+    std::shared_ptr<std::vector<float> > &bias,
+    std::shared_ptr<std::vector<float> > &rshift) {
+  unsigned idx = 2;  // first 2 opdT are always input and filter
+  if (op.with_bias()) {
+    bias = opdT[idx];
+    idx += 1;
+  }
+  if (op.quant() == "INT8") {
+    rshift = opdT[idx];
+    idx += 1;
+  }
+  if (idx != opdT.size()) {
+    llvm::errs() << op.name() << ": opdT.size=" << opdT.size()
+                 << ", idx=" << idx << "\n";
     assert(0);
   }
 }

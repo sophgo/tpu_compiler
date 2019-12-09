@@ -67,12 +67,20 @@ struct TpuFuseEltwisePattern : public RewritePattern {
       //formerOp->setOperand(formerOp->getNumOperands(), input_0);
 
       // handle threshold_y or eltwise
-      float conv_threshold_y = convOp.threshold_y().getValue().convertToFloat();
-      convOp.setAttr("threshold_y_before_eltwise",
-          rewriter.getF32FloatAttr(conv_threshold_y));
-      float eltwise_threshold_y = eltwiseOp.threshold_y().getValue().convertToFloat();
-      convOp.setAttr("threshold_y",
-          rewriter.getF32FloatAttr(eltwise_threshold_y));
+      if (convOp.threshold_y().hasValue()) {
+        float conv_threshold_y = convOp.threshold_y().getValue().convertToFloat();
+        convOp.setAttr("threshold_y_before_eltwise",
+            rewriter.getF32FloatAttr(conv_threshold_y));
+        assert(eltwiseOp.threshold_y().hasValue());
+        float eltwise_threshold_y = eltwiseOp.threshold_y().getValue().convertToFloat();
+        convOp.setAttr("threshold_y",
+            rewriter.getF32FloatAttr(eltwise_threshold_y));
+      } else {
+        llvm::errs() << "WARNING: fuse eltwise should be done after import calibration table\n";
+      }
+
+      // set Attr
+      convOp.setAttr("fused_eltwise_method", rewriter.getStringAttr(eltwiseOp.method()));
 
       // set fused_activation_function_after_eltwise for conv Op
       convOp.setAttr("fused_activation_function_after_eltwise",
