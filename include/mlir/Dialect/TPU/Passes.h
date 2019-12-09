@@ -34,6 +34,7 @@ std::unique_ptr<FunctionPassBase> createConvertBnToScalePass();
 std::unique_ptr<FunctionPassBase> createFoldScalePass();
 std::unique_ptr<FunctionPassBase> createMergeScaleIntoConvPass();
 std::unique_ptr<FunctionPassBase> createFuseReluPass();
+std::unique_ptr<FunctionPassBase> createFuseEltwisePass();
 
 std::unique_ptr<FunctionPassBase> createImportCalibrationTablePass();
 std::unique_ptr<FunctionPassBase> createQuantizeInt8Pass();

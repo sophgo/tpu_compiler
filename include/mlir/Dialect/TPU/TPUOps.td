@@ -120,7 +120,21 @@ def TPU_POOL_MAX  : StrEnumAttrCase<"MAX">;
 
 def TPU_PoolAttr : StrEnumAttr<
     "PoolMethodType", "pool method enum", [
-      TPU_POOL_AVE,  TPU_POOL_MAX
+      TPU_POOL_AVE, TPU_POOL_MAX
+    ]>;
+
+//===----------------------------------------------------------------------===//
+// Eltwise method enum definitions.
+//===----------------------------------------------------------------------===//
+
+// Allowed eltwise method cases
+def TPU_ELTWISE_SUM  : StrEnumAttrCase<"SUM">;
+def TPU_ELTWISE_PROD : StrEnumAttrCase<"PROD">;
+def TPU_ELTWISE_MAX  : StrEnumAttrCase<"MAX">;
+
+def TPU_EltwiseAttr : StrEnumAttr<
+    "EltwiseMethodType", "eltwise method enum", [
+      TPU_ELTWISE_SUM, TPU_ELTWISE_PROD, TPU_ELTWISE_MAX
     ]>;
 
 //===----------------------------------------------------------------------===//
@@ -150,6 +164,9 @@ class TPU_ConvOp<string mnemonic, string opSummary> :
     DefaultValuedAttr<I32Attr, "1">:$dilation_h_factor,
     DefaultValuedAttr<I32Attr, "1">:$dilation_w_factor,
     DefaultValuedAttr<TPU_AFAttr, "NONE">:$fused_activation_function,
+    DefaultValuedAttr<TPU_EltwiseAttr, "NONE">:$fused_eltwise_method,
+    DefaultValuedAttr<TPU_AFAttr, "NONE">:$fused_activation_function_after_eltwise,
+    OptionalAttr<F32Attr>:$threshold_y_before_eltwise,
     TPU_PaddingAttr:$padding,
     I32Attr:$stride_h,
     I32Attr:$stride_w,
@@ -323,6 +340,7 @@ def TPU_EltwiseOp: TPU_Op<"eltwise", [NoSideEffect, SameOperandsAndResultType]> 
   let arguments = (
     ins AnyTensor:$x1,
     AnyTensor:$x2,
+    DefaultValuedAttr<TPU_EltwiseAttr, "SUM">:$method,
     DefaultValuedAttr<TPU_AFAttr, "NONE">:$fused_activation_function,
     OptionalAttr<StrAttr>:$name,
     OptionalAttr<NonNegativeI64Attr>:$offset,
