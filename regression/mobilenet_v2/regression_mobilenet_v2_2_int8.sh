@@ -20,7 +20,7 @@ mlir-opt \
     mobilenet_v2_opt1.mlir \
     -o mobilenet_v2_opt2.mlir
 mlir-opt \
-    --fuse-scale-into-conv \
+    --merge-scale-into-conv \
     mobilenet_v2_opt2.mlir \
     -o mobilenet_v2_opt3.mlir
 

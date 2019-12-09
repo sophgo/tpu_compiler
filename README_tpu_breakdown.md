@@ -267,7 +267,7 @@ $ python bin_compare.py out.bin out-opt2.bin float32 1 1 1 1000 5
 
 ```
 $ ./bin/mlir-opt \
-    --fuse-scale-into-conv \
+    --merge-scale-into-conv \
     resnet-50-opt2.mlir \
     -o resnet-50-opt3.mlir
 ```
@@ -286,7 +286,7 @@ $ python bin_compare.py out.bin out-opt3.bin float32 1 1 1 1000 5
 $ ./bin/mlir-opt \
     --convert-bn-to-scale \
     --fold-scale \
-    --fuse-scale-into-conv \
+    --merge-scale-into-conv \
     resnet-50.mlir \
     -o resnet-50-opt.mlir
 ```

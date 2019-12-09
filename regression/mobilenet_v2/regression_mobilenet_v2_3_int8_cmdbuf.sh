@@ -14,7 +14,7 @@ mlir-translate \
 mlir-opt \
     --convert-bn-to-scale \
     --fold-scale \
-    --fuse-scale-into-conv \
+    --merge-scale-into-conv \
     mobilenet_v2.mlir \
     -o mobilenet_v2_opt.mlir
 

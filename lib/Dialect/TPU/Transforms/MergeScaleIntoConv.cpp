@@ -34,8 +34,8 @@ using namespace mlir;
 
 namespace {
 
-struct TpuFuseScaleIntoConvPattern : public RewritePattern {
-  TpuFuseScaleIntoConvPattern(MLIRContext *context, TensorFile *weightTensorFile)
+struct TpuMergeScaleIntoConvPattern : public RewritePattern {
+  TpuMergeScaleIntoConvPattern(MLIRContext *context, TensorFile *weightTensorFile)
       : RewritePattern("tpu.scale", 1, context),
         weightTensorFile_(weightTensorFile) {}
 
@@ -145,7 +145,7 @@ struct TpuFuseScaleIntoConvPattern : public RewritePattern {
     newOperands.push_back(convOp.getOperand(0));
     // add new filter and bias weight ops
     for (int i = 0; i < 2; ++i) {
-      auto tensor_name = op_name + "_fuse_scale_" + std::to_string(i);
+      auto tensor_name = op_name + "_merge_scale_" + std::to_string(i);
       llvm::errs() << "  new_weight[" << i << "] : " << tensor_name << "\n";
       auto type = rewriter.getTensorType(weightShapes[i], FloatType::getF32(rewriter.getContext()));
       weightTensorFile_->addTensor<float>(tensor_name, newWeights[i], type);
@@ -177,9 +177,9 @@ struct TpuFuseScaleIntoConvPattern : public RewritePattern {
   TensorFile *weightTensorFile_;
 };
 
-class FuseScaleIntoConvPass : public FunctionPass<FuseScaleIntoConvPass> {
+class MergeScaleIntoConvPass : public FunctionPass<MergeScaleIntoConvPass> {
 public:
-  explicit FuseScaleIntoConvPass(llvm::raw_ostream &os = llvm::errs()) : os(os) {}
+  explicit MergeScaleIntoConvPass(llvm::raw_ostream &os = llvm::errs()) : os(os) {}
 
   void runOnFunction() override {
     auto fn = getFunction();
@@ -195,7 +195,7 @@ public:
 
     OwningRewritePatternList patterns;
     auto *context = &getContext();
-    patterns.insert<TpuFuseScaleIntoConvPattern>(context, weightTensorFile.get());
+    patterns.insert<TpuMergeScaleIntoConvPattern>(context, weightTensorFile.get());
     applyPatternsGreedily(fn, patterns);
 
     std::string newName;
@@ -213,10 +213,10 @@ private:
 
 } // namespace
 
-std::unique_ptr<FunctionPassBase> mlir::createFuseScaleIntoConvPass() {
-  return std::make_unique<FuseScaleIntoConvPass>();
+std::unique_ptr<FunctionPassBase> mlir::createMergeScaleIntoConvPass() {
+  return std::make_unique<MergeScaleIntoConvPass>();
 }
 
-static PassRegistration<FuseScaleIntoConvPass>
-    pass("fuse-scale-into-conv",
-         "Fuse scale op into conv op");
+static PassRegistration<MergeScaleIntoConvPass>
+    pass("merge-scale-into-conv",
+         "Merge scale op into conv op");

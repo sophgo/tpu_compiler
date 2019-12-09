@@ -112,14 +112,14 @@ We support following pre-quantization optimzation
 
 * convert-bn-to-scale
 * fold-scale
-* fuse-scale-into-conv
+* merge-scale-into-conv
 
 To apply all passes
 ```
 $ ./bin/mlir-opt \
     --convert-bn-to-scale \
     --fold-scale \
-    --fuse-scale-into-conv \
+    --merge-scale-into-conv \
     resnet-50.mlir \
     -o resnet-50-opt.mlir
 ```

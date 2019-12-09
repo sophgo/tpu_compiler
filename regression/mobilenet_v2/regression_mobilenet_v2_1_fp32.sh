@@ -46,7 +46,7 @@ bin_compare.py out.bin out_opt2.bin float32 1 1 1 1000 5 5
 
 # opt3, merge scale into conv
 mlir-opt \
-    --fuse-scale-into-conv \
+    --merge-scale-into-conv \
     mobilenet_v2_opt2.mlir \
     -o mobilenet_v2_opt3.mlir
 

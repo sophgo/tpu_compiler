@@ -20,7 +20,7 @@ mlir-opt \
     resnet50_opt1.mlir \
     -o resnet50_opt2.mlir
 mlir-opt \
-    --fuse-scale-into-conv \
+    --merge-scale-into-conv \
     resnet50_opt2.mlir \
     -o resnet50_opt3.mlir
 
