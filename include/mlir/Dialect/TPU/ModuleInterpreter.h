@@ -53,7 +53,7 @@ public:
   static LogicalResult runModuleAndGetValueMap(ModuleOp m,
       std::vector<std::vector<float> *> &inputs,
       std::vector<std::vector<float> *> &outputs,
-      std::map<std::string, std::pair<std::vector<int64_t>, std::vector<float>>> &tensorMap) {
+      std::map<std::string, std::vector<float>> &tensorMap) {
 
     T interpreter(m, inputs, outputs);
     if (failed(interpreter.runFunctions()))
@@ -72,10 +72,8 @@ public:
 
       auto vec = it->second.get();
       assert(vec);
-      auto result = op->getResult(0);
-      std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
 
-      tensorMap[getOpName(op).str()] = std::make_pair(shape, *vec);
+      tensorMap[getOpName(op).str()] = *vec;
     }
 
     return success();

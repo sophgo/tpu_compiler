@@ -11,6 +11,7 @@
 #include "mlir/Dialect/TPU/TPUDialect.h"
 #include "mlir/Dialect/TPU/Passes.h"
 #include "mlir/Dialect/TPU/Interpreter.h"
+#include "mlir/Dialect/TPU/TPUOperationSupport.h"
 #include "mlir/Dialect/StandardOps/Ops.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Function.h"
@@ -32,7 +33,8 @@
 
 using namespace mlir;
 
-typedef std::map<std::string, std::pair<std::vector<int64_t>, std::vector<float>>> tensor_map_t;
+typedef std::map<std::string, std::vector<float>> tensor_map_t;
+typedef std::map<std::string, std::vector<int64_t>> shape_map_t;
 
 static OwningModuleRef parseMLIRInput(StringRef inputFilename,
                                       MLIRContext *context) {
@@ -47,6 +49,25 @@ static OwningModuleRef parseMLIRInput(StringRef inputFilename,
   llvm::SourceMgr sourceMgr;
   sourceMgr.AddNewSourceBuffer(std::move(file), llvm::SMLoc());
   return OwningModuleRef(parseSourceFile(sourceMgr, context));
+}
+
+static void parseMLIRShape(ModuleOp m, shape_map_t &shapeMap)
+{
+  for (FuncOp function : m.getOps<FuncOp>()) {
+    for (Block &bb : function.getBlocks()) {
+      for (auto &op : bb) {
+        if (isa<tpu::LoadWeightOp>(op) ||
+            isa<tpu::LoadFileOp>(op)) {
+          continue;
+        }
+
+        for (unsigned i = 0; i < op.getNumResults(); i++) {
+          auto result = op.getResult(i);
+          shapeMap[getOpName(&op).str()] = result->getType().cast<TensorType>().getShape();
+        }
+      }
+    }
+  }
 }
 
 static int runTpuInterpreter(OwningModuleRef &m, std::vector<float> &input, std::vector<float> &output,
@@ -101,13 +122,13 @@ public:
   py_module() {}
 
   void load(std::string filename) {
-    //const char *argv= "-";
-    //llvm::cl::ParseCommandLineOptions(1, &argv, "PY MLIR\n");
     module = parseMLIRInput(filename, &context);
     if (!module) {
       llvm::errs() << "could not parse the input IR\n";
       exit(-1);
     }
+
+    parseMLIRShape(module.get(), shapeMap_);
   }
 
   void dump() {
@@ -118,8 +139,10 @@ public:
     py::dict ret;
     for (auto it = tensorMap_.begin(); it != tensorMap_.end(); it++) {
       auto op = it->first;
-      auto data = it->second.second;
-      auto shape = it->second.first;
+      auto data = it->second;
+
+      assert(shapeMap_.end() != shapeMap_.find(op));
+      auto shape = shapeMap_[op];
 
       py::str py_s(op);
       ret[py_s] = getPythonArray(data, shape);
@@ -136,8 +159,11 @@ public:
       auto op = it->first;
 
       if (op == op_name) {
-        auto data = it->second.second;
-        auto shape = it->second.first;
+        auto data = it->second;
+
+        assert(shapeMap_.end() != shapeMap_.find(op));
+        auto shape = shapeMap_[op];
+
         ret = getPythonArray(data, shape);
         break;
       }
@@ -182,6 +208,7 @@ private:
   MLIRContext context;
   OwningModuleRef module;
   tensor_map_t tensorMap_;
+  shape_map_t shapeMap_;
 };
 
 // wrap as Python module
