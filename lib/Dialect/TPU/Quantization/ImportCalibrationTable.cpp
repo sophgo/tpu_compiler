@@ -109,9 +109,8 @@ public:
       std::istringstream iss(line);
       std::string name;
       float threshold;
-      int rshift;
-      if (!(iss >> name >> threshold >> rshift)) { break; }
-      os << "  name " << name << ", threshold " << threshold << ", rshift " << rshift << "\n";
+      if (!(iss >> name >> threshold)) { break; }
+      std::cout << "  name " << name << ", threshold " << threshold << "\n";
       threshold_map[name] = threshold;
     }
 
