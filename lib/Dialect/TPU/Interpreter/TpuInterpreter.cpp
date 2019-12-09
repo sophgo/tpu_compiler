@@ -49,9 +49,6 @@
 
 #define DEBUG_TYPE "interpreter"
 
-//#define QUANT_DEQUANT_EVERY_LAYER
-//#define ENABLE_GEN_CMDBUF
-
 using namespace std;
 
 static llvm::cl::OptionCategory clOptionsCategory("interpreter options");
@@ -62,38 +59,10 @@ static llvm::cl::opt<std::string> clAllTensorFilename(
     llvm::cl::init("-"),
     llvm::cl::cat(clOptionsCategory));
 
-static llvm::cl::opt<std::string> clCmdBufFilename(
-    "generate-cmdbuf",
-    llvm::cl::desc("generate cmdbuf and save into a bin file"),
-    llvm::cl::init("-"),
-    llvm::cl::cat(clOptionsCategory));
-
 static llvm::cl::opt<float> clInputScale(
     "input-scale",
     llvm::cl::desc("input scale to apply on the input values"),
     llvm::cl::cat(clOptionsCategory));
-
-#ifdef ENABLE_GEN_CMDBUF
-#include "backend/backend_tg_api.h"
-static BM1880v2BackendContext *backend_ctx = nullptr;
-#endif
-
-#define calcConv2DSpatialOutput(_i_, _k_, _s_, _p_, _d_) \
-    (((_i_) + 2 * (_p_) - (_d_) * ((_k_) - 1) - 1) / (_s_) + 1)
-
-static int64_t findPadForSamePadding(int64_t i, int64_t o, int64_t k, int64_t s, int64_t d) {
-  //llvm::errs() << "i: " << i << ", o: " << o << ", k: " << k << ", s: " << s << ", d: " << d << "\n";
-  if (k == 1) {
-    return 0;
-  }
-  for (int64_t p = 1; p <= k - 1; ++p) {
-    if (calcConv2DSpatialOutput(i, k, s, p, d) == o) {
-      return p;
-    }
-  }
-  assert(false);
-  return 0;
-}
 
 namespace mlir {
 
@@ -190,47 +159,10 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
     auto resultT = std::make_unique<std::vector<float> >(size);
 
-    // TODO: do the actual compute here
-    int n, ic, ih, iw, oc, oh, ow, kh, kw, sh, sw, ph, pw, dh, dw, g;
-    dh = op.dilation_h_factor().getLimitedValue();  // APInt, use .getLimitedValue(); to get uint65_t
-    dw = op.dilation_w_factor().getLimitedValue();
-    sh = op.stride_h().getLimitedValue();
-    sw = op.stride_w().getLimitedValue();
-    auto input_type = op.input()->getType().cast<TensorType>();
-    std::vector<int64_t> i_s(input_type.getShape());
-    auto output_type = op.output()->getType().cast<TensorType>();
-    std::vector<int64_t> o_s(output_type.getShape());
-    auto filter_type = op.filter()->getType().cast<TensorType>();
-    std::vector<int64_t> f_s(filter_type.getShape());
-    assert((i_s[0] == o_s[0]) && "input N not equal to output N");
-    n = i_s[0];
-    ic = i_s[1];
-    ih = i_s[2];
-    iw = i_s[3];
-    oc = o_s[1];
-    oh = o_s[2];
-    ow = o_s[3];
-    auto f_dim = f_s.size();
-    kh = f_s[f_dim - 2];
-    kw = f_s[f_dim - 1];
-    if (op.padding() == "SAME") {
-      ph = findPadForSamePadding(ih, oh, kh, sh, dh);
-      pw = findPadForSamePadding(iw, ow, kw, sw, dw);
-    } else if (op.padding() == "VALID") {
-      ph = 0;
-      pw = 0;
-    } else {
-      assert(false);
-    }
-    g = op.group().getLimitedValue();
-    if (g != 1) {
-      // only support depthwise group for now (not support normal group)
-      assert(f_s.size() == 5 && g == f_s[0]);
-      assert(f_s[1] == 1 && f_s[2] == 1);
-      assert(g == ic && g == oc);
-    } else {
-      assert(f_s.size() == 4);
-    }
+    int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, ph, pw, dh, dw;
+    bool do_relu;
+    getConv2DOpParam(op, n, ic, ih, iw, oc, oh, ow, g,
+                     kh, kw, sh, sw, ph, pw, dh, dw, do_relu);
 
     float *mkldnn_input = (float *)opdT[0]->data();
     float *mkldnn_weight = (float *)opdT[1]->data();
@@ -277,34 +209,14 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       assert(false);
     }
 
-#ifdef QUANT_DEQUANT_EVERY_LAYER
-    // do quantize on input
-    // remove this when the network is full int8, and passed legalization
-    // copy the input first
-    std::vector<float> input_copy(*opdT[0]);
-    mkldnn_input = input_copy.data();
-    if (op.quant() == "INT8" || op.quant() == "INT8_PER_CHANNEL"
-        || op.quant() == "INT8_MULTIPLIER") {
-      float threshold_x = getPreviousOpThreshold(op);
-      LLVM_DEBUG(llvm::errs() << "  conv input quantize, threshold_x = "
-                              << std::to_string(threshold_x) << "\n";);
-      for (size_t i = 0; i < opdT[0]->size(); ++i) {
-        mkldnn_input[i] = (float)saturateInt8(mkldnn_input[i] * 128.0 / threshold_x);
-      }
-    }
-#endif
-
     float *mkldnn_output = (float *)resultT->data();
     int mkldnn_ret = mkldnn_conv(mkldnn_input, mkldnn_weight, mkldnn_bias, mkldnn_output,
         n, ic, ih, iw, oc, oh, ow, kh, kw, sh, sw, ph, pw, g);
     assert(mkldnn_ret == 0);
     //dump_data_float_abs("mkldnn_output", mkldnn_output, n, oc, oh, ow);
 
-    if (op.fused_activation_function() == "NONE") {
-    } else if (op.fused_activation_function() == "RELU") {
+    if (do_relu) {
       my_relu(mkldnn_output, mkldnn_output, n, oc, oh, ow, 0.0f);
-    } else {
-      assert(0);
     }
 
     // rshift and saturate on output
@@ -339,165 +251,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
     }
 
-#ifdef QUANT_DEQUANT_EVERY_LAYER
-    // do dequantize on output
-    // remove this when the network is full int8, and passed legalization
-    if (op.quant() == "INT8" || op.quant() == "INT8_PER_CHANNEL"
-        || op.quant() == "INT8_MULTIPLIER") {
-      float threshold_y = op.threshold_y().getValue().convertToFloat();
-      LLVM_DEBUG(llvm::errs() << "  conv output dequantize, threshold_y = "
-                   << std::to_string(threshold_y) << "\n";);
-      for (int i = 0; i < size; ++i) {
-        mkldnn_output[i] = mkldnn_output[i] * threshold_y / 128.0;
-      }
-    }
-#endif
-    // TODO: End of compute, need refactor
-
     valueMapping[result] = std::move(resultT);
-
-#ifdef ENABLE_GEN_CMDBUF
-    if (clCmdBufFilename != "-") {
-
-    gaddr_t input_gaddr = getPreviousOpAddress(op);
-    gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
-    gaddr_t filter_gaddr = getWeightOpAddress(op.getOperand(1)->getDefiningOp());
-
-    if (op.quant() == "INT8") {
-
-    gaddr_t bias_gaddr = INVALID_GLOBAL_ADDR;
-    int with_bias = 0;
-    if (opdT.size() > 3) {
-      with_bias = 1;
-    }
-    if (with_bias) {
-      bias_gaddr = getWeightOpAddress(op.getOperand(2)->getDefiningOp());
-    }
-
-    bmnet_conv_parallel_fixed_forward_bmkernel(
-        *backend_ctx,
-        0, // stream_id,
-        0, // inst_id,
-        0, // layer_id,
-        nullptr, // depends
-        0, // depends_len
-        input_gaddr, // input_data_gaddr,
-        output_gaddr, // output_data_gaddr,
-        filter_gaddr, // weight_data_gaddr,
-        bias_gaddr, // bias_data_gaddr,
-        INVALID_GLOBAL_ADDR, // bn_mean_data_gaddr,
-        INVALID_GLOBAL_ADDR, // bn_variance_data_gaddr,
-        INVALID_GLOBAL_ADDR,
-        INVALID_GLOBAL_ADDR,
-        n,
-        ic,
-        ih,
-        iw,
-        1, // group,
-        oc,
-        kh,
-        kw,
-        dh,
-        dw,
-        ph, // pad_h_top,
-        ph, // pad_h_bottom,
-        pw, // pad_w_left,
-        pw, // pad_w_right,
-        sh,
-        sw,
-        0, // result_add
-        with_bias, // bias_term,
-        0, // do_bn,
-        0, // do_scale,
-        0, // do_scale_bias,
-        0, // do_activation,
-        1.0f, // bn_scale,
-        1e-5, // eps,
-        0, // param.activation(), method
-        nullptr, // activation_arg,
-        INVALID_GLOBAL_ADDR, //global_slope_gaddr,
-        false, //channel_shared,
-        0, //activation_gt_scale,
-        0, //activation_gt_rshift,
-        0, //activation_le_scale, // slope, TODO
-        0, //activation_le_rshift,
-        (int)rshift[0], //right_shift_width,
-        0, //bn_right_shift_width,
-        0, //scale_right_shift_width,
-        false, //use_winograd
-        0, //int threshold_x_quantized_len,
-        nullptr, //const int *threshold_x_quantized,
-        nullptr //const int *right_shift_array
-        );
-
-    } else if (op.quant() == "INT8_MULTIPLIER") {
-
-    gaddr_t bias_gaddr = getWeightOpAddress(op.getOperand(2)->getDefiningOp());
-    // TODO: assuming always with_bias
-    int with_bias = 1;
-
-    bmnet_conv_parallel_fixed_forward_bmkernel_qdm(
-        *backend_ctx,
-        0, // stream_id,
-        0, // inst_id,
-        0, // layer_id,
-        nullptr, // depends
-        0, // depends_len
-        input_gaddr, // input_data_gaddr,
-        output_gaddr, // output_data_gaddr,
-        filter_gaddr, // weight_data_gaddr,
-        bias_gaddr, // bias_data_gaddr,
-        INVALID_GLOBAL_ADDR, // bn_mean_data_gaddr,
-        INVALID_GLOBAL_ADDR, // bn_variance_data_gaddr,
-        INVALID_GLOBAL_ADDR,
-        INVALID_GLOBAL_ADDR,
-        n,
-        ic,
-        ih,
-        iw,
-        1, // group,
-        oc,
-        kh,
-        kw,
-        dh,
-        dw,
-        ph, // pad_h_top,
-        ph, // pad_h_bottom,
-        pw, // pad_w_left,
-        pw, // pad_w_right,
-        sh,
-        sw,
-        0, // result_add
-        with_bias, // bias_term,
-        0, // do_bn,
-        0, // do_scale,
-        0, // do_scale_bias,
-        0, // do_activation,
-        1.0f, // bn_scale,
-        1e-5, // eps,
-        0, // param.activation(), method
-        nullptr, // activation_arg,
-        INVALID_GLOBAL_ADDR, //global_slope_gaddr,
-        false, //channel_shared,
-        0, //activation_gt_scale,
-        0, //activation_gt_rshift,
-        0, //activation_le_scale, // slope, TODO
-        0, //activation_le_rshift,
-        0, //(int)rshift[0], //right_shift_width,
-        0, //bn_right_shift_width,
-        0, //scale_right_shift_width,
-        false, //use_winograd
-        0, //int threshold_x_quantized_len,
-        nullptr, //const int *threshold_x_quantized,
-        nullptr //const int *right_shift_array
-        );
-
-    } else {
-      assert(false);
-    }
-
-    } // clCmdBufFilename
-#endif
 
     return success();
   }
@@ -511,43 +265,11 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
     auto resultT = std::make_unique<std::vector<float> >(size);
 
-    // TODO: do the actual compute here
-    auto pool_method = op.getAttrOfType<StringAttr>("pool");
-    bool is_average_pool;
-    if (pool_method.getValue() == "AVE") {
-      is_average_pool = true;
-    } else if (pool_method.getValue() == "MAX") {
-      is_average_pool = false;
-    } else {
-      assert(false);
-    }
+    bool is_average_pool, do_relu;
     int n, c, ih, iw, oh, ow, kh, kw, sh, sw, ph, pw;
-    kh = op.filter_height().getLimitedValue();
-    kw = op.filter_width().getLimitedValue();
-    sh = op.stride_h().getLimitedValue();
-    sw = op.stride_w().getLimitedValue();
-    auto input_type = op.input()->getType().cast<TensorType>();
-    std::vector<int64_t> i_s(input_type.getShape());
-    auto output_type = op.output()->getType().cast<TensorType>();
-    std::vector<int64_t> o_s(output_type.getShape());
-    assert((i_s[0] == o_s[0]) && "input N not equal to output N");
-    assert((i_s[1] == o_s[1]) && "input C not equal to output C");
-    n = i_s[0];
-    c = i_s[1];
-    ih = i_s[2];
-    iw = i_s[3];
-    oh = o_s[2];
-    ow = o_s[3];
-    auto padding_attr = op.getAttrOfType<StringAttr>("padding");
-    if (padding_attr.getValue() == "SAME") {
-      ph = findPadForSamePadding(ih, oh, kh, sh, 1);
-      pw = findPadForSamePadding(iw, ow, kw, sw, 1);
-    } else if (padding_attr.getValue() == "VALID") {
-      ph = 0;
-      pw = 0;
-    } else {
-      assert(false);
-    }
+    getPool2DOpParam(op, is_average_pool, n, c, ih, iw, oh, ow,
+                     kh, kw, sh, sw, ph, pw, do_relu);
+
     float *mkldnn_input = (float *)opdT[0]->data();
 
     // for INT8, get threshold_x and make copy of input first
@@ -563,16 +285,6 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       threshold_x = getPreviousOpThreshold(op);
       threshold_y = op.threshold_y().getValue().convertToFloat();
     }
-
-#ifdef QUANT_DEQUANT_EVERY_LAYER
-    // do quantize on input
-    // remove this when the network is full int8, and passed legalization
-    if (op.quant() == "INT8" && is_average_pool) {
-      for (size_t i = 0; i < opdT[0]->size(); ++i) {
-        mkldnn_input[i] = (float)saturateInt8(mkldnn_input[i] * 128.0 / threshold_x);
-      }
-    }
-#endif
 
     float *mkldnn_output = (float *)resultT->data();
     int mkldnn_ret = mkldnn_pool(mkldnn_input, mkldnn_output,
@@ -612,62 +324,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
     }
 
-#ifdef QUANT_DEQUANT_EVERY_LAYER
-    // do dequantize on output
-    // remove this when the network is full int8, and passed legalization
-    if (op.quant() == "INT8" && is_average_pool) {
-      LLVM_DEBUG(llvm::errs() << "  avg pool output dequantize, threshold_y = "
-                 << std::to_string(threshold_y) << "\n";);
-      for (int i = 0; i < size; ++i) {
-        mkldnn_output[i] = mkldnn_output[i] * threshold_y / 128.0;
-      }
-    }
-#endif
-    // TODO: End of compute, need refactor
-
     valueMapping[result] = std::move(resultT);
-
-#ifdef ENABLE_GEN_CMDBUF
-    if (clCmdBufFilename != "-") {
-
-    // gen cmdbuf
-    gaddr_t input_gaddr = getPreviousOpAddress(op);
-    gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
-
-    int threshold_x_quantized = multiplier;
-    bmnet_pooling_fixed_forward_bmkernel(
-        *backend_ctx,
-        0, // stream_id,
-        0, // inst_id,
-        0, // layer_id,
-        nullptr, // depends
-        0, // depends_len
-        input_gaddr, // input_data_gaddr,
-        output_gaddr, // output_data_gaddr,
-        INVALID_GLOBAL_ADDR, // index_data_gaddr,
-        INVALID_GLOBAL_ADDR, // o_findex_data_gaddr,
-        n,
-        c,
-        ih,
-        iw,
-        kh,
-        kw,
-        ph, // int pad_top,
-        ph, // int pad_bot,
-        pw, // int pad_left,
-        pw, // int pad_right,
-        sh, // int stride_h,
-        sw, // int stride_w,
-        is_average_pool, //is_avg_pooling,
-        0.0f, // float avg_const,  // default(passing 0.0f) is 1/kh*kw
-        0, // int do_relu,
-        is_average_pool ? rshift : 0, //int right_shift_width,
-        is_average_pool ? &threshold_x_quantized : nullptr, // &threshold_x_quantized,
-        true);
-    // gen cmdbuf end
-
-    } // clCmdBufFilename
-#endif
 
     return success();
   }
@@ -681,22 +338,10 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
     auto resultT = std::make_unique<std::vector<float> >(size);
 
-    // TODO: do the actual compute here
+    bool transpose, do_relu;
     int m, k, n;
-    bool transpose = false;
-    auto input_type = op.input()->getType().cast<TensorType>();
-    std::vector<int64_t> i_s(input_type.getShape());
-    auto output_type = op.output()->getType().cast<TensorType>();
-    std::vector<int64_t> o_s(output_type.getShape());
-    auto filter_type = op.filter()->getType().cast<TensorType>();
-    std::vector<int64_t> f_s(filter_type.getShape());
-    assert((i_s[0] == o_s[0]) && "input M not equal to output M");
-    m = i_s[0];
-    // assuming transpose is false
-    assert((i_s[1] == f_s[1]) && "input K not equal to filter K");
-    k = i_s[1];
-    assert((f_s[0] == o_s[1]) && "filter N not equal to output N");
-    n = o_s[1];
+    getFullyConnectedOpParam(op, transpose, m, k, n, do_relu);
+    assert(transpose == false);
 
     float *mkldnn_input = (float *)opdT[0]->data();
     float *mkldnn_weight = (float *)opdT[1]->data();
@@ -726,22 +371,6 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       assert(false);
     }
 
-#ifdef QUANT_DEQUANT_EVERY_LAYER
-    // do quantize on input
-    // remove this when the network is full int8, and passed legalization
-    // copy the input first
-    std::vector<float> input_copy(*opdT[0]);
-    mkldnn_input = input_copy.data();
-    if (op.quant() == "INT8") {
-      float threshold_x = getPreviousOpThreshold(op;
-      LLVM_DEBUG(llvm::errs() << "  fc input quantize, threshold_x = "
-                              << std::to_string(threshold_x) << "\n";);
-      for (size_t i = 0; i < opdT[0]->size(); ++i) {
-        mkldnn_input[i] = (float)saturateInt8(mkldnn_input[i] * 128.0 / threshold_x);
-      }
-    }
-#endif
-
     float *mkldnn_output = (float *)resultT->data();
     int mkldnn_ret = mkldnn_ip(mkldnn_input, mkldnn_weight, mkldnn_bias,
         mkldnn_output, m, k, n, transpose);
@@ -761,78 +390,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
     }
 
-#ifdef QUANT_DEQUANT_EVERY_LAYER
-    // do dequantize on output
-    // remove this when the network is full int8, and passed legalization
-    if (op.quant() == "INT8") {
-      float threshold_y = op.threshold_y().getValue().convertToFloat();
-      LLVM_DEBUG(llvm::errs() << "  fc output dequantize, threshold_y = "
-                   << std::to_string(threshold_y) << "\n";);
-      for (int i = 0; i < size; ++i) {
-        mkldnn_output[i] = mkldnn_output[i] * threshold_y / 128.0;
-      }
-    }
-#endif
-
-    // TODO: End of compute, need refactor
-
     valueMapping[result] = std::move(resultT);
-
-#ifdef ENABLE_GEN_CMDBUF
-    if (clCmdBufFilename != "-") {
-
-    gaddr_t input_gaddr = getPreviousOpAddress(op);
-    gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
-    gaddr_t filter_gaddr = getWeightOpAddress(op.getOperand(1)->getDefiningOp());
-    int with_bias = 0;
-    gaddr_t bias_gaddr = INVALID_GLOBAL_ADDR;
-    if (op.quant() == "NONE") {
-      if (opdT.size() > 2) {
-        with_bias = 1;
-      }
-    } else if (op.quant() == "INT8" || op.quant() == "INT8_PER_CHANNEL"
-               || op.quant() == "INT8_MULTIPLIER") {
-      if (opdT.size() > 3) {
-        with_bias = 1;
-      }
-    }
-    if (with_bias) {
-      bias_gaddr = getWeightOpAddress(op.getOperand(2)->getDefiningOp());
-    }
-
-    bmnet_fc_fixed_forward_bmkernel(
-        *backend_ctx,
-        0, // stream_id,
-        0, // inst_id,
-        0, // layer_id,
-        nullptr, // depends
-        0, // depends_len
-        input_gaddr, // input_data_gaddr,
-        filter_gaddr, // weight_data_gaddr,
-        bias_gaddr, // bias_data_gaddr,
-        output_gaddr, // output_data_gaddr,
-        m, // int in_row,
-        k, // int in_col,
-        n, // int out_col,
-        1, // int have_bias,
-        0, // do_activation,
-        0, // activation_method,
-        INVALID_GLOBAL_ADDR, // activation_ga_slope,
-        0, // int activation_channel_shared,
-        0, // int activation_gt_scale,
-        0, // int activation_gt_rshift,
-        0, // int activation_le_scale,
-        0, // int activation_le_rshift,
-        false, // weight_tp,
-        3, // int left_shift_width, // #define DEFAULT_FC_LEFT_SHIFT 3
-        rshift[0],
-        0, //int threshold_x_quantized_len,
-        nullptr, //const int *threshold_x_quantized,
-        nullptr //const int *right_shift_array
-        );
-
-    } // clCmdBufFilename
-#endif
 
     return success();
   }
@@ -846,7 +404,6 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
     auto resultT = std::make_unique<std::vector<float> >(size);
 
-    // TODO: do the actual compute here
     int n, c, h, w;
     float negative_slope = op.negative_slope().convertToFloat();
     LLVM_DEBUG(llvm::errs() << "  negative_slope " << negative_slope << "\n";);
@@ -863,38 +420,8 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     float *output = (float *)resultT.get()->data();
     int ret = my_relu(input, output, n, c, h, w, negative_slope);
     assert(ret == 0);
-    //dump_data_float_abs("mkldnn_output", mkldnn_output, n, c, oh, ow);
-    // TODO: End of compute, need refactor
 
     valueMapping[result] = std::move(resultT);
-
-#ifdef ENABLE_GEN_CMDBUF
-    if (clCmdBufFilename != "-") {
-
-    gaddr_t input_gaddr = getPreviousOpAddress(op);
-    gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
-
-    bmnet_relu_fixed_forward_bmkernel(
-        *backend_ctx,
-        0, // stream_id,
-        0, // inst_id,
-        0, // layer_id,
-        nullptr, // depends
-        0, // depends_len
-        input_gaddr, // input_data_gaddr,
-        output_gaddr, // output_data_gaddr,
-        0.0f, // float negative_slope,
-        n,
-        c,
-        h,
-        w,
-        0, // int threshold_x_quantized_len,
-        nullptr, // const int *threshold_x_quantized,
-        nullptr //const int *right_shift_array
-        );
-
-    } // clCmdBufFilename
-#endif
 
     return success();
   }
@@ -908,7 +435,6 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
     auto resultT = std::make_unique<std::vector<float> >(size);
 
-    // TODO: do the actual compute here
     int n, c;
     auto input_type = op.x()->getType().cast<TensorType>();
     std::vector<int64_t> i_s(input_type.getShape());
@@ -935,8 +461,6 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     float *output = (float *)resultT.get()->data();
     int ret = my_softmax(input, output, n, c);
     assert(ret == 0);
-    //dump_data_float_abs("mkldnn_output", mkldnn_output, n, c, oh, ow);
-    // TODO: End of compute, need refactor
 
     valueMapping[result] = std::move(resultT);
     return success();
@@ -951,7 +475,6 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
     auto resultT = std::make_unique<std::vector<float> >(size);
 
-    // TODO: do the actual compute here
     int n, c, h, w;
     auto input_type = op.x()->getType().cast<TensorType>();
     std::vector<int64_t> i_s(input_type.getShape());
@@ -969,18 +492,8 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     float *output = (float *)resultT.get()->data();
     int ret = my_bn(input, mean, variance, scale, output, n, c, h, w);
     assert(ret == 0);
-    //dump_data_float_abs("mkldnn_output", mkldnn_output, n, c, oh, ow);
-    // TODO: End of compute, need refactor
 
     valueMapping[result] = std::move(resultT);
-
-#ifdef ENABLE_GEN_CMDBUF
-    if (clCmdBufFilename != "-") {
-
-    assert(false && "GEN_CMDBUF does not support bn, bn should change to scale");
-
-    }
-#endif
 
     return success();
   }
@@ -994,7 +507,6 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
     auto resultT = std::make_unique<std::vector<float> >(size);
 
-    // TODO: do the actual compute here
     int n, c, h, w;
     auto input_type = op.x()->getType().cast<TensorType>();
     std::vector<int64_t> i_s(input_type.getShape());
@@ -1015,18 +527,8 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     float *output = (float *)resultT.get()->data();
     int ret = my_scale(input, scale, bias, output, n, c, h, w);
     assert(ret == 0);
-    //dump_data_float_abs("mkldnn_output", mkldnn_output, n, c, oh, ow);
-    // TODO: End of compute, need refactor
 
     valueMapping[result] = std::move(resultT);
-
-#ifdef ENABLE_GEN_CMDBUF
-    if (clCmdBufFilename != "-") {
-
-    assert(false && "GEN_CMDBUF does not support scale, scale should merge into conv");
-
-    }
-#endif
 
     return success();
   }
@@ -1040,7 +542,8 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
     auto resultT = std::make_unique<std::vector<float> >(size);
 
-    // TODO: do the actual compute here
+    assert(op.method() == "SUM");
+
 #define MAX_ELTWISE_INPUT (2)
     int n, c, h, w;
     auto input_1_type = op.x1()->getType().cast<TensorType>();
@@ -1078,18 +581,6 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       // get threshold_y
       threshold_y = op.threshold_y().getValue().convertToFloat();
     }
-
-#ifdef QUANT_DEQUANT_EVERY_LAYER
-    // do quantize on input
-    // remove this when the network is full int8, and passed legalization
-    if (op.quant() == "INT8") {
-      for (int index = 0; index < MAX_ELTWISE_INPUT; ++index) {
-        for (size_t i = 0; i < opdT[index]->size(); ++i) {
-          input[index][i] = (float)saturateInt8(input[index][i] * 128.0 / threshold_x[index]);
-        }
-      }
-    }
-#endif
 
     // determine multiplier and rshift according each threshold_x
     // scale[i] = threshold_x[i] / threshold_y
@@ -1142,58 +633,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
     }
 
-#ifdef QUANT_DEQUANT_EVERY_LAYER
-    // do dequantize on output
-    // remove this when the network is full int8, and passed legalization
-    if (op.quant() == "INT8") {
-      LLVM_DEBUG(llvm::errs() << "  fc output dequantize, threshold_y = "
-                   << std::to_string(threshold_y) << "\n";);
-      for (int i = 0; i < size; ++i) {
-        output[i] = output[i] * threshold_y / 128.0;
-      }
-    }
-#endif
-    // TODO: End of compute, need refactor
-
     valueMapping[result] = std::move(resultT);
-
-#ifdef ENABLE_GEN_CMDBUF
-    if (clCmdBufFilename != "-") {
-
-    gaddr_t ga_inputs[2];
-    ga_inputs[0] = getPreviousOpAddress(op, 0);
-    ga_inputs[1] = getPreviousOpAddress(op, 1);
-    gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
-
-    int threshold_x_quantized[MAX_ELTWISE_INPUT];
-    for (int i = 0; i < MAX_ELTWISE_INPUT; ++i) {
-      threshold_x_quantized[i] = (int)multiplier[i];
-    }
-    const int coeffs[2] = {1, 1};
-    bmnet_eltwise_fixed_forward_bmkernel(
-        *backend_ctx,
-        0, // stream_id,
-        0, // inst_id,
-        0, // layer_id,
-        nullptr, // depends
-        0, // depends_len
-        ga_inputs, // gaddr_t ga_input[],
-        output_gaddr, // gaddr_t ga_output,
-        2, // int input_size,
-        1, // int op,  0, prod, 1, sum, 2, max
-        n,
-        c,
-        h,
-        w,
-        false, // bool do_relu,
-        0.0f, // float relu_slope,
-        rshift, //int right_shift_width,
-        threshold_x_quantized,
-        coeffs);
-    // gen cmd end
-
-    } // clCmdBufFilename
-#endif
 
     return success();
   }
@@ -1207,7 +647,6 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
     auto resultT = std::make_unique<std::vector<float> >(size);
 
-    // TODO: do the actual compute here
     auto input_type = op.input()->getType().cast<TensorType>();
     std::vector<int64_t> i_s(input_type.getShape());
     auto output_type = op.output()->getType().cast<TensorType>();
@@ -1218,7 +657,6 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
     // use copy for now
     resultT.get()->assign(opdT[0]->begin(), opdT[0]->end());
-    // TODO: End of compute, need refactor
 
     valueMapping[result] = std::move(resultT);
 
@@ -1233,7 +671,6 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
     auto resultT = std::make_unique<std::vector<float> >(size);
 
-    // TODO: do the actual compute here
     if (op.quant() == "INT8") {
       float *input = (float *)opdT[0]->data();
       float *output = (float *)resultT->data();
@@ -1248,7 +685,6 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     } else {
       assert(0);
     }
-    // TODO: End of compute, need refactor
 
     valueMapping[result] = std::move(resultT);
 
@@ -1263,7 +699,6 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
     auto resultT = std::make_unique<std::vector<float> >(size);
 
-    // TODO: do the actual compute here
     if (op.quant() == "INT8") {
       float *input = (float *)opdT[0]->data();
       float *output = (float *)resultT->data();
@@ -1278,7 +713,6 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     } else {
       assert(0);
     }
-    // TODO: End of compute, need refactor
 
     valueMapping[result] = std::move(resultT);
 
@@ -1288,9 +722,8 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
   if (auto op = dyn_cast<ConstantOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "ConstantOp" << "\n";);
     //op.dump();
-    // TODO: use specific Op for null operand
-    // only support zero constant for now
-    // TODO: check isZero
+    // we don't use this Op anymore
+    assert(0);
 
     // it it safe to ignore, put null pointer to the valueMapping
     auto result = op.getResult();

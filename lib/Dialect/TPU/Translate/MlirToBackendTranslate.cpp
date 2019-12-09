@@ -45,23 +45,6 @@ using namespace mlir;
 #include "backend/backend_tg_api.h"
 static BM1880v2BackendContext *backend_ctx = nullptr;
 
-#define calcConv2DSpatialOutput(_i_, _k_, _s_, _p_, _d_) \
-    (((_i_) + 2 * (_p_) - (_d_) * ((_k_) - 1) - 1) / (_s_) + 1)
-
-static int64_t findPadForSamePadding(int64_t i, int64_t o, int64_t k, int64_t s, int64_t d) {
-  //llvm::errs() << "i: " << i << ", o: " << o << ", k: " << k << ", s: " << s << ", d: " << d << "\n";
-  if (k == 1) {
-    return 0;
-  }
-  for (int64_t p = 1; p <= k - 1; ++p) {
-    if (calcConv2DSpatialOutput(i, k, s, p, d) == o) {
-      return p;
-    }
-  }
-  assert(false);
-  return 0;
-}
-
 static int8_t getRshiftFromOperandTensor(Operation &op, int opdIndex) {
   auto weightOp = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
       op.getOperand(opdIndex)->getDefiningOp());
@@ -86,54 +69,10 @@ static LogicalResult runOperation(Operation &opInst) {
   if (auto op = dyn_cast<tpu::Conv2DOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "Conv2DOp" << "\n";);
 
-    int n, ic, ih, iw, oc, oh, ow, kh, kw, sh, sw, ph, pw, dh, dw, g;
-    dh = op.dilation_h_factor().getLimitedValue();  // APInt, use .getLimitedValue(); to get uint65_t
-    dw = op.dilation_w_factor().getLimitedValue();
-    sh = op.stride_h().getLimitedValue();
-    sw = op.stride_w().getLimitedValue();
-    auto input_type = op.input()->getType().cast<TensorType>();
-    std::vector<int64_t> i_s(input_type.getShape());
-    auto output_type = op.output()->getType().cast<TensorType>();
-    std::vector<int64_t> o_s(output_type.getShape());
-    auto filter_type = op.filter()->getType().cast<TensorType>();
-    std::vector<int64_t> f_s(filter_type.getShape());
-    assert((i_s[0] == o_s[0]) && "input N not equal to output N");
-    n = i_s[0];
-    ic = i_s[1];
-    ih = i_s[2];
-    iw = i_s[3];
-    oc = o_s[1];
-    oh = o_s[2];
-    ow = o_s[3];
-    auto f_dim = f_s.size();
-    kh = f_s[f_dim - 2];
-    kw = f_s[f_dim - 1];
-    if (op.padding() == "SAME") {
-      ph = findPadForSamePadding(ih, oh, kh, sh, dh);
-      pw = findPadForSamePadding(iw, ow, kw, sw, dw);
-    } else if (op.padding() == "VALID") {
-      ph = 0;
-      pw = 0;
-    } else {
-      assert(false);
-    }
-    g = op.group().getLimitedValue();
-    if (g != 1) {
-      // only support depthwise group for now (not support normal group)
-      assert(f_s.size() == 5 && g == f_s[0]);
-      assert(f_s[1] == 1 && f_s[2] == 1);
-      assert(g == ic && g == oc);
-    } else {
-      assert(f_s.size() == 4);
-    }
-
-    bool do_relu = false;
-    if (op.fused_activation_function() == "NONE") {
-    } else if (op.fused_activation_function() == "RELU") {
-      do_relu = true;
-    } else {
-      assert(0);
-    }
+    int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, ph, pw, dh, dw;
+    bool do_relu;
+    getConv2DOpParam(op, n, ic, ih, iw, oc, oh, ow, g,
+                     kh, kw, sh, sw, ph, pw, dh, dw, do_relu);
 
     gaddr_t input_gaddr = getPreviousOpAddress(op);
     gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
@@ -325,41 +264,10 @@ static LogicalResult runOperation(Operation &opInst) {
     LLVM_DEBUG(llvm::errs() << "Pool2DOp" << "\n";);
     auto pool_method = op.getAttrOfType<StringAttr>("pool");
 
-    bool is_average_pool;
-    if (pool_method.getValue() == "AVE") {
-      is_average_pool = true;
-    } else if (pool_method.getValue() == "MAX") {
-      is_average_pool = false;
-    } else {
-      assert(false);
-    }
+    bool is_average_pool, do_relu;
     int n, c, ih, iw, oh, ow, kh, kw, sh, sw, ph, pw;
-    kh = op.filter_height().getLimitedValue();
-    kw = op.filter_width().getLimitedValue();
-    sh = op.stride_h().getLimitedValue();
-    sw = op.stride_w().getLimitedValue();
-    auto input_type = op.input()->getType().cast<TensorType>();
-    std::vector<int64_t> i_s(input_type.getShape());
-    auto output_type = op.output()->getType().cast<TensorType>();
-    std::vector<int64_t> o_s(output_type.getShape());
-    assert((i_s[0] == o_s[0]) && "input N not equal to output N");
-    assert((i_s[1] == o_s[1]) && "input C not equal to output C");
-    n = i_s[0];
-    c = i_s[1];
-    ih = i_s[2];
-    iw = i_s[3];
-    oh = o_s[2];
-    ow = o_s[3];
-    auto padding_attr = op.getAttrOfType<StringAttr>("padding");
-    if (padding_attr.getValue() == "SAME") {
-      ph = findPadForSamePadding(ih, oh, kh, sh, 1);
-      pw = findPadForSamePadding(iw, ow, kw, sw, 1);
-    } else if (padding_attr.getValue() == "VALID") {
-      ph = 0;
-      pw = 0;
-    } else {
-      assert(false);
-    }
+    getPool2DOpParam(op, is_average_pool, n, c, ih, iw, oh, ow,
+                     kh, kw, sh, sw, ph, pw, do_relu);
 
     float threshold_x;
     float threshold_y;
@@ -452,22 +360,10 @@ static LogicalResult runOperation(Operation &opInst) {
   if (auto op = dyn_cast<tpu::FullyConnectedOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "FullyConnectedOp" << "\n";);
 
+    bool transpose, do_relu;
     int m, k, n;
-    bool transpose = false;
-    auto input_type = op.input()->getType().cast<TensorType>();
-    std::vector<int64_t> i_s(input_type.getShape());
-    auto output_type = op.output()->getType().cast<TensorType>();
-    std::vector<int64_t> o_s(output_type.getShape());
-    auto filter_type = op.filter()->getType().cast<TensorType>();
-    std::vector<int64_t> f_s(filter_type.getShape());
-    assert((i_s[0] == o_s[0]) && "input M not equal to output M");
-    m = i_s[0];
-    // assuming transpose is false
+    getFullyConnectedOpParam(op, transpose, m, k, n, do_relu);
     assert(transpose == false);
-    assert((i_s[1] == f_s[1]) && "input K not equal to filter K");
-    k = i_s[1];
-    assert((f_s[0] == o_s[1]) && "filter N not equal to output N");
-    n = o_s[1];
 
     gaddr_t input_gaddr = getPreviousOpAddress(op);
     gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
@@ -613,6 +509,8 @@ static LogicalResult runOperation(Operation &opInst) {
     } else {
       assert(0);
     }
+
+    assert(op.method() == "SUM");
 
     gaddr_t ga_inputs[2];
     ga_inputs[0] = getPreviousOpAddress(op, 0);
