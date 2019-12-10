@@ -13,27 +13,22 @@ mlir-translate \
 # apply all possible pre-calibration optimizations
 mlir-opt \
     --convert-bn-to-scale \
-    mobilenet_v2.mlir \
-    -o mobilenet_v2_opt1.mlir
-mlir-opt \
     --fold-scale \
-    mobilenet_v2_opt1.mlir \
-    -o mobilenet_v2_opt2.mlir
-mlir-opt \
     --merge-scale-into-conv \
-    mobilenet_v2_opt2.mlir \
-    -o mobilenet_v2_opt3.mlir
+    mobilenet_v2.mlir \
+    -o mobilenet_v2_opt.mlir
 
 # import calibration table
 mlir-opt \
     --import-calibration-table \
     --calibration-table $DATA_PATH/bmnet_mobilenet_v2_calibration_table.1x10 \
-    mobilenet_v2_opt3.mlir \
+    mobilenet_v2_opt.mlir \
     -o mobilenet_v2_cali.mlir
 
 # apply all possible post-calibration optimizations
 mlir-opt \
     --fuse-relu \
+    --fuse-eltwise \
     mobilenet_v2_cali.mlir \
     -o mobilenet_v2_opt_post_cali.mlir
 

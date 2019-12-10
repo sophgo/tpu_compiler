@@ -153,6 +153,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     LLVM_DEBUG(llvm::errs() << "Conv2DOp" << "\n";);
     auto opdT = getOperandTensors(opInst, valueMapping);
     auto result = op.getResult();
+    LLVM_DEBUG(llvm::errs() << "  name " << op.name() << "\n";);
     LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";);
     std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
     assert(shape.size() == 4);
@@ -178,41 +179,40 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     getConv2DOpVariadicTensors(op, opdT, bias, rshift, multiplier,
         per_channel_info, eltwise_input);
 
-    float *output_data = resultT->data();
     int mkldnn_ret = mkldnn_conv(input->data(), filter->data(),
-        bias?bias->data():nullptr, output_data,
+        bias?bias->data():nullptr, resultT->data(),
         n, ic, ih, iw, oc, oh, ow, kh, kw, sh, sw, ph, pw, g);
     assert(mkldnn_ret == 0);
     //dump_data_float_abs("mkldnn_output", mkldnn_output, n, oc, oh, ow);
 
     if (do_relu) {
-      my_relu(output_data, output_data, n, oc, oh, ow, 0.0f);
+      my_relu(resultT->data(), resultT->data(), n, oc, oh, ow, 0.0f);
     }
 
     // rshift and saturate on output
     if (op.quant() == "INT8") {
       assert(rshift);
       for (int i = 0; i < size; ++i) {
-        output_data[i] = (float)applyRShiftAndSaturateInt8(output_data[i],
+        resultT->at(i) = (float)applyRShiftAndSaturateInt8(resultT->at(i),
             (uint32_t)rshift->at(0));
       }
     } else if (op.quant() == "INT8_PER_CHANNEL") {
       assert(rshift);
-      int inner_size = size / oc;
+      int isz = size / oc;
       for (int i = 0; i < oc; ++i) {
-        for (int j = 0; j < inner_size; ++j) {
-          output_data[i * inner_size + j] = (float)applyRShiftAndSaturateInt8(
-              output_data[i * inner_size + j], (uint32_t)rshift->at(i));
+        for (int j = 0; j < isz; ++j) {
+          resultT->at(i * isz + j) = (float)applyRShiftAndSaturateInt8(
+              resultT->at(i * isz + j), (uint32_t)rshift->at(i));
         }
       }
     } else if (op.quant() == "INT8_MULTIPLIER") {
       assert(multiplier);
-      int inner_size = size / oc;
+      int isz = size / oc;
       for (int i = 0; i < oc; ++i) {
-        for (int j = 0; j < inner_size; ++j) {
-          output_data[i * inner_size + j] =
+        for (int j = 0; j < isz; ++j) {
+          resultT->at(i * isz + j) =
               (float)applyMultiplierAndRShiftAndSaturateInt8(
-                  output_data[i * inner_size + j],
+                  resultT->at(i * isz + j),
                   rshift->at(i), multiplier->at(i), true);
         }
       }
@@ -232,21 +232,27 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       if (op.quant() == "INT8" || op.quant() == "INT8_PER_CHANNEL"
           ||op.quant() == "INT8_MULTIPLIER") {
         // fused eltwise support 2 inputs only
-        std::vector<float> threshold_x(2);
-        threshold_x[0] = getPreviousOpThreshold(op, op.getNumOperands()- 1);
-        threshold_x[1] = op.threshold_y_before_eltwise().getValue().convertToFloat();
-        float threshold_y = op.threshold_y().getValue().convertToFloat();
+        std::vector<float> eltwise_threshold_x(2);
+        eltwise_threshold_x[0] = getPreviousOpThreshold(op, op.getNumOperands() - 1);
+        eltwise_threshold_x[1] = op.threshold_y_before_eltwise().getValue().convertToFloat();
+        float eltwise_threshold_y = op.threshold_y().getValue().convertToFloat();
 
         // determine rshift for all inputs, and multiplier for each input
         // use max threshold_x to find rshift first
-        uint32_t rshift;
-        std::vector<float> multiplier(2);
+        uint32_t eltwise_rshift;
+        std::vector<float> eltwise_multiplier(2);
         float max_threshold_x = *std::max_element(
-            std::begin(threshold_x), std::end(threshold_x));
-        rshift = findRShiftAndMultiplierFromQScale(max_threshold_x / threshold_y);
+            std::begin(eltwise_threshold_x), std::end(eltwise_threshold_x));
+        eltwise_rshift = findRShiftAndMultiplierFromQScale(max_threshold_x / eltwise_threshold_y);
+        LLVM_DEBUG(llvm::errs() << "  threshold_y = " << std::to_string(eltwise_threshold_y)
+                                << ", rshift = " << std::to_string(eltwise_rshift) << "\n");
         for (int index = 0; index < 2; ++index) {
-          float qscale = threshold_x[index] / threshold_y;
-          multiplier[index] = (int8_t)findMultiplierFromQScaleAndRShift(qscale, rshift);
+          float qscale = eltwise_threshold_x[index] / eltwise_threshold_y;
+          eltwise_multiplier[index] = (int8_t)findMultiplierFromQScaleAndRShift(qscale, eltwise_rshift);
+          LLVM_DEBUG(llvm::errs()
+              << "  threshold_x[" << index << "] = " << std::to_string(eltwise_threshold_x[index])
+              << ", multiplier["  << index << "] = " << std::to_string(eltwise_multiplier[index])
+              << "\n");
         }
 
         // make copy of inputs
@@ -259,8 +265,8 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
         // apply multiplier
         for (int index = 0; index < 2; ++index) {
-          for (size_t i = 0; i < opdT[index]->size(); ++i) {
-            input_copy[index]->at(i) *= multiplier[index];
+          for (size_t i = 0; i < input_copy[index]->size(); ++i) {
+            (*input_copy[index])[i] = (*input_copy[index])[i] *eltwise_multiplier[index];
           }
         }
 
@@ -268,18 +274,21 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
                    resultT->data(), n, oc, oh, ow, 1);
 
         for (int i = 0; i < size; ++i) {
-          resultT->at(i) = (float)applyRShiftAndSaturateInt8(resultT->at(i), (uint32_t)rshift);
+          resultT->at(i) = (float)applyRShiftAndSaturateInt8(resultT->at(i),
+              (uint32_t)eltwise_rshift);
         }
 
       } else if (op.quant() == "BF16") {
-        my_eltwise(eltwise_input->data(), resultT->data(), resultT->data(), n, oc, oh, ow, 1);
+        my_eltwise(eltwise_input->data(), resultT->data(), resultT->data(),
+            n, oc, oh, ow, 1);
         auto tensor_bf16 = std::make_unique<std::vector<bfloat16> >(resultT->size());
-        FloatToBFloat16(resultT->data(), tensor_bf16->data(), resultT->size()); // with rounding
+        // with rounding
+        FloatToBFloat16(resultT->data(), tensor_bf16->data(), resultT->size());
         BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
 
       } else if (op.quant() == "NONE") {
-        my_eltwise(eltwise_input->data(), resultT->data(), resultT->data(), n, oc, oh, ow, 1);
-
+        my_eltwise(eltwise_input->data(), resultT->data(), resultT->data(),
+            n, oc, oh, ow, 1);
       }
 
       if (op.fused_activation_function_after_eltwise() == "RELU") {
@@ -301,10 +310,12 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     LLVM_DEBUG(llvm::errs() << "Pool2DOp" << "\n";);
     auto opdT = getOperandTensors(opInst, valueMapping);
     auto result = op.getResult();
-    LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";);
+    LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump();
+               llvm::errs() << "\n";);
     std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
     assert(shape.size() <= 4);
-    auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
+    auto size = std::accumulate(std::begin(shape), std::end(shape),
+                                1, std::multiplies<>());
     auto resultT = std::make_unique<std::vector<float> >(size);
 
     bool is_average_pool, do_relu;
@@ -577,9 +588,15 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       float max_threshold_x = *std::max_element(
           std::begin(threshold_x), std::end(threshold_x));
       rshift = findRShiftAndMultiplierFromQScale(max_threshold_x / threshold_y);
+      LLVM_DEBUG(llvm::errs() << "  threshold_y = " << std::to_string(threshold_y)
+                              << ", rshift = " << std::to_string(rshift) << "\n");
       for (int index = 0; index < 2; ++index) {
         float qscale = threshold_x[index] / threshold_y;
         multiplier[index] = (int8_t)findMultiplierFromQScaleAndRShift(qscale, rshift);
+        LLVM_DEBUG(llvm::errs()
+            << "  threshold_x[" << index << "] = " << std::to_string(threshold_x[index])
+            << ", multiplier["  << index << "] = " << std::to_string(multiplier[index])
+            << "\n");
       }
     }
 

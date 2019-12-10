@@ -77,25 +77,19 @@ struct TpuFuseEltwisePattern : public RewritePattern {
       convOp.setAttr("fused_eltwise_method", rewriter.getStringAttr(eltwiseOp.method()));
       convOp.setAttr("fused_activation_function_after_eltwise",
           rewriter.getStringAttr(eltwiseOp.fused_activation_function()));
+      convOp.setAttr("name", rewriter.getStringAttr(eltwiseOp.name().getValue()));
 
       // add eltwise input as conv input, append as a new append
       SmallVector<Value *, 4> newOperands;
       newOperands.append(formerOp->getOperands().begin(), formerOp->getOperands().end());
       newOperands.append({input_0});
-      if (0) {
-        // FIXME: sometimes setOperands is not allowed
-        formerOp->setOperands(newOperands);
-        //formerOp->setOperand(formerOp->getNumOperands(), input_0);
-        // remove the eltwise Op
-        rewriter.replaceOp(op, {op->getOperand(1)});
-      } else {
-        // replace the op with a new conv op
-        auto origAttrs = convOp.getAttrs();
-        std::vector<NamedAttribute> newAttrs(origAttrs.begin(), origAttrs.end());
-        rewriter.replaceOpWithNewOp<tpu::Conv2DOp>(
-            eltwiseOp, convOp.getResult()->getType(),
-            ArrayRef<Value *>{newOperands}, ArrayRef<NamedAttribute>{newAttrs});
-      }
+
+      // replace the op with a new conv op
+      auto origAttrs = convOp.getAttrs();
+      std::vector<NamedAttribute> newAttrs(origAttrs.begin(), origAttrs.end());
+      rewriter.replaceOpWithNewOp<tpu::Conv2DOp>(
+          eltwiseOp, convOp.getResult()->getType(),
+          ArrayRef<Value *>{newOperands}, ArrayRef<NamedAttribute>{newAttrs});
 
       return matchSuccess();
     }

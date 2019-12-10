@@ -13,27 +13,22 @@ mlir-translate \
 # apply all possible pre-calibration optimizations
 mlir-opt \
     --convert-bn-to-scale \
-    resnet50.mlir \
-    -o resnet50_opt1.mlir
-mlir-opt \
     --fold-scale \
-    resnet50_opt1.mlir \
-    -o resnet50_opt2.mlir
-mlir-opt \
     --merge-scale-into-conv \
-    resnet50_opt2.mlir \
-    -o resnet50_opt3.mlir
+    resnet50.mlir \
+    -o resnet50_opt.mlir
 
 # import calibration table
 mlir-opt \
     --import-calibration-table \
     --calibration-table $DATA_PATH/bmnet_resnet50_calibration_table.1x10 \
-    resnet50_opt3.mlir \
+    resnet50_opt.mlir \
     -o resnet50_cali.mlir
 
 # apply all possible post-calibration optimizations
 mlir-opt \
     --fuse-relu \
+    --fuse-eltwise \
     resnet50_cali.mlir \
     -o resnet50_opt_post_cali.mlir
 
