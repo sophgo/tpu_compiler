@@ -33,8 +33,19 @@
 
 using namespace mlir;
 
+struct MLIROpInfo {
+  std::string name;
+  std::string type;
+  std::vector<int64_t> shape;
+};
+
 typedef std::map<std::string, std::vector<float>> tensor_map_t;
-typedef std::map<std::string, std::vector<int64_t>> shape_map_t;
+
+static bool isValidOp(Operation &op)
+{
+  return (!isa<tpu::LoadWeightOp>(op) && !isa<tpu::LoadFileOp>(op) &&
+          op.getName().getDialect().str() == "tpu");
+}
 
 static OwningModuleRef parseMLIRInput(StringRef inputFilename,
                                       MLIRContext *context) {
@@ -51,20 +62,22 @@ static OwningModuleRef parseMLIRInput(StringRef inputFilename,
   return OwningModuleRef(parseSourceFile(sourceMgr, context));
 }
 
-static void parseMLIRShape(ModuleOp m, shape_map_t &shapeMap)
+static void parseMLIRInfo(ModuleOp m, std::vector<MLIROpInfo> &info_array)
 {
   for (FuncOp function : m.getOps<FuncOp>()) {
     for (Block &bb : function.getBlocks()) {
       for (auto &op : bb) {
-        if (isa<tpu::LoadWeightOp>(op) ||
-            isa<tpu::LoadFileOp>(op)) {
+        if (!isValidOp(op)) {
           continue;
         }
 
-        for (unsigned i = 0; i < op.getNumResults(); i++) {
-          auto result = op.getResult(i);
-          shapeMap[getOpName(&op).str()] = result->getType().cast<TensorType>().getShape();
-        }
+        // TODO: Only support one output tesor for now.
+        auto result = op.getResult(0);
+        MLIROpInfo info;
+        info.name = getOpName(&op).str();
+        info.type = op.getName().getStringRef().str();
+        info.shape = result->getType().cast<TensorType>().getShape();
+        info_array.push_back(info);
       }
     }
   }
@@ -128,7 +141,7 @@ public:
       exit(-1);
     }
 
-    parseMLIRShape(module.get(), shapeMap_);
+    parseMLIRInfo(module.get(), info_array_);
   }
 
   void dump() {
@@ -141,9 +154,12 @@ public:
       auto op = it->first;
       auto data = it->second;
 
-      assert(shapeMap_.end() != shapeMap_.find(op));
-      auto shape = shapeMap_[op];
+      auto info = std::find_if(info_array_.begin(), info_array_.end(), [op] (MLIROpInfo s) {
+        return s.name == op;
+      });
+      assert(info != info_array_.end());
 
+      auto shape = (*info).shape;
       py::str py_s(op);
       ret[py_s] = getPythonArray(data, shape);
 
@@ -161,15 +177,28 @@ public:
       if (op == op_name) {
         auto data = it->second;
 
-        assert(shapeMap_.end() != shapeMap_.find(op));
-        auto shape = shapeMap_[op];
+        auto info = std::find_if(info_array_.begin(), info_array_.end(), [op] (MLIROpInfo s) {
+          return s.name == op;
+        });
+        assert(info != info_array_.end());
 
+        auto shape = (*info).shape;
         ret = getPythonArray(data, shape);
         break;
       }
     }
 
     return ret;
+  }
+
+  py::dict getOpType() {
+    py::dict opType;
+    for (MLIROpInfo info : info_array_) {
+      py::str py_s(info.name);
+      opList[py_s] = info.type;
+    }
+
+    return opType;
   }
 
   // wrap C++ function with NumPy array IO
@@ -208,7 +237,7 @@ private:
   MLIRContext context;
   OwningModuleRef module;
   tensor_map_t tensorMap_;
-  shape_map_t shapeMap_;
+  std::vector<MLIROpInfo> info_array_;
 };
 
 // wrap as Python module
@@ -226,6 +255,8 @@ PYBIND11_MODULE(pymlir,m)
          "dump all tensor data")
     .def("get_tensor", &py_module::getTensor,
          "get one tensor data")
+    .def("get_op_type", &py_module::getOpType,
+         "get operator list")
     .def("run", &py_module::run,
          "run module inference with input array, and return output array");
 }
