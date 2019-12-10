@@ -195,7 +195,7 @@ public:
     py::dict opType;
     for (MLIROpInfo info : info_array_) {
       py::str py_s(info.name);
-      opList[py_s] = info.type;
+      opType[py_s] = info.type;
     }
 
     return opType;
