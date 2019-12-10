@@ -48,7 +48,7 @@ diff in_int8.bin $DATA_PATH/test_cat_in_mobilenet_v2_int8.bin
 mlir-opt \
     --quant-int8 \
     mobilenet_v2_opt_post_cali.mlir \
-    -o mobilenet_v2_quant_per_layer.mlir
+    -o mobilenet_v2_quant_int8_per_layer.mlir
 
 # assign weight address & neuron address
 mlir-opt \
