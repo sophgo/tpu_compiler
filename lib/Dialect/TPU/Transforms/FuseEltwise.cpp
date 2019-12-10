@@ -46,25 +46,19 @@ struct TpuFuseEltwisePattern : public RewritePattern {
     // match eltwise Op that is following conv Ops
     // assuming second operand is the later one (the one to fuse into)
     // the first operand is the former one (the one we use its output as eltwise input)
+    // TODO: need to find a way to ensure this
     assert(eltwiseOp.getNumOperands() == 2);
     auto formerOp = op->getOperand(1)->getDefiningOp();
 
     if (matchPattern(formerOp, m_Op<tpu::Conv2DOp>())) {
-      auto input_0 = op->getOperand(0);
-
       // check the other input is conv2DOp or Eltwise
+      auto input_0 = op->getOperand(0);
       assert(matchPattern(input_0->getDefiningOp(), m_Op<tpu::Conv2DOp>())
           || matchPattern(input_0->getDefiningOp(), m_Op<tpu::EltwiseOp>()));
 
       auto convOp = cast<tpu::Conv2DOp>(formerOp);
       assert(convOp.fused_activation_function() == "NONE");
-
-      // add eltwise input as conv input, append as a new append
-      SmallVector<Value *, 4> newOperands;
-      newOperands.append(formerOp->getOperands().begin(), formerOp->getOperands().end());
-      newOperands.append({input_0});
-      formerOp->setOperands(newOperands);
-      //formerOp->setOperand(formerOp->getNumOperands(), input_0);
+      llvm::errs() << "  " << eltwiseOp.name() << " --> " << convOp.name() << "\n";
 
       // handle threshold_y or eltwise
       if (convOp.threshold_y().hasValue()) {
@@ -81,13 +75,28 @@ struct TpuFuseEltwisePattern : public RewritePattern {
 
       // set Attr
       convOp.setAttr("fused_eltwise_method", rewriter.getStringAttr(eltwiseOp.method()));
-
-      // set fused_activation_function_after_eltwise for conv Op
       convOp.setAttr("fused_activation_function_after_eltwise",
           rewriter.getStringAttr(eltwiseOp.fused_activation_function()));
 
-      // remove the eltwise Op
-      rewriter.replaceOp(op, {op->getOperand(1)});
+      // add eltwise input as conv input, append as a new append
+      SmallVector<Value *, 4> newOperands;
+      newOperands.append(formerOp->getOperands().begin(), formerOp->getOperands().end());
+      newOperands.append({input_0});
+      if (0) {
+        // FIXME: sometimes setOperands is not allowed
+        formerOp->setOperands(newOperands);
+        //formerOp->setOperand(formerOp->getNumOperands(), input_0);
+        // remove the eltwise Op
+        rewriter.replaceOp(op, {op->getOperand(1)});
+      } else {
+        // replace the op with a new conv op
+        auto origAttrs = convOp.getAttrs();
+        std::vector<NamedAttribute> newAttrs(origAttrs.begin(), origAttrs.end());
+        rewriter.replaceOpWithNewOp<tpu::Conv2DOp>(
+            eltwiseOp, convOp.getResult()->getType(),
+            ArrayRef<Value *>{newOperands}, ArrayRef<NamedAttribute>{newAttrs});
+      }
+
       return matchSuccess();
     }
 

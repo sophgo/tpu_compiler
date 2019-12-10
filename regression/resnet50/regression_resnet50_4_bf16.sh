@@ -15,7 +15,9 @@ mlir-opt \
     --convert-bn-to-scale \
     --fold-scale \
     --merge-scale-into-conv \
+    --verify-each \
     --fuse-relu \
+    --fuse-eltwise \
     resnet50.mlir \
     -o resnet50_opt.mlir
 

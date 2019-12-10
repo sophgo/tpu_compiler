@@ -16,6 +16,7 @@ mlir-opt \
     --fold-scale \
     --merge-scale-into-conv \
     --fuse-relu \
+    --fuse-eltwise \
     mobilenet_v2.mlir \
     -o mobilenet_v2_opt.mlir
 

@@ -139,7 +139,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
         (clInputScale.getNumOccurrences() > 0) ? clInputScale : 1.0f;
 
     if (inputScale != 1.0f) {
-      llvm::errs() << "Apply input_scale = " << clInputScale << "\n";
+      llvm::errs() << "Apply input_scale = " << std::to_string(clInputScale) << "\n";
       for(auto it = resultT->begin(); it != resultT->end(); it++ ) {
         *it *= inputScale;
       }
@@ -189,20 +189,6 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       my_relu(output_data, output_data, n, oc, oh, ow, 0.0f);
     }
 
-    if (op.fused_eltwise_method() == "SUM") {
-      assert(eltwise_input);
-      my_eltwise(eltwise_input->data(), output_data, output_data, n, oc, oh, ow, 1);
-
-      if (op.fused_activation_function_after_eltwise() == "RELU") {
-        my_relu(output_data, output_data, n, oc, oh, ow, 0.0f);
-      } else {
-        assert(op.fused_activation_function_after_eltwise() == "NONE");
-      }
-    } else {
-      assert(eltwise_input == nullptr);
-      assert(op.fused_eltwise_method() == "NONE");
-    }
-
     // rshift and saturate on output
     if (op.quant() == "INT8") {
       assert(rshift);
@@ -234,6 +220,77 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       auto tensor_bf16 = std::make_unique<std::vector<bfloat16> >(resultT->size());
       FloatToBFloat16(resultT->data(), tensor_bf16->data(), resultT->size()); // with rounding
       BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
+    } else if (op.quant() == "NONE") {
+    } else {
+      assert(0);
+    }
+
+    // apply eltwise if needed
+    if (op.fused_eltwise_method() == "SUM") {
+      assert(eltwise_input);
+
+      if (op.quant() == "INT8" || op.quant() == "INT8_PER_CHANNEL"
+          ||op.quant() == "INT8_MULTIPLIER") {
+        // fused eltwise support 2 inputs only
+        std::vector<float> threshold_x(2);
+        threshold_x[0] = getPreviousOpThreshold(op, op.getNumOperands()- 1);
+        threshold_x[1] = op.threshold_y_before_eltwise().getValue().convertToFloat();
+        float threshold_y = op.threshold_y().getValue().convertToFloat();
+
+        // determine rshift for all inputs, and multiplier for each input
+        // use max threshold_x to find rshift first
+        uint32_t rshift;
+        std::vector<float> multiplier(2);
+        float max_threshold_x = *std::max_element(
+            std::begin(threshold_x), std::end(threshold_x));
+        rshift = findRShiftAndMultiplierFromQScale(max_threshold_x / threshold_y);
+        for (int index = 0; index < 2; ++index) {
+          float qscale = threshold_x[index] / threshold_y;
+          multiplier[index] = (int8_t)findMultiplierFromQScaleAndRShift(qscale, rshift);
+        }
+
+        // make copy of inputs
+        std::vector<std::shared_ptr<std::vector<float> > > input_copy(2);
+        for (int index = 0; index < 2; ++index) {
+          input_copy[index] = make_shared<std::vector<float> >();
+        }
+        input_copy[0]->assign(eltwise_input->begin(), eltwise_input->end());
+        input_copy[1]->assign(resultT->begin(), resultT->end());
+
+        // apply multiplier
+        for (int index = 0; index < 2; ++index) {
+          for (size_t i = 0; i < opdT[index]->size(); ++i) {
+            input_copy[index]->at(i) *= multiplier[index];
+          }
+        }
+
+        my_eltwise(input_copy[0]->data(), input_copy[1]->data(),
+                   resultT->data(), n, oc, oh, ow, 1);
+
+        for (int i = 0; i < size; ++i) {
+          resultT->at(i) = (float)applyRShiftAndSaturateInt8(resultT->at(i), (uint32_t)rshift);
+        }
+
+      } else if (op.quant() == "BF16") {
+        my_eltwise(eltwise_input->data(), resultT->data(), resultT->data(), n, oc, oh, ow, 1);
+        auto tensor_bf16 = std::make_unique<std::vector<bfloat16> >(resultT->size());
+        FloatToBFloat16(resultT->data(), tensor_bf16->data(), resultT->size()); // with rounding
+        BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
+
+      } else if (op.quant() == "NONE") {
+        my_eltwise(eltwise_input->data(), resultT->data(), resultT->data(), n, oc, oh, ow, 1);
+
+      }
+
+      if (op.fused_activation_function_after_eltwise() == "RELU") {
+        my_relu(resultT->data(), resultT->data(), n, oc, oh, ow, 0.0f);
+      } else {
+        assert(op.fused_activation_function_after_eltwise() == "NONE");
+      }
+
+    } else {
+      assert(eltwise_input == nullptr);
+      assert(op.fused_eltwise_method() == "NONE");
     }
 
     valueMapping[result] = std::move(resultT);
@@ -388,46 +445,6 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
     valueMapping[result] = std::move(resultT);
 
-    return success();
-  }
-  if (auto op = dyn_cast<tpu::SoftmaxOp>(opInst)) {
-    LLVM_DEBUG(llvm::errs() << "SoftmaxOp" << "\n";);
-    auto opdT = getOperandTensors(opInst, valueMapping);
-    auto result = op.getResult();
-    LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";);
-    std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
-    assert(shape.size() == 2 || shape.size() == 4);
-    auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
-    auto resultT = std::make_unique<std::vector<float> >(size);
-
-    int n, c;
-    auto input_type = op.x()->getType().cast<TensorType>();
-    std::vector<int64_t> i_s(input_type.getShape());
-    auto output_type = op.y()->getType().cast<TensorType>();
-    std::vector<int64_t> o_s(output_type.getShape());
-    assert((i_s == o_s) && "input shape not equal to output shape");
-    n = i_s[0];
-    c = i_s[1];
-    if (i_s.size() == 4) {
-      assert(i_s[2] == 1 && i_s[3] == 1);
-    }
-    float *input = (float *)opdT[0]->data();
-
-    // do dequantization
-    if (0) {
-      float threshold_x = getPreviousOpThreshold(op);
-      LLVM_DEBUG(llvm::errs() << "  softmax dequantize, threshold_x = "
-                              << std::to_string(threshold_x) << "\n";);
-      for (size_t i = 0; i < opdT[0]->size(); ++i) {
-        input[i] = input[i] * threshold_x / 128.0;
-      }
-    }
-
-    float *output = (float *)resultT.get()->data();
-    int ret = my_softmax(input, output, n, c);
-    assert(ret == 0);
-
-    valueMapping[result] = std::move(resultT);
     return success();
   }
   if (auto op = dyn_cast<tpu::BatchNormOp>(opInst)) {
@@ -681,6 +698,46 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
     valueMapping[result] = std::move(resultT);
 
+    return success();
+  }
+  if (auto op = dyn_cast<tpu::SoftmaxOp>(opInst)) {
+    LLVM_DEBUG(llvm::errs() << "SoftmaxOp" << "\n";);
+    auto opdT = getOperandTensors(opInst, valueMapping);
+    auto result = op.getResult();
+    LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";);
+    std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
+    assert(shape.size() == 2 || shape.size() == 4);
+    auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
+    auto resultT = std::make_unique<std::vector<float> >(size);
+
+    int n, c;
+    auto input_type = op.x()->getType().cast<TensorType>();
+    std::vector<int64_t> i_s(input_type.getShape());
+    auto output_type = op.y()->getType().cast<TensorType>();
+    std::vector<int64_t> o_s(output_type.getShape());
+    assert((i_s == o_s) && "input shape not equal to output shape");
+    n = i_s[0];
+    c = i_s[1];
+    if (i_s.size() == 4) {
+      assert(i_s[2] == 1 && i_s[3] == 1);
+    }
+    float *input = (float *)opdT[0]->data();
+
+    // do dequantization
+    if (0) {
+      float threshold_x = getPreviousOpThreshold(op);
+      LLVM_DEBUG(llvm::errs() << "  softmax dequantize, threshold_x = "
+                              << std::to_string(threshold_x) << "\n";);
+      for (size_t i = 0; i < opdT[0]->size(); ++i) {
+        input[i] = input[i] * threshold_x / 128.0;
+      }
+    }
+
+    float *output = (float *)resultT.get()->data();
+    int ret = my_softmax(input, output, n, c);
+    assert(ret == 0);
+
+    valueMapping[result] = std::move(resultT);
     return success();
   }
 

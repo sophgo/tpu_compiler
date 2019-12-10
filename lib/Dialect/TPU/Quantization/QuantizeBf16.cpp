@@ -41,6 +41,36 @@ using namespace mlir;
 
 namespace {
 
+static void addWeightTensorAndUpdateWeightOp(Value* opd,
+    std::vector<bfloat16> &weight, std::vector<int64_t> &shape,
+    PatternRewriter &rewriter, TensorFile *wTF) {
+  auto weightOp = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
+      opd->getDefiningOp());
+  auto name = weightOp.name().getValue().str() + "_quant_bf16";
+  llvm::errs() << "  new_weight : " << name << "\n";
+  auto type = rewriter.getTensorType(shape,
+      FloatType::getBF16(rewriter.getContext()));
+  wTF->addTensor<uint16_t>(name, &weight, type);
+  weightOp.setAttr("name", rewriter.getStringAttr(name));
+  weightOp.setAttr("storage", rewriter.getStringAttr("BF16"));
+  weightOp.getResult()->setType(type);
+}
+
+static std::unique_ptr<std::vector<float> > readAndDeleteWeightTensor(
+    Value *opd, TensorFile *wTF) {
+  auto weightOp = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
+      opd->getDefiningOp());
+  assert(weightOp);
+  assert(weightOp.name().hasValue());
+  auto name = weightOp.name().getValue();
+  llvm::errs() << "  weight : " << name << "\n";
+  auto type = weightOp.getResult()->getType().cast<TensorType>();
+  auto T = wTF->readTensor<float>(name, type);
+  // delete the tensor from the weight file
+  wTF->deleteTensor<float>(name);
+  return std::move(T);
+}
+
 struct TpuQuantConv2DOpPattern : public RewritePattern {
   TpuQuantConv2DOpPattern(MLIRContext *context, TensorFile *weightTensorFile,
       Value* weightFileVar)
@@ -51,91 +81,60 @@ struct TpuQuantConv2DOpPattern : public RewritePattern {
   PatternMatchResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
     auto convOp = cast<tpu::Conv2DOp>(op);
-    std::string op_name = convOp.getAttrOfType<StringAttr>("name").getValue().str();
     //auto loc = op->getLoc();
 
     if (convOp.quant() != "NONE") {
       llvm::errs() << convOp.name() << " quantized already\n";
       return matchFailure();
     }
+    assert(convOp.per_channel_info_is_aggregated() == false);
 
-    // find filter and bias tensor
-    std::vector<std::unique_ptr<std::vector<float> > > weights(2);
-    for (unsigned i = 0; i < convOp.getNumOperands() - 1; ++i) {
-      auto weight_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
-          convOp.getOperand(i + 1)->getDefiningOp());
-      assert(weight_op);
-      assert(weight_op.name().hasValue());
-      auto tensor_name = weight_op.name().getValue();
-      llvm::errs() << "  weight[" << i << "] : " << tensor_name << "\n";
-      auto type = weight_op.getResult()->getType().cast<TensorType>();
-      weights[i] = weightTensorFile_->readTensor<float>(tensor_name, type);
-      // delete the tensor from the weight file
-       weightTensorFile_->deleteTensor<float>(tensor_name);
-    }
-    const float *filter = (const float *)weights[0]->data();
-    const float *bias = nullptr;
-    if (weights[1]) {
-      bias = (const float *)weights[1]->data();
-    }
-
-    // create new tensors for quantized fliter and bias
-    auto filter_type = convOp.filter()->getType().cast<TensorType>();
-    std::vector<int64_t> filter_shape(filter_type.getShape());
-    int64_t filter_size = std::accumulate(std::begin(filter_shape),
-        std::end(filter_shape), 1, std::multiplies<>());
-    assert(filter_size == (int64_t)weights[0]->size());
-
-    int64_t oc = 0;
-    if (filter_shape.size() == 4) {
-      oc = filter_shape[0];
-    } else if (filter_shape.size() == 5) {
-      assert(convOp.group() != 1);
-      // g, oc/g, ic/g, kh, kw
-      oc = filter_shape[0] * filter_shape[1];
-    } else {
-      assert(0);
-    }
-
-    std::vector<bfloat16> new_filter(filter_size);
-    std::vector<bfloat16> new_bias(oc);
-
+    // quantize filter
+    auto filter = readAndDeleteWeightTensor(convOp.getOperand(1),
+        weightTensorFile_);
+    auto filterType = convOp.filter()->getType().cast<TensorType>();
+    std::vector<int64_t> filterShape(filterType.getShape());
+    int64_t filterSize = std::accumulate(std::begin(filterShape),
+        std::end(filterShape), 1, std::multiplies<>());
+    assert(filterSize == (int64_t)filter->size());
+    // create new tensors
+    auto new_filter = std::make_unique<std::vector<bfloat16> >(filterSize);
     // quantization
-    FloatToBFloat16(filter, new_filter.data(), filter_size);
-    if (bias) {
-      FloatToBFloat16(bias, new_bias.data(), oc);
-    }
-
+    FloatToBFloat16(filter->data(), new_filter->data(), filterSize);
     // update op
-    std::vector<Value *> newOperands;
-    newOperands.push_back(convOp.getOperand(0));
+    addWeightTensorAndUpdateWeightOp(convOp.getOperand(1),
+        *new_filter, filterShape, rewriter, weightTensorFile_);
 
-    // add new filter and bias weight
-    std::vector<std::vector<bfloat16> *> newWeights{ &new_filter, &new_bias };
-    std::vector<std::vector<int64_t> > weightShapes{ filter_shape, std::vector<int64_t>{oc} };
-    for (int i = 0; i < 2; ++i) {
-      if (!bias && i == 1)
-        continue;
-      auto tensor_name = op_name + "_quant_bf16_" + std::to_string(i);
-      llvm::errs() << "  new_weight[" << i << "] : " << tensor_name << "\n";
-      auto type = rewriter.getTensorType(weightShapes[i],
-          FloatType::getBF16(rewriter.getContext()));
-      weightTensorFile_->addTensor<uint16_t>(tensor_name, newWeights[i], type);
-      std::vector<NamedAttribute> attrs;
-      attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(tensor_name)));
-      attrs.push_back(rewriter.getNamedAttr("storage", rewriter.getStringAttr("BF16")));
-      auto new_weight_op = rewriter.create<tpu::LoadWeightOp>(op->getLoc(), type,
-          ArrayRef<Value *>{weightFileVar_}, ArrayRef<NamedAttribute>{attrs});
-      newOperands.push_back(new_weight_op);
+    // quantize bias
+    if (convOp.with_bias()) {
+      auto bias = readAndDeleteWeightTensor(convOp.getOperand(2),
+          weightTensorFile_);
+      auto biasType = convOp.getOperand(2)->getType().cast<TensorType>();
+      std::vector<int64_t> biasShape(biasType.getShape());
+      int64_t biasSize = std::accumulate(std::begin(biasShape),
+          std::end(biasShape), 1, std::multiplies<>());
+      int64_t oc = 0;
+      if (filterShape.size() == 4) {
+        oc = filterShape[0];
+      } else if (filterShape.size() == 5) {
+        assert(convOp.group() != 1);
+        // g, oc/g, ic/g, kh, kw
+        oc = filterShape[0] * filterShape[1];
+      } else {
+        assert(0);
+      }
+      assert(biasSize == oc);
+      assert(biasSize == (int64_t)bias->size());
+      // create new tensors
+      auto new_bias = std::make_unique<std::vector<bfloat16> >(biasSize);
+      // quantization
+      FloatToBFloat16(bias->data(), new_bias->data(), biasSize);
+      // update op
+      addWeightTensorAndUpdateWeightOp(convOp.getOperand(2),
+          *new_bias, biasShape, rewriter, weightTensorFile_);
     }
 
-    // replace with the new conv op
-    auto origAttrs = convOp.getAttrs();
-    std::vector<NamedAttribute> newAttrs(origAttrs.begin(), origAttrs.end());
-    newAttrs.push_back(rewriter.getNamedAttr("quant", rewriter.getStringAttr("BF16")));
-    rewriter.replaceOpWithNewOp<tpu::Conv2DOp>(
-        convOp, convOp.getResult()->getType(),
-        ArrayRef<Value *>{newOperands}, ArrayRef<NamedAttribute>{newAttrs});
+    convOp.setAttr("quant", rewriter.getStringAttr("BF16"));
 
     return matchSuccess();
   }
@@ -154,7 +153,6 @@ struct TpuQuantFullyConnectedOpPattern : public RewritePattern {
   PatternMatchResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
     auto fcOp = cast<tpu::FullyConnectedOp>(op);
-    std::string op_name = fcOp.getAttrOfType<StringAttr>("name").getValue().str();
     //auto loc = op->getLoc();
 
     if (fcOp.quant() != "NONE") {
@@ -162,73 +160,43 @@ struct TpuQuantFullyConnectedOpPattern : public RewritePattern {
       return matchFailure();
     }
 
-    // find filter and bias tensor
-    std::vector<std::unique_ptr<std::vector<float> > > weights(2);
-    for (unsigned i = 0; i < fcOp.getNumOperands() - 1; ++i) {
-      auto weight_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
-          fcOp.getOperand(i + 1)->getDefiningOp());
-      assert(weight_op);
-      assert(weight_op.name().hasValue());
-      auto tensor_name = weight_op.name().getValue();
-      llvm::errs() << "  weight[" << i << "] : " << tensor_name << "\n";
-      auto type = weight_op.getResult()->getType().cast<TensorType>();
-      weights[i] = weightTensorFile_->readTensor<float>(tensor_name, type);
-      // delete the tensor from the weight file
-       weightTensorFile_->deleteTensor<float>(tensor_name);
-    }
-    float *filter = (float *)weights[0]->data();
-    float *bias = nullptr;
-    if (weights[1]) {
-      bias = (float *)weights[1]->data();
-    }
-
-    // create new tensors for quantized fliter and bias
-    auto filter_type = fcOp.filter()->getType().cast<TensorType>();
-    std::vector<int64_t> filter_shape(filter_type.getShape());
-    assert(filter_shape.size() == 2);
-    int64_t filter_size = std::accumulate(std::begin(filter_shape),
-        std::end(filter_shape), 1, std::multiplies<>());
-    assert(filter_size == (int64_t)weights[0]->size());
-    int64_t n = filter_shape[0];
-    std::vector<bfloat16> new_filter(filter_size);
-    std::vector<bfloat16> new_bias(n);
-
+    // quantize filter
+    auto filter = readAndDeleteWeightTensor(fcOp.getOperand(1),
+        weightTensorFile_);
+    auto filterType = fcOp.filter()->getType().cast<TensorType>();
+    std::vector<int64_t> filterShape(filterType.getShape());
+    int64_t filterSize = std::accumulate(std::begin(filterShape),
+        std::end(filterShape), 1, std::multiplies<>());
+    assert(filterSize == (int64_t)filter->size());
+    // create new tensors
+    auto new_filter = std::make_unique<std::vector<bfloat16> >(filterSize);
     // quantization
-    FloatToBFloat16(filter, new_filter.data(), filter_size);
-    if (bias) {
-      FloatToBFloat16(bias, new_bias.data(), n);
-    }
-
+    FloatToBFloat16(filter->data(), new_filter->data(), filterSize);
     // update op
-    std::vector<Value *> newOperands;
-    newOperands.push_back(fcOp.getOperand(0));
+    addWeightTensorAndUpdateWeightOp(fcOp.getOperand(1),
+        *new_filter, filterShape, rewriter, weightTensorFile_);
 
-    // add new filter and bias weight
-    std::vector<std::vector<bfloat16> *> newWeights{ &new_filter, &new_bias };
-    std::vector<std::vector<int64_t> > weightShapes{ filter_shape, std::vector<int64_t>{n} };
-    for (int i = 0; i < 2; ++i) {
-      if (!bias && i == 1)
-        continue;
-      auto tensor_name = op_name + "_quant_bf16_" + std::to_string(i);
-      llvm::errs() << "  new_weight[" << i << "] : " << tensor_name << "\n";
-      auto type = rewriter.getTensorType(weightShapes[i],
-          FloatType::getBF16(rewriter.getContext()));
-      weightTensorFile_->addTensor<uint16_t>(tensor_name, newWeights[i], type);
-      std::vector<NamedAttribute> attrs;
-      attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(tensor_name)));
-      attrs.push_back(rewriter.getNamedAttr("storage", rewriter.getStringAttr("BF16")));
-      auto new_weight_op = rewriter.create<tpu::LoadWeightOp>(op->getLoc(), type,
-          ArrayRef<Value *>{weightFileVar_}, ArrayRef<NamedAttribute>{attrs});
-      newOperands.push_back(new_weight_op);
+    // quantize bias
+    if (fcOp.with_bias()) {
+      auto bias = readAndDeleteWeightTensor(fcOp.getOperand(2),
+          weightTensorFile_);
+      auto biasType = fcOp.getOperand(2)->getType().cast<TensorType>();
+      std::vector<int64_t> biasShape(biasType.getShape());
+      int64_t biasSize = std::accumulate(std::begin(biasShape),
+          std::end(biasShape), 1, std::multiplies<>());
+      int64_t n = filterShape[0];
+      assert(biasSize == n);
+      assert(biasSize == (int64_t)bias->size());
+      // create new tensors
+      auto new_bias = std::make_unique<std::vector<bfloat16> >(biasSize);
+      // quantization
+      FloatToBFloat16(bias->data(), new_bias->data(), biasSize);
+      // update op
+      addWeightTensorAndUpdateWeightOp(fcOp.getOperand(2),
+          *new_bias, biasShape, rewriter, weightTensorFile_);
     }
 
-    // replace with the new fc op
-    auto origAttrs = fcOp.getAttrs();
-    std::vector<NamedAttribute> newAttrs(origAttrs.begin(), origAttrs.end());
-    newAttrs.push_back(rewriter.getNamedAttr("quant", rewriter.getStringAttr("BF16")));
-    rewriter.replaceOpWithNewOp<tpu::FullyConnectedOp>(
-        fcOp, fcOp.getResult()->getType(),
-        ArrayRef<Value *>{newOperands}, ArrayRef<NamedAttribute>{newAttrs});
+    fcOp.setAttr("quant", rewriter.getStringAttr("BF16"));
 
     return matchSuccess();
   }
