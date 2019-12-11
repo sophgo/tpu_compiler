@@ -31,6 +31,7 @@
 #include "llvm/Support/Path.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/ToolOutputFile.h"
 
 #include "caffe/caffe.hpp"
 #include "caffe/util/upgrade_proto.hpp"
@@ -182,8 +183,7 @@ mlir::Block* CaffeImporter::CreateOneBlockFunction(
 
 void CaffeImporter::AddLoadFileOp(mlir::Block *block,
     const llvm::StringRef &weightFilename) {
-  //auto weight_type = builder_.getMemRefType({0x80000000}, elementType_);
-  auto weight_type = UnrankedTensorType::get(elementType_);
+  auto weight_type = MemRefType::get({0x80000000}, elementType_);
   auto weight_attr = builder_.getStringAttr(weightFilename);
   weightFileVar_ = OpBuilder(block).create<tpu::LoadFileOp>(
       builder_.getUnknownLoc(), weight_type, weight_attr);
@@ -836,14 +836,31 @@ LogicalResult CaffeImporter::Import(const llvm::StringRef inputFilename,
   return success();
 }
 
-// Translate CaffeModel in the file named as `inputFilename` and returns a
-// module in TPU Dialect.
-static OwningModuleRef caffeToMlirTranslate(llvm::StringRef inputFilename,
+// Translate CaffeModel and returns a module in TPU Dialect.
+static OwningModuleRef caffeToMlirTranslate(llvm::SourceMgr &sourceMgr,
     llvm::StringRef caffemodelFilename, MLIRContext *context) {
   mlir::OwningModuleRef module =
       mlir::ModuleOp::create(mlir::UnknownLoc::get(context));
+
+  // we didn't parse caffe prototxt by ourselves, we pass it to caffe
+  // however caffe take filename as input, therefore we save the source
+  // to a tmp file, the file will be automatically deleted.
+  std::string tmpFile = "./tmp.txt";
+  std::string errorMessage;
+  auto tmp = openOutputFile(tmpFile, &errorMessage);
+  if (!tmp) {
+    llvm::errs() << errorMessage << "\n";
+    return nullptr;
+  }
+  const llvm::MemoryBuffer* buffer =
+      sourceMgr.getMemoryBuffer(sourceMgr.getMainFileID());
+  //llvm::errs() << buffer->getBufferStart() << "\n";
+  //llvm::errs() << "buffer size = " << buffer->getBufferSize() << "\n";
+  tmp->os().write(buffer->getBufferStart(), buffer->getBufferSize());
+  tmp->os().flush();
+
   CaffeImporter importer(module.get());
-  auto status = importer.Import(inputFilename, caffemodelFilename);
+  auto status = importer.Import(tmpFile, caffemodelFilename);
   if (failed(status)) {
     mlir::emitError(mlir::UnknownLoc::get(context));
   }
@@ -860,7 +877,7 @@ static llvm::cl::opt<std::string> clCaffeModelFilename(
 
 static TranslateToMLIRRegistration
     registration("caffe-to-mlir",
-                 [](StringRef inputFilename, MLIRContext *context) {
-                   return caffeToMlirTranslate(inputFilename,
+                 [](llvm::SourceMgr &sourceMgr, MLIRContext *context) {
+                   return caffeToMlirTranslate(sourceMgr,
                        clCaffeModelFilename, context);
                  });

@@ -624,7 +624,7 @@ static LogicalResult runOneFunction(FuncOp func) {
   return success();
 }
 
-LogicalResult translateModule(ModuleOp module, StringRef outputFilename) {
+LogicalResult translateModule(ModuleOp module, llvm::raw_ostream &output) {
   if (!module)
     return failure();
 
@@ -646,27 +646,13 @@ LogicalResult translateModule(ModuleOp module, StringRef outputFilename) {
   std::vector<uint8_t> cmdbuf;
   bmnet_read_cmdbuf(backend_ctx, cmdbuf);
 
-  auto file = openOutputFile(outputFilename);
-  if (!file)
-    return failure();
-
-  file->os().write(reinterpret_cast<char *>(cmdbuf.data()),
-                   cmdbuf.size());
-  file->keep();
+  output.write(reinterpret_cast<char *>(cmdbuf.data()), cmdbuf.size());
 
   return success();
 }
 
-static llvm::cl::opt<std::string> clCmdbufBinFilename(
-    "tpu-cmdbuf-bin-filename",
-    llvm::cl::desc("cmdbuf bin filename"),
-    llvm::cl::init("-"));
-
 static TranslateFromMLIRRegistration
     registration("mlir-to-cmdbuf",
                  [](ModuleOp module, llvm::raw_ostream &output) {
-                   //StringRef outputFilename;
-                   assert(clCmdbufBinFilename != "-");
-                   //outputFilename = clWeightBinFilename;
-                   return translateModule(module, clCmdbufBinFilename);
+                   return translateModule(module, output);
                  });
