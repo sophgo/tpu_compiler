@@ -21,7 +21,7 @@ Clone llvm-project
 $ git clone https://github.com/llvm/llvm-project.git
 # checkout the certain point that we start the project
 # TODO: update to latest later
-$ git checkout -b mydev 6d5a8c92b
+$ git checkout -b mlir-tpu 21bc8631
 ```
 
 Clone mlir into `llvm-project/llvm/projects` directory.
