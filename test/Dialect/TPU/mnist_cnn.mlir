@@ -6,7 +6,9 @@
 
 // OUTLINING-LABEL: Modules:
 // OUTLINING-NEXT: -----------------------
-// OUTLINING-NEXT:  > std.constant
+// OUTLINING-NEXT: main
+// OUTLINING-NEXT: (tensor<?x1x28x28xf32>) -> tensor<?x10xf32>
+
 
 // OUTLINING-LABEL: Funcs:
 // OUTLINING-NEXT: -----------------------

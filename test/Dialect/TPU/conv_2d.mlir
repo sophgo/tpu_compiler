@@ -6,30 +6,10 @@
 
 // OUTLINING-LABEL: Modules:
 // OUTLINING-NEXT: -----------------------
-// OUTLINING-NEXT:  > std.constant
-// OUTLINING-NEXT:  > std.constant
-// OUTLINING-NEXT:  > tpu.conv_2d
-// OUTLINING-NEXT:  > std.return
-// OUTLINING-NEXT: func : test_conv_2d
+// OUTLINING-NEXT: test_conv_2d
 // OUTLINING-NEXT: (tensor<1x3x28x28xf32>) -> tensor<1x16x28x28xf32>
-// OUTLINING-NEXT:  > std.constant
-// OUTLINING-NEXT:  > std.constant
-// OUTLINING-NEXT:  > std.constant
-// OUTLINING-NEXT:  > std.constant
-// OUTLINING-NEXT:  > std.constant
-// OUTLINING-NEXT:  > std.constant
-// OUTLINING-NEXT:  > tpu.conv_2d
-// OUTLINING-NEXT:  > tpu.relu
-// OUTLINING-NEXT:  > tpu.conv_2d
-// OUTLINING-NEXT:  > tpu.relu
-// OUTLINING-NEXT:  > tpu.conv_2d
-// OUTLINING-NEXT:  > tpu.relu
-// OUTLINING-NEXT:  > tpu.pool_2d
-// OUTLINING-NEXT:  > tpu.reshape
-// OUTLINING-NEXT:  > std.return
-// OUTLINING-NEXT: func : main
+// OUTLINING-NEXT: main
 // OUTLINING-NEXT: (tensor<?x1x28x28xf32>) -> tensor<?x10xf32>
-// OUTLINING-NEXT:  > module_terminator
 
 // OUTLINING-LABEL: Funcs:
 // OUTLINING-NEXT: -----------------------
@@ -60,7 +40,13 @@
 // OUTLINING-LABEL: Module walk Conv2DOp:
 // OUTLINING-NEXT: -----------------------
 // OUTLINING-NEXT:  > tpu.conv_2d
-// OUTLINING-NEXT:  >> MAC: 338688, OPs: 677376
+// OUTLINING-NEXT:   >> MAC: 338688, OPs: 677376
+// OUTLINING-NEXT:  > tpu.conv_2d
+// OUTLINING-NEXT:   >> MAC: 28224, OPs: 56448
+// OUTLINING-NEXT:  > tpu.conv_2d
+// OUTLINING-NEXT:   >> MAC: 112896, OPs: 225792
+// OUTLINING-NEXT:  > tpu.conv_2d
+// OUTLINING-NEXT:   >> MAC: 23040, OPs: 46080
 
 // OUTLINING-LABEL: Funcs walk Conv2DOp:
 // OUTLINING-NEXT: -----------------------

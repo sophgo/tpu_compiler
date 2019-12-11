@@ -139,16 +139,17 @@ public:
   explicit PrintTpuOpStatsPass_v0(llvm::raw_ostream &os = llvm::errs()) : os(os) {}
 
   void runOnModule() override {
-    ModuleManager moduleManager(getModule());
+    mlir::ModuleOp module = getModule();
+    //mlir::SymbolTable moduleSymTable(module);
 
     os << "Funcs walk Conv2DOp:\n";
     os << "-----------------------\n";
-    for (auto func : getModule().getOps<FuncOp>()) {
+    for (auto func : module.getOps<FuncOp>()) {
       os << func.getName() << "\n";
-      func.walk<mlir::tpu::Conv2DOp>([&](mlir::tpu::Conv2DOp op) {
+      func.walk([&](mlir::tpu::Conv2DOp op) {
         dumpConv2DOpParam(op);
       });
-      func.walk<mlir::tpu::FullyConnectedOp>([&](mlir::tpu::FullyConnectedOp op) {
+      func.walk([&](mlir::tpu::FullyConnectedOp op) {
         dumpFullyConnectedOpParam(op);
       });
     }
@@ -161,7 +162,7 @@ private:
 
 } // namespace
 
-std::unique_ptr<ModulePassBase> mlir::createPrintTpuOpStatsPass_v0() {
+std::unique_ptr<OpPassBase<ModuleOp>> mlir::createPrintTpuOpStatsPass_v0() {
   return std::make_unique<PrintTpuOpStatsPass_v0>();
 }
 

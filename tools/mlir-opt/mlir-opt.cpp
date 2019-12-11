@@ -81,8 +81,6 @@ int main(int argc, char **argv) {
   }
 
   auto status = MlirOptMain(output->os(), std::move(file), passPipeline,
-                            splitInputFile, verifyDiagnostics, verifyPasses));
-  auto status = MlirOptMain(output->os(), std::move(file), passList,
                             splitInputFile, verifyDiagnostics, verifyPasses);
 
   output->keep();

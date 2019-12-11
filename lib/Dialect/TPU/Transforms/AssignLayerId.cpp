@@ -85,7 +85,7 @@ public:
 
 } // namespace
 
-std::unique_ptr<FunctionPassBase> mlir::createAssignLayerIdPass() {
+std::unique_ptr<OpPassBase<FuncOp>> mlir::createAssignLayerIdPass() {
   return std::make_unique<AssignLayerIdPass>();
 }
 

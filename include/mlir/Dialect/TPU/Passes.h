@@ -24,26 +24,27 @@
 
 namespace mlir {
 
-class ModulePassBase;
-class FunctionPassBase;
+class ModuleOp;
+class FuncOp;
+template <typename T> class OpPassBase;
 
-std::unique_ptr<ModulePassBase> createPrintTpuOpStatsPass();
-std::unique_ptr<ModulePassBase> createPrintTpuOpStatsPass_v0();
+std::unique_ptr<OpPassBase<ModuleOp>> createPrintTpuOpStatsPass();
+std::unique_ptr<OpPassBase<ModuleOp>> createPrintTpuOpStatsPass_v0();
 
-std::unique_ptr<FunctionPassBase> createConvertBnToScalePass();
-std::unique_ptr<FunctionPassBase> createFoldScalePass();
-std::unique_ptr<FunctionPassBase> createMergeScaleIntoConvPass();
-std::unique_ptr<FunctionPassBase> createFuseReluPass();
-std::unique_ptr<FunctionPassBase> createFuseEltwisePass();
+std::unique_ptr<OpPassBase<FuncOp>> createConvertBnToScalePass();
+std::unique_ptr<OpPassBase<FuncOp>> createFoldScalePass();
+std::unique_ptr<OpPassBase<FuncOp>> createMergeScaleIntoConvPass();
+std::unique_ptr<OpPassBase<FuncOp>> createFuseReluPass();
+std::unique_ptr<OpPassBase<FuncOp>> createFuseEltwisePass();
 
-std::unique_ptr<FunctionPassBase> createImportCalibrationTablePass();
-std::unique_ptr<FunctionPassBase> createQuantizeInt8Pass();
-std::unique_ptr<FunctionPassBase> createQuantizeBf16Pass();
+std::unique_ptr<OpPassBase<FuncOp>> createImportCalibrationTablePass();
+std::unique_ptr<OpPassBase<FuncOp>> createQuantizeInt8Pass();
+std::unique_ptr<OpPassBase<FuncOp>> createQuantizeBf16Pass();
 
-std::unique_ptr<FunctionPassBase> createAssignWeightAddressPass();
-std::unique_ptr<FunctionPassBase> createAssignNeuronAddressPass();
+std::unique_ptr<OpPassBase<FuncOp>> createAssignWeightAddressPass();
+std::unique_ptr<OpPassBase<FuncOp>> createAssignNeuronAddressPass();
 
-std::unique_ptr<FunctionPassBase> createAssignLayerIdPass();
+std::unique_ptr<OpPassBase<FuncOp>> createAssignLayerIdPass();
 
 } // namespace mlir
 

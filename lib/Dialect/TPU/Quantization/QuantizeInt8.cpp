@@ -78,7 +78,7 @@ static void addWeightTensorAndUpdateWeightOp(Value* opd,
       opd->getDefiningOp());
   auto name = weightOp.name().getValue().str() + "_quant_int8";
   llvm::errs() << "  new_weight : " << name << "\n";
-  auto type = rewriter.getTensorType(shape, eltType);
+  auto type = RankedTensorType::get(shape, eltType);
   wTF->addTensor<float>(name, &weight, type);
   weightOp.setAttr("name", rewriter.getStringAttr(name));
   weightOp.setAttr("storage", rewriter.getStringAttr(storageType));
@@ -91,7 +91,7 @@ static Value* addWeightTensorAndCreateWeightOp(std::string name,
     PatternRewriter &rewriter, Location &loc,
     TensorFile *wTF, Value *wFV) {
   llvm::errs() << "  new_weight[rshift] : " << name << "\n";
-  auto type = rewriter.getTensorType(shape, eltType);
+  auto type = RankedTensorType::get(shape, eltType);
   wTF->addTensor<float>(name, &weight, type);
   std::vector<NamedAttribute> attrs;
   attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(name)));
@@ -521,7 +521,7 @@ struct TpuQuantFullyConnectedOpPattern : public RewritePattern {
         continue;
       auto tensor_name = op_name + "_quant_int8_" + std::to_string(i);
       llvm::errs() << "  new_weight[" << i << "] : " << tensor_name << "\n";
-      auto type = rewriter.getTensorType(weightShapes[i], FloatType::getF32(rewriter.getContext()));
+      auto type = RankedTensorType::get(weightShapes[i], FloatType::getF32(rewriter.getContext()));
       weightTensorFile_->addTensor<float>(tensor_name, newWeights[i], type);
       std::vector<NamedAttribute> attrs;
       attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(tensor_name)));
@@ -541,10 +541,10 @@ struct TpuQuantFullyConnectedOpPattern : public RewritePattern {
     auto tensor_name = op_name + "_quant_int8_rshift";
     llvm::errs() << "  new_weight[rshift] : " << tensor_name << "\n";
     // TODO: use only float in weight file for now
-    //auto type = rewriter.getTensorType(std::vector<int64_t>{1},
+    //auto type = RankedTensorType::get(std::vector<int64_t>{1},
     //    IntegerType::get(32, rewriter.getContext()));
     //weightTensorFile_->addTensor<uint32_t>(tensor_name, &rshift, type);
-    auto type = rewriter.getTensorType(std::vector<int64_t>{1},
+    auto type = RankedTensorType::get(std::vector<int64_t>{1},
         FloatType::getF32(rewriter.getContext()));
     weightTensorFile_->addTensor<float>(tensor_name, &rshift, type);
     std::vector<NamedAttribute> attrs;
@@ -751,7 +751,7 @@ public:
     // find tensorFile and Value
     llvm::StringRef filename;
     Value* weightFileVar;
-    fn.walk<tpu::LoadFileOp>([&](tpu::LoadFileOp op) {
+    fn.walk([&](tpu::LoadFileOp op) {
       filename = op.filename();
       llvm::errs() << "LoadFileOp filename " << filename << "\n";
       weightFileVar = op.getResult();
@@ -787,7 +787,7 @@ public:
 
     std::string newName;
     weightTensorFile->keep(true, &newName);
-    fn.walk<tpu::LoadFileOp>([&](tpu::LoadFileOp op) {
+    fn.walk([&](tpu::LoadFileOp op) {
       OpBuilder opBuilder(context);
       op.setAttr("filename", opBuilder.getStringAttr(newName));
       llvm::errs() << "LoadFileOp filename updated to " << newName << "\n";
@@ -801,7 +801,7 @@ private:
 
 } // namespace
 
-std::unique_ptr<FunctionPassBase> mlir::createQuantizeInt8Pass() {
+std::unique_ptr<OpPassBase<FuncOp>> mlir::createQuantizeInt8Pass() {
   return std::make_unique<QuantizeInt8Pass>();
 }
 

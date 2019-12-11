@@ -31,6 +31,7 @@
 #include "mlir/Support/LogicalResult.h"
 #include "mlir/Translation.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ToolOutputFile.h"
 #include "mlir/Support/FileUtilities.h"
@@ -656,8 +657,16 @@ LogicalResult translateModule(ModuleOp module, StringRef outputFilename) {
   return success();
 }
 
+static llvm::cl::opt<std::string> clCmdbufBinFilename(
+    "tpu-cmdbuf-bin-filename",
+    llvm::cl::desc("cmdbuf bin filename"),
+    llvm::cl::init("-"));
+
 static TranslateFromMLIRRegistration
     registration("mlir-to-cmdbuf",
-                 [](ModuleOp module, StringRef outputFilename) {
-                   return translateModule(module, outputFilename);
+                 [](ModuleOp module, llvm::raw_ostream &output) {
+                   //StringRef outputFilename;
+                   assert(clCmdbufBinFilename != "-");
+                   //outputFilename = clWeightBinFilename;
+                   return translateModule(module, clCmdbufBinFilename);
                  });

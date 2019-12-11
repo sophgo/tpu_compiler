@@ -199,9 +199,8 @@ int TpuInterpreterMain(
 } // namespace mlir
 
 static LogicalResult runMLIRPasses(ModuleOp m) {
-  // As we gradually lower, the IR is inconsistent between passes. So do not
-  // verify inbetween.
-  PassManager pm(/*verifyPasses=*/false);
+  PassManager pm(m.getContext());
+  applyPassManagerCLOptions(pm);
 
   pm.addPass(createPrintTpuOpStatsPass());
 
@@ -216,5 +215,6 @@ static LogicalResult runMLIRPasses(ModuleOp m) {
 
 // TODO: merge with JitRunnerMain()
 int main(int argc, char **argv) {
+  registerPassManagerCLOptions();
   return mlir::TpuInterpreterMain(argc, argv, &runMLIRPasses);
 }

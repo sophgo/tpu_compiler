@@ -212,7 +212,7 @@ struct TpuConv2DOpPattern : public RewritePattern {
       auto weightFileVar = oneWeightOp.getOperand();
 
       auto tensor_name = op_name + "_per_channel";
-      auto type = rewriter.getTensorType(newWeightShape,
+      auto type = RankedTensorType::get(newWeightShape,
           FloatType::getF32(rewriter.getContext()));
       llvm::errs() << "  newWeight : " << tensor_name << "\n";
       weightTensorFile_->addTensor<float>(tensor_name, &newWeight, type);
@@ -408,7 +408,7 @@ public:
 
     // find tensor filename
     llvm::StringRef filename_npz;
-    fn.walk<tpu::LoadFileOp>([&](tpu::LoadFileOp op) {
+    fn.walk([&](tpu::LoadFileOp op) {
       filename_npz = op.getAttrOfType<StringAttr>("filename").getValue();
       llvm::errs() << "LoadFileOp filename " << filename_npz << "\n";
       // NOTE: we didn't assign the LoadFile filename to .bin file
@@ -463,7 +463,7 @@ private:
 
 } // namespace
 
-std::unique_ptr<FunctionPassBase> mlir::createAssignWeightAddressPass() {
+std::unique_ptr<OpPassBase<FuncOp>> mlir::createAssignWeightAddressPass() {
   return std::make_unique<AssignWeightAddressPass>();
 }
 

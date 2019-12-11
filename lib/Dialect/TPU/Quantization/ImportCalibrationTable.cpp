@@ -164,7 +164,7 @@ private:
 
 } // namespace
 
-std::unique_ptr<FunctionPassBase> mlir::createImportCalibrationTablePass() {
+std::unique_ptr<OpPassBase<FuncOp>> mlir::createImportCalibrationTablePass() {
   return std::make_unique<ImportCalibrationTablePass>();
 }
 

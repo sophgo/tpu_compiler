@@ -108,29 +108,25 @@ public:
   explicit PrintTpuOpStatsPass(llvm::raw_ostream &os = llvm::errs()) : os(os) {}
 
   void runOnModule() override {
-    ModuleManager moduleManager(getModule());
+    mlir::ModuleOp module = getModule();
+    //mlir::SymbolTable moduleSymTable(module);
 
     os << "Modules:\n";
     os << "-----------------------\n";
-    for (auto &module : getModule()) {
-      module.walk([&](Operation *op) {
-        FuncOp funcOp = llvm::dyn_cast_or_null<FuncOp>(op);
-        if (funcOp) {
-          os << op->getName() << " : " << funcOp.getName() << "\n";
-          FunctionType type = funcOp.getType();
-          //type.print(os);
-          type.dump();
-          os << "\n";
-        } else {
-          os << " > " << op->getName() << "\n";
-        }
-      });
+    //auto mainFn = moduleSymTable.lookup<mlir::FuncOp>("main");
+    for (mlir::FuncOp func :
+         llvm::make_early_inc_range(module.getOps<mlir::FuncOp>())) {
+      os << func.getName() << "\n";
+      FunctionType type = func.getType();
+      //type.print(os);
+      type.dump();
+      os << "\n";
     }
     os << "\n";
 
     os << "Funcs:\n";
     os << "-----------------------\n";
-    for (auto func : getModule().getOps<FuncOp>()) {
+    for (auto func : module.getOps<FuncOp>()) {
       os << func.getName() << "\n";
       func.walk([&](Operation *op) {
         os << " > " << op->getName() << "\n";
@@ -140,29 +136,27 @@ public:
 
     os << "Module walk Conv2DOp:\n";
     os << "-----------------------\n";
-    for (auto &module : getModule()) {
-      module.walk<mlir::tpu::Conv2DOp>([&](mlir::tpu::Conv2DOp op) {
-        os << " > " << op.getOperationName() << "\n";
-        //auto mac_count = calcConv2DOpMacCount(op, true);
-        auto mac_count = calcConv2DOpMacCount(op);
-        os << "  >> MAC: " << mac_count
-            << ", OPs: " << mac_count * 2 << "\n";
-        //op.dump();
-        //os << "\n";
-      });
-    }
+    module.walk([&](mlir::tpu::Conv2DOp op) {
+      os << " > " << op.getOperationName() << "\n";
+      //auto mac_count = calcConv2DOpMacCount(op, true);
+      auto mac_count = calcConv2DOpMacCount(op);
+      os << "  >> MAC: " << mac_count
+          << ", OPs: " << mac_count * 2 << "\n";
+      //op.dump();
+      //os << "\n";
+    });
     os << "\n";
 
     os << "Funcs walk Conv2DOp:\n";
     os << "-----------------------\n";
-    for (auto func : getModule().getOps<FuncOp>()) {
+    for (auto func : module.getOps<FuncOp>()) {
       int64_t tatal_mac_count = 0;
       os << func.getName() << "\n";
-      func.walk<mlir::tpu::Conv2DOp>([&](mlir::tpu::Conv2DOp op) {
+      func.walk([&](mlir::tpu::Conv2DOp op) {
         os << " > " << op.getOperationName() << "\n";
         tatal_mac_count += calcConv2DOpMacCount(op);
       });
-      func.walk<mlir::tpu::FullyConnectedOp>([&](mlir::tpu::FullyConnectedOp op) {
+      func.walk([&](mlir::tpu::FullyConnectedOp op) {
         os << " > " << op.getOperationName() << "\n";
         tatal_mac_count += calcFullyConnectedOpMacCount(op);
       });
@@ -178,7 +172,7 @@ private:
 
 } // namespace
 
-std::unique_ptr<ModulePassBase> mlir::createPrintTpuOpStatsPass() {
+std::unique_ptr<OpPassBase<ModuleOp>> mlir::createPrintTpuOpStatsPass() {
   return std::make_unique<PrintTpuOpStatsPass>();
 }
 

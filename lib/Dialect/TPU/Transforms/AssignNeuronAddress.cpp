@@ -165,7 +165,7 @@ private:
 
 } // namespace
 
-std::unique_ptr<FunctionPassBase> mlir::createAssignNeuronAddressPass() {
+std::unique_ptr<OpPassBase<FuncOp>> mlir::createAssignNeuronAddressPass() {
   return std::make_unique<AssignNeuronAddressPass>();
 }
 

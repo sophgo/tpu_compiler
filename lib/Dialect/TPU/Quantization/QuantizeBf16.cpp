@@ -48,7 +48,7 @@ static void addWeightTensorAndUpdateWeightOp(Value* opd,
       opd->getDefiningOp());
   auto name = weightOp.name().getValue().str() + "_quant_bf16";
   llvm::errs() << "  new_weight : " << name << "\n";
-  auto type = rewriter.getTensorType(shape,
+  auto type = RankedTensorType::get(shape,
       FloatType::getBF16(rewriter.getContext()));
   wTF->addTensor<uint16_t>(name, &weight, type);
   weightOp.setAttr("name", rewriter.getStringAttr(name));
@@ -382,7 +382,7 @@ public:
     // find tensorFile and Value
     llvm::StringRef filename;
     Value* weightFileVar;
-    fn.walk<tpu::LoadFileOp>([&](tpu::LoadFileOp op) {
+    fn.walk([&](tpu::LoadFileOp op) {
       filename = op.filename();
       llvm::errs() << "LoadFileOp filename " << filename << "\n";
       weightFileVar = op.getResult();
@@ -418,7 +418,7 @@ public:
 
     std::string newName;
     weightTensorFile->keep(true, &newName);
-    fn.walk<tpu::LoadFileOp>([&](tpu::LoadFileOp op) {
+    fn.walk([&](tpu::LoadFileOp op) {
       OpBuilder opBuilder(context);
       op.setAttr("filename", opBuilder.getStringAttr(newName));
       llvm::errs() << "LoadFileOp filename updated to " << newName << "\n";
@@ -432,7 +432,7 @@ private:
 
 } // namespace
 
-std::unique_ptr<FunctionPassBase> mlir::createQuantizeBf16Pass() {
+std::unique_ptr<OpPassBase<FuncOp>> mlir::createQuantizeBf16Pass() {
   return std::make_unique<QuantizeBf16Pass>();
 }
 

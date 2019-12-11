@@ -87,7 +87,7 @@ private:
 
 } // namespace
 
-std::unique_ptr<FunctionPassBase> mlir::createFuseReluPass() {
+std::unique_ptr<OpPassBase<FuncOp>> mlir::createFuseReluPass() {
   return std::make_unique<FuseReluPass>();
 }
 

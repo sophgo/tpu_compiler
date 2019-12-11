@@ -104,7 +104,7 @@ struct TpuBatchNormOpPattern : public RewritePattern {
     for (int i = 0; i < 2; ++i) {
       auto tensor_name = op_name + "_to_scale_" + std::to_string(i);
       llvm::errs() << "  new_weight[" << i << "] : " << tensor_name << "\n";
-      auto type = rewriter.getTensorType({oc}, FloatType::getF32(rewriter.getContext()));
+      auto type = RankedTensorType::get({oc}, FloatType::getF32(rewriter.getContext()));
       weightTensorFile_->addTensor<float>(tensor_name, newWeights[i], type);
       std::vector<NamedAttribute> attrs;
       attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(tensor_name)));
@@ -136,7 +136,7 @@ public:
 
     // find tensor filename
     llvm::StringRef filename;
-    fn.walk<tpu::LoadFileOp>([&](tpu::LoadFileOp op) {
+    fn.walk([&](tpu::LoadFileOp op) {
       filename = op.getAttrOfType<StringAttr>("filename").getValue();
       llvm::errs() << "LoadFileOp filename " << filename << "\n";
     });
@@ -149,7 +149,7 @@ public:
 
     std::string newName;
     weightTensorFile->keep(true, &newName);
-    fn.walk<tpu::LoadFileOp>([&](tpu::LoadFileOp op) {
+    fn.walk([&](tpu::LoadFileOp op) {
       OpBuilder b(fn.getBody());
       op.setAttr("filename", b.getStringAttr(newName));
       llvm::errs() << "LoadFileOp filename updated to " << newName << "\n";
@@ -162,7 +162,7 @@ private:
 
 } // namespace
 
-std::unique_ptr<FunctionPassBase> mlir::createConvertBnToScalePass() {
+std::unique_ptr<OpPassBase<FuncOp>> mlir::createConvertBnToScalePass() {
   return std::make_unique<ConvertBnToScalePass>();
 }
 

@@ -119,7 +119,7 @@ private:
 
 } // namespace
 
-std::unique_ptr<FunctionPassBase> mlir::createFuseEltwisePass() {
+std::unique_ptr<OpPassBase<FuncOp>> mlir::createFuseEltwisePass() {
   return std::make_unique<FuseEltwisePass>();
 }
 
