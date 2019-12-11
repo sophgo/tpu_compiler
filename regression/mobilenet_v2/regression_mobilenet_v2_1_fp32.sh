@@ -78,6 +78,7 @@ mlir-opt \
 
 # test opt5
 mlir-tpu-interpreter mobilenet_v2_opt5.mlir \
+    --tpu-op-stats-filename mobilenet_v2_stats.csv \
     --input-scale 0.017 \
     --tensor-in $DATA_PATH/test_cat_in_fp32.bin \
     --tensor-out out_opt5.bin

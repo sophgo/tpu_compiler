@@ -73,6 +73,7 @@ mlir-opt \
 
 # test opt5
 mlir-tpu-interpreter resnet50_opt5.mlir \
+    --tpu-op-stats-filename resnet50_op_stats.csv \
     --tensor-in $DATA_PATH/test_cat_in_fp32.bin \
     --tensor-out out_opt5.bin
 bin_compare.py out.bin out_opt5.bin float32 1 1 1 1000 5 5

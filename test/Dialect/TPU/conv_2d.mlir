@@ -1,5 +1,5 @@
 // RUN: mlir-opt -print-op-stats -verify-each=true %s -o=/dev/null 2>&1 | FileCheck %s
-// RUN: mlir-opt -print-tpu-op-stats -verify-each=true %s -o=/dev/null 2>&1 | FileCheck %s --check-prefix=OUTLINING --dump-input=fail
+// RUN: mlir-opt -print-tpu-op -verify-each=true %s -o=/dev/null 2>&1 | FileCheck %s --check-prefix=OUTLINING --dump-input=fail
 
 // CHECK-LABEL: module
 // CHECK-NOT: error
@@ -40,24 +40,18 @@
 // OUTLINING-LABEL: Module walk Conv2DOp:
 // OUTLINING-NEXT: -----------------------
 // OUTLINING-NEXT:  > tpu.conv_2d
-// OUTLINING-NEXT:   >> MAC: 338688, OPs: 677376
 // OUTLINING-NEXT:  > tpu.conv_2d
-// OUTLINING-NEXT:   >> MAC: 28224, OPs: 56448
 // OUTLINING-NEXT:  > tpu.conv_2d
-// OUTLINING-NEXT:   >> MAC: 112896, OPs: 225792
 // OUTLINING-NEXT:  > tpu.conv_2d
-// OUTLINING-NEXT:   >> MAC: 23040, OPs: 46080
 
 // OUTLINING-LABEL: Funcs walk Conv2DOp:
 // OUTLINING-NEXT: -----------------------
 // OUTLINING-NEXT: test_conv_2d
 // OUTLINING-NEXT:  > tpu.conv_2d
-// OUTLINING-NEXT: func total MAC: 338688, total OPs: 677376
 // OUTLINING-NEXT: main
 // OUTLINING-NEXT:  > tpu.conv_2d
 // OUTLINING-NEXT:  > tpu.conv_2d
 // OUTLINING-NEXT:  > tpu.conv_2d
-// OUTLINING-NEXT: func total MAC: 164160, total OPs: 328320
 
 module {
   func @test_conv_2d(%arg0: tensor<1x3x28x28xf32>) -> tensor<1x16x28x28xf32> {
