@@ -96,6 +96,8 @@ private:
   void convertReLULayer(mlir::Block *block, caffe::Layer<float> *layer);
   void convertEltwiseLayer(mlir::Block *block, caffe::Layer<float> *layer);
   void convertSoftmaxLayer(mlir::Block *block, caffe::Layer<float> *layer);
+  void convertConcatLayer(mlir::Block *block, caffe::Layer<float> *layer);
+  void convertDropoutLayer(mlir::Block *block, caffe::Layer<float> *layer);
 
   mlir::ModuleOp module_;
   mlir::Builder builder_;
@@ -215,8 +217,12 @@ void CaffeImporter::ConvertLayers(mlir::Block *block,
       convertEltwiseLayer(block, layer);
     } else if (strcmp(layer->type(), "Softmax") == 0) {
       convertSoftmaxLayer(block, layer);
+    } else if (strcmp(layer->type(), "Concat") == 0) {
+      convertConcatLayer(block, layer);
+    } else if (strcmp(layer->type(), "Dropout") == 0) {
+      convertDropoutLayer(block, layer);
     } else {
-      llvm::errs() << "    UNKNOWN" << "\n";
+      llvm::errs() << "    UNKNOWN : " << layer->type() <<"\n";
       assert(false);
     }
   }
@@ -291,8 +297,11 @@ void CaffeImporter::convertSplitLayer(mlir::Block *block,
   mlir::Value *input_var = GetLayerInput(layer);
   // simply bypass, register top and bottom blobs to the same tensor
   auto layer_param = layer->layer_param();
-  tensor_map_[layer_param.top(0)] = input_var;
-  tensor_map_[layer_param.top(1)] = input_var;
+  int top_size = layer_param.top_size();
+
+  for ( int i = 0; i < top_size; i++)
+    tensor_map_[layer_param.top(i)] = input_var;
+
 }
 
 void CaffeImporter::convertConvolutionLayer(mlir::Block *block,
@@ -809,6 +818,82 @@ void CaffeImporter::convertSoftmaxLayer(mlir::Block *block,
 
   tensor_map_[layer_param.top(0)] = result_var;
 }
+
+void CaffeImporter::convertConcatLayer(mlir::Block *block,
+    caffe::Layer<float> *layer) {
+  std::vector<mlir::Value *> input_vars = GetLayerInputs(layer);
+
+  auto layer_param = layer->layer_param();
+  auto concat_param = layer_param.concat_param();
+  int axis = concat_param.axis();
+  int64_t n = 0, c = 0, h = 0, w = 0;
+  int64_t concat_axis_dim = 0;
+
+  for (uint32_t i = 0; i < input_vars.size(); i++) {
+    llvm::ArrayRef<int64_t> input_shape =
+      input_vars[i]->getType().dyn_cast<mlir::TensorType>().getShape();
+    assert(input_shape.size() == 4);
+    n = input_shape[0];
+    c = input_shape[1];
+    h = input_shape[2];
+    w = input_shape[3];
+    concat_axis_dim += input_shape[axis];
+    LLVM_DEBUG(
+      llvm::errs()
+        << " var: " << i
+        << "  N: " << n
+        << ", C: " << c
+        << ", IH*IW: " << h << " * " << w
+        << "\n";
+    );
+  }
+
+  switch (axis) {
+    case 0:
+      n = concat_axis_dim;
+      break;
+    case 1:
+      c = concat_axis_dim;
+      break;
+    case 2:
+      h = concat_axis_dim;
+      break;
+    case 3:
+      w = concat_axis_dim;
+      break;
+    default:
+      assert(0);
+  }
+   LLVM_DEBUG(
+    llvm::errs()
+        << " axis: " << input_vars.size()
+        << "  N: " << n
+        << ", C: " << c
+        << ", IH*IW: " << h << " * " << w
+        << "\n";
+  );
+  // construct OP
+  auto result_type = RankedTensorType::get({n, c, h, w}, elementType_);
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name())));
+  attrs.push_back(builder_.getNamedAttr("dimension", builder_.getI32IntegerAttr(axis)));
+  auto op = OpBuilder(block).create<tpu::ConcatOp>(
+      builder_.getUnknownLoc(), result_type,
+      ArrayRef<Value *>{input_vars}, ArrayRef<NamedAttribute>{attrs});
+  auto result_var = op.getResult();
+
+  tensor_map_[layer_param.top(0)] = result_var;
+
+}
+
+void CaffeImporter::convertDropoutLayer(mlir::Block *block,
+    caffe::Layer<float> *layer) {
+  mlir::Value *input_var = GetLayerInput(layer);
+
+  auto layer_param = layer->layer_param();
+  tensor_map_[layer_param.top(0)] = input_var;
+}
+
 
 LogicalResult CaffeImporter::Import(const llvm::StringRef inputFilename,
     llvm::StringRef caffemodelFilename) {
