@@ -20,154 +20,124 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/TPU/TPUDialect.h"
+#include "mlir/Dialect/TPU/TPUOperationSupport.h"
 #include "mlir/Dialect/TPU/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/Pass/Pass.h"
+#include "mlir/Support/FileUtilities.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Support/ToolOutputFile.h"
 
 using namespace mlir;
 
-static int64_t calcConv2DOpMacCount(tpu::Conv2DOp &op, const bool debug = false) {
-  llvm::raw_ostream &os = (debug == true) ? llvm::errs() : llvm::nulls();
-
-  auto dh = op.dilation_h_factor();  // APInt, use .getLimitedValue(); to get uint65_t
-  auto dw = op.dilation_w_factor();
-  auto sh = op.stride_h();
-  auto sw = op.stride_w();
-  os << "  >> " << "sh: " << sh << ", sw: " << sw << ", dh : " << dh << ", dw: " << dw << "\n";
-
-  auto input_type = op.input()->getType().cast<TensorType>();
-  std::vector<int64_t> i_s(input_type.getShape());
-  os << "  >> " << "input shape  : "
-      << i_s[0] << "," << i_s[1] << "," << i_s[2] << "," << i_s[3] << "\n";
-  auto output_type = op.output()->getType().cast<TensorType>();
-  std::vector<int64_t> o_s(output_type.getShape());
-  os << "  >> " << "output shape : "
-      << o_s[0] << "," << o_s[1] << "," << o_s[2] << "," << o_s[3] << "\n";
-  auto filter_type = op.filter()->getType().cast<TensorType>();
-  std::vector<int64_t> f_s(filter_type.getShape());
-  os << "  >> " << "filter shape : "
-      << f_s[0] << "," << f_s[1] << "," << f_s[2] << "," << f_s[3] << "\n";
-
-  assert((i_s[0] == o_s[0]) && "input N not equal to output N");
-  auto n = i_s[0];
-  if (n == -1) {
-    os << "  >> " << "No determined N, use batch size 1" << "\n";
-    n = 1;
-  }
-
-  auto oc = f_s[0];
-  auto ic = f_s[1];
-  auto kh = f_s[2];
-  auto kw = f_s[3];
-  auto oh = o_s[2];
-  auto ow = o_s[3];
-
-  auto mac_count = ow * oh * kh * kw * ic * oc * n;
-  os << "  >> " << "MAC count : " << mac_count << ", OP count : " << mac_count * 2 << "\n";
-
-  return mac_count;
-}
-
-static int64_t calcFullyConnectedOpMacCount(tpu::FullyConnectedOp &op, const bool debug = false) {
-  llvm::raw_ostream &os = (debug == true) ? llvm::errs() : llvm::nulls();
-
-  auto input_type = op.input()->getType().cast<TensorType>();
-  std::vector<int64_t> i_s(input_type.getShape());
-  os << "  >> " << "input shape  : " << i_s[0] << "," << i_s[1] << "\n";
-  auto output_type = op.output()->getType().cast<TensorType>();
-  std::vector<int64_t> o_s(output_type.getShape());
-  os << "  >> " << "output shape : " << o_s[0] << "," << o_s[1] << "\n";
-  auto filter_type = op.filter()->getType().cast<TensorType>();
-  std::vector<int64_t> f_s(filter_type.getShape());
-  os << "  >> " << "filter shape : " << f_s[0] << "," << f_s[1] << "\n";
-
-  assert((i_s[0] == o_s[0]) && "input M not equal to output M");
-  auto M = i_s[0];
-  if (M == -1) {
-    os << "  >> " << "No determined N, use batch size 1" << "\n";
-    M = 1;
-  }
-  assert((i_s[1] == f_s[1]) && "input K not equal to filter K");
-  auto K = i_s[1];
-  assert((f_s[0] == o_s[1]) && "filter N not equal to output N");
-  auto N = o_s[1];
-
-  auto mac_count = M * K * N;
-  os << "  >> " << "MAC count : " << mac_count << ", OP count : " << mac_count * 2 << "\n";
-
-  return mac_count;
-}
-
 namespace {
+
+static llvm::cl::opt<std::string> clOpStatsFilename(
+    "tpu-op-stats-filename",
+    llvm::cl::desc("dump tpu op statistics into a csv file"),
+    llvm::cl::init("-"));
 
 class PrintTpuOpStatsPass : public ModulePass<PrintTpuOpStatsPass> {
 public:
-  explicit PrintTpuOpStatsPass(llvm::raw_ostream &os = llvm::errs()) : os(os) {}
+  explicit PrintTpuOpStatsPass() {}
 
   void runOnModule() override {
+    std::unique_ptr<llvm::ToolOutputFile> file = nullptr;
+    if (clOpStatsFilename != "-") {
+      std::string errorMessage;
+      file = openOutputFile(clOpStatsFilename, &errorMessage);
+      if (!file) {
+        llvm::errs() << errorMessage << "\n";
+        exit(1);
+      }
+      file->keep();
+    }
+    llvm::raw_ostream &os = file ? file->os() : llvm::errs();
+
     mlir::ModuleOp module = getModule();
     //mlir::SymbolTable moduleSymTable(module);
 
-    os << "Modules:\n";
-    os << "-----------------------\n";
-    //auto mainFn = moduleSymTable.lookup<mlir::FuncOp>("main");
-    for (mlir::FuncOp func :
-         llvm::make_early_inc_range(module.getOps<mlir::FuncOp>())) {
-      os << func.getName() << "\n";
-      FunctionType type = func.getType();
-      //type.print(os);
-      type.dump();
-      os << "\n";
-    }
-    os << "\n";
-
-    os << "Funcs:\n";
-    os << "-----------------------\n";
+    os << "name" << "," << "n" << "," << "g" << ","
+       << "ic" << "," << "ih" << "," << "iw" << ","
+       << "oc" << "," << "oh" << "," << "ow" << ","
+       << "kh" << "," << "kw" << "," << "sh" << "," << "sw" << ","
+       << "dh" << "," << "dw" << "," << "ph" << "," << "pw" << ","
+       << "mac_count"
+       <<"\n";
+    total_mac_count = 0;
     for (auto func : module.getOps<FuncOp>()) {
-      os << func.getName() << "\n";
-      func.walk([&](Operation *op) {
-        os << " > " << op->getName() << "\n";
+      func.walk([&](mlir::Operation *opInst) {
+        if (auto op = dyn_cast<mlir::tpu::Conv2DOp>(opInst)) {
+          dumpConv2DOpParam(op, os);
+        } else if (auto op = dyn_cast<mlir::tpu::Pool2DOp>(opInst)) {
+          dumpPool2DOpParam(op, os);
+        } else if (auto op = dyn_cast<mlir::tpu::FullyConnectedOp>(opInst)) {
+          dumpFullyConnectedOpParam(op, os);
+        }
       });
     }
-    os << "\n";
-
-    os << "Module walk Conv2DOp:\n";
-    os << "-----------------------\n";
-    module.walk([&](mlir::tpu::Conv2DOp op) {
-      os << " > " << op.getOperationName() << "\n";
-      //auto mac_count = calcConv2DOpMacCount(op, true);
-      auto mac_count = calcConv2DOpMacCount(op);
-      os << "  >> MAC: " << mac_count
-          << ", OPs: " << mac_count * 2 << "\n";
-      //op.dump();
-      //os << "\n";
-    });
-    os << "\n";
-
-    os << "Funcs walk Conv2DOp:\n";
-    os << "-----------------------\n";
-    for (auto func : module.getOps<FuncOp>()) {
-      int64_t tatal_mac_count = 0;
-      os << func.getName() << "\n";
-      func.walk([&](mlir::tpu::Conv2DOp op) {
-        os << " > " << op.getOperationName() << "\n";
-        tatal_mac_count += calcConv2DOpMacCount(op);
-      });
-      func.walk([&](mlir::tpu::FullyConnectedOp op) {
-        os << " > " << op.getOperationName() << "\n";
-        tatal_mac_count += calcFullyConnectedOpMacCount(op);
-      });
-      os << "func total MAC: " << tatal_mac_count
-          << ", total OPs: " << tatal_mac_count * 2 << "\n";
-    }
-    os << "\n";
+    llvm::errs() << "Total MAC Count: " << total_mac_count << "\n";
   }
 
 private:
-  llvm::raw_ostream &os;
+  uint64_t total_mac_count;
+
+  void dumpConv2DOpParam(tpu::Conv2DOp &op, llvm::raw_ostream &os) {
+    bool with_bias, do_relu;
+    int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, ph, pw, dh, dw;
+    getConv2DOpParam(op, n, ic, ih, iw, oc, oh, ow, g,
+                     kh, kw, sh, sw, ph, pw, dh, dw, with_bias, do_relu);
+
+    uint64_t mac_count = ow * oh * kh * kw * g * (ic / g) * (oc / g) * n;
+    total_mac_count += mac_count;
+
+    os << op.name() << "," << n << "," << g << ","
+       << ic << "," << ih << "," << iw << ","
+       << oc << "," << oh << "," << ow << ","
+       << kh << "," << kw << "," << sh << "," << sw << ","
+       << dh << "," << dw << "," << ph << "," << pw << ","
+       << mac_count
+       <<"\n";
+  }
+
+  void dumpPool2DOpParam(tpu::Pool2DOp &op, llvm::raw_ostream &os) {
+    bool is_average_pool, do_relu;
+    int n, c, ih, iw, oh, ow, kh, kw, sh, sw, ph, pw;
+    getPool2DOpParam(op, is_average_pool, n, c, ih, iw, oh, ow,
+                     kh, kw, sh, sw, ph, pw, do_relu);
+
+    uint64_t mac_count = ow * oh * kh * kw * c * n;
+    total_mac_count += mac_count;
+
+    os << op.name() << "," << n << "," << ","
+       << c << "," << ih << "," << iw << ","
+       << "," << oh << "," << ow << ","
+       << kh << "," << kw << "," << sh << "," << sw << ","
+       << "," << "," << ph << "," << pw << ","
+       << mac_count
+       <<"\n";
+  }
+
+  void dumpFullyConnectedOpParam(tpu::FullyConnectedOp &op, llvm::raw_ostream &os) {
+    bool with_transpose, with_bias, do_relu;
+    int m, k, n;
+    getFullyConnectedOpParam(op, with_transpose, m, k, n, with_bias, do_relu);
+
+    uint64_t mac_count = m * k * n;
+    total_mac_count += mac_count;
+
+    os << op.name() << "," << m << "," << ","
+       << k << "," << "," << ","
+       << m << "," << "," << ","
+       << "," << "," << "," << ","
+       << "," << "," << "," << ","
+       << mac_count
+       <<"\n";
+  }
+
 };
 
 } // namespace
