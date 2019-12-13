@@ -3,11 +3,19 @@ set -e
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
-if [ ! -e regression_out ]; then
-  echo "regression_out dir not exist, please run regression first"
-  exit 1
+if [[ -z "$DATASET_PATH" ]]; then
+  echo "DATASET_PATH not defined"
+  return 1
+fi
+if [ ! -e $DATASET_PATH ]; then
+  echo "DATASET_PATH $DATASET_PATH does not exist"
+  return 1
 fi
 
+if [ ! -e regression_out ]; then
+  echo "regression_out dir not exist, please run regression first"
+  return 1
+fi
 pushd regression_out
 
 # run tests
