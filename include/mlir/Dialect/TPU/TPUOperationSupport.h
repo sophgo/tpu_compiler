@@ -28,6 +28,7 @@
 namespace mlir {
 
 llvm::StringRef getOpName(Operation *op);
+std::string getOpQuant(Operation *op);
 float getPreviousOpThreshold(Operation *op, uint index = 0);
 uint64_t getPreviousOpAddress(Operation *op, uint index = 0);
 uint64_t getWeightOpAddress(Operation *op);

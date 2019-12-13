@@ -50,6 +50,26 @@ llvm::StringRef getOpName(Operation *op) {
   return "not_found";
 }
 
+std::string getOpQuant(Operation *op) {
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::Conv2DOp>(op)) {
+    return cast_op.quant();
+  }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::FullyConnectedOp>(op)) {
+    return cast_op.quant();
+  }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::EltwiseOp>(op)) {
+    return cast_op.quant();
+  }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::QuantizationOp>(op)) {
+    return cast_op.quant();
+  }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::DequantizationOp>(op)) {
+    return cast_op.quant();
+  }
+
+  return "NONE";
+}
+
 float getPreviousOpThreshold(Operation *op, uint index = 0) {
   if ( op->getNumOperands() < (index + 1) ) {
     assert(false);

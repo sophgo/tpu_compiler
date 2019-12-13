@@ -33,11 +33,8 @@
 
 using namespace mlir;
 
-struct MLIROpInfo {
-  std::string name;
-  std::string type;
-  std::vector<int64_t> shape;
-};
+#define OP_TYPE "type"
+#define OP_QUANT "quant"
 
 typedef std::map<std::string, std::vector<float>> tensor_map_t;
 
@@ -60,27 +57,6 @@ static OwningModuleRef parseMLIRInput(StringRef inputFilename,
   llvm::SourceMgr sourceMgr;
   sourceMgr.AddNewSourceBuffer(std::move(file), llvm::SMLoc());
   return OwningModuleRef(parseSourceFile(sourceMgr, context));
-}
-
-static void parseMLIRInfo(ModuleOp m, std::vector<MLIROpInfo> &info_array)
-{
-  for (FuncOp function : m.getOps<FuncOp>()) {
-    for (Block &bb : function.getBlocks()) {
-      for (auto &op : bb) {
-        if (!isValidOp(op)) {
-          continue;
-        }
-
-        // TODO: Only support one output tesor for now.
-        auto result = op.getResult(0);
-        MLIROpInfo info;
-        info.name = getOpName(&op).str();
-        info.type = op.getName().getStringRef().str();
-        info.shape = result->getType().cast<TensorType>().getShape();
-        info_array.push_back(info);
-      }
-    }
-  }
 }
 
 static int runTpuInterpreter(OwningModuleRef &m, std::vector<float> &input, std::vector<float> &output,
@@ -108,9 +84,10 @@ static int runTpuInterpreter(OwningModuleRef &m, std::vector<float> &input, std:
 
 namespace py = pybind11;
 
-static py::array getPythonArray(std::vector<float> &vec, const std::vector<int64_t> &shape)
+template <typename Dtype>
+static py::array getPythonArray(std::vector<Dtype> &vec, const std::vector<int64_t> &shape)
 {
-  std::vector<unsigned> stride_v(shape.size(), sizeof(float));
+  std::vector<unsigned> stride_v(shape.size(), sizeof(Dtype));
   for (int i = shape.size()-1; i > 0; i--) {
     for (int j = 0; j < i; j++) {
       stride_v[j] *= shape[i];
@@ -119,13 +96,18 @@ static py::array getPythonArray(std::vector<float> &vec, const std::vector<int64
 
   return py::array(py::buffer_info(
     vec.data(),                           /* data as contiguous array  */
-    sizeof(float),                           /* size of one scalar        */
-    py::format_descriptor<float>::format(),  /* data type                 */
+    sizeof(Dtype),                           /* size of one scalar        */
+    py::format_descriptor<Dtype>::format(),  /* data type                 */
     shape.size(), //ndim,                                    /* number of dimensions      */
     shape, //shape,                                   /* shape of the matrix       */
     stride_v //strides                                  /* strides for each axis     */
   ));
 }
+
+template
+static py::array getPythonArray(std::vector<float> &vec, const std::vector<int64_t> &shape);
+template
+static py::array getPythonArray(std::vector<int64_t> &vec, const std::vector<int64_t> &shape);
 
 // Static initialization for standard op dialect registration.
 static DialectRegistration<StandardOpsDialect> StandardOps;
@@ -141,35 +123,60 @@ public:
       exit(-1);
     }
 
-    parseMLIRInfo(module.get(), info_array_);
+    parseMLIRInfo();
   }
 
   void dump() {
     module->dump();
   }
 
+  void parseMLIRInfo() {
+    ModuleOp m = module.get();
+
+    for (FuncOp function : m.getOps<FuncOp>()) {
+      for (Block &bb : function.getBlocks()) {
+        for (auto &op : bb) {
+          if (!isValidOp(op)) {
+            if (auto loadFileOp = dyn_cast<tpu::LoadFileOp>(op)) {
+              weightFilePath_ = loadFileOp.getAttrOfType<StringAttr>("filename").getValue().str();
+            }
+
+            continue;
+          }
+
+          // TODO: Only support one output tesor for now.
+          auto result = op.getResult(0);
+          std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
+
+          py::dict py_temp;
+          py_temp[OP_TYPE] = op.getName().getStringRef().str();
+          py_temp[OP_QUANT] = getOpQuant(&op);
+          py::str py_s(getOpName(&op).str());
+          opInfo_[py_s] = py_temp;
+
+          shapeMap_[getOpName(&op).str()] = shape;
+        }
+      }
+    }
+  }
+
   py::dict getAllTensor() {
-    py::dict ret;
+    py::dict py_ret;
     for (auto it = tensorMap_.begin(); it != tensorMap_.end(); it++) {
       auto op = it->first;
       auto data = it->second;
-
-      auto info = std::find_if(info_array_.begin(), info_array_.end(), [op] (MLIROpInfo s) {
-        return s.name == op;
-      });
-      assert(info != info_array_.end());
-
-      auto shape = (*info).shape;
       py::str py_s(op);
-      ret[py_s] = getPythonArray(data, shape);
+
+      assert(shapeMap_.end() != shapeMap_.find(op));
+      py_ret[py_s] = getPythonArray(data, shapeMap_[op]);
 
     }
 
-    return ret;
+    return py_ret;
   }
 
   py::array getTensor(std::string op_name) {
-    py::array ret;
+    py::array py_ret;
 
     for (auto it = tensorMap_.begin(); it != tensorMap_.end(); it++ ) {
       auto op = it->first;
@@ -177,28 +184,19 @@ public:
       if (op == op_name) {
         auto data = it->second;
 
-        auto info = std::find_if(info_array_.begin(), info_array_.end(), [op] (MLIROpInfo s) {
-          return s.name == op;
-        });
-        assert(info != info_array_.end());
-
-        auto shape = (*info).shape;
-        ret = getPythonArray(data, shape);
+        assert(shapeMap_.end() != shapeMap_.find(op));
+        py_ret = getPythonArray(data, shapeMap_[op]);
         break;
       }
     }
 
-    return ret;
+    return py_ret;
   }
 
-  py::dict getOpType() {
-    py::dict opType;
-    for (MLIROpInfo info : info_array_) {
-      py::str py_s(info.name);
-      opType[py_s] = info.type;
-    }
+  py::str getWeightFilePath() {
+    py::str py_s(weightFilePath_);
 
-    return opType;
+    return py_s;
   }
 
   // wrap C++ function with NumPy array IO
@@ -233,11 +231,15 @@ public:
     ));
   }
 
+public:
+  py::dict opInfo_;
+
 private:
   MLIRContext context;
   OwningModuleRef module;
   tensor_map_t tensorMap_;
-  std::vector<MLIROpInfo> info_array_;
+  std::string weightFilePath_;
+  std::map<std::string, std::vector<int64_t>> shapeMap_;
 };
 
 // wrap as Python module
@@ -255,8 +257,9 @@ PYBIND11_MODULE(pymlir,m)
          "dump all tensor data")
     .def("get_tensor", &py_module::getTensor,
          "get one tensor data")
-    .def("get_op_type", &py_module::getOpType,
-         "get operator list")
+    .def_readwrite("op_info", &py_module::opInfo_)
+    .def("get_weight_file_path", &py_module::getWeightFilePath,
+         "get weight file path")
     .def("run", &py_module::run,
          "run module inference with input array, and return output array");
 }
