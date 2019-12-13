@@ -27,8 +27,16 @@ add_llvm_library(MLIRTPU
   ${MLIR_MAIN_INCLUDE_DIR}/mlir/Dialect/TPU
 )
 
-add_dependencies(MLIRTPU MLIRTPUOpsIncGen MLIRIR LLVMSupport)
-target_link_libraries(MLIRTPU MLIRIR MLIRStandardOps LLVMSupport ${tpu_LINKER_LIBS})
+add_dependencies(MLIRTPU
+  MLIRTPUOpsIncGen
+  MLIRIR
+  LLVMSupport)
+target_link_libraries(MLIRTPU
+  MLIRIR
+  MLIRStandardOps
+  LLVMSupport
+  ${tpu_LINKER_LIBS})
 
 add_subdirectory(Translate)
 add_subdirectory(Interpreter)
+add_subdirectory(DeepFusion)
