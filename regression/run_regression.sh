@@ -26,6 +26,8 @@ $DIR/mobilenet_v2/regression_mobilenet_v2_3_int8_cmdbuf.sh
 $DIR/mobilenet_v2/regression_mobilenet_v2_4_bf16.sh
 $DIR/mobilenet_v2/regression_mobilenet_v2_5_bf16_cmdbuf.sh
 
+$DIR/pnet/regression_pnet_bf16_cmdbuf.sh
+
 popd
 
 # VERDICT
