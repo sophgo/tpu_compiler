@@ -398,32 +398,33 @@ def TPU_ConcatOp: TPU_Op<"concat", [NoSideEffect, SameOperandsAndResultElementTy
     Performs concat operation on inputs.
   }];
 
-  let arguments = (
-    ins Variadic<AnyTensor>:$val,
-        DefaultValuedAttr<I32Attr, "1">: $dimension
-  );
+   let arguments = (
+     ins Variadic<AnyTensor>:$val,
+     OptionalAttr<StrAttr>:$name,
+     DefaultValuedAttr<I32Attr, "1">: $dimension
+   );
 
-  let verifier = [{
-    auto firstType = getOperand(0)->getType().cast<RankedTensorType>();
+   let verifier = [{
+     auto firstType = getOperand(0)->getType().cast<RankedTensorType>();
 
-    auto firstShape = firstType.getShape();
-    int numOperands = getNumOperands();
-    for (int i = 1; i < numOperands; i++) {
-      auto secondType = getOperand(i)->getType().cast<RankedTensorType>();
+     auto firstShape = firstType.getShape();
+     int numOperands = getNumOperands();
+     for (int i = 1; i < numOperands; i++) {
+       auto secondType = getOperand(i)->getType().cast<RankedTensorType>();
 
-      if (firstType.getRank() != secondType.getRank()) {
-        return emitOpError() << "operands (0) and" << "(" << i << ")" << "do not match rank.";
-      }
+       if (firstType.getRank() != secondType.getRank()) {
+         return emitOpError() << "operands (0) and" << "(" << i << ")" << "do not match rank.";
+       }
 
-      auto secondShape = secondType.getShape();
-      for (int d = 0; d < firstType.getRank(); ++d) {
-        if (firstShape[d] != secondShape[d] && d != dimension()) {
-          return emitOpError() << "operands (0) and (" << "i" << "non-concat dimensions do not match ";
-        }
-      }
-    }
-    return success();
-  }];
+       auto secondShape = secondType.getShape();
+       for (int d = 0; d < firstType.getRank(); ++d) {
+         if (firstShape[d] != secondShape[d] && d != dimension()) {
+           return emitOpError() << "operands (0) and (" << "i" << "non-concat dimensions do not match ";
+         }
+       }
+     }
+     return success();
+   }];
 
   let results = (outs AnyTensor:$res);
 }
