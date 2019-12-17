@@ -437,7 +437,12 @@ int my_prelu(float *input, float *output, int n, int c, int h, int w,
     for(int channel = 0 ; channel < c; ++channel){
         int index = batch * c * w * h + channel * w * h;
         for(int i = 0; i < w * h; ++i){
-          output[i] = negative_slope[channel] * input[i];
+          if (input[index + i] > 0) {
+            output[index + i] = input[index + i];
+          } else {
+            output[index + i] = negative_slope[channel] * input[index + i];
+          }
+          
         }
     }
   }

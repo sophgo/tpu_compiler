@@ -484,6 +484,40 @@ static LogicalResult runOperation(Operation &opInst) {
 
     return success();
   }
+  if (auto op = dyn_cast<tpu::PReluOp>(opInst)) {
+    LLVM_DEBUG(llvm::errs() << "PReluOp"
+                            << "\n";);
+
+    int n, c, h, w;
+    auto input_type = op.x()->getType().cast<TensorType>();
+    std::vector<int64_t> i_s(input_type.getShape());
+    auto output_type = op.y()->getType().cast<TensorType>();
+    std::vector<int64_t> o_s(output_type.getShape());
+    assert((i_s == o_s) && "input shape not equal to output shape");
+    n = i_s[0];
+    c = i_s[1];
+    h = i_s[2];
+    w = i_s[3];
+    gaddr_t negative_scope_gaddr = getWeightOpAddress(op.getOperand(1)->getDefiningOp());
+    gaddr_t input_gaddr = getPreviousOpAddress(op);
+    gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
+
+    int layer_id = op.layer_id().getValue().getLimitedValue();
+
+    bmnet_prelu_fixed_forward_bmkernel(
+        *backend_ctx,
+        layer_id,             // layer_id,
+        input_gaddr,          // input_data_gaddr,
+        output_gaddr,         // output_data_gaddr,
+        negative_scope_gaddr, // float negative_slope,
+        n, c, h, w,
+        0,       // int threshold_x_quantized_len,
+        nullptr, // const int *threshold_x_quantized,
+        nullptr  // const int *right_shift_array
+    );
+
+    return success();
+  }
   if (auto op = dyn_cast<tpu::EltwiseOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "EltwiseOp" << "\n";);
 

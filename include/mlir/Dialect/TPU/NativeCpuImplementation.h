@@ -16,6 +16,9 @@ int mkldnn_ip(float *input, float *weight, float *bias,
 int my_relu(float *input, float *output,
     int n, int c, int h, int w, float negative_slope);
 
+int my_prelu(float *input, float *output, int n, int c, int h, int w,
+            float *negative_slope);
+
 int my_bn(float *input, float *mean, float *variance, float *scale,
     float *output, int n, int c, int h, int w);
 
