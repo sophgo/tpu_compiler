@@ -37,6 +37,8 @@
 #include <fstream>
 #include <math.h>
 
+#define DEBUG_TYPE "quantize_int8"
+
 using namespace mlir;
 
 static llvm::cl::OptionCategory clOptionsCategory("quantization options");
@@ -62,7 +64,7 @@ static std::unique_ptr<std::vector<float> > readAndDeleteWeightTensor(
   assert(weightOp);
   assert(weightOp.name().hasValue());
   auto name = weightOp.name().getValue();
-  llvm::errs() << "  weight : " << name << "\n";
+  LLVM_DEBUG(llvm::errs() << "  weight : " << name << "\n";);
   auto type = weightOp.getResult()->getType().cast<TensorType>();
   auto T = wTF->readTensor<float>(name, type);
   // delete the tensor from the weight file
@@ -77,7 +79,7 @@ static void addWeightTensorAndUpdateWeightOp(Value* opd,
   auto weightOp = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
       opd->getDefiningOp());
   auto name = weightOp.name().getValue().str() + "_quant_int8";
-  llvm::errs() << "  new_weight : " << name << "\n";
+  LLVM_DEBUG(llvm::errs() << "  new_weight : " << name << "\n";);
   auto type = RankedTensorType::get(shape, eltType);
   wTF->addTensor<float>(name, &weight, type);
   weightOp.setAttr("name", rewriter.getStringAttr(name));
@@ -90,7 +92,7 @@ static Value* addWeightTensorAndCreateWeightOp(std::string name,
     std::string &storageType, Type &eltType,
     PatternRewriter &rewriter, Location &loc,
     TensorFile *wTF, Value *wFV) {
-  llvm::errs() << "  new_weight[rshift] : " << name << "\n";
+  LLVM_DEBUG(llvm::errs() << "  new_weight[rshift] : " << name << "\n";);
   auto type = RankedTensorType::get(shape, eltType);
   wTF->addTensor<float>(name, &weight, type);
   std::vector<NamedAttribute> attrs;
@@ -120,7 +122,7 @@ struct TpuQuantConv2DOpPattern : public RewritePattern {
     auto loc = op->getLoc();
 
     if (convOp.quant() != "NONE") {
-      llvm::errs() << convOp.name() << " quantized already\n";
+      LLVM_DEBUG(llvm::errs() << convOp.name() << " quantized already\n";);
       return matchFailure();
     }
     assert(convOp.per_channel_info_is_aggregated() == false);
@@ -146,9 +148,9 @@ struct TpuQuantConv2DOpPattern : public RewritePattern {
       threshold_y =
           convOp.threshold_y_before_eltwise().getValue().convertToFloat();
     }
-    llvm::errs() << " > " << convOp.name()
+    LLVM_DEBUG(llvm::errs() << " > " << convOp.name()
                  << ", threshold_y = "<< std::to_string(threshold_y)
-                 << ", threshold_x = " << std::to_string(threshold_x) << "\n";
+                 << ", threshold_x = " << std::to_string(threshold_x) << "\n";);
 
     // get filter tensor
     auto filter = readAndDeleteWeightTensor(convOp.getOperand(1),
@@ -313,11 +315,11 @@ struct TpuQuantConv2DOpPattern : public RewritePattern {
         max_filter_abs = fabs(filter[i]);
       }
     }
-    llvm::errs() << "  max_filter : " << std::to_string(max_filter_abs) << "\n";
+    LLVM_DEBUG(llvm::errs() << "  max_filter : " << std::to_string(max_filter_abs) << "\n";);
     // find rshift
     rshift_per_layer[0] = (float)findRShift(max_filter_abs,
         threshold_y, threshold_x);
-    llvm::errs() << "  rshift : " << rshift_per_layer[0] << "\n";
+    LLVM_DEBUG(llvm::errs() << "  rshift : " << rshift_per_layer[0] << "\n";);
     // quantize weight
     for (int i = 0; i < filter_size; ++i) {
       new_filter[i] = (float)quantizeFilterRShift(filter[i],
@@ -344,16 +346,16 @@ struct TpuQuantConv2DOpPattern : public RewritePattern {
           max_filter_abs[i] = fabs(filter[isz * i + j]);
         }
       }
-      llvm::errs() << "  max_filter[" << i << "] : "
-                   << std::to_string(max_filter_abs[i]) << "\n";
+      LLVM_DEBUG(llvm::errs() << "  max_filter[" << i << "] : "
+                   << std::to_string(max_filter_abs[i]) << "\n";);
     }
 
     // find rshift
     for (int i = 0; i < oc; ++i) {
       rshift_per_channel[i] = (float)findRShift(max_filter_abs[i],
           threshold_y, threshold_x);
-      llvm::errs() << "  rshift_per_channel[" << i << "] : "
-                   << rshift_per_channel[i] << "\n";
+      LLVM_DEBUG(llvm::errs() << "  rshift_per_channel[" << i << "] : "
+                   << rshift_per_channel[i] << "\n";);
     }
     // quantize weight
     for (int i = 0; i < oc; ++i) {
@@ -384,8 +386,8 @@ struct TpuQuantConv2DOpPattern : public RewritePattern {
           max_filter_abs[i] = fabs(filter[isz * i + j]);
         }
       }
-      llvm::errs() << "  max_filter[" << i << "] : "
-                   << std::to_string(max_filter_abs[i]) << "\n";
+      LLVM_DEBUG(llvm::errs() << "  max_filter[" << i << "] : "
+                   << std::to_string(max_filter_abs[i]) << "\n";);
     }
 
     // find qscale
@@ -395,9 +397,9 @@ struct TpuQuantConv2DOpPattern : public RewritePattern {
       rshift_per_channel[i] = (float)findRShiftAndMultiplierFromQScale(
               qscale, &multiplier, true);
       multiplier_per_channel[i] = (float)multiplier;
-      llvm::errs() << "  [multiplier : rshift][" << i << "] = ["
+      LLVM_DEBUG(llvm::errs() << "  [multiplier : rshift][" << i << "] = ["
                    << std::to_string(multiplier_per_channel[i]) << " : "
-                   << std::to_string(rshift_per_channel[i]) << "]\n";
+                   << std::to_string(rshift_per_channel[i]) << "]\n";);
     }
     // quantize weight
     for (int i = 0; i < oc; ++i) {
@@ -434,15 +436,15 @@ struct TpuQuantFullyConnectedOpPattern : public RewritePattern {
     auto loc = op->getLoc();
 
     if (fcOp.quant() != "NONE") {
-      llvm::errs() << fcOp.name() << " quantized already\n";
+      LLVM_DEBUG(llvm::errs() << fcOp.name() << " quantized already\n";);
       return matchFailure();
     }
 
     float threshold_x = getPreviousOpThreshold(op);
     float threshold_y = fcOp.threshold_y().getValue().convertToFloat();
-    llvm::errs() << " > " << op_name
+    LLVM_DEBUG(llvm::errs() << " > " << op_name
                  << ", threshold_y = " << std::to_string(threshold_y)
-                 << ", threshold_x = " << std::to_string(threshold_x) << "\n";
+                 << ", threshold_x = " << std::to_string(threshold_x) << "\n";);
 
     // find filter and bias tensor
     std::vector<std::unique_ptr<std::vector<float> > > weights(2);
@@ -452,7 +454,7 @@ struct TpuQuantFullyConnectedOpPattern : public RewritePattern {
       assert(weight_op);
       assert(weight_op.name().hasValue());
       auto tensor_name = weight_op.name().getValue();
-      llvm::errs() << "  weight[" << i << "] : " << tensor_name << "\n";
+      LLVM_DEBUG(llvm::errs() << "  weight[" << i << "] : " << tensor_name << "\n";);
       auto type = weight_op.getResult()->getType().cast<TensorType>();
       weights[i] = weightTensorFile_->readTensor<float>(tensor_name, type);
       // delete the tensor from the weight file
@@ -488,14 +490,14 @@ struct TpuQuantFullyConnectedOpPattern : public RewritePattern {
           max_filter_abs = fabs(filter[i]);
       }
     }
-    llvm::errs() << "  max filter : " << max_filter_abs << "\n";
+    LLVM_DEBUG(llvm::errs() << "  max filter : " << max_filter_abs << "\n";);
 
     // find rshift
     // Q(W) = W * (threshold_x / threshold_y) * (1 << rshift)
     // find a rshift put the Q(max_filter_abs) in range (64, 127)
     assert(threshold_x);
     rshift[0] = (float)findRShift(max_filter_abs, threshold_y, threshold_x);
-    llvm::errs() << "  rshift : " << rshift[0] << "\n";
+    LLVM_DEBUG(llvm::errs() << "  rshift : " << rshift[0] << "\n";);
 
     // quantize weight
     for (int i = 0; i < filter_size; ++i) {
@@ -520,7 +522,7 @@ struct TpuQuantFullyConnectedOpPattern : public RewritePattern {
       if (!bias && i == 1)
         continue;
       auto tensor_name = op_name + "_quant_int8_" + std::to_string(i);
-      llvm::errs() << "  new_weight[" << i << "] : " << tensor_name << "\n";
+      LLVM_DEBUG(llvm::errs() << "  new_weight[" << i << "] : " << tensor_name << "\n";);
       auto type = RankedTensorType::get(weightShapes[i], FloatType::getF32(rewriter.getContext()));
       weightTensorFile_->addTensor<float>(tensor_name, newWeights[i], type);
       std::vector<NamedAttribute> attrs;
@@ -539,7 +541,7 @@ struct TpuQuantFullyConnectedOpPattern : public RewritePattern {
 
     // add rshift to weight
     auto tensor_name = op_name + "_quant_int8_rshift";
-    llvm::errs() << "  new_weight[rshift] : " << tensor_name << "\n";
+    LLVM_DEBUG(llvm::errs() << "  new_weight[rshift] : " << tensor_name << "\n";);
     // TODO: use only float in weight file for now
     //auto type = RankedTensorType::get(std::vector<int64_t>{1},
     //    IntegerType::get(32, rewriter.getContext()));
@@ -583,7 +585,7 @@ struct TpuQuantPool2DOpPattern : public RewritePattern {
     //auto loc = op->getLoc();
 
     if (poolOp.quant() != "NONE") {
-      llvm::errs() << poolOp.name() << " quantized already\n";
+      LLVM_DEBUG(llvm::errs() << poolOp.name() << " quantized already\n";);
       return matchFailure();
     }
     poolOp.setAttr("quant", rewriter.getStringAttr("INT8"));
@@ -609,7 +611,7 @@ struct TpuQuantEltwiseOpPattern : public RewritePattern {
     //auto loc = op->getLoc();
 
     if (eltOp.quant() != "NONE") {
-      llvm::errs() << eltOp.name() << " quantized already\n";
+      LLVM_DEBUG(llvm::errs() << eltOp.name() << " quantized already\n";);
       return matchFailure();
     }
     eltOp.setAttr("quant", rewriter.getStringAttr("INT8"));
@@ -665,12 +667,12 @@ struct TpuAddQuantAfterInputOpPattern : public OpRewritePattern<tpu::InputOp> {
     for (auto &use : op.getResult()->getUses()) {
       Operation *operandOp = use.getOwner();
       if (auto cast_op = llvm::dyn_cast_or_null<tpu::QuantizationOp>(operandOp)) {
-        llvm::errs() << op.name() << " quantized already\n";
+        LLVM_DEBUG(llvm::errs() << op.name() << " quantized already\n";);
         return matchFailure();
       }
     }
 
-    llvm::errs() << op.name() << " add quantization op after Input\n";
+    LLVM_DEBUG(llvm::errs() << op.name() << " add quantization op after Input\n";);
     float threshold_y = op.threshold_y().getValue().convertToFloat();
     std::string op_name = op.getAttrOfType<StringAttr>("name").getValue().str();
     addQuantOpAfterOp<tpu::InputOp>(rewriter, op, threshold_y, op_name + "_quant");
@@ -687,11 +689,11 @@ struct TpuAddQuantBeforeReturnOpPattern : public OpRewritePattern<ReturnOp> {
                                      PatternRewriter &rewriter) const {
     auto formerOp = op.getOperand(0)->getDefiningOp();
     if (matchPattern(formerOp, m_Op<tpu::DequantizationOp>())) {
-      llvm::errs() << "return dequantized already\n";
+      LLVM_DEBUG(llvm::errs() << "return dequantized already\n";);
       return matchFailure();
     }
 
-    llvm::errs() << " add dequantization op defore Return\n";
+    LLVM_DEBUG(llvm::errs() << " add dequantization op defore Return\n";);
     float threshold_x = getPreviousOpThreshold(op);
     addDequantOpBeforeOp<ReturnOp>(rewriter, op, threshold_x, "return");
 
@@ -706,11 +708,11 @@ struct TpuAddQuantAndDequantForSoftmaxOpPattern : public OpRewritePattern<tpu::S
                                      PatternRewriter &rewriter) const {
     auto formerOp = op.getOperand()->getDefiningOp();
     if (matchPattern(formerOp, m_Op<tpu::DequantizationOp>())) {
-      llvm::errs() << op.name() << " insert quant and dequant already\n";
+      LLVM_DEBUG(llvm::errs() << op.name() << " insert quant and dequant already\n";);
       return matchFailure();
     }
 
-    llvm::errs() << op.name() << " insert quant and dequant\n";
+    LLVM_DEBUG(llvm::errs() << op.name() << " insert quant and dequant\n";);
     std::string op_name = op.getAttrOfType<StringAttr>("name").getValue().str();
 
     float threshold_x = getPreviousOpThreshold(op);
@@ -730,11 +732,11 @@ struct TpuSimplifyQuantDequantPattern : public OpRewritePattern<tpu::Dequantizat
                                      PatternRewriter &rewriter) const {
     auto formerOp = op.getOperand()->getDefiningOp();
     if (!matchPattern(formerOp, m_Op<tpu::QuantizationOp>())) {
-      llvm::errs() << op.name() << " simplified quant and dequant already\n";
+      LLVM_DEBUG(llvm::errs() << op.name() << " simplified quant and dequant already\n";);
       return matchFailure();
     }
 
-    llvm::errs() << " simplify quant and dequant\n";
+    LLVM_DEBUG(llvm::errs() << " simplify quant and dequant\n";);
     rewriter.replaceOp(op, formerOp->getOperand(0));
 
     return matchSuccess();
@@ -753,7 +755,7 @@ public:
     Value* weightFileVar;
     fn.walk([&](tpu::LoadFileOp op) {
       filename = op.filename();
-      llvm::errs() << "LoadFileOp filename " << filename << "\n";
+      LLVM_DEBUG(llvm::errs() << "LoadFileOp filename " << filename << "\n";);
       weightFileVar = op.getResult();
     });
     auto weightTensorFile = openTensorFile(filename);
