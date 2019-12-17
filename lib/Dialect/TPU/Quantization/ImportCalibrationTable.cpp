@@ -66,6 +66,18 @@ struct BypassPoolQuantPattern : public OpRewritePattern<tpu::Pool2DOp> {
   }
 };
 
+struct BypassPReluQuantPattern : public OpRewritePattern<tpu::PReluOp> {
+  using OpRewritePattern<tpu::PReluOp>::OpRewritePattern;
+
+  PatternMatchResult matchAndRewrite(tpu::PReluOp op,
+                                     PatternRewriter &rewriter) const {
+    float threshold_x = getPreviousOpThreshold(op);
+    op.setAttr("threshold_y", rewriter.getF32FloatAttr(threshold_x));
+
+    return matchSuccess();
+  }
+};
+
 /// bypass relu quantization by assigning threshold_y same as threshold_x.
 /// for same reason as bypassing max pool.
 struct BypassReluQuantPattern : public OpRewritePattern<tpu::ReluOp> {
@@ -127,6 +139,7 @@ public:
       addThresholdAttr<tpu::BatchNormOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::ScaleOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::ReluOp>(builder, threshold_map, op);
+      addThresholdAttr<tpu::PReluOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::EltwiseOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::SoftmaxOp>(builder, threshold_map, op);
     });

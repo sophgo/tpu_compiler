@@ -30,6 +30,9 @@ llvm::StringRef getOpName(Operation *op) {
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::ReluOp>(op)) {
     return cast_op.name().getValue();
   }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::PReluOp>(op)) {
+    return cast_op.name().getValue();
+  }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::EltwiseOp>(op)) {
     return cast_op.name().getValue();
   }
@@ -101,6 +104,9 @@ float getPreviousOpThreshold(Operation *op, uint index = 0) {
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::ReluOp>(formerOp)) {
     return cast_op.threshold_y().getValue().convertToFloat();
   }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::PReluOp>(formerOp)) {
+    return cast_op.threshold_y().getValue().convertToFloat();
+  }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::EltwiseOp>(formerOp)) {
     return cast_op.threshold_y().getValue().convertToFloat();
   }
@@ -134,6 +140,9 @@ uint64_t getPreviousOpAddress(Operation *op, uint index = 0) {
     return cast_op.offset().getValue().getLimitedValue();
   }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::ReluOp>(formerOp)) {
+    return cast_op.offset().getValue().getLimitedValue();
+  }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::PReluOp>(formerOp)) {
     return cast_op.offset().getValue().getLimitedValue();
   }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::EltwiseOp>(formerOp)) {
