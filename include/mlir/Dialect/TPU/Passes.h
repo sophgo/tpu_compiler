@@ -43,8 +43,9 @@ std::unique_ptr<OpPassBase<FuncOp>> createQuantizeBf16Pass();
 
 std::unique_ptr<OpPassBase<FuncOp>> createAssignWeightAddressPass();
 std::unique_ptr<OpPassBase<FuncOp>> createAssignNeuronAddressPass();
-
 std::unique_ptr<OpPassBase<FuncOp>> createAssignLayerIdPass();
+
+std::unique_ptr<OpPassBase<FuncOp>> createDeepFusionSimple();
 
 } // namespace mlir
 

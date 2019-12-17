@@ -34,7 +34,7 @@ if [ ! -e $CAFFE_MKLDNN_PATH/install ]; then
   else
     echo "Not Ubuntu 18.04 or 16.04"
     echo "Please build caffe manually according to third_party/README.md"
-    exit 1
+    return 1
   fi
 fi
 pushd $MLIR_SRC_PATH/third_party/caffe/build

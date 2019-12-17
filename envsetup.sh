@@ -6,8 +6,23 @@ export MLIR_SRC_PATH=$SCRIPT_DIR
 export TPU_BASE=$MLIR_SRC_PATH/../../../..
 # export MLIR_SRC_PATH=$TPU_BASE/llvm-project/llvm/projects/mlir
 export DATA_PATH=$MLIR_SRC_PATH/data
-export MODEL_PATH=/data/models
-export DATASET_PATH=/data/dataset
+
+if [[ -z "$MODEL_PATH" ]]; then
+  MODEL_PATH=~/data/models
+fi
+if [ ! -e $MODEL_PATH ]; then
+  echo "MODEL_PATH $MODEL_PATH does not exist"
+  echo "  Please export MODEL_PATH='YOUR_MODEL_PATH'"
+  echo "  Or ln -s 'YOUR_MODEL_PATH' ~/data/models"
+  echo "  Please read README.md in each regression dirs on where to download the models"
+  return 1
+fi
+export MODEL_PATH=$MODEL_PATH
+
+if [[ -z "$DATASET_PATH" ]]; then
+  DATASET_PATH=~/data/dataset
+fi
+export DATASET_PATH=$DATASET_PATH
 
 export CAFFE_PATH=$TPU_BASE/install_caffe
 export MKLDNN_PATH=$TPU_BASE/install_mkldnn

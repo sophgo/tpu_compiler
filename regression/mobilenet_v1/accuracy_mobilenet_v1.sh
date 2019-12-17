@@ -13,7 +13,7 @@ elif [ $2 = "gluoncv" ]; then
   export EVAL_FUNC=eval_imagenet_gluoncv.py
 else
   echo "invalid dataloader, choose [pytorch | gluoncv]"
-  exit 1
+  return 1
 fi
 
 # gluoncv eval

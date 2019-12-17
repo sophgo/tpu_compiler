@@ -329,16 +329,21 @@ def TPU_ScaleOp: TPU_Op<"scale", [NoSideEffect]> {
 }
 
 def TPU_ReluOp: TPU_Op<"relu", [NoSideEffect, SameOperandsAndResultType]> {
-  let summary = "Relu operator";
+  let summary = "Relu/LeakyRelu/PRelu/Relu6 operator";
 
   let description = [{
     Element-wise Relu operator
-      x -> max(0, x)
+      y = max(0, x)
+    PRelu or LeakyRelu, if negative_slope is no 0.0
+      y = negative_slope * x for x < 0, x for x >= 0
+    Relu6 (maximum = 6) or ReluM, if maximum is present
+      y = min(max(x, 0), maximum).
   }];
 
   let arguments = (
     ins AnyTensor:$x,
-    F32Attr:$negative_slope,
+    DefaultValuedAttr<F32Attr, "0.0">:$negative_slope,
+    OptionalAttr<F32Attr>:$maximum,
     OptionalAttr<StrAttr>:$name,
     OptionalAttr<NonNegativeI64Attr>:$offset,
     OptionalAttr<F32Attr>:$threshold_y,
@@ -393,11 +398,10 @@ def TPU_ConcatOp: TPU_Op<"concat", [NoSideEffect, SameOperandsAndResultElementTy
     Performs concat operation on inputs.
   }];
 
-
    let arguments = (
      ins Variadic<AnyTensor>:$val,
-         OptionalAttr<StrAttr>:$name,
-         DefaultValuedAttr<I32Attr, "1">: $dimension
+     OptionalAttr<StrAttr>:$name,
+     DefaultValuedAttr<I32Attr, "1">: $dimension
    );
 
    let verifier = [{
@@ -422,11 +426,8 @@ def TPU_ConcatOp: TPU_Op<"concat", [NoSideEffect, SameOperandsAndResultElementTy
      return success();
    }];
 
-   let results = (outs AnyTensor:$res);
-
+  let results = (outs AnyTensor:$res);
 }
-
-
 
 def TPU_InputOp: TPU_Op<"input", [NoSideEffect]> {
   let summary = "Input operator";
