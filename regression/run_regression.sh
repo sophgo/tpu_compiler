@@ -12,6 +12,9 @@ pushd regression_out
 rm -f *.mlir *.bin *.npz *.csv
 
 # run tests
+
+$DIR/inception_v4/regression_inception_v4_1_fp32.sh
+
 $DIR/resnet50/regression_resnet50_1_fp32.sh
 $DIR/resnet50/regression_resnet50_2_int8.sh
 $DIR/resnet50/regression_resnet50_3_int8_cmdbuf.sh
