@@ -45,6 +45,10 @@ llvm::StringRef getOpName(Operation *op) {
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::DequantizationOp>(op)) {
     return cast_op.name().getValue();
   }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::ConcatOp>(op)) {
+    return cast_op.name().getValue();
+  }
+
   llvm::errs() << op->getName() << "\n";
   assert(false);
   return "not_found";
@@ -86,6 +90,7 @@ float getPreviousOpThreshold(Operation *op, uint index = 0) {
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::SoftmaxOp>(formerOp)) {
     return cast_op.threshold_y().getValue().convertToFloat();
   }
+
   assert(false);
   return NAN;
 }

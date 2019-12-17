@@ -396,6 +396,7 @@ def TPU_ConcatOp: TPU_Op<"concat", [NoSideEffect, SameOperandsAndResultElementTy
 
    let arguments = (
      ins Variadic<AnyTensor>:$val,
+         OptionalAttr<StrAttr>:$name,
          DefaultValuedAttr<I32Attr, "1">: $dimension
    );
 
