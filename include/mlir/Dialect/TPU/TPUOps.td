@@ -279,6 +279,25 @@ def TPU_EltwiseOp: TPU_Op<"eltwise", [NoSideEffect, SameOperandsAndResultType]> 
   let results = (outs AnyTensor:$y);
 }
 
+def TPU_UpsampleOp: TPU_Op<"upsample", [NoSideEffect]> {
+  let summary = "Upsample operator";
+
+  let description = [{
+    Perform upample on input.
+  }];
+
+  let arguments = (
+    ins AnyTensor:$x,
+    NonNegativeI32Attr:$scale,
+    OptionalAttr<StrAttr>:$name,
+    OptionalAttr<NonNegativeI64Attr>:$offset,
+    OptionalAttr<F32Attr>:$threshold_y,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
+  );
+
+  let results = (outs AnyTensor:$y);
+}
+
 def TPU_SoftmaxOp: TPU_Op<"softmax", [NoSideEffect, SameOperandsAndResultType]> {
   let summary = "Softmax operator";
 
