@@ -99,6 +99,7 @@ private:
   void convertSoftmaxLayer(mlir::Block *block, caffe::Layer<float> *layer);
   void convertConcatLayer(mlir::Block *block, caffe::Layer<float> *layer);
   void convertDropoutLayer(mlir::Block *block, caffe::Layer<float> *layer);
+  void convertDummyDataLayer(mlir::Block *block, caffe::Layer<float> *layer);
 
   mlir::ModuleOp module_;
   mlir::Builder builder_;
@@ -224,6 +225,8 @@ void CaffeImporter::ConvertLayers(mlir::Block *block,
       convertConcatLayer(block, layer);
     } else if (strcmp(layer->type(), "Dropout") == 0) {
       convertDropoutLayer(block, layer);
+    } else if (strcmp(layer->type(), "DummyData") == 0) {
+      convertDummyDataLayer(block, layer);
     } else {
       llvm::errs() << "    UNKNOWN : " << layer->type() <<"\n";
       assert(false);
@@ -942,6 +945,35 @@ void CaffeImporter::convertDropoutLayer(mlir::Block *block,
   tensor_map_[layer_param.top(0)] = input_var;
 }
 
+void CaffeImporter::convertDummyDataLayer(mlir::Block *block,
+                                        caffe::Layer<float> *layer) {
+  std::vector<mlir::Value *> input_vars = GetLayerInputs(layer);
+
+  auto layer_param = layer->layer_param();
+  auto dummy_data_param = layer_param.dummy_data_param();
+
+  const bool legacy_dims =
+      dummy_data_param.num_size() || dummy_data_param.channels_size() ||
+      dummy_data_param.height_size() || dummy_data_param.width_size();
+  int n = dummy_data_param.num_size();
+  int c = dummy_data_param.channels_size();
+  int h = dummy_data_param.height_size();
+  int w = dummy_data_param.width_size();
+
+  LLVM_DEBUG(llvm::errs() << "DummyData  N: " << n << ", C: " << c
+                    << ", IH*IW: " << h << " * " << w << "\n";);
+
+  // construct OP
+  auto result_type = RankedTensorType::get({n, c, h, w}, elementType_);
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder_.getNamedAttr(
+      "name", builder_.getStringAttr(layer_param.name())));
+  auto op = OpBuilder(block).create<tpu::ConcatOp>(
+      builder_.getUnknownLoc(), result_type, ArrayRef<Value *>{input_vars},
+      ArrayRef<NamedAttribute>{attrs});
+  auto result_var = op.getResult();
+  tensor_map_[layer_param.top(0)] = result_var;
+}
 
 LogicalResult CaffeImporter::Import(const llvm::StringRef inputFilename,
     llvm::StringRef caffemodelFilename) {

@@ -482,6 +482,19 @@ def TPU_ReshapeOp: TPU_Op<"reshape", [NoSideEffect]> {
   let results = (outs AnyTensor:$output);
 }
 
+def TPU_DummyDataOp: TPU_Op<"dummydata", [NoSideEffect]> {
+  let summary = "dummydata";
+
+  let description = [{
+    DummyDataLayer fills any number of arbitrarily shaped blobs with random
+  }];
+
+  let arguments = (
+    OptionalAttr<StrAttr>:$name
+  );
+
+  let results = (outs AnyTensor:$output);
+}
 //===----------------------------------------------------------------------===//
 // TPU Quantization op definitions.
 //===----------------------------------------------------------------------===//
