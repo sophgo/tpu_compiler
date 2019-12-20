@@ -668,13 +668,15 @@ void CaffeImporter::convertBatchNormLayer(mlir::Block *block,
 
 void CaffeImporter::convertScaleLayer(mlir::Block *block,
     caffe::Layer<float> *layer) {
-  mlir::Value *input_var = GetLayerInput(layer);
+  std::vector<mlir::Value *> input_vars = GetLayerInputs(layer);
 
   auto layer_param = layer->layer_param();
   assert(layer_param.has_scale_param());
   auto scale_param = layer_param.scale_param();
   bool with_bias = scale_param.bias_term();
   int64_t n, c, h, w;
+
+  auto input_var = input_vars[0];
   llvm::ArrayRef<int64_t> input_var_shape =
       input_var->getType().dyn_cast<mlir::TensorType>().getShape();
   assert(input_var_shape.size() == 4);
@@ -693,30 +695,41 @@ void CaffeImporter::convertScaleLayer(mlir::Block *block,
 
   std::vector<Value *> operands;
   operands.push_back(input_var);
-
-  // - blobs_[0] holds the scale
-  // - blobs_[1] holds the biases (optional)
-  auto scale_name = layer->layer_param().name()+"_0";
-  auto scale_type = RankedTensorType::get({c}, elementType_);
-  weightFile_->addTensor(scale_name, layer->blobs()[0].get()->cpu_data(), scale_type);
-  operands.push_back(AddLoadWeightOp(block, scale_name, scale_type));
-  if (with_bias) {
-    auto bias_name = layer->layer_param().name()+"_1";
-    auto bias_type = RankedTensorType::get({c}, elementType_);
-    weightFile_->addTensor(bias_name, layer->blobs()[1].get()->cpu_data(), bias_type);
-    operands.push_back(AddLoadWeightOp(block, bias_name, bias_type));
+  if(input_vars.size() == 2){
+    // construct OP
+    auto result_type = RankedTensorType::get({n, c, h, w}, elementType_);
+    std::vector<NamedAttribute> attrs;
+    attrs.push_back(builder_.getNamedAttr(
+        "name", builder_.getStringAttr(layer_param.name())));
+    auto op = OpBuilder(block).create<tpu::ScaleOp>(
+        builder_.getUnknownLoc(), result_type, ArrayRef<Value *>{input_vars},
+        ArrayRef<NamedAttribute>{attrs});
+    auto result_var = op.getResult();
+    tensor_map_[layer_param.top(0)] = result_var;
+  }else{
+    // - blobs_[0] holds the scale
+    // - blobs_[1] holds the biases (optional)
+    auto scale_name = layer->layer_param().name()+"_0";
+    auto scale_type = RankedTensorType::get({c}, elementType_);
+    weightFile_->addTensor(scale_name, layer->blobs()[0].get()->cpu_data(), scale_type);
+    operands.push_back(AddLoadWeightOp(block, scale_name, scale_type));
+    if (with_bias) {
+      auto bias_name = layer->layer_param().name()+"_1";
+      auto bias_type = RankedTensorType::get({c}, elementType_);
+      weightFile_->addTensor(bias_name, layer->blobs()[1].get()->cpu_data(), bias_type);
+      operands.push_back(AddLoadWeightOp(block, bias_name, bias_type));
+    }
+    // construct OP
+    auto result_type = RankedTensorType::get({n, c, h, w}, elementType_);
+    std::vector<NamedAttribute> attrs;
+    attrs.push_back(builder_.getNamedAttr(
+        "name", builder_.getStringAttr(layer_param.name())));
+    auto op = OpBuilder(block).create<tpu::ScaleOp>(
+        builder_.getUnknownLoc(), result_type, ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    auto result_var = op.getResult();
+    tensor_map_[layer_param.top(0)] = result_var;
   }
-
-  // construct OP
-  auto result_type = RankedTensorType::get({n, c, h, w}, elementType_);
-  std::vector<NamedAttribute> attrs;
-  attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name())));
-  auto op = OpBuilder(block).create<tpu::ScaleOp>(
-      builder_.getUnknownLoc(), result_type,
-      ArrayRef<Value *>{operands}, ArrayRef<NamedAttribute>{attrs});
-  auto result_var = op.getResult();
-
-  tensor_map_[layer_param.top(0)] = result_var;
 }
 
 void CaffeImporter::convertReLULayer(mlir::Block *block,
