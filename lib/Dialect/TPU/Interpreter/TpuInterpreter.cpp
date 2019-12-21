@@ -458,6 +458,41 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
     return success();
   }
+  if (auto op = dyn_cast<tpu::PReluOp>(opInst)) {
+    LLVM_DEBUG(llvm::errs() << "PReluOp"
+                            << "\n";);
+    auto opdT = getOperandTensors(opInst, valueMapping);
+    auto result = op.getResult();
+    LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump();
+               llvm::errs() << "\n";);
+    std::vector<int64_t> shape =
+        result->getType().cast<TensorType>().getShape();
+    assert(shape.size() <= 4);
+    auto size = std::accumulate(std::begin(shape), std::end(shape), 1,
+                                std::multiplies<>());
+    auto resultT = std::make_unique<std::vector<float>>(size);
+
+    int n, c, h, w;
+    float *negative_slope = opdT[1]->data();
+    
+    auto input_type = op.x()->getType().cast<TensorType>();
+    std::vector<int64_t> i_s(input_type.getShape());
+    auto output_type = op.y()->getType().cast<TensorType>();
+    std::vector<int64_t> o_s(output_type.getShape());
+    assert((i_s == o_s) && "input shape not equal to output shape");
+    n = i_s[0];
+    c = i_s[1];
+    h = i_s[2];
+    w = i_s[3];
+    float *input = (float *)opdT[0]->data();
+    float *output = (float *)resultT.get()->data();
+    int ret = my_prelu(input, output, n, c, h, w, negative_slope);
+    assert(ret == 0);
+
+    valueMapping[result] = std::move(resultT);
+
+    return success();
+  }
   if (auto op = dyn_cast<tpu::BatchNormOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "BatchNormOp" << "\n";);
     auto opdT = getOperandTensors(opInst, valueMapping);

@@ -147,6 +147,8 @@ public:
         context, "tpu.fully_connected", &pos, neuronMapFile->os(), clNeuronAlignment);
     patterns.insert<TpuQuantizationOpPattern<tpu::Pool2DOp> >(
         context, "tpu.pool_2d", &pos, neuronMapFile->os(), clNeuronAlignment);
+    patterns.insert<TpuQuantizationOpPattern<tpu::PReluOp>>(
+        context, "tpu.prelu", &pos, neuronMapFile->os(), clNeuronAlignment);
     // assuming all relu Ops fused
     //patterns.insert<TpuQuantizationOpPattern<tpu::ReluOp> >(
     //    context, "tpu.relu", &pos, neuronMapFile->os(), clNeuronAlignment);

@@ -420,6 +420,36 @@ int my_relu(float *input, float *output,
   return 0;
 }
 
+int my_prelu(float *input, float *output, int n, int c, int h, int w,
+            float *negative_slope) {
+
+  LLVM_DEBUG(llvm::errs() << "  n: " << n << ", c: " << c << ", h: " << h
+                          << ", w: " << w << "\n";);
+
+  // for (int i = 0; i < n * c * h * w; ++i) {
+  //   if (input[i] >= 0) {
+  //     output[i] = input[i];
+  //   } else {
+  //     output[i] = negative_slope * input[i];
+  //   }
+  // }
+  for(int batch = 0; batch < n; ++batch){
+    for(int channel = 0 ; channel < c; ++channel){
+        int index = batch * c * w * h + channel * w * h;
+        for(int i = 0; i < w * h; ++i){
+          if (input[index + i] > 0) {
+            output[index + i] = input[index + i];
+          } else {
+            output[index + i] = negative_slope[channel] * input[index + i];
+          }
+          
+        }
+    }
+  }
+
+  return 0;
+}
+
 // Y = (X-mean(X))/(sqrt(var(X)+eps))
 int my_bn(float *input, float *mean, float *variance, float *scale,
     float *output, int n, int c, int h, int w) {

@@ -353,6 +353,26 @@ def TPU_ReluOp: TPU_Op<"relu", [NoSideEffect, SameOperandsAndResultType]> {
   let results = (outs AnyTensor:$y);
 }
 
+def TPU_PReluOp: TPU_Op<"prelu", [NoSideEffect]> {
+  let summary = "PRelu operator";
+
+  let description = [{
+    PRelu operator
+      x -> max(ax,x)
+  }];
+  let arguments = (
+    ins AnyTensor:$x,
+    AnyTensor:$negative_slope,
+    OptionalAttr<StrAttr>:$name,
+    OptionalAttr<F32Attr>:$threshold_y,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<NonNegativeI64Attr>:$offset,
+    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
+  );
+
+  let results = (outs AnyTensor:$y);
+}
+
 def TPU_EltwiseOp: TPU_Op<"eltwise", [NoSideEffect, SameOperandsAndResultType]> {
   let summary = "Eltwise operator";
 

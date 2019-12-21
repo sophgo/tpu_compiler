@@ -94,6 +94,7 @@ private:
   void convertBatchNormLayer(mlir::Block *block, caffe::Layer<float> *layer);
   void convertScaleLayer(mlir::Block *block, caffe::Layer<float> *layer);
   void convertReLULayer(mlir::Block *block, caffe::Layer<float> *layer);
+  void convertPReLULayer(mlir::Block *block, caffe::Layer<float> *layer);
   void convertEltwiseLayer(mlir::Block *block, caffe::Layer<float> *layer);
   void convertSoftmaxLayer(mlir::Block *block, caffe::Layer<float> *layer);
   void convertConcatLayer(mlir::Block *block, caffe::Layer<float> *layer);
@@ -213,6 +214,8 @@ void CaffeImporter::ConvertLayers(mlir::Block *block,
       convertScaleLayer(block, layer);
     } else if (strcmp(layer->type(), "ReLU") == 0) {
       convertReLULayer(block, layer);
+    } else if (strcmp(layer->type(), "PReLU") == 0) {
+      convertPReLULayer(block, layer);
     } else if (strcmp(layer->type(), "Eltwise") == 0) {
       convertEltwiseLayer(block, layer);
     } else if (strcmp(layer->type(), "Softmax") == 0) {
@@ -738,6 +741,51 @@ void CaffeImporter::convertReLULayer(mlir::Block *block,
   auto op = OpBuilder(block).create<tpu::ReluOp>(
       builder_.getUnknownLoc(), result_type,
       ArrayRef<Value *>{input_var}, ArrayRef<NamedAttribute>{attrs});
+  auto result_var = op.getResult();
+
+  tensor_map_[layer_param.top(0)] = result_var;
+}
+
+void CaffeImporter::convertPReLULayer(mlir::Block *block,
+                                     caffe::Layer<float> *layer) {
+  mlir::Value *input_var = GetLayerInput(layer);
+
+  auto layer_param = layer->layer_param();
+  auto prelu_param = layer_param.prelu_param();
+
+  int64_t n, c, h, w;
+  llvm::ArrayRef<int64_t> input_shape =
+      input_var->getType().dyn_cast<mlir::TensorType>().getShape();
+  assert(input_shape.size() == 4);
+  n = input_shape[0];
+  c = input_shape[1];
+  h = input_shape[2];
+  w = input_shape[3];
+
+  int batch_size = layer->blobs()[0].get()->num();
+  int channels = layer->blobs()[0].get()->channels();
+  int height = layer->blobs()[0].get()->height();
+  int width = layer->blobs()[0].get()->width();
+  std::vector<Value *> operands;
+  operands.push_back(input_var);
+
+  // - blobs_[0] holds the negative_slope
+  auto negative_slope_name = layer->layer_param().name() + "_0";
+  auto negative_slope_type = RankedTensorType::get({1, c, 1, 1}, elementType_);
+  weightFile_->addTensor(negative_slope_name,
+                         layer->blobs()[0].get()->cpu_data(),
+                         negative_slope_type);
+  operands.push_back(AddLoadWeightOp(block, negative_slope_name, negative_slope_type));
+
+  // construct OP
+  auto result_type = RankedTensorType::get({n, c, h, w}, elementType_);
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder_.getNamedAttr(
+      "name", builder_.getStringAttr(layer_param.name())));
+  auto op = OpBuilder(block).create<tpu::PReluOp>(
+      builder_.getUnknownLoc(), result_type, 
+      ArrayRef<Value *>{operands},
+      ArrayRef<NamedAttribute>{attrs});
   auto result_var = op.getResult();
 
   tensor_map_[layer_param.top(0)] = result_var;
