@@ -493,6 +493,76 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
     return success();
   }
+  if (auto op = dyn_cast<tpu::SigmoidOp>(opInst)) {
+    LLVM_DEBUG(llvm::errs() << "SigmoidOp"
+                            << "\n";);
+    auto opdT = getOperandTensors(opInst, valueMapping);
+    auto result = op.getResult();
+    LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump();
+               llvm::errs() << "\n";);
+    std::vector<int64_t> shape =
+        result->getType().cast<TensorType>().getShape();
+    assert(shape.size() <= 4);
+    auto size = std::accumulate(std::begin(shape), std::end(shape), 1,
+                                std::multiplies<>());
+    auto resultT = std::make_unique<std::vector<float>>(size);
+    auto input_type = op.input()->getType().cast<TensorType>();
+    std::vector<int64_t> i_s(input_type.getShape());
+    auto output_type = op.output()->getType().cast<TensorType>();
+    std::vector<int64_t> o_s(output_type.getShape());
+    assert((i_s == o_s) && "input shape not equal to output shape");
+    int n, c, h, w;
+    n = i_s[0];
+    c = i_s[1];
+    h = i_s[2];
+    w = i_s[3];
+    float *input = (float *)opdT[0]->data();
+    float *output = (float *)resultT.get()->data();
+    int ret = my_sigmoid(input, output, n, c, h, w);
+    assert(ret == 0);
+    valueMapping[result] = std::move(resultT);
+    return success();
+  }
+  if (auto op = dyn_cast<tpu::DummyDataOp>(opInst)) {
+    LLVM_DEBUG(llvm::errs() << "DummyDataOp"
+                            << "\n";);
+    auto opdT = getOperandTensors(opInst, valueMapping);
+    auto result = op.getResult();
+    LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump();
+               llvm::errs() << "\n";);
+    std::vector<int64_t> shape =
+        result->getType().cast<TensorType>().getShape();
+    assert(shape.size() <= 4);
+    auto size = std::accumulate(std::begin(shape), std::end(shape), 1,
+                                std::multiplies<>());
+    auto resultT = std::make_unique<std::vector<float>>(size);
+    valueMapping[result] = std::move(resultT);
+
+    return success();
+  }
+  if (auto op = dyn_cast<tpu::FlattenOp>(opInst)) {
+    LLVM_DEBUG(llvm::errs() << "FlattenOp"
+                            << "\n";);
+    auto opdT = getOperandTensors(opInst, valueMapping);
+    auto result = op.getResult();
+    LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump();
+               llvm::errs() << "\n";);
+    std::vector<int64_t> shape =
+        result->getType().cast<TensorType>().getShape();
+    auto size = std::accumulate(std::begin(shape), std::end(shape), 1,
+                                std::multiplies<>());
+    auto resultT = std::make_unique<std::vector<float>>(size);
+
+    auto input_type = op.input()->getType().cast<TensorType>();
+    std::vector<int64_t> i_s(input_type.getShape());
+    auto output_type = op.output()->getType().cast<TensorType>();
+    std::vector<int64_t> o_s(output_type.getShape());
+
+    resultT.get()->assign(opdT[0]->begin(), opdT[0]->end());
+    valueMapping[result] = std::move(resultT);
+
+    return success();
+  }
   if (auto op = dyn_cast<tpu::BatchNormOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "BatchNormOp" << "\n";);
     auto opdT = getOperandTensors(opInst, valueMapping);
@@ -694,6 +764,44 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
     valueMapping[result] = std::move(resultT);
 
+    return success();
+  }
+  if (auto op = dyn_cast<tpu::CropOp>(opInst)) {
+    LLVM_DEBUG(llvm::errs() << "CropOp"
+                            << "\n";);
+                            
+    auto opdT = getOperandTensors(opInst, valueMapping);
+    auto result = op.getResult();
+    LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump();
+               llvm::errs() << "\n";);
+    std::vector<int64_t> shape =
+        result->getType().cast<TensorType>().getShape();
+    auto size = std::accumulate(std::begin(shape), std::end(shape), 1,
+                                std::multiplies<>());
+    auto resultT = std::make_unique<std::vector<float>>(size);
+    uint32_t bottom_num = opdT.size();
+    assert(bottom_num >= 2 && "bottom num is 0 or 1");
+    
+    auto crop_start_axis = op.axis();
+    int crop_offset_n = op.crop_offset_n().getValue().getLimitedValue();
+    int crop_offset_c = op.crop_offset_c().getValue().getLimitedValue();
+    int crop_offset_h = op.crop_offset_h().getValue().getLimitedValue();
+    int crop_offset_w = op.crop_offset_w().getValue().getLimitedValue();
+    vector<int> crop_offset = {crop_offset_n, crop_offset_c, crop_offset_h, crop_offset_w};
+    LLVM_DEBUG (llvm::errs() << crop_offset_n << ", " << crop_offset_c << ", "
+               << crop_offset_h << "," << crop_offset_w;);
+
+    auto input1 = op.input1()->getType().cast<TensorType>();
+    std::vector<int64_t> input_shape1(input1.getShape());
+    auto input2 = op.input2()->getType().cast<TensorType>();
+    std::vector<int64_t> input_shape2(input2.getShape());
+
+    float *input = (float *)opdT[0]->data();
+    float *output = (float *)resultT.get()->data();
+    vector<int >indices(size, 0);
+    my_crop(input, output, input_shape1.data(), input_shape2.data(), 0,
+            crop_offset.data(), indices.data());
+    valueMapping[result] = std::move(resultT);
     return success();
   }
   if (auto op = dyn_cast<tpu::ConcatOp>(opInst)) {

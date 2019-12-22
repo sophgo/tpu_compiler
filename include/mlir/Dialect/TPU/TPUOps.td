@@ -460,7 +460,12 @@ def TPU_CropOp: TPU_Op<"crop", [NoSideEffect]> {
   let arguments = (
     ins AnyTensor:$input1,
     AnyTensor:$input2,
-    OptionalAttr<I32ArrayAttr>:$crop_offset,
+    OptionalAttr<I32Attr>:$axis,
+    OptionalAttr<I32Attr>:$crop_offset_n,
+    OptionalAttr<I32Attr>:$crop_offset_c,
+    OptionalAttr<I32Attr>:$crop_offset_h,
+    OptionalAttr<I32Attr>:$crop_offset_w,
+
     OptionalAttr<StrAttr>:$name
   );
 

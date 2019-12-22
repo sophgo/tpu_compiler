@@ -1009,28 +1009,34 @@ void CaffeImporter::convertCropLayer(mlir::Block *block,
   llvm::ArrayRef<int64_t> input_shape1 =
       input_vars[1]->getType().dyn_cast<mlir::TensorType>().getShape();
 
-  int num_axis = input_shape.size();
+  int input_dim = input_shape.size();
   int axis_index = crop_param.axis();
   int start_axis = axis_index;
-  if (axis_index < 0) {
-    start_axis = axis_index + num_axis;
-  }
+  int offset_size = crop_param.offset_size();
+  if (offset_size > 1){
+    // the number of crop values specified must be equal to the number
+    // of dimensions following axis
+    assert((offset_size + axis_index <= input_dim) &&
+           " number of offset values specified must be equal to the number "
+           "ofdimensions following axis.");
+  } 
 
-  LLVM_DEBUG(
-      llvm::errs() << "\n  Crop\n"
-                   << "    bottom: " << input_shape[0] << ", " << input_shape[1]
-                   << ", " << input_shape[2] << ", " << input_shape[3] << "\n"
-                   << "    bottom: " << input_shape1[0] << ", "
-                   << input_shape1[1] << ", " << input_shape1[2] << ", "
-                   << input_shape1[3] << "\n"
-                   << "    start_axis " << start_axis << ", offset_size() "
-                   << crop_param.offset_size() << "\n";);
+  LLVM_DEBUG(llvm::errs() << "\n  Crop\n"
+                          << "    bottom: " << input_shape[0] << ", "
+                          << input_shape[1] << ", " << input_shape[2]
+                          << ", " << input_shape[3] << "\n"
+                          << "    bottom: " << input_shape1[0] << ", "
+                          << input_shape1[1] << ", " << input_shape1[2]
+                          << ", " << input_shape1[3] << "\n"
+                          << "    start_axis " << start_axis
+                          << ", offset_size() "
+                          << crop_param.offset_size() << "\n";);
 
-  std::vector<int> output_shape(num_axis);
-  std::vector<int> crop_offset(num_axis);
+  std::vector<int> output_shape(input_dim);
+  std::vector<int> crop_offset(input_dim);
 
   // Determine crop offsets and the new shape post-crop
-  for (int i = 0; i < num_axis; ++i) {
+  for (int i = 0; i < input_dim; ++i) {
     int offset = 0;
     int new_size = input_shape[i];
     if (i >= start_axis) {
@@ -1043,8 +1049,6 @@ void CaffeImporter::convertCropLayer(mlir::Block *block,
         // number of dimensions to crop, that is dimensions after the axis.
         offset = crop_param.offset(i - start_axis);
       }
-      // Check that the crop and offset are within the dimension's bounds.
-      // CHECK_GE(input_shape.dim(i) - crop_offset, op->input_shape(1).dim(i));
     }
 
     llvm::errs() << "    [" << i << "] crop_offset=" << offset
@@ -1053,14 +1057,21 @@ void CaffeImporter::convertCropLayer(mlir::Block *block,
     output_shape[i] = new_size;
     crop_offset[i] = offset;
   }
-
   // consruct OP
   auto result_type = RankedTensorType::get(
       {output_shape[0], output_shape[1], output_shape[2], output_shape[3]},
       elementType_);
   std::vector<NamedAttribute> attrs;
-  attrs.push_back(builder_.getNamedAttr("crop_offset",
-                                        builder_.getI32ArrayAttr(crop_offset)));
+  attrs.push_back(builder_.getNamedAttr(
+      "crop_offset_n", builder_.getI32IntegerAttr(crop_offset[0])));
+  attrs.push_back(builder_.getNamedAttr(
+      "crop_offset_c", builder_.getI32IntegerAttr(crop_offset[1])));
+  attrs.push_back(builder_.getNamedAttr(
+      "crop_offset_h", builder_.getI32IntegerAttr(crop_offset[2])));
+  attrs.push_back(builder_.getNamedAttr(
+      "crop_offset_w", builder_.getI32IntegerAttr(crop_offset[3])));
+  attrs.push_back(
+      builder_.getNamedAttr("axis", builder_.getI32IntegerAttr(start_axis)));
   attrs.push_back(builder_.getNamedAttr(
       "name", builder_.getStringAttr(layer_param.name())));
   auto op = OpBuilder(block).create<tpu::CropOp>(
@@ -1094,7 +1105,7 @@ void CaffeImporter::convertFlattenLayer(mlir::Block *block,
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder_.getNamedAttr(
       "name", builder_.getStringAttr(layer_param.name())));
-  auto op = OpBuilder(block).create<tpu::SigmoidOp>(
+  auto op = OpBuilder(block).create<tpu::FlattenOp>(
       builder_.getUnknownLoc(), result_type, ArrayRef<Value *>{input_var},
       ArrayRef<NamedAttribute>{attrs});
   auto result_var = op.getResult();

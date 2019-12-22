@@ -450,6 +450,22 @@ int my_prelu(float *input, float *output, int n, int c, int h, int w,
   return 0;
 }
 
+template <typename Dtype>
+inline Dtype sigmoid(Dtype x) {
+  return 0.5 * tanh(0.5 * x) + 0.5;
+}
+int my_sigmoid(float *input, float *output, int n, int c, int h, int w) {
+  LLVM_DEBUG(llvm::errs() << "  n: " << n << ", c: " << c << ", h: " << h
+                          << ", w: " << w << "\n";);
+
+  for (int i = 0; i < n * c * h * w; ++i) {
+    if (input[i] >= 0) {
+      output[i] = sigmoid(input[i]);
+    }
+  }
+  return 0;
+}
+
 // Y = (X-mean(X))/(sqrt(var(X)+eps))
 int my_bn(float *input, float *mean, float *variance, float *scale,
     float *output, int n, int c, int h, int w) {
@@ -561,8 +577,43 @@ int my_softmax(float *input, float *output, int n, int c) {
   return 0;
 }
 
-int my_eltwise(float *input_1, float *input_2, float *output,
-    int n, int c, int h, int w, int op) {
+int my_crop(float *input, float *output, long int *shape1, long int *shape2,
+            int cur_dim, int *offsets, int *indices) {
+  // for loop if dim is not last
+  if (cur_dim + 1 < 4) {
+    for (int i = 0; i < shape2[cur_dim]; ++i) {
+      indices[cur_dim] = i;
+      my_crop(input, output, shape1, shape2, cur_dim + 1, offsets, indices);
+    }
+  } else {
+    std::vector<int> ind_red(cur_dim, 0);
+    std::vector<int> ind_off(cur_dim + 1, 0);
+
+    for (int j = 0; j < cur_dim; ++j) {
+      ind_red[j] = indices[j];
+
+      ind_off[j] = indices[j] + offsets[j];
+    }
+    ind_off[cur_dim] = offsets[cur_dim];
+    int n = shape1[0];
+    int c = shape1[1];
+    int h = shape1[2];
+    int w = shape1[3];
+
+    int n2 = shape2[0];
+    int c2 = shape2[1];
+    int h2 = shape2[2];
+    int w2 = shape2[3];
+
+    int btm_offset =
+        n * ind_off[0] + c * ind_off[1] + h * ind_off[2] + ind_off[3];
+    int top_offset = n2 * ind_red[0] + c2 * ind_red[1] + h2 * ind_red[2];
+    std::copy(input, input + btm_offset, output + top_offset);
+  }
+  return 0;
+}
+int my_eltwise(float *input_1, float *input_2, float *output, int n, int c,
+               int h, int w, int op) {
 #ifdef DUMP_FLAG
   static int dump_idx = 0;
   std::string prefix = std::string("eltwise") + std::to_string(dump_idx);
