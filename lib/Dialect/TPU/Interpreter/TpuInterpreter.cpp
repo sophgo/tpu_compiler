@@ -751,10 +751,10 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     auto result = op.getResult();
     LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump();
                llvm::errs() << "\n";);
-    std::vector<int64_t> shape =
+    std::vector<int64_t> output_shape =
         result->getType().cast<TensorType>().getShape();
-    auto size = std::accumulate(std::begin(shape), std::end(shape), 1,
-                                std::multiplies<>());
+    auto size = std::accumulate(std::begin(output_shape),
+                                std::end(output_shape), 1, std::multiplies<>());
     auto resultT = std::make_unique<std::vector<float>>(size);
     uint32_t bottom_num = opdT.size();
     assert(bottom_num >= 2 && "bottom num is 0 or 1");
@@ -776,8 +776,8 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     float *input = (float *)opdT[0]->data();
     float *output = (float *)resultT.get()->data();
     vector<int >indices(size, 0);
-    my_crop(input, output, input_shape1.data(), input_shape2.data(), 0,
-            crop_offset.data(), indices.data());
+    my_crop(input, output, input_shape1.data(), input_shape2.data(),
+            output_shape.data(), 0, crop_offset.data(), indices.data());
     valueMapping[result] = std::move(resultT);
     return success();
   }
