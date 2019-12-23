@@ -375,6 +375,7 @@ static LogicalResult runOperation(Operation &opInst) {
       bias_gaddr = getWeightOpAddress(op.getOperand(2)->getDefiningOp());
     }
 
+
     int layer_id = op.layer_id().getValue().getLimitedValue();
 
     if (op.quant() == "INT8") {
@@ -400,7 +401,7 @@ static LogicalResult runOperation(Operation &opInst) {
           k, // int in_col,
           n, // int out_col,
           with_bias, // int have_bias,
-          0, // do_activation,
+          do_relu ? 1 : 0, // do_activation,
           0, // activation_method,
           INVALID_GLOBAL_ADDR, // activation_ga_slope,
           0, // int activation_channel_shared,
@@ -432,7 +433,7 @@ static LogicalResult runOperation(Operation &opInst) {
         k, // int in_col
         n, // in out_col,
         with_bias, // has_bias
-        0, // do_activation
+        do_relu ? 1 : 0, // do_activation
         0  // activation_method
       );
     } else {

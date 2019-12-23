@@ -62,6 +62,14 @@ struct TpuFuseReluPattern : public RewritePattern {
       // remove the relu Op
       rewriter.replaceOp(op, {op->getOperand(0)});
       return matchSuccess();
+    }else if (matchPattern(formerOp, m_Op<tpu::FullyConnectedOp>())) { //hongjun add for merge relu to fc
+      auto fcOp = cast<tpu::FullyConnectedOp>(formerOp);
+      assert(fcOp.fused_activation_function() == "NONE");
+      // set fused_activation_function for fc Op
+      fcOp.setAttr("fused_activation_function", rewriter.getStringAttr("RELU"));
+      // remove the relu Op
+      rewriter.replaceOp(op, {op->getOperand(0)});
+      return matchSuccess();
     }
 
     assert(0);
