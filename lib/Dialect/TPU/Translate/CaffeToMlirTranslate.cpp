@@ -1099,17 +1099,16 @@ void CaffeImporter::convertFlattenLayer(mlir::Block *block,
 
   LLVM_DEBUG(llvm::errs() << "  N: " << n << ", C: " << c << ", IH*IW: " << h
                           << " * " << w << "\n";);
-
+              
   // construct OP
-  auto result_type = RankedTensorType::get({n, c*h*w}, elementType_);
+  auto result_type = RankedTensorType::get({n, c * h * w}, elementType_);
   std::vector<NamedAttribute> attrs;
-  attrs.push_back(builder_.getNamedAttr(
-      "name", builder_.getStringAttr(layer_param.name())));
-  auto op = OpBuilder(block).create<tpu::FlattenOp>(
+  attrs.push_back(builder_.getNamedAttr("name",
+      builder_.getStringAttr(layer_param.name())));
+  auto reshape_op = OpBuilder(block).create<tpu::ReshapeOp>(
       builder_.getUnknownLoc(), result_type, ArrayRef<Value *>{input_var},
       ArrayRef<NamedAttribute>{attrs});
-  auto result_var = op.getResult();
-
+  auto result_var = reshape_op.getResult();
   tensor_map_[layer_param.top(0)] = result_var;
 }
 

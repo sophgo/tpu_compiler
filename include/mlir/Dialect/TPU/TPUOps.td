@@ -488,24 +488,6 @@ def TPU_SigmoidOp: TPU_Op<"sigmoid", [NoSideEffect]> {
   let results = (outs AnyTensor:$output);
 }
 
-
-def TPU_FlattenOp: TPU_Op<"flatten", [NoSideEffect]> {
-  let summary = "Flatten operator";
-
-  let description = [{
-    flatten
-  }];
-
-  let arguments = (
-    ins AnyTensor:$input,
-    OptionalAttr<StrAttr>:$name,
-    OptionalAttr<F32Attr>:$axis,
-    OptionalAttr<F32Attr>:$end_axis,
-    OptionalAttr<F32Attr>:$threshold_y
-  );
-
-  let results = (outs AnyTensor:$output);
-}
 def TPU_DummyDataOp: TPU_Op<"dummydata", [NoSideEffect]> {
   let summary = "dummydata";
 

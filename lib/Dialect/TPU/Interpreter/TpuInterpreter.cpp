@@ -540,29 +540,6 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
     return success();
   }
-  if (auto op = dyn_cast<tpu::FlattenOp>(opInst)) {
-    LLVM_DEBUG(llvm::errs() << "FlattenOp"
-                            << "\n";);
-    auto opdT = getOperandTensors(opInst, valueMapping);
-    auto result = op.getResult();
-    LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump();
-               llvm::errs() << "\n";);
-    std::vector<int64_t> shape =
-        result->getType().cast<TensorType>().getShape();
-    auto size = std::accumulate(std::begin(shape), std::end(shape), 1,
-                                std::multiplies<>());
-    auto resultT = std::make_unique<std::vector<float>>(size);
-
-    auto input_type = op.input()->getType().cast<TensorType>();
-    std::vector<int64_t> i_s(input_type.getShape());
-    auto output_type = op.output()->getType().cast<TensorType>();
-    std::vector<int64_t> o_s(output_type.getShape());
-
-    resultT.get()->assign(opdT[0]->begin(), opdT[0]->end());
-    valueMapping[result] = std::move(resultT);
-
-    return success();
-  }
   if (auto op = dyn_cast<tpu::BatchNormOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "BatchNormOp" << "\n";);
     auto opdT = getOperandTensors(opInst, valueMapping);
