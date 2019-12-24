@@ -177,13 +177,14 @@ private:
     uint64_t inputNeuronSizePerLane = getSizePerLane(n, ic, ih, iw);
     uint64_t outputNeuronSizePerLane = getSizePerLane(n, oc, oh, ow);
     uint64_t filterSizePerLane = 0;
+    // filter working size *2 for double buffer
     if (g != oc) {
       // for non-dw conv, assuming oc_step = lane_num
       int oc_step = mInfo.lane_num;
-      filterSizePerLane = getSizePerLane(ic, oc_step, kh, kw);
+      filterSizePerLane = getSizePerLane(ic, oc_step, kh, kw) * 2;
     } else {
       // for dw conv, load weight all in once
-      filterSizePerLane = getSizePerLane(1, oc, kh, kw);
+      filterSizePerLane = getSizePerLane(1, oc, kh, kw) * 2;
     }
     // load bias all in once, and always assume bias is enabled (elt size is 9)
     uint64_t biasSizePerLane = getSizePerLane(9, oc, 1, 1);

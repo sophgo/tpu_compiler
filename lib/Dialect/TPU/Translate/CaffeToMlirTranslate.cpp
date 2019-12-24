@@ -96,6 +96,7 @@ private:
   void convertReLULayer(mlir::Block *block, caffe::Layer<float> *layer);
   void convertPReLULayer(mlir::Block *block, caffe::Layer<float> *layer);
   void convertEltwiseLayer(mlir::Block *block, caffe::Layer<float> *layer);
+  void convertUpsampleLayer(mlir::Block *block, caffe::Layer<float> *layer);
   void convertSoftmaxLayer(mlir::Block *block, caffe::Layer<float> *layer);
   void convertConcatLayer(mlir::Block *block, caffe::Layer<float> *layer);
   void convertDropoutLayer(mlir::Block *block, caffe::Layer<float> *layer);
@@ -218,6 +219,8 @@ void CaffeImporter::ConvertLayers(mlir::Block *block,
       convertPReLULayer(block, layer);
     } else if (strcmp(layer->type(), "Eltwise") == 0) {
       convertEltwiseLayer(block, layer);
+    } else if (strcmp(layer->type(), "Upsample") == 0) {
+      convertUpsampleLayer(block, layer);
     } else if (strcmp(layer->type(), "Softmax") == 0) {
       convertSoftmaxLayer(block, layer);
     } else if (strcmp(layer->type(), "Concat") == 0) {
@@ -832,6 +835,48 @@ void CaffeImporter::convertEltwiseLayer(mlir::Block *block,
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name())));
   auto op = OpBuilder(block).create<tpu::EltwiseOp>(
+      builder_.getUnknownLoc(), result_type,
+      ArrayRef<Value *>{input_vars}, ArrayRef<NamedAttribute>{attrs});
+  auto result_var = op.getResult();
+
+  tensor_map_[layer_param.top(0)] = result_var;
+}
+
+void CaffeImporter::convertUpsampleLayer(mlir::Block *block,
+    caffe::Layer<float> *layer) {
+  std::vector<mlir::Value *> input_vars = GetLayerInputs(layer);
+
+  auto layer_param = layer->layer_param();
+  auto upsample_param = layer_param.upsample_param();
+  unsigned scale = upsample_param.scale();
+  assert(scale == 2);
+
+  int64_t n, c, ih, iw, oh, ow;
+  llvm::ArrayRef<int64_t> input_shape =
+      input_vars[0]->getType().dyn_cast<mlir::TensorType>().getShape();
+  assert(input_shape.size() == 4);
+  n = input_shape[0];
+  c = input_shape[1];
+  ih = input_shape[2];
+  iw = input_shape[3];
+  oh = ih * scale;
+  ow = iw * scale;
+
+  LLVM_DEBUG(
+    llvm::errs()
+        << "  N: " << n
+        << ", C: " << c
+        << ", IH*IW: " << ih << " * " << iw
+        << ", OH*OW: " << oh << " * " << ow
+        << "\n";
+  );
+
+  // construct OP
+  auto result_type = RankedTensorType::get({n, c, oh, ow}, elementType_);
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder_.getNamedAttr("scale", builder_.getI32IntegerAttr(scale)));
+  attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name())));
+  auto op = OpBuilder(block).create<tpu::UpsampleOp>(
       builder_.getUnknownLoc(), result_type,
       ArrayRef<Value *>{input_vars}, ArrayRef<NamedAttribute>{attrs});
   auto result_var = op.getResult();
