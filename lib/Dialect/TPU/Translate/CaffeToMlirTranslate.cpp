@@ -719,11 +719,21 @@ void CaffeImporter::convertReLULayer(mlir::Block *block,
 
   int64_t n, c, h, w;
   llvm::ArrayRef<int64_t> input_shape = input_var->getType().dyn_cast<mlir::TensorType>().getShape();
-  assert(input_shape.size() == 4);
-  n = input_shape[0];
-  c = input_shape[1];
-  h = input_shape[2];
-  w = input_shape[3];
+  RankedTensorType result_type=nullptr; 
+
+  if(input_shape.size() == 4){
+    n = input_shape[0];
+    c = input_shape[1];
+    h = input_shape[2];
+    w = input_shape[3];
+    result_type = RankedTensorType::get({n, c, h, w}, elementType_);
+  }else if(input_shape.size() == 2){
+    h = input_shape[0];
+    w = input_shape[1]; 
+    result_type = RankedTensorType::get({h,w}, elementType_);
+  }else{
+    assert(input_shape.size() == 4 || input_shape.size() == 2);    
+  }
 
   LLVM_DEBUG(
     llvm::errs()
@@ -734,7 +744,7 @@ void CaffeImporter::convertReLULayer(mlir::Block *block,
   );
 
   // construct OP
-  auto result_type = RankedTensorType::get({n, c, h, w}, elementType_);
+  //auto result_type = RankedTensorType::get({n, c, h, w}, elementType_);
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder_.getNamedAttr("negative_slope", builder_.getF32FloatAttr(negative_slope)));
   attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name())));

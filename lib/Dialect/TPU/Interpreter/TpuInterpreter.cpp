@@ -410,6 +410,11 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     assert(mkldnn_ret == 0);
     //dump_data_float_abs("output_data", output_data, 1, 1, m, n);
 
+
+    if (do_relu) {
+      my_relu(resultT->data(), resultT->data(), 1, 1, 1, n, 0.0f);
+    }
+
     // rshift and saturate on output
     if (op.quant() == "INT8") {
       assert(rshift);
@@ -445,13 +450,30 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     auto output_type = op.y()->getType().cast<TensorType>();
     std::vector<int64_t> o_s(output_type.getShape());
     assert((i_s == o_s) && "input shape not equal to output shape");
+
+    int ret = 0 ;
+    if(i_s.size() == 4){
+
     n = i_s[0];
     c = i_s[1];
     h = i_s[2];
     w = i_s[3];
+
     float *input = (float *)opdT[0]->data();
     float *output = (float *)resultT.get()->data();
-    int ret = my_relu(input, output, n, c, h, w, negative_slope);
+    ret = my_relu(input, output, n, c, h, w, negative_slope);
+
+    }else if(i_s.size() == 2){ //for (h w) shape relu
+
+      n = 1;
+      c = 1;
+      h = i_s[0];
+      w = i_s[1];
+      float *input = (float *)opdT[0]->data();
+      float *output = (float *)resultT.get()->data();
+      ret = my_relu(input, output, n, c, h, w, negative_slope);
+
+    }
     assert(ret == 0);
 
     valueMapping[result] = std::move(resultT);

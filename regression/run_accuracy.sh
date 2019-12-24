@@ -28,6 +28,10 @@ $DIR/mobilenet_v1/accuracy_mobilenet_v1.sh $1 gluoncv
 $DIR/mobilenet_v2/accuracy_mobilenet_v2.sh $1 pytorch
 $DIR/mobilenet_v2/accuracy_mobilenet_v2.sh $1 gluoncv
 
+
+$DIR/vgg16/accuracy_vgg16.sh $1 pytorch
+$DIR/vgg16/accuracy_vgg16.sh $1 gluoncv
+
 popd
 
 echo $0 DONE
