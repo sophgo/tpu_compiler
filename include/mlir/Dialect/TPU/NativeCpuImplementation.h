@@ -12,7 +12,8 @@ int mkldnn_pool(float *input, float *output,
 
 int mkldnn_ip(float *input, float *weight, float *bias,
     float *output, int m, int k, int n, bool transpose);
-
+int my_sigmoid(float *input, float *output, int n, int c, int h, int w);
+int my_crop(float *input, float *output, long int *shape1, long int *shape2, long int *top_shape,  int cur_dim, int *offsets, int *indices);
 int my_relu(float *input, float *output,
     int n, int c, int h, int w, float negative_slope);
 

@@ -352,6 +352,59 @@ def TPU_ConcatOp: TPU_Op<"concat", [NoSideEffect, SameOperandsAndResultElementTy
   let results = (outs AnyTensor:$res);
 }
 
+def TPU_CropOp: TPU_Op<"crop", [NoSideEffect]> {
+  let summary = "Crop operator";
+
+  let description = [{
+    To crop, elements of the first bottom are selected to fit the dimensions
+    of the second, reference bottom.
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input1,
+    AnyTensor:$input2,
+    OptionalAttr<I32Attr>:$axis,
+    OptionalAttr<I32Attr>:$crop_offset_n,
+    OptionalAttr<I32Attr>:$crop_offset_c,
+    OptionalAttr<I32Attr>:$crop_offset_h,
+    OptionalAttr<I32Attr>:$crop_offset_w,
+
+    OptionalAttr<StrAttr>:$name
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
+def TPU_SigmoidOp: TPU_Op<"sigmoid", [NoSideEffect]> {
+  let summary = "Sigmoid operator";
+
+  let description = [{
+    sigmoid
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    OptionalAttr<StrAttr>:$name,
+    OptionalAttr<F32Attr>:$threshold_y
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
+def TPU_DummyDataOp: TPU_Op<"dummydata", [NoSideEffect]> {
+  let summary = "dummydata";
+
+  let description = [{
+    DummyDataLayer fills any number of arbitrarily shaped blobs with random
+  }];
+
+  let arguments = (
+    OptionalAttr<StrAttr>:$name
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
 def TPU_InputOp: TPU_Op<"input", [NoSideEffect]> {
   let summary = "Input operator";
 
@@ -384,6 +437,7 @@ def TPU_ReshapeOp: TPU_Op<"reshape", [NoSideEffect]> {
 
   let results = (outs AnyTensor:$output);
 }
+
 
 //===----------------------------------------------------------------------===//
 // TPU Quantization op definitions.

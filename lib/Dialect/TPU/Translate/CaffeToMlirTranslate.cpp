@@ -100,6 +100,10 @@ private:
   void convertSoftmaxLayer(mlir::Block *block, caffe::Layer<float> *layer);
   void convertConcatLayer(mlir::Block *block, caffe::Layer<float> *layer);
   void convertDropoutLayer(mlir::Block *block, caffe::Layer<float> *layer);
+  void convertCropLayer(mlir::Block *block, caffe::Layer<float> *layer);
+  void convertSigmoidLayer(mlir::Block *block, caffe::Layer<float> *layer);
+  void convertFlattenLayer(mlir::Block *block, caffe::Layer<float> *layer);
+  void convertDummyDataLayer(mlir::Block *block, caffe::Layer<float> *layer);
 
   mlir::ModuleOp module_;
   mlir::Builder builder_;
@@ -227,6 +231,14 @@ void CaffeImporter::ConvertLayers(mlir::Block *block,
       convertConcatLayer(block, layer);
     } else if (strcmp(layer->type(), "Dropout") == 0) {
       convertDropoutLayer(block, layer);
+    } else if (strcmp(layer->type(), "DummyData") == 0) {
+      convertDummyDataLayer(block, layer);
+    } else if (strcmp(layer->type(), "Crop") == 0) {
+      convertCropLayer(block, layer);
+    } else if (strcmp(layer->type(), "Sigmoid") == 0) {
+      convertSigmoidLayer(block, layer);
+    } else if (strcmp(layer->type(), "Flatten") == 0) {
+      convertFlattenLayer(block, layer);
     } else {
       llvm::errs() << "    UNKNOWN : " << layer->type() <<"\n";
       assert(false);
@@ -257,7 +269,6 @@ mlir::Value* CaffeImporter::AddLoadWeightOp(mlir::Block *block,
 
 mlir::Value* CaffeImporter::GetLayerInput(caffe::Layer<float> *layer) {
   auto layer_param = layer->layer_param();
-  assert(layer_param.bottom_size() == 1);
   auto it = tensor_map_.find(layer_param.bottom(0));
   assert(it != tensor_map_.end());
   mlir::Value *input = it->second;
@@ -660,14 +671,15 @@ void CaffeImporter::convertBatchNormLayer(mlir::Block *block,
 
 void CaffeImporter::convertScaleLayer(mlir::Block *block,
     caffe::Layer<float> *layer) {
-  mlir::Value *input_var = GetLayerInput(layer);
+  std::vector<mlir::Value *> input_vars = GetLayerInputs(layer);
 
   auto layer_param = layer->layer_param();
   assert(layer_param.has_scale_param());
   auto scale_param = layer_param.scale_param();
   bool with_bias = scale_param.bias_term();
-
   int64_t n, c, h, w;
+
+  auto input_var = input_vars[0];
   llvm::ArrayRef<int64_t> input_var_shape =
       input_var->getType().dyn_cast<mlir::TensorType>().getShape();
   assert(input_var_shape.size() == 4);
@@ -686,30 +698,42 @@ void CaffeImporter::convertScaleLayer(mlir::Block *block,
 
   std::vector<Value *> operands;
   operands.push_back(input_var);
-
-  // - blobs_[0] holds the scale
-  // - blobs_[1] holds the biases (optional)
-  auto scale_name = layer->layer_param().name()+"_0";
-  auto scale_type = RankedTensorType::get({c}, elementType_);
-  weightFile_->addTensor(scale_name, layer->blobs()[0].get()->cpu_data(), scale_type);
-  operands.push_back(AddLoadWeightOp(block, scale_name, scale_type));
-  if (with_bias) {
-    auto bias_name = layer->layer_param().name()+"_1";
-    auto bias_type = RankedTensorType::get({c}, elementType_);
-    weightFile_->addTensor(bias_name, layer->blobs()[1].get()->cpu_data(), bias_type);
-    operands.push_back(AddLoadWeightOp(block, bias_name, bias_type));
+  if(input_vars.size() == 2){
+    // two bottom input
+    // construct OP
+    auto result_type = RankedTensorType::get({n, c, h, w}, elementType_);
+    std::vector<NamedAttribute> attrs;
+    attrs.push_back(builder_.getNamedAttr(
+        "name", builder_.getStringAttr(layer_param.name())));
+    auto op = OpBuilder(block).create<tpu::ScaleOp>(
+        builder_.getUnknownLoc(), result_type, ArrayRef<Value *>{input_vars},
+        ArrayRef<NamedAttribute>{attrs});
+    auto result_var = op.getResult();
+    tensor_map_[layer_param.top(0)] = result_var;
+  }else{
+    // - blobs_[0] holds the scale
+    // - blobs_[1] holds the biases (optional)
+    auto scale_name = layer->layer_param().name()+"_0";
+    auto scale_type = RankedTensorType::get({c}, elementType_);
+    weightFile_->addTensor(scale_name, layer->blobs()[0].get()->cpu_data(), scale_type);
+    operands.push_back(AddLoadWeightOp(block, scale_name, scale_type));
+    if (with_bias) {
+      auto bias_name = layer->layer_param().name()+"_1";
+      auto bias_type = RankedTensorType::get({c}, elementType_);
+      weightFile_->addTensor(bias_name, layer->blobs()[1].get()->cpu_data(), bias_type);
+      operands.push_back(AddLoadWeightOp(block, bias_name, bias_type));
+    }
+    // construct OP
+    auto result_type = RankedTensorType::get({n, c, h, w}, elementType_);
+    std::vector<NamedAttribute> attrs;
+    attrs.push_back(builder_.getNamedAttr(
+        "name", builder_.getStringAttr(layer_param.name())));
+    auto op = OpBuilder(block).create<tpu::ScaleOp>(
+        builder_.getUnknownLoc(), result_type, ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    auto result_var = op.getResult();
+    tensor_map_[layer_param.top(0)] = result_var;
   }
-
-  // construct OP
-  auto result_type = RankedTensorType::get({n, c, h, w}, elementType_);
-  std::vector<NamedAttribute> attrs;
-  attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name())));
-  auto op = OpBuilder(block).create<tpu::ScaleOp>(
-      builder_.getUnknownLoc(), result_type,
-      ArrayRef<Value *>{operands}, ArrayRef<NamedAttribute>{attrs});
-  auto result_var = op.getResult();
-
-  tensor_map_[layer_param.top(0)] = result_var;
 }
 
 void CaffeImporter::convertReLULayer(mlir::Block *block,
@@ -810,9 +834,19 @@ void CaffeImporter::convertEltwiseLayer(mlir::Block *block,
 
   auto layer_param = layer->layer_param();
   auto eltwise_param = layer_param.eltwise_param();
+  std::string method;
   assert(eltwise_param.coeff_size() == 0);
-  assert(eltwise_param.operation() == caffe::EltwiseParameter_EltwiseOp_SUM);
-
+  if (eltwise_param.operation() == caffe::EltwiseParameter_EltwiseOp_SUM) {
+    method = "SUM";
+  } else if (eltwise_param.operation() ==
+             caffe::EltwiseParameter_EltwiseOp_PROD) {
+    method = "PROD";
+  } else if (eltwise_param.operation() ==
+             caffe::EltwiseParameter_EltwiseOp_EltwiseOp_MAX) {
+    method = "MAX";
+  } else {
+    assert(0 && "eltwise only support, SUM, PROD, MAX now");
+  }
   int64_t n, c, h, w;
   llvm::ArrayRef<int64_t> input_shape =
       input_vars[0]->getType().dyn_cast<mlir::TensorType>().getShape();
@@ -834,6 +868,8 @@ void CaffeImporter::convertEltwiseLayer(mlir::Block *block,
   auto result_type = RankedTensorType::get({n, c, h, w}, elementType_);
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name())));
+  attrs.push_back(
+      builder_.getNamedAttr("method", builder_.getStringAttr(method)));
   auto op = OpBuilder(block).create<tpu::EltwiseOp>(
       builder_.getUnknownLoc(), result_type,
       ArrayRef<Value *>{input_vars}, ArrayRef<NamedAttribute>{attrs});
@@ -997,6 +1033,183 @@ void CaffeImporter::convertDropoutLayer(mlir::Block *block,
   tensor_map_[layer_param.top(0)] = input_var;
 }
 
+void CaffeImporter::convertDummyDataLayer(mlir::Block *block,
+                                          caffe::Layer<float> *layer) {
+  auto layer_param = layer->layer_param();
+  auto dummy_data_param = layer_param.dummy_data_param();
+  if (dummy_data_param.shape_size() < 1){
+    assert(0 && "dummy data op no define dim");
+  }
+  auto dummy_shape = dummy_data_param.shape(0);
+
+  int n = dummy_shape.dim(0);
+  int c = dummy_shape.dim(1);
+  int h = dummy_shape.dim(2);
+  int w = dummy_shape.dim(3);
+  LLVM_DEBUG(llvm::errs() << "DummyData  N: " << n << ", C: " << c
+                    << ", IH*IW: " << h << " * " << w << "\n";);
+
+  // construct OP
+  auto result_type = RankedTensorType::get({n,c,h,w}, elementType_);
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder_.getNamedAttr(
+      "name", builder_.getStringAttr(layer_param.name())));
+  auto op = OpBuilder(block).create<tpu::DummyDataOp>(
+      builder_.getUnknownLoc(), result_type, ArrayRef<Value *>{},
+      ArrayRef<NamedAttribute>{attrs});
+  auto result_var = op.getResult();
+  tensor_map_[layer_param.top(0)] = result_var;
+}
+
+void CaffeImporter::convertCropLayer(mlir::Block *block,
+                                     caffe::Layer<float> *layer) {
+  std::vector<mlir::Value *> input_vars = GetLayerInputs(layer);
+
+  assert(input_vars.size() == 2 && "Crop expected two input blobs");
+
+  auto layer_param = layer->layer_param();
+  assert(layer_param.has_crop_param() && "Crop expected crop param");
+  auto crop_param = layer_param.crop_param();
+
+  // get input shape from input vars
+  llvm::ArrayRef<int64_t> input_shape =
+      input_vars[0]->getType().dyn_cast<mlir::TensorType>().getShape();
+  llvm::ArrayRef<int64_t> input_shape1 =
+      input_vars[1]->getType().dyn_cast<mlir::TensorType>().getShape();
+
+  int input_dim = input_shape.size();
+  int axis_index = crop_param.axis();
+  int start_axis = axis_index;
+  int offset_size = crop_param.offset_size();
+  if (offset_size > 1){
+    // the number of crop values specified must be equal to the number
+    // of dimensions following axis
+    assert((offset_size + axis_index <= input_dim) &&
+           " number of offset values specified must be equal to the number "
+           "ofdimensions following axis.");
+  } 
+
+  LLVM_DEBUG(llvm::errs() << "\n  Crop\n"
+                          << "    bottom: " << input_shape[0] << ", "
+                          << input_shape[1] << ", " << input_shape[2]
+                          << ", " << input_shape[3] << "\n"
+                          << "    bottom: " << input_shape1[0] << ", "
+                          << input_shape1[1] << ", " << input_shape1[2]
+                          << ", " << input_shape1[3] << "\n"
+                          << "    start_axis " << start_axis
+                          << ", offset_size() "
+                          << crop_param.offset_size() << "\n";);
+
+  std::vector<int> output_shape(input_dim);
+  std::vector<int> crop_offset(input_dim);
+
+  // Determine crop offsets and the new shape post-crop
+  for (int i = 0; i < input_dim; ++i) {
+    int offset = 0;
+    int new_size = input_shape[i];
+    if (i >= start_axis) {
+      new_size = input_shape1[i];
+      if (crop_param.offset_size() == 1) {
+        // If only one offset is given, all crops have the same offset.
+        offset = crop_param.offset(0);
+      } else if (crop_param.offset_size() > 1) {
+        // For several offsets, the number of offsets must be equal to the
+        // number of dimensions to crop, that is dimensions after the axis.
+        offset = crop_param.offset(i - start_axis);
+      }
+    }
+
+    llvm::errs() << "    [" << i << "] crop_offset=" << offset
+                 << ", new_size=" << new_size << "\n";
+
+    output_shape[i] = new_size;
+    crop_offset[i] = offset;
+  }
+  // consruct OP
+  auto result_type = RankedTensorType::get(
+      {output_shape[0], output_shape[1], output_shape[2], output_shape[3]},
+      elementType_);
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder_.getNamedAttr(
+      "crop_offset_n", builder_.getI32IntegerAttr(crop_offset[0])));
+  attrs.push_back(builder_.getNamedAttr(
+      "crop_offset_c", builder_.getI32IntegerAttr(crop_offset[1])));
+  attrs.push_back(builder_.getNamedAttr(
+      "crop_offset_h", builder_.getI32IntegerAttr(crop_offset[2])));
+  attrs.push_back(builder_.getNamedAttr(
+      "crop_offset_w", builder_.getI32IntegerAttr(crop_offset[3])));
+  attrs.push_back(
+      builder_.getNamedAttr("axis", builder_.getI32IntegerAttr(start_axis)));
+  attrs.push_back(builder_.getNamedAttr(
+      "name", builder_.getStringAttr(layer_param.name())));
+  auto op = OpBuilder(block).create<tpu::CropOp>(
+      builder_.getUnknownLoc(), result_type, ArrayRef<Value *>{input_vars},
+      ArrayRef<NamedAttribute>{attrs});
+  auto result_var = op.getResult();
+  tensor_map_[layer_param.top(0)] = result_var;
+
+}
+
+void CaffeImporter::convertFlattenLayer(mlir::Block *block,
+                                     caffe::Layer<float> *layer) {
+  mlir::Value *input_var = GetLayerInput(layer);
+
+  auto layer_param = layer->layer_param();
+
+  int64_t n, c, h, w;
+  llvm::ArrayRef<int64_t> input_shape =
+      input_var->getType().dyn_cast<mlir::TensorType>().getShape();
+  assert(input_shape.size() == 4);
+  n = input_shape[0];
+  c = input_shape[1];
+  h = input_shape[2];
+  w = input_shape[3];
+
+  LLVM_DEBUG(llvm::errs() << "  N: " << n << ", C: " << c << ", IH*IW: " << h
+                          << " * " << w << "\n";);
+              
+  // construct OP
+  auto result_type = RankedTensorType::get({n, c * h * w}, elementType_);
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder_.getNamedAttr("name",
+      builder_.getStringAttr(layer_param.name())));
+  auto reshape_op = OpBuilder(block).create<tpu::ReshapeOp>(
+      builder_.getUnknownLoc(), result_type, ArrayRef<Value *>{input_var},
+      ArrayRef<NamedAttribute>{attrs});
+  auto result_var = reshape_op.getResult();
+  tensor_map_[layer_param.top(0)] = result_var;
+}
+
+void CaffeImporter::convertSigmoidLayer(mlir::Block *block,
+                                        caffe::Layer<float> *layer) {
+  mlir::Value *input_var = GetLayerInput(layer);
+
+  auto layer_param = layer->layer_param();
+
+  int64_t n, c, h, w;
+  llvm::ArrayRef<int64_t> input_shape =
+      input_var->getType().dyn_cast<mlir::TensorType>().getShape();
+  assert(input_shape.size() == 4);
+  n = input_shape[0];
+  c = input_shape[1];
+  h = input_shape[2];
+  w = input_shape[3];
+
+  LLVM_DEBUG(llvm::errs() << "  N: " << n << ", C: " << c << ", IH*IW: " << h
+                          << " * " << w << "\n";);
+
+  // construct OP
+  auto result_type = RankedTensorType::get({n, c, h, w}, elementType_);
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder_.getNamedAttr(
+      "name", builder_.getStringAttr(layer_param.name())));
+  auto op = OpBuilder(block).create<tpu::SigmoidOp>(
+      builder_.getUnknownLoc(), result_type, ArrayRef<Value *>{input_var},
+      ArrayRef<NamedAttribute>{attrs});
+  auto result_var = op.getResult();
+
+  tensor_map_[layer_param.top(0)] = result_var;
+}
 
 LogicalResult CaffeImporter::Import(const llvm::StringRef inputFilename,
     llvm::StringRef caffemodelFilename) {
