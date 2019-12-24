@@ -459,10 +459,9 @@ int my_sigmoid(float *input, float *output, int n, int c, int h, int w) {
                           << ", w: " << w << "\n";);
 
   for (int i = 0; i < n * c * h * w; ++i) {
-    if (input[i] >= 0) {
       output[i] = sigmoid(input[i]);
-    }
   }
+
   return 0;
 }
 
