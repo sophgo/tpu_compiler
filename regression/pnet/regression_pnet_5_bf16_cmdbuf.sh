@@ -4,14 +4,11 @@ set -e
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 source $DIR/../../envsetup.sh
 
-glog="GLOG_logtostderr=1"
 
 # translate from caffe
-GLOG_logtostderr=1 mlir-translate \
+mlir-translate \
     --caffe-to-mlir $MODEL_PATH/caffe/12net.prototxt \
     --caffemodel $MODEL_PATH/caffe/12net.caffemodel \
-    -debug \
-    -debug-only=caffe-to-mlir,caffe-to-mlir_VERBOSE \
     -o pnet.mlir
 
 # apply all possible pre-calibration optimizations
@@ -21,7 +18,6 @@ mlir-opt \
     --merge-scale-into-conv \
     --fuse-relu \
     pnet.mlir \
-    -debug \
     -o pnet_opt.mlir
 
 ################################
@@ -39,7 +35,6 @@ diff in_bf16.bin $DATA_PATH/test_cat_in_resnet50_bf16.bin
 mlir-opt \
     --quant-bf16 \
     pnet_opt.mlir \
-    -debug \
     -o pnet_quant_bf16.mlir
 
 # assign weight address & neuron address
@@ -52,7 +47,6 @@ mlir-opt \
     --tpu-neuron-address-align=16 \
     --tpu-neuron-map-filename=neuron_map_bf16.csv \
     --assign-layer-id \
-    -debug \
     pnet_quant_bf16.mlir \
     -o pnet_quant_bf16_addr.mlir
 
@@ -60,7 +54,6 @@ mlir-opt \
 mlir-translate \
     --mlir-to-cmdbuf \
     pnet_quant_bf16_addr.mlir \
-    -debug \
     -o cmdbuf_bf16.bin
 
 # run cmdbuf
@@ -76,7 +69,6 @@ mlir-tpu-interpreter \
     pnet_quant_bf16.mlir \
     --tensor-in $DATA_PATH/test_cat_in_fp32.bin \
     --tensor-out dummy.bin \
-    -debug \
     --dump-all-tensor=tensor_all_bf16.npz
 
 # compare all tensors
