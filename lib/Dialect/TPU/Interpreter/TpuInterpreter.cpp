@@ -617,7 +617,6 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
     auto resultT = std::make_unique<std::vector<float> >(size);
 
-    assert(op.method() == "SUM");
 
 #define MAX_ELTWISE_INPUT (2)
     int n, c, h, w;
@@ -690,9 +689,16 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
         }
       }
     }
-
-    int ret = my_eltwise(input[0], input[1], output, n, c, h, w, 1);
+    int ret;
+    if (op.method() == "SUM"){
+      ret = my_eltwise(input[0], input[1], output, n, c, h, w, 1);
+    } else if (op.method() == "PROD"){
+      ret = my_eltwise(input[0], input[1], output, n, c, h, w, 0);
+    } else if (op.method() == "MAX"){
+      ret = my_eltwise(input[0], input[1], output, n, c, h, w, 2);
+    }
     assert(ret == 0);
+
     //dump_data_float_abs("output", mkldnn_output, n, c, oh, ow);
 
     if (op.fused_activation_function() == "NONE") {

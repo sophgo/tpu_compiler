@@ -696,6 +696,7 @@ void CaffeImporter::convertScaleLayer(mlir::Block *block,
   std::vector<Value *> operands;
   operands.push_back(input_var);
   if(input_vars.size() == 2){
+    // two bottom input
     // construct OP
     auto result_type = RankedTensorType::get({n, c, h, w}, elementType_);
     std::vector<NamedAttribute> attrs;
@@ -820,9 +821,19 @@ void CaffeImporter::convertEltwiseLayer(mlir::Block *block,
 
   auto layer_param = layer->layer_param();
   auto eltwise_param = layer_param.eltwise_param();
+  std::string method;
   assert(eltwise_param.coeff_size() == 0);
-  //assert(eltwise_param.operation() == caffe::EltwiseParameter_EltwiseOp_SUM);
-
+  if (eltwise_param.operation() == caffe::EltwiseParameter_EltwiseOp_SUM) {
+    method = "SUM";
+  } else if (eltwise_param.operation() ==
+             caffe::EltwiseParameter_EltwiseOp_PROD) {
+    method = "PROD";
+  } else if (eltwise_param.operation() ==
+             caffe::EltwiseParameter_EltwiseOp_EltwiseOp_MAX) {
+    method = "MAX";
+  } else {
+    assert(0 && "eltwise only support, SUM, PROD, MAX now");
+  }
   int64_t n, c, h, w;
   llvm::ArrayRef<int64_t> input_shape =
       input_vars[0]->getType().dyn_cast<mlir::TensorType>().getShape();
@@ -844,6 +855,8 @@ void CaffeImporter::convertEltwiseLayer(mlir::Block *block,
   auto result_type = RankedTensorType::get({n, c, h, w}, elementType_);
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name())));
+  attrs.push_back(
+      builder_.getNamedAttr("method", builder_.getStringAttr(method)));
   auto op = OpBuilder(block).create<tpu::EltwiseOp>(
       builder_.getUnknownLoc(), result_type,
       ArrayRef<Value *>{input_vars}, ArrayRef<NamedAttribute>{attrs});
