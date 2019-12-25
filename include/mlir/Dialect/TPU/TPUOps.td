@@ -23,7 +23,6 @@
 #define TPU_OPS
 
 include "mlir/Dialect/TPU/TPUBase.td"
-
 //===----------------------------------------------------------------------===//
 // TPU op base class.
 //===----------------------------------------------------------------------===//
@@ -405,6 +404,30 @@ def TPU_DummyDataOp: TPU_Op<"dummydata", [NoSideEffect]> {
   );
 
   let results = (outs AnyTensor:$output);
+}
+
+// TODO: add relative check like SameOperandsAndResultType at `OpDefinition.h`
+def TPU_TanHOp: TPU_Op<"tanh", [NoSideEffect]> {
+  let summary = "TanH operator";
+
+  let description = [{
+    TanH operator
+  }];
+
+  let arguments = (
+    ins AnyTensor:$x,
+    AnyTensor:$y0_table,
+    AnyTensor:$slope,
+    OptionalAttr<StrAttr>:$name,
+    // FIXME: use -FLT_MAX to detect if set
+    DefaultValuedAttr<F32Attr, "-1">:$scale,
+    OptionalAttr<NonNegativeI64Attr>:$offset,
+    OptionalAttr<F32Attr>:$threshold_y,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
+  );
+
+  let results = (outs AnyTensor:$y);
 }
 
 def TPU_InputOp: TPU_Op<"input", [NoSideEffect]> {

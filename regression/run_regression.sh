@@ -33,6 +33,8 @@ $DIR/vgg16/regression_vgg16_4_bf16.sh
 $DIR/vgg16/regression_vgg16_5_bf16_cmdbuf.sh
 
 # $DIR/pnet/regression_pnet_5_bf16_cmdbuf.sh
+# $DIR/espcn/espcn_bf16_cmdbuf.sh
+
 
 popd
 
