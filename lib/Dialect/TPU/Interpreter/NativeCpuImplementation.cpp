@@ -442,7 +442,7 @@ int my_prelu(float *input, float *output, int n, int c, int h, int w,
           } else {
             output[index + i] = negative_slope[channel] * input[index + i];
           }
-          
+
         }
     }
   }
