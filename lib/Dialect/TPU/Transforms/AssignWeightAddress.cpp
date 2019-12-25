@@ -309,7 +309,7 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
       // bias are also transposed
       transposeBiasInt16(weight_int16);
       // pad to alignment
-      if ( (weight_int16.capacity()*sizeof(int16_t)) % alignment_ ) {
+      if ( (weight_int16.size()*sizeof(int16_t)) % alignment_ ) {
         size_t pad = ( alignment_ - ( weight_int16.capacity() % alignment_ ) )
                      / sizeof(uint16_t);
         for (size_t i = 0; i < pad; ++i) {
@@ -346,7 +346,7 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
       }
 
       // pad to alignment
-      if ( (weight_bf16.capacity()*sizeof(uint16_t)) % alignment_ ) {
+      if ( (weight_bf16.size()*sizeof(uint16_t)) % alignment_ ) {
         size_t pad = ( alignment_ - ( weight_bf16.capacity() % alignment_ ) )
                      / sizeof(uint16_t);
         for (size_t i = 0; i < pad; ++i) {
