@@ -401,8 +401,7 @@ def TPU_DummyDataOp: TPU_Op<"dummydata", [NoSideEffect]> {
   }];
 
   let arguments = (
-    ins AnyTensor:$input,
-    OptionalAttr<StrAttr>:$name
+    ins OptionalAttr<StrAttr>:$name
   );
 
   let results = (outs AnyTensor:$output);
