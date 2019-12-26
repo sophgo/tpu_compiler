@@ -60,6 +60,10 @@ llvm::StringRef getOpName(Operation *op) {
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::CropOp>(op)) {
     return cast_op.name().getValue();
   }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::UpsampleOp>(op)) {
+    return cast_op.name().getValue();
+  }
+
   llvm::errs() << op->getName() << "\n";
   assert(false);
   return "not_found";

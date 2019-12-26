@@ -14,8 +14,9 @@ if false; then
 
 # test mlir interpreter
 mlir-tpu-interpreter yolo_v3_416.mlir \
-    --tensor-in $DATA_PATH/test_cat_in_fp32.bin \
-    --tensor-out out.bin
+    --tensor-in $DATA_PATH/test_dog_in_416x416_fp32.bin \
+    --tensor-out out.bin \
+    --dump-all-tensor=tensor_all.npz
 bin_compare.py out.bin $DATA_PATH/test_cat_out_yolo_v3_416_prob_fp32.bin \
     float32 1 1 1 1000 5 5
 

@@ -74,7 +74,12 @@ int mkldnn_conv(float *input, float *weight, float *bias,
   memory::dims bias_tz = { oc };
   memory::dims dst_tz = { batch, oc, oh, ow };
   memory::dims strides = { sh, sw };
-  memory::dims padding = { ph, pw };
+  int ph_t = ph;
+  int pw_l = pw;
+  int ph_b = ph;
+  int pw_r = pw;
+  memory::dims padding_l = { ph_t, pw_l };
+  memory::dims padding_r = { ph_b, pw_r };
 
   // memory
   auto user_src_memory = memory(
@@ -96,7 +101,7 @@ int mkldnn_conv(float *input, float *weight, float *bias,
   // conv desc
   auto conv_desc = convolution_forward::desc(prop_kind::forward_inference,
       algorithm::convolution_direct, src_md, weights_md, bias_md, dst_md,
-      strides, padding, padding);
+      strides, padding_l, padding_r);
   auto conv_prim_desc = convolution_forward::primitive_desc(conv_desc, eng);
 
   // do reorder if needed
@@ -481,7 +486,8 @@ int my_bn(float *input, float *mean, float *variance, float *scale,
         auto d = sqrt(variance[ci] + eps);
         output[ni * c * h * w + ci * h * w + i] = x / d;
         if (fabs(variance[ci]) <= eps && fabs(mean[ci]) <= 1e-8
-            && fabs(input[ni * c * h * w + ci * h * w + i]) >= eps) {
+            && fabs(input[ni * c * h * w + ci * h * w + i]) >= 1.0e-4
+            && fabs(output[ni * c * h * w + ci * h * w + i]) >= 1.0e-2) {
           llvm::errs() << "WARNING: BN: var too small, i=" << i
                        << ", v=" << std::to_string(variance[ci])
                        << ", m=" << std::to_string(mean[ci])
@@ -530,6 +536,26 @@ int my_scale(float *input, float *scale, float *bias,
   }
   dump_idx ++;
 #endif // DUMP_FLAG
+  return 0;
+}
+
+int my_upsample(float *input, float *output,
+    int n, int c, int ih, int iw, int scale) {
+  int h = ih * scale;
+  int w = iw * scale;
+  for (int ni = 0; ni < n; ni++) {
+    for (int ci = 0; ci < c; ci++) {
+      for (int hi = 0; hi < h; hi++) {
+        for (int wi = 0; wi < w; wi++) {
+          int nwi = wi/scale;
+          int nhi = hi/scale;
+          int out_idx = (((ni * c + ci) * h) + hi) * w + wi;
+          int in_idx = (((ni * c + ci) * (h / scale)) + nhi) * (w / scale) + nwi;
+          output[out_idx] = input[in_idx];
+        }
+      }
+    }
+  }
   return 0;
 }
 
@@ -604,6 +630,7 @@ int my_crop(float *input, float *output, long int *shape1, long int *shape2, lon
     int c2 = shape2[1];
     int h2 = shape2[2];
     int w2 = shape2[3];
+    assert(n == n2 && c == c2);
 
     int btm_offset =
         ((ind_off[0] * c + ind_off[1]) * h + ind_off[2]) * w + ind_off[3];

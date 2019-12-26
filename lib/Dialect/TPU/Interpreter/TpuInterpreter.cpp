@@ -496,7 +496,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
     int n, c, h, w;
     float *negative_slope = opdT[1]->data();
-    
+
     auto input_type = op.x()->getType().cast<TensorType>();
     std::vector<int64_t> i_s(input_type.getShape());
     auto output_type = op.y()->getType().cast<TensorType>();
@@ -774,7 +774,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
   if (auto op = dyn_cast<tpu::CropOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "CropOp"
                             << "\n";);
-                            
+
     auto opdT = getOperandTensors(opInst, valueMapping);
     auto result = op.getResult();
     LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump();
@@ -786,7 +786,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     auto resultT = std::make_unique<std::vector<float>>(size);
     uint32_t bottom_num = opdT.size();
     assert(bottom_num >= 2 && "bottom num is 0 or 1");
-    
+
     auto crop_start_axis = op.axis();
     int crop_offset_n = op.crop_offset_n().getValue().getLimitedValue();
     int crop_offset_c = op.crop_offset_c().getValue().getLimitedValue();
@@ -871,6 +871,41 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
     return success();
   }
+  if (auto op = dyn_cast<tpu::UpsampleOp>(opInst)) {
+    LLVM_DEBUG(llvm::errs() << "UpsampleOp" << "\n";);
+    auto opdT = getOperandTensors(opInst, valueMapping);
+    auto result = op.getResult();
+    LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";);
+    std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
+    assert(shape.size() <= 4);
+    auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
+    auto resultT = std::make_unique<std::vector<float> >(size);
+
+    int n, c, ih, iw, oh, ow, scale;
+    auto input_type = op.x()->getType().cast<TensorType>();
+    std::vector<int64_t> i_s(input_type.getShape());
+    auto output_type = op.y()->getType().cast<TensorType>();
+    std::vector<int64_t> o_s(output_type.getShape());
+    n = i_s[0];
+    c = i_s[1];
+    ih = i_s[2];
+    iw = i_s[3];
+    scale = op.scale().getLimitedValue();
+    assert(o_s[0] == n);
+    assert(o_s[1] == c);
+    oh = o_s[2];
+    ow = o_s[3];
+    assert(oh ==  ih * scale);
+    assert(ow ==  iw * scale);
+    float *input = (float *)opdT[0]->data();
+    float *output = (float *)resultT.get()->data();
+    int ret = my_upsample(input, output, n, c, ih, iw, scale);
+    assert(ret == 0);
+
+    valueMapping[result] = std::move(resultT);
+
+    return success();
+  }
 
   if (auto op = dyn_cast<tpu::QuantizationOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "QuantizationOp" << "\n";);
@@ -928,6 +963,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
     return success();
   }
+
   if (auto op = dyn_cast<tpu::SoftmaxOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "SoftmaxOp" << "\n";);
     auto opdT = getOperandTensors(opInst, valueMapping);
