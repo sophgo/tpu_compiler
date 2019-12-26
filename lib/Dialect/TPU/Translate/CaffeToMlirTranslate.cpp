@@ -746,7 +746,7 @@ void CaffeImporter::convertReLULayer(mlir::Block *block,
 
   int64_t n, c, h, w;
   llvm::ArrayRef<int64_t> input_shape = input_var->getType().dyn_cast<mlir::TensorType>().getShape();
-  RankedTensorType result_type=nullptr; 
+  RankedTensorType result_type=nullptr;
 
   if(input_shape.size() == 4){
     n = input_shape[0];
@@ -756,10 +756,10 @@ void CaffeImporter::convertReLULayer(mlir::Block *block,
     result_type = RankedTensorType::get({n, c, h, w}, elementType_);
   }else if(input_shape.size() == 2){
     h = input_shape[0];
-    w = input_shape[1]; 
+    w = input_shape[1];
     result_type = RankedTensorType::get({h,w}, elementType_);
   }else{
-    assert(input_shape.size() == 4 || input_shape.size() == 2);    
+    assert(input_shape.size() == 4 || input_shape.size() == 2);
   }
 
   LLVM_DEBUG(
@@ -820,7 +820,7 @@ void CaffeImporter::convertPReLULayer(mlir::Block *block,
   attrs.push_back(builder_.getNamedAttr(
       "name", builder_.getStringAttr(layer_param.name())));
   auto op = OpBuilder(block).create<tpu::PReluOp>(
-      builder_.getUnknownLoc(), result_type, 
+      builder_.getUnknownLoc(), result_type,
       ArrayRef<Value *>{operands},
       ArrayRef<NamedAttribute>{attrs});
   auto result_var = op.getResult();
@@ -968,6 +968,14 @@ void CaffeImporter::convertConcatLayer(mlir::Block *block,
   int64_t n = 0, c = 0, h = 0, w = 0;
   int64_t concat_axis_dim = 0;
 
+  if (input_vars.size() == 1) {
+    // special case for YOLOv3 caffe model, which has only one input
+    // remove that node
+    llvm::errs() << "WARNING: concat layer has only one input\n";
+    tensor_map_[layer_param.top(0)] = input_vars[0];
+    return;
+  }
+
   for (uint32_t i = 0; i < input_vars.size(); i++) {
     llvm::ArrayRef<int64_t> input_shape =
       input_vars[i]->getType().dyn_cast<mlir::TensorType>().getShape();
@@ -1087,7 +1095,7 @@ void CaffeImporter::convertCropLayer(mlir::Block *block,
     assert((offset_size + axis_index <= input_dim) &&
            " number of offset values specified must be equal to the number "
            "ofdimensions following axis.");
-  } 
+  }
 
   LLVM_DEBUG(llvm::errs() << "\n  Crop\n"
                           << "    bottom: " << input_shape[0] << ", "
@@ -1167,7 +1175,7 @@ void CaffeImporter::convertFlattenLayer(mlir::Block *block,
 
   LLVM_DEBUG(llvm::errs() << "  N: " << n << ", C: " << c << ", IH*IW: " << h
                           << " * " << w << "\n";);
-              
+
   // construct OP
   auto result_type = RankedTensorType::get({n, c * h * w}, elementType_);
   std::vector<NamedAttribute> attrs;
