@@ -486,7 +486,8 @@ int my_bn(float *input, float *mean, float *variance, float *scale,
         auto d = sqrt(variance[ci] + eps);
         output[ni * c * h * w + ci * h * w + i] = x / d;
         if (fabs(variance[ci]) <= eps && fabs(mean[ci]) <= 1e-8
-            && fabs(input[ni * c * h * w + ci * h * w + i]) >= eps) {
+            && fabs(input[ni * c * h * w + ci * h * w + i]) >= 1.0e-4
+            && fabs(output[ni * c * h * w + ci * h * w + i]) >= 1.0e-2) {
           llvm::errs() << "WARNING: BN: var too small, i=" << i
                        << ", v=" << std::to_string(variance[ci])
                        << ", m=" << std::to_string(mean[ci])
