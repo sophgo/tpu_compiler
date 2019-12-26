@@ -363,6 +363,7 @@ def TPU_CropOp: TPU_Op<"crop", [NoSideEffect]> {
   let arguments = (
     ins AnyTensor:$input1,
     AnyTensor:$input2,
+    OptionalAttr<NonNegativeI64Attr>:$offset,
     OptionalAttr<I32Attr>:$axis,
     OptionalAttr<I32Attr>:$crop_offset_n,
     OptionalAttr<I32Attr>:$crop_offset_c,
@@ -385,6 +386,7 @@ def TPU_SigmoidOp: TPU_Op<"sigmoid", [NoSideEffect]> {
   let arguments = (
     ins AnyTensor:$input,
     OptionalAttr<StrAttr>:$name,
+    OptionalAttr<NonNegativeI64Attr>:$offset,
     OptionalAttr<F32Attr>:$threshold_y
   );
 
@@ -399,6 +401,7 @@ def TPU_DummyDataOp: TPU_Op<"dummydata", [NoSideEffect]> {
   }];
 
   let arguments = (
+    ins AnyTensor:$input,
     OptionalAttr<StrAttr>:$name
   );
 
