@@ -51,7 +51,15 @@ llvm::StringRef getOpName(Operation *op) {
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::ConcatOp>(op)) {
     return cast_op.name().getValue();
   }
-
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::DummyDataOp>(op)) {
+    return cast_op.name().getValue();
+  }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::SigmoidOp>(op)) {
+    return cast_op.name().getValue();
+  }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::CropOp>(op)) {
+    return cast_op.name().getValue();
+  }
   llvm::errs() << op->getName() << "\n";
   assert(false);
   return "not_found";
@@ -146,6 +154,12 @@ uint64_t getPreviousOpAddress(Operation *op, uint index = 0) {
     return cast_op.offset().getValue().getLimitedValue();
   }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::EltwiseOp>(formerOp)) {
+    return cast_op.offset().getValue().getLimitedValue();
+  }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::SigmoidOp>(formerOp)) {
+    return cast_op.offset().getValue().getLimitedValue();
+  }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::CropOp>(formerOp)) {
     return cast_op.offset().getValue().getLimitedValue();
   }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::ReshapeOp>(formerOp)) {
