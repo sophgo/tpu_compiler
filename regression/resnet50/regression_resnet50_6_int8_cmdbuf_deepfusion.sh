@@ -26,9 +26,13 @@ mlir-opt \
     -o resnet50_cali.mlir
 
 # apply all possible post-calibration optimizations
+# mlir-opt \
+#    --fuse-relu \
+#    --fuse-eltwise \
+#    resnet50_cali.mlir \
+#    -o resnet50_opt_post_cali.mlir
 mlir-opt \
     --fuse-relu \
-    --fuse-eltwise \
     resnet50_cali.mlir \
     -o resnet50_opt_post_cali.mlir
 
@@ -54,7 +58,6 @@ mlir-opt \
 ################################
 # backend
 ################################
-if false; then
 
 # assign weight address & neuron address
 mlir-opt \
@@ -66,8 +69,17 @@ mlir-opt \
     --tpu-neuron-address-align=16 \
     --tpu-neuron-map-filename=neuron_map.csv \
     --assign-layer-id \
-    resnet50_quant_int8_multiplier.mlir | \
-  mlir-translate \
+    resnet50_quant_int8_multiplier.mlir \
+    -o resnet50_quant_int8_multiplier_addr.mlir
+
+mlir-opt \
+    --deep-fusion-tg2tl-la \
+    resnet50_quant_int8_multiplier_addr.mlir \
+    -o resnet50_quant_int8_multiplier_tl_la.mlir
+
+# generate cmdbuf
+mlir-translate \
+    resnet50_quant_int8_multiplier_tl_la.mlir \
     --mlir-to-cmdbuf \
     -o cmdbuf.bin
 
@@ -107,8 +119,6 @@ mlir-tpu-interpreter \
 # compare all tensors
 bin_to_npz.py out_all.bin neuron_map.csv out_all.npz
 npz_compare.py out_all.npz tensor_all_int8_multiplier.npz show 5
-
-fi
 
 # VERDICT
 echo $0 PASSED

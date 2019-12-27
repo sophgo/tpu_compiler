@@ -44,6 +44,8 @@
 using namespace mlir;
 
 #include "backend/backend_tg_api.h"
+#include "backend/backend_tl_api.h"
+
 static BM1880v2BackendContext *backend_ctx = nullptr;
 
 static int8_t getRshiftFromOperandTensor(Operation &op, int opdIndex) {
@@ -67,12 +69,34 @@ static int8_t getRshiftFromOperandTensor(Operation &op, int opdIndex) {
 static LogicalResult runOperation(Operation &opInst) {
   LLVM_DEBUG(llvm::errs() << "  op " << opInst.getName() << "\n";);
 
+  if (auto op = dyn_cast<tpu::TL_LA_Conv2DOp>(opInst)) {
+    LLVM_DEBUG(llvm::errs() << "Conv2DOp" << "\n";);
+
+    bool with_bias, do_relu;
+    int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, ph, pw, dh, dw;
+    getConv2DOpParam<tpu::TL_LA_Conv2DOp>(op, n, ic, ih, iw, oc, oh, ow, g,
+                     kh, kw, sh, sw, ph, pw, dh, dw, with_bias, do_relu);
+
+    gaddr_t input_gaddr = getPreviousOpAddress(op);
+    gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
+    gaddr_t filter_gaddr = getWeightOpAddress(op.getOperand(1)->getDefiningOp());
+    gaddr_t perchannel_gaddr = getWeightOpAddress(op.getOperand(2)->getDefiningOp());
+    int layer_id = op.layer_id().getValue().getLimitedValue();
+
+    llvm::errs() << "TL_LA_Conv2DOp, layer_id = " << layer_id << "\n";
+    cvi_backend_tl_conv_LA(*backend_ctx, layer_id,
+        input_gaddr, output_gaddr, filter_gaddr, perchannel_gaddr,
+        n, ic, ih, iw, g, oc, kh, kw, dh, dw, ph, ph, pw, pw, sh, sw,
+        with_bias, false);
+
+    return success();
+  }
   if (auto op = dyn_cast<tpu::Conv2DOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "Conv2DOp" << "\n";);
 
     bool with_bias, do_relu;
     int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, ph, pw, dh, dw;
-    getConv2DOpParam(op, n, ic, ih, iw, oc, oh, ow, g,
+    getConv2DOpParam<tpu::Conv2DOp>(op, n, ic, ih, iw, oc, oh, ow, g,
                      kh, kw, sh, sw, ph, pw, dh, dw, with_bias, do_relu);
 
     gaddr_t input_gaddr = getPreviousOpAddress(op);
@@ -155,7 +179,6 @@ static LogicalResult runOperation(Operation &opInst) {
     gaddr_t bias_gaddr = getWeightOpAddress(op.getOperand(2)->getDefiningOp());
     // TODO: assuming always with_bias
     int with_bias = 1;
-
     bmnet_conv_parallel_fixed_forward_bmkernel(
         *backend_ctx,
         0, // stream_id,

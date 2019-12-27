@@ -25,9 +25,9 @@
 include "mlir/Dialect/TPU/TPUBase.td"
 
 //===----------------------------------------------------------------------===//
-// TL LW (Load Weight) op definitions.
+// TL op definitions.
 //===----------------------------------------------------------------------===//
-def TPU_TL_LW_Conv2DOp : TPU_Op<"tl_loadw_conv_2d", [NoSideEffect]> {
+def TPU_TL_LW_Conv2DOp : TPU_Op<"tl_lw_conv_2d", [NoSideEffect]> {
   let summary = "TL Load Weight Convolution operator";
 
   let description = [{
@@ -53,7 +53,7 @@ def TPU_TL_LW_Conv2DOp : TPU_Op<"tl_loadw_conv_2d", [NoSideEffect]> {
   let arguments = (
     ins AnyTensor:$input,
     AnyTensor:$filter,
-    AnyTensor:$per_channel_info,
+    AnyTensor:$perchannel,
     BoolAttr:$with_bias,
     DefaultValuedAttr<I32Attr, "1">:$dilation_h_factor,
     DefaultValuedAttr<I32Attr, "1">:$dilation_w_factor,
@@ -62,6 +62,41 @@ def TPU_TL_LW_Conv2DOp : TPU_Op<"tl_loadw_conv_2d", [NoSideEffect]> {
     I32Attr:$stride_w,
     DefaultValuedAttr<I32Attr, "1">:$group,
     DefaultValuedAttr<TPU_AFAttr, "NONE">:$fused_activation_function,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
+def TPU_TL_LA_Conv2DOp : TPU_Op<"tl_la_conv_2d", [NoSideEffect]> {
+  let summary = "TL Load All Convolution operator";
+
+  let description = [{
+    [IMPORTANT] : for INT8_MULTIPLIER quantized convolution only.
+    Performs TL convolution operation on inputs memref, and output to output
+      memref. The input/output/weight are still global memory tensors, so this
+      operator has to handle loading input/weight and store output by itself.
+
+    Inputs:
+      `inputs[0]`  : required: the input memref.
+      `inputs[1]`  : required: the filter memref.
+      `inputs[2]`  : required: the perchannel memref.
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    AnyTensor:$filter,
+    AnyTensor:$perchannel,
+    BoolAttr:$with_bias,
+    DefaultValuedAttr<I32Attr, "1">:$dilation_h_factor,
+    DefaultValuedAttr<I32Attr, "1">:$dilation_w_factor,
+    TPU_PaddingAttr:$padding,
+    I32Attr:$stride_h,
+    I32Attr:$stride_w,
+    DefaultValuedAttr<I32Attr, "1">:$group,
+    DefaultValuedAttr<TPU_AFAttr, "NONE">:$fused_activation_function,
+    OptionalAttr<NonNegativeI64Attr>:$offset,
+    OptionalAttr<F32Attr>:$threshold_y,
     OptionalAttr<NonNegativeI32Attr>:$layer_id
   );
 

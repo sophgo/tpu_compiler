@@ -31,7 +31,7 @@ module {
     // affine.dma_wait %tag[%c0], %num_elements : memref<1xf32>
     // load to tensor, do conv on tensors, then store to memref
     %A_tensor = tensor_load %A_lmem : memref<1x3x28x28xi8, 1>
-    %B_tensor = "tpu.tl_loadw_conv_2d"(%A_tensor, %f, %b)
+    %B_tensor = "tpu.tl_lw_conv_2d"(%A_tensor, %f, %b)
       {dilation_h_factor = 1 : i32, dilation_w_factor = 1 : i32, fused_activation_function = "RELU", padding = "SAME", stride_h = 1 : i32, stride_w = 1 : i32, with_bias = true}
       : (tensor<1x3x28x28xi8>, tensor<16x3x3x3xi8>, tensor<16xi8>) -> tensor<1x16x28x28xi8>
     tensor_store %B_tensor, %B_lmem : memref<1x16x28x28xi8, 1>
