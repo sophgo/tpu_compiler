@@ -630,7 +630,7 @@ int my_crop(float *input, float *output, long int *shape1, long int *shape2, lon
     int c2 = shape2[1];
     int h2 = shape2[2];
     int w2 = shape2[3];
-    assert(n == n2 && c == c2);
+
 
     int btm_offset =
         ((ind_off[0] * c + ind_off[1]) * h + ind_off[2]) * w + ind_off[3];
