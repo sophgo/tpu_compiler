@@ -30,6 +30,7 @@ parser.add_argument("--input_scale", type=float,
 parser.add_argument("--count", type=int, default=50000)
 parser.add_argument("--dump_data", type=bool, default=False)
 parser.add_argument("--show", type=bool, default=False)
+parser.add_argument("--loader_transforms", type=int, help="image transform ny torch loader", default=0)
 args = parser.parse_args()
 
 def second(elem):
@@ -100,7 +101,7 @@ def accuracy(output, target, topk=(1,)):
     return res
 
 if __name__ == '__main__':
-  do_loader_transforms = False
+  do_loader_transforms = args.loader_transforms
   traindir = os.path.join(args.dataset, 'train')
   valdir = os.path.join(args.dataset, 'val')
   # onedir = os.path.join(args.dataset, 'one')
