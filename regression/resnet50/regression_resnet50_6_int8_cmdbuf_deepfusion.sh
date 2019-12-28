@@ -81,6 +81,7 @@ mlir-opt \
 mlir-translate \
     resnet50_quant_int8_multiplier_tl_la.mlir \
     --mlir-to-cmdbuf \
+    --debug-only=tl_conv \
     -o cmdbuf.bin
 
 ################################

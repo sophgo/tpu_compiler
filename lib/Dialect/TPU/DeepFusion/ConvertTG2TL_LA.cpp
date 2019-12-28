@@ -56,7 +56,7 @@ struct TpuTG2TLConv2DOpPattern : public RewritePattern {
     getConv2DOpParam(op, n, ic, ih, iw, oc, oh, ow, g,
                      kh, kw, sh, sw, ph, pw, dh, dw, with_bias, do_relu);
 
-    if (!do_relu && ih == 28 && iw == 28 && oh == 28 && ow == 28 && g == 1) {
+    if (ih == 28 && iw == 28 && oh == 28 && ow == 28 && g == 1) {
       llvm::errs() << "TG2TL_LA: " << op.name()
                                    << ", layer ID " << op.layer_id() << "\n";
 
@@ -70,7 +70,8 @@ struct TpuTG2TLConv2DOpPattern : public RewritePattern {
       attrs.push_back(rewriter.getNamedAttr("with_bias", rewriter.getBoolAttr(with_bias)));
       attrs.push_back(rewriter.getNamedAttr("dilation_h_factor", rewriter.getI32IntegerAttr(dh)));
       attrs.push_back(rewriter.getNamedAttr("dilation_w_factor", rewriter.getI32IntegerAttr(dw)));
-      //attrs.push_back(builder.getNamedAttr("fused_activation_function", builder.getStringAttr("NONE")));
+      attrs.push_back(rewriter.getNamedAttr("fused_activation_function",
+          rewriter.getStringAttr(op.fused_activation_function())));
       attrs.push_back(rewriter.getNamedAttr("padding", rewriter.getStringAttr(op.padding())));
       attrs.push_back(rewriter.getNamedAttr("stride_h", rewriter.getI32IntegerAttr(sh)));
       attrs.push_back(rewriter.getNamedAttr("stride_w", rewriter.getI32IntegerAttr(sw)));

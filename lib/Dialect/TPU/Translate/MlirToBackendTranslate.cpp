@@ -75,19 +75,20 @@ static LogicalResult runOperation(Operation &opInst) {
     bool with_bias, do_relu;
     int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, ph, pw, dh, dw;
     getConv2DOpParam<tpu::TL_LA_Conv2DOp>(op, n, ic, ih, iw, oc, oh, ow, g,
-                     kh, kw, sh, sw, ph, pw, dh, dw, with_bias, do_relu);
+        kh, kw, sh, sw, ph, pw, dh, dw, with_bias, do_relu);
 
-    gaddr_t input_gaddr = getPreviousOpAddress(op);
-    gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
-    gaddr_t filter_gaddr = getWeightOpAddress(op.getOperand(1)->getDefiningOp());
-    gaddr_t perchannel_gaddr = getWeightOpAddress(op.getOperand(2)->getDefiningOp());
+    gaddr_t ga_input = getPreviousOpAddress(op);
+    gaddr_t ga_output = op.offset().getValue().getLimitedValue();
+    gaddr_t ga_filter = getWeightOpAddress(op.getOperand(1)->getDefiningOp());
+    gaddr_t ga_perchannel = getWeightOpAddress(op.getOperand(2)->getDefiningOp());
     int layer_id = op.layer_id().getValue().getLimitedValue();
 
     llvm::errs() << "TL_LA_Conv2DOp, layer_id = " << layer_id << "\n";
     cvi_backend_tl_conv_LA(*backend_ctx, layer_id,
-        input_gaddr, output_gaddr, filter_gaddr, perchannel_gaddr,
-        n, ic, ih, iw, g, oc, kh, kw, dh, dw, ph, ph, pw, pw, sh, sw,
-        with_bias, false);
+        ga_input, ga_output, ga_filter, ga_perchannel,
+        n, ic, ih, iw, g, oc, oh, ow, kh, kw,
+        dh, dw, ph, ph, pw, pw, sh, sw,
+        false, with_bias, do_relu);
 
     return success();
   }
