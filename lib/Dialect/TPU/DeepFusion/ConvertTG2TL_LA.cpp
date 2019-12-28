@@ -38,6 +38,24 @@
 
 using namespace mlir;
 
+// TODO: move to backend
+static const struct MachineInfo {
+  const int lane_num = 32;
+  const int eu_num = 16;
+  const uint64_t lmem_per_lane = 32 * 1024;
+} mInfo;
+
+static uint64_t getSizePerLane(int n, int c, int h, int w, bool eu_align) {
+  uint64_t channelPerLane = llvm::alignTo(c, mInfo.lane_num) / mInfo.lane_num;
+  uint64_t bytesPerChannel = h * w;
+  if (eu_align) {
+    bytesPerChannel = llvm::alignTo(bytesPerChannel, mInfo.eu_num);
+  }
+  // total number align to eu_num is mandatory
+  return llvm::alignTo(n * channelPerLane * bytesPerChannel, mInfo.eu_num);
+}
+
+
 namespace {
 
 struct TpuTG2TLConv2DOpPattern : public RewritePattern {
@@ -56,9 +74,54 @@ struct TpuTG2TLConv2DOpPattern : public RewritePattern {
     getConv2DOpParam(op, n, ic, ih, iw, oc, oh, ow, g,
                      kh, kw, sh, sw, ph, pw, dh, dw, with_bias, do_relu);
 
-    if (ih == 28 && iw == 28 && oh == 28 && ow == 28 && g == 1) {
+    if (op.fused_eltwise_method() != "NONE") {
+      // dont't support eltwise yet
       llvm::errs() << "TG2TL_LA: " << op.name()
-                                   << ", layer ID " << op.layer_id() << "\n";
+                   << ", layer ID " << op.layer_id()
+                   << ", SKIP, not support eltwise yet"
+                   << "\n";
+      return matchFailure();
+    }
+
+    uint64_t inputNeuronSizePerLane = getSizePerLane(n, ic, ih, iw, true);
+    uint64_t outputNeuronSizePerLane = getSizePerLane(n, oc, oh, ow, true);
+    uint64_t filterSizePerLane = 0;
+    // filter working size *2 for double buffer
+    if (g != oc) {
+      assert(g == 1);
+      // for non-dw conv, assuming oc_step = lane_num
+      int oc_step = mInfo.lane_num;
+      filterSizePerLane = getSizePerLane(ic, oc_step, kh, kw, false) * 2;
+    } else {
+      // for dw conv, load weight all in once
+      filterSizePerLane = getSizePerLane(1, oc, kh, kw, false) * 2;
+    }
+    // load bias all in once
+    int bias_size = with_bias ? 9 : 5;
+    uint64_t biasSizePerLane = getSizePerLane(1, oc, 1, bias_size, false);
+    // if eltwise sum is enabled, eltwise input size
+    uint64_t eltwiseInputSizePerLane = 0;
+    uint64_t eltwiseWorkingSizePerLane = 0;
+
+    if (op.fused_eltwise_method() == "SUM") {
+      eltwiseInputSizePerLane = outputNeuronSizePerLane;
+      #define MIN_eltwise_working_size    (32)
+      eltwiseWorkingSizePerLane = MIN_eltwise_working_size * 2;
+    }
+    uint64_t totalPerLane = inputNeuronSizePerLane + outputNeuronSizePerLane
+                            + filterSizePerLane + biasSizePerLane
+                            + eltwiseInputSizePerLane + eltwiseWorkingSizePerLane;
+    if (totalPerLane > mInfo.lmem_per_lane) {
+      llvm::errs() << "TG2TL_LA: " << op.name()
+                   << ", layer ID " << op.layer_id()
+                   << ", SKIP, lmem needed " << totalPerLane
+                   << "\n";
+      return matchFailure();
+    }
+
+    if (1) {
+      llvm::errs() << "TG2TL_LA: " << op.name()
+                   << ", layer ID " << op.layer_id() << "\n";
 
       assert(op.getNumOperands() == 3);
       std::vector<Value *> newOperands;
@@ -83,8 +146,6 @@ struct TpuTG2TLConv2DOpPattern : public RewritePattern {
           op, op.getResult()->getType(),
           ArrayRef<Value *>{newOperands}, ArrayRef<NamedAttribute>{attrs});
       return matchSuccess();
-    } else {
-      return matchFailure();
     }
   }
 };
