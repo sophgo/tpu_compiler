@@ -47,6 +47,7 @@ std::unique_ptr<OpPassBase<FuncOp>> createAssignLayerIdPass();
 
 std::unique_ptr<OpPassBase<FuncOp>> createDeepFusionSimple();
 std::unique_ptr<OpPassBase<FuncOp>> createDeepFusionTG2TL_LA();
+std::unique_ptr<OpPassBase<FuncOp>> createDeepFusionTL_LA2LW();
 
 } // namespace mlir
 

@@ -77,6 +77,11 @@ mlir-opt \
     resnet50_quant_int8_multiplier_addr.mlir \
     -o resnet50_quant_int8_multiplier_tl_la.mlir
 
+mlir-opt \
+    --deep-fusion-tl-la2lw \
+    resnet50_quant_int8_multiplier_tl_la.mlir \
+    -o resnet50_quant_int8_multiplier_tl_lw.mlir
+
 # generate cmdbuf
 mlir-translate \
     resnet50_quant_int8_multiplier_tl_la.mlir \
