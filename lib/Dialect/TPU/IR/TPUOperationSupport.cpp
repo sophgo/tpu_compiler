@@ -271,6 +271,10 @@ template void getConv2DOpParam<tpu::TL_LA_Conv2DOp>(tpu::TL_LA_Conv2DOp &op,
     int &n, int &ic, int &ih, int &iw, int &oc, int &oh, int &ow, int &g,
     int &kh, int &kw, int &sh, int &sw, int &ph, int &pw, int &dh, int &dw,
     bool &with_bias, bool &do_relu);
+template void getConv2DOpParam<tpu::TL_LW_Conv2DOp>(tpu::TL_LW_Conv2DOp &op,
+    int &n, int &ic, int &ih, int &iw, int &oc, int &oh, int &ow, int &g,
+    int &kh, int &kw, int &sh, int &sw, int &ph, int &pw, int &dh, int &dw,
+    bool &with_bias, bool &do_relu);
 
 void getPool2DOpParam(tpu::Pool2DOp &op,
     bool &is_average_pool, int &n, int &c, int &ih, int &iw, int &oh, int &ow,

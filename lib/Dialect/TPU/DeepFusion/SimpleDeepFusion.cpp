@@ -31,28 +31,11 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/MathExtras.h"
+#include "MachineInfo.h"
 
 #define DEBUG_TYPE "deep-fusion-simple"
 
 using namespace mlir;
-
-// TODO: move to backend
-static const struct MachineInfo {
-  const int lane_num = 32;
-  const int eu_num = 16;
-  const uint64_t lmem_per_lane = 32 * 1024;
-} mInfo;
-
-static uint64_t getSizePerLane(int n, int c, int h, int w, bool eu_align) {
-  uint64_t channelPerLane = llvm::alignTo(c, mInfo.lane_num) / mInfo.lane_num;
-  uint64_t bytesPerChannel = h * w;
-  if (eu_align) {
-    bytesPerChannel = llvm::alignTo(bytesPerChannel, mInfo.eu_num);
-  }
-  // total number align to eu_num is mandatory
-  return llvm::alignTo(n * channelPerLane * bytesPerChannel, mInfo.eu_num);
-}
-
 
 static llvm::cl::opt<std::string> clDeepFusionStatsFilename(
     "deep-fusion-simple-stats",
@@ -175,38 +158,39 @@ private:
     int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, ph, pw, dh, dw;
     getConv2DOpParam<tpu::Conv2DOp>(op, n, ic, ih, iw, oc, oh, ow, g,
                      kh, kw, sh, sw, ph, pw, dh, dw, with_bias, do_relu);
-
+    bool do_eltwise = (op.fused_eltwise_method() == "SUM") ? true : false;
     uint64_t mac_count = ow * oh * kh * kw * g * (ic / g) * (oc / g) * n;
     stats->increaseMacCount(mac_count);
 
-    uint64_t inputNeuronSizePerLane = getSizePerLane(n, ic, ih, iw, true);
-    uint64_t outputNeuronSizePerLane = getSizePerLane(n, oc, oh, ow, true);
+    uint64_t inputNeuronSizePerLane = MInfo::getSizePerLane(n, ic, ih, iw, true);
+    uint64_t outputNeuronSizePerLane = MInfo::getSizePerLane(n, oc, oh, ow, true);
     uint64_t filterSizePerLane = 0;
     // filter working size *2 for double buffer
     if (g != oc) {
       assert(g == 1);
       // for non-dw conv, assuming oc_step = lane_num
-      int oc_step = mInfo.lane_num;
-      filterSizePerLane = getSizePerLane(ic, oc_step, kh, kw, false) * 2;
+      int oc_step = MInfo::lane_num;
+      filterSizePerLane = MInfo::getSizePerLane(ic, oc_step, kh, kw, false) * 2;
     } else {
       // for dw conv, load weight all in once
-      filterSizePerLane = getSizePerLane(1, oc, kh, kw, false) * 2;
+      filterSizePerLane = MInfo::getSizePerLane(1, oc, kh, kw, false) * 2;
     }
     // load bias all in once
     int bias_size = with_bias ? 9 : 5;
-    uint64_t biasSizePerLane = getSizePerLane(1, oc, 1, bias_size, false);
+    uint64_t biasSizePerLane = MInfo::getSizePerLane(1, oc, 1, bias_size, false);
     // if eltwise sum is enabled, eltwise input size
     uint64_t eltwiseInputSizePerLane = 0;
     uint64_t eltwiseWorkingSizePerLane = 0;
-    if (op.fused_eltwise_method() == "SUM") {
+    if (do_eltwise) {
       eltwiseInputSizePerLane = outputNeuronSizePerLane;
       #define MIN_eltwise_working_size    (32)
       eltwiseWorkingSizePerLane = MIN_eltwise_working_size * 2;
     }
+    // total
     uint64_t totalPerLane = inputNeuronSizePerLane + outputNeuronSizePerLane
                             + filterSizePerLane + biasSizePerLane
                             + eltwiseInputSizePerLane + eltwiseWorkingSizePerLane;
-    if (totalPerLane <= mInfo.lmem_per_lane) {
+    if (totalPerLane <= MInfo::lmem_per_lane) {
       stats->pushChain(op.getResult());
     } else {
       stats->completeChain();
@@ -237,10 +221,10 @@ private:
     uint64_t mac_count = ow * oh * kh * kw * c * n;
     stats->increaseMacCount(mac_count);
 
-    uint64_t inputNeuronSizePerLane = getSizePerLane(n, c, ih, iw, true);
-    uint64_t outputNeuronSizePerLane = getSizePerLane(n, c, oh, ow, true);
+    uint64_t inputNeuronSizePerLane = MInfo::getSizePerLane(n, c, ih, iw, true);
+    uint64_t outputNeuronSizePerLane = MInfo::getSizePerLane(n, c, oh, ow, true);
     uint64_t totalPerLane = inputNeuronSizePerLane + outputNeuronSizePerLane;
-    if (totalPerLane <= mInfo.lmem_per_lane) {
+    if (totalPerLane <= MInfo::lmem_per_lane) {
       stats->pushChain(op.getResult());
     } else {
       stats->completeChain();
@@ -270,10 +254,10 @@ private:
     uint64_t mac_count = m * k * n;
     stats->increaseMacCount(mac_count);
 
-    uint64_t inputNeuronSizePerLane = getSizePerLane(m, k, 1, 1, false);
-    uint64_t outputNeuronSizePerLane = getSizePerLane(m, n, 1, 1, false);
+    uint64_t inputNeuronSizePerLane = MInfo::getSizePerLane(m, k, 1, 1, false);
+    uint64_t outputNeuronSizePerLane = MInfo::getSizePerLane(m, n, 1, 1, false);
     uint64_t totalPerLane = inputNeuronSizePerLane + outputNeuronSizePerLane;
-    if (totalPerLane <= mInfo.lmem_per_lane) {
+    if (totalPerLane <= MInfo::lmem_per_lane) {
       stats->pushChain(op.getResult());
     } else {
       stats->completeChain();

@@ -25,8 +25,23 @@
 include "mlir/Dialect/TPU/TPUBase.td"
 
 //===----------------------------------------------------------------------===//
+// Quantization methods enum definitions.
+//===----------------------------------------------------------------------===//
+
+// Allowed quantization methods cases
+def TPU_LM_LO_NONE    : StrEnumAttrCase<"NONE">;
+def TPU_LM_LO_IWO     : StrEnumAttrCase<"IWO">;
+def TPU_LM_LO_OWI     : StrEnumAttrCase<"OWI">;
+
+def TPU_LMLayoutAttr : StrEnumAttr<
+    "TpuLMLayoutType", "TL lmem layout enum", [
+      TPU_LM_LO_NONE,  TPU_LM_LO_IWO,  TPU_LM_LO_OWI
+    ]>;
+
+//===----------------------------------------------------------------------===//
 // TL op definitions.
 //===----------------------------------------------------------------------===//
+
 def TPU_TL_LW_Conv2DOp : TPU_Op<"tl_lw_conv_2d", [NoSideEffect]> {
   let summary = "TL Load Weight Convolution operator";
 
@@ -62,6 +77,14 @@ def TPU_TL_LW_Conv2DOp : TPU_Op<"tl_lw_conv_2d", [NoSideEffect]> {
     I32Attr:$stride_w,
     DefaultValuedAttr<I32Attr, "1">:$group,
     DefaultValuedAttr<TPU_AFAttr, "NONE">:$fused_activation_function,
+    TPU_LMLayoutAttr:$lm_layout,
+    I32Attr:$la_input,
+    I32Attr:$la_working,
+    I32Attr:$la_output,
+    BoolAttr:$tl_load_flag,
+    BoolAttr:$tl_store_flag,
+    OptionalAttr<NonNegativeI64Attr>:$offset,
+    OptionalAttr<F32Attr>:$threshold_y,
     OptionalAttr<NonNegativeI32Attr>:$layer_id
   );
 
