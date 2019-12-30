@@ -386,7 +386,8 @@ def TPU_SigmoidOp: TPU_Op<"sigmoid", [NoSideEffect]> {
     ins AnyTensor:$input,
     OptionalAttr<StrAttr>:$name,
     OptionalAttr<NonNegativeI64Attr>:$offset,
-    OptionalAttr<F32Attr>:$threshold_y
+    OptionalAttr<F32Attr>:$threshold_y,
+    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
   );
 
   let results = (outs AnyTensor:$output);
