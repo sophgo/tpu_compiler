@@ -88,7 +88,7 @@ private:
   void dumpConv2DOpParam(tpu::Conv2DOp &op, llvm::raw_ostream &os) {
     bool with_bias, do_relu;
     int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, ph, pw, dh, dw;
-    getConv2DOpParam(op, n, ic, ih, iw, oc, oh, ow, g,
+    getConv2DOpParam<tpu::Conv2DOp>(op, n, ic, ih, iw, oc, oh, ow, g,
                      kh, kw, sh, sw, ph, pw, dh, dw, with_bias, do_relu);
 
     uint64_t mac_count = ow * oh * kh * kw * g * (ic / g) * (oc / g) * n;
