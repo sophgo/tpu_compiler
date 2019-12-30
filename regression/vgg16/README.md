@@ -44,3 +44,4 @@ https://gist.github.com/ksimonyan/211839e770f7b538e2d8#file-vgg_ilsvrc_16_layers
  * Top-1 accuracy: 0.6804, Top-5 accuracy: 0.8821
 
 'load module ', 'vgg16_quant_bf16.mlir'
+ * Top-1 accuracy: 0.6826, Top-5 accuracy: 0.8836
