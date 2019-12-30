@@ -87,7 +87,13 @@ mlir-translate \
     resnet50_quant_int8_multiplier_tl_la.mlir \
     --mlir-to-cmdbuf \
     --debug-only=tl_conv \
-    -o cmdbuf.bin
+    -o cmdbuf_la.bin
+
+mlir-translate \
+    resnet50_quant_int8_multiplier_tl_lw.mlir \
+    --mlir-to-cmdbuf \
+    --debug-only=tl_conv \
+    -o cmdbuf_lw.bin
 
 ################################
 # prepare int8 input
@@ -106,7 +112,7 @@ diff in_int8.bin $DATA_PATH/test_cat_in_resnet50_int8.bin
 $RUNTIME_PATH/bin/test_bmnet \
     in_int8.bin \
     weight.bin \
-    cmdbuf.bin \
+    cmdbuf_lw.bin \
     out_all.bin \
     16460784 0 16460784 1
 bin_extract.py out_all.bin out_fc1000.bin int8 0x00024c00 1000

@@ -70,11 +70,11 @@ static LogicalResult runOperation(Operation &opInst) {
   LLVM_DEBUG(llvm::errs() << "  op " << opInst.getName() << "\n";);
 
   if (auto op = dyn_cast<tpu::TL_LA_Conv2DOp>(opInst)) {
-    LLVM_DEBUG(llvm::errs() << "Conv2DOp" << "\n";);
+    LLVM_DEBUG(llvm::errs() << "TL_LA_Conv2DOp" << "\n";);
 
     bool with_bias, do_relu;
     int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, ph, pw, dh, dw;
-    getConv2DOpParam<tpu::TL_LA_Conv2DOp>(op, n, ic, ih, iw, oc, oh, ow, g,
+    getConv2DOpParam(op, n, ic, ih, iw, oc, oh, ow, g,
         kh, kw, sh, sw, ph, pw, dh, dw, with_bias, do_relu);
 
     gaddr_t ga_input = getPreviousOpAddress(op);
@@ -92,6 +92,41 @@ static LogicalResult runOperation(Operation &opInst) {
 
     return success();
   }
+  if (auto op = dyn_cast<tpu::TL_LW_Conv2DOp>(opInst)) {
+    LLVM_DEBUG(llvm::errs() << "TL_LW_Conv2DOp" << "\n";);
+
+    bool with_bias, do_relu;
+    int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, ph, pw, dh, dw;
+    getConv2DOpParam(op, n, ic, ih, iw, oc, oh, ow, g,
+        kh, kw, sh, sw, ph, pw, dh, dw, with_bias, do_relu);
+
+    gaddr_t ga_input = getPreviousOpAddress(op);
+    gaddr_t ga_output = op.offset().getValue().getLimitedValue();
+    gaddr_t ga_filter = getWeightOpAddress(op.getOperand(1)->getDefiningOp());
+    gaddr_t ga_perchannel = getWeightOpAddress(op.getOperand(2)->getDefiningOp());
+    laddr_t la_input = op.la_input().getLimitedValue();
+    laddr_t la_output = op.la_output().getLimitedValue();
+    laddr_t la_working = op.la_working().getLimitedValue();
+    int layer_id = op.layer_id().getValue().getLimitedValue();
+
+    llvm::errs() << "TL_LW_Conv2DOp, layer_id = " << layer_id << "\n";
+    if (op.tl_load_flag()) {
+      cvi_backend_tl_load(*backend_ctx, layer_id,
+          la_input, ga_input, n, ic, ih, iw);
+    }
+    cvi_backend_tl_conv_LW(*backend_ctx, layer_id,
+        la_input, la_output, la_working,
+        ga_filter, ga_perchannel,
+        n, ic, ih, iw, g, oc, oh, ow, kh, kw,
+        dh, dw, ph, ph, pw, pw, sh, sw,
+        false, with_bias, do_relu);
+    if (op.tl_store_flag()) {
+      cvi_backend_tl_store(*backend_ctx, layer_id,
+          la_output, ga_output, n, oc, oh, ow);
+    }
+    return success();
+  }
+
   if (auto op = dyn_cast<tpu::Conv2DOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "Conv2DOp" << "\n";);
 
