@@ -104,6 +104,7 @@ private:
   void convertSigmoidLayer(mlir::Block *block, caffe::Layer<float> *layer);
   void convertFlattenLayer(mlir::Block *block, caffe::Layer<float> *layer);
   void convertDummyDataLayer(mlir::Block *block, caffe::Layer<float> *layer);
+  void convertSliceLayer(mlir::Block *block, caffe::Layer<float> *layer);
 
   mlir::ModuleOp module_;
   mlir::Builder builder_;
@@ -239,6 +240,8 @@ void CaffeImporter::ConvertLayers(mlir::Block *block,
       convertSigmoidLayer(block, layer);
     } else if (strcmp(layer->type(), "Flatten") == 0) {
       convertFlattenLayer(block, layer);
+    } else if (strcmp(layer->type(), "Slice") == 0) {
+      convertSliceLayer(block, layer);
     } else {
       llvm::errs() << "    UNKNOWN : " << layer->type() <<"\n";
       assert(false);
@@ -1217,6 +1220,70 @@ void CaffeImporter::convertSigmoidLayer(mlir::Block *block,
   auto result_var = op.getResult();
 
   tensor_map_[layer_param.top(0)] = result_var;
+}
+
+void CaffeImporter::convertSliceLayer(mlir::Block *block, caffe::Layer<float> *layer) {
+  mlir::Value *input_var = GetLayerInput(layer);
+
+  auto layer_param = layer->layer_param();
+  auto slice_param = layer_param.slice_param();
+  int axis = slice_param.axis();
+  int top_size = layer_param.top_size();
+
+  llvm::ArrayRef<int64_t> input_shape =
+      input_var->getType().dyn_cast<mlir::TensorType>().getShape();
+    assert(input_shape.size() == 4);
+
+  const int bottom_slice_axis = input_shape[axis];
+  std::vector<int> slices;
+  if (slice_param.slice_point_size() != 0) {
+    assert(slice_param.slice_point_size() == top_size - 1);
+    assert(top_size < bottom_slice_axis);
+    int prev = 0;
+    for (int i = 0; i < slice_param.slice_point_size(); ++i) {
+      assert(slice_param.slice_point(i) > prev);
+      slices.push_back(slice_param.slice_point(i) - prev);
+      prev = slice_param.slice_point(i);
+    }
+    slices.push_back(bottom_slice_axis - prev);
+  } else {
+    assert(bottom_slice_axis % top_size == 0);
+    for (int i = 0; i < top_size; i++) {
+      slices.push_back(bottom_slice_axis / top_size);
+    }
+  }
+
+  // construct OP
+  std::vector<Type> result_types;
+  for (int i = 0; i < top_size; i++) {
+    int64_t n = 0, c = 0, h = 0, w = 0;
+    switch(axis) {
+    case 1:
+      n = input_shape[0];
+      c = slices[i];
+      h = input_shape[2];
+      w = input_shape[3];
+      break;
+    default:
+      llvm::errs() << "Only support channel slice for now." << "\n";
+      assert(false);
+    }
+
+    auto result_type = RankedTensorType::get({n, c, h, w}, elementType_);
+    result_types.push_back(result_type);
+  }
+
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name())));
+  attrs.push_back(builder_.getNamedAttr("axis", builder_.getI32IntegerAttr(axis)));
+  auto op = OpBuilder(block).create<tpu::SliceOp>(
+      builder_.getUnknownLoc(), ArrayRef<Type>{result_types},
+      ArrayRef<Value *>{input_var}, ArrayRef<NamedAttribute>{attrs});
+  auto result_vars = op.getResults();
+
+  for (int i = 0; i < top_size; i++) {
+    tensor_map_[layer_param.top(i)] = result_vars[i];
+  }
 }
 
 LogicalResult CaffeImporter::Import(const llvm::StringRef inputFilename,

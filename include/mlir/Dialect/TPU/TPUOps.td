@@ -463,6 +463,22 @@ def TPU_ReshapeOp: TPU_Op<"reshape", [NoSideEffect]> {
   let results = (outs AnyTensor:$output);
 }
 
+def TPU_SliceOp: TPU_Op<"slice", [NoSideEffect]> {
+  let summary = "Slice operator";
+
+  let description = [{
+    Slices an tensor to multiple output tensors along a given dimension (currently channel only)
+    with given slice indices.
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    OptionalAttr<StrAttr>:$name,
+    OptionalAttr<I32Attr>:$axis
+  );
+
+  let results = (outs Variadic<AnyTensor>:$output);
+}
 
 //===----------------------------------------------------------------------===//
 // TPU Quantization op definitions.
