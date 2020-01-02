@@ -545,7 +545,30 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     w = i_s[3];
     float *input = (float *)opdT[0]->data();
     float *output = (float *)resultT.get()->data();
-    int ret = my_sigmoid(input, output, n, c, h, w);
+    int ret;
+    if (op.quant() == "INT8"){
+      std::vector<int> data(256, 0);
+      float threshold_x = getPreviousOpThreshold(op);
+      float threshold_y = getOpThreshold(op);
+
+      assert(threshold_x != 0.0);
+      for (int idx = 0; idx < 256; ++idx) {
+        char lutInput = static_cast<char>(idx);
+        float index = -lutInput * threshold_x / 128.0;
+        float lutOutput = 1.0 / (1 + std::exp(index)) * 128.0 / threshold_y;
+        int lutOutputI32 = std::floor(lutOutput + 0.5);
+        lutOutputI32 = (lutOutputI32 > 127)
+                           ? 127
+                           : (lutOutputI32 < -128) ? -128 : lutOutputI32;
+        data[idx] = lutOutputI32;
+      }
+      for (int i = 0; i < size; ++i) {
+        output[i] = data[(unsigned char)input[i]];
+      }
+      ret = 0;
+    } else {
+      ret = my_sigmoid(input, output, n, c, h, w);
+    }
     assert(ret == 0);
     valueMapping[result] = std::move(resultT);
     return success();
