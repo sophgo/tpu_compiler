@@ -59,6 +59,11 @@ static llvm::cl::opt<std::string> clAllTensorFilename(
     llvm::cl::init("-"),
     llvm::cl::cat(clOptionsCategory));
 
+static llvm::cl::opt<std::string> clAllDequentInt8TensorFilename(
+    "dump-all-dequent-tensor-int8",
+    llvm::cl::desc("dump all int8 tensor and dequentize into a npz file"),
+    llvm::cl::init("-"), llvm::cl::cat(clOptionsCategory));
+
 static llvm::cl::opt<float> clInputScale(
     "input-scale",
     llvm::cl::desc("input scale to apply on the input values"),
@@ -1093,6 +1098,11 @@ LogicalResult ModuleInterpreter::runOneFunction(FuncOp func) {
     // dump all values
     LLVM_DEBUG(llvm::errs() << "valueMapping size " << valueMapping.size() << "\n";);
     auto TensorOut = openOutputTensorFile(clAllTensorFilename);
+    std::unique_ptr<TensorFile> DequantInt8TensorOut;
+    if (clAllDequentInt8TensorFilename != "-") {
+      DequantInt8TensorOut =
+          openOutputTensorFile(clAllDequentInt8TensorFilename);
+    }
     for (auto it = valueMapping.begin(); it != valueMapping.end(); it++ ) {
       auto op = it->first->getDefiningOp();
       if (!op) {
@@ -1108,8 +1118,24 @@ LogicalResult ModuleInterpreter::runOneFunction(FuncOp func) {
       auto type = it->first->getType().dyn_cast<mlir::TensorType>();
       LLVM_DEBUG(llvm::errs() << "  vec size = " << vec->size() << "\n";);
       TensorOut->addTensor(getOpName(op), vec, type);
+      if (clAllDequentInt8TensorFilename != "-" && getOpQuant(op) != "NONE") {
+        float threshold = getOpThreshold(op);
+        if (threshold == 0.0){
+          continue; 
+        }
+        LLVM_DEBUG(llvm::errs() << "  quantization, threshold = "
+                                << std::to_string(threshold) << "\n";);
+        auto dequent_vec = it->second.get();
+        for (size_t i = 0; i < vec->size(); ++i) {
+          dequent_vec->at(i) = dequantizeNeuron((int8_t)vec->at(i), threshold);
+        }
+        DequantInt8TensorOut->addTensor(getOpName(op), dequent_vec, type);
+        }
     }
     TensorOut->keep();
+    if (clAllDequentInt8TensorFilename != "-") {
+      DequantInt8TensorOut->keep();
+    }
   }
 
   return success();
