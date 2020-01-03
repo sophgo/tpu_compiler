@@ -35,6 +35,7 @@ $DIR/vgg16/regression_vgg16_5_bf16_cmdbuf.sh
 # $DIR/pnet/regression_pnet_5_bf16_cmdbuf.sh
 # $DIR/espcn/espcn_bf16_cmdbuf.sh
 
+$DIR/ssd/regression_ssd_1_fp32.sh
 
 popd
 

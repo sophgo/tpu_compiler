@@ -186,7 +186,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
     int mkldnn_ret = mkldnn_conv(input->data(), filter->data(),
         bias?bias->data():nullptr, resultT->data(),
-        n, ic, ih, iw, oc, oh, ow, kh, kw, sh, sw, ph, pw, g);
+        n, ic, ih, iw, oc, oh, ow, kh, kw, sh, sw, dh,dw, ph, pw, g);
     assert(mkldnn_ret == 0);
     //dump_data_float_abs("mkldnn_output", mkldnn_output, n, oc, oh, ow);
 
@@ -311,6 +311,94 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
     return success();
   }
+  if (auto op = dyn_cast<tpu::PermuteOp>(opInst)) {
+    LLVM_DEBUG(llvm::errs() << "PermuteOp" << "\n";);
+    auto opdT = getOperandTensors(opInst, valueMapping);
+    auto result = op.getResult();
+    LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";);
+    std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
+    assert(shape.size() == 4);
+    auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
+    auto resultT = std::make_unique<std::vector<float> >(size);
+
+    int in, ic, ih, iw,on,oc,oh,ow,order0,order1,order2,order3;
+    auto input_type = op.input()->getType().cast<TensorType>();
+    std::vector<int64_t> i_s(input_type.getShape());
+    auto output_type = op.output()->getType().cast<TensorType>();
+    std::vector<int64_t> o_s(output_type.getShape());
+
+    //Dirty need to improve!!
+    order0 = op.order0().getLimitedValue();
+    order1 = op.order1().getLimitedValue();
+    order2 = op.order2().getLimitedValue();
+    order3 = op.order3().getLimitedValue();
+
+    int ret = 0 ;
+
+    in = i_s[0];
+    ic = i_s[1];
+    ih = i_s[2];
+    iw = i_s[3];
+
+    on = o_s[0];
+    oc = o_s[1];
+    oh = o_s[2];
+    ow = o_s[3];
+
+
+    //As long as there is one order which is different from the natural order
+    // of the data, we need to permute.(from caffe permute layer source code mark)
+    if( in==on && ic==oc && ih==oh && iw==ow ){ 
+      valueMapping[result] = std::move(opdT[0]);
+    }else{
+      float *input = (float *)opdT[0]->data();
+      float *output = (float *)resultT.get()->data();
+      ret = my_permute(input,output,shape.size(),in,ic,ih,iw,on,oc,oh,ow,order0,order1,order2,order3);    
+      assert(ret == 0);
+      valueMapping[result] = std::move(resultT);
+    }
+
+    return success();
+  }
+
+  if (auto op = dyn_cast<tpu::NormalizeOp>(opInst)) { 
+    /*not the same as ssd Normalize op, here only do normalize , reuse "Scale op" for scale operation */
+    LLVM_DEBUG(llvm::errs() << "NormalizeOp" << "\n";);
+    auto opdT = getOperandTensors(opInst, valueMapping);
+    auto result = op.getResult();
+    LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";);
+    std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
+    assert(shape.size() == 4);
+
+    auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
+    auto resultT = std::make_unique<std::vector<float> >(size);
+
+    bool across_spatial = op.across_spatial();
+    //bool channel_shared = op.across_spatial();
+
+    //implement for ssd case first 
+    assert(!across_spatial);
+
+    int n, c, h, w;
+    auto input_type = op.input()->getType().cast<TensorType>();
+    std::vector<int64_t> i_s(input_type.getShape());
+    
+    n = i_s[0];
+    c = i_s[1];
+    h = i_s[2];
+    w = i_s[3];
+
+    float *input = (float *)opdT[0]->data();
+    //float *scale = (float *)opdT[1]->data();
+    float *output = (float *)resultT.get()->data();
+
+    int ret = 0 ;
+    ret = my_normalize(input,output,across_spatial,n,c,h,w);
+    assert(ret == 0);
+    valueMapping[result] = std::move(resultT);
+    return success();
+  }  
+
   if (auto op = dyn_cast<tpu::Pool2DOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "Pool2DOp" << "\n";);
     auto opdT = getOperandTensors(opInst, valueMapping);
@@ -828,54 +916,83 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     auto tmp_resultT = std::make_unique<std::vector<float> >(0);
     int shift_idx_c=0;
     int shift_idx_h=0;
-
+    int tmp_w=0;
     assert(bottom_num >= 2 && "bottom num is 0 or 1");
     assert(shape.size() <= 4);
     LLVM_DEBUG(llvm::errs() << "concat_axis =" << concat_axis << "\n";);
 
     for (uint32_t i = 0; i < bottom_num; i++) {
       std::vector<int64_t> shape =  op.getOperand(i)->getType().cast<TensorType>().getShape();
-      n = shape[0];
-      c = shape[1];
-      h = shape[2];
-      w = shape[3];
 
-      LLVM_DEBUG(llvm::errs() << "shape n:" << n << " c:" << c << " h:"<< h << " w:"<< w <<"\n";);
-      LLVM_DEBUG(llvm::errs() << "bottom num:" << opdT.size() << "\n";);
-      LLVM_DEBUG(llvm::errs() << "data size:" << opdT[i]->size() << "\n";);
+      if(shape.size()==4){
 
-      auto *input_data = opdT[i]->data();
+        n = shape[0];
+        c = shape[1];
+        h = shape[2];
+        w = shape[3];
 
-      if (concat_axis == 0) {
-        tmp_resultT.get()->insert(tmp_resultT.get()->end(), opdT[i]->begin(), opdT[i]->end());
-      }
-      else if (concat_axis == 1) {
-        for (uint32_t idx_n = 0; idx_n < n; idx_n++) {
-          auto shapeT = std::make_unique<std::vector<float> >(c * h * w);
-          int insert_offset = ((idx_n + 1) * shift_idx_c  + idx_n * c) * h * w;
-          shapeT.get()->assign(&input_data[idx_n * c * h * w], &input_data[(idx_n + 1) * c * h * w]);
-          tmp_resultT.get()->insert(tmp_resultT.get()->begin() + insert_offset, shapeT->begin(), shapeT->end());
+        LLVM_DEBUG(llvm::errs() << "shape n:" << n << " c:" << c << " h:"<< h << " w:"<< w <<"\n";);
+        LLVM_DEBUG(llvm::errs() << "bottom num:" << opdT.size() << "\n";);
+        LLVM_DEBUG(llvm::errs() << "data size:" << opdT[i]->size() << "\n";);
+
+        auto *input_data = opdT[i]->data();
+
+        if (concat_axis == 0) {
+          tmp_resultT.get()->insert(tmp_resultT.get()->end(), opdT[i]->begin(), opdT[i]->end());
         }
-        shift_idx_c += c;
-      } else if (concat_axis == 2) {
-        for (uint32_t idx_n = 0; idx_n < n; idx_n++) {
-          for (uint32_t idx_c = 0; idx_c < c ;idx_c++) {
-            auto shapeT = std::make_unique<std::vector<float> >(h * w);
-            int insert_offset = (idx_n * c * h + (idx_c + 1) * shift_idx_h + idx_c * h) * w;
-            shapeT.get()->assign(&input_data[(idx_n * c + idx_c) * h * w], &input_data[(idx_n * c + (idx_c + 1)) * h * w]);
+        else if (concat_axis == 1) {
+          for (uint32_t idx_n = 0; idx_n < n; idx_n++) {
+            auto shapeT = std::make_unique<std::vector<float> >(c * h * w);
+            int insert_offset = ((idx_n + 1) * shift_idx_c  + idx_n * c) * h * w;
+            shapeT.get()->assign(&input_data[idx_n * c * h * w], &input_data[(idx_n + 1) * c * h * w]);
             tmp_resultT.get()->insert(tmp_resultT.get()->begin() + insert_offset, shapeT->begin(), shapeT->end());
           }
-        }
-        shift_idx_h += h;
-      } else
-        assert(0 && "not support concat_axis >=3 now\n");
+          shift_idx_c += c;
+        } else if (concat_axis == 2) {
+          for (uint32_t idx_n = 0; idx_n < n; idx_n++) {
+            for (uint32_t idx_c = 0; idx_c < c ;idx_c++) {
+              auto shapeT = std::make_unique<std::vector<float> >(h * w);
+              int insert_offset = (idx_n * c * h + (idx_c + 1) * shift_idx_h + idx_c * h) * w;
+              shapeT.get()->assign(&input_data[(idx_n * c + idx_c) * h * w], &input_data[(idx_n * c + (idx_c + 1)) * h * w]);
+              tmp_resultT.get()->insert(tmp_resultT.get()->begin() + insert_offset, shapeT->begin(), shapeT->end());
+            }
+          }
+          shift_idx_h += h;
+        } else
+          assert(0 && "not support concat_axis >=3 now\n");
+      }else if(shape.size()==2){
+          h = shape[0];
+          w = shape[1];
+
+          LLVM_DEBUG(llvm::errs() << "shape h:" << h << " w:"<< w <<"\n";);
+          LLVM_DEBUG(llvm::errs() << "bottom num:" << opdT.size() << "\n";);
+          LLVM_DEBUG(llvm::errs() << "data size:" << opdT[i]->size() << "\n";);
+          auto *input_data = opdT[i]->data();
+          if (concat_axis == 0) {
+            tmp_resultT.get()->insert(tmp_resultT.get()->end(), opdT[i]->begin(), opdT[i]->end());
+          }
+          else if (concat_axis == 1) {
+            
+            for (uint32_t idx_h = 0; idx_h < h; idx_h++) {
+              auto shapeT = std::make_unique<std::vector<float> >(w);
+              //int insert_offset = ((idx_h + 1) * idx_h) * h * w;
+              //int insert_offset = (idx_h  + (idx_h + 1) * shift_idx_h) * (i=0?w:tmp_w);
+              int insert_offset = ((idx_h+1)* tmp_w) + idx_h*w;
+              shapeT.get()->assign(&input_data[idx_h * w], &input_data[(idx_h + 1) * w]);
+              tmp_resultT.get()->insert(tmp_resultT.get()->begin() + insert_offset, shapeT->begin(), shapeT->end());
+            }
+            tmp_w += w;
+          } else
+            assert(0 && "not support concat_axis >=2 now\n");
+      }
+
     }
 
     resultT.get()->assign(tmp_resultT.get()->begin(), tmp_resultT.get()->end());
     valueMapping[result] = std::move(resultT);
-
     return success();
   }
+
   if (auto op = dyn_cast<tpu::UpsampleOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "UpsampleOp" << "\n";);
     auto opdT = getOperandTensors(opInst, valueMapping);
@@ -975,36 +1092,65 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     auto result = op.getResult();
     LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";);
     std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
-    assert(shape.size() == 2 || shape.size() == 4);
+    assert(shape.size() == 2 || shape.size() == 4|| shape.size() == 3);
     auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
     auto resultT = std::make_unique<std::vector<float> >(size);
+    float *output = (float *)resultT.get()->data();
 
-    int n, c;
+    int n,c,h,w;
     auto input_type = op.x()->getType().cast<TensorType>();
     std::vector<int64_t> i_s(input_type.getShape());
     auto output_type = op.y()->getType().cast<TensorType>();
     std::vector<int64_t> o_s(output_type.getShape());
     assert((i_s == o_s) && "input shape not equal to output shape");
-    n = i_s[0];
-    c = i_s[1];
-    if (i_s.size() == 4) {
-      assert(i_s[2] == 1 && i_s[3] == 1);
-    }
     float *input = (float *)opdT[0]->data();
 
-    // do dequantization
-    if (0) {
-      float threshold_x = getPreviousOpThreshold(op);
-      LLVM_DEBUG(llvm::errs() << "  softmax dequantize, threshold_x = "
-                              << std::to_string(threshold_x) << "\n";);
-      for (size_t i = 0; i < opdT[0]->size(); ++i) {
-        input[i] = input[i] * threshold_x / 128.0;
+    if(shape.size()==2||shape.size()==4){
+
+      n = i_s[0];
+      c = i_s[1];
+
+
+      if (i_s.size() == 4) {
+        assert(i_s[2] == 1 && i_s[3] == 1);
+      }
+
+      // do dequantization
+      if (0) {
+        float threshold_x = getPreviousOpThreshold(op);
+        LLVM_DEBUG(llvm::errs() << "  softmax dequantize, threshold_x = "
+                                << std::to_string(threshold_x) << "\n";);
+        for (size_t i = 0; i < opdT[0]->size(); ++i) {
+          input[i] = input[i] * threshold_x / 128.0;
+        }
+      }
+
+      int ret = my_softmax(input, output, n, c);
+      assert(ret == 0);
+
+    }else if(shape.size()==3){
+      c = i_s[0];
+      h = i_s[1];
+      w = i_s[2];
+    //just for axis = 2 now 
+    auto tmp_resultT = std::make_unique<std::vector<float> >(w);
+
+    float *tmp = (float *)tmp_resultT.get()->data();
+
+    for(int ci=0;ci<c;ci++)
+      for(int hi=0;hi<h;hi++){
+        for(int wi=0;wi<w;wi++){
+          tmp[wi]=input[ci*w*h+hi*w+wi];
+        }
+
+        int ret = my_softmax(tmp, tmp, 1, w);
+        assert(ret == 0);
+        for(int wi=0;wi<w;wi++){
+          output[ci*w*h+hi*w+wi]=tmp[wi];
+        }
+
       }
     }
-
-    float *output = (float *)resultT.get()->data();
-    int ret = my_softmax(input, output, n, c);
-    assert(ret == 0);
 
     valueMapping[result] = std::move(resultT);
     return success();

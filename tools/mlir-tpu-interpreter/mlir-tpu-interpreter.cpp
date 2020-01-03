@@ -175,7 +175,7 @@ int TpuInterpreterMain(
     if (failed(mlirTransformer(m.get())))
       return EXIT_FAILURE;
 
-  std::vector<float> input(1*3*224*224);
+  std::vector<float> input(1*3*300*300);
   std::vector<float> output(1*1000);
   //std::fill (std::begin(input), std::end(input), 1.0f);
   read_bianry_file(inputTensorFilename, input);

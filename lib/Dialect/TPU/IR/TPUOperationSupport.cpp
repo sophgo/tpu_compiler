@@ -64,6 +64,17 @@ llvm::StringRef getOpName(Operation *op) {
     return cast_op.name().getValue();
   }
 
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::PermuteOp>(op)) {
+    return cast_op.name().getValue();
+  } 
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::NormalizeOp>(op)) {
+    return cast_op.name().getValue();
+  } 
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::FlattenOp>(op)) {
+    return cast_op.name().getValue();
+  }
+
+
   llvm::errs() << op->getName() << "\n";
   assert(false);
   return "not_found";
@@ -254,15 +265,15 @@ uint64_t getWeightOpAddress(Operation *op) {
 /***********************************************************
  * TPU Ops parameter helpers
  ***********************************************************/
-#define calcConv2DSpatialOutput(_i_, _k_, _s_, _p_, _d_) \
-    (((_i_) + 2 * (_p_) - (_d_) * ((_k_) - 1) - 1) / (_s_) + 1)
+ #define calcConv2DSpatialOutput(_i_, _k_, _s_, _p_, _d_) \
+    (((_i_) + 2 * (_p_) - ((_k_+ (_d_-1)*(_k_-1)) - 1) - 1) / (_s_) + 1)
 
 static int64_t findPadForSamePadding(int64_t i, int64_t o, int64_t k, int64_t s, int64_t d) {
   //llvm::errs() << "i: " << i << ", o: " << o << ", k: " << k << ", s: " << s << ", d: " << d << "\n";
   if (k == 1) {
     return 0;
   }
-  for (int64_t p = 1; p <= k - 1; ++p) {
+  for (int64_t p = 1; p <= (k - 1 +((d-1)*(k-1))); ++p) {
     if (calcConv2DSpatialOutput(i, k, s, p, d) == o) {
       return p;
     }

@@ -481,6 +481,61 @@ def TPU_SliceOp: TPU_Op<"slice", [NoSideEffect]> {
   let results = (outs Variadic<AnyTensor>:$output);
 }
 
+
+def TPU_NormalizeOp : TPU_Op<"normalize", [NoSideEffect]> {
+  let summary = "Do Normalization";
+
+  let arguments = (
+    ins AnyTensor:$input,
+    OptionalAttr<StrAttr>:$name,
+    DefaultValuedAttr<BoolAttr, "true">:$across_spatial,
+    OptionalAttr<NonNegativeI64Attr>:$offset,
+    OptionalAttr<F32Attr>:$threshold_y,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
+def TPU_FlattenOp: TPU_Op<"flatten", [NoSideEffect]> {
+  let summary = "Flatten operator";
+
+  let description = [{
+    Produces a tensor with the same values but combine the last shape.size()-1 axes data 
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    OptionalAttr<StrAttr>:$name,
+    OptionalAttr<F32Attr>:$threshold_y
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
+
+def TPU_PermuteOp: TPU_Op<"permute", [NoSideEffect]> {
+  let summary = "Permute operator";
+
+  let description = [{
+    Perform permute on input.
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    OptionalAttr<StrAttr>:$name,
+    NonNegativeI32Attr:$order0,
+    NonNegativeI32Attr:$order1,
+    NonNegativeI32Attr:$order2,
+    NonNegativeI32Attr:$order3,    
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
+
 //===----------------------------------------------------------------------===//
 // TPU Quantization op definitions.
 //===----------------------------------------------------------------------===//
