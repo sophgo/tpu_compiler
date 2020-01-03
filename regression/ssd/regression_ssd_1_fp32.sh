@@ -14,7 +14,7 @@ if true; then
 
 # test mlir interpreter
 mlir-tpu-interpreter ssd300.mlir \
-    --tensor-in $DATA_PATH/test_dog_in_fp32.bin \
+    --tensor-in $DATA_PATH/test_dog_in_300X300_fp32.bin \
     --tensor-out out.bin \
     --dump-all-tensor=tensor_all.npz 
 
