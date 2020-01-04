@@ -623,6 +623,32 @@ struct TpuQuantEltwiseOpPattern : public RewritePattern {
   Value* weightFileVar_;
 };
 
+struct TpuQuantSigmoidOpPattern : public RewritePattern {
+  TpuQuantSigmoidOpPattern(MLIRContext *context, TensorFile *weightTensorFile,
+                           Value *weightFileVar)
+      : RewritePattern("tpu.sigmoid", 1, context),
+        weightTensorFile_(weightTensorFile), weightFileVar_(weightFileVar) {}
+
+  PatternMatchResult matchAndRewrite(Operation *op,
+                                     PatternRewriter &rewriter) const override {
+    auto sigOp = cast<tpu::SigmoidOp>(op);
+    std::string op_name =
+        sigOp.getAttrOfType<StringAttr>("name").getValue().str();
+    // auto loc = op->getLoc();
+
+    if (sigOp.quant() != "NONE") {
+      LLVM_DEBUG(llvm::errs() << sigOp.name() << " quantized already\n";);
+      return matchFailure();
+    }
+    sigOp.setAttr("quant", rewriter.getStringAttr("INT8"));
+
+    return matchSuccess();
+  }
+
+  TensorFile *weightTensorFile_;
+  Value *weightFileVar_;
+};
+
 template<typename T>
 static void addQuantOpAfterOp(PatternRewriter &rewriter,
     T &op, float threshold, std::string op_name) {
@@ -771,6 +797,8 @@ public:
         weightTensorFile.get(), weightFileVar);
     patterns_w.insert<TpuQuantEltwiseOpPattern>(context,
         weightTensorFile.get(), weightFileVar);
+    patterns_w.insert<TpuQuantSigmoidOpPattern>(context, weightTensorFile.get(),
+                                                weightFileVar);
     applyPatternsGreedily(fn, patterns_w);
 
     OwningRewritePatternList patterns_q;

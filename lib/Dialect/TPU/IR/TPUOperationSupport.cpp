@@ -85,6 +85,9 @@ std::string getOpQuant(Operation *op) {
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::DequantizationOp>(op)) {
     return cast_op.quant();
   }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::SigmoidOp>(op)) {
+    return cast_op.quant();
+  }
 
   return "NONE";
 }
