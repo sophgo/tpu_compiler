@@ -69,6 +69,14 @@ llvm::StringRef getOpName(Operation *op) {
   return "not_found";
 }
 
+llvm::StringRef getPreviousOpName(Operation *op, uint index = 0) {
+  if ( op->getNumOperands() < (index + 1) ) {
+    assert(false);
+    return llvm::StringRef();
+  }
+  return getOpName(op->getOperand(index)->getDefiningOp());
+}
+
 std::string getOpQuant(Operation *op) {
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::Conv2DOp>(op)) {
     return cast_op.quant();
@@ -139,7 +147,7 @@ float getOpThreshold(Operation *op) {
   llvm::errs() << op->getName() << op->getName() << " Not Found "
                << "\n ";
 
-  
+
   return 0.0;
 }
 
@@ -167,6 +175,12 @@ float getPreviousOpThreshold(Operation *op, uint index = 0) {
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::Pool2DOp>(formerOp)) {
     return cast_op.threshold_y().getValue().convertToFloat();
   }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::EltwiseOp>(formerOp)) {
+    return cast_op.threshold_y().getValue().convertToFloat();
+  }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::ConcatOp>(formerOp)) {
+    return cast_op.threshold_y().getValue().convertToFloat();
+  }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::BatchNormOp>(formerOp)) {
     return cast_op.threshold_y().getValue().convertToFloat();
   }
@@ -177,9 +191,6 @@ float getPreviousOpThreshold(Operation *op, uint index = 0) {
     return cast_op.threshold_y().getValue().convertToFloat();
   }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::PReluOp>(formerOp)) {
-    return cast_op.threshold_y().getValue().convertToFloat();
-  }
-  if (auto cast_op = llvm::dyn_cast_or_null<tpu::EltwiseOp>(formerOp)) {
     return cast_op.threshold_y().getValue().convertToFloat();
   }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::ReshapeOp>(formerOp)) {
@@ -193,7 +204,6 @@ float getPreviousOpThreshold(Operation *op, uint index = 0) {
   }
 
   llvm::errs() << op->getName() << formerOp->getName() << " Not Found "<<"\n ";
-
   assert(false);
   return NAN;
 }

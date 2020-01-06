@@ -843,7 +843,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
     auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
     auto resultT = std::make_unique<std::vector<float> >(size);
-    uint32_t bottom_num = opdT.size();
+    size_t bottom_num = opdT.size();
     uint32_t n, c, h, w;
     auto concat_axis = op.dimension();
     auto tmp_resultT = std::make_unique<std::vector<float> >(0);
@@ -854,6 +854,64 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     assert(shape.size() <= 4);
     LLVM_DEBUG(llvm::errs() << "concat_axis =" << concat_axis << "\n";);
 
+    std::vector<float *> input(bottom_num);
+    for (size_t index = 0; index < bottom_num; ++index) {
+      input[index] = (float *)opdT[index]->data();
+    }
+    //float *output = (float *)resultT->data();
+
+    // for INT8, get threshold_x and make copy of input first
+    std::vector<std::vector<float> >input_copy(bottom_num);
+    std::vector<float> threshold_x(bottom_num);
+    float threshold_y;
+    if (op.quant() == "INT8") {
+      for (size_t index = 0; index < bottom_num; ++index) {
+        // make copy
+        std::vector<float> &src_vec = *opdT[index];
+        std::copy(src_vec.begin(), src_vec.end(), back_inserter(input_copy[index]));
+        input[index] = input_copy[index].data();
+
+        // get threshold_x
+        threshold_x[index] = getPreviousOpThreshold(op, index);
+      }
+      // get threshold_y
+      threshold_y = op.threshold_y().getValue().convertToFloat();
+    }
+
+    // determine multiplier and rshift according each threshold_x
+    // scale[i] = threshold_x[i] / threshold_y
+    // each scale will be implemented by hardware as
+    // scale[i] = multiplier / (1 << rshift)
+    // find a rshift, that put max(multiplier) into range (64, 127)
+    uint32_t rshift;
+    std::vector<int8_t> multiplier(bottom_num);
+    if (op.quant() == "INT8") {
+      // determine rshift for all inputs, and multiplier for each input
+      // use max threshold_x to find rshift first
+      float max_threshold_x = *std::max_element(
+          std::begin(threshold_x), std::end(threshold_x));
+      rshift = findRShiftAndMultiplierFromQScale(max_threshold_x / threshold_y);
+      LLVM_DEBUG(llvm::errs() << "  threshold_y = " << std::to_string(threshold_y)
+                              << ", rshift = " << std::to_string(rshift) << "\n");
+      for (size_t index = 0; index < bottom_num; ++index) {
+        float qscale = threshold_x[index] / threshold_y;
+        multiplier[index] = (int8_t)findMultiplierFromQScaleAndRShift(qscale, rshift);
+        LLVM_DEBUG(llvm::errs()
+            << "  threshold_x[" << index << "] = " << std::to_string(threshold_x[index])
+            << ", multiplier["  << index << "] = " << std::to_string(multiplier[index])
+            << "\n");
+      }
+    }
+
+    // apply multiplier & saturate
+    if (op.quant() == "INT8") {
+      for (size_t index = 0; index < bottom_num; ++index) {
+        for (size_t i = 0; i < opdT[index]->size(); ++i) {
+          input[index][i] = input[index][i] * multiplier[index];
+          input[index][i] = (float)applyRShiftAndSaturateInt8(input[index][i], (uint32_t)rshift);
+        }
+      }
+    }
     for (uint32_t i = 0; i < bottom_num; i++) {
       std::vector<int64_t> shape =  op.getOperand(i)->getType().cast<TensorType>().getShape();
       n = shape[0];
@@ -865,7 +923,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       LLVM_DEBUG(llvm::errs() << "bottom num:" << opdT.size() << "\n";);
       LLVM_DEBUG(llvm::errs() << "data size:" << opdT[i]->size() << "\n";);
 
-      auto *input_data = opdT[i]->data();
+      auto *input_data = input[i];
 
       if (concat_axis == 0) {
         tmp_resultT.get()->insert(tmp_resultT.get()->end(), opdT[i]->begin(), opdT[i]->end());

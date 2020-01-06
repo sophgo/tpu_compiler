@@ -53,13 +53,22 @@ def parse_args():
 
 def yolov3_detect(module, image, net_input_dims, obj_threshold, nms_threshold):
     x = preprocess(image, net_input_dims)
-    _ = module.run(x)
+    x = np.expand_dims(x, axis=0)
+    res = module.run(x)
     data = module.get_all_tensor()
 
     out_feat = {}
-    out_feat['layer82-conv'] = data['layer82-conv']
-    out_feat['layer94-conv'] = data['layer94-conv']
-    out_feat['layer106-conv'] = data['layer106-conv']
+    if ('layer82-conv' in res.keys()):
+      out_feat['layer82-conv'] = res['layer82-conv']
+      out_feat['layer94-conv'] = res['layer94-conv']
+      out_feat['layer106-conv'] = res['layer106-conv']
+    elif ('layer82-conv_dequant' in res.keys()):
+      out_feat['layer82-conv'] = res['layer82-conv_dequant']
+      out_feat['layer94-conv'] = res['layer94-conv_dequant']
+      out_feat['layer106-conv'] = res['layer106-conv_dequant']
+    else:
+      assert(False)
+
     batched_predictions = postprocess(out_feat, image.shape, net_input_dims,
                               obj_threshold, nms_threshold, batch=1)
     # batch = 1
