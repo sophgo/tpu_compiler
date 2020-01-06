@@ -63,6 +63,9 @@ llvm::StringRef getOpName(Operation *op) {
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::UpsampleOp>(op)) {
     return cast_op.name().getValue();
   }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::SliceOp>(op)) {
+    return cast_op.name().getValue();
+  }
 
   llvm::errs() << op->getName() << "\n";
   assert(false);
@@ -313,8 +316,8 @@ void getConv2DOpParam(T &op,
   if (g != 1) {
     // only support depthwise group for now (not support normal group)
     assert(f_s.size() == 5 && g == f_s[0]);
-    assert(f_s[1] == 1 && f_s[2] == 1);
-    assert(g == ic && g == oc);
+    // assert(f_s[1] == 1 && f_s[2] == 1);
+    // assert(g == ic && g == oc);
   } else {
     assert(f_s.size() == 4);
   }

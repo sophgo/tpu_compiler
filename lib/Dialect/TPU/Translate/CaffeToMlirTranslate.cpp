@@ -364,7 +364,7 @@ void CaffeImporter::convertConvolutionLayer(mlir::Block *block,
   ofmap[1] = calcConv2DSpatialOutput(ifmap[1], kernel[1], stride[1], padding[1], dilation[1]);
   // if group is not 1, assume it is dw conv for now
   if (g != 1) {
-    assert(g == ic && g == oc);
+    // assert(g == ic && g == oc);
   }
 
   LLVM_DEBUG(
