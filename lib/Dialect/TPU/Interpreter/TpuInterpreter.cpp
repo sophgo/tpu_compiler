@@ -89,10 +89,8 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     LLVM_DEBUG(llvm::errs() << "LoadFileOp" << "\n";);
     auto filename = loadFileOp.getAttrOfType<StringAttr>("filename").getValue();
     LLVM_DEBUG(llvm::errs() << "  filename " << filename << "\n";);
-    weight_is = std::make_unique<std::ifstream>(filename.str(),
-        std::ios::in | std::ios::binary);
     auto filename_tensorfile = llvm::sys::path::stem(filename).str() + ".npz";
-    weight_file = openInputTensorFile(filename_tensorfile);
+    weightFile_ = openInputTensorFile(filename_tensorfile);
 
     return success();
   }
@@ -108,12 +106,12 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     auto type = result->getType().cast<TensorType>();
     std::unique_ptr<std::vector<float> > tensor= nullptr;
     if (type.getElementType().isF32()) {
-      tensor = std::move(weight_file->readTensor<float>(tensor_name, type));
+      tensor = std::move(weightFile_->readTensor<float>(tensor_name, type));
     } else if (type.getElementType().isInteger(8)) {
       // TODO: we still save int8 weight as fp32 for now
       assert(0);
     } else if (type.getElementType().isBF16()) {
-      auto tensor_bf16 = weight_file->readTensor<bfloat16>(tensor_name, type);
+      auto tensor_bf16 = weightFile_->readTensor<bfloat16>(tensor_name, type);
 
       // TODO: convert bf16 to fp32 here for now
       // as valueMapping is hardcoded as std::vector<float>
@@ -1048,11 +1046,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
   if (auto op = dyn_cast<ReturnOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "ReturnOp" << "\n";);
-    auto opdT = getOperandTensors(opInst, valueMapping);
-    //copy the value into outputs_
-    assert(outputs_.size() == 1);
-    outputs_[0]->assign(opdT[0]->begin(), opdT[0]->end());
-
+    // do nothing
     return success();
   }
 
@@ -1072,50 +1066,11 @@ LogicalResult ModuleInterpreter::runBlock(Block &bb) {
 
 LogicalResult ModuleInterpreter::runOneFunction(FuncOp func) {
   LLVM_DEBUG(llvm::errs() << "func " << func.getName() << "\n";);
-  // Clear the value mappings, it is only relevant within one function.
-  valueMapping.clear();
-
-  // Add function arguments to the value remapping table.
-  unsigned int argIdx = 0;
-  assert(inputs_.size() == 1);
-  for (auto arg : func.getArguments()) {
-    LLVM_DEBUG(
-      llvm::errs() << "arg " << argIdx << ": ";
-      arg->getType().dump();
-      llvm::errs() << "\n";
-    );
-
-    // copy the inputs_[0] into a unique_ptr pointed vector
-    // TODO: pass input as unique_ptr directly
-    auto input = std::make_unique<std::vector<float> >();
-    input->swap(*inputs_[0]);
-    valueMapping[arg] = std::move(input);
-    argIdx++;
-  }
-  assert(argIdx == 1);
-
-#ifdef ENABLE_GEN_CMDBUF
-  if (clCmdBufFilename != "-") {
-    std::vector<int8_t> weight_data;
-    backend_ctx = bmnet_create_backend_context(weight_data);
-  }
-#endif
-
-  // Then, run blocks one by one.
+  // run blocks one by one.
   for (Block &bb : func.getBlocks()) {
     if (failed(runBlock(bb)))
       return failure();
   }
-
-#ifdef ENABLE_GEN_CMDBUF
-  if (clCmdBufFilename != "-") {
-    bmnet_submit(backend_ctx);
-    std::vector<uint8_t> cmdbuf;
-    bmnet_read_cmdbuf(backend_ctx, cmdbuf);
-    std::fstream output(clCmdBufFilename, std::ios::out | std::ios::trunc | std::ios::binary);
-    output.write((char *)cmdbuf.data(), cmdbuf.size());
-  }
-#endif
 
   if (clAllTensorFilename != "-") {
     // dump all values
@@ -1180,9 +1135,11 @@ LogicalResult ModuleInterpreter::runFunctions() {
 }
 
 LogicalResult runTpuModule(ModuleOp m,
-    std::vector<std::vector<float> *> &inputs,
-    std::vector<std::vector<float> *> &outputs) {
-  return ModuleInterpreter::runModule<>(m, inputs, outputs);
+    std::vector<int64_t> input_shape, std::vector<float> &input_vec,
+    std::map<std::string, std::vector<float> > *results,
+    std::map<std::string, std::vector<float> > *allTensorMap) {
+  return ModuleInterpreter::runModule<>(m, input_shape, input_vec,
+                                        results, allTensorMap);
 }
 
 } // namespace mlir

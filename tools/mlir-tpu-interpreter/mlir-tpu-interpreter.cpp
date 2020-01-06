@@ -88,7 +88,7 @@ static void dump_data_float_abs(const char * const desc, const void * const addr
 }
 
 static size_t read_bianry_file(std::string filename, std::vector<float> &v,
-    size_t size = 0) {
+    size_t bytes = 0) {
   std::ifstream is;
   is.open(filename.c_str(), std::ios::in | std::ios::binary);
   if (!is) {
@@ -96,24 +96,24 @@ static size_t read_bianry_file(std::string filename, std::vector<float> &v,
     assert(0);
   }
   // use size in argument first
-  if (size == 0) {
+  if (bytes == 0) {
     // if vector is pre-allocated, use the vector size
     if (v.size() != 0) {
-      size = v.size() * sizeof(float);
+      bytes = v.size() * sizeof(float);
     } else {
       // finally, use the file total size
       is.seekg(0, is.end);
-      size = is.tellg();
+      bytes = is.tellg();
       is.seekg(0, is.beg);
     }
   }
-  if (v.size() < size) {
-    v.resize(size);
+  if (v.size() * sizeof(float) < bytes) {
+    v.resize(bytes/sizeof(float));
   }
-  llvm::errs() << "read " << size << " bytes from " << filename << "\n";
-  is.read(reinterpret_cast<char*>(v.data()), size);
+  llvm::errs() << "read " << bytes << " bytes from " << filename << "\n";
+  is.read(reinterpret_cast<char*>(v.data()), bytes);
   is.close();
-  return size;
+  return bytes;
 }
 
 static size_t write_bianry_file(std::string filename, std::vector<float> &v,
@@ -175,21 +175,20 @@ int TpuInterpreterMain(
     if (failed(mlirTransformer(m.get())))
       return EXIT_FAILURE;
 
-  std::vector<float> input(1*3*224*224);
-  std::vector<float> output(1*1000);
-  //std::fill (std::begin(input), std::end(input), 1.0f);
-  read_bianry_file(inputTensorFilename, input);
+  std::vector<int64_t> input_shape({1,3,224,224});
+  std::vector<float> input_vec(1*3*224*224);
+  read_bianry_file(inputTensorFilename, input_vec);
+  std::map<std::string, std::vector<float> > results;
 
-  std::vector<std::vector<float> *> inputs({&input});
-  std::vector<std::vector<float> *> outputs({&output});
-
-  if (failed(runTpuModule(m.get(), inputs, outputs)))
+  if (failed(runTpuModule(m.get(), input_shape, input_vec, &results, nullptr)))
     return EXIT_FAILURE;
 
-  if (outputTensorFilename == "-") {
-    dump_data_float_abs("output", outputs[0]->data(), 1, 1, 10, 100);
-  } else {
-    write_bianry_file(outputTensorFilename, output);
+  for ( auto it = results.begin(); it != results.end(); it++ ) {
+    if (outputTensorFilename == "-") {
+      dump_data_float_abs("output", it->second.data(), 1, 1, 10, 100);
+    } else {
+      write_bianry_file(outputTensorFilename, it->second);
+    }
   }
 
   int exitCode = EXIT_SUCCESS;
