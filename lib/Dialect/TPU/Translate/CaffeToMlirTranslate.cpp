@@ -563,10 +563,17 @@ void CaffeImporter::convertPoolingLayer(mlir::Block *block,
   //  pooled_width_ = static_cast<int>(ceil(static_cast<float>(
   //      width_ + 2 * pad_w_ - kernel_w_) / stride_w_)) + 1;
   //
-  ofmap[0] = (static_cast<int>(ceil(static_cast<float>(
-        ifmap[0] + 2 * padding[0] - kernel[0]) / stride[0])) + 1);
-  ofmap[1] = (static_cast<int>(ceil(static_cast<float>(
-        ifmap[1] + 2 * padding[1] - kernel[1]) / stride[1])) + 1);
+  if (!p.has_ceil_mode() || p.ceil_mode()) {
+    ofmap[0] = (static_cast<int>(ceil(static_cast<float>(
+          ifmap[0] + 2 * padding[0] - kernel[0]) / stride[0])) + 1);
+    ofmap[1] = (static_cast<int>(ceil(static_cast<float>(
+          ifmap[1] + 2 * padding[1] - kernel[1]) / stride[1])) + 1);
+  } else {
+    ofmap[0] = (static_cast<int>(floor(static_cast<float>(
+          ifmap[0] + 2 * padding[0] - kernel[0]) / stride[0])) + 1);
+    ofmap[1] = (static_cast<int>(floor(static_cast<float>(
+          ifmap[1] + 2 * padding[1] - kernel[1]) / stride[1])) + 1);
+  }
 
   if (is_global_pooling) {
     assert( (padding[0] == 0) && (padding[1] == 0) );
