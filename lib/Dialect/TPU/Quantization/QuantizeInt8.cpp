@@ -649,6 +649,146 @@ struct TpuQuantSigmoidOpPattern : public RewritePattern {
   Value *weightFileVar_;
 };
 
+struct TpuQuantScaleOpPattern : public RewritePattern {
+  TpuQuantScaleOpPattern(MLIRContext *context, TensorFile *weightTensorFile,
+                           Value *weightFileVar)
+      : RewritePattern("tpu.scale", 1, context),
+        weightTensorFile_(weightTensorFile), weightFileVar_(weightFileVar) {}
+
+  PatternMatchResult matchAndRewrite(Operation *op,
+                                     PatternRewriter &rewriter) const override {
+    auto scaleOp = cast<tpu::ScaleOp>(op);
+    std::string op_name =
+        scaleOp.getAttrOfType<StringAttr>("name").getValue().str();
+
+    if (scaleOp.quant() != "NONE") {
+      LLVM_DEBUG(llvm::errs() << scaleOp.name() << " quantized already\n";);
+      return matchFailure();
+    }
+    
+    // check if scale second is load weight op
+    auto weight_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
+            scaleOp.getOperand(1)->getDefiningOp());
+    if (weight_op){
+      float threshold_y = scaleOp.threshold_y().getValue().convertToFloat();
+      float threshold_x = getPreviousOpThreshold(op);
+      // find scale and bias tensor
+      std::vector<std::unique_ptr<std::vector<float>>> weights(2);
+      for (unsigned i = 0; i < scaleOp.getNumOperands() - 1; ++i) {
+        auto weight_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
+            scaleOp.getOperand(i + 1)->getDefiningOp());
+        assert(weight_op);
+        assert(weight_op.name().hasValue());
+        auto tensor_name = weight_op.name().getValue();
+        LLVM_DEBUG(llvm::errs()
+                       << "  weight[" << i << "] : " << tensor_name << "\n";);
+        auto type = weight_op.getResult()->getType().cast<TensorType>();
+        weights[i] = weightTensorFile_->readTensor<float>(tensor_name, type);
+        // delete the tensor from the weight file
+        weightTensorFile_->deleteTensor<float>(tensor_name);
+      }
+      float *scale = (float *)weights[0]->data();
+      float *bias = nullptr;
+      if (weights[1]) {
+        bias = (float *)weights[1]->data();
+      }
+     
+      // create new tensors for quantized scale and bias
+      auto scale_type = scaleOp.scale()->getType().cast<TensorType>();
+      std::vector<int64_t> scale_shape(scale_type.getShape());
+
+      int64_t scale_size =
+          std::accumulate(std::begin(scale_shape), std::end(scale_shape), 1,
+                          std::multiplies<>());
+      assert(scale_size == (int64_t)weights[0]->size());
+      int64_t n = scale_shape[0];
+      // TODO: use float for now, need to change to int8
+      std::vector<float> new_scale(scale_size);
+      std::vector<float> new_bias(n);
+      std::cout << "new_scale size: " << scale_size << std::endl;
+      std::cout << "bias size: " << n << std::endl;
+
+      // TODO: use only float in weight file for now
+      std::vector<float> rshift(1);
+      // find the max fabs weight value
+      float max_scale_abs = fabs(scale[0]);
+      for (int i = 0; i < scale_size; ++i) {
+        if (fabs(scale[i]) > max_scale_abs) {
+          max_scale_abs = fabs(scale[i]);
+        }
+      }
+      LLVM_DEBUG(llvm::errs() << "  max scale : " << max_scale_abs << "\n";);
+
+      // find rshift
+      // Q(W) = W * (threshold_x / threshold_y) * (1 << rshift)
+      // find a rshift put the Q(max_scale_abs) in range (64, 127)
+      assert(threshold_x);
+      rshift[0] = (float)findRShift(max_scale_abs, threshold_y, threshold_x);
+      LLVM_DEBUG(llvm::errs() << "  rshift : " << rshift[0] << "\n";);
+
+      // quantize weight
+      for (int i = 0; i < scale_size; ++i) {
+        new_scale[i] = (float)quantizeFilterRShift(
+            scale[i], threshold_y, threshold_x, (uint32_t)rshift[0]);
+      }
+      if (bias) {
+        for (int i = 0; i < n; ++i) {
+          new_bias[i] = (float)quantizeBiasRShiftI16(bias[i], threshold_y,
+                                                     (uint32_t)rshift[0]);
+        }
+      }
+      // update op
+      std::vector<Value *> newOperands;
+      newOperands.push_back(scaleOp.getOperand(0));
+
+      // add new scale and bias weight
+      std::vector<std::vector<float> *> newWeights{&new_scale, &new_bias};
+      std::vector<std::vector<int64_t>> weightShapes{scale_shape,
+                                                     std::vector<int64_t>{n}};
+      for (int i = 0; i < 2; ++i) {
+        if (!bias && i == 1)
+          continue;
+        auto tensor_name = op_name + "_quant_int8_" + std::to_string(i);
+        LLVM_DEBUG(llvm::errs() << "  new_weight[" << i << "] : " << tensor_name
+                                << "\n";);
+        auto type = RankedTensorType::get(
+            weightShapes[i], FloatType::getF32(rewriter.getContext()));
+        weightTensorFile_->addTensor<float>(tensor_name, newWeights[i], type);
+        std::vector<NamedAttribute> attrs;
+        attrs.push_back(
+            rewriter.getNamedAttr("name", rewriter.getStringAttr(tensor_name)));
+        if (i == 0) {
+          // scale store as INT8
+          attrs.push_back(
+              rewriter.getNamedAttr("storage", rewriter.getStringAttr("INT8")));
+        } else if (i == 1) {
+          // bias store as INT16
+          attrs.push_back(rewriter.getNamedAttr(
+              "storage", rewriter.getStringAttr("INT16")));
+        }
+        auto new_weight_op = rewriter.create<tpu::LoadWeightOp>(
+            op->getLoc(), type, ArrayRef<Value *>{weightFileVar_},
+            ArrayRef<NamedAttribute>{attrs});
+        newOperands.push_back(new_weight_op);
+      }
+      // replace with the new scale op
+      auto origAttrs = scaleOp.getAttrs();
+      std::vector<NamedAttribute> newAttrs(origAttrs.begin(), origAttrs.end());
+      newAttrs.push_back(
+          rewriter.getNamedAttr("quant", rewriter.getStringAttr("INT8")));
+      rewriter.replaceOpWithNewOp<tpu::ScaleOp>(
+          scaleOp, scaleOp.getResult()->getType(), ArrayRef<Value *>{newOperands},
+          ArrayRef<NamedAttribute>{newAttrs});
+    }
+
+    scaleOp.setAttr("quant", rewriter.getStringAttr("INT8"));
+    return matchSuccess();
+  }
+
+  TensorFile *weightTensorFile_;
+  Value *weightFileVar_;
+};
+
 template<typename T>
 static void addQuantOpAfterOp(PatternRewriter &rewriter,
     T &op, float threshold, std::string op_name) {

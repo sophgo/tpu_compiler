@@ -205,7 +205,8 @@ def TPU_ScaleOp: TPU_Op<"scale", [NoSideEffect]> {
     AnyTensor:$scale,
     Variadic<AnyTensor>:$bias,
     OptionalAttr<StrAttr>:$name,
-    OptionalAttr<F32Attr>:$threshold_y
+    OptionalAttr<F32Attr>:$threshold_y,
+    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
   );
 
   let results = (outs AnyTensor:$y);
@@ -368,7 +369,7 @@ def TPU_CropOp: TPU_Op<"crop", [NoSideEffect]> {
     OptionalAttr<I32Attr>:$crop_offset_c,
     OptionalAttr<I32Attr>:$crop_offset_h,
     OptionalAttr<I32Attr>:$crop_offset_w,
-
+    OptionalAttr<F32Attr>:$threshold_y,
     OptionalAttr<StrAttr>:$name
   );
 

@@ -46,6 +46,7 @@
 
 #include <numeric>
 #include <functional>
+#include <algorithm>
 
 #define DEBUG_TYPE "interpreter"
 
@@ -644,14 +645,45 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     w = i_s[3];
     float *input = (float *)opdT[0]->data();
     float *scale = (float *)opdT[1]->data();
+    float *output = (float *)resultT.get()->data();
     float *bias = nullptr;
+    uint32_t rshift;
     if (opdT.size() > 2) {
       assert(opdT.size() == 3);
       bias = (float *)opdT[2]->data();
     }
-    float *output = (float *)resultT.get()->data();
+    if (op.quant() == "INT8") {
+      if (opdT.size() == 2) {
+        std::vector<float> threshold_x(2);
+        float threshold_y;
+        for (int index = 0; index < 2; ++index) {
+          // get threshold_x
+          threshold_x[index] = getPreviousOpThreshold(op, index);
+        }
+        // get threshold_y
+        threshold_y = op.threshold_y().getValue().convertToFloat();
+        // determine rshift for all inputs, and multiplier for each input
+        // use max threshold_x to find rshift first
+        float max_threshold_x =
+            *std::max_element(std::begin(threshold_x), std::end(threshold_x));
+        rshift =
+            findRShiftAndMultiplierFromQScale(max_threshold_x / threshold_y);
+      } else {
+        float threshold_x = getPreviousOpThreshold(op);
+        float threshold_y = op.threshold_y().getValue().convertToFloat();
+        rshift = findRShiftAndMultiplierFromQScale(threshold_x / threshold_y);
+      }
+    }
     int ret = my_scale(input, scale, bias, output, n, c, h, w);
     assert(ret == 0);
+    // rshift and saturate on output
+    if (op.quant() == "INT8") {
+      // assert(rshift);
+      for (int i = 0; i < size; ++i) {
+        output[i] =
+            (float)applyRShiftAndSaturateInt8(output[i], (uint32_t)rshift);
+      }
+    }
 
     valueMapping[result] = std::move(resultT);
 
