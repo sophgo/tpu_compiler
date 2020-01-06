@@ -15,7 +15,7 @@ mlir-tpu-interpreter vgg16.mlir \
     --tensor-in $DATA_PATH/test_cat_in_fp32.bin \
     --tensor-out out.bin \
     --dump-all-tensor=tensor_all_fp32.npz
-     
+
 # apply all possible pre-calibration optimizations
 #mlir-opt \
 #    --convert-bn-to-scale \
@@ -71,7 +71,7 @@ mlir-opt \
     --mlir-to-cmdbuf \
     -o cmdbuf.bin
 
-#Usage: test_bmnet input.bin weight.bin cmdbuf.bin output.bin 
+#Usage: test_bmnet input.bin weight.bin cmdbuf.bin output.bin
 #       output_size output_offset neuron_size batch_size
 
 # run cmdbuf
@@ -95,7 +95,7 @@ mlir-tpu-interpreter \
 
 # compare all tensors
 bin_to_npz.py out_all.bin neuron_map.csv out_all_perlayer.npz
-npz_compare.py out_all_perlayer.npz tensor_all_int8_per_layer.npz show 5
+npz_compare.py out_all_perlayer.npz tensor_all_int8_per_layer.npz
 
 ################################
 # quantization 2: per-channel int8
@@ -148,7 +148,7 @@ mlir-tpu-interpreter \
 
 # compare all tensors
 bin_to_npz.py out_all.bin neuron_map.csv out_all_perchannel.npz
-npz_compare.py out_all_perchannel.npz tensor_all_int8_multiplier.npz show 5
+npz_compare.py out_all_perchannel.npz tensor_all_int8_multiplier.npz
 
 
 
