@@ -624,6 +624,14 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     return success();
   }
   if (auto op = dyn_cast<tpu::ScaleOp>(opInst)) {
+    // mode 0: load scale from wegiht
+    // mode 1: load scale from input2
+    int mode = 1;
+    // check if scale second is load weight op
+    if(auto weight_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
+        op.getOperand(1)->getDefiningOp())){
+        mode = 0;
+    }
     LLVM_DEBUG(llvm::errs() << "ScaleOp" << "\n";);
     auto opdT = getOperandTensors(opInst, valueMapping);
     auto result = op.getResult();
@@ -632,7 +640,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     assert(shape.size() <= 4);
     auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
     auto resultT = std::make_unique<std::vector<float> >(size);
-
+    uint32_t multiplier_prod;
     int n, c, h, w;
     auto input_type = op.x()->getType().cast<TensorType>();
     std::vector<int64_t> i_s(input_type.getShape());
@@ -652,10 +660,13 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       assert(opdT.size() == 3);
       bias = (float *)opdT[2]->data();
     }
+
     if (op.quant() == "INT8") {
-      if (opdT.size() == 2) {
+      if (mode == 1) {
+        assert(opdT.size() == 2);
         std::vector<float> threshold_x(2);
         float threshold_y;
+        
         for (int index = 0; index < 2; ++index) {
           // get threshold_x
           threshold_x[index] = getPreviousOpThreshold(op, index);
@@ -664,32 +675,38 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
         threshold_y = op.threshold_y().getValue().convertToFloat();
         // determine rshift for all inputs, and multiplier for each input
         // use max threshold_x to find rshift first
-        float max_threshold_x =
-            *std::max_element(std::begin(threshold_x), std::end(threshold_x));
-        rshift =
-            findRShiftAndMultiplierFromQScale(max_threshold_x / threshold_y);
+        float threshold_prod = std::accumulate(
+            threshold_x.begin(), threshold_x.end(), 1.0, std::multiplies<>());
+        float qscale = threshold_prod / threshold_y / 127.0;
+        rshift = findRShiftAndMultiplierFromQScale(qscale, &multiplier_prod,
+                                                   true, 255);
       } else {
-        // check if scale second is load weight op
         auto weight_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
             op.getOperand(1)->getDefiningOp());
-        if (weight_op) {
-          float threshold_x = getPreviousOpThreshold(op);
-          float threshold_y = op.threshold_y().getValue().convertToFloat();
-          rshift = weight_op.rshift().getValue().convertToFloat();
-        }
+        float threshold_x = getPreviousOpThreshold(op);
+        float threshold_y = op.threshold_y().getValue().convertToFloat();
+        rshift = weight_op.rshift().getValue().convertToFloat();
+
       }
     }
     int ret = my_scale(input, scale, bias, output, n, c, h, w);
     assert(ret == 0);
+
     // rshift and saturate on output
     if (op.quant() == "INT8") {
       // assert(rshift);
-      for (int i = 0; i < size; ++i) {
-        output[i] =
-            (float)applyRShiftAndSaturateInt8(output[i], (uint32_t)rshift);
+      if(mode == 0){
+        for (int i = 0; i < size; ++i) {
+          output[i] =
+              (float)applyRShiftAndSaturateInt8(output[i], (uint32_t)rshift);
+        }
+      } else {
+        for (int i = 0; i < size; ++i) {
+          output[i] = (float)applyMultiplierAndRShiftAndSaturateInt8(
+              output[i], rshift, multiplier_prod, false);
+        }
       }
     }
-
     valueMapping[result] = std::move(resultT);
 
     return success();

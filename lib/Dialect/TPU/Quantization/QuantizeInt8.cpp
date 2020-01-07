@@ -779,9 +779,9 @@ struct TpuQuantScaleOpPattern : public RewritePattern {
       rewriter.replaceOpWithNewOp<tpu::ScaleOp>(
           scaleOp, scaleOp.getResult()->getType(), ArrayRef<Value *>{newOperands},
           ArrayRef<NamedAttribute>{newAttrs});
+    }else{
+      scaleOp.setAttr("quant", rewriter.getStringAttr("INT8"));
     }
-
-    scaleOp.setAttr("quant", rewriter.getStringAttr("INT8"));
     return matchSuccess();
   }
 
