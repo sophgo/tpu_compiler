@@ -669,9 +669,14 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
         rshift =
             findRShiftAndMultiplierFromQScale(max_threshold_x / threshold_y);
       } else {
-        float threshold_x = getPreviousOpThreshold(op);
-        float threshold_y = op.threshold_y().getValue().convertToFloat();
-        rshift = findRShiftAndMultiplierFromQScale(threshold_x / threshold_y);
+        // check if scale second is load weight op
+        auto weight_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
+            op.getOperand(1)->getDefiningOp());
+        if (weight_op) {
+          float threshold_x = getPreviousOpThreshold(op);
+          float threshold_y = op.threshold_y().getValue().convertToFloat();
+          rshift = weight_op.rshift().getValue().convertToFloat();
+        }
       }
     }
     int ret = my_scale(input, scale, bias, output, n, c, h, w);
@@ -728,7 +733,8 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       for (int index = 0; index < MAX_ELTWISE_INPUT; ++index) {
         // make copy
         std::vector<float> &src_vec = *opdT[index];
-        std::copy(src_vec.begin(), src_vec.end(), back_inserter(input_copy[index]));
+        std::copy(src_vec.begin(), src_vec.end(),
+                  back_inserter(input_copy[index]));
         input[index] = input_copy[index].data();
 
         // get threshold_x
@@ -745,44 +751,53 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     // find a rshift, that put max(multiplier) into range (64, 127)
     uint32_t rshift;
     int8_t multiplier[MAX_ELTWISE_INPUT];
+    uint32_t multiplier_prod;
     if (op.quant() == "INT8") {
-      // determine rshift for all inputs, and multiplier for each input
-      // use max threshold_x to find rshift first
-      float max_threshold_x = *std::max_element(
-          std::begin(threshold_x), std::end(threshold_x));
-      rshift = findRShiftAndMultiplierFromQScale(max_threshold_x / threshold_y);
-      LLVM_DEBUG(llvm::errs() << "  threshold_y = " << std::to_string(threshold_y)
-                              << ", rshift = " << std::to_string(rshift) << "\n");
-      for (int index = 0; index < 2; ++index) {
-        float qscale = threshold_x[index] / threshold_y;
-        multiplier[index] = (int8_t)findMultiplierFromQScaleAndRShift(qscale, rshift);
+      if (op.method() == "SUM" || op.method() == "MAX") {
+        // determine rshift for all inputs, and multiplier for each input
+        // use max threshold_x to find rshift first
+        float max_threshold_x =
+            *std::max_element(std::begin(threshold_x), std::end(threshold_x));
+        rshift =
+            findRShiftAndMultiplierFromQScale(max_threshold_x / threshold_y);
         LLVM_DEBUG(llvm::errs()
-            << "  threshold_x[" << index << "] = " << std::to_string(threshold_x[index])
-            << ", multiplier["  << index << "] = " << std::to_string(multiplier[index])
-            << "\n");
+                   << "  threshold_y = " << std::to_string(threshold_y)
+                   << ", rshift = " << std::to_string(rshift) << "\n");
+        for (int index = 0; index < MAX_ELTWISE_INPUT; ++index) {
+          float qscale = threshold_x[index] / threshold_y;
+          multiplier[index] =
+              (int8_t)findMultiplierFromQScaleAndRShift(qscale, rshift);
+          LLVM_DEBUG(llvm::errs()
+                     << "  threshold_x[" << index
+                     << "] = " << std::to_string(threshold_x[index])
+                     << ", multiplier[" << index
+                     << "] = " << std::to_string(multiplier[index]) << "\n");
+        }
+        // apply multiplier
+        for (int index = 0; index < MAX_ELTWISE_INPUT; ++index) {
+          for (size_t i = 0; i < opdT[index]->size(); ++i) {
+            input[index][i] = input[index][i] * multiplier[index];
+          }
+        }
+      } else if (op.method() == "PROD") {
+        float threshold_prod = std::accumulate(
+            threshold_x.begin(), threshold_x.end(), 1.0, std::multiplies<>());
+        float qscale = threshold_prod / threshold_y / 127.0;
+        rshift = findRShiftAndMultiplierFromQScale(qscale, &multiplier_prod, true, 255);
+      } else {
+        assert(0); // not support
       }
     }
 
-    // apply multiplier
-    if (op.quant() == "INT8") {
-      for (int index = 0; index < MAX_ELTWISE_INPUT; ++index) {
-        for (size_t i = 0; i < opdT[index]->size(); ++i) {
-          input[index][i] = input[index][i] * multiplier[index];
-        }
-      }
-    }
     int ret;
-    if (op.method() == "SUM"){
+    if (op.method() == "SUM") {
       ret = my_eltwise(input[0], input[1], output, n, c, h, w, 1);
-    } else if (op.method() == "PROD"){
+    } else if (op.method() == "PROD") {
       ret = my_eltwise(input[0], input[1], output, n, c, h, w, 0);
-    } else if (op.method() == "MAX"){
+    } else if (op.method() == "MAX") {
       ret = my_eltwise(input[0], input[1], output, n, c, h, w, 2);
     }
     assert(ret == 0);
-
-    //dump_data_float_abs("output", mkldnn_output, n, c, oh, ow);
-
     if (op.fused_activation_function() == "NONE") {
     } else if (op.fused_activation_function() == "RELU") {
       my_relu(output, output, n, c, h, w, 0.0f);
@@ -792,13 +807,23 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
     // rshift and saturate on output
     if (op.quant() == "INT8") {
-      //assert(rshift);
-      for (int i = 0; i < size; ++i) {
-        output[i] = (float)applyRShiftAndSaturateInt8(output[i], (uint32_t)rshift);
+      // assert(rshift);
+      if (op.method() == "PROD") {
+        for (int i = 0; i < size; ++i) {
+          output[i] = (float)applyMultiplierAndRShiftAndSaturateInt8(
+              output[i], rshift, multiplier_prod, true);
+        }
+      } else {
+        for (int i = 0; i < size; ++i) {
+          output[i] =
+              (float)applyRShiftAndSaturateInt8(output[i], (uint32_t)rshift);
+        }
       }
     } else if (op.quant() == "BF16") {
-      auto tensor_bf16 = std::make_unique<std::vector<bfloat16> >(resultT->size());
-      FloatToBFloat16(resultT->data(), tensor_bf16->data(), resultT->size()); // with rounding
+      auto tensor_bf16 =
+          std::make_unique<std::vector<bfloat16>>(resultT->size());
+      FloatToBFloat16(resultT->data(), tensor_bf16->data(),
+                      resultT->size()); // with rounding
       BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
     }
 

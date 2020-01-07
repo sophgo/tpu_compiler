@@ -937,8 +937,10 @@ public:
         weightTensorFile.get(), weightFileVar);
     patterns_w.insert<TpuQuantEltwiseOpPattern>(context,
         weightTensorFile.get(), weightFileVar);
-    patterns_w.insert<TpuQuantSigmoidOpPattern>(context, weightTensorFile.get(),
-                                                weightFileVar);
+    patterns_w.insert<TpuQuantSigmoidOpPattern>(context, 
+        weightTensorFile.get(), weightFileVar);
+    patterns_w.insert<TpuQuantScaleOpPattern>(context, 
+        weightTensorFile.get(), weightFileVar);
     applyPatternsGreedily(fn, patterns_w);
 
     OwningRewritePatternList patterns_q;

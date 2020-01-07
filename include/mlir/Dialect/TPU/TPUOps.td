@@ -114,6 +114,7 @@ def TPU_LoadWeightOp : TPU_Op<"load_weight", [NoSideEffect]> {
     OptionalAttr<StrAttr>:$name,
     DefaultValuedAttr<TPU_WeightAttr, "FP32">:$storage,
     OptionalAttr<NonNegativeI64Attr>:$offset,
+    OptionalAttr<F32Attr>:$rshift,
     OptionalAttr<NonNegativeI32Attr>:$layer_id
   );
 
