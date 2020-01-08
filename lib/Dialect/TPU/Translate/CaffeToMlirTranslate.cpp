@@ -1082,7 +1082,6 @@ void CaffeImporter::convertCropLayer(mlir::Block *block,
   assert(input_vars.size() == 2 && "Crop expected two input blobs");
 
   auto layer_param = layer->layer_param();
-  assert(layer_param.has_crop_param() && "Crop expected crop param");
   auto crop_param = layer_param.crop_param();
 
   // get input shape from input vars
