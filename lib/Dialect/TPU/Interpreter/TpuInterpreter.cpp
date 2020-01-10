@@ -346,7 +346,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
     float *output_data = resultT->data();
     int mkldnn_ret = mkldnn_pool(input->data(), output_data,
-        n, c, ih, iw, oh, ow, kh, kw, sh, sw, ph, pw, is_average_pool);
+        n, c, ih, iw, oh, ow, kh, kw, sh, sw, pt, pb, pl, pr, is_average_pool);
     assert(mkldnn_ret == 0);
     //dump_data_float_abs("mkldnn_output", mkldnn_output, n, c, oh, ow);
 
