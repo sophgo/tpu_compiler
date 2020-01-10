@@ -7,7 +7,7 @@ int mkldnn_conv(float *input, float *weight, float *bias,
 
 int mkldnn_pool(float *input, float *output,
     int n, int c, int ih, int iw, int oh, int ow,
-    int kh, int kw, int sh, int sw, int ph, int pw,
+    int kh, int kw, int sh, int sw, int pt, int pb, int pl, int pr,
     bool is_avg);
 
 int mkldnn_ip(float *input, float *weight, float *bias,

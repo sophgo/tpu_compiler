@@ -324,9 +324,9 @@ static LogicalResult runOperation(Operation &opInst) {
     LLVM_DEBUG(llvm::errs() << "Pool2DOp" << "\n";);
 
     bool is_average_pool, do_relu;
-    int n, c, ih, iw, oh, ow, kh, kw, sh, sw, ph, pw;
+    int n, c, ih, iw, oh, ow, kh, kw, sh, sw, pt, pb, pl, pr;
     getPool2DOpParam(op, is_average_pool, n, c, ih, iw, oh, ow,
-                     kh, kw, sh, sw, ph, pw, do_relu);
+                     kh, kw, sh, sw, pt, pb, pl, pr, do_relu);
 
     float threshold_x;
     float threshold_y;
@@ -373,10 +373,10 @@ static LogicalResult runOperation(Operation &opInst) {
           iw,
           kh,
           kw,
-          ph, // int pad_top,
-          ph, // int pad_bot,
-          pw, // int pad_left,
-          pw, // int pad_right,
+          pt, // int pad_top,
+          pb, // int pad_bot,
+          pl, // int pad_left,
+          pr, // int pad_right,
           sh, // int stride_h,
           sw, // int stride_w,
           is_average_pool, //is_avg_pooling,
@@ -400,10 +400,10 @@ static LogicalResult runOperation(Operation &opInst) {
           iw,
           kh,
           kw,
-          ph, // int pad_top,
-          ph, // int pad_bot,
-          pw, // int pad_left,
-          pw, // int pad_right,
+          pt, // int pad_top,
+          pb, // int pad_bot,
+          pl, // int pad_left,
+          pr, // int pad_right,
           sh, // int stride_h,
           sw, // int stride_w,
           is_average_pool, //is_avg_pooling,

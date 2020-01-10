@@ -155,48 +155,28 @@ int mkldnn_conv(float *input, float *weight, float *bias,
 
 int mkldnn_pool(float *input, float *output,
     int n, int c, int ih, int iw, int oh, int ow,
-    int kh, int kw, int sh, int sw, int ph, int pw,
+    int kh, int kw, int sh, int sw, int pt, int pb, int pl, int pr,
     bool is_avg) {
-  int p_t = ph;
-  int p_b = ph;
-  int p_l = pw;
-  int p_r = pw;
-  // Fix padding
-  if ( (ih - kh) % sh ) {
-    assert(sh == 2);
-    assert(oh == static_cast<int>(ceil(static_cast<float>(
-        ih + 2 * ph - kh) / sh)) + 1);
-    // caffe will pass ph == 0 (padding == "SAME") here
-    // by passing ph == 0, caffe actually means
-    // p_top = 0, p_bottom = 1
-    // if ph == 1 is passed (padding == "SAME")
-    // we handle it with the opposite of caffe, i.e.
-    // p_top = 1, p_bottom = 0
-    if (ph == 0) {
-      p_b = 1;
-    } else {
-      assert(ph == 1);
-      p_b = 0;
-    }
-    assert(ph == 0);  // put a reminder here, just in case we met the case
+  int p_t = pt;
+  int p_b = pb;
+  int p_l = pl;
+  int p_r = pr;
+  LLVM_DEBUG(
+    llvm::errs() << "mkldnn_pool: "<< "  i: (" << ih << "*" << iw << "), "
+              << "o: (" << oh << "*" << ow << "), "
+              << "k: (" << kh << "*" << kw << "), "
+              << "s: (" << sh << ", " << sw << "), "
+              << "p: (" << pt << ", " << pb  << ", " << pl << ", "  << pr << "), " << "\n";
+  );
+
+  int pb_need_more = (ih + p_t + p_l) % kh;
+  if (pb_need_more != 0) {
+    p_b += (kh - pb_need_more);
   }
-  if ( (iw - kw) % sw ) {
-    assert(sw == 2);
-    assert(ow == static_cast<int>(ceil(static_cast<float>(
-        iw + 2 * pw - kw) / sw)) + 1);
-    // caffe will pass pw == 0 (padding == "SAME") here
-    // by passing pw == 0, caffe actually means
-    // p_left = 0, p_right = 1
-    // if pw == 1 is passed (padding == "SAME")
-    // we handle it with the opposite of caffe, i.e.
-    // p_left = 1, p_right = 0
-    if (pw == 0) {
-      p_r = 1;
-    } else {
-      assert(pw == 1);
-      p_r = 0;
-    }
-    assert(pw == 0);  // put a reminder here, just in case we met the case
+
+  int pr_need_more = (iw + p_l + p_r) % kw;
+  if (pr_need_more != 0) {
+    p_r += (kw - pr_need_more);
   }
 
 #ifdef DUMP_FLAG

@@ -140,7 +140,13 @@ def TPU_Pool2DOp : TPU_Op<"pool_2d", [NoSideEffect]> {
     TPU_PoolAttr:$pool,
     I32Attr:$filter_height,
     I32Attr:$filter_width,
-    TPU_PaddingAttr:$padding,
+    OptionalAttr<I32Attr>:$pad_top,
+    OptionalAttr<I32Attr>:$pad_bottom,
+    OptionalAttr<I32Attr>:$pad_left,
+    OptionalAttr<I32Attr>:$pad_right,
+    // CAUTION - TPU_PaddingAttr is depracated for asymmetric padding
+    // Keep it for compatible
+    OptionalAttr<TPU_PaddingAttr>:$padding,
     I32Attr:$stride_h,
     I32Attr:$stride_w,
     DefaultValuedAttr<TPU_AFAttr, "NONE">:$fused_activation_function,

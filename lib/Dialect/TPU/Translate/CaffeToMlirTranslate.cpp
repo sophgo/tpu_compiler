@@ -600,8 +600,10 @@ void CaffeImporter::convertPoolingLayer(mlir::Block *block,
   }
   attrs.push_back(builder_.getNamedAttr("filter_height", builder_.getI32IntegerAttr(kernel[0])));
   attrs.push_back(builder_.getNamedAttr("filter_width", builder_.getI32IntegerAttr(kernel[1])));
-  attrs.push_back(builder_.getNamedAttr("padding",
-      (padding[0] || padding[1]) ? builder_.getStringAttr("SAME") : builder_.getStringAttr("VALID")));
+  attrs.push_back(builder_.getNamedAttr("pad_top", builder_.getI32IntegerAttr(padding[0])));
+  attrs.push_back(builder_.getNamedAttr("pad_bottom", builder_.getI32IntegerAttr(padding[0])));
+  attrs.push_back(builder_.getNamedAttr("pad_left", builder_.getI32IntegerAttr(padding[1])));
+  attrs.push_back(builder_.getNamedAttr("pad_right", builder_.getI32IntegerAttr(padding[1])));
   attrs.push_back(builder_.getNamedAttr("stride_h", builder_.getI32IntegerAttr(stride[0])));
   attrs.push_back(builder_.getNamedAttr("stride_w", builder_.getI32IntegerAttr(stride[1])));
   attrs.push_back(builder_.getNamedAttr("fused_activation_function", builder_.getStringAttr("NONE")));

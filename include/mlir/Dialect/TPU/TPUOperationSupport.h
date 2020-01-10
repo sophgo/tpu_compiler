@@ -42,7 +42,7 @@ void getConv2DOpParam(T &op,
     bool &with_bias, bool &do_relu);
 void getPool2DOpParam(tpu::Pool2DOp &op,
     bool &is_average_pool, int &n, int &c, int &ih, int &iw, int &oh, int &ow,
-    int &kh, int &kw, int &sh, int &sw, int &ph, int &pw, bool &do_relu);
+    int &kh, int &kw, int &sh, int &sw, int &pt, int &pb, int &pl, int &pr, bool &do_relu);
 void getFullyConnectedOpParam(tpu::FullyConnectedOp &op,
     bool &with_transpose, int &m, int &k, int &n,
     bool &with_bias, bool &do_relu);
