@@ -505,37 +505,6 @@ int my_bn(float *input, float *mean, float *variance, float *scale,
   return 0;
 }
 
-// Y = (X-mean(X))/(sqrt(var(X)+eps))
-int my_bn(float *input, float *mean, float *variance, float *scale,
-    float *output, int n, int c) {
-  float eps = 1.0e-5;
-  float scale_factor = 1 / scale[0];
-  for (int i = 0; i < c; ++i) {
-    mean[i] = mean[i] * scale_factor;
-    variance[i] = variance[i] * scale_factor;
-  }
-  for (int ni = 0; ni < n; ++ni) {
-    for (int ci = 0; ci < c; ++ci) {
-      auto x = input[ni * c + ci] - mean[ci];
-      auto d = sqrt(variance[ci] + eps);
-      output[ni * c + ci] = x / d;
-      if (fabs(variance[ci]) <= eps && fabs(mean[ci]) <= 1e-8
-          && fabs(input[ni * c + ci]) >= eps) {
-        llvm::errs() << "WARNING: BN: var too small, i=" << ci
-                      << ", v=" << std::to_string(variance[ci])
-                      << ", m=" << std::to_string(mean[ci])
-                      << "\n               "
-                      << ", i=" << std::to_string(input[ni * c + ci])
-                      << ", x=" << std::to_string(x)
-                      << ", d=" << std::to_string(d)
-                      << ", o=" << std::to_string(output[ni * c + ci])
-                      << "\n";
-      }
-    }
-  }
-  return 0;
-}
-
 int my_scale(float *input, float *scale, float *bias,
     float *output, int n, int c, int h, int w) {
 #ifdef DUMP_FLAG

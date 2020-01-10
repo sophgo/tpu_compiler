@@ -108,20 +108,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     auto type = result->getType().cast<TensorType>();
     std::unique_ptr<std::vector<float> > tensor= nullptr;
     if (type.getElementType().isF32()) {
-      // cout << "tt-0"  << endl;
-      // assert(!weight_file);
-      // auto tt = weight_file->readTensor<float>(tensor_name, type);
-      // cout << "tt-1"  << endl;
-      // if (tt == nullptr){
-      //   cout << "nullptr" << endl;
-      // }
-      // auto aa = tt.get();
-      // cout << "aa->size() = " << aa->size() << endl;
-      // tensor = std::move(tt); 
-      
       tensor = std::move(weight_file->readTensor<float>(tensor_name, type));
-      
-      // cout << "tt-2"  << endl;
     } else if (type.getElementType().isInteger(8)) {
       // TODO: we still save int8 weight as fp32 for now
       assert(0);
@@ -622,17 +609,6 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
     assert((i_s.size() == 4 || i_s.size() == 2) && 
            "BatchNorm support shape size of 4 or 2 now." );
-
-    // cout << "i_s.size() = " << i_s.size() << " : [ " << i_s[0];
-    // for (int i=1; i<i_s.size(); i++){
-    //   cout << ", " << i_s[1];
-    // }
-    // cout << " ]" << endl;
-    
-    // n = i_s[0];
-    // c = i_s[1];
-    // h = i_s[2];
-    // w = i_s[3];
     
     n = i_s[0];
     c = i_s[1];
@@ -672,11 +648,6 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     assert((i_s.size() == 4 || i_s.size() == 2) && 
            "BatchNorm support shape size of 4 or 2 now." );
     
-    // n = i_s[0];
-    // c = i_s[1];
-    // h = i_s[2];
-    // w = i_s[3];
-
     n = i_s[0];
     c = i_s[1];
     h = (i_s.size() == 2) ? 1 : i_s[2];

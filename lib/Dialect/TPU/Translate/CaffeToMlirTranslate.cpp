@@ -48,9 +48,6 @@
 
 using namespace mlir;
 
-using std::cout;
-using std::endl;
-
 // Importer that takes an Caffe model and imports it as an MLIR module in the TPU
 // dialect.
 class CaffeImporter {
@@ -143,7 +140,6 @@ mlir::Type CaffeImporter::GetTypeFromCaffeShape(
     const std::vector<int> shape, mlir::Type elementType) {
   std::vector<int64_t> shape_int64(shape.begin(), shape.end());
   llvm::ArrayRef<int64_t> mlir_shape(shape_int64);
-  // auto _tmp = RankedTensorType::get(mlir_shape, elementType);
   return RankedTensorType::get(mlir_shape, elementType);
 } 
 
@@ -165,7 +161,6 @@ void CaffeImporter::ParseNetInputOutput(caffe::Net<float> &net,
   }
   for (int i = 0; i <= net.num_outputs() - 1; ++i) {
     int index = net.output_blob_indices()[i];
-    // auto _tmp_blob = net.blob_by_name(net.blob_names()[index]);
 
     LLVM_DEBUG(
       llvm::errs()
@@ -208,10 +203,6 @@ void CaffeImporter::AddLoadFileOp(mlir::Block *block,
 void CaffeImporter::ConvertLayers(mlir::Block *block,
     caffe::Net<float> &net) {
   for (size_t i = 0; i <= net.layers().size() - 1; ++i) {
-    // auto tmp_layer = net.layers()[i];
-    // auto tmp_layer_g = tmp_layer.get();
-    // tmp_layer_g->type();
-
     auto layer = net.layers()[i].get();
     LLVM_DEBUG(printCaffeLayerParam(layer););
 
@@ -683,19 +674,9 @@ void CaffeImporter::convertBatchNormLayer(mlir::Block *block,
   weightFile_->addTensor(scale_name, layer->blobs()[2].get()->cpu_data(), scale_type);
   operands.push_back(AddLoadWeightOp(block, scale_name, scale_type));
 
-  mlir::RankedTensorType result_type;
-  result_type = RankedTensorType::get(input_var_shape, elementType_);
-  // switch(input_var_shape.size()) {
-  //   case 2:
-  //     result_type = RankedTensorType::get({n, c}, elementType_);
-  //     break;
-  //   case 4:
-  //     result_type = RankedTensorType::get({n, c, h, w}, elementType_);
-  //     break;
-  //   default:
-  //     break;
-  // }
-
+  // auto result_type = RankedTensorType::get({n, c, h, w}, elementType_);
+  auto result_type = RankedTensorType::get(input_var_shape, elementType_);
+  
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name())));
   auto op = OpBuilder(block).create<tpu::BatchNormOp>(
@@ -720,7 +701,6 @@ void CaffeImporter::convertScaleLayer(mlir::Block *block,
   llvm::ArrayRef<int64_t> input_var_shape =
       input_var->getType().dyn_cast<mlir::TensorType>().getShape();
 
-  // >> Kevin modify (START) : add the case of input_var_shape.size() == 2
   assert(input_var_shape.size() == 4 || 
          input_var_shape.size() == 2);
 
@@ -774,18 +754,7 @@ void CaffeImporter::convertScaleLayer(mlir::Block *block,
     }
     // construct OP
     //auto result_type = RankedTensorType::get({n, c, h, w}, elementType_);
-    mlir::RankedTensorType result_type;
-    result_type = RankedTensorType::get(input_var_shape, elementType_);
-    // switch(input_var_shape.size()) {
-    //   case 2:
-    //     result_type = RankedTensorType::get({n, c}, elementType_);
-    //     break;
-    //   case 4:
-    //     result_type = RankedTensorType::get({n, c, h, w}, elementType_);
-    //     break;
-    //   default:
-    //     break;
-    // }
+    auto result_type = RankedTensorType::get(input_var_shape, elementType_);
     std::vector<NamedAttribute> attrs;
     attrs.push_back(builder_.getNamedAttr(
         "name", builder_.getStringAttr(layer_param.name())));
@@ -795,42 +764,6 @@ void CaffeImporter::convertScaleLayer(mlir::Block *block,
     auto result_var = op.getResult();
     tensor_map_[layer_param.top(0)] = result_var;
   }
-
-  // construct OP
-  // >> Kevin modify (START)
-  /*
-  mlir::RankedTensorType result_type;
-  switch(input_var_shape.size()) {
-    case 2:
-      result_type = RankedTensorType::get({n, c}, elementType_);
-      break;
-    case 4:
-      result_type = RankedTensorType::get({n, c, h, w}, elementType_);
-      break;
-    default:
-      break;
-  }
-  
-  std::vector<NamedAttribute> attrs;
-  attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name())));
-  auto op = OpBuilder(block).create<tpu::ScaleOp>(
-      builder_.getUnknownLoc(), result_type,
-      ArrayRef<Value *>{operands}, ArrayRef<NamedAttribute>{attrs});
-  auto result_var = op.getResult();
-
-  tensor_map_[layer_param.top(0)] = result_var;
-  */
-  // >> Original
-  // auto result_type = RankedTensorType::get({n, c, h, w}, elementType_);
-  // std::vector<NamedAttribute> attrs;
-  // attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name())));
-  // auto op = OpBuilder(block).create<tpu::ScaleOp>(
-  //     builder_.getUnknownLoc(), result_type,
-  //     ArrayRef<Value *>{operands}, ArrayRef<NamedAttribute>{attrs});
-  // auto result_var = op.getResult();
-
-  // tensor_map_[layer_param.top(0)] = result_var;
-  // << Kevin modify (END)
 }
 
 void CaffeImporter::convertReLULayer(mlir::Block *block,
