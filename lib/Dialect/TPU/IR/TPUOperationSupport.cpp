@@ -30,6 +30,9 @@ llvm::StringRef getOpName(Operation *op) {
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::ReluOp>(op)) {
     return cast_op.name().getValue();
   }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::PReluOp>(op)) {
+    return cast_op.name().getValue();
+  }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::EltwiseOp>(op)) {
     return cast_op.name().getValue();
   }
@@ -48,10 +51,30 @@ llvm::StringRef getOpName(Operation *op) {
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::ConcatOp>(op)) {
     return cast_op.name().getValue();
   }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::DummyDataOp>(op)) {
+    return cast_op.name().getValue();
+  }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::SigmoidOp>(op)) {
+    return cast_op.name().getValue();
+  }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::CropOp>(op)) {
+    return cast_op.name().getValue();
+  }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::UpsampleOp>(op)) {
+    return cast_op.name().getValue();
+  }
 
   llvm::errs() << op->getName() << "\n";
   assert(false);
   return "not_found";
+}
+
+llvm::StringRef getPreviousOpName(Operation *op, uint index = 0) {
+  if ( op->getNumOperands() < (index + 1) ) {
+    assert(false);
+    return llvm::StringRef();
+  }
+  return getOpName(op->getOperand(index)->getDefiningOp());
 }
 
 std::string getOpQuant(Operation *op) {
@@ -70,8 +93,62 @@ std::string getOpQuant(Operation *op) {
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::DequantizationOp>(op)) {
     return cast_op.quant();
   }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::SigmoidOp>(op)) {
+    return cast_op.quant();
+  }
 
   return "NONE";
+}
+
+float getOpThreshold(Operation *op) {
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::InputOp>(op)) {
+    return cast_op.threshold_y().getValue().convertToFloat();
+  }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::TL_LA_Conv2DOp>(op)) {
+    return cast_op.threshold_y().getValue().convertToFloat();
+  }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::TL_LW_Conv2DOp>(op)) {
+    return cast_op.threshold_y().getValue().convertToFloat();
+  }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::Conv2DOp>(op)) {
+    return cast_op.threshold_y().getValue().convertToFloat();
+  }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::FullyConnectedOp>(op)) {
+    return cast_op.threshold_y().getValue().convertToFloat();
+  }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::Pool2DOp>(op)) {
+    return cast_op.threshold_y().getValue().convertToFloat();
+  }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::BatchNormOp>(op)) {
+    return cast_op.threshold_y().getValue().convertToFloat();
+  }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::ScaleOp>(op)) {
+    return cast_op.threshold_y().getValue().convertToFloat();
+  }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::ReluOp>(op)) {
+    return cast_op.threshold_y().getValue().convertToFloat();
+  }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::PReluOp>(op)) {
+    return cast_op.threshold_y().getValue().convertToFloat();
+  }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::EltwiseOp>(op)) {
+    return cast_op.threshold_y().getValue().convertToFloat();
+  }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::ReshapeOp>(op)) {
+    return cast_op.threshold_y().getValue().convertToFloat();
+  }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::SoftmaxOp>(op)) {
+    return cast_op.threshold_y().getValue().convertToFloat();
+  }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::SigmoidOp>(op)) {
+    return cast_op.threshold_y().getValue().convertToFloat();
+  }
+
+  llvm::errs() << op->getName() << op->getName() << " Not Found "
+               << "\n ";
+
+
+  return 0.0;
 }
 
 float getPreviousOpThreshold(Operation *op, uint index = 0) {
@@ -83,6 +160,12 @@ float getPreviousOpThreshold(Operation *op, uint index = 0) {
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::InputOp>(formerOp)) {
     return cast_op.threshold_y().getValue().convertToFloat();
   }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::TL_LA_Conv2DOp>(formerOp)) {
+    return cast_op.threshold_y().getValue().convertToFloat();
+  }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::TL_LW_Conv2DOp>(formerOp)) {
+    return cast_op.threshold_y().getValue().convertToFloat();
+  }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::Conv2DOp>(formerOp)) {
     return cast_op.threshold_y().getValue().convertToFloat();
   }
@@ -90,6 +173,12 @@ float getPreviousOpThreshold(Operation *op, uint index = 0) {
     return cast_op.threshold_y().getValue().convertToFloat();
   }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::Pool2DOp>(formerOp)) {
+    return cast_op.threshold_y().getValue().convertToFloat();
+  }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::EltwiseOp>(formerOp)) {
+    return cast_op.threshold_y().getValue().convertToFloat();
+  }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::ConcatOp>(formerOp)) {
     return cast_op.threshold_y().getValue().convertToFloat();
   }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::BatchNormOp>(formerOp)) {
@@ -101,7 +190,7 @@ float getPreviousOpThreshold(Operation *op, uint index = 0) {
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::ReluOp>(formerOp)) {
     return cast_op.threshold_y().getValue().convertToFloat();
   }
-  if (auto cast_op = llvm::dyn_cast_or_null<tpu::EltwiseOp>(formerOp)) {
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::PReluOp>(formerOp)) {
     return cast_op.threshold_y().getValue().convertToFloat();
   }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::ReshapeOp>(formerOp)) {
@@ -110,7 +199,11 @@ float getPreviousOpThreshold(Operation *op, uint index = 0) {
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::SoftmaxOp>(formerOp)) {
     return cast_op.threshold_y().getValue().convertToFloat();
   }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::SigmoidOp>(formerOp)) {
+    return cast_op.threshold_y().getValue().convertToFloat();
+  }
 
+  llvm::errs() << op->getName() << formerOp->getName() << " Not Found "<<"\n ";
   assert(false);
   return NAN;
 }
@@ -124,6 +217,12 @@ uint64_t getPreviousOpAddress(Operation *op, uint index = 0) {
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::QuantizationOp>(formerOp)) {
     return cast_op.offset().getValue().getLimitedValue();
   }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::TL_LA_Conv2DOp>(formerOp)) {
+    return cast_op.offset().getValue().getLimitedValue();
+  }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::TL_LW_Conv2DOp>(formerOp)) {
+    return cast_op.offset().getValue().getLimitedValue();
+  }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::Conv2DOp>(formerOp)) {
     return cast_op.offset().getValue().getLimitedValue();
   }
@@ -136,7 +235,16 @@ uint64_t getPreviousOpAddress(Operation *op, uint index = 0) {
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::ReluOp>(formerOp)) {
     return cast_op.offset().getValue().getLimitedValue();
   }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::PReluOp>(formerOp)) {
+    return cast_op.offset().getValue().getLimitedValue();
+  }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::EltwiseOp>(formerOp)) {
+    return cast_op.offset().getValue().getLimitedValue();
+  }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::SigmoidOp>(formerOp)) {
+    return cast_op.offset().getValue().getLimitedValue();
+  }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::CropOp>(formerOp)) {
     return cast_op.offset().getValue().getLimitedValue();
   }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::ReshapeOp>(formerOp)) {
@@ -176,7 +284,8 @@ static int64_t findPadForSamePadding(int64_t i, int64_t o, int64_t k, int64_t s,
   return 0;
 }
 
-void getConv2DOpParam(tpu::Conv2DOp &op,
+template<typename T>
+void getConv2DOpParam(T &op,
     int &n, int &ic, int &ih, int &iw, int &oc, int &oh, int &ow, int &g,
     int &kh, int &kw, int &sh, int &sw, int &ph, int &pw, int &dh, int &dw,
     bool &with_bias, bool &do_relu) {
@@ -184,11 +293,11 @@ void getConv2DOpParam(tpu::Conv2DOp &op,
   dw = op.dilation_w_factor().getLimitedValue();
   sh = op.stride_h().getLimitedValue();
   sw = op.stride_w().getLimitedValue();
-  auto input_type = op.input()->getType().cast<TensorType>();
+  auto input_type = op.input()->getType().template cast<TensorType>();
   std::vector<int64_t> i_s(input_type.getShape());
-  auto output_type = op.output()->getType().cast<TensorType>();
+  auto output_type = op.output()->getType().template cast<TensorType>();
   std::vector<int64_t> o_s(output_type.getShape());
-  auto filter_type = op.filter()->getType().cast<TensorType>();
+  auto filter_type = op.filter()->getType().template cast<TensorType>();
   std::vector<int64_t> f_s(filter_type.getShape());
   assert((i_s[0] == o_s[0]) && "input N not equal to output N");
   n = i_s[0];
@@ -228,6 +337,19 @@ void getConv2DOpParam(tpu::Conv2DOp &op,
   }
   with_bias = op.with_bias();
 }
+
+template void getConv2DOpParam<tpu::Conv2DOp>(tpu::Conv2DOp &op,
+    int &n, int &ic, int &ih, int &iw, int &oc, int &oh, int &ow, int &g,
+    int &kh, int &kw, int &sh, int &sw, int &ph, int &pw, int &dh, int &dw,
+    bool &with_bias, bool &do_relu);
+template void getConv2DOpParam<tpu::TL_LA_Conv2DOp>(tpu::TL_LA_Conv2DOp &op,
+    int &n, int &ic, int &ih, int &iw, int &oc, int &oh, int &ow, int &g,
+    int &kh, int &kw, int &sh, int &sw, int &ph, int &pw, int &dh, int &dw,
+    bool &with_bias, bool &do_relu);
+template void getConv2DOpParam<tpu::TL_LW_Conv2DOp>(tpu::TL_LW_Conv2DOp &op,
+    int &n, int &ic, int &ih, int &iw, int &oc, int &oh, int &ow, int &g,
+    int &kh, int &kw, int &sh, int &sw, int &ph, int &pw, int &dh, int &dw,
+    bool &with_bias, bool &do_relu);
 
 void getPool2DOpParam(tpu::Pool2DOp &op,
     bool &is_average_pool, int &n, int &c, int &ih, int &iw, int &oh, int &ow,

@@ -44,6 +44,8 @@
 using namespace mlir;
 
 #include "backend/backend_tg_api.h"
+#include "backend/backend_tl_api.h"
+
 static BM1880v2BackendContext *backend_ctx = nullptr;
 
 static int8_t getRshiftFromOperandTensor(Operation &op, int opdIndex) {
@@ -67,12 +69,70 @@ static int8_t getRshiftFromOperandTensor(Operation &op, int opdIndex) {
 static LogicalResult runOperation(Operation &opInst) {
   LLVM_DEBUG(llvm::errs() << "  op " << opInst.getName() << "\n";);
 
+  if (auto op = dyn_cast<tpu::TL_LA_Conv2DOp>(opInst)) {
+    LLVM_DEBUG(llvm::errs() << "TL_LA_Conv2DOp" << "\n";);
+
+    bool with_bias, do_relu;
+    int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, ph, pw, dh, dw;
+    getConv2DOpParam(op, n, ic, ih, iw, oc, oh, ow, g,
+        kh, kw, sh, sw, ph, pw, dh, dw, with_bias, do_relu);
+
+    gaddr_t ga_input = getPreviousOpAddress(op);
+    gaddr_t ga_output = op.offset().getValue().getLimitedValue();
+    gaddr_t ga_filter = getWeightOpAddress(op.getOperand(1)->getDefiningOp());
+    gaddr_t ga_perchannel = getWeightOpAddress(op.getOperand(2)->getDefiningOp());
+    int layer_id = op.layer_id().getValue().getLimitedValue();
+
+    llvm::errs() << "TL_LA_Conv2DOp, layer_id = " << layer_id << "\n";
+    cvi_backend_tl_conv_LA(*backend_ctx, layer_id,
+        ga_input, ga_output, ga_filter, ga_perchannel,
+        n, ic, ih, iw, g, oc, oh, ow, kh, kw,
+        dh, dw, ph, ph, pw, pw, sh, sw,
+        false, with_bias, do_relu);
+
+    return success();
+  }
+  if (auto op = dyn_cast<tpu::TL_LW_Conv2DOp>(opInst)) {
+    LLVM_DEBUG(llvm::errs() << "TL_LW_Conv2DOp" << "\n";);
+
+    bool with_bias, do_relu;
+    int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, ph, pw, dh, dw;
+    getConv2DOpParam(op, n, ic, ih, iw, oc, oh, ow, g,
+        kh, kw, sh, sw, ph, pw, dh, dw, with_bias, do_relu);
+
+    gaddr_t ga_input = getPreviousOpAddress(op);
+    gaddr_t ga_output = op.offset().getValue().getLimitedValue();
+    gaddr_t ga_filter = getWeightOpAddress(op.getOperand(1)->getDefiningOp());
+    gaddr_t ga_perchannel = getWeightOpAddress(op.getOperand(2)->getDefiningOp());
+    laddr_t la_input = op.la_input().getLimitedValue();
+    laddr_t la_output = op.la_output().getLimitedValue();
+    laddr_t la_working = op.la_working().getLimitedValue();
+    int layer_id = op.layer_id().getValue().getLimitedValue();
+
+    llvm::errs() << "TL_LW_Conv2DOp, layer_id = " << layer_id << "\n";
+    if (op.tl_load_flag()) {
+      cvi_backend_tl_load(*backend_ctx, layer_id,
+          la_input, ga_input, n, ic, ih, iw);
+    }
+    cvi_backend_tl_conv_LW(*backend_ctx, layer_id,
+        la_input, la_output, la_working,
+        ga_filter, ga_perchannel,
+        n, ic, ih, iw, g, oc, oh, ow, kh, kw,
+        dh, dw, ph, ph, pw, pw, sh, sw,
+        false, with_bias, do_relu);
+    if (op.tl_store_flag()) {
+      cvi_backend_tl_store(*backend_ctx, layer_id,
+          la_output, ga_output, n, oc, oh, ow);
+    }
+    return success();
+  }
+
   if (auto op = dyn_cast<tpu::Conv2DOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "Conv2DOp" << "\n";);
 
     bool with_bias, do_relu;
     int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, ph, pw, dh, dw;
-    getConv2DOpParam(op, n, ic, ih, iw, oc, oh, ow, g,
+    getConv2DOpParam<tpu::Conv2DOp>(op, n, ic, ih, iw, oc, oh, ow, g,
                      kh, kw, sh, sw, ph, pw, dh, dw, with_bias, do_relu);
 
     gaddr_t input_gaddr = getPreviousOpAddress(op);
@@ -155,7 +215,6 @@ static LogicalResult runOperation(Operation &opInst) {
     gaddr_t bias_gaddr = getWeightOpAddress(op.getOperand(2)->getDefiningOp());
     // TODO: assuming always with_bias
     int with_bias = 1;
-
     bmnet_conv_parallel_fixed_forward_bmkernel(
         *backend_ctx,
         0, // stream_id,
@@ -375,6 +434,7 @@ static LogicalResult runOperation(Operation &opInst) {
       bias_gaddr = getWeightOpAddress(op.getOperand(2)->getDefiningOp());
     }
 
+
     int layer_id = op.layer_id().getValue().getLimitedValue();
 
     if (op.quant() == "INT8") {
@@ -400,7 +460,7 @@ static LogicalResult runOperation(Operation &opInst) {
           k, // int in_col,
           n, // int out_col,
           with_bias, // int have_bias,
-          0, // do_activation,
+          do_relu ? 1 : 0, // do_activation,
           0, // activation_method,
           INVALID_GLOBAL_ADDR, // activation_ga_slope,
           0, // int activation_channel_shared,
@@ -432,7 +492,7 @@ static LogicalResult runOperation(Operation &opInst) {
         k, // int in_col
         n, // in out_col,
         with_bias, // has_bias
-        0, // do_activation
+        do_relu ? 1 : 0, // do_activation
         0  // activation_method
       );
     } else {
@@ -481,6 +541,40 @@ static LogicalResult runOperation(Operation &opInst) {
         nullptr, // const int *threshold_x_quantized,
         nullptr //const int *right_shift_array
         );
+
+    return success();
+  }
+  if (auto op = dyn_cast<tpu::PReluOp>(opInst)) {
+    LLVM_DEBUG(llvm::errs() << "PReluOp"
+                            << "\n";);
+
+    int n, c, h, w;
+    auto input_type = op.x()->getType().cast<TensorType>();
+    std::vector<int64_t> i_s(input_type.getShape());
+    auto output_type = op.y()->getType().cast<TensorType>();
+    std::vector<int64_t> o_s(output_type.getShape());
+    assert((i_s == o_s) && "input shape not equal to output shape");
+    n = i_s[0];
+    c = i_s[1];
+    h = i_s[2];
+    w = i_s[3];
+    gaddr_t negative_scope_gaddr = getWeightOpAddress(op.getOperand(1)->getDefiningOp());
+    gaddr_t input_gaddr = getPreviousOpAddress(op);
+    gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
+
+    int layer_id = op.layer_id().getValue().getLimitedValue();
+
+    bmnet_prelu_fixed_forward_bmkernel(
+        *backend_ctx,
+        layer_id,             // layer_id,
+        input_gaddr,          // input_data_gaddr,
+        output_gaddr,         // output_data_gaddr,
+        negative_scope_gaddr, // float negative_slope,
+        n, c, h, w,
+        0,       // int threshold_x_quantized_len,
+        nullptr, // const int *threshold_x_quantized,
+        nullptr  // const int *right_shift_array
+    );
 
     return success();
   }

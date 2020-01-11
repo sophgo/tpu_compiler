@@ -79,6 +79,8 @@ public:
         context, "tpu.pool_2d", &layer_id);
     patterns.insert<TpuLayerIdPattern<tpu::EltwiseOp> > (
         context, "tpu.eltwise", &layer_id);
+    patterns.insert<TpuLayerIdPattern<tpu::PReluOp>>(context, "tpu.prelu",
+                                                       &layer_id);
     applyPatternsGreedily(fn, patterns);
   }
 };

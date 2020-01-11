@@ -26,9 +26,13 @@ mlir-opt \
     -o resnet50_cali.mlir
 
 # apply all possible post-calibration optimizations
+# mlir-opt \
+#    --fuse-relu \
+#    --fuse-eltwise \
+#    resnet50_cali.mlir \
+#    -o resnet50_opt_post_cali.mlir
 mlir-opt \
     --fuse-relu \
-    --fuse-eltwise \
     resnet50_cali.mlir \
     -o resnet50_opt_post_cali.mlir
 
@@ -54,7 +58,6 @@ mlir-opt \
 ################################
 # backend
 ################################
-if false; then
 
 # assign weight address & neuron address
 mlir-opt \
@@ -66,10 +69,31 @@ mlir-opt \
     --tpu-neuron-address-align=16 \
     --tpu-neuron-map-filename=neuron_map.csv \
     --assign-layer-id \
-    resnet50_quant_int8_multiplier.mlir | \
-  mlir-translate \
+    resnet50_quant_int8_multiplier.mlir \
+    -o resnet50_quant_int8_multiplier_addr.mlir
+
+mlir-opt \
+    --deep-fusion-tg2tl-la \
+    resnet50_quant_int8_multiplier_addr.mlir \
+    -o resnet50_quant_int8_multiplier_tl_la.mlir
+
+mlir-opt \
+    --deep-fusion-tl-la2lw \
+    resnet50_quant_int8_multiplier_tl_la.mlir \
+    -o resnet50_quant_int8_multiplier_tl_lw.mlir
+
+# generate cmdbuf
+mlir-translate \
+    resnet50_quant_int8_multiplier_tl_la.mlir \
     --mlir-to-cmdbuf \
-    -o cmdbuf.bin
+    --debug-only=tl_conv \
+    -o cmdbuf_la.bin
+
+mlir-translate \
+    resnet50_quant_int8_multiplier_tl_lw.mlir \
+    --mlir-to-cmdbuf \
+    --debug-only=tl_conv \
+    -o cmdbuf_lw.bin
 
 ################################
 # prepare int8 input
@@ -88,7 +112,7 @@ diff in_int8.bin $DATA_PATH/test_cat_in_resnet50_int8.bin
 $RUNTIME_PATH/bin/test_bmnet \
     in_int8.bin \
     weight.bin \
-    cmdbuf.bin \
+    cmdbuf_lw.bin \
     out_all.bin \
     16460784 0 16460784 1
 bin_extract.py out_all.bin out_fc1000.bin int8 0x00024c00 1000
@@ -106,9 +130,7 @@ mlir-tpu-interpreter \
 
 # compare all tensors
 bin_to_npz.py out_all.bin neuron_map.csv out_all.npz
-npz_compare.py out_all.npz tensor_all_int8_multiplier.npz show 5
-
-fi
+npz_compare.py out_all.npz tensor_all_int8_multiplier.npz
 
 # VERDICT
 echo $0 PASSED

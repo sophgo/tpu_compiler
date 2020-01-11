@@ -29,6 +29,16 @@ $DIR/mobilenet_v2/regression_mobilenet_v2_3_int8_cmdbuf.sh
 $DIR/mobilenet_v2/regression_mobilenet_v2_4_bf16.sh
 $DIR/mobilenet_v2/regression_mobilenet_v2_5_bf16_cmdbuf.sh
 
+$DIR/vgg16/regression_vgg16_1_fp32.sh
+$DIR/vgg16/regression_vgg16_2_int8.sh
+$DIR/vgg16/regression_vgg16_3_int8_cmdbuf.sh
+$DIR/vgg16/regression_vgg16_4_bf16.sh
+$DIR/vgg16/regression_vgg16_5_bf16_cmdbuf.sh
+
+# $DIR/pnet/regression_pnet_5_bf16_cmdbuf.sh
+# $DIR/espcn/espcn_bf16_cmdbuf.sh
+
+
 popd
 
 # VERDICT

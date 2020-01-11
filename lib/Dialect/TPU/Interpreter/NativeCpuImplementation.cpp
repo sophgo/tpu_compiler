@@ -74,7 +74,12 @@ int mkldnn_conv(float *input, float *weight, float *bias,
   memory::dims bias_tz = { oc };
   memory::dims dst_tz = { batch, oc, oh, ow };
   memory::dims strides = { sh, sw };
-  memory::dims padding = { ph, pw };
+  int ph_t = ph;
+  int pw_l = pw;
+  int ph_b = ph;
+  int pw_r = pw;
+  memory::dims padding_l = { ph_t, pw_l };
+  memory::dims padding_r = { ph_b, pw_r };
 
   // memory
   auto user_src_memory = memory(
@@ -96,7 +101,7 @@ int mkldnn_conv(float *input, float *weight, float *bias,
   // conv desc
   auto conv_desc = convolution_forward::desc(prop_kind::forward_inference,
       algorithm::convolution_direct, src_md, weights_md, bias_md, dst_md,
-      strides, padding, padding);
+      strides, padding_l, padding_r);
   auto conv_prim_desc = convolution_forward::primitive_desc(conv_desc, eng);
 
   // do reorder if needed
@@ -420,6 +425,51 @@ int my_relu(float *input, float *output,
   return 0;
 }
 
+int my_prelu(float *input, float *output, int n, int c, int h, int w,
+            float *negative_slope) {
+
+  LLVM_DEBUG(llvm::errs() << "  n: " << n << ", c: " << c << ", h: " << h
+                          << ", w: " << w << "\n";);
+
+  // for (int i = 0; i < n * c * h * w; ++i) {
+  //   if (input[i] >= 0) {
+  //     output[i] = input[i];
+  //   } else {
+  //     output[i] = negative_slope * input[i];
+  //   }
+  // }
+  for(int batch = 0; batch < n; ++batch){
+    for(int channel = 0 ; channel < c; ++channel){
+        int index = batch * c * w * h + channel * w * h;
+        for(int i = 0; i < w * h; ++i){
+          if (input[index + i] > 0) {
+            output[index + i] = input[index + i];
+          } else {
+            output[index + i] = negative_slope[channel] * input[index + i];
+          }
+
+        }
+    }
+  }
+
+  return 0;
+}
+
+template <typename Dtype>
+inline Dtype sigmoid(Dtype x) {
+  return 0.5 * tanh(0.5 * x) + 0.5;
+}
+int my_sigmoid(float *input, float *output, int n, int c, int h, int w) {
+  LLVM_DEBUG(llvm::errs() << "  n: " << n << ", c: " << c << ", h: " << h
+                          << ", w: " << w << "\n";);
+
+  for (int i = 0; i < n * c * h * w; ++i) {
+      output[i] = sigmoid(input[i]);
+  }
+
+  return 0;
+}
+
 // Y = (X-mean(X))/(sqrt(var(X)+eps))
 int my_bn(float *input, float *mean, float *variance, float *scale,
     float *output, int n, int c, int h, int w) {
@@ -436,7 +486,8 @@ int my_bn(float *input, float *mean, float *variance, float *scale,
         auto d = sqrt(variance[ci] + eps);
         output[ni * c * h * w + ci * h * w + i] = x / d;
         if (fabs(variance[ci]) <= eps && fabs(mean[ci]) <= 1e-8
-            && fabs(input[ni * c * h * w + ci * h * w + i]) >= eps) {
+            && fabs(input[ni * c * h * w + ci * h * w + i]) >= 1.0e-4
+            && fabs(output[ni * c * h * w + ci * h * w + i]) >= 1.0e-2) {
           llvm::errs() << "WARNING: BN: var too small, i=" << i
                        << ", v=" << std::to_string(variance[ci])
                        << ", m=" << std::to_string(mean[ci])
@@ -488,6 +539,26 @@ int my_scale(float *input, float *scale, float *bias,
   return 0;
 }
 
+int my_upsample(float *input, float *output,
+    int n, int c, int ih, int iw, int scale) {
+  int h = ih * scale;
+  int w = iw * scale;
+  for (int ni = 0; ni < n; ni++) {
+    for (int ci = 0; ci < c; ci++) {
+      for (int hi = 0; hi < h; hi++) {
+        for (int wi = 0; wi < w; wi++) {
+          int nwi = wi/scale;
+          int nhi = hi/scale;
+          int out_idx = (((ni * c + ci) * h) + hi) * w + wi;
+          int in_idx = (((ni * c + ci) * (h / scale)) + nhi) * (w / scale) + nwi;
+          output[out_idx] = input[in_idx];
+        }
+      }
+    }
+  }
+  return 0;
+}
+
 int my_softmax(float *input, float *output, int n, int c) {
 #ifdef DUMP_FLAG
   static int dump_idx = 0;
@@ -531,8 +602,47 @@ int my_softmax(float *input, float *output, int n, int c) {
   return 0;
 }
 
-int my_eltwise(float *input_1, float *input_2, float *output,
-    int n, int c, int h, int w, int op) {
+int my_crop(float *input, float *output, long int *shape1, long int *shape2, long int *top_shape,
+            int cur_dim, int *offsets, int *indices) {
+  // for loop if dim is not last
+  if (cur_dim + 1 < 4) {
+    for (int i = 0; i < top_shape[cur_dim]; ++i) {
+      indices[cur_dim] = i;
+      my_crop(input, output, shape1, shape2, top_shape, cur_dim + 1, offsets,
+              indices);
+    }
+  } else {
+    std::vector<int> ind_red(cur_dim, 0);
+    std::vector<int> ind_off(cur_dim + 1, 0);
+
+    for (int j = 0; j < cur_dim; ++j) {
+      ind_red[j] = indices[j];
+
+      ind_off[j] = indices[j] + offsets[j];
+    }
+    ind_off[cur_dim] = offsets[cur_dim];
+
+    int c = shape1[1];
+    int h = shape1[2];
+    int w = shape1[3];
+
+    int c2 = shape2[1];
+    int h2 = shape2[2];
+    int w2 = shape2[3];
+
+    int btm_offset =
+        ((ind_off[0] * c + ind_off[1]) * h + ind_off[2]) * w + ind_off[3];
+
+    int top_offset =
+        ((ind_red[0] * c2 + ind_red[1]) * h2 + ind_red[2]) * w2;
+    int offset = shape2[cur_dim] ;
+    std::copy(input + btm_offset, input + btm_offset + offset,
+              output + top_offset);
+  }
+  return 0;
+}
+int my_eltwise(float *input_1, float *input_2, float *output, int n, int c,
+               int h, int w, int op) {
 #ifdef DUMP_FLAG
   static int dump_idx = 0;
   std::string prefix = std::string("eltwise") + std::to_string(dump_idx);

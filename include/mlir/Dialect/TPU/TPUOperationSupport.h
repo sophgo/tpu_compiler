@@ -28,12 +28,16 @@
 namespace mlir {
 
 llvm::StringRef getOpName(Operation *op);
+llvm::StringRef getPreviousOpName(Operation *op, uint index = 0);
 std::string getOpQuant(Operation *op);
-float getPreviousOpThreshold(Operation *op, uint index = 0);
+float getOpThreshold(Operation *op);
+float getPreviousOpThreshold(
+    Operation *op, uint index = 0);
 uint64_t getPreviousOpAddress(Operation *op, uint index = 0);
 uint64_t getWeightOpAddress(Operation *op);
 
-void getConv2DOpParam(tpu::Conv2DOp &op,
+template<typename T>
+void getConv2DOpParam(T &op,
     int &n, int &ic, int &ih, int &iw, int &oc, int &oh, int &ow, int &g,
     int &kh, int &kw, int &sh, int &sw, int &ph, int &pw, int &dh, int &dw,
     bool &with_bias, bool &do_relu);

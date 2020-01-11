@@ -23,6 +23,9 @@
 #define MLIR_DIALECT_TPU_MODULEINTERPRETER_H_
 
 #include "mlir/Dialect/TPU/TPUOperationSupport.h"
+#include "mlir/Dialect/StandardOps/Ops.h"
+#include "mlir/IR/MLIRContext.h"
+#include "mlir/IR/Function.h"
 #include "mlir/IR/Module.h"
 #include "mlir/Support/TensorFile.h"
 
@@ -40,40 +43,54 @@ class ModuleInterpreter {
 public:
   template <typename T = ModuleInterpreter>
   static LogicalResult runModule(ModuleOp m,
-      std::vector<std::vector<float> *> &inputs,
-      std::vector<std::vector<float> *> &outputs) {
+      std::vector<int64_t> input_shape, std::vector<float> &input_vec,
+      std::map<std::string, std::vector<float> > *results,
+      std::map<std::string, std::vector<float> > *allTensorMap = nullptr) {
 
-    T interpreter(m, inputs, outputs);
+    T interpreter(m);
+
+    // set inputs
+    auto inputs = interpreter.getInputsList();
+    assert(inputs.size() == 1);
+    std::vector<int64_t> shape = inputs[0]->getType().template cast<TensorType>().getShape();
+    assert(input_shape == shape);
+    assert((int64_t)input_vec.size() == std::accumulate(shape.begin(), shape.end(), 1,
+                                                        std::multiplies<int64_t>()));
+    interpreter.updateValue(inputs[0], input_vec);
+
+    // inference
     if (failed(interpreter.runFunctions()))
       return failure();
 
-    return success();
-  }
-  template <typename T = ModuleInterpreter>
-  static LogicalResult runModuleAndGetValueMap(ModuleOp m,
-      std::vector<std::vector<float> *> &inputs,
-      std::vector<std::vector<float> *> &outputs,
-      std::map<std::string, std::vector<float>> &tensorMap) {
-
-    T interpreter(m, inputs, outputs);
-    if (failed(interpreter.runFunctions()))
-      return failure();
-
-    value_map_t valueMap = interpreter.getValueMap();
-    for (auto it = valueMap.begin(); it != valueMap.end(); it++) {
+    // get results
+    assert(results);
+    value_map_t resultsMap = interpreter.getResults();
+    for (auto it = resultsMap.begin(); it != resultsMap.end(); it++) {
       auto op = it->first->getDefiningOp();
-      if (!op) {
-        //it->first->dump();
-        continue;
-      }
-      if (auto loadWeightOp = dyn_cast<tpu::LoadWeightOp>(op)) {
-        continue;
-      }
-
+      assert(op);
       auto vec = it->second.get();
       assert(vec);
+      // deep copy
+      (*results)[getOpName(op).str()] = *vec;
+    }
 
-      tensorMap[getOpName(op).str()] = *vec;
+    // get all tensor data if needed
+    if (allTensorMap) {
+      value_map_t valueMap = interpreter.getValueMap();
+      for (auto it = valueMap.begin(); it != valueMap.end(); it++) {
+        auto op = it->first->getDefiningOp();
+        if (!op) {
+          //it->first->dump();
+          continue;
+        }
+        if (auto loadWeightOp = dyn_cast<tpu::LoadWeightOp>(op)) {
+          continue;
+        }
+        auto vec = it->second.get();
+        assert(vec);
+        // deep copy
+        (*allTensorMap)[getOpName(op).str()] = *vec;
+      }
     }
 
     return success();
@@ -81,10 +98,26 @@ public:
 
 protected:
   // Interpret the given MLIR module expressed in MLIR TPU IR dialect
-  explicit ModuleInterpreter(ModuleOp module,
-      std::vector<std::vector<float> *> &inputs,
-      std::vector<std::vector<float> *> &outputs)
-      : mlirModule(module), inputs_(inputs), outputs_(outputs) {}
+  explicit ModuleInterpreter(ModuleOp module)
+      : mlirModule(module) {
+
+    for (FuncOp func : module.getOps<FuncOp>()) {
+      // collect inputsList
+      for (auto arg : func.getArguments()) {
+        inputsList.push_back(arg);
+      }
+      // collect resultsList
+      for (Block &bb : func.getBlocks()) {
+        for (auto &op : bb) {
+          if (isa<ReturnOp>(op)) {
+            for (auto opd: op.getOperands()) {
+              resultsList.push_back(opd);
+            }
+          }
+        }
+      }
+    }
+  }
   virtual ~ModuleInterpreter() {}
 
   virtual LogicalResult runOperation(Operation &op);
@@ -97,19 +130,35 @@ private:
   std::vector<std::shared_ptr<std::vector<float> > >
       getOperandTensors(Operation &opInst, value_map_t &valueMapping);
 
+  std::vector<Value *> getInputsList() { return inputsList; }
+  std::vector<Value *> getResultsList() { return resultsList; }
+
+  void updateValue(Value *v, std::vector<float> &vec) {
+    // deep copy
+    valueMapping[v] = std::make_shared<std::vector<float> >(vec);
+  }
+
+  value_map_t getResults() {
+    value_map_t results;
+    for (auto res : getResultsList()) {
+      results[res] = valueMapping[res];
+    }
+    return results;
+  }
+
   value_map_t getValueMap() { return valueMapping; }
+  void reset(void) { valueMapping.clear(); }
 
   // Original and translated module.
   ModuleOp mlirModule;
-  std::vector<std::vector<float> *> &inputs_;
-  std::vector<std::vector<float> *> &outputs_;
 
   // weight file input stream
-  std::unique_ptr<std::ifstream> weight_is;
-  std::unique_ptr<TensorFile> weight_file;
+  std::unique_ptr<TensorFile> weightFile_;
 
 protected:
   value_map_t valueMapping;
+  std::vector<Value *> resultsList;
+  std::vector<Value *> inputsList;
 };
 
 } // namespace mlir

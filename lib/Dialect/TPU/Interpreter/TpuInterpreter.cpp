@@ -59,6 +59,11 @@ static llvm::cl::opt<std::string> clAllTensorFilename(
     llvm::cl::init("-"),
     llvm::cl::cat(clOptionsCategory));
 
+static llvm::cl::opt<std::string> clAllDequentInt8TensorFilename(
+    "dump-all-dequent-tensor-int8",
+    llvm::cl::desc("dump all int8 tensor and dequentize into a npz file"),
+    llvm::cl::init("-"), llvm::cl::cat(clOptionsCategory));
+
 static llvm::cl::opt<float> clInputScale(
     "input-scale",
     llvm::cl::desc("input scale to apply on the input values"),
@@ -84,10 +89,8 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     LLVM_DEBUG(llvm::errs() << "LoadFileOp" << "\n";);
     auto filename = loadFileOp.getAttrOfType<StringAttr>("filename").getValue();
     LLVM_DEBUG(llvm::errs() << "  filename " << filename << "\n";);
-    weight_is = std::make_unique<std::ifstream>(filename.str(),
-        std::ios::in | std::ios::binary);
     auto filename_tensorfile = llvm::sys::path::stem(filename).str() + ".npz";
-    weight_file = openInputTensorFile(filename_tensorfile);
+    weightFile_ = openInputTensorFile(filename_tensorfile);
 
     return success();
   }
@@ -103,12 +106,12 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     auto type = result->getType().cast<TensorType>();
     std::unique_ptr<std::vector<float> > tensor= nullptr;
     if (type.getElementType().isF32()) {
-      tensor = std::move(weight_file->readTensor<float>(tensor_name, type));
+      tensor = std::move(weightFile_->readTensor<float>(tensor_name, type));
     } else if (type.getElementType().isInteger(8)) {
       // TODO: we still save int8 weight as fp32 for now
       assert(0);
     } else if (type.getElementType().isBF16()) {
-      auto tensor_bf16 = weight_file->readTensor<bfloat16>(tensor_name, type);
+      auto tensor_bf16 = weightFile_->readTensor<bfloat16>(tensor_name, type);
 
       // TODO: convert bf16 to fp32 here for now
       // as valueMapping is hardcoded as std::vector<float>
@@ -162,7 +165,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
     bool with_bias, do_relu;
     int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, ph, pw, dh, dw;
-    getConv2DOpParam(op, n, ic, ih, iw, oc, oh, ow, g,
+    getConv2DOpParam<tpu::Conv2DOp>(op, n, ic, ih, iw, oc, oh, ow, g,
                      kh, kw, sh, sw, ph, pw, dh, dw, with_bias, do_relu);
 
     std::shared_ptr<std::vector<float> > input = opdT[0];
@@ -410,6 +413,11 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     assert(mkldnn_ret == 0);
     //dump_data_float_abs("output_data", output_data, 1, 1, m, n);
 
+
+    if (do_relu) {
+      my_relu(resultT->data(), resultT->data(), 1, 1, 1, n, 0.0f);
+    }
+
     // rshift and saturate on output
     if (op.quant() == "INT8") {
       assert(rshift);
@@ -445,15 +453,137 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     auto output_type = op.y()->getType().cast<TensorType>();
     std::vector<int64_t> o_s(output_type.getShape());
     assert((i_s == o_s) && "input shape not equal to output shape");
+
+    int ret = 0 ;
+    if(i_s.size() == 4){
+
+    n = i_s[0];
+    c = i_s[1];
+    h = i_s[2];
+    w = i_s[3];
+
+    float *input = (float *)opdT[0]->data();
+    float *output = (float *)resultT.get()->data();
+    ret = my_relu(input, output, n, c, h, w, negative_slope);
+
+    }else if(i_s.size() == 2){ //for (h w) shape relu
+
+      n = 1;
+      c = 1;
+      h = i_s[0];
+      w = i_s[1];
+      float *input = (float *)opdT[0]->data();
+      float *output = (float *)resultT.get()->data();
+      ret = my_relu(input, output, n, c, h, w, negative_slope);
+
+    }
+    assert(ret == 0);
+
+    valueMapping[result] = std::move(resultT);
+
+    return success();
+  }
+  if (auto op = dyn_cast<tpu::PReluOp>(opInst)) {
+    LLVM_DEBUG(llvm::errs() << "PReluOp"
+                            << "\n";);
+    auto opdT = getOperandTensors(opInst, valueMapping);
+    auto result = op.getResult();
+    LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump();
+               llvm::errs() << "\n";);
+    std::vector<int64_t> shape =
+        result->getType().cast<TensorType>().getShape();
+    assert(shape.size() <= 4);
+    auto size = std::accumulate(std::begin(shape), std::end(shape), 1,
+                                std::multiplies<>());
+    auto resultT = std::make_unique<std::vector<float>>(size);
+
+    int n, c, h, w;
+    float *negative_slope = opdT[1]->data();
+
+    auto input_type = op.x()->getType().cast<TensorType>();
+    std::vector<int64_t> i_s(input_type.getShape());
+    auto output_type = op.y()->getType().cast<TensorType>();
+    std::vector<int64_t> o_s(output_type.getShape());
+    assert((i_s == o_s) && "input shape not equal to output shape");
     n = i_s[0];
     c = i_s[1];
     h = i_s[2];
     w = i_s[3];
     float *input = (float *)opdT[0]->data();
     float *output = (float *)resultT.get()->data();
-    int ret = my_relu(input, output, n, c, h, w, negative_slope);
+    int ret = my_prelu(input, output, n, c, h, w, negative_slope);
     assert(ret == 0);
 
+    valueMapping[result] = std::move(resultT);
+
+    return success();
+  }
+  if (auto op = dyn_cast<tpu::SigmoidOp>(opInst)) {
+    LLVM_DEBUG(llvm::errs() << "SigmoidOp"
+                            << "\n";);
+    auto opdT = getOperandTensors(opInst, valueMapping);
+    auto result = op.getResult();
+    LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump();
+               llvm::errs() << "\n";);
+    std::vector<int64_t> shape =
+        result->getType().cast<TensorType>().getShape();
+    assert(shape.size() <= 4);
+    auto size = std::accumulate(std::begin(shape), std::end(shape), 1,
+                                std::multiplies<>());
+    auto resultT = std::make_unique<std::vector<float>>(size);
+    auto input_type = op.input()->getType().cast<TensorType>();
+    std::vector<int64_t> i_s(input_type.getShape());
+    auto output_type = op.output()->getType().cast<TensorType>();
+    std::vector<int64_t> o_s(output_type.getShape());
+    assert((i_s == o_s) && "input shape not equal to output shape");
+    int n, c, h, w;
+    n = i_s[0];
+    c = i_s[1];
+    h = i_s[2];
+    w = i_s[3];
+    float *input = (float *)opdT[0]->data();
+    float *output = (float *)resultT.get()->data();
+    int ret;
+    if (op.quant() == "INT8"){
+      std::vector<int> data(256, 0);
+      float threshold_x = getPreviousOpThreshold(op);
+      float threshold_y = getOpThreshold(op);
+
+      assert(threshold_x != 0.0);
+      for (int idx = 0; idx < 256; ++idx) {
+        char lutInput = static_cast<char>(idx);
+        float index = -lutInput * threshold_x / 128.0;
+        float lutOutput = 1.0 / (1 + std::exp(index)) * 128.0 / threshold_y;
+        int lutOutputI32 = std::floor(lutOutput + 0.5);
+        lutOutputI32 = (lutOutputI32 > 127)
+                           ? 127
+                           : (lutOutputI32 < -128) ? -128 : lutOutputI32;
+        data[idx] = lutOutputI32;
+      }
+      for (int i = 0; i < size; ++i) {
+        output[i] = data[(unsigned char)input[i]];
+      }
+      ret = 0;
+    } else {
+      ret = my_sigmoid(input, output, n, c, h, w);
+    }
+    assert(ret == 0);
+    valueMapping[result] = std::move(resultT);
+    return success();
+  }
+  if (auto op = dyn_cast<tpu::DummyDataOp>(opInst)) {
+    LLVM_DEBUG(llvm::errs() << "DummyDataOp"
+                            << "\n";);
+    auto opdT = getOperandTensors(opInst, valueMapping);
+    auto result = op.getResult();
+    LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump();
+               llvm::errs() << "\n";);
+    std::vector<int64_t> shape =
+        result->getType().cast<TensorType>().getShape();
+    assert(shape.size() <= 4);
+    auto size = std::accumulate(std::begin(shape), std::end(shape), 1,
+                                std::multiplies<>());
+    auto resultT = std::make_unique<std::vector<float>>(size);
     valueMapping[result] = std::move(resultT);
 
     return success();
@@ -535,7 +665,6 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
     auto resultT = std::make_unique<std::vector<float> >(size);
 
-    assert(op.method() == "SUM");
 
 #define MAX_ELTWISE_INPUT (2)
     int n, c, h, w;
@@ -608,9 +737,16 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
         }
       }
     }
-
-    int ret = my_eltwise(input[0], input[1], output, n, c, h, w, 1);
+    int ret;
+    if (op.method() == "SUM"){
+      ret = my_eltwise(input[0], input[1], output, n, c, h, w, 1);
+    } else if (op.method() == "PROD"){
+      ret = my_eltwise(input[0], input[1], output, n, c, h, w, 0);
+    } else if (op.method() == "MAX"){
+      ret = my_eltwise(input[0], input[1], output, n, c, h, w, 2);
+    }
     assert(ret == 0);
+
     //dump_data_float_abs("output", mkldnn_output, n, c, oh, ow);
 
     if (op.fused_activation_function() == "NONE") {
@@ -661,6 +797,44 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
     return success();
   }
+  if (auto op = dyn_cast<tpu::CropOp>(opInst)) {
+    LLVM_DEBUG(llvm::errs() << "CropOp"
+                            << "\n";);
+
+    auto opdT = getOperandTensors(opInst, valueMapping);
+    auto result = op.getResult();
+    LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump();
+               llvm::errs() << "\n";);
+    std::vector<int64_t> output_shape =
+        result->getType().cast<TensorType>().getShape();
+    auto size = std::accumulate(std::begin(output_shape),
+                                std::end(output_shape), 1, std::multiplies<>());
+    auto resultT = std::make_unique<std::vector<float>>(size);
+    uint32_t bottom_num = opdT.size();
+    assert(bottom_num >= 2 && "bottom num is 0 or 1");
+
+    auto crop_start_axis = op.axis();
+    int crop_offset_n = op.crop_offset_n().getValue().getLimitedValue();
+    int crop_offset_c = op.crop_offset_c().getValue().getLimitedValue();
+    int crop_offset_h = op.crop_offset_h().getValue().getLimitedValue();
+    int crop_offset_w = op.crop_offset_w().getValue().getLimitedValue();
+    vector<int> crop_offset = {crop_offset_n, crop_offset_c, crop_offset_h, crop_offset_w};
+    LLVM_DEBUG (llvm::errs() << crop_offset_n << ", " << crop_offset_c << ", "
+               << crop_offset_h << "," << crop_offset_w;);
+
+    auto input1 = op.input1()->getType().cast<TensorType>();
+    std::vector<int64_t> input_shape1(input1.getShape());
+    auto input2 = op.input2()->getType().cast<TensorType>();
+    std::vector<int64_t> input_shape2(input2.getShape());
+
+    float *input = (float *)opdT[0]->data();
+    float *output = (float *)resultT.get()->data();
+    vector<int >indices(size, 0);
+    my_crop(input, output, input_shape1.data(), input_shape2.data(),
+            output_shape.data(), 0, crop_offset.data(), indices.data());
+    valueMapping[result] = std::move(resultT);
+    return success();
+  }
   if (auto op = dyn_cast<tpu::ConcatOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "ConcatOp" << "\n";);
     auto opdT = getOperandTensors(opInst, valueMapping);
@@ -669,7 +843,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
     auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
     auto resultT = std::make_unique<std::vector<float> >(size);
-    uint32_t bottom_num = opdT.size();
+    size_t bottom_num = opdT.size();
     uint32_t n, c, h, w;
     auto concat_axis = op.dimension();
     auto tmp_resultT = std::make_unique<std::vector<float> >(0);
@@ -680,6 +854,64 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     assert(shape.size() <= 4);
     LLVM_DEBUG(llvm::errs() << "concat_axis =" << concat_axis << "\n";);
 
+    std::vector<float *> input(bottom_num);
+    for (size_t index = 0; index < bottom_num; ++index) {
+      input[index] = (float *)opdT[index]->data();
+    }
+    //float *output = (float *)resultT->data();
+
+    // for INT8, get threshold_x and make copy of input first
+    std::vector<std::vector<float> >input_copy(bottom_num);
+    std::vector<float> threshold_x(bottom_num);
+    float threshold_y;
+    if (op.quant() == "INT8") {
+      for (size_t index = 0; index < bottom_num; ++index) {
+        // make copy
+        std::vector<float> &src_vec = *opdT[index];
+        std::copy(src_vec.begin(), src_vec.end(), back_inserter(input_copy[index]));
+        input[index] = input_copy[index].data();
+
+        // get threshold_x
+        threshold_x[index] = getPreviousOpThreshold(op, index);
+      }
+      // get threshold_y
+      threshold_y = op.threshold_y().getValue().convertToFloat();
+    }
+
+    // determine multiplier and rshift according each threshold_x
+    // scale[i] = threshold_x[i] / threshold_y
+    // each scale will be implemented by hardware as
+    // scale[i] = multiplier / (1 << rshift)
+    // find a rshift, that put max(multiplier) into range (64, 127)
+    uint32_t rshift;
+    std::vector<int8_t> multiplier(bottom_num);
+    if (op.quant() == "INT8") {
+      // determine rshift for all inputs, and multiplier for each input
+      // use max threshold_x to find rshift first
+      float max_threshold_x = *std::max_element(
+          std::begin(threshold_x), std::end(threshold_x));
+      rshift = findRShiftAndMultiplierFromQScale(max_threshold_x / threshold_y);
+      LLVM_DEBUG(llvm::errs() << "  threshold_y = " << std::to_string(threshold_y)
+                              << ", rshift = " << std::to_string(rshift) << "\n");
+      for (size_t index = 0; index < bottom_num; ++index) {
+        float qscale = threshold_x[index] / threshold_y;
+        multiplier[index] = (int8_t)findMultiplierFromQScaleAndRShift(qscale, rshift);
+        LLVM_DEBUG(llvm::errs()
+            << "  threshold_x[" << index << "] = " << std::to_string(threshold_x[index])
+            << ", multiplier["  << index << "] = " << std::to_string(multiplier[index])
+            << "\n");
+      }
+    }
+
+    // apply multiplier & saturate
+    if (op.quant() == "INT8") {
+      for (size_t index = 0; index < bottom_num; ++index) {
+        for (size_t i = 0; i < opdT[index]->size(); ++i) {
+          input[index][i] = input[index][i] * multiplier[index];
+          input[index][i] = (float)applyRShiftAndSaturateInt8(input[index][i], (uint32_t)rshift);
+        }
+      }
+    }
     for (uint32_t i = 0; i < bottom_num; i++) {
       std::vector<int64_t> shape =  op.getOperand(i)->getType().cast<TensorType>().getShape();
       n = shape[0];
@@ -691,7 +923,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       LLVM_DEBUG(llvm::errs() << "bottom num:" << opdT.size() << "\n";);
       LLVM_DEBUG(llvm::errs() << "data size:" << opdT[i]->size() << "\n";);
 
-      auto *input_data = opdT[i]->data();
+      auto *input_data = input[i];
 
       if (concat_axis == 0) {
         tmp_resultT.get()->insert(tmp_resultT.get()->end(), opdT[i]->begin(), opdT[i]->end());
@@ -719,6 +951,41 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     }
 
     resultT.get()->assign(tmp_resultT.get()->begin(), tmp_resultT.get()->end());
+    valueMapping[result] = std::move(resultT);
+
+    return success();
+  }
+  if (auto op = dyn_cast<tpu::UpsampleOp>(opInst)) {
+    LLVM_DEBUG(llvm::errs() << "UpsampleOp" << "\n";);
+    auto opdT = getOperandTensors(opInst, valueMapping);
+    auto result = op.getResult();
+    LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";);
+    std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
+    assert(shape.size() <= 4);
+    auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
+    auto resultT = std::make_unique<std::vector<float> >(size);
+
+    int n, c, ih, iw, oh, ow, scale;
+    auto input_type = op.x()->getType().cast<TensorType>();
+    std::vector<int64_t> i_s(input_type.getShape());
+    auto output_type = op.y()->getType().cast<TensorType>();
+    std::vector<int64_t> o_s(output_type.getShape());
+    n = i_s[0];
+    c = i_s[1];
+    ih = i_s[2];
+    iw = i_s[3];
+    scale = op.scale().getLimitedValue();
+    assert(o_s[0] == n);
+    assert(o_s[1] == c);
+    oh = o_s[2];
+    ow = o_s[3];
+    assert(oh ==  ih * scale);
+    assert(ow ==  iw * scale);
+    float *input = (float *)opdT[0]->data();
+    float *output = (float *)resultT.get()->data();
+    int ret = my_upsample(input, output, n, c, ih, iw, scale);
+    assert(ret == 0);
+
     valueMapping[result] = std::move(resultT);
 
     return success();
@@ -780,6 +1047,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
     return success();
   }
+
   if (auto op = dyn_cast<tpu::SoftmaxOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "SoftmaxOp" << "\n";);
     auto opdT = getOperandTensors(opInst, valueMapping);
@@ -836,11 +1104,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
   if (auto op = dyn_cast<ReturnOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "ReturnOp" << "\n";);
-    auto opdT = getOperandTensors(opInst, valueMapping);
-    //copy the value into outputs_
-    assert(outputs_.size() == 1);
-    outputs_[0]->assign(opdT[0]->begin(), opdT[0]->end());
-
+    // do nothing
     return success();
   }
 
@@ -860,55 +1124,21 @@ LogicalResult ModuleInterpreter::runBlock(Block &bb) {
 
 LogicalResult ModuleInterpreter::runOneFunction(FuncOp func) {
   LLVM_DEBUG(llvm::errs() << "func " << func.getName() << "\n";);
-  // Clear the value mappings, it is only relevant within one function.
-  valueMapping.clear();
-
-  // Add function arguments to the value remapping table.
-  unsigned int argIdx = 0;
-  assert(inputs_.size() == 1);
-  for (auto arg : func.getArguments()) {
-    LLVM_DEBUG(
-      llvm::errs() << "arg " << argIdx << ": ";
-      arg->getType().dump();
-      llvm::errs() << "\n";
-    );
-
-    // copy the inputs_[0] into a unique_ptr pointed vector
-    // TODO: pass input as unique_ptr directly
-    auto input = std::make_unique<std::vector<float> >();
-    input->swap(*inputs_[0]);
-    valueMapping[arg] = std::move(input);
-    argIdx++;
-  }
-  assert(argIdx == 1);
-
-#ifdef ENABLE_GEN_CMDBUF
-  if (clCmdBufFilename != "-") {
-    std::vector<int8_t> weight_data;
-    backend_ctx = bmnet_create_backend_context(weight_data);
-  }
-#endif
-
-  // Then, run blocks one by one.
+  // run blocks one by one.
   for (Block &bb : func.getBlocks()) {
     if (failed(runBlock(bb)))
       return failure();
   }
 
-#ifdef ENABLE_GEN_CMDBUF
-  if (clCmdBufFilename != "-") {
-    bmnet_submit(backend_ctx);
-    std::vector<uint8_t> cmdbuf;
-    bmnet_read_cmdbuf(backend_ctx, cmdbuf);
-    std::fstream output(clCmdBufFilename, std::ios::out | std::ios::trunc | std::ios::binary);
-    output.write((char *)cmdbuf.data(), cmdbuf.size());
-  }
-#endif
-
   if (clAllTensorFilename != "-") {
     // dump all values
     LLVM_DEBUG(llvm::errs() << "valueMapping size " << valueMapping.size() << "\n";);
     auto TensorOut = openOutputTensorFile(clAllTensorFilename);
+    std::unique_ptr<TensorFile> DequantInt8TensorOut;
+    if (clAllDequentInt8TensorFilename != "-") {
+      DequantInt8TensorOut =
+          openOutputTensorFile(clAllDequentInt8TensorFilename);
+    }
     for (auto it = valueMapping.begin(); it != valueMapping.end(); it++ ) {
       auto op = it->first->getDefiningOp();
       if (!op) {
@@ -924,8 +1154,24 @@ LogicalResult ModuleInterpreter::runOneFunction(FuncOp func) {
       auto type = it->first->getType().dyn_cast<mlir::TensorType>();
       LLVM_DEBUG(llvm::errs() << "  vec size = " << vec->size() << "\n";);
       TensorOut->addTensor(getOpName(op), vec, type);
+      if (clAllDequentInt8TensorFilename != "-" && getOpQuant(op) != "NONE") {
+        float threshold = getOpThreshold(op);
+        if (threshold == 0.0){
+          continue; 
+        }
+        LLVM_DEBUG(llvm::errs() << "  quantization, threshold = "
+                                << std::to_string(threshold) << "\n";);
+        auto dequent_vec = it->second.get();
+        for (size_t i = 0; i < vec->size(); ++i) {
+          dequent_vec->at(i) = dequantizeNeuron((int8_t)vec->at(i), threshold);
+        }
+        DequantInt8TensorOut->addTensor(getOpName(op), dequent_vec, type);
+        }
     }
     TensorOut->keep();
+    if (clAllDequentInt8TensorFilename != "-") {
+      DequantInt8TensorOut->keep();
+    }
   }
 
   return success();
@@ -947,9 +1193,11 @@ LogicalResult ModuleInterpreter::runFunctions() {
 }
 
 LogicalResult runTpuModule(ModuleOp m,
-    std::vector<std::vector<float> *> &inputs,
-    std::vector<std::vector<float> *> &outputs) {
-  return ModuleInterpreter::runModule<>(m, inputs, outputs);
+    std::vector<int64_t> input_shape, std::vector<float> &input_vec,
+    std::map<std::string, std::vector<float> > *results,
+    std::map<std::string, std::vector<float> > *allTensorMap) {
+  return ModuleInterpreter::runModule<>(m, input_shape, input_vec,
+                                        results, allTensorMap);
 }
 
 } // namespace mlir
