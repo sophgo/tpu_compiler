@@ -145,6 +145,7 @@ public:
       addThresholdAttr<tpu::PReluOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::SoftmaxOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::SigmoidOp>(builder, threshold_map, op);
+      addThresholdAttr<tpu::CropOp>(builder, threshold_map, op);
     });
 
     OwningRewritePatternList patterns;

@@ -99,6 +99,9 @@ std::string getOpQuant(Operation *op) {
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::SigmoidOp>(op)) {
     return cast_op.quant();
   }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::ScaleOp>(op)) {
+    return cast_op.quant();
+  }
 
   return "NONE";
 }
@@ -200,6 +203,9 @@ float getPreviousOpThreshold(Operation *op, uint index = 0) {
     return cast_op.threshold_y().getValue().convertToFloat();
   }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::SoftmaxOp>(formerOp)) {
+    return cast_op.threshold_y().getValue().convertToFloat();
+  }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::CropOp>(formerOp)) {
     return cast_op.threshold_y().getValue().convertToFloat();
   }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::SigmoidOp>(formerOp)) {
