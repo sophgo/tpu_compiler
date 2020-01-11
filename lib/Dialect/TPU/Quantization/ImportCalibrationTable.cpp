@@ -136,11 +136,13 @@ public:
       addThresholdAttr<tpu::Conv2DOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::FullyConnectedOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::Pool2DOp>(builder, threshold_map, op);
+      addThresholdAttr<tpu::EltwiseOp>(builder, threshold_map, op);
+      addThresholdAttr<tpu::ConcatOp>(builder, threshold_map, op);
+      addThresholdAttr<tpu::UpsampleOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::BatchNormOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::ScaleOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::ReluOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::PReluOp>(builder, threshold_map, op);
-      addThresholdAttr<tpu::EltwiseOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::SoftmaxOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::SigmoidOp>(builder, threshold_map, op);
     });

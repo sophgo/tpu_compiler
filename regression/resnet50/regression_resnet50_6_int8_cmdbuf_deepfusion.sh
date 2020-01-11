@@ -130,7 +130,7 @@ mlir-tpu-interpreter \
 
 # compare all tensors
 bin_to_npz.py out_all.bin neuron_map.csv out_all.npz
-npz_compare.py out_all.npz tensor_all_int8_multiplier.npz show 5
+npz_compare.py out_all.npz tensor_all_int8_multiplier.npz
 
 # VERDICT
 echo $0 PASSED

@@ -36,7 +36,8 @@ using namespace mlir;
 #define OP_TYPE "type"
 #define OP_QUANT "quant"
 
-typedef std::map<std::string, std::vector<float>> tensor_map_t;
+typedef std::map<std::string, std::vector<float> > tensor_map_t;
+typedef std::map<std::string, std::vector<int64_t> > shape_map_t;
 
 static bool isValidOp(Operation &op)
 {
@@ -57,25 +58,6 @@ static OwningModuleRef parseMLIRInput(StringRef inputFilename,
   llvm::SourceMgr sourceMgr;
   sourceMgr.AddNewSourceBuffer(std::move(file), llvm::SMLoc());
   return OwningModuleRef(parseSourceFile(sourceMgr, context));
-}
-
-static int runTpuInterpreter(OwningModuleRef &m, std::vector<float> &input, std::vector<float> &output,
-    llvm::function_ref<LogicalResult(mlir::ModuleOp)> mlirTransformer, tensor_map_t &tensorMap) {
-  if (mlirTransformer)
-    if (failed(mlirTransformer(m.get())))
-      return EXIT_FAILURE;
-
-  //std::vector<float> input(1*3*224*224);
-  //std::vector<float> output(1*1000);
-
-  std::vector<std::vector<float> *> inputs({&input});
-  std::vector<std::vector<float> *> outputs({&output});
-
-  if (failed(ModuleInterpreter::runModuleAndGetValueMap<>(m.get(), inputs, outputs, tensorMap)))
-    return EXIT_FAILURE;
-
-  int exitCode = EXIT_SUCCESS;
-  return exitCode;
 }
 
 // ----------------
@@ -108,6 +90,20 @@ template
 static py::array getPythonArray(std::vector<float> &vec, const std::vector<int64_t> &shape);
 template
 static py::array getPythonArray(std::vector<int64_t> &vec, const std::vector<int64_t> &shape);
+
+static py::dict getTensorDict(tensor_map_t &tensorMap, shape_map_t &shapeMap) {
+  py::dict py_ret;
+  for (auto it = tensorMap.begin(); it != tensorMap.end(); it++) {
+    auto op = it->first;
+    auto data = it->second;
+    py::str py_s(op);
+
+    assert(shapeMap.end() != shapeMap.find(op));
+    py_ret[py_s] = getPythonArray(data, shapeMap[op]);
+  }
+
+  return py_ret;
+}
 
 // Static initialization for standard op dialect registration.
 static DialectRegistration<StandardOpsDialect> StandardOps;
@@ -161,18 +157,7 @@ public:
   }
 
   py::dict getAllTensor() {
-    py::dict py_ret;
-    for (auto it = tensorMap_.begin(); it != tensorMap_.end(); it++) {
-      auto op = it->first;
-      auto data = it->second;
-      py::str py_s(op);
-
-      assert(shapeMap_.end() != shapeMap_.find(op));
-      py_ret[py_s] = getPythonArray(data, shapeMap_[op]);
-
-    }
-
-    return py_ret;
+    return getTensorDict(tensorMap_, shapeMap_);
   }
 
   py::array getTensor(std::string op_name) {
@@ -200,35 +185,19 @@ public:
   }
 
   // wrap C++ function with NumPy array IO
-  py::array run(py::array_t<float, py::array::c_style | py::array::forcecast> array) {
-    std::vector<float> input(array.size());
-    // copy py::array -> std::vector
-    std::memcpy(input.data(), array.data(), array.size() * sizeof(float));
+  py::dict run(py::array_t<float, py::array::c_style | py::array::forcecast> array) {
+    std::vector<float> input_vec(array.size());
+    std::memcpy(input_vec.data(), array.data(), array.size() * sizeof(float));
+    std::vector<int64_t> input_shape;
+    for (ssize_t i = 0; i < array.ndim(); ++i) {
+      input_shape.push_back((int64_t)array.shape()[i]);
+    }
+    tensor_map_t results;
+    if (failed(runTpuModule(module.get(), input_shape, input_vec, &results, &tensorMap_))) {
+      assert(false);
+    }
 
-    // run intererence
-    std::vector<float> output(1*1000);
-    int status = runTpuInterpreter(module, input, output, nullptr, tensorMap_);
-    assert(status == EXIT_SUCCESS);
-
-    // return NumPy array
-    //ssize_t ndim = array.ndim();
-    //std::vector<ssize_t> shape(ndim);
-    //shape.assign(array.shape(), array.shape() + ndim);
-    //std::vector<ssize_t> strides(ndim);
-    //strides.assign(array.strides(), array.strides() + ndim);
-
-    //ssize_t ndim = 2;
-    //std::vector<ssize_t> shape(1, 1000);
-    //std::vector<ssize_t> strides(1000 * sizeof(float), sizeof(float));
-
-    return py::array(py::buffer_info(
-      output.data(),                           /* data as contiguous array  */
-      sizeof(float),                           /* size of one scalar        */
-      py::format_descriptor<float>::format(),  /* data type                 */
-      2, //ndim,                                    /* number of dimensions      */
-      {1, 1000}, //shape,                                   /* shape of the matrix       */
-      {1000 * sizeof(float), sizeof(float)} //strides                                  /* strides for each axis     */
-    ));
+    return getTensorDict(results, shapeMap_);
   }
 
 public:
@@ -237,9 +206,9 @@ public:
 private:
   MLIRContext context;
   OwningModuleRef module;
-  tensor_map_t tensorMap_;
   std::string weightFilePath_;
-  std::map<std::string, std::vector<int64_t>> shapeMap_;
+  tensor_map_t tensorMap_;
+  shape_map_t shapeMap_;
 };
 
 // wrap as Python module

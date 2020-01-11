@@ -32,10 +32,10 @@ print("load module done")
 x = np.load(sys.argv[2])
 print('x.shape', x.shape)
 res = module.run(x)
-print('res.shape', res.shape)
-
-if K > 0:
-  print("Show Top-K", K)
-  # print(get_topk(data, K), sep='\n')
-  for i in get_topk(res, K):
-    print(i)
+for key, value in res.items():
+  print(str(key), value.shape)
+  if K > 0:
+    print("  Show Top-" + str(K))
+    # print(get_topk(data, K), sep='\n')
+    for i in get_topk(value, K):
+      print("  " + str(i))

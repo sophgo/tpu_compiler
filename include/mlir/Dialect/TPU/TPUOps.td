@@ -322,8 +322,12 @@ def TPU_ConcatOp: TPU_Op<"concat", [NoSideEffect, SameOperandsAndResultElementTy
 
   let arguments = (
     ins Variadic<AnyTensor>:$val,
+    DefaultValuedAttr<I32Attr, "1">: $dimension,
     OptionalAttr<StrAttr>:$name,
-    DefaultValuedAttr<I32Attr, "1">: $dimension
+    OptionalAttr<NonNegativeI64Attr>:$offset,
+    OptionalAttr<F32Attr>:$threshold_y,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
   );
 
   let verifier = [{
