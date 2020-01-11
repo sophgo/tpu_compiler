@@ -34,4 +34,7 @@ int my_softmax(float *input, float *output, int n, int c);
 int my_eltwise(float *input_1, float *input_2, float *output,
     int n, int c, int h, int w, int op);
 
+int my_slice(float *input, float *output, int axis,
+  std::vector<int64_t> input_shape, std::vector<int64_t> output_shape);
+
 #endif // MLIR_DIALECT_TPU_NATIVE_CPU_IMPLEMENTATION_H_

@@ -991,6 +991,33 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     return success();
   }
 
+  if (auto op = dyn_cast<tpu::SliceOp>(opInst)) {
+    LLVM_DEBUG(llvm::errs() << "SliceOp" << "\n";);
+    auto opdT = getOperandTensors(opInst, valueMapping);
+    auto results = op.getResults();
+    int axis = op.axis().getValue().getLimitedValue();
+    std::vector<int64_t> i_s = op.getOperand()->getType().cast<TensorType>().getShape();
+
+    float *input = (float *)opdT[0]->data();
+    for (uint32_t i = 0; i < results.size(); i++) {
+      auto result = results[i];
+      LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";);
+      std::vector<int64_t> o_s = result->getType().cast<TensorType>().getShape();
+      assert(o_s.size() <= 4);
+      auto size = std::accumulate(std::begin(o_s), std::end(o_s), 1, std::multiplies<>());
+      auto resultT = std::make_unique<std::vector<float> >(size);
+
+      float *output = (float *)resultT.get()->data();
+      int ret = my_slice(input, output, axis, i_s, o_s);
+      assert(ret == 0);
+
+      valueMapping[result] = std::move(resultT);
+      input += size;
+    }
+
+    return success();
+  }
+
   if (auto op = dyn_cast<tpu::QuantizationOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "QuantizationOp" << "\n";);
     auto opdT = getOperandTensors(opInst, valueMapping);

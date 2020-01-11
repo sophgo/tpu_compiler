@@ -679,3 +679,28 @@ int my_eltwise(float *input_1, float *input_2, float *output, int n, int c,
 
   return 0;
 }
+
+int my_slice(float *input, float *output, int axis,
+  std::vector<int64_t> input_shape, std::vector<int64_t> output_shape) {
+  const int bottom_slice_axis = input_shape[axis];
+  const int top_slice_axis = output_shape[axis];
+
+  int num_slices = 1;
+  for (uint32_t i = 0; i < axis; i++) {
+    num_slices *= input_shape[i];
+  }
+
+  int slice_size = 1;
+  for (uint32_t i = axis + 1; i < input_shape.size(); i++) {
+    slice_size *= input_shape[i];
+  }
+
+  for (int n = 0; n < num_slices; ++n) {
+    const int top_offset = n * top_slice_axis * slice_size;
+    const int bottom_offset =
+        (n * bottom_slice_axis) * slice_size;
+    memcpy(output + top_offset, input + bottom_offset, sizeof(float) * top_slice_axis * slice_size);
+  }
+
+  return 0;
+}
