@@ -141,7 +141,7 @@ mlir::Type CaffeImporter::GetTypeFromCaffeShape(
   std::vector<int64_t> shape_int64(shape.begin(), shape.end());
   llvm::ArrayRef<int64_t> mlir_shape(shape_int64);
   return RankedTensorType::get(mlir_shape, elementType);
-} 
+}
 
 void CaffeImporter::ParseNetInputOutput(caffe::Net<float> &net,
     std::map<std::string, mlir::Type> &inputs,
@@ -556,14 +556,39 @@ void CaffeImporter::convertPoolingLayer(mlir::Block *block,
   stride[1]  = p.has_stride_w() ? p.stride_w() : p.has_stride() ? p.stride() : 1;
   padding[0] = p.has_pad_h() ? p.pad_h() : p.has_pad() ? p.pad() : 0;
   padding[1] = p.has_pad_w() ? p.pad_w() : p.has_pad() ? p.pad() : 0;
+
   //
-  // Fix caffe pooling padding
+  // Fix Pooling Padding (take h as eg. w should be similer)
+  //   when (ih - kh) % sh != 0, asymetric padding are needed
+  //   and ceiling/floor mode are different
+  //   eg.1 resnet50 112x112 -> 55x55, k=3x3, s=2x2
   //
-  //  pooled_height_ = static_cast<int>(ceil(static_cast<float>(
-  //      height_ + 2 * pad_h_ - kernel_h_) / stride_h_)) + 1;
-  //  pooled_width_ = static_cast<int>(ceil(static_cast<float>(
-  //      width_ + 2 * pad_w_ - kernel_w_) / stride_w_)) + 1;
-  //
+  std::vector<int64_t> padding_tl(2), padding_br(2);
+  for (size_t i = 0; i < 2; ++i )
+    if ( (ifmap[i] - kernel[i]) % stride[i] ) {
+    assert(stride[i] == 2);  // reminder, checked with stride = 2 only
+    // by passing ph/pw == 0, caffe actually means
+    // pt/pl = 0, pb/pr = 1
+    // if ph/pw == 1 is passed, we handle it with the opposite way, i.e.
+    // pt/pl = 1, pb/pr = 0
+    if (padding[i] == 0) {
+      padding_tl[i] = 0;
+      padding_br[i] = 1;
+    } else if (padding[i] == 1) {
+      padding_tl[i] = 1;
+      padding_br[i] = 0;
+    } else {
+      // didn't check the case yet
+      assert(false);
+    }
+  }
+
+  for (size_t i = 0; i < 2; ++i ) {
+    assert( (ifmap[0] + padding_tl[0] + padding_br[0] - kernel[0]) % stride[0] == 0);
+    ofmap[i] = (ifmap[i] + padding_tl[i] + padding_br[i] - kernel[i]) / stride[i] + 1;
+  }
+
+#if 0
   if (!p.has_ceil_mode() || p.ceil_mode()) {
     ofmap[0] = (static_cast<int>(ceil(static_cast<float>(
           ifmap[0] + 2 * padding[0] - kernel[0]) / stride[0])) + 1);
@@ -575,6 +600,7 @@ void CaffeImporter::convertPoolingLayer(mlir::Block *block,
     ofmap[1] = (static_cast<int>(floor(static_cast<float>(
           ifmap[1] + 2 * padding[1] - kernel[1]) / stride[1])) + 1);
   }
+#endif
 
   if (is_global_pooling) {
     assert( (padding[0] == 0) && (padding[1] == 0) );
@@ -593,7 +619,8 @@ void CaffeImporter::convertPoolingLayer(mlir::Block *block,
     llvm::errs()
         << "  K: " << kernel[0] << " * " << kernel[1]
         << ", S: " << stride[0] << " * " << stride[1]
-        << ", P: " << padding[0] << " * " << padding[1]
+        << ", P_TL: " << padding_tl[0] << " * " << padding_tl[1]
+        << ", P_BR: " << padding_br[0] << " * " << padding_br[1]
         << ", global_pooling: " << is_global_pooling
         << "\n";
   );
@@ -608,10 +635,10 @@ void CaffeImporter::convertPoolingLayer(mlir::Block *block,
   }
   attrs.push_back(builder_.getNamedAttr("filter_height", builder_.getI32IntegerAttr(kernel[0])));
   attrs.push_back(builder_.getNamedAttr("filter_width", builder_.getI32IntegerAttr(kernel[1])));
-  attrs.push_back(builder_.getNamedAttr("pad_top", builder_.getI32IntegerAttr(padding[0])));
-  attrs.push_back(builder_.getNamedAttr("pad_bottom", builder_.getI32IntegerAttr(padding[0])));
-  attrs.push_back(builder_.getNamedAttr("pad_left", builder_.getI32IntegerAttr(padding[1])));
-  attrs.push_back(builder_.getNamedAttr("pad_right", builder_.getI32IntegerAttr(padding[1])));
+  attrs.push_back(builder_.getNamedAttr("pad_top", builder_.getI32IntegerAttr(padding_tl[0])));
+  attrs.push_back(builder_.getNamedAttr("pad_bottom", builder_.getI32IntegerAttr(padding_br[0])));
+  attrs.push_back(builder_.getNamedAttr("pad_left", builder_.getI32IntegerAttr(padding_tl[1])));
+  attrs.push_back(builder_.getNamedAttr("pad_right", builder_.getI32IntegerAttr(padding_br[1])));
   attrs.push_back(builder_.getNamedAttr("stride_h", builder_.getI32IntegerAttr(stride[0])));
   attrs.push_back(builder_.getNamedAttr("stride_w", builder_.getI32IntegerAttr(stride[1])));
   attrs.push_back(builder_.getNamedAttr("fused_activation_function", builder_.getStringAttr("NONE")));
@@ -638,7 +665,7 @@ void CaffeImporter::convertBatchNormLayer(mlir::Block *block,
       input_var->getType().dyn_cast<mlir::TensorType>().getShape();
 
 
-  assert(input_var_shape.size() == 4 || 
+  assert(input_var_shape.size() == 4 ||
          input_var_shape.size() == 2);
 
   n = input_var_shape[0];
@@ -659,7 +686,7 @@ void CaffeImporter::convertBatchNormLayer(mlir::Block *block,
   LLVM_DEBUG(
     llvm::errs() << "\n";
   );
-  
+
   std::vector<Value *> operands;
   operands.push_back(input_var);
 
@@ -685,7 +712,7 @@ void CaffeImporter::convertBatchNormLayer(mlir::Block *block,
 
   // auto result_type = RankedTensorType::get({n, c, h, w}, elementType_);
   auto result_type = RankedTensorType::get(input_var_shape, elementType_);
-  
+
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name())));
   auto op = OpBuilder(block).create<tpu::BatchNormOp>(
@@ -710,7 +737,7 @@ void CaffeImporter::convertScaleLayer(mlir::Block *block,
   llvm::ArrayRef<int64_t> input_var_shape =
       input_var->getType().dyn_cast<mlir::TensorType>().getShape();
 
-  assert(input_var_shape.size() == 4 || 
+  assert(input_var_shape.size() == 4 ||
          input_var_shape.size() == 2);
 
   n = input_var_shape[0];
@@ -739,7 +766,7 @@ void CaffeImporter::convertScaleLayer(mlir::Block *block,
     // construct OP
     //auto result_type = RankedTensorType::get({n, c, h, w}, elementType_);
     auto result_type = RankedTensorType::get(input_var_shape, elementType_);
-  
+
     std::vector<NamedAttribute> attrs;
     attrs.push_back(builder_.getNamedAttr(
         "name", builder_.getStringAttr(layer_param.name())));
@@ -1274,7 +1301,7 @@ void CaffeImporter::convertSliceLayer(mlir::Block *block, caffe::Layer<float> *l
   if (slice_param.slice_point_size() != 0) {
     assert(slice_param.slice_point_size() == top_size - 1);
     assert(top_size < bottom_slice_axis);
-    int prev = 0;
+    uint32_t prev = 0;
     for (int i = 0; i < slice_param.slice_point_size(); ++i) {
       assert(slice_param.slice_point(i) > prev);
       slices.push_back(slice_param.slice_point(i) - prev);
@@ -1416,7 +1443,6 @@ void CaffeImporter::convertReshapeLayer(mlir::Block *block,
 
 LogicalResult CaffeImporter::Import(const llvm::StringRef inputFilename,
     llvm::StringRef caffemodelFilename) {
-  float sleep_time = 1.0;
   caffe::Net<float> net(inputFilename, caffe::TEST);
   net.CopyTrainedLayersFrom(caffemodelFilename);
   DEBUG_WITH_TYPE(DEBUG_TYPE"_VERBOSE", printCaffeNetAllLayer(net););
@@ -1430,8 +1456,7 @@ LogicalResult CaffeImporter::Import(const llvm::StringRef inputFilename,
   std::map<std::string, mlir::Type> net_outputs;
   ParseNetInputOutput(net, net_inputs, net_outputs);
 
-  
-  mlir::Block *block = CreateOneBlockFunction(net_inputs, net_outputs); 
+  mlir::Block *block = CreateOneBlockFunction(net_inputs, net_outputs);
   AddLoadFileOp(block, weightFilename);
   ConvertLayers(block, net);
   AddReturnOp(block, net_outputs);
