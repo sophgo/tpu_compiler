@@ -214,9 +214,9 @@ private:
 
   void analyzePool2DOpParam(tpu::Pool2DOp &op, llvm::raw_ostream &os) {
     bool is_average_pool, do_relu;
-    int n, c, ih, iw, oh, ow, kh, kw, sh, sw, ph, pw;
+    int n, c, ih, iw, oh, ow, kh, kw, sh, sw, pt, pb, pl, pr;
     getPool2DOpParam(op, is_average_pool, n, c, ih, iw, oh, ow,
-                     kh, kw, sh, sw, ph, pw, do_relu);
+                     kh, kw, sh, sw, pt, pb, pl, pr, do_relu);
 
     uint64_t mac_count = ow * oh * kh * kw * c * n;
     stats->increaseMacCount(mac_count);
@@ -234,7 +234,7 @@ private:
        << c << "," << ih << "," << iw << ","
        << "," << oh << "," << ow << ","
        << kh << "," << kw << "," << sh << "," << sw << ","
-       << "," << "," << ph << "," << pw << ","
+       << "," << "," << pt << "," << pb << "," << pl << "," << pr << ","
        << mac_count;
     os << "," << inputNeuronSizePerLane;
     os << "," << outputNeuronSizePerLane;

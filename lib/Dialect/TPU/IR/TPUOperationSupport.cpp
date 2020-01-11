@@ -362,7 +362,7 @@ template void getConv2DOpParam<tpu::TL_LW_Conv2DOp>(tpu::TL_LW_Conv2DOp &op,
 
 void getPool2DOpParam(tpu::Pool2DOp &op,
     bool &is_average_pool, int &n, int &c, int &ih, int &iw, int &oh, int &ow,
-    int &kh, int &kw, int &sh, int &sw, int &ph, int &pw, bool &do_relu) {
+    int &kh, int &kw, int &sh, int &sw, int &pt, int &pb, int &pl, int &pr, bool &do_relu) {
   auto pool_method = op.getAttrOfType<StringAttr>("pool");
   if (pool_method.getValue() == "AVE") {
     is_average_pool = true;
@@ -387,13 +387,30 @@ void getPool2DOpParam(tpu::Pool2DOp &op,
   iw = i_s[3];
   oh = o_s[2];
   ow = o_s[3];
-  auto padding_attr = op.getAttrOfType<StringAttr>("padding");
-  if (padding_attr.getValue() == "SAME") {
-    ph = findPadForSamePadding(ih, oh, kh, sh, 1);
-    pw = findPadForSamePadding(iw, ow, kw, sw, 1);
-  } else if (padding_attr.getValue() == "VALID") {
-    ph = 0;
-    pw = 0;
+
+  if (op.padding().hasValue()) {
+    auto padding_attr = op.getAttrOfType<StringAttr>("padding");
+    if (padding_attr.getValue() == "SAME") {
+      llvm::errs() << "same\n";
+      pt = findPadForSamePadding(ih, oh, kh, sh, 1);
+      pb = pt;
+      pl = findPadForSamePadding(iw, ow, kw, sw, 1);
+      pr = pl;
+    } else if (padding_attr.getValue() == "VALID") {
+      llvm::errs() << "valid\n";
+      pt = 0;
+      pb = 0;
+      pl = 0;
+      pr = 0;
+    } else {
+      assert(false);
+    }
+  } else if (op.pad_top().hasValue() && op.pad_bottom().hasValue() &&
+            op.pad_left().hasValue() && op.pad_right().hasValue()) {
+    pt = op.pad_top().getValue().getLimitedValue();
+    pb = op.pad_bottom().getValue().getLimitedValue();
+    pl = op.pad_left().getValue().getLimitedValue();
+    pr = op.pad_right().getValue().getLimitedValue();
   } else {
     assert(false);
   }
