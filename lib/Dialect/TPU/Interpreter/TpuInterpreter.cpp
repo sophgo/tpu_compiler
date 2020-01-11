@@ -605,16 +605,22 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     auto output_type = op.y()->getType().cast<TensorType>();
     std::vector<int64_t> o_s(output_type.getShape());
     assert((i_s == o_s) && "input shape not equal to output shape");
+
+    assert((i_s.size() == 4 || i_s.size() == 2) && 
+           "BatchNorm support shape size of 4 or 2 now." );
+    
     n = i_s[0];
     c = i_s[1];
-    h = i_s[2];
-    w = i_s[3];
+    h = (i_s.size() == 2) ? 1 : i_s[2];
+    w = (i_s.size() == 2) ? 1 : i_s[3];
+
     float *input = (float *)opdT[0]->data();
     float *mean = (float *)opdT[1]->data();
     float *variance = (float *)opdT[2]->data();
     float *scale = (float *)opdT[3]->data();
     float *output = (float *)resultT.get()->data();
     int ret = my_bn(input, mean, variance, scale, output, n, c, h, w);
+    
     assert(ret == 0);
 
     valueMapping[result] = std::move(resultT);
@@ -645,10 +651,15 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     auto output_type = op.y()->getType().cast<TensorType>();
     std::vector<int64_t> o_s(output_type.getShape());
     assert((i_s == o_s) && "input shape not equal to output shape");
+
+    assert((i_s.size() == 4 || i_s.size() == 2) && 
+           "BatchNorm support shape size of 4 or 2 now." );
+    
     n = i_s[0];
     c = i_s[1];
-    h = i_s[2];
-    w = i_s[3];
+    h = (i_s.size() == 2) ? 1 : i_s[2];
+    w = (i_s.size() == 2) ? 1 : i_s[3];
+
     float *input = (float *)opdT[0]->data();
     float *scale = (float *)opdT[1]->data();
     float *output = (float *)resultT.get()->data();
