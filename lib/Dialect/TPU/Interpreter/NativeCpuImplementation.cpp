@@ -157,10 +157,6 @@ int mkldnn_pool(float *input, float *output,
     int n, int c, int ih, int iw, int oh, int ow,
     int kh, int kw, int sh, int sw, int pt, int pb, int pl, int pr,
     bool is_avg) {
-  int p_t = pt;
-  int p_b = pb;
-  int p_l = pl;
-  int p_r = pr;
   LLVM_DEBUG(
     llvm::errs() << "mkldnn_pool: "<< "  i: (" << ih << "*" << iw << "), "
               << "o: (" << oh << "*" << ow << "), "
@@ -168,16 +164,6 @@ int mkldnn_pool(float *input, float *output,
               << "s: (" << sh << ", " << sw << "), "
               << "p: (" << pt << ", " << pb  << ", " << pl << ", "  << pr << "), " << "\n";
   );
-
-  int pb_need_more = (ih + p_t + p_l) % kh;
-  if (pb_need_more != 0) {
-    p_b += (kh - pb_need_more);
-  }
-
-  int pr_need_more = (iw + p_l + p_r) % kw;
-  if (pr_need_more != 0) {
-    p_r += (kw - pr_need_more);
-  }
 
 #ifdef DUMP_FLAG
   static int dump_idx = 0;
@@ -190,8 +176,8 @@ int mkldnn_pool(float *input, float *output,
   LLVM_DEBUG(
     llvm::errs() << "  k: (" << kh << "*" << kw << "), "
                  << "s: (" << sh << "*" << sw << "), "
-                 << "p: (" << p_t << "-" << p_b
-                 << "*" << p_l << "-" << p_r << ")" << "\n";
+                 << "p: (" << pt << "-" << pb
+                 << "*" << pl << "-" << pr << ")" << "\n";
   );
 
   using tag = memory::format_tag;
@@ -208,8 +194,8 @@ int mkldnn_pool(float *input, float *output,
   memory::dims dst_tz = { batch, c, oh, ow };
   memory::dims kernel = { kh, kw };
   memory::dims strides = { sh, sw };
-  memory::dims padding_t_l = { p_t, p_l };
-  memory::dims padding_b_r = { p_b, p_r };
+  memory::dims padding_t_l = { pt, pl };
+  memory::dims padding_b_r = { pb, pr };
 
   // memory
   auto user_src_memory = memory(
@@ -666,7 +652,7 @@ int my_slice(float *input, float *output, int axis,
   const int top_slice_axis = output_shape[axis];
 
   int num_slices = 1;
-  for (uint32_t i = 0; i < axis; i++) {
+  for (int i = 0; i < axis; i++) {
     num_slices *= input_shape[i];
   }
 
