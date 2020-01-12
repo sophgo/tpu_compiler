@@ -4,6 +4,17 @@ set -e
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 source $DIR/../../envsetup.sh
 
+# run caffe model
+run_caffe_classifier.py \
+    --model_def $MODEL_PATH/caffe/ResNet-50-deploy.prototxt \
+    --pretrained_model $MODEL_PATH/caffe/ResNet-50-model.caffemodel \
+    --mean_file $PYTHON_TOOLS_PATH/data/ilsvrc_2012_mean.npy \
+    --label_file $PYTHON_TOOLS_PATH/data/ilsvrc12/synset_words.txt \
+    --dump_blobs resnet50_blobs.npz \
+    --dump_weights resnet50_weights.npz \
+    $PYTHON_TOOLS_PATH/data/images/cat.jpg \
+    caffe_out.npy
+
 # translate from caffe model
 mlir-translate \
     --caffe-to-mlir $MODEL_PATH/caffe/ResNet-50-deploy.prototxt \
@@ -13,9 +24,11 @@ mlir-translate \
 # test mlir interpreter
 mlir-tpu-interpreter resnet50.mlir \
     --tensor-in $DATA_PATH/test_cat_in_fp32.bin \
-    --tensor-out out.bin
+    --tensor-out out.bin \
+    --dump-all-tensor=tensor_all.npz
 bin_compare.py out.bin $DATA_PATH/test_cat_out_resnet50_prob_fp32.bin \
     float32 1 1 1 1000 5 5
+npz_compare.py tensor_all.npz resnet50_blobs.npz --tolerance=0.9999,0.9999,0.999 -vvv
 
 # opt1, convert bn to scale
 mlir-opt \
