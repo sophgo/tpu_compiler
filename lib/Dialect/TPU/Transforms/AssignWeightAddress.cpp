@@ -328,7 +328,13 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
       // TODO: this is tricky, we assume any 4 dim weight tensor is a conv filter
       std::vector<int64_t> shape = type.getShape();
       if (shape.size() == 4) {
-        transposeConvolutionFilter<uint16_t>(weight_bf16, shape);
+        if (!strncmp(weightOp.name().getValue().data(), "Tanh_", 2)) {
+          // FIXME: not hardcode check, plz ref op type
+          //llvm::errs() << "skip " << weightOp.name() << "\n";
+        }
+        else {
+          transposeConvolutionFilter<uint16_t>(weight_bf16, shape);
+        }
       }
       // TODO: this is tricky, we assume any 2 dim weight tensor is a fc filter
       if (shape.size() == 2) {
