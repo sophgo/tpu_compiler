@@ -45,8 +45,7 @@ if [ $COMPARE_ALL ]; then
       resnet50_tensor_all_int8_per_layer.npz \
       resnet50_blobs.npz \
       --dequant $REGRESSION_PATH/resnet50/data/resnet50_calibration_table \
-      --tolerance 0.9,0.9,0.6 \
-      -vvv
+      --tolerance 0.9,0.9,0.6 -vvv
 fi
 
 # quantization 2: per-channel int8
@@ -77,8 +76,7 @@ if [ $COMPARE_ALL ]; then
       resnet50_tensor_all_int8_per_channel.npz \
       resnet50_blobs.npz \
       --dequant $REGRESSION_PATH/resnet50/data/resnet50_calibration_table \
-      --tolerance 0.9,0.9,0.7 \
-      -vvv
+      --tolerance 0.9,0.9,0.7 -vvv
 fi
 
 # quantization 3: per-channel int8 with multiplier
@@ -105,12 +103,12 @@ bin_compare.py \
     int8 1 1 1 1000 5
 
 if [ $COMPARE_ALL ]; then
+  # this will fail for now, because prob has been dequantized twice, others should pass
   npz_compare.py \
       resnet50_tensor_all_int8_multiplier.npz \
       resnet50_blobs.npz \
       --dequant $REGRESSION_PATH/resnet50/data/resnet50_calibration_table \
-      --tolerance 0.8,0.8,0.6 \
-      -vvv
+      --tolerance 0.9,0.9,0.7 -vvv
 fi
 
 # VERDICT
