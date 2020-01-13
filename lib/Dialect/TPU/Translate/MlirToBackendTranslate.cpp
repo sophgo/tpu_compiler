@@ -539,7 +539,8 @@ static LogicalResult runOperation(Operation &opInst) {
         w,
         0, // int threshold_x_quantized_len,
         nullptr, // const int *threshold_x_quantized,
-        nullptr //const int *right_shift_array
+        nullptr, //const int *right_shift_array
+        FMT_I8
         );
 
     return success();
