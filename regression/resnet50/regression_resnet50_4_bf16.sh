@@ -4,43 +4,29 @@ set -e
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 source $DIR/../../envsetup.sh
 
-# translate from caffe
-mlir-translate \
-    --caffe-to-mlir $MODEL_PATH/caffe/ResNet-50-deploy.prototxt \
-    --caffemodel $MODEL_PATH/caffe/ResNet-50-model.caffemodel \
-    -o resnet50.mlir
-
-# apply all possible pre-calibration optimizations
+# apply post-calibration optimizations
+# not applying --fuse-eltwise for now
 mlir-opt \
-    --convert-bn-to-scale \
-    --fold-scale \
-    --merge-scale-into-conv \
-    --verify-each \
     --fuse-relu \
-    --fuse-eltwise \
-    resnet50.mlir \
-    -o resnet50_opt.mlir
-
-# fp32 inference
-mlir-tpu-interpreter resnet50_opt.mlir \
-    --tensor-in $DATA_PATH/test_cat_in_fp32.bin \
-    --tensor-out out.bin \
-    --dump-all-tensor=tensor_all.npz
+    resnet50_opt.mlir \
+    -o resnet50_opt2.mlir
 
 # quantization
 mlir-opt \
     --quant-bf16 \
-    resnet50_opt.mlir \
+    resnet50_opt2.mlir \
     -o resnet50_quant_bf16.mlir
 
 # bf16 inference
-mlir-tpu-interpreter \
-    resnet50_quant_bf16.mlir \
-    --tensor-in $DATA_PATH/test_cat_in_fp32.bin \
-    --tensor-out out_bf16.bin \
-    --dump-all-tensor=tensor_all_bf16.npz
-bin_compare.py out.bin out_bf16.bin float32 1 1 1 1000 5
-npz_compare.py tensor_all.npz tensor_all_bf16.npz
+mlir-tpu-interpreter resnet50_quant_bf16.mlir \
+    --tensor-in resnet50_in_fp32.npz \
+    --tensor-out resnet50_out_bf16.npz \
+    --dump-all-tensor=resnet50_tensor_all_bf16.npz
+npz_compare.py resnet50_out_bf16.npz resnet50_out_fp32.npz -v
+npz_compare.py \
+    resnet50_tensor_all_bf16.npz \
+    resnet50_tensor_all_fp32.npz \
+    --tolerance=0.99,0.99,0.95 -vvv
 
 # VERDICT
 echo $0 PASSED
