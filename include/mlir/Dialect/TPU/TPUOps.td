@@ -114,7 +114,6 @@ def TPU_LoadWeightOp : TPU_Op<"load_weight", [NoSideEffect]> {
     OptionalAttr<StrAttr>:$name,
     DefaultValuedAttr<TPU_WeightAttr, "FP32">:$storage,
     OptionalAttr<NonNegativeI64Attr>:$offset,
-    OptionalAttr<F32Attr>:$rshift,
     OptionalAttr<NonNegativeI32Attr>:$layer_id
   );
 
@@ -212,8 +211,11 @@ def TPU_ScaleOp: TPU_Op<"scale", [NoSideEffect]> {
     AnyTensor:$scale,
     Variadic<AnyTensor>:$bias,
     OptionalAttr<StrAttr>:$name,
+    DefaultValuedAttr<TPU_AFAttr, "NONE">:$fused_activation_function,
+    OptionalAttr<NonNegativeI64Attr>:$offset,
     OptionalAttr<F32Attr>:$threshold_y,
-    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
+    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
   );
 
   let results = (outs AnyTensor:$y);
@@ -442,6 +444,52 @@ def TPU_TanHOp: TPU_Op<"tanh", [NoSideEffect]> {
 
   let results = (outs AnyTensor:$y);
 }
+
+def TPU_PowerOp: TPU_Op<"power", [NoSideEffect]> {
+  let summary = "Power f(x) = (scale * x + shift) ^ power";
+
+  let description = [{
+    Power operator
+  }];
+
+  let arguments = (
+    ins AnyTensor:$x,
+    AnyTensor:$scale_table,
+    AnyTensor:$shift_table,
+    DefaultValuedAttr<F32Attr, "1.0">:$power,
+    DefaultValuedAttr<F32Attr, "1.0">:$scale,
+    DefaultValuedAttr<F32Attr, "0.0">:$shift,
+    OptionalAttr<StrAttr>:$name,
+    OptionalAttr<F32Attr>:$threshold_y,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<NonNegativeI64Attr>:$offset, // gaddr output offset
+    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
+  );
+
+  let results = (outs AnyTensor:$y);
+}
+
+// TODO: merge to relu
+def TPU_Relu6Op: TPU_Op<"relu6", [NoSideEffect, SameOperandsAndResultType]> {
+  let summary = "Relu6 operator";
+
+  let description = [{
+    Relu6 (maximum = 6) or ReluM, if maximum is present
+      y = min(max(x, 0), maximum).
+  }];
+
+  let arguments = (
+    ins AnyTensor:$x,
+    OptionalAttr<StrAttr>:$name,
+    OptionalAttr<NonNegativeI64Attr>:$offset,
+    OptionalAttr<F32Attr>:$threshold_y,
+    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
+  );
+
+  let results = (outs AnyTensor:$y);
+}
+
 
 def TPU_InputOp: TPU_Op<"input", [NoSideEffect]> {
   let summary = "Input operator";
