@@ -3,7 +3,6 @@ set -e
 
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 source $DIR/../../envsetup.sh
-DATA_DIR=$DIR/data
 
 # run caffe model
 run_caffe_classifier.py \

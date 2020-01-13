@@ -4,45 +4,16 @@ set -e
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 source $DIR/../../envsetup.sh
 
-# translate from caffe model
-mlir-translate \
-    --caffe-to-mlir $MODEL_PATH/caffe/yolov3/416/yolov3_416.prototxt \
-    --caffemodel $MODEL_PATH/caffe/yolov3/416/yolov3_416.caffemodel \
-    -o yolo_v3_416.mlir
-
-# test mlir interpreter
-mlir-tpu-interpreter yolo_v3_416.mlir \
-    --tensor-in $DATA_PATH/test_dog_in_416x416_fp32.bin \
-    --tensor-out out.bin \
-    --dump-all-tensor=tensor_all.npz
-bin_compare.py out.bin $DATA_PATH/test_dot_out_yolo_v3_416_fp32.bin \
-    float32 1 1 1 689520
-
-# apply all possible pre-calibration optimizations
-mlir-opt \
-    --convert-bn-to-scale \
-    --fold-scale \
-    --merge-scale-into-conv \
-    yolo_v3_416.mlir \
-    -o yolo_v3_416_opt.mlir
-
-# test opt
-mlir-tpu-interpreter yolo_v3_416_opt.mlir \
-    --tensor-in $DATA_PATH/test_dog_in_416x416_fp32.bin \
-    --tensor-out out_opt.bin \
-    --dump-all-tensor=tensor_all_fp32.npz
-bin_compare.py out_opt.bin out.bin float32 1 1 1 689520
-
 # calibration
-python ../llvm/projects/mlir/externals/calibration_tool/run_calibration.py \
-    yolo_v3 yolo_v3_416_opt.mlir \
-    $DATA_PATH/input_coco_100.txt \
-    --input_num=100
+# python ../llvm/projects/mlir/externals/calibration_tool/run_calibration.py \
+#     yolo_v3 yolo_v3_416_opt.mlir \
+#     $DATA_PATH/input_coco_100.txt \
+#     --input_num=100
 
 # import calibration table
 mlir-opt \
     --import-calibration-table \
-    --calibration-table $DATA_PATH/yolo_v3_threshold_table \
+    --calibration-table $REGRESSION_PATH/yolo_v3/data/yolo_v3_threshold_table \
     yolo_v3_416_opt.mlir \
     -o yolo_v3_416_cali.mlir
 
@@ -55,9 +26,29 @@ mlir-opt \
     -o yolo_v3_416_quant_int8_per_layer.mlir
 
 mlir-tpu-interpreter yolo_v3_416_quant_int8_per_layer.mlir \
-    --tensor-in $DATA_PATH/test_dog_in_416x416_fp32.bin \
-    --tensor-out out_int8_per_layer.bin \
-    --dump-all-tensor=tensor_all_int8_per_layer.npz
+    --tensor-in yolo_v3_in_fp32.npz \
+    --tensor-out yolo_v3_out_dequant_int8_per_layer.npz \
+    --dump-all-tensor=yolo_v3_tensor_all_int8_per_layer.npz
+
+npz_extract.py \
+    yolo_v3_tensor_all_int8_per_layer.npz \
+    yolo_v3_out_int8_per_layer.npz \
+    layer82-conv,layer94-conv,layer106-conv
+npz_compare.py \
+      yolo_v3_out_int8_per_layer.npz \
+      yolo_v3_blobs.npz \
+      --dequant $REGRESSION_PATH/yolo_v3/data/yolo_v3_threshold_table \
+      --tolerance 0.9,0.9,0.75 -vvv
+
+if [ $COMPARE_ALL ]; then
+  # some tensors do not pass due to threshold bypass
+  # need do dequantization in interpreter directly
+  npz_compare.py \
+      yolo_v3_tensor_all_int8_per_layer.npz \
+      yolo_v3_blobs.npz \
+      --dequant $REGRESSION_PATH/yolo_v3/data/yolo_v3_threshold_table \
+      --tolerance 0.9,0.9,0.7 -vvv
+fi
 
 ################################
 # quantization 2: per-channel int8
@@ -70,9 +61,29 @@ mlir-opt \
     -o yolo_v3_416_quant_int8_per_channel.mlir
 
 mlir-tpu-interpreter yolo_v3_416_quant_int8_per_channel.mlir \
-    --tensor-in $DATA_PATH/test_dog_in_416x416_fp32.bin \
-    --tensor-out out_int8_per_channel.bin \
-    --dump-all-tensor=tensor_all_int8_per_channel.npz
+    --tensor-in yolo_v3_in_fp32.npz \
+    --tensor-out yolo_v3_out_dequant_int8_per_channel.npz \
+    --dump-all-tensor=yolo_v3_tensor_all_int8_per_channel.npz
+
+npz_extract.py \
+    yolo_v3_tensor_all_int8_per_channel.npz \
+    yolo_v3_out_int8_per_channel.npz \
+    layer82-conv,layer94-conv,layer106-conv
+npz_compare.py \
+      yolo_v3_out_int8_per_channel.npz \
+      yolo_v3_blobs.npz \
+      --dequant $REGRESSION_PATH/yolo_v3/data/yolo_v3_threshold_table \
+      --tolerance 0.9,0.9,0.8 -vvv
+
+if [ $COMPARE_ALL ]; then
+  # some tensors do not pass due to threshold bypass
+  # need do dequantization in interpreter directly
+  npz_compare.py \
+      yolo_v3_tensor_all_int8_per_channel.npz \
+      yolo_v3_blobs.npz \
+      --dequant $REGRESSION_PATH/yolo_v3/data/yolo_v3_threshold_table \
+      --tolerance 0.9,0.9,0.7 -vvv
+fi
 
 ################################
 # quantization 3: per-channel multiplier int8
@@ -85,9 +96,29 @@ mlir-opt \
     -o yolo_v3_416_quant_int8_multiplier.mlir
 
 mlir-tpu-interpreter yolo_v3_416_quant_int8_multiplier.mlir \
-    --tensor-in $DATA_PATH/test_dog_in_416x416_fp32.bin \
-    --tensor-out out_int8_multiplier.bin \
-    --dump-all-tensor=tensor_all_int8_multiplier.npz
+    --tensor-in yolo_v3_in_fp32.npz \
+    --tensor-out yolo_v3_out_dequant_int8_multiplier.npz \
+    --dump-all-tensor=yolo_v3_tensor_all_int8_multiplier.npz
+
+npz_extract.py \
+    yolo_v3_tensor_all_int8_multiplier.npz \
+    yolo_v3_out_int8_multiplier.npz \
+    layer82-conv,layer94-conv,layer106-conv
+npz_compare.py \
+      yolo_v3_out_int8_multiplier.npz \
+      yolo_v3_blobs.npz \
+      --dequant $REGRESSION_PATH/yolo_v3/data/yolo_v3_threshold_table \
+      --tolerance 0.9,0.9,0.8 -vvv
+
+if [ $COMPARE_ALL ]; then
+  # some tensors do not pass due to threshold bypass
+  # need do dequantization in interpreter directly
+  npz_compare.py \
+      yolo_v3_tensor_all_int8_multiplier.npz \
+      yolo_v3_blobs.npz \
+      --dequant $REGRESSION_PATH/yolo_v3/data/yolo_v3_threshold_table \
+      --tolerance 0.9,0.9,0.7 -vvv
+fi
 
 # VERDICT
 echo $0 PASSED

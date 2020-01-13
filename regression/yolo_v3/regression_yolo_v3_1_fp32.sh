@@ -12,11 +12,14 @@ mlir-translate \
 
 # test mlir interpreter
 mlir-tpu-interpreter yolo_v3_416.mlir \
-    --tensor-in $DATA_PATH/test_dog_in_416x416_fp32.bin \
-    --tensor-out out.bin \
-    --dump-all-tensor=tensor_all.npz
-bin_compare.py out.bin $DATA_PATH/test_dog_out_yolo_v3_416_fp32.bin \
-    float32 1 1 1 689520
+    --tensor-in yolo_v3_in_fp32.npz \
+    --tensor-out yolo_v3_out_fp32.npz \
+    --dump-all-tensor=yolo_v3_tensor_all_fp32.npz
+npz_compare.py yolo_v3_out_fp32.npz yolo_v3_out_fp32_ref.npz -v
+npz_compare.py \
+    yolo_v3_tensor_all_fp32.npz \
+    yolo_v3_blobs.npz \
+    --tolerance=0.9999,0.9999,0.999 -vvv
 
 # apply all possible pre-calibration optimizations
 mlir-opt \
@@ -28,9 +31,9 @@ mlir-opt \
 
 # test opt
 mlir-tpu-interpreter yolo_v3_416_opt.mlir \
-    --tensor-in $DATA_PATH/test_dog_in_416x416_fp32.bin \
-    --tensor-out out_opt.bin
-bin_compare.py out_opt.bin out.bin float32 1 1 1 689520
+    --tensor-in yolo_v3_in_fp32.npz \
+    --tensor-out yolo_v3_opt_out_fp32.npz
+npz_compare.py yolo_v3_opt_out_fp32.npz yolo_v3_out_fp32_ref.npz -v
 
 # VERDICT
 echo $0 PASSED
