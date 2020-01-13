@@ -105,6 +105,19 @@ struct AssignReshapeThresholdPattern : public OpRewritePattern<tpu::ReshapeOp> {
   }
 };
 
+/// bypass slice quantization by assigning threshold_y same as threshold_x.
+struct BypassSliceQuantPattern : public OpRewritePattern<tpu::SliceOp> {
+  using OpRewritePattern<tpu::SliceOp>::OpRewritePattern;
+
+  PatternMatchResult matchAndRewrite(tpu::SliceOp op,
+                                     PatternRewriter &rewriter) const {
+    float threshold_x = getPreviousOpThreshold(op);
+    op.setAttr("threshold_y", rewriter.getF32FloatAttr(threshold_x));
+
+    return matchSuccess();
+  }
+};
+
 class ImportCalibrationTablePass : public FunctionPass<ImportCalibrationTablePass> {
 public:
   explicit ImportCalibrationTablePass(llvm::raw_ostream &os = llvm::errs()) : os(os) {}
@@ -150,7 +163,7 @@ public:
 
     OwningRewritePatternList patterns;
     //auto *context = &getContext();
-    patterns.insert<BypassPoolQuantPattern, BypassReluQuantPattern,
+    patterns.insert<BypassPoolQuantPattern, BypassReluQuantPattern, BypassSliceQuantPattern,
         AssignReshapeThresholdPattern>(context);
     applyPatternsGreedily(fn, patterns);
   }

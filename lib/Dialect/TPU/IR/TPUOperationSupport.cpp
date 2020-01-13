@@ -211,6 +211,9 @@ float getPreviousOpThreshold(Operation *op, uint index = 0) {
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::SigmoidOp>(formerOp)) {
     return cast_op.threshold_y().getValue().convertToFloat();
   }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::SliceOp>(formerOp)) {
+    return cast_op.threshold_y().getValue().convertToFloat();
+  }
 
   llvm::errs() << op->getName() << formerOp->getName() << " Not Found "<<"\n ";
   assert(false);
