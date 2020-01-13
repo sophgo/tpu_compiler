@@ -51,6 +51,7 @@ struct TpuFuseReluPattern : public RewritePattern {
       assert(convOp.fused_activation_function() == "NONE");
       // set fused_activation_function for conv Op
       convOp.setAttr("fused_activation_function", rewriter.getStringAttr("RELU"));
+      convOp.setAttr("name", rewriter.getStringAttr(reluOp.name().getValue()));
       // remove the relu Op
       rewriter.replaceOp(op, {op->getOperand(0)});
       return matchSuccess();
@@ -59,6 +60,7 @@ struct TpuFuseReluPattern : public RewritePattern {
       assert(eltOp.fused_activation_function() == "NONE");
       // set fused_activation_function for conv Op
       eltOp.setAttr("fused_activation_function", rewriter.getStringAttr("RELU"));
+      eltOp.setAttr("name", rewriter.getStringAttr(reluOp.name().getValue()));
       // remove the relu Op
       rewriter.replaceOp(op, {op->getOperand(0)});
       return matchSuccess();
@@ -67,6 +69,7 @@ struct TpuFuseReluPattern : public RewritePattern {
       assert(fcOp.fused_activation_function() == "NONE");
       // set fused_activation_function for fc Op
       fcOp.setAttr("fused_activation_function", rewriter.getStringAttr("RELU"));
+      fcOp.setAttr("name", rewriter.getStringAttr(reluOp.name().getValue()));
       // remove the relu Op
       rewriter.replaceOp(op, {op->getOperand(0)});
       return matchSuccess();

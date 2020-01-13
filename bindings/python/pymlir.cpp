@@ -136,21 +136,14 @@ public:
             if (auto loadFileOp = dyn_cast<tpu::LoadFileOp>(op)) {
               weightFilePath_ = loadFileOp.getAttrOfType<StringAttr>("filename").getValue().str();
             }
-
             continue;
           }
-
-          // TODO: Only support one output tesor for now.
-          auto result = op.getResult(0);
-          std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
 
           py::dict py_temp;
           py_temp[OP_TYPE] = op.getName().getStringRef().str();
           py_temp[OP_QUANT] = getOpQuant(&op);
           py::str py_s(getOpName(&op).str());
           opInfo_[py_s] = py_temp;
-
-          shapeMap_[getOpName(&op).str()] = shape;
         }
       }
     }
@@ -193,7 +186,8 @@ public:
       input_shape.push_back((int64_t)array.shape()[i]);
     }
     tensor_map_t results;
-    if (failed(runTpuModule(module.get(), input_shape, input_vec, &results, &tensorMap_))) {
+    if (failed(runTpuModule(module.get(), input_shape, input_vec,
+                            &results, &shapeMap_, &tensorMap_))) {
       assert(false);
     }
 
