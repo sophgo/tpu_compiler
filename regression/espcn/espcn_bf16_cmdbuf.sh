@@ -33,7 +33,7 @@ bin_fp32_to_bf16.py \
 # import calibration table
 mlir-opt \
     --import-calibration-table \
-    --calibration-table $MODEL_PATH/caffe/calibration_table.1x10 \
+    --calibration-table $MODEL_PATH/caffe/espcn_2x_calibration_table.1x10 \
     espcn-opt.mlir \
     -o espcn-quant-cali.mlir
 

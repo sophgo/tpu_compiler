@@ -607,6 +607,34 @@ int my_crop(float *input, float *output, long int *shape1, long int *shape2, lon
   }
   return 0;
 }
+
+int my_tanh(float *input, float *output,
+    int n, int c, int h, int w) {
+#ifdef DUMP_FLAG
+  static int dump_idx = 0;
+  std::string prefix = std::string("tanh") + std::to_string(dump_idx);
+  if (dump_idx < 4) {
+    write_bianry_file(prefix + std::string("_in.bin"),
+        (const char *)input, n * c * h * w * sizeof(float));
+  }
+#endif // DUMP_FLAG
+  LLVM_DEBUG(
+    llvm::errs() << "  n: " << n << ", c: " << c
+                 << ", h: " << h << ", w: " << w << "\n";
+  );
+
+  for (int i = 0; i < n * c * h * w; ++i) {
+    output[i] = tanh(input[i]);
+  }
+#ifdef DUMP_FLAG
+  if (dump_idx < 4) {
+    write_bianry_file(prefix + std::string("_out.bin"),
+        (const char *)output, n * c * h * w * sizeof(float));
+  }
+  dump_idx ++;
+#endif // DUMP_FLAG
+  return 0;
+}
 int my_eltwise(float *input_1, float *input_2, float *output, int n, int c,
                int h, int w, int op) {
 #ifdef DUMP_FLAG

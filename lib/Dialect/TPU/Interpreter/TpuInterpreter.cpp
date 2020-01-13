@@ -589,6 +589,64 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
     return success();
   }
+
+  if (auto op = dyn_cast<tpu::TanHOp>(opInst)) {
+    LLVM_DEBUG(llvm::errs() << "TanHOp" << "\n";);
+    auto opdT = getOperandTensors(opInst, valueMapping);
+    auto result = op.getResult();
+    LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";);
+    std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
+    assert(shape.size() <= 4);
+    auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
+    auto resultT = std::make_unique<std::vector<float> >(size);
+
+    // TODO: do the actual compute here
+    int n, c, h, w;
+    //float negative_slope = op.negative_slope().convertToFloat();
+    auto input_type = op.x()->getType().cast<TensorType>();
+    std::vector<int64_t> i_s(input_type.getShape());
+    auto output_type = op.y()->getType().cast<TensorType>();
+    std::vector<int64_t> o_s(output_type.getShape());
+    assert((i_s == o_s) && "input shape not equal to output shape");
+    n = i_s[0];
+    c = i_s[1];
+    h = i_s[2];
+    w = i_s[3];
+    float *_input = (float *)opdT[0]->data();
+    float *input;
+    float *output = (float *)resultT.get()->data();
+
+    auto type = result->getType().cast<TensorType>();
+    input = _input;
+    if (type.getElementType().isBF16()) {
+      input = output;
+      // do dequantization
+      float threshold_x = getPreviousOpThreshold(op);
+      //float threshold_x = 8.0; //<! FIXME: not harcode here
+      LLVM_DEBUG(llvm::errs() << "  tanh dequantize, threshold_x = "
+                              << std::to_string(threshold_x) << "\n";);
+      // FIXME: find value by calibration
+      // dirty output
+      for (size_t i = 0; i < opdT[0]->size(); ++i) {
+        output[i] = input[i];
+        if (output[i] > threshold_x) {
+          output[i] = threshold_x;
+        }
+        else if(output[i] < -1.0 * threshold_x) {
+          output[i] = -1.0 * threshold_x;
+        }
+      }
+    }
+
+    int ret = my_tanh(input, output, n, c, h, w);
+    assert(ret == 0);
+    //dump_data_float_abs("mkldnn_output", mkldnn_output, n, c, oh, ow);
+    // TODO: End of compute, need refactor
+
+    valueMapping[result] = std::move(resultT);
+
+    return success();
+  }
   if (auto op = dyn_cast<tpu::BatchNormOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "BatchNormOp" << "\n";);
     auto opdT = getOperandTensors(opInst, valueMapping);

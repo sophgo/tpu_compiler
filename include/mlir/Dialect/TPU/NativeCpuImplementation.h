@@ -31,6 +31,8 @@ int my_upsample(float *input, float *output,
 
 int my_softmax(float *input, float *output, int n, int c);
 
+int my_tanh(float *input, float *output,
+    int n, int c, int h, int w);
 int my_eltwise(float *input_1, float *input_2, float *output,
     int n, int c, int h, int w, int op);
 
