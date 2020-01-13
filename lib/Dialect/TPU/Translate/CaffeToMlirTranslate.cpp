@@ -106,6 +106,7 @@ private:
   void convertDummyDataLayer(mlir::Block *block, caffe::Layer<float> *layer);
   void convertSliceLayer(mlir::Block *block, caffe::Layer<float> *layer);
   void convertReshapeLayer(mlir::Block *block, caffe::Layer<float> *layer);
+  void convertTanHLayer(mlir::Block *block, caffe::Layer<float> *layer);
 
   mlir::ModuleOp module_;
   mlir::Builder builder_;
@@ -246,6 +247,8 @@ void CaffeImporter::ConvertLayers(mlir::Block *block,
       convertSliceLayer(block, layer);
     } else if (strcmp(layer->type(), "Reshape") == 0) {
       convertReshapeLayer(block, layer);
+    } else if (strcmp(layer->type(), "TanH") == 0) {
+      convertTanHLayer(block, layer);
     } else {
       llvm::errs() << "    UNKNOWN : " << layer->type() <<"\n";
       assert(false);
@@ -1438,6 +1441,69 @@ void CaffeImporter::convertReshapeLayer(mlir::Block *block,
       builder_.getUnknownLoc(), result_type, ArrayRef<Value *>{input_var},
       ArrayRef<NamedAttribute>{attrs});
   auto result_var = reshape_op.getResult();
+  tensor_map_[layer_param.top(0)] = result_var;
+}
+
+void CaffeImporter::convertTanHLayer(mlir::Block *block,
+    caffe::Layer<float> *layer) {
+  mlir::Value *input_var = GetLayerInput(layer);
+
+  auto layer_param = layer->layer_param();
+
+  int64_t n, c, h, w;
+  llvm::ArrayRef<int64_t> input_shape = input_var->getType().dyn_cast<mlir::TensorType>().getShape();
+  assert(input_shape.size() == 4);
+  n = input_shape[0];
+  c = input_shape[1];
+  h = input_shape[2];
+  w = input_shape[3];
+
+  LLVM_DEBUG(
+    llvm::errs()
+        << "  N: " << n
+        << ", C: " << c
+        << ", IH*IW: " << h << " * " << w
+        << "\n";
+  );
+
+  std::vector<Value *> operands;
+  operands.push_back(input_var);
+
+  // construct OP
+  auto result_type = RankedTensorType::get({n, c, h, w}, elementType_);
+  std::vector<NamedAttribute> attrs;
+
+  // add y0 / slope table
+  // FIXME: not hard code
+  int channel = 32;
+  int table_h = 32;
+  int table_w = 8;
+  int table_hw = table_h * table_w;
+
+  // 32 for hard code, # of channel
+  // table shape hw is 8,32 - hw define
+  auto table_type = RankedTensorType::get({1, channel, table_h, table_w}, elementType_);
+
+  int tbl_size = channel * table_hw;
+  std::vector<float> dataVec_fp32;
+  dataVec_fp32.reserve(tbl_size);
+
+  // reserve dummy weight and assign in opt
+  auto filter_name = layer->layer_param().name()+"_y0";
+  weightFile_->addTensor(filter_name, &dataVec_fp32, table_type);
+  operands.push_back(AddLoadWeightOp(block, filter_name, table_type));
+  
+  filter_name = layer->layer_param().name()+"_slope";
+  weightFile_->addTensor(filter_name, &dataVec_fp32, table_type);
+  operands.push_back(AddLoadWeightOp(block, filter_name, table_type));
+
+  attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name())));
+
+  auto op = OpBuilder(block).create<tpu::TanHOp>(
+      builder_.getUnknownLoc(), result_type,
+      ArrayRef<Value *>{operands}, ArrayRef<NamedAttribute>{attrs});
+  auto result_var = op.getResult();
+
   tensor_map_[layer_param.top(0)] = result_var;
 }
 
