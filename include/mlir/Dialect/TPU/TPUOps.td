@@ -487,7 +487,8 @@ def TPU_SliceOp: TPU_Op<"slice", [NoSideEffect]> {
   let arguments = (
     ins AnyTensor:$input,
     OptionalAttr<StrAttr>:$name,
-    OptionalAttr<I32Attr>:$axis
+    OptionalAttr<I32Attr>:$axis,
+    OptionalAttr<F32Attr>:$threshold_y
   );
 
   let results = (outs Variadic<AnyTensor>:$output);
