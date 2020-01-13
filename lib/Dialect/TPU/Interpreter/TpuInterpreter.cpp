@@ -724,7 +724,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
             op.getOperand(1)->getDefiningOp());
         float threshold_x = getPreviousOpThreshold(op);
         float threshold_y = op.threshold_y().getValue().convertToFloat();
-        rshift = weight_op.rshift().getValue().convertToFloat();
+        rshift = 0;
 
       }
     }
