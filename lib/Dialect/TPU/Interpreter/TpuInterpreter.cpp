@@ -52,24 +52,6 @@
 
 using namespace std;
 
-static llvm::cl::OptionCategory clOptionsCategory("interpreter options");
-
-static llvm::cl::opt<std::string> clAllTensorFilename(
-    "dump-all-tensor",
-    llvm::cl::desc("dump all tensor into a npz file"),
-    llvm::cl::init("-"),
-    llvm::cl::cat(clOptionsCategory));
-
-static llvm::cl::opt<std::string> clAllDequentInt8TensorFilename(
-    "dump-all-dequent-tensor-int8",
-    llvm::cl::desc("dump all int8 tensor and dequentize into a npz file"),
-    llvm::cl::init("-"), llvm::cl::cat(clOptionsCategory));
-
-static llvm::cl::opt<float> clInputScale(
-    "input-scale",
-    llvm::cl::desc("input scale to apply on the input values"),
-    llvm::cl::cat(clOptionsCategory));
-
 namespace mlir {
 
 std::vector<std::shared_ptr<std::vector<float> > >
@@ -138,16 +120,6 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
     // use copy for now
     resultT->assign(opdT[0]->begin(), opdT[0]->end());
-
-    float inputScale =
-        (clInputScale.getNumOccurrences() > 0) ? clInputScale : 1.0f;
-
-    if (inputScale != 1.0f) {
-      llvm::errs() << "Apply input_scale = " << std::to_string(clInputScale) << "\n";
-      for(auto it = resultT->begin(); it != resultT->end(); it++ ) {
-        *it *= inputScale;
-      }
-    }
 
     valueMapping[result] = std::move(resultT);
 
@@ -664,9 +636,9 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     std::vector<int64_t> o_s(output_type.getShape());
     assert((i_s == o_s) && "input shape not equal to output shape");
 
-    assert((i_s.size() == 4 || i_s.size() == 2) && 
+    assert((i_s.size() == 4 || i_s.size() == 2) &&
            "BatchNorm support shape size of 4 or 2 now." );
-    
+
     n = i_s[0];
     c = i_s[1];
     h = (i_s.size() == 2) ? 1 : i_s[2];
@@ -678,7 +650,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     float *scale = (float *)opdT[3]->data();
     float *output = (float *)resultT.get()->data();
     int ret = my_bn(input, mean, variance, scale, output, n, c, h, w);
-    
+
     assert(ret == 0);
 
     valueMapping[result] = std::move(resultT);
@@ -710,9 +682,9 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     std::vector<int64_t> o_s(output_type.getShape());
     assert((i_s == o_s) && "input shape not equal to output shape");
 
-    assert((i_s.size() == 4 || i_s.size() == 2) && 
+    assert((i_s.size() == 4 || i_s.size() == 2) &&
            "BatchNorm support shape size of 4 or 2 now." );
-    
+
     n = i_s[0];
     c = i_s[1];
     h = (i_s.size() == 2) ? 1 : i_s[2];
@@ -733,7 +705,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
         assert(opdT.size() == 2);
         std::vector<float> threshold_x(2);
         float threshold_y;
-        
+
         for (int index = 0; index < 2; ++index) {
           // get threshold_x
           threshold_x[index] = getPreviousOpThreshold(op, index);
@@ -1299,51 +1271,6 @@ LogicalResult ModuleInterpreter::runOneFunction(FuncOp func) {
     if (failed(runBlock(bb)))
       return failure();
   }
-
-  if (clAllTensorFilename != "-") {
-    // dump all values
-    LLVM_DEBUG(llvm::errs() << "valueMapping size " << valueMapping.size() << "\n";);
-    auto TensorOut = openOutputTensorFile(clAllTensorFilename);
-    std::unique_ptr<TensorFile> DequantInt8TensorOut;
-    if (clAllDequentInt8TensorFilename != "-") {
-      DequantInt8TensorOut =
-          openOutputTensorFile(clAllDequentInt8TensorFilename);
-    }
-    for (auto it = valueMapping.begin(); it != valueMapping.end(); it++ ) {
-      auto op = it->first->getDefiningOp();
-      if (!op) {
-        //it->first->dump();
-        continue;
-      }
-      if (auto loadWeightOp = dyn_cast<tpu::LoadWeightOp>(op)) {
-        continue;
-      }
-      LLVM_DEBUG(llvm::errs() << op->getName() << " : " << getOpName(op) << "\n";);
-      auto vec = it->second.get();
-      assert(vec);
-      auto type = it->first->getType().dyn_cast<mlir::TensorType>();
-      LLVM_DEBUG(llvm::errs() << "  vec size = " << vec->size() << "\n";);
-      TensorOut->addTensor(getOpName(op), vec, type);
-      if (clAllDequentInt8TensorFilename != "-" && getOpQuant(op) != "NONE") {
-        float threshold = getOpThreshold(op);
-        if (threshold == 0.0){
-          continue; 
-        }
-        LLVM_DEBUG(llvm::errs() << "  quantization, threshold = "
-                                << std::to_string(threshold) << "\n";);
-        auto dequent_vec = it->second.get();
-        for (size_t i = 0; i < vec->size(); ++i) {
-          dequent_vec->at(i) = dequantizeNeuron((int8_t)vec->at(i), threshold);
-        }
-        DequantInt8TensorOut->addTensor(getOpName(op), dequent_vec, type);
-        }
-    }
-    TensorOut->keep();
-    if (clAllDequentInt8TensorFilename != "-") {
-      DequantInt8TensorOut->keep();
-    }
-  }
-
   return success();
 }
 
@@ -1362,10 +1289,31 @@ LogicalResult ModuleInterpreter::runFunctions() {
   return success();
 }
 
+static bool isValidTpuOp(Operation &op)
+{
+  return (!isa<tpu::LoadWeightOp>(op) && !isa<tpu::LoadFileOp>(op) &&
+          op.getName().getDialect().str() == "tpu");
+}
+
 LogicalResult runTpuModule(ModuleOp m,
     std::vector<int64_t> input_shape, std::vector<float> &input_vec,
     std::map<std::string, std::vector<float> > *results,
+    std::map<std::string, std::vector<int64_t> > *shapeMap,
     std::map<std::string, std::vector<float> > *allTensorMap) {
+  for (FuncOp function : m.getOps<FuncOp>()) {
+    for (Block &bb : function.getBlocks()) {
+      for (auto &op : bb) {
+        if (!isValidTpuOp(op)) {
+          continue;
+        }
+        // TODO: Only support one output tesor for now.
+        auto result = op.getResult(0);
+        std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
+        (*shapeMap)[getOpName(&op).str()] = shape;
+      }
+    }
+  }
+
   return ModuleInterpreter::runModule<>(m, input_shape, input_vec,
                                         results, allTensorMap);
 }

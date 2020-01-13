@@ -146,6 +146,32 @@ public:
     return addTensor(name, data->data(), type);
   }
 
+  /// add a new tensor to file
+  /// if the name is already used, return failure()
+  template<typename T>
+  LogicalResult addTensor(llvm::StringRef name, const T* data,
+      std::vector<int64_t> &shape) {
+    assert(!readOnly);
+    auto it = map.find(name.str());
+    if (it != map.end()) {
+      llvm::errs() << "failed to add tensor " << name.str() << ", already exist\n";
+      return failure();
+    }
+    std::vector<size_t> shape_npz;
+    for (auto it = shape.begin(); it != shape.end(); ++it) {
+      shape_npz.push_back((size_t)*it);
+    }
+    cnpy::npz_add_array(map, name.str(), &data[0], shape_npz);
+    return success();
+  }
+
+  template<typename T>
+  LogicalResult addTensor(llvm::StringRef name, const std::vector<T> *data,
+      std::vector<int64_t> &shape) {
+    assert(!readOnly);
+    return addTensor(name, data->data(), shape);
+  }
+
   /// read a tensor from file
   /// if the name is not found, return failure()
   /// type is provided for checking, return failure() if type does not match
@@ -190,6 +216,27 @@ public:
       return failure();
     }
     map.erase(it);
+    return success();
+  }
+
+  /// read all tensor from file
+  template<typename T>
+  LogicalResult readAllTensors(std::vector<std::vector<T> *> &tensors,
+      std::vector<std::vector<int64_t> > &shapes) {
+    for (auto it = map.begin(); it != map.end(); it++) {
+      auto arr = it->second;
+      assert (arr.type == 'f'); // support float only for now
+      assert(arr.word_size = sizeof(float));
+      auto count = arr.num_bytes() / arr.word_size;
+      std::vector<T> *tensor = new std::vector<T>(count);
+      memcpy(tensor->data(), arr.data_holder->data(), arr.num_bytes());
+      tensors.push_back(tensor);
+      std::vector<int64_t> shape(arr.shape.size());
+      shape.assign(arr.shape.begin(), arr.shape.end());
+      assert(count == (size_t)std::accumulate(std::begin(shape),
+        std::end(shape), 1, std::multiplies<>()));
+      shapes.push_back(shape);
+    }
     return success();
   }
 
