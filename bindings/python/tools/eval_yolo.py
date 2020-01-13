@@ -190,7 +190,9 @@ def main(argv):
     print("nms_threshold", nms_threshold)
 
     module = pymlir.module()
+    print('load module ', args.model)
     module.load(args.model)
+    print('load module done')
 
     # Load image
     if (args.input_file != '') :

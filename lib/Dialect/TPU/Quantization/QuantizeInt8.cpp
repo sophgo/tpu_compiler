@@ -317,9 +317,10 @@ struct TpuQuantConv2DOpPattern : public RewritePattern {
     }
     LLVM_DEBUG(llvm::errs() << "  max_filter : " << std::to_string(max_filter_abs) << "\n";);
     // find rshift
-    float eps = 0.0f; //1e-5;
-    rshift_per_layer[0] = (float)findRShift(max_filter_abs + eps,
-        threshold_y, threshold_x);
+    float eps = 1e-4;
+    float threshold_w = (max_filter_abs > eps) ? max_filter_abs : eps;
+    rshift_per_layer[0] = (float)findRShift(threshold_w,
+                                            threshold_y, threshold_x);
     LLVM_DEBUG(llvm::errs() << "  rshift : " << rshift_per_layer[0] << "\n";);
     // quantize weight
     for (int i = 0; i < filter_size; ++i) {
@@ -353,9 +354,10 @@ struct TpuQuantConv2DOpPattern : public RewritePattern {
 
     // find rshift
     for (int i = 0; i < oc; ++i) {
-      float eps = 0.0f; //1e-5;
-      rshift_per_channel[i] = (float)findRShift(max_filter_abs[i] + eps,
-          threshold_y, threshold_x);
+      float eps = 1e-4;
+      float threshold_w = (max_filter_abs[i] > eps) ? max_filter_abs[i] : eps;
+      rshift_per_channel[i] = (float)findRShift(threshold_w,
+                                                threshold_y, threshold_x);
       LLVM_DEBUG(llvm::errs() << "  rshift_per_channel[" << i << "] : "
                    << rshift_per_channel[i] << "\n";);
     }
@@ -394,8 +396,9 @@ struct TpuQuantConv2DOpPattern : public RewritePattern {
 
     // find qscale
     for (int i = 0; i < oc; ++i) {
-      float eps = 0.0f; //1e-5;
-      float qscale = findQScale(max_filter_abs[i] + eps, threshold_y, threshold_x);
+      float eps = 1e-4;
+      float threshold_w = (max_filter_abs[i] > eps) ? max_filter_abs[i] : eps;
+      float qscale = findQScale(threshold_w, threshold_y, threshold_x);
       uint32_t multiplier;
       rshift_per_channel[i] = (float)findRShiftAndMultiplierFromQScale(
               qscale, &multiplier, true);

@@ -20,6 +20,7 @@ pushd regression_out
 
 # run tests
 $DIR/resnet50/accuracy_resnet50.sh $1
+$DIR/yolo_v3/accuracy_yolo_v3.sh $1
 
 popd
 
