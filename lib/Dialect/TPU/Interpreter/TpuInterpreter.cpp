@@ -457,12 +457,11 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     return success();
   }
   if (auto op = dyn_cast<tpu::PReluOp>(opInst)) {
-    LLVM_DEBUG(llvm::errs() << "PReluOp"
-                            << "\n";);
+    LLVM_DEBUG(llvm::errs() << "PReluOp" << "\n";);
     auto opdT = getOperandTensors(opInst, valueMapping);
     auto result = op.getResult();
-    LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump();
-               llvm::errs() << "\n";);
+    LLVM_DEBUG(llvm::errs() << "  name " << op.name() << "\n"
+                            << "  result "; result->getType().dump(); llvm::errs() << "\n";);
     std::vector<int64_t> shape =
         result->getType().cast<TensorType>().getShape();
     assert(shape.size() <= 4);
@@ -470,14 +469,17 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
                                 std::multiplies<>());
     auto resultT = std::make_unique<std::vector<float>>(size);
 
+    // ---- checked ----
     int n, c, h, w;
     float *negative_slope = opdT[1]->data();
-
+    
     auto input_type = op.x()->getType().cast<TensorType>();
     std::vector<int64_t> i_s(input_type.getShape());
     auto output_type = op.y()->getType().cast<TensorType>();
     std::vector<int64_t> o_s(output_type.getShape());
     assert((i_s == o_s) && "input shape not equal to output shape");
+    assert((i_s.size() == 4) && "PRelu support shape size of 4 now.");
+    
     n = i_s[0];
     c = i_s[1];
     h = i_s[2];
@@ -486,6 +488,33 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     float *output = (float *)resultT.get()->data();
     int ret = my_prelu(input, output, n, c, h, w, negative_slope);
     assert(ret == 0);
+
+    std::shared_ptr<std::vector<float> > rshift = nullptr;
+    std::shared_ptr<std::vector<float> > multiplier = nullptr;
+
+    getPReluOpVariadicTensors(op, opdT, rshift, multiplier);
+
+    // rshift and saturate on output
+    if (op.quant() == "INT8" || op.quant() == "INT8_PER_CHANNEL") {
+      assert(rshift);
+      for (int i = 0; i < size; ++i) {
+        resultT->at(i) = (float)applyRShiftAndSaturateInt8(resultT->at(i),
+            (uint32_t)rshift->at(0));
+      }
+    } else if (op.quant() == "INT8_MULTIPLIER") {
+      assert(multiplier);
+      for (int i = 0; i < size; ++i) {
+        resultT->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
+            resultT->at(i), (uint32_t)rshift->at(0), multiplier->at(0), true);
+      }
+    } else if (op.quant() == "BF16") {
+      // auto tensor_bf16 = std::make_unique<std::vector<bfloat16> >(resultT->size());
+      // FloatToBFloat16(resultT->data(), tensor_bf16->data(), resultT->size()); // with rounding
+      // BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
+    } else if (op.quant() == "NONE") {
+    } else {
+      assert(0);
+    }
 
     valueMapping[result] = std::move(resultT);
 

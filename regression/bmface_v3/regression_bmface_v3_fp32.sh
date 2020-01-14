@@ -18,10 +18,11 @@ mlir-opt  \
     bmface-v3.mlir \
     -o bmface-v3_opt.mlir
 
+
 # run inference with mlir-tpu-interpreter
 mlir-tpu-interpreter bmface-v3_opt.mlir \
     --tensor-in $DATA_PATH/Aaron_Eckhart_0001_112_112_fp32_scale.bin \
     --tensor-out out.bin
 
-# VERDICT
+
 echo $0 PASSED
