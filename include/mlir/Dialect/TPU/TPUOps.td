@@ -418,6 +418,7 @@ def TPU_ScaleOp: TPU_Op<"scale", [NoSideEffect]> {
     OptionalAttr<StrAttr>:$name,
     OptionalAttr<NonNegativeI64Attr>:$offset,
     OptionalAttr<F32Attr>:$threshold_y,
+    DefaultValuedAttr<BoolAttr, "false">:$with_bias,
     OptionalAttr<NonNegativeI32Attr>:$layer_id,
     DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
   );

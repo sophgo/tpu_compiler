@@ -68,10 +68,17 @@ void getDeConv2DOpVariadicTensors(tpu::DeConv2DOp &op,
     std::shared_ptr<std::vector<float> > &per_channel_info,
     std::shared_ptr<std::vector<float> > &eltwise_input);
 
-void getFullyConnectedOpVariadicTensors(tpu::FullyConnectedOp &op,
-    std::vector<std::shared_ptr<std::vector<float> > > &opdT,
-    std::shared_ptr<std::vector<float> > &bias,
-    std::shared_ptr<std::vector<float> > &rshift);
+void getScaleOpVariadicTensors(
+    tpu::ScaleOp &op, std::vector<std::shared_ptr<std::vector<float>>> &opdT,
+    std::shared_ptr<std::vector<float>> &bias,
+    std::shared_ptr<std::vector<float>> &rshift,
+    std::shared_ptr<std::vector<float>> &multiplier);
+
+void getFullyConnectedOpVariadicTensors(
+    tpu::FullyConnectedOp &op,
+    std::vector<std::shared_ptr<std::vector<float>>> &opdT,
+    std::shared_ptr<std::vector<float>> &bias,
+    std::shared_ptr<std::vector<float>> &rshift);
 
 void getPReluOpVariadicTensors(tpu::PReluOp &op,
     std::vector<std::shared_ptr<std::vector<float> > > &opdT,
