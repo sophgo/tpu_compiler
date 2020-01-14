@@ -260,7 +260,8 @@ def TPU_PReluOp: TPU_Op<"prelu", [NoSideEffect]> {
     OptionalAttr<F32Attr>:$threshold_y,
     OptionalAttr<NonNegativeI32Attr>:$layer_id,
     OptionalAttr<NonNegativeI64Attr>:$offset,
-    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
+    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant,
+    Variadic<AnyTensor>:$useless
   );
 
   let results = (outs AnyTensor:$y);

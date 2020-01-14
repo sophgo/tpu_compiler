@@ -526,4 +526,29 @@ void getFullyConnectedOpVariadicTensors(tpu::FullyConnectedOp &op,
   }
 }
 
+
+
+void getPReluOpVariadicTensors(tpu::PReluOp &op,
+    std::vector<std::shared_ptr<std::vector<float> > > &opdT,
+    std::shared_ptr<std::vector<float> > &rshift,
+    std::shared_ptr<std::vector<float> > &multiplier) {
+  unsigned idx = 2;  // first 2 opdT are always input and filter
+  if (op.quant() == "INT8" || op.quant() == "INT8_PER_CHANNEL"
+          || op.quant() == "INT8_MULTIPLIER") {
+    rshift = opdT[idx];
+    idx += 1;
+  }
+
+  if (op.quant() == "INT8_MULTIPLIER") {
+    multiplier = opdT[idx];
+    idx += 1;
+  }
+  
+  if (idx != opdT.size()) {
+    llvm::errs() << op.name() << ": opdT.size=" << opdT.size()
+                 << ", idx=" << idx << "\n";
+    assert(0);
+  }
+}
+
 } // namespace
