@@ -39,6 +39,9 @@ llvm::StringRef getOpName(Operation *op) {
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::SoftmaxOp>(op)) {
     return cast_op.name().getValue();
   }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::TanHOp>(op)) {
+    return cast_op.name().getValue();
+  }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::ReshapeOp>(op)) {
     return cast_op.name().getValue();
   }
@@ -205,6 +208,9 @@ float getPreviousOpThreshold(Operation *op, uint index = 0) {
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::SoftmaxOp>(formerOp)) {
     return cast_op.threshold_y().getValue().convertToFloat();
   }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::TanHOp>(formerOp)) {
+    return cast_op.threshold_y().getValue().convertToFloat();
+  }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::CropOp>(formerOp)) {
     return cast_op.threshold_y().getValue().convertToFloat();
   }
@@ -257,6 +263,9 @@ uint64_t getPreviousOpAddress(Operation *op, uint index = 0) {
     return cast_op.offset().getValue().getLimitedValue();
   }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::CropOp>(formerOp)) {
+    return cast_op.offset().getValue().getLimitedValue();
+  }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::TanHOp>(formerOp)) {
     return cast_op.offset().getValue().getLimitedValue();
   }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::ReshapeOp>(formerOp)) {

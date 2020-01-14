@@ -154,6 +154,8 @@ public:
     //    context, "tpu.relu", &pos, neuronMapFile->os(), clNeuronAlignment);
     patterns.insert<TpuQuantizationOpPattern<tpu::EltwiseOp> >(
         context, "tpu.eltwise", &pos, neuronMapFile->os(), clNeuronAlignment);
+    patterns.insert<TpuQuantizationOpPattern<tpu::TanHOp> >(
+        context, "tpu.tanh", &pos, neuronMapFile->os(), clNeuronAlignment);
     applyPatternsGreedily(fn, patterns);
 
     if (neuronMapFile) {

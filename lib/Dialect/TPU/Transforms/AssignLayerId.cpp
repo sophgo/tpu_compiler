@@ -81,6 +81,8 @@ public:
         context, "tpu.eltwise", &layer_id);
     patterns.insert<TpuLayerIdPattern<tpu::PReluOp>>(context, "tpu.prelu",
                                                        &layer_id);
+    patterns.insert<TpuLayerIdPattern<tpu::TanHOp> > (
+        context, "tpu.tanh", &layer_id);
     applyPatternsGreedily(fn, patterns);
   }
 };
