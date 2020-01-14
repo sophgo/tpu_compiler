@@ -694,6 +694,50 @@ static LogicalResult runOperation(Operation &opInst) {
     return success();
   }
 
+  if (auto op = dyn_cast<tpu::TanHOp>(opInst)) {
+    LLVM_DEBUG(llvm::errs() << "TanHOp" << "\n";);
+
+    int n, c, h, w;
+    float scale = op.scale().convertToFloat();
+    LLVM_DEBUG(llvm::errs() << "  its scale " << scale << "\n";);
+    auto input_type = op.x()->getType().cast<TensorType>();
+    std::vector<int64_t> i_s(input_type.getShape());
+    auto output_type = op.y()->getType().cast<TensorType>();
+    std::vector<int64_t> o_s(output_type.getShape());
+    assert((i_s == o_s) && "input shape not equal to output shape");
+    n = i_s[0];
+    c = i_s[1];
+    h = i_s[2];
+    w = i_s[3];
+
+    gaddr_t input_gaddr = getPreviousOpAddress(op);
+    gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
+    gaddr_t y0_table_gaddr = getWeightOpAddress(op.getOperand(1)->getDefiningOp());
+    gaddr_t slope_gaddr = getWeightOpAddress(op.getOperand(2)->getDefiningOp());
+
+    int layer_id = op.layer_id().getValue().getLimitedValue();
+
+    bf16_tanh_forward_kernel(
+        *backend_ctx,
+        0, // stream_id,
+        0, // inst_id,
+        layer_id, // layer_id,
+        nullptr, // depends
+        0, // depends_len
+        input_gaddr, // input_data_gaddr,
+        output_gaddr, // output_data_gaddr,
+        y0_table_gaddr,
+        slope_gaddr,
+        n,
+        c,
+        h,
+        w,
+        scale
+        );
+
+    return success();
+  }
+
   return success();
 }
 
