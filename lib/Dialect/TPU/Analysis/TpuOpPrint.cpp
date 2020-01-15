@@ -25,11 +25,18 @@
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/Pass/Pass.h"
+#include "mlir/Support/FileUtilities.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Support/ToolOutputFile.h"
 
 using namespace mlir;
 
 namespace {
+
+static llvm::cl::opt<std::string> clTpuOpInfoFilename(
+    "tpu-op-info-filename",
+    llvm::cl::desc("dump tpu op info"),
+    llvm::cl::init("-"));
 
 class PrintTpuOpPass : public ModulePass<PrintTpuOpPass> {
 public:
@@ -62,30 +69,76 @@ public:
     }
     os << "\n";
 
-    os << "Module walk Conv2DOp:\n";
-    os << "-----------------------\n";
-    module.walk([&](mlir::tpu::Conv2DOp op) {
-      os << " > " << op.getOperationName() << "\n";
-      //op.dump();
-      //os << "\n";
-    });
-    os << "\n";
+    std::unique_ptr<llvm::ToolOutputFile> file = nullptr;
+    if (clTpuOpInfoFilename != "-") {
+      std::string errorMessage;
+      file = openOutputFile(clTpuOpInfoFilename, &errorMessage);
+      if (!file) {
+        llvm::errs() << errorMessage << "\n";
+        exit(1);
+      }
+      file->keep();
+      llvm::raw_ostream &file_os = file->os();
 
-    os << "Funcs walk Conv2DOp:\n";
-    os << "-----------------------\n";
-    for (auto func : module.getOps<FuncOp>()) {
-      os << func.getName() << "\n";
-      func.walk([&](mlir::tpu::Conv2DOp op) {
-        os << " > " << op.getOperationName() << "\n";
-      });
-      func.walk([&](mlir::tpu::FullyConnectedOp op) {
-        os << " > " << op.getOperationName() << "\n";
-      });
+      for (auto func : module.getOps<FuncOp>()) {
+        func.walk([&](Operation *op) {
+          int processed = 0;
+          processed += printTpuOpInfo<tpu::BatchNormOp>(op, file_os);
+          processed += printTpuOpInfo<tpu::ConcatOp>(op, file_os);
+          processed += printTpuOpInfo<tpu::Conv2DOp>(op, file_os);
+          processed += printTpuOpInfo<tpu::CropOp>(op, file_os);
+          processed += printTpuOpInfo<tpu::EltwiseOp>(op, file_os);
+          processed += printTpuOpInfo<tpu::FullyConnectedOp>(op, file_os);
+          processed += printTpuOpInfo<tpu::InputOp>(op, file_os);
+          processed += printTpuOpInfo<tpu::Pool2DOp>(op, file_os);
+          processed += printTpuOpInfo<tpu::PowerOp>(op, file_os);
+          processed += printTpuOpInfo<tpu::PReluOp>(op, file_os);
+          processed += printTpuOpInfo<tpu::ReluOp>(op, file_os);
+          processed += printTpuOpInfo<tpu::ReshapeOp>(op, file_os);
+          processed += printTpuOpInfo<tpu::ScaleOp>(op, file_os);
+          processed += printTpuOpInfo<tpu::SigmoidOp>(op, file_os);
+          processed += printTpuOpInfo<tpu::SliceOp>(op, file_os);
+          processed += printTpuOpInfo<tpu::SoftmaxOp>(op, file_os);
+          processed += printTpuOpInfo<tpu::TanHOp>(op, file_os);
+          processed += printTpuOpInfo<tpu::UpsampleOp>(op, file_os);
+          if (op->getName().getDialect().str() != "tpu"
+              || isa<tpu::QuantizationOp>(op)
+              || isa<tpu::DequantizationOp>(op)
+              || isa<tpu::LoadWeightOp>(op)
+              || isa<tpu::LoadFileOp>(op)) {
+            processed = 1;
+          }
+          if (!processed) {
+            llvm::errs() << "printTpuOpInfo didn't handle " << op->getName() << "\n";
+            assert(false);
+          }
+        });
+      }
     }
-    os << "\n";
   }
 
 private:
+  template<typename T>
+  int printTpuOpInfo(Operation *op, llvm::raw_ostream &file_os) {
+      auto cast_op = llvm::dyn_cast_or_null<T>(op);
+      if (cast_op) {
+        std::string op_name = cast_op.name().getValue().str();
+        file_os << op_name;
+        if (cast_op.layer_id().hasValue())
+          file_os << "," << cast_op.layer_id().getValue().getLimitedValue();
+        else
+          file_os << "," << "-1";
+        file_os << "," << cast_op.quant();
+        if (cast_op.threshold_y().hasValue())
+          file_os << "," << cast_op.threshold_y().getValue().convertToFloat();
+        else
+          file_os << "," << "0.0";
+        file_os << "\n";
+        return 1;
+      }
+      return 0;
+  }
+
   llvm::raw_ostream &os;
 };
 
@@ -96,5 +149,5 @@ std::unique_ptr<OpPassBase<ModuleOp>> mlir::createPrintTpuOpPass() {
 }
 
 static PassRegistration<PrintTpuOpPass>
-    pass("print-tpu-op",
-         "Print TPU operations.");
+    pass("print-tpu-op-info",
+         "Print TPU operation information.");

@@ -69,8 +69,8 @@ class TPU_ConvOp<string mnemonic, string opSummary> :
     I32Attr:$stride_h,
     I32Attr:$stride_w,
     DefaultValuedAttr<I32Attr, "1">:$group,
-    OptionalAttr<StrAttr>:$name,
     DefaultValuedAttr<BoolAttr, "false">:$per_channel_info_is_aggregated,
+    OptionalAttr<StrAttr>:$name,
     OptionalAttr<NonNegativeI64Attr>:$offset,
     OptionalAttr<F32Attr>:$threshold_y,
     OptionalAttr<NonNegativeI32Attr>:$layer_id,
@@ -121,65 +121,8 @@ def TPU_LoadWeightOp : TPU_Op<"load_weight", [NoSideEffect]> {
 }
 
 //===----------------------------------------------------------------------===//
-// TPU op definitions.
+// TPU op definitions. (in alphabetical order)
 //===----------------------------------------------------------------------===//
-def TPU_Conv2DOp : TPU_ConvOp<"conv_2d", "Convolution">;
-
-def TPU_Pool2DOp : TPU_Op<"pool_2d", [NoSideEffect]> {
-  let summary = "pool_2d operator";
-
-  let description = [{
-    Performs pooling operation on input.
-
-    Inputs:
-      `inputs[0]`: required: the input tensor
-  }];
-
-  let arguments = (
-    ins AnyTensor:$input,
-    TPU_PoolAttr:$pool,
-    I32Attr:$filter_height,
-    I32Attr:$filter_width,
-    OptionalAttr<I32Attr>:$pad_top,
-    OptionalAttr<I32Attr>:$pad_bottom,
-    OptionalAttr<I32Attr>:$pad_left,
-    OptionalAttr<I32Attr>:$pad_right,
-    // CAUTION - TPU_PaddingAttr is depracated for asymmetric padding
-    // Keep it for compatible
-    OptionalAttr<TPU_PaddingAttr>:$padding,
-    I32Attr:$stride_h,
-    I32Attr:$stride_w,
-    DefaultValuedAttr<TPU_AFAttr, "NONE">:$fused_activation_function,
-    OptionalAttr<StrAttr>:$name,
-    OptionalAttr<NonNegativeI64Attr>:$offset,
-    OptionalAttr<F32Attr>:$threshold_y,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
-    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
-  );
-
-  let results = (outs AnyTensor:$output);
-}
-
-def TPU_FullyConnectedOp : TPU_Op<"fully_connected", [NoSideEffect]> {
-  let summary = "Fully connected operator";
-
-  let arguments = (
-    ins AnyTensor:$input,
-    AnyTensor:$filter,
-    Variadic<AnyTensor>:$bias,
-    BoolAttr:$with_bias,
-    DefaultValuedAttr<BoolAttr, "false">:$with_transpose,
-    DefaultValuedAttr<TPU_AFAttr, "NONE">:$fused_activation_function,
-    OptionalAttr<StrAttr>:$name,
-    OptionalAttr<NonNegativeI64Attr>:$offset,
-    OptionalAttr<F32Attr>:$threshold_y,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
-    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
-  );
-
-  let results = (outs AnyTensor:$output);
-}
-
 def TPU_BatchNormOp: TPU_Op<"batch_norm", [NoSideEffect]> {
   let summary = "BatchNorm operator";
 
@@ -193,132 +136,10 @@ def TPU_BatchNormOp: TPU_Op<"batch_norm", [NoSideEffect]> {
     AnyTensor:$variance,
     AnyTensor:$scale,
     OptionalAttr<StrAttr>:$name,
-    OptionalAttr<F32Attr>:$threshold_y
-  );
-
-  let results = (outs AnyTensor:$y);
-}
-
-def TPU_ScaleOp: TPU_Op<"scale", [NoSideEffect]> {
-  let summary = "Scale operator";
-
-  let description = [{
-    Performs scale on input.
-  }];
-
-  let arguments = (
-    ins AnyTensor:$x,
-    AnyTensor:$scale,
-    Variadic<AnyTensor>:$bias,
-    OptionalAttr<StrAttr>:$name,
-    DefaultValuedAttr<TPU_AFAttr, "NONE">:$fused_activation_function,
-    OptionalAttr<NonNegativeI64Attr>:$offset,
-    OptionalAttr<F32Attr>:$threshold_y,
-    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
-  );
-
-  let results = (outs AnyTensor:$y);
-}
-
-def TPU_ReluOp: TPU_Op<"relu", [NoSideEffect, SameOperandsAndResultType]> {
-  let summary = "Relu/LeakyRelu/PRelu/Relu6 operator";
-
-  let description = [{
-    Element-wise Relu operator
-      y = max(0, x)
-    PRelu or LeakyRelu, if negative_slope is no 0.0
-      y = negative_slope * x for x < 0, x for x >= 0
-    Relu6 (maximum = 6) or ReluM, if maximum is present
-      y = min(max(x, 0), maximum).
-  }];
-
-  let arguments = (
-    ins AnyTensor:$x,
-    DefaultValuedAttr<F32Attr, "0.0">:$negative_slope,
-    OptionalAttr<F32Attr>:$maximum,
-    OptionalAttr<StrAttr>:$name,
-    OptionalAttr<NonNegativeI64Attr>:$offset,
-    OptionalAttr<F32Attr>:$threshold_y,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
-  );
-
-  let results = (outs AnyTensor:$y);
-}
-
-def TPU_PReluOp: TPU_Op<"prelu", [NoSideEffect]> {
-  let summary = "PRelu operator";
-
-  let description = [{
-    PRelu operator
-      x -> max(ax,x)
-  }];
-  let arguments = (
-    ins AnyTensor:$x,
-    AnyTensor:$negative_slope,
-    OptionalAttr<StrAttr>:$name,
-    OptionalAttr<F32Attr>:$threshold_y,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
-    OptionalAttr<NonNegativeI64Attr>:$offset,
-    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant,
-    Variadic<AnyTensor>:$useless
-  );
-
-  let results = (outs AnyTensor:$y);
-}
-
-def TPU_EltwiseOp: TPU_Op<"eltwise", [NoSideEffect, SameOperandsAndResultType]> {
-  let summary = "Eltwise operator";
-
-  let description = [{
-    Performs eltwase operation on inputs.
-  }];
-
-  let arguments = (
-    ins AnyTensor:$x1,
-    AnyTensor:$x2,
-    DefaultValuedAttr<TPU_EltwiseAttr, "SUM">:$method,
-    DefaultValuedAttr<TPU_AFAttr, "NONE">:$fused_activation_function,
-    OptionalAttr<StrAttr>:$name,
     OptionalAttr<NonNegativeI64Attr>:$offset,
     OptionalAttr<F32Attr>:$threshold_y,
     OptionalAttr<NonNegativeI32Attr>:$layer_id,
     DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
-  );
-
-  let results = (outs AnyTensor:$y);
-}
-
-def TPU_UpsampleOp: TPU_Op<"upsample", [NoSideEffect]> {
-  let summary = "Upsample operator";
-
-  let description = [{
-    Perform upample on input.
-  }];
-
-  let arguments = (
-    ins AnyTensor:$x,
-    NonNegativeI32Attr:$scale,
-    OptionalAttr<StrAttr>:$name,
-    OptionalAttr<NonNegativeI64Attr>:$offset,
-    OptionalAttr<F32Attr>:$threshold_y,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
-  );
-
-  let results = (outs AnyTensor:$y);
-}
-
-def TPU_SoftmaxOp: TPU_Op<"softmax", [NoSideEffect, SameOperandsAndResultType]> {
-  let summary = "Softmax operator";
-
-  let description = [{
-    Perform softmax on input.
-  }];
-
-  let arguments = (
-    ins AnyTensor:$x,
-    OptionalAttr<StrAttr>:$name,
-    OptionalAttr<F32Attr>:$threshold_y
   );
 
   let results = (outs AnyTensor:$y);
@@ -366,6 +187,8 @@ def TPU_ConcatOp: TPU_Op<"concat", [NoSideEffect, SameOperandsAndResultElementTy
   let results = (outs AnyTensor:$res);
 }
 
+def TPU_Conv2DOp : TPU_ConvOp<"conv_2d", "Convolution">;
+
 def TPU_CropOp: TPU_Op<"crop", [NoSideEffect]> {
   let summary = "Crop operator";
 
@@ -377,66 +200,34 @@ def TPU_CropOp: TPU_Op<"crop", [NoSideEffect]> {
   let arguments = (
     ins AnyTensor:$input1,
     AnyTensor:$input2,
-    OptionalAttr<NonNegativeI64Attr>:$offset,
     OptionalAttr<I32Attr>:$axis,
     OptionalAttr<I32Attr>:$crop_offset_n,
     OptionalAttr<I32Attr>:$crop_offset_c,
     OptionalAttr<I32Attr>:$crop_offset_h,
     OptionalAttr<I32Attr>:$crop_offset_w,
-    OptionalAttr<F32Attr>:$threshold_y,
-    OptionalAttr<StrAttr>:$name
-  );
-
-  let results = (outs AnyTensor:$output);
-}
-
-def TPU_SigmoidOp: TPU_Op<"sigmoid", [NoSideEffect]> {
-  let summary = "Sigmoid operator";
-
-  let description = [{
-    sigmoid
-  }];
-
-  let arguments = (
-    ins AnyTensor:$input,
     OptionalAttr<StrAttr>:$name,
     OptionalAttr<NonNegativeI64Attr>:$offset,
     OptionalAttr<F32Attr>:$threshold_y,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
     DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
   );
 
   let results = (outs AnyTensor:$output);
 }
 
-def TPU_DummyDataOp: TPU_Op<"dummydata", [NoSideEffect]> {
-  let summary = "dummydata";
+def TPU_EltwiseOp: TPU_Op<"eltwise", [NoSideEffect, SameOperandsAndResultType]> {
+  let summary = "Eltwise operator";
 
   let description = [{
-    DummyDataLayer fills any number of arbitrarily shaped blobs with random
+    Performs eltwase operation on inputs.
   }];
 
   let arguments = (
-    ins OptionalAttr<StrAttr>:$name
-  );
-
-  let results = (outs AnyTensor:$output);
-}
-
-// TODO: add relative check like SameOperandsAndResultType at `OpDefinition.h`
-def TPU_TanHOp: TPU_Op<"tanh", [NoSideEffect]> {
-  let summary = "TanH operator";
-
-  let description = [{
-    TanH operator
-  }];
-
-  let arguments = (
-    ins AnyTensor:$x,
-    AnyTensor:$y0_table,
-    AnyTensor:$slope,
+    ins AnyTensor:$x1,
+    AnyTensor:$x2,
+    DefaultValuedAttr<TPU_EltwiseAttr, "SUM">:$method,
+    DefaultValuedAttr<TPU_AFAttr, "NONE">:$fused_activation_function,
     OptionalAttr<StrAttr>:$name,
-    // FIXME: use -FLT_MAX to detect if set
-    DefaultValuedAttr<F32Attr, "-1">:$scale,
     OptionalAttr<NonNegativeI64Attr>:$offset,
     OptionalAttr<F32Attr>:$threshold_y,
     OptionalAttr<NonNegativeI32Attr>:$layer_id,
@@ -444,6 +235,80 @@ def TPU_TanHOp: TPU_Op<"tanh", [NoSideEffect]> {
   );
 
   let results = (outs AnyTensor:$y);
+}
+
+def TPU_FullyConnectedOp : TPU_Op<"fully_connected", [NoSideEffect]> {
+  let summary = "Fully connected operator";
+
+  let arguments = (
+    ins AnyTensor:$input,
+    AnyTensor:$filter,
+    Variadic<AnyTensor>:$bias,
+    BoolAttr:$with_bias,
+    DefaultValuedAttr<BoolAttr, "false">:$with_transpose,
+    DefaultValuedAttr<TPU_AFAttr, "NONE">:$fused_activation_function,
+    OptionalAttr<StrAttr>:$name,
+    OptionalAttr<NonNegativeI64Attr>:$offset,
+    OptionalAttr<F32Attr>:$threshold_y,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
+def TPU_InputOp: TPU_Op<"input", [NoSideEffect]> {
+  let summary = "Input operator";
+
+  let description = [{
+    Produces a tensor from function input, primarily for carrying threshold_y.
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    OptionalAttr<StrAttr>:$name,
+    OptionalAttr<NonNegativeI64Attr>:$offset,
+    OptionalAttr<F32Attr>:$threshold_y,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
+def TPU_Pool2DOp : TPU_Op<"pool_2d", [NoSideEffect]> {
+  let summary = "pool_2d operator";
+
+  let description = [{
+    Performs pooling operation on input.
+
+    Inputs:
+      `inputs[0]`: required: the input tensor
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    TPU_PoolAttr:$pool,
+    I32Attr:$filter_height,
+    I32Attr:$filter_width,
+    OptionalAttr<I32Attr>:$pad_top,
+    OptionalAttr<I32Attr>:$pad_bottom,
+    OptionalAttr<I32Attr>:$pad_left,
+    OptionalAttr<I32Attr>:$pad_right,
+    // CAUTION - TPU_PaddingAttr is depracated for asymmetric padding
+    // Keep it for compatible
+    OptionalAttr<TPU_PaddingAttr>:$padding,
+    I32Attr:$stride_h,
+    I32Attr:$stride_w,
+    DefaultValuedAttr<TPU_AFAttr, "NONE">:$fused_activation_function,
+    OptionalAttr<StrAttr>:$name,
+    OptionalAttr<NonNegativeI64Attr>:$offset,
+    OptionalAttr<F32Attr>:$threshold_y,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
+  );
+
+  let results = (outs AnyTensor:$output);
 }
 
 def TPU_PowerOp: TPU_Op<"power", [NoSideEffect]> {
@@ -463,49 +328,58 @@ def TPU_PowerOp: TPU_Op<"power", [NoSideEffect]> {
     OptionalAttr<StrAttr>:$name,
     OptionalAttr<F32Attr>:$threshold_y,
     OptionalAttr<NonNegativeI32Attr>:$layer_id,
-    OptionalAttr<NonNegativeI64Attr>:$offset, // gaddr output offset
+    OptionalAttr<NonNegativeI64Attr>:$offset,
     DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
   );
 
   let results = (outs AnyTensor:$y);
 }
 
-// TODO: merge to relu
-def TPU_Relu6Op: TPU_Op<"relu6", [NoSideEffect, SameOperandsAndResultType]> {
-  let summary = "Relu6 operator";
+def TPU_PReluOp: TPU_Op<"prelu", [NoSideEffect]> {
+  let summary = "PRelu operator";
 
   let description = [{
+    PRelu operator
+      x -> max(ax,x)
+  }];
+  let arguments = (
+    ins AnyTensor:$x,
+    AnyTensor:$negative_slope,
+    OptionalAttr<StrAttr>:$name,
+    OptionalAttr<F32Attr>:$threshold_y,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<NonNegativeI64Attr>:$offset,
+    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant,
+    Variadic<AnyTensor>:$useless
+  );
+
+  let results = (outs AnyTensor:$y);
+}
+
+def TPU_ReluOp: TPU_Op<"relu", [NoSideEffect, SameOperandsAndResultType]> {
+  let summary = "Relu/LeakyRelu/Relu6 operator";
+
+  let description = [{
+    Element-wise Relu operator
+      y = max(0, x)
+    LeakyRelu, if negative_slope is no 0.0
+      y = negative_slope * x for x < 0, x for x >= 0
     Relu6 (maximum = 6) or ReluM, if maximum is present
       y = min(max(x, 0), maximum).
   }];
 
   let arguments = (
     ins AnyTensor:$x,
+    DefaultValuedAttr<F32Attr, "0.0">:$negative_slope,
+    OptionalAttr<F32Attr>:$maximum,
     OptionalAttr<StrAttr>:$name,
     OptionalAttr<NonNegativeI64Attr>:$offset,
     OptionalAttr<F32Attr>:$threshold_y,
-    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
   );
 
   let results = (outs AnyTensor:$y);
-}
-
-
-def TPU_InputOp: TPU_Op<"input", [NoSideEffect]> {
-  let summary = "Input operator";
-
-  let description = [{
-    Produces a tensor from function input, primarily for carrying threshold_y.
-  }];
-
-  let arguments = (
-    ins AnyTensor:$input,
-    OptionalAttr<StrAttr>:$name,
-    OptionalAttr<F32Attr>:$threshold_y
-  );
-
-  let results = (outs AnyTensor:$output);
 }
 
 def TPU_ReshapeOp: TPU_Op<"reshape", [NoSideEffect]> {
@@ -519,7 +393,51 @@ def TPU_ReshapeOp: TPU_Op<"reshape", [NoSideEffect]> {
   let arguments = (
     ins AnyTensor:$input,
     OptionalAttr<StrAttr>:$name,
-    OptionalAttr<F32Attr>:$threshold_y
+    OptionalAttr<NonNegativeI64Attr>:$offset,
+    OptionalAttr<F32Attr>:$threshold_y,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
+def TPU_ScaleOp: TPU_Op<"scale", [NoSideEffect]> {
+  let summary = "Scale operator";
+
+  let description = [{
+    Performs scale on input.
+  }];
+
+  let arguments = (
+    ins AnyTensor:$x,
+    AnyTensor:$scale,
+    Variadic<AnyTensor>:$bias,
+    DefaultValuedAttr<TPU_AFAttr, "NONE">:$fused_activation_function,
+    OptionalAttr<StrAttr>:$name,
+    OptionalAttr<NonNegativeI64Attr>:$offset,
+    OptionalAttr<F32Attr>:$threshold_y,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
+  );
+
+  let results = (outs AnyTensor:$y);
+}
+
+def TPU_SigmoidOp: TPU_Op<"sigmoid", [NoSideEffect]> {
+  let summary = "Sigmoid operator";
+
+  let description = [{
+    sigmoid
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    OptionalAttr<StrAttr>:$name,
+    OptionalAttr<NonNegativeI64Attr>:$offset,
+    OptionalAttr<F32Attr>:$threshold_y,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
   );
 
   let results = (outs AnyTensor:$output);
@@ -535,12 +453,76 @@ def TPU_SliceOp: TPU_Op<"slice", [NoSideEffect]> {
 
   let arguments = (
     ins AnyTensor:$input,
-    OptionalAttr<StrAttr>:$name,
     OptionalAttr<I32Attr>:$axis,
-    OptionalAttr<F32Attr>:$threshold_y
+    OptionalAttr<StrAttr>:$name,
+    OptionalAttr<NonNegativeI64Attr>:$offset,
+    OptionalAttr<F32Attr>:$threshold_y,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
   );
 
   let results = (outs Variadic<AnyTensor>:$output);
+}
+
+def TPU_SoftmaxOp: TPU_Op<"softmax", [NoSideEffect, SameOperandsAndResultType]> {
+  let summary = "Softmax operator";
+
+  let description = [{
+    Perform softmax on input.
+  }];
+
+  let arguments = (
+    ins AnyTensor:$x,
+    OptionalAttr<StrAttr>:$name,
+    OptionalAttr<NonNegativeI64Attr>:$offset,
+    OptionalAttr<F32Attr>:$threshold_y,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
+  );
+
+  let results = (outs AnyTensor:$y);
+}
+
+def TPU_TanHOp: TPU_Op<"tanh", [NoSideEffect]> {
+  let summary = "TanH operator";
+
+  let description = [{
+    TanH operator
+  }];
+
+  let arguments = (
+    ins AnyTensor:$x,
+    AnyTensor:$y0_table,
+    AnyTensor:$slope,
+    DefaultValuedAttr<F32Attr, "-1">:$scale,
+    OptionalAttr<StrAttr>:$name,
+    OptionalAttr<NonNegativeI64Attr>:$offset,
+    OptionalAttr<F32Attr>:$threshold_y,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
+  );
+
+  let results = (outs AnyTensor:$y);
+}
+
+def TPU_UpsampleOp: TPU_Op<"upsample", [NoSideEffect]> {
+  let summary = "Upsample operator";
+
+  let description = [{
+    Perform upample on input.
+  }];
+
+  let arguments = (
+    ins AnyTensor:$x,
+    NonNegativeI32Attr:$scale,
+    OptionalAttr<StrAttr>:$name,
+    OptionalAttr<NonNegativeI64Attr>:$offset,
+    OptionalAttr<F32Attr>:$threshold_y,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
+  );
+
+  let results = (outs AnyTensor:$y);
 }
 
 //===----------------------------------------------------------------------===//
@@ -578,6 +560,23 @@ def TPU_DequantizationOp: TPU_Op<"dequantization", [NoSideEffect]> {
     OptionalAttr<StrAttr>:$name,
     OptionalAttr<F32Attr>:$threshold,
     DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
+//===----------------------------------------------------------------------===//
+// Staging
+//===----------------------------------------------------------------------===//
+def TPU_DummyDataOp: TPU_Op<"dummydata", [NoSideEffect]> {
+  let summary = "dummydata";
+
+  let description = [{
+    DummyDataLayer fills any number of arbitrarily shaped blobs with random
+  }];
+
+  let arguments = (
+    ins OptionalAttr<StrAttr>:$name
   );
 
   let results = (outs AnyTensor:$output);

@@ -1,5 +1,5 @@
 // RUN: mlir-opt -print-op-stats -verify-each=true %s -o=/dev/null 2>&1 | FileCheck %s
-// RUN: mlir-opt -print-tpu-op -verify-each=true %s -o=/dev/null 2>&1 | FileCheck %s --check-prefix=OUTLINING --dump-input=fail
+// RUN: mlir-opt -print-tpu-op-info -verify-each=true %s -o=/dev/null 2>&1 | FileCheck %s --check-prefix=OUTLINING --dump-input=fail
 
 // CHECK-LABEL: module
 // CHECK-NOT: error
@@ -36,22 +36,6 @@
 // OUTLINING-NEXT:  > tpu.reshape
 // OUTLINING-NEXT:  > std.return
 // OUTLINING-NEXT:  > func
-
-// OUTLINING-LABEL: Module walk Conv2DOp:
-// OUTLINING-NEXT: -----------------------
-// OUTLINING-NEXT:  > tpu.conv_2d
-// OUTLINING-NEXT:  > tpu.conv_2d
-// OUTLINING-NEXT:  > tpu.conv_2d
-// OUTLINING-NEXT:  > tpu.conv_2d
-
-// OUTLINING-LABEL: Funcs walk Conv2DOp:
-// OUTLINING-NEXT: -----------------------
-// OUTLINING-NEXT: test_conv_2d
-// OUTLINING-NEXT:  > tpu.conv_2d
-// OUTLINING-NEXT: main
-// OUTLINING-NEXT:  > tpu.conv_2d
-// OUTLINING-NEXT:  > tpu.conv_2d
-// OUTLINING-NEXT:  > tpu.conv_2d
 
 module {
   func @test_conv_2d(%arg0: tensor<1x3x28x28xf32>) -> tensor<1x16x28x28xf32> {
