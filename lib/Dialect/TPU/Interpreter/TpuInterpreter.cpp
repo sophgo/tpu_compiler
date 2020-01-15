@@ -494,23 +494,36 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
     getPReluOpVariadicTensors(op, opdT, rshift, multiplier);
 
+    float threshold_x;
+    float threshold_y;
+    if (op.quant() != "NONE"){
+      threshold_x = getPreviousOpThreshold(op);
+      threshold_y = op.threshold_y().getValue().convertToFloat();
+    }
+
     // rshift and saturate on output
     if (op.quant() == "INT8" || op.quant() == "INT8_PER_CHANNEL") {
       assert(rshift);
       for (int i = 0; i < size; ++i) {
-        resultT->at(i) = (float)applyRShiftAndSaturateInt8(resultT->at(i),
-            (uint32_t)rshift->at(0));
+        if (input[i] > 0){
+          resultT->at(i) = (threshold_x / threshold_y) * resultT->at(i);
+        } else {
+          resultT->at(i) = (float)applyRShiftAndSaturateInt8(resultT->at(i),
+              (uint32_t)rshift->at(0));
+        }
       }
     } else if (op.quant() == "INT8_MULTIPLIER") {
       assert(multiplier);
       for (int i = 0; i < size; ++i) {
-        resultT->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
-            resultT->at(i), (uint32_t)rshift->at(0), multiplier->at(0), true);
+        if (input[i] > 0){
+          resultT->at(i) = (threshold_x / threshold_y) * resultT->at(i);
+        } else {
+          resultT->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
+              resultT->at(i), (uint32_t)rshift->at(0), multiplier->at(0), true);
+        }
       }
     } else if (op.quant() == "BF16") {
-      // auto tensor_bf16 = std::make_unique<std::vector<bfloat16> >(resultT->size());
-      // FloatToBFloat16(resultT->data(), tensor_bf16->data(), resultT->size()); // with rounding
-      // BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
+      assert(0 && "Not support BF16 now.");
     } else if (op.quant() == "NONE") {
     } else {
       assert(0);
