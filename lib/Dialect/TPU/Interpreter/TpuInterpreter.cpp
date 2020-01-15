@@ -529,42 +529,6 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       assert(0);
     }
 
-    // ---  DEBUG Kevin  ---------
-    if (op.quant() != "NONE"){
-      std::cout << "threshold_x = " << threshold_x << std::endl;
-      std::cout << "threshold_y = " << threshold_y << std::endl;
-      std::cout << "multiplier  = " << multiplier->at(0) << std::endl;
-      std::cout << "rshift      = " << rshift->at(0) << std::endl;
-    }
-    int show_num = 20;
-    int show_count_pos = 0;
-    int show_count_neg = 0;
-    for (int i = 0; i < size; ++i) {
-      if ( input[i] > 0) {
-        if (show_count_pos < show_num){
-          std::cout << "PRelu resultT [" << i << "] = " << resultT->at(i) 
-                    << "(in = " << input[i] << ")"<< std::endl;
-          show_count_pos += 1;
-        }
-        else {
-          continue;
-        }
-
-      } else {
-        if (show_count_neg < show_num){
-          std::cout << "PRelu resultT [" << i << "] = " << resultT->at(i) 
-                    << "  (input = " << input[i] << ")"<< std::endl;
-          show_count_neg += 1;
-        }
-        else {
-          continue;
-        }
-      }
-    }
-    std::cout << std::endl; sleep(20.0);
-    // ---  DEBUG Kevin (END) ---------
-
-
     valueMapping[result] = std::move(resultT);
 
     return success();
