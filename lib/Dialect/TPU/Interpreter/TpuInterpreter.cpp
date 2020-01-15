@@ -1317,7 +1317,6 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     n = i_s[0];
     c = i_s[1];
     if (i_s.size() == 4) {
-      llvm::errs() << i_s[0] << ", " << i_s[1] << ", " << i_s[2] << ", " << i_s[3] << "\n";
       assert(i_s[2] == 1 && i_s[3] == 1);
     }
     float *input = (float *)opdT[0]->data();
