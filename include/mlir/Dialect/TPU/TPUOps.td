@@ -188,6 +188,7 @@ def TPU_ConcatOp: TPU_Op<"concat", [NoSideEffect, SameOperandsAndResultElementTy
 }
 
 def TPU_Conv2DOp : TPU_ConvOp<"conv_2d", "Convolution">;
+def TPU_DeConv2DOp : TPU_ConvOp<"deconv_2d", "Convolution">;
 
 def TPU_CropOp: TPU_Op<"crop", [NoSideEffect]> {
   let summary = "Crop operator";

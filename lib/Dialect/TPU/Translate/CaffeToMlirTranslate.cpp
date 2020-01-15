@@ -89,6 +89,7 @@ private:
   void convertInputLayer(mlir::Block *block, caffe::Layer<float> *layer);
   void convertSplitLayer(mlir::Block *block, caffe::Layer<float> *layer);
   void convertConvolutionLayer(mlir::Block *block, caffe::Layer<float> *layer);
+  void convertDeconvolutionLayer(mlir::Block *block, caffe::Layer<float> *layer);
   void convertInnerProductLayer(mlir::Block *block, caffe::Layer<float> *layer);
   void convertPoolingLayer(mlir::Block *block, caffe::Layer<float> *layer);
   void convertBatchNormLayer(mlir::Block *block, caffe::Layer<float> *layer);
@@ -136,6 +137,9 @@ static void printCaffeNetAllLayer(const caffe::Net<float>& net) {
 
 #define calcConv2DSpatialOutput(_i_, _k_, _s_, _p_, _d_) \
     (((_i_) + 2 * (_p_) - (_d_) * ((_k_) - 1) - 1) / (_s_) + 1)
+
+#define calcDeConv2DSpatialOutput(_i_, _k_, _s_, _p_, _d_) \
+    ((_s_) * (((_i_)) - 1) + (_d_) * ((_k_) - 1) - 2 * (_p_) + 1)
 
 mlir::Type CaffeImporter::GetTypeFromCaffeShape(
     const std::vector<int> shape, mlir::Type elementType) {
@@ -249,6 +253,8 @@ void CaffeImporter::ConvertLayers(mlir::Block *block,
       convertReshapeLayer(block, layer);
     } else if (strcmp(layer->type(), "TanH") == 0) {
       convertTanHLayer(block, layer);
+    } else if (strcmp(layer->type(), "Deconvolution") == 0) {
+      convertDeconvolutionLayer(block, layer);
     } else {
       llvm::errs() << "    UNKNOWN : " << layer->type() <<"\n";
       assert(false);
@@ -429,6 +435,104 @@ void CaffeImporter::convertConvolutionLayer(mlir::Block *block,
   auto result_var = op.getResult();
 
   tensor_map_[layer_param.top(0)] = result_var;
+}
+
+void CaffeImporter::convertDeconvolutionLayer(mlir::Block *block, caffe::Layer<float> *layer) {
+  mlir::Value *input_var = GetLayerInput(layer);
+  LLVM_DEBUG(llvm::errs() << "convertDeconvolutionLayer" << "\n";);
+
+  auto layer_param = layer->layer_param();
+  assert(layer_param.has_convolution_param());
+  auto p = layer_param.convolution_param();
+  int64_t n, ic, oc, g;
+  std::vector<int64_t> kernel(2), stride(2), padding(2), dilation(2);
+  std::vector<int64_t> ifmap(2), ofmap(2); // spatial dims only (height and width)
+
+  bool with_bias = p.bias_term();
+  oc = p.num_output();
+  g  = p.has_group()? p.group() : 1;
+  kernel[0] = p.has_kernel_h() ? p.kernel_h() : p.kernel_size_size() > 1 ? p.kernel_size(1) : p.kernel_size(0);
+  kernel[1] = p.has_kernel_w() ? p.kernel_w() : p.kernel_size(0);
+  stride[0] = p.has_stride_h() ? p.stride_h() : p.stride_size() > 1 ? p.stride(1) : p.stride_size() > 0 ? p.stride(0) : 1;
+  stride[1] = p.has_stride_w() ? p.stride_w() : p.stride_size() > 0 ? p.stride(0) : 1;
+  padding[0]  = p.has_pad_h() ? p.pad_h() : p.pad_size() > 1 ? p.pad(1) : p.pad_size() > 0 ? p.pad(0) : 0;
+  padding[1]  = p.has_pad_w() ? p.pad_w() : p.pad_size() > 0 ? p.pad(0) : 0;
+  dilation[0] = p.dilation_size() > 1 ? p.dilation(1) : p.dilation_size() > 0 ? p.dilation(0) : 1;
+  dilation[1] = p.dilation_size() > 0 ? p.dilation(0) : 1;
+
+  assert( (dilation[0] == 1) && (dilation[1] == 1) );
+  // get input shape from input var
+  llvm::ArrayRef<int64_t> input_shape =
+      input_var->getType().dyn_cast<mlir::TensorType>().getShape();
+
+  assert(input_shape.size() == 4);
+  n = input_shape[0];
+  ic = input_shape[1];
+  ifmap[0] = input_shape[2];
+  ifmap[1] = input_shape[3];
+  // get output shape from inference
+  ofmap[0] = calcDeConv2DSpatialOutput(ifmap[0], kernel[0], stride[0], padding[0], dilation[0]);
+  ofmap[1] = calcDeConv2DSpatialOutput(ifmap[1], kernel[1], stride[1], padding[1], dilation[1]);
+
+  LLVM_DEBUG(
+    llvm::errs()
+        << "  N: " << n
+        << ", IC: " << ic
+        << ", IH*IW: " << ifmap[0] << " * " << ifmap[1]
+        << ", OC: " << oc
+        << ", OH*OW: " << ofmap[0] << " * " << ofmap[1]
+        << "\n";
+    llvm::errs()
+        << "  with_bias: " << with_bias
+        << ", K: " << kernel[0]   << " * " << kernel[1]
+        << ", S: " << stride[0]   << " * " << stride[1]
+        << ", P: " << padding[0]  << " * " << padding[1]
+        << ", D: " << dilation[0] << " * " << dilation[1]
+        << ", group: " << g
+        << "\n";
+  );
+
+  std::vector<Value *> operands;
+  operands.push_back(input_var);
+
+
+  // - blobs_[0] holds the filter weights
+  // - blobs_[1] holds the biases (optional)
+  auto filter_name = layer->layer_param().name()+"_0";
+  TensorType filter_type;
+  if (g != 1) {
+    filter_type = RankedTensorType::get({g, oc/g, ic/g, kernel[0], kernel[1]}, elementType_);
+  } else {
+    filter_type = RankedTensorType::get({oc, ic, kernel[0], kernel[1]}, elementType_);
+  }
+  weightFile_->addTensor(filter_name, layer->blobs()[0].get()->cpu_data(), filter_type);
+  operands.push_back(AddLoadWeightOp(block, filter_name, filter_type));
+  if (with_bias) {
+    auto bias_name = layer->layer_param().name()+"_1";
+    auto bias_type = RankedTensorType::get({oc}, elementType_);
+    weightFile_->addTensor(bias_name, layer->blobs()[1].get()->cpu_data(), bias_type);
+    operands.push_back(AddLoadWeightOp(block, bias_name, bias_type));
+  }
+
+  // construct OP
+  auto result_type = RankedTensorType::get({n, oc, ofmap[0], ofmap[1]}, elementType_);
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder_.getNamedAttr("with_bias", builder_.getBoolAttr(with_bias)));
+  attrs.push_back(builder_.getNamedAttr("dilation_h_factor", builder_.getI32IntegerAttr(dilation[0])));
+  attrs.push_back(builder_.getNamedAttr("dilation_w_factor", builder_.getI32IntegerAttr(dilation[1])));
+  attrs.push_back(builder_.getNamedAttr("padding", (padding[0] || padding[1])
+                  ? builder_.getStringAttr("SAME") : builder_.getStringAttr("VALID")));
+  attrs.push_back(builder_.getNamedAttr("stride_h", builder_.getI32IntegerAttr(stride[0])));
+  attrs.push_back(builder_.getNamedAttr("stride_w", builder_.getI32IntegerAttr(stride[1])));
+  attrs.push_back(builder_.getNamedAttr("group", builder_.getI32IntegerAttr(g)));
+  attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name())));
+  auto op = OpBuilder(block).create<tpu::DeConv2DOp>(
+      builder_.getUnknownLoc(), result_type,
+      ArrayRef<Value *>{operands}, ArrayRef<NamedAttribute>{attrs});
+  auto result_var = op.getResult();
+
+  tensor_map_[layer_param.top(0)] = result_var;
+
 }
 
 void CaffeImporter::convertInnerProductLayer(mlir::Block *block,
