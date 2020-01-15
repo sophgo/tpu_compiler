@@ -153,6 +153,115 @@ int mkldnn_conv(float *input, float *weight, float *bias,
   return 0;
 }
 
+int mkldnn_deconv(float *input, float *weight, float *bias,
+    float *output, int n, int ic, int ih, int iw, int oc, int oh, int ow,
+    int kh, int kw, int sh, int sw, int ph, int pw, int g) {
+  if (!bias) {
+    auto zero_bias = new std::vector<float>(oc, 0.0f);
+    bias = zero_bias->data();
+  }
+
+  // TODO - padding
+  assert(ph == 0);
+  assert(pw == 0);
+  int ph_t = ph;
+  int pw_l = pw;
+  int ph_b = ph;
+  int pw_r = pw;
+
+  LLVM_DEBUG(
+    llvm::errs() << "  i: (" << ih << "*" << iw << "), "
+                 << "  o: (" << oh << "*" << ow << "), "
+                 << "  k: (" << kh << "*" << kw << "), "
+                 << "s: (" << sh << "*" << sw << "), "
+                 << "p: (" << ph << "*" << pw << "), "
+                 << "g: " << g << "\n";
+  );
+
+  using tag = memory::format_tag;
+  using dt = memory::data_type;
+
+  engine eng(engine::kind::cpu, 0);
+  stream s(eng);
+
+  std::vector<primitive> net;
+  std::vector<std::unordered_map<int, memory>> net_args;
+
+  const memory::dim batch = n;
+  memory::dims src_tz = { batch, ic, ih, iw };
+  memory::dims weights_tz = (g != 1) ? memory::dims{g, oc/g, ic/g, kh, kw}
+                                    : memory::dims{oc, ic, kh, kw};
+  memory::dims bias_tz = { oc };
+  memory::dims dst_tz = { batch, oc, oh, ow };
+  memory::dims strides = { sh, sw };
+  memory::dims padding_l = { ph_t, pw_l };
+  memory::dims padding_r = { ph_b, pw_r };
+
+  // memory
+  auto user_src_memory = memory(
+      { { src_tz }, dt::f32, tag::nchw }, eng, input);
+  auto user_weights_memory = (g != 1)
+      ? memory({ { weights_tz }, dt::f32, tag::goihw }, eng, weight)
+      : memory({ { weights_tz }, dt::f32, tag::oihw }, eng, weight);
+  auto user_bias_memory = memory(
+      { { bias_tz }, dt::f32, tag::x }, eng, bias);
+  auto user_dst_memory = memory(
+      { { dst_tz }, dt::f32, tag::nchw }, eng, output);
+
+  // md
+  auto src_md     = memory::desc({ src_tz }, dt::f32, tag::any);
+  auto weights_md = memory::desc({ weights_tz }, dt::f32, tag::any);
+  auto bias_md    = memory::desc({ bias_tz }, dt::f32, tag::any);
+  auto dst_md     = memory::desc({ dst_tz }, dt::f32, tag::any);
+
+  // deconv desc
+  auto deconv_desc = deconvolution_forward::desc(prop_kind::forward_inference,
+      algorithm::deconvolution_direct, src_md, weights_md, bias_md, dst_md,
+      strides, padding_l, padding_r);
+
+  auto deconv_prim_desc = deconvolution_forward::primitive_desc(deconv_desc, eng);
+
+  // do reorder if needed
+  auto src_memory = user_src_memory;
+  if (deconv_prim_desc.src_desc() != user_src_memory.get_desc()) {
+    src_memory = memory(deconv_prim_desc.src_desc(), eng);
+    net.push_back(reorder(user_src_memory, src_memory));
+    net_args.push_back({ { MKLDNN_ARG_FROM, user_src_memory },
+        { MKLDNN_ARG_TO, src_memory } });
+  }
+  auto weights_memory = user_weights_memory;
+  if (deconv_prim_desc.weights_desc() != user_weights_memory.get_desc()) {
+    weights_memory = memory(deconv_prim_desc.weights_desc(), eng);
+    reorder(user_weights_memory, weights_memory)
+        .execute(s, user_weights_memory, weights_memory);
+  }
+  auto bias_memory = user_bias_memory;
+
+  auto dst_memory = memory(deconv_prim_desc.dst_desc(), eng);
+
+  net.push_back(deconvolution_forward(deconv_prim_desc));
+  net_args.push_back({ { MKLDNN_ARG_SRC, src_memory },
+      { MKLDNN_ARG_WEIGHTS, weights_memory },
+      { MKLDNN_ARG_BIAS, bias_memory },
+      { MKLDNN_ARG_DST, dst_memory } });
+
+  // reorder or copy the output
+  if (dst_memory != user_dst_memory) {
+    net.push_back(reorder(dst_memory, user_dst_memory));
+    net_args.push_back({ { MKLDNN_ARG_FROM, dst_memory },
+        { MKLDNN_ARG_TO, user_dst_memory } });
+  }
+
+  // run
+  assert(net.size() == net_args.size() && "something is missing");
+  for (size_t i = 0; i < net.size(); ++i)
+      net.at(i).execute(s, net_args.at(i));
+
+  s.wait();
+
+  return 0;
+}
+
 int mkldnn_pool(float *input, float *output,
     int n, int c, int ih, int iw, int oh, int ow,
     int kh, int kw, int sh, int sw, int pt, int pb, int pl, int pr,

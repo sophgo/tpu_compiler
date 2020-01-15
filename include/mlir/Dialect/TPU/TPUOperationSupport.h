@@ -41,6 +41,10 @@ void getConv2DOpParam(T &op,
     int &n, int &ic, int &ih, int &iw, int &oc, int &oh, int &ow, int &g,
     int &kh, int &kw, int &sh, int &sw, int &ph, int &pw, int &dh, int &dw,
     bool &with_bias, bool &do_relu);
+void getDeConv2DOpParam(tpu::DeConv2DOp &op,
+    int &n, int &ic, int &ih, int &iw, int &oc, int &oh, int &ow, int &g,
+    int &kh, int &kw, int &sh, int &sw, int &ph, int &pw, int &dh, int &dw,
+    bool &with_bias);
 void getPool2DOpParam(tpu::Pool2DOp &op,
     bool &is_average_pool, int &n, int &c, int &ih, int &iw, int &oh, int &ow,
     int &kh, int &kw, int &sh, int &sw, int &pt, int &pb, int &pl, int &pr, bool &do_relu);
@@ -49,6 +53,14 @@ void getFullyConnectedOpParam(tpu::FullyConnectedOp &op,
     bool &with_bias, bool &do_relu);
 
 void getConv2DOpVariadicTensors(tpu::Conv2DOp &op,
+    std::vector<std::shared_ptr<std::vector<float> > > &opdT,
+    std::shared_ptr<std::vector<float> > &bias,
+    std::shared_ptr<std::vector<float> > &rshift,
+    std::shared_ptr<std::vector<float> > &multiplier,
+    std::shared_ptr<std::vector<float> > &per_channel_info,
+    std::shared_ptr<std::vector<float> > &eltwise_input);
+
+void getDeConv2DOpVariadicTensors(tpu::DeConv2DOp &op,
     std::vector<std::shared_ptr<std::vector<float> > > &opdT,
     std::shared_ptr<std::vector<float> > &bias,
     std::shared_ptr<std::vector<float> > &rshift,

@@ -282,6 +282,85 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
     return success();
   }
+    if (auto op = dyn_cast<tpu::DeConv2DOp>(opInst)) {
+    LLVM_DEBUG(llvm::errs() << "DeConv2DOp" << "\n";);
+    auto opdT = getOperandTensors(opInst, valueMapping);
+    auto result = op.getResult();
+    LLVM_DEBUG(llvm::errs() << "  name " << op.name() << "\n";);
+    LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";);
+    std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
+    assert(shape.size() == 4);
+    auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
+    auto resultT = std::make_unique<std::vector<float> >(size);
+
+    bool with_bias;
+    int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, ph, pw, dh, dw;
+    getDeConv2DOpParam(op, n, ic, ih, iw, oc, oh, ow, g,
+                     kh, kw, sh, sw, ph, pw, dh, dw, with_bias);
+
+    std::shared_ptr<std::vector<float> > input = opdT[0];
+    std::shared_ptr<std::vector<float> > filter = opdT[1];
+    std::shared_ptr<std::vector<float> > bias = nullptr;
+    std::shared_ptr<std::vector<float> > rshift = nullptr;
+    std::shared_ptr<std::vector<float> > multiplier = nullptr;
+    std::shared_ptr<std::vector<float> > per_channel_info = nullptr;
+    std::shared_ptr<std::vector<float> > eltwise_input = nullptr;
+    if (op.per_channel_info_is_aggregated()) {
+      llvm::errs() << "Not support interpret with per_channel_info aggreated\n";
+      assert(0);
+    }
+    getDeConv2DOpVariadicTensors(op, opdT, bias, rshift, multiplier,
+        per_channel_info, eltwise_input);
+
+    int mkldnn_ret = mkldnn_deconv(input->data(), filter->data(),
+        bias?bias->data():nullptr, resultT->data(),
+        n, ic, ih, iw, oc, oh, ow, kh, kw, sh, sw, ph, pw, g);
+    assert(mkldnn_ret == 0);
+    //dump_data_float_abs("mkldnn_output", mkldnn_output, n, oc, oh, ow);
+
+
+    // rshift and saturate on output
+    if (op.quant() == "INT8") {
+      assert(rshift);
+      for (int i = 0; i < size; ++i) {
+        resultT->at(i) = (float)applyRShiftAndSaturateInt8(resultT->at(i),
+            (uint32_t)rshift->at(0));
+      }
+    } else if (op.quant() == "INT8_PER_CHANNEL") {
+      assert(rshift);
+      int isz = size / oc;
+      for (int i = 0; i < oc; ++i) {
+        for (int j = 0; j < isz; ++j) {
+          resultT->at(i * isz + j) = (float)applyRShiftAndSaturateInt8(
+              resultT->at(i * isz + j), (uint32_t)rshift->at(i));
+        }
+      }
+    } else if (op.quant() == "INT8_MULTIPLIER") {
+      assert(multiplier);
+      int isz = size / oc;
+      for (int i = 0; i < oc; ++i) {
+        for (int j = 0; j < isz; ++j) {
+          resultT->at(i * isz + j) =
+              (float)applyMultiplierAndRShiftAndSaturateInt8(
+                  resultT->at(i * isz + j),
+                  rshift->at(i), multiplier->at(i), true);
+        }
+      }
+    } else if (op.quant() == "BF16") {
+      auto tensor_bf16 = std::make_unique<std::vector<bfloat16> >(resultT->size());
+      FloatToBFloat16(resultT->data(), tensor_bf16->data(), resultT->size()); // with rounding
+      BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
+    } else if (op.quant() == "NONE") {
+    } else {
+      assert(0);
+    }
+    assert(eltwise_input == nullptr);
+    assert(op.fused_eltwise_method() == "NONE");
+
+    valueMapping[result] = std::move(resultT);
+
+    return success();
+  }
   if (auto op = dyn_cast<tpu::Pool2DOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "Pool2DOp" << "\n";);
     auto opdT = getOperandTensors(opInst, valueMapping);
@@ -1238,6 +1317,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     n = i_s[0];
     c = i_s[1];
     if (i_s.size() == 4) {
+      llvm::errs() << i_s[0] << ", " << i_s[1] << ", " << i_s[2] << ", " << i_s[3] << "\n";
       assert(i_s[2] == 1 && i_s[3] == 1);
     }
     float *input = (float *)opdT[0]->data();
