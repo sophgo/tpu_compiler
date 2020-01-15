@@ -883,6 +883,8 @@ void CaffeImporter::convertScaleLayer(mlir::Block *block,
     std::vector<NamedAttribute> attrs;
     attrs.push_back(builder_.getNamedAttr(
         "name", builder_.getStringAttr(layer_param.name())));
+    attrs.push_back(
+        builder_.getNamedAttr("with_bias", builder_.getBoolAttr(with_bias)));
     auto op = OpBuilder(block).create<tpu::ScaleOp>(
         builder_.getUnknownLoc(), result_type, ArrayRef<Value *>{operands},
         ArrayRef<NamedAttribute>{attrs});

@@ -779,14 +779,10 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     return success();
   }
   if (auto op = dyn_cast<tpu::ScaleOp>(opInst)) {
-    // mode 0: load scale from wegiht
-    // mode 1: load scale from input2
-    int mode = 1;
     // check if scale second is load weight op
-    if(auto weight_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
-        op.getOperand(1)->getDefiningOp())){
-        mode = 0;
-    }
+    auto sec_blob_weight_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
+        op.getOperand(1)->getDefiningOp());
+    
     LLVM_DEBUG(llvm::errs() << "ScaleOp" << "\n";);
     auto opdT = getOperandTensors(opInst, valueMapping);
     auto result = op.getResult();
@@ -795,34 +791,38 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     assert(shape.size() <= 4);
     auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
     auto resultT = std::make_unique<std::vector<float> >(size);
-    uint32_t multiplier_prod;
-    int n, c, h, w;
+    
     auto input_type = op.x()->getType().cast<TensorType>();
     std::vector<int64_t> i_s(input_type.getShape());
     auto output_type = op.y()->getType().cast<TensorType>();
     std::vector<int64_t> o_s(output_type.getShape());
-    assert((i_s == o_s) && "input shape not equal to output shape");
-
-    assert((i_s.size() == 4 || i_s.size() == 2) &&
-           "BatchNorm support shape size of 4 or 2 now." );
-
+    assert((i_s == o_s) && "input shape not equal to output shape");\
+    int n, c, h, w;
     n = i_s[0];
     c = i_s[1];
     h = (i_s.size() == 2) ? 1 : i_s[2];
     w = (i_s.size() == 2) ? 1 : i_s[3];
+    int oc = o_s[1];
 
-    float *input = (float *)opdT[0]->data();
-    float *scale = (float *)opdT[1]->data();
-    float *output = (float *)resultT.get()->data();
-    float *bias = nullptr;
-    uint32_t rshift;
-    if (opdT.size() > 2) {
-      assert(opdT.size() == 3);
-      bias = (float *)opdT[2]->data();
+    uint32_t multiplier_prod;
+    float *input = (float*)opdT[0]->data();
+    float *scale = (float*)opdT[1]->data();
+    std::shared_ptr<std::vector<float>> bias = nullptr;
+    if (op.with_bias()) {
+      bias = opdT[2];
     }
 
-    if (op.quant() == "INT8") {
-      if (mode == 1) {
+    auto rshift = std::make_shared<std::vector<float>>(1);
+    std::shared_ptr<std::vector<float>> multiplier = nullptr;
+
+    if (op.quant() == "INT8" || op.quant() == "INT8_PER_CHANNEL" ||
+        op.quant() == "INT8_MULTIPLIER") {
+      // if second input is from blob
+      // we need caluate rshift and multiplier,
+      // otherwise, read rhisft and multiplier from load weight
+      if (sec_blob_weight_op) {
+        getScaleOpVariadicTensors(op, opdT, bias, rshift, multiplier);
+      }else {
         assert(opdT.size() == 2);
         std::vector<float> threshold_x(2);
         float threshold_y;
@@ -838,35 +838,53 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
         float threshold_prod = std::accumulate(
             threshold_x.begin(), threshold_x.end(), 1.0, std::multiplies<>());
         float qscale = threshold_prod / threshold_y / 127.0;
-        rshift = findRShiftAndMultiplierFromQScale(qscale, &multiplier_prod,
-                                                   true, 255);
-      } else {
-        auto weight_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
-            op.getOperand(1)->getDefiningOp());
-        float threshold_x = getPreviousOpThreshold(op);
-        float threshold_y = op.threshold_y().getValue().convertToFloat();
-        rshift = 0;
-
+        rshift->at(0) = (float)findRShiftAndMultiplierFromQScale(qscale, &multiplier_prod, true,
+                                                255);
       }
+      }
+    int ret;
+    if (op.with_bias()) {
+      ret =
+          my_scale(input, scale, bias->data(), resultT->data(), n, c, h, w);
+    }else{
+      ret = my_scale(input, scale, nullptr, resultT->data(), n, c, h, w);
     }
-    int ret = my_scale(input, scale, bias, output, n, c, h, w);
-    assert(ret == 0);
 
+    assert(ret == 0);
     // rshift and saturate on output
     if (op.quant() == "INT8") {
-      // assert(rshift);
-      if(mode == 0){
+      assert(rshift);
         for (int i = 0; i < size; ++i) {
-          output[i] =
-              (float)applyRShiftAndSaturateInt8(output[i], (uint32_t)rshift);
+        resultT->at(i) = (float)applyRShiftAndSaturateInt8(
+            resultT->at(i), (uint32_t)rshift->at(0));
+      }
+    } else if (op.quant() == "INT8_PER_CHANNEL") {
+      assert(rshift);
+      int isz = size / oc;
+      for (int i = 0; i < oc; ++i) {
+        for (int j = 0; j < isz; ++j) {
+          resultT->at(i * isz + j) = (float)applyRShiftAndSaturateInt8(
+              resultT->at(i * isz + j), (uint32_t)rshift->at(i));
         }
-      } else {
-        for (int i = 0; i < size; ++i) {
-          output[i] = (float)applyMultiplierAndRShiftAndSaturateInt8(
-              output[i], rshift, multiplier_prod, false);
+        }
+    } else if (op.quant() == "INT8_MULTIPLIER") {
+      assert(multiplier);
+      int isz = size / oc;
+      for (int i = 0; i < oc; ++i) {
+        for (int j = 0; j < isz; ++j) {
+          resultT->at(i * isz + j) =
+              (float)applyMultiplierAndRShiftAndSaturateInt8(
+                  resultT->at(i * isz + j), rshift->at(i), multiplier->at(i),
+                  true);
         }
       }
+    } else if (op.quant() == "BF16") {
+      assert("not support now");
+    } else if (op.quant() == "NONE") {
+    } else {
+      assert(0);
     }
+
     valueMapping[result] = std::move(resultT);
 
     return success();
