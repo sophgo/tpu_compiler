@@ -560,50 +560,31 @@ void CaffeImporter::convertPoolingLayer(mlir::Block *block,
   padding[0] = p.has_pad_h() ? p.pad_h() : p.has_pad() ? p.pad() : 0;
   padding[1] = p.has_pad_w() ? p.pad_w() : p.has_pad() ? p.pad() : 0;
 
-  //
-  // Fix Pooling Padding (take h as eg. w should be similer)
-  //   when (ih - kh) % sh != 0, asymetric padding are needed
-  //   and ceiling/floor mode are different
-  //   eg.1 resnet50 112x112 -> 55x55, k=3x3, s=2x2
-  //
+  // when (ih - kh) % sh != 0, asymetric padding are needed
+  // and ceiling/floor mode are different
+  // eg.1 resnet50 112x112 -> 55x55
+  // eg.2 retinaface 300x300 -> 151x151, k=3x3, s=2x2, ph=1, pw=1, ceil_mode
+  //   => pad_top = 1, pad_bottom = 2, pad_left = 1, pad_right = 2
+  // eg.3 300x300 -> 150x150, k=3x3, s=2x2, ph=1, pw=1, floor_mode
+  //   => pad_top = 1, pad_bottom = 1, pad_left = 1, pad_right = 1
+
+  // Intel caffe does not support round_mode (ceil mode by default)
+  // Only implement ceil padding at the following now.
+  // Hence, we don't support eg3 now.
   std::vector<int64_t> padding_tl(2), padding_br(2);
-  for (size_t i = 0; i < 2; ++i )
-    if ( (ifmap[i] - kernel[i]) % stride[i] ) {
-    assert(stride[i] == 2);  // reminder, checked with stride = 2 only
-    // by passing ph/pw == 0, caffe actually means
-    // pt/pl = 0, pb/pr = 1
-    // if ph/pw == 1 is passed, we handle it with the opposite way, i.e.
-    // pt/pl = 1, pb/pr = 0
-    if (padding[i] == 0) {
-      padding_tl[i] = 0;
-      padding_br[i] = 1;
-    } else if (padding[i] == 1) {
-      padding_tl[i] = 1;
-      padding_br[i] = 0;
-    } else {
-      // didn't check the case yet
-      assert(false);
-    }
-  }
+  padding_tl[0] = padding[0];
+  padding_tl[1] = padding[1];
+  padding_br[0] = padding[0];
+  padding_br[1] = padding[1];
 
-  for (size_t i = 0; i < 2; ++i ) {
-    assert( (ifmap[0] + padding_tl[0] + padding_br[0] - kernel[0]) % stride[0] == 0);
-    ofmap[i] = (ifmap[i] + padding_tl[i] + padding_br[i] - kernel[i]) / stride[i] + 1;
-  }
+  for (size_t i = 0; i < 2; ++i) {
+    ofmap[i] = (static_cast<int>(ceil(static_cast<float>(
+      ifmap[i] + 2 * padding[i] - kernel[i]) / stride[i])) + 1);
 
-#if 0
-  if (!p.has_ceil_mode() || p.ceil_mode()) {
-    ofmap[0] = (static_cast<int>(ceil(static_cast<float>(
-          ifmap[0] + 2 * padding[0] - kernel[0]) / stride[0])) + 1);
-    ofmap[1] = (static_cast<int>(ceil(static_cast<float>(
-          ifmap[1] + 2 * padding[1] - kernel[1]) / stride[1])) + 1);
-  } else {
-    ofmap[0] = (static_cast<int>(floor(static_cast<float>(
-          ifmap[0] + 2 * padding[0] - kernel[0]) / stride[0])) + 1);
-    ofmap[1] = (static_cast<int>(floor(static_cast<float>(
-          ifmap[1] + 2 * padding[1] - kernel[1]) / stride[1])) + 1);
+    int remain_pixel = (ifmap[i] + 2 * padding[i] - kernel[i]) % stride[i];
+    if (remain_pixel > 0)
+      padding_br[i] += (stride[i] - remain_pixel);
   }
-#endif
 
   if (is_global_pooling) {
     assert( (padding[0] == 0) && (padding[1] == 0) );
