@@ -4,6 +4,8 @@ set -e
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 source $DIR/../../envsetup.sh
 
+COMPARE_ALL=1
+
 # calibration
 # python ../llvm/projects/mlir/externals/calibration_tool/run_calibration.py \
 #     yolo_v3 yolo_v3_416_opt.mlir \
@@ -22,6 +24,8 @@ mlir-opt \
 ################################
 mlir-opt \
     --quant-int8 \
+    --print-tpu-op-info \
+    --tpu-op-info-filename yolo_v3_op_info_int8_per_layer.csv \
     yolo_v3_416_cali.mlir \
     -o yolo_v3_416_quant_int8_per_layer.mlir
 
@@ -37,8 +41,9 @@ npz_extract.py \
 npz_compare.py \
       yolo_v3_out_int8_per_layer.npz \
       yolo_v3_blobs.npz \
-      --dequant $REGRESSION_PATH/yolo_v3/data/yolo_v3_threshold_table \
-      --tolerance 0.9,0.9,0.75 -vvv
+      --op_info yolo_v3_op_info_int8_per_layer.csv \
+      --dequant \
+      --tolerance 0.9,0.85,0.75 -vvv
 
 if [ $COMPARE_ALL ]; then
   # some tensors do not pass due to threshold bypass
@@ -46,8 +51,10 @@ if [ $COMPARE_ALL ]; then
   npz_compare.py \
       yolo_v3_tensor_all_int8_per_layer.npz \
       yolo_v3_blobs.npz \
-      --dequant $REGRESSION_PATH/yolo_v3/data/yolo_v3_threshold_table \
-      --tolerance 0.9,0.9,0.7 -vvv
+      --op_info yolo_v3_op_info_int8_per_layer.csv \
+      --dequant \
+      --excepts layer86-upsample,layer87-route,layer98-upsample,layer99-route \
+      --tolerance 0.75,0.7,0.1 -vvv
 fi
 
 ################################
@@ -57,6 +64,8 @@ fi
 mlir-opt \
     --quant-int8 \
     --enable-conv-per-channel \
+    --print-tpu-op-info \
+    --tpu-op-info-filename yolo_v3_op_info_int8_per_channel.csv \
     yolo_v3_416_cali.mlir \
     -o yolo_v3_416_quant_int8_per_channel.mlir
 
@@ -72,7 +81,8 @@ npz_extract.py \
 npz_compare.py \
       yolo_v3_out_int8_per_channel.npz \
       yolo_v3_blobs.npz \
-      --dequant $REGRESSION_PATH/yolo_v3/data/yolo_v3_threshold_table \
+      --op_info yolo_v3_op_info_int8_per_channel.csv \
+      --dequant \
       --tolerance 0.9,0.9,0.8 -vvv
 
 if [ $COMPARE_ALL ]; then
@@ -81,8 +91,10 @@ if [ $COMPARE_ALL ]; then
   npz_compare.py \
       yolo_v3_tensor_all_int8_per_channel.npz \
       yolo_v3_blobs.npz \
-      --dequant $REGRESSION_PATH/yolo_v3/data/yolo_v3_threshold_table \
-      --tolerance 0.9,0.9,0.7 -vvv
+      --op_info yolo_v3_op_info_int8_per_channel.csv \
+      --dequant \
+      --excepts layer86-upsample,layer87-route,layer98-upsample,layer99-route \
+      --tolerance 0.85,0.8,0.30 -vvv
 fi
 
 ################################
@@ -92,6 +104,8 @@ mlir-opt \
     --quant-int8 \
     --enable-conv-per-channel \
     --enable-conv-multiplier \
+    --print-tpu-op-info \
+    --tpu-op-info-filename yolo_v3_op_info_int8_multiplier.csv \
     yolo_v3_416_cali.mlir \
     -o yolo_v3_416_quant_int8_multiplier.mlir
 
@@ -107,7 +121,8 @@ npz_extract.py \
 npz_compare.py \
       yolo_v3_out_int8_multiplier.npz \
       yolo_v3_blobs.npz \
-      --dequant $REGRESSION_PATH/yolo_v3/data/yolo_v3_threshold_table \
+      --op_info yolo_v3_op_info_int8_multiplier.csv \
+      --dequant \
       --tolerance 0.9,0.9,0.8 -vvv
 
 if [ $COMPARE_ALL ]; then
@@ -116,8 +131,10 @@ if [ $COMPARE_ALL ]; then
   npz_compare.py \
       yolo_v3_tensor_all_int8_multiplier.npz \
       yolo_v3_blobs.npz \
-      --dequant $REGRESSION_PATH/yolo_v3/data/yolo_v3_threshold_table \
-      --tolerance 0.9,0.9,0.7 -vvv
+      --op_info yolo_v3_op_info_int8_multiplier.csv \
+      --dequant \
+      --excepts layer86-upsample,layer87-route,layer98-upsample,layer99-route \
+      --tolerance 0.85,0.8,0.35 -vvv
 fi
 
 # VERDICT
