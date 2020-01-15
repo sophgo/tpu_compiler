@@ -33,6 +33,7 @@
 
 using namespace mlir;
 
+#define OP_NAME "name"
 #define OP_TYPE "type"
 #define OP_QUANT "quant"
 
@@ -140,10 +141,10 @@ public:
           }
 
           py::dict py_temp;
+          py_temp[OP_NAME] = getOpName(&op).str();
           py_temp[OP_TYPE] = op.getName().getStringRef().str();
           py_temp[OP_QUANT] = getOpQuant(&op);
-          py::str py_s(getOpName(&op).str());
-          opInfo_[py_s] = py_temp;
+          opInfo_.append(py_temp);
         }
       }
     }
@@ -195,7 +196,7 @@ public:
   }
 
 public:
-  py::dict opInfo_;
+  py::list opInfo_;
 
 private:
   MLIRContext context;
