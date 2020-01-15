@@ -562,15 +562,16 @@ void CaffeImporter::convertPoolingLayer(mlir::Block *block,
 
   // when (ih - kh) % sh != 0, asymetric padding are needed
   // and ceiling/floor mode are different
-  // eg.1 resnet50 112x112 -> 55x55
-  // eg.2 retinaface 300x300 -> 151x151, k=3x3, s=2x2, ph=1, pw=1, ceil_mode
+  // eg.1 resnet50 112x112 -> 56x56, k=3x3, s=2x2, ph=0, pw=0, ceil_mode
+  // eg.2 resnet50 7x7 -> 1x1, k=7x7, s=1x1, ph=0, pw=0, ceil_mode
+  // eg.3 retinaface 300x300 -> 151x151, k=3x3, s=2x2, ph=1, pw=1, ceil_mode
   //   => pad_top = 1, pad_bottom = 2, pad_left = 1, pad_right = 2
-  // eg.3 300x300 -> 150x150, k=3x3, s=2x2, ph=1, pw=1, floor_mode
+  // eg.4 300x300 -> 150x150, k=3x3, s=2x2, ph=1, pw=1, floor_mode
   //   => pad_top = 1, pad_bottom = 1, pad_left = 1, pad_right = 1
 
   // Intel caffe does not support round_mode (ceil mode by default)
   // Only implement ceil padding at the following now.
-  // Hence, we don't support eg3 now.
+  // Hence, we don't support eg4 now.
   std::vector<int64_t> padding_tl(2), padding_br(2);
   padding_tl[0] = padding[0];
   padding_tl[1] = padding[1];
