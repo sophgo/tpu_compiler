@@ -58,7 +58,7 @@ bin_to_npz.py \
 npz_compare.py \
     resnet50_cmdbuf_out_all_bf16.npz \
     resnet50_tensor_all_bf16.npz \
-    --order neuron_map_bf16.csv \
+    --op_info resnet50_op_info.csv \
     --tolerance=0.99,0.99,0.96 -vvv
 
 # VERDICT

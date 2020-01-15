@@ -56,7 +56,7 @@ bin_to_npz.py \
 npz_compare.py \
     resnet50_cmdbuf_out_all_int8_per_layer.npz \
     resnet50_tensor_all_int8_per_layer.npz \
-    --order neuron_map.csv
+    --op_info resnet50_op_info_int8_per_layer.csv
 
 ################################
 # quantization 2: per-channel int8
@@ -106,7 +106,7 @@ bin_to_npz.py \
 npz_compare.py \
     resnet50_cmdbuf_out_all_int8_multiplier.npz \
     resnet50_tensor_all_int8_multiplier.npz \
-    --order neuron_map.csv
+    --op_info resnet50_op_info_int8_multiplier.csv
 
 # VERDICT
 echo $0 PASSED

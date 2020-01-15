@@ -21,5 +21,10 @@ run_caffe_detector_yolo.py \
 npz_extract.py yolo_v3_blobs.npz yolo_v3_in_fp32.npz input
 npz_extract.py yolo_v3_blobs.npz yolo_v3_out_fp32_ref.npz layer82-conv,layer94-conv,layer106-conv
 
+# fix input data consistency
+# because jpeg decoder may introduce difference, use save file to overwrite
+npz_compare.py yolo_v3_in_fp32.npz $REGRESSION_PATH/yolo_v3/data/yolo_v3_in_fp32.npz
+cp $REGRESSION_PATH/yolo_v3/data/yolo_v3_in_fp32.npz yolo_v3_in_fp32.npz
+
 # VERDICT
 echo $0 PASSED

@@ -19,5 +19,10 @@ run_caffe_classifier.py \
 npz_extract.py resnet50_blobs.npz resnet50_in_fp32.npz input
 npz_extract.py resnet50_blobs.npz resnet50_out_fp32_prob.npz prob
 
+# fix input data consistency
+# because jpeg decoder may introduce difference, use save file to overwrite
+npz_compare.py resnet50_in_fp32.npz $REGRESSION_PATH/resnet50/data/resnet50_in_fp32.npz
+cp $REGRESSION_PATH/resnet50/data/resnet50_in_fp32.npz resnet50_in_fp32.npz
+
 # VERDICT
 echo $0 PASSED
