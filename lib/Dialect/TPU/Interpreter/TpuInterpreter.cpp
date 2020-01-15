@@ -498,14 +498,18 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     if (op.quant() == "INT8" || op.quant() == "INT8_PER_CHANNEL") {
       assert(rshift);
       for (int i = 0; i < size; ++i) {
-        resultT->at(i) = (float)applyRShiftAndSaturateInt8(resultT->at(i),
-            (uint32_t)rshift->at(0));
+        if (input[i] < 0) {
+          resultT->at(i) = (float)applyRShiftAndSaturateInt8(resultT->at(i),
+              (uint32_t)rshift->at(0));
+        }
       }
     } else if (op.quant() == "INT8_MULTIPLIER") {
       assert(multiplier);
       for (int i = 0; i < size; ++i) {
-        resultT->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
-            resultT->at(i), (uint32_t)rshift->at(0), multiplier->at(0), true);
+        if (input[i] < 0) {
+          resultT->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
+              resultT->at(i), (uint32_t)rshift->at(0), multiplier->at(0), true);
+        }
       }
     } else if (op.quant() == "BF16") {
       // auto tensor_bf16 = std::make_unique<std::vector<bfloat16> >(resultT->size());
