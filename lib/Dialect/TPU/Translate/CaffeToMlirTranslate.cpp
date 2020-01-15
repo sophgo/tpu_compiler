@@ -849,10 +849,10 @@ void CaffeImporter::convertPReLULayer(mlir::Block *block,
   h = input_shape[2];
   w = input_shape[3];
 
-  int batch_size = layer->blobs()[0].get()->num();
-  int channels = layer->blobs()[0].get()->channels();
-  int height = layer->blobs()[0].get()->height();
-  int width = layer->blobs()[0].get()->width();
+  //int batch_size = layer->blobs()[0].get()->num();
+  //int channels = layer->blobs()[0].get()->channels();
+  //int height = layer->blobs()[0].get()->height();
+  //int width = layer->blobs()[0].get()->width();
   std::vector<Value *> operands;
   operands.push_back(input_var);
 
@@ -1473,7 +1473,7 @@ void CaffeImporter::convertTanHLayer(mlir::Block *block,
   auto filter_name = layer->layer_param().name()+"_y0";
   weightFile_->addTensor(filter_name, &dataVec_fp32, table_type);
   operands.push_back(AddLoadWeightOp(block, filter_name, table_type));
-  
+
   filter_name = layer->layer_param().name()+"_slope";
   weightFile_->addTensor(filter_name, &dataVec_fp32, table_type);
   operands.push_back(AddLoadWeightOp(block, filter_name, table_type));
