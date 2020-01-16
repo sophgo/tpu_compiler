@@ -31,6 +31,7 @@
 
 #include <iostream>
 #include <fstream>
+using namespace std;
 
 namespace mlir {
 
@@ -53,6 +54,7 @@ public:
     auto inputs = interpreter.getInputsList();
     assert(inputs.size() == 1);
     std::vector<int64_t> shape = inputs[0]->getType().template cast<TensorType>().getShape();
+
     assert(input_shape == shape);
     assert((int64_t)input_vec.size() == std::accumulate(shape.begin(), shape.end(), 1,
                                                         std::multiplies<int64_t>()));

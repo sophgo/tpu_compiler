@@ -100,7 +100,13 @@ public:
           processed += printTpuOpInfo<tpu::SliceOp>(op, file_os);
           processed += printTpuOpInfo<tpu::SoftmaxOp>(op, file_os);
           processed += printTpuOpInfo<tpu::TanHOp>(op, file_os);
-          processed += printTpuOpInfo<tpu::UpsampleOp>(op, file_os);
+          processed += printTpuOpInfo<tpu::UpsampleOp>(op, file_os);          
+          processed += printTpuOpInfo<tpu::DivOp>(op, file_os);
+          processed += printTpuOpInfo<tpu::PowerOp>(op, file_os);
+          processed += printTpuOpInfo<tpu::PermuteOp>(op, file_os);
+          processed += printTpuOpInfo<tpu::PriorBoxOp>(op, file_os);
+          processed += printTpuOpInfo<tpu::DetectionOutputOp>(op, file_os);
+          processed += printTpuOpInfo<tpu::SqrtOp>(op, file_os);          
           if (op->getName().getDialect().str() != "tpu"
               || isa<tpu::QuantizationOp>(op)
               || isa<tpu::DequantizationOp>(op)

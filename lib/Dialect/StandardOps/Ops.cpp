@@ -1940,12 +1940,17 @@ static LogicalResult verify(ReturnOp op) {
            << op.getNumOperands()
            << " operands, but enclosing function returns " << results.size();
 
-  for (unsigned i = 0, e = results.size(); i != e; ++i)
+    /*Reason why mark: 
+      Need to set different output shape from caffe output(Like SSD detection net). 
+      Here will check if shape is the same.
+    */ 
+
+/*  for (unsigned i = 0, e = results.size(); i != e; ++i)
     if (op.getOperand(i)->getType() != results[i])
       return op.emitError()
              << "type of return operand " << i << " ("
              << op.getOperand(i)->getType()
-             << ") doesn't match function result type (" << results[i] << ")";
+             << ") doesn't match function result type (" << results[i] << ")";*/
 
   return success();
 }
