@@ -129,9 +129,11 @@ if __name__ == '__main__':
     # print('x.shape', x.shape)
     res = module.run(x)
     # print('res.shape', res.shape)
+    assert(len(res) == 1)
+    prob  = res.values()[0]
 
     if args.show is True:
-      for i_th in get_topk(res, 5):
+      for i_th in get_topk(prob, 5):
         print(i_th)
       print(label)
 
@@ -149,7 +151,7 @@ if __name__ == '__main__':
       plt.show()
 
     # Update accuracy metrics
-    outputs = [mx.nd.array(res)]
+    outputs = [mx.nd.array(prob)]
     acc_top1.update(label, outputs)
     acc_top5.update(label, outputs)
     if (i+1)%50==0:

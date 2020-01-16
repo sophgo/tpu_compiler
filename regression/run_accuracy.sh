@@ -19,18 +19,8 @@ fi
 pushd regression_out
 
 # run tests
-$DIR/resnet50/accuracy_resnet50.sh $1 pytorch
-$DIR/resnet50/accuracy_resnet50.sh $1 gluoncv
-
-$DIR/mobilenet_v1/accuracy_mobilenet_v1.sh $1 pytorch
-$DIR/mobilenet_v1/accuracy_mobilenet_v1.sh $1 gluoncv
-
-$DIR/mobilenet_v2/accuracy_mobilenet_v2.sh $1 pytorch
-$DIR/mobilenet_v2/accuracy_mobilenet_v2.sh $1 gluoncv
-
-
-$DIR/vgg16/accuracy_vgg16.sh $1 pytorch
-$DIR/vgg16/accuracy_vgg16.sh $1 gluoncv
+$DIR/resnet50/accuracy_resnet50.sh $1
+$DIR/yolo_v3/accuracy_yolo_v3.sh $1
 
 popd
 

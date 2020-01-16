@@ -30,8 +30,10 @@ namespace mlir {
 class ModuleOp;
 
 LogicalResult runTpuModule(ModuleOp m,
-    std::vector<std::vector<float> *> &inputs,
-    std::vector<std::vector<float> *> &outputs);
+    std::vector<int64_t> input_shape, std::vector<float> &input_vec,
+    std::map<std::string, std::vector<float> > *results,
+    std::map<std::string, std::vector<int64_t> > *shapeMap,
+    std::map<std::string, std::vector<float> > *allTensorMap);
 
 } // namespace mlir
 

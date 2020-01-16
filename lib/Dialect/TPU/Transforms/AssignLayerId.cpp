@@ -39,49 +39,62 @@
 using namespace mlir;
 
 namespace {
-template<typename T>
-struct TpuLayerIdPattern : public RewritePattern {
-  TpuLayerIdPattern(MLIRContext *context, StringRef opName, uint32_t *layer_id)
-      : RewritePattern(opName, 1, context),
-        layer_id_(layer_id) {}
-
-  PatternMatchResult matchAndRewrite(Operation *op,
-                                  PatternRewriter &rewriter) const override {
-    auto castOp = cast<T>(op);
-    if (castOp.layer_id().hasValue()) {
-      // already assigned
-      return matchFailure();
-    }
-
-    castOp.setAttr("layer_id", rewriter.getI32IntegerAttr(++*layer_id_));
-
-    return matchSuccess();
-  }
-
-  uint32_t *layer_id_;
-};
-
 class AssignLayerIdPass : public FunctionPass<AssignLayerIdPass> {
 public:
   explicit AssignLayerIdPass() {}
 
   void runOnFunction() override {
     auto fn = getFunction();
+    auto *context = &getContext();
+    Builder builder(context);
 
     uint32_t layer_id = 0;
-    OwningRewritePatternList patterns;
-    auto *context = &getContext();
-    patterns.insert<TpuLayerIdPattern<tpu::Conv2DOp> >(
-        context, "tpu.conv_2d", &layer_id);
-    patterns.insert<TpuLayerIdPattern<tpu::FullyConnectedOp> >(
-        context, "tpu.fully_connected", &layer_id);
-    patterns.insert<TpuLayerIdPattern<tpu::Pool2DOp> >(
-        context, "tpu.pool_2d", &layer_id);
-    patterns.insert<TpuLayerIdPattern<tpu::EltwiseOp> > (
-        context, "tpu.eltwise", &layer_id);
-    patterns.insert<TpuLayerIdPattern<tpu::PReluOp>>(context, "tpu.prelu",
-                                                       &layer_id);
-    applyPatternsGreedily(fn, patterns);
+    fn.walk([&](Operation *op) {
+      int processed = 0;
+      processed += addLayerIdAttr<tpu::BatchNormOp>(builder, layer_id, op);
+      processed += addLayerIdAttr<tpu::ConcatOp>(builder, layer_id, op);
+      processed += addLayerIdAttr<tpu::Conv2DOp>(builder, layer_id, op);
+      processed += addLayerIdAttr<tpu::CropOp>(builder, layer_id, op);
+      processed += addLayerIdAttr<tpu::EltwiseOp>(builder, layer_id, op);
+      processed += addLayerIdAttr<tpu::FullyConnectedOp>(builder, layer_id, op);
+      processed += addLayerIdAttr<tpu::InputOp>(builder, layer_id, op);
+      processed += addLayerIdAttr<tpu::Pool2DOp>(builder, layer_id, op);
+      processed += addLayerIdAttr<tpu::PowerOp>(builder, layer_id, op);
+      processed += addLayerIdAttr<tpu::PReluOp>(builder, layer_id, op);
+      processed += addLayerIdAttr<tpu::ReluOp>(builder, layer_id, op);
+      processed += addLayerIdAttr<tpu::ReshapeOp>(builder, layer_id, op);
+      processed += addLayerIdAttr<tpu::ScaleOp>(builder, layer_id, op);
+      processed += addLayerIdAttr<tpu::SigmoidOp>(builder, layer_id, op);
+      processed += addLayerIdAttr<tpu::SliceOp>(builder, layer_id, op);
+      processed += addLayerIdAttr<tpu::SoftmaxOp>(builder, layer_id, op);
+      processed += addLayerIdAttr<tpu::TanHOp>(builder, layer_id, op);
+      processed += addLayerIdAttr<tpu::UpsampleOp>(builder, layer_id, op);
+      if (op->getName().getDialect().str() != "tpu"
+          || isa<tpu::QuantizationOp>(op)
+          || isa<tpu::DequantizationOp>(op)
+          || isa<tpu::LoadWeightOp>(op)
+          || isa<tpu::LoadFileOp>(op)) {
+        processed = 1;
+      }
+      if (!processed) {
+        llvm::errs() << "addLayerIdAttr didn't handle " << op->getName() << "\n";
+        assert(false);
+      }
+    });
+  }
+
+private:
+  template<typename T>
+  int addLayerIdAttr(Builder &builder, uint32_t &layer_id, Operation *op) {
+      auto cast_op = llvm::dyn_cast_or_null<T>(op);
+      if (cast_op) {
+        std::string op_name = cast_op.name().getValue().str();
+        llvm::errs() << op_name << " -> layer_id: " << layer_id << "\n";
+        cast_op.setAttr("layer_id", builder.getI32IntegerAttr(layer_id));
+        layer_id++;
+        return 1;
+      }
+      return 0;
   }
 };
 

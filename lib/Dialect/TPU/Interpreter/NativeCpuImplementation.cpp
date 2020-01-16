@@ -154,51 +154,126 @@ int mkldnn_conv(float *input, float *weight, float *bias,
   return 0;
 }
 
+int mkldnn_deconv(float *input, float *weight, float *bias,
+    float *output, int n, int ic, int ih, int iw, int oc, int oh, int ow,
+    int kh, int kw, int sh, int sw, int ph, int pw, int g) {
+  if (!bias) {
+    auto zero_bias = new std::vector<float>(oc, 0.0f);
+    bias = zero_bias->data();
+  }
+
+  // TODO - padding
+  assert(ph == 0);
+  assert(pw == 0);
+  int ph_t = ph;
+  int pw_l = pw;
+  int ph_b = ph;
+  int pw_r = pw;
+
+  LLVM_DEBUG(
+    llvm::errs() << "  i: (" << ih << "*" << iw << "), "
+                 << "  o: (" << oh << "*" << ow << "), "
+                 << "  k: (" << kh << "*" << kw << "), "
+                 << "s: (" << sh << "*" << sw << "), "
+                 << "p: (" << ph << "*" << pw << "), "
+                 << "g: " << g << "\n";
+  );
+
+  using tag = memory::format_tag;
+  using dt = memory::data_type;
+
+  engine eng(engine::kind::cpu, 0);
+  stream s(eng);
+
+  std::vector<primitive> net;
+  std::vector<std::unordered_map<int, memory>> net_args;
+
+  const memory::dim batch = n;
+  memory::dims src_tz = { batch, ic, ih, iw };
+  memory::dims weights_tz = (g != 1) ? memory::dims{g, oc/g, ic/g, kh, kw}
+                                    : memory::dims{oc, ic, kh, kw};
+  memory::dims bias_tz = { oc };
+  memory::dims dst_tz = { batch, oc, oh, ow };
+  memory::dims strides = { sh, sw };
+  memory::dims padding_l = { ph_t, pw_l };
+  memory::dims padding_r = { ph_b, pw_r };
+
+  // memory
+  auto user_src_memory = memory(
+      { { src_tz }, dt::f32, tag::nchw }, eng, input);
+  auto user_weights_memory = (g != 1)
+      ? memory({ { weights_tz }, dt::f32, tag::goihw }, eng, weight)
+      : memory({ { weights_tz }, dt::f32, tag::oihw }, eng, weight);
+  auto user_bias_memory = memory(
+      { { bias_tz }, dt::f32, tag::x }, eng, bias);
+  auto user_dst_memory = memory(
+      { { dst_tz }, dt::f32, tag::nchw }, eng, output);
+
+  // md
+  auto src_md     = memory::desc({ src_tz }, dt::f32, tag::any);
+  auto weights_md = memory::desc({ weights_tz }, dt::f32, tag::any);
+  auto bias_md    = memory::desc({ bias_tz }, dt::f32, tag::any);
+  auto dst_md     = memory::desc({ dst_tz }, dt::f32, tag::any);
+
+  // deconv desc
+  auto deconv_desc = deconvolution_forward::desc(prop_kind::forward_inference,
+      algorithm::deconvolution_direct, src_md, weights_md, bias_md, dst_md,
+      strides, padding_l, padding_r);
+
+  auto deconv_prim_desc = deconvolution_forward::primitive_desc(deconv_desc, eng);
+
+  // do reorder if needed
+  auto src_memory = user_src_memory;
+  if (deconv_prim_desc.src_desc() != user_src_memory.get_desc()) {
+    src_memory = memory(deconv_prim_desc.src_desc(), eng);
+    net.push_back(reorder(user_src_memory, src_memory));
+    net_args.push_back({ { MKLDNN_ARG_FROM, user_src_memory },
+        { MKLDNN_ARG_TO, src_memory } });
+  }
+  auto weights_memory = user_weights_memory;
+  if (deconv_prim_desc.weights_desc() != user_weights_memory.get_desc()) {
+    weights_memory = memory(deconv_prim_desc.weights_desc(), eng);
+    reorder(user_weights_memory, weights_memory)
+        .execute(s, user_weights_memory, weights_memory);
+  }
+  auto bias_memory = user_bias_memory;
+
+  auto dst_memory = memory(deconv_prim_desc.dst_desc(), eng);
+
+  net.push_back(deconvolution_forward(deconv_prim_desc));
+  net_args.push_back({ { MKLDNN_ARG_SRC, src_memory },
+      { MKLDNN_ARG_WEIGHTS, weights_memory },
+      { MKLDNN_ARG_BIAS, bias_memory },
+      { MKLDNN_ARG_DST, dst_memory } });
+
+  // reorder or copy the output
+  if (dst_memory != user_dst_memory) {
+    net.push_back(reorder(dst_memory, user_dst_memory));
+    net_args.push_back({ { MKLDNN_ARG_FROM, dst_memory },
+        { MKLDNN_ARG_TO, user_dst_memory } });
+  }
+
+  // run
+  assert(net.size() == net_args.size() && "something is missing");
+  for (size_t i = 0; i < net.size(); ++i)
+      net.at(i).execute(s, net_args.at(i));
+
+  s.wait();
+
+  return 0;
+}
+
 int mkldnn_pool(float *input, float *output,
     int n, int c, int ih, int iw, int oh, int ow,
-    int kh, int kw, int sh, int sw, int ph, int pw,
+    int kh, int kw, int sh, int sw, int pt, int pb, int pl, int pr,
     bool is_avg) {
-  int p_t = ph;
-  int p_b = ph;
-  int p_l = pw;
-  int p_r = pw;
-  // Fix padding
-  if ( (ih - kh) % sh ) {
-    assert(sh == 2);
-    assert(oh == static_cast<int>(ceil(static_cast<float>(
-        ih + 2 * ph - kh) / sh)) + 1);
-    // caffe will pass ph == 0 (padding == "SAME") here
-    // by passing ph == 0, caffe actually means
-    // p_top = 0, p_bottom = 1
-    // if ph == 1 is passed (padding == "SAME")
-    // we handle it with the opposite of caffe, i.e.
-    // p_top = 1, p_bottom = 0
-    if (ph == 0) {
-      p_b = 1;
-    } else {
-      assert(ph == 1);
-      p_b = 0;
-    }
-    assert(ph == 0);  // put a reminder here, just in case we met the case
-  }
-  if ( (iw - kw) % sw ) {
-    assert(sw == 2);
-    assert(ow == static_cast<int>(ceil(static_cast<float>(
-        iw + 2 * pw - kw) / sw)) + 1);
-    // caffe will pass pw == 0 (padding == "SAME") here
-    // by passing pw == 0, caffe actually means
-    // p_left = 0, p_right = 1
-    // if pw == 1 is passed (padding == "SAME")
-    // we handle it with the opposite of caffe, i.e.
-    // p_left = 1, p_right = 0
-    if (pw == 0) {
-      p_r = 1;
-    } else {
-      assert(pw == 1);
-      p_r = 0;
-    }
-    assert(pw == 0);  // put a reminder here, just in case we met the case
-  }
+  LLVM_DEBUG(
+    llvm::errs() << "mkldnn_pool: "<< "  i: (" << ih << "*" << iw << "), "
+              << "o: (" << oh << "*" << ow << "), "
+              << "k: (" << kh << "*" << kw << "), "
+              << "s: (" << sh << ", " << sw << "), "
+              << "p: (" << pt << ", " << pb  << ", " << pl << ", "  << pr << "), " << "\n";
+  );
 
 #ifdef DUMP_FLAG
   static int dump_idx = 0;
@@ -211,8 +286,8 @@ int mkldnn_pool(float *input, float *output,
   LLVM_DEBUG(
     llvm::errs() << "  k: (" << kh << "*" << kw << "), "
                  << "s: (" << sh << "*" << sw << "), "
-                 << "p: (" << p_t << "-" << p_b
-                 << "*" << p_l << "-" << p_r << ")" << "\n";
+                 << "p: (" << pt << "-" << pb
+                 << "*" << pl << "-" << pr << ")" << "\n";
   );
 
   using tag = memory::format_tag;
@@ -229,8 +304,8 @@ int mkldnn_pool(float *input, float *output,
   memory::dims dst_tz = { batch, c, oh, ow };
   memory::dims kernel = { kh, kw };
   memory::dims strides = { sh, sw };
-  memory::dims padding_t_l = { p_t, p_l };
-  memory::dims padding_b_r = { p_b, p_r };
+  memory::dims padding_t_l = { pt, pl };
+  memory::dims padding_b_r = { pb, pr };
 
   // memory
   auto user_src_memory = memory(
@@ -642,6 +717,34 @@ int my_crop(float *input, float *output, long int *shape1, long int *shape2, lon
   }
   return 0;
 }
+
+int my_tanh(float *input, float *output,
+    int n, int c, int h, int w) {
+#ifdef DUMP_FLAG
+  static int dump_idx = 0;
+  std::string prefix = std::string("tanh") + std::to_string(dump_idx);
+  if (dump_idx < 4) {
+    write_bianry_file(prefix + std::string("_in.bin"),
+        (const char *)input, n * c * h * w * sizeof(float));
+  }
+#endif // DUMP_FLAG
+  LLVM_DEBUG(
+    llvm::errs() << "  n: " << n << ", c: " << c
+                 << ", h: " << h << ", w: " << w << "\n";
+  );
+
+  for (int i = 0; i < n * c * h * w; ++i) {
+    output[i] = tanh(input[i]);
+  }
+#ifdef DUMP_FLAG
+  if (dump_idx < 4) {
+    write_bianry_file(prefix + std::string("_out.bin"),
+        (const char *)output, n * c * h * w * sizeof(float));
+  }
+  dump_idx ++;
+#endif // DUMP_FLAG
+  return 0;
+}
 int my_eltwise(float *input_1, float *input_2, float *output, int n, int c,
                int h, int w, int op) {
 #ifdef DUMP_FLAG
@@ -680,6 +783,7 @@ int my_eltwise(float *input_1, float *input_2, float *output, int n, int c,
 
   return 0;
 }
+
 
 
 int my_permute(float *input, float *output, const int input_shape_size,int in, int ic, int ih, 
@@ -744,5 +848,31 @@ int my_normalize(float *input,float *output,bool across_spatial,int n,int c,int 
   }else{
     assert(0);
   }
+  return 0;
+}
+
+
+int my_slice(float *input, float *output, int axis,
+  std::vector<int64_t> input_shape, std::vector<int64_t> output_shape) {
+  const int bottom_slice_axis = input_shape[axis];
+  const int top_slice_axis = output_shape[axis];
+
+  int num_slices = 1;
+  for (int i = 0; i < axis; i++) {
+    num_slices *= input_shape[i];
+  }
+
+  int slice_size = 1;
+  for (uint32_t i = axis + 1; i < input_shape.size(); i++) {
+    slice_size *= input_shape[i];
+  }
+
+  for (int n = 0; n < num_slices; ++n) {
+    const int top_offset = n * top_slice_axis * slice_size;
+    const int bottom_offset =
+        (n * bottom_slice_axis) * slice_size;
+    memcpy(output + top_offset, input + bottom_offset, sizeof(float) * top_slice_axis * slice_size);
+  }
+
   return 0;
 }

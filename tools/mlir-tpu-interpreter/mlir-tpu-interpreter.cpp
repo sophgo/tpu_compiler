@@ -44,91 +44,6 @@
 
 using namespace mlir;
 
-static void dump_data_float_abs(const char * const desc, const void * const addr,
-    int n, int c, int h, int w)
-{
-#define ABS_LEN 4
-#define ABS_COUNT 1
-  int ni, ci, hi, wi;
-  int off;
-  const float *data = (const float *)addr;
-
-  /* Output description if given. */
-  if (desc != NULL)
-    printf("%s: abs, n=%d, c=%d, h=%d, w=%d\n", desc, n, c, h, w);
-
-  /* Process first and last 4 col and 4 raw in the data. */
-  for (ni = 0; ni < n; ni++) {
-    for (ci = 0; ci < c; ci++) {
-      if ((ni * c + ci) == ABS_COUNT)
-        printf("\n .\n .\n .\n");
-      if ((ni * c + ci) >= ABS_COUNT && (ni * c + ci) <= (n * c - ABS_COUNT - 1))
-        continue;
-      printf("=== n = %02d, c = %02d ===\n", ni, ci);
-      for (hi = 0; hi < h; hi++) {
-        if (hi == ABS_LEN)
-          printf(" ... \n");
-        if (hi >= ABS_LEN && hi <= h - ABS_LEN - 1)
-          continue;
-        printf("[ ");
-        for (wi = 0; wi < w; wi++) {
-          if (wi == ABS_LEN)
-            printf(" ... ");
-          if (wi >= ABS_LEN && wi <= w - ABS_LEN - 1)
-            continue;
-          off = ni * (c * h * w) + ci * (h * w) + hi * w + wi;
-          if (data[off] >= 0)
-            printf(" ");
-          printf("%2.2f ", data[off]);
-        }
-        printf("]\n");
-      }
-    }
-  }
-}
-
-static size_t read_bianry_file(std::string filename, std::vector<float> &v,
-    size_t size = 0) {
-  std::ifstream is;
-  is.open(filename.c_str(), std::ios::in | std::ios::binary);
-  if (!is) {
-    llvm::errs() << "Open " << filename << " failed.\n";
-    assert(0);
-  }
-  // use size in argument first
-  if (size == 0) {
-    // if vector is pre-allocated, use the vector size
-    if (v.size() != 0) {
-      size = v.size() * sizeof(float);
-    } else {
-      // finally, use the file total size
-      is.seekg(0, is.end);
-      size = is.tellg();
-      is.seekg(0, is.beg);
-    }
-  }
-  if (v.size() < size) {
-    v.resize(size);
-  }
-  llvm::errs() << "read " << size << " bytes from " << filename << "\n";
-  is.read(reinterpret_cast<char*>(v.data()), size);
-  is.close();
-  return size;
-}
-
-static size_t write_bianry_file(std::string filename, std::vector<float> &v,
-    size_t size = 0) {
-  std::ofstream os;
-  os.open(filename.c_str(), std::ios::out | std::ios::binary);
-  if (size == 0) {
-    size = v.size() * sizeof(float);
-  }
-  llvm::errs() << "write " << size << " bytes to " << filename << "\n";
-  os.write(reinterpret_cast<const char*>(v.data()), size);
-  os.close();
-  return size;
-}
-
 static llvm::cl::opt<std::string> inputFilename(llvm::cl::Positional,
                                                 llvm::cl::desc("<input file>"),
                                                 llvm::cl::init("-"));
@@ -139,6 +54,11 @@ static llvm::cl::opt<std::string> inputTensorFilename("tensor-in",
 
 static llvm::cl::opt<std::string> outputTensorFilename("tensor-out",
     llvm::cl::desc("Output Tensor Filename"),
+    llvm::cl::init("-"));
+
+static llvm::cl::opt<std::string> dumpAllTensorFilename(
+    "dump-all-tensor",
+    llvm::cl::desc("dump all tensor into a npz file"),
     llvm::cl::init("-"));
 
 static OwningModuleRef parseMLIRInput(StringRef inputFilename,
@@ -175,21 +95,42 @@ int TpuInterpreterMain(
     if (failed(mlirTransformer(m.get())))
       return EXIT_FAILURE;
 
-  std::vector<float> input(1*3*224*224);
-  std::vector<float> output(1*1000);
-  //std::fill (std::begin(input), std::end(input), 1.0f);
-  read_bianry_file(inputTensorFilename, input);
+  auto inputTF = openTensorFile(inputTensorFilename);
+  std::vector<std::vector<float> *> input_tensors;
+  std::vector<std::vector<int64_t> > input_shapes;
+  if (failed(inputTF->readAllTensors(input_tensors, input_shapes))) {
+    llvm::errs() << "cound not read input tensor\n";
+    return EXIT_FAILURE;
+  }
+  // support one input only for now
+  assert(input_tensors.size() == 1);
+  assert(input_shapes.size() == 1);
 
-  std::vector<std::vector<float> *> inputs({&input});
-  std::vector<std::vector<float> *> outputs({&output});
+  std::map<std::string, std::vector<float> > results;
+  std::map<std::string, std::vector<int64_t> > shapeMap;
+  std::map<std::string, std::vector<float> > allTensorMap;
 
-  if (failed(runTpuModule(m.get(), inputs, outputs)))
+  if (failed(runTpuModule(m.get(), input_shapes[0], *input_tensors[0],
+                          &results, &shapeMap, &allTensorMap)))
     return EXIT_FAILURE;
 
-  if (outputTensorFilename == "-") {
-    dump_data_float_abs("output", outputs[0]->data(), 1, 1, 10, 100);
-  } else {
-    write_bianry_file(outputTensorFilename, output);
+  if (outputTensorFilename != "-") {
+    auto outputTF = openOutputTensorFile(outputTensorFilename);
+    for (auto it = results.begin(); it != results.end(); it++ ) {
+      auto shape = shapeMap[it->first];
+      outputTF->addTensor(it->first, &it->second, shape);
+    }
+    outputTF->keep();
+  }
+
+  if (dumpAllTensorFilename != "-") {
+    // dump all values
+    auto allTensorTF = openOutputTensorFile(dumpAllTensorFilename);
+    for (auto it = allTensorMap.begin(); it != allTensorMap.end(); it++ ) {
+      auto shape = shapeMap[it->first];
+      allTensorTF->addTensor(it->first, &it->second, shape);
+    }
+    allTensorTF->keep();
   }
 
   int exitCode = EXIT_SUCCESS;

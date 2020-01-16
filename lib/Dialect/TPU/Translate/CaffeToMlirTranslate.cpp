@@ -89,6 +89,7 @@ private:
   void convertInputLayer(mlir::Block *block, caffe::Layer<float> *layer);
   void convertSplitLayer(mlir::Block *block, caffe::Layer<float> *layer);
   void convertConvolutionLayer(mlir::Block *block, caffe::Layer<float> *layer);
+  void convertDeconvolutionLayer(mlir::Block *block, caffe::Layer<float> *layer);
   void convertInnerProductLayer(mlir::Block *block, caffe::Layer<float> *layer);
   void convertPoolingLayer(mlir::Block *block, caffe::Layer<float> *layer);
   void convertBatchNormLayer(mlir::Block *block, caffe::Layer<float> *layer);
@@ -108,6 +109,8 @@ private:
   void convertReshapeLayer(mlir::Block *block, caffe::Layer<float> *layer);
   void convertPermuteLayer(mlir::Block *block, caffe::Layer<float> *layer);
   void convertNormalizeLayer(mlir::Block *block, caffe::Layer<float> *layer);
+  void convertTanHLayer(mlir::Block *block, caffe::Layer<float> *layer);
+
   mlir::ModuleOp module_;
   mlir::Builder builder_;
   std::unique_ptr<TensorFile> weightFile_;
@@ -137,6 +140,9 @@ static void printCaffeNetAllLayer(const caffe::Net<float>& net) {
 #define calcConv2DSpatialOutput(_i_, _k_, _s_, _p_, _d_) \
     (((_i_) + 2 * (_p_) - (_d_) * ((_k_) - 1) - 1) / (_s_) + 1)
 
+#define calcDeConv2DSpatialOutput(_i_, _k_, _s_, _p_, _d_) \
+    ((_s_) * (((_i_)) - 1) + (_d_) * ((_k_) - 1) - 2 * (_p_) + 1)
+
 mlir::Type CaffeImporter::GetTypeFromCaffeShape(
     const std::vector<int> shape, mlir::Type elementType) {
   std::vector<int64_t> shape_int64(shape.begin(), shape.end());
@@ -162,6 +168,7 @@ void CaffeImporter::ParseNetInputOutput(caffe::Net<float> &net,
   }
   for (int i = 0; i <= net.num_outputs() - 1; ++i) {
     int index = net.output_blob_indices()[i];
+
     LLVM_DEBUG(
       llvm::errs()
           << "net output[" << i << "] - [" << index << "] : "
@@ -250,6 +257,10 @@ void CaffeImporter::ConvertLayers(mlir::Block *block,
       convertPermuteLayer(block, layer);
     } else if (strcmp(layer->type(), "Normalize") == 0) {
       convertNormalizeLayer(block, layer);    
+    } else if (strcmp(layer->type(), "TanH") == 0) {
+      convertTanHLayer(block, layer);
+    } else if (strcmp(layer->type(), "Deconvolution") == 0) {
+      convertDeconvolutionLayer(block, layer);
     } else {
       llvm::errs() << "    UNKNOWN : " << layer->type() <<"\n";
       assert(false);
@@ -368,7 +379,7 @@ void CaffeImporter::convertConvolutionLayer(mlir::Block *block,
   ofmap[1] = calcConv2DSpatialOutput(ifmap[1], kernel[1], stride[1], padding[1], dilation[1]);
   // if group is not 1, assume it is dw conv for now
   if (g != 1) {
-    assert(g == ic && g == oc);
+    // assert(g == ic && g == oc);
   }
 
   LLVM_DEBUG(
@@ -429,6 +440,104 @@ void CaffeImporter::convertConvolutionLayer(mlir::Block *block,
   auto result_var = op.getResult();
 
   tensor_map_[layer_param.top(0)] = result_var;
+}
+
+void CaffeImporter::convertDeconvolutionLayer(mlir::Block *block, caffe::Layer<float> *layer) {
+  mlir::Value *input_var = GetLayerInput(layer);
+  LLVM_DEBUG(llvm::errs() << "convertDeconvolutionLayer" << "\n";);
+
+  auto layer_param = layer->layer_param();
+  assert(layer_param.has_convolution_param());
+  auto p = layer_param.convolution_param();
+  int64_t n, ic, oc, g;
+  std::vector<int64_t> kernel(2), stride(2), padding(2), dilation(2);
+  std::vector<int64_t> ifmap(2), ofmap(2); // spatial dims only (height and width)
+
+  bool with_bias = p.bias_term();
+  oc = p.num_output();
+  g  = p.has_group()? p.group() : 1;
+  kernel[0] = p.has_kernel_h() ? p.kernel_h() : p.kernel_size_size() > 1 ? p.kernel_size(1) : p.kernel_size(0);
+  kernel[1] = p.has_kernel_w() ? p.kernel_w() : p.kernel_size(0);
+  stride[0] = p.has_stride_h() ? p.stride_h() : p.stride_size() > 1 ? p.stride(1) : p.stride_size() > 0 ? p.stride(0) : 1;
+  stride[1] = p.has_stride_w() ? p.stride_w() : p.stride_size() > 0 ? p.stride(0) : 1;
+  padding[0]  = p.has_pad_h() ? p.pad_h() : p.pad_size() > 1 ? p.pad(1) : p.pad_size() > 0 ? p.pad(0) : 0;
+  padding[1]  = p.has_pad_w() ? p.pad_w() : p.pad_size() > 0 ? p.pad(0) : 0;
+  dilation[0] = p.dilation_size() > 1 ? p.dilation(1) : p.dilation_size() > 0 ? p.dilation(0) : 1;
+  dilation[1] = p.dilation_size() > 0 ? p.dilation(0) : 1;
+
+  assert( (dilation[0] == 1) && (dilation[1] == 1) );
+  // get input shape from input var
+  llvm::ArrayRef<int64_t> input_shape =
+      input_var->getType().dyn_cast<mlir::TensorType>().getShape();
+
+  assert(input_shape.size() == 4);
+  n = input_shape[0];
+  ic = input_shape[1];
+  ifmap[0] = input_shape[2];
+  ifmap[1] = input_shape[3];
+  // get output shape from inference
+  ofmap[0] = calcDeConv2DSpatialOutput(ifmap[0], kernel[0], stride[0], padding[0], dilation[0]);
+  ofmap[1] = calcDeConv2DSpatialOutput(ifmap[1], kernel[1], stride[1], padding[1], dilation[1]);
+
+  LLVM_DEBUG(
+    llvm::errs()
+        << "  N: " << n
+        << ", IC: " << ic
+        << ", IH*IW: " << ifmap[0] << " * " << ifmap[1]
+        << ", OC: " << oc
+        << ", OH*OW: " << ofmap[0] << " * " << ofmap[1]
+        << "\n";
+    llvm::errs()
+        << "  with_bias: " << with_bias
+        << ", K: " << kernel[0]   << " * " << kernel[1]
+        << ", S: " << stride[0]   << " * " << stride[1]
+        << ", P: " << padding[0]  << " * " << padding[1]
+        << ", D: " << dilation[0] << " * " << dilation[1]
+        << ", group: " << g
+        << "\n";
+  );
+
+  std::vector<Value *> operands;
+  operands.push_back(input_var);
+
+
+  // - blobs_[0] holds the filter weights
+  // - blobs_[1] holds the biases (optional)
+  auto filter_name = layer->layer_param().name()+"_0";
+  TensorType filter_type;
+  if (g != 1) {
+    filter_type = RankedTensorType::get({g, oc/g, ic/g, kernel[0], kernel[1]}, elementType_);
+  } else {
+    filter_type = RankedTensorType::get({oc, ic, kernel[0], kernel[1]}, elementType_);
+  }
+  weightFile_->addTensor(filter_name, layer->blobs()[0].get()->cpu_data(), filter_type);
+  operands.push_back(AddLoadWeightOp(block, filter_name, filter_type));
+  if (with_bias) {
+    auto bias_name = layer->layer_param().name()+"_1";
+    auto bias_type = RankedTensorType::get({oc}, elementType_);
+    weightFile_->addTensor(bias_name, layer->blobs()[1].get()->cpu_data(), bias_type);
+    operands.push_back(AddLoadWeightOp(block, bias_name, bias_type));
+  }
+
+  // construct OP
+  auto result_type = RankedTensorType::get({n, oc, ofmap[0], ofmap[1]}, elementType_);
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder_.getNamedAttr("with_bias", builder_.getBoolAttr(with_bias)));
+  attrs.push_back(builder_.getNamedAttr("dilation_h_factor", builder_.getI32IntegerAttr(dilation[0])));
+  attrs.push_back(builder_.getNamedAttr("dilation_w_factor", builder_.getI32IntegerAttr(dilation[1])));
+  attrs.push_back(builder_.getNamedAttr("padding", (padding[0] || padding[1])
+                  ? builder_.getStringAttr("SAME") : builder_.getStringAttr("VALID")));
+  attrs.push_back(builder_.getNamedAttr("stride_h", builder_.getI32IntegerAttr(stride[0])));
+  attrs.push_back(builder_.getNamedAttr("stride_w", builder_.getI32IntegerAttr(stride[1])));
+  attrs.push_back(builder_.getNamedAttr("group", builder_.getI32IntegerAttr(g)));
+  attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name())));
+  auto op = OpBuilder(block).create<tpu::DeConv2DOp>(
+      builder_.getUnknownLoc(), result_type,
+      ArrayRef<Value *>{operands}, ArrayRef<NamedAttribute>{attrs});
+  auto result_var = op.getResult();
+
+  tensor_map_[layer_param.top(0)] = result_var;
+
 }
 
 void CaffeImporter::convertInnerProductLayer(mlir::Block *block,
@@ -559,18 +668,33 @@ void CaffeImporter::convertPoolingLayer(mlir::Block *block,
   stride[1]  = p.has_stride_w() ? p.stride_w() : p.has_stride() ? p.stride() : 1;
   padding[0] = p.has_pad_h() ? p.pad_h() : p.has_pad() ? p.pad() : 0;
   padding[1] = p.has_pad_w() ? p.pad_w() : p.has_pad() ? p.pad() : 0;
-  //
-  // Fix caffe pooling padding
-  //
-  //  pooled_height_ = static_cast<int>(ceil(static_cast<float>(
-  //      height_ + 2 * pad_h_ - kernel_h_) / stride_h_)) + 1;
-  //  pooled_width_ = static_cast<int>(ceil(static_cast<float>(
-  //      width_ + 2 * pad_w_ - kernel_w_) / stride_w_)) + 1;
-  //
-  ofmap[0] = (static_cast<int>(ceil(static_cast<float>(
-        ifmap[0] + 2 * padding[0] - kernel[0]) / stride[0])) + 1);
-  ofmap[1] = (static_cast<int>(ceil(static_cast<float>(
-        ifmap[1] + 2 * padding[1] - kernel[1]) / stride[1])) + 1);
+
+  // when (ih - kh) % sh != 0, asymetric padding are needed
+  // and ceiling/floor mode are different
+  // eg.1 resnet50 112x112 -> 56x56, k=3x3, s=2x2, ph=0, pw=0, ceil_mode
+  // eg.2 resnet50 7x7 -> 1x1, k=7x7, s=1x1, ph=0, pw=0, ceil_mode
+  // eg.3 retinaface 300x300 -> 151x151, k=3x3, s=2x2, ph=1, pw=1, ceil_mode
+  //   => pad_top = 1, pad_bottom = 2, pad_left = 1, pad_right = 2
+  // eg.4 300x300 -> 150x150, k=3x3, s=2x2, ph=1, pw=1, floor_mode
+  //   => pad_top = 1, pad_bottom = 1, pad_left = 1, pad_right = 1
+
+  // Intel caffe does not support round_mode (ceil mode by default)
+  // Only implement ceil padding at the following now.
+  // Hence, we don't support eg4 now.
+  std::vector<int64_t> padding_tl(2), padding_br(2);
+  padding_tl[0] = padding[0];
+  padding_tl[1] = padding[1];
+  padding_br[0] = padding[0];
+  padding_br[1] = padding[1];
+
+  for (size_t i = 0; i < 2; ++i) {
+    ofmap[i] = (static_cast<int>(ceil(static_cast<float>(
+      ifmap[i] + 2 * padding[i] - kernel[i]) / stride[i])) + 1);
+
+    int remain_pixel = (ifmap[i] + 2 * padding[i] - kernel[i]) % stride[i];
+    if (remain_pixel > 0)
+      padding_br[i] += (stride[i] - remain_pixel);
+  }
 
   if (is_global_pooling) {
     assert( (padding[0] == 0) && (padding[1] == 0) );
@@ -589,7 +713,8 @@ void CaffeImporter::convertPoolingLayer(mlir::Block *block,
     llvm::errs()
         << "  K: " << kernel[0] << " * " << kernel[1]
         << ", S: " << stride[0] << " * " << stride[1]
-        << ", P: " << padding[0] << " * " << padding[1]
+        << ", P_TL: " << padding_tl[0] << " * " << padding_tl[1]
+        << ", P_BR: " << padding_br[0] << " * " << padding_br[1]
         << ", global_pooling: " << is_global_pooling
         << "\n";
   );
@@ -604,8 +729,10 @@ void CaffeImporter::convertPoolingLayer(mlir::Block *block,
   }
   attrs.push_back(builder_.getNamedAttr("filter_height", builder_.getI32IntegerAttr(kernel[0])));
   attrs.push_back(builder_.getNamedAttr("filter_width", builder_.getI32IntegerAttr(kernel[1])));
-  attrs.push_back(builder_.getNamedAttr("padding",
-      (padding[0] || padding[1]) ? builder_.getStringAttr("SAME") : builder_.getStringAttr("VALID")));
+  attrs.push_back(builder_.getNamedAttr("pad_top", builder_.getI32IntegerAttr(padding_tl[0])));
+  attrs.push_back(builder_.getNamedAttr("pad_bottom", builder_.getI32IntegerAttr(padding_br[0])));
+  attrs.push_back(builder_.getNamedAttr("pad_left", builder_.getI32IntegerAttr(padding_tl[1])));
+  attrs.push_back(builder_.getNamedAttr("pad_right", builder_.getI32IntegerAttr(padding_br[1])));
   attrs.push_back(builder_.getNamedAttr("stride_h", builder_.getI32IntegerAttr(stride[0])));
   attrs.push_back(builder_.getNamedAttr("stride_w", builder_.getI32IntegerAttr(stride[1])));
   attrs.push_back(builder_.getNamedAttr("fused_activation_function", builder_.getStringAttr("NONE")));
@@ -630,18 +757,28 @@ void CaffeImporter::convertBatchNormLayer(mlir::Block *block,
   int64_t n, c, h, w;
   llvm::ArrayRef<int64_t> input_var_shape =
       input_var->getType().dyn_cast<mlir::TensorType>().getShape();
-  assert(input_var_shape.size() == 4);
+
+
+  assert(input_var_shape.size() == 4 ||
+         input_var_shape.size() == 2);
+
   n = input_var_shape[0];
   c = input_var_shape[1];
-  h = input_var_shape[2];
-  w = input_var_shape[3];
-
   LLVM_DEBUG(
     llvm::errs()
         << "  N: " << n
-        << ", C: " << c
-        << ", IH*IW: " << h << " * " << w
-        << "\n";
+        << ", C: " << c;
+  );
+  if (input_var_shape.size() == 4){
+    h = input_var_shape[2];
+    w = input_var_shape[3];
+    LLVM_DEBUG(
+      llvm::errs()
+          << ", IH*IW: " << h << " * " << w;
+    );
+  }
+  LLVM_DEBUG(
+    llvm::errs() << "\n";
   );
 
   std::vector<Value *> operands;
@@ -667,8 +804,9 @@ void CaffeImporter::convertBatchNormLayer(mlir::Block *block,
   weightFile_->addTensor(scale_name, layer->blobs()[2].get()->cpu_data(), scale_type);
   operands.push_back(AddLoadWeightOp(block, scale_name, scale_type));
 
-  // construct OP
-  auto result_type = RankedTensorType::get({n, c, h, w}, elementType_);
+  // auto result_type = RankedTensorType::get({n, c, h, w}, elementType_);
+  auto result_type = RankedTensorType::get(input_var_shape, elementType_);
+
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name())));
   auto op = OpBuilder(block).create<tpu::BatchNormOp>(
@@ -692,18 +830,27 @@ void CaffeImporter::convertScaleLayer(mlir::Block *block,
   auto input_var = input_vars[0];
   llvm::ArrayRef<int64_t> input_var_shape =
       input_var->getType().dyn_cast<mlir::TensorType>().getShape();
-  assert(input_var_shape.size() == 4);
+
+  assert(input_var_shape.size() == 4 ||
+         input_var_shape.size() == 2);
+
   n = input_var_shape[0];
   c = input_var_shape[1];
-  h = input_var_shape[2];
-  w = input_var_shape[3];
-
   LLVM_DEBUG(
     llvm::errs()
         << "  N: " << n
-        << ", C: " << c
-        << ", IH*IW: " << h << " * " << w
-        << "\n";
+        << ", C: " << c;
+  );
+  if (input_var_shape.size() == 4){
+    h = input_var_shape[2];
+    w = input_var_shape[3];
+    LLVM_DEBUG(
+      llvm::errs()
+          << ", IH*IW: " << h << " * " << w;
+    );
+  }
+  LLVM_DEBUG(
+    llvm::errs() << "\n";
   );
 
   std::vector<Value *> operands;
@@ -711,7 +858,9 @@ void CaffeImporter::convertScaleLayer(mlir::Block *block,
   if(input_vars.size() == 2){
     // two bottom input
     // construct OP
-    auto result_type = RankedTensorType::get({n, c, h, w}, elementType_);
+    //auto result_type = RankedTensorType::get({n, c, h, w}, elementType_);
+    auto result_type = RankedTensorType::get(input_var_shape, elementType_);
+
     std::vector<NamedAttribute> attrs;
     attrs.push_back(builder_.getNamedAttr(
         "name", builder_.getStringAttr(layer_param.name())));
@@ -734,10 +883,13 @@ void CaffeImporter::convertScaleLayer(mlir::Block *block,
       operands.push_back(AddLoadWeightOp(block, bias_name, bias_type));
     }
     // construct OP
-    auto result_type = RankedTensorType::get({n, c, h, w}, elementType_);
+    //auto result_type = RankedTensorType::get({n, c, h, w}, elementType_);
+    auto result_type = RankedTensorType::get(input_var_shape, elementType_);
     std::vector<NamedAttribute> attrs;
     attrs.push_back(builder_.getNamedAttr(
         "name", builder_.getStringAttr(layer_param.name())));
+    attrs.push_back(
+        builder_.getNamedAttr("with_bias", builder_.getBoolAttr(with_bias)));
     auto op = OpBuilder(block).create<tpu::ScaleOp>(
         builder_.getUnknownLoc(), result_type, ArrayRef<Value *>{operands},
         ArrayRef<NamedAttribute>{attrs});
@@ -809,10 +961,10 @@ void CaffeImporter::convertPReLULayer(mlir::Block *block,
   h = input_shape[2];
   w = input_shape[3];
 
-  int batch_size = layer->blobs()[0].get()->num();
-  int channels = layer->blobs()[0].get()->channels();
-  int height = layer->blobs()[0].get()->height();
-  int width = layer->blobs()[0].get()->width();
+  //int batch_size = layer->blobs()[0].get()->num();
+  //int channels = layer->blobs()[0].get()->channels();
+  //int height = layer->blobs()[0].get()->height();
+  //int width = layer->blobs()[0].get()->width();
   std::vector<Value *> operands;
   operands.push_back(input_var);
 
@@ -1158,7 +1310,6 @@ void CaffeImporter::convertCropLayer(mlir::Block *block,
   assert(input_vars.size() == 2 && "Crop expected two input blobs");
 
   auto layer_param = layer->layer_param();
-  assert(layer_param.has_crop_param() && "Crop expected crop param");
   auto crop_param = layer_param.crop_param();
 
   // get input shape from input vars
@@ -1340,7 +1491,7 @@ void CaffeImporter::convertSliceLayer(mlir::Block *block, caffe::Layer<float> *l
   if (slice_param.slice_point_size() != 0) {
     assert(slice_param.slice_point_size() == top_size - 1);
     assert(top_size < bottom_slice_axis);
-    int prev = 0;
+    uint32_t prev = 0;
     for (int i = 0; i < slice_param.slice_point_size(); ++i) {
       assert(slice_param.slice_point(i) > prev);
       slices.push_back(slice_param.slice_point(i) - prev);
@@ -1512,6 +1663,7 @@ void CaffeImporter::convertReshapeLayer(mlir::Block *block,
   tensor_map_[layer_param.top(0)] = result_var;
 }
 
+
 void CaffeImporter::convertNormalizeLayer(mlir::Block *block,
     caffe::Layer<float> *layer) {
 
@@ -1647,6 +1799,70 @@ void CaffeImporter::convertPermuteLayer(mlir::Block *block,
   tensor_map_[layer_param.top(0)] = result_var;
 }
 
+
+void CaffeImporter::convertTanHLayer(mlir::Block *block,
+    caffe::Layer<float> *layer) {
+  mlir::Value *input_var = GetLayerInput(layer);
+
+  auto layer_param = layer->layer_param();
+
+  int64_t n, c, h, w;
+  llvm::ArrayRef<int64_t> input_shape = input_var->getType().dyn_cast<mlir::TensorType>().getShape();
+  assert(input_shape.size() == 4);
+  n = input_shape[0];
+  c = input_shape[1];
+  h = input_shape[2];
+  w = input_shape[3];
+
+  LLVM_DEBUG(
+    llvm::errs()
+        << "  N: " << n
+        << ", C: " << c
+        << ", IH*IW: " << h << " * " << w
+        << "\n";
+  );
+
+  std::vector<Value *> operands;
+  operands.push_back(input_var);
+
+  // construct OP
+  auto result_type = RankedTensorType::get({n, c, h, w}, elementType_);
+  std::vector<NamedAttribute> attrs;
+
+  // add y0 / slope table
+  // FIXME: not hard code
+  int channel = 32;
+  int table_h = 32;
+  int table_w = 8;
+  int table_hw = table_h * table_w;
+
+  // 32 for hard code, # of channel
+  // table shape hw is 8,32 - hw define
+  auto table_type = RankedTensorType::get({1, channel, table_h, table_w}, elementType_);
+
+  int tbl_size = channel * table_hw;
+  std::vector<float> dataVec_fp32;
+  dataVec_fp32.reserve(tbl_size);
+
+  // reserve dummy weight and assign in opt
+  auto filter_name = layer->layer_param().name()+"_y0";
+  weightFile_->addTensor(filter_name, &dataVec_fp32, table_type);
+  operands.push_back(AddLoadWeightOp(block, filter_name, table_type));
+
+  filter_name = layer->layer_param().name()+"_slope";
+  weightFile_->addTensor(filter_name, &dataVec_fp32, table_type);
+  operands.push_back(AddLoadWeightOp(block, filter_name, table_type));
+
+  attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name())));
+
+  auto op = OpBuilder(block).create<tpu::TanHOp>(
+      builder_.getUnknownLoc(), result_type,
+      ArrayRef<Value *>{operands}, ArrayRef<NamedAttribute>{attrs});
+  auto result_var = op.getResult();
+
+  tensor_map_[layer_param.top(0)] = result_var;
+}
+
 LogicalResult CaffeImporter::Import(const llvm::StringRef inputFilename,
     llvm::StringRef caffemodelFilename) {
   caffe::Net<float> net(inputFilename, caffe::TEST);
@@ -1663,7 +1879,6 @@ LogicalResult CaffeImporter::Import(const llvm::StringRef inputFilename,
   ParseNetInputOutput(net, net_inputs, net_outputs);
 
   mlir::Block *block = CreateOneBlockFunction(net_inputs, net_outputs);
-
   AddLoadFileOp(block, weightFilename);
   ConvertLayers(block, net);
   AddReturnOp(block, net_outputs);

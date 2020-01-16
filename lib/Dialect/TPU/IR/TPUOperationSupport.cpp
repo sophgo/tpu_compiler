@@ -15,6 +15,9 @@ llvm::StringRef getOpName(Operation *op) {
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::Conv2DOp>(op)) {
     return cast_op.name().getValue();
   }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::DeConv2DOp>(op)) {
+    return cast_op.name().getValue();
+  }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::FullyConnectedOp>(op)) {
     return cast_op.name().getValue();
   }
@@ -37,6 +40,9 @@ llvm::StringRef getOpName(Operation *op) {
     return cast_op.name().getValue();
   }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::SoftmaxOp>(op)) {
+    return cast_op.name().getValue();
+  }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::TanHOp>(op)) {
     return cast_op.name().getValue();
   }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::ReshapeOp>(op)) {
@@ -63,6 +69,9 @@ llvm::StringRef getOpName(Operation *op) {
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::UpsampleOp>(op)) {
     return cast_op.name().getValue();
   }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::SliceOp>(op)) {
+    return cast_op.name().getValue();
+  }
 
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::PermuteOp>(op)) {
     return cast_op.name().getValue();
@@ -80,6 +89,14 @@ llvm::StringRef getOpName(Operation *op) {
   return "not_found";
 }
 
+llvm::StringRef getPreviousOpName(Operation *op, uint index = 0) {
+  if ( op->getNumOperands() < (index + 1) ) {
+    assert(false);
+    return llvm::StringRef();
+  }
+  return getOpName(op->getOperand(index)->getDefiningOp());
+}
+
 std::string getOpQuant(Operation *op) {
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::Conv2DOp>(op)) {
     return cast_op.quant();
@@ -94,6 +111,12 @@ std::string getOpQuant(Operation *op) {
     return cast_op.quant();
   }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::DequantizationOp>(op)) {
+    return cast_op.quant();
+  }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::SigmoidOp>(op)) {
+    return cast_op.quant();
+  }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::ScaleOp>(op)) {
     return cast_op.quant();
   }
 
@@ -147,7 +170,7 @@ float getOpThreshold(Operation *op) {
   llvm::errs() << op->getName() << op->getName() << " Not Found "
                << "\n ";
 
-  
+
   return 0.0;
 }
 
@@ -175,6 +198,12 @@ float getPreviousOpThreshold(Operation *op, uint index = 0) {
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::Pool2DOp>(formerOp)) {
     return cast_op.threshold_y().getValue().convertToFloat();
   }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::EltwiseOp>(formerOp)) {
+    return cast_op.threshold_y().getValue().convertToFloat();
+  }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::ConcatOp>(formerOp)) {
+    return cast_op.threshold_y().getValue().convertToFloat();
+  }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::BatchNormOp>(formerOp)) {
     return cast_op.threshold_y().getValue().convertToFloat();
   }
@@ -187,21 +216,26 @@ float getPreviousOpThreshold(Operation *op, uint index = 0) {
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::PReluOp>(formerOp)) {
     return cast_op.threshold_y().getValue().convertToFloat();
   }
-  if (auto cast_op = llvm::dyn_cast_or_null<tpu::EltwiseOp>(formerOp)) {
-    return cast_op.threshold_y().getValue().convertToFloat();
-  }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::ReshapeOp>(formerOp)) {
     return cast_op.threshold_y().getValue().convertToFloat();
   }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::SoftmaxOp>(formerOp)) {
     return cast_op.threshold_y().getValue().convertToFloat();
   }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::TanHOp>(formerOp)) {
+    return cast_op.threshold_y().getValue().convertToFloat();
+  }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::CropOp>(formerOp)) {
+    return cast_op.threshold_y().getValue().convertToFloat();
+  }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::SigmoidOp>(formerOp)) {
+    return cast_op.threshold_y().getValue().convertToFloat();
+  }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::SliceOp>(formerOp)) {
     return cast_op.threshold_y().getValue().convertToFloat();
   }
 
   llvm::errs() << op->getName() << formerOp->getName() << " Not Found "<<"\n ";
-
   assert(false);
   return NAN;
 }
@@ -243,6 +277,9 @@ uint64_t getPreviousOpAddress(Operation *op, uint index = 0) {
     return cast_op.offset().getValue().getLimitedValue();
   }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::CropOp>(formerOp)) {
+    return cast_op.offset().getValue().getLimitedValue();
+  }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::TanHOp>(formerOp)) {
     return cast_op.offset().getValue().getLimitedValue();
   }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::ReshapeOp>(formerOp)) {
@@ -321,8 +358,8 @@ void getConv2DOpParam(T &op,
   if (g != 1) {
     // only support depthwise group for now (not support normal group)
     assert(f_s.size() == 5 && g == f_s[0]);
-    assert(f_s[1] == 1 && f_s[2] == 1);
-    assert(g == ic && g == oc);
+    // assert(f_s[1] == 1 && f_s[2] == 1);
+    // assert(g == ic && g == oc);
   } else {
     assert(f_s.size() == 4);
   }
@@ -349,9 +386,43 @@ template void getConv2DOpParam<tpu::TL_LW_Conv2DOp>(tpu::TL_LW_Conv2DOp &op,
     int &kh, int &kw, int &sh, int &sw, int &ph, int &pw, int &dh, int &dw,
     bool &with_bias, bool &do_relu);
 
+void getDeConv2DOpParam(tpu::DeConv2DOp &op,
+    int &n, int &ic, int &ih, int &iw, int &oc, int &oh, int &ow, int &g,
+    int &kh, int &kw, int &sh, int &sw, int &ph, int &pw, int &dh, int &dw,
+    bool &with_bias) {
+  dh = op.dilation_h_factor().getLimitedValue();
+  dw = op.dilation_w_factor().getLimitedValue();
+  sh = op.stride_h().getLimitedValue();
+  sw = op.stride_w().getLimitedValue();
+  auto input_type = op.input()->getType().template cast<TensorType>();
+  std::vector<int64_t> i_s(input_type.getShape());
+  auto output_type = op.output()->getType().template cast<TensorType>();
+  std::vector<int64_t> o_s(output_type.getShape());
+  auto filter_type = op.filter()->getType().template cast<TensorType>();
+  std::vector<int64_t> f_s(filter_type.getShape());
+  assert((i_s[0] == o_s[0]) && "input N not equal to output N");
+  n = i_s[0];
+  ic = i_s[1];
+  ih = i_s[2];
+  iw = i_s[3];
+  oc = o_s[1];
+  oh = o_s[2];
+  ow = o_s[3];
+  auto f_dim = f_s.size();
+  kh = f_s[f_dim - 2];
+  kw = f_s[f_dim - 1];
+  // TODO - padding
+  assert(op.padding() == "VALID");
+  ph = 0;
+  pw = 0;
+
+  g = op.group().getLimitedValue();
+  with_bias = op.with_bias();
+}
+
 void getPool2DOpParam(tpu::Pool2DOp &op,
     bool &is_average_pool, int &n, int &c, int &ih, int &iw, int &oh, int &ow,
-    int &kh, int &kw, int &sh, int &sw, int &ph, int &pw, bool &do_relu) {
+    int &kh, int &kw, int &sh, int &sw, int &pt, int &pb, int &pl, int &pr, bool &do_relu) {
   auto pool_method = op.getAttrOfType<StringAttr>("pool");
   if (pool_method.getValue() == "AVE") {
     is_average_pool = true;
@@ -376,13 +447,30 @@ void getPool2DOpParam(tpu::Pool2DOp &op,
   iw = i_s[3];
   oh = o_s[2];
   ow = o_s[3];
-  auto padding_attr = op.getAttrOfType<StringAttr>("padding");
-  if (padding_attr.getValue() == "SAME") {
-    ph = findPadForSamePadding(ih, oh, kh, sh, 1);
-    pw = findPadForSamePadding(iw, ow, kw, sw, 1);
-  } else if (padding_attr.getValue() == "VALID") {
-    ph = 0;
-    pw = 0;
+
+  if (op.padding().hasValue()) {
+    auto padding_attr = op.getAttrOfType<StringAttr>("padding");
+    if (padding_attr.getValue() == "SAME") {
+      llvm::errs() << "same\n";
+      pt = findPadForSamePadding(ih, oh, kh, sh, 1);
+      pb = pt;
+      pl = findPadForSamePadding(iw, ow, kw, sw, 1);
+      pr = pl;
+    } else if (padding_attr.getValue() == "VALID") {
+      llvm::errs() << "valid\n";
+      pt = 0;
+      pb = 0;
+      pl = 0;
+      pr = 0;
+    } else {
+      assert(false);
+    }
+  } else if (op.pad_top().hasValue() && op.pad_bottom().hasValue() &&
+            op.pad_left().hasValue() && op.pad_right().hasValue()) {
+    pt = op.pad_top().getValue().getLimitedValue();
+    pb = op.pad_bottom().getValue().getLimitedValue();
+    pl = op.pad_left().getValue().getLimitedValue();
+    pr = op.pad_right().getValue().getLimitedValue();
   } else {
     assert(false);
   }
@@ -465,6 +553,77 @@ void getConv2DOpVariadicTensors(tpu::Conv2DOp &op,
   }
 }
 
+// TODO - same as getConv2DOpVariadicTensors
+// Use template implementation to reuse the code
+void getDeConv2DOpVariadicTensors(tpu::DeConv2DOp &op,
+    std::vector<std::shared_ptr<std::vector<float> > > &opdT,
+    std::shared_ptr<std::vector<float> > &bias,
+    std::shared_ptr<std::vector<float> > &rshift,
+    std::shared_ptr<std::vector<float> > &multiplier,
+    std::shared_ptr<std::vector<float> > &per_channel_info,
+    std::shared_ptr<std::vector<float> > &eltwise_input) {
+  unsigned idx = 2;  // first 2 opdT are always input and filter
+  if (op.per_channel_info_is_aggregated()) {
+    // only INT8 related quantization use aggregated per_channel_info
+    assert(op.quant() == "INT8" || op.quant() == "INT8_PER_CHANNEL"
+           || op.quant() == "INT8_MULTIPLIER");
+    per_channel_info = opdT[idx];
+    idx += 1;
+  }
+  else {
+    if (op.with_bias()) {
+      bias = opdT[idx];
+      idx += 1;
+    }
+
+    if (op.quant() == "INT8" || op.quant() == "INT8_PER_CHANNEL"
+           || op.quant() == "INT8_MULTIPLIER") {
+      rshift = opdT[idx];
+      idx += 1;
+    }
+
+    if (op.quant() == "INT8_MULTIPLIER") {
+      multiplier = opdT[idx];
+      idx += 1;
+    }
+  }
+  if (op.fused_eltwise_method() != "NONE") {
+    eltwise_input = opdT[idx];
+    idx += 1;
+  }
+  if (idx != opdT.size()) {
+    llvm::errs() << op.name() << ": opdT.size=" << opdT.size()
+                 << ", idx=" << idx << "\n";
+    assert(0);
+  }
+}
+void getScaleOpVariadicTensors(
+    tpu::ScaleOp &op, std::vector<std::shared_ptr<std::vector<float>>> &opdT,
+    std::shared_ptr<std::vector<float>> &bias,
+    std::shared_ptr<std::vector<float>> &rshift,
+    std::shared_ptr<std::vector<float>> &multiplier) {
+  unsigned idx = 2; // first 2 opdT are always input and scale
+  if (op.with_bias()) {
+    bias = opdT[idx];
+    idx += 1;
+  }
+  if (op.quant() == "INT8" || op.quant() == "INT8_PER_CHANNEL" ||
+      op.quant() == "INT8_MULTIPLIER") {
+    rshift = opdT[idx];
+    idx += 1;
+  }
+
+  if (op.quant() == "INT8_MULTIPLIER") {
+    multiplier = opdT[idx];
+    idx += 1;
+  }
+
+  if (idx != opdT.size()) {
+    llvm::errs() << op.name() << ": opdT.size=" << opdT.size()
+                 << ", idx=" << idx << "\n";
+    assert(0 && "opdT size wrong");
+  }
+}
 
 void getFullyConnectedOpVariadicTensors(tpu::FullyConnectedOp &op,
     std::vector<std::shared_ptr<std::vector<float> > > &opdT,
@@ -479,6 +638,31 @@ void getFullyConnectedOpVariadicTensors(tpu::FullyConnectedOp &op,
     rshift = opdT[idx];
     idx += 1;
   }
+  if (idx != opdT.size()) {
+    llvm::errs() << op.name() << ": opdT.size=" << opdT.size()
+                 << ", idx=" << idx << "\n";
+    assert(0);
+  }
+}
+
+
+
+void getPReluOpVariadicTensors(tpu::PReluOp &op,
+    std::vector<std::shared_ptr<std::vector<float> > > &opdT,
+    std::shared_ptr<std::vector<float> > &rshift,
+    std::shared_ptr<std::vector<float> > &multiplier) {
+  unsigned idx = 2;  // first 2 opdT are always input and filter
+  if (op.quant() == "INT8" || op.quant() == "INT8_PER_CHANNEL"
+          || op.quant() == "INT8_MULTIPLIER") {
+    rshift = opdT[idx];
+    idx += 1;
+  }
+
+  if (op.quant() == "INT8_MULTIPLIER") {
+    multiplier = opdT[idx];
+    idx += 1;
+  }
+  
   if (idx != opdT.size()) {
     llvm::errs() << op.name() << ": opdT.size=" << opdT.size()
                  << ", idx=" << idx << "\n";

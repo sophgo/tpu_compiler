@@ -1,5 +1,5 @@
 // RUN: mlir-opt -print-op-stats -verify-each=true %s -o=/dev/null 2>&1 | FileCheck %s
-// RUN: mlir-opt -print-tpu-op -verify-each=true %s -o=/dev/null 2>&1 | FileCheck %s --check-prefix=OUTLINING --dump-input=fail
+// RUN: mlir-opt -print-tpu-op-info -verify-each=true %s -o=/dev/null 2>&1 | FileCheck %s --check-prefix=OUTLINING --dump-input=fail
 
 // CHECK-LABEL: module
 // CHECK-NOT: error
@@ -14,15 +14,6 @@
 // OUTLINING-NEXT: -----------------------
 // OUTLINING-NEXT: main
 // OUTLINING-NEXT:  > std.constant
-
-// OUTLINING-LABEL: Module walk Conv2DOp:
-// OUTLINING-NEXT: -----------------------
-// OUTLINING-NEXT:  > tpu.conv_2d
-
-// OUTLINING-LABEL: Funcs walk Conv2DOp:
-// OUTLINING-NEXT: -----------------------
-// OUTLINING-NEXT: main
-// OUTLINING-NEXT:  > tpu.conv_2d
 
 module {
   func @main(%arg0: tensor<?x1x28x28xf32>) -> tensor<?x10xf32> {

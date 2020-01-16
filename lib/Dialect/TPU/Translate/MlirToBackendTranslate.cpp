@@ -324,9 +324,9 @@ static LogicalResult runOperation(Operation &opInst) {
     LLVM_DEBUG(llvm::errs() << "Pool2DOp" << "\n";);
 
     bool is_average_pool, do_relu;
-    int n, c, ih, iw, oh, ow, kh, kw, sh, sw, ph, pw;
+    int n, c, ih, iw, oh, ow, kh, kw, sh, sw, pt, pb, pl, pr;
     getPool2DOpParam(op, is_average_pool, n, c, ih, iw, oh, ow,
-                     kh, kw, sh, sw, ph, pw, do_relu);
+                     kh, kw, sh, sw, pt, pb, pl, pr, do_relu);
 
     float threshold_x;
     float threshold_y;
@@ -373,10 +373,10 @@ static LogicalResult runOperation(Operation &opInst) {
           iw,
           kh,
           kw,
-          ph, // int pad_top,
-          ph, // int pad_bot,
-          pw, // int pad_left,
-          pw, // int pad_right,
+          pt, // int pad_top,
+          pb, // int pad_bot,
+          pl, // int pad_left,
+          pr, // int pad_right,
           sh, // int stride_h,
           sw, // int stride_w,
           is_average_pool, //is_avg_pooling,
@@ -400,10 +400,10 @@ static LogicalResult runOperation(Operation &opInst) {
           iw,
           kh,
           kw,
-          ph, // int pad_top,
-          ph, // int pad_bot,
-          pw, // int pad_left,
-          pw, // int pad_right,
+          pt, // int pad_top,
+          pb, // int pad_bot,
+          pl, // int pad_left,
+          pr, // int pad_right,
           sh, // int stride_h,
           sw, // int stride_w,
           is_average_pool, //is_avg_pooling,
@@ -539,7 +539,8 @@ static LogicalResult runOperation(Operation &opInst) {
         w,
         0, // int threshold_x_quantized_len,
         nullptr, // const int *threshold_x_quantized,
-        nullptr //const int *right_shift_array
+        nullptr, //const int *right_shift_array
+        FMT_I8
         );
 
     return success();
@@ -689,6 +690,50 @@ static LogicalResult runOperation(Operation &opInst) {
     }
 
     // gen cmd end
+
+    return success();
+  }
+
+  if (auto op = dyn_cast<tpu::TanHOp>(opInst)) {
+    LLVM_DEBUG(llvm::errs() << "TanHOp" << "\n";);
+
+    int n, c, h, w;
+    float scale = op.scale().convertToFloat();
+    LLVM_DEBUG(llvm::errs() << "  its scale " << scale << "\n";);
+    auto input_type = op.x()->getType().cast<TensorType>();
+    std::vector<int64_t> i_s(input_type.getShape());
+    auto output_type = op.y()->getType().cast<TensorType>();
+    std::vector<int64_t> o_s(output_type.getShape());
+    assert((i_s == o_s) && "input shape not equal to output shape");
+    n = i_s[0];
+    c = i_s[1];
+    h = i_s[2];
+    w = i_s[3];
+
+    gaddr_t input_gaddr = getPreviousOpAddress(op);
+    gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
+    gaddr_t y0_table_gaddr = getWeightOpAddress(op.getOperand(1)->getDefiningOp());
+    gaddr_t slope_gaddr = getWeightOpAddress(op.getOperand(2)->getDefiningOp());
+
+    int layer_id = op.layer_id().getValue().getLimitedValue();
+
+    bf16_tanh_forward_kernel(
+        *backend_ctx,
+        0, // stream_id,
+        0, // inst_id,
+        layer_id, // layer_id,
+        nullptr, // depends
+        0, // depends_len
+        input_gaddr, // input_data_gaddr,
+        output_gaddr, // output_data_gaddr,
+        y0_table_gaddr,
+        slope_gaddr,
+        n,
+        c,
+        h,
+        w,
+        scale
+        );
 
     return success();
   }

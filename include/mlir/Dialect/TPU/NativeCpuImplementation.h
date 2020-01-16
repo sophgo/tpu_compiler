@@ -5,9 +5,13 @@ int mkldnn_conv(float *input, float *weight, float *bias,
     float *output, int n, int ic, int ih, int iw, int oc, int oh, int ow,
     int kh, int kw, int sh, int sw, int dh,int dw,int ph, int pw, int g);
 
+int mkldnn_deconv(float *input, float *weight, float *bias,
+    float *output, int n, int ic, int ih, int iw, int oc, int oh, int ow,
+    int kh, int kw, int sh, int sw, int ph, int pw, int g);
+
 int mkldnn_pool(float *input, float *output,
     int n, int c, int ih, int iw, int oh, int ow,
-    int kh, int kw, int sh, int sw, int ph, int pw,
+    int kh, int kw, int sh, int sw, int pt, int pb, int pl, int pr,
     bool is_avg);
 
 int mkldnn_ip(float *input, float *weight, float *bias,
@@ -31,6 +35,8 @@ int my_upsample(float *input, float *output,
 
 int my_softmax(float *input, float *output, int n, int c);
 
+int my_tanh(float *input, float *output,
+    int n, int c, int h, int w);
 int my_eltwise(float *input_1, float *input_2, float *output,
     int n, int c, int h, int w, int op);
 
@@ -41,5 +47,7 @@ int my_permute(float *input, float *output, const int input_shape_size,
 int my_normalize(float *input,float *output,bool across_spatial,
     int n,int c,int h,int w);
 
+int my_slice(float *input, float *output, int axis,
+  std::vector<int64_t> input_shape, std::vector<int64_t> output_shape);
 
 #endif // MLIR_DIALECT_TPU_NATIVE_CPU_IMPLEMENTATION_H_

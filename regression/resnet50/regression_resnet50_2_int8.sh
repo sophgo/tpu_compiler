@@ -4,81 +4,126 @@ set -e
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 source $DIR/../../envsetup.sh
 
-# translate from caffe
-mlir-translate \
-    --caffe-to-mlir $MODEL_PATH/caffe/ResNet-50-deploy.prototxt \
-    --caffemodel $MODEL_PATH/caffe/ResNet-50-model.caffemodel \
-    -o resnet50.mlir
-
-# apply all possible pre-calibration optimizations
-mlir-opt \
-    --convert-bn-to-scale \
-    --fold-scale \
-    --merge-scale-into-conv \
-    resnet50.mlir \
-    -o resnet50_opt.mlir
+COMPARE_ALL=1
 
 # import calibration table
 mlir-opt \
     --import-calibration-table \
-    --calibration-table $DATA_PATH/bmnet_resnet50_calibration_table.1x10 \
+    --calibration-table $REGRESSION_PATH/resnet50/data/resnet50_calibration_table \
     resnet50_opt.mlir \
     -o resnet50_cali.mlir
 
-# apply all possible post-calibration optimizations
+# apply post-calibration optimizations
+# not applying --fuse-eltwise for now
 mlir-opt \
     --fuse-relu \
-    --fuse-eltwise \
     resnet50_cali.mlir \
     -o resnet50_opt_post_cali.mlir
 
 # quantization 1: per-layer int8
 mlir-opt \
     --quant-int8 \
+    --print-tpu-op-info \
+    --tpu-op-info-filename resnet50_op_info_int8_per_layer.csv \
     resnet50_opt_post_cali.mlir \
     -o resnet50_quant_int8_per_layer.mlir
 
 mlir-tpu-interpreter resnet50_quant_int8_per_layer.mlir \
-    --tensor-in $DATA_PATH/test_cat_in_fp32.bin \
-    --tensor-out out_int8_per_layer.bin \
-    --dump-all-tensor=tensor_all.npz
-# bin_compare.py out.bin out_int8_per_layer.bin float32 1 1 1 1000 5
-npz_to_bin.py tensor_all.npz fc1000 out_fc1000.bin
-bin_fp32_to_int8.py out_fc1000.bin out_fc1000_int8.bin
-diff out_fc1000_int8.bin $DATA_PATH/test_cat_out_resnet50_fc1000_int8_per_layer.bin
+    --tensor-in resnet50_in_fp32.npz \
+    --tensor-out resnet50_out_int8_per_layer.npz \
+    --dump-all-tensor=resnet50_tensor_all_int8_per_layer.npz
+
+npz_to_bin.py \
+    resnet50_tensor_all_int8_per_layer.npz \
+    fc1000 \
+    resnet50_out_fc1000_int8_per_layer.bin \
+    int8
+bin_compare.py \
+    resnet50_out_fc1000_int8_per_layer.bin \
+    $REGRESSION_PATH/resnet50/data/test_cat_out_resnet50_fc1000_int8_per_layer.bin \
+    int8 1 1 1 1000 5
+
+if [ $COMPARE_ALL ]; then
+  # this will fail for now, because prob has been dequantized twice, others should pass
+  npz_compare.py \
+      resnet50_tensor_all_int8_per_layer.npz \
+      resnet50_blobs.npz \
+      --op_info resnet50_op_info_int8_per_layer.csv \
+      --dequant \
+      --excepts prob \
+      --tolerance 0.9,0.9,0.6 -vvv
+fi
 
 # quantization 2: per-channel int8
 mlir-opt \
     --quant-int8 \
     --enable-conv-per-channel \
+    --print-tpu-op-info \
+    --tpu-op-info-filename resnet50_op_info_int8_per_channel.csv \
     resnet50_opt_post_cali.mlir \
     -o resnet50_quant_int8_per_channel.mlir
 
 mlir-tpu-interpreter resnet50_quant_int8_per_channel.mlir \
-    --tensor-in $DATA_PATH/test_cat_in_fp32.bin \
-    --tensor-out out_int8_per_channel.bin \
-    --dump-all-tensor=tensor_all.npz
-# bin_compare.py out.bin out_int8_per_channel.bin float32 1 1 1 1000 5
-npz_to_bin.py tensor_all.npz fc1000 out_fc1000.bin
-bin_fp32_to_int8.py out_fc1000.bin out_fc1000_int8.bin
-diff out_fc1000_int8.bin $DATA_PATH/test_cat_out_resnet50_fc1000_int8_per_channel.bin
+    --tensor-in resnet50_in_fp32.npz \
+    --tensor-out resnet50_out_int8_per_channel.npz \
+    --dump-all-tensor=resnet50_tensor_all_int8_per_channel.npz
+
+npz_to_bin.py \
+    resnet50_tensor_all_int8_per_channel.npz \
+    fc1000 \
+    resnet50_out_fc1000_int8_per_channel.bin \
+    int8
+bin_compare.py \
+    resnet50_out_fc1000_int8_per_channel.bin \
+    $REGRESSION_PATH/resnet50/data/test_cat_out_resnet50_fc1000_int8_per_channel.bin \
+    int8 1 1 1 1000 5
+
+if [ $COMPARE_ALL ]; then
+  # this will fail for now, because prob has been dequantized twice, others should pass
+  npz_compare.py \
+      resnet50_tensor_all_int8_per_channel.npz \
+      resnet50_blobs.npz \
+      --op_info resnet50_op_info_int8_per_channel.csv \
+      --dequant \
+      --excepts prob \
+      --tolerance 0.9,0.9,0.7 -vvv
+fi
 
 # quantization 3: per-channel int8 with multiplier
 mlir-opt \
     --quant-int8 \
     --enable-conv-per-channel \
     --enable-conv-multiplier \
+    --print-tpu-op-info \
+    --tpu-op-info-filename resnet50_op_info_int8_multiplier.csv \
     resnet50_opt_post_cali.mlir \
     -o resnet50_quant_int8_multiplier.mlir
 
 mlir-tpu-interpreter resnet50_quant_int8_multiplier.mlir \
-    --tensor-in $DATA_PATH/test_cat_in_fp32.bin \
-    --tensor-out out_int8_multiplier.bin \
-    --dump-all-tensor=tensor_all.npz
-# bin_compare.py out.bin out_int8_multiplier.bin float32 1 1 1 1000 5
-npz_to_bin.py tensor_all.npz fc1000 out_fc1000.bin
-bin_fp32_to_int8.py out_fc1000.bin out_fc1000_int8.bin
-diff out_fc1000_int8.bin $DATA_PATH/test_cat_out_resnet50_fc1000_int8_multiplier.bin
+    --tensor-in resnet50_in_fp32.npz \
+    --tensor-out resnet50_out_int8_multiplier.npz \
+    --dump-all-tensor=resnet50_tensor_all_int8_multiplier.npz
+
+npz_to_bin.py \
+    resnet50_tensor_all_int8_multiplier.npz \
+    fc1000 \
+    resnet50_out_fc1000_int8_multiplier.bin \
+    int8
+bin_compare.py \
+    resnet50_out_fc1000_int8_multiplier.bin \
+    $REGRESSION_PATH/resnet50/data/test_cat_out_resnet50_fc1000_int8_multiplier.bin \
+    int8 1 1 1 1000 5
+
+if [ $COMPARE_ALL ]; then
+  # this will fail for now, because prob has been dequantized twice, others should pass
+  npz_compare.py \
+      resnet50_tensor_all_int8_multiplier.npz \
+      resnet50_blobs.npz \
+      --op_info resnet50_op_info_int8_multiplier.csv \
+      --dequant \
+      --excepts prob \
+      --tolerance 0.9,0.9,0.7 -vvv
+fi
 
 # VERDICT
 echo $0 PASSED
