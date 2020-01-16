@@ -110,6 +110,10 @@ private:
   void convertPermuteLayer(mlir::Block *block, caffe::Layer<float> *layer);
   void convertNormalizeLayer(mlir::Block *block, caffe::Layer<float> *layer);
   void convertTanHLayer(mlir::Block *block, caffe::Layer<float> *layer);
+  void convertPriorBoxLayer(mlir::Block *block, caffe::Layer<float> *layer);
+  void convertDetectionOutputLayer(mlir::Block *block, caffe::Layer<float> *layer);
+  void convertPowerLayer(mlir::Block *block, caffe::Layer<float> *layer);
+  void convertReductionLayer(mlir::Block *block, caffe::Layer<float> *layer);
 
   mlir::ModuleOp module_;
   mlir::Builder builder_;
@@ -261,10 +265,17 @@ void CaffeImporter::ConvertLayers(mlir::Block *block,
       convertTanHLayer(block, layer);
     } else if (strcmp(layer->type(), "Deconvolution") == 0) {
       convertDeconvolutionLayer(block, layer);
-    } else {
-      llvm::errs() << "    UNKNOWN : " << layer->type() <<"\n";
-      assert(false);
-    }
+    }else if (strcmp(layer->type(), "PriorBox") == 0) {
+      convertPriorBoxLayer(block, layer);         
+    }else if (strcmp(layer->type(), "DetectionOutput") == 0) {
+      convertDetectionOutputLayer(block, layer);         
+    }else if (strcmp(layer->type(), "Power") == 0) {
+      convertPowerLayer(block, layer);
+    }else {
+       llvm::errs() << "    UNKNOWN : " << layer->type() <<"\n";
+       assert(false);
+     }
+
   }
 }
 
@@ -1150,7 +1161,7 @@ void CaffeImporter::convertConcatLayer(mlir::Block *block,
   int axis = concat_param.axis();
   int64_t n = 0, c = 0, h = 0, w = 0;
   int64_t concat_axis_dim = 0;
-
+  int tbl_size ;
   if (input_vars.size() == 1) {
     // special case for YOLOv3 caffe model, which has only one input
     // remove that node
@@ -1158,6 +1169,9 @@ void CaffeImporter::convertConcatLayer(mlir::Block *block,
     tensor_map_[layer_param.top(0)] = input_vars[0];
     return;
   }
+    std::vector<Value *> operands;
+    for(int i = 0;i< input_vars.size();++i)
+      operands.push_back(input_vars[i]);
 
 
   RankedTensorType result_type=nullptr; 
@@ -1211,7 +1225,8 @@ void CaffeImporter::convertConcatLayer(mlir::Block *block,
       );
 
       // construct OP
-      result_type = RankedTensorType::get({n, c, h, w}, elementType_);      
+      result_type = RankedTensorType::get({n, c, h, w}, elementType_);    
+      tbl_size = n*c*c*w;  
     }else if(input_shape.size() == 2){
 
     for (uint32_t i = 0; i < input_vars.size(); i++) {
@@ -1249,10 +1264,65 @@ void CaffeImporter::convertConcatLayer(mlir::Block *block,
             << "\n";
       );
       // construct OP
-      result_type = RankedTensorType::get({h, w}, elementType_);           
-    }else{
-      assert(0);
+      result_type = RankedTensorType::get({h, w}, elementType_);
+      tbl_size = h*w;           
+    }else if(input_shape.size() == 3){
+      for (uint32_t i = 0; i < input_vars.size(); i++) {
+        input_shape = input_vars[i]->getType().dyn_cast<mlir::TensorType>().getShape();
+        
+        assert(input_shape.size() == 3);
+
+
+        c = input_shape[0];
+        h = input_shape[1];
+        w = input_shape[2];
+        concat_axis_dim += input_shape[axis];
+        LLVM_DEBUG(
+          llvm::errs()
+            << " var: " << i
+            << ", IH*IW: " << h << " * " << w
+            << "\n";
+        );
+      } 
+
+      switch (axis) {
+        case 0:
+         c = concat_axis_dim;
+          break;
+        case 1:
+          h = concat_axis_dim;
+          break;
+        case 2:
+          w = concat_axis_dim;
+          break;
+        default:
+          assert(0);
+      }
+
+         LLVM_DEBUG(
+        llvm::errs()
+            << " axis: " << axis
+            <<", C: "<< c
+            << ", OH*OW: " << h << " * " << w
+            << "\n";
+      );
+
+
+      // construct OP
+      result_type = RankedTensorType::get({c,h, w}, elementType_);    
+      tbl_size = c*h*w;       
+     }else{
+       assert(0);
     }
+
+/*  Reason to add this LoadWeightOp:
+    Sometimes need to change concat to loadweightOp. Use this tensor to save concat result.
+*/
+  std::vector<float> dataVec_fp32;
+  dataVec_fp32.reserve(tbl_size);
+  auto filter_name = layer->layer_param().name()+"_filter";
+  weightFile_->addTensor(filter_name, &dataVec_fp32, result_type);
+  operands.push_back(AddLoadWeightOp(block, filter_name, result_type));
 
 
   std::vector<NamedAttribute> attrs;
@@ -1260,7 +1330,7 @@ void CaffeImporter::convertConcatLayer(mlir::Block *block,
   attrs.push_back(builder_.getNamedAttr("dimension", builder_.getI32IntegerAttr(axis)));
   auto op = OpBuilder(block).create<tpu::ConcatOp>(
       builder_.getUnknownLoc(), result_type,
-      ArrayRef<Value *>{input_vars}, ArrayRef<NamedAttribute>{attrs});
+      ArrayRef<Value *>{operands}, ArrayRef<NamedAttribute>{attrs});
   auto result_var = op.getResult();
 
   tensor_map_[layer_param.top(0)] = result_var;
@@ -1664,141 +1734,6 @@ void CaffeImporter::convertReshapeLayer(mlir::Block *block,
 }
 
 
-void CaffeImporter::convertNormalizeLayer(mlir::Block *block,
-    caffe::Layer<float> *layer) {
-
-  mlir::Value *input_var = GetLayerInput(layer);
-
-  auto layer_param = layer->layer_param();
-  auto norm_param = layer_param.norm_param();
-  bool across_spatial = norm_param.across_spatial();
-  bool channel_shared = norm_param.channel_shared();
-
-
-
-  int64_t n, c, ih, iw, oh, ow;
-
-  llvm::ArrayRef<int64_t> input_shape =
-      input_var->getType().dyn_cast<mlir::TensorType>().getShape();
-  assert(input_shape.size() == 4);
-  n = input_shape[0];
-  c = input_shape[1];
-  ih = input_shape[2];
-  iw = input_shape[3];
-  oh = ih;
-  ow = iw;
-
-  LLVM_DEBUG(
-    llvm::errs()
-        << "  N: " << n
-        << ", C: " << c
-        << ", IH*IW: " << ih << " * " << iw
-        << ", OH*OW: " << oh << " * " << ow
-        << "\n";
-  );
-
-
-  // construct Normalize OP
-  auto result_type = RankedTensorType::get({n, c, oh, ow}, elementType_);
-  std::vector<NamedAttribute> attrs;
-  attrs.push_back(builder_.getNamedAttr("across_spatial", builder_.getBoolAttr(across_spatial)));
-  attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name())));
-
-  auto normalize_op = OpBuilder(block).create<tpu::NormalizeOp>(
-      builder_.getUnknownLoc(), result_type,
-      ArrayRef<Value *>{input_var}, ArrayRef<NamedAttribute>{attrs});
-
-
-  auto normalize_result_var = normalize_op.getResult();
-
-  /*-------------------------------------------------------*/
-  // construct Scale OP
-
-  std::vector<Value *> operands;
-  operands.push_back(normalize_result_var);
-
-
-  auto scale_name = layer->layer_param().name()+"scale_0";
-  auto scale_type = RankedTensorType::get({1,c}, elementType_);
-
-  if(channel_shared){
-    assert(layer->blobs()[0].get()->count() == 1);
-    std::vector<mlir::Value *> scale_input_vars;
-    scale_input_vars.push_back(normalize_result_var);
-    std::vector<float> scale_input(c,layer->blobs()[0].get()->cpu_data()[0]);
-    weightFile_->addTensor(scale_name, scale_input.data(), scale_type);
-  }else{
-    assert(layer->blobs()[0].get()->count() == c);
-    weightFile_->addTensor(scale_name, layer->blobs()[0].get()->cpu_data(), scale_type);
-  }
-
-  operands.push_back(AddLoadWeightOp(block, scale_name, scale_type));
-
-  // construct scale OP
-  result_type = RankedTensorType::get({n, c, oh, ow}, elementType_);
-  std::vector<NamedAttribute> scale_attrs;
-  scale_attrs.push_back(builder_.getNamedAttr(
-      "name", builder_.getStringAttr(layer_param.name()+"Scale")));
-  auto scale_op = OpBuilder(block).create<tpu::ScaleOp>(
-      builder_.getUnknownLoc(), result_type, ArrayRef<Value *>{operands},
-      ArrayRef<NamedAttribute>{scale_attrs});
-
-
-  auto result_var = scale_op.getResult();
-  tensor_map_[layer_param.top(0)] = result_var;
-}
-
-void CaffeImporter::convertPermuteLayer(mlir::Block *block,
-    caffe::Layer<float> *layer) {
-  std::vector<mlir::Value *> input_vars = GetLayerInputs(layer);
-
-  auto layer_param = layer->layer_param();
-  auto permute_param = layer_param.permute_param();
-  llvm::ArrayRef<int64_t> input_shape =
-      input_vars[0]->getType().dyn_cast<mlir::TensorType>().getShape();
-
-  assert(permute_param.order_size() == 4);
-
-  int64_t in, ic, ih, iw, on,oc,oh, ow;
-
-  in = input_shape[0];
-  ic = input_shape[1];
-  ih = input_shape[2];
-  iw = input_shape[3];
-
-  on = input_shape[permute_param.order(0)];
-  oc = input_shape[permute_param.order(1)];
-  oh = input_shape[permute_param.order(2)];
-  ow = input_shape[permute_param.order(3)];
-
-
-  LLVM_DEBUG(
-    llvm::errs()
-        << "  IN: " << in
-        << ", IC: " << ic
-        << ", IH*IW: " << ih << " * " << iw
-        << "  ON: " << on
-        << ", OC: " << oc       
-        << ", OH*OW: " << oh << " * " << ow
-        << "\n";
-  );
-
-  // construct OP
-  auto result_type = RankedTensorType::get({on, oc, oh, ow}, elementType_);
-  std::vector<NamedAttribute> attrs;
-  attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name())));
-  attrs.push_back(builder_.getNamedAttr("order0", builder_.getI32IntegerAttr(permute_param.order(0))));
-  attrs.push_back(builder_.getNamedAttr("order1", builder_.getI32IntegerAttr(permute_param.order(1))));
-  attrs.push_back(builder_.getNamedAttr("order2", builder_.getI32IntegerAttr(permute_param.order(2))));
-  attrs.push_back(builder_.getNamedAttr("order3", builder_.getI32IntegerAttr(permute_param.order(3))));
-  auto op = OpBuilder(block).create<tpu::PermuteOp>(
-      builder_.getUnknownLoc(), result_type,
-      ArrayRef<Value *>{input_vars}, ArrayRef<NamedAttribute>{attrs});
-  auto result_var = op.getResult();
-
-  tensor_map_[layer_param.top(0)] = result_var;
-}
-
 
 void CaffeImporter::convertTanHLayer(mlir::Block *block,
     caffe::Layer<float> *layer) {
@@ -1862,7 +1797,513 @@ void CaffeImporter::convertTanHLayer(mlir::Block *block,
 
   tensor_map_[layer_param.top(0)] = result_var;
 }
+void CaffeImporter::convertPriorBoxLayer(mlir::Block *block,
+                                     caffe::Layer<float> *layer) {
 
+  std::vector<mlir::Value *> input_vars = GetLayerInputs(layer);
+
+  auto layer_param = layer->layer_param();
+  auto prior_box_param = layer_param.prior_box_param();
+
+  int64_t h, w;
+  llvm::ArrayRef<int64_t> input_shape =
+      input_vars[0]->getType().dyn_cast<mlir::TensorType>().getShape();
+
+
+  assert(prior_box_param.max_size_size()==1
+    &&prior_box_param.min_size_size()==1
+    &&prior_box_param.aspect_ratio_size()<=2);
+
+
+
+
+  h = input_shape[2];
+  w = input_shape[3];
+
+  std::vector<Value *> operands;
+  operands.push_back(input_vars[0]);
+  operands.push_back(input_vars[1]);
+
+  std::vector<NamedAttribute> attrs;
+
+
+
+  attrs.push_back(builder_.getNamedAttr("min_size", 
+    builder_.getF32FloatAttr(prior_box_param.min_size(0))));
+  attrs.push_back(builder_.getNamedAttr("min_size_size", 
+    builder_.getI32IntegerAttr(prior_box_param.min_size_size())));  
+  attrs.push_back(builder_.getNamedAttr("max_size", 
+    builder_.getF32FloatAttr(prior_box_param.max_size(0))));
+  attrs.push_back(builder_.getNamedAttr("max_size_size", 
+    builder_.getI32IntegerAttr(prior_box_param.max_size_size())));   
+  attrs.push_back(builder_.getNamedAttr("aspect_ratio0", 
+    builder_.getF32FloatAttr(prior_box_param.aspect_ratio(0))));
+
+  if(prior_box_param.aspect_ratio_size()==2){
+    attrs.push_back(builder_.getNamedAttr("aspect_ratio1", 
+    builder_.getF32FloatAttr(prior_box_param.aspect_ratio(1))));
+  }
+
+  attrs.push_back(builder_.getNamedAttr("aspect_ratios_size", 
+    builder_.getI32IntegerAttr(prior_box_param.aspect_ratio_size()))); 
+  attrs.push_back(builder_.getNamedAttr("flip", 
+    builder_.getBoolAttr(prior_box_param.flip())));
+  attrs.push_back(builder_.getNamedAttr("clip", 
+    builder_.getBoolAttr(prior_box_param.clip())));
+  attrs.push_back(builder_.getNamedAttr("variance0", 
+    builder_.getF32FloatAttr(prior_box_param.variance(0))));
+  attrs.push_back(builder_.getNamedAttr("variance1", 
+    builder_.getF32FloatAttr(prior_box_param.variance(1))));
+  attrs.push_back(builder_.getNamedAttr("variance2", 
+    builder_.getF32FloatAttr(prior_box_param.variance(2))));
+  attrs.push_back(builder_.getNamedAttr("variance3", 
+    builder_.getF32FloatAttr(prior_box_param.variance(3))));
+  attrs.push_back(builder_.getNamedAttr("step", 
+    builder_.getF32FloatAttr(prior_box_param.step())));
+  attrs.push_back(builder_.getNamedAttr("name", 
+    builder_.getStringAttr(layer_param.name())));
+  attrs.push_back(builder_.getNamedAttr("offset", 
+    builder_.getF32FloatAttr(prior_box_param.offset())));
+
+
+  std::vector<float> min_sizes_;
+  std::vector<float> max_sizes_;
+  std::vector<float> aspect_ratios_;
+  bool flip_=true;
+  int num_priors_=0;
+  bool clip_=false;
+  std::vector<float> variance_;
+
+  for (int i = 0; i < prior_box_param.min_size_size(); ++i) {
+    min_sizes_.push_back(prior_box_param.min_size(i));
+    assert(min_sizes_.back()>0&& "min_size must be positive.");
+  }
+  aspect_ratios_.clear();
+  aspect_ratios_.push_back(1.);
+  flip_ = prior_box_param.flip();
+  for (int i = 0; i < prior_box_param.aspect_ratio_size(); ++i) {
+    float ar = prior_box_param.aspect_ratio(i);
+    bool already_exist = false;
+    for (int j = 0; j < aspect_ratios_.size(); ++j) {
+      if (fabs(ar - aspect_ratios_[j]) < 1e-6) {
+        already_exist = true;
+        break;
+      }
+    }
+    if (!already_exist) {
+      aspect_ratios_.push_back(ar);
+      if (flip_) {
+        aspect_ratios_.push_back(1./ar);
+      }
+    }
+  }
+
+  num_priors_ = aspect_ratios_.size() * min_sizes_.size();
+  if (prior_box_param.max_size_size() > 0) {
+    CHECK_EQ(prior_box_param.min_size_size(), prior_box_param.max_size_size());
+    for (int i = 0; i < prior_box_param.max_size_size(); ++i) {
+      max_sizes_.push_back(prior_box_param.max_size(i));
+      assert(max_sizes_[i]>min_sizes_[i]&&("max_size must be greater than min_size."));
+      num_priors_ += 1;
+    }
+  }
+
+
+  int tbl_size = 1*2*(h*w*num_priors_*4);
+  auto table_type_scale = RankedTensorType::get({1,2,(h*w*num_priors_* 4)}, elementType_);
+  std::vector<float> dataVec_fp32;
+  dataVec_fp32.reserve(tbl_size);
+  auto filter_name = layer->layer_param().name()+"_filter";
+  weightFile_->addTensor(filter_name, &dataVec_fp32, table_type_scale);
+  operands.push_back(AddLoadWeightOp(block, filter_name, table_type_scale));
+
+  
+
+  // construct OP
+  auto result_type = RankedTensorType::get({1,2,(h*w*num_priors_* 4) }, elementType_);
+
+
+  auto reshape_op = OpBuilder(block).create<tpu::PriorBoxOp>(
+      builder_.getUnknownLoc(), result_type, ArrayRef<Value *>{operands},
+      ArrayRef<NamedAttribute>{attrs});
+
+
+  auto result_var = reshape_op.getResult();
+  tensor_map_[layer_param.top(0)] = result_var;
+}
+
+void CaffeImporter::convertDetectionOutputLayer(mlir::Block *block,
+                                     caffe::Layer<float> *layer) {
+
+  std::vector<mlir::Value *> input_vars = GetLayerInputs(layer);
+
+  auto layer_param = layer->layer_param();
+  auto detection_output_param = layer_param.detection_output_param();
+  std::string code_type;
+
+  if (detection_output_param.code_type() == caffe::PriorBoxParameter_CodeType_CORNER) {
+    code_type = "CORNER";
+  } else if (detection_output_param.code_type() == caffe::PriorBoxParameter_CodeType_CENTER_SIZE) {
+    code_type = "CENTER_SIZE";
+  } else if(detection_output_param.code_type() == caffe::PriorBoxParameter_CodeType_CORNER_SIZE) {
+    code_type = "CORNER_SIZE";
+  }
+
+
+  llvm::ArrayRef<int64_t> input_shape =
+      input_vars[0]->getType().dyn_cast<mlir::TensorType>().getShape();
+
+  std::vector<NamedAttribute> attrs;
+
+  attrs.push_back(builder_.getNamedAttr("num_classes", 
+    builder_.getI32IntegerAttr(detection_output_param.num_classes())));
+  attrs.push_back(builder_.getNamedAttr("share_location", 
+    builder_.getBoolAttr(detection_output_param.share_location()))); 
+  attrs.push_back(builder_.getNamedAttr("background_label_id", 
+    builder_.getI32IntegerAttr(detection_output_param.background_label_id())));
+
+
+  attrs.push_back(builder_.getNamedAttr("nms_threshold", 
+    builder_.getF32FloatAttr(detection_output_param.nms_param().nms_threshold())));   
+  attrs.push_back(builder_.getNamedAttr("top_k", 
+    builder_.getI32IntegerAttr(detection_output_param.nms_param().top_k())));
+  attrs.push_back(builder_.getNamedAttr("code_type",
+    builder_.getStringAttr(code_type)));
+  attrs.push_back(builder_.getNamedAttr("keep_top_k", 
+    builder_.getI32IntegerAttr(detection_output_param.keep_top_k())));
+  attrs.push_back(builder_.getNamedAttr("confidence_threshold", 
+    builder_.getF32FloatAttr(detection_output_param.confidence_threshold())));   
+  attrs.push_back(builder_.getNamedAttr("name", 
+    builder_.getStringAttr(layer_param.name())));
+
+  assert(1.0 == detection_output_param.nms_param().eta());
+  assert(false == detection_output_param.variance_encoded_in_target());
+  // construct OP
+  auto result_type = RankedTensorType::get({1,1,detection_output_param.keep_top_k(),7}, elementType_);
+
+
+  auto reshape_op = OpBuilder(block).create<tpu::DetectionOutputOp>(
+      builder_.getUnknownLoc(), result_type, ArrayRef<Value *>{input_vars},
+      ArrayRef<NamedAttribute>{attrs});
+
+  auto result_var = reshape_op.getResult();
+  tensor_map_[layer_param.top(0)] = result_var;
+
+}
+
+void CaffeImporter::convertPowerLayer(mlir::Block *block,
+    caffe::Layer<float> *layer) {
+  mlir::Value *input_var = GetLayerInput(layer);
+
+  auto layer_param = layer->layer_param();
+  auto power = layer_param.power_param().power();
+  auto scale = layer_param.power_param().scale();
+  auto shift = layer_param.power_param().shift();
+
+  std::vector<Value *> operands;
+  operands.push_back(input_var);
+  // FIXME: it could remove once power_param = 1 and scale_param = 1 and shift_param = 0
+  // FIXME: deal with power = 0 or scale = 0
+  if (shift == 0 && power == 1 && scale == 1) {
+    return;
+  }
+
+  //int64_t n, c, h, w;
+  llvm::ArrayRef<int64_t> input_shape = input_var->getType().dyn_cast<mlir::TensorType>().getShape();
+  //assert(input_shape.size() == 4);
+  int64_t nchw[4];
+  for (uint64_t i = 0; i < input_shape.size(); i++) {
+    nchw[i] = input_shape[i];
+  }
+  
+  LLVM_DEBUG(
+    llvm::errs()
+        << "  N: " << nchw[0]
+        << ", C: " << nchw[1]
+        << ", IH*IW: " << nchw[2] << " * " << nchw[3]
+        << "\n";
+  );
+
+
+  // we leverage depthwise to calculat a*x + b, 
+  // one shot by channel, we should reserve weight 
+  // for extend scale/shift from 1 dimension to <1, NUP_NUM, 1, 1>
+  // FIXME: not harcode
+  int channel = 32;
+  int tbl_size = channel;
+  auto table_type_scale = RankedTensorType::get({1, channel, 1, 1}, elementType_);
+  std::vector<float> dataVec_fp32;
+  dataVec_fp32.reserve(tbl_size);
+  auto filter_name = layer->layer_param().name()+"_scale";
+  weightFile_->addTensor(filter_name, &dataVec_fp32, table_type_scale);
+  operands.push_back(AddLoadWeightOp(block, filter_name, table_type_scale));
+  
+  // we just allocate 1 batch cuz
+  // `AssignWeightAddress.cpp` auto seperate high/low part into int8 buffer
+  tbl_size = 1 * channel;
+  auto table_type_shift = RankedTensorType::get({1, channel, 1, 1}, elementType_);
+  dataVec_fp32.reserve(tbl_size);
+  filter_name = layer->layer_param().name()+"_shift";
+  weightFile_->addTensor(filter_name, &dataVec_fp32, table_type_shift);
+  operands.push_back(AddLoadWeightOp(block, filter_name, table_type_shift));
+
+  // construct OP
+  auto result_type = RankedTensorType::get(input_shape, elementType_);
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder_.getNamedAttr("power", builder_.getF32FloatAttr(power)));
+  attrs.push_back(builder_.getNamedAttr("scale", builder_.getF32FloatAttr(scale)));
+  attrs.push_back(builder_.getNamedAttr("shift", builder_.getF32FloatAttr(shift)));
+
+  attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name())));
+
+  auto op = OpBuilder(block).create<tpu::PowerOp>(
+      builder_.getUnknownLoc(), result_type,
+      ArrayRef<Value *>{operands}, ArrayRef<NamedAttribute>{attrs});
+  auto result_var = op.getResult();
+
+  tensor_map_[layer_param.top(0)] = result_var;
+}
+
+void CaffeImporter::convertNormalizeLayer(mlir::Block *block,
+    caffe::Layer<float> *layer) {
+
+  mlir::Value *input_var = GetLayerInput(layer);
+
+  auto layer_param = layer->layer_param();
+  auto norm_param = layer_param.norm_param();
+  bool across_spatial = norm_param.across_spatial();
+  bool channel_shared = norm_param.channel_shared();
+
+  //implement for ssd case first 
+  assert(!across_spatial);
+
+  int64_t n, c, ih, iw, oh, ow;
+
+  llvm::ArrayRef<int64_t> input_shape =
+      input_var->getType().dyn_cast<mlir::TensorType>().getShape();
+  assert(input_shape.size() == 4);
+  n = input_shape[0];
+  c = input_shape[1];
+  ih = input_shape[2];
+  iw = input_shape[3];
+  oh = ih;
+  ow = iw;
+
+  LLVM_DEBUG(
+    llvm::errs()
+        << "  N: " << n
+        << ", C: " << c
+        << ", IH*IW: " << ih << " * " << iw
+        << ", OH*OW: " << oh << " * " << ow
+        << "\n";
+  );
+
+/*  
+  Currenly , we separate Normalize op to below 5 ops. 
+  Power-> Reduction-> Sqrt-> Div->Eltwise OP(prod) ->Scale(by channel scale)
+*/
+
+  /* 1. Power OP */
+
+  std::vector<Value *> operands;
+  operands.push_back(input_var);
+
+  // we leverage depthwise to calculat a*x + b, 
+  // one shot by channel, we should reserve weight 
+  // for extend scale/shift from 1 dimension to <1, NUP_NUM, 1, 1>
+  // FIXME: not harcode
+  int channel = 32;
+  int tbl_size = channel;
+  auto table_type_scale = RankedTensorType::get({1, channel, 1, 1}, elementType_);
+  std::vector<float> dataVec_fp32;
+  dataVec_fp32.reserve(tbl_size);
+  auto filter_name = layer->layer_param().name()+"_power_scale";
+  weightFile_->addTensor(filter_name, &dataVec_fp32, table_type_scale);
+  operands.push_back(AddLoadWeightOp(block, filter_name, table_type_scale));
+  
+  // we just allocate 1 batch cuz
+  // `AssignWeightAddress.cpp` auto seperate high/low part into int8 buffer
+  tbl_size = 1 * channel;
+  auto table_type_shift = RankedTensorType::get({1, channel, 1, 1}, elementType_);
+  dataVec_fp32.reserve(tbl_size);
+  filter_name = layer->layer_param().name()+"_power_shift";
+  weightFile_->addTensor(filter_name, &dataVec_fp32, table_type_shift);
+  operands.push_back(AddLoadWeightOp(block, filter_name, table_type_shift));
+
+
+
+  auto result_type = RankedTensorType::get(input_shape, elementType_);
+  std::vector<NamedAttribute> attrs_power;
+  attrs_power.push_back(builder_.getNamedAttr("power", builder_.getF32FloatAttr(2.0)));
+  attrs_power.push_back(builder_.getNamedAttr("scale", builder_.getF32FloatAttr(1.0)));
+  attrs_power.push_back(builder_.getNamedAttr("shift", builder_.getF32FloatAttr(0.0)));
+  attrs_power.push_back(builder_.getNamedAttr("rshift", builder_.getF32FloatAttr(0.0)));
+
+  attrs_power.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name()+"_power")));
+
+  auto power_op = OpBuilder(block).create<tpu::PowerOp>(
+      builder_.getUnknownLoc(), result_type,
+      ArrayRef<Value *>{operands}, ArrayRef<NamedAttribute>{attrs_power});
+
+  auto power_result_var = power_op.getResult();
+
+  /* 2. Reduction(using conv2D Op) OP */
+
+  std::vector<Value *> operands_conv;
+  operands_conv.push_back(power_result_var);
+
+  // - blobs_[0] holds the filter weights
+  // - blobs_[1] holds the biases (optional)
+  auto filter_name_conv = layer->layer_param().name()+"_conv_filter";
+
+
+  std::vector<float> weight(c*c,1);
+  //use C*C*1*1 filter to keep shape as input 
+  auto filter_type = RankedTensorType::get({c, c, 1, 1}, elementType_);
+  
+  weightFile_->addTensor(filter_name_conv, &weight, filter_type);
+  operands_conv.push_back(AddLoadWeightOp(block, filter_name_conv, filter_type));
+
+  // construct OP
+  auto conv_result_type = RankedTensorType::get(input_shape, elementType_);
+  std::vector<NamedAttribute> attrs_conv;
+  attrs_conv.push_back(builder_.getNamedAttr("with_bias", builder_.getBoolAttr(false)));
+  attrs_conv.push_back(builder_.getNamedAttr("padding", builder_.getStringAttr("VALID")));
+  attrs_conv.push_back(builder_.getNamedAttr("stride_h", builder_.getI32IntegerAttr(1)));
+  attrs_conv.push_back(builder_.getNamedAttr("stride_w", builder_.getI32IntegerAttr(1)));
+  attrs_conv.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name()+"_conv")));
+
+  auto op_conv = OpBuilder(block).create<tpu::Conv2DOp>(
+      builder_.getUnknownLoc(), conv_result_type,
+      ArrayRef<Value *>{operands_conv}, ArrayRef<NamedAttribute>{attrs_conv});
+  auto conv_result_var = op_conv.getResult();
+
+
+  /* 3. Sqrt OP */
+  result_type = RankedTensorType::get(input_shape, elementType_);
+  std::vector<NamedAttribute> attrs_sqrt;
+  attrs_sqrt.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name()+"_sqrt")));
+  attrs_sqrt.push_back(builder_.getNamedAttr("numerator", builder_.getF32FloatAttr(1.0)));
+
+  auto sqrt_op = OpBuilder(block).create<tpu::SqrtOp>(
+      builder_.getUnknownLoc(), result_type,
+      ArrayRef<Value *>{conv_result_var}, ArrayRef<NamedAttribute>{attrs_sqrt});
+
+  auto sqrt_result_var = sqrt_op.getResult();
+
+  /* 4. Div OP */
+
+  result_type = RankedTensorType::get(input_shape, elementType_);
+  std::vector<NamedAttribute> attrs_div;
+  attrs_div.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name()+"_Div")));
+  attrs_div.push_back(builder_.getNamedAttr("numerator", builder_.getF32FloatAttr(1.0)));
+
+  auto div_op = OpBuilder(block).create<tpu::DivOp>(
+      builder_.getUnknownLoc(), result_type,
+      ArrayRef<Value *>{sqrt_result_var}, ArrayRef<NamedAttribute>{attrs_div});
+
+  auto div_result_var = div_op.getResult();
+
+  /* 5. Eltwise OP(prod) */
+  auto eltwise_type = RankedTensorType::get(input_shape, elementType_);
+
+  std::vector<Value *> operands_eltwise;
+
+  operands_eltwise.push_back(input_var);
+  operands_eltwise.push_back(div_result_var);
+
+  std::vector<NamedAttribute> attrs_eltwise;
+  attrs_eltwise.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name()+"_eltwise")));
+  attrs_eltwise.push_back(
+      builder_.getNamedAttr("method", builder_.getStringAttr("PROD")));
+  auto eltwise_op = OpBuilder(block).create<tpu::EltwiseOp>(
+      builder_.getUnknownLoc(), result_type,
+      ArrayRef<Value *>{operands_eltwise}, ArrayRef<NamedAttribute>{attrs_eltwise});
+  auto eltwise_result_var = eltwise_op.getResult();
+
+  /* 6. Scale OP */
+
+  std::vector<Value *> operands_scale;
+  operands_scale.push_back(eltwise_result_var);
+
+
+  auto scale_name = layer->layer_param().name()+"_scale_weight";
+  auto scale_type = RankedTensorType::get({1,c}, elementType_);
+
+  if(channel_shared){
+    assert(layer->blobs()[0].get()->count() == 1);
+    std::vector<float> scale_input(c,layer->blobs()[0].get()->cpu_data()[0]);
+    weightFile_->addTensor(scale_name, scale_input.data(), scale_type);
+  }else{
+    assert(layer->blobs()[0].get()->count() == c);
+    weightFile_->addTensor(scale_name, layer->blobs()[0].get()->cpu_data(), scale_type);
+  }
+
+  operands_scale.push_back(AddLoadWeightOp(block, scale_name, scale_type));
+
+  // construct scale OP
+  result_type = RankedTensorType::get({n, c, oh, ow}, elementType_);
+  std::vector<NamedAttribute> scale_attrs;
+  scale_attrs.push_back(builder_.getNamedAttr(
+      "name", builder_.getStringAttr(layer->layer_param().name()+"_scale")));
+  auto scale_op = OpBuilder(block).create<tpu::ScaleOp>(
+      builder_.getUnknownLoc(), result_type, ArrayRef<Value *>{operands_scale},
+      ArrayRef<NamedAttribute>{scale_attrs});
+
+  auto result_var = scale_op.getResult();
+  tensor_map_[layer_param.top(0)] = result_var;
+}
+
+void CaffeImporter::convertPermuteLayer(mlir::Block *block,
+    caffe::Layer<float> *layer) {
+  std::vector<mlir::Value *> input_vars = GetLayerInputs(layer);
+
+  auto layer_param = layer->layer_param();
+  auto permute_param = layer_param.permute_param();
+  llvm::ArrayRef<int64_t> input_shape =
+      input_vars[0]->getType().dyn_cast<mlir::TensorType>().getShape();
+
+  assert(permute_param.order_size() == 4);
+
+  int64_t in, ic, ih, iw, on,oc,oh, ow;
+
+  in = input_shape[0];
+  ic = input_shape[1];
+  ih = input_shape[2];
+  iw = input_shape[3];
+
+  on = input_shape[permute_param.order(0)];
+  oc = input_shape[permute_param.order(1)];
+  oh = input_shape[permute_param.order(2)];
+  ow = input_shape[permute_param.order(3)];
+
+
+  LLVM_DEBUG(
+    llvm::errs()
+        << "  IN: " << in
+        << ", IC: " << ic
+        << ", IH*IW: " << ih << " * " << iw
+        << "  ON: " << on
+        << ", OC: " << oc       
+        << ", OH*OW: " << oh << " * " << ow
+        << "\n";
+  );
+
+  // construct OP
+  auto result_type = RankedTensorType::get({on, oc, oh, ow}, elementType_);
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name())));
+  attrs.push_back(builder_.getNamedAttr("order0", builder_.getI32IntegerAttr(permute_param.order(0))));
+  attrs.push_back(builder_.getNamedAttr("order1", builder_.getI32IntegerAttr(permute_param.order(1))));
+  attrs.push_back(builder_.getNamedAttr("order2", builder_.getI32IntegerAttr(permute_param.order(2))));
+  attrs.push_back(builder_.getNamedAttr("order3", builder_.getI32IntegerAttr(permute_param.order(3))));
+  auto op = OpBuilder(block).create<tpu::PermuteOp>(
+      builder_.getUnknownLoc(), result_type,
+      ArrayRef<Value *>{input_vars}, ArrayRef<NamedAttribute>{attrs});
+  auto result_var = op.getResult();
+
+  tensor_map_[layer_param.top(0)] = result_var;
+}
 LogicalResult CaffeImporter::Import(const llvm::StringRef inputFilename,
     llvm::StringRef caffemodelFilename) {
   caffe::Net<float> net(inputFilename, caffe::TEST);

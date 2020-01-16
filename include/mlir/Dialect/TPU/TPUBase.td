@@ -134,6 +134,19 @@ def TPU_EltwiseAttr : StrEnumAttr<
     ]>;
 
 //===----------------------------------------------------------------------===//
+// Code_type enum definitions.
+//===----------------------------------------------------------------------===//
+
+def CODE_TYPE_CORNER  : StrEnumAttrCase<"CORNER">;
+def CODE_TYPE_CENTER_SIZE : StrEnumAttrCase<"CENTER_SIZE">;
+def CODE_TYPE_CORNER_SIZE : StrEnumAttrCase<"CORNER_SIZE">;
+
+def TPU_Code_typeAttr : StrEnumAttr<"Code type", "Code type enum", [
+      CODE_TYPE_CORNER, CODE_TYPE_CENTER_SIZE,CODE_TYPE_CORNER_SIZE
+    ]>;
+    
+
+//===----------------------------------------------------------------------===//
 // TPU op base class.
 //===----------------------------------------------------------------------===//
 
