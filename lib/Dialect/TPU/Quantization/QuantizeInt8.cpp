@@ -203,9 +203,11 @@ void doWeightQuantizeInt8Multiplier(float *filter, float *bias,
 
   // find qscale
   for (int i = 0; i < oc; ++i) {
-    float eps = 0.0f; // 1e-5;
+    // float eps = 0.0f; // 1e-5;
+    float eps = 1e-5;
+    float threshold_w = (max_filter_abs[i] > eps) ? max_filter_abs[i] : eps;
     float qscale =
-        findQScale(max_filter_abs[i] + eps, threshold_y, threshold_x);
+        findQScale(threshold_w, threshold_y, threshold_x);
     uint32_t multiplier;
     rshift_per_channel[i] =
         (float)findRShiftAndMultiplierFromQScale(qscale, &multiplier, true);
@@ -322,7 +324,7 @@ struct TpuQuantConv2DOpPattern : public RewritePattern {
     // TODO: use float to save all weights for now
     auto rshift_per_layer = std::make_unique<std::vector<float> >(1);
     auto rshift_per_channel = std::make_unique<std::vector<float> >(oc);
-    auto multiplier_per_channel = std::make_unique<std::vector<float> >(oc);;
+    auto multiplier_per_channel = std::make_unique<std::vector<float> >(oc);
 
     // quantization
     if (quant == INT8_PER_LAYER) {
@@ -691,7 +693,6 @@ struct TpuQuantPReluOpPattern : public RewritePattern {
                   PatternRewriter &rewriter) const override {
 
     auto preluOp = cast<tpu::PReluOp>(op);
-    std::cout << "Quantize -> "<< (std::string)preluOp.name().getValue() << std::endl;
     std::string op_name =
         preluOp.getAttrOfType<StringAttr>("name").getValue().str();
     auto loc = op->getLoc();
@@ -700,7 +701,7 @@ struct TpuQuantPReluOpPattern : public RewritePattern {
       LLVM_DEBUG(llvm::errs() << preluOp.name() << " quantized already\n";);
       return matchFailure();
     }
-    // assert(preluOp.per_channel_info_is_aggregated() == false);
+    
     // get quant type
     QUANT_INT8_TYPE_e quant;
     if (!clQuantConvPerChannel) {
@@ -736,12 +737,6 @@ struct TpuQuantPReluOpPattern : public RewritePattern {
     auto slopeType = preluOp.negative_slope()->getType().cast<TensorType>();
     std::vector<int64_t> slopeShape(slopeType.getShape());
 
-    std::cout << "slopeShape = { " << slopeShape[0];
-    for (unsigned i=1; i<slopeShape.size(); i++){
-      std::cout << ", " << slopeShape[i];
-    }
-    std::cout << " }" << std::endl; //sleep(sleep_t);
-
     assert(slopeShape.size() >= 2);
     int64_t slopeSize = std::accumulate(std::begin(slopeShape),
         std::end(slopeShape), 1, std::multiplies<>());
@@ -761,21 +756,13 @@ struct TpuQuantPReluOpPattern : public RewritePattern {
     auto rshift = std::vector<float>(1);
     auto multiplier = std::vector<float>(1);;
 
-
-
-
     float max_slope_abs = fabs(negative_slope[0]);
     for (int i = 0; i < c; ++i) {
-      if (i < 10 || i > c-10){
-        std::cout << "slope[" << i << "] = " << negative_slope[i] << std::endl;
-      }
-
       if ( fabs(negative_slope[i]) > max_slope_abs) {
           max_slope_abs = fabs(negative_slope[i]);
       }
     }
-    LLVM_DEBUG(llvm::errs() << "  max filter : " << max_slope_abs << "\n";);
-    //float _slope_eps = 1e-4;
+    LLVM_DEBUG(llvm::errs() << "  max slope : " << max_slope_abs << "\n";);
 
     // find qscale
     float qscale = findQScale(max_slope_abs, threshold_y, threshold_x);
@@ -832,8 +819,6 @@ struct TpuQuantPReluOpPattern : public RewritePattern {
     rewriter.replaceOpWithNewOp<tpu::PReluOp>(
         preluOp, preluOp.getResult()->getType(),
         ArrayRef<Value *>{newOperands}, ArrayRef<NamedAttribute>{newAttrs});
-
-
 
     return matchSuccess();
 

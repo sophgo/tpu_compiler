@@ -9,7 +9,9 @@ import copy
 
 import pymlir
 
-MODEL_MLIR_PATH  = './bmface-v3_opt.mlir'
+#MODEL_MLIR_PATH  = './bmface-v3.mlir'
+#MODEL_MLIR_PATH  = './bmface-v3_opt.mlir'
+MODEL_MLIR_PATH  = './bmface-v3_quant_int8_multiplier.mlir'
 LFW_DATASET_PATH = '/workspace/data/dataset_zoo/lfw/bmface_preprocess/bmface_LFW/'
 PAIRS_FILE_PATH  = '/workspace/data/dataset_zoo/lfw/pairs.txt'
 
@@ -118,11 +120,13 @@ if __name__ == '__main__':
         img2 = cv2.imread(os.path.join(args.dataset, person2, img2_name))
         img1 = preprocess_func(img1.astype(np.float32))
         img2 = preprocess_func(img2.astype(np.float32))
+        img1 = img1[np.newaxis, ...]
+        img2 = img2[np.newaxis, ...]
 
         out = module.run(img1)
-        face_feature_1 = copy.copy(out)
+        face_feature_1 = copy.copy(out['fc1_scale_dequant'])
         out = module.run(img2)
-        face_feature_2 = copy.copy(out)
+        face_feature_2 = copy.copy(out['fc1_scale_dequant'])
 
         feature_diff = eval_difference(face_feature_1, face_feature_2)
         _score = diff2score(feature_diff)
