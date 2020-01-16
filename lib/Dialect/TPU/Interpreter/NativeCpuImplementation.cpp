@@ -506,13 +506,6 @@ int my_prelu(float *input, float *output, int n, int c, int h, int w,
   LLVM_DEBUG(llvm::errs() << "  n: " << n << ", c: " << c << ", h: " << h
                           << ", w: " << w << "\n";);
 
-  // for (int i = 0; i < n * c * h * w; ++i) {
-  //   if (input[i] >= 0) {
-  //     output[i] = input[i];
-  //   } else {
-  //     output[i] = negative_slope * input[i];
-  //   }
-  // }
   for(int batch = 0; batch < n; ++batch){
     for(int channel = 0 ; channel < c; ++channel){
         int index = batch * c * w * h + channel * w * h;
