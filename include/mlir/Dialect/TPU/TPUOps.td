@@ -436,6 +436,8 @@ def TPU_SigmoidOp: TPU_Op<"sigmoid", [NoSideEffect]> {
   let arguments = (
     ins AnyTensor:$input,
     OptionalAttr<StrAttr>:$name,
+    Variadic<AnyTensor>: $table,
+    OptionalAttr<BoolAttr>: $has_table,
     OptionalAttr<NonNegativeI64Attr>:$offset,
     OptionalAttr<F32Attr>:$threshold_y,
     OptionalAttr<NonNegativeI32Attr>:$layer_id,

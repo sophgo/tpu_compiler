@@ -1367,6 +1367,8 @@ void CaffeImporter::convertSigmoidLayer(mlir::Block *block,
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder_.getNamedAttr(
       "name", builder_.getStringAttr(layer_param.name())));
+  attrs.push_back(builder_.getNamedAttr(
+      "has_table", builder_.getBoolAttr(false)));
   auto op = OpBuilder(block).create<tpu::SigmoidOp>(
       builder_.getUnknownLoc(), result_type, ArrayRef<Value *>{input_var},
       ArrayRef<NamedAttribute>{attrs});
