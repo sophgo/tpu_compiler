@@ -512,6 +512,58 @@ struct TpuQuantEltwiseOpPattern : public RewritePattern {
   Value* weightFileVar_;
 };
 
+struct TpuQuantSliceOpPattern : public RewritePattern {
+  TpuQuantSliceOpPattern(MLIRContext *context, TensorFile *weightTensorFile,
+      Value* weightFileVar)
+      : RewritePattern("tpu.slice", 1, context),
+        weightTensorFile_(weightTensorFile),
+        weightFileVar_(weightFileVar) {}
+
+  PatternMatchResult matchAndRewrite(Operation *op,
+                                     PatternRewriter &rewriter) const override {
+    auto sliceOp = cast<tpu::SliceOp>(op);
+    std::string op_name = sliceOp.getAttrOfType<StringAttr>("name").getValue().str();
+    //auto loc = op->getLoc();
+
+    if (sliceOp.quant() != "NONE") {
+      LLVM_DEBUG(llvm::errs() << sliceOp.name() << " quantized already\n";);
+      return matchFailure();
+    }
+    sliceOp.setAttr("quant", rewriter.getStringAttr("INT8"));
+
+    return matchSuccess();
+  }
+
+  TensorFile *weightTensorFile_;
+  Value* weightFileVar_;
+};
+
+struct TpuQuantConcatOpPattern : public RewritePattern {
+  TpuQuantConcatOpPattern(MLIRContext *context, TensorFile *weightTensorFile,
+      Value* weightFileVar)
+      : RewritePattern("tpu.concat", 1, context),
+        weightTensorFile_(weightTensorFile),
+        weightFileVar_(weightFileVar) {}
+
+  PatternMatchResult matchAndRewrite(Operation *op,
+                                     PatternRewriter &rewriter) const override {
+    auto conOp = cast<tpu::ConcatOp>(op);
+    std::string op_name = conOp.getAttrOfType<StringAttr>("name").getValue().str();
+    //auto loc = op->getLoc();
+
+    if (conOp.quant() != "NONE") {
+      LLVM_DEBUG(llvm::errs() << conOp.name() << " quantized already\n";);
+      return matchFailure();
+    }
+    conOp.setAttr("quant", rewriter.getStringAttr("INT8"));
+
+    return matchSuccess();
+  }
+
+  TensorFile *weightTensorFile_;
+  Value* weightFileVar_;
+};
+
 struct TpuQuantSigmoidOpPattern : public RewritePattern {
   TpuQuantSigmoidOpPattern(MLIRContext *context, TensorFile *weightTensorFile,
                            Value *weightFileVar)
@@ -1040,21 +1092,25 @@ public:
     auto *context = &getContext();
 
     OwningRewritePatternList patterns_w;
+    patterns_w.insert<TpuQuantConcatOpPattern>(context,
+        weightTensorFile.get(), weightFileVar);
     patterns_w.insert<TpuQuantConv2DOpPattern>(context,
+        weightTensorFile.get(), weightFileVar);
+    patterns_w.insert<TpuQuantEltwiseOpPattern>(context,
         weightTensorFile.get(), weightFileVar);
     patterns_w.insert<TpuQuantFullyConnectedOpPattern>(context,
         weightTensorFile.get(), weightFileVar);
     patterns_w.insert<TpuQuantPool2DOpPattern>(context,
         weightTensorFile.get(), weightFileVar);
-    patterns_w.insert<TpuQuantEltwiseOpPattern>(context,
-        weightTensorFile.get(), weightFileVar);
-    patterns_w.insert<TpuQuantSigmoidOpPattern>(context,
-        weightTensorFile.get(), weightFileVar);
     patterns_w.insert<TpuQuantPReluOpPattern>(context,
+        weightTensorFile.get(), weightFileVar);
+    patterns_w.insert<TpuQuantReluOpPattern>(context,
         weightTensorFile.get(), weightFileVar);
     patterns_w.insert<TpuQuantScaleOpPattern>(context,
         weightTensorFile.get(), weightFileVar);
-    patterns_w.insert<TpuQuantReluOpPattern>(context,
+    patterns_w.insert<TpuQuantSigmoidOpPattern>(context,
+        weightTensorFile.get(), weightFileVar);
+    patterns_w.insert<TpuQuantSliceOpPattern>(context,
         weightTensorFile.get(), weightFileVar);
     applyPatternsGreedily(fn, patterns_w);
 
