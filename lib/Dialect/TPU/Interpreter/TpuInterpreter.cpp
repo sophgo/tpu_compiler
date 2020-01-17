@@ -1558,15 +1558,24 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     auto resultT = std::make_unique<std::vector<float> >(size);
     float eps = 1.0e-5;
 
-    float threshold_y,threshold_x,qscale,rshift;
-    uint32_t multiplier_power;
 
-    if (op.quant() == "INT8") {
+    float threshold_y,threshold_x,qscale,rshift;
+    uint32_t multiplier;
+    if (op.quant() != "NONE"){
+
       threshold_y = op.threshold_y().getValue().convertToFloat();
       threshold_x = getPreviousOpThreshold(op);
-      qscale = 127.0*127.0/(threshold_x*threshold_y);  
-      rshift = findRShiftAndMultiplierFromQScale(qscale, &multiplier_power,
-                                             true, 127);
+      qscale = 127.0*127.0/(threshold_x*threshold_y);
+    }
+
+    if (op.quant() == "INT8"|| op.quant() == "INT8_PER_CHANNEL") {
+      rshift = findRShiftAndMultiplierFromQScale(qscale);
+    }else if(op.quant() == "INT8_MULTIPLIER"){
+      rshift = (float)findRShiftAndMultiplierFromQScale(qscale, &multiplier, true,255);                                      
+    }else if(op.quant() == "NONE"){
+
+    }else{
+      assert(0&&"no other quant method is support");
     }
 
     float *input = (float *)opdT[0]->data();
@@ -1595,12 +1604,12 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
     for (int i = 0; i < n * c * h * w; ++i) {
       output[i] = numerator/(input[i] + eps);
-      if (op.quant() == "INT8"){
-        output[i] = output[i] * multiplier_power;
-        output[i] = (float)applyRShiftAndSaturateInt8(output[i], (uint32_t)rshift);
+      if (op.quant() == "INT8"||op.quant() == "INT8_PER_CHANNEL") {
+      output[i] = (float)applyRShiftAndSaturateInt8(output[i], (uint32_t)rshift);
+      }else if(op.quant() == "INT8_MULTIPLIER"){
+        output[i] = (float)applyMultiplierAndRShiftAndSaturateInt8(output[i],rshift,  multiplier);        
       }
     }
-
 
     valueMapping[result] = std::move(resultT);
 
@@ -1618,13 +1627,22 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
 
     float threshold_y,threshold_x,qscale,rshift;
-    uint32_t multiplier_power;
-    if (op.quant() == "INT8") {
+    uint32_t multiplier;
+
+    if (op.quant() != "NONE"){
       threshold_y = op.threshold_y().getValue().convertToFloat();
       threshold_x = getPreviousOpThreshold(op);
       qscale = pow(threshold_x*127.0,0.5) /(threshold_y);  
-      rshift = findRShiftAndMultiplierFromQScale(qscale, &multiplier_power,
-                                             true, 127);
+    }
+
+    if (op.quant() == "INT8"|| op.quant() == "INT8_PER_CHANNEL") {
+      rshift = findRShiftAndMultiplierFromQScale(qscale);
+    }else if(op.quant() == "INT8_MULTIPLIER"){
+      rshift = (float)findRShiftAndMultiplierFromQScale(qscale, &multiplier, true,255);                                      
+    }else if(op.quant() == "NONE"){
+
+    }else{
+      assert(0&&"no other quant method is support");
     }
 
     float *input = (float *)opdT[0]->data();
@@ -1651,11 +1669,16 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
     for (int i = 0; i < n * c * h * w; ++i) {
       output[i] = pow(input[i],0.5);
-      if (op.quant() == "INT8"){
-        output[i] = output[i] * multiplier_power;
+      if (op.quant() == "INT8"||op.quant() == "INT8_PER_CHANNEL") {
         output[i] = (float)applyRShiftAndSaturateInt8(output[i], (uint32_t)rshift);
+      }else if(op.quant() == "INT8_MULTIPLIER"){
+        
+        output[i] = (float)applyMultiplierAndRShiftAndSaturateInt8(output[i],rshift,  multiplier);        
       }
     }
+    
+
+
 
     valueMapping[result] = std::move(resultT);
 
@@ -2164,21 +2187,22 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     assert(ret == 0);
 
     // rshift and saturate on output
-    if (op.quant() == "INT8"||op.quant() == "INT8_PER_CHANNEL") {
+    
       //assert(rshift);
       for (int i = 0; i < size; ++i) {
+        if (op.quant() == "INT8"||op.quant() == "INT8_PER_CHANNEL") {
         output[i] = (float)applyRShiftAndSaturateInt8(output[i], (uint32_t)rshift);
-      }
-    }else if(op.quant() == "INT8_MULTIPLIER"){
-        for (int i = 0; i < size; ++i) {
-        output[i] = (float)applyMultiplierAndRShiftAndSaturateInt8(output[i],rshift,  multiplier);        
+        }else if(op.quant() == "INT8_MULTIPLIER"){
+          output[i] = (float)applyMultiplierAndRShiftAndSaturateInt8(output[i],rshift,  multiplier);        
         }
-    }
-/*    else if (op.quant() == "BF16"){
-      auto tensor_bf16 = std::make_unique<std::vector<bfloat16> >(resultT->size());
-      FloatToBFloat16(resultT->data(), tensor_bf16->data(), resultT->size()); // with rounding
-      BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
-    }*/
+        /*    else if (op.quant() == "BF16"){
+              auto tensor_bf16 = std::make_unique<std::vector<bfloat16> >(resultT->size());
+              FloatToBFloat16(resultT->data(), tensor_bf16->data(), resultT->size()); // with rounding
+              BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
+        }*/
+
+      }
+
 
     valueMapping[result] = std::move(resultT);
     return success();

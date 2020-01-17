@@ -58,18 +58,6 @@ mlir-tpu-interpreter ssd300_opt2.mlir \
     --tensor-out ssd300_opt_out_fp32_opt2.npz
 npz_compare.py ssd300_opt_out_fp32_opt2.npz ssd300_out_fp32_ref.npz -v
 
-# #opt3, convert concat to loadweight if all input is loadweight op
-# mlir-opt \
-#     --convert-loadweightconcat-to-loadweight \
-#     ssd300_opt2.mlir \
-#     -o ssd300_opt_3.mlir
-    
-# # test opt3
-# mlir-tpu-interpreter ssd300_opt_3.mlir \
-#     --tensor-in ssd300_in_fp32.npz \
-#     --tensor-out ssd300_opt_out_fp32.npz
-# npz_compare.py ssd300_opt_out_fp32.npz ssd300_out_fp32_ref.npz -v
-
 
 # VERDICT
 echo $0 PASSED
