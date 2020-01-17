@@ -47,8 +47,8 @@ struct TpuConvertLoadeweightConcatToLoadweightPattern : public RewritePattern {
     int input_loadweight_num = concatOp.getOperands().size();
 
     /*
-    There is 6 real input loadweight op for ssd , 
-    plus one fake extral loadweight op to save result. 
+    There is 6 real input loadweight op for ssd ,
+    plus one fake extral loadweight op to save result.
     So need to input_loadweight_num-1 to do match check.
     */
     for(int i=0;i<input_loadweight_num-1;i++){
@@ -57,7 +57,8 @@ struct TpuConvertLoadeweightConcatToLoadweightPattern : public RewritePattern {
           return matchFailure();
         }
     }
-    uint32_t  c, h, w;
+    //uint32_t c;
+    uint32_t h, w;
     int tmp_w=0;
     llvm::errs() << "Starting to convert Layer " << concatOp.name().getValue() << "\n";
     auto result = concatOp.res();
@@ -84,10 +85,10 @@ struct TpuConvertLoadeweightConcatToLoadweightPattern : public RewritePattern {
     }
 
 
-    for (uint32_t i = 0; i < input_loadweight_num-1; i++) {
+    for (int i = 0; i < input_loadweight_num-1; i++) {
       std::vector<int64_t> shape =  concatOp.getOperand(i)->getType().cast<TensorType>().getShape();
       assert(3==shape.size()&&"only do 3 dim concat opt now");
-      c = shape[0];
+      //c = shape[0];
       h = shape[1];
       w = shape[2];
 

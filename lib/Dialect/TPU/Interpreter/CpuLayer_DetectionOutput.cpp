@@ -7,21 +7,23 @@
 
 namespace mlir {
 
-bool SortScoreCmp0 (const pair<float,int> &pair1, const pair<float,int> &pair2) {
+bool SortScoreCmp0 (const std::pair<float,int> &pair1,
+    const std::pair<float,int> &pair2) {
   return pair1.first > pair2.first;
 }
 
-bool SortScoreCmp1 (const pair<float, pair<int, int>>& pair1, const pair<float, pair<int, int>>& pair2) {
+bool SortScoreCmp1 (const std::pair<float, std::pair<int, int>>& pair1,
+    const std::pair<float, std::pair<int, int>>& pair2) {
   return pair1.first > pair2.first;
 }
 
 void GetConfidenceScores_opt (const float* conf_data, const int num,
-      const int num_preds_per_class, const int num_classes, const float score_threshold,
-      vector<map<int, vector<pair<float ,int>> > >* conf_preds) {
+    const int num_preds_per_class, const int num_classes, const float score_threshold,
+    std::vector<std::map<int, std::vector<std::pair<float ,int>> > >* conf_preds) {
   conf_preds->clear();
   conf_preds->resize(num);
   for (int i = 0; i < num; ++i) {
-    map<int, vector<pair<float ,int>> >& label_scores = (*conf_preds)[i];
+    std::map<int, std::vector<std::pair<float ,int>> >& label_scores = (*conf_preds)[i];
     for (int p = 0; p < num_preds_per_class; ++p) {
       int start_idx = p * num_classes;
       for (int c = 0; c < num_classes; ++c) {
@@ -32,15 +34,12 @@ void GetConfidenceScores_opt (const float* conf_data, const int num,
     }
     conf_data += num_preds_per_class * num_classes;
   }
-
 }
-
-
 
 void GetLocPredictions_opt (const float* loc_data, const int num,
       const int num_preds_per_class, const int num_loc_classes,
       const bool share_location, float *decode_index,
-      vector<LabelBBox_l>* loc_preds) {
+      std::vector<LabelBBox_l>* loc_preds) {
   loc_preds->clear();
   if (share_location) {
     assert(num_loc_classes==1);
@@ -75,14 +74,14 @@ void GetLocPredictions_opt (const float* loc_data, const int num,
   }
 }
 
-void DecodeBBoxesAll_opt (const vector<LabelBBox_l>& all_loc_preds,
+void DecodeBBoxesAll_opt (const std::vector<LabelBBox_l>& all_loc_preds,
     int num_priors, const float* prior_data,
     const int num, const bool share_location,
     const int num_loc_classes, const int background_label_id,
     const CodeType code_type, const bool variance_encoded_in_target,
     const bool clip, float *decode_index ,
-    vector<LabelBBox_l>* all_decode_bboxes) {
-  assert(all_loc_preds.size()==num);
+    std::vector<LabelBBox_l>* all_decode_bboxes) {
+  assert(all_loc_preds.size() == (size_t)num);
   all_decode_bboxes->clear();
   all_decode_bboxes->resize(num);
   float * decode_pos = decode_index;
@@ -100,9 +99,9 @@ void DecodeBBoxesAll_opt (const vector<LabelBBox_l>& all_loc_preds,
       if (all_loc_preds[i].find(label) == all_loc_preds[i].end()) {
        llvm::errs() << "Could not find location predictions for label " << label;
       }
-      const vector<BBox_l>& bboxes = all_loc_preds[i].find(label)->second;
+      const std::vector<BBox_l>& bboxes = all_loc_preds[i].find(label)->second;
       LabelBBox_l& decode_bboxes = (*all_decode_bboxes)[i];
-      vector<BBox_l>* p = &(decode_bboxes[label]);
+      std::vector<BBox_l>* p = &(decode_bboxes[label]);
       p->clear();
 
       if (!share_location) {
@@ -155,9 +154,10 @@ void DecodeBBoxesAll_opt (const vector<LabelBBox_l>& all_loc_preds,
   }
 }
 
-void ApplyNMSFast_opt (const vector<BBox_l>& bboxes, const vector<pair<float ,int>> & conf_score ,
-     const float score_threshold, const float nms_threshold, const float eta, int top_k,
-     vector<pair<float,int>>* indices) {
+void ApplyNMSFast_opt (const std::vector<BBox_l>& bboxes,
+    const std::vector<std::pair<float ,int>> & conf_score ,
+    const float score_threshold, const float nms_threshold, const float eta, int top_k,
+    std::vector<std::pair<float,int>>* indices) {
   // Do nms.
   float adaptive_threshold = nms_threshold;
   int i = 0;

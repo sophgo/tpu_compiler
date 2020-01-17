@@ -6,46 +6,84 @@
 namespace mlir {
 
 llvm::StringRef getOpName(Operation *op) {
-  if (auto cast_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(op)) {
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::BatchNormOp>(op)) {
     return cast_op.name().getValue();
   }
-  if (auto cast_op = llvm::dyn_cast_or_null<tpu::InputOp>(op)) {
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::ConcatOp>(op)) {
     return cast_op.name().getValue();
   }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::Conv2DOp>(op)) {
     return cast_op.name().getValue();
   }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::CropOp>(op)) {
+    return cast_op.name().getValue();
+  }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::DeConv2DOp>(op)) {
     return cast_op.name().getValue();
   }
-  if (auto cast_op = llvm::dyn_cast_or_null<tpu::FullyConnectedOp>(op)) {
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::DetectionOutputOp>(op)) {
     return cast_op.name().getValue();
   }
-  if (auto cast_op = llvm::dyn_cast_or_null<tpu::Pool2DOp>(op)) {
-    return cast_op.name().getValue();
-  }
-  if (auto cast_op = llvm::dyn_cast_or_null<tpu::BatchNormOp>(op)) {
-    return cast_op.name().getValue();
-  }
-  if (auto cast_op = llvm::dyn_cast_or_null<tpu::ScaleOp>(op)) {
-    return cast_op.name().getValue();
-  }
-  if (auto cast_op = llvm::dyn_cast_or_null<tpu::ReluOp>(op)) {
-    return cast_op.name().getValue();
-  }
-  if (auto cast_op = llvm::dyn_cast_or_null<tpu::PReluOp>(op)) {
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::DivOp>(op)) {
     return cast_op.name().getValue();
   }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::EltwiseOp>(op)) {
     return cast_op.name().getValue();
   }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::FullyConnectedOp>(op)) {
+    return cast_op.name().getValue();
+  }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::InputOp>(op)) {
+    return cast_op.name().getValue();
+  }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::NormalizeOp>(op)) {
+    return cast_op.name().getValue();
+  }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::PermuteOp>(op)) {
+    return cast_op.name().getValue();
+  }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::Pool2DOp>(op)) {
+    return cast_op.name().getValue();
+  }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::PowerOp>(op)) {
+    return cast_op.name().getValue();
+  }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::PriorBoxOp>(op)) {
+    return cast_op.name().getValue();
+  }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::ReluOp>(op)) {
+    return cast_op.name().getValue();
+  }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::ReshapeOp>(op)) {
+    return cast_op.name().getValue();
+  }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::PReluOp>(op)) {
+    return cast_op.name().getValue();
+  }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::ScaleOp>(op)) {
+    return cast_op.name().getValue();
+  }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::SigmoidOp>(op)) {
+    return cast_op.name().getValue();
+  }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::SliceOp>(op)) {
+    return cast_op.name().getValue();
+  }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::SoftmaxOp>(op)) {
+    return cast_op.name().getValue();
+  }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::SqrtOp>(op)) {
     return cast_op.name().getValue();
   }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::TanHOp>(op)) {
     return cast_op.name().getValue();
   }
-  if (auto cast_op = llvm::dyn_cast_or_null<tpu::ReshapeOp>(op)) {
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::UpsampleOp>(op)) {
+    return cast_op.name().getValue();
+  }
+
+  //---------------------------------------------------------------------------
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(op)) {
     return cast_op.name().getValue();
   }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::QuantizationOp>(op)) {
@@ -54,48 +92,9 @@ llvm::StringRef getOpName(Operation *op) {
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::DequantizationOp>(op)) {
     return cast_op.name().getValue();
   }
-  if (auto cast_op = llvm::dyn_cast_or_null<tpu::ConcatOp>(op)) {
-    return cast_op.name().getValue();
-  }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::DummyDataOp>(op)) {
     return cast_op.name().getValue();
   }
-  if (auto cast_op = llvm::dyn_cast_or_null<tpu::SigmoidOp>(op)) {
-    return cast_op.name().getValue();
-  }
-  if (auto cast_op = llvm::dyn_cast_or_null<tpu::CropOp>(op)) {
-    return cast_op.name().getValue();
-  }
-  if (auto cast_op = llvm::dyn_cast_or_null<tpu::UpsampleOp>(op)) {
-    return cast_op.name().getValue();
-  }
-  if (auto cast_op = llvm::dyn_cast_or_null<tpu::SliceOp>(op)) {
-    return cast_op.name().getValue();
-  }
-  if (auto cast_op = llvm::dyn_cast_or_null<tpu::PermuteOp>(op)) {
-    return cast_op.name().getValue();
-  } 
-  if (auto cast_op = llvm::dyn_cast_or_null<tpu::NormalizeOp>(op)) {
-    return cast_op.name().getValue();
-  } 
-  if (auto cast_op = llvm::dyn_cast_or_null<tpu::FlattenOp>(op)) {
-    return cast_op.name().getValue();
-  }
-  if (auto cast_op = llvm::dyn_cast_or_null<tpu::PriorBoxOp>(op)) {
-    return cast_op.name().getValue();
-  }
-  if (auto cast_op = llvm::dyn_cast_or_null<tpu::DetectionOutputOp>(op)) {
-    return cast_op.name().getValue();
-  }
-  if (auto cast_op = llvm::dyn_cast_or_null<tpu::PowerOp>(op)) {
-    return cast_op.name().getValue();
-  }
-  if (auto cast_op = llvm::dyn_cast_or_null<tpu::DivOp>(op)) {
-    return cast_op.name().getValue();
-  }
-  if (auto cast_op = llvm::dyn_cast_or_null<tpu::SqrtOp>(op)) {
-    return cast_op.name().getValue();
-  } 
 
   llvm::errs() << op->getName() << "\n";
   assert(false);
@@ -253,16 +252,16 @@ float getPreviousOpThreshold(Operation *op, uint index = 0) {
   }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::DivOp>(formerOp)) {
     return cast_op.threshold_y().getValue().convertToFloat();
-  } 
+  }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::SqrtOp>(formerOp)) {
     return cast_op.threshold_y().getValue().convertToFloat();
-  }     
+  }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::ConcatOp>(formerOp)) {
     return cast_op.threshold_y().getValue().convertToFloat();
   }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::DetectionOutputOp>(formerOp)) {
     return cast_op.threshold_y().getValue().convertToFloat();
-  } 
+  }
   llvm::errs() << op->getName() << formerOp->getName() << " Not Found "<<"\n ";
   assert(false);
   return NAN;
@@ -320,19 +319,19 @@ uint64_t getPreviousOpAddress(Operation *op, uint index = 0) {
   }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::DivOp>(formerOp)) {
     return cast_op.threshold_y().getValue().convertToFloat();
-  } 
+  }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::PriorBoxOp>(formerOp)) {
     return cast_op.threshold_y().getValue().convertToFloat();
-  }     
+  }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::SqrtOp>(formerOp)) {
     return cast_op.threshold_y().getValue().convertToFloat();
-  }     
+  }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::ConcatOp>(formerOp)) {
     return cast_op.threshold_y().getValue().convertToFloat();
   }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::DetectionOutputOp>(formerOp)) {
     return cast_op.threshold_y().getValue().convertToFloat();
-  }   
+  }
   assert(0);
   return 0xFFFFFFFFFFFFFFFF;
 }
@@ -708,7 +707,7 @@ void getPReluOpVariadicTensors(tpu::PReluOp &op,
     multiplier = opdT[idx];
     idx += 1;
   }
-  
+
   if (idx != opdT.size()) {
     llvm::errs() << op.name() << ": opdT.size=" << opdT.size()
                  << ", idx=" << idx << "\n";
