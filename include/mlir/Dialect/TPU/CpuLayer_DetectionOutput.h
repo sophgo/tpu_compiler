@@ -25,14 +25,12 @@
 #include "mlir/IR/Operation.h"
 #include "mlir/Support/LogicalResult.h"
 
-#include <utility> 
+#include <utility>
 #include <vector>
 #include <map>
 
-using namespace std;
- 
- namespace mlir {
- 
+namespace mlir {
+
 enum Decode_CodeType {
   PriorBoxParameter_CodeType_CORNER = 1,
   PriorBoxParameter_CodeType_CENTER_SIZE = 2,
@@ -55,35 +53,36 @@ class BBox_l {
       size = width * height;
     }
   }
-};    
+};
 
 typedef Decode_CodeType CodeType;
-typedef map<int, vector<BBox_l> > LabelBBox_l;
+typedef std::map<int, std::vector<BBox_l> > LabelBBox_l;
 
 void GetConfidenceScores_opt (const float* conf_data, const int num,
       const int num_preds_per_class, const int num_classes, const float score_threshold,
-      vector<map<int, vector<pair<float ,int>> > >* conf_preds);
+      std::vector<std::map<int, std::vector<std::pair<float ,int>> > >* conf_preds);
 
 void GetLocPredictions_opt (const float* loc_data, const int num,
       const int num_preds_per_class, const int num_loc_classes,
       const bool share_location, float *decode_index,
-      vector<LabelBBox_l>* loc_preds);
+      std::vector<LabelBBox_l>* loc_preds);
 
-void DecodeBBoxesAll_opt (const vector<LabelBBox_l>& all_loc_preds,
+void DecodeBBoxesAll_opt (const std::vector<LabelBBox_l>& all_loc_preds,
     int num_priors, const float* prior_data,
     const int num, const bool share_location,
     const int num_loc_classes, const int background_label_id,
     const CodeType code_type, const bool variance_encoded_in_target,
     const bool clip, float *decode_index ,
-    vector<LabelBBox_l>* all_decode_bboxes);
-void ApplyNMSFast_opt (const vector<BBox_l>& bboxes, const vector<pair<float ,int>> & conf_score ,
-     const float score_threshold, const float nms_threshold, const float eta, int top_k,
-     vector<pair<float,int>>* indices);
-bool SortScoreCmp0 (const pair<float,int> &pair1, 
-    const pair<float,int> &pair2);
+    std::vector<LabelBBox_l>* all_decode_bboxes);
+void ApplyNMSFast_opt (const std::vector<BBox_l>& bboxes,
+    const std::vector<std::pair<float ,int>> & conf_score ,
+    const float score_threshold, const float nms_threshold, const float eta, int top_k,
+    std::vector<std::pair<float,int>>* indices);
+bool SortScoreCmp0 (const std::pair<float,int> &pair1,
+    const std::pair<float,int> &pair2);
 
-bool SortScoreCmp1 (const pair<float, pair<int, int>>& pair1, 
-    const pair<float, pair<int, int>>& pair2) ;
+bool SortScoreCmp1 (const std::pair<float, std::pair<int, int>>& pair1,
+    const std::pair<float, std::pair<int, int>>& pair2) ;
 
 }
 

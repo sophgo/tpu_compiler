@@ -37,6 +37,7 @@ std::unique_ptr<OpPassBase<FuncOp>> createMergeScaleIntoConvPass();
 std::unique_ptr<OpPassBase<FuncOp>> createFuseReluPass();
 std::unique_ptr<OpPassBase<FuncOp>> createFuseEltwisePass();
 std::unique_ptr<OpPassBase<FuncOp>> createGenTanHTablePass();
+std::unique_ptr<OpPassBase<FuncOp>> createGenSigmoidTablePass();
 
 std::unique_ptr<OpPassBase<FuncOp>> createImportCalibrationTablePass();
 std::unique_ptr<OpPassBase<FuncOp>> createQuantizeInt8Pass();

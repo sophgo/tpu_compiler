@@ -147,7 +147,7 @@ struct TpuConvertPriorBoxPattern : public RewritePattern {
 
     float min_size = priorboxOp.min_size().convertToFloat();
     float max_size = priorboxOp.max_size().convertToFloat();
-    float aspect_ratio = priorboxOp.aspect_ratio0().convertToFloat();
+    //float aspect_ratio = priorboxOp.aspect_ratio0().convertToFloat();
     int aspect_ratios_size = priorboxOp.aspect_ratios_size().getLimitedValue();
     bool flip = priorboxOp.flip();
     bool clip = priorboxOp.clip();
@@ -183,7 +183,7 @@ struct TpuConvertPriorBoxPattern : public RewritePattern {
   for (int i = 0; i < min_size_size; ++i) {
     min_sizes_.push_back(min_size);
     assert(min_sizes_.back()> 0 && "min_size must be positive.");
-    assert(i==0); //more than one min size is not support. 
+    assert(i==0); //more than one min size is not support.
   }
 
     aspect_ratios_.clear();
@@ -192,7 +192,7 @@ struct TpuConvertPriorBoxPattern : public RewritePattern {
     for (int i = 0; i < aspect_ratios_size; ++i) {
           float ar = aspect_ratios[i];
           bool already_exist = false;
-          for (int j = 0; j < aspect_ratios_.size(); ++j) {
+          for (size_t j = 0; j < aspect_ratios_.size(); ++j) {
             if (fabs(ar - aspect_ratios_[j]) < 1e-6) {
               already_exist = true;
               break;
@@ -212,14 +212,14 @@ struct TpuConvertPriorBoxPattern : public RewritePattern {
     max_sizes_.push_back(max_size);
     assert(max_sizes_[0]> min_sizes_[0] && "max_size must be greater than min_size.");
     num_priors_ += 1;
-      
+
     clip_ = clip;
 
     // Must and only provide 4 variance.
     assert(variance0> 0);
     variance_.push_back(variance0);
     assert(variance1> 0);
-    variance_.push_back(variance1);    
+    variance_.push_back(variance1);
     assert(variance2> 0);
     variance_.push_back(variance2);
     assert(variance3> 0);
@@ -295,7 +295,7 @@ struct TpuConvertPriorBoxPattern : public RewritePattern {
         }
 
         // rest of priors
-        for (int r = 0; r < aspect_ratios_.size(); ++r) {
+        for (size_t r = 0; r < aspect_ratios_.size(); ++r) {
           float ar = aspect_ratios_[r];
           if (fabs(ar - 1.) < 1e-6) {
             continue;

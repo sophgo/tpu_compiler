@@ -8,7 +8,6 @@ add_llvm_library(MLIRTPU
   IR/TPUDialect.cpp
   IR/DialectRegistration.cpp
   IR/TPUOperationSupport.cpp
-  IR/CpuLayer_DetectionOutput.cpp
   Analysis/TpuOpPrint.cpp
   Analysis/TpuOpStats.cpp
   Transforms/ConvertBnToScale.cpp

@@ -55,26 +55,25 @@ public:
       processed += addLayerIdAttr<tpu::ConcatOp>(builder, layer_id, op);
       processed += addLayerIdAttr<tpu::Conv2DOp>(builder, layer_id, op);
       processed += addLayerIdAttr<tpu::CropOp>(builder, layer_id, op);
+      processed += addLayerIdAttr<tpu::DetectionOutputOp>(builder, layer_id, op);
+      processed += addLayerIdAttr<tpu::DivOp>(builder, layer_id, op);
       processed += addLayerIdAttr<tpu::EltwiseOp>(builder, layer_id, op);
       processed += addLayerIdAttr<tpu::FullyConnectedOp>(builder, layer_id, op);
       processed += addLayerIdAttr<tpu::InputOp>(builder, layer_id, op);
       processed += addLayerIdAttr<tpu::Pool2DOp>(builder, layer_id, op);
+      processed += addLayerIdAttr<tpu::PermuteOp>(builder, layer_id, op);
       processed += addLayerIdAttr<tpu::PowerOp>(builder, layer_id, op);
       processed += addLayerIdAttr<tpu::PReluOp>(builder, layer_id, op);
+      processed += addLayerIdAttr<tpu::PriorBoxOp>(builder, layer_id, op);
       processed += addLayerIdAttr<tpu::ReluOp>(builder, layer_id, op);
       processed += addLayerIdAttr<tpu::ReshapeOp>(builder, layer_id, op);
       processed += addLayerIdAttr<tpu::ScaleOp>(builder, layer_id, op);
       processed += addLayerIdAttr<tpu::SigmoidOp>(builder, layer_id, op);
       processed += addLayerIdAttr<tpu::SliceOp>(builder, layer_id, op);
       processed += addLayerIdAttr<tpu::SoftmaxOp>(builder, layer_id, op);
+      processed += addLayerIdAttr<tpu::SqrtOp>(builder, layer_id, op);
       processed += addLayerIdAttr<tpu::TanHOp>(builder, layer_id, op);
       processed += addLayerIdAttr<tpu::UpsampleOp>(builder, layer_id, op);
-      processed += addLayerIdAttr<tpu::DivOp>(builder, layer_id, op);
-      processed += addLayerIdAttr<tpu::PowerOp>(builder, layer_id, op);
-      processed += addLayerIdAttr<tpu::PermuteOp>(builder, layer_id, op);
-      processed += addLayerIdAttr<tpu::PriorBoxOp>(builder, layer_id, op);
-      processed += addLayerIdAttr<tpu::DetectionOutputOp>(builder, layer_id, op);
-      processed += addLayerIdAttr<tpu::SqrtOp>(builder, layer_id, op);      
       if (op->getName().getDialect().str() != "tpu"
           || isa<tpu::QuantizationOp>(op)
           || isa<tpu::DequantizationOp>(op)

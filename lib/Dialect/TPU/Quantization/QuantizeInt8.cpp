@@ -35,7 +35,6 @@
 
 #include <sstream>
 #include <fstream>
-#include <math.h>
 
 #define DEBUG_TYPE "quantize_int8"
 
@@ -109,128 +108,6 @@ typedef enum {
   INT8_MULTIPLER   = 03
 } QUANT_INT8_TYPE_e;
 
-void doWeightQuantizeInt8PerLayer(float *filter, float *bias, float *new_filter,
-                                  float *new_bias, float *rshift_per_layer,
-                                  float threshold_y, float threshold_x, int isz,
-                                  int oc)  {
-  int filter_size = isz * oc;
-  // find the max fabs weight value
-  float max_filter_abs = fabs(filter[0]);
-  for (int i = 0; i < filter_size; ++i) {
-    if (fabs(filter[i]) > max_filter_abs) {
-      max_filter_abs = fabs(filter[i]);
-    }
-  }
-  LLVM_DEBUG(llvm::errs() << "  max_filter : " << std::to_string(max_filter_abs)
-                          << "\n";);
-  // find rshift
-  float eps = 0.0f; // 1e-5;
-  rshift_per_layer[0] =
-      (float)findRShift(max_filter_abs + eps, threshold_y, threshold_x);
-  LLVM_DEBUG(llvm::errs() << "  rshift : " << rshift_per_layer[0] << "\n";);
-  // quantize weight
-  for (int i = 0; i < filter_size; ++i) {
-    new_filter[i] = (float)quantizeFilterRShift(
-        filter[i], threshold_y, threshold_x, rshift_per_layer[0]);
-  }
-  if (bias) {
-    for (int i = 0; i < oc; ++i) {
-      new_bias[i] = (float)quantizeBiasRShiftI16(bias[i], threshold_y,
-                                                 rshift_per_layer[0]);
-    }
-  }
-}
-
-void doWeightQuantizeInt8PerChannel(float *filter, float *bias,
-                                    float *new_filter, float *new_bias,
-                                    float *rshift_per_channel,
-                                    float threshold_y, float threshold_x,
-                                    int isz, int oc) {
-  // find the max fabs weight value for each channel
-  auto max_filter_abs = std::vector<float>(oc);
-  for (int i = 0; i < oc; ++i) {
-    max_filter_abs[i] = fabs(filter[isz * i]);
-    for (int j = 0; j < isz; ++j) {
-      if (fabs(filter[isz * i + j]) > max_filter_abs[i]) {
-        max_filter_abs[i] = fabs(filter[isz * i + j]);
-      }
-    }
-    LLVM_DEBUG(llvm::errs() << "  max_filter[" << i << "] : "
-                            << std::to_string(max_filter_abs[i]) << "\n";);
-  }
-
-  // find rshift
-  for (int i = 0; i < oc; ++i) {
-    float eps = 0.0f; // 1e-5;
-    rshift_per_channel[i] =
-        (float)findRShift(max_filter_abs[i] + eps, threshold_y, threshold_x);
-    LLVM_DEBUG(llvm::errs() << "  rshift_per_channel[" << i
-                            << "] : " << rshift_per_channel[i] << "\n";);
-  }
-  // quantize weight
-  for (int i = 0; i < oc; ++i) {
-    for (int j = 0; j < isz; ++j) {
-      new_filter[isz * i + j] = (float)quantizeFilterRShift(
-          filter[isz * i + j], threshold_y, threshold_x, rshift_per_channel[i]);
-    }
-  }
-  if (bias) {
-    for (int i = 0; i < oc; ++i) {
-      new_bias[i] = (float)quantizeBiasRShiftI32(bias[i], threshold_y,
-                                                 rshift_per_channel[i]);
-    }
-  }
-}
-
-void doWeightQuantizeInt8Multiplier(float *filter, float *bias,
-                                    float *new_filter, float *new_bias,
-                                    float *rshift_per_channel,
-                                    float *multiplier_per_channel,
-                                    float threshold_y, float threshold_x,
-                                    int isz, int oc) {
-  // find the max fabs weight value for each channel
-  auto max_filter_abs = std::vector<float>(oc);
-  for (int i = 0; i < oc; ++i) {
-    max_filter_abs[i] = fabs(filter[isz * i]);
-    for (int j = 0; j < isz; ++j) {
-      if (fabs(filter[isz * i + j]) > max_filter_abs[i]) {
-        max_filter_abs[i] = fabs(filter[isz * i + j]);
-      }
-    }
-    LLVM_DEBUG(llvm::errs() << "  max_filter[" << i << "] : "
-                            << std::to_string(max_filter_abs[i]) << "\n";);
-  }
-
-  // find qscale
-  for (int i = 0; i < oc; ++i) {
-    float eps = 0.0f; // 1e-5;
-    float qscale =
-        findQScale(max_filter_abs[i] + eps, threshold_y, threshold_x);
-    uint32_t multiplier;
-    rshift_per_channel[i] =
-        (float)findRShiftAndMultiplierFromQScale(qscale, &multiplier, true);
-    multiplier_per_channel[i] = (float)multiplier;
-    LLVM_DEBUG(llvm::errs()
-                   << "  [multiplier : rshift][" << i << "] = ["
-                   << std::to_string(multiplier_per_channel[i]) << " : "
-                   << std::to_string(rshift_per_channel[i]) << "]\n";);
-  }
-  // quantize weight
-  for (int i = 0; i < oc; ++i) {
-    for (int j = 0; j < isz; ++j) {
-      new_filter[isz * i + j] = (float)quantizeFilterRShiftAndMultiplier(
-          filter[isz * i + j], threshold_y, threshold_x, rshift_per_channel[i],
-          multiplier_per_channel[i], true);
-    }
-  }
-  if (bias) {
-    for (int i = 0; i < oc; ++i) {
-      new_bias[i] = (float)quantizeBiasRShiftAndMultiplier(
-          bias[i], threshold_y, rshift_per_channel[i],
-          multiplier_per_channel[i], true);
-    }
-  }
-}
 struct TpuQuantConv2DOpPattern : public RewritePattern {
   TpuQuantConv2DOpPattern(MLIRContext *context, TensorFile *weightTensorFile,
       Value* weightFileVar)
@@ -322,24 +199,28 @@ struct TpuQuantConv2DOpPattern : public RewritePattern {
     // TODO: use float to save all weights for now
     auto rshift_per_layer = std::make_unique<std::vector<float> >(1);
     auto rshift_per_channel = std::make_unique<std::vector<float> >(oc);
-    auto multiplier_per_channel = std::make_unique<std::vector<float> >(oc);;
+    auto multiplier_per_channel = std::make_unique<std::vector<float> >(oc);
 
     // quantization
     if (quant == INT8_PER_LAYER) {
-      doWeightQuantizeInt8PerLayer(filter->data(), bias?bias->data():nullptr,
-          new_filter->data(), bias?new_bias->data():nullptr,
-          rshift_per_layer->data(), threshold_y, threshold_x, isz, oc);
+      quantizeWeightInt8PerLayer(filter->data(), bias ? bias->data() : nullptr,
+                                 oc, isz, threshold_y, threshold_x,
+                                 new_filter->data(), bias ? new_bias->data() : nullptr,
+                                 rshift_per_layer->data());
 
     } else if (quant == INT8_PER_CHANNEL) {
-      doWeightQuantizeInt8PerChannel(filter->data(), bias?bias->data():nullptr,
-          new_filter->data(), bias?new_bias->data():nullptr,
-          rshift_per_channel->data(), threshold_y, threshold_x, isz, oc);
+      quantizeWeightInt8PerChannel(filter->data(), bias ? bias->data() : nullptr,
+                                 oc, isz, threshold_y, threshold_x,
+                                 new_filter->data(), bias ? new_bias->data() : nullptr,
+                                 rshift_per_channel->data());
 
     } else if (quant == INT8_MULTIPLER) {
-      doWeightQuantizeInt8Multiplier(filter->data(), bias?bias->data():nullptr,
-          new_filter->data(), bias?new_bias->data():nullptr,
-          rshift_per_channel->data(), multiplier_per_channel->data(),
-          threshold_y, threshold_x, isz, oc);
+      quantizeWeightInt8Multiplier(filter->data(), bias ? bias->data() : nullptr,
+                                 oc, isz, threshold_y, threshold_x,
+                                 new_filter->data(), bias ? new_bias->data() : nullptr,
+                                 rshift_per_channel->data(),
+                                 multiplier_per_channel->data());
+
     } else {
       assert(0);
     }
@@ -504,7 +385,7 @@ struct TpuQuantFullyConnectedOpPattern : public RewritePattern {
     // Q(W) = W * (threshold_x / threshold_y) * (1 << rshift)
     // find a rshift put the Q(max_filter_abs) in range (64, 127)
     assert(threshold_x);
-    rshift[0] = (float)findRShift(max_filter_abs, threshold_y, threshold_x);
+    rshift[0] = (float)findRShiftForFilter(max_filter_abs, threshold_y, threshold_x);
     LLVM_DEBUG(llvm::errs() << "  rshift : " << rshift[0] << "\n";);
 
     // quantize weight
@@ -579,106 +460,28 @@ struct TpuQuantFullyConnectedOpPattern : public RewritePattern {
   Value* weightFileVar_;
 };
 
-struct TpuQuantPool2DOpPattern : public RewritePattern {
-  TpuQuantPool2DOpPattern(MLIRContext *context, TensorFile *weightTensorFile,
-      Value* weightFileVar)
-      : RewritePattern("tpu.pool_2d", 1, context),
+template<typename T>
+struct TpuQuantDefaultPattern : public RewritePattern {
+  TpuQuantDefaultPattern(MLIRContext *context, TensorFile *weightTensorFile,
+      Value* weightFileVar, StringRef opName)
+      : RewritePattern(opName, 1, context),
         weightTensorFile_(weightTensorFile),
         weightFileVar_(weightFileVar) {}
 
   PatternMatchResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
-    auto poolOp = cast<tpu::Pool2DOp>(op);
-    std::string op_name = poolOp.getAttrOfType<StringAttr>("name").getValue().str();
-    //auto loc = op->getLoc();
-
-    if (poolOp.quant() != "NONE") {
-      LLVM_DEBUG(llvm::errs() << poolOp.name() << " quantized already\n";);
+    auto castOp = cast<T>(op);
+    if (castOp.quant() != "NONE") {
+      LLVM_DEBUG(llvm::errs() << castOp.name() << " quantized already\n";);
       return matchFailure();
     }
-    poolOp.setAttr("quant", rewriter.getStringAttr("INT8"));
+    castOp.setAttr("quant", rewriter.getStringAttr("INT8"));
 
     return matchSuccess();
   }
 
   TensorFile *weightTensorFile_;
   Value* weightFileVar_;
-};
-
-struct TpuQuantEltwiseOpPattern : public RewritePattern {
-  TpuQuantEltwiseOpPattern(MLIRContext *context, TensorFile *weightTensorFile,
-      Value* weightFileVar)
-      : RewritePattern("tpu.eltwise", 1, context),
-        weightTensorFile_(weightTensorFile),
-        weightFileVar_(weightFileVar) {}
-
-  PatternMatchResult matchAndRewrite(Operation *op,
-                                     PatternRewriter &rewriter) const override {
-    auto eltOp = cast<tpu::EltwiseOp>(op);
-    std::string op_name = eltOp.getAttrOfType<StringAttr>("name").getValue().str();
-    //auto loc = op->getLoc();
-
-    if (eltOp.quant() != "NONE") {
-      LLVM_DEBUG(llvm::errs() << eltOp.name() << " quantized already\n";);
-      return matchFailure();
-    }
-    eltOp.setAttr("quant", rewriter.getStringAttr("INT8"));
-
-    return matchSuccess();
-  }
-
-  TensorFile *weightTensorFile_;
-  Value* weightFileVar_;
-};
-
-struct TpuQuantSigmoidOpPattern : public RewritePattern {
-  TpuQuantSigmoidOpPattern(MLIRContext *context, TensorFile *weightTensorFile,
-                           Value *weightFileVar)
-      : RewritePattern("tpu.sigmoid", 1, context),
-        weightTensorFile_(weightTensorFile), weightFileVar_(weightFileVar) {}
-
-  PatternMatchResult matchAndRewrite(Operation *op,
-                                     PatternRewriter &rewriter) const override {
-    auto sigOp = cast<tpu::SigmoidOp>(op);
-    std::string op_name =
-        sigOp.getAttrOfType<StringAttr>("name").getValue().str();
-    // auto loc = op->getLoc();
-
-    if (sigOp.quant() != "NONE") {
-      LLVM_DEBUG(llvm::errs() << sigOp.name() << " quantized already\n";);
-      return matchFailure();
-    }
-    sigOp.setAttr("quant", rewriter.getStringAttr("INT8"));
-
-    return matchSuccess();
-  }
-
-  TensorFile *weightTensorFile_;
-  Value *weightFileVar_;
-};
-
-struct TpuQuantReluOpPattern : public RewritePattern {
-  TpuQuantReluOpPattern(MLIRContext *context, TensorFile *weightTensorFile,
-                           Value *weightFileVar)
-      : RewritePattern("tpu.relu", 1, context),
-        weightTensorFile_(weightTensorFile), weightFileVar_(weightFileVar) {}
-
-  PatternMatchResult matchAndRewrite(Operation *op,
-                  PatternRewriter &rewriter) const override {
-
-    auto reluOp = cast<tpu::ReluOp>(op);
-    if (reluOp.quant() != "NONE") {
-      LLVM_DEBUG(llvm::errs() << reluOp.name() << " quantized already\n";);
-      return matchFailure();
-    }
-    // set quant type
-    reluOp.setAttr("quant", rewriter.getStringAttr("INT8"));
-
-    return matchSuccess();
-  }
-
-  TensorFile *weightTensorFile_;
-  Value *weightFileVar_;
 };
 
 struct TpuQuantPReluOpPattern : public RewritePattern {
@@ -691,7 +494,6 @@ struct TpuQuantPReluOpPattern : public RewritePattern {
                   PatternRewriter &rewriter) const override {
 
     auto preluOp = cast<tpu::PReluOp>(op);
-    std::cout << "Quantize -> "<< (std::string)preluOp.name().getValue() << std::endl;
     std::string op_name =
         preluOp.getAttrOfType<StringAttr>("name").getValue().str();
     auto loc = op->getLoc();
@@ -700,7 +502,7 @@ struct TpuQuantPReluOpPattern : public RewritePattern {
       LLVM_DEBUG(llvm::errs() << preluOp.name() << " quantized already\n";);
       return matchFailure();
     }
-    // assert(preluOp.per_channel_info_is_aggregated() == false);
+
     // get quant type
     QUANT_INT8_TYPE_e quant;
     if (!clQuantConvPerChannel) {
@@ -736,12 +538,6 @@ struct TpuQuantPReluOpPattern : public RewritePattern {
     auto slopeType = preluOp.negative_slope()->getType().cast<TensorType>();
     std::vector<int64_t> slopeShape(slopeType.getShape());
 
-    std::cout << "slopeShape = { " << slopeShape[0];
-    for (unsigned i=1; i<slopeShape.size(); i++){
-      std::cout << ", " << slopeShape[i];
-    }
-    std::cout << " }" << std::endl; //sleep(sleep_t);
-
     assert(slopeShape.size() >= 2);
     int64_t slopeSize = std::accumulate(std::begin(slopeShape),
         std::end(slopeShape), 1, std::multiplies<>());
@@ -758,38 +554,44 @@ struct TpuQuantPReluOpPattern : public RewritePattern {
 
     // create tensors for rshift and multiplier
     // TODO: use float to save all weights for now
-    auto rshift = std::vector<float>(1);
-    auto multiplier = std::vector<float>(1);;
+    auto rshift_pos = std::vector<float>(1);
+    auto rshift_neg = std::vector<float>(1);
+    auto multiplier_pos = std::vector<float>(1);
+    auto multiplier_neg = std::vector<float>(1);;
+
+    // find qscale positive
+    double qscale_pos = threshold_x / threshold_y;
+    uint32_t uint_multiplier_pos;
+    // rshift_pos[0] = (float)findRShiftAndMultiplierFromQScale(qscale_pos, &uint_multiplier_pos, true);
+    rshift_pos[0] = (float)findRShiftAndMultiplierFromQScale(qscale_pos, &uint_multiplier_pos, false);
+    multiplier_pos[0] = (float)uint_multiplier_pos;
+    LLVM_DEBUG(llvm::errs() << "  positive [multiplier : rshift] = ["
+                   << std::to_string(multiplier_pos[0]) << " : "
+                   << std::to_string(rshift_pos[0]) << "]\n";);
 
 
-
-
+    // find qscale negative
     float max_slope_abs = fabs(negative_slope[0]);
     for (int i = 0; i < c; ++i) {
-      if (i < 10 || i > c-10){
-        std::cout << "slope[" << i << "] = " << negative_slope[i] << std::endl;
-      }
-
       if ( fabs(negative_slope[i]) > max_slope_abs) {
           max_slope_abs = fabs(negative_slope[i]);
       }
     }
-    LLVM_DEBUG(llvm::errs() << "  max filter : " << max_slope_abs << "\n";);
-    //float _slope_eps = 1e-4;
+    LLVM_DEBUG(llvm::errs() << "  max slope : " << max_slope_abs << "\n";);
 
-    // find qscale
-    float qscale = findQScale(max_slope_abs, threshold_y, threshold_x);
-    uint32_t uint_multiplier;
-    rshift[0] = (float)findRShiftAndMultiplierFromQScale(qscale, &uint_multiplier, true);
-    multiplier[0] = (float)uint_multiplier;
-    LLVM_DEBUG(llvm::errs() << "  [multiplier : rshift] = ["
-                   << std::to_string(multiplier[0]) << " : "
-                   << std::to_string(rshift[0]) << "]\n";);
+    double qscale_neg = findQScaleForFilter(max_slope_abs, threshold_y, threshold_x);
+    uint32_t uint_multiplier_neg;
+    rshift_neg[0] = (float)findRShiftAndMultiplierFromQScale(qscale_neg, &uint_multiplier_neg, true);
+    multiplier_neg[0] = (float)uint_multiplier_neg;
+    LLVM_DEBUG(llvm::errs() << "  negative [multiplier : rshift] = ["
+                   << std::to_string(multiplier_neg[0]) << " : "
+                   << std::to_string(rshift_neg[0]) << "]\n";);
+
 
     // quantize negative slope
     for (int i = 0; i < c; ++i) {
       new_negative_slope[i] = (float)quantizeFilterRShiftAndMultiplier(negative_slope[i], threshold_y,
-                                 threshold_x, (uint32_t)rshift[0], uint_multiplier, true);
+                                 threshold_x, (uint32_t)rshift_neg[0], uint_multiplier_neg, true);
     }
 
 
@@ -811,17 +613,30 @@ struct TpuQuantPReluOpPattern : public RewritePattern {
     auto shape = std::vector<int64_t>{1};
     std::string storageType_uint32 = "UINT32";
 
-    auto new_op_1 = addWeightTensorAndCreateWeightOp(
-        preluOp.name().getValue().str() + "_quant_int8_rshift",
-        rshift, shape, storageType_uint32, eltType,
+  auto new_op_1 = addWeightTensorAndCreateWeightOp(
+        preluOp.name().getValue().str() + "_quant_int8_rshift_pos",
+        rshift_pos, shape, storageType_uint32, eltType,
         rewriter, loc, weightTensorFile_, weightFileVar_);
     newOperands.push_back(new_op_1);
 
     auto new_op_2 = addWeightTensorAndCreateWeightOp(
-        preluOp.name().getValue().str() + "_quant_int8_multiplier",
-        multiplier, shape, storageType_uint32, eltType,
+        preluOp.name().getValue().str() + "_quant_int8_rshift_neg",
+        rshift_neg, shape, storageType_uint32, eltType,
         rewriter, loc, weightTensorFile_, weightFileVar_);
     newOperands.push_back(new_op_2);
+
+    auto new_op_3 = addWeightTensorAndCreateWeightOp(
+        preluOp.name().getValue().str() + "_quant_int8_multiplier_pos",
+        multiplier_pos, shape, storageType_uint32, eltType,
+        rewriter, loc, weightTensorFile_, weightFileVar_);
+    newOperands.push_back(new_op_3);
+
+    auto new_op_4 = addWeightTensorAndCreateWeightOp(
+        preluOp.name().getValue().str() + "_quant_int8_multiplier_neg",
+        multiplier_neg, shape, storageType_uint32, eltType,
+        rewriter, loc, weightTensorFile_, weightFileVar_);
+    newOperands.push_back(new_op_4);
+
 
     // set quant type
     preluOp.setAttr("quant", rewriter.getStringAttr("INT8_MULTIPLIER"));
@@ -832,8 +647,6 @@ struct TpuQuantPReluOpPattern : public RewritePattern {
     rewriter.replaceOpWithNewOp<tpu::PReluOp>(
         preluOp, preluOp.getResult()->getType(),
         ArrayRef<Value *>{newOperands}, ArrayRef<NamedAttribute>{newAttrs});
-
-
 
     return matchSuccess();
 
@@ -909,7 +722,7 @@ struct TpuQuantScaleOpPattern : public RewritePattern {
       int64_t scale_size =
           std::accumulate(std::begin(scale_shape), std::end(scale_shape), 1,
                           std::multiplies<>());
-      
+
       assert(scale_size == (int64_t)weights[0]->size());
       int64_t n = scale_shape[0];
 
@@ -931,30 +744,31 @@ struct TpuQuantScaleOpPattern : public RewritePattern {
       auto rshift_per_layer = std::make_unique<std::vector<float>>(1);
       auto rshift_per_channel = std::make_unique<std::vector<float>>(oc);
       auto multiplier_per_channel = std::make_unique<std::vector<float>>(oc);
-      
 
       // quantization
       if (quant == INT8_PER_LAYER) {
-        doWeightQuantizeInt8PerLayer(
-            scale, bias ? bias : nullptr, new_scale->data(),
-            bias ? new_bias->data() : nullptr, rshift_per_layer->data(),
-            threshold_y, threshold_x, isz, oc);
+        quantizeWeightInt8PerLayer(scale, bias ? bias : nullptr,
+                                   oc, isz, threshold_y, threshold_x,
+                                   new_scale->data(), bias ? new_bias->data() : nullptr,
+                                   rshift_per_layer->data());
 
       } else if (quant == INT8_PER_CHANNEL) {
-        doWeightQuantizeInt8PerChannel(
-            scale, bias ? bias : nullptr, new_scale->data(),
-            bias ? new_bias->data() : nullptr, rshift_per_channel->data(),
-            threshold_y, threshold_x, isz, oc);
+        quantizeWeightInt8PerChannel(scale, bias ? bias : nullptr,
+                                   oc, isz, threshold_y, threshold_x,
+                                   new_scale->data(), bias ? new_bias->data() : nullptr,
+                                   rshift_per_channel->data());
 
       } else if (quant == INT8_MULTIPLER) {
-        doWeightQuantizeInt8Multiplier(
-            scale, bias ? bias : nullptr, new_scale->data(),
-            bias ? new_bias->data() : nullptr, rshift_per_channel->data(),
-            multiplier_per_channel->data(), threshold_y, threshold_x, isz, oc);
+        quantizeWeightInt8Multiplier(scale, bias ? bias : nullptr,
+                                   oc, isz, threshold_y, threshold_x,
+                                   new_scale->data(), bias ? new_bias->data() : nullptr,
+                                   rshift_per_channel->data(),
+                                   multiplier_per_channel->data());
+
       } else {
         assert(0);
       }
-      
+
       // update op
       // TODO: use float to save all weights for now
       Type eltType = FloatType::getF32(rewriter.getContext());
@@ -1175,22 +989,26 @@ public:
     auto *context = &getContext();
 
     OwningRewritePatternList patterns_w;
+    patterns_w.insert<TpuQuantDefaultPattern<tpu::ConcatOp> >(context,
+        weightTensorFile.get(), weightFileVar, "tpu.concat");
     patterns_w.insert<TpuQuantConv2DOpPattern>(context,
         weightTensorFile.get(), weightFileVar);
+    patterns_w.insert<TpuQuantDefaultPattern<tpu::EltwiseOp> >(context,
+        weightTensorFile.get(), weightFileVar, "tpu.eltwise");
     patterns_w.insert<TpuQuantFullyConnectedOpPattern>(context,
         weightTensorFile.get(), weightFileVar);
-    patterns_w.insert<TpuQuantPool2DOpPattern>(context,
-        weightTensorFile.get(), weightFileVar);
-    patterns_w.insert<TpuQuantEltwiseOpPattern>(context,
-        weightTensorFile.get(), weightFileVar);
-    patterns_w.insert<TpuQuantSigmoidOpPattern>(context,
-        weightTensorFile.get(), weightFileVar);
+    patterns_w.insert<TpuQuantDefaultPattern<tpu::Pool2DOp> >(context,
+        weightTensorFile.get(), weightFileVar, "tpu.pool_2d");
     patterns_w.insert<TpuQuantPReluOpPattern>(context,
         weightTensorFile.get(), weightFileVar);
+    patterns_w.insert<TpuQuantDefaultPattern<tpu::ReluOp> >(context,
+        weightTensorFile.get(), weightFileVar, "tpu.relu");
     patterns_w.insert<TpuQuantScaleOpPattern>(context,
         weightTensorFile.get(), weightFileVar);
-    patterns_w.insert<TpuQuantReluOpPattern>(context,
-        weightTensorFile.get(), weightFileVar);
+    patterns_w.insert<TpuQuantDefaultPattern<tpu::SigmoidOp> >(context,
+        weightTensorFile.get(), weightFileVar, "tpu.sigmoid");
+    patterns_w.insert<TpuQuantDefaultPattern<tpu::SliceOp> >(context,
+        weightTensorFile.get(), weightFileVar, "tpu.slice");
     applyPatternsGreedily(fn, patterns_w);
 
     OwningRewritePatternList patterns_q;
