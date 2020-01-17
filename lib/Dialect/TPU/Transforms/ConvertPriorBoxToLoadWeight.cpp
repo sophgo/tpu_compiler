@@ -35,10 +35,105 @@ using namespace std;
 
 namespace {
 
+struct TpuConvertLoadeweightConcatToLoadweightPattern : public RewritePattern {
+  TpuConvertLoadeweightConcatToLoadweightPattern(MLIRContext *context, TensorFile *weightTensorFile,
+    Value* weightFileVar)
+      : RewritePattern("tpu.concat", 1, context),
+        weightTensorFile_(weightTensorFile)  ,
+        weightFileVar_(weightFileVar) {}
+
+  PatternMatchResult matchAndRewrite(Operation *op,
+                                     PatternRewriter &rewriter) const override {
+    auto loc = op->getLoc();
+    auto concatOp = cast<tpu::ConcatOp>(op);
+
+    int input_loadweight_num = concatOp.getOperands().size();
+
+
+    for(int i=0;i<input_loadweight_num;i++){
+        auto formerOp = concatOp.getOperand(i)->getDefiningOp();
+        if (!matchPattern(formerOp, m_Op<tpu::LoadWeightOp>())){
+          return matchFailure();
+        }
+    }
+    uint32_t  c, h, w;
+    int tmp_w=0;
+    llvm::errs() << "Starting to convert Layer " << concatOp.name().getValue() << "\n";
+    auto result = concatOp.res();
+    // LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";);
+    std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
+    auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
+    ///auto resultT = std::make_unique<std::vector<float> >(size);
+    auto tmp_resultT = std::make_unique<std::vector<float> >(0);
+    std::vector<float> resultT(size);
+
+    std::vector<std::unique_ptr<std::vector<float> > > inputloadweight(input_loadweight_num);
+
+    for (int i = 0; i < input_loadweight_num; ++i) {
+      auto weight_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
+          concatOp.getOperand(i)->getDefiningOp());
+      assert(weight_op);
+      assert(weight_op.name().hasValue());
+      auto tensor_name = weight_op.name().getValue();
+      llvm::errs() << "  weight[" << i << "] : " << tensor_name << "\n";
+      auto type = weight_op.getResult()->getType().cast<TensorType>();
+      inputloadweight[i] = weightTensorFile_->readTensor<float>(tensor_name, type);
+      // delete the tensor from the weight file
+      weightTensorFile_->deleteTensor<float>(tensor_name);
+    }
+
+
+    for (uint32_t i = 0; i < input_loadweight_num; i++) {
+      std::vector<int64_t> shape =  concatOp.getOperand(i)->getType().cast<TensorType>().getShape();
+      assert(3==shape.size()&&"only do 3 dim concat opt now");
+      c = shape[0];
+      h = shape[1];
+      w = shape[2];
+
+/*      llvm::errs() << "shape c:" << c <<"\n";
+      llvm::errs() << "shape h:" << h << " w:"<< w <<"\n";*/
+
+      float *input_data = (float *)inputloadweight[i]->data();
+
+      for (uint32_t idx_h = 0; idx_h < h; idx_h++) {
+        auto shapeT = std::make_unique<std::vector<float> >(w);
+        int insert_offset = ((idx_h+1)* tmp_w) + idx_h*w;
+        shapeT.get()->assign(&input_data[idx_h * w], &input_data[(idx_h + 1) * w]);
+        tmp_resultT.get()->insert(tmp_resultT.get()->begin() + insert_offset, shapeT->begin(), shapeT->end());
+      }
+      tmp_w += w;
+    }
+
+  resultT.assign(tmp_resultT.get()->begin(), tmp_resultT.get()->end());
+
+  auto tensor_name = concatOp.getAttrOfType<StringAttr>("name").getValue().str() + "_loadweight" ;
+  auto type = RankedTensorType::get(shape, FloatType::getF32(rewriter.getContext()));
+  weightTensorFile_->addTensor<float>(tensor_name, &resultT, type);
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(tensor_name)));
+  auto new_weight_op = rewriter.create<tpu::LoadWeightOp>(loc, type,
+       ArrayRef<Value *>{weightFileVar_}, ArrayRef<NamedAttribute>{attrs});
+
+  // replace concat with loadweight
+  // the former one will be removed automatically
+
+  rewriter.replaceOpWithNewOp<tpu::LoadWeightOp>(
+      concatOp, new_weight_op.getResult()->getType(),
+      ArrayRef<Value *>{weightFileVar_},ArrayRef<NamedAttribute>{attrs});
+
+    return matchSuccess();
+  }
+
+  TensorFile *weightTensorFile_;
+  Value* weightFileVar_;
+};
+
 struct TpuConvertPriorBoxPattern : public RewritePattern {
-  TpuConvertPriorBoxPattern(MLIRContext *context, TensorFile *weightTensorFile)
+  TpuConvertPriorBoxPattern(MLIRContext *context, TensorFile *weightTensorFile,
+        Value* weightFileVar)
       : RewritePattern("tpu.priorbox", 1, context),
-        weightTensorFile_(weightTensorFile) {}
+        weightTensorFile_(weightTensorFile) ,
+        weightFileVar_(weightFileVar) {}
 
   PatternMatchResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
@@ -243,9 +338,6 @@ struct TpuConvertPriorBoxPattern : public RewritePattern {
       }
     }
   }
-    auto one_weight_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
-          priorboxOp.getOperand(2)->getDefiningOp());
-    auto weightFileVar = one_weight_op.getOperand();
 
   auto tensor_name = priorboxOp.getAttrOfType<StringAttr>("name").getValue().str() + "_loadweight" ;
   auto type = RankedTensorType::get(shape, FloatType::getF32(rewriter.getContext()));
@@ -253,7 +345,7 @@ struct TpuConvertPriorBoxPattern : public RewritePattern {
   std::vector<NamedAttribute> attrs;
   attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(tensor_name)));
   auto new_weight_op = rewriter.create<tpu::LoadWeightOp>(loc, type,
-       ArrayRef<Value *>{weightFileVar}, ArrayRef<NamedAttribute>{attrs});
+       ArrayRef<Value *>{weightFileVar_},ArrayRef<NamedAttribute>{attrs});
 
 
   // replace priorbox with loadweight
@@ -261,12 +353,13 @@ struct TpuConvertPriorBoxPattern : public RewritePattern {
 
   rewriter.replaceOpWithNewOp<tpu::LoadWeightOp>(
       priorboxOp, new_weight_op.getResult()->getType(),
-      ArrayRef<Value *>{weightFileVar},ArrayRef<NamedAttribute>{attrs});
+      ArrayRef<Value *>{weightFileVar_},ArrayRef<NamedAttribute>{attrs});
 
     return matchSuccess();
   }
 
   TensorFile *weightTensorFile_;
+  Value* weightFileVar_;
 };
 
 class ConvertPriorBoxPass : public FunctionPass<ConvertPriorBoxPass> {
@@ -278,19 +371,26 @@ public:
 
     // find tensor filename
     llvm::StringRef filename;
+    Value* weightFileVar;
     fn.walk([&](tpu::LoadFileOp op) {
       filename = op.getAttrOfType<StringAttr>("filename").getValue();
+      weightFileVar = op.getResult();
       llvm::errs() << "LoadFileOp filename " << filename << "\n";
     });
     auto weightTensorFile = openTensorFile(filename);
 
     OwningRewritePatternList patterns;
     auto *context = &getContext();
-    patterns.insert<TpuConvertPriorBoxPattern>(context, weightTensorFile.get());
+    patterns.insert<TpuConvertPriorBoxPattern>(context, weightTensorFile.get(),weightFileVar);
     applyPatternsGreedily(fn, patterns);
-
+    /*patterns.clear();
+    std::string newName;
+    weightTensorFile->keep(true, &newName);*/
+    patterns.insert<TpuConvertLoadeweightConcatToLoadweightPattern>(context, weightTensorFile.get(),weightFileVar);
+    applyPatternsGreedily(fn, patterns);
     std::string newName;
     weightTensorFile->keep(true, &newName);
+    
     fn.walk([&](tpu::LoadFileOp op) {
       OpBuilder b(fn.getBody());
       op.setAttr("filename", b.getStringAttr(newName));
@@ -301,6 +401,8 @@ public:
 private:
   llvm::raw_ostream &os;
 };
+
+
 
 } // namespace
 

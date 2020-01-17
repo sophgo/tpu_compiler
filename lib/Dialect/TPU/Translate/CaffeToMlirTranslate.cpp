@@ -1169,10 +1169,6 @@ void CaffeImporter::convertConcatLayer(mlir::Block *block,
     tensor_map_[layer_param.top(0)] = input_vars[0];
     return;
   }
-    std::vector<Value *> operands;
-    for(int i = 0;i< input_vars.size();++i)
-      operands.push_back(input_vars[i]);
-
 
   RankedTensorType result_type=nullptr; 
     llvm::ArrayRef<int64_t> input_shape =
@@ -1315,22 +1311,13 @@ void CaffeImporter::convertConcatLayer(mlir::Block *block,
        assert(0);
     }
 
-/*  Reason to add this LoadWeightOp:
-    Sometimes need to change concat to loadweightOp. Use this tensor to save concat result.
-*/
-  std::vector<float> dataVec_fp32;
-  dataVec_fp32.reserve(tbl_size);
-  auto filter_name = layer->layer_param().name()+"_filter";
-  weightFile_->addTensor(filter_name, &dataVec_fp32, result_type);
-  operands.push_back(AddLoadWeightOp(block, filter_name, result_type));
-
 
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name())));
   attrs.push_back(builder_.getNamedAttr("dimension", builder_.getI32IntegerAttr(axis)));
   auto op = OpBuilder(block).create<tpu::ConcatOp>(
       builder_.getUnknownLoc(), result_type,
-      ArrayRef<Value *>{operands}, ArrayRef<NamedAttribute>{attrs});
+      ArrayRef<Value *>{input_vars}, ArrayRef<NamedAttribute>{attrs});
   auto result_var = op.getResult();
 
   tensor_map_[layer_param.top(0)] = result_var;
@@ -1909,16 +1896,6 @@ void CaffeImporter::convertPriorBoxLayer(mlir::Block *block,
   }
 
 
-  int tbl_size = 1*2*(h*w*num_priors_*4);
-  auto table_type_scale = RankedTensorType::get({1,2,(h*w*num_priors_* 4)}, elementType_);
-  std::vector<float> dataVec_fp32;
-  dataVec_fp32.reserve(tbl_size);
-  auto filter_name = layer->layer_param().name()+"_filter";
-  weightFile_->addTensor(filter_name, &dataVec_fp32, table_type_scale);
-  operands.push_back(AddLoadWeightOp(block, filter_name, table_type_scale));
-
-  
-
   // construct OP
   auto result_type = RankedTensorType::get({1,2,(h*w*num_priors_* 4) }, elementType_);
 
@@ -2099,8 +2076,8 @@ void CaffeImporter::convertNormalizeLayer(mlir::Block *block,
   );
 
 /*  
-  Currenly , we separate Normalize op to below 5 ops. 
-  Power-> Reduction-> Sqrt-> Div->Eltwise OP(prod) ->Scale(by channel scale)
+  Currenly , we separate Normalize op to below 6 ops. 
+  Power-> Reduction(use conv now)-> Sqrt-> Div->Eltwise OP(prod) ->Scale(by channel scale)
 */
 
   /* 1. Power OP */

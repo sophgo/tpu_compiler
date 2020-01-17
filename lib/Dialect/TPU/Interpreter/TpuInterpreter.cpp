@@ -1190,7 +1190,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
     auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
     auto resultT = std::make_unique<std::vector<float> >(size);
-    size_t bottom_num = opdT.size()-1;
+    size_t bottom_num = opdT.size();
     uint32_t n, c, h, w;
     auto concat_axis = op.dimension();
     auto tmp_resultT = std::make_unique<std::vector<float> >(0);
@@ -2122,29 +2122,37 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     }
 
 /*
-    how to get Qscale value: 
+    How to get Qscale value: 
 
-    fp32(x) = S(x)Q(x)
-    fp32(y) = S(y)Q(y)
-    S(x) = thrx /127.0
-    S(y) = thry /127.0
+    X = Sx*Qy
+    Y = Sy*Qy
+    Sx = thrx /128
+    Sy = thry /128
 
-    fp32(y)=fp32(x)*fp32(x)
-
-    ==> Q(y) = ( S(x)*S(x)/S(y) ) * Q(x)Q(x) = ( (thrx*thrx)/(127.0*thry) )*( Q(x)*Q(X) )
-
-    Qscale = 127.0*thry/(thrx*thrx) 
+    Y=X*X 
+    ==> Sy*Qy=Sx*Qx*Sx*Qx
+    ==> Qy = ((thrx*thrx/(128))*(Qx*Qx))/thry
+    ==> Qscale = (thrx*thrx/128)/thry
 */
     float threshold_y,threshold_x,qscale,rshift;
-    uint32_t multiplier_power;
-    if (op.quant() == "INT8") {
+    uint32_t multiplier;
+    if (op.quant() != "NONE"){
+
       threshold_y = op.threshold_y().getValue().convertToFloat();
       threshold_x = getPreviousOpThreshold(op);
-      qscale = (threshold_x*threshold_x) /(127.0*threshold_y);  
-      rshift = findRShiftAndMultiplierFromQScale(qscale, &multiplier_power,
-                                             true, 127);
+      qscale = (threshold_x*threshold_x) /(127*threshold_y);  
     }
-#define POWER_INPUT_NR (1)
+    if (op.quant() == "INT8"|| op.quant() == "INT8_PER_CHANNEL") {
+      rshift = findRShiftAndMultiplierFromQScale(qscale);
+    }else if(op.quant() == "INT8_MULTIPLIER"){
+      rshift = (float)findRShiftAndMultiplierFromQScale(qscale, &multiplier, true,255);                                      
+    }else if(op.quant() == "NONE"){
+
+    }else{
+      assert(0&&"no other quant method is support");
+    }
+
+    #define POWER_INPUT_NR (1)
     float *input[POWER_INPUT_NR]; 
     for (int index = 0; index < POWER_INPUT_NR; ++index) {
       input[index] = (float *)opdT[index]->data();
@@ -2152,25 +2160,25 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
     float *output = (float *)resultT.get()->data();
     
-    // std::vector<float> input_copy[POWER_INPUT_NR];
-    // std::vector<float> threshold_x(POWER_INPUT_NR);
-
     int ret = my_power(input[0], output, nchw[0], nchw[1], nchw[2], nchw[3], scale, shift, power);
     assert(ret == 0);
 
     // rshift and saturate on output
-    if (op.quant() == "INT8") {
+    if (op.quant() == "INT8"||op.quant() == "INT8_PER_CHANNEL") {
       //assert(rshift);
       for (int i = 0; i < size; ++i) {
-        output[i] = output[i] * multiplier_power;
         output[i] = (float)applyRShiftAndSaturateInt8(output[i], (uint32_t)rshift);
       }
+    }else if(op.quant() == "INT8_MULTIPLIER"){
+        for (int i = 0; i < size; ++i) {
+        output[i] = (float)applyMultiplierAndRShiftAndSaturateInt8(output[i],rshift,  multiplier);        
+        }
     }
-    else if (op.quant() == "BF16"){
+/*    else if (op.quant() == "BF16"){
       auto tensor_bf16 = std::make_unique<std::vector<bfloat16> >(resultT->size());
       FloatToBFloat16(resultT->data(), tensor_bf16->data(), resultT->size()); // with rounding
       BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
-    }
+    }*/
 
     valueMapping[result] = std::move(resultT);
     return success();

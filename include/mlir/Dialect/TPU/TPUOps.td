@@ -154,7 +154,6 @@ def TPU_ConcatOp: TPU_Op<"concat", [NoSideEffect, SameOperandsAndResultElementTy
 
   let arguments = (
     ins Variadic<AnyTensor>:$val,
-    AnyTensor:$filter,
     DefaultValuedAttr<I32Attr, "1">: $dimension,
     OptionalAttr<StrAttr>:$name,
     OptionalAttr<NonNegativeI64Attr>:$offset,
@@ -674,7 +673,6 @@ def TPU_PriorBoxOp: TPU_Op<"priorbox", [NoSideEffect]> {
 
   let arguments = (
     ins Variadic<AnyTensor>:$input,
-    AnyTensor:$filter,
     F32Attr:$min_size,
     I32Attr:$min_size_size,
     F32Attr:$max_size,
