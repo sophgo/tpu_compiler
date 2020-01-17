@@ -661,10 +661,13 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     int ret = my_prelu(input, output, n, c, h, w, negative_slope);
     assert(ret == 0);
 
-    std::shared_ptr<std::vector<float> > rshift = nullptr;
-    std::shared_ptr<std::vector<float> > multiplier = nullptr;
+    std::shared_ptr<std::vector<float> > rshift_pos = nullptr;
+    std::shared_ptr<std::vector<float> > rshift_neg = nullptr;
+    std::shared_ptr<std::vector<float> > multiplier_pos = nullptr;
+    std::shared_ptr<std::vector<float> > multiplier_neg = nullptr;
 
-    getPReluOpVariadicTensors(op, opdT, rshift, multiplier);
+
+    getPReluOpVariadicTensors(op, opdT, rshift_pos, rshift_neg, multiplier_pos, multiplier_neg);
 
     float threshold_x;
     float threshold_y;
@@ -675,23 +678,31 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
     // rshift and saturate on output
     if (op.quant() == "INT8" || op.quant() == "INT8_PER_CHANNEL") {
-      assert(rshift);
+      assert(rshift_pos);
+      assert(rshift_neg);
       for (int i = 0; i < size; ++i) {
         if (input[i] > 0){
-          resultT->at(i) = (threshold_x / threshold_y) * resultT->at(i);
+          // resultT->at(i) = (threshold_x / threshold_y) * resultT->at(i);
+          resultT->at(i) = (float)applyRShiftAndSaturateInt8(resultT->at(i),
+              (uint32_t)rshift_pos->at(0));
         } else {
           resultT->at(i) = (float)applyRShiftAndSaturateInt8(resultT->at(i),
-              (uint32_t)rshift->at(0));
+              (uint32_t)rshift_neg->at(0));
         }
       }
     } else if (op.quant() == "INT8_MULTIPLIER") {
-      assert(multiplier);
+      assert(multiplier_pos);
+      assert(multiplier_neg);
       for (int i = 0; i < size; ++i) {
         if (input[i] > 0){
-          resultT->at(i) = (threshold_x / threshold_y) * resultT->at(i);
+          // resultT->at(i) = (threshold_x / threshold_y) * resultT->at(i);
+          // resultT->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
+          //     resultT->at(i), (uint32_t)rshift_pos->at(0), multiplier_pos->at(0), true);
+          resultT->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
+              resultT->at(i), (uint32_t)rshift_pos->at(0), multiplier_pos->at(0), false);
         } else {
           resultT->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
-              resultT->at(i), (uint32_t)rshift->at(0), multiplier->at(0), true);
+              resultT->at(i), (uint32_t)rshift_neg->at(0), multiplier_neg->at(0), true);
         }
       }
     } else if (op.quant() == "BF16") {
@@ -700,7 +711,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     } else {
       assert(0);
     }
-
+    
     valueMapping[result] = std::move(resultT);
 
     return success();
