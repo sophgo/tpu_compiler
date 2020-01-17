@@ -682,7 +682,8 @@ struct TpuQuantPReluOpPattern : public RewritePattern {
     }
     LLVM_DEBUG(llvm::errs() << "  max slope : " << max_slope_abs << "\n";);
 
-    double qscale_neg = findQScaleForFilter(max_slope_abs, threshold_y, threshold_x);
+
+    double qscale_neg = findQScale(max_slope_abs, threshold_y, threshold_x);
     uint32_t uint_multiplier_neg;
     rshift_neg[0] = (float)findRShiftAndMultiplierFromQScale(qscale_neg, &uint_multiplier_neg, true);
     multiplier_neg[0] = (float)uint_multiplier_neg;
