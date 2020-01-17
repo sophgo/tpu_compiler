@@ -1500,6 +1500,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     auto resultT = std::make_unique<std::vector<float> >(size);
     float *output = (float *)resultT.get()->data();
 
+    int axis = op.axis().getValue().getLimitedValue();
     int n,c,h,w;
     auto input_type = op.x()->getType().cast<TensorType>();
     std::vector<int64_t> i_s(input_type.getShape());
@@ -1508,15 +1509,9 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     assert((i_s == o_s) && "input shape not equal to output shape");
     float *input = (float *)opdT[0]->data();
 
-    if(shape.size()==2||shape.size()==4){
-
+    if (shape.size() == 2) {
       n = i_s[0];
       c = i_s[1];
-
-
-      if (i_s.size() == 4) {
-        assert(i_s[2] == 1 && i_s[3] == 1);
-      }
 
       // do dequantization
       if (0) {
@@ -1528,31 +1523,34 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
         }
       }
 
-      int ret = my_softmax(input, output, n, c);
+      int ret = my_softmax2D(input, output, n, c);
       assert(ret == 0);
-
-    }else if(shape.size()==3){
+    } else if (shape.size() == 4) {
+      int ret = my_softmax4D(input, output, axis, shape);
+      assert(ret == 0);
+    } else if (shape.size() == 3) {
       c = i_s[0];
       h = i_s[1];
       w = i_s[2];
-    //just for axis = 2 now
-    auto tmp_resultT = std::make_unique<std::vector<float> >(w);
+      //just for axis = 2 now
+      assert(axis == 2);
+      auto tmp_resultT = std::make_unique<std::vector<float> >(w);
 
-    float *tmp = (float *)tmp_resultT.get()->data();
+      float *tmp = (float *)tmp_resultT.get()->data();
 
-    for(int ci=0;ci<c;ci++)
-      for(int hi=0;hi<h;hi++){
-        for(int wi=0;wi<w;wi++){
-          tmp[wi]=input[ci*w*h+hi*w+wi];
-        }
+      for(int ci = 0; ci < c; ci++) {
+        for(int hi = 0; hi < h; hi++) {
+          for(int wi = 0; wi < w; wi++) {
+            tmp[wi] = input[ci * w * h + hi * w + wi];
+          }
 
-        int ret = my_softmax(tmp, tmp, 1, w);
-        assert(ret == 0);
-        for(int wi=0;wi<w;wi++){
-          output[ci*w*h+hi*w+wi]=tmp[wi];
-        }
-
-      }
+          int ret = my_softmax2D(tmp, tmp, 1, w);
+          assert(ret == 0);
+          for(int wi = 0; wi < w; wi++) {
+            output[ci * w * h + hi * w + wi] = tmp[wi];
+          }
+        }  //end for hi
+      } //end for ci
     }
 
     valueMapping[result] = std::move(resultT);

@@ -598,6 +598,7 @@ def TPU_SoftmaxOp: TPU_Op<"softmax", [NoSideEffect, SameOperandsAndResultType]> 
   let arguments = (
     ins AnyTensor:$x,
     OptionalAttr<StrAttr>:$name,
+    OptionalAttr<I32Attr>:$axis,
     OptionalAttr<NonNegativeI64Attr>:$offset,
     OptionalAttr<F32Attr>:$threshold_y,
     OptionalAttr<NonNegativeI32Attr>:$layer_id,

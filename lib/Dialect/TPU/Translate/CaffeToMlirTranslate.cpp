@@ -1100,56 +1100,30 @@ void CaffeImporter::convertSoftmaxLayer(mlir::Block *block,
   auto layer_param = layer->layer_param();
   int64_t n,c,h,w;
 
-
-  llvm::ArrayRef<int64_t> input_var_shape =
-      input_var->getType().dyn_cast<mlir::TensorType>().getShape();
-  if (input_var_shape.size() == 2) {
-    n = input_var_shape[0];
-    c = input_var_shape[1];
-    LLVM_DEBUG(
-      llvm::errs()
-          << "  N: " << n
-          << ", C: " << c
-          << "\n";
-    );
-  } else if (input_var_shape.size() == 4) {
-    n = input_var_shape[0];
-    c = input_var_shape[1] * input_var_shape[2] * input_var_shape[3];
-    LLVM_DEBUG(
-      llvm::errs()
-          << "  N: " << n
-          << ", C: " << c
-          << "\n";
-    );
-  } else if (input_var_shape.size() == 3) {
-    c = input_var_shape[0];
-    h = input_var_shape[1];
-    w = input_var_shape[2];
-    LLVM_DEBUG(
-      llvm::errs()
-          << "C: " << c
-          << ", H*W: " << h<<"*"<<w
-          << "\n";
-    );
-  }else {
-    assert(0);
+  int axis = 1;
+  if (layer_param.has_softmax_param()) {
+    axis = layer_param.softmax_param().axis();
   }
+
+  llvm::ArrayRef<int64_t> input_shape =
+      input_var->getType().dyn_cast<mlir::TensorType>().getShape();
+
+  for (int i = 0; i < input_shape.size(); ++i) {
+      LLVM_DEBUG(llvm::errs() << "input_shape[" << i << "] = " << input_shape[i] << ", ");
+  }
+
+  LLVM_DEBUG(llvm::errs() << "\n");
 
   // construct OP
   auto result_type = input_var->getType();
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name())));
+  attrs.push_back(builder_.getNamedAttr("axis", builder_.getI32IntegerAttr(axis)));
   auto op = OpBuilder(block).create<tpu::SoftmaxOp>(
       builder_.getUnknownLoc(), result_type,
       ArrayRef<Value *>{input_var}, ArrayRef<NamedAttribute>{attrs});
 
   auto result_var = op.getResult();
-
-  //llvm::ArrayRef<int64_t> output_var_shape =
-  //    result_var->getType().dyn_cast<mlir::TensorType>().getShape();
-  //std::cout << "output shape size: " << output_var_shape.size()<< ", C: " << output_var_shape[0] << ", H:"<< output_var_shape[1] << ", W:" << output_var_shape[2]<< "\n";
-
-
   tensor_map_[layer_param.top(0)] = result_var;
 }
 void CaffeImporter::convertConcatLayer(mlir::Block *block,

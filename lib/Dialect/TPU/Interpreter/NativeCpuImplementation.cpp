@@ -628,7 +628,7 @@ int my_upsample(float *input, float *output,
   return 0;
 }
 
-int my_softmax(float *input, float *output, int n, int c) {
+int my_softmax2D(float *input, float *output, int n, int c) {
 #ifdef DUMP_FLAG
   static int dump_idx = 0;
   std::string prefix = std::string("softmax") + std::to_string(dump_idx);
@@ -668,6 +668,53 @@ int my_softmax(float *input, float *output, int n, int c) {
   }
   dump_idx ++;
 #endif // DUMP_FLAG
+  return 0;
+}
+
+int my_softmax4D(float *input, float *output, int axis, const std::vector<int64_t>& shape) {
+  int iter = 0;
+  float* max_val = new float[shape[axis]];
+  for (int i = 0; i <shape[axis]; ++i)
+    max_val[i] = 0;
+
+  // Only support axis == 1 so far, which means calculate softmax along C
+  assert(axis == 1);
+  for (int N = 0; N < shape[0]; ++N) {
+    for (int H = 0; H < shape[2]; ++H) {
+      for (int W = 0; W < shape[3]; ++W) {
+
+        // find max and subtract the max to avoid numerical issues
+        float max_val = 0;
+        for (int C = 0; C < shape[1]; ++C) {
+          iter = (N * shape[1] * shape[2] * shape[3]) 
+            + (C * shape[2] * shape[3]) + (H * shape[3]) + W;
+
+          max_val = std::max(input[iter], max_val);
+        }
+
+        // find softmax divisor
+        float *ex = new float[shape[1]];
+        float sum_of_ex = 0.0f;
+        for (int C = 0; C < shape[1]; ++C) {
+          iter = (N * shape[1] * shape[2] * shape[3]) 
+            + (C * shape[2] * shape[3]) + (H * shape[3]) + W;
+
+          float x = input[iter] - max_val;
+          ex[C] = exp(x);
+          sum_of_ex += ex[C];
+        }
+
+        // calculate softmax
+        for (int C = 0; C < shape[1]; ++C) {
+          iter = (N * shape[1] * shape[2] * shape[3]) 
+            + (C * shape[2] * shape[3]) + (H * shape[3]) + W;
+
+          output[iter] = ex[C] / sum_of_ex;
+        }
+        delete[] ex;
+      }
+    }
+  }
   return 0;
 }
 
