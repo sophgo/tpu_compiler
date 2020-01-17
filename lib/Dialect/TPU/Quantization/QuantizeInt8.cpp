@@ -35,7 +35,6 @@
 
 #include <sstream>
 #include <fstream>
-#include <math.h>
 
 #define DEBUG_TYPE "quantize_int8"
 
@@ -109,130 +108,6 @@ typedef enum {
   INT8_MULTIPLER   = 03
 } QUANT_INT8_TYPE_e;
 
-void doWeightQuantizeInt8PerLayer(float *filter, float *bias, float *new_filter,
-                                  float *new_bias, float *rshift_per_layer,
-                                  float threshold_y, float threshold_x, int isz,
-                                  int oc)  {
-  int filter_size = isz * oc;
-  // find the max fabs weight value
-  float max_filter_abs = fabs(filter[0]);
-  for (int i = 0; i < filter_size; ++i) {
-    if (fabs(filter[i]) > max_filter_abs) {
-      max_filter_abs = fabs(filter[i]);
-    }
-  }
-  LLVM_DEBUG(llvm::errs() << "  max_filter : " << std::to_string(max_filter_abs)
-                          << "\n";);
-  // find rshift
-  float eps = 0.0f; // 1e-5;
-  rshift_per_layer[0] =
-      (float)findRShift(max_filter_abs + eps, threshold_y, threshold_x);
-  LLVM_DEBUG(llvm::errs() << "  rshift : " << rshift_per_layer[0] << "\n";);
-  // quantize weight
-  for (int i = 0; i < filter_size; ++i) {
-    new_filter[i] = (float)quantizeFilterRShift(
-        filter[i], threshold_y, threshold_x, rshift_per_layer[0]);
-  }
-  if (bias) {
-    for (int i = 0; i < oc; ++i) {
-      new_bias[i] = (float)quantizeBiasRShiftI16(bias[i], threshold_y,
-                                                 rshift_per_layer[0]);
-    }
-  }
-}
-
-void doWeightQuantizeInt8PerChannel(float *filter, float *bias,
-                                    float *new_filter, float *new_bias,
-                                    float *rshift_per_channel,
-                                    float threshold_y, float threshold_x,
-                                    int isz, int oc) {
-  // find the max fabs weight value for each channel
-  auto max_filter_abs = std::vector<float>(oc);
-  for (int i = 0; i < oc; ++i) {
-    max_filter_abs[i] = fabs(filter[isz * i]);
-    for (int j = 0; j < isz; ++j) {
-      if (fabs(filter[isz * i + j]) > max_filter_abs[i]) {
-        max_filter_abs[i] = fabs(filter[isz * i + j]);
-      }
-    }
-    LLVM_DEBUG(llvm::errs() << "  max_filter[" << i << "] : "
-                            << std::to_string(max_filter_abs[i]) << "\n";);
-  }
-
-  // find rshift
-  for (int i = 0; i < oc; ++i) {
-    float eps = 0.0f; // 1e-5;
-    rshift_per_channel[i] =
-        (float)findRShift(max_filter_abs[i] + eps, threshold_y, threshold_x);
-    LLVM_DEBUG(llvm::errs() << "  rshift_per_channel[" << i
-                            << "] : " << rshift_per_channel[i] << "\n";);
-  }
-  // quantize weight
-  for (int i = 0; i < oc; ++i) {
-    for (int j = 0; j < isz; ++j) {
-      new_filter[isz * i + j] = (float)quantizeFilterRShift(
-          filter[isz * i + j], threshold_y, threshold_x, rshift_per_channel[i]);
-    }
-  }
-  if (bias) {
-    for (int i = 0; i < oc; ++i) {
-      new_bias[i] = (float)quantizeBiasRShiftI32(bias[i], threshold_y,
-                                                 rshift_per_channel[i]);
-    }
-  }
-}
-
-void doWeightQuantizeInt8Multiplier(float *filter, float *bias,
-                                    float *new_filter, float *new_bias,
-                                    float *rshift_per_channel,
-                                    float *multiplier_per_channel,
-                                    float threshold_y, float threshold_x,
-                                    int isz, int oc) {
-  // find the max fabs weight value for each channel
-  auto max_filter_abs = std::vector<float>(oc);
-  for (int i = 0; i < oc; ++i) {
-    max_filter_abs[i] = fabs(filter[isz * i]);
-    for (int j = 0; j < isz; ++j) {
-      if (fabs(filter[isz * i + j]) > max_filter_abs[i]) {
-        max_filter_abs[i] = fabs(filter[isz * i + j]);
-      }
-    }
-    LLVM_DEBUG(llvm::errs() << "  max_filter[" << i << "] : "
-                            << std::to_string(max_filter_abs[i]) << "\n";);
-  }
-
-  // find qscale
-  for (int i = 0; i < oc; ++i) {
-    // float eps = 0.0f; // 1e-5;
-    float eps = 1e-5;
-    float threshold_w = (max_filter_abs[i] > eps) ? max_filter_abs[i] : eps;
-    float qscale =
-        findQScale(threshold_w, threshold_y, threshold_x);
-    uint32_t multiplier;
-    rshift_per_channel[i] =
-        (float)findRShiftAndMultiplierFromQScale(qscale, &multiplier, true);
-    multiplier_per_channel[i] = (float)multiplier;
-    LLVM_DEBUG(llvm::errs()
-                   << "  [multiplier : rshift][" << i << "] = ["
-                   << std::to_string(multiplier_per_channel[i]) << " : "
-                   << std::to_string(rshift_per_channel[i]) << "]\n";);
-  }
-  // quantize weight
-  for (int i = 0; i < oc; ++i) {
-    for (int j = 0; j < isz; ++j) {
-      new_filter[isz * i + j] = (float)quantizeFilterRShiftAndMultiplier(
-          filter[isz * i + j], threshold_y, threshold_x, rshift_per_channel[i],
-          multiplier_per_channel[i], true);
-    }
-  }
-  if (bias) {
-    for (int i = 0; i < oc; ++i) {
-      new_bias[i] = (float)quantizeBiasRShiftAndMultiplier(
-          bias[i], threshold_y, rshift_per_channel[i],
-          multiplier_per_channel[i], true);
-    }
-  }
-}
 struct TpuQuantConv2DOpPattern : public RewritePattern {
   TpuQuantConv2DOpPattern(MLIRContext *context, TensorFile *weightTensorFile,
       Value* weightFileVar)
@@ -328,20 +203,24 @@ struct TpuQuantConv2DOpPattern : public RewritePattern {
 
     // quantization
     if (quant == INT8_PER_LAYER) {
-      doWeightQuantizeInt8PerLayer(filter->data(), bias?bias->data():nullptr,
-          new_filter->data(), bias?new_bias->data():nullptr,
-          rshift_per_layer->data(), threshold_y, threshold_x, isz, oc);
+      quantizeWeightInt8PerLayer(filter->data(), bias ? bias->data() : nullptr,
+                                 oc, isz, threshold_y, threshold_x,
+                                 new_filter->data(), bias ? new_bias->data() : nullptr,
+                                 rshift_per_layer->data());
 
     } else if (quant == INT8_PER_CHANNEL) {
-      doWeightQuantizeInt8PerChannel(filter->data(), bias?bias->data():nullptr,
-          new_filter->data(), bias?new_bias->data():nullptr,
-          rshift_per_channel->data(), threshold_y, threshold_x, isz, oc);
+      quantizeWeightInt8PerChannel(filter->data(), bias ? bias->data() : nullptr,
+                                 oc, isz, threshold_y, threshold_x,
+                                 new_filter->data(), bias ? new_bias->data() : nullptr,
+                                 rshift_per_channel->data());
 
     } else if (quant == INT8_MULTIPLER) {
-      doWeightQuantizeInt8Multiplier(filter->data(), bias?bias->data():nullptr,
-          new_filter->data(), bias?new_bias->data():nullptr,
-          rshift_per_channel->data(), multiplier_per_channel->data(),
-          threshold_y, threshold_x, isz, oc);
+      quantizeWeightInt8Multiplier(filter->data(), bias ? bias->data() : nullptr,
+                                 oc, isz, threshold_y, threshold_x,
+                                 new_filter->data(), bias ? new_bias->data() : nullptr,
+                                 rshift_per_channel->data(),
+                                 multiplier_per_channel->data());
+
     } else {
       assert(0);
     }
@@ -506,7 +385,7 @@ struct TpuQuantFullyConnectedOpPattern : public RewritePattern {
     // Q(W) = W * (threshold_x / threshold_y) * (1 << rshift)
     // find a rshift put the Q(max_filter_abs) in range (64, 127)
     assert(threshold_x);
-    rshift[0] = (float)findRShift(max_filter_abs, threshold_y, threshold_x);
+    rshift[0] = (float)findRShiftForFilter(max_filter_abs, threshold_y, threshold_x);
     LLVM_DEBUG(llvm::errs() << "  rshift : " << rshift[0] << "\n";);
 
     // quantize weight
@@ -701,7 +580,7 @@ struct TpuQuantPReluOpPattern : public RewritePattern {
       LLVM_DEBUG(llvm::errs() << preluOp.name() << " quantized already\n";);
       return matchFailure();
     }
-    
+
     // get quant type
     QUANT_INT8_TYPE_e quant;
     if (!clQuantConvPerChannel) {
@@ -765,7 +644,7 @@ struct TpuQuantPReluOpPattern : public RewritePattern {
     LLVM_DEBUG(llvm::errs() << "  max slope : " << max_slope_abs << "\n";);
 
     // find qscale
-    float qscale = findQScale(max_slope_abs, threshold_y, threshold_x);
+    double qscale = findQScaleForFilter(max_slope_abs, threshold_y, threshold_x);
     uint32_t uint_multiplier;
     rshift[0] = (float)findRShiftAndMultiplierFromQScale(qscale, &uint_multiplier, true);
     multiplier[0] = (float)uint_multiplier;
@@ -894,7 +773,7 @@ struct TpuQuantScaleOpPattern : public RewritePattern {
       int64_t scale_size =
           std::accumulate(std::begin(scale_shape), std::end(scale_shape), 1,
                           std::multiplies<>());
-      
+
       assert(scale_size == (int64_t)weights[0]->size());
       int64_t n = scale_shape[0];
 
@@ -916,30 +795,31 @@ struct TpuQuantScaleOpPattern : public RewritePattern {
       auto rshift_per_layer = std::make_unique<std::vector<float>>(1);
       auto rshift_per_channel = std::make_unique<std::vector<float>>(oc);
       auto multiplier_per_channel = std::make_unique<std::vector<float>>(oc);
-      
 
       // quantization
       if (quant == INT8_PER_LAYER) {
-        doWeightQuantizeInt8PerLayer(
-            scale, bias ? bias : nullptr, new_scale->data(),
-            bias ? new_bias->data() : nullptr, rshift_per_layer->data(),
-            threshold_y, threshold_x, isz, oc);
+        quantizeWeightInt8PerLayer(scale, bias ? bias : nullptr,
+                                   oc, isz, threshold_y, threshold_x,
+                                   new_scale->data(), bias ? new_bias->data() : nullptr,
+                                   rshift_per_layer->data());
 
       } else if (quant == INT8_PER_CHANNEL) {
-        doWeightQuantizeInt8PerChannel(
-            scale, bias ? bias : nullptr, new_scale->data(),
-            bias ? new_bias->data() : nullptr, rshift_per_channel->data(),
-            threshold_y, threshold_x, isz, oc);
+        quantizeWeightInt8PerChannel(scale, bias ? bias : nullptr,
+                                   oc, isz, threshold_y, threshold_x,
+                                   new_scale->data(), bias ? new_bias->data() : nullptr,
+                                   rshift_per_channel->data());
 
       } else if (quant == INT8_MULTIPLER) {
-        doWeightQuantizeInt8Multiplier(
-            scale, bias ? bias : nullptr, new_scale->data(),
-            bias ? new_bias->data() : nullptr, rshift_per_channel->data(),
-            multiplier_per_channel->data(), threshold_y, threshold_x, isz, oc);
+        quantizeWeightInt8Multiplier(scale, bias ? bias : nullptr,
+                                   oc, isz, threshold_y, threshold_x,
+                                   new_scale->data(), bias ? new_bias->data() : nullptr,
+                                   rshift_per_channel->data(),
+                                   multiplier_per_channel->data());
+
       } else {
         assert(0);
       }
-      
+
       // update op
       // TODO: use float to save all weights for now
       Type eltType = FloatType::getF32(rewriter.getContext());
