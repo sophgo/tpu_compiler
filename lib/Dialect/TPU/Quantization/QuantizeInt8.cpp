@@ -753,9 +753,23 @@ struct TpuQuantPReluOpPattern : public RewritePattern {
 
     // create tensors for rshift and multiplier
     // TODO: use float to save all weights for now
-    auto rshift = std::vector<float>(1);
-    auto multiplier = std::vector<float>(1);;
+    auto rshift_pos = std::vector<float>(1);
+    auto rshift_neg = std::vector<float>(1);
+    auto multiplier_pos = std::vector<float>(1);
+    auto multiplier_neg = std::vector<float>(1);;
 
+    // find qscale positive
+    float qscale_pos = threshold_x / threshold_y;
+    uint32_t uint_multiplier_pos;
+    // rshift_pos[0] = (float)findRShiftAndMultiplierFromQScale(qscale_pos, &uint_multiplier_pos, true);
+    rshift_pos[0] = (float)findRShiftAndMultiplierFromQScale(qscale_pos, &uint_multiplier_pos, false);
+    multiplier_pos[0] = (float)uint_multiplier_pos;
+    LLVM_DEBUG(llvm::errs() << "  positive [multiplier : rshift] = ["
+                   << std::to_string(multiplier_pos[0]) << " : "
+                   << std::to_string(rshift_pos[0]) << "]\n";);
+
+
+    // find qscale negative
     float max_slope_abs = fabs(negative_slope[0]);
     for (int i = 0; i < c; ++i) {
       if ( fabs(negative_slope[i]) > max_slope_abs) {
@@ -764,19 +778,18 @@ struct TpuQuantPReluOpPattern : public RewritePattern {
     }
     LLVM_DEBUG(llvm::errs() << "  max slope : " << max_slope_abs << "\n";);
 
-    // find qscale
-    float qscale = findQScale(max_slope_abs, threshold_y, threshold_x);
-    uint32_t uint_multiplier;
-    rshift[0] = (float)findRShiftAndMultiplierFromQScale(qscale, &uint_multiplier, true);
-    multiplier[0] = (float)uint_multiplier;
-    LLVM_DEBUG(llvm::errs() << "  [multiplier : rshift] = ["
-                   << std::to_string(multiplier[0]) << " : "
-                   << std::to_string(rshift[0]) << "]\n";);
+    float qscale_neg = findQScale(max_slope_abs, threshold_y, threshold_x);
+    uint32_t uint_multiplier_neg;
+    rshift_neg[0] = (float)findRShiftAndMultiplierFromQScale(qscale_neg, &uint_multiplier_neg, true);
+    multiplier_neg[0] = (float)uint_multiplier_neg;
+    LLVM_DEBUG(llvm::errs() << "  negative [multiplier : rshift] = ["
+                   << std::to_string(multiplier_neg[0]) << " : "
+                   << std::to_string(rshift_neg[0]) << "]\n";);
 
     // quantize negative slope
     for (int i = 0; i < c; ++i) {
       new_negative_slope[i] = (float)quantizeFilterRShiftAndMultiplier(negative_slope[i], threshold_y,
-                                 threshold_x, (uint32_t)rshift[0], uint_multiplier, true);
+                                 threshold_x, (uint32_t)rshift_neg[0], uint_multiplier_neg, true);
     }
 
 
@@ -798,17 +811,30 @@ struct TpuQuantPReluOpPattern : public RewritePattern {
     auto shape = std::vector<int64_t>{1};
     std::string storageType_uint32 = "UINT32";
 
-    auto new_op_1 = addWeightTensorAndCreateWeightOp(
-        preluOp.name().getValue().str() + "_quant_int8_rshift",
-        rshift, shape, storageType_uint32, eltType,
+  auto new_op_1 = addWeightTensorAndCreateWeightOp(
+        preluOp.name().getValue().str() + "_quant_int8_rshift_pos",
+        rshift_pos, shape, storageType_uint32, eltType,
         rewriter, loc, weightTensorFile_, weightFileVar_);
     newOperands.push_back(new_op_1);
 
     auto new_op_2 = addWeightTensorAndCreateWeightOp(
-        preluOp.name().getValue().str() + "_quant_int8_multiplier",
-        multiplier, shape, storageType_uint32, eltType,
+        preluOp.name().getValue().str() + "_quant_int8_rshift_neg",
+        rshift_neg, shape, storageType_uint32, eltType,
         rewriter, loc, weightTensorFile_, weightFileVar_);
     newOperands.push_back(new_op_2);
+
+    auto new_op_3 = addWeightTensorAndCreateWeightOp(
+        preluOp.name().getValue().str() + "_quant_int8_multiplier_pos",
+        multiplier_pos, shape, storageType_uint32, eltType,
+        rewriter, loc, weightTensorFile_, weightFileVar_);
+    newOperands.push_back(new_op_3);
+
+    auto new_op_4 = addWeightTensorAndCreateWeightOp(
+        preluOp.name().getValue().str() + "_quant_int8_multiplier_neg",
+        multiplier_neg, shape, storageType_uint32, eltType,
+        rewriter, loc, weightTensorFile_, weightFileVar_);
+    newOperands.push_back(new_op_4);
+
 
     // set quant type
     preluOp.setAttr("quant", rewriter.getStringAttr("INT8_MULTIPLIER"));

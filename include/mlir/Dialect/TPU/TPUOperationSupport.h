@@ -82,8 +82,10 @@ void getFullyConnectedOpVariadicTensors(
 
 void getPReluOpVariadicTensors(tpu::PReluOp &op,
     std::vector<std::shared_ptr<std::vector<float> > > &opdT,
-    std::shared_ptr<std::vector<float> > &rshift,
-    std::shared_ptr<std::vector<float> > &multiplier);
+    std::shared_ptr<std::vector<float> > &rshift_pos,
+    std::shared_ptr<std::vector<float> > &rshift_neg,
+    std::shared_ptr<std::vector<float> > &multiplier_pos,
+    std::shared_ptr<std::vector<float> > &multiplier_neg);
 
 } // namespace mlir
 
