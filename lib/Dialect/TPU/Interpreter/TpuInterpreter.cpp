@@ -1500,6 +1500,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     auto resultT = std::make_unique<std::vector<float> >(size);
     float *output = (float *)resultT.get()->data();
 
+    int axis = op.axis().getValue().getLimitedValue();
     int n,c,h,w;
     auto input_type = op.x()->getType().cast<TensorType>();
     std::vector<int64_t> i_s(input_type.getShape());
@@ -1528,7 +1529,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
         }
       }
 
-      int ret = my_softmax(input, output, n, c);
+      int ret = my_softmax2D(input, output, n, c);
       assert(ret == 0);
 
     }else if(shape.size()==3){
@@ -1546,7 +1547,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
           tmp[wi]=input[ci*w*h+hi*w+wi];
         }
 
-        int ret = my_softmax(tmp, tmp, 1, w);
+        int ret = my_softmax2D(tmp, tmp, 1, w);
         assert(ret == 0);
         for(int wi=0;wi<w;wi++){
           output[ci*w*h+hi*w+wi]=tmp[wi];

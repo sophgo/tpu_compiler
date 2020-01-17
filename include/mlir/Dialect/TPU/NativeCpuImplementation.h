@@ -33,7 +33,7 @@ int my_scale(float *input, float *scale, float *bias,
 int my_upsample(float *input, float *output,
     int n, int c, int ih, int iw, int scale);
 
-int my_softmax(float *input, float *output, int n, int c);
+int my_softmax2D(float *input, float *output, int n, int c);
 
 int my_tanh(float *input, float *output,
     int n, int c, int h, int w);

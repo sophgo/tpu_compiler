@@ -628,7 +628,7 @@ int my_upsample(float *input, float *output,
   return 0;
 }
 
-int my_softmax(float *input, float *output, int n, int c) {
+int my_softmax2D(float *input, float *output, int n, int c) {
 #ifdef DUMP_FLAG
   static int dump_idx = 0;
   std::string prefix = std::string("softmax") + std::to_string(dump_idx);
