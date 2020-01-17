@@ -27,28 +27,44 @@
 namespace mlir {
 
 ///
+/// utils
+///
+float findMaxWeight(float *weight, size_t size);
+
+///
 /// INT8
 ///
-uint32_t findRShift(float max_weight, float threshold_y, float threshold_x);
-float findQScale(float max_weight, float threshold_y, float threshold_x);
-uint32_t findRShiftAndMultiplierFromQScale(float qscale,
-    uint32_t *multiplier = nullptr, bool qdm = false,
-    uint32_t max_multiplier = 127);
-uint32_t findMultiplierFromQScaleAndRShift(float qscale, uint32_t rshift);
+uint32_t findRShiftForFilter(float max_filter,
+                             float threshold_y, float threshold_x);
+uint32_t findRShiftForBiasI16(float max_bias, float threshold_y);
+uint32_t findRShiftForBiasI32(float max_bias, float threshold_y);
+
+double findQScaleForFilter(float max_filter,
+                          float threshold_y, float threshold_x);
+double findQScaleForBiasI32(float max_bias, float threshold_y);
+uint32_t findRShiftAndMultiplierFromQScale(double qscale,
+                                           uint32_t *multiplier = nullptr,
+                                           bool qdm = false,
+                                           uint32_t max_multiplier = 127);
+uint32_t findMultiplierFromQScaleAndRShift(double qscale, uint32_t rshift);
 
 int8_t quantizeFilterRShift(float w, float threshold_y, float threshold_x,
-    uint32_t rshift);
+                            uint32_t rshift);
 int16_t quantizeBiasRShiftI16(float w, float threshold_y, uint32_t rshift);
 int32_t quantizeBiasRShiftI32(float w, float threshold_y, uint32_t rshift);
-int8_t quantizeFilterRShiftAndMultiplier(float w, float threshold_y,
-    float threshold_x, uint32_t rshift, uint32_t multiplier,
-    bool qdm = false);
-int32_t quantizeBiasRShiftAndMultiplier(float w, float threshold_y,
-    uint32_t rshift, uint32_t multiplier, bool qdm = false);
+int8_t quantizeFilterRShiftAndMultiplier(float w,
+                                         float threshold_y, float threshold_x,
+                                         uint32_t rshift, uint32_t multiplier,
+                                         bool qdm = false);
+int32_t quantizeBiasRShiftAndMultiplier(float w,
+                                        float threshold_y,
+                                        uint32_t rshift, uint32_t multiplier,
+                                        bool qdm = false);
 
 int8_t applyRShiftAndSaturateInt8(float v, uint32_t rshift);
 int8_t applyMultiplierAndRShiftAndSaturateInt8(float v,
-    uint32_t rshift, uint32_t multiplier, bool qdm = false);
+                                               uint32_t rshift, uint32_t multiplier,
+                                               bool qdm = false);
 
 int8_t quantizeNeuron(float v, float threshold);
 float dequantizeNeuron(int8_t q, float threshold);
@@ -67,6 +83,24 @@ void FloatToBFloat16(const float* src, bfloat16* dst, size_t size,
     bool rounding = true);
 void BFloat16ToFloat(const bfloat16* src, float* dst, size_t size);
 
+//
+// Wrapper APIs
+//
+void quantizeWeightInt8PerLayer(float *filter, float *bias, int oc, int isz,
+                                float threshold_y, float threshold_x,
+                                float *new_filter, float *new_bias,
+                                float *rshift_per_layer);
+
+void quantizeWeightInt8PerChannel(float *filter, float *bias, int oc, int isz,
+                                  float threshold_y, float threshold_x,
+                                  float *new_filter, float *new_bias,
+                                  float *rshift_per_channel);
+
+void quantizeWeightInt8Multiplier(float *filter, float *bias, int oc, int isz,
+                                  float threshold_y, float threshold_x,
+                                  float *new_filter, float *new_bias,
+                                  float *rshift_per_channel,
+                                  float *multiplier_per_channel);
 } // namespace mlir
 
 #endif // MLIR_DIALECT_TPU_QUANTIZATION_ARITHMETIC_H_

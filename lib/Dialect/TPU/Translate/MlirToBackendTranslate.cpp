@@ -605,7 +605,6 @@ static LogicalResult runOperation(Operation &opInst) {
       assert(0);
     }
 
-    assert(op.method() == "SUM");
 
     gaddr_t ga_inputs[2];
     ga_inputs[0] = getPreviousOpAddress(op, 0);
@@ -624,69 +623,94 @@ static LogicalResult runOperation(Operation &opInst) {
       // find a rshift, that put max(multiplier) into range (64, 127)
       uint32_t rshift;
       int8_t multiplier[MAX_ELTWISE_INPUT];
-
+      uint32_t multiplier_prod;
       for (int index = 0; index < MAX_ELTWISE_INPUT; ++index) {
         // get threshold_x
         threshold_x[index] = getPreviousOpThreshold(op, index);
       }
       // get threshold_y
       threshold_y = op.threshold_y().getValue().convertToFloat();
+      if (op.method() == "SUM") {
+        // determine rshift for all inputs, and multiplier for each input
+        // use max threshold_x to find rshift first
+        float max_threshold_x =
+            *std::max_element(std::begin(threshold_x), std::end(threshold_x));
+        rshift =
+            findRShiftAndMultiplierFromQScale(max_threshold_x / threshold_y);
+        for (int index = 0; index < 2; ++index) {
+          float qscale = threshold_x[index] / threshold_y;
+          multiplier[index] =
+              (int8_t)findMultiplierFromQScaleAndRShift(qscale, rshift);
+        }
 
-      // determine rshift for all inputs, and multiplier for each input
-      // use max threshold_x to find rshift first
-      float max_threshold_x = *std::max_element(
-          std::begin(threshold_x), std::end(threshold_x));
-      rshift = findRShiftAndMultiplierFromQScale(max_threshold_x / threshold_y);
-      for (int index = 0; index < 2; ++index) {
-        float qscale = threshold_x[index] / threshold_y;
-        multiplier[index] = (int8_t)findMultiplierFromQScaleAndRShift(qscale, rshift);
+        int threshold_x_quantized[MAX_ELTWISE_INPUT];
+
+        for (int i = 0; i < MAX_ELTWISE_INPUT; ++i) {
+          threshold_x_quantized[i] = (int)multiplier[i];
+        }
+        const int coeffs[2] = {1, 1};
+        bmnet_eltwise_fixed_forward_bmkernel(
+            *backend_ctx,
+            0,            // stream_id,
+            0,            // inst_id,
+            layer_id,     // layer_id,
+            nullptr,      // depends
+            0,            // depends_len
+            ga_inputs,    // gaddr_t ga_input[],
+            output_gaddr, // gaddr_t ga_output,
+            2,            // int input_size,
+            1,            // int op,  0, prod, 1, sum, 2, max
+            n, c, h, w,
+            do_relu, // bool do_relu,
+            0.0f,    // float relu_slope,
+            rshift,  // int right_shift_width,
+            threshold_x_quantized, coeffs);
+      } else if (op.method() == "PROD") {
+        float threshold_prod = std::accumulate(
+            threshold_x.begin(), threshold_x.end(), 1.0, std::multiplies<>());
+        float qscale = threshold_prod / threshold_y / 127.0;
+        rshift = findRShiftAndMultiplierFromQScale(qscale, &multiplier_prod,
+                                                   true, 255);
+        int threshold_x_quantized[MAX_ELTWISE_INPUT];
+
+        for (int i = 0; i < MAX_ELTWISE_INPUT; ++i) {
+          threshold_x_quantized[i] = multiplier_prod;
+        }
+        const int coeffs[2] = {1, 1};
+        bmnet_eltwise_fixed_forward_bmkernel(
+            *backend_ctx,
+            0,            // stream_id,
+            0,            // inst_id,
+            layer_id,     // layer_id,
+            nullptr,      // depends
+            0,            // depends_len
+            ga_inputs,    // gaddr_t ga_input[],
+            output_gaddr, // gaddr_t ga_output,
+            2,            // int input_size,
+            0,            // int op,  0, prod, 1, sum, 2, max
+            n, c, h, w,
+            do_relu, // bool do_relu,
+            0.0f,    // float relu_slope,
+            rshift,  // int right_shift_width,
+            threshold_x_quantized, coeffs);
+      } else {
+        assert("not support");
       }
-
-      int threshold_x_quantized[MAX_ELTWISE_INPUT];
-
-      for (int i = 0; i < MAX_ELTWISE_INPUT; ++i) {
-        threshold_x_quantized[i] = (int)multiplier[i];
-      }
-      const int coeffs[2] = {1, 1};
-      bmnet_eltwise_fixed_forward_bmkernel(
-          *backend_ctx,
-          0, // stream_id,
-          0, // inst_id,
-          layer_id, // layer_id,
-          nullptr, // depends
-          0, // depends_len
-          ga_inputs, // gaddr_t ga_input[],
-          output_gaddr, // gaddr_t ga_output,
-          2, // int input_size,
-          1, // int op,  0, prod, 1, sum, 2, max
-          n,
-          c,
-          h,
-          w,
-          do_relu, // bool do_relu,
-          0.0f, // float relu_slope,
-          rshift, //int right_shift_width,
-          threshold_x_quantized,
-          coeffs);
-
     } else if (op.quant() == "BF16") {
-      const float coeffs[2] = {1.0, 1.0};
+      if (op.method() == "SUM") {
+        const float coeffs[2] = {1.0, 1.0};
 
-      bf16_eltwise_forward_kernel(
-          *backend_ctx,
-          layer_id, // layer_id
-          ga_inputs, // gaddr_t ga_input[]
-          output_gaddr, // gaddr_t ga_output
-          2, // int input_size
-          1, // int op, 0: prod, 1: sum, 2: max
-          n,
-          c,
-          h,
-          w,
-          do_relu, // bool do_relu
-          0.0f, // float relu_slope
-          coeffs
-      );
+        bf16_eltwise_forward_kernel(*backend_ctx,
+                                    layer_id,     // layer_id
+                                    ga_inputs,    // gaddr_t ga_input[]
+                                    output_gaddr, // gaddr_t ga_output
+                                    2,            // int input_size
+                                    1, // int op, 0: prod, 1: sum, 2: max
+                                    n, c, h, w,
+                                    do_relu, // bool do_relu
+                                    0.0f,    // float relu_slope
+                                    coeffs);
+      }
     }
 
     // gen cmd end

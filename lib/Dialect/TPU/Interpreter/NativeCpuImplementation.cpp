@@ -33,7 +33,7 @@ static size_t write_bianry_file(std::string filename, const char *data,
 
 int mkldnn_conv(float *input, float *weight, float *bias,
     float *output, int n, int ic, int ih, int iw, int oc, int oh, int ow,
-    int kh, int kw, int sh, int sw, int dh,int dw ,int ph, int pw, int g) {
+    int kh, int kw, int sh, int sw, int dh, int dw, int ph, int pw, int g) {
   if (!bias) {
     auto zero_bias = new std::vector<float>(oc, 0.0f);
     bias = zero_bias->data();
@@ -507,13 +507,6 @@ int my_prelu(float *input, float *output, int n, int c, int h, int w,
   LLVM_DEBUG(llvm::errs() << "  n: " << n << ", c: " << c << ", h: " << h
                           << ", w: " << w << "\n";);
 
-  // for (int i = 0; i < n * c * h * w; ++i) {
-  //   if (input[i] >= 0) {
-  //     output[i] = input[i];
-  //   } else {
-  //     output[i] = negative_slope * input[i];
-  //   }
-  // }
   for(int batch = 0; batch < n; ++batch){
     for(int channel = 0 ; channel < c; ++channel){
         int index = batch * c * w * h + channel * w * h;
@@ -635,7 +628,7 @@ int my_upsample(float *input, float *output,
   return 0;
 }
 
-int my_softmax(float *input, float *output, int n, int c) {
+int my_softmax2D(float *input, float *output, int n, int c) {
 #ifdef DUMP_FLAG
   static int dump_idx = 0;
   std::string prefix = std::string("softmax") + std::to_string(dump_idx);
@@ -675,6 +668,53 @@ int my_softmax(float *input, float *output, int n, int c) {
   }
   dump_idx ++;
 #endif // DUMP_FLAG
+  return 0;
+}
+
+int my_softmax4D(float *input, float *output, int axis, const std::vector<int64_t>& shape) {
+  int iter = 0;
+  float* max_val = new float[shape[axis]];
+  for (int i = 0; i <shape[axis]; ++i)
+    max_val[i] = 0;
+
+  // Only support axis == 1 so far, which means calculate softmax along C
+  assert(axis == 1);
+  for (int N = 0; N < shape[0]; ++N) {
+    for (int H = 0; H < shape[2]; ++H) {
+      for (int W = 0; W < shape[3]; ++W) {
+
+        // find max and subtract the max to avoid numerical issues
+        float max_val = 0;
+        for (int C = 0; C < shape[1]; ++C) {
+          iter = (N * shape[1] * shape[2] * shape[3]) 
+            + (C * shape[2] * shape[3]) + (H * shape[3]) + W;
+
+          max_val = std::max(input[iter], max_val);
+        }
+
+        // find softmax divisor
+        float *ex = new float[shape[1]];
+        float sum_of_ex = 0.0f;
+        for (int C = 0; C < shape[1]; ++C) {
+          iter = (N * shape[1] * shape[2] * shape[3]) 
+            + (C * shape[2] * shape[3]) + (H * shape[3]) + W;
+
+          float x = input[iter] - max_val;
+          ex[C] = exp(x);
+          sum_of_ex += ex[C];
+        }
+
+        // calculate softmax
+        for (int C = 0; C < shape[1]; ++C) {
+          iter = (N * shape[1] * shape[2] * shape[3]) 
+            + (C * shape[2] * shape[3]) + (H * shape[3]) + W;
+
+          output[iter] = ex[C] / sum_of_ex;
+        }
+        delete[] ex;
+      }
+    }
+  }
   return 0;
 }
 
@@ -784,10 +824,10 @@ int my_eltwise(float *input_1, float *input_2, float *output, int n, int c,
   return 0;
 }
 
-
-
-int my_permute(float *input, float *output, const int input_shape_size,int in, int ic, int ih, 
-  int iw,int on, int oc, int oh, int ow,int order0,int order1,int order2,int order3) {
+int my_permute(float *input, float *output, const int input_shape_size,
+    int in, int ic, int ih, int iw,
+    int on, int oc, int oh, int ow,
+    int order0, int order1, int order2, int order3) {
 
   /* This algorthem is referred to caffe permute layer */
   int count = in*ic*ih*iw;
@@ -813,7 +853,6 @@ int my_permute(float *input, float *output, const int input_shape_size,int in, i
   orders.push_back(order2);
   orders.push_back(order3);
 
-
   for (int i = 0; i < count; ++i) {
     int old_idx = 0;
     int idx = i;
@@ -827,8 +866,8 @@ int my_permute(float *input, float *output, const int input_shape_size,int in, i
     return 0 ;
 }
 
-
-int my_normalize(float *input,float *output,bool across_spatial,int n,int c,int h,int w){
+int my_normalize(float *input, float *output, bool across_spatial,
+    int n, int c, int h, int w){
 
   float eps = 1.0e-5;
   if(!across_spatial){ // only ssd case currently
@@ -850,7 +889,6 @@ int my_normalize(float *input,float *output,bool across_spatial,int n,int c,int 
   }
   return 0;
 }
-
 
 int my_slice(float *input, float *output, int axis,
   std::vector<int64_t> input_shape, std::vector<int64_t> output_shape) {

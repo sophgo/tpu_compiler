@@ -322,12 +322,12 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
     //As long as there is one order which is different from the natural order
     // of the data, we need to permute.(from caffe permute layer source code mark)
-    if( in==on && ic==oc && ih==oh && iw==ow ){ 
+    if( in==on && ic==oc && ih==oh && iw==ow ){
       valueMapping[result] = std::move(opdT[0]);
     }else{
       float *input = (float *)opdT[0]->data();
       float *output = (float *)resultT.get()->data();
-      ret = my_permute(input,output,shape.size(),in,ic,ih,iw,on,oc,oh,ow,order0,order1,order2,order3);    
+      ret = my_permute(input,output,shape.size(),in,ic,ih,iw,on,oc,oh,ow,order0,order1,order2,order3);
       assert(ret == 0);
       valueMapping[result] = std::move(resultT);
     }
@@ -335,7 +335,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     return success();
   }
 
-  if (auto op = dyn_cast<tpu::NormalizeOp>(opInst)) { 
+  if (auto op = dyn_cast<tpu::NormalizeOp>(opInst)) {
     /*not the same as ssd Normalize op, here only do normalize , reuse "Scale op" for scale operation */
     LLVM_DEBUG(llvm::errs() << "NormalizeOp" << "\n";);
     auto opdT = getOperandTensors(opInst, valueMapping);
@@ -350,13 +350,13 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     bool across_spatial = op.across_spatial();
     //bool channel_shared = op.across_spatial();
 
-    //implement for ssd case first 
+    //implement for ssd case first
     assert(!across_spatial);
 
     int n, c, h, w;
     auto input_type = op.input()->getType().cast<TensorType>();
     std::vector<int64_t> i_s(input_type.getShape());
-    
+
     n = i_s[0];
     c = i_s[1];
     h = i_s[2];
@@ -371,7 +371,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     assert(ret == 0);
     valueMapping[result] = std::move(resultT);
     return success();
-  }  
+  }
 
     if (auto op = dyn_cast<tpu::DeConv2DOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "DeConv2DOp" << "\n";);
@@ -644,14 +644,14 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     // ---- checked ----
     int n, c, h, w;
     float *negative_slope = opdT[1]->data();
-    
+
     auto input_type = op.x()->getType().cast<TensorType>();
     std::vector<int64_t> i_s(input_type.getShape());
     auto output_type = op.y()->getType().cast<TensorType>();
     std::vector<int64_t> o_s(output_type.getShape());
     assert((i_s == o_s) && "input shape not equal to output shape");
     assert((i_s.size() == 4) && "PRelu support shape size of 4 now.");
-    
+
     n = i_s[0];
     c = i_s[1];
     h = i_s[2];
@@ -661,10 +661,13 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     int ret = my_prelu(input, output, n, c, h, w, negative_slope);
     assert(ret == 0);
 
-    std::shared_ptr<std::vector<float> > rshift = nullptr;
-    std::shared_ptr<std::vector<float> > multiplier = nullptr;
+    std::shared_ptr<std::vector<float> > rshift_pos = nullptr;
+    std::shared_ptr<std::vector<float> > rshift_neg = nullptr;
+    std::shared_ptr<std::vector<float> > multiplier_pos = nullptr;
+    std::shared_ptr<std::vector<float> > multiplier_neg = nullptr;
 
-    getPReluOpVariadicTensors(op, opdT, rshift, multiplier);
+
+    getPReluOpVariadicTensors(op, opdT, rshift_pos, rshift_neg, multiplier_pos, multiplier_neg);
 
     float threshold_x;
     float threshold_y;
@@ -675,23 +678,31 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
     // rshift and saturate on output
     if (op.quant() == "INT8" || op.quant() == "INT8_PER_CHANNEL") {
-      assert(rshift);
+      assert(rshift_pos);
+      assert(rshift_neg);
       for (int i = 0; i < size; ++i) {
         if (input[i] > 0){
-          resultT->at(i) = (threshold_x / threshold_y) * resultT->at(i);
+          // resultT->at(i) = (threshold_x / threshold_y) * resultT->at(i);
+          resultT->at(i) = (float)applyRShiftAndSaturateInt8(resultT->at(i),
+              (uint32_t)rshift_pos->at(0));
         } else {
           resultT->at(i) = (float)applyRShiftAndSaturateInt8(resultT->at(i),
-              (uint32_t)rshift->at(0));
+              (uint32_t)rshift_neg->at(0));
         }
       }
     } else if (op.quant() == "INT8_MULTIPLIER") {
-      assert(multiplier);
+      assert(multiplier_pos);
+      assert(multiplier_neg);
       for (int i = 0; i < size; ++i) {
         if (input[i] > 0){
-          resultT->at(i) = (threshold_x / threshold_y) * resultT->at(i);
+          // resultT->at(i) = (threshold_x / threshold_y) * resultT->at(i);
+          // resultT->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
+          //     resultT->at(i), (uint32_t)rshift_pos->at(0), multiplier_pos->at(0), true);
+          resultT->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
+              resultT->at(i), (uint32_t)rshift_pos->at(0), multiplier_pos->at(0), false);
         } else {
           resultT->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
-              resultT->at(i), (uint32_t)rshift->at(0), multiplier->at(0), true);
+              resultT->at(i), (uint32_t)rshift_neg->at(0), multiplier_neg->at(0), true);
         }
       }
     } else if (op.quant() == "BF16") {
@@ -700,7 +711,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     } else {
       assert(0);
     }
-
+    
     valueMapping[result] = std::move(resultT);
 
     return success();
@@ -875,7 +886,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     // check if scale second is load weight op
     auto sec_blob_weight_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
         op.getOperand(1)->getDefiningOp());
-    
+
     LLVM_DEBUG(llvm::errs() << "ScaleOp" << "\n";);
     auto opdT = getOperandTensors(opInst, valueMapping);
     auto result = op.getResult();
@@ -884,7 +895,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     assert(shape.size() <= 4);
     auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
     auto resultT = std::make_unique<std::vector<float> >(size);
-    
+
     auto input_type = op.x()->getType().cast<TensorType>();
     std::vector<int64_t> i_s(input_type.getShape());
     auto output_type = op.y()->getType().cast<TensorType>();
@@ -1312,7 +1323,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
             tmp_resultT.get()->insert(tmp_resultT.get()->end(), opdT[i]->begin(), opdT[i]->end());
           }
           else if (concat_axis == 1) {
-            
+
             for (uint32_t idx_h = 0; idx_h < h; idx_h++) {
               auto shapeT = std::make_unique<std::vector<float> >(w);
               //int insert_offset = ((idx_h + 1) * idx_h) * h * w;
@@ -1349,7 +1360,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
           tmp_w += w;
         }else {
           assert(0&&"not support shape size =1 and axis = 1 now ");
-        } 
+        }
        }
     }
 
@@ -1489,6 +1500,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     auto resultT = std::make_unique<std::vector<float> >(size);
     float *output = (float *)resultT.get()->data();
 
+    int axis = op.axis().getValue().getLimitedValue();
     int n,c,h,w;
     auto input_type = op.x()->getType().cast<TensorType>();
     std::vector<int64_t> i_s(input_type.getShape());
@@ -1497,15 +1509,9 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     assert((i_s == o_s) && "input shape not equal to output shape");
     float *input = (float *)opdT[0]->data();
 
-    if(shape.size()==2||shape.size()==4){
-
+    if (shape.size() == 2) {
       n = i_s[0];
       c = i_s[1];
-
-
-      if (i_s.size() == 4) {
-        assert(i_s[2] == 1 && i_s[3] == 1);
-      }
 
       // do dequantization
       if (0) {
@@ -1517,31 +1523,34 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
         }
       }
 
-      int ret = my_softmax(input, output, n, c);
+      int ret = my_softmax2D(input, output, n, c);
       assert(ret == 0);
-
-    }else if(shape.size()==3){
+    } else if (shape.size() == 4) {
+      int ret = my_softmax4D(input, output, axis, shape);
+      assert(ret == 0);
+    } else if (shape.size() == 3) {
       c = i_s[0];
       h = i_s[1];
       w = i_s[2];
-    //just for axis = 2 now 
-    auto tmp_resultT = std::make_unique<std::vector<float> >(w);
+      //just for axis = 2 now
+      assert(axis == 2);
+      auto tmp_resultT = std::make_unique<std::vector<float> >(w);
 
-    float *tmp = (float *)tmp_resultT.get()->data();
+      float *tmp = (float *)tmp_resultT.get()->data();
 
-    for(int ci=0;ci<c;ci++)
-      for(int hi=0;hi<h;hi++){
-        for(int wi=0;wi<w;wi++){
-          tmp[wi]=input[ci*w*h+hi*w+wi];
-        }
+      for(int ci = 0; ci < c; ci++) {
+        for(int hi = 0; hi < h; hi++) {
+          for(int wi = 0; wi < w; wi++) {
+            tmp[wi] = input[ci * w * h + hi * w + wi];
+          }
 
-        int ret = my_softmax(tmp, tmp, 1, w);
-        assert(ret == 0);
-        for(int wi=0;wi<w;wi++){
-          output[ci*w*h+hi*w+wi]=tmp[wi];
-        }
-
-      }
+          int ret = my_softmax2D(tmp, tmp, 1, w);
+          assert(ret == 0);
+          for(int wi = 0; wi < w; wi++) {
+            output[ci * w * h + hi * w + wi] = tmp[wi];
+          }
+        }  //end for hi
+      } //end for ci
     }
 
     valueMapping[result] = std::move(resultT);
@@ -1564,7 +1573,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     if (op.quant() == "INT8") {
       threshold_y = op.threshold_y().getValue().convertToFloat();
       threshold_x = getPreviousOpThreshold(op);
-      qscale = 127.0*127.0/(threshold_x*threshold_y);  
+      qscale = 127.0*127.0/(threshold_x*threshold_y);
       rshift = findRShiftAndMultiplierFromQScale(qscale, &multiplier_power,
                                              true, 127);
     }
@@ -1605,7 +1614,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     valueMapping[result] = std::move(resultT);
 
     return success();
-  }  
+  }
   if (auto op = dyn_cast<tpu::SqrtOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "SqrtOp" << "\n";);
     auto opdT = getOperandTensors(opInst, valueMapping);
@@ -1622,7 +1631,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     if (op.quant() == "INT8") {
       threshold_y = op.threshold_y().getValue().convertToFloat();
       threshold_x = getPreviousOpThreshold(op);
-      qscale = pow(threshold_x*127.0,0.5) /(threshold_y);  
+      qscale = pow(threshold_x*127.0,0.5) /(threshold_y);
       rshift = findRShiftAndMultiplierFromQScale(qscale, &multiplier_power,
                                              true, 127);
     }
@@ -1660,7 +1669,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     valueMapping[result] = std::move(resultT);
 
     return success();
-  }  
+  }
 
   if (auto op = dyn_cast<tpu::PriorBoxOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "PriorBoxOp" << "\n";);
@@ -1673,7 +1682,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
     float min_size = op.min_size().convertToFloat();
     float max_size = op.max_size().convertToFloat();
-    float aspect_ratio = op.aspect_ratio0().convertToFloat();
+    //float aspect_ratio = op.aspect_ratio0().convertToFloat();
     int aspect_ratios_size = op.aspect_ratios_size().getLimitedValue();
     bool flip = op.flip();
     bool clip = op.clip();
@@ -1709,7 +1718,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
   for (int i = 0; i < min_size_size; ++i) {
     min_sizes_.push_back(min_size);
     assert(min_sizes_.back()> 0 && "min_size must be positive.");
-    assert(i==0); //more than one min size is not support. 
+    assert(i==0); //more than one min size is not support.
   }
 
     aspect_ratios_.clear();
@@ -1718,7 +1727,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     for (int i = 0; i < aspect_ratios_size; ++i) {
           float ar = aspect_ratios[i];
           bool already_exist = false;
-          for (int j = 0; j < aspect_ratios_.size(); ++j) {
+          for (size_t j = 0; j < aspect_ratios_.size(); ++j) {
             if (fabs(ar - aspect_ratios_[j]) < 1e-6) {
               already_exist = true;
               break;
@@ -1738,14 +1747,14 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     max_sizes_.push_back(max_size);
     assert(max_sizes_[0]> min_sizes_[0] && "max_size must be greater than min_size.");
     num_priors_ += 1;
-      
+
     clip_ = clip;
 
     // Must and only provide 4 variance.
     assert(variance0> 0);
     variance_.push_back(variance0);
     assert(variance1> 0);
-    variance_.push_back(variance1);    
+    variance_.push_back(variance1);
     assert(variance2> 0);
     variance_.push_back(variance2);
     assert(variance3> 0);
@@ -1821,7 +1830,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
         }
 
         // rest of priors
-        for (int r = 0; r < aspect_ratios_.size(); ++r) {
+        for (size_t r = 0; r < aspect_ratios_.size(); ++r) {
           float ar = aspect_ratios_[r];
           if (fabs(ar - 1.) < 1e-6) {
             continue;
@@ -1868,7 +1877,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
   valueMapping[result] = std::move(resultT);
   return success();
  }
- 
+
  if (auto op = dyn_cast<tpu::DetectionOutputOp>(opInst)) {
      LLVM_DEBUG(llvm::errs() << "DetectionOutputOp" << "\n";);
     auto opdT = getOperandTensors(opInst, valueMapping);
@@ -1906,7 +1915,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     auto input_type0 = op.input()[0]->getType().cast<TensorType>();
     std::vector<int64_t> i_s0(input_type0.getShape());
     auto input_type1 = op.input()[1]->getType().cast<TensorType>();
-    std::vector<int64_t> i_s1(input_type1.getShape());    
+    std::vector<int64_t> i_s1(input_type1.getShape());
     auto input_type2 = op.input()[2]->getType().cast<TensorType>();
     std::vector<int64_t> i_s2(input_type2.getShape());
     int num = i_s0[0];
@@ -2133,6 +2142,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     ==> Sy*Qy=Sx*Qx*Sx*Qx
     ==> Qy = ((thrx*thrx/(128))*(Qx*Qx))/thry
     ==> Qscale = (thrx*thrx/128)/thry
+
 */
     float threshold_y,threshold_x,qscale,rshift;
     uint32_t multiplier;
@@ -2140,6 +2150,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
       threshold_y = op.threshold_y().getValue().convertToFloat();
       threshold_x = getPreviousOpThreshold(op);
+
       qscale = (threshold_x*threshold_x) /(127*threshold_y);  
     }
     if (op.quant() == "INT8"|| op.quant() == "INT8_PER_CHANNEL") {
@@ -2159,7 +2170,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     }
 
     float *output = (float *)resultT.get()->data();
-    
+
     int ret = my_power(input[0], output, nchw[0], nchw[1], nchw[2], nchw[3], scale, shift, power);
     assert(ret == 0);
 
