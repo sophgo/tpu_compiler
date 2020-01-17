@@ -37,6 +37,7 @@ std::unique_ptr<OpPassBase<FuncOp>> createMergeScaleIntoConvPass();
 std::unique_ptr<OpPassBase<FuncOp>> createFuseReluPass();
 std::unique_ptr<OpPassBase<FuncOp>> createFuseEltwisePass();
 std::unique_ptr<OpPassBase<FuncOp>> createGenTanHTablePass();
+std::unique_ptr<OpPassBase<FuncOp>> createGenSigmoidTablePass();
 
 std::unique_ptr<OpPassBase<FuncOp>> createImportCalibrationTablePass();
 std::unique_ptr<OpPassBase<FuncOp>> createQuantizeInt8Pass();
@@ -49,6 +50,9 @@ std::unique_ptr<OpPassBase<FuncOp>> createAssignLayerIdPass();
 std::unique_ptr<OpPassBase<FuncOp>> createDeepFusionSimple();
 std::unique_ptr<OpPassBase<FuncOp>> createDeepFusionTG2TL_LA();
 std::unique_ptr<OpPassBase<FuncOp>> createDeepFusionTL_LA2LW();
+
+std::unique_ptr<OpPassBase<FuncOp>> createConvertPriorBoxPass();
+std::unique_ptr<OpPassBase<FuncOp>> createConvertLoadeweightConcatToLoadweightPass();
 
 } // namespace mlir
 

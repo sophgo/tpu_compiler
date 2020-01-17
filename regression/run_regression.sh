@@ -11,10 +11,9 @@ pushd regression_out
 # clear previous output
 rm -f *.mlir *.bin *.npz *.csv
 
-# run tests
 $DIR/resnet50/regression_resnet50.sh
 $DIR/yolo_v3/regression_yolo_v3.sh
-
+$DIR/ssd300/regression_ssd300.sh
 popd
 
 # VERDICT

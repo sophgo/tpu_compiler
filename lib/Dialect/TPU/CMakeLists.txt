@@ -8,6 +8,7 @@ add_llvm_library(MLIRTPU
   IR/TPUDialect.cpp
   IR/DialectRegistration.cpp
   IR/TPUOperationSupport.cpp
+  IR/CpuLayer_DetectionOutput.cpp
   Analysis/TpuOpPrint.cpp
   Analysis/TpuOpStats.cpp
   Transforms/ConvertBnToScale.cpp
@@ -18,6 +19,8 @@ add_llvm_library(MLIRTPU
   Transforms/AssignWeightAddress.cpp
   Transforms/AssignNeuronAddress.cpp
   Transforms/AssignLayerId.cpp
+  Transforms/ConvertPriorBoxToLoadWeight.cpp
+  Transforms/convertLoadweightConcatToLoadweight.cpp
   Quantization/QuantizationArithmetic.cpp
   Quantization/ImportCalibrationTable.cpp
   Quantization/QuantizeInt8.cpp

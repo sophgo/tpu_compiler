@@ -33,7 +33,7 @@ static size_t write_bianry_file(std::string filename, const char *data,
 
 int mkldnn_conv(float *input, float *weight, float *bias,
     float *output, int n, int ic, int ih, int iw, int oc, int oh, int ow,
-    int kh, int kw, int sh, int sw, int ph, int pw, int g) {
+    int kh, int kw, int sh, int sw, int dh,int dw ,int ph, int pw, int g) {
   if (!bias) {
     auto zero_bias = new std::vector<float>(oc, 0.0f);
     bias = zero_bias->data();
@@ -80,6 +80,7 @@ int mkldnn_conv(float *input, float *weight, float *bias,
   int pw_r = pw;
   memory::dims padding_l = { ph_t, pw_l };
   memory::dims padding_r = { ph_b, pw_r };
+  memory::dims dilation = { dh-1, dw-1 }; // mkldnn dialtion is different with caffe
 
   // memory
   auto user_src_memory = memory(
@@ -101,7 +102,7 @@ int mkldnn_conv(float *input, float *weight, float *bias,
   // conv desc
   auto conv_desc = convolution_forward::desc(prop_kind::forward_inference,
       algorithm::convolution_direct, src_md, weights_md, bias_md, dst_md,
-      strides, padding_l, padding_r);
+      strides, dilation, padding_l, padding_r);
   auto conv_prim_desc = convolution_forward::primitive_desc(conv_desc, eng);
 
   // do reorder if needed
@@ -776,6 +777,74 @@ int my_eltwise(float *input_1, float *input_2, float *output, int n, int c,
   return 0;
 }
 
+
+
+int my_permute(float *input, float *output, const int input_shape_size,int in, int ic, int ih, 
+  int iw,int on, int oc, int oh, int ow,int order0,int order1,int order2,int order3) {
+
+  /* This algorthem is referred to caffe permute layer */
+  int count = in*ic*ih*iw;
+  LLVM_DEBUG(llvm::errs() << "my_permute"<<"\n";);
+  LLVM_DEBUG(llvm::errs() << "shap_size = "<<input_shape_size<<"\n";);
+  std::vector<int> old_steps;
+  std::vector<int> new_steps;
+  std::vector<int> orders;
+
+
+  old_steps.push_back(ic*ih*iw);
+  old_steps.push_back(ih*iw);
+  old_steps.push_back(iw);
+  old_steps.push_back(1);
+
+  new_steps.push_back(oc*oh*ow);
+  new_steps.push_back(oh*ow);
+  new_steps.push_back(ow);
+  new_steps.push_back(1);
+
+  orders.push_back(order0);
+  orders.push_back(order1);
+  orders.push_back(order2);
+  orders.push_back(order3);
+
+
+  for (int i = 0; i < count; ++i) {
+    int old_idx = 0;
+    int idx = i;
+    for (int j = 0; j < input_shape_size; ++j) {
+      int order = orders[j];
+      old_idx += (idx / new_steps[j]) * old_steps[order];
+      idx %= new_steps[j];
+    }
+     output[i] = input[old_idx];
+  }
+    return 0 ;
+}
+
+
+int my_normalize(float *input,float *output,bool across_spatial,int n,int c,int h,int w){
+
+  float eps = 1.0e-5;
+  if(!across_spatial){ // only ssd case currently
+    auto spatial_dim = h*w;
+    auto norm_ = c*h*w;
+      for(int ni=0;ni<n;ni++)
+        for(int i=0;i<spatial_dim;i++){
+          auto value = 0;
+          for(int ci=0;ci<c;ci++){
+            value += pow(input[ni*norm_+ci*spatial_dim+i],2);
+          }
+
+          for(int ci=0;ci<c;ci++){
+            output[ni*norm_+ci*spatial_dim+i] = input[ni*norm_+ci*spatial_dim+i]/sqrt(value + eps);
+          }
+        }
+  }else{
+    assert(0);
+  }
+  return 0;
+}
+
+
 int my_slice(float *input, float *output, int axis,
   std::vector<int64_t> input_shape, std::vector<int64_t> output_shape) {
   const int bottom_slice_axis = input_shape[axis];
@@ -798,5 +867,34 @@ int my_slice(float *input, float *output, int axis,
     memcpy(output + top_offset, input + bottom_offset, sizeof(float) * top_slice_axis * slice_size);
   }
 
+  return 0;
+}
+
+int my_power(float *input, float *output,
+    int n, int c, int h, int w, float scale, float shift, float power) {
+#ifdef DUMP_FLAG
+  static int dump_idx = 0;
+  std::string prefix = std::string("power") + std::to_string(dump_idx);
+  if (dump_idx < 4) {
+    write_bianry_file(prefix + std::string("_in.bin"),
+        (const char *)input, n * c * h * w * sizeof(float));
+  }
+#endif // DUMP_FLAG
+  LLVM_DEBUG(
+    llvm::errs() << "  n: " << n << ", c: " << c
+                 << ", h: " << h << ", w: " << w << "\n";
+  );
+
+  for (int i = 0; i < n * c * h * w; ++i) {
+    output[i] = pow(scale * input[i] + shift, power);
+  }
+
+#ifdef DUMP_FLAG
+  if (dump_idx < 4) {
+    write_bianry_file(prefix + std::string("_out.bin"),
+        (const char *)output, n * c * h * w * sizeof(float));
+  }
+  dump_idx ++;
+#endif // DUMP_FLAG
   return 0;
 }
