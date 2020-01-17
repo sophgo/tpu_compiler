@@ -1509,13 +1509,9 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     assert((i_s == o_s) && "input shape not equal to output shape");
     float *input = (float *)opdT[0]->data();
 
-    if (shape.size() == 2 || shape.size()==4)) {
+    if (shape.size() == 2) {
       n = i_s[0];
       c = i_s[1];
-
-      if (i_s.size() == 4) {
-        assert(i_s[2] == 1 && i_s[3] == 1);
-      }
 
       // do dequantization
       if (0) {
@@ -1528,6 +1524,9 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       }
 
       int ret = my_softmax2D(input, output, n, c);
+      assert(ret == 0);
+    } else if (shape.size() == 4) {
+      int ret = my_softmax4D(input, output, axis, shape);
       assert(ret == 0);
     } else if (shape.size() == 3) {
       c = i_s[0];
