@@ -638,7 +638,7 @@ struct TpuQuantPReluOpPattern : public RewritePattern {
     auto multiplier_neg = std::vector<float>(1);;
 
     // find qscale positive
-    float qscale_pos = threshold_x / threshold_y;
+    double qscale_pos = threshold_x / threshold_y;
     uint32_t uint_multiplier_pos;
     // rshift_pos[0] = (float)findRShiftAndMultiplierFromQScale(qscale_pos, &uint_multiplier_pos, true);
     rshift_pos[0] = (float)findRShiftAndMultiplierFromQScale(qscale_pos, &uint_multiplier_pos, false);
