@@ -154,7 +154,6 @@ def TPU_ConcatOp: TPU_Op<"concat", [NoSideEffect, SameOperandsAndResultElementTy
 
   let arguments = (
     ins Variadic<AnyTensor>:$val,
-    AnyTensor:$filter,
     DefaultValuedAttr<I32Attr, "1">: $dimension,
     OptionalAttr<StrAttr>:$name,
     OptionalAttr<NonNegativeI64Attr>:$offset,
@@ -708,6 +707,7 @@ def TPU_DequantizationOp: TPU_Op<"dequantization", [NoSideEffect]> {
 
   let results = (outs AnyTensor:$output);
 }
+
 
 //===----------------------------------------------------------------------===//
 // Staging

@@ -19,7 +19,6 @@ add_llvm_library(MLIRTPU
   Transforms/AssignNeuronAddress.cpp
   Transforms/AssignLayerId.cpp
   Transforms/ConvertPriorBoxToLoadWeight.cpp
-  Transforms/convertLoadweightConcatToLoadweight.cpp
   Quantization/QuantizationArithmetic.cpp
   Quantization/ImportCalibrationTable.cpp
   Quantization/QuantizeInt8.cpp
