@@ -189,7 +189,6 @@ def TPU_ConcatOp: TPU_Op<"concat", [NoSideEffect, SameOperandsAndResultElementTy
 }
 
 def TPU_Conv2DOp : TPU_ConvOp<"conv_2d", "Convolution">;
-def TPU_DeConv2DOp : TPU_ConvOp<"deconv_2d", "Convolution">;
 
 def TPU_CropOp: TPU_Op<"crop", [NoSideEffect]> {
   let summary = "Crop operator";
@@ -211,6 +210,53 @@ def TPU_CropOp: TPU_Op<"crop", [NoSideEffect]> {
     OptionalAttr<NonNegativeI64Attr>:$offset,
     OptionalAttr<F32Attr>:$threshold_y,
     OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
+def TPU_DeConv2DOp : TPU_ConvOp<"deconv_2d", "Convolution">;
+
+def TPU_DetectionOutputOp: TPU_Op<"detectionoutput", [NoSideEffect]> {
+  let summary = "DetectionOutput operator";
+
+  let description = [{
+    Intended for use with MultiBox detection method
+  }];
+
+  let arguments = (
+    ins Variadic<AnyTensor>:$input,
+    I32Attr:$num_classes,
+    DefaultValuedAttr<BoolAttr, "true">:$share_location,
+    OptionalAttr<NonNegativeI32Attr>:$background_label_id,
+    OptionalAttr<F32Attr>:$nms_threshold,
+    OptionalAttr<I32Attr>:$top_k,
+    TPU_DetectionOutput_Code_typeAttr:$code_type,
+    OptionalAttr<I32Attr>:$keep_top_k,
+    OptionalAttr<F32Attr>:$confidence_threshold,
+    OptionalAttr<F32Attr>:$threshold_y,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant,
+    OptionalAttr<StrAttr>:$name
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
+def TPU_DivOp: TPU_Op<"div", [NoSideEffect]> {
+  let summary = "Division operator";
+
+  let description = [{
+    Do division operation.
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    DefaultValuedAttr<F32Attr, "1.0">:$numerator,
+    OptionalAttr<StrAttr>:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<F32Attr>:$threshold_y,
     DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
   );
 
@@ -278,6 +324,44 @@ def TPU_InputOp: TPU_Op<"input", [NoSideEffect]> {
   let results = (outs AnyTensor:$output);
 }
 
+def TPU_NormalizeOp : TPU_Op<"normalize", [NoSideEffect]> {
+  let summary = "Do Normalization";
+
+  let arguments = (
+    ins AnyTensor:$input,
+    OptionalAttr<StrAttr>:$name,
+    DefaultValuedAttr<BoolAttr, "true">:$across_spatial,
+    OptionalAttr<NonNegativeI64Attr>:$offset,
+    OptionalAttr<F32Attr>:$threshold_y,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
+def TPU_PermuteOp: TPU_Op<"permute", [NoSideEffect]> {
+  let summary = "Permute operator";
+
+  let description = [{
+    Perform permute on input.
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    OptionalAttr<StrAttr>:$name,
+    NonNegativeI32Attr:$order0,
+    NonNegativeI32Attr:$order1,
+    NonNegativeI32Attr:$order2,
+    NonNegativeI32Attr:$order3,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<F32Attr>:$threshold_y,
+    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
 def TPU_Pool2DOp : TPU_Op<"pool_2d", [NoSideEffect]> {
   let summary = "pool_2d operator";
 
@@ -313,6 +397,31 @@ def TPU_Pool2DOp : TPU_Op<"pool_2d", [NoSideEffect]> {
   let results = (outs AnyTensor:$output);
 }
 
+def TPU_PowerOp: TPU_Op<"power", [NoSideEffect]> {
+  let summary = "Power f(x) = (scale * x + shift) ^ power";
+
+  let description = [{
+    Power operator
+  }];
+
+  let arguments = (
+    ins AnyTensor:$x,
+    AnyTensor:$scale_table,
+    AnyTensor:$shift_table,
+    DefaultValuedAttr<F32Attr, "1.0">:$power,
+    DefaultValuedAttr<F32Attr, "1.0">:$scale,
+    DefaultValuedAttr<F32Attr, "0.0">:$shift,
+    OptionalAttr<StrAttr>:$name,
+    OptionalAttr<F32Attr>:$threshold_y,
+    OptionalAttr<F32Attr>:$rshift,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<NonNegativeI64Attr>:$offset,
+    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
+  );
+
+  let results = (outs AnyTensor:$y);
+}
+
 def TPU_PReluOp: TPU_Op<"prelu", [NoSideEffect]> {
   let summary = "PRelu operator";
 
@@ -332,6 +441,40 @@ def TPU_PReluOp: TPU_Op<"prelu", [NoSideEffect]> {
   );
 
   let results = (outs AnyTensor:$y);
+}
+
+def TPU_PriorBoxOp: TPU_Op<"priorbox", [NoSideEffect]> {
+  let summary = "PriorBox operator";
+
+  let description = [{
+    Intended for use with MultiBox detection method to generate prior
+  }];
+
+  let arguments = (
+    ins Variadic<AnyTensor>:$input,
+    AnyTensor:$filter,
+    F32Attr:$min_size,
+    I32Attr:$min_size_size,
+    F32Attr:$max_size,
+    I32Attr:$max_size_size,
+    F32Attr:$aspect_ratio0,
+    OptionalAttr<F32Attr>:$aspect_ratio1,
+    I32Attr:$aspect_ratios_size,
+    DefaultValuedAttr<BoolAttr, "true">:$flip,
+    DefaultValuedAttr<BoolAttr, "true">:$clip,
+    F32Attr:$variance0,
+    F32Attr:$variance1,
+    F32Attr:$variance2,
+    F32Attr:$variance3,
+    F32Attr:$step,
+    DefaultValuedAttr<F32Attr, "0.5">:$offset,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<F32Attr>:$threshold_y,
+    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant,
+    OptionalAttr<StrAttr>:$name
+  );
+
+  let results = (outs AnyTensor:$output);
 }
 
 def TPU_ReluOp: TPU_Op<"relu", [NoSideEffect, SameOperandsAndResultType]> {
@@ -464,6 +607,25 @@ def TPU_SoftmaxOp: TPU_Op<"softmax", [NoSideEffect, SameOperandsAndResultType]> 
   let results = (outs AnyTensor:$y);
 }
 
+def TPU_SqrtOp: TPU_Op<"sqrt", [NoSideEffect]> {
+  let summary = "Sqrt operator";
+
+  let description = [{
+    Do sqrt operation.
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    OptionalAttr<StrAttr>:$name,
+    OptionalAttr<F32Attr>:$threshold_y,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
+
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
 def TPU_TanHOp: TPU_Op<"tanh", [NoSideEffect]> {
   let summary = "TanH operator";
 
@@ -506,63 +668,6 @@ def TPU_UpsampleOp: TPU_Op<"upsample", [NoSideEffect]> {
   let results = (outs AnyTensor:$y);
 }
 
-
-def TPU_NormalizeOp : TPU_Op<"normalize", [NoSideEffect]> {
-  let summary = "Do Normalization";
-
-  let arguments = (
-    ins AnyTensor:$input,
-    OptionalAttr<StrAttr>:$name,
-    DefaultValuedAttr<BoolAttr, "true">:$across_spatial,
-    OptionalAttr<NonNegativeI64Attr>:$offset,
-    OptionalAttr<F32Attr>:$threshold_y,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
-    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
-  );
-
-  let results = (outs AnyTensor:$output);
-}
-
-def TPU_FlattenOp: TPU_Op<"flatten", [NoSideEffect]> {
-  let summary = "Flatten operator";
-
-  let description = [{
-    Produces a tensor with the same values but combine the last shape.size()-1 axes data 
-  }];
-
-  let arguments = (
-    ins AnyTensor:$input,
-    OptionalAttr<StrAttr>:$name,
-    OptionalAttr<F32Attr>:$threshold_y
-  );
-
-  let results = (outs AnyTensor:$output);
-}
-
-
-def TPU_PermuteOp: TPU_Op<"permute", [NoSideEffect]> {
-  let summary = "Permute operator";
-
-  let description = [{
-    Perform permute on input.
-  }];
-
-  let arguments = (
-    ins AnyTensor:$input,
-    OptionalAttr<StrAttr>:$name,
-    NonNegativeI32Attr:$order0,
-    NonNegativeI32Attr:$order1,
-    NonNegativeI32Attr:$order2,
-    NonNegativeI32Attr:$order3, 
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
-    OptionalAttr<F32Attr>:$threshold_y,
-    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
-  );
-
-  let results = (outs AnyTensor:$output);
-}
-
-
 //===----------------------------------------------------------------------===//
 // TPU Quantization op definitions.
 //===----------------------------------------------------------------------===//
@@ -598,131 +703,6 @@ def TPU_DequantizationOp: TPU_Op<"dequantization", [NoSideEffect]> {
     OptionalAttr<StrAttr>:$name,
     OptionalAttr<F32Attr>:$threshold,
     DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
-  );
-
-  let results = (outs AnyTensor:$output);
-}
-
-def TPU_DivOp: TPU_Op<"div", [NoSideEffect]> {
-  let summary = "Division operator";
-
-  let description = [{
-    Do division operation.
-  }];
-
-  let arguments = (
-    ins AnyTensor:$input,
-    DefaultValuedAttr<F32Attr, "1.0">:$numerator,
-    OptionalAttr<StrAttr>:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
-    OptionalAttr<F32Attr>:$threshold_y,
-    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
-  );
-
-  let results = (outs AnyTensor:$output);
-}
-
-
-def TPU_SqrtOp: TPU_Op<"sqrt", [NoSideEffect]> {
-  let summary = "Sqrt operator";
-
-  let description = [{
-    Do sqrt operation.
-  }];
-
-  let arguments = (
-    ins AnyTensor:$input,
-    OptionalAttr<StrAttr>:$name,
-    OptionalAttr<F32Attr>:$threshold_y,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
-    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
-
-  );
-
-  let results = (outs AnyTensor:$output);
-}
-
-def TPU_PowerOp: TPU_Op<"power", [NoSideEffect]> {
-  let summary = "Power f(x) = (scale * x + shift) ^ power";
-
-  let description = [{
-    Power operator
-  }];
-
-  let arguments = (
-    ins AnyTensor:$x,
-    AnyTensor:$scale_table,
-    AnyTensor:$shift_table,
-    DefaultValuedAttr<F32Attr, "1.0">:$power,
-    DefaultValuedAttr<F32Attr, "1.0">:$scale,
-    DefaultValuedAttr<F32Attr, "0.0">:$shift,
-    OptionalAttr<StrAttr>:$name,
-    OptionalAttr<F32Attr>:$threshold_y,
-    OptionalAttr<F32Attr>:$rshift,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
-    OptionalAttr<NonNegativeI64Attr>:$offset, // gaddr output offset
-    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
-  );
-
-  let results = (outs AnyTensor:$y);
-}
-
-def TPU_PriorBoxOp: TPU_Op<"priorbox", [NoSideEffect]> {
-  let summary = "PriorBox operator";
-
-  let description = [{
-    Intended for use with MultiBox detection method to generate prior
-  }];
-
-  let arguments = (
-    ins Variadic<AnyTensor>:$input,
-    AnyTensor:$filter,
-    F32Attr:$min_size,
-    I32Attr:$min_size_size,
-    F32Attr:$max_size,
-    I32Attr:$max_size_size,
-    F32Attr:$aspect_ratio0,
-    OptionalAttr<F32Attr>:$aspect_ratio1,
-    I32Attr:$aspect_ratios_size,
-    DefaultValuedAttr<BoolAttr, "true">:$flip,
-    DefaultValuedAttr<BoolAttr, "true">:$clip,
-    F32Attr:$variance0,
-    F32Attr:$variance1,
-    F32Attr:$variance2,
-    F32Attr:$variance3,
-    F32Attr:$step,
-    DefaultValuedAttr<F32Attr, "0.5">:$offset,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
-    OptionalAttr<F32Attr>:$threshold_y,
-    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant,
-    OptionalAttr<StrAttr>:$name
-  );
-
-  let results = (outs AnyTensor:$output);
-}
-
-
-def TPU_DetectionOutputOp: TPU_Op<"detectionoutput", [NoSideEffect]> {
-  let summary = "DetectionOutput operator";
-
-  let description = [{
-    Intended for use with MultiBox detection method
-  }];
-
-  let arguments = (
-    ins Variadic<AnyTensor>:$input,
-    I32Attr:$num_classes,
-    DefaultValuedAttr<BoolAttr, "true">:$share_location,
-    OptionalAttr<NonNegativeI32Attr>:$background_label_id,
-    OptionalAttr<F32Attr>:$nms_threshold,
-    OptionalAttr<I32Attr>:$top_k,
-    TPU_Code_typeAttr:$code_type,
-    OptionalAttr<I32Attr>:$keep_top_k,
-    OptionalAttr<F32Attr>:$confidence_threshold,
-    OptionalAttr<F32Attr>:$threshold_y,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
-    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant,
-    OptionalAttr<StrAttr>:$name
   );
 
   let results = (outs AnyTensor:$output);

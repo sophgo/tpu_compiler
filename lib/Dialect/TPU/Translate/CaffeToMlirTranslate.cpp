@@ -260,15 +260,15 @@ void CaffeImporter::ConvertLayers(mlir::Block *block,
     } else if (strcmp(layer->type(), "Permute") == 0) {
       convertPermuteLayer(block, layer);
     } else if (strcmp(layer->type(), "Normalize") == 0) {
-      convertNormalizeLayer(block, layer);    
+      convertNormalizeLayer(block, layer);
     } else if (strcmp(layer->type(), "TanH") == 0) {
       convertTanHLayer(block, layer);
     } else if (strcmp(layer->type(), "Deconvolution") == 0) {
       convertDeconvolutionLayer(block, layer);
     }else if (strcmp(layer->type(), "PriorBox") == 0) {
-      convertPriorBoxLayer(block, layer);         
+      convertPriorBoxLayer(block, layer);
     }else if (strcmp(layer->type(), "DetectionOutput") == 0) {
-      convertDetectionOutputLayer(block, layer);         
+      convertDetectionOutputLayer(block, layer);
     }else if (strcmp(layer->type(), "Power") == 0) {
       convertPowerLayer(block, layer);
     }else {
@@ -1111,7 +1111,7 @@ void CaffeImporter::convertSoftmaxLayer(mlir::Block *block,
           << "  N: " << n
           << ", C: " << c
           << "\n";
-    );    
+    );
   } else if (input_var_shape.size() == 4) {
     n = input_var_shape[0];
     c = input_var_shape[1] * input_var_shape[2] * input_var_shape[3];
@@ -1120,7 +1120,7 @@ void CaffeImporter::convertSoftmaxLayer(mlir::Block *block,
           << "  N: " << n
           << ", C: " << c
           << "\n";
-    );    
+    );
   } else if (input_var_shape.size() == 3) {
     c = input_var_shape[0];
     h = input_var_shape[1];
@@ -1130,7 +1130,7 @@ void CaffeImporter::convertSoftmaxLayer(mlir::Block *block,
           << "C: " << c
           << ", H*W: " << h<<"*"<<w
           << "\n";
-    );    
+    );
   }else {
     assert(0);
   }
@@ -1145,8 +1145,8 @@ void CaffeImporter::convertSoftmaxLayer(mlir::Block *block,
 
   auto result_var = op.getResult();
 
-  llvm::ArrayRef<int64_t> output_var_shape =
-      result_var->getType().dyn_cast<mlir::TensorType>().getShape();
+  //llvm::ArrayRef<int64_t> output_var_shape =
+  //    result_var->getType().dyn_cast<mlir::TensorType>().getShape();
   //std::cout << "output shape size: " << output_var_shape.size()<< ", C: " << output_var_shape[0] << ", H:"<< output_var_shape[1] << ", W:" << output_var_shape[2]<< "\n";
 
 
@@ -1170,11 +1170,11 @@ void CaffeImporter::convertConcatLayer(mlir::Block *block,
     return;
   }
     std::vector<Value *> operands;
-    for(int i = 0;i< input_vars.size();++i)
+    for(size_t i = 0;i< input_vars.size();++i)
       operands.push_back(input_vars[i]);
 
 
-  RankedTensorType result_type=nullptr; 
+  RankedTensorType result_type=nullptr;
     llvm::ArrayRef<int64_t> input_shape =
       input_vars[0]->getType().dyn_cast<mlir::TensorType>().getShape();
 
@@ -1196,7 +1196,7 @@ void CaffeImporter::convertConcatLayer(mlir::Block *block,
           << ", IH*IW: " << h << " * " << w
           << "\n";
       );
-    } 
+    }
 
       switch (axis) {
         case 0:
@@ -1225,13 +1225,13 @@ void CaffeImporter::convertConcatLayer(mlir::Block *block,
       );
 
       // construct OP
-      result_type = RankedTensorType::get({n, c, h, w}, elementType_);    
-      tbl_size = n*c*c*w;  
+      result_type = RankedTensorType::get({n, c, h, w}, elementType_);
+      tbl_size = n*c*c*w;
     }else if(input_shape.size() == 2){
 
     for (uint32_t i = 0; i < input_vars.size(); i++) {
       input_shape = input_vars[i]->getType().dyn_cast<mlir::TensorType>().getShape();
-      
+
       assert(input_shape.size() == 2);
 
 
@@ -1244,7 +1244,7 @@ void CaffeImporter::convertConcatLayer(mlir::Block *block,
           << ", IH*IW: " << h << " * " << w
           << "\n";
       );
-    } 
+    }
 
       switch (axis) {
         case 0:
@@ -1265,11 +1265,11 @@ void CaffeImporter::convertConcatLayer(mlir::Block *block,
       );
       // construct OP
       result_type = RankedTensorType::get({h, w}, elementType_);
-      tbl_size = h*w;           
+      tbl_size = h*w;
     }else if(input_shape.size() == 3){
       for (uint32_t i = 0; i < input_vars.size(); i++) {
         input_shape = input_vars[i]->getType().dyn_cast<mlir::TensorType>().getShape();
-        
+
         assert(input_shape.size() == 3);
 
 
@@ -1283,7 +1283,7 @@ void CaffeImporter::convertConcatLayer(mlir::Block *block,
             << ", IH*IW: " << h << " * " << w
             << "\n";
         );
-      } 
+      }
 
       switch (axis) {
         case 0:
@@ -1309,8 +1309,8 @@ void CaffeImporter::convertConcatLayer(mlir::Block *block,
 
 
       // construct OP
-      result_type = RankedTensorType::get({c,h, w}, elementType_);    
-      tbl_size = c*h*w;       
+      result_type = RankedTensorType::get({c,h, w}, elementType_);
+      tbl_size = c*h*w;
      }else{
        assert(0);
     }
@@ -1471,7 +1471,7 @@ void CaffeImporter::convertFlattenLayer(mlir::Block *block,
   llvm::ArrayRef<int64_t> input_shape =
       input_var->getType().dyn_cast<mlir::TensorType>().getShape();
   //assert(input_shape.size() == 4);
-  RankedTensorType result_type=nullptr; 
+  RankedTensorType result_type=nullptr;
   if(input_shape.size() == 4){
 
     n = input_shape[0];
@@ -1481,12 +1481,12 @@ void CaffeImporter::convertFlattenLayer(mlir::Block *block,
 
     LLVM_DEBUG(llvm::errs() << "  N: " << n << ", C: " << c << ", IH*IW: " << h
                             << " * " << w << "\n";);
-                
+
     // construct OP
     result_type = RankedTensorType::get({n, c * h * w}, elementType_);
 
-    
-  }else if(input_shape.size() == 3){ // for ssd mbox_conf_flatten layer 
+
+  }else if(input_shape.size() == 3){ // for ssd mbox_conf_flatten layer
 
     c = input_shape[0];
     h = input_shape[1];
@@ -1494,7 +1494,7 @@ void CaffeImporter::convertFlattenLayer(mlir::Block *block,
 
     LLVM_DEBUG(llvm::errs() <<"C: " << c << "IH*IW: " << h
                             << " * " << w << "\n";);
-               
+
     // construct OP
     result_type = RankedTensorType::get({c, h*w}, elementType_);
 
@@ -1708,7 +1708,7 @@ void CaffeImporter::convertReshapeLayer(mlir::Block *block,
         size/=output_shape[i];
       }else if(dim_value ==-1){
         inference_dim = i;
-        
+
       }else {
         output_shape[i] = layer_param.reshape_param().shape().dim(i);
         size/=layer_param.reshape_param().shape().dim(i);
@@ -1719,10 +1719,10 @@ void CaffeImporter::convertReshapeLayer(mlir::Block *block,
 
     result_type = RankedTensorType::get({output_shape[0],output_shape[1],output_shape[2]}, elementType_);
     LLVM_DEBUG(llvm::errs() << "  C: " << output_shape[0] << ", H: " << output_shape[1] << ", W: " << output_shape[2]
-                          << "\n";); 
+                          << "\n";);
 
 }else{
-  assert(input_shape.size() == 4 || input_shape.size() == 2);    
+  assert(input_shape.size() == 4 || input_shape.size() == 2);
 }
 
   std::vector<NamedAttribute> attrs;
@@ -1830,41 +1830,41 @@ void CaffeImporter::convertPriorBoxLayer(mlir::Block *block,
 
 
 
-  attrs.push_back(builder_.getNamedAttr("min_size", 
+  attrs.push_back(builder_.getNamedAttr("min_size",
     builder_.getF32FloatAttr(prior_box_param.min_size(0))));
-  attrs.push_back(builder_.getNamedAttr("min_size_size", 
-    builder_.getI32IntegerAttr(prior_box_param.min_size_size())));  
-  attrs.push_back(builder_.getNamedAttr("max_size", 
+  attrs.push_back(builder_.getNamedAttr("min_size_size",
+    builder_.getI32IntegerAttr(prior_box_param.min_size_size())));
+  attrs.push_back(builder_.getNamedAttr("max_size",
     builder_.getF32FloatAttr(prior_box_param.max_size(0))));
-  attrs.push_back(builder_.getNamedAttr("max_size_size", 
-    builder_.getI32IntegerAttr(prior_box_param.max_size_size())));   
-  attrs.push_back(builder_.getNamedAttr("aspect_ratio0", 
+  attrs.push_back(builder_.getNamedAttr("max_size_size",
+    builder_.getI32IntegerAttr(prior_box_param.max_size_size())));
+  attrs.push_back(builder_.getNamedAttr("aspect_ratio0",
     builder_.getF32FloatAttr(prior_box_param.aspect_ratio(0))));
 
   if(prior_box_param.aspect_ratio_size()==2){
-    attrs.push_back(builder_.getNamedAttr("aspect_ratio1", 
+    attrs.push_back(builder_.getNamedAttr("aspect_ratio1",
     builder_.getF32FloatAttr(prior_box_param.aspect_ratio(1))));
   }
 
-  attrs.push_back(builder_.getNamedAttr("aspect_ratios_size", 
-    builder_.getI32IntegerAttr(prior_box_param.aspect_ratio_size()))); 
-  attrs.push_back(builder_.getNamedAttr("flip", 
+  attrs.push_back(builder_.getNamedAttr("aspect_ratios_size",
+    builder_.getI32IntegerAttr(prior_box_param.aspect_ratio_size())));
+  attrs.push_back(builder_.getNamedAttr("flip",
     builder_.getBoolAttr(prior_box_param.flip())));
-  attrs.push_back(builder_.getNamedAttr("clip", 
+  attrs.push_back(builder_.getNamedAttr("clip",
     builder_.getBoolAttr(prior_box_param.clip())));
-  attrs.push_back(builder_.getNamedAttr("variance0", 
+  attrs.push_back(builder_.getNamedAttr("variance0",
     builder_.getF32FloatAttr(prior_box_param.variance(0))));
-  attrs.push_back(builder_.getNamedAttr("variance1", 
+  attrs.push_back(builder_.getNamedAttr("variance1",
     builder_.getF32FloatAttr(prior_box_param.variance(1))));
-  attrs.push_back(builder_.getNamedAttr("variance2", 
+  attrs.push_back(builder_.getNamedAttr("variance2",
     builder_.getF32FloatAttr(prior_box_param.variance(2))));
-  attrs.push_back(builder_.getNamedAttr("variance3", 
+  attrs.push_back(builder_.getNamedAttr("variance3",
     builder_.getF32FloatAttr(prior_box_param.variance(3))));
-  attrs.push_back(builder_.getNamedAttr("step", 
+  attrs.push_back(builder_.getNamedAttr("step",
     builder_.getF32FloatAttr(prior_box_param.step())));
-  attrs.push_back(builder_.getNamedAttr("name", 
+  attrs.push_back(builder_.getNamedAttr("name",
     builder_.getStringAttr(layer_param.name())));
-  attrs.push_back(builder_.getNamedAttr("offset", 
+  attrs.push_back(builder_.getNamedAttr("offset",
     builder_.getF32FloatAttr(prior_box_param.offset())));
 
 
@@ -1873,7 +1873,7 @@ void CaffeImporter::convertPriorBoxLayer(mlir::Block *block,
   std::vector<float> aspect_ratios_;
   bool flip_=true;
   int num_priors_=0;
-  bool clip_=false;
+  //bool clip_=false;
   std::vector<float> variance_;
 
   for (int i = 0; i < prior_box_param.min_size_size(); ++i) {
@@ -1886,7 +1886,7 @@ void CaffeImporter::convertPriorBoxLayer(mlir::Block *block,
   for (int i = 0; i < prior_box_param.aspect_ratio_size(); ++i) {
     float ar = prior_box_param.aspect_ratio(i);
     bool already_exist = false;
-    for (int j = 0; j < aspect_ratios_.size(); ++j) {
+    for (size_t j = 0; j < aspect_ratios_.size(); ++j) {
       if (fabs(ar - aspect_ratios_[j]) < 1e-6) {
         already_exist = true;
         break;
@@ -1919,7 +1919,7 @@ void CaffeImporter::convertPriorBoxLayer(mlir::Block *block,
   weightFile_->addTensor(filter_name, &dataVec_fp32, table_type_scale);
   operands.push_back(AddLoadWeightOp(block, filter_name, table_type_scale));
 
-  
+
 
   // construct OP
   auto result_type = RankedTensorType::get({1,2,(h*w*num_priors_* 4) }, elementType_);
@@ -1952,30 +1952,30 @@ void CaffeImporter::convertDetectionOutputLayer(mlir::Block *block,
   }
 
 
-  llvm::ArrayRef<int64_t> input_shape =
-      input_vars[0]->getType().dyn_cast<mlir::TensorType>().getShape();
+  //llvm::ArrayRef<int64_t> input_shape =
+  //    input_vars[0]->getType().dyn_cast<mlir::TensorType>().getShape();
 
   std::vector<NamedAttribute> attrs;
 
-  attrs.push_back(builder_.getNamedAttr("num_classes", 
+  attrs.push_back(builder_.getNamedAttr("num_classes",
     builder_.getI32IntegerAttr(detection_output_param.num_classes())));
-  attrs.push_back(builder_.getNamedAttr("share_location", 
-    builder_.getBoolAttr(detection_output_param.share_location()))); 
-  attrs.push_back(builder_.getNamedAttr("background_label_id", 
+  attrs.push_back(builder_.getNamedAttr("share_location",
+    builder_.getBoolAttr(detection_output_param.share_location())));
+  attrs.push_back(builder_.getNamedAttr("background_label_id",
     builder_.getI32IntegerAttr(detection_output_param.background_label_id())));
 
 
-  attrs.push_back(builder_.getNamedAttr("nms_threshold", 
-    builder_.getF32FloatAttr(detection_output_param.nms_param().nms_threshold())));   
-  attrs.push_back(builder_.getNamedAttr("top_k", 
+  attrs.push_back(builder_.getNamedAttr("nms_threshold",
+    builder_.getF32FloatAttr(detection_output_param.nms_param().nms_threshold())));
+  attrs.push_back(builder_.getNamedAttr("top_k",
     builder_.getI32IntegerAttr(detection_output_param.nms_param().top_k())));
   attrs.push_back(builder_.getNamedAttr("code_type",
     builder_.getStringAttr(code_type)));
-  attrs.push_back(builder_.getNamedAttr("keep_top_k", 
+  attrs.push_back(builder_.getNamedAttr("keep_top_k",
     builder_.getI32IntegerAttr(detection_output_param.keep_top_k())));
-  attrs.push_back(builder_.getNamedAttr("confidence_threshold", 
-    builder_.getF32FloatAttr(detection_output_param.confidence_threshold())));   
-  attrs.push_back(builder_.getNamedAttr("name", 
+  attrs.push_back(builder_.getNamedAttr("confidence_threshold",
+    builder_.getF32FloatAttr(detection_output_param.confidence_threshold())));
+  attrs.push_back(builder_.getNamedAttr("name",
     builder_.getStringAttr(layer_param.name())));
 
   assert(1.0 == detection_output_param.nms_param().eta());
@@ -2017,7 +2017,7 @@ void CaffeImporter::convertPowerLayer(mlir::Block *block,
   for (uint64_t i = 0; i < input_shape.size(); i++) {
     nchw[i] = input_shape[i];
   }
-  
+
   LLVM_DEBUG(
     llvm::errs()
         << "  N: " << nchw[0]
@@ -2027,8 +2027,8 @@ void CaffeImporter::convertPowerLayer(mlir::Block *block,
   );
 
 
-  // we leverage depthwise to calculat a*x + b, 
-  // one shot by channel, we should reserve weight 
+  // we leverage depthwise to calculat a*x + b,
+  // one shot by channel, we should reserve weight
   // for extend scale/shift from 1 dimension to <1, NUP_NUM, 1, 1>
   // FIXME: not harcode
   int channel = 32;
@@ -2039,7 +2039,7 @@ void CaffeImporter::convertPowerLayer(mlir::Block *block,
   auto filter_name = layer->layer_param().name()+"_scale";
   weightFile_->addTensor(filter_name, &dataVec_fp32, table_type_scale);
   operands.push_back(AddLoadWeightOp(block, filter_name, table_type_scale));
-  
+
   // we just allocate 1 batch cuz
   // `AssignWeightAddress.cpp` auto seperate high/low part into int8 buffer
   tbl_size = 1 * channel;
@@ -2076,7 +2076,7 @@ void CaffeImporter::convertNormalizeLayer(mlir::Block *block,
   bool across_spatial = norm_param.across_spatial();
   bool channel_shared = norm_param.channel_shared();
 
-  //implement for ssd case first 
+  //implement for ssd case first
   assert(!across_spatial);
 
   int64_t n, c, ih, iw, oh, ow;
@@ -2100,8 +2100,8 @@ void CaffeImporter::convertNormalizeLayer(mlir::Block *block,
         << "\n";
   );
 
-/*  
-  Currenly , we separate Normalize op to below 5 ops. 
+/*
+  Currenly , we separate Normalize op to below 5 ops.
   Power-> Reduction-> Sqrt-> Div->Eltwise OP(prod) ->Scale(by channel scale)
 */
 
@@ -2110,8 +2110,8 @@ void CaffeImporter::convertNormalizeLayer(mlir::Block *block,
   std::vector<Value *> operands;
   operands.push_back(input_var);
 
-  // we leverage depthwise to calculat a*x + b, 
-  // one shot by channel, we should reserve weight 
+  // we leverage depthwise to calculat a*x + b,
+  // one shot by channel, we should reserve weight
   // for extend scale/shift from 1 dimension to <1, NUP_NUM, 1, 1>
   // FIXME: not harcode
   int channel = 32;
@@ -2122,7 +2122,7 @@ void CaffeImporter::convertNormalizeLayer(mlir::Block *block,
   auto filter_name = layer->layer_param().name()+"_power_scale";
   weightFile_->addTensor(filter_name, &dataVec_fp32, table_type_scale);
   operands.push_back(AddLoadWeightOp(block, filter_name, table_type_scale));
-  
+
   // we just allocate 1 batch cuz
   // `AssignWeightAddress.cpp` auto seperate high/low part into int8 buffer
   tbl_size = 1 * channel;
@@ -2160,9 +2160,9 @@ void CaffeImporter::convertNormalizeLayer(mlir::Block *block,
 
 
   std::vector<float> weight(c*c,1);
-  //use C*C*1*1 filter to keep shape as input 
+  //use C*C*1*1 filter to keep shape as input
   auto filter_type = RankedTensorType::get({c, c, 1, 1}, elementType_);
-  
+
   weightFile_->addTensor(filter_name_conv, &weight, filter_type);
   operands_conv.push_back(AddLoadWeightOp(block, filter_name_conv, filter_type));
 
@@ -2207,7 +2207,7 @@ void CaffeImporter::convertNormalizeLayer(mlir::Block *block,
   auto div_result_var = div_op.getResult();
 
   /* 5. Eltwise OP(prod) */
-  auto eltwise_type = RankedTensorType::get(input_shape, elementType_);
+  //auto eltwise_type = RankedTensorType::get(input_shape, elementType_);
 
   std::vector<Value *> operands_eltwise;
 
@@ -2286,7 +2286,7 @@ void CaffeImporter::convertPermuteLayer(mlir::Block *block,
         << ", IC: " << ic
         << ", IH*IW: " << ih << " * " << iw
         << "  ON: " << on
-        << ", OC: " << oc       
+        << ", OC: " << oc
         << ", OH*OW: " << oh << " * " << ow
         << "\n";
   );

@@ -5,6 +5,7 @@ endif(NOT interpreter_LINKER_LIBS)
 add_llvm_library(MLIRTPUInterpreter
   TpuInterpreter.cpp
   NativeCpuImplementation.cpp
+  CpuLayer_DetectionOutput.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${MLIR_MAIN_INCLUDE_DIR}/mlir/Dialect/TPU

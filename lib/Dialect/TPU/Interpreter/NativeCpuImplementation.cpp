@@ -33,7 +33,7 @@ static size_t write_bianry_file(std::string filename, const char *data,
 
 int mkldnn_conv(float *input, float *weight, float *bias,
     float *output, int n, int ic, int ih, int iw, int oc, int oh, int ow,
-    int kh, int kw, int sh, int sw, int dh,int dw ,int ph, int pw, int g) {
+    int kh, int kw, int sh, int sw, int dh, int dw, int ph, int pw, int g) {
   if (!bias) {
     auto zero_bias = new std::vector<float>(oc, 0.0f);
     bias = zero_bias->data();
@@ -777,10 +777,10 @@ int my_eltwise(float *input_1, float *input_2, float *output, int n, int c,
   return 0;
 }
 
-
-
-int my_permute(float *input, float *output, const int input_shape_size,int in, int ic, int ih, 
-  int iw,int on, int oc, int oh, int ow,int order0,int order1,int order2,int order3) {
+int my_permute(float *input, float *output, const int input_shape_size,
+    int in, int ic, int ih, int iw,
+    int on, int oc, int oh, int ow,
+    int order0, int order1, int order2, int order3) {
 
   /* This algorthem is referred to caffe permute layer */
   int count = in*ic*ih*iw;
@@ -806,7 +806,6 @@ int my_permute(float *input, float *output, const int input_shape_size,int in, i
   orders.push_back(order2);
   orders.push_back(order3);
 
-
   for (int i = 0; i < count; ++i) {
     int old_idx = 0;
     int idx = i;
@@ -820,8 +819,8 @@ int my_permute(float *input, float *output, const int input_shape_size,int in, i
     return 0 ;
 }
 
-
-int my_normalize(float *input,float *output,bool across_spatial,int n,int c,int h,int w){
+int my_normalize(float *input, float *output, bool across_spatial,
+    int n, int c, int h, int w){
 
   float eps = 1.0e-5;
   if(!across_spatial){ // only ssd case currently
@@ -843,7 +842,6 @@ int my_normalize(float *input,float *output,bool across_spatial,int n,int c,int 
   }
   return 0;
 }
-
 
 int my_slice(float *input, float *output, int axis,
   std::vector<int64_t> input_shape, std::vector<int64_t> output_shape) {
