@@ -451,7 +451,6 @@ def TPU_PriorBoxOp: TPU_Op<"priorbox", [NoSideEffect]> {
 
   let arguments = (
     ins Variadic<AnyTensor>:$input,
-    AnyTensor:$filter,
     F32Attr:$min_size,
     I32Attr:$min_size_size,
     F32Attr:$max_size,
