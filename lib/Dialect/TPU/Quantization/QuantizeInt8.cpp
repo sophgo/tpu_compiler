@@ -734,7 +734,7 @@ struct TpuQuantScaleOpPattern : public RewritePattern {
         auto biasType = scaleOp.getOperand(2)->getType().cast<TensorType>();
         bias_shape = biasType.getShape();
       }
-      int64_t oc = scale_shape[0];
+      int64_t oc = scale_shape[1];
 
       assert(scale_size % oc == 0);
       int64_t isz = scale_size / oc;
@@ -808,6 +808,7 @@ struct TpuQuantScaleOpPattern : public RewritePattern {
             *rshift_per_channel, shape, storageType, eltType, rewriter, loc,
             weightTensorFile_, weightFileVar_);
         newOperands.push_back(new_op);
+
       } else if (quant == INT8_MULTIPLER) {
         auto shape = std::vector<int64_t>{oc};
         std::string storageType = "UINT32";
@@ -879,18 +880,19 @@ static void addDequantOpBeforeOp(PatternRewriter &rewriter, T &op) {
   auto loc = op.getLoc();
 
   for (size_t i = 0; i < op.getOperation()->getNumOperands(); ++i) {
-    float threshold_x = getPreviousOpThreshold(op, i);
-    std::string op_name = getPreviousOpName(op, i).str();
-    auto type = op.getOperation()->getOperand(i)->getType();
-    std::vector<NamedAttribute> attrs;
-    attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(op_name + "_dequant")));
-    attrs.push_back(rewriter.getNamedAttr("threshold", rewriter.getF32FloatAttr(threshold_x)));
-    attrs.push_back(rewriter.getNamedAttr("quant", rewriter.getStringAttr("INT8")));
-    auto dequantOp = rewriter.create<tpu::DequantizationOp>(loc, type,
-      ArrayRef<Value *>{op.getOperation()->getOperand(i)}, ArrayRef<NamedAttribute>{attrs});
-    op.getOperation()->setOperand(i, dequantOp);
+
+      float threshold_x = getPreviousOpThreshold(op, i);
+      std::string op_name = getPreviousOpName(op, i).str();
+      auto type = op.getOperation()->getOperand(i)->getType();
+      std::vector<NamedAttribute> attrs;
+      attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(op_name + "_dequant")));
+      attrs.push_back(rewriter.getNamedAttr("threshold", rewriter.getF32FloatAttr(threshold_x)));
+      attrs.push_back(rewriter.getNamedAttr("quant", rewriter.getStringAttr("INT8")));
+      auto dequantOp = rewriter.create<tpu::DequantizationOp>(loc, type,
+        ArrayRef<Value *>{op.getOperation()->getOperand(i)}, ArrayRef<NamedAttribute>{attrs});
+      op.getOperation()->setOperand(i, dequantOp);
+    }
   }
-}
 
 // insert Quant Op after input Op
 struct TpuAddQuantAfterInputOpPattern : public OpRewritePattern<tpu::InputOp> {
@@ -914,7 +916,7 @@ struct TpuAddQuantAfterInputOpPattern : public OpRewritePattern<tpu::InputOp> {
 };
 
 // insert Dequant Op before return Op
-struct TpuAddQuantBeforeReturnOpPattern : public OpRewritePattern<ReturnOp> {
+struct TpuAddDeQuantBeforeReturnOpPattern : public OpRewritePattern<ReturnOp> {
   using OpRewritePattern<ReturnOp>::OpRewritePattern;
 
   PatternMatchResult matchAndRewrite(ReturnOp op,
@@ -924,10 +926,54 @@ struct TpuAddQuantBeforeReturnOpPattern : public OpRewritePattern<ReturnOp> {
       LLVM_DEBUG(llvm::errs() << "return dequantized already\n";);
       return matchFailure();
     }
+    if (matchPattern(formerOp, m_Op<tpu::DetectionOutputOp>())) {
+      LLVM_DEBUG(llvm::errs() << "DetectionOutputOp is cpu output layer,no need dequant\n";);
+      return matchFailure();
+    }
 
     LLVM_DEBUG(llvm::errs() << " add dequantization op defore Return\n";);
     addDequantOpBeforeOp<ReturnOp>(rewriter, op);
 
+    return matchSuccess();
+  }
+};
+
+// insert Dequant Op before DetectionOuput Op
+struct TpuAddDequantBeforeDetectionOutputOpPattern : public OpRewritePattern<tpu::DetectionOutputOp> {
+  using OpRewritePattern<tpu::DetectionOutputOp>::OpRewritePattern;
+
+  PatternMatchResult matchAndRewrite(tpu::DetectionOutputOp op,
+                                     PatternRewriter &rewriter) const {
+    auto formerOp = op.getOperand(0)->getDefiningOp();
+    if (matchPattern(formerOp, m_Op<tpu::DequantizationOp>())) {
+      LLVM_DEBUG(llvm::errs() << "return dequantized already\n";);
+      return matchFailure();
+    }
+    llvm::errs() << " add dequantization op defore DetectionOuput\n";
+    auto loc = op.getLoc();
+
+    for (size_t i = 0; i < op.getOperation()->getNumOperands(); ++i) {
+
+      auto formerOp = op.getOperand(i)->getDefiningOp();
+      /*
+        Reason to bypass LoadWeight: There is one loadweight Op to save priorbox value
+        Use fp32 value to save the value originally. 
+      */
+      auto castOp = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(formerOp);
+      if (!castOp) { 
+          float threshold_x = getPreviousOpThreshold(op, i);
+          std::string op_name = getPreviousOpName(op, i).str();
+          auto type = op.getOperation()->getOperand(i)->getType();
+          std::vector<NamedAttribute> attrs;
+          attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(op_name + "_dequant")));
+          attrs.push_back(rewriter.getNamedAttr("threshold", rewriter.getF32FloatAttr(threshold_x)));
+          attrs.push_back(rewriter.getNamedAttr("quant", rewriter.getStringAttr("INT8")));
+          auto dequantOp = rewriter.create<tpu::DequantizationOp>(loc, type,
+            ArrayRef<Value *>{op.getOperation()->getOperand(i)}, ArrayRef<NamedAttribute>{attrs});
+          op.getOperation()->setOperand(i, dequantOp);
+      }
+    }
+  
     return matchSuccess();
   }
 };
@@ -1008,16 +1054,27 @@ public:
     patterns_w.insert<TpuQuantDefaultPattern<tpu::SigmoidOp> >(context,
         weightTensorFile.get(), weightFileVar, "tpu.sigmoid");
     patterns_w.insert<TpuQuantDefaultPattern<tpu::SliceOp> >(context,
-        weightTensorFile.get(), weightFileVar, "tpu.slice");
+        weightTensorFile.get(), weightFileVar, "tpu.slice"); 
+    patterns_w.insert<TpuQuantDefaultPattern<tpu::DivOp> >(context,
+        weightTensorFile.get(), weightFileVar, "tpu.div");
+    patterns_w.insert<TpuQuantDefaultPattern<tpu::PowerOp> >(context,
+        weightTensorFile.get(), weightFileVar, "tpu.power");
+    patterns_w.insert<TpuQuantDefaultPattern<tpu::SqrtOp> >(context,
+        weightTensorFile.get(), weightFileVar, "tpu.sqrt");
+    patterns_w.insert<TpuQuantDefaultPattern<tpu::PermuteOp> >(context,
+        weightTensorFile.get(), weightFileVar, "tpu.permute");
+
     applyPatternsGreedily(fn, patterns_w);
 
     OwningRewritePatternList patterns_q;
     // add Quant after Input
     patterns_q.insert<TpuAddQuantAfterInputOpPattern>(context);
     // add Dequant before Result
-    patterns_q.insert<TpuAddQuantBeforeReturnOpPattern>(context);
+    patterns_q.insert<TpuAddDeQuantBeforeReturnOpPattern>(context);
     // add Quant and Dequant before and after any cpu layer
     patterns_q.insert<TpuAddQuantAndDequantForSoftmaxOpPattern>(context);
+    // add Dequant before DetectionOuputOp which is CPU layer but also output layer
+    patterns_q.insert<TpuAddDequantBeforeDetectionOutputOpPattern>(context);    
     applyPatternsGreedily(fn, patterns_q);
 
     OwningRewritePatternList patterns_s;

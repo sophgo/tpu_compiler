@@ -617,6 +617,7 @@ def TPU_SqrtOp: TPU_Op<"sqrt", [NoSideEffect]> {
     ins AnyTensor:$input,
     OptionalAttr<StrAttr>:$name,
     OptionalAttr<F32Attr>:$threshold_y,
+    OptionalAttr<NonNegativeI64Attr>:$offset,     
     OptionalAttr<NonNegativeI32Attr>:$layer_id,
     DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
 
