@@ -22,29 +22,29 @@ mlir-opt \
 ################################
 # quantization 1: per-layer int8
 ################################
-# mlir-opt \
-#     --quant-int8 \
-#     --print-tpu-op-info \
-#     --tpu-op-info-filename ssd300_op_info_int8_per_layer.csv \
-#     ssd300_cali.mlir \
-#     -o ssd300_quant_int8_per_layer.mlir
+mlir-opt \
+    --quant-int8 \
+    --print-tpu-op-info \
+    --tpu-op-info-filename ssd300_op_info_int8_per_layer.csv \
+    ssd300_cali.mlir \
+    -o ssd300_quant_int8_per_layer.mlir
 
-# mlir-tpu-interpreter ssd300_quant_int8_per_layer.mlir \
-#     --tensor-in ssd300_in_fp32.npz \
-#     --tensor-out ssd300_out_dequant_int8_per_layer.npz \
-#     --dump-all-tensor=ssd300_tensor_all_int8_per_layer.npz
+mlir-tpu-interpreter ssd300_quant_int8_per_layer.mlir \
+    --tensor-in ssd300_in_fp32.npz \
+    --tensor-out ssd300_out_dequant_int8_per_layer.npz \
+    --dump-all-tensor=ssd300_tensor_all_int8_per_layer.npz
 
-# npz_extract.py \
-#     ssd300_tensor_all_int8_per_layer.npz \
-#     ssd300_out_int8_per_layer.npz \
-#     detection_out
+npz_extract.py \
+    ssd300_tensor_all_int8_per_layer.npz \
+    ssd300_out_int8_per_layer.npz \
+    detection_out
 
-# npz_compare.py \
-#       ssd300_out_int8_per_layer.npz \
-#       ssd300_blobs.npz \
-#       --op_info ssd300_op_info_int8_per_layer.csv \
-#       --dequant \
-#       --tolerance 0.99,0.989,0.859 -vvv
+npz_compare.py \
+      ssd300_out_int8_per_layer.npz \
+      ssd300_blobs.npz \
+      --op_info ssd300_op_info_int8_per_layer.csv \
+      --dequant \
+      --tolerance 0.99,0.989,0.859 -vvv
 
 # if [ $COMPARE_ALL ]; then
 #   # some tensors do not pass due to threshold bypass

@@ -910,9 +910,6 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     w = (i_s.size() == 2) ? 1 : i_s[3];
     int oc = o_s[1];
 
-    llvm::errs() << "input shape size : " << "\n";
-    llvm::errs() << i_s[0]<<","<<i_s[1]<<","<<i_s[2]<<","<<i_s[3] << "\n";
-
     uint32_t multiplier_prod;
     float *input = (float*)opdT[0]->data();
     float *scale = (float*)opdT[1]->data();
