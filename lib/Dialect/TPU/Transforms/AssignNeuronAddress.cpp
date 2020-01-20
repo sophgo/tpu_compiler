@@ -156,6 +156,8 @@ public:
         context, "tpu.eltwise", &pos, neuronMapFile->os(), clNeuronAlignment);
     patterns.insert<TpuQuantizationOpPattern<tpu::TanHOp> >(
         context, "tpu.tanh", &pos, neuronMapFile->os(), clNeuronAlignment);
+    patterns.insert<TpuQuantizationOpPattern<tpu::SigmoidOp>>(
+        context, "tpu.sigmoid", &pos, neuronMapFile->os(), clNeuronAlignment);
     patterns.insert<TpuQuantizationOpPattern<tpu::ScaleOp> >(
         context, "tpu.scale", &pos, neuronMapFile->os(), clNeuronAlignment);
     patterns.insert<TpuQuantizationOpPattern<tpu::ConcatOp> >(
