@@ -678,41 +678,56 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       threshold_y = op.threshold_y().getValue().convertToFloat();
     }
 
-    // rshift and saturate on output
-    if (op.quant() == "INT8" || op.quant() == "INT8_PER_CHANNEL") {
+    // // rshift and saturate on output
+    if (op.quant() == "INT8" || op.quant() == "INT8_PER_CHANNEL"
+                             || op.quant() == "INT8_MULTIPLIER") {
       assert(rshift_pos);
       assert(rshift_neg);
-      for (int i = 0; i < size; ++i) {
-        if (input[i] > 0){
-          // resultT->at(i) = (threshold_x / threshold_y) * resultT->at(i);
-          resultT->at(i) = (float)applyRShiftAndSaturateInt8(resultT->at(i),
-              (uint32_t)rshift_pos->at(0));
-        } else {
-          resultT->at(i) = (float)applyRShiftAndSaturateInt8(resultT->at(i),
-              (uint32_t)rshift_neg->at(0));
-        }
-      }
-    } else if (op.quant() == "INT8_MULTIPLIER") {
       assert(multiplier_pos);
       assert(multiplier_neg);
+      
       for (int i = 0; i < size; ++i) {
         if (input[i] > 0){
-          // resultT->at(i) = (threshold_x / threshold_y) * resultT->at(i);
-          // resultT->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
-          //     resultT->at(i), (uint32_t)rshift_pos->at(0), multiplier_pos->at(0), true);
           resultT->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
               resultT->at(i), (uint32_t)rshift_pos->at(0), multiplier_pos->at(0), false);
         } else {
           resultT->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
-              resultT->at(i), (uint32_t)rshift_neg->at(0), multiplier_neg->at(0), true);
+              resultT->at(i), (uint32_t)rshift_neg->at(0), multiplier_neg->at(0), false);
         }
       }
-    } else if (op.quant() == "BF16") {
-      assert(0 && "Not support BF16 now.");
-    } else if (op.quant() == "NONE") {
-    } else {
-      assert(0);
     }
+    // // rshift and saturate on output
+    // if (op.quant() == "INT8" || op.quant() == "INT8_PER_CHANNEL") {
+    //   assert(rshift_pos);
+    //   assert(rshift_neg);
+    //   for (int i = 0; i < size; ++i) {
+    //     if (input[i] > 0){
+    //       // resultT->at(i) = (threshold_x / threshold_y) * resultT->at(i);
+    //       resultT->at(i) = (float)applyRShiftAndSaturateInt8(resultT->at(i),
+    //           (uint32_t)rshift_pos->at(0));
+    //     } else {
+    //       resultT->at(i) = (float)applyRShiftAndSaturateInt8(resultT->at(i),
+    //           (uint32_t)rshift_neg->at(0));
+    //     }
+    //   }
+    // } else if (op.quant() == "INT8_MULTIPLIER") {
+    //   assert(multiplier_pos);
+    //   assert(multiplier_neg);
+    //   for (int i = 0; i < size; ++i) {
+    //     if (input[i] > 0){
+    //       resultT->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
+    //           resultT->at(i), (uint32_t)rshift_pos->at(0), multiplier_pos->at(0), false);
+    //     } else {
+    //       resultT->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
+    //           resultT->at(i), (uint32_t)rshift_neg->at(0), multiplier_neg->at(0), false);
+    //     }
+    //   }
+    // } else if (op.quant() == "BF16") {
+    //   assert(0 && "Not support BF16 now.");
+    // } else if (op.quant() == "NONE") {
+    // } else {
+    //   assert(0);
+    // }
     
     valueMapping[result] = std::move(resultT);
 
@@ -958,7 +973,8 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
     assert(ret == 0);
     // rshift and saturate on output
-    if (op.quant() == "INT8") {
+    // if (op.quant() == "INT8") {
+    if (op.quant() == "INT8" || op.quant() == "INT8_MULTIPLIER") {
       assert(rshift);
         for (int i = 0; i < size; ++i) {
         resultT->at(i) = (float)applyRShiftAndSaturateInt8(
@@ -973,18 +989,20 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
               resultT->at(i * isz + j), (uint32_t)rshift->at(i));
         }
         }
-    } else if (op.quant() == "INT8_MULTIPLIER") {
-      assert(multiplier);
-      int isz = size / oc;
-      for (int i = 0; i < oc; ++i) {
-        for (int j = 0; j < isz; ++j) {
-          resultT->at(i * isz + j) =
-              (float)applyMultiplierAndRShiftAndSaturateInt8(
-                  resultT->at(i * isz + j), rshift->at(i), multiplier->at(i),
-                  true);
-        }
-      }
-    } else if (op.quant() == "BF16") {
+    } 
+    // else if (op.quant() == "INT8_MULTIPLIER") {
+    //   assert(multiplier);
+    //   int isz = size / oc;
+    //   for (int i = 0; i < oc; ++i) {
+    //     for (int j = 0; j < isz; ++j) {
+    //       resultT->at(i * isz + j) =
+    //           (float)applyMultiplierAndRShiftAndSaturateInt8(
+    //               resultT->at(i * isz + j), rshift->at(i), multiplier->at(i),
+    //               true);
+    //     }
+    //   }
+    // } 
+    else if (op.quant() == "BF16") {
       assert("not support now");
     } else if (op.quant() == "NONE") {
     } else {
