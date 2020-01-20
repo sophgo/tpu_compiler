@@ -13,7 +13,8 @@ rm -f *.mlir *.bin *.npz *.csv
 
 $DIR/resnet50/regression_resnet50.sh
 $DIR/yolo_v3/regression_yolo_v3.sh
-$DIR/ssd300/regression_ssd300.sh
+# $DIR/ssd300/regression_ssd300.sh
+
 popd
 
 # VERDICT
