@@ -101,6 +101,7 @@ struct AssignReshapeThresholdPattern : public OpRewritePattern<tpu::ReshapeOp> {
     float threshold_x = getPreviousOpThreshold(op);
     op.setAttr("threshold_y", rewriter.getF32FloatAttr(threshold_x));
 
+
     return matchSuccess();
   }
 };
@@ -146,19 +147,23 @@ public:
       os << op->getName() << "\n";
 
       addThresholdAttr<tpu::InputOp>(builder, threshold_map, op);
-      addThresholdAttr<tpu::Conv2DOp>(builder, threshold_map, op);
-      addThresholdAttr<tpu::FullyConnectedOp>(builder, threshold_map, op);
-      addThresholdAttr<tpu::Pool2DOp>(builder, threshold_map, op);
-      addThresholdAttr<tpu::EltwiseOp>(builder, threshold_map, op);
-      addThresholdAttr<tpu::ConcatOp>(builder, threshold_map, op);
-      addThresholdAttr<tpu::UpsampleOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::BatchNormOp>(builder, threshold_map, op);
-      addThresholdAttr<tpu::ScaleOp>(builder, threshold_map, op);
-      addThresholdAttr<tpu::ReluOp>(builder, threshold_map, op);
-      addThresholdAttr<tpu::PReluOp>(builder, threshold_map, op);
-      addThresholdAttr<tpu::SoftmaxOp>(builder, threshold_map, op);
-      addThresholdAttr<tpu::SigmoidOp>(builder, threshold_map, op);
+      addThresholdAttr<tpu::ConcatOp>(builder, threshold_map, op);
+      addThresholdAttr<tpu::Conv2DOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::CropOp>(builder, threshold_map, op);
+      addThresholdAttr<tpu::DivOp>(builder, threshold_map, op);
+      addThresholdAttr<tpu::EltwiseOp>(builder, threshold_map, op);
+      addThresholdAttr<tpu::FullyConnectedOp>(builder, threshold_map, op);
+      addThresholdAttr<tpu::Pool2DOp>(builder, threshold_map, op); 
+      addThresholdAttr<tpu::PowerOp>(builder, threshold_map, op); 
+      addThresholdAttr<tpu::PReluOp>(builder, threshold_map, op); 
+      addThresholdAttr<tpu::ReluOp>(builder, threshold_map, op);
+      addThresholdAttr<tpu::ScaleOp>(builder, threshold_map, op);
+      addThresholdAttr<tpu::SigmoidOp>(builder, threshold_map, op);
+      addThresholdAttr<tpu::SoftmaxOp>(builder, threshold_map, op);   
+      addThresholdAttr<tpu::SqrtOp>(builder, threshold_map, op);   
+      addThresholdAttr<tpu::UpsampleOp>(builder, threshold_map, op);   
+      addThresholdAttr<tpu::PermuteOp>(builder, threshold_map, op);     
     });
 
     OwningRewritePatternList patterns;

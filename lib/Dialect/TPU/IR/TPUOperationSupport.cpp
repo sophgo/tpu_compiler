@@ -112,6 +112,12 @@ llvm::StringRef getPreviousOpName(Operation *op, uint index = 0) {
 std::string getOpQuant(Operation *op) {
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::Conv2DOp>(op)) {
     return cast_op.quant();
+  } 
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::DequantizationOp>(op)) {
+    return cast_op.quant();
+  }   
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::DivOp>(op)) {
+    return cast_op.quant();
   }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::FullyConnectedOp>(op)) {
     return cast_op.quant();
@@ -119,10 +125,13 @@ std::string getOpQuant(Operation *op) {
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::EltwiseOp>(op)) {
     return cast_op.quant();
   }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::PowerOp>(op)) {
+    return cast_op.quant();
+  }  
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::QuantizationOp>(op)) {
     return cast_op.quant();
   }
-  if (auto cast_op = llvm::dyn_cast_or_null<tpu::DequantizationOp>(op)) {
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::SqrtOp>(op)) {
     return cast_op.quant();
   }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::SigmoidOp>(op)) {
@@ -178,6 +187,15 @@ float getOpThreshold(Operation *op) {
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::SigmoidOp>(op)) {
     return cast_op.threshold_y().getValue().convertToFloat();
   }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::DivOp>(op)) {
+    return cast_op.threshold_y().getValue().convertToFloat();
+  }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::SqrtOp>(op)) {
+    return cast_op.threshold_y().getValue().convertToFloat();
+  }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::PowerOp>(op)) {
+    return cast_op.threshold_y().getValue().convertToFloat();
+  }      
 
 
   llvm::errs() << op->getName() << op->getName() << " Not Found "
@@ -188,6 +206,7 @@ float getOpThreshold(Operation *op) {
 }
 
 float getPreviousOpThreshold(Operation *op, uint index = 0) {
+
   if ( op->getNumOperands() < (index + 1) ) {
     assert(false);
     return NAN;
@@ -226,6 +245,9 @@ float getPreviousOpThreshold(Operation *op, uint index = 0) {
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::ReluOp>(formerOp)) {
     return cast_op.threshold_y().getValue().convertToFloat();
   }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::PermuteOp>(op)) {
+    return cast_op.threshold_y().getValue().convertToFloat();
+  }    
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::PReluOp>(formerOp)) {
     return cast_op.threshold_y().getValue().convertToFloat();
   }
@@ -259,6 +281,9 @@ float getPreviousOpThreshold(Operation *op, uint index = 0) {
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::ConcatOp>(formerOp)) {
     return cast_op.threshold_y().getValue().convertToFloat();
   }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::PermuteOp>(formerOp)) {
+    return cast_op.threshold_y().getValue().convertToFloat();
+  }  
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::DetectionOutputOp>(formerOp)) {
     return cast_op.threshold_y().getValue().convertToFloat();
   }
@@ -318,9 +343,6 @@ uint64_t getPreviousOpAddress(Operation *op, uint index = 0) {
     return cast_op.threshold_y().getValue().convertToFloat();
   }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::DivOp>(formerOp)) {
-    return cast_op.threshold_y().getValue().convertToFloat();
-  }
-  if (auto cast_op = llvm::dyn_cast_or_null<tpu::PriorBoxOp>(formerOp)) {
     return cast_op.threshold_y().getValue().convertToFloat();
   }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::SqrtOp>(formerOp)) {

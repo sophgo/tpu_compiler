@@ -451,7 +451,6 @@ def TPU_PriorBoxOp: TPU_Op<"priorbox", [NoSideEffect]> {
 
   let arguments = (
     ins Variadic<AnyTensor>:$input,
-    AnyTensor:$filter,
     F32Attr:$min_size,
     I32Attr:$min_size_size,
     F32Attr:$max_size,
@@ -618,6 +617,7 @@ def TPU_SqrtOp: TPU_Op<"sqrt", [NoSideEffect]> {
     ins AnyTensor:$input,
     OptionalAttr<StrAttr>:$name,
     OptionalAttr<F32Attr>:$threshold_y,
+    OptionalAttr<NonNegativeI64Attr>:$offset,     
     OptionalAttr<NonNegativeI32Attr>:$layer_id,
     DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
 
