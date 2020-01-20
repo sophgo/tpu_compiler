@@ -141,6 +141,8 @@ public:
     // TODO: remove this constrain, input should be able to be any address
     applyPatternsGreedily(fn, patterns);
     patterns.clear();
+    patterns.insert<TpuQuantizationOpPattern<tpu::ConcatOp>>(
+        context, "tpu.concat", &pos, neuronMapFile->os(), clNeuronAlignment);
     patterns.insert<TpuQuantizationOpPattern<tpu::Conv2DOp> >(
         context, "tpu.conv_2d", &pos, neuronMapFile->os(), clNeuronAlignment);
     patterns.insert<TpuQuantizationOpPattern<tpu::FullyConnectedOp> >(

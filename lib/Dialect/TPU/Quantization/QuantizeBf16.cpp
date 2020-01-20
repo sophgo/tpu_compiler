@@ -71,6 +71,31 @@ static std::unique_ptr<std::vector<float> > readAndDeleteWeightTensor(
   return std::move(T);
 }
 
+struct TpuQuantConcatOpPattern : public RewritePattern {
+  TpuQuantConcatOpPattern(MLIRContext *context, TensorFile *weightTensorFile,
+      Value* weightFileVar)
+      : RewritePattern("tpu.concat", 1, context),
+        weightTensorFile_(weightTensorFile),
+        weightFileVar_(weightFileVar) {}
+
+  PatternMatchResult matchAndRewrite(Operation *op,
+                                     PatternRewriter &rewriter) const override {
+
+    auto concatOp = cast<tpu::ConcatOp>(op);
+    std::string op_name = concatOp.getAttrOfType<StringAttr>("name").getValue().str();
+
+    if (concatOp.quant() != "NONE") {
+      llvm::errs() << concatOp.name() << " quantized already\n";
+      return matchFailure();
+    }
+    concatOp.setAttr("quant", rewriter.getStringAttr("BF16"));
+    return matchSuccess();
+  }
+
+  TensorFile *weightTensorFile_;
+  Value* weightFileVar_;
+};
+
 struct TpuQuantConv2DOpPattern : public RewritePattern {
   TpuQuantConv2DOpPattern(MLIRContext *context, TensorFile *weightTensorFile,
       Value* weightFileVar)
@@ -530,6 +555,8 @@ public:
     auto *context = &getContext();
 
     OwningRewritePatternList patterns_w;
+    patterns_w.insert<TpuQuantConcatOpPattern>(context,
+        weightTensorFile.get(), weightFileVar);
     patterns_w.insert<TpuQuantConv2DOpPattern>(context,
         weightTensorFile.get(), weightFileVar);
     patterns_w.insert<TpuQuantFullyConnectedOpPattern>(context,

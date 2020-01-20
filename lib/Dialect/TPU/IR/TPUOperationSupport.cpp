@@ -304,6 +304,7 @@ uint64_t getPreviousOpAddress(Operation *op, uint index = 0) {
     assert(false);
     return 0xFFFFFFFFFFFFFFFF;
   }
+
   auto formerOp = op->getOperand(index)->getDefiningOp();
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::QuantizationOp>(formerOp)) {
     return cast_op.offset().getValue().getLimitedValue();
@@ -312,6 +313,9 @@ uint64_t getPreviousOpAddress(Operation *op, uint index = 0) {
     return cast_op.offset().getValue().getLimitedValue();
   }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::TL_LW_Conv2DOp>(formerOp)) {
+    return cast_op.offset().getValue().getLimitedValue();
+  }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::ConcatOp>(formerOp)) {
     return cast_op.offset().getValue().getLimitedValue();
   }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::Conv2DOp>(formerOp)) {
@@ -373,30 +377,7 @@ uint64_t getPreviousOpAddress(Operation *op, uint index = 0) {
     // this is recursive ...
     return getPreviousOpAddress(cast_op);
   }
-  if (auto cast_op = llvm::dyn_cast_or_null<tpu::PowerOp>(formerOp)) {
-    return cast_op.threshold_y().getValue().convertToFloat();
-  }
-  if (auto cast_op = llvm::dyn_cast_or_null<tpu::DivOp>(formerOp)) {
-    return cast_op.threshold_y().getValue().convertToFloat();
-  }
-  if (auto cast_op = llvm::dyn_cast_or_null<tpu::SqrtOp>(formerOp)) {
-    return cast_op.threshold_y().getValue().convertToFloat();
-  }
-  if (auto cast_op = llvm::dyn_cast_or_null<tpu::ConcatOp>(formerOp)) {
-    return cast_op.threshold_y().getValue().convertToFloat();
-  }
-  if (auto cast_op = llvm::dyn_cast_or_null<tpu::DetectionOutputOp>(formerOp)) {
-    return cast_op.threshold_y().getValue().convertToFloat();
-  }
-  if (auto cast_op = llvm::dyn_cast_or_null<tpu::ScaleOp>(formerOp)) {
-    return cast_op.offset().getValue().getLimitedValue();
-  }
-  if (auto cast_op = llvm::dyn_cast_or_null<tpu::ConcatOp>(formerOp)) {
-    return cast_op.offset().getValue().getLimitedValue();
-  }
-
-  llvm::errs() << op->getName() << formerOp->getName() << " Not Found "<<"\n ";
-
+  llvm::errs() << op->getName() << " Not find\n";
   assert(0);
   return 0xFFFFFFFFFFFFFFFF;
 }

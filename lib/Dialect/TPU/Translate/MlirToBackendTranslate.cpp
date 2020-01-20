@@ -134,6 +134,121 @@ static LogicalResult runOperation(Operation &opInst) {
     return success();
   }
 
+  if (auto op = dyn_cast<tpu::ConcatOp>(opInst)) {
+    LLVM_DEBUG(llvm::errs() << "concat ConcatOp" << "\n";);
+    auto num = op.getOperation()->getNumOperands();
+    gaddr_t input_gaddrs[num];
+    auto axis = op.dimension();
+    int output_dim[4];
+    LLVM_DEBUG(llvm::errs() << "concat num :" << num << "\n";);
+    LLVM_DEBUG(llvm::errs() << "concat axis :" << axis << "\n";);
+    int32_t input_dims[num * 4];
+    int output_dim_size;
+    std::vector<int64_t> shape = op.res()->getType().cast<TensorType>().getShape();
+    output_dim[0] = shape[0];
+    output_dim[1] = shape[1];
+    output_dim[2] = shape[2];
+    output_dim[3] = shape[3];
+    output_dim_size = shape.size();
+
+    for ( int i = 0; i < num; i++) {
+      int32_t n, c, h, w;
+      input_gaddrs[i] = getPreviousOpAddress(op, i);
+      std::vector<int64_t> shape =  op.getOperand(i)->getType().cast<TensorType>().getShape();
+      n = shape[0];
+      c = shape[1];
+      h = shape[2];
+      w = shape[3];
+      input_dims[i] = shape[1];//shape[axis];
+      LLVM_DEBUG(llvm::errs() << "shape n:" << n << " c:" << c << " h:"<< h << " w:"<< w <<"\n";);
+    }
+    gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
+
+    int layer_id = op.layer_id().getValue().getLimitedValue();
+    LLVM_DEBUG(llvm::errs() << "Concat id=" << layer_id << "\n";);
+    LLVM_DEBUG(llvm::errs() << "Concat quant=" << op.quant() << "\n";);
+
+    if (op.quant() == "INT8") {
+
+      std::vector<float> threshold_x(num);
+      float threshold_y;
+      // determine multiplier and rshift according each threshold_x
+      // scale[i] = threshold_x[i] / threshold_y
+      // each scale will be implemented by hardware as
+      // scale[i] = multiplier / (1 << rshift)
+      // find a rshift, that put max(multiplier) into range (64, 127)
+      int rshift;
+      int8_t multiplier[num];
+
+      for (int index = 0; index < num; ++index) {
+        // get threshold_x
+        threshold_x[index] = getPreviousOpThreshold(op, index);
+      }
+      // get threshold_y
+      threshold_y = op.threshold_y().getValue().convertToFloat();
+
+      // determine rshift for all inputs, and multiplier for each input
+      // use max threshold_x to find rshift first
+      float max_threshold_x = *std::max_element(
+          std::begin(threshold_x), std::end(threshold_x));
+      rshift = findRShiftAndMultiplierFromQScale(max_threshold_x / threshold_y);
+      for (int index = 0; index < num; ++index) {
+        float qscale = threshold_x[index] / threshold_y;
+        multiplier[index] = (int8_t)findMultiplierFromQScaleAndRShift(qscale, rshift);
+      }
+
+      int threshold_x_quantized[num];
+      int rshift_in[num];
+      for (int i = 0; i < num; ++i) {
+        threshold_x_quantized[i] = (int)multiplier[i];
+        rshift_in[i] = rshift;
+      }
+
+      bmnet_concat_fixed_forward_bmkernel(
+           *backend_ctx,
+           0, // u32 stream_id,
+           0, //u32 inst_id,
+           layer_id, // u32 layer_id,
+           nullptr, // const u32 *depends,
+           0,// u32 depends_len,
+           input_gaddrs, // gaddr_t input_gaddrs[],
+           output_gaddr, // gaddr_t output_gaddr,
+           input_dims, // int input_dims[],
+           num, //int input_num,
+           1, // int concat_axis,
+           output_dim_size, // int output_dim_size,
+           output_dim, // int *output_dim,
+           num, // const int need_quantize_num,
+           rshift_in, // const int *right_shift_width,
+           threshold_x_quantized // const int *threshold_x_quantized
+      );
+
+    } else if (op.quant() == "BF16") {
+
+      bf16_concat_fixed_forward_bmkernel(
+          *backend_ctx,
+          0, // stream_id,
+          0, // inst_id,
+          layer_id, // layer_id,
+          nullptr, // depends
+          0, // depends_len
+          input_gaddrs, // gaddr_t ga_input[],
+          output_gaddr, // gaddr_t ga_output,
+          input_dims, // int input_dims[],
+          num, // int input_num
+          1, // concat_axis
+          output_dim_size, //int output_dim_size
+          output_dim, //int *output_dim
+          0, //int need_quantize_num
+          0  // threshold_x_quantized,
+      );
+    } else {
+      llvm::errs() << "not support yet \n";
+      assert(0);
+    }
+    return success();
+  }
+
   if (auto op = dyn_cast<tpu::Conv2DOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "Conv2DOp" << "\n";);
 
@@ -417,6 +532,9 @@ static LogicalResult runOperation(Operation &opInst) {
           0.0f, // float avg_const,  // default(passing 0.0f) is 1/kh*kw
           0, // int do_relu,
           true);
+    } else {
+      llvm::errs() << "op.quant = " << op.quant();
+      assert(0);
     }
     // gen cmdbuf end
 

@@ -23,8 +23,8 @@ npz_extract.py inception_v4_blobs.npz inception_v4_out_fp32_prob.npz prob
 
 # fix input data consistency
 # because jpeg decoder may introduce difference, use save file to overwrite
-npz_compare.py resnet50_in_fp32.npz $REGRESSION_PATH/resnet50/data/resnet50_in_fp32.npz
-cp $REGRESSION_PATH/resnet50/data/resnet50_in_fp32.npz resnet50_in_fp32.npz
+npz_compare.py inception_v4_in_fp32.npz $REGRESSION_PATH/inception_v4/data/inception_v4_in_fp32.npz
+cp $REGRESSION_PATH/inception_v4/data/inception_v4_in_fp32.npz inception_v4_in_fp32.npz
 
 # VERDICT
 echo $0 PASSED
