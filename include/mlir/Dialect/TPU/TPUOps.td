@@ -262,7 +262,7 @@ def TPU_DivOp: TPU_Op<"div", [NoSideEffect]> {
   let results = (outs AnyTensor:$output);
 }
 
-def TPU_EltwiseOp: TPU_Op<"eltwise", [NoSideEffect, SameOperandsAndResultType]> {
+def TPU_EltwiseOp: TPU_Op<"eltwise", [NoSideEffect]> {
   let summary = "Eltwise operator";
 
   let description = [{
@@ -272,6 +272,7 @@ def TPU_EltwiseOp: TPU_Op<"eltwise", [NoSideEffect, SameOperandsAndResultType]> 
   let arguments = (
     ins AnyTensor:$x1,
     AnyTensor:$x2,
+    Variadic<AnyTensor>:$variadic_tensors,
     DefaultValuedAttr<TPU_EltwiseAttr, "SUM">:$method,
     DefaultValuedAttr<TPU_AFAttr, "NONE">:$fused_activation_function,
     OptionalAttr<StrAttr>:$name,

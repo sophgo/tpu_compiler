@@ -48,7 +48,9 @@ using namespace mlir;
 
 static BM1880v2BackendContext *backend_ctx = nullptr;
 
-static int8_t getRshiftFromOperandTensor(Operation &op, int opdIndex) {
+template <typename T>
+static std::unique_ptr<std::vector<T>>
+getWeightFromOperandTensor(Operation &op, int opdIndex) {
   auto weightOp = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
       op.getOperand(opdIndex)->getDefiningOp());
   assert(weightOp);
@@ -61,8 +63,13 @@ static int8_t getRshiftFromOperandTensor(Operation &op, int opdIndex) {
   assert(weightOp.name().hasValue());
   auto tensor_name = weightOp.name().getValue();
   auto type = weightOp.getResult()->getType().cast<TensorType>();
-  auto weight = weightTensorFile->readTensor<float>(tensor_name, type);
+  auto weight = weightTensorFile->readTensor<T>(tensor_name, type);
 
+  return weight;
+}
+
+static int8_t getRshiftFromOperandTensor(Operation &op, int opdIndex) {
+  auto weight = getWeightFromOperandTensor<float>(op, opdIndex);
   return (int8_t)weight->at(0);
 }
 
@@ -622,7 +629,6 @@ static LogicalResult runOperation(Operation &opInst) {
       // scale[i] = multiplier / (1 << rshift)
       // find a rshift, that put max(multiplier) into range (64, 127)
       uint32_t rshift;
-      int8_t multiplier[MAX_ELTWISE_INPUT];
       uint32_t multiplier_prod;
       for (int index = 0; index < MAX_ELTWISE_INPUT; ++index) {
         // get threshold_x
@@ -631,23 +637,23 @@ static LogicalResult runOperation(Operation &opInst) {
       // get threshold_y
       threshold_y = op.threshold_y().getValue().convertToFloat();
       if (op.method() == "SUM") {
-        // determine rshift for all inputs, and multiplier for each input
-        // use max threshold_x to find rshift first
-        float max_threshold_x =
-            *std::max_element(std::begin(threshold_x), std::end(threshold_x));
-        rshift =
-            findRShiftAndMultiplierFromQScale(max_threshold_x / threshold_y);
-        for (int index = 0; index < 2; ++index) {
-          float qscale = threshold_x[index] / threshold_y;
-          multiplier[index] =
-              (int8_t)findMultiplierFromQScaleAndRShift(qscale, rshift);
+
+        const int nInputs = opInst.getNumOperands();
+        assert((nInputs - 2) == MAX_ELTWISE_INPUT &&
+               "Elt sum only support two inputs now");
+
+        int8_t rshift_opd_index = MAX_ELTWISE_INPUT;
+        int8_t rshift = getRshiftFromOperandTensor(opInst, rshift_opd_index);
+
+        int8_t multiplier_opd_index = MAX_ELTWISE_INPUT + 1;
+        auto fmultiplier =
+            getWeightFromOperandTensor<float>(opInst, multiplier_opd_index);
+
+        int multiplier_int8[MAX_ELTWISE_INPUT];
+        for (size_t i = 0; i < fmultiplier.get()->size(); ++i) {
+          multiplier_int8[i] = static_cast<int8_t>(fmultiplier->at(i));
         }
 
-        int threshold_x_quantized[MAX_ELTWISE_INPUT];
-
-        for (int i = 0; i < MAX_ELTWISE_INPUT; ++i) {
-          threshold_x_quantized[i] = (int)multiplier[i];
-        }
         const int coeffs[2] = {1, 1};
         bmnet_eltwise_fixed_forward_bmkernel(
             *backend_ctx,
@@ -664,7 +670,7 @@ static LogicalResult runOperation(Operation &opInst) {
             do_relu, // bool do_relu,
             0.0f,    // float relu_slope,
             rshift,  // int right_shift_width,
-            threshold_x_quantized, coeffs);
+            multiplier_int8, coeffs);
       } else if (op.method() == "PROD") {
         float threshold_prod = std::accumulate(
             threshold_x.begin(), threshold_x.end(), 1.0, std::multiplies<>());
