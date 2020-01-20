@@ -1144,6 +1144,7 @@ public:
     OwningRewritePatternList patterns_w;
     patterns_w
         .insert<TpuQuantDefaultPattern<tpu::ConcatOp>, TpuQuantConv2DOpPattern,
+                TpuQuantDefaultPattern<tpu::CropOp>,
                 TpuQuantEltwiseOpPattern, TpuQuantFullyConnectedOpPattern,
                 TpuQuantDefaultPattern<tpu::Pool2DOp>, TpuQuantPReluOpPattern,
                 TpuQuantDefaultPattern<tpu::ReluOp>, TpuQuantScaleOpPattern,
