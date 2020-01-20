@@ -460,17 +460,17 @@ struct TpuQuantFullyConnectedOpPattern : public RewritePattern {
   Value* weightFileVar_;
 };
 
-template<typename T>
+template<typename TensorTyOp>
 struct TpuQuantDefaultPattern : public RewritePattern {
   TpuQuantDefaultPattern(MLIRContext *context, TensorFile *weightTensorFile,
-      Value* weightFileVar, StringRef opName)
-      : RewritePattern(opName, 1, context),
+      Value* weightFileVar)
+      : RewritePattern(TensorTyOp::getOperationName(), 1, context),
         weightTensorFile_(weightTensorFile),
         weightFileVar_(weightFileVar) {}
 
   PatternMatchResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
-    auto castOp = cast<T>(op);
+    auto castOp = cast<TensorTyOp>(op);
     if (castOp.quant() != "NONE") {
       LLVM_DEBUG(llvm::errs() << castOp.name() << " quantized already\n";);
       return matchFailure();
@@ -1035,34 +1035,22 @@ public:
     auto *context = &getContext();
 
     OwningRewritePatternList patterns_w;
-    patterns_w.insert<TpuQuantDefaultPattern<tpu::ConcatOp> >(context,
-        weightTensorFile.get(), weightFileVar, "tpu.concat");
-    patterns_w.insert<TpuQuantConv2DOpPattern>(context,
-        weightTensorFile.get(), weightFileVar);
-    patterns_w.insert<TpuQuantDefaultPattern<tpu::EltwiseOp> >(context,
-        weightTensorFile.get(), weightFileVar, "tpu.eltwise");
-    patterns_w.insert<TpuQuantFullyConnectedOpPattern>(context,
-        weightTensorFile.get(), weightFileVar);
-    patterns_w.insert<TpuQuantDefaultPattern<tpu::Pool2DOp> >(context,
-        weightTensorFile.get(), weightFileVar, "tpu.pool_2d");
-    patterns_w.insert<TpuQuantPReluOpPattern>(context,
-        weightTensorFile.get(), weightFileVar);
-    patterns_w.insert<TpuQuantDefaultPattern<tpu::ReluOp> >(context,
-        weightTensorFile.get(), weightFileVar, "tpu.relu");
-    patterns_w.insert<TpuQuantScaleOpPattern>(context,
-        weightTensorFile.get(), weightFileVar);
-    patterns_w.insert<TpuQuantDefaultPattern<tpu::SigmoidOp> >(context,
-        weightTensorFile.get(), weightFileVar, "tpu.sigmoid");
-    patterns_w.insert<TpuQuantDefaultPattern<tpu::SliceOp> >(context,
-        weightTensorFile.get(), weightFileVar, "tpu.slice"); 
-    patterns_w.insert<TpuQuantDefaultPattern<tpu::DivOp> >(context,
-        weightTensorFile.get(), weightFileVar, "tpu.div");
-    patterns_w.insert<TpuQuantDefaultPattern<tpu::PowerOp> >(context,
-        weightTensorFile.get(), weightFileVar, "tpu.power");
-    patterns_w.insert<TpuQuantDefaultPattern<tpu::SqrtOp> >(context,
-        weightTensorFile.get(), weightFileVar, "tpu.sqrt");
-    patterns_w.insert<TpuQuantDefaultPattern<tpu::PermuteOp> >(context,
-        weightTensorFile.get(), weightFileVar, "tpu.permute");
+    patterns_w.insert<
+        TpuQuantDefaultPattern<tpu::ConcatOp>,
+        TpuQuantConv2DOpPattern,
+        TpuQuantDefaultPattern<tpu::EltwiseOp>,
+        TpuQuantFullyConnectedOpPattern,
+        TpuQuantDefaultPattern<tpu::Pool2DOp>,
+        TpuQuantPReluOpPattern,
+        TpuQuantDefaultPattern<tpu::ReluOp>,
+        TpuQuantScaleOpPattern,
+        TpuQuantDefaultPattern<tpu::SigmoidOp>,
+        TpuQuantDefaultPattern<tpu::SliceOp>,
+        TpuQuantDefaultPattern<tpu::DivOp>,
+        TpuQuantDefaultPattern<tpu::PowerOp>,
+        TpuQuantDefaultPattern<tpu::SqrtOp>,
+        TpuQuantDefaultPattern<tpu::PermuteOp>
+    >(context, weightTensorFile.get(), weightFileVar);
 
     applyPatternsGreedily(fn, patterns_w);
 
