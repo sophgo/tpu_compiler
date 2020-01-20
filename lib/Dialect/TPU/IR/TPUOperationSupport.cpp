@@ -340,20 +340,20 @@ uint64_t getPreviousOpAddress(Operation *op, uint index = 0) {
     return getPreviousOpAddress(cast_op);
   }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::PowerOp>(formerOp)) {
-    return cast_op.threshold_y().getValue().convertToFloat();
+    return cast_op.offset().getValue().getLimitedValue();
   }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::DivOp>(formerOp)) {
-    return cast_op.threshold_y().getValue().convertToFloat();
+    return cast_op.offset().getValue().getLimitedValue();
   }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::SqrtOp>(formerOp)) {
-    return cast_op.threshold_y().getValue().convertToFloat();
+    return cast_op.offset().getValue().getLimitedValue();
   }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::ConcatOp>(formerOp)) {
-    return cast_op.threshold_y().getValue().convertToFloat();
+    return cast_op.offset().getValue().getLimitedValue();
   }
-  if (auto cast_op = llvm::dyn_cast_or_null<tpu::DetectionOutputOp>(formerOp)) {
-    return cast_op.threshold_y().getValue().convertToFloat();
-  }
+/*  if (auto cast_op = llvm::dyn_cast_or_null<tpu::DetectionOutputOp>(formerOp)) {
+    return cast_op.offset().getValue().getLimitedValue();
+  }*/
   assert(0);
   return 0xFFFFFFFFFFFFFFFF;
 }

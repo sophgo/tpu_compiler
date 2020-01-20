@@ -236,6 +236,7 @@ def TPU_DetectionOutputOp: TPU_Op<"detectionoutput", [NoSideEffect]> {
     OptionalAttr<F32Attr>:$confidence_threshold,
     OptionalAttr<F32Attr>:$threshold_y,
     OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<TPU_WeightAttr, "NONE">:$storage,
     DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant,
     OptionalAttr<StrAttr>:$name
   );
@@ -254,6 +255,9 @@ def TPU_DivOp: TPU_Op<"div", [NoSideEffect]> {
     ins AnyTensor:$input,
     DefaultValuedAttr<F32Attr, "1.0">:$numerator,
     OptionalAttr<StrAttr>:$name,
+    Variadic<AnyTensor>: $table,
+    OptionalAttr<BoolAttr>: $has_table,
+    OptionalAttr<NonNegativeI64Attr>:$offset,
     OptionalAttr<NonNegativeI32Attr>:$layer_id,
     OptionalAttr<F32Attr>:$threshold_y,
     DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
@@ -617,6 +621,8 @@ def TPU_SqrtOp: TPU_Op<"sqrt", [NoSideEffect]> {
     ins AnyTensor:$input,
     OptionalAttr<StrAttr>:$name,
     OptionalAttr<F32Attr>:$threshold_y,
+    Variadic<AnyTensor>: $table,
+    OptionalAttr<BoolAttr>: $has_table,
     OptionalAttr<NonNegativeI64Attr>:$offset,     
     OptionalAttr<NonNegativeI32Attr>:$layer_id,
     DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
