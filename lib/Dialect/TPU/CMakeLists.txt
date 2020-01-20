@@ -24,6 +24,7 @@ add_llvm_library(MLIRTPU
   Quantization/QuantizeInt8.cpp
   Quantization/QuantizeBf16.cpp
   Quantization/GenTanHTable.cpp
+  Quantization/GenSigmoidTable.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${MLIR_MAIN_INCLUDE_DIR}/mlir/Dialect/TPU

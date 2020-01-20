@@ -827,17 +827,21 @@ struct TpuQuantScaleOpPattern : public RewritePattern {
                           std::multiplies<>());
 
       assert(scale_size == (int64_t)weights[0]->size());
-      int64_t n = scale_shape[0];
-
+      int64_t oc;
+      if(scale_shape.size() == 4){
+        oc = scale_shape[1];
+      } else if (scale_shape.size() == 1){
+        oc = scale_shape[0];
+      }
       // TODO: use float for now, need to change to int8
       auto new_scale = std::make_unique<std::vector<float>>(scale_size);
       std::unique_ptr<std::vector<float>> new_bias = nullptr;
       if (bias) {
-        new_bias = std::make_unique<std::vector<float>>(n);
+        new_bias = std::make_unique<std::vector<float>>(oc);
         auto biasType = scaleOp.getOperand(2)->getType().cast<TensorType>();
         bias_shape = biasType.getShape();
       }
-      int64_t oc = scale_shape[1];
+     
 
       assert(scale_size % oc == 0);
       int64_t isz = scale_size / oc;
