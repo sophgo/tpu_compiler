@@ -22,6 +22,7 @@ git clone ssh://git@10.34.33.3:8422/mlir-tpu/caffe.git
 #popd
 
 git clone ssh://git@10.34.33.3:8422/mlir-tpu/pybind11.git
+git clone ssh://git@10.34.33.3:8422/mlir-tpu/flatbuffers.git
 
 git clone ssh://git@10.34.33.3:8422/mlir-tpu/python_tools.git
 git clone ssh://git@10.34.33.3:8422/mlir-tpu/backend.git
@@ -32,8 +33,9 @@ git clone ssh://git@10.34.33.3:8422/mlir-tpu/runtime.git
 git clone ssh://git@10.34.33.3:8422/mlir-tpu/bmbuilder.git
 
 mv cnpy mlir/third_party/
-mv pybind11 mlir/third_party/
 mv caffe mlir/third_party/
+mv pybind11 mlir/third_party/
+mv flatbuffers mlir/third_party/
 
 mv python_tools mlir/externals/
 mv backend mlir/externals/
