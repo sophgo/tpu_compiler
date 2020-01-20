@@ -2128,7 +2128,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
         }
       }
     }
-scal    valueMapping[result] = std::move(resultT);
+    valueMapping[result] = std::move(resultT);
     return success();
   }
   if (auto op = dyn_cast<tpu::PowerOp>(opInst)) {
