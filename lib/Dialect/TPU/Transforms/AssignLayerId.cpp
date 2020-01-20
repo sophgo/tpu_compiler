@@ -57,6 +57,7 @@ public:
       processed += addLayerIdAttr<tpu::CropOp>(builder, layer_id, op);
       processed += addLayerIdAttr<tpu::DetectionOutputOp>(builder, layer_id, op);
       processed += addLayerIdAttr<tpu::DivOp>(builder, layer_id, op);
+      processed += addLayerIdAttr<tpu::DummyDataOp>(builder, layer_id, op);
       processed += addLayerIdAttr<tpu::EltwiseOp>(builder, layer_id, op);
       processed += addLayerIdAttr<tpu::FullyConnectedOp>(builder, layer_id, op);
       processed += addLayerIdAttr<tpu::InputOp>(builder, layer_id, op);
