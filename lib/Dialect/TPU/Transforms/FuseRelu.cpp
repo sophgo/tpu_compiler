@@ -64,12 +64,26 @@ struct TpuFuseReluPattern : public RewritePattern {
       // remove the relu Op
       rewriter.replaceOp(op, {op->getOperand(0)});
       return matchSuccess();
-    }else if (matchPattern(formerOp, m_Op<tpu::FullyConnectedOp>())) { //hongjun add for merge relu to fc
+    } else if (matchPattern(formerOp, m_Op<tpu::FullyConnectedOp>())) {
       auto fcOp = cast<tpu::FullyConnectedOp>(formerOp);
       assert(fcOp.fused_activation_function() == "NONE");
       // set fused_activation_function for fc Op
       fcOp.setAttr("fused_activation_function", rewriter.getStringAttr("RELU"));
       fcOp.setAttr("name", rewriter.getStringAttr(reluOp.name().getValue()));
+      // remove the relu Op
+      rewriter.replaceOp(op, {op->getOperand(0)});
+      return matchSuccess();
+    } else if (matchPattern(formerOp, m_Op<tpu::ConcatOp>())) {
+      // Do nothing
+      return matchSuccess();
+    } else if (matchPattern(formerOp, m_Op<tpu::ScaleOp>())) {
+      // scale is implemented by depthwise convolution in backend
+      // Hence, we can fuse relu into scale
+      auto scaleOp = cast<tpu::ScaleOp>(formerOp);
+      assert(scaleOp.fused_activation_function() == "NONE");
+      // set fused_activation_function for scale Op
+      scaleOp.setAttr("fused_activation_function", rewriter.getStringAttr("RELU"));
+      scaleOp.setAttr("name", rewriter.getStringAttr(reluOp.name().getValue()));
       // remove the relu Op
       rewriter.replaceOp(op, {op->getOperand(0)});
       return matchSuccess();
