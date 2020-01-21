@@ -339,31 +339,7 @@ uint64_t getPreviousOpAddress(Operation *op, uint index = 0) {
     return cast_op.offset().getValue().getLimitedValue();
   }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::SliceOp>(formerOp)) {
-    /// If previous op is slice, get previous again and calculate offset by output shape
-    uint64_t offset = getPreviousOpAddress(cast_op);
-    auto operand = op->getOperand(index);
-
-    size_t size = 0;
-    if (cast_op.quant() == "INT8" || cast_op.quant() == "INT8_PER_CHANNEL"
-        || cast_op.quant() == "INT8_MULTIPLIER") {
-      size = sizeof(int8_t);
-    } else if (cast_op.quant() == "BF16") {
-      size = sizeof(uint16_t);
-    } else {
-      assert(0);
-    }
-
-    for (auto result : cast_op.getResults()) {
-      if (result == operand) {
-        return offset;
-      }
-
-      std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
-      offset += size * std::accumulate(std::begin(shape), std::end(shape),
-                                       1, std::multiplies<>());
-    }
-
-    assert(0);
+    return cast_op.offset().getValue().getLimitedValue();
   }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::TanHOp>(formerOp)) {
     return cast_op.offset().getValue().getLimitedValue();
