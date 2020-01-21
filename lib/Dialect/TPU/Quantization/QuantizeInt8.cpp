@@ -108,6 +108,32 @@ typedef enum {
   INT8_MULTIPLER   = 03
 } QUANT_INT8_TYPE_e;
 
+struct TpuQuantConcatOpPattern : public RewritePattern {
+  TpuQuantConcatOpPattern(MLIRContext *context, TensorFile *weightTensorFile,
+      Value* weightFileVar)
+      : RewritePattern("tpu.concat", 1, context),
+        weightTensorFile_(weightTensorFile),
+        weightFileVar_(weightFileVar) {}
+
+  PatternMatchResult matchAndRewrite(Operation *op,
+                                     PatternRewriter &rewriter) const override {
+    auto concatOp = cast<tpu::ConcatOp>(op);
+    std::string op_name = concatOp.getAttrOfType<StringAttr>("name").getValue().str();
+    //auto loc = op->getLoc();
+    llvm::errs() << "TpuQuantConcatOpPattern RewritePattern\n";
+    if (concatOp.quant() != "NONE") {
+      llvm::errs() << concatOp.name() << " quantized already\n";
+      return matchFailure();
+    }
+    concatOp.setAttr("quant", rewriter.getStringAttr("INT8"));
+
+    return matchSuccess();
+  }
+
+  TensorFile *weightTensorFile_;
+  Value* weightFileVar_;
+};
+
 struct TpuQuantConv2DOpPattern : public RewritePattern {
   TpuQuantConv2DOpPattern(MLIRContext *context, TensorFile *weightTensorFile,
       Value* weightFileVar)
