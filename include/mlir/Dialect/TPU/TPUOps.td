@@ -576,15 +576,16 @@ def TPU_SliceOp: TPU_Op<"slice", [NoSideEffect]> {
 
   let arguments = (
     ins AnyTensor:$input,
-    OptionalAttr<I32Attr>:$axis,
     OptionalAttr<StrAttr>:$name,
+    OptionalAttr<I32Attr>:$axis,
+    OptionalAttr<I32Attr>:$input_offset,
     OptionalAttr<NonNegativeI64Attr>:$offset,
     OptionalAttr<F32Attr>:$threshold_y,
     OptionalAttr<NonNegativeI32Attr>:$layer_id,
     DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
   );
 
-  let results = (outs Variadic<AnyTensor>:$output);
+  let results = (outs AnyTensor:$output);
 }
 
 def TPU_SoftmaxOp: TPU_Op<"softmax", [NoSideEffect, SameOperandsAndResultType]> {
