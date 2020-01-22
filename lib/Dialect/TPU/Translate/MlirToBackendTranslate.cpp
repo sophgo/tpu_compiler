@@ -136,13 +136,14 @@ static LogicalResult runOperation(Operation &opInst) {
 
   if (auto op = dyn_cast<tpu::ConcatOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "concat ConcatOp" << "\n";);
-    auto num = op.getOperation()->getNumOperands();
+    int num = op.getOperation()->getNumOperands();
     gaddr_t input_gaddrs[num];
-    auto axis = op.dimension();
-    int output_dim[4];
+    int axis = *op.dimension().getRawData();
+    #define SHAPE_DIM 4
+    int output_dim[SHAPE_DIM];
     LLVM_DEBUG(llvm::errs() << "concat num :" << num << "\n";);
     LLVM_DEBUG(llvm::errs() << "concat axis :" << axis << "\n";);
-    int32_t input_dims[num * 4];
+    int32_t input_dims[num * SHAPE_DIM];
     int output_dim_size;
     std::vector<int64_t> shape = op.res()->getType().cast<TensorType>().getShape();
     output_dim[0] = shape[0];
@@ -159,7 +160,7 @@ static LogicalResult runOperation(Operation &opInst) {
       c = shape[1];
       h = shape[2];
       w = shape[3];
-      input_dims[i] = shape[1];//shape[axis];
+      input_dims[i] = shape[axis];
       LLVM_DEBUG(llvm::errs() << "shape n:" << n << " c:" << c << " h:"<< h << " w:"<< w <<"\n";);
     }
     gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
@@ -215,7 +216,7 @@ static LogicalResult runOperation(Operation &opInst) {
            output_gaddr, // gaddr_t output_gaddr,
            input_dims, // int input_dims[],
            num, //int input_num,
-           1, // int concat_axis,
+           axis, // int concat_axis,
            output_dim_size, // int output_dim_size,
            output_dim, // int *output_dim,
            num, // const int need_quantize_num,
@@ -236,7 +237,7 @@ static LogicalResult runOperation(Operation &opInst) {
           output_gaddr, // gaddr_t ga_output,
           input_dims, // int input_dims[],
           num, // int input_num
-          1, // concat_axis
+          axis, // concat_axis
           output_dim_size, //int output_dim_size
           output_dim, //int *output_dim
           0, //int need_quantize_num
