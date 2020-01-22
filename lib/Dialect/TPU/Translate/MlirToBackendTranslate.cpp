@@ -40,7 +40,7 @@
 #include <fstream>
 
 #define DEBUG_TYPE "mlir-to-cmdbuf"
-
+#define ENABLE_DBG (1)
 using namespace mlir;
 
 #include "backend/backend_tg_api.h"
@@ -62,15 +62,13 @@ static int8_t getRshiftFromOperandTensor(Operation &op, int opdIndex) {
   auto tensor_name = weightOp.name().getValue();
   auto type = weightOp.getResult()->getType().cast<TensorType>();
   auto weight = weightTensorFile->readTensor<float>(tensor_name, type);
-
   return (int8_t)weight->at(0);
 }
 
 static LogicalResult runOperation(Operation &opInst) {
-  LLVM_DEBUG(llvm::errs() << "  op " << opInst.getName() << "\n";);
-
+   LLVM_DEBUG(llvm::errs() << "  op " << opInst.getName() << "\n";);
   if (auto op = dyn_cast<tpu::TL_LA_Conv2DOp>(opInst)) {
-    LLVM_DEBUG(llvm::errs() << "TL_LA_Conv2DOp" << "\n";);
+     LLVM_DEBUG(llvm::errs() << "TL_LA_Conv2DOp" << "\n";);
 
     bool with_bias, do_relu;
     int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, ph, pw, dh, dw;
@@ -83,7 +81,7 @@ static LogicalResult runOperation(Operation &opInst) {
     gaddr_t ga_perchannel = getWeightOpAddress(op.getOperand(2)->getDefiningOp());
     int layer_id = op.layer_id().getValue().getLimitedValue();
 
-    llvm::errs() << "TL_LA_Conv2DOp, layer_id = " << layer_id << "\n";
+    LLVM_DEBUG(llvm::errs() << "TL_LA_Conv2DOp, layer_id = " << layer_id << "\n";);
     cvi_backend_tl_conv_LA(*backend_ctx, layer_id,
         ga_input, ga_output, ga_filter, ga_perchannel,
         n, ic, ih, iw, g, oc, oh, ow, kh, kw,
@@ -93,7 +91,7 @@ static LogicalResult runOperation(Operation &opInst) {
     return success();
   }
   if (auto op = dyn_cast<tpu::TL_LW_Conv2DOp>(opInst)) {
-    LLVM_DEBUG(llvm::errs() << "TL_LW_Conv2DOp" << "\n";);
+     LLVM_DEBUG(llvm::errs() << "TL_LW_Conv2DOp" << "\n";);
 
     bool with_bias, do_relu;
     int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, ph, pw, dh, dw;
@@ -109,7 +107,7 @@ static LogicalResult runOperation(Operation &opInst) {
     laddr_t la_working = op.la_working().getLimitedValue();
     int layer_id = op.layer_id().getValue().getLimitedValue();
 
-    llvm::errs() << "TL_LW_Conv2DOp, layer_id = " << layer_id << "\n";
+    LLVM_DEBUG(llvm::errs() << "TL_LW_Conv2DOp, layer_id = " << layer_id << "\n";);
     if (op.tl_load_flag()) {
       cvi_backend_tl_load(*backend_ctx, layer_id,
           la_input, ga_input, n, ic, ih, iw);
@@ -127,8 +125,342 @@ static LogicalResult runOperation(Operation &opInst) {
     return success();
   }
 
+  if (auto op = dyn_cast<tpu::PermuteOp>(opInst)) {
+    LLVM_DEBUG(LLVM_DEBUG(llvm::errs() << "PermuteOp" << "\n";););
+
+    int i_nchw[] = {1, 1, 1, 1};
+    int o_nchw[] = {1, 1, 1, 1};
+
+    auto input_type = op.input()->getType().cast<TensorType>();
+    std::vector<int64_t> i_s(input_type.getShape());
+    auto output_type = op.output()->getType().cast<TensorType>();
+    std::vector<int64_t> o_s(output_type.getShape());
+
+    for (uint64_t i = 0; i < i_s.size(); i++) {
+      i_nchw[i] = i_s[i];
+    }
+
+    for (uint64_t i = 0; i < o_s.size(); i++) {
+      o_nchw[i] = o_s[i];
+    }
+
+    // FIXME: check orders.size() != 4
+    std::vector<int> orders;
+    
+    orders.push_back(op.order0().getLimitedValue());
+      
+    orders.push_back(op.order1().getLimitedValue());
+
+    orders.push_back(op.order2().getLimitedValue());
+
+    orders.push_back(op.order3().getLimitedValue());
+ 
+    gaddr_t input_gaddr = getPreviousOpAddress(op);
+    gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
+
+    int layer_id = op.layer_id().getValue().getLimitedValue();
+
+    int num_axes_ = i_s.size();
+    
+    // Check if we need to reorder the data or keep it.
+    bool need_permute_ = false;
+    for (int i = 0; i < num_axes_; ++i) {
+      if (orders[i] != i) {
+        // As long as there is one order which is different from the natural order
+        // of the data, we need to permute. Otherwise, we share the data and diff.
+        need_permute_ = true;
+        break;
+      }
+    }
+
+    if (op.quant() == "INT8") {
+      permute_fixed_forward_kernel(
+          *backend_ctx,
+          0, //stream_id,
+          0, //inst_id,
+          layer_id, //layer_id,
+          nullptr, //const u32 *depends,
+          0, //depends_len,
+          input_gaddr,
+          output_gaddr, 
+          i_nchw[0], i_nchw[1], i_nchw[2], i_nchw[3],
+          o_nchw[0], o_nchw[1], o_nchw[2], o_nchw[3],
+          orders[0], orders[1], orders[2], orders[3],
+          need_permute_);
+    }
+    else {
+      // if (op.quant() == "BF16") {
+      assert(0 && "plz implement it");
+    }
+
+    return success();
+  }
+
+  if (auto op = dyn_cast<tpu::ConcatOp>(opInst)) {
+     LLVM_DEBUG(llvm::errs() << "concat ConcatOp" << "\n" ;);
+    auto num = op.getOperation()->getNumOperands();
+    gaddr_t input_gaddrs[num];
+    auto axis = op.dimension();
+    int output_dim[4];
+     LLVM_DEBUG(llvm::errs() << "concat num :" << num << "\n" ;);
+     LLVM_DEBUG(llvm::errs() << "concat axis :" << axis << "\n" ;);
+    int32_t input_dims[num * 4];
+    int output_dim_size;
+    std::vector<int64_t> shape = op.res()->getType().cast<TensorType>().getShape();
+    output_dim[0] = shape[0];
+    output_dim[1] = shape[1];
+    output_dim[2] = shape[2];
+    output_dim[3] = shape[3];
+    output_dim_size = shape.size();
+    LLVM_DEBUG(llvm::errs() << "output_dim_size is  :" << output_dim_size << "\n" ;);
+    for ( int i = 0; i < num; i++) {
+      int32_t n, c, h, w;
+      input_gaddrs[i] = getPreviousOpAddress(op, i);
+      std::vector<int64_t> shape =  op.getOperand(i)->getType().cast<TensorType>().getShape();
+      n = shape[0];
+      c = shape[1];
+      h = shape[2];
+      w = shape[3];
+      input_dims[i] = shape[1];//shape[axis];
+       LLVM_DEBUG(llvm::errs() << "shape n:" << n << " c:" << c << " h:"<< h << " w:"<< w <<"\n" ;);
+    }
+    gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
+
+    int layer_id = op.layer_id().getValue().getLimitedValue();
+     LLVM_DEBUG(llvm::errs() << "Concat id=" << layer_id << "\n";);
+     LLVM_DEBUG(llvm::errs() << "Concat quant=" << op.quant() << "\n";);
+
+    if (op.quant() == "INT8") {
+
+      std::vector<float> threshold_x(num);
+      float threshold_y;
+      // determine multiplier and rshift according each threshold_x
+      // scale[i] = threshold_x[i] / threshold_y
+      // each scale will be implemented by hardware as
+      // scale[i] = multiplier / (1 << rshift)
+      // find a rshift, that put max(multiplier) into range (64, 127)
+      int rshift;
+      int8_t multiplier[num];
+
+      for (int index = 0; index < num; ++index) {
+        // get threshold_x
+        threshold_x[index] = getPreviousOpThreshold(op, index);
+      }
+      // get threshold_y
+      threshold_y = op.threshold_y().getValue().convertToFloat();
+
+      // determine rshift for all inputs, and multiplier for each input
+      // use max threshold_x to find rshift first
+      float max_threshold_x = *std::max_element(
+          std::begin(threshold_x), std::end(threshold_x));
+      rshift = findRShiftAndMultiplierFromQScale(max_threshold_x / threshold_y);
+      for (int index = 0; index < num; ++index) {
+        float qscale = threshold_x[index] / threshold_y;
+        multiplier[index] = (int8_t)findMultiplierFromQScaleAndRShift(qscale, rshift);
+      }
+
+      int threshold_x_quantized[num];
+      int rshift_in[num];
+      for (int i = 0; i < num; ++i) {
+        threshold_x_quantized[i] = (int)multiplier[i];
+        rshift_in[i] = rshift;
+      }
+
+      bmnet_concat_fixed_forward_bmkernel(
+           *backend_ctx,
+           0, // u32 stream_id,
+           0, //u32 inst_id,
+           layer_id, // u32 layer_id,
+           nullptr, // const u32 *depends,
+           0,// u32 depends_len,
+           input_gaddrs, // gaddr_t input_gaddrs[],
+           output_gaddr, // gaddr_t output_gaddr,
+           input_dims, // int input_dims[],
+           num, //int input_num,
+           1, // int concat_axis,
+           output_dim_size, // int output_dim_size,
+           output_dim, // int *output_dim,
+           num, // const int need_quantize_num,
+           rshift_in, // const int *right_shift_width,
+           threshold_x_quantized // const int *threshold_x_quantized
+      );
+
+    } else if (op.quant() == "BF16") {
+
+      bf16_concat_fixed_forward_bmkernel(
+          *backend_ctx,
+          0, // stream_id,
+          0, // inst_id,
+          layer_id, // layer_id,
+          nullptr, // depends
+          0, // depends_len
+          input_gaddrs, // gaddr_t ga_input[],
+          output_gaddr, // gaddr_t ga_output,
+          input_dims, // int input_dims[],
+          num, // int input_num
+          1, // concat_axis
+          output_dim_size, //int output_dim_size
+          output_dim, //int *output_dim
+          0, //int need_quantize_num
+          0  // threshold_x_quantized,
+      );
+    } else {
+      LLVM_DEBUG(llvm::errs() << "not support yet \n";);
+      assert(0);
+    }
+    return success();
+  }
+  
+
+  if (auto op = dyn_cast<tpu::ScaleOp>(opInst)) {
+     LLVM_DEBUG(llvm::errs() << "ScaleOp(" << op.name() << ")\n" ;);
+
+#define SCALE_INPUT_NR (2)
+    int n, c, h, w;
+    auto input_1_type = op.x()->getType().cast<TensorType>();
+    std::vector<int64_t> i1_s(input_1_type.getShape());
+    auto input_2_type = op.scale()->getType().cast<TensorType>();
+    std::vector<int64_t> i2_s(input_2_type.getShape());
+    auto output_type = op.y()->getType().cast<TensorType>();
+    auto second_is_blob = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
+        op.getOperand(1)->getDefiningOp());
+    std::vector<int64_t> o_s(output_type.getShape());
+     LLVM_DEBUG(llvm::errs() << "input[1] shape_size is " << i2_s.size()
+        << "\n" ;);
+
+    n = o_s[0];
+    c = o_s[1];
+    h = o_s[2];
+    w = o_s[3];
+
+    gaddr_t ga_inputs = getPreviousOpAddress(op, 0);
+    gaddr_t scale_gaddr;
+    gaddr_t bias_gaddr = INVALID_GLOBAL_ADDR;
+    gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
+    bool do_bias = op.with_bias();
+    int layer_id = op.layer_id().getValue().getLimitedValue();
+    int scale_dim;
+    // TODO: support axis > 0
+    int inner_dim = h * w;
+    // TODO: support variable input[1] shape, currently ONLY verify <n,c,h,w> x <n,c>
+    if (second_is_blob) {
+      // scale from blob
+      scale_gaddr = getWeightOpAddress(op.getOperand(1)->getDefiningOp());
+      scale_dim = n * c;
+      if (opInst.getNumOperands() == 4) {
+        bias_gaddr = getWeightOpAddress(op.getOperand(2)->getDefiningOp());
+      }
+    }
+    else {
+      // scale from input[1]
+      scale_gaddr = getPreviousOpAddress(op, 1);
+      scale_dim = n * c;
+    }
+
+    // TODO: support div 
+    // TODO: support const scale
+    bool is_scale_const = false;
+    int const_scale = 0;
+
+#define RELU (0)
+    bool do_relu = false;
+    // FIXME: support prelu
+    int activation = RELU;
+    float activation_arg[1] = {0.0f};
+    if (op.fused_activation_function() == "NONE") {
+    } else if (op.fused_activation_function() == "RELU") {
+      do_relu = true;
+    } else {
+      assert(0);
+    }
+
+    uint32_t rshift = 0;
+    if (op.quant() == "INT8") {
+
+      // multiplier is taking avg_const into account
+      uint32_t multiplier = 0;
+      int is_i8_multiplier[1];
+      float threshold_y;
+      threshold_y = op.threshold_y().getValue().convertToFloat();
+
+      if (second_is_blob) {
+        float threshold_x;
+        threshold_x = getPreviousOpThreshold(op);
+        // determine multiplier and rshift according to threshold_x
+        // scale = threshold_x / threshold_y
+        // scale will be implemented by hardware as
+        // scale = multiplier / (1 << rshift)
+        // find a rshift, that put max(multiplier) into range (64, 127)
+        float scale = threshold_x / threshold_y;
+        rshift = findRShiftAndMultiplierFromQScale(scale, &multiplier, false, 255);
+        is_i8_multiplier[0] = 1;
+        LLVM_DEBUG(llvm::errs() << "rshift: " << rshift << "," << "multiplier: " << multiplier << "\n";);
+      }
+      else {
+        uint32_t multiplier_prod;
+        std::vector<float> threshold_x(SCALE_INPUT_NR);
+        for (int index = 0; index < SCALE_INPUT_NR; ++index) {
+          // get threshold_x
+          threshold_x[index] = getPreviousOpThreshold(op, index);
+        }
+
+        float threshold_prod = std::accumulate(
+            threshold_x.begin(), threshold_x.end(), 1.0, std::multiplies<>());
+        float qscale = threshold_prod / threshold_y / 127.0;
+        rshift = findRShiftAndMultiplierFromQScale(qscale);
+        findRShiftAndMultiplierFromQScale(qscale, &multiplier_prod, true, 255);
+
+        is_i8_multiplier[0] = (int)multiplier_prod;
+      }
+
+      bmnet_scale_fixed_forward_bmkernel(
+          *backend_ctx, 0, 0, layer_id,
+          nullptr, 0, ga_inputs,
+          scale_gaddr, bias_gaddr, output_gaddr, n, c, h, w, scale_dim,
+          inner_dim, is_scale_const, const_scale, rshift,
+          do_relu,
+          activation,
+          activation_arg,
+          is_i8_multiplier,
+          do_bias,
+          second_is_blob
+          );
+    } else if (op.quant() == "INT8_MULTIPLIER") {
+      gaddr_t bias_gaddr = INVALID_GLOBAL_ADDR;
+      if (second_is_blob) {
+        // 0 is input, 1 is weight, (2) is bais, 3 is rshift 4 is multipiler
+        int i32_multipiler_idx = 2;
+        
+        bias_gaddr = getWeightOpAddress(op.getOperand(i32_multipiler_idx)->getDefiningOp());
+      }
+      else {
+        assert(0 && "plz support it");
+      }
+
+      bmnet_scale_fixed_forward_bmkernel(
+          *backend_ctx, 0, 0, layer_id,
+          nullptr, 0, ga_inputs,
+          scale_gaddr, bias_gaddr, output_gaddr, n, c, h, w, scale_dim,
+          inner_dim, is_scale_const, const_scale, rshift,
+          do_relu,
+          activation,
+          activation_arg,
+          nullptr,
+          do_bias,
+          second_is_blob
+          );
+
+    } else if (op.quant() == "BF16") {
+      assert(0 && "plz support it");
+    } else {
+      assert(0);
+    }
+
+    return success();
+  }
+
   if (auto op = dyn_cast<tpu::Conv2DOp>(opInst)) {
-    LLVM_DEBUG(llvm::errs() << "Conv2DOp" << "\n";);
+     LLVM_DEBUG(llvm::errs() << "Conv2DOp" << "\n";);
 
     bool with_bias, do_relu;
     int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, ph, pw, dh, dw;
@@ -140,7 +472,6 @@ static LogicalResult runOperation(Operation &opInst) {
     gaddr_t filter_gaddr = getWeightOpAddress(op.getOperand(1)->getDefiningOp());
 
     int layer_id = op.layer_id().getValue().getLimitedValue();
-
     if (op.quant() == "INT8") {
 
     gaddr_t bias_gaddr = INVALID_GLOBAL_ADDR;
@@ -321,7 +652,7 @@ static LogicalResult runOperation(Operation &opInst) {
     return success();
   }
   if (auto op = dyn_cast<tpu::Pool2DOp>(opInst)) {
-    LLVM_DEBUG(llvm::errs() << "Pool2DOp" << "\n";);
+     LLVM_DEBUG(llvm::errs() << "Pool2DOp" << "\n";);
 
     bool is_average_pool, do_relu;
     int n, c, ih, iw, oh, ow, kh, kw, sh, sw, pt, pb, pl, pr;
@@ -417,7 +748,7 @@ static LogicalResult runOperation(Operation &opInst) {
   }
 
   if (auto op = dyn_cast<tpu::FullyConnectedOp>(opInst)) {
-    LLVM_DEBUG(llvm::errs() << "FullyConnectedOp" << "\n";);
+     LLVM_DEBUG(llvm::errs() << "FullyConnectedOp" << "\n";);
 
     bool with_transpose, with_bias, do_relu;
     int m, k, n;
@@ -502,12 +833,12 @@ static LogicalResult runOperation(Operation &opInst) {
     return success();
   }
   if (auto op = dyn_cast<tpu::ReluOp>(opInst)) {
-    LLVM_DEBUG(llvm::errs() << "ReluOp" << "\n";);
+     LLVM_DEBUG(llvm::errs() << "ReluOp" << "\n";);
     assert(0 && "consider fuse relu first");
 
     int n, c, h, w;
     float negative_slope = op.negative_slope().convertToFloat();
-    LLVM_DEBUG(llvm::errs() << "  negative_slope " << negative_slope << "\n";);
+     LLVM_DEBUG(llvm::errs() << "  negative_slope " << negative_slope << "\n";);
     auto input_type = op.x()->getType().cast<TensorType>();
     std::vector<int64_t> i_s(input_type.getShape());
     auto output_type = op.y()->getType().cast<TensorType>();
@@ -546,7 +877,7 @@ static LogicalResult runOperation(Operation &opInst) {
     return success();
   }
   if (auto op = dyn_cast<tpu::PReluOp>(opInst)) {
-    LLVM_DEBUG(llvm::errs() << "PReluOp"
+     LLVM_DEBUG(llvm::errs() << "PReluOp"
                             << "\n";);
 
     int n, c, h, w;
@@ -580,7 +911,7 @@ static LogicalResult runOperation(Operation &opInst) {
     return success();
   }
   if (auto op = dyn_cast<tpu::EltwiseOp>(opInst)) {
-    LLVM_DEBUG(llvm::errs() << "EltwiseOp" << "\n";);
+     LLVM_DEBUG(llvm::errs() << "EltwiseOp" << "\n";);
 
 #define MAX_ELTWISE_INPUT (2)
     int n, c, h, w;
@@ -626,7 +957,13 @@ static LogicalResult runOperation(Operation &opInst) {
       uint32_t multiplier_prod;
       for (int index = 0; index < MAX_ELTWISE_INPUT; ++index) {
         // get threshold_x
-        threshold_x[index] = getPreviousOpThreshold(op, index);
+        if(index==(MAX_ELTWISE_INPUT-1)&&op.simulate_eltwise()){
+          // get threshold_x
+          //workaround for simulated value.just copy same input threshold
+          threshold_x[index] = threshold_x[index-1];
+        }else{
+          threshold_x[index] = getPreviousOpThreshold(op, index);
+        }
       }
       // get threshold_y
       threshold_y = op.threshold_y().getValue().convertToFloat();
@@ -717,8 +1054,8 @@ static LogicalResult runOperation(Operation &opInst) {
 
     return success();
   }
-/*  if (auto op = dyn_cast<tpu::SqrtOp>(opInst)) {
-    LLVM_DEBUG(llvm::errs() << "SqrtOp(" << op.name() << ")\n";);
+  if (auto op = dyn_cast<tpu::SqrtOp>(opInst)) {
+     LLVM_DEBUG(llvm::errs() << "SqrtOp(" << op.name() << ")\n";);
 
     int n, c, h, w;
     auto input_type = op.input()->getType().cast<TensorType>();
@@ -737,7 +1074,7 @@ static LogicalResult runOperation(Operation &opInst) {
 
     int layer_id = op.layer_id().getValue().getLimitedValue();
 
-    if (op.quant() == "INT8") {
+    if (op.quant() == "INT8"|| op.quant() == "INT8_PER_CHANNEL"||op.quant() == "INT8_MULTIPLIER"){
       sqrt_fixed_forward_bmkernel(
           *backend_ctx,
           0, //stream_id,
@@ -754,19 +1091,128 @@ static LogicalResult runOperation(Operation &opInst) {
           w);
     }
     else {
-      llvm::errs() << "not support yet \n";
+      LLVM_DEBUG(llvm::errs() << "not support yet \n";);
       assert(0);
     }
 
     return success();
-  }  */
+  } 
+  
+  if (auto op = dyn_cast<tpu::DivOp>(opInst)) {
+     LLVM_DEBUG(llvm::errs() << "DivOp(" << op.name() << ")\n";);
+
+    int n, c, h, w;
+    auto input_type = op.input()->getType().cast<TensorType>();
+    std::vector<int64_t> i_s(input_type.getShape());
+    auto output_type = op.output()->getType().cast<TensorType>();
+    std::vector<int64_t> o_s(output_type.getShape());
+    assert((i_s == o_s) && "input shape not equal to output shape");
+    n = i_s[0];
+    c = i_s[1];
+    h = i_s[2];
+    w = i_s[3];
+
+    gaddr_t input_gaddr = getPreviousOpAddress(op);
+    gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
+    gaddr_t y0_table_gaddr = getWeightOpAddress(op.getOperand(1)->getDefiningOp());
+
+    int layer_id = op.layer_id().getValue().getLimitedValue();
+
+
+    if (op.quant() == "INT8"|| op.quant() == "INT8_PER_CHANNEL"||op.quant() == "INT8_MULTIPLIER"){
+      reciprocal_fixed_forward_bmkernel(
+          *backend_ctx,
+          0, //stream_id,
+          0, //inst_id,
+          layer_id, //layer_id,
+          nullptr, //const u32 *depends,
+          0, //depends_len,
+          input_gaddr,
+          output_gaddr,
+          y0_table_gaddr,
+          n,
+          c,
+          h,
+          w);
+    }
+    else {
+      LLVM_DEBUG(llvm::errs() << "not support yet \n";);
+      assert(0);
+    }
+
+    return success();
+
+  }
+
+/*  if (auto op = dyn_cast<tpu::DetectionOutputOp>(opInst)) {
+    return success();
+
+  }*/
+
+  if (auto op = dyn_cast<tpu::PowerOp>(opInst)) {
+    // TODO: fuse relu, power implement by depthwise, it could be fused
+     LLVM_DEBUG(llvm::errs() << "PowerOp(" << op.name() << ")\n";);
+
+    float power = op.power().convertToFloat();
+    auto input_type = op.x()->getType().cast<TensorType>();
+    std::vector<int64_t> i_s(input_type.getShape());
+    auto output_type = op.y()->getType().cast<TensorType>();
+    std::vector<int64_t> o_s(output_type.getShape());
+    assert((i_s == o_s) && "input shape not equal to output shape");
+    int nchw[4] = {1, 1, 1, 1};
+    for (uint64_t i = 0; i < i_s.size(); i++) {
+      nchw[i] = i_s[i];
+    }
+
+    gaddr_t input_gaddr = getPreviousOpAddress(op);
+    gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
+    gaddr_t scale_offset = getWeightOpAddress(op.getOperand(1)->getDefiningOp());
+    gaddr_t shift_offset = getWeightOpAddress(op.getOperand(2)->getDefiningOp());
+    int layer_id = op.layer_id().getValue().getLimitedValue();
+
+    float threshold_y,threshold_x,qscale,rshift;
+    uint32_t multiplier;
+    if (op.quant() != "NONE"){
+
+      threshold_y = op.threshold_y().getValue().convertToFloat();
+      threshold_x = getPreviousOpThreshold(op);
+
+      qscale = (threshold_x*threshold_x) /(127.0*threshold_y);  
+    }
+    
+    if (op.quant() == "INT8"|| op.quant() == "INT8_PER_CHANNEL") {
+      rshift = findRShiftAndMultiplierFromQScale(qscale);
+      multiplier = findMultiplierFromQScaleAndRShift(qscale, rshift);
+    }else if(op.quant() == "INT8_MULTIPLIER"){
+      rshift = (float)findRShiftAndMultiplierFromQScale(qscale, &multiplier, true,255);                                      
+    }
+    if (op.quant() == "INT8"|| op.quant() == "INT8_PER_CHANNEL") {
+
+      int right_shift_width = (int)rshift;
+      int threshold_x_quantized = (int)multiplier;
+      LLVM_DEBUG(llvm::errs() << "powerop rshift (" << op.name() << ") is "<< rshift << "\n";);
+
+llvm::errs() << llvm::format("input_gaddr 0x%lx,output_gaddr 0x%lx, scale_offset 0x%lx, shift_offset 0x%lx\n",input_gaddr, output_gaddr, scale_offset,shift_offset);
+      bmnet_power_fixed_forward_bmkernel(
+          *backend_ctx, 0, 0, layer_id,
+          nullptr, 0,
+          input_gaddr, output_gaddr, nchw[0], nchw[1], nchw[2], nchw[3],
+          power, scale_offset, shift_offset, right_shift_width, threshold_x_quantized, FMT_I8);
+    } else if(op.quant() == "INT8_MULTIPLIER"){
+      assert(0 && "not support per channel multiplier power backend api now");
+    } else if (op.quant() == "BF16") {
+      assert(0 && "not support now");
+    }
+    return success();
+  }
+
 
   if (auto op = dyn_cast<tpu::TanHOp>(opInst)) {
-    LLVM_DEBUG(llvm::errs() << "TanHOp" << "\n";);
+     LLVM_DEBUG(llvm::errs() << "TanHOp" << "\n";);
 
     int n, c, h, w;
     float scale = op.scale().convertToFloat();
-    LLVM_DEBUG(llvm::errs() << "  its scale " << scale << "\n";);
+     LLVM_DEBUG(llvm::errs() << "  its scale " << scale << "\n";);
     auto input_type = op.x()->getType().cast<TensorType>();
     std::vector<int64_t> i_s(input_type.getShape());
     auto output_type = op.y()->getType().cast<TensorType>();
@@ -819,7 +1265,7 @@ static LogicalResult runBlock(Block &bb) {
 }
 
 static LogicalResult runOneFunction(FuncOp func) {
-  LLVM_DEBUG(llvm::errs() << "func " << func.getName() << "\n";);
+   LLVM_DEBUG(llvm::errs() << "func " << func.getName() << "\n";);
 
   // Then, run blocks one by one.
   for (Block &bb : func.getBlocks()) {
@@ -838,7 +1284,7 @@ LogicalResult translateModule(ModuleOp module, llvm::raw_ostream &output) {
   backend_ctx = bmnet_create_backend_context(weight_data);
 
   for (FuncOp function : module.getOps<FuncOp>()) {
-    LLVM_DEBUG(llvm::errs() << "run " << function.getName() << "\n";);
+     LLVM_DEBUG(llvm::errs() << "run " << function.getName() << "\n";);
 
     if (!function.getName().equals("tpu_func")) {
       //continue;
