@@ -10,12 +10,12 @@ fi
 
 pushd $NET
 # clear previous output
-#rm -f *.mlir *.bin *.npz *.csv
+rm -f *.mlir *.bin *.npz *.csv
 
 # run tests
-# $DIR/regression_ssd300_0_caffe.sh
-# $DIR/regression_ssd300_1_fp32.sh
- $DIR/regression_ssd300_2_int8.sh
+$DIR/regression_ssd300_0_caffe.sh
+$DIR/regression_ssd300_1_fp32.sh
+$DIR/regression_ssd300_2_int8.sh
 # $DIR/regression_ssd300_3_int8_cmdbuf.sh
 # $DIR/regression_ssd300_4_bf16.sh
 # $DIR/regression_ssd300_5_bf16_cmdbuf.sh
