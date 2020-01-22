@@ -1196,7 +1196,7 @@ void CaffeImporter::convertConcatLayer(mlir::Block *block,
 
       // construct OP
       result_type = RankedTensorType::get({n, c, h, w}, elementType_);
-      tbl_size = n*c*c*w;
+      tbl_size = n*c*h*w;
     }else if(input_shape.size() == 2){
 
     for (uint32_t i = 0; i < input_vars.size(); i++) {

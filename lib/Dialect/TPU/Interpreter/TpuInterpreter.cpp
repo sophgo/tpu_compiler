@@ -1216,7 +1216,6 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     for (size_t index = 0; index < bottom_num; ++index) {
       input[index] = (float *)opdT[index]->data();
     }
-    //float *output = (float *)resultT->data();
 
     // for INT8, get threshold_x and make copy of input first
     std::vector<std::vector<float> >input_copy(bottom_num);
@@ -1275,18 +1274,16 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
       if(shape.size()==4){
 
-
         n = shape[0];
         c = shape[1];
         h = shape[2];
         w = shape[3];
 
-
         LLVM_DEBUG(llvm::errs() << "shape n:" << n << " c:" << c << " h:"<< h << " w:"<< w <<"\n";);
         LLVM_DEBUG(llvm::errs() << "bottom num:" << opdT.size() << "\n";);
         LLVM_DEBUG(llvm::errs() << "data size:" << opdT[i]->size() << "\n";);
 
-        auto *input_data = opdT[i]->data();
+        auto *input_data = input[i];
 
         if (concat_axis == 0) {
           tmp_resultT.get()->insert(tmp_resultT.get()->end(), opdT[i]->begin(), opdT[i]->end());
