@@ -4,6 +4,7 @@ set -e
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 source $DIR/../../envsetup.sh
 
+echo $0 is RUNNING
 # run caffe model
 run_caffe_classifier.py \
     --model_def $MODEL_PATH/caffe/deploy_inception-v4.prototxt \

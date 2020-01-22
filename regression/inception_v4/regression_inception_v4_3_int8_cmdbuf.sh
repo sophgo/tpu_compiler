@@ -3,6 +3,7 @@ set -e
 
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 source $DIR/../../envsetup.sh
+echo $0 IS RUNNING
 
 ################################
 # prepare int8 input
@@ -39,14 +40,14 @@ $RUNTIME_PATH/bin/test_bmnet \
     cmdbuf_int8_per_layer.bin \
     inception_v4_cmdbuf_out_all_int8_per_layer.bin \
     27293984 0 27293984 1
-bin_extract.py \
-    inception_v4_cmdbuf_out_all_int8_per_layer.bin \
-    inception_v4_cmdbuf_out_classifier_int8_per_layer.bin \
-    int8 0x000417b0 1000
-bin_compare.py \
-    inception_v4_cmdbuf_out_classifier_int8_per_layer.bin \
-    $REGRESSION_PATH/inception_v4/data/test_cat_out_inception_v4_classifier_int8_per_layer.bin \
-    int8 1 1 1 1000 5
+#bin_extract.py \
+#    inception_v4_cmdbuf_out_all_int8_per_layer.bin \
+#    inception_v4_cmdbuf_out_classifier_int8_per_layer.bin \
+#    int8 0x000417b0 1000
+#bin_compare.py \
+#    inception_v4_cmdbuf_out_classifier_int8_per_layer.bin \
+#    $REGRESSION_PATH/inception_v4/data/test_cat_out_inception_v4_classifier_int8_per_layer.bin \
+#    int8 1 1 1 1000 5
 
 # compare all tensors
 bin_to_npz.py \
@@ -89,14 +90,14 @@ $RUNTIME_PATH/bin/test_bmnet \
     cmdbuf_int8_multiplier.bin \
     inception_v4_cmdbuf_out_all_int8_multiplier.bin \
     27293984 0 27293984 1
-bin_extract.py \
-    inception_v4_cmdbuf_out_all_int8_multiplier.bin \
-    inception_v4_cmdbuf_out_classifier_int8_multiplier.bin \
-    int8 0x000417b0 1000
-bin_compare.py \
-    inception_v4_cmdbuf_out_classifier_int8_multiplier.bin \
-    $REGRESSION_PATH/inception_v4/data/test_cat_out_inception_v4_classifier_int8_multiplier.bin \
-    int8 1 1 1 1000 5
+#bin_extract.py \
+#    inception_v4_cmdbuf_out_all_int8_multiplier.bin \
+#    inception_v4_cmdbuf_out_classifier_int8_multiplier.bin \
+#    int8 0x000417b0 1000
+#bin_compare.py \
+#    inception_v4_cmdbuf_out_classifier_int8_multiplier.bin \
+#    $REGRESSION_PATH/inception_v4/data/test_cat_out_inception_v4_classifier_int8_multiplier.bin \
+#    int8 1 1 1 1000 5
 
 # compare all tensors
 bin_to_npz.py \
