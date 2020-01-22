@@ -4,14 +4,17 @@ set -e
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 source $DIR/../../envsetup.sh
 
-COMPARE_ALL=0
+COMPARE_ALL=1
+CHECK_INFERENCE_RESULT=0
+DO_CALIBRATION=0
 
+if [ $DO_CALIBRATION -eq 1 ]; then
 # calibration
-# python ../../../../mlir/externals/calibration_tool/run_calibration.py \
-#     ssd300 ssd300_opt2.mlir \
-#     $DATA_PATH/input.txt \
-#     --input_num=100
-
+python ../../../../mlir/externals/calibration_tool/run_calibration.py \
+    ssd300 ssd300_opt2.mlir \
+    $DATA_PATH/input.txt \
+    --input_num=20
+else
 # import calibration table
 mlir-opt \
     --import-calibration-table \
@@ -19,15 +22,28 @@ mlir-opt \
     ssd300_opt2.mlir \
     -o ssd300_cali.mlir
 
-################################
-# quantization 1: per-layer int8
-################################
+###############################
+#quantization 1: per-layer int8
+###############################
 mlir-opt \
     --quant-int8 \
     --print-tpu-op-info \
+    --gen-sqrt-table \
+    --gen-div-table \
     --tpu-op-info-filename ssd300_op_info_int8_per_layer.csv \
     ssd300_cali.mlir \
     -o ssd300_quant_int8_per_layer.mlir
+
+if [ $CHECK_INFERENCE_RESULT -eq 1 ]; then
+	run_mlir_detector_ssd.py \
+	    --model ssd300_quant_int8_per_layer.mlir \
+	    --net_input_dims 300,300 \
+	    --dump_blobs ssd300_blobs.npz \
+	    --dump_weights ssd300_weights.npz \
+	    --input_file $REGRESSION_PATH/ssd300/data/dog.jpg \
+	    --label_file $MODEL_PATH/caffe/ssd300/labelmap_coco.prototxt  \
+	    --draw_image ssd300_quant_int8_per_layer_result.jpg
+fi
 
 mlir-tpu-interpreter ssd300_quant_int8_per_layer.mlir \
     --tensor-in ssd300_in_fp32.npz \
@@ -43,20 +59,23 @@ npz_compare.py \
       ssd300_out_int8_per_layer.npz \
       ssd300_blobs.npz \
       --op_info ssd300_op_info_int8_per_layer.csv \
-      --dequant \
-      --tolerance 0.99,0.989,0.859 -vvv
+      --tolerance 0.98,0.97,0.80 -vvv
 
-# if [ $COMPARE_ALL ]; then
-#   # some tensors do not pass due to threshold bypass
-#   # need do dequantization in interpreter directly
-#   npz_compare.py \
-#       ssd300_tensor_all_int8_per_layer.npz \
-#       ssd300_blobs.npz \
-#       --op_info ssd300_op_info_int8_per_layer.csv \
-#       --dequant \
-#       --excepts detection_out \
-#       --tolerance 0.75,0.7,0.1 -vvv
-# fi
+
+# #       #before do power scale and shift quant
+# #       #--tolerance 0.99,0.989,0.859 -vvv
+
+if [ $COMPARE_ALL -eq 1 ]; then
+  # some tensors do not pass due to threshold bypass
+  # need do dequantization in interpreter directly
+  npz_compare.py \
+      ssd300_tensor_all_int8_per_layer.npz \
+      ssd300_blobs.npz \
+      --op_info ssd300_op_info_int8_per_layer.csv \
+      --dequant \
+      --excepts detection_out \
+      --tolerance 0.86,0.85,0.38 -vvv
+fi
 
 # ################################
 # # quantization 2: per-channel int8
@@ -66,9 +85,22 @@ mlir-opt \
     --quant-int8 \
     --enable-conv-per-channel \
     --print-tpu-op-info \
+    --gen-sqrt-table \
+    --gen-div-table \
     --tpu-op-info-filename ssd300_op_info_int8_per_channel.csv \
     ssd300_cali.mlir \
     -o ssd300_quant_int8_per_channel.mlir
+
+# if [ $CHECK_INFERENCE_RESULT -eq 1 ]; then
+# 	run_mlir_detector_ssd.py \
+# 	    --model ssd300_quant_int8_per_channel.mlir \
+# 	    --net_input_dims 300,300 \
+# 	    --dump_blobs ssd300_blobs.npz \
+# 	    --dump_weights ssd300_weights.npz \
+# 	    --input_file $REGRESSION_PATH/ssd300/data/dog.jpg \
+# 	    --label_file $MODEL_PATH/caffe/ssd300/labelmap_coco.prototxt  \
+# 	    --draw_image ssd300_quant_int8_per_channel.jpg
+# fi
 
 mlir-tpu-interpreter ssd300_quant_int8_per_channel.mlir \
     --tensor-in ssd300_in_fp32.npz \
@@ -85,19 +117,23 @@ npz_compare.py \
       ssd300_blobs.npz \
       --op_info ssd300_op_info_int8_per_channel.csv \
       --dequant \
-      --tolerance 0.968,0.966,0.74 -vvv
+      --tolerance 0.95,0.94,0.67 -vvv
 
-# if [ $COMPARE_ALL ]; then
-#   # some tensors do not pass due to threshold bypass
-#   # need do dequantization in interpreter directly
-#   npz_compare.py \
-#       ssd300_tensor_all_int8_per_channel.npz \
-#       ssd300_blobs.npz \
-#       --op_info ssd300_op_info_int8_per_channel.csv \
-#       --dequant \
-#       --excepts detection_out \
-#       --tolerance 0.85,0.8,0.30 -vvv
-# fi
+
+      #before do power scale and shift quant
+      #--tolerance 0.968,0.966,0.742 -vvv
+
+if [ $COMPARE_ALL -eq 1 ]; then
+  # some tensors do not pass due to threshold bypass
+  # need do dequantization in interpreter directly
+  npz_compare.py \
+      ssd300_tensor_all_int8_per_channel.npz \
+      ssd300_blobs.npz \
+      --op_info ssd300_op_info_int8_per_channel.csv \
+      --dequant \
+      --excepts detection_out \
+      --tolerance 0.872,0.863,0.395 -vvv
+fi
 
 # ################################
 # # quantization 3: per-channel multiplier int8
@@ -106,10 +142,23 @@ mlir-opt \
     --quant-int8 \
     --enable-conv-per-channel \
     --enable-conv-multiplier \
+    --gen-sqrt-table \
+    --gen-div-table \
     --print-tpu-op-info \
     --tpu-op-info-filename ssd300_op_info_int8_multiplier.csv \
     ssd300_cali.mlir \
     -o ssd300_quant_int8_multiplier.mlir
+
+if [ $CHECK_INFERENCE_RESULT -eq 1 ]; then
+	run_mlir_detector_ssd.py \
+	    --model ssd300_quant_int8_multiplier.mlir \
+	    --net_input_dims 300,300 \
+	    --dump_blobs ssd300_blobs.npz \
+	    --dump_weights ssd300_weights.npz \
+	    --input_file $REGRESSION_PATH/ssd300/data/dog.jpg \
+	    --label_file $MODEL_PATH/caffe/ssd300/labelmap_coco.prototxt  \
+	    --draw_image ssd300_quant_int8_multiplier.jpg
+fi
 
 mlir-tpu-interpreter ssd300_quant_int8_multiplier.mlir \
     --tensor-in ssd300_in_fp32.npz \
@@ -125,19 +174,23 @@ npz_compare.py \
       ssd300_blobs.npz \
       --op_info ssd300_op_info_int8_multiplier.csv \
       --dequant \
-      --tolerance 0.988,0.987,0.846 -vvv
+      --tolerance 0.986,0.985,0.83 -vvv
 
-# if [ $COMPARE_ALL ]; then
-#   # some tensors do not pass due to threshold bypass
-#   # need do dequantization in interpreter directly
-#   npz_compare.py \
-#       ssd300_tensor_all_int8_multiplier.npz \
-#       ssd300_blobs.npz \
-#       --op_info ssd300_op_info_int8_multiplier.csv \
-#       --dequant \
-#       --excepts detection_out \
-#       --tolerance 0.85,0.8,0.35 -vvv
-# fi
+      #before do power scale and shift quant
+      #--tolerance 0.988,0.987,0.846 -vvv
 
+if [ $COMPARE_ALL -eq 1 ]; then
+  # some tensors do not pass due to threshold bypass
+  # need do dequantization in interpreter directly
+  npz_compare.py \
+      ssd300_tensor_all_int8_multiplier.npz \
+      ssd300_blobs.npz \
+      --op_info ssd300_op_info_int8_multiplier.csv \
+      --dequant \
+      --excepts detection_out \
+      --tolerance 0.875,0.866,0.4 -vvv
+fi
+
+fi
 # VERDICT
 echo $0 PASSED

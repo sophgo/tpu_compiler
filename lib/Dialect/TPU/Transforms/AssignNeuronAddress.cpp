@@ -20,6 +20,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/TPU/TPUDialect.h"
+#include "mlir/Dialect/TPU/TPUOperationSupport.h"
 #include "mlir/Dialect/TPU/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
@@ -103,6 +104,37 @@ struct TpuQuantizationOpPattern : public RewritePattern {
   size_t alignment_;
 };
 
+struct TpuSliceAddressPattern : public RewritePattern {
+  TpuSliceAddressPattern(MLIRContext *context)
+      : RewritePattern("tpu.slice", 1, context) {}
+
+  PatternMatchResult matchAndRewrite(Operation *op,
+                                     PatternRewriter &rewriter) const override {
+    auto castOp = cast<tpu::SliceOp>(op);
+    if (castOp.offset().hasValue()) {
+      // assigned already
+      return matchFailure();
+    }
+
+    auto curPos = getPreviousOpAddress(castOp);
+    int32_t count = castOp.input_offset().getValue().getLimitedValue();
+
+    size_t size;
+    if (castOp.quant() == "INT8" || castOp.quant() == "INT8_PER_CHANNEL"
+        || castOp.quant() == "INT8_MULTIPLIER") {
+      size = count * sizeof(int8_t);
+    } else if (castOp.quant() == "BF16") {
+      size = count * sizeof(uint16_t);
+    } else {
+      assert(0);
+    }
+
+    castOp.setAttr("offset", rewriter.getI64IntegerAttr(curPos + size));
+
+    return matchSuccess();
+  }
+};
+
 static llvm::cl::opt<size_t> clNeuronAlignment(
     "tpu-neuron-address-align",
     llvm::cl::desc("Specify the alignment for neuron"),
@@ -141,8 +173,12 @@ public:
     // TODO: remove this constrain, input should be able to be any address
     applyPatternsGreedily(fn, patterns);
     patterns.clear();
+    patterns.insert<TpuQuantizationOpPattern<tpu::ConcatOp>>(
+        context, "tpu.concat", &pos, neuronMapFile->os(), clNeuronAlignment);
     patterns.insert<TpuQuantizationOpPattern<tpu::Conv2DOp> >(
         context, "tpu.conv_2d", &pos, neuronMapFile->os(), clNeuronAlignment);
+    patterns.insert<TpuQuantizationOpPattern<tpu::CropOp>>(
+        context, "tpu.crop", &pos, neuronMapFile->os(), clNeuronAlignment);
     patterns.insert<TpuQuantizationOpPattern<tpu::FullyConnectedOp> >(
         context, "tpu.fully_connected", &pos, neuronMapFile->os(), clNeuronAlignment);
     patterns.insert<TpuQuantizationOpPattern<tpu::Pool2DOp> >(
@@ -169,7 +205,13 @@ public:
         context, "tpu.permute", &pos, neuronMapFile->os(), clNeuronAlignment);                     
     patterns.insert<TpuQuantizationOpPattern<tpu::ConcatOp>>(
         context, "tpu.concat", &pos, neuronMapFile->os(), clNeuronAlignment);                     
+    patterns.insert<TpuQuantizationOpPattern<tpu::SigmoidOp>>(
+        context, "tpu.sigmoid", &pos, neuronMapFile->os(), clNeuronAlignment);
 
+    applyPatternsGreedily(fn, patterns);
+    patterns.clear();
+
+    patterns.insert<TpuSliceAddressPattern>(context);
     applyPatternsGreedily(fn, patterns);
 
     if (neuronMapFile) {

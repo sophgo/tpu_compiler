@@ -24,6 +24,7 @@ export DATASET_PATH=$DATASET_PATH
 
 export CAFFE_PATH=$TPU_BASE/install_caffe
 export MKLDNN_PATH=$TPU_BASE/install_mkldnn
+export FLATBUFFERS_PATH=$TPU_BASE/install_flatbuffers
 export BMKERNEL_PATH=$TPU_BASE/install_bmkernel
 export CMODEL_PATH=$TPU_BASE/install_cmodel
 export SUPPORT_PATH=$TPU_BASE/install_support
@@ -46,6 +47,7 @@ export LD_LIBRARY_PATH=$CAFFE_PATH/mkl/mklml/lib:$LD_LIBRARY_PATH
 export PATH=$TPU_BASE/llvm-project/build/bin:$PATH
 export PATH=$MLIR_SRC_PATH/externals/python_tools:$PATH
 export PATH=$MLIR_SRC_PATH/bindings/python/tools:$PATH
+export PATH=$FLATBUFFERS_PATH/bin:$PATH
 
 export PYTHONPATH=$TPU_BASE/llvm-project/build/lib:$PYTHONPATH
 export PYTHONPATH=$PYTHON_TOOLS_PATH:$PYTHONPATH

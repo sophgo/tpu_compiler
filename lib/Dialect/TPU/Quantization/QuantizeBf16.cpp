@@ -37,6 +37,8 @@
 #include <fstream>
 #include <math.h>
 
+#define DEBUG_TYPE "quantize_bf16"
+
 using namespace mlir;
 
 namespace {
@@ -47,7 +49,7 @@ static void addWeightTensorAndUpdateWeightOp(Value* opd,
   auto weightOp = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
       opd->getDefiningOp());
   auto name = weightOp.name().getValue().str() + "_quant_bf16";
-  llvm::errs() << "  new_weight : " << name << "\n";
+  LLVM_DEBUG(llvm::errs() << "  new_weight : " << name << "\n";);
   auto type = RankedTensorType::get(shape,
       FloatType::getBF16(rewriter.getContext()));
   wTF->addTensor<uint16_t>(name, &weight, type);
@@ -63,7 +65,7 @@ static std::unique_ptr<std::vector<float> > readAndDeleteWeightTensor(
   assert(weightOp);
   assert(weightOp.name().hasValue());
   auto name = weightOp.name().getValue();
-  llvm::errs() << "  weight : " << name << "\n";
+  LLVM_DEBUG(llvm::errs() << "  weight : " << name << "\n";);
   auto type = weightOp.getResult()->getType().cast<TensorType>();
   auto T = wTF->readTensor<float>(name, type);
   // delete the tensor from the weight file
@@ -84,7 +86,7 @@ struct TpuQuantConv2DOpPattern : public RewritePattern {
     //auto loc = op->getLoc();
 
     if (convOp.quant() != "NONE") {
-      llvm::errs() << convOp.name() << " quantized already\n";
+      LLVM_DEBUG(llvm::errs() << convOp.name() << " quantized already\n";);
       return matchFailure();
     }
     assert(convOp.per_channel_info_is_aggregated() == false);
@@ -156,7 +158,7 @@ struct TpuQuantFullyConnectedOpPattern : public RewritePattern {
     //auto loc = op->getLoc();
 
     if (fcOp.quant() != "NONE") {
-      llvm::errs() << fcOp.name() << " quantized already\n";
+      LLVM_DEBUG(llvm::errs() << fcOp.name() << " quantized already\n";);
       return matchFailure();
     }
 
@@ -205,32 +207,6 @@ struct TpuQuantFullyConnectedOpPattern : public RewritePattern {
   Value* weightFileVar_;
 };
 
-struct TpuQuantPool2DOpPattern : public RewritePattern {
-  TpuQuantPool2DOpPattern(MLIRContext *context, TensorFile *weightTensorFile,
-      Value* weightFileVar)
-      : RewritePattern("tpu.pool_2d", 1, context),
-        weightTensorFile_(weightTensorFile),
-        weightFileVar_(weightFileVar) {}
-
-  PatternMatchResult matchAndRewrite(Operation *op,
-                                     PatternRewriter &rewriter) const override {
-    auto poolOp = cast<tpu::Pool2DOp>(op);
-    std::string op_name = poolOp.getAttrOfType<StringAttr>("name").getValue().str();
-    //auto loc = op->getLoc();
-
-    if (poolOp.quant() != "NONE") {
-      llvm::errs() << poolOp.name() << " quantized already\n";
-      return matchFailure();
-    }
-
-    poolOp.setAttr("quant", rewriter.getStringAttr("BF16"));
-
-    return matchSuccess();
-  }
-
-  TensorFile *weightTensorFile_;
-  Value* weightFileVar_;
-};
 struct TpuQuantPReluOpPattern : public RewritePattern {
   TpuQuantPReluOpPattern(MLIRContext *context, TensorFile *weightTensorFile,
                          Value *weightFileVar)
@@ -245,7 +221,7 @@ struct TpuQuantPReluOpPattern : public RewritePattern {
     // auto loc = op->getLoc();
 
     if (preluOp.quant() != "NONE") {
-      llvm::errs() << preluOp.name() << " quantized already\n";
+      LLVM_DEBUG(llvm::errs() << preluOp.name() << " quantized already\n";);
       return matchFailure();
     }
     auto filter =
@@ -271,32 +247,6 @@ struct TpuQuantPReluOpPattern : public RewritePattern {
   TensorFile *weightTensorFile_;
   Value *weightFileVar_;
 };
-struct TpuQuantEltwiseOpPattern : public RewritePattern {
-  TpuQuantEltwiseOpPattern(MLIRContext *context, TensorFile *weightTensorFile,
-      Value* weightFileVar)
-      : RewritePattern("tpu.eltwise", 1, context),
-        weightTensorFile_(weightTensorFile),
-        weightFileVar_(weightFileVar) {}
-
-  PatternMatchResult matchAndRewrite(Operation *op,
-                                     PatternRewriter &rewriter) const override {
-    auto eltOp = cast<tpu::EltwiseOp>(op);
-    std::string op_name = eltOp.getAttrOfType<StringAttr>("name").getValue().str();
-    //auto loc = op->getLoc();
-
-    if (eltOp.quant() != "NONE") {
-      llvm::errs() << eltOp.name() << " quantized already\n";
-      return matchFailure();
-    }
-
-    eltOp.setAttr("quant", rewriter.getStringAttr("BF16"));
-
-    return matchSuccess();
-  }
-
-  TensorFile *weightTensorFile_;
-  Value* weightFileVar_;
-};
 
 struct TpuQuantTanHOpPattern : public RewritePattern {
   TpuQuantTanHOpPattern(MLIRContext *context, TensorFile *weightTensorFile,
@@ -312,7 +262,7 @@ struct TpuQuantTanHOpPattern : public RewritePattern {
     //auto loc = op->getLoc();
 
     if (tanhOp.quant() != "NONE") {
-      llvm::errs() << tanhOp.name() << " quantized already\n";
+      LLVM_DEBUG(llvm::errs() << tanhOp.name() << " quantized already\n";);
       return matchFailure();
     }
 
@@ -326,7 +276,7 @@ struct TpuQuantTanHOpPattern : public RewritePattern {
       assert(weight_op);
       assert(weight_op.name().hasValue());
       auto tensor_name = weight_op.name().getValue();
-      llvm::errs() << "  weight[" << i << "] : " << tensor_name << "\n";
+      LLVM_DEBUG(llvm::errs() << "  weight[" << i << "] : " << tensor_name << "\n";);
       auto type = weight_op.getResult()->getType().cast<TensorType>();
       weights[weight_idx] = weightTensorFile_->readTensor<float>(tensor_name, type);
       weight_idx++;
@@ -366,7 +316,7 @@ struct TpuQuantTanHOpPattern : public RewritePattern {
     // 2 means y0_table / scale
     for (int i = 0; i < 2; ++i) {
       auto tensor_name = op_name + "_quant_bf16_" + std::to_string(i);
-      llvm::errs() << "  new_weight[" << i << "] : " << tensor_name << "\n";
+      LLVM_DEBUG(llvm::errs() << "  new_weight[" << i << "] : " << tensor_name << "\n";);
 
       auto type = RankedTensorType::get(weightShapes[i],
               FloatType::getBF16(rewriter.getContext()));
@@ -396,6 +346,30 @@ struct TpuQuantTanHOpPattern : public RewritePattern {
   Value* weightFileVar_;
 };
 
+
+template<typename TensorTyOp>
+struct TpuQuantDefaultPattern : public RewritePattern {
+  TpuQuantDefaultPattern(MLIRContext *context, TensorFile *weightTensorFile,
+      Value* weightFileVar)
+      : RewritePattern(TensorTyOp::getOperationName(), 1, context),
+        weightTensorFile_(weightTensorFile),
+        weightFileVar_(weightFileVar) {}
+
+  PatternMatchResult matchAndRewrite(Operation *op,
+                                     PatternRewriter &rewriter) const override {
+    auto castOp = cast<TensorTyOp>(op);
+    if (castOp.quant() != "NONE") {
+      LLVM_DEBUG(llvm::errs() << castOp.name() << " quantized already\n";);
+      return matchFailure();
+    }
+    castOp.setAttr("quant", rewriter.getStringAttr("BF16"));
+
+    return matchSuccess();
+  }
+
+  TensorFile *weightTensorFile_;
+  Value* weightFileVar_;
+};
 
 template<typename T>
 static void addQuantOpAfterOp(PatternRewriter &rewriter,
@@ -530,18 +504,16 @@ public:
     auto *context = &getContext();
 
     OwningRewritePatternList patterns_w;
-    patterns_w.insert<TpuQuantConv2DOpPattern>(context,
-        weightTensorFile.get(), weightFileVar);
-    patterns_w.insert<TpuQuantFullyConnectedOpPattern>(context,
-        weightTensorFile.get(), weightFileVar);
-    patterns_w.insert<TpuQuantPool2DOpPattern>(context,
-        weightTensorFile.get(), weightFileVar);
-    patterns_w.insert<TpuQuantPReluOpPattern>(context, 
-      weightTensorFile.get(), weightFileVar);
-    patterns_w.insert<TpuQuantEltwiseOpPattern>(context,
-        weightTensorFile.get(), weightFileVar);
-    patterns_w.insert<TpuQuantTanHOpPattern>(context,
-        weightTensorFile.get(), weightFileVar);
+    patterns_w
+        .insert<TpuQuantDefaultPattern<tpu::ConcatOp>,
+                TpuQuantConv2DOpPattern,
+                TpuQuantDefaultPattern<tpu::EltwiseOp>,
+                TpuQuantFullyConnectedOpPattern,
+                TpuQuantDefaultPattern<tpu::Pool2DOp>,
+                TpuQuantPReluOpPattern,
+                TpuQuantDefaultPattern<tpu::SliceOp>,
+                TpuQuantTanHOpPattern>(
+            context, weightTensorFile.get(), weightFileVar);
     applyPatternsGreedily(fn, patterns_w);
 
     OwningRewritePatternList patterns_q;

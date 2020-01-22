@@ -319,7 +319,7 @@ int mkldnn_pool(float *input, float *output,
 
   // pool desc
   auto pool_desc = pooling_forward::desc(prop_kind::forward_inference,
-      is_avg ? algorithm::pooling_avg : algorithm::pooling_max,
+      is_avg ? algorithm::pooling_avg_include_padding : algorithm::pooling_max,
       user_src_memory.get_desc(), user_dst_memory.get_desc(),
       strides, kernel, padding_t_l, padding_b_r);
   auto prim_desc = pooling_forward::primitive_desc(pool_desc, eng);

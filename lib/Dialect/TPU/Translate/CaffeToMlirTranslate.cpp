@@ -1196,7 +1196,7 @@ void CaffeImporter::convertConcatLayer(mlir::Block *block,
 
       // construct OP
       result_type = RankedTensorType::get({n, c, h, w}, elementType_);
-      tbl_size = n*c*c*w;
+      tbl_size = n*c*h*w;
     }else if(input_shape.size() == 2){
 
     for (uint32_t i = 0; i < input_vars.size(); i++) {
@@ -1539,7 +1539,7 @@ void CaffeImporter::convertSliceLayer(mlir::Block *block, caffe::Layer<float> *l
   }
 
   // construct OP
-  std::vector<Type> result_types;
+  int offset = 0;
   for (int i = 0; i < top_size; i++) {
     int64_t n = 0, c = 0, h = 0, w = 0;
     switch(axis) {
@@ -1555,19 +1555,18 @@ void CaffeImporter::convertSliceLayer(mlir::Block *block, caffe::Layer<float> *l
     }
 
     auto result_type = RankedTensorType::get({n, c, h, w}, elementType_);
-    result_types.push_back(result_type);
-  }
 
-  std::vector<NamedAttribute> attrs;
-  attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name())));
-  attrs.push_back(builder_.getNamedAttr("axis", builder_.getI32IntegerAttr(axis)));
-  auto op = OpBuilder(block).create<tpu::SliceOp>(
-      builder_.getUnknownLoc(), ArrayRef<Type>{result_types},
+    std::vector<NamedAttribute> attrs;
+    attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name() + "_" + std::to_string(i))));
+    attrs.push_back(builder_.getNamedAttr("axis", builder_.getI32IntegerAttr(axis)));
+    attrs.push_back(builder_.getNamedAttr("input_offset", builder_.getI32IntegerAttr(offset)));
+    auto op = OpBuilder(block).create<tpu::SliceOp>(
+      builder_.getUnknownLoc(), result_type,
       ArrayRef<Value *>{input_var}, ArrayRef<NamedAttribute>{attrs});
-  auto result_vars = op.getResults();
+    auto result_var = op.getResult();
 
-  for (int i = 0; i < top_size; i++) {
-    tensor_map_[layer_param.top(i)] = result_vars[i];
+    tensor_map_[layer_param.top(i)] = result_var;
+    offset += n * c * h * w;
   }
 }
 

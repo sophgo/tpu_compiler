@@ -227,8 +227,6 @@ struct TpuConv2DOpPattern : public RewritePattern {
       return matchFailure();
     }
 
-    
-
     // pack the weights
     auto filter_type = convOp.filter()->getType().cast<TensorType>();
     std::vector<int64_t> filter_shape(filter_type.getShape());
@@ -490,7 +488,7 @@ public:
 
     // merge conv rshift/multiplier/bias into one weight first
     patterns.insert<TpuConv2DOpPattern>(context, weightTensorFile.get());
-    patterns.insert<TpuScaleOpPattern>(context, weightTensorFile.get());      
+    patterns.insert<TpuScaleOpPattern>(context, weightTensorFile.get());
     applyPatternsGreedily(fn, patterns);
 
     patterns.clear();

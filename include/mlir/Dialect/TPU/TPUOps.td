@@ -267,7 +267,7 @@ def TPU_DivOp: TPU_Op<"div", [NoSideEffect]> {
   let results = (outs AnyTensor:$output);
 }
 
-def TPU_EltwiseOp: TPU_Op<"eltwise", [NoSideEffect, SameOperandsAndResultType]> {
+def TPU_EltwiseOp: TPU_Op<"eltwise", [NoSideEffect]> {
   let summary = "Eltwise operator";
 
   let description = [{
@@ -277,6 +277,7 @@ def TPU_EltwiseOp: TPU_Op<"eltwise", [NoSideEffect, SameOperandsAndResultType]> 
   let arguments = (
     ins AnyTensor:$x1,
     AnyTensor:$x2,
+    Variadic<AnyTensor>:$variadic_tensors,
     DefaultValuedAttr<TPU_EltwiseAttr, "SUM">:$method,
     DefaultValuedAttr<TPU_AFAttr, "NONE">:$fused_activation_function,
     OptionalAttr<StrAttr>:$name,
@@ -583,15 +584,16 @@ def TPU_SliceOp: TPU_Op<"slice", [NoSideEffect]> {
 
   let arguments = (
     ins AnyTensor:$input,
-    OptionalAttr<I32Attr>:$axis,
     OptionalAttr<StrAttr>:$name,
+    OptionalAttr<I32Attr>:$axis,
+    OptionalAttr<I32Attr>:$input_offset,
     OptionalAttr<NonNegativeI64Attr>:$offset,
     OptionalAttr<F32Attr>:$threshold_y,
     OptionalAttr<NonNegativeI32Attr>:$layer_id,
     DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
   );
 
-  let results = (outs Variadic<AnyTensor>:$output);
+  let results = (outs AnyTensor:$output);
 }
 
 def TPU_SoftmaxOp: TPU_Op<"softmax", [NoSideEffect, SameOperandsAndResultType]> {

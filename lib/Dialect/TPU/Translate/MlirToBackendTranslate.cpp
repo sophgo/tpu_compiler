@@ -40,7 +40,6 @@
 #include <fstream>
 
 #define DEBUG_TYPE "mlir-to-cmdbuf"
-#define ENABLE_DBG (1)
 using namespace mlir;
 
 #include "backend/backend_tg_api.h"
@@ -48,7 +47,9 @@ using namespace mlir;
 
 static BM1880v2BackendContext *backend_ctx = nullptr;
 
-static int8_t getRshiftFromOperandTensor(Operation &op, int opdIndex) {
+template <typename T>
+static std::unique_ptr<std::vector<T>>
+getWeightFromOperandTensor(Operation &op, int opdIndex) {
   auto weightOp = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
       op.getOperand(opdIndex)->getDefiningOp());
   assert(weightOp);
@@ -61,7 +62,13 @@ static int8_t getRshiftFromOperandTensor(Operation &op, int opdIndex) {
   assert(weightOp.name().hasValue());
   auto tensor_name = weightOp.name().getValue();
   auto type = weightOp.getResult()->getType().cast<TensorType>();
-  auto weight = weightTensorFile->readTensor<float>(tensor_name, type);
+  auto weight = weightTensorFile->readTensor<T>(tensor_name, type);
+
+  return weight;
+}
+
+static int8_t getRshiftFromOperandTensor(Operation &op, int opdIndex) {
+  auto weight = getWeightFromOperandTensor<float>(op, opdIndex);
   return (int8_t)weight->at(0);
 }
 
@@ -124,7 +131,7 @@ static LogicalResult runOperation(Operation &opInst) {
     }
     return success();
   }
-
+/*
   if (auto op = dyn_cast<tpu::PermuteOp>(opInst)) {
     LLVM_DEBUG(LLVM_DEBUG(llvm::errs() << "PermuteOp" << "\n";););
 
@@ -197,14 +204,15 @@ static LogicalResult runOperation(Operation &opInst) {
   }
 
   if (auto op = dyn_cast<tpu::ConcatOp>(opInst)) {
-     LLVM_DEBUG(llvm::errs() << "concat ConcatOp" << "\n" ;);
-    auto num = op.getOperation()->getNumOperands();
+    LLVM_DEBUG(llvm::errs() << "concat ConcatOp" << "\n";);
+    int num = op.getOperation()->getNumOperands();
     gaddr_t input_gaddrs[num];
-    auto axis = op.dimension();
-    int output_dim[4];
-     LLVM_DEBUG(llvm::errs() << "concat num :" << num << "\n" ;);
-     LLVM_DEBUG(llvm::errs() << "concat axis :" << axis << "\n" ;);
-    int32_t input_dims[num * 4];
+    int axis = *op.dimension().getRawData();
+    #define SHAPE_DIM 4
+    int output_dim[SHAPE_DIM];
+    LLVM_DEBUG(llvm::errs() << "concat num :" << num << "\n";);
+    LLVM_DEBUG(llvm::errs() << "concat axis :" << axis << "\n";);
+    int32_t input_dims[num * SHAPE_DIM];
     int output_dim_size;
     std::vector<int64_t> shape = op.res()->getType().cast<TensorType>().getShape();
     output_dim[0] = shape[0];
@@ -212,7 +220,7 @@ static LogicalResult runOperation(Operation &opInst) {
     output_dim[2] = shape[2];
     output_dim[3] = shape[3];
     output_dim_size = shape.size();
-    LLVM_DEBUG(llvm::errs() << "output_dim_size is  :" << output_dim_size << "\n" ;);
+
     for ( int i = 0; i < num; i++) {
       int32_t n, c, h, w;
       input_gaddrs[i] = getPreviousOpAddress(op, i);
@@ -221,14 +229,16 @@ static LogicalResult runOperation(Operation &opInst) {
       c = shape[1];
       h = shape[2];
       w = shape[3];
-      input_dims[i] = shape[1];//shape[axis];
-       LLVM_DEBUG(llvm::errs() << "shape n:" << n << " c:" << c << " h:"<< h << " w:"<< w <<"\n" ;);
+
+      input_dims[i] = shape[axis];
+      LLVM_DEBUG(llvm::errs() << "shape n:" << n << " c:" << c << " h:"<< h << " w:"<< w <<"\n";);
     }
     gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
 
     int layer_id = op.layer_id().getValue().getLimitedValue();
-     LLVM_DEBUG(llvm::errs() << "Concat id=" << layer_id << "\n";);
-     LLVM_DEBUG(llvm::errs() << "Concat quant=" << op.quant() << "\n";);
+
+    LLVM_DEBUG(llvm::errs() << "Concat id=" << layer_id << "\n";);
+    LLVM_DEBUG(llvm::errs() << "Concat quant=" << op.quant() << "\n";);
 
     if (op.quant() == "INT8") {
 
@@ -277,7 +287,7 @@ static LogicalResult runOperation(Operation &opInst) {
            output_gaddr, // gaddr_t output_gaddr,
            input_dims, // int input_dims[],
            num, //int input_num,
-           1, // int concat_axis,
+           axis, // int concat_axis,
            output_dim_size, // int output_dim_size,
            output_dim, // int *output_dim,
            num, // const int need_quantize_num,
@@ -298,21 +308,20 @@ static LogicalResult runOperation(Operation &opInst) {
           output_gaddr, // gaddr_t ga_output,
           input_dims, // int input_dims[],
           num, // int input_num
-          1, // concat_axis
+          axis, // concat_axis
           output_dim_size, //int output_dim_size
           output_dim, //int *output_dim
           0, //int need_quantize_num
           0  // threshold_x_quantized,
       );
     } else {
-      LLVM_DEBUG(llvm::errs() << "not support yet \n";);
+      llvm::errs() << "not support yet \n";
       assert(0);
     }
     return success();
-  }
-  
+  }*/
 
-  if (auto op = dyn_cast<tpu::ScaleOp>(opInst)) {
+/*  if (auto op = dyn_cast<tpu::ScaleOp>(opInst)) {
      LLVM_DEBUG(llvm::errs() << "ScaleOp(" << op.name() << ")\n" ;);
 
 #define SCALE_INPUT_NR (2)
@@ -458,7 +467,7 @@ static LogicalResult runOperation(Operation &opInst) {
 
     return success();
   }
-
+*/
   if (auto op = dyn_cast<tpu::Conv2DOp>(opInst)) {
      LLVM_DEBUG(llvm::errs() << "Conv2DOp" << "\n";);
 
@@ -651,6 +660,58 @@ static LogicalResult runOperation(Operation &opInst) {
 
     return success();
   }
+  if (auto op = dyn_cast<tpu::CropOp>(opInst)) {
+    LLVM_DEBUG(llvm::errs() << "Cropop" << op.name() 
+                            << "\n";);
+
+    int layer_id = op.layer_id().getValue().getLimitedValue();
+    // gen cmdbuf
+    gaddr_t input_gaddr = getPreviousOpAddress(op, 0);
+    gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
+
+    auto input_1_type = op.input1()->getType().cast<TensorType>();
+    std::vector<int> i1_s;
+    i1_s.assign(input_1_type.getShape().begin(), input_1_type.getShape().end());
+    auto input_2_type = op.input2()->getType().cast<TensorType>();
+    std::vector<int> i2_s;
+    i2_s.assign(input_2_type.getShape().begin(), input_2_type.getShape().end());
+
+    auto output_type = op.output()->getType().cast<TensorType>();
+    std::vector<int> o_s;
+    o_s.assign(output_type.getShape().begin(), output_type.getShape().end());
+
+    auto output_size =
+        std::accumulate(std::begin(o_s), std::end(o_s), 1, std::multiplies<>());
+
+    std::vector<int> offsets;
+    offsets.assign({op.crop_offset_n().getValue().getLimitedValue(),
+                    op.crop_offset_c().getValue().getLimitedValue(),
+                    op.crop_offset_h().getValue().getLimitedValue(),
+                    op.crop_offset_w().getValue().getLimitedValue()});
+
+    if (op.quant() == "INT8") {
+      // TODO: wait for backend
+      crop_fixed_forward_bmkernel(
+          *backend_ctx, // ctx, 
+          0, //stream_id
+          0, // inst_id
+          layer_id,
+          nullptr, //depends
+          0, //depends_len
+          input_gaddr, // bottom_gaddr,
+          output_gaddr, //top_gaddr 
+          i1_s.data(), 
+          i2_s.data(), 
+          offsets.data(),
+          o_s.size());
+
+    } else if (op.quant() == "BF16") {
+      assert(0 && "not support now");
+    }
+    // gen cmdbuf end
+
+    return success();
+  }
   if (auto op = dyn_cast<tpu::Pool2DOp>(opInst)) {
      LLVM_DEBUG(llvm::errs() << "Pool2DOp" << "\n";);
 
@@ -741,6 +802,9 @@ static LogicalResult runOperation(Operation &opInst) {
           0.0f, // float avg_const,  // default(passing 0.0f) is 1/kh*kw
           0, // int do_relu,
           true);
+    } else {
+      llvm::errs() << "op.quant = " << op.quant();
+      assert(0);
     }
     // gen cmdbuf end
 
@@ -953,7 +1017,6 @@ static LogicalResult runOperation(Operation &opInst) {
       // scale[i] = multiplier / (1 << rshift)
       // find a rshift, that put max(multiplier) into range (64, 127)
       uint32_t rshift;
-      int8_t multiplier[MAX_ELTWISE_INPUT];
       uint32_t multiplier_prod;
       for (int index = 0; index < MAX_ELTWISE_INPUT; ++index) {
         // get threshold_x
@@ -968,23 +1031,23 @@ static LogicalResult runOperation(Operation &opInst) {
       // get threshold_y
       threshold_y = op.threshold_y().getValue().convertToFloat();
       if (op.method() == "SUM") {
-        // determine rshift for all inputs, and multiplier for each input
-        // use max threshold_x to find rshift first
-        float max_threshold_x =
-            *std::max_element(std::begin(threshold_x), std::end(threshold_x));
-        rshift =
-            findRShiftAndMultiplierFromQScale(max_threshold_x / threshold_y);
-        for (int index = 0; index < 2; ++index) {
-          float qscale = threshold_x[index] / threshold_y;
-          multiplier[index] =
-              (int8_t)findMultiplierFromQScaleAndRShift(qscale, rshift);
+
+        const int nInputs = opInst.getNumOperands();
+        assert((nInputs - 2) == MAX_ELTWISE_INPUT &&
+               "Elt sum only support two inputs now");
+
+        int8_t rshift_opd_index = MAX_ELTWISE_INPUT;
+        int8_t rshift = getRshiftFromOperandTensor(opInst, rshift_opd_index);
+
+        int8_t multiplier_opd_index = MAX_ELTWISE_INPUT + 1;
+        auto fmultiplier =
+            getWeightFromOperandTensor<float>(opInst, multiplier_opd_index);
+
+        int multiplier_int8[MAX_ELTWISE_INPUT];
+        for (size_t i = 0; i < fmultiplier.get()->size(); ++i) {
+          multiplier_int8[i] = static_cast<int8_t>(fmultiplier->at(i));
         }
 
-        int threshold_x_quantized[MAX_ELTWISE_INPUT];
-
-        for (int i = 0; i < MAX_ELTWISE_INPUT; ++i) {
-          threshold_x_quantized[i] = (int)multiplier[i];
-        }
         const int coeffs[2] = {1, 1};
         bmnet_eltwise_fixed_forward_bmkernel(
             *backend_ctx,
@@ -1001,7 +1064,7 @@ static LogicalResult runOperation(Operation &opInst) {
             do_relu, // bool do_relu,
             0.0f,    // float relu_slope,
             rshift,  // int right_shift_width,
-            threshold_x_quantized, coeffs);
+            multiplier_int8, coeffs);
       } else if (op.method() == "PROD") {
         float threshold_prod = std::accumulate(
             threshold_x.begin(), threshold_x.end(), 1.0, std::multiplies<>());
@@ -1054,6 +1117,7 @@ static LogicalResult runOperation(Operation &opInst) {
 
     return success();
   }
+  /*
   if (auto op = dyn_cast<tpu::SqrtOp>(opInst)) {
      LLVM_DEBUG(llvm::errs() << "SqrtOp(" << op.name() << ")\n";);
 
@@ -1144,10 +1208,10 @@ static LogicalResult runOperation(Operation &opInst) {
 
   }
 
-/*  if (auto op = dyn_cast<tpu::DetectionOutputOp>(opInst)) {
+  if (auto op = dyn_cast<tpu::DetectionOutputOp>(opInst)) {
     return success();
 
-  }*/
+  }
 
   if (auto op = dyn_cast<tpu::PowerOp>(opInst)) {
     // TODO: fuse relu, power implement by depthwise, it could be fused
@@ -1205,7 +1269,7 @@ llvm::errs() << llvm::format("input_gaddr 0x%lx,output_gaddr 0x%lx, scale_offset
     }
     return success();
   }
-
+*/
 
   if (auto op = dyn_cast<tpu::TanHOp>(opInst)) {
      LLVM_DEBUG(llvm::errs() << "TanHOp" << "\n";);
@@ -1250,7 +1314,40 @@ llvm::errs() << llvm::format("input_gaddr 0x%lx,output_gaddr 0x%lx, scale_offset
 
     return success();
   }
+  if (auto op = dyn_cast<tpu::SigmoidOp>(opInst)) {
+    LLVM_DEBUG(llvm::errs() << "SigmoidOp"
+                            << "\n";);
+    int n, c, h, w;
+    auto input_type = op.input()->getType().cast<TensorType>();
+    std::vector<int64_t> i_s(input_type.getShape());
+    auto output_type = op.output()->getType().cast<TensorType>();
+    std::vector<int64_t> o_s(output_type.getShape());
+    assert((i_s == o_s) && "input shape not equal to output shape");
+    n = i_s[0];
+    c = i_s[1];
+    h = i_s[2];
+    w = i_s[3];
+    gaddr_t input_gaddr = getPreviousOpAddress(op);
+    gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
+    gaddr_t y0_table_gaddr =
+        getWeightOpAddress(op.getOperand(1)->getDefiningOp());
+    int layer_id = op.layer_id().getValue().getLimitedValue();
+    if (op.quant() == "INT8") {
+      sigmoid_fixed_forward_bmkernel(*backend_ctx,
+                                     0,        // stream_id,
+                                     0,        // inst_id,
+                                     layer_id, // layer_id,
+                                     nullptr,  // const u32 *depends,
+                                     0,        // depends_len,
+                                     input_gaddr, output_gaddr, y0_table_gaddr,
+                                     n, c, h, w);
 
+    } else {
+      llvm::errs() << "not support yet \n";
+      assert(0);
+    }
+    return success();
+  }
   return success();
 }
 

@@ -59,3 +59,11 @@ Accuracy status:
  Average Recall     (AR) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.103
  Average Recall     (AR) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.402
  Average Recall     (AR) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.578
+
+## 1/22/2020
+Finish SSD300 INT8 interpreter support.
+
+Known issue: 
+
+1. Softmax threshold will affect accuracy . 
+Tmp Solution: set softmax op threshold as 1. 

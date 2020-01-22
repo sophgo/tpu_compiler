@@ -46,6 +46,15 @@ cmake --build . --target install
 cp ../external/mkl $CAFFE_PATH -a
 popd
 
+# build flatbuffers
+if [ ! -e $MLIR_SRC_PATH/third_party/flatbuffers/build ]; then
+  mkdir $MLIR_SRC_PATH/third_party/flatbuffers/build
+fi
+pushd $MLIR_SRC_PATH/third_party/flatbuffers/build
+cmake -G Ninja -DCMAKE_INSTALL_PREFIX=$FLATBUFFERS_PATH ..
+cmake --build . --target install
+popd
+
 # build bmkernel
 if [ ! -e $MLIR_SRC_PATH/externals/bmkernel/build ]; then
   mkdir $MLIR_SRC_PATH/externals/bmkernel/build
