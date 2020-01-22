@@ -31,7 +31,6 @@
 #include "llvm/Support/raw_ostream.h"
 
 using namespace mlir;
-using namespace std;
 
 namespace {
 
@@ -111,6 +110,7 @@ struct TpuConvertLoadeweightConcatToLoadweightPattern : public RewritePattern {
   weightTensorFile_->addTensor<float>(tensor_name, &resultT, type);
   std::vector<NamedAttribute> attrs;
   attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(tensor_name)));
+  attrs.push_back(rewriter.getNamedAttr("storage", rewriter.getStringAttr("NONE")));
   auto new_weight_op = rewriter.create<tpu::LoadWeightOp>(loc, type,
        ArrayRef<Value *>{weightFileVar_}, ArrayRef<NamedAttribute>{attrs});
 
@@ -159,12 +159,12 @@ struct TpuConvertPriorBoxPattern : public RewritePattern {
     float step = priorboxOp.step().convertToFloat();
     std::vector<float> min_sizes_;
     std::vector<float> max_sizes_;
-    vector<float> aspect_ratios;
-    vector<float> aspect_ratios_;
+    std::vector<float> aspect_ratios;
+    std::vector<float> aspect_ratios_;
     bool flip_;
     int num_priors_;
     bool clip_;
-    vector<float> variance_;
+    std::vector<float> variance_;
     int img_w_;
     int img_h_;
     float step_w_;

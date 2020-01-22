@@ -351,6 +351,12 @@ uint64_t getPreviousOpAddress(Operation *op, uint index = 0) {
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::ConcatOp>(formerOp)) {
     return cast_op.offset().getValue().getLimitedValue();
   }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::ScaleOp>(formerOp)) {
+    return cast_op.offset().getValue().getLimitedValue();
+  } 
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::PermuteOp>(formerOp)) {
+    return cast_op.offset().getValue().getLimitedValue();
+  }     
 /*  if (auto cast_op = llvm::dyn_cast_or_null<tpu::DetectionOutputOp>(formerOp)) {
     return cast_op.offset().getValue().getLimitedValue();
   }*/
@@ -401,6 +407,7 @@ void getConv2DOpParam(T &op,
   std::vector<int64_t> o_s(output_type.getShape());
   auto filter_type = op.filter()->getType().template cast<TensorType>();
   std::vector<int64_t> f_s(filter_type.getShape());
+
   assert((i_s[0] == o_s[0]) && "input N not equal to output N");
   n = i_s[0];
   ic = i_s[1];

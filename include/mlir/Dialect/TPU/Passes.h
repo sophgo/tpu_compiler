@@ -54,6 +54,9 @@ std::unique_ptr<OpPassBase<FuncOp>> createDeepFusionTL_LA2LW();
 std::unique_ptr<OpPassBase<FuncOp>> createConvertPriorBoxPass();
 std::unique_ptr<OpPassBase<FuncOp>> createConvertLoadeweightConcatToLoadweightPass();
 std::unique_ptr<OpPassBase<FuncOp>> createGenSqrtTablePass();
+std::unique_ptr<OpPassBase<FuncOp>> createGenPowerWeightPass() ;
+std::unique_ptr<OpPassBase<FuncOp>> createGenDivTablePass();
+std::unique_ptr<OpPassBase<FuncOp>> createGenSqrtTablePass();
 } // namespace mlir
 
 #endif // MLIR_DIALECT_TPU_PASSES_H_

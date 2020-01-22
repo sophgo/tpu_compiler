@@ -101,7 +101,6 @@ struct AssignReshapeThresholdPattern : public OpRewritePattern<tpu::ReshapeOp> {
     float threshold_x = getPreviousOpThreshold(op);
     op.setAttr("threshold_y", rewriter.getF32FloatAttr(threshold_x));
 
-
     return matchSuccess();
   }
 };

@@ -50,7 +50,6 @@
 #include <algorithm>
 
 #define DEBUG_TYPE "interpreter"
-
 using namespace std;
 
 namespace mlir {
@@ -1035,10 +1034,14 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
         std::vector<float> &src_vec = *opdT[index];
         std::copy(src_vec.begin(), src_vec.end(),
                   back_inserter(input_copy[index]));
-        input[index] = input_copy[index].data();
 
-        // get threshold_x
-        threshold_x[index] = getPreviousOpThreshold(op, index);
+        input[index] = input_copy[index].data();
+        if(index==(MAX_ELTWISE_INPUT-1)&&op.simulate_eltwise()){
+          // get threshold_x
+          threshold_x[index] = threshold_x[index-1];//workaround for simulated value.just copy same input threshold
+        }else{
+          threshold_x[index] = getPreviousOpThreshold(op, index);
+        }
       }
       // get threshold_y
       threshold_y = op.threshold_y().getValue().convertToFloat();
@@ -1286,7 +1289,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
         LLVM_DEBUG(llvm::errs() << "bottom num:" << opdT.size() << "\n";);
         LLVM_DEBUG(llvm::errs() << "data size:" << opdT[i]->size() << "\n";);
 
-        auto *input_data = opdT[i]->data();
+        auto *input_data = input[i];
 
         if (concat_axis == 0) {
           tmp_resultT.get()->insert(tmp_resultT.get()->end(), opdT[i]->begin(), opdT[i]->end());
@@ -1591,7 +1594,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
           int lutOutputI32 = std::floor(lutOutput + 0.5);
           lutOutputI32 = (lutOutputI32 > 127)
                              ? 127
-                             : (lutOutputI32 < -127) ? -127 : lutOutputI32;
+                             : (lutOutputI32 < -128) ? -128 : lutOutputI32;
           data[idx] = lutOutputI32;
         }
         for (int i = 0; i < size; ++i) {
@@ -2166,18 +2169,18 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
     Y=X*X 
     ==> Sy*Qy=Sx*Qx*Sx*Qx
-    ==> Qy = ((thrx*thrx/(128))*(Qx*Qx))/thry
-    ==> Qscale = (thrx*thrx/128)/thry
+    ==> Qy = ((thrx*thrx/(127))*(Qx*Qx))/thry
+    ==> Qscale = (thrx*thrx/127)/thry
 
 */
+
     float threshold_y,threshold_x,qscale,rshift;
     uint32_t multiplier;
     if (op.quant() != "NONE"){
 
       threshold_y = op.threshold_y().getValue().convertToFloat();
       threshold_x = getPreviousOpThreshold(op);
-
-      qscale = (threshold_x*threshold_x) /(127*threshold_y);  
+      qscale = (threshold_x*threshold_x) /(127.0*threshold_y);  
     }
     
     if (op.quant() == "INT8"|| op.quant() == "INT8_PER_CHANNEL") {
@@ -2216,7 +2219,19 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     for (int i = 0; i < size; ++i) {
       output[i] = data[(unsigned char)input[0][i]];
     }
-  }else */{
+  }else*/ {
+
+    if (op.quant() == "INT8"|| op.quant() == "INT8_PER_CHANNEL") {
+      scale = scale*(threshold_y/threshold_x)*multiplier;
+      shift = shift*(threshold_y/127.0)*multiplier;
+      scale = (float)applyRShiftAndSaturateInt8(scale, (uint32_t)rshift);
+      shift = (float)applyRShiftAndSaturateInt8(shift, (uint32_t)rshift);
+    }else if(op.quant() == "INT8_MULTIPLIER"){
+      scale = scale*(threshold_y/threshold_x);
+      shift = shift*(threshold_y/127.0);
+      scale = (float)applyMultiplierAndRShiftAndSaturateInt8(scale,rshift,  multiplier);        
+      shift = (float)applyMultiplierAndRShiftAndSaturateInt8(shift,rshift,  multiplier);        
+    }
 
     int ret = my_power(input[0], output, nchw[0], nchw[1], nchw[2], nchw[3], scale, shift, power);
     assert(ret == 0);

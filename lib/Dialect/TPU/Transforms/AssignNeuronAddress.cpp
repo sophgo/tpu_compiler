@@ -149,6 +149,7 @@ public:
         context, "tpu.pool_2d", &pos, neuronMapFile->os(), clNeuronAlignment);
     patterns.insert<TpuQuantizationOpPattern<tpu::PReluOp>>(
         context, "tpu.prelu", &pos, neuronMapFile->os(), clNeuronAlignment);
+
     // assuming all relu Ops fused
     //patterns.insert<TpuQuantizationOpPattern<tpu::ReluOp> >(
     //    context, "tpu.relu", &pos, neuronMapFile->os(), clNeuronAlignment);
@@ -156,6 +157,19 @@ public:
         context, "tpu.eltwise", &pos, neuronMapFile->os(), clNeuronAlignment);
     patterns.insert<TpuQuantizationOpPattern<tpu::TanHOp> >(
         context, "tpu.tanh", &pos, neuronMapFile->os(), clNeuronAlignment);
+    patterns.insert<TpuQuantizationOpPattern<tpu::PowerOp>>(
+        context, "tpu.power", &pos, neuronMapFile->os(), clNeuronAlignment);
+    patterns.insert<TpuQuantizationOpPattern<tpu::DivOp>>(
+        context, "tpu.div", &pos, neuronMapFile->os(), clNeuronAlignment);
+    patterns.insert<TpuQuantizationOpPattern<tpu::SqrtOp>>(
+        context, "tpu.sqrt", &pos, neuronMapFile->os(), clNeuronAlignment);
+    patterns.insert<TpuQuantizationOpPattern<tpu::ScaleOp>>(
+        context, "tpu.scale", &pos, neuronMapFile->os(), clNeuronAlignment); 
+    patterns.insert<TpuQuantizationOpPattern<tpu::PermuteOp>>(
+        context, "tpu.permute", &pos, neuronMapFile->os(), clNeuronAlignment);                     
+    patterns.insert<TpuQuantizationOpPattern<tpu::ConcatOp>>(
+        context, "tpu.concat", &pos, neuronMapFile->os(), clNeuronAlignment);                     
+
     applyPatternsGreedily(fn, patterns);
 
     if (neuronMapFile) {

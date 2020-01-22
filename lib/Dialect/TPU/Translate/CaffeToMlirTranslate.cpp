@@ -2053,11 +2053,12 @@ void CaffeImporter::convertNormalizeLayer(mlir::Block *block,
 
 /*  
   Currenly , we separate Normalize op to below 6 ops. 
-  Power-> Reduction(use conv now)-> Sqrt-> Div->Eltwise OP(prod) ->Scale(by channel scale)
+  Eltwise OP(power(2))-> Reduction(use conv now)-> Sqrt-> Div->Eltwise OP(prod) ->Scale(by channel scale)
 */
 
   /* 1. Power OP */
-
+#if 0
+  //use power op 
   std::vector<Value *> operands;
   operands.push_back(input_var);
 
@@ -2097,9 +2098,25 @@ void CaffeImporter::convertNormalizeLayer(mlir::Block *block,
   auto power_op = OpBuilder(block).create<tpu::PowerOp>(
       builder_.getUnknownLoc(), result_type,
       ArrayRef<Value *>{operands}, ArrayRef<NamedAttribute>{attrs_power});
-
   auto power_result_var = power_op.getResult();
+#else  /*use eltwise op*/
 
+  std::vector<Value *> operands_eltwise_power;
+
+  operands_eltwise_power.push_back(input_var);
+  operands_eltwise_power.push_back(input_var);
+  auto result_type = RankedTensorType::get(input_shape, elementType_);
+  std::vector<NamedAttribute> attrs_eltwise_power;
+  attrs_eltwise_power.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name()+"_eltwise_prod_power")));
+  attrs_eltwise_power.push_back(
+      builder_.getNamedAttr("method", builder_.getStringAttr("PROD")));
+  attrs_eltwise_power.push_back(builder_.getNamedAttr("simulate_eltwise", builder_.getBoolAttr(true)));
+  auto eltwise_power_op = OpBuilder(block).create<tpu::EltwiseOp>(
+      builder_.getUnknownLoc(), result_type,
+      ArrayRef<Value *>{operands_eltwise_power}, ArrayRef<NamedAttribute>{attrs_eltwise_power});
+
+  auto power_result_var = eltwise_power_op.getResult();
+#endif
   /* 2. Reduction(using conv2D Op) OP */
 
   std::vector<Value *> operands_conv;
@@ -2166,7 +2183,7 @@ void CaffeImporter::convertNormalizeLayer(mlir::Block *block,
   operands_eltwise.push_back(div_result_var);
 
   std::vector<NamedAttribute> attrs_eltwise;
-  attrs_eltwise.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name()+"_eltwise")));
+  attrs_eltwise.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name()+"_eltwise_add")));
   attrs_eltwise.push_back(
       builder_.getNamedAttr("method", builder_.getStringAttr("PROD")));
   auto eltwise_op = OpBuilder(block).create<tpu::EltwiseOp>(

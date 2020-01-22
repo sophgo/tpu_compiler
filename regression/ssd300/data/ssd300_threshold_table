@@ -8,7 +8,7 @@ conv8_2_relu 17.0782604218
 conv6_2_mbox_loc_perm 4.00921583176
 conv4_3_norm_conv 738261.5
 conv8_2_mbox_conf 22.5845813751
-mbox_conf_softmax 0.0625280588865
+mbox_conf_softmax 1.0
 mbox_loc 15.9146566391
 conv6_2_mbox_conf_flat 21.0947265625
 conv7_2_mbox_conf 21.6830635071
@@ -22,6 +22,7 @@ conv9_2_relu 28.1486816406
 conv8_2_mbox_conf_perm 22.5845813751
 conv7_2_mbox_loc_flat 3.9598865509
 conv7_2_relu 18.2214012146
+conv4_3_norm_eltwise_add 0.712806582451
 relu3_2 1863.07348633
 conv4_3_norm_scale 3.15794229507
 conv6_2_mbox_loc 4.00921583176
@@ -51,6 +52,7 @@ conv4_3_norm_mbox_conf_flat 10.0178394318
 pool2 2597.7512207
 fc7_mbox_loc_perm 4.65801715851
 mbox_conf 15.0676622391
+conv4_3_norm_eltwise_prod_power 7823.59912109
 data 151.073760986
 detection_out 70.0342025757
 conv6_2_mbox_conf_perm 21.0947265625
@@ -58,11 +60,9 @@ conv8_2_mbox_loc_perm 3.88676214218
 fc7_mbox_conf_flat 16.7262516022
 relu1_2 1822.27441406
 fc7_mbox_loc 4.65801715851
-conv4_3_norm_power 7823.59912109
 conv9_2_mbox_loc 2.96093654633
-conv4_3_norm_eltwise 0.712806582451
 conv4_3_norm_mbox_loc 15.9146566391
-mbox_conf_flatten 0.0625280588865
+mbox_conf_flatten 1.0
 conv6_2_relu 7.13526344299
 conv7_2_mbox_loc 3.9598865509
 conv9_2_mbox_loc_perm 2.96093654633
