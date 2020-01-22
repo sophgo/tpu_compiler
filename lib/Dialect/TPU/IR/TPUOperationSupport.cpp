@@ -342,6 +342,9 @@ uint64_t getPreviousOpAddress(Operation *op, uint index = 0) {
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::CropOp>(formerOp)) {
     return cast_op.offset().getValue().getLimitedValue();
   }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::ScaleOp>(formerOp)) {
+    return cast_op.offset().getValue().getLimitedValue();
+  }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::SliceOp>(formerOp)) {
     return cast_op.offset().getValue().getLimitedValue();
   }
