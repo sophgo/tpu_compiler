@@ -73,7 +73,7 @@ static int8_t getRshiftFromOperandTensor(Operation &op, int opdIndex) {
 }
 
 static LogicalResult runOperation(Operation &opInst) {
-   LLVM_DEBUG(llvm::errs() << "  op " << opInst.getName() << "\n";);
+  LLVM_DEBUG(llvm::errs() << "  op " << opInst.getName() << "\n";);
   if (auto op = dyn_cast<tpu::TL_LA_Conv2DOp>(opInst)) {
      LLVM_DEBUG(llvm::errs() << "TL_LA_Conv2DOp" << "\n";);
 
@@ -98,7 +98,7 @@ static LogicalResult runOperation(Operation &opInst) {
     return success();
   }
   if (auto op = dyn_cast<tpu::TL_LW_Conv2DOp>(opInst)) {
-     LLVM_DEBUG(llvm::errs() << "TL_LW_Conv2DOp" << "\n";);
+    LLVM_DEBUG(llvm::errs() << "TL_LW_Conv2DOp" << "\n";);
 
     bool with_bias, do_relu;
     int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, ph, pw, dh, dw;
@@ -131,7 +131,7 @@ static LogicalResult runOperation(Operation &opInst) {
     }
     return success();
   }
-/*
+
   if (auto op = dyn_cast<tpu::PermuteOp>(opInst)) {
     LLVM_DEBUG(LLVM_DEBUG(llvm::errs() << "PermuteOp" << "\n";););
 
@@ -205,21 +205,20 @@ static LogicalResult runOperation(Operation &opInst) {
 
   if (auto op = dyn_cast<tpu::ConcatOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "concat ConcatOp" << "\n";);
-    int num = op.getOperation()->getNumOperands();
+    auto num = op.getOperation()->getNumOperands();
     gaddr_t input_gaddrs[num];
-    int axis = *op.dimension().getRawData();
-    #define SHAPE_DIM 4
-    int output_dim[SHAPE_DIM];
+    auto axis = op.dimension().getLimitedValue();
+    int output_dim[4];
     LLVM_DEBUG(llvm::errs() << "concat num :" << num << "\n";);
     LLVM_DEBUG(llvm::errs() << "concat axis :" << axis << "\n";);
-    int32_t input_dims[num * SHAPE_DIM];
+    int32_t input_dims[num * 4];
     int output_dim_size;
     std::vector<int64_t> shape = op.res()->getType().cast<TensorType>().getShape();
     output_dim[0] = shape[0];
     output_dim[1] = shape[1];
-    output_dim[2] = shape[2];
-    output_dim[3] = shape[3];
-    output_dim_size = shape.size();
+    output_dim[2] = 1;//shape[2];
+    output_dim[3] = 1;//shape[3];
+    output_dim_size = 2;//shape.size();
 
     for ( int i = 0; i < num; i++) {
       int32_t n, c, h, w;
@@ -227,10 +226,9 @@ static LogicalResult runOperation(Operation &opInst) {
       std::vector<int64_t> shape =  op.getOperand(i)->getType().cast<TensorType>().getShape();
       n = shape[0];
       c = shape[1];
-      h = shape[2];
-      w = shape[3];
-
-      input_dims[i] = shape[axis];
+      h = 1;//shape[2];
+      w = 1;//shape[3];
+      input_dims[i] = shape[1];//shape[axis];
       LLVM_DEBUG(llvm::errs() << "shape n:" << n << " c:" << c << " h:"<< h << " w:"<< w <<"\n";);
     }
     gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
@@ -287,7 +285,7 @@ static LogicalResult runOperation(Operation &opInst) {
            output_gaddr, // gaddr_t output_gaddr,
            input_dims, // int input_dims[],
            num, //int input_num,
-           axis, // int concat_axis,
+           1, // int concat_axis,
            output_dim_size, // int output_dim_size,
            output_dim, // int *output_dim,
            num, // const int need_quantize_num,
@@ -308,7 +306,7 @@ static LogicalResult runOperation(Operation &opInst) {
           output_gaddr, // gaddr_t ga_output,
           input_dims, // int input_dims[],
           num, // int input_num
-          axis, // concat_axis
+          1, // concat_axis
           output_dim_size, //int output_dim_size
           output_dim, //int *output_dim
           0, //int need_quantize_num
@@ -319,10 +317,10 @@ static LogicalResult runOperation(Operation &opInst) {
       assert(0);
     }
     return success();
-  }*/
+  }
 
-/*  if (auto op = dyn_cast<tpu::ScaleOp>(opInst)) {
-     LLVM_DEBUG(llvm::errs() << "ScaleOp(" << op.name() << ")\n" ;);
+  if (auto op = dyn_cast<tpu::ScaleOp>(opInst)) {
+    LLVM_DEBUG(llvm::errs() << "ScaleOp(" << op.name() << ")\n" ;);
 
 #define SCALE_INPUT_NR (2)
     int n, c, h, w;
@@ -334,7 +332,8 @@ static LogicalResult runOperation(Operation &opInst) {
     auto second_is_blob = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
         op.getOperand(1)->getDefiningOp());
     std::vector<int64_t> o_s(output_type.getShape());
-     LLVM_DEBUG(llvm::errs() << "input[1] shape_size is " << i2_s.size()
+    
+    LLVM_DEBUG(llvm::errs() << "input[1] shape_size is " << i2_s.size()
         << "\n" ;);
 
     n = o_s[0];
@@ -467,9 +466,9 @@ static LogicalResult runOperation(Operation &opInst) {
 
     return success();
   }
-*/
+
   if (auto op = dyn_cast<tpu::Conv2DOp>(opInst)) {
-     LLVM_DEBUG(llvm::errs() << "Conv2DOp" << "\n";);
+    LLVM_DEBUG(llvm::errs() << "Conv2DOp" << "\n";);
 
     bool with_bias, do_relu;
     int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, ph, pw, dh, dw;
@@ -713,7 +712,7 @@ static LogicalResult runOperation(Operation &opInst) {
     return success();
   }
   if (auto op = dyn_cast<tpu::Pool2DOp>(opInst)) {
-     LLVM_DEBUG(llvm::errs() << "Pool2DOp" << "\n";);
+    LLVM_DEBUG(llvm::errs() << "Pool2DOp" << "\n";);
 
     bool is_average_pool, do_relu;
     int n, c, ih, iw, oh, ow, kh, kw, sh, sw, pt, pb, pl, pr;
@@ -812,7 +811,7 @@ static LogicalResult runOperation(Operation &opInst) {
   }
 
   if (auto op = dyn_cast<tpu::FullyConnectedOp>(opInst)) {
-     LLVM_DEBUG(llvm::errs() << "FullyConnectedOp" << "\n";);
+    LLVM_DEBUG(llvm::errs() << "FullyConnectedOp" << "\n";);
 
     bool with_transpose, with_bias, do_relu;
     int m, k, n;
@@ -897,12 +896,12 @@ static LogicalResult runOperation(Operation &opInst) {
     return success();
   }
   if (auto op = dyn_cast<tpu::ReluOp>(opInst)) {
-     LLVM_DEBUG(llvm::errs() << "ReluOp" << "\n";);
+    LLVM_DEBUG(llvm::errs() << "ReluOp" << "\n";);
     assert(0 && "consider fuse relu first");
 
     int n, c, h, w;
     float negative_slope = op.negative_slope().convertToFloat();
-     LLVM_DEBUG(llvm::errs() << "  negative_slope " << negative_slope << "\n";);
+    LLVM_DEBUG(llvm::errs() << "  negative_slope " << negative_slope << "\n";);
     auto input_type = op.x()->getType().cast<TensorType>();
     std::vector<int64_t> i_s(input_type.getShape());
     auto output_type = op.y()->getType().cast<TensorType>();
@@ -941,7 +940,7 @@ static LogicalResult runOperation(Operation &opInst) {
     return success();
   }
   if (auto op = dyn_cast<tpu::PReluOp>(opInst)) {
-     LLVM_DEBUG(llvm::errs() << "PReluOp"
+    LLVM_DEBUG(llvm::errs() << "PReluOp"
                             << "\n";);
 
     int n, c, h, w;
@@ -975,7 +974,7 @@ static LogicalResult runOperation(Operation &opInst) {
     return success();
   }
   if (auto op = dyn_cast<tpu::EltwiseOp>(opInst)) {
-     LLVM_DEBUG(llvm::errs() << "EltwiseOp" << "\n";);
+    LLVM_DEBUG(llvm::errs() << "EltwiseOp" << "\n";);
 
 #define MAX_ELTWISE_INPUT (2)
     int n, c, h, w;
@@ -1020,13 +1019,7 @@ static LogicalResult runOperation(Operation &opInst) {
       uint32_t multiplier_prod;
       for (int index = 0; index < MAX_ELTWISE_INPUT; ++index) {
         // get threshold_x
-        if(index==(MAX_ELTWISE_INPUT-1)&&op.simulate_eltwise()){
-          // get threshold_x
-          //workaround for simulated value.just copy same input threshold
-          threshold_x[index] = threshold_x[index-1];
-        }else{
-          threshold_x[index] = getPreviousOpThreshold(op, index);
-        }
+        threshold_x[index] = getPreviousOpThreshold(op, index);
       }
       // get threshold_y
       threshold_y = op.threshold_y().getValue().convertToFloat();
@@ -1117,9 +1110,9 @@ static LogicalResult runOperation(Operation &opInst) {
 
     return success();
   }
-  /*
+  
   if (auto op = dyn_cast<tpu::SqrtOp>(opInst)) {
-     LLVM_DEBUG(llvm::errs() << "SqrtOp(" << op.name() << ")\n";);
+    LLVM_DEBUG(llvm::errs() << "SqrtOp(" << op.name() << ")\n";);
 
     int n, c, h, w;
     auto input_type = op.input()->getType().cast<TensorType>();
@@ -1131,39 +1124,31 @@ static LogicalResult runOperation(Operation &opInst) {
     c = i_s[1];
     h = i_s[2];
     w = i_s[3];
-
     gaddr_t input_gaddr = getPreviousOpAddress(op);
     gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
     gaddr_t y0_table_gaddr = getWeightOpAddress(op.getOperand(1)->getDefiningOp());
 
     int layer_id = op.layer_id().getValue().getLimitedValue();
+    if (op.quant() == "INT8") {
+      sigmoid_fixed_forward_bmkernel(*backend_ctx,
+                                     0,        // stream_id,
+                                     0,        // inst_id,
+                                     layer_id, // layer_id,
+                                     nullptr,  // const u32 *depends,
+                                     0,        // depends_len,
+                                     input_gaddr, output_gaddr, y0_table_gaddr,
+                                     n, c, h, w);
 
-    if (op.quant() == "INT8"|| op.quant() == "INT8_PER_CHANNEL"||op.quant() == "INT8_MULTIPLIER"){
-      sqrt_fixed_forward_bmkernel(
-          *backend_ctx,
-          0, //stream_id,
-          0, //inst_id,
-          layer_id, //layer_id,
-          nullptr, //const u32 *depends,
-          0, //depends_len,
-          input_gaddr,
-          output_gaddr,
-          y0_table_gaddr,
-          n,
-          c,
-          h,
-          w);
-    }
-    else {
-      LLVM_DEBUG(llvm::errs() << "not support yet \n";);
+    } else {
+      llvm::errs() << "not support yet \n";
       assert(0);
     }
-
     return success();
+
   } 
   
   if (auto op = dyn_cast<tpu::DivOp>(opInst)) {
-     LLVM_DEBUG(llvm::errs() << "DivOp(" << op.name() << ")\n";);
+    LLVM_DEBUG(llvm::errs() << "DivOp(" << op.name() << ")\n";);
 
     int n, c, h, w;
     auto input_type = op.input()->getType().cast<TensorType>();
@@ -1215,7 +1200,7 @@ static LogicalResult runOperation(Operation &opInst) {
 
   if (auto op = dyn_cast<tpu::PowerOp>(opInst)) {
     // TODO: fuse relu, power implement by depthwise, it could be fused
-     LLVM_DEBUG(llvm::errs() << "PowerOp(" << op.name() << ")\n";);
+    LLVM_DEBUG(llvm::errs() << "PowerOp(" << op.name() << ")\n";);
 
     float power = op.power().convertToFloat();
     auto input_type = op.x()->getType().cast<TensorType>();
@@ -1269,14 +1254,14 @@ llvm::errs() << llvm::format("input_gaddr 0x%lx,output_gaddr 0x%lx, scale_offset
     }
     return success();
   }
-*/
+
 
   if (auto op = dyn_cast<tpu::TanHOp>(opInst)) {
-     LLVM_DEBUG(llvm::errs() << "TanHOp" << "\n";);
+    LLVM_DEBUG(llvm::errs() << "TanHOp" << "\n";);
 
     int n, c, h, w;
     float scale = op.scale().convertToFloat();
-     LLVM_DEBUG(llvm::errs() << "  its scale " << scale << "\n";);
+    LLVM_DEBUG(llvm::errs() << "  its scale " << scale << "\n";);
     auto input_type = op.x()->getType().cast<TensorType>();
     std::vector<int64_t> i_s(input_type.getShape());
     auto output_type = op.y()->getType().cast<TensorType>();
@@ -1329,8 +1314,7 @@ llvm::errs() << llvm::format("input_gaddr 0x%lx,output_gaddr 0x%lx, scale_offset
     w = i_s[3];
     gaddr_t input_gaddr = getPreviousOpAddress(op);
     gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
-    gaddr_t y0_table_gaddr =
-        getWeightOpAddress(op.getOperand(1)->getDefiningOp());
+    gaddr_t y0_table_gaddr = getWeightOpAddress(op.getOperand(1)->getDefiningOp());
     int layer_id = op.layer_id().getValue().getLimitedValue();
     if (op.quant() == "INT8") {
       sigmoid_fixed_forward_bmkernel(*backend_ctx,
@@ -1362,7 +1346,7 @@ static LogicalResult runBlock(Block &bb) {
 }
 
 static LogicalResult runOneFunction(FuncOp func) {
-   LLVM_DEBUG(llvm::errs() << "func " << func.getName() << "\n";);
+  LLVM_DEBUG(llvm::errs() << "func " << func.getName() << "\n";);
 
   // Then, run blocks one by one.
   for (Block &bb : func.getBlocks()) {
@@ -1381,7 +1365,7 @@ LogicalResult translateModule(ModuleOp module, llvm::raw_ostream &output) {
   backend_ctx = bmnet_create_backend_context(weight_data);
 
   for (FuncOp function : module.getOps<FuncOp>()) {
-     LLVM_DEBUG(llvm::errs() << "run " << function.getName() << "\n";);
+    LLVM_DEBUG(llvm::errs() << "run " << function.getName() << "\n";);
 
     if (!function.getName().equals("tpu_func")) {
       //continue;

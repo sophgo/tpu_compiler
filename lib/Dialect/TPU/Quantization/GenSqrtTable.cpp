@@ -77,8 +77,8 @@ struct TpuGenSqrtTablePattern : public RewritePattern {
     for (int n = 0; n < npu_num; n++) {
       for (int idx = 0; idx < table_hw; ++idx) {
         char lutInput = static_cast<char>(idx);
-        float index = lutInput * threshold_x / 128.0;
-        float lutOutput = pow(index,0.5) * 128.0 / threshold_y;
+        float index = lutInput * threshold_x / 127.0;
+        float lutOutput = pow(index,0.5) * 127.0 / threshold_y;
         int lutOutputI32 = std::floor(lutOutput + 0.5);
         lutOutputI32 = (lutOutputI32 > 127)
                            ? 127

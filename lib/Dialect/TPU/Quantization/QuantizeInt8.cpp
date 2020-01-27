@@ -329,8 +329,6 @@ struct TpuQuantEltwiseOpPattern : public RewritePattern {
       return matchFailure();
     }
 
-    llvm::dbgs() << "TpuQuantEltwiseOpPattern: " << eltOp.name() << "\n";
-
     // Support Sum first
     if (eltOp.method() != "SUM") {
       eltOp.setAttr("quant", rewriter.getStringAttr("INT8"));
