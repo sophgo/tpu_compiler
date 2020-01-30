@@ -876,7 +876,8 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     float *variance = (float *)opdT[2]->data();
     float *scale = (float *)opdT[3]->data();
     float *output = (float *)resultT.get()->data();
-    int ret = my_bn(input, mean, variance, scale, output, n, c, h, w);
+    float variance_epsilon = op.variance_epsilon().convertToFloat();
+    int ret = my_bn(input, mean, variance, scale, variance_epsilon, output, n, c, h, w);
 
     assert(ret == 0);
 

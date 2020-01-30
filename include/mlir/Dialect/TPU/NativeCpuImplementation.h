@@ -24,7 +24,7 @@ int my_relu(float *input, float *output,
 int my_prelu(float *input, float *output, int n, int c, int h, int w,
             float *negative_slope);
 
-int my_bn(float *input, float *mean, float *variance, float *scale,
+int my_bn(float *input, float *mean, float *variance, float *scale, float variance_epsilon,
     float *output, int n, int c, int h, int w);
 
 int my_scale(float *input, float *scale, float *bias,
