@@ -55,6 +55,7 @@ public:
       processed += addLayerIdAttr<tpu::ConcatOp>(builder, layer_id, op);
       processed += addLayerIdAttr<tpu::Conv2DOp>(builder, layer_id, op);
       processed += addLayerIdAttr<tpu::CropOp>(builder, layer_id, op);
+      processed += addLayerIdAttr<tpu::DeConv2DOp>(builder, layer_id, op);
       processed += addLayerIdAttr<tpu::DetectionOutputOp>(builder, layer_id, op);
       processed += addLayerIdAttr<tpu::DivOp>(builder, layer_id, op);
       processed += addLayerIdAttr<tpu::DummyDataOp>(builder, layer_id, op);
