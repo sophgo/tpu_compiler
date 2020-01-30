@@ -959,21 +959,23 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     assert(ret == 0);
     // rshift and saturate on output
     if (op.quant() == "INT8") {
+      if(sec_blob_weight_op){
+      assert(rshift);
+        assert(multiplier);
+        for (int i = 0; i < size; ++i) {
+          resultT->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
+              resultT->at(i), rshift->at(0), multiplier->at(0), true);
+      }
+      }else{
       assert(rshift);
         for (int i = 0; i < size; ++i) {
-        resultT->at(i) = (float)applyRShiftAndSaturateInt8(
-            resultT->at(i), (uint32_t)rshift->at(0));
-      }
+          resultT->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
+              resultT->at(i), (uint32_t)rshift->at(0), multiplier_prod, true);
+        }
+        }
+      
     } else if (op.quant() == "INT8_PER_CHANNEL") {
       assert(rshift);
-      int isz = size / oc;
-      for (int i = 0; i < oc; ++i) {
-        for (int j = 0; j < isz; ++j) {
-          resultT->at(i * isz + j) = (float)applyRShiftAndSaturateInt8(
-              resultT->at(i * isz + j), (uint32_t)rshift->at(i));
-        }
-        }
-    } else if (op.quant() == "INT8_MULTIPLIER") {
       assert(multiplier);
       int isz = size / oc;
       for (int i = 0; i < oc; ++i) {

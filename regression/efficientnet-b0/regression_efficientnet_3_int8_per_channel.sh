@@ -25,9 +25,11 @@ mlir-opt \
     efficientnet-b0_opt.mlir \
     -o efficientnet-b0_cali.mlir
 
-# quantization 1: per-layer int8
+# quantization 1: per-channel int8
 mlir-opt \
     --quant-int8 \
+    --enable-conv-per-channel \
+    --enable-conv-multiplier \
     efficientnet-b0_cali.mlir \
     -o efficientnet-b0_quant_int8_per_layer.mlir
 

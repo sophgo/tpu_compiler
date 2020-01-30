@@ -677,15 +677,10 @@ void getScaleOpVariadicTensors(
     bias = opdT[idx];
     idx += 1;
   }
-  if (op.quant() == "INT8" || op.quant() == "INT8_PER_CHANNEL" ||
-      op.quant() == "INT8_MULTIPLIER") {
+  if (op.quant() == "INT8" || op.quant() == "INT8_PER_CHANNEL") {
     rshift = opdT[idx];
-    idx += 1;
-  }
-
-  if (op.quant() == "INT8_MULTIPLIER") {
-    multiplier = opdT[idx];
-    idx += 1;
+    multiplier = opdT[idx+1];
+    idx += 2;
   }
 
   if (idx != opdT.size()) {
