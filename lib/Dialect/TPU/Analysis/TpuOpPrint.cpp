@@ -87,6 +87,7 @@ public:
           processed += printTpuOpInfo<tpu::ConcatOp>(op, file_os);
           processed += printTpuOpInfo<tpu::Conv2DOp>(op, file_os);
           processed += printTpuOpInfo<tpu::CropOp>(op, file_os);
+          processed += printTpuOpInfo<tpu::DeConv2DOp>(op, file_os);
           processed += printTpuOpInfo<tpu::EltwiseOp>(op, file_os);
           processed += printTpuOpInfo<tpu::FullyConnectedOp>(op, file_os);
           processed += printTpuOpInfo<tpu::InputOp>(op, file_os);
