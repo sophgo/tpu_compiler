@@ -264,7 +264,7 @@ struct TpuScaleOpPattern : public RewritePattern {
     auto filter_type = scaleOp.getResult()->getType().cast<TensorType>();
     std::vector<int64_t> filter_shape(filter_type.getShape());
     int64_t oc;
-    assert(filter_shape.size() == 4);
+    // assert(filter_shape.size() == 4);
     oc = filter_shape[1];
 
     if (!DoAssignWeight<tpu::ScaleOp>(op, oc, rewriter, weightTensorFile_)) {
