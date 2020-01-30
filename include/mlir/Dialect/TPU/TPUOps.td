@@ -135,6 +135,7 @@ def TPU_BatchNormOp: TPU_Op<"batch_norm", [NoSideEffect]> {
     AnyTensor:$mean,
     AnyTensor:$variance,
     AnyTensor:$scale,
+    DefaultValuedAttr<F32Attr, "1.0e-5">:$variance_epsilon,
     OptionalAttr<StrAttr>:$name,
     OptionalAttr<NonNegativeI64Attr>:$offset,
     OptionalAttr<F32Attr>:$threshold_y,
