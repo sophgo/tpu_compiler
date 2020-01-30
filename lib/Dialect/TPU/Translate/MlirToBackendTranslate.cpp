@@ -484,8 +484,8 @@ static LogicalResult runOperation(Operation &opInst) {
           output_gaddr, //top_gaddr 
           i1_s.data(), 
           i2_s.data(), 
-          offsets.data(),
-          o_s.size());
+          o_s.data(),
+          offsets.data());
 
     } else if (op.quant() == "BF16") {
       assert(0 && "not support now");
