@@ -773,17 +773,7 @@ struct TpuQuantScaleOpPattern : public RewritePattern {
     std::string op_name =
         scaleOp.getAttrOfType<StringAttr>("name").getValue().str();
 
-    // get quant type
-    QUANT_INT8_TYPE_e quant;
-    if (!clQuantConvPerChannel) {
-      assert(!clQuantConvMultiplier &&
-             "enable per channel before enable multiplier");
-      quant = INT8_PER_LAYER;
-    } else if (!clQuantConvMultiplier) {
-      quant = INT8_PER_CHANNEL;
-    } else {
-      quant = INT8_MULTIPLER;
-    }
+   
     if (scaleOp.quant() != "NONE") {
       LLVM_DEBUG(llvm::errs() << scaleOp.name() << " quantized already\n";);
       return matchFailure();
@@ -793,6 +783,14 @@ struct TpuQuantScaleOpPattern : public RewritePattern {
     auto weight_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
             scaleOp.getOperand(1)->getDefiningOp());
     if (weight_op){
+
+      // get quant type
+      QUANT_INT8_TYPE_e quant;
+      if (!clQuantConvPerChannel) {
+        quant = INT8_PER_LAYER;
+      } else {
+        quant = INT8_PER_CHANNEL;
+      }
       float threshold_y = scaleOp.threshold_y().getValue().convertToFloat();
       float threshold_x = getPreviousOpThreshold(op);
       // find scale and bias tensor
@@ -850,22 +848,17 @@ struct TpuQuantScaleOpPattern : public RewritePattern {
       // TODO: use float to save all weights for now
       auto rshift_per_layer = std::make_unique<std::vector<float>>(1);
       auto rshift_per_channel = std::make_unique<std::vector<float>>(oc);
+      auto multiplier_per_layer = std::make_unique<std::vector<float>>(1);
       auto multiplier_per_channel = std::make_unique<std::vector<float>>(oc);
 
       // quantization
       if (quant == INT8_PER_LAYER) {
-        quantizeWeightInt8PerLayer(scale, bias ? bias : nullptr,
-                                   oc, isz, threshold_y, threshold_x,
-                                   new_scale->data(), bias ? new_bias->data() : nullptr,
-                                   rshift_per_layer->data());
+        quantizeWeightInt8PerLayerMultiplier(
+            scale, bias ? bias : nullptr, oc, isz, threshold_y, threshold_x,
+            new_scale->data(), bias ? new_bias->data() : nullptr,
+            rshift_per_layer->data(), multiplier_per_layer->data());
 
       } else if (quant == INT8_PER_CHANNEL) {
-        quantizeWeightInt8PerChannel(scale, bias ? bias : nullptr,
-                                   oc, isz, threshold_y, threshold_x,
-                                   new_scale->data(), bias ? new_bias->data() : nullptr,
-                                   rshift_per_channel->data());
-
-      } else if (quant == INT8_MULTIPLER) {
         quantizeWeightInt8Multiplier(scale, bias ? bias : nullptr,
                                    oc, isz, threshold_y, threshold_x,
                                    new_scale->data(), bias ? new_bias->data() : nullptr,
@@ -901,22 +894,19 @@ struct TpuQuantScaleOpPattern : public RewritePattern {
       // add rshift and multiplier (if present) to weight
       if (quant == INT8_PER_LAYER) {
         auto shape = std::vector<int64_t>{1};
-        std::string storageType = "NONE";
-        auto new_op = addWeightTensorAndCreateWeightOp(
+        std::string storageType = "UINT32";
+        auto new_op_1 = addWeightTensorAndCreateWeightOp(
             scaleOp.name().getValue().str() + "_quant_int8_rshift",
             *rshift_per_layer, shape, storageType, eltType, rewriter, loc,
             weightTensorFile_, weightFileVar_);
-        newOperands.push_back(new_op);
-      } else if (quant == INT8_PER_CHANNEL) {
-        auto shape = std::vector<int64_t>{oc};
-        std::string storageType = "UINT32";
-        auto new_op = addWeightTensorAndCreateWeightOp(
-            scaleOp.name().getValue().str() + "_quant_int8_rshift",
-            *rshift_per_channel, shape, storageType, eltType, rewriter, loc,
+        newOperands.push_back(new_op_1);
+        auto new_op_2 = addWeightTensorAndCreateWeightOp(
+            scaleOp.name().getValue().str() + "_quant_int8_multiplier",
+            *multiplier_per_layer, shape, storageType, eltType, rewriter, loc,
             weightTensorFile_, weightFileVar_);
-        newOperands.push_back(new_op);
+        newOperands.push_back(new_op_2);
 
-      } else if (quant == INT8_MULTIPLER) {
+      } else if (quant == INT8_PER_CHANNEL) {
         auto shape = std::vector<int64_t>{oc};
         std::string storageType = "UINT32";
 
@@ -933,17 +923,14 @@ struct TpuQuantScaleOpPattern : public RewritePattern {
         newOperands.push_back(new_op_2);
       } else {
         assert(0);
-        }
+      }
 
       // set quant type
       if (quant == INT8_PER_LAYER) {
         scaleOp.setAttr("quant", rewriter.getStringAttr("INT8"));
       } else if (quant == INT8_PER_CHANNEL) {
         scaleOp.setAttr("quant", rewriter.getStringAttr("INT8_PER_CHANNEL"));
-      } else if (quant == INT8_MULTIPLER) {
-        scaleOp.setAttr("quant", rewriter.getStringAttr("INT8_MULTIPLIER"));
-      }
-
+      } 
       // replace with the new scale op
       auto origAttrs = scaleOp.getAttrs();
       std::vector<NamedAttribute> newAttrs(origAttrs.begin(), origAttrs.end());
