@@ -1003,17 +1003,14 @@ static LogicalResult runOperation(Operation &opInst) {
     // TODO: * merge multiplier_neg (LE_scale) to negative slope
 
     gaddr_t negative_scope_gaddr = getWeightOpAddress(op.getOperand(1)->getDefiningOp());
-    // int GT_scale, GT_right_shift_width, LE_scale, LE_right_shift_width;
     int GT_right_shift_width = static_cast<int>(getWeightFromOperandTensor<float>(opInst, 2)->at(0));
-    int LE_right_shift_width = static_cast<int>(getWeightFromOperandTensor<float>(opInst, 3)->at(0));
-    int GT_scale = static_cast<int>(getWeightFromOperandTensor<float>(opInst, 4)->at(0));
-    // int LE_scale = static_cast<int>(getWeightFromOperandTensor<float>(opInst, 5)->at(0));
+    int GT_scale = static_cast<int>(getWeightFromOperandTensor<float>(opInst, 3)->at(0));
+    int LE_right_shift_width = static_cast<int>(getWeightFromOperandTensor<float>(opInst, 4)->at(0));
 
-    // LLVM_DEBUG(llvm::errs() << 
-    //     "GT_right_shift_width = " << GT_right_shift_width << "\n"
-    //     "LE_right_shift_width = " << LE_right_shift_width << "\n"
-    //     "GT_scale = " << GT_scale << "\n"
-    //     "LE_scale = " << LE_scale << "\n";);
+    LLVM_DEBUG(llvm::errs() << 
+        "GT_right_shift_width = " << GT_right_shift_width << "\n"
+        "LE_right_shift_width = " << LE_right_shift_width << "\n"
+        "GT_scale = " << GT_scale << "\n";);
 
     gaddr_t input_gaddr = getPreviousOpAddress(op);
     gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
@@ -1028,8 +1025,8 @@ static LogicalResult runOperation(Operation &opInst) {
         negative_scope_gaddr, // float negative_slope,
         n, c, h, w,
         GT_right_shift_width,
-        LE_right_shift_width,
         GT_scale,
+        LE_right_shift_width,
         FMT_I8
     );
 
@@ -1041,22 +1038,9 @@ static LogicalResult runOperation(Operation &opInst) {
     //     negative_scope_gaddr, // float negative_slope,
     //     n, c, h, w,
     //     GT_right_shift_width,
-    //     LE_right_shift_width,
     //     GT_scale,
+    //     LE_right_shift_width,
     //     LE_scale,
-    //     FMT_I8
-    // );
-
-    // bmnet_prelu_fixed_forward_bmkernel(
-    //     *backend_ctx,
-    //     layer_id,             // layer_id,
-    //     input_gaddr,          // input_data_gaddr,
-    //     output_gaddr,         // output_data_gaddr,
-    //     negative_scope_gaddr, // float negative_slope,
-    //     n, c, h, w,
-    //     0,       // int threshold_x_quantized_len,
-    //     nullptr, // const int *threshold_x_quantized,
-    //     nullptr,  // const int *right_shift_array
     //     FMT_I8
     // );
 

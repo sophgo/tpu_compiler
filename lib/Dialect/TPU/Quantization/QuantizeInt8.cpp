@@ -655,11 +655,10 @@ struct TpuQuantPReluOpPattern : public RewritePattern {
 
     // create tensors for rshift and multiplier
     // TODO: use float to save all weights for now
-    //       ** merge multiplier_neg to negative slope
     auto rshift_pos = std::vector<float>(1);
-    auto rshift_neg = std::vector<float>(1);
     auto multiplier_pos = std::vector<float>(1);
-    auto multiplier_neg = std::vector<float>(1);;
+    auto rshift_neg = std::vector<float>(1);
+    auto multiplier_neg = std::vector<float>(1);
 
     
     // quantization
@@ -674,86 +673,56 @@ struct TpuQuantPReluOpPattern : public RewritePattern {
                   << std::to_string(rshift_pos[0]) << "]\n";);
     // negative
     LLVM_DEBUG(llvm::errs() << "  Negative:";);
-    float max_slope_abs = fabs(negative_slope[0]);
-    for (int i = 0; i < c; ++i) {
-      if ( fabs(negative_slope[i]) > max_slope_abs) {
-          max_slope_abs = fabs(negative_slope[i]);
+
+    if (quant == INT8_PER_LAYER || quant == INT8_MULTIPLER) {
+      /* I8 Multiplier version */
+      float max_abs_negative_qscale = fabs(qscale_pos * negative_slope[0]);
+      for (int i = 1; i < c; ++i) {
+        if (fabs(qscale_pos * negative_slope[i]) > max_abs_negative_qscale){
+          max_abs_negative_qscale = fabs(qscale_pos * negative_slope[i]) > max_abs_negative_qscale;
+        }
       }
-    }
-    LLVM_DEBUG(llvm::errs() << "  max slope : " << max_slope_abs << "\n";);
+      uint32_t uint_multiplier_neg = 0;
+      float rshift_tmp = (float)findRShiftAndMultiplierFromQScale(fabs(max_abs_negative_qscale), &uint_multiplier_neg, false);
+      rshift_neg[0] = rshift_tmp;
+      LLVM_DEBUG(llvm::errs() << "  [multiplier : rshift] = ["
+                    << std::to_string(uint_multiplier_neg) << " : "
+                    << std::to_string(rshift_neg[0]) << "]\n";);
 
-#if 1
-    double qscale_neg = findQScaleForFilter(max_slope_abs, threshold_y, threshold_x);
-    uint32_t uint_multiplier_neg;
-    rshift_neg[0] = (float)findRShiftAndMultiplierFromQScale(qscale_neg, &uint_multiplier_neg, false);
-    multiplier_neg[0] = (float)uint_multiplier_neg;
-    LLVM_DEBUG(llvm::errs() << "  [multiplier : rshift] = ["
-                   << std::to_string(multiplier_neg[0]) << " : "
-                   << std::to_string(rshift_neg[0]) << "]\n";);
-    
-    for (int i = 0; i < c; ++i) {
-      new_negative_slope[i] = 
-          (float)quantizeFilterRShiftAndMultiplier(negative_slope[i], 
-              threshold_y, threshold_x, (uint32_t)rshift_neg[0], uint_multiplier_neg, false);
-      
-      new_negative_slope[i] *= multiplier_neg[0];
-    }
+      for (int i = 0; i < c; ++i) {
+        new_negative_slope[i] = (float)quantizeFilterRShift(negative_slope[i], threshold_y, threshold_x, rshift_neg[0]);
+      }
+    } else if (quant == INT8_PER_CHANNEL) {
+      assert(0 && "not support now.");
+    } 
+    /* backend not support INT32 Multiplier now so use INT8 way now. */
+    // else if (quant == INT8_MULTIPLER) {
+    //   /* I32 Multiplier version */
+    //   float max_slope_abs = fabs(negative_slope[0]);
+    //   for (int i = 1; i < c; ++i) {
+    //     if ( fabs(negative_slope[i]) > max_slope_abs) {
+    //         max_slope_abs = fabs(negative_slope[i]);
+    //     }
+    //   }
+    //   LLVM_DEBUG(llvm::errs() << "  max slope : " << max_slope_abs << "\n";);
 
-
-
-#endif
-
-#if 0
-    double middle_qscale_neg = (max_slope_abs / 2) * (threshold_x / threshold_y) ;
-    uint32_t uint_multiplier_neg;
-    rshift_neg[0] = (float)findRShiftAndMultiplierFromQScale(middle_qscale_neg, &uint_multiplier_neg, false);
-    for (int i = 0; i < c; ++i) {
-      double qscale_neg = (threshold_x / threshold_y) * negative_slope[i];
-      // rshift_neg[0] = (float)findRShiftAndMultiplierFromQScale(qscale_neg, &uint_multiplier_neg, false);
-      uint32_t _uint_multiplier_neg = findMultiplierFromQScaleAndRShift(qscale_neg, (uint32_t)rshift_neg[0]);
-      new_negative_slope[i] = (float)_uint_multiplier_neg;
-
-
-    }
-#endif
-    // doWeightQuantizeInt8Multiplier(
-    //     negative_slope, nullptr, new_negative_slope.data(),
-    //     nullptr, rshift_neg.data(),
-    //     multiplier_neg.data(), threshold_y, threshold_x, c, 1);
-    
-    // // quantization
-    // double qscale_pos = threshold_x / threshold_y;
-    // if (quant == INT8_PER_LAYER || quant == INT8_PER_CHANNEL) {
-    //   // Note: INT8_PER_LAYER Quantization still have some problem! 
-    //   //       The accuracy is vary poor.
-    //   // positive
-    //   uint32_t uint_multiplier_pos;
-    //   rshift_pos[0] = (float)findRShiftForFilter(1.0, threshold_y, threshold_x);
-    //   // negative
-    //   doWeightQuantizeInt8PerLayer(
-    //       negative_slope, nullptr, new_negative_slope.data(),
-    //       nullptr, rshift_neg.data(),
-    //       threshold_y, threshold_x, c, 1);
-
-    // } else if (quant == INT8_MULTIPLER) {
-    //   // positive
-    //   uint32_t uint_multiplier_pos;
-    //   LLVM_DEBUG(llvm::errs() << "  Positive: ";);
-    //   rshift_pos[0] = (float)findRShiftAndMultiplierFromQScale(qscale_pos, &uint_multiplier_pos, false);
-    //   multiplier_pos[0] = (float)uint_multiplier_pos;
+    //   double qscale_neg = findQScaleForFilter(max_slope_abs, threshold_y, threshold_x);
+    //   uint32_t uint_multiplier_neg;
+    //   rshift_neg[0] = (float)findRShiftAndMultiplierFromQScale(qscale_neg, &uint_multiplier_neg, false);
+    //   multiplier_neg[0] = (float)uint_multiplier_neg;
     //   LLVM_DEBUG(llvm::errs() << "  [multiplier : rshift] = ["
-    //                 << std::to_string(multiplier_pos[0]) << " : "
-    //                 << std::to_string(rshift_pos[0]) << "]\n";);
-    //   // negative
-    //   LLVM_DEBUG(llvm::errs() << "  Negative:";);
-    //   doWeightQuantizeInt8Multiplier(
-    //       negative_slope, nullptr, new_negative_slope.data(),
-    //       nullptr, rshift_neg.data(),
-    //       multiplier_neg.data(), threshold_y, threshold_x, c, 1);
-    // } else {
-    //   assert(0);
+    //                  << std::to_string(multiplier_neg[0]) << " : "
+    //                  << std::to_string(rshift_neg[0]) << "]\n";);
+      
+    //   for (int i = 0; i < c; ++i) {
+    //     new_negative_slope[i] = 
+    //         (float)quantizeFilterRShiftAndMultiplier(negative_slope[i], 
+    //             threshold_y, threshold_x, (uint32_t)rshift_neg[0], uint_multiplier_neg, false);
+    //     new_negative_slope[i] *= multiplier_neg[0];
+    //     // new_negative_slope[i] *= (float)uint_multiplier_neg;
+    //   }
     // }
-    
+
     // update op
     // TODO: use float to save all weights for now
     Type eltType = FloatType::getF32(rewriter.getContext());
@@ -767,10 +736,15 @@ struct TpuQuantPReluOpPattern : public RewritePattern {
     newOperands.push_back(preluOp.getOperand(1));
 
     auto shape = std::vector<int64_t>{1};
-
-    std::string storageType_m = "INT16";
     std::string storageType_r = "INT8";
-
+    std::string storageType_m;
+    if (quant == INT8_PER_LAYER || quant == INT8_PER_CHANNEL || quant == INT8_MULTIPLER){
+      storageType_m = "INT8";
+    } 
+    /* backend not support INT32 Multiplier now so use INT8 way now. */
+    // else if (quant == INT8_MULTIPLER) {
+    //   storageType_m = "INT32";
+    // } 
 
     auto new_op_1 = addWeightTensorAndCreateWeightOp(
       preluOp.name().getValue().str() + "_quant_int8_rshift_pos",
@@ -779,14 +753,14 @@ struct TpuQuantPReluOpPattern : public RewritePattern {
     newOperands.push_back(new_op_1);
 
     auto new_op_2 = addWeightTensorAndCreateWeightOp(
-        preluOp.name().getValue().str() + "_quant_int8_rshift_neg",
-        rshift_neg, shape, storageType_r, eltType,
+        preluOp.name().getValue().str() + "_quant_int8_multiplier_pos",
+        multiplier_pos, shape, storageType_m, eltType,
         rewriter, loc, weightTensorFile_, weightFileVar_);
     newOperands.push_back(new_op_2);
 
     auto new_op_3 = addWeightTensorAndCreateWeightOp(
-        preluOp.name().getValue().str() + "_quant_int8_multiplier_pos",
-        multiplier_pos, shape, storageType_m, eltType,
+        preluOp.name().getValue().str() + "_quant_int8_rshift_neg",
+        rshift_neg, shape, storageType_r, eltType,
         rewriter, loc, weightTensorFile_, weightFileVar_);
     newOperands.push_back(new_op_3);
 

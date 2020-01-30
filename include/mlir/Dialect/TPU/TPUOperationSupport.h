@@ -79,19 +79,12 @@ void getFullyConnectedOpVariadicTensors(
     std::vector<std::shared_ptr<std::vector<float>>> &opdT,
     std::shared_ptr<std::vector<float>> &bias,
     std::shared_ptr<std::vector<float>> &rshift);
-
-void getPReluOpVariadicTensors(tpu::PReluOp &op,
-    std::vector<std::shared_ptr<std::vector<float> > > &opdT,
-    std::shared_ptr<std::vector<float> > &rshift_pos,
-    std::shared_ptr<std::vector<float> > &rshift_neg,
-    std::shared_ptr<std::vector<float> > &multiplier_pos,
-    std::shared_ptr<std::vector<float> > &multiplier_neg);
     
 void getPReluOpVariadicTensors(tpu::PReluOp &op,
     std::vector<std::shared_ptr<std::vector<float> > > &opdT,
     std::shared_ptr<std::vector<float> > &rshift_pos,
-    std::shared_ptr<std::vector<float> > &rshift_neg,
-    std::shared_ptr<std::vector<float> > &multiplier_pos);
+    std::shared_ptr<std::vector<float> > &multiplier_pos,
+    std::shared_ptr<std::vector<float> > &rshift_neg);
 
 } // namespace mlir
 
