@@ -74,9 +74,9 @@ static int8_t getRshiftFromOperandTensor(Operation &op, int opdIndex) {
 }
 
 // \threshold_x_quantized number should eq \input_nr
-static void getI8Multiplier(Operation* opInst, 
+static void getI8Multiplier(Operation* opInst,
     float threshold_y,
-    int input_nr, 
+    int input_nr,
     int* threshold_x_quantized) {
 
   std::vector<float> threshold_x;
@@ -152,6 +152,11 @@ static LogicalResult runOperation(Operation &opInst) {
       cvi_backend_tl_load(*backend_ctx, layer_id,
           la_input, ga_input, n, ic, ih, iw);
     }
+    #if 0
+    //
+    // V0: Weight Only version, with no parallel for load/store activations
+    // (only consider load weight parallel)
+    //
     cvi_backend_tl_conv_LW(*backend_ctx, layer_id,
         la_input, la_output, la_working,
         ga_filter, ga_perchannel,
@@ -162,6 +167,37 @@ static LogicalResult runOperation(Operation &opInst) {
       cvi_backend_tl_store(*backend_ctx, layer_id,
           la_output, ga_output, n, oc, oh, ow);
     }
+    #endif
+    #if 1
+    //
+    // V1: Weight and Store version
+    //   this only do parallel on both Weight load and Activation Store
+    //   but load activation is not handled in parallel
+    //
+    if (op.tl_store_flag()) {
+      cvi_backend_tl_conv_LW(*backend_ctx, layer_id,
+          la_input, la_output, la_working,
+          ga_filter, ga_perchannel,
+          n, ic, ih, iw, g, oc, oh, ow, kh, kw,
+          dh, dw, ph, ph, pw, pw, sh, sw,
+          false, with_bias, do_relu,
+          true, ga_output);
+    } else {
+      cvi_backend_tl_conv_LW(*backend_ctx, layer_id,
+          la_input, la_output, la_working,
+          ga_filter, ga_perchannel,
+          n, ic, ih, iw, g, oc, oh, ow, kh, kw,
+          dh, dw, ph, ph, pw, pw, sh, sw,
+          false, with_bias, do_relu);
+    }
+    #endif
+    #if 0
+    //
+    // V2: Tiling version
+    //    make for loops outside of the backend api, handle tiling outside
+    //
+    // TODO:
+    #endif
     return success();
   }
 
@@ -475,7 +511,7 @@ static LogicalResult runOperation(Operation &opInst) {
     return success();
   }
   if (auto op = dyn_cast<tpu::CropOp>(opInst)) {
-    LLVM_DEBUG(llvm::errs() << "Cropop" << op.name() 
+    LLVM_DEBUG(llvm::errs() << "Cropop" << op.name()
                             << "\n";);
 
     int layer_id = op.layer_id().getValue().getLimitedValue();
@@ -506,16 +542,16 @@ static LogicalResult runOperation(Operation &opInst) {
     if (op.quant() == "INT8") {
       // TODO: wait for backend
       crop_fixed_forward_bmkernel(
-          *backend_ctx, // ctx, 
+          *backend_ctx, // ctx,
           0, //stream_id
           0, // inst_id
           layer_id,
           nullptr, //depends
           0, //depends_len
           input_gaddr, // bottom_gaddr,
-          output_gaddr, //top_gaddr 
-          i1_s.data(), 
-          i2_s.data(), 
+          output_gaddr, //top_gaddr
+          i1_s.data(),
+          i2_s.data(),
           o_s.data(),
           offsets.data());
 
@@ -543,13 +579,13 @@ static LogicalResult runOperation(Operation &opInst) {
     int *offsets = new int[output_dim_size];
     std::vector<int> crop_offsets;
 
-    if (op.crop_offset_n().hasValue()) 
+    if (op.crop_offset_n().hasValue())
       crop_offsets.push_back(op.crop_offset_n().getValue().getLimitedValue());
-    if (op.crop_offset_c().hasValue()) 
+    if (op.crop_offset_c().hasValue())
       crop_offsets.push_back(op.crop_offset_c().getValue().getLimitedValue());
-    if (op.crop_offset_h().hasValue()) 
+    if (op.crop_offset_h().hasValue())
       crop_offsets.push_back(op.crop_offset_h().getValue().getLimitedValue());
-    if (op.crop_offset_w().hasValue()) 
+    if (op.crop_offset_w().hasValue())
       crop_offsets.push_back(op.crop_offset_w().getValue().getLimitedValue());
 
     // plz refer \layer_Crop.cpp
@@ -1007,7 +1043,7 @@ static LogicalResult runOperation(Operation &opInst) {
     int GT_scale = static_cast<int>(getWeightFromOperandTensor<float>(opInst, 3)->at(0));
     int LE_right_shift_width = static_cast<int>(getWeightFromOperandTensor<float>(opInst, 4)->at(0));
 
-    LLVM_DEBUG(llvm::errs() << 
+    LLVM_DEBUG(llvm::errs() <<
         "GT_right_shift_width = " << GT_right_shift_width << "\n"
         "LE_right_shift_width = " << LE_right_shift_width << "\n"
         "GT_scale = " << GT_scale << "\n";);
