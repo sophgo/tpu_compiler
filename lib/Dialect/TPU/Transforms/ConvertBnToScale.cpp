@@ -78,13 +78,12 @@ struct TpuBatchNormOpPattern : public RewritePattern {
     float *mean = (float *)bnWeights[0]->data();
     float *variance = (float *)bnWeights[1]->data();
     float *scale = (float *)bnWeights[2]->data();
-
-    float eps = 1.0e-5;
+    float variance_epsilon = bnOp.variance_epsilon().convertToFloat();
     float scale_factor = 1 / scale[0];
     for (int i = 0; i < oc; ++i) {
       mean[i] = mean[i] * scale_factor;
       variance[i] = variance[i] * scale_factor;
-      if (fabs(variance[i]) <= eps && fabs(mean[i]) <= 1e-8) {
+      if (fabs(variance[i]) <= variance_epsilon && fabs(mean[i]) <= 1e-8) {
         llvm::errs() << "BN: var too small, i=" << i
                      << ", v=" << std::to_string(variance[i])
                      << ", m=" << std::to_string(mean[i]) << "\n";
@@ -92,7 +91,7 @@ struct TpuBatchNormOpPattern : public RewritePattern {
         new_scale[i] = 1.0;
         new_bias[i] = 0.0;
       } else {
-        new_scale[i] = 1.0 / sqrt(variance[i] + eps);
+        new_scale[i] = 1.0 / sqrt(variance[i] + variance_epsilon);
         new_bias[i] = -1.0 * new_scale[i] * mean[i];
       }
     }

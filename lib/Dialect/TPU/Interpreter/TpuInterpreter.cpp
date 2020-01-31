@@ -642,7 +642,6 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
                                 std::multiplies<>());
     auto resultT = std::make_unique<std::vector<float>>(size);
 
-    // ---- checked ----
     int n, c, h, w;
     float *negative_slope = opdT[1]->data();
 
@@ -659,58 +658,37 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     w = i_s[3];
     float *input = (float *)opdT[0]->data();
     float *output = (float *)resultT.get()->data();
+    
     int ret = my_prelu(input, output, n, c, h, w, negative_slope);
     assert(ret == 0);
 
-    std::shared_ptr<std::vector<float> > rshift_pos = nullptr;
-    std::shared_ptr<std::vector<float> > rshift_neg = nullptr;
-    std::shared_ptr<std::vector<float> > multiplier_pos = nullptr;
-    std::shared_ptr<std::vector<float> > multiplier_neg = nullptr;
+    // // rshift and saturate on output
+    if (op.quant() == "INT8" || op.quant() == "INT8_PER_CHANNEL"
+                             || op.quant() == "INT8_MULTIPLIER") {
+      std::shared_ptr<std::vector<float> > rshift_pos = nullptr;
+      std::shared_ptr<std::vector<float> > multiplier_pos = nullptr;
+      std::shared_ptr<std::vector<float> > rshift_neg = nullptr;
+      std::shared_ptr<std::vector<float> > multiplier_neg = nullptr;
 
-
-    getPReluOpVariadicTensors(op, opdT, rshift_pos, rshift_neg, multiplier_pos, multiplier_neg);
-
-    float threshold_x;
-    float threshold_y;
-    if (op.quant() != "NONE"){
-      threshold_x = getPreviousOpThreshold(op);
-      threshold_y = op.threshold_y().getValue().convertToFloat();
-    }
-
-    // rshift and saturate on output
-    if (op.quant() == "INT8" || op.quant() == "INT8_PER_CHANNEL") {
+      // getPReluOpVariadicTensors(op, opdT, rshift_pos, rshift_neg, multiplier_pos, multiplier_neg);
+      getPReluOpVariadicTensors(op, opdT, rshift_pos, multiplier_pos, rshift_neg);
+      
       assert(rshift_pos);
       assert(rshift_neg);
-      for (int i = 0; i < size; ++i) {
-        if (input[i] > 0){
-          // resultT->at(i) = (threshold_x / threshold_y) * resultT->at(i);
-          resultT->at(i) = (float)applyRShiftAndSaturateInt8(resultT->at(i),
-              (uint32_t)rshift_pos->at(0));
-        } else {
-          resultT->at(i) = (float)applyRShiftAndSaturateInt8(resultT->at(i),
-              (uint32_t)rshift_neg->at(0));
-        }
-      }
-    } else if (op.quant() == "INT8_MULTIPLIER") {
       assert(multiplier_pos);
-      assert(multiplier_neg);
+      // assert(multiplier_neg);
+      
       for (int i = 0; i < size; ++i) {
         if (input[i] > 0){
-          // resultT->at(i) = (threshold_x / threshold_y) * resultT->at(i);
-          // resultT->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
-          //     resultT->at(i), (uint32_t)rshift_pos->at(0), multiplier_pos->at(0), true);
           resultT->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
               resultT->at(i), (uint32_t)rshift_pos->at(0), multiplier_pos->at(0), false);
         } else {
-          resultT->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
-              resultT->at(i), (uint32_t)rshift_neg->at(0), multiplier_neg->at(0), true);
+          // resultT->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
+          //     resultT->at(i), (uint32_t)rshift_neg->at(0), multiplier_neg->at(0), false);
+          resultT->at(i) = (float)applyRShiftAndSaturateInt8(
+              resultT->at(i), (uint32_t)rshift_neg->at(0));
         }
       }
-    } else if (op.quant() == "BF16") {
-      assert(0 && "Not support BF16 now.");
-    } else if (op.quant() == "NONE") {
-    } else {
-      assert(0);
     }
     
     valueMapping[result] = std::move(resultT);
@@ -875,7 +853,8 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     float *variance = (float *)opdT[2]->data();
     float *scale = (float *)opdT[3]->data();
     float *output = (float *)resultT.get()->data();
-    int ret = my_bn(input, mean, variance, scale, output, n, c, h, w);
+    float variance_epsilon = op.variance_epsilon().convertToFloat();
+    int ret = my_bn(input, mean, variance, scale, variance_epsilon, output, n, c, h, w);
 
     assert(ret == 0);
 
@@ -958,21 +937,23 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     assert(ret == 0);
     // rshift and saturate on output
     if (op.quant() == "INT8") {
+      if(sec_blob_weight_op){
+      assert(rshift);
+        assert(multiplier);
+        for (int i = 0; i < size; ++i) {
+          resultT->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
+              resultT->at(i), rshift->at(0), multiplier->at(0), true);
+      }
+      }else{
       assert(rshift);
         for (int i = 0; i < size; ++i) {
-        resultT->at(i) = (float)applyRShiftAndSaturateInt8(
-            resultT->at(i), (uint32_t)rshift->at(0));
-      }
+          resultT->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
+              resultT->at(i), (uint32_t)rshift->at(0), multiplier_prod, true);
+        }
+        }
+      
     } else if (op.quant() == "INT8_PER_CHANNEL") {
       assert(rshift);
-      int isz = size / oc;
-      for (int i = 0; i < oc; ++i) {
-        for (int j = 0; j < isz; ++j) {
-          resultT->at(i * isz + j) = (float)applyRShiftAndSaturateInt8(
-              resultT->at(i * isz + j), (uint32_t)rshift->at(i));
-        }
-        }
-    } else if (op.quant() == "INT8_MULTIPLIER") {
       assert(multiplier);
       int isz = size / oc;
       for (int i = 0; i < oc; ++i) {

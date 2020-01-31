@@ -321,16 +321,25 @@ uint64_t getPreviousOpAddress(Operation *op, uint index = 0) {
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::Conv2DOp>(formerOp)) {
     return cast_op.offset().getValue().getLimitedValue();
   }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::DivOp>(formerOp)) {
+    return cast_op.offset().getValue().getLimitedValue();
+  }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::FullyConnectedOp>(formerOp)) {
     return cast_op.offset().getValue().getLimitedValue();
   }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::Pool2DOp>(formerOp)) {
     return cast_op.offset().getValue().getLimitedValue();
   }
-  if (auto cast_op = llvm::dyn_cast_or_null<tpu::ReluOp>(formerOp)) {
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::PermuteOp>(formerOp)) {
     return cast_op.offset().getValue().getLimitedValue();
-  }
+  }  
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::PowerOp>(formerOp)) {
+    return cast_op.offset().getValue().getLimitedValue();
+  }  
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::PReluOp>(formerOp)) {
+    return cast_op.offset().getValue().getLimitedValue();
+  }  
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::ReluOp>(formerOp)) {
     return cast_op.offset().getValue().getLimitedValue();
   }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::EltwiseOp>(formerOp)) {
@@ -348,6 +357,9 @@ uint64_t getPreviousOpAddress(Operation *op, uint index = 0) {
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::SliceOp>(formerOp)) {
     return cast_op.offset().getValue().getLimitedValue();
   }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::SqrtOp>(formerOp)) {
+    return cast_op.offset().getValue().getLimitedValue();
+  }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::TanHOp>(formerOp)) {
     return cast_op.offset().getValue().getLimitedValue();
   }
@@ -356,25 +368,7 @@ uint64_t getPreviousOpAddress(Operation *op, uint index = 0) {
     // this is recursive ...
     return getPreviousOpAddress(cast_op);
   }
-  if (auto cast_op = llvm::dyn_cast_or_null<tpu::PowerOp>(formerOp)) {
-    return cast_op.offset().getValue().getLimitedValue();
-  }
-  if (auto cast_op = llvm::dyn_cast_or_null<tpu::DivOp>(formerOp)) {
-    return cast_op.offset().getValue().getLimitedValue();
-  }
-  if (auto cast_op = llvm::dyn_cast_or_null<tpu::SqrtOp>(formerOp)) {
-    return cast_op.offset().getValue().getLimitedValue();
-  }
-  if (auto cast_op = llvm::dyn_cast_or_null<tpu::ConcatOp>(formerOp)) {
-    return cast_op.offset().getValue().getLimitedValue();
-  }
-  if (auto cast_op = llvm::dyn_cast_or_null<tpu::ScaleOp>(formerOp)) {
-    return cast_op.offset().getValue().getLimitedValue();
-  } 
-  if (auto cast_op = llvm::dyn_cast_or_null<tpu::PermuteOp>(formerOp)) {
-    return cast_op.offset().getValue().getLimitedValue();
-  }     
-
+  llvm::errs() << "Former Op: " << formerOp->getName() << "\n";
   llvm::errs() << op->getName() << " Not find\n";
   assert(0);
   return 0xFFFFFFFFFFFFFFFF;
@@ -697,15 +691,10 @@ void getScaleOpVariadicTensors(
     bias = opdT[idx];
     idx += 1;
   }
-  if (op.quant() == "INT8" || op.quant() == "INT8_PER_CHANNEL" ||
-      op.quant() == "INT8_MULTIPLIER") {
+  if (op.quant() == "INT8" || op.quant() == "INT8_PER_CHANNEL") {
     rshift = opdT[idx];
-    idx += 1;
-  }
-
-  if (op.quant() == "INT8_MULTIPLIER") {
-    multiplier = opdT[idx];
-    idx += 1;
+    multiplier = opdT[idx+1];
+    idx += 2;
   }
 
   if (idx != opdT.size()) {
@@ -735,8 +724,6 @@ void getFullyConnectedOpVariadicTensors(tpu::FullyConnectedOp &op,
   }
 }
 
-
-
 void getPReluOpVariadicTensors(tpu::PReluOp &op,
     std::vector<std::shared_ptr<std::vector<float> > > &opdT,
     std::shared_ptr<std::vector<float> > &rshift_pos,
@@ -756,6 +743,29 @@ void getPReluOpVariadicTensors(tpu::PReluOp &op,
     multiplier_pos = opdT[idx];
     idx += 1;
     multiplier_neg = opdT[idx];
+    idx += 1;
+  }
+
+  if (idx != opdT.size()) {
+    llvm::errs() << op.name() << ": opdT.size=" << opdT.size()
+                 << ", idx=" << idx << "\n";
+    assert(0);
+  }
+}
+
+void getPReluOpVariadicTensors(tpu::PReluOp &op,
+    std::vector<std::shared_ptr<std::vector<float> > > &opdT,
+    std::shared_ptr<std::vector<float> > &rshift_pos,
+    std::shared_ptr<std::vector<float> > &multiplier_pos,
+    std::shared_ptr<std::vector<float> > &rshift_neg) {
+  unsigned idx = 2;  // first 2 opdT are always input and filter
+  if (op.quant() == "INT8" || op.quant() == "INT8_PER_CHANNEL"
+          || op.quant() == "INT8_MULTIPLIER") {
+    rshift_pos = opdT[idx];
+    idx += 1;
+    multiplier_pos = opdT[idx];
+    idx += 1;
+    rshift_neg = opdT[idx];
     idx += 1;
   }
 

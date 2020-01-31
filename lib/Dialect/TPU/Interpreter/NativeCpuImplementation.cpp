@@ -539,10 +539,9 @@ int my_sigmoid(float *input, float *output, int n, int c, int h, int w) {
   return 0;
 }
 
-// Y = (X-mean(X))/(sqrt(var(X)+eps))
-int my_bn(float *input, float *mean, float *variance, float *scale,
+// Y = (X-mean(X))/(sqrt(var(X)+variance_epsilon))
+int my_bn(float *input, float *mean, float *variance, float *scale, float variance_epsilon,
     float *output, int n, int c, int h, int w) {
-  float eps = 1.0e-5;
   float scale_factor = 1 / scale[0];
   for (int i = 0; i < c; ++i) {
     mean[i] = mean[i] * scale_factor;
@@ -552,9 +551,9 @@ int my_bn(float *input, float *mean, float *variance, float *scale,
     for (int ci = 0; ci < c; ++ci) {
       for (int i = 0; i < h * w; ++i) {
         auto x = input[ni * c * h * w + ci * h * w + i] - mean[ci];
-        auto d = sqrt(variance[ci] + eps);
+        auto d = sqrt(variance[ci] + variance_epsilon);
         output[ni * c * h * w + ci * h * w + i] = x / d;
-        if (fabs(variance[ci]) <= eps && fabs(mean[ci]) <= 1e-8
+        if (fabs(variance[ci]) <= variance_epsilon && fabs(mean[ci]) <= 1e-8
             && fabs(input[ni * c * h * w + ci * h * w + i]) >= 1.0e-4
             && fabs(output[ni * c * h * w + ci * h * w + i]) >= 1.0e-2) {
           llvm::errs() << "WARNING: BN: var too small, i=" << i

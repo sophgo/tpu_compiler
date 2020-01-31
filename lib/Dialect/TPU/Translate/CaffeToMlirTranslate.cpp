@@ -820,6 +820,7 @@ void CaffeImporter::convertBatchNormLayer(mlir::Block *block,
 
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name())));
+  attrs.push_back(builder_.getNamedAttr("variance_epsilon", builder_.getF32FloatAttr(batch_norm_param.eps())));
   auto op = OpBuilder(block).create<tpu::BatchNormOp>(
       builder_.getUnknownLoc(), result_type,
       ArrayRef<Value *>{operands}, ArrayRef<NamedAttribute>{attrs});

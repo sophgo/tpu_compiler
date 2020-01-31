@@ -268,7 +268,7 @@ struct TpuScaleOpPattern : public RewritePattern {
     auto filter_type = scaleOp.getResult()->getType().cast<TensorType>();
     std::vector<int64_t> filter_shape(filter_type.getShape());
     int64_t oc;
-    assert(filter_shape.size() == 4);
+    // assert(filter_shape.size() == 4);
     oc = filter_shape[1];
 
     if (!DoAssignWeight<tpu::ScaleOp>(op, oc, rewriter, weightTensorFile_)) {
@@ -302,6 +302,7 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
 
     // read the tensor
     auto tensor_name = weightOp.name().getValue();
+
     auto type = weightOp.getResult()->getType().cast<TensorType>();
     auto curPos = weightBinaryFile_->tell();
     size_t size;
@@ -315,6 +316,21 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
       // transpose if this is conv filter weight
       // TODO: this is tricky, we assume any 4 dim weight tensor is a conv filter
       std::vector<int64_t> shape = type.getShape();
+
+      if (shape.size() == 5) {
+        // FIXME: check this weight is belonging to conv
+        std::vector<int64_t> _shape(shape.begin(), shape.end()); 
+        shape.clear();
+
+        // reshape it
+        shape.push_back(_shape[0] * _shape[1]);
+
+        // index [0] [1] is batch
+        for(uint64_t i = 2; i < _shape.size(); i++) {
+          shape.push_back(_shape[i]);
+        }
+      }
+
       if (shape.size() == 4) {
         transposeConvolutionFilter<int8_t>(weight_int8, shape);
       }
