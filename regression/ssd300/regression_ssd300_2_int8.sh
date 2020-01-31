@@ -13,7 +13,9 @@ if [ $DO_CALIBRATION -eq 1 ]; then
 python ../../../../mlir/externals/calibration_tool/run_calibration.py \
     ssd300 ssd300_opt2.mlir \
     $DATA_PATH/input.txt \
-    --input_num=20
+    --input_num=500
+
+cp ./result/ssd300_threshold_table $REGRESSION_PATH/ssd300/data/
 else
 # import calibration table
 mlir-opt \
@@ -35,14 +37,14 @@ mlir-opt \
     -o ssd300_quant_int8_per_layer.mlir
 
 if [ $CHECK_INFERENCE_RESULT -eq 1 ]; then
-	run_mlir_detector_ssd.py \
-	    --model ssd300_quant_int8_per_layer.mlir \
-	    --net_input_dims 300,300 \
-	    --dump_blobs ssd300_blobs.npz \
-	    --dump_weights ssd300_weights.npz \
-	    --input_file $REGRESSION_PATH/ssd300/data/dog.jpg \
-	    --label_file $MODEL_PATH/caffe/ssd300/labelmap_coco.prototxt  \
-	    --draw_image ssd300_quant_int8_per_layer_result.jpg
+  run_mlir_detector_ssd.py \
+      --model ssd300_quant_int8_per_layer.mlir \
+      --net_input_dims 300,300 \
+      --dump_blobs ssd300_blobs.npz \
+      --dump_weights ssd300_weights.npz \
+      --input_file $REGRESSION_PATH/ssd300/data/dog.jpg \
+      --label_file $MODEL_PATH/caffe/ssd300/labelmap_coco.prototxt  \
+      --draw_image ssd300_quant_int8_per_layer_result.jpg
 fi
 
 mlir-tpu-interpreter ssd300_quant_int8_per_layer.mlir \
@@ -59,11 +61,7 @@ npz_compare.py \
       ssd300_out_int8_per_layer.npz \
       ssd300_blobs.npz \
       --op_info ssd300_op_info_int8_per_layer.csv \
-      --tolerance 0.98,0.97,0.80 -vvv
-
-
-# #       #before do power scale and shift quant
-# #       #--tolerance 0.99,0.989,0.859 -vvv
+      --tolerance 0.984,0.984,0.822 -vvv
 
 if [ $COMPARE_ALL -eq 1 ]; then
   # some tensors do not pass due to threshold bypass
@@ -74,7 +72,7 @@ if [ $COMPARE_ALL -eq 1 ]; then
       --op_info ssd300_op_info_int8_per_layer.csv \
       --dequant \
       --excepts detection_out \
-      --tolerance 0.86,0.85,0.38 -vvv
+      --tolerance 0.878,0.87,0.43 -vvv
 fi
 
 # ################################
@@ -92,14 +90,14 @@ mlir-opt \
     -o ssd300_quant_int8_per_channel.mlir
 
 # if [ $CHECK_INFERENCE_RESULT -eq 1 ]; then
-# 	run_mlir_detector_ssd.py \
-# 	    --model ssd300_quant_int8_per_channel.mlir \
-# 	    --net_input_dims 300,300 \
-# 	    --dump_blobs ssd300_blobs.npz \
-# 	    --dump_weights ssd300_weights.npz \
-# 	    --input_file $REGRESSION_PATH/ssd300/data/dog.jpg \
-# 	    --label_file $MODEL_PATH/caffe/ssd300/labelmap_coco.prototxt  \
-# 	    --draw_image ssd300_quant_int8_per_channel.jpg
+#   run_mlir_detector_ssd.py \
+#       --model ssd300_quant_int8_per_channel.mlir \
+#       --net_input_dims 300,300 \
+#       --dump_blobs ssd300_blobs.npz \
+#       --dump_weights ssd300_weights.npz \
+#       --input_file $REGRESSION_PATH/ssd300/data/dog.jpg \
+#       --label_file $MODEL_PATH/caffe/ssd300/labelmap_coco.prototxt  \
+#       --draw_image ssd300_quant_int8_per_channel.jpg
 # fi
 
 mlir-tpu-interpreter ssd300_quant_int8_per_channel.mlir \
@@ -117,7 +115,7 @@ npz_compare.py \
       ssd300_blobs.npz \
       --op_info ssd300_op_info_int8_per_channel.csv \
       --dequant \
-      --tolerance 0.95,0.94,0.67 -vvv
+      --tolerance 0.97,0.97,0.79 -vvv
 
 
       #before do power scale and shift quant
@@ -132,7 +130,7 @@ if [ $COMPARE_ALL -eq 1 ]; then
       --op_info ssd300_op_info_int8_per_channel.csv \
       --dequant \
       --excepts detection_out \
-      --tolerance 0.872,0.863,0.395 -vvv
+      --tolerance 0.88,0.87,0.43 -vvv
 fi
 
 # ################################
@@ -150,14 +148,14 @@ mlir-opt \
     -o ssd300_quant_int8_multiplier.mlir
 
 if [ $CHECK_INFERENCE_RESULT -eq 1 ]; then
-	run_mlir_detector_ssd.py \
-	    --model ssd300_quant_int8_multiplier.mlir \
-	    --net_input_dims 300,300 \
-	    --dump_blobs ssd300_blobs.npz \
-	    --dump_weights ssd300_weights.npz \
-	    --input_file $REGRESSION_PATH/ssd300/data/dog.jpg \
-	    --label_file $MODEL_PATH/caffe/ssd300/labelmap_coco.prototxt  \
-	    --draw_image ssd300_quant_int8_multiplier.jpg
+  run_mlir_detector_ssd.py \
+      --model ssd300_quant_int8_multiplier.mlir \
+      --net_input_dims 300,300 \
+      --dump_blobs ssd300_blobs.npz \
+      --dump_weights ssd300_weights.npz \
+      --input_file $REGRESSION_PATH/ssd300/data/dog.jpg \
+      --label_file $MODEL_PATH/caffe/ssd300/labelmap_coco.prototxt  \
+      --draw_image ssd300_quant_int8_multiplier.jpg
 fi
 
 mlir-tpu-interpreter ssd300_quant_int8_multiplier.mlir \
@@ -174,7 +172,7 @@ npz_compare.py \
       ssd300_blobs.npz \
       --op_info ssd300_op_info_int8_multiplier.csv \
       --dequant \
-      --tolerance 0.986,0.985,0.83 -vvv
+      --tolerance 0.987,0.986,0.83 -vvv
 
       #before do power scale and shift quant
       #--tolerance 0.988,0.987,0.846 -vvv
@@ -188,7 +186,7 @@ if [ $COMPARE_ALL -eq 1 ]; then
       --op_info ssd300_op_info_int8_multiplier.csv \
       --dequant \
       --excepts detection_out \
-      --tolerance 0.875,0.866,0.4 -vvv
+      --tolerance 0.88,0.87,0.43 -vvv
 fi
 
 fi

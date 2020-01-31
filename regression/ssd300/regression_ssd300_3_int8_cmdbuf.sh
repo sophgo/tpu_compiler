@@ -20,19 +20,19 @@ bin_fp32_to_int8.py \
 ################################
 
 # assign weight address & neuron address
-mlir-opt \
-    --assign-weight-address \
-    --tpu-weight-address-align=16 \
-    --tpu-weight-map-filename=weight_map.csv \
-    --tpu-weight-bin-filename=weight_int8_per_layer.bin \
-    --assign-neuron-address \
-    --tpu-neuron-address-align=16 \
-    --tpu-neuron-map-filename=neuron_map.csv \
-    --assign-layer-id \
-    ssd300_quant_int8_per_layer.mlir | \
-	mlir-translate \
-	--mlir-to-cmdbuf \
-	-o cmdbuf_int8_per_layer.bin
+# mlir-opt \
+#     --assign-weight-address \
+#     --tpu-weight-address-align=16 \
+#     --tpu-weight-map-filename=weight_map.csv \
+#     --tpu-weight-bin-filename=weight_int8_per_layer.bin \
+#     --assign-neuron-address \
+#     --tpu-neuron-address-align=16 \
+#     --tpu-neuron-map-filename=neuron_map.csv \
+#     --assign-layer-id \
+#     ssd300_quant_int8_per_layer.mlir | \
+# 	mlir-translate \
+# 	--mlir-to-cmdbuf \
+# 	-o cmdbuf_int8_per_layer.bin
 
 # # run cmdbuf
 # $RUNTIME_PATH/bin/test_bmnet \
@@ -40,7 +40,7 @@ mlir-opt \
 #     weight_int8_per_layer.bin \
 #     cmdbuf_int8_per_layer.bin \
 #     ssd300_cmdbuf_out_all_int8_per_layer.bin \
-#     16460784 0 16460784 1
+#     35113632 0 35113632 1
 
 # bin_extract.py \
 #     ssd300_cmdbuf_out_all_int8_per_layer.bin \
@@ -76,28 +76,28 @@ mlir-opt \
 # ################################
 # # quantization 3: multiplier int8
 # ################################
-# # assign weight address & neuron address
-# mlir-opt \
-#     --assign-weight-address \
-#     --tpu-weight-address-align=16 \
-#     --tpu-weight-map-filename=weight_map.csv \
-#     --tpu-weight-bin-filename=weight_int8_multiplier.bin \
-#     --assign-neuron-address \
-#     --tpu-neuron-address-align=16 \
-#     --tpu-neuron-map-filename=neuron_map.csv \
-#     --assign-layer-id \
-#     ssd300_quant_int8_multiplier.mlir | \
-#   mlir-translate \
-#     --mlir-to-cmdbuf \
-#     -o cmdbuf_int8_multiplier.bin
+# assign weight address & neuron address
+mlir-opt \
+    --assign-weight-address \
+    --tpu-weight-address-align=16 \
+    --tpu-weight-map-filename=weight_map.csv \
+    --tpu-weight-bin-filename=weight_int8_multiplier.bin \
+    --assign-neuron-address \
+    --tpu-neuron-address-align=16 \
+    --tpu-neuron-map-filename=neuron_map.csv \
+    --assign-layer-id \
+    ssd300_quant_int8_multiplier.mlir | \
+  mlir-translate \
+    --mlir-to-cmdbuf \
+    -o cmdbuf_int8_multiplier.bin
 
-# # run cmdbuf
-# $RUNTIME_PATH/bin/test_bmnet \
-#     ssd300_in_int8.bin \
-#     weight_int8_multiplier.bin \
-#     cmdbuf_int8_multiplier.bin \
-#     ssd300_cmdbuf_out_all_int8_multiplier.bin \
-#     16460784 0 16460784 1
+# run cmdbuf
+$RUNTIME_PATH/bin/test_bmnet \
+    ssd300_in_int8.bin \
+    weight_int8_multiplier.bin \
+    cmdbuf_int8_multiplier.bin \
+    ssd300_cmdbuf_out_all_int8_multiplier.bin \
+    35113632 0 35113632 1
 # bin_extract.py \
 #     ssd300_cmdbuf_out_all_int8_multiplier.bin \
 #     ssd300_cmdbuf_out_fc1000_int8_multiplier.bin \
@@ -107,15 +107,15 @@ mlir-opt \
 #     $REGRESSION_PATH/ssd300/data/test_cat_out_ssd300_fc1000_int8_multiplier.bin \
 #     int8 1 1 1 1000 5
 
-# # compare all tensors
-# bin_to_npz.py \
-#     ssd300_cmdbuf_out_all_int8_multiplier.bin \
-#     neuron_map.csv \
-#     ssd300_cmdbuf_out_all_int8_multiplier.npz
-# npz_compare.py \
-#     ssd300_cmdbuf_out_all_int8_multiplier.npz \
-#     ssd300_tensor_all_int8_multiplier.npz \
-#     --op_info ssd300_op_info_int8_multiplier.csv
+# compare all tensors
+bin_to_npz.py \
+    ssd300_cmdbuf_out_all_int8_multiplier.bin \
+    neuron_map.csv \
+    ssd300_cmdbuf_out_all_int8_multiplier.npz
+npz_compare.py \
+    ssd300_cmdbuf_out_all_int8_multiplier.npz \
+    ssd300_tensor_all_int8_multiplier.npz \
+    --op_info ssd300_op_info_int8_multiplier.csv
 
 # VERDICT
 echo $0 PASSED

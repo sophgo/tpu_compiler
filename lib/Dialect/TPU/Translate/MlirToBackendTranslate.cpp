@@ -128,6 +128,7 @@ static LogicalResult runOperation(Operation &opInst) {
 
     return success();
   }
+
   if (auto op = dyn_cast<tpu::TL_LW_Conv2DOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "TL_LW_Conv2DOp" << "\n";);
 
@@ -145,16 +146,11 @@ static LogicalResult runOperation(Operation &opInst) {
     laddr_t la_working = op.la_working().getLimitedValue();
     int layer_id = op.layer_id().getValue().getLimitedValue();
 
-    LLVM_DEBUG(llvm::errs() << "TL_LW_Conv2DOp, layer_id = " << layer_id << "\n";);
+    llvm::errs() << "TL_LW_Conv2DOp, layer_id = " << layer_id << "\n";
     if (op.tl_load_flag()) {
       cvi_backend_tl_load(*backend_ctx, layer_id,
           la_input, ga_input, n, ic, ih, iw);
     }
-    #if 0
-    //
-    // V0: Weight Only version, with no parallel for load/store activations
-    // (only consider load weight parallel)
-    //
     cvi_backend_tl_conv_LW(*backend_ctx, layer_id,
         la_input, la_output, la_working,
         ga_filter, ga_perchannel,
@@ -165,37 +161,6 @@ static LogicalResult runOperation(Operation &opInst) {
       cvi_backend_tl_store(*backend_ctx, layer_id,
           la_output, ga_output, n, oc, oh, ow);
     }
-    #endif
-    #if 1
-    //
-    // V1: Weight and Store version
-    //   this only do parallel on both Weight load and Activation Store
-    //   but load activation is not handled in parallel
-    //
-    if (op.tl_store_flag()) {
-      cvi_backend_tl_conv_LW(*backend_ctx, layer_id,
-          la_input, la_output, la_working,
-          ga_filter, ga_perchannel,
-          n, ic, ih, iw, g, oc, oh, ow, kh, kw,
-          dh, dw, ph, ph, pw, pw, sh, sw,
-          false, with_bias, do_relu,
-          true, ga_output);
-    } else {
-      cvi_backend_tl_conv_LW(*backend_ctx, layer_id,
-          la_input, la_output, la_working,
-          ga_filter, ga_perchannel,
-          n, ic, ih, iw, g, oc, oh, ow, kh, kw,
-          dh, dw, ph, ph, pw, pw, sh, sw,
-          false, with_bias, do_relu);
-    }
-    #endif
-    #if 0
-    //
-    // V2: Tiling version
-    //    make for loops outside of the backend api, handle tiling outside
-    //
-    // TODO:
-    #endif
     return success();
   }
 
@@ -383,155 +348,6 @@ static LogicalResult runOperation(Operation &opInst) {
       llvm::errs() << "not support yet \n";
       assert(0);
     }
-    return success();
-  }
-
-
-  if (auto op = dyn_cast<tpu::ScaleOp>(opInst)) {
-    LLVM_DEBUG(llvm::errs() << "ScaleOp(" << op.name() << ")\n" ;);
-
-#define SCALE_INPUT_NR (2)
-    int n, c, h, w;
-    auto input_1_type = op.x()->getType().cast<TensorType>();
-    std::vector<int64_t> i1_s(input_1_type.getShape());
-    auto input_2_type = op.scale()->getType().cast<TensorType>();
-    std::vector<int64_t> i2_s(input_2_type.getShape());
-    auto output_type = op.y()->getType().cast<TensorType>();
-    auto second_is_blob = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
-        op.getOperand(1)->getDefiningOp());
-    std::vector<int64_t> o_s(output_type.getShape());
-    
-    LLVM_DEBUG(llvm::errs() << "input[1] shape_size is " << i2_s.size()
-        << "\n" ;);
-
-    n = o_s[0];
-    c = o_s[1];
-    h = o_s[2];
-    w = o_s[3];
-
-    gaddr_t ga_inputs = getPreviousOpAddress(op, 0);
-    gaddr_t scale_gaddr;
-    gaddr_t bias_gaddr = INVALID_GLOBAL_ADDR;
-    gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
-    bool do_bias = op.with_bias();
-    int layer_id = op.layer_id().getValue().getLimitedValue();
-    int scale_dim;
-    // TODO: support axis > 0
-    int inner_dim = h * w;
-    // TODO: support variable input[1] shape, currently ONLY verify <n,c,h,w> x <n,c>
-    if (second_is_blob) {
-      // scale from blob
-      scale_gaddr = getWeightOpAddress(op.getOperand(1)->getDefiningOp());
-      scale_dim = n * c;
-      if (opInst.getNumOperands() == 4) {
-        bias_gaddr = getWeightOpAddress(op.getOperand(2)->getDefiningOp());
-      }
-    }
-    else {
-      // scale from input[1]
-      scale_gaddr = getPreviousOpAddress(op, 1);
-      scale_dim = n * c;
-    }
-
-    // TODO: support div 
-    // TODO: support const scale
-    bool is_scale_const = false;
-    int const_scale = 0;
-
-#define RELU (0)
-    bool do_relu = false;
-    // FIXME: support prelu
-    int activation = RELU;
-    float activation_arg[1] = {0.0f};
-    if (op.fused_activation_function() == "NONE") {
-    } else if (op.fused_activation_function() == "RELU") {
-      do_relu = true;
-    } else {
-      assert(0);
-    }
-
-    uint32_t rshift = 0;
-    if (op.quant() == "INT8") {
-
-      // multiplier is taking avg_const into account
-      uint32_t multiplier = 0;
-      int is_i8_multiplier[1];
-      float threshold_y;
-      threshold_y = op.threshold_y().getValue().convertToFloat();
-
-      if (second_is_blob) {
-        float threshold_x;
-        threshold_x = getPreviousOpThreshold(op);
-        // determine multiplier and rshift according to threshold_x
-        // scale = threshold_x / threshold_y
-        // scale will be implemented by hardware as
-        // scale = multiplier / (1 << rshift)
-        // find a rshift, that put max(multiplier) into range (64, 127)
-        float scale = threshold_x / threshold_y;
-        rshift = findRShiftAndMultiplierFromQScale(scale, &multiplier, false, 255);
-        is_i8_multiplier[0] = 1;
-        LLVM_DEBUG(llvm::errs() << "rshift: " << rshift << "," << "multiplier: " << multiplier << "\n";);
-      }
-      else {
-        uint32_t multiplier_prod;
-        std::vector<float> threshold_x(SCALE_INPUT_NR);
-        for (int index = 0; index < SCALE_INPUT_NR; ++index) {
-          // get threshold_x
-          threshold_x[index] = getPreviousOpThreshold(op, index);
-        }
-
-        float threshold_prod = std::accumulate(
-            threshold_x.begin(), threshold_x.end(), 1.0, std::multiplies<>());
-        float qscale = threshold_prod / threshold_y / 127.0;
-        rshift = findRShiftAndMultiplierFromQScale(qscale);
-        findRShiftAndMultiplierFromQScale(qscale, &multiplier_prod, true, 255);
-
-        is_i8_multiplier[0] = (int)multiplier_prod;
-      }
-
-      bmnet_scale_fixed_forward_bmkernel(
-          *backend_ctx, 0, 0, layer_id,
-          nullptr, 0, ga_inputs,
-          scale_gaddr, bias_gaddr, output_gaddr, n, c, h, w, scale_dim,
-          inner_dim, is_scale_const, const_scale, rshift,
-          do_relu,
-          activation,
-          activation_arg,
-          is_i8_multiplier,
-          do_bias,
-          second_is_blob
-          );
-    } else if (op.quant() == "INT8_MULTIPLIER") {
-      gaddr_t bias_gaddr = INVALID_GLOBAL_ADDR;
-      if (second_is_blob) {
-        // 0 is input, 1 is weight, (2) is bais, 3 is rshift 4 is multipiler
-        int i32_multipiler_idx = 2;
-        
-        bias_gaddr = getWeightOpAddress(op.getOperand(i32_multipiler_idx)->getDefiningOp());
-      }
-      else {
-        assert(0 && "plz support it");
-      }
-
-      bmnet_scale_fixed_forward_bmkernel(
-          *backend_ctx, 0, 0, layer_id,
-          nullptr, 0, ga_inputs,
-          scale_gaddr, bias_gaddr, output_gaddr, n, c, h, w, scale_dim,
-          inner_dim, is_scale_const, const_scale, rshift,
-          do_relu,
-          activation,
-          activation_arg,
-          nullptr,
-          do_bias,
-          second_is_blob
-          );
-
-    } else if (op.quant() == "BF16") {
-      assert(0 && "plz support it");
-    } else {
-      assert(0);
-    }
-
     return success();
   }
 
@@ -1456,8 +1272,8 @@ static LogicalResult runOperation(Operation &opInst) {
     gaddr_t y0_table_gaddr = getWeightOpAddress(op.getOperand(1)->getDefiningOp());
 
     int layer_id = op.layer_id().getValue().getLimitedValue();
-    if (op.quant() == "INT8") {
-      sigmoid_fixed_forward_bmkernel(*backend_ctx,
+    if (op.quant() == "INT8"|| op.quant() == "INT8_PER_CHANNEL"||op.quant() == "INT8_MULTIPLIER"){
+      sqrt_fixed_forward_bmkernel(*backend_ctx,
                                      0,        // stream_id,
                                      0,        // inst_id,
                                      layer_id, // layer_id,
