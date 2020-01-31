@@ -994,6 +994,7 @@ static LogicalResult runOperation(Operation &opInst) {
     bool do_relu = false;
     if (op.fused_activation_function() == "NONE") {
     } else if (op.fused_activation_function() == "RELU") {
+      llvm::errs() << "EltwiseOp do_relu" << "\n";
       do_relu = true;
     } else {
       assert(0);
@@ -1033,8 +1034,8 @@ static LogicalResult runOperation(Operation &opInst) {
         int8_t rshift = getRshiftFromOperandTensor(opInst, rshift_opd_index);
 
         int8_t multiplier_opd_index = MAX_ELTWISE_INPUT + 1;
-        auto fmultiplier =
-            getWeightFromOperandTensor<float>(opInst, multiplier_opd_index);
+        auto fmultiplier = 
+             getWeightFromOperandTensor<float>(opInst, multiplier_opd_index);
 
         int multiplier_int8[MAX_ELTWISE_INPUT];
         for (size_t i = 0; i < fmultiplier.get()->size(); ++i) {
@@ -1241,7 +1242,7 @@ static LogicalResult runOperation(Operation &opInst) {
       int threshold_x_quantized = (int)multiplier;
       LLVM_DEBUG(llvm::errs() << "powerop rshift (" << op.name() << ") is "<< rshift << "\n";);
 
-llvm::errs() << llvm::format("input_gaddr 0x%lx,output_gaddr 0x%lx, scale_offset 0x%lx, shift_offset 0x%lx\n",input_gaddr, output_gaddr, scale_offset,shift_offset);
+      llvm::errs() << llvm::format("input_gaddr 0x%lx,output_gaddr 0x%lx, scale_offset 0x%lx, shift_offset 0x%lx\n",input_gaddr, output_gaddr, scale_offset,shift_offset);
       bmnet_power_fixed_forward_bmkernel(
           *backend_ctx, 0, 0, layer_id,
           nullptr, 0,
