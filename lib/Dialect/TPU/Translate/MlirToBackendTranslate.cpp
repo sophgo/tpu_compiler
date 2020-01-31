@@ -301,6 +301,7 @@ static LogicalResult runOperation(Operation &opInst) {
     //int with_bias = 0;
     if (opInst.getNumOperands() > 3) {
       with_bias = 1;
+      bias_gaddr = getWeightOpAddress(op.getOperand(2)->getDefiningOp());
     }
     int rshift_opd_index = 2;
     if (with_bias) {
@@ -367,8 +368,7 @@ static LogicalResult runOperation(Operation &opInst) {
     } else if (op.quant() == "INT8_MULTIPLIER") {
 
     gaddr_t bias_gaddr = getWeightOpAddress(op.getOperand(2)->getDefiningOp());
-    // TODO: assuming always with_bias
-    int with_bias = 1;
+
     bmnet_conv_parallel_fixed_forward_bmkernel(
         *backend_ctx,
         0, // stream_id,
