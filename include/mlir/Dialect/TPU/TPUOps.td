@@ -15,7 +15,7 @@
 // limitations under the License.
 // =============================================================================
 //
-// Defines some operations of the GPU dialect.
+// Defines some operations of the TPU dialect.
 //
 //===----------------------------------------------------------------------===//
 

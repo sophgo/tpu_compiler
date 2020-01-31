@@ -106,7 +106,7 @@ struct TpuGenDivTablePattern : public RewritePattern {
     std::vector<NamedAttribute> attrs;
     attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(tensor_name)));
     attrs.push_back(
-        rewriter.getNamedAttr("storage", rewriter.getStringAttr("INT8")));
+        rewriter.getNamedAttr("storage", rewriter.getStringAttr("UINT8")));
     auto new_weight_op = rewriter.create<tpu::LoadWeightOp>(op->getLoc(), type,
         ArrayRef<Value *>{weightFileVar_}, ArrayRef<NamedAttribute>{attrs});
     newOperands.push_back(new_weight_op);
