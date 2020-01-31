@@ -350,6 +350,7 @@ static LogicalResult runOperation(Operation &opInst) {
     return success();
   }
 
+
   if (auto op = dyn_cast<tpu::ScaleOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "ScaleOp(" << op.name() << ")\n" ;);
 

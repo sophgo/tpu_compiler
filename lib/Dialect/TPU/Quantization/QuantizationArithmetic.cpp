@@ -710,7 +710,6 @@ void quantizeWeightInt8PerLayerMultiplier(float *filter, float *bias, int oc, in
   }
   // quantize weight
   for (int i = 0; i < oc * isz; ++i) {
-    if(i < 10)
     new_filter[i] = (float)quantizeFilterRShiftAndMultiplier(
         filter[i], threshold_y, threshold_x, rshift_per_layer[0],
         multiplier_per_layer[0], true);
