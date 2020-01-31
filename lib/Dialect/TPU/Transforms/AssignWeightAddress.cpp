@@ -257,7 +257,7 @@ struct TpuScaleOpPattern : public RewritePattern {
   PatternMatchResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
     auto scaleOp = cast<tpu::ScaleOp>(op);
-    if (scaleOp.quant() != "INT8_MULTIPLIER") {
+    if (scaleOp.quant() != "INT8" && scaleOp.quant() != "INT8_PER_CHANNEL") {
       return matchFailure();
     }
 
@@ -325,13 +325,11 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
         for(uint64_t i = 2; i < _shape.size(); i++) {
           shape.push_back(_shape[i]);
         }
-      }
-
-      if (shape.size() == 4) {
+      } else if (shape.size() == 4) {
         transposeConvolutionFilter<int8_t>(weight_int8, shape);
-      }
-      // TODO: this is tricky, we assume any 2 dim weight tensor is a fc filter
-      if (shape.size() == 2) {
+      } else if (shape.size() == 2) {
+        // TODO: this is tricky, we assume any 2 dim weight tensor is a fc
+        // filter
         transposeFullyConnectedFilter<int8_t>(weight_int8, shape);
       }
 
