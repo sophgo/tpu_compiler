@@ -301,6 +301,7 @@ static LogicalResult runOperation(Operation &opInst) {
     //int with_bias = 0;
     if (opInst.getNumOperands() > 3) {
       with_bias = 1;
+      bias_gaddr = getWeightOpAddress(op.getOperand(2)->getDefiningOp());
     }
     int rshift_opd_index = 2;
     if (with_bias) {
@@ -367,8 +368,7 @@ static LogicalResult runOperation(Operation &opInst) {
     } else if (op.quant() == "INT8_MULTIPLIER") {
 
     gaddr_t bias_gaddr = getWeightOpAddress(op.getOperand(2)->getDefiningOp());
-    // TODO: assuming always with_bias
-    int with_bias = 1;
+
     bmnet_conv_parallel_fixed_forward_bmkernel(
         *backend_ctx,
         0, // stream_id,
@@ -1304,6 +1304,96 @@ static LogicalResult runOperation(Operation &opInst) {
     }
     return success();
   }
+  if (auto op = dyn_cast<tpu::ScaleOp>(opInst)) {
+    LLVM_DEBUG(llvm::errs() << "ScaleOp(" << op.name() << ")\n";);
+
+#define SCALE_INPUT_NUM (2)
+    int n, c, h, w;
+    auto input_1_type = op.x()->getType().cast<TensorType>();
+    std::vector<int64_t> i1_s(input_1_type.getShape());
+    auto input_2_type = op.scale()->getType().cast<TensorType>();
+    std::vector<int64_t> i2_s(input_2_type.getShape());
+    auto output_type = op.y()->getType().cast<TensorType>();
+    auto second_is_load_weight = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
+        op.getOperand(1)->getDefiningOp());
+    std::vector<int64_t> o_s(output_type.getShape());
+    LLVM_DEBUG(llvm::errs() << "input[1] shape_size is " << i2_s.size() << " "
+                            << std::to_string(second_is_load_weight)<< "\n";);
+    n = o_s[0];
+    c = o_s[1];
+    h = o_s[2];
+    w = o_s[3];
+
+    gaddr_t ga_inputs = getPreviousOpAddress(op, 0);
+    gaddr_t scale_gaddr;
+    gaddr_t bias_gaddr = INVALID_GLOBAL_ADDR;
+    gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
+    bool do_bias = op.with_bias();
+    int layer_id = op.layer_id().getValue().getLimitedValue();
+    int scale_dim;
+    // TODO: support axis > 0, now
+    int inner_dim = h * w;
+    // TODO: support variable input[1] shape, currently ONLY verify <n,c,h,w> X <n,c>
+    if (second_is_load_weight) {
+      // scale from weight
+      scale_gaddr = getWeightOpAddress(op.getOperand(1)->getDefiningOp());
+      scale_dim = n * c;
+      bias_gaddr = getWeightOpAddress(op.getOperand(2)->getDefiningOp());
+    } else {
+      // scale from input 
+      scale_gaddr = getPreviousOpAddress(op, 1);
+      scale_dim = n * c;
+    }
+
+
+#define RELU (0)
+    bool do_relu = false;
+    int activation = RELU;
+    float activation_arg[1] = {0.0f};
+    if (op.fused_activation_function() == "NONE") {
+    } else if (op.fused_activation_function() == "RELU") {
+      do_relu = true;
+    } else {
+      assert(0 && "fused activation mode not support");
+    }
+
+    uint32_t rshift = 0;
+    // Per layer 
+    if (op.quant() == "INT8") {
+      assert(0 && "TODO per layer ");
+
+    } else if (op.quant() == "INT8_PER_CHANNEL"){
+      // Per Channel only when the second input is from weight
+      assert(second_is_load_weight &&
+             "Per Channel only when the second input is from weight");
+
+      scale_fixed_forward_qi32(*backend_ctx, // ctx
+                                0,            // stream_id
+                                0,            // inst_id
+                                layer_id,     // layer_id
+                                nullptr,      // depends
+                                0,            // depends_len
+                                ga_inputs,    // input_addr
+                                scale_gaddr,  // scale_addr
+                                bias_gaddr,   // bias_addr
+                                output_gaddr, // output_addr
+                                n, c, h, w,
+                                scale_dim,      // scale_dim
+                                inner_dim,      // inner_dim
+                                false,          // is_scale_const
+                                0,              // const_scale
+                                do_relu,        // do_activation,
+                                activation,     // activation_method
+                                activation_arg, // activation_arg
+                                do_bias, second_is_load_weight);
+      
+    } else if (op.quant() == "BF16") {
+      assert(0 && "not support now");
+    } else {
+      assert(0 && "op quant type not support");
+    }
+  }
+
   return success();
 }
 
