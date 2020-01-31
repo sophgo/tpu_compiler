@@ -9,7 +9,7 @@ TENSOR_IN_FILE=./data/Aaron_Eckhart_0001_112_112_fp32_scale.npz
 # import calibration table
 mlir-opt \
     --import-calibration-table \
-    --calibration-table $REGRESSION_PATH/bmface_v3/bmface-v3_cali1024_threshold_table \
+    --calibration-table $REGRESSION_PATH/bmface_v3/data/bmface-v3_cali1024_threshold_table \
     bmface-v3_opt.mlir \
     -o bmface-v3_cali.mlir
 

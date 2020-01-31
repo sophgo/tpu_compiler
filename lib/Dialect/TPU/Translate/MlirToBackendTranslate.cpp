@@ -73,9 +73,9 @@ static int8_t getRshiftFromOperandTensor(Operation &op, int opdIndex) {
 }
 
 // \threshold_x_quantized number should eq \input_nr
-static void getI8Multiplier(Operation* opInst, 
+static void getI8Multiplier(Operation* opInst,
     float threshold_y,
-    int input_nr, 
+    int input_nr,
     int* threshold_x_quantized) {
 
   std::vector<float> threshold_x;
@@ -150,6 +150,11 @@ static LogicalResult runOperation(Operation &opInst) {
       cvi_backend_tl_load(*backend_ctx, layer_id,
           la_input, ga_input, n, ic, ih, iw);
     }
+    #if 0
+    //
+    // V0: Weight Only version, with no parallel for load/store activations
+    // (only consider load weight parallel)
+    //
     cvi_backend_tl_conv_LW(*backend_ctx, layer_id,
         la_input, la_output, la_working,
         ga_filter, ga_perchannel,
@@ -160,6 +165,37 @@ static LogicalResult runOperation(Operation &opInst) {
       cvi_backend_tl_store(*backend_ctx, layer_id,
           la_output, ga_output, n, oc, oh, ow);
     }
+    #endif
+    #if 1
+    //
+    // V1: Weight and Store version
+    //   this only do parallel on both Weight load and Activation Store
+    //   but load activation is not handled in parallel
+    //
+    if (op.tl_store_flag()) {
+      cvi_backend_tl_conv_LW(*backend_ctx, layer_id,
+          la_input, la_output, la_working,
+          ga_filter, ga_perchannel,
+          n, ic, ih, iw, g, oc, oh, ow, kh, kw,
+          dh, dw, ph, ph, pw, pw, sh, sw,
+          false, with_bias, do_relu,
+          true, ga_output);
+    } else {
+      cvi_backend_tl_conv_LW(*backend_ctx, layer_id,
+          la_input, la_output, la_working,
+          ga_filter, ga_perchannel,
+          n, ic, ih, iw, g, oc, oh, ow, kh, kw,
+          dh, dw, ph, ph, pw, pw, sh, sw,
+          false, with_bias, do_relu);
+    }
+    #endif
+    #if 0
+    //
+    // V2: Tiling version
+    //    make for loops outside of the backend api, handle tiling outside
+    //
+    // TODO:
+    #endif
     return success();
   }
 
@@ -518,6 +554,7 @@ static LogicalResult runOperation(Operation &opInst) {
     //int with_bias = 0;
     if (opInst.getNumOperands() > 3) {
       with_bias = 1;
+      bias_gaddr = getWeightOpAddress(op.getOperand(2)->getDefiningOp());
     }
     int rshift_opd_index = 2;
     if (with_bias) {
@@ -584,8 +621,7 @@ static LogicalResult runOperation(Operation &opInst) {
     } else if (op.quant() == "INT8_MULTIPLIER") {
 
     gaddr_t bias_gaddr = getWeightOpAddress(op.getOperand(2)->getDefiningOp());
-    // TODO: assuming always with_bias
-    int with_bias = 1;
+
     bmnet_conv_parallel_fixed_forward_bmkernel(
         *backend_ctx,
         0, // stream_id,
@@ -692,7 +728,7 @@ static LogicalResult runOperation(Operation &opInst) {
     return success();
   }
   if (auto op = dyn_cast<tpu::CropOp>(opInst)) {
-    LLVM_DEBUG(llvm::errs() << "Cropop" << op.name() 
+    LLVM_DEBUG(llvm::errs() << "Cropop" << op.name()
                             << "\n";);
 
     int layer_id = op.layer_id().getValue().getLimitedValue();
@@ -723,16 +759,16 @@ static LogicalResult runOperation(Operation &opInst) {
     if (op.quant() == "INT8") {
       // TODO: wait for backend
       crop_fixed_forward_bmkernel(
-          *backend_ctx, // ctx, 
+          *backend_ctx, // ctx,
           0, //stream_id
           0, // inst_id
           layer_id,
           nullptr, //depends
           0, //depends_len
           input_gaddr, // bottom_gaddr,
-          output_gaddr, //top_gaddr 
-          i1_s.data(), 
-          i2_s.data(), 
+          output_gaddr, //top_gaddr
+          i1_s.data(),
+          i2_s.data(),
           o_s.data(),
           offsets.data());
 
@@ -760,13 +796,13 @@ static LogicalResult runOperation(Operation &opInst) {
     int *offsets = new int[output_dim_size];
     std::vector<int> crop_offsets;
 
-    if (op.crop_offset_n().hasValue()) 
+    if (op.crop_offset_n().hasValue())
       crop_offsets.push_back(op.crop_offset_n().getValue().getLimitedValue());
-    if (op.crop_offset_c().hasValue()) 
+    if (op.crop_offset_c().hasValue())
       crop_offsets.push_back(op.crop_offset_c().getValue().getLimitedValue());
-    if (op.crop_offset_h().hasValue()) 
+    if (op.crop_offset_h().hasValue())
       crop_offsets.push_back(op.crop_offset_h().getValue().getLimitedValue());
-    if (op.crop_offset_w().hasValue()) 
+    if (op.crop_offset_w().hasValue())
       crop_offsets.push_back(op.crop_offset_w().getValue().getLimitedValue());
 
     // plz refer \layer_Crop.cpp
@@ -1224,7 +1260,7 @@ static LogicalResult runOperation(Operation &opInst) {
     int GT_scale = static_cast<int>(getWeightFromOperandTensor<float>(opInst, 3)->at(0));
     int LE_right_shift_width = static_cast<int>(getWeightFromOperandTensor<float>(opInst, 4)->at(0));
 
-    LLVM_DEBUG(llvm::errs() << 
+    LLVM_DEBUG(llvm::errs() <<
         "GT_right_shift_width = " << GT_right_shift_width << "\n"
         "LE_right_shift_width = " << LE_right_shift_width << "\n"
         "GT_scale = " << GT_scale << "\n";);
@@ -1623,6 +1659,96 @@ static LogicalResult runOperation(Operation &opInst) {
     }
     return success();
   }
+  if (auto op = dyn_cast<tpu::ScaleOp>(opInst)) {
+    LLVM_DEBUG(llvm::errs() << "ScaleOp(" << op.name() << ")\n";);
+
+#define SCALE_INPUT_NUM (2)
+    int n, c, h, w;
+    auto input_1_type = op.x()->getType().cast<TensorType>();
+    std::vector<int64_t> i1_s(input_1_type.getShape());
+    auto input_2_type = op.scale()->getType().cast<TensorType>();
+    std::vector<int64_t> i2_s(input_2_type.getShape());
+    auto output_type = op.y()->getType().cast<TensorType>();
+    auto second_is_load_weight = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
+        op.getOperand(1)->getDefiningOp());
+    std::vector<int64_t> o_s(output_type.getShape());
+    LLVM_DEBUG(llvm::errs() << "input[1] shape_size is " << i2_s.size() << " "
+                            << std::to_string(second_is_load_weight)<< "\n";);
+    n = o_s[0];
+    c = o_s[1];
+    h = o_s[2];
+    w = o_s[3];
+
+    gaddr_t ga_inputs = getPreviousOpAddress(op, 0);
+    gaddr_t scale_gaddr;
+    gaddr_t bias_gaddr = INVALID_GLOBAL_ADDR;
+    gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
+    bool do_bias = op.with_bias();
+    int layer_id = op.layer_id().getValue().getLimitedValue();
+    int scale_dim;
+    // TODO: support axis > 0, now
+    int inner_dim = h * w;
+    // TODO: support variable input[1] shape, currently ONLY verify <n,c,h,w> X <n,c>
+    if (second_is_load_weight) {
+      // scale from weight
+      scale_gaddr = getWeightOpAddress(op.getOperand(1)->getDefiningOp());
+      scale_dim = n * c;
+      bias_gaddr = getWeightOpAddress(op.getOperand(2)->getDefiningOp());
+    } else {
+      // scale from input 
+      scale_gaddr = getPreviousOpAddress(op, 1);
+      scale_dim = n * c;
+    }
+
+
+#define RELU (0)
+    bool do_relu = false;
+    int activation = RELU;
+    float activation_arg[1] = {0.0f};
+    if (op.fused_activation_function() == "NONE") {
+    } else if (op.fused_activation_function() == "RELU") {
+      do_relu = true;
+    } else {
+      assert(0 && "fused activation mode not support");
+    }
+
+    uint32_t rshift = 0;
+    // Per layer 
+    if (op.quant() == "INT8") {
+      assert(0 && "TODO per layer ");
+
+    } else if (op.quant() == "INT8_PER_CHANNEL"){
+      // Per Channel only when the second input is from weight
+      assert(second_is_load_weight &&
+             "Per Channel only when the second input is from weight");
+
+      scale_fixed_forward_qi32(*backend_ctx, // ctx
+                                0,            // stream_id
+                                0,            // inst_id
+                                layer_id,     // layer_id
+                                nullptr,      // depends
+                                0,            // depends_len
+                                ga_inputs,    // input_addr
+                                scale_gaddr,  // scale_addr
+                                bias_gaddr,   // bias_addr
+                                output_gaddr, // output_addr
+                                n, c, h, w,
+                                scale_dim,      // scale_dim
+                                inner_dim,      // inner_dim
+                                false,          // is_scale_const
+                                0,              // const_scale
+                                do_relu,        // do_activation,
+                                activation,     // activation_method
+                                activation_arg, // activation_arg
+                                do_bias, second_is_load_weight);
+      
+    } else if (op.quant() == "BF16") {
+      assert(0 && "not support now");
+    } else {
+      assert(0 && "op quant type not support");
+    }
+  }
+
   return success();
 }
 
