@@ -2099,8 +2099,8 @@ void CaffeImporter::convertNormalizeLayer(mlir::Block *block,
       builder_.getUnknownLoc(), result_type,
       ArrayRef<Value *>{operands}, ArrayRef<NamedAttribute>{attrs_power});
   auto power_result_var = power_op.getResult();
-#else  /*use eltwise op*/
-
+#else  
+  /*use eltwise op*/
   std::vector<Value *> operands_eltwise_power;
 
   operands_eltwise_power.push_back(input_var);
@@ -2110,7 +2110,6 @@ void CaffeImporter::convertNormalizeLayer(mlir::Block *block,
   attrs_eltwise_power.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name()+"_eltwise_prod_power")));
   attrs_eltwise_power.push_back(
       builder_.getNamedAttr("method", builder_.getStringAttr("PROD")));
-  attrs_eltwise_power.push_back(builder_.getNamedAttr("simulate_eltwise", builder_.getBoolAttr(true)));
   auto eltwise_power_op = OpBuilder(block).create<tpu::EltwiseOp>(
       builder_.getUnknownLoc(), result_type,
       ArrayRef<Value *>{operands_eltwise_power}, ArrayRef<NamedAttribute>{attrs_eltwise_power});

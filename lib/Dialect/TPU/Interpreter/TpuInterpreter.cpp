@@ -1017,12 +1017,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
                   back_inserter(input_copy[index]));
 
         input[index] = input_copy[index].data();
-        if(index==(MAX_ELTWISE_INPUT-1)&&op.simulate_eltwise()){
-          // get threshold_x
-          threshold_x[index] = threshold_x[index-1];//workaround for simulated value.just copy same input threshold
-        }else{
-          threshold_x[index] = getPreviousOpThreshold(op, index);
-        }
+        threshold_x[index] = getPreviousOpThreshold(op, index);
       }
       // get threshold_y
       threshold_y = op.threshold_y().getValue().convertToFloat();
