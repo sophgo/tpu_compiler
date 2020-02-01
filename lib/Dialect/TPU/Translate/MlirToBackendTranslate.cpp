@@ -596,114 +596,58 @@ static LogicalResult runOperation(Operation &opInst) {
     return success();
   }
   if (auto op = dyn_cast<tpu::CropOp>(opInst)) {
-    LLVM_DEBUG(llvm::errs() << "CropOp" << "\n";);
+    LLVM_DEBUG(llvm::errs() << "Cropop" << op.name()
+                            << "\n";);
 
-    auto input_type1 = op.input1()->getType().cast<TensorType>();
-    std::vector<int64_t> i_s1(input_type1.getShape());
-    auto input_type2 = op.input2()->getType().cast<TensorType>();
-    std::vector<int64_t> i_s2(input_type2.getShape());
-
-    auto output_type = op.output()->getType().cast<TensorType>();
-    std::vector<int64_t> o_s(output_type.getShape());
-
-    int output_dim_size = o_s.size();
-    int *input_dim = new int[output_dim_size];
-    int *output_dim = new int[output_dim_size];
-    int *offsets = new int[output_dim_size];
-    std::vector<int> crop_offsets;
-
-    if (op.crop_offset_n().hasValue())
-      crop_offsets.push_back(op.crop_offset_n().getValue().getLimitedValue());
-    if (op.crop_offset_c().hasValue())
-      crop_offsets.push_back(op.crop_offset_c().getValue().getLimitedValue());
-    if (op.crop_offset_h().hasValue())
-      crop_offsets.push_back(op.crop_offset_h().getValue().getLimitedValue());
-    if (op.crop_offset_w().hasValue())
-      crop_offsets.push_back(op.crop_offset_w().getValue().getLimitedValue());
-
-    // plz refer \layer_Crop.cpp
-    auto Axis2Index = [&] (int axis_index, int num_axes) -> int {
-      // TODO: move check to \CaffeToMlirTranslate.cpp
-      //CHECK_GE(axis_index, -num_axes) << "axis " << axis_index << " out of range for " << num_axes
-      //                                << "\n";
-      //CHECK_LT(axis_index, num_axes) << "axis " << axis_index << " out of range for " << num_axes
-      //                               << "\n";
-      if (axis_index < 0) {
-        return axis_index + num_axes;
-      }
-      return axis_index;
-    };
-
-    auto input_shape = i_s1;
-    auto num_axes = i_s1.size();
-    int axis = op.axis().getValue().getLimitedValue();
-    uint32_t start_axis = Axis2Index(axis, num_axes);
-
-    // Determine crop offsets and the new shape post-crop.
-    for (uint32_t i = 0; i < num_axes; ++i) {
-      int crop_offset = 0;
-      if (i >= start_axis) {
-        if (crop_offsets.size() == 1) {
-          // If only one offset is given, all crops have the same offset.
-          crop_offset = crop_offsets[0];
-        } else if (crop_offsets.size() > 1) {
-          // For several offsets, the number of offsets must be equal to the
-          // number of dimensions to crop, that is dimensions after the axis.
-          crop_offset = crop_offsets[i - start_axis];
-        }
-        // Check that the crop and offset are within the dimension's bounds.
-        // CHECK_GE(input_shape.dim(i) - crop_offset, op->input_shape(1).dim(i));
-      }
-      offsets[i] = crop_offset;
-    }
-
-    for (int i = 0; i < output_dim_size; i++) {
-      input_dim[i] = input_shape[i];
-    }
-    for (int i = 0; i < output_dim_size; i++) {
-      output_dim[i] = o_s[i];
-    }
-
-    int i8_multiplier;
-    int rshift_opd_index = 2;// 0/1 is input0/input1
-    int right_shift_width = getRshiftFromOperandTensor(opInst, rshift_opd_index);
     int layer_id = op.layer_id().getValue().getLimitedValue();
-    float threshold_y = op.threshold_y().getValue().convertToFloat();
-
-    gaddr_t input_gaddr = getPreviousOpAddress(op);
+    // gen cmdbuf
+    gaddr_t input_gaddr = getPreviousOpAddress(op, 0);
     gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
 
+    auto input_1_type = op.input1()->getType().cast<TensorType>();
+    std::vector<int> i1_s;
+    i1_s.assign(input_1_type.getShape().begin(), input_1_type.getShape().end());
+    auto input_2_type = op.input2()->getType().cast<TensorType>();
+    std::vector<int> i2_s;
+    i2_s.assign(input_2_type.getShape().begin(), input_2_type.getShape().end());
+
+    auto output_type = op.output()->getType().cast<TensorType>();
+    std::vector<int> o_s;
+    o_s.assign(output_type.getShape().begin(), output_type.getShape().end());
+
+    auto output_size =
+        std::accumulate(std::begin(o_s), std::end(o_s), 1, std::multiplies<>());
+
+    std::vector<int> offsets;
+    offsets.assign({op.crop_offset_n().getValue().getLimitedValue(),
+                    op.crop_offset_c().getValue().getLimitedValue(),
+                    op.crop_offset_h().getValue().getLimitedValue(),
+                    op.crop_offset_w().getValue().getLimitedValue()});
+
     if (op.quant() == "INT8") {
-      getI8Multiplier(&opInst, threshold_y, 1, &i8_multiplier);
-    } else if (op.quant() == "INT8_MULTIPLIER") {
-      assert(0 && "not implement yet");
+      // TODO: wait for backend
+      crop_fixed_forward_bmkernel(
+          *backend_ctx, // ctx,
+          0, //stream_id
+          0, // inst_id
+          layer_id,
+          nullptr, //depends
+          0, //depends_len
+          input_gaddr, // bottom_gaddr,
+          output_gaddr, //top_gaddr
+          i1_s.data(),
+          i2_s.data(),
+          o_s.data(),
+          offsets.data());
+
     } else if (op.quant() == "BF16") {
-      assert(0 && "not implement yet");
+      assert(0 && "not support now");
     }
-
-    // crop_fixed_forward_bmkernel(
-    //     *backend_ctx,
-    //     0, //stream_id,
-    //     0, //inst_id,
-    //     layer_id,
-    //     nullptr, //*depends,
-    //     0, //depends_len,
-    //     input_gaddr,
-    //     output_gaddr,
-    //     input_dim,
-    //     output_dim,
-    //     offsets,
-    //     output_dim_size,
-    //     right_shift_width,
-    //     &i8_multiplier
-    //     );
-
-    delete[] input_dim;
-    delete[] output_dim;
-    delete[] offsets;
+    // gen cmdbuf end
 
     return success();
   }
+
 
   if (auto op = dyn_cast<tpu::DeConv2DOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "DeConv2DOp" << "\n";);
@@ -1115,6 +1059,7 @@ static LogicalResult runOperation(Operation &opInst) {
 
     return success();
   }
+
   if (auto op = dyn_cast<tpu::EltwiseOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "EltwiseOp" << "\n";);
 
