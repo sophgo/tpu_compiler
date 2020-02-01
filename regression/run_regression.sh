@@ -7,6 +7,7 @@ net_list=(
   "resnet50"
   "inception_v4"
   "yolo_v3"
+  "ssd300"
 )
 
 if [ ! -z "$1" ]; then
