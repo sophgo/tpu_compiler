@@ -284,7 +284,6 @@ def TPU_EltwiseOp: TPU_Op<"eltwise", [NoSideEffect]> {
     OptionalAttr<StrAttr>:$name,
     OptionalAttr<NonNegativeI64Attr>:$offset,
     OptionalAttr<F32Attr>:$threshold_y,
-    DefaultValuedAttr<BoolAttr, "false">:$simulate_eltwise,
     OptionalAttr<NonNegativeI32Attr>:$layer_id,
     DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
   );

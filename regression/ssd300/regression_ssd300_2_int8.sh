@@ -61,7 +61,7 @@ npz_compare.py \
       ssd300_out_int8_per_layer.npz \
       ssd300_blobs.npz \
       --op_info ssd300_op_info_int8_per_layer.csv \
-      --tolerance 0.984,0.984,0.822 -vvv
+      --tolerance 0.97,0.97,0.77 -vvv
 
 if [ $COMPARE_ALL -eq 1 ]; then
   # some tensors do not pass due to threshold bypass
