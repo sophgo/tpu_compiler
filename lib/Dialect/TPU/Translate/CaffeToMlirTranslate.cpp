@@ -181,8 +181,22 @@ void CaffeImporter::ParseNetInputOutput(caffe::Net<float> &net,
           << ", layer: " << net.layer_names()[index]
           << "\n";
     );
+    std::vector<int> output_shape = net.output_blobs()[i]->shape();
+
+    ///
+    /// fixup `DetectionOutput` output shape
+    /// not use dynamic shape here for bbox num
+    /// determine the shape by parsing the `keep_top_k` field of the layer
+    ///
+    auto layer = net.layers()[index].get();
+    if (strcmp(layer->type(), "DetectionOutput") == 0) {
+      auto layer_param = layer->layer_param();
+      auto detection_output_param = layer_param.detection_output_param();
+      output_shape[2] = detection_output_param.keep_top_k();
+    }
+
     outputs[net.blob_names()[index]] = GetTypeFromCaffeShape(
-        net.output_blobs()[i]->shape(), elementType_);
+        output_shape, elementType_);
   }
 }
 
@@ -2051,14 +2065,14 @@ void CaffeImporter::convertNormalizeLayer(mlir::Block *block,
         << "\n";
   );
 
-/*  
-  Currenly , we separate Normalize op to below 6 ops. 
+/*
+  Currenly , we separate Normalize op to below 6 ops.
   Eltwise OP(power(2))-> Reduction(use conv now)-> Sqrt-> Div->Eltwise OP(prod) ->Scale(by channel scale)
 */
 
   /* 1. Power OP */
 #if 0
-  //use power op 
+  //use power op
   std::vector<Value *> operands;
   operands.push_back(input_var);
 
