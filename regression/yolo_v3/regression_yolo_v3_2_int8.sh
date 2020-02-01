@@ -15,7 +15,7 @@ COMPARE_ALL=1
 # import calibration table
 mlir-opt \
     --import-calibration-table \
-    --calibration-table $REGRESSION_PATH/yolo_v3/data/yolo_v3_threshold_table \
+    --calibration-table $REGRESSION_PATH/yolo_v3/data/yolo_v3_threshold_table_autotune \
     yolo_v3_416_opt.mlir \
     -o yolo_v3_416_cali.mlir
 
@@ -43,7 +43,7 @@ npz_compare.py \
       yolo_v3_blobs.npz \
       --op_info yolo_v3_op_info_int8_per_layer.csv \
       --dequant \
-      --tolerance 0.9,0.85,0.75 -vvv
+      --tolerance 0.98,0.92,0.82 -vvv
 
 if [ $COMPARE_ALL ]; then
   # some tensors do not pass due to threshold bypass
@@ -54,7 +54,7 @@ if [ $COMPARE_ALL ]; then
       --op_info yolo_v3_op_info_int8_per_layer.csv \
       --dequant \
       --excepts layer86-upsample,layer87-route,layer98-upsample,layer99-route \
-      --tolerance 0.75,0.7,0.1 -vvv
+      --tolerance 0.88,0.85,0.5 -vvv
 fi
 
 ################################
@@ -83,7 +83,7 @@ npz_compare.py \
       yolo_v3_blobs.npz \
       --op_info yolo_v3_op_info_int8_per_channel.csv \
       --dequant \
-      --tolerance 0.9,0.9,0.8 -vvv
+      --tolerance 0.99,0.96,0.87 -vvv
 
 if [ $COMPARE_ALL ]; then
   # some tensors do not pass due to threshold bypass
@@ -94,7 +94,7 @@ if [ $COMPARE_ALL ]; then
       --op_info yolo_v3_op_info_int8_per_channel.csv \
       --dequant \
       --excepts layer86-upsample,layer87-route,layer98-upsample,layer99-route \
-      --tolerance 0.85,0.8,0.30 -vvv
+      --tolerance 0.93,0.90,0.60 -vvv
 fi
 
 ################################
@@ -123,7 +123,7 @@ npz_compare.py \
       yolo_v3_blobs.npz \
       --op_info yolo_v3_op_info_int8_multiplier.csv \
       --dequant \
-      --tolerance 0.9,0.9,0.8 -vvv
+      --tolerance 0.99,0.97,0.88 -vvv
 
 if [ $COMPARE_ALL ]; then
   # some tensors do not pass due to threshold bypass
@@ -134,7 +134,7 @@ if [ $COMPARE_ALL ]; then
       --op_info yolo_v3_op_info_int8_multiplier.csv \
       --dequant \
       --excepts layer86-upsample,layer87-route,layer98-upsample,layer99-route \
-      --tolerance 0.85,0.8,0.35 -vvv
+      --tolerance 0.95,0.93,0.65 -vvv
 fi
 
 # VERDICT
