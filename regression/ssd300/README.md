@@ -59,3 +59,22 @@ Accuracy status:
  Average Recall     (AR) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.103
  Average Recall     (AR) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.402
  Average Recall     (AR) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.578
+
+## 1/22/2020
+Finish SSD300 INT8 interpreter support.
+
+Known issue: 
+
+1. Softmax threshold will affect accuracy . 
+Tmp Solution: set softmax op threshold as 1. 
+
+## 2/1/2020
+
+Finish SSD300 INT8 perchannel multiplier cmdbuf regression. 
+
+Known issue: 
+
+1. concat perchannel multiplier backend is not correct. 
+
+2. Softmax threshold will affect accuracy. Need to make last reshape layer as cpu layer . 
+3. cpu layer is not supported currently.

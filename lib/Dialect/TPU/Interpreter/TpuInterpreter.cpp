@@ -1569,7 +1569,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
           int lutOutputI32 = std::floor(lutOutput + 0.5);
           lutOutputI32 = (lutOutputI32 > 127)
                              ? 127
-                             : (lutOutputI32 < -127) ? -127 : lutOutputI32;
+                             : (lutOutputI32 < -128) ? -128 : lutOutputI32;
           data[idx] = lutOutputI32;
         }
         for (int i = 0; i < size; ++i) {
@@ -1634,8 +1634,8 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
       for (int idx = 0; idx < 256; ++idx) {
         char lutInput = static_cast<char>(idx);
-        float index = lutInput * threshold_x / 128.0;
-        float lutOutput = pow(index,0.5) * 128.0 / threshold_y;
+        float index = lutInput * threshold_x / 127.0;
+        float lutOutput = pow(index,0.5) * 127.0 / threshold_y;
         int lutOutputI32 = std::floor(lutOutput + 0.5);
         lutOutputI32 = (lutOutputI32 > 127)
                            ? 127
@@ -2111,6 +2111,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
   }
   if (auto op = dyn_cast<tpu::PowerOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "PowerOp" << "\n";);
+    assert(false);
     auto opdT = getOperandTensors(opInst, valueMapping);
     auto result = op.getResult();
     LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";);
@@ -2134,28 +2135,27 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       nchw[i] = i_s[i];
     }
 
-/*
-    How to get Qscale value: 
+    ///
+    /// How to get Qscale value: 
+    ///
+    /// X = Sx*Qy
+    /// Y = Sy*Qy
+    /// Sx = thrx /127
+    /// Sy = thry /127
+    ///
+    /// Y=X*X 
+    /// ==> Sy*Qy=Sx*Qx*Sx*Qx
+    /// ==> Qy = ((thrx*thrx/(127))*(Qx*Qx))/thry
+    /// ==> Qscale = (thrx*thrx/127)/thry
+    ///
 
-    X = Sx*Qy
-    Y = Sy*Qy
-    Sx = thrx /127
-    Sy = thry /127
-
-    Y=X*X 
-    ==> Sy*Qy=Sx*Qx*Sx*Qx
-    ==> Qy = ((thrx*thrx/(128))*(Qx*Qx))/thry
-    ==> Qscale = (thrx*thrx/128)/thry
-
-*/
     float threshold_y,threshold_x,qscale,rshift;
     uint32_t multiplier;
     if (op.quant() != "NONE"){
 
       threshold_y = op.threshold_y().getValue().convertToFloat();
       threshold_x = getPreviousOpThreshold(op);
-
-      qscale = (threshold_x*threshold_x) /(127*threshold_y);  
+      qscale = (threshold_x*threshold_x) /(127.0*threshold_y);  
     }
     
     if (op.quant() == "INT8"|| op.quant() == "INT8_PER_CHANNEL") {
@@ -2177,45 +2177,59 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
     float *output = (float *)resultT.get()->data();
 
-/*      if (op.quant() == "INT8"|| op.quant() == "INT8_PER_CHANNEL"||op.quant() == "INT8_MULTIPLIER") {
-    assert(threshold_x != 0.0);
-    std::vector<int> data(256, 0);
+/*
+    if (op.quant() == "INT8"|| op.quant() == "INT8_PER_CHANNEL"||op.quant() == "INT8_MULTIPLIER") {
+      assert(threshold_x != 0.0);
+      std::vector<int> data(256, 0);
 
-    for (int idx = 0; idx < 256; ++idx) {
-      char lutInput = static_cast<char>(idx);
-      float index = lutInput * threshold_x / 127.0;
-      float lutOutput = pow(index,2) * 127.0 / threshold_y;
-      int lutOutputI32 = std::floor(lutOutput + 0.5);
-      lutOutputI32 = (lutOutputI32 > 127)
-                         ? 127
-                         : (lutOutputI32 < -128) ? -128 : lutOutputI32;
-      data[idx] = lutOutputI32;
-    }
-    for (int i = 0; i < size; ++i) {
-      output[i] = data[(unsigned char)input[0][i]];
-    }
-  }else */{
+      for (int idx = 0; idx < 256; ++idx) {
+        char lutInput = static_cast<char>(idx);
+        float index = lutInput * threshold_x / 127.0;
+        float lutOutput = pow(index,2) * 127.0 / threshold_y;
+        int lutOutputI32 = std::floor(lutOutput + 0.5);
+        lutOutputI32 = (lutOutputI32 > 127)
+                           ? 127
+                           : (lutOutputI32 < -128) ? -128 : lutOutputI32;
+        data[idx] = lutOutputI32;
+      }
+      for (int i = 0; i < size; ++i) {
+        output[i] = data[(unsigned char)input[0][i]];
+      }
+    } else */ {
 
-    int ret = my_power(input[0], output, nchw[0], nchw[1], nchw[2], nchw[3], scale, shift, power);
-    assert(ret == 0);
+      if (op.quant() == "INT8"|| op.quant() == "INT8_PER_CHANNEL") {
+        scale = scale*(threshold_y/threshold_x)*multiplier;
+        shift = shift*(threshold_y/127.0)*multiplier;
+        scale = (float)applyRShiftAndSaturateInt8(scale, (uint32_t)rshift);
+        shift = (float)applyRShiftAndSaturateInt8(shift, (uint32_t)rshift);
+      }else if(op.quant() == "INT8_MULTIPLIER"){
+        scale = scale*(threshold_y/threshold_x);
+        shift = shift*(threshold_y/127.0);
+        scale = (float)applyMultiplierAndRShiftAndSaturateInt8(scale,rshift,  multiplier);        
+        shift = (float)applyMultiplierAndRShiftAndSaturateInt8(shift,rshift,  multiplier);        
+      }
 
-    // rshift and saturate on output
-    
+      int ret = my_power(input[0], output, nchw[0], nchw[1], nchw[2], nchw[3], scale, shift, power);
+      assert(ret == 0);
+
+      // rshift and saturate on output
+
       //assert(rshift);
       for (int i = 0; i < size; ++i) {
         if (op.quant() == "INT8"|| op.quant() == "INT8_PER_CHANNEL") {
           output[i] = output[i]*multiplier;
-        output[i] = (float)applyRShiftAndSaturateInt8(output[i], (uint32_t)rshift);
+          output[i] = (float)applyRShiftAndSaturateInt8(output[i], (uint32_t)rshift);
         }else if(op.quant() == "INT8_MULTIPLIER"){
           output[i] = (float)applyMultiplierAndRShiftAndSaturateInt8(output[i],rshift,  multiplier);        
         }
-        /*    else if (op.quant() == "BF16"){
+        /* else if (op.quant() == "BF16"){
               auto tensor_bf16 = std::make_unique<std::vector<bfloat16> >(resultT->size());
               FloatToBFloat16(resultT->data(), tensor_bf16->data(), resultT->size()); // with rounding
               BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
         }*/
       }
-}
+    }
+
     valueMapping[result] = std::move(resultT);
     return success();
   }
