@@ -237,20 +237,21 @@ static LogicalResult runOperation(Operation &opInst) {
 
   if (auto op = dyn_cast<tpu::ConcatOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "concat ConcatOp" << "\n";);
-    auto num = op.getOperation()->getNumOperands();
+    int num = op.getOperation()->getNumOperands();
     gaddr_t input_gaddrs[num];
-    auto axis = op.dimension().getLimitedValue();
-    int output_dim[4];
+    int axis = *op.dimension().getRawData();
+    #define SHAPE_DIM 4
+    int output_dim[SHAPE_DIM];
     LLVM_DEBUG(llvm::errs() << "concat num :" << num << "\n";);
     LLVM_DEBUG(llvm::errs() << "concat axis :" << axis << "\n";);
-    int32_t input_dims[num * 4];
+    int32_t input_dims[num * SHAPE_DIM];
     int output_dim_size;
     std::vector<int64_t> shape = op.res()->getType().cast<TensorType>().getShape();
     output_dim[0] = shape[0];
     output_dim[1] = shape[1];
-    output_dim[2] = 1;//shape[2];
-    output_dim[3] = 1;//shape[3];
-    output_dim_size = 2;//shape.size();
+    output_dim[2] = shape[2];
+    output_dim[3] = shape[3];
+    output_dim_size = shape.size();
 
     for ( int i = 0; i < num; i++) {
       int32_t n, c, h, w;
@@ -258,15 +259,14 @@ static LogicalResult runOperation(Operation &opInst) {
       std::vector<int64_t> shape =  op.getOperand(i)->getType().cast<TensorType>().getShape();
       n = shape[0];
       c = shape[1];
-      h = 1;//shape[2];
-      w = 1;//shape[3];
-      input_dims[i] = shape[1];//shape[axis];
+      h = shape[2];
+      w = shape[3];
+      input_dims[i] = shape[axis];
       LLVM_DEBUG(llvm::errs() << "shape n:" << n << " c:" << c << " h:"<< h << " w:"<< w <<"\n";);
     }
     gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
 
     int layer_id = op.layer_id().getValue().getLimitedValue();
-
     LLVM_DEBUG(llvm::errs() << "Concat id=" << layer_id << "\n";);
     LLVM_DEBUG(llvm::errs() << "Concat quant=" << op.quant() << "\n";);
 
@@ -317,7 +317,7 @@ static LogicalResult runOperation(Operation &opInst) {
            output_gaddr, // gaddr_t output_gaddr,
            input_dims, // int input_dims[],
            num, //int input_num,
-           1, // int concat_axis,
+           axis, // int concat_axis,
            output_dim_size, // int output_dim_size,
            output_dim, // int *output_dim,
            num, // const int need_quantize_num,
@@ -338,7 +338,7 @@ static LogicalResult runOperation(Operation &opInst) {
           output_gaddr, // gaddr_t ga_output,
           input_dims, // int input_dims[],
           num, // int input_num
-          1, // concat_axis
+          axis, // concat_axis
           output_dim_size, //int output_dim_size
           output_dim, //int *output_dim
           0, //int need_quantize_num
@@ -350,6 +350,7 @@ static LogicalResult runOperation(Operation &opInst) {
     }
     return success();
   }
+
 
   if (auto op = dyn_cast<tpu::Conv2DOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "Conv2DOp" << "\n";);
@@ -543,6 +544,7 @@ static LogicalResult runOperation(Operation &opInst) {
 
     return success();
   }
+
   if (auto op = dyn_cast<tpu::CropOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "Cropop" << op.name()
                             << "\n";);
