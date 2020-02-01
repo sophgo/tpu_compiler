@@ -321,16 +321,25 @@ uint64_t getPreviousOpAddress(Operation *op, uint index = 0) {
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::Conv2DOp>(formerOp)) {
     return cast_op.offset().getValue().getLimitedValue();
   }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::DivOp>(formerOp)) {
+    return cast_op.offset().getValue().getLimitedValue();
+  }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::FullyConnectedOp>(formerOp)) {
     return cast_op.offset().getValue().getLimitedValue();
   }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::Pool2DOp>(formerOp)) {
     return cast_op.offset().getValue().getLimitedValue();
   }
-  if (auto cast_op = llvm::dyn_cast_or_null<tpu::ReluOp>(formerOp)) {
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::PermuteOp>(formerOp)) {
     return cast_op.offset().getValue().getLimitedValue();
-  }
+  }  
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::PowerOp>(formerOp)) {
+    return cast_op.offset().getValue().getLimitedValue();
+  }  
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::PReluOp>(formerOp)) {
+    return cast_op.offset().getValue().getLimitedValue();
+  }  
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::ReluOp>(formerOp)) {
     return cast_op.offset().getValue().getLimitedValue();
   }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::EltwiseOp>(formerOp)) {
@@ -346,6 +355,9 @@ uint64_t getPreviousOpAddress(Operation *op, uint index = 0) {
     return cast_op.offset().getValue().getLimitedValue();
   }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::SliceOp>(formerOp)) {
+    return cast_op.offset().getValue().getLimitedValue();
+  }
+  if (auto cast_op = llvm::dyn_cast_or_null<tpu::SqrtOp>(formerOp)) {
     return cast_op.offset().getValue().getLimitedValue();
   }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::TanHOp>(formerOp)) {
@@ -405,6 +417,7 @@ void getConv2DOpParam(T &op,
   std::vector<int64_t> o_s(output_type.getShape());
   auto filter_type = op.filter()->getType().template cast<TensorType>();
   std::vector<int64_t> f_s(filter_type.getShape());
+
   assert((i_s[0] == o_s[0]) && "input N not equal to output N");
   n = i_s[0];
   ic = i_s[1];

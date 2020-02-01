@@ -24,6 +24,8 @@ add_llvm_library(MLIRTPU
   Quantization/QuantizeInt8.cpp
   Quantization/QuantizeBf16.cpp
   Quantization/GenTanHTable.cpp
+  Quantization/GenSqrtTable.cpp
+  Quantization/GenDivTable.cpp
   Quantization/GenSigmoidTable.cpp
 
   ADDITIONAL_HEADER_DIRS

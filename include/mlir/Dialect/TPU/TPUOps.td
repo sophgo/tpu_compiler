@@ -15,7 +15,7 @@
 // limitations under the License.
 // =============================================================================
 //
-// Defines some operations of the GPU dialect.
+// Defines some operations of the TPU dialect.
 //
 //===----------------------------------------------------------------------===//
 
@@ -236,7 +236,9 @@ def TPU_DetectionOutputOp: TPU_Op<"detectionoutput", [NoSideEffect]> {
     OptionalAttr<I32Attr>:$keep_top_k,
     OptionalAttr<F32Attr>:$confidence_threshold,
     OptionalAttr<F32Attr>:$threshold_y,
+    OptionalAttr<NonNegativeI64Attr>:$offset,
     OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<TPU_WeightAttr, "NONE">:$storage,
     DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant,
     OptionalAttr<StrAttr>:$name
   );
@@ -255,6 +257,9 @@ def TPU_DivOp: TPU_Op<"div", [NoSideEffect]> {
     ins AnyTensor:$input,
     DefaultValuedAttr<F32Attr, "1.0">:$numerator,
     OptionalAttr<StrAttr>:$name,
+    Variadic<AnyTensor>:$table,
+    OptionalAttr<BoolAttr>:$has_table,
+    OptionalAttr<NonNegativeI64Attr>:$offset,
     OptionalAttr<NonNegativeI32Attr>:$layer_id,
     OptionalAttr<F32Attr>:$threshold_y,
     DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
@@ -279,6 +284,7 @@ def TPU_EltwiseOp: TPU_Op<"eltwise", [NoSideEffect]> {
     OptionalAttr<StrAttr>:$name,
     OptionalAttr<NonNegativeI64Attr>:$offset,
     OptionalAttr<F32Attr>:$threshold_y,
+    DefaultValuedAttr<BoolAttr, "false">:$simulate_eltwise,
     OptionalAttr<NonNegativeI32Attr>:$layer_id,
     DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
   );
@@ -357,6 +363,7 @@ def TPU_PermuteOp: TPU_Op<"permute", [NoSideEffect]> {
     NonNegativeI32Attr:$order3,
     OptionalAttr<NonNegativeI32Attr>:$layer_id,
     OptionalAttr<F32Attr>:$threshold_y,
+    OptionalAttr<NonNegativeI64Attr>:$offset,    
     DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
   );
 
@@ -414,6 +421,7 @@ def TPU_PowerOp: TPU_Op<"power", [NoSideEffect]> {
     DefaultValuedAttr<F32Attr, "0.0">:$shift,
     OptionalAttr<StrAttr>:$name,
     OptionalAttr<F32Attr>:$threshold_y,
+    OptionalAttr<BoolAttr>:$has_table,
     OptionalAttr<F32Attr>:$rshift,
     OptionalAttr<NonNegativeI32Attr>:$layer_id,
     OptionalAttr<NonNegativeI64Attr>:$offset,
@@ -620,6 +628,8 @@ def TPU_SqrtOp: TPU_Op<"sqrt", [NoSideEffect]> {
     ins AnyTensor:$input,
     OptionalAttr<StrAttr>:$name,
     OptionalAttr<F32Attr>:$threshold_y,
+    Variadic<AnyTensor>:$table,
+    OptionalAttr<BoolAttr>:$has_table,
     OptionalAttr<NonNegativeI64Attr>:$offset,     
     OptionalAttr<NonNegativeI32Attr>:$layer_id,
     DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
