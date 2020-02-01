@@ -181,10 +181,25 @@ void CaffeImporter::ParseNetInputOutput(caffe::Net<float> &net,
           << ", layer: " << net.layer_names()[index]
           << "\n";
     );
+    std::vector<int> output_shape = net.output_blobs()[i]->shape();
+
+    ///
+    /// fixup `DetectionOutput` output shape
+    /// not use dynamic shape here for bbox num
+    /// determine the shape by parsing the `keep_top_k` field of the layer
+    ///
+    auto layer = net.layers()[index].get();
+    if (strcmp(layer->type(), "DetectionOutput") == 0) {
+      auto layer_param = layer->layer_param();
+      auto detection_output_param = layer_param.detection_output_param();
+      output_shape[2] = detection_output_param.keep_top_k();
+    }
+
     outputs[net.blob_names()[index]] = GetTypeFromCaffeShape(
-        net.output_blobs()[i]->shape(), elementType_);
+        output_shape, elementType_);
   }
 }
+
 
 mlir::Block* CaffeImporter::CreateOneBlockFunction(
     std::map<std::string, mlir::Type> &inputs,
