@@ -7,8 +7,8 @@ source $DIR/../../envsetup.sh
 EVAL_FUNC=eval_caffe_detector_yolo.py
 
 $EVAL_FUNC \
-    --model_def $MODEL_PATH/caffe/yolov3/416/yolov3_416.prototxt \
-    --pretrained_model $MODEL_PATH/caffe/yolov3/416/yolov3_416.caffemodel \
+    --model_def $MODEL_PATH/object_detection/yolo_v3/caffe/416/yolov3_416.prototxt \
+    --pretrained_model $MODEL_PATH/object_detection/yolo_v3/caffe/416/yolov3_416.caffemodel \
     --net_input_dims 416,416 \
     --obj_threshold 0.005 \
     --nms_threshold 0.45 \

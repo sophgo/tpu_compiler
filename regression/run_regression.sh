@@ -3,12 +3,13 @@ set -e
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
+# please keep in alphabetical order
 net_list=(
-  "resnet50"
   "inception_v4"
-  "yolo_v3"
-  "ssd300"
+  "resnet50"
   "retinaface_res50"
+  "ssd300"
+  "yolo_v3"
 )
 
 if [ ! -z "$1" ]; then

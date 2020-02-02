@@ -8,8 +8,8 @@ export PATH=$PYTHON_TOOLS_PATH/model/retinaface:$PATH
 export PYTHONPATH=$PYTHON_TOOLS_PATH/model/retinaface:$PYTHONPATH
 
 run_caffe_retinaface.py \
-    --model_def $MODEL_PATH/caffe/retinaface/R50-0000.prototxt \
-    --pretrained_model $MODEL_PATH/caffe/retinaface/R50-0000.caffemodel \
+    --model_def $MODEL_PATH/face_detection/retinaface/caffe/R50-0000.prototxt \
+    --pretrained_model $MODEL_PATH/face_detection/retinaface/caffe/R50-0000.caffemodel \
     --input_file $REGRESSION_PATH/retinaface_res50/data/parade.jpg \
     --dump_blobs retinaface_res50_caffe_blobs.npz
 
