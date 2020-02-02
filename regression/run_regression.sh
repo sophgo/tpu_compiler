@@ -8,6 +8,7 @@ net_list=(
   "inception_v4"
   "yolo_v3"
   "ssd300"
+  "retinaface_res50"
 )
 
 if [ ! -z "$1" ]; then
