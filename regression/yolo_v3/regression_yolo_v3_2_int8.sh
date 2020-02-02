@@ -19,6 +19,13 @@ mlir-opt \
     yolo_v3_416_opt.mlir \
     -o yolo_v3_416_cali.mlir
 
+#mlir-opt \
+#    --import-calibration-table \
+#    --calibration-table $REGRESSION_PATH/yolo_v3/data/yolo_v3_threshold_table_autotune \
+#    --enable-cali-bypass-backpropagate \
+#    yolo_v3_416_opt.mlir \
+#    -o yolo_v3_416_cali_bp.mlir
+
 ################################
 # quantization 1: per-layer int8
 ################################
