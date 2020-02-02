@@ -5,8 +5,8 @@ DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 source $DIR/../../envsetup.sh
 
 mlir-translate --caffe-to-mlir \
-    $MODEL_PATH/caffe/retinaface/R50-0000.prototxt \
-    --caffemodel $MODEL_PATH/caffe/retinaface/R50-0000.caffemodel \
+    $MODEL_PATH/face_detection/retinaface/caffe/R50-0000.prototxt \
+    --caffemodel $MODEL_PATH/face_detection/retinaface/caffe/R50-0000.caffemodel \
     -o retinaface_res50.mlir
 
 # assign layer_id right away, and output op_info

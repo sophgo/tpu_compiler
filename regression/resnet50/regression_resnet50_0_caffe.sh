@@ -6,8 +6,8 @@ source $DIR/../../envsetup.sh
 
 # run caffe model
 run_caffe_classifier.py \
-    --model_def $MODEL_PATH/caffe/ResNet-50-deploy.prototxt \
-    --pretrained_model $MODEL_PATH/caffe/ResNet-50-model.caffemodel \
+    --model_def $MODEL_PATH/imagenet/resnet/caffe/ResNet-50-deploy.prototxt \
+    --pretrained_model $MODEL_PATH/imagenet/resnet/caffe/ResNet-50-model.caffemodel \
     --mean_file $PYTHON_TOOLS_PATH/data/ilsvrc_2012_mean.npy \
     --label_file $PYTHON_TOOLS_PATH/data/ilsvrc12/synset_words.txt \
     --dump_blobs resnet50_blobs.npz \

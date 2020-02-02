@@ -32,6 +32,14 @@ git clone ssh://git@10.34.33.3:8422/mlir-tpu/cmodel.git
 git clone ssh://git@10.34.33.3:8422/mlir-tpu/runtime.git
 git clone ssh://git@10.34.33.3:8422/mlir-tpu/bmbuilder.git
 
+export GIT_LFS_SKIP_SMUDGE=1
+git clone ssh://git@10.34.33.3:8422/mlir-tpu/models.git
+pushd models
+git lfs install
+git lfs ls-files
+git lfs fetch --all
+popd
+
 mv cnpy mlir/third_party/
 mv caffe mlir/third_party/
 mv pybind11 mlir/third_party/

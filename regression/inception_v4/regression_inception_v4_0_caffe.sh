@@ -7,8 +7,8 @@ source $DIR/../../envsetup.sh
 echo $0 is RUNNING
 # run caffe model
 run_caffe_classifier.py \
-    --model_def $MODEL_PATH/caffe/deploy_inception-v4.prototxt \
-    --pretrained_model $MODEL_PATH/caffe/inception-v4.caffemodel \
+    --model_def $MODEL_PATH/imagenet/inception_v4/caffe/deploy_inception-v4.prototxt \
+    --pretrained_model $MODEL_PATH/imagenet/inception_v4/caffe/inception-v4.caffemodel \
     --images_dim 299,299 \
     --mean 128,128,128 \
     --input_scale 0.0078125 \

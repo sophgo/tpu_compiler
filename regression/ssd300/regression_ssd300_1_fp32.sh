@@ -6,8 +6,8 @@ source $DIR/../../envsetup.sh
 
 # translate from caffe model
 mlir-translate \
-    --caffe-to-mlir $MODEL_PATH/caffe/ssd300/deploy.prototxt \
-    --caffemodel $MODEL_PATH/caffe/ssd300/VGG_coco_SSD_300x300_iter_400000.caffemodel \
+    --caffe-to-mlir $MODEL_PATH/object_detection/ssd/caffe/ssd300/deploy.prototxt \
+    --caffemodel $MODEL_PATH/object_detection/ssd/caffe/ssd300/VGG_coco_SSD_300x300_iter_400000.caffemodel \
     -o ssd300.mlir
 
 # assign layer_id right away, and output op_info
@@ -31,7 +31,7 @@ npz_compare.py ssd300_out_fp32.npz ssd300_out_fp32_ref.npz -v
 #     ssd300_tensor_all_fp32.npz \
 #     ssd300_blobs.npz \
 #     --op_info ssd300_op_info.csv \
-#     --tolerance=0.9999,0.9999,0.999 -vvv    
+#     --tolerance=0.9999,0.9999,0.999 -vvv
 
 # opt1, fuse relu with conv
 mlir-opt \
@@ -46,7 +46,7 @@ mlir-tpu-interpreter ssd300_opt1.mlir \
 npz_compare.py ssd300_opt_out_fp32_opt1.npz ssd300_out_fp32_ref.npz -v
 
 
-#opt2, convert priorbox to loadweight 
+#opt2, convert priorbox to loadweight
 mlir-opt \
     --convert-priorbox-to-loadweight \
     ssd300_opt1.mlir \
