@@ -926,7 +926,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
         rshift->at(0) = (float)findRShiftAndMultiplierFromQScale(qscale, &multiplier_prod, true,
                                                 255);
       }
-      }
+    }
     int ret;
     if (op.with_bias()) {
       ret =
