@@ -1279,6 +1279,7 @@ struct TpuRemoveQuantBeforeReshapOpPattern : public OpRewritePattern<tpu::Reshap
       LLVM_DEBUG(llvm::errs() << op.name() << "reshape op is not after softmax op keep use int8\n";);
       return matchFailure();
     }
+
     //remove quant op to use float32 output of softmax
     rewriter.replaceOp(formerOp, formerOp->getOperand(0));
 
@@ -1311,8 +1312,9 @@ public:
     auto *context = &getContext();
 
     OwningRewritePatternList patterns_w;
+    //concat cpu layer test
     patterns_w
-        .insert<TpuQuantDefaultPattern<tpu::ConcatOp>, TpuQuantConv2DOpPattern,
+        .insert<TpuQuantDefaultPattern<tpu::ConcatOp>,TpuQuantConv2DOpPattern,
                 TpuQuantDefaultPattern<tpu::CropOp>,
                 TpuQuantEltwiseOpPattern, TpuQuantFullyConnectedOpPattern,
                 TpuQuantDefaultPattern<tpu::Pool2DOp>, TpuQuantPReluOpPattern,
@@ -1321,7 +1323,6 @@ public:
                 TpuQuantDefaultPattern<tpu::SliceOp>,
                 TpuQuantDefaultPattern<tpu::DivOp>,
                 TpuQuantDefaultPattern<tpu::SqrtOp>,
-                TpuQuantDefaultPattern<tpu::DetectionOutputOp>,
                 TpuQuantDefaultPattern<tpu::EltwiseOp>,
                 TpuQuantDefaultPattern<tpu::ReshapeOp> ,
                 TpuQuantPowerAddScaleAndShiftPattern,
@@ -1336,12 +1337,15 @@ public:
     patterns_q.insert<TpuAddQuantAfterInputOpPattern>(context);
     // add Dequant before Result
     patterns_q.insert<TpuAddDeQuantBeforeReturnOpPattern>(context);
+
     // add Quant and Dequant before and after any cpu layer
     patterns_q.insert<TpuAddQuantAndDequantForSoftmaxOpPattern>(context);
+   
     // remove Quant op before reshape (this is for ssd softmax + flatten case)
     patterns_q.insert<TpuRemoveQuantBeforeReshapOpPattern>(context);
     // add Dequant before DetectionOuputOp which is CPU layer but also output layer
-    patterns_q.insert<TpuAddDequantBeforeDetectionOutputOpPattern>(context);    
+    patterns_q.insert<TpuAddDequantBeforeDetectionOutputOpPattern>(context); 
+
     applyPatternsGreedily(fn, patterns_q);
 
     OwningRewritePatternList patterns_s;

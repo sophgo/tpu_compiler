@@ -1283,11 +1283,6 @@ static LogicalResult runOperation(Operation &opInst) {
 
   }
 
-  if (auto op = dyn_cast<tpu::DetectionOutputOp>(opInst)) {
-    return success();
-
-  }
-
   if (auto op = dyn_cast<tpu::PowerOp>(opInst)) {
     // TODO: fuse relu, power implement by depthwise, it could be fused
     LLVM_DEBUG(llvm::errs() << "PowerOp(" << op.name() << ")\n";);

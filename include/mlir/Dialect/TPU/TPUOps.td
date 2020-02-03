@@ -238,7 +238,6 @@ def TPU_DetectionOutputOp: TPU_Op<"detectionoutput", [NoSideEffect]> {
     OptionalAttr<F32Attr>:$threshold_y,
     OptionalAttr<NonNegativeI64Attr>:$offset,
     OptionalAttr<NonNegativeI32Attr>:$layer_id,
-    DefaultValuedAttr<TPU_WeightAttr, "NONE">:$storage,
     DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant,
     OptionalAttr<StrAttr>:$name
   );
