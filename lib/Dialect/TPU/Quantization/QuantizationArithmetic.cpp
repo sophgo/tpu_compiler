@@ -743,6 +743,9 @@ void quantizeWeightInt8Multiplier(float *filter, float *bias, int oc, int isz,
       // qscale = 0.99999999
       qscale = 0.999999;
       max_filter[i] = qscale * 127.0 * threshold_y / threshold_x;
+      llvm::errs() << "WARNING: adjust threshold_w for qscale"
+                   << ", qscale_filter = " << qscale << ", max_filter[" << i
+                   << "] = " << max_filter[i] << "\n";
     }
     max_bias[i] = 0.0f;
     if (bias) {
