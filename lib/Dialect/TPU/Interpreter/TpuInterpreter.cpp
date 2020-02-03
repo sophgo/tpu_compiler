@@ -966,7 +966,6 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
         }
       }
     } else if (op.quant() == "BF16") {
-      assert("not support now");
     } else if (op.quant() == "NONE") {
     } else {
       assert(0);
