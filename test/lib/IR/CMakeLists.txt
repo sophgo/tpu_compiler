@@ -10,3 +10,6 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR}/../TestDialect)
 target_link_libraries(MLIRTestIR
   MLIRPass
   )
+add_dependencies(MLIRTestIR
+  MLIRTestOpsIncGen
+)
