@@ -4,7 +4,7 @@ set -e
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 source $DIR/../../envsetup.sh
 
-TENSOR_IN_FILE=./data/Aaron_Eckhart_0001_112_112_fp32_scale.npz 
+TENSOR_IN_FILE=./data/bmface_v3_in_fp32_scale.npz
 
 # import calibration table
 mlir-opt \
