@@ -926,13 +926,17 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
         rshift->at(0) = (float)findRShiftAndMultiplierFromQScale(qscale, &multiplier_prod, true,
                                                 255);
       }
-      }
+    }
     int ret;
     if (op.with_bias()) {
       ret =
           my_scale(input, scale, bias->data(), resultT->data(), n, c, h, w);
     }else{
       ret = my_scale(input, scale, nullptr, resultT->data(), n, c, h, w);
+    }
+
+    if (op.fused_activation_function() == "RELU") {
+      my_relu(resultT->data(), resultT->data(), n, c, h, w, 0.0f);
     }
 
     assert(ret == 0);
