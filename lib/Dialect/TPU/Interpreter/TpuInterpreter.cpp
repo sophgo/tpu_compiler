@@ -936,7 +936,6 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     }
 
     if (op.fused_activation_function() == "RELU") {
-      llvm::errs() << "scale-relu !!!!!\n";
       my_relu(resultT->data(), resultT->data(), n, c, h, w, 0.0f);
     }
 
