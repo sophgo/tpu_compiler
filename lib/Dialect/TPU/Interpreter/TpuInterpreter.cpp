@@ -935,6 +935,11 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       ret = my_scale(input, scale, nullptr, resultT->data(), n, c, h, w);
     }
 
+    if (op.fused_activation_function() == "RELU") {
+      llvm::errs() << "scale-relu !!!!!\n";
+      my_relu(resultT->data(), resultT->data(), n, c, h, w, 0.0f);
+    }
+
     assert(ret == 0);
     // rshift and saturate on output
     if (op.quant() == "INT8") {
