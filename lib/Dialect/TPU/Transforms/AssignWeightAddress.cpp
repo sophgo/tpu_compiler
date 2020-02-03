@@ -325,6 +325,7 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
         for(uint64_t i = 2; i < _shape.size(); i++) {
           shape.push_back(_shape[i]);
         }
+        transposeConvolutionFilter<int8_t>(weight_int8, shape);
       } else if (shape.size() == 4) {
         transposeConvolutionFilter<int8_t>(weight_int8, shape);
       } else if (shape.size() == 2) {
