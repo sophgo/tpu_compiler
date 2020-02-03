@@ -1294,7 +1294,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
           LLVM_DEBUG(llvm::errs() << "shape h:" << h << " w:"<< w <<"\n";);
           LLVM_DEBUG(llvm::errs() << "bottom num:" << opdT.size() << "\n";);
           LLVM_DEBUG(llvm::errs() << "data size:" << opdT[i]->size() << "\n";);
-          auto *input_data = opdT[i]->data();
+          auto *input_data = input[i];
           if (concat_axis == 0) {
             tmp_resultT.get()->insert(tmp_resultT.get()->end(), opdT[i]->begin(), opdT[i]->end());
           }
