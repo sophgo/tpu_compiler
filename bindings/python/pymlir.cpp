@@ -143,7 +143,7 @@ public:
           py::dict py_temp;
           py_temp[OP_NAME] = getOpName(&op).str();
           py_temp[OP_TYPE] = op.getName().getStringRef().str();
-          py_temp[OP_QUANT] = getOpQuant(&op);
+          py_temp[OP_QUANT] = getOpQuant(&op).str();
           opInfo_.append(py_temp);
         }
       }

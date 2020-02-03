@@ -34,6 +34,7 @@ add_llvm_library(MLIRTPU
 
 add_dependencies(MLIRTPU
   MLIRTPUOpsIncGen
+  MLIRTPUInterfaceIncGen
   MLIRIR
   LLVMSupport)
 target_link_libraries(MLIRTPU

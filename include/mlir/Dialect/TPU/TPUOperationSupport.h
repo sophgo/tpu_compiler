@@ -29,10 +29,10 @@ namespace mlir {
 
 llvm::StringRef getOpName(Operation *op);
 llvm::StringRef getPreviousOpName(Operation *op, uint index = 0);
-std::string getOpQuant(Operation *op);
+llvm::StringRef getOpQuant(Operation *op);
 float getOpThreshold(Operation *op);
-float getPreviousOpThreshold(
-    Operation *op, uint index = 0);
+float getPreviousOpThreshold(Operation *op, uint index = 0);
+uint64_t getOpAddress(Operation *op);
 uint64_t getPreviousOpAddress(Operation *op, uint index = 0);
 uint64_t getWeightOpAddress(Operation *op);
 
@@ -79,7 +79,7 @@ void getFullyConnectedOpVariadicTensors(
     std::vector<std::shared_ptr<std::vector<float>>> &opdT,
     std::shared_ptr<std::vector<float>> &bias,
     std::shared_ptr<std::vector<float>> &rshift);
-    
+
 void getPReluOpVariadicTensors(tpu::PReluOp &op,
     std::vector<std::shared_ptr<std::vector<float> > > &opdT,
     std::shared_ptr<std::vector<float> > &rshift_pos,
