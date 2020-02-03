@@ -39,6 +39,54 @@
 using namespace mlir;
 
 template<typename T>
+static void transposeConvolutionFilter(std::vector<T> &w, std::vector<int64_t> &s) {
+  assert(s.size() == 4);
+  int oc = s[0];
+  int ic = s[1];
+  int ks = s[2] * s[3];
+  std::vector<T> w_t(w.size());
+  if (ks == 1) {
+    return;
+  } else {
+    // for other conv, transpose ic <-> kh*kw
+    for (int i = 0; i < oc; i++) {
+      for (int j = 0; j < ic; j++) {
+        for (int k = 0; k < ks; k++) {
+          w_t[i * ic * ks + k * ic + j] = w[i * ic * ks + j * ks + k];
+        }
+      }
+    }
+  }
+  w.assign(w_t.begin(), w_t.end());
+}
+
+template<typename T>
+static void transposeFullyConnectedFilter(std::vector<T> &w, std::vector<int64_t> &s) {
+  assert(s.size() == 2);
+  int row = s[0];
+  int col = s[1];
+  std::vector<T> w_t(w.size());
+  for (int i = 0; i < row; i++) {
+    for (int j = 0; j < col; j++) {
+      w_t[j * row + i] = w[i * col  + j];
+    }
+  }
+  w.assign(w_t.begin(), w_t.end());
+}
+
+static void transposeBiasInt16(std::vector<int16_t> &w_int16) {
+  int8_t *ptr = reinterpret_cast<int8_t *>(w_int16.data());
+  std::vector<int8_t> w(ptr, ptr + w_int16.size() * sizeof(int16_t));
+  std::vector<int8_t> w_t(w.size());
+  for (size_t i = 0; i < w_int16.size(); i++) {
+    for (size_t j = 0; j < 2; j++) {
+      w_t[j * w_int16.size() + i] = w[i * 2 + j];
+    }
+  }
+  memcpy(ptr, w_t.data(), w_t.size());
+}
+
+template<typename T>
 static bool DoAssignWeight(Operation *op, int64_t oc, PatternRewriter &rewriter,
                            TensorFile *weightTensorFile) {
   auto castOp = cast<T>(op);
@@ -163,56 +211,6 @@ static bool DoAssignWeight(Operation *op, int64_t oc, PatternRewriter &rewriter,
   return true;
 }
 
-
-
-template<typename T>
-static void transposeConvolutionFilter(std::vector<T> &w, std::vector<int64_t> &s) {
-  assert(s.size() == 4);
-  int oc = s[0];
-  int ic = s[1];
-  int ks = s[2] * s[3];
-  std::vector<T> w_t(w.size());
-  if (ks == 1) {
-    return;
-  } else {
-    // for other conv, transpose ic <-> kh*kw
-    for (int i = 0; i < oc; i++) {
-      for (int j = 0; j < ic; j++) {
-        for (int k = 0; k < ks; k++) {
-          w_t[i * ic * ks + k * ic + j] = w[i * ic * ks + j * ks + k];
-        }
-      }
-    }
-  }
-  w.assign(w_t.begin(), w_t.end());
-}
-
-template<typename T>
-static void transposeFullyConnectedFilter(std::vector<T> &w, std::vector<int64_t> &s) {
-  assert(s.size() == 2);
-  int row = s[0];
-  int col = s[1];
-  std::vector<T> w_t(w.size());
-  for (int i = 0; i < row; i++) {
-    for (int j = 0; j < col; j++) {
-      w_t[j * row + i] = w[i * col  + j];
-    }
-  }
-  w.assign(w_t.begin(), w_t.end());
-}
-
-static void transposeBiasInt16(std::vector<int16_t> &w_int16) {
-  int8_t *ptr = reinterpret_cast<int8_t *>(w_int16.data());
-  std::vector<int8_t> w(ptr, ptr + w_int16.size() * sizeof(int16_t));
-  std::vector<int8_t> w_t(w.size());
-  for (size_t i = 0; i < w_int16.size(); i++) {
-    for (size_t j = 0; j < 2; j++) {
-      w_t[j * w_int16.size() + i] = w[i * 2 + j];
-    }
-  }
-  memcpy(ptr, w_t.data(), w_t.size());
-}
-
 namespace {
 
 struct TpuConv2DOpPattern : public RewritePattern {
@@ -246,7 +244,6 @@ struct TpuConv2DOpPattern : public RewritePattern {
     }
 
     return matchSuccess();
-
   }
 
   TensorFile *weightTensorFile_;
@@ -280,7 +277,6 @@ struct TpuScaleOpPattern : public RewritePattern {
 
   TensorFile *weightTensorFile_;
 };
-
 
 struct TpuLoadWeightOpPattern : public RewritePattern {
   TpuLoadWeightOpPattern(MLIRContext *context, TensorFile *weightTensorFile,
@@ -329,6 +325,7 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
         for(uint64_t i = 2; i < _shape.size(); i++) {
           shape.push_back(_shape[i]);
         }
+        transposeConvolutionFilter<int8_t>(weight_int8, shape);
       } else if (shape.size() == 4) {
         transposeConvolutionFilter<int8_t>(weight_int8, shape);
       } else if (shape.size() == 2) {
@@ -504,7 +501,6 @@ public:
     patterns.insert<TpuConv2DOpPattern>(context, weightTensorFile.get());
     patterns.insert<TpuScaleOpPattern>(context, weightTensorFile.get());
     applyPatternsGreedily(fn, patterns);
-
     patterns.clear();
 
     // don't keep this file by default, remove comment for debug only

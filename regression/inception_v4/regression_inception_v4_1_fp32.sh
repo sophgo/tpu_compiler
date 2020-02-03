@@ -7,8 +7,8 @@ echo $0 IS RUNNING
 
 # translate from caffe model
 mlir-translate \
-    --caffe-to-mlir $MODEL_PATH/caffe/deploy_inception-v4.prototxt \
-    --caffemodel $MODEL_PATH/caffe/inception-v4.caffemodel \
+    --caffe-to-mlir $MODEL_PATH/imagenet/inception_v4/caffe/deploy_inception-v4.prototxt \
+    --caffemodel $MODEL_PATH/imagenet/inception_v4/caffe/inception-v4.caffemodel \
     -o inception_v4.mlir
 
 # assign layer_id right away, and output op_info

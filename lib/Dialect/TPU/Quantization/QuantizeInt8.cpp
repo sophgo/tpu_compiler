@@ -871,7 +871,6 @@ struct TpuQuantScaleOpPattern : public RewritePattern {
         oc = scale_shape[1];
       }
 
-
       // TODO: use float for now, need to change to int8
       auto new_scale = std::make_unique<std::vector<float>>(scale_size);
       std::unique_ptr<std::vector<float>> new_bias = nullptr;
@@ -882,7 +881,6 @@ struct TpuQuantScaleOpPattern : public RewritePattern {
       }
       assert(scale_size % oc == 0);
       int64_t isz = scale_size / oc;
-
 
       // create tensors for rshift and multiplier
       // TODO: use float to save all weights for now

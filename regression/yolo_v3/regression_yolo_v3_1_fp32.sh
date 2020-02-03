@@ -6,8 +6,8 @@ source $DIR/../../envsetup.sh
 
 # translate from caffe model
 mlir-translate \
-    --caffe-to-mlir $MODEL_PATH/caffe/yolov3/416/yolov3_416.prototxt \
-    --caffemodel $MODEL_PATH/caffe/yolov3/416/yolov3_416.caffemodel \
+    --caffe-to-mlir $MODEL_PATH/object_detection/yolo_v3/caffe/416/yolov3_416.prototxt \
+    --caffemodel $MODEL_PATH/object_detection/yolo_v3/caffe/416/yolov3_416.caffemodel \
     -o yolo_v3_416.mlir
 
 # assign layer_id right away, and output op_info

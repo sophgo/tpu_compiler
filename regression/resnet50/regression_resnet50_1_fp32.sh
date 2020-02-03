@@ -6,8 +6,8 @@ source $DIR/../../envsetup.sh
 
 # translate from caffe model
 mlir-translate \
-    --caffe-to-mlir $MODEL_PATH/caffe/ResNet-50-deploy.prototxt \
-    --caffemodel $MODEL_PATH/caffe/ResNet-50-model.caffemodel \
+    --caffe-to-mlir $MODEL_PATH/imagenet/resnet/caffe/ResNet-50-deploy.prototxt \
+    --caffemodel $MODEL_PATH/imagenet/resnet/caffe/ResNet-50-model.caffemodel \
     -o resnet50.mlir
 
 # assign layer_id right away, and output op_info

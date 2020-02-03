@@ -2066,14 +2066,14 @@ void CaffeImporter::convertNormalizeLayer(mlir::Block *block,
         << "\n";
   );
 
-/*  
-  Currenly , we separate Normalize op to below 6 ops. 
+/*
+  Currenly , we separate Normalize op to below 6 ops.
   Eltwise OP(power(2))-> Reduction(use conv now)-> Sqrt-> Div->Eltwise OP(prod) ->Scale(by channel scale)
 */
 
   /* 1. Power OP */
 #if 0
-  //use power op 
+  //use power op
   std::vector<Value *> operands;
   operands.push_back(input_var);
 

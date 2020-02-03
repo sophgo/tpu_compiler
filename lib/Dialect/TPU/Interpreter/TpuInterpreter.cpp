@@ -50,6 +50,7 @@
 #include <algorithm>
 
 #define DEBUG_TYPE "interpreter"
+
 using namespace std;
 
 namespace mlir {
@@ -925,13 +926,17 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
         rshift->at(0) = (float)findRShiftAndMultiplierFromQScale(qscale, &multiplier_prod, true,
                                                 255);
       }
-      }
+    }
     int ret;
     if (op.with_bias()) {
       ret =
           my_scale(input, scale, bias->data(), resultT->data(), n, c, h, w);
     }else{
       ret = my_scale(input, scale, nullptr, resultT->data(), n, c, h, w);
+    }
+
+    if (op.fused_activation_function() == "RELU") {
+      my_relu(resultT->data(), resultT->data(), n, c, h, w, 0.0f);
     }
 
     assert(ret == 0);
@@ -965,7 +970,6 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
         }
       }
     } else if (op.quant() == "BF16") {
-      assert("not support now");
     } else if (op.quant() == "NONE") {
     } else {
       assert(0);
@@ -1015,8 +1019,9 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
         std::vector<float> &src_vec = *opdT[index];
         std::copy(src_vec.begin(), src_vec.end(),
                   back_inserter(input_copy[index]));
-
         input[index] = input_copy[index].data();
+
+        // get threshold_x
         threshold_x[index] = getPreviousOpThreshold(op, index);
       }
       // get threshold_y
@@ -1344,7 +1349,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     valueMapping[result] = std::move(resultT);
     return success();
   }
-  
+
   if (auto op = dyn_cast<tpu::UpsampleOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "UpsampleOp" << "\n";);
     auto opdT = getOperandTensors(opInst, valueMapping);
@@ -1407,7 +1412,6 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
     return success();
   }
-
 
   if (auto op = dyn_cast<tpu::QuantizationOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "QuantizationOp" << "\n";);
@@ -2110,6 +2114,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
   }
   if (auto op = dyn_cast<tpu::PowerOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "PowerOp" << "\n";);
+    assert(false);
     auto opdT = getOperandTensors(opInst, valueMapping);
     auto result = op.getResult();
     LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";);
@@ -2133,20 +2138,19 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       nchw[i] = i_s[i];
     }
 
-/*
-    How to get Qscale value: 
-
-    X = Sx*Qy
-    Y = Sy*Qy
-    Sx = thrx /127
-    Sy = thry /127
-
-    Y=X*X 
-    ==> Sy*Qy=Sx*Qx*Sx*Qx
-    ==> Qy = ((thrx*thrx/(127))*(Qx*Qx))/thry
-    ==> Qscale = (thrx*thrx/127)/thry
-
-*/
+    ///
+    /// How to get Qscale value: 
+    ///
+    /// X = Sx*Qy
+    /// Y = Sy*Qy
+    /// Sx = thrx /127
+    /// Sy = thry /127
+    ///
+    /// Y=X*X 
+    /// ==> Sy*Qy=Sx*Qx*Sx*Qx
+    /// ==> Qy = ((thrx*thrx/(127))*(Qx*Qx))/thry
+    /// ==> Qscale = (thrx*thrx/127)/thry
+    ///
 
     float threshold_y,threshold_x,qscale,rshift;
     uint32_t multiplier;
@@ -2176,57 +2180,59 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
     float *output = (float *)resultT.get()->data();
 
-/*      if (op.quant() == "INT8"|| op.quant() == "INT8_PER_CHANNEL"||op.quant() == "INT8_MULTIPLIER") {
-    assert(threshold_x != 0.0);
-    std::vector<int> data(256, 0);
+/*
+    if (op.quant() == "INT8"|| op.quant() == "INT8_PER_CHANNEL"||op.quant() == "INT8_MULTIPLIER") {
+      assert(threshold_x != 0.0);
+      std::vector<int> data(256, 0);
 
-    for (int idx = 0; idx < 256; ++idx) {
-      char lutInput = static_cast<char>(idx);
-      float index = lutInput * threshold_x / 127.0;
-      float lutOutput = pow(index,2) * 127.0 / threshold_y;
-      int lutOutputI32 = std::floor(lutOutput + 0.5);
-      lutOutputI32 = (lutOutputI32 > 127)
-                         ? 127
-                         : (lutOutputI32 < -128) ? -128 : lutOutputI32;
-      data[idx] = lutOutputI32;
-    }
-    for (int i = 0; i < size; ++i) {
-      output[i] = data[(unsigned char)input[0][i]];
-    }
-  }else*/ {
+      for (int idx = 0; idx < 256; ++idx) {
+        char lutInput = static_cast<char>(idx);
+        float index = lutInput * threshold_x / 127.0;
+        float lutOutput = pow(index,2) * 127.0 / threshold_y;
+        int lutOutputI32 = std::floor(lutOutput + 0.5);
+        lutOutputI32 = (lutOutputI32 > 127)
+                           ? 127
+                           : (lutOutputI32 < -128) ? -128 : lutOutputI32;
+        data[idx] = lutOutputI32;
+      }
+      for (int i = 0; i < size; ++i) {
+        output[i] = data[(unsigned char)input[0][i]];
+      }
+    } else */ {
 
-    if (op.quant() == "INT8"|| op.quant() == "INT8_PER_CHANNEL") {
-      scale = scale*(threshold_y/threshold_x)*multiplier;
-      shift = shift*(threshold_y/127.0)*multiplier;
-      scale = (float)applyRShiftAndSaturateInt8(scale, (uint32_t)rshift);
-      shift = (float)applyRShiftAndSaturateInt8(shift, (uint32_t)rshift);
-    }else if(op.quant() == "INT8_MULTIPLIER"){
-      scale = scale*(threshold_y/threshold_x);
-      shift = shift*(threshold_y/127.0);
-      scale = (float)applyMultiplierAndRShiftAndSaturateInt8(scale,rshift,  multiplier);        
-      shift = (float)applyMultiplierAndRShiftAndSaturateInt8(shift,rshift,  multiplier);        
-    }
+      if (op.quant() == "INT8"|| op.quant() == "INT8_PER_CHANNEL") {
+        scale = scale*(threshold_y/threshold_x)*multiplier;
+        shift = shift*(threshold_y/127.0)*multiplier;
+        scale = (float)applyRShiftAndSaturateInt8(scale, (uint32_t)rshift);
+        shift = (float)applyRShiftAndSaturateInt8(shift, (uint32_t)rshift);
+      }else if(op.quant() == "INT8_MULTIPLIER"){
+        scale = scale*(threshold_y/threshold_x);
+        shift = shift*(threshold_y/127.0);
+        scale = (float)applyMultiplierAndRShiftAndSaturateInt8(scale,rshift,  multiplier);        
+        shift = (float)applyMultiplierAndRShiftAndSaturateInt8(shift,rshift,  multiplier);        
+      }
 
-    int ret = my_power(input[0], output, nchw[0], nchw[1], nchw[2], nchw[3], scale, shift, power);
-    assert(ret == 0);
+      int ret = my_power(input[0], output, nchw[0], nchw[1], nchw[2], nchw[3], scale, shift, power);
+      assert(ret == 0);
 
-    // rshift and saturate on output
-    
+      // rshift and saturate on output
+
       //assert(rshift);
       for (int i = 0; i < size; ++i) {
         if (op.quant() == "INT8"|| op.quant() == "INT8_PER_CHANNEL") {
           output[i] = output[i]*multiplier;
-        output[i] = (float)applyRShiftAndSaturateInt8(output[i], (uint32_t)rshift);
+          output[i] = (float)applyRShiftAndSaturateInt8(output[i], (uint32_t)rshift);
         }else if(op.quant() == "INT8_MULTIPLIER"){
           output[i] = (float)applyMultiplierAndRShiftAndSaturateInt8(output[i],rshift,  multiplier);        
         }
-        /*    else if (op.quant() == "BF16"){
+        /* else if (op.quant() == "BF16"){
               auto tensor_bf16 = std::make_unique<std::vector<bfloat16> >(resultT->size());
               FloatToBFloat16(resultT->data(), tensor_bf16->data(), resultT->size()); // with rounding
               BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
         }*/
       }
-}
+    }
+
     valueMapping[result] = std::move(resultT);
     return success();
   }

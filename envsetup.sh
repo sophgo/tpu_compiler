@@ -6,7 +6,7 @@ export MLIR_SRC_PATH=$SCRIPT_DIR
 export TPU_BASE=$MLIR_SRC_PATH/../../../..
 
 if [[ -z "$MODEL_PATH" ]]; then
-  MODEL_PATH=~/data/models
+  MODEL_PATH=$TPU_BASE/models
 fi
 if [ ! -e $MODEL_PATH ]; then
   echo "MODEL_PATH $MODEL_PATH does not exist"

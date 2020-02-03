@@ -7,6 +7,9 @@
 namespace mlir {
 
 llvm::StringRef getOpName(Operation *op) {
+  //if (auto tpuOp = llvm::dyn_cast<tpu::TpuInterface>(op)) {
+  //  return tpuOp.getOpName();
+  //}
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::BatchNormOp>(op)) {
     return cast_op.name().getValue();
   }
@@ -110,7 +113,7 @@ llvm::StringRef getPreviousOpName(Operation *op, uint index = 0) {
   return getOpName(op->getOperand(index)->getDefiningOp());
 }
 
-std::string getOpQuant(Operation *op) {
+llvm::StringRef getOpQuant(Operation *op) {
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::BatchNormOp>(op)) {
     return cast_op.quant();
   }
@@ -330,13 +333,13 @@ uint64_t getPreviousOpAddress(Operation *op, uint index = 0) {
   }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::PermuteOp>(formerOp)) {
     return cast_op.offset().getValue().getLimitedValue();
-  }  
+  }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::PowerOp>(formerOp)) {
     return cast_op.offset().getValue().getLimitedValue();
-  }  
+  }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::PReluOp>(formerOp)) {
     return cast_op.offset().getValue().getLimitedValue();
-  }  
+  }
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::ReluOp>(formerOp)) {
     return cast_op.offset().getValue().getLimitedValue();
   }

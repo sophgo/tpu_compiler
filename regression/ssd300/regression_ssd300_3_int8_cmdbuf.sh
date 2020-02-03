@@ -115,7 +115,8 @@ bin_to_npz.py \
 npz_compare.py \
     ssd300_cmdbuf_out_all_int8_multiplier.npz \
     ssd300_tensor_all_int8_multiplier.npz \
-    --op_info ssd300_op_info_int8_multiplier.csv
+    --op_info ssd300_op_info_int8_multiplier.csv \
+    --excepts mbox_loc,mbox_conf
 
 # VERDICT
 echo $0 PASSED

@@ -735,6 +735,18 @@ void quantizeWeightInt8Multiplier(float *filter, float *bias, int oc, int isz,
     // find qscale
     max_filter[i] = findMaxWeight(&filter[isz * i], isz);
     double qscale = findQScaleForFilter(max_filter[i], threshold_y, threshold_x);
+    if(qscale >= 1){
+      // Now 1880v2 not support lshift, if qscale > 1, rshift <= 0 not working now 
+      // we fix threshold_w to limit value
+      // qscale = (thr_w * thr_x) / (127.0 * thr_y)
+      // thr_w = qscale * 127.0 * thr_y / thr_x 
+      // qscale = 0.99999999
+      qscale = 0.999999;
+      max_filter[i] = qscale * 127.0 * threshold_y / threshold_x;
+      llvm::errs() << "WARNING: adjust threshold_w for qscale"
+                   << ", qscale_filter = " << qscale << ", max_filter[" << i
+                   << "] = " << max_filter[i] << "\n";
+    }
     max_bias[i] = 0.0f;
     if (bias) {
       max_bias[i] = fabs(bias[i]);

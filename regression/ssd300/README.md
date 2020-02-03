@@ -73,5 +73,3 @@ Finish SSD300 fp32 support.
 1. cpu layer is not supported currently.
 
 2. Use cpu reshape(last reshape) as cpu layer to reduce softmax accuracy loss. Need to find better solution. 
-
-
