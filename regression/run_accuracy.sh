@@ -19,9 +19,9 @@ fi
 pushd regression_out
 
 # run tests
-$DIR/resnet50/accuracy_resnet50.sh $1
-$DIR/yolo_v3/accuracy_yolo_v3.sh $1
-$DIR/ssd300/accuracy_ssd300.sh $1
+# $DIR/resnet50/accuracy_resnet50.sh $1 
+# $DIR/yolo_v3/accuracy_yolo_v3.sh $1 
+$DIR/ssd300/accuracy_ssd300.sh $1 $2
 popd
 
 echo $0 DONE
