@@ -4,9 +4,13 @@ set -e
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 source $DIR/../../envsetup.sh
 
+mkdir -p data/coco
+cp $MODEL_PATH/caffe/ssd300/labelmap_coco.prototxt data/coco/
+
+
 # run caffe model
 run_caffe_detector_ssd.py \
-    --model_def $MODEL_PATH/caffe/ssd300/deploy.prototxt \
+    --model_def $MODEL_PATH/caffe/ssd300/deploy_.prototxt \
     --pretrained_model $MODEL_PATH/caffe/ssd300/VGG_coco_SSD_300x300_iter_400000.caffemodel  \
     --net_input_dims 300,300 \
     --dump_blobs ssd300_blobs.npz \

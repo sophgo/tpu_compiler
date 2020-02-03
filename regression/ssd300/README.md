@@ -1,36 +1,26 @@
-# SSD-300  
+# SSD-300
 
-For SSD-300 model you can download caffemodel and prototxt here.
+## Model
 
-- `https://drive.google.com/open?id=0BzKzrI_SkD1_dUY1Ml9GRTFpUWc`
+- `https://github.com/BVLC/caffe/tree/intel` ref to `https://github.com/weiliu89/caffe/tree/ssd`
 
-For coco dataset(2017) you can download in NAS server(http://10.34.33.5:5000/)
-- `/ai/dataset_zoo/coco/2017/annotations`
+- COCO VGG SSD300 version `https://drive.google.com/open?id=0BzKzrI_SkD1_dUY1Ml9GRTFpUWc`
 
-# You need to add below modefication for run SSD-300 regression
+- `labelmap_coco.prototxt` from `https://github.com/intel/caffe/blob/master/data/coco/labelmap_coco.prototxt`
 
-1. change mlir-tpu-interpreter.cpp L178
+## Dataset
 
-  std::vector<float> input(1*3*224*224); --> std::vector<float> input(1*3*300*300);
-2. Currently dynamic output tensor is not supported. 
+- coco2017
 
-   1) need to mark L1545-L1948 in lib/Dialect/StandardOps/ops.cpp
+## Performance Results
 
-   2) For ssd300 network detection ouput layer, set (keep_top_k)X1X1X7 shape now where 'keep_top_k' value is the same as keep_top_k parameter from DetectionOutput layer(need to use 300 now). 
-3. Set keep_top_k = 300 in detection_out layer to caffe prototxt.
+## Accuracy Results
 
-
-# History 
-## 1/3/2020 
-Finish support SSD300 network FP32 inference (with output detection out post process)
-
-## 1/16/2020
-
-Finish SSD300 fp32 support.
+- 20200116
 
 Accuracy status:
 
-- caffe fp32 coco 2017 dataset accuracy test result:
+caffe fp32 coco 2017 dataset accuracy test result:
 
  Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.247
  Average Precision  (AP) @[ IoU=0.50      | area=   all | maxDets=100 ] = 0.425
@@ -45,7 +35,7 @@ Accuracy status:
  Average Recall     (AR) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.402
  Average Recall     (AR) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.578
 
-- mlir fp32 accuracy test result:
+mlir fp32 accuracy test result:
 
  Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.247
  Average Precision  (AP) @[ IoU=0.50      | area=   all | maxDets=100 ] = 0.425
@@ -60,21 +50,28 @@ Accuracy status:
  Average Recall     (AR) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.402
  Average Recall     (AR) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.578
 
-## 1/22/2020
+## History
+
+- 20200203
+
+Fix concat backend issue. Fix softmax accuracy loss. 
+
+- 20200201
+
+Finish SSD300 INT8 perchannel multiplier cmdbuf regression.
+
+- 20200122
+
 Finish SSD300 INT8 interpreter support.
 
-Known issue: 
+- 20200116
 
-1. Softmax threshold will affect accuracy . 
-Tmp Solution: set softmax op threshold as 1. 
+Finish SSD300 fp32 support.
 
-## 2/1/2020
+## Known issues
 
-Finish SSD300 INT8 perchannel multiplier cmdbuf regression. 
+1. cpu layer is not supported currently.
 
-Known issue: 
+2. Use cpu reshape(last reshape) as cpu layer to reduce softmax accuracy loss. Need to find better solution. 
 
-1. concat perchannel multiplier backend is not correct. 
 
-2. Softmax threshold will affect accuracy. Need to make last reshape layer as cpu layer . 
-3. cpu layer is not supported currently.
