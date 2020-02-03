@@ -1532,8 +1532,11 @@ static LogicalResult runOperation(Operation &opInst) {
                             << std::to_string(second_is_load_weight)<< "\n";);
     n = o_s[0];
     c = o_s[1];
-    h = o_s[2];
-    w = o_s[3];
+    h = (o_s.size() >=4)? o_s[2] : 1;
+    w = (o_s.size() >=4)? o_s[3] : 1;
+
+    LLVM_DEBUG(llvm::errs() << "{n, c, h, w} = { " 
+                            << n << ", " << c << ", " << h << ", " << w << " }\n";);
 
     gaddr_t ga_inputs = getPreviousOpAddress(op, 0);
     gaddr_t scale_gaddr;
