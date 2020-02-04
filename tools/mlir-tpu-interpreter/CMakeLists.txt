@@ -1,21 +1,16 @@
-add_llvm_executable(mlir-tpu-interpreter
+set(LIBS
+  MLIRParser
+  MLIRPass
+  MLIRSPIRV
+  MLIRSPIRVSerialization
+  MLIRTPU
+  MLIRTPUInterpreter
+  MLIRStandardOps
+  MLIRSupport
+)
+add_llvm_tool(mlir-tpu-interpreter
   mlir-tpu-interpreter.cpp
 )
 llvm_update_compile_flags(mlir-tpu-interpreter)
-whole_archive_link(mlir-tpu-interpreter
-  MLIRStandardOps
-  MLIRTransforms
-  MLIRTranslation
-)
-target_link_libraries(mlir-tpu-interpreter PRIVATE
-  MLIRTPU
-  MLIRTPUInterpreter
-  MLIRAnalysis
-  MLIREDSC
-  MLIRIR
-  MLIRParser
-  MLIRTransforms
-  MLIRSupport
-  LLVMCore
-  LLVMSupport
-)
+whole_archive_link(mlir-tpu-interpreter ${LIBS})
+target_link_libraries(mlir-tpu-interpreter PRIVATE MLIRIR ${LIBS} LLVMSupport)

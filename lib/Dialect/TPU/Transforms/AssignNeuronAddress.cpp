@@ -135,6 +135,25 @@ struct TpuSliceAddressPattern : public RewritePattern {
   }
 };
 
+struct TpuReshapeAddressPattern : public RewritePattern {
+  TpuReshapeAddressPattern(MLIRContext *context)
+      : RewritePattern("tpu.reshape", 1, context) {}
+
+  PatternMatchResult matchAndRewrite(Operation *op,
+                                     PatternRewriter &rewriter) const override {
+    auto castOp = cast<tpu::ReshapeOp>(op);
+    if (castOp.offset().hasValue()) {
+      // assigned already
+      return matchFailure();
+    }
+
+    auto prevPos = getPreviousOpAddress(castOp);
+    castOp.setAttr("offset", rewriter.getI64IntegerAttr(prevPos));
+
+    return matchSuccess();
+  }
+};
+
 static llvm::cl::opt<size_t> clNeuronAlignment(
     "tpu-neuron-address-align",
     llvm::cl::desc("Specify the alignment for neuron"),
@@ -200,18 +219,18 @@ public:
     patterns.insert<TpuQuantizationOpPattern<tpu::SqrtOp>>(
         context, "tpu.sqrt", &pos, neuronMapFile->os(), clNeuronAlignment);
     patterns.insert<TpuQuantizationOpPattern<tpu::ScaleOp>>(
-        context, "tpu.scale", &pos, neuronMapFile->os(), clNeuronAlignment); 
+        context, "tpu.scale", &pos, neuronMapFile->os(), clNeuronAlignment);
     patterns.insert<TpuQuantizationOpPattern<tpu::PermuteOp>>(
-        context, "tpu.permute", &pos, neuronMapFile->os(), clNeuronAlignment);                     
+        context, "tpu.permute", &pos, neuronMapFile->os(), clNeuronAlignment);
     patterns.insert<TpuQuantizationOpPattern<tpu::ConcatOp>>(
-        context, "tpu.concat", &pos, neuronMapFile->os(), clNeuronAlignment);                     
+        context, "tpu.concat", &pos, neuronMapFile->os(), clNeuronAlignment);
     patterns.insert<TpuQuantizationOpPattern<tpu::SigmoidOp>>(
         context, "tpu.sigmoid", &pos, neuronMapFile->os(), clNeuronAlignment);
 
     applyPatternsGreedily(fn, patterns);
     patterns.clear();
 
-    patterns.insert<TpuSliceAddressPattern>(context);
+    patterns.insert<TpuSliceAddressPattern, TpuReshapeAddressPattern>(context);
     applyPatternsGreedily(fn, patterns);
 
     if (neuronMapFile) {

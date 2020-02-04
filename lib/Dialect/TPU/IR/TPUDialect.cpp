@@ -30,15 +30,12 @@
 using namespace mlir;
 using namespace mlir::tpu;
 
-StringRef TPUDialect::getDialectName() { return "tpu"; }
-
 TPUDialect::TPUDialect(MLIRContext *context)
-    : Dialect(getDialectName(), context) {
+    : Dialect(getDialectNamespace(), context) {
   addOperations<
-    //LaunchOp, LaunchFuncOp,
 #define GET_OP_LIST
 #include "mlir/Dialect/TPU/TPUOps.cpp.inc"
-                >();
+      >();
 }
 
 #define GET_OP_CLASSES
@@ -213,7 +210,7 @@ DECLEAR_GET_RESULT_ADDRESS_METHOD(PowerOp)
 DECLEAR_GET_RESULT_ADDRESS_METHOD(PReluOp)
 DECLEAR_EMPTY_RESULT_ADDRESS_METHOD(PriorBoxOp)
 DECLEAR_GET_RESULT_ADDRESS_METHOD(ReluOp)
-DECLEAR_EMPTY_RESULT_ADDRESS_METHOD(ReshapeOp)
+DECLEAR_GET_RESULT_ADDRESS_METHOD(ReshapeOp)
 DECLEAR_GET_RESULT_ADDRESS_METHOD(ScaleOp)
 DECLEAR_GET_RESULT_ADDRESS_METHOD(SigmoidOp)
 DECLEAR_GET_RESULT_ADDRESS_METHOD(SliceOp)
@@ -223,6 +220,6 @@ DECLEAR_GET_RESULT_ADDRESS_METHOD(TanHOp)
 DECLEAR_GET_RESULT_ADDRESS_METHOD(UpsampleOp)
 //--------------------------------------
 DECLEAR_EMPTY_RESULT_ADDRESS_METHOD(LoadWeightOp)
-DECLEAR_EMPTY_RESULT_ADDRESS_METHOD(QuantizationOp)
+DECLEAR_GET_RESULT_ADDRESS_METHOD(QuantizationOp)
 DECLEAR_EMPTY_RESULT_ADDRESS_METHOD(DequantizationOp)
 DECLEAR_EMPTY_RESULT_ADDRESS_METHOD(DummyDataOp)
