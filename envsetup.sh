@@ -31,7 +31,7 @@ export SUPPORT_PATH=$TPU_BASE/install_support
 export BMBUILDER_PATH=$TPU_BASE/install_bmbuilder
 export RUNTIME_PATH=$TPU_BASE/install_runtime
 export PYTHON_TOOLS_PATH=$MLIR_SRC_PATH/externals/python_tools
-export CALIBRATION_TOOLS_PATH=$MLIR_SRC_PATH/externals/calibration_tools
+export CALIBRATION_TOOLS_PATH=$TPU_BASE/install_calibration_tool
 export REGRESSION_PATH=$MLIR_SRC_PATH/regression
 
 export MLIR_PATH=$TPU_BASE/install_mlir
