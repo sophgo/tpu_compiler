@@ -10,11 +10,12 @@ fi
 
 pushd $NET
 # clear previous output
-rm -f *.mlir *.bin *.npz *.csv
+rm -f *.mlir *.bin *.npz *.csv *threshold_table
 
 # run tests
 $DIR/regression_retinaface_res50_0_caffe.sh
 $DIR/regression_retinaface_res50_1_fp32.sh
+$DIR/regression_retinaface_res50_int8.sh
 
 popd
 
