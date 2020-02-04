@@ -1541,6 +1541,7 @@ static LogicalResult runOperation(Operation &opInst) {
     gaddr_t ga_inputs = getPreviousOpAddress(op, 0);
     gaddr_t scale_gaddr;
     gaddr_t bias_gaddr = INVALID_GLOBAL_ADDR;
+    gaddr_t pack_gaddr = INVALID_GLOBAL_ADDR;
     gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
     bool do_bias = op.with_bias();
     int layer_id = op.layer_id().getValue().getLimitedValue();
@@ -1557,6 +1558,8 @@ static LogicalResult runOperation(Operation &opInst) {
       // scale from input
       scale_gaddr = getPreviousOpAddress(op, 1);
       scale_dim = n * c;
+      // pack rshift and multipiler
+      pack_gaddr = getWeightOpAddress(op.getOperand(2)->getDefiningOp());
     }
 
 
@@ -1574,7 +1577,29 @@ static LogicalResult runOperation(Operation &opInst) {
     uint32_t rshift = 0;
     // Per layer
     if (op.quant() == "INT8") {
-      assert(0 && "TODO per layer ");
+      if (second_is_load_weight){
+        assert(0 && "TODO: perlayer, or you can use perchannel, more better");
+      } else {
+        scale_fixed_forward_qi32(*backend_ctx, // ctx
+                                 0,            // stream_id
+                                 0,            // inst_id
+                                 layer_id,     // layer_id
+                                 nullptr,      // depends
+                                 0,            // depends_len
+                                 ga_inputs,    // input_addr
+                                 scale_gaddr,  // scale_addr
+                                 pack_gaddr,   // pack_addr
+                                 output_gaddr, // output_addr
+                                 n, c, h, w,
+                                 scale_dim,      // scale_dim
+                                 inner_dim,      // inner_dim
+                                 false,          // is_scale_const
+                                 0,              // const_scale
+                                 do_relu,        // do_activation,
+                                 activation,     // activation_method
+                                 activation_arg, // activation_arg
+                                 do_bias, second_is_load_weight);
+      }
 
     } else if (op.quant() == "INT8_PER_CHANNEL"){
       // Per Channel only when the second input is from weight

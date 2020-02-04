@@ -185,7 +185,7 @@ static bool DoAssignWeight(Operation *op, int64_t oc, PatternRewriter &rewriter,
   {
     // find weightFileVar
     auto oneWeightOp = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
-        castOp.getOperand(1)->getDefiningOp());
+        castOp.getOperand(2)->getDefiningOp());
     auto weightFileVar = oneWeightOp.getOperand();
 
     auto tensor_name = op_name + "_per_channel";
