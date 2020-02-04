@@ -7,9 +7,14 @@ source $DIR/../../envsetup.sh
 COMPARE_ALL=1
 
 # calibration
+# python $PYTHON_TOOLS_PATH/dataset_util/gen_dataset_img_list.py \
+#     --dataset $DATASET_PATH/coco/val2017 \
+#     --count 100 \
+#     --output_img_list cali_list_coco_100.txt
 # python ../llvm/projects/mlir/externals/calibration_tool/run_calibration.py \
-#     yolo_v3 yolo_v3_416_opt.mlir \
-#     $DATA_PATH/input_coco_100.txt \
+#     yolo_v3 \
+#     yolo_v3_416_opt.mlir \
+#     cali_list_coco_100.txt \
 #     --input_num=100
 
 # import calibration table

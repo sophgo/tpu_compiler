@@ -105,6 +105,19 @@ cmake -G Ninja -DCHIP=BM1880v2 -DRUNTIME=CMODEL \
 cmake --build . --target install
 popd
 
+# build calibration tool
+if [ ! -e $MLIR_SRC_PATH/externals/calibration_tool/build ]; then
+  mkdir $MLIR_SRC_PATH/externals/calibration_tool/build
+fi
+if [ ! -e $CALIBRATION_TOOL_PATH ]; then
+  mkdir $CALIBRATION_TOOL_PATH
+fi
+pushd $MLIR_SRC_PATH/externals/calibration_tool/build
+cmake ..
+cp calibration_math.so $CALIBRATION_TOOL_PATH
+cp ../*.py $CALIBRATION_TOOL_PATH
+popd
+
 # build mlir-tpu
 if [ ! -e $TPU_BASE/llvm-project/build ]; then
   mkdir $TPU_BASE/llvm-project/build

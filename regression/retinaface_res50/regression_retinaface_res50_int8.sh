@@ -11,14 +11,16 @@ mlir-opt \
    -o retinaface_res50-opt.mlir
 
 # Calibration
-python $PYTHON_TOOLS_PATH/dataset_util/widerface/widerface_generator.py \
-    --dump_image_path calibration_input.txt
+python $PYTHON_TOOLS_PATH/dataset_util/gen_dataset_img_list.py \
+    --dataset $DATASET_PATH/widerface/WIDER_val \
+    --count 100 \
+    --output_img_list cali_list_widerface_100.txt
 
-cp $PYTHON_TOOLS_PATH/model/retinaface/calibrate_retinaface.py .
-python calibrate_retinaface.py \
+python $PYTHON_TOOLS_PATH/model/retinaface/calibrate_retinaface.py \
     retinaface_res50 \
     retinaface_res50-opt.mlir \
-    calibration_input.txt \
+    cali_list_widerface_100.txt \
+    retinaface_res50_threshold_table \
     --input_num=100 \
     --out_path=. \
     --math_lib_path=$CALIBRATION_TOOL_PATH/calibration_math.so
