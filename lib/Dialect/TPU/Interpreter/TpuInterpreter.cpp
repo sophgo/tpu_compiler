@@ -908,7 +908,6 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       if (sec_blob_weight_op) {
         getScaleOpVariadicTensors(op, opdT, bias, rshift, multiplier);
       }else {
-        assert(opdT.size() == 2);
         std::vector<float> threshold_x(2);
         float threshold_y;
 
