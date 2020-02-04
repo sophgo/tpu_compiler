@@ -5,7 +5,7 @@ DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 source $DIR/../../envsetup.sh
 
 mkdir -p data/coco
-cp $MODEL_PATH/caffe/ssd300/labelmap_coco.prototxt data/coco/
+cp $MODEL_PATH/object_detection/ssd/caffe/ssd300/labelmap_coco.prototxt data/coco/
 
 
 # run caffe model
