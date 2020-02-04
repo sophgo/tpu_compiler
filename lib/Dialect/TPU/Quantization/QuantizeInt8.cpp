@@ -1145,7 +1145,7 @@ struct TpuAddDequantBeforeDetectionOutputOpPattern : public OpRewritePattern<tpu
   for (size_t i = 0; i < op.getOperation()->getNumOperands(); ++i) {
 
     formerOp = op.getOperand(i)->getDefiningOp();
-    if (!matchPattern(formerOp, m_Op<tpu::LoadWeightOp>())) {
+    if (!matchPattern(formerOp, m_Op<tpu::LoadWeightOp>())&&!matchPattern(formerOp, m_Op<tpu::ReshapeOp>())) {
         float threshold_x = getPreviousOpThreshold(op, i);
         std::string op_name = getPreviousOpName(op, i).str();
         auto type = op.getOperation()->getOperand(i)->getType();
@@ -1326,6 +1326,29 @@ struct TpuSimplifyQuantDequantPattern : public OpRewritePattern<tpu::Dequantizat
   }
 };
 
+struct TpuRemoveQuantBeforeReshapOpPattern : public OpRewritePattern<tpu::ReshapeOp> {
+  using OpRewritePattern<tpu::ReshapeOp>::OpRewritePattern;
+
+  PatternMatchResult matchAndRewrite(tpu::ReshapeOp op,
+                                     PatternRewriter &rewriter) const {
+    auto formerOp = op.getOperand()->getDefiningOp();
+    if (!matchPattern(formerOp, m_Op<tpu::QuantizationOp>())) {
+      LLVM_DEBUG(llvm::errs() << op.name() << "reshape op is not after softmax op keep use int8\n";);
+      return matchFailure();
+    }
+
+    //remove quant op to use float32 output of softmax
+    rewriter.replaceOp(formerOp, formerOp->getOperand(0));
+
+    llvm::errs() << "Use this reshape op as cpu layer\n";
+    //use reshape as cpu layer
+    op.setAttr("quant", rewriter.getStringAttr("NONE"));
+
+    return matchSuccess();
+  }
+};
+
+
 class QuantizeInt8Pass : public FunctionPass<QuantizeInt8Pass> {
 public:
   explicit QuantizeInt8Pass(llvm::raw_ostream &os = llvm::errs()) : os(os) {}
@@ -1346,8 +1369,9 @@ public:
     auto *context = &getContext();
 
     OwningRewritePatternList patterns_w;
+    //concat cpu layer test
     patterns_w
-        .insert<TpuQuantDefaultPattern<tpu::ConcatOp>, TpuQuantConv2DOpPattern,
+        .insert<TpuQuantDefaultPattern<tpu::ConcatOp>,TpuQuantConv2DOpPattern,
                 TpuQuantDefaultPattern<tpu::CropOp>,
                 TpuQuantEltwiseOpPattern, TpuQuantFullyConnectedOpPattern,
                 TpuQuantDefaultPattern<tpu::Pool2DOp>, TpuQuantPReluOpPattern,
@@ -1356,7 +1380,6 @@ public:
                 TpuQuantDefaultPattern<tpu::SliceOp>,
                 TpuQuantDefaultPattern<tpu::DivOp>,
                 TpuQuantDefaultPattern<tpu::SqrtOp>,
-                TpuQuantDefaultPattern<tpu::DetectionOutputOp>,
                 TpuQuantDefaultPattern<tpu::EltwiseOp>,
                 TpuQuantDefaultPattern<tpu::ReshapeOp> ,
                 TpuQuantPowerAddScaleAndShiftPattern,
@@ -1371,10 +1394,15 @@ public:
     patterns_q.insert<TpuAddQuantAfterInputOpPattern>(context);
     // add Dequant before Result
     patterns_q.insert<TpuAddDeQuantBeforeReturnOpPattern>(context);
+
     // add Quant and Dequant before and after any cpu layer
     patterns_q.insert<TpuAddQuantAndDequantForSoftmaxOpPattern>(context);
+   
+    // remove Quant op before reshape (this is for ssd softmax + flatten case)
+    patterns_q.insert<TpuRemoveQuantBeforeReshapOpPattern>(context);
     // add Dequant before DetectionOuputOp which is CPU layer but also output layer
-    patterns_q.insert<TpuAddDequantBeforeDetectionOutputOpPattern>(context);    
+    patterns_q.insert<TpuAddDequantBeforeDetectionOutputOpPattern>(context); 
+
     applyPatternsGreedily(fn, patterns_q);
 
     OwningRewritePatternList patterns_s;

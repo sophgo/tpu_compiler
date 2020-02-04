@@ -279,8 +279,6 @@ float getOpThreshold(Operation *op) {
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::UpsampleOp>(op)) {
     return cast_op.threshold_y().getValue().convertToFloat();
   }
-
-  //---------------------------------------------------------------------------
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::TL_LA_Conv2DOp>(op)) {
     return cast_op.threshold_y().getValue().convertToFloat();
   }

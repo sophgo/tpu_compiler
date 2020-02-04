@@ -29,6 +29,9 @@ def parse_args():
     parser.add_argument("--coco_result_jason_file", type=str,
                         help="Result json file")
     parser.add_argument("--count", type=int, default=-1)
+    
+    parser.add_argument("--pre_result_json", type=str,
+                        help="when present, use pre detected result file, skip detection")
 
     args = parser.parse_args()
     return args
@@ -63,6 +66,38 @@ def write_result_to_json(image_name, predictions, fp):
         fp.write(json.dumps(res))
         fp.write(',\n')
 
+def get_img_id(file_name):
+    ls = []
+    myset = []
+    annos = json.load(open(file_name, 'r'))
+    for anno in annos:
+        ls.append(anno['image_id'])
+    myset = {}.fromkeys(ls).keys()
+    return myset   
+
+def cal_coco_result_from_json(annotations_file, result_json_file):
+    # https://github.com/muyiguangda/tensorflow-keras-yolov3/blob/master/pycocoEval.py
+    if not os.path.exists(result_json_file):
+        print("result file not exist,", result_json_file)
+        exit(-1)
+    if not os.path.exists(annotations_file):
+        print("annotations_file file not exist,", annotations_file)
+        exit(-1)
+    print("load json name:",result_json_file)
+    
+    annType = ['segm', 'bbox', 'keypoints']
+    annType = annType[1]
+    cocoGt = COCO(annotations_file)
+    imgIds = get_img_id(result_json_file)
+    print (len(imgIds))
+    cocoDt = cocoGt.loadRes(result_json_file)
+    imgIds = sorted(imgIds)
+    imgIds = imgIds[0:5000]
+    cocoEval = COCOeval(cocoGt, cocoDt, annType)
+    cocoEval.params.imgIds = imgIds
+    cocoEval.evaluate()
+    cocoEval.accumulate()
+    cocoEval.summarize()
 
 def coco_result(coco_image_path, ann_file, coco_result_file):
     mAp = 0.0
@@ -164,7 +199,9 @@ def dump_coco_json():
 
 
 if __name__ == "__main__":
-    #caffe.set_mode_gpu()
     args = parse_args()
-    dump_coco_json()
-    coco_result(args.coco_image_path, args.coco_annotation, args.coco_result_jason_file)
+    if (args.pre_result_json) :
+        cal_coco_result_from_json(args.coco_annotation, args.pre_result_json)
+    else:
+        dump_coco_json()
+        coco_result(args.coco_image_path, args.coco_annotation, args.coco_result_jason_file)

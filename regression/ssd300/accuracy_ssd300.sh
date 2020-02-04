@@ -14,8 +14,8 @@ fi
 
 pushd $NET
 
-$DIR/accuracy_ssd300_0_caffe.sh $1
-$DIR/accuracy_ssd300_1_interpreter.sh $1
+$DIR/accuracy_ssd300_0_caffe.sh $1 $2
+$DIR/accuracy_ssd300_1_interpreter.sh $1 $2
 
 popd
 

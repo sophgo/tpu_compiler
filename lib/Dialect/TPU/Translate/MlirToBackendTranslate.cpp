@@ -204,8 +204,9 @@ static LogicalResult runOperation(Operation &opInst) {
 
   if (auto op = dyn_cast<tpu::ConcatOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "concat ConcatOp" << "\n";);
-    auto num = op.getOperation()->getNumOperands();
+    int num = op.getOperation()->getNumOperands();
     gaddr_t input_gaddrs[num];
+
     auto axis = op.dimension().getLimitedValue();
     #define SHAPE_DIM 4
     int output_dim[SHAPE_DIM];
@@ -317,6 +318,7 @@ static LogicalResult runOperation(Operation &opInst) {
     }
     return success();
   }
+
 
   if (auto op = dyn_cast<tpu::Conv2DOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "Conv2DOp" << "\n";);
@@ -511,6 +513,7 @@ static LogicalResult runOperation(Operation &opInst) {
 
     return success();
   }
+
   if (auto op = dyn_cast<tpu::CropOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "Cropop" << op.name()
                             << "\n";);
@@ -1374,11 +1377,6 @@ static LogicalResult runOperation(Operation &opInst) {
     }
 
     return success();
-  }
-
-  if (auto op = dyn_cast<tpu::DetectionOutputOp>(opInst)) {
-    return success();
-
   }
 
   if (auto op = dyn_cast<tpu::PowerOp>(opInst)) {

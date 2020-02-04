@@ -200,6 +200,7 @@ void CaffeImporter::ParseNetInputOutput(caffe::Net<float> &net,
   }
 }
 
+
 mlir::Block* CaffeImporter::CreateOneBlockFunction(
     std::map<std::string, mlir::Type> &inputs,
     std::map<std::string, mlir::Type> &outputs) {
@@ -2113,8 +2114,8 @@ void CaffeImporter::convertNormalizeLayer(mlir::Block *block,
       builder_.getUnknownLoc(), result_type,
       ArrayRef<Value *>{operands}, ArrayRef<NamedAttribute>{attrs_power});
   auto power_result_var = power_op.getResult();
-#else  /*use eltwise op*/
-
+#else  
+  /*use eltwise op*/
   std::vector<Value *> operands_eltwise_power;
 
   operands_eltwise_power.push_back(input_var);

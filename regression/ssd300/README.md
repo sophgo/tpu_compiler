@@ -52,6 +52,10 @@ mlir fp32 accuracy test result:
 
 ## History
 
+- 20200203
+
+Fix concat backend issue. Fix softmax accuracy loss. 
+
 - 20200201
 
 Finish SSD300 INT8 perchannel multiplier cmdbuf regression.
@@ -66,11 +70,6 @@ Finish SSD300 fp32 support.
 
 ## Known issues
 
-1. Softmax threshold will affect accuracy .
-Tmp Solution: set softmax op threshold as 1.
+1. cpu layer is not supported currently.
 
-2. concat perchannel multiplier backend is not correct.
-
-3. Softmax threshold will affect accuracy. Need to make last reshape layer as cpu layer.
-
-4. cpu layer is not supported currently.
+2. Use cpu reshape(last reshape) as cpu layer to reduce softmax accuracy loss. Need to find better solution. 

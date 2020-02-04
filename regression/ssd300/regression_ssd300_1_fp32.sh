@@ -4,6 +4,9 @@ set -e
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 source $DIR/../../envsetup.sh
 
+CHECK_INFERENCE_RESULT=0
+
+
 # translate from caffe model
 mlir-translate \
     --caffe-to-mlir $MODEL_PATH/object_detection/ssd/caffe/ssd300/deploy.prototxt \
@@ -58,6 +61,17 @@ mlir-tpu-interpreter ssd300_opt2.mlir \
     --tensor-out ssd300_opt_out_fp32_opt2.npz
 npz_compare.py ssd300_opt_out_fp32_opt2.npz ssd300_out_fp32_ref.npz -v
 
+if [ $CHECK_INFERENCE_RESULT -eq 1 ]; then
+run_mlir_detector_ssd.py \
+      --model ssd300_opt2.mlir \
+      --net_input_dims 300,300 \
+      --dump_blobs ssd300_blobs.npz \
+      --obj_threshold 0.5 \
+      --dump_weights ssd300_weights.npz \
+      --input_file $REGRESSION_PATH/ssd300/data/000000000724.jpg \
+      --label_file $MODEL_PATH/caffe/ssd300/labelmap_coco.prototxt  \
+      --draw_image ssd300_fp32_mlir_opt2_result.jpg
+fi
 
 # VERDICT
 echo $0 PASSED

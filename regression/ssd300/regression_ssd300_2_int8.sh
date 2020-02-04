@@ -13,7 +13,7 @@ if [ $DO_CALIBRATION -eq 1 ]; then
 python ../../../../mlir/externals/calibration_tool/run_calibration.py \
     ssd300 ssd300_opt2.mlir \
     $DATA_PATH/input.txt \
-    --input_num=500
+    --input_num=1000
 
 cp ./result/ssd300_threshold_table $REGRESSION_PATH/ssd300/data/
 else
@@ -23,6 +23,8 @@ mlir-opt \
     --calibration-table $REGRESSION_PATH/ssd300/data/ssd300_threshold_table \
     ssd300_opt2.mlir \
     -o ssd300_cali.mlir
+
+
 
 ###############################
 #quantization 1: per-layer int8
@@ -41,6 +43,7 @@ if [ $CHECK_INFERENCE_RESULT -eq 1 ]; then
       --model ssd300_quant_int8_per_layer.mlir \
       --net_input_dims 300,300 \
       --dump_blobs ssd300_blobs.npz \
+      --obj_threshold 0.5 \
       --dump_weights ssd300_weights.npz \
       --input_file $REGRESSION_PATH/ssd300/data/dog.jpg \
       --label_file $MODEL_PATH/caffe/ssd300/labelmap_coco.prototxt  \
@@ -61,7 +64,7 @@ npz_compare.py \
       ssd300_out_int8_per_layer.npz \
       ssd300_blobs.npz \
       --op_info ssd300_op_info_int8_per_layer.csv \
-      --tolerance 0.97,0.97,0.77 -vvv
+      --tolerance 0.997,0.997,0.935 -vvv
 
 if [ $COMPARE_ALL -eq 1 ]; then
   # some tensors do not pass due to threshold bypass
@@ -71,8 +74,9 @@ if [ $COMPARE_ALL -eq 1 ]; then
       ssd300_blobs.npz \
       --op_info ssd300_op_info_int8_per_layer.csv \
       --dequant \
-      --excepts detection_out \
-      --tolerance 0.878,0.87,0.43 -vvv
+      --tolerance 0.994,0.993,0.898 -vvv
+
+      #pool4 is the lowest
 fi
 
 # ################################
@@ -89,16 +93,17 @@ mlir-opt \
     ssd300_cali.mlir \
     -o ssd300_quant_int8_per_channel.mlir
 
-# if [ $CHECK_INFERENCE_RESULT -eq 1 ]; then
-#   run_mlir_detector_ssd.py \
-#       --model ssd300_quant_int8_per_channel.mlir \
-#       --net_input_dims 300,300 \
-#       --dump_blobs ssd300_blobs.npz \
-#       --dump_weights ssd300_weights.npz \
-#       --input_file $REGRESSION_PATH/ssd300/data/dog.jpg \
-#       --label_file $MODEL_PATH/caffe/ssd300/labelmap_coco.prototxt  \
-#       --draw_image ssd300_quant_int8_per_channel.jpg
-# fi
+if [ $CHECK_INFERENCE_RESULT -eq 1 ]; then
+  run_mlir_detector_ssd.py \
+      --model ssd300_quant_int8_per_channel.mlir \
+      --net_input_dims 300,300 \
+      --dump_blobs ssd300_blobs.npz \
+      --dump_weights ssd300_weights.npz \
+      --obj_threshold 0.5 \
+      --input_file $REGRESSION_PATH/ssd300/data/dog.jpg \
+      --label_file $MODEL_PATH/caffe/ssd300/labelmap_coco.prototxt  \
+      --draw_image ssd300_quant_int8_per_channel.jpg
+fi
 
 mlir-tpu-interpreter ssd300_quant_int8_per_channel.mlir \
     --tensor-in ssd300_in_fp32.npz \
@@ -114,12 +119,8 @@ npz_compare.py \
       ssd300_out_int8_per_channel.npz \
       ssd300_blobs.npz \
       --op_info ssd300_op_info_int8_per_channel.csv \
-      --dequant \
-      --tolerance 0.97,0.97,0.79 -vvv
+      --tolerance 0.998,0.998,0.942 -vvv
 
-
-      #before do power scale and shift quant
-      #--tolerance 0.968,0.966,0.742 -vvv
 
 if [ $COMPARE_ALL -eq 1 ]; then
   # some tensors do not pass due to threshold bypass
@@ -129,8 +130,9 @@ if [ $COMPARE_ALL -eq 1 ]; then
       ssd300_blobs.npz \
       --op_info ssd300_op_info_int8_per_channel.csv \
       --dequant \
-      --excepts detection_out \
-      --tolerance 0.88,0.87,0.43 -vvv
+      --tolerance 0.988,0.986,0.848 -vvv
+
+      #conv4_3_norm_mbox_loc is the lowest layer
 fi
 
 # ################################
@@ -152,6 +154,7 @@ if [ $CHECK_INFERENCE_RESULT -eq 1 ]; then
       --model ssd300_quant_int8_multiplier.mlir \
       --net_input_dims 300,300 \
       --dump_blobs ssd300_blobs.npz \
+      --obj_threshold 0.5 \
       --dump_weights ssd300_weights.npz \
       --input_file $REGRESSION_PATH/ssd300/data/dog.jpg \
       --label_file $MODEL_PATH/caffe/ssd300/labelmap_coco.prototxt  \
@@ -171,11 +174,8 @@ npz_compare.py \
       ssd300_out_int8_multiplier.npz \
       ssd300_blobs.npz \
       --op_info ssd300_op_info_int8_multiplier.csv \
-      --dequant \
-      --tolerance 0.987,0.986,0.83 -vvv
+      --tolerance 0.993,0.992,0.882 -vvv
 
-      #before do power scale and shift quant
-      #--tolerance 0.988,0.987,0.846 -vvv
 
 if [ $COMPARE_ALL -eq 1 ]; then
   # some tensors do not pass due to threshold bypass
@@ -185,8 +185,9 @@ if [ $COMPARE_ALL -eq 1 ]; then
       ssd300_blobs.npz \
       --op_info ssd300_op_info_int8_multiplier.csv \
       --dequant \
-      --excepts detection_out \
-      --tolerance 0.88,0.87,0.43 -vvv
+      --tolerance 0.993,0.992,0.882 -vvv
+
+      #detection_out is the lowest layer
 fi
 
 fi
