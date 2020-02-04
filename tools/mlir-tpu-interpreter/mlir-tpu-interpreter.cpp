@@ -38,6 +38,7 @@
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
+#include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/ToolOutputFile.h"
@@ -76,11 +77,12 @@ static OwningModuleRef parseMLIRInput(StringRef inputFilename,
   return OwningModuleRef(parseSourceFile(sourceMgr, context));
 }
 
-namespace mlir {
+// Static initialization for TPUOps registration.
+// TODO: don't know why mlir-tpu-interpreter needs this, other tools don't
+static mlir::DialectRegistration<mlir::tpu::TPUDialect> TPUOps;
 
-int TpuInterpreterMain(
-    int argc, char **argv,
-    llvm::function_ref<LogicalResult(mlir::ModuleOp)> mlirTransformer) {
+int main(int argc, char **argv) {
+  llvm::InitLLVM y(argc, argv);
 
   llvm::cl::ParseCommandLineOptions(argc, argv, "MLIR TPU interpreter driver\n");
 
@@ -90,10 +92,6 @@ int TpuInterpreterMain(
     llvm::errs() << "could not parse the input IR\n";
     return 1;
   }
-
-  if (mlirTransformer)
-    if (failed(mlirTransformer(m.get())))
-      return EXIT_FAILURE;
 
   auto inputTF = openTensorFile(inputTensorFilename);
   std::vector<std::vector<float> *> input_tensors;
@@ -137,25 +135,3 @@ int TpuInterpreterMain(
   return exitCode;
 }
 
-} // namespace mlir
-
-static LogicalResult runMLIRPasses(ModuleOp m) {
-  PassManager pm(m.getContext());
-  applyPassManagerCLOptions(pm);
-
-  pm.addPass(createPrintTpuOpStatsPass());
-
-  if (failed(pm.run(m)))
-    return failure();
-
-  if (failed(m.verify()))
-    return failure();
-
-  return success();
-}
-
-// TODO: merge with JitRunnerMain()
-int main(int argc, char **argv) {
-  registerPassManagerCLOptions();
-  return mlir::TpuInterpreterMain(argc, argv, &runMLIRPasses);
-}

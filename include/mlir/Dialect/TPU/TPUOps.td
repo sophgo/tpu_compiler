@@ -541,6 +541,7 @@ def TPU_ReshapeOp: TPU_Op<"reshape",
     ins AnyTensor:$input,
     OptionalAttr<StrAttr>:$name,
     OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<NonNegativeI64Attr>:$offset,
     OptionalAttr<F32Attr>:$threshold_y,
     DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
   );
