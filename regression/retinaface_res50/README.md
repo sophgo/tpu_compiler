@@ -28,7 +28,13 @@ link
 
 - widerface: `http://shuoyang1213.me/WIDERFACE/index.html`
 
-  `https://drive.google.com/file/d/0B6eKvaijfFUDbW4tdGpaYjgzZkU/view?usp=sharing`
+  val: `https://drive.google.com/file/d/0B6eKvaijfFUDd3dIRmpvSk8tLUk/view?usp=sharing`
+
+  test: `https://drive.google.com/file/d/0B6eKvaijfFUDbW4tdGpaYjgzZkU/view?usp=sharing`
+
+  anno: `http://mmlab.ie.cuhk.edu.hk/projects/WIDERFace/support/bbx_annotation/wider_face_split.zip`
+
+  get the val and anno
 
 ## Performance Results
 

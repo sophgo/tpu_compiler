@@ -31,7 +31,7 @@ export SUPPORT_PATH=$TPU_BASE/install_support
 export BMBUILDER_PATH=$TPU_BASE/install_bmbuilder
 export RUNTIME_PATH=$TPU_BASE/install_runtime
 export PYTHON_TOOLS_PATH=$MLIR_SRC_PATH/externals/python_tools
-export CALIBRATION_TOOLS_PATH=$TPU_BASE/install_calibration_tool
+export CALIBRATION_TOOL_PATH=$TPU_BASE/install_calibration_tool
 export REGRESSION_PATH=$MLIR_SRC_PATH/regression
 
 export MLIR_PATH=$TPU_BASE/install_mlir
@@ -48,7 +48,9 @@ export PATH=$TPU_BASE/llvm-project/build/bin:$PATH
 export PATH=$MLIR_SRC_PATH/externals/python_tools:$PATH
 export PATH=$MLIR_SRC_PATH/bindings/python/tools:$PATH
 export PATH=$FLATBUFFERS_PATH/bin:$PATH
+export PATH=$CALIBRATION_TOOL_PATH/bin:$PATH
 
 export PYTHONPATH=$TPU_BASE/llvm-project/build/lib:$PYTHONPATH
 export PYTHONPATH=$PYTHON_TOOLS_PATH:$PYTHONPATH
 export PYTHONPATH=$CAFFE_PATH/python:$PYTHONPATH
+export PYTHONPATH=$CALIBRATION_TOOL_PATH:$PYTHONPATH
