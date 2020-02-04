@@ -977,7 +977,66 @@ struct TpuQuantScaleOpPattern : public RewritePattern {
           scaleOp, scaleOp.getResult()->getType(),
           ArrayRef<Value *>{newOperands}, ArrayRef<NamedAttribute>{newAttrs});
     } else {
+      // 1880v2 calculate scale i32 need to pack rshift and multiplier
+      // create weight for backend to get rshift and multiplier address
+      
+      
+      std::vector<float> threshold_x(2);
+      float threshold_y;
+      threshold_y = scaleOp.threshold_y().getValue().convertToFloat();
+      for (int index = 0; index < 2; ++index) {
+        threshold_x[index] = getPreviousOpThreshold(op, index);
+      }
+      float threshold_prod = std::accumulate(
+          threshold_x.begin(), threshold_x.end(), 1.0, std::multiplies<>());
+      uint32_t multiplier_prod = 0;
+      float qscale = threshold_prod / threshold_y / 127.0;
+      float rshift = (float)findRShiftAndMultiplierFromQScale(
+          qscale, &multiplier_prod, true, 255);
+
+      
+      auto scale_type = scaleOp.scale()->getType().cast<TensorType>();
+      std::vector<int64_t> scale_shape(scale_type.getShape());
+      int64_t oc;
+      if (scale_shape.size() == 2) {
+        oc = scale_shape[1];
+      } else {
+        //TODO: maybe has other shape size
+        assert(0 && "scale from input shape should be 2");
+      }
+      auto rshift_perchannel = std::make_unique<std::vector<float>>(oc, rshift);
+      auto multiplier_perchannel =
+          std::make_unique<std::vector<float>>(oc, multiplier_prod);
+
+      Type eltType = FloatType::getF32(rewriter.getContext());
+      std::string storageType = "UINT32";
+      auto shape = std::vector<int64_t>{oc};
+
+      // newOperands for create a new conv Op
+      std::vector<Value *> newOperands;
+      newOperands.push_back(scaleOp.getOperand(0));
+      newOperands.push_back(scaleOp.getOperand(1));
+      auto new_op_1 = addWeightTensorAndCreateWeightOp(
+          scaleOp.name().getValue().str() + "_quant_int8_rshift",
+          *rshift_perchannel, shape, storageType, eltType, rewriter, loc,
+          weightTensorFile_, weightFileVar_);
+      newOperands.push_back(new_op_1);
+
+      auto new_op_2 = addWeightTensorAndCreateWeightOp(
+          scaleOp.name().getValue().str() + "_quant_int8_multiplier",
+          *multiplier_perchannel, shape, storageType, eltType, rewriter, loc,
+          weightTensorFile_, weightFileVar_);
+      newOperands.push_back(new_op_2);
+
       scaleOp.setAttr("quant", rewriter.getStringAttr("INT8"));
+
+      // replace with the new scale op
+      auto origAttrs = scaleOp.getAttrs();
+      std::vector<NamedAttribute> newAttrs(origAttrs.begin(), origAttrs.end());
+
+      rewriter.replaceOpWithNewOp<tpu::ScaleOp>(
+          scaleOp, scaleOp.getResult()->getType(),
+          ArrayRef<Value *>{newOperands}, ArrayRef<NamedAttribute>{newAttrs});
     }
     return matchSuccess();
   }

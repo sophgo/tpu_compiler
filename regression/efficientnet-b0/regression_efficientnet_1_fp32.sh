@@ -22,7 +22,8 @@ mlir-opt \
 # test mlir interpreter
 mlir-tpu-interpreter efficientnet-b0_opt.mlir \
     -debug-only=interpreter -debug \
-    --tensor-in $DATA_PATH/test_cat_in_fp32.bin \
-    --tensor-out out.bin
+    --tensor-in $REGRESSION_PATH/efficientnet-b0/data/efficientnet_in_fp32.npz  \
+    --tensor-out efficientnet_out_fp32.npz \
+    --dump-all-tensor=efficientnet_tensor_all_fp32.npz 
 # VERDICT
 echo $0 PASSED

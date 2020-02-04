@@ -146,7 +146,7 @@ double findQScaleForFilter(float max_filter, float threshold_y, float threshold_
 double findQScaleForBiasI32(float max_bias, float threshold_y) {
   assert(threshold_y > 0);
   // 0x7fffffff * 0.99 to workaround precision issue
-  double qscale = (max_bias * 128.0f) / (0x7fffffff * 0.99 * threshold_y);
+  double qscale = (max_bias * 127.0f) / (0x7fffffff * 0.99 * threshold_y);
   return qscale;
 }
 

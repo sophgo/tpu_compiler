@@ -730,8 +730,8 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       assert(threshold_x != 0.0);
       for (int idx = 0; idx < 256; ++idx) {
         char lutInput = static_cast<char>(idx);
-        float index = -lutInput * threshold_x / 128.0;
-        float lutOutput = 1.0 / (1 + std::exp(index)) * 128.0 / threshold_y;
+        float index = -lutInput * threshold_x / 127.0;
+        float lutOutput = 1.0 / (1 + std::exp(index)) * 127.0 / threshold_y;
         int lutOutputI32 = std::floor(lutOutput + 0.5);
         lutOutputI32 = (lutOutputI32 > 127)
                            ? 127
@@ -908,7 +908,6 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       if (sec_blob_weight_op) {
         getScaleOpVariadicTensors(op, opdT, bias, rshift, multiplier);
       }else {
-        assert(opdT.size() == 2);
         std::vector<float> threshold_x(2);
         float threshold_y;
 
