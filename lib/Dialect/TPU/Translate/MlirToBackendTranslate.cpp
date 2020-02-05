@@ -1112,50 +1112,48 @@ static LogicalResult runOperation(Operation &opInst) {
     h = i_s[2];
     w = i_s[3];
 
-    // TODO: * merge multiplier_neg (LE_scale) to negative slope
-
     gaddr_t negative_scope_gaddr = getWeightOpAddress(op.getOperand(1)->getDefiningOp());
-    int GT_right_shift_width = static_cast<int>(getWeightFromOperandTensor<float>(opInst, 2)->at(0));
-    int GT_scale = static_cast<int>(getWeightFromOperandTensor<float>(opInst, 3)->at(0));
-    int LE_right_shift_width = static_cast<int>(getWeightFromOperandTensor<float>(opInst, 4)->at(0));
-
-    LLVM_DEBUG(llvm::errs() <<
-        "GT_right_shift_width = " << GT_right_shift_width << "\n"
-        "LE_right_shift_width = " << LE_right_shift_width << "\n"
-        "GT_scale = " << GT_scale << "\n";);
 
     gaddr_t input_gaddr = getPreviousOpAddress(op);
     gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
-
     int layer_id = op.layer_id().getValue().getLimitedValue();
 
-    bmnet_prelu_fixed_forward_bmkernel(
-        *backend_ctx,
-        layer_id,             // layer_id,
-        input_gaddr,          // input_data_gaddr,
-        output_gaddr,         // output_data_gaddr,
-        negative_scope_gaddr, // float negative_slope,
-        n, c, h, w,
-        GT_right_shift_width,
-        GT_scale,
-        LE_right_shift_width,
-        FMT_I8
-    );
+    if (op.quant() == "INT8" || op.quant() == "INT8_MULTIPLIER") {
+      int GT_right_shift_width = static_cast<int>(getWeightFromOperandTensor<float>(opInst, 2)->at(0));
+      int GT_scale = static_cast<int>(getWeightFromOperandTensor<float>(opInst, 3)->at(0));
+      int LE_right_shift_width = static_cast<int>(getWeightFromOperandTensor<float>(opInst, 4)->at(0));
 
-    // bmnet_prelu_fixed_forward_bmkernel(
-    //     *backend_ctx,
-    //     layer_id,             // layer_id,
-    //     input_gaddr,          // input_data_gaddr,
-    //     output_gaddr,         // output_data_gaddr,
-    //     negative_scope_gaddr, // float negative_slope,
-    //     n, c, h, w,
-    //     GT_right_shift_width,
-    //     GT_scale,
-    //     LE_right_shift_width,
-    //     LE_scale,
-    //     FMT_I8
-    // );
+      LLVM_DEBUG(llvm::errs() <<
+          "GT_right_shift_width = " << GT_right_shift_width << "\n"
+          "LE_right_shift_width = " << LE_right_shift_width << "\n"
+          "GT_scale = " << GT_scale << "\n";);
 
+      bmnet_prelu_fixed_forward_bmkernel(
+          *backend_ctx,
+          layer_id,             // layer_id,
+          input_gaddr,          // input_data_gaddr,
+          output_gaddr,         // output_data_gaddr,
+          negative_scope_gaddr, // float negative_slope,
+          n, c, h, w,
+          GT_right_shift_width,
+          GT_scale,
+          LE_right_shift_width,
+          FMT_I8
+      );
+    } else if (op.quant() == "BF16"){
+      LLVM_DEBUG(llvm::errs() <<
+          "run PRelu Backend BF16\n";);
+      bf16_prelu_forward_kernel(
+          *backend_ctx, 
+          layer_id, 
+          input_gaddr, 
+          output_gaddr, 
+          negative_scope_gaddr, 
+          n, c, h, w
+      );
+    } else {
+      assert(0 && "UNKNOW Quant Type.");
+    }
     return success();
   }
 
@@ -1625,7 +1623,29 @@ static LogicalResult runOperation(Operation &opInst) {
                                 do_bias, second_is_load_weight);
 
     } else if (op.quant() == "BF16") {
-      assert(0 && "not support now");
+      assert(second_is_load_weight &&
+             "BF16 only when the second input is from weight");
+      bf16_scale_forward_kernel(
+          *backend_ctx, // ctx
+          0,            // stream_id
+          0,            // inst_id
+          layer_id,     // layer_id
+          nullptr,      // depends
+          0,            // depends_len
+          ga_inputs,    // input_addr
+          scale_gaddr,  // scale_addr
+          bias_gaddr,   // bias_addr
+          output_gaddr, // output_addr
+          n, c, h, w,
+          scale_dim,      // scale_dim
+          inner_dim,      // inner_dim
+          false,          // is_scale_const
+          0,              // const_scale
+          do_relu,        // do_activation,
+          activation,     // activation_method
+          activation_arg, // activation_arg
+          do_bias, second_is_load_weight);
+      
     } else {
       assert(0 && "op quant type not support");
     }
