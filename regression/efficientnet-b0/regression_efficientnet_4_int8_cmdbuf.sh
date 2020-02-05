@@ -74,7 +74,7 @@ $RUNTIME_PATH/bin/test_bmnet \
     0x167DEF0 0 0x167DEF0 1 # size, offset, shift, batch
 
 # run interpreter, to generate reference tensor all npz
-mlir-tpu-interpreter efficientnet-b0_quant_int8_per_channel_cmdbuf.mlir \
+mlir-tpu-interpreter efficientnet-b0_quant_int8_per_channel.mlir \
     --tensor-in $REGRESSION_PATH/efficientnet-b0/data/efficientnet_in_fp32.npz  \
     --tensor-out efficientnet_out_int8.npz \
     --dump-all-tensor=efficientnet_tensor_all_int8.npz 
