@@ -490,8 +490,22 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     }
 
     float *output_data = resultT->data();
-    int mkldnn_ret = mkldnn_pool(input->data(), output_data,
-        n, c, ih, iw, oh, ow, kh, kw, sh, sw, pt, pb, pl, pr, is_average_pool);
+    int mkldnn_ret;
+    if (is_average_pool && op.quant() == "INT8" && kh == ih && kw == iw) {
+      // Average pool should sum by self, we use conv to help us by filter all 1 
+      // if use mkldnn, it will dive kh * kw by float, 
+      // calculate method different from 1880v2
+      // 1880v2 will prod (qscale / kh * kw) together
+    
+      // Todo: my case only has global average, if your model has other case,
+      //       plz add and test
+      mkldnn_ret = my_avg_pooling(input->data(), output_data, n, c, ih, iw, oh,
+                                  ow, kh, kw, sh, sw, pt, pb, pl, pr);
+    } else {
+      mkldnn_ret =
+          mkldnn_pool(input->data(), output_data, n, c, ih, iw, oh, ow, kh, kw,
+                      sh, sw, pt, pb, pl, pr, is_average_pool);
+    }
     assert(mkldnn_ret == 0);
     //dump_data_float_abs("mkldnn_output", mkldnn_output, n, c, oh, ow);
 
@@ -517,9 +531,15 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       // apply multiplier, rshift and saturate
       for (int i = 0; i < size; ++i) {
         // restore sum value first
-        float sum = (float)(output_data[i] * kh * kw);
+        float sum;
+        if (kh == ih && kw == iw){
+          // global average
+          sum = output_data[i];
+        } else {
+          sum = (float)(output_data[i] * kh * kw);
+        }
         output_data[i] = (float)applyMultiplierAndRShiftAndSaturateInt8(
-                                      sum, rshift, multiplier);
+            sum, rshift, multiplier, false);
       }
     }
 
