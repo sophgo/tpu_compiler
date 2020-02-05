@@ -708,17 +708,22 @@ void CaffeImporter::convertPoolingLayer(mlir::Block *block,
   // Only implement ceil padding at the following now.
   // Hence, we don't support eg4 now.
   std::vector<int64_t> padding_tl(2), padding_br(2);
+  int ceil_mode = p.ceil_mode();
   padding_tl[0] = padding[0];
   padding_tl[1] = padding[1];
   padding_br[0] = padding[0];
   padding_br[1] = padding[1];
 
   for (size_t i = 0; i < 2; ++i) {
-    ofmap[i] = (static_cast<int>(ceil(static_cast<float>(
-      ifmap[i] + 2 * padding[i] - kernel[i]) / stride[i])) + 1);
-
+    if (ceil_mode)
+      ofmap[i] = (static_cast<int>(ceil(static_cast<float>(
+        ifmap[i] + 2 * padding[i] - kernel[i]) / stride[i])) + 1);
+    else
+      ofmap[i] = (static_cast<int>(floor(static_cast<float>(
+        ifmap[i] + 2 * padding[i] - kernel[i]) / stride[i])) + 1);
+    
     int remain_pixel = (ifmap[i] + 2 * padding[i] - kernel[i]) % stride[i];
-    if (remain_pixel > 0)
+    if (remain_pixel > 0 && ceil_mode)
       padding_br[i] += (stride[i] - remain_pixel);
   }
 
