@@ -113,7 +113,7 @@ if [ ! -e $CALIBRATION_TOOL_PATH ]; then
   mkdir $CALIBRATION_TOOL_PATH
 fi
 pushd $MLIR_SRC_PATH/externals/calibration_tool/build
-cmake ..
+cmake ..  && make
 cp calibration_math.so $CALIBRATION_TOOL_PATH
 cp ../*.py $CALIBRATION_TOOL_PATH
 popd
