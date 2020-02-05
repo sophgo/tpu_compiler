@@ -517,7 +517,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       // apply multiplier, rshift and saturate
       for (int i = 0; i < size; ++i) {
         // restore sum value first
-        int sum = (int)(output_data[i] * kh * kw + 0.5);
+        float sum = (float)(output_data[i] * kh * kw);
         output_data[i] = (float)applyMultiplierAndRShiftAndSaturateInt8(
                                       sum, rshift, multiplier);
       }
