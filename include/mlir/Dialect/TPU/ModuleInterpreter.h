@@ -88,8 +88,6 @@ public:
     return interpreter.doRun(input_shape, input_vec, results, allTensorMap);
   }
 
-  virtual void setGpuOps(std::map<std::string, BaseGpuOp*> gpuOps);
-
 protected:
   virtual LogicalResult runOperation(Operation &op);
 
