@@ -4,9 +4,9 @@ set -e
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 source $DIR/../../envsetup.sh
 
-NEED_REMOVE_AFTER_FIX_CPULayer=1
+NEED_REMOVE_AFTER_FIX_CPU_LAYER=1
 
-if [ $NEED_REMOVE_AFTER_FIX_CPULayer -eq 1 ]; then
+if [ $NEED_REMOVE_AFTER_FIX_CPU_LAYER -eq 1 ]; then
 
 mlir-translate \
     --caffe-to-mlir $MODEL_PATH/object_detection/ssd/caffe/ssd300/deploy.prototxt \
