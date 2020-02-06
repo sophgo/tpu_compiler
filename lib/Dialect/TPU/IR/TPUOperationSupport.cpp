@@ -201,10 +201,9 @@ void getDeConv2DOpParam(tpu::DeConv2DOp &op,
 void getPool2DOpParam(tpu::Pool2DOp &op,
     bool &is_average_pool, int &n, int &c, int &ih, int &iw, int &oh, int &ow,
     int &kh, int &kw, int &sh, int &sw, int &pt, int &pb, int &pl, int &pr, bool &do_relu) {
-  auto pool_method = op.getAttrOfType<StringAttr>("pool");
-  if (pool_method.getValue() == "AVE") {
+  if (op.pool() == "AVE") {
     is_average_pool = true;
-  } else if (pool_method.getValue() == "MAX") {
+  } else if (op.pool() == "MAX") {
     is_average_pool = false;
   } else {
     assert(false);
