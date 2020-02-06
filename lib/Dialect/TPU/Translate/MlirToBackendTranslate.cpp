@@ -557,10 +557,26 @@ static LogicalResult runOperation(Operation &opInst) {
           i1_s.data(),
           i2_s.data(),
           o_s.data(),
-          offsets.data());
+          offsets.data(),
+          FMT_I8
+          );
 
     } else if (op.quant() == "BF16") {
-      assert(0 && "not support now");
+       crop_fixed_forward_bmkernel(
+          *backend_ctx, // ctx,
+          0, //stream_id
+          0, // inst_id
+          layer_id,
+          nullptr, //depends
+          0, //depends_len
+          input_gaddr, // bottom_gaddr,
+          output_gaddr, //top_gaddr
+          i1_s.data(),
+          i2_s.data(),
+          o_s.data(),
+          offsets.data(),
+          FMT_BF16
+          );
     }
     // gen cmdbuf end
 
