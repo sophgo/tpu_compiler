@@ -749,6 +749,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     valueMapping[result] = std::move(resultT);
     return success();
   }
+
   if (auto op = dyn_cast<tpu::DummyDataOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "DummyDataOp"
                             << "\n";);
@@ -970,6 +971,10 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
         }
       }
     } else if (op.quant() == "BF16") {
+      auto tensor_bf16 = std::make_unique<std::vector<bfloat16> >(resultT->size());
+      // with rounding
+      FloatToBFloat16(resultT->data(), tensor_bf16->data(), resultT->size());
+      BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
     } else if (op.quant() == "NONE") {
     } else {
       assert(0);
@@ -1551,8 +1556,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
     float threshold_y,threshold_x;
     uint32_t multiplier;
-    if (op.quant() != "NONE"){
-
+    if (op.quant() == "INT8"|| op.quant() == "INT8_PER_CHANNEL"||op.quant() == "INT8_MULTIPLIER") {
       threshold_y = op.threshold_y().getValue().convertToFloat();
       threshold_x = getPreviousOpThreshold(op);
     }
@@ -1578,7 +1582,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
         for (int i = 0; i < size; ++i) {
           output[i] = data[(unsigned char)input[i]];
         }
-    }else if(op.quant() == "NONE"){
+    }else if(op.quant() == "BF16"||op.quant() == "NONE"){
      
       float numerator = op.numerator().convertToFloat();
       auto input_type = op.input()->getType().cast<TensorType>();
@@ -1602,6 +1606,13 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       for (int i = 0; i < n * c * h * w; ++i) {
         output[i] = numerator/(input[i] + eps);
       }
+      if (op.quant() == "BF16"){
+        auto tensor_bf16 = std::make_unique<std::vector<bfloat16> >(resultT->size());
+        // with rounding
+        FloatToBFloat16(resultT->data(), tensor_bf16->data(), resultT->size());
+        BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
+      }
+
     }else{
       assert(0&&"not support method");
     }
@@ -1622,7 +1633,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
     float threshold_y,threshold_x;
     
-    if (op.quant() != "NONE"){
+    if (op.quant() == "INT8"|| op.quant() == "INT8_PER_CHANNEL"||op.quant() == "INT8_MULTIPLIER") {
       threshold_y = op.threshold_y().getValue().convertToFloat();
       threshold_x = getPreviousOpThreshold(op);
     }
@@ -1648,7 +1659,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       for (int i = 0; i < size; ++i) {
         output[i] = data[(unsigned char)input[i]];
       }
-    }else if(op.quant() == "NONE"){
+    }else if (op.quant() == "BF16" || op.quant() == "NONE"){
       auto input_type = op.input()->getType().cast<TensorType>();
       std::vector<int64_t> i_s(input_type.getShape());
 
@@ -1669,6 +1680,12 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
       for (int i = 0; i < n * c * h * w; ++i) {
         output[i] = pow(input[i],0.5);
+      }
+      if (op.quant() == "BF16"){
+        auto tensor_bf16 = std::make_unique<std::vector<bfloat16> >(resultT->size());
+        // with rounding
+        FloatToBFloat16(resultT->data(), tensor_bf16->data(), resultT->size());
+        BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
       }
     }else{
       assert(0&&"no other quant method is support");
@@ -2180,7 +2197,6 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
     float *output = (float *)resultT.get()->data();
 
-/*
     if (op.quant() == "INT8"|| op.quant() == "INT8_PER_CHANNEL"||op.quant() == "INT8_MULTIPLIER") {
       assert(threshold_x != 0.0);
       std::vector<int> data(256, 0);
@@ -2198,7 +2214,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       for (int i = 0; i < size; ++i) {
         output[i] = data[(unsigned char)input[0][i]];
       }
-    } else */ {
+    } else  {
 
       if (op.quant() == "INT8"|| op.quant() == "INT8_PER_CHANNEL") {
         scale = scale*(threshold_y/threshold_x)*multiplier;
