@@ -71,12 +71,6 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
   // #include "mlir/Dialect/LLVMIR/LLVMConversions.inc"
 
   if (auto loadFileOp = dyn_cast<tpu::LoadFileOp>(opInst)) {
-    LLVM_DEBUG(llvm::errs() << "LoadFileOp" << "\n";);
-    auto filename = loadFileOp.getAttrOfType<StringAttr>("filename").getValue();
-    LLVM_DEBUG(llvm::errs() << "  filename " << filename << "\n";);
-    auto filename_tensorfile = llvm::sys::path::stem(filename).str() + ".npz";
-    weightFile_ = openInputTensorFile(filename_tensorfile);
-
     return success();
   }
   if (auto loadWeightOp = dyn_cast<tpu::LoadWeightOp>(opInst)) {
@@ -2313,6 +2307,57 @@ LogicalResult ModuleInterpreter::runFunctions() {
   return success();
 }
 
+LogicalResult ModuleInterpreter::doRun(std::vector<int64_t> input_shape, std::vector<float> &input_vec,
+                                       std::map<std::string, std::vector<float> > *results,
+                                       std::map<std::string, std::vector<float> > *allTensorMap) {
+  // set inputs
+  auto inputs = getInputsList();
+  assert(inputs.size() == 1);
+  std::vector<int64_t> shape = inputs[0]->getType().template cast<TensorType>().getShape();
+
+  assert(input_shape == shape);
+  assert((int64_t)input_vec.size() == std::accumulate(shape.begin(), shape.end(), 1,
+                                                        std::multiplies<int64_t>()));
+  updateValue(inputs[0], input_vec);
+
+  // inference
+  if (failed(runFunctions()))
+    return failure();
+
+  // get results
+  assert(results);
+  value_map_t resultsMap = getResults();
+  for (auto it = resultsMap.begin(); it != resultsMap.end(); it++) {
+    auto op = it->first->getDefiningOp();
+    assert(op);
+    auto vec = it->second.get();
+    assert(vec);
+    // deep copy
+    (*results)[getOpName(op).str()] = *vec;
+  }
+
+  // get all tensor data if needed
+  if (allTensorMap) {
+    value_map_t valueMap = getValueMap();
+    for (auto it = valueMap.begin(); it != valueMap.end(); it++) {
+      auto op = it->first->getDefiningOp();
+      if (!op) {
+        //it->first->dump();
+        continue;
+      }
+      if (auto loadWeightOp = dyn_cast<tpu::LoadWeightOp>(op)) {
+        continue;
+      }
+      auto vec = it->second.get();
+      assert(vec);
+      // deep copy
+      (*allTensorMap)[getOpName(op).str()] = *vec;
+    }
+  }
+
+  return success();
+}
+
 static bool isValidTpuOp(Operation &op)
 {
   return (!isa<tpu::LoadWeightOp>(op) && !isa<tpu::LoadFileOp>(op) &&
@@ -2320,6 +2365,15 @@ static bool isValidTpuOp(Operation &op)
 }
 
 LogicalResult runTpuModule(ModuleOp m,
+    std::vector<int64_t> input_shape, std::vector<float> &input_vec,
+    std::map<std::string, std::vector<float> > *results,
+    std::map<std::string, std::vector<int64_t> > *shapeMap,
+    std::map<std::string, std::vector<float> > *allTensorMap) {
+
+  return runTpuModule(m, nullptr, input_shape, input_vec, results, shapeMap, allTensorMap);
+}
+
+LogicalResult runTpuModule(ModuleOp m, ModuleInterpreter *interpreter,
     std::vector<int64_t> input_shape, std::vector<float> &input_vec,
     std::map<std::string, std::vector<float> > *results,
     std::map<std::string, std::vector<int64_t> > *shapeMap,
@@ -2338,8 +2392,14 @@ LogicalResult runTpuModule(ModuleOp m,
     }
   }
 
-  return ModuleInterpreter::runModule<>(m, input_shape, input_vec,
-                                        results, allTensorMap);
+  LogicalResult ret = failure();
+  if (interpreter != nullptr) {
+    ret = ModuleInterpreter::runModule<>(interpreter, input_shape, input_vec, results, allTensorMap);
+  } else {
+    ret = ModuleInterpreter::runModule<>(m, input_shape, input_vec, results, allTensorMap);
+  }
+
+  return ret;
 }
 
 } // namespace mlir

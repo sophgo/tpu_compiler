@@ -108,10 +108,15 @@ static py::dict getTensorDict(tensor_map_t &tensorMap, shape_map_t &shapeMap) {
 
 // Static initialization for standard op dialect registration.
 static DialectRegistration<StandardOpsDialect> StandardOps;
+static mlir::DialectRegistration<mlir::tpu::TPUDialect> TPUOps;
 
 class py_module {
 public:
   py_module() {}
+  ~py_module() {
+    if (interpreter_)
+      delete interpreter_;
+  }
 
   void load(std::string filename) {
     module = parseMLIRInput(filename, &context);
@@ -119,6 +124,8 @@ public:
       llvm::errs() << "could not parse the input IR\n";
       exit(-1);
     }
+
+    interpreter_ = new ModuleInterpreter(module.get());
 
     parseMLIRInfo();
   }
@@ -143,7 +150,7 @@ public:
           py::dict py_temp;
           py_temp[OP_NAME] = getOpName(&op).str();
           py_temp[OP_TYPE] = op.getName().getStringRef().str();
-          py_temp[OP_QUANT] = getOpQuant(&op).str();
+          // py_temp[OP_QUANT] = getOpQuant(&op).str();
           opInfo_.append(py_temp);
         }
       }
@@ -187,7 +194,7 @@ public:
       input_shape.push_back((int64_t)array.shape()[i]);
     }
     tensor_map_t results;
-    if (failed(runTpuModule(module.get(), input_shape, input_vec,
+    if (failed(runTpuModule(module.get(), interpreter_, input_shape, input_vec,
                             &results, &shapeMap_, &tensorMap_))) {
       assert(false);
     }
@@ -204,6 +211,7 @@ private:
   std::string weightFilePath_;
   tensor_map_t tensorMap_;
   shape_map_t shapeMap_;
+  ModuleInterpreter *interpreter_;
 };
 
 // wrap as Python module
