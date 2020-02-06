@@ -572,11 +572,13 @@ public:
     patterns_w
         .insert<TpuQuantDefaultPattern<tpu::ConcatOp>,
                 TpuQuantConv2DOpPattern,
+                TpuQuantDefaultPattern<tpu::CropOp>,
                 TpuQuantDefaultPattern<tpu::EltwiseOp>,
                 TpuQuantFullyConnectedOpPattern,
                 TpuQuantDefaultPattern<tpu::Pool2DOp>,
                 TpuQuantPReluOpPattern,
                 TpuQuantScaleOpPattern,
+                TpuQuantDefaultPattern<tpu::SigmoidOp>,
                 TpuQuantDefaultPattern<tpu::SliceOp>,
                 TpuQuantTanHOpPattern>(
             context, weightTensorFile.get(), weightFileVar);
