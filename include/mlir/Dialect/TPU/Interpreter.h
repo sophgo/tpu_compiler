@@ -40,11 +40,6 @@ LogicalResult runTpuModule(ModuleOp m, ModuleInterpreter *interpreter,
     std::map<std::string, std::vector<float> > *results,
     std::map<std::string, std::vector<int64_t> > *shapeMap,
     std::map<std::string, std::vector<float> > *allTensorMap);
-
-#ifdef MLIR_TPU_INTERPRETER_ENABLE_GPU
-LogicalResult InitGpuOp(ModuleOp m, std::map<std::string, BaseGpuOp*> &gpuOps);
-#endif // MLIR_TPU_INTERPRETER_ENABLE_GPU
-
 } // namespace mlir
 
 #endif // MLIR_DIALECT_TPU_INTERPRETER_H_
