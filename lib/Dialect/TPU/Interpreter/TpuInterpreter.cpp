@@ -165,30 +165,17 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     // rshift and saturate on output
     if (op.quant() == "INT8") {
       assert(rshift);
-      for (int i = 0; i < size; ++i) {
-        resultT->at(i) = (float)applyRShiftAndSaturateInt8(resultT->at(i),
-            (uint32_t)rshift->at(0));
-      }
+      quantizeActivationInt8PerLayerRshift(resultT->data(), resultT->data(),
+          size, (uint32_t)rshift->at(0));
     } else if (op.quant() == "INT8_PER_CHANNEL") {
       assert(rshift);
-      int isz = size / oc;
-      for (int i = 0; i < oc; ++i) {
-        for (int j = 0; j < isz; ++j) {
-          resultT->at(i * isz + j) = (float)applyRShiftAndSaturateInt8(
-              resultT->at(i * isz + j), (uint32_t)rshift->at(i));
-        }
-      }
+      quantizeActivationInt8PerChannelRShift(resultT->data(), resultT->data(),
+          oc, size / oc, rshift->data());
     } else if (op.quant() == "INT8_MULTIPLIER") {
+      assert(rshift);
       assert(multiplier);
-      int isz = size / oc;
-      for (int i = 0; i < oc; ++i) {
-        for (int j = 0; j < isz; ++j) {
-          resultT->at(i * isz + j) =
-              (float)applyMultiplierAndRShiftAndSaturateInt8(
-                  resultT->at(i * isz + j),
-                  rshift->at(i), multiplier->at(i), true);
-        }
-      }
+      quantizeActivationInt8PerChannelMultiplierAndRShift(resultT->data(),
+          resultT->data(), oc, size / oc, rshift->data(), multiplier->data());
     } else if (op.quant() == "BF16") {
       auto tensor_bf16 = std::make_unique<std::vector<bfloat16> >(resultT->size());
       FloatToBFloat16(resultT->data(), tensor_bf16->data(), resultT->size()); // with rounding
@@ -369,7 +356,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     return success();
   }
 
-    if (auto op = dyn_cast<tpu::DeConv2DOp>(opInst)) {
+  if (auto op = dyn_cast<tpu::DeConv2DOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "DeConv2DOp" << "\n";);
     auto opdT = getOperandTensors(opInst, valueMapping);
     auto result = op.getResult();
@@ -409,30 +396,17 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     // rshift and saturate on output
     if (op.quant() == "INT8") {
       assert(rshift);
-      for (int i = 0; i < size; ++i) {
-        resultT->at(i) = (float)applyRShiftAndSaturateInt8(resultT->at(i),
-            (uint32_t)rshift->at(0));
-      }
+      quantizeActivationInt8PerLayerRshift(resultT->data(), resultT->data(),
+          size, (uint32_t)rshift->at(0));
     } else if (op.quant() == "INT8_PER_CHANNEL") {
       assert(rshift);
-      int isz = size / oc;
-      for (int i = 0; i < oc; ++i) {
-        for (int j = 0; j < isz; ++j) {
-          resultT->at(i * isz + j) = (float)applyRShiftAndSaturateInt8(
-              resultT->at(i * isz + j), (uint32_t)rshift->at(i));
-        }
-      }
+      quantizeActivationInt8PerChannelRShift(resultT->data(), resultT->data(),
+          oc, size / oc, rshift->data());
     } else if (op.quant() == "INT8_MULTIPLIER") {
+      assert(rshift);
       assert(multiplier);
-      int isz = size / oc;
-      for (int i = 0; i < oc; ++i) {
-        for (int j = 0; j < isz; ++j) {
-          resultT->at(i * isz + j) =
-              (float)applyMultiplierAndRShiftAndSaturateInt8(
-                  resultT->at(i * isz + j),
-                  rshift->at(i), multiplier->at(i), true);
-        }
-      }
+      quantizeActivationInt8PerChannelMultiplierAndRShift(resultT->data(),
+          resultT->data(), oc, size / oc, rshift->data(), multiplier->data());
     } else if (op.quant() == "BF16") {
       auto tensor_bf16 = std::make_unique<std::vector<bfloat16> >(resultT->size());
       FloatToBFloat16(resultT->data(), tensor_bf16->data(), resultT->size()); // with rounding
@@ -486,11 +460,11 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     float *output_data = resultT->data();
     int mkldnn_ret;
     if (is_average_pool && op.quant() == "INT8" && kh == ih && kw == iw) {
-      // Average pool should sum by self, we use conv to help us by filter all 1 
-      // if use mkldnn, it will dive kh * kw by float, 
+      // Average pool should sum by self, we use conv to help us by filter all 1
+      // if use mkldnn, it will dive kh * kw by float,
       // calculate method different from 1880v2
       // 1880v2 will prod (qscale / kh * kw) together
-    
+
       // Todo: my case only has global average, if your model has other case,
       //       plz add and test
       mkldnn_ret = my_avg_pooling(input->data(), output_data, n, c, ih, iw, oh,
@@ -677,7 +651,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     int ret = my_prelu(input, output, n, c, h, w, negative_slope);
     assert(ret == 0);
 
-    // // rshift and saturate on output
+    // rshift and saturate on output
     if (op.quant() == "INT8" || op.quant() == "INT8_PER_CHANNEL"
                              || op.quant() == "INT8_MULTIPLIER") {
       std::shared_ptr<std::vector<float> > rshift_pos = nullptr;
@@ -956,20 +930,19 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     // rshift and saturate on output
     if (op.quant() == "INT8") {
       if(sec_blob_weight_op){
-      assert(rshift);
+        assert(rshift);
         assert(multiplier);
         for (int i = 0; i < size; ++i) {
           resultT->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
               resultT->at(i), rshift->at(0), multiplier->at(0), true);
       }
       }else{
-      assert(rshift);
+        assert(rshift);
         for (int i = 0; i < size; ++i) {
           resultT->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
               resultT->at(i), (uint32_t)rshift->at(0), multiplier_prod, true);
         }
-        }
-
+      }
     } else if (op.quant() == "INT8_PER_CHANNEL") {
       assert(rshift);
       assert(multiplier);
@@ -1441,9 +1414,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       float threshold = op.threshold().getValue().convertToFloat();
       LLVM_DEBUG(llvm::errs() << "  quantization, threshold = "
                    << std::to_string(threshold) << "\n";);
-      for (int i = 0; i < size; ++i) {
-        output[i] = (float)quantizeNeuron(input[i], threshold);
-      }
+      quantizeActivationInt8WithThreshold(output, input, size, threshold);
     } else if (op.quant() == "BF16") {
       resultT->assign(opdT[0]->begin(), opdT[0]->end());
     } else {
@@ -1469,9 +1440,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       float threshold = op.threshold().getValue().convertToFloat();
       LLVM_DEBUG(llvm::errs() << "  quantization, threshold = "
                    << std::to_string(threshold) << "\n";);
-      for (int i = 0; i < size; ++i) {
-        output[i] = dequantizeNeuron((int8_t)input[i], threshold);
-      }
+      dequantizeActivationInt8WithThreshold(output, input, size, threshold);
     } else if (op.quant() == "BF16") {
       resultT->assign(opdT[0]->begin(), opdT[0]->end());
     } else {

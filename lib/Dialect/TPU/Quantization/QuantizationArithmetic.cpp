@@ -10,9 +10,9 @@
 namespace mlir {
 
 /// find max_weight for each c
-float findMaxWeight(float *weight, size_t size) {
+float findMaxWeight(float *weight, int64_t size) {
   float max_abs = fabs(weight[0]);
-  for (size_t i = 0; i < size; ++i) {
+  for (int64_t i = 0; i < size; ++i) {
     if (fabs(weight[i]) > max_abs) {
       max_abs = fabs(weight[i]);
     }
@@ -489,16 +489,6 @@ int8_t applyMultiplierAndRShiftAndSaturateInt8(float v,
   }
 }
 
-/// Quantize a Neuron value into INT8, given threshold
-int8_t quantizeNeuron(float v, float threshold) {
-  return saturateInt8(v * 128.0 / threshold);
-}
-
-/// DeQuantize a Neuron value from INT8, given threshold
-float dequantizeNeuron(int8_t q, float threshold) {
-  return (float)q * threshold / 128.0;
-}
-
 ///
 /// BFLOAT16 support
 /// from tensorflow
@@ -584,10 +574,9 @@ void BFloat16ToFloat(const bfloat16* src, float* dst, size_t size) {
 //
 // Tensors wise API
 //
-void quantizeWeightInt8PerLayer(float *filter, float *bias, int oc, int isz,
-                                float threshold_y, float threshold_x,
-                                float *new_filter, float *new_bias,
-                                float *rshift_per_layer)  {
+void quantizeWeightInt8PerLayer(float *filter, float *bias,
+    int64_t oc, int64_t isz, float threshold_y, float threshold_x,
+    float *new_filter, float *new_bias, float *rshift_per_layer)  {
   // find rshift
   float max_filter = findMaxWeight(filter, oc * isz);
   float rshift_filter =
@@ -611,22 +600,21 @@ void quantizeWeightInt8PerLayer(float *filter, float *bias, int oc, int isz,
                           << ", rshift : " << rshift_per_layer[0] << "\n";);
 
   // quantize weight
-  for (int i = 0; i < oc * isz; ++i) {
+  for (int64_t i = 0; i < oc * isz; ++i) {
     new_filter[i] = (float)quantizeFilterRShift(
         filter[i], threshold_y, threshold_x, rshift_per_layer[0]);
   }
   if (bias) {
-    for (int i = 0; i < oc; ++i) {
+    for (int64_t i = 0; i < oc; ++i) {
       new_bias[i] = (float)quantizeBiasRShiftI16(bias[i], threshold_y,
                                                  rshift_per_layer[0]);
     }
   }
 }
 
-void quantizeWeightInt8PerChannel(float *filter, float *bias, int oc, int isz,
-                                  float threshold_y, float threshold_x,
-                                  float *new_filter, float *new_bias,
-                                  float *rshift_per_channel) {
+void quantizeWeightInt8PerChannel(float *filter, float *bias,
+    int64_t oc, int64_t isz, float threshold_y, float threshold_x,
+    float *new_filter, float *new_bias, float *rshift_per_channel) {
   // find rshift
   auto max_filter = std::vector<float>(oc);
   auto max_bias = std::vector<float>(oc);
@@ -658,8 +646,8 @@ void quantizeWeightInt8PerChannel(float *filter, float *bias, int oc, int isz,
   }
 
   // quantize weight
-  for (int i = 0; i < oc; ++i) {
-    for (int j = 0; j < isz; ++j) {
+  for (int64_t i = 0; i < oc; ++i) {
+    for (int64_t j = 0; j < isz; ++j) {
       new_filter[isz * i + j] = (float)quantizeFilterRShift(
           filter[isz * i + j], threshold_y, threshold_x, rshift_per_channel[i]);
     }
@@ -670,12 +658,10 @@ void quantizeWeightInt8PerChannel(float *filter, float *bias, int oc, int isz,
   }
 }
 
-void quantizeWeightInt8PerLayerMultiplier(float *filter, float *bias, int oc, int isz,
-                                  float threshold_y, float threshold_x,
-                                  float *new_filter, float *new_bias,
-                                  float *rshift_per_layer,
-                                  float *multiplier_per_layer) {
-  
+void quantizeWeightInt8PerLayerMultiplier(float *filter, float *bias,
+    int64_t oc, int64_t isz, float threshold_y, float threshold_x,
+    float *new_filter, float *new_bias,
+    float *rshift_per_layer, float *multiplier_per_layer) {
   auto max_bias = std::vector<float>(oc);
 
   // find qscale
@@ -709,13 +695,13 @@ void quantizeWeightInt8PerLayerMultiplier(float *filter, float *bias, int oc, in
                    << std::to_string(rshift_per_layer[0]) << "]\n";);
   }
   // quantize weight
-  for (int i = 0; i < oc * isz; ++i) {
+  for (int64_t i = 0; i < oc * isz; ++i) {
     new_filter[i] = (float)quantizeFilterRShiftAndMultiplier(
         filter[i], threshold_y, threshold_x, rshift_per_layer[0],
         multiplier_per_layer[0], true);
 
     if (bias) {
-      for (int i = 0; i < oc; ++i) {
+      for (int64_t i = 0; i < oc; ++i) {
         new_bias[i] = (float)quantizeBiasRShiftAndMultiplier(
             bias[i], threshold_y, rshift_per_layer[0], multiplier_per_layer[0],
             true);
@@ -724,22 +710,21 @@ void quantizeWeightInt8PerLayerMultiplier(float *filter, float *bias, int oc, in
   }
 }
 
-void quantizeWeightInt8Multiplier(float *filter, float *bias, int oc, int isz,
-                                  float threshold_y, float threshold_x,
-                                  float *new_filter, float *new_bias,
-                                  float *rshift_per_channel,
-                                  float *multiplier_per_channel) {
+void quantizeWeightInt8Multiplier(float *filter, float *bias,
+    int64_t oc, int64_t isz, float threshold_y, float threshold_x,
+    float *new_filter, float *new_bias,
+    float *rshift_per_channel, float *multiplier_per_channel) {
   auto max_filter = std::vector<float>(oc);
   auto max_bias = std::vector<float>(oc);
-  for (int i = 0; i < oc; ++i) {
+  for (int64_t i = 0; i < oc; ++i) {
     // find qscale
     max_filter[i] = findMaxWeight(&filter[isz * i], isz);
     double qscale = findQScaleForFilter(max_filter[i], threshold_y, threshold_x);
     if(qscale >= 1){
-      // Now 1880v2 not support lshift, if qscale > 1, rshift <= 0 not working now 
+      // Now 1880v2 not support lshift, if qscale > 1, rshift <= 0 not working now
       // we fix threshold_w to limit value
       // qscale = (thr_w * thr_x) / (127.0 * thr_y)
-      // thr_w = qscale * 127.0 * thr_y / thr_x 
+      // thr_w = qscale * 127.0 * thr_y / thr_x
       // qscale = 0.99999999
       qscale = 0.999999;
       max_filter[i] = qscale * 127.0 * threshold_y / threshold_x;
@@ -788,6 +773,54 @@ void quantizeWeightInt8Multiplier(float *filter, float *bias, int oc, int isz,
       new_bias[i] = (float)quantizeBiasRShiftAndMultiplier(
           bias[i], threshold_y, rshift_per_channel[i],
           multiplier_per_channel[i], true);
+    }
+  }
+}
+
+/// Quantize an Activation tensor into INT8, given threshold
+void quantizeActivationInt8WithThreshold(float *output, float *input,
+    int64_t size, float threshold) {
+  for (int64_t i = 0; i < size; ++i) {
+    output[i] = (float)saturateInt8(input[i] * 128.0 / threshold);
+  }
+}
+
+/// DeQuantize an Activation tensor from INT8, given threshold
+void dequantizeActivationInt8WithThreshold(float *output, float *input,
+    int64_t size, float threshold) {
+  for (int64_t i = 0; i < size; ++i) {
+    output[i] = input[i] * threshold / 128.0;
+  }
+}
+
+/// Quantize an Activation tensor, given per channel mulitplier and rshift
+void quantizeActivationInt8PerLayerRshift(float *output, float *input,
+    int64_t size, uint32_t rshift) {
+  for (int64_t i = 0; i < size; ++i) {
+    output[i] = (float)applyRShiftAndSaturateInt8(input[i], rshift);
+  }
+}
+
+/// Quantize an Activation tensor, given per channel mulitplier and rshift
+void quantizeActivationInt8PerChannelRShift(float *output, float *input,
+    int64_t oc, int64_t isz, float *rshift_per_channel) {
+  for (int64_t i = 0; i < oc; ++i) {
+    for (int64_t j = 0; j < isz; ++j) {
+      output[i * isz + j] = (float)applyRShiftAndSaturateInt8(
+          input[i * isz + j], rshift_per_channel[i]);
+    }
+  }
+}
+
+/// Quantize an Activation tensor, given per channel mulitplier and rshift
+void quantizeActivationInt8PerChannelMultiplierAndRShift(float *output, float *input,
+    int64_t oc, int64_t isz,
+    float *rshift_per_channel, float *multiplier_per_channel) {
+  for (int64_t i = 0; i < oc; ++i) {
+    for (int64_t j = 0; j < isz; ++j) {
+      output[i * isz + j] =
+          (float)applyMultiplierAndRShiftAndSaturateInt8(input[i * isz + j],
+              rshift_per_channel[i], multiplier_per_channel[i], true);
     }
   }
 }
