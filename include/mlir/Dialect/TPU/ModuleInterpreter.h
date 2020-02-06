@@ -41,63 +41,6 @@ class ModuleInterpreter {
   typedef std::map<Value *, std::shared_ptr<std::vector<float> > > value_map_t;
 
 public:
-  template <typename T = ModuleInterpreter>
-  static LogicalResult runModule(ModuleOp m,
-      std::vector<int64_t> input_shape, std::vector<float> &input_vec,
-      std::map<std::string, std::vector<float> > *results,
-      std::map<std::string, std::vector<float> > *allTensorMap = nullptr) {
-
-    T interpreter(m);
-
-    // set inputs
-    auto inputs = interpreter.getInputsList();
-    assert(inputs.size() == 1);
-    std::vector<int64_t> shape = inputs[0]->getType().template cast<TensorType>().getShape();
-
-    assert(input_shape == shape);
-    assert((int64_t)input_vec.size() == std::accumulate(shape.begin(), shape.end(), 1,
-                                                        std::multiplies<int64_t>()));
-    interpreter.updateValue(inputs[0], input_vec);
-
-    // inference
-    if (failed(interpreter.runFunctions()))
-      return failure();
-
-    // get results
-    assert(results);
-    value_map_t resultsMap = interpreter.getResults();
-    for (auto it = resultsMap.begin(); it != resultsMap.end(); it++) {
-      auto op = it->first->getDefiningOp();
-      assert(op);
-      auto vec = it->second.get();
-      assert(vec);
-      // deep copy
-      (*results)[getOpName(op).str()] = *vec;
-    }
-
-    // get all tensor data if needed
-    if (allTensorMap) {
-      value_map_t valueMap = interpreter.getValueMap();
-      for (auto it = valueMap.begin(); it != valueMap.end(); it++) {
-        auto op = it->first->getDefiningOp();
-        if (!op) {
-          //it->first->dump();
-          continue;
-        }
-        if (auto loadWeightOp = dyn_cast<tpu::LoadWeightOp>(op)) {
-          continue;
-        }
-        auto vec = it->second.get();
-        assert(vec);
-        // deep copy
-        (*allTensorMap)[getOpName(op).str()] = *vec;
-      }
-    }
-
-    return success();
-  }
-
-protected:
   // Interpret the given MLIR module expressed in MLIR TPU IR dialect
   explicit ModuleInterpreter(ModuleOp module)
       : mlirModule(module) {
@@ -114,6 +57,11 @@ protected:
             for (auto opd: op.getOperands()) {
               resultsList.push_back(opd);
             }
+          } else if (isa<tpu::LoadFileOp>(op)) {
+            auto loadFileOp = dyn_cast<tpu::LoadFileOp>(op);
+            auto filename = loadFileOp.getAttrOfType<StringAttr>("filename").getValue();
+            auto filename_tensorfile = llvm::sys::path::stem(filename).str() + ".npz";
+            weightFile_ = openInputTensorFile(filename_tensorfile);
           }
         }
       }
@@ -121,12 +69,37 @@ protected:
   }
   virtual ~ModuleInterpreter() {}
 
+  template <typename T = ModuleInterpreter>
+  static LogicalResult runModule(ModuleInterpreter *interpreter,
+      std::vector<int64_t> input_shape, std::vector<float> &input_vec,
+      std::map<std::string, std::vector<float> > *results,
+      std::map<std::string, std::vector<float> > *allTensorMap = nullptr) {
+    return interpreter->doRun(input_shape, input_vec, results, allTensorMap);
+  }
+
+  template <typename T = ModuleInterpreter>
+  static LogicalResult runModule(ModuleOp m,
+      std::vector<int64_t> input_shape, std::vector<float> &input_vec,
+      std::map<std::string, std::vector<float> > *results,
+      std::map<std::string, std::vector<float> > *allTensorMap = nullptr) {
+
+    T interpreter(m);
+
+    return interpreter.doRun(input_shape, input_vec, results, allTensorMap);
+  }
+
+  virtual void setGpuOps(std::map<std::string, BaseGpuOp*> gpuOps);
+
+protected:
   virtual LogicalResult runOperation(Operation &op);
 
 private:
   LogicalResult runFunctions();
   LogicalResult runOneFunction(FuncOp func);
   LogicalResult runBlock(Block &bb);
+  LogicalResult doRun(std::vector<int64_t> input_shape, std::vector<float> &input_vec,
+                      std::map<std::string, std::vector<float> > *results,
+                      std::map<std::string, std::vector<float> > *allTensorMap = nullptr);
 
   std::vector<std::shared_ptr<std::vector<float> > >
       getOperandTensors(Operation &opInst, value_map_t &valueMapping);
