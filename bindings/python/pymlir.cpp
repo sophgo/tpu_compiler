@@ -113,6 +113,10 @@ static mlir::DialectRegistration<mlir::tpu::TPUDialect> TPUOps;
 class py_module {
 public:
   py_module() {}
+  ~py_module() {
+    if (interpreter_)
+      delete interpreter_;
+  }
 
   void load(std::string filename) {
     module = parseMLIRInput(filename, &context);
