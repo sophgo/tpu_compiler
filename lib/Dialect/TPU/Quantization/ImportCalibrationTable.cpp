@@ -345,6 +345,7 @@ public:
       addThresholdAttr<tpu::BatchNormOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::ConcatOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::Conv2DOp>(builder, threshold_map, op);
+      addThresholdAttr<tpu::DeConv2DOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::CropOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::DivOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::EltwiseOp>(builder, threshold_map, op);
