@@ -30,7 +30,6 @@ git clone ssh://git@10.34.33.3:8422/mlir-tpu/bmkernel.git
 git clone ssh://git@10.34.33.3:8422/mlir-tpu/support.git
 git clone ssh://git@10.34.33.3:8422/mlir-tpu/cmodel.git
 git clone ssh://git@10.34.33.3:8422/mlir-tpu/runtime.git
-git clone ssh://git@10.34.33.3:8422/mlir-tpu/bmbuilder.git
 git clone ssh://git@10.34.33.3:8480/mlir-tpu/calibration_tool
 
 export GIT_LFS_SKIP_SMUDGE=1
@@ -52,7 +51,6 @@ mv bmkernel mlir/externals/
 mv support mlir/externals/
 mv cmodel mlir/externals/
 mv runtime mlir/externals/
-mv bmbuilder mlir/externals/
 mv calibration_tool mlir/externals/
 
 mv mlir llvm-project/llvm/projects/

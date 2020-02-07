@@ -39,16 +39,6 @@ popd
 #cmake --build . --target install
 #popd
 
-# build bmbuilder
-#if [ ! -e $MLIR_SRC_PATH/externals/bmbuilder/build_soc ]; then
-#  mkdir $MLIR_SRC_PATH/externals/bmbuilder/build_soc
-#fi
-#pushd $MLIR_SRC_PATH/externals/bmbuilder/build_soc
-#cmake -DBMKERNEL_PATH=$BMKERNEL_PATH \
-#    -DCMAKE_INSTALL_PREFIX=$BMBUILDER_PATH ..
-#cmake --build . --target install
-#popd
-
 # build runtime
 if [ ! -e $MLIR_SRC_PATH/externals/runtime/build_soc ]; then
   mkdir $MLIR_SRC_PATH/externals/runtime/build_soc
