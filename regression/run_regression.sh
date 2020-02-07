@@ -24,7 +24,7 @@ fi
 
 pushd regression_out
 # clear previous output
-rm -f *.mlir *.bin *.npz *.csv
+rm -f *.mlir *.bin *.npz *.csv *.cvimodel
 
 for net in ${net_list[@]}
 do
