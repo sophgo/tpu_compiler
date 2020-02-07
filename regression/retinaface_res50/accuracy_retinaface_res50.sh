@@ -15,9 +15,9 @@ fi
 pushd $NET
 
 # Remove previous result
-# rm result -rf
+rm result -rf
 
-# $DIR/accuracy_retinaface_res50_0_caffe.sh $1
+$DIR/accuracy_retinaface_res50_0_caffe.sh $1
 $DIR/accuracy_retinaface_res50_1_interpreter.sh
 
 popd
