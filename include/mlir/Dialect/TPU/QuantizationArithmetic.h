@@ -66,9 +66,6 @@ int8_t applyMultiplierAndRShiftAndSaturateInt8(float v,
                                                uint32_t rshift, uint32_t multiplier,
                                                bool qdm = false);
 
-int8_t quantizeNeuron(float v, float threshold);
-float dequantizeNeuron(int8_t q, float threshold);
-
 ///
 /// BF16
 ///
@@ -86,28 +83,40 @@ void BFloat16ToFloat(const bfloat16* src, float* dst, size_t size);
 //
 // Wrapper APIs
 //
-void quantizeWeightInt8PerLayer(float *filter, float *bias, int oc, int isz,
-                                float threshold_y, float threshold_x,
-                                float *new_filter, float *new_bias,
-                                float *rshift_per_layer);
+void quantizeWeightInt8PerLayer(float *filter, float *bias,
+    int64_t oc, int64_t isz, float threshold_y, float threshold_x,
+    float *new_filter, float *new_bias, float *rshift_per_layer);
 
-void quantizeWeightInt8PerChannel(float *filter, float *bias, int oc, int isz,
-                                  float threshold_y, float threshold_x,
-                                  float *new_filter, float *new_bias,
-                                  float *rshift_per_channel);
+void quantizeWeightInt8PerChannel(float *filter, float *bias,
+    int64_t oc, int64_t isz, float threshold_y, float threshold_x,
+    float *new_filter, float *new_bias, float *rshift_per_channel);
 
-void quantizeWeightInt8PerLayerMultiplier(float *filter, float *bias, int oc,
-                                          int isz, float threshold_y,
-                                          float threshold_x, float *new_filter,
-                                          float *new_bias,
-                                          float *rshift_per_layer,
-                                          float *multiplier_per_layer);
+void quantizeWeightInt8PerLayerMultiplier(float *filter, float *bias,
+    int64_t oc, int64_t isz, float threshold_y, float threshold_x,
+    float *new_filter, float *new_bias,
+    float *rshift_per_layer, float *multiplier_per_layer);
 
-void quantizeWeightInt8Multiplier(float *filter, float *bias, int oc, int isz,
-                                  float threshold_y, float threshold_x,
-                                  float *new_filter, float *new_bias,
-                                  float *rshift_per_channel,
-                                  float *multiplier_per_channel);
+void quantizeWeightInt8Multiplier(float *filter, float *bias,
+    int64_t oc, int64_t isz, float threshold_y, float threshold_x,
+    float *new_filter, float *new_bias,
+    float *rshift_per_channel, float *multiplier_per_channel);
+
+void quantizeActivationInt8WithThreshold(float *output, float *input,
+    int64_t size, float threshold);
+
+void dequantizeActivationInt8WithThreshold(float *output, float *input,
+    int64_t size, float threshold);
+
+void quantizeActivationInt8PerLayerRshift(float *output, float *input,
+    int64_t size, uint32_t rshift);
+
+void quantizeActivationInt8PerChannelRShift(float *output, float *input,
+    int64_t oc, int64_t isz, float *rshift_per_channel);
+
+void quantizeActivationInt8PerChannelMultiplierAndRShift(float *output, float *input,
+    int64_t oc, int64_t isz,
+    float *rshift_per_channel, float *multiplier_per_channel);
+
 } // namespace mlir
 
 #endif // MLIR_DIALECT_TPU_QUANTIZATION_ARITHMETIC_H_

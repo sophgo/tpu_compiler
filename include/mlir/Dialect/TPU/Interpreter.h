@@ -35,6 +35,11 @@ LogicalResult runTpuModule(ModuleOp m,
     std::map<std::string, std::vector<int64_t> > *shapeMap,
     std::map<std::string, std::vector<float> > *allTensorMap);
 
+LogicalResult runTpuModule(ModuleOp m, ModuleInterpreter *interpreter,
+    std::vector<int64_t> input_shape, std::vector<float> &input_vec,
+    std::map<std::string, std::vector<float> > *results,
+    std::map<std::string, std::vector<int64_t> > *shapeMap,
+    std::map<std::string, std::vector<float> > *allTensorMap);
 } // namespace mlir
 
 #endif // MLIR_DIALECT_TPU_INTERPRETER_H_

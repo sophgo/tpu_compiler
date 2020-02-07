@@ -8,8 +8,8 @@ add_subdirectory(QuantOps)
 add_subdirectory(SDBM)
 add_subdirectory(SPIRV)
 add_subdirectory(StandardOps)
-add_subdirectory(VectorOps)
 add_subdirectory(TPU)
+add_subdirectory(VectorOps)
 
 add_llvm_library(MLIRDialect
   Traits.cpp

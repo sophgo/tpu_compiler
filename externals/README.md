@@ -55,21 +55,14 @@ $ cmake --build . --target install
 ```
 Read cmodel/README.md for more details.
 
-## bmbuilder
+## cvibuilder
 
-- git@xxx:../bmbuilder.git
+- git@xxx:../cvibuilder.git
 - for testing, not linking in mlir-tpu
 - dependencies
-  * bmkernel (TODO: to remove this dependency)
+  * none
 
-```
-$ cd bmbuilder
-$ mkdir build
-$ cd build
-$ cmake -G Ninja -DBMKERNEL_PATH=~/work_cvitek/install_bmkernel -DCMAKE_INSTALL_PREFIX=~/work_cvitek/install_bmbuilder ..
-$ cmake --build . --target install
-```
-Read bmbuilder/README.md for more details.
+Read cvibuilder/README.md for more details.
 
 ## support
 
@@ -94,7 +87,7 @@ $ cmake --build . --target install
 - for testing, not linking in mlir-tpu
 - dependencies
   * bmkernel
-  * bmbuilder
+  * cvibuilder
   * cmodel
   * support
 
@@ -102,7 +95,7 @@ $ cmake --build . --target install
 $ cd runtime
 $ mkdir build
 $ cd build
-$ cmake -G Ninja -DCHIP=BM1880v2 -DRUNTIME=CMODEL -DSUPPORT_PATH=~/work_cvitek/install_support -DBMBUILDER_PATH=~/work_cvitek/install_bmbuilder -DBMKERNEL_PATH=~/work_cvitek/install_bmkernel -DCMODEL_PATH=~/work_cvitek/install_cmodel -DCMAKE_INSTALL_PREFIX=~/work_cvitek/install_runtime ..
+$ cmake -G Ninja -DCHIP=BM1880v2 -DRUNTIME=CMODEL -DSUPPORT_PATH=~/work_cvitek/install_support -DCVIMODEL_PATH=~/work_cvitek/install_cvibuilder -DBMKERNEL_PATH=~/work_cvitek/install_bmkernel -DCMODEL_PATH=~/work_cvitek/install_cmodel -DCMAKE_INSTALL_PREFIX=~/work_cvitek/install_runtime ..
 $ cmake --build . --target install
 ```
 Read runtime/README.md for more details.

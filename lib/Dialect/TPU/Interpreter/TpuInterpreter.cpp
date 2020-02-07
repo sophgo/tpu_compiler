@@ -23,7 +23,6 @@
 #include "mlir/Dialect/TPU/TPUDialect.h"
 #include "mlir/Dialect/TPU/TPUOperationSupport.h"
 #include "mlir/Dialect/TPU/Interpreter.h"
-#include "mlir/Dialect/TPU/QuantizationArithmetic.h"
 #include "mlir/Dialect/TPU/NativeCpuImplementation.h"
 #include "mlir/Dialect/TPU/CpuLayer_DetectionOutput.h"
 #include "mlir/IR/MLIRContext.h"
@@ -49,8 +48,6 @@
 #include <functional>
 #include <algorithm>
 
-#define DEBUG_TYPE "interpreter"
-
 using namespace std;
 
 namespace mlir {
@@ -70,46 +67,14 @@ std::vector<std::shared_ptr<std::vector<float> > >
 LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
   // #include "mlir/Dialect/LLVMIR/LLVMConversions.inc"
 
+  // Bypass load file and weight since is done in constructor
   if (auto loadFileOp = dyn_cast<tpu::LoadFileOp>(opInst)) {
-    LLVM_DEBUG(llvm::errs() << "LoadFileOp" << "\n";);
-    auto filename = loadFileOp.getAttrOfType<StringAttr>("filename").getValue();
-    LLVM_DEBUG(llvm::errs() << "  filename " << filename << "\n";);
-    auto filename_tensorfile = llvm::sys::path::stem(filename).str() + ".npz";
-    weightFile_ = openInputTensorFile(filename_tensorfile);
-
     return success();
   }
   if (auto loadWeightOp = dyn_cast<tpu::LoadWeightOp>(opInst)) {
-    LLVM_DEBUG(llvm::errs() << "LoadWeightOp" << "\n";);
-
-    auto result = loadWeightOp.getResult();
-    LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";);
-    assert(loadWeightOp.name().hasValue());
-    auto tensor_name = loadWeightOp.name().getValue();
-    LLVM_DEBUG(llvm::errs() << "  tensor_name " << tensor_name << "\n";);
-
-    auto type = result->getType().cast<TensorType>();
-    std::unique_ptr<std::vector<float> > tensor= nullptr;
-    if (type.getElementType().isF32()) {
-      tensor = std::move(weightFile_->readTensor<float>(tensor_name, type));
-    } else if (type.getElementType().isInteger(8)) {
-      // TODO: we still save int8 weight as fp32 for now
-      assert(0);
-    } else if (type.getElementType().isBF16()) {
-      auto tensor_bf16 = weightFile_->readTensor<bfloat16>(tensor_name, type);
-
-      // TODO: convert bf16 to fp32 here for now
-      // as valueMapping is hardcoded as std::vector<float>
-      // TODO: more generic valueMapping
-      tensor = std::move(std::make_unique<std::vector<float> >(tensor_bf16->size()));
-      BFloat16ToFloat(tensor_bf16->data(), tensor->data(), tensor_bf16->size());
-    } else {
-      assert(0);
-    }
-
-    valueMapping[result] = std::move(tensor);
     return success();
   }
+
   if (auto op = dyn_cast<tpu::InputOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "InputOp" << "\n";);
     auto opdT = getOperandTensors(opInst, valueMapping);
@@ -171,30 +136,17 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     // rshift and saturate on output
     if (op.quant() == "INT8") {
       assert(rshift);
-      for (int i = 0; i < size; ++i) {
-        resultT->at(i) = (float)applyRShiftAndSaturateInt8(resultT->at(i),
-            (uint32_t)rshift->at(0));
-      }
+      quantizeActivationInt8PerLayerRshift(resultT->data(), resultT->data(),
+          size, (uint32_t)rshift->at(0));
     } else if (op.quant() == "INT8_PER_CHANNEL") {
       assert(rshift);
-      int isz = size / oc;
-      for (int i = 0; i < oc; ++i) {
-        for (int j = 0; j < isz; ++j) {
-          resultT->at(i * isz + j) = (float)applyRShiftAndSaturateInt8(
-              resultT->at(i * isz + j), (uint32_t)rshift->at(i));
-        }
-      }
+      quantizeActivationInt8PerChannelRShift(resultT->data(), resultT->data(),
+          oc, size / oc, rshift->data());
     } else if (op.quant() == "INT8_MULTIPLIER") {
+      assert(rshift);
       assert(multiplier);
-      int isz = size / oc;
-      for (int i = 0; i < oc; ++i) {
-        for (int j = 0; j < isz; ++j) {
-          resultT->at(i * isz + j) =
-              (float)applyMultiplierAndRShiftAndSaturateInt8(
-                  resultT->at(i * isz + j),
-                  rshift->at(i), multiplier->at(i), true);
-        }
-      }
+      quantizeActivationInt8PerChannelMultiplierAndRShift(resultT->data(),
+          resultT->data(), oc, size / oc, rshift->data(), multiplier->data());
     } else if (op.quant() == "BF16") {
       auto tensor_bf16 = std::make_unique<std::vector<bfloat16> >(resultT->size());
       FloatToBFloat16(resultT->data(), tensor_bf16->data(), resultT->size()); // with rounding
@@ -375,7 +327,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     return success();
   }
 
-    if (auto op = dyn_cast<tpu::DeConv2DOp>(opInst)) {
+  if (auto op = dyn_cast<tpu::DeConv2DOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "DeConv2DOp" << "\n";);
     auto opdT = getOperandTensors(opInst, valueMapping);
     auto result = op.getResult();
@@ -415,30 +367,17 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     // rshift and saturate on output
     if (op.quant() == "INT8") {
       assert(rshift);
-      for (int i = 0; i < size; ++i) {
-        resultT->at(i) = (float)applyRShiftAndSaturateInt8(resultT->at(i),
-            (uint32_t)rshift->at(0));
-      }
+      quantizeActivationInt8PerLayerRshift(resultT->data(), resultT->data(),
+          size, (uint32_t)rshift->at(0));
     } else if (op.quant() == "INT8_PER_CHANNEL") {
       assert(rshift);
-      int isz = size / oc;
-      for (int i = 0; i < oc; ++i) {
-        for (int j = 0; j < isz; ++j) {
-          resultT->at(i * isz + j) = (float)applyRShiftAndSaturateInt8(
-              resultT->at(i * isz + j), (uint32_t)rshift->at(i));
-        }
-      }
+      quantizeActivationInt8PerChannelRShift(resultT->data(), resultT->data(),
+          oc, size / oc, rshift->data());
     } else if (op.quant() == "INT8_MULTIPLIER") {
+      assert(rshift);
       assert(multiplier);
-      int isz = size / oc;
-      for (int i = 0; i < oc; ++i) {
-        for (int j = 0; j < isz; ++j) {
-          resultT->at(i * isz + j) =
-              (float)applyMultiplierAndRShiftAndSaturateInt8(
-                  resultT->at(i * isz + j),
-                  rshift->at(i), multiplier->at(i), true);
-        }
-      }
+      quantizeActivationInt8PerChannelMultiplierAndRShift(resultT->data(),
+          resultT->data(), oc, size / oc, rshift->data(), multiplier->data());
     } else if (op.quant() == "BF16") {
       auto tensor_bf16 = std::make_unique<std::vector<bfloat16> >(resultT->size());
       FloatToBFloat16(resultT->data(), tensor_bf16->data(), resultT->size()); // with rounding
@@ -490,8 +429,22 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     }
 
     float *output_data = resultT->data();
-    int mkldnn_ret = mkldnn_pool(input->data(), output_data,
-        n, c, ih, iw, oh, ow, kh, kw, sh, sw, pt, pb, pl, pr, is_average_pool);
+    int mkldnn_ret;
+    if (is_average_pool && op.quant() == "INT8" && kh == ih && kw == iw) {
+      // Average pool should sum by self, we use conv to help us by filter all 1
+      // if use mkldnn, it will dive kh * kw by float,
+      // calculate method different from 1880v2
+      // 1880v2 will prod (qscale / kh * kw) together
+
+      // Todo: my case only has global average, if your model has other case,
+      //       plz add and test
+      mkldnn_ret = my_avg_pooling(input->data(), output_data, n, c, ih, iw, oh,
+                                  ow, kh, kw, sh, sw, pt, pb, pl, pr);
+    } else {
+      mkldnn_ret =
+          mkldnn_pool(input->data(), output_data, n, c, ih, iw, oh, ow, kh, kw,
+                      sh, sw, pt, pb, pl, pr, is_average_pool);
+    }
     assert(mkldnn_ret == 0);
     //dump_data_float_abs("mkldnn_output", mkldnn_output, n, c, oh, ow);
 
@@ -517,9 +470,15 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       // apply multiplier, rshift and saturate
       for (int i = 0; i < size; ++i) {
         // restore sum value first
-        int sum = (int)(output_data[i] * kh * kw + 0.5);
+        float sum;
+        if (kh == ih && kw == iw){
+          // global average
+          sum = output_data[i];
+        } else {
+          sum = (float)(output_data[i] * kh * kw);
+        }
         output_data[i] = (float)applyMultiplierAndRShiftAndSaturateInt8(
-                                      sum, rshift, multiplier);
+            sum, rshift, multiplier, false);
       }
     }
 
@@ -659,11 +618,11 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     w = i_s[3];
     float *input = (float *)opdT[0]->data();
     float *output = (float *)resultT.get()->data();
-    
+
     int ret = my_prelu(input, output, n, c, h, w, negative_slope);
     assert(ret == 0);
 
-    // // rshift and saturate on output
+    // rshift and saturate on output
     if (op.quant() == "INT8" || op.quant() == "INT8_PER_CHANNEL"
                              || op.quant() == "INT8_MULTIPLIER") {
       std::shared_ptr<std::vector<float> > rshift_pos = nullptr;
@@ -673,12 +632,12 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
       // getPReluOpVariadicTensors(op, opdT, rshift_pos, rshift_neg, multiplier_pos, multiplier_neg);
       getPReluOpVariadicTensors(op, opdT, rshift_pos, multiplier_pos, rshift_neg);
-      
+
       assert(rshift_pos);
       assert(rshift_neg);
       assert(multiplier_pos);
       // assert(multiplier_neg);
-      
+
       for (int i = 0; i < size; ++i) {
         if (input[i] > 0){
           resultT->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
@@ -691,7 +650,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
         }
       }
     }
-    
+
     valueMapping[result] = std::move(resultT);
 
     return success();
@@ -730,8 +689,8 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       assert(threshold_x != 0.0);
       for (int idx = 0; idx < 256; ++idx) {
         char lutInput = static_cast<char>(idx);
-        float index = -lutInput * threshold_x / 128.0;
-        float lutOutput = 1.0 / (1 + std::exp(index)) * 128.0 / threshold_y;
+        float index = -lutInput * threshold_x / 127.0;
+        float lutOutput = 1.0 / (1 + std::exp(index)) * 127.0 / threshold_y;
         int lutOutputI32 = std::floor(lutOutput + 0.5);
         lutOutputI32 = (lutOutputI32 > 127)
                            ? 127
@@ -909,7 +868,6 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       if (sec_blob_weight_op) {
         getScaleOpVariadicTensors(op, opdT, bias, rshift, multiplier);
       }else {
-        assert(opdT.size() == 2);
         std::vector<float> threshold_x(2);
         float threshold_y;
 
@@ -944,20 +902,19 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     // rshift and saturate on output
     if (op.quant() == "INT8") {
       if(sec_blob_weight_op){
-      assert(rshift);
+        assert(rshift);
         assert(multiplier);
         for (int i = 0; i < size; ++i) {
           resultT->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
               resultT->at(i), rshift->at(0), multiplier->at(0), true);
       }
       }else{
-      assert(rshift);
+        assert(rshift);
         for (int i = 0; i < size; ++i) {
           resultT->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
               resultT->at(i), (uint32_t)rshift->at(0), multiplier_prod, true);
         }
-        }
-      
+      }
     } else if (op.quant() == "INT8_PER_CHANNEL") {
       assert(rshift);
       assert(multiplier);
@@ -971,9 +928,10 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
         }
       }
     } else if (op.quant() == "BF16") {
-      auto tensor_bf16 = std::make_unique<std::vector<bfloat16> >(resultT->size());
-      // with rounding
-      FloatToBFloat16(resultT->data(), tensor_bf16->data(), resultT->size());
+      auto tensor_bf16 =
+          std::make_unique<std::vector<bfloat16>>(resultT->size());
+      FloatToBFloat16(resultT->data(), tensor_bf16->data(),
+                      resultT->size()); // with rounding
       BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
     } else if (op.quant() == "NONE") {
     } else {
@@ -1433,11 +1391,14 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       float threshold = op.threshold().getValue().convertToFloat();
       LLVM_DEBUG(llvm::errs() << "  quantization, threshold = "
                    << std::to_string(threshold) << "\n";);
-      for (int i = 0; i < size; ++i) {
-        output[i] = (float)quantizeNeuron(input[i], threshold);
-      }
+      quantizeActivationInt8WithThreshold(output, input, size, threshold);
     } else if (op.quant() == "BF16") {
-      resultT->assign(opdT[0]->begin(), opdT[0]->end());
+      auto tensor_bf16 =
+          std::make_unique<std::vector<bfloat16>>(resultT->size());
+      FloatToBFloat16(opdT[0]->data(), tensor_bf16->data(),
+                      opdT[0]->size()); // with rounding
+      BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
+
     } else {
       assert(0);
     }
@@ -1461,9 +1422,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       float threshold = op.threshold().getValue().convertToFloat();
       LLVM_DEBUG(llvm::errs() << "  quantization, threshold = "
                    << std::to_string(threshold) << "\n";);
-      for (int i = 0; i < size; ++i) {
-        output[i] = dequantizeNeuron((int8_t)input[i], threshold);
-      }
+      dequantizeActivationInt8WithThreshold(output, input, size, threshold);
     } else if (op.quant() == "BF16") {
       resultT->assign(opdT[0]->begin(), opdT[0]->end());
     } else {
@@ -1563,7 +1522,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
     float *input = (float *)opdT[0]->data();
 
-    float *output = (float *)resultT->data();    
+    float *output = (float *)resultT->data();
 
     if (op.quant() == "INT8"|| op.quant() == "INT8_PER_CHANNEL"||op.quant() == "INT8_MULTIPLIER") {
         assert(threshold_x != 0.0);
@@ -1583,7 +1542,6 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
           output[i] = data[(unsigned char)input[i]];
         }
     }else if(op.quant() == "BF16"||op.quant() == "NONE"){
-     
       float numerator = op.numerator().convertToFloat();
       auto input_type = op.input()->getType().cast<TensorType>();
       std::vector<int64_t> i_s(input_type.getShape());
@@ -1632,7 +1590,6 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
 
     float threshold_y,threshold_x;
-    
     if (op.quant() == "INT8"|| op.quant() == "INT8_PER_CHANNEL"||op.quant() == "INT8_MULTIPLIER") {
       threshold_y = op.threshold_y().getValue().convertToFloat();
       threshold_x = getPreviousOpThreshold(op);
@@ -2156,14 +2113,14 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     }
 
     ///
-    /// How to get Qscale value: 
+    /// How to get Qscale value:
     ///
     /// X = Sx*Qy
     /// Y = Sy*Qy
     /// Sx = thrx /127
     /// Sy = thry /127
     ///
-    /// Y=X*X 
+    /// Y=X*X
     /// ==> Sy*Qy=Sx*Qx*Sx*Qx
     /// ==> Qy = ((thrx*thrx/(127))*(Qx*Qx))/thry
     /// ==> Qscale = (thrx*thrx/127)/thry
@@ -2175,14 +2132,14 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
       threshold_y = op.threshold_y().getValue().convertToFloat();
       threshold_x = getPreviousOpThreshold(op);
-      qscale = (threshold_x*threshold_x) /(127.0*threshold_y);  
+      qscale = (threshold_x*threshold_x) /(127.0*threshold_y);
     }
-    
+
     if (op.quant() == "INT8"|| op.quant() == "INT8_PER_CHANNEL") {
       rshift = findRShiftAndMultiplierFromQScale(qscale);
       multiplier = findMultiplierFromQScaleAndRShift(qscale, rshift);
     }else if(op.quant() == "INT8_MULTIPLIER"){
-      rshift = (float)findRShiftAndMultiplierFromQScale(qscale, &multiplier, true,255);                                      
+      rshift = (float)findRShiftAndMultiplierFromQScale(qscale, &multiplier, true,255);
     }else if(op.quant() == "NONE"){
 
     }else{
@@ -2190,7 +2147,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     }
 
     #define POWER_INPUT_NR (1)
-    float *input[POWER_INPUT_NR]; 
+    float *input[POWER_INPUT_NR];
     for (int index = 0; index < POWER_INPUT_NR; ++index) {
       input[index] = (float *)opdT[index]->data();
     }
@@ -2224,8 +2181,8 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       }else if(op.quant() == "INT8_MULTIPLIER"){
         scale = scale*(threshold_y/threshold_x);
         shift = shift*(threshold_y/127.0);
-        scale = (float)applyMultiplierAndRShiftAndSaturateInt8(scale,rshift,  multiplier);        
-        shift = (float)applyMultiplierAndRShiftAndSaturateInt8(shift,rshift,  multiplier);        
+        scale = (float)applyMultiplierAndRShiftAndSaturateInt8(scale,rshift,  multiplier);
+        shift = (float)applyMultiplierAndRShiftAndSaturateInt8(shift,rshift,  multiplier);
       }
 
       int ret = my_power(input[0], output, nchw[0], nchw[1], nchw[2], nchw[3], scale, shift, power);
@@ -2239,7 +2196,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
           output[i] = output[i]*multiplier;
           output[i] = (float)applyRShiftAndSaturateInt8(output[i], (uint32_t)rshift);
         }else if(op.quant() == "INT8_MULTIPLIER"){
-          output[i] = (float)applyMultiplierAndRShiftAndSaturateInt8(output[i],rshift,  multiplier);        
+          output[i] = (float)applyMultiplierAndRShiftAndSaturateInt8(output[i],rshift,  multiplier);
         }
         /* else if (op.quant() == "BF16"){
               auto tensor_bf16 = std::make_unique<std::vector<bfloat16> >(resultT->size());
@@ -2310,6 +2267,57 @@ LogicalResult ModuleInterpreter::runFunctions() {
   return success();
 }
 
+LogicalResult ModuleInterpreter::doRun(std::vector<int64_t> input_shape, std::vector<float> &input_vec,
+                                       std::map<std::string, std::vector<float> > *results,
+                                       std::map<std::string, std::vector<float> > *allTensorMap) {
+  // set inputs
+  auto inputs = getInputsList();
+  assert(inputs.size() == 1);
+  std::vector<int64_t> shape = inputs[0]->getType().template cast<TensorType>().getShape();
+
+  assert(input_shape == shape);
+  assert((int64_t)input_vec.size() == std::accumulate(shape.begin(), shape.end(), 1,
+                                                        std::multiplies<int64_t>()));
+  updateValue(inputs[0], input_vec);
+
+  // inference
+  if (failed(runFunctions()))
+    return failure();
+
+  // get results
+  assert(results);
+  value_map_t resultsMap = getResults();
+  for (auto it = resultsMap.begin(); it != resultsMap.end(); it++) {
+    auto op = it->first->getDefiningOp();
+    assert(op);
+    auto vec = it->second.get();
+    assert(vec);
+    // deep copy
+    (*results)[getOpName(op).str()] = *vec;
+  }
+
+  // get all tensor data if needed
+  if (allTensorMap) {
+    value_map_t valueMap = getValueMap();
+    for (auto it = valueMap.begin(); it != valueMap.end(); it++) {
+      auto op = it->first->getDefiningOp();
+      if (!op) {
+        //it->first->dump();
+        continue;
+      }
+      if (auto loadWeightOp = dyn_cast<tpu::LoadWeightOp>(op)) {
+        continue;
+      }
+      auto vec = it->second.get();
+      assert(vec);
+      // deep copy
+      (*allTensorMap)[getOpName(op).str()] = *vec;
+    }
+  }
+
+  return success();
+}
+
 static bool isValidTpuOp(Operation &op)
 {
   return (!isa<tpu::LoadWeightOp>(op) && !isa<tpu::LoadFileOp>(op) &&
@@ -2317,6 +2325,15 @@ static bool isValidTpuOp(Operation &op)
 }
 
 LogicalResult runTpuModule(ModuleOp m,
+    std::vector<int64_t> input_shape, std::vector<float> &input_vec,
+    std::map<std::string, std::vector<float> > *results,
+    std::map<std::string, std::vector<int64_t> > *shapeMap,
+    std::map<std::string, std::vector<float> > *allTensorMap) {
+
+  return runTpuModule(m, nullptr, input_shape, input_vec, results, shapeMap, allTensorMap);
+}
+
+LogicalResult runTpuModule(ModuleOp m, ModuleInterpreter *interpreter,
     std::vector<int64_t> input_shape, std::vector<float> &input_vec,
     std::map<std::string, std::vector<float> > *results,
     std::map<std::string, std::vector<int64_t> > *shapeMap,
@@ -2335,8 +2352,14 @@ LogicalResult runTpuModule(ModuleOp m,
     }
   }
 
-  return ModuleInterpreter::runModule<>(m, input_shape, input_vec,
-                                        results, allTensorMap);
+  LogicalResult ret = failure();
+  if (interpreter != nullptr) {
+    ret = ModuleInterpreter::runModule<>(interpreter, input_shape, input_vec, results, allTensorMap);
+  } else {
+    ret = ModuleInterpreter::runModule<>(m, input_shape, input_vec, results, allTensorMap);
+  }
+
+  return ret;
 }
 
 } // namespace mlir

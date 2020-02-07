@@ -123,13 +123,13 @@ struct BackpropgateEltwiseQuantPattern : public OpRewritePattern<tpu::EltwiseOp>
         float threshold_x = cast_op.threshold_y().getValue().convertToFloat();
         llvm::errs() << "Eltwise set prev Eltwise threshold from "
                      << threshold_x << " to " << threshold_y << "\n";
-        assert(threshold_x > threshold_y * 0.4 && threshold_x < threshold_y * 1.5); // TODO:
+        assert(threshold_x > threshold_y * 0.25 && threshold_x < threshold_y * 1.5); // TODO:
         cast_op.setAttr("threshold_y", rewriter.getF32FloatAttr(threshold_y));
       } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::ReluOp>(formerOp)) {
         float threshold_x = cast_op.threshold_y().getValue().convertToFloat();
         llvm::errs() << "Eltwise set prev Relu threshold from "
                      << threshold_x << " to " << threshold_y << "\n";
-        assert(threshold_x > threshold_y * 0.15 && threshold_x < threshold_y * 1.5); // TODO:
+        assert(threshold_x > threshold_y * 0.10 && threshold_x < threshold_y * 2.5); // TODO:
         cast_op.setAttr("threshold_y", rewriter.getF32FloatAttr(threshold_y));
       } else {
         assert(false);
@@ -194,19 +194,69 @@ struct BackpropgateUpsampleQuantPattern : public OpRewritePattern<tpu::UpsampleO
   }
 };
 
+
+/// Max forward concat threshold by setting all result's threshold_y same as
+/// the largest operands threshold_x.
+struct MaxConcatQuantPattern : public OpRewritePattern<tpu::ConcatOp> {
+  using OpRewritePattern<tpu::ConcatOp>::OpRewritePattern;
+
+  PatternMatchResult matchAndRewrite(tpu::ConcatOp op,
+                                     PatternRewriter &rewriter) const {
+    float threshold_y = getOpThreshold(op);
+    float max_threshold = getOpThreshold(op);
+    for (unsigned i = 0; i < op.getNumOperands(); ++i) {
+      float threshold_x = getPreviousOpThreshold(op, i);
+      if (threshold_x > max_threshold) {
+        max_threshold = threshold_x;
+      }
+    }
+    if (max_threshold > threshold_y) {
+      op.setAttr("threshold_y", rewriter.getF32FloatAttr(max_threshold));
+      return matchSuccess();
+    } else {
+      return matchFailure();
+    }
+  }
+};
+
+struct MaxEltwiseQuantPattern : public OpRewritePattern<tpu::EltwiseOp> {
+  using OpRewritePattern<tpu::EltwiseOp>::OpRewritePattern;
+
+  PatternMatchResult matchAndRewrite(tpu::EltwiseOp op,
+                                     PatternRewriter &rewriter) const {
+    float threshold_y = getOpThreshold(op);
+    float max_threshold = getOpThreshold(op);
+    for (unsigned i = 0; i < op.getNumOperands(); ++i) {
+      float threshold_x = getPreviousOpThreshold(op, i);
+      if (threshold_x > max_threshold) {
+        max_threshold = threshold_x;
+      }
+    }
+    if (max_threshold > threshold_y) {
+      op.setAttr("threshold_y", rewriter.getF32FloatAttr(max_threshold));
+      return matchSuccess();
+    } else {
+      return matchFailure();
+    }
+  }
+};
+
 /// bypass pool quantization by assigning threshold_y same as threshold_x.
 /// for max pooling, threshold_y is always larger than threshold_x,
 /// however, if one value exceed the quantization range, it has been saturated
 /// already, an extra multiplier does not help.
 /// for avg pooling, threshold_y is smaller than threshold_x,
 /// we shall keep the quantization (i.e. multiply with a multiplier)
-struct BypassPoolQuantPattern : public OpRewritePattern<tpu::Pool2DOp> {
+struct OverwriteMaxPool2DThresholdPattern : public OpRewritePattern<tpu::Pool2DOp> {
   using OpRewritePattern<tpu::Pool2DOp>::OpRewritePattern;
 
   PatternMatchResult matchAndRewrite(tpu::Pool2DOp op,
                                      PatternRewriter &rewriter) const {
+    if (op.pool() != "MAX") {
+      return matchFailure();
+    }
     float threshold_x = getPreviousOpThreshold(op);
-    float threshold_y = op.threshold_y().getValue().convertToFloat();
+    float threshold_y = getOpThreshold(op);
     if (threshold_y > threshold_x) {
       op.setAttr("threshold_y", rewriter.getF32FloatAttr(threshold_x));
       return matchSuccess();
@@ -216,56 +266,51 @@ struct BypassPoolQuantPattern : public OpRewritePattern<tpu::Pool2DOp> {
   }
 };
 
-struct BypassPReluQuantPattern : public OpRewritePattern<tpu::PReluOp> {
-  using OpRewritePattern<tpu::PReluOp>::OpRewritePattern;
+/// overwrite current Op threshold by prev Op threshold
+/// for layers that we are not going to handle the threshold difference,
+/// like upsample, permute, crop.
+/// Pool2D is handled separately, because only max pooling needs overwriting
+template<typename TyOp>
+struct DefaultOverwriteThresholdPattern : public RewritePattern {
+  DefaultOverwriteThresholdPattern(MLIRContext *context)
+      : RewritePattern(TyOp::getOperationName(), 1, context) {}
 
-  PatternMatchResult matchAndRewrite(tpu::PReluOp op,
-                                     PatternRewriter &rewriter) const {
+  PatternMatchResult matchAndRewrite(Operation *opInst,
+                                     PatternRewriter &rewriter) const override {
+    auto op = cast<TyOp>(opInst);
+    assert(op.threshold_y().hasValue());
     float threshold_x = getPreviousOpThreshold(op);
-    op.setAttr("threshold_y", rewriter.getF32FloatAttr(threshold_x));
-
-    return matchSuccess();
+    float threshold_y = getOpThreshold(op);
+    if (threshold_y == threshold_x) {
+      // overwritten already
+      return matchFailure();
+    } else {
+      op.setAttr("threshold_y", rewriter.getF32FloatAttr(threshold_x));
+      return matchSuccess();
+    }
   }
 };
 
-/// bypass relu quantization by assigning threshold_y same as threshold_x.
-/// for same reason as bypassing max pool.
-struct BypassReluQuantPattern : public OpRewritePattern<tpu::ReluOp> {
-  using OpRewritePattern<tpu::ReluOp>::OpRewritePattern;
+/// bypass threshold from prev Op to current Op
+/// for layers that has no threshold values, like reshape, slice, etc
+template<typename TyOp>
+struct DefaultBypassThresholdPattern : public RewritePattern {
+  DefaultBypassThresholdPattern(MLIRContext *context)
+      : RewritePattern(TyOp::getOperationName(), 1, context) {}
 
-  PatternMatchResult matchAndRewrite(tpu::ReluOp op,
-                                     PatternRewriter &rewriter) const {
-    float threshold_x = getPreviousOpThreshold(op);
-    op.setAttr("threshold_y", rewriter.getF32FloatAttr(threshold_x));
-
-    return matchSuccess();
-  }
-};
-
-/// there is no calibration result for reshape op, assign threshold_y as threshold_x
-struct AssignReshapeThresholdPattern : public OpRewritePattern<tpu::ReshapeOp> {
-  using OpRewritePattern<tpu::ReshapeOp>::OpRewritePattern;
-
-  PatternMatchResult matchAndRewrite(tpu::ReshapeOp op,
-                                     PatternRewriter &rewriter) const {
-    float threshold_x = getPreviousOpThreshold(op);
-    op.setAttr("threshold_y", rewriter.getF32FloatAttr(threshold_x));
-
-
-    return matchSuccess();
-  }
-};
-
-/// bypass slice quantization by assigning threshold_y same as threshold_x.
-struct BypassSliceQuantPattern : public OpRewritePattern<tpu::SliceOp> {
-  using OpRewritePattern<tpu::SliceOp>::OpRewritePattern;
-
-  PatternMatchResult matchAndRewrite(tpu::SliceOp op,
-                                     PatternRewriter &rewriter) const {
-    float threshold_x = getPreviousOpThreshold(op);
-    op.setAttr("threshold_y", rewriter.getF32FloatAttr(threshold_x));
-
-    return matchSuccess();
+  PatternMatchResult matchAndRewrite(Operation *opInst,
+                                     PatternRewriter &rewriter) const override {
+    auto op = cast<TyOp>(opInst);
+    if (op.threshold_y().hasValue()) {
+      // assigned already
+      return matchFailure();
+    } else {
+      /// be careful about call sequence
+      /// since this is assuming previous Op has threshold_y already
+      float threshold_x = getPreviousOpThreshold(op);
+      op.setAttr("threshold_y", rewriter.getF32FloatAttr(threshold_x));
+      return matchSuccess();
+    }
   }
 };
 
@@ -300,6 +345,7 @@ public:
       addThresholdAttr<tpu::BatchNormOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::ConcatOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::Conv2DOp>(builder, threshold_map, op);
+      addThresholdAttr<tpu::DeConv2DOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::CropOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::DivOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::EltwiseOp>(builder, threshold_map, op);
@@ -316,23 +362,56 @@ public:
       addThresholdAttr<tpu::PermuteOp>(builder, threshold_map, op);
     });
 
-    OwningRewritePatternList patterns;
-    //auto *context = &getContext();
+    // apply default bypass
+    OwningRewritePatternList patterns_1;
+    patterns_1.insert<DefaultBypassThresholdPattern<tpu::ReshapeOp>,
+                      DefaultBypassThresholdPattern<tpu::SliceOp>
+                     >(context);
+    applyPatternsGreedily(fn, patterns_1);
+
+    // apply default overwrite
+    OwningRewritePatternList patterns_2;
+    patterns_2.insert<DefaultOverwriteThresholdPattern<tpu::UpsampleOp>,
+                      DefaultOverwriteThresholdPattern<tpu::PermuteOp>,
+                      DefaultOverwriteThresholdPattern<tpu::CropOp>,
+                      OverwriteMaxPool2DThresholdPattern
+                     >(context);
+    applyPatternsGreedily(fn, patterns_2);
+
+    // overwrite relu by default for now
+    // but not PRelu for now??? TODO: need test
+    if (true) {
+      OwningRewritePatternList patterns_relu;
+      patterns_relu.insert<DefaultOverwriteThresholdPattern<tpu::ReluOp>
+                          >(context);
+      applyPatternsGreedily(fn, patterns_relu);
+    }
 
     if (clCaliBybassBackpropagate) {
-      patterns.insert<BypassPoolQuantPattern, BypassSliceQuantPattern,
-          BackpropgateConcatQuantPattern, BackpropgateEltwiseQuantPattern,
-          BackpropgateReluQuantPattern, BackpropgateUpsampleQuantPattern,
-          AssignReshapeThresholdPattern>(context);
+      OwningRewritePatternList patterns_bp;
+      patterns_bp.insert<BackpropgateConcatQuantPattern,
+                         BackpropgateEltwiseQuantPattern,
+                         BackpropgateReluQuantPattern,
+                         BackpropgateUpsampleQuantPattern
+                        >(context);
+      applyPatternsGreedily(fn, patterns_bp);
     } else if (clCaliBybassMax) {
-      // TODO: to implement
-      assert(false);
-    } else {
-      patterns.insert<BypassPoolQuantPattern, BypassReluQuantPattern,
-          BypassSliceQuantPattern,
-          AssignReshapeThresholdPattern>(context);
+      // forward bypass and max forward propergate first
+      OwningRewritePatternList patterns_mx;
+      patterns_mx.insert<MaxConcatQuantPattern,
+                         MaxEltwiseQuantPattern
+                        >(context);
+      applyPatternsGreedily(fn, patterns_mx);
+
+      // then backpropagate the selected max threshold
+      OwningRewritePatternList patterns_bp;
+      patterns_bp.insert<BackpropgateConcatQuantPattern,
+                         BackpropgateEltwiseQuantPattern,
+                         BackpropgateReluQuantPattern,
+                         BackpropgateUpsampleQuantPattern
+                        >(context);
+      applyPatternsGreedily(fn, patterns_bp);
     }
-    applyPatternsGreedily(fn, patterns);
   }
 
 private:

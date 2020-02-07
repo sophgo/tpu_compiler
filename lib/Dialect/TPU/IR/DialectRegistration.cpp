@@ -18,4 +18,4 @@
 #include "mlir/Dialect/TPU/TPUDialect.h"
 
 // Static initialization for TPU dialect registration.
-static mlir::DialectRegistration<mlir::tpu::TPUDialect> tpuDialect;
+static mlir::DialectRegistration<mlir::tpu::TPUDialect> TPUOps;

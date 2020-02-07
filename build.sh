@@ -54,6 +54,21 @@ pushd $MLIR_SRC_PATH/third_party/flatbuffers/build
 cmake -G Ninja -DCMAKE_INSTALL_PREFIX=$FLATBUFFERS_PATH ..
 cmake --build . --target install
 popd
+pushd $MLIR_SRC_PATH/third_party/flatbuffers
+cp -a python $FLATBUFFERS_PATH/
+popd
+
+# generate flatbuffer schema
+if [ ! -e $CVIBUILDER_PATH ]; then
+  mkdir $CVIBUILDER_PATH
+  mkdir $CVIBUILDER_PATH/include
+fi
+pushd $CVIBUILDER_PATH/include
+flatc --cpp --gen-object-api $MLIR_SRC_PATH/externals/cvibuilder/src/cvimodel.fbs
+popd
+pushd $MLIR_SRC_PATH/externals/cvibuilder
+cp -a python $CVIBUILDER_PATH/
+popd
 
 # build bmkernel
 if [ ! -e $MLIR_SRC_PATH/externals/bmkernel/build ]; then
@@ -83,26 +98,30 @@ cmake -G Ninja -DCHIP=BM1880v2 -DBMKERNEL_PATH=$BMKERNEL_PATH \
 cmake --build . --target install
 popd
 
-# build bmbuilder
-if [ ! -e $MLIR_SRC_PATH/externals/bmbuilder/build ]; then
-  mkdir $MLIR_SRC_PATH/externals/bmbuilder/build
-fi
-pushd $MLIR_SRC_PATH/externals/bmbuilder/build
-cmake -G Ninja -DBMKERNEL_PATH=$BMKERNEL_PATH \
-    -DCMAKE_INSTALL_PREFIX=$BMBUILDER_PATH ..
-cmake --build . --target install
-popd
-
 # build runtime
 if [ ! -e $MLIR_SRC_PATH/externals/runtime/build ]; then
   mkdir $MLIR_SRC_PATH/externals/runtime/build
 fi
 pushd $MLIR_SRC_PATH/externals/runtime/build
 cmake -G Ninja -DCHIP=BM1880v2 -DRUNTIME=CMODEL \
-    -DSUPPORT_PATH=$SUPPORT_PATH -DBMBUILDER_PATH=$BMBUILDER_PATH \
+    -DSUPPORT_PATH=$SUPPORT_PATH \
     -DBMKERNEL_PATH=$BMKERNEL_PATH -DCMODEL_PATH=$CMODEL_PATH \
+    -DFLATBUFFERS_PATH=$FLATBUFFERS_PATH -DCVIBUILDER_PATH=$CVIBUILDER_PATH \
     -DCMAKE_INSTALL_PREFIX=$RUNTIME_PATH ..
 cmake --build . --target install
+popd
+
+# build calibration tool
+if [ ! -e $MLIR_SRC_PATH/externals/calibration_tool/build ]; then
+  mkdir $MLIR_SRC_PATH/externals/calibration_tool/build
+fi
+if [ ! -e $CALIBRATION_TOOL_PATH ]; then
+  mkdir $CALIBRATION_TOOL_PATH
+fi
+pushd $MLIR_SRC_PATH/externals/calibration_tool/build
+cmake ..  && make
+cp calibration_math.so $CALIBRATION_TOOL_PATH
+cp ../*.py $CALIBRATION_TOOL_PATH
 popd
 
 # build mlir-tpu
@@ -113,7 +132,8 @@ pushd $TPU_BASE/llvm-project/build
 cmake -G Ninja ../llvm -DLLVM_BUILD_EXAMPLES=ON \
     -DLLVM_TARGETS_TO_BUILD="host" -DCAFFE_PATH=$CAFFE_PATH \
     -DMKLDNN_PATH=$MKLDNN_PATH -DBMKERNEL_PATH=$BMKERNEL_PATH \
-    -DCMAKE_INSTALL_PREFIX=$MLIR_PATH -DLLVM_ENABLE_RTTI=ON -DLLVM_ENABLE_EH=ON
+    -DCMAKE_INSTALL_PREFIX=$MLIR_PATH -DLLVM_ENABLE_RTTI=ON -DLLVM_ENABLE_EH=ON \
+    -DCMAKE_BUILD_TYPE=RELWITHDEBINFO
 cmake --build . --target check-mlir
 cmake --build . --target pymlir
 popd

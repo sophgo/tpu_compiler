@@ -27,19 +27,14 @@
 #include "mlir/IR/OpDefinition.h"
 
 namespace mlir {
-class FuncOp;
-
 namespace tpu {
 
 /// The dialect containing TPU launching operations and related
 /// facilities.
 class TPUDialect : public Dialect {
 public:
-  /// Create the dialect in the given `context`.
-  TPUDialect(MLIRContext *context);
-
-  /// Get the canonical string name of the dialect.
-  static StringRef getDialectName();
+  explicit TPUDialect(MLIRContext *context);
+  static StringRef getDialectNamespace() { return "tpu"; }
 };
 
 //===----------------------------------------------------------------------===//

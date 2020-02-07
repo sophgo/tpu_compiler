@@ -469,8 +469,24 @@ int mkldnn_ip(float *input, float *weight, float *bias,
   return 0;
 }
 
-int my_relu(float *input, float *output,
-    int n, int c, int h, int w, float negative_slope) {
+int my_avg_pooling(float *input, float *output, int n, int c, int ih, int iw,
+                   int oh, int ow, int kh, int kw, int sh, int sw, int pt,
+                   int pb, int pl, int pr) {
+  // Todo: my case only has global average, if your model has other case,
+  //       plz add and test
+  assert(kh == ih && kw == iw); //global average
+  for (int i = 0; i < c; ++i){
+    float val = 0;
+    for (int j = 0; j < kw * kh; ++j){
+      val += input[i * kh * kw + j];
+    }
+    output[i] = val;
+  }
+  return 0;
+}
+
+int my_relu(float *input, float *output, int n, int c, int h, int w,
+                float negative_slope) {
 #ifdef DUMP_FLAG
   static int dump_idx = 0;
   std::string prefix = std::string("relu") + std::to_string(dump_idx);
