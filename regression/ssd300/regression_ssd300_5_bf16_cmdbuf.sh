@@ -32,15 +32,36 @@ mlir-opt \
 mlir-translate \
     --mlir-to-cmdbuf \
     ssd300_quant_bf16_addr.mlir \
-    -o ssd300_bf16.bin
+    -o cmdbuf_bf16.bin
+
+
+# generate cvi model
+python $CVIBUILDER_PATH/python/cvi_model_create.py \
+    --cmdbuf cmdbuf_bf16.bin \
+    --weight weight_bf16.bin \
+    --neuron_map neuron_map_bf16.csv \
+    --output=ssd300_bf16.cvimodel
 
 # run cmdbuf
-$RUNTIME_PATH/bin/test_bmnet \
+#$RUNTIME_PATH/bin/test_bmnet \
+#    resnet50_in_bf16.bin \
+#    weight_bf16.bin \
+#    cmdbuf_bf16.bin \
+#    resnet50_cmdbuf_out_all_bf16.bin \
+#    32921552 0 32921552 1
+$RUNTIME_PATH/bin/test_cvinet \
     ssd300_in_bf16.bin \
-    weight_bf16.bin \
-    cmdbuf_bf16.bin \
-    ssd300_cmdbuf_out_all_bf16.bin \
-    32921552 0 32921552 1
+    ssd300_bf16.cvimodel \
+    ssd300_cmdbuf_out_all_bf16.bin
+
+
+# # run cmdbuf
+# $RUNTIME_PATH/bin/test_bmnet \
+#     ssd300_in_bf16.bin \
+#     weight_bf16.bin \
+#     cmdbuf_bf16.bin \
+#     ssd300_cmdbuf_out_all_bf16.bin \
+#     32921552 0 32921552 1
 # bin_extract.py \
 #     ssd300_cmdbuf_out_all_bf16.bin \
 #     ssd300_cmdbuf_out_fc1000_bf16.bin \

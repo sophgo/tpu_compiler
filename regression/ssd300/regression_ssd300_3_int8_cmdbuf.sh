@@ -19,7 +19,7 @@ bin_fp32_to_int8.py \
 # quantization 1: per-layer int8
 ################################
 
-# assign weight address & neuron address
+# #assign weight address & neuron address
 # mlir-opt \
 #     --assign-weight-address \
 #     --tpu-weight-address-align=16 \
@@ -42,20 +42,20 @@ bin_fp32_to_int8.py \
 #     ssd300_cmdbuf_out_all_int8_per_layer.bin \
 #     35113632 0 35113632 1
 
-# bin_extract.py \
-#     ssd300_cmdbuf_out_all_int8_per_layer.bin \
-#     ssd300_cmdbuf_out_xbox_conf_int8_per_layer.bin \
-#     int8 0xee990 707292
+# # bin_extract.py \
+# #     ssd300_cmdbuf_out_all_int8_per_layer.bin \
+# #     ssd300_cmdbuf_out_xbox_conf_int8_per_layer.bin \
+# #     int8 0xee990 707292
 
-# bin_extract.py \
-#     ssd300_cmdbuf_out_all_int8_per_layer.bin \
-#     ssd300_cmdbuf_out_mbox_loc_int8_per_layer.bin \
-#     int8 0x19b470 34928
+# # bin_extract.py \
+# #     ssd300_cmdbuf_out_all_int8_per_layer.bin \
+# #     ssd300_cmdbuf_out_mbox_loc_int8_per_layer.bin \
+# #     int8 0x19b470 34928
 
-# bin_compare.py \
-#     ssd300_cmdbuf_out_fc1000_int8_per_layer.bin \
-#     $REGRESSION_PATH/ssd300/data/test_cat_out_ssd300_fc1000_int8_per_layer.bin \
-#     int8 1 1 1 1000 5
+# # bin_compare.py \
+# #     ssd300_cmdbuf_out_fc1000_int8_per_layer.bin \
+# #     $REGRESSION_PATH/ssd300/data/test_cat_out_ssd300_fc1000_int8_per_layer.bin \
+# #     int8 1 1 1 1000 5
 
 # # compare all tensors
 # bin_to_npz.py \
@@ -67,16 +67,16 @@ bin_fp32_to_int8.py \
 #     ssd300_tensor_all_int8_per_layer.npz \
 #     --op_info ssd300_op_info_int8_per_layer.csv
 
-# ################################
-# # quantization 2: per-channel int8
-# ################################
+################################
+# quantization 2: per-channel int8
+################################
 
-# # skipped
+# skipped
 
-# ################################
-# # quantization 3: multiplier int8
-# ################################
-# assign weight address & neuron address
+################################
+# quantization 3: multiplier int8
+################################
+#assign weight address & neuron address
 mlir-opt \
     --assign-weight-address \
     --tpu-weight-address-align=16 \
@@ -91,13 +91,28 @@ mlir-opt \
     --mlir-to-cmdbuf \
     -o cmdbuf_int8_multiplier.bin
 
-# run cmdbuf
-$RUNTIME_PATH/bin/test_bmnet \
+# generate cvi model
+python $CVIBUILDER_PATH/python/cvi_model_create.py \
+    --cmdbuf cmdbuf_int8_multiplier.bin \
+    --weight weight_int8_multiplier.bin \
+    --neuron_map neuron_map.csv \
+    --output=ssd300_int8_per_layer.cvimodel
+
+$RUNTIME_PATH/bin/test_cvinet \
     ssd300_in_int8.bin \
-    weight_int8_multiplier.bin \
-    cmdbuf_int8_multiplier.bin \
-    ssd300_cmdbuf_out_all_int8_multiplier.bin \
-    35113632 0 35113632 1
+    ssd300_int8_per_layer.cvimodel \
+    ssd300_cmdbuf_out_all_int8_per_layer.bin
+
+
+
+# # run cmdbuf
+# $RUNTIME_PATH/bin/test_bmnet \
+#     ssd300_in_int8.bin \
+#     weight_int8_multiplier.bin \
+#     cmdbuf_int8_multiplier.bin \
+#     ssd300_cmdbuf_out_all_int8_multiplier.bin \
+#     35113632 0 35113632 1
+
 # bin_extract.py \
 #     ssd300_cmdbuf_out_all_int8_multiplier.bin \
 #     ssd300_cmdbuf_out_fc1000_int8_multiplier.bin \
@@ -115,8 +130,7 @@ bin_to_npz.py \
 npz_compare.py \
     ssd300_cmdbuf_out_all_int8_multiplier.npz \
     ssd300_tensor_all_int8_multiplier.npz \
-    --op_info ssd300_op_info_int8_multiplier.csv \
-    --excepts mbox_loc,mbox_conf
+    --op_info ssd300_op_info_int8_multiplier.csv 
 
 # VERDICT
 echo $0 PASSED
