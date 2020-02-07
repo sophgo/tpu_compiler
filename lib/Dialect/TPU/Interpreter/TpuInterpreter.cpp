@@ -971,6 +971,10 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
         }
       }
     } else if (op.quant() == "BF16") {
+      auto tensor_bf16 = std::make_unique<std::vector<bfloat16> >(resultT->size());
+      // with rounding
+      FloatToBFloat16(resultT->data(), tensor_bf16->data(), resultT->size());
+      BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
     } else if (op.quant() == "NONE") {
     } else {
       assert(0);
