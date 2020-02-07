@@ -3,6 +3,13 @@
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 source $DIR/envsetup.sh
 
+pushd $PYTHON_TOOLS_PATH/dataset_util/widerface
+make clean
+popd
+pushd $PYTHON_TOOLS_PATH/model/retinaface
+make clean
+popd
+
 rm -rf $CAFFE_PATH
 rm -rf $MKLDNN_PATH
 rm -rf $BMKERNEL_PATH
