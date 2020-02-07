@@ -23,7 +23,6 @@
 #include "mlir/Dialect/TPU/TPUDialect.h"
 #include "mlir/Dialect/TPU/TPUOperationSupport.h"
 #include "mlir/Dialect/TPU/Interpreter.h"
-#include "mlir/Dialect/TPU/QuantizationArithmetic.h"
 #include "mlir/Dialect/TPU/NativeCpuImplementation.h"
 #include "mlir/Dialect/TPU/CpuLayer_DetectionOutput.h"
 #include "mlir/IR/MLIRContext.h"
@@ -49,8 +48,6 @@
 #include <functional>
 #include <algorithm>
 
-#define DEBUG_TYPE "interpreter"
-
 using namespace std;
 
 namespace mlir {
@@ -70,40 +67,14 @@ std::vector<std::shared_ptr<std::vector<float> > >
 LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
   // #include "mlir/Dialect/LLVMIR/LLVMConversions.inc"
 
+  // Bypass load file and weight since is done in constructor
   if (auto loadFileOp = dyn_cast<tpu::LoadFileOp>(opInst)) {
     return success();
   }
   if (auto loadWeightOp = dyn_cast<tpu::LoadWeightOp>(opInst)) {
-    LLVM_DEBUG(llvm::errs() << "LoadWeightOp" << "\n";);
-
-    auto result = loadWeightOp.getResult();
-    LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";);
-    assert(loadWeightOp.name().hasValue());
-    auto tensor_name = loadWeightOp.name().getValue();
-    LLVM_DEBUG(llvm::errs() << "  tensor_name " << tensor_name << "\n";);
-
-    auto type = result->getType().cast<TensorType>();
-    std::unique_ptr<std::vector<float> > tensor= nullptr;
-    if (type.getElementType().isF32()) {
-      tensor = std::move(weightFile_->readTensor<float>(tensor_name, type));
-    } else if (type.getElementType().isInteger(8)) {
-      // TODO: we still save int8 weight as fp32 for now
-      assert(0);
-    } else if (type.getElementType().isBF16()) {
-      auto tensor_bf16 = weightFile_->readTensor<bfloat16>(tensor_name, type);
-
-      // TODO: convert bf16 to fp32 here for now
-      // as valueMapping is hardcoded as std::vector<float>
-      // TODO: more generic valueMapping
-      tensor = std::move(std::make_unique<std::vector<float> >(tensor_bf16->size()));
-      BFloat16ToFloat(tensor_bf16->data(), tensor->data(), tensor_bf16->size());
-    } else {
-      assert(0);
-    }
-
-    valueMapping[result] = std::move(tensor);
     return success();
   }
+
   if (auto op = dyn_cast<tpu::InputOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "InputOp" << "\n";);
     auto opdT = getOperandTensors(opInst, valueMapping);

@@ -22,6 +22,7 @@
 #ifndef MLIR_DIALECT_TPU_MODULEINTERPRETER_H_
 #define MLIR_DIALECT_TPU_MODULEINTERPRETER_H_
 
+#include "mlir/Dialect/TPU/QuantizationArithmetic.h"
 #include "mlir/Dialect/TPU/TPUOperationSupport.h"
 #include "mlir/Dialect/StandardOps/Ops.h"
 #include "mlir/IR/MLIRContext.h"
@@ -29,8 +30,12 @@
 #include "mlir/IR/Module.h"
 #include "mlir/Support/TensorFile.h"
 
+#include "llvm/Support/Debug.h"
+
 #include <iostream>
 #include <fstream>
+
+#define DEBUG_TYPE "interpreter"
 
 namespace mlir {
 
@@ -62,6 +67,36 @@ public:
             auto filename = loadFileOp.getAttrOfType<StringAttr>("filename").getValue();
             auto filename_tensorfile = llvm::sys::path::stem(filename).str() + ".npz";
             weightFile_ = openInputTensorFile(filename_tensorfile);
+          } else if (isa<tpu::LoadWeightOp>(op)) {
+            auto loadWeightOp = dyn_cast<tpu::LoadWeightOp>(op);
+            LLVM_DEBUG(llvm::errs() << "LoadWeightOp" << "\n";);
+
+            auto result = loadWeightOp.getResult();
+            LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";);
+            assert(loadWeightOp.name().hasValue());
+            auto tensor_name = loadWeightOp.name().getValue();
+            LLVM_DEBUG(llvm::errs() << "  tensor_name " << tensor_name << "\n";);
+
+            auto type = result->getType().cast<TensorType>();
+            std::unique_ptr<std::vector<float> > tensor= nullptr;
+            if (type.getElementType().isF32()) {
+              tensor = std::move(weightFile_->readTensor<float>(tensor_name, type));
+            } else if (type.getElementType().isInteger(8)) {
+              // TODO: we still save int8 weight as fp32 for now
+              assert(0);
+            } else if (type.getElementType().isBF16()) {
+              auto tensor_bf16 = weightFile_->readTensor<bfloat16>(tensor_name, type);
+
+              // TODO: convert bf16 to fp32 here for now
+              // as valueMapping is hardcoded as std::vector<float>
+              // TODO: more generic valueMapping
+              tensor = std::move(std::make_unique<std::vector<float> >(tensor_bf16->size()));
+              BFloat16ToFloat(tensor_bf16->data(), tensor->data(), tensor_bf16->size());
+            } else {
+              assert(0);
+            }
+
+            valueMapping[result] = std::move(tensor);
           }
         }
       }
