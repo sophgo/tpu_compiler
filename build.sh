@@ -134,6 +134,14 @@ cp calibration_math.so $CALIBRATION_TOOL_PATH
 cp ../*.py $CALIBRATION_TOOL_PATH
 popd
 
+# build python tool
+pushd $PYTHON_TOOLS_PATH/dataset_util/widerface
+make
+popd
+pushd $PYTHON_TOOLS_PATH/model/retinaface
+make
+popd
+
 # build mlir-tpu
 if [ ! -e $TPU_BASE/llvm-project/build ]; then
   mkdir $TPU_BASE/llvm-project/build
