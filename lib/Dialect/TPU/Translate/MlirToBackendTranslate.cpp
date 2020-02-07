@@ -336,138 +336,138 @@ static LogicalResult runOperation(Operation &opInst) {
 
     if (op.quant() == "INT8") {
 
-    gaddr_t bias_gaddr = INVALID_GLOBAL_ADDR;
-    //int with_bias = 0;
-    if (opInst.getNumOperands() > 3) {
-      with_bias = 1;
-      bias_gaddr = getWeightOpAddress(op.getOperand(2)->getDefiningOp());
-    }
-    int rshift_opd_index = 2;
-    if (with_bias) {
-      bias_gaddr = getWeightOpAddress(op.getOperand(2)->getDefiningOp());
-      rshift_opd_index = 3;
-    }
-    int8_t rshift = getRshiftFromOperandTensor(opInst, rshift_opd_index);
+      gaddr_t bias_gaddr = INVALID_GLOBAL_ADDR;
+      //int with_bias = 0;
+      if (opInst.getNumOperands() > 3) {
+        with_bias = 1;
+        bias_gaddr = getWeightOpAddress(op.getOperand(2)->getDefiningOp());
+      }
+      int rshift_opd_index = 2;
+      if (with_bias) {
+        bias_gaddr = getWeightOpAddress(op.getOperand(2)->getDefiningOp());
+        rshift_opd_index = 3;
+      }
+      int8_t rshift = getRshiftFromOperandTensor(opInst, rshift_opd_index);
 
-    bmnet_conv_parallel_fixed_forward_bmkernel(
-        *backend_ctx,
-        0, // stream_id,
-        0, // inst_id,
-        layer_id, // layer_id,
-        nullptr, // depends
-        0, // depends_len
-        input_gaddr, // input_data_gaddr,
-        output_gaddr, // output_data_gaddr,
-        filter_gaddr, // weight_data_gaddr,
-        bias_gaddr, // bias_data_gaddr,
-        INVALID_GLOBAL_ADDR, // bn_mean_data_gaddr,
-        INVALID_GLOBAL_ADDR, // bn_variance_data_gaddr,
-        INVALID_GLOBAL_ADDR,
-        INVALID_GLOBAL_ADDR,
-        n,
-        ic,
-        ih,
-        iw,
-        g, // group,
-        oc,
-        kh,
-        kw,
-        dh,
-        dw,
-        ph, // pad_h_top,
-        ph, // pad_h_bottom,
-        pw, // pad_w_left,
-        pw, // pad_w_right,
-        sh,
-        sw,
-        0, // result_add
-        with_bias, // bias_term,
-        0, // do_bn,
-        0, // do_scale,
-        0, // do_scale_bias,
-        do_relu ? 1 : 0, // do_activation,
-        1.0f, // bn_scale,
-        1e-5, // eps,
-        0, // param.activation(), method, 0 -> RELU, all others are invalide for now
-        nullptr, // activation_arg,
-        INVALID_GLOBAL_ADDR, //global_slope_gaddr,
-        false, //channel_shared,
-        0, //activation_gt_scale,
-        0, //activation_gt_rshift,
-        0, //activation_le_scale, // slope, TODO
-        0, //activation_le_rshift,
-        (int)rshift, // right_shift_width,
-        0, //bn_right_shift_width,
-        0, //scale_right_shift_width,
-        false, //use_winograd
-        0, // right_shift_array_len
-        0 // ga_per_channel
-        );
+      bmnet_conv_parallel_fixed_forward_bmkernel(
+          *backend_ctx,
+          0, // stream_id,
+          0, // inst_id,
+          layer_id, // layer_id,
+          nullptr, // depends
+          0, // depends_len
+          input_gaddr, // input_data_gaddr,
+          output_gaddr, // output_data_gaddr,
+          filter_gaddr, // weight_data_gaddr,
+          bias_gaddr, // bias_data_gaddr,
+          INVALID_GLOBAL_ADDR, // bn_mean_data_gaddr,
+          INVALID_GLOBAL_ADDR, // bn_variance_data_gaddr,
+          INVALID_GLOBAL_ADDR,
+          INVALID_GLOBAL_ADDR,
+          n,
+          ic,
+          ih,
+          iw,
+          g, // group,
+          oc,
+          kh,
+          kw,
+          dh,
+          dw,
+          ph, // pad_h_top,
+          ph, // pad_h_bottom,
+          pw, // pad_w_left,
+          pw, // pad_w_right,
+          sh,
+          sw,
+          0, // result_add
+          with_bias, // bias_term,
+          0, // do_bn,
+          0, // do_scale,
+          0, // do_scale_bias,
+          do_relu ? 1 : 0, // do_activation,
+          1.0f, // bn_scale,
+          1e-5, // eps,
+          0, // param.activation(), method, 0 -> RELU, all others are invalide for now
+          nullptr, // activation_arg,
+          INVALID_GLOBAL_ADDR, //global_slope_gaddr,
+          false, //channel_shared,
+          0, //activation_gt_scale,
+          0, //activation_gt_rshift,
+          0, //activation_le_scale, // slope, TODO
+          0, //activation_le_rshift,
+          (int)rshift, // right_shift_width,
+          0, //bn_right_shift_width,
+          0, //scale_right_shift_width,
+          false, //use_winograd
+          0, // right_shift_array_len
+          0 // ga_per_channel
+          );
 
     } else if (op.quant() == "INT8_MULTIPLIER") {
 
-    gaddr_t bias_gaddr = getWeightOpAddress(op.getOperand(2)->getDefiningOp());
+      gaddr_t bias_gaddr = getWeightOpAddress(op.getOperand(2)->getDefiningOp());
 
-    bmnet_conv_parallel_fixed_forward_bmkernel(
-        *backend_ctx,
-        0, // stream_id,
-        0, // inst_id,
-        layer_id, // layer_id,
-        nullptr, // depends
-        0, // depends_len
-        input_gaddr, // input_data_gaddr,
-        output_gaddr, // output_data_gaddr,
-        filter_gaddr, // weight_data_gaddr,
-        bias_gaddr, // bias_data_gaddr,
-        INVALID_GLOBAL_ADDR, // bn_mean_data_gaddr,
-        INVALID_GLOBAL_ADDR, // bn_variance_data_gaddr,
-        INVALID_GLOBAL_ADDR,
-        INVALID_GLOBAL_ADDR,
-        n,
-        ic,
-        ih,
-        iw,
-        g, // group,
-        oc,
-        kh,
-        kw,
-        dh,
-        dw,
-        ph, // pad_h_top,
-        ph, // pad_h_bottom,
-        pw, // pad_w_left,
-        pw, // pad_w_right,
-        sh,
-        sw,
-        0, // result_add
-        with_bias, // bias_term,
-        0, // do_bn,
-        0, // do_scale,
-        0, // do_scale_bias,
-        do_relu ? 1 : 0, // do_activation,
-        1.0f, // bn_scale,
-        1e-5, // eps,
-        0, // param.activation(), method, 0 -> RELU, all others are invalide for now
-        nullptr, // activation_arg,
-        INVALID_GLOBAL_ADDR, //global_slope_gaddr,
-        false, //channel_shared,
-        0, //activation_gt_scale,
-        0, //activation_gt_rshift,
-        0, //activation_le_scale, // slope, TODO
-        0, //activation_le_rshift,
-        0, //(int)rshift[0], //right_shift_width,
-        0, //bn_right_shift_width,
-        0, //scale_right_shift_width,
-        false, //use_winograd
-        oc, // right_shift_array_len
-        bias_gaddr // ga_per_channel
-        );
+      bmnet_conv_parallel_fixed_forward_bmkernel(
+          *backend_ctx,
+          0, // stream_id,
+          0, // inst_id,
+          layer_id, // layer_id,
+          nullptr, // depends
+          0, // depends_len
+          input_gaddr, // input_data_gaddr,
+          output_gaddr, // output_data_gaddr,
+          filter_gaddr, // weight_data_gaddr,
+          bias_gaddr, // bias_data_gaddr,
+          INVALID_GLOBAL_ADDR, // bn_mean_data_gaddr,
+          INVALID_GLOBAL_ADDR, // bn_variance_data_gaddr,
+          INVALID_GLOBAL_ADDR,
+          INVALID_GLOBAL_ADDR,
+          n,
+          ic,
+          ih,
+          iw,
+          g, // group,
+          oc,
+          kh,
+          kw,
+          dh,
+          dw,
+          ph, // pad_h_top,
+          ph, // pad_h_bottom,
+          pw, // pad_w_left,
+          pw, // pad_w_right,
+          sh,
+          sw,
+          0, // result_add
+          with_bias, // bias_term,
+          0, // do_bn,
+          0, // do_scale,
+          0, // do_scale_bias,
+          do_relu ? 1 : 0, // do_activation,
+          1.0f, // bn_scale,
+          1e-5, // eps,
+          0, // param.activation(), method, 0 -> RELU, all others are invalide for now
+          nullptr, // activation_arg,
+          INVALID_GLOBAL_ADDR, //global_slope_gaddr,
+          false, //channel_shared,
+          0, //activation_gt_scale,
+          0, //activation_gt_rshift,
+          0, //activation_le_scale, // slope, TODO
+          0, //activation_le_rshift,
+          0, //(int)rshift[0], //right_shift_width,
+          0, //bn_right_shift_width,
+          0, //scale_right_shift_width,
+          false, //use_winograd
+          oc, // right_shift_array_len
+          bias_gaddr // ga_per_channel
+          );
     } else if (op.quant() == "BF16") {
 
-      gaddr_t bias_gaddr = getWeightOpAddress(op.getOperand(2)->getDefiningOp());
-      // TODO: assuming always with_bias
-      int with_bias = 1;
-
+      int with_bias = op.with_bias() ? 1 : 0;
+      gaddr_t bias_gaddr =
+          op.with_bias() ? getWeightOpAddress(op.getOperand(2)->getDefiningOp())
+                         : INVALID_GLOBAL_ADDR;
       bmnet_bf16_conv_forward_kernel(
         *backend_ctx,
         layer_id,  // layer_id
