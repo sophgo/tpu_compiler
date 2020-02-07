@@ -196,6 +196,8 @@ public:
         context, "tpu.concat", &pos, neuronMapFile->os(), clNeuronAlignment);
     patterns.insert<TpuQuantizationOpPattern<tpu::Conv2DOp> >(
         context, "tpu.conv_2d", &pos, neuronMapFile->os(), clNeuronAlignment);
+    patterns.insert<TpuQuantizationOpPattern<tpu::DeConv2DOp> >(
+        context, "tpu.deconv_2d", &pos, neuronMapFile->os(), clNeuronAlignment);
     patterns.insert<TpuQuantizationOpPattern<tpu::CropOp>>(
         context, "tpu.crop", &pos, neuronMapFile->os(), clNeuronAlignment);
     patterns.insert<TpuQuantizationOpPattern<tpu::FullyConnectedOp> >(
