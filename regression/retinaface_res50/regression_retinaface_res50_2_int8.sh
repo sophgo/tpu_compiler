@@ -57,24 +57,29 @@ mlir-opt \
     retinaface_res50-cali.mlir \
     -o retinaface_res50-int8.mlir
 
-# dump all tensor
-# Pre-Quantization fp32 result
-mlir-tpu-interpreter retinaface_res50-opt.mlir \
-    --tensor-in retinaface_res50_in_fp32.npz \
-    --tensor-out retinaface_res50_opt_out_fp32.npz \
-    --dump-all-tensor=retinaface_res50_opt_tensor_all_fp32.npz
-
-# Post-Quantization int8 result
+# Interpreter int8 result
 mlir-tpu-interpreter retinaface_res50-int8.mlir \
     --tensor-in retinaface_res50_in_fp32.npz \
-    --tensor-out retinaface_res50_out_int8.npz \
+    --tensor-out retinaface_res50_out_dequant_int8.npz \
     --dump-all-tensor=retinaface_res50_tensor_all_int8.npz
+
+# compare output
+npz_extract.py \
+    retinaface_res50_tensor_all_int8.npz \
+    retinaface_res50_out_int8.npz \
+    face_rpn_bbox_pred_stride16,face_rpn_bbox_pred_stride32,face_rpn_bbox_pred_stride8,face_rpn_cls_prob_reshape_stride16,face_rpn_cls_prob_reshape_stride32,face_rpn_cls_prob_reshape_stride8,face_rpn_landmark_pred_stride16,face_rpn_landmark_pred_stride32,face_rpn_landmark_pred_stride8
+npz_compare.py \
+      retinaface_res50_out_int8.npz \
+      retinaface_res50_caffe_blobs.npz \
+      --op_info retinaface_res50_op_info_int8.csv \
+      --dequant \
+      --tolerance 0.9,0.9,0.8 -vvv
 
 if [ $COMPARE_ALL ]; then
     # this will fail for now
     npz_compare.py \
       retinaface_res50_tensor_all_int8.npz \
-      retinaface_res50_opt_tensor_all_fp32.npz \
+      retinaface_res50_caffe_blobs.npz \
       --op_info retinaface_res50_op_info_int8.csv \
       --dequant \
       --tolerance 0.9,0.9,0.8 -vvv
