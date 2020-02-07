@@ -54,6 +54,21 @@ pushd $MLIR_SRC_PATH/third_party/flatbuffers/build
 cmake -G Ninja -DCMAKE_INSTALL_PREFIX=$FLATBUFFERS_PATH ..
 cmake --build . --target install
 popd
+pushd $MLIR_SRC_PATH/third_party/flatbuffers
+cp -a python $FLATBUFFERS_PATH/
+popd
+
+# generate flatbuffer schema
+if [ ! -e $CVIBUILDER_PATH ]; then
+  mkdir $CVIBUILDER_PATH
+  mkdir $CVIBUILDER_PATH/include
+fi
+pushd $CVIBUILDER_PATH/include
+flatc --cpp --gen-object-api $MLIR_SRC_PATH/externals/cvibuilder/src/cvimodel.fbs
+popd
+pushd $MLIR_SRC_PATH/externals/cvibuilder
+cp -a python $CVIBUILDER_PATH/
+popd
 
 # build bmkernel
 if [ ! -e $MLIR_SRC_PATH/externals/bmkernel/build ]; then
@@ -101,6 +116,7 @@ pushd $MLIR_SRC_PATH/externals/runtime/build
 cmake -G Ninja -DCHIP=BM1880v2 -DRUNTIME=CMODEL \
     -DSUPPORT_PATH=$SUPPORT_PATH -DBMBUILDER_PATH=$BMBUILDER_PATH \
     -DBMKERNEL_PATH=$BMKERNEL_PATH -DCMODEL_PATH=$CMODEL_PATH \
+    -DFLATBUFFERS_PATH=$FLATBUFFERS_PATH -DCVIBUILDER_PATH=$CVIBUILDER_PATH \
     -DCMAKE_INSTALL_PREFIX=$RUNTIME_PATH ..
 cmake --build . --target install
 popd
