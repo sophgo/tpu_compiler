@@ -1421,7 +1421,12 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
                    << std::to_string(threshold) << "\n";);
       quantizeActivationInt8WithThreshold(output, input, size, threshold);
     } else if (op.quant() == "BF16") {
-      resultT->assign(opdT[0]->begin(), opdT[0]->end());
+      auto tensor_bf16 =
+          std::make_unique<std::vector<bfloat16>>(resultT->size());
+      FloatToBFloat16(opdT[0]->data(), tensor_bf16->data(),
+                      opdT[0]->size()); // with rounding
+      BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
+
     } else {
       assert(0);
     }
