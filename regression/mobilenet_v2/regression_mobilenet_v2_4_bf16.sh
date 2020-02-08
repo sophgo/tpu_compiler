@@ -4,44 +4,31 @@ set -e
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 source $DIR/../../envsetup.sh
 
-# translate from caffe
-mlir-translate \
-    --caffe-to-mlir $MODEL_PATH/caffe/mobilenet_v2_deploy.prototxt \
-    --caffemodel $MODEL_PATH/caffe/mobilenet_v2.caffemodel \
-    -o mobilenet_v2.mlir
 
-# apply all possible pre-calibration optimizations
+# apply post-calibration optimizations
+# not applying --fuse-eltwise for now
 mlir-opt \
-    --convert-bn-to-scale \
-    --fold-scale \
-    --merge-scale-into-conv \
     --fuse-relu \
-    --fuse-eltwise \
-    mobilenet_v2.mlir \
-    -o mobilenet_v2_opt.mlir
-
-# fp32 inference
-mlir-tpu-interpreter mobilenet_v2_opt.mlir \
-    --input-scale 0.017 \
-    --tensor-in $DATA_PATH/test_cat_in_fp32.bin \
-    --tensor-out out.bin \
-    --dump-all-tensor=tensor_all.npz
+    mobilenet_v2_opt.mlir \
+    -o mobilenet_v2_opt2.mlir
 
 # quantization
 mlir-opt \
     --quant-bf16 \
-    mobilenet_v2_opt.mlir \
+    mobilenet_v2_opt2.mlir \
     -o mobilenet_v2_quant_bf16.mlir
 
 # bf16 inference
-mlir-tpu-interpreter \
-    mobilenet_v2_quant_bf16.mlir \
-    --input-scale 0.017 \
-    --tensor-in $DATA_PATH/test_cat_in_fp32.bin \
-    --tensor-out out_bf16.bin \
-    --dump-all-tensor=tensor_all_bf16.npz
-bin_compare.py out.bin out_bf16.bin float32 1 1 1 1000 5
-npz_compare.py tensor_all.npz tensor_all_bf16.npz
+mlir-tpu-interpreter mobilenet_v2_quant_bf16.mlir \
+    --tensor-in mobilenet_v2_in_fp32.npz \
+    --tensor-out mobilenet_v2_out_bf16.npz \
+    --dump-all-tensor=mobilenet_v2_tensor_all_bf16.npz
+npz_compare.py mobilenet_v2_out_bf16.npz mobilenet_v2_out_fp32.npz -v
+npz_compare.py \
+    mobilenet_v2_tensor_all_bf16.npz \
+    mobilenet_v2_tensor_all_fp32.npz \
+    --op_info mobilenet_v2_op_info.csv \
+    --tolerance=0.99,0.99,0.93 -vvv
 
 # VERDICT
 echo $0 PASSED
