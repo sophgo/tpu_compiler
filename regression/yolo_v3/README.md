@@ -16,9 +16,40 @@ link
 
 ## Accuracy Results
 
-- 20200202 (with enable-cali-bypass-backpropagate)
+- 20200208
+autotune (relu-overwrite-backward, slightly better than forward, conflict with similarilty results)
+('load module ', 'yolo_v3_416_quant_int8_multiplier.mlir')
+ Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.360
+ Average Precision  (AP) @[ IoU=0.50      | area=   all | maxDets=100 ] = 0.665
+ Average Precision  (AP) @[ IoU=0.75      | area=   all | maxDets=100 ] = 0.357
+ Average Precision  (AP) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.185
+ Average Precision  (AP) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.398
+ Average Precision  (AP) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.525
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=  1 ] = 0.284
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets= 10 ] = 0.434
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.456
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.269
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.497
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.617
 
-autotune-enable-cali-bypass-backpropagate (should be a little worse)
+cali-no-tune (relu-overwrite-backward)
+('load module ', 'yolo_v3_416_quant_int8_multiplier.mlir')
+ Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.337
+ Average Precision  (AP) @[ IoU=0.50      | area=   all | maxDets=100 ] = 0.638
+ Average Precision  (AP) @[ IoU=0.75      | area=   all | maxDets=100 ] = 0.325
+ Average Precision  (AP) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.171
+ Average Precision  (AP) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.371
+ Average Precision  (AP) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.502
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=  1 ] = 0.267
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets= 10 ] = 0.411
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.434
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.246
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.476
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.596
+
+- 20200202 (with enable-cali-bypass-backpropagate/max, should be a little worse)
+
+autotune-enable-cali-bypass-backpropagate
 ('load module ', 'yolo_v3_416_quant_int8_multiplier_bp.mlir')
  Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.358
  Average Precision  (AP) @[ IoU=0.50      | area=   all | maxDets=100 ] = 0.662
@@ -33,22 +64,7 @@ autotune-enable-cali-bypass-backpropagate (should be a little worse)
  Average Recall     (AR) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.494
  Average Recall     (AR) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.619
 
-cali-enable-cali-bypass-backpropagate (should be a little worse, turns out to be slightly better)
-('load module ', 'yolo_v3_416_quant_int8_multiplier_bp.mlir')
- Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.343
- Average Precision  (AP) @[ IoU=0.50      | area=   all | maxDets=100 ] = 0.649
- Average Precision  (AP) @[ IoU=0.75      | area=   all | maxDets=100 ] = 0.330
- Average Precision  (AP) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.176
- Average Precision  (AP) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.380
- Average Precision  (AP) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.506
- Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=  1 ] = 0.273
- Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets= 10 ] = 0.417
- Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.440
- Average Recall     (AR) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.251
- Average Recall     (AR) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.482
- Average Recall     (AR) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.602
-
-autotune-enable-cali-bypass-max (should be a little worse)
+autotune-enable-cali-bypass-max
 ('load module ', 'yolo_v3_416_quant_int8_multiplier_max.mlir')
  Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.356
  Average Precision  (AP) @[ IoU=0.50      | area=   all | maxDets=100 ] = 0.661
@@ -63,7 +79,22 @@ autotune-enable-cali-bypass-max (should be a little worse)
  Average Recall     (AR) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.493
  Average Recall     (AR) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.613
 
-cali-enable-cali-bypass-max (slightly better than bp)
+cali-enable-cali-bypass-backpropagate (should be a little worse, turns out to be better)
+('load module ', 'yolo_v3_416_quant_int8_multiplier_bp.mlir')
+ Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.343
+ Average Precision  (AP) @[ IoU=0.50      | area=   all | maxDets=100 ] = 0.649
+ Average Precision  (AP) @[ IoU=0.75      | area=   all | maxDets=100 ] = 0.330
+ Average Precision  (AP) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.176
+ Average Precision  (AP) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.380
+ Average Precision  (AP) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.506
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=  1 ] = 0.273
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets= 10 ] = 0.417
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.440
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.251
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.482
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.602
+
+cali-enable-cali-bypass-max (should be a little worse, turns out to be better)
  Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.343
  Average Precision  (AP) @[ IoU=0.50      | area=   all | maxDets=100 ] = 0.649
  Average Precision  (AP) @[ IoU=0.75      | area=   all | maxDets=100 ] = 0.331
@@ -79,7 +110,7 @@ cali-enable-cali-bypass-max (slightly better than bp)
 
 - 20200130 (with update commit-id e1bd7cd7, with fix concat interpreter bug)
 
-autotune
+autotune (by default, this is using relu-overwrite-forward)
 ('load module ', 'yolo_v3_416_quant_int8_multiplier.mlir')
  Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.359
  Average Precision  (AP) @[ IoU=0.50      | area=   all | maxDets=100 ] = 0.662
