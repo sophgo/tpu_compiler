@@ -175,7 +175,18 @@ struct BackpropgateReluQuantPattern : public OpRewritePattern<tpu::ReluOp> {
                    << threshold_x << " to " << threshold_y << "\n";
       assert(threshold_x > threshold_y * 0.5 && threshold_x < threshold_y * 1.5);
       cast_op.setAttr("threshold_y", rewriter.getF32FloatAttr(threshold_y));
+    } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::ConcatOp>(formerOp)) {
+      float threshold_x = cast_op.threshold_y().getValue().convertToFloat();
+      llvm::errs() << "Relu set prev FullyConnected threshold from "
+                   << threshold_x << " to " << threshold_y << "\n";
+      cast_op.setAttr("threshold_y", rewriter.getF32FloatAttr(threshold_y));
+    } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::ScaleOp>(formerOp)) {
+      float threshold_x = cast_op.threshold_y().getValue().convertToFloat();
+      llvm::errs() << "Relu set prev FullyConnected threshold from "
+                   << threshold_x << " to " << threshold_y << "\n";
+      cast_op.setAttr("threshold_y", rewriter.getF32FloatAttr(threshold_y));
     } else {
+      llvm::errs() << formerOp->getName() << ": behavior not defined\n";
       assert(false);
     }
 
