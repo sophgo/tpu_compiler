@@ -18,11 +18,39 @@ COMPARE_ALL=1
 #     --input_num=100
 
 # import calibration table
+# autotune, relu-overwreite-forward
+# for autotune, relu-overwreite-forward, is slightly better in terms of similiarity
+# however, in terms of coco accuracy, relu-overwrite-backward is slightly better
 mlir-opt \
     --import-calibration-table \
     --calibration-table $REGRESSION_PATH/yolo_v3/data/yolo_v3_threshold_table_autotune \
     yolo_v3_416_opt.mlir \
     -o yolo_v3_416_cali.mlir
+
+# autotune, relu-overwreite-backward
+mlir-opt \
+    --import-calibration-table \
+    --enable-cali-overwrite-relu-threshold-forward=false \
+    --enable-cali-overwrite-relu-threshold-backward=true \
+    --calibration-table $REGRESSION_PATH/yolo_v3/data/yolo_v3_threshold_table_autotune \
+    yolo_v3_416_opt.mlir \
+    -o yolo_v3_416_cali_bwd.mlir
+
+# non-autotune, relu-overwrite-forward, this is the default option for now
+mlir-opt \
+    --import-calibration-table \
+    --calibration-table $REGRESSION_PATH/yolo_v3/data/yolo_v3_threshold_table \
+    yolo_v3_416_opt.mlir \
+    -o yolo_v3_416_cali_no_tune_fwd.mlir
+
+# non-autotune, relu-overwrite-backward
+mlir-opt \
+    --import-calibration-table \
+    --enable-cali-overwrite-relu-threshold-forward=false \
+    --enable-cali-overwrite-relu-threshold-backward=true \
+    --calibration-table $REGRESSION_PATH/yolo_v3/data/yolo_v3_threshold_table \
+    yolo_v3_416_opt.mlir \
+    -o yolo_v3_416_cali_no_tune_bwd.mlir
 
 mlir-opt \
     --import-calibration-table \
@@ -63,6 +91,8 @@ npz_compare.py \
       --op_info yolo_v3_op_info_int8_per_layer.csv \
       --dequant \
       --tolerance 0.98,0.92,0.82 -vvv
+      # --tolerance 0.97,0.85,0.77 -vvv  # no-tune version (relu-overwrite-backward)
+      # --tolerance 0.97,0.82,0.68 -vvv  # no-tune version (relu-overwrite-forward)
 
 if [ $COMPARE_ALL ]; then
   # some tensors do not pass due to threshold bypass
@@ -74,6 +104,8 @@ if [ $COMPARE_ALL ]; then
       --dequant \
       --excepts layer86-upsample,layer87-route,layer98-upsample,layer99-route \
       --tolerance 0.88,0.85,0.5 -vvv
+      # --tolerance 0.80,0.77,0.25 -vvv  # no-tune version (relu-overwrite-backward)
+      # --tolerance 0.78,0.73,0.24 -vvv  # no-tune version (relu-overwrite-forward)
 fi
 
 ################################
@@ -103,6 +135,8 @@ npz_compare.py \
       --op_info yolo_v3_op_info_int8_per_channel.csv \
       --dequant \
       --tolerance 0.99,0.96,0.87 -vvv
+      # --tolerance 0.98,0.89,0.81 -vvv  # no-tune version (relu-overwrite-backward)
+      # --tolerance 0.97,0.86,0.70 -vvv  # no-tune version (relu-overwrite-forward)
 
 if [ $COMPARE_ALL ]; then
   # some tensors do not pass due to threshold bypass
@@ -114,6 +148,9 @@ if [ $COMPARE_ALL ]; then
       --dequant \
       --excepts layer86-upsample,layer87-route,layer98-upsample,layer99-route \
       --tolerance 0.93,0.90,0.60 -vvv
+      # --tolerance 0.92,0.90,0.59 -vvv  # for autotune-relu-overwrite-backward
+      # --tolerance 0.83,0.81,0.36 -vvv  # no-tune version (relu-overwrite-backward)
+      # --tolerance 0.84,0.79,0.32 -vvv  # no-tune version (relu-overwrite-forward)
 fi
 
 ################################
@@ -143,6 +180,9 @@ npz_compare.py \
       --op_info yolo_v3_op_info_int8_multiplier.csv \
       --dequant \
       --tolerance 0.99,0.97,0.88 -vvv
+      # --tolerance 0.99,0.96,0.88 -vvv  # for autotune-relu-overwrite-backward
+      # --tolerance 0.99,0.90,0.82 -vvv  # no-tune version (relu-overwrite-backward)
+      # --tolerance 0.97,0.87,0.71 -vvv  # no-tune version (relu-overwrite-forward)
 
 if [ $COMPARE_ALL ]; then
   # some tensors do not pass due to threshold bypass
@@ -154,6 +194,9 @@ if [ $COMPARE_ALL ]; then
       --dequant \
       --excepts layer86-upsample,layer87-route,layer98-upsample,layer99-route \
       --tolerance 0.95,0.93,0.65 -vvv
+      # --tolerance 0.93,0.93,0.64 -vvv  # for autotune-relu-overwrite-backward
+      # --tolerance 0.83,0.81,0.36 -vvv  # no-tune version (relu-overwrite-backward)
+      # --tolerance 0.84,0.79,0.33 -vvv  # no-tune version (relu-overwrite-forward)
 fi
 
 # VERDICT

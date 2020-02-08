@@ -42,6 +42,17 @@ static llvm::cl::opt<std::string> clCalibrationTableFilename(
     llvm::cl::desc("Specify the calibration table filename"),
     llvm::cl::cat(clOptionsCategory));
 
+static llvm::cl::opt<bool> clCaliOverwriteReluThresholdForward(
+    "enable-cali-overwrite-relu-threshold-forward",
+    llvm::cl::desc("Overwrite threshold value for relu with prev Op's threshold"),
+    llvm::cl::cat(clOptionsCategory), llvm::cl::init(true));
+
+static llvm::cl::opt<bool> clCaliOverwriteReluThresholdBackward(
+    "enable-cali-overwrite-relu-threshold-backward",
+    llvm::cl::desc("Overwrite threshold value for the Op prev to relu "
+                   "with the relu's threshold"),
+    llvm::cl::cat(clOptionsCategory), llvm::cl::init(false));
+
 static llvm::cl::opt<bool> clCaliBybassBackpropagate(
     "enable-cali-bypass-backpropagate",
     llvm::cl::desc("Bypass calibration threshold value for ops like concat eltwise, "
@@ -193,7 +204,6 @@ struct BackpropgateUpsampleQuantPattern : public OpRewritePattern<tpu::UpsampleO
     return matchSuccess();
   }
 };
-
 
 /// Max forward concat threshold by setting all result's threshold_y same as
 /// the largest operands threshold_x.
@@ -378,9 +388,16 @@ public:
                      >(context);
     applyPatternsGreedily(fn, patterns_2);
 
-    // overwrite relu by default for now
-    // but not PRelu for now??? TODO: need test
-    if (true) {
+    if (clCaliOverwriteReluThresholdBackward) {
+      llvm::errs() << "Overwrite relu threshold backward\n";
+      assert(!clCaliOverwriteReluThresholdForward);
+      OwningRewritePatternList patterns_relu;
+      patterns_relu.insert<BackpropgateReluQuantPattern>(context);
+      applyPatternsGreedily(fn, patterns_relu);
+    }
+    if (clCaliOverwriteReluThresholdForward) {
+      llvm::errs() << "Overwrite relu threshold forward\n";
+      assert(!clCaliOverwriteReluThresholdBackward);
       OwningRewritePatternList patterns_relu;
       patterns_relu.insert<DefaultOverwriteThresholdPattern<tpu::ReluOp>
                           >(context);
@@ -388,6 +405,7 @@ public:
     }
 
     if (clCaliBybassBackpropagate) {
+      llvm::errs() << "Backpropage threshold for eltwise concat\n";
       OwningRewritePatternList patterns_bp;
       patterns_bp.insert<BackpropgateConcatQuantPattern,
                          BackpropgateEltwiseQuantPattern,
@@ -396,6 +414,7 @@ public:
                         >(context);
       applyPatternsGreedily(fn, patterns_bp);
     } else if (clCaliBybassMax) {
+      llvm::errs() << "Max threshold for eltwise concat\n";
       // forward bypass and max forward propergate first
       OwningRewritePatternList patterns_mx;
       patterns_mx.insert<MaxConcatQuantPattern,
@@ -430,7 +449,7 @@ private:
           assert(threshold_map[op_name]);
           threshold = threshold_map[op_name];
         }
-        os << " > " << op_name << ", " << threshold << "\n";
+        os << " > " << op_name << ", " << std::to_string(threshold) << "\n";
         cast_op.setAttr("threshold_y", builder.getF32FloatAttr(threshold));
       }
   }
