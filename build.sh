@@ -140,8 +140,8 @@ pushd $TPU_BASE/llvm-project/build
 cmake -G Ninja ../llvm -DLLVM_BUILD_EXAMPLES=ON \
     -DLLVM_TARGETS_TO_BUILD="host" -DCAFFE_PATH=$CAFFE_PATH \
     -DMKLDNN_PATH=$MKLDNN_PATH -DBMKERNEL_PATH=$BMKERNEL_PATH \
-    -DCMAKE_INSTALL_PREFIX=$MLIR_PATH -DLLVM_ENABLE_RTTI=ON -DLLVM_ENABLE_EH=ON \
-    -DCMAKE_BUILD_TYPE=RELWITHDEBINFO
+    -DCMAKE_INSTALL_PREFIX=$MLIR_PATH -DLLVM_ENABLE_RTTI=ON -DLLVM_ENABLE_EH=ON
+    # -DCMAKE_BUILD_TYPE=RELWITHDEBINFO  # REL build disables assert, use debug for now
 cmake --build . --target check-mlir
 cmake --build . --target pymlir
 popd
