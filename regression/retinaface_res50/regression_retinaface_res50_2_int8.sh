@@ -47,16 +47,6 @@ mlir-opt \
     retinaface_res50-opt-post-cali.mlir \
     -o retinaface_res50-int8.mlir
 
-# Quantization
-mlir-opt \
-    --quant-int8 \
-    --enable-conv-per-channel \
-    --enable-conv-multiplier \
-    --print-tpu-op-info \
-    --tpu-op-info-filename retinaface_res50_op_info_int8.csv \
-    retinaface_res50-cali.mlir \
-    -o retinaface_res50-int8.mlir
-
 # Interpreter int8 result
 mlir-tpu-interpreter retinaface_res50-int8.mlir \
     --tensor-in retinaface_res50_in_fp32.npz \
