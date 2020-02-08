@@ -45,13 +45,18 @@ static llvm::cl::opt<std::string> clCalibrationTableFilename(
 static llvm::cl::opt<bool> clCaliOverwriteReluThresholdForward(
     "enable-cali-overwrite-relu-threshold-forward",
     llvm::cl::desc("Overwrite threshold value for relu with prev Op's threshold"),
-    llvm::cl::cat(clOptionsCategory), llvm::cl::init(true));
+    llvm::cl::cat(clOptionsCategory), llvm::cl::init(false));
 
+// Overwrite former threshold of relu by default for now
+// Leaky Relu is similar to PRelu.
+// However, Leaky Relu is same as relu now.
+// Prelu need to rescale.
+// In bmtap2, threshold of relu is same as previous layer, leaky relu and prlu is different (need to rescale).
 static llvm::cl::opt<bool> clCaliOverwriteReluThresholdBackward(
     "enable-cali-overwrite-relu-threshold-backward",
     llvm::cl::desc("Overwrite threshold value for the Op prev to relu "
                    "with the relu's threshold"),
-    llvm::cl::cat(clOptionsCategory), llvm::cl::init(false));
+    llvm::cl::cat(clOptionsCategory), llvm::cl::init(true));
 
 static llvm::cl::opt<bool> clCaliBybassBackpropagate(
     "enable-cali-bypass-backpropagate",
