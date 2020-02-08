@@ -10,7 +10,7 @@ fi
 
 pushd $NET
 # clear previous output
-rm -f *.mlir *.bin *.npz *.csv *threshold_table
+rm -f *.mlir *.bin *.npz *.csv *threshold_table *.txt
 
 # run tests
 $DIR/regression_retinaface_res50_0_caffe.sh
