@@ -322,15 +322,17 @@ public:
     auto fn = getFunction();
 
     // load the table
+    // Support symmetric quantization only
     std::map<std::string, float> threshold_map;
     os << "Calibration Table File : " << clCalibrationTableFilename << "\n";
     std::ifstream infile(clCalibrationTableFilename);
     std::string line;
+    char parentheses;
     while (std::getline(infile, line)) {
       std::istringstream iss(line);
       std::string name;
       float threshold;
-      if (!(iss >> name >> threshold)) { break; }
+      if (!(iss >> name >> parentheses >> threshold >> parentheses)) { break; }
       std::cout << "  name " << name << ", threshold " << threshold << "\n";
       threshold_map[name] = threshold;
     }
