@@ -4,58 +4,25 @@ set -e
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 source $DIR/../../envsetup.sh
 
-# translate from caffe
-mlir-translate \
-    --caffe-to-mlir $MODEL_PATH/caffe/mobilenet_v2_deploy.prototxt \
-    --caffemodel $MODEL_PATH/caffe/mobilenet_v2.caffemodel \
-    -o mobilenet_v2.mlir
-
-# apply all possible pre-calibration optimizations
-mlir-opt \
-    --convert-bn-to-scale \
-    --fold-scale \
-    --merge-scale-into-conv \
-    mobilenet_v2.mlir \
-    -o mobilenet_v2_opt.mlir
-
-# import calibration table
-mlir-opt \
-    --import-calibration-table \
-    --calibration-table $DATA_PATH/bmnet_mobilenet_v2_calibration_table.1x10 \
-    mobilenet_v2_opt.mlir \
-    -o mobilenet_v2_cali.mlir
-
-# apply all possible post-calibration optimizations
-mlir-opt \
-    --fuse-relu \
-    mobilenet_v2_cali.mlir \
-    -o mobilenet_v2_opt_post_cali.mlir
-
 ################################
 # prepare int8 input
 ################################
+npz_to_bin.py mobilenet_v2_in_fp32.npz input mobilenet_v2_in_fp32.bin
 bin_fp32_to_int8.py \
-    $DATA_PATH/test_cat_in_fp32.bin \
-    in_int8.bin \
+    mobilenet_v2_in_fp32.bin \
+    mobilenet_v2_in_int8.bin \
     0.017 \
     2.56929183
-# check
-diff in_int8.bin $DATA_PATH/test_cat_in_mobilenet_v2_int8.bin
 
 ################################
 # quantization 1: per-layer int8
 ################################
-mlir-opt \
-    --quant-int8 \
-    mobilenet_v2_opt_post_cali.mlir \
-    -o mobilenet_v2_quant_int8_per_layer.mlir
-
 # assign weight address & neuron address
 mlir-opt \
     --assign-weight-address \
     --tpu-weight-address-align=16 \
     --tpu-weight-map-filename=weight_map.csv \
-    --tpu-weight-bin-filename=weight.bin \
+    --tpu-weight-bin-filename=weight_int8_per_layer.bin \
     --assign-neuron-address \
     --tpu-neuron-address-align=16 \
     --tpu-neuron-map-filename=neuron_map.csv \
@@ -63,29 +30,45 @@ mlir-opt \
     mobilenet_v2_quant_int8_per_layer.mlir | \
   mlir-translate \
     --mlir-to-cmdbuf \
-    -o cmdbuf.bin
+    -o cmdbuf_int8_per_layer.bin
+
+# generate cvi model
+python $CVIBUILDER_PATH/python/cvi_model_create.py \
+    --cmdbuf cmdbuf_int8_per_layer.bin \
+    --weight weight_int8_per_layer.bin \
+    --neuron_map neuron_map.csv \
+    --output=mobilenet_v2_int8_per_layer.cvimodel
 
 # run cmdbuf
-$RUNTIME_PATH/bin/test_bmnet \
-    in_int8.bin \
-    weight.bin \
-    cmdbuf.bin \
-    out_all.bin \
-    9405584 0 9405584 1
-bin_extract.py out_all.bin out_fc7.bin int8 0x00024c00 1000
-diff out_fc7.bin $DATA_PATH/test_cat_out_mobilenet_v2_fc7_int8_per_layer.bin
+#$RUNTIME_PATH/bin/test_bmnet \
+#    mobilenet_v2_in_int8.bin \
+#    weight_int8_per_layer.bin \
+#    cmdbuf_int8_per_layer.bin \
+#    mobilenet_v2_cmdbuf_out_all_int8_per_layer.bin \
+#    9405584 0 9405584 1
+$RUNTIME_PATH/bin/test_cvinet \
+    mobilenet_v2_in_int8.bin \
+    mobilenet_v2_int8_per_layer.cvimodel \
+    mobilenet_v2_cmdbuf_out_all_int8_per_layer.bin
 
-# run interpreter, to generate reference tensor all npz
-mlir-tpu-interpreter \
-    mobilenet_v2_quant_int8_per_layer.mlir \
-    --input-scale 0.017 \
-    --tensor-in $DATA_PATH/test_cat_in_fp32.bin \
-    --tensor-out dummy.bin \
-    --dump-all-tensor=tensor_all_int8_per_layer.npz
+bin_extract.py \
+    mobilenet_v2_cmdbuf_out_all_int8_per_layer.bin \
+    mobilenet_v2_cmdbuf_out_fc7_int8_per_layer.bin \
+    int8 0x00024c00 1000
+bin_compare.py \
+    mobilenet_v2_cmdbuf_out_fc7_int8_per_layer.bin \
+    $REGRESSION_PATH/mobilenet_v2/data/test_cat_out_mobilenet_v2_fc7_int8_per_layer.bin \
+    int8 1 1 1 1000 5
 
 # compare all tensors
-bin_to_npz.py out_all.bin neuron_map.csv out_all.npz
-npz_compare.py out_all.npz tensor_all_int8_per_layer.npz
+bin_to_npz.py \
+    mobilenet_v2_cmdbuf_out_all_int8_per_layer.bin \
+    neuron_map.csv \
+    mobilenet_v2_cmdbuf_out_all_int8_per_layer.npz
+npz_compare.py \
+    mobilenet_v2_cmdbuf_out_all_int8_per_layer.npz \
+    mobilenet_v2_tensor_all_int8_per_layer.npz \
+    --op_info mobilenet_v2_op_info_int8_per_layer.csv
 
 ################################
 # quantization 2: per-channel int8
@@ -94,21 +77,14 @@ npz_compare.py out_all.npz tensor_all_int8_per_layer.npz
 # skipped
 
 ################################
-# quantization 3: per-channel multiplier int8
+# quantization 3: multiplier int8
 ################################
-mlir-opt \
-    --quant-int8 \
-    --enable-conv-per-channel \
-    --enable-conv-multiplier \
-    mobilenet_v2_opt_post_cali.mlir \
-    -o mobilenet_v2_quant_int8_multiplier.mlir
-
 # assign weight address & neuron address
 mlir-opt \
     --assign-weight-address \
     --tpu-weight-address-align=16 \
     --tpu-weight-map-filename=weight_map.csv \
-    --tpu-weight-bin-filename=weight.bin \
+    --tpu-weight-bin-filename=weight_int8_multiplier.bin \
     --assign-neuron-address \
     --tpu-neuron-address-align=16 \
     --tpu-neuron-map-filename=neuron_map.csv \
@@ -116,29 +92,45 @@ mlir-opt \
     mobilenet_v2_quant_int8_multiplier.mlir | \
   mlir-translate \
     --mlir-to-cmdbuf \
-    -o cmdbuf.bin
+    -o cmdbuf_int8_multiplier.bin
+
+# generate cvi model
+python $CVIBUILDER_PATH/python/cvi_model_create.py \
+    --cmdbuf cmdbuf_int8_multiplier.bin \
+    --weight weight_int8_multiplier.bin \
+    --neuron_map neuron_map.csv \
+    --output=mobilenet_v2_int8_multiplier.cvimodel
 
 # run cmdbuf
-$RUNTIME_PATH/bin/test_bmnet \
-    in_int8.bin \
-    weight.bin \
-    cmdbuf.bin \
-    out_all.bin \
-    9405584 0 9405584 1
-bin_extract.py out_all.bin out_fc7.bin int8 0x00024c00 1000
-diff out_fc7.bin $DATA_PATH/test_cat_out_mobilenet_v2_fc7_int8_multiplier.bin
+#$RUNTIME_PATH/bin/test_bmnet \
+#    mobilenet_v2_in_int8.bin \
+#    weight_int8_multiplier.bin \
+#    cmdbuf_int8_multiplier.bin \
+#    mobilenet_v2_cmdbuf_out_all_int8_multiplier.bin \
+#    9405584 0 9405584 1
+$RUNTIME_PATH/bin/test_cvinet \
+    mobilenet_v2_in_int8.bin \
+    mobilenet_v2_int8_multiplier.cvimodel \
+    mobilenet_v2_cmdbuf_out_all_int8_multiplier.bin
 
-# run interpreter, to generate reference tensor all npz
-mlir-tpu-interpreter \
-    mobilenet_v2_quant_int8_multiplier.mlir \
-    --input-scale 0.017 \
-    --tensor-in $DATA_PATH/test_cat_in_fp32.bin \
-    --tensor-out dummy.bin \
-    --dump-all-tensor=tensor_all_int8_multiplier.npz
+bin_extract.py \
+    mobilenet_v2_cmdbuf_out_all_int8_multiplier.bin \
+    mobilenet_v2_cmdbuf_out_fc7_int8_multiplier.bin \
+    int8 0x00024c00 1000
+bin_compare.py \
+    mobilenet_v2_cmdbuf_out_fc7_int8_multiplier.bin \
+    $REGRESSION_PATH/mobilenet_v2/data/test_cat_out_mobilenet_v2_fc7_int8_multiplier.bin \
+    int8 1 1 1 1000 5
 
 # compare all tensors
-bin_to_npz.py out_all.bin neuron_map.csv out_all.npz
-npz_compare.py out_all.npz tensor_all_int8_multiplier.npz
+bin_to_npz.py \
+    mobilenet_v2_cmdbuf_out_all_int8_multiplier.bin \
+    neuron_map.csv \
+    mobilenet_v2_cmdbuf_out_all_int8_multiplier.npz
+npz_compare.py \
+    mobilenet_v2_cmdbuf_out_all_int8_multiplier.npz \
+    mobilenet_v2_tensor_all_int8_multiplier.npz \
+    --op_info mobilenet_v2_op_info_int8_multiplier.csv
 
 # VERDICT
 echo $0 PASSED
