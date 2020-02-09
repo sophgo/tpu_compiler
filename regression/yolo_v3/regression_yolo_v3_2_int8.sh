@@ -110,7 +110,7 @@ npz_compare.py \
       --dequant \
       --tolerance 0.98,0.93,0.84 -vvv  # autotune-relu-overwrite-backward (with leakyrelu only neg quant)
 
-if [ $COMPARE_ALL  -eq 1]; then
+if [ $COMPARE_ALL -eq 1 ]; then
   # some tensors do not pass due to threshold bypass
   # need do dequantization in interpreter directly
   npz_compare.py \
@@ -150,7 +150,7 @@ npz_compare.py \
       --dequant \
       --tolerance 0.99,0.95,0.87 -vvv  # autotune-relu-overwrite-backward (with leakyrelu only neg quant)
 
-if [ $COMPARE_ALL  -eq 1]; then
+if [ $COMPARE_ALL -eq 1 ]; then
   # some tensors do not pass due to threshold bypass
   # need do dequantization in interpreter directly
   npz_compare.py \
@@ -205,7 +205,7 @@ npz_compare.py \
       # --tolerance 0.99,0.90,0.82 -vvv  # for cali-no-tune-relu-overwrite-backward (before leakyrelu quant)
       # --tolerance 0.97,0.87,0.71 -vvv  # for cali-no-tune-relu-overwrite-forward (before leakyrelu quant)
 
-if [ $COMPARE_ALL  -eq 1]; then
+if [ $COMPARE_ALL -eq 1 ]; then
   # some tensors do not pass due to threshold bypass
   # need do dequantization in interpreter directly
   npz_compare.py \

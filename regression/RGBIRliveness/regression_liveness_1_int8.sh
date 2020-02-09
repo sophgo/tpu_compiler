@@ -39,7 +39,7 @@ npz_compare.py \
     liveness_out_int8_multiplier.npz \
     $REGRESSION_PATH/RGBIRliveness/data/liveness_out_int8_multiplier_fc2.npz -vvv
 
-if [ $COMPARE_ALL  -eq 1]; then
+if [ $COMPARE_ALL -eq 1 ]; then
   # this will fail for now, because prob has been dequantized twice, others should pass
   npz_compare.py \
       liveness_tensor_all_int8_multiplier.npz \
