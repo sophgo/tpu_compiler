@@ -22,6 +22,7 @@ python $PYTHON_TOOLS_PATH/model/retinaface/calibrate_retinaface.py \
     cali_list_widerface_100.txt \
     retinaface_res50_threshold_table \
     --input_num=100 \
+    --histogram_bin_num=65536 \
     --out_path=. \
     --math_lib_path=$CALIBRATION_TOOL_PATH/calibration_math.so
 
@@ -47,16 +48,6 @@ mlir-opt \
     retinaface_res50-opt-post-cali.mlir \
     -o retinaface_res50-int8.mlir
 
-# Quantization
-mlir-opt \
-    --quant-int8 \
-    --enable-conv-per-channel \
-    --enable-conv-multiplier \
-    --print-tpu-op-info \
-    --tpu-op-info-filename retinaface_res50_op_info_int8.csv \
-    retinaface_res50-cali.mlir \
-    -o retinaface_res50-int8.mlir
-
 # Interpreter int8 result
 mlir-tpu-interpreter retinaface_res50-int8.mlir \
     --tensor-in retinaface_res50_in_fp32.npz \
@@ -73,7 +64,7 @@ npz_compare.py \
       retinaface_res50_caffe_blobs.npz \
       --op_info retinaface_res50_op_info_int8.csv \
       --dequant \
-      --tolerance 0.9,0.9,0.8 -vvv
+      --tolerance 0.95,0.95,0.65 -vvv
 
 if [ $COMPARE_ALL ]; then
     # this will fail for now
@@ -82,7 +73,7 @@ if [ $COMPARE_ALL ]; then
       retinaface_res50_caffe_blobs.npz \
       --op_info retinaface_res50_op_info_int8.csv \
       --dequant \
-      --tolerance 0.9,0.9,0.8 -vvv
+      --tolerance 0.9,0.9,0.6 -vvv
 fi
 
 # VERDICT
