@@ -123,7 +123,7 @@ struct BackwardOverwriteThresholdReluPattern : public OpRewritePattern<tpu::Relu
   PatternMatchResult matchAndRewrite(tpu::ReluOp op,
                                      PatternRewriter &rewriter) const {
     float threshold_y = getOpThreshold(op);
-    auto formerOp = op.getOperand()->getDefiningOp();
+    auto formerOp = op.getOperand(0)->getDefiningOp();
     float threshold_x = getPreviousOpThreshold(op, 0);
     if (threshold_x == threshold_y) {
       return matchFailure();

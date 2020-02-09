@@ -86,6 +86,13 @@ void getPReluOpVariadicTensors(tpu::PReluOp &op,
     std::shared_ptr<std::vector<float> > &multiplier_pos,
     std::shared_ptr<std::vector<float> > &rshift_neg);
 
+void getReluOpVariadicTensors(tpu::ReluOp &op,
+    std::vector<std::shared_ptr<std::vector<float> > > &opdT,
+    std::shared_ptr<std::vector<float> > &rshift_pos,
+    std::shared_ptr<std::vector<float> > &multiplier_pos,
+    std::shared_ptr<std::vector<float> > &rshift_neg,
+    std::shared_ptr<std::vector<float> > &multiplier_neg);
+
 } // namespace mlir
 
 #endif // MLIR_DIALECT_TPU_OPERATION_SUPPORT_H_

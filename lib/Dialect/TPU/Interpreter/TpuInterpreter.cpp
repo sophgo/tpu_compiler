@@ -545,6 +545,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     LLVM_DEBUG(llvm::errs() << "ReluOp" << "\n";);
     auto opdT = getOperandTensors(opInst, valueMapping);
     auto result = op.getResult();
+    LLVM_DEBUG(llvm::errs() << "  name " << op.name() << "\n";);
     LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";);
     std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
     assert(shape.size() <= 4);
@@ -560,30 +561,62 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     std::vector<int64_t> o_s(output_type.getShape());
     assert((i_s == o_s) && "input shape not equal to output shape");
 
-    int ret = 0 ;
-    if(i_s.size() == 4){
-
-    n = i_s[0];
-    c = i_s[1];
-    h = i_s[2];
-    w = i_s[3];
-
     float *input = (float *)opdT[0]->data();
     float *output = (float *)resultT.get()->data();
-    ret = my_relu(input, output, n, c, h, w, negative_slope);
 
-    }else if(i_s.size() == 2){ //for (h w) shape relu
+    if (op.quant() == "NONE" || op.quant() == "BF16") {
+      if(i_s.size() == 4) {
+        n = i_s[0];
+        c = i_s[1];
+        h = i_s[2];
+        w = i_s[3];
+      } else if (i_s.size() == 2) {
+        n = 1;
+        c = 1;
+        h = i_s[0];
+        w = i_s[1];
+      } else {
+        assert(false);
+      }
+      int ret = my_relu(input, output, n, c, h, w, negative_slope);
+      assert(ret == 0);
+    } else if (op.quant() == "INT8") {
+      std::shared_ptr<std::vector<float> > rshift_pos = nullptr;
+      std::shared_ptr<std::vector<float> > multiplier_pos = nullptr;
+      std::shared_ptr<std::vector<float> > rshift_neg = nullptr;
+      std::shared_ptr<std::vector<float> > multiplier_neg = nullptr;
 
-      n = 1;
-      c = 1;
-      h = i_s[0];
-      w = i_s[1];
-      float *input = (float *)opdT[0]->data();
-      float *output = (float *)resultT.get()->data();
-      ret = my_relu(input, output, n, c, h, w, negative_slope);
+      getReluOpVariadicTensors(op, opdT, rshift_pos, multiplier_pos, rshift_neg, multiplier_neg);
 
+      assert(rshift_pos);
+      assert(rshift_neg);
+      assert(multiplier_pos);
+      assert(multiplier_neg);
+
+      LLVM_DEBUG(llvm::errs() << "    rshift_pos " << std::to_string(rshift_pos->at(0)) << "\n";);
+      LLVM_DEBUG(llvm::errs() << "    multiplier_pos " << std::to_string(multiplier_pos->at(0)) << "\n";);
+      LLVM_DEBUG(llvm::errs() << "    rshift_neg " << std::to_string(rshift_neg->at(0)) << "\n";);
+      LLVM_DEBUG(llvm::errs() << "    multiplier_neg " << std::to_string(multiplier_neg->at(0)) << "\n";);
+
+      bool do_pos_scale = (multiplier_pos->at(0) != 0.0) ? true : false;
+      LLVM_DEBUG(llvm::errs() << "    do_pos_scale " << std::to_string(do_pos_scale) << "\n";);
+
+      for (int i = 0; i < size; ++i) {
+        if (input[i] > 0){
+          if (do_pos_scale) {
+            output[i] = (float)applyMultiplierAndRShiftAndSaturateInt8(
+                input[i], (uint32_t)rshift_pos->at(0), multiplier_pos->at(0), false);
+          } else {
+            output[i] = input[i];
+          }
+        } else {
+          output[i] = (float)applyMultiplierAndRShiftAndSaturateInt8(
+              input[i], (uint32_t)rshift_neg->at(0), multiplier_neg->at(0), false);
+        }
+      }
+    } else {
+      assert(false);
     }
-    assert(ret == 0);
 
     valueMapping[result] = std::move(resultT);
 
@@ -622,13 +655,12 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     int ret = my_prelu(input, output, n, c, h, w, negative_slope);
     assert(ret == 0);
 
-    // rshift and saturate on output
-    if (op.quant() == "INT8" || op.quant() == "INT8_PER_CHANNEL"
-                             || op.quant() == "INT8_MULTIPLIER") {
+    if (op.quant() == "NONE" || op.quant() == "BF16") {
+    } else if (op.quant() == "INT8") {
       std::shared_ptr<std::vector<float> > rshift_pos = nullptr;
       std::shared_ptr<std::vector<float> > multiplier_pos = nullptr;
       std::shared_ptr<std::vector<float> > rshift_neg = nullptr;
-      std::shared_ptr<std::vector<float> > multiplier_neg = nullptr;
+      // std::shared_ptr<std::vector<float> > multiplier_neg = nullptr;
 
       // getPReluOpVariadicTensors(op, opdT, rshift_pos, rshift_neg, multiplier_pos, multiplier_neg);
       getPReluOpVariadicTensors(op, opdT, rshift_pos, multiplier_pos, rshift_neg);
@@ -649,6 +681,8 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
               resultT->at(i), (uint32_t)rshift_neg->at(0));
         }
       }
+    } else {
+      assert(false);
     }
 
     valueMapping[result] = std::move(resultT);
@@ -1512,9 +1546,8 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     auto resultT = std::make_unique<std::vector<float> >(size);
     float eps = 1.0e-5;
 
-
     float threshold_y,threshold_x;
-    uint32_t multiplier;
+    //uint32_t multiplier;
     if (op.quant() == "INT8"|| op.quant() == "INT8_PER_CHANNEL"||op.quant() == "INT8_MULTIPLIER") {
       threshold_y = op.threshold_y().getValue().convertToFloat();
       threshold_x = getPreviousOpThreshold(op);
