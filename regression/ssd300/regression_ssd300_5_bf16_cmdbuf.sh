@@ -31,22 +31,21 @@ mlir-opt \
 # backend translate into cmdbuf
 mlir-translate \
     --mlir-to-cmdbuf \
-        -debug \
     ssd300_quant_bf16_addr.mlir \
     -o cmdbuf_bf16.bin
 
 
-# generate cvi model
-# python $CVIBUILDER_PATH/python/cvi_model_create.py \
-#     --cmdbuf cmdbuf_bf16.bin \
-#     --weight weight_bf16.bin \
-#     --neuron_map neuron_map_bf16.csv \
-#     --output=ssd300_bf16.cvimodel
+generate cvi model
+python $CVIBUILDER_PATH/python/cvi_model_create.py \
+    --cmdbuf cmdbuf_bf16.bin \
+    --weight weight_bf16.bin \
+    --neuron_map neuron_map_bf16.csv \
+    --output=ssd300_bf16.cvimodel
 
-# $RUNTIME_PATH/bin/test_cvinet \
-#     ssd300_in_bf16.bin \
-#     ssd300_bf16.cvimodel \
-#     ssd300_cmdbuf_out_all_bf16.bin
+$RUNTIME_PATH/bin/test_cvinet \
+    ssd300_in_bf16.bin \
+    ssd300_bf16.cvimodel \
+    ssd300_cmdbuf_out_all_bf16.bin
 
 
 # # run cmdbuf
