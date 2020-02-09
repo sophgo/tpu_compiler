@@ -7,11 +7,21 @@ source $DIR/../../envsetup.sh
 COMPARE_ALL=1
 
 # import calibration table
+# relu-overwrite-backward is the default (20200209)
 mlir-opt \
     --import-calibration-table \
     --calibration-table $REGRESSION_PATH/mobilenet_v2/data/mobilenet_v2_calibration_table \
     mobilenet_v2_opt.mlir \
     -o mobilenet_v2_cali.mlir
+
+# for mobilenet_v2_calibration_table, fwd and bwd are the same
+mlir-opt \
+    --import-calibration-table \
+    --enable-cali-overwrite-threshold-forward-relu=true \
+    --enable-cali-overwrite-threshold-backward-relu=false \
+    --calibration-table $REGRESSION_PATH/mobilenet_v2/data/mobilenet_v2_calibration_table \
+    mobilenet_v2_opt.mlir \
+    -o mobilenet_v2_cali_fwd.mlir
 
 # apply post-calibration optimizations
 # not applying --fuse-eltwise for now
@@ -43,7 +53,7 @@ bin_compare.py \
     $REGRESSION_PATH/mobilenet_v2/data/test_cat_out_mobilenet_v2_fc7_int8_per_layer.bin \
     int8 1 1 1 1000 5
 
-if [ $COMPARE_ALL ]; then
+if [ $COMPARE_ALL -eq 1 ]; then
   # this will fail for now, because prob has been dequantized twice, others should pass
   npz_compare.py \
       mobilenet_v2_tensor_all_int8_per_layer.npz \
@@ -78,7 +88,7 @@ bin_compare.py \
     $REGRESSION_PATH/mobilenet_v2/data/test_cat_out_mobilenet_v2_fc7_int8_per_channel.bin \
     int8 1 1 1 1000 5
 
-if [ $COMPARE_ALL ]; then
+if [ $COMPARE_ALL -eq 1 ]; then
   # this will fail for now, because prob has been dequantized twice, others should pass
   npz_compare.py \
       mobilenet_v2_tensor_all_int8_per_channel.npz \
@@ -114,7 +124,7 @@ bin_compare.py \
     $REGRESSION_PATH/mobilenet_v2/data/test_cat_out_mobilenet_v2_fc7_int8_multiplier.bin \
     int8 1 1 1 1000 5
 
-if [ $COMPARE_ALL ]; then
+if [ $COMPARE_ALL -eq 1 ]; then
   # this will fail for now, because prob has been dequantized twice, others should pass
   npz_compare.py \
       mobilenet_v2_tensor_all_int8_multiplier.npz \

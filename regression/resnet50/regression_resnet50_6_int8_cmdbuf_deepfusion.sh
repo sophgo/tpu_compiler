@@ -91,7 +91,7 @@ bin_compare.py \
     $REGRESSION_PATH/resnet50/data/test_cat_out_resnet50_fc1000_int8_multiplier.bin \
     int8 1 1 1 1000 5
 
-if [ $COMPARE_ALL ]; then
+if [ $COMPARE_ALL  -eq 1]; then
   bin_to_npz.py \
       out_all_la.bin \
       neuron_map.csv \

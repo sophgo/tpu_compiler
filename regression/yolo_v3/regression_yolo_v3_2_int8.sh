@@ -18,11 +18,14 @@ COMPARE_ALL=1
 #     --input_num=100
 
 # import calibration table
-# autotune, relu-overwreite-forward
+# relu-overwrite-backward is the default (20200209)
+# autotune, relu-overwrite-forward
 # for autotune, relu-overwreite-forward, is slightly better in terms of similiarity
 # however, in terms of coco accuracy, relu-overwrite-backward is slightly better
 mlir-opt \
     --import-calibration-table \
+    --enable-cali-overwrite-threshold-forward-relu=true \
+    --enable-cali-overwrite-threshold-backward-relu=false \
     --calibration-table $REGRESSION_PATH/yolo_v3/data/yolo_v3_threshold_table_autotune \
     yolo_v3_416_opt.mlir \
     -o yolo_v3_416_cali.mlir
@@ -30,8 +33,6 @@ mlir-opt \
 # autotune, relu-overwreite-backward
 mlir-opt \
     --import-calibration-table \
-    --enable-cali-overwrite-relu-threshold-forward=false \
-    --enable-cali-overwrite-relu-threshold-backward=true \
     --calibration-table $REGRESSION_PATH/yolo_v3/data/yolo_v3_threshold_table_autotune \
     yolo_v3_416_opt.mlir \
     -o yolo_v3_416_cali_bwd.mlir
@@ -39,6 +40,8 @@ mlir-opt \
 # non-autotune, relu-overwrite-forward, this is the default option for now
 mlir-opt \
     --import-calibration-table \
+    --enable-cali-overwrite-threshold-forward-relu=true \
+    --enable-cali-overwrite-threshold-backward-relu=false \
     --calibration-table $REGRESSION_PATH/yolo_v3/data/yolo_v3_threshold_table \
     yolo_v3_416_opt.mlir \
     -o yolo_v3_416_cali_no_tune_fwd.mlir
@@ -46,23 +49,23 @@ mlir-opt \
 # non-autotune, relu-overwrite-backward
 mlir-opt \
     --import-calibration-table \
-    --enable-cali-overwrite-relu-threshold-forward=false \
-    --enable-cali-overwrite-relu-threshold-backward=true \
     --calibration-table $REGRESSION_PATH/yolo_v3/data/yolo_v3_threshold_table \
     yolo_v3_416_opt.mlir \
     -o yolo_v3_416_cali_no_tune_bwd.mlir
 
+# non-autotune, concat-overwrite-backward
 mlir-opt \
     --import-calibration-table \
+    --enable-cali-overwrite-threshold-backward-concat \
     --calibration-table $REGRESSION_PATH/yolo_v3/data/yolo_v3_threshold_table \
-    --enable-cali-bypass-backpropagate \
     yolo_v3_416_opt.mlir \
     -o yolo_v3_416_cali_bp.mlir
 
+# non-autotune, concat-overwrite-max
 mlir-opt \
     --import-calibration-table \
+    --enable-cali-overwrite-threshold-max-concat \
     --calibration-table $REGRESSION_PATH/yolo_v3/data/yolo_v3_threshold_table \
-    --enable-cali-bypass-max \
     yolo_v3_416_opt.mlir \
     -o yolo_v3_416_cali_max.mlir
 
@@ -94,7 +97,7 @@ npz_compare.py \
       # --tolerance 0.97,0.85,0.77 -vvv  # no-tune version (relu-overwrite-backward)
       # --tolerance 0.97,0.82,0.68 -vvv  # no-tune version (relu-overwrite-forward)
 
-if [ $COMPARE_ALL ]; then
+if [ $COMPARE_ALL  -eq 1]; then
   # some tensors do not pass due to threshold bypass
   # need do dequantization in interpreter directly
   npz_compare.py \
@@ -138,7 +141,7 @@ npz_compare.py \
       # --tolerance 0.98,0.89,0.81 -vvv  # no-tune version (relu-overwrite-backward)
       # --tolerance 0.97,0.86,0.70 -vvv  # no-tune version (relu-overwrite-forward)
 
-if [ $COMPARE_ALL ]; then
+if [ $COMPARE_ALL  -eq 1]; then
   # some tensors do not pass due to threshold bypass
   # need do dequantization in interpreter directly
   npz_compare.py \
@@ -184,7 +187,7 @@ npz_compare.py \
       # --tolerance 0.99,0.90,0.82 -vvv  # no-tune version (relu-overwrite-backward)
       # --tolerance 0.97,0.87,0.71 -vvv  # no-tune version (relu-overwrite-forward)
 
-if [ $COMPARE_ALL ]; then
+if [ $COMPARE_ALL  -eq 1]; then
   # some tensors do not pass due to threshold bypass
   # need do dequantization in interpreter directly
   npz_compare.py \

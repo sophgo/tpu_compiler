@@ -43,7 +43,7 @@ bin_compare.py \
     $REGRESSION_PATH/resnet50/data/test_cat_out_resnet50_fc1000_int8_per_layer.bin \
     int8 1 1 1 1000 5
 
-if [ $COMPARE_ALL ]; then
+if [ $COMPARE_ALL  -eq 1]; then
   # this will fail for now, because prob has been dequantized twice, others should pass
   npz_compare.py \
       resnet50_tensor_all_int8_per_layer.npz \
@@ -78,7 +78,7 @@ bin_compare.py \
     $REGRESSION_PATH/resnet50/data/test_cat_out_resnet50_fc1000_int8_per_channel.bin \
     int8 1 1 1 1000 5
 
-if [ $COMPARE_ALL ]; then
+if [ $COMPARE_ALL  -eq 1]; then
   # this will fail for now, because prob has been dequantized twice, others should pass
   npz_compare.py \
       resnet50_tensor_all_int8_per_channel.npz \
@@ -114,7 +114,7 @@ bin_compare.py \
     $REGRESSION_PATH/resnet50/data/test_cat_out_resnet50_fc1000_int8_multiplier.bin \
     int8 1 1 1 1000 5
 
-if [ $COMPARE_ALL ]; then
+if [ $COMPARE_ALL  -eq 1]; then
   # this will fail for now, because prob has been dequantized twice, others should pass
   npz_compare.py \
       resnet50_tensor_all_int8_multiplier.npz \
