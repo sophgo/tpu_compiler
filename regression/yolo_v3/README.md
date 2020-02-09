@@ -23,7 +23,10 @@ link
       - conflict with similarilty results (forward has slightly better similarity)
     - no-tune: backward is better than forward (0.325 vs 0.314)
       - TODO : to add no forward/backward, but need to apply scale on relu
-
+    - concat-overwrite (helps on performance, may suffer accuracy slightly)
+      - concat backward overwrite makes almost no drop (0.325 vx.0.325)
+      - concat max overwrite drops slightly (0.323 vs 0.325)
+      - previous eltwise backward overwrite version even helps in accuracy (0.331 vs 0.325), is due to it accidently enlarged the thresholds on former layers, which actually helps on non-autotune version, but that is not the proper solution
   - autotune (relu-overwrite-backward)
 
     ```bash
@@ -90,6 +93,40 @@ link
      Average Recall     (AR) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.197
      Average Recall     (AR) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.461
      Average Recall     (AR) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.601
+    ```
+
+  - cali-no-tune (concat-overwrite-backward)
+
+    ```bash
+     Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.337
+     Average Precision  (AP) @[ IoU=0.50      | area=   all | maxDets=100 ] = 0.637
+     Average Precision  (AP) @[ IoU=0.75      | area=   all | maxDets=100 ] = 0.325
+     Average Precision  (AP) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.170
+     Average Precision  (AP) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.371
+     Average Precision  (AP) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.505
+     Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=  1 ] = 0.267
+     Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets= 10 ] = 0.412
+     Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.435
+     Average Recall     (AR) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.247
+     Average Recall     (AR) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.478
+     Average Recall     (AR) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.598
+    ```
+
+  - cali-no-tune (concat-overwrite-max)
+
+    ```bash
+     Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.336
+     Average Precision  (AP) @[ IoU=0.50      | area=   all | maxDets=100 ] = 0.638
+     Average Precision  (AP) @[ IoU=0.75      | area=   all | maxDets=100 ] = 0.323
+     Average Precision  (AP) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.171
+     Average Precision  (AP) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.370
+     Average Precision  (AP) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.501
+     Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=  1 ] = 0.267
+     Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets= 10 ] = 0.412
+     Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.434
+     Average Recall     (AR) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.247
+     Average Recall     (AR) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.476
+     Average Recall     (AR) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.596
     ```
 
 - 20200202 (with enable-cali-bypass-backpropagate/max, should be a little worse)

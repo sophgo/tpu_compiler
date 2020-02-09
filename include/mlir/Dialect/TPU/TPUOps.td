@@ -501,8 +501,7 @@ def TPU_PriorBoxOp: TPU_Op<"priorbox",
 }
 
 def TPU_ReluOp: TPU_Op<"relu",
-      [NoSideEffect, SameOperandsAndResultType,
-       DeclareOpInterfaceMethods<TpuInterface>]> {
+      [NoSideEffect, DeclareOpInterfaceMethods<TpuInterface>]> {
   let summary = "Relu/LeakyRelu/Relu6 operator";
 
   let description = [{
@@ -516,6 +515,7 @@ def TPU_ReluOp: TPU_Op<"relu",
 
   let arguments = (
     ins AnyTensor:$x,
+    Variadic<AnyTensor>:$useless,
     DefaultValuedAttr<F32Attr, "0.0">:$negative_slope,
     OptionalAttr<F32Attr>:$maximum,
     OptionalAttr<StrAttr>:$name,
