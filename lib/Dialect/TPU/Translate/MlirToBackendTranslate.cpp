@@ -1325,20 +1325,21 @@ static LogicalResult runOperation(Operation &opInst) {
     c = i_s[1];
     h = i_s[2];
     w = i_s[3];
+    if (op.quant() == "INT8"|| op.quant() == "INT8_PER_CHANNEL"||op.quant() == "INT8_MULTIPLIER"){
+
     gaddr_t input_gaddr = getPreviousOpAddress(op);
     gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
     gaddr_t y0_table_gaddr = getWeightOpAddress(op.getOperand(1)->getDefiningOp());
 
     int layer_id = op.layer_id().getValue().getLimitedValue();
-    if (op.quant() == "INT8"|| op.quant() == "INT8_PER_CHANNEL"||op.quant() == "INT8_MULTIPLIER"){
-      sqrt_fixed_forward_bmkernel(*backend_ctx,
-                                     0,        // stream_id,
-                                     0,        // inst_id,
-                                     layer_id, // layer_id,
-                                     nullptr,  // const u32 *depends,
-                                     0,        // depends_len,
-                                     input_gaddr, output_gaddr, y0_table_gaddr,
-                                     n, c, h, w);
+    sqrt_fixed_forward_bmkernel(*backend_ctx,
+                                   0,        // stream_id,
+                                   0,        // inst_id,
+                                   layer_id, // layer_id,
+                                   nullptr,  // const u32 *depends,
+                                   0,        // depends_len,
+                                   input_gaddr, output_gaddr, y0_table_gaddr,
+                                   n, c, h, w);
 
     } else {
       llvm::errs() << "not support yet \n";
@@ -1361,29 +1362,27 @@ static LogicalResult runOperation(Operation &opInst) {
     c = i_s[1];
     h = i_s[2];
     w = i_s[3];
+    if (op.quant() == "INT8"|| op.quant() == "INT8_PER_CHANNEL"||op.quant() == "INT8_MULTIPLIER"){
 
     gaddr_t input_gaddr = getPreviousOpAddress(op);
     gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
     gaddr_t y0_table_gaddr = getWeightOpAddress(op.getOperand(1)->getDefiningOp());
 
     int layer_id = op.layer_id().getValue().getLimitedValue();
-
-
-    if (op.quant() == "INT8"|| op.quant() == "INT8_PER_CHANNEL"||op.quant() == "INT8_MULTIPLIER"){
-      reciprocal_fixed_forward_bmkernel(
-          *backend_ctx,
-          0, //stream_id,
-          0, //inst_id,
-          layer_id, //layer_id,
-          nullptr, //const u32 *depends,
-          0, //depends_len,
-          input_gaddr,
-          output_gaddr,
-          y0_table_gaddr,
-          n,
-          c,
-          h,
-          w);
+    reciprocal_fixed_forward_bmkernel(
+        *backend_ctx,
+        0, //stream_id,
+        0, //inst_id,
+        layer_id, //layer_id,
+        nullptr, //const u32 *depends,
+        0, //depends_len,
+        input_gaddr,
+        output_gaddr,
+        y0_table_gaddr,
+        n,
+        c,
+        h,
+        w);
     }
     else {
       LLVM_DEBUG(llvm::errs() << "not support yet \n";);
@@ -1565,7 +1564,9 @@ static LogicalResult runOperation(Operation &opInst) {
       // scale from weight
       scale_gaddr = getWeightOpAddress(op.getOperand(1)->getDefiningOp());
       scale_dim = n * c;
-      bias_gaddr = getWeightOpAddress(op.getOperand(2)->getDefiningOp());
+      if (do_bias){
+          bias_gaddr = getWeightOpAddress(op.getOperand(2)->getDefiningOp());
+      }
     } else {
       // scale from input
       scale_gaddr = getPreviousOpAddress(op, 1);
