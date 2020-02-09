@@ -3,7 +3,10 @@ set -e
 
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 source $DIR/../../envsetup.sh
+
 echo $0 IS RUNNING
+
+COMPARE_ALL=1
 
 # import calibration table
 mlir-opt \
@@ -41,7 +44,7 @@ mlir-tpu-interpreter inception_v4_quant_int8_per_layer.mlir \
 #    $REGRESSION_PATH/inception_v4/data/test_cat_out_inception_v4_classifier_int8_per_layer.bin \
 #    int8 1 1 1 1000 5
 #
-#if [ $COMPARE_ALL ]; then
+#if [ $COMPARE_ALL -eq 1 ]; then
 #  # this will fail for now, because prob has been dequantized twice, others should pass
 #  # need to check torlerance later
 #  npz_compare.py \
@@ -76,7 +79,7 @@ mlir-tpu-interpreter inception_v4_quant_int8_per_channel.mlir \
 #    $REGRESSION_PATH/inception_v4/data/test_cat_out_inception_v4_classifier_int8_per_channel.bin \
 #    int8 1 1 1 1000 5
 #
-#if [ $COMPARE_ALL ]; then
+#if [ $COMPARE_ALL -eq 1 ]; then
 #  # this will fail for now, because prob has been dequantized twice, others should pass
 #  # need to check torlerance later
 #  npz_compare.py \
@@ -112,7 +115,7 @@ mlir-tpu-interpreter inception_v4_quant_int8_multiplier.mlir \
 #    $REGRESSION_PATH/inception_v4/data/test_cat_out_inception_v4_classifier_int8_multiplier.bin \
 #    int8 1 1 1 1000 5
 #
-#if [ $COMPARE_ALL ]; then
+#if [ $COMPARE_ALL -eq 1 ]; then
 #  # this will fail for now, because prob has been dequantized twice, others should pass
 #  # need to check torlerance later
 #  npz_compare.py \
