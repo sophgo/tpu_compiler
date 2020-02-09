@@ -35,7 +35,7 @@ mlir-translate \
     -o cmdbuf_bf16.bin
 
 
-generate cvi model
+#generate cvi model
 python $CVIBUILDER_PATH/python/cvi_model_create.py \
     --cmdbuf cmdbuf_bf16.bin \
     --weight weight_bf16.bin \
