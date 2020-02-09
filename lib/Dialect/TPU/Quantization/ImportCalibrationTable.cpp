@@ -45,13 +45,18 @@ static llvm::cl::opt<std::string> clCalibrationTableFilename(
 static llvm::cl::opt<bool> clCaliOverwriteReluThresholdForward(
     "enable-cali-overwrite-relu-threshold-forward",
     llvm::cl::desc("Overwrite threshold value for relu with prev Op's threshold"),
-    llvm::cl::cat(clOptionsCategory), llvm::cl::init(true));
+    llvm::cl::cat(clOptionsCategory), llvm::cl::init(false));
 
+// Overwrite former threshold of relu by default for now
+// Leaky Relu is similar to PRelu.
+// However, Leaky Relu is same as relu now.
+// Prelu need to rescale.
+// In bmtap2, threshold of relu is same as previous layer, leaky relu and prlu is different (need to rescale).
 static llvm::cl::opt<bool> clCaliOverwriteReluThresholdBackward(
     "enable-cali-overwrite-relu-threshold-backward",
     llvm::cl::desc("Overwrite threshold value for the Op prev to relu "
                    "with the relu's threshold"),
-    llvm::cl::cat(clOptionsCategory), llvm::cl::init(false));
+    llvm::cl::cat(clOptionsCategory), llvm::cl::init(true));
 
 static llvm::cl::opt<bool> clCaliBybassBackpropagate(
     "enable-cali-bypass-backpropagate",
@@ -170,7 +175,18 @@ struct BackpropgateReluQuantPattern : public OpRewritePattern<tpu::ReluOp> {
                    << threshold_x << " to " << threshold_y << "\n";
       assert(threshold_x > threshold_y * 0.5 && threshold_x < threshold_y * 1.5);
       cast_op.setAttr("threshold_y", rewriter.getF32FloatAttr(threshold_y));
+    } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::ConcatOp>(formerOp)) {
+      float threshold_x = cast_op.threshold_y().getValue().convertToFloat();
+      llvm::errs() << "Relu set prev FullyConnected threshold from "
+                   << threshold_x << " to " << threshold_y << "\n";
+      cast_op.setAttr("threshold_y", rewriter.getF32FloatAttr(threshold_y));
+    } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::ScaleOp>(formerOp)) {
+      float threshold_x = cast_op.threshold_y().getValue().convertToFloat();
+      llvm::errs() << "Relu set prev FullyConnected threshold from "
+                   << threshold_x << " to " << threshold_y << "\n";
+      cast_op.setAttr("threshold_y", rewriter.getF32FloatAttr(threshold_y));
     } else {
+      llvm::errs() << formerOp->getName() << ": behavior not defined\n";
       assert(false);
     }
 
