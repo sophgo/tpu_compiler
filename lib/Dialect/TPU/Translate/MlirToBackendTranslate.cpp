@@ -1561,19 +1561,27 @@ static LogicalResult runOperation(Operation &opInst) {
     // TODO: support axis > 0, now
     int inner_dim = h * w;
     // TODO: support variable input[1] shape, currently ONLY verify <n,c,h,w> X <n,c>
-    if (second_is_load_weight) {
+    if (second_is_load_weight && op.quant() == "INT8_PER_CHANNEL") {
       // scale from weight
       scale_gaddr = getWeightOpAddress(op.getOperand(1)->getDefiningOp());
       scale_dim = n * c;
+      // int8 will pack pack rshift and multipiler no matter if has bias
       bias_gaddr = getWeightOpAddress(op.getOperand(2)->getDefiningOp());
-    } else {
+    } else if (!second_is_load_weight && op.quant() == "INT8") {
       // scale from input
       scale_gaddr = getPreviousOpAddress(op, 1);
       scale_dim = n * c;
-      // pack rshift and multipiler
+      // int8 pack rshift and multipiler
       pack_gaddr = getWeightOpAddress(op.getOperand(2)->getDefiningOp());
+    } else if (op.quant() == "BF16") {
+      scale_gaddr = getPreviousOpAddress(op, 1);
+      scale_dim = n * c;
+      if(do_bias){
+        bias_gaddr = getWeightOpAddress(op.getOperand(2)->getDefiningOp());
+      }
+    } else{
+      assert(0 && "not supprt this condiction");
     }
-
 
 #define RELU (0)
     bool do_relu = false;
@@ -1639,8 +1647,6 @@ static LogicalResult runOperation(Operation &opInst) {
                                 do_bias, second_is_load_weight);
 
     } else if (op.quant() == "BF16") {
-      assert(second_is_load_weight &&
-             "BF16 only when the second input is from weight");
       bf16_scale_forward_kernel(
           *backend_ctx, // ctx
           0,            // stream_id
