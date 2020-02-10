@@ -311,8 +311,8 @@ public:
     os << "Calibration Table File : " << clCalibrationTableFilename << "\n";
     std::ifstream infile(clCalibrationTableFilename);
     std::string line;
-    std::regex sym_pattern("[a-z_0-9]+ [-0-9.e]+");
-    std::regex asym_pattern("[a-z_0-9]+ [-0-9.e]+ [-0-9.e]+");
+    std::regex sym_pattern("[a-zA-Z0-9._/-]+ [-0-9.e]+");
+    std::regex asym_pattern("[a-zA-Z0-9._/-]+ [-0-9.e]+ [-0-9.e]+");
     while (std::getline(infile, line)) {
       std::istringstream iss(line);
       std::string name;
@@ -331,7 +331,9 @@ public:
         // Not Support asymmetric quantization so far
         assert(false);
       } else {
-        // Format of threshold table error  
+        // Format of threshold table error
+        llvm::errs() << line;
+        llvm::errs() << "\n  => not match required format\n";
         assert(false);
       }
     }
