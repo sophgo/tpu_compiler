@@ -1574,11 +1574,16 @@ static LogicalResult runOperation(Operation &opInst) {
       // int8 pack rshift and multipiler
       pack_gaddr = getWeightOpAddress(op.getOperand(2)->getDefiningOp());
     } else if (op.quant() == "BF16") {
-      scale_gaddr = getPreviousOpAddress(op, 1);
-      scale_dim = n * c;
-      if(do_bias){
-        bias_gaddr = getWeightOpAddress(op.getOperand(2)->getDefiningOp());
+      if(second_is_load_weight){
+        scale_gaddr = getWeightOpAddress(op.getOperand(1)->getDefiningOp());
+        if (do_bias) {
+          bias_gaddr = getWeightOpAddress(op.getOperand(2)->getDefiningOp());
+        }
+      }else{
+        scale_gaddr = getPreviousOpAddress(op, 1);
       }
+      scale_dim = n * c;
+     
     } else{
       assert(0 && "not supprt this condiction");
     }
