@@ -33,6 +33,7 @@
 
 #include <sstream>
 #include <fstream>
+#include <regex>
 using namespace mlir;
 
 static llvm::cl::OptionCategory clOptionsCategory("calibration table options");
@@ -310,14 +311,29 @@ public:
     os << "Calibration Table File : " << clCalibrationTableFilename << "\n";
     std::ifstream infile(clCalibrationTableFilename);
     std::string line;
+    std::regex sym_pattern("[a-z_0-9]+ [-0-9.e]+");
+    std::regex asym_pattern("[a-z_0-9]+ [-0-9.e]+ [-0-9.e]+");
     while (std::getline(infile, line)) {
       std::istringstream iss(line);
       std::string name;
-      float threshold;
-      if (!(iss >> name >> threshold)) { break; }
-      llvm::errs() << "  name " << name << ", threshold "
-                   << std::to_string(threshold) << "\n";
-      threshold_map[name] = threshold;
+      if (std::regex_match(line, sym_pattern)) {
+        float threshold;
+        if (!(iss >> name >> threshold)) { break; }
+        llvm::errs() << "  name " << name << ", threshold "
+                     << std::to_string(threshold) << "\n";
+        threshold_map[name] = threshold;
+      } else if (std::regex_match(line, asym_pattern)) {
+        float min_threshold, max_threshold;
+        if (!(iss >> name >> min_threshold >> max_threshold)) { break; }
+          llvm::errs() << "  name " << name << ", min_threshold = "
+                     << std::to_string(min_threshold) << ", max_threshold = "
+                     << std::to_string(max_threshold) << "\n";
+        // Not Support asymmetric quantization so far
+        assert(false);
+      } else {
+        // Format of threshold table error  
+        assert(false);
+      }
     }
 
     auto *context = &getContext();
