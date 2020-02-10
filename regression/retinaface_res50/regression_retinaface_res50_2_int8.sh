@@ -78,7 +78,6 @@ if [ $COMPARE_ALL -eq 1 ]; then
       retinaface_res50_caffe_blobs.npz \
       --op_info retinaface_res50_op_info_int8.csv \
       --dequant \
-      --excepts ssh_m2_red_up,ssh_c3_up_ \
       --tolerance 0.87,0.83,0.46 -vvv
 fi
 

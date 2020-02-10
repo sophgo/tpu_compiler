@@ -311,6 +311,209 @@ struct TpuQuantConv2DOpPattern : public RewritePattern {
   Value* weightFileVar_;
 };
 
+struct TpuQuantDeConv2DOpPattern : public RewritePattern {
+  TpuQuantDeConv2DOpPattern(MLIRContext *context, TensorFile *weightTensorFile,
+      Value* weightFileVar)
+      : RewritePattern("tpu.deconv_2d", 1, context),
+        weightTensorFile_(weightTensorFile),
+        weightFileVar_(weightFileVar) {}
+
+  PatternMatchResult matchAndRewrite(Operation *op,
+                                     PatternRewriter &rewriter) const override {
+    auto deconvOp = cast<tpu::DeConv2DOp>(op);
+    auto loc = op->getLoc();
+
+    if (deconvOp.quant() != "NONE") {
+      LLVM_DEBUG(llvm::errs() << deconvOp.name() << " quantized already\n";);
+      return matchFailure();
+    }
+    assert(deconvOp.per_channel_info_is_aggregated() == false);
+
+    // get quant type
+    QUANT_INT8_TYPE_e quant;
+    if (!clQuantConvPerChannel) {
+      assert(!clQuantConvMultiplier
+             && "enable per channel before enable multiplier");
+      quant = INT8_PER_LAYER;
+    } else if (!clQuantConvMultiplier) {
+      quant = INT8_PER_CHANNEL;
+    } else {
+      quant = INT8_MULTIPLER;
+    }
+
+    // get threshold
+    float threshold_x = getPreviousOpThreshold(op);
+    float threshold_y;
+    if (deconvOp.fused_eltwise_method() == "NONE") {
+      threshold_y = deconvOp.threshold_y().getValue().convertToFloat();
+    } else {
+      threshold_y =
+          deconvOp.threshold_y_before_eltwise().getValue().convertToFloat();
+    }
+    LLVM_DEBUG(llvm::errs() << " > " << deconvOp.name()
+                 << ", threshold_y = "<< std::to_string(threshold_y)
+                 << ", threshold_x = " << std::to_string(threshold_x) << "\n";);
+
+    // get filter tensor
+    auto filter = readAndDeleteWeightTensor(deconvOp.getOperand(1),
+        weightTensorFile_);
+    auto filterType = deconvOp.filter()->getType().cast<TensorType>();
+    std::vector<int64_t> filterShape(filterType.getShape());
+    int64_t filterSize = std::accumulate(std::begin(filterShape),
+        std::end(filterShape), 1, std::multiplies<>());
+    assert(filterSize == (int64_t)filter->size());
+    int64_t oc = 0;
+    if (filterShape.size() == 4) {
+      oc = filterShape[0];
+    } else if (filterShape.size() == 5) {
+      assert(deconvOp.group() != 1);
+      // g, oc/g, ic/g, kh, kw
+      oc = filterShape[0] * filterShape[1];
+    } else {
+      assert(0);
+    }
+    assert(filterSize % oc == 0);
+    int64_t isz = filterSize / oc;
+
+    // get bias tensor
+    std::unique_ptr<std::vector<float> > bias = nullptr;
+    std::vector<int64_t> biasShape;
+    int64_t biasSize = 0;
+    if (deconvOp.with_bias()) {
+      bias = readAndDeleteWeightTensor(deconvOp.getOperand(2),
+          weightTensorFile_);
+      auto biasType = deconvOp.getOperand(2)->getType().cast<TensorType>();
+      biasShape = std::vector<int64_t>(biasType.getShape());
+      biasSize = std::accumulate(std::begin(biasShape),
+          std::end(biasShape), 1, std::multiplies<>());
+      assert(biasSize == oc);
+      assert(biasSize == (int64_t)bias->size());
+    }
+
+    // create new tensors
+    // TODO: use float to save all weights for now
+    auto new_filter = std::make_unique<std::vector<float> >(filterSize);
+    std::unique_ptr<std::vector<float> > new_bias = nullptr;
+    if (bias) {
+      new_bias = std::make_unique<std::vector<float> >(biasSize);
+    }
+
+    // create tensors for rshift and multiplier
+    // TODO: use float to save all weights for now
+    auto rshift_per_layer = std::make_unique<std::vector<float> >(1);
+    auto rshift_per_channel = std::make_unique<std::vector<float> >(oc);
+    auto multiplier_per_channel = std::make_unique<std::vector<float> >(oc);
+
+    // quantization
+    if (quant == INT8_PER_LAYER) {
+      quantizeWeightInt8PerLayer(filter->data(), bias ? bias->data() : nullptr,
+                                 oc, isz, threshold_y, threshold_x,
+                                 new_filter->data(), bias ? new_bias->data() : nullptr,
+                                 rshift_per_layer->data());
+
+    } else if (quant == INT8_PER_CHANNEL) {
+      quantizeWeightInt8PerChannel(filter->data(), bias ? bias->data() : nullptr,
+                                 oc, isz, threshold_y, threshold_x,
+                                 new_filter->data(), bias ? new_bias->data() : nullptr,
+                                 rshift_per_channel->data());
+
+    } else if (quant == INT8_MULTIPLER) {
+      quantizeWeightInt8Multiplier(filter->data(), bias ? bias->data() : nullptr,
+                                 oc, isz, threshold_y, threshold_x,
+                                 new_filter->data(), bias ? new_bias->data() : nullptr,
+                                 rshift_per_channel->data(),
+                                 multiplier_per_channel->data());
+
+    } else {
+      assert(0);
+    }
+
+    // update op
+    // TODO: use float to save all weights for now
+    Type eltType = FloatType::getF32(rewriter.getContext());
+    std::string storageType = "INT8";
+    addWeightTensorAndUpdateWeightOp(deconvOp.getOperand(1), *new_filter,
+        filterShape, storageType, eltType, rewriter, weightTensorFile_);
+    if (bias) {
+      // for per_channel quant, bias store as INT32, per layer use INT16
+      storageType = (quant == INT8_PER_LAYER) ? "INT16" : "INT32";
+      addWeightTensorAndUpdateWeightOp(deconvOp.getOperand(2), *new_bias,
+          biasShape, storageType, eltType, rewriter, weightTensorFile_);
+    }
+
+    // newOperands for create a new conv Op
+    std::vector<Value *> newOperands;
+    newOperands.push_back(deconvOp.getOperand(0));
+    newOperands.push_back(deconvOp.getOperand(1));
+    if (bias) {
+      newOperands.push_back(deconvOp.getOperand(2));
+    }
+
+    // add rshift and multiplier (if present) to weight
+    if (quant == INT8_PER_LAYER) {
+      auto shape = std::vector<int64_t>{1};
+      std::string storageType = "NONE";
+      auto new_op = addWeightTensorAndCreateWeightOp(
+          deconvOp.name().getValue().str() + "_quant_int8_rshift",
+          *rshift_per_layer, shape, storageType, eltType,
+          rewriter, loc, weightTensorFile_, weightFileVar_);
+      newOperands.push_back(new_op);
+    } else if (quant == INT8_PER_CHANNEL) {
+      auto shape = std::vector<int64_t>{oc};
+      std::string storageType = "UINT32";
+      auto new_op = addWeightTensorAndCreateWeightOp(
+          deconvOp.name().getValue().str() + "_quant_int8_rshift",
+          *rshift_per_channel, shape, storageType, eltType,
+          rewriter, loc, weightTensorFile_, weightFileVar_);
+      newOperands.push_back(new_op);
+    } else if (quant == INT8_MULTIPLER) {
+      auto shape = std::vector<int64_t>{oc};
+      std::string storageType = "UINT32";
+
+      auto new_op_1 = addWeightTensorAndCreateWeightOp(
+          deconvOp.name().getValue().str() + "_quant_int8_rshift",
+          *rshift_per_channel, shape, storageType, eltType,
+          rewriter, loc, weightTensorFile_, weightFileVar_);
+      newOperands.push_back(new_op_1);
+
+      auto new_op_2 = addWeightTensorAndCreateWeightOp(
+          deconvOp.name().getValue().str() + "_quant_int8_multiplier",
+          *multiplier_per_channel, shape, storageType, eltType,
+          rewriter, loc, weightTensorFile_, weightFileVar_);
+      newOperands.push_back(new_op_2);
+    } else {
+      assert(0);
+    }
+
+    // if fused with eltwise, push the last operand
+    if (deconvOp.fused_eltwise_method() != "NONE") {
+      newOperands.push_back(deconvOp.getOperand(deconvOp.getNumOperands() - 1));
+    }
+
+    // set quant type
+    if (quant == INT8_PER_LAYER) {
+      deconvOp.setAttr("quant", rewriter.getStringAttr("INT8"));
+    } else if (quant == INT8_PER_CHANNEL) {
+      deconvOp.setAttr("quant", rewriter.getStringAttr("INT8_PER_CHANNEL"));
+    } else if (quant == INT8_MULTIPLER) {
+      deconvOp.setAttr("quant", rewriter.getStringAttr("INT8_MULTIPLIER"));
+    }
+
+    // replace with the new conv op
+    auto origAttrs = deconvOp.getAttrs();
+    std::vector<NamedAttribute> newAttrs(origAttrs.begin(), origAttrs.end());
+    rewriter.replaceOpWithNewOp<tpu::DeConv2DOp>(
+        deconvOp, deconvOp.getResult()->getType(),
+        ArrayRef<Value *>{newOperands}, ArrayRef<NamedAttribute>{newAttrs});
+
+    return matchSuccess();
+  }
+
+
+  TensorFile *weightTensorFile_;
+  Value* weightFileVar_;
+};
+
 struct TpuQuantEltwiseOpPattern : public RewritePattern {
   TpuQuantEltwiseOpPattern(MLIRContext *context, TensorFile *weightTensorFile,
                            Value *weightFileVar)
@@ -1448,6 +1651,7 @@ public:
     patterns_w
         .insert<TpuQuantDefaultPattern<tpu::ConcatOp>,
                 TpuQuantConv2DOpPattern,
+                TpuQuantDeConv2DOpPattern,
                 TpuQuantDefaultPattern<tpu::CropOp>,
                 TpuQuantDefaultPattern<tpu::DivOp>,
                 TpuQuantEltwiseOpPattern,
