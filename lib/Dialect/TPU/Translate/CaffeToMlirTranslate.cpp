@@ -188,7 +188,7 @@ void CaffeImporter::ParseNetInputOutput(caffe::Net<float> &net,
     /// not use dynamic shape here for bbox num
     /// determine the shape by parsing the `keep_top_k` field of the layer
     ///
-    auto layer = net.layers()[index].get();
+    auto layer = net.layer_by_name(net.blob_names()[index]);
     if (strcmp(layer->type(), "DetectionOutput") == 0) {
       auto layer_param = layer->layer_param();
       auto detection_output_param = layer_param.detection_output_param();
@@ -776,9 +776,10 @@ void CaffeImporter::convertBatchNormLayer(mlir::Block *block,
   mlir::Value *input_var = GetLayerInput(layer);
 
   auto layer_param = layer->layer_param();
-  assert(layer_param.has_batch_norm_param());
-  auto batch_norm_param = layer_param.batch_norm_param();
-  //float epsilon = batch_norm_param.eps();
+
+  float epsilon = 1e-5;
+  if (layer_param.has_batch_norm_param())
+    epsilon = layer_param.batch_norm_param().eps();
 
   int64_t n, c, h, w;
   llvm::ArrayRef<int64_t> input_var_shape =
@@ -835,7 +836,7 @@ void CaffeImporter::convertBatchNormLayer(mlir::Block *block,
 
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name())));
-  attrs.push_back(builder_.getNamedAttr("variance_epsilon", builder_.getF32FloatAttr(batch_norm_param.eps())));
+  attrs.push_back(builder_.getNamedAttr("variance_epsilon", builder_.getF32FloatAttr(epsilon)));
   auto op = OpBuilder(block).create<tpu::BatchNormOp>(
       builder_.getUnknownLoc(), result_type,
       ArrayRef<Value *>{operands}, ArrayRef<NamedAttribute>{attrs});
