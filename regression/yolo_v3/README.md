@@ -15,6 +15,82 @@ link
 
 ## Accuracy Results
 
+- 20200209 (with leakyrelu quantization)
+
+  - Notes:
+    - autotune with leakyrelu quantization, no-relu-overwrite has the best accuracy
+    - even higher than the float leakyrelu version (0.358 vs 0.356)
+    - relu-overwrite-backward (quant on neg only) is slightly lower (0.355 vs 0.358)
+    - however, for cali-no-tune version, no-relu-overwrite is worse (0.321 vs 0.325)
+
+  - autotune (relu-overwrite-backward, leakyrely only neg quant)
+
+    ```bash
+     Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.359
+     Average Precision  (AP) @[ IoU=0.50      | area=   all | maxDets=100 ] = 0.662
+     Average Precision  (AP) @[ IoU=0.75      | area=   all | maxDets=100 ] = 0.355
+     Average Precision  (AP) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.185
+     Average Precision  (AP) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.394
+     Average Precision  (AP) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.527
+     Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=  1 ] = 0.283
+     Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets= 10 ] = 0.432
+     Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.455
+     Average Recall     (AR) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.268
+     Average Recall     (AR) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.494
+     Average Recall     (AR) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.619
+    ```
+
+  - autotune (no relu-overwrite, leakyrely both pos and neg quant)
+
+    ```bash
+     Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.359
+     Average Precision  (AP) @[ IoU=0.50      | area=   all | maxDets=100 ] = 0.661
+     Average Precision  (AP) @[ IoU=0.75      | area=   all | maxDets=100 ] = 0.358
+     Average Precision  (AP) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.183
+     Average Precision  (AP) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.396
+     Average Precision  (AP) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.531
+     Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=  1 ] = 0.284
+     Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets= 10 ] = 0.433
+     Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.456
+     Average Recall     (AR) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.264
+     Average Recall     (AR) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.496
+     Average Recall     (AR) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.623
+    ```
+
+  - cali-no-tune (relu-overwrite-backward, leakyrely only neg quant)
+
+    ```bash
+     Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.337
+     Average Precision  (AP) @[ IoU=0.50      | area=   all | maxDets=100 ] = 0.637
+     Average Precision  (AP) @[ IoU=0.75      | area=   all | maxDets=100 ] = 0.325
+     Average Precision  (AP) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.170
+     Average Precision  (AP) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.370
+     Average Precision  (AP) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.503
+     Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=  1 ] = 0.267
+     Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets= 10 ] = 0.411
+     Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.434
+     Average Recall     (AR) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.244
+     Average Recall     (AR) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.476
+     Average Recall     (AR) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.594
+    ```
+
+  - cali-no-tune (no relu-overwrite, leakyrely both pos and neg quant)
+
+    ```bash
+     Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.336
+     Average Precision  (AP) @[ IoU=0.50      | area=   all | maxDets=100 ] = 0.635
+     Average Precision  (AP) @[ IoU=0.75      | area=   all | maxDets=100 ] = 0.321
+     Average Precision  (AP) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.168
+     Average Precision  (AP) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.369
+     Average Precision  (AP) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.499
+     Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=  1 ] = 0.268
+     Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets= 10 ] = 0.411
+     Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.433
+     Average Recall     (AR) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.244
+     Average Recall     (AR) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.475
+     Average Recall     (AR) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.593
+    ```
+
 - 20200208 (relu-overwrite, forward and backward)
 
   - Notes:
@@ -27,6 +103,7 @@ link
       - concat backward overwrite makes almost no drop (0.325 vx.0.325)
       - concat max overwrite drops slightly (0.323 vs 0.325)
       - previous eltwise backward overwrite version even helps in accuracy (0.331 vs 0.325), is due to it accidently enlarged the thresholds on former layers, which actually helps on non-autotune version, but that is not the proper solution
+
   - autotune (relu-overwrite-backward)
 
     ```bash
