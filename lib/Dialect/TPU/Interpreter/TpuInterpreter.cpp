@@ -564,7 +564,9 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     float *input = (float *)opdT[0]->data();
     float *output = (float *)resultT.get()->data();
 
-    if (op.quant() == "NONE" || op.quant() == "BF16") {
+    bool is_relu = (negative_slope < 1e-7) ? true : false;
+
+    if (is_relu || op.quant() == "NONE" || op.quant() == "BF16") {
       if(i_s.size() == 4) {
         n = i_s[0];
         c = i_s[1];

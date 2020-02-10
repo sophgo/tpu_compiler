@@ -477,6 +477,8 @@ void getReluOpVariadicTensors(tpu::ReluOp &op,
     std::shared_ptr<std::vector<float> > &rshift_neg,
     std::shared_ptr<std::vector<float> > &multiplier_neg)
 {
+  // leakyrelu only
+  assert(opdT.size() == 5);
   unsigned idx = 1;  // first opdT is always input
   if (op.quant() == "INT8") {
     rshift_pos = opdT[idx];
