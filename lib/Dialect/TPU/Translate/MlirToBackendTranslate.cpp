@@ -1291,15 +1291,25 @@ static LogicalResult runOperation(Operation &opInst) {
         assert("not support");
       }
     } else if (op.quant() == "BF16") {
+      const float coeffs[2] = {1.0, 1.0};
       if (op.method() == "SUM") {
-        const float coeffs[2] = {1.0, 1.0};
-
         bf16_eltwise_forward_kernel(*backend_ctx,
                                     layer_id,     // layer_id
                                     ga_inputs,    // gaddr_t ga_input[]
                                     output_gaddr, // gaddr_t ga_output
                                     2,            // int input_size
                                     1, // int op, 0: prod, 1: sum, 2: max
+                                    n, c, h, w,
+                                    do_relu, // bool do_relu
+                                    0.0f,    // float relu_slope
+                                    coeffs);
+      } else if (op.method() == "PROD"){
+        bf16_eltwise_forward_kernel(*backend_ctx,
+                                    layer_id,     // layer_id
+                                    ga_inputs,    // gaddr_t ga_input[]
+                                    output_gaddr, // gaddr_t ga_output
+                                    2,            // int input_size
+                                    0, // int op, 0: prod, 1: sum, 2: max
                                     n, c, h, w,
                                     do_relu, // bool do_relu
                                     0.0f,    // float relu_slope
