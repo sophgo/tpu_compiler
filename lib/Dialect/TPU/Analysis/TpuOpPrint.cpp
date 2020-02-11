@@ -20,6 +20,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/TPU/TPUDialect.h"
+#include "mlir/Dialect/TPU/TPUOperationSupport.h"
 #include "mlir/Dialect/TPU/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
@@ -129,7 +130,7 @@ private:
   int printTpuOpInfo(Operation *op, llvm::raw_ostream &file_os) {
       auto cast_op = llvm::dyn_cast_or_null<T>(op);
       if (cast_op) {
-        std::string op_name = cast_op.name().getValue().str();
+        std::string op_name = mlir::getOpName(op).str();
         file_os << op_name;
         if (cast_op.layer_id().hasValue())
           file_os << "," << cast_op.layer_id().getValue().getLimitedValue();

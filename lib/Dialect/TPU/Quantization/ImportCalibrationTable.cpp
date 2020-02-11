@@ -428,8 +428,7 @@ private:
       Operation *op) {
       auto cast_op = llvm::dyn_cast_or_null<T>(op);
       if (cast_op) {
-        assert(cast_op.name().hasValue());
-        std::string op_name = cast_op.name().getValue().str();
+        std::string op_name = mlir::getOpName(op).str();
         float threshold;
         // FIXME: sometimes these is no softmax threshold present, use 1.0
         if (llvm::dyn_cast_or_null<tpu::SoftmaxOp>(op) && !threshold_map[op_name]) {
