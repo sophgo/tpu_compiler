@@ -374,6 +374,24 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
       }
       weightBinaryFile_->write(reinterpret_cast<const char*>(weight_int16.data()),
           weight_int16.size() * sizeof(int16_t));
+    } else if (weightOp.storage() == "UINT16") {
+      auto weight = weightTensorFile_->readTensor<float>(tensor_name, type);
+      size = weight->size();
+      std::vector<uint16_t> weight_bf16(weight->begin(), weight->end());
+      for (int i = 0; i < 10; i++) {
+        LOG(INFO) << "weight" << weight_bf16.at(i);
+      }
+      // pad to alignment
+      if ((weight_bf16.size() * sizeof(uint16_t)) % alignment_) {
+        size_t pad = (alignment_ - (weight_bf16.capacity() % alignment_)) /
+                     sizeof(uint16_t);
+        for (size_t i = 0; i < pad; ++i) {
+          weight_bf16.push_back(0xffff); // assign a special value for debugging
+        }
+      }
+      weightBinaryFile_->write(
+          reinterpret_cast<const char *>(weight_bf16.data()),
+          weight_bf16.size() * sizeof(uint16_t));
     } else if (weightOp.storage() == "BF16") {
       auto weight = weightTensorFile_->readTensor<uint16_t>(tensor_name, type);
       size = weight->size();
