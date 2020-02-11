@@ -1510,6 +1510,8 @@ static LogicalResult runOperation(Operation &opInst) {
     gaddr_t input_gaddr = getPreviousOpAddress(op);
     gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
     gaddr_t y0_table_gaddr = getWeightOpAddress(op.getOperand(1)->getDefiningOp());
+    gaddr_t slope_gaddr = INVALID_GLOBAL_ADDR;
+  
     int layer_id = op.layer_id().getValue().getLimitedValue();
     if (op.quant() == "INT8") {
       sigmoid_fixed_forward_bmkernel(*backend_ctx,
@@ -1519,10 +1521,20 @@ static LogicalResult runOperation(Operation &opInst) {
                                      nullptr,  // const u32 *depends,
                                      0,        // depends_len,
                                      input_gaddr, output_gaddr, y0_table_gaddr,
-                                     n, c, h, w);
+                                     slope_gaddr, n, c, h, w, FMT_I8);
 
+    } else if (op.quant() == "BF16"){
+      slope_gaddr = getWeightOpAddress(op.getOperand(2)->getDefiningOp());
+      sigmoid_fixed_forward_bmkernel(*backend_ctx,
+                                     0,        // stream_id,
+                                     0,        // inst_id,
+                                     layer_id, // layer_id,
+                                     nullptr,  // const u32 *depends,
+                                     0,        // depends_len,
+                                     input_gaddr, output_gaddr, y0_table_gaddr,
+                                     slope_gaddr, n, c, h, w, FMT_BF16);
     } else {
-      llvm::errs() << "not support yet \n";
+      llvm::errs() << op.quant() << "not support yet \n";
       assert(0);
     }
     return success();

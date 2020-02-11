@@ -188,7 +188,7 @@ struct TpuGenSigmoidTablePattern : public RewritePattern {
       // copy bf16 data to float table                      
       for (int i = 0; i < npu_num; ++i){
         std::copy(y0_bf16_table.data(), y0_bf16_table.data() + table_hw,
-                  y0_table.data());
+                  y0_table.data() + i * table_hw);
         std::copy(y0_bf16_slope_table.data(),
                   y0_bf16_slope_table.data() + table_hw,
                   y0_slope_table.data() + i * table_hw);
@@ -250,7 +250,7 @@ struct TpuGenSigmoidTablePattern : public RewritePattern {
         attrs.push_back(
             rewriter.getNamedAttr("name", rewriter.getStringAttr(tensor_name)));
         attrs.push_back(
-            rewriter.getNamedAttr("storage", rewriter.getStringAttr("INT16")));
+            rewriter.getNamedAttr("storage", rewriter.getStringAttr("UINT16")));
 
         auto new_weight_op = rewriter.create<tpu::LoadWeightOp>(
             op->getLoc(), type, ArrayRef<Value *>{weightFileVar_},
