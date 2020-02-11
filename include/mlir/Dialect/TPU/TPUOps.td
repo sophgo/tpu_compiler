@@ -922,6 +922,27 @@ def TPU_UpsampleOp: TPU_Op<"upsample",
   let results = (outs AnyTensor:$y);
 }
 
+def TPU_ShuffleChannelOp: TPU_Op<"shuffle_channel",
+    [NoSideEffect,  DeclareOpInterfaceMethods<TpuInterface>]> {
+  let summary = "ShuffleChannel operator";
+
+  let description = [{
+    Shuffle Channel on input.
+  }];
+
+  let arguments = (
+    ins AnyTensor:$x,
+    NonNegativeI32Attr:$group,
+    OptionalAttr<StrAttr>:$name,
+     OptionalAttr<NonNegativeI64Attr>:$offset,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<F32Attr>:$threshold_y,
+    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
+  );
+
+  let results = (outs AnyTensor:$y);
+}
+
 //===----------------------------------------------------------------------===//
 // TPU Quantization op definitions.
 //===----------------------------------------------------------------------===//

@@ -991,6 +991,38 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
     return success();
   }
+  if (auto op = dyn_cast<tpu::ShuffleChannelOp>(opInst)) {
+    LLVM_DEBUG(llvm::errs() << "ShuffleChannelOp" << "\n";);
+    auto opdT = getOperandTensors(opInst, valueMapping);
+    auto result = op.getResult();
+    LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";);
+    std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
+    assert(shape.size() >= 2);
+    auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
+    auto resultT = std::make_unique<std::vector<float> >(size);
+
+    auto input_type = op.x()->getType().cast<TensorType>();
+    std::vector<int64_t> i_s(input_type.getShape());
+    auto output_type = op.y()->getType().cast<TensorType>();
+    std::vector<int64_t> o_s(output_type.getShape());
+    assert((i_s == o_s) && "input shape not equal to output shape");
+    assert((i_s.size() >= 2) && "ShuffleChannel support shape size  must >= 2" );
+
+    int64_t n = i_s[0];
+    int64_t c = i_s[1];
+    int64_t feature_map_size = std::accumulate(i_s.begin() + 2, i_s.end(), 1, std::multiplies<>());
+    float *input = (float *)opdT[0]->data();
+    float *output = (float *)resultT.get()->data();
+    uint32_t group = op.group().getLimitedValue();
+    int ret = my_shuffle_channel(input, output, group, n, c, feature_map_size);
+
+    assert(ret == 0);
+
+    valueMapping[result] = std::move(resultT);
+
+    return success();
+  }
+
   if (auto op = dyn_cast<tpu::ScaleOp>(opInst)) {
     // check if scale second is load weight op
     auto sec_blob_weight_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
