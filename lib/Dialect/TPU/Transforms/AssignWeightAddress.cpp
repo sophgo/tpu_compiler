@@ -378,9 +378,6 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
       auto weight = weightTensorFile_->readTensor<float>(tensor_name, type);
       size = weight->size();
       std::vector<uint16_t> weight_bf16(weight->begin(), weight->end());
-      for (int i = 0; i < 10; i++) {
-        LOG(INFO) << "weight" << weight_bf16.at(i);
-      }
       // pad to alignment
       if ((weight_bf16.size() * sizeof(uint16_t)) % alignment_) {
         size_t pad = (alignment_ - (weight_bf16.capacity() % alignment_)) /
