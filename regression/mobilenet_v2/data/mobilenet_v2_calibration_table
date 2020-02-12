@@ -1,211 +1,211 @@
-relu4_4/expand 2.23350000381 0
-conv6_2/dwise/scale 1.92052578926 5
-conv5_3/expand/scale 2.05355238914 5
-relu4_3/dwise 4.18504571915 0
-conv2_1/expand/bn 7.77061367035 5
-conv4_2/dwise/scale 2.46001768112 6
-relu4_6/dwise 2.4041659832 0
-conv4_1/dwise 1.8788125515 6
-conv4_3/linear 21.6251792908 8
-relu4_1/expand 2.59486055374 0
-block_4_6 10.2395992279 0
-relu6_1/expand 1.28425788879 0
-block_4_4 8.79452228546 0
-block_4_5 10.6999330521 0
-block_4_2 12.4998159409 0
-relu5_2/expand 2.4824154377 0
-conv3_2/dwise/scale 4.28350162506 5
-conv5_3/expand 11.4358520508 7
-conv6_2/dwise 1.16071093082 6
-conv4_2/expand/bn 8.4445142746 7
-conv5_2/dwise/scale 2.3310251236 6
-conv5_3/dwise/bn 5.17687225342 3
-relu5_3/dwise 2.33640146255 0
-conv4_7/dwise/bn 5.92042350769 3
-conv2_1/dwise 7.39099502563 5
-conv4_2/dwise/bn 5.04411935806 3
-conv3_2/expand/scale 3.65973854065 5
-conv4_2/linear/scale 4.17791938782 7
-conv4_3/linear/bn 5.87116622925 6
-conv5_2/dwise/bn 4.17928028107 3
-conv5_1/linear/scale 4.84121227264 5
-conv3_2/dwise 7.21649360657 8
-pool6 6.11967897415 0
-relu4_7/expand 2.53759074211 0
-loss 4.41673946381 0
-conv6_3/linear 10.6284532547 9
-conv3_2/expand/bn 8.87627410889 6
-conv6_4/bn 11.1890668869 6
-conv4_1/dwise/scale 2.811221838 6
-conv6_3/expand/scale 1.82961761951 5
-conv5_3/linear 16.4131679535 10
-conv2_2/dwise/bn 7.18346786499 3
-relu2_2/dwise 4.27356529236 0
-conv5_1/expand 6.3829035759 7
-conv6_2/expand/bn 7.57235908508 6
-relu5_2/dwise 2.3310251236 0
-conv4_6/expand/bn 6.7657160759 7
-conv4_6/dwise 1.30620419979 6
-relu3_1/dwise 2.421864748 0
-conv4_1/expand 10.6642999649 7
-block_6_1 6.54698085785 0
-block_6_2 7.80451107025 0
-conv4_5/expand 8.02088737488 6
-relu2_2/expand 3.00252723694 0
-conv5_1/linear 7.72592926025 8
-conv2_1/linear/scale 14.6530036926 6
-relu6_2/expand 1.44523632526 0
-conv4_1/dwise/bn 4.72281312943 4
-relu4_5/expand 2.22421145439 0
-conv2_2/linear/bn 9.22919940948 6
-conv3_1/expand/bn 8.62590789795 6
-conv5_1/expand/bn 5.77783966064 6
-conv4_7/expand/bn 6.8099565506 6
-conv4_1/linear/scale 6.69265270233 6
-conv3_1/linear/scale 9.19856739044 6
-conv2_2/dwise 7.82679080963 6
-conv2_1/expand 11.221622467 6
-conv5_2/linear 5.77394723892 8
-conv4_3/dwise/scale 4.18504571915 6
-conv5_2/expand/scale 2.4824154377 6
-relu4_7/dwise 2.3071231842 0
-conv5_1/dwise/bn 4.4923043251 4
-conv6_2/linear/scale 3.96801877022 6
-conv6_3/linear/scale 4.1843252182 6
-top1/acc 1.00048851967 0
-conv3_2/dwise/bn 6.25910043716 3
-conv5_1/expand/scale 1.52992343903 5
-conv6_1/linear 5.09204721451 9
-conv4_6/dwise/scale 2.4041659832 6
-conv6_1/linear/bn 5.29004621506 6
-relu4_6/expand 2.10919475555 0
-relu3_2/expand 3.65973854065 0
-conv4_7/expand 14.4764499664 7
-conv4_2/expand 10.5348510742 6
-conv4_3/dwise 3.46479845047 6
-conv2_2/expand/scale 3.00252723694 4
-conv4_4/dwise/scale 2.55002903938 6
-conv4_1/linear 8.7073507309 8
-conv4_3/expand/bn 7.00083684921 6
-relu2_1/expand 4.18127822876 0
-conv6_3/expand/bn 8.42113399506 6
-conv5_3/dwise/scale 2.33640146255 5
-conv4_7/linear/scale 6.22652816772 6
-conv2_1/expand/scale 4.18127822876 6
-relu6_3/dwise 2.47726416588 0
-relu5_3/expand 2.05355238914 0
-conv6_3/dwise/bn 5.23989963531 4
-relu3_2/dwise 4.28350162506 0
-conv4_3/expand 15.7291498184 6
-conv4_4/linear/bn 6.81403446198 6
-relu4_1/dwise 2.811221838 0
-conv4_4/linear 8.44321537018 8
-relu4_2/dwise 2.46001768112 0
-conv6_2/dwise/bn 4.53605556488 3
-conv2_1/linear/bn 11.070892334 6
-conv4_5/dwise/scale 2.31507205963 6
-conv2_2/expand 17.0299606323 5
-conv2_2/linear/scale 18.239025116 6
-conv2_2/linear 31.7914791107 8
-conv1/scale 5.34768486023 4
-relu2_1/dwise 3.7898683548 0
-conv6_2/expand 6.82443618774 7
-conv4_5/linear/scale 6.38958930969 6
-conv6_4 8.29661369324 8
-relu4_2/expand 2.74415421486 0
-conv4_7/dwise/scale 2.3071231842 5
-conv4_1/expand/scale 2.59486055374 6
-data 2.56929183006 0
-conv6_1/expand/bn 8.01298046112 6
-relu4_3/expand 2.33669376373 0
-conv1 17.4517173767 8
-conv4_1/expand/bn 8.40920448303 6
-conv6_1/linear/scale 3.50393772125 6
-conv6_1/dwise/bn 4.53305721283 3
-conv2_1/dwise/scale 3.7898683548 6
-conv3_1/dwise 1.86693537235 5
-conv4_5/dwise 1.12792825699 5
-conv4_4/dwise 3.52561593056 7
-conv4_2/linear 4.85277509689 8
-conv4_5/expand/scale 2.22421145439 6
-conv3_2/linear/bn 6.83136177063 5
-conv4_7/linear/bn 7.41383552551 6
-conv4_3/linear/scale 7.87852573395 6
-conv5_2/linear/bn 6.56020879745 6
-conv5_3/linear/bn 5.96144914627 6
-conv4_5/linear/bn 5.57479429245 6
-relu6_2/dwise 1.92052578926 0
-conv4_2/linear/bn 5.1989941597 6
-conv4_6/linear/scale 8.3696308136 6
-conv4_7/dwise 2.0067615509 7
-conv6_2/linear/bn 5.54264450073 6
-conv2_1/dwise/bn 4.0561170578 3
-conv2_1/linear 26.0059394836 8
-conv3_1/expand 11.9624624252 5
-relu6_4 11.3912887573 0
-block_4_1 12.8130741119 0
-conv6_1/dwise/scale 2.22448062897 6
-conv6_1/dwise 1.57045912743 7
-conv4_6/expand 9.24559593201 7
-conv3_1/dwise/scale 2.421864748 5
-conv5_2/dwise 2.11246562004 6
-relu4_5/dwise 2.31507205963 0
-conv5_1/dwise/scale 2.61570954323 5
-conv5_2/expand/bn 7.25104570389 7
-conv4_4/expand/bn 9.03715896606 6
-conv4_2/dwise 1.66718959808 6
-fc7 31.1057605743 8
-conv4_4/expand 7.48229217529 7
-conv4_4/expand/scale 2.23350000381 5
-conv5_3/linear/scale 5.6776137352 6
-conv4_7/linear 17.1282615662 9
-conv5_3/dwise 1.60466003418 7
-conv2_2/dwise/scale 4.27356529236 5
-conv6_1/expand 4.95070981979 7
-relu3_1/expand 3.01748800278 0
-conv3_1/linear/bn 9.86723041534 6
-block_5_2 8.25435256958 0
-block_5_1 8.02265644073 0
-conv4_7/expand/scale 2.53759074211 6
-conv6_3/dwise/scale 2.47726416588 6
-conv4_4/dwise/bn 4.89940786362 3
-top5/acc 1.00048851967 0
-conv4_6/expand/scale 2.10919475555 6
-conv4_5/expand/bn 6.03584718704 7
-conv4_2/expand/scale 2.74415421486 6
-conv2_2/expand/bn 10.3871936798 6
-conv5_2/linear/scale 5.83993434906 6
-relu5_1/dwise 2.61570954323 0
-conv4_6/linear/bn 7.57580661774 6
-relu5_1/expand 1.52992343903 0
-conv5_1/dwise 1.76346552372 6
-conv5_2/expand 8.49447441101 7
-conv6_3/linear/bn 6.90650081635 5
-conv4_4/linear/scale 5.9155216217 6
-conv3_1/linear 14.7962284088 9
-relu1 5.34768486023 0
-conv6_3/expand 9.46343708038 7
-conv4_3/dwise/bn 5.23905467987 3
-conv1/bn 14.3237304688 6
-conv6_2/linear 5.35815525055 9
-conv4_6/linear 7.70487070084 9
-relu4_4/dwise 2.55002903938 0
-conv4_5/linear 6.94052171707 8
-conv6_2/expand/scale 1.44523632526 5
-conv3_2/expand 19.7233943939 6
-conv3_2/linear 31.0479335785 8
-conv6_4/scale 11.3912887573 5
-relu6_1/dwise 2.22448062897 0
-conv3_1/dwise/bn 6.74509954453 4
-block_3_1 13.3674545288 0
-conv5_3/expand/bn 8.52245140076 6
-relu6_3/expand 1.82961761951 0
-conv4_6/dwise/bn 4.57927942276 3
-conv6_3/dwise 1.28152942657 7
-conv5_1/linear/bn 6.81049442291 6
-conv6_1/expand/scale 1.28425788879 5
-conv3_1/expand/scale 3.01748800278 5
-conv4_3/expand/scale 2.33669376373 6
-conv3_2/linear/scale 10.0109071732 6
-conv4_1/linear/bn 9.56043148041 6
-conv4_5/dwise/bn 4.63532543182 4
+relu4_4/expand 2.23350000381
+conv6_2/dwise/scale 1.92052578926
+conv5_3/expand/scale 2.05355238914
+relu4_3/dwise 4.18504571915
+conv2_1/expand/bn 7.77061367035
+conv4_2/dwise/scale 2.46001768112
+relu4_6/dwise 2.4041659832
+conv4_1/dwise 1.8788125515
+conv4_3/linear 21.6251792908
+relu4_1/expand 2.59486055374
+block_4_6 10.2395992279
+relu6_1/expand 1.28425788879
+block_4_4 8.79452228546
+block_4_5 10.6999330521
+block_4_2 12.4998159409
+relu5_2/expand 2.4824154377
+conv3_2/dwise/scale 4.28350162506
+conv5_3/expand 11.4358520508
+conv6_2/dwise 1.16071093082
+conv4_2/expand/bn 8.4445142746
+conv5_2/dwise/scale 2.3310251236
+conv5_3/dwise/bn 5.17687225342
+relu5_3/dwise 2.33640146255
+conv4_7/dwise/bn 5.92042350769
+conv2_1/dwise 7.39099502563
+conv4_2/dwise/bn 5.04411935806
+conv3_2/expand/scale 3.65973854065
+conv4_2/linear/scale 4.17791938782
+conv4_3/linear/bn 5.87116622925
+conv5_2/dwise/bn 4.17928028107
+conv5_1/linear/scale 4.84121227264
+conv3_2/dwise 7.21649360657
+pool6 6.11967897415
+relu4_7/expand 2.53759074211
+loss 4.41673946381
+conv6_3/linear 10.6284532547
+conv3_2/expand/bn 8.87627410889
+conv6_4/bn 11.1890668869
+conv4_1/dwise/scale 2.811221838
+conv6_3/expand/scale 1.82961761951
+conv5_3/linear 16.4131679535
+conv2_2/dwise/bn 7.18346786499
+relu2_2/dwise 4.27356529236
+conv5_1/expand 6.3829035759
+conv6_2/expand/bn 7.57235908508
+relu5_2/dwise 2.3310251236
+conv4_6/expand/bn 6.7657160759
+conv4_6/dwise 1.30620419979
+relu3_1/dwise 2.421864748
+conv4_1/expand 10.6642999649
+block_6_1 6.54698085785
+block_6_2 7.80451107025
+conv4_5/expand 8.02088737488
+relu2_2/expand 3.00252723694
+conv5_1/linear 7.72592926025
+conv2_1/linear/scale 14.6530036926
+relu6_2/expand 1.44523632526
+conv4_1/dwise/bn 4.72281312943
+relu4_5/expand 2.22421145439
+conv2_2/linear/bn 9.22919940948
+conv3_1/expand/bn 8.62590789795
+conv5_1/expand/bn 5.77783966064
+conv4_7/expand/bn 6.8099565506
+conv4_1/linear/scale 6.69265270233
+conv3_1/linear/scale 9.19856739044
+conv2_2/dwise 7.82679080963
+conv2_1/expand 11.221622467
+conv5_2/linear 5.77394723892
+conv4_3/dwise/scale 4.18504571915
+conv5_2/expand/scale 2.4824154377
+relu4_7/dwise 2.3071231842
+conv5_1/dwise/bn 4.4923043251
+conv6_2/linear/scale 3.96801877022
+conv6_3/linear/scale 4.1843252182
+top1/acc 1.00048851967
+conv3_2/dwise/bn 6.25910043716
+conv5_1/expand/scale 1.52992343903
+conv6_1/linear 5.09204721451
+conv4_6/dwise/scale 2.4041659832
+conv6_1/linear/bn 5.29004621506
+relu4_6/expand 2.10919475555
+relu3_2/expand 3.65973854065
+conv4_7/expand 14.4764499664
+conv4_2/expand 10.5348510742
+conv4_3/dwise 3.46479845047
+conv2_2/expand/scale 3.00252723694
+conv4_4/dwise/scale 2.55002903938
+conv4_1/linear 8.7073507309
+conv4_3/expand/bn 7.00083684921
+relu2_1/expand 4.18127822876
+conv6_3/expand/bn 8.42113399506
+conv5_3/dwise/scale 2.33640146255
+conv4_7/linear/scale 6.22652816772
+conv2_1/expand/scale 4.18127822876
+relu6_3/dwise 2.47726416588
+relu5_3/expand 2.05355238914
+conv6_3/dwise/bn 5.23989963531
+relu3_2/dwise 4.28350162506
+conv4_3/expand 15.7291498184
+conv4_4/linear/bn 6.81403446198
+relu4_1/dwise 2.811221838
+conv4_4/linear 8.44321537018
+relu4_2/dwise 2.46001768112
+conv6_2/dwise/bn 4.53605556488
+conv2_1/linear/bn 11.070892334
+conv4_5/dwise/scale 2.31507205963
+conv2_2/expand 17.0299606323
+conv2_2/linear/scale 18.239025116
+conv2_2/linear 31.7914791107
+conv1/scale 5.34768486023
+relu2_1/dwise 3.7898683548
+conv6_2/expand 6.82443618774
+conv4_5/linear/scale 6.38958930969
+conv6_4 8.29661369324
+relu4_2/expand 2.74415421486
+conv4_7/dwise/scale 2.3071231842
+conv4_1/expand/scale 2.59486055374
+data 2.56929183006
+conv6_1/expand/bn 8.01298046112
+relu4_3/expand 2.33669376373
+conv1 17.4517173767
+conv4_1/expand/bn 8.40920448303
+conv6_1/linear/scale 3.50393772125
+conv6_1/dwise/bn 4.53305721283
+conv2_1/dwise/scale 3.7898683548
+conv3_1/dwise 1.86693537235
+conv4_5/dwise 1.12792825699
+conv4_4/dwise 3.52561593056
+conv4_2/linear 4.85277509689
+conv4_5/expand/scale 2.22421145439
+conv3_2/linear/bn 6.83136177063
+conv4_7/linear/bn 7.41383552551
+conv4_3/linear/scale 7.87852573395
+conv5_2/linear/bn 6.56020879745
+conv5_3/linear/bn 5.96144914627
+conv4_5/linear/bn 5.57479429245
+relu6_2/dwise 1.92052578926
+conv4_2/linear/bn 5.1989941597
+conv4_6/linear/scale 8.3696308136
+conv4_7/dwise 2.0067615509
+conv6_2/linear/bn 5.54264450073
+conv2_1/dwise/bn 4.0561170578
+conv2_1/linear 26.0059394836
+conv3_1/expand 11.9624624252
+relu6_4 11.3912887573
+block_4_1 12.8130741119
+conv6_1/dwise/scale 2.22448062897
+conv6_1/dwise 1.57045912743
+conv4_6/expand 9.24559593201
+conv3_1/dwise/scale 2.421864748
+conv5_2/dwise 2.11246562004
+relu4_5/dwise 2.31507205963
+conv5_1/dwise/scale 2.61570954323
+conv5_2/expand/bn 7.25104570389
+conv4_4/expand/bn 9.03715896606
+conv4_2/dwise 1.66718959808
+fc7 31.1057605743
+conv4_4/expand 7.48229217529
+conv4_4/expand/scale 2.23350000381
+conv5_3/linear/scale 5.6776137352
+conv4_7/linear 17.1282615662
+conv5_3/dwise 1.60466003418
+conv2_2/dwise/scale 4.27356529236
+conv6_1/expand 4.95070981979
+relu3_1/expand 3.01748800278
+conv3_1/linear/bn 9.86723041534
+block_5_2 8.25435256958
+block_5_1 8.02265644073
+conv4_7/expand/scale 2.53759074211
+conv6_3/dwise/scale 2.47726416588
+conv4_4/dwise/bn 4.89940786362
+top5/acc 1.00048851967
+conv4_6/expand/scale 2.10919475555
+conv4_5/expand/bn 6.03584718704
+conv4_2/expand/scale 2.74415421486
+conv2_2/expand/bn 10.3871936798
+conv5_2/linear/scale 5.83993434906
+relu5_1/dwise 2.61570954323
+conv4_6/linear/bn 7.57580661774
+relu5_1/expand 1.52992343903
+conv5_1/dwise 1.76346552372
+conv5_2/expand 8.49447441101
+conv6_3/linear/bn 6.90650081635
+conv4_4/linear/scale 5.9155216217
+conv3_1/linear 14.7962284088
+relu1 5.34768486023
+conv6_3/expand 9.46343708038
+conv4_3/dwise/bn 5.23905467987
+conv1/bn 14.3237304688
+conv6_2/linear 5.35815525055
+conv4_6/linear 7.70487070084
+relu4_4/dwise 2.55002903938
+conv4_5/linear 6.94052171707
+conv6_2/expand/scale 1.44523632526
+conv3_2/expand 19.7233943939
+conv3_2/linear 31.0479335785
+conv6_4/scale 11.3912887573
+relu6_1/dwise 2.22448062897
+conv3_1/dwise/bn 6.74509954453
+block_3_1 13.3674545288
+conv5_3/expand/bn 8.52245140076
+relu6_3/expand 1.82961761951
+conv4_6/dwise/bn 4.57927942276
+conv6_3/dwise 1.28152942657
+conv5_1/linear/bn 6.81049442291
+conv6_1/expand/scale 1.28425788879
+conv3_1/expand/scale 3.01748800278
+conv4_3/expand/scale 2.33669376373
+conv3_2/linear/scale 10.0109071732
+conv4_1/linear/bn 9.56043148041
+conv4_5/dwise/bn 4.63532543182

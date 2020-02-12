@@ -48,8 +48,6 @@
 #include <functional>
 #include <algorithm>
 
-using namespace std;
-
 namespace mlir {
 
 std::vector<std::shared_ptr<std::vector<float> > >
@@ -92,6 +90,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
     return success();
   }
+
   if (auto op = dyn_cast<tpu::Conv2DOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "Conv2DOp" << "\n";);
 
@@ -189,7 +188,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
         // make copy of inputs
         std::vector<std::shared_ptr<std::vector<float> > > input_copy(2);
         for (int index = 0; index < 2; ++index) {
-          input_copy[index] = make_shared<std::vector<float> >();
+          input_copy[index] = std::make_shared<std::vector<float> >();
         }
         input_copy[0]->assign(eltwise_input->begin(), eltwise_input->end());
         input_copy[1]->assign(resultT->begin(), resultT->end());
@@ -420,7 +419,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     float threshold_y;
     if (op.quant() == "INT8" && is_average_pool) {
       // make copy
-      auto input_copy = make_shared<std::vector<float> >();
+      auto input_copy = std::make_shared<std::vector<float> >();
       input_copy->assign(input->begin(), input->end());
       input = input_copy;
       // get threshold
@@ -1159,7 +1158,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     int crop_offset_c = op.crop_offset_c().getValue().getLimitedValue();
     int crop_offset_h = op.crop_offset_h().getValue().getLimitedValue();
     int crop_offset_w = op.crop_offset_w().getValue().getLimitedValue();
-    vector<int> crop_offset = {crop_offset_n, crop_offset_c, crop_offset_h, crop_offset_w};
+    std::vector<int> crop_offset = {crop_offset_n, crop_offset_c, crop_offset_h, crop_offset_w};
     LLVM_DEBUG (llvm::errs() << crop_offset_n << ", " << crop_offset_c << ", "
                << crop_offset_h << "," << crop_offset_w;);
 
@@ -1170,7 +1169,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
     float *input = (float *)opdT[0]->data();
     float *output = (float *)resultT.get()->data();
-    vector<int >indices(size, 0);
+    std::vector<int >indices(size, 0);
     my_crop(input, output, input_shape1.data(), input_shape2.data(),
             output_shape.data(), 0, crop_offset.data(), indices.data());
     valueMapping[result] = std::move(resultT);
@@ -1708,14 +1707,14 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     float variance3 = op.variance3().convertToFloat();
     float offset = op.offset().convertToFloat();
     float step = op.step().convertToFloat();
-    vector<float> min_sizes_;
-    vector<float> max_sizes_;
-    vector<float> aspect_ratios;
-    vector<float> aspect_ratios_;
+    std::vector<float> min_sizes_;
+    std::vector<float> max_sizes_;
+    std::vector<float> aspect_ratios;
+    std::vector<float> aspect_ratios_;
     bool flip_;
     int num_priors_;
     bool clip_;
-    vector<float> variance_;
+    std::vector<float> variance_;
     int img_w_;
     int img_h_;
     float step_w_;
@@ -1944,7 +1943,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
 
     //calc && sort
-    vector<map<int, vector<pair<float ,int>> > > all_conf_scores;
+    std::vector<std::map<int, std::vector<std::pair<float ,int>> > > all_conf_scores;
     GetConfidenceScores_opt(conf_data, num, num_priors_, num_classes_, confidence_threshold_, &all_conf_scores);
     for (int i = 0; i < num; ++i) {
       for (int c = 0; c < num_classes_; ++c) {
@@ -1952,7 +1951,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
           LLVM_DEBUG(std::cout<<"class with no score idx = %d,"<<c<<"\n";);
           continue;
         }
-        vector<pair<float,int> >& scores = all_conf_scores[i].find(c)->second;
+        std::vector<std::pair<float,int> >& scores = all_conf_scores[i].find(c)->second;
 
         if (top_k_ < (int)scores.size()) {
           std::partial_sort (scores.begin(), scores.begin()+top_k_ ,scores.end(), SortScoreCmp0);
@@ -1988,7 +1987,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
         if (all_conf_scores[i].find(c) == all_conf_scores[i].end())
           continue;
-        vector<pair<float,int> >& scores = all_conf_scores[i].find(c)->second;
+        std::vector<std::pair<float,int> >& scores = all_conf_scores[i].find(c)->second;
         int length = top_k_ < (int)scores.size() ? top_k_ : scores.size();
         for (int k = 0; k < length; ++k) {
           p[scores[k].second] = 1;
@@ -1997,12 +1996,12 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     }
 
     // Retrieve all location predictions.
-    vector<LabelBBox_l> all_loc_preds;
+    std::vector<LabelBBox_l> all_loc_preds;
     GetLocPredictions_opt(loc_data, num, num_priors_, num_loc_classes_,
                          share_location_, decode_keep_index, &all_loc_preds);
 
     // Decode all loc predictions to bboxes.
-    vector<LabelBBox_l> all_decode_bboxes;
+    std::vector<LabelBBox_l> all_decode_bboxes;
     const bool clip_bbox = false;
     DecodeBBoxesAll_opt(all_loc_preds, num_priors_ ,prior_data , num,
                        share_location_, num_loc_classes_, background_label_id_,
@@ -2011,11 +2010,11 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     delete [] decode_keep_index;
 
     int num_kept = 0;
-    vector<map<int, vector<pair<float,int>>> > all_indices;
+    std::vector<std::map<int, std::vector<std::pair<float,int>>> > all_indices;
     for (int i = 0; i < num; ++i) {
       const LabelBBox_l& decode_bboxes = all_decode_bboxes[i];
-      const map<int, vector<pair<float ,int>> >& conf_scores = all_conf_scores[i];
-      map<int, vector<pair<float,int>> > indices;
+      const std::map<int, std::vector<std::pair<float ,int>> >& conf_scores = all_conf_scores[i];
+      std::map<int, std::vector<std::pair<float,int>> > indices;
       int num_det = 0;
       for (int c = 0; c < num_classes_; ++c) {
         if (c == background_label_id_) {
@@ -2030,20 +2029,20 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
           llvm::errs() << "Could not find location predictions for label " << label;
           continue;
         }
-        const vector<BBox_l>& bboxes = decode_bboxes.find(label)->second;
-        const vector<pair<float ,int>>& aa = conf_scores.find(c)->second;
+        const std::vector<BBox_l>& bboxes = decode_bboxes.find(label)->second;
+        const std::vector<std::pair<float ,int>>& aa = conf_scores.find(c)->second;
         ApplyNMSFast_opt(bboxes, aa, confidence_threshold_, nms_threshold_, eta_, top_k_, &(indices[c]));
 
         num_det += indices[c].size();
       }
 
       if (keep_top_k_ > -1 && num_det > keep_top_k_) {
-        vector<pair<float, pair<int, int> > > score_index_pairs;
+        std::vector<std::pair<float, std::pair<int, int> > > score_index_pairs;
         for (auto it = indices.begin();
              it != indices.end(); ++it) {
           int label = it->first;
 
-          const vector<pair<float,int>>& label_indices = it->second;
+          const std::vector<std::pair<float,int>>& label_indices = it->second;
           for (int j = 0; j < (int)label_indices.size(); ++j) {
             score_index_pairs.push_back(std::make_pair(
             label_indices[j].first, std::make_pair(label, label_indices[j].second)));
@@ -2053,15 +2052,14 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
         std::sort (score_index_pairs.begin(), score_index_pairs.end(),SortScoreCmp1);
         score_index_pairs.resize(keep_top_k_);
         // Store the new indices.
-        map<int, vector<pair<float,int>> > new_indices;
+        std::map<int, std::vector<std::pair<float,int>> > new_indices;
         for (int j = 0; j < (int)score_index_pairs.size(); ++j) {
 
           int label = score_index_pairs[j].second.first;
           int idx = score_index_pairs[j].second.second;
           float s = score_index_pairs[j].first;
 
-
-          new_indices[label].push_back(make_pair(s , idx));
+          new_indices[label].push_back(std::make_pair(s , idx));
         }
         all_indices.push_back(new_indices);
         num_kept += keep_top_k_;
@@ -2100,8 +2098,8 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
             llvm::errs() << "Could not find location predictions for " << loc_label;
             continue;
           }
-          const vector<BBox_l>& bboxes = decode_bboxes.find(loc_label)->second;
-          vector<pair<float,int>>& indices = it->second;
+          const std::vector<BBox_l>& bboxes = decode_bboxes.find(loc_label)->second;
+          std::vector<std::pair<float,int>>& indices = it->second;
           for (int j = 0; j < (int)indices.size(); ++j) {
 
             int idx = indices[j].second;

@@ -621,7 +621,7 @@ public:
                 TpuQuantDefaultPattern<tpu::SigmoidOp>,
                 TpuQuantDefaultPattern<tpu::SliceOp>,
                 TpuQuantDefaultPattern<tpu::DivOp>,
-                TpuQuantDefaultPattern<tpu::SqrtOp>,              
+                TpuQuantDefaultPattern<tpu::SqrtOp>,
                 TpuQuantDefaultPattern<tpu::PermuteOp>,
                 TpuQuantTanHOpPattern>(
             context, weightTensorFile.get(), weightFileVar);
@@ -635,7 +635,7 @@ public:
     // add Quant and Dequant before and after any cpu layer
     patterns_q.insert<TpuAddQuantAndDequantForSoftmaxOpPattern>(context);
     // add Dequant before DetectionOuputOp which is CPU layer but also output layer
-    patterns_q.insert<TpuAddDequantBeforeDetectionOutputOpPattern>(context); 
+    patterns_q.insert<TpuAddDequantBeforeDetectionOutputOpPattern>(context);
 
     applyPatternsGreedily(fn, patterns_q);
 

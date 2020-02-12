@@ -20,6 +20,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/TPU/TPUDialect.h"
+#include "mlir/Dialect/TPU/TPUOperationSupport.h"
 #include "mlir/Dialect/TPU/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
@@ -95,7 +96,7 @@ private:
   int addLayerIdAttr(Builder &builder, uint32_t &layer_id, Operation *op) {
       auto cast_op = llvm::dyn_cast_or_null<T>(op);
       if (cast_op) {
-        std::string op_name = cast_op.name().getValue().str();
+        std::string op_name = mlir::getOpName(op).str();
         llvm::errs() << op_name << " -> layer_id: " << layer_id << "\n";
         cast_op.setAttr("layer_id", builder.getI32IntegerAttr(layer_id));
         layer_id++;

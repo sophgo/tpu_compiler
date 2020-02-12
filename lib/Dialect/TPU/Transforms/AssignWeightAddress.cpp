@@ -20,6 +20,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/TPU/TPUDialect.h"
+#include "mlir/Dialect/TPU/TPUOperationSupport.h"
 #include "mlir/Dialect/TPU/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
@@ -94,7 +95,7 @@ static bool DoAssignWeight(Operation *op, int64_t oc, PatternRewriter &rewriter,
   // we need to pack rshift, multiplier and bias into one weight
   // layout is: [bias_4byte] multiplier_4byte rshift_1byte
   // with bias 9 bytes, w/o bias 5 bytes, for each output channel
-  std::string op_name = castOp.name().getValue().str();
+  std::string op_name = getOpName(op).str();
   llvm::errs() << op_name
                << ", pack Conv2D rshift multipler and bias\n";
   bool has_bias = false;
@@ -315,7 +316,7 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
 
       if (shape.size() == 5) {
         // FIXME: check this weight is belonging to conv
-        std::vector<int64_t> _shape(shape.begin(), shape.end()); 
+        std::vector<int64_t> _shape(shape.begin(), shape.end());
         shape.clear();
 
         // reshape it

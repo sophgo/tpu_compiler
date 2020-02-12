@@ -81,8 +81,7 @@ struct TpuQuantizationOpPattern : public RewritePattern {
     auto newPos = curPos + size;
 
     llvm::errs() << llvm::format("[%-36s][%8d] : [ ",
-                                 castOp.name().getValue().str().c_str(),
-                                 size)
+                                 getOpName(op).str().c_str(), size)
                  << llvm::format_hex(curPos, 10) << " --> "
                  << llvm::format_hex(newPos, 10) << " ]\n";
     // expand to dims=4
