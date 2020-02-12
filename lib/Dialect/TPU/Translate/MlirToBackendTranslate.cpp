@@ -43,6 +43,9 @@
 
 using namespace mlir;
 
+extern int BF16_TABLE_START;
+extern int BF16_TABLE_END;
+
 #include "backend/backend_tg_api.h"
 #include "backend/backend_tl_api.h"
 
@@ -1531,9 +1534,11 @@ static LogicalResult runOperation(Operation &opInst) {
                                      nullptr,  // const u32 *depends,
                                      0,        // depends_len,
                                      input_gaddr, output_gaddr, y0_table_gaddr,
-                                     slope_gaddr, n, c, h, w, FMT_I8);
+                                     slope_gaddr, n, c, h, w, 0, 0, FMT_I8);
 
     } else if (op.quant() == "BF16"){
+      llvm::errs() << BF16_TABLE_START << ",  " << BF16_TABLE_END
+                   << "\n";
       slope_gaddr = getWeightOpAddress(op.getOperand(2)->getDefiningOp());
       sigmoid_fixed_forward_bmkernel(*backend_ctx,
                                      0,        // stream_id,
@@ -1542,7 +1547,7 @@ static LogicalResult runOperation(Operation &opInst) {
                                      nullptr,  // const u32 *depends,
                                      0,        // depends_len,
                                      input_gaddr, output_gaddr, y0_table_gaddr,
-                                     slope_gaddr, n, c, h, w, FMT_BF16);
+                                     slope_gaddr, n, c, h, w, BF16_TABLE_START, BF16_TABLE_END, FMT_BF16);
     } else {
       llvm::errs() << op.quant() << "not support yet \n";
       assert(0);
