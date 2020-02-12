@@ -11,7 +11,7 @@ npz_to_bin.py mobilenet_v2_in_fp32.npz input mobilenet_v2_in_fp32.bin
 bin_fp32_to_int8.py \
     mobilenet_v2_in_fp32.bin \
     mobilenet_v2_in_int8.bin \
-    0.017 \
+    1.0 \
     2.56929183
 
 ################################
