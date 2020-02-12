@@ -70,10 +70,7 @@ bin_to_npz.py \
 npz_compare.py \
     mobilenet_v2_cmdbuf_out_all_bf16.npz \
     mobilenet_v2_tensor_all_bf16.npz \
-    --op_info mobilenet_v2_op_info.csv \bin_compare.py \
-    mobilenet_v2_cmdbuf_out_fc7_bf16.bin \
-    $REGRESSION_PATH/mobilenet_v2/data/test_cat_out_mobilenet_v2_fc7_bf16.bin \
-    bf16 1 1 1 1000 5
+    --op_info mobilenet_v2_op_info.csv \
     --tolerance=0.99,0.99,0.96 -vvv
 
 # VERDICT
