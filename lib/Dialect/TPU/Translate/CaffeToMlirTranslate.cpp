@@ -48,6 +48,21 @@
 
 using namespace mlir;
 
+
+static llvm::cl::OptionCategory clOptionsCategory("caffe translate options");
+
+static llvm::cl::opt<std::string> clCaffeModelFilename(
+    "caffemodel",
+    llvm::cl::desc("Specify the caffemodel filename"),
+    llvm::cl::cat(clOptionsCategory));
+
+/// set static batch size
+// TODO: enable by default for now, should set default 0 when shapeinference is ready
+static llvm::cl::opt<int> clStaticBatchsize(
+    "static-batchsize",
+    llvm::cl::desc("set static batchsize, dynamic batchsize is used when not set"),
+    llvm::cl::cat(clOptionsCategory), llvm::cl::init(1));
+
 // Importer that takes an Caffe model and imports it as an MLIR module in the TPU
 // dialect.
 class CaffeImporter {
@@ -167,8 +182,16 @@ void CaffeImporter::ParseNetInputOutput(caffe::Net<float> &net,
           << ", layer: " << net.layer_names()[index]
           << "\n";
     );
+    std::vector<int> input_shape = net.input_blobs()[i]->shape();
+    if (clStaticBatchsize > 0) {
+      input_shape[0] = clStaticBatchsize;
+    } else {
+      // set batch to dynamic
+      input_shape[0] = -1;
+    }
+
     inputs[net.blob_names()[index]] = GetTypeFromCaffeShape(
-        net.input_blobs()[i]->shape(), elementType_);
+        input_shape, elementType_);
   }
   for (int i = 0; i <= net.num_outputs() - 1; ++i) {
     int index = net.output_blob_indices()[i];
@@ -182,6 +205,12 @@ void CaffeImporter::ParseNetInputOutput(caffe::Net<float> &net,
           << "\n";
     );
     std::vector<int> output_shape = net.output_blobs()[i]->shape();
+    if (clStaticBatchsize > 0) {
+      output_shape[0] = clStaticBatchsize;
+    } else {
+      // set batch to dynamic
+      output_shape[0] = -1;
+    }
 
     ///
     /// fixup `DetectionOutput` output shape
@@ -199,7 +228,6 @@ void CaffeImporter::ParseNetInputOutput(caffe::Net<float> &net,
         output_shape, elementType_);
   }
 }
-
 
 mlir::Block* CaffeImporter::CreateOneBlockFunction(
     std::map<std::string, mlir::Type> &inputs,
@@ -287,10 +315,9 @@ void CaffeImporter::ConvertLayers(mlir::Block *block,
     }else if (strcmp(layer->type(), "Power") == 0) {
       convertPowerLayer(block, layer);
     }else {
-       llvm::errs() << "    UNKNOWN : " << layer->type() <<"\n";
-       assert(false);
-     }
-
+      llvm::errs() << "    UNKNOWN : " << layer->type() <<"\n";
+      assert(false);
+    }
   }
 }
 
@@ -366,7 +393,6 @@ void CaffeImporter::convertSplitLayer(mlir::Block *block,
 
   for ( int i = 0; i < top_size; i++)
     tensor_map_[layer_param.top(i)] = input_var;
-
 }
 
 void CaffeImporter::convertConvolutionLayer(mlir::Block *block,
@@ -721,7 +747,7 @@ void CaffeImporter::convertPoolingLayer(mlir::Block *block,
     else
       ofmap[i] = (static_cast<int>(floor(static_cast<float>(
         ifmap[i] + 2 * padding[i] - kernel[i]) / stride[i])) + 1);
-    
+
     int remain_pixel = (ifmap[i] + 2 * padding[i] - kernel[i]) % stride[i];
     if (remain_pixel > 0 && ceil_mode)
       padding_br[i] += (stride[i] - remain_pixel);
@@ -1120,8 +1146,6 @@ void CaffeImporter::convertSoftmaxLayer(mlir::Block *block,
   mlir::Value *input_var = GetLayerInput(layer);
 
   auto layer_param = layer->layer_param();
-  int64_t n,c,h,w;
-
   int axis = 1;
   if (layer_param.has_softmax_param()) {
     axis = layer_param.softmax_param().axis();
@@ -1130,8 +1154,8 @@ void CaffeImporter::convertSoftmaxLayer(mlir::Block *block,
   llvm::ArrayRef<int64_t> input_shape =
       input_var->getType().dyn_cast<mlir::TensorType>().getShape();
 
-  for (int i = 0; i < input_shape.size(); ++i) {
-      LLVM_DEBUG(llvm::errs() << "input_shape[" << i << "] = " << input_shape[i] << ", ");
+  for (size_t i = 0; i < input_shape.size(); ++i) {
+    LLVM_DEBUG(llvm::errs() << "input_shape[" << i << "] = " << input_shape[i] << ", ");
   }
 
   LLVM_DEBUG(llvm::errs() << "\n");
@@ -1148,6 +1172,7 @@ void CaffeImporter::convertSoftmaxLayer(mlir::Block *block,
   auto result_var = op.getResult();
   tensor_map_[layer_param.top(0)] = result_var;
 }
+
 void CaffeImporter::convertConcatLayer(mlir::Block *block,
     caffe::Layer<float> *layer) {
   std::vector<mlir::Value *> input_vars = GetLayerInputs(layer);
@@ -1157,7 +1182,7 @@ void CaffeImporter::convertConcatLayer(mlir::Block *block,
   int axis = concat_param.axis();
   int64_t n = 0, c = 0, h = 0, w = 0;
   int64_t concat_axis_dim = 0;
-  int tbl_size ;
+
   if (input_vars.size() == 1) {
     // special case for YOLOv3 caffe model, which has only one input
     // remove that node
@@ -1190,42 +1215,41 @@ void CaffeImporter::convertConcatLayer(mlir::Block *block,
       );
     }
 
-      switch (axis) {
-        case 0:
-          n = concat_axis_dim;
-          break;
-        case 1:
-          c = concat_axis_dim;
-          break;
-        case 2:
-          h = concat_axis_dim;
-          break;
-        case 3:
-          w = concat_axis_dim;
-          break;
-        default:
-          assert(0);
-      }
+    switch (axis) {
+    case 0:
+      n = concat_axis_dim;
+      break;
+    case 1:
+      c = concat_axis_dim;
+      break;
+    case 2:
+      h = concat_axis_dim;
+      break;
+    case 3:
+      w = concat_axis_dim;
+      break;
+    default:
+      assert(0);
+    }
 
-       LLVM_DEBUG(
-        llvm::errs()
-            << " axis: " << input_vars.size()
-            << "  N: " << n
-            << ", C: " << c
-            << ", IH*IW: " << h << " * " << w
-            << "\n";
-      );
+    LLVM_DEBUG(
+      llvm::errs()
+          << " axis: " << input_vars.size()
+          << "  N: " << n
+          << ", C: " << c
+          << ", IH*IW: " << h << " * " << w
+          << "\n";
+    );
 
-      // construct OP
-      result_type = RankedTensorType::get({n, c, h, w}, elementType_);
-      tbl_size = n*c*h*w;
-    }else if(input_shape.size() == 2){
+    // construct OP
+    result_type = RankedTensorType::get({n, c, h, w}, elementType_);
+
+  } else if (input_shape.size() == 2) {
 
     for (uint32_t i = 0; i < input_vars.size(); i++) {
       input_shape = input_vars[i]->getType().dyn_cast<mlir::TensorType>().getShape();
 
       assert(input_shape.size() == 2);
-
 
       h = input_shape[0];
       w = input_shape[1];
@@ -1238,75 +1262,73 @@ void CaffeImporter::convertConcatLayer(mlir::Block *block,
       );
     }
 
-      switch (axis) {
-        case 0:
-          h = concat_axis_dim;
-          break;
-        case 1:
-          w = concat_axis_dim;
-          break;
-        default:
-          assert(0);
-      }
+    switch (axis) {
+    case 0:
+      h = concat_axis_dim;
+      break;
+    case 1:
+      w = concat_axis_dim;
+      break;
+    default:
+      assert(0);
+    }
 
-         LLVM_DEBUG(
+    LLVM_DEBUG(
+      llvm::errs()
+          << " axis: " << input_vars.size()
+          << ", IH*IW: " << h << " * " << w
+          << "\n";
+    );
+    // construct OP
+    result_type = RankedTensorType::get({h, w}, elementType_);
+
+  } else if (input_shape.size() == 3) {
+
+    for (uint32_t i = 0; i < input_vars.size(); i++) {
+      input_shape = input_vars[i]->getType().dyn_cast<mlir::TensorType>().getShape();
+
+      assert(input_shape.size() == 3);
+
+      c = input_shape[0];
+      h = input_shape[1];
+      w = input_shape[2];
+      concat_axis_dim += input_shape[axis];
+      LLVM_DEBUG(
         llvm::errs()
-            << " axis: " << input_vars.size()
-            << ", IH*IW: " << h << " * " << w
-            << "\n";
-      );
-      // construct OP
-      result_type = RankedTensorType::get({h, w}, elementType_);
-      tbl_size = h*w;
-    }else if(input_shape.size() == 3){
-      for (uint32_t i = 0; i < input_vars.size(); i++) {
-        input_shape = input_vars[i]->getType().dyn_cast<mlir::TensorType>().getShape();
-
-        assert(input_shape.size() == 3);
-
-
-        c = input_shape[0];
-        h = input_shape[1];
-        w = input_shape[2];
-        concat_axis_dim += input_shape[axis];
-        LLVM_DEBUG(
-          llvm::errs()
             << " var: " << i
             << ", IH*IW: " << h << " * " << w
             << "\n";
-        );
-      }
-
-      switch (axis) {
-        case 0:
-         c = concat_axis_dim;
-          break;
-        case 1:
-          h = concat_axis_dim;
-          break;
-        case 2:
-          w = concat_axis_dim;
-          break;
-        default:
-          assert(0);
-      }
-
-         LLVM_DEBUG(
-        llvm::errs()
-            << " axis: " << axis
-            <<", C: "<< c
-            << ", OH*OW: " << h << " * " << w
-            << "\n";
       );
-
-
-      // construct OP
-      result_type = RankedTensorType::get({c,h, w}, elementType_);
-      tbl_size = c*h*w;
-     }else{
-       assert(0);
     }
 
+    switch (axis) {
+    case 0:
+      c = concat_axis_dim;
+      break;
+    case 1:
+      h = concat_axis_dim;
+      break;
+    case 2:
+      w = concat_axis_dim;
+      break;
+    default:
+      assert(0);
+    }
+
+    LLVM_DEBUG(
+      llvm::errs()
+          << " axis: " << axis
+          <<", C: "<< c
+          << ", OH*OW: " << h << " * " << w
+          << "\n";
+    );
+
+    // construct OP
+    result_type = RankedTensorType::get({c,h, w}, elementType_);
+
+  } else {
+    assert(0);
+  }
 
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name())));
@@ -1317,7 +1339,6 @@ void CaffeImporter::convertConcatLayer(mlir::Block *block,
   auto result_var = op.getResult();
 
   tensor_map_[layer_param.top(0)] = result_var;
-
 }
 
 void CaffeImporter::convertDropoutLayer(mlir::Block *block,
@@ -2105,8 +2126,6 @@ void CaffeImporter::convertNormalizeLayer(mlir::Block *block,
   weightFile_->addTensor(filter_name, &dataVec_fp32, table_type_shift);
   operands.push_back(AddLoadWeightOp(block, filter_name, table_type_shift));
 
-
-
   auto result_type = RankedTensorType::get(input_shape, elementType_);
   std::vector<NamedAttribute> attrs_power;
   attrs_power.push_back(builder_.getNamedAttr("power", builder_.getF32FloatAttr(2.0)));
@@ -2120,7 +2139,7 @@ void CaffeImporter::convertNormalizeLayer(mlir::Block *block,
       builder_.getUnknownLoc(), result_type,
       ArrayRef<Value *>{operands}, ArrayRef<NamedAttribute>{attrs_power});
   auto power_result_var = power_op.getResult();
-#else  
+#else
   /*use eltwise op*/
   std::vector<Value *> operands_eltwise_power;
 
@@ -2294,6 +2313,7 @@ void CaffeImporter::convertPermuteLayer(mlir::Block *block,
 
   tensor_map_[layer_param.top(0)] = result_var;
 }
+
 LogicalResult CaffeImporter::Import(const llvm::StringRef inputFilename,
     llvm::StringRef caffemodelFilename) {
   caffe::Net<float> net(inputFilename, caffe::TEST);
@@ -2350,13 +2370,6 @@ static OwningModuleRef caffeToMlirTranslate(llvm::SourceMgr &sourceMgr,
   assert(succeeded(status));
   return module;
 }
-
-static llvm::cl::OptionCategory clOptionsCategory("caffe translate options");
-
-static llvm::cl::opt<std::string> clCaffeModelFilename(
-    "caffemodel",
-    llvm::cl::desc("Specify the caffemodel filename"),
-    llvm::cl::cat(clOptionsCategory));
 
 static TranslateToMLIRRegistration
     registration("caffe-to-mlir",
