@@ -4,35 +4,17 @@ set -e
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 source $DIR/../../envsetup.sh
 
-# translate from caffe
-mlir-translate \
-    --caffe-to-mlir $MODEL_PATH/caffe/VGG_ILSVRC_16_layers_deploy.prototxt \
-    --caffemodel $MODEL_PATH/caffe/VGG_ILSVRC_16_layers.caffemodel \
-    -o vgg16.mlir
-
-# apply all possible pre-calibration optimizations
-mlir-opt \
-    --fuse-relu \
-    vgg16.mlir \
-    -o vgg16_opt.mlir
-
 ################################
 # prepare bf16 input
 ################################
+npz_to_bin.py vgg16_in_fp32.npz input vgg16_in_fp32.bin
 bin_fp32_to_bf16.py \
-    $DATA_PATH/test_cat_in_fp32.bin \
-    in_bf16.bin
-# check
-diff in_bf16.bin $DATA_PATH/test_cat_in_resnet50_bf16.bin
+    vgg16_in_fp32.bin \
+    vgg16_in_bf16.bin
 
 ################################
 # quantization
 ################################
-mlir-opt \
-    --quant-bf16 \
-    vgg16_opt.mlir \
-    -o vgg16_quant_bf16.mlir
-
 # assign weight address & neuron address
 mlir-opt \
     --assign-weight-address \
@@ -52,29 +34,44 @@ mlir-translate \
     vgg16_quant_bf16_addr.mlir \
     -o cmdbuf_bf16.bin
 
+# generate cvi model
+python $CVIBUILDER_PATH/python/cvi_model_create.py \
+    --cmdbuf cmdbuf_bf16.bin \
+    --weight weight_bf16.bin \
+    --neuron_map neuron_map_bf16.csv \
+    --output=vgg16_bf16.cvimodel
+
 # run cmdbuf
-$RUNTIME_PATH/bin/test_bmnet \
-    in_bf16.bin \
-    weight_bf16.bin \
-    cmdbuf_bf16.bin \
-    out_all.bin \
-    30475216 0 30475216 1
+#$RUNTIME_PATH/bin/test_bmnet \
+#    vgg16_in_bf16.bin \
+#    weight_bf16.bin \
+#    cmdbuf_bf16.bin \
+#    vgg16_cmdbuf_out_all_bf16.bin \
+#    32921552 0 32921552 1
+$RUNTIME_PATH/bin/test_cvinet \
+    vgg16_in_bf16.bin \
+    vgg16_bf16.cvimodel \
+    vgg16_cmdbuf_out_all_bf16.bin
 
-#bin_extract.py out_all.bin out_fc8_bf16.bin bf16 0x00049800 1000
-#diff out_fc8_bf16.bin $DATA_PATH/test_cat_out_vgg16_fc8_bf16.bin
-# bin_bf16_to_fp32.py out_fc1000_bf16.bin out_fc8_fp32.bin
-# bin_dump.py out_fc8_fp32.bin float32 1 1 1 1000 5
-
-# run interpreter, to generate reference tensor all npz
-mlir-tpu-interpreter \
-    vgg16_quant_bf16.mlir \
-    --tensor-in $DATA_PATH/test_cat_in_fp32.bin \
-    --tensor-out dummy.bin \
-    --dump-all-tensor=tensor_all_bf16.npz
+bin_extract.py \
+    vgg16_cmdbuf_out_all_bf16.bin \
+    vgg16_cmdbuf_out_fc8_bf16.bin \
+    bf16 0x00049800 1000
+bin_compare.py \
+    vgg16_cmdbuf_out_fc8_bf16.bin \
+    $REGRESSION_PATH/vgg16/data/test_cat_out_vgg16_fc8_bf16.bin \
+    bf16 1 1 1 1000 5
 
 # compare all tensors
-bin_to_npz.py out_all.bin neuron_map_bf16.csv out_all.npz
-npz_compare.py out_all.npz tensor_all_bf16.npz
+bin_to_npz.py \
+    vgg16_cmdbuf_out_all_bf16.bin \
+    neuron_map_bf16.csv \
+    vgg16_cmdbuf_out_all_bf16.npz
+npz_compare.py \
+    vgg16_cmdbuf_out_all_bf16.npz \
+    vgg16_tensor_all_bf16.npz \
+    --op_info vgg16_op_info.csv \
+    --tolerance=0.99,0.99,0.96 -vvv
 
 # VERDICT
 echo $0 PASSED
