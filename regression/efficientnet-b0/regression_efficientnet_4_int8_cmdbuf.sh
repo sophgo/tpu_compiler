@@ -65,13 +65,21 @@ bin_fp32_to_int8.py \
     1.0 \
     2.64064478874
 
+# generate cvi model
+python $CVIBUILDER_PATH/python/cvi_model_create.py \
+    --cmdbuf cmdbuf.bin \
+    --weight weight.bin \
+    --neuron_map neuron_map.csv \
+    --output=efficientnet_int8_per_channel.cvimodel
+
 # run cmdbuf
-$RUNTIME_PATH/bin/test_bmnet \
+
+$RUNTIME_PATH/bin/test_cvinet \
     efficientnet_in_int8.bin \
-    weight.bin \
-    cmdbuf.bin \
-    out_all.bin \
-    0x167DEF0 0 0x167DEF0 1 # size, offset, shift, batch
+    efficientnet_int8_per_channel.cvimodel \
+    efficientnet_cmdbuf_out_all_int8_multiplier.bin
+
+
 
 # run interpreter, to generate reference tensor all npz
 mlir-tpu-interpreter efficientnet-b0_quant_int8_per_channel.mlir \

@@ -36,8 +36,8 @@
 
 #define DEBUG_TYPE "gen-sigmoid-table"
 
-static const int BF16_TABLE_START = -8;
-static const int BF16_TABLE_END = 8;
+extern const int BF16_TABLE_START = -8;
+extern const int BF16_TABLE_END = 8;
 using std::vector;
 
 template <typename Dtype>
