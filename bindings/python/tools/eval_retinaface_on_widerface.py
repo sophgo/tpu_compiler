@@ -13,7 +13,7 @@ g_wider_face_gt_folder = \
 g_nms_threshold = 0.4
 g_obj_threshold = 0.5
 g_net_input_dims = '600,600'
-g_detector = RetinaFace(g_nms_threshold, g_obj_threshold)
+g_detector = None
 
 g_mlir_model = pymlir.module()
 g_is_int8 = False
@@ -61,6 +61,7 @@ if __name__ == '__main__':
     g_net_input_dims = [int(s) for s in args.net_input_dims.split(',')]
     g_nms_threshold = args.nms_threshold
     g_obj_threshold = args.obj_threshold
+    g_detector = RetinaFace(g_nms_threshold, g_obj_threshold)
 
     g_mlir_model.load(args.model)
     detect_on_widerface(args.images, args.annotation, args.result, detect)
