@@ -474,7 +474,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
           // global average
           sum = output_data[i];
         } else {
-          sum = (float)(output_data[i] * kh * kw);
+          sum = std::round(output_data[i] * kh * kw);
         }
         output_data[i] = (float)applyMultiplierAndRShiftAndSaturateInt8(
             sum, rshift, multiplier, false);
