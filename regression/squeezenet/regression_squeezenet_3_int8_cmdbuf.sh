@@ -7,7 +7,7 @@ source $DIR/../../envsetup.sh
 ################################
 # prepare int8 input
 ################################
-npz_to_bin.py squeezenet_v1.1_in_fp32.npz input squeezenet_v1.1_in_fp32.bin
+npz_to_bin.py squeezenet_v1.1_in_fp32.npz data squeezenet_v1.1_in_fp32.bin
 bin_fp32_to_int8.py \
     squeezenet_v1.1_in_fp32.bin \
     squeezenet_v1.1_in_int8.bin \

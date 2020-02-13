@@ -6,7 +6,7 @@ source $DIR/../../envsetup.sh
 
 # translate from caffe model
 mlir-translate \
-    --caffe-to-mlir $MODEL_PATH/imagenet/squeezenet/caffe/squeezenet_v1.1.prototxt \
+    --caffe-to-mlir $MODEL_PATH/imagenet/squeezenet/caffe/deploy_v1.1.prototxt \
     --caffemodel $MODEL_PATH/imagenet/squeezenet/caffe/squeezenet_v1.1.caffemodel \
     -o squeezenet_v1.1.mlir
 
