@@ -517,6 +517,73 @@ static LogicalResult runOperation(Operation &opInst) {
     return success();
   }
 
+  if (auto op = dyn_cast<tpu::DeConv2DOp>(opInst)) {
+    LLVM_DEBUG(llvm::errs() << "DeConv2DOp" << "\n";);
+
+    bool with_bias = false, do_relu = false;
+    int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, ph, pw, dh, dw;
+    getDeConv2DOpParam(op, n, ic, ih, iw, oc, oh, ow, g,
+                     kh, kw, sh, sw, ph, pw, dh, dw, with_bias);
+
+    gaddr_t input_gaddr = getPreviousOpAddress(op);
+    gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
+    gaddr_t filter_gaddr = getWeightOpAddress(op.getOperand(1)->getDefiningOp());
+    gaddr_t bias_gaddr = INVALID_GLOBAL_ADDR;
+    if (with_bias) {
+      bias_gaddr = getWeightOpAddress(op.getOperand(2)->getDefiningOp());
+    }
+    
+    int layer_id = op.layer_id().getValue().getLimitedValue();
+
+    if (op.quant() == "INT8") {
+      assert(false);
+    } else if (op.quant() == "INT8_MULTIPLIER") {
+      // assuming padding == 0
+      assert(ph == 0);
+      assert(pw == 0);
+      deconv_fixed_forward_bmkernel(
+        *backend_ctx,
+          0, // stream_id,
+          0, // inst_id,
+          layer_id, // layer_id,
+          nullptr, // depends
+          0, // depends_len
+          input_gaddr, // input_data_gaddr,
+          output_gaddr, // output_data_gaddr,
+          filter_gaddr, // weight_data_gaddr,
+          bias_gaddr, // bias_data_gaddr,
+          n,
+          ic,
+          ih,
+          iw,
+          g, // group,
+          oc,
+          oh,
+          ow,
+          kh,
+          kw,
+          dh,
+          dw,
+          ph, // pad_h_top,
+          ph, // pad_h_bottom,
+          pw, // pad_w_left,
+          pw, // pad_w_right,
+          sh,
+          sw,
+          with_bias, // do_bias
+          false, // result_add
+          do_relu, // do_activation,
+          0, //right_shift_width,
+          false, //use_winograd,
+          oc, // right_shift_array_len
+          bias_gaddr // ga_per_channel
+          );
+    } else {
+      assert(false);
+    }
+    return success();
+  }
+
   if (auto op = dyn_cast<tpu::CropOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "Cropop" << op.name()
                             << "\n";);
