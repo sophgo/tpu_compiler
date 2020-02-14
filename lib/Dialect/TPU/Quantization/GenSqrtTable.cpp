@@ -46,10 +46,14 @@ namespace {
 #define EXP_END 63
 #define CHANNEL 32
 #define NPU_NUM 32
-#define TABLE_H 32
-#define TABLE_W 8
-#define TABLE_HW (TABLE_H*TABLE_W)
-#define TBL_SHAPE (TABLE_HW*NPU_NUM)
+#define TABLE_H_BF16 32
+#define TABLE_W_BF16 8
+#define TABLE_H_INT8 16
+#define TABLE_W_INT8 16  
+#define TABLE_HW_INT8 (TABLE_H_INT8*TABLE_W_INT8)
+#define TABLE_HW_BF16 (TABLE_H_BF16*TABLE_W_BF16)
+#define TBL_SHAPE_INT8 (TABLE_HW_INT8*NPU_NUM)
+#define TBL_SHAPE_BF16 (TABLE_HW_BF16*NPU_NUM)
 
 // <! gen invert sqrt
 static double _gen_sqrt(int base, int p) {
@@ -98,19 +102,18 @@ static void gen_sqrt(uint16_t *table_data, uint64_t table_size) {
   //std::vector<float> table_data_dump();
 
   for (uint32_t i = 1; i < CHANNEL; i++) {
-    memcpy(&table_data[i * TABLE_HW], &table_data[0], sizeof(uint16_t) * TABLE_HW);
+    memcpy(&table_data[i * TABLE_HW_BF16], &table_data[0], sizeof(uint16_t) * TABLE_HW_BF16);
   }
 }
 
-static void gen_sqrt_mantissa(uint16_t *table_data, uint16_t* table_mantissa, uint64_t table_size) {
+static void gen_sqrt_mantissa(uint16_t* table_mantissa, uint64_t table_size) {
 
   uint32_t half = table_size / CHANNEL / 2;
   assert(half == 128);
-  assert(table_data);
 
   int idx = 0;
   double d;
-  for (uint32_t i = 0; i < half; i++) {
+  for (int i = 0; i < half; i++) {
     d = 1 + i * 1 / 128.0;
     //d = (double) pow(d, 0.5);
     d = (double) pow(d, 0.5);
@@ -131,17 +134,11 @@ static void gen_sqrt_mantissa(uint16_t *table_data, uint16_t* table_mantissa, ui
     idx++;
   }
 
-#ifdef DBG
-  for (uint32_t i = 0; i < 2 * half; i++) {
-  printf("mantissa [%u] is %lf, 0x%x\n", i, convert_bf16_fp32(table_mantissa[i]),
-    table_mantissa[i]);
-  }
-#endif /* ifdef DBG */
 
   // duplicate channel #1 to #31
   //TODO: tensor copy
-  for (uint64_t i = 1; i < CHANNEL; i++) {
-    memcpy(&table_mantissa[TABLE_HW * i], &table_mantissa[0], sizeof(uint16_t) * TABLE_HW);
+  for (int i = 1; i < CHANNEL; i++) {
+    memcpy(&table_mantissa[TABLE_HW_BF16 * i], &table_mantissa[0], sizeof(uint16_t) * TABLE_HW_BF16);
   }
 }
 
@@ -166,22 +163,22 @@ struct TpuGenSqrtTablePattern : public RewritePattern {
       return matchFailure();
     }
   
-    std::vector<float> y0_table(TBL_SHAPE);
+    std::vector<float> y0_table(TBL_SHAPE_INT8);
 
 /*    std::vector<uint16_t> table_data(table_hw);
     std::vector<uint16_t> table_data_mantissa(table_hw);
 */
-    std::vector<uint16_t> table_data_lut_bf16(TBL_SHAPE);
-    std::vector<uint16_t> table_data_mantissa_lut_bf16(TBL_SHAPE);
+    std::vector<uint16_t> table_data_lut_bf16(TBL_SHAPE_BF16);
+    std::vector<uint16_t> table_data_mantissa_lut_bf16(TBL_SHAPE_BF16);
 
-    std::vector<float> table_data_lut(TBL_SHAPE);
-    std::vector<float> table_data_mantissa_lut(TBL_SHAPE);
+    std::vector<float> table_data_lut(TBL_SHAPE_BF16);
+    std::vector<float> table_data_mantissa_lut(TBL_SHAPE_BF16);
 
   if (sqrtOp.quant() == "INT8") {
     float threshold_x = getPreviousOpThreshold(op);
     float threshold_y = getOpThreshold(op);
     for (int n = 0; n < NPU_NUM; n++) {
-      for (int idx = 0; idx < TABLE_HW; ++idx) {
+      for (int idx = 0; idx < TABLE_HW_INT8; ++idx) {
         char lutInput = static_cast<char>(idx);
         float index = lutInput * threshold_x / 127.0;
         float lutOutput = pow(index,0.5) * 127.0 / threshold_y;
@@ -189,21 +186,21 @@ struct TpuGenSqrtTablePattern : public RewritePattern {
         lutOutputI32 = (lutOutputI32 > 127)
                            ? 127
                            : (lutOutputI32 < -128) ? -128 : lutOutputI32;
-        y0_table[n * TABLE_HW + idx] = lutOutputI32;
+        y0_table[n * TABLE_HW_INT8 + idx] = lutOutputI32;
       }
     }
   }else if(sqrtOp.quant() == "BF16"){
     llvm::errs() << " op name: " << sqrtOp.name()
                       << "gen BF16 sqrt table." << "\n";    
-    gen_sqrt(table_data_lut_bf16.data(), TBL_SHAPE);
+    gen_sqrt(table_data_lut_bf16.data(), TBL_SHAPE_BF16);
     llvm::errs() << " op name: " << sqrtOp.name()
                       << "gen BF16 sqrt mantissa table." << "\n";
-    gen_sqrt_mantissa(table_data_lut_bf16.data(), table_data_mantissa_lut_bf16.data(), TBL_SHAPE);
+    gen_sqrt_mantissa(table_data_mantissa_lut_bf16.data(), TBL_SHAPE_BF16);
 
-    std::copy(table_data_lut_bf16.data(), table_data_lut_bf16.data() + TBL_SHAPE,
+    std::copy(table_data_lut_bf16.data(), table_data_lut_bf16.data() + TBL_SHAPE_BF16,
               table_data_lut.data() );
     std::copy(table_data_mantissa_lut_bf16.data(),
-              table_data_mantissa_lut_bf16.data() + TBL_SHAPE,
+              table_data_mantissa_lut_bf16.data() + TBL_SHAPE_BF16,
               table_data_mantissa_lut.data());
   }else {
       llvm::errs() << " op name: " << sqrtOp.name()
@@ -218,8 +215,9 @@ struct TpuGenSqrtTablePattern : public RewritePattern {
   // update op
   if (sqrtOp.quant() == "INT8") {
 
+
     std::vector<float> newWeights = y0_table ;
-    std::vector<int64_t> weightShape{1, NPU_NUM, TABLE_H, TABLE_W};
+    std::vector<int64_t> weightShape{1, NPU_NUM, TABLE_H_INT8, TABLE_W_INT8};
 
     auto tensor_name = op_name + "_gen_weight";
     LLVM_DEBUG(llvm::errs() << "  new_weight: " << tensor_name << "\n";);
@@ -241,7 +239,7 @@ struct TpuGenSqrtTablePattern : public RewritePattern {
   }else if(sqrtOp.quant() == "BF16"){
 
     std::vector<std::vector<float>> newWeights = {table_data_lut, table_data_mantissa_lut};
-    std::vector<int64_t> weightShapes = {1, NPU_NUM, TABLE_H, TABLE_W};
+    std::vector<int64_t> weightShapes = {1, NPU_NUM, TABLE_H_BF16, TABLE_W_BF16};
     for (int i = 0; i < 2; ++i) {
       auto tensor_name = op_name + "_gen_weight_" + std::to_string(i);
       llvm::errs() << "  new_weight[" << i << "] : " << tensor_name << "\n";

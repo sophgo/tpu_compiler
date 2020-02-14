@@ -45,10 +45,14 @@ namespace {
 #define EXP_END 63
 #define CHANNEL 32
 #define NPU_NUM 32
-#define TABLE_H 32
-#define TABLE_W 8
-#define TABLE_HW (TABLE_H*TABLE_W)
-#define TBL_SHAPE (TABLE_HW*NPU_NUM)  
+#define TABLE_H_BF16 32
+#define TABLE_W_BF16 8
+#define TABLE_H_INT8 16
+#define TABLE_W_INT8 16
+#define TABLE_HW_INT8 (TABLE_H_INT8*TABLE_W_INT8)
+#define TBL_SHAPE_INT8 (TABLE_HW_INT8*NPU_NUM)  
+#define TABLE_HW_BF16 (TABLE_H_BF16*TABLE_W_BF16)
+#define TBL_SHAPE_BF16 (TABLE_HW_BF16*NPU_NUM)    
 
 // <! gen reciprocal f(x) = 1/x
 static double _gen_reciprocal(int base, int p) {
@@ -61,8 +65,8 @@ static double _gen_reciprocal(int base, int p) {
 void bf16_gen_reciprocal(uint16_t *table_data) {
 
   int exp_start = EXP_START;
-  int half = TABLE_HW/2;
-  int table_hw = TABLE_HW;
+  int half = TABLE_HW_BF16/2;
+  int table_hw = TABLE_HW_BF16;
   uint64_t idx = 0;
 
   // prepare channel 0
@@ -126,12 +130,12 @@ void bf16_gen_reciprocal(uint16_t *table_data) {
 void bf16_gen_reciprocal_mantissa(uint16_t* table_mantissa) {
 
 
-  int half = TABLE_HW/2;
-  int table_hw = TABLE_HW;
+  int half = TABLE_HW_BF16/2;
+  int table_hw = TABLE_HW_BF16;
   
   int idx = 0;
   double d;
-  for (uint32_t i = 0; i < half; i++) {
+  for (int i = 0; i < half; i++) {
     d = 1 + i * 1 / 128.0;
     d = (double) pow(d, -1);
     FloatToBFloat16((float*)&d,&table_mantissa[128+idx],(size_t)1);
@@ -146,7 +150,7 @@ void bf16_gen_reciprocal_mantissa(uint16_t* table_mantissa) {
 
   // duplicate channel #1 to #31
   //TODO: tensor copy
-  for (uint64_t i = 1; i < NPU_NUM; i++) {
+  for (int i = 1; i < NPU_NUM; i++) {
     memcpy(&table_mantissa[table_hw * i], &table_mantissa[0], sizeof(uint16_t) * table_hw);
   }
 }
@@ -170,13 +174,13 @@ struct TpuGenDivTablePattern : public RewritePattern {
       LLVM_DEBUG(llvm::errs() << DivOp.name() << " gen already\n";);
       return matchFailure();
     }
-    std::vector<float> y0_table(TBL_SHAPE);
+    std::vector<float> y0_table(TBL_SHAPE_INT8);
 
-    std::vector<uint16_t> table_data_lut_bf16(TBL_SHAPE);
-    std::vector<uint16_t> table_data_mantissa_lut_bf16(TBL_SHAPE);
+    std::vector<uint16_t> table_data_lut_bf16(TBL_SHAPE_BF16);
+    std::vector<uint16_t> table_data_mantissa_lut_bf16(TBL_SHAPE_BF16);
 
-    std::vector<float> table_data_lut(TBL_SHAPE);
-    std::vector<float> table_data_mantissa_lut(TBL_SHAPE);
+    std::vector<float> table_data_lut(TBL_SHAPE_BF16);
+    std::vector<float> table_data_mantissa_lut(TBL_SHAPE_BF16);
   
   if (DivOp.quant() == "INT8") {
 
@@ -185,7 +189,7 @@ struct TpuGenDivTablePattern : public RewritePattern {
 
 
     for (int n = 0; n < NPU_NUM; n++) {
-      for (int idx = 0; idx < TABLE_HW; ++idx) {
+      for (int idx = 0; idx < TABLE_HW_INT8; ++idx) {
           char lutInput = static_cast<char>(idx);
           float index = lutInput * threshold_x / 127.0;
           float lutOutput = 1.0 /(index) * 127.0 / threshold_y;
@@ -194,7 +198,7 @@ struct TpuGenDivTablePattern : public RewritePattern {
                              ? 127
                              : (lutOutputI32 < -128) ? -128 : lutOutputI32;
 
-        y0_table[n * TABLE_HW + idx] = lutOutputI32;
+        y0_table[n * TABLE_HW_INT8 + idx] = lutOutputI32;
       }
     }
   }else if(DivOp.quant() == "BF16"){
@@ -206,10 +210,10 @@ struct TpuGenDivTablePattern : public RewritePattern {
 
     bf16_gen_reciprocal_mantissa(table_data_mantissa_lut_bf16.data());
 
-    std::copy(table_data_lut_bf16.data(), table_data_lut_bf16.data() + TBL_SHAPE,
+    std::copy(table_data_lut_bf16.data(), table_data_lut_bf16.data() + TBL_SHAPE_BF16,
               table_data_lut.data() );
     std::copy(table_data_mantissa_lut_bf16.data(),
-              table_data_mantissa_lut_bf16.data() + TBL_SHAPE,
+              table_data_mantissa_lut_bf16.data() + TBL_SHAPE_BF16,
               table_data_mantissa_lut.data());
 
   }else{
@@ -224,7 +228,7 @@ struct TpuGenDivTablePattern : public RewritePattern {
 
     // add new filter and bias weight
     std::vector<float> newWeights = y0_table ;
-    std::vector<int64_t> weightShape{1, NPU_NUM, TABLE_H, TABLE_W};
+    std::vector<int64_t> weightShape{1, NPU_NUM, TABLE_H_INT8, TABLE_W_INT8};
 
     auto tensor_name = op_name + "_gen_weight";
     LLVM_DEBUG(llvm::errs() << "  new_weight: " << tensor_name << "\n";);
@@ -245,8 +249,8 @@ struct TpuGenDivTablePattern : public RewritePattern {
   }else if(DivOp.quant() == "BF16"){
 
     std::vector<std::vector<float>> newWeights = {table_data_lut, table_data_mantissa_lut};
-    std::vector<int64_t> weightShapes = {1, NPU_NUM, TABLE_H, TABLE_W};
-    
+    std::vector<int64_t> weightShapes = {1, NPU_NUM, TABLE_H_BF16, TABLE_W_BF16};
+
     for (int i = 0; i < 2; ++i) {
       auto tensor_name = op_name + "_gen_weight_" + std::to_string(i);
       llvm::errs() << "  new_weight[" << i << "] : " << tensor_name << "\n";
