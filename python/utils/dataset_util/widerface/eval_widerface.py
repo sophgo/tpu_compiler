@@ -28,7 +28,7 @@ def detect_on_widerface(img_path, wider_face_gt_folder, result_folder_path, dete
 
 
 def evaluation(pred_folder, model_name):
-    wider_eval_tool = os.path.join(os.environ['PYTHON_TOOLS_PATH'], 'dataset_util', 'widerface', 'wider_eval_tools')
+    wider_eval_tool = os.path.join(os.environ['TPU_PYTHON_PATH'], 'dataset_util', 'widerface', 'wider_eval_tools')
     folder_name = os.path.basename(pred_folder)
     cmd = 'cp -r {} {};'.format(pred_folder, wider_eval_tool)
     cmd += 'pushd {};'.format(wider_eval_tool)

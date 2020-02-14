@@ -10,6 +10,7 @@ import cv2 as cv
 import argparse
 import os
 import sys
+import pymlir
 import numpy as np
 from tqdm import tqdm
 from pycocotools.coco import COCO
@@ -19,8 +20,7 @@ from dataset_util.widerface.eval_widerface import detect_on_widerface, evaluatio
 parser = argparse.ArgumentParser(
         description='Evaluate OpenCV face detection algorithms '
                     'using COCO evaluation tool, http://cocodataset.org/#detections-eval')
-parser.add_argument('--model_def', help='Path to .model_deftxt of Caffe model or .pbtxt of TensorFlow graph')
-parser.add_argument('--pretrained_model', help='Path to .caffemodel trained in Caffe or .pb from TensorFlow')
+parser.add_argument('--model', type=str, default='', help="MLIR Model file")
 parser.add_argument('--cascade', help='Optional path to trained Haar cascade as '
                                       'an additional model for evaluation')
 parser.add_argument('--annotation', help='Path to text file with ground truth annotations')
@@ -139,8 +139,6 @@ def detection():
                  break
              pbar.update(1)
 
-
-
 def evaluate():
     cocoGt = COCO('annotations.json')
     cocoDt = cocoGt.loadRes('detections.json')
@@ -162,15 +160,17 @@ with open('annotations.json', 'wt') as f:
 
 ### Obtain detections ##########################################################
 detections = []
-if args.model_def and args.pretrained_model:
-    net = cv.dnn.readNetFromCaffe(args.model_def, args.pretrained_model)
+if args.model :
+    module = pymlir.module()
+    module.load(args.model)
 
     def detect(img, imageId):
         imgWidth = img.shape[1]
         imgHeight = img.shape[0]
-        net.setInput(cv.dnn.blobFromImage(img, 1.0, (300, 300), (104., 177., 123.), False, False))
-        out = net.forward()
-
+        input = cv.dnn.blobFromImage(img, 1.0, (300, 300), (104., 177., 123.), False, False)
+        _ = module.run(input)
+        all_tensor = module.get_all_tensor()
+        out = all_tensor['detection_out']
         for i in range(out.shape[2]):
             confidence = out[0, 0, i, 2]
             left = int(out[0, 0, i, 3] * img.shape[1])
@@ -197,12 +197,16 @@ elif args.cascade:
             addDetection(detections, imageId, left, top, width, height, score=1.0)
 
 if args.matlib:
+    assert(args.wider and args.matlib)
+    module = pymlir.module()
+    module.load(args.model)
     def detect(img):
         imgWidth = img.shape[1]
         imgHeight = img.shape[0]
-        net.setInput(cv.dnn.blobFromImage(img, 1.0, (300, 300), (104., 177., 123.), False, False))
-        out = net.forward()
-
+        input = cv.dnn.blobFromImage(img, 1.0, (300, 300), (104., 177., 123.), False, False)
+        _ = module.run(input)
+        all_tensor = module.get_all_tensor()
+        out = all_tensor['detection_out']
         ret = np.zeros((out.shape[2], out.shape[3]))
         for i in range(out.shape[2]):
             confidence = out[0, 0, i, 2]
@@ -226,7 +230,6 @@ else:
     with open('detections.json', 'wt') as f:
          json.dump(detections, f)
     evaluate()
-
 
 def rm(f):
     if os.path.exists(f):

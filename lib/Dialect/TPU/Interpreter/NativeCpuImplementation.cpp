@@ -587,6 +587,10 @@ int my_bn(float *input, float *mean, float *variance, float *scale, float varian
       }
     }
   }
+  for (int i = 0; i < c; ++i) {
+    mean[i] = mean[i] * scale[0];
+    variance[i] = variance[i] * scale[0];
+  }
   return 0;
 }
 
