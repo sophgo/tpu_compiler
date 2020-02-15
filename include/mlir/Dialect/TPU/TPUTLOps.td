@@ -23,6 +23,7 @@
 #define TPU_TL_OPS
 
 include "mlir/Dialect/TPU/TPUBase.td"
+include "mlir/Dialect/TPU/TPUInterface.td"
 
 //===----------------------------------------------------------------------===//
 // Quantization methods enum definitions.
@@ -42,7 +43,8 @@ def TPU_LMLayoutAttr : StrEnumAttr<
 // TL op definitions.
 //===----------------------------------------------------------------------===//
 
-def TPU_TL_LW_Conv2DOp : TPU_Op<"tl_lw_conv_2d", [NoSideEffect]> {
+def TPU_TL_LW_Conv2DOp : TPU_Op<"tl_lw_conv_2d",
+      [NoSideEffect, DeclareOpInterfaceMethods<TpuInterface>]> {
   let summary = "TL Load Weight Convolution operator";
 
   let description = [{
@@ -83,15 +85,18 @@ def TPU_TL_LW_Conv2DOp : TPU_Op<"tl_lw_conv_2d", [NoSideEffect]> {
     I32Attr:$la_output,
     BoolAttr:$tl_load_flag,
     BoolAttr:$tl_store_flag,
+    OptionalAttr<StrAttr>:$name,
     OptionalAttr<NonNegativeI64Attr>:$offset,
     OptionalAttr<F32Attr>:$threshold_y,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
   );
 
   let results = (outs AnyTensor:$output);
 }
 
-def TPU_TL_LA_Conv2DOp : TPU_Op<"tl_la_conv_2d", [NoSideEffect]> {
+def TPU_TL_LA_Conv2DOp : TPU_Op<"tl_la_conv_2d",
+      [NoSideEffect, DeclareOpInterfaceMethods<TpuInterface>]> {
   let summary = "TL Load All Convolution operator";
 
   let description = [{
@@ -118,9 +123,11 @@ def TPU_TL_LA_Conv2DOp : TPU_Op<"tl_la_conv_2d", [NoSideEffect]> {
     I32Attr:$stride_w,
     DefaultValuedAttr<I32Attr, "1">:$group,
     DefaultValuedAttr<TPU_AFAttr, "NONE">:$fused_activation_function,
+    OptionalAttr<StrAttr>:$name,
     OptionalAttr<NonNegativeI64Attr>:$offset,
     OptionalAttr<F32Attr>:$threshold_y,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
   );
 
   let results = (outs AnyTensor:$output);
