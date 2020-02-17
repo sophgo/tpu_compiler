@@ -163,6 +163,11 @@ struct PythonMLIRModule {
     return ::makeMemRefType(mlir_context_t{&mlirContext}, elemType,
                             int64_list_t{sizes.data(), sizes.size()});
   }
+  PythonType makeRankedTensorType(PythonType elemType,
+                                  std::vector<int64_t> sizes) {
+    return ::makeRankedTensorType(mlir_context_t{&mlirContext}, elemType,
+                            int64_list_t{sizes.data(), sizes.size()});
+  }
   PythonType makeIndexType() {
     return ::makeIndexType(mlir_context_t{&mlirContext});
   }
@@ -956,6 +961,8 @@ PYBIND11_MODULE(pybind, m) {
       .def("make_memref_type", &PythonMLIRModule::makeMemRefType,
            "Returns an mlir::MemRefType of an elemental scalar. -1 is used to "
            "denote symbolic dimensions in the resulting memref shape.")
+      .def("make_ranked_tensor_type", &PythonMLIRModule::makeRankedTensorType,
+           "Returns an mlir::RankedTensorType of an elemental scalar.")
       .def("make_index_type", &PythonMLIRModule::makeIndexType,
            "Returns an mlir::IndexType")
       .def("make_type", &PythonMLIRModule::makeType,

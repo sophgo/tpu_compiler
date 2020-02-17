@@ -71,7 +71,10 @@ typedef struct {
 /// `sizes`.
 mlir_type_t makeMemRefType(mlir_context_t context, mlir_type_t elemType,
                            int64_list_t sizes);
-
+/// Returns an `mlir::RankedTensorType` of the element type `elemType` and shape
+/// `sizes`.
+mlir_type_t makeRankedTensorType(mlir_context_t context, mlir_type_t elemType,
+                                 int64_list_t sizes);
 /// Returns an `mlir::FunctionType` of the element type `elemType` and shape
 /// `sizes`.
 mlir_type_t makeFunctionType(mlir_context_t context, mlir_type_list_t inputs,
