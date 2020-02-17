@@ -18,7 +18,7 @@ git clone ssh://git@10.34.33.3:8422/mlir-tpu/cnpy.git
 
 git clone ssh://git@10.34.33.3:8422/mlir-tpu/caffe.git
 #pushd caffe
-#git checkout -b tpu origin/tpu
+#git checkout -b tpu origin/tpu_master
 #popd
 
 git clone ssh://git@10.34.33.3:8422/mlir-tpu/pybind11.git
@@ -38,7 +38,8 @@ git clone ssh://git@10.34.33.3:8422/mlir-tpu/models.git
 pushd models
 git lfs install
 git lfs ls-files
-git lfs fetch --all
+# git lfs fetch --all
+git lfs pull -I "*.caffemodel"
 popd
 
 mv cnpy mlir/third_party/

@@ -13,38 +13,50 @@ if [ ! -e $MKLDNN_PATH ]; then
 fi
 
 # build caffe
-# based on intel branch, will download mkl/mlsl automatically
-# copy external/mkl/* into $CAFFE_PATH as well
+CAFFE_USE_INTEL_BRANCH=0  # use master by default
 if [ ! -e $MLIR_SRC_PATH/third_party/caffe/build ]; then
   mkdir $MLIR_SRC_PATH/third_party/caffe/build
 fi
-CAFFE_MKLDNN_PATH=$MLIR_SRC_PATH/third_party/caffe/external/mkldnn
-if [ ! -e $CAFFE_MKLDNN_PATH/install ]; then
-  source /etc/lsb-release
-  if [ $DISTRIB_RELEASE = "18.04" ]; then
-    echo "Ubuntu 18.04"
-    pushd $CAFFE_MKLDNN_PATH
-    ln -s install_ubuntu1804 install
-    popd
-  elif [ $DISTRIB_RELEASE = "16.04" ]; then
-    echo "Ubuntu 16.04"
-    pushd $CAFFE_MKLDNN_PATH
-    ln -s install_ubuntu1604 install
-    popd
-  else
-    echo "Not Ubuntu 18.04 or 16.04"
-    echo "Please build caffe manually according to third_party/README.md"
-    return 1
-  fi
+# based on master branch (tpu_master)
+if [ $CAFFE_USE_INTEL_BRANCH -eq 0 ]; then
+  pushd $MLIR_SRC_PATH/third_party/caffe/build
+  cmake -G Ninja -DCPU_ONLY=ON -DUSE_OPENCV=OFF \
+      -DCMAKE_INSTALL_PREFIX=$CAFFE_PATH ..
+  cmake --build . --target install
+  popd
 fi
-pushd $MLIR_SRC_PATH/third_party/caffe/build
-MKLDNNROOT=$CAFFE_MKLDNN_PATH/install cmake \
-    -DUSE_OPENCV=OFF -DDISABLE_MKLDNN_DOWNLOAD=1 \
-    -DUSE_OPENMP=OFF -DUSE_MKLDNN_AS_DEFAULT_ENGINE=OFF -DUSE_MLSL=OFF  \
-    -DCMAKE_INSTALL_PREFIX=$CAFFE_PATH ..
-cmake --build . --target install
-cp ../external/mkl $CAFFE_PATH -a
-popd
+# based on intel branch (tpu_intel)
+# will download mkl/mlsl automatically
+# copy external/mkl/* into $CAFFE_PATH as well
+if [ $CAFFE_USE_INTEL_BRANCH -eq 1 ]; then
+  CAFFE_MKLDNN_PATH=$MLIR_SRC_PATH/third_party/caffe/external/mkldnn
+  if [ ! -e $CAFFE_MKLDNN_PATH/install ]; then
+    source /etc/lsb-release
+    if [ $DISTRIB_RELEASE = "18.04" ]; then
+      echo "Ubuntu 18.04"
+      pushd $CAFFE_MKLDNN_PATH
+      ln -s install_ubuntu1804 install
+      popd
+    elif [ $DISTRIB_RELEASE = "16.04" ]; then
+      echo "Ubuntu 16.04"
+      pushd $CAFFE_MKLDNN_PATH
+      ln -s install_ubuntu1604 install
+      popd
+    else
+      echo "Not Ubuntu 18.04 or 16.04"
+      echo "Please build caffe manually according to third_party/README.md"
+      return 1
+    fi
+  fi
+  pushd $MLIR_SRC_PATH/third_party/caffe/build
+  MKLDNNROOT=$CAFFE_MKLDNN_PATH/install cmake \
+      -DUSE_OPENCV=OFF -DDISABLE_MKLDNN_DOWNLOAD=1 \
+      -DUSE_OPENMP=OFF -DUSE_MKLDNN_AS_DEFAULT_ENGINE=OFF -DUSE_MLSL=OFF  \
+      -DCMAKE_INSTALL_PREFIX=$CAFFE_PATH ..
+  cmake --build . --target install
+  cp ../external/mkl $CAFFE_PATH -a
+  popd
+fi
 
 # build flatbuffers
 if [ ! -e $MLIR_SRC_PATH/third_party/flatbuffers/build ]; then
