@@ -730,11 +730,13 @@ void CaffeImporter::convertPoolingLayer(mlir::Block *block,
   // eg.4 300x300 -> 150x150, k=3x3, s=2x2, ph=1, pw=1, floor_mode
   //   => pad_top = 1, pad_bottom = 1, pad_left = 1, pad_right = 1
 
-  // Intel caffe does not support round_mode (ceil mode by default)
-  // Only implement ceil padding at the following now.
-  // Hence, we don't support eg4 now.
   std::vector<int64_t> padding_tl(2), padding_br(2);
-  int ceil_mode = p.ceil_mode();
+  bool ceil_mode = p.ceil_mode();
+  bool round_mode = p.round_mode();
+  //  if round_mode is not default value, use round_mode as ceil_mode
+  if (round_mode == caffe::PoolingParameter_RoundMode_FLOOR)
+    ceil_mode = false;
+
   padding_tl[0] = padding[0];
   padding_tl[1] = padding[1];
   padding_br[0] = padding[0];
@@ -749,8 +751,12 @@ void CaffeImporter::convertPoolingLayer(mlir::Block *block,
         ifmap[i] + 2 * padding[i] - kernel[i]) / stride[i])) + 1);
 
     int remain_pixel = (ifmap[i] + 2 * padding[i] - kernel[i]) % stride[i];
-    if (remain_pixel > 0 && ceil_mode)
-      padding_br[i] += (stride[i] - remain_pixel);
+    if (remain_pixel > 0) {
+      if (ceil_mode)
+        padding_br[i] += (stride[i] - remain_pixel);
+      else
+        padding_br[i] -= remain_pixel;
+    }
   }
 
   if (is_global_pooling) {
