@@ -199,6 +199,7 @@ if __name__ == '__main__':
     # print('res.shape', res.shape)
     assert(len(res) == 1)
     prob  = res.values()[0]
+    prob = np.reshape(prob, (prob.shape[0], prob.shape[1]))
 
     if args.show is True:
       for i_th in get_topk(prob, 5):
