@@ -58,12 +58,4 @@ $EVAL_FUNC \
     --dim 299 \
     --count=$count_num
 
-$EVAL_FUNC \
-    --model=inception_v4_quant_int8_per_channel.mlir \
-    --dataset=$DATASET_PATH/imagenet/img_val_extracted \
-    --mean 128.0,128.0,128.0 \
-    --input_scale 0.0078125 \
-    --dim 299 \
-    --count=$1
-
 echo $0 DONE
