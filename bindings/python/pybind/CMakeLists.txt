@@ -5,9 +5,9 @@ if (POLICY CMP0048)
   cmake_policy(SET CMP0048 NEW)
 endif()
 
-project(pymlir)
+project(pybind)
 
-pybind11_add_module(pymlir pymlir.cpp)
+pybind11_add_module(pybind pybind.cpp)
 
 whole_archive_link(mlir-tpu-interpreter
   MLIRStandardOps
@@ -15,9 +15,13 @@ whole_archive_link(mlir-tpu-interpreter
   MLIRTranslation
 )
 
-target_link_libraries(pymlir PRIVATE
+target_link_libraries(pybind PRIVATE
   MLIRTransforms
   MLIRTranslation
+  MLIRStandardOps
+  MLIRStandardToLLVM
+  MLIRAffineToStandard
+  MLIRExecutionEngine
   MLIRTPU
   MLIRTPUInterpreter
   MLIRAnalysis
@@ -27,5 +31,8 @@ target_link_libraries(pymlir PRIVATE
   MLIRSupport
   LLVMCore
   LLVMSupport
+  LLVMX86Desc
+  LLVMX86Info
+  LLVMX86CodeGen
 )
 
