@@ -33,13 +33,26 @@ mlir-opt \
     --mlir-to-cmdbuf \
     -o cmdbuf_int8_per_layer.bin
 
-# run cmdbuf
-$RUNTIME_PATH/bin/test_bmnet \
+# generate cvi model
+python $CVIBUILDER_PATH/python/cvi_model_create.py \
+    --cmdbuf cmdbuf_int8_per_layer.bin \
+    --weight weight_int8_per_layer.bin \
+    --neuron_map neuron_map.csv \
+    --output=inception_v4_int8_per_layer.cvimodel
+
+## run cmdbuf
+#$RUNTIME_PATH/bin/test_bmnet \
+#    inception_v4_in_int8.bin \
+#    weight_int8_per_layer.bin \
+#    cmdbuf_int8_per_layer.bin \
+#    inception_v4_cmdbuf_out_all_int8_per_layer.bin \
+#    27293984 0 27293984 1
+
+$RUNTIME_PATH/bin/test_cvinet \
     inception_v4_in_int8.bin \
-    weight_int8_per_layer.bin \
-    cmdbuf_int8_per_layer.bin \
-    inception_v4_cmdbuf_out_all_int8_per_layer.bin \
-    27293984 0 27293984 1
+    inception_v4_int8_per_layer.cvimodel \
+    inception_v4_cmdbuf_out_all_int8_per_layer.bin
+
 #bin_extract.py \
 #    inception_v4_cmdbuf_out_all_int8_per_layer.bin \
 #    inception_v4_cmdbuf_out_classifier_int8_per_layer.bin \
@@ -83,13 +96,25 @@ mlir-translate \
     --mlir-to-cmdbuf \
     -o cmdbuf_int8_multiplier.bin
 
-# run cmdbuf
-$RUNTIME_PATH/bin/test_bmnet \
+# generate cvi model
+python $CVIBUILDER_PATH/python/cvi_model_create.py \
+    --cmdbuf cmdbuf_int8_multiplier.bin \
+    --weight weight_int8_multiplier.bin \
+    --neuron_map neuron_map.csv \
+    --output=inception_v4_int8_multiplier.cvimodel
+
+## run cmdbuf
+#$RUNTIME_PATH/bin/test_bmnet \
+#    inception_v4_in_int8.bin \
+#    weight_int8_multiplier.bin \
+#    cmdbuf_int8_multiplier.bin \
+#    inception_v4_cmdbuf_out_all_int8_multiplier.bin \
+#    27293984 0 27293984 1
+$RUNTIME_PATH/bin/test_cvinet \
     inception_v4_in_int8.bin \
-    weight_int8_multiplier.bin \
-    cmdbuf_int8_multiplier.bin \
-    inception_v4_cmdbuf_out_all_int8_multiplier.bin \
-    27293984 0 27293984 1
+    inception_v4_int8_multiplier.cvimodel \
+    inception_v4_cmdbuf_out_all_int8_multiplier.bin
+
 #bin_extract.py \
 #    inception_v4_cmdbuf_out_all_int8_multiplier.bin \
 #    inception_v4_cmdbuf_out_classifier_int8_multiplier.bin \
