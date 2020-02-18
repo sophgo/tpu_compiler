@@ -43,11 +43,13 @@ add_dependencies(MLIRTPU
   MLIRTPUInterfaceIncGen
   MLIRTPUAttributeIncGen
   MLIRIR
-  LLVMSupport)
+  LLVMSupport
+  CViBackend)
 target_link_libraries(MLIRTPU
   MLIRIR
   MLIRStandardOps
   LLVMSupport
+  backend
   ${tpu_LINKER_LIBS})
 
 add_subdirectory(Translate)
