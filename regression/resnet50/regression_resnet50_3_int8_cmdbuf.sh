@@ -15,8 +15,13 @@ bin_fp32_to_int8.py \
     161.008057
 
 ################################
-# quantization 1: per-layer int8
+# Lower for quantization 1: per-layer int8
 ################################
+mlir-opt \
+    --tpu-lower \
+    resnet50_quant_int8_per_layer.mlir \
+    -o resnet50_quant_int8_per_layer_tg.mlir
+
 # assign weight address & neuron address
 mlir-opt \
     --assign-weight-address \
@@ -26,10 +31,12 @@ mlir-opt \
     --assign-neuron-address \
     --tpu-neuron-address-align=16 \
     --tpu-neuron-map-filename=neuron_map.csv \
-    --assign-layer-id \
-    resnet50_quant_int8_per_layer.mlir | \
-  mlir-translate \
+    resnet50_quant_int8_per_layer_tg.mlir \
+    -o resnet50_quant_int8_per_layer_addr.mlir
+
+mlir-translate \
     --mlir-to-cmdbuf \
+    resnet50_quant_int8_per_layer_addr.mlir \
     -o cmdbuf_int8_per_layer.bin
 
 # generate cvi model
@@ -51,34 +58,40 @@ $RUNTIME_PATH/bin/test_cvinet \
     resnet50_int8_per_layer.cvimodel \
     resnet50_cmdbuf_out_all_int8_per_layer.bin
 
-bin_extract.py \
+bin_to_npz.py \
     resnet50_cmdbuf_out_all_int8_per_layer.bin \
+    neuron_map.csv \
+    resnet50_cmdbuf_out_all_int8_per_layer.npz
+npz_to_bin.py \
+    resnet50_cmdbuf_out_all_int8_per_layer.npz \
+    fc1000 \
     resnet50_cmdbuf_out_fc1000_int8_per_layer.bin \
-    int8 0x00024c00 1000
+    int8
 bin_compare.py \
     resnet50_cmdbuf_out_fc1000_int8_per_layer.bin \
     $REGRESSION_PATH/resnet50/data/test_cat_out_resnet50_fc1000_int8_per_layer.bin \
     int8 1 1 1 1000 5
 
 # compare all tensors
-bin_to_npz.py \
-    resnet50_cmdbuf_out_all_int8_per_layer.bin \
-    neuron_map.csv \
-    resnet50_cmdbuf_out_all_int8_per_layer.npz
 npz_compare.py \
     resnet50_cmdbuf_out_all_int8_per_layer.npz \
     resnet50_tensor_all_int8_per_layer.npz \
     --op_info resnet50_op_info_int8_per_layer.csv
 
 ################################
-# quantization 2: per-channel int8
+# Lower for quantization 2: per-channel int8
 ################################
 
 # skipped
 
 ################################
-# quantization 3: multiplier int8
+# Lower for quantization 3: multiplier int8
 ################################
+mlir-opt \
+    --tpu-lower \
+    resnet50_quant_int8_multiplier.mlir \
+    -o resnet50_quant_int8_multiplier_tg.mlir
+
 # assign weight address & neuron address
 mlir-opt \
     --assign-weight-address \
@@ -88,10 +101,12 @@ mlir-opt \
     --assign-neuron-address \
     --tpu-neuron-address-align=16 \
     --tpu-neuron-map-filename=neuron_map.csv \
-    --assign-layer-id \
-    resnet50_quant_int8_multiplier.mlir | \
-  mlir-translate \
+    resnet50_quant_int8_multiplier_tg.mlir \
+    -o resnet50_quant_int8_multiplier_addr.mlir
+
+mlir-translate \
     --mlir-to-cmdbuf \
+    resnet50_quant_int8_multiplier_addr.mlir \
     -o cmdbuf_int8_multiplier.bin
 
 # generate cvi model
@@ -113,20 +128,21 @@ $RUNTIME_PATH/bin/test_cvinet \
     resnet50_int8_multiplier.cvimodel \
     resnet50_cmdbuf_out_all_int8_multiplier.bin
 
-bin_extract.py \
+bin_to_npz.py \
     resnet50_cmdbuf_out_all_int8_multiplier.bin \
+    neuron_map.csv \
+    resnet50_cmdbuf_out_all_int8_multiplier.npz
+npz_to_bin.py \
+    resnet50_cmdbuf_out_all_int8_multiplier.npz \
+    fc1000 \
     resnet50_cmdbuf_out_fc1000_int8_multiplier.bin \
-    int8 0x00024c00 1000
+    int8
 bin_compare.py \
     resnet50_cmdbuf_out_fc1000_int8_multiplier.bin \
     $REGRESSION_PATH/resnet50/data/test_cat_out_resnet50_fc1000_int8_multiplier.bin \
     int8 1 1 1 1000 5
 
 # compare all tensors
-bin_to_npz.py \
-    resnet50_cmdbuf_out_all_int8_multiplier.bin \
-    neuron_map.csv \
-    resnet50_cmdbuf_out_all_int8_multiplier.npz
 npz_compare.py \
     resnet50_cmdbuf_out_all_int8_multiplier.npz \
     resnet50_tensor_all_int8_multiplier.npz \
