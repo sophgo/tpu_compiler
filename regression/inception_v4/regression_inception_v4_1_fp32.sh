@@ -30,7 +30,7 @@ npz_compare.py \
     inception_v4_tensor_all_fp32.npz \
     inception_v4_blobs.npz \
     --op_info inception_v4_op_info.csv \
-    --tolerance=0.99,0.99,0.91 -vvv
+    --tolerance=0.99,0.99,0.99 -vvv
 
 # opt1, convert bn to scale
 mlir-opt \
