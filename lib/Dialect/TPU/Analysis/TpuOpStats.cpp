@@ -69,12 +69,14 @@ public:
        <<"\n";
     total_mac_count = 0;
     for (auto func : module.getOps<FuncOp>()) {
-      func.walk([&](mlir::Operation *opInst) {
-        if (auto op = dyn_cast<mlir::tpu::Conv2DOp>(opInst)) {
+      func.walk([&](Operation *opInst) {
+        if (auto op = dyn_cast<tpu::Conv2DOp>(opInst)) {
           dumpConv2DOpParam(op, os);
-        } else if (auto op = dyn_cast<mlir::tpu::Pool2DOp>(opInst)) {
-          dumpPool2DOpParam(op, os);
-        } else if (auto op = dyn_cast<mlir::tpu::FullyConnectedOp>(opInst)) {
+        } else if (auto op = dyn_cast<tpu::PoolAvg2DOp>(opInst)) {
+          dumpPool2DOpParam<tpu::PoolAvg2DOp>(op, os, true);
+        } else if (auto op = dyn_cast<tpu::PoolMax2DOp>(opInst)) {
+          dumpPool2DOpParam<tpu::PoolMax2DOp>(op, os, false);
+        } else if (auto op = dyn_cast<tpu::FullyConnectedOp>(opInst)) {
           dumpFullyConnectedOpParam(op, os);
         }
       });
@@ -86,10 +88,11 @@ private:
   uint64_t total_mac_count;
 
   void dumpConv2DOpParam(tpu::Conv2DOp &op, llvm::raw_ostream &os) {
-    bool with_bias, do_relu;
+    bool is_dw, with_bias, do_relu;
     int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, ph, pw, dh, dw;
-    getConv2DOpParam<tpu::Conv2DOp>(op, n, ic, ih, iw, oc, oh, ow, g,
-                     kh, kw, sh, sw, ph, pw, dh, dw, with_bias, do_relu);
+    parseConvParam(op.param(), op.input(), op.output(), op.filter(),
+                   n, ic, ih, iw, oc, oh, ow, g,
+                   kh, kw, sh, sw, ph, pw, dh, dw, is_dw, with_bias, do_relu);
 
     uint64_t mac_count = ow * oh * kh * kw * g * (ic / g) * (oc / g) * n;
     total_mac_count += mac_count;
@@ -103,11 +106,15 @@ private:
        <<"\n";
   }
 
-  void dumpPool2DOpParam(tpu::Pool2DOp &op, llvm::raw_ostream &os) {
-    bool is_average_pool, do_relu;
+  template <typename OpTy>
+  void dumpPool2DOpParam(OpTy &op, llvm::raw_ostream &os,
+      bool is_average) {
+    bool is_global, do_relu;
     int n, c, ih, iw, oh, ow, kh, kw, sh, sw, pt, pb, pl, pr;
-    getPool2DOpParam(op, is_average_pool, n, c, ih, iw, oh, ow,
-                     kh, kw, sh, sw, pt, pb, pl, pr, do_relu);
+    parsePoolParam(op.param(), op.input(), op.output(),
+                   n, c, ih, iw, oh, ow,
+                   kh, kw, sh, sw, pt, pb, pl, pr,
+                   is_global, do_relu);
 
     uint64_t mac_count = ow * oh * kh * kw * c * n;
     total_mac_count += mac_count;

@@ -86,13 +86,20 @@ struct BackwardOverwriteThresholdConcatPattern : public OpRewritePattern<tpu::Co
           continue;
       }
       if (auto cast_op = llvm::dyn_cast_or_null<tpu::Conv2DOp>(formerOp)) {
-        cast_op.setAttr("threshold_y", rewriter.getF32FloatAttr(threshold_y));
+        setOpThreshold(formerOp, threshold_y);
       } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::UpsampleOp>(formerOp)) {
-        cast_op.setAttr("threshold_y", rewriter.getF32FloatAttr(threshold_y));
-      } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::EltwiseOp>(formerOp)) {
-        cast_op.setAttr("threshold_y", rewriter.getF32FloatAttr(threshold_y));
+        setOpThreshold(formerOp, threshold_y);
+      } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::EltwiseAddOp>(formerOp)) {
+        assert(false);
+        //setOpThreshold(formerOp, threshold_y);
+      } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::EltwiseMaxOp>(formerOp)) {
+        assert(false);
+        //setOpThreshold(formerOp, threshold_y);
+      } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::EltwiseMulOp>(formerOp)) {
+        assert(false);
+        //setOpThreshold(formerOp, threshold_y);
       } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::ReluOp>(formerOp)) {
-        cast_op.setAttr("threshold_y", rewriter.getF32FloatAttr(threshold_y));
+        setOpThreshold(formerOp, threshold_y);
       } else {
         llvm::errs() << formerOp->getName() << ": behavior not defined\n";
         assert(false);
@@ -124,19 +131,19 @@ struct BackwardOverwriteThresholdReluPattern : public OpRewritePattern<tpu::Relu
   PatternMatchResult matchAndRewrite(tpu::ReluOp op,
                                      PatternRewriter &rewriter) const {
     float threshold_y = getOpThreshold(op);
-    auto formerOp = op.getOperand(0)->getDefiningOp();
+    auto formerOp = op.getOperation()->getOperand(0)->getDefiningOp();
     float threshold_x = getPreviousOpThreshold(op, 0);
     if (threshold_x == threshold_y) {
       return matchFailure();
     }
     if (auto cast_op = llvm::dyn_cast_or_null<tpu::Conv2DOp>(formerOp)) {
-      cast_op.setAttr("threshold_y", rewriter.getF32FloatAttr(threshold_y));
+      setOpThreshold(formerOp, threshold_y);
     } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::FullyConnectedOp>(formerOp)) {
-      cast_op.setAttr("threshold_y", rewriter.getF32FloatAttr(threshold_y));
+      setOpThreshold(formerOp, threshold_y);
     } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::ConcatOp>(formerOp)) {
-      cast_op.setAttr("threshold_y", rewriter.getF32FloatAttr(threshold_y));
+      setOpThreshold(formerOp, threshold_y);
     } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::ScaleOp>(formerOp)) {
-      cast_op.setAttr("threshold_y", rewriter.getF32FloatAttr(threshold_y));
+      setOpThreshold(formerOp, threshold_y);
     } else {
       llvm::errs() << formerOp->getName() << ": behavior not defined\n";
       assert(false);
@@ -168,9 +175,9 @@ struct BackwardOverwriteThresholdUpsamplePattern : public OpRewritePattern<tpu::
       return matchFailure();
     }
     if (auto cast_op = llvm::dyn_cast_or_null<tpu::Conv2DOp>(formerOp)) {
-      cast_op.setAttr("threshold_y", rewriter.getF32FloatAttr(threshold_y));
+      setOpThreshold(formerOp, threshold_y);
     } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::ReluOp>(formerOp)) {
-      cast_op.setAttr("threshold_y", rewriter.getF32FloatAttr(threshold_y));
+      setOpThreshold(formerOp, threshold_y);
     } else {
       llvm::errs() << formerOp->getName() << ": behavior not defined\n";
       assert(false);
@@ -206,38 +213,9 @@ struct MaxOverwriteThresholdConcatPattern : public OpRewritePattern<tpu::ConcatO
       }
     }
     if (max_threshold > threshold_y) {
-      op.setAttr("threshold_y", rewriter.getF32FloatAttr(max_threshold));
+      setOpThreshold(op.getOperation(), max_threshold);
       return matchSuccess();
     } else {
-      return matchFailure();
-    }
-  }
-};
-
-/// bypass pool quantization by assigning threshold_y same as threshold_x.
-/// for max pooling, threshold_y is always larger than threshold_x,
-/// however, if one value exceed the quantization range, it has been saturated
-/// already, an extra multiplier does not help.
-/// for avg pooling, threshold_y is smaller than threshold_x,
-/// we shall keep the quantization (i.e. multiply with a multiplier)
-struct ForwardOverwriteThresholdMaxPool2DPattern : public OpRewritePattern<tpu::Pool2DOp> {
-  using OpRewritePattern<tpu::Pool2DOp>::OpRewritePattern;
-
-  PatternMatchResult matchAndRewrite(tpu::Pool2DOp op,
-                                     PatternRewriter &rewriter) const {
-    if (op.pool() != "MAX") {
-      return matchFailure();
-    }
-    float threshold_x = getPreviousOpThreshold(op);
-    float threshold_y = getOpThreshold(op);
-    if (threshold_y > threshold_x) {
-      op.setAttr("threshold_y", rewriter.getF32FloatAttr(threshold_x));
-      return matchSuccess();
-    } else {
-      llvm::errs() << "MAX Pool2D [" << op.name() << "] "
-                   << "set threshold by prev Op threshold, from "
-                   << std::to_string(threshold_y) << " to "
-                   << std::to_string(threshold_x) << "\n";
       return matchFailure();
     }
   }
@@ -245,8 +223,8 @@ struct ForwardOverwriteThresholdMaxPool2DPattern : public OpRewritePattern<tpu::
 
 /// overwrite current Op threshold by prev Op threshold
 /// for layers that we are not going to handle the threshold difference,
-/// like upsample, permute, crop.
-/// Pool2D is handled separately, because only max pooling needs overwriting
+/// like max pooling, upsample, permute, crop.
+/// TODO: max pooling should do backward overwrite
 template<typename TyOp>
 struct ForwardOverwriteThresholdDefaultPattern : public RewritePattern {
   ForwardOverwriteThresholdDefaultPattern(MLIRContext *context)
@@ -255,14 +233,13 @@ struct ForwardOverwriteThresholdDefaultPattern : public RewritePattern {
   PatternMatchResult matchAndRewrite(Operation *opInst,
                                      PatternRewriter &rewriter) const override {
     auto op = cast<TyOp>(opInst);
-    assert(op.threshold_y().hasValue());
     float threshold_x = getPreviousOpThreshold(op);
     float threshold_y = getOpThreshold(op);
     if (threshold_y == threshold_x) {
       // overwritten already
       return matchFailure();
     } else {
-      op.setAttr("threshold_y", rewriter.getF32FloatAttr(threshold_x));
+      setOpThreshold(opInst, threshold_x);
       llvm::errs() << opInst->getName() << " [" << op.name() << "] "
                    << "set threshold by prev Op threshold, from "
                    << std::to_string(threshold_y) << " to "
@@ -289,7 +266,7 @@ struct BypassThresholdDefaultPattern : public RewritePattern {
       /// be careful about call sequence
       /// since this is assuming previous Op has threshold_y already
       float threshold_x = getPreviousOpThreshold(op);
-      op.setAttr("threshold_y", rewriter.getF32FloatAttr(threshold_x));
+      setOpThreshold(opInst, threshold_x);
       llvm::errs() << opInst->getName() << " [" << op.name() << "] "
                    << "set threshold by prev Op threshold "
                    << std::to_string(threshold_x) << "\n";
@@ -344,28 +321,30 @@ public:
     fn.walk([&](Operation *op) {
       os << op->getName() << "\n";
 
+      if ( !failed(setThresholdFromMap(op, threshold_map))) {
+
+      } else {
+      // to be deprecated
       addThresholdAttr<tpu::InputOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::BatchNormOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::ConcatOp>(builder, threshold_map, op);
-      addThresholdAttr<tpu::Conv2DOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::DeConv2DOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::CropOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::DivOp>(builder, threshold_map, op);
-      addThresholdAttr<tpu::EltwiseOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::FullyConnectedOp>(builder, threshold_map, op);
-      addThresholdAttr<tpu::Pool2DOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::PowerOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::PReluOp>(builder, threshold_map, op);
-      addThresholdAttr<tpu::ReluOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::ScaleOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::SigmoidOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::SoftmaxOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::SqrtOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::UpsampleOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::PermuteOp>(builder, threshold_map, op);
+
+      }
     });
 
-    // apply default bypass
+    // apply default bypass for the op that has no calibration threshold
     OwningRewritePatternList patterns_1;
     patterns_1.insert<BypassThresholdDefaultPattern<tpu::ReshapeOp>,
                       BypassThresholdDefaultPattern<tpu::SliceOp>
@@ -373,11 +352,12 @@ public:
     applyPatternsGreedily(fn, patterns_1);
 
     // apply default forward overwrite
+    // TODO: should all apply to backward overwrite
     OwningRewritePatternList patterns_2;
     patterns_2.insert<ForwardOverwriteThresholdDefaultPattern<tpu::UpsampleOp>,
                       ForwardOverwriteThresholdDefaultPattern<tpu::PermuteOp>,
                       ForwardOverwriteThresholdDefaultPattern<tpu::CropOp>,
-                      ForwardOverwriteThresholdMaxPool2DPattern
+                      ForwardOverwriteThresholdDefaultPattern<tpu::PoolMax2DOp>  // TODO: backward overwrite
                      >(context);
     applyPatternsGreedily(fn, patterns_2);
 
@@ -423,6 +403,33 @@ public:
   }
 
 private:
+
+  LogicalResult setThresholdFromMap(Operation *op,
+      std::map<std::string, float> &threshold_map) {
+    if (mlir::getOpName(op).empty()) {
+      return failure();
+    }
+
+    std::string op_name = mlir::getOpName(op).str();
+    if (threshold_map.find(op_name) == threshold_map.end()) {
+      return failure();
+    }
+
+    auto tpuOp = llvm::dyn_cast<tpu::TpuOpQuantInterface>(op);
+    if (!tpuOp) {
+      return failure();
+    }
+
+    float threshold = threshold_map[op_name];
+    auto ret = setOpThreshold(op, threshold);
+    if (!failed(ret)) {
+      setOpQuantParamType(op, "THRESHOLD");
+      os << "  > " << op_name << ", " << std::to_string(threshold) << "\n";
+    }
+    return ret;
+  }
+
+  // to be deprecated
   template<typename T>
   void addThresholdAttr(Builder &builder, std::map<std::string, float> &threshold_map,
       Operation *op) {
@@ -437,8 +444,8 @@ private:
           assert(threshold_map[op_name]);
           threshold = threshold_map[op_name];
         }
-        os << " > " << op_name << ", " << std::to_string(threshold) << "\n";
-        cast_op.setAttr("threshold_y", builder.getF32FloatAttr(threshold));
+        os << "  > " << op_name << ", " << std::to_string(threshold) << "\n";
+        setOpThreshold(op, threshold);
       }
   }
 

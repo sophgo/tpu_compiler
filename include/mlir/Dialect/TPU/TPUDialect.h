@@ -27,6 +27,12 @@
 #include "mlir/IR/OpDefinition.h"
 
 namespace mlir {
+
+//===----------------------------------------------------------------------===//
+// TPU Struct Attribute definitions
+//===----------------------------------------------------------------------===//
+#include "mlir/Dialect/TPU/TPUAttribute.h.inc"
+
 namespace tpu {
 
 /// The dialect containing TPU launching operations and related

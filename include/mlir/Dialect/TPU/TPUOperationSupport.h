@@ -22,6 +22,7 @@
 #ifndef MLIR_DIALECT_TPU_OPERATION_SUPPORT_H_
 #define MLIR_DIALECT_TPU_OPERATION_SUPPORT_H_
 
+#include "mlir/Dialect/TPU/TPUDialect.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/Support/LogicalResult.h"
 
@@ -29,36 +30,44 @@ namespace mlir {
 
 llvm::StringRef getOpName(Operation *op);
 llvm::StringRef getPreviousOpName(Operation *op, uint index = 0);
+int getOpLayerId(Operation *op);
 llvm::StringRef getOpQuant(Operation *op);
+void setOpQuant(Operation *op, llvm::StringRef mode);
+llvm::StringRef getOpQuantParamType(Operation *op);
+void setOpQuantParamType(Operation *op, llvm::StringRef type);
+bool isOpQuantPerchannel(Operation *op);
+void setOpQuantPerchannel(Operation *op, bool flag);
+bool isOpQuantAsymmetric(Operation *op);
+void setOpQuantAsymmetric(Operation *op, bool flag);
 float getOpThreshold(Operation *op);
+LogicalResult setOpThreshold(Operation *op, float threshold);
 float getPreviousOpThreshold(Operation *op, uint index = 0);
+
 uint64_t getOpAddress(Operation *op);
+LogicalResult setOpAddress(Operation *op, uint64_t gaddr);
 uint64_t getPreviousOpAddress(Operation *op, uint index = 0);
 uint64_t getWeightOpAddress(Operation *op);
 
-template<typename T>
-void getConv2DOpParam(T &op,
+void parseConvParam(const tpu::ConvParam &p,
+    Value *input, Value *output, Value *filter,
     int &n, int &ic, int &ih, int &iw, int &oc, int &oh, int &ow, int &g,
     int &kh, int &kw, int &sh, int &sw, int &ph, int &pw, int &dh, int &dw,
-    bool &with_bias, bool &do_relu);
+    bool &is_dw, bool &with_bias, bool &do_relu);
+
+void parsePoolParam(const tpu::PoolParam &p,
+    Value *input, Value *output,
+    int &n, int &c, int &ih, int &iw, int &oh, int &ow,
+    int &kh, int &kw, int &sh, int &sw, int &pt, int &pb, int &pl, int &pr,
+    bool &is_global, bool &do_relu);
+
 void getDeConv2DOpParam(tpu::DeConv2DOp &op,
     int &n, int &ic, int &ih, int &iw, int &oc, int &oh, int &ow, int &g,
     int &kh, int &kw, int &sh, int &sw, int &ph, int &pw, int &dh, int &dw,
     bool &with_bias);
-void getPool2DOpParam(tpu::Pool2DOp &op,
-    bool &is_average_pool, int &n, int &c, int &ih, int &iw, int &oh, int &ow,
-    int &kh, int &kw, int &sh, int &sw, int &pt, int &pb, int &pl, int &pr, bool &do_relu);
+
 void getFullyConnectedOpParam(tpu::FullyConnectedOp &op,
     bool &with_transpose, int &m, int &k, int &n,
     bool &with_bias, bool &do_relu);
-
-void getConv2DOpVariadicTensors(tpu::Conv2DOp &op,
-    std::vector<std::shared_ptr<std::vector<float> > > &opdT,
-    std::shared_ptr<std::vector<float> > &bias,
-    std::shared_ptr<std::vector<float> > &rshift,
-    std::shared_ptr<std::vector<float> > &multiplier,
-    std::shared_ptr<std::vector<float> > &per_channel_info,
-    std::shared_ptr<std::vector<float> > &eltwise_input);
 
 void getDeConv2DOpVariadicTensors(tpu::DeConv2DOp &op,
     std::vector<std::shared_ptr<std::vector<float> > > &opdT,

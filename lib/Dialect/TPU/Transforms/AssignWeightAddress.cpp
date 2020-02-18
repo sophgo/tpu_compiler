@@ -21,6 +21,7 @@
 
 #include "mlir/Dialect/TPU/TPUDialect.h"
 #include "mlir/Dialect/TPU/TPUOperationSupport.h"
+#include "mlir/Dialect/TPU/TPUTensorSupport.h"
 #include "mlir/Dialect/TPU/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
@@ -91,6 +92,15 @@ template<typename T>
 static bool DoAssignWeight(Operation *op, int64_t oc, PatternRewriter &rewriter,
                            TensorFile *weightTensorFile) {
   auto castOp = cast<T>(op);
+
+  if ( !isTensorNone(op->getOperand(2)) ) {
+    auto biasOp = cast<tpu::LoadWeightOp>(op->getOperand(2)->getDefiningOp());
+    if (biasOp.lowered()) {
+      // packed already
+      return false;
+    }
+  }
+
   // for per-channel multiplier mode
   // we need to pack rshift, multiplier and bias into one weight
   // layout is: [bias_4byte] multiplier_4byte rshift_1byte
@@ -222,7 +232,7 @@ struct TpuConv2DOpPattern : public RewritePattern {
   PatternMatchResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
     auto convOp = cast<tpu::Conv2DOp>(op);
-    if (convOp.quant() != "INT8_MULTIPLIER") {
+    if (getOpQuant(op) != "INT8") {
       return matchFailure();
     }
 
@@ -230,7 +240,7 @@ struct TpuConv2DOpPattern : public RewritePattern {
     auto filter_type = convOp.filter()->getType().cast<TensorType>();
     std::vector<int64_t> filter_shape(filter_type.getShape());
     int64_t oc;
-    auto g = convOp.group().getLimitedValue();
+    auto g = convOp.param().group().getValue().getLimitedValue();
     if (g != 1) {
       assert(filter_shape.size() == 5);
       oc = filter_shape[0] * filter_shape[1];
@@ -339,37 +349,44 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
 
     auto type = weightOp.getResult()->getType().cast<TensorType>();
     auto curPos = weightBinaryFile_->tell();
-    size_t size;
+    size_t size = 0;
     if (weightOp.storage() == "INT8") {
-      auto weight = weightTensorFile_->readTensor<float>(tensor_name, type);
-      size = weight->size();
-      // cast into int8
-      std::vector<int8_t> weight_int8(weight->begin(), weight->end());
+      std::vector<int8_t> weight_int8;
+      if (!weightOp.lowered()) {
+        // to be removed
+        auto weight = weightTensorFile_->readTensor<float>(tensor_name, type);
+        size = weight->size();
+        weight_int8.assign(weight->begin(), weight->end());
 
-      // hw design needs transpose on filters
-      // transpose if this is conv filter weight
-      // TODO: this is tricky, we assume any 4 dim weight tensor is a conv filter
-      std::vector<int64_t> shape = type.getShape();
+        // hw design needs transpose on filters
+        // transpose if this is conv filter weight
+        // TODO: this is tricky, we assume any 4 dim weight tensor is a conv filter
+        std::vector<int64_t> shape = type.getShape();
 
-      if (shape.size() == 5) {
-        // FIXME: check this weight is belonging to conv
-        std::vector<int64_t> _shape(shape.begin(), shape.end());
-        shape.clear();
+        if (shape.size() == 5) {
+          // FIXME: check this weight is belonging to conv
+          std::vector<int64_t> _shape(shape.begin(), shape.end());
+          shape.clear();
 
-        // reshape it
-        shape.push_back(_shape[0] * _shape[1]);
+          // reshape it
+          shape.push_back(_shape[0] * _shape[1]);
 
-        // index [0] [1] is batch
-        for(uint64_t i = 2; i < _shape.size(); i++) {
-          shape.push_back(_shape[i]);
+          // index [0] [1] is batch
+          for(uint64_t i = 2; i < _shape.size(); i++) {
+            shape.push_back(_shape[i]);
+          }
+          transposeConvolutionFilter<int8_t>(weight_int8, shape);
+        } else if (shape.size() == 4) {
+          transposeConvolutionFilter<int8_t>(weight_int8, shape);
+        } else if (shape.size() == 2) {
+          // TODO: this is tricky, we assume any 2 dim weight tensor is a fc
+          // filter
+          transposeFullyConnectedFilter<int8_t>(weight_int8, shape);
         }
-        transposeConvolutionFilter<int8_t>(weight_int8, shape);
-      } else if (shape.size() == 4) {
-        transposeConvolutionFilter<int8_t>(weight_int8, shape);
-      } else if (shape.size() == 2) {
-        // TODO: this is tricky, we assume any 2 dim weight tensor is a fc
-        // filter
-        transposeFullyConnectedFilter<int8_t>(weight_int8, shape);
+      } else {
+        auto weight = weightTensorFile_->readTensor<int8_t>(tensor_name, type);
+        weight_int8.assign(weight->begin(), weight->end());
+        size = weight_int8.size();
       }
 
       // pad to alignment
@@ -382,10 +399,18 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
       weightBinaryFile_->write(reinterpret_cast<const char*>(weight_int8.data()),
           weight_int8.size() * sizeof(int8_t));
     } else if (weightOp.storage() == "UINT8") {
-      auto weight = weightTensorFile_->readTensor<float>(tensor_name, type);
-      size = weight->size();
-      // cast into int8
-      std::vector<uint8_t> weight_uint8(weight->begin(), weight->end());
+      // UINT8 is used for packed per-channel info or LUT table
+      std::vector<uint8_t> weight_uint8;
+      if (!weightOp.lowered()) {
+        auto weight = weightTensorFile_->readTensor<float>(tensor_name, type);
+        size = weight->size();
+        // cast into int8
+        weight_uint8.assign(weight->begin(), weight->end());
+      } else {
+        auto weight = weightTensorFile_->readTensor<uint8_t>(tensor_name, type);
+        weight_uint8.assign(weight->begin(), weight->end());
+        size = weight_uint8.size();
+      }
       // pad to alignment
       if ( weight_uint8.size() % alignment_ ) {
         size_t pad = alignment_ - (weight_uint8.size() % alignment_);
@@ -396,12 +421,17 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
       weightBinaryFile_->write(reinterpret_cast<const char*>(weight_uint8.data()),
           weight_uint8.size() * sizeof(uint8_t));
     } else if (weightOp.storage() == "INT16") {
+      // INT16 is used for bias in INT8 per-tensor mode
+      // after lowering, this should be UINT16 already
+      assert (!weightOp.lowered());
+      // to be removed
       auto weight = weightTensorFile_->readTensor<float>(tensor_name, type);
-      size = weight->size();
       // cast into int8
       std::vector<int16_t> weight_int16(weight->begin(), weight->end());
       // bias are also transposed
       transposeBiasInt16(weight_int16);
+      size = weight_int16.size() * sizeof(int16_t);
+
       // pad to alignment
       if ( (weight_int16.size()*sizeof(int16_t)) % alignment_ ) {
         size_t pad = ( alignment_ - ( weight_int16.capacity() % alignment_ ) )
@@ -413,52 +443,60 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
       weightBinaryFile_->write(reinterpret_cast<const char*>(weight_int16.data()),
           weight_int16.size() * sizeof(int16_t));
     } else if (weightOp.storage() == "UINT16") {
-      auto weight = weightTensorFile_->readTensor<float>(tensor_name, type);
+      // this is NOT BF16 (BF16 uses `BF16` directly)
+      // this is for lowered and transposed INT16 bias
+      assert(weightOp.lowered());
+      auto weight = weightTensorFile_->readTensor<uint16_t>(tensor_name, type);
       size = weight->size();
-      std::vector<uint16_t> weight_bf16(weight->begin(), weight->end());
+      std::vector<uint16_t> weight_uint16(weight->begin(), weight->end());
+      size = weight_uint16.size() * sizeof(uint16_t);
+
       // pad to alignment
-      if ((weight_bf16.size() * sizeof(uint16_t)) % alignment_) {
-        size_t pad = (alignment_ - (weight_bf16.capacity() % alignment_)) /
+      if ((weight_uint16.size() * sizeof(uint16_t)) % alignment_) {
+        size_t pad = (alignment_ - (weight_uint16.capacity() % alignment_)) /
                      sizeof(uint16_t);
         for (size_t i = 0; i < pad; ++i) {
-          weight_bf16.push_back(0xffff); // assign a special value for debugging
+          weight_uint16.push_back(0xffff); // assign a special value for debugging
         }
       }
       weightBinaryFile_->write(
-          reinterpret_cast<const char *>(weight_bf16.data()),
-          weight_bf16.size() * sizeof(uint16_t));
+          reinterpret_cast<const char *>(weight_uint16.data()),
+          weight_uint16.size() * sizeof(uint16_t));
     } else if (weightOp.storage() == "BF16") {
+      std::vector<uint16_t> weight_bf16;
       auto weight = weightTensorFile_->readTensor<uint16_t>(tensor_name, type);
-      size = weight->size();
-      std::vector<uint16_t> weight_bf16(weight->begin(), weight->end());
+      weight_bf16.assign(weight->begin(), weight->end());
 
-      // hw design needs transpose on filters
-      // transpose if this is conv filter weight
-      // TODO: this is tricky, we assume any 4 dim weight tensor is a conv filter
-      std::vector<int64_t> shape = type.getShape();
-      if (shape.size() == 4) {
-        if (!strncmp(weightOp.name().getValue().data(), "Tanh_", 2)) {
-          // FIXME: not hardcode check, plz ref op type
-          //llvm::errs() << "skip " << weightOp.name() << "\n";
+      if (!weightOp.lowered()) {
+        // hw design needs transpose on filters
+        // transpose if this is conv filter weight
+        // TODO: this is tricky, we assume any 4 dim weight tensor is a conv filter
+        std::vector<int64_t> shape = type.getShape();
+        if (shape.size() == 4) {
+          if (!strncmp(weightOp.name().getValue().data(), "Tanh_", 2)) {
+            // FIXME: not hardcode check, plz ref op type
+            //llvm::errs() << "skip " << weightOp.name() << "\n";
+          }
+          else {
+            transposeConvolutionFilter<uint16_t>(weight_bf16, shape);
+          }
         }
-        else {
-          transposeConvolutionFilter<uint16_t>(weight_bf16, shape);
+        // TODO: this is tricky, we assume any 2 dim weight tensor is a fc filter
+        if (shape.size() == 2) {
+          transposeFullyConnectedFilter<uint16_t>(weight_bf16, shape);
+        }
+        // TODO: this is even more tricky (FIXME asap), assume 1 dim tensor is bias
+        // for bm1880v2, bias is fp32, but store as 2 separate stripe
+        // one for high 16-bit, one for low-16 bit
+        // we use the quantized bf16 bias as high 16-bit, and add a zero stripe low 16-bit
+        if (shape.size() == 1) {
+          size_t sz = weight_bf16.size();
+          for (size_t i = 0; i < sz; ++i) {
+            weight_bf16.push_back(0x0000);
+          }
         }
       }
-      // TODO: this is tricky, we assume any 2 dim weight tensor is a fc filter
-      if (shape.size() == 2) {
-        transposeFullyConnectedFilter<uint16_t>(weight_bf16, shape);
-      }
-      // TODO: this is even more tricky (FIXME asap), assume 1 dim tensor is bias
-      // for bm1880v2, bias is fp32, but store as 2 separate stripe
-      // one for high 16-bit, one for low-16 bit
-      // we use the quantized bf16 bias as high 16-bit, and add a zero stripe low 16-bit
-      if (shape.size() == 1) {
-        size_t sz = weight_bf16.size();
-        for (size_t i = 0; i < sz; ++i) {
-          weight_bf16.push_back(0x0000);
-        }
-      }
+      size = weight_bf16.size() * sizeof(uint16_t);
 
       // pad to alignment
       if ( (weight_bf16.size()* sizeof(uint16_t)) % alignment_ ) {
@@ -470,6 +508,32 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
       }
       weightBinaryFile_->write(reinterpret_cast<const char*>(weight_bf16.data()),
           weight_bf16.size() * sizeof(uint16_t));
+    } else if (weightOp.storage() == "UINT32") {
+      // UINT32 is for lowered Conv Bias
+      // 1. Per-Channel (no mulitplier) Conv Bias is supposed to be INT32
+      // after transpose, it is stored in striped way (NOT sure yet)
+      // 2. BF16 Conv Bias is supposed to be FP32
+      // 1880v2 requires storing fp32 into a 2 stripes 16-bit way
+      // one stripe for high 16-bit, and one for low 16-bit
+      // after the lowering, we store the data as `UINT32`
+      assert (weightOp.lowered());
+      std::vector<uint32_t> weight_uint32;
+      auto weight = weightTensorFile_->readTensor<uint32_t>(tensor_name, type);
+      weight_uint32.assign(weight->begin(), weight->end());
+      size = weight_uint32.size() * sizeof(uint32_t);
+
+      // pad to alignment
+      if ( (weight_uint32.size()* sizeof(uint32_t)) % alignment_ ) {
+        size_t pad = ( alignment_ - ( weight_uint32.capacity() % alignment_ ) )
+                     / sizeof(uint32_t);
+        for (size_t i = 0; i < pad; ++i) {
+          weight_uint32.push_back(0xffffffff); // assign a special value for debugging
+        }
+      }
+      weightBinaryFile_->write(reinterpret_cast<const char*>(weight_uint32.data()),
+          weight_uint32.size() * sizeof(uint32_t));
+    } else if (weightOp.storage() == "FP32") {
+      assert(0);
     } else if (weightOp.storage() == "NONE") {
       return matchSuccess();
     } else {

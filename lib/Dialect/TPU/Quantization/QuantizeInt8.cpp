@@ -22,6 +22,7 @@
 #include "mlir/Dialect/TPU/TPUDialect.h"
 #include "mlir/Dialect/TPU/Passes.h"
 #include "mlir/Dialect/TPU/TPUOperationSupport.h"
+#include "mlir/Dialect/TPU/TPUTensorSupport.h"
 #include "mlir/Dialect/TPU/QuantizationArithmetic.h"
 #include "mlir/Dialect/StandardOps/Ops.h"
 #include "mlir/IR/BlockAndValueMapping.h"
@@ -56,75 +57,28 @@ static llvm::cl::opt<bool> clQuantConvMultiplier(
 
 namespace {
 
-static std::unique_ptr<std::vector<float> > readAndDeleteWeightTensor(
-    Value *opd, TensorFile *wTF) {
-  auto weightOp = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
-      opd->getDefiningOp());
-  assert(weightOp);
-  assert(weightOp.name().hasValue());
-  auto name = weightOp.name().getValue();
-  LLVM_DEBUG(llvm::errs() << "  weight : " << name << "\n";);
-  auto type = weightOp.getResult()->getType().cast<TensorType>();
-  auto T = wTF->readTensor<float>(name, type);
-  // delete the tensor from the weight file
-  wTF->deleteTensor<float>(name);
-  return std::move(T);
-}
-
-static void addWeightTensorAndUpdateWeightOp(Value* opd,
-    std::vector<float> &weight, std::vector<int64_t> &shape,
-    std::string &storageType, Type &eltType,
-    PatternRewriter &rewriter, TensorFile *wTF) {
-  auto weightOp = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
-      opd->getDefiningOp());
-  auto name = weightOp.name().getValue().str() + "_quant_int8";
-  LLVM_DEBUG(llvm::errs() << "  new_weight : " << name << "\n";);
-  auto type = RankedTensorType::get(shape, eltType);
-  wTF->addTensor<float>(name, &weight, type);
-  weightOp.setAttr("name", rewriter.getStringAttr(name));
-  weightOp.setAttr("storage", rewriter.getStringAttr(storageType));
-  weightOp.getResult()->setType(type);
-}
-
-static Value* addWeightTensorAndCreateWeightOp(std::string name,
-    std::vector<float> &weight, std::vector<int64_t> &shape,
-    std::string &storageType, Type &eltType,
-    PatternRewriter &rewriter, Location &loc,
-    TensorFile *wTF, Value *wFV) {
-  LLVM_DEBUG(llvm::errs() << "  new_weight[rshift] : " << name << "\n";);
-  auto type = RankedTensorType::get(shape, eltType);
-  wTF->addTensor<float>(name, &weight, type);
-  std::vector<NamedAttribute> attrs;
-  attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(name)));
-  attrs.push_back(rewriter.getNamedAttr("storage",
-      rewriter.getStringAttr(storageType)));
-  return rewriter.create<tpu::LoadWeightOp>(loc, type,
-      ArrayRef<Value *>{wFV}, ArrayRef<NamedAttribute>{attrs});
-}
-
 typedef enum {
   INT8_PER_LAYER   = 01,
   INT8_PER_CHANNEL = 02,
   INT8_MULTIPLER   = 03
 } QUANT_INT8_TYPE_e;
 
-struct TpuQuantConv2DOpPattern : public RewritePattern {
-  TpuQuantConv2DOpPattern(MLIRContext *context, TensorFile *weightTensorFile,
-      Value* weightFileVar)
+struct TpuQuantInt8Conv2DOpPattern : public RewritePattern {
+  TpuQuantInt8Conv2DOpPattern(MLIRContext *context, TensorFile *weightTF,
+      Value* weightFV)
       : RewritePattern("tpu.conv_2d", 1, context),
-        weightTensorFile_(weightTensorFile),
-        weightFileVar_(weightFileVar) {}
+        weightTF_(weightTF),
+        weightFV_(weightFV) {}
 
   PatternMatchResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
     auto convOp = cast<tpu::Conv2DOp>(op);
-    auto loc = op->getLoc();
 
-    if (convOp.quant() != "NONE") {
+    if (getOpQuant(op) != "NONE") {
       LLVM_DEBUG(llvm::errs() << convOp.name() << " quantized already\n";);
       return matchFailure();
     }
-    assert(convOp.per_channel_info_is_aggregated() == false);
+    assert(getOpQuantParamType(op) == "THRESHOLD");
 
     // get quant type
     QUANT_INT8_TYPE_e quant;
@@ -138,32 +92,18 @@ struct TpuQuantConv2DOpPattern : public RewritePattern {
       quant = INT8_MULTIPLER;
     }
 
-    // get threshold
-    float threshold_x = getPreviousOpThreshold(op);
-    float threshold_y;
-    if (convOp.fused_eltwise_method() == "NONE") {
-      threshold_y = convOp.threshold_y().getValue().convertToFloat();
-    } else {
-      threshold_y =
-          convOp.threshold_y_before_eltwise().getValue().convertToFloat();
-    }
-    LLVM_DEBUG(llvm::errs() << " > " << convOp.name()
-                 << ", threshold_y = "<< std::to_string(threshold_y)
-                 << ", threshold_x = " << std::to_string(threshold_x) << "\n";);
-
     // get filter tensor
-    auto filter = readAndDeleteWeightTensor(convOp.getOperand(1),
-        weightTensorFile_);
-    auto filterType = convOp.filter()->getType().cast<TensorType>();
-    std::vector<int64_t> filterShape(filterType.getShape());
-    int64_t filterSize = std::accumulate(std::begin(filterShape),
-        std::end(filterShape), 1, std::multiplies<>());
+    auto filter = readAndDeleteWeightTensor<float>(convOp.filter(), weightTF_);
+    std::vector<int64_t> filterShape;
+    int64_t filterSize;
+    getTensorShapeAndSize(convOp.filter(), filterShape, filterSize);
     assert(filterSize == (int64_t)filter->size());
+
+    // get oc and isz
     int64_t oc = 0;
     if (filterShape.size() == 4) {
       oc = filterShape[0];
     } else if (filterShape.size() == 5) {
-      assert(convOp.group() != 1);
       // g, oc/g, ic/g, kh, kw
       oc = filterShape[0] * filterShape[1];
     } else {
@@ -176,19 +116,14 @@ struct TpuQuantConv2DOpPattern : public RewritePattern {
     std::unique_ptr<std::vector<float> > bias = nullptr;
     std::vector<int64_t> biasShape;
     int64_t biasSize = 0;
-    if (convOp.with_bias()) {
-      bias = readAndDeleteWeightTensor(convOp.getOperand(2),
-          weightTensorFile_);
-      auto biasType = convOp.getOperand(2)->getType().cast<TensorType>();
-      biasShape = std::vector<int64_t>(biasType.getShape());
-      biasSize = std::accumulate(std::begin(biasShape),
-          std::end(biasShape), 1, std::multiplies<>());
+    if ( !isTensorNone(convOp.bias()) ) {
+      bias = readAndDeleteWeightTensor<float>(convOp.bias(), weightTF_);
+      getTensorShapeAndSize(convOp.bias(), biasShape, biasSize);
       assert(biasSize == oc);
       assert(biasSize == (int64_t)bias->size());
     }
 
     // create new tensors
-    // TODO: use float to save all weights for now
     auto new_filter = std::make_unique<std::vector<float> >(filterSize);
     std::unique_ptr<std::vector<float> > new_bias = nullptr;
     if (bias) {
@@ -196,10 +131,16 @@ struct TpuQuantConv2DOpPattern : public RewritePattern {
     }
 
     // create tensors for rshift and multiplier
-    // TODO: use float to save all weights for now
     auto rshift_per_layer = std::make_unique<std::vector<float> >(1);
     auto rshift_per_channel = std::make_unique<std::vector<float> >(oc);
     auto multiplier_per_channel = std::make_unique<std::vector<float> >(oc);
+
+    // get threshold
+    float threshold_x = getPreviousOpThreshold(op);
+    float threshold_y = getOpThreshold(op);
+    LLVM_DEBUG(llvm::errs() << " > " << getOpName(op)
+                 << ", threshold_y = "<< std::to_string(threshold_y)
+                 << ", threshold_x = " << std::to_string(threshold_x) << "\n";);
 
     // quantization
     if (quant == INT8_PER_LAYER) {
@@ -226,91 +167,438 @@ struct TpuQuantConv2DOpPattern : public RewritePattern {
     }
 
     // update op
-    // TODO: use float to save all weights for now
-    Type eltType = FloatType::getF32(rewriter.getContext());
-    std::string storageType = "INT8";
-    addWeightTensorAndUpdateWeightOp(convOp.getOperand(1), *new_filter,
-        filterShape, storageType, eltType, rewriter, weightTensorFile_);
+    StringRef storageType = "INT8";
+    addWeightTensorAndUpdateWeightOp<float>(convOp.getOperand(1),
+        *new_filter, filterShape, storageType, weightTF_);
     if (bias) {
       // for per_channel quant, bias store as INT32, per layer use INT16
-      storageType = (quant == INT8_PER_LAYER) ? "INT16" : "INT32";
-      addWeightTensorAndUpdateWeightOp(convOp.getOperand(2), *new_bias,
-          biasShape, storageType, eltType, rewriter, weightTensorFile_);
-    }
-
-    // newOperands for create a new conv Op
-    std::vector<Value *> newOperands;
-    newOperands.push_back(convOp.getOperand(0));
-    newOperands.push_back(convOp.getOperand(1));
-    if (bias) {
-      newOperands.push_back(convOp.getOperand(2));
+      StringRef storageType = (quant == INT8_PER_LAYER) ? "INT16" : "INT32";
+      addWeightTensorAndUpdateWeightOp<float>(convOp.getOperand(2),
+          *new_bias, biasShape, storageType, weightTF_);
     }
 
     // add rshift and multiplier (if present) to weight
     if (quant == INT8_PER_LAYER) {
       auto shape = std::vector<int64_t>{1};
-      std::string storageType = "NONE";
-      auto new_op = addWeightTensorAndCreateWeightOp(
-          convOp.name().getValue().str() + "_quant_int8_rshift",
-          *rshift_per_layer, shape, storageType, eltType,
-          rewriter, loc, weightTensorFile_, weightFileVar_);
-      newOperands.push_back(new_op);
+      StringRef storageType = "NONE";
+      auto rshift_op = addWeightTensorAndCreateWeightOp<float>(
+          op, "rshift", *rshift_per_layer, shape, storageType,
+          weightTF_, weightFV_);
+      convOp.setOperand(5, rshift_op);
+      setOpQuantParamType(op, "RSHIFT_ONLY");
+      setOpQuantPerchannel(op, false);
     } else if (quant == INT8_PER_CHANNEL) {
       auto shape = std::vector<int64_t>{oc};
-      std::string storageType = "UINT32";
-      auto new_op = addWeightTensorAndCreateWeightOp(
-          convOp.name().getValue().str() + "_quant_int8_rshift",
-          *rshift_per_channel, shape, storageType, eltType,
-          rewriter, loc, weightTensorFile_, weightFileVar_);
-      newOperands.push_back(new_op);
+      StringRef storageType = "UINT32";
+      auto rshift_op = addWeightTensorAndCreateWeightOp<float>(
+          op, "rshift", *rshift_per_channel, shape, storageType,
+          weightTF_, weightFV_);
+      convOp.setOperand(5, rshift_op);
+      setOpQuantParamType(op, "RSHIFT_ONLY");
+      setOpQuantPerchannel(op, true);
     } else if (quant == INT8_MULTIPLER) {
       auto shape = std::vector<int64_t>{oc};
-      std::string storageType = "UINT32";
+      StringRef storageType = "UINT32";
 
-      auto new_op_1 = addWeightTensorAndCreateWeightOp(
-          convOp.name().getValue().str() + "_quant_int8_rshift",
-          *rshift_per_channel, shape, storageType, eltType,
-          rewriter, loc, weightTensorFile_, weightFileVar_);
-      newOperands.push_back(new_op_1);
+      auto rshift_op = addWeightTensorAndCreateWeightOp<float>(
+          op, "rshift", *rshift_per_channel, shape, storageType,
+          weightTF_, weightFV_);
+      convOp.setOperand(5, rshift_op);
 
-      auto new_op_2 = addWeightTensorAndCreateWeightOp(
-          convOp.name().getValue().str() + "_quant_int8_multiplier",
-          *multiplier_per_channel, shape, storageType, eltType,
-          rewriter, loc, weightTensorFile_, weightFileVar_);
-      newOperands.push_back(new_op_2);
+      auto multiplier_op = addWeightTensorAndCreateWeightOp<float>(
+          op, "multiplier", *multiplier_per_channel, shape, storageType,
+          weightTF_, weightFV_);
+      convOp.setOperand(6, multiplier_op);
+      setOpQuantParamType(op, "RSHIFT_AND_M_I32");
+      setOpQuantPerchannel(op, true);
     } else {
       assert(0);
     }
-
-    // if fused with eltwise, push the last operand
-    if (convOp.fused_eltwise_method() != "NONE") {
-      newOperands.push_back(convOp.getOperand(convOp.getNumOperands() - 1));
-    }
-
-    // set quant type
-    if (quant == INT8_PER_LAYER) {
-      convOp.setAttr("quant", rewriter.getStringAttr("INT8"));
-    } else if (quant == INT8_PER_CHANNEL) {
-      convOp.setAttr("quant", rewriter.getStringAttr("INT8_PER_CHANNEL"));
-    } else if (quant == INT8_MULTIPLER) {
-      convOp.setAttr("quant", rewriter.getStringAttr("INT8_MULTIPLIER"));
-    }
-
-    // replace with the new conv op
-    auto origAttrs = convOp.getAttrs();
-    std::vector<NamedAttribute> newAttrs(origAttrs.begin(), origAttrs.end());
-    rewriter.replaceOpWithNewOp<tpu::Conv2DOp>(
-        convOp, convOp.getResult()->getType(),
-        ArrayRef<Value *>{newOperands}, ArrayRef<NamedAttribute>{newAttrs});
+    setOpQuant(op, "INT8");
 
     return matchSuccess();
   }
 
-
-  TensorFile *weightTensorFile_;
-  Value* weightFileVar_;
+  TensorFile *weightTF_;
+  Value* weightFV_;
 };
 
+struct TpuQuantInt8EltwiseMulOpPattern : public RewritePattern {
+  TpuQuantInt8EltwiseMulOpPattern(MLIRContext *context, TensorFile *weightTF,
+      Value* weightFV)
+      : RewritePattern("tpu.eltwise_mul", 1, context),
+        weightTF_(weightTF),
+        weightFV_(weightFV) {}
+
+  PatternMatchResult matchAndRewrite(Operation *op,
+                                     PatternRewriter &rewriter) const override {
+    if (getOpQuant(op) != "NONE") {
+      LLVM_DEBUG(llvm::errs() << " < " << getOpName(op)
+                              << ", quantized already\n";);
+      return matchFailure();
+    }
+
+    // get operands
+    const unsigned nInputs = op->getNumOperands() - 4;
+    std::vector<int> opd_idx;
+    opd_idx.push_back(0);
+    if (nInputs > 1) {
+      opd_idx.push_back(1);
+    }
+    if (nInputs > 2) {
+      for (unsigned i = 0; i < nInputs - 2; i++) {
+        opd_idx.push_back(6 + i);
+      }
+    }
+
+    // get thresholds
+    float threshold_y = getOpThreshold(op);
+    LLVM_DEBUG(llvm::errs() << " > " << getOpName(op) << ", threshold_y = "
+                 << std::to_string(threshold_y) << "\n";);
+    std::vector<float> threshold_x(nInputs);
+    for (unsigned i = 0; i < nInputs; ++i) {
+      threshold_x[i] = getPreviousOpThreshold(op, opd_idx[i]);
+      LLVM_DEBUG(llvm::errs() << "  threshold_x[" << i << "] = "
+                 << std::to_string(threshold_x[i]) << "\n";);
+    }
+
+    //
+    // determine the qscale
+    //
+    float threshold_prod = std::accumulate(
+        threshold_x.begin(), threshold_x.end(), 1.0, std::multiplies<>());
+    float qscale = threshold_prod / threshold_y / 127.0;
+
+    // create tensors for rshift and multiplier
+    auto rshift = std::make_unique<std::vector<float> >(1);
+    auto multiplier = std::make_unique<std::vector<float> >(1);
+
+    //
+    // decompose into int8 mulitplier and rshift
+    //
+    uint32_t multiplier_u32;
+    int8_t rshift_i8 = findRShiftAndMultiplierFromQScale(qscale,
+                           &multiplier_u32, false, 127);
+    rshift->at(0) = static_cast<float>(rshift_i8);
+    multiplier->at(0) = static_cast<float>(multiplier_u32);
+    LLVM_DEBUG(llvm::errs()
+               << "  rshift = "
+               << std::to_string(rshift->at(0))
+               << ", multiplier = "
+               << std::to_string(multiplier->at(0)) << "\n");
+
+    // add rshift and multiplier to weight
+    StringRef storageType = "NONE";
+    auto shape = std::vector<int64_t>{1};
+
+    auto rshift_op = addWeightTensorAndCreateWeightOp<float>(
+        op, "rshift", *rshift, shape, storageType,
+        weightTF_, weightFV_);
+    op->setOperand(4, rshift_op);
+
+    auto multiplier_op = addWeightTensorAndCreateWeightOp<float>(
+        op, "multiplier", *multiplier, shape, storageType,
+        weightTF_, weightFV_);
+    op->setOperand(5, multiplier_op);
+
+    setOpQuantParamType(op, "RSHIFT_AND_M_I8");
+    setOpQuant(op, "INT8");
+
+    return matchSuccess();
+  }
+
+  TensorFile *weightTF_;
+  Value* weightFV_;
+};
+
+struct TpuQuantInt8LeakyReluOpPattern : public RewritePattern {
+  TpuQuantInt8LeakyReluOpPattern(MLIRContext *context, TensorFile *weightTF,
+      Value* weightFV)
+      : RewritePattern("tpu.leaky_relu", 1, context),
+        weightTF_(weightTF),
+        weightFV_(weightFV) {}
+
+  PatternMatchResult matchAndRewrite(Operation *op,
+                                     PatternRewriter &rewriter) const override {
+    auto lreluOp = cast<tpu::LeakyReluOp>(op);
+
+    if (getOpQuant(op) != "NONE") {
+      LLVM_DEBUG(llvm::errs() << " < " << getOpName(op)
+                              << ", quantized already\n";);
+      return matchFailure();
+    }
+    assert(getOpQuantParamType(op) == "THRESHOLD");
+
+    float negative_slope = lreluOp.negative_slope().convertToFloat();
+    LLVM_DEBUG(llvm::errs() << "  negative_slope: "
+                            << std::to_string(negative_slope) << "\n";);
+
+    // create tensors for rshift and multiplier
+    auto rshift_pos = std::vector<float>(1);
+    auto multiplier_pos = std::vector<float>(1);
+    auto rshift_neg = std::vector<float>(1);
+    auto multiplier_neg = std::vector<float>(1);
+
+    // quantization
+    float threshold_x = getPreviousOpThreshold(op);
+    float threshold_y = getOpThreshold(op);
+    LLVM_DEBUG(llvm::errs() << " > " << getOpName(op)
+                 << ", threshold_y = "<< std::to_string(threshold_y)
+                 << ", threshold_x = " << std::to_string(threshold_x) << "\n";);
+
+    // positive
+    double qscale_pos = threshold_x / threshold_y;
+    if (fabs(threshold_x - threshold_y) < 1e-5 * std::min(threshold_x, threshold_y)) {
+      // no positive scale
+      rshift_pos[0] = 0;
+      multiplier_pos[0] = 0;
+      LLVM_DEBUG(llvm::errs() << "  Positive: no_scale\n";);
+    } else {
+      uint32_t uint_multiplier_pos;
+      rshift_pos[0] = (float)findRShiftAndMultiplierFromQScale(qscale_pos,
+          &uint_multiplier_pos, false);
+      multiplier_pos[0] = (float)uint_multiplier_pos;
+      LLVM_DEBUG(llvm::errs() << "  Positive: ";);
+      LLVM_DEBUG(llvm::errs() << "  [multiplier : rshift] = ["
+                              << std::to_string(multiplier_pos[0]) << " : "
+                              << std::to_string(rshift_pos[0]) << "]\n";);
+    }
+    // negative
+    float qscale_neg = fabs(qscale_pos * negative_slope);
+    uint32_t uint_multiplier_neg = 0;
+    rshift_neg[0] = (float)findRShiftAndMultiplierFromQScale(qscale_neg,
+        &uint_multiplier_neg, false);
+    multiplier_neg[0] = (float)uint_multiplier_neg;
+    LLVM_DEBUG(llvm::errs() << "  Negative: ";);
+    LLVM_DEBUG(llvm::errs() << "  [multiplier : rshift] = ["
+                            << std::to_string(multiplier_neg[0]) << " : "
+                            << std::to_string(rshift_neg[0]) << "]\n";);
+
+    // update op
+    auto shape = std::vector<int64_t>{1};
+    StringRef storageType = "NONE";
+
+    auto rshift_pos_op = addWeightTensorAndCreateWeightOp<float>(
+        op, "rshift_pos", rshift_pos, shape, storageType,
+        weightTF_, weightFV_);
+    lreluOp.setOperand(5, rshift_pos_op);
+
+    auto multiplier_pos_op = addWeightTensorAndCreateWeightOp<float>(
+        op, "multiplier_pos", multiplier_pos, shape, storageType,
+        weightTF_, weightFV_);
+    lreluOp.setOperand(6, multiplier_pos_op);
+
+    auto rshift_neg_op = addWeightTensorAndCreateWeightOp<float>(
+        op, "rshift_neg", rshift_neg, shape, storageType,
+        weightTF_, weightFV_);
+    lreluOp.setOperand(7, rshift_neg_op);
+
+    auto multiplier_neg_op = addWeightTensorAndCreateWeightOp<float>(
+        op, "multiplier_neg", multiplier_neg, shape, storageType,
+        weightTF_, weightFV_);
+    lreluOp.setOperand(8, multiplier_neg_op);
+
+    setOpQuantParamType(op, "RSHIFT_AND_M_I8");
+    setOpQuantPerchannel(op, false);
+    setOpQuant(op, "INT8");
+
+    return matchSuccess();
+  }
+
+  TensorFile *weightTF_;
+  Value* weightFV_;
+};
+
+///
+/// default quantize pattern
+/// for operations that has no weight, but still need to do rescaling
+/// requirements:
+///   1. for multiple inputs op (eltwise add/max, concat)
+///      - first 2 operands are input
+///      - operands [2 - 5] are quant tensors
+///      - operands [6 - ] are more inputs in varadic tensors
+///   2. for single input op (PoolAvg2D)
+///      - first operand is input
+///      - operands [1 - 4] are quant tensors
+/// special handling for some operations
+///   1. PoolAvg2D: needs to take 1 / (kh * kw) into account
+///
+template<typename OpTy>
+struct TpuQuantInt8DefaultPattern : public RewritePattern {
+  TpuQuantInt8DefaultPattern(MLIRContext *context, TensorFile *weightTF,
+      Value* weightFV)
+      : RewritePattern(OpTy::getOperationName(), 1, context),
+        weightTF_(weightTF),
+        weightFV_(weightFV) {}
+
+  PatternMatchResult matchAndRewrite(Operation *op,
+                                     PatternRewriter &rewriter) const override {
+    if (getOpQuant(op) != "NONE") {
+      LLVM_DEBUG(llvm::errs() << " < " << getOpName(op)
+                              << ", quantized already\n";);
+      return matchFailure();
+    }
+
+    // get operands
+    const unsigned nInputs = op->getNumOperands() - 4;
+    std::vector<int> opd_idx;
+    opd_idx.push_back(0);
+    int quant_opd_idx_start = 1;
+    if (nInputs > 1) {
+      opd_idx.push_back(1);
+      quant_opd_idx_start = 2;
+    }
+    if (nInputs > 2) {
+      for (unsigned i = 0; i < nInputs - 2; i++) {
+        opd_idx.push_back(6 + i);
+      }
+    }
+
+    bool bypass = true;
+    float bypass_eps = 1e-5;
+    // get thresholds
+    float threshold_y = getOpThreshold(op);
+    LLVM_DEBUG(llvm::errs() << " > " << getOpName(op) << ", threshold_y = "
+                            << std::to_string(threshold_y) << "\n";);
+    std::vector<float> threshold_x(nInputs);
+    for (unsigned i = 0; i < nInputs; ++i) {
+      threshold_x[i] = getPreviousOpThreshold(op, opd_idx[i]);
+      LLVM_DEBUG(llvm::errs() << "  threshold_x[" << i << "] = "
+                 << std::to_string(threshold_x[i]) << "\n";);
+      if (fabs(threshold_y - threshold_x[i]) > bypass_eps) {
+        bypass = false;
+      }
+    }
+    if (bypass) {
+      // leave quant_rshift and quant_mulitplier as NoneOp to indicate bypass
+      LLVM_DEBUG(llvm::errs() << " < " << getOpName(op)
+                              << ",  quantization bypassed\n";);
+      setOpQuantParamType(op, "NONE");
+      setOpQuantPerchannel(op, false);
+      setOpQuant(op, "INT8");
+
+      return matchSuccess();
+    }
+
+    //
+    // determine the qscale first, scale is different among inputs
+    //   qscale is a fp32 scale applied to each input
+    //   so that the share the same threshold_y
+    //
+    std::vector<float> qscale(nInputs);
+    for (unsigned i = 0; i < nInputs; ++i) {
+      qscale[i] = threshold_x[i] / threshold_y;
+    }
+
+    // special handlings
+    if (OpTy::getOperationName() == "tpu.pool_avg_2d") {
+      assert(nInputs);
+      auto castOp = dyn_cast<tpu::PoolAvg2DOp>(op);
+      assert(castOp);
+      int kh = castOp.param().kernel_h().getValue().getLimitedValue();
+      int kw = castOp.param().kernel_w().getValue().getLimitedValue();
+      qscale[0] = qscale[0] / (kh * kw);
+    }
+
+    // create tensors for rshift and multiplier
+    auto rshift = std::make_unique<std::vector<float> >(1);
+    auto multiplier = std::make_unique<std::vector<float> >(nInputs);
+
+    //
+    // decompose into int8 mulitplier and rshift
+    //
+    // find one rshift for all inputs, and multipliers for each inputs
+    //   each qscale will be implemented by hardware as
+    //   qscale[i] = multiplier / (1 << rshift)
+    //   find a rshift, that put max(output) into range (64, 127)
+    //
+    float max_qscale = *std::max_element(std::begin(qscale), std::end(qscale));
+    int8_t rshift_i8 = findRShiftAndMultiplierFromQScale(max_qscale);
+    rshift->at(0) = (float)rshift_i8;
+    LLVM_DEBUG(llvm::errs() << "  rshift = "
+                            << std::to_string(rshift->at(0)) << "\n");
+    for (unsigned i = 0; i < nInputs; ++i) {
+      int8_t multiplier_i8 = findMultiplierI8FromQScaleAndRShift(qscale[i],
+                                   rshift_i8);
+      multiplier->at(i) = (float)multiplier_i8;
+      LLVM_DEBUG(llvm::errs() << "  multiplier[" << i << "] = "
+                              << std::to_string(multiplier->at(i)) << "\n");
+      LLVM_DEBUG(llvm::errs() << "  qscale[" << i << "] = "
+                              << std::to_string(qscale[i]) << "\n");
+    }
+
+    // add rshift and multiplier to weight
+    StringRef storageType = "NONE";
+
+    auto shape_rshift = std::vector<int64_t>{1};
+    auto rshift_op = addWeightTensorAndCreateWeightOp<float>(
+        op, "rshift", *rshift, shape_rshift, storageType,
+        weightTF_, weightFV_);
+    op->setOperand(quant_opd_idx_start + 2, rshift_op);
+
+    auto shape_multiplier = std::vector<int64_t>{nInputs};
+    auto multiplier_op = addWeightTensorAndCreateWeightOp<float>(
+        op, "multiplier", *multiplier, shape_multiplier, storageType,
+        weightTF_, weightFV_);
+    op->setOperand(quant_opd_idx_start + 3, multiplier_op);
+
+    setOpQuantParamType(op, "RSHIFT_AND_M_I8");
+    setOpQuant(op, "INT8");
+
+    return matchSuccess();
+  }
+
+  TensorFile *weightTF_;
+  Value* weightFV_;
+};
+
+//
+// bypass quantize pattern
+// which means threshold_x and threshold_y are the same
+// therefore no rescaling is needed
+//
+template<typename OpTy>
+struct TpuQuantInt8BypassPattern : public RewritePattern {
+  TpuQuantInt8BypassPattern(MLIRContext *context, TensorFile *weightTF,
+      Value* weightFV)
+      : RewritePattern(OpTy::getOperationName(), 1, context),
+        weightTF_(weightTF),
+        weightFV_(weightFV) {}
+
+  PatternMatchResult matchAndRewrite(Operation *op,
+                                     PatternRewriter &rewriter) const override {
+    //auto castOp = cast<OpTy>(op);
+    if (getOpQuant(op) != "NONE") {
+      LLVM_DEBUG(llvm::errs() << " < " << getOpName(op)
+                              << ", quantized already\n";);
+      return matchFailure();
+    }
+
+    float threshold_x = getPreviousOpThreshold(op);
+    float threshold_y = getOpThreshold(op);
+    assert(threshold_x == threshold_y);
+
+    // set bypass
+    setOpQuantParamType(op, "NONE");
+    setOpQuantPerchannel(op, false);
+    setOpQuant(op, "INT8");
+
+    return matchSuccess();
+  }
+
+  TensorFile *weightTF_;
+  Value* weightFV_;
+};
+
+
+
+
+
+
+
+
+
+// to be removed
 struct TpuQuantDeConv2DOpPattern : public RewritePattern {
   TpuQuantDeConv2DOpPattern(MLIRContext *context, TensorFile *weightTensorFile,
       Value* weightFileVar)
@@ -321,10 +609,10 @@ struct TpuQuantDeConv2DOpPattern : public RewritePattern {
   PatternMatchResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
     auto deconvOp = cast<tpu::DeConv2DOp>(op);
-    auto loc = op->getLoc();
 
     if (deconvOp.quant() != "NONE") {
-      LLVM_DEBUG(llvm::errs() << deconvOp.name() << " quantized already\n";);
+      LLVM_DEBUG(llvm::errs() << " < " << getOpName(op)
+                              << ", quantized already\n";);
       return matchFailure();
     }
     assert(deconvOp.per_channel_info_is_aggregated() == false);
@@ -355,7 +643,7 @@ struct TpuQuantDeConv2DOpPattern : public RewritePattern {
                  << ", threshold_x = " << std::to_string(threshold_x) << "\n";);
 
     // get filter tensor
-    auto filter = readAndDeleteWeightTensor(deconvOp.getOperand(1),
+    auto filter = readAndDeleteWeightTensor<float>(deconvOp.getOperand(1),
         weightTensorFile_);
     auto filterType = deconvOp.filter()->getType().cast<TensorType>();
     std::vector<int64_t> filterShape(filterType.getShape());
@@ -380,7 +668,7 @@ struct TpuQuantDeConv2DOpPattern : public RewritePattern {
     std::vector<int64_t> biasShape;
     int64_t biasSize = 0;
     if (deconvOp.with_bias()) {
-      bias = readAndDeleteWeightTensor(deconvOp.getOperand(2),
+      bias = readAndDeleteWeightTensor<float>(deconvOp.getOperand(2),
           weightTensorFile_);
       auto biasType = deconvOp.getOperand(2)->getType().cast<TensorType>();
       biasShape = std::vector<int64_t>(biasType.getShape());
@@ -430,15 +718,14 @@ struct TpuQuantDeConv2DOpPattern : public RewritePattern {
 
     // update op
     // TODO: use float to save all weights for now
-    Type eltType = FloatType::getF32(rewriter.getContext());
-    std::string storageType = "INT8";
-    addWeightTensorAndUpdateWeightOp(deconvOp.getOperand(1), *new_filter,
-        filterShape, storageType, eltType, rewriter, weightTensorFile_);
+    StringRef storageType = "INT8";
+    addWeightTensorAndUpdateWeightOp<float>(deconvOp.getOperand(1),
+        *new_filter, filterShape, storageType, weightTensorFile_);
     if (bias) {
       // for per_channel quant, bias store as INT32, per layer use INT16
-      storageType = (quant == INT8_PER_LAYER) ? "INT16" : "INT32";
-      addWeightTensorAndUpdateWeightOp(deconvOp.getOperand(2), *new_bias,
-          biasShape, storageType, eltType, rewriter, weightTensorFile_);
+      StringRef storageType = (quant == INT8_PER_LAYER) ? "INT16" : "INT32";
+      addWeightTensorAndUpdateWeightOp<float>(deconvOp.getOperand(2),
+          *new_bias, biasShape, storageType, weightTensorFile_);
     }
 
     // newOperands for create a new conv Op
@@ -452,34 +739,30 @@ struct TpuQuantDeConv2DOpPattern : public RewritePattern {
     // add rshift and multiplier (if present) to weight
     if (quant == INT8_PER_LAYER) {
       auto shape = std::vector<int64_t>{1};
-      std::string storageType = "NONE";
-      auto new_op = addWeightTensorAndCreateWeightOp(
-          deconvOp.name().getValue().str() + "_quant_int8_rshift",
-          *rshift_per_layer, shape, storageType, eltType,
-          rewriter, loc, weightTensorFile_, weightFileVar_);
+      StringRef storageType = "NONE";
+      auto new_op = addWeightTensorAndCreateWeightOp<float>(
+          op, "rshift", *rshift_per_layer, shape, storageType,
+          weightTensorFile_, weightFileVar_);
       newOperands.push_back(new_op);
     } else if (quant == INT8_PER_CHANNEL) {
       auto shape = std::vector<int64_t>{oc};
-      std::string storageType = "UINT32";
-      auto new_op = addWeightTensorAndCreateWeightOp(
-          deconvOp.name().getValue().str() + "_quant_int8_rshift",
-          *rshift_per_channel, shape, storageType, eltType,
-          rewriter, loc, weightTensorFile_, weightFileVar_);
+      StringRef storageType = "UINT32";
+      auto new_op = addWeightTensorAndCreateWeightOp<float>(
+          op, "rshift", *rshift_per_layer, shape, storageType,
+          weightTensorFile_, weightFileVar_);
       newOperands.push_back(new_op);
     } else if (quant == INT8_MULTIPLER) {
       auto shape = std::vector<int64_t>{oc};
-      std::string storageType = "UINT32";
+      StringRef storageType = "UINT32";
 
-      auto new_op_1 = addWeightTensorAndCreateWeightOp(
-          deconvOp.name().getValue().str() + "_quant_int8_rshift",
-          *rshift_per_channel, shape, storageType, eltType,
-          rewriter, loc, weightTensorFile_, weightFileVar_);
+      auto new_op_1 = addWeightTensorAndCreateWeightOp<float>(
+          op, "rshift", *rshift_per_layer, shape, storageType,
+          weightTensorFile_, weightFileVar_);
       newOperands.push_back(new_op_1);
 
-      auto new_op_2 = addWeightTensorAndCreateWeightOp(
-          deconvOp.name().getValue().str() + "_quant_int8_multiplier",
-          *multiplier_per_channel, shape, storageType, eltType,
-          rewriter, loc, weightTensorFile_, weightFileVar_);
+      auto new_op_2 = addWeightTensorAndCreateWeightOp<float>(
+          op, "multiplier", *multiplier_per_channel, shape, storageType,
+          weightTensorFile_, weightFileVar_);
       newOperands.push_back(new_op_2);
     } else {
       assert(0);
@@ -514,107 +797,6 @@ struct TpuQuantDeConv2DOpPattern : public RewritePattern {
   Value* weightFileVar_;
 };
 
-struct TpuQuantEltwiseOpPattern : public RewritePattern {
-  TpuQuantEltwiseOpPattern(MLIRContext *context, TensorFile *weightTensorFile,
-                           Value *weightFileVar)
-      : RewritePattern(tpu::EltwiseOp::getOperationName(), 1, context),
-        weightTensorFile_(weightTensorFile), weightFileVar_(weightFileVar) {}
-
-  PatternMatchResult matchAndRewrite(Operation *op,
-                                     PatternRewriter &rewriter) const override {
-    auto eltOp = cast<tpu::EltwiseOp>(op);
-    std::string op_name =
-        eltOp.getAttrOfType<StringAttr>("name").getValue().str();
-    // auto loc = op->getLoc();
-
-    if (eltOp.quant() != "NONE") {
-      LLVM_DEBUG(llvm::errs() << eltOp.name() << " quantized already\n";);
-      return matchFailure();
-    }
-
-    // Support Sum first
-    if (eltOp.method() != "SUM") {
-      eltOp.setAttr("quant", rewriter.getStringAttr("INT8"));
-      return matchSuccess();
-    }
-
-    SmallVector<Value *, 4> newOperands(op->getOperands().begin(),
-                                        op->getOperands().end());
-    SmallVector<NamedAttribute, 8> newAttrs(op->getAttrs().begin(),
-                                            op->getAttrs().end());
-
-    // Update quantization status
-    newAttrs.push_back(
-        rewriter.getNamedAttr("quant", rewriter.getStringAttr("INT8")));
-
-    const unsigned nInputs = op->getNumOperands();
-
-    std::vector<float> threshold_x(nInputs);
-    float threshold_y;
-    // determine multiplier and rshift according each threshold_x
-    // scale[i] = threshold_x[i] / threshold_y
-    // each scale will be implemented by hardware as
-    // scale[i] = multiplier / (1 << rshift)
-    // find a rshift, that put max(multiplier) into range (64, 127)
-    uint32_t rshift;
-    std::vector<int8_t> multiplier(nInputs);
-    for (unsigned index = 0; index < nInputs; ++index) {
-      // get threshold_x
-      threshold_x[index] = getPreviousOpThreshold(op, index);
-    }
-    // get threshold_y
-    threshold_y = eltOp.threshold_y().getValue().convertToFloat();
-    if (eltOp.method() == "SUM") {
-      // determine rshift for all inputs, and multiplier for each input
-      // use max threshold_x to find rshift first
-      float max_threshold_x =
-          *std::max_element(std::begin(threshold_x), std::end(threshold_x));
-      rshift = findRShiftAndMultiplierFromQScale(max_threshold_x / threshold_y);
-      for (int index = 0; index < 2; ++index) {
-        float qscale = threshold_x[index] / threshold_y;
-        multiplier[index] =
-            (int8_t)findMultiplierFromQScaleAndRShift(qscale, rshift);
-      }
-
-      auto multiplier_int8 = std::vector<float>(nInputs);
-      for (unsigned i = 0; i < nInputs; ++i) {
-        multiplier_int8[i] = (float)multiplier[i];
-      }
-
-      // Add rshift and multiplier to weight
-      Type eltType = FloatType::getF32(rewriter.getContext());
-      std::string storageType = "NONE";
-      auto loc = op->getLoc();
-
-      auto rshiftData = std::vector<float>(1);
-      auto rshiftShape = std::vector<int64_t>{1};
-      rshiftData[0] = rshift;
-      auto rshiftOp = addWeightTensorAndCreateWeightOp(
-          eltOp.name().getValue().str() + "_quant_int8_rshift", rshiftData,
-          rshiftShape, storageType, eltType, rewriter, loc, weightTensorFile_,
-          weightFileVar_);
-      newOperands.push_back(rshiftOp);
-
-      auto multiplierShape = std::vector<int64_t>{nInputs};
-      auto multiplierOp = addWeightTensorAndCreateWeightOp(
-          eltOp.name().getValue().str() + "_quant_int8_multiplier",
-          multiplier_int8, multiplierShape, storageType, eltType, rewriter, loc,
-          weightTensorFile_, weightFileVar_);
-      newOperands.push_back(multiplierOp);
-    }
-
-    // Replace with new eltwise op
-    rewriter.replaceOpWithNewOp<tpu::EltwiseOp>(
-        eltOp, eltOp.getResult()->getType(), ArrayRef<Value *>{newOperands},
-        ArrayRef<NamedAttribute>{newAttrs});
-
-    return matchSuccess();
-  }
-
-  TensorFile *weightTensorFile_;
-  Value *weightFileVar_;
-};
-
 struct TpuQuantFullyConnectedOpPattern : public RewritePattern {
   TpuQuantFullyConnectedOpPattern(MLIRContext *context,
       TensorFile *weightTensorFile, Value* weightFileVar)
@@ -629,7 +811,8 @@ struct TpuQuantFullyConnectedOpPattern : public RewritePattern {
     auto loc = op->getLoc();
 
     if (fcOp.quant() != "NONE") {
-      LLVM_DEBUG(llvm::errs() << fcOp.name() << " quantized already\n";);
+      LLVM_DEBUG(llvm::errs() << " < " << getOpName(op)
+                              << ", quantized already\n";);
       return matchFailure();
     }
 
@@ -764,139 +947,6 @@ struct TpuQuantFullyConnectedOpPattern : public RewritePattern {
   Value* weightFileVar_;
 };
 
-template<typename TensorTyOp>
-struct TpuQuantDefaultPattern : public RewritePattern {
-  TpuQuantDefaultPattern(MLIRContext *context, TensorFile *weightTensorFile,
-      Value* weightFileVar)
-      : RewritePattern(TensorTyOp::getOperationName(), 1, context),
-        weightTensorFile_(weightTensorFile),
-        weightFileVar_(weightFileVar) {}
-
-  PatternMatchResult matchAndRewrite(Operation *op,
-                                     PatternRewriter &rewriter) const override {
-    auto castOp = cast<TensorTyOp>(op);
-    if (castOp.quant() != "NONE") {
-      LLVM_DEBUG(llvm::errs() << castOp.name() << " quantized already\n";);
-      return matchFailure();
-    }
-    castOp.setAttr("quant", rewriter.getStringAttr("INT8"));
-
-    return matchSuccess();
-  }
-
-  TensorFile *weightTensorFile_;
-  Value* weightFileVar_;
-};
-
-struct TpuQuantReluOpPattern : public RewritePattern {
-  TpuQuantReluOpPattern(MLIRContext *context, TensorFile *weightTensorFile,
-      Value* weightFileVar)
-      : RewritePattern("tpu.relu", 1, context),
-        weightTensorFile_(weightTensorFile),
-        weightFileVar_(weightFileVar) {}
-
-  PatternMatchResult matchAndRewrite(Operation *op,
-                                     PatternRewriter &rewriter) const override {
-    auto reluOp = cast<tpu::ReluOp>(op);
-    if (reluOp.quant() != "NONE") {
-      LLVM_DEBUG(llvm::errs() << reluOp.name() << " quantized already\n";);
-      return matchFailure();
-    }
-
-    reluOp.setAttr("quant", rewriter.getStringAttr("INT8"));
-
-    float negative_slope = reluOp.negative_slope().convertToFloat();
-    LLVM_DEBUG(llvm::errs() << "  negative_slope: "
-                            << std::to_string(negative_slope) << "\n";);
-    if (negative_slope < 1e-7) {
-      // this is relu rather than leaky relu, no quantization needed
-      return matchSuccess();
-    }
-
-    // create tensors for rshift and multiplier
-    // TODO: use float to save all weights for now
-    auto rshift_pos = std::vector<float>(1);
-    auto multiplier_pos = std::vector<float>(1);
-    auto rshift_neg = std::vector<float>(1);
-    auto multiplier_neg = std::vector<float>(1);
-
-    // quantization
-    float threshold_x = getPreviousOpThreshold(op);
-    float threshold_y = getOpThreshold(op);
-    double qscale_pos = threshold_x / threshold_y;
-    if (fabs(threshold_x - threshold_y) < 1e-5 * std::min(threshold_x, threshold_y)) {
-      // no positive scale
-      rshift_pos[0] = 0;
-      multiplier_pos[0] = 0;
-      LLVM_DEBUG(llvm::errs() << "  Positive: no_scale\n";);
-    } else {
-      uint32_t uint_multiplier_pos;
-      rshift_pos[0] = (float)findRShiftAndMultiplierFromQScale(qscale_pos,
-          &uint_multiplier_pos, false);
-      multiplier_pos[0] = (float)uint_multiplier_pos;
-      LLVM_DEBUG(llvm::errs() << "  Positive: ";);
-      LLVM_DEBUG(llvm::errs() << "  [multiplier : rshift] = ["
-                              << std::to_string(multiplier_pos[0]) << " : "
-                              << std::to_string(rshift_pos[0]) << "]\n";);
-    }
-    // negative
-    float qscale_neg = fabs(qscale_pos * negative_slope);
-    uint32_t uint_multiplier_neg = 0;
-    rshift_neg[0] = (float)findRShiftAndMultiplierFromQScale(qscale_neg,
-        &uint_multiplier_neg, false);
-    multiplier_neg[0] = (float)uint_multiplier_neg;
-    LLVM_DEBUG(llvm::errs() << "  Negative: ";);
-    LLVM_DEBUG(llvm::errs() << "  [multiplier : rshift] = ["
-                            << std::to_string(multiplier_neg[0]) << " : "
-                            << std::to_string(rshift_neg[0]) << "]\n";);
-
-    // newOperands for create a new conv Op
-    auto loc = op->getLoc();
-    std::vector<Value *> newOperands;
-    newOperands.push_back(reluOp.getOperand(0));
-
-    auto shape = std::vector<int64_t>{1};
-    Type eltType = FloatType::getF32(rewriter.getContext());
-    std::string storageType = "INT8";
-
-    auto new_op_1 = addWeightTensorAndCreateWeightOp(
-        reluOp.name().getValue().str() + "_quant_int8_rshift_pos",
-        rshift_pos, shape, storageType, eltType,
-        rewriter, loc, weightTensorFile_, weightFileVar_);
-    newOperands.push_back(new_op_1);
-
-    auto new_op_2 = addWeightTensorAndCreateWeightOp(
-        reluOp.name().getValue().str() + "_quant_int8_multiplier_pos",
-        multiplier_pos, shape, storageType, eltType,
-        rewriter, loc, weightTensorFile_, weightFileVar_);
-    newOperands.push_back(new_op_2);
-
-    auto new_op_3 = addWeightTensorAndCreateWeightOp(
-        reluOp.name().getValue().str() + "_quant_int8_rshift_neg",
-        rshift_neg, shape, storageType, eltType,
-        rewriter, loc, weightTensorFile_, weightFileVar_);
-    newOperands.push_back(new_op_3);
-
-    auto new_op_4 = addWeightTensorAndCreateWeightOp(
-        reluOp.name().getValue().str() + "_quant_int8_multiplier_neg",
-        multiplier_neg, shape, storageType, eltType,
-        rewriter, loc, weightTensorFile_, weightFileVar_);
-    newOperands.push_back(new_op_4);
-
-
-    // replace with the new conv op
-    auto origAttrs = reluOp.getAttrs();
-    std::vector<NamedAttribute> newAttrs(origAttrs.begin(), origAttrs.end());
-    rewriter.replaceOpWithNewOp<tpu::ReluOp>(
-        reluOp, reluOp.getResult()->getType(),
-        ArrayRef<Value *>{newOperands}, ArrayRef<NamedAttribute>{newAttrs});
-    return matchSuccess();
-  }
-
-  TensorFile *weightTensorFile_;
-  Value* weightFileVar_;
-};
-
 struct TpuQuantPReluOpPattern : public RewritePattern {
   TpuQuantPReluOpPattern(MLIRContext *context, TensorFile *weightTensorFile,
                            Value *weightFileVar)
@@ -909,10 +959,10 @@ struct TpuQuantPReluOpPattern : public RewritePattern {
     auto preluOp = cast<tpu::PReluOp>(op);
     std::string op_name =
         preluOp.getAttrOfType<StringAttr>("name").getValue().str();
-    auto loc = op->getLoc();
 
     if (preluOp.quant() != "NONE") {
-      LLVM_DEBUG(llvm::errs() << preluOp.name() << " quantized already\n";);
+      LLVM_DEBUG(llvm::errs() << " < " << getOpName(op)
+                              << ", quantized already\n";);
       return matchFailure();
     }
 
@@ -1019,10 +1069,9 @@ struct TpuQuantPReluOpPattern : public RewritePattern {
 
     // update op
     // TODO: use float to save all weights for now
-    Type eltType = FloatType::getF32(rewriter.getContext());
-    std::string storageType = "INT8";
-    addWeightTensorAndUpdateWeightOp(preluOp.getOperand(1), new_negative_slope,
-        slopeShape, storageType, eltType, rewriter, weightTensorFile_);
+    StringRef storageType = "INT8";
+    addWeightTensorAndUpdateWeightOp<float>(preluOp.getOperand(1),
+        new_negative_slope, slopeShape, storageType, weightTensorFile_);
 
     // newOperands for create a new conv Op
     std::vector<Value *> newOperands;
@@ -1030,34 +1079,30 @@ struct TpuQuantPReluOpPattern : public RewritePattern {
     newOperands.push_back(preluOp.getOperand(1));
 
     auto shape = std::vector<int64_t>{1};
-    std::string storageType_r = "INT8";
-    std::string storageType_m = "INT8";
+    StringRef storageType_r = "INT8";
+    StringRef storageType_m = "INT8";
     /// backend not support INT32 Multiplier now so use INT8 way now.
     // storageType_m = "INT32";
 
-    auto new_op_1 = addWeightTensorAndCreateWeightOp(
-      preluOp.name().getValue().str() + "_quant_int8_rshift_pos",
-      rshift_pos, shape, storageType_r, eltType,
-      rewriter, loc, weightTensorFile_, weightFileVar_);
+    auto new_op_1 = addWeightTensorAndCreateWeightOp<float>(
+      op, "rshift_pos", rshift_pos, shape, storageType_r,
+      weightTensorFile_, weightFileVar_);
     newOperands.push_back(new_op_1);
 
-    auto new_op_2 = addWeightTensorAndCreateWeightOp(
-        preluOp.name().getValue().str() + "_quant_int8_multiplier_pos",
-        multiplier_pos, shape, storageType_m, eltType,
-        rewriter, loc, weightTensorFile_, weightFileVar_);
+    auto new_op_2 = addWeightTensorAndCreateWeightOp<float>(
+        op, "multiplier_pos", multiplier_pos, shape, storageType_m,
+        weightTensorFile_, weightFileVar_);
     newOperands.push_back(new_op_2);
 
-    auto new_op_3 = addWeightTensorAndCreateWeightOp(
-        preluOp.name().getValue().str() + "_quant_int8_rshift_neg",
-        rshift_neg, shape, storageType_r, eltType,
-        rewriter, loc, weightTensorFile_, weightFileVar_);
+    auto new_op_3 = addWeightTensorAndCreateWeightOp<float>(
+        op, "rshift_neg", rshift_neg, shape, storageType_r,
+        weightTensorFile_, weightFileVar_);
     newOperands.push_back(new_op_3);
 
 #if 0
-    auto new_op_4 = addWeightTensorAndCreateWeightOp(
-        preluOp.name().getValue().str() + "_quant_int8_multiplier_neg",
-        multiplier_neg, shape, storageType_m, eltType,
-        rewriter, loc, weightTensorFile_, weightFileVar_);
+    auto new_op_4 = addWeightTensorAndCreateWeightOp<float>(
+        op, "multiplier_neg", multiplier_neg, shape, storageType_m,
+        weightTensorFile_, weightFileVar_);
     newOperands.push_back(new_op_4);
 #endif
 
@@ -1087,7 +1132,7 @@ struct TpuQuantScaleOpPattern : public RewritePattern {
   PatternMatchResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
     auto scaleOp = cast<tpu::ScaleOp>(op);
-    auto loc = op->getLoc();
+
     std::string op_name =
         scaleOp.getAttrOfType<StringAttr>("name").getValue().str();
 
@@ -1189,17 +1234,14 @@ struct TpuQuantScaleOpPattern : public RewritePattern {
 
       // update op
       // TODO: use float to save all weights for now
-      Type eltType = FloatType::getF32(rewriter.getContext());
-      std::string storageType = "INT8";
-      addWeightTensorAndUpdateWeightOp(scaleOp.getOperand(1), *new_scale,
-                                       scale_shape, storageType, eltType,
-                                       rewriter, weightTensorFile_);
+      StringRef storageType = "INT8";
+      addWeightTensorAndUpdateWeightOp<float>(scaleOp.getOperand(1),
+          *new_scale, scale_shape, storageType, weightTensorFile_);
       if (bias) {
         // for per_channel quant, bias store as INT32, per layer use INT16
-        storageType = (quant == INT8_PER_LAYER) ? "INT16" : "INT32";
-        addWeightTensorAndUpdateWeightOp(scaleOp.getOperand(2), *new_bias,
-                                         bias_shape, storageType, eltType,
-                                         rewriter, weightTensorFile_);
+        StringRef storageType = (quant == INT8_PER_LAYER) ? "INT16" : "INT32";
+        addWeightTensorAndUpdateWeightOp<float>(scaleOp.getOperand(2),
+            *new_bias, bias_shape, storageType, weightTensorFile_);
       }
 
       // newOperands for create a new conv Op
@@ -1212,31 +1254,27 @@ struct TpuQuantScaleOpPattern : public RewritePattern {
       // add rshift and multiplier (if present) to weight
       if (quant == INT8_PER_LAYER) {
         auto shape = std::vector<int64_t>{1};
-        std::string storageType = "UINT32";
-        auto new_op_1 = addWeightTensorAndCreateWeightOp(
-            scaleOp.name().getValue().str() + "_quant_int8_rshift",
-            *rshift_per_layer, shape, storageType, eltType, rewriter, loc,
+        StringRef storageType = "UINT32";
+        auto new_op_1 = addWeightTensorAndCreateWeightOp<float>(
+            op, "rshift", *rshift_per_layer, shape, storageType,
             weightTensorFile_, weightFileVar_);
         newOperands.push_back(new_op_1);
-        auto new_op_2 = addWeightTensorAndCreateWeightOp(
-            scaleOp.name().getValue().str() + "_quant_int8_multiplier",
-            *multiplier_per_layer, shape, storageType, eltType, rewriter, loc,
+        auto new_op_2 = addWeightTensorAndCreateWeightOp<float>(
+            op, "multiplier", *multiplier_per_layer, shape, storageType,
             weightTensorFile_, weightFileVar_);
         newOperands.push_back(new_op_2);
 
       } else if (quant == INT8_PER_CHANNEL) {
         auto shape = std::vector<int64_t>{oc};
-        std::string storageType = "UINT32";
+        StringRef storageType = "UINT32";
 
-        auto new_op_1 = addWeightTensorAndCreateWeightOp(
-            scaleOp.name().getValue().str() + "_quant_int8_rshift",
-            *rshift_per_channel, shape, storageType, eltType, rewriter, loc,
+        auto new_op_1 = addWeightTensorAndCreateWeightOp<float>(
+            op, "rshift", *rshift_per_channel, shape, storageType,
             weightTensorFile_, weightFileVar_);
         newOperands.push_back(new_op_1);
 
-        auto new_op_2 = addWeightTensorAndCreateWeightOp(
-            scaleOp.name().getValue().str() + "_quant_int8_multiplier",
-            *multiplier_per_channel, shape, storageType, eltType, rewriter, loc,
+        auto new_op_2 = addWeightTensorAndCreateWeightOp<float>(
+            op, "multiplier", *multiplier_per_channel, shape, storageType,
             weightTensorFile_, weightFileVar_);
         newOperands.push_back(new_op_2);
       } else {
@@ -1286,23 +1324,20 @@ struct TpuQuantScaleOpPattern : public RewritePattern {
       auto multiplier_perchannel =
           std::make_unique<std::vector<float>>(oc, multiplier_prod);
 
-      Type eltType = FloatType::getF32(rewriter.getContext());
-      std::string storageType = "UINT32";
+      StringRef storageType = "UINT32";
       auto shape = std::vector<int64_t>{oc};
 
       // newOperands for create a new conv Op
       std::vector<Value *> newOperands;
       newOperands.push_back(scaleOp.getOperand(0));
       newOperands.push_back(scaleOp.getOperand(1));
-      auto new_op_1 = addWeightTensorAndCreateWeightOp(
-          scaleOp.name().getValue().str() + "_quant_int8_rshift",
-          *rshift_perchannel, shape, storageType, eltType, rewriter, loc,
+      auto new_op_1 = addWeightTensorAndCreateWeightOp<float>(
+          op, "rshift", *rshift_perchannel, shape, storageType,
           weightTensorFile_, weightFileVar_);
       newOperands.push_back(new_op_1);
 
-      auto new_op_2 = addWeightTensorAndCreateWeightOp(
-          scaleOp.name().getValue().str() + "_quant_int8_multiplier",
-          *multiplier_perchannel, shape, storageType, eltType, rewriter, loc,
+      auto new_op_2 = addWeightTensorAndCreateWeightOp<float>(
+          op, "multiplier", *multiplier_perchannel, shape, storageType,
           weightTensorFile_, weightFileVar_);
       newOperands.push_back(new_op_2);
 
@@ -1363,7 +1398,8 @@ struct TpuQuantPowerOpPattern : public RewritePattern {
     std::vector<float> scale_weight(size);
     std::vector<float> shift_weight(size);
 
-    float threshold_y,threshold_x,qscale,rshift;
+    float threshold_y,threshold_x,qscale;
+    int8_t rshift;
     uint32_t multiplier;
 
     threshold_y = powerOp.threshold_y().getValue().convertToFloat();
@@ -1376,16 +1412,16 @@ struct TpuQuantPowerOpPattern : public RewritePattern {
 
     if (quant == INT8_PER_LAYER|| quant == INT8_PER_CHANNEL) {
       rshift = findRShiftAndMultiplierFromQScale(qscale);
-      multiplier = findMultiplierFromQScaleAndRShift(qscale, rshift);
+      multiplier = findMultiplierI8FromQScaleAndRShift(qscale, rshift);
     }else if(quant == INT8_MULTIPLER){
-      rshift = (float)findRShiftAndMultiplierFromQScale(qscale, &multiplier, true,255);
+      rshift = findRShiftAndMultiplierFromQScale(qscale, &multiplier, true,255);
     }
 
     if (quant == INT8_PER_LAYER|| quant == INT8_PER_CHANNEL) {
       scale = scale*(threshold_y/threshold_x)*multiplier;
       shift = shift*(threshold_y/127.0)*multiplier;
-      scale = (float)applyRShiftAndSaturateInt8(scale, (uint32_t)rshift);
-      shift = (float)applyRShiftAndSaturateInt8(shift, (uint32_t)rshift);
+      scale = (float)applyRShiftAndSaturateInt8(scale, rshift);
+      shift = (float)applyRShiftAndSaturateInt8(shift, rshift);
     }else if(quant == INT8_MULTIPLER){
       scale = scale*(threshold_y/threshold_x);
       shift = shift*(threshold_y/127.0);
@@ -1446,6 +1482,31 @@ struct TpuQuantPowerOpPattern : public RewritePattern {
 }
   TensorFile *weightTensorFile_;
   Value* weightFileVar_;
+};
+
+// to be removed
+template<typename TensorTyOp>
+struct TpuQuantDefaultPattern : public RewritePattern {
+  TpuQuantDefaultPattern(MLIRContext *context, TensorFile *weightTF,
+      Value* weightFV)
+      : RewritePattern(TensorTyOp::getOperationName(), 1, context),
+        weightTF_(weightTF),
+        weightFV_(weightFV) {}
+
+  PatternMatchResult matchAndRewrite(Operation *op,
+                                     PatternRewriter &rewriter) const override {
+    auto castOp = cast<TensorTyOp>(op);
+    if (castOp.quant() != "NONE") {
+      LLVM_DEBUG(llvm::errs() << castOp.name() << " quantized already\n";);
+      return matchFailure();
+    }
+    castOp.setAttr("quant", rewriter.getStringAttr("INT8"));
+
+    return matchSuccess();
+  }
+
+  TensorFile *weightTF_;
+  Value* weightFV_;
 };
 
 template<typename T>
@@ -1649,19 +1710,24 @@ public:
     OwningRewritePatternList patterns_w;
     //concat cpu layer test
     patterns_w
-        .insert<TpuQuantDefaultPattern<tpu::ConcatOp>,
-                TpuQuantConv2DOpPattern,
+        .insert<TpuQuantInt8Conv2DOpPattern,
+                TpuQuantInt8DefaultPattern<tpu::EltwiseAddOp>,
+                TpuQuantInt8DefaultPattern<tpu::EltwiseMaxOp>,
+                TpuQuantInt8EltwiseMulOpPattern,
+                TpuQuantInt8DefaultPattern<tpu::PoolAvg2DOp>,
+                TpuQuantInt8BypassPattern<tpu::PoolMax2DOp>,
+                TpuQuantInt8LeakyReluOpPattern,
+                TpuQuantInt8BypassPattern<tpu::ReluOp>,
+
+                TpuQuantDefaultPattern<tpu::ConcatOp>,
                 TpuQuantDeConv2DOpPattern,
                 TpuQuantDefaultPattern<tpu::CropOp>,
                 TpuQuantDefaultPattern<tpu::DivOp>,
-                TpuQuantEltwiseOpPattern,
                 TpuQuantFullyConnectedOpPattern,
                 TpuQuantDefaultPattern<tpu::PermuteOp>,
-                TpuQuantDefaultPattern<tpu::Pool2DOp>,
                 TpuQuantPowerOpPattern,
                 TpuQuantPReluOpPattern,
-                TpuQuantReluOpPattern,
-                TpuQuantDefaultPattern<tpu::ReshapeOp> ,
+                TpuQuantDefaultPattern<tpu::ReshapeOp>,
                 TpuQuantScaleOpPattern,
                 TpuQuantDefaultPattern<tpu::SigmoidOp>,
                 TpuQuantDefaultPattern<tpu::SliceOp>,

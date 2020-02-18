@@ -40,18 +40,135 @@
 using namespace mlir;
 
 namespace {
-template<typename T>
-struct TpuQuantizationOpPattern : public RewritePattern {
-  TpuQuantizationOpPattern(MLIRContext *context, StringRef opName,
+
+template<typename OpTy>
+struct AssignGAddrTGInt8Pattern : public RewritePattern {
+  AssignGAddrTGInt8Pattern(MLIRContext *context,
       uint64_t *pos, llvm::raw_ostream &map_os, size_t alignment)
-      : RewritePattern(opName, 1, context),
+      : RewritePattern(OpTy::getOperationName(), 1, context),
         pos_(pos),
         map_os_(map_os),
         alignment_(alignment) {}
 
   PatternMatchResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
-    auto castOp = cast<T>(op);
+    auto castOp = cast<OpTy>(op);
+    if (castOp.gaddr().hasValue()) {
+      // assigned already
+      return matchFailure();
+    }
+
+    auto curPos = *pos_;
+    auto type = castOp.getResult()->getType().template cast<TensorType>();
+    std::vector<int64_t> shape = type.getShape();
+    auto count = std::accumulate(std::begin(shape), std::end(shape),
+                                 1, std::multiplies<>());
+    size_t size;
+    std::string dtype;
+    size = count * sizeof(int8_t);
+    dtype = "int8";
+
+    // pad to alignment
+    if (size % alignment_) {
+      size = size + alignment_ - (size % alignment_);
+    }
+    auto newPos = curPos + size;
+
+    llvm::errs() << llvm::format("[%-36s][%8d] : [ ",
+                                 getOpName(op).str().c_str(), size)
+                 << llvm::format_hex(curPos, 10) << " --> "
+                 << llvm::format_hex(newPos, 10) << " ]\n";
+    // expand to dims=4
+    while (shape.size() < 4)
+      shape.insert(shape.begin(), 1);
+    map_os_ << getOpName(op) << "," << llvm::format_hex(curPos, 10) << ","
+            << dtype << ","
+            << shape[0] << "," << shape[1] << ","
+            << shape[2] << "," << shape[3] << "\n";
+
+    setOpAddress(op, curPos);
+    *pos_ = newPos;
+
+    return matchSuccess();
+  }
+
+  uint64_t *pos_;
+  llvm::raw_ostream &map_os_;
+  size_t alignment_;
+};
+
+
+template<typename OpTy>
+struct AssignGAddrTGBf16Pattern : public RewritePattern {
+  AssignGAddrTGBf16Pattern(MLIRContext *context,
+      uint64_t *pos, llvm::raw_ostream &map_os, size_t alignment)
+      : RewritePattern(OpTy::getOperationName(), 1, context),
+        pos_(pos),
+        map_os_(map_os),
+        alignment_(alignment) {}
+
+  PatternMatchResult matchAndRewrite(Operation *op,
+                                     PatternRewriter &rewriter) const override {
+    auto castOp = cast<OpTy>(op);
+    if (castOp.gaddr().hasValue()) {
+      // assigned already
+      return matchFailure();
+    }
+
+    auto curPos = *pos_;
+    auto type = castOp.getResult()->getType().template cast<TensorType>();
+    std::vector<int64_t> shape = type.getShape();
+    auto count = std::accumulate(std::begin(shape), std::end(shape),
+                                 1, std::multiplies<>());
+    size_t size;
+    std::string dtype;
+    size = count * sizeof(uint16_t);
+    dtype = "uint16";
+
+    // pad to alignment
+    if (size % alignment_) {
+      size = size + alignment_ - (size % alignment_);
+    }
+    auto newPos = curPos + size;
+
+    llvm::errs() << llvm::format("[%-36s][%8d] : [ ",
+                                 getOpName(op).str().c_str(), size)
+                 << llvm::format_hex(curPos, 10) << " --> "
+                 << llvm::format_hex(newPos, 10) << " ]\n";
+    // expand to dims=4
+    while (shape.size() < 4)
+      shape.insert(shape.begin(), 1);
+    map_os_ << getOpName(op) << "," << llvm::format_hex(curPos, 10) << ","
+            << dtype << ","
+            << shape[0] << "," << shape[1] << ","
+            << shape[2] << "," << shape[3] << "\n";
+
+    setOpAddress(op, curPos);
+    *pos_ = newPos;
+
+    return matchSuccess();
+  }
+
+  uint64_t *pos_;
+  llvm::raw_ostream &map_os_;
+  size_t alignment_;
+};
+
+
+
+// to be removed
+template<typename OpTy>
+struct TpuQuantizationOpPattern : public RewritePattern {
+  TpuQuantizationOpPattern(MLIRContext *context,
+      uint64_t *pos, llvm::raw_ostream &map_os, size_t alignment)
+      : RewritePattern(OpTy::getOperationName(), 1, context),
+        pos_(pos),
+        map_os_(map_os),
+        alignment_(alignment) {}
+
+  PatternMatchResult matchAndRewrite(Operation *op,
+                                     PatternRewriter &rewriter) const override {
+    auto castOp = cast<OpTy>(op);
     if (castOp.offset().hasValue()) {
       // assigned already
       return matchFailure();
@@ -92,7 +209,8 @@ struct TpuQuantizationOpPattern : public RewritePattern {
             << shape[0] << "," << shape[1] << ","
             << shape[2] << "," << shape[3] << "\n";
 
-    castOp.setAttr("offset", rewriter.getI64IntegerAttr(curPos));
+    //castOp.setAttr("offset", rewriter.getI64IntegerAttr(curPos));
+    setOpAddress(op, curPos);
     *pos_ = newPos;
 
     return matchSuccess();
@@ -185,49 +303,49 @@ public:
     uint64_t pos = 0;
     OwningRewritePatternList patterns;
     auto *context = &getContext();
-    patterns.insert<TpuQuantizationOpPattern<tpu::QuantizationOp> >(
-        context, "tpu.quantization", &pos, neuronMapFile->os(), clNeuronAlignment);
+
     // assigne quantizationOp first, as input has to be at address 0
     // TODO: remove this constrain, input should be able to be any address
+    patterns.insert<TpuQuantizationOpPattern<tpu::QuantizationOp>>(
+        context, &pos, neuronMapFile->os(), clNeuronAlignment);
     applyPatternsGreedily(fn, patterns);
     patterns.clear();
-    patterns.insert<TpuQuantizationOpPattern<tpu::ConcatOp>>(
-        context, "tpu.concat", &pos, neuronMapFile->os(), clNeuronAlignment);
-    patterns.insert<TpuQuantizationOpPattern<tpu::Conv2DOp> >(
-        context, "tpu.conv_2d", &pos, neuronMapFile->os(), clNeuronAlignment);
-    patterns.insert<TpuQuantizationOpPattern<tpu::DeConv2DOp> >(
-        context, "tpu.deconv_2d", &pos, neuronMapFile->os(), clNeuronAlignment);
-    patterns.insert<TpuQuantizationOpPattern<tpu::CropOp>>(
-        context, "tpu.crop", &pos, neuronMapFile->os(), clNeuronAlignment);
-    patterns.insert<TpuQuantizationOpPattern<tpu::FullyConnectedOp> >(
-        context, "tpu.fully_connected", &pos, neuronMapFile->os(), clNeuronAlignment);
-    patterns.insert<TpuQuantizationOpPattern<tpu::Pool2DOp> >(
-        context, "tpu.pool_2d", &pos, neuronMapFile->os(), clNeuronAlignment);
-    patterns.insert<TpuQuantizationOpPattern<tpu::PReluOp>>(
-        context, "tpu.prelu", &pos, neuronMapFile->os(), clNeuronAlignment);
 
-    // assuming all relu Ops fused
-    //patterns.insert<TpuQuantizationOpPattern<tpu::ReluOp> >(
-    //    context, "tpu.relu", &pos, neuronMapFile->os(), clNeuronAlignment);
-    patterns.insert<TpuQuantizationOpPattern<tpu::EltwiseOp> >(
-        context, "tpu.eltwise", &pos, neuronMapFile->os(), clNeuronAlignment);
-    patterns.insert<TpuQuantizationOpPattern<tpu::TanHOp> >(
-        context, "tpu.tanh", &pos, neuronMapFile->os(), clNeuronAlignment);
-    patterns.insert<TpuQuantizationOpPattern<tpu::PowerOp>>(
-        context, "tpu.power", &pos, neuronMapFile->os(), clNeuronAlignment);
-    patterns.insert<TpuQuantizationOpPattern<tpu::DivOp>>(
-        context, "tpu.div", &pos, neuronMapFile->os(), clNeuronAlignment);
-    patterns.insert<TpuQuantizationOpPattern<tpu::SqrtOp>>(
-        context, "tpu.sqrt", &pos, neuronMapFile->os(), clNeuronAlignment);
-    patterns.insert<TpuQuantizationOpPattern<tpu::ScaleOp>>(
-        context, "tpu.scale", &pos, neuronMapFile->os(), clNeuronAlignment);
-    patterns.insert<TpuQuantizationOpPattern<tpu::PermuteOp>>(
-        context, "tpu.permute", &pos, neuronMapFile->os(), clNeuronAlignment);
-    patterns.insert<TpuQuantizationOpPattern<tpu::ConcatOp>>(
-        context, "tpu.concat", &pos, neuronMapFile->os(), clNeuronAlignment);
-    patterns.insert<TpuQuantizationOpPattern<tpu::SigmoidOp>>(
-        context, "tpu.sigmoid", &pos, neuronMapFile->os(), clNeuronAlignment);
+    // assigne gaddr for TG Ops
+    patterns.insert<
+          // tg int8 ops
+          AssignGAddrTGInt8Pattern<tpu::TG_INT8_PT_Conv2DOp>,
+          AssignGAddrTGInt8Pattern<tpu::TG_INT8_PC_Conv2DOp>,
+          AssignGAddrTGInt8Pattern<tpu::TG_INT8_EltwiseAddOp>,
+          AssignGAddrTGInt8Pattern<tpu::TG_INT8_EltwiseMaxOp>,
+          AssignGAddrTGInt8Pattern<tpu::TG_INT8_EltwiseMulOp>,
+          AssignGAddrTGInt8Pattern<tpu::TG_INT8_PoolAvg2DOp>,
+          AssignGAddrTGInt8Pattern<tpu::TG_INT8_PoolMax2DOp>,
+          // tg bf16 ops
+          AssignGAddrTGBf16Pattern<tpu::TG_BF16_Conv2DOp>,
+          AssignGAddrTGBf16Pattern<tpu::TG_BF16_EltwiseAddOp>,
+          AssignGAddrTGBf16Pattern<tpu::TG_BF16_EltwiseMaxOp>,
+          AssignGAddrTGBf16Pattern<tpu::TG_BF16_EltwiseMulOp>,
+          AssignGAddrTGBf16Pattern<tpu::TG_BF16_PoolAvg2DOp>,
+          AssignGAddrTGBf16Pattern<tpu::TG_BF16_PoolMax2DOp>
+        >(context, &pos, neuronMapFile->os(), clNeuronAlignment);
+    applyPatternsGreedily(fn, patterns);
+    patterns.clear();
 
+    patterns.insert<
+          TpuQuantizationOpPattern<tpu::ConcatOp>,
+          TpuQuantizationOpPattern<tpu::DeConv2DOp>,
+          TpuQuantizationOpPattern<tpu::DivOp>,
+          TpuQuantizationOpPattern<tpu::CropOp>,
+          TpuQuantizationOpPattern<tpu::FullyConnectedOp>,
+          TpuQuantizationOpPattern<tpu::PermuteOp>,
+          TpuQuantizationOpPattern<tpu::PowerOp>,
+          TpuQuantizationOpPattern<tpu::PReluOp>,
+          TpuQuantizationOpPattern<tpu::SigmoidOp>,
+          TpuQuantizationOpPattern<tpu::ScaleOp>,
+          TpuQuantizationOpPattern<tpu::SqrtOp>,
+          TpuQuantizationOpPattern<tpu::TanHOp>
+        >(context, &pos, neuronMapFile->os(), clNeuronAlignment);
     applyPatternsGreedily(fn, patterns);
     patterns.clear();
 
