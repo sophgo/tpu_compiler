@@ -23,7 +23,6 @@ target_link_libraries(pybind PRIVATE
   MLIRAffineToStandard
   MLIRExecutionEngine
   MLIRTPU
-  MLIRTPUInterpreter
   MLIRAnalysis
   MLIREDSC
   MLIRIR

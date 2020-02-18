@@ -4,7 +4,6 @@ set(LIBS
   MLIRSPIRV
   MLIRSPIRVSerialization
   MLIRTPU
-  MLIRTPUInterpreter
   MLIRStandardOps
   MLIRSupport
 )
