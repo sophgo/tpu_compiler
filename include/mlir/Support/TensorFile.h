@@ -57,9 +57,11 @@ static bool check_type(Type eltType) {
   } else if ( eltType.isF32() ) {
     same = std::is_same<T, float>::value;
   } else if ( eltType.isInteger(8) ) {
-    same = std::is_same<T, int8_t>::value;
+    same = (std::is_same<T, int8_t>::value
+            || std::is_same<T, uint8_t>::value);
   } else if ( eltType.isInteger(16) ) {
-    same = std::is_same<T, int16_t>::value;
+    same = (std::is_same<T, int16_t>::value
+            || std::is_same<T, uint16_t>::value);
   } else if ( eltType.isInteger(32) ) {
     same = std::is_same<T, uint32_t>::value;
   } else {

@@ -48,20 +48,40 @@ struct TpuFuseReluPattern : public RewritePattern {
 
     if (matchPattern(formerOp, m_Op<tpu::Conv2DOp>())) {
       auto convOp = cast<tpu::Conv2DOp>(formerOp);
-      assert(convOp.fused_activation_function() == "NONE");
-      // set fused_activation_function for conv Op
-      convOp.setAttr("fused_activation_function", rewriter.getStringAttr("RELU"));
-      convOp.setAttr("name", rewriter.getStringAttr(reluOp.name().getValue()));
+      assert(convOp.param().do_relu().getValue() == false);
+      // set do_relu
+      convOp.setAttr("param",
+          tpu::ConvParam::get(
+              convOp.param().stride_h(),
+              convOp.param().stride_w(),
+              convOp.param().padding(),
+              convOp.param().dilation_h(),
+              convOp.param().dilation_w(),
+              convOp.param().group(),
+              convOp.param().is_dw(),
+              convOp.param().with_bias(),
+              rewriter.getBoolAttr(true),
+              rewriter.getContext()));
+      convOp.setAttr("name", rewriter.getStringAttr(reluOp.getOpName()));
       // remove the relu Op
       rewriter.replaceOp(op, {op->getOperand(0)});
       return matchSuccess();
-    } else if (matchPattern(formerOp, m_Op<tpu::EltwiseOp>())) {
-      auto eltOp = cast<tpu::EltwiseOp>(formerOp);
-      assert(eltOp.fused_activation_function() == "NONE");
-      // set fused_activation_function for conv Op
-      eltOp.setAttr("fused_activation_function", rewriter.getStringAttr("RELU"));
-      eltOp.setAttr("name", rewriter.getStringAttr(reluOp.name().getValue()));
-      // remove the relu Op
+    } else if (matchPattern(formerOp, m_Op<tpu::EltwiseAddOp>())) {
+      auto eltOp = cast<tpu::EltwiseAddOp>(formerOp);
+      eltOp.setAttr("do_relu", rewriter.getBoolAttr(true));
+      eltOp.setAttr("name", rewriter.getStringAttr(reluOp.getOpName()));
+      rewriter.replaceOp(op, {op->getOperand(0)});
+      return matchSuccess();
+    } else if (matchPattern(formerOp, m_Op<tpu::EltwiseMaxOp>())) {
+      auto eltOp = cast<tpu::EltwiseAddOp>(formerOp);
+      eltOp.setAttr("do_relu", rewriter.getBoolAttr(true));
+      eltOp.setAttr("name", rewriter.getStringAttr(reluOp.getOpName()));
+      rewriter.replaceOp(op, {op->getOperand(0)});
+      return matchSuccess();
+    } else if (matchPattern(formerOp, m_Op<tpu::EltwiseMulOp>())) {
+      auto eltOp = cast<tpu::EltwiseAddOp>(formerOp);
+      eltOp.setAttr("do_relu", rewriter.getBoolAttr(true));
+      eltOp.setAttr("name", rewriter.getStringAttr(reluOp.getOpName()));
       rewriter.replaceOp(op, {op->getOperand(0)});
       return matchSuccess();
     } else if (matchPattern(formerOp, m_Op<tpu::FullyConnectedOp>())) {
@@ -69,7 +89,7 @@ struct TpuFuseReluPattern : public RewritePattern {
       assert(fcOp.fused_activation_function() == "NONE");
       // set fused_activation_function for fc Op
       fcOp.setAttr("fused_activation_function", rewriter.getStringAttr("RELU"));
-      fcOp.setAttr("name", rewriter.getStringAttr(reluOp.name().getValue()));
+      fcOp.setAttr("name", rewriter.getStringAttr(reluOp.getOpName()));
       // remove the relu Op
       rewriter.replaceOp(op, {op->getOperand(0)});
       return matchSuccess();
@@ -83,7 +103,7 @@ struct TpuFuseReluPattern : public RewritePattern {
       assert(scaleOp.fused_activation_function() == "NONE");
       // set fused_activation_function for scale Op
       scaleOp.setAttr("fused_activation_function", rewriter.getStringAttr("RELU"));
-      scaleOp.setAttr("name", rewriter.getStringAttr(reluOp.name().getValue()));
+      scaleOp.setAttr("name", rewriter.getStringAttr(reluOp.getOpName()));
       // remove the relu Op
       rewriter.replaceOp(op, {op->getOperand(0)});
       return matchSuccess();

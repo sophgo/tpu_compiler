@@ -9,3 +9,8 @@ set(LLVM_TARGET_DEFINITIONS TPUInterface.td)
 mlir_tablegen(TPUInterface.h.inc -gen-op-interface-decls)
 mlir_tablegen(TPUInterface.cpp.inc -gen-op-interface-defs)
 add_public_tablegen_target(MLIRTPUInterfaceIncGen)
+
+set(LLVM_TARGET_DEFINITIONS TPUAttribute.td)
+mlir_tablegen(TPUAttribute.h.inc -gen-struct-attr-decls)
+mlir_tablegen(TPUAttribute.cpp.inc -gen-struct-attr-defs)
+add_public_tablegen_target(MLIRTPUAttributeIncGen)

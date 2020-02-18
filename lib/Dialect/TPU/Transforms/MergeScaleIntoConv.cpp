@@ -74,11 +74,15 @@ struct TpuMergeScaleIntoConvPattern : public RewritePattern {
     }
 
     // find filter and bias tensor for conv op
+    assert(convOp.getNumOperands() == 7);
     std::vector<std::unique_ptr<std::vector<float> > > convWeights(2);
-    for (unsigned i = 0; i < convOp.getNumOperands() - 1; ++i) {
+    for (unsigned i = 0; i < 2; ++i) {
       auto weight_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
           convOp.getOperand(i + 1)->getDefiningOp());
-      assert(weight_op);
+      if (!weight_op) {
+        convWeights[i] = nullptr;
+        continue;
+      }
       assert(weight_op.name().hasValue());
       auto tensor_name = weight_op.name().getValue();
       llvm::errs() << "  weight[" << i << "] : " << tensor_name << "\n";
@@ -109,7 +113,6 @@ struct TpuMergeScaleIntoConvPattern : public RewritePattern {
       oc = filter_shape[0];
       inner_size = filter_shape[1] * filter_shape[2] * filter_shape[3];
     } else if (filter_shape.size() == 5) {
-      assert(convOp.group() != 1);
       // g, oc/g, ic/g, kh, kw
       oc = filter_shape[0] * filter_shape[1];
       inner_size = filter_shape[2] * filter_shape[3] * filter_shape[4];
@@ -155,10 +158,26 @@ struct TpuMergeScaleIntoConvPattern : public RewritePattern {
           ArrayRef<Value *>{weightFileVar}, ArrayRef<NamedAttribute>{attrs});
       newOperands.push_back(new_weight_op);
     }
+    newOperands.push_back(convOp.getOperand(3));
+    newOperands.push_back(convOp.getOperand(4));
+    newOperands.push_back(convOp.getOperand(5));
+    newOperands.push_back(convOp.getOperand(6));
 
     // replace the scale with the new conv op
     // the former conv op one will be removed automatically
-    convOp.setAttr("with_bias", rewriter.getBoolAttr(true));
+    //convOp.param().setAttr("with_bias", rewriter.getBoolAttr(true));
+    convOp.setAttr("param",
+        tpu::ConvParam::get(
+            convOp.param().stride_h(),
+            convOp.param().stride_w(),
+            convOp.param().padding(),
+            convOp.param().dilation_h(),
+            convOp.param().dilation_w(),
+            convOp.param().group(),
+            convOp.param().is_dw(),
+            rewriter.getBoolAttr(true),
+            convOp.param().do_relu(),
+            rewriter.getContext()));
     auto origAttrs = convOp.getAttrs();
     //update name with the later op name, because this name is for calibration table
     std::vector<NamedAttribute> newAttrs(origAttrs.begin(), origAttrs.end());
@@ -167,8 +186,6 @@ struct TpuMergeScaleIntoConvPattern : public RewritePattern {
         elt.second = rewriter.getStringAttr(op_name);
       }
     }
-    //attrs.set("name", rewriter.getStringAttr(op_name));
-    //attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(op_name)));
     rewriter.replaceOpWithNewOp<tpu::Conv2DOp>(
         scaleOp, convOp.getResult()->getType(),
         ArrayRef<Value *>{newOperands}, ArrayRef<NamedAttribute>{newAttrs});

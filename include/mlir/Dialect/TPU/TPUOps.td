@@ -24,36 +24,149 @@
 
 include "mlir/Dialect/TPU/TPUBase.td"
 include "mlir/Dialect/TPU/TPUInterface.td"
+include "mlir/Dialect/TPU/TPUAttribute.td"
 
 //===----------------------------------------------------------------------===//
 // TPU op base class.
 //===----------------------------------------------------------------------===//
 
 class TPU_ConvOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
-      [NoSideEffect, DeclareOpInterfaceMethods<TpuInterface>]> {
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
+       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
+       DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
   let summary = opSummary # " operator";
 
   let description = [{
     Performs convolution operation on inputs.
 
     Inputs:
-      `inputs[0]`  : required: the input activation tensor.
-      `inputs[1]`  : required: the filter weight tensor.
-      `inputs[2~5]`: variadic: other input tensors depends on attributes
-          - if `with_bias` is true, and `per_channel_info_is_aggregated` is
-            false, a dedicated `bias` tensor will be present.
-          - for `INT8` quantization, before assignWeightAddress stage,
-            `rshift` tensor will be present.
-          - for `INT8_MULTIPLIER`, before assignWeightAddress stage,
-            `multiplier` tensor will be present.
-          - for `INT8` quantization, after assignWeightAddress, `bias`
-            and `rshift` and `multiplier` will be aggregated as one tensor
-            therefore `per_channel_info` tensor will be present, and `bias`
-            tensor will not be present.
-          - if `fused_eltwise_method` is not `NONE`, another input tensor will
-            be present as a `eltwise_input` tensor.
-          - no matter whether a tensor is present, they present in the order
-            we described above
+      `input`           : required, the input activation tensor.
+      `filter`          : required, the filter weight tensor.
+      `bias`            : optional, the bias weight tensor.
+      `quant_scale`     : optional, the quant scale tensor, should be a fp32
+                          value for `per-tensor` quantization, or `oc` fp32
+                          values for `per-channel` quantization.
+      `quant_zeropoint` : optional, the quant zero_point tensor, should always
+                          be a int8 value, we support asymmetric on actvations
+                          only, weights are sysmmetric.
+      `quant_rshift`    : optional, `quant_scale` can be expressed by a rshift
+                          value (`quant.is_rshiftonly` mode), or be deccomposed
+                          into a rshift and a multiplier. should be a int8
+                          value for `per-tensor` quantization, or `oc` int8
+                          values for `per-channel` quantization.
+      `quant_multiplier`: optional, see `quant_rshift` comments, should be a
+                          int8 value for `per-tensor` quantization, or `oc`
+                          int32 values for `per-channel` quantization.
+
+    Attributes:
+      `param`           : required, a ConvParam struct attributes, carrying
+                          stride, padding, dilation, group, is_dw, with_bias,
+                          and do_relu.
+      `quant`           : required, a QuantParam struct attributes.
+      `name`            : required, name for calibration, comparing, or debug.
+      `layer_id`        : optional, id for profiling.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TPU_QuantSupportPerChannel`
+      `TPU_QuantSupportAsymmetric`
+      `TpuOpCommonInterface` : support common TPU Op interface
+      `TpuOpInterpInterface` : support interperter
+      `TpuOpQuantInterface`  : support quantization
+      `TpuOpLowerInterface`  : support lower to TPU TG Ops
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    AnyTensor:$filter,
+    TPU_TensorOfOrNone<[F32, BF16, I16, I8]>:$bias,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_scale,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_zeropoint,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_rshift,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_multiplier,
+    TPU_ConvParamAttr:$param,
+    TPU_QuantParamAttr:$quant,
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
+class TPU_EltwiseOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
+       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
+       DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
+  let summary = "eltwise " # opSummary # " operator";
+
+  let description = [{
+    Performs eltwise operation on inputs.
+
+    Inputs:
+      `input1`          : required, the 1st input tensor, lhs in binary case.
+      `input2`          : required, the 2nd input tensor, rhs in binary case.
+      `quant_scale`     : optional, the quant scale tensor. For add/max should
+                          be one fp32 value for each input tensor. For mul
+                          should be one fp32 value for the output tensor.
+      `quant_zeropoint` : optional, the quant zero_point tensor, should be one
+                          int8 value for the output tensor.
+      `quant_rshift`    : optional, should always be a int8 value for all
+                          input tensors.
+      `quant_multiplier`: optional, the multiplier. For add/max should be one
+                          int8 value for each input tensor. For mul should be
+                          one int8 value applied on the output tensor.
+      `variadic_inputs` : optional, if more than 2 inputs are provided.
+
+    Attributes:
+      `do_relu`         : required, if need to preform relu on result.
+      `quant`           : required, a QuantParam struct attributes.
+      `name`            : required, name for calibration, comparing, or debug.
+      `layer_id`        : optional, id for profiling.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TPU_QuantPerTensorOnly`
+      `TPU_QuantSupportAsymmetric`
+      `TpuOpCommonInterface` : support common TPU Op interface
+      `TpuOpInterpInterface` : support interperter
+      `TpuOpQuantInterface`  : support quantization
+      `TpuOpLowerInterface`  : support lower to TPU TG Ops
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input1,
+    AnyTensor:$input2,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_scale,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_zeropoint,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_rshift,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_multiplier,
+    Variadic<AnyTensor>:$variadic_more_inputs,
+    DefaultValuedAttr<BoolAttr, "false">:$do_relu,
+    TPU_QuantParamAttr:$quant,
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
+// for Deconv for now, to be removed
+class TPU_ConvOp_Legacy<string mnemonic, string opSummary> : TPU_Op<mnemonic,
+      [NoSideEffect, DeclareOpInterfaceMethods<TpuInterface>]> {
+  let summary = opSummary # " operator";
+
+  let description = [{
+
   }];
 
   let arguments = (
@@ -83,48 +196,246 @@ class TPU_ConvOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
 }
 
 //===----------------------------------------------------------------------===//
-// TPU Load/Store op definitions.
-//===----------------------------------------------------------------------===//
-def TPU_LoadFileOp : TPU_Op<"load_file", [NoSideEffect]> {
-  let summary = "load_file operator";
-
-  let description = [{
-    Load weight from a file into a memref.
-  }];
-
-  let arguments = (
-    ins StrAttr:$filename
-  );
-
-  let results = (outs AnyMemRef:$memref);
-}
-
-def TPU_LoadWeightOp : TPU_Op<"load_weight",
-      [NoSideEffect, DeclareOpInterfaceMethods<TpuInterface>]> {
-  let summary = "load_weight operator";
-
-  let description = [{
-    Load weight for a memref into a tensor.
-
-    Inputs:
-      `memref` : required: the weight memref
-      `name`   : optional: name of the weight
-      `storage`: default : type to store to a bin file
-  }];
-
-  let arguments = (
-    ins AnyMemRef:$memref,
-    DefaultValuedAttr<TPU_WeightAttr, "FP32">:$storage,
-    OptionalAttr<StrAttr>:$name,
-    OptionalAttr<NonNegativeI64Attr>:$offset
-  );
-
-  let results = (outs AnyTensor:$tensor);
-}
-
-//===----------------------------------------------------------------------===//
 // TPU op definitions. (in alphabetical order)
 //===----------------------------------------------------------------------===//
+
+def TPU_Conv2DOp : TPU_ConvOp<"conv_2d", "Convolution">;
+
+def TPU_EltwiseAddOp : TPU_EltwiseOp<"eltwise_add", "Add">;
+def TPU_EltwiseMulOp : TPU_EltwiseOp<"eltwise_mul", "Mul">;
+def TPU_EltwiseMaxOp : TPU_EltwiseOp<"eltwise_max", "Max">;
+
+def TPU_LeakyReluOp: TPU_Op<"leaky_relu",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
+       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
+       DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
+  let summary = "Leaky Relu operator";
+
+  let description = [{
+    Leaky Relu operator
+      y = negative_slope * x for x < 0, x for x >= 0
+
+    Inputs:
+      `input`               : required, the input activation tensor.
+      `quant_pos_scale`     : optional, the quant scale tensor, for positive
+                              values, one fp32 value.
+      `quant_pos_zeropoint` : optional, the quant zero_point tensor, for
+                              positive values, one int8 value.
+      `quant_neg_scale`     : optional, the quant scale tensor, for negative
+                              values, one fp32 value.
+      `quant_neg_zeropoint` : optional, the quant zero_point tensor, for
+                              negative values, one int8 value.
+      `quant_pos_rshift`    : optional, rshift for positive values, one int32
+                              value.
+      `quant_pos_multiplier`: optional, multiplier for positive values, one
+                              int8 value.
+      `quant_neg_rshift`    : optional, rshift for negative values, one int32
+                              value.
+      `quant_neg_multiplier`: optional, multiplier for negative values, one
+                              int8 value.
+
+    Attributes:
+      `negative_slope`  : required, the negative_slope.
+      `quant`           : required, a QuantParam struct attributes.
+      `name`            : required, name for calibration, comparing, or debug.
+      `layer_id`        : optional, id for profiling.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TPU_QuantPerTensorOnly`
+      `TPU_QuantSupportAsymmetric`
+      `TpuOpCommonInterface` : support common TPU Op interface
+      `TpuOpInterpInterface` : support interperter
+      `TpuOpQuantInterface`  : support quantization
+      `TpuOpLowerInterface`  : support lower to TPU TG Ops
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_pos_scale,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_pos_zeropoint,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_neg_scale,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_neg_zeropoint,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_pos_rshift,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_pos_multiplier,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_neg_rshift,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_neg_multiplier,
+    F32Attr:$negative_slope,
+    TPU_QuantParamAttr:$quant,
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
+def TPU_PoolAvg2DOp : TPU_Op<"pool_avg_2d",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
+       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
+       DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
+  let summary = "average pool_2d operator";
+
+  let description = [{
+    Performs average pooling operation on input.
+
+    Inputs:
+      `input`           : required, the input activation tensor.
+      `quant_scale`     : optional, the quant scale tensor. For average pool
+                          only, one fp32 value.
+      `quant_zeropoint` : optional, the quant zero_point tensor, should be one
+                          int8 value for the output tensor.
+      `quant_rshift`    : optional, the rshift. For average pool only, should
+                          be a int8 value.
+      `quant_multiplier`: optional, the multiplier, one int8 value.
+
+    Attributes:
+      `param`           : required, a PoolParam struct attributes, carrying
+                          filter size, stride, padding, and do_relu.
+      `quant`           : required, a QuantParam struct attributes.
+      `name`            : required, name for calibration, comparing, or debug.
+      `layer_id`        : optional, id for profiling.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TPU_QuantPerTensorOnly`
+      `TPU_QuantSupportAsymmetric`
+      `TpuOpCommonInterface` : support common TPU Op interface
+      `TpuOpInterpInterface` : support interperter
+      `TpuOpQuantInterface`  : support quantization
+      `TpuOpLowerInterface`  : support lower to TPU TG Ops
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_scale,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_zeropoint,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_rshift,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_multiplier,
+    TPU_PoolParamAttr:$param,
+    TPU_QuantParamAttr:$quant,
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
+def TPU_PoolMax2DOp : TPU_Op<"pool_max_2d",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
+       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
+       DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
+  let summary = "max pool_2d operator";
+
+  let description = [{
+    Performs max pooling operation on input.
+
+    Inputs:
+      `input`           : required, the input activation tensor.
+
+    Attributes:
+      `param`           : required, a PoolParam struct attributes, carrying
+                          filter size, stride, padding, and do_relu.
+      `quant`           : required, a QuantParam struct attributes.
+      `name`            : required, name for calibration, comparing, or debug.
+      `layer_id`        : optional, id for profiling.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TPU_QuantPerTensorOnly`
+      `TPU_QuantSupportAsymmetric`
+      `TpuOpCommonInterface` : support common TPU Op interface
+      `TpuOpInterpInterface` : support interperter
+      `TpuOpQuantInterface`  : support quantization
+      `TpuOpLowerInterface`  : support lower to TPU TG Ops
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    TPU_PoolParamAttr:$param,
+    TPU_QuantParamAttr:$quant,
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
+def TPU_ReluOp: TPU_Op<"relu",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
+       DeclareOpInterfaceMethods<TpuOpQuantInterface>]> {
+  let summary = "Relu/Relu6 operator";
+
+  let description = [{
+    Element-wise Relu operator
+      y = max(0, x)
+    Relu6 (maximum = 6) or ReluM, if maximum is present
+      y = min(max(x, 0), maximum).
+
+    Inputs:
+      `input`           : required, the input activation tensor.
+
+    Attributes:
+      `maximum`         : optional, the maximum value for ReluM when present.
+      `quant`           : required, a QuantParam struct attributes.
+      `name`            : required, name for calibration, comparing, or debug.
+      `layer_id`        : optional, id for profiling.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TPU_QuantBypass`
+      `TPU_QuantPerChannelOnly`
+      `TPU_QuantSupportAsymmetric`
+      `TpuOpCommonInterface` : support common TPU Op interface
+      `TpuOpInterpInterface` : support interperter
+      `TpuOpQuantInterface`  : support quantization
+      No `TpuOpLowerInterface`  : does NOT support lower to TPU TG Ops, always
+                                  fuse in frontend
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    OptionalAttr<F32Attr>:$maximum,
+    TPU_QuantParamAttr:$quant,
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+// to be removed
 def TPU_BatchNormOp: TPU_Op<"batch_norm",
       [NoSideEffect, DeclareOpInterfaceMethods<TpuInterface>]> {
   let summary = "BatchNorm operator";
@@ -193,8 +504,6 @@ def TPU_ConcatOp: TPU_Op<"concat",
   let results = (outs AnyTensor:$res);
 }
 
-def TPU_Conv2DOp : TPU_ConvOp<"conv_2d", "Convolution">;
-
 def TPU_CropOp: TPU_Op<"crop",
       [NoSideEffect, DeclareOpInterfaceMethods<TpuInterface>]> {
   let summary = "Crop operator";
@@ -222,7 +531,7 @@ def TPU_CropOp: TPU_Op<"crop",
   let results = (outs AnyTensor:$output);
 }
 
-def TPU_DeConv2DOp : TPU_ConvOp<"deconv_2d", "Convolution">;
+def TPU_DeConv2DOp : TPU_ConvOp_Legacy<"deconv_2d", "Convolution">;
 
 def TPU_DetectionOutputOp: TPU_Op<"detectionoutput",
       [NoSideEffect, DeclareOpInterfaceMethods<TpuInterface>]> {
@@ -273,30 +582,6 @@ def TPU_DivOp: TPU_Op<"div",
   );
 
   let results = (outs AnyTensor:$output);
-}
-
-def TPU_EltwiseOp: TPU_Op<"eltwise",
-      [NoSideEffect, DeclareOpInterfaceMethods<TpuInterface>]> {
-  let summary = "Eltwise operator";
-
-  let description = [{
-    Performs eltwase operation on inputs.
-  }];
-
-  let arguments = (
-    ins AnyTensor:$x1,
-    AnyTensor:$x2,
-    Variadic<AnyTensor>:$variadic_tensors,
-    DefaultValuedAttr<TPU_EltwiseAttr, "SUM">:$method,
-    DefaultValuedAttr<TPU_AFAttr, "NONE">:$fused_activation_function,
-    OptionalAttr<StrAttr>:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
-    OptionalAttr<NonNegativeI64Attr>:$offset,
-    OptionalAttr<F32Attr>:$threshold_y,
-    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
-  );
-
-  let results = (outs AnyTensor:$y);
 }
 
 def TPU_FullyConnectedOp : TPU_Op<"fully_connected",
@@ -371,42 +656,6 @@ def TPU_PermuteOp: TPU_Op<"permute",
     NonNegativeI32Attr:$order1,
     NonNegativeI32Attr:$order2,
     NonNegativeI32Attr:$order3,
-    OptionalAttr<StrAttr>:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
-    OptionalAttr<NonNegativeI64Attr>:$offset,
-    OptionalAttr<F32Attr>:$threshold_y,
-    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
-  );
-
-  let results = (outs AnyTensor:$output);
-}
-
-def TPU_Pool2DOp : TPU_Op<"pool_2d",
-      [NoSideEffect, DeclareOpInterfaceMethods<TpuInterface>]> {
-  let summary = "pool_2d operator";
-
-  let description = [{
-    Performs pooling operation on input.
-
-    Inputs:
-      `inputs[0]`: required: the input tensor
-  }];
-
-  let arguments = (
-    ins AnyTensor:$input,
-    TPU_PoolAttr:$pool,
-    I32Attr:$filter_height,
-    I32Attr:$filter_width,
-    OptionalAttr<I32Attr>:$pad_top,
-    OptionalAttr<I32Attr>:$pad_bottom,
-    OptionalAttr<I32Attr>:$pad_left,
-    OptionalAttr<I32Attr>:$pad_right,
-    // CAUTION - TPU_PaddingAttr is depracated for asymmetric padding
-    // Keep it for compatible
-    OptionalAttr<TPU_PaddingAttr>:$padding,
-    I32Attr:$stride_h,
-    I32Attr:$stride_w,
-    DefaultValuedAttr<TPU_AFAttr, "NONE">:$fused_activation_function,
     OptionalAttr<StrAttr>:$name,
     OptionalAttr<NonNegativeI32Attr>:$layer_id,
     OptionalAttr<NonNegativeI64Attr>:$offset,
@@ -498,34 +747,6 @@ def TPU_PriorBoxOp: TPU_Op<"priorbox",
   );
 
   let results = (outs AnyTensor:$output);
-}
-
-def TPU_ReluOp: TPU_Op<"relu",
-      [NoSideEffect, DeclareOpInterfaceMethods<TpuInterface>]> {
-  let summary = "Relu/LeakyRelu/Relu6 operator";
-
-  let description = [{
-    Element-wise Relu operator
-      y = max(0, x)
-    LeakyRelu, if negative_slope is no 0.0
-      y = negative_slope * x for x < 0, x for x >= 0
-    Relu6 (maximum = 6) or ReluM, if maximum is present
-      y = min(max(x, 0), maximum).
-  }];
-
-  let arguments = (
-    ins AnyTensor:$x,
-    Variadic<AnyTensor>:$useless,
-    DefaultValuedAttr<F32Attr, "0.0">:$negative_slope,
-    OptionalAttr<F32Attr>:$maximum,
-    OptionalAttr<StrAttr>:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
-    OptionalAttr<NonNegativeI64Attr>:$offset,
-    OptionalAttr<F32Attr>:$threshold_y,
-    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
-  );
-
-  let results = (outs AnyTensor:$y);
 }
 
 def TPU_ReshapeOp: TPU_Op<"reshape",
@@ -765,6 +986,8 @@ def TPU_DummyDataOp: TPU_Op<"dummydata",
   let results = (outs AnyTensor:$output);
 }
 
+include "mlir/Dialect/TPU/TPUSupportOps.td"
+include "mlir/Dialect/TPU/TPUTGOps.td"
 include "mlir/Dialect/TPU/TPUTLOps.td"
 
 #endif // TPU_OPS

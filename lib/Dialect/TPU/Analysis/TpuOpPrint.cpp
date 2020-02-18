@@ -91,12 +91,15 @@ public:
           processed += printTpuOpInfo<tpu::DeConv2DOp>(op, file_os);
           processed += printTpuOpInfo<tpu::DetectionOutputOp>(op, file_os);
           processed += printTpuOpInfo<tpu::DivOp>(op, file_os);
-          processed += printTpuOpInfo<tpu::EltwiseOp>(op, file_os);
+          processed += printTpuOpInfo<tpu::EltwiseAddOp>(op, file_os);
+          processed += printTpuOpInfo<tpu::EltwiseMaxOp>(op, file_os);
+          processed += printTpuOpInfo<tpu::EltwiseMulOp>(op, file_os);
           processed += printTpuOpInfo<tpu::FullyConnectedOp>(op, file_os);
           processed += printTpuOpInfo<tpu::InputOp>(op, file_os);
           processed += printTpuOpInfo<tpu::NormalizeOp>(op, file_os);
           processed += printTpuOpInfo<tpu::PermuteOp>(op, file_os);
-          processed += printTpuOpInfo<tpu::Pool2DOp>(op, file_os);
+          processed += printTpuOpInfo<tpu::PoolAvg2DOp>(op, file_os);
+          processed += printTpuOpInfo<tpu::PoolMax2DOp>(op, file_os);
           processed += printTpuOpInfo<tpu::PowerOp>(op, file_os);
           processed += printTpuOpInfo<tpu::PReluOp>(op, file_os);
           processed += printTpuOpInfo<tpu::PriorBoxOp>(op, file_os);
@@ -113,7 +116,8 @@ public:
               || isa<tpu::QuantizationOp>(op)
               || isa<tpu::DequantizationOp>(op)
               || isa<tpu::LoadWeightOp>(op)
-              || isa<tpu::LoadFileOp>(op)) {
+              || isa<tpu::LoadFileOp>(op)
+              || isa<tpu::NoneOp>(op)) {
             processed = 1;
           }
           if (!processed) {
@@ -136,11 +140,8 @@ private:
           file_os << "," << cast_op.layer_id().getValue().getLimitedValue();
         else
           file_os << "," << "-1";
-        file_os << "," << cast_op.quant();
-        if (cast_op.threshold_y().hasValue())
-          file_os << "," << cast_op.threshold_y().getValue().convertToFloat();
-        else
-          file_os << "," << "0.0";
+        file_os << "," << getOpQuant(op);
+        file_os << "," << getOpThreshold(op);
         file_os << "\n";
         return 1;
       }

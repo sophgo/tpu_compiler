@@ -60,10 +60,13 @@ public:
       processed += addLayerIdAttr<tpu::DetectionOutputOp>(builder, layer_id, op);
       processed += addLayerIdAttr<tpu::DivOp>(builder, layer_id, op);
       processed += addLayerIdAttr<tpu::DummyDataOp>(builder, layer_id, op);
-      processed += addLayerIdAttr<tpu::EltwiseOp>(builder, layer_id, op);
+      processed += addLayerIdAttr<tpu::EltwiseAddOp>(builder, layer_id, op);
+      processed += addLayerIdAttr<tpu::EltwiseMaxOp>(builder, layer_id, op);
+      processed += addLayerIdAttr<tpu::EltwiseMulOp>(builder, layer_id, op);
       processed += addLayerIdAttr<tpu::FullyConnectedOp>(builder, layer_id, op);
       processed += addLayerIdAttr<tpu::InputOp>(builder, layer_id, op);
-      processed += addLayerIdAttr<tpu::Pool2DOp>(builder, layer_id, op);
+      processed += addLayerIdAttr<tpu::PoolAvg2DOp>(builder, layer_id, op);
+      processed += addLayerIdAttr<tpu::PoolMax2DOp>(builder, layer_id, op);
       processed += addLayerIdAttr<tpu::PermuteOp>(builder, layer_id, op);
       processed += addLayerIdAttr<tpu::PowerOp>(builder, layer_id, op);
       processed += addLayerIdAttr<tpu::PReluOp>(builder, layer_id, op);
@@ -81,7 +84,8 @@ public:
           || isa<tpu::QuantizationOp>(op)
           || isa<tpu::DequantizationOp>(op)
           || isa<tpu::LoadWeightOp>(op)
-          || isa<tpu::LoadFileOp>(op)) {
+          || isa<tpu::LoadFileOp>(op)
+          || isa<tpu::NoneOp>(op)) {
         processed = 1;
       }
       if (!processed) {

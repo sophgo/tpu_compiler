@@ -22,6 +22,7 @@
 
 #include "mlir/Dialect/TPU/TPUDialect.h"
 #include "mlir/Dialect/TPU/TPUOperationSupport.h"
+#include "mlir/Dialect/TPU/TPUTensorSupport.h"
 #include "mlir/Dialect/TPU/Interpreter.h"
 #include "mlir/Dialect/TPU/NativeCpuImplementation.h"
 #include "mlir/Dialect/TPU/CpuLayer_DetectionOutput.h"
@@ -50,11 +51,465 @@
 
 namespace mlir {
 
+static std::vector<std::shared_ptr<std::vector<float> > >
+    getOperandTensors(Operation *op, const value_map_t &valueMapping) {
+  std::vector<std::shared_ptr<std::vector<float> > > opdT;
+  for (auto operand : op->getOperands()) {
+    if ( isTensorNone(operand) ) {
+      opdT.push_back(nullptr);
+      continue;
+    }
+    auto it = valueMapping.find(operand);
+    assert(it != valueMapping.end());
+    opdT.push_back(it->second);
+  }
+  return opdT;
+}
+
+LogicalResult tpu::Conv2DOp::interpret(
+    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+  Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
+
+  auto opdT = getOperandTensors(op, valueMapping);
+  auto result = this->getResult();
+  auto size = getTensorSize(result);
+  auto resultT = std::make_unique<std::vector<float> >(size);
+
+  // parse param
+  bool is_dw, with_bias, do_relu;
+  int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, ph, pw, dh, dw;
+  parseConvParam(this->param(), this->input(), this->output(), this->filter(),
+                 n, ic, ih, iw, oc, oh, ow, g,
+                 kh, kw, sh, sw, ph, pw, dh, dw, is_dw, with_bias, do_relu);
+
+  // get tensors
+  assert(opdT.size() == 7);
+  std::shared_ptr<std::vector<float> > input = opdT[0];
+  std::shared_ptr<std::vector<float> > filter = opdT[1];
+  std::shared_ptr<std::vector<float> > bias = opdT[2];
+  //std::shared_ptr<std::vector<float> > quant_scale = opdT[3];
+  //std::shared_ptr<std::vector<float> > quant_zeropoint = opdT[4];
+  std::shared_ptr<std::vector<float> > quant_rshift = opdT[5];
+  std::shared_ptr<std::vector<float> > quant_multiplier = opdT[6];
+
+  // compute in fp32
+  int ret = mkldnn_conv(input->data(), filter->data(),
+      bias?bias->data():nullptr, resultT->data(),
+      n, ic, ih, iw, oc, oh, ow, kh, kw, sh, sw, dh,dw, ph, pw, g);
+  assert(ret == 0);
+  if (do_relu) {
+    ret = my_relu(resultT->data(), resultT->data(), n, oc, oh, ow, 0.0f);
+    assert(ret == 0);
+  }
+
+  // rshift and saturate on output
+  if (getOpQuant() == "NONE") {
+    // do nothing
+  } else if (getOpQuant() == "INT8") {
+    if (!isOpQuantPerchannel()) {
+      assert(getOpQuantParamType() == "RSHIFT_ONLY");
+      assert(quant_rshift);
+      quantizeActivationInt8PerLayerRshift(resultT->data(), resultT->data(),
+          size, (uint32_t)quant_rshift->at(0));
+    } else if (isOpQuantPerchannel()
+               && getOpQuantParamType() == "RSHIFT_ONLY") {
+      assert(quant_rshift);
+      quantizeActivationInt8PerChannelRShift(resultT->data(), resultT->data(),
+          oc, size / oc, quant_rshift->data());
+    } else if (isOpQuantPerchannel()
+               && getOpQuantParamType() == "RSHIFT_AND_M_I32") {
+      assert(quant_rshift);
+      assert(quant_multiplier);
+      quantizeActivationInt8PerChannelMultiplierAndRShift(resultT->data(),
+          resultT->data(), oc, size / oc,
+          quant_rshift->data(), quant_multiplier->data());
+    } else {
+      assert(false);
+    }
+  } else if (getOpQuant() == "BF16") {
+    auto tensor_bf16 = std::make_unique<std::vector<bfloat16> >(resultT->size());
+    FloatToBFloat16(resultT->data(), tensor_bf16->data(), resultT->size()); // with rounding
+    BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
+  } else {
+    assert(false);
+  }
+
+  valueMapping[result] = std::move(resultT);
+
+  return success();
+}
+
+static LogicalResult doEltwiseOpInterpret(Operation *op,
+    StringRef &type, bool do_relu,
+    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+  auto opdT = getOperandTensors(op, valueMapping);
+  auto result = op->getResult(0);
+  auto size = getTensorSize(result);
+  auto resultT = std::make_unique<std::vector<float> >(size);
+
+  // parse param
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  assert(input_size == size);
+  getNCHW(shape, n, c, h, w);
+
+  // get tensors
+  const unsigned nInputs = op->getNumOperands() - 4;
+  std::vector<int> opd_idx;
+  opd_idx.push_back(0);
+  if (nInputs > 1) {
+    opd_idx.push_back(1);
+  }
+  if (nInputs > 2) {
+    for (unsigned i = 0; i < nInputs - 2; i++) {
+      opd_idx.push_back(6 + i);
+    }
+  }
+  std::vector<float *>input(nInputs);
+  for (unsigned i = 0; i < nInputs; ++i) {
+    input[i] = opdT[opd_idx[i]]->data();
+  }
+  float *output = resultT->data();
+  std::shared_ptr<std::vector<float> > quant_rshift = opdT[4];
+  std::shared_ptr<std::vector<float> > quant_multiplier = opdT[5];
+
+  // apply qscale on input tensors before f32 compute
+  std::vector<std::vector<float> > input_copy(nInputs);
+  if (type == "ADD" || type == "MAX") {
+    if (getOpQuant(op) == "INT8") {
+      for (unsigned i = 0; i < nInputs; ++i) {
+        // make copy
+        input_copy[i].assign(opdT[opd_idx[i]]->begin(),
+                             opdT[opd_idx[i]]->end());
+        input[i] = input_copy[i].data();
+      }
+      // apply multiplier
+      for (unsigned i = 0; i < nInputs; ++i) {
+        for (size_t j = 0; j < opdT[opd_idx[i]]->size(); ++j) {
+          input[i][j] = input[i][j] * (int8_t)quant_multiplier->at(i);
+        }
+      }
+    }
+  } else if (type == "MUL") {
+    // MUL apply qscale on output put, no scaling on input
+  } else {
+    assert(false);
+  }
+
+  // compute in fp32
+  assert(nInputs == 2);
+  int ret = 0;
+  if (type == "ADD") {
+    ret = my_eltwise(input[0], input[1], output, n, c, h, w, 1);
+  } else if (type == "MAX") {
+    ret = my_eltwise(input[0], input[1], output, n, c, h, w, 2);
+  } else if (type == "MUL") {
+    ret = my_eltwise(input[0], input[1], output, n, c, h, w, 0);
+  } else {
+    assert(false);
+  }
+  assert(ret == 0);
+  if (do_relu) {
+    ret = my_relu(output, output, n, c, h, w, 0.0f);
+    assert(ret == 0);
+  }
+
+  // rshift and saturate on output
+  if (getOpQuant(op) == "NONE") {
+    // do nothing
+  } else if (getOpQuant(op) == "INT8") {
+    if (type == "ADD" || type == "MAX") {
+      // apply rshift and saturate
+      for (int i = 0; i < size; ++i) {
+        output[i] =
+            (float)applyRShiftAndSaturateInt8(output[i], (uint32_t)quant_rshift->at(0));
+      }
+    } else if (type == "MUL") {
+      // apply qscale on output (both rshift and saturate)
+      for (int i = 0; i < size; ++i) {
+        output[i] = (float)applyMultiplierAndRShiftAndSaturateInt8(
+            output[i], (uint32_t)quant_rshift->at(0),
+            (uint32_t)quant_multiplier->at(0), false);
+      }
+    }
+  } else if (getOpQuant(op) == "BF16") {
+    auto tensor_bf16 = std::make_unique<std::vector<bfloat16> >(resultT->size());
+    FloatToBFloat16(resultT->data(), tensor_bf16->data(), resultT->size()); // with rounding
+    BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
+  } else {
+    assert(false);
+  }
+
+  valueMapping[result] = std::move(resultT);
+
+  return success();
+}
+
+LogicalResult tpu::EltwiseAddOp::interpret(
+    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+  Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
+  StringRef type = "ADD";
+  return doEltwiseOpInterpret(op, type, do_relu(), valueMapping);
+}
+
+LogicalResult tpu::EltwiseMaxOp::interpret(
+    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+  Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
+  StringRef type = "MAX";
+  return doEltwiseOpInterpret(op, type, do_relu(), valueMapping);
+}
+
+LogicalResult tpu::EltwiseMulOp::interpret(
+    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+  Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
+  StringRef type = "MUL";
+  return doEltwiseOpInterpret(op, type, do_relu(), valueMapping);
+}
+
+LogicalResult tpu::LeakyReluOp::interpret(
+    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+  Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
+
+  auto opdT = getOperandTensors(op, valueMapping);
+  auto result = this->getResult();
+  auto size = getTensorSize(result);
+  auto resultT = std::make_unique<std::vector<float> >(size);
+
+  // parse param
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(this->input(), shape, input_size);
+  assert(input_size == size);
+  getNCHW(shape, n, c, h, w);
+  float negative_slope = this->negative_slope().convertToFloat();
+
+  // get tensors
+  assert(opdT.size() == 9);
+  std::shared_ptr<std::vector<float> > input = opdT[0];
+  //std::shared_ptr<std::vector<float> > quant_pos_scale = opdT[1];
+  //std::shared_ptr<std::vector<float> > quant_pos_zeropoint = opdT[2];
+  //std::shared_ptr<std::vector<float> > quant_neg_scale = opdT[3];
+  //std::shared_ptr<std::vector<float> > quant_neg_zeropoint = opdT[4];
+  std::shared_ptr<std::vector<float> > quant_pos_rshift = opdT[5];
+  std::shared_ptr<std::vector<float> > quant_pos_multiplier = opdT[6];
+  std::shared_ptr<std::vector<float> > quant_neg_rshift = opdT[7];
+  std::shared_ptr<std::vector<float> > quant_neg_multiplier = opdT[8];
+
+  // compute in fp32
+  // skipped because if quantization is needed, the negative_slop
+  // will be computed by quant rescale
+
+  // rshift and saturate on output
+  if (getOpQuant() == "NONE") {
+    int ret = my_relu(input->data(), resultT->data(), n, c, h, w, negative_slope);
+    assert(ret == 0);
+  } else if (getOpQuant() == "INT8") {
+    LLVM_DEBUG(llvm::errs() << "    rshift_pos "
+               << std::to_string(quant_pos_rshift->at(0)) << "\n";);
+    LLVM_DEBUG(llvm::errs() << "    multiplier_pos "
+               << std::to_string(quant_pos_multiplier->at(0)) << "\n";);
+    LLVM_DEBUG(llvm::errs() << "    rshift_neg "
+               << std::to_string(quant_neg_rshift->at(0)) << "\n";);
+    LLVM_DEBUG(llvm::errs() << "    multiplier_neg "
+               << std::to_string(quant_neg_multiplier->at(0)) << "\n";);
+
+    bool do_pos_scale = (quant_pos_multiplier->at(0) != 0.0) ? true : false;
+    LLVM_DEBUG(llvm::errs() << "    do_pos_scale " << std::to_string(do_pos_scale) << "\n";);
+
+    float *data_i = input->data();
+    float *data_o = resultT->data();
+    for (int i = 0; i < size; ++i) {
+      if (data_i[i] > 0){
+        if (do_pos_scale) {
+          data_o[i] = (float)applyMultiplierAndRShiftAndSaturateInt8(data_i[i],
+              (uint32_t)quant_pos_rshift->at(0), quant_pos_multiplier->at(0), false);
+        } else {
+          data_o[i] = data_i[i];
+        }
+      } else {
+        data_o[i] = (float)applyMultiplierAndRShiftAndSaturateInt8(data_i[i],
+            (uint32_t)quant_neg_rshift->at(0), quant_neg_multiplier->at(0), false);
+      }
+    }
+  } else if (getOpQuant() == "BF16") {
+    int ret = my_relu(input->data(), resultT->data(), n, c, h, w, negative_slope);
+    assert(ret == 0);
+    auto tensor_bf16 = std::make_unique<std::vector<bfloat16> >(resultT->size());
+    FloatToBFloat16(resultT->data(), tensor_bf16->data(), resultT->size()); // with rounding
+    BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
+  } else {
+    assert(false);
+  }
+
+  valueMapping[result] = std::move(resultT);
+
+  return success();
+}
+
+template <typename OpTy>
+static LogicalResult doPool2DOpInterpret(Operation *op, bool is_average,
+    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+  auto castOp = dyn_cast<OpTy>(op);
+  assert(castOp);
+
+  auto opdT = getOperandTensors(op, valueMapping);
+  auto result = op->getResult(0);
+  auto size = getTensorSize(result);
+  auto resultT = std::make_unique<std::vector<float> >(size);
+
+  // parse param
+  bool is_global, do_relu;
+  int n, c, ih, iw, oh, ow, kh, kw, sh, sw, pt, pb, pl, pr;
+  parsePoolParam(castOp.param(), castOp.input(), castOp.output(),
+                 n, c, ih, iw, oh, ow,
+                 kh, kw, sh, sw, pt, pb, pl, pr,
+                 is_global, do_relu);
+
+  // get tensors
+  float *input = opdT[0]->data();
+  float *output = resultT->data();
+  std::shared_ptr<std::vector<float> > quant_rshift = nullptr;
+  std::shared_ptr<std::vector<float> > quant_multiplier = nullptr;
+  if (is_average) {
+    assert(opdT.size() == 5);
+    quant_rshift = opdT[3];
+    quant_multiplier = opdT[4];
+  } else {
+    assert(opdT.size() == 1);
+  }
+
+  // no qscale on input tensors before f32 compute
+
+  // compute in fp32
+  int ret;
+  if (getOpQuant(op) == "INT8" && is_average && is_global) {
+    // Average pool should sum by self, we use conv to help us by filter all 1
+    // if use mkldnn, it will dive kh * kw by float,
+    // calculate method different from 1880v2
+    // 1880v2 will prod (qscale / kh * kw) together
+
+    // Todo: my case only has global average, if your model has other case,
+    //       plz add and test
+    ret = my_avg_pooling(input, output, n, c, ih, iw, oh,
+                         ow, kh, kw, sh, sw, pt, pb, pl, pr);
+  } else {
+    ret = mkldnn_pool(input, output, n, c, ih, iw, oh, ow, kh, kw,
+                      sh, sw, pt, pb, pl, pr, is_average);
+  }
+  assert(ret == 0);
+
+  // apply qscale on output for average pooling, max poolings are bypassed
+  if (is_average && getOpQuant(op) == "INT8") {
+    assert(quant_rshift && quant_multiplier);
+    for (int64_t i = 0; i < size; ++i) {
+      // multiplier is taking avg_const into account
+      // restore sum value first
+      float sum;
+      if (is_global){
+        sum = output[i];
+      } else {
+        sum = std::round(output[i] * kh * kw);
+      }
+      output[i] = (float)applyMultiplierAndRShiftAndSaturateInt8(
+          sum, (uint32_t)quant_rshift->at(0),
+          (uint32_t)quant_multiplier->at(0), false);
+    }
+  } else if (is_average && getOpQuant(op) == "BF16") {
+    auto tensor_bf16 = std::make_unique<std::vector<bfloat16> >(resultT->size());
+    FloatToBFloat16(resultT->data(), tensor_bf16->data(), resultT->size()); // with rounding
+    BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
+  }
+
+  valueMapping[result] = std::move(resultT);
+
+  return success();
+}
+
+LogicalResult tpu::PoolAvg2DOp::interpret(
+    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+  Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
+  return doPool2DOpInterpret<tpu::PoolAvg2DOp>(op, true, valueMapping);
+}
+
+LogicalResult tpu::PoolMax2DOp::interpret(
+    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+  Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
+  return doPool2DOpInterpret<tpu::PoolMax2DOp>(op, false, valueMapping);
+}
+
+LogicalResult tpu::ReluOp::interpret(
+    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+  Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
+
+  auto opdT = getOperandTensors(op, valueMapping);
+  auto result = this->getResult();
+  auto size = getTensorSize(result);
+  auto resultT = std::make_unique<std::vector<float> >(size);
+
+  // parse param
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(this->input(), shape, input_size);
+  assert(input_size == size);
+  getNCHW(shape, n, c, h, w);
+
+  // get tensors
+  assert(opdT.size() == 1);
+  std::shared_ptr<std::vector<float> > input = opdT[0];
+
+  // compute in fp32
+  int ret = my_relu(input->data(), resultT->data(), n, c, h, w, 0.0f);
+  assert(ret == 0);
+
+  valueMapping[result] = std::move(resultT);
+
+  return success();
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// to be removed
 std::vector<std::shared_ptr<std::vector<float> > >
     ModuleInterpreter::getOperandTensors(Operation &opInst,
     value_map_t &valueMapping) {
   std::vector<std::shared_ptr<std::vector<float> > > opdT;
   for (auto operand : opInst.getOperands()) {
+    if ( !operand->getType().dyn_cast_or_null<RankedTensorType>() ) {
+      // this is NoneType
+      // isa<tpu::NoneOp>(operand->getDefiningOp());
+      opdT.push_back(nullptr);
+      continue;
+    }
     auto it = valueMapping.find(operand);
     assert(it != valueMapping.end());
     opdT.push_back(it->second);
@@ -63,13 +518,18 @@ std::vector<std::shared_ptr<std::vector<float> > >
 }
 
 LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
-  // #include "mlir/Dialect/LLVMIR/LLVMConversions.inc"
+  if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpInterpInterface>(opInst)) {
+    return tpuOp.interpret(valueMapping);
+  }
 
   // Bypass load file and weight since is done in constructor
   if (auto loadFileOp = dyn_cast<tpu::LoadFileOp>(opInst)) {
     return success();
   }
   if (auto loadWeightOp = dyn_cast<tpu::LoadWeightOp>(opInst)) {
+    return success();
+  }
+  if (auto noneOp = dyn_cast<tpu::NoneOp>(opInst)) {
     return success();
   }
 
@@ -92,150 +552,10 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
   }
 
   if (auto op = dyn_cast<tpu::Conv2DOp>(opInst)) {
-    LLVM_DEBUG(llvm::errs() << "Conv2DOp" << "\n";);
-
-    auto opdT = getOperandTensors(opInst, valueMapping);
-    auto result = op.getResult();
-    LLVM_DEBUG(llvm::errs() << "  name " << op.name() << "\n";);
-    LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";);
-    std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
-    assert(shape.size() == 4);
-    auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
-    auto resultT = std::make_unique<std::vector<float> >(size);
-
-    bool with_bias, do_relu;
-    int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, ph, pw, dh, dw;
-    getConv2DOpParam<tpu::Conv2DOp>(op, n, ic, ih, iw, oc, oh, ow, g,
-                     kh, kw, sh, sw, ph, pw, dh, dw, with_bias, do_relu);
-
-    std::shared_ptr<std::vector<float> > input = opdT[0];
-    std::shared_ptr<std::vector<float> > filter = opdT[1];
-    std::shared_ptr<std::vector<float> > bias = nullptr;
-    std::shared_ptr<std::vector<float> > rshift = nullptr;
-    std::shared_ptr<std::vector<float> > multiplier = nullptr;
-    std::shared_ptr<std::vector<float> > per_channel_info = nullptr;
-    std::shared_ptr<std::vector<float> > eltwise_input = nullptr;
-    if (op.per_channel_info_is_aggregated()) {
-      llvm::errs() << "Not support interpret with per_channel_info aggreated\n";
-      assert(0);
-    }
-    getConv2DOpVariadicTensors(op, opdT, bias, rshift, multiplier,
-        per_channel_info, eltwise_input);
-
-    int mkldnn_ret = mkldnn_conv(input->data(), filter->data(),
-        bias?bias->data():nullptr, resultT->data(),
-        n, ic, ih, iw, oc, oh, ow, kh, kw, sh, sw, dh,dw, ph, pw, g);
-    assert(mkldnn_ret == 0);
-    //dump_data_float_abs("mkldnn_output", mkldnn_output, n, oc, oh, ow);
-
-    if (do_relu) {
-      my_relu(resultT->data(), resultT->data(), n, oc, oh, ow, 0.0f);
-    }
-
-    // rshift and saturate on output
-    if (op.quant() == "INT8") {
-      assert(rshift);
-      quantizeActivationInt8PerLayerRshift(resultT->data(), resultT->data(),
-          size, (uint32_t)rshift->at(0));
-    } else if (op.quant() == "INT8_PER_CHANNEL") {
-      assert(rshift);
-      quantizeActivationInt8PerChannelRShift(resultT->data(), resultT->data(),
-          oc, size / oc, rshift->data());
-    } else if (op.quant() == "INT8_MULTIPLIER") {
-      assert(rshift);
-      assert(multiplier);
-      quantizeActivationInt8PerChannelMultiplierAndRShift(resultT->data(),
-          resultT->data(), oc, size / oc, rshift->data(), multiplier->data());
-    } else if (op.quant() == "BF16") {
-      auto tensor_bf16 = std::make_unique<std::vector<bfloat16> >(resultT->size());
-      FloatToBFloat16(resultT->data(), tensor_bf16->data(), resultT->size()); // with rounding
-      BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
-    } else if (op.quant() == "NONE") {
-    } else {
-      assert(0);
-    }
-
-    // apply eltwise if needed
-    if (op.fused_eltwise_method() == "SUM") {
-      assert(eltwise_input);
-
-      if (op.quant() == "INT8" || op.quant() == "INT8_PER_CHANNEL"
-          ||op.quant() == "INT8_MULTIPLIER") {
-        // fused eltwise support 2 inputs only
-        std::vector<float> eltwise_threshold_x(2);
-        eltwise_threshold_x[0] = getPreviousOpThreshold(op, op.getNumOperands() - 1);
-        eltwise_threshold_x[1] = op.threshold_y_before_eltwise().getValue().convertToFloat();
-        float eltwise_threshold_y = op.threshold_y().getValue().convertToFloat();
-
-        // determine rshift for all inputs, and multiplier for each input
-        // use max threshold_x to find rshift first
-        uint32_t eltwise_rshift;
-        std::vector<float> eltwise_multiplier(2);
-        float max_threshold_x = *std::max_element(
-            std::begin(eltwise_threshold_x), std::end(eltwise_threshold_x));
-        eltwise_rshift = findRShiftAndMultiplierFromQScale(max_threshold_x / eltwise_threshold_y);
-        LLVM_DEBUG(llvm::errs() << "  threshold_y = " << std::to_string(eltwise_threshold_y)
-                                << ", rshift = " << std::to_string(eltwise_rshift) << "\n");
-        for (int index = 0; index < 2; ++index) {
-          float qscale = eltwise_threshold_x[index] / eltwise_threshold_y;
-          eltwise_multiplier[index] = (int8_t)findMultiplierFromQScaleAndRShift(qscale, eltwise_rshift);
-          LLVM_DEBUG(llvm::errs()
-              << "  threshold_x[" << index << "] = " << std::to_string(eltwise_threshold_x[index])
-              << ", multiplier["  << index << "] = " << std::to_string(eltwise_multiplier[index])
-              << "\n");
-        }
-
-        // make copy of inputs
-        std::vector<std::shared_ptr<std::vector<float> > > input_copy(2);
-        for (int index = 0; index < 2; ++index) {
-          input_copy[index] = std::make_shared<std::vector<float> >();
-        }
-        input_copy[0]->assign(eltwise_input->begin(), eltwise_input->end());
-        input_copy[1]->assign(resultT->begin(), resultT->end());
-
-        // apply multiplier
-        for (int index = 0; index < 2; ++index) {
-          for (size_t i = 0; i < input_copy[index]->size(); ++i) {
-            (*input_copy[index])[i] = (*input_copy[index])[i] *eltwise_multiplier[index];
-          }
-        }
-
-        my_eltwise(input_copy[0]->data(), input_copy[1]->data(),
-                   resultT->data(), n, oc, oh, ow, 1);
-
-        for (int i = 0; i < size; ++i) {
-          resultT->at(i) = (float)applyRShiftAndSaturateInt8(resultT->at(i),
-              (uint32_t)eltwise_rshift);
-        }
-
-      } else if (op.quant() == "BF16") {
-        my_eltwise(eltwise_input->data(), resultT->data(), resultT->data(),
-            n, oc, oh, ow, 1);
-        auto tensor_bf16 = std::make_unique<std::vector<bfloat16> >(resultT->size());
-        // with rounding
-        FloatToBFloat16(resultT->data(), tensor_bf16->data(), resultT->size());
-        BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
-
-      } else if (op.quant() == "NONE") {
-        my_eltwise(eltwise_input->data(), resultT->data(), resultT->data(),
-            n, oc, oh, ow, 1);
-      }
-
-      if (op.fused_activation_function_after_eltwise() == "RELU") {
-        my_relu(resultT->data(), resultT->data(), n, oc, oh, ow, 0.0f);
-      } else {
-        assert(op.fused_activation_function_after_eltwise() == "NONE");
-      }
-
-    } else {
-      assert(eltwise_input == nullptr);
-      assert(op.fused_eltwise_method() == "NONE");
-    }
-
-    valueMapping[result] = std::move(resultT);
-
-    return success();
+    LLVM_DEBUG(llvm::errs() << "Conv2DOp [" << op.name() << "]\n";);
+    assert(false);
   }
+
   if (auto op = dyn_cast<tpu::PermuteOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "PermuteOp" << "\n";);
 
@@ -393,104 +713,6 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     return success();
   }
 
-
-  if (auto op = dyn_cast<tpu::Pool2DOp>(opInst)) {
-    LLVM_DEBUG(llvm::errs() << "Pool2DOp" << "\n";);
-    auto opdT = getOperandTensors(opInst, valueMapping);
-    auto result = op.getResult();
-    LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump();
-               llvm::errs() << "\n";);
-    std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
-    assert(shape.size() <= 4);
-    auto size = std::accumulate(std::begin(shape), std::end(shape),
-                                1, std::multiplies<>());
-    auto resultT = std::make_unique<std::vector<float> >(size);
-
-    bool is_average_pool, do_relu;
-    int n, c, ih, iw, oh, ow, kh, kw, sh, sw, pt, pb, pl, pr;
-    getPool2DOpParam(op, is_average_pool, n, c, ih, iw, oh, ow,
-                     kh, kw, sh, sw, pt, pb, pl, pr, do_relu);
-
-    std::shared_ptr<std::vector<float> > input = opdT[0];
-
-    // for INT8, get threshold_x and make copy of input first
-    std::vector<float> input_copy;
-    float threshold_x;
-    float threshold_y;
-    if (op.quant() == "INT8" && is_average_pool) {
-      // make copy
-      auto input_copy = std::make_shared<std::vector<float> >();
-      input_copy->assign(input->begin(), input->end());
-      input = input_copy;
-      // get threshold
-      threshold_x = getPreviousOpThreshold(op);
-      threshold_y = op.threshold_y().getValue().convertToFloat();
-    }
-
-    float *output_data = resultT->data();
-    int mkldnn_ret;
-    if (is_average_pool && op.quant() == "INT8" && kh == ih && kw == iw) {
-      // Average pool should sum by self, we use conv to help us by filter all 1
-      // if use mkldnn, it will dive kh * kw by float,
-      // calculate method different from 1880v2
-      // 1880v2 will prod (qscale / kh * kw) together
-
-      // Todo: my case only has global average, if your model has other case,
-      //       plz add and test
-      mkldnn_ret = my_avg_pooling(input->data(), output_data, n, c, ih, iw, oh,
-                                  ow, kh, kw, sh, sw, pt, pb, pl, pr);
-    } else {
-      mkldnn_ret =
-          mkldnn_pool(input->data(), output_data, n, c, ih, iw, oh, ow, kh, kw,
-                      sh, sw, pt, pb, pl, pr, is_average_pool);
-    }
-    assert(mkldnn_ret == 0);
-    //dump_data_float_abs("mkldnn_output", mkldnn_output, n, c, oh, ow);
-
-    uint32_t rshift = 0;
-    // multiplier is taking avg_const into account
-    uint32_t multiplier = 0;
-    // do quantize for average pooling, max poolings are bypassed
-    if (op.quant() == "INT8" && is_average_pool) {
-      // determine multiplier and rshift according to threshold_x
-      // scale = threshold_x / threshold_y
-      // scale will be implemented by hardware as
-      // scale = multiplier / (1 << rshift)
-      // find a rshift, that put max(multiplier) into range (64, 127)
-      //uint32_t rshift;
-      //int8_t multiplier;
-      float scale = threshold_x / threshold_y;
-      float scale_and_avg_const = scale / (kh * kw);
-      //rshift = findRShiftAndMultiplierFromQScale(scale_and_avg_const,
-      //                                           &multiplier, false, 127);
-      rshift = findRShiftAndMultiplierFromQScale(scale_and_avg_const,
-                                                 &multiplier, false, 255);
-
-      // apply multiplier, rshift and saturate
-      for (int i = 0; i < size; ++i) {
-        // restore sum value first
-        float sum;
-        if (kh == ih && kw == iw){
-          // global average
-          sum = output_data[i];
-        } else {
-          sum = std::round(output_data[i] * kh * kw);
-        }
-        output_data[i] = (float)applyMultiplierAndRShiftAndSaturateInt8(
-            sum, rshift, multiplier, false);
-      }
-    }
-
-    if (op.quant() == "BF16" && is_average_pool) {
-      auto tensor_bf16 = std::make_unique<std::vector<bfloat16> >(resultT->size());
-      FloatToBFloat16(resultT->data(), tensor_bf16->data(), resultT->size()); // with rounding
-      BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
-    }
-
-    valueMapping[result] = std::move(resultT);
-
-    return success();
-  }
   if (auto op = dyn_cast<tpu::FullyConnectedOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "FullyConnectedOp" << "\n";);
     auto opdT = getOperandTensors(opInst, valueMapping);
@@ -541,87 +763,8 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     return success();
   }
   if (auto op = dyn_cast<tpu::ReluOp>(opInst)) {
-    LLVM_DEBUG(llvm::errs() << "ReluOp" << "\n";);
-    auto opdT = getOperandTensors(opInst, valueMapping);
-    auto result = op.getResult();
-    LLVM_DEBUG(llvm::errs() << "  name " << op.name() << "\n";);
-    LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";);
-    std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
-    assert(shape.size() <= 4);
-    auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
-    auto resultT = std::make_unique<std::vector<float> >(size);
-
-    int n, c, h, w;
-    float negative_slope = op.negative_slope().convertToFloat();
-    LLVM_DEBUG(llvm::errs() << "  negative_slope " << negative_slope << "\n";);
-    auto input_type = op.x()->getType().cast<TensorType>();
-    std::vector<int64_t> i_s(input_type.getShape());
-    auto output_type = op.y()->getType().cast<TensorType>();
-    std::vector<int64_t> o_s(output_type.getShape());
-    assert((i_s == o_s) && "input shape not equal to output shape");
-
-    float *input = (float *)opdT[0]->data();
-    float *output = (float *)resultT.get()->data();
-
-    bool is_relu = (negative_slope < 1e-7) ? true : false;
-
-    if (is_relu || op.quant() == "NONE" || op.quant() == "BF16") {
-      if(i_s.size() == 4) {
-        n = i_s[0];
-        c = i_s[1];
-        h = i_s[2];
-        w = i_s[3];
-      } else if (i_s.size() == 2) {
-        n = 1;
-        c = 1;
-        h = i_s[0];
-        w = i_s[1];
-      } else {
-        assert(false);
-      }
-      int ret = my_relu(input, output, n, c, h, w, negative_slope);
-      assert(ret == 0);
-    } else if (op.quant() == "INT8") {
-      std::shared_ptr<std::vector<float> > rshift_pos = nullptr;
-      std::shared_ptr<std::vector<float> > multiplier_pos = nullptr;
-      std::shared_ptr<std::vector<float> > rshift_neg = nullptr;
-      std::shared_ptr<std::vector<float> > multiplier_neg = nullptr;
-
-      getReluOpVariadicTensors(op, opdT, rshift_pos, multiplier_pos, rshift_neg, multiplier_neg);
-
-      assert(rshift_pos);
-      assert(rshift_neg);
-      assert(multiplier_pos);
-      assert(multiplier_neg);
-
-      LLVM_DEBUG(llvm::errs() << "    rshift_pos " << std::to_string(rshift_pos->at(0)) << "\n";);
-      LLVM_DEBUG(llvm::errs() << "    multiplier_pos " << std::to_string(multiplier_pos->at(0)) << "\n";);
-      LLVM_DEBUG(llvm::errs() << "    rshift_neg " << std::to_string(rshift_neg->at(0)) << "\n";);
-      LLVM_DEBUG(llvm::errs() << "    multiplier_neg " << std::to_string(multiplier_neg->at(0)) << "\n";);
-
-      bool do_pos_scale = (multiplier_pos->at(0) != 0.0) ? true : false;
-      LLVM_DEBUG(llvm::errs() << "    do_pos_scale " << std::to_string(do_pos_scale) << "\n";);
-
-      for (int i = 0; i < size; ++i) {
-        if (input[i] > 0){
-          if (do_pos_scale) {
-            output[i] = (float)applyMultiplierAndRShiftAndSaturateInt8(
-                input[i], (uint32_t)rshift_pos->at(0), multiplier_pos->at(0), false);
-          } else {
-            output[i] = input[i];
-          }
-        } else {
-          output[i] = (float)applyMultiplierAndRShiftAndSaturateInt8(
-              input[i], (uint32_t)rshift_neg->at(0), multiplier_neg->at(0), false);
-        }
-      }
-    } else {
-      assert(false);
-    }
-
-    valueMapping[result] = std::move(resultT);
-
-    return success();
+    LLVM_DEBUG(llvm::errs() << "ReluOp [" << op.name() << "]\n";);
+    assert(false);
   }
   if (auto op = dyn_cast<tpu::PReluOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "PReluOp" << "\n";);
@@ -976,8 +1119,10 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     valueMapping[result] = std::move(resultT);
     return success();
   }
+#if 0
   if (auto op = dyn_cast<tpu::EltwiseOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "EltwiseOp" << "\n";);
+    assert(false);
     auto opdT = getOperandTensors(opInst, valueMapping);
     auto result = op.getResult();
     LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";);
@@ -1047,7 +1192,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
         for (int index = 0; index < MAX_ELTWISE_INPUT; ++index) {
           float qscale = threshold_x[index] / threshold_y;
           multiplier[index] =
-              (int8_t)findMultiplierFromQScaleAndRShift(qscale, rshift);
+              (int8_t)findMultiplierI8FromQScaleAndRShift(qscale, rshift);
           LLVM_DEBUG(llvm::errs()
                      << "  threshold_x[" << index
                      << "] = " << std::to_string(threshold_x[index])
@@ -1112,6 +1257,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
     return success();
   }
+#endif
   if (auto op = dyn_cast<tpu::ReshapeOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "ReshapeOp" << "\n";);
     auto opdT = getOperandTensors(opInst, valueMapping);
@@ -1222,7 +1368,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     // each scale will be implemented by hardware as
     // scale[i] = multiplier / (1 << rshift)
     // find a rshift, that put max(multiplier) into range (64, 127)
-    uint32_t rshift;
+    int8_t rshift;
     std::vector<int8_t> multiplier(bottom_num);
     if (op.quant() == "INT8") {
       // determine rshift for all inputs, and multiplier for each input
@@ -1234,7 +1380,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
                               << ", rshift = " << std::to_string(rshift) << "\n");
       for (size_t index = 0; index < bottom_num; ++index) {
         float qscale = threshold_x[index] / threshold_y;
-        multiplier[index] = (int8_t)findMultiplierFromQScaleAndRShift(qscale, rshift);
+        multiplier[index] = findMultiplierI8FromQScaleAndRShift(qscale, rshift);
         LLVM_DEBUG(llvm::errs()
             << "  threshold_x[" << index << "] = " << std::to_string(threshold_x[index])
             << ", multiplier["  << index << "] = " << std::to_string(multiplier[index])
@@ -2159,7 +2305,8 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     /// ==> Qscale = (thrx*thrx/127)/thry
     ///
 
-    float threshold_y,threshold_x,qscale,rshift;
+    float threshold_y,threshold_x,qscale;
+    int8_t rshift;
     uint32_t multiplier;
     if (op.quant() != "NONE"){
 
@@ -2170,7 +2317,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
     if (op.quant() == "INT8"|| op.quant() == "INT8_PER_CHANNEL") {
       rshift = findRShiftAndMultiplierFromQScale(qscale);
-      multiplier = findMultiplierFromQScaleAndRShift(qscale, rshift);
+      multiplier = findMultiplierI8FromQScaleAndRShift(qscale, rshift);
     }else if(op.quant() == "INT8_MULTIPLIER"){
       rshift = (float)findRShiftAndMultiplierFromQScale(qscale, &multiplier, true,255);
     }else if(op.quant() == "NONE"){
@@ -2354,6 +2501,7 @@ LogicalResult ModuleInterpreter::doRun(std::vector<int64_t> input_shape, std::ve
 static bool isValidTpuOp(Operation &op)
 {
   return (!isa<tpu::LoadWeightOp>(op) && !isa<tpu::LoadFileOp>(op) &&
+          !isa<tpu::NoneOp>(op) &&
           op.getName().getDialect().str() == "tpu");
 }
 

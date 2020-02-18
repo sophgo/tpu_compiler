@@ -57,6 +57,9 @@ std::unique_ptr<OpPassBase<FuncOp>> createGenSqrtTablePass();
 std::unique_ptr<OpPassBase<FuncOp>> createGenPowerWeightPass() ;
 std::unique_ptr<OpPassBase<FuncOp>> createGenDivTablePass();
 std::unique_ptr<OpPassBase<FuncOp>> createGenSqrtTablePass();
+
+std::unique_ptr<OpPassBase<FuncOp>> createTpuLowerPass();
+
 } // namespace mlir
 
 #endif // MLIR_DIALECT_TPU_PASSES_H_

@@ -204,7 +204,7 @@ void QuantizeMultiplier(double double_multiplier, int32_t* quantized_multiplier,
 ///     this value is always at least 2^30 and have at least 30 bits accuracy
 ///   the max_multiplier argument is ignored, fixed to (1 << 31)
 /// if 'uint32_t *multiplier' is present, return multipler alongside
-uint32_t findRShiftAndMultiplierFromQScale(double qscale,
+int8_t findRShiftAndMultiplierFromQScale(double qscale,
     uint32_t *multiplier, bool qdm, uint32_t max_multiplier) {
   if (qdm) {
     #if 0
@@ -230,10 +230,10 @@ uint32_t findRShiftAndMultiplierFromQScale(double qscale,
                    << ", qscale = " << qscale
                    << "\n";
     }
-    return rshift;
+    return (int8_t)rshift;
   } else {
     assert(qscale < max_multiplier);
-    for (uint32_t rshift = 0; rshift < 63; ++rshift) {
+    for (int8_t rshift = 0; rshift < 63; ++rshift) {
       if ( ((double)qscale * (1ULL << (rshift + 1))) >= (double)max_multiplier ) {
         if (multiplier) {
           *multiplier = (uint32_t)((double)qscale * (1ULL << rshift));
@@ -255,7 +255,11 @@ uint32_t findRShiftAndMultiplierFromQScale(double qscale,
 /// find Multiplier from QScale and RShift
 ///   QScale = Multiplier / (1 << RShift)
 ///   Multiplier = QScale * (1 << RShift)
-uint32_t findMultiplierFromQScaleAndRShift(double qscale, uint32_t rshift) {
+uint32_t findMultiplierU32FromQScaleAndRShift(double qscale, int8_t rshift) {
+  return (uint32_t)(qscale * (1 << rshift));
+}
+
+int8_t findMultiplierI8FromQScaleAndRShift(double qscale, int8_t rshift) {
   return (uint32_t)(qscale * (1 << rshift));
 }
 

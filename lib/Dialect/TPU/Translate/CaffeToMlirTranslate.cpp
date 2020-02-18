@@ -156,6 +156,17 @@ static void printCaffeNetAllLayer(const caffe::Net<float>& net) {
   }
 }
 
+static tpu::QuantParam getDefaultQuantParam(Builder &builder) {
+  return tpu::QuantParam::get(
+      builder.getStringAttr("NONE"),
+      builder.getStringAttr("NONE"),
+      builder.getBoolAttr(false),
+      builder.getBoolAttr(false),
+      builder.getF32FloatAttr(0.0),
+      builder.getF32FloatAttr(0.0),
+      builder.getContext());
+}
+
 #define calcConv2DSpatialOutput(_i_, _k_, _s_, _p_, _d_) \
     (((_i_) + 2 * (_p_) - (_d_) * ((_k_) - 1) - 1) / (_s_) + 1)
 
@@ -429,9 +440,9 @@ void CaffeImporter::convertConvolutionLayer(mlir::Block *block,
   // get output shape from inference
   ofmap[0] = calcConv2DSpatialOutput(ifmap[0], kernel[0], stride[0], padding[0], dilation[0]);
   ofmap[1] = calcConv2DSpatialOutput(ifmap[1], kernel[1], stride[1], padding[1], dilation[1]);
-  // if group is not 1, assume it is dw conv for now
-  if (g != 1) {
-    // assert(g == ic && g == oc);
+  bool is_dw = false;
+  if (g == oc) {
+    is_dw = true;
   }
 
   LLVM_DEBUG(
@@ -454,6 +465,8 @@ void CaffeImporter::convertConvolutionLayer(mlir::Block *block,
 
   std::vector<Value *> operands;
   operands.push_back(input_var);
+  auto NoneOp = OpBuilder(block).create<tpu::NoneOp>(builder_.getUnknownLoc(),
+                                                     builder_.getNoneType());
 
   // - blobs_[0] holds the filter weights
   // - blobs_[1] holds the biases (optional)
@@ -471,21 +484,32 @@ void CaffeImporter::convertConvolutionLayer(mlir::Block *block,
     auto bias_type = RankedTensorType::get({oc}, elementType_);
     weightFile_->addTensor(bias_name, layer->blobs()[1].get()->cpu_data(), bias_type);
     operands.push_back(AddLoadWeightOp(block, bias_name, bias_type));
+  } else {
+    operands.push_back(NoneOp.getResult());
   }
+  operands.push_back(NoneOp.getResult());  // quant_scale
+  operands.push_back(NoneOp.getResult());  // quant_zeropoint
+  operands.push_back(NoneOp.getResult());  // quant_rshift
+  operands.push_back(NoneOp.getResult());  // quant_multiplier
 
   // construct OP
   auto result_type = RankedTensorType::get({n, oc, ofmap[0], ofmap[1]}, elementType_);
   std::vector<NamedAttribute> attrs;
-  attrs.push_back(builder_.getNamedAttr("with_bias", builder_.getBoolAttr(with_bias)));
-  attrs.push_back(builder_.getNamedAttr("dilation_h_factor", builder_.getI32IntegerAttr(dilation[0])));
-  attrs.push_back(builder_.getNamedAttr("dilation_w_factor", builder_.getI32IntegerAttr(dilation[1])));
-  //attrs.push_back(builder.getNamedAttr("fused_activation_function", builder.getStringAttr("NONE")));
-  attrs.push_back(builder_.getNamedAttr("padding", (padding[0] || padding[1])
-                  ? builder_.getStringAttr("SAME") : builder_.getStringAttr("VALID")));
-  attrs.push_back(builder_.getNamedAttr("stride_h", builder_.getI32IntegerAttr(stride[0])));
-  attrs.push_back(builder_.getNamedAttr("stride_w", builder_.getI32IntegerAttr(stride[1])));
-  attrs.push_back(builder_.getNamedAttr("group", builder_.getI32IntegerAttr(g)));
   attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name())));
+  attrs.push_back(builder_.getNamedAttr("param",
+      tpu::ConvParam::get(
+          builder_.getI32IntegerAttr(stride[0]),
+          builder_.getI32IntegerAttr(stride[1]),
+          (padding[0] || padding[1]) ? builder_.getStringAttr("SAME")
+                                     : builder_.getStringAttr("VALID"),
+          builder_.getI32IntegerAttr(dilation[0]),
+          builder_.getI32IntegerAttr(dilation[1]),
+          builder_.getI32IntegerAttr(g),
+          builder_.getBoolAttr(is_dw),
+          builder_.getBoolAttr(with_bias),
+          builder_.getBoolAttr(false),
+          builder_.getContext())));
+  attrs.push_back(builder_.getNamedAttr("quant", getDefaultQuantParam(builder_)));
   auto op = OpBuilder(block).create<tpu::Conv2DOp>(
       builder_.getUnknownLoc(), result_type,
       ArrayRef<Value *>{operands}, ArrayRef<NamedAttribute>{attrs});
@@ -777,27 +801,44 @@ void CaffeImporter::convertPoolingLayer(mlir::Block *block,
   );
 
   // construct OP
+  std::vector<Value *> operands;
+  operands.push_back(input_var);
+  auto NoneOp = OpBuilder(block).create<tpu::NoneOp>(builder_.getUnknownLoc(),
+                                                     builder_.getNoneType());
+
   auto result_type = RankedTensorType::get({n, c, ofmap[0], ofmap[1]}, elementType_);
   std::vector<NamedAttribute> attrs;
-  if (is_average_pooling) {
-    attrs.push_back(builder_.getNamedAttr("pool", builder_.getStringAttr("AVE")));
-  } else {
-    attrs.push_back(builder_.getNamedAttr("pool", builder_.getStringAttr("MAX")));
-  }
-  attrs.push_back(builder_.getNamedAttr("filter_height", builder_.getI32IntegerAttr(kernel[0])));
-  attrs.push_back(builder_.getNamedAttr("filter_width", builder_.getI32IntegerAttr(kernel[1])));
-  attrs.push_back(builder_.getNamedAttr("pad_top", builder_.getI32IntegerAttr(padding_tl[0])));
-  attrs.push_back(builder_.getNamedAttr("pad_bottom", builder_.getI32IntegerAttr(padding_br[0])));
-  attrs.push_back(builder_.getNamedAttr("pad_left", builder_.getI32IntegerAttr(padding_tl[1])));
-  attrs.push_back(builder_.getNamedAttr("pad_right", builder_.getI32IntegerAttr(padding_br[1])));
-  attrs.push_back(builder_.getNamedAttr("stride_h", builder_.getI32IntegerAttr(stride[0])));
-  attrs.push_back(builder_.getNamedAttr("stride_w", builder_.getI32IntegerAttr(stride[1])));
-  attrs.push_back(builder_.getNamedAttr("fused_activation_function", builder_.getStringAttr("NONE")));
   attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name())));
-  auto op = OpBuilder(block).create<tpu::Pool2DOp>(
-      builder_.getUnknownLoc(), result_type, ArrayRef<Value *>{input_var},
+  attrs.push_back(builder_.getNamedAttr("param",
+      tpu::PoolParam::get(
+          builder_.getI32IntegerAttr(kernel[0]),     // kernel_h
+          builder_.getI32IntegerAttr(kernel[1]),     // kernel_w
+          builder_.getI32IntegerAttr(padding_tl[0]), // padding_t
+          builder_.getI32IntegerAttr(padding_br[0]), // padding_b
+          builder_.getI32IntegerAttr(padding_tl[1]), // padding_l
+          builder_.getI32IntegerAttr(padding_br[1]), // padding_r
+          builder_.getI32IntegerAttr(stride[0]),     // stride_h
+          builder_.getI32IntegerAttr(stride[1]),     // stride_w
+          builder_.getBoolAttr(false),               // do_relu
+          builder_.getContext())));
+  attrs.push_back(builder_.getNamedAttr("quant", getDefaultQuantParam(builder_)));
+
+  Value *result_var;
+  if (is_average_pooling) {
+    operands.push_back(NoneOp.getResult());  // quant_scale
+    operands.push_back(NoneOp.getResult());  // quant_zeropoint
+    operands.push_back(NoneOp.getResult());  // quant_rshift
+    operands.push_back(NoneOp.getResult());  // quant_multiplier
+    auto op = OpBuilder(block).create<tpu::PoolAvg2DOp>(
+      builder_.getUnknownLoc(), result_type, ArrayRef<Value *>{operands},
       ArrayRef<NamedAttribute>{attrs});
-  auto result_var = op.getResult();
+    result_var = op.getResult();
+  } else {
+    auto op = OpBuilder(block).create<tpu::PoolMax2DOp>(
+      builder_.getUnknownLoc(), result_type, ArrayRef<Value *>{operands},
+      ArrayRef<NamedAttribute>{attrs});
+    result_var = op.getResult();
+  }
 
   tensor_map_[layer_param.top(0)] = result_var;
 }
@@ -963,26 +1004,31 @@ void CaffeImporter::convertReLULayer(mlir::Block *block,
 
   auto layer_param = layer->layer_param();
   auto relu_param = layer_param.relu_param();
-  float negative_slope = relu_param.negative_slope();
+  float negative_slope = 0.0f;
+  if (relu_param.has_negative_slope()) {
+    negative_slope = relu_param.negative_slope();
+  }
 
   int64_t n, c, h, w;
-  llvm::ArrayRef<int64_t> input_shape = input_var->getType().dyn_cast<mlir::TensorType>().getShape();
+  llvm::ArrayRef<int64_t> input_shape
+      = input_var->getType().dyn_cast<mlir::TensorType>().getShape();
   RankedTensorType result_type=nullptr;
 
-  if(input_shape.size() == 4){
+  if (input_shape.size() == 4) {
     n = input_shape[0];
     c = input_shape[1];
     h = input_shape[2];
     w = input_shape[3];
     result_type = RankedTensorType::get({n, c, h, w}, elementType_);
-  }else if(input_shape.size() == 2){
-    h = input_shape[0];
-    w = input_shape[1];
-    result_type = RankedTensorType::get({h,w}, elementType_);
-  }else{
+  } else if (input_shape.size() == 2) {
+    n = input_shape[0];
+    c = input_shape[1];
+    h = 1;
+    w = 1;
+    result_type = RankedTensorType::get({n, c}, elementType_);
+  } else {
     assert(input_shape.size() == 4 || input_shape.size() == 2);
   }
-
   LLVM_DEBUG(
     llvm::errs()
         << "  N: " << n
@@ -992,14 +1038,31 @@ void CaffeImporter::convertReLULayer(mlir::Block *block,
   );
 
   // construct OP
-  //auto result_type = RankedTensorType::get({n, c, h, w}, elementType_);
   std::vector<NamedAttribute> attrs;
-  attrs.push_back(builder_.getNamedAttr("negative_slope", builder_.getF32FloatAttr(negative_slope)));
   attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name())));
-  auto op = OpBuilder(block).create<tpu::ReluOp>(
-      builder_.getUnknownLoc(), result_type,
-      ArrayRef<Value *>{input_var}, ArrayRef<NamedAttribute>{attrs});
-  auto result_var = op.getResult();
+  attrs.push_back(builder_.getNamedAttr("quant", getDefaultQuantParam(builder_)));
+
+  Value *result_var = nullptr;
+  if (negative_slope == 0.0f) {
+    auto op = OpBuilder(block).create<tpu::ReluOp>(
+        builder_.getUnknownLoc(), result_type,
+        ArrayRef<Value *>{input_var}, ArrayRef<NamedAttribute>{attrs});
+    result_var = op.getResult();
+  } else {
+    std::vector<Value *> operands;
+    operands.push_back(input_var);
+    auto NoneOp = OpBuilder(block).create<tpu::NoneOp>(builder_.getUnknownLoc(),
+                                                     builder_.getNoneType());
+    for (int i=0; i<8; i++) {
+      operands.push_back(NoneOp.getResult());  // quant: scale/zp/rshift/muliplier, pos and neg
+    }
+    assert(negative_slope > 0.0f && negative_slope < 1.0f);
+    attrs.push_back(builder_.getNamedAttr("negative_slope", builder_.getF32FloatAttr(negative_slope)));
+    auto op = OpBuilder(block).create<tpu::LeakyReluOp>(
+        builder_.getUnknownLoc(), result_type,
+        ArrayRef<Value *>{operands}, ArrayRef<NamedAttribute>{attrs});
+    result_var = op.getResult();
+  }
 
   tensor_map_[layer_param.top(0)] = result_var;
 }
@@ -1086,15 +1149,42 @@ void CaffeImporter::convertEltwiseLayer(mlir::Block *block,
   );
 
   // construct OP
+  std::vector<Value *> operands;
+  operands.push_back(input_vars[0]);
+  operands.push_back(input_vars[1]);
+  auto NoneOp = OpBuilder(block).create<tpu::NoneOp>(builder_.getUnknownLoc(),
+                                                     builder_.getNoneType());
+  operands.push_back(NoneOp.getResult());
+  operands.push_back(NoneOp.getResult());
+  operands.push_back(NoneOp.getResult());
+  operands.push_back(NoneOp.getResult());
+  for (unsigned i = 2; i < input_vars.size(); i++ ) {
+    operands.push_back(input_vars[i]);
+  }
+
   auto result_type = RankedTensorType::get({n, c, h, w}, elementType_);
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name())));
-  attrs.push_back(
-      builder_.getNamedAttr("method", builder_.getStringAttr(method)));
-  auto op = OpBuilder(block).create<tpu::EltwiseOp>(
-      builder_.getUnknownLoc(), result_type,
-      ArrayRef<Value *>{input_vars}, ArrayRef<NamedAttribute>{attrs});
-  auto result_var = op.getResult();
+  attrs.push_back(builder_.getNamedAttr("quant", getDefaultQuantParam(builder_)));
+  Value *result_var = nullptr;
+  if (method == "SUM") {
+    auto op = OpBuilder(block).create<tpu::EltwiseAddOp>(
+        builder_.getUnknownLoc(), result_type,
+        ArrayRef<Value *>{operands}, ArrayRef<NamedAttribute>{attrs});
+    result_var = op.getResult();
+  } else if (method == "PROD") {
+    auto op = OpBuilder(block).create<tpu::EltwiseMulOp>(
+        builder_.getUnknownLoc(), result_type,
+        ArrayRef<Value *>{operands}, ArrayRef<NamedAttribute>{attrs});
+    result_var = op.getResult();
+  } else if (method == "MAX") {
+    auto op = OpBuilder(block).create<tpu::EltwiseMaxOp>(
+        builder_.getUnknownLoc(), result_type,
+        ArrayRef<Value *>{operands}, ArrayRef<NamedAttribute>{attrs});
+    result_var = op.getResult();
+  } else {
+    assert(false);
+  }
 
   tensor_map_[layer_param.top(0)] = result_var;
 }
@@ -1698,7 +1788,7 @@ void CaffeImporter::convertReshapeLayer(mlir::Block *block,
   // construct OP
     result_type = RankedTensorType::get(ArrayRef<int64_t>{top_shape}, elementType_);
 
-}else if(input_shape.size() == 2){
+  } else if(input_shape.size() == 2) {
 
     assert((layer_param.reshape_param().shape().dim_size()==3)&& "only support input shape size is 2 && output shape size is 3 case ");
     auto size = std::accumulate(std::begin(input_shape), std::end(input_shape), 1, std::multiplies<>());
@@ -1724,9 +1814,9 @@ void CaffeImporter::convertReshapeLayer(mlir::Block *block,
     LLVM_DEBUG(llvm::errs() << "  C: " << output_shape[0] << ", H: " << output_shape[1] << ", W: " << output_shape[2]
                           << "\n";);
 
-}else{
-  assert(input_shape.size() == 4 || input_shape.size() == 2);
-}
+  } else {
+    assert(input_shape.size() == 4 || input_shape.size() == 2);
+  }
 
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder_.getNamedAttr("name",
@@ -1737,8 +1827,6 @@ void CaffeImporter::convertReshapeLayer(mlir::Block *block,
   auto result_var = reshape_op.getResult();
   tensor_map_[layer_param.top(0)] = result_var;
 }
-
-
 
 void CaffeImporter::convertTanHLayer(mlir::Block *block,
     caffe::Layer<float> *layer) {
@@ -1814,13 +1902,9 @@ void CaffeImporter::convertPriorBoxLayer(mlir::Block *block,
   llvm::ArrayRef<int64_t> input_shape =
       input_vars[0]->getType().dyn_cast<mlir::TensorType>().getShape();
 
-
   assert(prior_box_param.max_size_size()==1
     &&prior_box_param.min_size_size()==1
     &&prior_box_param.aspect_ratio_size()<=2);
-
-
-
 
   h = input_shape[2];
   w = input_shape[3];
@@ -1830,8 +1914,6 @@ void CaffeImporter::convertPriorBoxLayer(mlir::Block *block,
   operands.push_back(input_vars[1]);
 
   std::vector<NamedAttribute> attrs;
-
-
 
   attrs.push_back(builder_.getNamedAttr("min_size",
     builder_.getF32FloatAttr(prior_box_param.min_size(0))));
@@ -2148,12 +2230,12 @@ void CaffeImporter::convertNormalizeLayer(mlir::Block *block,
   auto result_type = RankedTensorType::get(input_shape, elementType_);
   std::vector<NamedAttribute> attrs_eltwise_power;
   attrs_eltwise_power.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name()+"_eltwise_prod_power")));
-  attrs_eltwise_power.push_back(
-      builder_.getNamedAttr("method", builder_.getStringAttr("PROD")));
-  auto eltwise_power_op = OpBuilder(block).create<tpu::EltwiseOp>(
+  attrs_eltwise_power.push_back(builder_.getNamedAttr("quant", getDefaultQuantParam(builder_)));
+  //attrs_eltwise_power.push_back(
+  //    builder_.getNamedAttr("method", builder_.getStringAttr("PROD")));
+  auto eltwise_power_op = OpBuilder(block).create<tpu::EltwiseMulOp>(
       builder_.getUnknownLoc(), result_type,
       ArrayRef<Value *>{operands_eltwise_power}, ArrayRef<NamedAttribute>{attrs_eltwise_power});
-
   auto power_result_var = eltwise_power_op.getResult();
 #endif
   /* 2. Reduction(using conv2D Op) OP */
@@ -2223,9 +2305,10 @@ void CaffeImporter::convertNormalizeLayer(mlir::Block *block,
 
   std::vector<NamedAttribute> attrs_eltwise;
   attrs_eltwise.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name()+"_eltwise_add")));
-  attrs_eltwise.push_back(
-      builder_.getNamedAttr("method", builder_.getStringAttr("PROD")));
-  auto eltwise_op = OpBuilder(block).create<tpu::EltwiseOp>(
+  attrs_eltwise.push_back(builder_.getNamedAttr("quant", getDefaultQuantParam(builder_)));
+  //attrs_eltwise.push_back(
+  //    builder_.getNamedAttr("method", builder_.getStringAttr("PROD")));
+  auto eltwise_op = OpBuilder(block).create<tpu::EltwiseMulOp>(
       builder_.getUnknownLoc(), result_type,
       ArrayRef<Value *>{operands_eltwise}, ArrayRef<NamedAttribute>{attrs_eltwise});
   auto eltwise_result_var = eltwise_op.getResult();
