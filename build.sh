@@ -4,6 +4,13 @@ set -e
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 source $DIR/envsetup.sh
 
+BUILD_TYPE="RELEASE"
+if [ "$BUILD_TYPE" == "RELEASE" ]; then
+  BUILD_FLAG="-DCMAKE_BUILD_TYPE=RELEASE -DCMAKE_C_FLAGS_RELEASE=-O3 -DCMAKE_CXX_FLAGS_RELEASE=-O3"
+else
+  BUILD_FLAG=""
+fi
+
 # download and unzip mkldnn
 if [ ! -e $MKLDNN_PATH ]; then
   wget https://github.com/intel/mkl-dnn/releases/download/v1.0.2/mkldnn_lnx_1.0.2_cpu_gomp.tgz
@@ -152,8 +159,8 @@ pushd $TPU_BASE/llvm-project/build
 cmake -G Ninja ../llvm -DLLVM_BUILD_EXAMPLES=ON \
     -DLLVM_TARGETS_TO_BUILD="host" -DCAFFE_PATH=$CAFFE_PATH \
     -DMKLDNN_PATH=$MKLDNN_PATH -DBMKERNEL_PATH=$BMKERNEL_PATH \
-    -DCMAKE_INSTALL_PREFIX=$MLIR_PATH -DLLVM_ENABLE_RTTI=ON -DLLVM_ENABLE_EH=ON
-    # -DCMAKE_BUILD_TYPE=RELWITHDEBINFO  # REL build disables assert, use debug for now
+    -DCMAKE_INSTALL_PREFIX=$MLIR_PATH -DLLVM_ENABLE_RTTI=ON -DLLVM_ENABLE_EH=ON \
+    $BUILD_FLAG
 cmake --build . --target check-mlir
 cmake --build . --target pymlir
 cmake --build . --target pybind
