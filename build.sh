@@ -156,6 +156,7 @@ cmake -G Ninja ../llvm -DLLVM_BUILD_EXAMPLES=ON \
     # -DCMAKE_BUILD_TYPE=RELWITHDEBINFO  # REL build disables assert, use debug for now
 cmake --build . --target check-mlir
 cmake --build . --target pymlir
+cmake --build . --target pybind
 popd
 
 cd $TPU_BASE/llvm-project/build

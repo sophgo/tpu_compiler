@@ -163,6 +163,11 @@ struct PythonMLIRModule {
     return ::makeMemRefType(mlir_context_t{&mlirContext}, elemType,
                             int64_list_t{sizes.data(), sizes.size()});
   }
+  PythonType makeRankedTensorType(PythonType elemType,
+                                  std::vector<int64_t> sizes) {
+    return ::makeRankedTensorType(mlir_context_t{&mlirContext}, elemType,
+                            int64_list_t{sizes.data(), sizes.size()});
+  }
   PythonType makeIndexType() {
     return ::makeIndexType(mlir_context_t{&mlirContext});
   }
@@ -615,7 +620,11 @@ struct PythonIndexedValue {
   // Create a new indexed value with the same base as this one but with indices
   // provided as arguments.
   PythonIndexedValue index(const std::vector<PythonValueHandle> &indices) {
-    std::vector<ValueHandle> handles(indices.begin(), indices.end());
+    std::vector<ValueHandle> handles;
+    for(size_t i = 0 ;i < indices.size(); i++){
+      ValueHandle a = indices.at(i);
+      handles.emplace_back(a);
+    }
     return PythonIndexedValue(IndexedValue(indexed(handles)));
   }
 
@@ -655,7 +664,7 @@ PythonMLIRModule::declareFunction(const std::string &name,
   std::vector<PythonAttributedType> attributedInputs;
   attributedInputs.reserve(inputs.size());
   for (const auto &in : inputs) {
-    std::string className = in.get_type().str();
+    std::string className = py::str(in.get_type());
     if (className.find(".Type'") != std::string::npos)
       attributedInputs.emplace_back(in.cast<PythonType>());
     else
@@ -675,7 +684,7 @@ PythonMLIRModule::declareFunction(const std::string &name,
   attrs.reserve(funcAttributes.size());
   for (const auto &named : funcAttributes)
     attrs.emplace_back(
-        Identifier::get(std::string(named.first.str()), &mlirContext),
+        Identifier::get(std::string(py::str(named.first)), &mlirContext),
         mlir::Attribute::getFromOpaquePointer(reinterpret_cast<const void *>(
             named.second.cast<PythonAttribute>().attr)));
 
@@ -744,7 +753,12 @@ PythonAffineMap PythonMLIRModule::affineConstantMap(int64_t value) {
 PythonAffineMap
 PythonMLIRModule::affineMap(unsigned dimCount, unsigned SymbolCount,
                             const std::vector<PythonAffineExpr> &results) {
-  std::vector<AffineExpr> mlir_results(results.begin(), results.end());
+  std::vector<AffineExpr> mlir_results;
+  for(size_t i =0;i < results.size(); i++){
+    AffineExpr a = results.at(i); 
+    mlir_results.emplace_back(a);
+  }
+  
   return PythonAffineMap(AffineMap::get(
       dimCount, SymbolCount, llvm::ArrayRef<AffineExpr>(mlir_results)));
 }
@@ -796,7 +810,11 @@ PYBIND11_MODULE(pybind, m) {
   m.def(
       "ret",
       [](const std::vector<PythonValueHandle> &args) {
-        std::vector<ValueHandle> values(args.begin(), args.end());
+        std::vector<ValueHandle> values;
+        for (size_t i = 0; i < args.size(); i++) {
+          ValueHandle a = args.at(i);
+          values.emplace_back(a);
+        }
         (intrinsics::ret(ArrayRef<ValueHandle>{values})); // vexing parse
         return PythonValueHandle(nullptr);
       },
@@ -805,7 +823,11 @@ PYBIND11_MODULE(pybind, m) {
       "br",
       [](const PythonBlockHandle &dest,
          const std::vector<PythonValueHandle> &args) {
-        std::vector<ValueHandle> values(args.begin(), args.end());
+        std::vector<ValueHandle> values;
+        for (size_t i = 0; i < args.size(); i++) {
+          ValueHandle a = args.at(i);
+          values.emplace_back(a);
+        }
         intrinsics::br(dest, values);
         return PythonValueHandle(nullptr);
       },
@@ -816,10 +838,16 @@ PYBIND11_MODULE(pybind, m) {
          const std::vector<PythonValueHandle> &trueArgs,
          const PythonBlockHandle &falseDest,
          const std::vector<PythonValueHandle> &falseArgs) -> PythonValueHandle {
-        std::vector<ValueHandle> trueArguments(trueArgs.begin(),
-                                               trueArgs.end());
-        std::vector<ValueHandle> falseArguments(falseArgs.begin(),
-                                                falseArgs.end());
+        std::vector<ValueHandle> trueArguments;
+        for (size_t i = 0; i < trueArgs.size(); i++) {
+          ValueHandle a = trueArgs.at(i);
+          trueArguments.emplace_back(a);
+        }
+        std::vector<ValueHandle> falseArguments;
+         for (size_t i = 0; i < falseArgs.size(); i++) {
+          ValueHandle a = falseArgs.at(i);
+          falseArguments.emplace_back(a);
+        }
         intrinsics::cond_br(condition, trueDest, trueArguments, falseDest,
                             falseArguments);
         return PythonValueHandle(nullptr);
@@ -840,8 +868,11 @@ PYBIND11_MODULE(pybind, m) {
            const std::vector<PythonValueHandle> &operands,
            const std::vector<PythonType> &resultTypes,
            const py::kwargs &attributes) -> PythonValueHandle {
-          std::vector<ValueHandle> operandHandles(operands.begin(),
-                                                  operands.end());
+          std::vector<ValueHandle> operandHandles;
+          for (size_t i = 0; i < operands.size(); i++) {
+            ValueHandle a = operands.at(i);
+            operandHandles.emplace_back(a);
+          }
           std::vector<Type> types;
           types.reserve(resultTypes.size());
           for (auto t : resultTypes)
@@ -850,7 +881,7 @@ PYBIND11_MODULE(pybind, m) {
           std::vector<NamedAttribute> attrs;
           attrs.reserve(attributes.size());
           for (const auto &a : attributes) {
-            std::string name = a.first.str();
+            std::string name = py::str(a.first);
             auto pyAttr = a.second.cast<PythonAttribute>();
             auto cppAttr = Attribute::getFromOpaquePointer(pyAttr.attr);
             auto identifier =
@@ -930,6 +961,8 @@ PYBIND11_MODULE(pybind, m) {
       .def("make_memref_type", &PythonMLIRModule::makeMemRefType,
            "Returns an mlir::MemRefType of an elemental scalar. -1 is used to "
            "denote symbolic dimensions in the resulting memref shape.")
+      .def("make_ranked_tensor_type", &PythonMLIRModule::makeRankedTensorType,
+           "Returns an mlir::RankedTensorType of an elemental scalar.")
       .def("make_index_type", &PythonMLIRModule::makeIndexType,
            "Returns an mlir::IndexType")
       .def("make_type", &PythonMLIRModule::makeType,
