@@ -32,6 +32,7 @@ add_llvm_library(MLIRTPU
   Quantization/GenSqrtTable.cpp
   Quantization/GenDivTable.cpp
   Quantization/GenSigmoidTable.cpp
+  Optimization/FuseLeakyRelu.cpp
   Backend/TpuTgCodegen.cpp
 
   ADDITIONAL_HEADER_DIRS

@@ -30,7 +30,7 @@ Value* tpu::ConcatOp::convertToTG(void *info) {
   TensorFile *weightTF_ = (TensorFile *)info;
   assert(weightTF_);
 
-  const unsigned nInputs = op->getNumOperands() - 4;
+  const unsigned nInputs = this->getNumInputs();
   std::vector<Value *> operands;
   for (unsigned i = 0; i < nInputs; ++i) {
     operands.push_back(op->getOperand(i));
@@ -137,7 +137,7 @@ Value* tpu::EltwiseAddOp::convertToTG(void *info) {
   TensorFile *weightTF_ = (TensorFile *)info;
   assert(weightTF_);
 
-  const unsigned nInputs = op->getNumOperands() - 4;
+  const unsigned nInputs = this->getNumInputs();
   std::vector<Value *> operands;
   for (unsigned i = 0; i < nInputs; ++i) {
     operands.push_back(op->getOperand(i));
@@ -195,7 +195,7 @@ Value* tpu::EltwiseMaxOp::convertToTG(void *info) {
   auto builder = Builder(op->getContext());
   TensorFile *weightTF_ = (TensorFile *)info;
 
-  const unsigned nInputs = op->getNumOperands() - 4;
+  const unsigned nInputs = this->getNumInputs();
   std::vector<Value *> operands;
   for (unsigned i = 0; i < nInputs; ++i) {
     operands.push_back(op->getOperand(i));
@@ -252,7 +252,7 @@ Value* tpu::EltwiseMulOp::convertToTG(void *info) {
   auto builder = Builder(op->getContext());
   TensorFile *weightTF_ = (TensorFile *)info;
 
-  const unsigned nInputs = op->getNumOperands() - 4;
+  const unsigned nInputs = this->getNumInputs();
   std::vector<Value *> operands;
   for (unsigned i = 0; i < nInputs; ++i) {
     operands.push_back(op->getOperand(i));

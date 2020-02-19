@@ -60,6 +60,8 @@ std::unique_ptr<OpPassBase<FuncOp>> createGenSqrtTablePass();
 
 std::unique_ptr<OpPassBase<FuncOp>> createTpuLowerPass();
 
+std::unique_ptr<OpPassBase<FuncOp>> createTgFuseLeakyReluPass();
+
 } // namespace mlir
 
 #endif // MLIR_DIALECT_TPU_PASSES_H_
