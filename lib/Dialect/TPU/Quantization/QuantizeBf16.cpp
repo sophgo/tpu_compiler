@@ -633,7 +633,7 @@ public:
                 TpuQuantBf16DefaultPattern<tpu::PoolAvg2DOp>,
                 TpuQuantBf16DefaultPattern<tpu::PoolMax2DOp>,
                 TpuQuantBf16DefaultPattern<tpu::ReluOp>,
-
+                TpuQuantBf16DefaultPattern<tpu::UpsampleOp>,
 
                 TpuQuantDefaultPattern<tpu::CropOp>,
                 TpuQuantFullyConnectedOpPattern,

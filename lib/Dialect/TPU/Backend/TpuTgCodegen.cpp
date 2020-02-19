@@ -671,4 +671,24 @@ LogicalResult tpu::TG_BF16_PoolMax2DOp::codegen(void *ctx) {
   return success();
 }
 
+LogicalResult tpu::TG_INT8_UpsampleOp::codegen(void *ctx) {
+  llvm::errs() << "TG_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";
+  //BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
+  //Operation *op = this->getOperation();
+
+  assert(false);
+  return success();
+}
+
+LogicalResult tpu::TG_BF16_UpsampleOp::codegen(void *ctx) {
+  llvm::errs() << "TG_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";
+  //BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
+  //Operation *op = this->getOperation();
+
+  assert(false);
+  return success();
+}
+
 }
