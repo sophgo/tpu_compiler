@@ -106,6 +106,9 @@ class TPU_TG_ConvOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
                           offset within the memory region.
       `name`            : required, name for comparing, or debug.
       `layer_id`        : optional, id for profiling.
+      `fuse_prev`       : optional, if present, be fused with the prev TG op,
+                          and current Op shouldn't generate any code anymore.
+      `fuse_next`       : optional, if present, fuse with the next TG op.
 
     Result:
       `output`          : result tensor.
@@ -125,7 +128,9 @@ class TPU_TG_ConvOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<BoolAttr, "false">:$fuse_prev,
+    DefaultValuedAttr<BoolAttr, "false">:$fuse_next
   );
 
   let results = (outs AnyTensor:$output);
@@ -210,6 +215,9 @@ class TPU_TG_LeakyReluOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
                           offset within the memory region.
       `name`            : required, name for comparing, or debug.
       `layer_id`        : optional, id for profiling.
+      `fuse_prev`       : optional, if present, be fused with the prev TG op,
+                          and current Op shouldn't generate any code anymore.
+      `fuse_next`       : optional, if present, fuse with the next TG op.
 
     Result:
       `output`          : result tensor.
@@ -229,7 +237,9 @@ class TPU_TG_LeakyReluOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<BoolAttr, "false">:$fuse_prev,
+    DefaultValuedAttr<BoolAttr, "false">:$fuse_next
   );
 
   let results = (outs AnyTensor:$output);

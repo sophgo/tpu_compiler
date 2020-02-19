@@ -31,6 +31,12 @@ mlir-opt \
     yolo_v3_416_quant_int8_per_layer.mlir \
     -o yolo_v3_416_quant_int8_per_layer_tg.mlir
 
+# apply all possible backend optimizations
+mlir-opt \
+    --tg-fuse-leakyrelu \
+    yolo_v3_416_quant_int8_per_layer_tg.mlir \
+    -o yolo_v3_416_quant_int8_per_layer_tg_opt.mlir
+
 # assign weight address & neuron address
 mlir-opt \
     --assign-weight-address \
@@ -40,7 +46,7 @@ mlir-opt \
     --assign-neuron-address \
     --tpu-neuron-address-align=16 \
     --tpu-neuron-map-filename=neuron_map.csv \
-    yolo_v3_416_quant_int8_per_layer_tg.mlir \
+    yolo_v3_416_quant_int8_per_layer_tg_opt.mlir \
     -o yolo_v3_416_quant_int8_per_layer_addr.mlir
 
 mlir-translate \
@@ -58,10 +64,10 @@ python $CVIBUILDER_PATH/python/cvi_model_create.py \
 # run cmdbuf
 #$RUNTIME_PATH/bin/test_bmnet \
 #    yolo_v3_in_int8.bin \
-#    weight_int8_per_layer.bin \
-#    cmdbuf_int8_per_layer.bin \
+#    weight_int8_multiplier.bin \
+#    cmdbuf_int8_multiplier.bin \
 #    yolo_v3_cmdbuf_out_all_int8_per_layer.bin \
-#    16460784 0 16460784 1
+#    94614832 0 94614832 1
 $RUNTIME_PATH/bin/test_cvinet \
     yolo_v3_in_int8.bin \
     yolo_v3_416_int8_per_layer.cvimodel \
@@ -101,6 +107,12 @@ mlir-opt \
     yolo_v3_416_quant_int8_multiplier.mlir \
     -o yolo_v3_416_quant_int8_multiplier_tg.mlir
 
+# apply all possible backend optimizations
+mlir-opt \
+    --tg-fuse-leakyrelu \
+    yolo_v3_416_quant_int8_multiplier_tg.mlir \
+    -o yolo_v3_416_quant_int8_multiplier_tg_opt.mlir
+
 # assign weight address & neuron address
 mlir-opt \
     --assign-weight-address \
@@ -110,7 +122,7 @@ mlir-opt \
     --assign-neuron-address \
     --tpu-neuron-address-align=16 \
     --tpu-neuron-map-filename=neuron_map.csv \
-    yolo_v3_416_quant_int8_multiplier_tg.mlir \
+    yolo_v3_416_quant_int8_multiplier_tg_opt.mlir \
     -o yolo_v3_416_quant_int8_multiplier_addr.mlir
 
 mlir-translate \
@@ -131,7 +143,7 @@ python $CVIBUILDER_PATH/python/cvi_model_create.py \
 #    weight_int8_multiplier.bin \
 #    cmdbuf_int8_multiplier.bin \
 #    yolo_v3_cmdbuf_out_all_int8_multiplier.bin \
-#    16460784 0 16460784 1
+#    94614832 0 94614832 1
 $RUNTIME_PATH/bin/test_cvinet \
     data_quant.bin \
     yolo_v3_416_int8_multiplier.cvimodel \

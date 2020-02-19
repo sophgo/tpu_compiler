@@ -81,7 +81,7 @@ LogicalResult tpu::ConcatOp::interpret(
   LLVM_DEBUG(llvm::errs() << "concat_axis =" << concat_axis << "\n";);
 
   // get tensors
-  size_t nInputs = op->getNumOperands() - 4;
+  size_t nInputs = this->getNumInputs();
   assert(nInputs >= 2 && "bottom num is 0 or 1");
   std::vector<float *> input(nInputs);
   for (size_t i = 0; i < nInputs; ++i) {
