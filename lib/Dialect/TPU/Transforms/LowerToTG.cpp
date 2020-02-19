@@ -81,11 +81,10 @@ Value* tpu::EltwiseAddOp::convertToTG(void *info) {
   assert(weightTF_);
 
   const unsigned nInputs = op->getNumOperands() - 4;
-  assert(nInputs == 2);
-
   std::vector<Value *> operands;
-  operands.push_back(input1());
-  operands.push_back(input2());
+  for (unsigned i = 0; i < nInputs; ++i) {
+    operands.push_back(op->getOperand(i));
+  }
 
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
@@ -95,17 +94,21 @@ Value* tpu::EltwiseAddOp::convertToTG(void *info) {
   if (getOpQuant() == "INT8") {
     assert(getOpQuantParamType() == "RSHIFT_AND_M_I8");
     // ADD
+    // rshift
     auto rshift = readAndDeleteWeightTensor<float>(quant_rshift(), weightTF_);
     assert(rshift->size() == 1);
     attrs.push_back(builder.getNamedAttr("rshift",
         builder.getI8IntegerAttr(static_cast<int8_t>(rshift->at(0)))));
+
+    // m_i8_output
     auto multiplier = readAndDeleteWeightTensor<float>(quant_multiplier(),
-                                                       weightTF_);
-    assert(multiplier->size() == 2);
-    attrs.push_back(builder.getNamedAttr("m_i8_input1",
-        builder.getI8IntegerAttr(static_cast<int8_t>(multiplier->at(0)))));
-    attrs.push_back(builder.getNamedAttr("m_i8_input2",
-        builder.getI8IntegerAttr(static_cast<int8_t>(multiplier->at(1)))));
+                                                     weightTF_);
+    std::vector<int32_t> m_i8_inputs_array(nInputs);
+    for (unsigned i = 0; i < nInputs; ++i) {
+      m_i8_inputs_array[i] = static_cast<int32_t>(multiplier->at(i));
+    }
+    attrs.push_back(builder.getNamedAttr("m_i8_inputs",
+        builder.getI32ArrayAttr(ArrayRef<int32_t>({m_i8_inputs_array}))));
 
     // create op
     auto newOp = OpBuilder(op).create<tpu::TG_INT8_EltwiseAddOp>(op->getLoc(),
@@ -130,11 +133,10 @@ Value* tpu::EltwiseMaxOp::convertToTG(void *info) {
   TensorFile *weightTF_ = (TensorFile *)info;
 
   const unsigned nInputs = op->getNumOperands() - 4;
-  assert(nInputs == 2);
-
   std::vector<Value *> operands;
-  operands.push_back(input1());
-  operands.push_back(input2());
+  for (unsigned i = 0; i < nInputs; ++i) {
+    operands.push_back(op->getOperand(i));
+  }
 
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
@@ -144,17 +146,21 @@ Value* tpu::EltwiseMaxOp::convertToTG(void *info) {
   if (getOpQuant() == "INT8") {
     assert(getOpQuantParamType() == "RSHIFT_AND_M_I8");
     // MAX
+    // rshift
     auto rshift = readAndDeleteWeightTensor<float>(quant_rshift(), weightTF_);
     assert(rshift->size() == 1);
     attrs.push_back(builder.getNamedAttr("rshift",
         builder.getI8IntegerAttr(static_cast<int8_t>(rshift->at(0)))));
+
+    // m_i8_output
     auto multiplier = readAndDeleteWeightTensor<float>(quant_multiplier(),
                                                      weightTF_);
-    assert(multiplier->size() == 2);
-    attrs.push_back(builder.getNamedAttr("m_i8_input1",
-        builder.getI8IntegerAttr(static_cast<int8_t>(multiplier->at(0)))));
-    attrs.push_back(builder.getNamedAttr("m_i8_input2",
-        builder.getI8IntegerAttr(static_cast<int8_t>(multiplier->at(1)))));
+    std::vector<int32_t> m_i8_inputs_array(nInputs);
+    for (unsigned i = 0; i < nInputs; ++i) {
+      m_i8_inputs_array[i] = static_cast<int32_t>(multiplier->at(i));
+    }
+    attrs.push_back(builder.getNamedAttr("m_i8_inputs",
+        builder.getI32ArrayAttr(ArrayRef<int32_t>({m_i8_inputs_array}))));
 
     // create op
     auto newOp = OpBuilder(op).create<tpu::TG_INT8_EltwiseMaxOp>(op->getLoc(),
@@ -179,11 +185,10 @@ Value* tpu::EltwiseMulOp::convertToTG(void *info) {
   TensorFile *weightTF_ = (TensorFile *)info;
 
   const unsigned nInputs = op->getNumOperands() - 4;
-  assert(nInputs == 2);
-
   std::vector<Value *> operands;
-  operands.push_back(input1());
-  operands.push_back(input2());
+  for (unsigned i = 0; i < nInputs; ++i) {
+    operands.push_back(op->getOperand(i));
+  }
 
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
@@ -193,10 +198,13 @@ Value* tpu::EltwiseMulOp::convertToTG(void *info) {
   if (getOpQuant() == "INT8") {
     assert(getOpQuantParamType() == "RSHIFT_AND_M_I8");
     // MUL
+    // rshift
     auto rshift = readAndDeleteWeightTensor<float>(quant_rshift(), weightTF_);
     assert(rshift->size() == 1);
     attrs.push_back(builder.getNamedAttr("rshift",
         builder.getI8IntegerAttr(static_cast<int8_t>(rshift->at(0)))));
+
+    // m_i8_output
     auto multiplier = readAndDeleteWeightTensor<float>(quant_multiplier(),
                                                      weightTF_);
     assert(multiplier->size() == 1);

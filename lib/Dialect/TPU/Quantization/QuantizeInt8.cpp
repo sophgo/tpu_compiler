@@ -240,16 +240,6 @@ struct TpuQuantInt8EltwiseMulOpPattern : public RewritePattern {
 
     // get operands
     const unsigned nInputs = op->getNumOperands() - 4;
-    std::vector<int> opd_idx;
-    opd_idx.push_back(0);
-    if (nInputs > 1) {
-      opd_idx.push_back(1);
-    }
-    if (nInputs > 2) {
-      for (unsigned i = 0; i < nInputs - 2; i++) {
-        opd_idx.push_back(6 + i);
-      }
-    }
 
     // get thresholds
     float threshold_y = getOpThreshold(op);
@@ -257,7 +247,7 @@ struct TpuQuantInt8EltwiseMulOpPattern : public RewritePattern {
                  << std::to_string(threshold_y) << "\n";);
     std::vector<float> threshold_x(nInputs);
     for (unsigned i = 0; i < nInputs; ++i) {
-      threshold_x[i] = getPreviousOpThreshold(op, opd_idx[i]);
+      threshold_x[i] = getPreviousOpThreshold(op, i);
       LLVM_DEBUG(llvm::errs() << "  threshold_x[" << i << "] = "
                  << std::to_string(threshold_x[i]) << "\n";);
     }
@@ -441,18 +431,6 @@ struct TpuQuantInt8DefaultPattern : public RewritePattern {
 
     // get operands
     const unsigned nInputs = op->getNumOperands() - 4;
-    std::vector<int> opd_idx;
-    opd_idx.push_back(0);
-    int quant_opd_idx_start = 1;
-    if (nInputs > 1) {
-      opd_idx.push_back(1);
-      quant_opd_idx_start = 2;
-    }
-    if (nInputs > 2) {
-      for (unsigned i = 0; i < nInputs - 2; i++) {
-        opd_idx.push_back(6 + i);
-      }
-    }
 
     bool bypass = true;
     float bypass_eps = 1e-5;
@@ -462,7 +440,7 @@ struct TpuQuantInt8DefaultPattern : public RewritePattern {
                             << std::to_string(threshold_y) << "\n";);
     std::vector<float> threshold_x(nInputs);
     for (unsigned i = 0; i < nInputs; ++i) {
-      threshold_x[i] = getPreviousOpThreshold(op, opd_idx[i]);
+      threshold_x[i] = getPreviousOpThreshold(op, i);
       LLVM_DEBUG(llvm::errs() << "  threshold_x[" << i << "] = "
                  << std::to_string(threshold_x[i]) << "\n";);
       if (fabs(threshold_y - threshold_x[i]) > bypass_eps) {
@@ -534,13 +512,13 @@ struct TpuQuantInt8DefaultPattern : public RewritePattern {
     auto rshift_op = addWeightTensorAndCreateWeightOp<float>(
         op, "rshift", *rshift, shape_rshift, storageType,
         weightTF_, weightFV_);
-    op->setOperand(quant_opd_idx_start + 2, rshift_op);
+    op->setOperand(nInputs + 2, rshift_op);
 
     auto shape_multiplier = std::vector<int64_t>{nInputs};
     auto multiplier_op = addWeightTensorAndCreateWeightOp<float>(
         op, "multiplier", *multiplier, shape_multiplier, storageType,
         weightTF_, weightFV_);
-    op->setOperand(quant_opd_idx_start + 3, multiplier_op);
+    op->setOperand(nInputs + 3, multiplier_op);
 
     setOpQuantParamType(op, "RSHIFT_AND_M_I8");
     setOpQuant(op, "INT8");

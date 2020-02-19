@@ -92,13 +92,12 @@ class TPU_TG_EltwiseOp<string mnemonic, string opQuant, string opType> : TPU_Op<
 
   let description = [{
     Inputs:
-      `input1`          : required, the input1 activation memref.
-      `input2`          : required, the input1 activation memref.
+      `inputs`          : required, the variadic activation memref.
 
     Attributes:
       `rshift`          : optional, rshift, an int8 value.
-      `m_i8_input1`     : optional, multiplier for input1.
-      `m_i8_input2`     : optional, multiplier for input2.
+      `m_i8_inputs`     : optional, multipliers for inputs. one int8 value for
+                          each input (saved as I32ArrayAttr)
       `m_i8_output`     : optional, multiplier for output.
       `do_relu`         : required, if need to preform relu on result.
       `region`          : required, the memory region to reside in, could be
@@ -122,8 +121,7 @@ class TPU_TG_EltwiseOp<string mnemonic, string opQuant, string opType> : TPU_Op<
     ins AnyTensor:$input1,
     AnyTensor:$input2,
     OptionalAttr<I8Attr>:$rshift,
-    OptionalAttr<I8Attr>:$m_i8_input1,
-    OptionalAttr<I8Attr>:$m_i8_input2,
+    OptionalAttr<I32ArrayAttr>:$m_i8_inputs,
     OptionalAttr<I8Attr>:$m_i8_output,
     DefaultValuedAttr<BoolAttr, "false">:$do_relu,
     DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,

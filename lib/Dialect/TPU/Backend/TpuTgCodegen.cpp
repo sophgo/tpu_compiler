@@ -248,6 +248,15 @@ LogicalResult tpu::TG_BF16_Conv2DOp::codegen(void *ctx) {
   return success();
 }
 
+static void arrayAttrToVector(const ArrayAttr &arrayAttr,
+    std::vector<int32_t> &vector) {
+  vector.clear();
+  for (auto en : llvm::enumerate(arrayAttr)) {
+    auto attr = en.value().dyn_cast<IntegerAttr>();
+    vector.push_back(attr.getInt());
+  }
+}
+
 LogicalResult tpu::TG_INT8_EltwiseAddOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";
@@ -268,11 +277,15 @@ LogicalResult tpu::TG_INT8_EltwiseAddOp::codegen(void *ctx) {
 
   assert(this->rshift().hasValue());
   int8_t rshift = this->rshift().getValue().getLimitedValue();
+
   int8_t m_i8_input[2];
-  assert(this->m_i8_input1().hasValue());
-  m_i8_input[0] = this->m_i8_input1().getValue().getLimitedValue();
-  assert(this->m_i8_input2().hasValue());
-  m_i8_input[1] = this->m_i8_input2().getValue().getLimitedValue();
+  assert(this->m_i8_inputs().hasValue());
+  std::vector<int32_t> m_i8_inputs_array;
+  arrayAttrToVector(this->m_i8_inputs().getValue(), m_i8_inputs_array);
+  assert(m_i8_inputs_array.size() == op->getNumOperands());
+  assert(m_i8_inputs_array.size() >= 2);
+  m_i8_input[0] = static_cast<int8_t>(m_i8_inputs_array[0]);
+  m_i8_input[1] = static_cast<int8_t>(m_i8_inputs_array[1]);
 
   // TODO: should change on backend API, rather than doing cast
   int rshift_int = static_cast<int>(rshift);
