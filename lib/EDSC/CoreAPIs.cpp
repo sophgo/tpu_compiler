@@ -76,6 +76,12 @@ mlir_attr_t makeIntegerAttr(mlir_type_t type, int64_t value) {
   return mlir_attr_t{attr.getAsOpaquePointer()};
 }
 
+mlir_attr_t makeStringAttr(mlir_context_t context, const char *value) {
+  auto *ctx = reinterpret_cast<mlir::MLIRContext *>(context);
+  auto attr = StringAttr::get(value, ctx);
+  return mlir_attr_t{attr.getAsOpaquePointer()};
+}
+
 mlir_attr_t makeBoolAttr(mlir_context_t context, bool value) {
   auto *ctx = reinterpret_cast<mlir::MLIRContext *>(context);
   auto attr = BoolAttr::get(value, ctx);

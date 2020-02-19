@@ -204,6 +204,9 @@ struct PythonMLIRModule {
   // Create a boolean attribute.
   PythonAttribute boolAttr(bool value);
 
+  // Creates a string atrribute.
+  PythonAttribute stringAttr(const std::string &value);
+
   // Creates an Array attribute.
   PythonAttribute arrayAttr(const std::vector<PythonAttribute> &values);
 
@@ -718,6 +721,9 @@ PythonAttribute PythonMLIRModule::integerAttr(PythonType type, int64_t value) {
   return PythonAttribute(::makeIntegerAttr(type, value));
 }
 
+PythonAttribute PythonMLIRModule::stringAttr(const std::string &value) {
+  return PythonAttribute(::makeStringAttr(&mlirContext, value.c_str()));
+}
 PythonAttribute PythonMLIRModule::boolAttr(bool value) {
   return PythonAttribute(::makeBoolAttr(&mlirContext, value));
 }
@@ -941,6 +947,8 @@ PYBIND11_MODULE(pybind, m) {
           "integerAttr", &PythonMLIRModule::integerAttr,
           "Creates an mlir::IntegerAttr of the given type with the given value "
           "in the context associated with this MLIR module.")
+      .def("stringAttr", &PythonMLIRModule::stringAttr,
+           "Creates an mlir::StringAttr with the given value")
       .def("arrayAttr", &PythonMLIRModule::arrayAttr,
            "Creates an mlir::ArrayAttr of the given type with the given values "
            "in the context associated with this MLIR module.")

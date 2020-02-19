@@ -87,6 +87,9 @@ mlir_type_t makeIndexType(mlir_context_t context);
 /// value.
 mlir_attr_t makeIntegerAttr(mlir_type_t type, int64_t value);
 
+/// Returns an `mlir::StringAttr` with the given value.
+mlir_attr_t makeStringAttr(mlir_context_t context, const char *value);
+
 /// Returns an `mlir::BoolAttr` with the given value.
 mlir_attr_t makeBoolAttr(mlir_context_t context, bool value);
 
