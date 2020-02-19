@@ -7,12 +7,21 @@ source $DIR/../../envsetup.sh
 ################################
 # prepare int8 input
 ################################
-npz_to_bin.py resnet50_in_fp32.npz input resnet50_in_fp32.bin
-bin_fp32_to_int8.py \
-    resnet50_in_fp32.bin \
+
+npz_to_bin.py \
+    resnet50_tensor_all_int8_multiplier.npz \
+    data_quant \
     resnet50_in_int8.bin \
-    1.0 \
-    161.008057
+    int8
+
+# don't use following commands to generate input, as it depends on
+# calibration result.
+# npz_to_bin.py resnet50_in_fp32.npz input resnet50_in_fp32.bin
+# bin_fp32_to_int8.py \
+#    resnet50_in_fp32.bin \
+#    resnet50_in_int8.bin \
+#    1.0 \
+#    161.008057
 
 ################################
 # Lower for quantization 1: per-layer int8

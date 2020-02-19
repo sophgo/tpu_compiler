@@ -7,12 +7,21 @@ source $DIR/../../envsetup.sh
 ################################
 # prepare int8 input
 ################################
-npz_to_bin.py yolo_v3_in_fp32.npz input yolo_v3_in_fp32.bin
-bin_fp32_to_int8.py \
-    yolo_v3_in_fp32.bin \
+
+npz_to_bin.py \
+    yolo_v3_tensor_all_int8_multiplier.npz \
+    data_quant \
     yolo_v3_in_int8.bin \
-    1.0 \
-    1.00048852
+    int8
+
+# don't use following commands to generate input, as it depends on
+# calibration result.
+# npz_to_bin.py yolo_v3_in_fp32.npz input yolo_v3_in_fp32.bin
+# bin_fp32_to_int8.py \
+#     yolo_v3_in_fp32.bin \
+#     yolo_v3_in_int8.bin \
+#     1.0 \
+#     1.00000488758
 
 ################################
 # Lower for quantization 1: per-layer int8
@@ -124,7 +133,7 @@ python $CVIBUILDER_PATH/python/cvi_model_create.py \
 #    yolo_v3_cmdbuf_out_all_int8_multiplier.bin \
 #    16460784 0 16460784 1
 $RUNTIME_PATH/bin/test_cvinet \
-    yolo_v3_in_int8.bin \
+    data_quant.bin \
     yolo_v3_416_int8_multiplier.cvimodel \
     yolo_v3_cmdbuf_out_all_int8_multiplier.bin
 
