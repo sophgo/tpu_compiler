@@ -628,6 +628,44 @@ LogicalResult tpu::ReluOp::interpret(
   return success();
 }
 
+LogicalResult tpu::UpsampleOp::interpret(
+    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+  Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
+
+  auto opdT = getOperandTensors(op, valueMapping);
+  auto result = this->getResult();
+  auto size = getTensorSize(result);
+  auto resultT = std::make_unique<std::vector<float> >(size);
+
+  // parse param
+  std::vector<int64_t> input_shape;
+  int64_t input_size, n, c, ih, iw;
+  getTensorShapeAndSize(this->input(), input_shape, input_size);
+  getNCHW(input_shape, n, c, ih, iw);
+  std::vector<int64_t> output_shape;
+  int64_t output_size, oh, ow;
+  getTensorShapeAndSize(this->output(), output_shape, output_size);
+  oh = output_shape[2];
+  ow = output_shape[3];
+  int64_t scale = this->scale().getLimitedValue();
+  assert(oh == ih * scale);
+  assert(ow == iw * scale);
+
+  // get tensors
+  assert(opdT.size() == 1);
+  std::shared_ptr<std::vector<float> > input = opdT[0];
+
+  // compute in fp32
+  int ret = my_upsample(input->data(), resultT->data(), n, c, ih, iw, scale);
+  assert(ret == 0);
+
+  valueMapping[result] = std::move(resultT);
+
+  return success();
+}
+
+
 
 
 
@@ -1361,42 +1399,6 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     my_crop(input, output, input_shape1.data(), input_shape2.data(),
             output_shape.data(), 0, crop_offset.data(), indices.data());
     valueMapping[result] = std::move(resultT);
-    return success();
-  }
-
-  if (auto op = dyn_cast<tpu::UpsampleOp>(opInst)) {
-    LLVM_DEBUG(llvm::errs() << "UpsampleOp" << "\n";);
-    auto opdT = getOperandTensors(opInst, valueMapping);
-    auto result = op.getResult();
-    LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";);
-    std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
-    assert(shape.size() <= 4);
-    auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
-    auto resultT = std::make_unique<std::vector<float> >(size);
-
-    int n, c, ih, iw, oh, ow, scale;
-    auto input_type = op.x()->getType().cast<TensorType>();
-    std::vector<int64_t> i_s(input_type.getShape());
-    auto output_type = op.y()->getType().cast<TensorType>();
-    std::vector<int64_t> o_s(output_type.getShape());
-    n = i_s[0];
-    c = i_s[1];
-    ih = i_s[2];
-    iw = i_s[3];
-    scale = op.scale().getLimitedValue();
-    assert(o_s[0] == n);
-    assert(o_s[1] == c);
-    oh = o_s[2];
-    ow = o_s[3];
-    assert(oh ==  ih * scale);
-    assert(ow ==  iw * scale);
-    float *input = (float *)opdT[0]->data();
-    float *output = (float *)resultT.get()->data();
-    int ret = my_upsample(input, output, n, c, ih, iw, scale);
-    assert(ret == 0);
-
-    valueMapping[result] = std::move(resultT);
-
     return success();
   }
 

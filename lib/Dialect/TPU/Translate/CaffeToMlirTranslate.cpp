@@ -1410,6 +1410,7 @@ void CaffeImporter::convertUpsampleLayer(mlir::Block *block,
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder_.getNamedAttr("scale", builder_.getI32IntegerAttr(scale)));
   attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name())));
+  attrs.push_back(builder_.getNamedAttr("quant", getDefaultQuantParam(builder_)));
   auto op = OpBuilder(block).create<tpu::UpsampleOp>(
       builder_.getUnknownLoc(), result_type,
       ArrayRef<Value *>{input_vars}, ArrayRef<NamedAttribute>{attrs});
@@ -2460,7 +2461,7 @@ void CaffeImporter::convertShuffleChannelLayer(mlir::Block *block,
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder_.getNamedAttr("group", builder_.getI32IntegerAttr(group)));
   attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name())));
- 
+
   auto op = OpBuilder(block).create<tpu::ShuffleChannelOp>(
       builder_.getUnknownLoc(), result_type,
       ArrayRef<Value *>{operands}, ArrayRef<NamedAttribute>{attrs});

@@ -413,6 +413,37 @@ Value* tpu::PoolMax2DOp::convertToTG(void *info) {
   return nullptr;
 }
 
+Value* tpu::UpsampleOp::convertToTG(void *info) {
+  llvm::errs() << "lowerToTG: " << getOperationName()
+               << " [" << getOpName() << "]\n";
+  Operation *op = this->getOperation();
+  auto builder = Builder(op->getContext());
+  //TensorFile *weightTF_ = (TensorFile *)info;
+
+  std::vector<Value *> operands;
+  operands.push_back(input());
+
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder.getNamedAttr("scale", scaleAttr()));
+  attrs.push_back(builder.getNamedAttr("name", nameAttr()));
+  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
+
+  if (getOpQuant() == "INT8") {
+    assert(getOpQuantParamType() == "NONE");
+    auto newOp = OpBuilder(op).create<tpu::TG_INT8_UpsampleOp>(op->getLoc(),
+        getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  } else if (getOpQuant() == "BF16") {
+    auto newOp = OpBuilder(op).create<tpu::TG_BF16_UpsampleOp>(op->getLoc(),
+        getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  }
+  assert(false);
+  return nullptr;
+}
+
 template<typename OpTy>
 struct DefaultToTGPattern : public RewritePattern {
   DefaultToTGPattern(MLIRContext *context, TensorFile *weightTF,
@@ -788,13 +819,15 @@ public:
     OwningRewritePatternList patterns;
 
     patterns.insert<
+        DefaultToTGPattern<tpu::ConcatOp>,
         DefaultToTGPattern<tpu::Conv2DOp>,
         DefaultToTGPattern<tpu::EltwiseAddOp>,
         DefaultToTGPattern<tpu::EltwiseMaxOp>,
         DefaultToTGPattern<tpu::EltwiseMulOp>,
+        DefaultToTGPattern<tpu::LeakyReluOp>,
         DefaultToTGPattern<tpu::PoolAvg2DOp>,
         DefaultToTGPattern<tpu::PoolMax2DOp>,
-        DefaultToTGPattern<tpu::LeakyReluOp>
+        DefaultToTGPattern<tpu::UpsampleOp>
     >(context, weightTF.get(), weightFV);
     applyPatternsGreedily(fn, patterns);
 
