@@ -463,116 +463,6 @@ static LogicalResult runOperation(Operation &opInst) {
 
     return success();
   }
-  if (auto op = dyn_cast<tpu::CropOp>(opInst)) {
-    LLVM_DEBUG(llvm::errs() << "CropOp" << "\n";);
-
-    auto input_type1 = op.input1()->getType().cast<TensorType>();
-    std::vector<int64_t> i_s1(input_type1.getShape());
-    auto input_type2 = op.input2()->getType().cast<TensorType>();
-    std::vector<int64_t> i_s2(input_type2.getShape());
-
-    auto output_type = op.output()->getType().cast<TensorType>();
-    std::vector<int64_t> o_s(output_type.getShape());
-
-    int output_dim_size = o_s.size();
-    int *input_dim = new int[output_dim_size];
-    int *output_dim = new int[output_dim_size];
-    int *offsets = new int[output_dim_size];
-    std::vector<int> crop_offsets;
-
-    if (op.crop_offset_n().hasValue())
-      crop_offsets.push_back(op.crop_offset_n().getValue().getLimitedValue());
-    if (op.crop_offset_c().hasValue())
-      crop_offsets.push_back(op.crop_offset_c().getValue().getLimitedValue());
-    if (op.crop_offset_h().hasValue())
-      crop_offsets.push_back(op.crop_offset_h().getValue().getLimitedValue());
-    if (op.crop_offset_w().hasValue())
-      crop_offsets.push_back(op.crop_offset_w().getValue().getLimitedValue());
-
-    // plz refer \layer_Crop.cpp
-    auto Axis2Index = [&] (int axis_index, int num_axes) -> int {
-      // TODO: move check to \CaffeToMlirTranslate.cpp
-      //CHECK_GE(axis_index, -num_axes) << "axis " << axis_index << " out of range for " << num_axes
-      //                                << "\n";
-      //CHECK_LT(axis_index, num_axes) << "axis " << axis_index << " out of range for " << num_axes
-      //                               << "\n";
-      if (axis_index < 0) {
-        return axis_index + num_axes;
-      }
-      return axis_index;
-    };
-
-    auto input_shape = i_s1;
-    auto num_axes = i_s1.size();
-    int axis = op.axis().getValue().getLimitedValue();
-    uint32_t start_axis = Axis2Index(axis, num_axes);
-
-    // Determine crop offsets and the new shape post-crop.
-    for (uint32_t i = 0; i < num_axes; ++i) {
-      int crop_offset = 0;
-      if (i >= start_axis) {
-        if (crop_offsets.size() == 1) {
-          // If only one offset is given, all crops have the same offset.
-          crop_offset = crop_offsets[0];
-        } else if (crop_offsets.size() > 1) {
-          // For several offsets, the number of offsets must be equal to the
-          // number of dimensions to crop, that is dimensions after the axis.
-          crop_offset = crop_offsets[i - start_axis];
-        }
-        // Check that the crop and offset are within the dimension's bounds.
-        // CHECK_GE(input_shape.dim(i) - crop_offset, op->input_shape(1).dim(i));
-      }
-      offsets[i] = crop_offset;
-    }
-
-    for (int i = 0; i < output_dim_size; i++) {
-      input_dim[i] = input_shape[i];
-    }
-    for (int i = 0; i < output_dim_size; i++) {
-      output_dim[i] = o_s[i];
-    }
-
-    int i8_multiplier;
-    //int rshift_opd_index = 2;// 0/1 is input0/input1
-    //int right_shift_width = getRshiftFromOperandTensor(opInst, rshift_opd_index);
-    //int layer_id = op.layer_id().getValue().getLimitedValue();
-    float threshold_y = op.threshold_y().getValue().convertToFloat();
-
-    //gaddr_t input_gaddr = getPreviousOpAddress(op);
-    //gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
-
-    if (op.quant() == "INT8") {
-      getI8Multiplier(&opInst, threshold_y, 1, &i8_multiplier);
-    } else if (op.quant() == "INT8_MULTIPLIER") {
-      assert(0 && "not implement yet");
-    } else if (op.quant() == "BF16") {
-      assert(0 && "not implement yet");
-    }
-
-    // crop_fixed_forward_bmkernel(
-    //     *backend_ctx,
-    //     0, //stream_id,
-    //     0, //inst_id,
-    //     layer_id,
-    //     nullptr, //*depends,
-    //     0, //depends_len,
-    //     input_gaddr,
-    //     output_gaddr,
-    //     input_dim,
-    //     output_dim,
-    //     offsets,
-    //     output_dim_size,
-    //     right_shift_width,
-    //     &i8_multiplier
-    //     );
-
-    delete[] input_dim;
-    delete[] output_dim;
-    delete[] offsets;
-
-    return success();
-  }
-
 
   if (auto op = dyn_cast<tpu::FullyConnectedOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "FullyConnectedOp" << "\n";);
@@ -591,7 +481,6 @@ static LogicalResult runOperation(Operation &opInst) {
       with_bias = 1;
       bias_gaddr = getWeightOpAddress(op.getOperand(2)->getDefiningOp());
     }
-
 
     int layer_id = op.layer_id().getValue().getLimitedValue();
 
@@ -657,53 +546,6 @@ static LogicalResult runOperation(Operation &opInst) {
       assert(0);
     }
 
-    return success();
-  }
-  if (auto op = dyn_cast<tpu::ReluOp>(opInst)) {
-    LLVM_DEBUG(llvm::errs() << "ReluOp" << "\n";);
-    assert(0 && "consider fuse relu first");
-#if 1
-    assert(false);
-#else
-
-    int n, c, h, w;
-    float negative_slope = op.negative_slope().convertToFloat();
-    LLVM_DEBUG(llvm::errs() << "  negative_slope " << negative_slope << "\n";);
-    auto input_type = op.x()->getType().cast<TensorType>();
-    std::vector<int64_t> i_s(input_type.getShape());
-    auto output_type = op.y()->getType().cast<TensorType>();
-    std::vector<int64_t> o_s(output_type.getShape());
-    assert((i_s == o_s) && "input shape not equal to output shape");
-    n = i_s[0];
-    c = i_s[1];
-    h = i_s[2];
-    w = i_s[3];
-
-    gaddr_t input_gaddr = getPreviousOpAddress(op);
-    gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
-
-    int layer_id = op.layer_id().getValue().getLimitedValue();
-
-    bmnet_relu_fixed_forward_bmkernel(
-        *backend_ctx,
-        0, // stream_id,
-        0, // inst_id,
-        layer_id, // layer_id,
-        nullptr, // depends
-        0, // depends_len
-        input_gaddr, // input_data_gaddr,
-        output_gaddr, // output_data_gaddr,
-        0.0f, // float negative_slope,
-        n,
-        c,
-        h,
-        w,
-        0, // int threshold_x_quantized_len,
-        nullptr, // const int *threshold_x_quantized,
-        nullptr, //const int *right_shift_array
-        FMT_I8
-        );
-#endif
     return success();
   }
 
