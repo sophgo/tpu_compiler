@@ -76,6 +76,12 @@ mlir_attr_t makeIntegerAttr(mlir_type_t type, int64_t value) {
   return mlir_attr_t{attr.getAsOpaquePointer()};
 }
 
+mlir_attr_t makeFloatAttr(mlir_context_t context, float value) {
+  auto *ctx = reinterpret_cast<mlir::MLIRContext *>(context);
+  auto attr = FloatAttr::get(FloatType::getF32(ctx), APFloat(value));
+  return mlir_attr_t{attr.getAsOpaquePointer()};
+}
+
 mlir_attr_t makeStringAttr(mlir_context_t context, const char *value) {
   auto *ctx = reinterpret_cast<mlir::MLIRContext *>(context);
   auto attr = StringAttr::get(value, ctx);
