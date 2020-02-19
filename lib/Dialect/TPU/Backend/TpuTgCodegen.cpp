@@ -674,10 +674,35 @@ LogicalResult tpu::TG_BF16_PoolMax2DOp::codegen(void *ctx) {
 LogicalResult tpu::TG_INT8_UpsampleOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";
-  //BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
-  //Operation *op = this->getOperation();
+  BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
+  Operation *op = this->getOperation();
 
-  assert(false);
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  getNCHW(shape, n, c, h, w);
+  int32_t scale = this->scale().getLimitedValue();
+
+  gaddr_t ga_input = getPreviousOpAddress(op);
+  gaddr_t ga_output = getOpAddress(op);
+  int layer_id = mlir::getOpLayerId(op);
+
+  upsample_fixed_bmkernel(
+      *backend_ctx,
+      0, //stream_id,
+      0, //inst_id,
+      layer_id, //layer_id,
+      nullptr, //const u32 *depends,
+      0, //depends_len,
+      ga_input,
+      ga_output,
+      n,
+      c,
+      h,
+      w,
+      scale,
+      scale);
+
   return success();
 }
 
