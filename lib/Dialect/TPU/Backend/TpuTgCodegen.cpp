@@ -475,6 +475,26 @@ LogicalResult tpu::TG_BF16_EltwiseMulOp::codegen(void *ctx) {
   return success();
 }
 
+LogicalResult tpu::TG_INT8_LeakyReluOp::codegen(void *ctx) {
+  llvm::errs() << "TG_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";
+  //BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
+  //Operation *op = this->getOperation();
+
+  assert(false);
+  return success();
+}
+
+LogicalResult tpu::TG_BF16_LeakyReluOp::codegen(void *ctx) {
+  llvm::errs() << "TG_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";
+  //BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
+  //Operation *op = this->getOperation();
+
+  assert(false);
+  return success();
+}
+
 LogicalResult tpu::TG_INT8_PoolAvg2DOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";

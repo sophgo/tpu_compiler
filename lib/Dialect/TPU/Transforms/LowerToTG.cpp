@@ -142,7 +142,8 @@ Value* tpu::EltwiseAddOp::convertToTG(void *info) {
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
   attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
-  attrs.push_back(builder.getNamedAttr("do_relu", do_reluAttr()));
+  attrs.push_back(builder.getNamedAttr("do_relu",
+      builder.getBoolAttr(do_relu())));
 
   if (getOpQuant() == "INT8") {
     assert(getOpQuantParamType() == "RSHIFT_AND_M_I8");
@@ -282,9 +283,56 @@ Value* tpu::EltwiseMulOp::convertToTG(void *info) {
 Value* tpu::LeakyReluOp::convertToTG(void *info) {
   llvm::errs() << "lowerToTG: " << getOperationName()
                << " [" << getOpName() << "]\n";
-  //Operation *op = this->getOperation();
-  //auto builder = Builder(op->getContext());
-  //TensorFile *weightTF_ = (TensorFile *)info;
+  Operation *op = this->getOperation();
+  auto builder = Builder(op->getContext());
+  TensorFile *weightTF_ = (TensorFile *)info;
+
+  std::vector<Value *> operands;
+  operands.push_back(op->getOperand(0));
+
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder.getNamedAttr("name", nameAttr()));
+  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
+
+  if (getOpQuant() == "INT8") {
+    assert(getOpQuantParamType() == "RSHIFT_AND_M_I8");
+
+    auto rshift_pos     = readAndDeleteWeightTensor<float>(
+                              quant_pos_rshift(), weightTF_);
+    auto multiplier_pos = readAndDeleteWeightTensor<float>(
+                              quant_pos_multiplier(), weightTF_);
+    auto rshift_neg     = readAndDeleteWeightTensor<float>(
+                              quant_neg_rshift(), weightTF_);
+    auto multiplier_neg = readAndDeleteWeightTensor<float>(
+                              quant_neg_multiplier(), weightTF_);
+
+    bool do_pos_scale = (multiplier_pos->at(0) != 0.0) ? true : false;
+
+    if (do_pos_scale) {
+      LLVM_DEBUG(llvm::errs() << "    do_pos_scale\n";);
+      attrs.push_back(builder.getNamedAttr("rshift_pos",
+          builder.getI8IntegerAttr(static_cast<int8_t>(rshift_pos->at(0)))));
+      attrs.push_back(builder.getNamedAttr("m_i8_pos",
+          builder.getI8IntegerAttr(static_cast<int8_t>(multiplier_pos->at(0)))));
+    } else {
+      LLVM_DEBUG(llvm::errs() << "    NO pos_scale\n";);
+    }
+    attrs.push_back(builder.getNamedAttr("rshift_neg",
+        builder.getI8IntegerAttr(static_cast<int8_t>(rshift_neg->at(0)))));
+    attrs.push_back(builder.getNamedAttr("m_i8_neg",
+        builder.getI8IntegerAttr(static_cast<int8_t>(multiplier_neg->at(0)))));
+
+    // create op
+    auto newOp = OpBuilder(op).create<tpu::TG_INT8_LeakyReluOp>(op->getLoc(),
+        getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  } else if (getOpQuant() == "BF16") {
+    auto newOp = OpBuilder(op).create<tpu::TG_BF16_LeakyReluOp>(op->getLoc(),
+        getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  }
 
   assert(false);
   return nullptr;
