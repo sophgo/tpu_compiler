@@ -98,7 +98,9 @@ struct BackwardOverwriteThresholdConcatPattern : public OpRewritePattern<tpu::Co
         setOpThreshold(formerOp, threshold_y);
       } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::ReluOp>(formerOp)) {
         setOpThreshold(formerOp, threshold_y);
-      } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::UpsampleOp>(formerOp)) {
+      }  else if (auto cast_op = llvm::dyn_cast_or_null<tpu::ShuffleChannelOp>(formerOp)) {
+        setOpThreshold(formerOp, threshold_y);
+      }  else if (auto cast_op = llvm::dyn_cast_or_null<tpu::UpsampleOp>(formerOp)) {
         setOpThreshold(formerOp, threshold_y);
       } else {
         llvm::errs() << formerOp->getName() << ": behavior not defined\n";
@@ -159,6 +161,8 @@ struct BackendOverwriteThresholdDefaultPattern : public RewritePattern {
     } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::LeakyReluOp>(formerOp)) {
       setOpThreshold(formerOp, threshold_y);
     } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::ReluOp>(formerOp)) {
+      setOpThreshold(formerOp, threshold_y);
+    }  else if (auto cast_op = llvm::dyn_cast_or_null<tpu::ShuffleChannelOp>(formerOp)) {
       setOpThreshold(formerOp, threshold_y);
     } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::UpsampleOp>(formerOp)) {
       setOpThreshold(formerOp, threshold_y);

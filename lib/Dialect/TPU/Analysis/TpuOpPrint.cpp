@@ -115,7 +115,6 @@ public:
             processed += printTpuOpInfo<tpu::SliceOp>(op, file_os);
             processed += printTpuOpInfo<tpu::SqrtOp>(op, file_os);
             processed += printTpuOpInfo<tpu::TanHOp>(op, file_os);
-            processed += printTpuOpInfo<tpu::ShuffleChannelOp>(op, file_os);
             if (op->getName().getDialect().str() != "tpu"
                 || isa<tpu::QuantizationOp>(op)
                 || isa<tpu::DequantizationOp>(op)

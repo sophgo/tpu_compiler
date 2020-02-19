@@ -521,6 +521,32 @@ Value* tpu::PoolMax2DOp::convertToTG(void *info) {
   return nullptr;
 }
 
+Value *tpu::ShuffleChannelOp::convertToTG(void *info) {
+  llvm::errs() << "lowerToTG: " << getOperationName() << " [" << getOpName()
+               << "]\n";
+  Operation *op = this->getOperation();
+  auto builder = Builder(op->getContext());
+  // TensorFile *weightTF_ = (TensorFile *)info;
+
+  std::vector<Value *> operands;
+  operands.push_back(input());
+
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder.getNamedAttr("group", groupAttr()));
+  attrs.push_back(builder.getNamedAttr("name", nameAttr()));
+  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
+
+  if (getOpQuant() == "INT8") {
+    assert(getOpQuantParamType() == "NONE");
+    auto newOp = OpBuilder(op).create<tpu::TG_INT8_ShuffleChannelOp>(
+        op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  }
+  assert(false);
+  return nullptr;
+}
+
 Value *tpu::SigmoidOp::convertToTG(void *info) {
   llvm::errs() << "lowerToTG: " << getOperationName() << " [" << getOpName()
                << "]\n";
@@ -979,6 +1005,7 @@ public:
         DefaultToTGPattern<tpu::LeakyReluOp>,
         DefaultToTGPattern<tpu::PoolAvg2DOp>,
         DefaultToTGPattern<tpu::PoolMax2DOp>,
+        DefaultToTGPattern<tpu::ShuffleChannelOp>,
         DefaultToTGPattern<tpu::SigmoidOp>,
         DefaultToTGPattern<tpu::UpsampleOp>
     >(context, weightTF.get(), weightFV);

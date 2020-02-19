@@ -1111,6 +1111,14 @@ LogicalResult tpu::TG_BF16_PoolMax2DOp::codegen(void *ctx) {
   return success();
 }
 
+LogicalResult tpu::TG_INT8_ShuffleChannelOp::codegen(void *ctx) {
+  llvm::errs() << "TG_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";
+  // TODO: complete later
+  assert(false);
+  return success();
+}
+
 LogicalResult tpu::TG_INT8_SigmoidOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName() << " [" << getOpName()
                << "]\n";

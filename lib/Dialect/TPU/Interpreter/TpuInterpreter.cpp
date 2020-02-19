@@ -752,6 +752,42 @@ LogicalResult tpu::ScaleOp::interpret(
   return success();
 }
 
+LogicalResult tpu::ShuffleChannelOp::interpret(
+    DenseMap<Value *, std::shared_ptr<std::vector<float>>> &valueMapping) {
+  Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
+
+  auto opdT = getOperandTensors(op, valueMapping);
+  auto result = this->getResult();
+  auto size = getTensorSize(result);
+  auto resultT = std::make_unique<std::vector<float>>(size);
+  std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
+  assert(shape.size() >= 2);
+
+  std::vector<int64_t> input_shape, output_shape;
+  int64_t input_size, output_size;
+  getTensorShapeAndSize(this->input(), input_shape, input_size);
+  getTensorShapeAndSize(this->output(), output_shape, output_size);
+
+  assert((input_shape == output_shape) && "input shape not equal to output shape");
+  assert((input_shape.size() >= 2) && "ShuffleChannel support shape size  must >= 2");
+
+  int64_t n = input_shape[0];
+  int64_t c = input_shape[1];
+  int64_t feature_map_size = std::accumulate(
+      input_shape.begin() + 2, input_shape.end(), 1, std::multiplies<>());
+  float *input = (float *)opdT[0]->data();
+  float *output = (float *)resultT.get()->data();
+  uint32_t group = this->group().getLimitedValue();
+  int ret = my_shuffle_channel(input, output, group, n, c, feature_map_size);
+
+  assert(ret == 0);
+
+  valueMapping[result] = std::move(resultT);
+
+  return success();
+}
+
 LogicalResult tpu::SoftmaxOp::interpret(
     DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();
@@ -1249,38 +1285,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
     return success();
   }
-  if (auto op = dyn_cast<tpu::ShuffleChannelOp>(opInst)) {
-    LLVM_DEBUG(llvm::errs() << "ShuffleChannelOp" << "\n";);
-    auto opdT = getOperandTensors(opInst, valueMapping);
-    auto result = op.getResult();
-    LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";);
-    std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
-    assert(shape.size() >= 2);
-    auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
-    auto resultT = std::make_unique<std::vector<float> >(size);
-
-    auto input_type = op.x()->getType().cast<TensorType>();
-    std::vector<int64_t> i_s(input_type.getShape());
-    auto output_type = op.y()->getType().cast<TensorType>();
-    std::vector<int64_t> o_s(output_type.getShape());
-    assert((i_s == o_s) && "input shape not equal to output shape");
-    assert((i_s.size() >= 2) && "ShuffleChannel support shape size  must >= 2" );
-
-    int64_t n = i_s[0];
-    int64_t c = i_s[1];
-    int64_t feature_map_size = std::accumulate(i_s.begin() + 2, i_s.end(), 1, std::multiplies<>());
-    float *input = (float *)opdT[0]->data();
-    float *output = (float *)resultT.get()->data();
-    uint32_t group = op.group().getLimitedValue();
-    int ret = my_shuffle_channel(input, output, group, n, c, feature_map_size);
-
-    assert(ret == 0);
-
-    valueMapping[result] = std::move(resultT);
-
-    return success();
-  }
-
+  
   if (auto op = dyn_cast<tpu::ReshapeOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "ReshapeOp" << "\n";);
     auto opdT = getOperandTensors(opInst, valueMapping);
