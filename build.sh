@@ -144,9 +144,6 @@ cp ../*.py $CALIBRATION_TOOL_PATH
 popd
 
 # build python tool
-pushd $PYTHON_TOOLS_PATH/dataset_util/widerface
-make
-popd
 pushd $PYTHON_TOOLS_PATH/model/retinaface
 make
 popd
