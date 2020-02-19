@@ -154,6 +154,10 @@ class TPU_EltwiseOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
   );
 
   let results = (outs AnyTensor:$output);
+
+  let extraClassDeclaration = [{
+    unsigned getNumInputs() { return getNumOperands() - 4; }
+  }];
 }
 
 //===----------------------------------------------------------------------===//
@@ -213,6 +217,12 @@ def TPU_ConcatOp: TPU_Op<"concat",
     OptionalAttr<NonNegativeI32Attr>:$layer_id
   );
 
+  let results = (outs AnyTensor:$output);
+
+  let extraClassDeclaration = [{
+    unsigned getNumInputs() { return getNumOperands() - 4; }
+  }];
+
   let verifier = [{
     auto firstType = getOperand(0)->getType().cast<RankedTensorType>();
 
@@ -234,8 +244,6 @@ def TPU_ConcatOp: TPU_Op<"concat",
     }
     return success();
   }];
-
-  let results = (outs AnyTensor:$output);
 }
 
 def TPU_Conv2DOp : TPU_ConvOp<"conv_2d", "Convolution">;
