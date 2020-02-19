@@ -110,8 +110,7 @@ class TPU_EltwiseOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
     Performs eltwise operation on inputs.
 
     Inputs:
-      `input1`          : required, the 1st input tensor, lhs in binary case.
-      `input2`          : required, the 2nd input tensor, rhs in binary case.
+      `inputs`          : required, the variadic input tensors.
       `quant_scale`     : optional, the quant scale tensor. For add/max should
                           be one fp32 value for each input tensor. For mul
                           should be one fp32 value for the output tensor.
@@ -122,7 +121,6 @@ class TPU_EltwiseOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
       `quant_multiplier`: optional, the multiplier. For add/max should be one
                           int8 value for each input tensor. For mul should be
                           one int8 value applied on the output tensor.
-      `variadic_inputs` : optional, if more than 2 inputs are provided.
 
     Attributes:
       `do_relu`         : required, if need to preform relu on result.
@@ -144,13 +142,11 @@ class TPU_EltwiseOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
   }];
 
   let arguments = (
-    ins AnyTensor:$input1,
-    AnyTensor:$input2,
+    ins Variadic<AnyTensor>:$inputs,
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_scale,
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_zeropoint,
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_rshift,
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_multiplier,
-    Variadic<AnyTensor>:$variadic_more_inputs,
     DefaultValuedAttr<BoolAttr, "false">:$do_relu,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,

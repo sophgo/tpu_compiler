@@ -1150,17 +1150,15 @@ void CaffeImporter::convertEltwiseLayer(mlir::Block *block,
 
   // construct OP
   std::vector<Value *> operands;
-  operands.push_back(input_vars[0]);
-  operands.push_back(input_vars[1]);
+  for (unsigned i = 0; i < input_vars.size(); i++ ) {
+    operands.push_back(input_vars[i]);
+  }
   auto NoneOp = OpBuilder(block).create<tpu::NoneOp>(builder_.getUnknownLoc(),
                                                      builder_.getNoneType());
   operands.push_back(NoneOp.getResult());
   operands.push_back(NoneOp.getResult());
   operands.push_back(NoneOp.getResult());
   operands.push_back(NoneOp.getResult());
-  for (unsigned i = 2; i < input_vars.size(); i++ ) {
-    operands.push_back(input_vars[i]);
-  }
 
   auto result_type = RankedTensorType::get({n, c, h, w}, elementType_);
   std::vector<NamedAttribute> attrs;

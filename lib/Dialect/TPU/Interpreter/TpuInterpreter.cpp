@@ -157,23 +157,13 @@ static LogicalResult doEltwiseOpInterpret(Operation *op,
 
   // get tensors
   const unsigned nInputs = op->getNumOperands() - 4;
-  std::vector<int> opd_idx;
-  opd_idx.push_back(0);
-  if (nInputs > 1) {
-    opd_idx.push_back(1);
-  }
-  if (nInputs > 2) {
-    for (unsigned i = 0; i < nInputs - 2; i++) {
-      opd_idx.push_back(6 + i);
-    }
-  }
   std::vector<float *>input(nInputs);
   for (unsigned i = 0; i < nInputs; ++i) {
-    input[i] = opdT[opd_idx[i]]->data();
+    input[i] = opdT[i]->data();
   }
   float *output = resultT->data();
-  std::shared_ptr<std::vector<float> > quant_rshift = opdT[4];
-  std::shared_ptr<std::vector<float> > quant_multiplier = opdT[5];
+  std::shared_ptr<std::vector<float> > quant_rshift = opdT[nInputs + 2];
+  std::shared_ptr<std::vector<float> > quant_multiplier = opdT[nInputs + 3];
 
   // apply qscale on input tensors before f32 compute
   std::vector<std::vector<float> > input_copy(nInputs);
@@ -181,13 +171,13 @@ static LogicalResult doEltwiseOpInterpret(Operation *op,
     if (getOpQuant(op) == "INT8") {
       for (unsigned i = 0; i < nInputs; ++i) {
         // make copy
-        input_copy[i].assign(opdT[opd_idx[i]]->begin(),
-                             opdT[opd_idx[i]]->end());
+        input_copy[i].assign(opdT[i]->begin(),
+                             opdT[i]->end());
         input[i] = input_copy[i].data();
       }
       // apply multiplier
       for (unsigned i = 0; i < nInputs; ++i) {
-        for (size_t j = 0; j < opdT[opd_idx[i]]->size(); ++j) {
+        for (size_t j = 0; j < opdT[i]->size(); ++j) {
           input[i][j] = input[i][j] * (int8_t)quant_multiplier->at(i);
         }
       }
