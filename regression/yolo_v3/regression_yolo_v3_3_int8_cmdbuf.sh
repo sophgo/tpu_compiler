@@ -39,6 +39,13 @@ mlir-translate \
     yolo_v3_416_quant_int8_per_layer_addr.mlir \
     -o cmdbuf_int8_per_layer.bin
 
+# generate cvi model
+python $CVIBUILDER_PATH/python/cvi_model_create.py \
+    --cmdbuf cmdbuf_int8_per_layer.bin \
+    --weight weight_int8_per_layer.bin \
+    --neuron_map neuron_map.csv \
+    --output=yolo_v3_416_int8_per_layer.cvimodel
+
 # run cmdbuf
 #$RUNTIME_PATH/bin/test_bmnet \
 #    yolo_v3_in_int8.bin \
@@ -48,7 +55,7 @@ mlir-translate \
 #    16460784 0 16460784 1
 $RUNTIME_PATH/bin/test_cvinet \
     yolo_v3_in_int8.bin \
-    yolo_v3_int8_per_layer.cvimodel \
+    yolo_v3_416_int8_per_layer.cvimodel \
     yolo_v3_cmdbuf_out_all_int8_per_layer.bin
 
 bin_to_npz.py \
@@ -118,7 +125,7 @@ python $CVIBUILDER_PATH/python/cvi_model_create.py \
 #    16460784 0 16460784 1
 $RUNTIME_PATH/bin/test_cvinet \
     yolo_v3_in_int8.bin \
-    yolo_v3_int8_multiplier.cvimodel \
+    yolo_v3_416_int8_multiplier.cvimodel \
     yolo_v3_cmdbuf_out_all_int8_multiplier.bin
 
 bin_to_npz.py \

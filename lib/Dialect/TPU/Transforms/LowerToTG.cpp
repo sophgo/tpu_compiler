@@ -42,24 +42,28 @@ Value* tpu::ConcatOp::convertToTG(void *info) {
   attrs.push_back(builder.getNamedAttr("axis", axisAttr()));
 
   if (getOpQuant() == "INT8") {
-    assert(getOpQuantParamType() == "RSHIFT_AND_M_I8");
-    // ADD
-    // rshift
-    auto rshift = readAndDeleteWeightTensor<float>(quant_rshift(), weightTF_);
-    assert(rshift->size() == 1);
-    attrs.push_back(builder.getNamedAttr("rshift",
-        builder.getI8IntegerAttr(static_cast<int8_t>(rshift->at(0)))));
+    if (getOpQuantParamType() == "NONE") {
+      // the quant is bypassed (threshold for input and output are the same)
+      // do nothing
+    } else {
+      assert(getOpQuantParamType() == "RSHIFT_AND_M_I8");
+      // ADD
+      // rshift
+      auto rshift = readAndDeleteWeightTensor<float>(quant_rshift(), weightTF_);
+      assert(rshift->size() == 1);
+      attrs.push_back(builder.getNamedAttr("rshift",
+          builder.getI8IntegerAttr(static_cast<int8_t>(rshift->at(0)))));
 
-    // m_i8_inputs
-    auto multiplier = readAndDeleteWeightTensor<float>(quant_multiplier(),
-                                                     weightTF_);
-    std::vector<int32_t> m_i8_inputs_array(nInputs);
-    for (unsigned i = 0; i < nInputs; ++i) {
-      m_i8_inputs_array[i] = static_cast<int32_t>(multiplier->at(i));
+      // m_i8_inputs
+      auto multiplier = readAndDeleteWeightTensor<float>(quant_multiplier(),
+                                                       weightTF_);
+      std::vector<int32_t> m_i8_inputs_array(nInputs);
+      for (unsigned i = 0; i < nInputs; ++i) {
+        m_i8_inputs_array[i] = static_cast<int32_t>(multiplier->at(i));
+      }
+      attrs.push_back(builder.getNamedAttr("m_i8_inputs",
+          builder.getI32ArrayAttr(ArrayRef<int32_t>({m_i8_inputs_array}))));
     }
-    attrs.push_back(builder.getNamedAttr("m_i8_inputs",
-        builder.getI32ArrayAttr(ArrayRef<int32_t>({m_i8_inputs_array}))));
-
     // create op
     auto newOp = OpBuilder(op).create<tpu::TG_INT8_ConcatOp>(op->getLoc(),
         getResult()->getType(), ArrayRef<Value *>{operands},
@@ -146,23 +150,28 @@ Value* tpu::EltwiseAddOp::convertToTG(void *info) {
       builder.getBoolAttr(do_relu())));
 
   if (getOpQuant() == "INT8") {
-    assert(getOpQuantParamType() == "RSHIFT_AND_M_I8");
-    // ADD
-    // rshift
-    auto rshift = readAndDeleteWeightTensor<float>(quant_rshift(), weightTF_);
-    assert(rshift->size() == 1);
-    attrs.push_back(builder.getNamedAttr("rshift",
-        builder.getI8IntegerAttr(static_cast<int8_t>(rshift->at(0)))));
+    if (getOpQuantParamType() == "NONE") {
+      // the quant is bypassed (threshold for input and output are the same)
+      // do nothing
+    } else {
+      assert(getOpQuantParamType() == "RSHIFT_AND_M_I8");
+      // ADD
+      // rshift
+      auto rshift = readAndDeleteWeightTensor<float>(quant_rshift(), weightTF_);
+      assert(rshift->size() == 1);
+      attrs.push_back(builder.getNamedAttr("rshift",
+          builder.getI8IntegerAttr(static_cast<int8_t>(rshift->at(0)))));
 
-    // m_i8_inputs
-    auto multiplier = readAndDeleteWeightTensor<float>(quant_multiplier(),
-                                                     weightTF_);
-    std::vector<int32_t> m_i8_inputs_array(nInputs);
-    for (unsigned i = 0; i < nInputs; ++i) {
-      m_i8_inputs_array[i] = static_cast<int32_t>(multiplier->at(i));
+      // m_i8_inputs
+      auto multiplier = readAndDeleteWeightTensor<float>(quant_multiplier(),
+                                                       weightTF_);
+      std::vector<int32_t> m_i8_inputs_array(nInputs);
+      for (unsigned i = 0; i < nInputs; ++i) {
+        m_i8_inputs_array[i] = static_cast<int32_t>(multiplier->at(i));
+      }
+      attrs.push_back(builder.getNamedAttr("m_i8_inputs",
+          builder.getI32ArrayAttr(ArrayRef<int32_t>({m_i8_inputs_array}))));
     }
-    attrs.push_back(builder.getNamedAttr("m_i8_inputs",
-        builder.getI32ArrayAttr(ArrayRef<int32_t>({m_i8_inputs_array}))));
 
     // create op
     auto newOp = OpBuilder(op).create<tpu::TG_INT8_EltwiseAddOp>(op->getLoc(),
@@ -198,23 +207,28 @@ Value* tpu::EltwiseMaxOp::convertToTG(void *info) {
   attrs.push_back(builder.getNamedAttr("do_relu", do_reluAttr()));
 
   if (getOpQuant() == "INT8") {
-    assert(getOpQuantParamType() == "RSHIFT_AND_M_I8");
-    // MAX
-    // rshift
-    auto rshift = readAndDeleteWeightTensor<float>(quant_rshift(), weightTF_);
-    assert(rshift->size() == 1);
-    attrs.push_back(builder.getNamedAttr("rshift",
-        builder.getI8IntegerAttr(static_cast<int8_t>(rshift->at(0)))));
+    if (getOpQuantParamType() == "NONE") {
+      // the quant is bypassed (threshold for input and output are the same)
+      // do nothing
+    } else {
+      assert(getOpQuantParamType() == "RSHIFT_AND_M_I8");
+      // MAX
+      // rshift
+      auto rshift = readAndDeleteWeightTensor<float>(quant_rshift(), weightTF_);
+      assert(rshift->size() == 1);
+      attrs.push_back(builder.getNamedAttr("rshift",
+          builder.getI8IntegerAttr(static_cast<int8_t>(rshift->at(0)))));
 
-    // m_i8_inputs
-    auto multiplier = readAndDeleteWeightTensor<float>(quant_multiplier(),
-                                                     weightTF_);
-    std::vector<int32_t> m_i8_inputs_array(nInputs);
-    for (unsigned i = 0; i < nInputs; ++i) {
-      m_i8_inputs_array[i] = static_cast<int32_t>(multiplier->at(i));
+      // m_i8_inputs
+      auto multiplier = readAndDeleteWeightTensor<float>(quant_multiplier(),
+                                                       weightTF_);
+      std::vector<int32_t> m_i8_inputs_array(nInputs);
+      for (unsigned i = 0; i < nInputs; ++i) {
+        m_i8_inputs_array[i] = static_cast<int32_t>(multiplier->at(i));
+      }
+      attrs.push_back(builder.getNamedAttr("m_i8_inputs",
+          builder.getI32ArrayAttr(ArrayRef<int32_t>({m_i8_inputs_array}))));
     }
-    attrs.push_back(builder.getNamedAttr("m_i8_inputs",
-        builder.getI32ArrayAttr(ArrayRef<int32_t>({m_i8_inputs_array}))));
 
     // create op
     auto newOp = OpBuilder(op).create<tpu::TG_INT8_EltwiseMaxOp>(op->getLoc(),

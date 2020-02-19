@@ -53,23 +53,159 @@ extern int BF16_TABLE_END;
 
 namespace mlir {
 
+static void arrayAttrToVector(const ArrayAttr &arrayAttr,
+    std::vector<int32_t> &vector) {
+  vector.clear();
+  for (auto en : llvm::enumerate(arrayAttr)) {
+    auto attr = en.value().dyn_cast<IntegerAttr>();
+    vector.push_back(attr.getInt());
+  }
+}
+
 LogicalResult tpu::TG_INT8_ConcatOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";
-  //BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
-  //Operation *op = this->getOperation();
+  BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
+  Operation *op = this->getOperation();
 
-  assert(false);
+  int nInputs = op->getNumOperands();
+  gaddr_t ga_inputs[nInputs];
+  for ( int i = 0; i < nInputs; i++) {
+    ga_inputs[i] = getPreviousOpAddress(op, i);
+  }
+  gaddr_t ga_output = getOpAddress(op);
+  int axis = this->axis().getLimitedValue();
+  int layer_id = mlir::getOpLayerId(op);
+
+  // prepare shape info
+  #define SHAPE_DIM 4
+  int32_t input_dims[nInputs * SHAPE_DIM];
+  for ( int i = 0; i < nInputs; i++) {
+    std::vector<int64_t> shape;
+    int64_t size;
+    getTensorShapeAndSize(op->getOperand(i), shape, size);
+    // TODO: this looks very strange. 4 allocated for each input
+    // TODO: but only 1 is set for each input
+    input_dims[i] = shape[axis];
+  }
+  int output_dim[SHAPE_DIM];
+  int output_dim_size;
+  {
+    std::vector<int64_t> shape;
+    int64_t size;
+    getTensorShapeAndSize(this->getResult(), shape, size);
+    output_dim[0] = shape[0];
+    output_dim[1] = shape[1];
+    output_dim[2] = shape[2];
+    output_dim[3] = shape[3];
+    output_dim_size = shape.size();
+  }
+
+  // prepare quant info
+  bool do_quant_rescale = false;
+  int8_t rshift;
+  int8_t m_i8_input[nInputs];
+  if (this->rshift().hasValue() && this->m_i8_inputs().hasValue()) {
+    do_quant_rescale = true;
+    rshift = this->rshift().getValue().getLimitedValue();
+
+    std::vector<int32_t> m_i8_inputs_array;
+    arrayAttrToVector(this->m_i8_inputs().getValue(), m_i8_inputs_array);
+    assert(m_i8_inputs_array.size() == nInputs);
+    for (unsigned i = 0; i < nInputs; ++i) {
+      m_i8_input[i] = static_cast<int8_t>(m_i8_inputs_array[i]);
+    }
+  }
+
+  // TODO: should change on backend API, rather than doing cast
+  int rshift_int[nInputs];
+  int m_int[nInputs];
+  if (do_quant_rescale) {
+    for (unsigned i = 0; i < nInputs; ++i) {
+      rshift_int[i] = static_cast<int>(rshift);
+      m_int[i] = static_cast<int>(m_i8_input[i]);
+    }
+  }
+
+  bmnet_concat_fixed_forward_bmkernel(
+      *backend_ctx,
+      0, // u32 stream_id,
+      0, //u32 inst_id,
+      layer_id, // u32 layer_id,
+      nullptr, // const u32 *depends,
+      0,// u32 depends_len,
+      ga_inputs,       // gaddr_t input_gaddrs[],
+      ga_output,       // gaddr_t output_gaddr,
+      input_dims,      // int input_dims[],
+      nInputs,         //int input_num,
+      axis,            // int concat_axis,
+      output_dim_size, // int output_dim_size,
+      output_dim,      // int *output_dim,
+      do_quant_rescale ? nInputs : 0,     // const int need_quantize_num,
+      do_quant_rescale ? rshift_int : 0,  // const int *right_shift_width,
+      do_quant_rescale ? m_int : nullptr  // const int *threshold_x_quantized
+      );
+
   return success();
 }
 
 LogicalResult tpu::TG_BF16_ConcatOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";
-  //BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
-  //Operation *op = this->getOperation();
+  BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
+  Operation *op = this->getOperation();
 
-  assert(false);
+  int nInputs = op->getNumOperands();
+  gaddr_t ga_inputs[nInputs];
+  for ( int i = 0; i < nInputs; i++) {
+    ga_inputs[i] = getPreviousOpAddress(op, i);
+  }
+  gaddr_t ga_output = getOpAddress(op);
+  int axis = this->axis().getLimitedValue();
+  int layer_id = mlir::getOpLayerId(op);
+
+  // prepare shape info
+  #define SHAPE_DIM 4
+  int32_t input_dims[nInputs * SHAPE_DIM];
+  for ( int i = 0; i < nInputs; i++) {
+    std::vector<int64_t> shape;
+    int64_t size;
+    getTensorShapeAndSize(op->getOperand(i), shape, size);
+    // TODO: this looks very strange. 4 allocated for each input
+    // TODO: but only 1 is set for each input
+    input_dims[i] = shape[axis];
+  }
+  int output_dim[SHAPE_DIM];
+  int output_dim_size;
+  {
+    std::vector<int64_t> shape;
+    int64_t size;
+    getTensorShapeAndSize(this->getResult(), shape, size);
+    output_dim[0] = shape[0];
+    output_dim[1] = shape[1];
+    output_dim[2] = shape[2];
+    output_dim[3] = shape[3];
+    output_dim_size = shape.size();
+  }
+
+  bf16_concat_fixed_forward_bmkernel(
+      *backend_ctx,
+      0, // stream_id,
+      0, // inst_id,
+      layer_id, // layer_id,
+      nullptr, // depends
+      0, // depends_len
+      ga_inputs,       // gaddr_t input_gaddrs[],
+      ga_output,       // gaddr_t output_gaddr,
+      input_dims,      // int input_dims[],
+      nInputs,         // int input_num,
+      axis,            // int concat_axis,
+      output_dim_size, // int output_dim_size,
+      output_dim,      // int *output_dim,
+      0,               // int need_quantize_num
+      nullptr          // threshold_x_quantized,
+      );
+
   return success();
 }
 
@@ -268,15 +404,6 @@ LogicalResult tpu::TG_BF16_Conv2DOp::codegen(void *ctx) {
   return success();
 }
 
-static void arrayAttrToVector(const ArrayAttr &arrayAttr,
-    std::vector<int32_t> &vector) {
-  vector.clear();
-  for (auto en : llvm::enumerate(arrayAttr)) {
-    auto attr = en.value().dyn_cast<IntegerAttr>();
-    vector.push_back(attr.getInt());
-  }
-}
-
 LogicalResult tpu::TG_INT8_EltwiseAddOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";
@@ -289,29 +416,37 @@ LogicalResult tpu::TG_INT8_EltwiseAddOp::codegen(void *ctx) {
   getNCHW(shape, n, c, h, w);
   bool do_relu = this->do_relu();
 
+  assert(op->getNumOperands() == 2 && "support 2 inputs only");
+
   gaddr_t ga_inputs[2];
   ga_inputs[0] = getPreviousOpAddress(op, 0);
   ga_inputs[1] = getPreviousOpAddress(op, 1);
   gaddr_t ga_output = getOpAddress(op);
   int layer_id = mlir::getOpLayerId(op);
 
-  assert(this->rshift().hasValue());
-  int8_t rshift = this->rshift().getValue().getLimitedValue();
-
+  bool do_quant_rescale = false;
+  int8_t rshift;
   int8_t m_i8_input[2];
-  assert(this->m_i8_inputs().hasValue());
-  std::vector<int32_t> m_i8_inputs_array;
-  arrayAttrToVector(this->m_i8_inputs().getValue(), m_i8_inputs_array);
-  assert(m_i8_inputs_array.size() == op->getNumOperands());
-  assert(m_i8_inputs_array.size() >= 2);
-  m_i8_input[0] = static_cast<int8_t>(m_i8_inputs_array[0]);
-  m_i8_input[1] = static_cast<int8_t>(m_i8_inputs_array[1]);
+  if (this->rshift().hasValue() && this->m_i8_inputs().hasValue()) {
+    do_quant_rescale = true;
+    rshift = this->rshift().getValue().getLimitedValue();
+
+    std::vector<int32_t> m_i8_inputs_array;
+    arrayAttrToVector(this->m_i8_inputs().getValue(), m_i8_inputs_array);
+    assert(m_i8_inputs_array.size() == op->getNumOperands());
+    assert(m_i8_inputs_array.size() >= 2);
+    m_i8_input[0] = static_cast<int8_t>(m_i8_inputs_array[0]);
+    m_i8_input[1] = static_cast<int8_t>(m_i8_inputs_array[1]);
+  }
 
   // TODO: should change on backend API, rather than doing cast
-  int rshift_int = static_cast<int>(rshift);
+  int rshift_int;
   int m_int[2];
-  m_int[0] = static_cast<int>(m_i8_input[0]);
-  m_int[1] = static_cast<int>(m_i8_input[1]);
+  if (do_quant_rescale) {
+    rshift_int = static_cast<int>(rshift);
+    m_int[0] = static_cast<int>(m_i8_input[0]);
+    m_int[1] = static_cast<int>(m_i8_input[1]);
+  }
   const int coeffs[2] = {1, 1};
 
   bmnet_eltwise_fixed_forward_bmkernel(
@@ -328,8 +463,8 @@ LogicalResult tpu::TG_INT8_EltwiseAddOp::codegen(void *ctx) {
       n, c, h, w,
       do_relu,      // bool do_relu,
       0.0f,         // float relu_slope,
-      rshift_int,   // int right_shift_width,
-      m_int,
+      do_quant_rescale ? rshift_int : 0,   // int right_shift_width,
+      do_quant_rescale ? m_int : nullptr,
       coeffs);
 
   return success();
