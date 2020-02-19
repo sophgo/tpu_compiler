@@ -22,6 +22,59 @@
 
 namespace mlir {
 
+Value* tpu::ConcatOp::convertToTG(void *info) {
+  llvm::errs() << "lowerToTG: " << getOperationName()
+               << " [" << getOpName() << "]\n";
+  Operation *op = this->getOperation();
+  auto builder = Builder(op->getContext());
+  TensorFile *weightTF_ = (TensorFile *)info;
+  assert(weightTF_);
+
+  const unsigned nInputs = op->getNumOperands() - 4;
+  std::vector<Value *> operands;
+  for (unsigned i = 0; i < nInputs; ++i) {
+    operands.push_back(op->getOperand(i));
+  }
+
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder.getNamedAttr("name", nameAttr()));
+  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
+  attrs.push_back(builder.getNamedAttr("axis", axisAttr()));
+
+  if (getOpQuant() == "INT8") {
+    assert(getOpQuantParamType() == "RSHIFT_AND_M_I8");
+    // ADD
+    // rshift
+    auto rshift = readAndDeleteWeightTensor<float>(quant_rshift(), weightTF_);
+    assert(rshift->size() == 1);
+    attrs.push_back(builder.getNamedAttr("rshift",
+        builder.getI8IntegerAttr(static_cast<int8_t>(rshift->at(0)))));
+
+    // m_i8_inputs
+    auto multiplier = readAndDeleteWeightTensor<float>(quant_multiplier(),
+                                                     weightTF_);
+    std::vector<int32_t> m_i8_inputs_array(nInputs);
+    for (unsigned i = 0; i < nInputs; ++i) {
+      m_i8_inputs_array[i] = static_cast<int32_t>(multiplier->at(i));
+    }
+    attrs.push_back(builder.getNamedAttr("m_i8_inputs",
+        builder.getI32ArrayAttr(ArrayRef<int32_t>({m_i8_inputs_array}))));
+
+    // create op
+    auto newOp = OpBuilder(op).create<tpu::TG_INT8_ConcatOp>(op->getLoc(),
+        getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  } else if (getOpQuant() == "BF16") {
+    auto newOp = OpBuilder(op).create<tpu::TG_BF16_ConcatOp>(op->getLoc(),
+        getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  }
+  assert(false);
+  return nullptr;
+}
+
 Value* tpu::Conv2DOp::convertToTG(void *info) {
   llvm::errs() << "lowerToTG: " << getOperationName()
                << " [" << getOpName() << "]\n";
@@ -100,7 +153,7 @@ Value* tpu::EltwiseAddOp::convertToTG(void *info) {
     attrs.push_back(builder.getNamedAttr("rshift",
         builder.getI8IntegerAttr(static_cast<int8_t>(rshift->at(0)))));
 
-    // m_i8_output
+    // m_i8_inputs
     auto multiplier = readAndDeleteWeightTensor<float>(quant_multiplier(),
                                                      weightTF_);
     std::vector<int32_t> m_i8_inputs_array(nInputs);
@@ -152,7 +205,7 @@ Value* tpu::EltwiseMaxOp::convertToTG(void *info) {
     attrs.push_back(builder.getNamedAttr("rshift",
         builder.getI8IntegerAttr(static_cast<int8_t>(rshift->at(0)))));
 
-    // m_i8_output
+    // m_i8_inputs
     auto multiplier = readAndDeleteWeightTensor<float>(quant_multiplier(),
                                                      weightTF_);
     std::vector<int32_t> m_i8_inputs_array(nInputs);

@@ -623,8 +623,9 @@ public:
     auto *context = &getContext();
 
     OwningRewritePatternList patterns_w;
-    patterns_w
-        .insert<TpuQuantBf16Conv2DOpPattern,
+    patterns_w.insert<
+                TpuQuantBf16DefaultPattern<tpu::ConcatOp>,
+                TpuQuantBf16Conv2DOpPattern,
                 TpuQuantBf16DefaultPattern<tpu::EltwiseAddOp>,
                 TpuQuantBf16DefaultPattern<tpu::EltwiseMaxOp>,
                 TpuQuantBf16DefaultPattern<tpu::EltwiseMulOp>,
@@ -633,7 +634,7 @@ public:
                 TpuQuantBf16DefaultPattern<tpu::PoolMax2DOp>,
                 TpuQuantBf16DefaultPattern<tpu::ReluOp>,
 
-                TpuQuantDefaultPattern<tpu::ConcatOp>,
+
                 TpuQuantDefaultPattern<tpu::CropOp>,
                 TpuQuantFullyConnectedOpPattern,
                 TpuQuantPReluOpPattern,

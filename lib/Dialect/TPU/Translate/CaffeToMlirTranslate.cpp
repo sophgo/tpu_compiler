@@ -406,6 +406,186 @@ void CaffeImporter::convertSplitLayer(mlir::Block *block,
     tensor_map_[layer_param.top(i)] = input_var;
 }
 
+void CaffeImporter::convertConcatLayer(mlir::Block *block,
+    caffe::Layer<float> *layer) {
+  std::vector<mlir::Value *> input_vars = GetLayerInputs(layer);
+
+  auto layer_param = layer->layer_param();
+  auto concat_param = layer_param.concat_param();
+  int axis = concat_param.axis();
+  int64_t n = 0, c = 0, h = 0, w = 0;
+  int64_t concat_axis_dim = 0;
+
+  if (input_vars.size() == 1) {
+    // special case for YOLOv3 caffe model, which has only one input
+    // remove that node
+    llvm::errs() << "WARNING: concat layer has only one input\n";
+    tensor_map_[layer_param.top(0)] = input_vars[0];
+    return;
+  }
+
+  RankedTensorType result_type=nullptr;
+    llvm::ArrayRef<int64_t> input_shape =
+      input_vars[0]->getType().dyn_cast<mlir::TensorType>().getShape();
+
+  if(input_shape.size() == 4){
+    for (uint32_t i = 0; i < input_vars.size(); i++) {
+
+      input_shape = input_vars[i]->getType().dyn_cast<mlir::TensorType>().getShape();
+
+      n = input_shape[0];
+      c = input_shape[1];
+      h = input_shape[2];
+      w = input_shape[3];
+      concat_axis_dim += input_shape[axis];
+      LLVM_DEBUG(
+        llvm::errs()
+          << " var: " << i
+          << "  N: " << n
+          << ", C: " << c
+          << ", IH*IW: " << h << " * " << w
+          << "\n";
+      );
+    }
+
+    switch (axis) {
+    case 0:
+      n = concat_axis_dim;
+      break;
+    case 1:
+      c = concat_axis_dim;
+      break;
+    case 2:
+      h = concat_axis_dim;
+      break;
+    case 3:
+      w = concat_axis_dim;
+      break;
+    default:
+      assert(0);
+    }
+
+    LLVM_DEBUG(
+      llvm::errs()
+          << " axis: " << input_vars.size()
+          << "  N: " << n
+          << ", C: " << c
+          << ", IH*IW: " << h << " * " << w
+          << "\n";
+    );
+
+    // construct OP
+    result_type = RankedTensorType::get({n, c, h, w}, elementType_);
+
+  } else if (input_shape.size() == 2) {
+
+    for (uint32_t i = 0; i < input_vars.size(); i++) {
+      input_shape = input_vars[i]->getType().dyn_cast<mlir::TensorType>().getShape();
+
+      assert(input_shape.size() == 2);
+
+      h = input_shape[0];
+      w = input_shape[1];
+      concat_axis_dim += input_shape[axis];
+      LLVM_DEBUG(
+        llvm::errs()
+          << " var: " << i
+          << ", IH*IW: " << h << " * " << w
+          << "\n";
+      );
+    }
+
+    switch (axis) {
+    case 0:
+      h = concat_axis_dim;
+      break;
+    case 1:
+      w = concat_axis_dim;
+      break;
+    default:
+      assert(0);
+    }
+
+    LLVM_DEBUG(
+      llvm::errs()
+          << " axis: " << input_vars.size()
+          << ", IH*IW: " << h << " * " << w
+          << "\n";
+    );
+    // construct OP
+    result_type = RankedTensorType::get({h, w}, elementType_);
+
+  } else if (input_shape.size() == 3) {
+
+    for (uint32_t i = 0; i < input_vars.size(); i++) {
+      input_shape = input_vars[i]->getType().dyn_cast<mlir::TensorType>().getShape();
+
+      assert(input_shape.size() == 3);
+
+      c = input_shape[0];
+      h = input_shape[1];
+      w = input_shape[2];
+      concat_axis_dim += input_shape[axis];
+      LLVM_DEBUG(
+        llvm::errs()
+            << " var: " << i
+            << ", IH*IW: " << h << " * " << w
+            << "\n";
+      );
+    }
+
+    switch (axis) {
+    case 0:
+      c = concat_axis_dim;
+      break;
+    case 1:
+      h = concat_axis_dim;
+      break;
+    case 2:
+      w = concat_axis_dim;
+      break;
+    default:
+      assert(0);
+    }
+
+    LLVM_DEBUG(
+      llvm::errs()
+          << " axis: " << axis
+          <<", C: "<< c
+          << ", OH*OW: " << h << " * " << w
+          << "\n";
+    );
+
+    // construct OP
+    result_type = RankedTensorType::get({c,h, w}, elementType_);
+
+  } else {
+    assert(0);
+  }
+
+  std::vector<Value *> operands;
+  for (unsigned i = 0; i < input_vars.size(); i++ ) {
+    operands.push_back(input_vars[i]);
+  }
+  auto NoneOp = OpBuilder(block).create<tpu::NoneOp>(builder_.getUnknownLoc(),
+                                                     builder_.getNoneType());
+  operands.push_back(NoneOp.getResult());  // quant_scale
+  operands.push_back(NoneOp.getResult());  // quant_zeropoint
+  operands.push_back(NoneOp.getResult());  // quant_rshift
+  operands.push_back(NoneOp.getResult());  // quant_multiplier
+
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder_.getNamedAttr("axis", builder_.getI32IntegerAttr(axis)));
+  attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name())));
+  attrs.push_back(builder_.getNamedAttr("quant", getDefaultQuantParam(builder_)));
+  auto op = OpBuilder(block).create<tpu::ConcatOp>(
+      builder_.getUnknownLoc(), result_type,
+      ArrayRef<Value *>{operands}, ArrayRef<NamedAttribute>{attrs});
+  auto result_var = op.getResult();
+
+  tensor_map_[layer_param.top(0)] = result_var;
+}
+
 void CaffeImporter::convertConvolutionLayer(mlir::Block *block,
     caffe::Layer<float> *layer) {
   mlir::Value *input_var = GetLayerInput(layer);
@@ -614,6 +794,81 @@ void CaffeImporter::convertDeconvolutionLayer(mlir::Block *block, caffe::Layer<f
 
   tensor_map_[layer_param.top(0)] = result_var;
 
+}
+
+void CaffeImporter::convertEltwiseLayer(mlir::Block *block,
+    caffe::Layer<float> *layer) {
+  std::vector<mlir::Value *> input_vars = GetLayerInputs(layer);
+
+  auto layer_param = layer->layer_param();
+  auto eltwise_param = layer_param.eltwise_param();
+  std::string method;
+  assert(eltwise_param.coeff_size() == 0);
+  if (eltwise_param.operation() == caffe::EltwiseParameter_EltwiseOp_SUM) {
+    method = "SUM";
+  } else if (eltwise_param.operation() ==
+             caffe::EltwiseParameter_EltwiseOp_PROD) {
+    method = "PROD";
+  } else if (eltwise_param.operation() ==
+             caffe::EltwiseParameter_EltwiseOp_EltwiseOp_MAX) {
+    method = "MAX";
+  } else {
+    assert(0 && "eltwise only support, SUM, PROD, MAX now");
+  }
+  int64_t n, c, h, w;
+  llvm::ArrayRef<int64_t> input_shape =
+      input_vars[0]->getType().dyn_cast<mlir::TensorType>().getShape();
+  assert(input_shape.size() == 4);
+  n = input_shape[0];
+  c = input_shape[1];
+  h = input_shape[2];
+  w = input_shape[3];
+
+  LLVM_DEBUG(
+    llvm::errs()
+        << "  N: " << n
+        << ", C: " << c
+        << ", IH*IW: " << h << " * " << w
+        << "\n";
+  );
+
+  // construct OP
+  std::vector<Value *> operands;
+  for (unsigned i = 0; i < input_vars.size(); i++ ) {
+    operands.push_back(input_vars[i]);
+  }
+  auto NoneOp = OpBuilder(block).create<tpu::NoneOp>(builder_.getUnknownLoc(),
+                                                     builder_.getNoneType());
+  operands.push_back(NoneOp.getResult());
+  operands.push_back(NoneOp.getResult());
+  operands.push_back(NoneOp.getResult());
+  operands.push_back(NoneOp.getResult());
+
+  auto result_type = RankedTensorType::get({n, c, h, w}, elementType_);
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name())));
+  attrs.push_back(builder_.getNamedAttr("quant", getDefaultQuantParam(builder_)));
+  Value *result_var = nullptr;
+  if (method == "SUM") {
+    auto op = OpBuilder(block).create<tpu::EltwiseAddOp>(
+        builder_.getUnknownLoc(), result_type,
+        ArrayRef<Value *>{operands}, ArrayRef<NamedAttribute>{attrs});
+    result_var = op.getResult();
+  } else if (method == "PROD") {
+    auto op = OpBuilder(block).create<tpu::EltwiseMulOp>(
+        builder_.getUnknownLoc(), result_type,
+        ArrayRef<Value *>{operands}, ArrayRef<NamedAttribute>{attrs});
+    result_var = op.getResult();
+  } else if (method == "MAX") {
+    auto op = OpBuilder(block).create<tpu::EltwiseMaxOp>(
+        builder_.getUnknownLoc(), result_type,
+        ArrayRef<Value *>{operands}, ArrayRef<NamedAttribute>{attrs});
+    result_var = op.getResult();
+  } else {
+    assert(false);
+  }
+
+  tensor_map_[layer_param.top(0)] = result_var;
 }
 
 void CaffeImporter::convertInnerProductLayer(mlir::Block *block,
@@ -1112,81 +1367,6 @@ void CaffeImporter::convertPReLULayer(mlir::Block *block,
   tensor_map_[layer_param.top(0)] = result_var;
 }
 
-void CaffeImporter::convertEltwiseLayer(mlir::Block *block,
-    caffe::Layer<float> *layer) {
-  std::vector<mlir::Value *> input_vars = GetLayerInputs(layer);
-
-  auto layer_param = layer->layer_param();
-  auto eltwise_param = layer_param.eltwise_param();
-  std::string method;
-  assert(eltwise_param.coeff_size() == 0);
-  if (eltwise_param.operation() == caffe::EltwiseParameter_EltwiseOp_SUM) {
-    method = "SUM";
-  } else if (eltwise_param.operation() ==
-             caffe::EltwiseParameter_EltwiseOp_PROD) {
-    method = "PROD";
-  } else if (eltwise_param.operation() ==
-             caffe::EltwiseParameter_EltwiseOp_EltwiseOp_MAX) {
-    method = "MAX";
-  } else {
-    assert(0 && "eltwise only support, SUM, PROD, MAX now");
-  }
-  int64_t n, c, h, w;
-  llvm::ArrayRef<int64_t> input_shape =
-      input_vars[0]->getType().dyn_cast<mlir::TensorType>().getShape();
-  assert(input_shape.size() == 4);
-  n = input_shape[0];
-  c = input_shape[1];
-  h = input_shape[2];
-  w = input_shape[3];
-
-  LLVM_DEBUG(
-    llvm::errs()
-        << "  N: " << n
-        << ", C: " << c
-        << ", IH*IW: " << h << " * " << w
-        << "\n";
-  );
-
-  // construct OP
-  std::vector<Value *> operands;
-  for (unsigned i = 0; i < input_vars.size(); i++ ) {
-    operands.push_back(input_vars[i]);
-  }
-  auto NoneOp = OpBuilder(block).create<tpu::NoneOp>(builder_.getUnknownLoc(),
-                                                     builder_.getNoneType());
-  operands.push_back(NoneOp.getResult());
-  operands.push_back(NoneOp.getResult());
-  operands.push_back(NoneOp.getResult());
-  operands.push_back(NoneOp.getResult());
-
-  auto result_type = RankedTensorType::get({n, c, h, w}, elementType_);
-  std::vector<NamedAttribute> attrs;
-  attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name())));
-  attrs.push_back(builder_.getNamedAttr("quant", getDefaultQuantParam(builder_)));
-  Value *result_var = nullptr;
-  if (method == "SUM") {
-    auto op = OpBuilder(block).create<tpu::EltwiseAddOp>(
-        builder_.getUnknownLoc(), result_type,
-        ArrayRef<Value *>{operands}, ArrayRef<NamedAttribute>{attrs});
-    result_var = op.getResult();
-  } else if (method == "PROD") {
-    auto op = OpBuilder(block).create<tpu::EltwiseMulOp>(
-        builder_.getUnknownLoc(), result_type,
-        ArrayRef<Value *>{operands}, ArrayRef<NamedAttribute>{attrs});
-    result_var = op.getResult();
-  } else if (method == "MAX") {
-    auto op = OpBuilder(block).create<tpu::EltwiseMaxOp>(
-        builder_.getUnknownLoc(), result_type,
-        ArrayRef<Value *>{operands}, ArrayRef<NamedAttribute>{attrs});
-    result_var = op.getResult();
-  } else {
-    assert(false);
-  }
-
-  tensor_map_[layer_param.top(0)] = result_var;
-}
-
 void CaffeImporter::convertUpsampleLayer(mlir::Block *block,
     caffe::Layer<float> *layer) {
   std::vector<mlir::Value *> input_vars = GetLayerInputs(layer);
@@ -1258,174 +1438,6 @@ void CaffeImporter::convertSoftmaxLayer(mlir::Block *block,
       ArrayRef<Value *>{input_var}, ArrayRef<NamedAttribute>{attrs});
 
   auto result_var = op.getResult();
-  tensor_map_[layer_param.top(0)] = result_var;
-}
-
-void CaffeImporter::convertConcatLayer(mlir::Block *block,
-    caffe::Layer<float> *layer) {
-  std::vector<mlir::Value *> input_vars = GetLayerInputs(layer);
-
-  auto layer_param = layer->layer_param();
-  auto concat_param = layer_param.concat_param();
-  int axis = concat_param.axis();
-  int64_t n = 0, c = 0, h = 0, w = 0;
-  int64_t concat_axis_dim = 0;
-
-  if (input_vars.size() == 1) {
-    // special case for YOLOv3 caffe model, which has only one input
-    // remove that node
-    llvm::errs() << "WARNING: concat layer has only one input\n";
-    tensor_map_[layer_param.top(0)] = input_vars[0];
-    return;
-  }
-
-  RankedTensorType result_type=nullptr;
-    llvm::ArrayRef<int64_t> input_shape =
-      input_vars[0]->getType().dyn_cast<mlir::TensorType>().getShape();
-
-  if(input_shape.size() == 4){
-    for (uint32_t i = 0; i < input_vars.size(); i++) {
-
-      input_shape = input_vars[i]->getType().dyn_cast<mlir::TensorType>().getShape();
-
-      n = input_shape[0];
-      c = input_shape[1];
-      h = input_shape[2];
-      w = input_shape[3];
-      concat_axis_dim += input_shape[axis];
-      LLVM_DEBUG(
-        llvm::errs()
-          << " var: " << i
-          << "  N: " << n
-          << ", C: " << c
-          << ", IH*IW: " << h << " * " << w
-          << "\n";
-      );
-    }
-
-    switch (axis) {
-    case 0:
-      n = concat_axis_dim;
-      break;
-    case 1:
-      c = concat_axis_dim;
-      break;
-    case 2:
-      h = concat_axis_dim;
-      break;
-    case 3:
-      w = concat_axis_dim;
-      break;
-    default:
-      assert(0);
-    }
-
-    LLVM_DEBUG(
-      llvm::errs()
-          << " axis: " << input_vars.size()
-          << "  N: " << n
-          << ", C: " << c
-          << ", IH*IW: " << h << " * " << w
-          << "\n";
-    );
-
-    // construct OP
-    result_type = RankedTensorType::get({n, c, h, w}, elementType_);
-
-  } else if (input_shape.size() == 2) {
-
-    for (uint32_t i = 0; i < input_vars.size(); i++) {
-      input_shape = input_vars[i]->getType().dyn_cast<mlir::TensorType>().getShape();
-
-      assert(input_shape.size() == 2);
-
-      h = input_shape[0];
-      w = input_shape[1];
-      concat_axis_dim += input_shape[axis];
-      LLVM_DEBUG(
-        llvm::errs()
-          << " var: " << i
-          << ", IH*IW: " << h << " * " << w
-          << "\n";
-      );
-    }
-
-    switch (axis) {
-    case 0:
-      h = concat_axis_dim;
-      break;
-    case 1:
-      w = concat_axis_dim;
-      break;
-    default:
-      assert(0);
-    }
-
-    LLVM_DEBUG(
-      llvm::errs()
-          << " axis: " << input_vars.size()
-          << ", IH*IW: " << h << " * " << w
-          << "\n";
-    );
-    // construct OP
-    result_type = RankedTensorType::get({h, w}, elementType_);
-
-  } else if (input_shape.size() == 3) {
-
-    for (uint32_t i = 0; i < input_vars.size(); i++) {
-      input_shape = input_vars[i]->getType().dyn_cast<mlir::TensorType>().getShape();
-
-      assert(input_shape.size() == 3);
-
-      c = input_shape[0];
-      h = input_shape[1];
-      w = input_shape[2];
-      concat_axis_dim += input_shape[axis];
-      LLVM_DEBUG(
-        llvm::errs()
-            << " var: " << i
-            << ", IH*IW: " << h << " * " << w
-            << "\n";
-      );
-    }
-
-    switch (axis) {
-    case 0:
-      c = concat_axis_dim;
-      break;
-    case 1:
-      h = concat_axis_dim;
-      break;
-    case 2:
-      w = concat_axis_dim;
-      break;
-    default:
-      assert(0);
-    }
-
-    LLVM_DEBUG(
-      llvm::errs()
-          << " axis: " << axis
-          <<", C: "<< c
-          << ", OH*OW: " << h << " * " << w
-          << "\n";
-    );
-
-    // construct OP
-    result_type = RankedTensorType::get({c,h, w}, elementType_);
-
-  } else {
-    assert(0);
-  }
-
-  std::vector<NamedAttribute> attrs;
-  attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name())));
-  attrs.push_back(builder_.getNamedAttr("dimension", builder_.getI32IntegerAttr(axis)));
-  auto op = OpBuilder(block).create<tpu::ConcatOp>(
-      builder_.getUnknownLoc(), result_type,
-      ArrayRef<Value *>{input_vars}, ArrayRef<NamedAttribute>{attrs});
-  auto result_var = op.getResult();
-
   tensor_map_[layer_param.top(0)] = result_var;
 }
 

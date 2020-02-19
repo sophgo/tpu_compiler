@@ -65,6 +65,7 @@ public:
       processed += addLayerIdAttr<tpu::EltwiseMulOp>(builder, layer_id, op);
       processed += addLayerIdAttr<tpu::FullyConnectedOp>(builder, layer_id, op);
       processed += addLayerIdAttr<tpu::InputOp>(builder, layer_id, op);
+      processed += addLayerIdAttr<tpu::LeakyReluOp>(builder, layer_id, op);
       processed += addLayerIdAttr<tpu::PoolAvg2DOp>(builder, layer_id, op);
       processed += addLayerIdAttr<tpu::PoolMax2DOp>(builder, layer_id, op);
       processed += addLayerIdAttr<tpu::PermuteOp>(builder, layer_id, op);

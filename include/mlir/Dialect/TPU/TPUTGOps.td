@@ -32,6 +32,57 @@ include "mlir/Dialect/TPU/TPUBase.td"
 // TPU TG op definitions.
 //===----------------------------------------------------------------------===//
 
+class TPU_TG_ConcatOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
+  let summary = "TG " # opQuant # " Concat operator.";
+
+  let description = [{
+    Inputs:
+      `inputs`          : required, the variadic activation memref.
+
+    Attributes:
+      `axis`            : required, the axis the concat is applying
+      `rshift`          : optional, rshift, an int8 value.
+      `m_i8_inputs`     : optional, multipliers for inputs. one int8 value for
+                          each input (saved as I32ArrayAttr)
+      `m_i8_output`     : optional, multiplier for output.
+      `region`          : required, the memory region to reside in, could be
+                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
+                          (backend does not support `INPUT`, `OUTPUT` for now)
+      `gaddr`           : optional, address in global memory, normally the
+                          offset within the memory region.
+      `name`            : required, name for comparing, or debug.
+      `layer_id`        : optional, id for profiling.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface`    : support common TPU TG Op interface.
+      `TpuTGOpCodegenInterface` : support generate TPU instuctions.
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input1,
+    AnyTensor:$input2,
+    OptionalAttr<I8Attr>:$rshift,
+    OptionalAttr<I32ArrayAttr>:$m_i8_inputs,
+    OptionalAttr<I8Attr>:$m_i8_output,
+    I32Attr:$axis,
+    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
+    OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+def TPU_TG_INT8_ConcatOp : TPU_TG_ConcatOp<"tg_int8_concat", "Int8">;
+def TPU_TG_BF16_ConcatOp : TPU_TG_ConcatOp<"tg_bf16_concat", "Bf16">;
+
 class TPU_TG_ConvOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,

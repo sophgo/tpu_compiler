@@ -66,6 +66,169 @@ static std::vector<std::shared_ptr<std::vector<float> > >
   return opdT;
 }
 
+LogicalResult tpu::ConcatOp::interpret(
+    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+  Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
+
+  auto opdT = getOperandTensors(op, valueMapping);
+  auto result = this->getResult();
+  auto size = getTensorSize(result);
+  auto resultT = std::make_unique<std::vector<float> >(size);
+
+  // parse param
+  auto concat_axis = this->axis();
+  LLVM_DEBUG(llvm::errs() << "concat_axis =" << concat_axis << "\n";);
+
+  // get tensors
+  size_t nInputs = op->getNumOperands() - 4;
+  assert(nInputs >= 2 && "bottom num is 0 or 1");
+  std::vector<float *> input(nInputs);
+  for (size_t i = 0; i < nInputs; ++i) {
+    input[i] = (float *)opdT[i]->data();
+  }
+  //float *output = resultT->data();
+  std::shared_ptr<std::vector<float> > quant_rshift = opdT[nInputs + 2];
+  std::shared_ptr<std::vector<float> > quant_multiplier = opdT[nInputs + 3];
+
+  // apply qscale on input tensors before f32 compute
+  std::vector<std::vector<float> > input_copy(nInputs);
+  if (mlir::getOpQuant(op) == "INT8") {
+    for (unsigned i = 0; i < nInputs; ++i) {
+      // make copy
+      input_copy[i].assign(opdT[i]->begin(),
+                           opdT[i]->end());
+      input[i] = input_copy[i].data();
+    }
+    // apply multiplier
+    for (unsigned i = 0; i < nInputs; ++i) {
+      for (size_t j = 0; j < opdT[i]->size(); ++j) {
+        input[i][j] = input[i][j] * (int8_t)quant_multiplier->at(i);
+      }
+    }
+  }
+
+  // there is no fp32 compute
+
+  // apply rshift and saturate on input directly
+  if (mlir::getOpQuant(op) == "INT8") {
+    for (unsigned i = 0; i < nInputs; ++i) {
+      for (size_t j = 0; j < opdT[i]->size(); ++j) {
+        input[i][j] = (float)applyRShiftAndSaturateInt8(input[i][j],
+            (uint32_t)quant_rshift->at(0));
+      }
+    }
+  }
+
+  // do concat copy
+  auto tmp_resultT = std::make_unique<std::vector<float> >(0);
+  int shift_idx_c=0;
+  int shift_idx_h=0;
+  int tmp_w=0;
+  for (uint32_t i = 0; i < nInputs; i++) {
+    std::vector<int64_t> shape;
+    int64_t input_size, n, c, h, w;
+    getTensorShapeAndSize(op->getOperand(i), shape, input_size);
+
+    if (shape.size() == 4) {
+      n = shape[0];
+      c = shape[1];
+      h = shape[2];
+      w = shape[3];
+
+      LLVM_DEBUG(llvm::errs() << "  [" << i << "], shape ("
+                              << n << ", " << c << ", " << h << ", " << w << ")\n";);
+      LLVM_DEBUG(llvm::errs() << "  [" << i << "], size " << input_size << "\n";);
+
+      auto *input_data = input[i];
+
+      if (concat_axis == 0) {
+        auto shapeT = std::make_unique<std::vector<float> >(input_size);
+        shapeT.get()->assign(&input_data[0], &input_data[input_size]);
+        tmp_resultT.get()->insert(tmp_resultT.get()->end(), shapeT->begin(), shapeT->end());
+      } else if (concat_axis == 1) {
+        for (uint32_t idx_n = 0; idx_n < n; idx_n++) {
+          auto shapeT = std::make_unique<std::vector<float> >(c * h * w);
+          int insert_offset = ((idx_n + 1) * shift_idx_c  + idx_n * c) * h * w;
+          shapeT.get()->assign(&input_data[idx_n * c * h * w], &input_data[(idx_n + 1) * c * h * w]);
+          tmp_resultT.get()->insert(tmp_resultT.get()->begin() + insert_offset, shapeT->begin(), shapeT->end());
+        }
+        shift_idx_c += c;
+      } else if (concat_axis == 2) {
+        for (uint32_t idx_n = 0; idx_n < n; idx_n++) {
+          for (uint32_t idx_c = 0; idx_c < c ;idx_c++) {
+            auto shapeT = std::make_unique<std::vector<float> >(h * w);
+            int insert_offset = (idx_n * c * h + (idx_c + 1) * shift_idx_h + idx_c * h) * w;
+            shapeT.get()->assign(&input_data[(idx_n * c + idx_c) * h * w], &input_data[(idx_n * c + (idx_c + 1)) * h * w]);
+            tmp_resultT.get()->insert(tmp_resultT.get()->begin() + insert_offset, shapeT->begin(), shapeT->end());
+          }
+        }
+        shift_idx_h += h;
+      } else {
+        assert(0 && "not support concat_axis >=3 now\n");
+      }
+    } else if (shape.size() == 2) {
+      h = shape[0];
+      w = shape[1];
+
+      LLVM_DEBUG(llvm::errs() << "  [" << i << "], shape ("
+                              << h << ", " << w << ")\n";);
+      LLVM_DEBUG(llvm::errs() << "  [" << i << "], size " << input_size << "\n";);
+
+      auto *input_data = input[i];
+
+      if (concat_axis == 0) {
+        auto shapeT = std::make_unique<std::vector<float> >(input_size);
+        shapeT.get()->assign(&input_data[0], &input_data[input_size]);
+        tmp_resultT.get()->insert(tmp_resultT.get()->end(), shapeT->begin(), shapeT->end());
+      } else if (concat_axis == 1) {
+        for (uint32_t idx_h = 0; idx_h < h; idx_h++) {
+          auto shapeT = std::make_unique<std::vector<float> >(w);
+          //int insert_offset = ((idx_h + 1) * idx_h) * h * w;
+          //int insert_offset = (idx_h  + (idx_h + 1) * shift_idx_h) * (i=0?w:tmp_w);
+          int insert_offset = ((idx_h+1)* tmp_w) + idx_h*w;
+          shapeT.get()->assign(&input_data[idx_h * w], &input_data[(idx_h + 1) * w]);
+          tmp_resultT.get()->insert(tmp_resultT.get()->begin() + insert_offset, shapeT->begin(), shapeT->end());
+        }
+        tmp_w += w;
+      } else {
+        assert(0 && "not support concat_axis >=2 now\n");
+      }
+    } else if (shape.size() == 3) {
+      c = shape[0];
+      h = shape[1];
+      w = shape[2];
+
+      LLVM_DEBUG(llvm::errs() << "  [" << i << "], shape ("
+                              << c << ", " << h << ", " << w << ")\n";);
+      LLVM_DEBUG(llvm::errs() << "  [" << i << "], size " << input_size << "\n";);
+
+      auto *input_data = input[i];
+
+      if (concat_axis == 0) {
+        auto shapeT = std::make_unique<std::vector<float> >(input_size);
+        shapeT.get()->assign(&input_data[0], &input_data[input_size]);
+        tmp_resultT.get()->insert(tmp_resultT.get()->end(), shapeT->begin(), shapeT->end());
+      } else if (concat_axis == 2) {
+        assert(c==1);
+        for (uint32_t idx_h = 0; idx_h < h; idx_h++) {
+          auto shapeT = std::make_unique<std::vector<float> >(w);
+          int insert_offset = ((idx_h+1)* tmp_w) + idx_h*w;
+          shapeT.get()->assign(&input_data[idx_h * w], &input_data[(idx_h + 1) * w]);
+          tmp_resultT.get()->insert(tmp_resultT.get()->begin() + insert_offset, shapeT->begin(), shapeT->end());
+        }
+        tmp_w += w;
+      } else {
+        assert(0&&"not support shape size =1 and axis = 1 now ");
+      }
+    }
+  }
+  resultT.get()->assign(tmp_resultT.get()->begin(), tmp_resultT.get()->end());
+
+  valueMapping[result] = std::move(resultT);
+  return success();
+}
+
 LogicalResult tpu::Conv2DOp::interpret(
     DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();
@@ -539,11 +702,6 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     valueMapping[result] = std::move(resultT);
 
     return success();
-  }
-
-  if (auto op = dyn_cast<tpu::Conv2DOp>(opInst)) {
-    LLVM_DEBUG(llvm::errs() << "Conv2DOp [" << op.name() << "]\n";);
-    assert(false);
   }
 
   if (auto op = dyn_cast<tpu::PermuteOp>(opInst)) {
@@ -1109,145 +1267,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     valueMapping[result] = std::move(resultT);
     return success();
   }
-#if 0
-  if (auto op = dyn_cast<tpu::EltwiseOp>(opInst)) {
-    LLVM_DEBUG(llvm::errs() << "EltwiseOp" << "\n";);
-    assert(false);
-    auto opdT = getOperandTensors(opInst, valueMapping);
-    auto result = op.getResult();
-    LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";);
-    std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
-    assert(shape.size() <= 4);
-    auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
-    auto resultT = std::make_unique<std::vector<float> >(size);
 
-
-#define MAX_ELTWISE_INPUT (2)
-    int n, c, h, w;
-    auto input_1_type = op.x1()->getType().cast<TensorType>();
-    std::vector<int64_t> i1_s(input_1_type.getShape());
-    auto input_2_type = op.x2()->getType().cast<TensorType>();
-    std::vector<int64_t> i2_s(input_2_type.getShape());
-    auto output_type = op.y()->getType().cast<TensorType>();
-    std::vector<int64_t> o_s(output_type.getShape());
-    assert((i1_s == i2_s) && "two input shapes not equal");
-    assert((i1_s == o_s) && "input shape not equal to output shape");
-    n = o_s[0];
-    c = o_s[1];
-    h = o_s[2];
-    w = o_s[3];
-    float *input[MAX_ELTWISE_INPUT];
-    for (int index = 0; index < MAX_ELTWISE_INPUT; ++index) {
-      input[index] = (float *)opdT[index]->data();
-    }
-    float *output = (float *)resultT->data();
-
-    // for INT8, get threshold_x and make copy of input first
-    std::vector<float> input_copy[MAX_ELTWISE_INPUT];
-    std::vector<float> threshold_x(MAX_ELTWISE_INPUT);
-    float threshold_y;
-    if (op.quant() == "INT8") {
-      for (int index = 0; index < MAX_ELTWISE_INPUT; ++index) {
-        // make copy
-        std::vector<float> &src_vec = *opdT[index];
-        std::copy(src_vec.begin(), src_vec.end(),
-                  back_inserter(input_copy[index]));
-        input[index] = input_copy[index].data();
-
-        // get threshold_x
-        threshold_x[index] = getPreviousOpThreshold(op, index);
-      }
-      // get threshold_y
-      threshold_y = op.threshold_y().getValue().convertToFloat();
-    }
-
-    // determine multiplier and rshift according each threshold_x
-    // scale[i] = threshold_x[i] / threshold_y
-    // each scale will be implemented by hardware as
-    // scale[i] = multiplier / (1 << rshift)
-    // find a rshift, that put max(multiplier) into range (64, 127)
-    uint32_t rshift;
-    int8_t multiplier[MAX_ELTWISE_INPUT];
-    uint32_t multiplier_prod;
-    if (op.quant() == "INT8") {
-      if (op.method() == "SUM" || op.method() == "MAX") {
-        // determine rshift for all inputs, and multiplier for each input
-        // use max threshold_x to find rshift first
-        float max_threshold_x =
-            *std::max_element(std::begin(threshold_x), std::end(threshold_x));
-        rshift = findRShiftAndMultiplierFromQScale(max_threshold_x / threshold_y);
-        LLVM_DEBUG(llvm::errs()
-                   << "  threshold_y = " << std::to_string(threshold_y)
-                   << ", rshift = " << std::to_string(rshift) << "\n");
-        for (int index = 0; index < MAX_ELTWISE_INPUT; ++index) {
-          float qscale = threshold_x[index] / threshold_y;
-          multiplier[index] =
-              (int8_t)findMultiplierI8FromQScaleAndRShift(qscale, rshift);
-          LLVM_DEBUG(llvm::errs()
-                     << "  threshold_x[" << index
-                     << "] = " << std::to_string(threshold_x[index])
-                     << ", multiplier[" << index
-                     << "] = " << std::to_string(multiplier[index]) << "\n");
-        }
-        // apply multiplier
-        for (int index = 0; index < MAX_ELTWISE_INPUT; ++index) {
-          for (size_t i = 0; i < opdT[index]->size(); ++i) {
-            input[index][i] = input[index][i] * multiplier[index];
-          }
-        }
-      } else if (op.method() == "PROD") {
-        float threshold_prod = std::accumulate(
-            threshold_x.begin(), threshold_x.end(), 1.0, std::multiplies<>());
-        float qscale = threshold_prod / threshold_y / 127.0;
-        rshift = findRShiftAndMultiplierFromQScale(qscale, &multiplier_prod, true, 255);
-      } else {
-        assert(0); // not support
-      }
-    }
-
-    int ret;
-    if (op.method() == "SUM") {
-      ret = my_eltwise(input[0], input[1], output, n, c, h, w, 1);
-    } else if (op.method() == "PROD") {
-      ret = my_eltwise(input[0], input[1], output, n, c, h, w, 0);
-    } else if (op.method() == "MAX") {
-      ret = my_eltwise(input[0], input[1], output, n, c, h, w, 2);
-    }
-    assert(ret == 0);
-    if (op.fused_activation_function() == "NONE") {
-    } else if (op.fused_activation_function() == "RELU") {
-      my_relu(output, output, n, c, h, w, 0.0f);
-    } else {
-      assert(0);
-    }
-
-    // rshift and saturate on output
-    if (op.quant() == "INT8") {
-      // assert(rshift);
-      if (op.method() == "PROD") {
-        for (int i = 0; i < size; ++i) {
-          output[i] = (float)applyMultiplierAndRShiftAndSaturateInt8(
-              output[i], rshift, multiplier_prod, true);
-        }
-      } else {
-        for (int i = 0; i < size; ++i) {
-          output[i] =
-              (float)applyRShiftAndSaturateInt8(output[i], (uint32_t)rshift);
-        }
-      }
-    } else if (op.quant() == "BF16") {
-      auto tensor_bf16 =
-          std::make_unique<std::vector<bfloat16>>(resultT->size());
-      FloatToBFloat16(resultT->data(), tensor_bf16->data(),
-                      resultT->size()); // with rounding
-      BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
-    }
-
-    valueMapping[result] = std::move(resultT);
-
-    return success();
-  }
-#endif
   if (auto op = dyn_cast<tpu::ReshapeOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "ReshapeOp" << "\n";);
     auto opdT = getOperandTensors(opInst, valueMapping);
@@ -1308,178 +1328,6 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     std::vector<int >indices(size, 0);
     my_crop(input, output, input_shape1.data(), input_shape2.data(),
             output_shape.data(), 0, crop_offset.data(), indices.data());
-    valueMapping[result] = std::move(resultT);
-    return success();
-  }
-  if (auto op = dyn_cast<tpu::ConcatOp>(opInst)) {
-    LLVM_DEBUG(llvm::errs() << "ConcatOp" << "\n";);
-    auto opdT = getOperandTensors(opInst, valueMapping);
-    auto result = op.res();
-    LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";);
-    std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
-    auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
-    auto resultT = std::make_unique<std::vector<float> >(size);
-    size_t bottom_num = opdT.size();
-    uint32_t n, c, h, w;
-    auto concat_axis = op.dimension();
-    auto tmp_resultT = std::make_unique<std::vector<float> >(0);
-    int shift_idx_c=0;
-    int shift_idx_h=0;
-    int tmp_w=0;
-    assert(bottom_num >= 2 && "bottom num is 0 or 1");
-    assert(shape.size() <= 4);
-    LLVM_DEBUG(llvm::errs() << "concat_axis =" << concat_axis << "\n";);
-
-    std::vector<float *> input(bottom_num);
-    for (size_t index = 0; index < bottom_num; ++index) {
-      input[index] = (float *)opdT[index]->data();
-    }
-
-    // for INT8, get threshold_x and make copy of input first
-    std::vector<std::vector<float> >input_copy(bottom_num);
-    std::vector<float> threshold_x(bottom_num);
-    float threshold_y;
-    if (op.quant() == "INT8") {
-      for (size_t index = 0; index < bottom_num; ++index) {
-        // make copy
-        std::vector<float> &src_vec = *opdT[index];
-        std::copy(src_vec.begin(), src_vec.end(), back_inserter(input_copy[index]));
-        input[index] = input_copy[index].data();
-
-        // get threshold_x
-        threshold_x[index] = getPreviousOpThreshold(op, index);
-      }
-      // get threshold_y
-      threshold_y = op.threshold_y().getValue().convertToFloat();
-    }
-
-    // determine multiplier and rshift according each threshold_x
-    // scale[i] = threshold_x[i] / threshold_y
-    // each scale will be implemented by hardware as
-    // scale[i] = multiplier / (1 << rshift)
-    // find a rshift, that put max(multiplier) into range (64, 127)
-    int8_t rshift;
-    std::vector<int8_t> multiplier(bottom_num);
-    if (op.quant() == "INT8") {
-      // determine rshift for all inputs, and multiplier for each input
-      // use max threshold_x to find rshift first
-      float max_threshold_x = *std::max_element(
-          std::begin(threshold_x), std::end(threshold_x));
-      rshift = findRShiftAndMultiplierFromQScale(max_threshold_x / threshold_y);
-      LLVM_DEBUG(llvm::errs() << "  threshold_y = " << std::to_string(threshold_y)
-                              << ", rshift = " << std::to_string(rshift) << "\n");
-      for (size_t index = 0; index < bottom_num; ++index) {
-        float qscale = threshold_x[index] / threshold_y;
-        multiplier[index] = findMultiplierI8FromQScaleAndRShift(qscale, rshift);
-        LLVM_DEBUG(llvm::errs()
-            << "  threshold_x[" << index << "] = " << std::to_string(threshold_x[index])
-            << ", multiplier["  << index << "] = " << std::to_string(multiplier[index])
-            << "\n");
-      }
-    }
-
-    // apply multiplier & saturate
-    if (op.quant() == "INT8") {
-      for (size_t index = 0; index < bottom_num; ++index) {
-        for (size_t i = 0; i < opdT[index]->size(); ++i) {
-          input[index][i] = input[index][i] * multiplier[index];
-          input[index][i] = (float)applyRShiftAndSaturateInt8(input[index][i], (uint32_t)rshift);
-        }
-      }
-    }
-    for (uint32_t i = 0; i < bottom_num; i++) {
-      std::vector<int64_t> shape =  op.getOperand(i)->getType().cast<TensorType>().getShape();
-
-      if(shape.size()==4){
-
-        n = shape[0];
-        c = shape[1];
-        h = shape[2];
-        w = shape[3];
-
-        LLVM_DEBUG(llvm::errs() << "shape n:" << n << " c:" << c << " h:"<< h << " w:"<< w <<"\n";);
-        LLVM_DEBUG(llvm::errs() << "bottom num:" << opdT.size() << "\n";);
-        LLVM_DEBUG(llvm::errs() << "data size:" << opdT[i]->size() << "\n";);
-
-        auto *input_data = input[i];
-
-        if (concat_axis == 0) {
-          tmp_resultT.get()->insert(tmp_resultT.get()->end(), opdT[i]->begin(), opdT[i]->end());
-        }
-        else if (concat_axis == 1) {
-          for (uint32_t idx_n = 0; idx_n < n; idx_n++) {
-            auto shapeT = std::make_unique<std::vector<float> >(c * h * w);
-            int insert_offset = ((idx_n + 1) * shift_idx_c  + idx_n * c) * h * w;
-            shapeT.get()->assign(&input_data[idx_n * c * h * w], &input_data[(idx_n + 1) * c * h * w]);
-            tmp_resultT.get()->insert(tmp_resultT.get()->begin() + insert_offset, shapeT->begin(), shapeT->end());
-          }
-          shift_idx_c += c;
-        } else if (concat_axis == 2) {
-          for (uint32_t idx_n = 0; idx_n < n; idx_n++) {
-            for (uint32_t idx_c = 0; idx_c < c ;idx_c++) {
-              auto shapeT = std::make_unique<std::vector<float> >(h * w);
-              int insert_offset = (idx_n * c * h + (idx_c + 1) * shift_idx_h + idx_c * h) * w;
-              shapeT.get()->assign(&input_data[(idx_n * c + idx_c) * h * w], &input_data[(idx_n * c + (idx_c + 1)) * h * w]);
-              tmp_resultT.get()->insert(tmp_resultT.get()->begin() + insert_offset, shapeT->begin(), shapeT->end());
-            }
-          }
-          shift_idx_h += h;
-        } else
-          assert(0 && "not support concat_axis >=3 now\n");
-      }else if(shape.size()==2){
-          h = shape[0];
-          w = shape[1];
-
-          LLVM_DEBUG(llvm::errs() << "shape h:" << h << " w:"<< w <<"\n";);
-          LLVM_DEBUG(llvm::errs() << "bottom num:" << opdT.size() << "\n";);
-          LLVM_DEBUG(llvm::errs() << "data size:" << opdT[i]->size() << "\n";);
-          auto *input_data = input[i];
-          if (concat_axis == 0) {
-            tmp_resultT.get()->insert(tmp_resultT.get()->end(), opdT[i]->begin(), opdT[i]->end());
-          }
-          else if (concat_axis == 1) {
-
-            for (uint32_t idx_h = 0; idx_h < h; idx_h++) {
-              auto shapeT = std::make_unique<std::vector<float> >(w);
-              //int insert_offset = ((idx_h + 1) * idx_h) * h * w;
-              //int insert_offset = (idx_h  + (idx_h + 1) * shift_idx_h) * (i=0?w:tmp_w);
-              int insert_offset = ((idx_h+1)* tmp_w) + idx_h*w;
-              shapeT.get()->assign(&input_data[idx_h * w], &input_data[(idx_h + 1) * w]);
-              tmp_resultT.get()->insert(tmp_resultT.get()->begin() + insert_offset, shapeT->begin(), shapeT->end());
-            }
-            tmp_w += w;
-          } else
-            assert(0 && "not support concat_axis >=2 now\n");
-      }else if(shape.size()==3){
-        c = shape[0];
-        h = shape[1];
-        w = shape[2];
-
-        LLVM_DEBUG(llvm::errs() << "shape c:" << c <<"\n";);
-        LLVM_DEBUG(llvm::errs() << "shape h:" << h << " w:"<< w <<"\n";);
-        LLVM_DEBUG(llvm::errs() << "bottom num:" << opdT.size() << "\n";);
-        LLVM_DEBUG(llvm::errs() << "data size:" << opdT[i]->size() << "\n";);
-
-        auto *input_data = input[i];
-        if (concat_axis == 0) {
-          tmp_resultT.get()->insert(tmp_resultT.get()->end(), opdT[i]->begin(), opdT[i]->end());
-        }else if (concat_axis == 2) {
-
-            assert(c==1);
-            for (uint32_t idx_h = 0; idx_h < h; idx_h++) {
-            auto shapeT = std::make_unique<std::vector<float> >(w);
-            int insert_offset = ((idx_h+1)* tmp_w) + idx_h*w;
-            shapeT.get()->assign(&input_data[idx_h * w], &input_data[(idx_h + 1) * w]);
-            tmp_resultT.get()->insert(tmp_resultT.get()->begin() + insert_offset, shapeT->begin(), shapeT->end());
-          }
-          tmp_w += w;
-        }else {
-          assert(0&&"not support shape size =1 and axis = 1 now ");
-        }
-       }
-    }
-
-    resultT.get()->assign(tmp_resultT.get()->begin(), tmp_resultT.get()->end());
     valueMapping[result] = std::move(resultT);
     return success();
   }
