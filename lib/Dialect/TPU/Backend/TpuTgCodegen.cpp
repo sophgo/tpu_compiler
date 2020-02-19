@@ -53,6 +53,26 @@ extern int BF16_TABLE_END;
 
 namespace mlir {
 
+LogicalResult tpu::TG_INT8_ConcatOp::codegen(void *ctx) {
+  llvm::errs() << "TG_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";
+  //BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
+  //Operation *op = this->getOperation();
+
+  assert(false);
+  return success();
+}
+
+LogicalResult tpu::TG_BF16_ConcatOp::codegen(void *ctx) {
+  llvm::errs() << "TG_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";
+  //BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
+  //Operation *op = this->getOperation();
+
+  assert(false);
+  return success();
+}
+
 LogicalResult tpu::TG_INT8_PT_Conv2DOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";

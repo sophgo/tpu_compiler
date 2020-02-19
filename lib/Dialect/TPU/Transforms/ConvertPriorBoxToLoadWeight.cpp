@@ -46,7 +46,7 @@ struct TpuConvertLoadeweightConcatToLoadweightPattern : public RewritePattern {
     auto loc = op->getLoc();
     auto concatOp = cast<tpu::ConcatOp>(op);
 
-    int input_loadweight_num = concatOp.getOperands().size();
+    unsigned input_loadweight_num = concatOp.getOperands().size();
 
 
     for(int i=0;i<input_loadweight_num;i++){
@@ -57,8 +57,8 @@ struct TpuConvertLoadeweightConcatToLoadweightPattern : public RewritePattern {
     }
     uint32_t  c, h, w;
     int tmp_w=0;
-    llvm::errs() << "Starting to convert Layer " << concatOp.name().getValue() << "\n";
-    auto result = concatOp.res();
+    llvm::errs() << "Starting to convert Layer " << concatOp.name() << "\n";
+    auto result = concatOp.getResult();
     // LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";);
     std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
     auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
@@ -68,7 +68,7 @@ struct TpuConvertLoadeweightConcatToLoadweightPattern : public RewritePattern {
 
     std::vector<std::unique_ptr<std::vector<float> > > inputloadweight(input_loadweight_num);
 
-    for (int i = 0; i < input_loadweight_num; ++i) {
+    for (unsigned i = 0; i < input_loadweight_num; ++i) {
       auto weight_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
           concatOp.getOperand(i)->getDefiningOp());
       assert(weight_op);
@@ -82,7 +82,7 @@ struct TpuConvertLoadeweightConcatToLoadweightPattern : public RewritePattern {
     }
 
 
-    for (uint32_t i = 0; i < input_loadweight_num; i++) {
+    for (unsigned i = 0; i < input_loadweight_num; i++) {
       std::vector<int64_t> shape =  concatOp.getOperand(i)->getType().cast<TensorType>().getShape();
       assert(3==shape.size()&&"only do 3 dim concat opt now");
       c = shape[0];
@@ -390,7 +390,7 @@ public:
     applyPatternsGreedily(fn, patterns);
     std::string newName;
     weightTensorFile->keep(true, &newName);
-    
+
     fn.walk([&](tpu::LoadFileOp op) {
       OpBuilder b(fn.getBody());
       op.setAttr("filename", b.getStringAttr(newName));

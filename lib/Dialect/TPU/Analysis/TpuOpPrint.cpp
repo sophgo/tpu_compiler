@@ -96,6 +96,7 @@ public:
           processed += printTpuOpInfo<tpu::EltwiseMulOp>(op, file_os);
           processed += printTpuOpInfo<tpu::FullyConnectedOp>(op, file_os);
           processed += printTpuOpInfo<tpu::InputOp>(op, file_os);
+          processed += printTpuOpInfo<tpu::LeakyReluOp>(op, file_os);
           processed += printTpuOpInfo<tpu::NormalizeOp>(op, file_os);
           processed += printTpuOpInfo<tpu::PermuteOp>(op, file_os);
           processed += printTpuOpInfo<tpu::PoolAvg2DOp>(op, file_os);

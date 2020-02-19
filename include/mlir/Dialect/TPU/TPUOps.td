@@ -156,44 +156,87 @@ class TPU_EltwiseOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
   let results = (outs AnyTensor:$output);
 }
 
-// for Deconv for now, to be removed
-class TPU_ConvOp_Legacy<string mnemonic, string opSummary> : TPU_Op<mnemonic,
-      [NoSideEffect, DeclareOpInterfaceMethods<TpuInterface>]> {
-  let summary = opSummary # " operator";
-
-  let description = [{
-
-  }];
-
-  let arguments = (
-    ins AnyTensor:$input,
-    AnyTensor:$filter,
-    Variadic<AnyTensor>:$variadic_tensors,
-    BoolAttr:$with_bias,
-    DefaultValuedAttr<I32Attr, "1">:$dilation_h_factor,
-    DefaultValuedAttr<I32Attr, "1">:$dilation_w_factor,
-    DefaultValuedAttr<TPU_AFAttr, "NONE">:$fused_activation_function,
-    DefaultValuedAttr<TPU_EltwiseAttr, "NONE">:$fused_eltwise_method,
-    DefaultValuedAttr<TPU_AFAttr, "NONE">:$fused_activation_function_after_eltwise,
-    OptionalAttr<F32Attr>:$threshold_y_before_eltwise,
-    TPU_PaddingAttr:$padding,
-    I32Attr:$stride_h,
-    I32Attr:$stride_w,
-    DefaultValuedAttr<I32Attr, "1">:$group,
-    DefaultValuedAttr<BoolAttr, "false">:$per_channel_info_is_aggregated,
-    OptionalAttr<StrAttr>:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
-    OptionalAttr<NonNegativeI64Attr>:$offset,
-    OptionalAttr<F32Attr>:$threshold_y,
-    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
-  );
-
-  let results = (outs AnyTensor:$output);
-}
-
 //===----------------------------------------------------------------------===//
 // TPU op definitions. (in alphabetical order)
 //===----------------------------------------------------------------------===//
+
+def TPU_ConcatOp: TPU_Op<"concat",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
+       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
+       DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
+  let summary = "Concat operator";
+
+  let description = [{
+    Performs concat operation on inputs.
+
+    Inputs:
+      `inputs`          : required, variadic input tensors.
+      `quant_scale`     : optional, the quant scale tensor. one fp32 value
+                          for each input tensor.
+      `quant_zeropoint` : optional, the quant zero_point tensor, should be one
+                          int8 value for the output tensor.
+      `quant_rshift`    : optional, should always be a int8 value for all
+                          input tensors.
+      `quant_multiplier`: optional, the multiplier. one int8 value for each
+                          input tensor.
+
+    Attributes:
+      `axis`            : required, the axis the concat is applying
+      `quant`           : required, a QuantParam struct attributes.
+      `name`            : required, name for calibration, comparing, or debug.
+      `layer_id`        : optional, id for profiling.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TPU_QuantPerTensorOnly`
+      `TPU_QuantSupportAsymmetric`
+      `TpuOpCommonInterface` : support common TPU Op interface
+      `TpuOpInterpInterface` : support interperter
+      `TpuOpQuantInterface`  : support quantization
+      `TpuOpLowerInterface`  : support lower to TPU TG Ops
+  }];
+
+  let arguments = (
+    ins Variadic<AnyTensor>:$inputs,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_scale,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_zeropoint,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_rshift,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_multiplier,
+    DefaultValuedAttr<I32Attr, "1">:$axis,
+    TPU_QuantParamAttr:$quant,
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
+  );
+
+  let verifier = [{
+    auto firstType = getOperand(0)->getType().cast<RankedTensorType>();
+
+    auto firstShape = firstType.getShape();
+    int numOperands = getNumOperands();
+    for (int i = 1; i < numOperands - 4; i++) {
+      auto secondType = getOperand(i)->getType().cast<RankedTensorType>();
+
+      if (firstType.getRank() != secondType.getRank()) {
+        return emitOpError() << "operands (0) and" << "(" << i << ")" << "do not match rank.";
+      }
+
+      auto secondShape = secondType.getShape();
+      for (int d = 0; d < firstType.getRank(); ++d) {
+        if (firstShape[d] != secondShape[d] && d != axis()) {
+          return emitOpError() << "operands (0) and (" << "i" << "non-concat dimensions do not match ";
+        }
+      }
+    }
+    return success();
+  }];
+
+  let results = (outs AnyTensor:$output);
+}
 
 def TPU_Conv2DOp : TPU_ConvOp<"conv_2d", "Convolution">;
 
@@ -432,6 +475,44 @@ def TPU_ReluOp: TPU_Op<"relu",
 
 
 // to be removed
+
+
+
+// for Deconv for now, to be removed
+class TPU_ConvOp_Legacy<string mnemonic, string opSummary> : TPU_Op<mnemonic,
+      [NoSideEffect, DeclareOpInterfaceMethods<TpuInterface>]> {
+  let summary = opSummary # " operator";
+
+  let description = [{
+
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    AnyTensor:$filter,
+    Variadic<AnyTensor>:$variadic_tensors,
+    BoolAttr:$with_bias,
+    DefaultValuedAttr<I32Attr, "1">:$dilation_h_factor,
+    DefaultValuedAttr<I32Attr, "1">:$dilation_w_factor,
+    DefaultValuedAttr<TPU_AFAttr, "NONE">:$fused_activation_function,
+    DefaultValuedAttr<TPU_EltwiseAttr, "NONE">:$fused_eltwise_method,
+    DefaultValuedAttr<TPU_AFAttr, "NONE">:$fused_activation_function_after_eltwise,
+    OptionalAttr<F32Attr>:$threshold_y_before_eltwise,
+    TPU_PaddingAttr:$padding,
+    I32Attr:$stride_h,
+    I32Attr:$stride_w,
+    DefaultValuedAttr<I32Attr, "1">:$group,
+    DefaultValuedAttr<BoolAttr, "false">:$per_channel_info_is_aggregated,
+    OptionalAttr<StrAttr>:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<NonNegativeI64Attr>:$offset,
+    OptionalAttr<F32Attr>:$threshold_y,
+    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
 def TPU_BatchNormOp: TPU_Op<"batch_norm",
       [NoSideEffect, DeclareOpInterfaceMethods<TpuInterface>]> {
   let summary = "BatchNorm operator";
@@ -454,50 +535,6 @@ def TPU_BatchNormOp: TPU_Op<"batch_norm",
   );
 
   let results = (outs AnyTensor:$y);
-}
-
-def TPU_ConcatOp: TPU_Op<"concat",
-      [NoSideEffect, SameOperandsAndResultElementType,
-       DeclareOpInterfaceMethods<TpuInterface>]> {
-  let summary = "Concat operator";
-
-  let description = [{
-    Performs concat operation on inputs.
-  }];
-
-  let arguments = (
-    ins Variadic<AnyTensor>:$val,
-    DefaultValuedAttr<I32Attr, "1">: $dimension,
-    OptionalAttr<StrAttr>:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
-    OptionalAttr<NonNegativeI64Attr>:$offset,
-    OptionalAttr<F32Attr>:$threshold_y,
-    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
-  );
-
-  let verifier = [{
-    auto firstType = getOperand(0)->getType().cast<RankedTensorType>();
-
-    auto firstShape = firstType.getShape();
-    int numOperands = getNumOperands();
-    for (int i = 1; i < numOperands; i++) {
-      auto secondType = getOperand(i)->getType().cast<RankedTensorType>();
-
-      if (firstType.getRank() != secondType.getRank()) {
-        return emitOpError() << "operands (0) and" << "(" << i << ")" << "do not match rank.";
-      }
-
-      auto secondShape = secondType.getShape();
-      for (int d = 0; d < firstType.getRank(); ++d) {
-        if (firstShape[d] != secondShape[d] && d != dimension()) {
-          return emitOpError() << "operands (0) and (" << "i" << "non-concat dimensions do not match ";
-        }
-      }
-    }
-    return success();
-  }];
-
-  let results = (outs AnyTensor:$res);
 }
 
 def TPU_CropOp: TPU_Op<"crop",

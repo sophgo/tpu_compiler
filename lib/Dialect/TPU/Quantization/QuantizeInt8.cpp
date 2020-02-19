@@ -402,14 +402,9 @@ struct TpuQuantInt8LeakyReluOpPattern : public RewritePattern {
 ///
 /// default quantize pattern
 /// for operations that has no weight, but still need to do rescaling
-/// requirements:
-///   1. for multiple inputs op (eltwise add/max, concat)
-///      - first 2 operands are input
-///      - operands [2 - 5] are quant tensors
-///      - operands [6 - ] are more inputs in varadic tensors
-///   2. for single input op (PoolAvg2D)
-///      - first operand is input
-///      - operands [1 - 4] are quant tensors
+/// for multiple inputs op (eltwise add/max, concat)
+///      - first n operands are variadic
+///      - 4 quant operands are following
 /// special handling for some operations
 ///   1. PoolAvg2D: needs to take 1 / (kh * kw) into account
 ///
@@ -1687,8 +1682,9 @@ public:
 
     OwningRewritePatternList patterns_w;
     //concat cpu layer test
-    patterns_w
-        .insert<TpuQuantInt8Conv2DOpPattern,
+    patterns_w.insert<
+                TpuQuantInt8DefaultPattern<tpu::ConcatOp>,
+                TpuQuantInt8Conv2DOpPattern,
                 TpuQuantInt8DefaultPattern<tpu::EltwiseAddOp>,
                 TpuQuantInt8DefaultPattern<tpu::EltwiseMaxOp>,
                 TpuQuantInt8EltwiseMulOpPattern,
@@ -1697,7 +1693,7 @@ public:
                 TpuQuantInt8LeakyReluOpPattern,
                 TpuQuantInt8BypassPattern<tpu::ReluOp>,
 
-                TpuQuantDefaultPattern<tpu::ConcatOp>,
+
                 TpuQuantDeConv2DOpPattern,
                 TpuQuantDefaultPattern<tpu::CropOp>,
                 TpuQuantDefaultPattern<tpu::DivOp>,

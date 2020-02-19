@@ -314,6 +314,7 @@ public:
     // assigne gaddr for TG Ops
     patterns.insert<
           // tg int8 ops
+          AssignGAddrTGInt8Pattern<tpu::TG_INT8_ConcatOp>,
           AssignGAddrTGInt8Pattern<tpu::TG_INT8_PT_Conv2DOp>,
           AssignGAddrTGInt8Pattern<tpu::TG_INT8_PC_Conv2DOp>,
           AssignGAddrTGInt8Pattern<tpu::TG_INT8_EltwiseAddOp>,
@@ -322,6 +323,7 @@ public:
           AssignGAddrTGInt8Pattern<tpu::TG_INT8_PoolAvg2DOp>,
           AssignGAddrTGInt8Pattern<tpu::TG_INT8_PoolMax2DOp>,
           // tg bf16 ops
+          AssignGAddrTGBf16Pattern<tpu::TG_BF16_ConcatOp>,
           AssignGAddrTGBf16Pattern<tpu::TG_BF16_Conv2DOp>,
           AssignGAddrTGBf16Pattern<tpu::TG_BF16_EltwiseAddOp>,
           AssignGAddrTGBf16Pattern<tpu::TG_BF16_EltwiseMaxOp>,
@@ -333,7 +335,6 @@ public:
     patterns.clear();
 
     patterns.insert<
-          TpuQuantizationOpPattern<tpu::ConcatOp>,
           TpuQuantizationOpPattern<tpu::DeConv2DOp>,
           TpuQuantizationOpPattern<tpu::DivOp>,
           TpuQuantizationOpPattern<tpu::CropOp>,

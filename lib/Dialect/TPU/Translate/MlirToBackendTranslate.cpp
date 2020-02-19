@@ -209,7 +209,7 @@ static LogicalResult runOperation(Operation &opInst) {
     #endif
     return success();
   }
-
+#if 0
   if (auto op = dyn_cast<tpu::ConcatOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "concat ConcatOp" << "\n";);
     int num = op.getOperation()->getNumOperands();
@@ -326,13 +326,7 @@ static LogicalResult runOperation(Operation &opInst) {
     }
     return success();
   }
-
-
-  if (auto op = dyn_cast<tpu::Conv2DOp>(opInst)) {
-    LLVM_DEBUG(llvm::errs() << "Conv2DOp" << "\n";);
-    assert(false);
-    return success();
-  }
+#endif
 
   if (auto op = dyn_cast<tpu::DeConv2DOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "DeConv2DOp" << "\n";);
@@ -579,106 +573,6 @@ static LogicalResult runOperation(Operation &opInst) {
     return success();
   }
 
-#if 0
-  if (auto op = dyn_cast<tpu::Pool2DOp>(opInst)) {
-    LLVM_DEBUG(llvm::errs() << "Pool2DOp" << "\n";);
-
-    bool is_average_pool, do_relu;
-    int n, c, ih, iw, oh, ow, kh, kw, sh, sw, pt, pb, pl, pr;
-    getPool2DOpParam(op, is_average_pool, n, c, ih, iw, oh, ow,
-                     kh, kw, sh, sw, pt, pb, pl, pr, do_relu);
-
-    float threshold_x;
-    float threshold_y;
-    uint32_t rshift = 0;
-    // multiplier is taking avg_const into account
-    uint32_t multiplier = 0;
-    if (op.quant() == "INT8" && is_average_pool) {
-      threshold_x = getPreviousOpThreshold(op);
-      threshold_y = op.threshold_y().getValue().convertToFloat();
-      // determine multiplier and rshift according to threshold_x
-      // scale = threshold_x / threshold_y
-      // scale will be implemented by hardware as
-      // scale = multiplier / (1 << rshift)
-      // find a rshift, that put max(multiplier) into range (64, 127)
-      //uint32_t rshift;
-      //int8_t multiplier;
-      float scale = threshold_x / threshold_y;
-      float scale_and_avg_const = scale / (kh * kw);
-      //rshift = findRShiftAndMultiplierFromQScale(scale_and_avg_const, &multiplier, false, 127);
-      rshift = findRShiftAndMultiplierFromQScale(scale_and_avg_const, &multiplier, false, 255);
-    }
-
-    // gen cmdbuf
-    gaddr_t input_gaddr = getPreviousOpAddress(op);
-    gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
-    int layer_id = op.layer_id().getValue().getLimitedValue();
-
-    if (op.quant() == "INT8") {
-      int threshold_x_quantized = multiplier;
-      bmnet_pooling_fixed_forward_bmkernel(
-          *backend_ctx,
-          0, // stream_id,
-          0, // inst_id,
-          layer_id, // layer_id,
-          nullptr, // depends
-          0, // depends_len
-          input_gaddr, // input_data_gaddr,
-          output_gaddr, // output_data_gaddr,
-          INVALID_GLOBAL_ADDR, // index_data_gaddr,
-          INVALID_GLOBAL_ADDR, // o_findex_data_gaddr,
-          n,
-          c,
-          ih,
-          iw,
-          kh,
-          kw,
-          pt, // int pad_top,
-          pb, // int pad_bot,
-          pl, // int pad_left,
-          pr, // int pad_right,
-          sh, // int stride_h,
-          sw, // int stride_w,
-          is_average_pool, //is_avg_pooling,
-          0.0f, // float avg_const,  // default(passing 0.0f) is 1/kh*kw
-          0, // int do_relu,
-          is_average_pool ? rshift : 0, //int right_shift_width,
-          is_average_pool ? &threshold_x_quantized : nullptr, // &threshold_x_quantized,
-          true);
-    }
-    else if (op.quant() == "BF16") {
-      bf16_pooling_forward_kernel(
-          *backend_ctx,
-          layer_id, // layer_id,
-          input_gaddr, // input_data_gaddr,
-          output_gaddr, // output_data_gaddr,
-          INVALID_GLOBAL_ADDR, // index_data_gaddr,
-          INVALID_GLOBAL_ADDR, // o_findex_data_gaddr,
-          n,
-          c,
-          ih,
-          iw,
-          kh,
-          kw,
-          pt, // int pad_top,
-          pb, // int pad_bot,
-          pl, // int pad_left,
-          pr, // int pad_right,
-          sh, // int stride_h,
-          sw, // int stride_w,
-          is_average_pool, //is_avg_pooling,
-          0.0f, // float avg_const,  // default(passing 0.0f) is 1/kh*kw
-          0, // int do_relu,
-          true);
-    } else {
-      llvm::errs() << "op.quant = " << op.quant();
-      assert(0);
-    }
-    // gen cmdbuf end
-
-    return success();
-  }
-#endif
 
   if (auto op = dyn_cast<tpu::FullyConnectedOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "FullyConnectedOp" << "\n";);
