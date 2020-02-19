@@ -43,29 +43,21 @@ static llvm::cl::opt<std::string> clCalibrationTableFilename(
     llvm::cl::desc("Specify the calibration table filename"),
     llvm::cl::cat(clOptionsCategory));
 
-static llvm::cl::opt<bool> clCaliOverwriteThresholdForwardRelu(
-    "enable-cali-overwrite-threshold-forward-relu",
-    llvm::cl::desc("Overwrite threshold value for relu with prev Op's threshold"),
-    llvm::cl::cat(clOptionsCategory), llvm::cl::init(false));
-
-/// use relu-overwrite-backward as default
 static llvm::cl::opt<bool> clCaliOverwriteThresholdBackwardRelu(
     "enable-cali-overwrite-threshold-backward-relu",
-    llvm::cl::desc("Overwrite threshold value for the Op prev to relu "
-                   "with the relu's threshold"),
+    llvm::cl::desc("Backward overwrite Relu Ops' threshold"),
     llvm::cl::cat(clOptionsCategory), llvm::cl::init(true));
+
+static llvm::cl::opt<bool> clCaliOverwriteThresholdForwardRelu(
+    "enable-cali-overwrite-threshold-forward-relu",
+    llvm::cl::desc("Forward overwrite Relu Ops' threshold"),
+    llvm::cl::cat(clOptionsCategory), llvm::cl::init(false));
 
 static llvm::cl::opt<bool> clCaliOverwriteThresholdBackwardConcat(
     "enable-cali-overwrite-threshold-backward-concat",
     llvm::cl::desc("Overwrite threshold value for the Ops prev to concat "
                    "with the concat's threhold, and backpropagate result "
                    "threshold to operand ops"),
-    llvm::cl::cat(clOptionsCategory), llvm::cl::init(false));
-
-static llvm::cl::opt<bool> clCaliOverwriteThresholdMaxConcat(
-    "enable-cali-overwrite-threshold-max-concat",
-    llvm::cl::desc("Overwrite threshold value for concat and the Ops prev to "
-                   "concat, by find the max threshold value along the chain"),
     llvm::cl::cat(clOptionsCategory), llvm::cl::init(false));
 
 namespace {
@@ -79,26 +71,34 @@ struct BackwardOverwriteThresholdConcatPattern : public OpRewritePattern<tpu::Co
                                      PatternRewriter &rewriter) const {
     float threshold_y = getOpThreshold(op);
     int written = 0;
-    for (unsigned i = 0; i < op.getNumOperands(); ++i) {
+    unsigned nInputs = op.getNumInputs();
+    for (unsigned i = 0; i < nInputs; ++i) {
       auto formerOp = op.getOperand(i)->getDefiningOp();
       float threshold_x = getOpThreshold(formerOp);
       if (threshold_x == threshold_y) {
           continue;
       }
-      if (auto cast_op = llvm::dyn_cast_or_null<tpu::Conv2DOp>(formerOp)) {
+      if (auto cast_op = llvm::dyn_cast_or_null<tpu::ConcatOp>(formerOp)) {
         setOpThreshold(formerOp, threshold_y);
-      } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::UpsampleOp>(formerOp)) {
+      } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::Conv2DOp>(formerOp)) {
+        setOpThreshold(formerOp, threshold_y);
+      } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::Conv2DOp>(formerOp)) {
+        setOpThreshold(formerOp, threshold_y);
+      } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::DeConv2DOp>(formerOp)) {
         setOpThreshold(formerOp, threshold_y);
       } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::EltwiseAddOp>(formerOp)) {
-        assert(false);
-        //setOpThreshold(formerOp, threshold_y);
+        setOpThreshold(formerOp, threshold_y);
       } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::EltwiseMaxOp>(formerOp)) {
-        assert(false);
-        //setOpThreshold(formerOp, threshold_y);
+        setOpThreshold(formerOp, threshold_y);
       } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::EltwiseMulOp>(formerOp)) {
-        assert(false);
-        //setOpThreshold(formerOp, threshold_y);
+        setOpThreshold(formerOp, threshold_y);
+      } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::LeakyReluOp>(formerOp)) {
+        setOpThreshold(formerOp, threshold_y);
       } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::ReluOp>(formerOp)) {
+        setOpThreshold(formerOp, threshold_y);
+      } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::ScaleOp>(formerOp)) {
+        setOpThreshold(formerOp, threshold_y);
+      } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::UpsampleOp>(formerOp)) {
         setOpThreshold(formerOp, threshold_y);
       } else {
         llvm::errs() << formerOp->getName() << ": behavior not defined\n";
@@ -125,65 +125,50 @@ struct BackwardOverwriteThresholdConcatPattern : public OpRewritePattern<tpu::Co
   }
 };
 
-struct BackwardOverwriteThresholdReluPattern : public OpRewritePattern<tpu::ReluOp> {
-  using OpRewritePattern<tpu::ReluOp>::OpRewritePattern;
+template<typename TyOp>
+struct BackendOverwriteThresholdDefaultPattern : public RewritePattern {
+  BackendOverwriteThresholdDefaultPattern(MLIRContext *context)
+      : RewritePattern(TyOp::getOperationName(), 1, context) {}
 
-  PatternMatchResult matchAndRewrite(tpu::ReluOp op,
-                                     PatternRewriter &rewriter) const {
+  PatternMatchResult matchAndRewrite(Operation *op,
+                                     PatternRewriter &rewriter) const override {
     float threshold_y = getOpThreshold(op);
-    auto formerOp = op.getOperation()->getOperand(0)->getDefiningOp();
+    auto formerOp = op->getOperand(0)->getDefiningOp();
     float threshold_x = getPreviousOpThreshold(op, 0);
     if (threshold_x == threshold_y) {
       return matchFailure();
     }
-    if (auto cast_op = llvm::dyn_cast_or_null<tpu::Conv2DOp>(formerOp)) {
+    if (auto cast_op = llvm::dyn_cast_or_null<tpu::ConcatOp>(formerOp)) {
+      setOpThreshold(formerOp, threshold_y);
+    } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::Conv2DOp>(formerOp)) {
+      setOpThreshold(formerOp, threshold_y);
+    } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::CropOp>(formerOp)) {
+      setOpThreshold(formerOp, threshold_y);
+    } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::DeConv2DOp>(formerOp)) {
+      setOpThreshold(formerOp, threshold_y);
+    } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::EltwiseAddOp>(formerOp)) {
+      setOpThreshold(formerOp, threshold_y);
+    } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::EltwiseMaxOp>(formerOp)) {
+      setOpThreshold(formerOp, threshold_y);
+    } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::EltwiseMulOp>(formerOp)) {
       setOpThreshold(formerOp, threshold_y);
     } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::FullyConnectedOp>(formerOp)) {
       setOpThreshold(formerOp, threshold_y);
-    } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::ConcatOp>(formerOp)) {
-      setOpThreshold(formerOp, threshold_y);
-    } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::ScaleOp>(formerOp)) {
-      setOpThreshold(formerOp, threshold_y);
-    } else {
-      llvm::errs() << formerOp->getName() << ": behavior not defined\n";
-      assert(false);
-    }
-    llvm::errs() << "Relu set prev " << formerOp->getName()
-                 << " ["<< getOpName(formerOp) << "] threshold, from "
-                 << std::to_string(threshold_x) << " to "
-                 << std::to_string(threshold_y) << "\n";
-    if (threshold_x < threshold_y * 0.5) {
-      llvm::errs() << "  WARNING: prev threshold is too small to overwrite\n";
-    }
-    if (threshold_x > threshold_y * 2.0) {
-      llvm::errs() << "  WARNING: prev threshold is too large to overwrite\n";
-    }
-
-    return matchSuccess();
-  }
-};
-
-struct BackwardOverwriteThresholdUpsamplePattern : public OpRewritePattern<tpu::UpsampleOp> {
-  using OpRewritePattern<tpu::UpsampleOp>::OpRewritePattern;
-
-  PatternMatchResult matchAndRewrite(tpu::UpsampleOp op,
-                                     PatternRewriter &rewriter) const {
-    float threshold_y = getOpThreshold(op);
-    auto formerOp = op.getOperand()->getDefiningOp();
-    float threshold_x = getPreviousOpThreshold(op, 0);
-    if (threshold_x == threshold_y) {
-      return matchFailure();
-    }
-    if (auto cast_op = llvm::dyn_cast_or_null<tpu::Conv2DOp>(formerOp)) {
+    } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::LeakyReluOp>(formerOp)) {
       setOpThreshold(formerOp, threshold_y);
     } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::ReluOp>(formerOp)) {
       setOpThreshold(formerOp, threshold_y);
+    } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::ScaleOp>(formerOp)) {
+      setOpThreshold(formerOp, threshold_y);
+    } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::UpsampleOp>(formerOp)) {
+      setOpThreshold(formerOp, threshold_y);
     } else {
       llvm::errs() << formerOp->getName() << ": behavior not defined\n";
       assert(false);
     }
-    llvm::errs() << "Upsample set prev " << formerOp->getName()
-                 << " ["<< getOpName(formerOp) << "] threshold, from "
+    llvm::errs() << op->getName() << " [" << getOpName(op) << "] set prev "
+                 << formerOp->getName() << " ["<< getOpName(formerOp) << "], "
+                 "threshold from "
                  << std::to_string(threshold_x) << " to "
                  << std::to_string(threshold_y) << "\n";
     if (threshold_x < threshold_y * 0.5) {
@@ -194,37 +179,12 @@ struct BackwardOverwriteThresholdUpsamplePattern : public OpRewritePattern<tpu::
     }
 
     return matchSuccess();
-  }
-};
-
-/// Max forward concat threshold by setting result's threshold_y as the largest
-/// operands threshold.
-struct MaxOverwriteThresholdConcatPattern : public OpRewritePattern<tpu::ConcatOp> {
-  using OpRewritePattern<tpu::ConcatOp>::OpRewritePattern;
-
-  PatternMatchResult matchAndRewrite(tpu::ConcatOp op,
-                                     PatternRewriter &rewriter) const {
-    float threshold_y = getOpThreshold(op);
-    float max_threshold = getOpThreshold(op);
-    for (unsigned i = 0; i < op.getNumOperands(); ++i) {
-      float threshold_x = getPreviousOpThreshold(op, i);
-      if (threshold_x > max_threshold) {
-        max_threshold = threshold_x;
-      }
-    }
-    if (max_threshold > threshold_y) {
-      setOpThreshold(op.getOperation(), max_threshold);
-      return matchSuccess();
-    } else {
-      return matchFailure();
-    }
   }
 };
 
 /// overwrite current Op threshold by prev Op threshold
 /// for layers that we are not going to handle the threshold difference,
 /// like max pooling, upsample, permute, crop.
-/// TODO: max pooling should do backward overwrite
 template<typename TyOp>
 struct ForwardOverwriteThresholdDefaultPattern : public RewritePattern {
   ForwardOverwriteThresholdDefaultPattern(MLIRContext *context)
@@ -344,61 +304,60 @@ public:
       }
     });
 
-    // apply default bypass for the op that has no calibration threshold
-    OwningRewritePatternList patterns_1;
-    patterns_1.insert<BypassThresholdDefaultPattern<tpu::ReshapeOp>,
-                      BypassThresholdDefaultPattern<tpu::SliceOp>
-                     >(context);
-    applyPatternsGreedily(fn, patterns_1);
-
-    // apply default forward overwrite
-    // TODO: should all apply to backward overwrite
-    OwningRewritePatternList patterns_2;
-    patterns_2.insert<ForwardOverwriteThresholdDefaultPattern<tpu::UpsampleOp>,
-                      ForwardOverwriteThresholdDefaultPattern<tpu::PermuteOp>,
-                      ForwardOverwriteThresholdDefaultPattern<tpu::CropOp>,
-                      ForwardOverwriteThresholdDefaultPattern<tpu::PoolMax2DOp>  // TODO: backward overwrite
-                     >(context);
-    applyPatternsGreedily(fn, patterns_2);
+    // apply default bypass for the ops that has no calibration threshold
+    OwningRewritePatternList patterns;
+    patterns.insert<
+        BypassThresholdDefaultPattern<tpu::ReshapeOp>,
+        BypassThresholdDefaultPattern<tpu::SliceOp>
+        >(context);
+    applyPatternsGreedily(fn, patterns);
 
     if (clCaliOverwriteThresholdBackwardRelu) {
-      llvm::errs() << "Backward overwrite threshold for relu\n";
+      llvm::errs() << "Backward overwrite threshold for all\n";
       assert(!clCaliOverwriteThresholdForwardRelu);
-      OwningRewritePatternList patterns_relu;
-      patterns_relu.insert<BackwardOverwriteThresholdReluPattern>(context);
-      applyPatternsGreedily(fn, patterns_relu);
+      patterns.clear();
+      patterns.insert<
+          BackendOverwriteThresholdDefaultPattern<tpu::LeakyReluOp>,
+          BackendOverwriteThresholdDefaultPattern<tpu::ReluOp>,
+          BackendOverwriteThresholdDefaultPattern<tpu::UpsampleOp>,
+          BackendOverwriteThresholdDefaultPattern<tpu::PermuteOp>,
+          BackendOverwriteThresholdDefaultPattern<tpu::CropOp>,
+          BackendOverwriteThresholdDefaultPattern<tpu::PoolMax2DOp>
+          >(context);
+      if (clCaliOverwriteThresholdBackwardConcat) {
+        llvm::errs() << "Backward overwrite threshold for concat\n";
+        patterns.insert<
+            BackwardOverwriteThresholdConcatPattern
+            >(context);
+      }
+      applyPatternsGreedily(fn, patterns);
     }
     if (clCaliOverwriteThresholdForwardRelu) {
-      llvm::errs() << "Forward overwrite threshold for relu\n";
+      llvm::errs() << "Forward overwrite threshold for all\n";
       assert(!clCaliOverwriteThresholdBackwardRelu);
-      OwningRewritePatternList patterns_relu;
-      patterns_relu.insert<ForwardOverwriteThresholdDefaultPattern<tpu::ReluOp>
-                          >(context);
-      applyPatternsGreedily(fn, patterns_relu);
+      patterns.clear();
+      patterns.insert<
+          ForwardOverwriteThresholdDefaultPattern<tpu::LeakyReluOp>,
+          ForwardOverwriteThresholdDefaultPattern<tpu::ReluOp>,
+          ForwardOverwriteThresholdDefaultPattern<tpu::UpsampleOp>,
+          ForwardOverwriteThresholdDefaultPattern<tpu::PermuteOp>,
+          ForwardOverwriteThresholdDefaultPattern<tpu::CropOp>,
+          ForwardOverwriteThresholdDefaultPattern<tpu::PoolMax2DOp>
+          >(context);
+      applyPatternsGreedily(fn, patterns);
     }
 
-    if (clCaliOverwriteThresholdBackwardConcat) {
-      llvm::errs() << "Backward overwrite threshold for concat\n";
-      OwningRewritePatternList patterns_bp;
-      patterns_bp.insert<BackwardOverwriteThresholdConcatPattern,
-                         BackwardOverwriteThresholdReluPattern,
-                         BackwardOverwriteThresholdUpsamplePattern
-                        >(context);
-      applyPatternsGreedily(fn, patterns_bp);
-    } else if (clCaliOverwriteThresholdMaxConcat) {
-      llvm::errs() << "Max overwrite threshold for concat\n";
-      // forward bypass and max forward propergate first
-      OwningRewritePatternList patterns_mx;
-      patterns_mx.insert<MaxOverwriteThresholdConcatPattern>(context);
-      applyPatternsGreedily(fn, patterns_mx);
-
-      // then backpropagate the selected max threshold
-      OwningRewritePatternList patterns_bp;
-      patterns_bp.insert<BackwardOverwriteThresholdConcatPattern,
-                         BackwardOverwriteThresholdReluPattern,
-                         BackwardOverwriteThresholdUpsamplePattern
-                        >(context);
-      applyPatternsGreedily(fn, patterns_bp);
+    if (!clCaliOverwriteThresholdBackwardRelu
+        && !clCaliOverwriteThresholdForwardRelu) {
+      llvm::errs() << "Default backward overwrite\n";
+      patterns.clear();
+      patterns.insert<
+          BackendOverwriteThresholdDefaultPattern<tpu::UpsampleOp>,
+          BackendOverwriteThresholdDefaultPattern<tpu::PermuteOp>,
+          BackendOverwriteThresholdDefaultPattern<tpu::CropOp>,
+          BackendOverwriteThresholdDefaultPattern<tpu::PoolMax2DOp>
+          >(context);
+      applyPatternsGreedily(fn, patterns);
     }
   }
 

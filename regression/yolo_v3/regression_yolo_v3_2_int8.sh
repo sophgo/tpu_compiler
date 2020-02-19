@@ -79,14 +79,6 @@ mlir-opt \
     yolo_v3_416_opt.mlir \
     -o yolo_v3_416_cali_concat_bwd.mlir
 
-# non-autotune, concat-overwrite-max
-mlir-opt \
-    --import-calibration-table \
-    --enable-cali-overwrite-threshold-max-concat \
-    --calibration-table $REGRESSION_PATH/yolo_v3/data/yolo_v3_threshold_table \
-    yolo_v3_416_opt.mlir \
-    -o yolo_v3_416_cali_concat_max.mlir
-
 fi
 
 ################################
@@ -113,7 +105,7 @@ npz_compare.py \
       yolo_v3_blobs.npz \
       --op_info yolo_v3_op_info_int8_per_layer.csv \
       --dequant \
-      --tolerance 0.98,0.88,0.79 -vv  # autotune-relu-overwrite-backward (with leakyrelu only neg quant)
+      --tolerance 0.98,0.93,0.84 -vv  # autotune-relu-overwrite-backward (with leakyrelu only neg quant)
 
 if [ $COMPARE_ALL -eq 1 ]; then
   # some tensors do not pass due to threshold bypass
