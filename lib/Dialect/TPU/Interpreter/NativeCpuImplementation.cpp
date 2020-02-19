@@ -589,6 +589,35 @@ int my_bn(float *input, float *mean, float *variance, float *scale, float varian
   return 0;
 }
 
+// shuffle channel
+int my_shuffle_channel(float *input, float *output, unsigned int group, int n, int c,  int feature_map_size) {
+    LLVM_DEBUG(llvm::errs() << "  n: " << n << ", c: " << c << ",  g: " << group
+                          << ", f: " << feature_map_size << "\n";);
+    const int batch_length = feature_map_size * c;
+    int group_column = int(c/ group);
+    if (c % group != 0) {
+      llvm::errs() << "Error: Wrong group size, c=" << c << ", group =" << group;
+      assert(0);
+    }
+
+    for(int i = 0; i < n; ++i)
+    {
+      float * p_in = input + i * batch_length;
+      float * p_out = output + i * batch_length;
+      for (uint32_t j = 0; j < group; ++j) // 2
+      {
+          for(int k = 0; k < group_column ; ++k) // 3
+          {
+              float* p_i = p_in + (j * group_column + k ) * feature_map_size;
+              float* p_o = p_out + (k * group + j ) * feature_map_size;
+
+              memcpy((void*)p_o, (void*)p_i, feature_map_size * sizeof(float) );
+          }
+      }
+    }
+  return 0;
+}
+
 int my_scale(float *input, float *scale, float *bias,
     float *output, int n, int c, int h, int w) {
 #ifdef DUMP_FLAG

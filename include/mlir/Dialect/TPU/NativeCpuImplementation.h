@@ -30,6 +30,9 @@ int my_prelu(float *input, float *output, int n, int c, int h, int w,
 int my_bn(float *input, float *mean, float *variance, float *scale, float variance_epsilon,
     float *output, int n, int c, int h, int w);
 
+int my_shuffle_channel(float *input, float *output, unsigned int group,
+    int n, int c,  int feature_map_size);
+ 
 int my_scale(float *input, float *scale, float *bias,
     float *output, int n, int c, int h, int w);
 

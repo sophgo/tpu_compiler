@@ -129,6 +129,7 @@ private:
   void convertDetectionOutputLayer(mlir::Block *block, caffe::Layer<float> *layer);
   void convertPowerLayer(mlir::Block *block, caffe::Layer<float> *layer);
   void convertReductionLayer(mlir::Block *block, caffe::Layer<float> *layer);
+  void convertShuffleChannelLayer(mlir::Block *block, caffe::Layer<float> *layer);
 
   mlir::ModuleOp module_;
   mlir::Builder builder_;
@@ -275,7 +276,8 @@ void CaffeImporter::ConvertLayers(mlir::Block *block,
       convertInputLayer(block, layer);
     } else if (strcmp(layer->type(), "Split") == 0) {
       convertSplitLayer(block, layer);
-    } else if (strcmp(layer->type(), "Convolution") == 0) {
+    } else if ((strcmp(layer->type(), "Convolution") == 0)
+      || (strcmp(layer->type(), "ConvolutionDepthwise") == 0)) {
       convertConvolutionLayer(block, layer);
     } else if (strcmp(layer->type(), "InnerProduct") == 0) {
       convertInnerProductLayer(block, layer);
@@ -325,6 +327,8 @@ void CaffeImporter::ConvertLayers(mlir::Block *block,
       convertDetectionOutputLayer(block, layer);
     }else if (strcmp(layer->type(), "Power") == 0) {
       convertPowerLayer(block, layer);
+    }else if (strcmp(layer->type(), "ShuffleChannel") == 0) {
+      convertShuffleChannelLayer(block, layer);
     }else {
       llvm::errs() << "    UNKNOWN : " << layer->type() <<"\n";
       assert(false);
@@ -599,7 +603,12 @@ void CaffeImporter::convertConvolutionLayer(mlir::Block *block,
 
   bool with_bias = p.bias_term();
   oc = p.num_output();
-  g  = p.has_group()? p.group() : 1;
+  if (strcmp(layer->type(), "ConvolutionDepthwise") == 0) {
+    g = oc;
+  } else {
+    g  = p.has_group()? p.group() : 1;
+  }
+
   kernel[0] = p.has_kernel_h() ? p.kernel_h() : p.kernel_size_size() > 1 ? p.kernel_size(1) : p.kernel_size(0);
   kernel[1] = p.has_kernel_w() ? p.kernel_w() : p.kernel_size(0);
   stride[0] = p.has_stride_h() ? p.stride_h() : p.stride_size() > 1 ? p.stride(1) : p.stride_size() > 0 ? p.stride(0) : 1;
@@ -2430,6 +2439,34 @@ LogicalResult CaffeImporter::Import(const llvm::StringRef inputFilename,
   weightFile_->keep();
 
   return success();
+}
+
+void CaffeImporter::convertShuffleChannelLayer(mlir::Block *block,
+    caffe::Layer<float> *layer) {
+  auto layer_param = layer->layer_param();
+  assert(layer_param.has_shuffle_channel_param());
+  auto p = layer_param.shuffle_channel_param();
+  auto group = p.group();
+  mlir::Value * input_var = GetLayerInput(layer);
+  llvm::ArrayRef<int64_t> input_shape =
+      input_var->getType().dyn_cast<mlir::TensorType>().getShape();
+  assert(input_shape.size() >= 2);
+
+  std::vector<Value *> operands;
+  operands.push_back(input_var);
+
+  auto result_type = RankedTensorType::get(input_shape, elementType_);
+
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder_.getNamedAttr("group", builder_.getI32IntegerAttr(group)));
+  attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name())));
+ 
+  auto op = OpBuilder(block).create<tpu::ShuffleChannelOp>(
+      builder_.getUnknownLoc(), result_type,
+      ArrayRef<Value *>{operands}, ArrayRef<NamedAttribute>{attrs});
+  auto result_var = op.getResult();
+
+  tensor_map_[layer_param.top(0)] = result_var;
 }
 
 // Translate CaffeModel and returns a module in TPU Dialect.
