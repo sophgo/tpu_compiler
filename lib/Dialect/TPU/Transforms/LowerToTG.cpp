@@ -147,12 +147,12 @@ Value* tpu::CropOp::convertToTG(void *info) {
 
   if (getOpQuant() == "INT8") {
     // create op
-    auto newOp = OpBuilder(op).create<tpu::TG_INT8_ConcatOp>(op->getLoc(),
+    auto newOp = OpBuilder(op).create<tpu::TG_INT8_CropOp>(op->getLoc(),
         getResult()->getType(), ArrayRef<Value *>{operands},
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
   } else if (getOpQuant() == "BF16") {
-    auto newOp = OpBuilder(op).create<tpu::TG_BF16_ConcatOp>(op->getLoc(),
+    auto newOp = OpBuilder(op).create<tpu::TG_BF16_CropOp>(op->getLoc(),
         getResult()->getType(), ArrayRef<Value *>{operands},
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
@@ -614,16 +614,17 @@ static std::unique_ptr<std::vector<uint8_t> > packWeight(
   return std::move(packed);
 }
 
+template <typename OpTy>
 struct PackWeightConv2DOpPattern : public RewritePattern {
   PackWeightConv2DOpPattern(MLIRContext *context, TensorFile *weightTF,
       Value* weightFV)
-      : RewritePattern("tpu.conv_2d", 1, context),
+      : RewritePattern(OpTy::getOperationName(), 1, context),
         weightTF_(weightTF),
         weightFV_(weightFV) {}
 
   PatternMatchResult matchAndRewrite(Operation *op,
       PatternRewriter &rewriter) const override {
-    auto convOp = cast<tpu::Conv2DOp>(op);
+    auto convOp = cast<OpTy>(op);
     if (getOpQuant(op) != "INT8" || !isOpQuantPerchannel(op)
         || getOpQuantParamType(op) != "RSHIFT_AND_M_I32") {
       // for perchannel multiplier mode only
@@ -641,7 +642,7 @@ struct PackWeightConv2DOpPattern : public RewritePattern {
     llvm::errs() << "Pack Weight for Conv2D: " << getOpName(op) << "\n";
 
     // get param
-    auto filter_type = convOp.filter()->getType().cast<TensorType>();
+    auto filter_type = convOp.filter()->getType().template cast<TensorType>();
     std::vector<int64_t> filter_shape(filter_type.getShape());
     int64_t oc;
     auto g = convOp.param().group().getValue().getLimitedValue();
@@ -897,7 +898,8 @@ public:
     // first, merge conv rshift/multiplier/bias into one packed tensor
     OwningRewritePatternList patterns_pack;
     patterns_pack.insert<
-        PackWeightConv2DOpPattern
+        PackWeightConv2DOpPattern<tpu::Conv2DOp>,
+        PackWeightConv2DOpPattern<tpu::DeConv2DOp>
     >(context, weightTF.get(), weightFV);
     applyPatternsGreedily(fn, patterns_pack);
 
