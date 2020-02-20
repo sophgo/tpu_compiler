@@ -564,6 +564,18 @@ struct DefaultToTGPattern : public RewritePattern {
   Value* weightFV_;
 };
 
+template<typename OpTy>
+struct DefaultErasePattern : public RewritePattern {
+  DefaultErasePattern(MLIRContext *context)
+      : RewritePattern(OpTy::getOperationName(), 1, context) {}
+
+  PatternMatchResult matchAndRewrite(Operation *op,
+      PatternRewriter &rewriter) const override {
+    rewriter.replaceOp(op, {op->getOperand(0)});
+    return matchSuccess();
+  }
+};
+
 static std::unique_ptr<std::vector<uint8_t> > packWeight(
     std::vector<float> *bias, std::vector<float> *rshift,
     std::vector<float> *multiplier, int64_t oc,
@@ -900,7 +912,7 @@ public:
     patterns_pack.insert<
         PackWeightConv2DOpPattern<tpu::Conv2DOp>,
         PackWeightConv2DOpPattern<tpu::DeConv2DOp>
-    >(context, weightTF.get(), weightFV);
+        >(context, weightTF.get(), weightFV);
     applyPatternsGreedily(fn, patterns_pack);
 
     // second, do weight lower on weight tensors
@@ -908,12 +920,11 @@ public:
     OwningRewritePatternList patterns_lower;
     patterns_lower.insert<
         LowerWeightConv2DOpPattern
-    >(context, weightTF.get());
+        >(context, weightTF.get());
     applyPatternsGreedily(fn, patterns_lower);
 
     // do op lower
     OwningRewritePatternList patterns;
-
     patterns.insert<
         DefaultToTGPattern<tpu::ConcatOp>,
         DefaultToTGPattern<tpu::Conv2DOp>,
@@ -927,6 +938,16 @@ public:
         DefaultToTGPattern<tpu::PoolMax2DOp>,
         DefaultToTGPattern<tpu::UpsampleOp>
     >(context, weightTF.get(), weightFV);
+    applyPatternsGreedily(fn, patterns);
+
+    // TODO: this is temporary
+    // erase CPU ops
+    patterns.clear();
+    patterns.insert<
+        DefaultErasePattern<tpu::SoftmaxOp>,
+        DefaultErasePattern<tpu::QuantizationOp>,
+        DefaultErasePattern<tpu::DequantizationOp>
+        >(context);
     applyPatternsGreedily(fn, patterns);
 
     // keep tensorfile

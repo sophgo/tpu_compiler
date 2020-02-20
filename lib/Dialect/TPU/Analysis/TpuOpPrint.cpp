@@ -109,7 +109,6 @@ public:
             processed += printTpuOpInfo<tpu::ScaleOp>(op, file_os);
             processed += printTpuOpInfo<tpu::SigmoidOp>(op, file_os);
             processed += printTpuOpInfo<tpu::SliceOp>(op, file_os);
-            processed += printTpuOpInfo<tpu::SoftmaxOp>(op, file_os);
             processed += printTpuOpInfo<tpu::SqrtOp>(op, file_os);
             processed += printTpuOpInfo<tpu::TanHOp>(op, file_os);
             processed += printTpuOpInfo<tpu::ShuffleChannelOp>(op, file_os);

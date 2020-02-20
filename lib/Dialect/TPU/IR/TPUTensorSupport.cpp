@@ -38,6 +38,11 @@ void getNCHW(std::vector<int64_t> &shape,
     c = shape[1];
     h = shape[2];
     w = shape[3];
+  } else if (shape.size() == 3) {
+    n = shape[0];
+    c = shape[1];
+    h = shape[1];
+    w = 1;
   } else if (shape.size() == 2) {
     n = shape[0];
     c = shape[1];

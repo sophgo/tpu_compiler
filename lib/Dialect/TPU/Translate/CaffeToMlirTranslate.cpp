@@ -1354,14 +1354,14 @@ void CaffeImporter::convertSoftmaxLayer(mlir::Block *block,
   for (size_t i = 0; i < input_shape.size(); ++i) {
     LLVM_DEBUG(llvm::errs() << "input_shape[" << i << "] = " << input_shape[i] << ", ");
   }
-
   LLVM_DEBUG(llvm::errs() << "\n");
 
   // construct OP
   auto result_type = input_var->getType();
   std::vector<NamedAttribute> attrs;
-  attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name())));
   attrs.push_back(builder_.getNamedAttr("axis", builder_.getI32IntegerAttr(axis)));
+  attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name())));
+  attrs.push_back(builder_.getNamedAttr("quant", getDefaultQuantParam(builder_)));
   auto op = OpBuilder(block).create<tpu::SoftmaxOp>(
       builder_.getUnknownLoc(), result_type,
       ArrayRef<Value *>{input_var}, ArrayRef<NamedAttribute>{attrs});

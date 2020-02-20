@@ -1288,7 +1288,7 @@ struct TpuQuantDefaultPattern : public RewritePattern {
 template<typename T>
 static void addQuantOpAfterOp(PatternRewriter &rewriter, T &op) {
   auto loc = op.getLoc();
-  float threshold_y = op.threshold_y().getValue().convertToFloat();
+  float threshold_y = getOpThreshold(op.getOperation());
   std::string op_name = op.template getAttrOfType<StringAttr>("name").getValue().str();
 
   auto *inst = op.getOperation();

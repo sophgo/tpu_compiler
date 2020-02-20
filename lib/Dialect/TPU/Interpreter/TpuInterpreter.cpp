@@ -683,6 +683,35 @@ LogicalResult tpu::ReluOp::interpret(
   return success();
 }
 
+LogicalResult tpu::SoftmaxOp::interpret(
+    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+  Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
+
+  auto opdT = getOperandTensors(op, valueMapping);
+  auto result = this->getResult();
+  std::vector<int64_t> shape = getTensorShape(result);
+  auto size = getTensorSize(result);
+  auto resultT = std::make_unique<std::vector<float> >(size);
+
+  // parse param
+  int axis = this->axis().getLimitedValue();
+
+  if (shape.size() == 2) {
+    int ret = my_softmax2D(opdT[0]->data(), resultT->data(), shape[0], shape[1]);
+    assert(ret == 0);
+  } else if (shape.size() == 4) {
+    int ret = my_softmax4D(opdT[0]->data(), resultT->data(), axis, shape);
+    assert(ret == 0);
+  } else if (shape.size() == 3) {
+    int ret = my_softmax3D(opdT[0]->data(), resultT->data(), axis, shape);
+    assert(ret == 0);
+  }
+
+  valueMapping[result] = std::move(resultT);
+  return success();
+}
+
 LogicalResult tpu::UpsampleOp::interpret(
     DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();
@@ -1420,73 +1449,6 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     return success();
   }
 
-  if (auto op = dyn_cast<tpu::SoftmaxOp>(opInst)) {
-    LLVM_DEBUG(llvm::errs() << "SoftmaxOp" << "\n";);
-    auto opdT = getOperandTensors(opInst, valueMapping);
-    auto result = op.getResult();
-    LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";);
-    std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
-    assert(shape.size() == 2 || shape.size() == 4|| shape.size() == 3);
-    auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
-    auto resultT = std::make_unique<std::vector<float> >(size);
-    float *output = (float *)resultT.get()->data();
-
-    int axis = op.axis().getValue().getLimitedValue();
-    int n,c,h,w;
-    auto input_type = op.x()->getType().cast<TensorType>();
-    std::vector<int64_t> i_s(input_type.getShape());
-    auto output_type = op.y()->getType().cast<TensorType>();
-    std::vector<int64_t> o_s(output_type.getShape());
-    assert((i_s == o_s) && "input shape not equal to output shape");
-    float *input = (float *)opdT[0]->data();
-
-    if (shape.size() == 2) {
-      n = i_s[0];
-      c = i_s[1];
-
-      // do dequantization
-      if (0) {
-        float threshold_x = getPreviousOpThreshold(op);
-        LLVM_DEBUG(llvm::errs() << "  softmax dequantize, threshold_x = "
-                                << std::to_string(threshold_x) << "\n";);
-        for (size_t i = 0; i < opdT[0]->size(); ++i) {
-          input[i] = input[i] * threshold_x / 128.0;
-        }
-      }
-
-      int ret = my_softmax2D(input, output, n, c);
-      assert(ret == 0);
-    } else if (shape.size() == 4) {
-      int ret = my_softmax4D(input, output, axis, shape);
-      assert(ret == 0);
-    } else if (shape.size() == 3) {
-      c = i_s[0];
-      h = i_s[1];
-      w = i_s[2];
-      //just for axis = 2 now
-      assert(axis == 2);
-      auto tmp_resultT = std::make_unique<std::vector<float> >(w);
-
-      float *tmp = (float *)tmp_resultT.get()->data();
-
-      for(int ci = 0; ci < c; ci++) {
-        for(int hi = 0; hi < h; hi++) {
-          for(int wi = 0; wi < w; wi++) {
-            tmp[wi] = input[ci * w * h + hi * w + wi];
-          }
-
-          int ret = my_softmax2D(tmp, tmp, 1, w);
-          assert(ret == 0);
-          for(int wi = 0; wi < w; wi++) {
-            output[ci * w * h + hi * w + wi] = tmp[wi];
-          }
-        }  //end for hi
-      } //end for ci
-    }
-
-    valueMapping[result] = std::move(resultT);
-    return success();
-  }
   if (auto op = dyn_cast<tpu::DivOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "DivOp" << "\n";);
     auto opdT = getOperandTensors(opInst, valueMapping);
