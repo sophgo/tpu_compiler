@@ -1488,6 +1488,7 @@ void CaffeImporter::convertCropLayer(mlir::Block *block,
   attrs.push_back(builder_.getNamedAttr(
       "name", builder_.getStringAttr(layer_param.name())));
   attrs.push_back(builder_.getNamedAttr("quant", getDefaultQuantParam(builder_)));
+  // we only accept first input to IR, second input shape will be attribute.
   auto op = OpBuilder(block).create<tpu::CropOp>(
       builder_.getUnknownLoc(), result_type, ArrayRef<Value *>{operands},
       ArrayRef<NamedAttribute>{attrs});
@@ -1572,6 +1573,8 @@ void CaffeImporter::convertSigmoidLayer(mlir::Block *block,
       "name", builder_.getStringAttr(layer_param.name())));
   attrs.push_back(builder_.getNamedAttr(
       "has_table", builder_.getBoolAttr(false)));
+  attrs.push_back(
+      builder_.getNamedAttr("quant", getDefaultQuantParam(builder_)));
   auto op = OpBuilder(block).create<tpu::SigmoidOp>(
       builder_.getUnknownLoc(), result_type, ArrayRef<Value *>{input_var},
       ArrayRef<NamedAttribute>{attrs});
