@@ -175,7 +175,8 @@ LogicalResult setOpThreshold(Operation *op, float threshold) {
 
 float getPreviousOpThreshold(Operation *op, uint index = 0) {
   if ( op->getNumOperands() < (index + 1) ) {
-    llvm::errs() << __func__ << " failed " << getOpName(op) << "\n";
+    llvm::errs() << __func__ << " failed " << getOpName(op)
+                 << ", opd " << index << "\n";
     assert(false);
     return NAN;
   }

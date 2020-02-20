@@ -134,7 +134,7 @@ struct BackendOverwriteThresholdDefaultPattern : public RewritePattern {
                                      PatternRewriter &rewriter) const override {
     float threshold_y = getOpThreshold(op);
     auto formerOp = op->getOperand(0)->getDefiningOp();
-    float threshold_x = getPreviousOpThreshold(op, 0);
+    float threshold_x = getPreviousOpThreshold(op);
     if (threshold_x == threshold_y) {
       return matchFailure();
     }
