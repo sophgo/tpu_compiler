@@ -28,6 +28,9 @@
 
 namespace mlir {
 
+void arrayAttrToVector(const ArrayAttr &arrayAttr,
+                       std::vector<int32_t> &vector);
+
 llvm::StringRef getOpName(Operation *op);
 llvm::StringRef getPreviousOpName(Operation *op, uint index = 0);
 

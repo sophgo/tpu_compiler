@@ -129,6 +129,40 @@ Value* tpu::Conv2DOp::convertToTG(void *info) {
   return nullptr;
 }
 
+
+Value* tpu::CropOp::convertToTG(void *info) {
+  llvm::errs() << "lowerToTG: " << getOperationName()
+               << " [" << getOpName() << "]\n";
+  Operation *op = this->getOperation();
+  auto builder = Builder(op->getContext());
+  TensorFile *weightTF_ = (TensorFile *)info;
+  assert(weightTF_);
+
+  const unsigned nInputs = op->getNumOperands();
+  std::vector<Value *> operands;
+  for (unsigned i = 0; i < nInputs; ++i) {
+    operands.push_back(op->getOperand(i));
+  }
+
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder.getNamedAttr("name", nameAttr()));
+  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
+
+  if (getOpQuant() == "INT8") {
+    // create op
+    auto newOp = OpBuilder(op).create<tpu::TG_INT8_ConcatOp>(op->getLoc(),
+        getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  } else if (getOpQuant() == "BF16") {
+    auto newOp = OpBuilder(op).create<tpu::TG_BF16_ConcatOp>(op->getLoc(),
+        getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  }
+  assert(false);
+  return nullptr;
+}
 Value* tpu::EltwiseAddOp::convertToTG(void *info) {
   llvm::errs() << "lowerToTG: " << getOperationName()
                << " [" << getOpName() << "]\n";
@@ -835,6 +869,7 @@ public:
     patterns.insert<
         DefaultToTGPattern<tpu::ConcatOp>,
         DefaultToTGPattern<tpu::Conv2DOp>,
+        DefaultToTGPattern<tpu::CropOp>,
         DefaultToTGPattern<tpu::EltwiseAddOp>,
         DefaultToTGPattern<tpu::EltwiseMaxOp>,
         DefaultToTGPattern<tpu::EltwiseMulOp>,

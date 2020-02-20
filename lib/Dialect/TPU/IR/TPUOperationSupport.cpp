@@ -6,6 +6,15 @@
 
 namespace mlir {
 
+void arrayAttrToVector(const ArrayAttr &arrayAttr,
+                              std::vector<int32_t> &vector) {
+  vector.clear();
+  for (auto en : llvm::enumerate(arrayAttr)) {
+    auto attr = en.value().dyn_cast<IntegerAttr>();
+    vector.push_back(attr.getInt());
+  }
+}
+
 llvm::StringRef getOpName(Operation *op) {
   if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpCommonInterface>(op)) {
     return tpuOp.getOpName();

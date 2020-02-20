@@ -22,11 +22,13 @@ int64_t getTensorSize(Value *value) {
                          std::multiplies<>());
 }
 
+std::vector<int64_t> getTensorShape(Value *value) {
+  return value->getType().cast<TensorType>().getShape();
+}
 void getTensorShapeAndSize(Value *value, std::vector<int64_t> &shape,
     int64_t &size) {
-  shape = value->getType().cast<TensorType>().getShape();
-  size = std::accumulate(std::begin(shape), std::end(shape), 1,
-                         std::multiplies<>());
+  shape = getTensorShape(value);
+  size = getTensorSize(value);
 }
 
 void getNCHW(std::vector<int64_t> &shape,

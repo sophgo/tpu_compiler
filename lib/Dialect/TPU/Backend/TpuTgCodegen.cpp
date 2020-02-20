@@ -53,14 +53,6 @@ extern int BF16_TABLE_END;
 
 namespace mlir {
 
-static void arrayAttrToVector(const ArrayAttr &arrayAttr,
-    std::vector<int32_t> &vector) {
-  vector.clear();
-  for (auto en : llvm::enumerate(arrayAttr)) {
-    auto attr = en.value().dyn_cast<IntegerAttr>();
-    vector.push_back(attr.getInt());
-  }
-}
 
 template <typename OpTy>
 static Operation* getNextOp(const OpTy &op) {
@@ -239,6 +231,54 @@ LogicalResult tpu::TG_BF16_ConcatOp::codegen(void *ctx) {
 
   return success();
 }
+
+LogicalResult tpu::TG_INT8_CropOp::codegen(void *ctx) {
+  llvm::errs() << "TG_codegen: " << getOperationName() << " [" << getOpName()
+               << "]\n";
+  BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
+  Operation *op = this->getOperation();
+  int layer_id = mlir::getOpLayerId(op);
+  gaddr_t input_gaddr = getPreviousOpAddress(op);
+
+  gaddr_t output_gaddr = getOpAddress(op);
+  std::vector<int64_t> input_shape1 = getTensorShape(op->getOperand(0));
+  std::vector<int64_t> output_shape = getTensorShape(this->getResult());
+
+  // prepare data
+  std::vector<int> i1_s;
+  std::vector<int> i2_s;
+  std::vector<int> o_s;
+  std::vector<int> offsets;
+
+  i1_s.assign(input_shape1.begin(), input_shape1.end());
+  arrayAttrToVector(this->crop_shape().getValue(), i2_s);
+  o_s.assign(output_shape.begin(), output_shape.end());
+  arrayAttrToVector(this->crop_offset().getValue(), offsets);
+
+  crop_fixed_forward_bmkernel(*backend_ctx, // ctx,
+                              0,            // stream_id
+                              0,            // inst_id
+                              layer_id,
+                              nullptr,      // depends
+                              0,            // depends_len
+                              input_gaddr,  // bottom_gaddr,
+                              output_gaddr, // top_gaddr
+                              i1_s.data(), i2_s.data(), o_s.data(),
+                              offsets.data(), FMT_I8);
+
+  return success();
+}
+
+LogicalResult tpu::TG_BF16_CropOp::codegen(void *ctx) {
+  llvm::errs() << "TG_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";
+  //BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
+  //Operation *op = this->getOperation();
+
+  assert(false);
+  return success();
+}
+
 
 LogicalResult tpu::TG_INT8_PT_Conv2DOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName()

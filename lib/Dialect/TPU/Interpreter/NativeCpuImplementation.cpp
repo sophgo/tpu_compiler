@@ -762,7 +762,7 @@ int my_softmax4D(float *input, float *output, int axis, const std::vector<int64_
   return 0;
 }
 
-int my_crop(float *input, float *output, long int *shape1, long int *shape2, long int *top_shape,
+int my_crop(float *input, float *output, long int *shape1, int *shape2, long int *top_shape,
             int cur_dim, int *offsets, int *indices) {
   // for loop if dim is not last
   if (cur_dim + 1 < 4) {

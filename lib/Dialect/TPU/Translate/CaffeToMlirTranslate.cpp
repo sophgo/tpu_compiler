@@ -1532,8 +1532,9 @@ void CaffeImporter::convertCropLayer(mlir::Block *block,
                           << crop_param.offset_size() << "\n";);
 
   std::vector<int> output_shape(input_dim);
+  std::vector<int> crop_shape(input_dim);
   std::vector<int> crop_offset(input_dim);
-
+  crop_shape.assign(input_shape1.begin(), input_shape1.end());
   // Determine crop offsets and the new shape post-crop
   for (int i = 0; i < input_dim; ++i) {
     int offset = 0;
@@ -1562,23 +1563,17 @@ void CaffeImporter::convertCropLayer(mlir::Block *block,
       elementType_);
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder_.getNamedAttr(
-      "crop_offset_n", builder_.getI32IntegerAttr(crop_offset[0])));
+      "crop_shape", builder_.getI32ArrayAttr(ArrayRef<int32_t>({crop_shape}))));
   attrs.push_back(builder_.getNamedAttr(
-      "crop_offset_c", builder_.getI32IntegerAttr(crop_offset[1])));
-  attrs.push_back(builder_.getNamedAttr(
-      "crop_offset_h", builder_.getI32IntegerAttr(crop_offset[2])));
-  attrs.push_back(builder_.getNamedAttr(
-      "crop_offset_w", builder_.getI32IntegerAttr(crop_offset[3])));
-  attrs.push_back(
-      builder_.getNamedAttr("axis", builder_.getI32IntegerAttr(start_axis)));
+      "crop_offset", builder_.getI32ArrayAttr(ArrayRef<int32_t>({crop_offset}))));
   attrs.push_back(builder_.getNamedAttr(
       "name", builder_.getStringAttr(layer_param.name())));
+  attrs.push_back(builder_.getNamedAttr("quant", getDefaultQuantParam(builder_)));
   auto op = OpBuilder(block).create<tpu::CropOp>(
       builder_.getUnknownLoc(), result_type, ArrayRef<Value *>{input_vars},
       ArrayRef<NamedAttribute>{attrs});
   auto result_var = op.getResult();
   tensor_map_[layer_param.top(0)] = result_var;
-
 }
 
 void CaffeImporter::convertFlattenLayer(mlir::Block *block,

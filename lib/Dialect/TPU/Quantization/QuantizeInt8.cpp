@@ -1685,6 +1685,7 @@ public:
     patterns_w.insert<
                 TpuQuantInt8DefaultPattern<tpu::ConcatOp>,
                 TpuQuantInt8Conv2DOpPattern,
+                TpuQuantInt8DefaultPattern<tpu::CropOp>,
                 TpuQuantInt8DefaultPattern<tpu::EltwiseAddOp>,
                 TpuQuantInt8DefaultPattern<tpu::EltwiseMaxOp>,
                 TpuQuantInt8EltwiseMulOpPattern,
@@ -1696,7 +1697,6 @@ public:
 
 
                 TpuQuantDeConv2DOpPattern,
-                TpuQuantDefaultPattern<tpu::CropOp>,
                 TpuQuantDefaultPattern<tpu::DivOp>,
                 TpuQuantFullyConnectedOpPattern,
                 TpuQuantDefaultPattern<tpu::PermuteOp>,
