@@ -778,6 +778,54 @@ LogicalResult tpu::SoftmaxOp::interpret(
   }
 
   valueMapping[result] = std::move(resultT);
+}
+
+LogicalResult tpu::SigmoidOp::interpret(
+    DenseMap<Value *, std::shared_ptr<std::vector<float>>> &valueMapping) {
+  Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name()
+                          << "]\n";);
+
+  auto opdT = getOperandTensors(op, valueMapping);
+  auto result = this->getResult();
+  auto size = getTensorSize(result);
+  auto resultT = std::make_unique<std::vector<float>>(size);
+
+  // parse param
+
+  std::vector<int64_t> shape = getTensorShape(op->getOperand(0));
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(this->input(), shape, input_size);
+  assert(input_size == size);
+  getNCHW(shape, n, c, h, w);
+
+  std::vector<int> indices(size, 0);
+  float *input = (float *)opdT[0]->data();
+  float *output = (float *)resultT.get()->data();
+  if (getOpQuant() == "INT8") {
+    std::vector<int> data(256, 0);
+    float threshold_x = getPreviousOpThreshold(op);
+    float threshold_y = getOpThreshold(op);
+
+    assert(threshold_x != 0.0);
+    for (int idx = 0; idx < 256; ++idx) {
+      char lutInput = static_cast<char>(idx);
+      float index = -lutInput * threshold_x / 127.0;
+      float lutOutput = 1.0 / (1 + std::exp(index)) * 127.0 / threshold_y;
+      int lutOutputI32 = std::floor(lutOutput + 0.5);
+      lutOutputI32 = (lutOutputI32 > 127)
+                         ? 127
+                         : (lutOutputI32 < -128) ? -128 : lutOutputI32;
+      data[idx] = lutOutputI32;
+    }
+    for (int i = 0; i < size; ++i) {
+      output[i] = data[(unsigned char)input[i]];
+    }
+  } else {
+    my_sigmoid(input, output, n, c, h, w);
+  }
+  valueMapping[result] = std::move(resultT);
+
   return success();
 }
 
@@ -1103,59 +1151,6 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
     valueMapping[result] = std::move(resultT);
 
-    return success();
-  }
-  if (auto op = dyn_cast<tpu::SigmoidOp>(opInst)) {
-    LLVM_DEBUG(llvm::errs() << "SigmoidOp"
-                            << "\n";);
-    auto opdT = getOperandTensors(opInst, valueMapping);
-    auto result = op.getResult();
-    LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump();
-               llvm::errs() << "\n";);
-    std::vector<int64_t> shape =
-        result->getType().cast<TensorType>().getShape();
-    assert(shape.size() <= 4);
-    auto size = std::accumulate(std::begin(shape), std::end(shape), 1,
-                                std::multiplies<>());
-    auto resultT = std::make_unique<std::vector<float>>(size);
-    auto input_type = op.input()->getType().cast<TensorType>();
-    std::vector<int64_t> i_s(input_type.getShape());
-    auto output_type = op.output()->getType().cast<TensorType>();
-    std::vector<int64_t> o_s(output_type.getShape());
-    assert((i_s == o_s) && "input shape not equal to output shape");
-    int n, c, h, w;
-    n = i_s[0];
-    c = i_s[1];
-    h = i_s[2];
-    w = i_s[3];
-    float *input = (float *)opdT[0]->data();
-    float *output = (float *)resultT.get()->data();
-    int ret;
-    if (op.quant() == "INT8"){
-      std::vector<int> data(256, 0);
-      float threshold_x = getPreviousOpThreshold(op);
-      float threshold_y = getOpThreshold(op);
-
-      assert(threshold_x != 0.0);
-      for (int idx = 0; idx < 256; ++idx) {
-        char lutInput = static_cast<char>(idx);
-        float index = -lutInput * threshold_x / 127.0;
-        float lutOutput = 1.0 / (1 + std::exp(index)) * 127.0 / threshold_y;
-        int lutOutputI32 = std::floor(lutOutput + 0.5);
-        lutOutputI32 = (lutOutputI32 > 127)
-                           ? 127
-                           : (lutOutputI32 < -128) ? -128 : lutOutputI32;
-        data[idx] = lutOutputI32;
-      }
-      for (int i = 0; i < size; ++i) {
-        output[i] = data[(unsigned char)input[i]];
-      }
-      ret = 0;
-    } else {
-      ret = my_sigmoid(input, output, n, c, h, w);
-    }
-    assert(ret == 0);
-    valueMapping[result] = std::move(resultT);
     return success();
   }
 

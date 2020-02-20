@@ -1259,6 +1259,7 @@ public:
                 TpuQuantInt8BypassPattern<tpu::PoolMax2DOp>,
                 TpuQuantInt8LeakyReluOpPattern,
                 TpuQuantInt8BypassPattern<tpu::ReluOp>,
+                TpuQuantInt8BypassPattern<tpu::SigmoidOp>,
                 TpuQuantInt8BypassPattern<tpu::UpsampleOp>,
 
 
@@ -1268,7 +1269,6 @@ public:
                 TpuQuantPowerOpPattern,
                 TpuQuantPReluOpPattern,
                 TpuQuantDefaultPattern<tpu::ReshapeOp>,
-                TpuQuantDefaultPattern<tpu::SigmoidOp>,
                 TpuQuantDefaultPattern<tpu::SliceOp>,
                 TpuQuantDefaultPattern<tpu::SqrtOp>
                >(

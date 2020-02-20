@@ -796,54 +796,8 @@ static LogicalResult runOperation(Operation &opInst) {
 
     return success();
   }
-  if (auto op = dyn_cast<tpu::SigmoidOp>(opInst)) {
-    LLVM_DEBUG(llvm::errs() << "SigmoidOp"
-                            << "\n";);
-    int n, c, h, w;
-    auto input_type = op.input()->getType().cast<TensorType>();
-    std::vector<int64_t> i_s(input_type.getShape());
-    auto output_type = op.output()->getType().cast<TensorType>();
-    std::vector<int64_t> o_s(output_type.getShape());
-    assert((i_s == o_s) && "input shape not equal to output shape");
-    n = i_s[0];
-    c = i_s[1];
-    h = i_s[2];
-    w = i_s[3];
-    gaddr_t input_gaddr = getPreviousOpAddress(op);
-    gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
-    gaddr_t y0_table_gaddr = getWeightOpAddress(op.getOperand(1)->getDefiningOp());
-    gaddr_t slope_gaddr = INVALID_GLOBAL_ADDR;
-
-    int layer_id = op.layer_id().getValue().getLimitedValue();
-    if (op.quant() == "INT8") {
-      sigmoid_fixed_forward_bmkernel(*backend_ctx,
-                                     0,        // stream_id,
-                                     0,        // inst_id,
-                                     layer_id, // layer_id,
-                                     nullptr,  // const u32 *depends,
-                                     0,        // depends_len,
-                                     input_gaddr, output_gaddr, y0_table_gaddr,
-                                     slope_gaddr, n, c, h, w, 0, 0, FMT_I8);
-
-    } else if (op.quant() == "BF16"){
-      llvm::errs() << BF16_TABLE_START << ",  " << BF16_TABLE_END
-                   << "\n";
-      slope_gaddr = getWeightOpAddress(op.getOperand(2)->getDefiningOp());
-      sigmoid_fixed_forward_bmkernel(*backend_ctx,
-                                     0,        // stream_id,
-                                     0,        // inst_id,
-                                     layer_id, // layer_id,
-                                     nullptr,  // const u32 *depends,
-                                     0,        // depends_len,
-                                     input_gaddr, output_gaddr, y0_table_gaddr,
-                                     slope_gaddr, n, c, h, w, BF16_TABLE_START, BF16_TABLE_END, FMT_BF16);
-    } else {
-      llvm::errs() << op.quant() << "not support yet \n";
-      assert(0);
-    }
-    return success();
-  }
 #if 0
+
   if (auto op = dyn_cast<tpu::ScaleOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "ScaleOp(" << op.name() << ")\n";);
 
