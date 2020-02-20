@@ -130,7 +130,9 @@ public:
     stats = new DeepFusionSimpleStats();
     func.walk([&](mlir::Operation *opInst) {
       if (auto op = dyn_cast<mlir::tpu::Conv2DOp>(opInst)) {
-        analyzeConv2DOpParam(op, os);
+        analyzeConv2DOpParam<tpu::Conv2DOp>(op, os);
+      } else if (auto op = dyn_cast<mlir::tpu::DeConv2DOp>(opInst)) {
+        analyzeConv2DOpParam<tpu::DeConv2DOp>(op, os);
       } else if (auto op = dyn_cast<tpu::PoolAvg2DOp>(opInst)) {
         analyzePool2DOpParam<tpu::PoolAvg2DOp>(op, os, true);
       } else if (auto op = dyn_cast<tpu::PoolMax2DOp>(opInst)) {
@@ -162,7 +164,8 @@ private:
 
     bool is_dw, with_bias, do_relu;
     int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, ph, pw, dh, dw;
-    parseConvParam(op.param(), op.input(), op.output(), op.filter(),
+    bool is_deconv = isa<tpu::DeConv2DOp>(op.getOperation());
+    parseConvParam(op.param(), is_deconv, op.input(), op.output(), op.filter(),
                    n, ic, ih, iw, oc, oh, ow, g,
                    kh, kw, sh, sw, ph, pw, dh, dw, is_dw, with_bias, do_relu);
 

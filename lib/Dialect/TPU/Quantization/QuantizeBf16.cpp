@@ -44,10 +44,11 @@ using namespace mlir;
 
 namespace {
 
+template<typename OpTy>
 struct TpuQuantBf16Conv2DOpPattern : public RewritePattern {
   TpuQuantBf16Conv2DOpPattern(MLIRContext *context, TensorFile *weightTF,
       Value* weightFV)
-      : RewritePattern("tpu.conv_2d", 1, context),
+      : RewritePattern(OpTy::getOperationName(), 1, context),
         weightTF_(weightTF),
         weightFV_(weightFV) {}
 
@@ -57,7 +58,7 @@ struct TpuQuantBf16Conv2DOpPattern : public RewritePattern {
       LLVM_DEBUG(llvm::errs() << getOpName(op) << " quantized already\n";);
       return matchFailure();
     }
-    auto convOp = cast<tpu::Conv2DOp>(op);
+    auto convOp = cast<OpTy>(op);
 
     // get filter tensor
     auto filter = readAndDeleteWeightTensor<float>(convOp.filter(), weightTF_);
@@ -625,8 +626,9 @@ public:
     OwningRewritePatternList patterns_w;
     patterns_w.insert<
                 TpuQuantBf16DefaultPattern<tpu::ConcatOp>,
-                TpuQuantBf16Conv2DOpPattern,
+                TpuQuantBf16Conv2DOpPattern<tpu::Conv2DOp>,
                 TpuQuantBf16DefaultPattern<tpu::CropOp>,
+                TpuQuantBf16Conv2DOpPattern<tpu::DeConv2DOp>,
                 TpuQuantBf16DefaultPattern<tpu::EltwiseAddOp>,
                 TpuQuantBf16DefaultPattern<tpu::EltwiseMaxOp>,
                 TpuQuantBf16DefaultPattern<tpu::EltwiseMulOp>,

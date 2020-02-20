@@ -138,6 +138,9 @@ class TPU_TG_ConvOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 def TPU_TG_INT8_PT_Conv2DOp : TPU_TG_ConvOp<"tg_int8_pt_conv_2d", "Int8 Per-Tensor">;
 def TPU_TG_INT8_PC_Conv2DOp : TPU_TG_ConvOp<"tg_int8_pc_conv_2d", "Int8 Per-Channel">;
 def TPU_TG_BF16_Conv2DOp : TPU_TG_ConvOp<"tg_bf16_conv_2d", "Bf16">;
+def TPU_TG_INT8_PT_DeConv2DOp : TPU_TG_ConvOp<"tg_int8_pt_deconv_2d", "Int8 Per-Tensor">;
+def TPU_TG_INT8_PC_DeConv2DOp : TPU_TG_ConvOp<"tg_int8_pc_deconv_2d", "Int8 Per-Channel">;
+def TPU_TG_BF16_DeConv2DOp : TPU_TG_ConvOp<"tg_bf16_deconv_2d", "Bf16">;
 
 class TPU_TG_CropOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,

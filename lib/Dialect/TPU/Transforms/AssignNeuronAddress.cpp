@@ -318,6 +318,8 @@ public:
           AssignGAddrTGInt8Pattern<tpu::TG_INT8_PT_Conv2DOp>,
           AssignGAddrTGInt8Pattern<tpu::TG_INT8_PC_Conv2DOp>,
           AssignGAddrTGInt8Pattern<tpu::TG_INT8_CropOp>,
+          AssignGAddrTGInt8Pattern<tpu::TG_INT8_PT_DeConv2DOp>,
+          AssignGAddrTGInt8Pattern<tpu::TG_INT8_PC_DeConv2DOp>,
           AssignGAddrTGInt8Pattern<tpu::TG_INT8_EltwiseAddOp>,
           AssignGAddrTGInt8Pattern<tpu::TG_INT8_EltwiseMaxOp>,
           AssignGAddrTGInt8Pattern<tpu::TG_INT8_EltwiseMulOp>,
@@ -330,6 +332,7 @@ public:
           AssignGAddrTGBf16Pattern<tpu::TG_BF16_ConcatOp>,
           AssignGAddrTGBf16Pattern<tpu::TG_BF16_Conv2DOp>,
           AssignGAddrTGBf16Pattern<tpu::TG_BF16_CropOp>,
+          AssignGAddrTGBf16Pattern<tpu::TG_BF16_DeConv2DOp>,
           AssignGAddrTGBf16Pattern<tpu::TG_BF16_EltwiseAddOp>,
           AssignGAddrTGBf16Pattern<tpu::TG_BF16_EltwiseMaxOp>,
           AssignGAddrTGBf16Pattern<tpu::TG_BF16_EltwiseMulOp>,
@@ -342,7 +345,6 @@ public:
     patterns.clear();
 
     patterns.insert<
-          TpuQuantizationOpPattern<tpu::DeConv2DOp>,
           TpuQuantizationOpPattern<tpu::DivOp>,
           TpuQuantizationOpPattern<tpu::FullyConnectedOp>,
           TpuQuantizationOpPattern<tpu::PermuteOp>,

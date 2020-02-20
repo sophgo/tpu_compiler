@@ -95,6 +95,8 @@ void addWeightTensorAndUpdateWeightOp(Value* opd,
   } else if ( typeid(T) == typeid(int8_t) ) {
     eltType = IntegerType::get(8, builder.getContext());
   } else {
+    llvm::errs() << "add weight tensor failed, tensor = "
+                 << getOpName(opd->getDefiningOp()) << "\n";
     assert(false);
   }
   auto type = RankedTensorType::get(shape, eltType);
@@ -133,7 +135,11 @@ Value* addWeightTensorAndCreateWeightOp(Operation *op,
   Type eltType;
   if ( typeid(T) == typeid(float) ) {
     eltType = FloatType::getF32(builder.getContext());
+  } else if ( typeid(T) == typeid(uint8_t) ) {
+    eltType = IntegerType::get(8, builder.getContext());
   } else {
+    llvm::errs() << "add weight tensor failed, name = "
+                 << name << ", type =" << typeid(T).name() << "\n";
     assert(false);
   }
   auto type = RankedTensorType::get(shape, eltType);

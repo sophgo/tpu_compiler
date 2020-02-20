@@ -296,6 +296,8 @@ def TPU_CropOp: TPU_Op<"crop",
   let results = (outs AnyTensor:$output);
 }
 
+def TPU_DeConv2DOp : TPU_ConvOp<"deconv_2d", "Deconvolution">;
+
 def TPU_EltwiseAddOp : TPU_EltwiseOp<"eltwise_add", "Add">;
 def TPU_EltwiseMulOp : TPU_EltwiseOp<"eltwise_mul", "Mul">;
 def TPU_EltwiseMaxOp : TPU_EltwiseOp<"eltwise_max", "Max">;
@@ -572,45 +574,10 @@ def TPU_UpsampleOp: TPU_Op<"upsample",
 
 
 
+
+
+
 // to be removed
-
-
-
-// for Deconv for now, to be removed
-class TPU_ConvOp_Legacy<string mnemonic, string opSummary> : TPU_Op<mnemonic,
-      [NoSideEffect, DeclareOpInterfaceMethods<TpuInterface>]> {
-  let summary = opSummary # " operator";
-
-  let description = [{
-
-  }];
-
-  let arguments = (
-    ins AnyTensor:$input,
-    AnyTensor:$filter,
-    Variadic<AnyTensor>:$variadic_tensors,
-    BoolAttr:$with_bias,
-    DefaultValuedAttr<I32Attr, "1">:$dilation_h_factor,
-    DefaultValuedAttr<I32Attr, "1">:$dilation_w_factor,
-    DefaultValuedAttr<TPU_AFAttr, "NONE">:$fused_activation_function,
-    DefaultValuedAttr<TPU_EltwiseAttr, "NONE">:$fused_eltwise_method,
-    DefaultValuedAttr<TPU_AFAttr, "NONE">:$fused_activation_function_after_eltwise,
-    OptionalAttr<F32Attr>:$threshold_y_before_eltwise,
-    TPU_PaddingAttr:$padding,
-    I32Attr:$stride_h,
-    I32Attr:$stride_w,
-    DefaultValuedAttr<I32Attr, "1">:$group,
-    DefaultValuedAttr<BoolAttr, "false">:$per_channel_info_is_aggregated,
-    OptionalAttr<StrAttr>:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
-    OptionalAttr<NonNegativeI64Attr>:$offset,
-    OptionalAttr<F32Attr>:$threshold_y,
-    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
-  );
-
-  let results = (outs AnyTensor:$output);
-}
-
 def TPU_BatchNormOp: TPU_Op<"batch_norm",
       [NoSideEffect, DeclareOpInterfaceMethods<TpuInterface>]> {
   let summary = "BatchNorm operator";
@@ -634,8 +601,6 @@ def TPU_BatchNormOp: TPU_Op<"batch_norm",
 
   let results = (outs AnyTensor:$y);
 }
-
-def TPU_DeConv2DOp : TPU_ConvOp_Legacy<"deconv_2d", "Convolution">;
 
 def TPU_DetectionOutputOp: TPU_Op<"detectionoutput",
       [NoSideEffect, DeclareOpInterfaceMethods<TpuInterface>]> {

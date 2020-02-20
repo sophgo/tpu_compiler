@@ -96,7 +96,6 @@ public:
             // to be removed
             int processed = 0;
             processed += printTpuOpInfo<tpu::BatchNormOp>(op, file_os);
-            processed += printTpuOpInfo<tpu::DeConv2DOp>(op, file_os);
             processed += printTpuOpInfo<tpu::DetectionOutputOp>(op, file_os);
             processed += printTpuOpInfo<tpu::DivOp>(op, file_os);
             processed += printTpuOpInfo<tpu::FullyConnectedOp>(op, file_os);

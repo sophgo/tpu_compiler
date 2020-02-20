@@ -82,8 +82,6 @@ Value* tpu::ConcatOp::convertToTG(void *info) {
 Value* tpu::Conv2DOp::convertToTG(void *info) {
   llvm::errs() << "lowerToTG: " << getOperationName()
                << " [" << getOpName() << "]\n";
-  llvm::errs() << "lowerToTG: " << getOperationName()
-               << " [" << getOpName() << "]\n";
   Operation *op = this->getOperation();
   auto builder = Builder(op->getContext());
   TensorFile *weightTF_ = (TensorFile *)info;
@@ -162,6 +160,55 @@ Value* tpu::CropOp::convertToTG(void *info) {
   assert(false);
   return nullptr;
 }
+
+Value* tpu::DeConv2DOp::convertToTG(void *info) {
+  llvm::errs() << "lowerToTG: " << getOperationName()
+               << " [" << getOpName() << "]\n";
+  Operation *op = this->getOperation();
+  auto builder = Builder(op->getContext());
+  TensorFile *weightTF_ = (TensorFile *)info;
+  assert(weightTF_);
+
+  std::vector<Value *> operands;
+  operands.push_back(input());
+  operands.push_back(filter());
+  operands.push_back(bias());
+
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder.getNamedAttr("param", paramAttr()));
+  attrs.push_back(builder.getNamedAttr("name", nameAttr()));
+  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
+  if (getOpQuant() == "INT8") {
+    if (isOpQuantPerchannel()) {
+      // per-channel, rshift and mulitplier are in weight .bin
+      assert(getOpQuantParamType() == "RSHIFT_AND_M_I32");
+      auto newOp = OpBuilder(op).create<tpu::TG_INT8_PC_DeConv2DOp>(op->getLoc(),
+          getResult()->getType(), ArrayRef<Value *>{operands},
+          ArrayRef<NamedAttribute>{attrs});
+     return newOp.getResult();
+    } else {
+      // per-tensor, rshift only mode
+      assert(getOpQuantParamType() == "RSHIFT_ONLY");
+      assert( !isTensorNone(quant_rshift()) );
+      auto rshift = readAndDeleteWeightTensor<float>(quant_rshift(), weightTF_);
+      assert(rshift->size() == 1);
+      attrs.push_back(builder.getNamedAttr("pt_rshift",
+          builder.getI8IntegerAttr(static_cast<int8_t>(rshift->at(0)))));
+      auto newOp = OpBuilder(op).create<tpu::TG_INT8_PT_DeConv2DOp>(op->getLoc(),
+          getResult()->getType(), ArrayRef<Value *>{operands},
+          ArrayRef<NamedAttribute>{attrs});
+      return newOp.getResult();
+    }
+  } else if (getOpQuant() == "BF16") {
+    auto newOp = OpBuilder(op).create<tpu::TG_BF16_DeConv2DOp>(op->getLoc(),
+        getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  }
+  assert(false);
+  return nullptr;
+}
+
 Value* tpu::EltwiseAddOp::convertToTG(void *info) {
   llvm::errs() << "lowerToTG: " << getOperationName()
                << " [" << getOpName() << "]\n";
@@ -869,6 +916,7 @@ public:
         DefaultToTGPattern<tpu::ConcatOp>,
         DefaultToTGPattern<tpu::Conv2DOp>,
         DefaultToTGPattern<tpu::CropOp>,
+        DefaultToTGPattern<tpu::DeConv2DOp>,
         DefaultToTGPattern<tpu::EltwiseAddOp>,
         DefaultToTGPattern<tpu::EltwiseMaxOp>,
         DefaultToTGPattern<tpu::EltwiseMulOp>,

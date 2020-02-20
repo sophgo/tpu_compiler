@@ -118,7 +118,7 @@ static LogicalResult runOperation(Operation &opInst) {
 
     bool is_dw, with_bias, do_relu;
     int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, ph, pw, dh, dw;
-    parseConvParam(op.param(), op.input(), op.output(), op.filter(),
+    parseConvParam(op.param(), false, op.input(), op.output(), op.filter(),
                    n, ic, ih, iw, oc, oh, ow, g,
                    kh, kw, sh, sw, ph, pw, dh, dw, is_dw, with_bias, do_relu);
 
@@ -143,7 +143,7 @@ static LogicalResult runOperation(Operation &opInst) {
 
     bool is_dw, with_bias, do_relu;
     int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, ph, pw, dh, dw;
-    parseConvParam(op.param(), op.input(), op.output(), op.filter(),
+    parseConvParam(op.param(), false, op.input(), op.output(), op.filter(),
                    n, ic, ih, iw, oc, oh, ow, g,
                    kh, kw, sh, sw, ph, pw, dh, dw, is_dw, with_bias, do_relu);
 
@@ -328,6 +328,7 @@ static LogicalResult runOperation(Operation &opInst) {
   }
 #endif
 
+#if 0
   if (auto op = dyn_cast<tpu::DeConv2DOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "DeConv2DOp" << "\n";);
 
@@ -394,6 +395,7 @@ static LogicalResult runOperation(Operation &opInst) {
     }
     return success();
   }
+#endif
 
   if (auto op = dyn_cast<tpu::FullyConnectedOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "FullyConnectedOp" << "\n";);

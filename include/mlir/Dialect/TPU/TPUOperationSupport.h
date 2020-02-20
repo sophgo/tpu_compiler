@@ -59,7 +59,7 @@ uint64_t getPreviousOpAddress(Operation *op, uint index = 0);
 
 uint64_t getWeightOpAddress(Operation *op);
 
-void parseConvParam(const tpu::ConvParam &p,
+void parseConvParam(const tpu::ConvParam &p, bool is_deconv,
     Value *input, Value *output, Value *filter,
     int &n, int &ic, int &ih, int &iw, int &oc, int &oh, int &ow, int &g,
     int &kh, int &kw, int &sh, int &sw, int &ph, int &pw, int &dh, int &dw,
@@ -71,22 +71,9 @@ void parsePoolParam(const tpu::PoolParam &p,
     int &kh, int &kw, int &sh, int &sw, int &pt, int &pb, int &pl, int &pr,
     bool &is_global, bool &do_relu);
 
-void getDeConv2DOpParam(tpu::DeConv2DOp &op,
-    int &n, int &ic, int &ih, int &iw, int &oc, int &oh, int &ow, int &g,
-    int &kh, int &kw, int &sh, int &sw, int &ph, int &pw, int &dh, int &dw,
-    bool &with_bias);
-
 void getFullyConnectedOpParam(tpu::FullyConnectedOp &op,
     bool &with_transpose, int &m, int &k, int &n,
     bool &with_bias, bool &do_relu);
-
-void getDeConv2DOpVariadicTensors(tpu::DeConv2DOp &op,
-    std::vector<std::shared_ptr<std::vector<float> > > &opdT,
-    std::shared_ptr<std::vector<float> > &bias,
-    std::shared_ptr<std::vector<float> > &rshift,
-    std::shared_ptr<std::vector<float> > &multiplier,
-    std::shared_ptr<std::vector<float> > &per_channel_info,
-    std::shared_ptr<std::vector<float> > &eltwise_input);
 
 void getScaleOpVariadicTensors(
     tpu::ScaleOp &op, std::vector<std::shared_ptr<std::vector<float>>> &opdT,

@@ -60,14 +60,10 @@ public:
         // to be removed
         int processed = 0;
         processed += addLayerIdAttr<tpu::BatchNormOp>(builder, layer_id, op);
-        processed += addLayerIdAttr<tpu::CropOp>(builder, layer_id, op);
-        processed += addLayerIdAttr<tpu::DeConv2DOp>(builder, layer_id, op);
         processed += addLayerIdAttr<tpu::DetectionOutputOp>(builder, layer_id, op);
         processed += addLayerIdAttr<tpu::DivOp>(builder, layer_id, op);
         processed += addLayerIdAttr<tpu::FullyConnectedOp>(builder, layer_id, op);
         processed += addLayerIdAttr<tpu::InputOp>(builder, layer_id, op);
-        processed += addLayerIdAttr<tpu::PoolAvg2DOp>(builder, layer_id, op);
-        processed += addLayerIdAttr<tpu::PoolMax2DOp>(builder, layer_id, op);
         processed += addLayerIdAttr<tpu::PermuteOp>(builder, layer_id, op);
         processed += addLayerIdAttr<tpu::PowerOp>(builder, layer_id, op);
         processed += addLayerIdAttr<tpu::PReluOp>(builder, layer_id, op);
