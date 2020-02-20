@@ -20,7 +20,7 @@ int my_avg_pooling(float *input, float *output, int n, int c, int ih, int iw,
                    int oh, int ow, int kh, int kw, int sh, int sw, int pt,
                    int pb, int pl, int pr);
 int my_sigmoid(float *input, float *output, int n, int c, int h, int w);
-int my_crop(float *input, float *output, long int *shape1, long int *shape2, long int *top_shape,  int cur_dim, int *offsets, int *indices);
+int my_crop(float *input, float *output, long int *shape1, int *shape2, long int *top_shape,  int cur_dim, int *offsets, int *indices);
 int my_relu(float *input, float *output,
     int n, int c, int h, int w, float negative_slope);
 

@@ -588,29 +588,50 @@ def TPU_BatchNormOp: TPU_Op<"batch_norm",
 }
 
 def TPU_CropOp: TPU_Op<"crop",
-      [NoSideEffect, DeclareOpInterfaceMethods<TpuInterface>]> {
+      [NoSideEffect, 
+       DeclareOpInterfaceMethods<TpuOpInterpInterface>, 
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
+       DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
   let summary = "Crop operator";
 
   let description = [{
     To crop, elements of the first bottom are selected to fit the dimensions
     of the second, reference bottom.
+     Performs crop operation on inputs.
+
+    Inputs:
+      `input`          : required, input tensors.
+
+    Attributes:
+      `quant`           : required, a QuantParam struct attributes.
+      `name`            : required, name for calibration, comparing, or debug.
+      `crop_shape`      : required, crop shape.
+      `crop_offset`     : required, crop offset.
+      `layer_id`        : optional, id for profiling.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TPU_QuantPerTensorOnly`
+      `TPU_QuantSupportAsymmetric`
+      `TpuOpCommonInterface` : support common TPU Op interface
+      `TpuOpInterpInterface` : support interperter
+      `TpuOpQuantInterface`  : support quantization
+      `TpuOpLowerInterface`  : support lower to TPU TG Ops
   }];
 
   let arguments = (
-    ins AnyTensor:$input1,
-    AnyTensor:$input2,
-    OptionalAttr<I32Attr>:$axis,
-    OptionalAttr<I32Attr>:$crop_offset_n,
-    OptionalAttr<I32Attr>:$crop_offset_c,
-    OptionalAttr<I32Attr>:$crop_offset_h,
-    OptionalAttr<I32Attr>:$crop_offset_w,
-    OptionalAttr<StrAttr>:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
-    OptionalAttr<NonNegativeI64Attr>:$offset,
-    OptionalAttr<F32Attr>:$threshold_y,
-    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
-  );
+    ins AnyTensor:$input,
+    OptionalAttr<I32ArrayAttr>:$crop_shape,
+    OptionalAttr<I32ArrayAttr>:$crop_offset,
 
+    TPU_QuantParamAttr:$quant,
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
+  );
   let results = (outs AnyTensor:$output);
 }
 

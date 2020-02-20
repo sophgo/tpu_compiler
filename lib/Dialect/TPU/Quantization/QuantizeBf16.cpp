@@ -626,6 +626,7 @@ public:
     patterns_w.insert<
                 TpuQuantBf16DefaultPattern<tpu::ConcatOp>,
                 TpuQuantBf16Conv2DOpPattern,
+                TpuQuantBf16DefaultPattern<tpu::CropOp>,
                 TpuQuantBf16DefaultPattern<tpu::EltwiseAddOp>,
                 TpuQuantBf16DefaultPattern<tpu::EltwiseMaxOp>,
                 TpuQuantBf16DefaultPattern<tpu::EltwiseMulOp>,
@@ -635,7 +636,6 @@ public:
                 TpuQuantBf16DefaultPattern<tpu::ReluOp>,
                 TpuQuantBf16DefaultPattern<tpu::UpsampleOp>,
 
-                TpuQuantDefaultPattern<tpu::CropOp>,
                 TpuQuantFullyConnectedOpPattern,
                 TpuQuantPReluOpPattern,
                 TpuQuantScaleOpPattern,
