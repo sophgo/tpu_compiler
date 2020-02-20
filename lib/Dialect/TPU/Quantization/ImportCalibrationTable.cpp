@@ -289,7 +289,6 @@ public:
       addThresholdAttr<tpu::BatchNormOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::ConcatOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::DeConv2DOp>(builder, threshold_map, op);
-      addThresholdAttr<tpu::CropOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::DivOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::FullyConnectedOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::PowerOp>(builder, threshold_map, op);
@@ -298,7 +297,6 @@ public:
       addThresholdAttr<tpu::SigmoidOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::SoftmaxOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::SqrtOp>(builder, threshold_map, op);
-      addThresholdAttr<tpu::UpsampleOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::PermuteOp>(builder, threshold_map, op);
 
       }
