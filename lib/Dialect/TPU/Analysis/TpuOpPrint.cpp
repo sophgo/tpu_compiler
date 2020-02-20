@@ -47,6 +47,7 @@ public:
     mlir::ModuleOp module = getModule();
     //mlir::SymbolTable moduleSymTable(module);
 
+#if 0
     os << "Modules:\n";
     os << "-----------------------\n";
     //auto mainFn = moduleSymTable.lookup<mlir::FuncOp>("main");
@@ -69,6 +70,7 @@ public:
       });
     }
     os << "\n";
+#endif
 
     std::unique_ptr<llvm::ToolOutputFile> file = nullptr;
     if (clTpuOpInfoFilename != "-") {
@@ -83,48 +85,50 @@ public:
 
       for (auto func : module.getOps<FuncOp>()) {
         func.walk([&](Operation *op) {
-          int processed = 0;
-          processed += printTpuOpInfo<tpu::BatchNormOp>(op, file_os);
-          processed += printTpuOpInfo<tpu::ConcatOp>(op, file_os);
-          processed += printTpuOpInfo<tpu::Conv2DOp>(op, file_os);
-          processed += printTpuOpInfo<tpu::CropOp>(op, file_os);
-          processed += printTpuOpInfo<tpu::DeConv2DOp>(op, file_os);
-          processed += printTpuOpInfo<tpu::DetectionOutputOp>(op, file_os);
-          processed += printTpuOpInfo<tpu::DivOp>(op, file_os);
-          processed += printTpuOpInfo<tpu::EltwiseAddOp>(op, file_os);
-          processed += printTpuOpInfo<tpu::EltwiseMaxOp>(op, file_os);
-          processed += printTpuOpInfo<tpu::EltwiseMulOp>(op, file_os);
-          processed += printTpuOpInfo<tpu::FullyConnectedOp>(op, file_os);
-          processed += printTpuOpInfo<tpu::InputOp>(op, file_os);
-          processed += printTpuOpInfo<tpu::LeakyReluOp>(op, file_os);
-          processed += printTpuOpInfo<tpu::NormalizeOp>(op, file_os);
-          processed += printTpuOpInfo<tpu::PermuteOp>(op, file_os);
-          processed += printTpuOpInfo<tpu::PoolAvg2DOp>(op, file_os);
-          processed += printTpuOpInfo<tpu::PoolMax2DOp>(op, file_os);
-          processed += printTpuOpInfo<tpu::PowerOp>(op, file_os);
-          processed += printTpuOpInfo<tpu::PReluOp>(op, file_os);
-          processed += printTpuOpInfo<tpu::PriorBoxOp>(op, file_os);
-          processed += printTpuOpInfo<tpu::ReluOp>(op, file_os);
-          processed += printTpuOpInfo<tpu::ReshapeOp>(op, file_os);
-          processed += printTpuOpInfo<tpu::ScaleOp>(op, file_os);
-          processed += printTpuOpInfo<tpu::SigmoidOp>(op, file_os);
-          processed += printTpuOpInfo<tpu::SliceOp>(op, file_os);
-          processed += printTpuOpInfo<tpu::SoftmaxOp>(op, file_os);
-          processed += printTpuOpInfo<tpu::SqrtOp>(op, file_os);
-          processed += printTpuOpInfo<tpu::TanHOp>(op, file_os);
-          processed += printTpuOpInfo<tpu::UpsampleOp>(op, file_os);
-          processed += printTpuOpInfo<tpu::ShuffleChannelOp>(op, file_os);    
-          if (op->getName().getDialect().str() != "tpu"
-              || isa<tpu::QuantizationOp>(op)
-              || isa<tpu::DequantizationOp>(op)
-              || isa<tpu::LoadWeightOp>(op)
-              || isa<tpu::LoadFileOp>(op)
-              || isa<tpu::NoneOp>(op)) {
-            processed = 1;
-          }
-          if (!processed) {
-            llvm::errs() << "printTpuOpInfo didn't handle " << op->getName() << "\n";
-            assert(false);
+          if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpCommonInterface>(op)) {
+            std::string op_name = mlir::getOpName(op).str();
+            file_os << op_name;
+            file_os << "," << getOpLayerId(op);
+            file_os << "," << getOpQuant(op);
+            file_os << "," << std::to_string(getOpThreshold(op));
+            file_os << "\n";
+          } else {
+            // to be removed
+            int processed = 0;
+            processed += printTpuOpInfo<tpu::BatchNormOp>(op, file_os);
+            processed += printTpuOpInfo<tpu::CropOp>(op, file_os);
+            processed += printTpuOpInfo<tpu::DeConv2DOp>(op, file_os);
+            processed += printTpuOpInfo<tpu::DetectionOutputOp>(op, file_os);
+            processed += printTpuOpInfo<tpu::DivOp>(op, file_os);
+            processed += printTpuOpInfo<tpu::FullyConnectedOp>(op, file_os);
+            processed += printTpuOpInfo<tpu::InputOp>(op, file_os);
+            processed += printTpuOpInfo<tpu::NormalizeOp>(op, file_os);
+            processed += printTpuOpInfo<tpu::PermuteOp>(op, file_os);
+            processed += printTpuOpInfo<tpu::PoolAvg2DOp>(op, file_os);
+            processed += printTpuOpInfo<tpu::PoolMax2DOp>(op, file_os);
+            processed += printTpuOpInfo<tpu::PowerOp>(op, file_os);
+            processed += printTpuOpInfo<tpu::PReluOp>(op, file_os);
+            processed += printTpuOpInfo<tpu::PriorBoxOp>(op, file_os);
+            processed += printTpuOpInfo<tpu::ReshapeOp>(op, file_os);
+            processed += printTpuOpInfo<tpu::ScaleOp>(op, file_os);
+            processed += printTpuOpInfo<tpu::SigmoidOp>(op, file_os);
+            processed += printTpuOpInfo<tpu::SliceOp>(op, file_os);
+            processed += printTpuOpInfo<tpu::SoftmaxOp>(op, file_os);
+            processed += printTpuOpInfo<tpu::SqrtOp>(op, file_os);
+            processed += printTpuOpInfo<tpu::TanHOp>(op, file_os);
+            processed += printTpuOpInfo<tpu::ShuffleChannelOp>(op, file_os);
+            if (op->getName().getDialect().str() != "tpu"
+                || isa<tpu::QuantizationOp>(op)
+                || isa<tpu::DequantizationOp>(op)
+                || isa<tpu::LoadWeightOp>(op)
+                || isa<tpu::LoadFileOp>(op)
+                || isa<tpu::NoneOp>(op)) {
+              processed = 1;
+            }
+            if (!processed) {
+              llvm::errs() << "printTpuOpInfo didn't handle " << op->getName() << "\n";
+              assert(false);
+            }
           }
         });
       }

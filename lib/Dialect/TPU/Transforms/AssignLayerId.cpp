@@ -51,59 +51,60 @@ public:
 
     uint32_t layer_id = 0;
     fn.walk([&](Operation *op) {
-      int processed = 0;
-      processed += addLayerIdAttr<tpu::BatchNormOp>(builder, layer_id, op);
-      processed += addLayerIdAttr<tpu::ConcatOp>(builder, layer_id, op);
-      processed += addLayerIdAttr<tpu::Conv2DOp>(builder, layer_id, op);
-      processed += addLayerIdAttr<tpu::CropOp>(builder, layer_id, op);
-      processed += addLayerIdAttr<tpu::DeConv2DOp>(builder, layer_id, op);
-      processed += addLayerIdAttr<tpu::DetectionOutputOp>(builder, layer_id, op);
-      processed += addLayerIdAttr<tpu::DivOp>(builder, layer_id, op);
-      processed += addLayerIdAttr<tpu::DummyDataOp>(builder, layer_id, op);
-      processed += addLayerIdAttr<tpu::EltwiseAddOp>(builder, layer_id, op);
-      processed += addLayerIdAttr<tpu::EltwiseMaxOp>(builder, layer_id, op);
-      processed += addLayerIdAttr<tpu::EltwiseMulOp>(builder, layer_id, op);
-      processed += addLayerIdAttr<tpu::FullyConnectedOp>(builder, layer_id, op);
-      processed += addLayerIdAttr<tpu::InputOp>(builder, layer_id, op);
-      processed += addLayerIdAttr<tpu::LeakyReluOp>(builder, layer_id, op);
-      processed += addLayerIdAttr<tpu::PoolAvg2DOp>(builder, layer_id, op);
-      processed += addLayerIdAttr<tpu::PoolMax2DOp>(builder, layer_id, op);
-      processed += addLayerIdAttr<tpu::PermuteOp>(builder, layer_id, op);
-      processed += addLayerIdAttr<tpu::PowerOp>(builder, layer_id, op);
-      processed += addLayerIdAttr<tpu::PReluOp>(builder, layer_id, op);
-      processed += addLayerIdAttr<tpu::PriorBoxOp>(builder, layer_id, op);
-      processed += addLayerIdAttr<tpu::ReluOp>(builder, layer_id, op);
-      processed += addLayerIdAttr<tpu::ReshapeOp>(builder, layer_id, op);
-      processed += addLayerIdAttr<tpu::ScaleOp>(builder, layer_id, op);
-      processed += addLayerIdAttr<tpu::SigmoidOp>(builder, layer_id, op);
-      processed += addLayerIdAttr<tpu::SliceOp>(builder, layer_id, op);
-      processed += addLayerIdAttr<tpu::SoftmaxOp>(builder, layer_id, op);
-      processed += addLayerIdAttr<tpu::SqrtOp>(builder, layer_id, op);
-      processed += addLayerIdAttr<tpu::TanHOp>(builder, layer_id, op);
-      processed += addLayerIdAttr<tpu::UpsampleOp>(builder, layer_id, op);
-      processed += addLayerIdAttr<tpu::ShuffleChannelOp>(builder, layer_id, op);
-      if (op->getName().getDialect().str() != "tpu"
-          || isa<tpu::QuantizationOp>(op)
-          || isa<tpu::DequantizationOp>(op)
-          || isa<tpu::LoadWeightOp>(op)
-          || isa<tpu::LoadFileOp>(op)
-          || isa<tpu::NoneOp>(op)) {
-        processed = 1;
-      }
-      if (!processed) {
-        llvm::errs() << "addLayerIdAttr didn't handle " << op->getName() << "\n";
-        assert(false);
+      if ( !failed(setOpLayerId(op, layer_id)) ) {
+        llvm::errs() << " layer_id: " << llvm::format("%04d", layer_id)
+                     << " -> " << mlir::getOpName(op) << "\n";
+        layer_id ++;
+      } else {
+        // to be removed
+        int processed = 0;
+        processed += addLayerIdAttr<tpu::BatchNormOp>(builder, layer_id, op);
+        processed += addLayerIdAttr<tpu::CropOp>(builder, layer_id, op);
+        processed += addLayerIdAttr<tpu::DeConv2DOp>(builder, layer_id, op);
+        processed += addLayerIdAttr<tpu::DetectionOutputOp>(builder, layer_id, op);
+        processed += addLayerIdAttr<tpu::DivOp>(builder, layer_id, op);
+        processed += addLayerIdAttr<tpu::DummyDataOp>(builder, layer_id, op);
+        processed += addLayerIdAttr<tpu::FullyConnectedOp>(builder, layer_id, op);
+        processed += addLayerIdAttr<tpu::InputOp>(builder, layer_id, op);
+        processed += addLayerIdAttr<tpu::PoolAvg2DOp>(builder, layer_id, op);
+        processed += addLayerIdAttr<tpu::PoolMax2DOp>(builder, layer_id, op);
+        processed += addLayerIdAttr<tpu::PermuteOp>(builder, layer_id, op);
+        processed += addLayerIdAttr<tpu::PowerOp>(builder, layer_id, op);
+        processed += addLayerIdAttr<tpu::PReluOp>(builder, layer_id, op);
+        processed += addLayerIdAttr<tpu::PriorBoxOp>(builder, layer_id, op);
+        processed += addLayerIdAttr<tpu::ReshapeOp>(builder, layer_id, op);
+        processed += addLayerIdAttr<tpu::ScaleOp>(builder, layer_id, op);
+        processed += addLayerIdAttr<tpu::SigmoidOp>(builder, layer_id, op);
+        processed += addLayerIdAttr<tpu::SliceOp>(builder, layer_id, op);
+        processed += addLayerIdAttr<tpu::SoftmaxOp>(builder, layer_id, op);
+        processed += addLayerIdAttr<tpu::SqrtOp>(builder, layer_id, op);
+        processed += addLayerIdAttr<tpu::TanHOp>(builder, layer_id, op);
+        processed += addLayerIdAttr<tpu::ShuffleChannelOp>(builder, layer_id, op);
+        if (op->getName().getDialect().str() != "tpu"
+            || isa<tpu::QuantizationOp>(op)
+            || isa<tpu::DequantizationOp>(op)
+            || isa<tpu::LoadWeightOp>(op)
+            || isa<tpu::LoadFileOp>(op)
+            || isa<tpu::NoneOp>(op)) {
+          processed = 1;
+        }
+        if (!processed) {
+          llvm::errs() << "addLayerIdAttr didn't handle " << op->getName() << "\n";
+          assert(false);
+        }
       }
     });
   }
 
 private:
+  // to be removed
   template<typename T>
   int addLayerIdAttr(Builder &builder, uint32_t &layer_id, Operation *op) {
       auto cast_op = llvm::dyn_cast_or_null<T>(op);
       if (cast_op) {
         std::string op_name = mlir::getOpName(op).str();
-        llvm::errs() << op_name << " -> layer_id: " << layer_id << "\n";
+        llvm::errs() << " layer_id: " << llvm::format("%04d", layer_id)
+                     << " -> " << mlir::getOpName(op) << "\n";
         cast_op.setAttr("layer_id", builder.getI32IntegerAttr(layer_id));
         layer_id++;
         return 1;
