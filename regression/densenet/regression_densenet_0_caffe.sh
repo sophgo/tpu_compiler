@@ -10,6 +10,7 @@ run_caffe_classifier.py \
     --pretrained_model $MODEL_PATH/imagenet/densenet/caffe/densenet121.caffemodel \
     --mean 103.94,116.78,123.68 \
     --input_scale 0.017 \
+    --images_dim 224,224 \
     --dump_blobs densenet_blobs.npz \
     --dump_weights densenet_weights.npz \
     --label_file $PYTHON_TOOLS_PATH/data/ilsvrc12/synset_words.txt \
@@ -17,9 +18,11 @@ run_caffe_classifier.py \
     caffe_out.npy
 
 
+    # --force_input calibration_input.npy \
+
 # extract input and output
 npz_extract.py densenet_blobs.npz densenet_in_fp32.npz input
-npz_extract.py densenet_blobs.npz densenet_out_fp32_prob.npz fc6
+npz_extract.py densenet_blobs.npz densenet_out_fp32_fc6.npz fc6
 
 # fix input data consistency
 # because jpeg decoder may introduce difference, use save file to overwrite
