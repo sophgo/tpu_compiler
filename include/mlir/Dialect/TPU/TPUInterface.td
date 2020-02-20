@@ -44,6 +44,11 @@ def TpuOpCommonInterface : OpInterface<"TpuOpCommonInterface"> {
       }],
       "int", "getOpLayerId"
     >,
+    InterfaceMethod<[{
+        Assign layer_id to the Op.
+      }],
+      "LogicalResult", "setOpLayerId", (ins "int ":$id)
+    >,
   ];
 }
 

@@ -42,6 +42,14 @@ int getOpLayerId(Operation *op) {
   }
 }
 
+LogicalResult setOpLayerId(Operation *op, int id) {
+  if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpCommonInterface>(op)) {
+    return tpuOp.setOpLayerId(id);
+  } else {
+    return failure();
+  }
+}
+
 llvm::StringRef getOpQuant(Operation *op) {
   if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpQuantInterface>(op)) {
     return tpuOp.getOpQuant();
@@ -56,13 +64,13 @@ llvm::StringRef getOpQuant(Operation *op) {
   }
 }
 
-void setOpQuant(Operation *op, llvm::StringRef mode) {
+LogicalResult setOpQuant(Operation *op, llvm::StringRef mode) {
   if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpQuantInterface>(op)) {
-    auto ret = tpuOp.setOpQuantMode(mode);
-    assert(!failed(ret));
+    return tpuOp.setOpQuantMode(mode);
   } else {
     llvm::errs() << __func__ << " failed " << getOpName(op) << "\n";
     assert(false);
+    return failure();
   }
 }
 
@@ -76,13 +84,13 @@ llvm::StringRef getOpQuantParamType(Operation *op) {
   }
 }
 
-void setOpQuantParamType(Operation *op, llvm::StringRef type) {
+LogicalResult setOpQuantParamType(Operation *op, llvm::StringRef type) {
   if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpQuantInterface>(op)) {
-    auto ret = tpuOp.setOpQuantParamType(type);
-    assert(!failed(ret));
+    return tpuOp.setOpQuantParamType(type);
   } else {
     llvm::errs() << __func__ << " failed " << getOpName(op) << "\n";
     assert(false);
+    return failure();
   }
 }
 
@@ -96,13 +104,13 @@ bool isOpQuantPerchannel(Operation *op) {
   }
 }
 
-void setOpQuantPerchannel(Operation *op, bool flag) {
+LogicalResult setOpQuantPerchannel(Operation *op, bool flag) {
   if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpQuantInterface>(op)) {
-    auto ret = tpuOp.setOpQuantPerchannel(flag);
-    assert(!failed(ret));
+    return tpuOp.setOpQuantPerchannel(flag);
   } else {
     llvm::errs() << __func__ << " failed " << getOpName(op) << "\n";
     assert(false);
+    return failure();
   }
 }
 
@@ -116,13 +124,13 @@ bool isOpQuantAsymmetric(Operation *op) {
   }
 }
 
-void setOpQuantAsymmetric(Operation *op, bool flag) {
+LogicalResult setOpQuantAsymmetric(Operation *op, bool flag) {
   if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpQuantInterface>(op)) {
-    auto ret = tpuOp.setOpQuantAsymmetric(flag);
-    assert(!failed(ret));
+    return tpuOp.setOpQuantAsymmetric(flag);
   } else {
     llvm::errs() << __func__ << " failed " << getOpName(op) << "\n";
     assert(false);
+    return failure();
   }
 }
 

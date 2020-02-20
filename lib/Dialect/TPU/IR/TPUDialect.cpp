@@ -62,10 +62,17 @@ namespace mlir {
     StringRef OP::getOpName() {return name();}
 #define DECLARE_GET_LAYER_ID_METHOD(OP) \
     int OP::getOpLayerId() {return layer_id().getValue().getLimitedValue();}
+#define DECLARE_SET_LAYER_ID_METHOD(OP) \
+    LogicalResult OP::setOpLayerId(int id) { \
+      setAttr("layer_id", \
+          Builder(getOperation()->getContext()).getI32IntegerAttr(id)); \
+      return success(); \
+    }
 
 #define DECLARE_ALL_COMMON_INTERFACE_METHODS(OP) \
     DECLARE_GET_OP_NAME_METHOD(OP) \
-    DECLARE_GET_LAYER_ID_METHOD(OP)
+    DECLARE_GET_LAYER_ID_METHOD(OP) \
+    DECLARE_SET_LAYER_ID_METHOD(OP)
 // TPU Ops
 DECLARE_ALL_COMMON_INTERFACE_METHODS(ConcatOp)
 DECLARE_ALL_COMMON_INTERFACE_METHODS(Conv2DOp)
@@ -104,7 +111,6 @@ DECLARE_ALL_COMMON_INTERFACE_METHODS(TG_BF16_UpsampleOp)
 // quant().mode()
 #define DECLARE_GET_OP_QUANT_MODE_METHOD(OP) \
     StringRef OP::getOpQuant() {return quant().mode().getValue();}
-
 #define DECLARE_SET_OP_QUANT_MODE_METHOD(OP) \
     LogicalResult OP::setOpQuantMode(StringRef &mode) { \
       setAttr("quant", \
@@ -122,7 +128,6 @@ DECLARE_ALL_COMMON_INTERFACE_METHODS(TG_BF16_UpsampleOp)
 // quant().param_type()
 #define DECLARE_GET_OP_QUANT_PARAM_TYPE_METHOD(OP) \
     StringRef OP::getOpQuantParamType() {return quant().param_type().getValue();}
-
 #define DECLARE_SET_OP_QUANT_PARAM_TYPE_METHOD(OP) \
     LogicalResult OP::setOpQuantParamType(StringRef &type) { \
       setAttr("quant", \
@@ -140,7 +145,6 @@ DECLARE_ALL_COMMON_INTERFACE_METHODS(TG_BF16_UpsampleOp)
 // quant().is_perchannel()
 #define DECLARE_GET_OP_QUANT_IS_PERCHANNEL_METHOD(OP) \
     bool OP::isOpQuantPerchannel() {return quant().is_perchannel().getValue();}
-
 #define DECLARE_SET_OP_QUANT_IS_PERCHANNEL_METHOD(OP) \
     LogicalResult OP::setOpQuantPerchannel(bool flag) { \
       setAttr("quant", \
@@ -158,7 +162,6 @@ DECLARE_ALL_COMMON_INTERFACE_METHODS(TG_BF16_UpsampleOp)
 // quant().is_asymmetric()
 #define DECLARE_GET_OP_QUANT_IS_ASYMMETRIC_METHOD(OP) \
     bool OP::isOpQuantAsymmetric() {return quant().is_asymmetric().getValue();}
-
 #define DECLARE_SET_OP_QUANT_IS_ASYMMETRIC_METHOD(OP) \
     LogicalResult OP::setOpQuantAsymmetric(bool flag) { \
       setAttr("quant", \
@@ -178,7 +181,6 @@ DECLARE_ALL_COMMON_INTERFACE_METHODS(TG_BF16_UpsampleOp)
     float OP::getOpQuantThreshold() { \
       return quant().threshold_max().getValue().convertToFloat(); \
     }
-
 #define DECLARE_SET_OP_QUANT_THRESHOLD_METHOD(OP) \
     LogicalResult OP::setOpQuantThreshold(float threshold) { \
       assert( !quant().is_asymmetric().getValue() ); \

@@ -30,15 +30,22 @@ namespace mlir {
 
 llvm::StringRef getOpName(Operation *op);
 llvm::StringRef getPreviousOpName(Operation *op, uint index = 0);
+
 int getOpLayerId(Operation *op);
+LogicalResult setOpLayerId(Operation *op, int id);
+
 llvm::StringRef getOpQuant(Operation *op);
-void setOpQuant(Operation *op, llvm::StringRef mode);
+LogicalResult setOpQuant(Operation *op, llvm::StringRef mode);
+
 llvm::StringRef getOpQuantParamType(Operation *op);
-void setOpQuantParamType(Operation *op, llvm::StringRef type);
+LogicalResult setOpQuantParamType(Operation *op, llvm::StringRef type);
+
 bool isOpQuantPerchannel(Operation *op);
-void setOpQuantPerchannel(Operation *op, bool flag);
+LogicalResult setOpQuantPerchannel(Operation *op, bool flag);
+
 bool isOpQuantAsymmetric(Operation *op);
-void setOpQuantAsymmetric(Operation *op, bool flag);
+LogicalResult setOpQuantAsymmetric(Operation *op, bool flag);
+
 float getOpThreshold(Operation *op);
 LogicalResult setOpThreshold(Operation *op, float threshold);
 float getPreviousOpThreshold(Operation *op, uint index = 0);
@@ -46,6 +53,7 @@ float getPreviousOpThreshold(Operation *op, uint index = 0);
 uint64_t getOpAddress(Operation *op);
 LogicalResult setOpAddress(Operation *op, uint64_t gaddr);
 uint64_t getPreviousOpAddress(Operation *op, uint index = 0);
+
 uint64_t getWeightOpAddress(Operation *op);
 
 void parseConvParam(const tpu::ConvParam &p,
