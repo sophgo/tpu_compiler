@@ -721,7 +721,7 @@ struct TpuQuantDeConv2DOpPattern : public RewritePattern {
       auto shape = std::vector<int64_t>{oc};
       StringRef storageType = "UINT32";
       auto new_op = addWeightTensorAndCreateWeightOp<float>(
-          op, "rshift", *rshift_per_layer, shape, storageType,
+          op, "rshift", *rshift_per_channel, shape, storageType,
           weightTensorFile_, weightFileVar_);
       newOperands.push_back(new_op);
     } else if (quant == INT8_MULTIPLER) {
@@ -729,7 +729,7 @@ struct TpuQuantDeConv2DOpPattern : public RewritePattern {
       StringRef storageType = "UINT32";
 
       auto new_op_1 = addWeightTensorAndCreateWeightOp<float>(
-          op, "rshift", *rshift_per_layer, shape, storageType,
+          op, "rshift", *rshift_per_channel, shape, storageType,
           weightTensorFile_, weightFileVar_);
       newOperands.push_back(new_op_1);
 
