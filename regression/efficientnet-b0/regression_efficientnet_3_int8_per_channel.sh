@@ -38,5 +38,11 @@ mlir-tpu-interpreter efficientnet-b0_quant_int8_per_channel.mlir \
     --tensor-in $REGRESSION_PATH/efficientnet-b0/data/efficientnet_in_fp32.npz  \
     --tensor-out efficientnet_out_int8.npz \
     --dump-all-tensor=efficientnet_tensor_all_int8.npz 
+
+npz_compare.py \
+    efficientnet_tensor_all_int8.npz  \
+    efficientnet_tensor_all_fp32.npz \
+    --op_info efficientnet-b0_op_info.csv \
+    --dequant -v
 # VERDICT
 echo $0 PASSED

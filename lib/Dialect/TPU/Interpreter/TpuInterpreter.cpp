@@ -779,7 +779,6 @@ LogicalResult tpu::SoftmaxOp::interpret(
 
   valueMapping[result] = std::move(resultT);
 }
-
 LogicalResult tpu::SigmoidOp::interpret(
     DenseMap<Value *, std::shared_ptr<std::vector<float>>> &valueMapping) {
   Operation *op = this->getOperation();
@@ -795,7 +794,7 @@ LogicalResult tpu::SigmoidOp::interpret(
 
   std::vector<int64_t> shape = getTensorShape(op->getOperand(0));
   int64_t input_size, n, c, h, w;
-  getTensorShapeAndSize(this->input(), shape, input_size);
+  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
   assert(input_size == size);
   getNCHW(shape, n, c, h, w);
 

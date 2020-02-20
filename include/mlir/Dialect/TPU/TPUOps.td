@@ -991,7 +991,7 @@ def TPU_SigmoidOp: TPU_Op<"sigmoid",
      Performs sigmoid operation on input.
 
     Inputs:
-      `input`          : required, variadic input tensors.
+      `inputs`          : required, variadic input tensors.
       `table`          : optional, the quantize lookup table .
 
     Attributes:
@@ -1014,8 +1014,8 @@ def TPU_SigmoidOp: TPU_Op<"sigmoid",
   }];
 
   let arguments = (
-    ins AnyTensor:$input,
-    Variadic<AnyTensor>:$table,
+    ins Variadic<AnyTensor>:$inputs,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$table,
     OptionalAttr<BoolAttr>:$has_table,
     StrAttr:$name,
     OptionalAttr<NonNegativeI32Attr>:$layer_id,

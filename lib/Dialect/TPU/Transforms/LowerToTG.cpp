@@ -353,7 +353,6 @@ Value* tpu::EltwiseMulOp::convertToTG(void *info) {
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
   attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
-  attrs.push_back(builder.getNamedAttr("do_relu", do_reluAttr()));
 
   if (getOpQuant() == "INT8") {
     assert(getOpQuantParamType() == "RSHIFT_AND_M_I8");
@@ -524,17 +523,19 @@ Value *tpu::SigmoidOp::convertToTG(void *info) {
                << "]\n";
   Operation *op = this->getOperation();
   auto builder = Builder(op->getContext());
-  // TensorFile *weightTF_ = (TensorFile *)info;
 
+
+  int nInputs = 2; // input and table 
   std::vector<Value *> operands;
-  operands.push_back(input());
+  for (auto i = 0; i < nInputs; ++i) {
+    operands.push_back(op->getOperand(i));
+  }
 
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
   attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
 
   if (getOpQuant() == "INT8") {
-    assert(getOpQuantParamType() == "NONE");
     auto newOp = OpBuilder(op).create<tpu::TG_INT8_SigmoidOp>(
         op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
         ArrayRef<NamedAttribute>{attrs});
