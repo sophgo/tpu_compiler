@@ -53,7 +53,8 @@ public:
     fn.walk([&](Operation *op) {
       if ( !failed(setOpLayerId(op, layer_id)) ) {
         llvm::errs() << " layer_id: " << llvm::format("%04d", layer_id)
-                     << " -> " << mlir::getOpName(op) << "\n";
+                     << " -> " << mlir::getOpName(op)
+                     << " : " << op->getName() << "\n";
         layer_id ++;
       } else {
         // to be removed
@@ -63,7 +64,6 @@ public:
         processed += addLayerIdAttr<tpu::DeConv2DOp>(builder, layer_id, op);
         processed += addLayerIdAttr<tpu::DetectionOutputOp>(builder, layer_id, op);
         processed += addLayerIdAttr<tpu::DivOp>(builder, layer_id, op);
-        processed += addLayerIdAttr<tpu::DummyDataOp>(builder, layer_id, op);
         processed += addLayerIdAttr<tpu::FullyConnectedOp>(builder, layer_id, op);
         processed += addLayerIdAttr<tpu::InputOp>(builder, layer_id, op);
         processed += addLayerIdAttr<tpu::PoolAvg2DOp>(builder, layer_id, op);
@@ -104,7 +104,8 @@ private:
       if (cast_op) {
         std::string op_name = mlir::getOpName(op).str();
         llvm::errs() << " layer_id: " << llvm::format("%04d", layer_id)
-                     << " -> " << mlir::getOpName(op) << "\n";
+                     << " -> " << mlir::getOpName(op)
+                     << " : " << op->getName() << "\n";
         cast_op.setAttr("layer_id", builder.getI32IntegerAttr(layer_id));
         layer_id++;
         return 1;

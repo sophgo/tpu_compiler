@@ -129,7 +129,6 @@ Value* tpu::Conv2DOp::convertToTG(void *info) {
   return nullptr;
 }
 
-
 Value* tpu::CropOp::convertToTG(void *info) {
   llvm::errs() << "lowerToTG: " << getOperationName()
                << " [" << getOpName() << "]\n";

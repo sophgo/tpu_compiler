@@ -96,6 +96,25 @@ def TPU_LoadWeightOp : TPU_Op<"load_weight", [NoSideEffect]> {
   let results = (outs AnyTensor:$tensor);
 }
 
+def TPU_DummyOp: TPU_Op<"dummy", [NoSideEffect]> {
+  let summary = "dummy operator";
+
+  let description = [{
+    Dummy is used to carry tensor shape, used by some frameworks, and will be
+    removed after importing.
+
+    Inputs:
+
+    Attributes:
+
+    Result:
+      `tensor`          : result tensor with the specific shape.
+
+  }];
+
+  let results = (outs AnyTensor:$output);
+}
+
 def TPU_NoneOp : TPU_Op<"none", [NoSideEffect]> {
   let summary = "none operator";
 

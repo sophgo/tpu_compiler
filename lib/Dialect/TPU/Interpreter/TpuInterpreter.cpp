@@ -302,6 +302,7 @@ LogicalResult tpu::Conv2DOp::interpret(
 
   return success();
 }
+
 LogicalResult tpu::CropOp::interpret(
     DenseMap<Value *, std::shared_ptr<std::vector<float>>> &valueMapping) {
   Operation *op = this->getOperation();
@@ -1103,24 +1104,6 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     return success();
   }
 
-  if (auto op = dyn_cast<tpu::DummyDataOp>(opInst)) {
-    LLVM_DEBUG(llvm::errs() << "DummyDataOp"
-                            << "\n";);
-    auto opdT = getOperandTensors(opInst, valueMapping);
-    auto result = op.getResult();
-    LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump();
-               llvm::errs() << "\n";);
-    std::vector<int64_t> shape =
-        result->getType().cast<TensorType>().getShape();
-    assert(shape.size() <= 4);
-    auto size = std::accumulate(std::begin(shape), std::end(shape), 1,
-                                std::multiplies<>());
-    auto resultT = std::make_unique<std::vector<float>>(size);
-    valueMapping[result] = std::move(resultT);
-
-    return success();
-  }
-
   if (auto op = dyn_cast<tpu::TanHOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "TanHOp" << "\n";);
     auto opdT = getOperandTensors(opInst, valueMapping);
@@ -1393,7 +1376,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
     return success();
   }
- 
+
 
   if (auto op = dyn_cast<tpu::SliceOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "SliceOp" << "\n";);

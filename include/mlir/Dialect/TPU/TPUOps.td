@@ -248,6 +248,54 @@ def TPU_ConcatOp: TPU_Op<"concat",
 
 def TPU_Conv2DOp : TPU_ConvOp<"conv_2d", "Convolution">;
 
+def TPU_CropOp: TPU_Op<"crop",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
+       DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
+  let summary = "Crop operator";
+
+  let description = [{
+    To crop, elements of the first bottom are selected to fit the dimensions
+    of the second, reference bottom.
+     Performs crop operation on inputs.
+
+    Inputs:
+      `input`          : required, input tensors.
+
+    Attributes:
+      `quant`           : required, a QuantParam struct attributes.
+      `name`            : required, name for calibration, comparing, or debug.
+      `crop_shape`      : required, crop shape.
+      `crop_offset`     : required, crop offset.
+      `layer_id`        : optional, id for profiling.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TPU_QuantPerTensorOnly`
+      `TPU_QuantSupportAsymmetric`
+      `TpuOpCommonInterface` : support common TPU Op interface
+      `TpuOpInterpInterface` : support interperter
+      `TpuOpQuantInterface`  : support quantization
+      `TpuOpLowerInterface`  : support lower to TPU TG Ops
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    OptionalAttr<I32ArrayAttr>:$crop_shape,
+    OptionalAttr<I32ArrayAttr>:$crop_offset,
+
+    TPU_QuantParamAttr:$quant,
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
+  );
+  let results = (outs AnyTensor:$output);
+}
+
 def TPU_EltwiseAddOp : TPU_EltwiseOp<"eltwise_add", "Add">;
 def TPU_EltwiseMulOp : TPU_EltwiseOp<"eltwise_mul", "Mul">;
 def TPU_EltwiseMaxOp : TPU_EltwiseOp<"eltwise_max", "Max">;
@@ -585,54 +633,6 @@ def TPU_BatchNormOp: TPU_Op<"batch_norm",
   );
 
   let results = (outs AnyTensor:$y);
-}
-
-def TPU_CropOp: TPU_Op<"crop",
-      [NoSideEffect, 
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>, 
-       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
-       DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
-  let summary = "Crop operator";
-
-  let description = [{
-    To crop, elements of the first bottom are selected to fit the dimensions
-    of the second, reference bottom.
-     Performs crop operation on inputs.
-
-    Inputs:
-      `input`          : required, input tensors.
-
-    Attributes:
-      `quant`           : required, a QuantParam struct attributes.
-      `name`            : required, name for calibration, comparing, or debug.
-      `crop_shape`      : required, crop shape.
-      `crop_offset`     : required, crop offset.
-      `layer_id`        : optional, id for profiling.
-
-    Result:
-      `output`          : result tensor.
-
-    Interfaces or Traits:
-      `NoSideEffect`
-      `TPU_QuantPerTensorOnly`
-      `TPU_QuantSupportAsymmetric`
-      `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpInterpInterface` : support interperter
-      `TpuOpQuantInterface`  : support quantization
-      `TpuOpLowerInterface`  : support lower to TPU TG Ops
-  }];
-
-  let arguments = (
-    ins AnyTensor:$input,
-    OptionalAttr<I32ArrayAttr>:$crop_shape,
-    OptionalAttr<I32ArrayAttr>:$crop_offset,
-
-    TPU_QuantParamAttr:$quant,
-    StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
-  );
-  let results = (outs AnyTensor:$output);
 }
 
 def TPU_DeConv2DOp : TPU_ConvOp_Legacy<"deconv_2d", "Convolution">;
@@ -1067,24 +1067,6 @@ def TPU_DequantizationOp: TPU_Op<"dequantization",
     OptionalAttr<StrAttr>:$name,
     OptionalAttr<F32Attr>:$threshold,
     DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
-  );
-
-  let results = (outs AnyTensor:$output);
-}
-
-//===----------------------------------------------------------------------===//
-// Staging
-//===----------------------------------------------------------------------===//
-def TPU_DummyDataOp: TPU_Op<"dummydata",
-      [NoSideEffect, DeclareOpInterfaceMethods<TpuInterface>]> {
-  let summary = "dummydata";
-
-  let description = [{
-    DummyDataLayer fills any number of arbitrarily shaped blobs with random
-  }];
-
-  let arguments = (
-    ins OptionalAttr<StrAttr>:$name
   );
 
   let results = (outs AnyTensor:$output);

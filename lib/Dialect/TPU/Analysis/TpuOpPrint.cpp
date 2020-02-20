@@ -96,7 +96,6 @@ public:
             // to be removed
             int processed = 0;
             processed += printTpuOpInfo<tpu::BatchNormOp>(op, file_os);
-            processed += printTpuOpInfo<tpu::CropOp>(op, file_os);
             processed += printTpuOpInfo<tpu::DeConv2DOp>(op, file_os);
             processed += printTpuOpInfo<tpu::DetectionOutputOp>(op, file_os);
             processed += printTpuOpInfo<tpu::DivOp>(op, file_os);
@@ -104,8 +103,6 @@ public:
             processed += printTpuOpInfo<tpu::InputOp>(op, file_os);
             processed += printTpuOpInfo<tpu::NormalizeOp>(op, file_os);
             processed += printTpuOpInfo<tpu::PermuteOp>(op, file_os);
-            processed += printTpuOpInfo<tpu::PoolAvg2DOp>(op, file_os);
-            processed += printTpuOpInfo<tpu::PoolMax2DOp>(op, file_os);
             processed += printTpuOpInfo<tpu::PowerOp>(op, file_os);
             processed += printTpuOpInfo<tpu::PReluOp>(op, file_os);
             processed += printTpuOpInfo<tpu::PriorBoxOp>(op, file_os);

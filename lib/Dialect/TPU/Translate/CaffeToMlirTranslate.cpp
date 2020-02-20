@@ -1483,12 +1483,9 @@ void CaffeImporter::convertDummyDataLayer(mlir::Block *block,
 
   // construct OP
   auto result_type = RankedTensorType::get({n,c,h,w}, elementType_);
-  std::vector<NamedAttribute> attrs;
-  attrs.push_back(builder_.getNamedAttr(
-      "name", builder_.getStringAttr(layer_param.name())));
-  auto op = OpBuilder(block).create<tpu::DummyDataOp>(
+  auto op = OpBuilder(block).create<tpu::DummyOp>(
       builder_.getUnknownLoc(), result_type, ArrayRef<Value *>{},
-      ArrayRef<NamedAttribute>{attrs});
+      ArrayRef<NamedAttribute>{});
   auto result_var = op.getResult();
   tensor_map_[layer_param.top(0)] = result_var;
 }
@@ -1551,13 +1548,23 @@ void CaffeImporter::convertCropLayer(mlir::Block *block,
       }
     }
 
-    llvm::errs() << "    [" << i << "] crop_offset=" << offset
-                 << ", new_size=" << new_size << "\n";
+    LLVM_DEBUG(llvm::errs() << "    [" << i << "] crop_offset=" << offset
+                 << ", new_size=" << new_size << "\n";);
 
     output_shape[i] = new_size;
     crop_offset[i] = offset;
   }
+
   // consruct OP
+  std::vector<Value *> operands;
+  operands.push_back(input_vars[0]);
+
+  Operation *shapeOp = input_vars[1]->getDefiningOp();
+  if (isa<tpu::DummyOp>(shapeOp)) {
+    // erase the dummy
+    shapeOp->erase();
+  }
+
   auto result_type = RankedTensorType::get(
       {output_shape[0], output_shape[1], output_shape[2], output_shape[3]},
       elementType_);
@@ -1570,7 +1577,7 @@ void CaffeImporter::convertCropLayer(mlir::Block *block,
       "name", builder_.getStringAttr(layer_param.name())));
   attrs.push_back(builder_.getNamedAttr("quant", getDefaultQuantParam(builder_)));
   auto op = OpBuilder(block).create<tpu::CropOp>(
-      builder_.getUnknownLoc(), result_type, ArrayRef<Value *>{input_vars},
+      builder_.getUnknownLoc(), result_type, ArrayRef<Value *>{operands},
       ArrayRef<NamedAttribute>{attrs});
   auto result_var = op.getResult();
   tensor_map_[layer_param.top(0)] = result_var;
