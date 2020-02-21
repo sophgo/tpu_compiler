@@ -341,6 +341,7 @@ Value* tpu::LeakyReluOp::convertToTG(void *info) {
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
   attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
+  attrs.push_back(builder.getNamedAttr("negative_slope", negative_slopeAttr()));
 
   if (getOpQuant() == "INT8") {
     assert(getOpQuantParamType() == "RSHIFT_AND_M_I8");

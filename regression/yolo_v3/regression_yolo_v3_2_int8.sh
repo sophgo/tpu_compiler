@@ -181,6 +181,7 @@ npz_extract.py \
     yolo_v3_tensor_all_int8_multiplier.npz \
     yolo_v3_out_int8_multiplier.npz \
     layer82-conv,layer94-conv,layer106-conv
+
 npz_compare.py \
       yolo_v3_out_int8_multiplier.npz \
       yolo_v3_blobs.npz \
