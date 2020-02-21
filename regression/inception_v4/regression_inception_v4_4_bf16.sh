@@ -5,17 +5,10 @@ DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 source $DIR/../../envsetup.sh
 echo $0 IS RUNNING
 
-# apply post-calibration optimizations
-# not applying --fuse-eltwise for now
-mlir-opt \
-    --fuse-relu \
-    inception_v4_opt.mlir \
-    -o inception_v4_opt2.mlir
-
 # quantization
 mlir-opt \
     --quant-bf16 \
-    inception_v4_opt2.mlir \
+    inception_v4_opt.mlir \
     -o inception_v4_quant_bf16.mlir
 
 # bf16 inference
@@ -28,6 +21,7 @@ npz_compare.py inception_v4_out_bf16.npz inception_v4_out_fp32.npz -v
 npz_compare.py \
     inception_v4_tensor_all_bf16.npz \
     inception_v4_tensor_all_fp32.npz \
+    --op_info inception_v4_op_info.csv \
     --tolerance=0.99,0.99,0.88 -vvv
 
 # VERDICT

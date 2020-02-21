@@ -94,7 +94,7 @@ if [ ! -e $MLIR_SRC_PATH/externals/bmkernel/build ]; then
   mkdir $MLIR_SRC_PATH/externals/bmkernel/build
 fi
 pushd $MLIR_SRC_PATH/externals/bmkernel/build
-cmake -G Ninja -DCHIP=BM1880v2 -DCMAKE_INSTALL_PREFIX=$BMKERNEL_PATH ..
+cmake -G Ninja -DCHIP=BM1880v2 -DCMAKE_INSTALL_PREFIX=$BMKERNEL_PATH $BUILD_FLAG ..
 cmake --build . --target install
 popd
 
@@ -103,7 +103,7 @@ if [ ! -e $MLIR_SRC_PATH/externals/support/build ]; then
   mkdir $MLIR_SRC_PATH/externals/support/build
 fi
 pushd $MLIR_SRC_PATH/externals/support/build
-cmake -G Ninja -DCMAKE_INSTALL_PREFIX=$SUPPORT_PATH ..
+cmake -G Ninja -DCMAKE_INSTALL_PREFIX=$SUPPORT_PATH $BUILD_FLAG ..
 cmake --build . --target install
 popd
 
@@ -112,7 +112,7 @@ if [ ! -e $MLIR_SRC_PATH/externals/cmodel/build ]; then
   mkdir $MLIR_SRC_PATH/externals/cmodel/build
 fi
 pushd $MLIR_SRC_PATH/externals/cmodel/build
-cmake -G Ninja -DCHIP=BM1880v2 -DBMKERNEL_PATH=$BMKERNEL_PATH \
+cmake -G Ninja -DCHIP=BM1880v2 -DBMKERNEL_PATH=$BMKERNEL_PATH $BUILD_FLAG \
     -DSUPPORT_PATH=$SUPPORT_PATH -DCMAKE_INSTALL_PREFIX=$CMODEL_PATH ..
 cmake --build . --target install
 popd
@@ -125,7 +125,7 @@ pushd $MLIR_SRC_PATH/externals/runtime/build
 cmake -G Ninja -DCHIP=BM1880v2 -DRUNTIME=CMODEL \
     -DSUPPORT_PATH=$SUPPORT_PATH \
     -DBMKERNEL_PATH=$BMKERNEL_PATH -DCMODEL_PATH=$CMODEL_PATH \
-    -DFLATBUFFERS_PATH=$FLATBUFFERS_PATH -DCVIBUILDER_PATH=$CVIBUILDER_PATH \
+    -DFLATBUFFERS_PATH=$FLATBUFFERS_PATH -DCVIBUILDER_PATH=$CVIBUILDER_PATH $BUILD_FLAG \
     -DCMAKE_INSTALL_PREFIX=$RUNTIME_PATH ..
 cmake --build . --target install
 popd
