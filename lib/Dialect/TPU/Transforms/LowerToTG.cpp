@@ -156,6 +156,8 @@ Value* tpu::CropOp::convertToTG(void *info) {
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
   attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
+  attrs.push_back(builder.getNamedAttr("crop_shape", crop_shapeAttr()));
+  attrs.push_back(builder.getNamedAttr("crop_offset", crop_offsetAttr()));
 
   if (getOpQuant() == "INT8") {
     // create op

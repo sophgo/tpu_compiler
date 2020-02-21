@@ -456,7 +456,7 @@ struct TpuQuantInt8SigmoidOpPattern : public RewritePattern {
     }
     // update op
     auto shape = std::vector<int64_t>{1, npu_num, table_h, table_w};
-    StringRef storageType = "NONE";
+    StringRef storageType = "INT8";
     auto y0_table_op = addWeightTensorAndCreateWeightOp<float>(
         op, "y0_table", y0_table, shape, storageType, weightTF_, weightFV_);
     sigOp.setOperand(1, y0_table_op);
