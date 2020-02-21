@@ -944,9 +944,9 @@ public:
     // erase CPU ops
     patterns.clear();
     patterns.insert<
-        DefaultErasePattern<tpu::SoftmaxOp>,
-        DefaultErasePattern<tpu::QuantizationOp>,
-        DefaultErasePattern<tpu::DequantizationOp>
+        DefaultErasePattern<tpu::SoftmaxOp>
+        //DefaultErasePattern<tpu::QuantizationOp>,
+        //DefaultErasePattern<tpu::DequantizationOp>
         >(context);
     applyPatternsGreedily(fn, patterns);
 
