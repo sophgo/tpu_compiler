@@ -105,12 +105,11 @@ struct TpuQuantBf16Conv2DOpPattern : public RewritePattern {
     }
 
     // update op
-    StringRef storageType = "BF16";
     addWeightTensorAndUpdateWeightOp<bfloat16>(convOp.getOperand(1),
-        *new_filter, filterShape, storageType, weightTF_);
+        "quant", *new_filter, filterShape, "BF16", weightTF_);
     if (bias) {
       addWeightTensorAndUpdateWeightOp<bfloat16>(convOp.getOperand(2),
-          *new_bias, biasShape, storageType, weightTF_);
+          "quant", *new_bias, biasShape, "BF16", weightTF_);
     }
     setOpQuant(op, "BF16");
 
@@ -186,9 +185,8 @@ struct TpuQuantFullyConnectedOpPattern : public RewritePattern {
     // quantization
     FloatToBFloat16(filter->data(), new_filter->data(), filterSize);
     // update op
-    StringRef storageType = "BF16";
     addWeightTensorAndUpdateWeightOp<bfloat16>(fcOp.getOperand(1),
-        *new_filter, filterShape, storageType, weightTensorFile_);
+        "quant", *new_filter, filterShape, "BF16", weightTensorFile_);
 
     // quantize bias
     if (fcOp.with_bias()) {
@@ -206,9 +204,8 @@ struct TpuQuantFullyConnectedOpPattern : public RewritePattern {
       // quantization
       FloatToBFloat16(bias->data(), new_bias->data(), biasSize);
       // update op
-      StringRef storageType = "BF16";
       addWeightTensorAndUpdateWeightOp<bfloat16>(fcOp.getOperand(2),
-          *new_bias, biasShape, storageType, weightTensorFile_);
+          "quant", *new_bias, biasShape, "BF16", weightTensorFile_);
     }
 
     fcOp.setAttr("quant", rewriter.getStringAttr("BF16"));
@@ -249,9 +246,8 @@ struct TpuQuantPReluOpPattern : public RewritePattern {
     // quantization
     FloatToBFloat16(filter->data(), new_filter->data(), filterSize);
     // update op
-    StringRef storageType = "BF16";
     addWeightTensorAndUpdateWeightOp<bfloat16>(preluOp.getOperand(1),
-        *new_filter, filterShape, storageType, weightTensorFile_);
+        "quant", *new_filter, filterShape, "BF16", weightTensorFile_);
 
     preluOp.setAttr("quant", rewriter.getStringAttr("BF16"));
 

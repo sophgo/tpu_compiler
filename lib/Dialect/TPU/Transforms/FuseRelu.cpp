@@ -92,6 +92,9 @@ struct TpuFuseReluPattern : public RewritePattern {
     } else if (matchPattern(formerOp, m_Op<tpu::ConcatOp>())) {
       // TODO: need to fuse
       return matchFailure();
+    } else if (matchPattern(formerOp, m_Op<tpu::ScaleOp>())) {
+      // TODO: convert to conv
+      return matchFailure();
     } else {
       assert(0);
       return matchFailure();

@@ -14,6 +14,7 @@ add_llvm_library(MLIRTPU
   Transforms/ConvertBnToScale.cpp
   Transforms/FoldScale.cpp
   Transforms/MergeScaleIntoConv.cpp
+  Transforms/ConvertScaleToDWConv
   Transforms/FuseRelu.cpp
   Transforms/FuseEltwise.cpp
   Transforms/AssignWeightAddress.cpp

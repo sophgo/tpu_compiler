@@ -61,7 +61,15 @@ namespace mlir {
 #define DECLARE_GET_OP_NAME_METHOD(OP) \
     StringRef OP::getOpName() {return name();}
 #define DECLARE_GET_LAYER_ID_METHOD(OP) \
-    int OP::getOpLayerId() {return layer_id().getValue().getLimitedValue();}
+    int OP::getOpLayerId() { \
+      if (layer_id().hasValue()) { \
+        return layer_id().getValue().getLimitedValue(); \
+      } else { \
+        llvm::errs() << name() << " has no layer_id assigned\n"; \
+        assert(false); \
+        return -1; \
+      } \
+    }
 #define DECLARE_SET_LAYER_ID_METHOD(OP) \
     LogicalResult OP::setOpLayerId(int id) { \
       setAttr("layer_id", \

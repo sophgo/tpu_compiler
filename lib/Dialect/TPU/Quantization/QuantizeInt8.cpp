@@ -168,14 +168,13 @@ struct TpuQuantInt8Conv2DOpPattern : public RewritePattern {
     }
 
     // update op
-    StringRef storageType = "INT8";
     addWeightTensorAndUpdateWeightOp<float>(convOp.getOperand(1),
-        *new_filter, filterShape, storageType, weightTF_);
+        "quant", *new_filter, filterShape, "INT8", weightTF_);
     if (bias) {
       // for per_channel quant, bias store as INT32, per layer use INT16
       StringRef storageType = (quant == INT8_PER_LAYER) ? "INT16" : "INT32";
       addWeightTensorAndUpdateWeightOp<float>(convOp.getOperand(2),
-          *new_bias, biasShape, storageType, weightTF_);
+          "quant", *new_bias, biasShape, storageType, weightTF_);
     }
 
     // add rshift and multiplier (if present) to weight
@@ -844,10 +843,8 @@ struct TpuQuantPReluOpPattern : public RewritePattern {
     // }
 
     // update op
-    // TODO: use float to save all weights for now
-    StringRef storageType = "INT8";
     addWeightTensorAndUpdateWeightOp<float>(preluOp.getOperand(1),
-        new_negative_slope, slopeShape, storageType, weightTensorFile_);
+        "quant", new_negative_slope, slopeShape, "INT8", weightTensorFile_);
 
     // newOperands for create a new conv Op
     std::vector<Value *> newOperands;

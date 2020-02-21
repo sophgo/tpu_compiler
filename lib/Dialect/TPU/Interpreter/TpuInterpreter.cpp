@@ -86,10 +86,10 @@ LogicalResult tpu::BroadcastMulOp::interpret(
   int axis = this->axis().getLimitedValue();
   assert(axis == 1);
 
-  assert(opdT.size()== 6);
+  assert(opdT.size() == 6);
   std::shared_ptr<std::vector<float> > input = opdT[0];
   std::shared_ptr<std::vector<float> > scale = opdT[1];
-  assert(scale->size() == c);
+  assert(scale->size() == (size_t)c);
 
   int ret = my_scale(input->data(), scale->data(), nullptr,
                      resultT->data(), n, c, h, w);

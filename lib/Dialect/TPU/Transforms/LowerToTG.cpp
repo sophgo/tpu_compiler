@@ -691,14 +691,13 @@ struct PackWeightConv2DOpPattern : public RewritePattern {
     auto packed = packWeight(bias.get(), rshift.get(), multiplier.get(), oc,
                              packedShape);
 
-    // store to the bias operand
-    StringRef storageType = "UINT8";
+    // store to the packed per_channel operand in "UINT8"
     if (bias) {
       addWeightTensorAndUpdateWeightOp<uint8_t>(convOp.bias(),
-          *packed, packedShape, storageType, weightTF_);
+          "pack", *packed, packedShape, "UINT8", weightTF_);
     } else {
       auto packed_op = addWeightTensorAndCreateWeightOp<uint8_t>(
-          op, "pack", *packed, packedShape, storageType,
+          op, "pack", *packed, packedShape, "UINT8",
           weightTF_, weightFV_);
       convOp.setOperand(2, packed_op);
     }
@@ -792,9 +791,8 @@ struct LowerWeightConv2DOpPattern : public RewritePattern {
         transposeConvolutionFilter<int8_t>(filter_int8, shape);
 
         // save it
-        StringRef storageType = "INT8";
         addWeightTensorAndUpdateWeightOp<int8_t>(convOp.filter(),
-            filter_int8, shape, storageType, weightTF_);
+            "lowered", filter_int8, shape, "INT8", weightTF_);
         filterOp.setAttr("lowered", rewriter.getBoolAttr(true));
       }
 
@@ -816,7 +814,7 @@ struct LowerWeightConv2DOpPattern : public RewritePattern {
           // save it
           //StringRef storageType = "INT32";
           //addWeightTensorAndUpdateWeightOp<int32_t>(convOp.bias(),
-          //    bias_int16, shape, storageType, weightTF_);
+          //    "lowered", bias_int16, shape, storageType, weightTF_);
           biasOp.setAttr("lowered", rewriter.getBoolAttr(true));
         } else {
           // per-tensor mode, bias is INT16
@@ -833,10 +831,9 @@ struct LowerWeightConv2DOpPattern : public RewritePattern {
           // save it
           // after transpose, this is not INT16 anymore, it is 2 stripes of UINT8
           // we save it as UINT16, to carry the eltment bitwidth, so we don`t need
-          // to change the shape
-          StringRef storageType = "UINT16";
+          // to change the shape.
           addWeightTensorAndUpdateWeightOp<uint16_t>(convOp.bias(),
-              bias_uint16, shape, storageType, weightTF_);
+              "lowered", bias_uint16, shape, "UINT16", weightTF_);
           biasOp.setAttr("lowered", rewriter.getBoolAttr(true));
         }
       }
@@ -858,7 +855,7 @@ struct LowerWeightConv2DOpPattern : public RewritePattern {
         // save it
         StringRef storageType = "BF16";
         addWeightTensorAndUpdateWeightOp<uint16_t>(convOp.filter(),
-            filter_bf16, shape, storageType, weightTF_);
+            "lowered", filter_bf16, shape, storageType, weightTF_);
         filterOp.setAttr("lowered", rewriter.getBoolAttr(true));
       }
 
@@ -892,7 +889,7 @@ struct LowerWeightConv2DOpPattern : public RewritePattern {
         // to change the shape
         StringRef storageType = "UINT32";
         addWeightTensorAndUpdateWeightOp<uint32_t>(convOp.bias(),
-            bias_uint32, shape, storageType, weightTF_);
+            "lowered", bias_uint32, shape, storageType, weightTF_);
         biasOp.setAttr("lowered", rewriter.getBoolAttr(true));
       }
     }

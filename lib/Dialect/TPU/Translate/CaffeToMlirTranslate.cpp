@@ -20,6 +20,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/TPU/TPUDialect.h"
+#include "mlir/Dialect/TPU/TPUOperationSupport.h"
+#include "mlir/Dialect/TPU/TPUTensorSupport.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/Function.h"
 #include "mlir/IR/Module.h"
@@ -154,17 +156,6 @@ static void printCaffeNetAllLayer(const caffe::Net<float>& net) {
     auto layer = net.layers()[i].get();
     printCaffeLayerParam(layer);
   }
-}
-
-static tpu::QuantParam getDefaultQuantParam(Builder &builder) {
-  return tpu::QuantParam::get(
-      builder.getStringAttr("NONE"),
-      builder.getStringAttr("NONE"),
-      builder.getBoolAttr(false),
-      builder.getBoolAttr(false),
-      builder.getF32FloatAttr(0.0),
-      builder.getF32FloatAttr(0.0),
-      builder.getContext());
 }
 
 #define calcConv2DSpatialOutput(_i_, _k_, _s_, _p_, _d_) \

@@ -116,6 +116,9 @@ struct TpuBatchNormOpPattern : public RewritePattern {
     // keep the op_name because the calibration table is using this name
     std::vector<NamedAttribute> attrs;
     attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(op_name)));
+    if (bnOp.layer_id().hasValue()) {
+      attrs.push_back(rewriter.getNamedAttr("layer_id", bnOp.layer_idAttr()));
+    }
     rewriter.replaceOpWithNewOp<tpu::ScaleOp>(
         bnOp, bnOp.getResult()->getType(),
         ArrayRef<Value *>{newOperands}, ArrayRef<NamedAttribute>{attrs});
