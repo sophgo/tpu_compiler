@@ -87,21 +87,15 @@ npz_extract.py \
 
 npz_compare.py \
       yolo_v3_out_int8_three_layer.npz \
-      yolo_v3_blobs.npz \
-      --op_info yolo_v3_op_info_int8_per_layer.csv \
-      --dequant \
-      --tolerance 0.98,0.88,0.79 -vv  # autotune-relu-overwrite-backward (with leakyrelu only neg quant)
+      yolo_v3_tensor_all_int8_per_layer.npz \
+      --op_info yolo_v3_op_info_int8_per_layer.csv
 
 if [ $COMPARE_ALL -eq 1 ]; then
-  # some tensors do not pass due to threshold bypass
-  # need do dequantization in interpreter directly
+  # some are not equal due to fusion
   npz_compare.py \
       yolo_v3_cmdbuf_out_all_int8_per_layer.npz \
-      yolo_v3_blobs.npz \
-      --op_info yolo_v3_op_info_int8_per_layer.csv \
-      --dequant \
-      --excepts layer86-upsample,layer87-route,layer98-upsample,layer99-route \
-      --tolerance 0.90,0.88,0.51 -vv  # autotune-relu-overwrite-backward (with leakyrelu only neg quant)
+      yolo_v3_tensor_all_int8_per_layer.npz \
+      --op_info yolo_v3_op_info_int8_per_layer.csv
 fi
 
 ################################
@@ -172,19 +166,13 @@ npz_extract.py \
 
 npz_compare.py \
       yolo_v3_out_int8_multiplier_three_layer.npz \
-      yolo_v3_blobs.npz \
-      --op_info yolo_v3_op_info_int8_per_layer.csv \
-      --dequant \
-      --tolerance 0.98,0.88,0.79 -vv  # autotune-relu-overwrite-backward (with leakyrelu only neg quant)
+      yolo_v3_tensor_all_int8_multiplier.npz \
+      --op_info yolo_v3_op_info_int8_per_layer.csv
 
 if [ $COMPARE_ALL -eq 1 ]; then
-  # some tensors do not pass due to threshold bypass
-  # need do dequantization in interpreter directly
+  # some are not equal due to fusion
   npz_compare.py \
       yolo_v3_cmdbuf_out_all_int8_multiplier.npz \
-      yolo_v3_blobs.npz \
-      --op_info yolo_v3_op_info_int8_per_layer.csv \
-      --dequant \
-      --excepts layer86-upsample,layer87-route,layer98-upsample,layer99-route \
-      --tolerance 0.90,0.88,0.51 -vv  # autotune-relu-overwrite-backward (with leakyrelu only neg quant)
+      yolo_v3_tensor_all_int8_multiplier.npz \
+      --op_info yolo_v3_op_info_int8_per_layer.csv
 fi
