@@ -368,7 +368,7 @@ LogicalResult tpu::TG_INT8_PT_Conv2DOp::codegen(void *ctx) {
       1.0f,      // bn_scale,
       1e-5,      // eps,
       0,         // param.activation(), method, 0 -> RELU, all others are invalide for now
-      do_relu ? &fused_negative_slope : nullptr,   // activation_arg,
+      do_relu ? & fused_negative_slope : nullptr,   // activation_arg,
       INVALID_GLOBAL_ADDR, //global_slope_gaddr,
       false,     //channel_shared,
       fused_leakyrelu_pos_m_i8,           // activation_gt_scale,
@@ -466,7 +466,7 @@ LogicalResult tpu::TG_INT8_PC_Conv2DOp::codegen(void *ctx) {
       1.0f,      // bn_scale,
       1e-5,      // eps,
       0,         // param.activation(), method, 0 -> RELU, all others are invalide for now
-      do_relu ? &fused_negative_slope : nullptr,   // activation_arg,
+      do_relu ? & fused_negative_slope : nullptr,   // activation_arg,
       INVALID_GLOBAL_ADDR, // global_slope_gaddr,
       false,     // channel_shared,
       fused_leakyrelu_pos_m_i8,           // activation_gt_scale,
@@ -572,11 +572,12 @@ LogicalResult tpu::TG_INT8_PC_DeConv2DOp::codegen(void *ctx) {
   int fused_leakyrelu_pos_m_i8 = 0;
   int fused_leakyrelu_neg_rshift = 0;
   int fused_leakyrelu_neg_m_i8 = 0;
+  float negativeSlope;
   if (this->fuse_next()) {
     Operation *nextOp = getNextOp(this);
     int8_t pos_rshift, pos_m_i8, neg_rshift, neg_m_i8;
     parseTgLeakyReluParam(nextOp,
-        pos_rshift, pos_m_i8, neg_rshift, neg_m_i8);
+        pos_rshift, pos_m_i8, neg_rshift, neg_m_i8, negativeSlope);
 
     // TODO: fix the type in backend API
     fused_leakyrelu_pos_rshift = static_cast<int>(pos_rshift);

@@ -115,7 +115,6 @@ if [ $COMPARE_ALL -eq 1 ]; then
       yolo_v3_blobs.npz \
       --op_info yolo_v3_op_info_int8_per_layer.csv \
       --dequant \
-      --excepts layer86-upsample,layer87-route,layer98-upsample,layer99-route \
       --tolerance 0.90,0.88,0.51 -vv  # autotune-relu-overwrite-backward (with leakyrelu only neg quant)
 fi
 
@@ -155,7 +154,6 @@ if [ $COMPARE_ALL -eq 1 ]; then
       yolo_v3_blobs.npz \
       --op_info yolo_v3_op_info_int8_per_channel.csv \
       --dequant \
-      --excepts layer86-upsample,layer87-route,layer98-upsample,layer99-route \
       --tolerance 0.92,0.90,0.58 -vv  # autotune-relu-overwrite-backward (with leakyrelu only neg quant)
 fi
 
@@ -211,7 +209,6 @@ if [ $COMPARE_ALL -eq 1 ]; then
       yolo_v3_blobs.npz \
       --op_info yolo_v3_op_info_int8_multiplier.csv \
       --dequant \
-      --excepts layer86-upsample,layer87-route,layer98-upsample,layer99-route \
       --tolerance 0.93,0.92,0.61 -vv
 
       # --tolerance 0.92,0.90,0.57 -vv  # for autotune-no-overwrite (with leakyrelu both pos and neg quant)
