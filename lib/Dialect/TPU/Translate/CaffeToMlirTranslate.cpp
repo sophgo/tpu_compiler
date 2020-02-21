@@ -1414,7 +1414,7 @@ void CaffeImporter::convertCropLayer(mlir::Block *block,
   // get input shape from input vars
   llvm::ArrayRef<int64_t> input_shape =
       input_vars[0]->getType().dyn_cast<mlir::TensorType>().getShape();
-  llvm::ArrayRef<int64_t> input_shape1 =
+  llvm::ArrayRef<int64_t> _crop_shape =
       input_vars[1]->getType().dyn_cast<mlir::TensorType>().getShape();
 
   int input_dim = input_shape.size();
@@ -1429,27 +1429,25 @@ void CaffeImporter::convertCropLayer(mlir::Block *block,
            "ofdimensions following axis.");
   }
 
-  LLVM_DEBUG(llvm::errs() << "\n  Crop\n"
-                          << "    bottom: " << input_shape[0] << ", "
-                          << input_shape[1] << ", " << input_shape[2]
-                          << ", " << input_shape[3] << "\n"
-                          << "    bottom: " << input_shape1[0] << ", "
-                          << input_shape1[1] << ", " << input_shape1[2]
-                          << ", " << input_shape1[3] << "\n"
-                          << "    start_axis " << start_axis
-                          << ", offset_size() "
-                          << crop_param.offset_size() << "\n";);
+  LLVM_DEBUG(
+      llvm::errs() << "\n  Crop\n"
+                   << "    bottom: " << input_shape[0] << ", " << input_shape[1]
+                   << ", " << input_shape[2] << ", " << input_shape[3] << "\n"
+                   << "    crop: " << _crop_shape[0] << ", " << _crop_shape[1]
+                   << ", " << _crop_shape[2] << ", " << _crop_shape[3] << "\n"
+                   << "    start_axis " << start_axis << ", offset_size() "
+                   << crop_param.offset_size() << "\n";);
 
   std::vector<int> output_shape(input_dim);
   std::vector<int> crop_shape(input_dim);
   std::vector<int> crop_offset(input_dim);
-  crop_shape.assign(input_shape1.begin(), input_shape1.end());
+  crop_shape.assign(_crop_shape.begin(), _crop_shape.end());
   // Determine crop offsets and the new shape post-crop
   for (int i = 0; i < input_dim; ++i) {
     int offset = 0;
     int new_size = input_shape[i];
     if (i >= start_axis) {
-      new_size = input_shape1[i];
+      new_size = crop_shape[i];
       if (crop_param.offset_size() == 1) {
         // If only one offset is given, all crops have the same offset.
         offset = crop_param.offset(0);
@@ -1488,6 +1486,7 @@ void CaffeImporter::convertCropLayer(mlir::Block *block,
   attrs.push_back(builder_.getNamedAttr(
       "name", builder_.getStringAttr(layer_param.name())));
   attrs.push_back(builder_.getNamedAttr("quant", getDefaultQuantParam(builder_)));
+  // we only accept first input to IR, second input shape will be attribute.
   auto op = OpBuilder(block).create<tpu::CropOp>(
       builder_.getUnknownLoc(), result_type, ArrayRef<Value *>{operands},
       ArrayRef<NamedAttribute>{attrs});
@@ -1550,7 +1549,7 @@ void CaffeImporter::convertFlattenLayer(mlir::Block *block,
 void CaffeImporter::convertSigmoidLayer(mlir::Block *block,
                                         caffe::Layer<float> *layer) {
   mlir::Value *input_var = GetLayerInput(layer);
-
+ 
   auto layer_param = layer->layer_param();
 
   int64_t n, c, h, w;
@@ -1564,16 +1563,23 @@ void CaffeImporter::convertSigmoidLayer(mlir::Block *block,
 
   LLVM_DEBUG(llvm::errs() << "  N: " << n << ", C: " << c << ", IH*IW: " << h
                           << " * " << w << "\n";);
-
+  std::vector<Value *> operands;
+  operands.push_back(input_var);
   // construct OP
   auto result_type = RankedTensorType::get({n, c, h, w}, elementType_);
+
+  auto NoneOp = OpBuilder(block).create<tpu::NoneOp>(builder_.getUnknownLoc(),
+                                                     builder_.getNoneType());
+  operands.push_back(NoneOp.getResult()); // quant_table
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder_.getNamedAttr(
       "name", builder_.getStringAttr(layer_param.name())));
   attrs.push_back(builder_.getNamedAttr(
       "has_table", builder_.getBoolAttr(false)));
+  attrs.push_back(
+      builder_.getNamedAttr("quant", getDefaultQuantParam(builder_)));
   auto op = OpBuilder(block).create<tpu::SigmoidOp>(
-      builder_.getUnknownLoc(), result_type, ArrayRef<Value *>{input_var},
+      builder_.getUnknownLoc(), result_type, ArrayRef<Value *>{operands},
       ArrayRef<NamedAttribute>{attrs});
   auto result_var = op.getResult();
 

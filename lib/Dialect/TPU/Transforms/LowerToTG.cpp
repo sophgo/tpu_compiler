@@ -156,6 +156,8 @@ Value* tpu::CropOp::convertToTG(void *info) {
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
   attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
+  attrs.push_back(builder.getNamedAttr("crop_shape", crop_shapeAttr()));
+  attrs.push_back(builder.getNamedAttr("crop_offset", crop_offsetAttr()));
 
   if (getOpQuant() == "INT8") {
     // create op
@@ -353,7 +355,6 @@ Value* tpu::EltwiseMulOp::convertToTG(void *info) {
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
   attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
-  attrs.push_back(builder.getNamedAttr("do_relu", do_reluAttr()));
 
   if (getOpQuant() == "INT8") {
     assert(getOpQuantParamType() == "RSHIFT_AND_M_I8");
@@ -513,6 +514,38 @@ Value* tpu::PoolMax2DOp::convertToTG(void *info) {
   } else if (getOpQuant() == "BF16") {
     auto newOp = OpBuilder(op).create<tpu::TG_BF16_PoolMax2DOp>(op->getLoc(),
         getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  }
+  assert(false);
+  return nullptr;
+}
+
+Value *tpu::SigmoidOp::convertToTG(void *info) {
+  llvm::errs() << "lowerToTG: " << getOperationName() << " [" << getOpName()
+               << "]\n";
+  Operation *op = this->getOperation();
+  auto builder = Builder(op->getContext());
+
+
+  int nInputs = 2; // input and table 
+  std::vector<Value *> operands;
+  for (auto i = 0; i < nInputs; ++i) {
+    operands.push_back(op->getOperand(i));
+  }
+
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder.getNamedAttr("name", nameAttr()));
+  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
+
+  if (getOpQuant() == "INT8") {
+    auto newOp = OpBuilder(op).create<tpu::TG_INT8_SigmoidOp>(
+        op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  } else if (getOpQuant() == "BF16") {
+    auto newOp = OpBuilder(op).create<tpu::TG_BF16_SigmoidOp>(
+        op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
   }
@@ -946,6 +979,7 @@ public:
         DefaultToTGPattern<tpu::LeakyReluOp>,
         DefaultToTGPattern<tpu::PoolAvg2DOp>,
         DefaultToTGPattern<tpu::PoolMax2DOp>,
+        DefaultToTGPattern<tpu::SigmoidOp>,
         DefaultToTGPattern<tpu::UpsampleOp>
     >(context, weightTF.get(), weightFV);
     applyPatternsGreedily(fn, patterns);

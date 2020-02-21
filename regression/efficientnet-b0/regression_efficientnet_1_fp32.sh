@@ -41,6 +41,7 @@ mlir-opt \
     --fold-scale \
     --merge-scale-into-conv \
     --fuse-relu \
+    --convert-scale-to-dwconv \
     efficientnet-b0.mlir \
     -o efficientnet-b0_opt.mlir
 

@@ -349,6 +349,46 @@ def TPU_TG_INT8_PoolMax2DOp : TPU_TG_Pool2DOp<"tg_int8_pool_max_2d", "Int8", "Ma
 def TPU_TG_BF16_PoolAvg2DOp : TPU_TG_Pool2DOp<"tg_bf16_pool_avg_2d", "Bf16", "Avg">;
 def TPU_TG_BF16_PoolMax2DOp : TPU_TG_Pool2DOp<"tg_bf16_pool_max_2d", "Bf16", "Max">;
 
+class TPU_TG_SigmoidOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
+  let summary = "TG " # opQuant # " Sigmoid operator.";
+
+  let description = [{
+    Inputs:
+      `input`          : required, the variadic activation memref.
+      `table`          : required, the lookup table
+
+    Attributes:
+      `gaddr`           : optional, address in global memory, normally the
+                          offset within the memory region.
+      `name`            : required, name for comparing, or debug.
+      `layer_id`        : optional, id for profiling.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface`    : support common TPU TG Op interface.
+      `TpuTGOpCodegenInterface` : support generate TPU instuctions.
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    AnyTensor:$table,
+    OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+def TPU_TG_INT8_SigmoidOp : TPU_TG_SigmoidOp<"tg_int8_sigmoid", "Int8">;
+def TPU_TG_BF16_SigmoidOp : TPU_TG_SigmoidOp<"tg_bf16_sigmoid", "Bf16">;
+
+
 class TPU_TG_UpsampleOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,

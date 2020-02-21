@@ -132,7 +132,7 @@ struct TpuGenSigmoidTablePattern : public RewritePattern {
     vector<float> y0_table;
     vector<float> y0_slope_table; // use in bf16
 
-    if (sigOp.quant() == "INT8") {
+    if (sigOp.getOpQuant() == "INT8") {
       //<! 1880v2 hw int8 config
       table_h = 16;
       table_w = 16;
@@ -158,61 +158,62 @@ struct TpuGenSigmoidTablePattern : public RewritePattern {
           y0_table[n * table_hw + idx] = lutOutputI32;
         }
       }
-    } else if (sigOp.quant() == "BF16") {
-      //<! 1880v2 hw bf16 config
-      table_h = 32;
-      table_w = 8;
-      table_hw = table_h * table_w;
-      tbl_shape = npu_num * table_hw;
-      y0_table.resize(tbl_shape);
-      y0_slope_table.resize(tbl_shape);
-      vector<float> y0_fp32_table(table_hw);
-      vector<float> y0_fp32_slope_table(table_hw);
-      vector<uint16_t> y0_bf16_table(table_hw);
-      vector<uint16_t> y0_bf16_slope_table(table_hw);
+    } else if (sigOp.getOpQuant() == "BF16") {
+      assert(0 && "wait for refactor"); 
+    //   //<! 1880v2 hw bf16 config
+    //   table_h = 32;
+    //   table_w = 8;
+    //   table_hw = table_h * table_w;
+    //   tbl_shape = npu_num * table_hw;
+    //   y0_table.resize(tbl_shape);
+    //   y0_slope_table.resize(tbl_shape);
+    //   vector<float> y0_fp32_table(table_hw);
+    //   vector<float> y0_fp32_slope_table(table_hw);
+    //   vector<uint16_t> y0_bf16_table(table_hw);
+    //   vector<uint16_t> y0_bf16_slope_table(table_hw);
 
 
-      gen_bf16_sigmoid_table(BF16_TABLE_START, BF16_TABLE_END, table_hw,
-                             y0_fp32_table.data());
+    //   gen_bf16_sigmoid_table(BF16_TABLE_START, BF16_TABLE_END, table_hw,
+    //                          y0_fp32_table.data());
 
-      gen_bf16_sigmoid_slope_table(BF16_TABLE_START, BF16_TABLE_END, table_hw,
-                                   y0_fp32_table.data(),
-                                   y0_fp32_slope_table.data());
+    //   gen_bf16_sigmoid_slope_table(BF16_TABLE_START, BF16_TABLE_END, table_hw,
+    //                                y0_fp32_table.data(),
+    //                                y0_fp32_slope_table.data());
 
-      // convert fp32 to bf16
-      FloatToBFloat16(y0_fp32_table.data(),
-                      y0_bf16_table.data(), table_hw);
-      FloatToBFloat16(y0_fp32_slope_table.data(),
-                      y0_bf16_slope_table.data(), table_hw);
+    //   // convert fp32 to bf16
+    //   FloatToBFloat16(y0_fp32_table.data(),
+    //                   y0_bf16_table.data(), table_hw);
+    //   FloatToBFloat16(y0_fp32_slope_table.data(),
+    //                   y0_bf16_slope_table.data(), table_hw);
               
-      // copy bf16 data to float table                      
-      for (int i = 0; i < npu_num; ++i){
-        std::copy(y0_bf16_table.data(), y0_bf16_table.data() + table_hw,
-                  y0_table.data() + i * table_hw);
-        std::copy(y0_bf16_slope_table.data(),
-                  y0_bf16_slope_table.data() + table_hw,
-                  y0_slope_table.data() + i * table_hw);
-      }
-      for (int i = 0; i < table_hw; ++i){
-        LLVM_DEBUG(llvm::errs() << llvm::format(
-                       "sigmoid lut table [%d] = bf16 %f float %f\n", i,
-                       y0_table.at(i), y0_fp32_table.at(i)));
-      }
-      for (int i = 0; i < table_hw; ++i) {
-        LLVM_DEBUG(llvm::errs() << llvm::format(
-                       "sigmoid slope table [%d] = bf16 %f float %f\n", i,
-                       y0_slope_table.at(i), y0_fp32_slope_table.at(i)));
-      }
-    } else {
-      llvm::errs() << " op name: " << sigOp.name()
-                   << ",quant_type: " << sigOp.quant() << "\n";
-      assert(0 && "not support sigmoid type");
+    //   // copy bf16 data to float table                      
+    //   for (int i = 0; i < npu_num; ++i){
+    //     std::copy(y0_bf16_table.data(), y0_bf16_table.data() + table_hw,
+    //               y0_table.data() + i * table_hw);
+    //     std::copy(y0_bf16_slope_table.data(),
+    //               y0_bf16_slope_table.data() + table_hw,
+    //               y0_slope_table.data() + i * table_hw);
+    //   }
+    //   for (int i = 0; i < table_hw; ++i){
+    //     LLVM_DEBUG(llvm::errs() << llvm::format(
+    //                    "sigmoid lut table [%d] = bf16 %f float %f\n", i,
+    //                    y0_table.at(i), y0_fp32_table.at(i)));
+    //   }
+    //   for (int i = 0; i < table_hw; ++i) {
+    //     LLVM_DEBUG(llvm::errs() << llvm::format(
+    //                    "sigmoid slope table [%d] = bf16 %f float %f\n", i,
+    //                    y0_slope_table.at(i), y0_fp32_slope_table.at(i)));
+    //   }
+    // } else {
+    //   llvm::errs() << " op name: " << sigOp.name()
+    //                << ",quant_type: " << sigOp.quant() << "\n";
+    //   assert(0 && "not support sigmoid type");
     }
 
     // update op
     std::vector<Value *> newOperands;
     newOperands.push_back(op->getOperand(0));
-    if (sigOp.quant() == "INT8") {
+    if (sigOp.getOpQuant() == "INT8") {
       // add new filter and bias weight
       vector<float> newWeights = y0_table;
       vector<int64_t> weightShape{1, npu_num, table_h, table_w};
@@ -235,7 +236,7 @@ struct TpuGenSigmoidTablePattern : public RewritePattern {
           ArrayRef<NamedAttribute>{attrs});
       newOperands.push_back(new_weight_op);
 
-    } else if (sigOp.quant() == "BF16") {
+    } else if (sigOp.getOpQuant() == "BF16") {
       vector<vector<float>> newWeights = {y0_table, y0_slope_table};
       vector<int64_t> weightShapes = {1, npu_num, table_h, table_w};
       for (int i = 0; i < 2; ++i) {
@@ -258,7 +259,7 @@ struct TpuGenSigmoidTablePattern : public RewritePattern {
         newOperands.push_back(new_weight_op);
       }
     } else {
-      llvm::errs() << "type: " << sigOp.quant().str()
+      llvm::errs() << "type: " << sigOp.quant()
                    << " is not support.";
       assert(false);
     }

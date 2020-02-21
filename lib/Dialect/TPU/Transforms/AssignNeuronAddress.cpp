@@ -326,6 +326,7 @@ public:
           AssignGAddrTGInt8Pattern<tpu::TG_INT8_LeakyReluOp>,
           AssignGAddrTGInt8Pattern<tpu::TG_INT8_PoolAvg2DOp>,
           AssignGAddrTGInt8Pattern<tpu::TG_INT8_PoolMax2DOp>,
+          AssignGAddrTGInt8Pattern<tpu::TG_INT8_SigmoidOp>,
           AssignGAddrTGInt8Pattern<tpu::TG_INT8_UpsampleOp>,
 
           // tg bf16 ops
@@ -339,6 +340,7 @@ public:
           AssignGAddrTGBf16Pattern<tpu::TG_BF16_LeakyReluOp>,
           AssignGAddrTGBf16Pattern<tpu::TG_BF16_PoolAvg2DOp>,
           AssignGAddrTGBf16Pattern<tpu::TG_BF16_PoolMax2DOp>,
+          AssignGAddrTGBf16Pattern<tpu::TG_BF16_SigmoidOp>,
           AssignGAddrTGBf16Pattern<tpu::TG_BF16_UpsampleOp>
         >(context, &pos, neuronMapFile->os(), clNeuronAlignment);
     applyPatternsGreedily(fn, patterns);
@@ -350,7 +352,6 @@ public:
           TpuQuantizationOpPattern<tpu::PermuteOp>,
           TpuQuantizationOpPattern<tpu::PowerOp>,
           TpuQuantizationOpPattern<tpu::PReluOp>,
-          TpuQuantizationOpPattern<tpu::SigmoidOp>,
           TpuQuantizationOpPattern<tpu::SqrtOp>,
           TpuQuantizationOpPattern<tpu::TanHOp>
         >(context, &pos, neuronMapFile->os(), clNeuronAlignment);
