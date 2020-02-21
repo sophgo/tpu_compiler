@@ -68,7 +68,8 @@ static Operation* getNextOp(const OpTy &op) {
 
 static void parseTgLeakyReluParam(Operation *op,
     int8_t &pos_rshift, int8_t &pos_m_i8,
-    int8_t &neg_rshift, int8_t &neg_m_i8) {
+    int8_t &neg_rshift, int8_t &neg_m_i8,
+    float &negative_slope) {
   auto lreluOp = llvm::dyn_cast<tpu::TG_INT8_LeakyReluOp>(op);
   assert(lreluOp);
 
@@ -83,6 +84,8 @@ static void parseTgLeakyReluParam(Operation *op,
   neg_m_i8 = lreluOp.m_i8_neg().getLimitedValue();
   neg_rshift = lreluOp.rshift_neg().getLimitedValue();
   assert(neg_m_i8);
+
+  negative_slope = lreluOp.negative_slope().convertToFloat();
 }
 
 LogicalResult tpu::TG_INT8_ConcatOp::codegen(void *ctx) {
@@ -308,17 +311,21 @@ LogicalResult tpu::TG_INT8_PT_Conv2DOp::codegen(void *ctx) {
   int fused_leakyrelu_pos_m_i8 = 0;
   int fused_leakyrelu_neg_rshift = 0;
   int fused_leakyrelu_neg_m_i8 = 0;
+  float fused_negative_slope = 0.0f;
   if (this->fuse_next()) {
     Operation *nextOp = getNextOp(this);
     int8_t pos_rshift, pos_m_i8, neg_rshift, neg_m_i8;
+    float negativeSlope;
     parseTgLeakyReluParam(nextOp,
-        pos_rshift, pos_m_i8, neg_rshift, neg_m_i8);
+        pos_rshift, pos_m_i8, neg_rshift, neg_m_i8, negativeSlope);
 
     // TODO: fix the type in backend API
     fused_leakyrelu_pos_rshift = static_cast<int>(pos_rshift);
     fused_leakyrelu_pos_m_i8   = static_cast<int>(pos_m_i8);
     fused_leakyrelu_neg_rshift = static_cast<int>(neg_rshift);
     fused_leakyrelu_neg_m_i8   = static_cast<int>(neg_m_i8);
+    fused_negative_slope       = negativeSlope;
+    do_relu = true;
 
     llvm::errs() << "  fused leaky relu, pos ("
         << fused_leakyrelu_pos_m_i8 << ", " << fused_leakyrelu_pos_rshift
@@ -361,7 +368,7 @@ LogicalResult tpu::TG_INT8_PT_Conv2DOp::codegen(void *ctx) {
       1.0f,      // bn_scale,
       1e-5,      // eps,
       0,         // param.activation(), method, 0 -> RELU, all others are invalide for now
-      nullptr,   // activation_arg,
+      do_relu ? &fused_negative_slope : nullptr,   // activation_arg,
       INVALID_GLOBAL_ADDR, //global_slope_gaddr,
       false,     //channel_shared,
       fused_leakyrelu_pos_m_i8,           // activation_gt_scale,
@@ -402,17 +409,21 @@ LogicalResult tpu::TG_INT8_PC_Conv2DOp::codegen(void *ctx) {
   int fused_leakyrelu_pos_m_i8 = 0;
   int fused_leakyrelu_neg_rshift = 0;
   int fused_leakyrelu_neg_m_i8 = 0;
+  float fused_negative_slope = 0.0f;
   if (this->fuse_next()) {
     Operation *nextOp = getNextOp(this);
     int8_t pos_rshift, pos_m_i8, neg_rshift, neg_m_i8;
+    float negativeSlope;
     parseTgLeakyReluParam(nextOp,
-        pos_rshift, pos_m_i8, neg_rshift, neg_m_i8);
+        pos_rshift, pos_m_i8, neg_rshift, neg_m_i8, negativeSlope);
 
     // TODO: fix the type in backend API
     fused_leakyrelu_pos_rshift = static_cast<int>(pos_rshift);
     fused_leakyrelu_pos_m_i8   = static_cast<int>(pos_m_i8);
     fused_leakyrelu_neg_rshift = static_cast<int>(neg_rshift);
     fused_leakyrelu_neg_m_i8   = static_cast<int>(neg_m_i8);
+    fused_negative_slope       = negativeSlope;
+    do_relu = true;
 
     llvm::errs() << "  fused leaky relu, pos ("
         << fused_leakyrelu_pos_m_i8 << ", " << fused_leakyrelu_pos_rshift
@@ -455,7 +466,7 @@ LogicalResult tpu::TG_INT8_PC_Conv2DOp::codegen(void *ctx) {
       1.0f,      // bn_scale,
       1e-5,      // eps,
       0,         // param.activation(), method, 0 -> RELU, all others are invalide for now
-      nullptr,   // activation_arg,
+      do_relu ? &fused_negative_slope : nullptr,   // activation_arg,
       INVALID_GLOBAL_ADDR, // global_slope_gaddr,
       false,     // channel_shared,
       fused_leakyrelu_pos_m_i8,           // activation_gt_scale,
@@ -843,7 +854,7 @@ LogicalResult tpu::TG_BF16_EltwiseMulOp::codegen(void *ctx) {
 LogicalResult tpu::TG_INT8_LeakyReluOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";
-  //BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
+  BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
   Operation *op = this->getOperation();
 
   if (this->fuse_prev()) {
@@ -851,25 +862,75 @@ LogicalResult tpu::TG_INT8_LeakyReluOp::codegen(void *ctx) {
     return success();
   }
   int8_t pos_rshift, pos_m_i8, neg_rshift, neg_m_i8;
+  float negativeSlope;
   parseTgLeakyReluParam(op,
-      pos_rshift, pos_m_i8, neg_rshift, neg_m_i8);
+      pos_rshift, pos_m_i8, neg_rshift, neg_m_i8, negativeSlope);
 
-  assert(false);
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  getNCHW(shape, n, c, h, w);
+  gaddr_t ga_input = getPreviousOpAddress(op);
+  gaddr_t ga_output = getOpAddress(op);
+  int layer_id = mlir::getOpLayerId(op);
+
+  bmnet_leakyrelu_fixed_forward_bmkernel(
+    *backend_ctx,         // ctx
+    0,                    // stream_id
+    0,                    // inst_id
+    layer_id,             // layer_id
+    nullptr,              // depends
+    0,                    // depends_len
+    ga_input,             // input_gaddr
+    ga_output,            // output_gaddr
+    n,                    // input_n
+    c,                    // input_c
+    h,                    // input_h
+    w,                    // input_w
+    pos_rshift,           // GT_right_shift_width
+    neg_rshift,           // LE_right_shift_width
+    pos_m_i8,             // GT_scale
+    neg_m_i8,             // LE_scale
+    0,                    // threshold_x_quantized_len
+    nullptr,              // threshold_x_quantized
+    nullptr               // right_shift_array
+  );
+
   return success();
 }
 
 LogicalResult tpu::TG_BF16_LeakyReluOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";
-  //BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
-  //Operation *op = this->getOperation();
 
-  if (this->fuse_prev()) {
-    // fused out, do nothing
-    return success();
-  }
+  // if (this->fuse_prev()) {
+  //   // fused out, do nothing
+  //   return success();
+  // }
 
-  assert(false);
+  BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
+  Operation *op = this->getOperation();
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  getNCHW(shape, n, c, h, w);
+  gaddr_t ga_input = getPreviousOpAddress(op);
+  gaddr_t ga_output = getOpAddress(op);
+  int layer_id = mlir::getOpLayerId(op);
+  float ga_negative_slope = this->negative_slope().convertToFloat();
+
+  bf16_leakyrelu_forward_kernel(
+    *backend_ctx,        // ctx
+    layer_id,            // layer_id,
+    ga_input,            // input_gaddr
+    ga_output,           // output_gaddr
+    ga_negative_slope,   // ga_negative_slope
+    n,                   // input_n
+    c,                   // input_c
+    h,                   // input_h
+    w                   // input_w
+  );
+
   return success();
 }
 

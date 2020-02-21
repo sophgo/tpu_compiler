@@ -281,6 +281,7 @@ class TPU_TG_LeakyReluOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 
   let arguments = (
     ins AnyTensor:$input,
+    F32Attr:$negative_slope,
     OptionalAttr<I8Attr>:$rshift_pos,
     OptionalAttr<I8Attr>:$m_i8_pos,
     I8Attr:$rshift_neg,
