@@ -89,8 +89,13 @@ public:
             std::string op_name = mlir::getOpName(op).str();
             file_os << op_name;
             file_os << "," << getOpLayerId(op);
-            file_os << "," << getOpQuant(op);
-            file_os << "," << std::to_string(getOpThreshold(op));
+            if (auto quantOp = llvm::dyn_cast<tpu::TpuOpQuantInterface>(op)) {
+              file_os << "," << getOpQuant(op);
+              file_os << "," << std::to_string(getOpThreshold(op));
+            } else {
+              file_os << "," << "NONE";
+              file_os << "," << 0;
+            }
             file_os << "\n";
           } else {
             // to be removed
@@ -106,7 +111,6 @@ public:
             processed += printTpuOpInfo<tpu::PReluOp>(op, file_os);
             processed += printTpuOpInfo<tpu::PriorBoxOp>(op, file_os);
             processed += printTpuOpInfo<tpu::ReshapeOp>(op, file_os);
-            processed += printTpuOpInfo<tpu::ScaleOp>(op, file_os);
             processed += printTpuOpInfo<tpu::SigmoidOp>(op, file_os);
             processed += printTpuOpInfo<tpu::SliceOp>(op, file_os);
             processed += printTpuOpInfo<tpu::SqrtOp>(op, file_os);

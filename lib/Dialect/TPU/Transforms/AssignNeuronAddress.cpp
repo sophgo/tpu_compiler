@@ -351,7 +351,6 @@ public:
           TpuQuantizationOpPattern<tpu::PowerOp>,
           TpuQuantizationOpPattern<tpu::PReluOp>,
           TpuQuantizationOpPattern<tpu::SigmoidOp>,
-          TpuQuantizationOpPattern<tpu::ScaleOp>,
           TpuQuantizationOpPattern<tpu::SqrtOp>,
           TpuQuantizationOpPattern<tpu::TanHOp>
         >(context, &pos, neuronMapFile->os(), clNeuronAlignment);

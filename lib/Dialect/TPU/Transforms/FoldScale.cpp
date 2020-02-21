@@ -125,10 +125,6 @@ struct TpuFoldScalePattern : public RewritePattern {
     // the former one will be removed automatically
     std::vector<NamedAttribute> attrs;
     attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(op_name)));
-    // has bias
-    if (newWeights[1]) {
-      attrs.push_back(rewriter.getNamedAttr("with_bias", rewriter.getBoolAttr(true)));
-    }
     rewriter.replaceOpWithNewOp<tpu::ScaleOp>(
         laterScaleOp, formerScaleOp.getResult()->getType(),
         ArrayRef<Value *>{newOperands}, ArrayRef<NamedAttribute>{attrs});

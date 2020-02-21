@@ -22,6 +22,18 @@
 
 namespace mlir {
 
+Value* tpu::BroadcastMulOp::convertToTG(void *info) {
+  llvm::errs() << "lowerToTG: " << getOperationName()
+               << " [" << getOpName() << "]\n";
+  //Operation *op = this->getOperation();
+  //auto builder = Builder(op->getContext());
+  //TensorFile *weightTF_ = (TensorFile *)info;
+  //assert(weightTF_);
+
+  assert(false);
+  return nullptr;
+}
+
 Value* tpu::ConcatOp::convertToTG(void *info) {
   llvm::errs() << "lowerToTG: " << getOperationName()
                << " [" << getOpName() << "]\n";

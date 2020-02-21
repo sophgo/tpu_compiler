@@ -66,6 +66,42 @@ static std::vector<std::shared_ptr<std::vector<float> > >
   return opdT;
 }
 
+LogicalResult tpu::BroadcastMulOp::interpret(
+    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+  Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
+
+  auto opdT = getOperandTensors(op, valueMapping);
+  auto result = this->getResult();
+  auto size = getTensorSize(result);
+  auto resultT = std::make_unique<std::vector<float> >(size);
+
+  // parse param
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(this->input(), shape, input_size);
+  assert(input_size == size);
+  getNCHW(shape, n, c, h, w);
+  bool do_relu = this->do_relu();
+  int axis = this->axis().getLimitedValue();
+  assert(axis == 1);
+
+  assert(opdT.size()== 6);
+  std::shared_ptr<std::vector<float> > input = opdT[0];
+  std::shared_ptr<std::vector<float> > scale = opdT[1];
+  assert(scale->size() == c);
+
+  int ret = my_scale(input->data(), scale->data(), nullptr,
+                     resultT->data(), n, c, h, w);
+  assert(ret == 0);
+  if (do_relu) {
+    my_relu(resultT->data(), resultT->data(), n, c, h, w, 0.0f);
+  }
+
+  valueMapping[result] = std::move(resultT);
+  return success();
+}
+
 LogicalResult tpu::ConcatOp::interpret(
     DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();
@@ -683,6 +719,39 @@ LogicalResult tpu::ReluOp::interpret(
   return success();
 }
 
+LogicalResult tpu::ScaleOp::interpret(
+    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+  Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
+
+  auto opdT = getOperandTensors(op, valueMapping);
+  auto result = this->getResult();
+  auto size = getTensorSize(result);
+  auto resultT = std::make_unique<std::vector<float> >(size);
+
+  // parse param
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(this->input(), shape, input_size);
+  assert(input_size == size);
+  getNCHW(shape, n, c, h, w);
+  bool do_relu = this->do_relu();
+
+  std::shared_ptr<std::vector<float> > input = opdT[0];
+  std::shared_ptr<std::vector<float> > scale = opdT[1];
+  std::shared_ptr<std::vector<float> > bias = opdT[2];
+
+  int ret = my_scale(input->data(), scale->data(), bias?bias->data():nullptr,
+                     resultT->data(), n, c, h, w);
+  assert(ret == 0);
+  if (do_relu) {
+    my_relu(resultT->data(), resultT->data(), n, c, h, w, 0.0f);
+  }
+
+  valueMapping[result] = std::move(resultT);
+  return success();
+}
+
 LogicalResult tpu::SoftmaxOp::interpret(
     DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();
@@ -1215,125 +1284,6 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
     valueMapping[result] = std::move(resultT);
 
-    return success();
-  }
-
-  if (auto op = dyn_cast<tpu::ScaleOp>(opInst)) {
-    // check if scale second is load weight op
-    auto sec_blob_weight_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
-        op.getOperand(1)->getDefiningOp());
-
-    LLVM_DEBUG(llvm::errs() << "ScaleOp" << "\n";);
-    auto opdT = getOperandTensors(opInst, valueMapping);
-    auto result = op.getResult();
-    LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";);
-    std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
-    assert(shape.size() <= 4);
-    auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
-    auto resultT = std::make_unique<std::vector<float> >(size);
-
-    auto input_type = op.x()->getType().cast<TensorType>();
-    std::vector<int64_t> i_s(input_type.getShape());
-    auto output_type = op.y()->getType().cast<TensorType>();
-    std::vector<int64_t> o_s(output_type.getShape());
-    assert((i_s == o_s) && "input shape not equal to output shape");\
-    int n, c, h, w;
-    n = i_s[0];
-    c = i_s[1];
-    h = (i_s.size() == 2) ? 1 : i_s[2];
-    w = (i_s.size() == 2) ? 1 : i_s[3];
-    int oc = o_s[1];
-
-    uint32_t multiplier_prod;
-    float *input = (float*)opdT[0]->data();
-    float *scale = (float*)opdT[1]->data();
-    std::shared_ptr<std::vector<float>> bias = nullptr;
-    if (op.with_bias()) {
-      bias = opdT[2];
-    }
-
-    auto rshift = std::make_shared<std::vector<float>>(1);
-    std::shared_ptr<std::vector<float>> multiplier = nullptr;
-
-    if (op.quant() == "INT8" || op.quant() == "INT8_PER_CHANNEL" ||
-        op.quant() == "INT8_MULTIPLIER") {
-      // if second input is from blob
-      // we need caluate rshift and multiplier,
-      // otherwise, read rhisft and multiplier from load weight
-      if (sec_blob_weight_op) {
-        getScaleOpVariadicTensors(op, opdT, bias, rshift, multiplier);
-      }else {
-        std::vector<float> threshold_x(2);
-        float threshold_y;
-
-        for (int index = 0; index < 2; ++index) {
-          // get threshold_x
-          threshold_x[index] = getPreviousOpThreshold(op, index);
-        }
-        // get threshold_y
-        threshold_y = op.threshold_y().getValue().convertToFloat();
-        // determine rshift for all inputs, and multiplier for each input
-        // use max threshold_x to find rshift first
-        float threshold_prod = std::accumulate(
-            threshold_x.begin(), threshold_x.end(), 1.0, std::multiplies<>());
-        float qscale = threshold_prod / threshold_y / 127.0;
-        rshift->at(0) = (float)findRShiftAndMultiplierFromQScale(qscale, &multiplier_prod, true,
-                                                255);
-      }
-    }
-    int ret;
-    if (op.with_bias()) {
-      ret =
-          my_scale(input, scale, bias->data(), resultT->data(), n, c, h, w);
-    }else{
-      ret = my_scale(input, scale, nullptr, resultT->data(), n, c, h, w);
-    }
-
-    if (op.fused_activation_function() == "RELU") {
-      my_relu(resultT->data(), resultT->data(), n, c, h, w, 0.0f);
-    }
-
-    assert(ret == 0);
-    // rshift and saturate on output
-    if (op.quant() == "INT8") {
-      if(sec_blob_weight_op){
-        assert(rshift);
-        assert(multiplier);
-        for (int i = 0; i < size; ++i) {
-          resultT->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
-              resultT->at(i), rshift->at(0), multiplier->at(0), true);
-      }
-      }else{
-        assert(rshift);
-        for (int i = 0; i < size; ++i) {
-          resultT->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
-              resultT->at(i), (uint32_t)rshift->at(0), multiplier_prod, true);
-        }
-      }
-    } else if (op.quant() == "INT8_PER_CHANNEL") {
-      assert(rshift);
-      assert(multiplier);
-      int isz = size / oc;
-      for (int i = 0; i < oc; ++i) {
-        for (int j = 0; j < isz; ++j) {
-          resultT->at(i * isz + j) =
-              (float)applyMultiplierAndRShiftAndSaturateInt8(
-                  resultT->at(i * isz + j), rshift->at(i), multiplier->at(i),
-                  true);
-        }
-      }
-    } else if (op.quant() == "BF16") {
-      auto tensor_bf16 =
-          std::make_unique<std::vector<bfloat16>>(resultT->size());
-      FloatToBFloat16(resultT->data(), tensor_bf16->data(),
-                      resultT->size()); // with rounding
-      BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
-    } else if (op.quant() == "NONE") {
-    } else {
-      assert(0);
-    }
-
-    valueMapping[result] = std::move(resultT);
     return success();
   }
 

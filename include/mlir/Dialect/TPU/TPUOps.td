@@ -164,6 +164,61 @@ class TPU_EltwiseOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
 // TPU op definitions. (in alphabetical order)
 //===----------------------------------------------------------------------===//
 
+def TPU_BroadcastMulOp: TPU_Op<"broadcast_mul",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
+       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
+       DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
+  let summary = "Scale operator";
+
+  let description = [{
+    Performs scale on input.
+    Inputs:
+      `inputs`          : required, input tensors.
+      `multiplier`      : required, multiplier tensors.
+      `quant_scale`     : optional,
+      `quant_zeropoint` : optional,
+      `quant_rshift`    : optional,
+      `quant_multiplier`: optional,
+
+    Attributes:
+      `axis`            : required, the axis the multiply is applying
+      `do_relu`         : required, if need to preform relu on result.
+      `quant`           : required, a QuantParam struct attributes.
+      `name`            : required, name for calibration, comparing, or debug.
+      `layer_id`        : optional, id for profiling.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TPU_QuantSupportPerChannel`
+      `TPU_QuantSupportAsymmetric`
+      `TpuOpCommonInterface` : support common TPU Op interface
+      `TpuOpInterpInterface` : support interperter
+      `TpuOpQuantInterface`  : support quantization
+      `TpuOpLowerInterface`  : support lower to TPU TG Ops
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    AnyTensor:$multiplier,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_scale,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_zeropoint,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_rshift,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_multiplier,
+    DefaultValuedAttr<I32Attr, "1">:$axis,
+    DefaultValuedAttr<BoolAttr, "false">:$do_relu,
+    TPU_QuantParamAttr:$quant,
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
 def TPU_ConcatOp: TPU_Op<"concat",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
@@ -513,6 +568,48 @@ def TPU_ReluOp: TPU_Op<"relu",
     ins AnyTensor:$input,
     OptionalAttr<F32Attr>:$maximum,
     TPU_QuantParamAttr:$quant,
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
+def TPU_ScaleOp: TPU_Op<"scale",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuOpInterpInterface>]> {
+  let summary = "Scale operator";
+
+  let description = [{
+    Performs scale on input.
+
+    Inputs:
+      `input`           : required, the input activation tensor.
+      `filter`          : required, the filter weight tensor.
+      `bias`            : optional, the bias weight tensor.
+
+    Attributes:
+      `do_relu`         : required, if need to preform relu on result.
+      `name`            : required, name for calibration, comparing, or debug.
+      `layer_id`        : optional, id for profiling.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface` : support common TPU Op interface
+      `TpuOpInterpInterface` : support interperter
+      No `TpuOpQuantInterface`  : convert to DW conv befor quant
+      NO `TpuOpLowerInterface`  : convert to DW conv befor quant
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    AnyTensor:$scale,
+    TPU_TensorOfOrNone<[F32, BF16, I16, I8]>:$bias,
+    DefaultValuedAttr<BoolAttr, "false">:$do_relu,
     StrAttr:$name,
     OptionalAttr<NonNegativeI32Attr>:$layer_id
   );
@@ -879,30 +976,6 @@ def TPU_ReshapeOp: TPU_Op<"reshape",
   );
 
   let results = (outs AnyTensor:$output);
-}
-
-def TPU_ScaleOp: TPU_Op<"scale",
-      [NoSideEffect, DeclareOpInterfaceMethods<TpuInterface>]> {
-  let summary = "Scale operator";
-
-  let description = [{
-    Performs scale on input.
-  }];
-
-  let arguments = (
-    ins AnyTensor:$x,
-    AnyTensor:$scale,
-    Variadic<AnyTensor>:$bias,
-    DefaultValuedAttr<TPU_AFAttr, "NONE">:$fused_activation_function,
-    DefaultValuedAttr<BoolAttr, "false">:$with_bias,
-    OptionalAttr<StrAttr>:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
-    OptionalAttr<NonNegativeI64Attr>:$offset,
-    OptionalAttr<F32Attr>:$threshold_y,
-    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
-  );
-
-  let results = (outs AnyTensor:$y);
 }
 
 def TPU_SigmoidOp: TPU_Op<"sigmoid",
