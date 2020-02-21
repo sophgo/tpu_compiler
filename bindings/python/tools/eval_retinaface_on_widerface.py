@@ -65,5 +65,5 @@ if __name__ == '__main__':
 
     g_mlir_model.load(args.model)
     detect_on_widerface(args.images, args.annotation, args.result, detect)
-    evaluation(args.result, args.annotation)
+    evaluation(args.result, 'retinaface')
 
