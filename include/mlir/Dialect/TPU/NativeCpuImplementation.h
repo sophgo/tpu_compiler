@@ -32,7 +32,7 @@ int my_bn(float *input, float *mean, float *variance, float *scale, float varian
 
 int my_shuffle_channel(float *input, float *output, unsigned int group,
     int n, int c,  int feature_map_size);
- 
+
 int my_scale(float *input, float *scale, float *bias,
     float *output, int n, int c, int h, int w);
 
@@ -41,6 +41,7 @@ int my_upsample(float *input, float *output,
 
 int my_softmax2D(float *input, float *output, int n, int c);
 int my_softmax4D(float *input, float *output, int axis, const std::vector<int64_t>& shape);
+int my_softmax3D(float *input, float *output, int axis, const std::vector<int64_t>& shape);
 
 int my_tanh(float *input, float *output,
     int n, int c, int h, int w);

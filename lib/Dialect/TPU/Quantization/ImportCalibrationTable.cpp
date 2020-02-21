@@ -134,7 +134,7 @@ struct BackendOverwriteThresholdDefaultPattern : public RewritePattern {
                                      PatternRewriter &rewriter) const override {
     float threshold_y = getOpThreshold(op);
     auto formerOp = op->getOperand(0)->getDefiningOp();
-    float threshold_x = getPreviousOpThreshold(op, 0);
+    float threshold_x = getPreviousOpThreshold(op);
     if (threshold_x == threshold_y) {
       return matchFailure();
     }
@@ -235,6 +235,33 @@ struct BypassThresholdDefaultPattern : public RewritePattern {
   }
 };
 
+/// force threshold for some Ops
+template<typename TyOp>
+struct ForceThresholdDefaultPattern : public RewritePattern {
+  ForceThresholdDefaultPattern(MLIRContext *context, float threshold)
+      : RewritePattern(TyOp::getOperationName(), 1, context),
+        threshold_(threshold) {}
+
+  PatternMatchResult matchAndRewrite(Operation *op,
+      PatternRewriter &rewriter) const override {
+    if (getOpQuantParamType(op) == "THRESHOLD") {
+      if (getOpThreshold(op) == threshold_) {
+        // assigned already
+        return matchFailure();
+      }
+    }
+    setOpThreshold(op, threshold_);
+    setOpQuantParamType(op, "THRESHOLD");
+    llvm::errs() << op->getName() << " [" << getOpName(op) << "] "
+                 << "force threshold to "
+                 << std::to_string(threshold_) << "\n";
+    return matchSuccess();
+  }
+
+private:
+  float threshold_;
+};
+
 class ImportCalibrationTablePass : public FunctionPass<ImportCalibrationTablePass> {
 public:
   explicit ImportCalibrationTablePass(llvm::raw_ostream &os = llvm::errs()) : os(os) {}
@@ -287,23 +314,28 @@ public:
       // to be deprecated
       addThresholdAttr<tpu::InputOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::BatchNormOp>(builder, threshold_map, op);
-      addThresholdAttr<tpu::ConcatOp>(builder, threshold_map, op);
-      addThresholdAttr<tpu::DeConv2DOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::DivOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::FullyConnectedOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::PowerOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::PReluOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::ScaleOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::SigmoidOp>(builder, threshold_map, op);
-      addThresholdAttr<tpu::SoftmaxOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::SqrtOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::PermuteOp>(builder, threshold_map, op);
 
       }
     });
 
-    // apply default bypass for the ops that has no calibration threshold
     OwningRewritePatternList patterns;
+    // apply force threshold to some ops
+    //   SoftmaxOp force to 1.0
+    patterns.insert<
+        ForceThresholdDefaultPattern<tpu::SoftmaxOp>
+        >(context, 1.0f);
+    applyPatternsGreedily(fn, patterns);
+
+    // apply default bypass for the ops that has no calibration threshold
+    patterns.clear();
     patterns.insert<
         BypassThresholdDefaultPattern<tpu::ReshapeOp>,
         BypassThresholdDefaultPattern<tpu::SliceOp>
@@ -394,13 +426,8 @@ private:
       if (cast_op) {
         std::string op_name = mlir::getOpName(op).str();
         float threshold;
-        // FIXME: sometimes these is no softmax threshold present, use 1.0
-        if (llvm::dyn_cast_or_null<tpu::SoftmaxOp>(op) && !threshold_map[op_name]) {
-          threshold = 1.0f;
-        } else {
-          assert(threshold_map[op_name]);
-          threshold = threshold_map[op_name];
-        }
+        assert(threshold_map[op_name]);
+        threshold = threshold_map[op_name];
         os << "  > " << op_name << ", " << std::to_string(threshold) << "\n";
         setOpThreshold(op, threshold);
       }

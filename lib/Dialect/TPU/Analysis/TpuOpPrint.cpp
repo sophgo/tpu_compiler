@@ -96,7 +96,6 @@ public:
             // to be removed
             int processed = 0;
             processed += printTpuOpInfo<tpu::BatchNormOp>(op, file_os);
-            processed += printTpuOpInfo<tpu::DeConv2DOp>(op, file_os);
             processed += printTpuOpInfo<tpu::DetectionOutputOp>(op, file_os);
             processed += printTpuOpInfo<tpu::DivOp>(op, file_os);
             processed += printTpuOpInfo<tpu::FullyConnectedOp>(op, file_os);
@@ -110,7 +109,6 @@ public:
             processed += printTpuOpInfo<tpu::ScaleOp>(op, file_os);
             processed += printTpuOpInfo<tpu::SigmoidOp>(op, file_os);
             processed += printTpuOpInfo<tpu::SliceOp>(op, file_os);
-            processed += printTpuOpInfo<tpu::SoftmaxOp>(op, file_os);
             processed += printTpuOpInfo<tpu::SqrtOp>(op, file_os);
             processed += printTpuOpInfo<tpu::TanHOp>(op, file_os);
             processed += printTpuOpInfo<tpu::ShuffleChannelOp>(op, file_os);

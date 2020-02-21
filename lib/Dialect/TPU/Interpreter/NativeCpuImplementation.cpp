@@ -730,7 +730,7 @@ int my_softmax4D(float *input, float *output, int axis, const std::vector<int64_
         // find max and subtract the max to avoid numerical issues
         float max_val = 0;
         for (int C = 0; C < shape[1]; ++C) {
-          iter = (N * shape[1] * shape[2] * shape[3]) 
+          iter = (N * shape[1] * shape[2] * shape[3])
             + (C * shape[2] * shape[3]) + (H * shape[3]) + W;
 
           max_val = std::max(input[iter], max_val);
@@ -740,7 +740,7 @@ int my_softmax4D(float *input, float *output, int axis, const std::vector<int64_
         float *ex = new float[shape[1]];
         float sum_of_ex = 0.0f;
         for (int C = 0; C < shape[1]; ++C) {
-          iter = (N * shape[1] * shape[2] * shape[3]) 
+          iter = (N * shape[1] * shape[2] * shape[3])
             + (C * shape[2] * shape[3]) + (H * shape[3]) + W;
 
           float x = input[iter] - max_val;
@@ -750,7 +750,7 @@ int my_softmax4D(float *input, float *output, int axis, const std::vector<int64_
 
         // calculate softmax
         for (int C = 0; C < shape[1]; ++C) {
-          iter = (N * shape[1] * shape[2] * shape[3]) 
+          iter = (N * shape[1] * shape[2] * shape[3])
             + (C * shape[2] * shape[3]) + (H * shape[3]) + W;
 
           output[iter] = ex[C] / sum_of_ex;
@@ -760,6 +760,32 @@ int my_softmax4D(float *input, float *output, int axis, const std::vector<int64_
     }
   }
   return 0;
+}
+
+int my_softmax3D(float *input, float *output, int axis, const std::vector<int64_t>& shape) {
+  assert(shape.size() == 3);
+  int c = shape[0];
+  int h = shape[1];
+  int w = shape[2];
+  //just for axis = 2 now
+  assert(axis == 2);
+
+  auto tmp_resultT = std::make_unique<std::vector<float> >(w);
+  float *tmp = (float *)tmp_resultT.get()->data();
+
+  for(int ci = 0; ci < c; ci++) {
+    for(int hi = 0; hi < h; hi++) {
+      for(int wi = 0; wi < w; wi++) {
+        tmp[wi] = input[ci * w * h + hi * w + wi];
+      }
+
+      int ret = my_softmax2D(tmp, tmp, 1, w);
+      assert(ret == 0);
+      for(int wi = 0; wi < w; wi++) {
+        output[ci * w * h + hi * w + wi] = tmp[wi];
+      }
+    }  //end for hi
+  } //end for ci
 }
 
 int my_crop(float *input, float *output, long int *shape1, int *shape2, long int *top_shape,

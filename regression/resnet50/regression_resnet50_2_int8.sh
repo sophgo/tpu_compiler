@@ -49,7 +49,7 @@ if [ $COMPARE_ALL -eq 1 ]; then
       --op_info resnet50_op_info_int8_per_layer.csv \
       --dequant \
       --excepts prob \
-      --tolerance 0.9,0.9,0.6 -vv
+      --tolerance 0.92,0.91,0.59 -vv
 fi
 
 ###############################################################################
@@ -88,7 +88,7 @@ if [ $COMPARE_ALL -eq 1 ]; then
       --op_info resnet50_op_info_int8_per_channel.csv \
       --dequant \
       --excepts prob \
-      --tolerance 0.9,0.9,0.7 -vv
+      --tolerance 0.95,0.95,0.7 -vv
 fi
 
 ###############################################################################
@@ -128,7 +128,7 @@ if [ $COMPARE_ALL -eq 1 ]; then
       --op_info resnet50_op_info_int8_multiplier.csv \
       --dequant \
       --excepts prob \
-      --tolerance 0.96,0.95,0.72 -vv
+      --tolerance 0.96,0.95,0.73 -vv
 fi
 
 # VERDICT

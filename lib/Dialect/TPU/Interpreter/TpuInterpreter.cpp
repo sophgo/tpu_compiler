@@ -229,20 +229,23 @@ LogicalResult tpu::ConcatOp::interpret(
   return success();
 }
 
-LogicalResult tpu::Conv2DOp::interpret(
+template <typename OpTy>
+LogicalResult doConv2DOpInterpret(Operation *op,
     DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
-  Operation *op = this->getOperation();
-  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
+  auto castOp = cast<OpTy>(op);
+  assert(castOp);
+  bool is_deconv = isa<tpu::DeConv2DOp>(op);
 
   auto opdT = getOperandTensors(op, valueMapping);
-  auto result = this->getResult();
+  auto result = castOp.getResult();
   auto size = getTensorSize(result);
   auto resultT = std::make_unique<std::vector<float> >(size);
 
   // parse param
   bool is_dw, with_bias, do_relu;
   int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, ph, pw, dh, dw;
-  parseConvParam(this->param(), this->input(), this->output(), this->filter(),
+  parseConvParam(castOp.param(), is_deconv,
+                 castOp.input(), castOp.output(), castOp.filter(),
                  n, ic, ih, iw, oc, oh, ow, g,
                  kh, kw, sh, sw, ph, pw, dh, dw, is_dw, with_bias, do_relu);
 
@@ -257,31 +260,38 @@ LogicalResult tpu::Conv2DOp::interpret(
   std::shared_ptr<std::vector<float> > quant_multiplier = opdT[6];
 
   // compute in fp32
-  int ret = mkldnn_conv(input->data(), filter->data(),
-      bias?bias->data():nullptr, resultT->data(),
-      n, ic, ih, iw, oc, oh, ow, kh, kw, sh, sw, dh,dw, ph, pw, g);
-  assert(ret == 0);
+  if (!is_deconv) {
+    int ret = mkldnn_conv(input->data(), filter->data(),
+        bias?bias->data():nullptr, resultT->data(),
+        n, ic, ih, iw, oc, oh, ow, kh, kw, sh, sw, dh,dw, ph, pw, g);
+    assert(ret == 0);
+  } else {
+    int ret = mkldnn_deconv(input->data(), filter->data(),
+        bias?bias->data():nullptr, resultT->data(),
+        n, ic, ih, iw, oc, oh, ow, kh, kw, sh, sw, ph, pw, g);
+    assert(ret == 0);
+  }
   if (do_relu) {
-    ret = my_relu(resultT->data(), resultT->data(), n, oc, oh, ow, 0.0f);
+    int ret = my_relu(resultT->data(), resultT->data(), n, oc, oh, ow, 0.0f);
     assert(ret == 0);
   }
 
   // rshift and saturate on output
-  if (getOpQuant() == "NONE") {
+  if (getOpQuant(op) == "NONE") {
     // do nothing
-  } else if (getOpQuant() == "INT8") {
-    if (!isOpQuantPerchannel()) {
-      assert(getOpQuantParamType() == "RSHIFT_ONLY");
+  } else if (getOpQuant(op) == "INT8") {
+    if (!isOpQuantPerchannel(op)) {
+      assert(getOpQuantParamType(op) == "RSHIFT_ONLY");
       assert(quant_rshift);
       quantizeActivationInt8PerLayerRshift(resultT->data(), resultT->data(),
           size, (uint32_t)quant_rshift->at(0));
-    } else if (isOpQuantPerchannel()
-               && getOpQuantParamType() == "RSHIFT_ONLY") {
+    } else if (isOpQuantPerchannel(op)
+               && getOpQuantParamType(op) == "RSHIFT_ONLY") {
       assert(quant_rshift);
       quantizeActivationInt8PerChannelRShift(resultT->data(), resultT->data(),
           oc, size / oc, quant_rshift->data());
-    } else if (isOpQuantPerchannel()
-               && getOpQuantParamType() == "RSHIFT_AND_M_I32") {
+    } else if (isOpQuantPerchannel(op)
+               && getOpQuantParamType(op) == "RSHIFT_AND_M_I32") {
       assert(quant_rshift);
       assert(quant_multiplier);
       quantizeActivationInt8PerChannelMultiplierAndRShift(resultT->data(),
@@ -290,7 +300,7 @@ LogicalResult tpu::Conv2DOp::interpret(
     } else {
       assert(false);
     }
-  } else if (getOpQuant() == "BF16") {
+  } else if (getOpQuant(op) == "BF16") {
     auto tensor_bf16 = std::make_unique<std::vector<bfloat16> >(resultT->size());
     FloatToBFloat16(resultT->data(), tensor_bf16->data(), resultT->size()); // with rounding
     BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
@@ -301,6 +311,20 @@ LogicalResult tpu::Conv2DOp::interpret(
   valueMapping[result] = std::move(resultT);
 
   return success();
+}
+
+LogicalResult tpu::Conv2DOp::interpret(
+    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+  Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
+  return doConv2DOpInterpret<tpu::Conv2DOp>(op, valueMapping);
+}
+
+LogicalResult tpu::DeConv2DOp::interpret(
+    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+  Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
+  return doConv2DOpInterpret<tpu::DeConv2DOp>(op, valueMapping);
 }
 
 LogicalResult tpu::CropOp::interpret(
@@ -659,6 +683,35 @@ LogicalResult tpu::ReluOp::interpret(
   return success();
 }
 
+LogicalResult tpu::SoftmaxOp::interpret(
+    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+  Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
+
+  auto opdT = getOperandTensors(op, valueMapping);
+  auto result = this->getResult();
+  std::vector<int64_t> shape = getTensorShape(result);
+  auto size = getTensorSize(result);
+  auto resultT = std::make_unique<std::vector<float> >(size);
+
+  // parse param
+  int axis = this->axis().getLimitedValue();
+
+  if (shape.size() == 2) {
+    int ret = my_softmax2D(opdT[0]->data(), resultT->data(), shape[0], shape[1]);
+    assert(ret == 0);
+  } else if (shape.size() == 4) {
+    int ret = my_softmax4D(opdT[0]->data(), resultT->data(), axis, shape);
+    assert(ret == 0);
+  } else if (shape.size() == 3) {
+    int ret = my_softmax3D(opdT[0]->data(), resultT->data(), axis, shape);
+    assert(ret == 0);
+  }
+
+  valueMapping[result] = std::move(resultT);
+  return success();
+}
+
 LogicalResult tpu::UpsampleOp::interpret(
     DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();
@@ -860,73 +913,6 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     ret = my_normalize(input,output,across_spatial,n,c,h,w);
     assert(ret == 0);
     valueMapping[result] = std::move(resultT);
-    return success();
-  }
-
-  if (auto op = dyn_cast<tpu::DeConv2DOp>(opInst)) {
-    LLVM_DEBUG(llvm::errs() << "DeConv2DOp" << "\n";);
-    auto opdT = getOperandTensors(opInst, valueMapping);
-    auto result = op.getResult();
-    LLVM_DEBUG(llvm::errs() << "  name " << op.name() << "\n";);
-    LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";);
-    std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
-    assert(shape.size() == 4);
-    auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
-    auto resultT = std::make_unique<std::vector<float> >(size);
-
-    bool with_bias;
-    int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, ph, pw, dh, dw;
-    getDeConv2DOpParam(op, n, ic, ih, iw, oc, oh, ow, g,
-                     kh, kw, sh, sw, ph, pw, dh, dw, with_bias);
-
-    std::shared_ptr<std::vector<float> > input = opdT[0];
-    std::shared_ptr<std::vector<float> > filter = opdT[1];
-    std::shared_ptr<std::vector<float> > bias = nullptr;
-    std::shared_ptr<std::vector<float> > rshift = nullptr;
-    std::shared_ptr<std::vector<float> > multiplier = nullptr;
-    std::shared_ptr<std::vector<float> > per_channel_info = nullptr;
-    std::shared_ptr<std::vector<float> > eltwise_input = nullptr;
-    if (op.per_channel_info_is_aggregated()) {
-      llvm::errs() << "Not support interpret with per_channel_info aggreated\n";
-      assert(0);
-    }
-    getDeConv2DOpVariadicTensors(op, opdT, bias, rshift, multiplier,
-        per_channel_info, eltwise_input);
-
-    int mkldnn_ret = mkldnn_deconv(input->data(), filter->data(),
-        bias?bias->data():nullptr, resultT->data(),
-        n, ic, ih, iw, oc, oh, ow, kh, kw, sh, sw, ph, pw, g);
-    assert(mkldnn_ret == 0);
-    //dump_data_float_abs("mkldnn_output", mkldnn_output, n, oc, oh, ow);
-
-
-    // rshift and saturate on output
-    if (op.quant() == "INT8") {
-      assert(rshift);
-      quantizeActivationInt8PerLayerRshift(resultT->data(), resultT->data(),
-          size, (uint32_t)rshift->at(0));
-    } else if (op.quant() == "INT8_PER_CHANNEL") {
-      assert(rshift);
-      quantizeActivationInt8PerChannelRShift(resultT->data(), resultT->data(),
-          oc, size / oc, rshift->data());
-    } else if (op.quant() == "INT8_MULTIPLIER") {
-      assert(rshift);
-      assert(multiplier);
-      quantizeActivationInt8PerChannelMultiplierAndRShift(resultT->data(),
-          resultT->data(), oc, size / oc, rshift->data(), multiplier->data());
-    } else if (op.quant() == "BF16") {
-      auto tensor_bf16 = std::make_unique<std::vector<bfloat16> >(resultT->size());
-      FloatToBFloat16(resultT->data(), tensor_bf16->data(), resultT->size()); // with rounding
-      BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
-    } else if (op.quant() == "NONE") {
-    } else {
-      assert(0);
-    }
-    assert(eltwise_input == nullptr);
-    assert(op.fused_eltwise_method() == "NONE");
-
-    valueMapping[result] = std::move(resultT);
-
     return success();
   }
 
@@ -1463,73 +1449,6 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     return success();
   }
 
-  if (auto op = dyn_cast<tpu::SoftmaxOp>(opInst)) {
-    LLVM_DEBUG(llvm::errs() << "SoftmaxOp" << "\n";);
-    auto opdT = getOperandTensors(opInst, valueMapping);
-    auto result = op.getResult();
-    LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";);
-    std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
-    assert(shape.size() == 2 || shape.size() == 4|| shape.size() == 3);
-    auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
-    auto resultT = std::make_unique<std::vector<float> >(size);
-    float *output = (float *)resultT.get()->data();
-
-    int axis = op.axis().getValue().getLimitedValue();
-    int n,c,h,w;
-    auto input_type = op.x()->getType().cast<TensorType>();
-    std::vector<int64_t> i_s(input_type.getShape());
-    auto output_type = op.y()->getType().cast<TensorType>();
-    std::vector<int64_t> o_s(output_type.getShape());
-    assert((i_s == o_s) && "input shape not equal to output shape");
-    float *input = (float *)opdT[0]->data();
-
-    if (shape.size() == 2) {
-      n = i_s[0];
-      c = i_s[1];
-
-      // do dequantization
-      if (0) {
-        float threshold_x = getPreviousOpThreshold(op);
-        LLVM_DEBUG(llvm::errs() << "  softmax dequantize, threshold_x = "
-                                << std::to_string(threshold_x) << "\n";);
-        for (size_t i = 0; i < opdT[0]->size(); ++i) {
-          input[i] = input[i] * threshold_x / 128.0;
-        }
-      }
-
-      int ret = my_softmax2D(input, output, n, c);
-      assert(ret == 0);
-    } else if (shape.size() == 4) {
-      int ret = my_softmax4D(input, output, axis, shape);
-      assert(ret == 0);
-    } else if (shape.size() == 3) {
-      c = i_s[0];
-      h = i_s[1];
-      w = i_s[2];
-      //just for axis = 2 now
-      assert(axis == 2);
-      auto tmp_resultT = std::make_unique<std::vector<float> >(w);
-
-      float *tmp = (float *)tmp_resultT.get()->data();
-
-      for(int ci = 0; ci < c; ci++) {
-        for(int hi = 0; hi < h; hi++) {
-          for(int wi = 0; wi < w; wi++) {
-            tmp[wi] = input[ci * w * h + hi * w + wi];
-          }
-
-          int ret = my_softmax2D(tmp, tmp, 1, w);
-          assert(ret == 0);
-          for(int wi = 0; wi < w; wi++) {
-            output[ci * w * h + hi * w + wi] = tmp[wi];
-          }
-        }  //end for hi
-      } //end for ci
-    }
-
-    valueMapping[result] = std::move(resultT);
-    return success();
-  }
   if (auto op = dyn_cast<tpu::DivOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "DivOp" << "\n";);
     auto opdT = getOperandTensors(opInst, valueMapping);

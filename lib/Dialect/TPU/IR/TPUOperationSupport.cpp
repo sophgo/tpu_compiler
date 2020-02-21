@@ -175,7 +175,8 @@ LogicalResult setOpThreshold(Operation *op, float threshold) {
 
 float getPreviousOpThreshold(Operation *op, uint index = 0) {
   if ( op->getNumOperands() < (index + 1) ) {
-    llvm::errs() << __func__ << " failed " << getOpName(op) << "\n";
+    llvm::errs() << __func__ << " failed " << getOpName(op)
+                 << ", opd " << index << "\n";
     assert(false);
     return NAN;
   }
@@ -250,7 +251,7 @@ static int64_t findPadForSamePadding(int64_t i, int64_t o, int64_t k, int64_t s,
   return 0;
 }
 
-void parseConvParam(const tpu::ConvParam &p,
+void parseConvParam(const tpu::ConvParam &p, bool is_deconv,
     Value *input, Value *output, Value *filter,
     int &n, int &ic, int &ih, int &iw, int &oc, int &oh, int &ow, int &g,
     int &kh, int &kw, int &sh, int &sw, int &ph, int &pw, int &dh, int &dw,
@@ -279,8 +280,12 @@ void parseConvParam(const tpu::ConvParam &p,
 
   auto padding = p.padding().getValue();
   if (padding == "SAME") {
-    ph = findPadForSamePadding(ih, oh, kh, sh, dh);
-    pw = findPadForSamePadding(iw, ow, kw, sw, dw);
+    if (!is_deconv) {
+      ph = findPadForSamePadding(ih, oh, kh, sh, dh);
+      pw = findPadForSamePadding(iw, ow, kw, sw, dw);
+    } else {
+      assert(false && "not implemented yet for deconv with padding");
+    }
   } else if (padding == "VALID") {
     ph = 0;
     pw = 0;
@@ -342,40 +347,6 @@ void parsePoolParam(const tpu::PoolParam &p,
   do_relu = p.do_relu().getValue();
 }
 
-void getDeConv2DOpParam(tpu::DeConv2DOp &op,
-    int &n, int &ic, int &ih, int &iw, int &oc, int &oh, int &ow, int &g,
-    int &kh, int &kw, int &sh, int &sw, int &ph, int &pw, int &dh, int &dw,
-    bool &with_bias) {
-  dh = op.dilation_h_factor().getLimitedValue();
-  dw = op.dilation_w_factor().getLimitedValue();
-  sh = op.stride_h().getLimitedValue();
-  sw = op.stride_w().getLimitedValue();
-  auto input_type = op.input()->getType().template cast<TensorType>();
-  std::vector<int64_t> i_s(input_type.getShape());
-  auto output_type = op.output()->getType().template cast<TensorType>();
-  std::vector<int64_t> o_s(output_type.getShape());
-  auto filter_type = op.filter()->getType().template cast<TensorType>();
-  std::vector<int64_t> f_s(filter_type.getShape());
-  assert((i_s[0] == o_s[0]) && "input N not equal to output N");
-  n = i_s[0];
-  ic = i_s[1];
-  ih = i_s[2];
-  iw = i_s[3];
-  oc = o_s[1];
-  oh = o_s[2];
-  ow = o_s[3];
-  auto f_dim = f_s.size();
-  kh = f_s[f_dim - 2];
-  kw = f_s[f_dim - 1];
-  // TODO - padding
-  assert(op.padding() == "VALID");
-  ph = 0;
-  pw = 0;
-
-  g = op.group().getLimitedValue();
-  with_bias = op.with_bias();
-}
-
 void getFullyConnectedOpParam(tpu::FullyConnectedOp &op,
     bool &with_transpose, int &m, int &k, int &n,
     bool &with_bias, bool &do_relu) {
@@ -401,51 +372,6 @@ void getFullyConnectedOpParam(tpu::FullyConnectedOp &op,
   }
   with_transpose = op.with_transpose();
   with_bias = op.with_bias();
-}
-
-// TODO - same as getConv2DOpVariadicTensors
-// Use template implementation to reuse the code
-void getDeConv2DOpVariadicTensors(tpu::DeConv2DOp &op,
-    std::vector<std::shared_ptr<std::vector<float> > > &opdT,
-    std::shared_ptr<std::vector<float> > &bias,
-    std::shared_ptr<std::vector<float> > &rshift,
-    std::shared_ptr<std::vector<float> > &multiplier,
-    std::shared_ptr<std::vector<float> > &per_channel_info,
-    std::shared_ptr<std::vector<float> > &eltwise_input) {
-  unsigned idx = 2;  // first 2 opdT are always input and filter
-  if (op.per_channel_info_is_aggregated()) {
-    // only INT8 related quantization use aggregated per_channel_info
-    assert(op.quant() == "INT8" || op.quant() == "INT8_PER_CHANNEL"
-           || op.quant() == "INT8_MULTIPLIER");
-    per_channel_info = opdT[idx];
-    idx += 1;
-  }
-  else {
-    if (op.with_bias()) {
-      bias = opdT[idx];
-      idx += 1;
-    }
-
-    if (op.quant() == "INT8" || op.quant() == "INT8_PER_CHANNEL"
-           || op.quant() == "INT8_MULTIPLIER") {
-      rshift = opdT[idx];
-      idx += 1;
-    }
-
-    if (op.quant() == "INT8_MULTIPLIER") {
-      multiplier = opdT[idx];
-      idx += 1;
-    }
-  }
-  if (op.fused_eltwise_method() != "NONE") {
-    eltwise_input = opdT[idx];
-    idx += 1;
-  }
-  if (idx != opdT.size()) {
-    llvm::errs() << op.name() << ": opdT.size=" << opdT.size()
-                 << ", idx=" << idx << "\n";
-    assert(0);
-  }
 }
 
 void getScaleOpVariadicTensors(

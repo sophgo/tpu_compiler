@@ -38,6 +38,11 @@ void getNCHW(std::vector<int64_t> &shape,
     c = shape[1];
     h = shape[2];
     w = shape[3];
+  } else if (shape.size() == 3) {
+    n = shape[0];
+    c = shape[1];
+    h = shape[1];
+    w = 1;
   } else if (shape.size() == 2) {
     n = shape[0];
     c = shape[1];
@@ -95,6 +100,8 @@ void addWeightTensorAndUpdateWeightOp(Value* opd,
   } else if ( typeid(T) == typeid(int8_t) ) {
     eltType = IntegerType::get(8, builder.getContext());
   } else {
+    llvm::errs() << "add weight tensor failed, tensor = "
+                 << getOpName(opd->getDefiningOp()) << "\n";
     assert(false);
   }
   auto type = RankedTensorType::get(shape, eltType);
@@ -133,7 +140,11 @@ Value* addWeightTensorAndCreateWeightOp(Operation *op,
   Type eltType;
   if ( typeid(T) == typeid(float) ) {
     eltType = FloatType::getF32(builder.getContext());
+  } else if ( typeid(T) == typeid(uint8_t) ) {
+    eltType = IntegerType::get(8, builder.getContext());
   } else {
+    llvm::errs() << "add weight tensor failed, name = "
+                 << name << ", type =" << typeid(T).name() << "\n";
     assert(false);
   }
   auto type = RankedTensorType::get(shape, eltType);

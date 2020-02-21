@@ -82,8 +82,6 @@ Value* tpu::ConcatOp::convertToTG(void *info) {
 Value* tpu::Conv2DOp::convertToTG(void *info) {
   llvm::errs() << "lowerToTG: " << getOperationName()
                << " [" << getOpName() << "]\n";
-  llvm::errs() << "lowerToTG: " << getOperationName()
-               << " [" << getOpName() << "]\n";
   Operation *op = this->getOperation();
   auto builder = Builder(op->getContext());
   TensorFile *weightTF_ = (TensorFile *)info;
@@ -149,12 +147,12 @@ Value* tpu::CropOp::convertToTG(void *info) {
 
   if (getOpQuant() == "INT8") {
     // create op
-    auto newOp = OpBuilder(op).create<tpu::TG_INT8_ConcatOp>(op->getLoc(),
+    auto newOp = OpBuilder(op).create<tpu::TG_INT8_CropOp>(op->getLoc(),
         getResult()->getType(), ArrayRef<Value *>{operands},
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
   } else if (getOpQuant() == "BF16") {
-    auto newOp = OpBuilder(op).create<tpu::TG_BF16_ConcatOp>(op->getLoc(),
+    auto newOp = OpBuilder(op).create<tpu::TG_BF16_CropOp>(op->getLoc(),
         getResult()->getType(), ArrayRef<Value *>{operands},
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
@@ -162,6 +160,55 @@ Value* tpu::CropOp::convertToTG(void *info) {
   assert(false);
   return nullptr;
 }
+
+Value* tpu::DeConv2DOp::convertToTG(void *info) {
+  llvm::errs() << "lowerToTG: " << getOperationName()
+               << " [" << getOpName() << "]\n";
+  Operation *op = this->getOperation();
+  auto builder = Builder(op->getContext());
+  TensorFile *weightTF_ = (TensorFile *)info;
+  assert(weightTF_);
+
+  std::vector<Value *> operands;
+  operands.push_back(input());
+  operands.push_back(filter());
+  operands.push_back(bias());
+
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder.getNamedAttr("param", paramAttr()));
+  attrs.push_back(builder.getNamedAttr("name", nameAttr()));
+  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
+  if (getOpQuant() == "INT8") {
+    if (isOpQuantPerchannel()) {
+      // per-channel, rshift and mulitplier are in weight .bin
+      assert(getOpQuantParamType() == "RSHIFT_AND_M_I32");
+      auto newOp = OpBuilder(op).create<tpu::TG_INT8_PC_DeConv2DOp>(op->getLoc(),
+          getResult()->getType(), ArrayRef<Value *>{operands},
+          ArrayRef<NamedAttribute>{attrs});
+     return newOp.getResult();
+    } else {
+      // per-tensor, rshift only mode
+      assert(getOpQuantParamType() == "RSHIFT_ONLY");
+      assert( !isTensorNone(quant_rshift()) );
+      auto rshift = readAndDeleteWeightTensor<float>(quant_rshift(), weightTF_);
+      assert(rshift->size() == 1);
+      attrs.push_back(builder.getNamedAttr("pt_rshift",
+          builder.getI8IntegerAttr(static_cast<int8_t>(rshift->at(0)))));
+      auto newOp = OpBuilder(op).create<tpu::TG_INT8_PT_DeConv2DOp>(op->getLoc(),
+          getResult()->getType(), ArrayRef<Value *>{operands},
+          ArrayRef<NamedAttribute>{attrs});
+      return newOp.getResult();
+    }
+  } else if (getOpQuant() == "BF16") {
+    auto newOp = OpBuilder(op).create<tpu::TG_BF16_DeConv2DOp>(op->getLoc(),
+        getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  }
+  assert(false);
+  return nullptr;
+}
+
 Value* tpu::EltwiseAddOp::convertToTG(void *info) {
   llvm::errs() << "lowerToTG: " << getOperationName()
                << " [" << getOpName() << "]\n";
@@ -517,6 +564,18 @@ struct DefaultToTGPattern : public RewritePattern {
   Value* weightFV_;
 };
 
+template<typename OpTy>
+struct DefaultErasePattern : public RewritePattern {
+  DefaultErasePattern(MLIRContext *context)
+      : RewritePattern(OpTy::getOperationName(), 1, context) {}
+
+  PatternMatchResult matchAndRewrite(Operation *op,
+      PatternRewriter &rewriter) const override {
+    rewriter.replaceOp(op, {op->getOperand(0)});
+    return matchSuccess();
+  }
+};
+
 static std::unique_ptr<std::vector<uint8_t> > packWeight(
     std::vector<float> *bias, std::vector<float> *rshift,
     std::vector<float> *multiplier, int64_t oc,
@@ -567,16 +626,17 @@ static std::unique_ptr<std::vector<uint8_t> > packWeight(
   return std::move(packed);
 }
 
+template <typename OpTy>
 struct PackWeightConv2DOpPattern : public RewritePattern {
   PackWeightConv2DOpPattern(MLIRContext *context, TensorFile *weightTF,
       Value* weightFV)
-      : RewritePattern("tpu.conv_2d", 1, context),
+      : RewritePattern(OpTy::getOperationName(), 1, context),
         weightTF_(weightTF),
         weightFV_(weightFV) {}
 
   PatternMatchResult matchAndRewrite(Operation *op,
       PatternRewriter &rewriter) const override {
-    auto convOp = cast<tpu::Conv2DOp>(op);
+    auto convOp = cast<OpTy>(op);
     if (getOpQuant(op) != "INT8" || !isOpQuantPerchannel(op)
         || getOpQuantParamType(op) != "RSHIFT_AND_M_I32") {
       // for perchannel multiplier mode only
@@ -594,7 +654,7 @@ struct PackWeightConv2DOpPattern : public RewritePattern {
     llvm::errs() << "Pack Weight for Conv2D: " << getOpName(op) << "\n";
 
     // get param
-    auto filter_type = convOp.filter()->getType().cast<TensorType>();
+    auto filter_type = convOp.filter()->getType().template cast<TensorType>();
     std::vector<int64_t> filter_shape(filter_type.getShape());
     int64_t oc;
     auto g = convOp.param().group().getValue().getLimitedValue();
@@ -850,8 +910,9 @@ public:
     // first, merge conv rshift/multiplier/bias into one packed tensor
     OwningRewritePatternList patterns_pack;
     patterns_pack.insert<
-        PackWeightConv2DOpPattern
-    >(context, weightTF.get(), weightFV);
+        PackWeightConv2DOpPattern<tpu::Conv2DOp>,
+        PackWeightConv2DOpPattern<tpu::DeConv2DOp>
+        >(context, weightTF.get(), weightFV);
     applyPatternsGreedily(fn, patterns_pack);
 
     // second, do weight lower on weight tensors
@@ -859,16 +920,16 @@ public:
     OwningRewritePatternList patterns_lower;
     patterns_lower.insert<
         LowerWeightConv2DOpPattern
-    >(context, weightTF.get());
+        >(context, weightTF.get());
     applyPatternsGreedily(fn, patterns_lower);
 
     // do op lower
     OwningRewritePatternList patterns;
-
     patterns.insert<
         DefaultToTGPattern<tpu::ConcatOp>,
         DefaultToTGPattern<tpu::Conv2DOp>,
         DefaultToTGPattern<tpu::CropOp>,
+        DefaultToTGPattern<tpu::DeConv2DOp>,
         DefaultToTGPattern<tpu::EltwiseAddOp>,
         DefaultToTGPattern<tpu::EltwiseMaxOp>,
         DefaultToTGPattern<tpu::EltwiseMulOp>,
@@ -877,6 +938,16 @@ public:
         DefaultToTGPattern<tpu::PoolMax2DOp>,
         DefaultToTGPattern<tpu::UpsampleOp>
     >(context, weightTF.get(), weightFV);
+    applyPatternsGreedily(fn, patterns);
+
+    // TODO: this is temporary
+    // erase CPU ops
+    patterns.clear();
+    patterns.insert<
+        DefaultErasePattern<tpu::SoftmaxOp>,
+        DefaultErasePattern<tpu::QuantizationOp>,
+        DefaultErasePattern<tpu::DequantizationOp>
+        >(context);
     applyPatternsGreedily(fn, patterns);
 
     // keep tensorfile

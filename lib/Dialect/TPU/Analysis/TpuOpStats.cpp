@@ -71,7 +71,9 @@ public:
     for (auto func : module.getOps<FuncOp>()) {
       func.walk([&](Operation *opInst) {
         if (auto op = dyn_cast<tpu::Conv2DOp>(opInst)) {
-          dumpConv2DOpParam(op, os);
+          dumpConv2DOpParam<tpu::Conv2DOp>(op, os);
+        } else if (auto op = dyn_cast<tpu::DeConv2DOp>(opInst)) {
+          dumpConv2DOpParam<tpu::DeConv2DOp>(op, os);
         } else if (auto op = dyn_cast<tpu::PoolAvg2DOp>(opInst)) {
           dumpPool2DOpParam<tpu::PoolAvg2DOp>(op, os, true);
         } else if (auto op = dyn_cast<tpu::PoolMax2DOp>(opInst)) {
@@ -87,10 +89,12 @@ public:
 private:
   uint64_t total_mac_count;
 
-  void dumpConv2DOpParam(tpu::Conv2DOp &op, llvm::raw_ostream &os) {
+  template <typename OpTy>
+  void dumpConv2DOpParam(OpTy &op, llvm::raw_ostream &os) {
     bool is_dw, with_bias, do_relu;
     int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, ph, pw, dh, dw;
-    parseConvParam(op.param(), op.input(), op.output(), op.filter(),
+    bool is_deconv = isa<tpu::DeConv2DOp>(op.getOperation());
+    parseConvParam(op.param(), is_deconv, op.input(), op.output(), op.filter(),
                    n, ic, ih, iw, oc, oh, ow, g,
                    kh, kw, sh, sw, ph, pw, dh, dw, is_dw, with_bias, do_relu);
 

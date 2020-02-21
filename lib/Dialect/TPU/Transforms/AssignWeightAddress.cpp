@@ -224,79 +224,6 @@ static bool DoAssignWeight(Operation *op, int64_t oc, PatternRewriter &rewriter,
 
 namespace {
 
-struct TpuConv2DOpPattern : public RewritePattern {
-  TpuConv2DOpPattern(MLIRContext *context, TensorFile *weightTensorFile)
-      : RewritePattern("tpu.conv_2d", 1, context),
-        weightTensorFile_(weightTensorFile) {}
-
-  PatternMatchResult matchAndRewrite(Operation *op,
-                                     PatternRewriter &rewriter) const override {
-    auto convOp = cast<tpu::Conv2DOp>(op);
-    if (getOpQuant(op) != "INT8") {
-      return matchFailure();
-    }
-
-    // pack the weights
-    auto filter_type = convOp.filter()->getType().cast<TensorType>();
-    std::vector<int64_t> filter_shape(filter_type.getShape());
-    int64_t oc;
-    auto g = convOp.param().group().getValue().getLimitedValue();
-    if (g != 1) {
-      assert(filter_shape.size() == 5);
-      oc = filter_shape[0] * filter_shape[1];
-    } else {
-      assert(filter_shape.size() == 4);
-      oc = filter_shape[0];
-    }
-
-
-  if (!DoAssignWeight<tpu::Conv2DOp>(op, oc, rewriter, weightTensorFile_)) {
-      return matchFailure();
-    }
-
-    return matchSuccess();
-  }
-
-  TensorFile *weightTensorFile_;
-};
-
-struct TpuDeConv2DOpPattern : public RewritePattern {
-  TpuDeConv2DOpPattern(MLIRContext *context, TensorFile *weightTensorFile)
-      : RewritePattern("tpu.deconv_2d", 1, context),
-        weightTensorFile_(weightTensorFile) {}
-
-  PatternMatchResult matchAndRewrite(Operation *op,
-                                     PatternRewriter &rewriter) const override {
-    auto deconvOp = cast<tpu::DeConv2DOp>(op);
-    if (deconvOp.quant() != "INT8_MULTIPLIER") {
-      return matchFailure();
-    }
-
-    // pack the weights
-    auto filter_type = deconvOp.filter()->getType().cast<TensorType>();
-    std::vector<int64_t> filter_shape(filter_type.getShape());
-    int64_t oc;
-    auto g = deconvOp.group().getLimitedValue();
-    if (g != 1) {
-      // G, O/G, I/G, H, W
-      assert(filter_shape.size() == 5);
-      oc = filter_shape[0] * filter_shape[1];
-    } else {
-      // O, I, H, W
-      assert(filter_shape.size() == 4);
-      oc = filter_shape[0];
-    }
-
-    if (!DoAssignWeight<tpu::DeConv2DOp>(op, oc, rewriter, weightTensorFile_)) {
-      return matchFailure();
-    }
-
-    return matchSuccess();
-  }
-
-  TensorFile *weightTensorFile_;
-};
-
 struct TpuScaleOpPattern : public RewritePattern {
   TpuScaleOpPattern(MLIRContext *context, TensorFile *weightTensorFile)
       : RewritePattern("tpu.scale", 1, context),
@@ -615,8 +542,6 @@ public:
     auto *context = &getContext();
 
     // merge conv rshift/multiplier/bias into one weight first
-    patterns.insert<TpuConv2DOpPattern>(context, weightTensorFile.get());
-    patterns.insert<TpuDeConv2DOpPattern>(context, weightTensorFile.get());
     patterns.insert<TpuScaleOpPattern>(context, weightTensorFile.get());
     applyPatternsGreedily(fn, patterns);
     patterns.clear();

@@ -296,6 +296,8 @@ def TPU_CropOp: TPU_Op<"crop",
   let results = (outs AnyTensor:$output);
 }
 
+def TPU_DeConv2DOp : TPU_ConvOp<"deconv_2d", "Deconvolution">;
+
 def TPU_EltwiseAddOp : TPU_EltwiseOp<"eltwise_add", "Add">;
 def TPU_EltwiseMulOp : TPU_EltwiseOp<"eltwise_mul", "Mul">;
 def TPU_EltwiseMaxOp : TPU_EltwiseOp<"eltwise_max", "Max">;
@@ -498,7 +500,7 @@ def TPU_ReluOp: TPU_Op<"relu",
     Interfaces or Traits:
       `NoSideEffect`
       `TPU_QuantBypass`
-      `TPU_QuantPerChannelOnly`
+      `TPU_QuantPerTensorOnly`
       `TPU_QuantSupportAsymmetric`
       `TpuOpCommonInterface` : support common TPU Op interface
       `TpuOpInterpInterface` : support interperter
@@ -510,6 +512,48 @@ def TPU_ReluOp: TPU_Op<"relu",
   let arguments = (
     ins AnyTensor:$input,
     OptionalAttr<F32Attr>:$maximum,
+    TPU_QuantParamAttr:$quant,
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
+def TPU_SoftmaxOp: TPU_Op<"softmax",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
+       DeclareOpInterfaceMethods<TpuOpQuantInterface>]> {
+  let summary = "Softmax operator";
+
+  let description = [{
+    Perform softmax on input.
+
+    Inputs:
+      `input`           : required, the input activation tensor.
+
+    Attributes:
+      `axis`            : optional, the axis for softmax to perform.
+      `quant`           : required, a QuantParam struct attributes.
+      `name`            : required, name for calibration, comparing, or debug.
+      `layer_id`        : optional, id for profiling.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface` : support common TPU Op interface
+      `TpuOpInterpInterface` : support interperter
+      `TpuOpQuantInterface`  : CPU Op still needs threshold for quant/dequant
+                               of the next/prev Ops.
+      No `TpuOpLowerInterface`  : CPU Op no lowering to TPU TG Ops
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    DefaultValuedAttr<I32Attr, "1">:$axis,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
     OptionalAttr<NonNegativeI32Attr>:$layer_id
@@ -572,45 +616,10 @@ def TPU_UpsampleOp: TPU_Op<"upsample",
 
 
 
+
+
+
 // to be removed
-
-
-
-// for Deconv for now, to be removed
-class TPU_ConvOp_Legacy<string mnemonic, string opSummary> : TPU_Op<mnemonic,
-      [NoSideEffect, DeclareOpInterfaceMethods<TpuInterface>]> {
-  let summary = opSummary # " operator";
-
-  let description = [{
-
-  }];
-
-  let arguments = (
-    ins AnyTensor:$input,
-    AnyTensor:$filter,
-    Variadic<AnyTensor>:$variadic_tensors,
-    BoolAttr:$with_bias,
-    DefaultValuedAttr<I32Attr, "1">:$dilation_h_factor,
-    DefaultValuedAttr<I32Attr, "1">:$dilation_w_factor,
-    DefaultValuedAttr<TPU_AFAttr, "NONE">:$fused_activation_function,
-    DefaultValuedAttr<TPU_EltwiseAttr, "NONE">:$fused_eltwise_method,
-    DefaultValuedAttr<TPU_AFAttr, "NONE">:$fused_activation_function_after_eltwise,
-    OptionalAttr<F32Attr>:$threshold_y_before_eltwise,
-    TPU_PaddingAttr:$padding,
-    I32Attr:$stride_h,
-    I32Attr:$stride_w,
-    DefaultValuedAttr<I32Attr, "1">:$group,
-    DefaultValuedAttr<BoolAttr, "false">:$per_channel_info_is_aggregated,
-    OptionalAttr<StrAttr>:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
-    OptionalAttr<NonNegativeI64Attr>:$offset,
-    OptionalAttr<F32Attr>:$threshold_y,
-    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
-  );
-
-  let results = (outs AnyTensor:$output);
-}
-
 def TPU_BatchNormOp: TPU_Op<"batch_norm",
       [NoSideEffect, DeclareOpInterfaceMethods<TpuInterface>]> {
   let summary = "BatchNorm operator";
@@ -634,8 +643,6 @@ def TPU_BatchNormOp: TPU_Op<"batch_norm",
 
   let results = (outs AnyTensor:$y);
 }
-
-def TPU_DeConv2DOp : TPU_ConvOp_Legacy<"deconv_2d", "Convolution">;
 
 def TPU_DetectionOutputOp: TPU_Op<"detectionoutput",
       [NoSideEffect, DeclareOpInterfaceMethods<TpuInterface>]> {
@@ -941,27 +948,6 @@ def TPU_SliceOp: TPU_Op<"slice",
   );
 
   let results = (outs AnyTensor:$output);
-}
-
-def TPU_SoftmaxOp: TPU_Op<"softmax",
-      [NoSideEffect, SameOperandsAndResultType,
-       DeclareOpInterfaceMethods<TpuInterface>]> {
-  let summary = "Softmax operator";
-
-  let description = [{
-    Perform softmax on input.
-  }];
-
-  let arguments = (
-    ins AnyTensor:$x,
-    OptionalAttr<I32Attr>:$axis,
-    OptionalAttr<StrAttr>:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
-    OptionalAttr<F32Attr>:$threshold_y,
-    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
-  );
-
-  let results = (outs AnyTensor:$y);
 }
 
 def TPU_SqrtOp: TPU_Op<"sqrt",
