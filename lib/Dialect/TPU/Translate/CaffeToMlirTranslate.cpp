@@ -20,6 +20,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/TPU/TPUDialect.h"
+#include "mlir/Dialect/TPU/TPUOperationSupport.h"
+#include "mlir/Dialect/TPU/TPUTensorSupport.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/Function.h"
 #include "mlir/IR/Module.h"
@@ -154,17 +156,6 @@ static void printCaffeNetAllLayer(const caffe::Net<float>& net) {
     auto layer = net.layers()[i].get();
     printCaffeLayerParam(layer);
   }
-}
-
-static tpu::QuantParam getDefaultQuantParam(Builder &builder) {
-  return tpu::QuantParam::get(
-      builder.getStringAttr("NONE"),
-      builder.getStringAttr("NONE"),
-      builder.getBoolAttr(false),
-      builder.getBoolAttr(false),
-      builder.getF32FloatAttr(0.0),
-      builder.getF32FloatAttr(0.0),
-      builder.getContext());
 }
 
 #define calcConv2DSpatialOutput(_i_, _k_, _s_, _p_, _d_) \
@@ -1138,21 +1129,29 @@ void CaffeImporter::convertScaleLayer(mlir::Block *block,
 
   std::vector<Value *> operands;
   operands.push_back(input_var);
+  auto NoneOp = OpBuilder(block).create<tpu::NoneOp>(
+      builder_.getUnknownLoc(), builder_.getNoneType());
+
+  Value *result_var;
   if(input_vars.size() == 2){
     // two bottom input
-    // construct OP
-    //auto result_type = RankedTensorType::get({n, c, h, w}, elementType_);
-    auto result_type = RankedTensorType::get(input_var_shape, elementType_);
+    operands.push_back(input_vars[1]);
+    operands.push_back(NoneOp.getResult());  // quant_scale
+    operands.push_back(NoneOp.getResult());  // quant_zeropoint
+    operands.push_back(NoneOp.getResult());  // quant_rshift
+    operands.push_back(NoneOp.getResult());  // quant_multiplier
 
+    auto result_type = RankedTensorType::get(input_var_shape, elementType_);
     std::vector<NamedAttribute> attrs;
     attrs.push_back(builder_.getNamedAttr(
         "name", builder_.getStringAttr(layer_param.name())));
-    auto op = OpBuilder(block).create<tpu::ScaleOp>(
-        builder_.getUnknownLoc(), result_type, ArrayRef<Value *>{input_vars},
+    attrs.push_back(builder_.getNamedAttr(
+        "quant", getDefaultQuantParam(builder_)));
+    auto op = OpBuilder(block).create<tpu::BroadcastMulOp>(
+        builder_.getUnknownLoc(), result_type, ArrayRef<Value *>{operands},
         ArrayRef<NamedAttribute>{attrs});
-    auto result_var = op.getResult();
-    tensor_map_[layer_param.top(0)] = result_var;
-  }else{
+    result_var = op.getResult();
+  } else {
     // - blobs_[0] holds the scale
     // - blobs_[1] holds the biases (optional)
     auto scale_name = layer->layer_param().name()+"_0";
@@ -1164,21 +1163,21 @@ void CaffeImporter::convertScaleLayer(mlir::Block *block,
       auto bias_type = RankedTensorType::get({c}, elementType_);
       weightFile_->addTensor(bias_name, layer->blobs()[1].get()->cpu_data(), bias_type);
       operands.push_back(AddLoadWeightOp(block, bias_name, bias_type));
+    } else {
+      operands.push_back(NoneOp.getResult());
     }
-    // construct OP
-    //auto result_type = RankedTensorType::get({n, c, h, w}, elementType_);
+
     auto result_type = RankedTensorType::get(input_var_shape, elementType_);
     std::vector<NamedAttribute> attrs;
     attrs.push_back(builder_.getNamedAttr(
         "name", builder_.getStringAttr(layer_param.name())));
-    attrs.push_back(
-        builder_.getNamedAttr("with_bias", builder_.getBoolAttr(with_bias)));
     auto op = OpBuilder(block).create<tpu::ScaleOp>(
         builder_.getUnknownLoc(), result_type, ArrayRef<Value *>{operands},
         ArrayRef<NamedAttribute>{attrs});
-    auto result_var = op.getResult();
-    tensor_map_[layer_param.top(0)] = result_var;
+    result_var = op.getResult();
   }
+
+  tensor_map_[layer_param.top(0)] = result_var;
 }
 
 void CaffeImporter::convertReLULayer(mlir::Block *block,

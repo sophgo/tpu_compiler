@@ -78,7 +78,9 @@ struct BackwardOverwriteThresholdConcatPattern : public OpRewritePattern<tpu::Co
       if (threshold_x == threshold_y) {
           continue;
       }
-      if (auto cast_op = llvm::dyn_cast_or_null<tpu::ConcatOp>(formerOp)) {
+      if (auto cast_op = llvm::dyn_cast_or_null<tpu::BroadcastMulOp>(formerOp)) {
+        setOpThreshold(formerOp, threshold_y);
+      } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::ConcatOp>(formerOp)) {
         setOpThreshold(formerOp, threshold_y);
       } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::Conv2DOp>(formerOp)) {
         setOpThreshold(formerOp, threshold_y);
@@ -95,8 +97,6 @@ struct BackwardOverwriteThresholdConcatPattern : public OpRewritePattern<tpu::Co
       } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::LeakyReluOp>(formerOp)) {
         setOpThreshold(formerOp, threshold_y);
       } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::ReluOp>(formerOp)) {
-        setOpThreshold(formerOp, threshold_y);
-      } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::ScaleOp>(formerOp)) {
         setOpThreshold(formerOp, threshold_y);
       } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::UpsampleOp>(formerOp)) {
         setOpThreshold(formerOp, threshold_y);
@@ -138,7 +138,9 @@ struct BackendOverwriteThresholdDefaultPattern : public RewritePattern {
     if (threshold_x == threshold_y) {
       return matchFailure();
     }
-    if (auto cast_op = llvm::dyn_cast_or_null<tpu::ConcatOp>(formerOp)) {
+    if (auto cast_op = llvm::dyn_cast_or_null<tpu::BroadcastMulOp>(formerOp)) {
+      setOpThreshold(formerOp, threshold_y);
+    } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::ConcatOp>(formerOp)) {
       setOpThreshold(formerOp, threshold_y);
     } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::Conv2DOp>(formerOp)) {
       setOpThreshold(formerOp, threshold_y);
@@ -157,8 +159,6 @@ struct BackendOverwriteThresholdDefaultPattern : public RewritePattern {
     } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::LeakyReluOp>(formerOp)) {
       setOpThreshold(formerOp, threshold_y);
     } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::ReluOp>(formerOp)) {
-      setOpThreshold(formerOp, threshold_y);
-    } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::ScaleOp>(formerOp)) {
       setOpThreshold(formerOp, threshold_y);
     } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::UpsampleOp>(formerOp)) {
       setOpThreshold(formerOp, threshold_y);
@@ -318,7 +318,6 @@ public:
       addThresholdAttr<tpu::FullyConnectedOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::PowerOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::PReluOp>(builder, threshold_map, op);
-      addThresholdAttr<tpu::ScaleOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::SigmoidOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::SqrtOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::PermuteOp>(builder, threshold_map, op);

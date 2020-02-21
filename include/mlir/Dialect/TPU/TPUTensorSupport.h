@@ -29,9 +29,9 @@
 
 namespace mlir {
 
-/***********************************************************
+/******************************************************************************
  * Tensor helpers
- ***********************************************************/
+ *****************************************************************************/
 
 bool isTensorNone(Value *);
 int64_t getTensorSize(Value *value);
@@ -41,9 +41,9 @@ void getTensorShapeAndSize(Value *value, std::vector<int64_t> &shape,
 void getNCHW(std::vector<int64_t> &shape, int64_t &n, int64_t &c, int64_t &h,
              int64_t &w);
 
-/***********************************************************
+/******************************************************************************
  * Weight helpers
- ***********************************************************/
+ *****************************************************************************/
 
 template<typename T>
 std::unique_ptr<std::vector<T> > readAndDeleteWeightTensor(
@@ -51,13 +51,13 @@ std::unique_ptr<std::vector<T> > readAndDeleteWeightTensor(
 
 template<typename T>
 void addWeightTensorAndUpdateWeightOp(Value* opd,
-    std::vector<T> &weight, std::vector<int64_t> &shape,
-    StringRef &storageType, TensorFile *wTF);
+    StringRef suffix, std::vector<T> &weight, std::vector<int64_t> &shape,
+    StringRef storageType, TensorFile *wTF);
 
 template<typename T>
 Value* addWeightTensorAndCreateWeightOp(Operation *op,
     StringRef suffix, std::vector<T> &weight,
-    std::vector<int64_t> &shape, StringRef &storageType,
+    std::vector<int64_t> &shape, StringRef storageType,
     TensorFile *wTF, Value *wFV);
 
 } // namespace mlir

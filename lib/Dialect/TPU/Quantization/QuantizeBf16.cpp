@@ -105,12 +105,11 @@ struct TpuQuantBf16Conv2DOpPattern : public RewritePattern {
     }
 
     // update op
-    StringRef storageType = "BF16";
     addWeightTensorAndUpdateWeightOp<bfloat16>(convOp.getOperand(1),
-        *new_filter, filterShape, storageType, weightTF_);
+        "quant", *new_filter, filterShape, "BF16", weightTF_);
     if (bias) {
       addWeightTensorAndUpdateWeightOp<bfloat16>(convOp.getOperand(2),
-          *new_bias, biasShape, storageType, weightTF_);
+          "quant", *new_bias, biasShape, "BF16", weightTF_);
     }
     setOpQuant(op, "BF16");
 
@@ -186,9 +185,8 @@ struct TpuQuantFullyConnectedOpPattern : public RewritePattern {
     // quantization
     FloatToBFloat16(filter->data(), new_filter->data(), filterSize);
     // update op
-    StringRef storageType = "BF16";
     addWeightTensorAndUpdateWeightOp<bfloat16>(fcOp.getOperand(1),
-        *new_filter, filterShape, storageType, weightTensorFile_);
+        "quant", *new_filter, filterShape, "BF16", weightTensorFile_);
 
     // quantize bias
     if (fcOp.with_bias()) {
@@ -206,9 +204,8 @@ struct TpuQuantFullyConnectedOpPattern : public RewritePattern {
       // quantization
       FloatToBFloat16(bias->data(), new_bias->data(), biasSize);
       // update op
-      StringRef storageType = "BF16";
       addWeightTensorAndUpdateWeightOp<bfloat16>(fcOp.getOperand(2),
-          *new_bias, biasShape, storageType, weightTensorFile_);
+          "quant", *new_bias, biasShape, "BF16", weightTensorFile_);
     }
 
     fcOp.setAttr("quant", rewriter.getStringAttr("BF16"));
@@ -249,9 +246,8 @@ struct TpuQuantPReluOpPattern : public RewritePattern {
     // quantization
     FloatToBFloat16(filter->data(), new_filter->data(), filterSize);
     // update op
-    StringRef storageType = "BF16";
     addWeightTensorAndUpdateWeightOp<bfloat16>(preluOp.getOperand(1),
-        *new_filter, filterShape, storageType, weightTensorFile_);
+        "quant", *new_filter, filterShape, "BF16", weightTensorFile_);
 
     preluOp.setAttr("quant", rewriter.getStringAttr("BF16"));
 
@@ -260,72 +256,6 @@ struct TpuQuantPReluOpPattern : public RewritePattern {
 
   TensorFile *weightTensorFile_;
   Value *weightFileVar_;
-};
-
-struct TpuQuantScaleOpPattern : public RewritePattern {
-  TpuQuantScaleOpPattern(MLIRContext *context, TensorFile *weightTensorFile,
-      Value* weightFileVar)
-      : RewritePattern("tpu.scale", 1, context),
-        weightTensorFile_(weightTensorFile),
-        weightFileVar_(weightFileVar) {}
-
-  PatternMatchResult matchAndRewrite(Operation *op,
-                                     PatternRewriter &rewriter) const override {
-    auto scaleOp = cast<tpu::ScaleOp>(op);
-    //auto loc = op->getLoc();
-
-    if (scaleOp.quant() != "NONE") {
-      LLVM_DEBUG(llvm::errs() << scaleOp.name() << " quantized already\n";);
-      return matchFailure();
-    }
-    auto weight_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
-        scaleOp.getOperand(1)->getDefiningOp());
-    if (weight_op) {
-      // quantize filter
-      auto scale =
-          readAndDeleteWeightTensor<float>(scaleOp.getOperand(1), weightTensorFile_);
-      auto scaleType = scaleOp.scale()->getType().cast<TensorType>();
-      std::vector<int64_t> scaleShape(scaleType.getShape());
-      int64_t scaleSize = std::accumulate(
-          std::begin(scaleShape), std::end(scaleShape), 1, std::multiplies<>());
-      assert(scaleSize == (int64_t)scale->size());
-      // create new tensors
-      auto new_scale = std::make_unique<std::vector<bfloat16>>(scaleSize);
-      // quantization
-      FloatToBFloat16(scale->data(), new_scale->data(), scaleSize);
-      // update op
-      StringRef storageType = "BF16";
-      addWeightTensorAndUpdateWeightOp<bfloat16>(scaleOp.getOperand(1),
-          *new_scale, scaleShape, storageType, weightTensorFile_);
-
-      // quantize bias
-      if (scaleOp.with_bias()) {
-        auto bias =
-            readAndDeleteWeightTensor<float>(scaleOp.getOperand(2), weightTensorFile_);
-        auto biasType = scaleOp.getOperand(2)->getType().cast<TensorType>();
-        std::vector<int64_t> biasShape(biasType.getShape());
-        int64_t biasSize = std::accumulate(
-            std::begin(biasShape), std::end(biasShape), 1, std::multiplies<>());
-        int64_t n = scaleShape[0];
-        assert(biasSize == n);
-        assert(biasSize == (int64_t)bias->size());
-        // create new tensors
-        auto new_bias = std::make_unique<std::vector<bfloat16>>(biasSize);
-        // quantization
-        FloatToBFloat16(bias->data(), new_bias->data(), biasSize);
-        // update op
-        StringRef storageType = "BF16";
-        addWeightTensorAndUpdateWeightOp<bfloat16>(scaleOp.getOperand(2),
-            *new_bias, biasShape, storageType, weightTensorFile_);
-      }
-    }
-    scaleOp.setAttr("quant", rewriter.getStringAttr("BF16"));
-
-    return matchSuccess();
-  }
-
-  TensorFile *weightTensorFile_;
-  Value* weightFileVar_;
 };
 
 struct TpuQuantTanHOpPattern : public RewritePattern {
@@ -640,7 +570,6 @@ public:
 
                 TpuQuantFullyConnectedOpPattern,
                 TpuQuantPReluOpPattern,
-                TpuQuantScaleOpPattern,
                 TpuQuantDefaultPattern<tpu::SigmoidOp>,
                 TpuQuantDefaultPattern<tpu::SliceOp>,
                 TpuQuantDefaultPattern<tpu::DivOp>,

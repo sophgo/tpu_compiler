@@ -69,7 +69,6 @@ public:
         processed += addLayerIdAttr<tpu::PReluOp>(builder, layer_id, op);
         processed += addLayerIdAttr<tpu::PriorBoxOp>(builder, layer_id, op);
         processed += addLayerIdAttr<tpu::ReshapeOp>(builder, layer_id, op);
-        processed += addLayerIdAttr<tpu::ScaleOp>(builder, layer_id, op);
         processed += addLayerIdAttr<tpu::SigmoidOp>(builder, layer_id, op);
         processed += addLayerIdAttr<tpu::SliceOp>(builder, layer_id, op);
         processed += addLayerIdAttr<tpu::SoftmaxOp>(builder, layer_id, op);

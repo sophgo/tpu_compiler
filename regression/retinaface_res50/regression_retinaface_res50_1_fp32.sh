@@ -39,6 +39,7 @@ mlir-opt \
     --convert-bn-to-scale \
     --fold-scale \
     --merge-scale-into-conv \
+    --convert-scale-to-dwconv \
     --fuse-relu \
     retinaface_res50.mlir \
     -o retinaface_res50_opt.mlir

@@ -34,8 +34,10 @@ std::unique_ptr<OpPassBase<ModuleOp>> createPrintTpuOpStatsPass();
 std::unique_ptr<OpPassBase<FuncOp>> createConvertBnToScalePass();
 std::unique_ptr<OpPassBase<FuncOp>> createFoldScalePass();
 std::unique_ptr<OpPassBase<FuncOp>> createMergeScaleIntoConvPass();
+std::unique_ptr<OpPassBase<FuncOp>> createConvertScaleToDWConvPass();
 std::unique_ptr<OpPassBase<FuncOp>> createFuseReluPass();
 std::unique_ptr<OpPassBase<FuncOp>> createFuseEltwisePass();
+
 std::unique_ptr<OpPassBase<FuncOp>> createGenTanHTablePass();
 std::unique_ptr<OpPassBase<FuncOp>> createGenSigmoidTablePass();
 

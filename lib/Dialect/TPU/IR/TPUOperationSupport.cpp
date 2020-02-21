@@ -251,6 +251,17 @@ static int64_t findPadForSamePadding(int64_t i, int64_t o, int64_t k, int64_t s,
   return 0;
 }
 
+tpu::QuantParam getDefaultQuantParam(Builder &builder) {
+  return tpu::QuantParam::get(
+      builder.getStringAttr("NONE"),
+      builder.getStringAttr("NONE"),
+      builder.getBoolAttr(false),
+      builder.getBoolAttr(false),
+      builder.getF32FloatAttr(0.0),
+      builder.getF32FloatAttr(0.0),
+      builder.getContext());
+}
+
 void parseConvParam(const tpu::ConvParam &p, bool is_deconv,
     Value *input, Value *output, Value *filter,
     int &n, int &ic, int &ih, int &iw, int &oc, int &oh, int &ow, int &g,
@@ -372,29 +383,6 @@ void getFullyConnectedOpParam(tpu::FullyConnectedOp &op,
   }
   with_transpose = op.with_transpose();
   with_bias = op.with_bias();
-}
-
-void getScaleOpVariadicTensors(
-    tpu::ScaleOp &op, std::vector<std::shared_ptr<std::vector<float>>> &opdT,
-    std::shared_ptr<std::vector<float>> &bias,
-    std::shared_ptr<std::vector<float>> &rshift,
-    std::shared_ptr<std::vector<float>> &multiplier) {
-  unsigned idx = 2; // first 2 opdT are always input and scale
-  if (op.with_bias()) {
-    bias = opdT[idx];
-    idx += 1;
-  }
-  if (op.quant() == "INT8" || op.quant() == "INT8_PER_CHANNEL") {
-    rshift = opdT[idx];
-    multiplier = opdT[idx+1];
-    idx += 2;
-  }
-
-  if (idx != opdT.size()) {
-    llvm::errs() << op.name() << ": opdT.size=" << opdT.size()
-                 << ", idx=" << idx << "\n";
-    assert(0 && "opdT size wrong");
-  }
 }
 
 void getFullyConnectedOpVariadicTensors(tpu::FullyConnectedOp &op,

@@ -843,6 +843,7 @@ static LogicalResult runOperation(Operation &opInst) {
     }
     return success();
   }
+#if 0
   if (auto op = dyn_cast<tpu::ScaleOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "ScaleOp(" << op.name() << ")\n";);
 
@@ -993,7 +994,7 @@ static LogicalResult runOperation(Operation &opInst) {
       assert(0 && "op quant type not support");
     }
   }
-
+#endif
   return success();
 }
 
