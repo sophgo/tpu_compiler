@@ -15,19 +15,14 @@ mlir-opt \
     inception_v4_opt.mlir \
     -o inception_v4_cali.mlir
 
-# apply post-calibration optimizations
-# not applying --fuse-eltwise for now
-mlir-opt \
-    --fuse-relu \
-    inception_v4_cali.mlir \
-    -o inception_v4_opt_post_cali.mlir
-
+###############################################################################
 # quantization 1: per-layer int8
+###############################################################################
 mlir-opt \
     --quant-int8 \
     --print-tpu-op-info \
-    --tpu-op-info-filename inception_v4_quant_int8_per_layer_info.csv \
-    inception_v4_opt_post_cali.mlir \
+    --tpu-op-info-filename inception_v4_op_info_int8_per_layer.csv \
+    inception_v4_cali.mlir \
     -o inception_v4_quant_int8_per_layer.mlir
 
 mlir-tpu-interpreter inception_v4_quant_int8_per_layer.mlir \
@@ -55,13 +50,15 @@ mlir-tpu-interpreter inception_v4_quant_int8_per_layer.mlir \
 #      --tolerance 0.9,0.9,0.6 -vvv
 #fi
 
+###############################################################################
 # quantization 2: per-channel int8
+###############################################################################
 mlir-opt \
     --quant-int8 \
     --enable-conv-per-channel \
     --print-tpu-op-info \
-    --tpu-op-info-filename inception_v4_quant_int8_per_channel_info.csv \
-    inception_v4_opt_post_cali.mlir \
+    --tpu-op-info-filename inception_v4_op_info_int8_per_channel.csv \
+    inception_v4_cali.mlir \
     -o inception_v4_quant_int8_per_channel.mlir
 
 mlir-tpu-interpreter inception_v4_quant_int8_per_channel.mlir \
@@ -90,14 +87,16 @@ mlir-tpu-interpreter inception_v4_quant_int8_per_channel.mlir \
 #      --tolerance 0.9,0.9,0.7 -vvv
 #fi
 
+###############################################################################
 # quantization 3: per-channel int8 with multiplier
+###############################################################################
 mlir-opt \
     --quant-int8 \
     --enable-conv-per-channel \
     --enable-conv-multiplier \
     --print-tpu-op-info \
-    --tpu-op-info-filename inception_v4_quant_int8_multiplier_info.csv \
-    inception_v4_opt_post_cali.mlir \
+    --tpu-op-info-filename inception_v4_op_info_int8_multiplier.csv \
+    inception_v4_cali.mlir \
     -o inception_v4_quant_int8_multiplier.mlir
 
 mlir-tpu-interpreter inception_v4_quant_int8_multiplier.mlir \
