@@ -223,84 +223,6 @@ struct TpuQuantInt8Conv2DOpPattern : public RewritePattern {
   Value* weightFV_;
 };
 
-struct TpuQuantInt8EltwiseMulOpPattern : public RewritePattern {
-  TpuQuantInt8EltwiseMulOpPattern(MLIRContext *context, TensorFile *weightTF,
-      Value* weightFV)
-      : RewritePattern("tpu.eltwise_mul", 1, context),
-        weightTF_(weightTF),
-        weightFV_(weightFV) {}
-
-  PatternMatchResult matchAndRewrite(Operation *op,
-                                     PatternRewriter &rewriter) const override {
-    if (getOpQuant(op) != "NONE") {
-      LLVM_DEBUG(llvm::errs() << " < " << getOpName(op)
-                              << ", quantized already\n";);
-      return matchFailure();
-    }
-
-    // get operands
-    const unsigned nInputs = op->getNumOperands() - 4;
-
-    // get thresholds
-    float threshold_y = getOpThreshold(op);
-    LLVM_DEBUG(llvm::errs() << " > " << getOpName(op) << ", threshold_y = "
-                 << std::to_string(threshold_y) << "\n";);
-    std::vector<float> threshold_x(nInputs);
-    for (unsigned i = 0; i < nInputs; ++i) {
-      threshold_x[i] = getPreviousOpThreshold(op, i);
-      LLVM_DEBUG(llvm::errs() << "  threshold_x[" << i << "] = "
-                 << std::to_string(threshold_x[i]) << "\n";);
-    }
-
-    //
-    // determine the qscale
-    //
-    float threshold_prod = std::accumulate(
-        threshold_x.begin(), threshold_x.end(), 1.0, std::multiplies<>());
-    float qscale = threshold_prod / threshold_y / 127.0;
-
-    // create tensors for rshift and multiplier
-    auto rshift = std::make_unique<std::vector<float> >(1);
-    auto multiplier = std::make_unique<std::vector<float> >(1);
-
-    //
-    // decompose into int8 mulitplier and rshift
-    //
-    uint32_t multiplier_u32;
-    int8_t rshift_i8 = findRShiftAndMultiplierFromQScale(qscale,
-                           &multiplier_u32, false, 127);
-    rshift->at(0) = static_cast<float>(rshift_i8);
-    multiplier->at(0) = static_cast<float>(multiplier_u32);
-    LLVM_DEBUG(llvm::errs()
-               << "  rshift = "
-               << std::to_string(rshift->at(0))
-               << ", multiplier = "
-               << std::to_string(multiplier->at(0)) << "\n");
-
-    // add rshift and multiplier to weight
-    StringRef storageType = "NONE";
-    auto shape = std::vector<int64_t>{1};
-
-    auto rshift_op = addWeightTensorAndCreateWeightOp<float>(
-        op, "rshift", *rshift, shape, storageType,
-        weightTF_, weightFV_);
-    op->setOperand(4, rshift_op);
-
-    auto multiplier_op = addWeightTensorAndCreateWeightOp<float>(
-        op, "multiplier", *multiplier, shape, storageType,
-        weightTF_, weightFV_);
-    op->setOperand(5, multiplier_op);
-
-    setOpQuantParamType(op, "RSHIFT_AND_M_I8");
-    setOpQuant(op, "INT8");
-
-    return matchSuccess();
-  }
-
-  TensorFile *weightTF_;
-  Value* weightFV_;
-};
-
 struct TpuQuantInt8LeakyReluOpPattern : public RewritePattern {
   TpuQuantInt8LeakyReluOpPattern(MLIRContext *context, TensorFile *weightTF,
       Value* weightFV)
@@ -469,6 +391,7 @@ struct TpuQuantInt8SigmoidOpPattern : public RewritePattern {
   TensorFile *weightTF_;
   Value *weightFV_;
 };
+
 ///
 /// default quantize pattern
 /// for operations that has no weight, but still need to do rescaling
@@ -584,6 +507,95 @@ struct TpuQuantInt8DefaultPattern : public RewritePattern {
         op, "multiplier", *multiplier, shape_multiplier, storageType,
         weightTF_, weightFV_);
     op->setOperand(nInputs + 3, multiplier_op);
+
+    setOpQuantParamType(op, "RSHIFT_AND_M_I8");
+    setOpQuant(op, "INT8");
+
+    return matchSuccess();
+  }
+
+  TensorFile *weightTF_;
+  Value* weightFV_;
+};
+
+///
+/// default multiply Ops quantize pattern
+/// for operations that has no weight, and input operands are
+/// multiplied, eg. BroardcastMul, EltwiseMul, Power, etc.
+/// for multiple inputs op (broadcast mul, eltwise mul)
+///   - first n operands are variadic
+///   - 4 quant operands are following
+/// special handling for one input op
+///   1. PowerOp
+///
+template<typename OpTy>
+struct TpuQuantInt8MultiplyOpDefaultPattern : public RewritePattern {
+  TpuQuantInt8MultiplyOpDefaultPattern(MLIRContext *context, TensorFile *weightTF,
+      Value* weightFV)
+      : RewritePattern(OpTy::getOperationName(), 1, context),
+        weightTF_(weightTF),
+        weightFV_(weightFV) {}
+
+  PatternMatchResult matchAndRewrite(Operation *op,
+                                     PatternRewriter &rewriter) const override {
+    if (getOpQuant(op) != "NONE") {
+      LLVM_DEBUG(llvm::errs() << " < " << getOpName(op)
+                              << ", quantized already\n";);
+      return matchFailure();
+    }
+
+    // get operands
+    const unsigned nInputs = op->getNumOperands() - 4;
+
+    // get thresholds
+    float threshold_y = getOpThreshold(op);
+    LLVM_DEBUG(llvm::errs() << " > " << getOpName(op) << ", threshold_y = "
+                 << std::to_string(threshold_y) << "\n";);
+    std::vector<float> threshold_x(nInputs);
+    for (unsigned i = 0; i < nInputs; ++i) {
+      threshold_x[i] = getPreviousOpThreshold(op, i);
+      LLVM_DEBUG(llvm::errs() << "  threshold_x[" << i << "] = "
+                 << std::to_string(threshold_x[i]) << "\n";);
+    }
+
+    //
+    // determine the qscale
+    //
+    float threshold_prod = std::accumulate(
+        threshold_x.begin(), threshold_x.end(), 1.0, std::multiplies<>());
+    float qscale = threshold_prod / threshold_y / 127.0;
+
+    // create tensors for rshift and multiplier
+    auto rshift = std::make_unique<std::vector<float> >(1);
+    auto multiplier = std::make_unique<std::vector<float> >(1);
+
+    //
+    // decompose into int8 mulitplier and rshift
+    //
+    uint32_t multiplier_u32;
+    int8_t rshift_i8 = findRShiftAndMultiplierFromQScale(qscale,
+                           &multiplier_u32, false, 127);
+    rshift->at(0) = static_cast<float>(rshift_i8);
+    multiplier->at(0) = static_cast<float>(multiplier_u32);
+    LLVM_DEBUG(llvm::errs()
+               << "  rshift = "
+               << std::to_string(rshift->at(0))
+               << ", multiplier = "
+               << std::to_string(multiplier->at(0)) << "\n");
+
+    // add rshift and multiplier to weight
+    StringRef storageType = "NONE";
+    auto shape = std::vector<int64_t>{1};
+
+    auto rshift_op = addWeightTensorAndCreateWeightOp<float>(
+        op, "rshift", *rshift, shape, storageType,
+        weightTF_, weightFV_);
+    op->setOperand(4, rshift_op);
+
+    auto multiplier_op = addWeightTensorAndCreateWeightOp<float>(
+        op, "multiplier", *multiplier, shape, storageType,
+        weightTF_, weightFV_);
+    op->setOperand(5, multiplier_op);
 
     setOpQuantParamType(op, "RSHIFT_AND_M_I8");
     setOpQuant(op, "INT8");
@@ -1318,13 +1330,14 @@ public:
     OwningRewritePatternList patterns_w;
     //concat cpu layer test
     patterns_w.insert<
+                TpuQuantInt8MultiplyOpDefaultPattern<tpu::BroadcastMulOp>,
                 TpuQuantInt8DefaultPattern<tpu::ConcatOp>,
                 TpuQuantInt8Conv2DOpPattern<tpu::Conv2DOp>,
                 TpuQuantInt8BypassPattern<tpu::CropOp>,
                 TpuQuantInt8Conv2DOpPattern<tpu::DeConv2DOp>,
                 TpuQuantInt8DefaultPattern<tpu::EltwiseAddOp>,
                 TpuQuantInt8DefaultPattern<tpu::EltwiseMaxOp>,
-                TpuQuantInt8EltwiseMulOpPattern,
+                TpuQuantInt8MultiplyOpDefaultPattern<tpu::EltwiseMulOp>,
                 TpuQuantInt8DefaultPattern<tpu::PoolAvg2DOp>,
                 TpuQuantInt8BypassPattern<tpu::PoolMax2DOp>,
                 TpuQuantInt8LeakyReluOpPattern,

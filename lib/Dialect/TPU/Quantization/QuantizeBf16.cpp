@@ -555,6 +555,7 @@ public:
 
     OwningRewritePatternList patterns_w;
     patterns_w.insert<
+                TpuQuantBf16DefaultPattern<tpu::BroadcastMulOp>,
                 TpuQuantBf16DefaultPattern<tpu::ConcatOp>,
                 TpuQuantBf16Conv2DOpPattern<tpu::Conv2DOp>,
                 TpuQuantBf16DefaultPattern<tpu::CropOp>,
