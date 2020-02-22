@@ -173,6 +173,11 @@ private:
 
 } // namespace
 
+void tpu::ScaleOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
+                                              MLIRContext *context) {
+  //results.insert<TpuFoldScalePattern>(context, nullptr);
+}
+
 std::unique_ptr<OpPassBase<FuncOp>> mlir::createFoldScalePass() {
   return std::make_unique<FoldScalePass>();
 }
