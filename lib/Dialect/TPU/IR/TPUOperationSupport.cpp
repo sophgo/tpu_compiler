@@ -405,57 +405,5 @@ void getFullyConnectedOpVariadicTensors(tpu::FullyConnectedOp &op,
   }
 }
 
-void getPReluOpVariadicTensors(tpu::PReluOp &op,
-    std::vector<std::shared_ptr<std::vector<float> > > &opdT,
-    std::shared_ptr<std::vector<float> > &rshift_pos,
-    std::shared_ptr<std::vector<float> > &rshift_neg,
-    std::shared_ptr<std::vector<float> > &multiplier_pos,
-    std::shared_ptr<std::vector<float> > &multiplier_neg) {
-  unsigned idx = 2;  // first 2 opdT are always input and filter
-  if (op.quant() == "INT8" || op.quant() == "INT8_PER_CHANNEL"
-          || op.quant() == "INT8_MULTIPLIER") {
-    rshift_pos = opdT[idx];
-    idx += 1;
-    rshift_neg = opdT[idx];
-    idx += 1;
-  }
-
-  if (op.quant() == "INT8_MULTIPLIER") {
-    multiplier_pos = opdT[idx];
-    idx += 1;
-    multiplier_neg = opdT[idx];
-    idx += 1;
-  }
-
-  if (idx != opdT.size()) {
-    llvm::errs() << op.name() << ": opdT.size=" << opdT.size()
-                 << ", idx=" << idx << "\n";
-    assert(0);
-  }
-}
-
-void getPReluOpVariadicTensors(tpu::PReluOp &op,
-    std::vector<std::shared_ptr<std::vector<float> > > &opdT,
-    std::shared_ptr<std::vector<float> > &rshift_pos,
-    std::shared_ptr<std::vector<float> > &multiplier_pos,
-    std::shared_ptr<std::vector<float> > &rshift_neg) {
-  unsigned idx = 2;  // first 2 opdT are always input and filter
-  if (op.quant() == "INT8") {
-    rshift_pos = opdT[idx];
-    idx += 1;
-    multiplier_pos = opdT[idx];
-    idx += 1;
-    rshift_neg = opdT[idx];
-    idx += 1;
-  } else {
-    assert(false);
-  }
-
-  if (idx != opdT.size()) {
-    llvm::errs() << op.name() << ": opdT.size=" << opdT.size()
-                 << ", idx=" << idx << "\n";
-    assert(0);
-  }
-}
 
 } // namespace

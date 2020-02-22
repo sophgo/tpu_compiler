@@ -712,6 +712,37 @@ LogicalResult tpu::PoolMax2DOp::interpret(
   return doPool2DOpInterpret<tpu::PoolMax2DOp>(op, false, valueMapping);
 }
 
+LogicalResult tpu::PReluOp::interpret(
+    DenseMap<Value *, std::shared_ptr<std::vector<float>>> &valueMapping) {
+  Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name()
+                          << "]\n";);
+
+  auto opdT = getOperandTensors(op, valueMapping);
+  auto result = this->getResult();
+  auto size = getTensorSize(result);
+  auto resultT = std::make_unique<std::vector<float>>(size);
+
+  // parse param
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  assert(input_size == size);
+  getNCHW(shape, n, c, h, w);
+
+  // get tensors
+  assert(opdT.size() == 2);
+  std::shared_ptr<std::vector<float>> input = opdT[0];
+  std::shared_ptr<std::vector<float>> negative_slope = opdT[1];
+  // compute in fp32
+  my_prelu(input->data(), resultT->data(), n, c, h, w, negative_slope->data());
+
+
+  valueMapping[result] = std::move(resultT);
+
+  return success();
+}
+
 LogicalResult tpu::ReluOp::interpret(
     DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();
@@ -1144,73 +1175,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     LLVM_DEBUG(llvm::errs() << "ReluOp [" << op.name() << "]\n";);
     assert(false);
   }
-  if (auto op = dyn_cast<tpu::PReluOp>(opInst)) {
-    LLVM_DEBUG(llvm::errs() << "PReluOp" << "\n";);
-    auto opdT = getOperandTensors(opInst, valueMapping);
-    auto result = op.getResult();
-    LLVM_DEBUG(llvm::errs() << "  name " << op.name() << "\n"
-                            << "  result "; result->getType().dump(); llvm::errs() << "\n";);
-    std::vector<int64_t> shape =
-        result->getType().cast<TensorType>().getShape();
-    assert(shape.size() <= 4);
-    auto size = std::accumulate(std::begin(shape), std::end(shape), 1,
-                                std::multiplies<>());
-    auto resultT = std::make_unique<std::vector<float>>(size);
 
-    int n, c, h, w;
-    float *negative_slope = opdT[1]->data();
-
-    auto input_type = op.x()->getType().cast<TensorType>();
-    std::vector<int64_t> i_s(input_type.getShape());
-    auto output_type = op.y()->getType().cast<TensorType>();
-    std::vector<int64_t> o_s(output_type.getShape());
-    assert((i_s == o_s) && "input shape not equal to output shape");
-    assert((i_s.size() == 4) && "PRelu support shape size of 4 now.");
-
-    n = i_s[0];
-    c = i_s[1];
-    h = i_s[2];
-    w = i_s[3];
-    float *input = (float *)opdT[0]->data();
-    float *output = (float *)resultT.get()->data();
-
-    int ret = my_prelu(input, output, n, c, h, w, negative_slope);
-    assert(ret == 0);
-
-    if (op.quant() == "NONE" || op.quant() == "BF16") {
-    } else if (op.quant() == "INT8") {
-      std::shared_ptr<std::vector<float> > rshift_pos = nullptr;
-      std::shared_ptr<std::vector<float> > multiplier_pos = nullptr;
-      std::shared_ptr<std::vector<float> > rshift_neg = nullptr;
-      // std::shared_ptr<std::vector<float> > multiplier_neg = nullptr;
-
-      // getPReluOpVariadicTensors(op, opdT, rshift_pos, rshift_neg, multiplier_pos, multiplier_neg);
-      getPReluOpVariadicTensors(op, opdT, rshift_pos, multiplier_pos, rshift_neg);
-
-      assert(rshift_pos);
-      assert(rshift_neg);
-      assert(multiplier_pos);
-      // assert(multiplier_neg);
-
-      for (int i = 0; i < size; ++i) {
-        if (input[i] > 0){
-          resultT->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
-              resultT->at(i), (uint32_t)rshift_pos->at(0), multiplier_pos->at(0), false);
-        } else {
-          // resultT->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
-          //     resultT->at(i), (uint32_t)rshift_neg->at(0), multiplier_neg->at(0), false);
-          resultT->at(i) = (float)applyRShiftAndSaturateInt8(
-              resultT->at(i), (uint32_t)rshift_neg->at(0));
-        }
-      }
-    } else {
-      assert(false);
-    }
-
-    valueMapping[result] = std::move(resultT);
-
-    return success();
-  }
 
   if (auto op = dyn_cast<tpu::TanHOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "TanHOp" << "\n";);

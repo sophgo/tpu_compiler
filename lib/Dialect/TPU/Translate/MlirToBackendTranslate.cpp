@@ -553,65 +553,6 @@ static LogicalResult runOperation(Operation &opInst) {
     return success();
   }
 
-  if (auto op = dyn_cast<tpu::PReluOp>(opInst)) {
-    LLVM_DEBUG(llvm::errs() << "PReluOp"
-                            << "\n";);
-
-    int n, c, h, w;
-    auto input_type = op.x()->getType().cast<TensorType>();
-    std::vector<int64_t> i_s(input_type.getShape());
-    auto output_type = op.y()->getType().cast<TensorType>();
-    std::vector<int64_t> o_s(output_type.getShape());
-    assert((i_s == o_s) && "input shape not equal to output shape");
-    n = i_s[0];
-    c = i_s[1];
-    h = i_s[2];
-    w = i_s[3];
-
-    gaddr_t negative_scope_gaddr = getWeightOpAddress(op.getOperand(1)->getDefiningOp());
-
-    gaddr_t input_gaddr = getPreviousOpAddress(op);
-    gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
-    int layer_id = op.layer_id().getValue().getLimitedValue();
-
-    if (op.quant() == "INT8" || op.quant() == "INT8_MULTIPLIER") {
-      int GT_right_shift_width = static_cast<int>(getWeightFromOperandTensor<float>(opInst, 2)->at(0));
-      int GT_scale = static_cast<int>(getWeightFromOperandTensor<float>(opInst, 3)->at(0));
-      int LE_right_shift_width = static_cast<int>(getWeightFromOperandTensor<float>(opInst, 4)->at(0));
-
-      LLVM_DEBUG(llvm::errs() <<
-          "GT_right_shift_width = " << GT_right_shift_width << "\n"
-          "LE_right_shift_width = " << LE_right_shift_width << "\n"
-          "GT_scale = " << GT_scale << "\n";);
-
-      bmnet_prelu_fixed_forward_bmkernel(
-          *backend_ctx,
-          layer_id,             // layer_id,
-          input_gaddr,          // input_data_gaddr,
-          output_gaddr,         // output_data_gaddr,
-          negative_scope_gaddr, // float negative_slope,
-          n, c, h, w,
-          GT_right_shift_width,
-          GT_scale,
-          LE_right_shift_width,
-          FMT_I8
-      );
-    } else if (op.quant() == "BF16"){
-      LLVM_DEBUG(llvm::errs() <<
-          "run PRelu Backend BF16\n";);
-      bf16_prelu_forward_kernel(
-          *backend_ctx,
-          layer_id,
-          input_gaddr,
-          output_gaddr,
-          negative_scope_gaddr,
-          n, c, h, w
-      );
-    } else {
-      assert(0 && "UNKNOW Quant Type.");
-    }
-    return success();
-  }
 
   if (auto op = dyn_cast<tpu::SqrtOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "SqrtOp(" << op.name() << ")\n";);

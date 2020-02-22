@@ -327,6 +327,7 @@ public:
           AssignGAddrTGInt8Pattern<tpu::TG_INT8_PoolAvg2DOp>,
           AssignGAddrTGInt8Pattern<tpu::TG_INT8_PoolMax2DOp>,
           AssignGAddrTGInt8Pattern<tpu::TG_INT8_ShuffleChannelOp>,
+          AssignGAddrTGInt8Pattern<tpu::TG_INT8_PReluOp>,
           AssignGAddrTGInt8Pattern<tpu::TG_INT8_SigmoidOp>,
           AssignGAddrTGInt8Pattern<tpu::TG_INT8_UpsampleOp>,
 
@@ -341,6 +342,7 @@ public:
           AssignGAddrTGBf16Pattern<tpu::TG_BF16_LeakyReluOp>,
           AssignGAddrTGBf16Pattern<tpu::TG_BF16_PoolAvg2DOp>,
           AssignGAddrTGBf16Pattern<tpu::TG_BF16_PoolMax2DOp>,
+          AssignGAddrTGBf16Pattern<tpu::TG_BF16_PReluOp>,
           AssignGAddrTGBf16Pattern<tpu::TG_BF16_SigmoidOp>,
           AssignGAddrTGBf16Pattern<tpu::TG_BF16_UpsampleOp>
         >(context, &pos, neuronMapFile->os(), clNeuronAlignment);
@@ -352,7 +354,6 @@ public:
           TpuQuantizationOpPattern<tpu::FullyConnectedOp>,
           TpuQuantizationOpPattern<tpu::PermuteOp>,
           TpuQuantizationOpPattern<tpu::PowerOp>,
-          TpuQuantizationOpPattern<tpu::PReluOp>,
           TpuQuantizationOpPattern<tpu::SqrtOp>,
           TpuQuantizationOpPattern<tpu::TanHOp>
         >(context, &pos, neuronMapFile->os(), clNeuronAlignment);

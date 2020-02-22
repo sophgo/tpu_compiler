@@ -527,6 +527,74 @@ def TPU_PoolMax2DOp : TPU_Op<"pool_max_2d",
   let results = (outs AnyTensor:$output);
 }
 
+def TPU_PReluOp : TPU_Op<"prelu",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
+       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
+       DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
+  let summary = "prelu operator";
+
+  let description = [{
+    Performs prelu operation on input.
+
+    Inputs:
+      `inputs`              : required, variadic input tensors.
+      `quant_pos_scale`     : optional, the quant scale tensor, for positive
+                              values, one fp32 value.
+      `quant_pos_zeropoint` : optional, the quant zero_point tensor, for
+                              positive values, one int8 value.
+      `quant_neg_scale`     : optional, the quant scale tensor, for negative
+                              values, one fp32 value.
+      `quant_neg_zeropoint` : optional, the quant zero_point tensor, for
+                              negative values, one int8 value.
+      `quant_pos_rshift`    : optional, rshift for positive values, one int32
+                              value.
+      `quant_pos_multiplier`: optional, multiplier for positive values, one
+                              int8 value.
+      `quant_neg_rshift`    : optional, rshift for negative values, one int32
+                              value.
+      `quant_neg_multiplier`: optional, multiplier for negative values, one
+                              int8 value.
+
+
+    Attributes:
+      `quant`           : required, a QuantParam struct attributes.
+      `name`            : required, name for calibration, comparing, or debug.
+      `layer_id`        : optional, id for profiling.
+      
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TPU_QuantPerTensorOnly`
+      `TPU_QuantSupportAsymmetric`
+      `TpuOpCommonInterface` : support common TPU Op interface
+      `TpuOpInterpInterface` : support interperter
+      `TpuOpQuantInterface`  : support quantization
+      `TpuOpLowerInterface`  : support lower to TPU TG Ops
+  }];
+
+  let arguments = (
+    ins Variadic<AnyTensor>:$inputs,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_pos_scale,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_pos_zeropoint,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_neg_scale,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_neg_zeropoint,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_pos_rshift,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_pos_multiplier,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_neg_rshift,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_neg_multiplier,
+    TPU_QuantParamAttr:$quant,
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
 def TPU_ReluOp: TPU_Op<"relu",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
@@ -950,27 +1018,6 @@ def TPU_PowerOp: TPU_Op<"power",
   let results = (outs AnyTensor:$y);
 }
 
-def TPU_PReluOp: TPU_Op<"prelu",
-      [NoSideEffect, DeclareOpInterfaceMethods<TpuInterface>]> {
-  let summary = "PRelu operator";
-
-  let description = [{
-    PRelu operator
-      x -> max(ax,x)
-  }];
-  let arguments = (
-    ins AnyTensor:$x,
-    Variadic<AnyTensor>:$useless,
-    AnyTensor:$negative_slope,
-    OptionalAttr<StrAttr>:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
-    OptionalAttr<F32Attr>:$threshold_y,
-    OptionalAttr<NonNegativeI64Attr>:$offset,
-    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
-  );
-
-  let results = (outs AnyTensor:$y);
-}
 
 def TPU_PriorBoxOp: TPU_Op<"priorbox",
       [NoSideEffect, DeclareOpInterfaceMethods<TpuInterface>]> {
