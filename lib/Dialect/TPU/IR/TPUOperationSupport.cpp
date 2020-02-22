@@ -358,14 +358,14 @@ void parsePoolParam(const tpu::PoolParam &p,
   do_relu = p.do_relu().getValue();
 }
 
-void getFullyConnectedOpParam(tpu::FullyConnectedOp &op,
-    bool &with_transpose, int &m, int &k, int &n,
-    bool &with_bias, bool &do_relu) {
-  auto input_type = op.input()->getType().cast<TensorType>();
+void parseFullyConnectedParam(
+    Value *input, Value *output, Value *filter,
+    int &m, int &k, int &n) {
+  auto input_type = input->getType().template cast<TensorType>();
   std::vector<int64_t> i_s(input_type.getShape());
-  auto output_type = op.output()->getType().cast<TensorType>();
+  auto output_type = output->getType().template cast<TensorType>();
   std::vector<int64_t> o_s(output_type.getShape());
-  auto filter_type = op.filter()->getType().cast<TensorType>();
+  auto filter_type = filter->getType().cast<TensorType>();
   std::vector<int64_t> f_s(filter_type.getShape());
   assert((i_s[0] == o_s[0]) && "input M not equal to output M");
   m = i_s[0];
@@ -374,35 +374,6 @@ void getFullyConnectedOpParam(tpu::FullyConnectedOp &op,
   k = i_s[1];
   assert((f_s[0] == o_s[1]) && "filter N not equal to output N");
   n = o_s[1];
-  if (op.fused_activation_function() == "NONE") {
-    do_relu = false;
-  } else if (op.fused_activation_function() == "RELU") {
-    do_relu = true;
-  } else {
-    assert(0);
-  }
-  with_transpose = op.with_transpose();
-  with_bias = op.with_bias();
-}
-
-void getFullyConnectedOpVariadicTensors(tpu::FullyConnectedOp &op,
-    std::vector<std::shared_ptr<std::vector<float> > > &opdT,
-    std::shared_ptr<std::vector<float> > &bias,
-    std::shared_ptr<std::vector<float> > &rshift) {
-  unsigned idx = 2;  // first 2 opdT are always input and filter
-  if (op.with_bias()) {
-    bias = opdT[idx];
-    idx += 1;
-  }
-  if (op.quant() == "INT8") {
-    rshift = opdT[idx];
-    idx += 1;
-  }
-  if (idx != opdT.size()) {
-    llvm::errs() << op.name() << ": opdT.size=" << opdT.size()
-                 << ", idx=" << idx << "\n";
-    assert(0);
-  }
 }
 
 

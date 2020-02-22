@@ -120,6 +120,65 @@ struct TpuQuantBf16Conv2DOpPattern : public RewritePattern {
   Value* weightFV_;
 };
 
+struct TpuQuantBf16FullyConnectedOpPattern : public RewritePattern {
+  TpuQuantBf16FullyConnectedOpPattern(MLIRContext *context, TensorFile *weightTF,
+      Value* weightFV)
+      : RewritePattern("tpu.fully_connected", 1, context),
+        weightTF_(weightTF),
+        weightFV_(weightFV) {}
+
+  PatternMatchResult matchAndRewrite(Operation *op,
+                                     PatternRewriter &rewriter) const override {
+    if (getOpQuant(op) != "NONE") {
+      LLVM_DEBUG(llvm::errs() << getOpName(op) << " quantized already\n";);
+      return matchFailure();
+    }
+    auto fcOp = cast<tpu::FullyConnectedOp>(op);
+
+    // get filter tensor
+    auto filter = readAndDeleteWeightTensor<float>(fcOp.filter(), weightTF_);
+    std::vector<int64_t> filterShape;
+    int64_t filterSize;
+    getTensorShapeAndSize(fcOp.filter(), filterShape, filterSize);
+
+    // get bias tensor
+    std::unique_ptr<std::vector<float> > bias = nullptr;
+    std::vector<int64_t> biasShape;
+    int64_t biasSize = 0;
+    if ( !isTensorNone(fcOp.bias()) ) {
+      bias = readAndDeleteWeightTensor<float>(fcOp.bias(), weightTF_);
+      getTensorShapeAndSize(fcOp.bias(), biasShape, biasSize);
+    }
+
+    // create new tensors
+    auto new_filter = std::make_unique<std::vector<bfloat16> >(filterSize);
+    std::unique_ptr<std::vector<bfloat16> > new_bias = nullptr;
+    if (bias) {
+      new_bias = std::make_unique<std::vector<bfloat16> >(biasSize);
+    }
+
+    // quantization
+    FloatToBFloat16(filter->data(), new_filter->data(), filterSize);
+    if (bias) {
+      FloatToBFloat16(bias->data(), new_bias->data(), biasSize);
+    }
+
+    // update op
+    addWeightTensorAndUpdateWeightOp<bfloat16>(fcOp.getOperand(1),
+        "quant", *new_filter, filterShape, "BF16", weightTF_);
+    if (bias) {
+      addWeightTensorAndUpdateWeightOp<bfloat16>(fcOp.getOperand(2),
+          "quant", *new_bias, biasShape, "BF16", weightTF_);
+    }
+    setOpQuant(op, "BF16");
+
+    return matchSuccess();
+  }
+
+  TensorFile *weightTF_;
+  Value* weightFV_;
+};
+
 // default quantize pattern, for no weight operations
 template<typename OpTy>
 struct TpuQuantBf16DefaultPattern : public RewritePattern {
@@ -155,67 +214,6 @@ struct TpuQuantBf16DefaultPattern : public RewritePattern {
 
 
 // to be removed
-struct TpuQuantFullyConnectedOpPattern : public RewritePattern {
-  TpuQuantFullyConnectedOpPattern(MLIRContext *context, TensorFile *weightTensorFile,
-      Value* weightFileVar)
-      : RewritePattern("tpu.fully_connected", 1, context),
-        weightTensorFile_(weightTensorFile),
-        weightFileVar_(weightFileVar) {}
-
-  PatternMatchResult matchAndRewrite(Operation *op,
-                                     PatternRewriter &rewriter) const override {
-    auto fcOp = cast<tpu::FullyConnectedOp>(op);
-    //auto loc = op->getLoc();
-
-    if (fcOp.quant() != "NONE") {
-      LLVM_DEBUG(llvm::errs() << fcOp.name() << " quantized already\n";);
-      return matchFailure();
-    }
-
-    // quantize filter
-    auto filter = readAndDeleteWeightTensor<float>(fcOp.getOperand(1),
-        weightTensorFile_);
-    auto filterType = fcOp.filter()->getType().cast<TensorType>();
-    std::vector<int64_t> filterShape(filterType.getShape());
-    int64_t filterSize = std::accumulate(std::begin(filterShape),
-        std::end(filterShape), 1, std::multiplies<>());
-    assert(filterSize == (int64_t)filter->size());
-    // create new tensors
-    auto new_filter = std::make_unique<std::vector<bfloat16> >(filterSize);
-    // quantization
-    FloatToBFloat16(filter->data(), new_filter->data(), filterSize);
-    // update op
-    addWeightTensorAndUpdateWeightOp<bfloat16>(fcOp.getOperand(1),
-        "quant", *new_filter, filterShape, "BF16", weightTensorFile_);
-
-    // quantize bias
-    if (fcOp.with_bias()) {
-      auto bias = readAndDeleteWeightTensor<float>(fcOp.getOperand(2),
-          weightTensorFile_);
-      auto biasType = fcOp.getOperand(2)->getType().cast<TensorType>();
-      std::vector<int64_t> biasShape(biasType.getShape());
-      int64_t biasSize = std::accumulate(std::begin(biasShape),
-          std::end(biasShape), 1, std::multiplies<>());
-      int64_t n = filterShape[0];
-      assert(biasSize == n);
-      assert(biasSize == (int64_t)bias->size());
-      // create new tensors
-      auto new_bias = std::make_unique<std::vector<bfloat16> >(biasSize);
-      // quantization
-      FloatToBFloat16(bias->data(), new_bias->data(), biasSize);
-      // update op
-      addWeightTensorAndUpdateWeightOp<bfloat16>(fcOp.getOperand(2),
-          "quant", *new_bias, biasShape, "BF16", weightTensorFile_);
-    }
-
-    fcOp.setAttr("quant", rewriter.getStringAttr("BF16"));
-
-    return matchSuccess();
-  }
-
-  TensorFile *weightTensorFile_;
-  Value* weightFileVar_;
-};
 
 struct TpuQuantTanHOpPattern : public RewritePattern {
   TpuQuantTanHOpPattern(MLIRContext *context, TensorFile *weightTensorFile,
@@ -522,6 +520,7 @@ public:
                 TpuQuantBf16DefaultPattern<tpu::EltwiseAddOp>,
                 TpuQuantBf16DefaultPattern<tpu::EltwiseMaxOp>,
                 TpuQuantBf16DefaultPattern<tpu::EltwiseMulOp>,
+                TpuQuantBf16FullyConnectedOpPattern,
                 TpuQuantBf16DefaultPattern<tpu::LeakyReluOp>,
                 TpuQuantBf16DefaultPattern<tpu::PoolAvg2DOp>,
                 TpuQuantBf16DefaultPattern<tpu::PoolMax2DOp>,
@@ -530,7 +529,7 @@ public:
                 TpuQuantBf16DefaultPattern<tpu::SigmoidOp>,
                 TpuQuantBf16DefaultPattern<tpu::UpsampleOp>,
 
-                TpuQuantFullyConnectedOpPattern,
+
                 TpuQuantDefaultPattern<tpu::SliceOp>,
                 TpuQuantDefaultPattern<tpu::DivOp>,
                 TpuQuantDefaultPattern<tpu::SqrtOp>,

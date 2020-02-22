@@ -102,7 +102,6 @@ public:
             int processed = 0;
             processed += printTpuOpInfo<tpu::DetectionOutputOp>(op, file_os);
             processed += printTpuOpInfo<tpu::DivOp>(op, file_os);
-            processed += printTpuOpInfo<tpu::FullyConnectedOp>(op, file_os);
             processed += printTpuOpInfo<tpu::InputOp>(op, file_os);
             processed += printTpuOpInfo<tpu::NormalizeOp>(op, file_os);
             processed += printTpuOpInfo<tpu::PermuteOp>(op, file_os);

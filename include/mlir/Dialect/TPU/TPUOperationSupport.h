@@ -72,21 +72,9 @@ void parsePoolParam(const tpu::PoolParam &p,
     int &kh, int &kw, int &sh, int &sw, int &pt, int &pb, int &pl, int &pr,
     bool &is_global, bool &do_relu);
 
-void getFullyConnectedOpParam(tpu::FullyConnectedOp &op,
-    bool &with_transpose, int &m, int &k, int &n,
-    bool &with_bias, bool &do_relu);
-
-void getScaleOpVariadicTensors(
-    tpu::ScaleOp &op, std::vector<std::shared_ptr<std::vector<float>>> &opdT,
-    std::shared_ptr<std::vector<float>> &bias,
-    std::shared_ptr<std::vector<float>> &rshift,
-    std::shared_ptr<std::vector<float>> &multiplier);
-
-void getFullyConnectedOpVariadicTensors(
-    tpu::FullyConnectedOp &op,
-    std::vector<std::shared_ptr<std::vector<float>>> &opdT,
-    std::shared_ptr<std::vector<float>> &bias,
-    std::shared_ptr<std::vector<float>> &rshift);
+void parseFullyConnectedParam(
+    Value *input, Value *output, Value *filter,
+    int &m, int &k, int &n);
 
 
 void getReluOpVariadicTensors(tpu::ReluOp &op,

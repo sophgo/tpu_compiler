@@ -433,6 +433,47 @@ Value* tpu::EltwiseMulOp::convertToTG(void *info) {
   return nullptr;
 }
 
+Value *tpu::FullyConnectedOp::convertToTG(void *info) {
+  llvm::errs() << "lowerToTG: " << getOperationName()
+               << " [" << getOpName() << "]\n";
+  Operation *op = this->getOperation();
+  auto builder = Builder(op->getContext());
+  TensorFile *weightTF_ = (TensorFile *)info;
+
+  std::vector<Value *> operands;
+  operands.push_back(input());
+  operands.push_back(filter());
+  operands.push_back(bias());
+
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder.getNamedAttr("do_relu",
+      builder.getBoolAttr(do_relu())));
+  attrs.push_back(builder.getNamedAttr("name", nameAttr()));
+  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
+
+  if (getOpQuant() == "INT8") {
+    assert(getOpQuantParamType() == "RSHIFT_ONLY");
+    // rshift
+    auto rshift = readAndDeleteWeightTensor<float>(quant_rshift(), weightTF_);
+    assert(rshift->size() == 1);
+    attrs.push_back(builder.getNamedAttr("rshift",
+        builder.getI8IntegerAttr(static_cast<int8_t>(rshift->at(0)))));
+
+    // create op
+    auto newOp = OpBuilder(op).create<tpu::TG_INT8_FullyConnectedOp>(op->getLoc(),
+        getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  } else if (getOpQuant() == "BF16") {
+    auto newOp = OpBuilder(op).create<tpu::TG_BF16_FullyConnectedOp>(op->getLoc(),
+        getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  }
+  assert(false);
+  return nullptr;
+}
+
 Value* tpu::LeakyReluOp::convertToTG(void *info) {
   llvm::errs() << "lowerToTG: " << getOperationName()
                << " [" << getOpName() << "]\n";
@@ -945,7 +986,8 @@ struct PackWeightBroadcastMulOpPattern : public RewritePattern {
 };
 
 template<typename T>
-static void transposeConvolutionFilter(std::vector<T> &w, std::vector<int64_t> &s) {
+static void transposeConvolutionFilter(std::vector<T> &w,
+    std::vector<int64_t> &s) {
   int64_t oc, ic, ks;
   if (s.size() == 4) {
     oc = s[0];
@@ -971,6 +1013,21 @@ static void transposeConvolutionFilter(std::vector<T> &w, std::vector<int64_t> &
           w_t[i * ic * ks + k * ic + j] = w[i * ic * ks + j * ks + k];
         }
       }
+    }
+  }
+  w.assign(w_t.begin(), w_t.end());
+}
+
+template<typename T>
+static void transposeFullyConnectedFilter(std::vector<T> &w,
+    std::vector<int64_t> &s) {
+  assert(s.size() == 2);
+  int row = s[0];
+  int col = s[1];
+  std::vector<T> w_t(w.size());
+  for (int i = 0; i < row; i++) {
+    for (int j = 0; j < col; j++) {
+      w_t[j * row + i] = w[i * col  + j];
     }
   }
   w.assign(w_t.begin(), w_t.end());
@@ -1127,6 +1184,123 @@ struct LowerWeightConv2DOpPattern : public RewritePattern {
   TensorFile *weightTF_;
 };
 
+struct LowerWeightFullyConnectedOpPattern : public RewritePattern {
+  LowerWeightFullyConnectedOpPattern(MLIRContext *context, TensorFile *weightTF)
+      : RewritePattern("tpu.fully_connected", 1, context),
+        weightTF_(weightTF) {}
+
+  PatternMatchResult matchAndRewrite(Operation *op,
+      PatternRewriter &rewriter) const override {
+    auto fcOp = cast<tpu::FullyConnectedOp>(op);
+    auto filterOp = cast<tpu::LoadWeightOp>(fcOp.filter()->getDefiningOp());
+    if (filterOp.lowered()) {
+      // lowered already
+      return matchFailure();
+    }
+    llvm::errs() << "Lower Weight for FullyConnectedOp: " << getOpName(op) << "\n";
+
+    if (getOpQuant(op) == "INT8") {
+      // lower filter
+      {
+        assert(filterOp.storage() == "INT8");
+        std::vector<int64_t> shape;
+        int64_t size;
+        getTensorShapeAndSize(fcOp.filter(), shape, size);
+        auto filter = readAndDeleteWeightTensor<float>(fcOp.filter(), weightTF_);
+        std::vector<int8_t> filter_int8(filter->begin(), filter->end());
+        // transpose k,n
+        assert(shape.size() == 2);
+        transposeFullyConnectedFilter<int8_t>(filter_int8, shape);
+
+        // save it
+        addWeightTensorAndUpdateWeightOp<int8_t>(fcOp.filter(),
+            "lowered", filter_int8, shape, "INT8", weightTF_);
+        filterOp.setAttr("lowered", rewriter.getBoolAttr(true));
+      }
+
+      // lower bias
+      if ( !isTensorNone(fcOp.bias()) ) {
+        auto biasOp = cast<tpu::LoadWeightOp>(fcOp.bias()->getDefiningOp());
+        // per-tensor mode, bias is INT16
+        assert(biasOp.storage() == "INT16");
+        std::vector<int64_t> shape;
+        int64_t size;
+        getTensorShapeAndSize(fcOp.bias(), shape, size);
+        auto bias = readAndDeleteWeightTensor<float>(fcOp.bias(), weightTF_);
+        std::vector<int16_t> bias_int16(bias->begin(), bias->end());
+        transposeBiasInt16(bias_int16);
+        std::vector<uint16_t> bias_uint16(size);
+        memcpy(bias_uint16.data(), bias_int16.data(), size * sizeof(int16_t));
+
+        // save it
+        // after transpose, this is not INT16 anymore, it is 2 stripes of UINT8
+        // we save it as UINT16, to carry the eltment bitwidth, so we don`t need
+        // to change the shape.
+        addWeightTensorAndUpdateWeightOp<uint16_t>(fcOp.bias(),
+            "lowered", bias_uint16, shape, "UINT16", weightTF_);
+        biasOp.setAttr("lowered", rewriter.getBoolAttr(true));
+      }
+    } else if (getOpQuant(op) == "BF16") {
+      // lower filter
+      {
+        assert(filterOp.storage() == "BF16");
+        std::vector<int64_t> shape;
+        int64_t size;
+        getTensorShapeAndSize(fcOp.filter(), shape, size);
+        auto filter = readAndDeleteWeightTensor<bfloat16>(fcOp.filter(), weightTF_);
+        std::vector<uint16_t> filter_bf16(filter->begin(), filter->end());
+        // transpose h,n
+        assert(shape.size() == 2);
+        transposeFullyConnectedFilter<uint16_t>(filter_bf16, shape);
+
+        // save it
+        StringRef storageType = "BF16";
+        addWeightTensorAndUpdateWeightOp<uint16_t>(fcOp.filter(),
+            "lowered", filter_bf16, shape, storageType, weightTF_);
+        filterOp.setAttr("lowered", rewriter.getBoolAttr(true));
+      }
+
+      // lower bias
+      if ( !isTensorNone(fcOp.bias()) ) {
+        auto biasOp = cast<tpu::LoadWeightOp>(fcOp.bias()->getDefiningOp());
+        assert(biasOp.storage() == "BF16");
+        // NOTE: for 1880v2, bias is fp32, rather than bf16
+        // however, for simplicity, in quantizeBf16, we quantize all tensor into bf16
+        // before lowering to hardware, we need to expand the bf16 to fp32 first
+        // then transpose into 2 stripes of uint16_t
+        std::vector<int64_t> shape;
+        int64_t size;
+        getTensorShapeAndSize(fcOp.bias(), shape, size);
+        auto bias = readAndDeleteWeightTensor<bfloat16>(fcOp.bias(), weightTF_);
+        std::vector<uint16_t> bias_bf16(bias->begin(), bias->end());
+        // rather than expand to fp32, then transpose, we simply add a new stripe
+        // of uint16_t with all 0x0000
+        size_t sz = bias_bf16.size();
+        for (size_t i = 0; i < sz; ++i) {
+          bias_bf16.push_back(0x0000);
+        }
+        // then copy into uint32_t
+        std::vector<uint32_t> bias_uint32(sz);
+        memcpy(bias_uint32.data(), bias_bf16.data(), sz * sizeof(uint32_t));
+
+        // save it
+        // after expand to FB32 and transpose, this is not FB32 anymore
+        // it is 2 stripes of UINT16(BF16)
+        // we save it as UINT32, to carry the eltment bitwidth, so we don`t need
+        // to change the shape
+        StringRef storageType = "UINT32";
+        addWeightTensorAndUpdateWeightOp<uint32_t>(fcOp.bias(),
+            "lowered", bias_uint32, shape, storageType, weightTF_);
+        biasOp.setAttr("lowered", rewriter.getBoolAttr(true));
+      }
+    }
+
+    return matchSuccess();
+  }
+
+  TensorFile *weightTF_;
+};
+
 class TpuLowerPass : public FunctionPass<TpuLowerPass> {
 public:
   void runOnFunction() override {
@@ -1156,7 +1330,8 @@ public:
     // lower means transpose and save as storageType (int8/bf16,etc)
     OwningRewritePatternList patterns_lower;
     patterns_lower.insert<
-        LowerWeightConv2DOpPattern
+        LowerWeightConv2DOpPattern,
+        LowerWeightFullyConnectedOpPattern
         >(context, weightTF.get());
     applyPatternsGreedily(fn, patterns_lower);
 
@@ -1171,6 +1346,7 @@ public:
         DefaultToTGPattern<tpu::EltwiseAddOp>,
         DefaultToTGPattern<tpu::EltwiseMaxOp>,
         DefaultToTGPattern<tpu::EltwiseMulOp>,
+        DefaultToTGPattern<tpu::FullyConnectedOp>,
         DefaultToTGPattern<tpu::LeakyReluOp>,
         DefaultToTGPattern<tpu::PoolAvg2DOp>,
         DefaultToTGPattern<tpu::PoolMax2DOp>,

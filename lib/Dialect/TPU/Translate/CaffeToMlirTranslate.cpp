@@ -914,6 +914,8 @@ void CaffeImporter::convertInnerProductLayer(mlir::Block *block,
 
   std::vector<Value *> operands;
   operands.push_back(fc_input_var);
+  auto NoneOp = OpBuilder(block).create<tpu::NoneOp>(builder_.getUnknownLoc(),
+                                                     builder_.getNoneType());
 
   // - blobs_[0] holds the filter weights
   // - blobs_[1] holds the biases (optional)
@@ -926,14 +928,20 @@ void CaffeImporter::convertInnerProductLayer(mlir::Block *block,
     auto bias_type = RankedTensorType::get({N}, elementType_);
     weightFile_->addTensor(bias_name, layer->blobs()[1].get()->cpu_data(), bias_type);
     operands.push_back(AddLoadWeightOp(block, bias_name, bias_type));
+  } else {
+    operands.push_back(NoneOp.getResult());
   }
+  operands.push_back(NoneOp.getResult());  // quant_scale
+  operands.push_back(NoneOp.getResult());  // quant_zeropoint
+  operands.push_back(NoneOp.getResult());  // quant_rshift
+  operands.push_back(NoneOp.getResult());  // quant_multiplier
 
   // construct OP
   auto result_type = RankedTensorType::get({M, N}, elementType_);
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder_.getNamedAttr("with_bias", builder_.getBoolAttr(with_bias)));
-  attrs.push_back(builder_.getNamedAttr("with_transpose", builder_.getBoolAttr(with_transpose)));
   attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name())));
+  attrs.push_back(builder_.getNamedAttr("quant", getDefaultQuantParam(builder_)));
   auto op = OpBuilder(block).create<tpu::FullyConnectedOp>(
       builder_.getUnknownLoc(), result_type,
       ArrayRef<Value *>{operands}, ArrayRef<NamedAttribute>{attrs});

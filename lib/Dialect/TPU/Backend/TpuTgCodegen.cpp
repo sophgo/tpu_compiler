@@ -148,7 +148,7 @@ LogicalResult tpu::TG_INT8_ConcatOp::codegen(void *ctx) {
   BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
   Operation *op = this->getOperation();
 
-  int nInputs = op->getNumOperands();
+  unsigned nInputs = op->getNumOperands();
   gaddr_t ga_inputs[nInputs];
   for ( int i = 0; i < nInputs; i++) {
     ga_inputs[i] = getPreviousOpAddress(op, i);
@@ -902,6 +902,101 @@ LogicalResult tpu::TG_BF16_EltwiseMulOp::codegen(void *ctx) {
       do_relu,      // bool do_relu
       0.0f,         // float relu_slope
       coeffs);
+
+  return success();
+}
+
+LogicalResult tpu::TG_INT8_FullyConnectedOp::codegen(void *ctx) {
+  llvm::errs() << "TG_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";
+  BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  int m, k, n;
+  parseFullyConnectedParam(input(), output(), filter(), m, k, n);
+  bool do_relu = this->do_relu();
+  gaddr_t ga_input = getPreviousOpAddress(op);
+  gaddr_t ga_output = getOpAddress(op);
+  gaddr_t ga_filter = getWeightOpAddress(filter()->getDefiningOp());
+  gaddr_t ga_bias = INVALID_GLOBAL_ADDR;
+  bool with_bias = false;
+  if ( !isTensorNone(bias()) ) {
+    ga_bias = getWeightOpAddress(bias()->getDefiningOp());
+    with_bias = true;
+  }
+  int layer_id = mlir::getOpLayerId(op);
+
+  int8_t rshift_int8 = rshift().getValue().getLimitedValue();
+  int rshift = static_cast<int>(rshift_int8);
+
+  bmnet_fc_fixed_forward_bmkernel(
+      *backend_ctx,
+      0, // stream_id,
+      0, // inst_id,
+      layer_id, // layer_id,
+      nullptr, // depends
+      0, // depends_len
+      ga_input, // input_data_gaddr,
+      ga_filter, // weight_data_gaddr,
+      ga_bias, // bias_data_gaddr,
+      ga_output, // output_data_gaddr,
+      m, // int in_row,
+      k, // int in_col,
+      n, // int out_col,
+      with_bias, // int have_bias,
+      do_relu ? 1 : 0, // do_activation,
+      0, // activation_method,
+      INVALID_GLOBAL_ADDR, // activation_ga_slope,
+      0, // int activation_channel_shared,
+      0, // int activation_gt_scale,
+      0, // int activation_gt_rshift,
+      0, // int activation_le_scale,
+      0, // int activation_le_rshift,
+      false, // weight_tp,
+      3,     // int left_shift_width, // #define DEFAULT_FC_LEFT_SHIFT 3
+      (int)rshift, // rshift
+      0,     //int threshold_x_quantized_len,
+      nullptr, //const int *threshold_x_quantized,
+      nullptr  //const int *right_shift_array
+      );
+
+  return success();
+}
+
+LogicalResult tpu::TG_BF16_FullyConnectedOp::codegen(void *ctx) {
+  llvm::errs() << "TG_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";
+  BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  int m, k, n;
+  parseFullyConnectedParam(input(), output(), filter(), m, k, n);
+  bool do_relu = this->do_relu();
+  gaddr_t ga_input = getPreviousOpAddress(op);
+  gaddr_t ga_output = getOpAddress(op);
+  gaddr_t ga_filter = getWeightOpAddress(filter()->getDefiningOp());
+  gaddr_t ga_bias = INVALID_GLOBAL_ADDR;
+  bool with_bias = false;
+  if ( !isTensorNone(bias()) ) {
+    ga_bias = getWeightOpAddress(bias()->getDefiningOp());
+    with_bias = true;
+  }
+  int layer_id = mlir::getOpLayerId(op);
+
+  bf16_fc_forward_kernel(
+      *backend_ctx,
+      layer_id, // layer_id
+      ga_input, // input_data_gaddr
+      ga_filter, // weight_data_gaddr
+      ga_bias, // bias_data_gaddr
+      ga_output, // output_data_gaddr
+      m, // int in_row
+      k, // int in_col
+      n, // in out_col,
+      with_bias, // has_bias
+      do_relu ? 1 : 0, // do_activation
+      0  // activation_method
+      );
 
   return success();
 }
