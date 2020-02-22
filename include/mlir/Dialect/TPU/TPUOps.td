@@ -615,10 +615,12 @@ def TPU_ScaleOp: TPU_Op<"scale",
   );
 
   let results = (outs AnyTensor:$output);
+
+  let hasCanonicalizer = 1;
 }
 
 def TPU_ShuffleChannelOp: TPU_Op<"shuffle_channel",
-    [NoSideEffect,         
+    [NoSideEffect,
      DeclareOpInterfaceMethods<TpuOpCommonInterface>,
       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
@@ -660,8 +662,6 @@ def TPU_ShuffleChannelOp: TPU_Op<"shuffle_channel",
   );
 
   let results = (outs AnyTensor:$output);
-
-  let hasCanonicalizer = 1;
 }
 
 def TPU_SoftmaxOp: TPU_Op<"softmax",
