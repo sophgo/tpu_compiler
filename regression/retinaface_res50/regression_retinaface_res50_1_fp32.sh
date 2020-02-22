@@ -6,10 +6,19 @@ source $DIR/../../envsetup.sh
 
 CHECK_NON_OPT_VERSION=0
 
-mlir-translate --caffe-to-mlir \
-    $MODEL_PATH/face_detection/retinaface/caffe/R50-0000.prototxt \
-    --caffemodel $MODEL_PATH/face_detection/retinaface/caffe/R50-0000.caffemodel \
-    -o retinaface_res50.mlir
+RETINAFACE_USE_DECONV=0
+
+if [ $RETINAFACE_USE_DECONV -eq 1 ]; then
+  mlir-translate --caffe-to-mlir \
+      $MODEL_PATH/face_detection/retinaface/caffe/R50-0000.prototxt \
+      --caffemodel $MODEL_PATH/face_detection/retinaface/caffe/R50-0000.caffemodel \
+      -o retinaface_res50_deconv.mlir
+else
+  mlir-translate --caffe-to-mlir \
+      $MODEL_PATH/face_detection/retinaface/caffe/R50-0000-upsample.prototxt \
+      --caffemodel $MODEL_PATH/face_detection/retinaface/caffe/R50-0000-upsample.caffemodel \
+      -o retinaface_res50.mlir
+fi
 
 if [ $CHECK_NON_OPT_VERSION -eq 1 ]; then
   mlir-opt \

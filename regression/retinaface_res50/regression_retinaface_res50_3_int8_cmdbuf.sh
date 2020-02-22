@@ -41,7 +41,7 @@ mlir-opt \
     retinaface_res50_quant_int8_tg.mlir \
     -o retinaface_res50_quant_int8_addr.mlir
 
- mlir-translate retinaface_res50_quant_int8_addr.mlir \
+mlir-translate retinaface_res50_quant_int8_addr.mlir \
     --mlir-to-cmdbuf \
     -o cmdbuf_int8.bin
 

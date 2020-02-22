@@ -164,6 +164,11 @@ private:
 
 } // namespace
 
+void tpu::BatchNormOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
+                                              MLIRContext *context) {
+  //results.insert<TpuBatchNormOpPattern>(context, nullptr);
+}
+
 std::unique_ptr<OpPassBase<FuncOp>> mlir::createConvertBnToScalePass() {
   return std::make_unique<ConvertBnToScalePass>();
 }

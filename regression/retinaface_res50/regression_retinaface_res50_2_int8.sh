@@ -13,7 +13,7 @@ if [ $DO_CALIBRATION -eq 1 ]; then
 
   python $PYTHON_TOOLS_PATH/model/retinaface/calibrate_retinaface.py \
       retinaface_res50 \
-      retinaface_res50-opt.mlir \
+      retinaface_res50_opt.mlir \
       cali_list_widerface_100.txt \
       retinaface_res50_threshold_table \
       --input_num=100 \
@@ -56,7 +56,7 @@ npz_compare.py \
       retinaface_res50_caffe_blobs.npz \
       --op_info retinaface_res50_op_info_int8.csv \
       --dequant \
-      --tolerance 0.94,0.94,0.65 -vvv
+      --tolerance 0.95,0.94,0.68 -vvv
 
 if [ $COMPARE_ALL -eq 1 ]; then
   npz_compare.py \
@@ -64,7 +64,7 @@ if [ $COMPARE_ALL -eq 1 ]; then
       retinaface_res50_caffe_blobs.npz \
       --op_info retinaface_res50_op_info_int8.csv \
       --dequant \
-      --tolerance 0.86,0.83,0.44 -vvv
+      --tolerance 0.86,0.83,0.49 -vv
 fi
 
 # VERDICT

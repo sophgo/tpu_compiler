@@ -554,7 +554,7 @@ Value *tpu::SigmoidOp::convertToTG(void *info) {
   auto builder = Builder(op->getContext());
 
 
-  int nInputs = 2; // input and table 
+  int nInputs = 2; // input and table
   std::vector<Value *> operands;
   for (auto i = 0; i < nInputs; ++i) {
     operands.push_back(op->getOperand(i));
@@ -646,6 +646,28 @@ struct DefaultErasePattern : public RewritePattern {
     rewriter.replaceOp(op, {op->getOperand(0)});
     return matchSuccess();
   }
+};
+
+struct FoldReshapePattern : public RewritePattern {
+  FoldReshapePattern(MLIRContext *context)
+      : RewritePattern("tpu.reshape", 1, context) {}
+
+  PatternMatchResult matchAndRewrite(Operation *op,
+                                     PatternRewriter &rewriter) const override {
+    auto loc = op->getLoc();
+    auto laterReshapeOp = cast<tpu::ReshapeOp>(op);
+
+    auto formerOp = laterReshapeOp.getOperand()->getDefiningOp();
+    if (!matchPattern(formerOp, m_Op<tpu::ReshapeOp>())) {
+      return matchFailure();
+    }
+    auto formerScaleOp = cast<tpu::ReshapeOp>(formerOp);
+
+    laterReshapeOp.getOperation()->setOperand(0, formerScaleOp.getOperand());
+    return matchSuccess();
+  }
+
+  TensorFile *weightTensorFile_;
 };
 
 static std::unique_ptr<std::vector<uint8_t> > packWeight(
@@ -1012,12 +1034,13 @@ public:
     applyPatternsGreedily(fn, patterns);
 
     // TODO: this is temporary
-    // erase CPU ops
+    // erase CPU ops, fold reshape
     patterns.clear();
     patterns.insert<
-        DefaultErasePattern<tpu::SoftmaxOp>
+        DefaultErasePattern<tpu::SoftmaxOp>,
         //DefaultErasePattern<tpu::QuantizationOp>,
-        //DefaultErasePattern<tpu::DequantizationOp>
+        DefaultErasePattern<tpu::DequantizationOp>,
+        FoldReshapePattern
         >(context);
     applyPatternsGreedily(fn, patterns);
 
