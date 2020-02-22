@@ -317,7 +317,6 @@ public:
       } else {
       // to be deprecated
       addThresholdAttr<tpu::InputOp>(builder, threshold_map, op);
-      addThresholdAttr<tpu::BatchNormOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::DivOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::FullyConnectedOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::PowerOp>(builder, threshold_map, op);

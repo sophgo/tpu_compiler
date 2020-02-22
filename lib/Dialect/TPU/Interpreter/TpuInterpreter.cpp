@@ -66,6 +66,37 @@ static std::vector<std::shared_ptr<std::vector<float> > >
   return opdT;
 }
 
+LogicalResult tpu::BatchNormOp::interpret(
+    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+  Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
+
+  auto opdT = getOperandTensors(op, valueMapping);
+  auto result = this->getResult();
+  auto size = getTensorSize(result);
+  auto resultT = std::make_unique<std::vector<float> >(size);
+
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(this->input(), shape, input_size);
+  assert(input_size == size);
+  getNCHW(shape, n, c, h, w);
+
+  float *input = (float *)opdT[0]->data();
+  float *mean = (float *)opdT[1]->data();
+  float *variance = (float *)opdT[2]->data();
+  float *scale = (float *)opdT[3]->data();
+  float *output = (float *)resultT.get()->data();
+  float variance_epsilon = this->variance_epsilon().convertToFloat();
+
+  int ret = my_bn(input, mean, variance, scale, variance_epsilon, output, n, c, h, w);
+  assert(ret == 0);
+
+  valueMapping[result] = std::move(resultT);
+
+  return success();
+}
+
 LogicalResult tpu::BroadcastMulOp::interpret(
     DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();
@@ -868,7 +899,9 @@ LogicalResult tpu::SoftmaxOp::interpret(
   }
 
   valueMapping[result] = std::move(resultT);
+  return success();
 }
+
 LogicalResult tpu::SigmoidOp::interpret(
     DenseMap<Value *, std::shared_ptr<std::vector<float>>> &valueMapping) {
   Operation *op = this->getOperation();
@@ -1229,45 +1262,6 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     assert(ret == 0);
     //dump_data_float_abs("mkldnn_output", mkldnn_output, n, c, oh, ow);
     // TODO: End of compute, need refactor
-
-    valueMapping[result] = std::move(resultT);
-
-    return success();
-  }
-  if (auto op = dyn_cast<tpu::BatchNormOp>(opInst)) {
-    LLVM_DEBUG(llvm::errs() << "BatchNormOp" << "\n";);
-    auto opdT = getOperandTensors(opInst, valueMapping);
-    auto result = op.getResult();
-    LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";);
-    std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
-    assert(shape.size() <= 4);
-    auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
-    auto resultT = std::make_unique<std::vector<float> >(size);
-
-    int n, c, h, w;
-    auto input_type = op.x()->getType().cast<TensorType>();
-    std::vector<int64_t> i_s(input_type.getShape());
-    auto output_type = op.y()->getType().cast<TensorType>();
-    std::vector<int64_t> o_s(output_type.getShape());
-    assert((i_s == o_s) && "input shape not equal to output shape");
-
-    assert((i_s.size() == 4 || i_s.size() == 2) &&
-           "BatchNorm support shape size of 4 or 2 now." );
-
-    n = i_s[0];
-    c = i_s[1];
-    h = (i_s.size() == 2) ? 1 : i_s[2];
-    w = (i_s.size() == 2) ? 1 : i_s[3];
-
-    float *input = (float *)opdT[0]->data();
-    float *mean = (float *)opdT[1]->data();
-    float *variance = (float *)opdT[2]->data();
-    float *scale = (float *)opdT[3]->data();
-    float *output = (float *)resultT.get()->data();
-    float variance_epsilon = op.variance_epsilon().convertToFloat();
-    int ret = my_bn(input, mean, variance, scale, variance_epsilon, output, n, c, h, w);
-
-    assert(ret == 0);
 
     valueMapping[result] = std::move(resultT);
 

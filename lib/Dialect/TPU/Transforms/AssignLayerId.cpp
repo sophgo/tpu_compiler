@@ -59,7 +59,6 @@ public:
       } else {
         // to be removed
         int processed = 0;
-        processed += addLayerIdAttr<tpu::BatchNormOp>(builder, layer_id, op);
         processed += addLayerIdAttr<tpu::DetectionOutputOp>(builder, layer_id, op);
         processed += addLayerIdAttr<tpu::DivOp>(builder, layer_id, op);
         processed += addLayerIdAttr<tpu::FullyConnectedOp>(builder, layer_id, op);

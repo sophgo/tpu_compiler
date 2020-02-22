@@ -164,13 +164,61 @@ class TPU_EltwiseOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
 // TPU op definitions. (in alphabetical order)
 //===----------------------------------------------------------------------===//
 
+def TPU_BatchNormOp: TPU_Op<"batch_norm",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuOpInterpInterface>]> {
+  let summary = "BatchNorm operator";
+
+  let description = [{
+    Normalizes an array across batch and spatial dimensions.
+
+
+    Inputs:
+      `input`           : required, the input activation tensor.
+      `mean`            : required, the mean weight tensor, per-channel value.
+      `variance`        : required, the variance weight tensor, per-channel
+                          value.
+      `scale`           : required, the scale weight tensor, one value.
+
+    Attributes:
+      `variance_epsilon`: required, eps for variance.
+      `name`            : required, name for calibration, comparing, or debug.
+      `layer_id`        : optional, id for profiling.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface` : support common TPU Op interface
+      `TpuOpInterpInterface` : support interperter
+      No `TpuOpQuantInterface`  : convert to ScaleOp befor quant
+      NO `TpuOpLowerInterface`  : convert to ScaleOp befor quant
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    AnyTensor:$mean,
+    AnyTensor:$variance,
+    AnyTensor:$scale,
+    DefaultValuedAttr<F32Attr, "1.0e-5">:$variance_epsilon,
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
+  );
+
+  let results = (outs AnyTensor:$output);
+
+  let hasCanonicalizer = 1;
+}
+
 def TPU_BroadcastMulOp: TPU_Op<"broadcast_mul",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
        DeclareOpInterfaceMethods<TpuOpInterpInterface>,
        DeclareOpInterfaceMethods<TpuOpQuantInterface>,
        DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
-  let summary = "Scale operator";
+  let summary = "Broadcast Multiply operator";
 
   let description = [{
     Performs scale on input.
@@ -832,32 +880,6 @@ def TPU_UpsampleOp: TPU_Op<"upsample",
 
 
 // to be removed
-def TPU_BatchNormOp: TPU_Op<"batch_norm",
-      [NoSideEffect, DeclareOpInterfaceMethods<TpuInterface>]> {
-  let summary = "BatchNorm operator";
-
-  let description = [{
-    Normalizes an array across batch and spatial dimensions.
-  }];
-
-  let arguments = (
-    ins AnyTensor:$x,
-    AnyTensor:$mean,
-    AnyTensor:$variance,
-    AnyTensor:$scale,
-    DefaultValuedAttr<F32Attr, "1.0e-5">:$variance_epsilon,
-    OptionalAttr<StrAttr>:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
-    OptionalAttr<NonNegativeI64Attr>:$offset,
-    OptionalAttr<F32Attr>:$threshold_y,
-    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
-  );
-
-  let results = (outs AnyTensor:$y);
-
-  let hasCanonicalizer = 1;
-}
-
 def TPU_DetectionOutputOp: TPU_Op<"detectionoutput",
       [NoSideEffect, DeclareOpInterfaceMethods<TpuInterface>]> {
   let summary = "DetectionOutput operator";
