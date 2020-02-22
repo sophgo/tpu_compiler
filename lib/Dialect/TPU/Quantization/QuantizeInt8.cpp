@@ -1329,6 +1329,7 @@ public:
                 TpuQuantInt8BypassPattern<tpu::PoolMax2DOp>,
                 TpuQuantInt8LeakyReluOpPattern,
                 TpuQuantInt8BypassPattern<tpu::ReluOp>,
+                TpuQuantInt8BypassPattern<tpu::ShuffleChannelOp>,
                 TpuQuantInt8SigmoidOpPattern,
                 TpuQuantInt8BypassPattern<tpu::UpsampleOp>,
 

@@ -617,6 +617,51 @@ def TPU_ScaleOp: TPU_Op<"scale",
   let results = (outs AnyTensor:$output);
 }
 
+def TPU_ShuffleChannelOp: TPU_Op<"shuffle_channel",
+    [NoSideEffect,         
+     DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+      DeclareOpInterfaceMethods<TpuOpInterpInterface>,
+      DeclareOpInterfaceMethods<TpuOpQuantInterface>,
+      DeclareOpInterfaceMethods<TpuOpLowerInterface> ]>  {
+
+  let summary = "ShuffleChannel operator";
+
+  let description = [{
+    Shuffle Channel on input.
+
+    Inputs:
+      `input`           : required, the input activation tensor.
+
+    Attributes:
+      `group`           : required, channel group.
+      `quant`           : required, a QuantParam struct attributes.
+      `name`            : required, name for calibration, comparing, or debug.
+      `layer_id`        : optional, id for profiling.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TPU_QuantPerTensorOnly`
+      `TPU_QuantSupportAsymmetric`
+      `TpuOpCommonInterface` : support common TPU Op interface
+      `TpuOpInterpInterface` : support interperter
+      `TpuOpQuantInterface`  : support quantization
+      `TpuOpLowerInterface`  : support lower to TPU TG Ops
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    NonNegativeI32Attr:$group,
+    TPU_QuantParamAttr:$quant,
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
 def TPU_SoftmaxOp: TPU_Op<"softmax",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
@@ -1086,27 +1131,6 @@ def TPU_TanHOp: TPU_Op<"tanh",
     OptionalAttr<StrAttr>:$name,
     OptionalAttr<NonNegativeI32Attr>:$layer_id,
     OptionalAttr<NonNegativeI64Attr>:$offset,
-    OptionalAttr<F32Attr>:$threshold_y,
-    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
-  );
-
-  let results = (outs AnyTensor:$y);
-}
-
-def TPU_ShuffleChannelOp: TPU_Op<"shuffle_channel",
-    [NoSideEffect,  DeclareOpInterfaceMethods<TpuInterface>]> {
-  let summary = "ShuffleChannel operator";
-
-  let description = [{
-    Shuffle Channel on input.
-  }];
-
-  let arguments = (
-    ins AnyTensor:$x,
-    NonNegativeI32Attr:$group,
-    OptionalAttr<StrAttr>:$name,
-     OptionalAttr<NonNegativeI64Attr>:$offset,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
     OptionalAttr<F32Attr>:$threshold_y,
     DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
   );

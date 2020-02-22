@@ -326,6 +326,7 @@ public:
           AssignGAddrTGInt8Pattern<tpu::TG_INT8_LeakyReluOp>,
           AssignGAddrTGInt8Pattern<tpu::TG_INT8_PoolAvg2DOp>,
           AssignGAddrTGInt8Pattern<tpu::TG_INT8_PoolMax2DOp>,
+          AssignGAddrTGInt8Pattern<tpu::TG_INT8_ShuffleChannelOp>,
           AssignGAddrTGInt8Pattern<tpu::TG_INT8_SigmoidOp>,
           AssignGAddrTGInt8Pattern<tpu::TG_INT8_UpsampleOp>,
 

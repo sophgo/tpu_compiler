@@ -74,7 +74,6 @@ public:
         processed += addLayerIdAttr<tpu::SoftmaxOp>(builder, layer_id, op);
         processed += addLayerIdAttr<tpu::SqrtOp>(builder, layer_id, op);
         processed += addLayerIdAttr<tpu::TanHOp>(builder, layer_id, op);
-        processed += addLayerIdAttr<tpu::ShuffleChannelOp>(builder, layer_id, op);
         if (op->getName().getDialect().str() != "tpu"
             || isa<tpu::QuantizationOp>(op)
             || isa<tpu::DequantizationOp>(op)
