@@ -4,84 +4,136 @@ set -e
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 source $DIR/../../envsetup.sh
 
-# translate from caffe
-mlir-translate \
-    --caffe-to-mlir $MODEL_PATH/caffe/mobilenet_v2_deploy.prototxt \
-    --caffemodel $MODEL_PATH/caffe/mobilenet_v2.caffemodel \
-    -o mobilenet_v2.mlir
-
-# apply all possible pre-calibration optimizations
-mlir-opt \
-    --convert-bn-to-scale \
-    --fold-scale \
-    --merge-scale-into-conv \
-    mobilenet_v2.mlir \
-    -o mobilenet_v2_opt.mlir
+COMPARE_ALL=1
 
 # import calibration table
+# relu-overwrite-backward is the default (20200209)
 mlir-opt \
     --import-calibration-table \
-    --calibration-table $DATA_PATH/bmnet_mobilenet_v2_calibration_table.1x10 \
+    --calibration-table $REGRESSION_PATH/mobilenet_v2/data/mobilenet_v2_calibration_table \
     mobilenet_v2_opt.mlir \
     -o mobilenet_v2_cali.mlir
 
-# apply all possible post-calibration optimizations
+# for mobilenet_v2_calibration_table, fwd and bwd are the same
+mlir-opt \
+    --import-calibration-table \
+    --enable-cali-overwrite-threshold-forward-relu=true \
+    --enable-cali-overwrite-threshold-backward-relu=false \
+    --calibration-table $REGRESSION_PATH/mobilenet_v2/data/mobilenet_v2_calibration_table \
+    mobilenet_v2_opt.mlir \
+    -o mobilenet_v2_cali_fwd.mlir
+
+# apply post-calibration optimizations
+# not applying --fuse-eltwise for now
 mlir-opt \
     --fuse-relu \
-    --fuse-eltwise \
     mobilenet_v2_cali.mlir \
     -o mobilenet_v2_opt_post_cali.mlir
 
 # quantization 1: per-layer int8
 mlir-opt \
     --quant-int8 \
+    --print-tpu-op-info \
+    --tpu-op-info-filename mobilenet_v2_op_info_int8_per_layer.csv \
     mobilenet_v2_opt_post_cali.mlir \
     -o mobilenet_v2_quant_int8_per_layer.mlir
 
 mlir-tpu-interpreter mobilenet_v2_quant_int8_per_layer.mlir \
-    --input-scale 0.017 \
-    --tensor-in $DATA_PATH/test_cat_in_fp32.bin \
-    --tensor-out out_int8_per_layer.bin \
-    --dump-all-tensor=tensor_all.npz
-# bin_compare.py out.bin out_int8_per_layer.bin float32 1 1 1 1000 5
-npz_to_bin.py tensor_all.npz fc7 out_fc7.bin
-bin_fp32_to_int8.py out_fc7.bin out_fc7_int8.bin
-diff out_fc7_int8.bin $DATA_PATH/test_cat_out_mobilenet_v2_fc7_int8_per_layer.bin
+    --tensor-in mobilenet_v2_in_fp32.npz \
+    --tensor-out mobilenet_v2_out_int8_per_layer.npz \
+    --dump-all-tensor=mobilenet_v2_tensor_all_int8_per_layer.npz
+
+npz_to_bin.py \
+    mobilenet_v2_tensor_all_int8_per_layer.npz \
+    fc7 \
+    mobilenet_v2_out_fc7_int8_per_layer.bin \
+    int8
+bin_compare.py \
+    mobilenet_v2_out_fc7_int8_per_layer.bin \
+    $REGRESSION_PATH/mobilenet_v2/data/test_cat_out_mobilenet_v2_fc7_int8_per_layer.bin \
+    int8 1 1 1 1000 5
+
+if [ $COMPARE_ALL -eq 1 ]; then
+  # this will fail for now, because prob has been dequantized twice, others should pass
+  npz_compare.py \
+      mobilenet_v2_tensor_all_int8_per_layer.npz \
+      mobilenet_v2_blobs.npz \
+      --op_info mobilenet_v2_op_info_int8_per_layer.csv \
+      --dequant \
+      --excepts prob \
+      --tolerance 0.58,0.56,-0.03 -vvv
+fi
 
 # quantization 2: per-channel int8
 mlir-opt \
     --quant-int8 \
     --enable-conv-per-channel \
+    --print-tpu-op-info \
+    --tpu-op-info-filename mobilenet_v2_op_info_int8_per_channel.csv \
     mobilenet_v2_opt_post_cali.mlir \
     -o mobilenet_v2_quant_int8_per_channel.mlir
 
 mlir-tpu-interpreter mobilenet_v2_quant_int8_per_channel.mlir \
-    --input-scale 0.017 \
-    --tensor-in $DATA_PATH/test_cat_in_fp32.bin \
-    --tensor-out out_int8_per_channel.bin \
-    --dump-all-tensor=tensor_all.npz
-# bin_compare.py out.bin out_int8_per_channel.bin float32 1 1 1 1000 5
-npz_to_bin.py tensor_all.npz fc7 out_fc7.bin
-bin_fp32_to_int8.py out_fc7.bin out_fc7_int8.bin
-diff out_fc7_int8.bin $DATA_PATH/test_cat_out_mobilenet_v2_fc7_int8_per_channel.bin
+    --tensor-in mobilenet_v2_in_fp32.npz \
+    --tensor-out mobilenet_v2_out_int8_per_channel.npz \
+    --dump-all-tensor=mobilenet_v2_tensor_all_int8_per_channel.npz
+
+npz_to_bin.py \
+    mobilenet_v2_tensor_all_int8_per_channel.npz \
+    fc7 \
+    mobilenet_v2_out_fc7_int8_per_channel.bin \
+    int8
+bin_compare.py \
+    mobilenet_v2_out_fc7_int8_per_channel.bin \
+    $REGRESSION_PATH/mobilenet_v2/data/test_cat_out_mobilenet_v2_fc7_int8_per_channel.bin \
+    int8 1 1 1 1000 5
+
+if [ $COMPARE_ALL -eq 1 ]; then
+  # this will fail for now, because prob has been dequantized twice, others should pass
+  npz_compare.py \
+      mobilenet_v2_tensor_all_int8_per_channel.npz \
+      mobilenet_v2_blobs.npz \
+      --op_info mobilenet_v2_op_info_int8_per_channel.csv \
+      --dequant \
+      --excepts prob \
+      --tolerance 0.9,0.89,0.57 -vvv
+fi
 
 # quantization 3: per-channel int8 with multiplier
 mlir-opt \
     --quant-int8 \
     --enable-conv-per-channel \
     --enable-conv-multiplier \
+    --print-tpu-op-info \
+    --tpu-op-info-filename mobilenet_v2_op_info_int8_multiplier.csv \
     mobilenet_v2_opt_post_cali.mlir \
     -o mobilenet_v2_quant_int8_multiplier.mlir
 
 mlir-tpu-interpreter mobilenet_v2_quant_int8_multiplier.mlir \
-    --input-scale 0.017 \
-    --tensor-in $DATA_PATH/test_cat_in_fp32.bin \
-    --tensor-out out_int8_multiplier.bin \
-    --dump-all-tensor=tensor_all.npz
-# bin_compare.py out.bin out_int8_multiplier.bin float32 1 1 1 1000 5
-npz_to_bin.py tensor_all.npz fc7 out_fc7.bin
-bin_fp32_to_int8.py out_fc7.bin out_fc7_int8.bin
-diff out_fc7_int8.bin $DATA_PATH/test_cat_out_mobilenet_v2_fc7_int8_multiplier.bin
+    --tensor-in mobilenet_v2_in_fp32.npz \
+    --tensor-out mobilenet_v2_out_int8_multiplier.npz \
+    --dump-all-tensor=mobilenet_v2_tensor_all_int8_multiplier.npz
+
+npz_to_bin.py \
+    mobilenet_v2_tensor_all_int8_multiplier.npz \
+    fc7 \
+    mobilenet_v2_out_fc7_int8_multiplier.bin \
+    int8
+bin_compare.py \
+    mobilenet_v2_out_fc7_int8_multiplier.bin \
+    $REGRESSION_PATH/mobilenet_v2/data/test_cat_out_mobilenet_v2_fc7_int8_multiplier.bin \
+    int8 1 1 1 1000 5
+
+if [ $COMPARE_ALL -eq 1 ]; then
+  # this will fail for now, because prob has been dequantized twice, others should pass
+  npz_compare.py \
+      mobilenet_v2_tensor_all_int8_multiplier.npz \
+      mobilenet_v2_blobs.npz \
+      --op_info mobilenet_v2_op_info_int8_multiplier.csv \
+      --dequant \
+      --excepts prob \
+      --tolerance 0.9,0.9,0.57 -vvv
+fi
 
 # VERDICT
 echo $0 PASSED

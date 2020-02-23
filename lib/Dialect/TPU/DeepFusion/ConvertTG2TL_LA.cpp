@@ -47,24 +47,19 @@ struct TpuTG2TLConv2DOpPattern : public RewritePattern {
 
   PatternMatchResult matchAndRewrite(Operation *opInst,
                                      PatternRewriter &rewriter) const override {
+#if 1
+    assert(false);
+#else
     auto op = cast<tpu::Conv2DOp>(opInst);
     //auto loc = op->getLoc();
     assert(op.quant() == "INT8_MULTIPLIER"
            && "TG2TL support INT8_MULTIPLIER mode only");
 
-    bool with_bias, do_relu;
+    bool is_dw, with_bias, do_relu;
     int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, ph, pw, dh, dw;
-    getConv2DOpParam(op, n, ic, ih, iw, oc, oh, ow, g,
-                     kh, kw, sh, sw, ph, pw, dh, dw, with_bias, do_relu);
-    if (op.fused_eltwise_method() != "NONE") {
-      // dont't support eltwise yet
-      llvm::errs() << "TG2TL_LA: " << op.name()
-                   << ", layer ID " << op.layer_id()
-                   << ", SKIP, not support eltwise yet"
-                   << "\n";
-      return matchFailure();
-    }
-    bool do_eltwise = (op.fused_eltwise_method() == "SUM") ? true : false;
+    parseConvParam(op.param(), false, op.input(), op.output(), op.filter(),
+                   n, ic, ih, iw, oc, oh, ow, g,
+                   kh, kw, sh, sw, ph, pw, dh, dw, is_dw, with_bias, do_relu);
 
     uint64_t inputNeuronSizePerLane = MInfo::getSizePerLane(n, ic, ih, iw, true);
     uint64_t outputNeuronSizePerLane = MInfo::getSizePerLane(n, oc, oh, ow, true);
@@ -131,6 +126,7 @@ struct TpuTG2TLConv2DOpPattern : public RewritePattern {
           ArrayRef<Value *>{newOperands}, ArrayRef<NamedAttribute>{attrs});
       return matchSuccess();
     }
+#endif
   }
 };
 

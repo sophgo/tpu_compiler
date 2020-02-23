@@ -42,11 +42,12 @@ uint32_t findRShiftForBiasI32(float max_bias, float threshold_y);
 double findQScaleForFilter(float max_filter,
                           float threshold_y, float threshold_x);
 double findQScaleForBiasI32(float max_bias, float threshold_y);
-uint32_t findRShiftAndMultiplierFromQScale(double qscale,
+int8_t findRShiftAndMultiplierFromQScale(double qscale,
                                            uint32_t *multiplier = nullptr,
                                            bool qdm = false,
                                            uint32_t max_multiplier = 127);
-uint32_t findMultiplierFromQScaleAndRShift(double qscale, uint32_t rshift);
+uint32_t findMultiplierU32FromQScaleAndRShift(double qscale, uint32_t rshift);
+int8_t findMultiplierI8FromQScaleAndRShift(double qscale, int8_t rshift);
 
 int8_t quantizeFilterRShift(float w, float threshold_y, float threshold_x,
                             uint32_t rshift);

@@ -589,6 +589,35 @@ int my_bn(float *input, float *mean, float *variance, float *scale, float varian
   return 0;
 }
 
+// shuffle channel
+int my_shuffle_channel(float *input, float *output, unsigned int group, int n, int c,  int feature_map_size) {
+    LLVM_DEBUG(llvm::errs() << "  n: " << n << ", c: " << c << ",  g: " << group
+                          << ", f: " << feature_map_size << "\n";);
+    const int batch_length = feature_map_size * c;
+    int group_column = int(c/ group);
+    if (c % group != 0) {
+      llvm::errs() << "Error: Wrong group size, c=" << c << ", group =" << group;
+      assert(0);
+    }
+
+    for(int i = 0; i < n; ++i)
+    {
+      float * p_in = input + i * batch_length;
+      float * p_out = output + i * batch_length;
+      for (uint32_t j = 0; j < group; ++j) // 2
+      {
+          for(int k = 0; k < group_column ; ++k) // 3
+          {
+              float* p_i = p_in + (j * group_column + k ) * feature_map_size;
+              float* p_o = p_out + (k * group + j ) * feature_map_size;
+
+              memcpy((void*)p_o, (void*)p_i, feature_map_size * sizeof(float) );
+          }
+      }
+    }
+  return 0;
+}
+
 int my_scale(float *input, float *scale, float *bias,
     float *output, int n, int c, int h, int w) {
 #ifdef DUMP_FLAG
@@ -701,7 +730,7 @@ int my_softmax4D(float *input, float *output, int axis, const std::vector<int64_
         // find max and subtract the max to avoid numerical issues
         float max_val = 0;
         for (int C = 0; C < shape[1]; ++C) {
-          iter = (N * shape[1] * shape[2] * shape[3]) 
+          iter = (N * shape[1] * shape[2] * shape[3])
             + (C * shape[2] * shape[3]) + (H * shape[3]) + W;
 
           max_val = std::max(input[iter], max_val);
@@ -711,7 +740,7 @@ int my_softmax4D(float *input, float *output, int axis, const std::vector<int64_
         float *ex = new float[shape[1]];
         float sum_of_ex = 0.0f;
         for (int C = 0; C < shape[1]; ++C) {
-          iter = (N * shape[1] * shape[2] * shape[3]) 
+          iter = (N * shape[1] * shape[2] * shape[3])
             + (C * shape[2] * shape[3]) + (H * shape[3]) + W;
 
           float x = input[iter] - max_val;
@@ -721,7 +750,7 @@ int my_softmax4D(float *input, float *output, int axis, const std::vector<int64_
 
         // calculate softmax
         for (int C = 0; C < shape[1]; ++C) {
-          iter = (N * shape[1] * shape[2] * shape[3]) 
+          iter = (N * shape[1] * shape[2] * shape[3])
             + (C * shape[2] * shape[3]) + (H * shape[3]) + W;
 
           output[iter] = ex[C] / sum_of_ex;
@@ -733,7 +762,33 @@ int my_softmax4D(float *input, float *output, int axis, const std::vector<int64_
   return 0;
 }
 
-int my_crop(float *input, float *output, long int *shape1, long int *shape2, long int *top_shape,
+int my_softmax3D(float *input, float *output, int axis, const std::vector<int64_t>& shape) {
+  assert(shape.size() == 3);
+  int c = shape[0];
+  int h = shape[1];
+  int w = shape[2];
+  //just for axis = 2 now
+  assert(axis == 2);
+
+  auto tmp_resultT = std::make_unique<std::vector<float> >(w);
+  float *tmp = (float *)tmp_resultT.get()->data();
+
+  for(int ci = 0; ci < c; ci++) {
+    for(int hi = 0; hi < h; hi++) {
+      for(int wi = 0; wi < w; wi++) {
+        tmp[wi] = input[ci * w * h + hi * w + wi];
+      }
+
+      int ret = my_softmax2D(tmp, tmp, 1, w);
+      assert(ret == 0);
+      for(int wi = 0; wi < w; wi++) {
+        output[ci * w * h + hi * w + wi] = tmp[wi];
+      }
+    }  //end for hi
+  } //end for ci
+}
+
+int my_crop(float *input, float *output, long int *shape1, int *shape2, long int *top_shape,
             int cur_dim, int *offsets, int *indices) {
   // for loop if dim is not last
   if (cur_dim + 1 < 4) {

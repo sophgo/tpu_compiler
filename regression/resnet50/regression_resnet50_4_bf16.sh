@@ -4,17 +4,10 @@ set -e
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 source $DIR/../../envsetup.sh
 
-# apply post-calibration optimizations
-# not applying --fuse-eltwise for now
-mlir-opt \
-    --fuse-relu \
-    resnet50_opt.mlir \
-    -o resnet50_opt2.mlir
-
 # quantization
 mlir-opt \
     --quant-bf16 \
-    resnet50_opt2.mlir \
+    resnet50_opt.mlir \
     -o resnet50_quant_bf16.mlir
 
 # bf16 inference
@@ -27,7 +20,7 @@ npz_compare.py \
     resnet50_tensor_all_bf16.npz \
     resnet50_tensor_all_fp32.npz \
     --op_info resnet50_op_info.csv \
-    --tolerance=0.99,0.99,0.95 -vvv
+    --tolerance=0.99,0.99,0.95 -vv
 
 # VERDICT
 echo $0 PASSED

@@ -40,10 +40,10 @@
 namespace mlir {
 
 class ModuleOp;
+typedef DenseMap<Value *, std::shared_ptr<std::vector<float> > > value_map_t;
 
 // Implementation class for module interpreter.
 class ModuleInterpreter {
-  typedef std::map<Value *, std::shared_ptr<std::vector<float> > > value_map_t;
 
 public:
   // Interpret the given MLIR module expressed in MLIR TPU IR dialect

@@ -20,7 +20,7 @@ int my_avg_pooling(float *input, float *output, int n, int c, int ih, int iw,
                    int oh, int ow, int kh, int kw, int sh, int sw, int pt,
                    int pb, int pl, int pr);
 int my_sigmoid(float *input, float *output, int n, int c, int h, int w);
-int my_crop(float *input, float *output, long int *shape1, long int *shape2, long int *top_shape,  int cur_dim, int *offsets, int *indices);
+int my_crop(float *input, float *output, long int *shape1, int *shape2, long int *top_shape,  int cur_dim, int *offsets, int *indices);
 int my_relu(float *input, float *output,
     int n, int c, int h, int w, float negative_slope);
 
@@ -30,6 +30,9 @@ int my_prelu(float *input, float *output, int n, int c, int h, int w,
 int my_bn(float *input, float *mean, float *variance, float *scale, float variance_epsilon,
     float *output, int n, int c, int h, int w);
 
+int my_shuffle_channel(float *input, float *output, unsigned int group,
+    int n, int c,  int feature_map_size);
+
 int my_scale(float *input, float *scale, float *bias,
     float *output, int n, int c, int h, int w);
 
@@ -38,6 +41,7 @@ int my_upsample(float *input, float *output,
 
 int my_softmax2D(float *input, float *output, int n, int c);
 int my_softmax4D(float *input, float *output, int axis, const std::vector<int64_t>& shape);
+int my_softmax3D(float *input, float *output, int axis, const std::vector<int64_t>& shape);
 
 int my_tanh(float *input, float *output,
     int n, int c, int h, int w);

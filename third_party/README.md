@@ -28,6 +28,9 @@ Some of them are using tree build, some rely on manually build for now.
 ## caffe
 
 - https://github.com/BVLC/caffe
+- Use master branch
+  * Merge caffe.proto from intel branch
+  * Add layers: upsample, ssd related.
 - Use tpu branch (based on intel branch, for SSD/YOLO etc.)
   * Intel branch can't use Ninja
   * Disable followings compilation options
@@ -55,6 +58,17 @@ $ cd build
 Assuming install to $TPU_BASE/install_caffe
 $ export CAFFE_PATH=$TPU_BASE/install_caffe
 ```
+
+To build master branch
+
+
+```bash
+cmake -G Ninja -DCPU_ONLY=ON -DUSE_OPENCV=OFF \
+    -DCMAKE_INSTALL_PREFIX=$CAFFE_PATH ..
+cmake --build . --target install
+```
+
+To build intel branch
 
 Ubuntu 18.04 (use prebuilt mkldnn)
 ```

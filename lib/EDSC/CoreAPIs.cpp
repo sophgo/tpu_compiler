@@ -42,6 +42,14 @@ mlir_type_t makeMemRefType(mlir_context_t context, mlir_type_t elemType,
   return mlir_type_t{t.getAsOpaquePointer()};
 }
 
+mlir_type_t makeRankedTensorType(mlir_context_t context, mlir_type_t elemType,
+                                 int64_list_t sizes) {
+  auto t = mlir::RankedTensorType::get(
+      llvm::ArrayRef<int64_t>(sizes.values, sizes.n),
+      mlir::Type::getFromOpaquePointer(elemType));
+  return mlir_type_t{t.getAsOpaquePointer()};
+}
+
 mlir_type_t makeFunctionType(mlir_context_t context, mlir_type_list_t inputs,
                              mlir_type_list_t outputs) {
   llvm::SmallVector<mlir::Type, 8> ins(inputs.n), outs(outputs.n);
@@ -65,6 +73,18 @@ mlir_type_t makeIndexType(mlir_context_t context) {
 mlir_attr_t makeIntegerAttr(mlir_type_t type, int64_t value) {
   auto ty = Type::getFromOpaquePointer(reinterpret_cast<const void *>(type));
   auto attr = IntegerAttr::get(ty, value);
+  return mlir_attr_t{attr.getAsOpaquePointer()};
+}
+
+mlir_attr_t makeFloatAttr(mlir_context_t context, float value) {
+  auto *ctx = reinterpret_cast<mlir::MLIRContext *>(context);
+  auto attr = FloatAttr::get(FloatType::getF32(ctx), APFloat(value));
+  return mlir_attr_t{attr.getAsOpaquePointer()};
+}
+
+mlir_attr_t makeStringAttr(mlir_context_t context, const char *value) {
+  auto *ctx = reinterpret_cast<mlir::MLIRContext *>(context);
+  auto attr = StringAttr::get(value, ctx);
   return mlir_attr_t{attr.getAsOpaquePointer()};
 }
 

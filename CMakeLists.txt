@@ -106,6 +106,7 @@ add_subdirectory(test)
 add_subdirectory(third_party)
 add_subdirectory(externals)
 add_subdirectory(bindings/python)
+add_subdirectory(bindings/python/pybind)
 
 if( LLVM_INCLUDE_EXAMPLES )
   add_subdirectory(examples)

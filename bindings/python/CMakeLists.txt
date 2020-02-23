@@ -7,7 +7,6 @@ endif()
 
 project(pymlir)
 
-# add_subdirectory(pybind11)
 pybind11_add_module(pymlir pymlir.cpp)
 
 whole_archive_link(mlir-tpu-interpreter
@@ -20,7 +19,6 @@ target_link_libraries(pymlir PRIVATE
   MLIRTransforms
   MLIRTranslation
   MLIRTPU
-  MLIRTPUInterpreter
   MLIRAnalysis
   MLIREDSC
   MLIRIR

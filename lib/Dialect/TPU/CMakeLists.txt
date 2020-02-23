@@ -8,17 +8,23 @@ add_llvm_library(MLIRTPU
   IR/TPUDialect.cpp
   IR/DialectRegistration.cpp
   IR/TPUOperationSupport.cpp
+  IR/TPUTensorSupport.cpp
   Analysis/TpuOpPrint.cpp
   Analysis/TpuOpStats.cpp
   Transforms/ConvertBnToScale.cpp
   Transforms/FoldScale.cpp
   Transforms/MergeScaleIntoConv.cpp
+  Transforms/ConvertScaleToDWConv
   Transforms/FuseRelu.cpp
   Transforms/FuseEltwise.cpp
   Transforms/AssignWeightAddress.cpp
   Transforms/AssignNeuronAddress.cpp
   Transforms/AssignLayerId.cpp
   Transforms/ConvertPriorBoxToLoadWeight.cpp
+  Transforms/LowerToTG.cpp
+  Interpreter/TpuInterpreter.cpp
+  Interpreter/NativeCpuImplementation.cpp
+  Interpreter/CpuLayer_DetectionOutput.cpp
   Quantization/QuantizationArithmetic.cpp
   Quantization/ImportCalibrationTable.cpp
   Quantization/QuantizeInt8.cpp
@@ -27,6 +33,8 @@ add_llvm_library(MLIRTPU
   Quantization/GenSqrtTable.cpp
   Quantization/GenDivTable.cpp
   Quantization/GenSigmoidTable.cpp
+  Optimization/FuseLeakyRelu.cpp
+  Backend/TpuTgCodegen.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${MLIR_MAIN_INCLUDE_DIR}/mlir/Dialect/TPU
@@ -35,14 +43,16 @@ add_llvm_library(MLIRTPU
 add_dependencies(MLIRTPU
   MLIRTPUOpsIncGen
   MLIRTPUInterfaceIncGen
+  MLIRTPUAttributeIncGen
   MLIRIR
-  LLVMSupport)
+  LLVMSupport
+  CViBackend)
 target_link_libraries(MLIRTPU
   MLIRIR
   MLIRStandardOps
   LLVMSupport
+  backend
   ${tpu_LINKER_LIBS})
 
 add_subdirectory(Translate)
-add_subdirectory(Interpreter)
 add_subdirectory(DeepFusion)

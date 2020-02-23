@@ -9,7 +9,7 @@ add_llvm_library(MLIREDSC
   Builders.cpp
   Helpers.cpp
   Intrinsics.cpp
-
+  CoreAPIs.cpp
   ADDITIONAL_HEADER_DIRS
   ${MLIR_MAIN_INCLUDE_DIR}/mlir/EDSC
   )

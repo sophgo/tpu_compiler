@@ -20,6 +20,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/TPU/TPUDialect.h"
+#include "mlir/Dialect/TPU/TPUOperationSupport.h"
 #include "mlir/Dialect/TPU/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
@@ -46,6 +47,7 @@ public:
     mlir::ModuleOp module = getModule();
     //mlir::SymbolTable moduleSymTable(module);
 
+#if 0
     os << "Modules:\n";
     os << "-----------------------\n";
     //auto mainFn = moduleSymTable.lookup<mlir::FuncOp>("main");
@@ -68,6 +70,7 @@ public:
       });
     }
     os << "\n";
+#endif
 
     std::unique_ptr<llvm::ToolOutputFile> file = nullptr;
     if (clTpuOpInfoFilename != "-") {
@@ -82,42 +85,46 @@ public:
 
       for (auto func : module.getOps<FuncOp>()) {
         func.walk([&](Operation *op) {
-          int processed = 0;
-          processed += printTpuOpInfo<tpu::BatchNormOp>(op, file_os);
-          processed += printTpuOpInfo<tpu::ConcatOp>(op, file_os);
-          processed += printTpuOpInfo<tpu::Conv2DOp>(op, file_os);
-          processed += printTpuOpInfo<tpu::CropOp>(op, file_os);
-          processed += printTpuOpInfo<tpu::DeConv2DOp>(op, file_os);
-          processed += printTpuOpInfo<tpu::DetectionOutputOp>(op, file_os);
-          processed += printTpuOpInfo<tpu::DivOp>(op, file_os);
-          processed += printTpuOpInfo<tpu::EltwiseOp>(op, file_os);
-          processed += printTpuOpInfo<tpu::FullyConnectedOp>(op, file_os);
-          processed += printTpuOpInfo<tpu::InputOp>(op, file_os);
-          processed += printTpuOpInfo<tpu::NormalizeOp>(op, file_os);
-          processed += printTpuOpInfo<tpu::PermuteOp>(op, file_os);
-          processed += printTpuOpInfo<tpu::Pool2DOp>(op, file_os);
-          processed += printTpuOpInfo<tpu::PowerOp>(op, file_os);
-          processed += printTpuOpInfo<tpu::PReluOp>(op, file_os);
-          processed += printTpuOpInfo<tpu::PriorBoxOp>(op, file_os);
-          processed += printTpuOpInfo<tpu::ReluOp>(op, file_os);
-          processed += printTpuOpInfo<tpu::ReshapeOp>(op, file_os);
-          processed += printTpuOpInfo<tpu::ScaleOp>(op, file_os);
-          processed += printTpuOpInfo<tpu::SigmoidOp>(op, file_os);
-          processed += printTpuOpInfo<tpu::SliceOp>(op, file_os);
-          processed += printTpuOpInfo<tpu::SoftmaxOp>(op, file_os);
-          processed += printTpuOpInfo<tpu::SqrtOp>(op, file_os);
-          processed += printTpuOpInfo<tpu::TanHOp>(op, file_os);
-          processed += printTpuOpInfo<tpu::UpsampleOp>(op, file_os);
-          if (op->getName().getDialect().str() != "tpu"
-              || isa<tpu::QuantizationOp>(op)
-              || isa<tpu::DequantizationOp>(op)
-              || isa<tpu::LoadWeightOp>(op)
-              || isa<tpu::LoadFileOp>(op)) {
-            processed = 1;
-          }
-          if (!processed) {
-            llvm::errs() << "printTpuOpInfo didn't handle " << op->getName() << "\n";
-            assert(false);
+          if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpCommonInterface>(op)) {
+            std::string op_name = mlir::getOpName(op).str();
+            file_os << op_name;
+            file_os << "," << getOpLayerId(op);
+            if (auto quantOp = llvm::dyn_cast<tpu::TpuOpQuantInterface>(op)) {
+              file_os << "," << getOpQuant(op);
+              file_os << "," << std::to_string(getOpThreshold(op));
+            } else {
+              file_os << "," << "NONE";
+              file_os << "," << 0;
+            }
+            file_os << "\n";
+          } else {
+            // to be removed
+            int processed = 0;
+            processed += printTpuOpInfo<tpu::DetectionOutputOp>(op, file_os);
+            processed += printTpuOpInfo<tpu::DivOp>(op, file_os);
+            processed += printTpuOpInfo<tpu::InputOp>(op, file_os);
+            processed += printTpuOpInfo<tpu::NormalizeOp>(op, file_os);
+            processed += printTpuOpInfo<tpu::PermuteOp>(op, file_os);
+            processed += printTpuOpInfo<tpu::PowerOp>(op, file_os);
+            processed += printTpuOpInfo<tpu::PReluOp>(op, file_os);
+            processed += printTpuOpInfo<tpu::PriorBoxOp>(op, file_os);
+            processed += printTpuOpInfo<tpu::ReshapeOp>(op, file_os);
+            processed += printTpuOpInfo<tpu::SigmoidOp>(op, file_os);
+            processed += printTpuOpInfo<tpu::SliceOp>(op, file_os);
+            processed += printTpuOpInfo<tpu::SqrtOp>(op, file_os);
+            processed += printTpuOpInfo<tpu::TanHOp>(op, file_os);
+            if (op->getName().getDialect().str() != "tpu"
+                || isa<tpu::QuantizationOp>(op)
+                || isa<tpu::DequantizationOp>(op)
+                || isa<tpu::LoadWeightOp>(op)
+                || isa<tpu::LoadFileOp>(op)
+                || isa<tpu::NoneOp>(op)) {
+              processed = 1;
+            }
+            if (!processed) {
+              llvm::errs() << "printTpuOpInfo didn't handle " << op->getName() << "\n";
+              assert(false);
+            }
           }
         });
       }
@@ -129,17 +136,14 @@ private:
   int printTpuOpInfo(Operation *op, llvm::raw_ostream &file_os) {
       auto cast_op = llvm::dyn_cast_or_null<T>(op);
       if (cast_op) {
-        std::string op_name = cast_op.name().getValue().str();
+        std::string op_name = mlir::getOpName(op).str();
         file_os << op_name;
         if (cast_op.layer_id().hasValue())
           file_os << "," << cast_op.layer_id().getValue().getLimitedValue();
         else
           file_os << "," << "-1";
-        file_os << "," << cast_op.quant();
-        if (cast_op.threshold_y().hasValue())
-          file_os << "," << cast_op.threshold_y().getValue().convertToFloat();
-        else
-          file_os << "," << "0.0";
+        file_os << "," << getOpQuant(op);
+        file_os << "," << getOpThreshold(op);
         file_os << "\n";
         return 1;
       }

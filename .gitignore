@@ -3,3 +3,4 @@
 *.mlir
 *.bin
 *.csv
+*.pyc

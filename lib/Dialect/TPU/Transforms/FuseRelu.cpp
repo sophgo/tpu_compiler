@@ -20,6 +20,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/TPU/TPUDialect.h"
+#include "mlir/Dialect/TPU/TPUOperationSupport.h"
 #include "mlir/Dialect/TPU/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
@@ -48,51 +49,101 @@ struct TpuFuseReluPattern : public RewritePattern {
 
     if (matchPattern(formerOp, m_Op<tpu::Conv2DOp>())) {
       auto convOp = cast<tpu::Conv2DOp>(formerOp);
-      assert(convOp.fused_activation_function() == "NONE");
-      // set fused_activation_function for conv Op
-      convOp.setAttr("fused_activation_function", rewriter.getStringAttr("RELU"));
-      convOp.setAttr("name", rewriter.getStringAttr(reluOp.name().getValue()));
-      // remove the relu Op
-      rewriter.replaceOp(op, {op->getOperand(0)});
-      return matchSuccess();
-    } else if (matchPattern(formerOp, m_Op<tpu::EltwiseOp>())) {
-      auto eltOp = cast<tpu::EltwiseOp>(formerOp);
-      assert(eltOp.fused_activation_function() == "NONE");
-      // set fused_activation_function for conv Op
-      eltOp.setAttr("fused_activation_function", rewriter.getStringAttr("RELU"));
-      eltOp.setAttr("name", rewriter.getStringAttr(reluOp.name().getValue()));
-      // remove the relu Op
-      rewriter.replaceOp(op, {op->getOperand(0)});
-      return matchSuccess();
+      assert(convOp.param().do_relu().getValue() == false);
+      // set do_relu
+      convOp.setAttr("param",
+          tpu::ConvParam::get(
+              convOp.param().stride_h(),
+              convOp.param().stride_w(),
+              convOp.param().padding(),
+              convOp.param().dilation_h(),
+              convOp.param().dilation_w(),
+              convOp.param().group(),
+              convOp.param().is_dw(),
+              convOp.param().with_bias(),
+              rewriter.getBoolAttr(true),
+              rewriter.getContext()));
+      convOp.setAttr("name", rewriter.getStringAttr(reluOp.getOpName()));
+    } else if (matchPattern(formerOp, m_Op<tpu::EltwiseAddOp>())) {
+      auto eltOp = cast<tpu::EltwiseAddOp>(formerOp);
+      assert(!eltOp.do_relu());
+      eltOp.setAttr("do_relu", rewriter.getBoolAttr(true));
+      eltOp.setAttr("name", rewriter.getStringAttr(reluOp.getOpName()));
+    } else if (matchPattern(formerOp, m_Op<tpu::EltwiseMaxOp>())) {
+      auto eltOp = cast<tpu::EltwiseAddOp>(formerOp);
+      assert(!eltOp.do_relu());
+      eltOp.setAttr("do_relu", rewriter.getBoolAttr(true));
+      eltOp.setAttr("name", rewriter.getStringAttr(reluOp.getOpName()));
+    } else if (matchPattern(formerOp, m_Op<tpu::EltwiseMulOp>())) {
+      auto eltOp = cast<tpu::EltwiseAddOp>(formerOp);
+      assert(!eltOp.do_relu());
+      eltOp.setAttr("do_relu", rewriter.getBoolAttr(true));
+      eltOp.setAttr("name", rewriter.getStringAttr(reluOp.getOpName()));
     } else if (matchPattern(formerOp, m_Op<tpu::FullyConnectedOp>())) {
       auto fcOp = cast<tpu::FullyConnectedOp>(formerOp);
-      assert(fcOp.fused_activation_function() == "NONE");
-      // set fused_activation_function for fc Op
-      fcOp.setAttr("fused_activation_function", rewriter.getStringAttr("RELU"));
-      fcOp.setAttr("name", rewriter.getStringAttr(reluOp.name().getValue()));
-      // remove the relu Op
-      rewriter.replaceOp(op, {op->getOperand(0)});
-      return matchSuccess();
+      fcOp.setAttr("do_relu", rewriter.getBoolAttr(true));
+      fcOp.setAttr("name", rewriter.getStringAttr(reluOp.getOpName()));
+    } else if (matchPattern(formerOp, m_Op<tpu::BroadcastMulOp>())) {
+      auto bcastOp = cast<tpu::BroadcastMulOp>(formerOp);
+      assert(!bcastOp.do_relu());
+      bcastOp.setAttr("do_relu", rewriter.getBoolAttr(true));
+      bcastOp.setAttr("name", rewriter.getStringAttr(reluOp.getOpName()));
     } else if (matchPattern(formerOp, m_Op<tpu::ConcatOp>())) {
-      // Do nothing
-      return matchSuccess();
+      // TODO: need to fuse
+      assert(false);
+      return matchFailure();
     } else if (matchPattern(formerOp, m_Op<tpu::ScaleOp>())) {
-      // scale is implemented by depthwise convolution in backend
-      // Hence, we can fuse relu into scale
-      auto scaleOp = cast<tpu::ScaleOp>(formerOp);
-      assert(scaleOp.fused_activation_function() == "NONE");
-      // set fused_activation_function for scale Op
-      scaleOp.setAttr("fused_activation_function", rewriter.getStringAttr("RELU"));
-      scaleOp.setAttr("name", rewriter.getStringAttr(reluOp.name().getValue()));
-      // remove the relu Op
-      rewriter.replaceOp(op, {op->getOperand(0)});
-      return matchSuccess();
+      assert(false);
+      // TODO: convert to conv
+      return matchFailure();
+    } else {
+      llvm::errs() << "unhandled relu fuse with " << getOpName(formerOp) << "\n";
+      assert(0);
+      return matchFailure();
     }
 
-    assert(0);
-    return matchFailure();
+    // remove the relu Op
+    rewriter.replaceOp(op, {op->getOperand(0)});
+    return matchSuccess();
   }
 };
+
+struct TpuMoveReluAheadConcatPattern : public RewritePattern {
+  TpuMoveReluAheadConcatPattern(MLIRContext *context)
+      : RewritePattern("tpu.relu", 1, context) {}
+
+  PatternMatchResult matchAndRewrite(Operation *op,
+                                     PatternRewriter &rewriter) const override {
+    auto reluOp = cast<tpu::ReluOp>(op);
+    llvm::errs() << reluOp.getOperationName() << "\n";
+
+    // match relu Op that is following concat Ops
+    auto formerOp = op->getOperand(0)->getDefiningOp();
+    if (!matchPattern(formerOp, m_Op<tpu::ConcatOp>())) {
+      return matchFailure();
+    }
+    auto concatOp = cast<tpu::ConcatOp>(formerOp);
+
+    size_t nInputs = concatOp.getNumInputs();
+    for (unsigned i = 0; i < nInputs; i++) {
+      std::vector<NamedAttribute> attrs;
+      attrs.push_back(rewriter.getNamedAttr("name",
+          rewriter.getStringAttr(getOpName(op).str() + "_" + std::to_string(i))));
+      attrs.push_back(rewriter.getNamedAttr("quant", getDefaultQuantParam(rewriter)));
+      auto op = rewriter.create<tpu::ReluOp>(
+          formerOp->getLoc(), formerOp->getOperand(i)->getType(),
+          ArrayRef<Value *>{formerOp->getOperand(i)}, ArrayRef<NamedAttribute>{attrs});
+      formerOp->setOperand(i, op.getResult());
+    }
+
+    // change the concat Op's name to avoid data comparing with caffe for this op
+    concatOp.setAttr("name", rewriter.getStringAttr(concatOp.name().str() + "_relu"));
+    // remove the relu op after concat
+    rewriter.replaceOp(op, {concatOp});
+    return matchSuccess();
+  }
+};
+
 
 class FuseReluPass : public FunctionPass<FuseReluPass> {
 public:
@@ -102,6 +153,11 @@ public:
     auto fn = getFunction();
     OwningRewritePatternList patterns;
     auto *context = &getContext();
+
+    patterns.clear();
+    patterns.insert<TpuMoveReluAheadConcatPattern>(context);
+    applyPatternsGreedily(fn, patterns);
+
     patterns.insert<TpuFuseReluPattern>(context);
     applyPatternsGreedily(fn, patterns);
   }

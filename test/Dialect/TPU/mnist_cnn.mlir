@@ -1,5 +1,7 @@
-// RUN: mlir-opt -print-op-stats -verify-each=true %s -o=/dev/null 2>&1 | FileCheck %s
-// RUN: mlir-opt -print-tpu-op-info -verify-each=true %s -o=/dev/null 2>&1 | FileCheck %s --check-prefix=OUTLINING --dump-input=fail
+// RUN: echo "comment out"
+// mlir-opt -print-op-stats -verify-each=true %s -o=/dev/null 2>&1 | FileCheck %s
+// RUN: echo "comment out"
+// mlir-opt -print-tpu-op-info -verify-each=true %s -o=/dev/null 2>&1 | FileCheck %s --check-prefix=OUTLINING --dump-input=fail
 
 // CHECK-LABEL: module
 // CHECK-NOT: error

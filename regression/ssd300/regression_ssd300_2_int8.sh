@@ -24,8 +24,6 @@ mlir-opt \
     ssd300_opt2.mlir \
     -o ssd300_cali.mlir
 
-
-
 ###############################
 #quantization 1: per-layer int8
 ###############################

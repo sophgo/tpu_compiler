@@ -59,7 +59,9 @@ public:
         auto opInst = (*v)->getDefiningOp();
         if (auto op = dyn_cast<mlir::tpu::Conv2DOp>(opInst)) {
           llvm::errs() << "  " << op.name() << "\n";
-        } else if (auto op = dyn_cast<mlir::tpu::Pool2DOp>(opInst)) {
+        } else if (auto op = dyn_cast<mlir::tpu::PoolAvg2DOp>(opInst)) {
+          llvm::errs() << "  " << op.name() << "\n";
+        } else if (auto op = dyn_cast<mlir::tpu::PoolMax2DOp>(opInst)) {
           llvm::errs() << "  " << op.name() << "\n";
         } else if (auto op = dyn_cast<mlir::tpu::FullyConnectedOp>(opInst)) {
           llvm::errs() << "  " << op.name() << "\n";
@@ -128,9 +130,13 @@ public:
     stats = new DeepFusionSimpleStats();
     func.walk([&](mlir::Operation *opInst) {
       if (auto op = dyn_cast<mlir::tpu::Conv2DOp>(opInst)) {
-        analyzeConv2DOpParam(op, os);
-      } else if (auto op = dyn_cast<mlir::tpu::Pool2DOp>(opInst)) {
-        analyzePool2DOpParam(op, os);
+        analyzeConv2DOpParam<tpu::Conv2DOp>(op, os);
+      } else if (auto op = dyn_cast<mlir::tpu::DeConv2DOp>(opInst)) {
+        analyzeConv2DOpParam<tpu::DeConv2DOp>(op, os);
+      } else if (auto op = dyn_cast<tpu::PoolAvg2DOp>(opInst)) {
+        analyzePool2DOpParam<tpu::PoolAvg2DOp>(op, os, true);
+      } else if (auto op = dyn_cast<tpu::PoolMax2DOp>(opInst)) {
+        analyzePool2DOpParam<tpu::PoolMax2DOp>(op, os, false);
       } else if (auto op = dyn_cast<mlir::tpu::FullyConnectedOp>(opInst)) {
         analyzeFullyConnectedOpParam(op, os);
       } else if (auto op = dyn_cast<mlir::tpu::LoadWeightOp>(opInst)) {
@@ -150,15 +156,21 @@ public:
 private:
   DeepFusionSimpleStats *stats;
 
-  void analyzeConv2DOpParam(tpu::Conv2DOp &op, llvm::raw_ostream &os) {
+  template <typename OpTy>
+  void analyzeConv2DOpParam(OpTy &op, llvm::raw_ostream &os) {
     // supporat int8 multiplier mode only
-    assert(op.quant() == "INT8_MULTIPLIER");
+    assert(op.quant().mode().getValue() == "INT8");
+    assert(op.quant().is_perchannel().getValue() == true);
 
-    bool with_bias, do_relu;
+    bool is_dw, with_bias, do_relu;
     int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, ph, pw, dh, dw;
-    getConv2DOpParam<tpu::Conv2DOp>(op, n, ic, ih, iw, oc, oh, ow, g,
-                     kh, kw, sh, sw, ph, pw, dh, dw, with_bias, do_relu);
-    bool do_eltwise = (op.fused_eltwise_method() == "SUM") ? true : false;
+    bool is_deconv = isa<tpu::DeConv2DOp>(op.getOperation());
+    parseConvParam(op.param(), is_deconv, op.input(), op.output(), op.filter(),
+                   n, ic, ih, iw, oc, oh, ow, g,
+                   kh, kw, sh, sw, ph, pw, dh, dw, is_dw, with_bias, do_relu);
+
+    //bool do_eltwise = (op.fused_eltwise_method() == "SUM") ? true : false;
+    bool do_eltwise = false;
     uint64_t mac_count = ow * oh * kh * kw * g * (ic / g) * (oc / g) * n;
     stats->increaseMacCount(mac_count);
 
@@ -211,12 +223,15 @@ private:
     os << "," << totalPerLane;
     os <<"\n";
   }
-
-  void analyzePool2DOpParam(tpu::Pool2DOp &op, llvm::raw_ostream &os) {
-    bool is_average_pool, do_relu;
+  template <typename Opty>
+  void analyzePool2DOpParam(Opty &op, llvm::raw_ostream &os,
+      bool is_average) {
+    bool is_global, do_relu;
     int n, c, ih, iw, oh, ow, kh, kw, sh, sw, pt, pb, pl, pr;
-    getPool2DOpParam(op, is_average_pool, n, c, ih, iw, oh, ow,
-                     kh, kw, sh, sw, pt, pb, pl, pr, do_relu);
+    parsePoolParam(op.param(), op.input(), op.output(),
+                   n, c, ih, iw, oh, ow,
+                   kh, kw, sh, sw, pt, pb, pl, pr,
+                   is_global, do_relu);
 
     uint64_t mac_count = ow * oh * kh * kw * c * n;
     stats->increaseMacCount(mac_count);
@@ -247,9 +262,8 @@ private:
   }
 
   void analyzeFullyConnectedOpParam(tpu::FullyConnectedOp &op, llvm::raw_ostream &os) {
-    bool with_transpose, with_bias, do_relu;
     int m, k, n;
-    getFullyConnectedOpParam(op, with_transpose, m, k, n, with_bias, do_relu);
+    parseFullyConnectedParam(op.input(), op.output(), op.filter(), m, k, n);
 
     uint64_t mac_count = m * k * n;
     stats->increaseMacCount(mac_count);

@@ -13,9 +13,14 @@ bin_fp32_to_bf16.py \
     inception_v4_in_fp32.bin \
     inception_v4_in_bf16.bin
 
-###############################
-# quantization
-###############################
+################################
+# Lower
+################################
+mlir-opt \
+    --tpu-lower \
+    inception_v4_quant_bf16.mlir \
+    -o inception_v4_quant_bf16_tg.mlir
+
 # assign weight address & neuron address
 mlir-opt \
     --assign-weight-address \
@@ -25,8 +30,7 @@ mlir-opt \
     --assign-neuron-address \
     --tpu-neuron-address-align=16 \
     --tpu-neuron-map-filename=neuron_map_bf16.csv \
-    --assign-layer-id \
-    inception_v4_quant_bf16.mlir \
+    inception_v4_quant_bf16_tg.mlir \
     -o inception_v4_quant_bf16_addr.mlir
 
 # backend translate into cmdbuf
@@ -35,27 +39,40 @@ mlir-translate \
     inception_v4_quant_bf16_addr.mlir \
     -o cmdbuf_bf16.bin
 
-# run cmdbuf
-$RUNTIME_PATH/bin/test_bmnet \
+# generate cvi model
+python $CVIBUILDER_PATH/python/cvi_model_create.py \
+    --cmdbuf cmdbuf_bf16.bin \
+    --weight weight_bf16.bin \
+    --neuron_map neuron_map_bf16.csv \
+    --output=inception_v4_bf16.cvimodel
+
+## run cmdbuf
+#$RUNTIME_PATH/bin/test_bmnet \
+#    inception_v4_in_bf16.bin \
+#    weight_bf16.bin \
+#    cmdbuf_bf16.bin \
+#    inception_v4_cmdbuf_out_all_bf16.bin \
+#    54587952 0 54587952 1
+$RUNTIME_PATH/bin/test_cvinet \
     inception_v4_in_bf16.bin \
-    weight_bf16.bin \
-    cmdbuf_bf16.bin \
+    inception_v4_bf16.cvimodel \
+    inception_v4_cmdbuf_out_all_bf16.bin
+
+bin_to_npz.py \
     inception_v4_cmdbuf_out_all_bf16.bin \
-    54587952 0 54587952 1
-bin_extract.py \
-    inception_v4_cmdbuf_out_all_bf16.bin \
+    neuron_map_bf16.csv \
+    inception_v4_cmdbuf_out_all_bf16.npz
+npz_to_bin.py \
+    inception_v4_cmdbuf_out_all_bf16.npz \
+    classifier \
     inception_v4_cmdbuf_out_classifier_bf16.bin \
-    bf16 0x00082F60 1000
+    bf16
 bin_compare.py \
     inception_v4_cmdbuf_out_classifier_bf16.bin \
     $REGRESSION_PATH/inception_v4/data/test_cat_out_inception_v4_classifier_bf16.bin \
     bf16 1 1 1 1000 5
 
 # compare all tensors
-bin_to_npz.py \
-    inception_v4_cmdbuf_out_all_bf16.bin \
-    neuron_map_bf16.csv \
-    inception_v4_cmdbuf_out_all_bf16.npz
 npz_compare.py \
     inception_v4_cmdbuf_out_all_bf16.npz \
     inception_v4_tensor_all_bf16.npz \

@@ -18,7 +18,7 @@ git clone ssh://git@10.34.33.3:8422/mlir-tpu/cnpy.git
 
 git clone ssh://git@10.34.33.3:8422/mlir-tpu/caffe.git
 #pushd caffe
-#git checkout -b tpu origin/tpu
+#git checkout -b tpu origin/tpu_master
 #popd
 
 git clone ssh://git@10.34.33.3:8422/mlir-tpu/pybind11.git
@@ -30,14 +30,16 @@ git clone ssh://git@10.34.33.3:8422/mlir-tpu/bmkernel.git
 git clone ssh://git@10.34.33.3:8422/mlir-tpu/support.git
 git clone ssh://git@10.34.33.3:8422/mlir-tpu/cmodel.git
 git clone ssh://git@10.34.33.3:8422/mlir-tpu/runtime.git
-git clone ssh://git@10.34.33.3:8480/mlir-tpu/calibration_tool
+git clone ssh://git@10.34.33.3:8422/mlir-tpu/calibration_tool
+git clone ssh://git@10.34.33.3:8422/mlir-tpu/cvibuilder.git
 
 export GIT_LFS_SKIP_SMUDGE=1
 git clone ssh://git@10.34.33.3:8422/mlir-tpu/models.git
 pushd models
 git lfs install
 git lfs ls-files
-git lfs fetch --all
+# git lfs fetch --all
+git lfs pull -I "*.caffemodel"
 popd
 
 mv cnpy mlir/third_party/
@@ -52,6 +54,7 @@ mv support mlir/externals/
 mv cmodel mlir/externals/
 mv runtime mlir/externals/
 mv calibration_tool mlir/externals/
+mv cvibuilder mlir/externals/
 
 mv mlir llvm-project/llvm/projects/
 

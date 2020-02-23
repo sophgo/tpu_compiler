@@ -47,13 +47,17 @@ struct TpuTL_LA_Conv2DOpPattern : public RewritePattern {
 
   PatternMatchResult matchAndRewrite(Operation *opInst,
                                      PatternRewriter &rewriter) const override {
+#if 1
+    assert(false);
+#else
     auto op = cast<tpu::TL_LA_Conv2DOp>(opInst);
     //auto loc = op->getLoc();
 
-    bool with_bias, do_relu;
+    bool is_dw, with_bias, do_relu;
     int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, ph, pw, dh, dw;
-    getConv2DOpParam(op, n, ic, ih, iw, oc, oh, ow, g,
-                     kh, kw, sh, sw, ph, pw, dh, dw, with_bias, do_relu);
+    parseConvParam(op.param(), false, op.input(), op.output(), op.filter(),
+                   n, ic, ih, iw, oc, oh, ow, g,
+                   kh, kw, sh, sw, ph, pw, dh, dw, is_dw, with_bias, do_relu);
 
     if (1) {
       llvm::errs() << "TL_LA2LW: layer ID " << op.layer_id() << "\n";
@@ -93,6 +97,7 @@ struct TpuTL_LA_Conv2DOpPattern : public RewritePattern {
           ArrayRef<Value *>{newOperands}, ArrayRef<NamedAttribute>{attrs});
       return matchSuccess();
     }
+#endif
   }
 };
 
@@ -105,10 +110,11 @@ struct TpuTL_LW_Conv2DOp_AssignLayoutPattern : public RewritePattern {
     auto op = cast<tpu::TL_LW_Conv2DOp>(opInst);
     //auto loc = op->getLoc();
 
-    bool with_bias, do_relu;
+    bool is_dw, with_bias, do_relu;
     int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, ph, pw, dh, dw;
-    getConv2DOpParam(op, n, ic, ih, iw, oc, oh, ow, g,
-                     kh, kw, sh, sw, ph, pw, dh, dw, with_bias, do_relu);
+    parseConvParam(op.param(), false, op.input(), op.output(), op.filter(),
+                   n, ic, ih, iw, oc, oh, ow, g,
+                   kh, kw, sh, sw, ph, pw, dh, dw, is_dw, with_bias, do_relu);
 
     if (op.lm_layout() != "NONE") {
       // assigned already
@@ -158,10 +164,11 @@ struct TpuTL_LW_Conv2DOp_AssignLAddrPattern : public RewritePattern {
     auto op = cast<tpu::TL_LW_Conv2DOp>(opInst);
     //auto loc = op->getLoc();
 
-    bool with_bias, do_relu;
+    bool is_dw, with_bias, do_relu;
     int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, ph, pw, dh, dw;
-    getConv2DOpParam(op, n, ic, ih, iw, oc, oh, ow, g,
-                     kh, kw, sh, sw, ph, pw, dh, dw, with_bias, do_relu);
+    parseConvParam(op.param(), false, op.input(), op.output(), op.filter(),
+                   n, ic, ih, iw, oc, oh, ow, g,
+                   kh, kw, sh, sw, ph, pw, dh, dw, is_dw, with_bias, do_relu);
 
     assert (op.lm_layout() != "NONE");
     uint32_t la_invalid = 0xffffffff;

@@ -4,38 +4,30 @@ set -e
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 source $DIR/../../envsetup.sh
 
-# translate from caffe
-mlir-translate \
-    --caffe-to-mlir $MODEL_PATH/caffe/VGG_ILSVRC_16_layers_deploy.prototxt \
-    --caffemodel $MODEL_PATH/caffe/VGG_ILSVRC_16_layers.caffemodel \
-    -o vgg16.mlir
-
-# apply all possible pre-calibration optimizations
+# apply post-calibration optimizations
+# not applying --fuse-eltwise for now
 mlir-opt \
     --fuse-relu \
-    vgg16.mlir \
-    -o vgg16_opt.mlir
-
-# fp32 inference
-mlir-tpu-interpreter vgg16_opt.mlir \
-    --tensor-in $DATA_PATH/test_cat_in_fp32.bin \
-    --tensor-out out.bin \
-    --dump-all-tensor=tensor_all.npz
+    vgg16_opt.mlir \
+    -o vgg16_opt2.mlir
 
 # quantization
 mlir-opt \
     --quant-bf16 \
-    vgg16_opt.mlir \
+    vgg16_opt2.mlir \
     -o vgg16_quant_bf16.mlir
 
 # bf16 inference
-mlir-tpu-interpreter \
-    vgg16_quant_bf16.mlir \
-    --tensor-in $DATA_PATH/test_cat_in_fp32.bin \
-    --tensor-out out_bf16.bin \
-    --dump-all-tensor=tensor_all_bf16.npz
-bin_compare.py out.bin out_bf16.bin float32 1 1 1 1000 5
-npz_compare.py tensor_all.npz tensor_all_bf16.npz
+mlir-tpu-interpreter vgg16_quant_bf16.mlir \
+    --tensor-in vgg16_in_fp32.npz \
+    --tensor-out vgg16_out_bf16.npz \
+    --dump-all-tensor=vgg16_tensor_all_bf16.npz
+npz_compare.py vgg16_out_bf16.npz vgg16_out_fp32.npz -v
+npz_compare.py \
+    vgg16_tensor_all_bf16.npz \
+    vgg16_tensor_all_fp32.npz \
+    --op_info vgg16_op_info.csv \
+    --tolerance=0.99,0.99,0.97 -vvv
 
 # VERDICT
 echo $0 PASSED

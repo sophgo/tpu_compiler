@@ -28,6 +28,7 @@ parser.add_argument("--mean_file", type=str, help="the resized ImageNet dataset 
 parser.add_argument("--input_scale", type=float,
                     help="Multiply input features by this scale.", default=1.0)
 parser.add_argument("--count", type=int, default=50000)
+parser.add_argument("--dim", type=int, default=224)
 parser.add_argument("--dump_data", type=bool, default=False)
 parser.add_argument("--show", type=bool, default=False)
 parser.add_argument("--loader_transforms", type=int, help="image transform ny torch loader", default=0)
@@ -135,7 +136,7 @@ if __name__ == '__main__':
     val_loader = torch.utils.data.DataLoader(
         datasets.ImageFolder(valdir, transforms.Compose([
             transforms.Resize(256),
-            transforms.CenterCrop(224),
+            transforms.CenterCrop(args.dim),
             transforms.ToTensor(),
             normalize,
         ])),
@@ -144,7 +145,7 @@ if __name__ == '__main__':
     val_loader = torch.utils.data.DataLoader(
         datasets.ImageFolder(valdir, transforms.Compose([
             transforms.Resize(256),
-            transforms.CenterCrop(224),
+            transforms.CenterCrop(args.dim),
             transforms.ToTensor()
         ])),
         batch_size=batch_size, shuffle=True)
@@ -198,6 +199,7 @@ if __name__ == '__main__':
     # print('res.shape', res.shape)
     assert(len(res) == 1)
     prob  = res.values()[0]
+    prob = np.reshape(prob, (prob.shape[0], prob.shape[1]))
 
     if args.show is True:
       for i_th in get_topk(prob, 5):

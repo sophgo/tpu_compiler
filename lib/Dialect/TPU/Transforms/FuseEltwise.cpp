@@ -40,9 +40,11 @@ struct TpuFuseEltwisePattern : public RewritePattern {
 
   PatternMatchResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
+#if 1
+    assert(false);
+#else
     auto eltwiseOp = cast<tpu::EltwiseOp>(op);
     llvm::errs() << eltwiseOp.getOperationName() << "\n";
-
     // match eltwise Op that is following conv Ops
     // assuming second operand is the later one (the one to fuse into)
     // the first operand is the former one (the one we use its output as eltwise input)
@@ -96,7 +98,7 @@ struct TpuFuseEltwisePattern : public RewritePattern {
 
     // assuming eltwise always follows conv Op for now
     assert(0);
-
+#endif
     return matchFailure();
   }
 };

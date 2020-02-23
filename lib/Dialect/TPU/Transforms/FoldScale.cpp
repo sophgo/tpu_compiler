@@ -125,9 +125,8 @@ struct TpuFoldScalePattern : public RewritePattern {
     // the former one will be removed automatically
     std::vector<NamedAttribute> attrs;
     attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(op_name)));
-    // has bias
-    if (newWeights[1]) {
-      attrs.push_back(rewriter.getNamedAttr("with_bias", rewriter.getBoolAttr(true)));
+    if (laterScaleOp.layer_id().hasValue()) {
+      attrs.push_back(rewriter.getNamedAttr("layer_id", laterScaleOp.layer_idAttr()));
     }
     rewriter.replaceOpWithNewOp<tpu::ScaleOp>(
         laterScaleOp, formerScaleOp.getResult()->getType(),
@@ -173,6 +172,11 @@ private:
 };
 
 } // namespace
+
+void tpu::ScaleOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
+                                              MLIRContext *context) {
+  //results.insert<TpuFoldScalePattern>(context, nullptr);
+}
 
 std::unique_ptr<OpPassBase<FuncOp>> mlir::createFoldScalePass() {
   return std::make_unique<FoldScalePass>();
