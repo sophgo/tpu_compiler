@@ -5,11 +5,11 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
 # please keep in alphabetical order
 net_list=(
-  "inception_v4"
   "resnet50"
-  "retinaface_res50"
-  "ssd300"
   "yolo_v3"
+  "retinaface_res50"
+  "inception_v4"
+  #"ssd300"
 )
 
 if [ ! -z "$1" ]; then
@@ -29,7 +29,7 @@ rm -f *.mlir *.bin *.npz *.csv *.cvimodel
 for net in ${net_list[@]}
 do
   echo "regression $net"
-  $DIR/$net/regression_$net.sh
+  $DIR/$net/regression_$net.sh 2>&1 | tee $net.log
 done
 
 popd

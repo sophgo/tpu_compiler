@@ -64,7 +64,6 @@ public:
         processed += addLayerIdAttr<tpu::InputOp>(builder, layer_id, op);
         processed += addLayerIdAttr<tpu::PermuteOp>(builder, layer_id, op);
         processed += addLayerIdAttr<tpu::PowerOp>(builder, layer_id, op);
-        processed += addLayerIdAttr<tpu::PReluOp>(builder, layer_id, op);
         processed += addLayerIdAttr<tpu::PriorBoxOp>(builder, layer_id, op);
         processed += addLayerIdAttr<tpu::ReshapeOp>(builder, layer_id, op);
         processed += addLayerIdAttr<tpu::SliceOp>(builder, layer_id, op);

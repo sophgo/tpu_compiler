@@ -51,61 +51,6 @@ extern int BF16_TABLE_END;
 
 static BM1880v2BackendContext *backend_ctx = nullptr;
 
-template <typename T>
-static std::unique_ptr<std::vector<T>>
-getWeightFromOperandTensor(Operation &op, int opdIndex) {
-  auto weightOp = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
-      op.getOperand(opdIndex)->getDefiningOp());
-  assert(weightOp);
-
-  auto loadFileOp = llvm::dyn_cast_or_null<tpu::LoadFileOp>(
-      weightOp.getOperand()->getDefiningOp());
-  assert(loadFileOp);
-  auto weightTensorFile = openInputTensorFile(loadFileOp.filename());
-
-  assert(weightOp.name().hasValue());
-  auto tensor_name = weightOp.name().getValue();
-  auto type = weightOp.getResult()->getType().cast<TensorType>();
-  auto weight = weightTensorFile->readTensor<T>(tensor_name, type);
-
-  return weight;
-}
-
-static int8_t getRshiftFromOperandTensor(Operation &op, int opdIndex) {
-  auto weight = getWeightFromOperandTensor<float>(op, opdIndex);
-  return (int8_t)weight->at(0);
-}
-
-// \threshold_x_quantized number should eq \input_nr
-static void getI8Multiplier(Operation* opInst,
-    float threshold_y,
-    int input_nr,
-    int* threshold_x_quantized) {
-
-  std::vector<float> threshold_x;
-  // determine multiplier and rshift according each threshold_x
-  // scale[i] = threshold_x[i] / threshold_y
-  // each scale will be implemented by hardware as
-  // scale[i] = multiplier / (1 << rshift)
-  // find a rshift, that put max(multiplier) into range (64, 127)
-
-  for (int index = 0; index < input_nr; ++index) {
-    // get threshold_x
-    threshold_x[index] = getPreviousOpThreshold(opInst, index);
-  }
-
-
-  // determine rshift for all inputs, and multiplier for each input
-  // use max threshold_x to find rshift first
-  float max_threshold_x = *std::max_element(
-      std::begin(threshold_x), std::end(threshold_x));
-  int8_t rshift = findRShiftAndMultiplierFromQScale(max_threshold_x / threshold_y);
-  for (int index = 0; index < input_nr; ++index) {
-    float qscale = threshold_x[index] / threshold_y;
-    threshold_x_quantized[index] = findMultiplierI8FromQScaleAndRShift(qscale, rshift);
-  }
-}
-
 static LogicalResult runOperation(Operation &opInst) {
   LLVM_DEBUG(llvm::errs() << "  op " << opInst.getName() << "\n";);
 
@@ -209,93 +154,6 @@ static LogicalResult runOperation(Operation &opInst) {
     #endif
     return success();
   }
-
-#if 0
-  if (auto op = dyn_cast<tpu::FullyConnectedOp>(opInst)) {
-    LLVM_DEBUG(llvm::errs() << "FullyConnectedOp" << "\n";);
-
-    bool with_transpose, with_bias, do_relu;
-    int m, k, n;
-    getFullyConnectedOpParam(op, with_transpose, m, k, n, with_bias, do_relu);
-    parseFullyConnectedParam(op.input(), op.output(), op.filter());
-
-    gaddr_t input_gaddr = getPreviousOpAddress(op);
-    gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
-    gaddr_t filter_gaddr = getWeightOpAddress(op.getOperand(1)->getDefiningOp());
-    gaddr_t bias_gaddr = INVALID_GLOBAL_ADDR;
-    //int with_bias = 0;
-    if (opInst.getNumOperands() > 2) {
-      with_bias = 1;
-      bias_gaddr = getWeightOpAddress(op.getOperand(2)->getDefiningOp());
-    }
-
-    int layer_id = op.layer_id().getValue().getLimitedValue();
-
-    if (op.quant() == "INT8") {
-
-      int rshift_opd_index = 2;
-      if (with_bias) {
-        rshift_opd_index = 3;
-      }
-      int8_t rshift = getRshiftFromOperandTensor(opInst, rshift_opd_index);
-
-      bmnet_fc_fixed_forward_bmkernel(
-          *backend_ctx,
-          0, // stream_id,
-          0, // inst_id,
-          layer_id, // layer_id,
-          nullptr, // depends
-          0, // depends_len
-          input_gaddr, // input_data_gaddr,
-          filter_gaddr, // weight_data_gaddr,
-          bias_gaddr, // bias_data_gaddr,
-          output_gaddr, // output_data_gaddr,
-          m, // int in_row,
-          k, // int in_col,
-          n, // int out_col,
-          with_bias, // int have_bias,
-          do_relu ? 1 : 0, // do_activation,
-          0, // activation_method,
-          INVALID_GLOBAL_ADDR, // activation_ga_slope,
-          0, // int activation_channel_shared,
-          0, // int activation_gt_scale,
-          0, // int activation_gt_rshift,
-          0, // int activation_le_scale,
-          0, // int activation_le_rshift,
-          false, // weight_tp,
-          3, // int left_shift_width, // #define DEFAULT_FC_LEFT_SHIFT 3
-          (int)rshift, // rshift
-          0, //int threshold_x_quantized_len,
-          nullptr, //const int *threshold_x_quantized,
-          nullptr //const int *right_shift_array
-          );
-
-    } else if (op.quant() == "BF16") {
-      // Note:
-      //  1880v2 tdma does not support transposed matrix load
-      //  Weight tranpose must be handled before backend
-
-      bf16_fc_forward_kernel(
-        *backend_ctx,
-        layer_id, // layer_id
-        input_gaddr, // input_data_gaddr
-        filter_gaddr, // weight_data_gaddr
-        bias_gaddr, // bias_data_gaddr
-        output_gaddr, // output_data_gaddr
-        m, // int in_row
-        k, // int in_col
-        n, // in out_col,
-        with_bias, // has_bias
-        do_relu ? 1 : 0, // do_activation
-        0  // activation_method
-      );
-    } else {
-      assert(0);
-    }
-
-    return success();
-  }
-#endif
 
   if (auto op = dyn_cast<tpu::PermuteOp>(opInst)) {
     LLVM_DEBUG(LLVM_DEBUG(llvm::errs() << "PermuteOp" << "\n";););
@@ -507,7 +365,6 @@ static LogicalResult runOperation(Operation &opInst) {
     }
     return success();
   }
-
 
   if (auto op = dyn_cast<tpu::TanHOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "TanHOp" << "\n";);

@@ -223,8 +223,8 @@ struct TpuQuantInt8Conv2DOpPattern : public RewritePattern {
   Value* weightFV_;
 };
 
-struct TpuQuantFullyConnectedOpPattern : public RewritePattern {
-  TpuQuantFullyConnectedOpPattern(MLIRContext *context,
+struct TpuQuantInt8FullyConnectedOpPattern : public RewritePattern {
+  TpuQuantInt8FullyConnectedOpPattern(MLIRContext *context,
       TensorFile *weightTF, Value* weightFV)
       : RewritePattern("tpu.fully_connected", 1, context),
         weightTF_(weightTF),
@@ -436,7 +436,7 @@ struct TpuQuantInt8PReluOpPattern : public RewritePattern {
     // create tensors for rshift and multiplier
     auto new_negative_slope =
         std::vector<float>(neg_slope_size);
-    
+
     auto rshift_pos = std::vector<float>(1);
     auto multiplier_pos = std::vector<float>(1);
     auto rshift_neg = std::vector<float>(1);
@@ -1218,10 +1218,11 @@ public:
                 TpuQuantInt8DefaultPattern<tpu::EltwiseAddOp>,
                 TpuQuantInt8DefaultPattern<tpu::EltwiseMaxOp>,
                 TpuQuantInt8MultiplyOpDefaultPattern<tpu::EltwiseMulOp>,
+                TpuQuantInt8FullyConnectedOpPattern,
                 TpuQuantInt8DefaultPattern<tpu::PoolAvg2DOp>,
                 TpuQuantInt8BypassPattern<tpu::PoolMax2DOp>,
                 TpuQuantInt8LeakyReluOpPattern,
-                TpuQuantInt8DefaultPattern<tpu::PReluOp>,
+                TpuQuantInt8PReluOpPattern,
                 TpuQuantInt8BypassPattern<tpu::ReluOp>,
                 TpuQuantInt8BypassPattern<tpu::ShuffleChannelOp>,
                 TpuQuantInt8SigmoidOpPattern,
@@ -1229,7 +1230,6 @@ public:
 
 
                 TpuQuantDefaultPattern<tpu::DivOp>,
-                TpuQuantFullyConnectedOpPattern,
                 TpuQuantDefaultPattern<tpu::PermuteOp>,
                 TpuQuantPowerOpPattern,
                 TpuQuantDefaultPattern<tpu::ReshapeOp>,

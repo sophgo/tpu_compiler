@@ -607,6 +607,7 @@ Value* tpu::PoolMax2DOp::convertToTG(void *info) {
   assert(false);
   return nullptr;
 }
+
 Value *tpu::PReluOp::convertToTG(void *info) {
   llvm::errs() << "lowerToTG: " << getOperationName() << " [" << getOpName()
                << "]\n";
@@ -635,6 +636,7 @@ Value *tpu::PReluOp::convertToTG(void *info) {
   assert(false);
   return nullptr;
 }
+
 Value *tpu::ShuffleChannelOp::convertToTG(void *info) {
   llvm::errs() << "lowerToTG: " << getOperationName() << " [" << getOpName()
                << "]\n";
