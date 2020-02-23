@@ -395,6 +395,7 @@ def TPU_TG_INT8_PoolAvg2DOp : TPU_TG_Pool2DOp<"tg_int8_pool_avg_2d", "Int8", "Av
 def TPU_TG_INT8_PoolMax2DOp : TPU_TG_Pool2DOp<"tg_int8_pool_max_2d", "Int8", "Max">;
 def TPU_TG_BF16_PoolAvg2DOp : TPU_TG_Pool2DOp<"tg_bf16_pool_avg_2d", "Bf16", "Avg">;
 def TPU_TG_BF16_PoolMax2DOp : TPU_TG_Pool2DOp<"tg_bf16_pool_max_2d", "Bf16", "Max">;
+
 class TPU_TG_PReluOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,

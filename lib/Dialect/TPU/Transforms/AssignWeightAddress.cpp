@@ -40,54 +40,6 @@
 
 using namespace mlir;
 
-template<typename T>
-static void transposeConvolutionFilter(std::vector<T> &w, std::vector<int64_t> &s) {
-  assert(s.size() == 4);
-  int oc = s[0];
-  int ic = s[1];
-  int ks = s[2] * s[3];
-  std::vector<T> w_t(w.size());
-  if (ks == 1) {
-    return;
-  } else {
-    // for other conv, transpose ic <-> kh*kw
-    for (int i = 0; i < oc; i++) {
-      for (int j = 0; j < ic; j++) {
-        for (int k = 0; k < ks; k++) {
-          w_t[i * ic * ks + k * ic + j] = w[i * ic * ks + j * ks + k];
-        }
-      }
-    }
-  }
-  w.assign(w_t.begin(), w_t.end());
-}
-
-template<typename T>
-static void transposeFullyConnectedFilter(std::vector<T> &w, std::vector<int64_t> &s) {
-  assert(s.size() == 2);
-  int row = s[0];
-  int col = s[1];
-  std::vector<T> w_t(w.size());
-  for (int i = 0; i < row; i++) {
-    for (int j = 0; j < col; j++) {
-      w_t[j * row + i] = w[i * col  + j];
-    }
-  }
-  w.assign(w_t.begin(), w_t.end());
-}
-
-static void transposeBiasInt16(std::vector<int16_t> &w_int16) {
-  int8_t *ptr = reinterpret_cast<int8_t *>(w_int16.data());
-  std::vector<int8_t> w(ptr, ptr + w_int16.size() * sizeof(int16_t));
-  std::vector<int8_t> w_t(w.size());
-  for (size_t i = 0; i < w_int16.size(); i++) {
-    for (size_t j = 0; j < 2; j++) {
-      w_t[j * w_int16.size() + i] = w[i * 2 + j];
-    }
-  }
-  memcpy(ptr, w_t.data(), w_t.size());
-}
-
 namespace {
 
 struct TpuLoadWeightOpPattern : public RewritePattern {
@@ -112,46 +64,14 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
     auto tensor_name = weightOp.name().getValue();
 
     auto type = weightOp.getResult()->getType().cast<TensorType>();
+    assert(weightOp.lowered());
     auto curPos = weightBinaryFile_->tell();
     size_t size = 0;
     if (weightOp.storage() == "INT8") {
       std::vector<int8_t> weight_int8;
-      if (!weightOp.lowered()) {
-        // to be removed
-        auto weight = weightTensorFile_->readTensor<float>(tensor_name, type);
-        size = weight->size();
-        weight_int8.assign(weight->begin(), weight->end());
-
-        // hw design needs transpose on filters
-        // transpose if this is conv filter weight
-        // TODO: this is tricky, we assume any 4 dim weight tensor is a conv filter
-        std::vector<int64_t> shape = type.getShape();
-
-        if (shape.size() == 5) {
-          // FIXME: check this weight is belonging to conv
-          std::vector<int64_t> _shape(shape.begin(), shape.end());
-          shape.clear();
-
-          // reshape it
-          shape.push_back(_shape[0] * _shape[1]);
-
-          // index [0] [1] is batch
-          for(uint64_t i = 2; i < _shape.size(); i++) {
-            shape.push_back(_shape[i]);
-          }
-          transposeConvolutionFilter<int8_t>(weight_int8, shape);
-        } else if (shape.size() == 4) {
-          transposeConvolutionFilter<int8_t>(weight_int8, shape);
-        } else if (shape.size() == 2) {
-          // TODO: this is tricky, we assume any 2 dim weight tensor is a fc
-          // filter
-          transposeFullyConnectedFilter<int8_t>(weight_int8, shape);
-        }
-      } else {
-        auto weight = weightTensorFile_->readTensor<int8_t>(tensor_name, type);
-        weight_int8.assign(weight->begin(), weight->end());
-        size = weight_int8.size();
-      }
+      auto weight = weightTensorFile_->readTensor<int8_t>(tensor_name, type);
+      weight_int8.assign(weight->begin(), weight->end());
+      size = weight_int8.size();
 
       // pad to alignment
       if ( weight_int8.size() % alignment_ ) {
@@ -165,16 +85,10 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
     } else if (weightOp.storage() == "UINT8") {
       // UINT8 is used for packed per-channel info or LUT table
       std::vector<uint8_t> weight_uint8;
-      if (!weightOp.lowered()) {
-        auto weight = weightTensorFile_->readTensor<float>(tensor_name, type);
-        size = weight->size();
-        // cast into int8
-        weight_uint8.assign(weight->begin(), weight->end());
-      } else {
-        auto weight = weightTensorFile_->readTensor<uint8_t>(tensor_name, type);
-        weight_uint8.assign(weight->begin(), weight->end());
-        size = weight_uint8.size();
-      }
+      auto weight = weightTensorFile_->readTensor<uint8_t>(tensor_name, type);
+      weight_uint8.assign(weight->begin(), weight->end());
+      size = weight_uint8.size();
+
       // pad to alignment
       if ( weight_uint8.size() % alignment_ ) {
         size_t pad = alignment_ - (weight_uint8.size() % alignment_);
@@ -187,29 +101,10 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
     } else if (weightOp.storage() == "INT16") {
       // INT16 is used for bias in INT8 per-tensor mode
       // after lowering, this should be UINT16 already
-      assert (!weightOp.lowered());
-      // to be removed
-      auto weight = weightTensorFile_->readTensor<float>(tensor_name, type);
-      // cast into int8
-      std::vector<int16_t> weight_int16(weight->begin(), weight->end());
-      // bias are also transposed
-      transposeBiasInt16(weight_int16);
-      size = weight_int16.size() * sizeof(int16_t);
-
-      // pad to alignment
-      if ( (weight_int16.size()*sizeof(int16_t)) % alignment_ ) {
-        size_t pad = ( alignment_ - ( weight_int16.capacity() % alignment_ ) )
-                     / sizeof(uint16_t);
-        for (size_t i = 0; i < pad; ++i) {
-          weight_int16.push_back(-32768); // assign a special value for debugging
-        }
-      }
-      weightBinaryFile_->write(reinterpret_cast<const char*>(weight_int16.data()),
-          weight_int16.size() * sizeof(int16_t));
+      assert (false);
     } else if (weightOp.storage() == "UINT16") {
       // this is NOT BF16 (BF16 uses `BF16` directly)
       // this is for lowered and transposed INT16 bias
-      assert(weightOp.lowered());
       auto weight = weightTensorFile_->readTensor<uint16_t>(tensor_name, type);
       size = weight->size();
       std::vector<uint16_t> weight_uint16(weight->begin(), weight->end());
@@ -230,36 +125,6 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
       std::vector<uint16_t> weight_bf16;
       auto weight = weightTensorFile_->readTensor<uint16_t>(tensor_name, type);
       weight_bf16.assign(weight->begin(), weight->end());
-
-      if (!weightOp.lowered()) {
-        // hw design needs transpose on filters
-        // transpose if this is conv filter weight
-        // TODO: this is tricky, we assume any 4 dim weight tensor is a conv filter
-        std::vector<int64_t> shape = type.getShape();
-        if (shape.size() == 4) {
-          if (!strncmp(weightOp.name().getValue().data(), "Tanh_", 2)) {
-            // FIXME: not hardcode check, plz ref op type
-            //llvm::errs() << "skip " << weightOp.name() << "\n";
-          }
-          else {
-            transposeConvolutionFilter<uint16_t>(weight_bf16, shape);
-          }
-        }
-        // TODO: this is tricky, we assume any 2 dim weight tensor is a fc filter
-        if (shape.size() == 2) {
-          transposeFullyConnectedFilter<uint16_t>(weight_bf16, shape);
-        }
-        // TODO: this is even more tricky (FIXME asap), assume 1 dim tensor is bias
-        // for bm1880v2, bias is fp32, but store as 2 separate stripe
-        // one for high 16-bit, one for low-16 bit
-        // we use the quantized bf16 bias as high 16-bit, and add a zero stripe low 16-bit
-        if (shape.size() == 1) {
-          size_t sz = weight_bf16.size();
-          for (size_t i = 0; i < sz; ++i) {
-            weight_bf16.push_back(0x0000);
-          }
-        }
-      }
       size = weight_bf16.size() * sizeof(uint16_t);
 
       // pad to alignment
@@ -280,7 +145,6 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
       // 1880v2 requires storing fp32 into a 2 stripes 16-bit way
       // one stripe for high 16-bit, and one for low 16-bit
       // after the lowering, we store the data as `UINT32`
-      assert (weightOp.lowered());
       std::vector<uint32_t> weight_uint32;
       auto weight = weightTensorFile_->readTensor<uint32_t>(tensor_name, type);
       weight_uint32.assign(weight->begin(), weight->end());
@@ -297,7 +161,7 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
       weightBinaryFile_->write(reinterpret_cast<const char*>(weight_uint32.data()),
           weight_uint32.size() * sizeof(uint32_t));
     } else if (weightOp.storage() == "FP32") {
-      assert(0);
+      assert(false);
     } else if (weightOp.storage() == "NONE") {
       return matchSuccess();
     } else {
