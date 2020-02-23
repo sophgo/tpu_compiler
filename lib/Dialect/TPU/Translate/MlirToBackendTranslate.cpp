@@ -362,19 +362,19 @@ static LogicalResult runOperation(Operation &opInst) {
           need_permute_);
     }
     else if(op.quant() == "BF16"){
-      bf16_permute_fixed_forward_kernel(
-          *backend_ctx,
-          0, //stream_id,
-          0, //inst_id,
-          layer_id, //layer_id,
-          nullptr, //const u32 *depends,
-          0, //depends_len,
-          input_gaddr,
-          output_gaddr,
-          i_nchw[0], i_nchw[1], i_nchw[2], i_nchw[3],
-          o_nchw[0], o_nchw[1], o_nchw[2], o_nchw[3],
-          orders[0], orders[1], orders[2], orders[3],
-          need_permute_);
+      // bf16_permute_fixed_forward_kernel(
+      //     *backend_ctx,
+      //     0, //stream_id,
+      //     0, //inst_id,
+      //     layer_id, //layer_id,
+      //     nullptr, //const u32 *depends,
+      //     0, //depends_len,
+      //     input_gaddr,
+      //     output_gaddr,
+      //     i_nchw[0], i_nchw[1], i_nchw[2], i_nchw[3],
+      //     o_nchw[0], o_nchw[1], o_nchw[2], o_nchw[3],
+      //     orders[0], orders[1], orders[2], orders[3],
+      //     need_permute_);
     }else{
       assert(0&&"not support");
     }
@@ -422,14 +422,14 @@ static LogicalResult runOperation(Operation &opInst) {
 
       int layer_id = op.layer_id().getValue().getLimitedValue();
       
-      bf16_sqrt_fixed_forward_bmkernel(*backend_ctx,
-                                     0,        // stream_id,
-                                     0,        // inst_id,
-                                     layer_id, // layer_id,
-                                     nullptr,  // const u32 *depends,
-                                     0,        // depends_len,
-                                     input_gaddr, output_gaddr, table_data_lut,table_data_mantissa_lut,
-                                     n, c, h, w);      
+      // bf16_sqrt_fixed_forward_bmkernel(*backend_ctx,
+      //                                0,        // stream_id,
+      //                                0,        // inst_id,
+      //                                layer_id, // layer_id,
+      //                                nullptr,  // const u32 *depends,
+      //                                0,        // depends_len,
+      //                                input_gaddr, output_gaddr, table_data_lut,table_data_mantissa_lut,
+      //                                n, c, h, w);      
     }else {
       llvm::errs() << "not support yet \n";
       assert(0);
@@ -483,14 +483,14 @@ static LogicalResult runOperation(Operation &opInst) {
 
       int layer_id = op.layer_id().getValue().getLimitedValue();
       
-      bf16_sqrt_fixed_forward_bmkernel(*backend_ctx,
-                                     0,        // stream_id,
-                                     0,        // inst_id,
-                                     layer_id, // layer_id,
-                                     nullptr,  // const u32 *depends,
-                                     0,        // depends_len,
-                                     input_gaddr, output_gaddr, table_data_lut,table_data_mantissa_lut,
-                                     n, c, h, w);      
+      // bf16_sqrt_fixed_forward_bmkernel(*backend_ctx,
+      //                                0,        // stream_id,
+      //                                0,        // inst_id,
+      //                                layer_id, // layer_id,
+      //                                nullptr,  // const u32 *depends,
+      //                                0,        // depends_len,
+      //                                input_gaddr, output_gaddr, table_data_lut,table_data_mantissa_lut,
+      //                                n, c, h, w);      
 
 
     }else {

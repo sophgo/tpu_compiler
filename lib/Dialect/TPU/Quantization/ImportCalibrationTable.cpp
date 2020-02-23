@@ -319,8 +319,6 @@ public:
       addThresholdAttr<tpu::InputOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::DivOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::PowerOp>(builder, threshold_map, op);
-      addThresholdAttr<tpu::PReluOp>(builder, threshold_map, op);
-      addThresholdAttr<tpu::SigmoidOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::SqrtOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::PermuteOp>(builder, threshold_map, op);
 

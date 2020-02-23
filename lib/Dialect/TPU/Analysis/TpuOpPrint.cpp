@@ -106,10 +106,8 @@ public:
             processed += printTpuOpInfo<tpu::NormalizeOp>(op, file_os);
             processed += printTpuOpInfo<tpu::PermuteOp>(op, file_os);
             processed += printTpuOpInfo<tpu::PowerOp>(op, file_os);
-            processed += printTpuOpInfo<tpu::PReluOp>(op, file_os);
             processed += printTpuOpInfo<tpu::PriorBoxOp>(op, file_os);
             processed += printTpuOpInfo<tpu::ReshapeOp>(op, file_os);
-            processed += printTpuOpInfo<tpu::SigmoidOp>(op, file_os);
             processed += printTpuOpInfo<tpu::SliceOp>(op, file_os);
             processed += printTpuOpInfo<tpu::SqrtOp>(op, file_os);
             processed += printTpuOpInfo<tpu::TanHOp>(op, file_os);
