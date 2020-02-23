@@ -217,47 +217,6 @@ struct TpuQuantFullyConnectedOpPattern : public RewritePattern {
   Value* weightFileVar_;
 };
 
-struct TpuQuantPReluOpPattern : public RewritePattern {
-  TpuQuantPReluOpPattern(MLIRContext *context, TensorFile *weightTensorFile,
-                         Value *weightFileVar)
-      : RewritePattern("tpu.prelu", 1, context),
-        weightTensorFile_(weightTensorFile), weightFileVar_(weightFileVar) {}
-
-  PatternMatchResult matchAndRewrite(Operation *op,
-                                     PatternRewriter &rewriter) const override {
-    auto preluOp = cast<tpu::PReluOp>(op);
-    std::string op_name =
-        preluOp.getAttrOfType<StringAttr>("name").getValue().str();
-    // auto loc = op->getLoc();
-
-    if (preluOp.quant() != "NONE") {
-      LLVM_DEBUG(llvm::errs() << preluOp.name() << " quantized already\n";);
-      return matchFailure();
-    }
-    auto filter =
-        readAndDeleteWeightTensor<float>(preluOp.getOperand(1), weightTensorFile_);
-    auto filterType = preluOp.negative_slope()->getType().cast<TensorType>();
-    std::vector<int64_t> filterShape(filterType.getShape());
-    int64_t filterSize = std::accumulate(
-        std::begin(filterShape), std::end(filterShape), 1, std::multiplies<>());
-    assert(filterSize == (int64_t)filter->size());
-    // create new tensors
-    auto new_filter = std::make_unique<std::vector<bfloat16>>(filterSize);
-    // quantization
-    FloatToBFloat16(filter->data(), new_filter->data(), filterSize);
-    // update op
-    addWeightTensorAndUpdateWeightOp<bfloat16>(preluOp.getOperand(1),
-        "quant", *new_filter, filterShape, "BF16", weightTensorFile_);
-
-    preluOp.setAttr("quant", rewriter.getStringAttr("BF16"));
-
-    return matchSuccess();
-  }
-
-  TensorFile *weightTensorFile_;
-  Value *weightFileVar_;
-};
-
 struct TpuQuantTanHOpPattern : public RewritePattern {
   TpuQuantTanHOpPattern(MLIRContext *context, TensorFile *weightTensorFile,
       Value* weightFileVar)
@@ -566,12 +525,12 @@ public:
                 TpuQuantBf16DefaultPattern<tpu::LeakyReluOp>,
                 TpuQuantBf16DefaultPattern<tpu::PoolAvg2DOp>,
                 TpuQuantBf16DefaultPattern<tpu::PoolMax2DOp>,
+                TpuQuantBf16DefaultPattern<tpu::PReluOp>,
                 TpuQuantBf16DefaultPattern<tpu::ReluOp>,
                 TpuQuantBf16DefaultPattern<tpu::SigmoidOp>,
                 TpuQuantBf16DefaultPattern<tpu::UpsampleOp>,
 
                 TpuQuantFullyConnectedOpPattern,
-                TpuQuantPReluOpPattern,
                 TpuQuantDefaultPattern<tpu::SliceOp>,
                 TpuQuantDefaultPattern<tpu::DivOp>,
                 TpuQuantDefaultPattern<tpu::SqrtOp>,

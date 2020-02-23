@@ -1280,11 +1280,18 @@ void CaffeImporter::convertPReLULayer(mlir::Block *block,
                          negative_slope_type);
   operands.push_back(AddLoadWeightOp(block, negative_slope_name, negative_slope_type));
 
+  auto NoneOp = OpBuilder(block).create<tpu::NoneOp>(builder_.getUnknownLoc(),
+                                                     builder_.getNoneType());
+  for (int i=0; i<8; i++) {
+      operands.push_back(NoneOp.getResult());  // quant: scale/zp/rshift/muliplier, pos and neg
+  }
   // construct OP
   auto result_type = RankedTensorType::get({n, c, h, w}, elementType_);
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder_.getNamedAttr(
       "name", builder_.getStringAttr(layer_param.name())));
+  attrs.push_back(
+      builder_.getNamedAttr("quant", getDefaultQuantParam(builder_)));
   auto op = OpBuilder(block).create<tpu::PReluOp>(
       builder_.getUnknownLoc(), result_type,
       ArrayRef<Value *>{operands},
