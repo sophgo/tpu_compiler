@@ -66,6 +66,37 @@ static std::vector<std::shared_ptr<std::vector<float> > >
   return opdT;
 }
 
+LogicalResult tpu::BatchNormOp::interpret(
+    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+  Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
+
+  auto opdT = getOperandTensors(op, valueMapping);
+  auto result = this->getResult();
+  auto size = getTensorSize(result);
+  auto resultT = std::make_unique<std::vector<float> >(size);
+
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(this->input(), shape, input_size);
+  assert(input_size == size);
+  getNCHW(shape, n, c, h, w);
+
+  float *input = (float *)opdT[0]->data();
+  float *mean = (float *)opdT[1]->data();
+  float *variance = (float *)opdT[2]->data();
+  float *scale = (float *)opdT[3]->data();
+  float *output = (float *)resultT.get()->data();
+  float variance_epsilon = this->variance_epsilon().convertToFloat();
+
+  int ret = my_bn(input, mean, variance, scale, variance_epsilon, output, n, c, h, w);
+  assert(ret == 0);
+
+  valueMapping[result] = std::move(resultT);
+
+  return success();
+}
+
 LogicalResult tpu::BroadcastMulOp::interpret(
     DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();
@@ -538,6 +569,56 @@ LogicalResult tpu::EltwiseMulOp::interpret(
   return doEltwiseOpInterpret(op, type, do_relu(), valueMapping);
 }
 
+LogicalResult tpu::FullyConnectedOp::interpret(
+    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+  Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
+
+  auto opdT = getOperandTensors(op, valueMapping);
+  auto result = this->getResult();
+  auto size = getTensorSize(result);
+  auto resultT = std::make_unique<std::vector<float> >(size);
+
+  // parse param
+  int m, k, n;
+  parseFullyConnectedParam(input(), output(), filter(), m, k, n);
+  bool do_relu = this->do_relu();
+
+  std::shared_ptr<std::vector<float> > input = opdT[0];
+  std::shared_ptr<std::vector<float> > filter = opdT[1];
+  std::shared_ptr<std::vector<float> > bias = opdT[2];
+  std::shared_ptr<std::vector<float> > quant_rshift = opdT[5];
+
+  int ret = mkldnn_ip(input->data(), filter->data(),
+      bias ? bias->data() : nullptr, resultT->data(), m, k, n, false);
+  assert(ret == 0);
+  if (do_relu) {
+    ret = my_relu(resultT->data(), resultT->data(), 1, 1, 1, n, 0.0f);
+    assert(ret == 0);
+  }
+
+  // rshift and saturate on output
+  if (getOpQuant() == "NONE") {
+    // do nothing
+  } else if (getOpQuant() == "INT8") {
+    assert(quant_rshift);
+    for (int i = 0; i < size; ++i) {
+      resultT->at(i) = (float)applyRShiftAndSaturateInt8(resultT->at(i),
+          (uint32_t)quant_rshift->at(0));
+    }
+  } else if (getOpQuant() == "BF16") {
+    auto tensor_bf16 = std::make_unique<std::vector<bfloat16> >(resultT->size());
+    FloatToBFloat16(resultT->data(), tensor_bf16->data(), resultT->size()); // with rounding
+    BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
+  } else {
+    assert(false);
+  }
+
+  valueMapping[result] = std::move(resultT);
+
+  return success();
+}
+
 LogicalResult tpu::LeakyReluOp::interpret(
     DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();
@@ -868,7 +949,9 @@ LogicalResult tpu::SoftmaxOp::interpret(
   }
 
   valueMapping[result] = std::move(resultT);
+  return success();
 }
+
 LogicalResult tpu::SigmoidOp::interpret(
     DenseMap<Value *, std::shared_ptr<std::vector<float>>> &valueMapping) {
   Operation *op = this->getOperation();
@@ -1122,61 +1205,6 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     return success();
   }
 
-  if (auto op = dyn_cast<tpu::FullyConnectedOp>(opInst)) {
-    LLVM_DEBUG(llvm::errs() << "FullyConnectedOp" << "\n";);
-    auto opdT = getOperandTensors(opInst, valueMapping);
-    auto result = op.getResult();
-    LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";);
-    std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
-    assert(shape.size() == 2);
-    auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
-    auto resultT = std::make_unique<std::vector<float> >(size);
-
-    bool with_transpose, with_bias, do_relu;
-    int m, k, n;
-    getFullyConnectedOpParam(op, with_transpose, m, k, n, with_bias, do_relu);
-    assert(with_transpose == false);
-
-    std::shared_ptr<std::vector<float> > input = opdT[0];
-    std::shared_ptr<std::vector<float> > filter = opdT[1];
-    std::shared_ptr<std::vector<float> > bias = nullptr;
-    std::shared_ptr<std::vector<float> > rshift = nullptr;
-    getFullyConnectedOpVariadicTensors(op, opdT, bias, rshift);
-
-    float *output_data = (float *)resultT->data();
-    int mkldnn_ret = mkldnn_ip(input->data(), filter->data(),
-        bias?bias->data():nullptr, output_data, m, k, n, with_transpose);
-    assert(mkldnn_ret == 0);
-    //dump_data_float_abs("output_data", output_data, 1, 1, m, n);
-
-
-    if (do_relu) {
-      my_relu(resultT->data(), resultT->data(), 1, 1, 1, n, 0.0f);
-    }
-
-    // rshift and saturate on output
-    if (op.quant() == "INT8") {
-      assert(rshift);
-      for (int i = 0; i < size; ++i) {
-        output_data[i] = (float)applyRShiftAndSaturateInt8(output_data[i],
-                                                           (uint32_t)rshift->at(0));
-      }
-    } else if (op.quant() == "BF16") {
-      auto tensor_bf16 = std::make_unique<std::vector<bfloat16> >(resultT->size());
-      FloatToBFloat16(resultT->data(), tensor_bf16->data(), resultT->size()); // with rounding
-      BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
-    }
-
-    valueMapping[result] = std::move(resultT);
-
-    return success();
-  }
-  if (auto op = dyn_cast<tpu::ReluOp>(opInst)) {
-    LLVM_DEBUG(llvm::errs() << "ReluOp [" << op.name() << "]\n";);
-    assert(false);
-  }
-
-
   if (auto op = dyn_cast<tpu::TanHOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "TanHOp" << "\n";);
     auto opdT = getOperandTensors(opInst, valueMapping);
@@ -1229,45 +1257,6 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     assert(ret == 0);
     //dump_data_float_abs("mkldnn_output", mkldnn_output, n, c, oh, ow);
     // TODO: End of compute, need refactor
-
-    valueMapping[result] = std::move(resultT);
-
-    return success();
-  }
-  if (auto op = dyn_cast<tpu::BatchNormOp>(opInst)) {
-    LLVM_DEBUG(llvm::errs() << "BatchNormOp" << "\n";);
-    auto opdT = getOperandTensors(opInst, valueMapping);
-    auto result = op.getResult();
-    LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";);
-    std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
-    assert(shape.size() <= 4);
-    auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
-    auto resultT = std::make_unique<std::vector<float> >(size);
-
-    int n, c, h, w;
-    auto input_type = op.x()->getType().cast<TensorType>();
-    std::vector<int64_t> i_s(input_type.getShape());
-    auto output_type = op.y()->getType().cast<TensorType>();
-    std::vector<int64_t> o_s(output_type.getShape());
-    assert((i_s == o_s) && "input shape not equal to output shape");
-
-    assert((i_s.size() == 4 || i_s.size() == 2) &&
-           "BatchNorm support shape size of 4 or 2 now." );
-
-    n = i_s[0];
-    c = i_s[1];
-    h = (i_s.size() == 2) ? 1 : i_s[2];
-    w = (i_s.size() == 2) ? 1 : i_s[3];
-
-    float *input = (float *)opdT[0]->data();
-    float *mean = (float *)opdT[1]->data();
-    float *variance = (float *)opdT[2]->data();
-    float *scale = (float *)opdT[3]->data();
-    float *output = (float *)resultT.get()->data();
-    float variance_epsilon = op.variance_epsilon().convertToFloat();
-    int ret = my_bn(input, mean, variance, scale, variance_epsilon, output, n, c, h, w);
-
-    assert(ret == 0);
 
     valueMapping[result] = std::move(resultT);
 

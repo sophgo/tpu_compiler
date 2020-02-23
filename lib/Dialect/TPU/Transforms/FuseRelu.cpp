@@ -81,15 +81,13 @@ struct TpuFuseReluPattern : public RewritePattern {
       eltOp.setAttr("name", rewriter.getStringAttr(reluOp.getOpName()));
     } else if (matchPattern(formerOp, m_Op<tpu::FullyConnectedOp>())) {
       auto fcOp = cast<tpu::FullyConnectedOp>(formerOp);
-      assert(fcOp.fused_activation_function() == "NONE");
-      // set fused_activation_function for fc Op
-      fcOp.setAttr("fused_activation_function", rewriter.getStringAttr("RELU"));
+      fcOp.setAttr("do_relu", rewriter.getBoolAttr(true));
       fcOp.setAttr("name", rewriter.getStringAttr(reluOp.getOpName()));
     } else if (matchPattern(formerOp, m_Op<tpu::BroadcastMulOp>())) {
-      auto castOp = cast<tpu::BroadcastMulOp>(formerOp);
-      assert(!castOp.do_relu());
-      castOp.setAttr("do_relu", rewriter.getBoolAttr(true));
-      castOp.setAttr("name", rewriter.getStringAttr(reluOp.getOpName()));
+      auto bcastOp = cast<tpu::BroadcastMulOp>(formerOp);
+      assert(!bcastOp.do_relu());
+      bcastOp.setAttr("do_relu", rewriter.getBoolAttr(true));
+      bcastOp.setAttr("name", rewriter.getStringAttr(reluOp.getOpName()));
     } else if (matchPattern(formerOp, m_Op<tpu::ConcatOp>())) {
       // TODO: need to fuse
       assert(false);

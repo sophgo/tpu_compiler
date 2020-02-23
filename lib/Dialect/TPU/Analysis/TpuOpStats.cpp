@@ -133,9 +133,8 @@ private:
   }
 
   void dumpFullyConnectedOpParam(tpu::FullyConnectedOp &op, llvm::raw_ostream &os) {
-    bool with_transpose, with_bias, do_relu;
     int m, k, n;
-    getFullyConnectedOpParam(op, with_transpose, m, k, n, with_bias, do_relu);
+    parseFullyConnectedParam(op.input(), op.output(), op.filter(), m, k, n);
 
     uint64_t mac_count = m * k * n;
     total_mac_count += mac_count;

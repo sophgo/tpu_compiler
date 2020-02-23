@@ -400,6 +400,79 @@ void CaffeImporter::convertSplitLayer(mlir::Block *block,
     tensor_map_[layer_param.top(i)] = input_var;
 }
 
+void CaffeImporter::convertBatchNormLayer(mlir::Block *block,
+    caffe::Layer<float> *layer) {
+  mlir::Value *input_var = GetLayerInput(layer);
+
+  auto layer_param = layer->layer_param();
+
+  float epsilon = 1e-5;
+  if (layer_param.has_batch_norm_param())
+    epsilon = layer_param.batch_norm_param().eps();
+
+  int64_t n, c, h, w;
+  llvm::ArrayRef<int64_t> input_var_shape =
+      input_var->getType().dyn_cast<mlir::TensorType>().getShape();
+
+  assert(input_var_shape.size() == 4 ||
+         input_var_shape.size() == 2);
+
+  n = input_var_shape[0];
+  c = input_var_shape[1];
+  LLVM_DEBUG(
+    llvm::errs()
+        << "  N: " << n
+        << ", C: " << c;
+  );
+  if (input_var_shape.size() == 4){
+    h = input_var_shape[2];
+    w = input_var_shape[3];
+    LLVM_DEBUG(
+      llvm::errs()
+          << ", IH*IW: " << h << " * " << w;
+    );
+  }
+  LLVM_DEBUG(
+    llvm::errs() << "\n";
+  );
+
+  std::vector<Value *> operands;
+  operands.push_back(input_var);
+
+  // - blobs_[2] holds the scale, which is one scalar data
+  // - blobs_[0] holds the mean
+  // - blobs_[1] holds the variance
+  assert(layer->blobs().size() == 3);
+
+  auto mean_name = layer->layer_param().name()+"_0";
+  auto mean_type = RankedTensorType::get({c}, elementType_);
+  weightFile_->addTensor(mean_name, layer->blobs()[0].get()->cpu_data(), mean_type);
+  operands.push_back(AddLoadWeightOp(block, mean_name, mean_type));
+
+  auto variance_name = layer->layer_param().name()+"_1";
+  auto variance_type = RankedTensorType::get({c}, elementType_);
+  weightFile_->addTensor(variance_name, layer->blobs()[1].get()->cpu_data(), variance_type);
+  operands.push_back(AddLoadWeightOp(block, variance_name, variance_type));
+
+  auto scale_name = layer->layer_param().name()+"_2";
+  auto scale_type = RankedTensorType::get({1}, elementType_);
+  weightFile_->addTensor(scale_name, layer->blobs()[2].get()->cpu_data(), scale_type);
+  operands.push_back(AddLoadWeightOp(block, scale_name, scale_type));
+
+  // auto result_type = RankedTensorType::get({n, c, h, w}, elementType_);
+  auto result_type = RankedTensorType::get(input_var_shape, elementType_);
+
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name())));
+  attrs.push_back(builder_.getNamedAttr("variance_epsilon", builder_.getF32FloatAttr(epsilon)));
+  auto op = OpBuilder(block).create<tpu::BatchNormOp>(
+      builder_.getUnknownLoc(), result_type,
+      ArrayRef<Value *>{operands}, ArrayRef<NamedAttribute>{attrs});
+  auto result_var = op.getResult();
+
+  tensor_map_[layer_param.top(0)] = result_var;
+}
+
 void CaffeImporter::convertConcatLayer(mlir::Block *block,
     caffe::Layer<float> *layer) {
   std::vector<mlir::Value *> input_vars = GetLayerInputs(layer);
@@ -841,6 +914,8 @@ void CaffeImporter::convertInnerProductLayer(mlir::Block *block,
 
   std::vector<Value *> operands;
   operands.push_back(fc_input_var);
+  auto NoneOp = OpBuilder(block).create<tpu::NoneOp>(builder_.getUnknownLoc(),
+                                                     builder_.getNoneType());
 
   // - blobs_[0] holds the filter weights
   // - blobs_[1] holds the biases (optional)
@@ -853,14 +928,20 @@ void CaffeImporter::convertInnerProductLayer(mlir::Block *block,
     auto bias_type = RankedTensorType::get({N}, elementType_);
     weightFile_->addTensor(bias_name, layer->blobs()[1].get()->cpu_data(), bias_type);
     operands.push_back(AddLoadWeightOp(block, bias_name, bias_type));
+  } else {
+    operands.push_back(NoneOp.getResult());
   }
+  operands.push_back(NoneOp.getResult());  // quant_scale
+  operands.push_back(NoneOp.getResult());  // quant_zeropoint
+  operands.push_back(NoneOp.getResult());  // quant_rshift
+  operands.push_back(NoneOp.getResult());  // quant_multiplier
 
   // construct OP
   auto result_type = RankedTensorType::get({M, N}, elementType_);
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder_.getNamedAttr("with_bias", builder_.getBoolAttr(with_bias)));
-  attrs.push_back(builder_.getNamedAttr("with_transpose", builder_.getBoolAttr(with_transpose)));
   attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name())));
+  attrs.push_back(builder_.getNamedAttr("quant", getDefaultQuantParam(builder_)));
   auto op = OpBuilder(block).create<tpu::FullyConnectedOp>(
       builder_.getUnknownLoc(), result_type,
       ArrayRef<Value *>{operands}, ArrayRef<NamedAttribute>{attrs});
@@ -1013,80 +1094,6 @@ void CaffeImporter::convertPoolingLayer(mlir::Block *block,
       ArrayRef<NamedAttribute>{attrs});
     result_var = op.getResult();
   }
-
-  tensor_map_[layer_param.top(0)] = result_var;
-}
-
-void CaffeImporter::convertBatchNormLayer(mlir::Block *block,
-    caffe::Layer<float> *layer) {
-  mlir::Value *input_var = GetLayerInput(layer);
-
-  auto layer_param = layer->layer_param();
-
-  float epsilon = 1e-5;
-  if (layer_param.has_batch_norm_param())
-    epsilon = layer_param.batch_norm_param().eps();
-
-  int64_t n, c, h, w;
-  llvm::ArrayRef<int64_t> input_var_shape =
-      input_var->getType().dyn_cast<mlir::TensorType>().getShape();
-
-
-  assert(input_var_shape.size() == 4 ||
-         input_var_shape.size() == 2);
-
-  n = input_var_shape[0];
-  c = input_var_shape[1];
-  LLVM_DEBUG(
-    llvm::errs()
-        << "  N: " << n
-        << ", C: " << c;
-  );
-  if (input_var_shape.size() == 4){
-    h = input_var_shape[2];
-    w = input_var_shape[3];
-    LLVM_DEBUG(
-      llvm::errs()
-          << ", IH*IW: " << h << " * " << w;
-    );
-  }
-  LLVM_DEBUG(
-    llvm::errs() << "\n";
-  );
-
-  std::vector<Value *> operands;
-  operands.push_back(input_var);
-
-  // - blobs_[2] holds the scale, which is one scalar data
-  // - blobs_[0] holds the mean
-  // - blobs_[1] holds the variance
-  assert(layer->blobs().size() == 3);
-
-  auto mean_name = layer->layer_param().name()+"_0";
-  auto mean_type = RankedTensorType::get({c}, elementType_);
-  weightFile_->addTensor(mean_name, layer->blobs()[0].get()->cpu_data(), mean_type);
-  operands.push_back(AddLoadWeightOp(block, mean_name, mean_type));
-
-  auto variance_name = layer->layer_param().name()+"_1";
-  auto variance_type = RankedTensorType::get({c}, elementType_);
-  weightFile_->addTensor(variance_name, layer->blobs()[1].get()->cpu_data(), variance_type);
-  operands.push_back(AddLoadWeightOp(block, variance_name, variance_type));
-
-  auto scale_name = layer->layer_param().name()+"_2";
-  auto scale_type = RankedTensorType::get({1}, elementType_);
-  weightFile_->addTensor(scale_name, layer->blobs()[2].get()->cpu_data(), scale_type);
-  operands.push_back(AddLoadWeightOp(block, scale_name, scale_type));
-
-  // auto result_type = RankedTensorType::get({n, c, h, w}, elementType_);
-  auto result_type = RankedTensorType::get(input_var_shape, elementType_);
-
-  std::vector<NamedAttribute> attrs;
-  attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name())));
-  attrs.push_back(builder_.getNamedAttr("variance_epsilon", builder_.getF32FloatAttr(epsilon)));
-  auto op = OpBuilder(block).create<tpu::BatchNormOp>(
-      builder_.getUnknownLoc(), result_type,
-      ArrayRef<Value *>{operands}, ArrayRef<NamedAttribute>{attrs});
-  auto result_var = op.getResult();
 
   tensor_map_[layer_param.top(0)] = result_var;
 }
@@ -1556,7 +1563,7 @@ void CaffeImporter::convertFlattenLayer(mlir::Block *block,
 void CaffeImporter::convertSigmoidLayer(mlir::Block *block,
                                         caffe::Layer<float> *layer) {
   mlir::Value *input_var = GetLayerInput(layer);
- 
+
   auto layer_param = layer->layer_param();
 
   int64_t n, c, h, w;
