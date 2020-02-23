@@ -90,12 +90,7 @@ static void gen_sqrt(uint16_t *table_data, uint64_t table_size) {
     double s = _gen_sqrt(2, exp);
     //table_data[idx] = convert_fp32_bf16(s);
     FloatToBFloat16((float*)&s,&table_data[idx],(size_t)1);
-#ifdef DBG
-    printf("t [%lu] is %f [idx:%f][2^%f(%f)] bf %x\n", idx,
-        convert_bf16_fp32(table_data[idx]),
-        float(EXP_START + i), exp/2, (EXP_START + i) / 2.0, 
-        table_data[idx]);
-#endif
+
     idx++;
   }
 
@@ -115,9 +110,7 @@ static void gen_sqrt_mantissa(uint16_t* table_mantissa, uint64_t table_size) {
   double d;
   for (int i = 0; i < half; i++) {
     d = 1 + i * 1 / 128.0;
-    //d = (double) pow(d, 0.5);
     d = (double) pow(d, 0.5);
-    //table_mantissa[128+idx] = convert_fp32_bf16(d);
     FloatToBFloat16((float*)&d,&table_mantissa[idx+128],(size_t)1);
 
     LLVM_DEBUG(llvm::errs() <<","<< "table_mantissa["<<idx+128<<"] = " <<table_mantissa[128+idx];);
@@ -125,7 +118,6 @@ static void gen_sqrt_mantissa(uint16_t* table_mantissa, uint64_t table_size) {
     //13=2^3x1.625=(2^2)x(2^1x1.625)
     d = 2 * (1 + i * 1 / 128.0);
 
-    //d = (double) pow(d, 0.5);
     d = (double) pow(d, 0.5);
     FloatToBFloat16((float*)&d,&table_mantissa[idx],(size_t)1);
     //table_mantissa[idx] = convert_fp32_bf16(d);

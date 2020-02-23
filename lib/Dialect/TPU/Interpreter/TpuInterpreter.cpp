@@ -2153,7 +2153,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     }
 
     float *output = (float *)resultT.get()->data();
-
+#if 1
     if (op.quant() == "INT8"|| op.quant() == "INT8_PER_CHANNEL"||op.quant() == "INT8_MULTIPLIER") {
       assert(threshold_x != 0.0);
       std::vector<int> data(256, 0);
@@ -2161,7 +2161,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       for (int idx = 0; idx < 256; ++idx) {
         char lutInput = static_cast<char>(idx);
         float index = lutInput * threshold_x / 127.0;
-        float lutOutput = pow(index,2) * 127.0 / threshold_y;
+        float lutOutput = pow(index,power) * 127.0 / threshold_y;
         int lutOutputI32 = std::floor(lutOutput + 0.5);
         lutOutputI32 = (lutOutputI32 > 127)
                            ? 127
@@ -2171,7 +2171,10 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       for (int i = 0; i < size; ++i) {
         output[i] = data[(unsigned char)input[0][i]];
       }
-    } else  {
+    } 
+    else  
+#endif
+    {
 
       if (op.quant() == "INT8"|| op.quant() == "INT8_PER_CHANNEL") {
         scale = scale*(threshold_y/threshold_x)*multiplier;

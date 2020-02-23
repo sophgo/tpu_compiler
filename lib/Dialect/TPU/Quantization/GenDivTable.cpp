@@ -114,12 +114,6 @@ void bf16_gen_reciprocal(uint16_t *table_data) {
     idx++;
   }
 
-  // idx = 255 dont care
-  //s = _gen_reciprocal(2, 0);
-  //table_data[idx] = convert_fp32_bf16(s);
-  //printf("t [%lu] is %f[%d]\n", idx, convert_bf16_fp32(table_data[idx]), 0);
-  //idx++;
-
   // duplicate channel #1 to #31
   //TODO: tensor copy
   for (uint32_t i = 1; i < NPU_NUM; i++) {
