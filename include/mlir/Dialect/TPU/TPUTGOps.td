@@ -277,7 +277,7 @@ class TPU_TG_FullyConnectedOp<string mnemonic, string opQuant> : TPU_Op<mnemonic
   let arguments = (
     ins AnyTensor:$input,
     AnyTensor:$filter,
-    TPU_TensorOfOrNone<[I32]>:$bias,
+    TPU_TensorOfOrNone<[I32, I16]>:$bias,
     DefaultValuedAttr<BoolAttr, "false">:$do_relu,
     OptionalAttr<I8Attr>:$rshift,
     DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
