@@ -663,6 +663,40 @@ Value *tpu::ShuffleChannelOp::convertToTG(void *info) {
   return nullptr;
 }
 
+Value* tpu::ReshapeOp::convertToTG(void *info) {
+  llvm::errs() << "lowerToTG: " << getOperationName()
+               << " [" << getOpName() << "]\n";
+  Operation *op = this->getOperation();
+  auto builder = Builder(op->getContext());
+  //TensorFile *weightTF_ = (TensorFile *)info;
+
+  std::vector<Value *> operands;
+  operands.push_back(input());
+
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder.getNamedAttr("name", nameAttr()));
+  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
+
+  if (getOpQuant() == "INT8") {
+    assert(getOpQuantParamType() == "NONE");
+    auto newOp = OpBuilder(op).create<tpu::TG_INT8_ReshapeOp>(op->getLoc(),
+        getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  } else if (getOpQuant() == "BF16") {
+    auto newOp = OpBuilder(op).create<tpu::TG_BF16_ReshapeOp>(op->getLoc(),
+        getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  } else if (getOpQuant() == "NONE") {
+    // Reshape is used for both Quantized and FP32
+  } else {
+    assert(false);
+  }
+
+  return nullptr;
+}
+
 Value *tpu::SigmoidOp::convertToTG(void *info) {
   llvm::errs() << "lowerToTG: " << getOperationName() << " [" << getOpName()
                << "]\n";
@@ -688,6 +722,39 @@ Value *tpu::SigmoidOp::convertToTG(void *info) {
   } else if (getOpQuant() == "BF16") {
     auto newOp = OpBuilder(op).create<tpu::TG_BF16_SigmoidOp>(
         op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  }
+  assert(false);
+  return nullptr;
+}
+
+Value* tpu::SliceOp::convertToTG(void *info) {
+  llvm::errs() << "lowerToTG: " << getOperationName()
+               << " [" << getOpName() << "]\n";
+  Operation *op = this->getOperation();
+  auto builder = Builder(op->getContext());
+  //TensorFile *weightTF_ = (TensorFile *)info;
+
+  std::vector<Value *> operands;
+  operands.push_back(input());
+
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder.getNamedAttr("axis",
+      builder.getI32IntegerAttr(axis().getLimitedValue())));
+  attrs.push_back(builder.getNamedAttr("offset", offsetAttr()));
+  attrs.push_back(builder.getNamedAttr("name", nameAttr()));
+  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
+
+  if (getOpQuant() == "INT8") {
+    assert(getOpQuantParamType() == "NONE");
+    auto newOp = OpBuilder(op).create<tpu::TG_INT8_ReshapeOp>(op->getLoc(),
+        getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  } else if (getOpQuant() == "BF16") {
+    auto newOp = OpBuilder(op).create<tpu::TG_BF16_ReshapeOp>(op->getLoc(),
+        getResult()->getType(), ArrayRef<Value *>{operands},
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
   }
@@ -764,19 +831,20 @@ struct DefaultErasePattern : public RewritePattern {
   }
 };
 
+template<typename OpTy>
 struct FoldReshapePattern : public RewritePattern {
   FoldReshapePattern(MLIRContext *context)
-      : RewritePattern("tpu.reshape", 1, context) {}
+      : RewritePattern(OpTy::getOperationName(), 1, context) {}
 
   PatternMatchResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
-    auto laterReshapeOp = cast<tpu::ReshapeOp>(op);
+    auto laterReshapeOp = cast<OpTy>(op);
 
     auto formerOp = laterReshapeOp.getOperand()->getDefiningOp();
-    if (!matchPattern(formerOp, m_Op<tpu::ReshapeOp>())) {
+    if (!matchPattern(formerOp, m_Op<OpTy>())) {
       return matchFailure();
     }
-    auto formerScaleOp = cast<tpu::ReshapeOp>(formerOp);
+    auto formerScaleOp = cast<OpTy>(formerOp);
 
     laterReshapeOp.getOperation()->setOperand(0, formerScaleOp.getOperand());
     return matchSuccess();
@@ -1401,7 +1469,9 @@ public:
         DefaultToTGPattern<tpu::PoolAvg2DOp>,
         DefaultToTGPattern<tpu::PoolMax2DOp>,
         DefaultToTGPattern<tpu::ShuffleChannelOp>,
+        DefaultToTGPattern<tpu::ReshapeOp>,
         DefaultToTGPattern<tpu::SigmoidOp>,
+        DefaultToTGPattern<tpu::SliceOp>,
         DefaultToTGPattern<tpu::UpsampleOp>
     >(context, weightTF.get(), weightFV);
     applyPatternsGreedily(fn, patterns);
@@ -1413,7 +1483,8 @@ public:
         DefaultErasePattern<tpu::SoftmaxOp>,
         //DefaultErasePattern<tpu::QuantizationOp>,
         DefaultErasePattern<tpu::DequantizationOp>,
-        FoldReshapePattern
+        FoldReshapePattern<tpu::TG_INT8_ReshapeOp>,
+        FoldReshapePattern<tpu::TG_BF16_ReshapeOp>
         >(context);
     applyPatternsGreedily(fn, patterns);
 

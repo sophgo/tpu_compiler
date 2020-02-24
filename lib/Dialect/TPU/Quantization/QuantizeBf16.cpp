@@ -434,7 +434,7 @@ struct TpuAddDequantBeforeDetectionOutputOpPattern : public OpRewritePattern<tpu
   for (size_t i = 0; i < op.getOperation()->getNumOperands(); ++i) {
 
     formerOp = op.getOperand(i)->getDefiningOp();
-    if (!matchPattern(formerOp, m_Op<tpu::LoadWeightOp>())){//&&!matchPattern(formerOp, m_Op<tpu::ReshapeOp>())) {
+    if (!matchPattern(formerOp, m_Op<tpu::LoadWeightOp>())){
         llvm::errs() << "detectionouput formorOp name: "<<getOpName(formerOp).str()<<"\n";
         std::string op_name = getPreviousOpName(op, i).str();
         auto type = op.getOperation()->getOperand(i)->getType();
@@ -450,7 +450,6 @@ struct TpuAddDequantBeforeDetectionOutputOpPattern : public OpRewritePattern<tpu
     return matchSuccess();
   }
 };
-
 
 struct TpuAddQuantAndDequantForSoftmaxOpPattern : public OpRewritePattern<tpu::SoftmaxOp> {
   using OpRewritePattern<tpu::SoftmaxOp>::OpRewritePattern;
@@ -526,11 +525,13 @@ public:
                 TpuQuantBf16DefaultPattern<tpu::PoolMax2DOp>,
                 TpuQuantBf16DefaultPattern<tpu::PReluOp>,
                 TpuQuantBf16DefaultPattern<tpu::ReluOp>,
+                TpuQuantBf16DefaultPattern<tpu::ReshapeOp>,
                 TpuQuantBf16DefaultPattern<tpu::SigmoidOp>,
+                TpuQuantBf16DefaultPattern<tpu::SliceOp>,
                 TpuQuantBf16DefaultPattern<tpu::UpsampleOp>,
 
 
-                TpuQuantDefaultPattern<tpu::SliceOp>,
+
                 TpuQuantDefaultPattern<tpu::DivOp>,
                 TpuQuantDefaultPattern<tpu::SqrtOp>,
                 TpuQuantDefaultPattern<tpu::PermuteOp>,
