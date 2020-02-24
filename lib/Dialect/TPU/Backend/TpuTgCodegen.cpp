@@ -81,9 +81,15 @@ static void parseTgLeakyReluParam(Operation *op,
     pos_m_i8 = 0;
     pos_rshift = 0;
   }
-  neg_m_i8 = lreluOp.m_i8_neg().getLimitedValue();
-  neg_rshift = lreluOp.rshift_neg().getLimitedValue();
-  assert(neg_m_i8);
+
+  if (lreluOp.m_i8_neg().hasValue()) {
+    neg_m_i8 = lreluOp.m_i8_neg().getValue().getLimitedValue();
+    neg_rshift = lreluOp.rshift_neg().getValue().getLimitedValue();
+    assert(neg_m_i8);
+  } else {
+    neg_m_i8 = 0;
+    neg_rshift = 0;
+  }
 
   negative_slope = lreluOp.negative_slope().convertToFloat();
 }
@@ -102,7 +108,7 @@ LogicalResult tpu::TG_INT8_BroadcastMulOp::codegen(void *ctx) {
 
   gaddr_t ga_input = getPreviousOpAddress(op);
   gaddr_t ga_output = getOpAddress(op);
-  gaddr_t ga_multipler = getWeightOpAddress(filter()->getDefiningOp());
+  gaddr_t ga_scale = getOpAddress(filter()->getDefiningOp());
   gaddr_t ga_pc_info = getWeightOpAddress(pc_info()->getDefiningOp());
   int layer_id = mlir::getOpLayerId(op);
 
@@ -114,7 +120,7 @@ LogicalResult tpu::TG_INT8_BroadcastMulOp::codegen(void *ctx) {
       nullptr,      // depends
       0,            // depends_len
       ga_input,     // input_addr
-      ga_multipler, // scale_addr
+      ga_scale, // scale_addr
       ga_pc_info,   // pack_addr
       ga_output,    // output_addr
       n, c, h, w,
@@ -150,7 +156,7 @@ LogicalResult tpu::TG_INT8_ConcatOp::codegen(void *ctx) {
 
   unsigned nInputs = op->getNumOperands();
   gaddr_t ga_inputs[nInputs];
-  for ( int i = 0; i < nInputs; i++) {
+  for ( unsigned i = 0; i < nInputs; i++) {
     ga_inputs[i] = getPreviousOpAddress(op, i);
   }
   gaddr_t ga_output = getOpAddress(op);
@@ -160,7 +166,7 @@ LogicalResult tpu::TG_INT8_ConcatOp::codegen(void *ctx) {
   // prepare shape info
   #define SHAPE_DIM 4
   int32_t input_dims[nInputs * SHAPE_DIM];
-  for ( int i = 0; i < nInputs; i++) {
+  for ( unsigned i = 0; i < nInputs; i++) {
     std::vector<int64_t> shape;
     int64_t size;
     getTensorShapeAndSize(op->getOperand(i), shape, size);
@@ -373,6 +379,7 @@ LogicalResult tpu::TG_INT8_PT_Conv2DOp::codegen(void *ctx) {
     parseTgLeakyReluParam(nextOp,
         pos_rshift, pos_m_i8, neg_rshift, neg_m_i8, negativeSlope);
 
+    assert(neg_m_i8);
     // TODO: fix the type in backend API
     fused_leakyrelu_pos_rshift = static_cast<int>(pos_rshift);
     fused_leakyrelu_pos_m_i8   = static_cast<int>(pos_m_i8);
@@ -470,6 +477,7 @@ LogicalResult tpu::TG_INT8_PC_Conv2DOp::codegen(void *ctx) {
     float negativeSlope;
     parseTgLeakyReluParam(nextOp,
         pos_rshift, pos_m_i8, neg_rshift, neg_m_i8, negativeSlope);
+    assert(neg_m_i8);
 
     // TODO: fix the type in backend API
     fused_leakyrelu_pos_rshift = static_cast<int>(pos_rshift);
@@ -632,6 +640,7 @@ LogicalResult tpu::TG_INT8_PC_DeConv2DOp::codegen(void *ctx) {
     int8_t pos_rshift, pos_m_i8, neg_rshift, neg_m_i8;
     parseTgLeakyReluParam(nextOp,
         pos_rshift, pos_m_i8, neg_rshift, neg_m_i8, negativeSlope);
+    assert(neg_m_i8);
 
     // TODO: fix the type in backend API
     fused_leakyrelu_pos_rshift = static_cast<int>(pos_rshift);
@@ -796,12 +805,12 @@ LogicalResult tpu::TG_INT8_EltwiseMulOp::codegen(void *ctx) {
 
   assert(this->rshift().hasValue());
   int8_t rshift = this->rshift().getValue().getLimitedValue();
-  assert(this->m_i8_output().hasValue());
-  int8_t m_i8_output = this->m_i8_output().getValue().getLimitedValue();
+  assert(this->m_i32_output().hasValue());
+  int32_t m_i32_output = this->m_i32_output().getValue().getLimitedValue();
 
   // TODO: should change on backend API, rather than doing cast
   int rshift_int = static_cast<int>(rshift);
-  int m_int = static_cast<int>(m_i8_output);
+  int32_t m_int = static_cast<int32_t>(m_i32_output);
   const int coeffs[2] = {1, 1};
 
   bmnet_eltwise_fixed_forward_bmkernel(
@@ -1015,6 +1024,7 @@ LogicalResult tpu::TG_INT8_LeakyReluOp::codegen(void *ctx) {
   float negativeSlope;
   parseTgLeakyReluParam(op,
       pos_rshift, pos_m_i8, neg_rshift, neg_m_i8, negativeSlope);
+  assert(neg_m_i8);
 
   std::vector<int64_t> shape;
   int64_t input_size, n, c, h, w;
@@ -1068,6 +1078,10 @@ LogicalResult tpu::TG_BF16_LeakyReluOp::codegen(void *ctx) {
   gaddr_t ga_output = getOpAddress(op);
   int layer_id = mlir::getOpLayerId(op);
   float ga_negative_slope = this->negative_slope().convertToFloat();
+
+  if(ga_negative_slope > 1 || ga_negative_slope < 0) {
+    assert(0 && "Not support slope > 1 or slope < 0 now");
+  }
 
   bf16_leakyrelu_forward_kernel(
     *backend_ctx,        // ctx
@@ -1363,19 +1377,19 @@ LogicalResult tpu::TG_BF16_PoolMax2DOp::codegen(void *ctx) {
 LogicalResult tpu::TG_INT8_PReluOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName() << " [" << getOpName()
                << "]\n";
-  BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
-  Operation *op = this->getOperation();
+  //BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
+  //Operation *op = this->getOperation();
 
-  std::vector<int64_t> shape;
-  int64_t input_size, n, c, h, w;
-  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
-  getNCHW(shape, n, c, h, w);
+  //std::vector<int64_t> shape;
+  //int64_t input_size, n, c, h, w;
+  //getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  //getNCHW(shape, n, c, h, w);
 
-  gaddr_t ga_input = getPreviousOpAddress(op);
-  gaddr_t ga_output = getOpAddress(op);
+  //gaddr_t ga_input = getPreviousOpAddress(op);
+  //gaddr_t ga_output = getOpAddress(op);
   // gaddr_t negative_scope_gaddr =
   //     getWeightOpAddress(negative_slope()->getDefiningOp());
-  int layer_id = mlir::getOpLayerId(op);
+  //int layer_id = mlir::getOpLayerId(op);
 
   // bmnet_prelu_fixed_forward_bmkernel(
   //     *backend_ctx,
@@ -1384,6 +1398,7 @@ LogicalResult tpu::TG_INT8_PReluOp::codegen(void *ctx) {
   //     output_gaddr,         // output_data_gaddr,
   //     negative_scope_gaddr, // float negative_slope,
   //     n, c, h, w, GT_right_shift_width, GT_scale, LE_right_shift_width, FMT_I8);
+  assert(false);
   return success();
 }
 
@@ -1402,6 +1417,24 @@ LogicalResult tpu::TG_INT8_ShuffleChannelOp::codegen(void *ctx) {
   // TODO: complete later
 
   assert(false);
+  return success();
+}
+
+LogicalResult tpu::TG_INT8_ReshapeOp::codegen(void *ctx) {
+  llvm::errs() << "TG_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";
+  //BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
+  //Operation *op = this->getOperation();
+
+  return success();
+}
+
+LogicalResult tpu::TG_BF16_ReshapeOp::codegen(void *ctx) {
+  llvm::errs() << "TG_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";
+  //BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
+  //Operation *op = this->getOperation();
+
   return success();
 }
 
@@ -1445,6 +1478,44 @@ LogicalResult tpu::TG_BF16_SigmoidOp::codegen(void *ctx) {
   return success();
 }
 
+LogicalResult tpu::TG_INT8_SliceOp::codegen(void *ctx) {
+  llvm::errs() << "TG_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";
+  //BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
+  //Operation *op = this->getOperation();
+
+  int axis = this->axis().getLimitedValue();
+  std::vector<int64_t> input_shape = getTensorShape(input());
+
+  if (axis == 1 && input_shape[0] == 1) {
+    llvm::errs() << "  no copy\n";
+  } else {
+    llvm::errs() << "  slice not support batch != 1 yet\n";
+    assert(false);
+  }
+
+  return success();
+}
+
+LogicalResult tpu::TG_BF16_SliceOp::codegen(void *ctx) {
+  llvm::errs() << "TG_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";
+  //BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
+  //Operation *op = this->getOperation();
+
+  int axis = this->axis().getLimitedValue();
+  std::vector<int64_t> input_shape = getTensorShape(input());
+
+  if (axis == 1 && input_shape[0] == 1) {
+    llvm::errs() << "  no copy\n";
+  } else {
+    llvm::errs() << "  slice not support batch != 1 yet\n";
+    assert(false);
+  }
+
+  return success();
+}
+
 LogicalResult tpu::TG_INT8_UpsampleOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";
@@ -1475,7 +1546,8 @@ LogicalResult tpu::TG_INT8_UpsampleOp::codegen(void *ctx) {
       h,
       w,
       scale,
-      scale);
+      scale
+  );
 
   return success();
 }
@@ -1483,10 +1555,36 @@ LogicalResult tpu::TG_INT8_UpsampleOp::codegen(void *ctx) {
 LogicalResult tpu::TG_BF16_UpsampleOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";
-  //BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
-  //Operation *op = this->getOperation();
+  BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
+  Operation *op = this->getOperation();
 
-  assert(false);
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  getNCHW(shape, n, c, h, w);
+  int32_t scale = this->scale().getLimitedValue();
+
+  gaddr_t ga_input = getPreviousOpAddress(op);
+  gaddr_t ga_output = getOpAddress(op);
+  int layer_id = mlir::getOpLayerId(op);
+
+  bf16_upsample_fixed_bmkernel(
+      *backend_ctx,
+      0, //stream_id,
+      0, //inst_id,
+      layer_id, //layer_id,
+      nullptr, //const u32 *depends,
+      0, //depends_len,
+      ga_input,
+      ga_output,
+      n,
+      c,
+      h,
+      w,
+      scale,
+      scale
+  );
+
   return success();
 }
 
