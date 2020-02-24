@@ -9,7 +9,7 @@ COMPARE_ALL=1
 # import calibration table
 mlir-opt \
     --import-calibration-table \
-    --calibration-table $REGRESSION_PATH/densenet/data/densenet_calibration_table \
+    --calibration-table $REGRESSION_PATH/densenet/data/densenet_threshold_table \
     densenet_opt.mlir \
     -o densenet_cali.mlir
 
@@ -58,7 +58,7 @@ if [ $COMPARE_ALL ]; then
       --op_info densenet_op_info_int8_per_layer.csv \
       --dequant \
       --excepts prob \
-      --tolerance 0.67,0.65,0.11 -vvv
+      --tolerance 0.75,0.74,0.25 -vvv
 fi
 
 # quantization 2: per-channel int8
@@ -94,7 +94,7 @@ if [ $COMPARE_ALL ]; then
       --op_info densenet_op_info_int8_per_channel.csv \
       --dequant \
       --excepts prob \
-      --tolerance 0.88,0.87,0.48 -vvv
+      --tolerance 0.87,0.87,0.48 -vvv
 fi
 
 # quantization 3: per-channel int8 with multiplier
@@ -130,7 +130,7 @@ if [ $COMPARE_ALL ]; then
       --op_info densenet_op_info_int8_multiplier.csv \
       --dequant \
       --excepts prob \
-      --tolerance 0.89,0.88,0.49 -vvv
+      --tolerance 0.86,0.86,0.46 -vvv
 fi
 
 # VERDICT

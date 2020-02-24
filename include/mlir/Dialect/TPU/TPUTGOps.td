@@ -82,6 +82,7 @@ class TPU_TG_ConcatOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 def TPU_TG_INT8_ConcatOp : TPU_TG_ConcatOp<"tg_int8_concat", "Int8">;
 def TPU_TG_BF16_ConcatOp : TPU_TG_ConcatOp<"tg_bf16_concat", "Bf16">;
 
+
 class TPU_TG_ConvOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
@@ -145,6 +146,7 @@ def TPU_TG_BF16_DeConv2DOp : TPU_TG_ConvOp<"tg_bf16_deconv_2d", "Bf16">;
 def TPU_TG_INT8_BroadcastMulOp : TPU_TG_ConvOp<"tg_int8_broadcast_mul", "Int8">;
 def TPU_TG_BF16_BroadcastMulOp : TPU_TG_ConvOp<"tg_bf16_broadcast_mul", "Bf16">;
 
+
 class TPU_TG_CropOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
@@ -206,6 +208,7 @@ class TPU_TG_EltwiseOp<string mnemonic, string opQuant, string opType> : TPU_Op<
       `m_i8_inputs`     : optional, multipliers for inputs. one int8 value for
                           each input (saved as I32ArrayAttr)
       `m_i8_output`     : optional, multiplier for output.
+      `m_i32_output`    : optional, multiplier for output, .
       `do_relu`         : required, if need to preform relu on result.
       `region`          : required, the memory region to reside in, could be
                           one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
@@ -229,6 +232,7 @@ class TPU_TG_EltwiseOp<string mnemonic, string opQuant, string opType> : TPU_Op<
     OptionalAttr<I8Attr>:$rshift,
     OptionalAttr<I32ArrayAttr>:$m_i8_inputs,
     OptionalAttr<I8Attr>:$m_i8_output,
+    OptionalAttr<I32Attr>:$m_i32_output,
     DefaultValuedAttr<BoolAttr, "false">:$do_relu,
     DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
@@ -244,6 +248,7 @@ def TPU_TG_INT8_EltwiseMulOp : TPU_TG_EltwiseOp<"tg_int8_eltwise_mul", "Int8", "
 def TPU_TG_BF16_EltwiseAddOp : TPU_TG_EltwiseOp<"tg_bf16_eltwise_add", "Bf16", "Add">;
 def TPU_TG_BF16_EltwiseMaxOp : TPU_TG_EltwiseOp<"tg_bf16_eltwise_max", "Bf16", "Max">;
 def TPU_TG_BF16_EltwiseMulOp : TPU_TG_EltwiseOp<"tg_bf16_eltwise_mul", "Bf16", "Mul">;
+
 
 class TPU_TG_FullyConnectedOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,
@@ -292,6 +297,7 @@ class TPU_TG_FullyConnectedOp<string mnemonic, string opQuant> : TPU_Op<mnemonic
 def TPU_TG_INT8_FullyConnectedOp : TPU_TG_FullyConnectedOp<"tg_int8_fully_connected", "Int8">;
 def TPU_TG_BF16_FullyConnectedOp : TPU_TG_FullyConnectedOp<"tg_bf16_fully_connected", "Bf16">;
 
+
 class TPU_TG_LeakyReluOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
@@ -332,8 +338,8 @@ class TPU_TG_LeakyReluOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     F32Attr:$negative_slope,
     OptionalAttr<I8Attr>:$rshift_pos,
     OptionalAttr<I8Attr>:$m_i8_pos,
-    I8Attr:$rshift_neg,
-    I8Attr:$m_i8_neg,
+    OptionalAttr<I8Attr>:$rshift_neg,
+    OptionalAttr<I8Attr>:$m_i8_neg,
     DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     StrAttr:$name,
@@ -445,6 +451,8 @@ def TPU_TG_INT8_PoolAvg2DOp : TPU_TG_Pool2DOp<"tg_int8_pool_avg_2d", "Int8", "Av
 def TPU_TG_INT8_PoolMax2DOp : TPU_TG_Pool2DOp<"tg_int8_pool_max_2d", "Int8", "Max">;
 def TPU_TG_BF16_PoolAvg2DOp : TPU_TG_Pool2DOp<"tg_bf16_pool_avg_2d", "Bf16", "Avg">;
 def TPU_TG_BF16_PoolMax2DOp : TPU_TG_Pool2DOp<"tg_bf16_pool_max_2d", "Bf16", "Max">;
+
+
 class TPU_TG_PReluOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
@@ -493,18 +501,24 @@ class TPU_TG_PReluOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 def TPU_TG_INT8_PReluOp : TPU_TG_PReluOp<"tg_int8_prelu", "Int8">;
 def TPU_TG_BF16_PReluOp : TPU_TG_PReluOp<"tg_bf16_prelu", "Bf16">;
 
-class TPU_TG_ShuffleChannelOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
+
+class TPU_TG_ReshapeOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
        DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
-  let summary = "TG " # opQuant # " ShuffleChannel operator.";
+  let summary = "TG " # opQuant # " reshape operator.";
 
   let description = [{
+    Produces a tensor with the same values but different static shape defined
+    by the output type.
+
     Inputs:
-      `input`           : required, the input activation memref.
+      `input`           : required, the input activation tensor.
 
     Attributes:
-      `group`           : required, channel group of shuffle.
+      `region`          : required, the memory region to reside in, could be
+                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
+                          (backend does not support `INPUT`, `OUTPUT` for now)
       `gaddr`           : optional, address in global memory, normally the
                                      offset within the memory region.
 
@@ -522,9 +536,52 @@ class TPU_TG_ShuffleChannelOp<string mnemonic, string opQuant> : TPU_Op<mnemonic
 
   let arguments = (
     ins AnyTensor:$input,
+    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
+    OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
+  );
 
+  let results = (outs AnyTensor:$output);
+}
+def TPU_TG_INT8_ReshapeOp : TPU_TG_ReshapeOp<"tg_int8_reshape", "Int8">;
+def TPU_TG_BF16_ReshapeOp : TPU_TG_ReshapeOp<"tg_bf16_reshape", "Bf16">;
+
+
+class TPU_TG_ShuffleChannelOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
+  let summary = "TG " # opQuant # " ShuffleChannel operator.";
+
+  let description = [{
+    Inputs:
+      `input`           : required, the input activation memref.
+
+    Attributes:
+      `group`           : required, channel group of shuffle.
+      `region`          : required, the memory region to reside in, could be
+                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
+                          (backend does not support `INPUT`, `OUTPUT` for now)
+      `gaddr`           : optional, address in global memory, normally the
+                                     offset within the memory region.
+
+      `name`            : required, name for comparing, or debug.
+      `layer_id`        : optional, id for profiling.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface`    : support common TPU TG Op interface.
+      `TpuTGOpCodegenInterface` : support generate TPU instuctions.
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
     NonNegativeI32Attr:$group,
-
+    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     StrAttr:$name,
     OptionalAttr<NonNegativeI32Attr>:$layer_id
@@ -547,6 +604,9 @@ class TPU_TG_SigmoidOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       `table`          : required, the lookup table
 
     Attributes:
+      `region`          : required, the memory region to reside in, could be
+                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
+                          (backend does not support `INPUT`, `OUTPUT` for now)
       `gaddr`           : optional, address in global memory, normally the
                           offset within the memory region.
       `name`            : required, name for comparing, or debug.
@@ -564,6 +624,7 @@ class TPU_TG_SigmoidOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
   let arguments = (
     ins AnyTensor:$input,
     AnyTensor:$table,
+    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     StrAttr:$name,
     OptionalAttr<NonNegativeI32Attr>:$layer_id
@@ -573,6 +634,57 @@ class TPU_TG_SigmoidOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 }
 def TPU_TG_INT8_SigmoidOp : TPU_TG_SigmoidOp<"tg_int8_sigmoid", "Int8">;
 def TPU_TG_BF16_SigmoidOp : TPU_TG_SigmoidOp<"tg_bf16_sigmoid", "Bf16">;
+
+
+class TPU_TG_SliceOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
+  let summary = "TG " # opQuant # " slice operator.";
+
+  let description = [{
+    Slices an tensor to multiple output tensors along a given dimension
+    (currently channel only) with given slice indices.
+
+    Inputs:
+      `input`           : required, the input activation tensor.
+
+    Attributes:
+      `axis`            : required, the axis to slice.
+      `offset`          : required, the offset the output is sliced within the
+                          input, along the specified axis.
+      `region`          : required, the memory region to reside in, could be
+                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
+                          (backend does not support `INPUT`, `OUTPUT` for now)
+      `gaddr`           : optional, address in global memory, normally the
+                                     offset within the memory region.
+
+      `name`            : required, name for comparing, or debug.
+      `layer_id`        : optional, id for profiling.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface`    : support common TPU TG Op interface.
+      `TpuTGOpCodegenInterface` : support generate TPU instuctions.
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    DefaultValuedAttr<I32Attr, "1">:$axis,
+    I32Attr:$offset,
+    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
+    OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+def TPU_TG_INT8_SliceOp : TPU_TG_SliceOp<"tg_int8_slice", "Int8">;
+def TPU_TG_BF16_SliceOp : TPU_TG_SliceOp<"tg_bf16_slice", "Bf16">;
 
 
 class TPU_TG_UpsampleOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,

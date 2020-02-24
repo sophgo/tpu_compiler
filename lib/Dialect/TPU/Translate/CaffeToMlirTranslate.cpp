@@ -906,6 +906,7 @@ void CaffeImporter::convertInnerProductLayer(mlir::Block *block,
     std::vector<NamedAttribute> attrs;
     attrs.push_back(builder_.getNamedAttr("name",
         builder_.getStringAttr(layer_param.name() + "_reshape")));
+    attrs.push_back(builder_.getNamedAttr("quant", getDefaultQuantParam(builder_)));
     auto reshape_op = OpBuilder(block).create<tpu::ReshapeOp>(
         builder_.getUnknownLoc(), fc_input_type,
         ArrayRef<Value *>{input_var}, ArrayRef<NamedAttribute>{attrs});
@@ -1519,8 +1520,8 @@ void CaffeImporter::convertFlattenLayer(mlir::Block *block,
       input_var->getType().dyn_cast<mlir::TensorType>().getShape();
   //assert(input_shape.size() == 4);
   RankedTensorType result_type=nullptr;
-  if(input_shape.size() == 4){
 
+  if (input_shape.size() == 4) {
     n = input_shape[0];
     c = input_shape[1];
     h = input_shape[2];
@@ -1532,9 +1533,7 @@ void CaffeImporter::convertFlattenLayer(mlir::Block *block,
     // construct OP
     result_type = RankedTensorType::get({n, c * h * w}, elementType_);
 
-
-  }else if(input_shape.size() == 3){ // for ssd mbox_conf_flatten layer
-
+  } else if (input_shape.size() == 3) { // for ssd mbox_conf_flatten layer
     c = input_shape[0];
     h = input_shape[1];
     w = input_shape[2];
@@ -1545,14 +1544,14 @@ void CaffeImporter::convertFlattenLayer(mlir::Block *block,
     // construct OP
     result_type = RankedTensorType::get({c, h*w}, elementType_);
 
-  }else{
-
+  } else {
     assert(0);
   }
 
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder_.getNamedAttr("name",
       builder_.getStringAttr(layer_param.name())));
+  attrs.push_back(builder_.getNamedAttr("quant", getDefaultQuantParam(builder_)));
   auto reshape_op = OpBuilder(block).create<tpu::ReshapeOp>(
       builder_.getUnknownLoc(), result_type, ArrayRef<Value *>{input_var},
       ArrayRef<NamedAttribute>{attrs});
@@ -1650,16 +1649,18 @@ void CaffeImporter::convertSliceLayer(mlir::Block *block, caffe::Layer<float> *l
     auto result_type = RankedTensorType::get({n, c, h, w}, elementType_);
 
     std::vector<NamedAttribute> attrs;
-    attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name() + "_" + std::to_string(i))));
     attrs.push_back(builder_.getNamedAttr("axis", builder_.getI32IntegerAttr(axis)));
-    attrs.push_back(builder_.getNamedAttr("input_offset", builder_.getI32IntegerAttr(offset)));
+    attrs.push_back(builder_.getNamedAttr("offset", builder_.getI32IntegerAttr(offset)));
+    attrs.push_back(builder_.getNamedAttr("name",
+        builder_.getStringAttr(layer_param.name() + "_" + std::to_string(i))));
+    attrs.push_back(builder_.getNamedAttr("quant", getDefaultQuantParam(builder_)));
     auto op = OpBuilder(block).create<tpu::SliceOp>(
       builder_.getUnknownLoc(), result_type,
       ArrayRef<Value *>{input_var}, ArrayRef<NamedAttribute>{attrs});
     auto result_var = op.getResult();
 
     tensor_map_[layer_param.top(i)] = result_var;
-    offset += n * c * h * w;
+    offset += c;
   }
 }
 
@@ -1672,85 +1673,86 @@ void CaffeImporter::convertReshapeLayer(mlir::Block *block,
   llvm::ArrayRef<int64_t> input_shape =
       input_var->getType().dyn_cast<mlir::TensorType>().getShape();
   RankedTensorType result_type=nullptr;
-  if(input_shape.size() == 4){
 
-  const int input_start_axis = layer_param.reshape_param().axis();
-  const int num_axes = layer_param.reshape_param().num_axes();
-  const int start_axis = (input_start_axis >= 0) ? input_start_axis :
-      input_shape.size() + input_start_axis + 1;
+  if (input_shape.size() == 4) {
 
-  assert(start_axis >= 0);
-  assert(start_axis <= (int)input_shape.size());
-  assert(num_axes >= -1);
-  const int end_axis =
-      (num_axes == -1) ? input_shape.size() : (start_axis + num_axes);
-  assert(end_axis <= (int)input_shape.size());
+    const int input_start_axis = layer_param.reshape_param().axis();
+    const int num_axes = layer_param.reshape_param().num_axes();
+    const int start_axis = (input_start_axis >= 0) ? input_start_axis :
+        input_shape.size() + input_start_axis + 1;
 
-  const int num_axes_replaced = end_axis - start_axis;
-  const int num_axes_retained = input_shape.size() - num_axes_replaced;
-  auto top_blob_shape = layer_param.reshape_param().shape();
-  const int num_new_axes = top_blob_shape.dim_size();
+    assert(start_axis >= 0);
+    assert(start_axis <= (int)input_shape.size());
+    assert(num_axes >= -1);
+    const int end_axis =
+        (num_axes == -1) ? input_shape.size() : (start_axis + num_axes);
+    assert(end_axis <= (int)input_shape.size());
 
-  std::vector<int> copy_axes;
-  int inferred_axis = -1;
-  int constant_count = 1;
-  for (int i = 0; i < num_new_axes; ++i) {
-    const int top_dim = top_blob_shape.dim(i);
-    if (top_dim == 0) {
-      copy_axes.push_back(i);
-    } else if (top_dim == -1) {
-      assert(inferred_axis == -1);
-      inferred_axis = i;
-    } else {
-      constant_count *= top_dim;
+    const int num_axes_replaced = end_axis - start_axis;
+    const int num_axes_retained = input_shape.size() - num_axes_replaced;
+    auto top_blob_shape = layer_param.reshape_param().shape();
+    const int num_new_axes = top_blob_shape.dim_size();
+
+    std::vector<int> copy_axes;
+    int inferred_axis = -1;
+    int constant_count = 1;
+    for (int i = 0; i < num_new_axes; ++i) {
+      const int top_dim = top_blob_shape.dim(i);
+      if (top_dim == 0) {
+        copy_axes.push_back(i);
+      } else if (top_dim == -1) {
+        assert(inferred_axis == -1);
+        inferred_axis = i;
+      } else {
+        constant_count *= top_dim;
+      }
     }
-  }
 
-  std::vector<int64_t> top_shape(num_axes_retained + num_new_axes);
-  int top_shape_index = 0;
-  for (int i = 0; i < start_axis; ++i) {
-    top_shape[top_shape_index++] = input_shape[i];
-  }
-  for (int i = 0; i < num_new_axes; ++i) {
-    top_shape[top_shape_index++] = top_blob_shape.dim(i);
-  }
-  for (unsigned i = end_axis; i < input_shape.size(); ++i) {
-    top_shape[top_shape_index++] = input_shape[i];
-  }
-  assert(top_shape_index == (int)top_shape.size());
-  for (unsigned i = 0; i < copy_axes.size(); ++i) {
-    const int copy_axis_index = copy_axes[i];
-    assert((int)input_shape.size() > start_axis + copy_axis_index);
-    top_shape[start_axis + copy_axis_index] =
-        input_shape[start_axis + copy_axis_index];
-  }
-
-  if (inferred_axis >= 0) {
-    // A -1 dim was specified; infer the correct dimension by computing the
-    // product of the other dimensions.
-    int explicit_count = constant_count;
-    for (int i = 0; i < start_axis; i++) {
-      explicit_count *= input_shape[i];
+    std::vector<int64_t> top_shape(num_axes_retained + num_new_axes);
+    int top_shape_index = 0;
+    for (int i = 0; i < start_axis; ++i) {
+      top_shape[top_shape_index++] = input_shape[i];
     }
-    for (unsigned i = end_axis; i < input_shape.size(); i++) {
-      explicit_count *= input_shape[i];
+    for (int i = 0; i < num_new_axes; ++i) {
+      top_shape[top_shape_index++] = top_blob_shape.dim(i);
     }
+    for (unsigned i = end_axis; i < input_shape.size(); ++i) {
+      top_shape[top_shape_index++] = input_shape[i];
+    }
+    assert(top_shape_index == (int)top_shape.size());
     for (unsigned i = 0; i < copy_axes.size(); ++i) {
       const int copy_axis_index = copy_axes[i];
-      explicit_count *= top_shape[start_axis + copy_axis_index];
+      assert((int)input_shape.size() > start_axis + copy_axis_index);
+      top_shape[start_axis + copy_axis_index] =
+          input_shape[start_axis + copy_axis_index];
     }
-    int64_t input_count = input_shape[0] * input_shape[1] * input_shape[2] * input_shape[3];
-    assert(0 == input_count % explicit_count);
-    const int inferred_dim = input_count / explicit_count;
-    top_shape[start_axis + inferred_axis] = inferred_dim;
-  }
 
-  // construct OP
+    if (inferred_axis >= 0) {
+      // A -1 dim was specified; infer the correct dimension by computing the
+      // product of the other dimensions.
+      int explicit_count = constant_count;
+      for (int i = 0; i < start_axis; i++) {
+        explicit_count *= input_shape[i];
+      }
+      for (unsigned i = end_axis; i < input_shape.size(); i++) {
+        explicit_count *= input_shape[i];
+      }
+      for (unsigned i = 0; i < copy_axes.size(); ++i) {
+        const int copy_axis_index = copy_axes[i];
+        explicit_count *= top_shape[start_axis + copy_axis_index];
+      }
+      int64_t input_count = input_shape[0] * input_shape[1] * input_shape[2] * input_shape[3];
+      assert(0 == input_count % explicit_count);
+      const int inferred_dim = input_count / explicit_count;
+      top_shape[start_axis + inferred_axis] = inferred_dim;
+    }
+
+    // construct OP
     result_type = RankedTensorType::get(ArrayRef<int64_t>{top_shape}, elementType_);
 
-  } else if(input_shape.size() == 2) {
+  } else if (input_shape.size() == 2) {
 
-    assert((layer_param.reshape_param().shape().dim_size()==3)&& "only support input shape size is 2 && output shape size is 3 case ");
+    assert((layer_param.reshape_param().shape().dim_size()==3) && "only support input shape size is 2 && output shape size is 3 case ");
     auto size = std::accumulate(std::begin(input_shape), std::end(input_shape), 1, std::multiplies<>());
     std::vector<int64_t> output_shape(3);
     int inference_dim = 0;
@@ -1781,6 +1783,7 @@ void CaffeImporter::convertReshapeLayer(mlir::Block *block,
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder_.getNamedAttr("name",
       builder_.getStringAttr(layer_param.name())));
+  attrs.push_back(builder_.getNamedAttr("quant", getDefaultQuantParam(builder_)));
   auto reshape_op = OpBuilder(block).create<tpu::ReshapeOp>(
       builder_.getUnknownLoc(), result_type, ArrayRef<Value *>{input_var},
       ArrayRef<NamedAttribute>{attrs});

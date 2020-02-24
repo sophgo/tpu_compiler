@@ -777,7 +777,7 @@ struct TpuQuantInt8MultiplyOpDefaultPattern : public RewritePattern {
     //
     uint32_t multiplier_u32;
     int8_t rshift_i8 = findRShiftAndMultiplierFromQScale(qscale,
-                           &multiplier_u32, false, 127);
+                           &multiplier_u32, true);
     rshift->at(0) = static_cast<float>(rshift_i8);
     multiplier->at(0) = static_cast<float>(multiplier_u32);
     LLVM_DEBUG(llvm::errs()
@@ -800,7 +800,7 @@ struct TpuQuantInt8MultiplyOpDefaultPattern : public RewritePattern {
         weightTF_, weightFV_);
     op->setOperand(5, multiplier_op);
 
-    setOpQuantParamType(op, "RSHIFT_AND_M_I8");
+    setOpQuantParamType(op, "RSHIFT_AND_M_I32");
     setOpQuant(op, "INT8");
 
     return matchSuccess();
@@ -834,7 +834,12 @@ struct TpuQuantInt8BypassPattern : public RewritePattern {
 
     float threshold_x = getPreviousOpThreshold(op);
     float threshold_y = getOpThreshold(op);
-    assert(threshold_x == threshold_y);
+    if (threshold_x != threshold_y) {
+      llvm::errs() << "QuantizeInt8 Bypass pattern, threshold not match"
+                   << ", x = " << std::to_string(threshold_x)
+                   << ", y = " << std::to_string(threshold_y) << "\n";
+      assert(false);
+    }
 
     // set bypass
     setOpQuantParamType(op, "NONE");
@@ -1127,6 +1132,28 @@ struct TpuAddDequantBeforeDetectionOutputOpPattern : public OpRewritePattern<tpu
   }
 };
 
+struct TpuRemoveQuantBeforeReshapOpPattern : public OpRewritePattern<tpu::ReshapeOp> {
+  using OpRewritePattern<tpu::ReshapeOp>::OpRewritePattern;
+
+  PatternMatchResult matchAndRewrite(tpu::ReshapeOp op,
+                                     PatternRewriter &rewriter) const {
+    auto formerOp = op.getOperand()->getDefiningOp();
+    if (!matchPattern(formerOp, m_Op<tpu::QuantizationOp>())) {
+      LLVM_DEBUG(llvm::errs() << op.name() << "reshape op is not after QuantizationOp op keep use int8\n";);
+      return matchFailure();
+    }
+
+    //remove quant op to use float32 output of softmax
+    rewriter.replaceOp(formerOp, formerOp->getOperand(0));
+
+    llvm::errs() << "Use this reshape op as cpu layer\n";
+    //use reshape as cpu layer
+    setOpQuant(op, "NONE");
+
+    return matchSuccess();
+  }
+};
+
 struct TpuAddQuantAndDequantForSoftmaxOpPattern : public OpRewritePattern<tpu::SoftmaxOp> {
   using OpRewritePattern<tpu::SoftmaxOp>::OpRewritePattern;
 
@@ -1146,7 +1173,6 @@ struct TpuAddQuantAndDequantForSoftmaxOpPattern : public OpRewritePattern<tpu::S
   }
 };
 
-
 struct TpuSimplifyQuantDequantPattern : public OpRewritePattern<tpu::DequantizationOp> {
   using OpRewritePattern<tpu::DequantizationOp>::OpRewritePattern;
 
@@ -1164,29 +1190,6 @@ struct TpuSimplifyQuantDequantPattern : public OpRewritePattern<tpu::Dequantizat
     return matchSuccess();
   }
 };
-
-struct TpuRemoveQuantBeforeReshapOpPattern : public OpRewritePattern<tpu::ReshapeOp> {
-  using OpRewritePattern<tpu::ReshapeOp>::OpRewritePattern;
-
-  PatternMatchResult matchAndRewrite(tpu::ReshapeOp op,
-                                     PatternRewriter &rewriter) const {
-    auto formerOp = op.getOperand()->getDefiningOp();
-    if (!matchPattern(formerOp, m_Op<tpu::QuantizationOp>())) {
-      LLVM_DEBUG(llvm::errs() << op.name() << "reshape op is not after softmax op keep use int8\n";);
-      return matchFailure();
-    }
-
-    //remove quant op to use float32 output of softmax
-    rewriter.replaceOp(formerOp, formerOp->getOperand(0));
-
-    llvm::errs() << "Use this reshape op as cpu layer\n";
-    //use reshape as cpu layer
-    op.setAttr("quant", rewriter.getStringAttr("NONE"));
-
-    return matchSuccess();
-  }
-};
-
 
 class QuantizeInt8Pass : public FunctionPass<QuantizeInt8Pass> {
 public:
@@ -1207,58 +1210,58 @@ public:
 
     auto *context = &getContext();
 
-    OwningRewritePatternList patterns_w;
+    OwningRewritePatternList patterns;
     //concat cpu layer test
-    patterns_w.insert<
-                TpuQuantInt8MultiplyOpDefaultPattern<tpu::BroadcastMulOp>,
-                TpuQuantInt8DefaultPattern<tpu::ConcatOp>,
-                TpuQuantInt8Conv2DOpPattern<tpu::Conv2DOp>,
-                TpuQuantInt8BypassPattern<tpu::CropOp>,
-                TpuQuantInt8Conv2DOpPattern<tpu::DeConv2DOp>,
-                TpuQuantInt8DefaultPattern<tpu::EltwiseAddOp>,
-                TpuQuantInt8DefaultPattern<tpu::EltwiseMaxOp>,
-                TpuQuantInt8MultiplyOpDefaultPattern<tpu::EltwiseMulOp>,
-                TpuQuantInt8FullyConnectedOpPattern,
-                TpuQuantInt8DefaultPattern<tpu::PoolAvg2DOp>,
-                TpuQuantInt8BypassPattern<tpu::PoolMax2DOp>,
-                TpuQuantInt8LeakyReluOpPattern,
-                TpuQuantInt8PReluOpPattern,
-                TpuQuantInt8BypassPattern<tpu::ReluOp>,
-                TpuQuantInt8BypassPattern<tpu::ShuffleChannelOp>,
-                TpuQuantInt8SigmoidOpPattern,
-                TpuQuantInt8BypassPattern<tpu::UpsampleOp>,
-                TpuQuantDefaultPattern<tpu::DivOp>,
-                TpuQuantInt8BypassPattern<tpu::PermuteOp>,
-                TpuQuantPowerOpPattern,
-                TpuQuantDefaultPattern<tpu::ReshapeOp>,
-                TpuQuantDefaultPattern<tpu::SliceOp>,
-                TpuQuantDefaultPattern<tpu::SqrtOp>
-               >(
-            context, weightTensorFile.get(), weightFileVar);
+    patterns.insert<
+        TpuQuantInt8MultiplyOpDefaultPattern<tpu::BroadcastMulOp>,
+        TpuQuantInt8DefaultPattern<tpu::ConcatOp>,
+        TpuQuantInt8Conv2DOpPattern<tpu::Conv2DOp>,
+        TpuQuantInt8BypassPattern<tpu::CropOp>,
+        TpuQuantInt8Conv2DOpPattern<tpu::DeConv2DOp>,
+        TpuQuantInt8DefaultPattern<tpu::EltwiseAddOp>,
+        TpuQuantInt8DefaultPattern<tpu::EltwiseMaxOp>,
+        TpuQuantInt8MultiplyOpDefaultPattern<tpu::EltwiseMulOp>,
+        TpuQuantInt8FullyConnectedOpPattern,
+        TpuQuantInt8DefaultPattern<tpu::PoolAvg2DOp>,
+        TpuQuantInt8BypassPattern<tpu::PoolMax2DOp>,
+        TpuQuantInt8LeakyReluOpPattern,
+        TpuQuantInt8PReluOpPattern,
+        TpuQuantInt8BypassPattern<tpu::ReluOp>,
+        TpuQuantInt8BypassPattern<tpu::ReshapeOp>,
+        TpuQuantInt8BypassPattern<tpu::ShuffleChannelOp>,
+        TpuQuantInt8SigmoidOpPattern,
+        TpuQuantInt8BypassPattern<tpu::SliceOp>,
+        TpuQuantInt8BypassPattern<tpu::UpsampleOp>,
 
-    applyPatternsGreedily(fn, patterns_w);
 
-    OwningRewritePatternList patterns_q;
+        TpuQuantDefaultPattern<tpu::DivOp>,
+        TpuQuantDefaultPattern<tpu::PermuteOp>,
+        TpuQuantPowerOpPattern,
+        TpuQuantDefaultPattern<tpu::SqrtOp>
+        >(context, weightTensorFile.get(), weightFileVar);
+    applyPatternsGreedily(fn, patterns);
 
-    // add Quant after Input
-    patterns_q.insert<TpuAddQuantAfterInputOpPattern>(context);
-    // add Dequant before Result
-    patterns_q.insert<TpuAddDeQuantBeforeReturnOpPattern>(context);
+    patterns.clear();
+    patterns.insert<
+        // add Quant after Input
+        TpuAddQuantAfterInputOpPattern,
+        // add Dequant before Result
+        TpuAddDeQuantBeforeReturnOpPattern,
+        // add Quant and Dequant before and after any cpu layer
+        TpuAddQuantAndDequantForSoftmaxOpPattern,
+        // add Dequant before DetectionOuputOp which is CPU layer but also output layer
+        TpuAddDequantBeforeDetectionOutputOpPattern,
+        // remove Quant op before reshape (this is for ssd softmax + flatten case)
+        TpuRemoveQuantBeforeReshapOpPattern
+        >(context);
+    applyPatternsGreedily(fn, patterns);
 
-    // add Quant and Dequant before and after any cpu layer
-    patterns_q.insert<TpuAddQuantAndDequantForSoftmaxOpPattern>(context);
-
-    // remove Quant op before reshape (this is for ssd softmax + flatten case)
-    patterns_q.insert<TpuRemoveQuantBeforeReshapOpPattern>(context);
-    // add Dequant before DetectionOuputOp which is CPU layer but also output layer
-    patterns_q.insert<TpuAddDequantBeforeDetectionOutputOpPattern>(context);
-
-    applyPatternsGreedily(fn, patterns_q);
-
-    OwningRewritePatternList patterns_s;
     // Fold and remove consecutive Dequant and Quant
-    patterns_s.insert<TpuSimplifyQuantDequantPattern>(context);
-    applyPatternsGreedily(fn, patterns_s);
+    patterns.clear();
+    patterns.insert<
+        TpuSimplifyQuantDequantPattern
+        >(context);
+    applyPatternsGreedily(fn, patterns);
 
     std::string newName;
     weightTensorFile->keep(true, &newName);

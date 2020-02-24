@@ -51,61 +51,6 @@ extern int BF16_TABLE_END;
 
 static BM1880v2BackendContext *backend_ctx = nullptr;
 
-template <typename T>
-static std::unique_ptr<std::vector<T>>
-getWeightFromOperandTensor(Operation &op, int opdIndex) {
-  auto weightOp = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
-      op.getOperand(opdIndex)->getDefiningOp());
-  assert(weightOp);
-
-  auto loadFileOp = llvm::dyn_cast_or_null<tpu::LoadFileOp>(
-      weightOp.getOperand()->getDefiningOp());
-  assert(loadFileOp);
-  auto weightTensorFile = openInputTensorFile(loadFileOp.filename());
-
-  assert(weightOp.name().hasValue());
-  auto tensor_name = weightOp.name().getValue();
-  auto type = weightOp.getResult()->getType().cast<TensorType>();
-  auto weight = weightTensorFile->readTensor<T>(tensor_name, type);
-
-  return weight;
-}
-
-static int8_t getRshiftFromOperandTensor(Operation &op, int opdIndex) {
-  auto weight = getWeightFromOperandTensor<float>(op, opdIndex);
-  return (int8_t)weight->at(0);
-}
-
-// \threshold_x_quantized number should eq \input_nr
-static void getI8Multiplier(Operation* opInst,
-    float threshold_y,
-    int input_nr,
-    int* threshold_x_quantized) {
-
-  std::vector<float> threshold_x;
-  // determine multiplier and rshift according each threshold_x
-  // scale[i] = threshold_x[i] / threshold_y
-  // each scale will be implemented by hardware as
-  // scale[i] = multiplier / (1 << rshift)
-  // find a rshift, that put max(multiplier) into range (64, 127)
-
-  for (int index = 0; index < input_nr; ++index) {
-    // get threshold_x
-    threshold_x[index] = getPreviousOpThreshold(opInst, index);
-  }
-
-
-  // determine rshift for all inputs, and multiplier for each input
-  // use max threshold_x to find rshift first
-  float max_threshold_x = *std::max_element(
-      std::begin(threshold_x), std::end(threshold_x));
-  int8_t rshift = findRShiftAndMultiplierFromQScale(max_threshold_x / threshold_y);
-  for (int index = 0; index < input_nr; ++index) {
-    float qscale = threshold_x[index] / threshold_y;
-    threshold_x_quantized[index] = findMultiplierI8FromQScaleAndRShift(qscale, rshift);
-  }
-}
-
 static LogicalResult runOperation(Operation &opInst) {
   LLVM_DEBUG(llvm::errs() << "  op " << opInst.getName() << "\n";);
 
@@ -472,7 +417,6 @@ static LogicalResult runOperation(Operation &opInst) {
     }
     return success();
   }
-
 
   if (auto op = dyn_cast<tpu::TanHOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "TanHOp" << "\n";);

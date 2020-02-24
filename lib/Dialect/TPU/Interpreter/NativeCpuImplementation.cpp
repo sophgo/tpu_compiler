@@ -786,6 +786,7 @@ int my_softmax3D(float *input, float *output, int axis, const std::vector<int64_
       }
     }  //end for hi
   } //end for ci
+  return 0;
 }
 
 int my_crop(float *input, float *output, long int *shape1, int *shape2, long int *top_shape,
@@ -960,26 +961,24 @@ int my_normalize(float *input, float *output, bool across_spatial,
   return 0;
 }
 
-int my_slice(float *input, float *output, int axis,
-  std::vector<int64_t> input_shape, std::vector<int64_t> output_shape) {
-  const int bottom_slice_axis = input_shape[axis];
-  const int top_slice_axis = output_shape[axis];
-
-  int num_slices = 1;
+int my_slice(float *input, float *output, int axis, int offset,
+    std::vector<int64_t> input_shape, std::vector<int64_t> output_shape) {
+  int osz = 1;
   for (int i = 0; i < axis; i++) {
-    num_slices *= input_shape[i];
+    osz *= input_shape[i];
   }
-
-  int slice_size = 1;
-  for (uint32_t i = axis + 1; i < input_shape.size(); i++) {
-    slice_size *= input_shape[i];
+  int isz = 1;
+  for (unsigned i = axis + 1; i < input_shape.size(); i++) {
+    isz *= input_shape[i];
   }
+  int axis_total_size = input_shape[axis];
+  int axis_slice_size = output_shape[axis];
 
-  for (int n = 0; n < num_slices; ++n) {
-    const int top_offset = n * top_slice_axis * slice_size;
-    const int bottom_offset =
-        (n * bottom_slice_axis) * slice_size;
-    memcpy(output + top_offset, input + bottom_offset, sizeof(float) * top_slice_axis * slice_size);
+  for (int n = 0; n < osz; ++n) {
+    int output_offset = n * axis_slice_size * isz;
+    int input_offset = n * axis_total_size * isz + offset * isz;
+    memcpy(output + output_offset, input + input_offset,
+           sizeof(float) * axis_slice_size * isz);
   }
 
   return 0;
