@@ -1000,20 +1000,14 @@ struct PackWeightBroadcastMulOpPattern : public RewritePattern {
   PatternMatchResult matchAndRewrite(Operation *op,
       PatternRewriter &rewriter) const override {
     auto castOp = cast<tpu::BroadcastMulOp>(op);
-    if (getOpQuant(op) != "INT8") {
-      return matchFailure();
-    }
 
-    // after quantizeInt8, the quantparam is "RSHIFT_AND_M_I8"
-    // after packing, will mark it as
+    // after quantizeInt8, the quantparam is "RSHIFT_AND_M_I32"
     auto rshiftOp = cast<tpu::LoadWeightOp>(castOp.quant_rshift()->getDefiningOp());
-    if ( getOpQuantParamType(op) == "RSHIFT_AND_M_I32" ) {
-      assert (rshiftOp.lowered());
+    if (rshiftOp.lowered()) {
       // packed already
       return matchFailure();
     }
-    assert( !rshiftOp.lowered() );
-    assert( getOpQuantParamType(op) == "RSHIFT_AND_M_I8" );
+    assert(getOpQuantParamType(op) == "RSHIFT_AND_M_I32");
     assert( !isTensorNone(castOp.quant_rshift()) );
     assert( !isTensorNone(castOp.quant_multiplier()) );
     llvm::errs() << "Pack Weight for BroadcastMul: " << getOpName(op) << "\n";

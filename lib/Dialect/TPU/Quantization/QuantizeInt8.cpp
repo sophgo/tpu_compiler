@@ -777,7 +777,7 @@ struct TpuQuantInt8MultiplyOpDefaultPattern : public RewritePattern {
     //
     uint32_t multiplier_u32;
     int8_t rshift_i8 = findRShiftAndMultiplierFromQScale(qscale,
-                           &multiplier_u32, true, 255);
+                           &multiplier_u32, true);
     rshift->at(0) = static_cast<float>(rshift_i8);
     multiplier->at(0) = static_cast<float>(multiplier_u32);
     LLVM_DEBUG(llvm::errs()
