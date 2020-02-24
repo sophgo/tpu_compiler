@@ -3,6 +3,11 @@ set -e
 
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 source $DIR/../../envsetup.sh
+#  Lower for quantization
+mlir-opt \
+    --tpu-lower \
+    efficientnet-b0_quant_int8_per_channel.mlir \
+    -o efficientnet-b0_quant_int8_per_channel_tg.mlir
 
 # assign weight address & neuron address
 mlir-opt \
@@ -14,7 +19,7 @@ mlir-opt \
     --tpu-neuron-address-align=16 \
     --tpu-neuron-map-filename=neuron_map.csv \
     --assign-layer-id \
-    efficientnet-b0_quant_int8_per_channel.mlir \
+    efficientnet-b0_quant_int8_per_channel_tg.mlir \
     -o  efficientnet-b0_quant_int8_per_channel_cmdbuf.mlir 
     
 mlir-translate \
@@ -44,6 +49,12 @@ $RUNTIME_PATH/bin/test_cvinet \
     efficientnet_int8_per_channel.cvimodel \
     efficientnet_cmdbuf_out_all_int8_multiplier.bin
 
+bin_to_npz.py \
+    efficientnet_cmdbuf_out_all_int8_multiplier.bin \
+    neuron_map.csv \
+    efficientnet_cmdbuf_out_all_int8_multiplier.npz
+
+
 
 
 # run interpreter, to generate reference tensor all npz
@@ -51,5 +62,13 @@ mlir-tpu-interpreter efficientnet-b0_quant_int8_per_channel.mlir \
     --tensor-in $REGRESSION_PATH/efficientnet-b0/data/efficientnet_in_fp32.npz  \
     --tensor-out efficientnet_out_int8.npz \
     --dump-all-tensor=efficientnet_tensor_all_int8.npz 
+
+
+# compare all tensors
+npz_compare.py \
+    efficientnet_tensor_all_int8.npz \
+    efficientnet_cmdbuf_out_all_int8_multiplier.npz \
+    --op_info efficientnet-b0_op_info.csv 
+
 # VERDICT
 echo $0 PASSED
