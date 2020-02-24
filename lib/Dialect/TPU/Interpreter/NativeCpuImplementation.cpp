@@ -590,10 +590,10 @@ int my_bn(float *input, float *mean, float *variance, float *scale, float varian
 }
 
 // shuffle channel
-int my_shuffle_channel(float *input, float *output, unsigned int group, int n, int c,  int feature_map_size) {
+int my_shuffle_channel(float *input, float *output, unsigned int group, int n, int c,  int frame_size) {
     LLVM_DEBUG(llvm::errs() << "  n: " << n << ", c: " << c << ",  g: " << group
-                          << ", f: " << feature_map_size << "\n";);
-    const int batch_length = feature_map_size * c;
+                          << ", f: " << frame_size << "\n";);
+    const int batch_length = frame_size * c;
     int group_column = int(c/ group);
     if (c % group != 0) {
       llvm::errs() << "Error: Wrong group size, c=" << c << ", group =" << group;
@@ -608,10 +608,10 @@ int my_shuffle_channel(float *input, float *output, unsigned int group, int n, i
       {
           for(int k = 0; k < group_column ; ++k) // 3
           {
-              float* p_i = p_in + (j * group_column + k ) * feature_map_size;
-              float* p_o = p_out + (k * group + j ) * feature_map_size;
+              float* p_i = p_in + (j * group_column + k ) * frame_size;
+              float* p_o = p_out + (k * group + j ) * frame_size;
 
-              memcpy((void*)p_o, (void*)p_i, feature_map_size * sizeof(float) );
+              memcpy((void*)p_o, (void*)p_i, frame_size * sizeof(float) );
           }
       }
     }

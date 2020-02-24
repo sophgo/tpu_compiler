@@ -829,7 +829,7 @@ LogicalResult tpu::PermuteOp::interpret(
     assert(ret == 0);
     valueMapping[result] = std::move(resultT);
   }
-  return success();                          
+  return success();
 }
 
 LogicalResult tpu::PoolAvg2DOp::interpret(
@@ -980,12 +980,12 @@ LogicalResult tpu::ShuffleChannelOp::interpret(
 
   int64_t n = input_shape[0];
   int64_t c = input_shape[1];
-  int64_t feature_map_size = std::accumulate(
+  int64_t frame_size = std::accumulate(
       input_shape.begin() + 2, input_shape.end(), 1, std::multiplies<>());
   float *input = (float *)opdT[0]->data();
   float *output = (float *)resultT.get()->data();
   uint32_t group = this->group().getLimitedValue();
-  int ret = my_shuffle_channel(input, output, group, n, c, feature_map_size);
+  int ret = my_shuffle_channel(input, output, group, n, c, frame_size);
 
   assert(ret == 0);
 
@@ -2036,8 +2036,8 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       for (int i = 0; i < size; ++i) {
         output[i] = data[(unsigned char)input[0][i]];
       }
-    } 
-    else  
+    }
+    else
 #endif
     {
 

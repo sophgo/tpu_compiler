@@ -49,7 +49,7 @@ if [ $COMPARE_ALL -eq 1 ]; then
       --op_info shufflenet_op_info_int8_per_layer.csv \
       --dequant \
       --excepts prob \
-      --tolerance 0.9,0.9,0.6 -vvv
+      --tolerance 0.72,0.71,-0.14 -vv
 fi
 
 ###############################################################################
@@ -88,7 +88,7 @@ if [ $COMPARE_ALL -eq 1 ]; then
       --op_info shufflenet_op_info_int8_per_channel.csv \
       --dequant \
       --excepts prob \
-      --tolerance 0.9,0.9,0.7 -vvv
+      --tolerance 0.72,0.71,-0.11 -vv
 fi
 
 ###############################################################################
@@ -128,7 +128,7 @@ if [ $COMPARE_ALL -eq 1 ]; then
       --op_info shufflenet_op_info_int8_multiplier.csv \
       --dequant \
       --excepts prob \
-      --tolerance 0.96,0.95,0.72 -vvv
+      --tolerance 0.72,0.71,-0.11 -vv
 fi
 
 # VERDICT
