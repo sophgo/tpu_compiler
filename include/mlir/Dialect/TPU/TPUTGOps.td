@@ -361,7 +361,7 @@ class TPU_TG_PermuteOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       `order0`          : required, The new order0 of the axes of data.
       `order1`          : required, The new order1 of the axes of data.
       `order2`          : required, The new order2 of the axes of data.
-      `order3`          : optional, The new order3 of the axes of data.
+      `order3`          : required, The new order3 of the axes of data.
       `region`          : required, the memory region to reside in, could be
                           one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
                           (backend does not support `INPUT`, `OUTPUT` for now)

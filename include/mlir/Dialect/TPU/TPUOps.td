@@ -545,7 +545,7 @@ def TPU_PermuteOp: TPU_Op<"permute",
       `order0`  : required, The new order0 of the axes of data.
       `order1`  : required, The new order1 of the axes of data.
       `order2`  : required, The new order2 of the axes of data.
-      `order3`  : optional, The new order3 of the axes of data.
+      `order3`  : required, The new order3 of the axes of data.
 
     Result:
       `output`          : result tensor.
