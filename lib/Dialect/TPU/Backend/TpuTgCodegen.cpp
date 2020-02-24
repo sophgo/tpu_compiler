@@ -805,12 +805,12 @@ LogicalResult tpu::TG_INT8_EltwiseMulOp::codegen(void *ctx) {
 
   assert(this->rshift().hasValue());
   int8_t rshift = this->rshift().getValue().getLimitedValue();
-  assert(this->m_i8_output().hasValue());
-  int8_t m_i8_output = this->m_i8_output().getValue().getLimitedValue();
+  assert(this->m_i32_output().hasValue());
+  int32_t m_i32_output = this->m_i32_output().getValue().getLimitedValue();
 
   // TODO: should change on backend API, rather than doing cast
   int rshift_int = static_cast<int>(rshift);
-  int m_int = static_cast<int>(m_i8_output);
+  int32_t m_int = static_cast<int32_t>(m_i32_output);
   const int coeffs[2] = {1, 1};
 
   bmnet_eltwise_fixed_forward_bmkernel(

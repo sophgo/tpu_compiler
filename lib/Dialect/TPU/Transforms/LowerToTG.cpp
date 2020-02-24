@@ -403,7 +403,7 @@ Value* tpu::EltwiseMulOp::convertToTG(void *info) {
   attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
 
   if (getOpQuant() == "INT8") {
-    assert(getOpQuantParamType() == "RSHIFT_AND_M_I8");
+    assert(getOpQuantParamType() == "RSHIFT_AND_M_I32");
     // MUL
     // rshift
     auto rshift = readAndDeleteWeightTensor<float>(quant_rshift(), weightTF_);
@@ -415,8 +415,8 @@ Value* tpu::EltwiseMulOp::convertToTG(void *info) {
     auto multiplier = readAndDeleteWeightTensor<float>(quant_multiplier(),
                                                      weightTF_);
     assert(multiplier->size() == 1);
-    attrs.push_back(builder.getNamedAttr("m_i8_output",
-        builder.getI8IntegerAttr(static_cast<int8_t>(multiplier->at(0)))));
+    attrs.push_back(builder.getNamedAttr("m_i32_output",
+        builder.getI32IntegerAttr(static_cast<int32_t>(multiplier->at(0)))));
 
     // create op
     auto newOp = OpBuilder(op).create<tpu::TG_INT8_EltwiseMulOp>(op->getLoc(),

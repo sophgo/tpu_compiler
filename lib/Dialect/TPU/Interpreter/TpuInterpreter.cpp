@@ -529,7 +529,7 @@ static LogicalResult doEltwiseOpInterpret(Operation *op,
       for (int i = 0; i < size; ++i) {
         output[i] = (float)applyMultiplierAndRShiftAndSaturateInt8(
             output[i], (uint32_t)quant_rshift->at(0),
-            (uint32_t)quant_multiplier->at(0), false);
+            (uint32_t)quant_multiplier->at(0), true);
       }
     }
   } else if (getOpQuant(op) == "BF16") {

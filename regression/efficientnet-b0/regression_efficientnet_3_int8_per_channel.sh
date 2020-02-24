@@ -28,7 +28,6 @@ mlir-tpu-interpreter efficientnet-b0_quant_int8_per_channel.mlir \
 npz_compare.py \
     efficientnet_tensor_all_int8.npz  \
     efficientnet_tensor_all_fp32.npz \
-    --op_info efficientnet-b0_op_info.csv \
-    --dequant -v
+    --op_info efficientnet-b0_op_info.csv 
 # VERDICT
 echo $0 PASSED
