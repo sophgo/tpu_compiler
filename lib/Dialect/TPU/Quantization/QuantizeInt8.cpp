@@ -1222,6 +1222,7 @@ public:
         TpuQuantInt8DefaultPattern<tpu::EltwiseMaxOp>,
         TpuQuantInt8MultiplyOpDefaultPattern<tpu::EltwiseMulOp>,
         TpuQuantInt8FullyConnectedOpPattern,
+        TpuQuantInt8BypassPattern<tpu::PermuteOp>,
         TpuQuantInt8DefaultPattern<tpu::PoolAvg2DOp>,
         TpuQuantInt8BypassPattern<tpu::PoolMax2DOp>,
         TpuQuantInt8LeakyReluOpPattern,
@@ -1235,7 +1236,6 @@ public:
 
 
         TpuQuantDefaultPattern<tpu::DivOp>,
-        TpuQuantDefaultPattern<tpu::PermuteOp>,
         TpuQuantPowerOpPattern,
         TpuQuantDefaultPattern<tpu::SqrtOp>
         >(context, weightTensorFile.get(), weightFileVar);
