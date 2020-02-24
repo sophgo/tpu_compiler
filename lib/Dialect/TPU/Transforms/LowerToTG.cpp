@@ -1047,14 +1047,15 @@ static void transposeBiasInt16(std::vector<int16_t> &w_int16) {
   memcpy(ptr, w_t.data(), w_t.size());
 }
 
+template <typename OpTy>
 struct LowerWeightConv2DOpPattern : public RewritePattern {
   LowerWeightConv2DOpPattern(MLIRContext *context, TensorFile *weightTF)
-      : RewritePattern("tpu.conv_2d", 1, context),
+      : RewritePattern(OpTy::getOperationName(), 1, context),
         weightTF_(weightTF) {}
 
   PatternMatchResult matchAndRewrite(Operation *op,
       PatternRewriter &rewriter) const override {
-    auto convOp = cast<tpu::Conv2DOp>(op);
+    auto convOp = cast<OpTy>(op);
     auto filterOp = cast<tpu::LoadWeightOp>(convOp.filter()->getDefiningOp());
     if (filterOp.lowered()) {
       // lowered already
@@ -1332,7 +1333,8 @@ public:
     // lower means transpose and save as storageType (int8/bf16,etc)
     OwningRewritePatternList patterns_lower;
     patterns_lower.insert<
-        LowerWeightConv2DOpPattern,
+        LowerWeightConv2DOpPattern<tpu::Conv2DOp>,
+        LowerWeightConv2DOpPattern<tpu::DeConv2DOp>,
         LowerWeightFullyConnectedOpPattern
         >(context, weightTF.get());
     applyPatternsGreedily(fn, patterns_lower);
