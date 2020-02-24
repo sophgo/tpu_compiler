@@ -102,7 +102,7 @@ LogicalResult tpu::TG_INT8_BroadcastMulOp::codegen(void *ctx) {
 
   gaddr_t ga_input = getPreviousOpAddress(op);
   gaddr_t ga_output = getOpAddress(op);
-  gaddr_t ga_multipler = getWeightOpAddress(filter()->getDefiningOp());
+  gaddr_t ga_scale = getOpAddress(filter()->getDefiningOp());
   gaddr_t ga_pc_info = getWeightOpAddress(pc_info()->getDefiningOp());
   int layer_id = mlir::getOpLayerId(op);
 
@@ -114,7 +114,7 @@ LogicalResult tpu::TG_INT8_BroadcastMulOp::codegen(void *ctx) {
       nullptr,      // depends
       0,            // depends_len
       ga_input,     // input_addr
-      ga_multipler, // scale_addr
+      ga_scale, // scale_addr
       ga_pc_info,   // pack_addr
       ga_output,    // output_addr
       n, c, h, w,
