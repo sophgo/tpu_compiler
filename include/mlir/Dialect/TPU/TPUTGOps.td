@@ -208,6 +208,7 @@ class TPU_TG_EltwiseOp<string mnemonic, string opQuant, string opType> : TPU_Op<
       `m_i8_inputs`     : optional, multipliers for inputs. one int8 value for
                           each input (saved as I32ArrayAttr)
       `m_i8_output`     : optional, multiplier for output.
+      `m_i32_output`    : optional, multiplier for output, .
       `do_relu`         : required, if need to preform relu on result.
       `region`          : required, the memory region to reside in, could be
                           one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
@@ -231,6 +232,7 @@ class TPU_TG_EltwiseOp<string mnemonic, string opQuant, string opType> : TPU_Op<
     OptionalAttr<I8Attr>:$rshift,
     OptionalAttr<I32ArrayAttr>:$m_i8_inputs,
     OptionalAttr<I8Attr>:$m_i8_output,
+    OptionalAttr<I32Attr>:$m_i32_output,
     DefaultValuedAttr<BoolAttr, "false">:$do_relu,
     DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
