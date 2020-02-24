@@ -528,6 +528,52 @@ def TPU_LeakyReluOp: TPU_Op<"leaky_relu",
   let results = (outs AnyTensor:$output);
 }
 
+def TPU_PermuteOp: TPU_Op<"permute",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
+       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
+       DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
+
+  let summary = "Permute operator";
+
+  let description = [{
+      Perform permute on input.
+
+    Inputs:
+      `input`               : required, the input activation tensor.
+
+    Attributes:
+      `order0`  : required, The new order0 of the axes of data.
+      `order1`  : required, The new order1 of the axes of data.
+      `order2`  : required, The new order2 of the axes of data.
+      `order3`  : optional, The new order3 of the axes of data.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface` : support common TPU Op interface
+      `TpuOpInterpInterface` : support interperter
+      `TpuOpQuantInterface`  : support quantization    
+      `TpuOpLowerInterface`  : support lower to TPU TG Ops
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    NonNegativeI32Attr:$order0,
+    NonNegativeI32Attr:$order1,
+    NonNegativeI32Attr:$order2,
+    NonNegativeI32Attr:$order3,
+    TPU_QuantParamAttr:$quant,
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
 def TPU_PoolAvg2DOp : TPU_Op<"pool_avg_2d",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
@@ -1161,30 +1207,6 @@ def TPU_NormalizeOp : TPU_Op<"normalize",
   let arguments = (
     ins AnyTensor:$input,
     DefaultValuedAttr<BoolAttr, "true">:$across_spatial,
-    OptionalAttr<StrAttr>:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
-    OptionalAttr<NonNegativeI64Attr>:$offset,
-    OptionalAttr<F32Attr>:$threshold_y,
-    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
-  );
-
-  let results = (outs AnyTensor:$output);
-}
-
-def TPU_PermuteOp: TPU_Op<"permute",
-      [NoSideEffect, DeclareOpInterfaceMethods<TpuInterface>]> {
-  let summary = "Permute operator";
-
-  let description = [{
-    Perform permute on input.
-  }];
-
-  let arguments = (
-    ins AnyTensor:$input,
-    NonNegativeI32Attr:$order0,
-    NonNegativeI32Attr:$order1,
-    NonNegativeI32Attr:$order2,
-    NonNegativeI32Attr:$order3,
     OptionalAttr<StrAttr>:$name,
     OptionalAttr<NonNegativeI32Attr>:$layer_id,
     OptionalAttr<NonNegativeI64Attr>:$offset,

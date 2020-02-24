@@ -162,7 +162,9 @@ struct BackendOverwriteThresholdDefaultPattern : public RewritePattern {
       setOpThreshold(formerOp, threshold_y);
     } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::ReluOp>(formerOp)) {
       setOpThreshold(formerOp, threshold_y);
-    }  else if (auto cast_op = llvm::dyn_cast_or_null<tpu::ShuffleChannelOp>(formerOp)) {
+    } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::PermuteOp>(formerOp)) {
+      setOpThreshold(formerOp, threshold_y);
+    } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::ShuffleChannelOp>(formerOp)) {
       setOpThreshold(formerOp, threshold_y);
     } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::UpsampleOp>(formerOp)) {
       setOpThreshold(formerOp, threshold_y);
@@ -325,8 +327,6 @@ public:
       addThresholdAttr<tpu::DivOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::PowerOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::SqrtOp>(builder, threshold_map, op);
-      addThresholdAttr<tpu::PermuteOp>(builder, threshold_map, op);
-
       }
     });
 

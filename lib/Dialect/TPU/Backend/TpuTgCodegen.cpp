@@ -1098,6 +1098,106 @@ LogicalResult tpu::TG_BF16_LeakyReluOp::codegen(void *ctx) {
   return success();
 }
 
+LogicalResult tpu::TG_INT8_PermuteOp::codegen(void *ctx) {
+  llvm::errs() << "TG_codegen: " << getOperationName() << " [" << getOpName()
+               << "]\n";
+  BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  auto input_type = input()->getType().template cast<TensorType>();
+  std::vector<int64_t> i_s(input_type.getShape());
+  auto output_type = output()->getType().template cast<TensorType>();
+  std::vector<int64_t> o_s(output_type.getShape());
+
+  std::vector<int> orders;
+  orders.push_back(this->order0().getLimitedValue());
+  orders.push_back(this->order1().getLimitedValue());
+  orders.push_back(this->order2().getLimitedValue());
+  orders.push_back(this->order3().getLimitedValue());
+
+  gaddr_t input_gaddr = getPreviousOpAddress(op);
+  gaddr_t output_gaddr = getOpAddress(op);
+  int layer_id = mlir::getOpLayerId(op);
+  // Check if we need to reorder the data or keep it.
+  bool need_permute_ = false;
+  int num_axes_ = i_s.size();
+
+  for (int i = 0; i < num_axes_; ++i) {
+    if (orders[i] != i) {
+      // As long as there is one order which is different from the natural order
+      // of the data, we need to permute. Otherwise, we share the data and diff.
+      need_permute_ = true;
+      break;
+    }
+  }
+  permute_fixed_forward_kernel(
+      *backend_ctx,
+      0, //stream_id,
+      0, //inst_id,
+      layer_id, //layer_id,
+      nullptr, //const u32 *depends,
+      0, //depends_len,
+      input_gaddr,
+      output_gaddr,
+      i_s[0], i_s[1], i_s[2], i_s[3],
+      o_s[0], o_s[1], o_s[2], o_s[3],
+      orders[0], orders[1], orders[2], orders[3],
+      need_permute_);
+  return success();
+}
+
+LogicalResult tpu::TG_BF16_PermuteOp::codegen(void *ctx) {
+  llvm::errs() << "TG_codegen: " << getOperationName() << " [" << getOpName()
+               << "]\n";
+
+  BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  auto input_type = input()->getType().template cast<TensorType>();
+  std::vector<int64_t> i_s(input_type.getShape());
+  auto output_type = output()->getType().template cast<TensorType>();
+  std::vector<int64_t> o_s(output_type.getShape());
+
+  std::vector<int> orders;
+  orders.push_back(this->order0().getLimitedValue());
+  orders.push_back(this->order1().getLimitedValue());
+  orders.push_back(this->order2().getLimitedValue());
+  orders.push_back(this->order3().getLimitedValue());
+
+  gaddr_t input_gaddr = getPreviousOpAddress(op);
+  gaddr_t output_gaddr = getOpAddress(op);
+  int layer_id = mlir::getOpLayerId(op);
+  // Check if we need to reorder the data or keep it.
+  bool need_permute_ = false;
+  int num_axes_ = i_s.size();
+  for (int i = 0; i < num_axes_; ++i) {
+    if (orders[i] != i) {
+      // As long as there is one order which is different from the natural order
+      // of the data, we need to permute. Otherwise, we share the data and diff.
+      need_permute_ = true;
+      break;
+    }
+  }
+#if 0
+  bf16_permute_fixed_forward_kernel(
+      *backend_ctx,
+      0, //stream_id,
+      0, //inst_id,
+      layer_id, //layer_id,
+      nullptr, //const u32 *depends,
+      0, //depends_len,
+      input_gaddr,
+      output_gaddr,
+      i_nchw[0], i_nchw[1], i_nchw[2], i_nchw[3],
+      o_nchw[0], o_nchw[1], o_nchw[2], o_nchw[3],
+      orders[0], orders[1], orders[2], orders[3],
+      need_permute_);
+#else
+  assert(false&&"not support permute bf16 backend now");
+#endif
+  return success();
+}
+
 LogicalResult tpu::TG_INT8_PoolAvg2DOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";

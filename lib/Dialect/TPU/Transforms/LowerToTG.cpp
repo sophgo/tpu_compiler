@@ -533,6 +533,39 @@ Value* tpu::LeakyReluOp::convertToTG(void *info) {
   return nullptr;
 }
 
+Value* tpu::PermuteOp::convertToTG(void *info) {
+  llvm::errs() << "lowerToTG: " << getOperationName()
+               << " [" << getOpName() << "]\n";
+  Operation *op = this->getOperation();
+  auto builder = Builder(op->getContext());
+  TensorFile *weightTF_ = (TensorFile *)info;
+
+  std::vector<Value *> operands;
+  operands.push_back(input());
+
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder.getNamedAttr("name", nameAttr()));
+  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
+  attrs.push_back(builder.getNamedAttr("order0", order0Attr()));
+  attrs.push_back(builder.getNamedAttr("order1", order1Attr()));
+  attrs.push_back(builder.getNamedAttr("order2", order2Attr()));
+  attrs.push_back(builder.getNamedAttr("order3", order3Attr()));
+
+  if (getOpQuant() == "INT8") {
+    auto newOp = OpBuilder(op).create<tpu::TG_INT8_PermuteOp>(op->getLoc(),
+        getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  } else if (getOpQuant() == "BF16") {
+    auto newOp = OpBuilder(op).create<tpu::TG_BF16_PermuteOp>(op->getLoc(),
+        getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  }
+  assert(false);
+  return nullptr;
+}
+
 Value* tpu::PoolAvg2DOp::convertToTG(void *info) {
   llvm::errs() << "lowerToTG: " << getOperationName()
                << " [" << getOpName() << "]\n";
@@ -1460,6 +1493,7 @@ public:
         DefaultToTGPattern<tpu::EltwiseMulOp>,
         DefaultToTGPattern<tpu::FullyConnectedOp>,
         DefaultToTGPattern<tpu::LeakyReluOp>,
+        DefaultToTGPattern<tpu::PermuteOp>,
         DefaultToTGPattern<tpu::PoolAvg2DOp>,
         DefaultToTGPattern<tpu::PoolMax2DOp>,
         DefaultToTGPattern<tpu::ShuffleChannelOp>,

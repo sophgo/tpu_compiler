@@ -9,7 +9,7 @@ NEED_REMOVE_AFTER_FIX_CPU_LAYER=1
 if [ $NEED_REMOVE_AFTER_FIX_CPU_LAYER -eq 1 ]; then
 
 mlir-translate \
-    --caffe-to-mlir $MODEL_PATH/object_detection/ssd/caffe/ssd300/deploy.prototxt \
+    --caffe-to-mlir $MODEL_PATH/object_detection/ssd/caffe/ssd300/deploy_tpu.prototxt \
     --caffemodel $MODEL_PATH/object_detection/ssd/caffe/ssd300/VGG_coco_SSD_300x300_iter_400000.caffemodel \
     -o ssd300.mlir
 # assign layer_id right away, and output op_info
@@ -35,6 +35,8 @@ fi
 # quantization
 mlir-opt \
     --quant-bf16 \
+    --gen-sqrt-table \
+    --gen-div-table  \
     ssd300_opt2.mlir \
     -o ssd300_quant_bf16.mlir
 
@@ -48,7 +50,7 @@ npz_compare.py \
     ssd300_tensor_all_bf16.npz \
     ssd300_tensor_all_fp32.npz \
     --op_info ssd300_op_info.csv \
-    --tolerance=0.99,0.99,0.91 -vvv
+    --tolerance=0.99,0.99,0.90 -vvv
 
 # VERDICT
 echo $0 PASSED

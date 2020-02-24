@@ -563,8 +563,7 @@ public:
 
 
                 TpuQuantDefaultPattern<tpu::DivOp>,
-                TpuQuantDefaultPattern<tpu::SqrtOp>,
-                TpuQuantDefaultPattern<tpu::PermuteOp>,
+                TpuQuantDefaultPattern<tpu::SqrtOp>,                
                 TpuQuantTanHOpPattern>(
             context, weightTensorFile.get(), weightFileVar);
     applyPatternsGreedily(fn, patterns_w);

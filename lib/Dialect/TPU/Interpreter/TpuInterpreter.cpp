@@ -779,6 +779,59 @@ static LogicalResult doPool2DOpInterpret(Operation *op, bool is_average,
   return success();
 }
 
+LogicalResult tpu::PermuteOp::interpret(
+    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+  Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name()
+                          << "]\n";);
+  auto opdT = getOperandTensors(op, valueMapping);
+  auto result = this->getResult();
+  auto size = getTensorSize(result);
+  auto resultT = std::make_unique<std::vector<float>>(size);
+
+  std::vector<int64_t> input_shape;
+  std::vector<int64_t> output_shape;
+
+  int64_t input_size, output_size;
+  getTensorShapeAndSize(input(), input_shape, input_size);
+  getTensorShapeAndSize(output(), output_shape, output_size);
+
+  assert(input_shape.size() == 4);
+
+  int in,ic,ih,iw,on,oc,oh,ow,order0,order1,order2,order3;
+
+  in = input_shape[0];
+  ic = input_shape[1];
+  ih = input_shape[2];
+  iw = input_shape[3];
+
+  on = output_shape[0];
+  oc = output_shape[1];
+  oh = output_shape[2];
+  ow = output_shape[3];
+
+  order0 = this->order0().getLimitedValue();
+  order1 = this->order1().getLimitedValue();
+  order2 = this->order2().getLimitedValue();
+  order3 = this->order3().getLimitedValue();
+
+  int ret = 0 ;
+
+  //As long as there is one order which is different from the natural order
+  // of the data, we need to permute.(from caffe permute layer source code mark)
+  if( in==on && ic==oc && ih==oh && iw==ow ){
+    valueMapping[result] = std::move(opdT[0]);
+  }else{
+      std::shared_ptr<std::vector<float>> input = opdT[0];
+    ret = my_permute(input->data(),resultT->data(),input_size,in,ic,ih,iw,
+              on,oc,oh,ow,
+              order0,order1,order2,order3);
+    assert(ret == 0);
+    valueMapping[result] = std::move(resultT);
+  }
+  return success();                          
+}
+
 LogicalResult tpu::PoolAvg2DOp::interpret(
     DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();
@@ -1157,58 +1210,6 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
     valueMapping[result] = std::move(resultT);
 
-    return success();
-  }
-
-  if (auto op = dyn_cast<tpu::PermuteOp>(opInst)) {
-    LLVM_DEBUG(llvm::errs() << "PermuteOp" << "\n";);
-
-    auto opdT = getOperandTensors(opInst, valueMapping);
-    auto result = op.getResult();
-
-    LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";);
-    std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
-    assert(shape.size() == 4);
-    auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
-    auto resultT = std::make_unique<std::vector<float> >(size);
-
-
-    int in, ic, ih, iw,on,oc,oh,ow,order0,order1,order2,order3;
-    auto input_type = op.input()->getType().cast<TensorType>();
-    std::vector<int64_t> i_s(input_type.getShape());
-    auto output_type = op.output()->getType().cast<TensorType>();
-    std::vector<int64_t> o_s(output_type.getShape());
-
-    //Dirty need to improve!!
-    order0 = op.order0().getLimitedValue();
-    order1 = op.order1().getLimitedValue();
-    order2 = op.order2().getLimitedValue();
-    order3 = op.order3().getLimitedValue();
-
-    int ret = 0 ;
-
-    in = i_s[0];
-    ic = i_s[1];
-    ih = i_s[2];
-    iw = i_s[3];
-
-    on = o_s[0];
-    oc = o_s[1];
-    oh = o_s[2];
-    ow = o_s[3];
-
-
-    //As long as there is one order which is different from the natural order
-    // of the data, we need to permute.(from caffe permute layer source code mark)
-    if( in==on && ic==oc && ih==oh && iw==ow ){
-      valueMapping[result] = std::move(opdT[0]);
-    }else{
-      float *input = (float *)opdT[0]->data();
-      float *output = (float *)resultT.get()->data();
-      ret = my_permute(input,output,shape.size(),in,ic,ih,iw,on,oc,oh,ow,order0,order1,order2,order3);
-      assert(ret == 0);
-      valueMapping[result] = std::move(resultT);
-    }
     return success();
   }
 
@@ -2017,7 +2018,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     }
 
     float *output = (float *)resultT.get()->data();
-
+#if 1
     if (op.quant() == "INT8"|| op.quant() == "INT8_PER_CHANNEL"||op.quant() == "INT8_MULTIPLIER") {
       assert(threshold_x != 0.0);
       std::vector<int> data(256, 0);
@@ -2025,7 +2026,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       for (int idx = 0; idx < 256; ++idx) {
         char lutInput = static_cast<char>(idx);
         float index = lutInput * threshold_x / 127.0;
-        float lutOutput = pow(index,2) * 127.0 / threshold_y;
+        float lutOutput = pow(index,power) * 127.0 / threshold_y;
         int lutOutputI32 = std::floor(lutOutput + 0.5);
         lutOutputI32 = (lutOutputI32 > 127)
                            ? 127
@@ -2035,7 +2036,10 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       for (int i = 0; i < size; ++i) {
         output[i] = data[(unsigned char)input[0][i]];
       }
-    } else  {
+    } 
+    else  
+#endif
+    {
 
       if (op.quant() == "INT8"|| op.quant() == "INT8_PER_CHANNEL") {
         scale = scale*(threshold_y/threshold_x)*multiplier;
