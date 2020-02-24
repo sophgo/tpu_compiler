@@ -150,7 +150,7 @@ LogicalResult tpu::TG_INT8_ConcatOp::codegen(void *ctx) {
 
   unsigned nInputs = op->getNumOperands();
   gaddr_t ga_inputs[nInputs];
-  for ( int i = 0; i < nInputs; i++) {
+  for ( unsigned i = 0; i < nInputs; i++) {
     ga_inputs[i] = getPreviousOpAddress(op, i);
   }
   gaddr_t ga_output = getOpAddress(op);
@@ -160,7 +160,7 @@ LogicalResult tpu::TG_INT8_ConcatOp::codegen(void *ctx) {
   // prepare shape info
   #define SHAPE_DIM 4
   int32_t input_dims[nInputs * SHAPE_DIM];
-  for ( int i = 0; i < nInputs; i++) {
+  for ( unsigned i = 0; i < nInputs; i++) {
     std::vector<int64_t> shape;
     int64_t size;
     getTensorShapeAndSize(op->getOperand(i), shape, size);
@@ -1263,19 +1263,19 @@ LogicalResult tpu::TG_BF16_PoolMax2DOp::codegen(void *ctx) {
 LogicalResult tpu::TG_INT8_PReluOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName() << " [" << getOpName()
                << "]\n";
-  BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
-  Operation *op = this->getOperation();
+  //BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
+  //Operation *op = this->getOperation();
 
-  std::vector<int64_t> shape;
-  int64_t input_size, n, c, h, w;
-  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
-  getNCHW(shape, n, c, h, w);
+  //std::vector<int64_t> shape;
+  //int64_t input_size, n, c, h, w;
+  //getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  //getNCHW(shape, n, c, h, w);
 
-  gaddr_t ga_input = getPreviousOpAddress(op);
-  gaddr_t ga_output = getOpAddress(op);
+  //gaddr_t ga_input = getPreviousOpAddress(op);
+  //gaddr_t ga_output = getOpAddress(op);
   // gaddr_t negative_scope_gaddr =
   //     getWeightOpAddress(negative_slope()->getDefiningOp());
-  int layer_id = mlir::getOpLayerId(op);
+  //int layer_id = mlir::getOpLayerId(op);
 
   // bmnet_prelu_fixed_forward_bmkernel(
   //     *backend_ctx,
@@ -1284,6 +1284,7 @@ LogicalResult tpu::TG_INT8_PReluOp::codegen(void *ctx) {
   //     output_gaddr,         // output_data_gaddr,
   //     negative_scope_gaddr, // float negative_slope,
   //     n, c, h, w, GT_right_shift_width, GT_scale, LE_right_shift_width, FMT_I8);
+  assert(false);
   return success();
 }
 
@@ -1302,6 +1303,24 @@ LogicalResult tpu::TG_INT8_ShuffleChannelOp::codegen(void *ctx) {
   // TODO: complete later
 
   assert(false);
+  return success();
+}
+
+LogicalResult tpu::TG_INT8_ReshapeOp::codegen(void *ctx) {
+  llvm::errs() << "TG_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";
+  //BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
+  //Operation *op = this->getOperation();
+
+  return success();
+}
+
+LogicalResult tpu::TG_BF16_ReshapeOp::codegen(void *ctx) {
+  llvm::errs() << "TG_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";
+  //BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
+  //Operation *op = this->getOperation();
+
   return success();
 }
 
@@ -1342,6 +1361,44 @@ LogicalResult tpu::TG_BF16_SigmoidOp::codegen(void *ctx) {
   // Operation *op = this->getOperation();
 
   assert(false);
+  return success();
+}
+
+LogicalResult tpu::TG_INT8_SliceOp::codegen(void *ctx) {
+  llvm::errs() << "TG_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";
+  //BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
+  //Operation *op = this->getOperation();
+
+  int axis = this->axis().getLimitedValue();
+  std::vector<int64_t> input_shape = getTensorShape(input());
+
+  if (axis == 1 && input_shape[0] == 1) {
+    llvm::errs() << "  no copy\n";
+  } else {
+    llvm::errs() << "  slice not support batch != 1 yet\n";
+    assert(false);
+  }
+
+  return success();
+}
+
+LogicalResult tpu::TG_BF16_SliceOp::codegen(void *ctx) {
+  llvm::errs() << "TG_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";
+  //BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
+  //Operation *op = this->getOperation();
+
+  int axis = this->axis().getLimitedValue();
+  std::vector<int64_t> input_shape = getTensorShape(input());
+
+  if (axis == 1 && input_shape[0] == 1) {
+    llvm::errs() << "  no copy\n";
+  } else {
+    llvm::errs() << "  slice not support batch != 1 yet\n";
+    assert(false);
+  }
+
   return success();
 }
 
