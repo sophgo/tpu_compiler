@@ -203,6 +203,36 @@ struct TpuQuantBf16DefaultPattern : public RewritePattern {
   Value* weightFV_;
 };
 
+struct TpuQuantBf16LeakyReluOpOpPattern : public RewritePattern {
+  TpuQuantBf16LeakyReluOpOpPattern(MLIRContext *context, TensorFile *weightTF,
+      Value* weightFV)
+      : RewritePattern("tpu.leaky_relu", 1, context),
+        weightTF_(weightTF),
+        weightFV_(weightFV) {}
+
+  PatternMatchResult matchAndRewrite(Operation *op,
+                                     PatternRewriter &rewriter) const override {
+    auto lreluOp = cast<tpu::LeakyReluOp>(op);
+    if (getOpQuant(op) != "NONE") {
+      LLVM_DEBUG(llvm::errs() << getOpName(op) << " quantized already\n";);
+      return matchFailure();
+    }
+    setOpQuant(op, "BF16");
+    float negative_slope = lreluOp.negative_slope().convertToFloat();
+    LLVM_DEBUG(llvm::errs() << "  negative_slope: "
+                            << std::to_string(negative_slope) << "\n";);
+    uint16_t bf16_quant_negative_slope;
+    float quant_negative_slope;
+    FloatToBFloat16(&negative_slope, &bf16_quant_negative_slope, 1);
+    BFloat16ToFloat(&bf16_quant_negative_slope, &quant_negative_slope, 1);
+    lreluOp.setAttr("negative_slope", rewriter.getF32FloatAttr(quant_negative_slope));
+
+    return matchSuccess();
+  }
+
+  TensorFile *weightTF_;
+  Value* weightFV_;
+};
 
 
 
@@ -521,7 +551,7 @@ public:
                 TpuQuantBf16DefaultPattern<tpu::EltwiseMaxOp>,
                 TpuQuantBf16DefaultPattern<tpu::EltwiseMulOp>,
                 TpuQuantBf16FullyConnectedOpPattern,
-                TpuQuantBf16DefaultPattern<tpu::LeakyReluOp>,
+                TpuQuantBf16LeakyReluOpOpPattern,
                 TpuQuantBf16DefaultPattern<tpu::PoolAvg2DOp>,
                 TpuQuantBf16DefaultPattern<tpu::PoolMax2DOp>,
                 TpuQuantBf16DefaultPattern<tpu::PReluOp>,
