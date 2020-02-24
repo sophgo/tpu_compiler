@@ -325,6 +325,7 @@ public:
           AssignGAddrTGInt8Pattern<tpu::TG_INT8_EltwiseMulOp>,
           AssignGAddrTGInt8Pattern<tpu::TG_INT8_FullyConnectedOp>,
           AssignGAddrTGInt8Pattern<tpu::TG_INT8_LeakyReluOp>,
+          AssignGAddrTGInt8Pattern<tpu::TG_INT8_PermuteOp>,
           AssignGAddrTGInt8Pattern<tpu::TG_INT8_PoolAvg2DOp>,
           AssignGAddrTGInt8Pattern<tpu::TG_INT8_PoolMax2DOp>,
           AssignGAddrTGInt8Pattern<tpu::TG_INT8_ShuffleChannelOp>,
@@ -342,6 +343,7 @@ public:
           AssignGAddrTGBf16Pattern<tpu::TG_BF16_EltwiseMulOp>,
           AssignGAddrTGBf16Pattern<tpu::TG_BF16_FullyConnectedOp>,
           AssignGAddrTGBf16Pattern<tpu::TG_BF16_LeakyReluOp>,
+          AssignGAddrTGInt8Pattern<tpu::TG_BF16_PermuteOp>,
           AssignGAddrTGBf16Pattern<tpu::TG_BF16_PoolAvg2DOp>,
           AssignGAddrTGBf16Pattern<tpu::TG_BF16_PoolMax2DOp>,
           AssignGAddrTGBf16Pattern<tpu::TG_BF16_PReluOp>,
@@ -353,8 +355,6 @@ public:
 
     patterns.insert<
           TpuQuantizationOpPattern<tpu::DivOp>,
-
-          TpuQuantizationOpPattern<tpu::PermuteOp>,
           TpuQuantizationOpPattern<tpu::PowerOp>,
           TpuQuantizationOpPattern<tpu::SqrtOp>,
           TpuQuantizationOpPattern<tpu::TanHOp>

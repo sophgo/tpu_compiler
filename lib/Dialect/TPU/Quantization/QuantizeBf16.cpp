@@ -528,12 +528,10 @@ public:
                 TpuQuantBf16DefaultPattern<tpu::ReluOp>,
                 TpuQuantBf16DefaultPattern<tpu::SigmoidOp>,
                 TpuQuantBf16DefaultPattern<tpu::UpsampleOp>,
-
-
+                TpuQuantBf16DefaultPattern<tpu::PermuteOp>,
                 TpuQuantDefaultPattern<tpu::SliceOp>,
                 TpuQuantDefaultPattern<tpu::DivOp>,
-                TpuQuantDefaultPattern<tpu::SqrtOp>,
-                TpuQuantDefaultPattern<tpu::PermuteOp>,
+                TpuQuantDefaultPattern<tpu::SqrtOp>,                
                 TpuQuantTanHOpPattern>(
             context, weightTensorFile.get(), weightFileVar);
     applyPatternsGreedily(fn, patterns_w);

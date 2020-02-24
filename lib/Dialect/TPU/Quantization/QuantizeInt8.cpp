@@ -1227,10 +1227,8 @@ public:
                 TpuQuantInt8BypassPattern<tpu::ShuffleChannelOp>,
                 TpuQuantInt8SigmoidOpPattern,
                 TpuQuantInt8BypassPattern<tpu::UpsampleOp>,
-
-
                 TpuQuantDefaultPattern<tpu::DivOp>,
-                TpuQuantDefaultPattern<tpu::PermuteOp>,
+                TpuQuantInt8BypassPattern<tpu::PermuteOp>,
                 TpuQuantPowerOpPattern,
                 TpuQuantDefaultPattern<tpu::ReshapeOp>,
                 TpuQuantDefaultPattern<tpu::SliceOp>,
