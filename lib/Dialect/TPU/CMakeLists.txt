@@ -12,6 +12,7 @@ add_llvm_library(MLIRTPU
   Analysis/TpuOpPrint.cpp
   Analysis/TpuOpStats.cpp
   Transforms/ConvertBnToScale.cpp
+  Transforms/ConvertNormalize.cpp
   Transforms/FoldScale.cpp
   Transforms/MergeScaleIntoConv.cpp
   Transforms/ConvertScaleToDWConv

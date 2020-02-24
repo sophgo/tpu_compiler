@@ -528,6 +528,51 @@ def TPU_LeakyReluOp: TPU_Op<"leaky_relu",
   let results = (outs AnyTensor:$output);
 }
 
+def TPU_NormalizeOp: TPU_Op<"normalize",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuOpInterpInterface>]> {
+  let summary = "Normalize operator";
+
+  let description = [{
+    Normalizes an array across batch and spatial dimensions.
+
+
+    Inputs:
+      `input`           : required, the input activation tensor.
+      `scale`           : required, the scale weight tensor. even channel_shared is true, extend to tensor. 
+
+    Attributes:
+      `across_spatial`  : required, normalize cross channel or not.
+      `channel_shared`  : required, scale cross channel or not.      
+      `name`            : required, name for calibration, comparing, or debug.
+      `layer_id`        : optional, id for profiling.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface` : support common TPU Op interface
+      `TpuOpInterpInterface` : support interperter
+      No `TpuOpQuantInterface`  : convert to ScaleOp befor quant
+      NO `TpuOpLowerInterface`  : convert to ScaleOp befor quant
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    AnyTensor:$scale,
+    DefaultValuedAttr<BoolAttr, "true">:$across_spatial,
+    DefaultValuedAttr<BoolAttr, "true">:$channel_shared, 
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
+  );
+
+  let results = (outs AnyTensor:$output);
+
+  let hasCanonicalizer = 1;
+}
+
 def TPU_PermuteOp: TPU_Op<"permute",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
@@ -1190,23 +1235,6 @@ def TPU_InputOp: TPU_Op<"input",
 
   let arguments = (
     ins AnyTensor:$input,
-    OptionalAttr<StrAttr>:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
-    OptionalAttr<NonNegativeI64Attr>:$offset,
-    OptionalAttr<F32Attr>:$threshold_y,
-    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
-  );
-
-  let results = (outs AnyTensor:$output);
-}
-
-def TPU_NormalizeOp : TPU_Op<"normalize",
-      [NoSideEffect, DeclareOpInterfaceMethods<TpuInterface>]> {
-  let summary = "Do Normalization";
-
-  let arguments = (
-    ins AnyTensor:$input,
-    DefaultValuedAttr<BoolAttr, "true">:$across_spatial,
     OptionalAttr<StrAttr>:$name,
     OptionalAttr<NonNegativeI32Attr>:$layer_id,
     OptionalAttr<NonNegativeI64Attr>:$offset,

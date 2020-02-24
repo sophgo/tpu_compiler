@@ -1177,7 +1177,9 @@ void CaffeImporter::convertInputLayer(mlir::Block *block,
 void CaffeImporter::convertNormalizeLayer(mlir::Block *block,
     caffe::Layer<float> *layer) {
 
-  mlir::Value *input_var = GetLayerInput(layer);
+  std::vector<mlir::Value *> input_vars = GetLayerInputs(layer);
+  auto input_var = input_vars[0];
+
 
   auto layer_param = layer->layer_param();
   auto norm_param = layer_param.norm_param();
@@ -1186,6 +1188,9 @@ void CaffeImporter::convertNormalizeLayer(mlir::Block *block,
 
   //implement for ssd case first
   assert(!across_spatial);
+
+  std::vector<Value *> operands;
+  operands.push_back(input_var);
 
   int64_t n, c, ih, iw, oh, ow;
 
@@ -1208,7 +1213,32 @@ void CaffeImporter::convertNormalizeLayer(mlir::Block *block,
         << "\n";
   );
 
+  auto scale_name = layer->layer_param().name()+"_scale";
+  auto scale_type = RankedTensorType::get({1,c}, elementType_);
 
+  if(channel_shared){
+    assert(layer->blobs()[0].get()->count() == 1);
+    std::vector<float> scale_input(c,layer->blobs()[0].get()->cpu_data()[0]);
+    weightFile_->addTensor(scale_name, scale_input.data(), scale_type);
+  }else{
+    assert(layer->blobs()[0].get()->count() == c);
+    weightFile_->addTensor(scale_name, layer->blobs()[0].get()->cpu_data(), scale_type);
+  }
+  operands.push_back(AddLoadWeightOp(block, scale_name, scale_type));
+
+  // construct Normalize OP
+  auto result_type = RankedTensorType::get({n, c, oh, ow}, elementType_);
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder_.getNamedAttr("across_spatial", builder_.getBoolAttr(across_spatial)));
+  attrs.push_back(builder_.getNamedAttr("channel_shared", builder_.getBoolAttr(channel_shared)));
+  attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name())));
+
+  auto op = OpBuilder(block).create<tpu::NormalizeOp>(
+      builder_.getUnknownLoc(), result_type,
+      ArrayRef<Value *>{operands},ArrayRef<NamedAttribute>{attrs});
+
+  auto result_var = op.getResult();
+  tensor_map_[layer_param.top(0)] = result_var;
 }
 
 void CaffeImporter::convertPermuteLayer(mlir::Block *block,
