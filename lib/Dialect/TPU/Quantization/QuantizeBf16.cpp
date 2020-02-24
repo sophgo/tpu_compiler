@@ -203,6 +203,36 @@ struct TpuQuantBf16DefaultPattern : public RewritePattern {
   Value* weightFV_;
 };
 
+struct TpuQuantBf16LeakyReluOpOpPattern : public RewritePattern {
+  TpuQuantBf16LeakyReluOpOpPattern(MLIRContext *context, TensorFile *weightTF,
+      Value* weightFV)
+      : RewritePattern("tpu.leaky_relu", 1, context),
+        weightTF_(weightTF),
+        weightFV_(weightFV) {}
+
+  PatternMatchResult matchAndRewrite(Operation *op,
+                                     PatternRewriter &rewriter) const override {
+    auto lreluOp = cast<tpu::LeakyReluOp>(op);
+    if (getOpQuant(op) != "NONE") {
+      LLVM_DEBUG(llvm::errs() << getOpName(op) << " quantized already\n";);
+      return matchFailure();
+    }
+    setOpQuant(op, "BF16");
+    float negative_slope = lreluOp.negative_slope().convertToFloat();
+    LLVM_DEBUG(llvm::errs() << "  negative_slope: "
+                            << std::to_string(negative_slope) << "\n";);
+    uint16_t bf16_quant_negative_slope;
+    float quant_negative_slope;
+    FloatToBFloat16(&negative_slope, &bf16_quant_negative_slope, 1);
+    BFloat16ToFloat(&bf16_quant_negative_slope, &quant_negative_slope, 1);
+    lreluOp.setAttr("negative_slope", rewriter.getF32FloatAttr(quant_negative_slope));
+
+    return matchSuccess();
+  }
+
+  TensorFile *weightTF_;
+  Value* weightFV_;
+};
 
 
 
@@ -434,7 +464,7 @@ struct TpuAddDequantBeforeDetectionOutputOpPattern : public OpRewritePattern<tpu
   for (size_t i = 0; i < op.getOperation()->getNumOperands(); ++i) {
 
     formerOp = op.getOperand(i)->getDefiningOp();
-    if (!matchPattern(formerOp, m_Op<tpu::LoadWeightOp>())){//&&!matchPattern(formerOp, m_Op<tpu::ReshapeOp>())) {
+    if (!matchPattern(formerOp, m_Op<tpu::LoadWeightOp>())){
         llvm::errs() << "detectionouput formorOp name: "<<getOpName(formerOp).str()<<"\n";
         std::string op_name = getPreviousOpName(op, i).str();
         auto type = op.getOperation()->getOperand(i)->getType();
@@ -450,7 +480,6 @@ struct TpuAddDequantBeforeDetectionOutputOpPattern : public OpRewritePattern<tpu
     return matchSuccess();
   }
 };
-
 
 struct TpuAddQuantAndDequantForSoftmaxOpPattern : public OpRewritePattern<tpu::SoftmaxOp> {
   using OpRewritePattern<tpu::SoftmaxOp>::OpRewritePattern;
@@ -521,19 +550,21 @@ public:
                 TpuQuantBf16DefaultPattern<tpu::EltwiseMaxOp>,
                 TpuQuantBf16DefaultPattern<tpu::EltwiseMulOp>,
                 TpuQuantBf16FullyConnectedOpPattern,
-                TpuQuantBf16DefaultPattern<tpu::LeakyReluOp>,
+                TpuQuantBf16LeakyReluOpOpPattern,
+                TpuQuantBf16DefaultPattern<tpu::PermuteOp>,
                 TpuQuantBf16DefaultPattern<tpu::PoolAvg2DOp>,
                 TpuQuantBf16DefaultPattern<tpu::PoolMax2DOp>,
                 TpuQuantBf16DefaultPattern<tpu::PReluOp>,
                 TpuQuantBf16DefaultPattern<tpu::ReluOp>,
+                TpuQuantBf16DefaultPattern<tpu::ReshapeOp>,
                 TpuQuantBf16DefaultPattern<tpu::SigmoidOp>,
+                TpuQuantBf16DefaultPattern<tpu::SliceOp>,
                 TpuQuantBf16DefaultPattern<tpu::UpsampleOp>,
 
 
-                TpuQuantDefaultPattern<tpu::SliceOp>,
+
                 TpuQuantDefaultPattern<tpu::DivOp>,
                 TpuQuantDefaultPattern<tpu::SqrtOp>,
-                TpuQuantDefaultPattern<tpu::PermuteOp>,
                 TpuQuantTanHOpPattern>(
             context, weightTensorFile.get(), weightFileVar);
     applyPatternsGreedily(fn, patterns_w);

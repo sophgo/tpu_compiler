@@ -162,7 +162,9 @@ struct BackendOverwriteThresholdDefaultPattern : public RewritePattern {
       setOpThreshold(formerOp, threshold_y);
     } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::ReluOp>(formerOp)) {
       setOpThreshold(formerOp, threshold_y);
-    }  else if (auto cast_op = llvm::dyn_cast_or_null<tpu::ShuffleChannelOp>(formerOp)) {
+    } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::PermuteOp>(formerOp)) {
+      setOpThreshold(formerOp, threshold_y);
+    } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::ShuffleChannelOp>(formerOp)) {
       setOpThreshold(formerOp, threshold_y);
     } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::UpsampleOp>(formerOp)) {
       setOpThreshold(formerOp, threshold_y);
@@ -223,19 +225,24 @@ struct BypassThresholdDefaultPattern : public RewritePattern {
   PatternMatchResult matchAndRewrite(Operation *opInst,
                                      PatternRewriter &rewriter) const override {
     auto op = cast<TyOp>(opInst);
-    if (op.threshold_y().hasValue()) {
-      // assigned already
-      return matchFailure();
-    } else {
-      /// be careful about call sequence
-      /// since this is assuming previous Op has threshold_y already
-      float threshold_x = getPreviousOpThreshold(op);
-      setOpThreshold(opInst, threshold_x);
-      llvm::errs() << opInst->getName() << " [" << op.name() << "] "
-                   << "set threshold by prev Op threshold "
-                   << std::to_string(threshold_x) << "\n";
-      return matchSuccess();
+    if (getOpQuantParamType(op) == "THRESHOLD") {
+      float threshold_x = getPreviousOpThreshold(opInst);
+      float threshold_y = getOpThreshold(opInst);
+      if (threshold_y == threshold_x) {
+        // assigned already
+        return matchFailure();
+      }
     }
+
+    /// be careful about call sequence
+    /// since this is assuming previous Op has threshold_y already
+    float threshold_x = getPreviousOpThreshold(op);
+    setOpThreshold(opInst, threshold_x);
+    setOpQuantParamType(op, "THRESHOLD");
+    llvm::errs() << opInst->getName() << " [" << op.name() << "] "
+                 << "set threshold by prev Op threshold "
+                 << std::to_string(threshold_x) << "\n";
+    return matchSuccess();
   }
 };
 
@@ -320,8 +327,6 @@ public:
       addThresholdAttr<tpu::DivOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::PowerOp>(builder, threshold_map, op);
       addThresholdAttr<tpu::SqrtOp>(builder, threshold_map, op);
-      addThresholdAttr<tpu::PermuteOp>(builder, threshold_map, op);
-
       }
     });
 
@@ -334,6 +339,7 @@ public:
     applyPatternsGreedily(fn, patterns);
 
     // apply default bypass for the ops that has no calibration threshold
+    llvm::errs() << "Forword set bypass Ops threshold\n";
     patterns.clear();
     patterns.insert<
         BypassThresholdDefaultPattern<tpu::ReshapeOp>,
@@ -342,8 +348,8 @@ public:
     applyPatternsGreedily(fn, patterns);
 
     if (clCaliOverwriteThresholdBackwardRelu) {
-      llvm::errs() << "Backward overwrite threshold for all\n";
       assert(!clCaliOverwriteThresholdForwardRelu);
+      llvm::errs() << "Backward overwrite threshold for all\n";
       patterns.clear();
       patterns.insert<
           BackendOverwriteThresholdDefaultPattern<tpu::LeakyReluOp>,
@@ -362,8 +368,8 @@ public:
       applyPatternsGreedily(fn, patterns);
     }
     if (clCaliOverwriteThresholdForwardRelu) {
-      llvm::errs() << "Forward overwrite threshold for all\n";
       assert(!clCaliOverwriteThresholdBackwardRelu);
+      llvm::errs() << "Forward overwrite threshold for all\n";
       patterns.clear();
       patterns.insert<
           ForwardOverwriteThresholdDefaultPattern<tpu::LeakyReluOp>,

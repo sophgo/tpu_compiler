@@ -155,77 +155,92 @@ static LogicalResult runOperation(Operation &opInst) {
     return success();
   }
 
-  if (auto op = dyn_cast<tpu::PermuteOp>(opInst)) {
-    LLVM_DEBUG(LLVM_DEBUG(llvm::errs() << "PermuteOp" << "\n";););
+#if 0
+  if (auto op = dyn_cast<tpu::FullyConnectedOp>(opInst)) {
+    LLVM_DEBUG(llvm::errs() << "FullyConnectedOp" << "\n";);
 
-    int i_nchw[] = {1, 1, 1, 1};
-    int o_nchw[] = {1, 1, 1, 1};
-
-    auto input_type = op.input()->getType().cast<TensorType>();
-    std::vector<int64_t> i_s(input_type.getShape());
-    auto output_type = op.output()->getType().cast<TensorType>();
-    std::vector<int64_t> o_s(output_type.getShape());
-
-    for (uint64_t i = 0; i < i_s.size(); i++) {
-      i_nchw[i] = i_s[i];
-    }
-
-    for (uint64_t i = 0; i < o_s.size(); i++) {
-      o_nchw[i] = o_s[i];
-    }
-
-    // FIXME: check orders.size() != 4
-    std::vector<int> orders;
-
-    orders.push_back(op.order0().getLimitedValue());
-
-    orders.push_back(op.order1().getLimitedValue());
-
-    orders.push_back(op.order2().getLimitedValue());
-
-    orders.push_back(op.order3().getLimitedValue());
+    bool with_transpose, with_bias, do_relu;
+    int m, k, n;
+    getFullyConnectedOpParam(op, with_transpose, m, k, n, with_bias, do_relu);
+    parseFullyConnectedParam(op.input(), op.output(), op.filter());
 
     gaddr_t input_gaddr = getPreviousOpAddress(op);
     gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
+    gaddr_t filter_gaddr = getWeightOpAddress(op.getOperand(1)->getDefiningOp());
+    gaddr_t bias_gaddr = INVALID_GLOBAL_ADDR;
+    //int with_bias = 0;
+    if (opInst.getNumOperands() > 2) {
+      with_bias = 1;
+      bias_gaddr = getWeightOpAddress(op.getOperand(2)->getDefiningOp());
+    }
 
     int layer_id = op.layer_id().getValue().getLimitedValue();
 
-    int num_axes_ = i_s.size();
-
-    // Check if we need to reorder the data or keep it.
-    bool need_permute_ = false;
-    for (int i = 0; i < num_axes_; ++i) {
-      if (orders[i] != i) {
-        // As long as there is one order which is different from the natural order
-        // of the data, we need to permute. Otherwise, we share the data and diff.
-        need_permute_ = true;
-        break;
-      }
-    }
-
     if (op.quant() == "INT8") {
-      permute_fixed_forward_kernel(
+
+      int rshift_opd_index = 2;
+      if (with_bias) {
+        rshift_opd_index = 3;
+      }
+      int8_t rshift = getRshiftFromOperandTensor(opInst, rshift_opd_index);
+
+      bmnet_fc_fixed_forward_bmkernel(
           *backend_ctx,
-          0, //stream_id,
-          0, //inst_id,
-          layer_id, //layer_id,
-          nullptr, //const u32 *depends,
-          0, //depends_len,
-          input_gaddr,
-          output_gaddr,
-          i_nchw[0], i_nchw[1], i_nchw[2], i_nchw[3],
-          o_nchw[0], o_nchw[1], o_nchw[2], o_nchw[3],
-          orders[0], orders[1], orders[2], orders[3],
-          need_permute_);
-    }
-    else {
-      // if (op.quant() == "BF16") {
-      assert(0 && "plz implement it");
+          0, // stream_id,
+          0, // inst_id,
+          layer_id, // layer_id,
+          nullptr, // depends
+          0, // depends_len
+          input_gaddr, // input_data_gaddr,
+          filter_gaddr, // weight_data_gaddr,
+          bias_gaddr, // bias_data_gaddr,
+          output_gaddr, // output_data_gaddr,
+          m, // int in_row,
+          k, // int in_col,
+          n, // int out_col,
+          with_bias, // int have_bias,
+          do_relu ? 1 : 0, // do_activation,
+          0, // activation_method,
+          INVALID_GLOBAL_ADDR, // activation_ga_slope,
+          0, // int activation_channel_shared,
+          0, // int activation_gt_scale,
+          0, // int activation_gt_rshift,
+          0, // int activation_le_scale,
+          0, // int activation_le_rshift,
+          false, // weight_tp,
+          3, // int left_shift_width, // #define DEFAULT_FC_LEFT_SHIFT 3
+          (int)rshift, // rshift
+          0, //int threshold_x_quantized_len,
+          nullptr, //const int *threshold_x_quantized,
+          nullptr //const int *right_shift_array
+          );
+
+    } else if (op.quant() == "BF16") {
+      // Note:
+      //  1880v2 tdma does not support transposed matrix load
+      //  Weight tranpose must be handled before backend
+
+      bf16_fc_forward_kernel(
+        *backend_ctx,
+        layer_id, // layer_id
+        input_gaddr, // input_data_gaddr
+        filter_gaddr, // weight_data_gaddr
+        bias_gaddr, // bias_data_gaddr
+        output_gaddr, // output_data_gaddr
+        m, // int in_row
+        k, // int in_col
+        n, // in out_col,
+        with_bias, // has_bias
+        do_relu ? 1 : 0, // do_activation
+        0  // activation_method
+      );
+    } else {
+      assert(0);
     }
 
     return success();
   }
-
+#endif
 
   if (auto op = dyn_cast<tpu::SqrtOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "SqrtOp(" << op.name() << ")\n";);
@@ -240,25 +255,45 @@ static LogicalResult runOperation(Operation &opInst) {
     c = i_s[1];
     h = i_s[2];
     w = i_s[3];
+    if (op.quant() == "INT8"|| op.quant() == "INT8_PER_CHANNEL"||op.quant() == "INT8_MULTIPLIER"){
+
     gaddr_t input_gaddr = getPreviousOpAddress(op);
     gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
     gaddr_t y0_table_gaddr = getWeightOpAddress(op.getOperand(1)->getDefiningOp());
 
     int layer_id = op.layer_id().getValue().getLimitedValue();
-    if (op.quant() == "INT8"|| op.quant() == "INT8_PER_CHANNEL"||op.quant() == "INT8_MULTIPLIER"){
-      sqrt_fixed_forward_bmkernel(*backend_ctx,
-                                     0,        // stream_id,
-                                     0,        // inst_id,
-                                     layer_id, // layer_id,
-                                     nullptr,  // const u32 *depends,
-                                     0,        // depends_len,
-                                     input_gaddr, output_gaddr, y0_table_gaddr,
-                                     n, c, h, w);
+    sqrt_fixed_forward_bmkernel(*backend_ctx,
+                                   0,        // stream_id,
+                                   0,        // inst_id,
+                                   layer_id, // layer_id,
+                                   nullptr,  // const u32 *depends,
+                                   0,        // depends_len,
+                                   input_gaddr, output_gaddr, y0_table_gaddr,
+                                   n, c, h, w);
 
-    } else {
+    } else if(op.quant() == "BF16") {
+
+      gaddr_t input_gaddr = getPreviousOpAddress(op);
+      gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
+      gaddr_t table_data_lut = getWeightOpAddress(op.getOperand(1)->getDefiningOp());
+      gaddr_t table_data_mantissa_lut = getWeightOpAddress(op.getOperand(1)->getDefiningOp());
+
+
+      int layer_id = op.layer_id().getValue().getLimitedValue();
+      
+      // bf16_sqrt_fixed_forward_bmkernel(*backend_ctx,
+      //                                0,        // stream_id,
+      //                                0,        // inst_id,
+      //                                layer_id, // layer_id,
+      //                                nullptr,  // const u32 *depends,
+      //                                0,        // depends_len,
+      //                                input_gaddr, output_gaddr, table_data_lut,table_data_mantissa_lut,
+      //                                n, c, h, w);      
+    }else {
       llvm::errs() << "not support yet \n";
       assert(0);
     }
+    
     return success();
 
   }
@@ -276,32 +311,49 @@ static LogicalResult runOperation(Operation &opInst) {
     c = i_s[1];
     h = i_s[2];
     w = i_s[3];
+    if (op.quant() == "INT8"|| op.quant() == "INT8_PER_CHANNEL"||op.quant() == "INT8_MULTIPLIER"){
 
     gaddr_t input_gaddr = getPreviousOpAddress(op);
     gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
     gaddr_t y0_table_gaddr = getWeightOpAddress(op.getOperand(1)->getDefiningOp());
 
     int layer_id = op.layer_id().getValue().getLimitedValue();
+    reciprocal_fixed_forward_bmkernel(
+        *backend_ctx,
+        0, //stream_id,
+        0, //inst_id,
+        layer_id, //layer_id,
+        nullptr, //const u32 *depends,
+        0, //depends_len,
+        input_gaddr,
+        output_gaddr,
+        y0_table_gaddr,
+        n,
+        c,
+        h,
+        w);
+    }else if(op.quant() == "BF16") {
+
+      gaddr_t input_gaddr = getPreviousOpAddress(op);
+      gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
+      gaddr_t table_data_lut = getWeightOpAddress(op.getOperand(1)->getDefiningOp());
+      gaddr_t table_data_mantissa_lut = getWeightOpAddress(op.getOperand(1)->getDefiningOp());
 
 
-    if (op.quant() == "INT8"|| op.quant() == "INT8_PER_CHANNEL"||op.quant() == "INT8_MULTIPLIER"){
-      reciprocal_fixed_forward_bmkernel(
-          *backend_ctx,
-          0, //stream_id,
-          0, //inst_id,
-          layer_id, //layer_id,
-          nullptr, //const u32 *depends,
-          0, //depends_len,
-          input_gaddr,
-          output_gaddr,
-          y0_table_gaddr,
-          n,
-          c,
-          h,
-          w);
-    }
-    else {
-      LLVM_DEBUG(llvm::errs() << "not support yet \n";);
+      int layer_id = op.layer_id().getValue().getLimitedValue();
+      
+      // bf16_sqrt_fixed_forward_bmkernel(*backend_ctx,
+      //                                0,        // stream_id,
+      //                                0,        // inst_id,
+      //                                layer_id, // layer_id,
+      //                                nullptr,  // const u32 *depends,
+      //                                0,        // depends_len,
+      //                                input_gaddr, output_gaddr, table_data_lut,table_data_mantissa_lut,
+      //                                n, c, h, w);      
+
+
+    }else {
+      llvm::errs() << "not support yet \n";
       assert(0);
     }
 

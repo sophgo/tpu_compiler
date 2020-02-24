@@ -7,14 +7,19 @@ source $DIR/../../envsetup.sh
 ################################
 # prepare bf16 input
 ################################
-npz_to_bin.py ssd300_in_fp32.npz data ssd300_in_fp32.bin
+npz_to_bin.py yolo_v3_in_fp32.npz input yolo_v3_in_fp32.bin
 bin_fp32_to_bf16.py \
-    ssd300_in_fp32.bin \
-    ssd300_in_bf16.bin
+    yolo_v3_in_fp32.bin \
+    yolo_v3_in_bf16.bin
 
 ################################
-# quantization
+# Lower
 ################################
+mlir-opt \
+    --tpu-lower \
+    yolo_v3_416_quant_bf16.mlir \
+    -o yolo_v3_416_quant_bf16_tg.mlir
+
 # assign weight address & neuron address
 mlir-opt \
     --assign-weight-address \
@@ -24,49 +29,39 @@ mlir-opt \
     --assign-neuron-address \
     --tpu-neuron-address-align=16 \
     --tpu-neuron-map-filename=neuron_map_bf16.csv \
-    --assign-layer-id \
-    ssd300_quant_bf16.mlir \
-    -o ssd300_quant_bf16_addr.mlir
+    yolo_v3_416_quant_bf16_tg.mlir \
+    -o yolo_v3_416_quant_bf16_addr.mlir
 
 # backend translate into cmdbuf
 mlir-translate \
     --mlir-to-cmdbuf \
-    ssd300_quant_bf16_addr.mlir \
+    yolo_v3_416_quant_bf16_addr.mlir \
     -o cmdbuf_bf16.bin
 
-
-#generate cvi model
+# generate cvi model
 python $CVIBUILDER_PATH/python/cvi_model_create.py \
     --cmdbuf cmdbuf_bf16.bin \
     --weight weight_bf16.bin \
     --neuron_map neuron_map_bf16.csv \
-    --output=ssd300_bf16.cvimodel
+    --output=yolo_v3_416_bf16.cvimodel
 
+# run cmdbuf
 $RUNTIME_PATH/bin/test_cvinet \
-    ssd300_in_bf16.bin \
-    ssd300_bf16.cvimodel \
-    ssd300_cmdbuf_out_all_bf16.bin
+    yolo_v3_in_bf16.bin \
+    yolo_v3_416_bf16.cvimodel \
+    yolo_v3_416_cmdbuf_out_all_bf16.bin
 
-
-# # run cmdbuf
-# $RUNTIME_PATH/bin/test_bmnet \
-#     ssd300_in_bf16.bin \
-#     weight_bf16.bin \
-#     cmdbuf_bf16.bin \
-#     ssd300_cmdbuf_out_all_bf16.bin \
-#     32921552 0 32921552 1
-
-
-# compare all tensors
 bin_to_npz.py \
-    ssd300_cmdbuf_out_all_bf16.bin \
+    yolo_v3_416_cmdbuf_out_all_bf16.bin \
     neuron_map_bf16.csv \
-    ssd300_cmdbuf_out_all_bf16.npz
-npz_compare.py \
-    ssd300_cmdbuf_out_all_bf16.npz \
-    ssd300_tensor_all_bf16.npz \
-    --op_info ssd300_op_info.csv \
-    --tolerance=0.99,0.99,0.96 -vvv
+    yolo_v3_416_cmdbuf_out_all_bf16.npz
 
-# VERDICT
-echo $0 PASSED
+npz_extract.py \
+    yolo_v3_416_cmdbuf_out_all_bf16.npz \
+    yolo_v3_out_bf16_three_layer.npz \
+    layer82-conv,layer94-conv,layer106-conv
+
+npz_compare.py \
+      yolo_v3_out_bf16_three_layer.npz \
+      yolo_v3_416_tensor_all_bf16.npz \
+      --op_info yolo_v3_op_info_bf16_per_layer.csv

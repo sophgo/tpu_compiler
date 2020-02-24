@@ -21,6 +21,7 @@
 
 #include "mlir/Dialect/TPU/TPUDialect.h"
 #include "mlir/Dialect/TPU/TPUOperationSupport.h"
+#include "mlir/Dialect/TPU/TPUTensorSupport.h"
 #include "mlir/Dialect/TPU/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
@@ -97,7 +98,6 @@ struct AssignGAddrTGInt8Pattern : public RewritePattern {
   size_t alignment_;
 };
 
-
 template<typename OpTy>
 struct AssignGAddrTGBf16Pattern : public RewritePattern {
   AssignGAddrTGBf16Pattern(MLIRContext *context,
@@ -154,6 +154,75 @@ struct AssignGAddrTGBf16Pattern : public RewritePattern {
   size_t alignment_;
 };
 
+template<typename OpTy>
+struct TpuReshapeAddressPattern : public RewritePattern {
+  TpuReshapeAddressPattern(MLIRContext *context)
+      : RewritePattern(OpTy::getOperationName(), 1, context) {}
+
+  PatternMatchResult matchAndRewrite(Operation *op,
+                                     PatternRewriter &rewriter) const override {
+    auto castOp = cast<OpTy>(op);
+    if (castOp.gaddr().hasValue()) {
+      // assigned already
+      return matchFailure();
+    }
+
+    auto prevPos = getPreviousOpAddress(op);
+    setOpAddress(op, prevPos);
+
+    return matchSuccess();
+  }
+};
+
+template<typename OpTy>
+struct TpuSliceAddressPattern : public RewritePattern {
+  TpuSliceAddressPattern(MLIRContext *context)
+      : RewritePattern(OpTy::getOperationName(), 1, context) {}
+
+  PatternMatchResult matchAndRewrite(Operation *op,
+                                     PatternRewriter &rewriter) const override {
+    auto castOp = cast<OpTy>(op);
+    if (castOp.gaddr().hasValue()) {
+      // assigned already
+      return matchFailure();
+    }
+
+    // trying to avoid doing copy
+    // however, since we didn't pass stride info to backend API yet
+    // this is only working for batch_size = 1
+    std::vector<int64_t> input_shape = getTensorShape(castOp.input());
+    assert(input_shape[0] == 1);
+
+    auto curPos = getPreviousOpAddress(castOp);
+    int axis  = castOp.axis().getLimitedValue();
+    int offset  = castOp.offset().getLimitedValue();
+
+    assert(axis == 1);
+    int64_t isz = 1;
+    for (unsigned i = axis + 1; i < input_shape.size(); i++) {
+      isz *= input_shape[i];
+    }
+    int64_t count = offset * isz;
+
+    size_t offset_bytes;
+    if (isa<tpu::TG_INT8_SliceOp>(op)) {
+      offset_bytes = count * sizeof(int8_t);
+    } else if (isa<tpu::TG_BF16_SliceOp>(op)) {
+      offset_bytes = count * sizeof(uint16_t);
+    } else {
+      assert(0);
+    }
+
+    setOpAddress(op, curPos + offset_bytes);
+
+    return matchSuccess();
+  }
+};
+
+
+
+
+
 
 
 // to be removed
@@ -209,7 +278,6 @@ struct TpuQuantizationOpPattern : public RewritePattern {
             << shape[0] << "," << shape[1] << ","
             << shape[2] << "," << shape[3] << "\n";
 
-    //castOp.setAttr("offset", rewriter.getI64IntegerAttr(curPos));
     setOpAddress(op, curPos);
     *pos_ = newPos;
 
@@ -221,55 +289,7 @@ struct TpuQuantizationOpPattern : public RewritePattern {
   size_t alignment_;
 };
 
-struct TpuSliceAddressPattern : public RewritePattern {
-  TpuSliceAddressPattern(MLIRContext *context)
-      : RewritePattern("tpu.slice", 1, context) {}
 
-  PatternMatchResult matchAndRewrite(Operation *op,
-                                     PatternRewriter &rewriter) const override {
-    auto castOp = cast<tpu::SliceOp>(op);
-    if (castOp.offset().hasValue()) {
-      // assigned already
-      return matchFailure();
-    }
-
-    auto curPos = getPreviousOpAddress(castOp);
-    int32_t count = castOp.input_offset().getValue().getLimitedValue();
-
-    size_t size;
-    if (castOp.quant() == "INT8" || castOp.quant() == "INT8_PER_CHANNEL"
-        || castOp.quant() == "INT8_MULTIPLIER") {
-      size = count * sizeof(int8_t);
-    } else if (castOp.quant() == "BF16") {
-      size = count * sizeof(uint16_t);
-    } else {
-      assert(0);
-    }
-
-    castOp.setAttr("offset", rewriter.getI64IntegerAttr(curPos + size));
-
-    return matchSuccess();
-  }
-};
-
-struct TpuReshapeAddressPattern : public RewritePattern {
-  TpuReshapeAddressPattern(MLIRContext *context)
-      : RewritePattern("tpu.reshape", 1, context) {}
-
-  PatternMatchResult matchAndRewrite(Operation *op,
-                                     PatternRewriter &rewriter) const override {
-    auto castOp = cast<tpu::ReshapeOp>(op);
-    if (castOp.offset().hasValue()) {
-      // assigned already
-      return matchFailure();
-    }
-
-    auto prevPos = getPreviousOpAddress(castOp);
-    castOp.setAttr("offset", rewriter.getI64IntegerAttr(prevPos));
-
-    return matchSuccess();
-  }
-};
 
 static llvm::cl::opt<size_t> clNeuronAlignment(
     "tpu-neuron-address-align",
@@ -309,62 +329,70 @@ public:
     patterns.insert<TpuQuantizationOpPattern<tpu::QuantizationOp>>(
         context, &pos, neuronMapFile->os(), clNeuronAlignment);
     applyPatternsGreedily(fn, patterns);
-    patterns.clear();
 
     // assigne gaddr for TG Ops
+    patterns.clear();
     patterns.insert<
-          // tg int8 ops
-          AssignGAddrTGInt8Pattern<tpu::TG_INT8_BroadcastMulOp>,
-          AssignGAddrTGInt8Pattern<tpu::TG_INT8_ConcatOp>,
-          AssignGAddrTGInt8Pattern<tpu::TG_INT8_PT_Conv2DOp>,
-          AssignGAddrTGInt8Pattern<tpu::TG_INT8_PC_Conv2DOp>,
-          AssignGAddrTGInt8Pattern<tpu::TG_INT8_CropOp>,
-          AssignGAddrTGInt8Pattern<tpu::TG_INT8_PT_DeConv2DOp>,
-          AssignGAddrTGInt8Pattern<tpu::TG_INT8_PC_DeConv2DOp>,
-          AssignGAddrTGInt8Pattern<tpu::TG_INT8_EltwiseAddOp>,
-          AssignGAddrTGInt8Pattern<tpu::TG_INT8_EltwiseMaxOp>,
-          AssignGAddrTGInt8Pattern<tpu::TG_INT8_EltwiseMulOp>,
-          AssignGAddrTGInt8Pattern<tpu::TG_INT8_FullyConnectedOp>,
-          AssignGAddrTGInt8Pattern<tpu::TG_INT8_LeakyReluOp>,
-          AssignGAddrTGInt8Pattern<tpu::TG_INT8_PoolAvg2DOp>,
-          AssignGAddrTGInt8Pattern<tpu::TG_INT8_PoolMax2DOp>,
-          AssignGAddrTGInt8Pattern<tpu::TG_INT8_ShuffleChannelOp>,
-          AssignGAddrTGInt8Pattern<tpu::TG_INT8_PReluOp>,
-          AssignGAddrTGInt8Pattern<tpu::TG_INT8_SigmoidOp>,
-          AssignGAddrTGInt8Pattern<tpu::TG_INT8_UpsampleOp>,
+        // tg int8 ops
+        AssignGAddrTGInt8Pattern<tpu::TG_INT8_BroadcastMulOp>,
+        AssignGAddrTGInt8Pattern<tpu::TG_INT8_ConcatOp>,
+        AssignGAddrTGInt8Pattern<tpu::TG_INT8_PT_Conv2DOp>,
+        AssignGAddrTGInt8Pattern<tpu::TG_INT8_PC_Conv2DOp>,
+        AssignGAddrTGInt8Pattern<tpu::TG_INT8_CropOp>,
+        AssignGAddrTGInt8Pattern<tpu::TG_INT8_PT_DeConv2DOp>,
+        AssignGAddrTGInt8Pattern<tpu::TG_INT8_PC_DeConv2DOp>,
+        AssignGAddrTGInt8Pattern<tpu::TG_INT8_EltwiseAddOp>,
+        AssignGAddrTGInt8Pattern<tpu::TG_INT8_EltwiseMaxOp>,
+        AssignGAddrTGInt8Pattern<tpu::TG_INT8_EltwiseMulOp>,
+        AssignGAddrTGInt8Pattern<tpu::TG_INT8_FullyConnectedOp>,
+        AssignGAddrTGInt8Pattern<tpu::TG_INT8_LeakyReluOp>,
+        AssignGAddrTGInt8Pattern<tpu::TG_INT8_PermuteOp>,
+        AssignGAddrTGInt8Pattern<tpu::TG_INT8_PoolAvg2DOp>,
+        AssignGAddrTGInt8Pattern<tpu::TG_INT8_PoolMax2DOp>,
+        AssignGAddrTGInt8Pattern<tpu::TG_INT8_ShuffleChannelOp>,
+        AssignGAddrTGInt8Pattern<tpu::TG_INT8_PReluOp>,
+        AssignGAddrTGInt8Pattern<tpu::TG_INT8_SigmoidOp>,
+        AssignGAddrTGInt8Pattern<tpu::TG_INT8_UpsampleOp>,
 
-          // tg bf16 ops
-          AssignGAddrTGInt8Pattern<tpu::TG_BF16_BroadcastMulOp>,
-          AssignGAddrTGBf16Pattern<tpu::TG_BF16_ConcatOp>,
-          AssignGAddrTGBf16Pattern<tpu::TG_BF16_Conv2DOp>,
-          AssignGAddrTGBf16Pattern<tpu::TG_BF16_CropOp>,
-          AssignGAddrTGBf16Pattern<tpu::TG_BF16_DeConv2DOp>,
-          AssignGAddrTGBf16Pattern<tpu::TG_BF16_EltwiseAddOp>,
-          AssignGAddrTGBf16Pattern<tpu::TG_BF16_EltwiseMaxOp>,
-          AssignGAddrTGBf16Pattern<tpu::TG_BF16_EltwiseMulOp>,
-          AssignGAddrTGBf16Pattern<tpu::TG_BF16_FullyConnectedOp>,
-          AssignGAddrTGBf16Pattern<tpu::TG_BF16_LeakyReluOp>,
-          AssignGAddrTGBf16Pattern<tpu::TG_BF16_PoolAvg2DOp>,
-          AssignGAddrTGBf16Pattern<tpu::TG_BF16_PoolMax2DOp>,
-          AssignGAddrTGBf16Pattern<tpu::TG_BF16_PReluOp>,
-          AssignGAddrTGBf16Pattern<tpu::TG_BF16_SigmoidOp>,
-          AssignGAddrTGBf16Pattern<tpu::TG_BF16_UpsampleOp>
+        // tg bf16 ops
+        AssignGAddrTGInt8Pattern<tpu::TG_BF16_BroadcastMulOp>,
+        AssignGAddrTGBf16Pattern<tpu::TG_BF16_ConcatOp>,
+        AssignGAddrTGBf16Pattern<tpu::TG_BF16_Conv2DOp>,
+        AssignGAddrTGBf16Pattern<tpu::TG_BF16_CropOp>,
+        AssignGAddrTGBf16Pattern<tpu::TG_BF16_DeConv2DOp>,
+        AssignGAddrTGBf16Pattern<tpu::TG_BF16_EltwiseAddOp>,
+        AssignGAddrTGBf16Pattern<tpu::TG_BF16_EltwiseMaxOp>,
+        AssignGAddrTGBf16Pattern<tpu::TG_BF16_EltwiseMulOp>,
+        AssignGAddrTGBf16Pattern<tpu::TG_BF16_FullyConnectedOp>,
+        AssignGAddrTGBf16Pattern<tpu::TG_BF16_LeakyReluOp>,
+        AssignGAddrTGBf16Pattern<tpu::TG_BF16_PermuteOp>,
+        AssignGAddrTGBf16Pattern<tpu::TG_BF16_PoolAvg2DOp>,
+        AssignGAddrTGBf16Pattern<tpu::TG_BF16_PoolMax2DOp>,
+        AssignGAddrTGBf16Pattern<tpu::TG_BF16_PReluOp>,
+        AssignGAddrTGBf16Pattern<tpu::TG_BF16_SigmoidOp>,
+        AssignGAddrTGBf16Pattern<tpu::TG_BF16_UpsampleOp>
+
         >(context, &pos, neuronMapFile->os(), clNeuronAlignment);
     applyPatternsGreedily(fn, patterns);
+
+    // to be removed
     patterns.clear();
-
     patterns.insert<
-          TpuQuantizationOpPattern<tpu::DivOp>,
-
-          TpuQuantizationOpPattern<tpu::PermuteOp>,
-          TpuQuantizationOpPattern<tpu::PowerOp>,
-          TpuQuantizationOpPattern<tpu::SqrtOp>,
-          TpuQuantizationOpPattern<tpu::TanHOp>
+        TpuQuantizationOpPattern<tpu::DivOp>,
+        TpuQuantizationOpPattern<tpu::PowerOp>,
+        TpuQuantizationOpPattern<tpu::SqrtOp>,
+        TpuQuantizationOpPattern<tpu::TanHOp>
         >(context, &pos, neuronMapFile->os(), clNeuronAlignment);
     applyPatternsGreedily(fn, patterns);
-    patterns.clear();
 
-    patterns.insert<TpuSliceAddressPattern, TpuReshapeAddressPattern>(context);
+    // no copy address assignment
+    patterns.clear();
+    patterns.insert<
+        TpuSliceAddressPattern<tpu::TG_INT8_SliceOp>,
+        TpuSliceAddressPattern<tpu::TG_BF16_SliceOp>,
+        TpuReshapeAddressPattern<tpu::TG_INT8_ReshapeOp>,
+        TpuReshapeAddressPattern<tpu::TG_BF16_ReshapeOp>
+        >(context);
     applyPatternsGreedily(fn, patterns);
 
     if (neuronMapFile) {

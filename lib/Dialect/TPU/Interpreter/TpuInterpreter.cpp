@@ -142,7 +142,7 @@ LogicalResult tpu::BroadcastMulOp::interpret(
     for (int i = 0; i < size; ++i) {
       resultT->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
           resultT->at(i), (uint32_t)quant_rshift->at(0),
-          (uint32_t)quant_multiplier->at(0), false);
+          (uint32_t)quant_multiplier->at(0), true);
     }
   } else if (mlir::getOpQuant(op) == "BF16") {
     auto tensor_bf16 = std::make_unique<std::vector<bfloat16> >(resultT->size());
@@ -529,7 +529,7 @@ static LogicalResult doEltwiseOpInterpret(Operation *op,
       for (int i = 0; i < size; ++i) {
         output[i] = (float)applyMultiplierAndRShiftAndSaturateInt8(
             output[i], (uint32_t)quant_rshift->at(0),
-            (uint32_t)quant_multiplier->at(0), false);
+            (uint32_t)quant_multiplier->at(0), true);
       }
     }
   } else if (getOpQuant(op) == "BF16") {
@@ -779,6 +779,59 @@ static LogicalResult doPool2DOpInterpret(Operation *op, bool is_average,
   return success();
 }
 
+LogicalResult tpu::PermuteOp::interpret(
+    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+  Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name()
+                          << "]\n";);
+  auto opdT = getOperandTensors(op, valueMapping);
+  auto result = this->getResult();
+  auto size = getTensorSize(result);
+  auto resultT = std::make_unique<std::vector<float>>(size);
+
+  std::vector<int64_t> input_shape;
+  std::vector<int64_t> output_shape;
+
+  int64_t input_size, output_size;
+  getTensorShapeAndSize(input(), input_shape, input_size);
+  getTensorShapeAndSize(output(), output_shape, output_size);
+
+  assert(input_shape.size() == 4);
+
+  int in,ic,ih,iw,on,oc,oh,ow,order0,order1,order2,order3;
+
+  in = input_shape[0];
+  ic = input_shape[1];
+  ih = input_shape[2];
+  iw = input_shape[3];
+
+  on = output_shape[0];
+  oc = output_shape[1];
+  oh = output_shape[2];
+  ow = output_shape[3];
+
+  order0 = this->order0().getLimitedValue();
+  order1 = this->order1().getLimitedValue();
+  order2 = this->order2().getLimitedValue();
+  order3 = this->order3().getLimitedValue();
+
+  int ret = 0 ;
+
+  //As long as there is one order which is different from the natural order
+  // of the data, we need to permute.(from caffe permute layer source code mark)
+  if( in==on && ic==oc && ih==oh && iw==ow ){
+    valueMapping[result] = std::move(opdT[0]);
+  }else{
+      std::shared_ptr<std::vector<float>> input = opdT[0];
+    ret = my_permute(input->data(),resultT->data(),input_size,in,ic,ih,iw,
+              on,oc,oh,ow,
+              order0,order1,order2,order3);
+    assert(ret == 0);
+    valueMapping[result] = std::move(resultT);
+  }
+  return success();
+}
+
 LogicalResult tpu::PoolAvg2DOp::interpret(
     DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();
@@ -854,6 +907,24 @@ LogicalResult tpu::ReluOp::interpret(
   return success();
 }
 
+LogicalResult tpu::ReshapeOp::interpret(
+    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+  Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
+
+  auto opdT = getOperandTensors(op, valueMapping);
+  auto result = this->getResult();
+  auto size = getTensorSize(result);
+  auto resultT = std::make_unique<std::vector<float> >(size);
+
+  // use copy for now
+  resultT.get()->assign(opdT[0]->begin(), opdT[0]->end());
+
+  valueMapping[result] = std::move(resultT);
+
+  return success();
+}
+
 LogicalResult tpu::ScaleOp::interpret(
     DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();
@@ -909,46 +980,17 @@ LogicalResult tpu::ShuffleChannelOp::interpret(
 
   int64_t n = input_shape[0];
   int64_t c = input_shape[1];
-  int64_t feature_map_size = std::accumulate(
+  int64_t frame_size = std::accumulate(
       input_shape.begin() + 2, input_shape.end(), 1, std::multiplies<>());
   float *input = (float *)opdT[0]->data();
   float *output = (float *)resultT.get()->data();
   uint32_t group = this->group().getLimitedValue();
-  int ret = my_shuffle_channel(input, output, group, n, c, feature_map_size);
+  int ret = my_shuffle_channel(input, output, group, n, c, frame_size);
 
   assert(ret == 0);
 
   valueMapping[result] = std::move(resultT);
 
-  return success();
-}
-
-LogicalResult tpu::SoftmaxOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
-  Operation *op = this->getOperation();
-  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
-
-  auto opdT = getOperandTensors(op, valueMapping);
-  auto result = this->getResult();
-  std::vector<int64_t> shape = getTensorShape(result);
-  auto size = getTensorSize(result);
-  auto resultT = std::make_unique<std::vector<float> >(size);
-
-  // parse param
-  int axis = this->axis().getLimitedValue();
-
-  if (shape.size() == 2) {
-    int ret = my_softmax2D(opdT[0]->data(), resultT->data(), shape[0], shape[1]);
-    assert(ret == 0);
-  } else if (shape.size() == 4) {
-    int ret = my_softmax4D(opdT[0]->data(), resultT->data(), axis, shape);
-    assert(ret == 0);
-  } else if (shape.size() == 3) {
-    int ret = my_softmax3D(opdT[0]->data(), resultT->data(), axis, shape);
-    assert(ret == 0);
-  }
-
-  valueMapping[result] = std::move(resultT);
   return success();
 }
 
@@ -998,6 +1040,62 @@ LogicalResult tpu::SigmoidOp::interpret(
   }
   valueMapping[result] = std::move(resultT);
 
+  return success();
+}
+
+LogicalResult tpu::SliceOp::interpret(
+    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+  Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
+
+  auto opdT = getOperandTensors(op, valueMapping);
+  auto result = this->getResult();
+  auto size = getTensorSize(result);
+  auto resultT = std::make_unique<std::vector<float> >(size);
+
+  std::vector<int64_t> input_shape;
+  int64_t input_size;
+  getTensorShapeAndSize(this->input(), input_shape, input_size);
+  std::vector<int64_t> output_shape;
+  int64_t output_size;
+  getTensorShapeAndSize(this->output(), output_shape, output_size);
+  int axis = this->axis().getLimitedValue();
+  int offset = this->offset().getLimitedValue();
+
+  int ret = my_slice(opdT[0]->data(), resultT->data(), axis, offset,
+                     input_shape, output_shape);
+  assert(ret == 0);
+  valueMapping[result] = std::move(resultT);
+
+  return success();
+}
+
+LogicalResult tpu::SoftmaxOp::interpret(
+    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+  Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
+
+  auto opdT = getOperandTensors(op, valueMapping);
+  auto result = this->getResult();
+  std::vector<int64_t> shape = getTensorShape(result);
+  auto size = getTensorSize(result);
+  auto resultT = std::make_unique<std::vector<float> >(size);
+
+  // parse param
+  int axis = this->axis().getLimitedValue();
+
+  if (shape.size() == 2) {
+    int ret = my_softmax2D(opdT[0]->data(), resultT->data(), shape[0], shape[1]);
+    assert(ret == 0);
+  } else if (shape.size() == 4) {
+    int ret = my_softmax4D(opdT[0]->data(), resultT->data(), axis, shape);
+    assert(ret == 0);
+  } else if (shape.size() == 3) {
+    int ret = my_softmax3D(opdT[0]->data(), resultT->data(), axis, shape);
+    assert(ret == 0);
+  }
+
+  valueMapping[result] = std::move(resultT);
   return success();
 }
 
@@ -1115,58 +1213,6 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     return success();
   }
 
-  if (auto op = dyn_cast<tpu::PermuteOp>(opInst)) {
-    LLVM_DEBUG(llvm::errs() << "PermuteOp" << "\n";);
-
-    auto opdT = getOperandTensors(opInst, valueMapping);
-    auto result = op.getResult();
-
-    LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";);
-    std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
-    assert(shape.size() == 4);
-    auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
-    auto resultT = std::make_unique<std::vector<float> >(size);
-
-
-    int in, ic, ih, iw,on,oc,oh,ow,order0,order1,order2,order3;
-    auto input_type = op.input()->getType().cast<TensorType>();
-    std::vector<int64_t> i_s(input_type.getShape());
-    auto output_type = op.output()->getType().cast<TensorType>();
-    std::vector<int64_t> o_s(output_type.getShape());
-
-    //Dirty need to improve!!
-    order0 = op.order0().getLimitedValue();
-    order1 = op.order1().getLimitedValue();
-    order2 = op.order2().getLimitedValue();
-    order3 = op.order3().getLimitedValue();
-
-    int ret = 0 ;
-
-    in = i_s[0];
-    ic = i_s[1];
-    ih = i_s[2];
-    iw = i_s[3];
-
-    on = o_s[0];
-    oc = o_s[1];
-    oh = o_s[2];
-    ow = o_s[3];
-
-
-    //As long as there is one order which is different from the natural order
-    // of the data, we need to permute.(from caffe permute layer source code mark)
-    if( in==on && ic==oc && ih==oh && iw==ow ){
-      valueMapping[result] = std::move(opdT[0]);
-    }else{
-      float *input = (float *)opdT[0]->data();
-      float *output = (float *)resultT.get()->data();
-      ret = my_permute(input,output,shape.size(),in,ic,ih,iw,on,oc,oh,ow,order0,order1,order2,order3);
-      assert(ret == 0);
-      valueMapping[result] = std::move(resultT);
-    }
-    return success();
-  }
-
   if (auto op = dyn_cast<tpu::NormalizeOp>(opInst)) {
     /*not the same as ssd Normalize op, here only do normalize , reuse "Scale op" for scale operation */
     LLVM_DEBUG(llvm::errs() << "NormalizeOp" << "\n";);
@@ -1259,60 +1305,6 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     // TODO: End of compute, need refactor
 
     valueMapping[result] = std::move(resultT);
-
-    return success();
-  }
-
-  if (auto op = dyn_cast<tpu::ReshapeOp>(opInst)) {
-    LLVM_DEBUG(llvm::errs() << "ReshapeOp" << "\n";);
-    auto opdT = getOperandTensors(opInst, valueMapping);
-    auto result = op.getResult();
-    LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";);
-    std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
-    assert(shape.size() <= 4);
-    auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
-    auto resultT = std::make_unique<std::vector<float> >(size);
-
-    auto input_type = op.input()->getType().cast<TensorType>();
-    std::vector<int64_t> i_s(input_type.getShape());
-    auto output_type = op.output()->getType().cast<TensorType>();
-    std::vector<int64_t> o_s(output_type.getShape());
-    auto i_size = std::accumulate(std::begin(i_s), std::end(i_s), 1, std::multiplies<>());
-    auto o_size = std::accumulate(std::begin(o_s), std::end(o_s), 1, std::multiplies<>());
-    assert((i_size == o_size) && "input size not equal to output size");
-
-    // use copy for now
-    resultT.get()->assign(opdT[0]->begin(), opdT[0]->end());
-
-    valueMapping[result] = std::move(resultT);
-
-    return success();
-  }
-
-
-  if (auto op = dyn_cast<tpu::SliceOp>(opInst)) {
-    LLVM_DEBUG(llvm::errs() << "SliceOp" << "\n";);
-    auto opdT = getOperandTensors(opInst, valueMapping);
-    auto result = op.getResult();
-    int axis = op.axis().getValue().getLimitedValue();
-    int input_offset = op.input_offset().getValue().getLimitedValue();
-    std::vector<int64_t> i_s = op.getOperand()->getType().cast<TensorType>().getShape();
-
-    float *input = (float *)opdT[0]->data();
-
-    input += input_offset;
-    LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";);
-    std::vector<int64_t> o_s = result->getType().cast<TensorType>().getShape();
-    assert(o_s.size() <= 4);
-    auto size = std::accumulate(std::begin(o_s), std::end(o_s), 1, std::multiplies<>());
-    auto resultT = std::make_unique<std::vector<float> >(size);
-
-    float *output = (float *)resultT.get()->data();
-    int ret = my_slice(input, output, axis, i_s, o_s);
-    assert(ret == 0);
-
-    valueMapping[result] = std::move(resultT);
-    input += size;
 
     return success();
   }
@@ -2026,7 +2018,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     }
 
     float *output = (float *)resultT.get()->data();
-
+#if 1
     if (op.quant() == "INT8"|| op.quant() == "INT8_PER_CHANNEL"||op.quant() == "INT8_MULTIPLIER") {
       assert(threshold_x != 0.0);
       std::vector<int> data(256, 0);
@@ -2034,7 +2026,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       for (int idx = 0; idx < 256; ++idx) {
         char lutInput = static_cast<char>(idx);
         float index = lutInput * threshold_x / 127.0;
-        float lutOutput = pow(index,2) * 127.0 / threshold_y;
+        float lutOutput = pow(index,power) * 127.0 / threshold_y;
         int lutOutputI32 = std::floor(lutOutput + 0.5);
         lutOutputI32 = (lutOutputI32 > 127)
                            ? 127
@@ -2044,7 +2036,10 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       for (int i = 0; i < size; ++i) {
         output[i] = data[(unsigned char)input[0][i]];
       }
-    } else  {
+    }
+    else
+#endif
+    {
 
       if (op.quant() == "INT8"|| op.quant() == "INT8_PER_CHANNEL") {
         scale = scale*(threshold_y/threshold_x)*multiplier;

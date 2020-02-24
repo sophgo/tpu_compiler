@@ -379,6 +379,8 @@ def TPU_CropOp: TPU_Op<"crop",
       `NoSideEffect`
       `TPU_QuantPerTensorOnly`
       `TPU_QuantSupportAsymmetric`
+      `TPU_QuantSameInputResultScale` : input and result share same threshold
+                                        or scale (bypassed).
       `TpuOpCommonInterface` : support common TPU Op interface
       `TpuOpInterpInterface` : support interperter
       `TpuOpQuantInterface`  : support quantization
@@ -526,6 +528,52 @@ def TPU_LeakyReluOp: TPU_Op<"leaky_relu",
   let results = (outs AnyTensor:$output);
 }
 
+def TPU_PermuteOp: TPU_Op<"permute",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
+       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
+       DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
+
+  let summary = "Permute operator";
+
+  let description = [{
+      Perform permute on input.
+
+    Inputs:
+      `input`               : required, the input activation tensor.
+
+    Attributes:
+      `order0`  : required, The new order0 of the axes of data.
+      `order1`  : required, The new order1 of the axes of data.
+      `order2`  : required, The new order2 of the axes of data.
+      `order3`  : optional, The new order3 of the axes of data.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface` : support common TPU Op interface
+      `TpuOpInterpInterface` : support interperter
+      `TpuOpQuantInterface`  : support quantization    
+      `TpuOpLowerInterface`  : support lower to TPU TG Ops
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    NonNegativeI32Attr:$order0,
+    NonNegativeI32Attr:$order1,
+    NonNegativeI32Attr:$order2,
+    NonNegativeI32Attr:$order3,
+    TPU_QuantParamAttr:$quant,
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
 def TPU_PoolAvg2DOp : TPU_Op<"pool_avg_2d",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
@@ -610,6 +658,8 @@ def TPU_PoolMax2DOp : TPU_Op<"pool_max_2d",
       `NoSideEffect`
       `TPU_QuantPerTensorOnly`
       `TPU_QuantSupportAsymmetric`
+      `TPU_QuantSameInputResultScale` : input and result share same threshold
+                                        or scale (bypassed).
       `TpuOpCommonInterface` : support common TPU Op interface
       `TpuOpInterpInterface` : support interperter
       `TpuOpQuantInterface`  : support quantization
@@ -662,7 +712,6 @@ def TPU_PReluOp : TPU_Op<"prelu",
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
       `layer_id`        : optional, id for profiling.
-      
 
     Result:
       `output`          : result tensor.
@@ -743,6 +792,51 @@ def TPU_ReluOp: TPU_Op<"relu",
   let results = (outs AnyTensor:$output);
 }
 
+def TPU_ReshapeOp: TPU_Op<"reshape",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
+       DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
+  let summary = "Reshape operator";
+
+  let description = [{
+    Produces a tensor with the same values but different static shape defined
+    by the output type.
+
+    Inputs:
+      `input`           : required, the input activation tensor.
+
+    Attributes:
+      `quant`           : required, a QuantParam struct attributes.
+      `name`            : required, name for calibration, comparing, or debug.
+      `layer_id`        : optional, id for profiling.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TPU_QuantPerTensorOnly`
+      `TPU_QuantSupportAsymmetric`
+      `TPU_QuantSameInputResultScale` : input and result share same threshold
+                                        or scale (bypassed).
+      `TpuOpCommonInterface` : support common TPU Op interface
+      `TpuOpInterpInterface` : support interperter
+      `TpuOpQuantInterface`  : support quantization
+      `TpuOpLowerInterface`  : support lower to TPU TG Ops
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    TPU_QuantParamAttr:$quant,
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
 def TPU_ScaleOp: TPU_Op<"scale",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
@@ -790,9 +884,9 @@ def TPU_ScaleOp: TPU_Op<"scale",
 def TPU_ShuffleChannelOp: TPU_Op<"shuffle_channel",
     [NoSideEffect,
      DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-      DeclareOpInterfaceMethods<TpuOpInterpInterface>,
-      DeclareOpInterfaceMethods<TpuOpQuantInterface>,
-      DeclareOpInterfaceMethods<TpuOpLowerInterface> ]>  {
+     DeclareOpInterfaceMethods<TpuOpInterpInterface>,
+     DeclareOpInterfaceMethods<TpuOpQuantInterface>,
+     DeclareOpInterfaceMethods<TpuOpLowerInterface>]>  {
 
   let summary = "ShuffleChannel operator";
 
@@ -815,6 +909,8 @@ def TPU_ShuffleChannelOp: TPU_Op<"shuffle_channel",
       `NoSideEffect`
       `TPU_QuantPerTensorOnly`
       `TPU_QuantSupportAsymmetric`
+      `TPU_QuantSameInputResultScale` : input and result share same threshold
+                                        or scale (bypassed).
       `TpuOpCommonInterface` : support common TPU Op interface
       `TpuOpInterpInterface` : support interperter
       `TpuOpQuantInterface`  : support quantization
@@ -871,6 +967,57 @@ def TPU_SigmoidOp: TPU_Op<"sigmoid",
     ins Variadic<AnyTensor>:$inputs,
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$table,
     OptionalAttr<BoolAttr>:$has_table,
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    TPU_QuantParamAttr:$quant
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
+def TPU_SliceOp: TPU_Op<"slice",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
+     DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
+  let summary = "Slice operator";
+
+  let description = [{
+    Slices an tensor to multiple output tensors along a given dimension
+    (currently channel only) with given slice indices.
+
+    Inputs:
+      `input`           : required, the input activation tensor.
+
+    Attributes:
+      `axis`            : required, the axis to slice.
+      `offset`          : required, the offset the output is sliced within the
+                          input, along the specified axis.
+      `quant`           : required, a QuantParam struct attributes, to carrying
+                          threshold, although the quantization is bypassed.
+      `name`            : required, name for calibration, comparing, or debug.
+      `layer_id`        : optional, id for profiling.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TPU_QuantPerTensorOnly`
+      `TPU_QuantSupportAsymmetric`
+      `TPU_QuantSameInputResultScale` : input and result share same threshold
+                                        or scale (bypassed).
+      `TpuOpCommonInterface` : support common TPU Op interface
+      `TpuOpInterpInterface` : support interperter
+      `TpuOpQuantInterface`  : support quantization
+      `TpuOpLowerInterface`  : support lower
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    DefaultValuedAttr<I32Attr, "1">:$axis,
+    I32Attr:$offset,
     StrAttr:$name,
     OptionalAttr<NonNegativeI32Attr>:$layer_id,
     TPU_QuantParamAttr:$quant
@@ -937,7 +1084,8 @@ def TPU_UpsampleOp: TPU_Op<"upsample",
 
     Attributes:
       `scale`           : required, scale for upsampling.
-      `quant`           : required, a QuantParam struct attributes.
+      `quant`           : required, a QuantParam struct attributes, to carrying
+                          threshold, although the quantization is bypassed.
       `name`            : required, name for calibration, comparing, or debug.
       `layer_id`        : optional, id for profiling.
 
@@ -948,6 +1096,8 @@ def TPU_UpsampleOp: TPU_Op<"upsample",
       `NoSideEffect`
       `TPU_QuantPerTensorOnly`
       `TPU_QuantSupportAsymmetric`
+      `TPU_QuantSameInputResultScale` : input and result share same threshold
+                                        or scale (bypassed).
       `TpuOpCommonInterface` : support common TPU Op interface
       `TpuOpInterpInterface` : support interperter
       `TpuOpQuantInterface`  : support quantization
@@ -1067,30 +1217,6 @@ def TPU_NormalizeOp : TPU_Op<"normalize",
   let results = (outs AnyTensor:$output);
 }
 
-def TPU_PermuteOp: TPU_Op<"permute",
-      [NoSideEffect, DeclareOpInterfaceMethods<TpuInterface>]> {
-  let summary = "Permute operator";
-
-  let description = [{
-    Perform permute on input.
-  }];
-
-  let arguments = (
-    ins AnyTensor:$input,
-    NonNegativeI32Attr:$order0,
-    NonNegativeI32Attr:$order1,
-    NonNegativeI32Attr:$order2,
-    NonNegativeI32Attr:$order3,
-    OptionalAttr<StrAttr>:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
-    OptionalAttr<NonNegativeI64Attr>:$offset,
-    OptionalAttr<F32Attr>:$threshold_y,
-    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
-  );
-
-  let results = (outs AnyTensor:$output);
-}
-
 def TPU_PowerOp: TPU_Op<"power",
       [NoSideEffect, DeclareOpInterfaceMethods<TpuInterface>]> {
   let summary = "Power f(x) = (scale * x + shift) ^ power";
@@ -1146,50 +1272,6 @@ def TPU_PriorBoxOp: TPU_Op<"priorbox",
     DefaultValuedAttr<F32Attr, "0.5">:$offset,
     OptionalAttr<StrAttr>:$name,
     OptionalAttr<NonNegativeI32Attr>:$layer_id,
-    OptionalAttr<F32Attr>:$threshold_y,
-    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
-  );
-
-  let results = (outs AnyTensor:$output);
-}
-
-def TPU_ReshapeOp: TPU_Op<"reshape",
-      [NoSideEffect, DeclareOpInterfaceMethods<TpuInterface>]> {
-  let summary = "Reshape operator";
-
-  let description = [{
-    Produces a tensor with the same values but different static shape defined
-    by the output type.
-  }];
-
-  let arguments = (
-    ins AnyTensor:$input,
-    OptionalAttr<StrAttr>:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
-    OptionalAttr<NonNegativeI64Attr>:$offset,
-    OptionalAttr<F32Attr>:$threshold_y,
-    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
-  );
-
-  let results = (outs AnyTensor:$output);
-}
-
-def TPU_SliceOp: TPU_Op<"slice",
-      [NoSideEffect, DeclareOpInterfaceMethods<TpuInterface>]> {
-  let summary = "Slice operator";
-
-  let description = [{
-    Slices an tensor to multiple output tensors along a given dimension (currently channel only)
-    with given slice indices.
-  }];
-
-  let arguments = (
-    ins AnyTensor:$input,
-    OptionalAttr<I32Attr>:$axis,
-    OptionalAttr<I32Attr>:$input_offset,
-    OptionalAttr<StrAttr>:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
-    OptionalAttr<NonNegativeI64Attr>:$offset,
     OptionalAttr<F32Attr>:$threshold_y,
     DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
   );

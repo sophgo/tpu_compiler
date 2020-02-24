@@ -31,7 +31,7 @@ int my_bn(float *input, float *mean, float *variance, float *scale, float varian
     float *output, int n, int c, int h, int w);
 
 int my_shuffle_channel(float *input, float *output, unsigned int group,
-    int n, int c,  int feature_map_size);
+    int n, int c,  int frame_size);
 
 int my_scale(float *input, float *scale, float *bias,
     float *output, int n, int c, int h, int w);
@@ -55,7 +55,7 @@ int my_permute(float *input, float *output, const int input_shape_size,
 int my_normalize(float *input,float *output,bool across_spatial,
     int n,int c,int h,int w);
 
-int my_slice(float *input, float *output, int axis,
+int my_slice(float *input, float *output, int axis, int offset,
   std::vector<int64_t> input_shape, std::vector<int64_t> output_shape);
 
 int my_power(float *input, float *output,
