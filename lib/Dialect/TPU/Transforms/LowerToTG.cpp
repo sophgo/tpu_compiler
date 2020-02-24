@@ -1303,6 +1303,53 @@ struct LowerWeightFullyConnectedOpPattern : public RewritePattern {
   TensorFile *weightTF_;
 };
 
+struct LowerWeightSigmoidOpPattern : public RewritePattern {
+  LowerWeightSigmoidOpPattern(MLIRContext *context, TensorFile *weightTF)
+      : RewritePattern("tpu.sigmoid", 1, context), weightTF_(weightTF) {
+  }
+
+  PatternMatchResult matchAndRewrite(Operation *op,
+                                     PatternRewriter &rewriter) const override {
+    auto sigOp = cast<tpu::SigmoidOp>(op);
+    
+    auto tableOp = cast<tpu::LoadWeightOp>(sigOp.getOperand(1)->getDefiningOp());
+    if (tableOp.lowered()) {
+      // lowered already
+      return matchFailure();
+    }
+    llvm::errs() << "Lower Weight for SigmoidOp: " << getOpName(op)
+                 << "\n";
+
+    if (getOpQuant(op) == "INT8") {
+      // lower filter
+        assert(tableOp.storage() == "INT8");
+        std::vector<int64_t> shape;
+        int64_t size;
+        getTensorShapeAndSize(sigOp.table(), shape, size);
+        auto table = readAndDeleteWeightTensor<float>(tableOp, weightTF_);
+        std::vector<int8_t> table_int8(table->begin(), table->end());
+        // 1880 support 256 lookup table
+        // because of 1880 hardware search table only on each local memory
+        // we dupicate table to limit number <32>
+        assert(shape[2] * shape[3] == 256);
+        assert(shape[1] == 32);
+
+        // save it
+        addWeightTensorAndUpdateWeightOp<int8_t>(
+            tableOp, "lowered", table_int8, shape, "INT8", weightTF_);
+        tableOp.setAttr("lowered", rewriter.getBoolAttr(true));
+
+    } else if (getOpQuant(op) == "BF16") {
+      // lower filter
+      assert(false && "TOTO BF16");
+    }
+
+    return matchSuccess();
+  }
+
+  TensorFile *weightTF_;
+};
+
 class TpuLowerPass : public FunctionPass<TpuLowerPass> {
 public:
   void runOnFunction() override {
@@ -1333,6 +1380,7 @@ public:
     OwningRewritePatternList patterns_lower;
     patterns_lower.insert<
         LowerWeightConv2DOpPattern,
+        LowerWeightSigmoidOpPattern,
         LowerWeightFullyConnectedOpPattern
         >(context, weightTF.get());
     applyPatternsGreedily(fn, patterns_lower);
