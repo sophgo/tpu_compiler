@@ -142,7 +142,7 @@ LogicalResult tpu::BroadcastMulOp::interpret(
     for (int i = 0; i < size; ++i) {
       resultT->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
           resultT->at(i), (uint32_t)quant_rshift->at(0),
-          (uint32_t)quant_multiplier->at(0), false);
+          (uint32_t)quant_multiplier->at(0), true);
     }
   } else if (mlir::getOpQuant(op) == "BF16") {
     auto tensor_bf16 = std::make_unique<std::vector<bfloat16> >(resultT->size());
