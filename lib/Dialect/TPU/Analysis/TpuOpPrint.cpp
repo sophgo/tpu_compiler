@@ -104,7 +104,6 @@ public:
             processed += printTpuOpInfo<tpu::DivOp>(op, file_os);
             processed += printTpuOpInfo<tpu::InputOp>(op, file_os);
             processed += printTpuOpInfo<tpu::NormalizeOp>(op, file_os);
-            processed += printTpuOpInfo<tpu::PermuteOp>(op, file_os);
             processed += printTpuOpInfo<tpu::PowerOp>(op, file_os);
             processed += printTpuOpInfo<tpu::PriorBoxOp>(op, file_os);
             processed += printTpuOpInfo<tpu::SqrtOp>(op, file_os);

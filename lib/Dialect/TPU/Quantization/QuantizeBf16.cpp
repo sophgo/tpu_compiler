@@ -551,6 +551,7 @@ public:
                 TpuQuantBf16DefaultPattern<tpu::EltwiseMulOp>,
                 TpuQuantBf16FullyConnectedOpPattern,
                 TpuQuantBf16LeakyReluOpOpPattern,
+                TpuQuantBf16DefaultPattern<tpu::PermuteOp>,
                 TpuQuantBf16DefaultPattern<tpu::PoolAvg2DOp>,
                 TpuQuantBf16DefaultPattern<tpu::PoolMax2DOp>,
                 TpuQuantBf16DefaultPattern<tpu::PReluOp>,
@@ -563,7 +564,7 @@ public:
 
 
                 TpuQuantDefaultPattern<tpu::DivOp>,
-                TpuQuantDefaultPattern<tpu::SqrtOp>,                
+                TpuQuantDefaultPattern<tpu::SqrtOp>,
                 TpuQuantTanHOpPattern>(
             context, weightTensorFile.get(), weightFileVar);
     applyPatternsGreedily(fn, patterns_w);
