@@ -4,8 +4,6 @@ set -e
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 source $DIR/../../envsetup.sh
 
-TENSOR_IN_FILE=./data/bmface_v3_in_fp32_scale.npz
-
 # import calibration table
 mlir-opt \
     --import-calibration-table \
@@ -13,10 +11,6 @@ mlir-opt \
     bmface-v3_opt.mlir \
     -o bmface-v3_cali.mlir
 
-# apply post-calibration optimizations
-# skip, bmface-v3 has no relu layer.
-
-# only test quant int8 multiplier
 # quantization 3: per-channel int8 with multiplier
 mlir-opt \
     --quant-int8 \
@@ -28,7 +22,7 @@ mlir-opt \
     -o bmface-v3_quant_int8_multiplier.mlir
 
 mlir-tpu-interpreter bmface-v3_quant_int8_multiplier.mlir \
-    --tensor-in $TENSOR_IN_FILE \
+    --tensor-in $REGRESSION_PATH/bmface_v3/data/bmface_v3_in_fp32_scale.npz \
     --tensor-out bmface-v3_out_int8_multiplier.npz \
     --dump-all-tensor=bmface-v3_tensor_all_int8_multiplier.npz
 
@@ -40,7 +34,6 @@ npz_compare.py \
     --op_info bmface-v3_op_info_int8_multiplier.csv \
     --dequant \
     --tolerance 0.9,0.9,0.6 -v
-
 
 # VERDICT
 echo $0 PASSED

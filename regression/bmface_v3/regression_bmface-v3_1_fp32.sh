@@ -4,7 +4,6 @@ set -e
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 source $DIR/../../envsetup.sh
 
-TENSOR_IN_FILE=./data/bmface_v3_in_fp32_scale.npz
 
 # translate from caffe model
 mlir-translate \
@@ -26,13 +25,13 @@ mlir-opt \
 
 # test mlir interpreter
 mlir-tpu-interpreter bmface-v3_opt.mlir \
-    --tensor-in $TENSOR_IN_FILE \
+    --tensor-in $REGRESSION_PATH/bmface_v3/data/bmface_v3_in_fp32_scale.npz \
     --tensor-out bmface-v3_out_fp32.npz \
     --dump-all-tensor=bmface-v3_tensor_all_fp32.npz
 
 
 #npz_compare.py bmface-v3_opt_out_fp32.npz bmface-v3_out_fp32_prob.npz -v
-npz_compare.py bmface-v3_opt_out_fp32.npz bmface-v3_out_fp32.npz -v
+# npz_compare.py bmface_out_fp32_prob.npz bmface-v3_out_fp32.npz -v
 
 
 # VERDICT
