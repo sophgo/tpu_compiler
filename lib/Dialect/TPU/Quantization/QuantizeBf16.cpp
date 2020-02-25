@@ -46,11 +46,8 @@ namespace {
 
 template<typename OpTy>
 struct TpuQuantBf16Conv2DOpPattern : public RewritePattern {
-  TpuQuantBf16Conv2DOpPattern(MLIRContext *context, TensorFile *weightTF,
-      Value* weightFV)
-      : RewritePattern(OpTy::getOperationName(), 1, context),
-        weightTF_(weightTF),
-        weightFV_(weightFV) {}
+  TpuQuantBf16Conv2DOpPattern(MLIRContext *context)
+      : RewritePattern(OpTy::getOperationName(), 1, context) {}
 
   PatternMatchResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
@@ -59,9 +56,10 @@ struct TpuQuantBf16Conv2DOpPattern : public RewritePattern {
       return matchFailure();
     }
     auto convOp = cast<OpTy>(op);
+    TensorFile *wTF = getWeightTensorFile(op);
 
     // get filter tensor
-    auto filter = readAndDeleteWeightTensor<float>(convOp.filter(), weightTF_);
+    auto filter = readAndDeleteWeightTensor<float>(convOp.filter(), wTF);
     std::vector<int64_t> filterShape;
     int64_t filterSize;
     getTensorShapeAndSize(convOp.filter(), filterShape, filterSize);
@@ -85,7 +83,7 @@ struct TpuQuantBf16Conv2DOpPattern : public RewritePattern {
     std::vector<int64_t> biasShape;
     int64_t biasSize = 0;
     if ( !isTensorNone(convOp.bias()) ) {
-      bias = readAndDeleteWeightTensor<float>(convOp.bias(), weightTF_);
+      bias = readAndDeleteWeightTensor<float>(convOp.bias(), wTF);
       getTensorShapeAndSize(convOp.bias(), biasShape, biasSize);
       assert(biasSize == oc);
       assert(biasSize == (int64_t)bias->size());
@@ -106,26 +104,20 @@ struct TpuQuantBf16Conv2DOpPattern : public RewritePattern {
 
     // update op
     addWeightTensorAndUpdateWeightOp<bfloat16>(convOp.getOperand(1),
-        "quant", *new_filter, filterShape, "BF16", weightTF_);
+        "quant", *new_filter, filterShape, "BF16", wTF);
     if (bias) {
       addWeightTensorAndUpdateWeightOp<bfloat16>(convOp.getOperand(2),
-          "quant", *new_bias, biasShape, "BF16", weightTF_);
+          "quant", *new_bias, biasShape, "BF16", wTF);
     }
     setOpQuant(op, "BF16");
 
     return matchSuccess();
   }
-
-  TensorFile *weightTF_;
-  Value* weightFV_;
 };
 
 struct TpuQuantBf16FullyConnectedOpPattern : public RewritePattern {
-  TpuQuantBf16FullyConnectedOpPattern(MLIRContext *context, TensorFile *weightTF,
-      Value* weightFV)
-      : RewritePattern("tpu.fully_connected", 1, context),
-        weightTF_(weightTF),
-        weightFV_(weightFV) {}
+  TpuQuantBf16FullyConnectedOpPattern(MLIRContext *context)
+      : RewritePattern("tpu.fully_connected", 1, context) {}
 
   PatternMatchResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
@@ -134,9 +126,10 @@ struct TpuQuantBf16FullyConnectedOpPattern : public RewritePattern {
       return matchFailure();
     }
     auto fcOp = cast<tpu::FullyConnectedOp>(op);
+    TensorFile *wTF = getWeightTensorFile(op);
 
     // get filter tensor
-    auto filter = readAndDeleteWeightTensor<float>(fcOp.filter(), weightTF_);
+    auto filter = readAndDeleteWeightTensor<float>(fcOp.filter(), wTF);
     std::vector<int64_t> filterShape;
     int64_t filterSize;
     getTensorShapeAndSize(fcOp.filter(), filterShape, filterSize);
@@ -146,7 +139,7 @@ struct TpuQuantBf16FullyConnectedOpPattern : public RewritePattern {
     std::vector<int64_t> biasShape;
     int64_t biasSize = 0;
     if ( !isTensorNone(fcOp.bias()) ) {
-      bias = readAndDeleteWeightTensor<float>(fcOp.bias(), weightTF_);
+      bias = readAndDeleteWeightTensor<float>(fcOp.bias(), wTF);
       getTensorShapeAndSize(fcOp.bias(), biasShape, biasSize);
     }
 
@@ -165,28 +158,22 @@ struct TpuQuantBf16FullyConnectedOpPattern : public RewritePattern {
 
     // update op
     addWeightTensorAndUpdateWeightOp<bfloat16>(fcOp.getOperand(1),
-        "quant", *new_filter, filterShape, "BF16", weightTF_);
+        "quant", *new_filter, filterShape, "BF16", wTF);
     if (bias) {
       addWeightTensorAndUpdateWeightOp<bfloat16>(fcOp.getOperand(2),
-          "quant", *new_bias, biasShape, "BF16", weightTF_);
+          "quant", *new_bias, biasShape, "BF16", wTF);
     }
     setOpQuant(op, "BF16");
 
     return matchSuccess();
   }
-
-  TensorFile *weightTF_;
-  Value* weightFV_;
 };
 
 // default quantize pattern, for no weight operations
 template<typename OpTy>
 struct TpuQuantBf16DefaultPattern : public RewritePattern {
-  TpuQuantBf16DefaultPattern(MLIRContext *context, TensorFile *weightTF,
-      Value* weightFV)
-      : RewritePattern(OpTy::getOperationName(), 1, context),
-        weightTF_(weightTF),
-        weightFV_(weightFV) {}
+  TpuQuantBf16DefaultPattern(MLIRContext *context)
+      : RewritePattern(OpTy::getOperationName(), 1, context) {}
 
   PatternMatchResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
@@ -198,17 +185,11 @@ struct TpuQuantBf16DefaultPattern : public RewritePattern {
 
     return matchSuccess();
   }
-
-  TensorFile *weightTF_;
-  Value* weightFV_;
 };
 
 struct TpuQuantBf16LeakyReluOpOpPattern : public RewritePattern {
-  TpuQuantBf16LeakyReluOpOpPattern(MLIRContext *context, TensorFile *weightTF,
-      Value* weightFV)
-      : RewritePattern("tpu.leaky_relu", 1, context),
-        weightTF_(weightTF),
-        weightFV_(weightFV) {}
+  TpuQuantBf16LeakyReluOpOpPattern(MLIRContext *context)
+      : RewritePattern("tpu.leaky_relu", 1, context) {}
 
   PatternMatchResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
@@ -229,9 +210,6 @@ struct TpuQuantBf16LeakyReluOpOpPattern : public RewritePattern {
 
     return matchSuccess();
   }
-
-  TensorFile *weightTF_;
-  Value* weightFV_;
 };
 
 
@@ -246,11 +224,8 @@ struct TpuQuantBf16LeakyReluOpOpPattern : public RewritePattern {
 // to be removed
 
 struct TpuQuantTanHOpPattern : public RewritePattern {
-  TpuQuantTanHOpPattern(MLIRContext *context, TensorFile *weightTensorFile,
-      Value* weightFileVar)
-      : RewritePattern("tpu.tanh", 1, context),
-        weightTensorFile_(weightTensorFile),
-        weightFileVar_(weightFileVar) {}
+  TpuQuantTanHOpPattern(MLIRContext *context)
+      : RewritePattern("tpu.tanh", 1, context) {}
 
   PatternMatchResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
@@ -262,6 +237,8 @@ struct TpuQuantTanHOpPattern : public RewritePattern {
       LLVM_DEBUG(llvm::errs() << tanhOp.name() << " quantized already\n";);
       return matchFailure();
     }
+    TensorFile *wTF = getWeightTensorFile(op);
+    Value *wfV = getWeightFileValue(op);
 
     // find filter and bias tensor
     std::vector<std::unique_ptr<std::vector<float> > > weights(2);
@@ -275,10 +252,10 @@ struct TpuQuantTanHOpPattern : public RewritePattern {
       auto tensor_name = weight_op.name().getValue();
       LLVM_DEBUG(llvm::errs() << "  weight[" << i << "] : " << tensor_name << "\n";);
       auto type = weight_op.getResult()->getType().cast<TensorType>();
-      weights[weight_idx] = weightTensorFile_->readTensor<float>(tensor_name, type);
+      weights[weight_idx] = wTF->readTensor<float>(tensor_name, type);
       weight_idx++;
       // delete the tensor from the weight file
-      weightTensorFile_->deleteTensor<float>(tensor_name);
+      wTF->deleteTensor<float>(tensor_name);
     }
 
     float *y0_table = (float *)weights[0]->data();
@@ -318,13 +295,13 @@ struct TpuQuantTanHOpPattern : public RewritePattern {
       auto type = RankedTensorType::get(weightShapes[i],
               FloatType::getBF16(rewriter.getContext()));
 
-      weightTensorFile_->addTensor<uint16_t>(tensor_name, newWeights[i], type);
+      wTF->addTensor<uint16_t>(tensor_name, newWeights[i], type);
       std::vector<NamedAttribute> attrs;
       attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(tensor_name)));
       attrs.push_back(rewriter.getNamedAttr("storage", rewriter.getStringAttr("BF16")));
 
       auto new_weight_op = rewriter.create<tpu::LoadWeightOp>(op->getLoc(), type,
-          ArrayRef<Value *>{weightFileVar_}, ArrayRef<NamedAttribute>{attrs});
+          ArrayRef<Value *>{wfV}, ArrayRef<NamedAttribute>{attrs});
       newOperands.push_back(new_weight_op);
     }
 
@@ -338,19 +315,13 @@ struct TpuQuantTanHOpPattern : public RewritePattern {
 
     return matchSuccess();
   }
-
-  TensorFile *weightTensorFile_;
-  Value* weightFileVar_;
 };
 
 
 template<typename TensorTyOp>
 struct TpuQuantDefaultPattern : public RewritePattern {
-  TpuQuantDefaultPattern(MLIRContext *context, TensorFile *weightTensorFile,
-      Value* weightFileVar)
-      : RewritePattern(TensorTyOp::getOperationName(), 1, context),
-        weightTensorFile_(weightTensorFile),
-        weightFileVar_(weightFileVar) {}
+  TpuQuantDefaultPattern(MLIRContext *context)
+      : RewritePattern(TensorTyOp::getOperationName(), 1, context) {}
 
   PatternMatchResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
@@ -365,9 +336,6 @@ struct TpuQuantDefaultPattern : public RewritePattern {
 
     return matchSuccess();
   }
-
-  TensorFile *weightTensorFile_;
-  Value* weightFileVar_;
 };
 
 template<typename T>
@@ -526,17 +494,6 @@ public:
 
   void runOnFunction() override {
     auto fn = getFunction();
-
-    // find tensorFile and Value
-    llvm::StringRef filename;
-    Value* weightFileVar;
-    fn.walk([&](tpu::LoadFileOp op) {
-      filename = op.filename();
-      llvm::errs() << "LoadFileOp filename " << filename << "\n";
-      weightFileVar = op.getResult();
-    });
-    auto weightTensorFile = openTensorFile(filename);
-
     auto *context = &getContext();
 
     OwningRewritePatternList patterns_w;
@@ -566,7 +523,7 @@ public:
                 TpuQuantDefaultPattern<tpu::DivOp>,
                 TpuQuantDefaultPattern<tpu::SqrtOp>,
                 TpuQuantTanHOpPattern>(
-            context, weightTensorFile.get(), weightFileVar);
+            context);
     applyPatternsGreedily(fn, patterns_w);
 
     OwningRewritePatternList patterns_q;
@@ -585,14 +542,6 @@ public:
     // Fold and remove consecutive Dequant and Quant
     patterns_s.insert<TpuSimplifyQuantDequantPattern>(context);
     applyPatternsGreedily(fn, patterns_s);
-
-    std::string newName;
-    weightTensorFile->keep(true, &newName);
-    fn.walk([&](tpu::LoadFileOp op) {
-      OpBuilder opBuilder(context);
-      op.setAttr("filename", opBuilder.getStringAttr(newName));
-      llvm::errs() << "LoadFileOp filename updated to " << newName << "\n";
-    });
   }
 
 private:

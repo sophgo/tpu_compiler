@@ -19,6 +19,7 @@
 //
 //===----------------------------------------------------------------------===//
 #include "mlir/Dialect/TPU/TPUDialect.h"
+#include "mlir/Dialect/TPU/TPUTensorSupport.h"
 #include "mlir/Dialect/TPU/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
@@ -50,9 +51,9 @@ namespace {
 #define TABLE_H_INT8 16
 #define TABLE_W_INT8 16
 #define TABLE_HW_INT8 (TABLE_H_INT8*TABLE_W_INT8)
-#define TBL_SHAPE_INT8 (TABLE_HW_INT8*NPU_NUM)  
+#define TBL_SHAPE_INT8 (TABLE_HW_INT8*NPU_NUM)
 #define TABLE_HW_BF16 (TABLE_H_BF16*TABLE_W_BF16)
-#define TBL_SHAPE_BF16 (TABLE_HW_BF16*NPU_NUM)    
+#define TBL_SHAPE_BF16 (TABLE_HW_BF16*NPU_NUM)
 
 // <! gen reciprocal f(x) = 1/x
 static double _gen_reciprocal(int base, int p) {
@@ -126,7 +127,7 @@ void bf16_gen_reciprocal_mantissa(uint16_t* table_mantissa) {
 
   int half = TABLE_HW_BF16/2;
   int table_hw = TABLE_HW_BF16;
-  
+
   int idx = 0;
   double d;
   for (int i = 0; i < half; i++) {
@@ -150,14 +151,13 @@ void bf16_gen_reciprocal_mantissa(uint16_t* table_mantissa) {
 }
 
 struct TpuGenDivTablePattern : public RewritePattern {
-  TpuGenDivTablePattern(MLIRContext *context, TensorFile *weightTensorFile,
-      Value* weightFileVar)
-      : RewritePattern("tpu.div", 1, context),
-        weightTensorFile_(weightTensorFile),
-        weightFileVar_(weightFileVar) {}
+  TpuGenDivTablePattern(MLIRContext *context)
+      : RewritePattern("tpu.div", 1, context) {}
 
   PatternMatchResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
+    TensorFile *wTF = getWeightTensorFile(op);
+    Value *wfV = getWeightFileValue(op);
 
     auto DivOp = cast<tpu::DivOp>(op);
     std::vector<std::unique_ptr<std::vector<float> > > weights(1);
@@ -175,7 +175,7 @@ struct TpuGenDivTablePattern : public RewritePattern {
 
     std::vector<float> table_data_lut(TBL_SHAPE_BF16);
     std::vector<float> table_data_mantissa_lut(TBL_SHAPE_BF16);
-  
+
   if (DivOp.quant() == "INT8") {
 
     float threshold_x = getPreviousOpThreshold(op);
@@ -197,7 +197,7 @@ struct TpuGenDivTablePattern : public RewritePattern {
     }
   }else if(DivOp.quant() == "BF16"){
     llvm::errs() << " op name: " << DivOp.name()
-                      << "gen BF16 sqrt table." << "\n";    
+                      << "gen BF16 sqrt table." << "\n";
     bf16_gen_reciprocal(table_data_lut_bf16.data());
     llvm::errs() << " op name: " << DivOp.name()
                       << "gen BF16 sqrt mantissa table." << "\n";
@@ -229,14 +229,14 @@ struct TpuGenDivTablePattern : public RewritePattern {
 
     auto type = RankedTensorType::get(weightShape,
             FloatType::getF32(rewriter.getContext()));
-   
-    weightTensorFile_->addTensor<float>(tensor_name, newWeights.data(), type);
+
+    wTF->addTensor<float>(tensor_name, newWeights.data(), type);
     std::vector<NamedAttribute> attrs;
     attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(tensor_name)));
     attrs.push_back(
         rewriter.getNamedAttr("storage", rewriter.getStringAttr("UINT8")));
     auto new_weight_op = rewriter.create<tpu::LoadWeightOp>(op->getLoc(), type,
-        ArrayRef<Value *>{weightFileVar_}, ArrayRef<NamedAttribute>{attrs});
+        ArrayRef<Value *>{wfV}, ArrayRef<NamedAttribute>{attrs});
     newOperands.push_back(new_weight_op);
 
     DivOp.setAttr("has_table", rewriter.getBoolAttr("true"));
@@ -252,14 +252,14 @@ struct TpuGenDivTablePattern : public RewritePattern {
       auto type = RankedTensorType::get(
           weightShapes, FloatType::getF32(rewriter.getContext()));
 
-      weightTensorFile_->addTensor<float>(tensor_name, newWeights.at(i).data(), type);
+      wTF->addTensor<float>(tensor_name, newWeights.at(i).data(), type);
       std::vector<NamedAttribute> attrs;
       attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(tensor_name)));
       attrs.push_back(rewriter.getNamedAttr("storage", rewriter.getStringAttr("UINT16")));
       DivOp.setAttr("has_table", rewriter.getBoolAttr("true"));
 
       auto new_weight_op = rewriter.create<tpu::LoadWeightOp>(
-          op->getLoc(), type, ArrayRef<Value *>{weightFileVar_},
+          op->getLoc(), type, ArrayRef<Value *>{wfV},
           ArrayRef<NamedAttribute>{attrs});
       newOperands.push_back(new_weight_op);
     }
@@ -274,9 +274,6 @@ struct TpuGenDivTablePattern : public RewritePattern {
 
     return matchSuccess();
   }
-
-  TensorFile *weightTensorFile_;
-  Value* weightFileVar_;
 };
 
 class GenDivTablePass : public FunctionPass<GenDivTablePass> {
@@ -285,30 +282,10 @@ public:
 
   void runOnFunction() override {
     auto fn = getFunction();
-
-    // find tensor filename
-    llvm::StringRef filename;
-    Value* weightFileVar;
-    fn.walk([&](tpu::LoadFileOp op) {
-      filename = op.filename();
-      LLVM_DEBUG(llvm::errs() << "LoadFileOp filename " << filename << "\n";);
-      weightFileVar = op.getResult();
-    });
-    auto weightTensorFile = openTensorFile(filename);
-
     auto *context = &getContext();
-
     OwningRewritePatternList patterns;
-    patterns.insert<TpuGenDivTablePattern>(context, weightTensorFile.get(), weightFileVar);
+    patterns.insert<TpuGenDivTablePattern>(context);
     applyPatternsGreedily(fn, patterns);
-
-    std::string newName;
-    weightTensorFile->keep(true, &newName);
-    fn.walk([&](tpu::LoadFileOp op) {
-      OpBuilder opBuilder(context);
-      op.setAttr("filename", opBuilder.getStringAttr(newName));
-      LLVM_DEBUG(llvm::errs() << "LoadFileOp filename updated to " << newName << "\n";);
-    });
   }
 
 private:

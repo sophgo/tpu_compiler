@@ -20,6 +20,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/TPU/TPUDialect.h"
+#include "mlir/Dialect/TPU/TPUTensorSupport.h"
 #include "mlir/Dialect/TPU/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
@@ -34,9 +35,8 @@ using namespace mlir;
 namespace {
 
 struct TpuBatchNormOpPattern : public RewritePattern {
-  TpuBatchNormOpPattern(MLIRContext *context, TensorFile *weightTensorFile)
-      : RewritePattern("tpu.batch_norm", 1, context),
-        weightTensorFile_(weightTensorFile) {}
+  TpuBatchNormOpPattern(MLIRContext *context)
+      : RewritePattern("tpu.batch_norm", 1, context) {}
 
   PatternMatchResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
@@ -44,13 +44,12 @@ struct TpuBatchNormOpPattern : public RewritePattern {
     assert(op->getNumOperands() == 4);
     llvm::errs() << bnOp.getOperationName() << "\n";
     auto loc = op->getLoc();
+    TensorFile *wTF = getWeightTensorFile(op);
+    Value *wfV = getWeightFileValue(op);
 
     // op_name
     std::string op_name = bnOp.getAttrOfType<StringAttr>("name").getValue().str();
     llvm::errs() << "BatchNorm Op: " << op_name << "\n";
-    auto one_weight_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
-          bnOp.getOperand(1)->getDefiningOp());
-    auto weightFileVar = one_weight_op.getOperand();
 
     // find mean, variance, scale tensor, and delete them
     std::vector<std::unique_ptr<std::vector<float> > > bnWeights(3);
@@ -62,9 +61,9 @@ struct TpuBatchNormOpPattern : public RewritePattern {
       auto tensor_name = weight_op.name().getValue();
       llvm::errs() << "  weight[" << i << "] : " << tensor_name << "\n";
       auto type = weight_op.getResult()->getType().cast<TensorType>();
-      bnWeights[i] = weightTensorFile_->readTensor<float>(tensor_name, type);
+      bnWeights[i] = wTF->readTensor<float>(tensor_name, type);
       // delete the tensor from the weight file
-      weightTensorFile_->deleteTensor<float>(tensor_name);
+      wTF->deleteTensor<float>(tensor_name);
     }
 
     // convert tensors
@@ -104,11 +103,11 @@ struct TpuBatchNormOpPattern : public RewritePattern {
       auto tensor_name = op_name + "_to_scale_" + std::to_string(i);
       llvm::errs() << "  new_weight[" << i << "] : " << tensor_name << "\n";
       auto type = RankedTensorType::get({oc}, FloatType::getF32(rewriter.getContext()));
-      weightTensorFile_->addTensor<float>(tensor_name, newWeights[i], type);
+      wTF->addTensor<float>(tensor_name, newWeights[i], type);
       std::vector<NamedAttribute> attrs;
       attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(tensor_name)));
       auto new_weight_op = rewriter.create<tpu::LoadWeightOp>(loc, type,
-          ArrayRef<Value *>{weightFileVar}, ArrayRef<NamedAttribute>{attrs});
+          ArrayRef<Value *>{wfV}, ArrayRef<NamedAttribute>{attrs});
       newOperands.push_back(new_weight_op);
     }
 
@@ -125,8 +124,6 @@ struct TpuBatchNormOpPattern : public RewritePattern {
 
     return matchSuccess();
   }
-
-  TensorFile *weightTensorFile_;
 };
 
 class ConvertBnToScalePass : public FunctionPass<ConvertBnToScalePass> {
@@ -136,26 +133,10 @@ public:
   void runOnFunction() override {
     auto fn = getFunction();
 
-    // find tensor filename
-    llvm::StringRef filename;
-    fn.walk([&](tpu::LoadFileOp op) {
-      filename = op.getAttrOfType<StringAttr>("filename").getValue();
-      llvm::errs() << "LoadFileOp filename " << filename << "\n";
-    });
-    auto weightTensorFile = openTensorFile(filename);
-
     OwningRewritePatternList patterns;
     auto *context = &getContext();
-    patterns.insert<TpuBatchNormOpPattern>(context, weightTensorFile.get());
+    patterns.insert<TpuBatchNormOpPattern>(context);
     applyPatternsGreedily(fn, patterns);
-
-    std::string newName;
-    weightTensorFile->keep(true, &newName);
-    fn.walk([&](tpu::LoadFileOp op) {
-      OpBuilder b(fn.getBody());
-      op.setAttr("filename", b.getStringAttr(newName));
-      llvm::errs() << "LoadFileOp filename updated to " << newName << "\n";
-    });
   }
 
 private:
