@@ -1213,7 +1213,7 @@ void CaffeImporter::convertNormalizeLayer(mlir::Block *block,
         << "\n";
   );
 
-  auto scale_name = layer->layer_param().name()+"_scale";
+  auto scale_name = layer->layer_param().name();
   auto scale_type = RankedTensorType::get({1,c}, elementType_);
 
   if(channel_shared){
@@ -1281,6 +1281,7 @@ void CaffeImporter::convertPermuteLayer(mlir::Block *block,
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name())));
   attrs.push_back(builder_.getNamedAttr("order0", builder_.getI32IntegerAttr(permute_param.order(0))));
+  attrs.push_back(builder_.getNamedAttr("quant", getDefaultQuantParam(builder_)));
   attrs.push_back(builder_.getNamedAttr("order1", builder_.getI32IntegerAttr(permute_param.order(1))));
   attrs.push_back(builder_.getNamedAttr("order2", builder_.getI32IntegerAttr(permute_param.order(2))));
   attrs.push_back(builder_.getNamedAttr("order3", builder_.getI32IntegerAttr(permute_param.order(3))));
