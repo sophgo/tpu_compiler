@@ -710,7 +710,13 @@ Value *tpu::ShuffleChannelOp::convertToTG(void *info) {
         op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
+  } else if (getOpQuant() == "BF16") {
+    auto newOp = OpBuilder(op).create<tpu::TG_BF16_ShuffleChannelOp>(
+        op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
   }
+
   assert(false);
   return nullptr;
 }
@@ -800,12 +806,12 @@ Value* tpu::SliceOp::convertToTG(void *info) {
 
   if (getOpQuant() == "INT8") {
     assert(getOpQuantParamType() == "NONE");
-    auto newOp = OpBuilder(op).create<tpu::TG_INT8_ReshapeOp>(op->getLoc(),
+    auto newOp = OpBuilder(op).create<tpu::TG_INT8_SliceOp>(op->getLoc(),
         getResult()->getType(), ArrayRef<Value *>{operands},
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
   } else if (getOpQuant() == "BF16") {
-    auto newOp = OpBuilder(op).create<tpu::TG_BF16_ReshapeOp>(op->getLoc(),
+    auto newOp = OpBuilder(op).create<tpu::TG_BF16_SliceOp>(op->getLoc(),
         getResult()->getType(), ArrayRef<Value *>{operands},
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
@@ -1448,7 +1454,7 @@ struct LowerWeightPReluOpPattern : public RewritePattern {
         filterOp.setAttr("lowered", rewriter.getBoolAttr(true));
       }
 
-  
+
     } else if (getOpQuant(op) == "BF16") {
       // lower filter
       {
@@ -1469,7 +1475,7 @@ struct LowerWeightSigmoidOpPattern : public RewritePattern {
   PatternMatchResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
     auto sigOp = cast<tpu::SigmoidOp>(op);
-    
+
     auto tableOp = cast<tpu::LoadWeightOp>(sigOp.getOperand(1)->getDefiningOp());
     if (tableOp.lowered()) {
       // lowered already

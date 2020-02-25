@@ -1439,6 +1439,28 @@ LogicalResult tpu::TG_INT8_ShuffleChannelOp::codegen(void *ctx) {
   return success();
 }
 
+LogicalResult tpu::TG_BF16_ShuffleChannelOp::codegen(void *ctx) {
+  llvm::errs() << "TG_codegen: " << getOperationName() << " [" << getOpName()
+               << "]\n";
+  BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  getNCHW(shape, n, c, h, w);
+  int frame_size = h * w;
+  uint32_t group = this->group().getLimitedValue();
+
+  gaddr_t input_gaddr = getPreviousOpAddress(op);
+  gaddr_t output_gaddr = getOpAddress(op);
+  int layer_id = mlir::getOpLayerId(op);
+  bf16_shuffle_channel_forward_kernel(*backend_ctx, 0, 0, layer_id, nullptr, 0,
+                                       input_gaddr, output_gaddr, n, c,
+                                       frame_size, group);
+  return success();
+}
+
 LogicalResult tpu::TG_INT8_ReshapeOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";

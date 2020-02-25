@@ -369,6 +369,7 @@ public:
         AssignGAddrTGBf16Pattern<tpu::TG_BF16_PoolAvg2DOp>,
         AssignGAddrTGBf16Pattern<tpu::TG_BF16_PoolMax2DOp>,
         AssignGAddrTGBf16Pattern<tpu::TG_BF16_PReluOp>,
+        AssignGAddrTGBf16Pattern<tpu::TG_BF16_ShuffleChannelOp>,
         AssignGAddrTGBf16Pattern<tpu::TG_BF16_SigmoidOp>,
         AssignGAddrTGBf16Pattern<tpu::TG_BF16_UpsampleOp>
 

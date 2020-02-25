@@ -462,7 +462,7 @@ class TPU_TG_PReluOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
   let description = [{
     Inputs:
       `input`          : required, the variadic activation memref.
-      `negative_slope` : required, negative_slope value memref. 
+      `negative_slope` : required, negative_slope value memref.
 
     Attributes:
       `gaddr`           : optional, address in global memory, normally the
@@ -591,7 +591,7 @@ class TPU_TG_ShuffleChannelOp<string mnemonic, string opQuant> : TPU_Op<mnemonic
   let results = (outs AnyTensor:$output);
 }
 def TPU_TG_INT8_ShuffleChannelOp : TPU_TG_ShuffleChannelOp<"tg_int8_shufflechannel", "Int8">;
-
+def TPU_TG_BF16_ShuffleChannelOp : TPU_TG_ShuffleChannelOp<"tg_bf16_shufflechannel", "Bf16">;
 
 class TPU_TG_SigmoidOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,
