@@ -8,7 +8,7 @@ EVAL_FUNC=$MLIR_SRC_PATH/bindings/python/tools/eval_retinaface_on_widerface.py
 
 rm result -rf
 python $EVAL_FUNC \
-    --model retinaface_res50-int8.mlir \
+    --model retinaface_res50_quant_int8.mlir \
     --net_input_dims 600,600 \
     --obj_threshold 0.005 \
     --nms_threshold 0.45 \
