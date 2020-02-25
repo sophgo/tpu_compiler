@@ -39,7 +39,7 @@ npz_compare.py \
     bmface-v3_tensor_all_fp32.npz \
     --op_info bmface-v3_op_info_int8_multiplier.csv \
     --dequant \
-    --tolerance 0.9,0.9,0.6 -vvv
+    --tolerance 0.9,0.9,0.6 -v
 
 
 # VERDICT
