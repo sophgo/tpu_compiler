@@ -462,11 +462,7 @@ class TPU_TG_PReluOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
   let description = [{
     Inputs:
       `input`          : required, the variadic activation memref.
-      `negative_slope` : required, negative_slope value memref.
-      `pc_info`        : required, the perchannel weight memref.
-      `rshift_pos`      : optional, rshift for positive, an int8 value.
-      `m_i8_pos`        : optional, multiplier for positive, an int8 value.
-      `rshift_neg`      : required, rshift for negative, an int8 value.
+      `negative_slope` : required, negative_slope value memref. 
 
     Attributes:
       `gaddr`           : optional, address in global memory, normally the
@@ -476,6 +472,9 @@ class TPU_TG_PReluOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
                           (backend does not support `INPUT`, `OUTPUT` for now)
       `name`            : required, name for comparing, or debug.
       `layer_id`        : optional, id for profiling.
+      `rshift_pos`     : optional, rshift for positive, an int8 value.
+      `m_i8_pos`       : optional, multiplier for positive, an int8 value.
+      `rshift_neg`     : required, rshift for negative, an int8 value.
 
     Result:
       `output`          : result tensor.
@@ -488,9 +487,11 @@ class TPU_TG_PReluOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 
   let arguments = (
     ins AnyTensor:$input,
-    AnyTensor:$pc_info,
-    OptionalAttr<I8Attr>:$pt_rshift,
+    AnyTensor:$negative_slope,
     DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
+    OptionalAttr<I8Attr>:$rshift_pos,
+    OptionalAttr<I8Attr>:$m_i8_pos,
+    OptionalAttr<I8Attr>:$rshift_neg,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     StrAttr:$name,
     OptionalAttr<NonNegativeI32Attr>:$layer_id

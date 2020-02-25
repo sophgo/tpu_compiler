@@ -728,7 +728,7 @@ def TPU_PReluOp : TPU_Op<"prelu",
   }];
 
   let arguments = (
-    ins Variadic<AnyTensor>:$input,
+    ins AnyTensor:$input,
     AnyTensor:$filter,
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_pos_scale,
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_pos_zeropoint,
