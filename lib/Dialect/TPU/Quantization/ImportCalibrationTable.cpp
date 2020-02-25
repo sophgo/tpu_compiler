@@ -166,7 +166,17 @@ struct BackendOverwriteThresholdDefaultPattern : public RewritePattern {
       setOpThreshold(formerOp, threshold_y);
     } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::ShuffleChannelOp>(formerOp)) {
       setOpThreshold(formerOp, threshold_y);
-    } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::UpsampleOp>(formerOp)) {
+    } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::PermuteOp>(formerOp)) {
+      setOpThreshold(formerOp, threshold_y);
+    } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::PReluOp>(formerOp)) {
+      setOpThreshold(formerOp, threshold_y);
+    } else if (auto cast_op =
+                   llvm::dyn_cast_or_null<tpu::ShuffleChannelOp>(formerOp)) {
+      setOpThreshold(formerOp, threshold_y);
+    } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::ScaleOp>(formerOp)) {
+      setOpThreshold(formerOp, threshold_y);
+    } else if (auto cast_op =
+                   llvm::dyn_cast_or_null<tpu::UpsampleOp>(formerOp)) {
       setOpThreshold(formerOp, threshold_y);
     } else {
       llvm::errs() << formerOp->getName() << ": behavior not defined\n";

@@ -689,7 +689,8 @@ def TPU_PReluOp : TPU_Op<"prelu",
     Performs prelu operation on input.
 
     Inputs:
-      `inputs`              : required, variadic input tensors.
+      `input`               : required, variadic input tensors.
+      `filter`              : required, the filter weight tensor.
       `quant_pos_scale`     : optional, the quant scale tensor, for positive
                               values, one fp32 value.
       `quant_pos_zeropoint` : optional, the quant zero_point tensor, for
@@ -727,7 +728,8 @@ def TPU_PReluOp : TPU_Op<"prelu",
   }];
 
   let arguments = (
-    ins Variadic<AnyTensor>:$inputs,
+    ins AnyTensor:$input,
+    AnyTensor:$filter,
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_pos_scale,
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_pos_zeropoint,
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_neg_scale,

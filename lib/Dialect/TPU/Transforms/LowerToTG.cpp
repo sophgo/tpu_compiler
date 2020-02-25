@@ -645,16 +645,35 @@ Value *tpu::PReluOp::convertToTG(void *info) {
   llvm::errs() << "lowerToTG: " << getOperationName() << " [" << getOpName()
                << "]\n";
   Operation *op = this->getOperation();
+  TensorFile *weightTF_ = (TensorFile *)info;
   auto builder = Builder(op->getContext());
 
   std::vector<Value *> operands;
-  // operands.push_back(input());
-  // operands.push_back(negative_slope());
+  operands.push_back(getOperand(0));
+  operands.push_back(getOperand(1));
 
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
   attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
   if (getOpQuant() == "INT8") {
+    auto rshift_pos =
+        readAndDeleteWeightTensor<float>(quant_pos_rshift(), weightTF_);
+    assert(rshift_pos->size() == 1);
+    attrs.push_back(builder.getNamedAttr(
+        "rshift_pos",
+        builder.getI8IntegerAttr(static_cast<int8_t>(rshift_pos->at(0)))));
+    auto multiplier_pos =
+        readAndDeleteWeightTensor<float>(quant_pos_multiplier(), weightTF_);
+    assert(multiplier_pos->size() == 1);
+    attrs.push_back(builder.getNamedAttr(
+        "m_i8_pos",
+        builder.getI8IntegerAttr(static_cast<int8_t>(multiplier_pos->at(0)))));
+    auto rshift_neg =
+        readAndDeleteWeightTensor<float>(quant_neg_rshift(), weightTF_);
+    attrs.push_back(builder.getNamedAttr(
+        "rshift_neg",
+        builder.getI8IntegerAttr(static_cast<int8_t>(rshift_neg->at(0)))));
+
     auto newOp = OpBuilder(op).create<tpu::TG_INT8_PReluOp>(
         op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
         ArrayRef<NamedAttribute>{attrs});
@@ -1399,6 +1418,49 @@ struct LowerWeightFullyConnectedOpPattern : public RewritePattern {
   TensorFile *weightTF_;
 };
 
+struct LowerWeightPReluOpPattern : public RewritePattern {
+  LowerWeightPReluOpPattern(MLIRContext *context, TensorFile *weightTF)
+      : RewritePattern("tpu.prelu", 1, context),
+        weightTF_(weightTF) {}
+
+  PatternMatchResult matchAndRewrite(Operation *op,
+      PatternRewriter &rewriter) const override {
+    auto prOp = cast<tpu::PReluOp>(op);
+    auto filterOp = cast<tpu::LoadWeightOp>(prOp.getOperand(1)->getDefiningOp());
+    if (filterOp.lowered()) {
+      // lowered already
+      return matchFailure();
+    }
+    llvm::errs() << "Lower Weight for PReluOp: " << getOpName(op) << "\n";
+    if (getOpQuant(op) == "INT8") {
+      // lower filter
+      {
+        assert(filterOp.storage() == "INT8");
+        std::vector<int64_t> shape;
+        int64_t size;
+        getTensorShapeAndSize(filterOp, shape, size);
+        auto filter = readAndDeleteWeightTensor<float>(prOp.filter(), weightTF_);
+        std::vector<int8_t> filter_int8(filter->begin(), filter->end());
+
+        // save it
+        addWeightTensorAndUpdateWeightOp<int8_t>(prOp.filter(),
+            "lowered", filter_int8, shape, "INT8", weightTF_);
+        filterOp.setAttr("lowered", rewriter.getBoolAttr(true));
+      }
+
+  
+    } else if (getOpQuant(op) == "BF16") {
+      // lower filter
+      {
+        assert(false && "TODO BF16");
+      }
+    }
+    return matchSuccess();
+  }
+
+  TensorFile *weightTF_;
+};
+
 struct LowerWeightSigmoidOpPattern : public RewritePattern {
   LowerWeightSigmoidOpPattern(MLIRContext *context, TensorFile *weightTF)
       : RewritePattern("tpu.sigmoid", 1, context), weightTF_(weightTF) {
@@ -1478,6 +1540,7 @@ public:
         LowerWeightConv2DOpPattern<tpu::Conv2DOp>,
         LowerWeightConv2DOpPattern<tpu::DeConv2DOp>,
         LowerWeightSigmoidOpPattern,
+        LowerWeightPReluOpPattern,
         LowerWeightFullyConnectedOpPattern
         >(context, weightTF.get());
     applyPatternsGreedily(fn, patterns_lower);
@@ -1498,6 +1561,7 @@ public:
         DefaultToTGPattern<tpu::PermuteOp>,
         DefaultToTGPattern<tpu::PoolAvg2DOp>,
         DefaultToTGPattern<tpu::PoolMax2DOp>,
+        DefaultToTGPattern<tpu::PReluOp>,
         DefaultToTGPattern<tpu::ShuffleChannelOp>,
         DefaultToTGPattern<tpu::ReshapeOp>,
         DefaultToTGPattern<tpu::SigmoidOp>,
