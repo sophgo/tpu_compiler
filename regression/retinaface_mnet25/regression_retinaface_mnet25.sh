@@ -15,7 +15,7 @@ rm -f *.mlir *.bin *.npz *.csv *threshold_table *.txt
 # run tests
 $DIR/regression_retinaface_mnet25_0_caffe.sh
 $DIR/regression_retinaface_mnet25_1_fp32.sh
-# $DIR/regression_retinaface_mnet25_2_int8.sh
+$DIR/regression_retinaface_mnet25_2_int8.sh
 
 popd
 
