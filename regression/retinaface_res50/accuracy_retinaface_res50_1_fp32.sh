@@ -4,12 +4,11 @@ set -e
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 source $DIR/../../envsetup.sh
 
-EVAL_FUNC=$PYTHON_TOOLS_PATH/model/retinaface/eval_caffe_retinaface_widerface.py
+EVAL_FUNC=$MLIR_SRC_PATH/bindings/python/tools/eval_retinaface_on_widerface.py
 
 rm result -rf
 python $EVAL_FUNC \
-    --model_def $MODEL_PATH/face_detection/retinaface/caffe/R50-0000.prototxt \
-    --pretrained_model $MODEL_PATH/face_detection/retinaface/caffe/R50-0000.caffemodel \
+    --model retinaface_res50.mlir \
     --net_input_dims 600,600 \
     --obj_threshold 0.005 \
     --nms_threshold 0.45 \
