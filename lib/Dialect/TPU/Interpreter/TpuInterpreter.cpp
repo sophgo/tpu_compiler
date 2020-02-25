@@ -865,13 +865,31 @@ LogicalResult tpu::PReluOp::interpret(
   getNCHW(shape, n, c, h, w);
 
   // get tensors
-  assert(opdT.size() == 2);
   std::shared_ptr<std::vector<float>> input = opdT[0];
   std::shared_ptr<std::vector<float>> negative_slope = opdT[1];
+  std::shared_ptr<std::vector<float>> rshift_pos = opdT[6];
+  std::shared_ptr<std::vector<float>> multiplier_pos = opdT[7];
+  std::shared_ptr<std::vector<float>> rshift_neg = opdT[8];
+  
   // compute in fp32
   my_prelu(input->data(), resultT->data(), n, c, h, w, negative_slope->data());
 
+  if (getOpQuant() == "INT8") {
 
+    assert(rshift_pos);
+    assert(rshift_neg);
+    assert(multiplier_pos);
+    for (int i = 0; i < size; ++i) {
+      if (input->at(i) > 0) {
+        resultT->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
+            resultT->at(i), (uint32_t)rshift_pos->at(0), multiplier_pos->at(0),
+            false);
+      } else {
+        resultT->at(i) = (float)applyRShiftAndSaturateInt8(
+            resultT->at(i), (uint32_t)rshift_neg->at(0));
+      }
+    }
+  }
   valueMapping[result] = std::move(resultT);
 
   return success();
