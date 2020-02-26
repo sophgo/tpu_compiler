@@ -75,6 +75,9 @@ mlir_type_t makeMemRefType(mlir_context_t context, mlir_type_t elemType,
 /// `sizes`.
 mlir_type_t makeRankedTensorType(mlir_context_t context, mlir_type_t elemType,
                                  int64_list_t sizes);
+/// Returns an `mlir::NoneType`
+mlir_attr_t makeNoneType(mlir_context_t context);
+
 /// Returns an `mlir::FunctionType` of the element type `elemType` and shape
 /// `sizes`.
 mlir_type_t makeFunctionType(mlir_context_t context, mlir_type_list_t inputs,
