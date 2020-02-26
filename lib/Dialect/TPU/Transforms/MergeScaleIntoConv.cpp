@@ -20,6 +20,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/TPU/TPUDialect.h"
+#include "mlir/Dialect/TPU/TPUTensorSupport.h"
 #include "mlir/Dialect/TPU/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
@@ -35,15 +36,16 @@ using namespace mlir;
 namespace {
 
 struct TpuMergeScaleIntoConvPattern : public RewritePattern {
-  TpuMergeScaleIntoConvPattern(MLIRContext *context, TensorFile *weightTensorFile)
-      : RewritePattern("tpu.scale", 1, context),
-        weightTensorFile_(weightTensorFile) {}
+  TpuMergeScaleIntoConvPattern(MLIRContext *context)
+      : RewritePattern("tpu.scale", 1, context) {}
 
   PatternMatchResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
     auto loc = op->getLoc();
     auto scaleOp = cast<tpu::ScaleOp>(op);
     llvm::errs() << scaleOp.getOperationName() << "\n";
+    TensorFile *wTF = getWeightTensorFile(op);
+    Value *wfV = getWeightFileValue(op);
 
     // match consecutive scale operations
     auto formerOp = scaleOp.getOperand(0)->getDefiningOp();
@@ -54,9 +56,6 @@ struct TpuMergeScaleIntoConvPattern : public RewritePattern {
     // op_name from the scale
     std::string op_name = scaleOp.getAttrOfType<StringAttr>("name").getValue().str();
     llvm::errs() << "Scale Op: " << op_name << "\n";
-    auto one_weight_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
-          scaleOp.getOperand(1)->getDefiningOp());
-    auto weightFileVar = one_weight_op.getOperand();
 
     // find scale and bias tensor for scale op
     std::vector<std::unique_ptr<std::vector<float> > > scaleWeights(2);
@@ -68,9 +67,9 @@ struct TpuMergeScaleIntoConvPattern : public RewritePattern {
       auto tensor_name = weight_op.name().getValue();
       llvm::errs() << "  weight[" << i << "] : " << tensor_name << "\n";
       auto type = weight_op.getResult()->getType().cast<TensorType>();
-      scaleWeights[i] = weightTensorFile_->readTensor<float>(tensor_name, type);
+      scaleWeights[i] = wTF->readTensor<float>(tensor_name, type);
       // delete the tensor from the weight file
-      weightTensorFile_->deleteTensor<float>(tensor_name);
+      wTF->deleteTensor<float>(tensor_name);
     }
 
     // find filter and bias tensor for conv op
@@ -87,9 +86,9 @@ struct TpuMergeScaleIntoConvPattern : public RewritePattern {
       auto tensor_name = weight_op.name().getValue();
       llvm::errs() << "  weight[" << i << "] : " << tensor_name << "\n";
       auto type = weight_op.getResult()->getType().cast<TensorType>();
-      convWeights[i] = weightTensorFile_->readTensor<float>(tensor_name, type);
+      convWeights[i] = wTF->readTensor<float>(tensor_name, type);
       // delete the tensor from the weight file
-      weightTensorFile_->deleteTensor<float>(tensor_name);
+      wTF->deleteTensor<float>(tensor_name);
     }
 
     // convert tensors
@@ -151,11 +150,11 @@ struct TpuMergeScaleIntoConvPattern : public RewritePattern {
       auto tensor_name = op_name + "_merge_scale_" + std::to_string(i);
       llvm::errs() << "  new_weight[" << i << "] : " << tensor_name << "\n";
       auto type = RankedTensorType::get(weightShapes[i], FloatType::getF32(rewriter.getContext()));
-      weightTensorFile_->addTensor<float>(tensor_name, newWeights[i], type);
+      wTF->addTensor<float>(tensor_name, newWeights[i], type);
       std::vector<NamedAttribute> attrs;
       attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(tensor_name)));
       auto new_weight_op = rewriter.create<tpu::LoadWeightOp>(loc, type,
-          ArrayRef<Value *>{weightFileVar}, ArrayRef<NamedAttribute>{attrs});
+          ArrayRef<Value *>{wfV}, ArrayRef<NamedAttribute>{attrs});
       newOperands.push_back(new_weight_op);
     }
     newOperands.push_back(convOp.getOperand(3));
@@ -191,8 +190,6 @@ struct TpuMergeScaleIntoConvPattern : public RewritePattern {
         ArrayRef<Value *>{newOperands}, ArrayRef<NamedAttribute>{newAttrs});
     return matchSuccess();
   }
-
-  TensorFile *weightTensorFile_;
 };
 
 class MergeScaleIntoConvPass : public FunctionPass<MergeScaleIntoConvPass> {
@@ -202,27 +199,10 @@ public:
   void runOnFunction() override {
     auto fn = getFunction();
 
-    // find tensor filename
-    //OpBuilder b(fn.getBody());
-    llvm::StringRef filename;
-    fn.walk([&](tpu::LoadFileOp op) {
-      filename = op.getAttrOfType<StringAttr>("filename").getValue();
-      llvm::errs() << "LoadFileOp filename " << filename << "\n";
-    });
-    auto weightTensorFile = openTensorFile(filename);
-
     OwningRewritePatternList patterns;
     auto *context = &getContext();
-    patterns.insert<TpuMergeScaleIntoConvPattern>(context, weightTensorFile.get());
+    patterns.insert<TpuMergeScaleIntoConvPattern>(context);
     applyPatternsGreedily(fn, patterns);
-
-    std::string newName;
-    weightTensorFile->keep(true, &newName);
-    fn.walk([&](tpu::LoadFileOp op) {
-      OpBuilder b(fn.getBody());
-      op.setAttr("filename", b.getStringAttr(newName));
-      llvm::errs() << "LoadFileOp filename updated to " << newName << "\n";
-    });
   }
 
 private:

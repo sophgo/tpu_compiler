@@ -1,3 +1,4 @@
+
 //===- FileUtilities.h - utilities for working with tensor files -------*- C++ -*-===//
 //
 // Copyright 2019 The MLIR Authors.
@@ -34,6 +35,7 @@
 #include <string>
 #include <system_error>
 #include <ctime>
+#include <atomic>
 
 #include "cnpy.h"
 
@@ -80,11 +82,17 @@ static bool check_type(Type eltType) {
 class TensorFile {
 public:
   TensorFile(llvm::StringRef filename, std::error_code &EC, bool readOnly,
-      bool newCreate)
-      : filename(filename), readOnly(readOnly), newCreate(newCreate) {
+      bool newCreate = false)
+      : filename(filename), readOnly(readOnly) {
     if (!newCreate) {
       auto ret = load();
-      assert(succeeded(ret));
+      if (!succeeded(ret)) {
+        if (readOnly) {
+          llvm::errs() << filename << " not exist, failed to read for read\n";
+          assert(0);
+        }
+        map.clear();
+      }
     } else {
       map.clear();
     }
@@ -137,6 +145,7 @@ public:
       shape_npz.push_back((size_t)*it);
     }
     cnpy::npz_add_array(map, name.str(), &data[0], shape_npz);
+    cnt_add++;
     return success();
   }
 
@@ -164,6 +173,7 @@ public:
       shape_npz.push_back((size_t)*it);
     }
     cnpy::npz_add_array(map, name.str(), &data[0], shape_npz);
+    cnt_add++;
     return success();
   }
 
@@ -218,6 +228,7 @@ public:
       return failure();
     }
     map.erase(it);
+    cnt_del++;
     return success();
   }
 
@@ -242,8 +253,14 @@ public:
     return success();
   }
 
-  void keep(bool incIndex = false, std::string *newName = nullptr) {
+  int keep(bool incIndex = false, std::string *newName = nullptr) {
     assert(!readOnly);
+    if (cnt_add + cnt_del == 0) {
+      if (newName) {
+        *newName = filename.str();
+      }
+      return 0;
+    }
     if (incIndex) {
       auto fileInc = TensorFile::incrementName(filename);
       cnpy::npz_save_all(fileInc, map);
@@ -255,20 +272,25 @@ public:
     } else {
       cnpy::npz_save_all(filename.str(), map);
     }
+    return cnt_add + cnt_del;
   }
 
 private:
   /// load the file
   LogicalResult load(void) {
     map = cnpy::npz_load(filename.str());
-    assert(map.size() > 0);
-    return success();
+    if (map.size() > 0) {
+      return success();
+    } else {
+      return failure();
+    }
   }
 
   llvm::StringRef filename;
   bool readOnly;
-  bool newCreate;
   cnpy::npz_t map;
+  std::atomic<int> cnt_del = {0};
+  std::atomic<int> cnt_add = {0};
 };
 
 /// Open the file specified by its name for reading. Write the error message to
@@ -283,8 +305,9 @@ std::unique_ptr<TensorFile>
 openOutputTensorFile(llvm::StringRef outputFilename,
                std::string *errorMessage = nullptr);
 
-/// Open a existing file specified by its name for updating. Write the error message to
-/// `errorMessage` if errors occur and `errorMessage` is not nullptr.
+/// Open a existing file specified by its name for updating, create one if not
+/// exist. Write the error message to `errorMessage` if errors occur and
+/// `errorMessage` is not nullptr.
 std::unique_ptr<TensorFile>
 openTensorFile(llvm::StringRef filename,
                std::string *errorMessage = nullptr);

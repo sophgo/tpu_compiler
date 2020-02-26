@@ -56,7 +56,7 @@ openOutputTensorFile(llvm::StringRef outputFilename, std::string *errorMessage) 
 std::unique_ptr<TensorFile>
 openTensorFile(llvm::StringRef filename, std::string *errorMessage) {
   std::error_code error;
-  auto result = std::make_unique<TensorFile>(filename, error, false, false);
+  auto result = std::make_unique<TensorFile>(filename, error, false);
   if (error) {
     if (errorMessage)
       *errorMessage = "cannot open tensor file '" + filename.str() +

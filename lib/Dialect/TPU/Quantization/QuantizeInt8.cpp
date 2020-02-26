@@ -65,11 +65,8 @@ typedef enum {
 
 template<typename OpTy>
 struct TpuQuantInt8Conv2DOpPattern : public RewritePattern {
-  TpuQuantInt8Conv2DOpPattern(MLIRContext *context, TensorFile *weightTF,
-      Value* weightFV)
-      : RewritePattern(OpTy::getOperationName(), 1, context),
-        weightTF_(weightTF),
-        weightFV_(weightFV) {}
+  TpuQuantInt8Conv2DOpPattern(MLIRContext *context)
+      : RewritePattern(OpTy::getOperationName(), 1, context) {}
 
   PatternMatchResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
@@ -80,6 +77,8 @@ struct TpuQuantInt8Conv2DOpPattern : public RewritePattern {
       return matchFailure();
     }
     assert(getOpQuantParamType(op) == "THRESHOLD");
+    TensorFile *wTF = getWeightTensorFile(op);
+    Value *wfV = getWeightFileValue(op);
 
     // get quant type
     QUANT_INT8_TYPE_e quant;
@@ -94,7 +93,7 @@ struct TpuQuantInt8Conv2DOpPattern : public RewritePattern {
     }
 
     // get filter tensor
-    auto filter = readAndDeleteWeightTensor<float>(convOp.filter(), weightTF_);
+    auto filter = readAndDeleteWeightTensor<float>(convOp.filter(), wTF);
     std::vector<int64_t> filterShape;
     int64_t filterSize;
     getTensorShapeAndSize(convOp.filter(), filterShape, filterSize);
@@ -118,7 +117,7 @@ struct TpuQuantInt8Conv2DOpPattern : public RewritePattern {
     std::vector<int64_t> biasShape;
     int64_t biasSize = 0;
     if ( !isTensorNone(convOp.bias()) ) {
-      bias = readAndDeleteWeightTensor<float>(convOp.bias(), weightTF_);
+      bias = readAndDeleteWeightTensor<float>(convOp.bias(), wTF);
       getTensorShapeAndSize(convOp.bias(), biasShape, biasSize);
       assert(biasSize == oc);
       assert(biasSize == (int64_t)bias->size());
@@ -169,12 +168,12 @@ struct TpuQuantInt8Conv2DOpPattern : public RewritePattern {
 
     // update op
     addWeightTensorAndUpdateWeightOp<float>(convOp.getOperand(1),
-        "quant", *new_filter, filterShape, "INT8", weightTF_);
+        "quant", *new_filter, filterShape, "INT8", wTF);
     if (bias) {
       // for per_channel quant, bias store as INT32, per layer use INT16
       StringRef storageType = (quant == INT8_PER_LAYER) ? "INT16" : "INT32";
       addWeightTensorAndUpdateWeightOp<float>(convOp.getOperand(2),
-          "quant", *new_bias, biasShape, storageType, weightTF_);
+          "quant", *new_bias, biasShape, storageType, wTF);
     }
 
     // add rshift and multiplier (if present) to weight
@@ -183,7 +182,7 @@ struct TpuQuantInt8Conv2DOpPattern : public RewritePattern {
       StringRef storageType = "NONE";
       auto rshift_op = addWeightTensorAndCreateWeightOp<float>(
           op, "rshift", *rshift_per_layer, shape, storageType,
-          weightTF_, weightFV_);
+          wTF, wfV);
       convOp.setOperand(5, rshift_op);
       setOpQuantParamType(op, "RSHIFT_ONLY");
       setOpQuantPerchannel(op, false);
@@ -192,7 +191,7 @@ struct TpuQuantInt8Conv2DOpPattern : public RewritePattern {
       StringRef storageType = "UINT32";
       auto rshift_op = addWeightTensorAndCreateWeightOp<float>(
           op, "rshift", *rshift_per_channel, shape, storageType,
-          weightTF_, weightFV_);
+          wTF, wfV);
       convOp.setOperand(5, rshift_op);
       setOpQuantParamType(op, "RSHIFT_ONLY");
       setOpQuantPerchannel(op, true);
@@ -202,12 +201,12 @@ struct TpuQuantInt8Conv2DOpPattern : public RewritePattern {
 
       auto rshift_op = addWeightTensorAndCreateWeightOp<float>(
           op, "rshift", *rshift_per_channel, shape, storageType,
-          weightTF_, weightFV_);
+          wTF, wfV);
       convOp.setOperand(5, rshift_op);
 
       auto multiplier_op = addWeightTensorAndCreateWeightOp<float>(
           op, "multiplier", *multiplier_per_channel, shape, storageType,
-          weightTF_, weightFV_);
+          wTF, wfV);
       convOp.setOperand(6, multiplier_op);
       setOpQuantParamType(op, "RSHIFT_AND_M_I32");
       setOpQuantPerchannel(op, true);
@@ -218,17 +217,11 @@ struct TpuQuantInt8Conv2DOpPattern : public RewritePattern {
 
     return matchSuccess();
   }
-
-  TensorFile *weightTF_;
-  Value* weightFV_;
 };
 
 struct TpuQuantInt8FullyConnectedOpPattern : public RewritePattern {
-  TpuQuantInt8FullyConnectedOpPattern(MLIRContext *context,
-      TensorFile *weightTF, Value* weightFV)
-      : RewritePattern("tpu.fully_connected", 1, context),
-        weightTF_(weightTF),
-        weightFV_(weightFV) {}
+  TpuQuantInt8FullyConnectedOpPattern(MLIRContext *context)
+      : RewritePattern("tpu.fully_connected", 1, context) {}
 
   PatternMatchResult matchAndRewrite(Operation *op,
       PatternRewriter &rewriter) const override {
@@ -239,6 +232,8 @@ struct TpuQuantInt8FullyConnectedOpPattern : public RewritePattern {
       return matchFailure();
     }
     assert(getOpQuantParamType(op) == "THRESHOLD");
+    TensorFile *wTF = getWeightTensorFile(op);
+    Value *wfV = getWeightFileValue(op);
 
     // parse param
     int m, k, n;
@@ -246,7 +241,7 @@ struct TpuQuantInt8FullyConnectedOpPattern : public RewritePattern {
                              m, k, n);
 
     // get filter tensor
-    auto filter = readAndDeleteWeightTensor<float>(fcOp.filter(), weightTF_);
+    auto filter = readAndDeleteWeightTensor<float>(fcOp.filter(), wTF);
     std::vector<int64_t> filterShape;
     int64_t filterSize;
     getTensorShapeAndSize(fcOp.filter(), filterShape, filterSize);
@@ -257,7 +252,7 @@ struct TpuQuantInt8FullyConnectedOpPattern : public RewritePattern {
     std::vector<int64_t> biasShape;
     int64_t biasSize = 0;
     if ( !isTensorNone(fcOp.bias()) ) {
-      bias = readAndDeleteWeightTensor<float>(fcOp.bias(), weightTF_);
+      bias = readAndDeleteWeightTensor<float>(fcOp.bias(), wTF);
       getTensorShapeAndSize(fcOp.bias(), biasShape, biasSize);
       assert(biasSize == n);
     }
@@ -287,18 +282,18 @@ struct TpuQuantInt8FullyConnectedOpPattern : public RewritePattern {
 
     // update op
     addWeightTensorAndUpdateWeightOp<float>(fcOp.getOperand(1),
-        "quant", *new_filter, filterShape, "INT8", weightTF_);
+        "quant", *new_filter, filterShape, "INT8", wTF);
     if (bias) {
       // for per layer, bias use INT16
       addWeightTensorAndUpdateWeightOp<float>(fcOp.getOperand(2),
-          "quant", *new_bias, biasShape, "INT16", weightTF_);
+          "quant", *new_bias, biasShape, "INT16", wTF);
     }
 
     // add rshift to weight
     auto shape = std::vector<int64_t>{1};
     auto rshift_op = addWeightTensorAndCreateWeightOp<float>(
         op, "rshift", *rshift, shape, "NONE",
-        weightTF_, weightFV_);
+        wTF, wfV);
     fcOp.setOperand(5, rshift_op);
 
     setOpQuantParamType(op, "RSHIFT_ONLY");
@@ -307,17 +302,11 @@ struct TpuQuantInt8FullyConnectedOpPattern : public RewritePattern {
 
     return matchSuccess();
   }
-
-  TensorFile *weightTF_;
-  Value* weightFV_;
 };
 
 struct TpuQuantInt8LeakyReluOpPattern : public RewritePattern {
-  TpuQuantInt8LeakyReluOpPattern(MLIRContext *context, TensorFile *weightTF,
-      Value* weightFV)
-      : RewritePattern("tpu.leaky_relu", 1, context),
-        weightTF_(weightTF),
-        weightFV_(weightFV) {}
+  TpuQuantInt8LeakyReluOpPattern(MLIRContext *context)
+      : RewritePattern("tpu.leaky_relu", 1, context) {}
 
   PatternMatchResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
@@ -329,6 +318,8 @@ struct TpuQuantInt8LeakyReluOpPattern : public RewritePattern {
       return matchFailure();
     }
     assert(getOpQuantParamType(op) == "THRESHOLD");
+    TensorFile *wTF = getWeightTensorFile(op);
+    Value *wfV = getWeightFileValue(op);
 
     float negative_slope = lreluOp.negative_slope().convertToFloat();
     LLVM_DEBUG(llvm::errs() << "  negative_slope: "
@@ -381,22 +372,22 @@ struct TpuQuantInt8LeakyReluOpPattern : public RewritePattern {
 
     auto rshift_pos_op = addWeightTensorAndCreateWeightOp<float>(
         op, "rshift_pos", rshift_pos, shape, storageType,
-        weightTF_, weightFV_);
+        wTF, wfV);
     lreluOp.setOperand(5, rshift_pos_op);
 
     auto multiplier_pos_op = addWeightTensorAndCreateWeightOp<float>(
         op, "multiplier_pos", multiplier_pos, shape, storageType,
-        weightTF_, weightFV_);
+        wTF, wfV);
     lreluOp.setOperand(6, multiplier_pos_op);
 
     auto rshift_neg_op = addWeightTensorAndCreateWeightOp<float>(
         op, "rshift_neg", rshift_neg, shape, storageType,
-        weightTF_, weightFV_);
+        wTF, wfV);
     lreluOp.setOperand(7, rshift_neg_op);
 
     auto multiplier_neg_op = addWeightTensorAndCreateWeightOp<float>(
         op, "multiplier_neg", multiplier_neg, shape, storageType,
-        weightTF_, weightFV_);
+        wTF, wfV);
     lreluOp.setOperand(8, multiplier_neg_op);
 
     setOpQuantParamType(op, "RSHIFT_AND_M_I8");
@@ -405,16 +396,11 @@ struct TpuQuantInt8LeakyReluOpPattern : public RewritePattern {
 
     return matchSuccess();
   }
-
-  TensorFile *weightTF_;
-  Value* weightFV_;
 };
 
 struct TpuQuantInt8PReluOpPattern : public RewritePattern {
-  TpuQuantInt8PReluOpPattern(MLIRContext *context, TensorFile *weightTF,
-                                 Value *weightFV)
-      : RewritePattern("tpu.prelu", 1, context), weightTF_(weightTF),
-        weightFV_(weightFV) {}
+  TpuQuantInt8PReluOpPattern(MLIRContext *context)
+      : RewritePattern("tpu.prelu", 1, context) {}
 
   PatternMatchResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
@@ -425,10 +411,12 @@ struct TpuQuantInt8PReluOpPattern : public RewritePattern {
                      << " < " << getOpName(op) << ", quantized already\n";);
       return matchFailure();
     }
+    TensorFile *wTF = getWeightTensorFile(op);
+    Value *wfV = getWeightFileValue(op);
 
     //get negative slope tensor info
     auto negative_slope_weight =
-        readAndDeleteWeightTensor<float>(op->getOperand(1), weightTF_);
+        readAndDeleteWeightTensor<float>(op->getOperand(1), wTF);
     std::vector<int64_t> neg_slope_shape;
     int64_t neg_slope_size;
     getTensorShapeAndSize(op->getOperand(1), neg_slope_shape, neg_slope_size);
@@ -498,19 +486,19 @@ struct TpuQuantInt8PReluOpPattern : public RewritePattern {
     StringRef storageType = "INT8";
     auto neg_slope_op = addWeightTensorAndCreateWeightOp<float>(
         op, "negative_slope", new_negative_slope, neg_slope_shape, storageType,
-        weightTF_, weightFV_);
+        wTF, wfV);
     preluOp.setOperand(1, neg_slope_op);
     auto rshift_pos_op = addWeightTensorAndCreateWeightOp<float>(
-        op, "rshift_pos", rshift_pos, shape, storageType, weightTF_, weightFV_);
+        op, "rshift_pos", rshift_pos, shape, storageType, wTF, wfV);
     preluOp.setOperand(6, rshift_pos_op);
 
     auto multiplier_pos_op = addWeightTensorAndCreateWeightOp<float>(
-        op, "multiplier_pos", multiplier_pos, shape, storageType, weightTF_,
-        weightFV_);
+        op, "multiplier_pos", multiplier_pos, shape, storageType, wTF,
+        wfV);
     preluOp.setOperand(7, multiplier_pos_op);
 
     auto rshift_neg_op = addWeightTensorAndCreateWeightOp<float>(
-        op, "rshift_neg", rshift_neg, shape, storageType, weightTF_, weightFV_);
+        op, "rshift_neg", rshift_neg, shape, storageType, wTF, wfV);
     preluOp.setOperand(8, rshift_neg_op);
 
 
@@ -520,15 +508,11 @@ struct TpuQuantInt8PReluOpPattern : public RewritePattern {
 
     return matchSuccess();
   }
-
-  TensorFile *weightTF_;
-  Value *weightFV_;
 };
+
 struct TpuQuantInt8SigmoidOpPattern : public RewritePattern {
-  TpuQuantInt8SigmoidOpPattern(MLIRContext *context, TensorFile *weightTF,
-                              Value *weightFV)
-      : RewritePattern("tpu.sigmoid", 1, context), weightTF_(weightTF),
-        weightFV_(weightFV) {}
+  TpuQuantInt8SigmoidOpPattern(MLIRContext *context)
+      : RewritePattern("tpu.sigmoid", 1, context) {}
 
   PatternMatchResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
@@ -540,6 +524,8 @@ struct TpuQuantInt8SigmoidOpPattern : public RewritePattern {
       return matchFailure();
     }
     assert(getOpQuantParamType(op) == "THRESHOLD");
+    TensorFile *wTF = getWeightTensorFile(op);
+    Value *wfV = getWeightFileValue(op);
 
     // quantization
     float threshold_x = getPreviousOpThreshold(op);
@@ -583,16 +569,13 @@ struct TpuQuantInt8SigmoidOpPattern : public RewritePattern {
     auto shape = std::vector<int64_t>{1, npu_num, table_h, table_w};
     StringRef storageType = "INT8";
     auto y0_table_op = addWeightTensorAndCreateWeightOp<float>(
-        op, "y0_table", y0_table, shape, storageType, weightTF_, weightFV_);
+        op, "y0_table", y0_table, shape, storageType, wTF, wfV);
     sigOp.setOperand(1, y0_table_op);
     setOpQuantPerchannel(op, false);
     setOpQuant(op, "INT8");
 
     return matchSuccess();
   }
-
-  TensorFile *weightTF_;
-  Value *weightFV_;
 };
 
 ///
@@ -606,11 +589,8 @@ struct TpuQuantInt8SigmoidOpPattern : public RewritePattern {
 ///
 template<typename OpTy>
 struct TpuQuantInt8DefaultPattern : public RewritePattern {
-  TpuQuantInt8DefaultPattern(MLIRContext *context, TensorFile *weightTF,
-      Value* weightFV)
-      : RewritePattern(OpTy::getOperationName(), 1, context),
-        weightTF_(weightTF),
-        weightFV_(weightFV) {}
+  TpuQuantInt8DefaultPattern(MLIRContext *context)
+      : RewritePattern(OpTy::getOperationName(), 1, context) {}
 
   PatternMatchResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
@@ -619,6 +599,8 @@ struct TpuQuantInt8DefaultPattern : public RewritePattern {
                               << ", quantized already\n";);
       return matchFailure();
     }
+    TensorFile *wTF = getWeightTensorFile(op);
+    Value *wfV = getWeightFileValue(op);
 
     // get operands
     const unsigned nInputs = op->getNumOperands() - 4;
@@ -702,13 +684,13 @@ struct TpuQuantInt8DefaultPattern : public RewritePattern {
     auto shape_rshift = std::vector<int64_t>{1};
     auto rshift_op = addWeightTensorAndCreateWeightOp<float>(
         op, "rshift", *rshift, shape_rshift, storageType,
-        weightTF_, weightFV_);
+        wTF, wfV);
     op->setOperand(nInputs + 2, rshift_op);
 
     auto shape_multiplier = std::vector<int64_t>{nInputs};
     auto multiplier_op = addWeightTensorAndCreateWeightOp<float>(
         op, "multiplier", *multiplier, shape_multiplier, storageType,
-        weightTF_, weightFV_);
+        wTF, wfV);
     op->setOperand(nInputs + 3, multiplier_op);
 
     setOpQuantParamType(op, "RSHIFT_AND_M_I8");
@@ -716,9 +698,6 @@ struct TpuQuantInt8DefaultPattern : public RewritePattern {
 
     return matchSuccess();
   }
-
-  TensorFile *weightTF_;
-  Value* weightFV_;
 };
 
 ///
@@ -733,11 +712,8 @@ struct TpuQuantInt8DefaultPattern : public RewritePattern {
 ///
 template<typename OpTy>
 struct TpuQuantInt8MultiplyOpDefaultPattern : public RewritePattern {
-  TpuQuantInt8MultiplyOpDefaultPattern(MLIRContext *context, TensorFile *weightTF,
-      Value* weightFV)
-      : RewritePattern(OpTy::getOperationName(), 1, context),
-        weightTF_(weightTF),
-        weightFV_(weightFV) {}
+  TpuQuantInt8MultiplyOpDefaultPattern(MLIRContext *context)
+      : RewritePattern(OpTy::getOperationName(), 1, context) {}
 
   PatternMatchResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
@@ -746,6 +722,8 @@ struct TpuQuantInt8MultiplyOpDefaultPattern : public RewritePattern {
                               << ", quantized already\n";);
       return matchFailure();
     }
+    TensorFile *wTF = getWeightTensorFile(op);
+    Value *wfV = getWeightFileValue(op);
 
     // get operands
     const unsigned nInputs = op->getNumOperands() - 4;
@@ -792,12 +770,12 @@ struct TpuQuantInt8MultiplyOpDefaultPattern : public RewritePattern {
 
     auto rshift_op = addWeightTensorAndCreateWeightOp<float>(
         op, "rshift", *rshift, shape, storageType,
-        weightTF_, weightFV_);
+        wTF, wfV);
     op->setOperand(4, rshift_op);
 
     auto multiplier_op = addWeightTensorAndCreateWeightOp<float>(
         op, "multiplier", *multiplier, shape, storageType,
-        weightTF_, weightFV_);
+        wTF, wfV);
     op->setOperand(5, multiplier_op);
 
     setOpQuantParamType(op, "RSHIFT_AND_M_I32");
@@ -805,9 +783,6 @@ struct TpuQuantInt8MultiplyOpDefaultPattern : public RewritePattern {
 
     return matchSuccess();
   }
-
-  TensorFile *weightTF_;
-  Value* weightFV_;
 };
 
 //
@@ -817,11 +792,8 @@ struct TpuQuantInt8MultiplyOpDefaultPattern : public RewritePattern {
 //
 template<typename OpTy>
 struct TpuQuantInt8BypassPattern : public RewritePattern {
-  TpuQuantInt8BypassPattern(MLIRContext *context, TensorFile *weightTF,
-      Value* weightFV)
-      : RewritePattern(OpTy::getOperationName(), 1, context),
-        weightTF_(weightTF),
-        weightFV_(weightFV) {}
+  TpuQuantInt8BypassPattern(MLIRContext *context)
+      : RewritePattern(OpTy::getOperationName(), 1, context) {}
 
   PatternMatchResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
@@ -848,9 +820,6 @@ struct TpuQuantInt8BypassPattern : public RewritePattern {
 
     return matchSuccess();
   }
-
-  TensorFile *weightTF_;
-  Value* weightFV_;
 };
 
 
@@ -864,11 +833,8 @@ struct TpuQuantInt8BypassPattern : public RewritePattern {
 // to be removed
 
 struct TpuQuantPowerOpPattern : public RewritePattern {
-    TpuQuantPowerOpPattern(MLIRContext *context, TensorFile *weightTensorFile,
-      Value* weightFileVar)
-      :RewritePattern("tpu.power", 1, context),
-        weightTensorFile_(weightTensorFile),
-        weightFileVar_(weightFileVar) {}
+    TpuQuantPowerOpPattern(MLIRContext *context)
+      :RewritePattern("tpu.power", 1, context) {}
 
   PatternMatchResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const {
@@ -879,6 +845,8 @@ struct TpuQuantPowerOpPattern : public RewritePattern {
       LLVM_DEBUG(llvm::errs() << powerOp.name() << " gen already\n";);
       return matchFailure();
     }
+    TensorFile *wTF = getWeightTensorFile(op);
+    Value *wfV = getWeightFileValue(op);
 
     std::string op_name = powerOp.getAttrOfType<StringAttr>("name").getValue().str();
     auto result_var = powerOp.getResult();
@@ -949,23 +917,23 @@ struct TpuQuantPowerOpPattern : public RewritePattern {
 
     //add scale operand
     auto tensor_name = op_name + "_gen_scale";
-    weightTensorFile_->addTensor<float>(tensor_name, scale_weight.data(), type);
+    wTF->addTensor<float>(tensor_name, scale_weight.data(), type);
     std::vector<NamedAttribute> attrs;
     attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(tensor_name)));
     attrs.push_back(rewriter.getNamedAttr("storage", rewriter.getStringAttr("INT8")));
     auto new_scale_op = rewriter.create<tpu::LoadWeightOp>(op->getLoc(), type,
-        ArrayRef<Value *>{weightFileVar_}, ArrayRef<NamedAttribute>{attrs});
+        ArrayRef<Value *>{wfV}, ArrayRef<NamedAttribute>{attrs});
     newOperands.push_back(new_scale_op);
 
 
     //add scale operand
     tensor_name = op_name + "_gen_shift";
-    weightTensorFile_->addTensor<float>(tensor_name, shift_weight.data(), type);
+    wTF->addTensor<float>(tensor_name, shift_weight.data(), type);
     std::vector<NamedAttribute> attrs_shift;
     attrs_shift.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(tensor_name)));
     attrs_shift.push_back(rewriter.getNamedAttr("storage", rewriter.getStringAttr("INT8")));
     auto new_shift_op = rewriter.create<tpu::LoadWeightOp>(op->getLoc(), type,
-        ArrayRef<Value *>{weightFileVar_}, ArrayRef<NamedAttribute>{attrs_shift});
+        ArrayRef<Value *>{wfV}, ArrayRef<NamedAttribute>{attrs_shift});
     newOperands.push_back(new_shift_op);
 
     powerOp.setAttr("has_table", rewriter.getBoolAttr("true"));
@@ -984,19 +952,14 @@ struct TpuQuantPowerOpPattern : public RewritePattern {
         ArrayRef<Value *>{newOperands}, ArrayRef<NamedAttribute>{powerOp.getAttrs()});
 
     return matchSuccess();
-}
-  TensorFile *weightTensorFile_;
-  Value* weightFileVar_;
+  }
 };
 
 // to be removed
 template<typename OpTy>
 struct TpuQuantDefaultPattern : public RewritePattern {
-  TpuQuantDefaultPattern(MLIRContext *context, TensorFile *weightTF,
-      Value* weightFV)
-      : RewritePattern(OpTy::getOperationName(), 1, context),
-        weightTF_(weightTF),
-        weightFV_(weightFV) {}
+  TpuQuantDefaultPattern(MLIRContext *context)
+      : RewritePattern(OpTy::getOperationName(), 1, context) {}
 
   PatternMatchResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
@@ -1009,9 +972,6 @@ struct TpuQuantDefaultPattern : public RewritePattern {
 
     return matchSuccess();
   }
-
-  TensorFile *weightTF_;
-  Value* weightFV_;
 };
 
 template<typename T>
@@ -1197,17 +1157,6 @@ public:
 
   void runOnFunction() override {
     auto fn = getFunction();
-
-    // find tensorFile and Value
-    llvm::StringRef filename;
-    Value* weightFileVar;
-    fn.walk([&](tpu::LoadFileOp op) {
-      filename = op.filename();
-      LLVM_DEBUG(llvm::errs() << "LoadFileOp filename " << filename << "\n";);
-      weightFileVar = op.getResult();
-    });
-    auto weightTensorFile = openTensorFile(filename);
-
     auto *context = &getContext();
 
     OwningRewritePatternList patterns;
@@ -1238,7 +1187,7 @@ public:
         TpuQuantDefaultPattern<tpu::DivOp>,
         TpuQuantPowerOpPattern,
         TpuQuantDefaultPattern<tpu::SqrtOp>
-        >(context, weightTensorFile.get(), weightFileVar);
+        >(context);
     applyPatternsGreedily(fn, patterns);
 
     patterns.clear();
@@ -1262,14 +1211,6 @@ public:
         TpuSimplifyQuantDequantPattern
         >(context);
     applyPatternsGreedily(fn, patterns);
-
-    std::string newName;
-    weightTensorFile->keep(true, &newName);
-    fn.walk([&](tpu::LoadFileOp op) {
-      OpBuilder opBuilder(context);
-      op.setAttr("filename", opBuilder.getStringAttr(newName));
-      llvm::errs() << "LoadFileOp filename updated to " << newName << "\n";
-    });
   }
 
 private:

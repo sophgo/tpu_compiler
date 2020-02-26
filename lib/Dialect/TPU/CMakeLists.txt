@@ -6,6 +6,7 @@ list(APPEND tpu_LINKER_LIBS
 
 add_llvm_library(MLIRTPU
   IR/TPUDialect.cpp
+  IR/WeightFileOp.cpp
   IR/DialectRegistration.cpp
   IR/TPUOperationSupport.cpp
   IR/TPUTensorSupport.cpp

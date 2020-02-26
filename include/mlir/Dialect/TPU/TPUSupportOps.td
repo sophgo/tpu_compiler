@@ -28,32 +28,6 @@ include "mlir/Dialect/TPU/TPUBase.td"
 // TPU Misc op definitions.
 //===----------------------------------------------------------------------===//
 
-def TPU_LoadFileOp : TPU_Op<"load_file", [NoSideEffect]> {
-  let summary = "load_file operator";
-
-  let description = [{
-    This is a virtual operation, to keep a record of the weight file.
-
-    Inputs:
-      None
-
-    Attributes:
-      `filename`        : weight file name.
-
-    Result:
-      `weight_file`     : result memref, this is a virtual result.
-
-    Interfaces or Traits:
-      `NoSideEffect`
-  }];
-
-  let arguments = (
-    ins StrAttr:$filename
-  );
-
-  let results = (outs AnyMemRef:$weight);
-}
-
 def TPU_LoadWeightOp : TPU_Op<"load_weight", [NoSideEffect]> {
   let summary = "load_weight operator";
 

@@ -4,6 +4,7 @@
 #include "mlir/Dialect/TPU/TPUTensorSupport.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/StandardTypes.h"
+#include "mlir/IR/Function.h"
 #include "llvm/Support/raw_ostream.h"
 
 namespace mlir {
@@ -25,6 +26,7 @@ int64_t getTensorSize(Value *value) {
 std::vector<int64_t> getTensorShape(Value *value) {
   return value->getType().cast<TensorType>().getShape();
 }
+
 void getTensorShapeAndSize(Value *value, std::vector<int64_t> &shape,
     int64_t &size) {
   shape = getTensorShape(value);
@@ -56,6 +58,28 @@ void getNCHW(std::vector<int64_t> &shape,
 /***********************************************************
  * Weight helpers
  ***********************************************************/
+
+Value* getWeightFileValue(Operation *op) {
+  if (auto fn = cast<FuncOp>(op->getParentOp())) {
+    Value *wfV = nullptr;
+    fn.walk([&](tpu::WeightFileOp op) {
+       wfV = op.getResult();
+    });
+    assert(wfV);
+    return wfV;
+  } else {
+    assert(0);
+  }
+}
+
+TensorFile* getWeightTensorFile(Operation *op) {
+  auto wfV = getWeightFileValue(op);
+  auto wfOp = cast<tpu::WeightFileOp>(wfV->getDefiningOp());
+  assert(wfOp);
+  TensorFile *wTF = wfOp.get();
+  assert(wTF);
+  return wTF;
+}
 
 template<typename T>
 std::unique_ptr<std::vector<T> > readAndDeleteWeightTensor(

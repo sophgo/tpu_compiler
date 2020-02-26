@@ -43,17 +43,17 @@ using namespace mlir;
 namespace {
 
 struct TpuLoadWeightOpPattern : public RewritePattern {
-  TpuLoadWeightOpPattern(MLIRContext *context, TensorFile *weightTensorFile,
+  TpuLoadWeightOpPattern(MLIRContext *context,
       llvm::raw_fd_ostream *weightBinaryFile, llvm::raw_ostream &map_os,
       size_t alignment)
       : RewritePattern("tpu.load_weight", 1, context),
-        weightTensorFile_(weightTensorFile),
         weightBinaryFile_(weightBinaryFile),
         map_os_(map_os),
         alignment_(alignment) {}
 
   PatternMatchResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
+    TensorFile *wTF = getWeightTensorFile(op);
     auto weightOp = cast<tpu::LoadWeightOp>(op);
     if (weightOp.offset().hasValue()) {
       // assigned already
@@ -69,7 +69,7 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
     size_t size = 0;
     if (weightOp.storage() == "INT8") {
       std::vector<int8_t> weight_int8;
-      auto weight = weightTensorFile_->readTensor<int8_t>(tensor_name, type);
+      auto weight = wTF->readTensor<int8_t>(tensor_name, type);
       weight_int8.assign(weight->begin(), weight->end());
       size = weight_int8.size();
 
@@ -85,7 +85,7 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
     } else if (weightOp.storage() == "UINT8") {
       // UINT8 is used for packed per-channel info or LUT table
       std::vector<uint8_t> weight_uint8;
-      auto weight = weightTensorFile_->readTensor<uint8_t>(tensor_name, type);
+      auto weight = wTF->readTensor<uint8_t>(tensor_name, type);
       weight_uint8.assign(weight->begin(), weight->end());
       size = weight_uint8.size();
 
@@ -105,7 +105,7 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
     } else if (weightOp.storage() == "UINT16") {
       // this is NOT BF16 (BF16 uses `BF16` directly)
       // this is for lowered and transposed INT16 bias
-      auto weight = weightTensorFile_->readTensor<uint16_t>(tensor_name, type);
+      auto weight = wTF->readTensor<uint16_t>(tensor_name, type);
       size = weight->size();
       std::vector<uint16_t> weight_uint16(weight->begin(), weight->end());
       size = weight_uint16.size() * sizeof(uint16_t);
@@ -123,7 +123,7 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
           weight_uint16.size() * sizeof(uint16_t));
     } else if (weightOp.storage() == "BF16") {
       std::vector<uint16_t> weight_bf16;
-      auto weight = weightTensorFile_->readTensor<uint16_t>(tensor_name, type);
+      auto weight = wTF->readTensor<uint16_t>(tensor_name, type);
       weight_bf16.assign(weight->begin(), weight->end());
       size = weight_bf16.size() * sizeof(uint16_t);
 
@@ -146,7 +146,7 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
       // one stripe for high 16-bit, and one for low 16-bit
       // after the lowering, we store the data as `UINT32`
       std::vector<uint32_t> weight_uint32;
-      auto weight = weightTensorFile_->readTensor<uint32_t>(tensor_name, type);
+      auto weight = wTF->readTensor<uint32_t>(tensor_name, type);
       weight_uint32.assign(weight->begin(), weight->end());
       size = weight_uint32.size() * sizeof(uint32_t);
 
@@ -184,7 +184,6 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
     return matchSuccess();
   }
 
-  TensorFile *weightTensorFile_;
   llvm::raw_fd_ostream *weightBinaryFile_;
   llvm::raw_ostream &map_os_;
   size_t alignment_;
@@ -211,17 +210,6 @@ public:
 
   void runOnFunction() override {
     auto fn = getFunction();
-    //OpBuilder b(fn.getBody());
-
-    // find tensor filename
-    llvm::StringRef filename_npz;
-    fn.walk([&](tpu::LoadFileOp op) {
-      filename_npz = op.getAttrOfType<StringAttr>("filename").getValue();
-      llvm::errs() << "LoadFileOp filename " << filename_npz << "\n";
-      // NOTE: we didn't assign the LoadFile filename to .bin file
-      // keep with npz file so that we can still run interpreter
-    });
-    auto weightTensorFile = openTensorFile(filename_npz);
 
     // create a bin file
     std::error_code ec;
@@ -242,7 +230,7 @@ public:
     OwningRewritePatternList patterns;
     auto *context = &getContext();
     // assign address and generate bin file
-    patterns.insert<TpuLoadWeightOpPattern>(context, weightTensorFile.get(),
+    patterns.insert<TpuLoadWeightOpPattern>(context,
         &weightBinaryFile, weightMapFile->os(), clWeightAlignment);
     applyPatternsGreedily(fn, patterns);
 
