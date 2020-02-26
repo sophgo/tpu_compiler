@@ -33,6 +33,7 @@ using namespace mlir::tpu;
 TPUDialect::TPUDialect(MLIRContext *context)
     : Dialect(getDialectNamespace(), context) {
   addOperations<
+      WeightFileOp,
 #define GET_OP_LIST
 #include "mlir/Dialect/TPU/TPUOps.cpp.inc"
       >();

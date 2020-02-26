@@ -36,14 +36,14 @@ using namespace mlir;
 namespace {
 
 struct TpuScaleOpPattern : public RewritePattern {
-  TpuScaleOpPattern(MLIRContext *context, TensorFile *weightTF)
-      : RewritePattern("tpu.scale", 1, context),
-        weightTF_(weightTF) {}
+  TpuScaleOpPattern(MLIRContext *context)
+      : RewritePattern("tpu.scale", 1, context) {}
 
   PatternMatchResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
     auto scaleOp = cast<tpu::ScaleOp>(op);
     llvm::errs() << scaleOp.getOperationName() << "\n";
+    TensorFile *wTF = getWeightTensorFile(op);
 
     // op_name
     std::string op_name = scaleOp.name().str();
@@ -56,20 +56,20 @@ struct TpuScaleOpPattern : public RewritePattern {
     getNCHW(shape, n, c, h, w);
 
     // get tensor
-    auto scale = readAndDeleteWeightTensor<float>(scaleOp.scale(), weightTF_);
+    auto scale = readAndDeleteWeightTensor<float>(scaleOp.scale(), wTF);
     std::unique_ptr<std::vector<float> > bias = nullptr;
     if ( !isTensorNone(scaleOp.bias()) ) {
-      bias = readAndDeleteWeightTensor<float>(scaleOp.bias(), weightTF_);
+      bias = readAndDeleteWeightTensor<float>(scaleOp.bias(), wTF);
     }
 
     StringRef storageType = "FP32";
     auto filter_type = std::vector<int64_t>({c, 1, 1, 1, 1});
     addWeightTensorAndUpdateWeightOp<float>(scaleOp.scale(),
-        "scale", *scale, filter_type, storageType, weightTF_);
+        "scale", *scale, filter_type, storageType, wTF);
     if (bias) {
       auto bias_type = std::vector<int64_t>({c});
       addWeightTensorAndUpdateWeightOp<float>(scaleOp.bias(),
-          "scale", *bias, bias_type, storageType, weightTF_);
+          "scale", *bias, bias_type, storageType, wTF);
     }
 
     // replace scale with conv
@@ -110,8 +110,6 @@ struct TpuScaleOpPattern : public RewritePattern {
 
     return matchSuccess();
   }
-
-  TensorFile *weightTF_;
 };
 
 class ConvertScaleToDWConvPass : public FunctionPass<ConvertScaleToDWConvPass> {
@@ -121,26 +119,10 @@ public:
   void runOnFunction() override {
     auto fn = getFunction();
 
-    // find tensor filename
-    llvm::StringRef filename;
-    fn.walk([&](tpu::LoadFileOp op) {
-      filename = op.getAttrOfType<StringAttr>("filename").getValue();
-      llvm::errs() << "LoadFileOp filename " << filename << "\n";
-    });
-    auto weightTensorFile = openTensorFile(filename);
-
     OwningRewritePatternList patterns;
     auto *context = &getContext();
-    patterns.insert<TpuScaleOpPattern>(context, weightTensorFile.get());
+    patterns.insert<TpuScaleOpPattern>(context);
     applyPatternsGreedily(fn, patterns);
-
-    std::string newName;
-    weightTensorFile->keep(true, &newName);
-    fn.walk([&](tpu::LoadFileOp op) {
-      OpBuilder b(fn.getBody());
-      op.setAttr("filename", b.getStringAttr(newName));
-      llvm::errs() << "LoadFileOp filename updated to " << newName << "\n";
-    });
   }
 
 private:

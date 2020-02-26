@@ -25,6 +25,8 @@
 
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/OpDefinition.h"
+#include "mlir/Support/FileUtilities.h"
+#include "mlir/Support/TensorFile.h"
 
 namespace mlir {
 
@@ -41,6 +43,12 @@ class TPUDialect : public Dialect {
 public:
   explicit TPUDialect(MLIRContext *context);
   static StringRef getDialectNamespace() { return "tpu"; }
+
+  void* getPriv() { return priv; };
+  void setPriv(void *p) { priv = p;}
+
+private:
+  void *priv = nullptr;
 };
 
 //===----------------------------------------------------------------------===//
@@ -53,6 +61,11 @@ public:
 //===----------------------------------------------------------------------===//
 #define GET_OP_CLASSES
 #include "mlir/Dialect/TPU/TPUOps.h.inc"
+
+//===----------------------------------------------------------------------===//
+// Non-tblgen Ops
+//===----------------------------------------------------------------------===//
+#include "mlir/Dialect/TPU/WeightFileOp.h"
 
 } // end namespace tpu
 } // end namespace mlir

@@ -19,6 +19,7 @@
 //
 //===----------------------------------------------------------------------===//
 #include "mlir/Dialect/TPU/TPUDialect.h"
+#include "mlir/Dialect/TPU/TPUTensorSupport.h"
 #include "mlir/Dialect/TPU/Passes.h"
 #include "mlir/Dialect/TPU/QuantizationArithmetic.h"
 #include "mlir/IR/BlockAndValueMapping.h"
@@ -64,7 +65,7 @@ static void gen_bf16_sigmoid_table(int start, int end, int table_hw, float *simg
   simgoid_table[table_idx] = sigmoid(start);
 
   ++table_idx;
-  // set idx 129 to 256, 2's complment 
+  // set idx 129 to 256, 2's complment
   for (int i = 1; i < half; i++) {
     x_value = start + i * interval;
     y_value = sigmoid(x_value);
@@ -103,20 +104,19 @@ using namespace mlir;
 namespace {
 
 struct TpuGenSigmoidTablePattern : public RewritePattern {
-  TpuGenSigmoidTablePattern(MLIRContext *context, TensorFile *weightTensorFile,
-      Value* weightFileVar)
-      : RewritePattern("tpu.sigmoid", 1, context),
-        weightTensorFile_(weightTensorFile),
-        weightFileVar_(weightFileVar) {}
+  TpuGenSigmoidTablePattern(MLIRContext *context)
+      : RewritePattern("tpu.sigmoid", 1, context) {}
 
   PatternMatchResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
+    TensorFile *wTF = getWeightTensorFile(op);
+    Value *wfV = getWeightFileValue(op);
     auto sigOp = cast<tpu::SigmoidOp>(op);
     std::vector<std::unique_ptr<std::vector<float>>> weights(1);
 
     std::string op_name =
         sigOp.getAttrOfType<StringAttr>("name").getValue().str();
-    
+
     if (sigOp.has_table() == true) {
       llvm::errs() << sigOp.name() << " gen already\n";
       return matchFailure();
@@ -159,7 +159,7 @@ struct TpuGenSigmoidTablePattern : public RewritePattern {
         }
       }
     } else if (sigOp.getOpQuant() == "BF16") {
-      assert(0 && "wait for refactor"); 
+      assert(0 && "wait for refactor");
     //   //<! 1880v2 hw bf16 config
     //   table_h = 32;
     //   table_w = 8;
@@ -185,8 +185,8 @@ struct TpuGenSigmoidTablePattern : public RewritePattern {
     //                   y0_bf16_table.data(), table_hw);
     //   FloatToBFloat16(y0_fp32_slope_table.data(),
     //                   y0_bf16_slope_table.data(), table_hw);
-              
-    //   // copy bf16 data to float table                      
+
+    //   // copy bf16 data to float table
     //   for (int i = 0; i < npu_num; ++i){
     //     std::copy(y0_bf16_table.data(), y0_bf16_table.data() + table_hw,
     //               y0_table.data() + i * table_hw);
@@ -224,15 +224,15 @@ struct TpuGenSigmoidTablePattern : public RewritePattern {
       auto type = RankedTensorType::get(weightShape,
               FloatType::getF32(rewriter.getContext()));
 
-      weightTensorFile_->addTensor<float>(tensor_name, newWeights.data(), type);
+      wTF->addTensor<float>(tensor_name, newWeights.data(), type);
       std::vector<NamedAttribute> attrs;
       attrs.push_back(
           rewriter.getNamedAttr("name", rewriter.getStringAttr(tensor_name)));
       attrs.push_back(
           rewriter.getNamedAttr("storage", rewriter.getStringAttr("UINT8")));
-    
+
       auto new_weight_op = rewriter.create<tpu::LoadWeightOp>(
-          op->getLoc(), type, ArrayRef<Value *>{weightFileVar_},
+          op->getLoc(), type, ArrayRef<Value *>{wfV},
           ArrayRef<NamedAttribute>{attrs});
       newOperands.push_back(new_weight_op);
 
@@ -246,7 +246,7 @@ struct TpuGenSigmoidTablePattern : public RewritePattern {
         auto type = RankedTensorType::get(
             weightShapes, FloatType::getF32(rewriter.getContext()));
 
-        weightTensorFile_->addTensor<float>(tensor_name, newWeights.at(i).data(), type);
+        wTF->addTensor<float>(tensor_name, newWeights.at(i).data(), type);
         vector<NamedAttribute> attrs;
         attrs.push_back(
             rewriter.getNamedAttr("name", rewriter.getStringAttr(tensor_name)));
@@ -254,7 +254,7 @@ struct TpuGenSigmoidTablePattern : public RewritePattern {
             rewriter.getNamedAttr("storage", rewriter.getStringAttr("UINT16")));
 
         auto new_weight_op = rewriter.create<tpu::LoadWeightOp>(
-            op->getLoc(), type, ArrayRef<Value *>{weightFileVar_},
+            op->getLoc(), type, ArrayRef<Value *>{wfV},
             ArrayRef<NamedAttribute>{attrs});
         newOperands.push_back(new_weight_op);
       }
@@ -269,9 +269,6 @@ struct TpuGenSigmoidTablePattern : public RewritePattern {
         ArrayRef<NamedAttribute>{sigOp.getAttrs()});
     return matchSuccess();
   }
-
-  TensorFile *weightTensorFile_;
-  Value* weightFileVar_;
 };
 
 class GenSigmoidTablePass : public FunctionPass<GenSigmoidTablePass> {
@@ -280,30 +277,10 @@ public:
 
   void runOnFunction() override {
     auto fn = getFunction();
-
-    // find tensor filename
-    llvm::StringRef filename;
-    Value* weightFileVar;
-    fn.walk([&](tpu::LoadFileOp op) {
-      filename = op.filename();
-      llvm::errs() << "LoadFileOp filename " << filename << "\n";
-      weightFileVar = op.getResult();
-    });
-    auto weightTensorFile = openTensorFile(filename);
-
     auto *context = &getContext();
-
     OwningRewritePatternList patterns;
-    patterns.insert<TpuGenSigmoidTablePattern>(context, weightTensorFile.get(), weightFileVar);
+    patterns.insert<TpuGenSigmoidTablePattern>(context);
     applyPatternsGreedily(fn, patterns);
-
-    std::string newName;
-    weightTensorFile->keep(true, &newName);
-    fn.walk([&](tpu::LoadFileOp op) {
-      OpBuilder opBuilder(context);
-      op.setAttr("filename", opBuilder.getStringAttr(newName));
-      llvm::errs() << "LoadFileOp filename updated to " << newName << "\n";
-    });
   }
 
 private:

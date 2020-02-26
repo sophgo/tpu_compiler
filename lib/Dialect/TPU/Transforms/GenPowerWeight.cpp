@@ -20,6 +20,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/TPU/TPUDialect.h"
+#include "mlir/Dialect/TPU/TPUTensorSupport.h"
 #include "mlir/Dialect/TPU/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
@@ -40,15 +41,14 @@ static std::vector<std::string> passed;
 namespace {
 
 struct TpuGenPowerWeightPattern : public RewritePattern {
-  TpuGenPowerWeightPattern(MLIRContext *context, TensorFile *weightTensorFile,
-      Value* weightFileVar)
-      : RewritePattern("tpu.power", 1, context),
-        weightTensorFile_(weightTensorFile),
-        weightFileVar_(weightFileVar) {}
+  TpuGenPowerWeightPattern(MLIRContext *context)
+      : RewritePattern("tpu.power", 1, context) {}
 
   PatternMatchResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
     auto pwOp = dyn_cast<tpu::PowerOp>(op);
+    TensorFile *wTF = getWeightTensorFile(op);
+    Value *wfV = getWeightFileValue(op);
 
     llvm::errs() << pwOp.getOperationName()
       << ", scale is " << pwOp.scale().convertToFloat() << "\n"
@@ -78,10 +78,10 @@ struct TpuGenPowerWeightPattern : public RewritePattern {
       auto tensor_name = weight_op.name().getValue();
       llvm::errs() << "  weight[" << i << "] : " << tensor_name << "\n";
       auto type = weight_op.getResult()->getType().cast<TensorType>();
-      weights[weight_idx] = weightTensorFile_->readTensor<float>(tensor_name, type);
+      weights[weight_idx] = wTF->readTensor<float>(tensor_name, type);
       weight_idx++;
       // delete the tensor from the weight file
-      weightTensorFile_->deleteTensor<float>(tensor_name);
+      wTF->deleteTensor<float>(tensor_name);
     }
 
     auto scale_type = pwOp.scale_table()->getType().cast<TensorType>();
@@ -120,20 +120,20 @@ struct TpuGenPowerWeightPattern : public RewritePattern {
       auto type = RankedTensorType::get(weightShapes[i],
               FloatType::getF32(rewriter.getContext()));
 
-      weightTensorFile_->addTensor<float>(tensor_name, newWeights[i], type);
+      wTF->addTensor<float>(tensor_name, newWeights[i], type);
       std::vector<NamedAttribute> attrs;
       attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(tensor_name)));
       attrs.push_back(rewriter.getNamedAttr("storage", rewriter.getStringAttr("FP32")));
 
       auto new_weight_op = rewriter.create<tpu::LoadWeightOp>(op->getLoc(), type,
-          ArrayRef<Value *>{weightFileVar_}, ArrayRef<NamedAttribute>{attrs});
+          ArrayRef<Value *>{wfV}, ArrayRef<NamedAttribute>{attrs});
       newOperands.push_back(new_weight_op);
     }
 
     // replace with the new tanh op
     auto origAttrs = pwOp.getAttrs();
     std::vector<NamedAttribute> newAttrs(origAttrs.begin(), origAttrs.end());
-    
+
     rewriter.replaceOpWithNewOp<tpu::PowerOp>(
         pwOp, pwOp.getResult()->getType(),
         ArrayRef<Value *>{newOperands}, ArrayRef<NamedAttribute>{newAttrs});
@@ -141,9 +141,6 @@ struct TpuGenPowerWeightPattern : public RewritePattern {
     return matchSuccess();
 
   }
-
-  TensorFile *weightTensorFile_;
-  Value* weightFileVar_;
 };
 
 class GenPowerWeightPass : public FunctionPass<GenPowerWeightPass> {
@@ -152,30 +149,10 @@ public:
 
   void runOnFunction() override {
     auto fn = getFunction();
-
-    // find tensor filename
-    llvm::StringRef filename;
-    Value* weightFileVar;
-    fn.walk([&](tpu::LoadFileOp op) {
-      filename = op.filename();
-      llvm::errs() << "LoadFileOp filename " << filename << "\n";
-      weightFileVar = op.getResult();
-    });
-    auto weightTensorFile = openTensorFile(filename);
-
     auto *context = &getContext();
-
     OwningRewritePatternList patterns;
-    patterns.insert<TpuGenPowerWeightPattern>(context, weightTensorFile.get(), weightFileVar);
+    patterns.insert<TpuGenPowerWeightPattern>(context);
     applyPatternsGreedily(fn, patterns);
-
-    std::string newName;
-    weightTensorFile->keep(true, &newName);
-    fn.walk([&](tpu::LoadFileOp op) {
-      OpBuilder opBuilder(context);
-      op.setAttr("filename", opBuilder.getStringAttr(newName));
-      llvm::errs() << "LoadFileOp filename updated to " << newName << "\n";
-    });
   }
 
 private:

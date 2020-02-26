@@ -1203,7 +1203,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
   }
 
   // Bypass load file and weight since is done in constructor
-  if (auto loadFileOp = dyn_cast<tpu::LoadFileOp>(opInst)) {
+  if (auto weightFileOp = dyn_cast<tpu::WeightFileOp>(opInst)) {
     return success();
   }
   if (auto loadWeightOp = dyn_cast<tpu::LoadWeightOp>(opInst)) {
@@ -2206,7 +2206,7 @@ LogicalResult ModuleInterpreter::doRun(std::vector<int64_t> input_shape, std::ve
 
 static bool isValidTpuOp(Operation &op)
 {
-  return (!isa<tpu::LoadWeightOp>(op) && !isa<tpu::LoadFileOp>(op) &&
+  return (!isa<tpu::LoadWeightOp>(op) && !isa<tpu::WeightFileOp>(op) &&
           !isa<tpu::NoneOp>(op) &&
           op.getName().getDialect().str() == "tpu");
 }

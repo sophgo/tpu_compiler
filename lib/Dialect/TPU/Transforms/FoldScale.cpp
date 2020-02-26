@@ -20,6 +20,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/TPU/TPUDialect.h"
+#include "mlir/Dialect/TPU/TPUTensorSupport.h"
 #include "mlir/Dialect/TPU/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
@@ -35,15 +36,16 @@ using namespace mlir;
 namespace {
 
 struct TpuFoldScalePattern : public RewritePattern {
-  TpuFoldScalePattern(MLIRContext *context, TensorFile *weightTensorFile)
-      : RewritePattern("tpu.scale", 1, context),
-        weightTensorFile_(weightTensorFile) {}
+  TpuFoldScalePattern(MLIRContext *context)
+      : RewritePattern("tpu.scale", 1, context) {}
 
   PatternMatchResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
     auto loc = op->getLoc();
     auto laterScaleOp = cast<tpu::ScaleOp>(op);
     llvm::errs() << laterScaleOp.getOperationName() << "\n";
+    TensorFile *wTF = getWeightTensorFile(op);
+    Value *wfV = getWeightFileValue(op);
 
     // match consecutive scale operations
     auto formerOp = laterScaleOp.getOperand(0)->getDefiningOp();
@@ -54,9 +56,6 @@ struct TpuFoldScalePattern : public RewritePattern {
     // op_name from the later scale
     std::string op_name = laterScaleOp.getAttrOfType<StringAttr>("name").getValue().str();
     llvm::errs() << "Scale Op: " << op_name << "\n";
-    auto one_weight_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
-          laterScaleOp.getOperand(1)->getDefiningOp());
-    auto weightFileVar = one_weight_op.getOperand();
 
     // find scale and bias tensor for both later and former scale_op
     std::vector<std::unique_ptr<std::vector<float> > > laterWeights(2);
@@ -68,9 +67,9 @@ struct TpuFoldScalePattern : public RewritePattern {
       auto tensor_name = weight_op.name().getValue();
       llvm::errs() << "  weight[" << i << "] : " << tensor_name << "\n";
       auto type = weight_op.getResult()->getType().cast<TensorType>();
-      laterWeights[i] = weightTensorFile_->readTensor<float>(tensor_name, type);
+      laterWeights[i] = wTF->readTensor<float>(tensor_name, type);
       // delete the tensor from the weight file
-      weightTensorFile_->deleteTensor<float>(tensor_name);
+      wTF->deleteTensor<float>(tensor_name);
     }
     std::vector<std::unique_ptr<std::vector<float> > > formerWeights(2);
     for (int i = 0; i < 2; ++i) {
@@ -81,9 +80,9 @@ struct TpuFoldScalePattern : public RewritePattern {
       auto tensor_name = weight_op.name().getValue();
       llvm::errs() << "  weight[" << i << "] : " << tensor_name << "\n";
       auto type = weight_op.getResult()->getType().cast<TensorType>();
-      formerWeights[i] = weightTensorFile_->readTensor<float>(tensor_name, type);
+      formerWeights[i] = wTF->readTensor<float>(tensor_name, type);
       // delete the tensor from the weight file
-      weightTensorFile_->deleteTensor<float>(tensor_name);
+      wTF->deleteTensor<float>(tensor_name);
     }
 
     // convert tensors
@@ -113,11 +112,11 @@ struct TpuFoldScalePattern : public RewritePattern {
       auto tensor_name = op_name + "_fold_" + std::to_string(i);
       llvm::errs() << "  new_weight[" << i << "] : " << tensor_name << "\n";
       auto type = RankedTensorType::get({oc}, FloatType::getF32(rewriter.getContext()));
-      weightTensorFile_->addTensor<float>(tensor_name, newWeights[i], type);
+      wTF->addTensor<float>(tensor_name, newWeights[i], type);
       std::vector<NamedAttribute> attrs;
       attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(tensor_name)));
       auto new_weight_op = rewriter.create<tpu::LoadWeightOp>(loc, type,
-          ArrayRef<Value *>{weightFileVar}, ArrayRef<NamedAttribute>{attrs});
+          ArrayRef<Value *>{wfV}, ArrayRef<NamedAttribute>{attrs});
       newOperands.push_back(new_weight_op);
     }
 
@@ -134,8 +133,6 @@ struct TpuFoldScalePattern : public RewritePattern {
 
     return matchSuccess();
   }
-
-  TensorFile *weightTensorFile_;
 };
 
 class FoldScalePass : public FunctionPass<FoldScalePass> {
@@ -145,26 +142,10 @@ public:
   void runOnFunction() override {
     auto fn = getFunction();
 
-    // find tensor filename
-    llvm::StringRef filename;
-    fn.walk([&](tpu::LoadFileOp op) {
-      filename = op.getAttrOfType<StringAttr>("filename").getValue();
-      llvm::errs() << "LoadFileOp filename " << filename << "\n";
-    });
-    auto weightTensorFile = openTensorFile(filename);
-
     OwningRewritePatternList patterns;
     auto *context = &getContext();
-    patterns.insert<TpuFoldScalePattern>(context, weightTensorFile.get());
+    patterns.insert<TpuFoldScalePattern>(context);
     applyPatternsGreedily(fn, patterns);
-
-    std::string newName;
-    weightTensorFile->keep(true, &newName);
-    fn.walk([&](tpu::LoadFileOp op) {
-      OpBuilder b(fn.getBody());
-      op.setAttr("filename", b.getStringAttr(newName));
-      llvm::errs() << "LoadFileOp filename updated to " << newName << "\n";
-    });
   }
 
 private:

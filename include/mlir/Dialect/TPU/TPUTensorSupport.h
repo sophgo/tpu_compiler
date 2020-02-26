@@ -45,6 +45,9 @@ void getNCHW(std::vector<int64_t> &shape, int64_t &n, int64_t &c, int64_t &h,
  * Weight helpers
  *****************************************************************************/
 
+Value* getWeightFileValue(Operation *op);
+TensorFile* getWeightTensorFile(Operation *op);
+
 template<typename T>
 std::unique_ptr<std::vector<T> > readAndDeleteWeightTensor(
     Value *opd, TensorFile *wTF);
