@@ -459,6 +459,60 @@ def TPU_FullyConnectedOp : TPU_Op<"fully_connected",
   let results = (outs AnyTensor:$output);
 }
 
+def TPU_DetectionOutputOp : TPU_Op<"detectionoutput",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuOpInterpInterface>]> {
+  let summary = "DetectionOutput operator";
+
+  let description = [{
+    Intended for use with MultiBox detection method
+
+    Inputs:
+      `inputs`                  : required, input tensors.
+      `num_classes`             : required, class number.
+      `share_location`          : required, If true, bounding box are shared among different classes.
+      `background_label_id`     : required, background label id.
+      `top_k`                   : required, Maximum number of results to be kept.
+      `code_type`               : required, Type of coding method for bbox.
+      `keep_top_k`              : required, Number of total bboxes to be kept per image after nms step.
+      `confidence_threshold`    : required, classification confidence threshold
+
+    Attributes:
+      `name`            : required, name for calibration, comparing, or debug.
+      `layer_id`        : optional, id for profiling.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TPU_QuantSupportPerChannel`
+      `TPU_QuantSupportAsymmetric`
+      `TpuOpCommonInterface` : support common TPU Op interface
+      `TpuOpInterpInterface` : support interperter
+      `TpuOpQuantInterface`  : support quantization
+      `TpuOpLowerInterface`  : support lower to TPU TG Ops
+  }];
+
+  let arguments = (
+    ins Variadic<AnyTensor>:$input,
+    I32Attr:$num_classes,
+    DefaultValuedAttr<BoolAttr, "true">:$share_location,
+    NonNegativeI32Attr:$background_label_id,
+    F32Attr:$nms_threshold,
+    I32Attr:$top_k,
+    TPU_DetectionOutput_Code_typeAttr:$code_type,
+    I32Attr:$keep_top_k,
+    F32Attr:$confidence_threshold,
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
+
 def TPU_LeakyReluOp: TPU_Op<"leaky_relu",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
@@ -784,6 +838,71 @@ def TPU_PReluOp : TPU_Op<"prelu",
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_neg_rshift,
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_neg_multiplier,
     TPU_QuantParamAttr:$quant,
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
+def TPU_PriorBoxOp: TPU_Op<"priorbox",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuOpInterpInterface>]> {
+
+  let summary = "Priorbox operator";
+
+  let description = [{
+      Intended for use with MultiBox detection method to generate prior.
+
+    Inputs:
+      `input`              : required, the input activation tensor.
+      `min_size`           : required.
+      `min_size_size`      : required.
+      `max_size`           : required.
+      `max_size_size`      : required.
+      `aspect_ratio0`      : required.
+      `aspect_ratios_size` : required.
+      `flip`               : required.
+      `clip`               : required.
+      `variance0`          : required.
+      `variance1`          : required.
+      `variance1`          : required.
+      `variance2`          : required.
+      `variance3`          : required.            
+      `step`               : required.  
+      `offset`             : required.  
+
+    Attributes:
+      `name`            : required, name for calibration, comparing, or debug.
+      `layer_id`        : optional, id for profiling.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface` : support common TPU Op interface
+      `TpuOpInterpInterface` : support interperter
+  }];
+
+  let arguments = (
+    ins Variadic<AnyTensor>:$input,
+    F32Attr:$min_size,
+    I32Attr:$min_size_size,
+    F32Attr:$max_size,
+    I32Attr:$max_size_size,
+    F32Attr:$aspect_ratio0,
+    OptionalAttr<F32Attr>:$aspect_ratio1,
+    I32Attr:$aspect_ratios_size,
+    DefaultValuedAttr<BoolAttr, "true">:$flip,
+    DefaultValuedAttr<BoolAttr, "true">:$clip,
+    F32Attr:$variance0,
+    F32Attr:$variance1,
+    F32Attr:$variance2,
+    F32Attr:$variance3,
+    F32Attr:$step,
+    DefaultValuedAttr<F32Attr, "0.5">:$offset,
     StrAttr:$name,
     OptionalAttr<NonNegativeI32Attr>:$layer_id
   );
@@ -1178,33 +1297,6 @@ def TPU_UpsampleOp: TPU_Op<"upsample",
 
 
 // to be removed
-def TPU_DetectionOutputOp: TPU_Op<"detectionoutput",
-      [NoSideEffect, DeclareOpInterfaceMethods<TpuInterface>]> {
-  let summary = "DetectionOutput operator";
-
-  let description = [{
-    Intended for use with MultiBox detection method
-  }];
-
-  let arguments = (
-    ins Variadic<AnyTensor>:$input,
-    I32Attr:$num_classes,
-    DefaultValuedAttr<BoolAttr, "true">:$share_location,
-    OptionalAttr<NonNegativeI32Attr>:$background_label_id,
-    OptionalAttr<F32Attr>:$nms_threshold,
-    OptionalAttr<I32Attr>:$top_k,
-    TPU_DetectionOutput_Code_typeAttr:$code_type,
-    OptionalAttr<I32Attr>:$keep_top_k,
-    OptionalAttr<F32Attr>:$confidence_threshold,
-    OptionalAttr<StrAttr>:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
-    OptionalAttr<NonNegativeI64Attr>:$offset,
-    OptionalAttr<F32Attr>:$threshold_y,
-    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
-  );
-
-  let results = (outs AnyTensor:$output);
-}
 
 def TPU_DivOp: TPU_Op<"div",
       [NoSideEffect, DeclareOpInterfaceMethods<TpuInterface>]> {
@@ -1274,41 +1366,6 @@ def TPU_PowerOp: TPU_Op<"power",
   );
 
   let results = (outs AnyTensor:$y);
-}
-
-
-def TPU_PriorBoxOp: TPU_Op<"priorbox",
-      [NoSideEffect, DeclareOpInterfaceMethods<TpuInterface>]> {
-  let summary = "PriorBox operator";
-
-  let description = [{
-    Intended for use with MultiBox detection method to generate prior
-  }];
-
-  let arguments = (
-    ins Variadic<AnyTensor>:$input,
-    F32Attr:$min_size,
-    I32Attr:$min_size_size,
-    F32Attr:$max_size,
-    I32Attr:$max_size_size,
-    F32Attr:$aspect_ratio0,
-    OptionalAttr<F32Attr>:$aspect_ratio1,
-    I32Attr:$aspect_ratios_size,
-    DefaultValuedAttr<BoolAttr, "true">:$flip,
-    DefaultValuedAttr<BoolAttr, "true">:$clip,
-    F32Attr:$variance0,
-    F32Attr:$variance1,
-    F32Attr:$variance2,
-    F32Attr:$variance3,
-    F32Attr:$step,
-    DefaultValuedAttr<F32Attr, "0.5">:$offset,
-    OptionalAttr<StrAttr>:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
-    OptionalAttr<F32Attr>:$threshold_y,
-    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
-  );
-
-  let results = (outs AnyTensor:$output);
 }
 
 def TPU_SqrtOp: TPU_Op<"sqrt",

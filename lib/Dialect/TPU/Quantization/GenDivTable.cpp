@@ -35,7 +35,10 @@
 
 
 #include <float.h>
-
+#include <bmkernel/bm_kernel.h>
+#include <bmkernel/bm_kernel_legacy.h>
+#include <bmkernel/bm1880v2/bmkernel_1880v2.h>
+#include <bmkernel/bm1880v2/1880v2_fp_convert.h>
 #define DEBUG_TYPE "gen-Div-table"
 
 using namespace mlir;
@@ -87,8 +90,8 @@ void bf16_gen_reciprocal(uint16_t *table_data) {
     }
 
     double s = _gen_reciprocal(2, exp);
-    FloatToBFloat16((float*)&s,&table_data[idx],(size_t)1);
-
+    //FloatToBFloat16((float*)&s,&table_data[idx],(size_t)1);
+    table_data[idx] = convert_fp32_bf16(s);
     idx++;
   }
 
@@ -110,8 +113,8 @@ void bf16_gen_reciprocal(uint16_t *table_data) {
 
     double s = -1 * _gen_reciprocal(-2, exp);
     //table_data[idx] = convert_fp32_bf16(s);
-    FloatToBFloat16((float*)&s,&table_data[idx],(size_t)1);
-
+    //FloatToBFloat16((float*)&s,&table_data[idx],(size_t)1);
+    table_data[idx] = convert_fp32_bf16(s);
     idx++;
   }
 
@@ -133,12 +136,13 @@ void bf16_gen_reciprocal_mantissa(uint16_t* table_mantissa) {
   for (int i = 0; i < half; i++) {
     d = 1 + i * 1 / 128.0;
     d = (double) pow(d, -1);
-    FloatToBFloat16((float*)&d,&table_mantissa[128+idx],(size_t)1);
-
+    //FloatToBFloat16((float*)&d,&table_mantissa[128+idx],(size_t)1);
+    table_mantissa[128+idx] = convert_fp32_bf16(d);
     //13=2^3x1.625=(2^2)x(2^1x1.625)
     d = 2 * (1 + i * 1 / 128.0);
     d = (double) pow(d, -1);
-    FloatToBFloat16((float*)&d,&table_mantissa[idx],(size_t)1);
+    //FloatToBFloat16((float*)&d,&table_mantissa[idx],(size_t)1);
+    table_mantissa[idx] = convert_fp32_bf16(d);
     idx++;
   }
 

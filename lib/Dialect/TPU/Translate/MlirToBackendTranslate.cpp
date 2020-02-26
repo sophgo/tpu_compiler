@@ -276,7 +276,7 @@ static LogicalResult runOperation(Operation &opInst) {
       gaddr_t input_gaddr = getPreviousOpAddress(op);
       gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
       gaddr_t table_data_lut = getWeightOpAddress(op.getOperand(1)->getDefiningOp());
-      gaddr_t table_data_mantissa_lut = getWeightOpAddress(op.getOperand(1)->getDefiningOp());
+      gaddr_t table_data_mantissa_lut = getWeightOpAddress(op.getOperand(2)->getDefiningOp());
 
 
       int layer_id = op.layer_id().getValue().getLimitedValue();
@@ -337,19 +337,19 @@ static LogicalResult runOperation(Operation &opInst) {
       gaddr_t input_gaddr = getPreviousOpAddress(op);
       gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
       gaddr_t table_data_lut = getWeightOpAddress(op.getOperand(1)->getDefiningOp());
-      gaddr_t table_data_mantissa_lut = getWeightOpAddress(op.getOperand(1)->getDefiningOp());
+      gaddr_t table_data_mantissa_lut = getWeightOpAddress(op.getOperand(2)->getDefiningOp());
 
 
       int layer_id = op.layer_id().getValue().getLimitedValue();
       
-      // bf16_sqrt_fixed_forward_bmkernel(*backend_ctx,
+      // bf16_reciprocal_fixed_forward_bmkernel(*backend_ctx,
       //                                0,        // stream_id,
       //                                0,        // inst_id,
       //                                layer_id, // layer_id,
       //                                nullptr,  // const u32 *depends,
       //                                0,        // depends_len,
       //                                input_gaddr, output_gaddr, table_data_lut,table_data_mantissa_lut,
-      //                                n, c, h, w);      
+      //                                n, c, h, w);   
 
 
     }else {
