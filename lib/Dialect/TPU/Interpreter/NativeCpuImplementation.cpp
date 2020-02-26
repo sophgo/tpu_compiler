@@ -937,10 +937,10 @@ int my_permute(float *input, float *output, const int input_shape_size,
     return 0 ;
 }
 
-int my_normalize(float *input, float *output, bool across_spatial,
+int my_normalize(float *input,float *scale, float *output, 
+    bool across_spatial,bool channel_shared,
     int n, int c, int h, int w){
-
-  float eps = 1.0e-5;
+  float eps=1.0e-5;
   if(!across_spatial){ // only ssd case currently
     auto spatial_dim = h*w;
     auto norm_ = c*h*w;
@@ -950,9 +950,8 @@ int my_normalize(float *input, float *output, bool across_spatial,
           for(int ci=0;ci<c;ci++){
             value += pow(input[ni*norm_+ci*spatial_dim+i],2);
           }
-
           for(int ci=0;ci<c;ci++){
-            output[ni*norm_+ci*spatial_dim+i] = input[ni*norm_+ci*spatial_dim+i]/sqrt(value + eps);
+              output[ni*norm_+ci*spatial_dim+i] = (input[ni*norm_+ci*spatial_dim+i]/sqrt(value + eps))*scale[ci];
           }
         }
   }else{

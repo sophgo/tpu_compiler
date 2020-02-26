@@ -14,6 +14,7 @@ add_llvm_library(MLIRTPU
   Analysis/TpuOpStats.cpp
   Transforms/ConvertBnToScale.cpp
   Transforms/ConvertScale.cpp
+  Transforms/ConvertNormalize.cpp
   Transforms/FuseRelu.cpp
   Transforms/AssignWeightAddress.cpp
   Transforms/AssignNeuronAddress.cpp

@@ -30,7 +30,7 @@ template <typename T> class OpPassBase;
 
 std::unique_ptr<OpPassBase<ModuleOp>> createPrintTpuOpPass();
 std::unique_ptr<OpPassBase<ModuleOp>> createPrintTpuOpStatsPass();
-
+std::unique_ptr<OpPassBase<FuncOp>> createDecomposeNormalizePass();
 std::unique_ptr<OpPassBase<FuncOp>> createConvertBnToScalePass();
 std::unique_ptr<OpPassBase<FuncOp>> createFoldScalePass();
 std::unique_ptr<OpPassBase<FuncOp>> createMergeScaleIntoConvPass();
