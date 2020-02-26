@@ -8,6 +8,7 @@ net_list=(
   "resnet50"
   "yolo_v3"
   "retinaface_res50"
+  "efficientnet_b0"
   "inception_v4"
   #"ssd300"
 )

@@ -6,18 +6,16 @@ list(APPEND tpu_LINKER_LIBS
 
 add_llvm_library(MLIRTPU
   IR/TPUDialect.cpp
+  IR/WeightFileOp.cpp
   IR/DialectRegistration.cpp
   IR/TPUOperationSupport.cpp
   IR/TPUTensorSupport.cpp
   Analysis/TpuOpPrint.cpp
   Analysis/TpuOpStats.cpp
   Transforms/ConvertBnToScale.cpp
+  Transforms/ConvertScale.cpp
   Transforms/ConvertNormalize.cpp
-  Transforms/FoldScale.cpp
-  Transforms/MergeScaleIntoConv.cpp
-  Transforms/ConvertScaleToDWConv
   Transforms/FuseRelu.cpp
-  Transforms/FuseEltwise.cpp
   Transforms/AssignWeightAddress.cpp
   Transforms/AssignNeuronAddress.cpp
   Transforms/AssignLayerId.cpp

@@ -42,7 +42,7 @@ typedef std::map<std::string, std::vector<int64_t> > shape_map_t;
 
 static bool isValidOp(Operation &op)
 {
-  return (!isa<tpu::LoadWeightOp>(op) && !isa<tpu::LoadFileOp>(op) &&
+  return (!isa<tpu::LoadWeightOp>(op) && !isa<tpu::WeightFileOp>(op) &&
           op.getName().getDialect().str() == "tpu");
 }
 
@@ -141,8 +141,8 @@ public:
       for (Block &bb : function.getBlocks()) {
         for (auto &op : bb) {
           if (!isValidOp(op)) {
-            if (auto loadFileOp = dyn_cast<tpu::LoadFileOp>(op)) {
-              weightFilePath_ = loadFileOp.getAttrOfType<StringAttr>("filename").getValue().str();
+            if (auto weightFileOp = dyn_cast<tpu::WeightFileOp>(op)) {
+              weightFilePath_ = weightFileOp.getAttrOfType<StringAttr>("filename").getValue().str();
             }
             continue;
           }

@@ -874,7 +874,7 @@ LogicalResult tpu::PermuteOp::interpret(
     assert(ret == 0);
     valueMapping[result] = std::move(resultT);
   }
-  return success();                          
+  return success();
 }
 
 LogicalResult tpu::PoolAvg2DOp::interpret(
@@ -910,13 +910,31 @@ LogicalResult tpu::PReluOp::interpret(
   getNCHW(shape, n, c, h, w);
 
   // get tensors
-  assert(opdT.size() == 2);
   std::shared_ptr<std::vector<float>> input = opdT[0];
   std::shared_ptr<std::vector<float>> negative_slope = opdT[1];
+  std::shared_ptr<std::vector<float>> rshift_pos = opdT[6];
+  std::shared_ptr<std::vector<float>> multiplier_pos = opdT[7];
+  std::shared_ptr<std::vector<float>> rshift_neg = opdT[8];
+  
   // compute in fp32
   my_prelu(input->data(), resultT->data(), n, c, h, w, negative_slope->data());
 
+  if (getOpQuant() == "INT8") {
 
+    assert(rshift_pos);
+    assert(rshift_neg);
+    assert(multiplier_pos);
+    for (int i = 0; i < size; ++i) {
+      if (input->at(i) > 0) {
+        resultT->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
+            resultT->at(i), (uint32_t)rshift_pos->at(0), multiplier_pos->at(0),
+            false);
+      } else {
+        resultT->at(i) = (float)applyRShiftAndSaturateInt8(
+            resultT->at(i), (uint32_t)rshift_neg->at(0));
+      }
+    }
+  }
   valueMapping[result] = std::move(resultT);
 
   return success();
@@ -1232,12 +1250,12 @@ LogicalResult tpu::ShuffleChannelOp::interpret(
 
   int64_t n = input_shape[0];
   int64_t c = input_shape[1];
-  int64_t feature_map_size = std::accumulate(
+  int64_t frame_size = std::accumulate(
       input_shape.begin() + 2, input_shape.end(), 1, std::multiplies<>());
   float *input = (float *)opdT[0]->data();
   float *output = (float *)resultT.get()->data();
   uint32_t group = this->group().getLimitedValue();
-  int ret = my_shuffle_channel(input, output, group, n, c, feature_map_size);
+  int ret = my_shuffle_channel(input, output, group, n, c, frame_size);
 
   assert(ret == 0);
 
@@ -1667,7 +1685,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
   }
 
   // Bypass load file and weight since is done in constructor
-  if (auto loadFileOp = dyn_cast<tpu::LoadFileOp>(opInst)) {
+  if (auto weightFileOp = dyn_cast<tpu::WeightFileOp>(opInst)) {
     return success();
   }
   if (auto loadWeightOp = dyn_cast<tpu::LoadWeightOp>(opInst)) {
@@ -2522,8 +2540,8 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
       for (int i = 0; i < size; ++i) {
         output[i] = data[(unsigned char)input[0][i]];
       }
-    } 
-    else  
+    }
+    else
 #endif
     {
 
@@ -2674,7 +2692,7 @@ LogicalResult ModuleInterpreter::doRun(std::vector<int64_t> input_shape, std::ve
 
 static bool isValidTpuOp(Operation &op)
 {
-  return (!isa<tpu::LoadWeightOp>(op) && !isa<tpu::LoadFileOp>(op) &&
+  return (!isa<tpu::LoadWeightOp>(op) && !isa<tpu::WeightFileOp>(op) &&
           !isa<tpu::NoneOp>(op) &&
           op.getName().getDialect().str() == "tpu");
 }

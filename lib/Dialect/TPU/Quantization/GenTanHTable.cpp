@@ -20,6 +20,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/TPU/TPUDialect.h"
+#include "mlir/Dialect/TPU/TPUTensorSupport.h"
 #include "mlir/Dialect/TPU/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
@@ -99,7 +100,7 @@ static void gen_tanh(int channel, int range_start, int range_end, float scale, i
         llvm::errs()
         << llvm::format(
           "t [%lu] is %f[%d], 0x%x fp is %f d is %.8lf input is %f\n",
-          idx, convert_bf16_fp32(table_data[idx]), 
+          idx, convert_bf16_fp32(table_data[idx]),
           -127 + i, table_data[idx], (float)s, s, range_start + _idx
           )
         );
@@ -166,14 +167,13 @@ using namespace mlir;
 namespace {
 
 struct TpuGenTanHTablePattern : public RewritePattern {
-  TpuGenTanHTablePattern(MLIRContext *context, TensorFile *weightTensorFile,
-      Value* weightFileVar)
-      : RewritePattern("tpu.tanh", 1, context),
-        weightTensorFile_(weightTensorFile),
-        weightFileVar_(weightFileVar) {}
+  TpuGenTanHTablePattern(MLIRContext *context)
+      : RewritePattern("tpu.tanh", 1, context) {}
 
   PatternMatchResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
+    TensorFile *wTF = getWeightTensorFile(op);
+    Value *wfV = getWeightFileValue(op);
     auto tanhOp = cast<tpu::TanHOp>(op);
     llvm::errs() << tanhOp.getOperationName() <<
       ", scale is " << tanhOp.scale().convertToFloat() << "\n";
@@ -218,10 +218,10 @@ struct TpuGenTanHTablePattern : public RewritePattern {
       auto tensor_name = weight_op.name().getValue();
       llvm::errs() << "  weight[" << i << "] : " << tensor_name << "\n";
       auto type = weight_op.getResult()->getType().cast<TensorType>();
-      weights[weight_idx] = weightTensorFile_->readTensor<float>(tensor_name, type);
+      weights[weight_idx] = wTF->readTensor<float>(tensor_name, type);
       weight_idx++;
       // delete the tensor from the weight file
-      weightTensorFile_->deleteTensor<float>(tensor_name);
+      wTF->deleteTensor<float>(tensor_name);
     }
 
     int tbl_shape = channel * table_hw;
@@ -255,13 +255,13 @@ struct TpuGenTanHTablePattern : public RewritePattern {
       auto type = RankedTensorType::get(weightShapes[i],
               FloatType::getF32(rewriter.getContext()));
 
-      weightTensorFile_->addTensor<float>(tensor_name, newWeights[i], type);
+      wTF->addTensor<float>(tensor_name, newWeights[i], type);
       std::vector<NamedAttribute> attrs;
       attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(tensor_name)));
       attrs.push_back(rewriter.getNamedAttr("storage", rewriter.getStringAttr("FP32")));
 
       auto new_weight_op = rewriter.create<tpu::LoadWeightOp>(op->getLoc(), type,
-          ArrayRef<Value *>{weightFileVar_}, ArrayRef<NamedAttribute>{attrs});
+          ArrayRef<Value *>{wfV}, ArrayRef<NamedAttribute>{attrs});
       newOperands.push_back(new_weight_op);
     }
 
@@ -269,7 +269,7 @@ struct TpuGenTanHTablePattern : public RewritePattern {
     auto origAttrs = tanhOp.getAttrs();
     std::vector<NamedAttribute> newAttrs(origAttrs.begin(), origAttrs.end());
     newAttrs.push_back(rewriter.getNamedAttr("scale", rewriter.getF32FloatAttr(scale)));
-    
+
     rewriter.replaceOpWithNewOp<tpu::TanHOp>(
         tanhOp, tanhOp.getResult()->getType(),
         ArrayRef<Value *>{newOperands}, ArrayRef<NamedAttribute>{newAttrs});
@@ -277,9 +277,6 @@ struct TpuGenTanHTablePattern : public RewritePattern {
     return matchSuccess();
 
   }
-
-  TensorFile *weightTensorFile_;
-  Value* weightFileVar_;
 };
 
 class GenTanHTablePass : public FunctionPass<GenTanHTablePass> {
@@ -288,30 +285,10 @@ public:
 
   void runOnFunction() override {
     auto fn = getFunction();
-
-    // find tensor filename
-    llvm::StringRef filename;
-    Value* weightFileVar;
-    fn.walk([&](tpu::LoadFileOp op) {
-      filename = op.filename();
-      llvm::errs() << "LoadFileOp filename " << filename << "\n";
-      weightFileVar = op.getResult();
-    });
-    auto weightTensorFile = openTensorFile(filename);
-
     auto *context = &getContext();
-
     OwningRewritePatternList patterns;
-    patterns.insert<TpuGenTanHTablePattern>(context, weightTensorFile.get(), weightFileVar);
+    patterns.insert<TpuGenTanHTablePattern>(context);
     applyPatternsGreedily(fn, patterns);
-
-    std::string newName;
-    weightTensorFile->keep(true, &newName);
-    fn.walk([&](tpu::LoadFileOp op) {
-      OpBuilder opBuilder(context);
-      op.setAttr("filename", opBuilder.getStringAttr(newName));
-      llvm::errs() << "LoadFileOp filename updated to " << newName << "\n";
-    });
   }
 
 private:

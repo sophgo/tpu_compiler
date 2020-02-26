@@ -1377,28 +1377,34 @@ LogicalResult tpu::TG_BF16_PoolMax2DOp::codegen(void *ctx) {
 LogicalResult tpu::TG_INT8_PReluOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName() << " [" << getOpName()
                << "]\n";
-  //BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
-  //Operation *op = this->getOperation();
+  BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
+  Operation *op = this->getOperation();
 
-  //std::vector<int64_t> shape;
-  //int64_t input_size, n, c, h, w;
-  //getTensorShapeAndSize(op->getOperand(0), shape, input_size);
-  //getNCHW(shape, n, c, h, w);
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  getNCHW(shape, n, c, h, w);
 
-  //gaddr_t ga_input = getPreviousOpAddress(op);
-  //gaddr_t ga_output = getOpAddress(op);
-  // gaddr_t negative_scope_gaddr =
-  //     getWeightOpAddress(negative_slope()->getDefiningOp());
-  //int layer_id = mlir::getOpLayerId(op);
+  gaddr_t ga_input = getPreviousOpAddress(op);
+  gaddr_t ga_output = getOpAddress(op);
+  gaddr_t negative_scope_gaddr =
+      getWeightOpAddress(negative_slope()->getDefiningOp());
+  int layer_id = mlir::getOpLayerId(op);
 
-  // bmnet_prelu_fixed_forward_bmkernel(
-  //     *backend_ctx,
-  //     layer_id,             // layer_id,
-  //     input_gaddr,          // input_data_gaddr,
-  //     output_gaddr,         // output_data_gaddr,
-  //     negative_scope_gaddr, // float negative_slope,
-  //     n, c, h, w, GT_right_shift_width, GT_scale, LE_right_shift_width, FMT_I8);
-  assert(false);
+  assert(this->rshift_pos().hasValue());
+  int8_t rshift_pos = this->rshift_pos().getValue().getLimitedValue();
+  assert(this->m_i8_pos().hasValue());
+  int8_t m_i8_pos = this->m_i8_pos().getValue().getLimitedValue();
+  assert(this->rshift_neg().hasValue());
+  int8_t rshift_neg = this->rshift_neg().getValue().getLimitedValue();
+  bmnet_prelu_fixed_forward_bmkernel(
+      *backend_ctx,
+      layer_id,             // layer_id,
+      ga_input,             // input_data_gaddr,
+      ga_output,            // output_data_gaddr,
+      negative_scope_gaddr, // float negative_slope,
+      n, c, h, w, rshift_pos, m_i8_pos, rshift_neg, FMT_I8);
+
   return success();
 }
 
@@ -1412,11 +1418,46 @@ LogicalResult tpu::TG_BF16_PReluOp::codegen(void *ctx) {
 }
 
 LogicalResult tpu::TG_INT8_ShuffleChannelOp::codegen(void *ctx) {
-  llvm::errs() << "TG_codegen: " << getOperationName()
-               << " [" << getOpName() << "]\n";
-  // TODO: complete later
+  llvm::errs() << "TG_codegen: " << getOperationName() << " [" << getOpName()
+               << "]\n";
+  BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
+  Operation *op = this->getOperation();
 
-  assert(false);
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  getNCHW(shape, n, c, h, w);
+  int frame_size = h * w;
+  uint32_t group = this->group().getLimitedValue();
+
+  gaddr_t input_gaddr = getPreviousOpAddress(op);
+  gaddr_t output_gaddr = getOpAddress(op);
+  int layer_id = mlir::getOpLayerId(op);
+  shuffle_channel_fixed_forward_kernel(*backend_ctx, 0, 0, layer_id, nullptr, 0,
+                                       input_gaddr, output_gaddr, n, c,
+                                       frame_size, group);
+  return success();
+}
+
+LogicalResult tpu::TG_BF16_ShuffleChannelOp::codegen(void *ctx) {
+  llvm::errs() << "TG_codegen: " << getOperationName() << " [" << getOpName()
+               << "]\n";
+  BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  getNCHW(shape, n, c, h, w);
+  int frame_size = h * w;
+  uint32_t group = this->group().getLimitedValue();
+
+  gaddr_t input_gaddr = getPreviousOpAddress(op);
+  gaddr_t output_gaddr = getOpAddress(op);
+  int layer_id = mlir::getOpLayerId(op);
+  bf16_shuffle_channel_forward_kernel(*backend_ctx, 0, 0, layer_id, nullptr, 0,
+                                       input_gaddr, output_gaddr, n, c,
+                                       frame_size, group);
   return success();
 }
 
@@ -1463,7 +1504,7 @@ LogicalResult tpu::TG_INT8_SigmoidOp::codegen(void *ctx) {
                                  nullptr,  // const u32 *depends,
                                  0,        // depends_len,
                                  input_gaddr, output_gaddr, y0_table_gaddr,
-                                 slope_gaddr, n, c, h, w, 0, 0, FMT_I8);
+                                 slope_gaddr, n, c, h, w, FMT_I8);
 
   return success();
 }

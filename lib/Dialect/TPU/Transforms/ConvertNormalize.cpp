@@ -35,20 +35,21 @@ using namespace mlir;
 
 namespace {
 
-struct TpuNormalizePattern : public RewritePattern {
-  TpuNormalizePattern(MLIRContext *context, TensorFile *weightTensorFile,Value* weightFileVar)
-      : RewritePattern("tpu.normalize", 1, context),
-        weightTensorFile_(weightTensorFile),
-        weightFileVar_(weightFileVar){}
+struct TpuDecomposeNormalizePattern : public RewritePattern {
+  TpuDecomposeNormalizePattern(MLIRContext *context)
+      : RewritePattern("tpu.normalize", 1, context) {}
 
   PatternMatchResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
 
     auto normalizeOp = cast<tpu::NormalizeOp>(op);
     llvm::errs() <<normalizeOp.getOperationName() << "\n";
+    TensorFile *wTF = getWeightTensorFile(op);
+    Value *wfV = getWeightFileValue(op);
+
     auto loc = op->getLoc();
     mlir::Value *input_var = normalizeOp.getOperand(0);
- 
+
     // op_name
     std::string op_name = normalizeOp.getAttrOfType<StringAttr>("name").getValue().str();
     llvm::errs() << "Normalize Op: " << op_name << "\n";
@@ -64,8 +65,8 @@ struct TpuNormalizePattern : public RewritePattern {
     assert(weight_op);
 
     auto type = weight_op.getResult()->getType().cast<TensorType>();
-    float *scale = (float*)weightTensorFile_->readTensor<float>(op_name, type)->data();
-    weightTensorFile_->deleteTensor<float>(op_name);
+    float *scale = (float*)wTF->readTensor<float>(op_name, type)->data();
+    wTF->deleteTensor<float>(op_name);
 
     auto result_type = normalizeOp.getResult()->getType();
 
@@ -117,7 +118,7 @@ struct TpuNormalizePattern : public RewritePattern {
       builder_.getUnknownLoc(), result_type,
       ArrayRef<Value *>{operands}, ArrayRef<NamedAttribute>{attrs_power});
   auto power_result_var = power_op.getResult();
-#else  
+#else
   /*use eltwise op*/
   std::vector<Value *> operands_eltwise_power;
 
@@ -150,7 +151,7 @@ struct TpuNormalizePattern : public RewritePattern {
 
   auto eltwiseMulOp = rewriter.create<tpu::EltwiseMulOp>(loc, result_type,
       ArrayRef<Value *>{operands_eltwise_power}, ArrayRef<NamedAttribute>{attrs_eltwise_power});
-#endif 
+#endif
 
 
 #endif
@@ -167,21 +168,21 @@ struct TpuNormalizePattern : public RewritePattern {
   std::vector<float> weight(c*c,1);
   mlir::Type elementType_;
   elementType_ = FloatType::getF32(rewriter.getContext());
-  //construct conv parameter 
+  //construct conv parameter
   //use C*C*1*1 filter to keep shape as input
 
   auto filter_type = RankedTensorType::get({c, c, 1, 1},elementType_);
- 
+
   std::vector<int64_t> stride(2,1), dilation(2,1);
   bool is_dw = false , with_bias = false;
   int64_t g = 1;
 
-  weightTensorFile_->addTensor<float>(filter_name_conv, weight.data(), filter_type);
+  wTF->addTensor<float>(filter_name_conv, weight.data(), filter_type);
   std::vector<NamedAttribute> attrs;
   attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(filter_name_conv)));
 
   auto weight_tensor = rewriter.create<tpu::LoadWeightOp>(loc, filter_type,
-      ArrayRef<Value *>{weightFileVar_}, ArrayRef<NamedAttribute>{attrs});
+      ArrayRef<Value *>{wfV}, ArrayRef<NamedAttribute>{attrs});
 
   operands_conv.push_back(weight_tensor);
   operands_conv.push_back(NoneOp.getResult());
@@ -189,7 +190,7 @@ struct TpuNormalizePattern : public RewritePattern {
   operands_conv.push_back(NoneOp.getResult());  // quant_zeropoint
   operands_conv.push_back(NoneOp.getResult());  // quant_rshift
   operands_conv.push_back(NoneOp.getResult());  // quant_multiplier
-  
+
   // construct OP
   std::vector<NamedAttribute> attrs_conv;
   attrs_conv.push_back(rewriter.getNamedAttr("with_bias", rewriter.getBoolAttr(false)));
@@ -221,8 +222,6 @@ struct TpuNormalizePattern : public RewritePattern {
   //rewriter.replaceOp(eltwiseMulOp, {convOp});
   auto conv_result_var = convOp.getResult();
 
-#if 1
-
   /* 3. Sqrt OP */
   std::vector<NamedAttribute> attrs_sqrt;
   attrs_sqrt.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(op_name+"_sqrt")));
@@ -249,7 +248,7 @@ struct TpuNormalizePattern : public RewritePattern {
   //add sqrtOp after convOp
   //rewriter.replaceOp(sqrt_op, {div_op});
   auto div_result_var = div_op.getResult();
- 
+
   /* 5. Eltwise OP(prod) */
 
   std::vector<Value *> operands_eltwise_mul;
@@ -272,7 +271,7 @@ struct TpuNormalizePattern : public RewritePattern {
   //add sqrtOp after convOp
   //rewriter.replaceOp(div_op, {eltwise_op});
   auto eltwise_result_var = eltwise_op.getResult();
- 
+
   /* 6. Scale OP */
   std::vector<Value *> operands_scale;
   operands_scale.push_back(eltwise_result_var);
@@ -280,13 +279,13 @@ struct TpuNormalizePattern : public RewritePattern {
   auto scale_name = op_name+"_scale_weight";
   auto scale_type = RankedTensorType::get({c}, elementType_);
 
-  weightTensorFile_->addTensor(scale_name, scale, scale_type);
+  wTF->addTensor(scale_name, scale, scale_type);
   std::vector<NamedAttribute> scale_weight_attrs;
 
   scale_weight_attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(scale_name)));
 
   weight_tensor = rewriter.create<tpu::LoadWeightOp>(loc, scale_type,
-      ArrayRef<Value *>{weightFileVar_}, ArrayRef<NamedAttribute>{scale_weight_attrs});
+      ArrayRef<Value *>{wfV}, ArrayRef<NamedAttribute>{scale_weight_attrs});
 
 
   operands_scale.push_back(weight_tensor);
@@ -306,12 +305,9 @@ struct TpuNormalizePattern : public RewritePattern {
   rewriter.replaceOpWithNewOp<tpu::EltwiseMulOp>(
       normalizeOp, result_type,
       ArrayRef<Value *>{operands_eltwise_power}, ArrayRef<NamedAttribute>{attrs_eltwise_power});
-#endif
+
   return matchSuccess();
   }
-
-  TensorFile *weightTensorFile_;
-  Value* weightFileVar_;
 };
 
 class DecomposeNormalizePass : public FunctionPass<DecomposeNormalizePass> {
@@ -320,29 +316,10 @@ public:
 
   void runOnFunction() override {
     auto fn = getFunction();
-
-    // find tensor filename
-    llvm::StringRef filename;
-    Value* weightFileVar;
-    fn.walk([&](tpu::LoadFileOp op) {
-      weightFileVar = op.getResult();
-      filename = op.getAttrOfType<StringAttr>("filename").getValue();
-      llvm::errs() << "LoadFileOp filename " << filename << "\n";
-    });
-    auto weightTensorFile = openTensorFile(filename);
-
     OwningRewritePatternList patterns;
     auto *context = &getContext();
-    patterns.insert<TpuNormalizePattern>(context, weightTensorFile.get(),weightFileVar);
+    patterns.insert<TpuDecomposeNormalizePattern>(context);
     applyPatternsGreedily(fn, patterns);
-
-    std::string newName;
-    weightTensorFile->keep(true, &newName);
-    fn.walk([&](tpu::LoadFileOp op) {
-      OpBuilder b(fn.getBody());
-      op.setAttr("filename", b.getStringAttr(newName));
-      llvm::errs() << "LoadFileOp filename updated to " << newName << "\n";
-    });
   }
 
 private:
@@ -353,7 +330,7 @@ private:
 
 void tpu::NormalizeOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
                                               MLIRContext *context) {
-  //results.insert<TpuNormalizeOpPattern>(context, nullptr);
+  results.insert<TpuDecomposeNormalizePattern>(context);
 }
 
 std::unique_ptr<OpPassBase<FuncOp>> mlir::createDecomposeNormalizePass() {

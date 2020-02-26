@@ -210,6 +210,8 @@ struct PythonMLIRModule {
   // Creates a string atrribute.
   PythonAttribute stringAttr(const std::string &value);
 
+  // Creates a struct attribute.
+  PythonAttribute dictAttr(const py::kwargs &funcAttributes);
 
   // Creates an Array attribute.
   PythonAttribute arrayAttr(const std::vector<PythonAttribute> &values);
@@ -746,6 +748,20 @@ PythonMLIRModule::arrayAttr(const std::vector<PythonAttribute> &values) {
   return PythonAttribute(array_attr.getAsOpaquePointer());
 }
 
+PythonAttribute PythonMLIRModule::dictAttr(const py::kwargs &attributes) {
+  std::vector<NamedAttribute> attrs;
+  attrs.reserve(attributes.size());
+  for (const auto &a : attributes) {
+    std::string name = py::str(a.first);
+    auto pyAttr = a.second.cast<PythonAttribute>();
+    auto cppAttr = Attribute::getFromOpaquePointer(pyAttr.attr);
+    auto identifier = Identifier::get(name, &mlirContext);
+    attrs.emplace_back(identifier, cppAttr);
+  }
+  auto array_attr = DictionaryAttr::get(attrs, &mlirContext);
+  return PythonAttribute(array_attr.getAsOpaquePointer());
+}
+
 PythonAttribute PythonMLIRModule::affineMapAttr(PythonAffineMap value) {
   return PythonAttribute(AffineMapAttr::get(value).getAsOpaquePointer());
 }
@@ -964,6 +980,9 @@ PYBIND11_MODULE(pybind, m) {
       .def("arrayAttr", &PythonMLIRModule::arrayAttr,
            "Creates an mlir::ArrayAttr of the given type with the given values "
            "in the context associated with this MLIR module.")
+      .def("dictAttr", &PythonMLIRModule::dictAttr,
+           "Creates an mlir::dictAttr of the given type with the given "
+           "value in the context associated with this MLIR module.")
       .def("affineMapAttr", &PythonMLIRModule::affineMapAttr,
            "Creates an mlir::AffineMapAttr of the given type with the given "
            "value in the context associated with this MLIR module.")

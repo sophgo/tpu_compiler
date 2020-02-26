@@ -42,7 +42,7 @@ struct TpuFuseReluPattern : public RewritePattern {
   PatternMatchResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
     auto reluOp = cast<tpu::ReluOp>(op);
-    llvm::errs() << reluOp.getOperationName() << "\n";
+    llvm::errs() << reluOp.getOperationName() << ":" << getOpName(reluOp)<< "\n";
 
     // match relu Op that is following conv or eltwise Ops
     auto formerOp = op->getOperand(0)->getDefiningOp();
@@ -88,12 +88,28 @@ struct TpuFuseReluPattern : public RewritePattern {
       assert(!bcastOp.do_relu());
       bcastOp.setAttr("do_relu", rewriter.getBoolAttr(true));
       bcastOp.setAttr("name", rewriter.getStringAttr(reluOp.getOpName()));
-    } else if (matchPattern(formerOp, m_Op<tpu::ConcatOp>())) {
+    }  else if (matchPattern(formerOp, m_Op<tpu::PoolAvg2DOp>())) {
+      auto poolOp = cast<tpu::PoolAvg2DOp>(formerOp);
+      assert(poolOp.param().do_relu().getValue() == false);
+      poolOp.setAttr("param",
+          tpu::PoolParam::get(
+              poolOp.param().kernel_h(),
+              poolOp.param().kernel_w(),
+              poolOp.param().padding_t(),
+              poolOp.param().padding_b(),
+              poolOp.param().padding_l(),
+              poolOp.param().padding_r(),
+              poolOp.param().stride_h(),
+              poolOp.param().stride_w(),
+              rewriter.getBoolAttr(true),
+              rewriter.getContext()));
+      poolOp.setAttr("name", rewriter.getStringAttr(reluOp.getOpName()));
+    }  else if (matchPattern(formerOp, m_Op<tpu::ConcatOp>())) {
       // TODO: need to fuse
-      assert(false);
+      //assert(false);
       return matchFailure();
     } else if (matchPattern(formerOp, m_Op<tpu::ScaleOp>())) {
-      assert(false);
+      //assert(false);
       // TODO: convert to conv
       return matchFailure();
     } else {
@@ -110,7 +126,7 @@ struct TpuFuseReluPattern : public RewritePattern {
 
 struct TpuMoveReluAheadConcatPattern : public RewritePattern {
   TpuMoveReluAheadConcatPattern(MLIRContext *context)
-      : RewritePattern("tpu.relu", 1, context) {}
+      : RewritePattern("tpu.relu", 3, context) {}
 
   PatternMatchResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
@@ -167,6 +183,13 @@ private:
 };
 
 } // namespace
+
+void tpu::ReluOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
+                                              MLIRContext *context) {
+  results.insert<
+      TpuMoveReluAheadConcatPattern,
+      TpuFuseReluPattern>(context);
+}
 
 std::unique_ptr<OpPassBase<FuncOp>> mlir::createFuseReluPass() {
   return std::make_unique<FuseReluPass>();

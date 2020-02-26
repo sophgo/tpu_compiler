@@ -68,8 +68,8 @@ public:
         if (op->getName().getDialect().str() != "tpu"
             || isa<tpu::QuantizationOp>(op)
             || isa<tpu::DequantizationOp>(op)
+            || isa<tpu::WeightFileOp>(op)
             || isa<tpu::LoadWeightOp>(op)
-            || isa<tpu::LoadFileOp>(op)
             || isa<tpu::NoneOp>(op)) {
           processed = 1;
         }

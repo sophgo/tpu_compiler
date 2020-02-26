@@ -22,13 +22,13 @@
 
 namespace mlir {
 
-Value* tpu::BroadcastMulOp::convertToTG(void *info) {
+Value* tpu::BroadcastMulOp::convertToTG() {
   llvm::errs() << "lowerToTG: " << getOperationName()
                << " [" << getOpName() << "]\n";
   Operation *op = this->getOperation();
   auto builder = Builder(op->getContext());
-  TensorFile *weightTF_ = (TensorFile *)info;
-  assert(weightTF_);
+  TensorFile *wTF = getWeightTensorFile(op);
+  assert(wTF);
   assert(this->axis() == 1);
 
   std::vector<Value *> operands;
@@ -80,13 +80,13 @@ Value* tpu::BroadcastMulOp::convertToTG(void *info) {
   return nullptr;
 }
 
-Value* tpu::ConcatOp::convertToTG(void *info) {
+Value* tpu::ConcatOp::convertToTG() {
   llvm::errs() << "lowerToTG: " << getOperationName()
                << " [" << getOpName() << "]\n";
   Operation *op = this->getOperation();
   auto builder = Builder(op->getContext());
-  TensorFile *weightTF_ = (TensorFile *)info;
-  assert(weightTF_);
+  TensorFile *wTF = getWeightTensorFile(op);
+  assert(wTF);
 
   const unsigned nInputs = this->getNumInputs();
   std::vector<Value *> operands;
@@ -107,14 +107,14 @@ Value* tpu::ConcatOp::convertToTG(void *info) {
       assert(getOpQuantParamType() == "RSHIFT_AND_M_I8");
       // ADD
       // rshift
-      auto rshift = readAndDeleteWeightTensor<float>(quant_rshift(), weightTF_);
+      auto rshift = readAndDeleteWeightTensor<float>(quant_rshift(), wTF);
       assert(rshift->size() == 1);
       attrs.push_back(builder.getNamedAttr("rshift",
           builder.getI8IntegerAttr(static_cast<int8_t>(rshift->at(0)))));
 
       // m_i8_inputs
       auto multiplier = readAndDeleteWeightTensor<float>(quant_multiplier(),
-                                                       weightTF_);
+                                                       wTF);
       std::vector<int32_t> m_i8_inputs_array(nInputs);
       for (unsigned i = 0; i < nInputs; ++i) {
         m_i8_inputs_array[i] = static_cast<int32_t>(multiplier->at(i));
@@ -137,13 +137,13 @@ Value* tpu::ConcatOp::convertToTG(void *info) {
   return nullptr;
 }
 
-Value* tpu::Conv2DOp::convertToTG(void *info) {
+Value* tpu::Conv2DOp::convertToTG() {
   llvm::errs() << "lowerToTG: " << getOperationName()
                << " [" << getOpName() << "]\n";
   Operation *op = this->getOperation();
   auto builder = Builder(op->getContext());
-  TensorFile *weightTF_ = (TensorFile *)info;
-  assert(weightTF_);
+  TensorFile *wTF = getWeightTensorFile(op);
+  assert(wTF);
 
   std::vector<Value *> operands;
   operands.push_back(input());
@@ -166,7 +166,7 @@ Value* tpu::Conv2DOp::convertToTG(void *info) {
       // per-tensor, rshift only mode
       assert(getOpQuantParamType() == "RSHIFT_ONLY");
       assert( !isTensorNone(quant_rshift()) );
-      auto rshift = readAndDeleteWeightTensor<float>(quant_rshift(), weightTF_);
+      auto rshift = readAndDeleteWeightTensor<float>(quant_rshift(), wTF);
       assert(rshift->size() == 1);
       attrs.push_back(builder.getNamedAttr("pt_rshift",
           builder.getI8IntegerAttr(static_cast<int8_t>(rshift->at(0)))));
@@ -185,13 +185,13 @@ Value* tpu::Conv2DOp::convertToTG(void *info) {
   return nullptr;
 }
 
-Value* tpu::CropOp::convertToTG(void *info) {
+Value* tpu::CropOp::convertToTG() {
   llvm::errs() << "lowerToTG: " << getOperationName()
                << " [" << getOpName() << "]\n";
   Operation *op = this->getOperation();
   auto builder = Builder(op->getContext());
-  TensorFile *weightTF_ = (TensorFile *)info;
-  assert(weightTF_);
+  TensorFile *wTF = getWeightTensorFile(op);
+  assert(wTF);
 
   const unsigned nInputs = op->getNumOperands();
   std::vector<Value *> operands;
@@ -221,13 +221,13 @@ Value* tpu::CropOp::convertToTG(void *info) {
   return nullptr;
 }
 
-Value* tpu::DeConv2DOp::convertToTG(void *info) {
+Value* tpu::DeConv2DOp::convertToTG() {
   llvm::errs() << "lowerToTG: " << getOperationName()
                << " [" << getOpName() << "]\n";
   Operation *op = this->getOperation();
   auto builder = Builder(op->getContext());
-  TensorFile *weightTF_ = (TensorFile *)info;
-  assert(weightTF_);
+  TensorFile *wTF = getWeightTensorFile(op);
+  assert(wTF);
 
   std::vector<Value *> operands;
   operands.push_back(input());
@@ -250,7 +250,7 @@ Value* tpu::DeConv2DOp::convertToTG(void *info) {
       // per-tensor, rshift only mode
       assert(getOpQuantParamType() == "RSHIFT_ONLY");
       assert( !isTensorNone(quant_rshift()) );
-      auto rshift = readAndDeleteWeightTensor<float>(quant_rshift(), weightTF_);
+      auto rshift = readAndDeleteWeightTensor<float>(quant_rshift(), wTF);
       assert(rshift->size() == 1);
       attrs.push_back(builder.getNamedAttr("pt_rshift",
           builder.getI8IntegerAttr(static_cast<int8_t>(rshift->at(0)))));
@@ -269,13 +269,13 @@ Value* tpu::DeConv2DOp::convertToTG(void *info) {
   return nullptr;
 }
 
-Value* tpu::EltwiseAddOp::convertToTG(void *info) {
+Value* tpu::EltwiseAddOp::convertToTG() {
   llvm::errs() << "lowerToTG: " << getOperationName()
                << " [" << getOpName() << "]\n";
   Operation *op = this->getOperation();
   auto builder = Builder(op->getContext());
-  TensorFile *weightTF_ = (TensorFile *)info;
-  assert(weightTF_);
+  TensorFile *wTF = getWeightTensorFile(op);
+  assert(wTF);
 
   const unsigned nInputs = this->getNumInputs();
   std::vector<Value *> operands;
@@ -297,14 +297,14 @@ Value* tpu::EltwiseAddOp::convertToTG(void *info) {
       assert(getOpQuantParamType() == "RSHIFT_AND_M_I8");
       // ADD
       // rshift
-      auto rshift = readAndDeleteWeightTensor<float>(quant_rshift(), weightTF_);
+      auto rshift = readAndDeleteWeightTensor<float>(quant_rshift(), wTF);
       assert(rshift->size() == 1);
       attrs.push_back(builder.getNamedAttr("rshift",
           builder.getI8IntegerAttr(static_cast<int8_t>(rshift->at(0)))));
 
       // m_i8_inputs
       auto multiplier = readAndDeleteWeightTensor<float>(quant_multiplier(),
-                                                       weightTF_);
+                                                       wTF);
       std::vector<int32_t> m_i8_inputs_array(nInputs);
       for (unsigned i = 0; i < nInputs; ++i) {
         m_i8_inputs_array[i] = static_cast<int32_t>(multiplier->at(i));
@@ -328,12 +328,12 @@ Value* tpu::EltwiseAddOp::convertToTG(void *info) {
   return nullptr;
 }
 
-Value* tpu::EltwiseMaxOp::convertToTG(void *info) {
+Value* tpu::EltwiseMaxOp::convertToTG() {
   llvm::errs() << "lowerToTG: " << getOperationName()
                << " [" << getOpName() << "]\n";
   Operation *op = this->getOperation();
   auto builder = Builder(op->getContext());
-  TensorFile *weightTF_ = (TensorFile *)info;
+  TensorFile *wTF = getWeightTensorFile(op);
 
   const unsigned nInputs = this->getNumInputs();
   std::vector<Value *> operands;
@@ -354,14 +354,14 @@ Value* tpu::EltwiseMaxOp::convertToTG(void *info) {
       assert(getOpQuantParamType() == "RSHIFT_AND_M_I8");
       // MAX
       // rshift
-      auto rshift = readAndDeleteWeightTensor<float>(quant_rshift(), weightTF_);
+      auto rshift = readAndDeleteWeightTensor<float>(quant_rshift(), wTF);
       assert(rshift->size() == 1);
       attrs.push_back(builder.getNamedAttr("rshift",
           builder.getI8IntegerAttr(static_cast<int8_t>(rshift->at(0)))));
 
       // m_i8_inputs
       auto multiplier = readAndDeleteWeightTensor<float>(quant_multiplier(),
-                                                       weightTF_);
+                                                       wTF);
       std::vector<int32_t> m_i8_inputs_array(nInputs);
       for (unsigned i = 0; i < nInputs; ++i) {
         m_i8_inputs_array[i] = static_cast<int32_t>(multiplier->at(i));
@@ -385,12 +385,12 @@ Value* tpu::EltwiseMaxOp::convertToTG(void *info) {
   return nullptr;
 }
 
-Value* tpu::EltwiseMulOp::convertToTG(void *info) {
+Value* tpu::EltwiseMulOp::convertToTG() {
   llvm::errs() << "lowerToTG: " << getOperationName()
                << " [" << getOpName() << "]\n";
   Operation *op = this->getOperation();
   auto builder = Builder(op->getContext());
-  TensorFile *weightTF_ = (TensorFile *)info;
+  TensorFile *wTF = getWeightTensorFile(op);
 
   const unsigned nInputs = this->getNumInputs();
   std::vector<Value *> operands;
@@ -406,14 +406,14 @@ Value* tpu::EltwiseMulOp::convertToTG(void *info) {
     assert(getOpQuantParamType() == "RSHIFT_AND_M_I32");
     // MUL
     // rshift
-    auto rshift = readAndDeleteWeightTensor<float>(quant_rshift(), weightTF_);
+    auto rshift = readAndDeleteWeightTensor<float>(quant_rshift(), wTF);
     assert(rshift->size() == 1);
     attrs.push_back(builder.getNamedAttr("rshift",
         builder.getI8IntegerAttr(static_cast<int8_t>(rshift->at(0)))));
 
     // m_i8_output
     auto multiplier = readAndDeleteWeightTensor<float>(quant_multiplier(),
-                                                     weightTF_);
+                                                     wTF);
     assert(multiplier->size() == 1);
     attrs.push_back(builder.getNamedAttr("m_i32_output",
         builder.getI32IntegerAttr(static_cast<int32_t>(multiplier->at(0)))));
@@ -433,12 +433,12 @@ Value* tpu::EltwiseMulOp::convertToTG(void *info) {
   return nullptr;
 }
 
-Value *tpu::FullyConnectedOp::convertToTG(void *info) {
+Value *tpu::FullyConnectedOp::convertToTG() {
   llvm::errs() << "lowerToTG: " << getOperationName()
                << " [" << getOpName() << "]\n";
   Operation *op = this->getOperation();
   auto builder = Builder(op->getContext());
-  TensorFile *weightTF_ = (TensorFile *)info;
+  TensorFile *wTF = getWeightTensorFile(op);
 
   std::vector<Value *> operands;
   operands.push_back(input());
@@ -454,7 +454,7 @@ Value *tpu::FullyConnectedOp::convertToTG(void *info) {
   if (getOpQuant() == "INT8") {
     assert(getOpQuantParamType() == "RSHIFT_ONLY");
     // rshift
-    auto rshift = readAndDeleteWeightTensor<float>(quant_rshift(), weightTF_);
+    auto rshift = readAndDeleteWeightTensor<float>(quant_rshift(), wTF);
     assert(rshift->size() == 1);
     attrs.push_back(builder.getNamedAttr("rshift",
         builder.getI8IntegerAttr(static_cast<int8_t>(rshift->at(0)))));
@@ -474,12 +474,12 @@ Value *tpu::FullyConnectedOp::convertToTG(void *info) {
   return nullptr;
 }
 
-Value* tpu::LeakyReluOp::convertToTG(void *info) {
+Value* tpu::LeakyReluOp::convertToTG() {
   llvm::errs() << "lowerToTG: " << getOperationName()
                << " [" << getOpName() << "]\n";
   Operation *op = this->getOperation();
   auto builder = Builder(op->getContext());
-  TensorFile *weightTF_ = (TensorFile *)info;
+  TensorFile *wTF = getWeightTensorFile(op);
 
   std::vector<Value *> operands;
   operands.push_back(op->getOperand(0));
@@ -493,13 +493,13 @@ Value* tpu::LeakyReluOp::convertToTG(void *info) {
     assert(getOpQuantParamType() == "RSHIFT_AND_M_I8");
 
     auto rshift_pos     = readAndDeleteWeightTensor<float>(
-                              quant_pos_rshift(), weightTF_);
+                              quant_pos_rshift(), wTF);
     auto multiplier_pos = readAndDeleteWeightTensor<float>(
-                              quant_pos_multiplier(), weightTF_);
+                              quant_pos_multiplier(), wTF);
     auto rshift_neg     = readAndDeleteWeightTensor<float>(
-                              quant_neg_rshift(), weightTF_);
+                              quant_neg_rshift(), wTF);
     auto multiplier_neg = readAndDeleteWeightTensor<float>(
-                              quant_neg_multiplier(), weightTF_);
+                              quant_neg_multiplier(), wTF);
 
     bool do_pos_scale = (multiplier_pos->at(0) != 0.0) ? true : false;
 
@@ -533,12 +533,11 @@ Value* tpu::LeakyReluOp::convertToTG(void *info) {
   return nullptr;
 }
 
-Value* tpu::PermuteOp::convertToTG(void *info) {
+Value* tpu::PermuteOp::convertToTG() {
   llvm::errs() << "lowerToTG: " << getOperationName()
                << " [" << getOpName() << "]\n";
   Operation *op = this->getOperation();
   auto builder = Builder(op->getContext());
-  TensorFile *weightTF_ = (TensorFile *)info;
 
   std::vector<Value *> operands;
   operands.push_back(input());
@@ -566,12 +565,12 @@ Value* tpu::PermuteOp::convertToTG(void *info) {
   return nullptr;
 }
 
-Value* tpu::PoolAvg2DOp::convertToTG(void *info) {
+Value* tpu::PoolAvg2DOp::convertToTG() {
   llvm::errs() << "lowerToTG: " << getOperationName()
                << " [" << getOpName() << "]\n";
   Operation *op = this->getOperation();
   auto builder = Builder(op->getContext());
-  TensorFile *weightTF_ = (TensorFile *)info;
+  TensorFile *wTF = getWeightTensorFile(op);
 
   std::vector<Value *> operands;
   operands.push_back(input());
@@ -585,13 +584,13 @@ Value* tpu::PoolAvg2DOp::convertToTG(void *info) {
     assert(getOpQuantParamType() == "RSHIFT_AND_M_I8");
 
     assert( !isTensorNone(quant_rshift()) );
-    auto rshift = readAndDeleteWeightTensor<float>(quant_rshift(), weightTF_);
+    auto rshift = readAndDeleteWeightTensor<float>(quant_rshift(), wTF);
     assert(rshift->size() == 1);
     attrs.push_back(builder.getNamedAttr("rshift",
         builder.getI8IntegerAttr(static_cast<int8_t>(rshift->at(0)))));
 
     assert( !isTensorNone(quant_multiplier()) );
-    auto multiplier = readAndDeleteWeightTensor<float>(quant_multiplier(), weightTF_);
+    auto multiplier = readAndDeleteWeightTensor<float>(quant_multiplier(), wTF);
     assert(multiplier->size() == 1);
     attrs.push_back(builder.getNamedAttr("m_i8",
         builder.getI8IntegerAttr(static_cast<int8_t>(multiplier->at(0)))));
@@ -610,12 +609,12 @@ Value* tpu::PoolAvg2DOp::convertToTG(void *info) {
   return nullptr;
 }
 
-Value* tpu::PoolMax2DOp::convertToTG(void *info) {
+Value* tpu::PoolMax2DOp::convertToTG() {
   llvm::errs() << "lowerToTG: " << getOperationName()
                << " [" << getOpName() << "]\n";
   Operation *op = this->getOperation();
   auto builder = Builder(op->getContext());
-  //TensorFile *weightTF_ = (TensorFile *)info;
+  //  TensorFile *wTF = getWeightTensorFile(op);
 
   std::vector<Value *> operands;
   operands.push_back(input());
@@ -641,20 +640,39 @@ Value* tpu::PoolMax2DOp::convertToTG(void *info) {
   return nullptr;
 }
 
-Value *tpu::PReluOp::convertToTG(void *info) {
+Value *tpu::PReluOp::convertToTG() {
   llvm::errs() << "lowerToTG: " << getOperationName() << " [" << getOpName()
                << "]\n";
   Operation *op = this->getOperation();
+  TensorFile *wTF = getWeightTensorFile(op);
   auto builder = Builder(op->getContext());
 
   std::vector<Value *> operands;
-  // operands.push_back(input());
-  // operands.push_back(negative_slope());
+  operands.push_back(getOperand(0));
+  operands.push_back(getOperand(1));
 
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
   attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
   if (getOpQuant() == "INT8") {
+    auto rshift_pos =
+        readAndDeleteWeightTensor<float>(quant_pos_rshift(), wTF);
+    assert(rshift_pos->size() == 1);
+    attrs.push_back(builder.getNamedAttr(
+        "rshift_pos",
+        builder.getI8IntegerAttr(static_cast<int8_t>(rshift_pos->at(0)))));
+    auto multiplier_pos =
+        readAndDeleteWeightTensor<float>(quant_pos_multiplier(), wTF);
+    assert(multiplier_pos->size() == 1);
+    attrs.push_back(builder.getNamedAttr(
+        "m_i8_pos",
+        builder.getI8IntegerAttr(static_cast<int8_t>(multiplier_pos->at(0)))));
+    auto rshift_neg =
+        readAndDeleteWeightTensor<float>(quant_neg_rshift(), wTF);
+    attrs.push_back(builder.getNamedAttr(
+        "rshift_neg",
+        builder.getI8IntegerAttr(static_cast<int8_t>(rshift_neg->at(0)))));
+
     auto newOp = OpBuilder(op).create<tpu::TG_INT8_PReluOp>(
         op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
         ArrayRef<NamedAttribute>{attrs});
@@ -670,12 +688,12 @@ Value *tpu::PReluOp::convertToTG(void *info) {
   return nullptr;
 }
 
-Value *tpu::ShuffleChannelOp::convertToTG(void *info) {
+Value *tpu::ShuffleChannelOp::convertToTG() {
   llvm::errs() << "lowerToTG: " << getOperationName() << " [" << getOpName()
                << "]\n";
   Operation *op = this->getOperation();
   auto builder = Builder(op->getContext());
-  // TensorFile *weightTF_ = (TensorFile *)info;
+  //   TensorFile *wTF = getWeightTensorFile(op);
 
   std::vector<Value *> operands;
   operands.push_back(input());
@@ -691,17 +709,23 @@ Value *tpu::ShuffleChannelOp::convertToTG(void *info) {
         op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
+  } else if (getOpQuant() == "BF16") {
+    auto newOp = OpBuilder(op).create<tpu::TG_BF16_ShuffleChannelOp>(
+        op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
   }
+
   assert(false);
   return nullptr;
 }
 
-Value* tpu::ReshapeOp::convertToTG(void *info) {
+Value* tpu::ReshapeOp::convertToTG() {
   llvm::errs() << "lowerToTG: " << getOperationName()
                << " [" << getOpName() << "]\n";
   Operation *op = this->getOperation();
   auto builder = Builder(op->getContext());
-  //TensorFile *weightTF_ = (TensorFile *)info;
+  //  TensorFile *wTF = getWeightTensorFile(op);
 
   std::vector<Value *> operands;
   operands.push_back(input());
@@ -730,7 +754,7 @@ Value* tpu::ReshapeOp::convertToTG(void *info) {
   return nullptr;
 }
 
-Value *tpu::SigmoidOp::convertToTG(void *info) {
+Value *tpu::SigmoidOp::convertToTG() {
   llvm::errs() << "lowerToTG: " << getOperationName() << " [" << getOpName()
                << "]\n";
   Operation *op = this->getOperation();
@@ -762,12 +786,12 @@ Value *tpu::SigmoidOp::convertToTG(void *info) {
   return nullptr;
 }
 
-Value* tpu::SliceOp::convertToTG(void *info) {
+Value* tpu::SliceOp::convertToTG() {
   llvm::errs() << "lowerToTG: " << getOperationName()
                << " [" << getOpName() << "]\n";
   Operation *op = this->getOperation();
   auto builder = Builder(op->getContext());
-  //TensorFile *weightTF_ = (TensorFile *)info;
+  //  TensorFile *wTF = getWeightTensorFile(op);
 
   std::vector<Value *> operands;
   operands.push_back(input());
@@ -781,12 +805,12 @@ Value* tpu::SliceOp::convertToTG(void *info) {
 
   if (getOpQuant() == "INT8") {
     assert(getOpQuantParamType() == "NONE");
-    auto newOp = OpBuilder(op).create<tpu::TG_INT8_ReshapeOp>(op->getLoc(),
+    auto newOp = OpBuilder(op).create<tpu::TG_INT8_SliceOp>(op->getLoc(),
         getResult()->getType(), ArrayRef<Value *>{operands},
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
   } else if (getOpQuant() == "BF16") {
-    auto newOp = OpBuilder(op).create<tpu::TG_BF16_ReshapeOp>(op->getLoc(),
+    auto newOp = OpBuilder(op).create<tpu::TG_BF16_SliceOp>(op->getLoc(),
         getResult()->getType(), ArrayRef<Value *>{operands},
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
@@ -795,12 +819,12 @@ Value* tpu::SliceOp::convertToTG(void *info) {
   return nullptr;
 }
 
-Value* tpu::UpsampleOp::convertToTG(void *info) {
+Value* tpu::UpsampleOp::convertToTG() {
   llvm::errs() << "lowerToTG: " << getOperationName()
                << " [" << getOpName() << "]\n";
   Operation *op = this->getOperation();
   auto builder = Builder(op->getContext());
-  //TensorFile *weightTF_ = (TensorFile *)info;
+  //  TensorFile *wTF = getWeightTensorFile(op);
 
   std::vector<Value *> operands;
   operands.push_back(input());
@@ -828,11 +852,8 @@ Value* tpu::UpsampleOp::convertToTG(void *info) {
 
 template<typename OpTy>
 struct DefaultToTGPattern : public RewritePattern {
-  DefaultToTGPattern(MLIRContext *context, TensorFile *weightTF,
-      Value* weightFV)
-      : RewritePattern(OpTy::getOperationName(), 1, context),
-        weightTF_(weightTF),
-        weightFV_(weightFV) {}
+  DefaultToTGPattern(MLIRContext *context)
+      : RewritePattern(OpTy::getOperationName(), 1, context) {}
 
   PatternMatchResult matchAndRewrite(Operation *op,
       PatternRewriter &rewriter) const override {
@@ -840,16 +861,13 @@ struct DefaultToTGPattern : public RewritePattern {
     if (!tpuOp) {
       return matchFailure();
     }
-    auto newValue = tpuOp.convertToTG((void *)weightTF_);
+    auto newValue = tpuOp.convertToTG();
     if (!newValue) {
       return matchFailure();
     }
     rewriter.replaceOp(op, {newValue});
     return matchSuccess();
   }
-
-  TensorFile *weightTF_;
-  Value* weightFV_;
 };
 
 template<typename OpTy>
@@ -882,8 +900,6 @@ struct FoldReshapePattern : public RewritePattern {
     laterReshapeOp.getOperation()->setOperand(0, formerScaleOp.getOperand());
     return matchSuccess();
   }
-
-  TensorFile *weightTensorFile_;
 };
 
 static std::unique_ptr<std::vector<uint8_t> > packWeight(
@@ -938,11 +954,8 @@ static std::unique_ptr<std::vector<uint8_t> > packWeight(
 
 template <typename OpTy>
 struct PackWeightConv2DOpPattern : public RewritePattern {
-  PackWeightConv2DOpPattern(MLIRContext *context, TensorFile *weightTF,
-      Value* weightFV)
-      : RewritePattern(OpTy::getOperationName(), 1, context),
-        weightTF_(weightTF),
-        weightFV_(weightFV) {}
+  PackWeightConv2DOpPattern(MLIRContext *context)
+      : RewritePattern(OpTy::getOperationName(), 1, context) {}
 
   PatternMatchResult matchAndRewrite(Operation *op,
       PatternRewriter &rewriter) const override {
@@ -962,6 +975,8 @@ struct PackWeightConv2DOpPattern : public RewritePattern {
     assert( !isTensorNone(convOp.quant_rshift()) );
     assert( !isTensorNone(convOp.quant_multiplier()) );
     llvm::errs() << "Pack Weight for Conv2D: " << getOpName(op) << "\n";
+    TensorFile *wTF = getWeightTensorFile(op);
+    Value *wfV = getWeightFileValue(op);
 
     // get param
     auto filter_type = convOp.filter()->getType().template cast<TensorType>();
@@ -979,10 +994,10 @@ struct PackWeightConv2DOpPattern : public RewritePattern {
     // get tensor
     std::unique_ptr<std::vector<float> > bias = nullptr;
     if ( !isTensorNone(convOp.bias()) ) {
-      bias = readAndDeleteWeightTensor<float>(convOp.bias(), weightTF_);
+      bias = readAndDeleteWeightTensor<float>(convOp.bias(), wTF);
     }
-    auto rshift = readAndDeleteWeightTensor<float>(convOp.quant_rshift(), weightTF_);
-    auto multiplier = readAndDeleteWeightTensor<float>(convOp.quant_multiplier(), weightTF_);
+    auto rshift = readAndDeleteWeightTensor<float>(convOp.quant_rshift(), wTF);
+    auto multiplier = readAndDeleteWeightTensor<float>(convOp.quant_multiplier(), wTF);
 
     // pack the weights
     std::vector<int64_t> packedShape;
@@ -992,11 +1007,11 @@ struct PackWeightConv2DOpPattern : public RewritePattern {
     // store to the packed per_channel operand in "UINT8"
     if (bias) {
       addWeightTensorAndUpdateWeightOp<uint8_t>(convOp.bias(),
-          "pack", *packed, packedShape, "UINT8", weightTF_);
+          "pack", *packed, packedShape, "UINT8", wTF);
     } else {
       auto packed_op = addWeightTensorAndCreateWeightOp<uint8_t>(
           op, "pack", *packed, packedShape, "UINT8",
-          weightTF_, weightFV_);
+          wTF, wfV);
       convOp.setOperand(2, packed_op);
     }
     auto biasOp = cast<tpu::LoadWeightOp>(convOp.bias()->getDefiningOp());
@@ -1010,9 +1025,6 @@ struct PackWeightConv2DOpPattern : public RewritePattern {
 
     return matchSuccess();
   }
-
-  TensorFile *weightTF_;
-  Value* weightFV_;
 };
 
 // somehow, existing backend implementation is using per-channel mode
@@ -1024,11 +1036,8 @@ struct PackWeightConv2DOpPattern : public RewritePattern {
 // convolution. to put the scale tensor as multiplier rather than filter
 // and the multiplier is by nature per-channel.
 struct PackWeightBroadcastMulOpPattern : public RewritePattern {
-  PackWeightBroadcastMulOpPattern(MLIRContext *context, TensorFile *weightTF,
-      Value* weightFV)
-      : RewritePattern(tpu::BroadcastMulOp::getOperationName(), 1, context),
-        weightTF_(weightTF),
-        weightFV_(weightFV) {}
+  PackWeightBroadcastMulOpPattern(MLIRContext *context)
+      : RewritePattern(tpu::BroadcastMulOp::getOperationName(), 1, context) {}
 
   PatternMatchResult matchAndRewrite(Operation *op,
       PatternRewriter &rewriter) const override {
@@ -1044,14 +1053,15 @@ struct PackWeightBroadcastMulOpPattern : public RewritePattern {
     assert( !isTensorNone(castOp.quant_rshift()) );
     assert( !isTensorNone(castOp.quant_multiplier()) );
     llvm::errs() << "Pack Weight for BroadcastMul: " << getOpName(op) << "\n";
+    TensorFile *wTF = getWeightTensorFile(op);
 
     // get param
     int64_t oc = getTensorSize(castOp.multiplier());
 
     // get tensor
     std::unique_ptr<std::vector<float> > pc_info = nullptr;
-    auto rshift = readAndDeleteWeightTensor<float>(castOp.quant_rshift(), weightTF_);
-    auto multiplier = readAndDeleteWeightTensor<float>(castOp.quant_multiplier(), weightTF_);
+    auto rshift = readAndDeleteWeightTensor<float>(castOp.quant_rshift(), wTF);
+    auto multiplier = readAndDeleteWeightTensor<float>(castOp.quant_multiplier(), wTF);
 
     // expand
     auto rshift_perchannel = std::make_unique<std::vector<float>>(oc, rshift->at(0));
@@ -1066,7 +1076,7 @@ struct PackWeightBroadcastMulOpPattern : public RewritePattern {
     // this is tricky, as where is no bias() to reuse, use quant_rshift() instead
     // store to the packed per_channel operand in "UINT8"
     addWeightTensorAndUpdateWeightOp<uint8_t>(castOp.quant_rshift(),
-        "pack", *packed, packedShape, "UINT8", weightTF_);
+        "pack", *packed, packedShape, "UINT8", wTF);
     rshiftOp.setAttr("lowered", rewriter.getBoolAttr(true));
 
     // erase quant_multiplier tensor
@@ -1077,9 +1087,6 @@ struct PackWeightBroadcastMulOpPattern : public RewritePattern {
     setOpQuantParamType(op, "RSHIFT_AND_M_I32");
     return matchSuccess();
   }
-
-  TensorFile *weightTF_;
-  Value* weightFV_;
 };
 
 template<typename T>
@@ -1142,20 +1149,21 @@ static void transposeBiasInt16(std::vector<int16_t> &w_int16) {
   memcpy(ptr, w_t.data(), w_t.size());
 }
 
+template <typename OpTy>
 struct LowerWeightConv2DOpPattern : public RewritePattern {
-  LowerWeightConv2DOpPattern(MLIRContext *context, TensorFile *weightTF)
-      : RewritePattern("tpu.conv_2d", 1, context),
-        weightTF_(weightTF) {}
+  LowerWeightConv2DOpPattern(MLIRContext *context)
+      : RewritePattern(OpTy::getOperationName(), 1, context) {}
 
   PatternMatchResult matchAndRewrite(Operation *op,
       PatternRewriter &rewriter) const override {
-    auto convOp = cast<tpu::Conv2DOp>(op);
+    auto convOp = cast<OpTy>(op);
     auto filterOp = cast<tpu::LoadWeightOp>(convOp.filter()->getDefiningOp());
     if (filterOp.lowered()) {
       // lowered already
       return matchFailure();
     }
     llvm::errs() << "Lower Weight for Conv2D: " << getOpName(op) << "\n";
+    TensorFile *wTF = getWeightTensorFile(op);
 
     if (getOpQuant(op) == "INT8") {
       // lower filter
@@ -1164,7 +1172,7 @@ struct LowerWeightConv2DOpPattern : public RewritePattern {
         std::vector<int64_t> shape;
         int64_t size;
         getTensorShapeAndSize(convOp.filter(), shape, size);
-        auto filter = readAndDeleteWeightTensor<float>(convOp.filter(), weightTF_);
+        auto filter = readAndDeleteWeightTensor<float>(convOp.filter(), wTF);
         std::vector<int8_t> filter_int8(filter->begin(), filter->end());
         // transpose ic <-> kh*kw
         // if kh*kw == 1 or ic/g == 1, transposeConvolutionFilter() will do nothing
@@ -1173,7 +1181,7 @@ struct LowerWeightConv2DOpPattern : public RewritePattern {
 
         // save it
         addWeightTensorAndUpdateWeightOp<int8_t>(convOp.filter(),
-            "lowered", filter_int8, shape, "INT8", weightTF_);
+            "lowered", filter_int8, shape, "INT8", wTF);
         filterOp.setAttr("lowered", rewriter.getBoolAttr(true));
       }
 
@@ -1195,7 +1203,7 @@ struct LowerWeightConv2DOpPattern : public RewritePattern {
           // save it
           //StringRef storageType = "INT32";
           //addWeightTensorAndUpdateWeightOp<int32_t>(convOp.bias(),
-          //    "lowered", bias_int16, shape, storageType, weightTF_);
+          //    "lowered", bias_int16, shape, storageType, wTF);
           biasOp.setAttr("lowered", rewriter.getBoolAttr(true));
         } else {
           // per-tensor mode, bias is INT16
@@ -1203,7 +1211,7 @@ struct LowerWeightConv2DOpPattern : public RewritePattern {
           std::vector<int64_t> shape;
           int64_t size;
           getTensorShapeAndSize(convOp.bias(), shape, size);
-          auto bias = readAndDeleteWeightTensor<float>(convOp.bias(), weightTF_);
+          auto bias = readAndDeleteWeightTensor<float>(convOp.bias(), wTF);
           std::vector<int16_t> bias_int16(bias->begin(), bias->end());
           transposeBiasInt16(bias_int16);
           std::vector<uint16_t> bias_uint16(size);
@@ -1214,7 +1222,7 @@ struct LowerWeightConv2DOpPattern : public RewritePattern {
           // we save it as UINT16, to carry the eltment bitwidth, so we don`t need
           // to change the shape.
           addWeightTensorAndUpdateWeightOp<uint16_t>(convOp.bias(),
-              "lowered", bias_uint16, shape, "UINT16", weightTF_);
+              "lowered", bias_uint16, shape, "UINT16", wTF);
           biasOp.setAttr("lowered", rewriter.getBoolAttr(true));
         }
       }
@@ -1225,7 +1233,7 @@ struct LowerWeightConv2DOpPattern : public RewritePattern {
         std::vector<int64_t> shape;
         int64_t size;
         getTensorShapeAndSize(convOp.filter(), shape, size);
-        auto filter = readAndDeleteWeightTensor<bfloat16>(convOp.filter(), weightTF_);
+        auto filter = readAndDeleteWeightTensor<bfloat16>(convOp.filter(), wTF);
         std::vector<uint16_t> filter_bf16(filter->begin(), filter->end());
 
         // transpose ic <-> kh*kw
@@ -1236,7 +1244,7 @@ struct LowerWeightConv2DOpPattern : public RewritePattern {
         // save it
         StringRef storageType = "BF16";
         addWeightTensorAndUpdateWeightOp<uint16_t>(convOp.filter(),
-            "lowered", filter_bf16, shape, storageType, weightTF_);
+            "lowered", filter_bf16, shape, storageType, wTF);
         filterOp.setAttr("lowered", rewriter.getBoolAttr(true));
       }
 
@@ -1251,7 +1259,7 @@ struct LowerWeightConv2DOpPattern : public RewritePattern {
         std::vector<int64_t> shape;
         int64_t size;
         getTensorShapeAndSize(convOp.bias(), shape, size);
-        auto bias = readAndDeleteWeightTensor<bfloat16>(convOp.bias(), weightTF_);
+        auto bias = readAndDeleteWeightTensor<bfloat16>(convOp.bias(), wTF);
         std::vector<uint16_t> bias_bf16(bias->begin(), bias->end());
         // rather than expand to fp32, then transpose, we simply add a new stripe
         // of uint16_t with all 0x0000
@@ -1270,21 +1278,18 @@ struct LowerWeightConv2DOpPattern : public RewritePattern {
         // to change the shape
         StringRef storageType = "UINT32";
         addWeightTensorAndUpdateWeightOp<uint32_t>(convOp.bias(),
-            "lowered", bias_uint32, shape, storageType, weightTF_);
+            "lowered", bias_uint32, shape, storageType, wTF);
         biasOp.setAttr("lowered", rewriter.getBoolAttr(true));
       }
     }
 
     return matchSuccess();
   }
-
-  TensorFile *weightTF_;
 };
 
 struct LowerWeightFullyConnectedOpPattern : public RewritePattern {
-  LowerWeightFullyConnectedOpPattern(MLIRContext *context, TensorFile *weightTF)
-      : RewritePattern("tpu.fully_connected", 1, context),
-        weightTF_(weightTF) {}
+  LowerWeightFullyConnectedOpPattern(MLIRContext *context)
+      : RewritePattern("tpu.fully_connected", 1, context) {}
 
   PatternMatchResult matchAndRewrite(Operation *op,
       PatternRewriter &rewriter) const override {
@@ -1295,6 +1300,7 @@ struct LowerWeightFullyConnectedOpPattern : public RewritePattern {
       return matchFailure();
     }
     llvm::errs() << "Lower Weight for FullyConnectedOp: " << getOpName(op) << "\n";
+    TensorFile *wTF = getWeightTensorFile(op);
 
     if (getOpQuant(op) == "INT8") {
       // lower filter
@@ -1303,7 +1309,7 @@ struct LowerWeightFullyConnectedOpPattern : public RewritePattern {
         std::vector<int64_t> shape;
         int64_t size;
         getTensorShapeAndSize(fcOp.filter(), shape, size);
-        auto filter = readAndDeleteWeightTensor<float>(fcOp.filter(), weightTF_);
+        auto filter = readAndDeleteWeightTensor<float>(fcOp.filter(), wTF);
         std::vector<int8_t> filter_int8(filter->begin(), filter->end());
         // transpose k,n
         assert(shape.size() == 2);
@@ -1311,7 +1317,7 @@ struct LowerWeightFullyConnectedOpPattern : public RewritePattern {
 
         // save it
         addWeightTensorAndUpdateWeightOp<int8_t>(fcOp.filter(),
-            "lowered", filter_int8, shape, "INT8", weightTF_);
+            "lowered", filter_int8, shape, "INT8", wTF);
         filterOp.setAttr("lowered", rewriter.getBoolAttr(true));
       }
 
@@ -1323,7 +1329,7 @@ struct LowerWeightFullyConnectedOpPattern : public RewritePattern {
         std::vector<int64_t> shape;
         int64_t size;
         getTensorShapeAndSize(fcOp.bias(), shape, size);
-        auto bias = readAndDeleteWeightTensor<float>(fcOp.bias(), weightTF_);
+        auto bias = readAndDeleteWeightTensor<float>(fcOp.bias(), wTF);
         std::vector<int16_t> bias_int16(bias->begin(), bias->end());
         transposeBiasInt16(bias_int16);
         std::vector<uint16_t> bias_uint16(size);
@@ -1334,7 +1340,7 @@ struct LowerWeightFullyConnectedOpPattern : public RewritePattern {
         // we save it as UINT16, to carry the eltment bitwidth, so we don`t need
         // to change the shape.
         addWeightTensorAndUpdateWeightOp<uint16_t>(fcOp.bias(),
-            "lowered", bias_uint16, shape, "UINT16", weightTF_);
+            "lowered", bias_uint16, shape, "UINT16", wTF);
         biasOp.setAttr("lowered", rewriter.getBoolAttr(true));
       }
     } else if (getOpQuant(op) == "BF16") {
@@ -1344,7 +1350,7 @@ struct LowerWeightFullyConnectedOpPattern : public RewritePattern {
         std::vector<int64_t> shape;
         int64_t size;
         getTensorShapeAndSize(fcOp.filter(), shape, size);
-        auto filter = readAndDeleteWeightTensor<bfloat16>(fcOp.filter(), weightTF_);
+        auto filter = readAndDeleteWeightTensor<bfloat16>(fcOp.filter(), wTF);
         std::vector<uint16_t> filter_bf16(filter->begin(), filter->end());
         // transpose h,n
         assert(shape.size() == 2);
@@ -1353,7 +1359,7 @@ struct LowerWeightFullyConnectedOpPattern : public RewritePattern {
         // save it
         StringRef storageType = "BF16";
         addWeightTensorAndUpdateWeightOp<uint16_t>(fcOp.filter(),
-            "lowered", filter_bf16, shape, storageType, weightTF_);
+            "lowered", filter_bf16, shape, storageType, wTF);
         filterOp.setAttr("lowered", rewriter.getBoolAttr(true));
       }
 
@@ -1368,7 +1374,7 @@ struct LowerWeightFullyConnectedOpPattern : public RewritePattern {
         std::vector<int64_t> shape;
         int64_t size;
         getTensorShapeAndSize(fcOp.bias(), shape, size);
-        auto bias = readAndDeleteWeightTensor<bfloat16>(fcOp.bias(), weightTF_);
+        auto bias = readAndDeleteWeightTensor<bfloat16>(fcOp.bias(), wTF);
         std::vector<uint16_t> bias_bf16(bias->begin(), bias->end());
         // rather than expand to fp32, then transpose, we simply add a new stripe
         // of uint16_t with all 0x0000
@@ -1387,26 +1393,63 @@ struct LowerWeightFullyConnectedOpPattern : public RewritePattern {
         // to change the shape
         StringRef storageType = "UINT32";
         addWeightTensorAndUpdateWeightOp<uint32_t>(fcOp.bias(),
-            "lowered", bias_uint32, shape, storageType, weightTF_);
+            "lowered", bias_uint32, shape, storageType, wTF);
         biasOp.setAttr("lowered", rewriter.getBoolAttr(true));
       }
     }
 
     return matchSuccess();
   }
+};
 
-  TensorFile *weightTF_;
+struct LowerWeightPReluOpPattern : public RewritePattern {
+  LowerWeightPReluOpPattern(MLIRContext *context)
+      : RewritePattern("tpu.prelu", 1, context) {}
+
+  PatternMatchResult matchAndRewrite(Operation *op,
+      PatternRewriter &rewriter) const override {
+    auto prOp = cast<tpu::PReluOp>(op);
+    auto filterOp = cast<tpu::LoadWeightOp>(prOp.getOperand(1)->getDefiningOp());
+    if (filterOp.lowered()) {
+      // lowered already
+      return matchFailure();
+    }
+    llvm::errs() << "Lower Weight for PReluOp: " << getOpName(op) << "\n";
+    TensorFile *wTF = getWeightTensorFile(op);
+
+    if (getOpQuant(op) == "INT8") {
+      // lower filter
+      {
+        assert(filterOp.storage() == "INT8");
+        std::vector<int64_t> shape;
+        int64_t size;
+        getTensorShapeAndSize(filterOp, shape, size);
+        auto filter = readAndDeleteWeightTensor<float>(prOp.filter(), wTF);
+        std::vector<int8_t> filter_int8(filter->begin(), filter->end());
+
+        // save it
+        addWeightTensorAndUpdateWeightOp<int8_t>(prOp.filter(),
+            "lowered", filter_int8, shape, "INT8", wTF);
+        filterOp.setAttr("lowered", rewriter.getBoolAttr(true));
+      }
+    } else if (getOpQuant(op) == "BF16") {
+      // lower filter
+      {
+        assert(false && "TODO BF16");
+      }
+    }
+    return matchSuccess();
+  }
 };
 
 struct LowerWeightSigmoidOpPattern : public RewritePattern {
-  LowerWeightSigmoidOpPattern(MLIRContext *context, TensorFile *weightTF)
-      : RewritePattern("tpu.sigmoid", 1, context), weightTF_(weightTF) {
-  }
+  LowerWeightSigmoidOpPattern(MLIRContext *context)
+      : RewritePattern("tpu.sigmoid", 1, context) {}
 
   PatternMatchResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
     auto sigOp = cast<tpu::SigmoidOp>(op);
-    
+
     auto tableOp = cast<tpu::LoadWeightOp>(sigOp.getOperand(1)->getDefiningOp());
     if (tableOp.lowered()) {
       // lowered already
@@ -1414,6 +1457,7 @@ struct LowerWeightSigmoidOpPattern : public RewritePattern {
     }
     llvm::errs() << "Lower Weight for SigmoidOp: " << getOpName(op)
                  << "\n";
+    TensorFile *wTF = getWeightTensorFile(op);
 
     if (getOpQuant(op) == "INT8") {
       // lower filter
@@ -1421,7 +1465,7 @@ struct LowerWeightSigmoidOpPattern : public RewritePattern {
         std::vector<int64_t> shape;
         int64_t size;
         getTensorShapeAndSize(sigOp.table(), shape, size);
-        auto table = readAndDeleteWeightTensor<float>(tableOp, weightTF_);
+        auto table = readAndDeleteWeightTensor<float>(tableOp, wTF);
         std::vector<int8_t> table_int8(table->begin(), table->end());
         // 1880 support 256 lookup table
         // because of 1880 hardware search table only on each local memory
@@ -1431,7 +1475,7 @@ struct LowerWeightSigmoidOpPattern : public RewritePattern {
 
         // save it
         addWeightTensorAndUpdateWeightOp<int8_t>(
-            tableOp, "lowered", table_int8, shape, "INT8", weightTF_);
+            tableOp, "lowered", table_int8, shape, "INT8", wTF);
         tableOp.setAttr("lowered", rewriter.getBoolAttr(true));
 
     } else if (getOpQuant(op) == "BF16") {
@@ -1441,8 +1485,6 @@ struct LowerWeightSigmoidOpPattern : public RewritePattern {
 
     return matchSuccess();
   }
-
-  TensorFile *weightTF_;
 };
 
 class TpuLowerPass : public FunctionPass<TpuLowerPass> {
@@ -1451,33 +1493,25 @@ public:
     auto *context = &getContext();
     auto fn = getFunction();
 
-    // find tensorFile and Value
-    llvm::StringRef filename;
-    Value* weightFV;
-    fn.walk([&](tpu::LoadFileOp op) {
-      filename = op.filename();
-      LLVM_DEBUG(llvm::errs() << "LoadFileOp filename " << filename << "\n";);
-      weightFV = op.getResult();
-    });
-    auto weightTF = openTensorFile(filename);
-
     // first, merge conv rshift/multiplier/bias into one packed tensor
     OwningRewritePatternList patterns_pack;
     patterns_pack.insert<
         PackWeightConv2DOpPattern<tpu::Conv2DOp>,
         PackWeightConv2DOpPattern<tpu::DeConv2DOp>,
         PackWeightBroadcastMulOpPattern
-        >(context, weightTF.get(), weightFV);
+        >(context);
     applyPatternsGreedily(fn, patterns_pack);
 
     // second, do weight lower on weight tensors
     // lower means transpose and save as storageType (int8/bf16,etc)
     OwningRewritePatternList patterns_lower;
     patterns_lower.insert<
-        LowerWeightConv2DOpPattern,
+        LowerWeightConv2DOpPattern<tpu::Conv2DOp>,
+        LowerWeightConv2DOpPattern<tpu::DeConv2DOp>,
         LowerWeightSigmoidOpPattern,
+        LowerWeightPReluOpPattern,
         LowerWeightFullyConnectedOpPattern
-        >(context, weightTF.get());
+        >(context);
     applyPatternsGreedily(fn, patterns_lower);
 
     // do op lower
@@ -1496,12 +1530,13 @@ public:
         DefaultToTGPattern<tpu::PermuteOp>,
         DefaultToTGPattern<tpu::PoolAvg2DOp>,
         DefaultToTGPattern<tpu::PoolMax2DOp>,
+        DefaultToTGPattern<tpu::PReluOp>,
         DefaultToTGPattern<tpu::ShuffleChannelOp>,
         DefaultToTGPattern<tpu::ReshapeOp>,
         DefaultToTGPattern<tpu::SigmoidOp>,
         DefaultToTGPattern<tpu::SliceOp>,
         DefaultToTGPattern<tpu::UpsampleOp>
-    >(context, weightTF.get(), weightFV);
+        >(context);
     applyPatternsGreedily(fn, patterns);
 
     // TODO: this is temporary
@@ -1515,15 +1550,6 @@ public:
         FoldReshapePattern<tpu::TG_BF16_ReshapeOp>
         >(context);
     applyPatternsGreedily(fn, patterns);
-
-    // keep tensorfile
-    std::string newName;
-    weightTF->keep(true, &newName);
-    fn.walk([&](tpu::LoadFileOp op) {
-      OpBuilder opBuilder(context);
-      op.setAttr("filename", opBuilder.getStringAttr(newName));
-      llvm::errs() << "LoadFileOp filename updated to " << newName << "\n";
-    });
   }
 };
 

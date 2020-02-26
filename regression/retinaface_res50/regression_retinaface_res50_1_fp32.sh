@@ -6,13 +6,13 @@ source $DIR/../../envsetup.sh
 
 CHECK_NON_OPT_VERSION=0
 
-RETINAFACE_USE_DECONV=0
+RETINAFACE_USE_DECONV=1
 
 if [ $RETINAFACE_USE_DECONV -eq 1 ]; then
   mlir-translate --caffe-to-mlir \
       $MODEL_PATH/face_detection/retinaface/caffe/R50-0000.prototxt \
       --caffemodel $MODEL_PATH/face_detection/retinaface/caffe/R50-0000.caffemodel \
-      -o retinaface_res50_deconv.mlir
+      -o retinaface_res50.mlir
 else
   mlir-translate --caffe-to-mlir \
       $MODEL_PATH/face_detection/retinaface/caffe/R50-0000-upsample.prototxt \
@@ -41,15 +41,13 @@ if [ $CHECK_NON_OPT_VERSION -eq 1 ]; then
 fi
 
 # apply all possible pre-calibration optimizations
+# Notes: convert-bn-to-scale has to be done before canonicalizer
 mlir-opt \
     --assign-layer-id \
     --print-tpu-op-info \
     --tpu-op-info-filename retinaface_res50_op_info.csv \
     --convert-bn-to-scale \
-    --fold-scale \
-    --merge-scale-into-conv \
-    --convert-scale-to-dwconv \
-    --fuse-relu \
+    --canonicalize \
     retinaface_res50.mlir \
     -o retinaface_res50_opt.mlir
 

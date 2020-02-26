@@ -279,13 +279,25 @@ void parseConvParam(const tpu::ConvParam &p, bool is_deconv,
   std::vector<int64_t> f_s(filter_type.getShape());
 
   assert((i_s[0] == o_s[0]) && "input N not equal to output N");
-  n = i_s[0];
-  ic = i_s[1];
-  ih = i_s[2];
-  iw = i_s[3];
-  oc = o_s[1];
-  oh = o_s[2];
-  ow = o_s[3];
+  if(i_s.size() == 4){
+    n = i_s[0];
+    ic = i_s[1];
+    ih = i_s[2];
+    iw = i_s[3];
+    oc = o_s[1];
+    oh = o_s[2];
+    ow = o_s[3];
+  } else if(i_s.size() == 2){
+    n = i_s[0];
+    ic = i_s[1];
+    ih = 1;
+    iw = 1;
+    oc = o_s[1];
+    oh = 1;
+    ow = 1;
+  } else{
+    assert(false);
+  }
   kh = f_s[f_s.size() - 2];
   kw = f_s[f_s.size() - 1];
 

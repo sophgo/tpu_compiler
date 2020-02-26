@@ -145,7 +145,7 @@ def TpuOpLowerInterface : OpInterface<"TpuOpLowerInterface"> {
     InterfaceMethod<[{
         Do lower.
       }],
-      "Value *", "convertToTG", (ins "void *":$info)
+      "Value *", "convertToTG"
     >,
   ];
 }

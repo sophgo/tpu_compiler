@@ -62,11 +62,9 @@ public:
             for (auto opd: op.getOperands()) {
               resultsList.push_back(opd);
             }
-          } else if (isa<tpu::LoadFileOp>(op)) {
-            auto loadFileOp = dyn_cast<tpu::LoadFileOp>(op);
-            auto filename = loadFileOp.getAttrOfType<StringAttr>("filename").getValue();
-            auto filename_tensorfile = llvm::sys::path::stem(filename).str() + ".npz";
-            weightFile_ = openInputTensorFile(filename_tensorfile);
+          } else if (isa<tpu::WeightFileOp>(op)) {
+            auto weightFileOp = dyn_cast<tpu::WeightFileOp>(op);
+            weightFile_ = weightFileOp.get();
           } else if (isa<tpu::LoadWeightOp>(op)) {
             auto loadWeightOp = dyn_cast<tpu::LoadWeightOp>(op);
             LLVM_DEBUG(llvm::errs() << "LoadWeightOp" << "\n";);
@@ -160,7 +158,7 @@ private:
   ModuleOp mlirModule;
 
   // weight file input stream
-  std::unique_ptr<TensorFile> weightFile_;
+  TensorFile *weightFile_;
 
 protected:
   value_map_t valueMapping;
