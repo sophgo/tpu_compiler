@@ -36,7 +36,7 @@ namespace {
 
 struct TpuBatchNormOpPattern : public RewritePattern {
   TpuBatchNormOpPattern(MLIRContext *context)
-      : RewritePattern("tpu.batch_norm", 1, context) {}
+      : RewritePattern("tpu.batch_norm", 7, context) {}
 
   PatternMatchResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
@@ -147,7 +147,7 @@ private:
 
 void tpu::BatchNormOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
                                               MLIRContext *context) {
-  //results.insert<TpuBatchNormOpPattern>(context, nullptr);
+  results.insert<TpuBatchNormOpPattern>(context);
 }
 
 std::unique_ptr<OpPassBase<FuncOp>> mlir::createConvertBnToScalePass() {

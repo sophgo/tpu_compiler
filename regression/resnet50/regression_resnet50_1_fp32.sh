@@ -33,14 +33,13 @@ if [ $CHECK_NON_OPT_VERSION -eq 1 ]; then
 fi
 
 # assign layer_id right away, and apply all frontend optimizations
+# Notes: convert-bn-to-scale has to be done before canonicalizer
 mlir-opt \
     --assign-layer-id \
     --print-tpu-op-info \
     --tpu-op-info-filename resnet50_op_info.csv \
     --convert-bn-to-scale \
-    --fold-scale \
-    --merge-scale-into-conv \
-    --fuse-relu \
+    --canonicalize \
     resnet50.mlir \
     -o resnet50_opt.mlir
 

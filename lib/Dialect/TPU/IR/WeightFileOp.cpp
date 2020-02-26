@@ -134,7 +134,6 @@ LogicalResult WeightFileOp::verify() {
 }
 
 void WeightFileOp::print(OpAsmPrinter &p) {
-  llvm::errs() << "Called print\n";
   auto *context = getContext();
   auto dialect = context->getRegisteredDialect("tpu");
   auto tpuDialect = reinterpret_cast<tpu::TPUDialect *>(dialect);
