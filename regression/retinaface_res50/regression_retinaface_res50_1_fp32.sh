@@ -41,15 +41,13 @@ if [ $CHECK_NON_OPT_VERSION -eq 1 ]; then
 fi
 
 # apply all possible pre-calibration optimizations
+# Notes: convert-bn-to-scale has to be done before canonicalizer
 mlir-opt \
     --assign-layer-id \
     --print-tpu-op-info \
     --tpu-op-info-filename retinaface_res50_op_info.csv \
     --convert-bn-to-scale \
-    --fold-scale \
-    --merge-scale-into-conv \
-    --convert-scale-to-dwconv \
-    --fuse-relu \
+    --canonicalize \
     retinaface_res50.mlir \
     -o retinaface_res50_opt.mlir
 

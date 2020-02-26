@@ -13,11 +13,8 @@ add_llvm_library(MLIRTPU
   Analysis/TpuOpPrint.cpp
   Analysis/TpuOpStats.cpp
   Transforms/ConvertBnToScale.cpp
-  Transforms/FoldScale.cpp
-  Transforms/MergeScaleIntoConv.cpp
-  Transforms/ConvertScaleToDWConv
+  Transforms/ConvertScale.cpp
   Transforms/FuseRelu.cpp
-  Transforms/FuseEltwise.cpp
   Transforms/AssignWeightAddress.cpp
   Transforms/AssignNeuronAddress.cpp
   Transforms/AssignLayerId.cpp

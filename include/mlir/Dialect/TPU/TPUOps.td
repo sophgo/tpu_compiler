@@ -556,7 +556,7 @@ def TPU_PermuteOp: TPU_Op<"permute",
       `NoSideEffect`
       `TpuOpCommonInterface` : support common TPU Op interface
       `TpuOpInterpInterface` : support interperter
-      `TpuOpQuantInterface`  : support quantization    
+      `TpuOpQuantInterface`  : support quantization
       `TpuOpLowerInterface`  : support lower to TPU TG Ops
   }];
 
@@ -792,6 +792,8 @@ def TPU_ReluOp: TPU_Op<"relu",
   );
 
   let results = (outs AnyTensor:$output);
+
+  let hasCanonicalizer = 1;
 }
 
 def TPU_ReshapeOp: TPU_Op<"reshape",

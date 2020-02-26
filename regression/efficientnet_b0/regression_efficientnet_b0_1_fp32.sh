@@ -33,15 +33,13 @@ if [ $CHECK_NON_OPT_VERSION -eq 1 ]; then
 fi
 
 # apply opt
+# Notes: convert-bn-to-scale has to be done before canonicalizer
 mlir-opt \
     --assign-layer-id \
     --print-tpu-op-info \
     --tpu-op-info-filename efficientnet_b0_op_info.csv \
     --convert-bn-to-scale \
-    --fold-scale \
-    --merge-scale-into-conv \
-    --fuse-relu \
-    --convert-scale-to-dwconv \
+    --canonicalize \
     efficientnet_b0.mlir \
     -o efficientnet_b0_opt.mlir
 

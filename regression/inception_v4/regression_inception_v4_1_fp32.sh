@@ -31,14 +31,13 @@ npz_compare.py \
     --tolerance=0.99,0.99,0.99 -vvv
 
 # assign layer_id right away, and apply all frontend optimizations
+# Notes: convert-bn-to-scale has to be done before canonicalizer
 mlir-opt \
     --assign-layer-id \
     --print-tpu-op-info \
     --tpu-op-info-filename inception_v4_op_info.csv \
     --convert-bn-to-scale \
-    --fold-scale \
-    --merge-scale-into-conv \
-    --fuse-relu \
+    --canonicalize \
     inception_v4.mlir \
     -o inception_v4_opt.mlir
 
