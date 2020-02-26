@@ -63,7 +63,6 @@ public:
         processed += addLayerIdAttr<tpu::DivOp>(builder, layer_id, op);
         processed += addLayerIdAttr<tpu::InputOp>(builder, layer_id, op);
         processed += addLayerIdAttr<tpu::PowerOp>(builder, layer_id, op);
-        processed += addLayerIdAttr<tpu::PriorBoxOp>(builder, layer_id, op);
         processed += addLayerIdAttr<tpu::SqrtOp>(builder, layer_id, op);
         processed += addLayerIdAttr<tpu::TanHOp>(builder, layer_id, op);
         if (op->getName().getDialect().str() != "tpu"

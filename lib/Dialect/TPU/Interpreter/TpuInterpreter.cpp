@@ -868,7 +868,7 @@ LogicalResult tpu::PermuteOp::interpret(
     valueMapping[result] = std::move(opdT[0]);
   }else{
       std::shared_ptr<std::vector<float>> input = opdT[0];
-    ret = my_permute(input->data(),resultT->data(),input_size,in,ic,ih,iw,
+    ret = my_permute(input->data(),resultT->data(),input_shape.size(),in,ic,ih,iw,
               on,oc,oh,ow,
               order0,order1,order2,order3);
     assert(ret == 0);
@@ -950,6 +950,213 @@ LogicalResult tpu::ReluOp::interpret(
   valueMapping[result] = std::move(resultT);
 
   return success();
+}
+
+LogicalResult tpu::PriorBoxOp::interpret(
+    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+  Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name()
+                          << "]\n";);
+  auto opdT = getOperandTensors(op, valueMapping);
+  auto result = this->getResult();
+  auto size = getTensorSize(result);
+  auto resultT = std::make_unique<std::vector<float>>(size);
+      
+  float min_size = this->min_size().convertToFloat();
+  float max_size = this->max_size().convertToFloat();
+  int aspect_ratios_size = this->aspect_ratios_size().getLimitedValue();
+  bool flip = this->flip();
+  bool clip = this->clip();
+  float variance0 = this->variance0().convertToFloat();
+  float variance1 = this->variance1().convertToFloat();
+  float variance2 = this->variance2().convertToFloat();
+  float variance3 = this->variance3().convertToFloat();
+  float offset = this->offset().convertToFloat();
+  float step = this->step().convertToFloat();
+  std::vector<float> min_sizes_;
+  std::vector<float> max_sizes_;
+  std::vector<float> aspect_ratios;
+  std::vector<float> aspect_ratios_;
+  bool flip_;
+  int num_priors_;
+  bool clip_;
+  std::vector<float> variance_;
+  int img_w_;
+  int img_h_;
+  float step_w_;
+  float step_h_;
+
+  float offset_;
+
+  aspect_ratios.push_back(this->aspect_ratio0().convertToFloat()) ;
+  if(aspect_ratios_size==2)
+    aspect_ratios.push_back(this->aspect_ratio1().getValue().convertToFloat()) ;
+
+  int max_size_size=this->max_size_size().getLimitedValue();
+  int min_size_size=this->min_size_size().getLimitedValue();
+
+
+  for (int i = 0; i < min_size_size; ++i) {
+    min_sizes_.push_back(min_size);
+    assert(min_sizes_.back()> 0 && "min_size must be positive.");
+    assert(i==0); //more than one min size is not support.
+  }
+
+  aspect_ratios_.clear();
+  aspect_ratios_.push_back(1.);
+  flip_ = flip;
+  for (int i = 0; i < aspect_ratios_size; ++i) {
+        float ar = aspect_ratios[i];
+        bool already_exist = false;
+        for (size_t j = 0; j < aspect_ratios_.size(); ++j) {
+          if (fabs(ar - aspect_ratios_[j]) < 1e-6) {
+            already_exist = true;
+            break;
+          }
+        }
+        if (!already_exist) {
+          aspect_ratios_.push_back(ar);
+          if (flip_) {
+            aspect_ratios_.push_back(1./ar);
+          }
+        }
+    }
+
+  num_priors_ = aspect_ratios_.size() * min_sizes_.size();
+
+
+  max_sizes_.push_back(max_size);
+  assert(max_sizes_[0]> min_sizes_[0] && "max_size must be greater than min_size.");
+  num_priors_ += 1;
+
+  clip_ = clip;
+
+  // Must and only provide 4 variance.
+  assert(variance0> 0);
+  variance_.push_back(variance0);
+  assert(variance1> 0);
+  variance_.push_back(variance1);
+  assert(variance2> 0);
+  variance_.push_back(variance2);
+  assert(variance3> 0);
+  variance_.push_back(variance3);
+
+  img_h_ = 0;
+  img_w_ = 0;
+
+  assert(step>0&&( "step should be larger than 0."));
+  step_h_ = step;
+  step_w_ = step;
+
+  offset_ = offset;
+
+  std::vector<int64_t> shape1 = this->getOperand(1)->getType().cast<TensorType>().getShape();
+  std::vector<int64_t> shape0 = this->getOperand(0)->getType().cast<TensorType>().getShape();
+  assert(shape1.size()==4&&shape0.size()==4);
+  const int layer_width = shape0[3];
+  const int layer_height = shape0[2];
+
+  int img_width, img_height;
+  if (img_h_ == 0 || img_w_ == 0) {
+    img_width = shape1[3];
+    img_height = shape1[2];
+  } else {
+    img_width = img_w_;
+    img_height = img_h_;
+  }
+  float step_w, step_h;
+  if (step_w_ == 0 || step_h_ == 0) {
+    step_w = static_cast<float>(img_width) / layer_width;
+    step_h = static_cast<float>(img_height) / layer_height;
+  } else {
+    step_w = step_w_;
+    step_h = step_h_;
+  }
+
+
+  float *top_data = (float *)resultT->data();
+
+  int dim = layer_height * layer_width * num_priors_ * 4;
+  int idx = 0;
+  for (int h = 0; h < layer_height; ++h) {
+    for (int w = 0; w < layer_width; ++w) {
+      float center_x = (w + offset_) * step_w;
+      float center_y = (h + offset_) * step_h;
+      float box_width, box_height;
+      for (int s = 0; s < min_size_size; ++s) {
+        int min_size_ = min_sizes_[s];
+        // first prior: aspect_ratio = 1, size = min_size
+        box_width = box_height = min_size_;
+        // xmin
+        top_data[idx++] = (center_x - box_width / 2.) / img_width;
+        // ymin
+        top_data[idx++] = (center_y - box_height / 2.) / img_height;
+        // xmax
+        top_data[idx++] = (center_x + box_width / 2.) / img_width;
+        // ymax
+        top_data[idx++] = (center_y + box_height / 2.) / img_height;
+
+        if (max_size_size>0) {
+          int max_size_ = max_sizes_[s];
+          // second prior: aspect_ratio = 1, size = sqrt(min_size * max_size)
+          box_width = box_height = sqrt(min_size_ * max_size_);
+          // xmin
+          top_data[idx++] = (center_x - box_width / 2.) / img_width;
+          // ymin
+          top_data[idx++] = (center_y - box_height / 2.) / img_height;
+          // xmax
+          top_data[idx++] = (center_x + box_width / 2.) / img_width;
+          // ymax
+          top_data[idx++] = (center_y + box_height / 2.) / img_height;
+        }
+
+        // rest of priors
+        for (size_t r = 0; r < aspect_ratios_.size(); ++r) {
+          float ar = aspect_ratios_[r];
+          if (fabs(ar - 1.) < 1e-6) {
+            continue;
+          }
+          box_width = min_size_ * sqrt(ar);
+          box_height = min_size_ / sqrt(ar);
+          // xmin
+          top_data[idx++] = (center_x - box_width / 2.) / img_width;
+          // ymin
+          top_data[idx++] = (center_y - box_height / 2.) / img_height;
+          // xmax
+          top_data[idx++] = (center_x + box_width / 2.) / img_width;
+          // ymax
+          top_data[idx++] = (center_y + box_height / 2.) / img_height;
+        }
+      }
+    }
+  }
+  // clip the prior's coordidate such that it is within [0, 1]
+  if (clip_) {
+    for (int d = 0; d < dim; ++d) {
+      top_data[d] = std::min<float>(std::max<float>(top_data[d], 0.), 1.);
+    }
+  }
+
+  auto output_type = this->output()->getType().cast<TensorType>();
+  std::vector<int64_t> o_s(output_type.getShape());
+
+  // set the variance.
+  top_data += (o_s[2]);
+
+  int count = 0;
+  for (int h = 0; h < layer_height; ++h) {
+    for (int w = 0; w < layer_width; ++w) {
+      for (int i = 0; i < num_priors_; ++i) {
+        for (int j = 0; j < 4; ++j) {
+          top_data[count] = variance_[j];
+          ++count;
+        }
+      }
+    }
+  }
+
+  valueMapping[result] = std::move(resultT);
+  return success();                    
 }
 
 LogicalResult tpu::ReshapeOp::interpret(
@@ -1181,6 +1388,236 @@ LogicalResult tpu::UpsampleOp::interpret(
   return success();
 }
 
+LogicalResult tpu::DetectionOutputOp::interpret(
+    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+  Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
+
+  auto opdT = getOperandTensors(op, valueMapping);
+  auto result = this->getResult();
+  auto size = getTensorSize(result);
+  auto resultT = std::make_unique<std::vector<float> >(size);
+
+  std::vector<int64_t> output_shape;
+  output_shape = getTensorShape(this->output());
+
+  assert(output_shape.size() <= 4);
+
+    int num_classes_ = this->num_classes().getLimitedValue();
+    bool share_location_ = this->share_location();
+    int num_loc_classes_ = share_location_ ? 1 : num_classes_;
+    int background_label_id_ = this->background_label_id().getLimitedValue();
+    Decode_CodeType code_type_;
+    if(this->code_type() == "CORNER"){
+      code_type_ = PriorBoxParameter_CodeType_CORNER;
+    }else if(this->code_type() == "CENTER_SIZE"){
+      code_type_ = PriorBoxParameter_CodeType_CENTER_SIZE;
+    }else if(this->code_type() == "CORNER_SIZE"){
+      code_type_ = PriorBoxParameter_CodeType_CORNER_SIZE;
+    }else{
+      assert(0);
+    }
+    bool variance_encoded_in_target_ =  false;
+
+    int keep_top_k_ = this->keep_top_k().getLimitedValue();
+    float confidence_threshold_ = this->confidence_threshold().convertToFloat();
+
+    // Parameters used in nms.
+    float nms_threshold_ = this->nms_threshold().convertToFloat();
+    float eta_ = 1.0;
+    int top_k_ = this->top_k().getLimitedValue();
+
+    auto input_type0 = this->input()[0]->getType().cast<TensorType>();
+    std::vector<int64_t> i_s0(input_type0.getShape());
+    auto input_type1 = this->input()[1]->getType().cast<TensorType>();
+    std::vector<int64_t> i_s1(input_type1.getShape());
+    auto input_type2 = this->input()[2]->getType().cast<TensorType>();
+    std::vector<int64_t> i_s2(input_type2.getShape());
+    int num = i_s0[0];
+    int num_priors_ = i_s2[2]/ 4;
+
+    float* loc_data= (float *)opdT[0]->data();
+    float* conf_data = (float *)opdT[1]->data();
+    float* prior_data= (float *)opdT[2]->data();
+
+
+    //calc && sort
+    std::vector<std::map<int, std::vector<std::pair<float ,int>> > > all_conf_scores;
+    GetConfidenceScores_opt(conf_data, num, num_priors_, num_classes_, confidence_threshold_, &all_conf_scores);
+    for (int i = 0; i < num; ++i) {
+      for (int c = 0; c < num_classes_; ++c) {
+        if (all_conf_scores[i].find(c) == all_conf_scores[i].end()){
+          LLVM_DEBUG(std::cout<<"class with no score idx = %d,"<<c<<"\n";);
+          continue;
+        }
+        std::vector<std::pair<float,int> >& scores = all_conf_scores[i].find(c)->second;
+
+        if (top_k_ < (int)scores.size()) {
+          std::partial_sort (scores.begin(), scores.begin()+top_k_ ,scores.end(), SortScoreCmp0);
+        } else {
+          std::sort (scores.begin() , scores.end(), SortScoreCmp0);
+        }
+      }
+    }
+
+    //build keep for decode ,recode vilad index
+    float *decode_keep_index;
+    int buf_length = 0;
+    if (share_location_) {
+      buf_length = num * num_priors_;
+    } else {
+      buf_length = num * num_priors_ * num_classes_;
+    }
+    decode_keep_index = new float[buf_length];
+    memset (decode_keep_index , 0 , buf_length*4);
+    float *p = decode_keep_index;
+    for (int i = 0; i < num; ++i) {
+      if (share_location_) {
+        p = decode_keep_index + num_priors_*i;
+      }
+      for (int c = 0; c < num_classes_; ++c) {
+        if (!share_location_) {
+          p = decode_keep_index + num_priors_*num_classes_*i + num_priors_*c;
+        }
+        if (c == background_label_id_) {
+          // Ignore background class.
+          continue;
+        }
+
+        if (all_conf_scores[i].find(c) == all_conf_scores[i].end())
+          continue;
+        std::vector<std::pair<float,int> >& scores = all_conf_scores[i].find(c)->second;
+        int length = top_k_ < (int)scores.size() ? top_k_ : scores.size();
+        for (int k = 0; k < length; ++k) {
+          p[scores[k].second] = 1;
+        }
+      }
+    }
+
+    // Retrieve all location predictions.
+    std::vector<LabelBBox_l> all_loc_preds;
+    GetLocPredictions_opt(loc_data, num, num_priors_, num_loc_classes_,
+                         share_location_, decode_keep_index, &all_loc_preds);
+
+    // Decode all loc predictions to bboxes.
+    std::vector<LabelBBox_l> all_decode_bboxes;
+    const bool clip_bbox = false;
+    DecodeBBoxesAll_opt(all_loc_preds, num_priors_ ,prior_data , num,
+                       share_location_, num_loc_classes_, background_label_id_,
+                       code_type_, variance_encoded_in_target_, clip_bbox,decode_keep_index,
+                       &all_decode_bboxes);
+    delete [] decode_keep_index;
+
+    int num_kept = 0;
+    std::vector<std::map<int, std::vector<std::pair<float,int>>> > all_indices;
+    for (int i = 0; i < num; ++i) {
+      const LabelBBox_l& decode_bboxes = all_decode_bboxes[i];
+      const std::map<int, std::vector<std::pair<float ,int>> >& conf_scores = all_conf_scores[i];
+      std::map<int, std::vector<std::pair<float,int>> > indices;
+      int num_det = 0;
+      for (int c = 0; c < num_classes_; ++c) {
+        if (c == background_label_id_) {
+          // Ignore background class.
+          continue;
+        }
+        if (conf_scores.find(c) == conf_scores.end())
+          continue;
+        int label = share_location_ ? -1 : c;
+        if (decode_bboxes.find(label) == decode_bboxes.end()) {
+          // Something bad happened if there are no predictions for current label.
+          llvm::errs() << "Could not find location predictions for label " << label;
+          continue;
+        }
+        const std::vector<BBox_l>& bboxes = decode_bboxes.find(label)->second;
+        const std::vector<std::pair<float ,int>>& aa = conf_scores.find(c)->second;
+        ApplyNMSFast_opt(bboxes, aa, confidence_threshold_, nms_threshold_, eta_, top_k_, &(indices[c]));
+
+        num_det += indices[c].size();
+      }
+
+      if (keep_top_k_ > -1 && num_det > keep_top_k_) {
+        std::vector<std::pair<float, std::pair<int, int> > > score_index_pairs;
+        for (auto it = indices.begin();
+             it != indices.end(); ++it) {
+          int label = it->first;
+
+          const std::vector<std::pair<float,int>>& label_indices = it->second;
+          for (int j = 0; j < (int)label_indices.size(); ++j) {
+            score_index_pairs.push_back(std::make_pair(
+            label_indices[j].first, std::make_pair(label, label_indices[j].second)));
+          }
+        }
+        // Keep top k results per image.
+        std::sort (score_index_pairs.begin(), score_index_pairs.end(),SortScoreCmp1);
+        score_index_pairs.resize(keep_top_k_);
+        // Store the new indices.
+        std::map<int, std::vector<std::pair<float,int>> > new_indices;
+        for (int j = 0; j < (int)score_index_pairs.size(); ++j) {
+
+          int label = score_index_pairs[j].second.first;
+          int idx = score_index_pairs[j].second.second;
+          float s = score_index_pairs[j].first;
+
+          new_indices[label].push_back(std::make_pair(s , idx));
+        }
+        all_indices.push_back(new_indices);
+        num_kept += keep_top_k_;
+      } else {
+        all_indices.push_back(indices);
+        num_kept += num_det;
+      }
+    }
+    //float *top_data = (float *)opdT[0]->data();
+
+    float *top_data = (float *)resultT->data();
+
+    int output_size = num*keep_top_k_*1*1*7;
+    //init output buf
+    for (int i = 0; i < output_size; ++i) {
+      top_data[i] = -1;
+    }
+
+    if (num_kept == 0) {
+      LLVM_DEBUG(llvm::errs() << "Couldn't find any detections";);
+      // Generate fake results per image.
+      for (int i = 0; i < num; ++i) {
+        top_data[0] = i;
+        top_data += 7;
+      }
+    } else {
+      int count = 0;
+      for (int i = 0; i < num; ++i) {
+        const LabelBBox_l& decode_bboxes = all_decode_bboxes[i];
+        for (auto it = all_indices[i].begin();
+            it != all_indices[i].end(); ++it) {
+          int label = it->first;
+          int loc_label = share_location_ ? -1 : label;
+          if (decode_bboxes.find(loc_label) == decode_bboxes.end()) {
+            // Something bad happened if there are no predictions for current label.
+            llvm::errs() << "Could not find location predictions for " << loc_label;
+            continue;
+          }
+          const std::vector<BBox_l>& bboxes = decode_bboxes.find(loc_label)->second;
+          std::vector<std::pair<float,int>>& indices = it->second;
+          for (int j = 0; j < (int)indices.size(); ++j) {
+
+            int idx = indices[j].second;
+            top_data[count * 7] = i;
+            top_data[count * 7 + 1] = label;
+            top_data[count * 7 + 2] = indices[j].first;
+            const BBox_l& bbox = bboxes[idx];
+            top_data[count * 7 + 3] = bbox.xmin;
+            top_data[count * 7 + 4] = bbox.ymin;
+            top_data[count * 7 + 5] = bbox.xmax;
+            top_data[count * 7 + 6] = bbox.ymax;
+            ++count;
+          }
+        }
+      }
+    }
+    valueMapping[result] = std::move(resultT);
+    return success();
+}
 
 
 
@@ -1296,6 +1733,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     return success();
   }
 #endif
+
   if (auto op = dyn_cast<tpu::TanHOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "TanHOp" << "\n";);
     auto opdT = getOperandTensors(opInst, valueMapping);
@@ -1561,7 +1999,7 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     valueMapping[result] = std::move(resultT);
     return success();
   }
-
+#if 0
   if (auto op = dyn_cast<tpu::PriorBoxOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "PriorBoxOp" << "\n";);
     auto opdT = getOperandTensors(opInst, valueMapping);
@@ -1995,6 +2433,9 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     valueMapping[result] = std::move(resultT);
     return success();
   }
+
+#endif
+
   if (auto op = dyn_cast<tpu::PowerOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "PowerOp" << "\n";);
     assert(false);
