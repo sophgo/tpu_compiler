@@ -1494,17 +1494,19 @@ LogicalResult tpu::TG_INT8_SigmoidOp::codegen(void *ctx) {
   gaddr_t output_gaddr = getOpAddress(op);
   gaddr_t y0_table_gaddr =
       getWeightOpAddress(table()->getDefiningOp());
-  gaddr_t slope_gaddr = INVALID_GLOBAL_ADDR;
   int layer_id = mlir::getOpLayerId(op);
 
-  sigmoid_fixed_forward_bmkernel(*backend_ctx,
-                                 0,        // stream_id,
-                                 0,        // inst_id,
-                                 layer_id, // layer_id,
-                                 nullptr,  // const u32 *depends,
-                                 0,        // depends_len,
-                                 input_gaddr, output_gaddr, y0_table_gaddr,
-                                 slope_gaddr, n, c, h, w, FMT_I8);
+  lut_fixed_forward_bmkernel(*backend_ctx,
+                             0,        // stream_id,
+                             0,        // inst_id,
+                             layer_id, // layer_id,
+                             nullptr,  // const u32 *depends,
+                             0,        // depends_len,
+                             input_gaddr, 
+                             output_gaddr, 
+                             y0_table_gaddr,
+                             n, c, h, w, 
+                             FMT_I8);
 
   return success();
 }
