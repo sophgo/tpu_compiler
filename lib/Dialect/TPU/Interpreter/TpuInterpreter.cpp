@@ -779,6 +779,51 @@ static LogicalResult doPool2DOpInterpret(Operation *op, bool is_average,
   return success();
 }
 
+LogicalResult tpu::NormalizeOp::interpret(
+    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+  Operation *op = this->getOperation();
+  auto opdT = getOperandTensors(op, valueMapping);
+
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name()
+                          << "]\n";);
+
+  auto result = this->getResult();
+  auto size = getTensorSize(result);
+  auto resultT = std::make_unique<std::vector<float>>(size);
+
+  std::vector<int64_t> input_shape;
+  std::vector<int64_t> output_shape;
+  int64_t input_size, output_size;
+
+  getTensorShapeAndSize(input(), input_shape, input_size);
+  getTensorShapeAndSize(output(), output_shape, output_size);
+
+  assert(input_shape.size() == 4);
+  assert(output_shape.size() == 4);
+
+  bool across_spatial = this->across_spatial();
+  bool channel_shared = this->channel_shared();
+
+  //implement for ssd case first
+  assert(!across_spatial);
+
+  int n, c, h, w;
+
+  n = input_shape[0];
+  c = input_shape[1];
+  h = input_shape[2];
+  w = input_shape[3];
+
+  float *scale = (float *)opdT[1]->data();
+  std::shared_ptr<std::vector<float>> input = opdT[0];
+
+  int ret = 0 ;
+  ret = my_normalize(input->data(),scale,resultT->data(),across_spatial,channel_shared,n,c,h,w);
+  assert(ret == 0);
+  valueMapping[result] = std::move(resultT);
+  return success();
+}                          
+
 LogicalResult tpu::PermuteOp::interpret(
     DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();
@@ -1230,9 +1275,8 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
     return success();
   }
-
+#if 0
   if (auto op = dyn_cast<tpu::NormalizeOp>(opInst)) {
-    /*not the same as ssd Normalize op, here only do normalize , reuse "Scale op" for scale operation */
     LLVM_DEBUG(llvm::errs() << "NormalizeOp" << "\n";);
     auto opdT = getOperandTensors(opInst, valueMapping);
     auto result = op.getResult();
@@ -1243,8 +1287,9 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
     auto resultT = std::make_unique<std::vector<float> >(size);
 
-    bool across_spatial = op.across_spatial();
-    //bool channel_shared = op.across_spatial();
+    bool across_spatial = this->across_spatial();
+    bool channel_shared = this->channel_shared();
+    float variance_epsilon = this->variance_epsilon().convertToFloat();
 
     //implement for ssd case first
     assert(!across_spatial);
@@ -1259,16 +1304,16 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     w = i_s[3];
 
     float *input = (float *)opdT[0]->data();
-    //float *scale = (float *)opdT[1]->data();
+    float *scale = (float *)opdT[1]->data();
     float *output = (float *)resultT.get()->data();
 
     int ret = 0 ;
-    ret = my_normalize(input,output,across_spatial,n,c,h,w);
+    ret = my_normalize(input,scale,output,across_spatial,channel_shared,n,c,h,w,variance_epsilon);
     assert(ret == 0);
     valueMapping[result] = std::move(resultT);
     return success();
   }
-
+#endif
   if (auto op = dyn_cast<tpu::TanHOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "TanHOp" << "\n";);
     auto opdT = getOperandTensors(opInst, valueMapping);

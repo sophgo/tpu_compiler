@@ -52,8 +52,9 @@ int my_permute(float *input, float *output, const int input_shape_size,
     int in, int ic, int ih, int iw,int on, int oc, int oh, int ow,
     int order0,int order1,int order2,int order3);
 
-int my_normalize(float *input,float *output,bool across_spatial,
-    int n,int c,int h,int w);
+int my_normalize(float *input,float *scale, float *output, 
+    bool across_spatial,bool channel_shared,
+    int n, int c, int h, int w);
 
 int my_slice(float *input, float *output, int axis, int offset,
   std::vector<int64_t> input_shape, std::vector<int64_t> output_shape);
