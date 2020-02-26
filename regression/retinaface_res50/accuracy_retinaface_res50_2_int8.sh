@@ -6,7 +6,7 @@ source $DIR/../../envsetup.sh
 
 EVAL_FUNC=$MLIR_SRC_PATH/bindings/python/tools/eval_retinaface_on_widerface.py
 
-rm result -rf
+rm interpreter_result_int8 -rf
 python $EVAL_FUNC \
     --model retinaface_res50_quant_int8.mlir \
     --net_input_dims 600,600 \
@@ -14,7 +14,7 @@ python $EVAL_FUNC \
     --nms_threshold 0.45 \
     --images=$DATASET_PATH/widerface/WIDER_val/images \
     --annotation=$DATASET_PATH/widerface/wider_face_split \
-    --result=./result \
+    --result=./interpreter_result_int8 \
     --int8
 
 echo $0 DONE
