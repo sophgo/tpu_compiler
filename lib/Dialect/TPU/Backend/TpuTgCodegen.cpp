@@ -1504,7 +1504,7 @@ LogicalResult tpu::TG_INT8_SigmoidOp::codegen(void *ctx) {
                                  nullptr,  // const u32 *depends,
                                  0,        // depends_len,
                                  input_gaddr, output_gaddr, y0_table_gaddr,
-                                 slope_gaddr, n, c, h, w, 0, 0, FMT_I8);
+                                 slope_gaddr, n, c, h, w, FMT_I8);
 
   return success();
 }
