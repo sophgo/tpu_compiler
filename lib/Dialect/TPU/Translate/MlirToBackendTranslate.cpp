@@ -262,14 +262,14 @@ static LogicalResult runOperation(Operation &opInst) {
     gaddr_t y0_table_gaddr = getWeightOpAddress(op.getOperand(1)->getDefiningOp());
 
     int layer_id = op.layer_id().getValue().getLimitedValue();
-    sqrt_fixed_forward_bmkernel(*backend_ctx,
-                                   0,        // stream_id,
-                                   0,        // inst_id,
-                                   layer_id, // layer_id,
-                                   nullptr,  // const u32 *depends,
-                                   0,        // depends_len,
-                                   input_gaddr, output_gaddr, y0_table_gaddr,
-                                   n, c, h, w);
+    lut_fixed_forward_bmkernel(*backend_ctx,
+                               0,        // stream_id,
+                               0,        // inst_id,
+                               layer_id, // layer_id,
+                               nullptr,  // const u32 *depends,
+                               0,        // depends_len,
+                               input_gaddr, output_gaddr, y0_table_gaddr, 
+                               n, c, h, w, FMT_I8);
 
     } else if(op.quant() == "BF16") {
 
@@ -280,15 +280,8 @@ static LogicalResult runOperation(Operation &opInst) {
 
 
       int layer_id = op.layer_id().getValue().getLimitedValue();
-      
-      // bf16_sqrt_fixed_forward_bmkernel(*backend_ctx,
-      //                                0,        // stream_id,
-      //                                0,        // inst_id,
-      //                                layer_id, // layer_id,
-      //                                nullptr,  // const u32 *depends,
-      //                                0,        // depends_len,
-      //                                input_gaddr, output_gaddr, table_data_lut,table_data_mantissa_lut,
-      //                                n, c, h, w);      
+      // TODO: set lut backend
+      assert(false);
     }else {
       llvm::errs() << "not support yet \n";
       assert(0);
@@ -318,20 +311,15 @@ static LogicalResult runOperation(Operation &opInst) {
     gaddr_t y0_table_gaddr = getWeightOpAddress(op.getOperand(1)->getDefiningOp());
 
     int layer_id = op.layer_id().getValue().getLimitedValue();
-    reciprocal_fixed_forward_bmkernel(
-        *backend_ctx,
-        0, //stream_id,
-        0, //inst_id,
-        layer_id, //layer_id,
-        nullptr, //const u32 *depends,
-        0, //depends_len,
-        input_gaddr,
-        output_gaddr,
-        y0_table_gaddr,
-        n,
-        c,
-        h,
-        w);
+    lut_fixed_forward_bmkernel(*backend_ctx,
+                               0,        // stream_id,
+                               0,        // inst_id,
+                               layer_id, // layer_id,
+                               nullptr,  // const u32 *depends,
+                               0,        // depends_len,
+                               input_gaddr, output_gaddr, y0_table_gaddr, n, c,
+                               h, w, FMT_I8);
+
     }else if(op.quant() == "BF16") {
 
       gaddr_t input_gaddr = getPreviousOpAddress(op);
@@ -341,17 +329,9 @@ static LogicalResult runOperation(Operation &opInst) {
 
 
       int layer_id = op.layer_id().getValue().getLimitedValue();
-      
-      // bf16_reciprocal_fixed_forward_bmkernel(*backend_ctx,
-      //                                0,        // stream_id,
-      //                                0,        // inst_id,
-      //                                layer_id, // layer_id,
-      //                                nullptr,  // const u32 *depends,
-      //                                0,        // depends_len,
-      //                                input_gaddr, output_gaddr, table_data_lut,table_data_mantissa_lut,
-      //                                n, c, h, w);   
 
-
+      // TODO: set lut backend
+      assert(false);
     }else {
       llvm::errs() << "not support yet \n";
       assert(0);
@@ -441,23 +421,16 @@ static LogicalResult runOperation(Operation &opInst) {
 
     int layer_id = op.layer_id().getValue().getLimitedValue();
 
-    bf16_tanh_forward_kernel(
-        *backend_ctx,
-        0, // stream_id,
-        0, // inst_id,
-        layer_id, // layer_id,
-        nullptr, // depends
-        0, // depends_len
-        input_gaddr, // input_data_gaddr,
-        output_gaddr, // output_data_gaddr,
-        y0_table_gaddr,
-        slope_gaddr,
-        n,
-        c,
-        h,
-        w,
-        scale
-        );
+    lut_interpolation_forward_kernel(*backend_ctx,
+                                     0,            // stream_id,
+                                     0,            // inst_id,
+                                     layer_id,     // layer_id,
+                                     nullptr,      // depends
+                                     0,            // depends_len
+                                     input_gaddr,  // input_data_gaddr,
+                                     output_gaddr, // output_data_gaddr,
+                                     y0_table_gaddr, slope_gaddr, n, c, h, w,
+                                     -8, 8, scale);
 
     return success();
   }
