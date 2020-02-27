@@ -1079,10 +1079,6 @@ LogicalResult tpu::TG_BF16_LeakyReluOp::codegen(void *ctx) {
   int layer_id = mlir::getOpLayerId(op);
   float ga_negative_slope = this->negative_slope().convertToFloat();
 
-  if(ga_negative_slope > 1 || ga_negative_slope < 0) {
-    assert(0 && "Not support slope > 1 or slope < 0 now");
-  }
-
   bf16_leakyrelu_forward_kernel(
     *backend_ctx,        // ctx
     layer_id,            // layer_id,

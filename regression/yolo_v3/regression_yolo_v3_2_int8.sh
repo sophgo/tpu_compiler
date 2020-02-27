@@ -100,6 +100,7 @@ npz_extract.py \
     yolo_v3_tensor_all_int8_per_layer.npz \
     yolo_v3_out_int8_per_layer.npz \
     layer82-conv,layer94-conv,layer106-conv
+
 npz_compare.py \
       yolo_v3_out_int8_per_layer.npz \
       yolo_v3_blobs.npz \
@@ -139,6 +140,7 @@ npz_extract.py \
     yolo_v3_tensor_all_int8_per_channel.npz \
     yolo_v3_out_int8_per_channel.npz \
     layer82-conv,layer94-conv,layer106-conv
+
 npz_compare.py \
       yolo_v3_out_int8_per_channel.npz \
       yolo_v3_blobs.npz \
