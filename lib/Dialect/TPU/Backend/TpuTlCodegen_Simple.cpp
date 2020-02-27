@@ -57,7 +57,7 @@ namespace mlir {
 LogicalResult tpu::TL_LA_Conv2DOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";
-  BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
   bool is_dw, with_bias, do_relu;
@@ -72,7 +72,7 @@ LogicalResult tpu::TL_LA_Conv2DOp::codegen(void *ctx) {
   gaddr_t ga_pc_info = getWeightOpAddress(pc_info()->getDefiningOp());
   int layer_id = mlir::getOpLayerId(op);
 
-  LLVM_DEBUG(llvm::errs() << "TL_LA_Conv2DOp, layer_id = " << layer_id << "\n";);
+  LLVM_DEBUG(llvm::errs() << "    TL_LA_Conv2DOp, layer_id = " << layer_id << "\n";);
   cvi_backend_tl_conv_LA(*backend_ctx, layer_id,
       ga_input, ga_output, ga_filter, ga_pc_info,
       n, ic, ih, iw, g, oc, oh, ow, kh, kw,
@@ -84,7 +84,7 @@ LogicalResult tpu::TL_LA_Conv2DOp::codegen(void *ctx) {
 LogicalResult tpu::TL_LW_Conv2DOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";
-  BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
   bool is_dw, with_bias, do_relu;
@@ -102,7 +102,15 @@ LogicalResult tpu::TL_LW_Conv2DOp::codegen(void *ctx) {
   laddr_t la_working = this->la_working().getLimitedValue();
   int layer_id = mlir::getOpLayerId(op);
 
-  llvm::errs() << "TL_LW_Conv2DOp, layer_id = " << layer_id << "\n";
+  llvm::errs() << "    TL_LW_Conv2DOp, layer_id = " << layer_id;
+  if (tl_load_flag())
+    llvm::errs() << ", LD";
+  if (tl_store_flag())
+    llvm::errs() << ", ST";
+  if (!tl_load_flag() && !tl_store_flag())
+    llvm::errs() << ", FUSED";
+  llvm::errs() << "\n";
+
   if (tl_load_flag()) {
     cvi_backend_tl_load(*backend_ctx, layer_id,
         la_input, ga_input, n, ic, ih, iw);
@@ -146,6 +154,66 @@ LogicalResult tpu::TL_LW_Conv2DOp::codegen(void *ctx) {
         false, with_bias, do_relu);
   }
   #endif
+  return success();
+}
+
+
+LogicalResult tpu::TL_EltwiseAddOp::codegen(void *ctx) {
+  llvm::errs() << "TG_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  getNCHW(shape, n, c, h, w);
+  bool do_relu = this->do_relu();
+
+  assert(op->getNumOperands() == 2 && "support 2 inputs only");
+
+  gaddr_t ga_input = getPreviousOpAddress(op, 0);
+  gaddr_t ga_addend = getPreviousOpAddress(op, 1);
+  gaddr_t ga_output = getOpAddress(op);
+  int layer_id = mlir::getOpLayerId(op);
+
+  int8_t rshift = this->rshift().getLimitedValue();
+  int8_t m_i8_input[2];
+  std::vector<int32_t> m_i8_inputs_array;
+  arrayAttrToVector(this->m_i8_inputs(), m_i8_inputs_array);
+  assert(m_i8_inputs_array.size() == 2);
+  m_i8_input[0] = static_cast<int8_t>(m_i8_inputs_array[0]);
+  m_i8_input[1] = static_cast<int8_t>(m_i8_inputs_array[1]);
+
+  // TODO: should change on backend API, rather than doing cast
+  gaddr_t ga_inputs[2] = {ga_input, ga_addend};
+  int rshift_int;
+  int m_int[2];
+  if (1) {
+    rshift_int = static_cast<int>(rshift);
+    m_int[0] = static_cast<int>(m_i8_input[0]);
+    m_int[1] = static_cast<int>(m_i8_input[1]);
+  }
+  const int coeffs[2] = {1, 1};
+
+  bmnet_eltwise_fixed_forward_bmkernel(
+      *backend_ctx,
+      0,            // stream_id,
+      0,            // inst_id,
+      layer_id,     // layer_id,
+      nullptr,      // depends
+      0,            // depends_len
+      ga_inputs,    // gaddr_t ga_input[],
+      ga_output,    // gaddr_t ga_output,
+      2,            // int input_size,
+      1,            // int op,  0, prod, 1, sum, 2, max
+      n, c, h, w,
+      do_relu,      // bool do_relu,
+      0.0f,         // float relu_slope,
+      rshift_int,   // int right_shift_width,
+      m_int,
+      coeffs);
+
   return success();
 }
 

@@ -49,7 +49,7 @@ extern int BF16_TABLE_END;
 #include "backend/backend_tg_api.h"
 #include "backend/backend_tl_api.h"
 
-static BM1880v2BackendContext *backend_ctx = nullptr;
+static CviBackendContext *backend_ctx = nullptr;
 
 static LogicalResult runOperation(Operation &opInst) {
   LLVM_DEBUG(llvm::errs() << "  op " << opInst.getName() << "\n";);
@@ -70,7 +70,7 @@ static LogicalResult runOperation(Operation &opInst) {
     gaddr_t input_gaddr = getPreviousOpAddress(op);
     gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
     gaddr_t filter_gaddr = getWeightOpAddress(op.getOperand(1)->getDefiningOp());
-    gaddr_t bias_gaddr = INVALID_GLOBAL_ADDR;
+    gaddr_t bias_gaddr = GA_INVALID;
     //int with_bias = 0;
     if (opInst.getNumOperands() > 2) {
       with_bias = 1;
@@ -104,7 +104,7 @@ static LogicalResult runOperation(Operation &opInst) {
           with_bias, // int have_bias,
           do_relu ? 1 : 0, // do_activation,
           0, // activation_method,
-          INVALID_GLOBAL_ADDR, // activation_ga_slope,
+          GA_INVALID, // activation_ga_slope,
           0, // int activation_channel_shared,
           0, // int activation_gt_scale,
           0, // int activation_gt_rshift,
@@ -367,7 +367,7 @@ LogicalResult translateModule(ModuleOp module, llvm::raw_ostream &output) {
     return failure();
 
   std::vector<int8_t> weight_data;
-  backend_ctx = bmnet_create_backend_context(weight_data);
+  backend_ctx = cvi_backend_create_context(weight_data);
 
   for (FuncOp function : module.getOps<FuncOp>()) {
     LLVM_DEBUG(llvm::errs() << "run " << function.getName() << "\n";);
@@ -380,9 +380,9 @@ LogicalResult translateModule(ModuleOp module, llvm::raw_ostream &output) {
       return failure();
   }
 
-  bmnet_submit(backend_ctx);
+  cvi_backend_submit(backend_ctx);
   std::vector<uint8_t> cmdbuf;
-  bmnet_read_cmdbuf(backend_ctx, cmdbuf);
+  cvi_backend_get_cmdbuf(backend_ctx, cmdbuf);
 
   output.write(reinterpret_cast<char *>(cmdbuf.data()), cmdbuf.size());
 

@@ -33,16 +33,20 @@
 #include "llvm/Support/MathExtras.h"
 #include "MachineInfo.h"
 
-struct SimpleConv2DMemoryUsageAnalysis_details {
+struct SimpleMemoryUsageAnalysis_details {
   uint64_t inputNeuronSizePerLane;
   uint64_t outputNeuronSizePerLane;
   uint64_t filterSizePerLane;
   uint64_t biasSizePerLane;
-  uint64_t leakyreluWorkingSizePerLane;
+  uint64_t reluWorkingSizePerLane;
   uint64_t eltwiseInputSizePerLane;
   uint64_t eltwiseWorkingSizePerLane;
 };
 
 template <typename OpTy>
 uint64_t SimpleConv2DMemoryUsageAnalysis(OpTy &op,
-    struct SimpleConv2DMemoryUsageAnalysis_details *details);
+    struct SimpleMemoryUsageAnalysis_details *details);
+
+template <typename OpTy>
+uint64_t SimpleEltwiseAddMemoryUsageAnalysis(OpTy &op,
+    struct SimpleMemoryUsageAnalysis_details *details);

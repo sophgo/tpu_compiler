@@ -83,6 +83,59 @@ struct TpuTG2TLConv2DOpPattern : public RewritePattern {
   }
 };
 
+struct TpuTG2TLElewiseAddOpPattern : public RewritePattern {
+  TpuTG2TLElewiseAddOpPattern(MLIRContext *context)
+      : RewritePattern("tpu.tg_int8_eltwise_add", 1, context) {}
+
+  PatternMatchResult matchAndRewrite(Operation *opInst,
+                                     PatternRewriter &rewriter) const override {
+    auto op = cast<tpu::TG_INT8_EltwiseAddOp>(opInst);
+    assert(op);
+
+    uint64_t totalPerLane = SimpleEltwiseAddMemoryUsageAnalysis(op, nullptr);
+    if (totalPerLane > MInfo::lmem_per_lane) {
+      llvm::errs() << "TG2TL_LA: " << op.name()
+                   << ", layer ID " << op.layer_id()
+                   << ", SKIP, lmem " << totalPerLane
+                   << " needed\n";
+      return matchFailure();
+    }
+
+    if (1) {
+      llvm::errs() << "TG2TL_LA: " << op.name()
+                   << ", layer ID " << op.layer_id() << "\n";
+
+      assert(op.getNumOperands() == 2);
+      std::vector<Value *> newOperands;
+      newOperands.push_back(op.getOperand(0));
+      newOperands.push_back(op.getOperand(1));
+
+      std::vector<NamedAttribute> attrs;
+
+      attrs.push_back(rewriter.getNamedAttr("rshift", op.rshiftAttr()));
+      attrs.push_back(rewriter.getNamedAttr("m_i8_inputs", op.m_i8_inputsAttr()));
+      attrs.push_back(rewriter.getNamedAttr("do_relu",
+          rewriter.getBoolAttr(op.do_relu())));
+
+      uint32_t la_invalid = 0xffffffff;
+      attrs.push_back(rewriter.getNamedAttr("lm_layout", rewriter.getStringAttr("NONE")));
+      attrs.push_back(rewriter.getNamedAttr("la_input", rewriter.getI32IntegerAttr(la_invalid)));
+      attrs.push_back(rewriter.getNamedAttr("la_working", rewriter.getI32IntegerAttr(la_invalid)));
+      attrs.push_back(rewriter.getNamedAttr("la_output", rewriter.getI32IntegerAttr(la_invalid)));
+      attrs.push_back(rewriter.getNamedAttr("tl_load_flag", rewriter.getBoolAttr(true)));
+      attrs.push_back(rewriter.getNamedAttr("tl_store_flag", rewriter.getBoolAttr(true)));
+
+      attrs.push_back(rewriter.getNamedAttr("gaddr", op.gaddrAttr()));
+      attrs.push_back(rewriter.getNamedAttr("name", op.nameAttr()));
+      attrs.push_back(rewriter.getNamedAttr("layer_id", op.layer_idAttr()));
+      rewriter.replaceOpWithNewOp<tpu::TL_EltwiseAddOp>(
+          op, op.getResult()->getType(),
+          ArrayRef<Value *>{newOperands}, ArrayRef<NamedAttribute>{attrs});
+      return matchSuccess();
+    }
+  }
+};
+
 class DeepFusionTG2TL_LA : public FunctionPass<DeepFusionTG2TL_LA> {
 public:
   explicit DeepFusionTG2TL_LA() {}
@@ -91,7 +144,10 @@ public:
     auto fn = getFunction();
     auto *context = &getContext();
     OwningRewritePatternList patterns;
-    patterns.insert<TpuTG2TLConv2DOpPattern>(context);
+    patterns.insert<
+      TpuTG2TLConv2DOpPattern,
+      TpuTG2TLElewiseAddOpPattern
+    >(context);
     applyPatternsGreedily(fn, patterns);
   }
 };
