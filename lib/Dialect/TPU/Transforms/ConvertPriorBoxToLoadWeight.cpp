@@ -46,18 +46,17 @@ struct TpuConvertLoadeweightConcatToLoadweightPattern : public RewritePattern {
     TensorFile *wTF = getWeightTensorFile(op);
     Value *wfV = getWeightFileValue(op);
 
-    unsigned input_loadweight_num = concatOp.getOperands().size();
-
+    unsigned input_loadweight_num = concatOp.getOperands().size()-4;
 
     for(int i=0;i<input_loadweight_num;i++){
         auto formerOp = concatOp.getOperand(i)->getDefiningOp();
-        if (!matchPattern(formerOp, m_Op<tpu::LoadWeightOp>())){
+        if (!isa<tpu::LoadWeightOp>(formerOp)){
           return matchFailure();
         }
     }
+
     uint32_t  c, h, w;
     int tmp_w=0;
-    llvm::errs() << "Starting to convert Layer " << concatOp.name() << "\n";
     auto result = concatOp.getResult();
     // LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";);
     std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
@@ -80,7 +79,6 @@ struct TpuConvertLoadeweightConcatToLoadweightPattern : public RewritePattern {
       // delete the tensor from the weight file
       wTF->deleteTensor<float>(tensor_name);
     }
-
 
     for (unsigned i = 0; i < input_loadweight_num; i++) {
       std::vector<int64_t> shape =  concatOp.getOperand(i)->getType().cast<TensorType>().getShape();
@@ -121,7 +119,7 @@ struct TpuConvertLoadeweightConcatToLoadweightPattern : public RewritePattern {
       concatOp, new_weight_op.getResult()->getType(),
       ArrayRef<Value *>{wfV},ArrayRef<NamedAttribute>{attrs});
 
-    return matchSuccess();
+  return matchSuccess();
   }
 };
 
@@ -365,8 +363,10 @@ public:
     OwningRewritePatternList patterns;
     auto *context = &getContext();
     patterns.insert<
-        TpuConvertPriorBoxPattern,
-        TpuConvertLoadeweightConcatToLoadweightPattern
+        TpuConvertPriorBoxPattern
+        >(context);
+    applyPatternsGreedily(fn, patterns);
+    patterns.insert<TpuConvertLoadeweightConcatToLoadweightPattern
         >(context);
     applyPatternsGreedily(fn, patterns);
   }
@@ -374,8 +374,6 @@ public:
 private:
   llvm::raw_ostream &os;
 };
-
-
 
 } // namespace
 

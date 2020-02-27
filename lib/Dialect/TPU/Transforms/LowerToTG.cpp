@@ -269,6 +269,39 @@ Value* tpu::DeConv2DOp::convertToTG() {
   return nullptr;
 }
 
+Value *tpu::DivOp::convertToTG() {
+  llvm::errs() << "lowerToTG: " << getOperationName() << " [" << getOpName()
+               << "]\n";
+  Operation *op = this->getOperation();
+  auto builder = Builder(op->getContext());
+
+
+  int nInputs = 2; // input and table
+  std::vector<Value *> operands;
+  for (auto i = 0; i < nInputs; ++i) {
+    operands.push_back(op->getOperand(i));
+  }
+
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder.getNamedAttr("name", nameAttr()));
+  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
+
+  if (getOpQuant() == "INT8") {
+    auto newOp = OpBuilder(op).create<tpu::TG_INT8_DivOp>(
+        op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  } else if (getOpQuant() == "BF16") {
+    operands.push_back(op->getOperand(2));
+    auto newOp = OpBuilder(op).create<tpu::TG_BF16_DivOp>(
+        op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  }
+  assert(false);
+  return nullptr;
+}
+
 Value* tpu::EltwiseAddOp::convertToTG() {
   llvm::errs() << "lowerToTG: " << getOperationName()
                << " [" << getOpName() << "]\n";
@@ -812,6 +845,39 @@ Value* tpu::SliceOp::convertToTG() {
   } else if (getOpQuant() == "BF16") {
     auto newOp = OpBuilder(op).create<tpu::TG_BF16_SliceOp>(op->getLoc(),
         getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  }
+  assert(false);
+  return nullptr;
+}
+
+Value *tpu::SqrtOp::convertToTG() {
+  llvm::errs() << "lowerToTG: " << getOperationName() << " [" << getOpName()
+               << "]\n";
+  Operation *op = this->getOperation();
+  auto builder = Builder(op->getContext());
+
+
+  int nInputs = 2; // input and table
+  std::vector<Value *> operands;
+  for (auto i = 0; i < nInputs; ++i) {
+    operands.push_back(op->getOperand(i));
+  }
+
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder.getNamedAttr("name", nameAttr()));
+  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
+
+  if (getOpQuant() == "INT8") {
+    auto newOp = OpBuilder(op).create<tpu::TG_INT8_SqrtOp>(
+        op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  } else if (getOpQuant() == "BF16") {
+    operands.push_back(op->getOperand(2));
+    auto newOp = OpBuilder(op).create<tpu::TG_BF16_SqrtOp>(
+        op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
   }
@@ -1442,6 +1508,96 @@ struct LowerWeightPReluOpPattern : public RewritePattern {
   }
 };
 
+struct LowerWeightSqrtOpPattern : public RewritePattern {
+  LowerWeightSqrtOpPattern(MLIRContext *context)
+      : RewritePattern("tpu.sqrt", 1, context) {}
+
+  PatternMatchResult matchAndRewrite(Operation *op,
+                                     PatternRewriter &rewriter) const override {
+    auto sqrtOp = cast<tpu::SqrtOp>(op);
+
+    auto tableOp = cast<tpu::LoadWeightOp>(sqrtOp.getOperand(1)->getDefiningOp());
+    if (tableOp.lowered()) {
+      // lowered already
+      return matchFailure();
+    }
+    llvm::errs() << "Lower Weight for SqrtOp: " << getOpName(op)
+                 << "\n";
+    TensorFile *wTF = getWeightTensorFile(op);
+
+    if (getOpQuant(op) == "INT8") {
+      // lower filter
+        assert(tableOp.storage() == "INT8");
+        std::vector<int64_t> shape;
+        int64_t size;
+        getTensorShapeAndSize(sqrtOp.table(), shape, size);
+        auto table = readAndDeleteWeightTensor<float>(tableOp, wTF);
+        std::vector<int8_t> table_int8(table->begin(), table->end());
+        // 1880 support 256 lookup table
+        // because of 1880 hardware search table only on each local memory
+        // we dupicate table to limit number <32>
+        assert(shape[2] * shape[3] == 256);
+        assert(shape[1] == 32);
+
+        // save it
+        addWeightTensorAndUpdateWeightOp<int8_t>(
+            tableOp, "lowered", table_int8, shape, "INT8", wTF);
+        tableOp.setAttr("lowered", rewriter.getBoolAttr(true));
+
+    } else if (getOpQuant(op) == "BF16") {
+      // lower filter
+      assert(false && "TOTO BF16");
+    }
+
+    return matchSuccess();
+  }
+};
+
+struct LowerWeightDivOpPattern : public RewritePattern {
+  LowerWeightDivOpPattern(MLIRContext *context)
+      : RewritePattern("tpu.div", 1, context) {}
+
+  PatternMatchResult matchAndRewrite(Operation *op,
+                                     PatternRewriter &rewriter) const override {
+    auto divOp = cast<tpu::DivOp>(op);
+
+    auto tableOp = cast<tpu::LoadWeightOp>(divOp.getOperand(1)->getDefiningOp());
+    if (tableOp.lowered()) {
+      // lowered already
+      return matchFailure();
+    }
+    llvm::errs() << "Lower Weight for SqrtOp: " << getOpName(op)
+                 << "\n";
+    TensorFile *wTF = getWeightTensorFile(op);
+
+    if (getOpQuant(op) == "INT8") {
+      // lower filter
+        assert(tableOp.storage() == "INT8");
+        std::vector<int64_t> shape;
+        int64_t size;
+        getTensorShapeAndSize(divOp.table(), shape, size);
+        auto table = readAndDeleteWeightTensor<float>(tableOp, wTF);
+        std::vector<int8_t> table_int8(table->begin(), table->end());
+        // 1880 support 256 lookup table
+        // because of 1880 hardware search table only on each local memory
+        // we dupicate table to limit number <32>
+        assert(shape[2] * shape[3] == 256);
+        assert(shape[1] == 32);
+
+        // save it
+        addWeightTensorAndUpdateWeightOp<int8_t>(
+            tableOp, "lowered", table_int8, shape, "INT8", wTF);
+        tableOp.setAttr("lowered", rewriter.getBoolAttr(true));
+
+    } else if (getOpQuant(op) == "BF16") {
+      // lower filter
+      assert(false && "TOTO BF16");
+    }
+
+    return matchSuccess();
+  }
+};
+
 struct LowerWeightSigmoidOpPattern : public RewritePattern {
   LowerWeightSigmoidOpPattern(MLIRContext *context)
       : RewritePattern("tpu.sigmoid", 1, context) {}
@@ -1509,6 +1665,8 @@ public:
         LowerWeightConv2DOpPattern<tpu::Conv2DOp>,
         LowerWeightConv2DOpPattern<tpu::DeConv2DOp>,
         LowerWeightSigmoidOpPattern,
+        LowerWeightSqrtOpPattern,
+        LowerWeightDivOpPattern,
         LowerWeightPReluOpPattern,
         LowerWeightFullyConnectedOpPattern
         >(context);
@@ -1522,6 +1680,7 @@ public:
         DefaultToTGPattern<tpu::Conv2DOp>,
         DefaultToTGPattern<tpu::CropOp>,
         DefaultToTGPattern<tpu::DeConv2DOp>,
+        DefaultToTGPattern<tpu::DivOp>,
         DefaultToTGPattern<tpu::EltwiseAddOp>,
         DefaultToTGPattern<tpu::EltwiseMaxOp>,
         DefaultToTGPattern<tpu::EltwiseMulOp>,
@@ -1535,6 +1694,7 @@ public:
         DefaultToTGPattern<tpu::ReshapeOp>,
         DefaultToTGPattern<tpu::SigmoidOp>,
         DefaultToTGPattern<tpu::SliceOp>,
+        DefaultToTGPattern<tpu::SqrtOp>,
         DefaultToTGPattern<tpu::UpsampleOp>
         >(context);
     applyPatternsGreedily(fn, patterns);

@@ -62,6 +62,7 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
 
     // read the tensor
     auto tensor_name = weightOp.name().getValue();
+    llvm::errs() << "tensor name " << tensor_name;
 
     auto type = weightOp.getResult()->getType().cast<TensorType>();
     assert(weightOp.lowered());

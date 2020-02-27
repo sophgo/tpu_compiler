@@ -400,6 +400,50 @@ def TPU_CropOp: TPU_Op<"crop",
 
 def TPU_DeConv2DOp : TPU_ConvOp<"deconv_2d", "Deconvolution">;
 
+def TPU_DivOp: TPU_Op<"div",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
+       DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
+  let summary = "Div operator";
+
+  let description = [{
+    Do element 1/x.
+
+    Inputs:
+      `input`          : required, input tensors.
+      `table`          : required,table tensor.
+
+    Attributes:
+      `quant`           : required, a QuantParam struct attributes.
+      `name`            : required, name for calibration, comparing, or debug.
+      `layer_id`        : optional, id for profiling.
+      `has_table`       : optional, if has lookup table.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface` : support common TPU Op interface
+      `TpuOpInterpInterface` : support interperter
+      `TpuOpQuantInterface`  : support quantization
+      `TpuOpLowerInterface`  : support lower to TPU TG Ops
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$table,
+    OptionalAttr<BoolAttr>:$has_table,
+    StrAttr:$name,
+    TPU_QuantParamAttr:$quant,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
 def TPU_EltwiseAddOp : TPU_EltwiseOp<"eltwise_add", "Add">;
 def TPU_EltwiseMulOp : TPU_EltwiseOp<"eltwise_mul", "Mul">;
 def TPU_EltwiseMaxOp : TPU_EltwiseOp<"eltwise_max", "Max">;
@@ -1236,6 +1280,50 @@ def TPU_SoftmaxOp: TPU_Op<"softmax",
   let results = (outs AnyTensor:$output);
 }
 
+def TPU_SqrtOp: TPU_Op<"sqrt",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
+       DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
+  let summary = "Sqrt operator";
+
+  let description = [{
+    Do element square root. Power(input,0.5).
+
+    Inputs:
+      `input`          : required, input tensors.
+      `table`          : required,table tensor.
+
+    Attributes:
+      `quant`           : required, a QuantParam struct attributes.
+      `name`            : required, name for calibration, comparing, or debug.
+      `layer_id`        : optional, id for profiling.
+      `has_table`       : optional, if has lookup table.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface` : support common TPU Op interface
+      `TpuOpInterpInterface` : support interperter
+      `TpuOpQuantInterface`  : support quantization
+      `TpuOpLowerInterface`  : support lower to TPU TG Ops
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$table,
+    OptionalAttr<BoolAttr>:$has_table,
+    StrAttr:$name,
+    TPU_QuantParamAttr:$quant,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
 def TPU_UpsampleOp: TPU_Op<"upsample",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
@@ -1294,32 +1382,7 @@ def TPU_UpsampleOp: TPU_Op<"upsample",
 
 
 
-
-
 // to be removed
-
-def TPU_DivOp: TPU_Op<"div",
-      [NoSideEffect, DeclareOpInterfaceMethods<TpuInterface>]> {
-  let summary = "Division operator";
-
-  let description = [{
-    Do division operation.
-  }];
-
-  let arguments = (
-    ins AnyTensor:$input,
-    DefaultValuedAttr<F32Attr, "1.0">:$numerator,
-    Variadic<AnyTensor>:$table,
-    OptionalAttr<BoolAttr>:$has_table,
-    OptionalAttr<StrAttr>:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
-    OptionalAttr<NonNegativeI64Attr>:$offset,
-    OptionalAttr<F32Attr>:$threshold_y,
-    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
-  );
-
-  let results = (outs AnyTensor:$output);
-}
 
 def TPU_InputOp: TPU_Op<"input",
       [NoSideEffect, DeclareOpInterfaceMethods<TpuInterface>]> {
@@ -1368,27 +1431,6 @@ def TPU_PowerOp: TPU_Op<"power",
   let results = (outs AnyTensor:$y);
 }
 
-def TPU_SqrtOp: TPU_Op<"sqrt",
-      [NoSideEffect, DeclareOpInterfaceMethods<TpuInterface>]> {
-  let summary = "Sqrt operator";
-
-  let description = [{
-    Do sqrt operation.
-  }];
-
-  let arguments = (
-    ins AnyTensor:$input,
-    Variadic<AnyTensor>:$table,
-    OptionalAttr<BoolAttr>:$has_table,
-    OptionalAttr<StrAttr>:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
-    OptionalAttr<NonNegativeI64Attr>:$offset,
-    OptionalAttr<F32Attr>:$threshold_y,
-    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
-  );
-
-  let results = (outs AnyTensor:$output);
-}
 
 def TPU_TanHOp: TPU_Op<"tanh",
       [NoSideEffect, DeclareOpInterfaceMethods<TpuInterface>]> {

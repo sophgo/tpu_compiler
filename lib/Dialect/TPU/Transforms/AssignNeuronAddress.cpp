@@ -341,6 +341,7 @@ public:
         AssignGAddrTGInt8Pattern<tpu::TG_INT8_CropOp>,
         AssignGAddrTGInt8Pattern<tpu::TG_INT8_PT_DeConv2DOp>,
         AssignGAddrTGInt8Pattern<tpu::TG_INT8_PC_DeConv2DOp>,
+        AssignGAddrTGInt8Pattern<tpu::TG_INT8_DivOp>,
         AssignGAddrTGInt8Pattern<tpu::TG_INT8_EltwiseAddOp>,
         AssignGAddrTGInt8Pattern<tpu::TG_INT8_EltwiseMaxOp>,
         AssignGAddrTGInt8Pattern<tpu::TG_INT8_EltwiseMulOp>,
@@ -352,6 +353,7 @@ public:
         AssignGAddrTGInt8Pattern<tpu::TG_INT8_ShuffleChannelOp>,
         AssignGAddrTGInt8Pattern<tpu::TG_INT8_PReluOp>,
         AssignGAddrTGInt8Pattern<tpu::TG_INT8_SigmoidOp>,
+        AssignGAddrTGInt8Pattern<tpu::TG_INT8_SqrtOp>,
         AssignGAddrTGInt8Pattern<tpu::TG_INT8_UpsampleOp>,
 
         // tg bf16 ops
@@ -360,6 +362,7 @@ public:
         AssignGAddrTGBf16Pattern<tpu::TG_BF16_Conv2DOp>,
         AssignGAddrTGBf16Pattern<tpu::TG_BF16_CropOp>,
         AssignGAddrTGBf16Pattern<tpu::TG_BF16_DeConv2DOp>,
+        AssignGAddrTGBf16Pattern<tpu::TG_BF16_DivOp>,
         AssignGAddrTGBf16Pattern<tpu::TG_BF16_EltwiseAddOp>,
         AssignGAddrTGBf16Pattern<tpu::TG_BF16_EltwiseMaxOp>,
         AssignGAddrTGBf16Pattern<tpu::TG_BF16_EltwiseMulOp>,
@@ -371,6 +374,7 @@ public:
         AssignGAddrTGBf16Pattern<tpu::TG_BF16_PReluOp>,
         AssignGAddrTGBf16Pattern<tpu::TG_BF16_ShuffleChannelOp>,
         AssignGAddrTGBf16Pattern<tpu::TG_BF16_SigmoidOp>,
+        AssignGAddrTGBf16Pattern<tpu::TG_BF16_SqrtOp>,
         AssignGAddrTGBf16Pattern<tpu::TG_BF16_UpsampleOp>
 
         >(context, &pos, neuronMapFile->os(), clNeuronAlignment);
@@ -379,9 +383,7 @@ public:
     // to be removed
     patterns.clear();
     patterns.insert<
-        TpuQuantizationOpPattern<tpu::DivOp>,
         TpuQuantizationOpPattern<tpu::PowerOp>,
-        TpuQuantizationOpPattern<tpu::SqrtOp>,
         TpuQuantizationOpPattern<tpu::TanHOp>
         >(context, &pos, neuronMapFile->os(), clNeuronAlignment);
     applyPatternsGreedily(fn, patterns);

@@ -503,6 +503,7 @@ public:
                 TpuQuantBf16Conv2DOpPattern<tpu::Conv2DOp>,
                 TpuQuantBf16DefaultPattern<tpu::CropOp>,
                 TpuQuantBf16Conv2DOpPattern<tpu::DeConv2DOp>,
+                TpuQuantBf16DefaultPattern<tpu::DivOp>,
                 TpuQuantBf16DefaultPattern<tpu::EltwiseAddOp>,
                 TpuQuantBf16DefaultPattern<tpu::EltwiseMaxOp>,
                 TpuQuantBf16DefaultPattern<tpu::EltwiseMulOp>,
@@ -517,12 +518,9 @@ public:
                 TpuQuantBf16DefaultPattern<tpu::ShuffleChannelOp>,
                 TpuQuantBf16DefaultPattern<tpu::SigmoidOp>,
                 TpuQuantBf16DefaultPattern<tpu::SliceOp>,
+                TpuQuantBf16DefaultPattern<tpu::SqrtOp>,
                 TpuQuantBf16DefaultPattern<tpu::UpsampleOp>,
 
-
-
-                TpuQuantDefaultPattern<tpu::DivOp>,
-                TpuQuantDefaultPattern<tpu::SqrtOp>,
                 TpuQuantTanHOpPattern>(
             context);
     applyPatternsGreedily(fn, patterns_w);

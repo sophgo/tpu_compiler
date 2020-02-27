@@ -636,6 +636,12 @@ class TPU_TG_SigmoidOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 def TPU_TG_INT8_SigmoidOp : TPU_TG_SigmoidOp<"tg_int8_sigmoid", "Int8">;
 def TPU_TG_BF16_SigmoidOp : TPU_TG_SigmoidOp<"tg_bf16_sigmoid", "Bf16">;
 
+def TPU_TG_INT8_SqrtOp : TPU_TG_SigmoidOp<"tg_int8_sqrt", "Int8">;
+def TPU_TG_BF16_SqrtOp : TPU_TG_SigmoidOp<"tg_bf16_sqrt", "Bf16">;
+
+def TPU_TG_INT8_DivOp : TPU_TG_SigmoidOp<"tg_int8_div", "Int8">;
+def TPU_TG_BF16_DivOp : TPU_TG_SigmoidOp<"tg_bf16_div", "Bf16">;
+
 
 class TPU_TG_SliceOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,
