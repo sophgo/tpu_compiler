@@ -365,6 +365,7 @@ public:
         AssignGAddrTGBf16Pattern<tpu::TG_BF16_EltwiseMulOp>,
         AssignGAddrTGBf16Pattern<tpu::TG_BF16_FullyConnectedOp>,
         AssignGAddrTGBf16Pattern<tpu::TG_BF16_LeakyReluOp>,
+        //AssignGAddrTGInt8Pattern<tpu::TG_BF16_LutOp>,
         AssignGAddrTGBf16Pattern<tpu::TG_BF16_PermuteOp>,
         AssignGAddrTGBf16Pattern<tpu::TG_BF16_PoolAvg2DOp>,
         AssignGAddrTGBf16Pattern<tpu::TG_BF16_PoolMax2DOp>,
@@ -378,9 +379,7 @@ public:
     // to be removed
     patterns.clear();
     patterns.insert<
-        TpuQuantizationOpPattern<tpu::DivOp>,
         TpuQuantizationOpPattern<tpu::PowerOp>,
-        TpuQuantizationOpPattern<tpu::SqrtOp>,
         TpuQuantizationOpPattern<tpu::TanHOp>
         >(context, &pos, neuronMapFile->os(), clNeuronAlignment);
     applyPatternsGreedily(fn, patterns);

@@ -76,6 +76,16 @@ bin_fp32_to_int8.py \
 ################################
 # quantization 3: multiplier int8
 ################################
+
+################################
+# Lower for quantization 1: multiplier int8
+################################
+
+mlir-opt \
+    --tpu-lower \
+    ssd300_quant_int8_multiplier.mlir \
+    -o ssd300_quant_int8_multiplier_tg.mlir
+
 #assign weight address & neuron address
 mlir-opt \
     --assign-weight-address \
@@ -85,10 +95,12 @@ mlir-opt \
     --assign-neuron-address \
     --tpu-neuron-address-align=16 \
     --tpu-neuron-map-filename=neuron_map.csv \
-    --assign-layer-id \
-    ssd300_quant_int8_multiplier.mlir | \
+    ssd300_quant_int8_multiplier_tg.mlir  \
+    -o ssd300_quant_int8_multiplier_addr.mlir
+
   mlir-translate \
     --mlir-to-cmdbuf \
+    ssd300_quant_int8_multiplier_addr.mlir \
     -o cmdbuf_int8_multiplier.bin
 
 # generate cvi model
@@ -101,7 +113,7 @@ python $CVIBUILDER_PATH/python/cvi_model_create.py \
 $RUNTIME_PATH/bin/test_cvinet \
     ssd300_in_int8.bin \
     ssd300_int8_per_layer.cvimodel \
-    ssd300_cmdbuf_out_all_int8_per_layer.bin
+    ssd300_cmdbuf_out_all_int8_multiplier.bin
 
 
 

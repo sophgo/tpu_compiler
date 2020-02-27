@@ -167,7 +167,6 @@ struct TpuGenDivTablePattern : public RewritePattern {
     std::vector<std::unique_ptr<std::vector<float> > > weights(1);
 
     std::string op_name = DivOp.getAttrOfType<StringAttr>("name").getValue().str();
-
     if(DivOp.has_table() == true){
       LLVM_DEBUG(llvm::errs() << DivOp.name() << " gen already\n";);
       return matchFailure();
@@ -180,7 +179,7 @@ struct TpuGenDivTablePattern : public RewritePattern {
     std::vector<float> table_data_lut(TBL_SHAPE_BF16);
     std::vector<float> table_data_mantissa_lut(TBL_SHAPE_BF16);
 
-  if (DivOp.quant() == "INT8") {
+  if (DivOp.getOpQuant() == "INT8") {
 
     float threshold_x = getPreviousOpThreshold(op);
     float threshold_y = getOpThreshold(op);
@@ -199,7 +198,7 @@ struct TpuGenDivTablePattern : public RewritePattern {
         y0_table[n * TABLE_HW_INT8 + idx] = lutOutputI32;
       }
     }
-  }else if(DivOp.quant() == "BF16"){
+  }else if(DivOp.getOpQuant() == "BF16"){
     llvm::errs() << " op name: " << DivOp.name()
                       << "gen BF16 sqrt table." << "\n";
     bf16_gen_reciprocal(table_data_lut_bf16.data());
@@ -222,7 +221,7 @@ struct TpuGenDivTablePattern : public RewritePattern {
     std::vector<Value *> newOperands;
     newOperands.push_back(op->getOperand(0));
 
-  if (DivOp.quant() == "INT8") {
+  if (DivOp.getOpQuant() == "INT8") {
 
     // add new filter and bias weight
     std::vector<float> newWeights = y0_table ;
@@ -244,7 +243,7 @@ struct TpuGenDivTablePattern : public RewritePattern {
     newOperands.push_back(new_weight_op);
 
     DivOp.setAttr("has_table", rewriter.getBoolAttr("true"));
-  }else if(DivOp.quant() == "BF16"){
+  }else if(DivOp.getOpQuant() == "BF16"){
 
     std::vector<std::vector<float>> newWeights = {table_data_lut, table_data_mantissa_lut};
     std::vector<int64_t> weightShapes = {1, NPU_NUM, TABLE_H_BF16, TABLE_W_BF16};

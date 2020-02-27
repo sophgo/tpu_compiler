@@ -76,8 +76,8 @@ static void gen_sqrt(uint16_t *table_data, uint64_t table_size) {
 
   // prepare channel 0
   float s = 0.0;
-  // table_data[idx] = FloatToBFloat16(s); // 0^0.5 = 0
   FloatToBFloat16(&s,&table_data[idx],(size_t)1); // 0^0.5 = 0
+  table_data[idx] = convert_fp32_bf16(s);
 
   idx++;
 
@@ -138,7 +138,6 @@ static void gen_sqrt_mantissa(uint16_t* table_mantissa, uint64_t table_size) {
   }
 }
 
-
 struct TpuGenSqrtTablePattern : public RewritePattern {
   TpuGenSqrtTablePattern(MLIRContext *context)
       : RewritePattern("tpu.sqrt", 1, context) {}
@@ -168,7 +167,7 @@ struct TpuGenSqrtTablePattern : public RewritePattern {
     std::vector<float> table_data_lut(TBL_SHAPE_BF16);
     std::vector<float> table_data_mantissa_lut(TBL_SHAPE_BF16);
 
-  if (sqrtOp.quant() == "INT8") {
+  if (sqrtOp.getOpQuant() == "INT8") {
     float threshold_x = getPreviousOpThreshold(op);
     float threshold_y = getOpThreshold(op);
     for (int n = 0; n < NPU_NUM; n++) {
@@ -183,7 +182,7 @@ struct TpuGenSqrtTablePattern : public RewritePattern {
         y0_table[n * TABLE_HW_INT8 + idx] = lutOutputI32;
       }
     }
-  }else if(sqrtOp.quant() == "BF16"){
+  }else if(sqrtOp.getOpQuant() == "BF16"){
     llvm::errs() << " op name: " << sqrtOp.name()
                       << "gen BF16 sqrt table." << "\n";
     gen_sqrt(table_data_lut_bf16.data(), TBL_SHAPE_BF16);
@@ -199,7 +198,7 @@ struct TpuGenSqrtTablePattern : public RewritePattern {
   }else {
       llvm::errs() << " op name: " << sqrtOp.name()
                    << ",quant_type: " << sqrtOp.quant() << "\n";
-      assert(0 && "not support sigmoid type");
+      assert(0 && "not support sqrt type");
   }
 
 
@@ -207,7 +206,7 @@ struct TpuGenSqrtTablePattern : public RewritePattern {
   newOperands.push_back(op->getOperand(0));
 
   // update op
-  if (sqrtOp.quant() == "INT8") {
+  if (sqrtOp.getOpQuant() == "INT8") {
 
 
     std::vector<float> newWeights = y0_table ;
@@ -230,7 +229,7 @@ struct TpuGenSqrtTablePattern : public RewritePattern {
 
     sqrtOp.setAttr("has_table", rewriter.getBoolAttr("true"));
 
-  }else if(sqrtOp.quant() == "BF16"){
+  }else if(sqrtOp.getOpQuant() == "BF16"){
 
     std::vector<std::vector<float>> newWeights = {table_data_lut, table_data_mantissa_lut};
     std::vector<int64_t> weightShapes = {1, NPU_NUM, TABLE_H_BF16, TABLE_W_BF16};
@@ -256,7 +255,7 @@ struct TpuGenSqrtTablePattern : public RewritePattern {
     }
 
   }else {
-      llvm::errs() << "type: " << sqrtOp.quant().str()
+      llvm::errs() << "type: " << sqrtOp.getOpQuant().str()
                    << " is not support.";
       assert(false);
   }

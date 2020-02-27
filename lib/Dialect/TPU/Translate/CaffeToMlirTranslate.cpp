@@ -1180,7 +1180,7 @@ void CaffeImporter::convertInputLayer(mlir::Block *block,
 
   tensor_map_[layer_param.top(0)] = result_var;
 }
-
+#if 0
 void CaffeImporter::convertNormalizeLayer(mlir::Block *block,
     caffe::Layer<float> *layer) {
 
@@ -1247,6 +1247,223 @@ void CaffeImporter::convertNormalizeLayer(mlir::Block *block,
   auto result_var = op.getResult();
   tensor_map_[layer_param.top(0)] = result_var;
 }
+#endif
+
+
+void CaffeImporter::convertNormalizeLayer(mlir::Block *block,
+    caffe::Layer<float> *layer) {
+
+  std::vector<mlir::Value *> input_vars = GetLayerInputs(layer);
+  auto input_var = input_vars[0];
+
+  auto layer_param = layer->layer_param();
+  auto norm_param = layer_param.norm_param();
+  bool across_spatial = norm_param.across_spatial();
+  bool channel_shared = norm_param.channel_shared();
+
+  //implement for ssd case first
+  assert(!across_spatial);
+
+  int64_t n, c, ih, iw, oh, ow;
+
+  llvm::ArrayRef<int64_t> input_shape =
+      input_var->getType().dyn_cast<mlir::TensorType>().getShape();
+  assert(input_shape.size() == 4);
+  n = input_shape[0];
+  c = input_shape[1];
+  ih = input_shape[2];
+  iw = input_shape[3];
+  oh = ih;
+  ow = iw;
+
+  LLVM_DEBUG(
+    llvm::errs()
+        << "  N: " << n
+        << ", C: " << c
+        << ", IH*IW: " << ih << " * " << iw
+        << ", OH*OW: " << oh << " * " << ow
+        << "\n";
+  );
+  auto result_type = RankedTensorType::get({n, c, oh, ow}, elementType_);
+
+/*
+  Currenly , decompose Normalize Op to below 6 Ops.
+  1. Eltwise Mul Op(do power(input,2))
+  2. Conv Op (do cross channel element add) 
+  3. Sqrt Op (do element square root)
+  4. Div Op  (do element 1/input)
+  5. Eltwise Mul OP(do normalize) 
+  6. Scale Op(do scale)
+*/
+
+  /*  1. Eltwise Mul Op(do power(input,2)) */
+  std::vector<Value *> operands_eltwise_power;
+
+  operands_eltwise_power.push_back(input_var);
+  operands_eltwise_power.push_back(input_var);
+
+  auto NoneOp = OpBuilder(block).create<tpu::NoneOp>(builder_.getUnknownLoc(),
+                                                     builder_.getNoneType());
+  operands_eltwise_power.push_back(NoneOp.getResult());
+  operands_eltwise_power.push_back(NoneOp.getResult());
+  operands_eltwise_power.push_back(NoneOp.getResult());
+  operands_eltwise_power.push_back(NoneOp.getResult());
+
+  std::vector<NamedAttribute> attrs_eltwise_power;
+
+  attrs_eltwise_power.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name()+"_eltwise_prod_power")));
+  attrs_eltwise_power.push_back(builder_.getNamedAttr("quant", getDefaultQuantParam(builder_)));
+  auto eltwise_power_op = OpBuilder(block).create<tpu::EltwiseMulOp>(
+      builder_.getUnknownLoc(), result_type,
+      ArrayRef<Value *>{operands_eltwise_power}, ArrayRef<NamedAttribute>{attrs_eltwise_power});
+
+  auto power_result_var = eltwise_power_op.getResult();
+
+  /* 2. Conv Op (do cross channel element add)  */
+
+  std::vector<Value *> operands_conv;
+  operands_conv.push_back(power_result_var);
+
+  // - blobs_[0] holds the filter weights
+  // - blobs_[1] holds the biases (optional)
+  auto filter_name_conv = layer->layer_param().name()+"_conv_filter";
+
+
+  std::vector<float> weight(c*c,1);
+  //use C*C*1*1 filter to keep shape as input
+  auto filter_type = RankedTensorType::get({c, c, 1, 1}, elementType_);
+  std::vector<int64_t> stride(2,1), dilation(2,1);
+  bool is_dw = false , with_bias = false;
+  int64_t g = 1;
+
+
+  GetWeightFile()->addTensor(filter_name_conv, &weight, filter_type);
+  operands_conv.push_back(AddLoadWeightOp(block, filter_name_conv, filter_type));
+  operands_conv.push_back(NoneOp.getResult());
+  operands_conv.push_back(NoneOp.getResult());  // quant_scale
+  operands_conv.push_back(NoneOp.getResult());  // quant_zeropoint
+  operands_conv.push_back(NoneOp.getResult());  // quant_rshift
+  operands_conv.push_back(NoneOp.getResult());  // quant_multiplier
+
+  // construct OP
+  std::vector<NamedAttribute> attrs_conv;
+  attrs_conv.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name()+"_conv")));
+
+  attrs_conv.push_back(builder_.getNamedAttr("param",
+  tpu::ConvParam::get(
+      builder_.getI32IntegerAttr(stride[0]),
+      builder_.getI32IntegerAttr(stride[1]),
+      builder_.getStringAttr("VALID"),
+      builder_.getI32IntegerAttr(dilation[0]),
+      builder_.getI32IntegerAttr(dilation[1]),
+      builder_.getI32IntegerAttr(g),
+      builder_.getBoolAttr(is_dw),
+      builder_.getBoolAttr(with_bias),
+      builder_.getBoolAttr(false),
+      builder_.getContext())));
+  attrs_conv.push_back(builder_.getNamedAttr("quant", getDefaultQuantParam(builder_)));
+
+  auto op_conv = OpBuilder(block).create<tpu::Conv2DOp>(
+      builder_.getUnknownLoc(), result_type,
+      ArrayRef<Value *>{operands_conv}, ArrayRef<NamedAttribute>{attrs_conv});
+  auto conv_result_var = op_conv.getResult();
+
+
+  /* 3. Sqrt Op (do element square root) */
+  std::vector<Value *> operands_sqrt;
+  operands_sqrt.push_back(conv_result_var);
+  operands_sqrt.push_back(NoneOp.getResult()); // quant_table
+
+  std::vector<NamedAttribute> attrs_sqrt;
+  attrs_sqrt.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name()+"_sqrt")));
+
+  attrs_sqrt.push_back(builder_.getNamedAttr(
+      "has_table", builder_.getBoolAttr(false)));
+  attrs_sqrt.push_back(
+      builder_.getNamedAttr("quant", getDefaultQuantParam(builder_)));
+  
+
+  auto sqrt_op = OpBuilder(block).create<tpu::SqrtOp>(
+      builder_.getUnknownLoc(), result_type,
+      ArrayRef<Value *>{operands_sqrt}, ArrayRef<NamedAttribute>{attrs_sqrt});
+
+  auto sqrt_result_var = sqrt_op.getResult();
+
+  /*   4. Div Op  (do element 1/input) */
+
+  std::vector<Value *> operands_div;
+  operands_div.push_back(sqrt_result_var);
+  operands_div.push_back(NoneOp.getResult()); // quant_table
+
+  std::vector<NamedAttribute> attrs_div;
+  attrs_div.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name()+"_Div")));
+   attrs_div.push_back(builder_.getNamedAttr(
+      "has_table", builder_.getBoolAttr(false)));
+  attrs_div.push_back(
+      builder_.getNamedAttr("quant", getDefaultQuantParam(builder_)));
+  
+  auto div_op = OpBuilder(block).create<tpu::DivOp>(
+      builder_.getUnknownLoc(), result_type,
+      ArrayRef<Value *>{operands_div}, ArrayRef<NamedAttribute>{attrs_div});
+
+  auto div_result_var = div_op.getResult();
+
+  /*  5. Eltwise Mul OP(do normalize)  */
+
+  std::vector<Value *> operands_eltwise_mul;
+
+  operands_eltwise_mul.push_back(input_var);
+  operands_eltwise_mul.push_back(div_result_var);
+  operands_eltwise_mul.push_back(NoneOp.getResult());
+  operands_eltwise_mul.push_back(NoneOp.getResult());
+  operands_eltwise_mul.push_back(NoneOp.getResult());
+  operands_eltwise_mul.push_back(NoneOp.getResult());
+
+
+  std::vector<NamedAttribute> attrs_eltwise_mul;
+  attrs_eltwise_mul.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name()+"_eltwise_add")));
+  attrs_eltwise_mul.push_back(builder_.getNamedAttr("quant", getDefaultQuantParam(builder_)));
+
+ auto eltwise_op = OpBuilder(block).create<tpu::EltwiseMulOp>(
+      builder_.getUnknownLoc(), result_type,
+      ArrayRef<Value *>{operands_eltwise_mul}, ArrayRef<NamedAttribute>{attrs_eltwise_mul});
+  auto eltwise_result_var = eltwise_op.getResult();
+
+  /*  6. Scale Op(do scale) */
+
+  std::vector<Value *> operands_scale;
+  operands_scale.push_back(eltwise_result_var);
+
+
+  auto scale_name = layer->layer_param().name()+"_scale_weight";
+  auto scale_type = RankedTensorType::get({c}, elementType_);
+
+  if(channel_shared){
+    assert(layer->blobs()[0].get()->count() == 1);
+    std::vector<float> scale_input(c,layer->blobs()[0].get()->cpu_data()[0]);
+    GetWeightFile()->addTensor(scale_name, scale_input.data(), scale_type);
+  }else{
+    assert(layer->blobs()[0].get()->count() == c);
+    GetWeightFile()->addTensor(scale_name, layer->blobs()[0].get()->cpu_data(), scale_type);
+  }
+
+  operands_scale.push_back(AddLoadWeightOp(block, scale_name, scale_type));
+  //no bias , set none
+  operands_scale.push_back(NoneOp.getResult());
+
+  // construct scale OP
+  std::vector<NamedAttribute> scale_attrs;
+  scale_attrs.push_back(builder_.getNamedAttr(
+      "name", builder_.getStringAttr(layer->layer_param().name()+"_scale")));
+  auto scale_op = OpBuilder(block).create<tpu::ScaleOp>(
+      builder_.getUnknownLoc(), result_type, ArrayRef<Value *>{operands_scale},
+      ArrayRef<NamedAttribute>{scale_attrs});
+
+  auto result_var = scale_op.getResult();
+  tensor_map_[layer_param.top(0)] = result_var;
+}
+
+
 
 void CaffeImporter::convertPermuteLayer(mlir::Block *block,
     caffe::Layer<float> *layer) {
