@@ -212,6 +212,56 @@ def TPU_BatchNormOp: TPU_Op<"batch_norm",
   let hasCanonicalizer = 1;
 }
 
+
+class TPU_LutOp<string mnemonic,  string opSummary> : TPU_Op<mnemonic,
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
+       DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
+
+  let summary = opSummary # " operator";
+  let description = [{
+    elements of the bottom do activation, reference bottom.
+    Performs activation operation on input.
+    In Int8, we use lookup table find output
+
+    Inputs:
+      `inputs`          : required, variadic input tensors.
+      `table`           : optional, the quantize lookup table .
+
+    Attributes:
+      `quant`           : required, a QuantParam struct attributes.
+      `name`            : required, name for calibration, comparing, or debug.
+      `layer_id`        : optional, id for profiling.
+      `has_table`       : optional, if has lookup table.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TPU_QuantPerTensorOnly`
+      `TPU_QuantSupportAsymmetric`
+      `TpuOpCommonInterface` : support common TPU Op interface
+      `TpuOpInterpInterface` : support interperter
+      `TpuOpQuantInterface`  : support quantization
+      `TpuOpLowerInterface`  : support lower to TPU TG Ops
+  }];
+
+  let arguments = (
+    ins Variadic<AnyTensor>:$inputs,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$table,
+    OptionalAttr<BoolAttr>:$has_table,
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    TPU_QuantParamAttr:$quant
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
+
 def TPU_BroadcastMulOp: TPU_Op<"broadcast_mul",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
@@ -1096,52 +1146,7 @@ def TPU_ShuffleChannelOp: TPU_Op<"shuffle_channel",
   let results = (outs AnyTensor:$output);
 }
 
-def TPU_SigmoidOp: TPU_Op<"sigmoid",
-      [NoSideEffect,
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
-       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
-       DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
-  let summary = "Sigmoid operator";
-
-  let description = [{
-    To sigmoid, elements of the bottom do sigmoid activation, reference bottom.
-     Performs sigmoid operation on input.
-
-    Inputs:
-      `inputs`          : required, variadic input tensors.
-      `table`          : optional, the quantize lookup table .
-
-    Attributes:
-      `quant`           : required, a QuantParam struct attributes.
-      `name`            : required, name for calibration, comparing, or debug.
-      `layer_id`        : optional, id for profiling.
-      `has_table`       : optional, if has lookup table.
-
-    Result:
-      `output`          : result tensor.
-
-    Interfaces or Traits:
-      `NoSideEffect`
-      `TPU_QuantPerTensorOnly`
-      `TPU_QuantSupportAsymmetric`
-      `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpInterpInterface` : support interperter
-      `TpuOpQuantInterface`  : support quantization
-      `TpuOpLowerInterface`  : support lower to TPU TG Ops
-  }];
-
-  let arguments = (
-    ins Variadic<AnyTensor>:$inputs,
-    TPU_TensorOfOrNone<[F32, BF16, I8]>:$table,
-    OptionalAttr<BoolAttr>:$has_table,
-    StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
-    TPU_QuantParamAttr:$quant
-  );
-
-  let results = (outs AnyTensor:$output);
-}
+def TPU_SigmoidOp : TPU_LutOp<"sigmoid", "Sigmoid">;
 
 def TPU_SliceOp: TPU_Op<"slice",
       [NoSideEffect,
