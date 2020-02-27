@@ -772,15 +772,12 @@ Value *tpu::SigmoidOp::convertToTG() {
   attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
 
   if (getOpQuant() == "INT8") {
-    auto newOp = OpBuilder(op).create<tpu::TG_INT8_SigmoidOp>(
+    auto newOp = OpBuilder(op).create<tpu::TG_INT8_LutOp>(
         op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
   } else if (getOpQuant() == "BF16") {
-    auto newOp = OpBuilder(op).create<tpu::TG_BF16_SigmoidOp>(
-        op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
-        ArrayRef<NamedAttribute>{attrs});
-    return newOp.getResult();
+    assert(false && "TODO");
   }
   assert(false);
   return nullptr;

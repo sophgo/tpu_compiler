@@ -1098,6 +1098,34 @@ LogicalResult tpu::TG_BF16_LeakyReluOp::codegen(void *ctx) {
   return success();
 }
 
+LogicalResult tpu::TG_INT8_LutOp::codegen(void *ctx) {
+  llvm::errs() << "TG_codegen: " << getOperationName() << " [" << getOpName()
+               << "]\n";
+  BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  getNCHW(shape, n, c, h, w);
+
+  gaddr_t input_gaddr = getPreviousOpAddress(op);
+  gaddr_t output_gaddr = getOpAddress(op);
+  gaddr_t y0_table_gaddr = getWeightOpAddress(table()->getDefiningOp());
+  int layer_id = mlir::getOpLayerId(op);
+
+  lut_fixed_forward_bmkernel(*backend_ctx,
+                             0,        // stream_id,
+                             0,        // inst_id,
+                             layer_id, // layer_id,
+                             nullptr,  // const u32 *depends,
+                             0,        // depends_len,
+                             input_gaddr, output_gaddr, y0_table_gaddr, n, c, h,
+                             w, FMT_I8);
+
+  return success();
+}
+
 LogicalResult tpu::TG_INT8_PermuteOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName() << " [" << getOpName()
                << "]\n";
@@ -1479,47 +1507,7 @@ LogicalResult tpu::TG_BF16_ReshapeOp::codegen(void *ctx) {
   return success();
 }
 
-LogicalResult tpu::TG_INT8_SigmoidOp::codegen(void *ctx) {
-  llvm::errs() << "TG_codegen: " << getOperationName() << " [" << getOpName()
-               << "]\n";
-  BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
-  Operation *op = this->getOperation();
 
-  std::vector<int64_t> shape;
-  int64_t input_size, n, c, h, w;
-  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
-  getNCHW(shape, n, c, h, w);
-
-  gaddr_t input_gaddr = getPreviousOpAddress(op);
-  gaddr_t output_gaddr = getOpAddress(op);
-  gaddr_t y0_table_gaddr =
-      getWeightOpAddress(table()->getDefiningOp());
-  int layer_id = mlir::getOpLayerId(op);
-
-  lut_fixed_forward_bmkernel(*backend_ctx,
-                             0,        // stream_id,
-                             0,        // inst_id,
-                             layer_id, // layer_id,
-                             nullptr,  // const u32 *depends,
-                             0,        // depends_len,
-                             input_gaddr, 
-                             output_gaddr, 
-                             y0_table_gaddr,
-                             n, c, h, w, 
-                             FMT_I8);
-
-  return success();
-}
-
-LogicalResult tpu::TG_BF16_SigmoidOp::codegen(void *ctx) {
-  llvm::errs() << "TG_codegen: " << getOperationName() << " [" << getOpName()
-               << "]\n";
-  // BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
-  // Operation *op = this->getOperation();
-
-  assert(false);
-  return success();
-}
 
 LogicalResult tpu::TG_INT8_SliceOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName()
