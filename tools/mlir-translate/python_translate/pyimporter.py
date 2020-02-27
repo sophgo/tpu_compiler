@@ -14,8 +14,8 @@ class TPU_OpType(Enum):
     BatchNorm = 'tpu.batch_norm'
     Conv2d = 'tpu.conv2d'
     Crop = 'tpu.crop'
-    ElementMul = 'tpu.eltwise_mul'
-    PoolAvg2D = 'pool_avg_2d'
+    Eltwise_Mul = 'tpu.eltwise_mul'
+    PoolAvg2D = 'tpu.pool_avg_2d'
     Reshape = 'tpu.reshape'
     Scale = 'tpu.scale'
     Sigmoid = 'tpu.sigmoid'
@@ -29,13 +29,7 @@ def checkType(obj, type):
     if not isinstance(obj, type):
         raise AttributeError('{} is not {}'.format(obj, type))
 
-def OpFactory(op_name, inputs, outputs, **kargs):
-    assert(isinstance(op_name, str))
-    assert(isinstance(inputs, list) and isinstance(outputs, list))
-    checkKey(kargs, 'name')
-
     
-
 
 class PyImporter():
 
@@ -122,10 +116,12 @@ class PyImporter():
         
         checkKey(kargs, 'crop_offset')
         checkKey(kargs, 'crop_shape')
+
         crop_offset = kargs['crop_offset']
         crop_shape = kargs['crop_shape']
         checkType(crop_offset, list)
         checkType(crop_shape , list)
+
         crop_name = self.module.stringAttr(op_name)
         crop_offset_attr = self.module.arrayAttr([self.module.integerAttr(self.i32Type, x) for x in crop_offset])
         crop_shape_attr = self.module.arrayAttr(
@@ -134,6 +130,67 @@ class PyImporter():
         return self.buildOp(TPU_OpType.Crop.value, inputOperands, [
             tensor_output_type], name=crop_name, crop_offset=crop_offset_attr, crop_shape=crop_shape_attr)
 
+    def add_batchnorm_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+        tensor_output_type = self.module.make_ranked_tensor_type(
+            self.f32Type, output_tensor_shape)
+        checkKey(kargs, 'variance_epsilon')
+
+        variance_epsilon = kargs['variance_epsilon']
+        checkType(variance_epsilon, float)
+
+        batchnorm_name = self.module.stringAttr(op_name)
+        variance_epsilon_attr = self.module.floatAttr(variance_epsilon)
+
+        return self.buildOp(TPU_OpType.BatchNorm.value, inputOperands, [
+            tensor_output_type], name=batchnorm_name, variance_epsilon=variance_epsilon_attr)
+    
+    def add_scale_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+        tensor_output_type = self.module.make_ranked_tensor_type(
+            self.f32Type, output_tensor_shape)
+
+        scale_name = self.module.stringAttr(op_name)
+        return self.buildOp(TPU_OpType.Scale.value, inputOperands, [
+            tensor_output_type], name=scale_name)
+    
+    def add_eltwise_mul_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+        tensor_output_type = self.module.make_ranked_tensor_type(
+            self.f32Type, output_tensor_shape)
+        if len(inputOperands) < 2:
+            raise ArithmeticError("input operand must great than 2")
+
+        eltwise_mul = self.module.stringAttr(op_name)
+        return self.buildOp(TPU_OpType.Eltwise_Mul.value, inputOperands, [
+            tensor_output_type], name=eltwise_mul)
+    
+    def add_pool_avg_2d_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+        tensor_output_type = self.module.make_ranked_tensor_type(
+            self.f32Type, output_tensor_shape)
+        checkKey(kargs, 'kernel_h')
+        checkKey(kargs, 'kernel_w')
+        checkKey(kargs, 'padding_b')
+        checkKey(kargs, 'padding_l')
+        checkKey(kargs, 'padding_r')
+        checkKey(kargs, 'padding_t')
+        checkKey(kargs, 'stride_h')
+        checkKey(kargs, 'stride_w')
+        checkKey(kargs, 'do_relu')
+        
+        pool_avg_2d_name = self.module.stringAttr(op_name)
+        pool_avg_2d_param = {
+            'stride_h': self.module.integerAttr(self.i32Type, kargs['stride_h']),
+            'stride_w': self.module.integerAttr(self.i32Type, kargs['stride_w']),
+            'kernel_h': self.module.integerAttr(self.i32Type, kargs['kernel_h']),
+            'kernel_w': self.module.integerAttr(self.i32Type, kargs['kernel_w']),
+            'padding_b': self.module.integerAttr(self.i32Type, kargs['padding_b']),
+            'padding_l': self.module.integerAttr(self.i32Type, kargs['padding_l']),
+            'padding_r': self.module.integerAttr(self.i32Type, kargs['padding_r']),
+            'padding_t': self.module.integerAttr(self.i32Type, kargs['padding_t']),
+            'do_relu': self.module.boolAttr(kargs['do_relu']),
+        }
+        dict_attr = self.module.dictAttr(**pool_avg_2d_param)
+
+        return self.buildOp(TPU_OpType.PoolAvg2D.value, inputOperands, [
+            tensor_output_type], name=pool_avg_2d_name, param=dict_attr)
     def print_module(self):
         print(self.module)
 
@@ -168,5 +225,27 @@ if __name__ == "__main__":
         'crop_shape' : [1, 1, 112, 112]
     }
     c = importer.add_crop_op("crop_2", [b], [1, 3, 112, 112], **crop_param)
+    importer.print_module()
+
+    batchnorm_parm = {
+        'variance_epsilon': 0.001
+    }
+    d = importer.add_batchnorm_op(
+        "batchnorm_3", [c], [1, 3, 112, 112], **batchnorm_parm)
+    e = importer.add_scale_op("scale_4", [d], [1,3,112,112])
+    f = importer.add_eltwise_mul_op("eltwise_mul_5", [e, d], [1, 3, 112, 112])
+    pool_avg_2d_param = {
+        'stride_h':  1,
+        'stride_w':  1,
+        'kernel_h':  1,
+        'kernel_w':  1,
+        'padding_b': 1,
+        'padding_r': 1,
+        'padding_t': 1,
+        'padding_l': 1,
+        'do_relu': False,
+    }
+    g = importer.add_pool_avg_2d_op(
+        "pool_avg_2d_6", [e], [1, 3, 112, 112], **pool_avg_2d_param)
     importer.print_module()
   
