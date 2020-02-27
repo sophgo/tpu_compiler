@@ -58,103 +58,6 @@ static LogicalResult runOperation(Operation &opInst) {
     return tpuTGOp.codegen((void *)backend_ctx);
   }
 
-  if (auto op = dyn_cast<tpu::TL_LA_Conv2DOp>(opInst)) {
-    LLVM_DEBUG(llvm::errs() << "TL_LA_Conv2DOp" << "\n";);
-
-    bool is_dw, with_bias, do_relu;
-    int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, ph, pw, dh, dw;
-    parseConvParam(op.param(), false, op.input(), op.output(), op.filter(),
-                   n, ic, ih, iw, oc, oh, ow, g,
-                   kh, kw, sh, sw, ph, pw, dh, dw, is_dw, with_bias, do_relu);
-
-    gaddr_t ga_input = getPreviousOpAddress(op);
-    gaddr_t ga_output = op.offset().getValue().getLimitedValue();
-    gaddr_t ga_filter = getWeightOpAddress(op.getOperand(1)->getDefiningOp());
-    gaddr_t ga_perchannel = getWeightOpAddress(op.getOperand(2)->getDefiningOp());
-    int layer_id = op.layer_id().getValue().getLimitedValue();
-
-    LLVM_DEBUG(llvm::errs() << "TL_LA_Conv2DOp, layer_id = " << layer_id << "\n";);
-    cvi_backend_tl_conv_LA(*backend_ctx, layer_id,
-        ga_input, ga_output, ga_filter, ga_perchannel,
-        n, ic, ih, iw, g, oc, oh, ow, kh, kw,
-        dh, dw, ph, ph, pw, pw, sh, sw,
-        false, with_bias, do_relu);
-
-    return success();
-  }
-
-  if (auto op = dyn_cast<tpu::TL_LW_Conv2DOp>(opInst)) {
-    LLVM_DEBUG(llvm::errs() << "TL_LW_Conv2DOp" << "\n";);
-
-    bool is_dw, with_bias, do_relu;
-    int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, ph, pw, dh, dw;
-    parseConvParam(op.param(), false, op.input(), op.output(), op.filter(),
-                   n, ic, ih, iw, oc, oh, ow, g,
-                   kh, kw, sh, sw, ph, pw, dh, dw, is_dw, with_bias, do_relu);
-
-    gaddr_t ga_input = getPreviousOpAddress(op);
-    gaddr_t ga_output = op.offset().getValue().getLimitedValue();
-    gaddr_t ga_filter = getWeightOpAddress(op.getOperand(1)->getDefiningOp());
-    gaddr_t ga_perchannel = getWeightOpAddress(op.getOperand(2)->getDefiningOp());
-    laddr_t la_input = op.la_input().getLimitedValue();
-    laddr_t la_output = op.la_output().getLimitedValue();
-    laddr_t la_working = op.la_working().getLimitedValue();
-    int layer_id = op.layer_id().getValue().getLimitedValue();
-
-    llvm::errs() << "TL_LW_Conv2DOp, layer_id = " << layer_id << "\n";
-    if (op.tl_load_flag()) {
-      cvi_backend_tl_load(*backend_ctx, layer_id,
-          la_input, ga_input, n, ic, ih, iw);
-    }
-    #if 0
-    //
-    // V0: Weight Only version, with no parallel for load/store activations
-    // (only consider load weight parallel)
-    //
-    cvi_backend_tl_conv_LW(*backend_ctx, layer_id,
-        la_input, la_output, la_working,
-        ga_filter, ga_perchannel,
-        n, ic, ih, iw, g, oc, oh, ow, kh, kw,
-        dh, dw, ph, ph, pw, pw, sh, sw,
-        false, with_bias, do_relu);
-    if (op.tl_store_flag()) {
-      cvi_backend_tl_store(*backend_ctx, layer_id,
-          la_output, ga_output, n, oc, oh, ow);
-    }
-    #endif
-    #if 1
-    //
-    // V1: Weight and Store version
-    //   this only do parallel on both Weight load and Activation Store
-    //   but load activation is not handled in parallel
-    //
-    if (op.tl_store_flag()) {
-      cvi_backend_tl_conv_LW(*backend_ctx, layer_id,
-          la_input, la_output, la_working,
-          ga_filter, ga_perchannel,
-          n, ic, ih, iw, g, oc, oh, ow, kh, kw,
-          dh, dw, ph, ph, pw, pw, sh, sw,
-          false, with_bias, do_relu,
-          true, ga_output);
-    } else {
-      cvi_backend_tl_conv_LW(*backend_ctx, layer_id,
-          la_input, la_output, la_working,
-          ga_filter, ga_perchannel,
-          n, ic, ih, iw, g, oc, oh, ow, kh, kw,
-          dh, dw, ph, ph, pw, pw, sh, sw,
-          false, with_bias, do_relu);
-    }
-    #endif
-    #if 0
-    //
-    // V2: Tiling version
-    //    make for loops outside of the backend api, handle tiling outside
-    //
-    // TODO:
-    #endif
-    return success();
-  }
-
 #if 0
   if (auto op = dyn_cast<tpu::FullyConnectedOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "FullyConnectedOp" << "\n";);
@@ -268,7 +171,7 @@ static LogicalResult runOperation(Operation &opInst) {
                                layer_id, // layer_id,
                                nullptr,  // const u32 *depends,
                                0,        // depends_len,
-                               input_gaddr, output_gaddr, y0_table_gaddr, 
+                               input_gaddr, output_gaddr, y0_table_gaddr,
                                n, c, h, w, FMT_I8);
 
     } else if(op.quant() == "BF16") {
@@ -286,7 +189,7 @@ static LogicalResult runOperation(Operation &opInst) {
       llvm::errs() << "not support yet \n";
       assert(0);
     }
-    
+
     return success();
 
   }
@@ -329,7 +232,6 @@ static LogicalResult runOperation(Operation &opInst) {
 
 
       int layer_id = op.layer_id().getValue().getLimitedValue();
-
       // TODO: set lut backend
       assert(false);
     }else {

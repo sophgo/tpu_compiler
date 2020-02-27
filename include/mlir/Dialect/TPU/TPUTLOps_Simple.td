@@ -44,7 +44,9 @@ def TPU_LMLayoutAttr : StrEnumAttr<
 //===----------------------------------------------------------------------===//
 
 def TPU_TL_LW_Conv2DOp : TPU_Op<"tl_lw_conv_2d",
-      [NoSideEffect, DeclareOpInterfaceMethods<TpuInterface>]> {
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
   let summary = "TL Load Weight Convolution operator";
 
   let description = [{
@@ -70,27 +72,27 @@ def TPU_TL_LW_Conv2DOp : TPU_Op<"tl_lw_conv_2d",
   let arguments = (
     ins AnyTensor:$input,
     AnyTensor:$filter,
-    AnyTensor:$perchannel,
+    AnyTensor:$pc_info,
     TPU_ConvParamAttr:$param,
-    DefaultValuedAttr<TPU_AFAttr, "NONE">:$fused_activation_function,
     TPU_LMLayoutAttr:$lm_layout,
     I32Attr:$la_input,
     I32Attr:$la_working,
     I32Attr:$la_output,
     BoolAttr:$tl_load_flag,
     BoolAttr:$tl_store_flag,
-    OptionalAttr<StrAttr>:$name,
-    OptionalAttr<NonNegativeI64Attr>:$offset,
-    OptionalAttr<F32Attr>:$threshold_y,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
-    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
+    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
+    OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
   );
 
   let results = (outs AnyTensor:$output);
 }
 
 def TPU_TL_LA_Conv2DOp : TPU_Op<"tl_la_conv_2d",
-      [NoSideEffect, DeclareOpInterfaceMethods<TpuInterface>]> {
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
   let summary = "TL Load All Convolution operator";
 
   let description = [{
@@ -108,14 +110,12 @@ def TPU_TL_LA_Conv2DOp : TPU_Op<"tl_la_conv_2d",
   let arguments = (
     ins AnyTensor:$input,
     AnyTensor:$filter,
-    AnyTensor:$perchannel,
+    AnyTensor:$pc_info,
     TPU_ConvParamAttr:$param,
-    DefaultValuedAttr<TPU_AFAttr, "NONE">:$fused_activation_function,
-    OptionalAttr<StrAttr>:$name,
-    OptionalAttr<NonNegativeI64Attr>:$offset,
-    OptionalAttr<F32Attr>:$threshold_y,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
-    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
+    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
+    OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
   );
 
   let results = (outs AnyTensor:$output);

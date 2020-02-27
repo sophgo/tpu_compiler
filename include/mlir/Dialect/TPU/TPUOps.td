@@ -644,11 +644,11 @@ def TPU_NormalizeOp: TPU_Op<"normalize",
 
     Inputs:
       `input`           : required, the input activation tensor.
-      `scale`           : required, the scale weight tensor. even channel_shared is true, extend to tensor. 
+      `scale`           : required, the scale weight tensor. even channel_shared is true, extend to tensor.
 
     Attributes:
       `across_spatial`  : required, normalize cross channel or not.
-      `channel_shared`  : required, scale cross channel or not.      
+      `channel_shared`  : required, scale cross channel or not.
       `name`            : required, name for calibration, comparing, or debug.
       `layer_id`        : optional, id for profiling.
 
@@ -667,7 +667,7 @@ def TPU_NormalizeOp: TPU_Op<"normalize",
     ins AnyTensor:$input,
     AnyTensor:$scale,
     DefaultValuedAttr<BoolAttr, "true">:$across_spatial,
-    DefaultValuedAttr<BoolAttr, "true">:$channel_shared, 
+    DefaultValuedAttr<BoolAttr, "true">:$channel_shared,
     StrAttr:$name,
     OptionalAttr<NonNegativeI32Attr>:$layer_id
   );
@@ -919,9 +919,9 @@ def TPU_PriorBoxOp: TPU_Op<"priorbox",
       `variance1`          : required.
       `variance1`          : required.
       `variance2`          : required.
-      `variance3`          : required.            
-      `step`               : required.  
-      `offset`             : required.  
+      `variance3`          : required.
+      `step`               : required.
+      `offset`             : required.
 
     Attributes:
       `name`            : required, name for calibration, comparing, or debug.
@@ -1462,6 +1462,6 @@ def TPU_DequantizationOp: TPU_Op<"dequantization",
 
 include "mlir/Dialect/TPU/TPUSupportOps.td"
 include "mlir/Dialect/TPU/TPUTGOps.td"
-include "mlir/Dialect/TPU/TPUTLOps.td"
+include "mlir/Dialect/TPU/TPUTLOps_Simple.td"
 
 #endif // TPU_OPS

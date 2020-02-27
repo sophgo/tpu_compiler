@@ -34,6 +34,7 @@
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/MathExtras.h"
 #include "MachineInfo.h"
+#include "SimpleAnalysis.h"
 
 #define DEBUG_TYPE "deep-fusion-tl-la2lw"
 
@@ -47,11 +48,8 @@ struct TpuTL_LA_Conv2DOpPattern : public RewritePattern {
 
   PatternMatchResult matchAndRewrite(Operation *opInst,
                                      PatternRewriter &rewriter) const override {
-#if 1
-    assert(false);
-#else
     auto op = cast<tpu::TL_LA_Conv2DOp>(opInst);
-    //auto loc = op->getLoc();
+    assert(op);
 
     bool is_dw, with_bias, do_relu;
     int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, ph, pw, dh, dw;
@@ -69,19 +67,10 @@ struct TpuTL_LA_Conv2DOpPattern : public RewritePattern {
       newOperands.push_back(op.getOperand(2));
 
       std::vector<NamedAttribute> attrs;
-      attrs.push_back(rewriter.getNamedAttr("with_bias", rewriter.getBoolAttr(with_bias)));
-      attrs.push_back(rewriter.getNamedAttr("dilation_h_factor", rewriter.getI32IntegerAttr(dh)));
-      attrs.push_back(rewriter.getNamedAttr("dilation_w_factor", rewriter.getI32IntegerAttr(dw)));
-      attrs.push_back(rewriter.getNamedAttr("padding", rewriter.getStringAttr(op.padding())));
-      attrs.push_back(rewriter.getNamedAttr("stride_h", rewriter.getI32IntegerAttr(sh)));
-      attrs.push_back(rewriter.getNamedAttr("stride_w", rewriter.getI32IntegerAttr(sw)));
-      attrs.push_back(rewriter.getNamedAttr("group", rewriter.getI32IntegerAttr(g)));
-      attrs.push_back(rewriter.getNamedAttr("fused_activation_function",
-          rewriter.getStringAttr(op.fused_activation_function())));
-
-      attrs.push_back(rewriter.getNamedAttr("offset", rewriter.getI64IntegerAttr(op.offset().getValue().getLimitedValue())));
-      attrs.push_back(rewriter.getNamedAttr("threshold_y", rewriter.getF32FloatAttr(op.threshold_y().getValue().convertToFloat())));
-      attrs.push_back(rewriter.getNamedAttr("layer_id", rewriter.getI32IntegerAttr(op.layer_id().getValue().getLimitedValue())));
+      attrs.push_back(rewriter.getNamedAttr("param", op.paramAttr()));
+      attrs.push_back(rewriter.getNamedAttr("gaddr", op.gaddrAttr()));
+      attrs.push_back(rewriter.getNamedAttr("name", op.nameAttr()));
+      attrs.push_back(rewriter.getNamedAttr("layer_id", op.layer_idAttr()));
 
       // postpone lmem assignment to next pattern
       uint32_t la_invalid = 0xffffffff;
@@ -97,7 +86,6 @@ struct TpuTL_LA_Conv2DOpPattern : public RewritePattern {
           ArrayRef<Value *>{newOperands}, ArrayRef<NamedAttribute>{attrs});
       return matchSuccess();
     }
-#endif
   }
 };
 
@@ -153,7 +141,6 @@ struct TpuTL_LW_Conv2DOp_AssignLayoutPattern : public RewritePattern {
     }
   }
 };
-
 
 struct TpuTL_LW_Conv2DOp_AssignLAddrPattern : public RewritePattern {
   TpuTL_LW_Conv2DOp_AssignLAddrPattern(MLIRContext *context)

@@ -34,6 +34,7 @@ add_llvm_library(MLIRTPU
   Quantization/GenSigmoidTable.cpp
   Optimization/FuseLeakyRelu.cpp
   Backend/TpuTgCodegen.cpp
+  Backend/TpuTlCodegen_Simple.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${MLIR_MAIN_INCLUDE_DIR}/mlir/Dialect/TPU

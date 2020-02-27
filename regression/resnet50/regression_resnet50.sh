@@ -19,6 +19,7 @@ $DIR/regression_resnet50_2_int8.sh
 $DIR/regression_resnet50_3_int8_cmdbuf.sh
 $DIR/regression_resnet50_4_bf16.sh
 $DIR/regression_resnet50_5_bf16_cmdbuf.sh
+# $DIR/regression_resnet50_6_int8_cmdbuf_deepfusion.sh
 
 popd
 
