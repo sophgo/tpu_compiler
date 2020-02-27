@@ -32,6 +32,7 @@
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/MathExtras.h"
 #include "MachineInfo.h"
+#include "SimpleAnalysis.h"
 
 #define DEBUG_TYPE "deep-fusion-simple"
 
@@ -57,13 +58,13 @@ public:
       llvm::errs() << "Chain: size = " << (*it)->size() << "\n";
       for (auto v = (*it)->begin(); v != (*it)->end(); ++v) {
         auto opInst = (*v)->getDefiningOp();
-        if (auto op = dyn_cast<mlir::tpu::Conv2DOp>(opInst)) {
+        if (auto op = dyn_cast<mlir::tpu::TG_INT8_PC_Conv2DOp>(opInst)) {
           llvm::errs() << "  " << op.name() << "\n";
-        } else if (auto op = dyn_cast<mlir::tpu::PoolAvg2DOp>(opInst)) {
+        } else if (auto op = dyn_cast<mlir::tpu::TG_INT8_PoolAvg2DOp>(opInst)) {
           llvm::errs() << "  " << op.name() << "\n";
-        } else if (auto op = dyn_cast<mlir::tpu::PoolMax2DOp>(opInst)) {
+        } else if (auto op = dyn_cast<mlir::tpu::TG_INT8_PoolMax2DOp>(opInst)) {
           llvm::errs() << "  " << op.name() << "\n";
-        } else if (auto op = dyn_cast<mlir::tpu::FullyConnectedOp>(opInst)) {
+        } else if (auto op = dyn_cast<mlir::tpu::TG_INT8_FullyConnectedOp>(opInst)) {
           llvm::errs() << "  " << op.name() << "\n";
         } else {
           assert(0);
@@ -123,23 +124,24 @@ public:
     os << "," << "lmem_o";
     os << "," << "lmem_f";
     os << "," << "lmem_b";
+    os << "," << "lmem_l_w";
     os << "," << "lmem_e_i";
     os << "," << "lmem_e_w";
     os << "," << "lmem_total";
     os <<"\n";
     stats = new DeepFusionSimpleStats();
     func.walk([&](mlir::Operation *opInst) {
-      if (auto op = dyn_cast<mlir::tpu::Conv2DOp>(opInst)) {
-        analyzeConv2DOpParam<tpu::Conv2DOp>(op, os);
-      } else if (auto op = dyn_cast<mlir::tpu::DeConv2DOp>(opInst)) {
-        analyzeConv2DOpParam<tpu::DeConv2DOp>(op, os);
-      } else if (auto op = dyn_cast<tpu::PoolAvg2DOp>(opInst)) {
-        analyzePool2DOpParam<tpu::PoolAvg2DOp>(op, os, true);
-      } else if (auto op = dyn_cast<tpu::PoolMax2DOp>(opInst)) {
-        analyzePool2DOpParam<tpu::PoolMax2DOp>(op, os, false);
-      } else if (auto op = dyn_cast<mlir::tpu::FullyConnectedOp>(opInst)) {
+      if (auto op = dyn_cast<tpu::TG_INT8_PC_Conv2DOp>(opInst)) {
+        analyzeConv2DOpParam<tpu::TG_INT8_PC_Conv2DOp>(op, os);
+      } else if (auto op = dyn_cast<tpu::TG_INT8_PC_DeConv2DOp>(opInst)) {
+        analyzeConv2DOpParam<tpu::TG_INT8_PC_DeConv2DOp>(op, os);
+      } else if (auto op = dyn_cast<tpu::TG_INT8_PoolAvg2DOp>(opInst)) {
+        analyzePool2DOpParam<tpu::TG_INT8_PoolAvg2DOp>(op, os, true);
+      } else if (auto op = dyn_cast<tpu::TG_INT8_PoolMax2DOp>(opInst)) {
+        analyzePool2DOpParam<tpu::TG_INT8_PoolMax2DOp>(op, os, false);
+      } else if (auto op = dyn_cast<tpu::TG_INT8_FullyConnectedOp>(opInst)) {
         analyzeFullyConnectedOpParam(op, os);
-      } else if (auto op = dyn_cast<mlir::tpu::LoadWeightOp>(opInst)) {
+      } else if (auto op = dyn_cast<tpu::LoadWeightOp>(opInst)) {
         // we do analysis in compute node, skip load node
       } else if (auto op = dyn_cast<mlir::tpu::ReshapeOp>(opInst)) {
         // reshape has no computation or load/store, skip
@@ -158,50 +160,18 @@ private:
 
   template <typename OpTy>
   void analyzeConv2DOpParam(OpTy &op, llvm::raw_ostream &os) {
-    // supporat int8 multiplier mode only
-    assert(op.quant().mode().getValue() == "INT8");
-    assert(op.quant().is_perchannel().getValue() == true);
-
     bool is_dw, with_bias, do_relu;
     int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, ph, pw, dh, dw;
-    bool is_deconv = isa<tpu::DeConv2DOp>(op.getOperation());
+    bool is_deconv = isa<tpu::TG_INT8_PC_DeConv2DOp>(op.getOperation());
     parseConvParam(op.param(), is_deconv, op.input(), op.output(), op.filter(),
                    n, ic, ih, iw, oc, oh, ow, g,
                    kh, kw, sh, sw, ph, pw, dh, dw, is_dw, with_bias, do_relu);
 
-    //bool do_eltwise = (op.fused_eltwise_method() == "SUM") ? true : false;
-    bool do_eltwise = false;
     uint64_t mac_count = ow * oh * kh * kw * g * (ic / g) * (oc / g) * n;
     stats->increaseMacCount(mac_count);
 
-    uint64_t inputNeuronSizePerLane = MInfo::getSizePerLane(n, ic, ih, iw, true);
-    uint64_t outputNeuronSizePerLane = MInfo::getSizePerLane(n, oc, oh, ow, true);
-    uint64_t filterSizePerLane = 0;
-    // filter working size *2 for double buffer
-    if (g != oc) {
-      assert(g == 1);
-      // for non-dw conv, assuming oc_step = lane_num
-      int oc_step = MInfo::lane_num;
-      filterSizePerLane = MInfo::getSizePerLane(ic, oc_step, kh, kw, false) * 2;
-    } else {
-      // for dw conv, load weight all in once
-      filterSizePerLane = MInfo::getSizePerLane(1, oc, kh, kw, false) * 2;
-    }
-    // load bias all in once
-    int bias_size = with_bias ? 9 : 5;
-    uint64_t biasSizePerLane = MInfo::getSizePerLane(1, oc, 1, bias_size, false);
-    // if eltwise sum is enabled, eltwise input size
-    uint64_t eltwiseInputSizePerLane = 0;
-    uint64_t eltwiseWorkingSizePerLane = 0;
-    if (do_eltwise) {
-      eltwiseInputSizePerLane = outputNeuronSizePerLane;
-      #define MIN_eltwise_working_size    (32)
-      eltwiseWorkingSizePerLane = MIN_eltwise_working_size * 2;
-    }
-    // total
-    uint64_t totalPerLane = inputNeuronSizePerLane + outputNeuronSizePerLane
-                            + filterSizePerLane + biasSizePerLane
-                            + eltwiseInputSizePerLane + eltwiseWorkingSizePerLane;
+    struct SimpleMemoryUsageAnalysis_details details;
+    uint64_t totalPerLane = SimpleConv2DMemoryUsageAnalysis(op, &details);
     if (totalPerLane <= MInfo::lmem_per_lane) {
       stats->pushChain(op.getResult());
     } else {
@@ -214,15 +184,17 @@ private:
        << kh << "," << kw << "," << sh << "," << sw << ","
        << dh << "," << dw << "," << ph << "," << pw << ","
        << mac_count;
-    os << "," << inputNeuronSizePerLane;
-    os << "," << outputNeuronSizePerLane;
-    os << "," << filterSizePerLane;
-    os << "," << biasSizePerLane;
-    os << "," << eltwiseInputSizePerLane;
-    os << "," << eltwiseWorkingSizePerLane;
+    os << "," << details.inputNeuronSizePerLane;
+    os << "," << details.outputNeuronSizePerLane;
+    os << "," << details.filterSizePerLane;
+    os << "," << details.biasSizePerLane;
+    os << "," << details.reluWorkingSizePerLane;
+    os << "," << details.eltwiseInputSizePerLane;
+    os << "," << details.eltwiseWorkingSizePerLane;
     os << "," << totalPerLane;
     os <<"\n";
   }
+
   template <typename Opty>
   void analyzePool2DOpParam(Opty &op, llvm::raw_ostream &os,
       bool is_average) {
@@ -257,11 +229,13 @@ private:
     os << ",";
     os << ",";
     os << ",";
+    os << ",";
     os << "," << totalPerLane;
     os << "\n";
   }
 
-  void analyzeFullyConnectedOpParam(tpu::FullyConnectedOp &op, llvm::raw_ostream &os) {
+  void analyzeFullyConnectedOpParam(tpu::TG_INT8_FullyConnectedOp &op,
+      llvm::raw_ostream &os) {
     int m, k, n;
     parseFullyConnectedParam(op.input(), op.output(), op.filter(), m, k, n);
 
@@ -285,6 +259,7 @@ private:
        << mac_count;
     os << "," << inputNeuronSizePerLane;
     os << "," << outputNeuronSizePerLane;
+    os << ",";
     os << ",";
     os << ",";
     os << ",";

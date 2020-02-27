@@ -61,9 +61,8 @@ npz_compare.py \
       ssd300_blobs.npz \
       --op_info ssd300_op_info_int8_per_layer.csv \
       --tolerance 0.995,0.995,0.909 -vv
-      #--tolerance 0.997,0.997,0.935 -vv
 
-#if [ $COMPARE_ALL -eq 1 ]; then
+if [ $COMPARE_ALL -eq 1 ]; then
   npz_compare.py \
       ssd300_tensor_all_int8_per_layer.npz \
       ssd300_blobs.npz \
@@ -71,7 +70,7 @@ npz_compare.py \
       --dequant \
       --tolerance 0.994,0.993,0.897 -vv
       #pool4 is the lowest
-#fi
+fi
 
 ################################
 # quantization 2: per-channel int8

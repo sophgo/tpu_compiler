@@ -43,8 +43,42 @@ def TPU_LMLayoutAttr : StrEnumAttr<
 // TL op definitions.
 //===----------------------------------------------------------------------===//
 
+def TPU_TL_LA_Conv2DOp : TPU_Op<"tl_la_conv_2d",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
+  let summary = "TL Load All Convolution operator";
+
+  let description = [{
+    [IMPORTANT] : for INT8_MULTIPLIER quantized convolution only.
+    Performs TL convolution operation on inputs memref, and output to output
+      memref. The input/output/weight are still global memory tensors, so this
+      operator has to handle loading input/weight and store output by itself.
+
+    Inputs:
+      `inputs[0]`  : required: the input memref.
+      `inputs[1]`  : required: the filter memref.
+      `inputs[2]`  : required: the perchannel memref.
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    AnyTensor:$filter,
+    AnyTensor:$pc_info,
+    TPU_ConvParamAttr:$param,
+    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
+    OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
 def TPU_TL_LW_Conv2DOp : TPU_Op<"tl_lw_conv_2d",
-      [NoSideEffect, DeclareOpInterfaceMethods<TpuInterface>]> {
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
   let summary = "TL Load Weight Convolution operator";
 
   let description = [{
@@ -70,52 +104,48 @@ def TPU_TL_LW_Conv2DOp : TPU_Op<"tl_lw_conv_2d",
   let arguments = (
     ins AnyTensor:$input,
     AnyTensor:$filter,
-    AnyTensor:$perchannel,
+    AnyTensor:$pc_info,
     TPU_ConvParamAttr:$param,
-    DefaultValuedAttr<TPU_AFAttr, "NONE">:$fused_activation_function,
     TPU_LMLayoutAttr:$lm_layout,
     I32Attr:$la_input,
     I32Attr:$la_working,
     I32Attr:$la_output,
     BoolAttr:$tl_load_flag,
     BoolAttr:$tl_store_flag,
-    OptionalAttr<StrAttr>:$name,
-    OptionalAttr<NonNegativeI64Attr>:$offset,
-    OptionalAttr<F32Attr>:$threshold_y,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
-    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
+    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
+    OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
   );
 
   let results = (outs AnyTensor:$output);
 }
 
-def TPU_TL_LA_Conv2DOp : TPU_Op<"tl_la_conv_2d",
-      [NoSideEffect, DeclareOpInterfaceMethods<TpuInterface>]> {
-  let summary = "TL Load All Convolution operator";
+def TPU_TL_EltwiseAddOp : TPU_Op<"tl_eltwise_add",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
+  let summary = "TL Eltwise Add operator";
 
   let description = [{
-    [IMPORTANT] : for INT8_MULTIPLIER quantized convolution only.
-    Performs TL convolution operation on inputs memref, and output to output
-      memref. The input/output/weight are still global memory tensors, so this
-      operator has to handle loading input/weight and store output by itself.
-
-    Inputs:
-      `inputs[0]`  : required: the input memref.
-      `inputs[1]`  : required: the filter memref.
-      `inputs[2]`  : required: the perchannel memref.
   }];
 
   let arguments = (
     ins AnyTensor:$input,
-    AnyTensor:$filter,
-    AnyTensor:$perchannel,
-    TPU_ConvParamAttr:$param,
-    DefaultValuedAttr<TPU_AFAttr, "NONE">:$fused_activation_function,
-    OptionalAttr<StrAttr>:$name,
-    OptionalAttr<NonNegativeI64Attr>:$offset,
-    OptionalAttr<F32Attr>:$threshold_y,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
-    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
+    AnyTensor:$addend,
+    I8Attr:$rshift,
+    I32ArrayAttr:$m_i8_inputs,
+    DefaultValuedAttr<BoolAttr, "false">:$do_relu,
+    TPU_LMLayoutAttr:$lm_layout,
+    I32Attr:$la_input,
+    I32Attr:$la_working,
+    I32Attr:$la_output,
+    BoolAttr:$tl_load_flag,
+    BoolAttr:$tl_store_flag,
+    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
+    OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
   );
 
   let results = (outs AnyTensor:$output);

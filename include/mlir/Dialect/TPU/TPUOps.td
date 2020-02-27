@@ -212,6 +212,56 @@ def TPU_BatchNormOp: TPU_Op<"batch_norm",
   let hasCanonicalizer = 1;
 }
 
+
+class TPU_LutOp<string mnemonic,  string opSummary> : TPU_Op<mnemonic,
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
+       DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
+
+  let summary = opSummary # " operator";
+  let description = [{
+    elements of the bottom do activation, reference bottom.
+    Performs activation operation on input.
+    In Int8, we use lookup table find output
+
+    Inputs:
+      `inputs`          : required, variadic input tensors.
+      `table`           : optional, the quantize lookup table .
+
+    Attributes:
+      `quant`           : required, a QuantParam struct attributes.
+      `name`            : required, name for calibration, comparing, or debug.
+      `layer_id`        : optional, id for profiling.
+      `has_table`       : optional, if has lookup table.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TPU_QuantPerTensorOnly`
+      `TPU_QuantSupportAsymmetric`
+      `TpuOpCommonInterface` : support common TPU Op interface
+      `TpuOpInterpInterface` : support interperter
+      `TpuOpQuantInterface`  : support quantization
+      `TpuOpLowerInterface`  : support lower to TPU TG Ops
+  }];
+
+  let arguments = (
+    ins Variadic<AnyTensor>:$inputs,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$table,
+    OptionalAttr<BoolAttr>:$has_table,
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    TPU_QuantParamAttr:$quant
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
+
 def TPU_BroadcastMulOp: TPU_Op<"broadcast_mul",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
@@ -400,49 +450,7 @@ def TPU_CropOp: TPU_Op<"crop",
 
 def TPU_DeConv2DOp : TPU_ConvOp<"deconv_2d", "Deconvolution">;
 
-def TPU_DivOp: TPU_Op<"div",
-      [NoSideEffect,
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
-       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
-       DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
-  let summary = "Div operator";
-
-  let description = [{
-    Do element 1/x.
-
-    Inputs:
-      `input`          : required, input tensors.
-      `table`          : required,table tensor.
-
-    Attributes:
-      `quant`           : required, a QuantParam struct attributes.
-      `name`            : required, name for calibration, comparing, or debug.
-      `layer_id`        : optional, id for profiling.
-      `has_table`       : optional, if has lookup table.
-
-    Result:
-      `output`          : result tensor.
-
-    Interfaces or Traits:
-      `NoSideEffect`
-      `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpInterpInterface` : support interperter
-      `TpuOpQuantInterface`  : support quantization
-      `TpuOpLowerInterface`  : support lower to TPU TG Ops
-  }];
-
-  let arguments = (
-    ins AnyTensor:$input,
-    TPU_TensorOfOrNone<[F32, BF16, I8]>:$table,
-    OptionalAttr<BoolAttr>:$has_table,
-    StrAttr:$name,
-    TPU_QuantParamAttr:$quant,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
-  );
-
-  let results = (outs AnyTensor:$output);
-}
+def TPU_DivOp : TPU_LutOp<"div", "Div">;
 
 def TPU_EltwiseAddOp : TPU_EltwiseOp<"eltwise_add", "Add">;
 def TPU_EltwiseMulOp : TPU_EltwiseOp<"eltwise_mul", "Mul">;
@@ -638,11 +646,11 @@ def TPU_NormalizeOp: TPU_Op<"normalize",
 
     Inputs:
       `input`           : required, the input activation tensor.
-      `scale`           : required, the scale weight tensor. even channel_shared is true, extend to tensor. 
+      `scale`           : required, the scale weight tensor. even channel_shared is true, extend to tensor.
 
     Attributes:
       `across_spatial`  : required, normalize cross channel or not.
-      `channel_shared`  : required, scale cross channel or not.      
+      `channel_shared`  : required, scale cross channel or not.
       `name`            : required, name for calibration, comparing, or debug.
       `layer_id`        : optional, id for profiling.
 
@@ -661,7 +669,7 @@ def TPU_NormalizeOp: TPU_Op<"normalize",
     ins AnyTensor:$input,
     AnyTensor:$scale,
     DefaultValuedAttr<BoolAttr, "true">:$across_spatial,
-    DefaultValuedAttr<BoolAttr, "true">:$channel_shared, 
+    DefaultValuedAttr<BoolAttr, "true">:$channel_shared,
     StrAttr:$name,
     OptionalAttr<NonNegativeI32Attr>:$layer_id
   );
@@ -913,9 +921,9 @@ def TPU_PriorBoxOp: TPU_Op<"priorbox",
       `variance1`          : required.
       `variance1`          : required.
       `variance2`          : required.
-      `variance3`          : required.            
-      `step`               : required.  
-      `offset`             : required.  
+      `variance3`          : required.
+      `step`               : required.
+      `offset`             : required.
 
     Attributes:
       `name`            : required, name for calibration, comparing, or debug.
@@ -1140,52 +1148,7 @@ def TPU_ShuffleChannelOp: TPU_Op<"shuffle_channel",
   let results = (outs AnyTensor:$output);
 }
 
-def TPU_SigmoidOp: TPU_Op<"sigmoid",
-      [NoSideEffect,
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
-       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
-       DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
-  let summary = "Sigmoid operator";
-
-  let description = [{
-    To sigmoid, elements of the bottom do sigmoid activation, reference bottom.
-     Performs sigmoid operation on input.
-
-    Inputs:
-      `inputs`          : required, variadic input tensors.
-      `table`          : optional, the quantize lookup table .
-
-    Attributes:
-      `quant`           : required, a QuantParam struct attributes.
-      `name`            : required, name for calibration, comparing, or debug.
-      `layer_id`        : optional, id for profiling.
-      `has_table`       : optional, if has lookup table.
-
-    Result:
-      `output`          : result tensor.
-
-    Interfaces or Traits:
-      `NoSideEffect`
-      `TPU_QuantPerTensorOnly`
-      `TPU_QuantSupportAsymmetric`
-      `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpInterpInterface` : support interperter
-      `TpuOpQuantInterface`  : support quantization
-      `TpuOpLowerInterface`  : support lower to TPU TG Ops
-  }];
-
-  let arguments = (
-    ins Variadic<AnyTensor>:$inputs,
-    TPU_TensorOfOrNone<[F32, BF16, I8]>:$table,
-    OptionalAttr<BoolAttr>:$has_table,
-    StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
-    TPU_QuantParamAttr:$quant
-  );
-
-  let results = (outs AnyTensor:$output);
-}
+def TPU_SigmoidOp : TPU_LutOp<"sigmoid", "Sigmoid">;
 
 def TPU_SliceOp: TPU_Op<"slice",
       [NoSideEffect,
@@ -1280,49 +1243,7 @@ def TPU_SoftmaxOp: TPU_Op<"softmax",
   let results = (outs AnyTensor:$output);
 }
 
-def TPU_SqrtOp: TPU_Op<"sqrt",
-      [NoSideEffect,
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
-       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
-       DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
-  let summary = "Sqrt operator";
-
-  let description = [{
-    Do element square root. Power(input,0.5).
-
-    Inputs:
-      `input`          : required, input tensors.
-      `table`          : required,table tensor.
-
-    Attributes:
-      `quant`           : required, a QuantParam struct attributes.
-      `name`            : required, name for calibration, comparing, or debug.
-      `layer_id`        : optional, id for profiling.
-      `has_table`       : optional, if has lookup table.
-
-    Result:
-      `output`          : result tensor.
-
-    Interfaces or Traits:
-      `NoSideEffect`
-      `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpInterpInterface` : support interperter
-      `TpuOpQuantInterface`  : support quantization
-      `TpuOpLowerInterface`  : support lower to TPU TG Ops
-  }];
-
-  let arguments = (
-    ins AnyTensor:$input,
-    TPU_TensorOfOrNone<[F32, BF16, I8]>:$table,
-    OptionalAttr<BoolAttr>:$has_table,
-    StrAttr:$name,
-    TPU_QuantParamAttr:$quant,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
-  );
-
-  let results = (outs AnyTensor:$output);
-}
+def TPU_SqrtOp : TPU_LutOp<"sqrt", "Sqrt">;
 
 def TPU_UpsampleOp: TPU_Op<"upsample",
       [NoSideEffect,
@@ -1499,6 +1420,6 @@ def TPU_DequantizationOp: TPU_Op<"dequantization",
 
 include "mlir/Dialect/TPU/TPUSupportOps.td"
 include "mlir/Dialect/TPU/TPUTGOps.td"
-include "mlir/Dialect/TPU/TPUTLOps.td"
+include "mlir/Dialect/TPU/TPUTLOps_Simple.td"
 
 #endif // TPU_OPS

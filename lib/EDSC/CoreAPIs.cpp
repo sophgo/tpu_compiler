@@ -50,6 +50,12 @@ mlir_type_t makeRankedTensorType(mlir_context_t context, mlir_type_t elemType,
   return mlir_type_t{t.getAsOpaquePointer()};
 }
 
+mlir_attr_t makeNoneType(mlir_context_t context) {
+  auto *ctx = reinterpret_cast<mlir::MLIRContext *>(context);
+  auto t = mlir::NoneType::get(ctx);
+  return mlir_type_t{t.getAsOpaquePointer()};
+}
+
 mlir_type_t makeFunctionType(mlir_context_t context, mlir_type_list_t inputs,
                              mlir_type_list_t outputs) {
   llvm::SmallVector<mlir::Type, 8> ins(inputs.n), outs(outputs.n);
@@ -93,6 +99,8 @@ mlir_attr_t makeBoolAttr(mlir_context_t context, bool value) {
   auto attr = BoolAttr::get(value, ctx);
   return mlir_attr_t{attr.getAsOpaquePointer()};
 }
+
+
 
 unsigned getFunctionArity(mlir_func_t function) {
   auto f = mlir::FuncOp::getFromOpaquePointer(function);

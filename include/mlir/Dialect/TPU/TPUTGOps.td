@@ -353,6 +353,49 @@ class TPU_TG_LeakyReluOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 def TPU_TG_INT8_LeakyReluOp : TPU_TG_LeakyReluOp<"tg_int8_leaky_relu", "Int8">;
 def TPU_TG_BF16_LeakyReluOp : TPU_TG_LeakyReluOp<"tg_bf16_leaky_relu", "Bf16">;
 
+class TPU_TG_LutOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
+  let summary = "TG " # opQuant # "lut operator.";
+
+  let description = [{
+    Inputs:
+      `input`          : required, the variadic activation memref.
+      `table`          : required, the lookup table
+
+    Attributes:
+      `region`          : required, the memory region to reside in, could be
+                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
+                          (backend does not support `INPUT`, `OUTPUT` for now)
+      `gaddr`           : optional, address in global memory, normally the
+                          offset within the memory region.
+      `name`            : required, name for comparing, or debug.
+      `layer_id`        : optional, id for profiling.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface`    : support common TPU TG Op interface.
+      `TpuTGOpCodegenInterface` : support generate TPU instuctions.
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    AnyTensor:$table,
+    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
+    OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+def TPU_TG_INT8_LutOp : TPU_TG_LutOp<"tg_int8_lut", "Int8">;
+
+
 class TPU_TG_PermuteOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
@@ -592,56 +635,6 @@ class TPU_TG_ShuffleChannelOp<string mnemonic, string opQuant> : TPU_Op<mnemonic
 }
 def TPU_TG_INT8_ShuffleChannelOp : TPU_TG_ShuffleChannelOp<"tg_int8_shufflechannel", "Int8">;
 def TPU_TG_BF16_ShuffleChannelOp : TPU_TG_ShuffleChannelOp<"tg_bf16_shufflechannel", "Bf16">;
-
-class TPU_TG_SigmoidOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
-      [NoSideEffect,
-       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
-  let summary = "TG " # opQuant # " Sigmoid operator.";
-
-  let description = [{
-    Inputs:
-      `input`          : required, the variadic activation memref.
-      `table`          : required, the lookup table
-
-    Attributes:
-      `region`          : required, the memory region to reside in, could be
-                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
-                          (backend does not support `INPUT`, `OUTPUT` for now)
-      `gaddr`           : optional, address in global memory, normally the
-                          offset within the memory region.
-      `name`            : required, name for comparing, or debug.
-      `layer_id`        : optional, id for profiling.
-
-    Result:
-      `output`          : result tensor.
-
-    Interfaces or Traits:
-      `NoSideEffect`
-      `TpuOpCommonInterface`    : support common TPU TG Op interface.
-      `TpuTGOpCodegenInterface` : support generate TPU instuctions.
-  }];
-
-  let arguments = (
-    ins AnyTensor:$input,
-    AnyTensor:$table,
-    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
-    OptionalAttr<NonNegativeI64Attr>:$gaddr,
-    StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
-  );
-
-  let results = (outs AnyTensor:$output);
-}
-def TPU_TG_INT8_SigmoidOp : TPU_TG_SigmoidOp<"tg_int8_sigmoid", "Int8">;
-def TPU_TG_BF16_SigmoidOp : TPU_TG_SigmoidOp<"tg_bf16_sigmoid", "Bf16">;
-
-def TPU_TG_INT8_SqrtOp : TPU_TG_SigmoidOp<"tg_int8_sqrt", "Int8">;
-def TPU_TG_BF16_SqrtOp : TPU_TG_SigmoidOp<"tg_bf16_sqrt", "Bf16">;
-
-def TPU_TG_INT8_DivOp : TPU_TG_SigmoidOp<"tg_int8_div", "Int8">;
-def TPU_TG_BF16_DivOp : TPU_TG_SigmoidOp<"tg_bf16_div", "Bf16">;
-
 
 class TPU_TG_SliceOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,

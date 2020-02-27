@@ -49,110 +49,13 @@ extern int BF16_TABLE_END;
 #include "backend/backend_tg_api.h"
 #include "backend/backend_tl_api.h"
 
-static BM1880v2BackendContext *backend_ctx = nullptr;
+static CviBackendContext *backend_ctx = nullptr;
 
 static LogicalResult runOperation(Operation &opInst) {
   LLVM_DEBUG(llvm::errs() << "  op " << opInst.getName() << "\n";);
 
   if (auto tpuTGOp = llvm::dyn_cast<tpu::TpuTGOpCodegenInterface>(opInst)) {
     return tpuTGOp.codegen((void *)backend_ctx);
-  }
-
-  if (auto op = dyn_cast<tpu::TL_LA_Conv2DOp>(opInst)) {
-    LLVM_DEBUG(llvm::errs() << "TL_LA_Conv2DOp" << "\n";);
-
-    bool is_dw, with_bias, do_relu;
-    int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, ph, pw, dh, dw;
-    parseConvParam(op.param(), false, op.input(), op.output(), op.filter(),
-                   n, ic, ih, iw, oc, oh, ow, g,
-                   kh, kw, sh, sw, ph, pw, dh, dw, is_dw, with_bias, do_relu);
-
-    gaddr_t ga_input = getPreviousOpAddress(op);
-    gaddr_t ga_output = op.offset().getValue().getLimitedValue();
-    gaddr_t ga_filter = getWeightOpAddress(op.getOperand(1)->getDefiningOp());
-    gaddr_t ga_perchannel = getWeightOpAddress(op.getOperand(2)->getDefiningOp());
-    int layer_id = op.layer_id().getValue().getLimitedValue();
-
-    LLVM_DEBUG(llvm::errs() << "TL_LA_Conv2DOp, layer_id = " << layer_id << "\n";);
-    cvi_backend_tl_conv_LA(*backend_ctx, layer_id,
-        ga_input, ga_output, ga_filter, ga_perchannel,
-        n, ic, ih, iw, g, oc, oh, ow, kh, kw,
-        dh, dw, ph, ph, pw, pw, sh, sw,
-        false, with_bias, do_relu);
-
-    return success();
-  }
-
-  if (auto op = dyn_cast<tpu::TL_LW_Conv2DOp>(opInst)) {
-    LLVM_DEBUG(llvm::errs() << "TL_LW_Conv2DOp" << "\n";);
-
-    bool is_dw, with_bias, do_relu;
-    int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, ph, pw, dh, dw;
-    parseConvParam(op.param(), false, op.input(), op.output(), op.filter(),
-                   n, ic, ih, iw, oc, oh, ow, g,
-                   kh, kw, sh, sw, ph, pw, dh, dw, is_dw, with_bias, do_relu);
-
-    gaddr_t ga_input = getPreviousOpAddress(op);
-    gaddr_t ga_output = op.offset().getValue().getLimitedValue();
-    gaddr_t ga_filter = getWeightOpAddress(op.getOperand(1)->getDefiningOp());
-    gaddr_t ga_perchannel = getWeightOpAddress(op.getOperand(2)->getDefiningOp());
-    laddr_t la_input = op.la_input().getLimitedValue();
-    laddr_t la_output = op.la_output().getLimitedValue();
-    laddr_t la_working = op.la_working().getLimitedValue();
-    int layer_id = op.layer_id().getValue().getLimitedValue();
-
-    llvm::errs() << "TL_LW_Conv2DOp, layer_id = " << layer_id << "\n";
-    if (op.tl_load_flag()) {
-      cvi_backend_tl_load(*backend_ctx, layer_id,
-          la_input, ga_input, n, ic, ih, iw);
-    }
-    #if 0
-    //
-    // V0: Weight Only version, with no parallel for load/store activations
-    // (only consider load weight parallel)
-    //
-    cvi_backend_tl_conv_LW(*backend_ctx, layer_id,
-        la_input, la_output, la_working,
-        ga_filter, ga_perchannel,
-        n, ic, ih, iw, g, oc, oh, ow, kh, kw,
-        dh, dw, ph, ph, pw, pw, sh, sw,
-        false, with_bias, do_relu);
-    if (op.tl_store_flag()) {
-      cvi_backend_tl_store(*backend_ctx, layer_id,
-          la_output, ga_output, n, oc, oh, ow);
-    }
-    #endif
-    #if 1
-    //
-    // V1: Weight and Store version
-    //   this only do parallel on both Weight load and Activation Store
-    //   but load activation is not handled in parallel
-    //
-    if (op.tl_store_flag()) {
-      cvi_backend_tl_conv_LW(*backend_ctx, layer_id,
-          la_input, la_output, la_working,
-          ga_filter, ga_perchannel,
-          n, ic, ih, iw, g, oc, oh, ow, kh, kw,
-          dh, dw, ph, ph, pw, pw, sh, sw,
-          false, with_bias, do_relu,
-          true, ga_output);
-    } else {
-      cvi_backend_tl_conv_LW(*backend_ctx, layer_id,
-          la_input, la_output, la_working,
-          ga_filter, ga_perchannel,
-          n, ic, ih, iw, g, oc, oh, ow, kh, kw,
-          dh, dw, ph, ph, pw, pw, sh, sw,
-          false, with_bias, do_relu);
-    }
-    #endif
-    #if 0
-    //
-    // V2: Tiling version
-    //    make for loops outside of the backend api, handle tiling outside
-    //
-    // TODO:
-    #endif
-    return success();
   }
 
 #if 0
@@ -167,7 +70,7 @@ static LogicalResult runOperation(Operation &opInst) {
     gaddr_t input_gaddr = getPreviousOpAddress(op);
     gaddr_t output_gaddr = op.offset().getValue().getLimitedValue();
     gaddr_t filter_gaddr = getWeightOpAddress(op.getOperand(1)->getDefiningOp());
-    gaddr_t bias_gaddr = INVALID_GLOBAL_ADDR;
+    gaddr_t bias_gaddr = GA_INVALID;
     //int with_bias = 0;
     if (opInst.getNumOperands() > 2) {
       with_bias = 1;
@@ -201,7 +104,7 @@ static LogicalResult runOperation(Operation &opInst) {
           with_bias, // int have_bias,
           do_relu ? 1 : 0, // do_activation,
           0, // activation_method,
-          INVALID_GLOBAL_ADDR, // activation_ga_slope,
+          GA_INVALID, // activation_ga_slope,
           0, // int activation_channel_shared,
           0, // int activation_gt_scale,
           0, // int activation_gt_rshift,
@@ -323,23 +226,16 @@ static LogicalResult runOperation(Operation &opInst) {
 
     int layer_id = op.layer_id().getValue().getLimitedValue();
 
-    bf16_tanh_forward_kernel(
-        *backend_ctx,
-        0, // stream_id,
-        0, // inst_id,
-        layer_id, // layer_id,
-        nullptr, // depends
-        0, // depends_len
-        input_gaddr, // input_data_gaddr,
-        output_gaddr, // output_data_gaddr,
-        y0_table_gaddr,
-        slope_gaddr,
-        n,
-        c,
-        h,
-        w,
-        scale
-        );
+    lut_interpolation_forward_kernel(*backend_ctx,
+                                     0,            // stream_id,
+                                     0,            // inst_id,
+                                     layer_id,     // layer_id,
+                                     nullptr,      // depends
+                                     0,            // depends_len
+                                     input_gaddr,  // input_data_gaddr,
+                                     output_gaddr, // output_data_gaddr,
+                                     y0_table_gaddr, slope_gaddr, n, c, h, w,
+                                     -8, 8, scale);
 
     return success();
   }
@@ -374,7 +270,7 @@ LogicalResult translateModule(ModuleOp module, llvm::raw_ostream &output) {
     return failure();
 
   std::vector<int8_t> weight_data;
-  backend_ctx = bmnet_create_backend_context(weight_data);
+  backend_ctx = cvi_backend_create_context(weight_data);
 
   for (FuncOp function : module.getOps<FuncOp>()) {
     LLVM_DEBUG(llvm::errs() << "run " << function.getName() << "\n";);
@@ -387,9 +283,9 @@ LogicalResult translateModule(ModuleOp module, llvm::raw_ostream &output) {
       return failure();
   }
 
-  bmnet_submit(backend_ctx);
+  cvi_backend_submit(backend_ctx);
   std::vector<uint8_t> cmdbuf;
-  bmnet_read_cmdbuf(backend_ctx, cmdbuf);
+  cvi_backend_get_cmdbuf(backend_ctx, cmdbuf);
 
   output.write(reinterpret_cast<char *>(cmdbuf.data()), cmdbuf.size());
 
