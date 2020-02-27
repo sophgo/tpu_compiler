@@ -97,7 +97,7 @@ static void parseTgLeakyReluParam(Operation *op,
 LogicalResult tpu::TG_INT8_BroadcastMulOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";
-  BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
   std::vector<int64_t> shape;
@@ -141,7 +141,7 @@ LogicalResult tpu::TG_INT8_BroadcastMulOp::codegen(void *ctx) {
 LogicalResult tpu::TG_BF16_BroadcastMulOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";
-  //BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
+  //CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   //Operation *op = this->getOperation();
 
   assert(false);
@@ -151,7 +151,7 @@ LogicalResult tpu::TG_BF16_BroadcastMulOp::codegen(void *ctx) {
 LogicalResult tpu::TG_INT8_ConcatOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";
-  BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
   unsigned nInputs = op->getNumOperands();
@@ -238,7 +238,7 @@ LogicalResult tpu::TG_INT8_ConcatOp::codegen(void *ctx) {
 LogicalResult tpu::TG_BF16_ConcatOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";
-  BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
   int nInputs = op->getNumOperands();
@@ -298,7 +298,7 @@ LogicalResult tpu::TG_BF16_ConcatOp::codegen(void *ctx) {
 LogicalResult tpu::TG_INT8_CropOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName() << " [" << getOpName()
                << "]\n";
-  BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
   int layer_id = mlir::getOpLayerId(op);
   gaddr_t input_gaddr = getPreviousOpAddress(op);
@@ -335,7 +335,7 @@ LogicalResult tpu::TG_INT8_CropOp::codegen(void *ctx) {
 LogicalResult tpu::TG_BF16_CropOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";
-  //BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
+  //CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   //Operation *op = this->getOperation();
 
   assert(false);
@@ -345,7 +345,7 @@ LogicalResult tpu::TG_BF16_CropOp::codegen(void *ctx) {
 LogicalResult tpu::TG_INT8_PT_Conv2DOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";
-  BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
   bool is_dw, with_bias, do_relu;
@@ -357,7 +357,7 @@ LogicalResult tpu::TG_INT8_PT_Conv2DOp::codegen(void *ctx) {
   gaddr_t ga_input = getPreviousOpAddress(op);
   gaddr_t ga_output = getOpAddress(op);
   gaddr_t ga_filter = getWeightOpAddress(filter()->getDefiningOp());
-  gaddr_t ga_bias = INVALID_GLOBAL_ADDR;
+  gaddr_t ga_bias = GA_INVALID;
   if ( with_bias ) {
     assert(!isTensorNone(pc_info()));
     ga_bias =  getWeightOpAddress(pc_info()->getDefiningOp());
@@ -398,7 +398,7 @@ LogicalResult tpu::TG_INT8_PT_Conv2DOp::codegen(void *ctx) {
     ga_output = getOpAddress(nextOp);
   }
 
-  bmnet_conv_parallel_fixed_forward_bmkernel(
+  cvi_backend_tg_int8_conv(
       *backend_ctx,
       0, // stream_id,
       0, // inst_id,
@@ -409,10 +409,10 @@ LogicalResult tpu::TG_INT8_PT_Conv2DOp::codegen(void *ctx) {
       ga_output, // output_data_gaddr,
       ga_filter, // weight_data_gaddr,
       ga_bias,   // bias_data_gaddr,
-      INVALID_GLOBAL_ADDR, // bn_mean_data_gaddr,
-      INVALID_GLOBAL_ADDR, // bn_variance_data_gaddr,
-      INVALID_GLOBAL_ADDR, // scale_gaddr,
-      INVALID_GLOBAL_ADDR, // scale_bias_gaddr,
+      GA_INVALID, // bn_mean_data_gaddr,
+      GA_INVALID, // bn_variance_data_gaddr,
+      GA_INVALID, // scale_gaddr,
+      GA_INVALID, // scale_bias_gaddr,
       n, ic, ih, iw,
       g, // group,
       oc,
@@ -430,7 +430,7 @@ LogicalResult tpu::TG_INT8_PT_Conv2DOp::codegen(void *ctx) {
       1e-5,      // eps,
       0,         // param.activation(), method, 0 -> RELU, all others are invalide for now
       do_relu ? & fused_negative_slope : nullptr,   // activation_arg,
-      INVALID_GLOBAL_ADDR, //global_slope_gaddr,
+      GA_INVALID, //global_slope_gaddr,
       false,     //channel_shared,
       fused_leakyrelu_pos_m_i8,           // activation_gt_scale,
       fused_leakyrelu_pos_rshift,         // activation_gt_rshift,
@@ -450,7 +450,7 @@ LogicalResult tpu::TG_INT8_PT_Conv2DOp::codegen(void *ctx) {
 LogicalResult tpu::TG_INT8_PC_Conv2DOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";
-  BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
   bool is_dw, with_bias, do_relu;
@@ -497,7 +497,7 @@ LogicalResult tpu::TG_INT8_PC_Conv2DOp::codegen(void *ctx) {
     ga_output = getOpAddress(nextOp);
   }
 
-  bmnet_conv_parallel_fixed_forward_bmkernel(
+  cvi_backend_tg_int8_conv(
       *backend_ctx,
       0, // stream_id,
       0, // inst_id,
@@ -508,10 +508,10 @@ LogicalResult tpu::TG_INT8_PC_Conv2DOp::codegen(void *ctx) {
       ga_output,  // output_data_gaddr,
       ga_filter,  // weight_data_gaddr,
       ga_pc_info, // bias_data_gaddr,
-      INVALID_GLOBAL_ADDR, // bn_mean_data_gaddr,
-      INVALID_GLOBAL_ADDR, // bn_variance_data_gaddr,
-      INVALID_GLOBAL_ADDR, // scale_gaddr,
-      INVALID_GLOBAL_ADDR, // scale_bias_gaddr,
+      GA_INVALID, // bn_mean_data_gaddr,
+      GA_INVALID, // bn_variance_data_gaddr,
+      GA_INVALID, // scale_gaddr,
+      GA_INVALID, // scale_bias_gaddr,
       n, ic, ih, iw,
       g, // group,
       oc,
@@ -529,7 +529,7 @@ LogicalResult tpu::TG_INT8_PC_Conv2DOp::codegen(void *ctx) {
       1e-5,      // eps,
       0,         // param.activation(), method, 0 -> RELU, all others are invalide for now
       do_relu ? & fused_negative_slope : nullptr,   // activation_arg,
-      INVALID_GLOBAL_ADDR, // global_slope_gaddr,
+      GA_INVALID, // global_slope_gaddr,
       false,     // channel_shared,
       fused_leakyrelu_pos_m_i8,           // activation_gt_scale,
       fused_leakyrelu_pos_rshift,         // activation_gt_rshift,
@@ -549,7 +549,7 @@ LogicalResult tpu::TG_INT8_PC_Conv2DOp::codegen(void *ctx) {
 LogicalResult tpu::TG_BF16_Conv2DOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";
-  BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
   bool is_dw, with_bias, do_relu;
@@ -561,7 +561,7 @@ LogicalResult tpu::TG_BF16_Conv2DOp::codegen(void *ctx) {
   gaddr_t ga_input = getPreviousOpAddress(op);
   gaddr_t ga_output = getOpAddress(op);
   gaddr_t ga_filter = getWeightOpAddress(filter()->getDefiningOp());
-  gaddr_t ga_bias = INVALID_GLOBAL_ADDR;
+  gaddr_t ga_bias = GA_INVALID;
   if ( with_bias ) {
     assert(!isTensorNone(pc_info()));
     ga_bias =  getWeightOpAddress(pc_info()->getDefiningOp());
@@ -575,10 +575,10 @@ LogicalResult tpu::TG_BF16_Conv2DOp::codegen(void *ctx) {
       ga_output,
       ga_filter,
       ga_bias,
-      INVALID_GLOBAL_ADDR, // ga_bn_mean
-      INVALID_GLOBAL_ADDR, // ga_bn_variance
-      INVALID_GLOBAL_ADDR, // ga_scale
-      INVALID_GLOBAL_ADDR, // ga_scale_bias
+      GA_INVALID, // ga_bn_mean
+      GA_INVALID, // ga_bn_variance
+      GA_INVALID, // ga_scale
+      GA_INVALID, // ga_scale_bias
       n, ic, ih, iw,
       g, // group
       oc,
@@ -595,7 +595,7 @@ LogicalResult tpu::TG_BF16_Conv2DOp::codegen(void *ctx) {
       1e-5,      // eps
       0,         // param.activation(), method, 0 -> RELU, all others are invalid for now
       nullptr,   // activation_arg,
-      INVALID_GLOBAL_ADDR //global_slope_gaddr
+      GA_INVALID //global_slope_gaddr
       );
 
   return success();
@@ -604,7 +604,7 @@ LogicalResult tpu::TG_BF16_Conv2DOp::codegen(void *ctx) {
 LogicalResult tpu::TG_INT8_PT_DeConv2DOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";
-  //BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
+  //CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   //Operation *op = this->getOperation();
 
   assert(false);
@@ -614,7 +614,7 @@ LogicalResult tpu::TG_INT8_PT_DeConv2DOp::codegen(void *ctx) {
 LogicalResult tpu::TG_INT8_PC_DeConv2DOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";
-  BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
   bool is_dw, with_bias, do_relu;
@@ -702,7 +702,7 @@ LogicalResult tpu::TG_INT8_PC_DeConv2DOp::codegen(void *ctx) {
 LogicalResult tpu::TG_BF16_DeConv2DOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";
-  //BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
+  //CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   //Operation *op = this->getOperation();
 
   assert(false);
@@ -712,7 +712,7 @@ LogicalResult tpu::TG_BF16_DeConv2DOp::codegen(void *ctx) {
 LogicalResult tpu::TG_INT8_EltwiseAddOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";
-  BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
   std::vector<int64_t> shape;
@@ -778,7 +778,7 @@ LogicalResult tpu::TG_INT8_EltwiseAddOp::codegen(void *ctx) {
 LogicalResult tpu::TG_INT8_EltwiseMaxOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";
-  //BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
+  //CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   //Operation *op = this->getOperation();
 
   assert(false);
@@ -788,7 +788,7 @@ LogicalResult tpu::TG_INT8_EltwiseMaxOp::codegen(void *ctx) {
 LogicalResult tpu::TG_INT8_EltwiseMulOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";
-  BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
   std::vector<int64_t> shape;
@@ -838,7 +838,7 @@ LogicalResult tpu::TG_INT8_EltwiseMulOp::codegen(void *ctx) {
 LogicalResult tpu::TG_BF16_EltwiseAddOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";
-  BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
   std::vector<int64_t> shape;
@@ -873,7 +873,7 @@ LogicalResult tpu::TG_BF16_EltwiseAddOp::codegen(void *ctx) {
 LogicalResult tpu::TG_BF16_EltwiseMaxOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";
-  //BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
+  //CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   //Operation *op = this->getOperation();
 
   assert(false);
@@ -883,7 +883,7 @@ LogicalResult tpu::TG_BF16_EltwiseMaxOp::codegen(void *ctx) {
 LogicalResult tpu::TG_BF16_EltwiseMulOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";
-  BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
   std::vector<int64_t> shape;
@@ -918,7 +918,7 @@ LogicalResult tpu::TG_BF16_EltwiseMulOp::codegen(void *ctx) {
 LogicalResult tpu::TG_INT8_FullyConnectedOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";
-  BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
   int m, k, n;
@@ -927,7 +927,7 @@ LogicalResult tpu::TG_INT8_FullyConnectedOp::codegen(void *ctx) {
   gaddr_t ga_input = getPreviousOpAddress(op);
   gaddr_t ga_output = getOpAddress(op);
   gaddr_t ga_filter = getWeightOpAddress(filter()->getDefiningOp());
-  gaddr_t ga_bias = INVALID_GLOBAL_ADDR;
+  gaddr_t ga_bias = GA_INVALID;
   bool with_bias = false;
   if ( !isTensorNone(bias()) ) {
     ga_bias = getWeightOpAddress(bias()->getDefiningOp());
@@ -955,7 +955,7 @@ LogicalResult tpu::TG_INT8_FullyConnectedOp::codegen(void *ctx) {
       with_bias, // int have_bias,
       do_relu ? 1 : 0, // do_activation,
       0, // activation_method,
-      INVALID_GLOBAL_ADDR, // activation_ga_slope,
+      GA_INVALID, // activation_ga_slope,
       0, // int activation_channel_shared,
       0, // int activation_gt_scale,
       0, // int activation_gt_rshift,
@@ -975,7 +975,7 @@ LogicalResult tpu::TG_INT8_FullyConnectedOp::codegen(void *ctx) {
 LogicalResult tpu::TG_BF16_FullyConnectedOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";
-  BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
   int m, k, n;
@@ -984,7 +984,7 @@ LogicalResult tpu::TG_BF16_FullyConnectedOp::codegen(void *ctx) {
   gaddr_t ga_input = getPreviousOpAddress(op);
   gaddr_t ga_output = getOpAddress(op);
   gaddr_t ga_filter = getWeightOpAddress(filter()->getDefiningOp());
-  gaddr_t ga_bias = INVALID_GLOBAL_ADDR;
+  gaddr_t ga_bias = GA_INVALID;
   bool with_bias = false;
   if ( !isTensorNone(bias()) ) {
     ga_bias = getWeightOpAddress(bias()->getDefiningOp());
@@ -1013,7 +1013,7 @@ LogicalResult tpu::TG_BF16_FullyConnectedOp::codegen(void *ctx) {
 LogicalResult tpu::TG_INT8_LeakyReluOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";
-  BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
   if (this->fuse_prev()) {
@@ -1068,7 +1068,7 @@ LogicalResult tpu::TG_BF16_LeakyReluOp::codegen(void *ctx) {
   //   return success();
   // }
 
-  BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
   std::vector<int64_t> shape;
   int64_t input_size, n, c, h, w;
@@ -1097,7 +1097,7 @@ LogicalResult tpu::TG_BF16_LeakyReluOp::codegen(void *ctx) {
 LogicalResult tpu::TG_INT8_LutOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName() << " [" << getOpName()
                << "]\n";
-  BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
   std::vector<int64_t> shape;
@@ -1125,7 +1125,7 @@ LogicalResult tpu::TG_INT8_LutOp::codegen(void *ctx) {
 LogicalResult tpu::TG_INT8_PermuteOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName() << " [" << getOpName()
                << "]\n";
-  BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
   auto input_type = input()->getType().template cast<TensorType>();
@@ -1174,7 +1174,7 @@ LogicalResult tpu::TG_BF16_PermuteOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName() << " [" << getOpName()
                << "]\n";
 
-  BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
   auto input_type = input()->getType().template cast<TensorType>();
@@ -1225,7 +1225,7 @@ LogicalResult tpu::TG_BF16_PermuteOp::codegen(void *ctx) {
 LogicalResult tpu::TG_INT8_PoolAvg2DOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";
-  BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
   // parse param
@@ -1259,8 +1259,8 @@ LogicalResult tpu::TG_INT8_PoolAvg2DOp::codegen(void *ctx) {
       0, // depends_len
       ga_input,            // input_data_gaddr,
       ga_output,           // output_data_gaddr,
-      INVALID_GLOBAL_ADDR, // index_data_gaddr,
-      INVALID_GLOBAL_ADDR, // o_findex_data_gaddr,
+      GA_INVALID, // index_data_gaddr,
+      GA_INVALID, // o_findex_data_gaddr,
       n, c, ih, iw,
       kh, kw,
       pt, pb, pl, pr, // pad (t, b, l, r)
@@ -1278,7 +1278,7 @@ LogicalResult tpu::TG_INT8_PoolAvg2DOp::codegen(void *ctx) {
 LogicalResult tpu::TG_INT8_PoolMax2DOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";
-  BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
   // parse param
@@ -1306,8 +1306,8 @@ LogicalResult tpu::TG_INT8_PoolMax2DOp::codegen(void *ctx) {
       0, // depends_len
       ga_input,            // input_data_gaddr,
       ga_output,           // output_data_gaddr,
-      INVALID_GLOBAL_ADDR, // index_data_gaddr,
-      INVALID_GLOBAL_ADDR, // o_findex_data_gaddr,
+      GA_INVALID, // index_data_gaddr,
+      GA_INVALID, // o_findex_data_gaddr,
       n, c, ih, iw,
       kh, kw,
       pt, pb, pl, pr, // pad (t, b, l, r)
@@ -1325,7 +1325,7 @@ LogicalResult tpu::TG_INT8_PoolMax2DOp::codegen(void *ctx) {
 LogicalResult tpu::TG_BF16_PoolAvg2DOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";
-  BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
   // parse param
@@ -1346,8 +1346,8 @@ LogicalResult tpu::TG_BF16_PoolAvg2DOp::codegen(void *ctx) {
       layer_id, // layer_id,
       ga_input,            // input_data_gaddr,
       ga_output,           // output_data_gaddr,
-      INVALID_GLOBAL_ADDR, // index_data_gaddr,
-      INVALID_GLOBAL_ADDR, // o_findex_data_gaddr,
+      GA_INVALID, // index_data_gaddr,
+      GA_INVALID, // o_findex_data_gaddr,
       n, c, ih, iw,
       kh, kw,
       pt, pb, pl, pr, // pad (t, b, l, r)
@@ -1363,7 +1363,7 @@ LogicalResult tpu::TG_BF16_PoolAvg2DOp::codegen(void *ctx) {
 LogicalResult tpu::TG_BF16_PoolMax2DOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";
-  BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
   // parse param
@@ -1384,8 +1384,8 @@ LogicalResult tpu::TG_BF16_PoolMax2DOp::codegen(void *ctx) {
       layer_id, // layer_id,
       ga_input,            // input_data_gaddr,
       ga_output,           // output_data_gaddr,
-      INVALID_GLOBAL_ADDR, // index_data_gaddr,
-      INVALID_GLOBAL_ADDR, // o_findex_data_gaddr,
+      GA_INVALID, // index_data_gaddr,
+      GA_INVALID, // o_findex_data_gaddr,
       n, c, ih, iw,
       kh, kw,
       pt, pb, pl, pr, // pad (t, b, l, r)
@@ -1401,7 +1401,7 @@ LogicalResult tpu::TG_BF16_PoolMax2DOp::codegen(void *ctx) {
 LogicalResult tpu::TG_INT8_PReluOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName() << " [" << getOpName()
                << "]\n";
-  BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
   std::vector<int64_t> shape;
@@ -1435,7 +1435,7 @@ LogicalResult tpu::TG_INT8_PReluOp::codegen(void *ctx) {
 LogicalResult tpu::TG_BF16_PReluOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName() << " [" << getOpName()
                << "]\n";
-  // BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
+  // CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   // Operation *op = this->getOperation();
   assert(false);
   return success();
@@ -1444,7 +1444,7 @@ LogicalResult tpu::TG_BF16_PReluOp::codegen(void *ctx) {
 LogicalResult tpu::TG_INT8_ShuffleChannelOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName() << " [" << getOpName()
                << "]\n";
-  BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
   std::vector<int64_t> shape;
@@ -1466,7 +1466,7 @@ LogicalResult tpu::TG_INT8_ShuffleChannelOp::codegen(void *ctx) {
 LogicalResult tpu::TG_BF16_ShuffleChannelOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName() << " [" << getOpName()
                << "]\n";
-  BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
   std::vector<int64_t> shape;
@@ -1488,7 +1488,7 @@ LogicalResult tpu::TG_BF16_ShuffleChannelOp::codegen(void *ctx) {
 LogicalResult tpu::TG_INT8_ReshapeOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";
-  //BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
+  //CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   //Operation *op = this->getOperation();
 
   return success();
@@ -1497,7 +1497,7 @@ LogicalResult tpu::TG_INT8_ReshapeOp::codegen(void *ctx) {
 LogicalResult tpu::TG_BF16_ReshapeOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";
-  //BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
+  //CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   //Operation *op = this->getOperation();
 
   return success();
@@ -1508,7 +1508,7 @@ LogicalResult tpu::TG_BF16_ReshapeOp::codegen(void *ctx) {
 LogicalResult tpu::TG_INT8_SliceOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";
-  //BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
+  //CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   //Operation *op = this->getOperation();
 
   int axis = this->axis().getLimitedValue();
@@ -1527,7 +1527,7 @@ LogicalResult tpu::TG_INT8_SliceOp::codegen(void *ctx) {
 LogicalResult tpu::TG_BF16_SliceOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";
-  //BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
+  //CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   //Operation *op = this->getOperation();
 
   int axis = this->axis().getLimitedValue();
@@ -1546,7 +1546,7 @@ LogicalResult tpu::TG_BF16_SliceOp::codegen(void *ctx) {
 LogicalResult tpu::TG_INT8_UpsampleOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";
-  BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
   std::vector<int64_t> shape;
@@ -1582,7 +1582,7 @@ LogicalResult tpu::TG_INT8_UpsampleOp::codegen(void *ctx) {
 LogicalResult tpu::TG_BF16_UpsampleOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";
-  BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
   std::vector<int64_t> shape;

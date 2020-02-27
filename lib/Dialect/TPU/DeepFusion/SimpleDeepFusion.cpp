@@ -170,7 +170,7 @@ private:
     uint64_t mac_count = ow * oh * kh * kw * g * (ic / g) * (oc / g) * n;
     stats->increaseMacCount(mac_count);
 
-    struct SimpleConv2DMemoryUsageAnalysis_details details;
+    struct SimpleMemoryUsageAnalysis_details details;
     uint64_t totalPerLane = SimpleConv2DMemoryUsageAnalysis(op, &details);
     if (totalPerLane <= MInfo::lmem_per_lane) {
       stats->pushChain(op.getResult());
@@ -188,7 +188,7 @@ private:
     os << "," << details.outputNeuronSizePerLane;
     os << "," << details.filterSizePerLane;
     os << "," << details.biasSizePerLane;
-    os << "," << details.leakyreluWorkingSizePerLane;
+    os << "," << details.reluWorkingSizePerLane;
     os << "," << details.eltwiseInputSizePerLane;
     os << "," << details.eltwiseWorkingSizePerLane;
     os << "," << totalPerLane;
