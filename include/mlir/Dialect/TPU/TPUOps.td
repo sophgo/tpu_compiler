@@ -960,6 +960,8 @@ def TPU_PriorBoxOp: TPU_Op<"priorbox",
   );
 
   let results = (outs AnyTensor:$output);
+    
+  let hasCanonicalizer = 1;
 }
 
 def TPU_ReluOp: TPU_Op<"relu",

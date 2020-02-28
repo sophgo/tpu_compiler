@@ -377,6 +377,14 @@ private:
 
 } // namespace
 
+// Canonicalizer
+void tpu::PriorBoxOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
+                                              MLIRContext *context) {
+  results.insert<
+      TpuConvertPriorBoxPattern,
+      TpuConvertLoadeweightConcatToLoadweightPattern>(context);
+}
+
 std::unique_ptr<OpPassBase<FuncOp>> mlir::createConvertPriorBoxPass() {
   return std::make_unique<ConvertPriorBoxPass>();
 }
