@@ -5,12 +5,12 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
 # please keep in alphabetical order
 net_list=(
-  # "resnet50"
-  # "yolo_v3"
-  # "retinaface_res50"
-  # "efficientnet_b0"
-  # "inception_v4"
-   "ssd300"
+  "resnet50"
+  "yolo_v3"
+  "retinaface_res50"
+  "efficientnet_b0"
+  "inception_v4"
+  #"ssd300"
 )
 
 if [ ! -z "$1" ]; then
