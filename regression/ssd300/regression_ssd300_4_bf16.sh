@@ -9,35 +9,25 @@ NEED_REMOVE_AFTER_FIX_CPU_LAYER=1
 if [ $NEED_REMOVE_AFTER_FIX_CPU_LAYER -eq 1 ]; then
 
 mlir-translate \
-    --caffe-to-mlir $MODEL_PATH/object_detection/ssd/caffe/ssd300/deploy_tpu.prototxt \
+    --caffe-to-mlir $REGRESSION_PATH/ssd300/data/deploy_tpu.prototxt \
     --caffemodel $MODEL_PATH/object_detection/ssd/caffe/ssd300/VGG_coco_SSD_300x300_iter_400000.caffemodel \
-    -o ssd300.mlir
-# assign layer_id right away, and output op_info
+    -o ssd300_bf16.mlir
+
 mlir-opt \
     --assign-layer-id \
     --print-tpu-op-info \
     --tpu-op-info-filename ssd300_op_info.csv \
-    ssd300.mlir \
-    -o ssd300_id.mlir
+    --canonicalize \
+    ssd300_opt.mlir \
+    -o ssd300_quant_bf16.mlir
 
-# opt1, fuse relu with conv
-mlir-opt \
-    --fuse-relu \
-    ssd300_id.mlir \
-    -o ssd300_opt1.mlir
-#opt2, convert priorbox to loadweight
-mlir-opt \
-    --convert-priorbox-to-loadweight \
-    ssd300_opt1.mlir \
-    -o ssd300_opt2.mlir
-
-fi
+fi 
 # quantization
 mlir-opt \
     --quant-bf16 \
     --gen-sqrt-table \
-    --gen-div-table  \
-    ssd300_opt2.mlir \
+    --gen-div-table \
+    ssd300_opt.mlir \
     -o ssd300_quant_bf16.mlir
 
 # bf16 inference
@@ -45,6 +35,7 @@ mlir-tpu-interpreter ssd300_quant_bf16.mlir \
     --tensor-in ssd300_in_fp32.npz \
     --tensor-out ssd300_out_bf16.npz \
     --dump-all-tensor=ssd300_tensor_all_bf16.npz
+
 npz_compare.py ssd300_out_bf16.npz ssd300_out_fp32.npz -v
 npz_compare.py \
     ssd300_tensor_all_bf16.npz \

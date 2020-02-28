@@ -56,7 +56,7 @@ mlir-opt \
     ssd300.mlir \
     -o ssd300_opt.mlir
 
-#  Actual optimize 
+# Actual optimize 
 #--fuse-relu
 #--convert-scale-to-dwconv
 #--convert-priorbox-to-loadweight 
@@ -65,14 +65,14 @@ mlir-opt \
 # test opt
 mlir-tpu-interpreter ssd300_opt.mlir \
     --tensor-in ssd300_in_fp32.npz \
-    --tensor-out ssd300_opt_out_fp32_opt.npz \
-    --dump-all-tensor=ssd300_tensor_all_fp32_opt.npz
+    --tensor-out ssd300_out_fp32.npz \
+    --dump-all-tensor=ssd300_tensor_all_fp32.npz
 
-npz_compare.py ssd300_opt_out_fp32_opt.npz ssd300_out_fp32_ref.npz -v
+npz_compare.py ssd300_out_fp32.npz ssd300_out_fp32_ref.npz -v
 
 if [ $COMPARE_ALL -eq 1 ]; then
 npz_compare.py \
-    ssd300_tensor_all_fp32_opt.npz \
+    ssd300_tensor_all_fp32.npz \
     ssd300_blobs.npz \
     --op_info ssd300_op_info.csv \
     --tolerance=0.9999,0.9999,0.9999 -vv
