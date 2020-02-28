@@ -679,67 +679,42 @@ LogicalResult tpu::DetectionOutputOp::interpret(
     return success();
 }
 
-LogicalResult tpu::DivOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
-  Operation *op = this->getOperation();
-  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
-
-  float eps = 1.0e-5;
+static LogicalResult doLUTOpInterpret(Operation *op, StringRef &type,
+     DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
   auto opdT = getOperandTensors(op, valueMapping);
-  auto result = this->getResult();
+  auto result = op->getResult(0);
   auto size = getTensorSize(result);
-  auto resultT = std::make_unique<std::vector<float>>(size);
-
-  float threshold_y,threshold_x;
-  if (getOpQuant() == "INT8"|| getOpQuant() == "INT8_PER_CHANNEL"||getOpQuant() == "INT8_MULTIPLIER") {
-    threshold_x = getPreviousOpThreshold(op);
-    threshold_y = getOpThreshold(op);
-  }
-
+  auto resultT = std::make_unique<std::vector<float> >(size);
   float *input = (float *)opdT[0]->data();
   float *output = (float *)resultT.get()->data();
+  std::shared_ptr<std::vector<float> > y0_table_op = opdT[1];
 
-  if (getOpQuant() == "INT8"|| getOpQuant() == "INT8_PER_CHANNEL"||getOpQuant() == "INT8_MULTIPLIER") {
-      assert(threshold_x != 0.0);
-      std::vector<int> data(256, 0);
-
-      for (int idx = 0; idx < 256; ++idx) {
-        char lutInput = static_cast<char>(idx);
-        float index = lutInput * threshold_x / 127.0;
-        float lutOutput = 1.0 /(index) * 127.0 / threshold_y;
-        int lutOutputI32 = std::floor(lutOutput + 0.5);
-        lutOutputI32 = (lutOutputI32 > 127)
-                            ? 127
-                            : (lutOutputI32 < -128) ? -128 : lutOutputI32;
-        data[idx] = lutOutputI32;
-      }
+  if (getOpQuant(op) == "INT8") {
       for (int i = 0; i < size; ++i) {
-        output[i] = data[(unsigned char)input[i]];
+        output[i] = y0_table_op->at(input[i]);
       }
-  }else if(getOpQuant() == "BF16"||getOpQuant() == "NONE"){
+  }else if(getOpQuant(op) == "BF16"|| getOpQuant(op) == "NONE"){
     std::vector<int64_t> shape;
-    int64_t input_size;
+    int64_t input_size, n, c, h, w;
     getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+    getNCHW(shape, n, c, h, w);      
 
-    // int n,c,h,w;
-    // if(shape.size()==4){
-    //   n = shape[0];
-    //   c = shape[1];
-    //   h = shape[2];
-    //   w = shape[3];
-    // }else if(shape.size()==3){
-    //   n = 1;
-    //   c = shape[0];
-    //   h = shape[1];
-    //   w = shape[2];
-    // }else{
-    //   assert(0&&"only support shape size 4 or 3");
-    // }
-
-    for (int i = 0; i < input_size; ++i) {
-      output[i] = 1.0/(input[i] + eps);
+    if (type == "Div"){
+      float eps = 1.0e-5;
+      for (int i = 0; i < input_size; ++i) {
+        output[i] = 1.0/(input[i] + eps);
+      }
+    }else if (type == "Sqrt"){
+      for (int i = 0; i < input_size; ++i) {
+        output[i] = pow(input[i],0.5);
+      }
+    }else if (type == "Sigmoid"){    
+      my_sigmoid(input, output, n, c, h, w);
+    }else{
+      assert(false&&"not support LUT op type");
     }
-    if (getOpQuant() == "BF16"){
+
+    if (getOpQuant(op) == "BF16"){
       auto tensor_bf16 = std::make_unique<std::vector<bfloat16> >(size);
       // with rounding
       FloatToBFloat16(output, tensor_bf16->data(), size);
@@ -751,7 +726,33 @@ LogicalResult tpu::DivOp::interpret(
   }
 
   valueMapping[result] = std::move(resultT);
+
   return success();
+
+}
+
+LogicalResult tpu::DivOp::interpret(
+    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+  Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
+  StringRef type = "Div";
+  return doLUTOpInterpret(op,type,valueMapping);
+}
+
+LogicalResult tpu::SqrtOp::interpret(
+    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+  Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
+  StringRef type = "Sqrt";
+  return doLUTOpInterpret(op,type,valueMapping);
+}
+
+LogicalResult tpu::SigmoidOp::interpret(
+    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+  Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
+  StringRef type = "Sigmoid";
+  return doLUTOpInterpret(op,type,valueMapping);
 }
 
 static LogicalResult doEltwiseOpInterpret(Operation *op,
@@ -1569,7 +1570,7 @@ LogicalResult tpu::ShuffleChannelOp::interpret(
 
   return success();
 }
-
+#if 0
 LogicalResult tpu::SigmoidOp::interpret(
     DenseMap<Value *, std::shared_ptr<std::vector<float>>> &valueMapping) {
   Operation *op = this->getOperation();
@@ -1619,6 +1620,7 @@ LogicalResult tpu::SigmoidOp::interpret(
   return success();
 }
 
+#endif 
 LogicalResult tpu::SliceOp::interpret(
     DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();
@@ -1674,82 +1676,6 @@ LogicalResult tpu::SoftmaxOp::interpret(
   valueMapping[result] = std::move(resultT);
   return success();
 }
-
-LogicalResult tpu::SqrtOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
-  Operation *op = this->getOperation();
-  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
-
-  auto opdT = getOperandTensors(op, valueMapping);
-  auto result = this->getResult();
-  auto size = getTensorSize(result);
-  auto resultT = std::make_unique<std::vector<float>>(size);
-
-  float threshold_y,threshold_x;
-  if (getOpQuant() == "INT8"|| getOpQuant() == "INT8_PER_CHANNEL"||getOpQuant() == "INT8_MULTIPLIER") {
-    threshold_x = getPreviousOpThreshold(op);
-    threshold_y = getOpThreshold(op);
-  }
-
-  float *input = (float *)opdT[0]->data();
-  float *output = (float *)resultT.get()->data();
-
-  if (getOpQuant() == "INT8"|| getOpQuant() == "INT8_PER_CHANNEL"||getOpQuant() == "INT8_MULTIPLIER") {
-      assert(threshold_x != 0.0);
-      std::vector<int> data(256, 0);
-
-      for (int idx = 0; idx < 256; ++idx) {
-        char lutInput = static_cast<char>(idx);
-        float index = lutInput * threshold_x / 127.0;
-        float lutOutput = pow(index,0.5) * 127.0 / threshold_y;
-        int lutOutputI32 = std::floor(lutOutput + 0.5);
-        lutOutputI32 = (lutOutputI32 > 127)
-                           ? 127
-                           : (lutOutputI32 < -128) ? -128 : lutOutputI32;
-        data[idx] = lutOutputI32;
-      }
-
-      for (int i = 0; i < size; ++i) {
-        output[i] = data[(unsigned char)input[i]];
-      }
-  }else if(getOpQuant() == "BF16"||getOpQuant() == "NONE"){
-    std::vector<int64_t> shape;
-    int64_t input_size;
-    getTensorShapeAndSize(op->getOperand(0), shape, input_size);
-
-    // int n,c,h,w;
-    // if(shape.size()==4){
-    //   n = shape[0];
-    //   c = shape[1];
-    //   h = shape[2];
-    //   w = shape[3];
-    // }else if(shape.size()==3){
-    //   n = 1;
-    //   c = shape[0];
-    //   h = shape[1];
-    //   w = shape[2];
-    // }else{
-    //   assert(0&&"only support shape size 4 or 3");
-    // }
-
-    for (int i = 0; i < input_size; ++i) {
-        output[i] = pow(input[i],0.5);
-    }
-    if (getOpQuant() == "BF16"){
-      auto tensor_bf16 = std::make_unique<std::vector<bfloat16> >(size);
-      // with rounding
-      FloatToBFloat16(output, tensor_bf16->data(), size);
-      BFloat16ToFloat(tensor_bf16->data(), output, size);
-    }
-
-  }else{
-    assert(0&&"not support method");
-  }
-
-  valueMapping[result] = std::move(resultT);
-  return success();
-}
-
 
 LogicalResult tpu::UpsampleOp::interpret(
     DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
@@ -1979,157 +1905,6 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
 
     return success();
   }
-#if 0
-  if (auto op = dyn_cast<tpu::DivOp>(opInst)) {
-    LLVM_DEBUG(llvm::errs() << "DivOp" << "\n";);
-    auto opdT = getOperandTensors(opInst, valueMapping);
-    auto result = op.getResult();
-    LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";);
-    std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
-    assert(shape.size() == 4);
-    auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
-    auto resultT = std::make_unique<std::vector<float> >(size);
-    float eps = 1.0e-5;
-
-    float threshold_y,threshold_x;
-    //uint32_t multiplier;
-    if (op.quant() == "INT8"|| op.quant() == "INT8_PER_CHANNEL"||op.quant() == "INT8_MULTIPLIER") {
-      threshold_y = op.threshold_y().getValue().convertToFloat();
-      threshold_x = getPreviousOpThreshold(op);
-    }
-
-    float *input = (float *)opdT[0]->data();
-
-    float *output = (float *)resultT->data();
-
-    if (op.quant() == "INT8"|| op.quant() == "INT8_PER_CHANNEL"||op.quant() == "INT8_MULTIPLIER") {
-        assert(threshold_x != 0.0);
-        std::vector<int> data(256, 0);
-
-        for (int idx = 0; idx < 256; ++idx) {
-          char lutInput = static_cast<char>(idx);
-          float index = lutInput * threshold_x / 127.0;
-          float lutOutput = 1.0 /(index) * 127.0 / threshold_y;
-          int lutOutputI32 = std::floor(lutOutput + 0.5);
-          lutOutputI32 = (lutOutputI32 > 127)
-                             ? 127
-                             : (lutOutputI32 < -128) ? -128 : lutOutputI32;
-          data[idx] = lutOutputI32;
-        }
-        for (int i = 0; i < size; ++i) {
-          output[i] = data[(unsigned char)input[i]];
-        }
-    }else if(op.quant() == "BF16"||op.quant() == "NONE"){
-      float numerator = op.numerator().convertToFloat();
-      auto input_type = op.input()->getType().cast<TensorType>();
-      std::vector<int64_t> i_s(input_type.getShape());
-
-      int n,c,h,w;
-      if(i_s.size()==4){
-        n = i_s[0];
-        c = i_s[1];
-        h = i_s[2];
-        w = i_s[3];
-      }else if(i_s.size()==3){
-        n = 1;
-        c = i_s[0];
-        h = i_s[1];
-        w = i_s[2];
-      }else{
-        assert(0&&"only support shape size 4 or 3");
-      }
-
-      for (int i = 0; i < n * c * h * w; ++i) {
-        output[i] = numerator/(input[i] + eps);
-      }
-      if (op.quant() == "BF16"){
-        auto tensor_bf16 = std::make_unique<std::vector<bfloat16> >(resultT->size());
-        // with rounding
-        FloatToBFloat16(resultT->data(), tensor_bf16->data(), resultT->size());
-        BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
-      }
-
-    }else{
-      assert(0&&"not support method");
-    }
-
-    valueMapping[result] = std::move(resultT);
-    return success();
-  }
-  if (auto op = dyn_cast<tpu::SqrtOp>(opInst)) {
-    LLVM_DEBUG(llvm::errs() << "SqrtOp" << "\n";);
-    auto opdT = getOperandTensors(opInst, valueMapping);
-    auto result = op.getResult();
-    LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";);
-    std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
-    assert(shape.size() == 4);
-    auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
-    auto resultT = std::make_unique<std::vector<float> >(size);
-
-
-    float threshold_y,threshold_x;
-    if (op.quant() == "INT8"|| op.quant() == "INT8_PER_CHANNEL"||op.quant() == "INT8_MULTIPLIER") {
-      threshold_y = op.threshold_y().getValue().convertToFloat();
-      threshold_x = getPreviousOpThreshold(op);
-    }
-
-    float *input = (float *)opdT[0]->data();
-
-    float *output = (float *)resultT->data();
-
-    if (op.quant() == "INT8"|| op.quant() == "INT8_PER_CHANNEL"||op.quant() == "INT8_MULTIPLIER") {
-      assert(threshold_x != 0.0);
-      std::vector<int> data(256, 0);
-
-      for (int idx = 0; idx < 256; ++idx) {
-        char lutInput = static_cast<char>(idx);
-        float index = lutInput * threshold_x / 127.0;
-        float lutOutput = pow(index,0.5) * 127.0 / threshold_y;
-        int lutOutputI32 = std::floor(lutOutput + 0.5);
-        lutOutputI32 = (lutOutputI32 > 127)
-                           ? 127
-                           : (lutOutputI32 < -128) ? -128 : lutOutputI32;
-        data[idx] = lutOutputI32;
-      }
-      for (int i = 0; i < size; ++i) {
-        output[i] = data[(unsigned char)input[i]];
-      }
-    }else if (op.quant() == "BF16" || op.quant() == "NONE"){
-      auto input_type = op.input()->getType().cast<TensorType>();
-      std::vector<int64_t> i_s(input_type.getShape());
-
-      int n,c,h,w;
-      if(i_s.size()==4){
-        n = i_s[0];
-        c = i_s[1];
-        h = i_s[2];
-        w = i_s[3];
-      }else if(i_s.size()==3){
-        n = 1;
-        c = i_s[0];
-        h = i_s[1];
-        w = i_s[2];
-      }else{
-        assert(0&&"only support shape size 4 or 3");
-      }
-
-      for (int i = 0; i < n * c * h * w; ++i) {
-        output[i] = pow(input[i],0.5);
-      }
-      if (op.quant() == "BF16"){
-        auto tensor_bf16 = std::make_unique<std::vector<bfloat16> >(resultT->size());
-        // with rounding
-        FloatToBFloat16(resultT->data(), tensor_bf16->data(), resultT->size());
-        BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
-      }
-    }else{
-      assert(0&&"no other quant method is support");
-    }
-
-    valueMapping[result] = std::move(resultT);
-    return success();
-  }
-#endif
 
   if (auto op = dyn_cast<tpu::PowerOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "PowerOp" << "\n";);
