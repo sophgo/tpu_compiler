@@ -385,6 +385,7 @@ class TPU_TG_LutOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
   let arguments = (
     ins AnyTensor:$input,
     AnyTensor:$table,
+    AnyTensor:$table_mantissa,
     DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     StrAttr:$name,
@@ -394,6 +395,8 @@ class TPU_TG_LutOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
   let results = (outs AnyTensor:$output);
 }
 def TPU_TG_INT8_LutOp : TPU_TG_LutOp<"tg_int8_lut", "Int8">;
+def TPU_TG_BF16_Sqrt_LutOp : TPU_TG_LutOp<"tg_bf16_Sqrt_lut", "BF16">;
+def TPU_TG_BF16_Div_LutOp : TPU_TG_LutOp<"tg_bf16_Div_lut", "BF16">;
 
 
 class TPU_TG_PermuteOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,

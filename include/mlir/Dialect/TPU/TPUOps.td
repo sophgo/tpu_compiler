@@ -228,7 +228,8 @@ class TPU_LutOp<string mnemonic,  string opSummary> : TPU_Op<mnemonic,
 
     Inputs:
       `inputs`          : required, variadic input tensors.
-      `table`           : optional, the quantize lookup table .
+      `table`           : optional, the quantize lookup table,which is reused by INT8 and BF16.
+      `table_mantissa`  : optional, the quantize lookup table,only used by BF16 .
 
     Attributes:
       `quant`           : required, a QuantParam struct attributes.
@@ -252,6 +253,7 @@ class TPU_LutOp<string mnemonic,  string opSummary> : TPU_Op<mnemonic,
   let arguments = (
     ins Variadic<AnyTensor>:$inputs,
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$table,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$table_mantissa,
     OptionalAttr<BoolAttr>:$has_table,
     StrAttr:$name,
     OptionalAttr<NonNegativeI32Attr>:$layer_id,

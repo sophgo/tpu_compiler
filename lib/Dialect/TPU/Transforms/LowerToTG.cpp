@@ -276,7 +276,7 @@ Value *tpu::DivOp::convertToTG() {
   auto builder = Builder(op->getContext());
 
 
-  int nInputs = 2; // input and table
+  int nInputs = 3; // input and table
   std::vector<Value *> operands;
   for (auto i = 0; i < nInputs; ++i) {
     operands.push_back(op->getOperand(i));
@@ -292,11 +292,10 @@ Value *tpu::DivOp::convertToTG() {
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
   } else if (getOpQuant() == "BF16") {
-    // operands.push_back(op->getOperand(2));
-    // auto newOp = OpBuilder(op).create<tpu::TG_BF16_LutOp>(
-    //     op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
-    //     ArrayRef<NamedAttribute>{attrs});
-    // return newOp.getResult();
+    auto newOp = OpBuilder(op).create<tpu::TG_BF16_Div_LutOp>(
+        op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
   }
   assert(false);
   return nullptr;
@@ -794,7 +793,7 @@ Value *tpu::SigmoidOp::convertToTG() {
   auto builder = Builder(op->getContext());
 
 
-  int nInputs = 2; // input and table
+  int nInputs = 3; // input and table
   std::vector<Value *> operands;
   for (auto i = 0; i < nInputs; ++i) {
     operands.push_back(op->getOperand(i));
@@ -856,7 +855,7 @@ Value *tpu::SqrtOp::convertToTG() {
   auto builder = Builder(op->getContext());
 
 
-  int nInputs = 2; // input and table
+  int nInputs = 3; // input and table
   std::vector<Value *> operands;
   for (auto i = 0; i < nInputs; ++i) {
     operands.push_back(op->getOperand(i));
@@ -872,11 +871,10 @@ Value *tpu::SqrtOp::convertToTG() {
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
   } else if (getOpQuant() == "BF16") {
-    // operands.push_back(op->getOperand(2));
-    // auto newOp = OpBuilder(op).create<tpu::TG_BF16_LutOp>(
-    //     op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
-    //     ArrayRef<NamedAttribute>{attrs});
-    // return newOp.getResult();
+    auto newOp = OpBuilder(op).create<tpu::TG_BF16_Sqrt_LutOp>(
+        op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
   }
   assert(false);
   return nullptr;
@@ -1515,6 +1513,9 @@ struct LowerWeightLutOpPattern : public RewritePattern {
     auto lutOp = cast<OpTy>(op);
 
     auto tableOp = cast<tpu::LoadWeightOp>(lutOp.getOperand(1)->getDefiningOp());
+    auto table_mantissaOp = cast<tpu::LoadWeightOp>(lutOp.getOperand(2)->getDefiningOp());
+  
+    
     if (tableOp.lowered()) {
       // lowered already
       return matchFailure();
@@ -1530,7 +1531,9 @@ struct LowerWeightLutOpPattern : public RewritePattern {
         int64_t size;
         getTensorShapeAndSize(lutOp.table(), shape, size);
         auto table = readAndDeleteWeightTensor<float>(tableOp, wTF);
+        auto table_mantissa = readAndDeleteWeightTensor<float>(table_mantissaOp, wTF);
         std::vector<int8_t> table_int8(table->begin(), table->end());
+        std::vector<int8_t> table_mantissa_int8(table_mantissa->begin(), table_mantissa->end());
         // 1880 support 256 lookup table
         // because of 1880 hardware search table only on each local memory
         // we dupicate table to limit number <32>
@@ -1541,6 +1544,9 @@ struct LowerWeightLutOpPattern : public RewritePattern {
         addWeightTensorAndUpdateWeightOp<int8_t>(
             tableOp, "lowered", table_int8, shape, "INT8", wTF);
         tableOp.setAttr("lowered", rewriter.getBoolAttr(true));
+        addWeightTensorAndUpdateWeightOp<int8_t>(
+            table_mantissaOp, "lowered", table_mantissa_int8, shape, "INT8", wTF);
+        table_mantissaOp.setAttr("lowered", rewriter.getBoolAttr(true));
 
     } else if (getOpQuant(op) == "BF16") {
       // lower filter

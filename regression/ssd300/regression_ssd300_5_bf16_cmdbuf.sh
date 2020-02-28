@@ -13,6 +13,14 @@ bin_fp32_to_bf16.py \
     ssd300_in_bf16.bin
 
 ################################
+# Lower
+################################
+mlir-opt \
+    --tpu-lower \
+    ssd300_quant_bf16.mlir \
+    -o ssd300_quant_bf16_tg.mlir
+
+################################
 # quantization
 ################################
 # assign weight address & neuron address
@@ -25,13 +33,13 @@ mlir-opt \
     --tpu-neuron-address-align=16 \
     --tpu-neuron-map-filename=neuron_map_bf16.csv \
     --assign-layer-id \
-    ssd300_quant_bf16.mlir \
-    -o ssd300_quant_bf16_addr.mlir
+    ssd300_quant_bf16_tg.mlir \
+    -o ssd300_quant_bf16_tg_addr.mlir
 
 # backend translate into cmdbuf
 mlir-translate \
     --mlir-to-cmdbuf \
-    ssd300_quant_bf16_addr.mlir \
+    ssd300_quant_bf16_tg_addr.mlir \
     -o cmdbuf_bf16.bin
 
 

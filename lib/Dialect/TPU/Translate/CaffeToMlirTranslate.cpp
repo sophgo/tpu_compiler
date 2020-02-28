@@ -1247,7 +1247,7 @@ void CaffeImporter::convertNormalizeLayer(mlir::Block *block,
   auto result_var = op.getResult();
   tensor_map_[layer_param.top(0)] = result_var;
 }
-#endif
+#else
 
 
 void CaffeImporter::convertNormalizeLayer(mlir::Block *block,
@@ -1373,6 +1373,8 @@ void CaffeImporter::convertNormalizeLayer(mlir::Block *block,
   std::vector<Value *> operands_sqrt;
   operands_sqrt.push_back(conv_result_var);
   operands_sqrt.push_back(NoneOp.getResult()); // quant_table
+  operands_sqrt.push_back(NoneOp.getResult()); // quant_table
+
 
   std::vector<NamedAttribute> attrs_sqrt;
   attrs_sqrt.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name()+"_sqrt")));
@@ -1394,10 +1396,11 @@ void CaffeImporter::convertNormalizeLayer(mlir::Block *block,
   std::vector<Value *> operands_div;
   operands_div.push_back(sqrt_result_var);
   operands_div.push_back(NoneOp.getResult()); // quant_table
+  operands_div.push_back(NoneOp.getResult()); // quant_table
 
   std::vector<NamedAttribute> attrs_div;
   attrs_div.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name()+"_Div")));
-   attrs_div.push_back(builder_.getNamedAttr(
+  attrs_div.push_back(builder_.getNamedAttr(
       "has_table", builder_.getBoolAttr(false)));
   attrs_div.push_back(
       builder_.getNamedAttr("quant", getDefaultQuantParam(builder_)));
@@ -1463,7 +1466,7 @@ void CaffeImporter::convertNormalizeLayer(mlir::Block *block,
   tensor_map_[layer_param.top(0)] = result_var;
 }
 
-
+#endif
 
 void CaffeImporter::convertPermuteLayer(mlir::Block *block,
     caffe::Layer<float> *layer) {
@@ -2248,6 +2251,8 @@ void CaffeImporter::convertSigmoidLayer(mlir::Block *block,
   auto NoneOp = OpBuilder(block).create<tpu::NoneOp>(builder_.getUnknownLoc(),
                                                      builder_.getNoneType());
   operands.push_back(NoneOp.getResult()); // quant_table
+  operands.push_back(NoneOp.getResult()); // quant_table
+
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder_.getNamedAttr(
       "name", builder_.getStringAttr(layer_param.name())));
