@@ -36,13 +36,13 @@ mlir-opt \
 mlir-translate \
     resnet50_quant_int8_multiplier_tl_la.mlir \
     --mlir-to-cmdbuf \
-    --debug-only=tl_conv \
+    --debug-only=tl_conv,tl_eltwise_add \
     -o cmdbuf_la.bin
 
 mlir-translate \
     resnet50_quant_int8_multiplier_tl_lw.mlir \
     --mlir-to-cmdbuf \
-    --debug-only=tl_conv \
+    --debug-only=tl_conv,tl_eltwise_add \
     -o cmdbuf_lw.bin
 
 # generate cvi model

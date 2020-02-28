@@ -765,7 +765,7 @@ LogicalResult tpu::TG_BF16_DivOp::codegen(void *ctx) {
 
 
   int layer_id = mlir::getOpLayerId(op);
-  
+
   bf16_reciprocal_fixed_forward_bmkernel(*backend_ctx,
                                   0,        // stream_id,
                                   0,        // inst_id,
@@ -773,7 +773,7 @@ LogicalResult tpu::TG_BF16_DivOp::codegen(void *ctx) {
                                   nullptr,  // const u32 *depends,
                                   0,        // depends_len,
                                   input_gaddr, output_gaddr, table_data_lut,table_data_mantissa_lut,
-                                  n, c, h, w);   
+                                  n, c, h, w);
 
   return success();
 }
@@ -1248,7 +1248,7 @@ LogicalResult tpu::TG_BF16_Div_LutOp::codegen(void *ctx) {
   //                                 nullptr,  // const u32 *depends,
   //                                 0,        // depends_len,
   //                                 input_gaddr, output_gaddr, table_data_lut,table_data_mantissa_lut,
-  //                                 n, c, h, w);  
+  //                                 n, c, h, w);
   return success();
 }
 
@@ -1303,7 +1303,7 @@ LogicalResult tpu::TG_INT8_PermuteOp::codegen(void *ctx) {
 LogicalResult tpu::TG_BF16_PermuteOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName() << " [" << getOpName()
                << "]\n";
-
+#if 0
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
@@ -1343,6 +1343,7 @@ LogicalResult tpu::TG_BF16_PermuteOp::codegen(void *ctx) {
       break;
     }
   }
+
   bf16_permute_fixed_forward_kernel(
       *backend_ctx,
       0, //stream_id,
@@ -1752,7 +1753,7 @@ LogicalResult tpu::TG_BF16_SqrtOp::codegen(void *ctx) {
 
 
   int layer_id = mlir::getOpLayerId(op);
-  
+
   bf16_sqrt_fixed_forward_bmkernel(*backend_ctx,
                                  0,        // stream_id,
                                  0,        // inst_id,
@@ -1760,7 +1761,7 @@ LogicalResult tpu::TG_BF16_SqrtOp::codegen(void *ctx) {
                                  nullptr,  // const u32 *depends,
                                  0,        // depends_len,
                                  input_gaddr, output_gaddr, table_data_lut,table_data_mantissa_lut,
-                                 n, c, h, w);  
+                                 n, c, h, w);
 
   return success();
 }

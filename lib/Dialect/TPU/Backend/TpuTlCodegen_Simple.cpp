@@ -102,7 +102,8 @@ LogicalResult tpu::TL_LW_Conv2DOp::codegen(void *ctx) {
   laddr_t la_working = this->la_working().getLimitedValue();
   int layer_id = mlir::getOpLayerId(op);
 
-  llvm::errs() << "    TL_LW_Conv2DOp, layer_id = " << layer_id;
+  llvm::errs() << "    TL_LW_Conv2DOp,  layer_id = " << layer_id;
+  llvm::errs() << ", " << this->lm_layout();
   if (tl_load_flag())
     llvm::errs() << ", LD";
   if (tl_store_flag())
@@ -177,6 +178,15 @@ LogicalResult tpu::TL_EltwiseAddOp::codegen(void *ctx) {
   gaddr_t ga_output = getOpAddress(op);
   int layer_id = mlir::getOpLayerId(op);
 
+  laddr_t la_input = LA_INVALID;
+  laddr_t la_output = LA_INVALID;
+  laddr_t la_working = LA_INVALID;
+  if (this->lm_layout() != "NONE") {
+    la_input = this->la_input().getLimitedValue();
+    la_output = this->la_output().getLimitedValue();
+    la_working = this->la_working().getLimitedValue();
+  }
+
   int8_t rshift = this->rshift().getLimitedValue();
   int8_t m_i8_input[2];
   std::vector<int32_t> m_i8_inputs_array;
@@ -185,34 +195,23 @@ LogicalResult tpu::TL_EltwiseAddOp::codegen(void *ctx) {
   m_i8_input[0] = static_cast<int8_t>(m_i8_inputs_array[0]);
   m_i8_input[1] = static_cast<int8_t>(m_i8_inputs_array[1]);
 
-  // TODO: should change on backend API, rather than doing cast
-  gaddr_t ga_inputs[2] = {ga_input, ga_addend};
-  int rshift_int;
-  int m_int[2];
-  if (1) {
-    rshift_int = static_cast<int>(rshift);
-    m_int[0] = static_cast<int>(m_i8_input[0]);
-    m_int[1] = static_cast<int>(m_i8_input[1]);
-  }
-  const int coeffs[2] = {1, 1};
+  llvm::errs() << "    TL_EltwiseAddOp, layer_id = " << layer_id;
+  llvm::errs() << ", " << this->lm_layout();
+  if (tl_load_flag())
+    llvm::errs() << ", LD";
+  if (tl_store_flag())
+    llvm::errs() << ", ST";
+  if (!tl_load_flag() && !tl_store_flag())
+    llvm::errs() << ", FUSED";
+  llvm::errs() << "\n";
 
-  bmnet_eltwise_fixed_forward_bmkernel(
-      *backend_ctx,
-      0,            // stream_id,
-      0,            // inst_id,
-      layer_id,     // layer_id,
-      nullptr,      // depends
-      0,            // depends_len
-      ga_inputs,    // gaddr_t ga_input[],
-      ga_output,    // gaddr_t ga_output,
-      2,            // int input_size,
-      1,            // int op,  0, prod, 1, sum, 2, max
-      n, c, h, w,
-      do_relu,      // bool do_relu,
-      0.0f,         // float relu_slope,
-      rshift_int,   // int right_shift_width,
-      m_int,
-      coeffs);
+  cvi_backend_tl_eltwise_add(
+    *backend_ctx, layer_id,
+    la_input, la_output, la_working,
+    ga_input, ga_output, ga_addend,
+    n, c, h, w, do_relu,
+    rshift, m_i8_input[0], m_i8_input[1],
+    tl_load_flag(), tl_store_flag());
 
   return success();
 }
