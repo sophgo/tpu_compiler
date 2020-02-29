@@ -8,7 +8,6 @@ CHECK_INFERENCE_RESULT=0
 COMPARE_ALL=0
 CHECK_NON_OPT_VERSION=0
 
-
 # translate from caffe model
 mlir-translate \
     --caffe-to-mlir $MODEL_PATH/object_detection/ssd/caffe/ssd300/deploy.prototxt \
@@ -31,7 +30,6 @@ mlir-opt \
     ssd300.mlir \
     -o dummy.mlir
 
-
 # test mlir interpreter
 mlir-tpu-interpreter ssd300.mlir \
     --tensor-in ssd300_in_fp32.npz \
@@ -44,7 +42,6 @@ npz_compare.py \
     ssd300_blobs.npz \
     --op_info ssd300_op_info.csv \
     --tolerance=0.9999,0.9999,0.999 -vv
-
 fi
 
 # opt
@@ -55,12 +52,6 @@ mlir-opt \
     --canonicalize \
     ssd300.mlir \
     -o ssd300_opt.mlir
-
-# Actual optimize 
-#--fuse-relu
-#--convert-scale-to-dwconv
-#--convert-priorbox-to-loadweight 
-
 
 # test opt
 mlir-tpu-interpreter ssd300_opt.mlir \
@@ -87,7 +78,7 @@ run_mlir_detector_ssd.py \
       --dump_weights ssd300_weights.npz \
       --input_file $REGRESSION_PATH/ssd300/data/dog.jpg \
       --label_file $MODEL_PATH/object_detection/ssd/caffe/ssd300/labelmap_coco.prototxt  \
-      --draw_image ssd300_fp32_mlir_opt2_result.jpg   
+      --draw_image ssd300_fp32_mlir_opt2_result.jpg
 fi
 
 # VERDICT
