@@ -1303,7 +1303,6 @@ LogicalResult tpu::TG_INT8_PermuteOp::codegen(void *ctx) {
 LogicalResult tpu::TG_BF16_PermuteOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName() << " [" << getOpName()
                << "]\n";
-#if 0
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 

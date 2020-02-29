@@ -173,8 +173,19 @@ LogicalResult tpu::TL_EltwiseAddOp::codegen(void *ctx) {
 
   assert(op->getNumOperands() == 2 && "support 2 inputs only");
 
-  gaddr_t ga_input = getPreviousOpAddress(op, 0);
-  gaddr_t ga_addend = getPreviousOpAddress(op, 1);
+  int augend_idx = 0;
+  auto prev_op = op->getOperand(0)->getDefiningOp();
+  auto prev_conv_op = llvm::dyn_cast<tpu::TL_LW_Conv2DOp>(prev_op);
+  if (!prev_conv_op) {
+    augend_idx = 1;
+  } else {
+    if (prev_conv_op.in_short_path().getValue()) {
+      augend_idx = 1;
+    }
+  }
+
+  gaddr_t ga_input = getPreviousOpAddress(op, augend_idx);
+  gaddr_t ga_addend = getPreviousOpAddress(op, 1 - augend_idx);
   gaddr_t ga_output = getOpAddress(op);
   int layer_id = mlir::getOpLayerId(op);
 
@@ -210,7 +221,7 @@ LogicalResult tpu::TL_EltwiseAddOp::codegen(void *ctx) {
     la_input, la_output, la_working,
     ga_input, ga_output, ga_addend,
     n, c, h, w, do_relu,
-    rshift, m_i8_input[0], m_i8_input[1],
+    rshift, m_i8_input[augend_idx], m_i8_input[1-augend_idx],
     tl_load_flag(), tl_store_flag());
 
   return success();
