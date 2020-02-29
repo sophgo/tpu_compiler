@@ -1194,6 +1194,64 @@ LogicalResult tpu::TG_INT8_LutOp::codegen(void *ctx) {
   return success();
 }
 
+LogicalResult tpu::TG_BF16_Sqrt_LutOp::codegen(void *ctx) {
+  llvm::errs() << "TG_codegen: " << getOperationName() << " [" << getOpName()
+               << "]\n";
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  getNCHW(shape, n, c, h, w);
+
+  gaddr_t input_gaddr = getPreviousOpAddress(op);
+  gaddr_t output_gaddr = getOpAddress(op);
+  gaddr_t table_data_lut = getWeightOpAddress(table()->getDefiningOp());
+  gaddr_t table_data_mantissa_lut = getWeightOpAddress(table_mantissa()->getDefiningOp());
+
+  int layer_id = mlir::getOpLayerId(op);
+
+  // bf16_sqrt_fixed_forward_bmkernel(*backend_ctx,
+  //                                 0,        // stream_id,
+  //                                 0,        // inst_id,
+  //                                 layer_id, // layer_id,
+  //                                 nullptr,  // const u32 *depends,
+  //                                 0,        // depends_len,
+  //                                 input_gaddr, output_gaddr, table_data_lut,table_data_mantissa_lut,
+  //                                 n, c, h, w);
+  return success();
+}
+
+LogicalResult tpu::TG_BF16_Div_LutOp::codegen(void *ctx) {
+  llvm::errs() << "TG_codegen: " << getOperationName() << " [" << getOpName()
+               << "]\n";
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  getNCHW(shape, n, c, h, w);
+
+  gaddr_t input_gaddr = getPreviousOpAddress(op);
+  gaddr_t output_gaddr = getOpAddress(op);
+  gaddr_t table_data_lut = getWeightOpAddress(table()->getDefiningOp());
+  gaddr_t table_data_mantissa_lut = getWeightOpAddress(table_mantissa()->getDefiningOp());
+
+  int layer_id = mlir::getOpLayerId(op);
+
+  // bf16_reciprocal_fixed_forward_bmkernel(*backend_ctx,
+  //                                 0,        // stream_id,
+  //                                 0,        // inst_id,
+  //                                 layer_id, // layer_id,
+  //                                 nullptr,  // const u32 *depends,
+  //                                 0,        // depends_len,
+  //                                 input_gaddr, output_gaddr, table_data_lut,table_data_mantissa_lut,
+  //                                 n, c, h, w);  
+  return success();
+}
+
 LogicalResult tpu::TG_INT8_PermuteOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName() << " [" << getOpName()
                << "]\n";
@@ -1254,6 +1312,17 @@ LogicalResult tpu::TG_BF16_PermuteOp::codegen(void *ctx) {
   auto output_type = output()->getType().template cast<TensorType>();
   std::vector<int64_t> o_s(output_type.getShape());
 
+  std::vector<int64_t> i_nchw(4,1);
+  std::vector<int64_t> o_nchw(4,1);
+
+  for (uint64_t i = 0; i < i_s.size(); i++) {
+    i_nchw[i] = i_s[i];
+  }
+
+  for (uint64_t i = 0; i < o_s.size(); i++) {
+    o_nchw[i] = o_s[i];
+  }
+
   std::vector<int> orders;
   orders.push_back(this->order0().getLimitedValue());
   orders.push_back(this->order1().getLimitedValue());
@@ -1274,7 +1343,6 @@ LogicalResult tpu::TG_BF16_PermuteOp::codegen(void *ctx) {
       break;
     }
   }
-#if 0
   bf16_permute_fixed_forward_kernel(
       *backend_ctx,
       0, //stream_id,
@@ -1288,9 +1356,6 @@ LogicalResult tpu::TG_BF16_PermuteOp::codegen(void *ctx) {
       o_nchw[0], o_nchw[1], o_nchw[2], o_nchw[3],
       orders[0], orders[1], orders[2], orders[3],
       need_permute_);
-#else
-  assert(false&&"not support permute bf16 backend now");
-#endif
   return success();
 }
 

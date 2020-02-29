@@ -11,7 +11,7 @@ DO_CALIBRATION=0
 if [ $DO_CALIBRATION -eq 1 ]; then
 # calibration
 python ../../../../mlir/externals/calibration_tool/run_calibration.py \
-    ssd300 ssd300_opt.mlir \
+    ssd300_face ssd300_opt.mlir \
     $DATA_PATH/input.txt \
     --input_num=100
 

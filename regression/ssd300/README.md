@@ -95,6 +95,10 @@ mlir fp32 accuracy test result:
 
 ## History
 
+- 20200227
+
+Add SSD300 INT8 regression after refactor IR. 
+
 - 20200203
 
 Fix concat backend issue. Fix softmax accuracy loss. 
@@ -115,5 +119,5 @@ Finish SSD300 fp32 support.
 
 1. cpu layer is not supported currently.
 
-2. Use cpu reshape(last reshape) as cpu layer to reduce softmax accuracy loss. Need to find better solution. 
+2. Need to implement decompose Normalize op pass.
 

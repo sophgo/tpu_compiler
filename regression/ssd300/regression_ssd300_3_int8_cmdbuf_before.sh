@@ -15,10 +15,8 @@ mlir-translate \
 mlir-opt \
     --assign-layer-id \
     --print-tpu-op-info \
-    --convert-priorbox-to-loadweight \
     --tpu-op-info-filename ssd300_op_info.csv \
-    --fuse-relu \
-    --convert-scale-to-dwconv \
+    --canonicalize \
     ssd300.mlir \
     -o ssd300_opt.mlir
 
