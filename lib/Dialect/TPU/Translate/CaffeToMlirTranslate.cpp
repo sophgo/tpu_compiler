@@ -1173,6 +1173,7 @@ void CaffeImporter::convertInputLayer(mlir::Block *block,
   // note input is a inserted layer, we should use top blob name rather than layer_name
   //attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name())));
   attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.top(0))));
+  attrs.push_back(builder_.getNamedAttr("quant", getDefaultQuantParam(builder_)));
   auto op = OpBuilder(block).create<tpu::InputOp>(
       builder_.getUnknownLoc(), result_type,
       ArrayRef<Value *>{operands}, ArrayRef<NamedAttribute>{attrs});

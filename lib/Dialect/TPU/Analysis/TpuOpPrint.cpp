@@ -97,22 +97,13 @@ public:
               file_os << "," << 0;
             }
             file_os << "\n";
-          } else {
-            // to be removed
-            int processed = 0;
-            processed += printTpuOpInfo<tpu::InputOp>(op, file_os);
-            if (op->getName().getDialect().str() != "tpu"
-                || isa<tpu::QuantizationOp>(op)
-                || isa<tpu::DequantizationOp>(op)
+          } else if (op->getName().getDialect().str() != "tpu"
                 || isa<tpu::WeightFileOp>(op)
                 || isa<tpu::LoadWeightOp>(op)
                 || isa<tpu::NoneOp>(op)) {
-              processed = 1;
-            }
-            if (!processed) {
-              llvm::errs() << "printTpuOpInfo didn't handle " << op->getName() << "\n";
-              assert(false);
-            }
+          } else {
+            llvm::errs() << "printTpuOpInfo didn't handle " << op->getName() << "\n";
+            assert(false);
           }
         });
       }

@@ -25,6 +25,40 @@
 include "mlir/Dialect/TPU/TPUBase.td"
 
 //===----------------------------------------------------------------------===//
+// Quantitzation/Dequantization.
+//===----------------------------------------------------------------------===//
+
+def TPU_QuantOp: TPU_Op<"quant",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuOpInterpInterface>]> {
+  let summary = "Quantization/Dequantization operator";
+
+  let description = [{
+    Perform quantization or dequantization among different QuantMode.
+
+    - From `None` to `INT8`
+      Quantize a activation tensor into int8, according to its threshold value.
+      Q(x) = x * 128 / threshold, and saturate to (-128, 127) range
+
+    - From `INT8` to `None`
+      Dequantize a activation tensor from int8 back to float.
+      x = Q(x) * threshold / 128
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    TPU_QuantModeAttr:$from,
+    TPU_QuantModeAttr:$to,
+    OptionalAttr<F32Attr>:$threshold,
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
+//===----------------------------------------------------------------------===//
 // TPU Misc op definitions.
 //===----------------------------------------------------------------------===//
 

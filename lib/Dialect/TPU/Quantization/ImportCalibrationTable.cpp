@@ -329,11 +329,18 @@ public:
     fn.walk([&](Operation *op) {
       os << op->getName() << "\n";
 
-      if ( !failed(setThresholdFromMap(op, threshold_map))) {
-
+      if (op->getName().getDialect().str() != "tpu"
+          || isa<tpu::WeightFileOp>(op)
+          || isa<tpu::LoadWeightOp>(op)
+          || isa<tpu::NoneOp>(op)) {
+        // no need to assign
+      } else if ( !failed(setThresholdFromMap(op, threshold_map))) {
+      } else if (isa<tpu::ReshapeOp>(op)) {
+        // ok not to be assigned
       } else {
-      // to be deprecated
-      addThresholdAttr<tpu::InputOp>(builder, threshold_map, op);
+        llvm::errs() << "setThresholdFromMap didn't handle "
+                     << op->getName() << "\n";
+        assert(false);
       }
     });
 
@@ -428,21 +435,6 @@ private:
       os << "  > " << op_name << ", " << std::to_string(threshold) << "\n";
     }
     return ret;
-  }
-
-  // to be deprecated
-  template<typename T>
-  void addThresholdAttr(Builder &builder, std::map<std::string, float> &threshold_map,
-      Operation *op) {
-      auto cast_op = llvm::dyn_cast_or_null<T>(op);
-      if (cast_op) {
-        std::string op_name = mlir::getOpName(op).str();
-        float threshold;
-        assert(threshold_map[op_name]);
-        threshold = threshold_map[op_name];
-        os << "  > " << op_name << ", " << std::to_string(threshold) << "\n";
-        setOpThreshold(op, threshold);
-      }
   }
 
   llvm::raw_ostream &os;

@@ -450,67 +450,6 @@ def TPU_CropOp: TPU_Op<"crop",
 
 def TPU_DeConv2DOp : TPU_ConvOp<"deconv_2d", "Deconvolution">;
 
-def TPU_DivOp : TPU_LutOp<"div", "Div">;
-
-def TPU_EltwiseAddOp : TPU_EltwiseOp<"eltwise_add", "Add">;
-def TPU_EltwiseMulOp : TPU_EltwiseOp<"eltwise_mul", "Mul">;
-def TPU_EltwiseMaxOp : TPU_EltwiseOp<"eltwise_max", "Max">;
-
-def TPU_FullyConnectedOp : TPU_Op<"fully_connected",
-      [NoSideEffect,
-       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
-       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
-       DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
-  let summary = "Fully connected operator";
-
-  let description = [{
-    Performs scale on input.
-    Inputs:
-      `inputs`          : required, input tensors.
-      `filter`          : required, filter tensors.
-      `bias`            : optional, multiplier tensors.
-      `quant_scale`     : optional,
-      `quant_zeropoint` : optional,
-      `quant_rshift`    : optional,
-      `quant_multiplier`: optional,
-
-    Attributes:
-      `do_relu`         : required, if need to preform relu on result.
-      `quant`           : required, a QuantParam struct attributes.
-      `name`            : required, name for calibration, comparing, or debug.
-      `layer_id`        : optional, id for profiling.
-
-    Result:
-      `output`          : result tensor.
-
-    Interfaces or Traits:
-      `NoSideEffect`
-      `TPU_QuantSupportPerChannel`
-      `TPU_QuantSupportAsymmetric`
-      `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpInterpInterface` : support interperter
-      `TpuOpQuantInterface`  : support quantization
-      `TpuOpLowerInterface`  : support lower to TPU TG Ops
-  }];
-
-  let arguments = (
-    ins AnyTensor:$input,
-    AnyTensor:$filter,
-    TPU_TensorOfOrNone<[F32, BF16, I16, I8]>:$bias,
-    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_scale,
-    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_zeropoint,
-    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_rshift,
-    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_multiplier,
-    DefaultValuedAttr<BoolAttr, "false">:$do_relu,
-    TPU_QuantParamAttr:$quant,
-    StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
-  );
-
-  let results = (outs AnyTensor:$output);
-}
-
 def TPU_DetectionOutputOp : TPU_Op<"detectionoutput",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
@@ -564,6 +503,97 @@ def TPU_DetectionOutputOp : TPU_Op<"detectionoutput",
   let results = (outs AnyTensor:$output);
 }
 
+def TPU_DivOp : TPU_LutOp<"div", "Div">;
+
+def TPU_EltwiseAddOp : TPU_EltwiseOp<"eltwise_add", "Add">;
+def TPU_EltwiseMulOp : TPU_EltwiseOp<"eltwise_mul", "Mul">;
+def TPU_EltwiseMaxOp : TPU_EltwiseOp<"eltwise_max", "Max">;
+
+def TPU_FullyConnectedOp : TPU_Op<"fully_connected",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
+       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
+       DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
+  let summary = "Fully connected operator";
+
+  let description = [{
+    Performs scale on input.
+
+    Inputs:
+      `inputs`          : required, input tensors.
+      `filter`          : required, filter tensors.
+      `bias`            : optional, multiplier tensors.
+      `quant_scale`     : optional,
+      `quant_zeropoint` : optional,
+      `quant_rshift`    : optional,
+      `quant_multiplier`: optional,
+
+    Attributes:
+      `do_relu`         : required, if need to preform relu on result.
+      `quant`           : required, a QuantParam struct attributes.
+      `name`            : required, name for calibration, comparing, or debug.
+      `layer_id`        : optional, id for profiling.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TPU_QuantSupportPerChannel`
+      `TPU_QuantSupportAsymmetric`
+      `TpuOpCommonInterface` : support common TPU Op interface
+      `TpuOpInterpInterface` : support interperter
+      `TpuOpQuantInterface`  : support quantization
+      `TpuOpLowerInterface`  : support lower to TPU TG Ops
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    AnyTensor:$filter,
+    TPU_TensorOfOrNone<[F32, BF16, I16, I8]>:$bias,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_scale,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_zeropoint,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_rshift,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_multiplier,
+    DefaultValuedAttr<BoolAttr, "false">:$do_relu,
+    TPU_QuantParamAttr:$quant,
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
+def TPU_InputOp: TPU_Op<"input",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
+       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
+       DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
+  let summary = "Input operator";
+
+  let description = [{
+    Produces a tensor from input, primarily for carrying threshold_y.
+
+    Inputs:
+      `inputs`          : required, input tensors.
+
+    Attributes:
+      `quant`           : required, a QuantParam struct attributes.
+      `name`            : required, name for calibration, comparing, or debug.
+      `layer_id`        : optional, id for profiling.
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    TPU_QuantParamAttr:$quant,
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
+  );
+
+  let results = (outs AnyTensor:$output);
+}
 
 def TPU_LeakyReluOp: TPU_Op<"leaky_relu",
       [NoSideEffect,
@@ -1383,81 +1413,6 @@ def TPU_UpsampleOp: TPU_Op<"upsample",
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
     OptionalAttr<NonNegativeI32Attr>:$layer_id
-  );
-
-  let results = (outs AnyTensor:$output);
-}
-
-
-
-
-
-
-
-
-
-
-
-
-// to be removed
-
-def TPU_InputOp: TPU_Op<"input",
-      [NoSideEffect, DeclareOpInterfaceMethods<TpuInterface>]> {
-  let summary = "Input operator";
-
-  let description = [{
-    Produces a tensor from function input, primarily for carrying threshold_y.
-  }];
-
-  let arguments = (
-    ins AnyTensor:$input,
-    OptionalAttr<StrAttr>:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
-    OptionalAttr<NonNegativeI64Attr>:$offset,
-    OptionalAttr<F32Attr>:$threshold_y,
-    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
-  );
-
-  let results = (outs AnyTensor:$output);
-}
-
-//===----------------------------------------------------------------------===//
-// TPU Quantization op definitions.
-//===----------------------------------------------------------------------===//
-def TPU_QuantizationOp: TPU_Op<"quantization",
-      [NoSideEffect, DeclareOpInterfaceMethods<TpuInterface>]> {
-  let summary = "Quantization operator";
-
-  let description = [{
-    Quantize a activation tensor into int8, according to its threshold value.
-      Q(x) = x * 128 / threshold, and saturate to (-128, 127) range
-  }];
-
-  let arguments = (
-    ins AnyTensor:$input,
-    OptionalAttr<StrAttr>:$name,
-    OptionalAttr<NonNegativeI64Attr>:$offset,
-    OptionalAttr<F32Attr>:$threshold,
-    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
-  );
-
-  let results = (outs AnyTensor:$output);
-}
-
-def TPU_DequantizationOp: TPU_Op<"dequantization",
-      [NoSideEffect, DeclareOpInterfaceMethods<TpuInterface>]> {
-  let summary = "Dequantization operator";
-
-  let description = [{
-    Dequantize a activation tensor from int8 back to float.
-      x = Q(x) * threshold / 128
-  }];
-
-  let arguments = (
-    ins AnyTensor:$input,
-    OptionalAttr<StrAttr>:$name,
-    OptionalAttr<F32Attr>:$threshold,
-    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
   );
 
   let results = (outs AnyTensor:$output);

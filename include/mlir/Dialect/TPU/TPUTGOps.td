@@ -298,6 +298,51 @@ def TPU_TG_INT8_FullyConnectedOp : TPU_TG_FullyConnectedOp<"tg_int8_fully_connec
 def TPU_TG_BF16_FullyConnectedOp : TPU_TG_FullyConnectedOp<"tg_bf16_fully_connected", "Bf16">;
 
 
+class TPU_TG_InputOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
+  let summary = "TG " # opQuant # " input operator.";
+
+  let description = [{
+    Produces a tensor as input data.
+
+    Inputs:
+      `input`           : required, the input activation tensor.
+
+    Attributes:
+      `region`          : required, the memory region to reside in, could be
+                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
+                          (backend does not support `INPUT`, `OUTPUT` for now)
+      `gaddr`           : optional, address in global memory, normally the
+                                     offset within the memory region.
+
+      `name`            : required, name for comparing, or debug.
+      `layer_id`        : optional, id for profiling.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface`    : support common TPU TG Op interface.
+      `TpuTGOpCodegenInterface` : support generate TPU instuctions.
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
+    OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+def TPU_TG_INT8_InputOp : TPU_TG_InputOp<"tg_int8_input", "Int8">;
+def TPU_TG_BF16_InputOp : TPU_TG_InputOp<"tg_bf16_input", "Bf16">;
+
+
 class TPU_TG_LeakyReluOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
