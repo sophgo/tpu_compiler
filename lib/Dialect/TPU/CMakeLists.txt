@@ -56,3 +56,4 @@ target_link_libraries(MLIRTPU
 
 add_subdirectory(Translate)
 add_subdirectory(DeepFusion)
+add_subdirectory(MemRefLowering)

@@ -31,6 +31,7 @@ set(LIBS
   MLIRGPUtoSPIRVTransforms
   MLIRTPU
   MLIRTPUDeepFusion
+  MLIRTPUMemRefLowering
   MLIRLinalg
   MLIRLLVMIR
   MLIRLoopOps
