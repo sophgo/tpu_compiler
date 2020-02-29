@@ -672,6 +672,17 @@ Value* tpu::PoolMax2DOp::convertToTG() {
   return nullptr;
 }
 
+Value* tpu::PowerOp::convertToTG() {
+  llvm::errs() << "lowerToTG: " << getOperationName()
+               << " [" << getOpName() << "]\n";
+  //Operation *op = this->getOperation();
+  //auto builder = Builder(op->getContext());
+  //  TensorFile *wTF = getWeightTensorFile(op);
+
+  assert(false);
+  return nullptr;
+}
+
 Value *tpu::PReluOp::convertToTG() {
   llvm::errs() << "lowerToTG: " << getOperationName() << " [" << getOpName()
                << "]\n";
@@ -720,38 +731,6 @@ Value *tpu::PReluOp::convertToTG() {
   return nullptr;
 }
 
-Value *tpu::ShuffleChannelOp::convertToTG() {
-  llvm::errs() << "lowerToTG: " << getOperationName() << " [" << getOpName()
-               << "]\n";
-  Operation *op = this->getOperation();
-  auto builder = Builder(op->getContext());
-  //   TensorFile *wTF = getWeightTensorFile(op);
-
-  std::vector<Value *> operands;
-  operands.push_back(input());
-
-  std::vector<NamedAttribute> attrs;
-  attrs.push_back(builder.getNamedAttr("group", groupAttr()));
-  attrs.push_back(builder.getNamedAttr("name", nameAttr()));
-  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
-
-  if (getOpQuant() == "INT8") {
-    assert(getOpQuantParamType() == "NONE");
-    auto newOp = OpBuilder(op).create<tpu::TG_INT8_ShuffleChannelOp>(
-        op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
-        ArrayRef<NamedAttribute>{attrs});
-    return newOp.getResult();
-  } else if (getOpQuant() == "BF16") {
-    auto newOp = OpBuilder(op).create<tpu::TG_BF16_ShuffleChannelOp>(
-        op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
-        ArrayRef<NamedAttribute>{attrs});
-    return newOp.getResult();
-  }
-
-  assert(false);
-  return nullptr;
-}
-
 Value* tpu::ReshapeOp::convertToTG() {
   llvm::errs() << "lowerToTG: " << getOperationName()
                << " [" << getOpName() << "]\n";
@@ -783,6 +762,38 @@ Value* tpu::ReshapeOp::convertToTG() {
     assert(false);
   }
 
+  return nullptr;
+}
+
+Value *tpu::ShuffleChannelOp::convertToTG() {
+  llvm::errs() << "lowerToTG: " << getOperationName() << " [" << getOpName()
+               << "]\n";
+  Operation *op = this->getOperation();
+  auto builder = Builder(op->getContext());
+  //   TensorFile *wTF = getWeightTensorFile(op);
+
+  std::vector<Value *> operands;
+  operands.push_back(input());
+
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder.getNamedAttr("group", groupAttr()));
+  attrs.push_back(builder.getNamedAttr("name", nameAttr()));
+  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
+
+  if (getOpQuant() == "INT8") {
+    assert(getOpQuantParamType() == "NONE");
+    auto newOp = OpBuilder(op).create<tpu::TG_INT8_ShuffleChannelOp>(
+        op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  } else if (getOpQuant() == "BF16") {
+    auto newOp = OpBuilder(op).create<tpu::TG_BF16_ShuffleChannelOp>(
+        op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  }
+
+  assert(false);
   return nullptr;
 }
 
@@ -876,6 +887,17 @@ Value *tpu::SqrtOp::convertToTG() {
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
   }
+  assert(false);
+  return nullptr;
+}
+
+Value* tpu::TanHOp::convertToTG() {
+  llvm::errs() << "lowerToTG: " << getOperationName()
+               << " [" << getOpName() << "]\n";
+  //Operation *op = this->getOperation();
+  //auto builder = Builder(op->getContext());
+  //  TensorFile *wTF = getWeightTensorFile(op);
+
   assert(false);
   return nullptr;
 }
@@ -1514,8 +1536,8 @@ struct LowerWeightLutOpPattern : public RewritePattern {
 
     auto tableOp = cast<tpu::LoadWeightOp>(lutOp.getOperand(1)->getDefiningOp());
     auto table_mantissaOp = cast<tpu::LoadWeightOp>(lutOp.getOperand(2)->getDefiningOp());
-  
-    
+
+
     if (tableOp.lowered()) {
       // lowered already
       return matchFailure();
@@ -1582,7 +1604,7 @@ public:
         LowerWeightLutOpPattern<tpu::DivOp>,
         LowerWeightPReluOpPattern,
         LowerWeightLutOpPattern<tpu::SigmoidOp>,
-        LowerWeightLutOpPattern<tpu::SqrtOp>,        
+        LowerWeightLutOpPattern<tpu::SqrtOp>,
         LowerWeightFullyConnectedOpPattern
         >(context);
     applyPatternsGreedily(fn, patterns_lower);
