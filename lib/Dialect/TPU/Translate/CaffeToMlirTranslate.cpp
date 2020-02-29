@@ -1180,7 +1180,8 @@ void CaffeImporter::convertInputLayer(mlir::Block *block,
 
   tensor_map_[layer_param.top(0)] = result_var;
 }
-#if 0
+
+#if 1
 void CaffeImporter::convertNormalizeLayer(mlir::Block *block,
     caffe::Layer<float> *layer) {
 
@@ -1289,10 +1290,10 @@ void CaffeImporter::convertNormalizeLayer(mlir::Block *block,
 /*
   Currenly , decompose Normalize Op to below 6 Ops.
   1. Eltwise Mul Op(do power(input,2))
-  2. Conv Op (do cross channel element add) 
+  2. Conv Op (do cross channel element add)
   3. Sqrt Op (do element square root)
   4. Div Op  (do element 1/input)
-  5. Eltwise Mul OP(do normalize) 
+  5. Eltwise Mul OP(do normalize)
   6. Scale Op(do scale)
 */
 
@@ -1383,7 +1384,7 @@ void CaffeImporter::convertNormalizeLayer(mlir::Block *block,
       "has_table", builder_.getBoolAttr(false)));
   attrs_sqrt.push_back(
       builder_.getNamedAttr("quant", getDefaultQuantParam(builder_)));
-  
+
 
   auto sqrt_op = OpBuilder(block).create<tpu::SqrtOp>(
       builder_.getUnknownLoc(), result_type,
@@ -1404,7 +1405,7 @@ void CaffeImporter::convertNormalizeLayer(mlir::Block *block,
       "has_table", builder_.getBoolAttr(false)));
   attrs_div.push_back(
       builder_.getNamedAttr("quant", getDefaultQuantParam(builder_)));
-  
+
   auto div_op = OpBuilder(block).create<tpu::DivOp>(
       builder_.getUnknownLoc(), result_type,
       ArrayRef<Value *>{operands_div}, ArrayRef<NamedAttribute>{attrs_div});

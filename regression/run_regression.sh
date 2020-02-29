@@ -10,7 +10,7 @@ net_list=(
   "retinaface_res50"
   "efficientnet_b0"
   "inception_v4"
-  #"ssd300"
+  "ssd300"
 )
 
 if [ ! -z "$1" ]; then

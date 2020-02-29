@@ -4,7 +4,7 @@ set -e
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 source $DIR/../../envsetup.sh
 
-COMPARE_ALL=0
+COMPARE_ALL=1
 CHECK_INFERENCE_RESULT=0
 DO_CALIBRATION=0
 
