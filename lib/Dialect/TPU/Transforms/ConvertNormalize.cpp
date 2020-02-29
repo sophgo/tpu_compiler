@@ -63,12 +63,18 @@ struct TpuDecomposeNormalizePattern : public RewritePattern {
     auto weight_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
         normalizeOp.getOperand(1)->getDefiningOp());
     assert(weight_op);
-
+    assert(weight_op.name().hasValue());
+    auto tensor_name = weight_op.name().getValue();
+    std::unique_ptr<std::vector<float> >  scale;
     auto type = weight_op.getResult()->getType().cast<TensorType>();
-    float *scale = (float*)wTF->readTensor<float>(op_name, type)->data();
-    wTF->deleteTensor<float>(op_name);
+
+    scale = wTF->readTensor<float>(tensor_name, type);
+    wTF->deleteTensor<float>(tensor_name);
 
     auto result_type = normalizeOp.getResult()->getType();
+
+      llvm::errs() << "Normalize Op tensor_name : " << tensor_name << "\n";
+
 
     ///
     /// separate Normalize op to below 6 ops.
@@ -252,7 +258,7 @@ struct TpuDecomposeNormalizePattern : public RewritePattern {
     auto scale_name = op_name+"_scale_weight";
     auto scale_type = RankedTensorType::get({c}, elementType_);
 
-    wTF->addTensor(scale_name, scale, scale_type);
+    wTF->addTensor(scale_name, scale->data(), scale_type);
     std::vector<NamedAttribute> scale_weight_attrs;
 
     scale_weight_attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(scale_name)));
