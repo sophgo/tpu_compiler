@@ -334,7 +334,6 @@ public:
       } else {
       // to be deprecated
       addThresholdAttr<tpu::InputOp>(builder, threshold_map, op);
-      addThresholdAttr<tpu::PowerOp>(builder, threshold_map, op);
       }
     });
 

@@ -28,6 +28,8 @@ add_llvm_library(MLIRTPU
   Quantization/ImportCalibrationTable.cpp
   Quantization/QuantizeInt8.cpp
   Quantization/QuantizeBf16.cpp
+  Quantization/GenLutInt8Table.cpp
+  Quantization/GenLutBf16Table.cpp
   Quantization/GenTanHTable.cpp
   Quantization/GenSqrtTable.cpp
   Quantization/GenDivTable.cpp
