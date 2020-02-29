@@ -414,14 +414,6 @@ public:
         >(context, &pos, neuronMapFile->os(), clNeuronAlignment);
     applyPatternsGreedily(fn, patterns);
 
-    // to be removed
-    patterns.clear();
-    patterns.insert<
-        TpuQuantizationOpPattern<tpu::PowerOp>,
-        TpuQuantizationOpPattern<tpu::TanHOp>
-        >(context, &pos, neuronMapFile->os(), clNeuronAlignment);
-    applyPatternsGreedily(fn, patterns);
-
     // no copy address assignment
     patterns.clear();
     patterns.insert<

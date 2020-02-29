@@ -697,7 +697,7 @@ static LogicalResult doLUTOpInterpret(Operation *op, StringRef &type,
     std::vector<int64_t> shape;
     int64_t input_size, n, c, h, w;
     getTensorShapeAndSize(op->getOperand(0), shape, input_size);
-    getNCHW(shape, n, c, h, w);      
+    getNCHW(shape, n, c, h, w);
 
     if (type == "Div"){
       float eps = 1.0e-5;
@@ -708,7 +708,7 @@ static LogicalResult doLUTOpInterpret(Operation *op, StringRef &type,
       for (int i = 0; i < input_size; ++i) {
         output[i] = pow(input[i],0.5);
       }
-    }else if (type == "Sigmoid"){    
+    }else if (type == "Sigmoid"){
       my_sigmoid(input, output, n, c, h, w);
     }else{
       assert(false&&"not support LUT op type");
@@ -1129,7 +1129,7 @@ LogicalResult tpu::NormalizeOp::interpret(
   assert(ret == 0);
   valueMapping[result] = std::move(resultT);
   return success();
-}                          
+}
 
 LogicalResult tpu::PermuteOp::interpret(
     DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
@@ -1198,6 +1198,145 @@ LogicalResult tpu::PoolMax2DOp::interpret(
   return doPool2DOpInterpret<tpu::PoolMax2DOp>(op, false, valueMapping);
 }
 
+LogicalResult tpu::PowerOp::interpret(
+    DenseMap<Value *, std::shared_ptr<std::vector<float>>> &valueMapping) {
+  //Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name()
+                          << "]\n";);
+#if 0
+  if (auto op = dyn_cast<tpu::PowerOp>(opInst)) {
+    LLVM_DEBUG(llvm::errs() << "PowerOp" << "\n";);
+    assert(false);
+    auto opdT = getOperandTensors(opInst, valueMapping);
+    auto result = op.getResult();
+    LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";);
+    std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
+    assert(shape.size() <= 4);
+    auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
+    auto resultT = std::make_unique<std::vector<float> >(size);
+
+    int nchw[4] = {1, 1, 1, 1};
+    float power = op.power().convertToFloat();
+    float scale = op.scale().convertToFloat();
+    float shift = op.shift().convertToFloat();
+    //float rshift = op.rshift().getValue().convertToFloat();
+    LLVM_DEBUG(llvm::errs() << "  power" << power << ", scale " << scale << ", shift " << shift << "\n";);
+    auto input_type = op.x()->getType().cast<TensorType>();
+    std::vector<int64_t> i_s(input_type.getShape());
+    auto output_type = op.y()->getType().cast<TensorType>();
+    std::vector<int64_t> o_s(output_type.getShape());
+    assert((i_s == o_s) && "input shape not equal to output shape");
+    for (uint64_t i = 0; i < i_s.size(); i++) {
+      nchw[i] = i_s[i];
+    }
+
+    ///
+    /// How to get Qscale value:
+    ///
+    /// X = Sx*Qy
+    /// Y = Sy*Qy
+    /// Sx = thrx /127
+    /// Sy = thry /127
+    ///
+    /// Y=X*X
+    /// ==> Sy*Qy=Sx*Qx*Sx*Qx
+    /// ==> Qy = ((thrx*thrx/(127))*(Qx*Qx))/thry
+    /// ==> Qscale = (thrx*thrx/127)/thry
+    ///
+
+    float threshold_y,threshold_x,qscale;
+    int8_t rshift;
+    uint32_t multiplier;
+    if (op.quant() != "NONE"){
+
+      threshold_y = op.threshold_y().getValue().convertToFloat();
+      threshold_x = getPreviousOpThreshold(op);
+      qscale = (threshold_x*threshold_x) /(127.0*threshold_y);
+    }
+
+    if (op.quant() == "INT8"|| op.quant() == "INT8_PER_CHANNEL") {
+      rshift = findRShiftAndMultiplierFromQScale(qscale);
+      multiplier = findMultiplierI8FromQScaleAndRShift(qscale, rshift);
+    }else if(op.quant() == "INT8_MULTIPLIER"){
+      rshift = (float)findRShiftAndMultiplierFromQScale(qscale, &multiplier, true,255);
+    }else if(op.quant() == "NONE"){
+
+    }else{
+      assert(0&&"no other quant method is support");
+    }
+
+    #define POWER_INPUT_NR (1)
+    float *input[POWER_INPUT_NR];
+    for (int index = 0; index < POWER_INPUT_NR; ++index) {
+      input[index] = (float *)opdT[index]->data();
+    }
+
+    float *output = (float *)resultT.get()->data();
+#if 1
+    if (op.quant() == "INT8"|| op.quant() == "INT8_PER_CHANNEL"||op.quant() == "INT8_MULTIPLIER") {
+      assert(threshold_x != 0.0);
+      std::vector<int> data(256, 0);
+
+      for (int idx = 0; idx < 256; ++idx) {
+        char lutInput = static_cast<char>(idx);
+        float index = lutInput * threshold_x / 127.0;
+        float lutOutput = pow(index,power) * 127.0 / threshold_y;
+        int lutOutputI32 = std::floor(lutOutput + 0.5);
+        lutOutputI32 = (lutOutputI32 > 127)
+                           ? 127
+                           : (lutOutputI32 < -128) ? -128 : lutOutputI32;
+        data[idx] = lutOutputI32;
+      }
+      for (int i = 0; i < size; ++i) {
+        output[i] = data[(unsigned char)input[0][i]];
+      }
+    }
+    else
+#endif
+    {
+
+      if (op.quant() == "INT8"|| op.quant() == "INT8_PER_CHANNEL") {
+        scale = scale*(threshold_y/threshold_x)*multiplier;
+        shift = shift*(threshold_y/127.0)*multiplier;
+        scale = (float)applyRShiftAndSaturateInt8(scale, (uint32_t)rshift);
+        shift = (float)applyRShiftAndSaturateInt8(shift, (uint32_t)rshift);
+      }else if(op.quant() == "INT8_MULTIPLIER"){
+        scale = scale*(threshold_y/threshold_x);
+        shift = shift*(threshold_y/127.0);
+        scale = (float)applyMultiplierAndRShiftAndSaturateInt8(scale,rshift,  multiplier);
+        shift = (float)applyMultiplierAndRShiftAndSaturateInt8(shift,rshift,  multiplier);
+      }
+
+      int ret = my_power(input[0], output, nchw[0], nchw[1], nchw[2], nchw[3], scale, shift, power);
+      assert(ret == 0);
+
+      // rshift and saturate on output
+
+      //assert(rshift);
+      for (int i = 0; i < size; ++i) {
+        if (op.quant() == "INT8"|| op.quant() == "INT8_PER_CHANNEL") {
+          output[i] = output[i]*multiplier;
+          output[i] = (float)applyRShiftAndSaturateInt8(output[i], (uint32_t)rshift);
+        }else if(op.quant() == "INT8_MULTIPLIER"){
+          output[i] = (float)applyMultiplierAndRShiftAndSaturateInt8(output[i],rshift,  multiplier);
+        }
+        /* else if (op.quant() == "BF16"){
+              auto tensor_bf16 = std::make_unique<std::vector<bfloat16> >(resultT->size());
+              FloatToBFloat16(resultT->data(), tensor_bf16->data(), resultT->size()); // with rounding
+              BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
+        }*/
+      }
+    }
+
+    valueMapping[result] = std::move(resultT);
+    return success();
+  }
+#endif
+
+  assert(false);
+  return success();
+}
+
 LogicalResult tpu::PReluOp::interpret(
     DenseMap<Value *, std::shared_ptr<std::vector<float>>> &valueMapping) {
   Operation *op = this->getOperation();
@@ -1222,7 +1361,7 @@ LogicalResult tpu::PReluOp::interpret(
   std::shared_ptr<std::vector<float>> rshift_pos = opdT[6];
   std::shared_ptr<std::vector<float>> multiplier_pos = opdT[7];
   std::shared_ptr<std::vector<float>> rshift_neg = opdT[8];
-  
+
   // compute in fp32
   my_prelu(input->data(), resultT->data(), n, c, h, w, negative_slope->data());
 
@@ -1247,36 +1386,6 @@ LogicalResult tpu::PReluOp::interpret(
   return success();
 }
 
-LogicalResult tpu::ReluOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
-  Operation *op = this->getOperation();
-  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
-
-  auto opdT = getOperandTensors(op, valueMapping);
-  auto result = this->getResult();
-  auto size = getTensorSize(result);
-  auto resultT = std::make_unique<std::vector<float> >(size);
-
-  // parse param
-  std::vector<int64_t> shape;
-  int64_t input_size, n, c, h, w;
-  getTensorShapeAndSize(this->input(), shape, input_size);
-  assert(input_size == size);
-  getNCHW(shape, n, c, h, w);
-
-  // get tensors
-  assert(opdT.size() == 1);
-  std::shared_ptr<std::vector<float> > input = opdT[0];
-
-  // compute in fp32
-  int ret = my_relu(input->data(), resultT->data(), n, c, h, w, 0.0f);
-  assert(ret == 0);
-
-  valueMapping[result] = std::move(resultT);
-
-  return success();
-}
-
 LogicalResult tpu::PriorBoxOp::interpret(
     DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();
@@ -1286,7 +1395,7 @@ LogicalResult tpu::PriorBoxOp::interpret(
   auto result = this->getResult();
   auto size = getTensorSize(result);
   auto resultT = std::make_unique<std::vector<float>>(size);
-      
+
   float min_size = this->min_size().convertToFloat();
   float max_size = this->max_size().convertToFloat();
   int aspect_ratios_size = this->aspect_ratios_size().getLimitedValue();
@@ -1481,7 +1590,37 @@ LogicalResult tpu::PriorBoxOp::interpret(
   }
 
   valueMapping[result] = std::move(resultT);
-  return success();                    
+  return success();
+}
+
+LogicalResult tpu::ReluOp::interpret(
+    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+  Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
+
+  auto opdT = getOperandTensors(op, valueMapping);
+  auto result = this->getResult();
+  auto size = getTensorSize(result);
+  auto resultT = std::make_unique<std::vector<float> >(size);
+
+  // parse param
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(this->input(), shape, input_size);
+  assert(input_size == size);
+  getNCHW(shape, n, c, h, w);
+
+  // get tensors
+  assert(opdT.size() == 1);
+  std::shared_ptr<std::vector<float> > input = opdT[0];
+
+  // compute in fp32
+  int ret = my_relu(input->data(), resultT->data(), n, c, h, w, 0.0f);
+  assert(ret == 0);
+
+  valueMapping[result] = std::move(resultT);
+
+  return success();
 }
 
 LogicalResult tpu::ReshapeOp::interpret(
@@ -1570,6 +1709,7 @@ LogicalResult tpu::ShuffleChannelOp::interpret(
 
   return success();
 }
+
 #if 0
 LogicalResult tpu::SigmoidOp::interpret(
     DenseMap<Value *, std::shared_ptr<std::vector<float>>> &valueMapping) {
@@ -1619,8 +1759,8 @@ LogicalResult tpu::SigmoidOp::interpret(
 
   return success();
 }
+#endif
 
-#endif 
 LogicalResult tpu::SliceOp::interpret(
     DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();
@@ -1674,6 +1814,75 @@ LogicalResult tpu::SoftmaxOp::interpret(
   }
 
   valueMapping[result] = std::move(resultT);
+  return success();
+}
+
+LogicalResult tpu::TanHOp::interpret(
+    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+  //Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
+
+#if 0
+  if (auto op = dyn_cast<tpu::TanHOp>(opInst)) {
+    LLVM_DEBUG(llvm::errs() << "TanHOp" << "\n";);
+    auto opdT = getOperandTensors(opInst, valueMapping);
+    auto result = op.getResult();
+    LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";);
+    std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
+    assert(shape.size() <= 4);
+    auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
+    auto resultT = std::make_unique<std::vector<float> >(size);
+
+    // TODO: do the actual compute here
+    int n, c, h, w;
+    //float negative_slope = op.negative_slope().convertToFloat();
+    auto input_type = op.x()->getType().cast<TensorType>();
+    std::vector<int64_t> i_s(input_type.getShape());
+    auto output_type = op.y()->getType().cast<TensorType>();
+    std::vector<int64_t> o_s(output_type.getShape());
+    assert((i_s == o_s) && "input shape not equal to output shape");
+    n = i_s[0];
+    c = i_s[1];
+    h = i_s[2];
+    w = i_s[3];
+    float *_input = (float *)opdT[0]->data();
+    float *input;
+    float *output = (float *)resultT.get()->data();
+
+    auto type = result->getType().cast<TensorType>();
+    input = _input;
+    if (type.getElementType().isBF16()) {
+      input = output;
+      // do dequantization
+      float threshold_x = getPreviousOpThreshold(op);
+      //float threshold_x = 8.0; //<! FIXME: not harcode here
+      LLVM_DEBUG(llvm::errs() << "  tanh dequantize, threshold_x = "
+                              << std::to_string(threshold_x) << "\n";);
+      // FIXME: find value by calibration
+      // dirty output
+      for (size_t i = 0; i < opdT[0]->size(); ++i) {
+        output[i] = input[i];
+        if (output[i] > threshold_x) {
+          output[i] = threshold_x;
+        }
+        else if(output[i] < -1.0 * threshold_x) {
+          output[i] = -1.0 * threshold_x;
+        }
+      }
+    }
+
+    int ret = my_tanh(input, output, n, c, h, w);
+    assert(ret == 0);
+    //dump_data_float_abs("mkldnn_output", mkldnn_output, n, c, oh, ow);
+    // TODO: End of compute, need refactor
+
+    valueMapping[result] = std::move(resultT);
+
+    return success();
+  }
+#endif
+
+  assert(false);
   return success();
 }
 
@@ -1789,65 +1998,6 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     return success();
   }
 
-
-  if (auto op = dyn_cast<tpu::TanHOp>(opInst)) {
-    LLVM_DEBUG(llvm::errs() << "TanHOp" << "\n";);
-    auto opdT = getOperandTensors(opInst, valueMapping);
-    auto result = op.getResult();
-    LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";);
-    std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
-    assert(shape.size() <= 4);
-    auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
-    auto resultT = std::make_unique<std::vector<float> >(size);
-
-    // TODO: do the actual compute here
-    int n, c, h, w;
-    //float negative_slope = op.negative_slope().convertToFloat();
-    auto input_type = op.x()->getType().cast<TensorType>();
-    std::vector<int64_t> i_s(input_type.getShape());
-    auto output_type = op.y()->getType().cast<TensorType>();
-    std::vector<int64_t> o_s(output_type.getShape());
-    assert((i_s == o_s) && "input shape not equal to output shape");
-    n = i_s[0];
-    c = i_s[1];
-    h = i_s[2];
-    w = i_s[3];
-    float *_input = (float *)opdT[0]->data();
-    float *input;
-    float *output = (float *)resultT.get()->data();
-
-    auto type = result->getType().cast<TensorType>();
-    input = _input;
-    if (type.getElementType().isBF16()) {
-      input = output;
-      // do dequantization
-      float threshold_x = getPreviousOpThreshold(op);
-      //float threshold_x = 8.0; //<! FIXME: not harcode here
-      LLVM_DEBUG(llvm::errs() << "  tanh dequantize, threshold_x = "
-                              << std::to_string(threshold_x) << "\n";);
-      // FIXME: find value by calibration
-      // dirty output
-      for (size_t i = 0; i < opdT[0]->size(); ++i) {
-        output[i] = input[i];
-        if (output[i] > threshold_x) {
-          output[i] = threshold_x;
-        }
-        else if(output[i] < -1.0 * threshold_x) {
-          output[i] = -1.0 * threshold_x;
-        }
-      }
-    }
-
-    int ret = my_tanh(input, output, n, c, h, w);
-    assert(ret == 0);
-    //dump_data_float_abs("mkldnn_output", mkldnn_output, n, c, oh, ow);
-    // TODO: End of compute, need refactor
-
-    valueMapping[result] = std::move(resultT);
-
-    return success();
-  }
-
   if (auto op = dyn_cast<tpu::QuantizationOp>(opInst)) {
     LLVM_DEBUG(llvm::errs() << "QuantizationOp" << "\n";);
     auto opdT = getOperandTensors(opInst, valueMapping);
@@ -1902,147 +2052,6 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     }
 
     valueMapping[result] = std::move(resultT);
-
-    return success();
-  }
-
-  if (auto op = dyn_cast<tpu::PowerOp>(opInst)) {
-    LLVM_DEBUG(llvm::errs() << "PowerOp" << "\n";);
-    assert(false);
-    auto opdT = getOperandTensors(opInst, valueMapping);
-    auto result = op.getResult();
-    LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";);
-    std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
-    assert(shape.size() <= 4);
-    auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
-    auto resultT = std::make_unique<std::vector<float> >(size);
-
-    int nchw[4] = {1, 1, 1, 1};
-    float power = op.power().convertToFloat();
-    float scale = op.scale().convertToFloat();
-    float shift = op.shift().convertToFloat();
-    //float rshift = op.rshift().getValue().convertToFloat();
-    LLVM_DEBUG(llvm::errs() << "  power" << power << ", scale " << scale << ", shift " << shift << "\n";);
-    auto input_type = op.x()->getType().cast<TensorType>();
-    std::vector<int64_t> i_s(input_type.getShape());
-    auto output_type = op.y()->getType().cast<TensorType>();
-    std::vector<int64_t> o_s(output_type.getShape());
-    assert((i_s == o_s) && "input shape not equal to output shape");
-    for (uint64_t i = 0; i < i_s.size(); i++) {
-      nchw[i] = i_s[i];
-    }
-
-    ///
-    /// How to get Qscale value:
-    ///
-    /// X = Sx*Qy
-    /// Y = Sy*Qy
-    /// Sx = thrx /127
-    /// Sy = thry /127
-    ///
-    /// Y=X*X
-    /// ==> Sy*Qy=Sx*Qx*Sx*Qx
-    /// ==> Qy = ((thrx*thrx/(127))*(Qx*Qx))/thry
-    /// ==> Qscale = (thrx*thrx/127)/thry
-    ///
-
-    float threshold_y,threshold_x,qscale;
-    int8_t rshift;
-    uint32_t multiplier;
-    if (op.quant() != "NONE"){
-
-      threshold_y = op.threshold_y().getValue().convertToFloat();
-      threshold_x = getPreviousOpThreshold(op);
-      qscale = (threshold_x*threshold_x) /(127.0*threshold_y);
-    }
-
-    if (op.quant() == "INT8"|| op.quant() == "INT8_PER_CHANNEL") {
-      rshift = findRShiftAndMultiplierFromQScale(qscale);
-      multiplier = findMultiplierI8FromQScaleAndRShift(qscale, rshift);
-    }else if(op.quant() == "INT8_MULTIPLIER"){
-      rshift = (float)findRShiftAndMultiplierFromQScale(qscale, &multiplier, true,255);
-    }else if(op.quant() == "NONE"){
-
-    }else{
-      assert(0&&"no other quant method is support");
-    }
-
-    #define POWER_INPUT_NR (1)
-    float *input[POWER_INPUT_NR];
-    for (int index = 0; index < POWER_INPUT_NR; ++index) {
-      input[index] = (float *)opdT[index]->data();
-    }
-
-    float *output = (float *)resultT.get()->data();
-#if 1
-    if (op.quant() == "INT8"|| op.quant() == "INT8_PER_CHANNEL"||op.quant() == "INT8_MULTIPLIER") {
-      assert(threshold_x != 0.0);
-      std::vector<int> data(256, 0);
-
-      for (int idx = 0; idx < 256; ++idx) {
-        char lutInput = static_cast<char>(idx);
-        float index = lutInput * threshold_x / 127.0;
-        float lutOutput = pow(index,power) * 127.0 / threshold_y;
-        int lutOutputI32 = std::floor(lutOutput + 0.5);
-        lutOutputI32 = (lutOutputI32 > 127)
-                           ? 127
-                           : (lutOutputI32 < -128) ? -128 : lutOutputI32;
-        data[idx] = lutOutputI32;
-      }
-      for (int i = 0; i < size; ++i) {
-        output[i] = data[(unsigned char)input[0][i]];
-      }
-    }
-    else
-#endif
-    {
-
-      if (op.quant() == "INT8"|| op.quant() == "INT8_PER_CHANNEL") {
-        scale = scale*(threshold_y/threshold_x)*multiplier;
-        shift = shift*(threshold_y/127.0)*multiplier;
-        scale = (float)applyRShiftAndSaturateInt8(scale, (uint32_t)rshift);
-        shift = (float)applyRShiftAndSaturateInt8(shift, (uint32_t)rshift);
-      }else if(op.quant() == "INT8_MULTIPLIER"){
-        scale = scale*(threshold_y/threshold_x);
-        shift = shift*(threshold_y/127.0);
-        scale = (float)applyMultiplierAndRShiftAndSaturateInt8(scale,rshift,  multiplier);
-        shift = (float)applyMultiplierAndRShiftAndSaturateInt8(shift,rshift,  multiplier);
-      }
-
-      int ret = my_power(input[0], output, nchw[0], nchw[1], nchw[2], nchw[3], scale, shift, power);
-      assert(ret == 0);
-
-      // rshift and saturate on output
-
-      //assert(rshift);
-      for (int i = 0; i < size; ++i) {
-        if (op.quant() == "INT8"|| op.quant() == "INT8_PER_CHANNEL") {
-          output[i] = output[i]*multiplier;
-          output[i] = (float)applyRShiftAndSaturateInt8(output[i], (uint32_t)rshift);
-        }else if(op.quant() == "INT8_MULTIPLIER"){
-          output[i] = (float)applyMultiplierAndRShiftAndSaturateInt8(output[i],rshift,  multiplier);
-        }
-        /* else if (op.quant() == "BF16"){
-              auto tensor_bf16 = std::make_unique<std::vector<bfloat16> >(resultT->size());
-              FloatToBFloat16(resultT->data(), tensor_bf16->data(), resultT->size()); // with rounding
-              BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
-        }*/
-      }
-    }
-
-    valueMapping[result] = std::move(resultT);
-    return success();
-  }
-
-  if (auto op = dyn_cast<ConstantOp>(opInst)) {
-    LLVM_DEBUG(llvm::errs() << "ConstantOp" << "\n";);
-    //op.dump();
-    // we don't use this Op anymore
-    assert(0);
-
-    // it it safe to ignore, put null pointer to the valueMapping
-    auto result = op.getResult();
-    valueMapping[result] = std::move(nullptr);
 
     return success();
   }

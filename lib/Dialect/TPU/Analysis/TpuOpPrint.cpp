@@ -100,12 +100,7 @@ public:
           } else {
             // to be removed
             int processed = 0;
-            processed += printTpuOpInfo<tpu::DetectionOutputOp>(op, file_os);
-            processed += printTpuOpInfo<tpu::DivOp>(op, file_os);
             processed += printTpuOpInfo<tpu::InputOp>(op, file_os);
-            processed += printTpuOpInfo<tpu::PowerOp>(op, file_os);
-            processed += printTpuOpInfo<tpu::SqrtOp>(op, file_os);
-            processed += printTpuOpInfo<tpu::TanHOp>(op, file_os);
             if (op->getName().getDialect().str() != "tpu"
                 || isa<tpu::QuantizationOp>(op)
                 || isa<tpu::DequantizationOp>(op)

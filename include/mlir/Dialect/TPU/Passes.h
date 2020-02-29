@@ -41,8 +41,11 @@ std::unique_ptr<OpPassBase<FuncOp>> createConvertScaleToDWConvPass();
 std::unique_ptr<OpPassBase<FuncOp>> createFuseReluPass();
 std::unique_ptr<OpPassBase<FuncOp>> createFuseEltwisePass();
 
-std::unique_ptr<OpPassBase<FuncOp>> createGenTanHTablePass();
+std::unique_ptr<OpPassBase<FuncOp>> createGenDivTablePass();
+//std::unique_ptr<OpPassBase<FuncOp>> createGenPowerWeightPass() ;
 std::unique_ptr<OpPassBase<FuncOp>> createGenSigmoidTablePass();
+std::unique_ptr<OpPassBase<FuncOp>> createGenSqrtTablePass();
+//std::unique_ptr<OpPassBase<FuncOp>> createGenTanHTablePass();
 
 std::unique_ptr<OpPassBase<FuncOp>> createImportCalibrationTablePass();
 std::unique_ptr<OpPassBase<FuncOp>> createQuantizeInt8Pass();
@@ -58,10 +61,6 @@ std::unique_ptr<OpPassBase<FuncOp>> createDeepFusionTL_LA2LW();
 
 std::unique_ptr<OpPassBase<FuncOp>> createConvertPriorBoxPass();
 std::unique_ptr<OpPassBase<FuncOp>> createConvertLoadeweightConcatToLoadweightPass();
-std::unique_ptr<OpPassBase<FuncOp>> createGenSqrtTablePass();
-std::unique_ptr<OpPassBase<FuncOp>> createGenPowerWeightPass() ;
-std::unique_ptr<OpPassBase<FuncOp>> createGenDivTablePass();
-std::unique_ptr<OpPassBase<FuncOp>> createGenSqrtTablePass();
 
 std::unique_ptr<OpPassBase<FuncOp>> createTpuLowerPass();
 

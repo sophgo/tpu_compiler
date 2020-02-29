@@ -828,6 +828,56 @@ def TPU_PoolMax2DOp : TPU_Op<"pool_max_2d",
   let results = (outs AnyTensor:$output);
 }
 
+def TPU_PowerOp: TPU_Op<"power",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
+       DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
+  let summary = "Power operator";
+
+  let description = [{
+    Power f(x) = (scale * x + shift) ^ power
+
+    Inputs:
+      `input`           : required, the input activation tensor.
+
+    Attributes:
+      `power`           : required
+      `scale`           : required
+      `shift`           : required
+      `quant`           : required, a QuantParam struct attributes.
+      `name`            : required, name for calibration, comparing, or debug.
+      `layer_id`        : optional, id for profiling.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TPU_QuantPerTensorOnly`
+      `TPU_QuantSupportAsymmetric`
+      `TPU_QuantSameInputResultScale` : input and result share same threshold
+                                        or scale (bypassed).
+      `TpuOpCommonInterface` : support common TPU Op interface
+      `TpuOpInterpInterface` : support interperter
+      `TpuOpQuantInterface`  : support quantization
+      `TpuOpLowerInterface`  : support lower
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    DefaultValuedAttr<F32Attr, "1.0">:$power,
+    DefaultValuedAttr<F32Attr, "1.0">:$scale,
+    DefaultValuedAttr<F32Attr, "0.0">:$shift,
+    TPU_QuantParamAttr:$quant,
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
 def TPU_PReluOp : TPU_Op<"prelu",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
@@ -1195,9 +1245,9 @@ def TPU_SliceOp: TPU_Op<"slice",
     ins AnyTensor:$input,
     DefaultValuedAttr<I32Attr, "1">:$axis,
     I32Attr:$offset,
+    TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
-    TPU_QuantParamAttr:$quant
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
   );
 
   let results = (outs AnyTensor:$output);
@@ -1246,6 +1296,50 @@ def TPU_SoftmaxOp: TPU_Op<"softmax",
 }
 
 def TPU_SqrtOp : TPU_LutOp<"sqrt", "Sqrt">;
+
+def TPU_TanHOp: TPU_Op<"tanh",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
+       DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
+  let summary = "TanH operator";
+
+  let description = [{
+    TanH operator.
+
+    Inputs:
+      `input`           : required, the input activation tensor.
+
+    Attributes:
+      `quant`           : required, a QuantParam struct attributes.
+      `name`            : required, name for calibration, comparing, or debug.
+      `layer_id`        : optional, id for profiling.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TPU_QuantPerTensorOnly`
+      `TPU_QuantSupportAsymmetric`
+      `TPU_QuantSameInputResultScale` : input and result share same threshold
+                                        or scale (bypassed).
+      `TpuOpCommonInterface` : support common TPU Op interface
+      `TpuOpInterpInterface` : support interperter
+      `TpuOpQuantInterface`  : support quantization
+      `TpuOpLowerInterface`  : support lower
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    TPU_QuantParamAttr:$quant,
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
+  );
+
+  let results = (outs AnyTensor:$output);
+}
 
 def TPU_UpsampleOp: TPU_Op<"upsample",
       [NoSideEffect,
@@ -1325,57 +1419,6 @@ def TPU_InputOp: TPU_Op<"input",
   );
 
   let results = (outs AnyTensor:$output);
-}
-
-def TPU_PowerOp: TPU_Op<"power",
-      [NoSideEffect, DeclareOpInterfaceMethods<TpuInterface>]> {
-  let summary = "Power f(x) = (scale * x + shift) ^ power";
-
-  let description = [{
-    Power operator
-  }];
-
-  let arguments = (
-    ins AnyTensor:$x,
-    AnyTensor:$scale_table,
-    AnyTensor:$shift_table,
-    DefaultValuedAttr<F32Attr, "1.0">:$power,
-    DefaultValuedAttr<F32Attr, "1.0">:$scale,
-    DefaultValuedAttr<F32Attr, "0.0">:$shift,
-    OptionalAttr<BoolAttr>:$has_table,
-    OptionalAttr<F32Attr>:$rshift,
-    OptionalAttr<StrAttr>:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
-    OptionalAttr<NonNegativeI64Attr>:$offset,
-    OptionalAttr<F32Attr>:$threshold_y,
-    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
-  );
-
-  let results = (outs AnyTensor:$y);
-}
-
-
-def TPU_TanHOp: TPU_Op<"tanh",
-      [NoSideEffect, DeclareOpInterfaceMethods<TpuInterface>]> {
-  let summary = "TanH operator";
-
-  let description = [{
-    TanH operator
-  }];
-
-  let arguments = (
-    ins AnyTensor:$x,
-    AnyTensor:$y0_table,
-    AnyTensor:$slope,
-    DefaultValuedAttr<F32Attr, "-1">:$scale,
-    OptionalAttr<StrAttr>:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
-    OptionalAttr<NonNegativeI64Attr>:$offset,
-    OptionalAttr<F32Attr>:$threshold_y,
-    DefaultValuedAttr<TPU_QuantAttr, "NONE">:$quant
-  );
-
-  let results = (outs AnyTensor:$y);
 }
 
 //===----------------------------------------------------------------------===//
