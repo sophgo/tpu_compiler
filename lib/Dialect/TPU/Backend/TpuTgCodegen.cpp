@@ -1529,9 +1529,9 @@ LogicalResult tpu::TG_INT8_ShuffleChannelOp::codegen(void *ctx) {
   gaddr_t input_gaddr = getPreviousOpAddress(op);
   gaddr_t output_gaddr = getOpAddress(op);
   int layer_id = mlir::getOpLayerId(op);
-  shuffle_channel_fixed_forward_kernel(*backend_ctx, 0, 0, layer_id, nullptr, 0,
+  shuffle_channel_forward_kernel(*backend_ctx, 0, 0, layer_id, nullptr, 0,
                                        input_gaddr, output_gaddr, n, c,
-                                       frame_size, group);
+                                       frame_size, group, FMT_I8);
   return success();
 }
 
@@ -1551,9 +1551,9 @@ LogicalResult tpu::TG_BF16_ShuffleChannelOp::codegen(void *ctx) {
   gaddr_t input_gaddr = getPreviousOpAddress(op);
   gaddr_t output_gaddr = getOpAddress(op);
   int layer_id = mlir::getOpLayerId(op);
-  // bf16_shuffle_channel_forward_kernel(*backend_ctx, 0, 0, layer_id, nullptr, 0,
-  //                                      input_gaddr, output_gaddr, n, c,
-  //                                      frame_size, group);
+  shuffle_channel_forward_kernel(*backend_ctx, 0, 0, layer_id, nullptr, 0,
+                                       input_gaddr, output_gaddr, n, c,
+                                       frame_size, group, FMT_BF16);
   return success();
 }
 
@@ -1580,18 +1580,29 @@ LogicalResult tpu::TG_BF16_ReshapeOp::codegen(void *ctx) {
 LogicalResult tpu::TG_INT8_SliceOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";
-  //CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
-  //Operation *op = this->getOperation();
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
 
   int axis = this->axis().getLimitedValue();
   std::vector<int64_t> input_shape = getTensorShape(input());
+  std::vector<int> input_shape_fix;
+  for (auto &dim : input_shape) {
+    input_shape_fix.push_back((int)dim);
+  }
 
   if (axis == 1 && input_shape[0] == 1) {
     llvm::errs() << "  no copy\n";
-  } else {
-    llvm::errs() << "  slice not support batch != 1 yet\n";
-    assert(false);
+    return success();
   }
+  int offset = this->offset().getLimitedValue();
+  gaddr_t input_gaddr = getPreviousOpAddress(op);
+  gaddr_t output_gaddr = getOpAddress(op);
+  int layer_id = mlir::getOpLayerId(op);
+  std::vector<int64_t> output_shape = getTensorShape(this->getResult());
+  slice_forward_kernel(*backend_ctx, 0, 0, layer_id, nullptr, 0, input_gaddr,
+                       output_gaddr, (int)input_shape.size(),
+                       input_shape_fix.data(), axis, offset,
+                       (int)output_shape[axis], FMT_I8);
 
   return success();
 }
@@ -1599,18 +1610,29 @@ LogicalResult tpu::TG_INT8_SliceOp::codegen(void *ctx) {
 LogicalResult tpu::TG_BF16_SliceOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";
-  //CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
-  //Operation *op = this->getOperation();
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
 
   int axis = this->axis().getLimitedValue();
   std::vector<int64_t> input_shape = getTensorShape(input());
+  std::vector<int> input_shape_fix;
+  for (auto &dim : input_shape) {
+    input_shape_fix.push_back((int)dim);
+  }
 
   if (axis == 1 && input_shape[0] == 1) {
     llvm::errs() << "  no copy\n";
-  } else {
-    llvm::errs() << "  slice not support batch != 1 yet\n";
-    assert(false);
+    return success();
   }
+  int offset = this->offset().getLimitedValue();
+  gaddr_t input_gaddr = getPreviousOpAddress(op);
+  gaddr_t output_gaddr = getOpAddress(op);
+  int layer_id = mlir::getOpLayerId(op);
+  std::vector<int64_t> output_shape = getTensorShape(this->getResult());
+  slice_forward_kernel(*backend_ctx, 0, 0, layer_id, nullptr, 0, input_gaddr,
+                       output_gaddr, (int)input_shape.size(),
+                       input_shape_fix.data(), axis, offset,
+                       (int)output_shape[axis], FMT_BF16);
 
   return success();
 }

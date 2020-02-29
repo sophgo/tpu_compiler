@@ -154,10 +154,12 @@ struct AssignGAddrTGBf16Pattern : public RewritePattern {
   size_t alignment_;
 };
 
-template<typename OpTy>
+template <typename OpTy>
 struct TpuReshapeAddressPattern : public RewritePattern {
-  TpuReshapeAddressPattern(MLIRContext *context)
-      : RewritePattern(OpTy::getOperationName(), 1, context) {}
+  TpuReshapeAddressPattern(MLIRContext *context, uint64_t *pos,
+                           llvm::raw_ostream &map_os, size_t alignment)
+      : RewritePattern(OpTy::getOperationName(), 1, context), pos_(pos),
+        map_os_(map_os), alignment_(alignment) {}
 
   PatternMatchResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
@@ -172,12 +174,16 @@ struct TpuReshapeAddressPattern : public RewritePattern {
 
     return matchSuccess();
   }
+  uint64_t *pos_;
+  llvm::raw_ostream &map_os_;
+  size_t alignment_;
 };
 
-template<typename OpTy>
-struct TpuSliceAddressPattern : public RewritePattern {
-  TpuSliceAddressPattern(MLIRContext *context)
-      : RewritePattern(OpTy::getOperationName(), 1, context) {}
+template <typename OpTy> struct TpuSliceAddressPattern : public RewritePattern {
+  TpuSliceAddressPattern(MLIRContext *context, uint64_t *pos,
+                         llvm::raw_ostream &map_os, size_t alignment)
+      : RewritePattern(OpTy::getOperationName(), 1, context), pos_(pos),
+        map_os_(map_os), alignment_(alignment) {}
 
   PatternMatchResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
@@ -190,33 +196,65 @@ struct TpuSliceAddressPattern : public RewritePattern {
     // trying to avoid doing copy
     // however, since we didn't pass stride info to backend API yet
     // this is only working for batch_size = 1
-    std::vector<int64_t> input_shape = getTensorShape(castOp.input());
-    assert(input_shape[0] == 1);
-
     auto curPos = getPreviousOpAddress(castOp);
-    int axis  = castOp.axis().getLimitedValue();
-    int offset  = castOp.offset().getLimitedValue();
+    int axis = castOp.axis().getLimitedValue();
+    int offset = castOp.offset().getLimitedValue();
 
     assert(axis == 1);
-    int64_t isz = 1;
-    for (unsigned i = axis + 1; i < input_shape.size(); i++) {
-      isz *= input_shape[i];
-    }
-    int64_t count = offset * isz;
-
-    size_t offset_bytes;
+    size_t dtype_bytes;
+    std::string dtype;
     if (isa<tpu::TG_INT8_SliceOp>(op)) {
-      offset_bytes = count * sizeof(int8_t);
+      dtype_bytes = 1;
+      dtype = "int8";
     } else if (isa<tpu::TG_BF16_SliceOp>(op)) {
-      offset_bytes = count * sizeof(uint16_t);
+      dtype_bytes = 2;
+      dtype = "uint16";
     } else {
       assert(0);
     }
 
-    setOpAddress(op, curPos + offset_bytes);
+    std::vector<int64_t> input_shape = getTensorShape(castOp.input());
+    if (input_shape[0] == 1) {
+      // if batch is 1, then no copy
+      int64_t isz = 1;
+      for (unsigned i = axis + 1; i < input_shape.size(); i++) {
+        isz *= input_shape[i];
+      }
+      size_t offset_bytes = offset * isz * dtype_bytes;
+      setOpAddress(op, curPos + offset_bytes);
 
+    } else {
+      auto curPos = *pos_;
+      std::vector<int64_t> shape = getTensorShape(castOp.getResult());
+      auto count = std::accumulate(std::begin(shape), std::end(shape), 1,
+                                   std::multiplies<>());
+      size_t size = count * dtype_bytes;
+
+      // pad to alignment
+      if (size % alignment_) {
+        size = size + alignment_ - (size % alignment_);
+      }
+      auto newPos = curPos + size;
+
+      llvm::errs() << llvm::format("[%-36s][%8d] : [ ",
+                                   getOpName(op).str().c_str(), size)
+                   << llvm::format_hex(curPos, 10) << " --> "
+                   << llvm::format_hex(newPos, 10) << " ]\n";
+      // expand to dims=4
+      while (shape.size() < 4)
+        shape.insert(shape.begin(), 1);
+      map_os_ << getOpName(op) << "," << llvm::format_hex(curPos, 10) << ","
+              << dtype << "," << shape[0] << "," << shape[1] << "," << shape[2]
+              << "," << shape[3] << "\n";
+
+      setOpAddress(op, curPos);
+      *pos_ = newPos;
+    }
     return matchSuccess();
   }
+  uint64_t *pos_;
+  llvm::raw_ostream &map_os_;
+  size_t alignment_;
 };
 
 
@@ -391,7 +429,7 @@ public:
         TpuSliceAddressPattern<tpu::TG_BF16_SliceOp>,
         TpuReshapeAddressPattern<tpu::TG_INT8_ReshapeOp>,
         TpuReshapeAddressPattern<tpu::TG_BF16_ReshapeOp>
-        >(context);
+        >(context, &pos, neuronMapFile->os(), clNeuronAlignment);
     applyPatternsGreedily(fn, patterns);
 
     if (neuronMapFile) {
