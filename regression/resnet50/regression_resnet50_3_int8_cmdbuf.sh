@@ -7,10 +7,9 @@ source $DIR/../../envsetup.sh
 ################################
 # prepare int8 input
 ################################
-
 npz_to_bin.py \
     resnet50_tensor_all_int8_multiplier.npz \
-    data_quant \
+    data \
     resnet50_in_int8.bin \
     int8
 
