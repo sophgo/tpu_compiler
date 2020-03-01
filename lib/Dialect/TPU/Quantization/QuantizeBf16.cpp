@@ -256,20 +256,28 @@ struct TpuAddDequantizeOpBeforeOpPattern : public RewritePattern {
       return matchFailure();
     }
 
-    auto type = op->getResult(0)->getType();
-    std::vector<NamedAttribute> attrs;
-    attrs.push_back(rewriter.getNamedAttr("from",
-        rewriter.getStringAttr("BF16")));
-    attrs.push_back(rewriter.getNamedAttr("to",
-        rewriter.getStringAttr("NONE")));
-    attrs.push_back(rewriter.getNamedAttr("name",
-        rewriter.getStringAttr(getPreviousOpName(op).str() + "_dequant")));
-    attrs.push_back(rewriter.getNamedAttr("layer_id",
-        rewriter.getI32IntegerAttr(getOpLayerId(op))));
-    auto quantOp = rewriter.create<tpu::QuantOp>(op->getLoc(), type,
-        ArrayRef<Value *>{op->getOperand(0)}, ArrayRef<NamedAttribute>{attrs});
+    for (auto i = 0; i < op->getNumOperands(); i++) {
+      auto prev_op = op->getOperand(i)->getDefiningOp();
+      if (getOpQuant(prev_op) != "BF16") {
+        continue;
+      }
+      auto type = op->getOperand(i)->getType();
+      std::vector<NamedAttribute> attrs;
+      attrs.push_back(rewriter.getNamedAttr("from",
+          rewriter.getStringAttr("BF16")));
+      attrs.push_back(rewriter.getNamedAttr("to",
+          rewriter.getStringAttr("NONE")));
+      attrs.push_back(rewriter.getNamedAttr("threshold",
+          rewriter.getF32FloatAttr(getOpThreshold(prev_op))));
+      attrs.push_back(rewriter.getNamedAttr("name",
+          rewriter.getStringAttr(getOpName(prev_op).str() + "_dequant")));
+      attrs.push_back(rewriter.getNamedAttr("layer_id",
+          rewriter.getI32IntegerAttr(getOpLayerId(prev_op))));
+      auto quantOp = rewriter.create<tpu::QuantOp>(prev_op->getLoc(), type,
+          ArrayRef<Value *>{op->getOperand(i)}, ArrayRef<NamedAttribute>{attrs});
 
-    op->setOperand(0, quantOp.getResult());
+      op->setOperand(i, quantOp.getResult());
+    }
 
     return matchSuccess();
   }
@@ -313,7 +321,9 @@ public:
     patterns.clear();
     patterns.insert<
         TpuAddQuantizeOpBeforeOpPattern<tpu::InputOp>,
-        TpuAddDequantizeOpBeforeOpPattern<tpu::SoftmaxOp>
+        TpuAddDequantizeOpBeforeOpPattern<tpu::DetectionOutputOp>,
+        TpuAddDequantizeOpBeforeOpPattern<tpu::SoftmaxOp>,
+        TpuAddDequantizeOpBeforeOpPattern<ReturnOp>
         >(context);
     applyPatternsGreedily(fn, patterns);
   }

@@ -19,6 +19,7 @@ llvm::StringRef getOpName(Operation *op) {
   if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpCommonInterface>(op)) {
     return tpuOp.getOpName();
   } else {
+    llvm::errs() << __func__ << " failed, Op " << op->getName() << "\n";
     assert(false);
     return llvm::StringRef();
   }
@@ -36,6 +37,8 @@ int getOpLayerId(Operation *op) {
   if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpCommonInterface>(op)) {
     return tpuOp.getOpLayerId();
   } else {
+    llvm::errs() << __func__ << " failed, Op " << op->getName() << "\n";
+    llvm::errs() << __func__ << "       name " << getOpName(op) << "\n";
     assert(false);
     return -1;
   }
@@ -45,6 +48,8 @@ LogicalResult setOpLayerId(Operation *op, int id) {
   if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpCommonInterface>(op)) {
     return tpuOp.setOpLayerId(id);
   } else {
+    llvm::errs() << __func__ << " failed, Op " << op->getName() << "\n";
+    llvm::errs() << __func__ << "       name " << getOpName(op) << "\n";
     assert(false);
     return failure();
   }
@@ -54,8 +59,10 @@ llvm::StringRef getOpQuant(Operation *op) {
   if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpQuantInterface>(op)) {
     return tpuOp.getOpQuant();
   } else {
-    assert(false);
-    return llvm::StringRef();
+    //llvm::errs() << __func__ << " failed, Op " << op->getName() << "\n";
+    //llvm::errs() << __func__ << "       name " << getOpName(op) << "\n";
+    //assert(false);
+    return llvm::StringRef("NONE");
   }
 }
 
@@ -63,7 +70,8 @@ LogicalResult setOpQuant(Operation *op, llvm::StringRef mode) {
   if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpQuantInterface>(op)) {
     return tpuOp.setOpQuantMode(mode);
   } else {
-    llvm::errs() << __func__ << " failed " << getOpName(op) << "\n";
+    llvm::errs() << __func__ << " failed, Op " << op->getName() << "\n";
+    llvm::errs() << __func__ << "       name " << getOpName(op) << "\n";
     assert(false);
     return failure();
   }
@@ -73,7 +81,8 @@ llvm::StringRef getOpQuantParamType(Operation *op) {
   if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpQuantInterface>(op)) {
     return tpuOp.getOpQuantParamType();
   } else {
-    llvm::errs() << __func__ << " failed " << getOpName(op) << "\n";
+    llvm::errs() << __func__ << " failed, Op " << op->getName() << "\n";
+    llvm::errs() << __func__ << "       name " << getOpName(op) << "\n";
     assert(false);
     return llvm::StringRef();
   }
@@ -83,7 +92,8 @@ LogicalResult setOpQuantParamType(Operation *op, llvm::StringRef type) {
   if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpQuantInterface>(op)) {
     return tpuOp.setOpQuantParamType(type);
   } else {
-    llvm::errs() << __func__ << " failed " << getOpName(op) << "\n";
+    llvm::errs() << __func__ << " failed, Op " << op->getName() << "\n";
+    llvm::errs() << __func__ << "       name " << getOpName(op) << "\n";
     assert(false);
     return failure();
   }
@@ -93,7 +103,8 @@ bool isOpQuantPerchannel(Operation *op) {
   if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpQuantInterface>(op)) {
     return tpuOp.isOpQuantPerchannel();
   } else {
-    llvm::errs() << __func__ << " failed " << getOpName(op) << "\n";
+    llvm::errs() << __func__ << " failed, Op " << op->getName() << "\n";
+    llvm::errs() << __func__ << "       name " << getOpName(op) << "\n";
     assert(false);
     return false;
   }
@@ -103,7 +114,8 @@ LogicalResult setOpQuantPerchannel(Operation *op, bool flag) {
   if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpQuantInterface>(op)) {
     return tpuOp.setOpQuantPerchannel(flag);
   } else {
-    llvm::errs() << __func__ << " failed " << getOpName(op) << "\n";
+    llvm::errs() << __func__ << " failed, Op " << op->getName() << "\n";
+    llvm::errs() << __func__ << "       name " << getOpName(op) << "\n";
     assert(false);
     return failure();
   }
@@ -113,7 +125,8 @@ bool isOpQuantAsymmetric(Operation *op) {
   if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpQuantInterface>(op)) {
     return tpuOp.isOpQuantAsymmetric();
   } else {
-    llvm::errs() << __func__ << " failed " << getOpName(op) << "\n";
+    llvm::errs() << __func__ << " failed, Op " << op->getName() << "\n";
+    llvm::errs() << __func__ << "       name " << getOpName(op) << "\n";
     assert(false);
     return false;
   }
@@ -123,7 +136,8 @@ LogicalResult setOpQuantAsymmetric(Operation *op, bool flag) {
   if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpQuantInterface>(op)) {
     return tpuOp.setOpQuantAsymmetric(flag);
   } else {
-    llvm::errs() << __func__ << " failed " << getOpName(op) << "\n";
+    llvm::errs() << __func__ << " failed, Op " << op->getName() << "\n";
+    llvm::errs() << __func__ << "       name " << getOpName(op) << "\n";
     assert(false);
     return failure();
   }
@@ -133,7 +147,8 @@ float getOpThreshold(Operation *op) {
   if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpQuantInterface>(op)) {
     return tpuOp.getOpQuantThreshold();
   } else {
-    llvm::errs() << __func__ << " failed " << getOpName(op) << "\n";
+    llvm::errs() << __func__ << " failed, Op " << op->getName() << "\n";
+    llvm::errs() << __func__ << "       name " << getOpName(op) << "\n";
     assert(false);
     return NAN;
   }
@@ -143,7 +158,8 @@ LogicalResult setOpThreshold(Operation *op, float threshold) {
   if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpQuantInterface>(op)) {
     return tpuOp.setOpQuantThreshold(threshold);
   } else {
-    llvm::errs() << __func__ << " failed " << getOpName(op) << "\n";
+    llvm::errs() << __func__ << " failed, Op " << op->getName() << "\n";
+    llvm::errs() << __func__ << "       name " << getOpName(op) << "\n";
     assert(false);
     return failure();
   }
@@ -164,7 +180,8 @@ uint64_t getOpAddress(Operation *op) {
   if (auto tpuTGOp = llvm::dyn_cast<tpu::TpuTGOpCodegenInterface>(op)) {
     return tpuTGOp.getGAddr();
   } else {
-    llvm::errs() << __func__ << " failed " << getOpName(op) << "\n";
+    llvm::errs() << __func__ << " failed, Op " << op->getName() << "\n";
+    llvm::errs() << __func__ << "       name " << getOpName(op) << "\n";
     assert(false);
     return 0xFFFFFFFFFFFFFFFF;
   }
@@ -174,7 +191,8 @@ LogicalResult setOpAddress(Operation *op, uint64_t gaddr) {
   if (auto tpuTGOp = llvm::dyn_cast<tpu::TpuTGOpCodegenInterface>(op)) {
     return tpuTGOp.setGAddr(gaddr);
   } else {
-    llvm::errs() << __func__ << " failed " << getOpName(op) << "\n";
+    llvm::errs() << __func__ << " failed, Op " << op->getName() << "\n";
+    llvm::errs() << __func__ << "       name " << getOpName(op) << "\n";
     assert(false);
     return failure();
   }
@@ -193,7 +211,8 @@ uint64_t getWeightOpAddress(Operation *op) {
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(op)) {
     return cast_op.offset().getValue().getLimitedValue();
   } else {
-    llvm::errs() << __func__ << " failed " << getOpName(op) << "\n";
+    llvm::errs() << __func__ << " failed, Op " << op->getName() << "\n";
+    llvm::errs() << __func__ << "       name " << getOpName(op) << "\n";
     assert(false);
     return 0xFFFFFFFFFFFFFFFF;
   }

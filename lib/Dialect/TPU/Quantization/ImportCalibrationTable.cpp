@@ -337,6 +337,10 @@ public:
       } else if (isa<tpu::ReshapeOp>(op)) {
         // do not assign
       } else if ( !failed(setThresholdFromMap(op, threshold_map))) {
+        // success
+      } else if (isa<tpu::SoftmaxOp>(op)
+                 || isa<tpu::DetectionOutputOp>(op)) {
+        // doesn't matter assigned or not
       } else {
         llvm::errs() << "setThresholdFromMap didn't handle "
                      << op->getName() << "\n";
