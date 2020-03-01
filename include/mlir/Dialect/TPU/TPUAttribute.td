@@ -28,21 +28,17 @@ include "mlir/Dialect/TPU/TPUBase.td"
 // Quantization methods enum definitions.
 //===----------------------------------------------------------------------===//
 
-// Allowed quantization methods cases
+// Allowed quantization mode cases
 def TPU_Quant_None    : StrEnumAttrCase<"NONE">;
 def TPU_Quant_Int8    : StrEnumAttrCase<"INT8">;
-def TPU_Quant_Int8_PC : StrEnumAttrCase<"INT8_PER_CHANNEL">;  // to be removed
-def TPU_Quant_Int8_M  : StrEnumAttrCase<"INT8_MULTIPLIER">;   // to be removed
 def TPU_Quant_BF16    : StrEnumAttrCase<"BF16">;
 
-def TPU_QuantAttr : StrEnumAttr<
+def TPU_QuantModeAttr : StrEnumAttr<
     "QuantizeFlag", "quantization flag enum", [
-      TPU_Quant_None,  TPU_Quant_Int8, TPU_Quant_Int8_PC,
-      TPU_Quant_Int8_M, TPU_Quant_BF16
+      TPU_Quant_None,  TPU_Quant_Int8, TPU_Quant_BF16
     ]>;
 
-
-// Allowed quantization methods cases
+// Allowed quantization parameter type cases
 def TPU_QuantParam_NONE             : StrEnumAttrCase<"NONE">;
 def TPU_QuantParam_THRESHOLD        : StrEnumAttrCase<"THRESHOLD">;
 def TPU_QuantParam_SCALE            : StrEnumAttrCase<"SCALE">;
@@ -93,24 +89,6 @@ def TPU_MemRegionAttr : StrEnumAttr<
     "MemoryRegionFlag", "memory region flag enum", [
       TPU_MEM_REGION_INPUT, TPU_MEM_REGION_OUTPUT,
       TPU_MEM_REGION_ACTIVATION, TPU_MEM_REGION_WEIGHT
-    ]>;
-
-//===----------------------------------------------------------------------===//
-// Activation function enum definitions.
-//===----------------------------------------------------------------------===//
-// to be removed
-// Allowed activation function cases
-def TPU_AF_None  : StrEnumAttrCase<"NONE">;
-def TPU_AF_Relu  : StrEnumAttrCase<"RELU">;
-def TPU_AF_Relu1 : StrEnumAttrCase<"RELU_N1_TO_1">;
-def TPU_AF_Relu6 : StrEnumAttrCase<"RELU6">;
-def TPU_AF_Tanh  : StrEnumAttrCase<"TANH">;
-def TPU_AF_Sign  : StrEnumAttrCase<"SIGN_BIT">;
-
-def TPU_AFAttr : StrEnumAttr<
-    "ActivationFunctionType", "fused activation enum", [
-      TPU_AF_None,  TPU_AF_Relu, TPU_AF_Relu1,
-      TPU_AF_Relu6, TPU_AF_Tanh, TPU_AF_Sign
     ]>;
 
 //===----------------------------------------------------------------------===//
@@ -171,7 +149,7 @@ def TPU_DetectionOutput_Code_typeAttr : StrEnumAttr<"DetectionOutput Code type",
 // Quantization attributes structure.
 //===----------------------------------------------------------------------===//
 def TPU_QuantParamAttr : StructAttr<"QuantParam", TPU_Dialect, [
-    StructFieldAttr<"mode", TPU_QuantAttr>,
+    StructFieldAttr<"mode", TPU_QuantModeAttr>,
     StructFieldAttr<"param_type", TPU_QuantParamTypeAttr>,
     StructFieldAttr<"is_perchannel", BoolAttr>,
     StructFieldAttr<"is_asymmetric", BoolAttr>,

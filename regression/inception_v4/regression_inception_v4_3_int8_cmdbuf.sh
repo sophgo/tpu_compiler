@@ -8,12 +8,19 @@ echo $0 IS RUNNING
 ################################
 # prepare int8 input
 ################################
-npz_to_bin.py inception_v4_in_fp32.npz input inception_v4_in_fp32.bin
-bin_fp32_to_int8.py \
-    inception_v4_in_fp32.bin \
+
+npz_to_bin.py \
+    inception_v4_tensor_all_int8_multiplier.npz \
+    data \
     inception_v4_in_int8.bin \
-    1.0 \
-    0.994933307171
+    int8
+
+# npz_to_bin.py inception_v4_in_fp32.npz input inception_v4_in_fp32.bin
+# bin_fp32_to_int8.py \
+#     inception_v4_in_fp32.bin \
+#     inception_v4_in_int8.bin \
+#     1.0 \
+#     0.994933307171
 
 ################################
 # Lower for quantization 1: per-layer int8
@@ -151,7 +158,7 @@ npz_to_bin.py \
 npz_compare.py \
     inception_v4_cmdbuf_out_all_int8_multiplier.npz \
     inception_v4_tensor_all_int8_multiplier.npz \
-    --op_info inception_v4_op_info_int8_multiplier.csv 
+    --op_info inception_v4_op_info_int8_multiplier.csv
 
 # VERDICT
 echo $0 PASSED

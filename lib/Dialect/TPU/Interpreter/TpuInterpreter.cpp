@@ -926,6 +926,24 @@ LogicalResult tpu::FullyConnectedOp::interpret(
   return success();
 }
 
+LogicalResult tpu::InputOp::interpret(
+    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+  Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
+
+  auto opdT = getOperandTensors(op, valueMapping);
+  auto result = this->getResult();
+  auto size = getTensorSize(result);
+  auto resultT = std::make_unique<std::vector<float> >(size);
+
+  // use copy for now
+  resultT->assign(opdT[0]->begin(), opdT[0]->end());
+
+  valueMapping[result] = std::move(resultT);
+
+  return success();
+}
+
 LogicalResult tpu::LeakyReluOp::interpret(
     DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();
@@ -1923,29 +1941,46 @@ LogicalResult tpu::UpsampleOp::interpret(
   return success();
 }
 
+LogicalResult tpu::QuantOp::interpret(
+    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+  Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
 
+  auto opdT = getOperandTensors(op, valueMapping);
+  auto result = this->getResult();
+  auto size = getTensorSize(result);
+  auto resultT = std::make_unique<std::vector<float> >(size);
 
+  if (this->from() == "NONE" && this->to() == "INT8") {
+    float *input = (float *)opdT[0]->data();
+    float *output = (float *)resultT->data();
+    float threshold = this->threshold().getValue().convertToFloat();
+    LLVM_DEBUG(llvm::errs() << "  quantization, threshold = "
+               << std::to_string(threshold) << "\n";);
+    quantizeActivationInt8WithThreshold(output, input, size, threshold);
+  } else if (this->to() == "NONE" && this->from() == "INT8") {
+    float *input = (float *)opdT[0]->data();
+    float *output = (float *)resultT->data();
+    float threshold = this->threshold().getValue().convertToFloat();
+    LLVM_DEBUG(llvm::errs() << "  quantization, threshold = "
+               << std::to_string(threshold) << "\n";);
+      dequantizeActivationInt8WithThreshold(output, input, size, threshold);
+  } else if (this->from() == "NONE" && this->to() == "BF16") {
+    auto tensor_bf16 = std::make_unique<std::vector<bfloat16>>(resultT->size());
+    FloatToBFloat16(opdT[0]->data(), tensor_bf16->data(),
+                    opdT[0]->size()); // with rounding
+    BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
+  } else if (this->to() == "NONE" && this->from() == "BF16") {
+    resultT->assign(opdT[0]->begin(), opdT[0]->end());
+  } else {
+    assert(0);
+  }
 
+  valueMapping[result] = std::move(resultT);
 
+  return success();
+}
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// to be removed
 std::vector<std::shared_ptr<std::vector<float> > >
     ModuleInterpreter::getOperandTensors(Operation &opInst,
     value_map_t &valueMapping) {
@@ -1977,82 +2012,6 @@ LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
     return success();
   }
   if (auto noneOp = dyn_cast<tpu::NoneOp>(opInst)) {
-    return success();
-  }
-
-  if (auto op = dyn_cast<tpu::InputOp>(opInst)) {
-    LLVM_DEBUG(llvm::errs() << "InputOp" << "\n";);
-    auto opdT = getOperandTensors(opInst, valueMapping);
-    auto result = op.getResult();
-    LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";);
-    std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
-    assert(shape.size() == 4);
-    auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
-    auto resultT = std::make_shared<std::vector<float> >(size);
-
-    // use copy for now
-    resultT->assign(opdT[0]->begin(), opdT[0]->end());
-
-    valueMapping[result] = std::move(resultT);
-
-    return success();
-  }
-
-  if (auto op = dyn_cast<tpu::QuantizationOp>(opInst)) {
-    LLVM_DEBUG(llvm::errs() << "QuantizationOp" << "\n";);
-    auto opdT = getOperandTensors(opInst, valueMapping);
-    auto result = op.getResult();
-    LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";);
-    std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
-    auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
-    auto resultT = std::make_unique<std::vector<float> >(size);
-
-    if (op.quant() == "INT8") {
-      float *input = (float *)opdT[0]->data();
-      float *output = (float *)resultT->data();
-      float threshold = op.threshold().getValue().convertToFloat();
-      LLVM_DEBUG(llvm::errs() << "  quantization, threshold = "
-                   << std::to_string(threshold) << "\n";);
-      quantizeActivationInt8WithThreshold(output, input, size, threshold);
-    } else if (op.quant() == "BF16") {
-      auto tensor_bf16 =
-          std::make_unique<std::vector<bfloat16>>(resultT->size());
-      FloatToBFloat16(opdT[0]->data(), tensor_bf16->data(),
-                      opdT[0]->size()); // with rounding
-      BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
-
-    } else {
-      assert(0);
-    }
-
-    valueMapping[result] = std::move(resultT);
-
-    return success();
-  }
-  if (auto op = dyn_cast<tpu::DequantizationOp>(opInst)) {
-    LLVM_DEBUG(llvm::errs() << "DequantizationOp" << "\n";);
-    auto opdT = getOperandTensors(opInst, valueMapping);
-    auto result = op.getResult();
-    LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";);
-    std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
-    auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
-    auto resultT = std::make_unique<std::vector<float> >(size);
-
-    if (op.quant() == "INT8") {
-      float *input = (float *)opdT[0]->data();
-      float *output = (float *)resultT->data();
-      float threshold = op.threshold().getValue().convertToFloat();
-      LLVM_DEBUG(llvm::errs() << "  quantization, threshold = "
-                   << std::to_string(threshold) << "\n";);
-      dequantizeActivationInt8WithThreshold(output, input, size, threshold);
-    } else if (op.quant() == "BF16") {
-      resultT->assign(opdT[0]->begin(), opdT[0]->end());
-    } else {
-      assert(0);
-    }
-
-    valueMapping[result] = std::move(resultT);
-
     return success();
   }
 

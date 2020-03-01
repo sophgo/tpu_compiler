@@ -38,6 +38,80 @@
 using namespace mlir;
 
 // to cleanup
+
+
+#if 0
+struct TpuQuantInt8SigmoidOpPattern : public RewritePattern {
+  TpuQuantInt8SigmoidOpPattern(MLIRContext *context)
+      : RewritePattern("tpu.sigmoid", 1, context) {}
+
+  PatternMatchResult matchAndRewrite(Operation *op,
+                                     PatternRewriter &rewriter) const override {
+    auto sigOp = cast<tpu::SigmoidOp>(op);
+
+    if (getOpQuant(op) != "NONE") {
+      LLVM_DEBUG(llvm::errs()
+                     << " < " << getOpName(op) << ", quantized already\n";);
+      return matchFailure();
+    }
+    assert(getOpQuantParamType(op) == "THRESHOLD");
+    TensorFile *wTF = getWeightTensorFile(op);
+    Value *wfV = getWeightFileValue(op);
+
+    // quantization
+    float threshold_x = getPreviousOpThreshold(op);
+    float threshold_y = getOpThreshold(op);
+    LLVM_DEBUG(llvm::errs() << " > " << getOpName(op)
+                            << ", threshold_y = " << std::to_string(threshold_y)
+                            << ", threshold_x = " << std::to_string(threshold_x)
+                            << "\n";);
+    int npu_num = 32; //<! 1880v2 hardcode
+
+    //<! 1880v2 hw config
+    int table_h;
+    int table_w;
+    int table_hw;
+
+    int tbl_shape;
+    std::vector<float> y0_table;
+    //<! 1880v2 hw int8 config
+    table_h = 16;
+    table_w = 16;
+    table_hw = table_h * table_w;
+
+    tbl_shape = npu_num * table_hw;
+    y0_table.resize(tbl_shape);
+
+    // input: 0~127, -128~ -1, Y=1/(1+EXP(-X*thx/128)) * 128/thy
+    // output:0~127, negative is invalid
+    for (int n = 0; n < npu_num; n++) {
+      for (int idx = 0; idx < table_hw; ++idx) {
+        char lutInput = static_cast<char>(idx);
+        float index = -lutInput * threshold_x / 127.0;
+        float lutOutput = 1.0 / (1 + std::exp(index)) * 127.0 / threshold_y;
+        int lutOutputI32 = std::floor(lutOutput + 0.5);
+        lutOutputI32 = (lutOutputI32 > 127)
+                           ? 127
+                           : (lutOutputI32 < -128) ? -128 : lutOutputI32;
+        y0_table[n * table_hw + idx] = lutOutputI32;
+      }
+    }
+    // update op
+    auto shape = std::vector<int64_t>{1, npu_num, table_h, table_w};
+    StringRef storageType = "INT8";
+    auto y0_table_op = addWeightTensorAndCreateWeightOp<float>(
+        op, "y0_table", y0_table, shape, storageType, wTF, wfV);
+    sigOp.setOperand(1, y0_table_op);
+    setOpQuantPerchannel(op, false);
+    setOpQuant(op, "INT8");
+
+    return matchSuccess();
+  }
+};
+#endif
+
+
+
 #if 0
 
 struct TpuQuantPowerOpPattern : public RewritePattern {

@@ -9,7 +9,7 @@ source $DIR/../../envsetup.sh
 ################################
 npz_to_bin.py \
     retinaface_res50_tensor_all_int8.npz \
-    data_quant \
+    data \
     retinaface_res50_in_int8.bin \
     int8
 

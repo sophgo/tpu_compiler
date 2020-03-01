@@ -20,6 +20,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/TPU/TPUDialect.h"
+#include "mlir/Dialect/TPU/TPUOperationSupport.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/Function.h"
 #include "mlir/IR/Module.h"
@@ -95,6 +96,7 @@ DECLARE_ALL_COMMON_INTERFACE_METHODS(EltwiseAddOp)
 DECLARE_ALL_COMMON_INTERFACE_METHODS(EltwiseMaxOp)
 DECLARE_ALL_COMMON_INTERFACE_METHODS(EltwiseMulOp)
 DECLARE_ALL_COMMON_INTERFACE_METHODS(FullyConnectedOp)
+DECLARE_ALL_COMMON_INTERFACE_METHODS(InputOp)
 DECLARE_ALL_COMMON_INTERFACE_METHODS(LeakyReluOp)
 DECLARE_ALL_COMMON_INTERFACE_METHODS(NormalizeOp)
 DECLARE_ALL_COMMON_INTERFACE_METHODS(PermuteOp)
@@ -113,6 +115,8 @@ DECLARE_ALL_COMMON_INTERFACE_METHODS(SigmoidOp)
 DECLARE_ALL_COMMON_INTERFACE_METHODS(SqrtOp)
 DECLARE_ALL_COMMON_INTERFACE_METHODS(TanHOp)
 DECLARE_ALL_COMMON_INTERFACE_METHODS(UpsampleOp)
+// TPU Support Ops
+DECLARE_ALL_COMMON_INTERFACE_METHODS(QuantOp)
 // TPU TG Ops
 DECLARE_ALL_COMMON_INTERFACE_METHODS(TG_INT8_BroadcastMulOp)
 DECLARE_ALL_COMMON_INTERFACE_METHODS(TG_BF16_BroadcastMulOp)
@@ -135,6 +139,8 @@ DECLARE_ALL_COMMON_INTERFACE_METHODS(TG_BF16_EltwiseMaxOp)
 DECLARE_ALL_COMMON_INTERFACE_METHODS(TG_BF16_EltwiseMulOp)
 DECLARE_ALL_COMMON_INTERFACE_METHODS(TG_INT8_FullyConnectedOp)
 DECLARE_ALL_COMMON_INTERFACE_METHODS(TG_BF16_FullyConnectedOp)
+DECLARE_ALL_COMMON_INTERFACE_METHODS(TG_INT8_InputOp)
+DECLARE_ALL_COMMON_INTERFACE_METHODS(TG_BF16_InputOp)
 DECLARE_ALL_COMMON_INTERFACE_METHODS(TG_INT8_LeakyReluOp)
 DECLARE_ALL_COMMON_INTERFACE_METHODS(TG_BF16_LeakyReluOp)
 DECLARE_ALL_COMMON_INTERFACE_METHODS(TG_INT8_LutOp)
@@ -148,8 +154,6 @@ DECLARE_ALL_COMMON_INTERFACE_METHODS(TG_INT8_ShuffleChannelOp)
 DECLARE_ALL_COMMON_INTERFACE_METHODS(TG_BF16_ShuffleChannelOp)
 DECLARE_ALL_COMMON_INTERFACE_METHODS(TG_INT8_PReluOp)
 DECLARE_ALL_COMMON_INTERFACE_METHODS(TG_BF16_PReluOp)
-DECLARE_ALL_COMMON_INTERFACE_METHODS(TG_INT8_ReshapeOp)
-DECLARE_ALL_COMMON_INTERFACE_METHODS(TG_BF16_ReshapeOp)
 DECLARE_ALL_COMMON_INTERFACE_METHODS(TG_INT8_SliceOp)
 DECLARE_ALL_COMMON_INTERFACE_METHODS(TG_BF16_SliceOp)
 DECLARE_ALL_COMMON_INTERFACE_METHODS(TG_BF16_Sqrt_LutOp)
@@ -273,6 +277,7 @@ DECLARE_ALL_QUANT_INTERFACE_METHODS(EltwiseAddOp)
 DECLARE_ALL_QUANT_INTERFACE_METHODS(EltwiseMaxOp)
 DECLARE_ALL_QUANT_INTERFACE_METHODS(EltwiseMulOp)
 DECLARE_ALL_QUANT_INTERFACE_METHODS(FullyConnectedOp)
+DECLARE_ALL_QUANT_INTERFACE_METHODS(InputOp)
 DECLARE_ALL_QUANT_INTERFACE_METHODS(LeakyReluOp)
 DECLARE_ALL_QUANT_INTERFACE_METHODS(PermuteOp)
 DECLARE_ALL_QUANT_INTERFACE_METHODS(PoolAvg2DOp)
@@ -280,7 +285,6 @@ DECLARE_ALL_QUANT_INTERFACE_METHODS(PoolMax2DOp)
 DECLARE_ALL_QUANT_INTERFACE_METHODS(PowerOp)
 DECLARE_ALL_QUANT_INTERFACE_METHODS(PReluOp)
 DECLARE_ALL_QUANT_INTERFACE_METHODS(ReluOp)
-DECLARE_ALL_QUANT_INTERFACE_METHODS(ReshapeOp)
 DECLARE_ALL_QUANT_INTERFACE_METHODS(ShuffleChannelOp)
 DECLARE_ALL_QUANT_INTERFACE_METHODS(SoftmaxOp)
 DECLARE_ALL_QUANT_INTERFACE_METHODS(SigmoidOp)
@@ -328,6 +332,8 @@ DECLARE_ALL_CODEGEN_INTERFACE_METHODS(TG_BF16_EltwiseMaxOp)
 DECLARE_ALL_CODEGEN_INTERFACE_METHODS(TG_BF16_EltwiseMulOp)
 DECLARE_ALL_CODEGEN_INTERFACE_METHODS(TG_INT8_FullyConnectedOp)
 DECLARE_ALL_CODEGEN_INTERFACE_METHODS(TG_BF16_FullyConnectedOp)
+DECLARE_ALL_CODEGEN_INTERFACE_METHODS(TG_INT8_InputOp)
+DECLARE_ALL_CODEGEN_INTERFACE_METHODS(TG_BF16_InputOp)
 DECLARE_ALL_CODEGEN_INTERFACE_METHODS(TG_INT8_LeakyReluOp)
 DECLARE_ALL_CODEGEN_INTERFACE_METHODS(TG_BF16_LeakyReluOp)
 DECLARE_ALL_CODEGEN_INTERFACE_METHODS(TG_INT8_LutOp)
@@ -341,8 +347,6 @@ DECLARE_ALL_CODEGEN_INTERFACE_METHODS(TG_INT8_ShuffleChannelOp)
 DECLARE_ALL_CODEGEN_INTERFACE_METHODS(TG_BF16_ShuffleChannelOp)
 DECLARE_ALL_CODEGEN_INTERFACE_METHODS(TG_INT8_PReluOp)
 DECLARE_ALL_CODEGEN_INTERFACE_METHODS(TG_BF16_PReluOp)
-DECLARE_ALL_CODEGEN_INTERFACE_METHODS(TG_INT8_ReshapeOp)
-DECLARE_ALL_CODEGEN_INTERFACE_METHODS(TG_BF16_ReshapeOp)
 DECLARE_ALL_CODEGEN_INTERFACE_METHODS(TG_INT8_SliceOp)
 DECLARE_ALL_CODEGEN_INTERFACE_METHODS(TG_BF16_SliceOp)
 DECLARE_ALL_CODEGEN_INTERFACE_METHODS(TG_BF16_Sqrt_LutOp)
@@ -355,93 +359,64 @@ DECLARE_ALL_CODEGEN_INTERFACE_METHODS(TL_EltwiseAddOp)
 
 
 
+// Reshape Op
+uint64_t ReshapeOp::getGAddr() {
+  auto prev_op = this->getOperand()->getDefiningOp();
+  return mlir::getOpAddress(prev_op);
+}
 
+LogicalResult ReshapeOp::setGAddr(uint64_t gaddr) {
+  assert(false);
+  auto prev_op = this->getOperand()->getDefiningOp();
+  return mlir::setOpAddress(prev_op, gaddr);
+}
 
+StringRef ReshapeOp::getOpQuant() {
+  auto prev_op = this->getOperand()->getDefiningOp();
+  return mlir::getOpQuant(prev_op);
+}
 
+LogicalResult ReshapeOp::setOpQuantMode(StringRef &mode) {
+  assert(false);
+  auto prev_op = this->getOperand()->getDefiningOp();
+  return mlir::setOpQuant(prev_op, mode);
+}
 
+StringRef ReshapeOp::getOpQuantParamType() {
+  assert(false);
+  return StringRef();
+}
 
-//
-// TpuInterface is deprecated, to be removed
-//
-#define DECLARE_GET_OP_NAME_METHOD_LEGACY(OP) \
-    StringRef OP::getOpName() {return name().getValue();}
+LogicalResult ReshapeOp::setOpQuantParamType(StringRef &type) {
+  assert(false);
+  return failure();
+}
 
-DECLARE_GET_OP_NAME_METHOD_LEGACY(InputOp)
-//--------------------------------------
-//DECLARE_GET_OP_NAME_METHOD_LEGACY(LoadWeightOp)
-DECLARE_GET_OP_NAME_METHOD_LEGACY(QuantizationOp)
-DECLARE_GET_OP_NAME_METHOD_LEGACY(DequantizationOp)
+bool ReshapeOp::isOpQuantPerchannel() {
+  assert(false);
+  return false;
+}
+LogicalResult ReshapeOp::setOpQuantPerchannel(bool flag) {
+  assert(false);
+  return failure();
+}
 
-//#define DECLARE_GET_LAYER_ID_METHOD(OP) \
-//    int OP::getOpLayerId() {return layer_id().getValue().getLimitedValue();}
-#define DECLARE_EMPTY_LAYER_ID_METHOD(OP) \
-    int OP::getOpLayerId() {assert(false); return 0;}
-DECLARE_GET_LAYER_ID_METHOD(InputOp)
-//--------------------------------------
-//DECLARE_EMPTY_LAYER_ID_METHOD(LoadWeightOp)
-DECLARE_EMPTY_LAYER_ID_METHOD(QuantizationOp)
-DECLARE_EMPTY_LAYER_ID_METHOD(DequantizationOp)
+bool ReshapeOp::isOpQuantAsymmetric() {
+  assert(false);
+  return false;
+}
 
-#define DECLARE_GET_RESULT_QUANT_THRESHOLD_METHOD(OP) \
-    float OP::getResultQuantThreshold() { \
-      if ( threshold_y().hasValue() ) { \
-        return threshold_y().getValue().convertToFloat(); \
-      } else { \
-        return 0.0; \
-      } \
-    }
-#define DECLARE_SET_RESULT_QUANT_THRESHOLD_METHOD(OP) \
-    LogicalResult OP::setResultQuantThreshold(float threshold) { \
-      setAttr("threshold_y", Builder(getOperation()->getContext()).getF32FloatAttr(threshold)); \
-      return success(); \
-    }
-#define DECLARE_GET_EMPTY_RESULT_QUANT_THRESHOLD_METHOD(OP) \
-    float OP::getResultQuantThreshold() {assert(false); return 0.0f;}
-#define DECLARE_SET_EMPTY_RESULT_QUANT_THRESHOLD_METHOD(OP) \
-    LogicalResult OP::setResultQuantThreshold(float threshold) { return success(); }
+LogicalResult ReshapeOp::setOpQuantAsymmetric(bool flag) {
+  assert(false);
+  return failure();
+}
 
-DECLARE_GET_RESULT_QUANT_THRESHOLD_METHOD(InputOp)
-//--------------------------------------
-//DECLARE_EMPTY_RESULT_QUANT_THRESHOLD_METHOD(LoadWeightOp)
-DECLARE_GET_EMPTY_RESULT_QUANT_THRESHOLD_METHOD(QuantizationOp)
-DECLARE_GET_EMPTY_RESULT_QUANT_THRESHOLD_METHOD(DequantizationOp)
+float ReshapeOp::getOpQuantThreshold() { \
+  auto prev_op = this->getOperand()->getDefiningOp();
+  return mlir::getOpThreshold(prev_op);
+}
 
-DECLARE_SET_RESULT_QUANT_THRESHOLD_METHOD(InputOp)
-//--------------------------------------
-//DECLARE_EMPTY_RESULT_QUANT_THRESHOLD_METHOD(LoadWeightOp)
-DECLARE_SET_EMPTY_RESULT_QUANT_THRESHOLD_METHOD(QuantizationOp)
-DECLARE_SET_EMPTY_RESULT_QUANT_THRESHOLD_METHOD(DequantizationOp)
-
-#define DECLARE_GET_OP_QUANT_METHOD(OP) \
-    StringRef OP::getOpQuant() {return quant();}
-#define DECLARE_EMPTY_OP_QUANT_METHOD(OP) \
-    StringRef OP::getOpQuant() {assert(false); return "";}
-DECLARE_GET_OP_QUANT_METHOD(InputOp)
-//--------------------------------------
-//DECLARE_EMPTY_OP_QUANT_METHOD(LoadWeightOp)
-DECLARE_EMPTY_OP_QUANT_METHOD(QuantizationOp)
-DECLARE_EMPTY_OP_QUANT_METHOD(DequantizationOp)
-
-#define DECLARE_GET_RESULT_ADDRESS_METHOD(OP) \
-    APInt OP::getResultAddress() {return offset().getValue();}
-#define DECLARE_GET_EMPTY_RESULT_ADDRESS_METHOD(OP) \
-    APInt OP::getResultAddress() {assert(false); return APInt();}
-#define DECLARE_SET_RESULT_ADDRESS_METHOD(OP) \
-    LogicalResult OP::setResultAddress(uint64_t gaddr) { \
-      setAttr("offset", Builder(getOperation()->getContext()).getI64IntegerAttr(gaddr)); \
-      return success(); \
-    }
-#define DECLARE_SET_EMPTY_RESULT_ADDRESS_METHOD(OP) \
-    LogicalResult OP::setResultAddress(uint64_t gaddr) { return success(); }
-
-DECLARE_GET_RESULT_ADDRESS_METHOD(InputOp)
-//--------------------------------------
-//DECLARE_EMPTY_RESULT_ADDRESS_METHOD(LoadWeightOp)
-DECLARE_GET_RESULT_ADDRESS_METHOD(QuantizationOp)
-DECLARE_GET_EMPTY_RESULT_ADDRESS_METHOD(DequantizationOp)
-
-DECLARE_SET_RESULT_ADDRESS_METHOD(InputOp)
-//--------------------------------------
-//DECLARE_EMPTY_RESULT_ADDRESS_METHOD(LoadWeightOp)
-DECLARE_SET_RESULT_ADDRESS_METHOD(QuantizationOp)
-DECLARE_SET_EMPTY_RESULT_ADDRESS_METHOD(DequantizationOp)
+LogicalResult ReshapeOp::setOpQuantThreshold(float threshold) {
+  assert(false);
+  return failure();
+}

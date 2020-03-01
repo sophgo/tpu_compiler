@@ -51,46 +51,21 @@ public:
 
     uint32_t layer_id = 0;
     fn.walk([&](Operation *op) {
-      if ( !failed(setOpLayerId(op, layer_id)) ) {
+      if (op->getName().getDialect().str() != "tpu"
+          || isa<tpu::WeightFileOp>(op)
+          || isa<tpu::LoadWeightOp>(op)
+          || isa<tpu::NoneOp>(op)) {
+        // no need to assign
+      } else if ( !failed(setOpLayerId(op, layer_id)) ) {
         llvm::errs() << " layer_id: " << llvm::format("%04d", layer_id)
                      << " -> " << mlir::getOpName(op)
                      << " : " << op->getName() << "\n";
         layer_id ++;
       } else {
-        // to be removed
-        int processed = 0;
-        processed += addLayerIdAttr<tpu::InputOp>(builder, layer_id, op);
-        if (op->getName().getDialect().str() != "tpu"
-            || isa<tpu::QuantizationOp>(op)
-            || isa<tpu::DequantizationOp>(op)
-            || isa<tpu::WeightFileOp>(op)
-            || isa<tpu::LoadWeightOp>(op)
-            || isa<tpu::NoneOp>(op)) {
-          processed = 1;
-        }
-        if (!processed) {
-          llvm::errs() << "addLayerIdAttr didn't handle " << op->getName() << "\n";
-          assert(false);
-        }
+        llvm::errs() << "addLayerIdAttr didn't handle " << op->getName() << "\n";
+        assert(false);
       }
     });
-  }
-
-private:
-  // to be removed
-  template<typename T>
-  int addLayerIdAttr(Builder &builder, uint32_t &layer_id, Operation *op) {
-      auto cast_op = llvm::dyn_cast_or_null<T>(op);
-      if (cast_op) {
-        std::string op_name = mlir::getOpName(op).str();
-        llvm::errs() << " layer_id: " << llvm::format("%04d", layer_id)
-                     << " -> " << mlir::getOpName(op)
-                     << " : " << op->getName() << "\n";
-        cast_op.setAttr("layer_id", builder.getI32IntegerAttr(layer_id));
-        layer_id++;
-        return 1;
-      }
-      return 0;
   }
 };
 

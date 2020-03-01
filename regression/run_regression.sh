@@ -7,10 +7,10 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 net_list=(
   "resnet50"
   "yolo_v3"
-  "retinaface_res50"
-  "efficientnet_b0"
   "inception_v4"
+  "retinaface_res50"
   "ssd300"
+  "efficientnet_b0"
 )
 
 if [ ! -z "$1" ]; then

@@ -10,7 +10,7 @@ fi
 
 pushd $NET
 # clear previous output
-rm -f *.mlir *.bin *.npz *.csv
+# rm -f *.mlir *.bin *.npz *.csv
 
 # run tests
 $DIR/regression_resnet50_0_caffe.sh

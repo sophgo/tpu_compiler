@@ -1082,6 +1082,24 @@ LogicalResult tpu::TG_BF16_FullyConnectedOp::codegen(void *ctx) {
   return success();
 }
 
+LogicalResult tpu::TG_INT8_InputOp::codegen(void *ctx) {
+  llvm::errs() << "TG_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";
+  //CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  //Operation *op = this->getOperation();
+
+  return success();
+}
+
+LogicalResult tpu::TG_BF16_InputOp::codegen(void *ctx) {
+  llvm::errs() << "TG_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";
+  //CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  //Operation *op = this->getOperation();
+
+  return success();
+}
+
 LogicalResult tpu::TG_INT8_LeakyReluOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";
@@ -1622,7 +1640,7 @@ LogicalResult tpu::TG_BF16_ShuffleChannelOp::codegen(void *ctx) {
   return success();
 }
 
-LogicalResult tpu::TG_INT8_ReshapeOp::codegen(void *ctx) {
+LogicalResult tpu::ReshapeOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";
   //CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
@@ -1630,17 +1648,6 @@ LogicalResult tpu::TG_INT8_ReshapeOp::codegen(void *ctx) {
 
   return success();
 }
-
-LogicalResult tpu::TG_BF16_ReshapeOp::codegen(void *ctx) {
-  llvm::errs() << "TG_codegen: " << getOperationName()
-               << " [" << getOpName() << "]\n";
-  //CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
-  //Operation *op = this->getOperation();
-
-  return success();
-}
-
-
 
 LogicalResult tpu::TG_INT8_SliceOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName()

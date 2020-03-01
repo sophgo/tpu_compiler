@@ -42,8 +42,11 @@ typedef std::map<std::string, std::vector<int64_t> > shape_map_t;
 
 static bool isValidOp(Operation &op)
 {
-  return (!isa<tpu::LoadWeightOp>(op) && !isa<tpu::WeightFileOp>(op) &&
-          op.getName().getDialect().str() == "tpu");
+  return (op.getName().getDialect().str() == "tpu"
+          && !isa<tpu::WeightFileOp>(op)
+          && !isa<tpu::LoadWeightOp>(op)
+          && !isa<tpu::NoneOp>(op)
+          );
 }
 
 static OwningModuleRef parseMLIRInput(StringRef inputFilename,

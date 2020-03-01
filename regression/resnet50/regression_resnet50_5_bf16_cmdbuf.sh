@@ -75,7 +75,7 @@ bin_compare.py \
 npz_compare.py \
     resnet50_cmdbuf_out_all_bf16.npz \
     resnet50_tensor_all_bf16.npz \
-    --op_info resnet50_op_info.csv \
+    --op_info resnet50_op_info_bf16.csv \
     --tolerance=0.99,0.99,0.96 -vv
 
 # VERDICT

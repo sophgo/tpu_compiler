@@ -12,7 +12,7 @@ COMPARE_ALL=0
 
 npz_to_bin.py \
     yolo_v3_tensor_all_int8_multiplier.npz \
-    data_quant \
+    data \
     yolo_v3_in_int8.bin \
     int8
 
