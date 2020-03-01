@@ -26,7 +26,7 @@ fi
 mlir-opt \
     --quant-bf16 \
     --gen-sqrt-table \
-    --gen-div-table \
+    --gen-reciprocal-table \
     ssd300_opt.mlir \
     -o ssd300_quant_bf16.mlir
 

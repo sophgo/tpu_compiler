@@ -269,7 +269,7 @@ Value* tpu::DeConv2DOp::convertToTG() {
   return nullptr;
 }
 
-Value *tpu::DivOp::convertToTG() {
+Value *tpu::ReciprocalOp::convertToTG() {
   llvm::errs() << "lowerToTG: " << getOperationName() << " [" << getOpName()
                << "]\n";
   Operation *op = this->getOperation();
@@ -1601,7 +1601,7 @@ public:
     patterns_lower.insert<
         LowerWeightConv2DOpPattern<tpu::Conv2DOp>,
         LowerWeightConv2DOpPattern<tpu::DeConv2DOp>,
-        LowerWeightLutOpPattern<tpu::DivOp>,
+        LowerWeightLutOpPattern<tpu::ReciprocalOp>,
         LowerWeightPReluOpPattern,
         LowerWeightLutOpPattern<tpu::SigmoidOp>,
         LowerWeightLutOpPattern<tpu::SqrtOp>,
@@ -1617,7 +1617,7 @@ public:
         DefaultToTGPattern<tpu::Conv2DOp>,
         DefaultToTGPattern<tpu::CropOp>,
         DefaultToTGPattern<tpu::DeConv2DOp>,
-        DefaultToTGPattern<tpu::DivOp>,
+        DefaultToTGPattern<tpu::ReciprocalOp>,
         DefaultToTGPattern<tpu::EltwiseAddOp>,
         DefaultToTGPattern<tpu::EltwiseMaxOp>,
         DefaultToTGPattern<tpu::EltwiseMulOp>,

@@ -63,7 +63,7 @@ conv6_2_relu 7.13526344299
 conv7_2_mbox_loc 3.9598865509
 conv9_2_mbox_loc_perm 2.96093654633
 conv4_3_norm_mbox_conf 10.0178394318
-conv4_3_norm_Div 0.0382648408413
+conv4_3_norm_reciprocal 0.0382648408413
 relu4_1 946.246826172
 conv9_2_mbox_conf 18.6297206879
 conv7_2_mbox_loc_perm 3.9598865509

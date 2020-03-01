@@ -41,7 +41,7 @@ std::unique_ptr<OpPassBase<FuncOp>> createConvertScaleToDWConvPass();
 std::unique_ptr<OpPassBase<FuncOp>> createFuseReluPass();
 std::unique_ptr<OpPassBase<FuncOp>> createFuseEltwisePass();
 
-std::unique_ptr<OpPassBase<FuncOp>> createGenDivTablePass();
+std::unique_ptr<OpPassBase<FuncOp>> createGenReciprocalTablePass();
 //std::unique_ptr<OpPassBase<FuncOp>> createGenPowerWeightPass() ;
 std::unique_ptr<OpPassBase<FuncOp>> createGenSigmoidTablePass();
 std::unique_ptr<OpPassBase<FuncOp>> createGenSqrtTablePass();

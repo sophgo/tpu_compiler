@@ -563,7 +563,7 @@ struct TpuQuantInt8LutOpPattern : public RewritePattern {
         char lutInput = static_cast<char>(idx);
         float index = lutInput * threshold_x / 127.0;
 
-        if(OpTy::getOperationName()=="tpu.div"){
+        if(OpTy::getOperationName()=="tpu.reciprocal"){
           float lutOutput = 1.0 /(index) * 127.0 / threshold_y;
           int lutOutputI32 = std::floor(lutOutput + 0.5);
           lutOutputI32 = (lutOutputI32 > 127)
@@ -958,7 +958,7 @@ public:
         TpuQuantInt8Conv2DOpPattern<tpu::Conv2DOp>,
         TpuQuantInt8BypassPattern<tpu::CropOp>,
         TpuQuantInt8Conv2DOpPattern<tpu::DeConv2DOp>,
-        TpuQuantInt8LutOpPattern<tpu::DivOp>,
+        TpuQuantInt8LutOpPattern<tpu::ReciprocalOp>,
         TpuQuantInt8DefaultPattern<tpu::EltwiseAddOp>,
         TpuQuantInt8DefaultPattern<tpu::EltwiseMaxOp>,
         TpuQuantInt8MultiplyOpDefaultPattern<tpu::EltwiseMulOp>,

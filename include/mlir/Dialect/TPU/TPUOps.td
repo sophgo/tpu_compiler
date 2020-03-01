@@ -503,7 +503,7 @@ def TPU_DetectionOutputOp : TPU_Op<"detectionoutput",
   let results = (outs AnyTensor:$output);
 }
 
-def TPU_DivOp : TPU_LutOp<"div", "Div">;
+def TPU_ReciprocalOp : TPU_LutOp<"reciprocal", "Reciprocal">;
 
 def TPU_EltwiseAddOp : TPU_EltwiseOp<"eltwise_add", "Add">;
 def TPU_EltwiseMulOp : TPU_EltwiseOp<"eltwise_mul", "Mul">;

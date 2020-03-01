@@ -699,7 +699,7 @@ static LogicalResult doLUTOpInterpret(Operation *op, StringRef &type,
     getTensorShapeAndSize(op->getOperand(0), shape, input_size);
     getNCHW(shape, n, c, h, w);
 
-    if (type == "Div"){
+    if (type == "Reciprocal"){
       float eps = 1.0e-5;
       for (int i = 0; i < input_size; ++i) {
         output[i] = 1.0/(input[i] + eps);
@@ -731,11 +731,11 @@ static LogicalResult doLUTOpInterpret(Operation *op, StringRef &type,
 
 }
 
-LogicalResult tpu::DivOp::interpret(
+LogicalResult tpu::ReciprocalOp::interpret(
     DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
-  StringRef type = "Div";
+  StringRef type = "Reciprocal";
   return doLUTOpInterpret(op,type,valueMapping);
 }
 

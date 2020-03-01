@@ -32,7 +32,7 @@ add_llvm_library(MLIRTPU
   Quantization/GenLutBf16Table.cpp
   Quantization/GenTanHTable.cpp
   Quantization/GenSqrtTable.cpp
-  Quantization/GenDivTable.cpp
+  Quantization/GenReciprocalTable.cpp
   Quantization/GenSigmoidTable.cpp
   Optimization/FuseLeakyRelu.cpp
   Backend/TpuTgCodegen.cpp
