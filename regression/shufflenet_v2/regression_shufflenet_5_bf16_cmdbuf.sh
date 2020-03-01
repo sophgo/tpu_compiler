@@ -7,7 +7,7 @@ source $DIR/../../envsetup.sh
 ################################
 # prepare bf16 input
 ################################
-npz_to_bin.py shufflenet_in_fp32.npz input shufflenet_in_fp32.bin
+npz_to_bin.py shufflenet_in_fp32.npz data shufflenet_in_fp32.bin
 bin_fp32_to_bf16.py \
     shufflenet_in_fp32.bin \
     shufflenet_in_bf16.bin

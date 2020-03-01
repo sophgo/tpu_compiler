@@ -20,7 +20,7 @@ npz_compare.py \
     shufflenet_tensor_all_bf16.npz \
     shufflenet_tensor_all_fp32.npz \
     --op_info shufflenet_op_info.csv \
-    --tolerance=0.99,0.99,0.95 -vv
+    --tolerance=0.99,0.99,0.93 -vv
 
 # VERDICT
 echo $0 PASSED

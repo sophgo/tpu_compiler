@@ -10,7 +10,7 @@ COMPARE_OUTPUT_BIT_TRUE=1
 # import calibration table
 mlir-opt \
     --import-calibration-table \
-    --calibration-table $REGRESSION_PATH/shufflenet_v2/data/shufflenet_threshold_table \
+    --calibration-table $REGRESSION_PATH/shufflenet_v2/data/shufflenet_v2_threshold_table \
     shufflenet_opt.mlir \
     -o shufflenet_cali.mlir
 
@@ -47,7 +47,7 @@ if [ $COMPARE_ALL -eq 1 ]; then
       shufflenet_blobs.npz \
       --op_info shufflenet_op_info_int8_per_layer.csv \
       --dequant \
-      --tolerance 0.9,0.88,0.47 -vv
+      --tolerance 0.92,0.91,0.60 -vv
 fi
 
 ###############################################################################
@@ -84,7 +84,7 @@ if [ $COMPARE_ALL -eq 1 ]; then
       shufflenet_blobs.npz \
       --op_info shufflenet_op_info_int8_per_channel.csv \
       --dequant \
-      --tolerance 0.92,0.90,0.47 -vv
+      --tolerance 0.96,0.96,0.73 -vv
 fi
 
 ###############################################################################
@@ -122,7 +122,7 @@ if [ $COMPARE_ALL -eq 1 ]; then
       shufflenet_blobs.npz \
       --op_info shufflenet_op_info_int8_multiplier.csv \
       --dequant \
-      --tolerance 0.92,0.90,0.48 -vv
+      --tolerance 0.96,0.96,0.73 -vv
 fi
 
 # VERDICT
