@@ -145,16 +145,16 @@ bool convertOperation(Operation *oldOp, OpBuilder &builder,
 FunctionType getMemRefFunctionType(FunctionType type) {
   Builder builder(type.getContext());
   llvm::SmallVector<Type, 8> replacementInputs;
-  for (auto type : type.getInputs()) {
-    auto memRefType = convertLegacyTypeToMemRef(type);
+  for (auto inputType : type.getInputs()) {
+    auto memRefType = convertLegacyTypeToMemRef(inputType);
     if (!memRefType) {
       return nullptr;
     }
     replacementInputs.push_back(memRefType);
   }
   llvm::SmallVector<Type, 8> replacementResults;
-  for (auto type : type.getResults()) {
-    auto memRefType = convertLegacyTypeToMemRef(type);
+  for (auto resultType : type.getResults()) {
+    auto memRefType = convertLegacyTypeToMemRef(resultType);
     if (!memRefType) {
       return nullptr;
     }
