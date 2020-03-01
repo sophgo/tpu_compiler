@@ -1180,7 +1180,7 @@ void CaffeImporter::convertInputLayer(mlir::Block *block,
 
   tensor_map_[layer_param.top(0)] = result_var;
 }
-#if 0
+#if 1
 void CaffeImporter::convertNormalizeLayer(mlir::Block *block,
     caffe::Layer<float> *layer) {
 
