@@ -143,7 +143,6 @@ static LogicalResult runOperation(Operation &opInst) {
 
     return success();
   }
-#endif
 
   if (auto op = dyn_cast<tpu::PowerOp>(opInst)) {
     // TODO: fuse relu, power implement by depthwise, it could be fused
@@ -239,6 +238,7 @@ static LogicalResult runOperation(Operation &opInst) {
 
     return success();
   }
+#endif
 
   return success();
 }

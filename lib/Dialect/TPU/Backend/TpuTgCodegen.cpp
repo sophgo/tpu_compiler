@@ -765,7 +765,7 @@ LogicalResult tpu::TG_BF16_DivOp::codegen(void *ctx) {
 
 
   int layer_id = mlir::getOpLayerId(op);
-  
+
   bf16_reciprocal_fixed_forward_bmkernel(*backend_ctx,
                                   0,        // stream_id,
                                   0,        // inst_id,
@@ -773,7 +773,7 @@ LogicalResult tpu::TG_BF16_DivOp::codegen(void *ctx) {
                                   nullptr,  // const u32 *depends,
                                   0,        // depends_len,
                                   input_gaddr, output_gaddr, table_data_lut,table_data_mantissa_lut,
-                                  n, c, h, w);   
+                                  n, c, h, w);
 
   return success();
 }
@@ -1082,6 +1082,24 @@ LogicalResult tpu::TG_BF16_FullyConnectedOp::codegen(void *ctx) {
   return success();
 }
 
+LogicalResult tpu::TG_INT8_InputOp::codegen(void *ctx) {
+  llvm::errs() << "TG_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";
+  //CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  //Operation *op = this->getOperation();
+
+  return success();
+}
+
+LogicalResult tpu::TG_BF16_InputOp::codegen(void *ctx) {
+  llvm::errs() << "TG_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";
+  //CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  //Operation *op = this->getOperation();
+
+  return success();
+}
+
 LogicalResult tpu::TG_INT8_LeakyReluOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";
@@ -1248,7 +1266,7 @@ LogicalResult tpu::TG_BF16_Div_LutOp::codegen(void *ctx) {
   //                                 nullptr,  // const u32 *depends,
   //                                 0,        // depends_len,
   //                                 input_gaddr, output_gaddr, table_data_lut,table_data_mantissa_lut,
-  //                                 n, c, h, w);  
+  //                                 n, c, h, w);
   return success();
 }
 
@@ -1303,7 +1321,6 @@ LogicalResult tpu::TG_INT8_PermuteOp::codegen(void *ctx) {
 LogicalResult tpu::TG_BF16_PermuteOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName() << " [" << getOpName()
                << "]\n";
-
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
@@ -1343,6 +1360,7 @@ LogicalResult tpu::TG_BF16_PermuteOp::codegen(void *ctx) {
       break;
     }
   }
+
   bf16_permute_fixed_forward_kernel(
       *backend_ctx,
       0, //stream_id,
@@ -1594,9 +1612,9 @@ LogicalResult tpu::TG_INT8_ShuffleChannelOp::codegen(void *ctx) {
   gaddr_t input_gaddr = getPreviousOpAddress(op);
   gaddr_t output_gaddr = getOpAddress(op);
   int layer_id = mlir::getOpLayerId(op);
-  shuffle_channel_fixed_forward_kernel(*backend_ctx, 0, 0, layer_id, nullptr, 0,
+  shuffle_channel_forward_kernel(*backend_ctx, 0, 0, layer_id, nullptr, 0,
                                        input_gaddr, output_gaddr, n, c,
-                                       frame_size, group);
+                                       frame_size, group, FMT_I8);
   return success();
 }
 
@@ -1616,13 +1634,13 @@ LogicalResult tpu::TG_BF16_ShuffleChannelOp::codegen(void *ctx) {
   gaddr_t input_gaddr = getPreviousOpAddress(op);
   gaddr_t output_gaddr = getOpAddress(op);
   int layer_id = mlir::getOpLayerId(op);
-  // bf16_shuffle_channel_forward_kernel(*backend_ctx, 0, 0, layer_id, nullptr, 0,
-  //                                      input_gaddr, output_gaddr, n, c,
-  //                                      frame_size, group);
+  shuffle_channel_forward_kernel(*backend_ctx, 0, 0, layer_id, nullptr, 0,
+                                       input_gaddr, output_gaddr, n, c,
+                                       frame_size, group, FMT_BF16);
   return success();
 }
 
-LogicalResult tpu::TG_INT8_ReshapeOp::codegen(void *ctx) {
+LogicalResult tpu::ReshapeOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";
   //CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
@@ -1630,33 +1648,33 @@ LogicalResult tpu::TG_INT8_ReshapeOp::codegen(void *ctx) {
 
   return success();
 }
-
-LogicalResult tpu::TG_BF16_ReshapeOp::codegen(void *ctx) {
-  llvm::errs() << "TG_codegen: " << getOperationName()
-               << " [" << getOpName() << "]\n";
-  //CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
-  //Operation *op = this->getOperation();
-
-  return success();
-}
-
-
 
 LogicalResult tpu::TG_INT8_SliceOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";
-  //CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
-  //Operation *op = this->getOperation();
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
 
   int axis = this->axis().getLimitedValue();
   std::vector<int64_t> input_shape = getTensorShape(input());
+  std::vector<int> input_shape_fix;
+  for (auto &dim : input_shape) {
+    input_shape_fix.push_back((int)dim);
+  }
 
   if (axis == 1 && input_shape[0] == 1) {
     llvm::errs() << "  no copy\n";
-  } else {
-    llvm::errs() << "  slice not support batch != 1 yet\n";
-    assert(false);
+    return success();
   }
+  int offset = this->offset().getLimitedValue();
+  gaddr_t input_gaddr = getPreviousOpAddress(op);
+  gaddr_t output_gaddr = getOpAddress(op);
+  int layer_id = mlir::getOpLayerId(op);
+  std::vector<int64_t> output_shape = getTensorShape(this->getResult());
+  slice_forward_kernel(*backend_ctx, 0, 0, layer_id, nullptr, 0, input_gaddr,
+                       output_gaddr, (int)input_shape.size(),
+                       input_shape_fix.data(), axis, offset,
+                       (int)output_shape[axis], FMT_I8);
 
   return success();
 }
@@ -1664,18 +1682,29 @@ LogicalResult tpu::TG_INT8_SliceOp::codegen(void *ctx) {
 LogicalResult tpu::TG_BF16_SliceOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";
-  //CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
-  //Operation *op = this->getOperation();
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
 
   int axis = this->axis().getLimitedValue();
   std::vector<int64_t> input_shape = getTensorShape(input());
+  std::vector<int> input_shape_fix;
+  for (auto &dim : input_shape) {
+    input_shape_fix.push_back((int)dim);
+  }
 
   if (axis == 1 && input_shape[0] == 1) {
     llvm::errs() << "  no copy\n";
-  } else {
-    llvm::errs() << "  slice not support batch != 1 yet\n";
-    assert(false);
+    return success();
   }
+  int offset = this->offset().getLimitedValue();
+  gaddr_t input_gaddr = getPreviousOpAddress(op);
+  gaddr_t output_gaddr = getOpAddress(op);
+  int layer_id = mlir::getOpLayerId(op);
+  std::vector<int64_t> output_shape = getTensorShape(this->getResult());
+  slice_forward_kernel(*backend_ctx, 0, 0, layer_id, nullptr, 0, input_gaddr,
+                       output_gaddr, (int)input_shape.size(),
+                       input_shape_fix.data(), axis, offset,
+                       (int)output_shape[axis], FMT_BF16);
 
   return success();
 }
@@ -1730,7 +1759,7 @@ LogicalResult tpu::TG_BF16_SqrtOp::codegen(void *ctx) {
 
 
   int layer_id = mlir::getOpLayerId(op);
-  
+
   bf16_sqrt_fixed_forward_bmkernel(*backend_ctx,
                                  0,        // stream_id,
                                  0,        // inst_id,
@@ -1738,7 +1767,7 @@ LogicalResult tpu::TG_BF16_SqrtOp::codegen(void *ctx) {
                                  nullptr,  // const u32 *depends,
                                  0,        // depends_len,
                                  input_gaddr, output_gaddr, table_data_lut,table_data_mantissa_lut,
-                                 n, c, h, w);  
+                                 n, c, h, w);
 
   return success();
 }

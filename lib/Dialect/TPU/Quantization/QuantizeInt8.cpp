@@ -518,7 +518,7 @@ struct TpuQuantInt8LutOpPattern : public RewritePattern {
 
   PatternMatchResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
-      
+
     auto lutOp = cast<OpTy>(op);
 
     if (getOpQuant(op) != "NONE") {
@@ -569,14 +569,14 @@ struct TpuQuantInt8LutOpPattern : public RewritePattern {
           lutOutputI32 = (lutOutputI32 > 127)
                               ? 127
                               : (lutOutputI32 < -128) ? -128 : lutOutputI32;
-          y0_table[n * table_hw + idx] = lutOutputI32;                              
+          y0_table[n * table_hw + idx] = lutOutputI32;
         }else if(OpTy::getOperationName()=="tpu.sqrt"){
           float lutOutput = pow(index,0.5) * 127.0 / threshold_y;
           int lutOutputI32 = std::floor(lutOutput + 0.5);
           lutOutputI32 = (lutOutputI32 > 127)
                             ? 127
                             : (lutOutputI32 < -128) ? -128 : lutOutputI32;
-          y0_table[n * table_hw + idx] = lutOutputI32;                            
+          y0_table[n * table_hw + idx] = lutOutputI32;
         }else if(OpTy::getOperationName()=="tpu.sigmoid"){
           float lutOutput = 1.0 / (1 + std::exp(index)) * 127.0 / threshold_y;
           int lutOutputI32 = std::floor(lutOutput + 0.5);
@@ -595,7 +595,7 @@ struct TpuQuantInt8LutOpPattern : public RewritePattern {
     auto y0_table_op = addWeightTensorAndCreateWeightOp<float>(
         op, "y0_table", y0_table, shape, storageType, wTF, wfV);
     auto mantissa_table_op = addWeightTensorAndCreateWeightOp<float>(
-        op, "mantissa_table", table_mantissa, shape, storageType, wTF, wfV);        
+        op, "mantissa_table", table_mantissa, shape, storageType, wTF, wfV);
     lutOp.setOperand(1, y0_table_op);
     lutOp.setOperand(2, mantissa_table_op);
     setOpQuantPerchannel(op, false);
@@ -605,76 +605,6 @@ struct TpuQuantInt8LutOpPattern : public RewritePattern {
   }
 };
 
-
-#if 0
-struct TpuQuantInt8SigmoidOpPattern : public RewritePattern {
-  TpuQuantInt8SigmoidOpPattern(MLIRContext *context)
-      : RewritePattern("tpu.sigmoid", 1, context) {}
-
-  PatternMatchResult matchAndRewrite(Operation *op,
-                                     PatternRewriter &rewriter) const override {
-    auto sigOp = cast<tpu::SigmoidOp>(op);
-
-    if (getOpQuant(op) != "NONE") {
-      LLVM_DEBUG(llvm::errs()
-                     << " < " << getOpName(op) << ", quantized already\n";);
-      return matchFailure();
-    }
-    assert(getOpQuantParamType(op) == "THRESHOLD");
-    TensorFile *wTF = getWeightTensorFile(op);
-    Value *wfV = getWeightFileValue(op);
-
-    // quantization
-    float threshold_x = getPreviousOpThreshold(op);
-    float threshold_y = getOpThreshold(op);
-    LLVM_DEBUG(llvm::errs() << " > " << getOpName(op)
-                            << ", threshold_y = " << std::to_string(threshold_y)
-                            << ", threshold_x = " << std::to_string(threshold_x)
-                            << "\n";);
-    int npu_num = 32; //<! 1880v2 hardcode
-
-    //<! 1880v2 hw config
-    int table_h;
-    int table_w;
-    int table_hw;
-
-    int tbl_shape;
-    std::vector<float> y0_table;
-    //<! 1880v2 hw int8 config
-    table_h = 16;
-    table_w = 16;
-    table_hw = table_h * table_w;
-
-    tbl_shape = npu_num * table_hw;
-    y0_table.resize(tbl_shape);
-
-    // input: 0~127, -128~ -1, Y=1/(1+EXP(-X*thx/128)) * 128/thy
-    // output:0~127, negative is invalid
-    for (int n = 0; n < npu_num; n++) {
-      for (int idx = 0; idx < table_hw; ++idx) {
-        char lutInput = static_cast<char>(idx);
-        float index = -lutInput * threshold_x / 127.0;
-        float lutOutput = 1.0 / (1 + std::exp(index)) * 127.0 / threshold_y;
-        int lutOutputI32 = std::floor(lutOutput + 0.5);
-        lutOutputI32 = (lutOutputI32 > 127)
-                           ? 127
-                           : (lutOutputI32 < -128) ? -128 : lutOutputI32;
-        y0_table[n * table_hw + idx] = lutOutputI32;
-      }
-    }
-    // update op
-    auto shape = std::vector<int64_t>{1, npu_num, table_h, table_w};
-    StringRef storageType = "INT8";
-    auto y0_table_op = addWeightTensorAndCreateWeightOp<float>(
-        op, "y0_table", y0_table, shape, storageType, wTF, wfV);
-    sigOp.setOperand(1, y0_table_op);
-    setOpQuantPerchannel(op, false);
-    setOpQuant(op, "INT8");
-
-    return matchSuccess();
-  }
-};
-#endif
 ///
 /// default quantize pattern
 /// for operations that has no weight, but still need to do rescaling
@@ -919,326 +849,94 @@ struct TpuQuantInt8BypassPattern : public RewritePattern {
   }
 };
 
-
-
-
-
-// to be removed
-
-struct TpuQuantPowerOpPattern : public RewritePattern {
-    TpuQuantPowerOpPattern(MLIRContext *context)
-      :RewritePattern("tpu.power", 1, context) {}
+struct TpuQuantInt8InputOpPattern : public RewritePattern {
+  TpuQuantInt8InputOpPattern(MLIRContext *context)
+      : RewritePattern(tpu::InputOp::getOperationName(), 1, context) {}
 
   PatternMatchResult matchAndRewrite(Operation *op,
-                                     PatternRewriter &rewriter) const {
-
-    auto powerOp = cast<tpu::PowerOp>(op);
-
-    if(powerOp.has_table() == true){
-      LLVM_DEBUG(llvm::errs() << powerOp.name() << " gen already\n";);
+                                     PatternRewriter &rewriter) const override {
+    if (getOpQuant(op) != "NONE") {
+      LLVM_DEBUG(llvm::errs() << " < " << getOpName(op)
+                              << ", quantized already\n";);
       return matchFailure();
     }
-    TensorFile *wTF = getWeightTensorFile(op);
-    Value *wfV = getWeightFileValue(op);
 
-    std::string op_name = powerOp.getAttrOfType<StringAttr>("name").getValue().str();
-    auto result_var = powerOp.getResult();
-
-    llvm::ArrayRef<int64_t> input_shape = result_var->getType().dyn_cast<mlir::TensorType>().getShape();
-    assert(input_shape.size() == 4);
-    auto size = input_shape[1];// get channel number
-
-    // get quant type
-    QUANT_INT8_TYPE_e quant;
-    if (!clQuantConvPerChannel) {
-      assert(!clQuantConvMultiplier
-             && "enable per channel before enable multiplier");
-      quant = INT8_PER_LAYER;
-    } else if (!clQuantConvMultiplier) {
-      quant = INT8_PER_CHANNEL;
-    } else {
-      quant = INT8_MULTIPLER;
-    }
-
-    //assign scale and shift tensor
-    std::vector<float> scale_weight(size);
-    std::vector<float> shift_weight(size);
-
-    float threshold_y,threshold_x,qscale;
-    int8_t rshift;
-    uint32_t multiplier;
-
-    threshold_y = powerOp.threshold_y().getValue().convertToFloat();
-    threshold_x = getPreviousOpThreshold(powerOp);
-
-    qscale = (threshold_x*threshold_x) /(127.0*threshold_y);
-
-    float scale = powerOp.scale().convertToFloat();
-    float shift = powerOp.shift().convertToFloat();
-
-    if (quant == INT8_PER_LAYER|| quant == INT8_PER_CHANNEL) {
-      rshift = findRShiftAndMultiplierFromQScale(qscale);
-      multiplier = findMultiplierI8FromQScaleAndRShift(qscale, rshift);
-    }else if(quant == INT8_MULTIPLER){
-      rshift = findRShiftAndMultiplierFromQScale(qscale, &multiplier, true,255);
-    }
-
-    if (quant == INT8_PER_LAYER|| quant == INT8_PER_CHANNEL) {
-      scale = scale*(threshold_y/threshold_x)*multiplier;
-      shift = shift*(threshold_y/127.0)*multiplier;
-      scale = (float)applyRShiftAndSaturateInt8(scale, rshift);
-      shift = (float)applyRShiftAndSaturateInt8(shift, rshift);
-    }else if(quant == INT8_MULTIPLER){
-      scale = scale*(threshold_y/threshold_x);
-      shift = shift*(threshold_y/127.0);
-      scale = (float)applyMultiplierAndRShiftAndSaturateInt8(scale,rshift,  multiplier);
-      shift = (float)applyMultiplierAndRShiftAndSaturateInt8(shift,rshift,  multiplier);
-    }
-
-    for (uint32_t i = 0; i < scale_weight.size(); i++) {
-      scale_weight[i] = scale;
-    }
-
-    for (uint32_t i = 0; i < shift_weight.size(); i++) {
-      shift_weight[i] = shift;
-    }
-
-    // update op
-    std::vector<Value *> newOperands;
-    newOperands.push_back(powerOp.getOperand(0));
-    auto type = RankedTensorType::get(input_shape,FloatType::getF32(rewriter.getContext()));
-
-    //add scale operand
-    auto tensor_name = op_name + "_gen_scale";
-    wTF->addTensor<float>(tensor_name, scale_weight.data(), type);
-    std::vector<NamedAttribute> attrs;
-    attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(tensor_name)));
-    attrs.push_back(rewriter.getNamedAttr("storage", rewriter.getStringAttr("INT8")));
-    auto new_scale_op = rewriter.create<tpu::LoadWeightOp>(op->getLoc(), type,
-        ArrayRef<Value *>{wfV}, ArrayRef<NamedAttribute>{attrs});
-    newOperands.push_back(new_scale_op);
-
-
-    //add scale operand
-    tensor_name = op_name + "_gen_shift";
-    wTF->addTensor<float>(tensor_name, shift_weight.data(), type);
-    std::vector<NamedAttribute> attrs_shift;
-    attrs_shift.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(tensor_name)));
-    attrs_shift.push_back(rewriter.getNamedAttr("storage", rewriter.getStringAttr("INT8")));
-    auto new_shift_op = rewriter.create<tpu::LoadWeightOp>(op->getLoc(), type,
-        ArrayRef<Value *>{wfV}, ArrayRef<NamedAttribute>{attrs_shift});
-    newOperands.push_back(new_shift_op);
-
-    powerOp.setAttr("has_table", rewriter.getBoolAttr("true"));
-
-          // set quant type
-      if (quant == INT8_PER_LAYER) {
-        powerOp.setAttr("quant", rewriter.getStringAttr("INT8"));
-      } else if (quant == INT8_PER_CHANNEL) {
-        powerOp.setAttr("quant", rewriter.getStringAttr("INT8_PER_CHANNEL"));
-      } else if (quant == INT8_MULTIPLER) {
-        powerOp.setAttr("quant", rewriter.getStringAttr("INT8_MULTIPLIER"));
-      }
-
-    rewriter.replaceOpWithNewOp<tpu::PowerOp>(
-        powerOp, powerOp.getResult()->getType(),
-        ArrayRef<Value *>{newOperands}, ArrayRef<NamedAttribute>{powerOp.getAttrs()});
+    setOpQuantParamType(op, "NONE");
+    setOpQuantPerchannel(op, false);
+    setOpQuant(op, "INT8");
 
     return matchSuccess();
   }
 };
 
-// to be removed
 template<typename OpTy>
-struct TpuQuantDefaultPattern : public RewritePattern {
-  TpuQuantDefaultPattern(MLIRContext *context)
+struct TpuAddQuantizeOpBeforeOpPattern : public RewritePattern {
+  TpuAddQuantizeOpBeforeOpPattern(MLIRContext *context)
       : RewritePattern(OpTy::getOperationName(), 1, context) {}
 
   PatternMatchResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
-    auto castOp = cast<OpTy>(op);
-    if (castOp.quant() != "NONE") {
-      LLVM_DEBUG(llvm::errs() << castOp.name() << " quantized already\n";);
+    if (op->getOperand(0)->getDefiningOp()
+        && isa<tpu::QuantOp>(op->getOperand(0)->getDefiningOp())) {
+      // added already
       return matchFailure();
     }
-    castOp.setAttr("quant", rewriter.getStringAttr("INT8"));
+
+    auto type = op->getResult(0)->getType();
+    std::vector<NamedAttribute> attrs;
+    attrs.push_back(rewriter.getNamedAttr("from",
+        rewriter.getStringAttr("NONE")));
+    attrs.push_back(rewriter.getNamedAttr("to",
+        rewriter.getStringAttr("INT8")));
+    attrs.push_back(rewriter.getNamedAttr("threshold",
+        rewriter.getF32FloatAttr(getOpThreshold(op))));
+    attrs.push_back(rewriter.getNamedAttr("name",
+        rewriter.getStringAttr(getOpName(op).str() + "_quant")));
+    attrs.push_back(rewriter.getNamedAttr("layer_id",
+        rewriter.getI32IntegerAttr(getOpLayerId(op))));
+    auto quantOp = rewriter.create<tpu::QuantOp>(op->getLoc(), type,
+        ArrayRef<Value *>{op->getOperand(0)}, ArrayRef<NamedAttribute>{attrs});
+
+    op->setOperand(0, quantOp.getResult());
 
     return matchSuccess();
   }
 };
 
-template<typename T>
-static void addQuantOpAfterOp(PatternRewriter &rewriter, T &op) {
-  auto loc = op.getLoc();
-  float threshold_y = getOpThreshold(op.getOperation());
-  std::string op_name = op.template getAttrOfType<StringAttr>("name").getValue().str();
+template<typename OpTy>
+struct TpuAddDequantizeOpBeforeOpPattern : public RewritePattern {
+  TpuAddDequantizeOpBeforeOpPattern(MLIRContext *context)
+      : RewritePattern(OpTy::getOperationName(), 1, context) {}
 
-  auto *inst = op.getOperation();
-  OpBuilder builder(inst);
-  auto clonedOp = cast<T>(builder.clone(*inst));
+  PatternMatchResult matchAndRewrite(Operation *op,
+                                     PatternRewriter &rewriter) const override {
+    if (isa<tpu::QuantOp>(op->getOperand(0)->getDefiningOp())) {
+      // added already
+      return matchFailure();
+    }
 
-  auto type = op.getResult()->getType();
-  std::vector<NamedAttribute> attrs;
-  attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(op_name + "_quant")));
-  attrs.push_back(rewriter.getNamedAttr("threshold", rewriter.getF32FloatAttr(threshold_y)));
-  attrs.push_back(rewriter.getNamedAttr("quant", rewriter.getStringAttr("INT8")));
-
-  auto quantOp = rewriter.create<tpu::QuantizationOp>(loc, type,
-      ArrayRef<Value *>{clonedOp.getResult()}, ArrayRef<NamedAttribute>{attrs});
-  rewriter.replaceOp(op, {quantOp});
-}
-
-template<typename T>
-static void addDequantOpBeforeOp(PatternRewriter &rewriter, T &op) {
-  auto loc = op.getLoc();
-
-  for (size_t i = 0; i < op.getOperation()->getNumOperands(); ++i) {
-      float threshold_x = getPreviousOpThreshold(op, i);
-      std::string op_name = getPreviousOpName(op, i).str();
-      auto type = op.getOperation()->getOperand(i)->getType();
+    for (auto i = 0; i < op->getNumOperands(); i++) {
+      auto prev_op = op->getOperand(i)->getDefiningOp();
+      if (getOpQuant(prev_op) != "INT8") {
+        continue;
+      }
+      auto type = op->getOperand(i)->getType();
       std::vector<NamedAttribute> attrs;
-      attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(op_name + "_dequant")));
-      attrs.push_back(rewriter.getNamedAttr("threshold", rewriter.getF32FloatAttr(threshold_x)));
-      attrs.push_back(rewriter.getNamedAttr("quant", rewriter.getStringAttr("INT8")));
-      auto dequantOp = rewriter.create<tpu::DequantizationOp>(loc, type,
-        ArrayRef<Value *>{op.getOperation()->getOperand(i)}, ArrayRef<NamedAttribute>{attrs});
-      op.getOperation()->setOperand(i, dequantOp);
+      attrs.push_back(rewriter.getNamedAttr("from",
+          rewriter.getStringAttr("INT8")));
+      attrs.push_back(rewriter.getNamedAttr("to",
+          rewriter.getStringAttr("NONE")));
+      attrs.push_back(rewriter.getNamedAttr("threshold",
+          rewriter.getF32FloatAttr(getOpThreshold(prev_op))));
+      attrs.push_back(rewriter.getNamedAttr("name",
+          rewriter.getStringAttr(getOpName(prev_op).str() + "_dequant")));
+      attrs.push_back(rewriter.getNamedAttr("layer_id",
+          rewriter.getI32IntegerAttr(getOpLayerId(prev_op))));
+      auto quantOp = rewriter.create<tpu::QuantOp>(prev_op->getLoc(), type,
+          ArrayRef<Value *>{op->getOperand(i)}, ArrayRef<NamedAttribute>{attrs});
+
+      op->setOperand(i, quantOp.getResult());
     }
-  }
-
-// insert Quant Op after input Op
-struct TpuAddQuantAfterInputOpPattern : public OpRewritePattern<tpu::InputOp> {
-  using OpRewritePattern<tpu::InputOp>::OpRewritePattern;
-
-  PatternMatchResult matchAndRewrite(tpu::InputOp op,
-                                     PatternRewriter &rewriter) const {
-    for (auto &use : op.getResult()->getUses()) {
-      Operation *operandOp = use.getOwner();
-      if (auto cast_op = llvm::dyn_cast_or_null<tpu::QuantizationOp>(operandOp)) {
-        LLVM_DEBUG(llvm::errs() << op.name() << " quantized already\n";);
-        return matchFailure();
-      }
-    }
-
-    LLVM_DEBUG(llvm::errs() << op.name() << " add quantization op after Input\n";);
-    addQuantOpAfterOp<tpu::InputOp>(rewriter, op);
-
-    return matchSuccess();
-  }
-};
-
-// insert Dequant Op before return Op
-struct TpuAddDeQuantBeforeReturnOpPattern : public OpRewritePattern<ReturnOp> {
-  using OpRewritePattern<ReturnOp>::OpRewritePattern;
-
-  PatternMatchResult matchAndRewrite(ReturnOp op,
-                                     PatternRewriter &rewriter) const {
-    auto formerOp = op.getOperand(0)->getDefiningOp();
-    if (matchPattern(formerOp, m_Op<tpu::DequantizationOp>())) {
-      LLVM_DEBUG(llvm::errs() << "return dequantized already\n";);
-      return matchFailure();
-    }
-    if (matchPattern(formerOp, m_Op<tpu::DetectionOutputOp>())) {
-      LLVM_DEBUG(llvm::errs() << "DetectionOutputOp is cpu output layer,no need dequant\n";);
-      return matchFailure();
-    }
-
-    LLVM_DEBUG(llvm::errs() << " add dequantization op defore Return\n";);
-    addDequantOpBeforeOp<ReturnOp>(rewriter, op);
-
-    return matchSuccess();
-  }
-};
-
-// insert Dequant Op before DetectionOuput Op
-struct TpuAddDequantBeforeDetectionOutputOpPattern : public OpRewritePattern<tpu::DetectionOutputOp> {
-  using OpRewritePattern<tpu::DetectionOutputOp>::OpRewritePattern;
-
-  PatternMatchResult matchAndRewrite(tpu::DetectionOutputOp op,
-                                     PatternRewriter &rewriter) const {
-    auto formerOp = op.getOperand(0)->getDefiningOp();
-    if (matchPattern(formerOp, m_Op<tpu::DequantizationOp>())) {
-      LLVM_DEBUG(llvm::errs() << "return dequantized already\n";);
-      return matchFailure();
-    }
-
-  auto loc = op.getLoc();
-
-  for (size_t i = 0; i < op.getOperation()->getNumOperands(); ++i) {
-
-    formerOp = op.getOperand(i)->getDefiningOp();
-    if (!matchPattern(formerOp, m_Op<tpu::LoadWeightOp>())&&!matchPattern(formerOp, m_Op<tpu::ReshapeOp>())) {
-        float threshold_x = getPreviousOpThreshold(op, i);
-        std::string op_name = getPreviousOpName(op, i).str();
-        auto type = op.getOperation()->getOperand(i)->getType();
-        std::vector<NamedAttribute> attrs;
-        attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(op_name + "_dequant")));
-        attrs.push_back(rewriter.getNamedAttr("threshold", rewriter.getF32FloatAttr(threshold_x)));
-        attrs.push_back(rewriter.getNamedAttr("quant", rewriter.getStringAttr("INT8")));
-        auto dequantOp = rewriter.create<tpu::DequantizationOp>(loc, type,
-          ArrayRef<Value *>{op.getOperation()->getOperand(i)}, ArrayRef<NamedAttribute>{attrs});
-        op.getOperation()->setOperand(i, dequantOp);
-      }
-    }
-
-    return matchSuccess();
-  }
-};
-
-struct TpuRemoveQuantBeforeReshapOpPattern : public OpRewritePattern<tpu::ReshapeOp> {
-  using OpRewritePattern<tpu::ReshapeOp>::OpRewritePattern;
-
-  PatternMatchResult matchAndRewrite(tpu::ReshapeOp op,
-                                     PatternRewriter &rewriter) const {
-    auto formerOp = op.getOperand()->getDefiningOp();
-    if (!matchPattern(formerOp, m_Op<tpu::QuantizationOp>())) {
-      LLVM_DEBUG(llvm::errs() << op.name() << "reshape op is not after QuantizationOp op keep use int8\n";);
-      return matchFailure();
-    }
-
-    //remove quant op to use float32 output of softmax
-    rewriter.replaceOp(formerOp, formerOp->getOperand(0));
-
-    llvm::errs() << "Use this reshape op as cpu layer\n";
-    //use reshape as cpu layer
-    setOpQuant(op, "NONE");
-
-    return matchSuccess();
-  }
-};
-
-struct TpuAddQuantAndDequantForSoftmaxOpPattern : public OpRewritePattern<tpu::SoftmaxOp> {
-  using OpRewritePattern<tpu::SoftmaxOp>::OpRewritePattern;
-
-  PatternMatchResult matchAndRewrite(tpu::SoftmaxOp op,
-                                     PatternRewriter &rewriter) const {
-    auto formerOp = op.getOperand()->getDefiningOp();
-    if (matchPattern(formerOp, m_Op<tpu::DequantizationOp>())) {
-      LLVM_DEBUG(llvm::errs() << op.name() << " insert quant and dequant already\n";);
-      return matchFailure();
-    }
-
-    LLVM_DEBUG(llvm::errs() << op.name() << " insert quant and dequant\n";);
-    addDequantOpBeforeOp<tpu::SoftmaxOp>(rewriter, op);
-    addQuantOpAfterOp<tpu::SoftmaxOp>(rewriter, op);
-
-    return matchSuccess();
-  }
-};
-
-struct TpuSimplifyQuantDequantPattern : public OpRewritePattern<tpu::DequantizationOp> {
-  using OpRewritePattern<tpu::DequantizationOp>::OpRewritePattern;
-
-  PatternMatchResult matchAndRewrite(tpu::DequantizationOp op,
-                                     PatternRewriter &rewriter) const {
-    auto formerOp = op.getOperand()->getDefiningOp();
-    if (!matchPattern(formerOp, m_Op<tpu::QuantizationOp>())) {
-      LLVM_DEBUG(llvm::errs() << op.name() << " simplified quant and dequant already\n";);
-      return matchFailure();
-    }
-
-    LLVM_DEBUG(llvm::errs() << " simplify quant and dequant\n";);
-    rewriter.replaceOp(op, formerOp->getOperand(0));
 
     return matchSuccess();
   }
@@ -1246,7 +944,7 @@ struct TpuSimplifyQuantDequantPattern : public OpRewritePattern<tpu::Dequantizat
 
 class QuantizeInt8Pass : public FunctionPass<QuantizeInt8Pass> {
 public:
-  explicit QuantizeInt8Pass(llvm::raw_ostream &os = llvm::errs()) : os(os) {}
+  explicit QuantizeInt8Pass() {}
 
   void runOnFunction() override {
     auto fn = getFunction();
@@ -1265,50 +963,30 @@ public:
         TpuQuantInt8DefaultPattern<tpu::EltwiseMaxOp>,
         TpuQuantInt8MultiplyOpDefaultPattern<tpu::EltwiseMulOp>,
         TpuQuantInt8FullyConnectedOpPattern,
+        TpuQuantInt8InputOpPattern,
         TpuQuantInt8BypassPattern<tpu::PermuteOp>,
         TpuQuantInt8DefaultPattern<tpu::PoolAvg2DOp>,
         TpuQuantInt8BypassPattern<tpu::PoolMax2DOp>,
         TpuQuantInt8LeakyReluOpPattern,
         TpuQuantInt8PReluOpPattern,
         TpuQuantInt8BypassPattern<tpu::ReluOp>,
-        TpuQuantInt8BypassPattern<tpu::ReshapeOp>,
         TpuQuantInt8BypassPattern<tpu::ShuffleChannelOp>,
         TpuQuantInt8LutOpPattern<tpu::SigmoidOp>,
         TpuQuantInt8BypassPattern<tpu::SliceOp>,
         TpuQuantInt8LutOpPattern<tpu::SqrtOp>,
-        TpuQuantInt8BypassPattern<tpu::UpsampleOp>,
-
-
-        TpuQuantPowerOpPattern
+        TpuQuantInt8BypassPattern<tpu::UpsampleOp>
         >(context);
     applyPatternsGreedily(fn, patterns);
 
     patterns.clear();
     patterns.insert<
-        // add Quant after Input
-        TpuAddQuantAfterInputOpPattern,
-        // add Dequant before Result
-        TpuAddDeQuantBeforeReturnOpPattern,
-        // add Quant and Dequant before and after any cpu layer
-        TpuAddQuantAndDequantForSoftmaxOpPattern,
-        // add Dequant before DetectionOuputOp which is CPU layer but also output layer
-        TpuAddDequantBeforeDetectionOutputOpPattern,
-        // remove Quant op before reshape (this is for ssd softmax + flatten case)
-        TpuRemoveQuantBeforeReshapOpPattern
-        >(context);
-    applyPatternsGreedily(fn, patterns);
-
-    // Fold and remove consecutive Dequant and Quant
-    patterns.clear();
-    patterns.insert<
-        TpuSimplifyQuantDequantPattern
+        TpuAddQuantizeOpBeforeOpPattern<tpu::InputOp>,
+        TpuAddDequantizeOpBeforeOpPattern<tpu::DetectionOutputOp>,
+        TpuAddDequantizeOpBeforeOpPattern<tpu::SoftmaxOp>,
+        TpuAddDequantizeOpBeforeOpPattern<ReturnOp>
         >(context);
     applyPatternsGreedily(fn, patterns);
   }
-
-private:
-
-  llvm::raw_ostream &os;
 };
 
 } // namespace

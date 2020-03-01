@@ -125,14 +125,16 @@ uint64_t SimpleEltwiseAddMemoryUsageAnalysis(OpTy &op,
 
   uint64_t reluWorkingSizePerLane = 0;
   if (do_relu) {
-    #define MIN_relu_working_size    (32)
+    #define MIN_relu_working_size    (8 * MInfo::eu_num)
     reluWorkingSizePerLane = MIN_relu_working_size * 2;
   }
 
   uint64_t eltwiseInputSizePerLane = 0;
   uint64_t eltwiseWorkingSizePerLane = 0;
-  #define MIN_eltwise_working_size    (32)
-  eltwiseWorkingSizePerLane = MIN_eltwise_working_size * 2;
+  #define MIN_eltwise_working_size    (8 * MInfo::eu_num)
+  // 2 addend buffers for ping-pong
+  // 2 for partial result low and high
+  eltwiseWorkingSizePerLane = MIN_eltwise_working_size * 4;
 
   // total
   uint64_t totalPerLane = inputNeuronSizePerLane + outputNeuronSizePerLane

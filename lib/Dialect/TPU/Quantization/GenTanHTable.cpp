@@ -33,17 +33,12 @@
 #include <llvm/Support/Debug.h>
 #include <float.h>
 
-// FIXME: not declare here
-#include <bmkernel/bm_kernel.h>
-#include <bmkernel/bm_kernel_legacy.h>
-#include <bmkernel/bm1880v2/bmkernel_1880v2.h>
-#include <bmkernel/bm1880v2/1880v2_fp_convert.h>
-
 #define DEBUG_TYPE "gen-tanh-table"
-#define ENABLE_DBG (1)
 
 using namespace mlir;
 
+// to be removed
+#if 0
 static double _gen_tanh(float x) {
   return tanh(x);
 }
@@ -304,3 +299,4 @@ std::unique_ptr<OpPassBase<FuncOp>> mlir::createGenTanHTablePass() {
 static PassRegistration<GenTanHTablePass>
     pass("gen-tanh-table",
          "generate tanh look up table, y0 and slop");
+#endif

@@ -506,6 +506,40 @@ Value *tpu::FullyConnectedOp::convertToTG() {
   return nullptr;
 }
 
+Value* tpu::InputOp::convertToTG() {
+  llvm::errs() << "lowerToTG: " << getOperationName()
+               << " [" << getOpName() << "]\n";
+  Operation *op = this->getOperation();
+  auto builder = Builder(op->getContext());
+  //  TensorFile *wTF = getWeightTensorFile(op);
+
+  std::vector<Value *> operands;
+  operands.push_back(input());
+
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder.getNamedAttr("name", nameAttr()));
+  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
+
+  if (getOpQuant() == "INT8") {
+    assert(getOpQuantParamType() == "NONE");
+    auto newOp = OpBuilder(op).create<tpu::TG_INT8_InputOp>(op->getLoc(),
+        getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  } else if (getOpQuant() == "BF16") {
+    auto newOp = OpBuilder(op).create<tpu::TG_BF16_InputOp>(op->getLoc(),
+        getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  } else if (getOpQuant() == "NONE") {
+    assert(false);
+  } else {
+    assert(false);
+  }
+
+  return nullptr;
+}
+
 Value* tpu::LeakyReluOp::convertToTG() {
   llvm::errs() << "lowerToTG: " << getOperationName()
                << " [" << getOpName() << "]\n";
@@ -672,6 +706,17 @@ Value* tpu::PoolMax2DOp::convertToTG() {
   return nullptr;
 }
 
+Value* tpu::PowerOp::convertToTG() {
+  llvm::errs() << "lowerToTG: " << getOperationName()
+               << " [" << getOpName() << "]\n";
+  //Operation *op = this->getOperation();
+  //auto builder = Builder(op->getContext());
+  //  TensorFile *wTF = getWeightTensorFile(op);
+
+  assert(false);
+  return nullptr;
+}
+
 Value *tpu::PReluOp::convertToTG() {
   llvm::errs() << "lowerToTG: " << getOperationName() << " [" << getOpName()
                << "]\n";
@@ -749,40 +794,6 @@ Value *tpu::ShuffleChannelOp::convertToTG() {
   }
 
   assert(false);
-  return nullptr;
-}
-
-Value* tpu::ReshapeOp::convertToTG() {
-  llvm::errs() << "lowerToTG: " << getOperationName()
-               << " [" << getOpName() << "]\n";
-  Operation *op = this->getOperation();
-  auto builder = Builder(op->getContext());
-  //  TensorFile *wTF = getWeightTensorFile(op);
-
-  std::vector<Value *> operands;
-  operands.push_back(input());
-
-  std::vector<NamedAttribute> attrs;
-  attrs.push_back(builder.getNamedAttr("name", nameAttr()));
-  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
-
-  if (getOpQuant() == "INT8") {
-    assert(getOpQuantParamType() == "NONE");
-    auto newOp = OpBuilder(op).create<tpu::TG_INT8_ReshapeOp>(op->getLoc(),
-        getResult()->getType(), ArrayRef<Value *>{operands},
-        ArrayRef<NamedAttribute>{attrs});
-    return newOp.getResult();
-  } else if (getOpQuant() == "BF16") {
-    auto newOp = OpBuilder(op).create<tpu::TG_BF16_ReshapeOp>(op->getLoc(),
-        getResult()->getType(), ArrayRef<Value *>{operands},
-        ArrayRef<NamedAttribute>{attrs});
-    return newOp.getResult();
-  } else if (getOpQuant() == "NONE") {
-    // Reshape is used for both Quantized and FP32
-  } else {
-    assert(false);
-  }
-
   return nullptr;
 }
 
@@ -876,6 +887,17 @@ Value *tpu::SqrtOp::convertToTG() {
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
   }
+  assert(false);
+  return nullptr;
+}
+
+Value* tpu::TanHOp::convertToTG() {
+  llvm::errs() << "lowerToTG: " << getOperationName()
+               << " [" << getOpName() << "]\n";
+  //Operation *op = this->getOperation();
+  //auto builder = Builder(op->getContext());
+  //  TensorFile *wTF = getWeightTensorFile(op);
+
   assert(false);
   return nullptr;
 }
@@ -1514,8 +1536,8 @@ struct LowerWeightLutOpPattern : public RewritePattern {
 
     auto tableOp = cast<tpu::LoadWeightOp>(lutOp.getOperand(1)->getDefiningOp());
     auto table_mantissaOp = cast<tpu::LoadWeightOp>(lutOp.getOperand(2)->getDefiningOp());
-  
-    
+
+
     if (tableOp.lowered()) {
       // lowered already
       return matchFailure();
@@ -1582,7 +1604,7 @@ public:
         LowerWeightLutOpPattern<tpu::DivOp>,
         LowerWeightPReluOpPattern,
         LowerWeightLutOpPattern<tpu::SigmoidOp>,
-        LowerWeightLutOpPattern<tpu::SqrtOp>,        
+        LowerWeightLutOpPattern<tpu::SqrtOp>,
         LowerWeightFullyConnectedOpPattern
         >(context);
     applyPatternsGreedily(fn, patterns_lower);
@@ -1600,13 +1622,13 @@ public:
         DefaultToTGPattern<tpu::EltwiseMaxOp>,
         DefaultToTGPattern<tpu::EltwiseMulOp>,
         DefaultToTGPattern<tpu::FullyConnectedOp>,
+        DefaultToTGPattern<tpu::InputOp>,
         DefaultToTGPattern<tpu::LeakyReluOp>,
         DefaultToTGPattern<tpu::PermuteOp>,
         DefaultToTGPattern<tpu::PoolAvg2DOp>,
         DefaultToTGPattern<tpu::PoolMax2DOp>,
         DefaultToTGPattern<tpu::PReluOp>,
         DefaultToTGPattern<tpu::ShuffleChannelOp>,
-        DefaultToTGPattern<tpu::ReshapeOp>,
         DefaultToTGPattern<tpu::SigmoidOp>,
         DefaultToTGPattern<tpu::SliceOp>,
         DefaultToTGPattern<tpu::SqrtOp>,
@@ -1614,15 +1636,34 @@ public:
         >(context);
     applyPatternsGreedily(fn, patterns);
 
+    // check if every one is not lowered
+    fn.walk([&](Operation *op) {
+      if (op->getName().getDialect().str() != "tpu"
+          || isa<tpu::WeightFileOp>(op)
+          || isa<tpu::LoadWeightOp>(op)
+          || isa<tpu::NoneOp>(op)) {
+      } else if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpLowerInterface>(op)) {
+        llvm::errs() << "didn't lower " << op->getName() << "\n";
+        assert(false);
+      } else if (auto tgOp = llvm::dyn_cast<tpu::TpuTGOpCodegenInterface>(op)) {
+        // lowered already
+      } else if (isa<tpu::QuantOp>(op)
+                 || isa<tpu::SoftmaxOp>(op)) {
+        // no need to lower
+      } else {
+        llvm::errs() << "lower didn't handle " << op->getName() << "\n";
+        assert(false);
+      }
+    });
+
     // TODO: this is temporary
     // erase CPU ops, fold reshape
     patterns.clear();
     patterns.insert<
         DefaultErasePattern<tpu::SoftmaxOp>,
         //DefaultErasePattern<tpu::QuantizationOp>,
-        DefaultErasePattern<tpu::DequantizationOp>,
-        FoldReshapePattern<tpu::TG_INT8_ReshapeOp>,
-        FoldReshapePattern<tpu::TG_BF16_ReshapeOp>
+        //DefaultErasePattern<tpu::DequantizationOp>,
+        FoldReshapePattern<tpu::ReshapeOp>
         >(context);
     applyPatternsGreedily(fn, patterns);
   }

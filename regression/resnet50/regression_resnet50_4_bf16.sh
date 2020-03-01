@@ -7,6 +7,8 @@ source $DIR/../../envsetup.sh
 # quantization
 mlir-opt \
     --quant-bf16 \
+    --print-tpu-op-info \
+    --tpu-op-info-filename resnet50_op_info_bf16.csv \
     resnet50_opt.mlir \
     -o resnet50_quant_bf16.mlir
 
@@ -19,7 +21,7 @@ npz_compare.py resnet50_out_bf16.npz resnet50_out_fp32.npz -v
 npz_compare.py \
     resnet50_tensor_all_bf16.npz \
     resnet50_tensor_all_fp32.npz \
-    --op_info resnet50_op_info.csv \
+    --op_info resnet50_op_info_bf16.csv \
     --tolerance=0.99,0.99,0.95 -vv
 
 # VERDICT

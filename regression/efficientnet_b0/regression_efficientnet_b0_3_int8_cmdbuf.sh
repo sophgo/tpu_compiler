@@ -7,7 +7,7 @@ source $DIR/../../envsetup.sh
 # create int8 input
 npz_to_bin.py \
     efficientnet_tensor_all_int8.npz \
-    data_quant \
+    data \
     efficientnet_in_int8.bin \
     int8
 # npz_to_bin.py efficientnet_in_fp32.npz data efficientnet_in_fp32.bin

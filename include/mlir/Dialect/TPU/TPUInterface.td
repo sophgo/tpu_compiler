@@ -174,55 +174,6 @@ def TpuTGOpCodegenInterface : OpInterface<"TpuTGOpCodegenInterface"> {
   ];
 }
 
-
-
-// to be deprecated
-def TpuInterface : OpInterface<"TpuInterface"> {
-  let description = [{
-    Encodes properties of a TPU Operations.
-  }];
-
-  let methods = [
-    InterfaceMethod<[{
-        Returns name of the Op.
-      }],
-      "StringRef", "getOpName"
-    >,
-    InterfaceMethod<[{
-        Returns layer_id of the Op.
-      }],
-      "int", "getOpLayerId"
-    >,
-    InterfaceMethod<[{
-        Returns result quantization threshold of the Op.
-      }],
-      "float", "getResultQuantThreshold"
-    >,
-    InterfaceMethod<[{
-        Set result quantization threshold of the Op.
-      }],
-      "LogicalResult", "setResultQuantThreshold", (ins "float ":$threshold)
-    >,
-    InterfaceMethod<[{
-        Returns quant method of the Op.
-      }],
-      "StringRef", "getOpQuant"
-    >,
-    InterfaceMethod<[{
-        Returns assigned result global address of the Op.
-      }],
-      "APInt", "getResultAddress"
-    >,
-    InterfaceMethod<[{
-        Set result global address for the Op.
-      }],
-      "LogicalResult", "setResultAddress", (ins "uint64_t ":$gaddr)
-    >,
-  ];
-}
-
-
-
 //===----------------------------------------------------------------------===//
 // TPU Traits
 //===----------------------------------------------------------------------===//
