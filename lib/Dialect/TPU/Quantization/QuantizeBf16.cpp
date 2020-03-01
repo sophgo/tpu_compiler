@@ -302,7 +302,6 @@ public:
         TpuQuantBf16DefaultPattern<tpu::PoolMax2DOp>,
         TpuQuantBf16DefaultPattern<tpu::PReluOp>,
         TpuQuantBf16DefaultPattern<tpu::ReluOp>,
-        TpuQuantBf16DefaultPattern<tpu::ReshapeOp>,
         TpuQuantBf16DefaultPattern<tpu::ShuffleChannelOp>,
         TpuQuantBf16DefaultPattern<tpu::SigmoidOp>,
         TpuQuantBf16DefaultPattern<tpu::SliceOp>,

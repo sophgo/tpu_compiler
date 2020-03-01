@@ -765,40 +765,6 @@ Value *tpu::PReluOp::convertToTG() {
   return nullptr;
 }
 
-Value* tpu::ReshapeOp::convertToTG() {
-  llvm::errs() << "lowerToTG: " << getOperationName()
-               << " [" << getOpName() << "]\n";
-  Operation *op = this->getOperation();
-  auto builder = Builder(op->getContext());
-  //  TensorFile *wTF = getWeightTensorFile(op);
-
-  std::vector<Value *> operands;
-  operands.push_back(input());
-
-  std::vector<NamedAttribute> attrs;
-  attrs.push_back(builder.getNamedAttr("name", nameAttr()));
-  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
-
-  if (getOpQuant() == "INT8") {
-    assert(getOpQuantParamType() == "NONE");
-    auto newOp = OpBuilder(op).create<tpu::TG_INT8_ReshapeOp>(op->getLoc(),
-        getResult()->getType(), ArrayRef<Value *>{operands},
-        ArrayRef<NamedAttribute>{attrs});
-    return newOp.getResult();
-  } else if (getOpQuant() == "BF16") {
-    auto newOp = OpBuilder(op).create<tpu::TG_BF16_ReshapeOp>(op->getLoc(),
-        getResult()->getType(), ArrayRef<Value *>{operands},
-        ArrayRef<NamedAttribute>{attrs});
-    return newOp.getResult();
-  } else if (getOpQuant() == "NONE") {
-    // Reshape is used for both Quantized and FP32
-  } else {
-    assert(false);
-  }
-
-  return nullptr;
-}
-
 Value *tpu::ShuffleChannelOp::convertToTG() {
   llvm::errs() << "lowerToTG: " << getOperationName() << " [" << getOpName()
                << "]\n";
@@ -1663,7 +1629,6 @@ public:
         DefaultToTGPattern<tpu::PoolMax2DOp>,
         DefaultToTGPattern<tpu::PReluOp>,
         DefaultToTGPattern<tpu::ShuffleChannelOp>,
-        DefaultToTGPattern<tpu::ReshapeOp>,
         DefaultToTGPattern<tpu::SigmoidOp>,
         DefaultToTGPattern<tpu::SliceOp>,
         DefaultToTGPattern<tpu::SqrtOp>,
@@ -1698,8 +1663,7 @@ public:
         DefaultErasePattern<tpu::SoftmaxOp>,
         //DefaultErasePattern<tpu::QuantizationOp>,
         //DefaultErasePattern<tpu::DequantizationOp>,
-        FoldReshapePattern<tpu::TG_INT8_ReshapeOp>,
-        FoldReshapePattern<tpu::TG_BF16_ReshapeOp>
+        FoldReshapePattern<tpu::ReshapeOp>
         >(context);
     applyPatternsGreedily(fn, patterns);
   }

@@ -20,6 +20,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/TPU/TPUDialect.h"
+#include "mlir/Dialect/TPU/TPUOperationSupport.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/Function.h"
 #include "mlir/IR/Module.h"
@@ -153,8 +154,6 @@ DECLARE_ALL_COMMON_INTERFACE_METHODS(TG_INT8_ShuffleChannelOp)
 DECLARE_ALL_COMMON_INTERFACE_METHODS(TG_BF16_ShuffleChannelOp)
 DECLARE_ALL_COMMON_INTERFACE_METHODS(TG_INT8_PReluOp)
 DECLARE_ALL_COMMON_INTERFACE_METHODS(TG_BF16_PReluOp)
-DECLARE_ALL_COMMON_INTERFACE_METHODS(TG_INT8_ReshapeOp)
-DECLARE_ALL_COMMON_INTERFACE_METHODS(TG_BF16_ReshapeOp)
 DECLARE_ALL_COMMON_INTERFACE_METHODS(TG_INT8_SliceOp)
 DECLARE_ALL_COMMON_INTERFACE_METHODS(TG_BF16_SliceOp)
 DECLARE_ALL_COMMON_INTERFACE_METHODS(TG_BF16_Sqrt_LutOp)
@@ -286,7 +285,6 @@ DECLARE_ALL_QUANT_INTERFACE_METHODS(PoolMax2DOp)
 DECLARE_ALL_QUANT_INTERFACE_METHODS(PowerOp)
 DECLARE_ALL_QUANT_INTERFACE_METHODS(PReluOp)
 DECLARE_ALL_QUANT_INTERFACE_METHODS(ReluOp)
-DECLARE_ALL_QUANT_INTERFACE_METHODS(ReshapeOp)
 DECLARE_ALL_QUANT_INTERFACE_METHODS(ShuffleChannelOp)
 DECLARE_ALL_QUANT_INTERFACE_METHODS(SoftmaxOp)
 DECLARE_ALL_QUANT_INTERFACE_METHODS(SigmoidOp)
@@ -349,8 +347,6 @@ DECLARE_ALL_CODEGEN_INTERFACE_METHODS(TG_INT8_ShuffleChannelOp)
 DECLARE_ALL_CODEGEN_INTERFACE_METHODS(TG_BF16_ShuffleChannelOp)
 DECLARE_ALL_CODEGEN_INTERFACE_METHODS(TG_INT8_PReluOp)
 DECLARE_ALL_CODEGEN_INTERFACE_METHODS(TG_BF16_PReluOp)
-DECLARE_ALL_CODEGEN_INTERFACE_METHODS(TG_INT8_ReshapeOp)
-DECLARE_ALL_CODEGEN_INTERFACE_METHODS(TG_BF16_ReshapeOp)
 DECLARE_ALL_CODEGEN_INTERFACE_METHODS(TG_INT8_SliceOp)
 DECLARE_ALL_CODEGEN_INTERFACE_METHODS(TG_BF16_SliceOp)
 DECLARE_ALL_CODEGEN_INTERFACE_METHODS(TG_BF16_Sqrt_LutOp)
@@ -360,3 +356,67 @@ DECLARE_ALL_CODEGEN_INTERFACE_METHODS(TG_BF16_UpsampleOp)
 DECLARE_ALL_CODEGEN_INTERFACE_METHODS(TL_LA_Conv2DOp)
 DECLARE_ALL_CODEGEN_INTERFACE_METHODS(TL_LW_Conv2DOp)
 DECLARE_ALL_CODEGEN_INTERFACE_METHODS(TL_EltwiseAddOp)
+
+
+
+// Reshape Op
+uint64_t ReshapeOp::getGAddr() {
+  auto prev_op = this->getOperand()->getDefiningOp();
+  return mlir::getOpAddress(prev_op);
+}
+
+LogicalResult ReshapeOp::setGAddr(uint64_t gaddr) {
+  assert(false);
+  auto prev_op = this->getOperand()->getDefiningOp();
+  return mlir::setOpAddress(prev_op, gaddr);
+}
+
+StringRef ReshapeOp::getOpQuant() {
+  auto prev_op = this->getOperand()->getDefiningOp();
+  return mlir::getOpQuant(prev_op);
+}
+
+LogicalResult ReshapeOp::setOpQuantMode(StringRef &mode) {
+  assert(false);
+  auto prev_op = this->getOperand()->getDefiningOp();
+  return mlir::setOpQuant(prev_op, mode);
+}
+
+StringRef ReshapeOp::getOpQuantParamType() {
+  assert(false);
+  return StringRef();
+}
+
+LogicalResult ReshapeOp::setOpQuantParamType(StringRef &type) {
+  assert(false);
+  return failure();
+}
+
+bool ReshapeOp::isOpQuantPerchannel() {
+  assert(false);
+  return false;
+}
+LogicalResult ReshapeOp::setOpQuantPerchannel(bool flag) {
+  assert(false);
+  return failure();
+}
+
+bool ReshapeOp::isOpQuantAsymmetric() {
+  assert(false);
+  return false;
+}
+
+LogicalResult ReshapeOp::setOpQuantAsymmetric(bool flag) {
+  assert(false);
+  return failure();
+}
+
+float ReshapeOp::getOpQuantThreshold() { \
+  auto prev_op = this->getOperand()->getDefiningOp();
+  return mlir::getOpThreshold(prev_op);
+}
+
+LogicalResult ReshapeOp::setOpQuantThreshold(float threshold) {
+  assert(false);
+  return failure();
+}

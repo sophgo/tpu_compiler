@@ -1094,51 +1094,6 @@ def TPU_ReluOp: TPU_Op<"relu",
   let hasCanonicalizer = 1;
 }
 
-def TPU_ReshapeOp: TPU_Op<"reshape",
-      [NoSideEffect,
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
-       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
-       DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
-  let summary = "Reshape operator";
-
-  let description = [{
-    Produces a tensor with the same values but different static shape defined
-    by the output type.
-
-    Inputs:
-      `input`           : required, the input activation tensor.
-
-    Attributes:
-      `quant`           : required, a QuantParam struct attributes.
-      `name`            : required, name for calibration, comparing, or debug.
-      `layer_id`        : optional, id for profiling.
-
-    Result:
-      `output`          : result tensor.
-
-    Interfaces or Traits:
-      `NoSideEffect`
-      `TPU_QuantPerTensorOnly`
-      `TPU_QuantSupportAsymmetric`
-      `TPU_QuantSameInputResultScale` : input and result share same threshold
-                                        or scale (bypassed).
-      `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpInterpInterface` : support interperter
-      `TpuOpQuantInterface`  : support quantization
-      `TpuOpLowerInterface`  : support lower to TPU TG Ops
-  }];
-
-  let arguments = (
-    ins AnyTensor:$input,
-    TPU_QuantParamAttr:$quant,
-    StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
-  );
-
-  let results = (outs AnyTensor:$output);
-}
-
 def TPU_ScaleOp: TPU_Op<"scale",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,

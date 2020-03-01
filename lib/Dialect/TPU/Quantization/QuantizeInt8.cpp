@@ -964,7 +964,6 @@ public:
         TpuQuantInt8LeakyReluOpPattern,
         TpuQuantInt8PReluOpPattern,
         TpuQuantInt8BypassPattern<tpu::ReluOp>,
-        TpuQuantInt8BypassPattern<tpu::ReshapeOp>,
         TpuQuantInt8BypassPattern<tpu::ShuffleChannelOp>,
         TpuQuantInt8LutOpPattern<tpu::SigmoidOp>,
         TpuQuantInt8BypassPattern<tpu::SliceOp>,

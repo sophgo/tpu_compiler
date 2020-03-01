@@ -226,7 +226,7 @@ struct ForwardOverwriteThresholdDefaultPattern : public RewritePattern {
 };
 
 /// bypass threshold from prev Op to current Op
-/// for layers that has no threshold values, like reshape, slice, etc
+/// for layers that has no threshold values, like slice
 template<typename TyOp>
 struct BypassThresholdDefaultPattern : public RewritePattern {
   BypassThresholdDefaultPattern(MLIRContext *context)
@@ -334,9 +334,9 @@ public:
           || isa<tpu::LoadWeightOp>(op)
           || isa<tpu::NoneOp>(op)) {
         // no need to assign
-      } else if ( !failed(setThresholdFromMap(op, threshold_map))) {
       } else if (isa<tpu::ReshapeOp>(op)) {
-        // ok not to be assigned
+        // do not assign
+      } else if ( !failed(setThresholdFromMap(op, threshold_map))) {
       } else {
         llvm::errs() << "setThresholdFromMap didn't handle "
                      << op->getName() << "\n";
@@ -356,7 +356,6 @@ public:
     llvm::errs() << "Forword set bypass Ops threshold\n";
     patterns.clear();
     patterns.insert<
-        BypassThresholdDefaultPattern<tpu::ReshapeOp>,
         BypassThresholdDefaultPattern<tpu::SliceOp>
         >(context);
     applyPatternsGreedily(fn, patterns);

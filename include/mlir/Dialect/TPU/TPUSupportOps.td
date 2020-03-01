@@ -59,6 +59,53 @@ def TPU_QuantOp: TPU_Op<"quant",
 }
 
 //===----------------------------------------------------------------------===//
+// Reshape.
+//===----------------------------------------------------------------------===//
+
+def TPU_ReshapeOp: TPU_Op<"reshape",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
+       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
+  let summary = "Reshape operator";
+
+  let description = [{
+    Produces a tensor with the same values but different static shape defined
+    by the output type.
+
+    Inputs:
+      `input`           : required, the input activation tensor.
+
+    Attributes:
+      `name`            : required, name for calibration, comparing, or debug.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TPU_QuantPerTensorOnly`
+      `TPU_QuantSupportAsymmetric`
+      `TPU_QuantSameInputResultScale` : input and result share same threshold
+                                        or scale (bypassed).
+      `TpuOpCommonInterface` : support common TPU Op interface
+      `TpuOpInterpInterface` : support interperter
+      `TpuOpQuantInterface`  : to return previous Op`s quant info
+      No `TpuOpLowerInterface`  : no lower
+      `TpuTGOpCodegenInterface` : to return previous Op`s gaddr
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
+//===----------------------------------------------------------------------===//
 // TPU Misc op definitions.
 //===----------------------------------------------------------------------===//
 

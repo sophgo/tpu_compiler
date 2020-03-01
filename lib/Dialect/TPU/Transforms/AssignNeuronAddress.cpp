@@ -154,31 +154,6 @@ struct AssignGAddrTGBf16Pattern : public RewritePattern {
   size_t alignment_;
 };
 
-template <typename OpTy>
-struct TpuReshapeAddressPattern : public RewritePattern {
-  TpuReshapeAddressPattern(MLIRContext *context, uint64_t *pos,
-                           llvm::raw_ostream &map_os, size_t alignment)
-      : RewritePattern(OpTy::getOperationName(), 1, context), pos_(pos),
-        map_os_(map_os), alignment_(alignment) {}
-
-  PatternMatchResult matchAndRewrite(Operation *op,
-                                     PatternRewriter &rewriter) const override {
-    auto castOp = cast<OpTy>(op);
-    if (castOp.gaddr().hasValue()) {
-      // assigned already
-      return matchFailure();
-    }
-
-    auto prevPos = getPreviousOpAddress(op);
-    setOpAddress(op, prevPos);
-
-    return matchSuccess();
-  }
-  uint64_t *pos_;
-  llvm::raw_ostream &map_os_;
-  size_t alignment_;
-};
-
 template <typename OpTy> struct TpuSliceAddressPattern : public RewritePattern {
   TpuSliceAddressPattern(MLIRContext *context, uint64_t *pos,
                          llvm::raw_ostream &map_os, size_t alignment)
@@ -348,9 +323,7 @@ public:
     patterns.clear();
     patterns.insert<
         TpuSliceAddressPattern<tpu::TG_INT8_SliceOp>,
-        TpuSliceAddressPattern<tpu::TG_BF16_SliceOp>,
-        TpuReshapeAddressPattern<tpu::TG_INT8_ReshapeOp>,
-        TpuReshapeAddressPattern<tpu::TG_BF16_ReshapeOp>
+        TpuSliceAddressPattern<tpu::TG_BF16_SliceOp>
         >(context, &pos, neuronMapFile->os(), clNeuronAlignment);
     applyPatternsGreedily(fn, patterns);
 

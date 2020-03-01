@@ -594,52 +594,6 @@ def TPU_TG_INT8_PReluOp : TPU_TG_PReluOp<"tg_int8_prelu", "Int8">;
 def TPU_TG_BF16_PReluOp : TPU_TG_PReluOp<"tg_bf16_prelu", "Bf16">;
 
 
-class TPU_TG_ReshapeOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
-      [NoSideEffect,
-       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
-  let summary = "TG " # opQuant # " reshape operator.";
-
-  let description = [{
-    Produces a tensor with the same values but different static shape defined
-    by the output type.
-
-    Inputs:
-      `input`           : required, the input activation tensor.
-
-    Attributes:
-      `region`          : required, the memory region to reside in, could be
-                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
-                          (backend does not support `INPUT`, `OUTPUT` for now)
-      `gaddr`           : optional, address in global memory, normally the
-                                     offset within the memory region.
-
-      `name`            : required, name for comparing, or debug.
-      `layer_id`        : optional, id for profiling.
-
-    Result:
-      `output`          : result tensor.
-
-    Interfaces or Traits:
-      `NoSideEffect`
-      `TpuOpCommonInterface`    : support common TPU TG Op interface.
-      `TpuTGOpCodegenInterface` : support generate TPU instuctions.
-  }];
-
-  let arguments = (
-    ins AnyTensor:$input,
-    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
-    OptionalAttr<NonNegativeI64Attr>:$gaddr,
-    StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
-  );
-
-  let results = (outs AnyTensor:$output);
-}
-def TPU_TG_INT8_ReshapeOp : TPU_TG_ReshapeOp<"tg_int8_reshape", "Int8">;
-def TPU_TG_BF16_ReshapeOp : TPU_TG_ReshapeOp<"tg_bf16_reshape", "Bf16">;
-
-
 class TPU_TG_ShuffleChannelOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
@@ -683,6 +637,7 @@ class TPU_TG_ShuffleChannelOp<string mnemonic, string opQuant> : TPU_Op<mnemonic
 }
 def TPU_TG_INT8_ShuffleChannelOp : TPU_TG_ShuffleChannelOp<"tg_int8_shufflechannel", "Int8">;
 def TPU_TG_BF16_ShuffleChannelOp : TPU_TG_ShuffleChannelOp<"tg_bf16_shufflechannel", "Bf16">;
+
 
 class TPU_TG_SliceOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,

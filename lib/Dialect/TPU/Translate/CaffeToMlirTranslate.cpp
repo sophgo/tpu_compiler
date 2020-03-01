@@ -1058,7 +1058,7 @@ void CaffeImporter::convertFlattenLayer(mlir::Block *block,
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder_.getNamedAttr("name",
       builder_.getStringAttr(layer_param.name())));
-  attrs.push_back(builder_.getNamedAttr("quant", getDefaultQuantParam(builder_)));
+  //attrs.push_back(builder_.getNamedAttr("quant", getDefaultQuantParam(builder_)));
   auto reshape_op = OpBuilder(block).create<tpu::ReshapeOp>(
       builder_.getUnknownLoc(), result_type, ArrayRef<Value *>{input_var},
       ArrayRef<NamedAttribute>{attrs});
@@ -1115,7 +1115,7 @@ void CaffeImporter::convertInnerProductLayer(mlir::Block *block,
     std::vector<NamedAttribute> attrs;
     attrs.push_back(builder_.getNamedAttr("name",
         builder_.getStringAttr(layer_param.name() + "_reshape")));
-    attrs.push_back(builder_.getNamedAttr("quant", getDefaultQuantParam(builder_)));
+    //attrs.push_back(builder_.getNamedAttr("quant", getDefaultQuantParam(builder_)));
     auto reshape_op = OpBuilder(block).create<tpu::ReshapeOp>(
         builder_.getUnknownLoc(), fc_input_type,
         ArrayRef<Value *>{input_var}, ArrayRef<NamedAttribute>{attrs});
@@ -1883,7 +1883,7 @@ void CaffeImporter::convertReshapeLayer(mlir::Block *block,
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder_.getNamedAttr("name",
       builder_.getStringAttr(layer_param.name())));
-  attrs.push_back(builder_.getNamedAttr("quant", getDefaultQuantParam(builder_)));
+  //attrs.push_back(builder_.getNamedAttr("quant", getDefaultQuantParam(builder_)));
   auto reshape_op = OpBuilder(block).create<tpu::ReshapeOp>(
       builder_.getUnknownLoc(), result_type, ArrayRef<Value *>{input_var},
       ArrayRef<NamedAttribute>{attrs});

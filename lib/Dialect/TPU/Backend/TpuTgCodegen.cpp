@@ -1640,16 +1640,7 @@ LogicalResult tpu::TG_BF16_ShuffleChannelOp::codegen(void *ctx) {
   return success();
 }
 
-LogicalResult tpu::TG_INT8_ReshapeOp::codegen(void *ctx) {
-  llvm::errs() << "TG_codegen: " << getOperationName()
-               << " [" << getOpName() << "]\n";
-  //CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
-  //Operation *op = this->getOperation();
-
-  return success();
-}
-
-LogicalResult tpu::TG_BF16_ReshapeOp::codegen(void *ctx) {
+LogicalResult tpu::ReshapeOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";
   //CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
