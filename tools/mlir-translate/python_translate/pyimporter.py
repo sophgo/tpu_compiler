@@ -67,7 +67,17 @@ class PyImporter():
     
     def add_none_op(self):
         return pybind.op("tpu.none", [], [self.NoneType])
-        
+    
+    def add_weight_file_op(self, name):
+        filename = self.module.stringAttr(name)
+        self.buildOp(TPU_OpType.Weight_file.value, [], [], filename=filename)
+
+    def add_load_file_op(self, name, output_tensor_shape):
+        tensor_output_type = self.module.make_ranked_tensor_type(
+             self.f32Type, output_tensor_shape)
+        load_name = self.module.stringAttr(name)
+        self.buildOp(TPU_OpType.Load_Weight.value, [], [tensor_output_type], name=load_name)
+
     def add_conv_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         """
             inputOperands: List[pybind.op]
@@ -191,6 +201,7 @@ class PyImporter():
 
         return self.buildOp(TPU_OpType.PoolAvg2D.value, inputOperands, [
             tensor_output_type], name=pool_avg_2d_name, param=dict_attr)
+
     def print_module(self):
         print(self.module)
 
