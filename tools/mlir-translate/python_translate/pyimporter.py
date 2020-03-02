@@ -33,17 +33,24 @@ def checkType(obj, type):
 
 class PyImporter():
 
-    def __init__(self, input_shape, output_shape):
+    def __init__(self, inputs_shape, outputs_shape):
         """
-            input_shape: List, put module input shape. ex: [1, 3, 224, 224]
+            input_shape: List[List], put module input shape. ex: [[1, 3, 224, 224]]
             output_shape: List, put module output shape. ex: [1, 1000]
         """
-        assert(isinstance(input_shape, list))
-        assert(isinstance(output_shape, list))
+        assert(isinstance(inputs_shape, list))
+        assert(isinstance(outputs_shape, list))
 
         self.module = pybind.MLIRModule()
-        self.input_shape = input_shape
-        self.output_shape = output_shape
+        self.input_shape_list = list()
+        self.output_shape_list = list()
+        for input in inputs_shape:
+            assert(isinstance(input, list))
+            self.input_shape_list.append(input)
+        for output in outputs_shape:
+            assert(isinstance(output, list))
+            self.output_shape_list.append(output)
+       
         self.boolType = self.module.make_type("i1")
         self.i32Type = self.module.make_type("i32")
         self.f32Type = self.module.make_type("f32")
@@ -67,6 +74,10 @@ class PyImporter():
     
     def add_none_op(self):
         return pybind.op("tpu.none", [], [self.NoneType])
+    
+    def add_input_op(self, name, index):
+        name = self.module.stringAttr(name)
+        return pybind.op(TPU_OpType.Input.value, [self.func_args[index]], [self.tensor_inputs_type[index]], name=name)
     
     def add_weight_file_op(self, name):
         filename = self.module.stringAttr(name)
@@ -206,17 +217,27 @@ class PyImporter():
         print(self.module)
 
     def declare_func(self):
-        tensor_input_type = self.module.make_ranked_tensor_type(
-            self.f32Type, self.input_shape)
-        tensor_output_type = self.module.make_ranked_tensor_type(
-            self.f32Type, self.output_shape)
-        self.func_ctx = self.module.function_context("tpu_func", [tensor_input_type],
-                                                     [tensor_output_type])
-        print('Open mlir builder context')
-        self.func_ctx.__enter__()
+        self.tensor_inputs_type = list()
+        for input_shape in self.input_shape_list:
+            self.tensor_inputs_type.append(self.module.make_ranked_tensor_type(
+                self.f32Type, input_shape))
 
+        self.tensor_outputs_type = list()     
+        for output_shape in self.output_shape_list:
+            self.tensor_outputs_type.append(self.module.make_ranked_tensor_type(
+                self.f32Type, output_shape))
+
+        self.func_ctx = self.module.function_context("tpu_func", self.tensor_inputs_type,
+                                                     self.tensor_outputs_type)  
+        print('Open mlir builder context')      
+        fun = self.func_ctx.__enter__()
+        self.func_args = list()
+        for i in range(len(self.input_shape_list)):
+            self.func_args.append(fun.arg(i))
+        
+        
 if __name__ == "__main__":
-    importer = PyImporter([1, 3, 224, 224], [1, 1000])
+    importer = PyImporter([[1, 3, 224, 224]], [[1, 1000]])
     conv_param = {
         'stride_h':  1,
         'stride_w':  1,
@@ -228,9 +249,10 @@ if __name__ == "__main__":
         'with_bias': True,
         'do_relu': False,
     }
+    input = importer.add_input_op("input.1", 0)
     a = importer.add_none_op()
     
-    b = importer.add_conv_op("conv_1", [a], [1, 1000], **conv_param)
+    b = importer.add_conv_op("conv_1", [input, a], [1, 1000], **conv_param)
     crop_param = {
         'crop_offset' : [0, 0, 1, 1],
         'crop_shape' : [1, 1, 112, 112]
