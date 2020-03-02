@@ -24,12 +24,10 @@ git clone ssh://git@10.34.33.3:8422/mlir-tpu/caffe.git
 git clone ssh://git@10.34.33.3:8422/mlir-tpu/pybind11.git
 git clone ssh://git@10.34.33.3:8422/mlir-tpu/flatbuffers.git
 
-git clone ssh://git@10.34.33.3:8422/mlir-tpu/python_tools.git
 git clone ssh://git@10.34.33.3:8422/mlir-tpu/backend.git
 git clone ssh://git@10.34.33.3:8422/mlir-tpu/bmkernel.git
 git clone ssh://git@10.34.33.3:8422/mlir-tpu/cmodel.git
 git clone ssh://git@10.34.33.3:8422/mlir-tpu/runtime.git
-git clone ssh://git@10.34.33.3:8422/mlir-tpu/calibration_tool
 git clone ssh://git@10.34.33.3:8422/mlir-tpu/cvibuilder.git
 
 export GIT_LFS_SKIP_SMUDGE=1
