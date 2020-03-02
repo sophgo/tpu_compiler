@@ -47,7 +47,7 @@ mlir-opt \
     -o cmdbuf_int8_multiplier.bin
 
 # generate cvi model
-python $CVIBUILDER_PATH/python/cvi_model_create.py \
+python $TPU_PYTHON_PATH/cvi_model_create.py \
     --cmdbuf cmdbuf_int8_multiplier.bin \
     --weight weight_int8_multiplier.bin \
     --neuron_map neuron_map.csv \
@@ -60,7 +60,7 @@ python $CVIBUILDER_PATH/python/cvi_model_create.py \
 #    cmdbuf_int8_multiplier.bin \
 #    densenet_cmdbuf_out_all_int8_multiplier.bin \
 #    16460784 0 16460784 1
-$RUNTIME_PATH/bin/test_cvinet \
+test_cvinet \
     densenet_in_int8.bin \
     densenet_int8_multiplier.cvimodel \
     densenet_cmdbuf_out_all_int8_multiplier.bin

@@ -104,13 +104,13 @@ mlir-opt \
     -o cmdbuf_int8_multiplier.bin
 
 # generate cvi model
-python $CVIBUILDER_PATH/python/cvi_model_create.py \
+python $TPU_PYTHON_PATH/cvi_model_create.py \
     --cmdbuf cmdbuf_int8_multiplier.bin \
     --weight weight_int8_multiplier.bin \
     --neuron_map neuron_map.csv \
     --output=ssd300_int8_per_layer.cvimodel
 
-$RUNTIME_PATH/bin/test_cvinet \
+test_cvinet \
     ssd300_in_int8.bin \
     ssd300_int8_per_layer.cvimodel \
     ssd300_cmdbuf_out_all_int8_multiplier.bin
@@ -142,7 +142,7 @@ bin_to_npz.py \
 npz_compare.py \
     ssd300_cmdbuf_out_all_int8_multiplier.npz \
     ssd300_tensor_all_int8_multiplier.npz \
-    --op_info ssd300_op_info_int8_multiplier.csv 
+    --op_info ssd300_op_info_int8_multiplier.csv
 
 # VERDICT
 echo $0 PASSED
