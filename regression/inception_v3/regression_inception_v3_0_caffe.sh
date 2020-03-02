@@ -12,7 +12,7 @@ run_caffe_classifier.py \
     --images_dim 299,299 \
     --mean 128,128,128 \
     --input_scale 0.0078125 \
-    --label_file $REGRESSION_PATH/inception_v3/data/ilsvrc2015_synset_words.txt \
+    --label_file $REGRESSION_PATH/resnet50/data/ilsvrc12/synset_words.txt \
     --dump_blobs inception_v3_blobs.npz \
     --dump_weights inception_v3_weights.npz \
     $REGRESSION_PATH/inception_v3/data/dog.jpg \
