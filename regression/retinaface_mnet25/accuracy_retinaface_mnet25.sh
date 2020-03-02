@@ -15,7 +15,7 @@ fi
 pushd $NET
 
 # Remove previous result
-rm result -rf
+rm caffe_result_fp32 interpreter_result_fp32 interpreter_result_int8 -rf
 
 $DIR/accuracy_retinaface_mnet25_0_caffe.sh
 $DIR/accuracy_retinaface_mnet25_1_fp32.sh
