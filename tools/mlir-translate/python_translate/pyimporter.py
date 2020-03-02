@@ -14,11 +14,17 @@ class TPU_OpType(Enum):
     BatchNorm = 'tpu.batch_norm'
     Conv2d = 'tpu.conv2d'
     Crop = 'tpu.crop'
+    Eltwise_Sum = 'tpu.eltwise_sum'
     Eltwise_Mul = 'tpu.eltwise_mul'
+    FullyConnected = 'tpu.fully_connected'
+    
     PoolAvg2D = 'tpu.pool_avg_2d'
-    Reshape = 'tpu.reshape'
+    PoolMax2D  = 'tpu.pool_max_2d'
+    
     Scale = 'tpu.scale'
     Sigmoid = 'tpu.sigmoid'
+    Reshape = 'tpu.reshape'
+    Relu = 'tpu.relu'
    
 
 def checkKey(dict, key):
@@ -83,13 +89,13 @@ class PyImporter():
         filename = self.module.stringAttr(name)
         # TODO: our mlir not support mem type now
         mem_ref = self.module.make_memref_type(self.f32Type, [10])
-        return self.buildOp(TPU_OpType.Weight_file.value, [], [mem_ref], filename=filename)
+        self.weightop = self.buildOp(TPU_OpType.Weight_file.value, [], [mem_ref], filename=filename)
 
     def add_load_file_op(self, name, output_tensor_shape):
         tensor_output_type = self.module.make_ranked_tensor_type(
              self.f32Type, output_tensor_shape)
         load_name = self.module.stringAttr(name)
-        self.buildOp(TPU_OpType.Load_Weight.value, [], [tensor_output_type], name=load_name)
+        return self.buildOp(TPU_OpType.Load_Weight.value, [self.weightop], [tensor_output_type], name=load_name)
 
     def add_conv_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         """
@@ -175,6 +181,16 @@ class PyImporter():
         return self.buildOp(TPU_OpType.Scale.value, inputOperands, [
             tensor_output_type], name=scale_name)
     
+    def add_eltwise_sum_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+        tensor_output_type = self.module.make_ranked_tensor_type(
+            self.f32Type, output_tensor_shape)
+        if len(inputOperands) < 2:
+            raise ArithmeticError("input operand must great than 2")
+
+        eltwise_sum = self.module.stringAttr(op_name)
+        return self.buildOp(TPU_OpType.Eltwise_Sum.value, inputOperands, [
+            tensor_output_type], name=eltwise_sum)
+
     def add_eltwise_mul_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = self.module.make_ranked_tensor_type(
             self.f32Type, output_tensor_shape)
@@ -184,6 +200,16 @@ class PyImporter():
         eltwise_mul = self.module.stringAttr(op_name)
         return self.buildOp(TPU_OpType.Eltwise_Mul.value, inputOperands, [
             tensor_output_type], name=eltwise_mul)
+    
+    def add_fully_connected_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+        tensor_output_type = self.module.make_ranked_tensor_type(
+            self.f32Type, output_tensor_shape)
+        if len(inputOperands) < 2:
+            raise ArithmeticError("input operand must great than 2")
+
+        fully_connected_name = self.module.stringAttr(op_name)
+        return self.buildOp(TPU_OpType.FullyConnected.value, inputOperands, [
+            tensor_output_type], name=fully_connected_name)
     
     def add_pool_avg_2d_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = self.module.make_ranked_tensor_type(
@@ -214,6 +240,55 @@ class PyImporter():
 
         return self.buildOp(TPU_OpType.PoolAvg2D.value, inputOperands, [
             tensor_output_type], name=pool_avg_2d_name, param=dict_attr)
+
+    def add_pool_max_2d_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+
+        tensor_output_type = self.module.make_ranked_tensor_type(
+            self.f32Type, output_tensor_shape)
+        checkKey(kargs, 'kernel_h')
+        checkKey(kargs, 'kernel_w')
+        checkKey(kargs, 'padding_b')
+        checkKey(kargs, 'padding_l')
+        checkKey(kargs, 'padding_r')
+        checkKey(kargs, 'padding_t')
+        checkKey(kargs, 'stride_h')
+        checkKey(kargs, 'stride_w')
+        checkKey(kargs, 'do_relu')
+        
+        pool_max_2d_name = self.module.stringAttr(op_name)
+        pool_max_2d_param = {
+            'stride_h': self.module.integerAttr(self.i32Type, kargs['stride_h']),
+            'stride_w': self.module.integerAttr(self.i32Type, kargs['stride_w']),
+            'kernel_h': self.module.integerAttr(self.i32Type, kargs['kernel_h']),
+            'kernel_w': self.module.integerAttr(self.i32Type, kargs['kernel_w']),
+            'padding_b': self.module.integerAttr(self.i32Type, kargs['padding_b']),
+            'padding_l': self.module.integerAttr(self.i32Type, kargs['padding_l']),
+            'padding_r': self.module.integerAttr(self.i32Type, kargs['padding_r']),
+            'padding_t': self.module.integerAttr(self.i32Type, kargs['padding_t']),
+            'do_relu': self.module.boolAttr(kargs['do_relu']),
+        }
+        dict_attr = self.module.dictAttr(**pool_max_2d_param)
+
+        return self.buildOp(TPU_OpType.PoolMax2D.value, inputOperands, [
+            tensor_output_type], name=pool_max_2d_name, param=dict_attr)
+
+    def add_relu_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+        tensor_output_type = self.module.make_ranked_tensor_type(
+        self.f32Type, output_tensor_shape)
+
+        relu_name = self.module.stringAttr(op_name)
+        return self.buildOp(TPU_OpType.Relu.value, inputOperands, [
+            tensor_output_type], name=relu_name)
+
+    def add_reshape_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+        tensor_output_type = self.module.make_ranked_tensor_type(
+            self.f32Type, output_tensor_shape)
+
+        reshape_name = self.module.stringAttr(op_name)
+        return self.buildOp(TPU_OpType.Reshape.value, inputOperands, [
+            tensor_output_type], name=reshape_name)
+    def add_return_op(self, Operands):
+        return pybind.ret(Operands)
 
     def print_module(self):
         print(self.module)
