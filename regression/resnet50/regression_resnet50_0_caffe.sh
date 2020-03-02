@@ -11,8 +11,8 @@ if [ ! -f "$CAFFE_BLOBS_NPZ" ]; then
   run_caffe_classifier.py \
       --model_def $MODEL_PATH/imagenet/resnet/caffe/ResNet-50-deploy.prototxt \
       --pretrained_model $MODEL_PATH/imagenet/resnet/caffe/ResNet-50-model.caffemodel \
-      --mean_file $PYTHON_TOOLS_PATH/data/ilsvrc_2012_mean.npy \
-      --label_file $PYTHON_TOOLS_PATH/data/ilsvrc12/synset_words.txt \
+      --mean_file $REGRESSION_PATH/resnet50/data/ilsvrc_2012_mean.npy \
+      --label_file $REGRESSION_PATH/resnet50/data/ilsvrc12/synset_words.txt \
       --dump_blobs $CAFFE_BLOBS_NPZ \
       --dump_weights resnet50_weights.npz \
       $REGRESSION_PATH/resnet50/data/cat.jpg \

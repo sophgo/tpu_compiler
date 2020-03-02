@@ -39,14 +39,14 @@ mlir-translate \
     -o cmdbuf_bf16.bin
 
 # generate cvi model
-python $CVIBUILDER_PATH/python/cvi_model_create.py \
+python $TPU_PYTHON_PATH/cvi_model_create.py \
     --cmdbuf cmdbuf_bf16.bin \
     --weight weight_bf16.bin \
     --neuron_map neuron_map_bf16.csv \
     --output=yolo_v3_416_bf16.cvimodel
 
 # run cmdbuf
-$RUNTIME_PATH/bin/test_cvinet \
+test_cvinet \
     yolo_v3_in_bf16.bin \
     yolo_v3_416_bf16.cvimodel \
     yolo_v3_416_cmdbuf_out_all_bf16.bin

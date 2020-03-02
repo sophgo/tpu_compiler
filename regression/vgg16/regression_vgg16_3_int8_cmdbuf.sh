@@ -33,7 +33,7 @@ mlir-opt \
     -o cmdbuf_int8_per_layer.bin
 
 # generate cvi model
-python $CVIBUILDER_PATH/python/cvi_model_create.py \
+python $TPU_PYTHON_PATH/cvi_model_create.py \
     --cmdbuf cmdbuf_int8_per_layer.bin \
     --weight weight_int8_per_layer.bin \
     --neuron_map neuron_map.csv \
@@ -46,7 +46,7 @@ python $CVIBUILDER_PATH/python/cvi_model_create.py \
 #    cmdbuf_int8_per_layer.bin \
 #    vgg16_cmdbuf_out_all_int8_per_layer.bin \
 #    16460784 0 16460784 1
-$RUNTIME_PATH/bin/test_cvinet \
+test_cvinet \
     vgg16_in_int8.bin \
     vgg16_int8_per_layer.cvimodel \
     vgg16_cmdbuf_out_all_int8_per_layer.bin
@@ -95,7 +95,7 @@ mlir-opt \
     -o cmdbuf_int8_multiplier.bin
 
 # generate cvi model
-python $CVIBUILDER_PATH/python/cvi_model_create.py \
+python $TPU_PYTHON_PATH/cvi_model_create.py \
     --cmdbuf cmdbuf_int8_multiplier.bin \
     --weight weight_int8_multiplier.bin \
     --neuron_map neuron_map.csv \
@@ -108,7 +108,7 @@ python $CVIBUILDER_PATH/python/cvi_model_create.py \
 #    cmdbuf_int8_multiplier.bin \
 #    vgg16_cmdbuf_out_all_int8_multiplier.bin \
 #    16460784 0 16460784 1
-$RUNTIME_PATH/bin/test_cvinet \
+test_cvinet \
     vgg16_in_int8.bin \
     vgg16_int8_multiplier.cvimodel \
     vgg16_cmdbuf_out_all_int8_multiplier.bin

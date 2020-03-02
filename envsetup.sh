@@ -5,6 +5,7 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 export MLIR_SRC_PATH=$SCRIPT_DIR
 export TPU_BASE=$MLIR_SRC_PATH/../../../..
 
+# set MODEL_PATH
 if [[ -z "$MODEL_PATH" ]]; then
   MODEL_PATH=$TPU_BASE/models
 fi
@@ -17,42 +18,55 @@ if [ ! -e $MODEL_PATH ]; then
 fi
 export MODEL_PATH=$MODEL_PATH
 
+# set DATASET_PATH
 if [[ -z "$DATASET_PATH" ]]; then
   DATASET_PATH=~/data/dataset
 fi
 export DATASET_PATH=$DATASET_PATH
 
-export CAFFE_PATH=$TPU_BASE/install_caffe
-export MKLDNN_PATH=$TPU_BASE/install_mkldnn
-export FLATBUFFERS_PATH=$TPU_BASE/install_flatbuffers
-export BMKERNEL_PATH=$TPU_BASE/install_bmkernel
-export CMODEL_PATH=$TPU_BASE/install_cmodel
-export SUPPORT_PATH=$TPU_BASE/install_support
-export CVIBUILDER_PATH=$TPU_BASE/install_cvibuilder
-export RUNTIME_PATH=$TPU_BASE/install_runtime
-export PYTHON_TOOLS_PATH=$MLIR_SRC_PATH/externals/python_tools
-export CALIBRATION_TOOL_PATH=$TPU_BASE/install_calibration_tool
+# set INSTALL_PATH
+if [[ -z "$INSTALL_PATH" ]]; then
+  INSTALL_PATH=$TPU_BASE/install
+fi
+export INSTALL_PATH=$INSTALL_PATH
+
+# set BUILD_PATH
+if [[ -z "$BUILD_PATH" ]]; then
+  BUILD_PATH=$TPU_BASE/build
+fi
+export BUILD_PATH=$BUILD_PATH
+
+# set PATH for all projects
+export MKLDNN_PATH=$INSTALL_PATH/mkldnn
+export CAFFE_PATH=$INSTALL_PATH/caffe
+export FLATBUFFERS_PATH=$INSTALL_PATH/flatbuffers
+export BMKERNEL_PATH=$INSTALL_PATH
+export CMODEL_PATH=$INSTALL_PATH
+export RUNTIME_PATH=$INSTALL_PATH
+export MLIR_PATH=$INSTALL_PATH
+
+# python path
+export TPU_PYTHON_PATH=$INSTALL_PATH/python
+
+# regression path
 export REGRESSION_PATH=$MLIR_SRC_PATH/regression
 
-export MLIR_PATH=$TPU_BASE/install_mlir
+# run path
+export PATH=$INSTALL_PATH/bin:$PATH
+export PATH=$INSTALL_PATH/python:$PATH
+# export PATH=$FLATBUFFERS_PATH/bin:$PATH
 
-export LD_LIBRARY_PATH=$BMKERNEL_PATH/lib:$LD_LIBRARY_PATH
-export LD_LIBRARY_PATH=$CMODEL_PATH/lib:$LD_LIBRARY_PATH
-export LD_LIBRARY_PATH=$SUPPORT_PATH/lib:$LD_LIBRARY_PATH
-export LD_LIBRARY_PATH=$FLATBUFFERS_PATH/lib:$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=$INSTALL_PATH/lib:$LD_LIBRARY_PATH
 export LD_LIBRARY_PATH=$MKLDNN_PATH/lib:$LD_LIBRARY_PATH
 export LD_LIBRARY_PATH=$CAFFE_PATH/lib:$LD_LIBRARY_PATH
-export LD_LIBRARY_PATH=$CAFFE_PATH/mkl/mklml/lib:$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=$FLATBUFFERS_PATH/lib:$LD_LIBRARY_PATH
 
-export PATH=$TPU_BASE/llvm-project/build/bin:$PATH
-export PATH=$MLIR_SRC_PATH/externals/python_tools:$PATH
-export PATH=$MLIR_SRC_PATH/bindings/python/tools:$PATH
-export PATH=$FLATBUFFERS_PATH/bin:$PATH
-export PATH=$CALIBRATION_TOOL_PATH/bin:$PATH
-
-export PYTHONPATH=$TPU_BASE/llvm-project/build/lib:$PYTHONPATH
-export PYTHONPATH=$PYTHON_TOOLS_PATH:$PYTHONPATH
+export PYTHONPATH=$TPU_PYTHON_PATH:$PYTHONPATH
 export PYTHONPATH=$CAFFE_PATH/python:$PYTHONPATH
-export PYTHONPATH=$CALIBRATION_TOOL_PATH:$PYTHONPATH
 export PYTHONPATH=$FLATBUFFERS_PATH/python:$PYTHONPATH
-export PYTHONPATH=$CVIBUILDER_PATH/python:$PYTHONPATH
+
+# soc build and path
+if [[ -z "$INSTALL_SOC_PATH" ]]; then
+  INSTALL_SOC_PATH=$TPU_BASE/install_soc
+fi
+export INSTALL_SOC_PATH=$INSTALL_SOC_PATH

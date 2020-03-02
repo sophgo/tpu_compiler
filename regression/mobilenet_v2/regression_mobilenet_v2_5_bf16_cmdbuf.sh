@@ -35,7 +35,7 @@ mlir-translate \
     -o cmdbuf_bf16.bin
 
 # generate cvi model
-python $CVIBUILDER_PATH/python/cvi_model_create.py \
+python $TPU_PYTHON_PATH/cvi_model_create.py \
     --cmdbuf cmdbuf_bf16.bin \
     --weight weight_bf16.bin \
     --neuron_map neuron_map_bf16.csv \
@@ -48,7 +48,7 @@ python $CVIBUILDER_PATH/python/cvi_model_create.py \
 #    cmdbuf_bf16.bin \
 #    mobilenet_v2_cmdbuf_out_all_bf16.bin \
 #    18811152 0 18811152 1
-$RUNTIME_PATH/bin/test_cvinet \
+test_cvinet \
     mobilenet_v2_in_bf16.bin \
     mobilenet_v2_bf16.cvimodel \
     mobilenet_v2_cmdbuf_out_all_bf16.bin
