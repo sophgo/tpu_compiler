@@ -21,14 +21,6 @@ pushd llvm-project/llvm/projects/mlir/externals/cmodel
 git pull --rebase
 popd
 
-pushd llvm-project/llvm/projects/mlir/externals/python_tools
-git pull --rebase
-popd
-
-pushd llvm-project/llvm/projects/mlir/externals/calibration_tool
-git pull --rebase
-popd
-
 pushd llvm-project/llvm/projects/mlir/externals/cvibuilder
 git pull --rebase
 popd

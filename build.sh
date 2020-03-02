@@ -83,8 +83,19 @@ cmake --build . --target check-mlir
 # cmake --build . --target pybind
 cmake --build . --target install
 popd
-cp $TPU_BASE/llvm-project/llvm/projects/mlir/bindings/python/tools/*.py \
-    $TPU_PYTHON_PATH/
+cp $MLIR_SRC_PATH/bindings/python/tools/*.py $TPU_PYTHON_PATH/
+# python utils
+cp -a $MLIR_SRC_PATH/python/utils/* $TPU_PYTHON_PATH/
+pushd $TPU_PYTHON_PATH/model/retinaface; make; popd
+# calibration tool
+if [ ! -e $BUILD_PATH/build_calibration ]; then
+  mkdir -p $BUILD_PATH/build_calibration
+fi
+pushd $BUILD_PATH/build_calibration
+cmake $MLIR_SRC_PATH/python/calibration && make
+cp calibration_math.so $INSTALL_PATH/lib
+popd
+cp $MLIR_SRC_PATH/python/calibration/*.py $TPU_PYTHON_PATH/
 
 # cvibuilder
 if [ ! -e $BUILD_PATH/build_cvimodel ]; then
@@ -95,22 +106,6 @@ $INSTALL_PATH/flatbuffers/bin/flatc --cpp --gen-object-api \
     $MLIR_SRC_PATH/externals/cvibuilder/src/cvimodel.fbs
 popd
 cp -a $MLIR_SRC_PATH/externals/cvibuilder/python/* $TPU_PYTHON_PATH/
-
-# build calibration tool
-if [ ! -e $BUILD_PATH/build_calibration_tool ]; then
-  mkdir -p $BUILD_PATH/build_calibration_tool
-fi
-pushd $BUILD_PATH/build_calibration_tool
-cmake $MLIR_SRC_PATH/externals/calibration_tool && make
-cp calibration_math.so $INSTALL_PATH/lib
-popd
-cp $MLIR_SRC_PATH/externals/calibration_tool/*.py $TPU_PYTHON_PATH/
-
-# build python tool
-pushd $MLIR_SRC_PATH/externals/python_tools/model/retinaface
-make
-popd
-cp $MLIR_SRC_PATH/externals/python_tools/*.py $TPU_PYTHON_PATH/
 
 # build cmodel
 if [ ! -e $BUILD_PATH/build_cmodel ]; then
@@ -141,4 +136,3 @@ popd
 
 # SoC build
 # TODO
-
