@@ -57,7 +57,7 @@ npz_compare.py \
       retinaface_mnet25_caffe_blobs.npz \
       --op_info retinaface_mnet25_op_info_int8.csv \
       --dequant \
-      --tolerance 0.97,0.97,0.78 -vvv
+      --tolerance 0.95,0.95,0.70 -vvv
 
 if [ $COMPARE_ALL -eq 1 ]; then
   npz_compare.py \
@@ -65,7 +65,7 @@ if [ $COMPARE_ALL -eq 1 ]; then
       retinaface_mnet25_caffe_blobs.npz \
       --op_info retinaface_mnet25_op_info_int8.csv \
       --dequant \
-      --tolerance 0.94,0.92,0.65 -vvv
+      --tolerance 0.90,0.85,0.54 -vvv
 fi
 
 # VERDICT
