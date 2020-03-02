@@ -578,6 +578,7 @@ struct TpuQuantInt8LutOpPattern : public RewritePattern {
                             : (lutOutputI32 < -128) ? -128 : lutOutputI32;
           y0_table[n * table_hw + idx] = lutOutputI32;
         }else if(OpTy::getOperationName()=="tpu.sigmoid"){
+          index = -lutInput * threshold_x / 127.0;
           float lutOutput = 1.0 / (1 + std::exp(index)) * 127.0 / threshold_y;
           int lutOutputI32 = std::floor(lutOutput + 0.5);
           lutOutputI32 = (lutOutputI32 > 127)
