@@ -81,7 +81,9 @@ class PyImporter():
     
     def add_weight_file_op(self, name):
         filename = self.module.stringAttr(name)
-        self.buildOp(TPU_OpType.Weight_file.value, [], [], filename=filename)
+        # TODO: our mlir not support mem type now
+        mem_ref = self.module.make_memref_type(self.f32Type, [10])
+        return self.buildOp(TPU_OpType.Weight_file.value, [], [mem_ref], filename=filename)
 
     def add_load_file_op(self, name, output_tensor_shape):
         tensor_output_type = self.module.make_ranked_tensor_type(
