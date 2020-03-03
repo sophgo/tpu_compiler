@@ -717,10 +717,6 @@ int my_softmax2D(float *input, float *output, int n, int c) {
 
 int my_softmax4D(float *input, float *output, int axis, const std::vector<int64_t>& shape) {
   int iter = 0;
-  float* max_val = new float[shape[axis]];
-  for (int i = 0; i <shape[axis]; ++i)
-    max_val[i] = 0;
-
   // Only support axis == 1 so far, which means calculate softmax along C
   assert(axis == 1);
   for (int N = 0; N < shape[0]; ++N) {
