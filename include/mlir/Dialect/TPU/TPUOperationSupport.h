@@ -59,6 +59,8 @@ uint64_t getPreviousOpAddress(Operation *op, uint index = 0);
 
 uint64_t getWeightOpAddress(Operation *op);
 
+void setOpResultType(Operation *op, StandardTypes::Kind kind, int width = 0);
+
 tpu::QuantParam getDefaultQuantParam(Builder &builder);
 void parseConvParam(const tpu::ConvParam &p, bool is_deconv,
     Value *input, Value *output, Value *filter,

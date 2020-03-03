@@ -104,6 +104,7 @@ struct TpuQuantInt8SigmoidOpPattern : public RewritePattern {
     sigOp.setOperand(1, y0_table_op);
     setOpQuantPerchannel(op, false);
     setOpQuant(op, "INT8");
+    setOpResultType(op, StandardTypes::Integer, 8);
 
     return matchSuccess();
   }
