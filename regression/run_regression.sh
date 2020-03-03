@@ -18,10 +18,10 @@ net_list=(
 generic_net_list=(
   # "resnet50"
   "vgg16"
+  "mobilenet_v2"
   # "inception_v3"
   "inception_v4"
-  # "efficientnet_b0"
-  # "mobilenet_v2"
+  "efficientnet_b0"
 )
 
 if [ ! -z "$1" ]; then

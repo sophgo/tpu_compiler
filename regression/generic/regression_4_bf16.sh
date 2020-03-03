@@ -18,7 +18,11 @@ mlir-tpu-interpreter ${NET}_quant_bf16.mlir \
     --tensor-out ${NET}_out_bf16.npz \
     --dump-all-tensor=${NET}_tensor_all_bf16.npz
 
-npz_compare.py ${NET}_out_bf16.npz ${NET}_out_fp32.npz -v
+npz_compare.py \
+    ${NET}_out_bf16.npz \
+    ${NET}_out_fp32.npz \
+    --tolerance $TOLERANCE_BF16 -vv
+
 npz_compare.py \
     ${NET}_tensor_all_bf16.npz \
     ${NET}_tensor_all_fp32.npz \

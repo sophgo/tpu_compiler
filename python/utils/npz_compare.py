@@ -97,7 +97,7 @@ def dequantize(d1, threshold):
   d1 = d1 * threshold / 128.0
   return d1
 
-def discard_res_data(args): 
+def discard_res_data(args):
   res_data = np.load(args.target_file);
   ref_data = np.load(args.ref_file);
   name = res_data.files
@@ -105,7 +105,7 @@ def discard_res_data(args):
   trunc_data = {}
   for i in range(length-1):
     trunc_data[name[i]] = res_data[name[i]]
-   
+
   box = ref_data[name[-1]].shape[2]
   trunc_data[name[-1]] = res_data[name[-1]][:,:,0:box,:]
   np.savez(args.target_file, **trunc_data)
@@ -126,7 +126,7 @@ def main(argv):
   f1 = args.target_file
   f2 = args.ref_file
   if args.discard:
-    discard_res_data(args) 
+    discard_res_data(args)
 
   np.set_printoptions(precision=6)
   np.set_printoptions(suppress=True)
@@ -194,6 +194,9 @@ def main(argv):
   if (args.save):
     stats.save_result(args.save)
     print("Results save as {}".format(args.save))
+  print("Target    {}".format(f1))
+  print("Reference {}".format(f2))
+  print(sys.argv[1:])
   if (stats.failed == 0):
     print("npz compare PASSED.")
   else:

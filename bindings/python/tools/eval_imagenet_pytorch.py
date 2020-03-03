@@ -23,12 +23,13 @@ import torchvision.datasets as datasets
 parser = argparse.ArgumentParser(description="Classification Evaluation on ImageNet Dataset.")
 parser.add_argument("--model", type=str)
 parser.add_argument("--dataset", type=str, help="The root directory of the ImageNet dataset.")
+parser.add_argument("--images_dim", type=str, default='224,224')
+parser.add_argument("--raw_scale", type=float, help="Multiply raw input image data by this scale.")
 parser.add_argument("--mean", help="Per Channel image mean values")
 parser.add_argument("--mean_file", type=str, help="the resized ImageNet dataset mean file.")
 parser.add_argument("--input_scale", type=float,
                     help="Multiply input features by this scale.", default=1.0)
 parser.add_argument("--count", type=int, default=50000)
-parser.add_argument("--dim", type=int, default=224)
 parser.add_argument("--dump_data", type=bool, default=False)
 parser.add_argument("--show", type=bool, default=False)
 parser.add_argument("--loader_transforms", type=int, help="image transform ny torch loader", default=0)
@@ -108,6 +109,12 @@ if __name__ == '__main__':
   # onedir = os.path.join(args.dataset, 'one')
   batch_size = 1
 
+
+  images_dim = [int(s) for s in args.images_dim.split(',')]
+  if args.raw_scale:
+    raw_scale = float(args.raw_scale)
+  else:
+    raw_scale = 255.0
   if args.mean:
     mean = np.array([float(s) for s in args.mean.split(',')], dtype=np.float32)
     print('mean', mean)
@@ -135,8 +142,8 @@ if __name__ == '__main__':
                                      std=[0.229, 0.224, 0.225])
     val_loader = torch.utils.data.DataLoader(
         datasets.ImageFolder(valdir, transforms.Compose([
-            transforms.Resize(256),
-            transforms.CenterCrop(args.dim),
+            transforms.Resize(images_dim if images_dim[0] > 256 else (256,256)),
+            transforms.CenterCrop(images_dim),
             transforms.ToTensor(),
             normalize,
         ])),
@@ -144,8 +151,8 @@ if __name__ == '__main__':
   else:
     val_loader = torch.utils.data.DataLoader(
         datasets.ImageFolder(valdir, transforms.Compose([
-            transforms.Resize(256),
-            transforms.CenterCrop(args.dim),
+            transforms.Resize(images_dim if images_dim[0] > 256 else (256,256)),
+            transforms.CenterCrop(images_dim),
             transforms.ToTensor()
         ])),
         batch_size=batch_size, shuffle=True)
@@ -174,7 +181,7 @@ if __name__ == '__main__':
       # pytorch ToTensor() will do HWC to CHW, and change range to [0.0, 1.0]
       # for pytorch, seeing errors if not include ToTensor in transforms
       # change to range [0, 255]
-      x = images[0].numpy() * 255
+      x = images[0].numpy() * raw_scale
       x = x.astype('uint8')
       # print(x.shape)
       # transposed already in ToTensor()
