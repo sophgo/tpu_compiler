@@ -308,7 +308,7 @@ public:
         AssignGAddrTGBf16Pattern<tpu::TG_BF16_EltwiseMulOp>,
         AssignGAddrTGBf16Pattern<tpu::TG_BF16_FullyConnectedOp>,
         AssignGAddrTGBf16Pattern<tpu::TG_BF16_LeakyReluOp>,
-        //AssignGAddrTGInt8Pattern<tpu::TG_BF16_LutOp>,
+        AssignGAddrTGBf16Pattern<tpu::TG_BF16_LutOp>,
         AssignGAddrTGBf16Pattern<tpu::TG_BF16_PermuteOp>,
         AssignGAddrTGBf16Pattern<tpu::TG_BF16_PoolAvg2DOp>,
         AssignGAddrTGBf16Pattern<tpu::TG_BF16_PoolMax2DOp>,

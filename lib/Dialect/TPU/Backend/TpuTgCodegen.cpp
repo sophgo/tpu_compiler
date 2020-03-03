@@ -1158,14 +1158,15 @@ LogicalResult tpu::TG_BF16_LutOp::codegen(void *ctx) {
 
   int layer_id = mlir::getOpLayerId(op);
 
-  // bf16_reciprocal_fixed_forward_bmkernel(*backend_ctx,
-  //                                 0,        // stream_id,
-  //                                 0,        // inst_id,
-  //                                 layer_id, // layer_id,
-  //                                 nullptr,  // const u32 *depends,
-  //                                 0,        // depends_len,
-  //                                 input_gaddr, output_gaddr, table_data_lut,table_data_mantissa_lut,
-  //                                 n, c, h, w);
+  bf16_lut_scientific_forward_kernel(*backend_ctx,
+                                  0,        // stream_id,
+                                  0,        // inst_id,
+                                  layer_id, // layer_id,
+                                  nullptr,  // const u32 *depends,
+                                  0,        // depends_len,
+                                  input_gaddr, output_gaddr, table_data_lut,table_data_mantissa_lut,
+                                  n, c, h, w, FMT_BF16);
+
   return success();
 }
 
@@ -1607,72 +1608,6 @@ LogicalResult tpu::TG_BF16_SliceOp::codegen(void *ctx) {
 
   return success();
 }
-#if 0
-LogicalResult tpu::TG_INT8_SqrtOp::codegen(void *ctx) {
-  llvm::errs() << "TG_codegen: " << getOperationName() << " [" << getOpName()
-               << "]\n";
-  BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
-  Operation *op = this->getOperation();
-
-  std::vector<int64_t> shape;
-  int64_t input_size, n, c, h, w;
-  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
-  getNCHW(shape, n, c, h, w);
-
-
-
-  gaddr_t input_gaddr = getPreviousOpAddress(op);
-  gaddr_t output_gaddr = getOpAddress(op);
-  gaddr_t y0_table_gaddr = getWeightOpAddress(op->getOperand(1)->getDefiningOp());
-  int layer_id = mlir::getOpLayerId(op);
-
-  sqrt_fixed_forward_bmkernel(*backend_ctx,
-                                  0,        // stream_id,
-                                  0,        // inst_id,
-                                  layer_id, // layer_id,
-                                  nullptr,  // const u32 *depends,
-                                  0,        // depends_len,
-                                  input_gaddr, output_gaddr, y0_table_gaddr,
-                                  n, c, h, w);
-
-
-  return success();
-}
-
-LogicalResult tpu::TG_BF16_SqrtOp::codegen(void *ctx) {
-  llvm::errs() << "TG_codegen: " << getOperationName() << " [" << getOpName()
-               << "]\n";
-
-  BM1880v2BackendContext *backend_ctx = (BM1880v2BackendContext *)ctx;
-  Operation *op = this->getOperation();
-
-  std::vector<int64_t> shape;
-  int64_t input_size, n, c, h, w;
-  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
-  getNCHW(shape, n, c, h, w);
-
-  gaddr_t input_gaddr = getPreviousOpAddress(op);
-  gaddr_t output_gaddr = getOpAddress(op);
-  gaddr_t table_data_lut = getWeightOpAddress(op->getOperand(1)->getDefiningOp());
-  gaddr_t table_data_mantissa_lut = getWeightOpAddress(op->getOperand(2)->getDefiningOp());
-
-
-  int layer_id = mlir::getOpLayerId(op);
-
-  bf16_sqrt_fixed_forward_bmkernel(*backend_ctx,
-                                 0,        // stream_id,
-                                 0,        // inst_id,
-                                 layer_id, // layer_id,
-                                 nullptr,  // const u32 *depends,
-                                 0,        // depends_len,
-                                 input_gaddr, output_gaddr, table_data_lut,table_data_mantissa_lut,
-                                 n, c, h, w);
-
-  return success();
-}
-
-#endif
-
 
 LogicalResult tpu::TG_INT8_UpsampleOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName()

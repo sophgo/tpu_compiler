@@ -66,6 +66,7 @@ struct TpuDecomposeNormalizePattern : public RewritePattern {
     assert(weight_op.name().hasValue());
     auto tensor_name = weight_op.name().getValue();
     std::unique_ptr<std::vector<float> >  scale;
+
     auto type = weight_op.getResult()->getType().cast<TensorType>();
 
     scale = wTF->readTensor<float>(tensor_name, type);

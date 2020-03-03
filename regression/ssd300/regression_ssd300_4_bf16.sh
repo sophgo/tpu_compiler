@@ -16,10 +16,16 @@ mlir-translate \
 mlir-opt \
     --assign-layer-id \
     --print-tpu-op-info \
-    --tpu-op-info-filename ssd300_op_info.csv \
     --canonicalize \
-    ssd300_opt.mlir \
-    -o ssd300_quant_bf16.mlir
+    --tpu-op-info-filename ssd300_op_info.csv \
+    ssd300_bf16.mlir \
+    -o ssd300_quant_bf16_opt.mlir
+
+#regenerate op info after opt for compare. 
+mlir-opt \
+    --print-tpu-op-info \
+    --tpu-op-info-filename ssd300_op_info.csv \
+    ssd300_quant_bf16_opt.mlir 
 
 fi 
 # quantization
@@ -27,7 +33,7 @@ mlir-opt \
     --quant-bf16 \
     --gen-sqrt-table \
     --gen-reciprocal-table \
-    ssd300_opt.mlir \
+    ssd300_quant_bf16_opt.mlir \
     -o ssd300_quant_bf16.mlir
 
 # bf16 inference

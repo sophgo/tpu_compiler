@@ -258,7 +258,7 @@ struct TpuGenReciprocalTablePattern : public RewritePattern {
       wTF->addTensor<float>(tensor_name, newWeights.at(i).data(), type);
       std::vector<NamedAttribute> attrs;
       attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(tensor_name)));
-      attrs.push_back(rewriter.getNamedAttr("storage", rewriter.getStringAttr("UINT16")));
+      attrs.push_back(rewriter.getNamedAttr("storage", rewriter.getStringAttr("BF16")));
       reciprocalOp.setAttr("has_table", rewriter.getBoolAttr("true"));
 
       auto new_weight_op = rewriter.create<tpu::LoadWeightOp>(

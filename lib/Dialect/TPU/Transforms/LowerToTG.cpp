@@ -144,7 +144,6 @@ Value* tpu::Conv2DOp::convertToTG() {
   auto builder = Builder(op->getContext());
   TensorFile *wTF = getWeightTensorFile(op);
   assert(wTF);
-
   std::vector<Value *> operands;
   operands.push_back(input());
   operands.push_back(filter());
