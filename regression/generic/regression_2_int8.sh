@@ -1,0 +1,145 @@
+#!/bin/bash
+set -e
+
+DIR="$( cd "$(dirname "$0")" ; pwd -P )"
+source $DIR/../../envsetup.sh
+
+COMPARE_ALL=1
+COMPARE_OUTPUT_BIT_TRUE=0
+
+# import calibration table
+mlir-opt \
+    --import-calibration-table \
+    --calibration-table $CALI_TABLE \
+    ${NET}_opt.mlir \
+    -o ${NET}_cali.mlir
+
+###############################################################################
+# quantization 1: per-layer int8
+###############################################################################
+if [ $DO_QUANT_INT8_PER_TENSOR -eq 1 ]; then
+  mlir-opt \
+      --quant-int8 \
+      --print-tpu-op-info \
+      --tpu-op-info-filename ${NET}_op_info_int8_per_tensor.csv \
+      ${NET}_cali.mlir \
+      -o ${NET}_quant_int8_per_tensor.mlir
+
+  mlir-tpu-interpreter ${NET}_quant_int8_per_tensor.mlir \
+      --tensor-in ${NET}_in_fp32.npz \
+      --tensor-out ${NET}_out_int8_per_tensor.npz \
+      --dump-all-tensor=${NET}_tensor_all_int8_per_tensor.npz
+
+  npz_to_bin.py \
+      ${NET}_tensor_all_int8_per_tensor.npz \
+      ${OUTPUTS} \
+      ${NET}_out_${OUTPUTS}_int8_per_tensor.bin \
+      int8
+
+  if [ $COMPARE_OUTPUT_BIT_TRUE -eq 1 ]; then
+    bin_compare.py \
+        ${NET}_out_${OUTPUTS}_int8_per_tensor.bin \
+        $REGRESSION_PATH/${NET}/data/test_cat_out_${NET}_${OUTPUTS}_int8_per_tensor.bin \
+        int8 1 1 1 1000 5
+  fi
+
+  if [ $COMPARE_ALL -eq 1 ]; then
+    # this will fail for now, because prob has been dequantized twice, others should pass
+    npz_compare.py \
+        ${NET}_tensor_all_int8_per_tensor.npz \
+        ${NET}_blobs.npz \
+        --op_info ${NET}_op_info_int8_per_tensor.csv \
+        --dequant \
+        --excepts $EXCEPTS \
+        --tolerance $TOLERANCE_INT8_PER_TENSOR -vv
+  fi
+fi
+
+###############################################################################
+# quantization 2: per-channel int8
+###############################################################################
+if [ $DO_QUANT_INT8_RFHIFT_ONLY -eq 1 ]; then
+
+  mlir-opt \
+      --quant-int8 \
+      --enable-conv-per-channel \
+      --print-tpu-op-info \
+      --tpu-op-info-filename ${NET}_op_info_int8_rshift_only.csv \
+      ${NET}_cali.mlir \
+      -o ${NET}_quant_int8_rshift_only.mlir
+
+  mlir-tpu-interpreter ${NET}_quant_int8_rshift_only.mlir \
+      --tensor-in ${NET}_in_fp32.npz \
+      --tensor-out ${NET}_out_int8_rshift_only.npz \
+      --dump-all-tensor=${NET}_tensor_all_int8_rshift_only.npz
+
+  npz_to_bin.py \
+      ${NET}_tensor_all_int8_rshift_only.npz \
+      ${OUTPUTS} \
+      ${NET}_out_${OUTPUTS}_int8_rshift_only.bin \
+      int8
+
+  if [ $COMPARE_OUTPUT_BIT_TRUE -eq 1 ]; then
+    bin_compare.py \
+        ${NET}_out_${OUTPUTS}_int8_rshift_only.bin \
+        $REGRESSION_PATH/${NET}/data/test_cat_out_${NET}_${OUTPUTS}_int8_rshift_only.bin \
+        int8 1 1 1 1000 5
+  fi
+
+  if [ $COMPARE_ALL -eq 1 ]; then
+    # this will fail for now, because prob has been dequantized twice, others should pass
+    npz_compare.py \
+        ${NET}_tensor_all_int8_rshift_only.npz \
+        ${NET}_blobs.npz \
+        --op_info ${NET}_op_info_int8_rshift_only.csv \
+        --dequant \
+        --excepts $EXCEPTS \
+        --tolerance $TOLERANCE_INT8_RSHIFT_ONLY -vv
+  fi
+fi
+
+###############################################################################
+# quantization 3: per-channel int8 with multiplier
+###############################################################################
+if [ $DO_QUANT_INT8_MULTIPLER -eq 1 ]; then
+
+  mlir-opt \
+      --quant-int8 \
+      --enable-conv-per-channel \
+      --enable-conv-multiplier \
+      --print-tpu-op-info \
+      --tpu-op-info-filename ${NET}_op_info_int8_multiplier.csv \
+      ${NET}_cali.mlir \
+      -o ${NET}_quant_int8_multiplier.mlir
+
+  mlir-tpu-interpreter ${NET}_quant_int8_multiplier.mlir \
+      --tensor-in ${NET}_in_fp32.npz \
+      --tensor-out ${NET}_out_int8_multiplier.npz \
+      --dump-all-tensor=${NET}_tensor_all_int8_multiplier.npz
+
+  npz_to_bin.py \
+      ${NET}_tensor_all_int8_multiplier.npz \
+      ${OUTPUTS} \
+      ${NET}_out_${OUTPUTS}_int8_multiplier.bin \
+      int8
+  if [ $COMPARE_OUTPUT_BIT_TRUE -eq 1 ]; then
+    bin_compare.py \
+        ${NET}_out_${OUTPUTS}_int8_multiplier.bin \
+        $REGRESSION_PATH/${NET}/data/test_cat_out_${NET}_${OUTPUTS}_int8_multiplier.bin \
+        int8 1 1 1 1000 5
+  fi
+
+  if [ $COMPARE_ALL -eq 1 ]; then
+    # this will fail for now, because prob has been dequantized twice, others should pass
+    npz_compare.py \
+        ${NET}_tensor_all_int8_multiplier.npz \
+        ${NET}_blobs.npz \
+        --op_info ${NET}_op_info_int8_multiplier.csv \
+        --dequant \
+        --excepts $EXCEPTS \
+        --tolerance $TOLERANCE_INT8_MULTIPLER -vv
+  fi
+fi
+
+# VERDICT
+echo $0 PASSED

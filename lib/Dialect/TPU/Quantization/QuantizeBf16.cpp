@@ -110,6 +110,7 @@ struct TpuQuantBf16Conv2DOpPattern : public RewritePattern {
           "quant", *new_bias, biasShape, "BF16", wTF);
     }
     setOpQuant(op, "BF16");
+    setOpResultType(op, StandardTypes::BF16);
 
     return matchSuccess();
   }
@@ -164,6 +165,7 @@ struct TpuQuantBf16FullyConnectedOpPattern : public RewritePattern {
           "quant", *new_bias, biasShape, "BF16", wTF);
     }
     setOpQuant(op, "BF16");
+    setOpResultType(op, StandardTypes::BF16);
 
     return matchSuccess();
   }
@@ -181,6 +183,8 @@ struct TpuQuantBf16LeakyReluOpOpPattern : public RewritePattern {
       return matchFailure();
     }
     setOpQuant(op, "BF16");
+    setOpResultType(op, StandardTypes::BF16);
+
     float negative_slope = lreluOp.negative_slope().convertToFloat();
     LLVM_DEBUG(llvm::errs() << "  negative_slope: "
                             << std::to_string(negative_slope) << "\n";);
@@ -207,6 +211,7 @@ struct TpuQuantBf16DefaultPattern : public RewritePattern {
       return matchFailure();
     }
     setOpQuant(op, "BF16");
+    setOpResultType(op, StandardTypes::BF16);
 
     return matchSuccess();
   }

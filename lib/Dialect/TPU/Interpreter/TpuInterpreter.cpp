@@ -690,9 +690,9 @@ static LogicalResult doLUTOpInterpret(Operation *op, StringRef &type,
   std::shared_ptr<std::vector<float> > y0_table_op = opdT[1];
 
   if (getOpQuant(op) == "INT8") {
-      for (int i = 0; i < size; ++i) {
-        output[i] = y0_table_op->at((unsigned char)input[i]);
-      }
+    for (int i = 0; i < size; ++i) {
+      output[i] = y0_table_op->at((unsigned char)input[i]);
+    }
   }else if(getOpQuant(op) == "BF16"|| getOpQuant(op) == "NONE"){
     std::vector<int64_t> shape;
     int64_t input_size, n, c, h, w;

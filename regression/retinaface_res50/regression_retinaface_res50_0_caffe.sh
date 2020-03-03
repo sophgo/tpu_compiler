@@ -4,8 +4,8 @@ set -e
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 source $DIR/../../envsetup.sh
 
-export PATH=$PYTHON_TOOLS_PATH/model/retinaface:$PATH
-export PYTHONPATH=$PYTHON_TOOLS_PATH/model/retinaface:$PYTHONPATH
+export PATH=$TPU_PYTHON_PATH/model/retinaface:$PATH
+export PYTHONPATH=$TPU_PYTHON_PATH/model/retinaface:$PYTHONPATH
 
 run_caffe_retinaface.py \
     --model_def $MODEL_PATH/face_detection/retinaface/caffe/R50-0000.prototxt \

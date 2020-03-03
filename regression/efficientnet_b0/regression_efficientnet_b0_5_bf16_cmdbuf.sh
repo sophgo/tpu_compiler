@@ -43,13 +43,13 @@ mlir-translate \
     -o cmdbuf_bf16.bin
 
 # generate cvi model
-python $CVIBUILDER_PATH/python/cvi_model_create.py \
+python $TPU_PYTHON_PATH/cvi_model_create.py \
     --cmdbuf cmdbuf_bf16.bin \
     --weight weight_bf16.bin \
     --neuron_map neuron_map_bf16.csv \
     --output=efficientnet_bf16.cvimodel
 
-$RUNTIME_PATH/bin/test_cvinet \
+test_cvinet \
     efficientnet_in_bf16.bin \
     efficientnet_bf16.cvimodel \
     out_all_bf16.bin

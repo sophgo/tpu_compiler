@@ -1,5 +1,15 @@
 # mlir-tpu
 
+## Quick Start
+
+```sh
+$ source llvm-project/llvm/projects/mlir/envsetup.sh
+$ llvm-project/llvm/projects/mlir/build.sh
+$ llvm-project/llvm/projects/mlir/regression/run_regression.sh
+or
+$ llvm-project/llvm/projects/mlir/regression/run_regression.sh resnet50
+```
+
 ## Get Code and Build
 
 ### 0. Setup path

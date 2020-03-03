@@ -45,18 +45,24 @@ mlir-translate \
     --debug-only=tl_conv,tl_eltwise_add \
     -o cmdbuf_lw.bin
 
-# generate cvi model
-python $CVIBUILDER_PATH/python/cvi_model_create.py \
+# generate cvimodel
+python $TPU_PYTHON_PATH/cvi_model_create.py \
     --cmdbuf cmdbuf_la.bin \
     --weight weight_int8_multiplier.bin \
     --neuron_map neuron_map.csv \
     --output=resnet50_int8_la.cvimodel
 
-python $CVIBUILDER_PATH/python/cvi_model_create.py \
+python $TPU_PYTHON_PATH/cvi_model_create.py \
     --cmdbuf cmdbuf_lw.bin \
     --weight weight_int8_multiplier.bin \
     --neuron_map neuron_map.csv \
     --output=resnet50_int8_lw.cvimodel
+
+# profiling cmdbuf
+cvi_profiling --cmdbuf cmdbuf_lw.bin
+# libreoffice analysis.csv
+# cp $INSTALL_PATH/bin/performance.html .
+# google-chrome performance.html
 
 ################################
 # run cmdbuf with cmodel
@@ -91,12 +97,12 @@ python $CVIBUILDER_PATH/python/cvi_model_create.py \
 #    $REGRESSION_PATH/resnet50/data/test_cat_out_resnet50_fc1000_int8_multiplier.bin \
 #    int8 1 1 1 1000 5
 
-$RUNTIME_PATH/bin/test_cvinet \
+test_cvinet \
     resnet50_in_int8.bin \
     resnet50_int8_la.cvimodel \
     resnet50_cmdbuf_out_all_int8_la.bin
 
-$RUNTIME_PATH/bin/test_cvinet \
+test_cvinet \
     resnet50_in_int8.bin \
     resnet50_int8_lw.cvimodel \
     resnet50_cmdbuf_out_all_int8_lw.bin
