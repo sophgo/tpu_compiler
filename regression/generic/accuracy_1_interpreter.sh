@@ -17,33 +17,56 @@ else
 fi
 
 $EVAL_FUNC \
-    --model=resnet50.mlir \
+    --model=${NET}.mlir \
     --dataset=$DATASET_PATH/imagenet/img_val_extracted \
-    --mean_file=$REGRESSION_PATH/resnet50/data/mean_resize.npy \
+    --images_dim $IMAGE_DIM \
+    --raw_scale $RAW_SCALE \
+    --mean $MEAN \
+    --input_scale $INPUT_SCALE \
     --count=$1
 
-$EVAL_FUNC \
-    --model=resnet50_quant_int8_per_layer.mlir \
-    --dataset=$DATASET_PATH/imagenet/img_val_extracted \
-    --mean_file=$REGRESSION_PATH/resnet50/data/mean_resize.npy \
-    --count=$1
+if [ $DO_QUANT_INT8_PER_TENSOR -eq 1 ]; then
+  $EVAL_FUNC \
+      --model=${NET}_quant_int8_per_tensor.mlir \
+      --dataset=$DATASET_PATH/imagenet/img_val_extracted \
+      --images_dim $IMAGE_DIM \
+      --raw_scale $RAW_SCALE \
+      --mean $MEAN \
+      --input_scale $INPUT_SCALE \
+      --count=$1
+fi
 
-$EVAL_FUNC \
-    --model=resnet50_quant_int8_per_channel.mlir \
-    --dataset=$DATASET_PATH/imagenet/img_val_extracted \
-    --mean_file=$REGRESSION_PATH/resnet50/data/mean_resize.npy \
-    --count=$1
+if [ $DO_QUANT_INT8_RFHIFT_ONLY -eq 1 ]; then
+  $EVAL_FUNC \
+      --model=${NET}_quant_int8_rshift_only.mlir \
+      --dataset=$DATASET_PATH/imagenet/img_val_extracted \
+      --images_dim $IMAGE_DIM \
+      --raw_scale $RAW_SCALE \
+      --mean $MEAN \
+      --input_scale $INPUT_SCALE \
+      --count=$1
+fi
 
-$EVAL_FUNC \
-    --model=resnet50_quant_int8_multiplier.mlir \
-    --dataset=$DATASET_PATH/imagenet/img_val_extracted \
-    --mean_file=$REGRESSION_PATH/resnet50/data/mean_resize.npy \
-    --count=$1
+if [ $DO_QUANT_INT8_MULTIPLER -eq 1 ]; then
+  $EVAL_FUNC \
+      --model=${NET}_quant_int8_multiplier.mlir \
+      --dataset=$DATASET_PATH/imagenet/img_val_extracted \
+      --images_dim $IMAGE_DIM \
+      --raw_scale $RAW_SCALE \
+      --mean $MEAN \
+      --input_scale $INPUT_SCALE \
+      --count=$1
+fi
 
-$EVAL_FUNC \
-    --model=resnet50_quant_bf16.mlir \
-    --dataset=$DATASET_PATH/imagenet/img_val_extracted \
-    --mean_file=$REGRESSION_PATH/resnet50/data/mean_resize.npy \
-    --count=$1
+if [ $DO_QUANT_BF16 -eq 1 ]; then
+  $EVAL_FUNC \
+      --model=${NET}_quant_bf16.mlir \
+      --dataset=$DATASET_PATH/imagenet/img_val_extracted \
+      --images_dim $IMAGE_DIM \
+      --raw_scale $RAW_SCALE \
+      --mean $MEAN \
+      --input_scale $INPUT_SCALE \
+      --count=$1
+fi
 
 echo $0 DONE

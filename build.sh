@@ -79,9 +79,11 @@ cmake -G Ninja -DLLVM_BUILD_EXAMPLES=OFF \
     -DCMAKE_INSTALL_PREFIX=$MLIR_PATH \
     $TPU_BASE/llvm-project/llvm
 cmake --build . --target check-mlir
-# cmake --build . --target pymlir
-# cmake --build . --target pybind
+cmake --build . --target pymlir
+cmake --build . --target pybind
 cmake --build . --target install
+cp lib/pymlir.so $TPU_PYTHON_PATH
+cp lib/pybind.so $TPU_PYTHON_PATH
 popd
 cp $MLIR_SRC_PATH/bindings/python/tools/*.py $TPU_PYTHON_PATH/
 # python utils

@@ -7,7 +7,7 @@ source $DIR/../../envsetup.sh
 ################################
 # prepare bf16 input
 ################################
-npz_to_bin.py ${NET}_in_fp32.npz input ${NET}_in_fp32.bin
+npz_to_bin.py ${NET}_in_fp32.npz ${INPUT} ${NET}_in_fp32.bin
 bin_fp32_to_bf16.py \
     ${NET}_in_fp32.bin \
     ${NET}_in_bf16.bin
