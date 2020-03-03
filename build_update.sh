@@ -57,5 +57,11 @@ pushd $BUILD_PATH/build_runtime
 cmake --build . --target install
 popd
 
+# build profiling
+pushd $BUILD_PATH/build_profiling
+cmake --build . --target install
+popd
+cp $MLIR_SRC_PATH/externals/profiling/tool/performance.html $PROFILING_PATH/bin/
+
 # SoC build
 # TODO

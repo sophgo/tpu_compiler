@@ -29,6 +29,10 @@ pushd llvm-project/llvm/projects/mlir/externals/runtime
 git pull --rebase
 popd
 
+pushd llvm-project/llvm/projects/mlir/externals/profiling
+git pull --rebase
+popd
+
 pushd llvm-project/llvm/projects/mlir/third_party/caffe
 git pull --rebase
 popd

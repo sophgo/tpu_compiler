@@ -45,7 +45,7 @@ mlir-translate \
     --debug-only=tl_conv,tl_eltwise_add \
     -o cmdbuf_lw.bin
 
-# generate cvi model
+# generate cvimodel
 python $TPU_PYTHON_PATH/cvi_model_create.py \
     --cmdbuf cmdbuf_la.bin \
     --weight weight_int8_multiplier.bin \
@@ -57,6 +57,12 @@ python $TPU_PYTHON_PATH/cvi_model_create.py \
     --weight weight_int8_multiplier.bin \
     --neuron_map neuron_map.csv \
     --output=${NET}_int8_lw.cvimodel
+
+# profiling cmdbuf
+cvi_profiling --cmdbuf cmdbuf_lw.bin
+# libreoffice analysis.csv
+# cp $INSTALL_PATH/bin/performance.html .
+# google-chrome performance.html
 
 ################################
 # run cmdbuf with cmodel
