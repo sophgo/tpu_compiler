@@ -280,7 +280,7 @@ struct TpuAddDequantizeOpBeforeOpPattern : public RewritePattern {
           rewriter.getI32IntegerAttr(getOpLayerId(prev_op))));
       auto quantOp = rewriter.create<tpu::QuantOp>(prev_op->getLoc(), type,
           ArrayRef<Value *>{op->getOperand(i)}, ArrayRef<NamedAttribute>{attrs});
-
+      setOpResultType(quantOp.getOperation(), StandardTypes::F32);
       op->setOperand(i, quantOp.getResult());
     }
 
