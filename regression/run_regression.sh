@@ -8,11 +8,9 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 net_list=(
   "resnet50"
   "yolo_v3"
-  # "inception_v4"
   "ssd300"
   "retinaface_res50"
   "retinaface_mnet25"
-  "efficientnet_b0"
 )
 
 generic_net_list=(
@@ -22,6 +20,10 @@ generic_net_list=(
   # "inception_v3"
   "inception_v4"
   "efficientnet_b0"
+)
+
+generic_accuracy_net_list=(
+  "mobilenet_v2"
 )
 
 if [ ! -z "$1" ]; then
@@ -57,6 +59,19 @@ for net in ${generic_net_list[@]}
 do
   echo "regression $net"
   $DIR/generic/regression_generic.sh $net 2>&1 | tee $net.log
+  if [ "${PIPESTATUS[0]}" -ne "0" ]; then
+    echo "$net FAILED" >> verdict.log
+    ERR=1
+  else
+    echo "$net PASSED" >> verdict.log
+  fi
+done
+
+# generic accuracy
+for net in ${generic_accuracy_net_list[@]}
+do
+  echo "regression $net"
+  $DIR/generic/accuracy_generic.sh $net 100 2>&1 | tee ${net}_accuracy.log
   if [ "${PIPESTATUS[0]}" -ne "0" ]; then
     echo "$net FAILED" >> verdict.log
     ERR=1

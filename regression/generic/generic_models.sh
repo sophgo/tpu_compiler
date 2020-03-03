@@ -3,7 +3,7 @@ set -e
 
 #default values
 export EXCEPTS=-
-export DO_QUANT_INT8=0
+export DO_QUANT_INT8=1
 export DO_QUANT_INT8_PER_TENSOR=1
 export DO_QUANT_INT8_RFHIFT_ONLY=1
 export DO_QUANT_INT8_MULTIPLER=1
@@ -111,7 +111,7 @@ if [ $NET = "mobilenet_v2" ]; then
 export MODEL_DEF=$MODEL_PATH/imagenet/mobilenet_v2/caffe/mobilenet_v2_deploy.prototxt
 export MODEL_DAT=$MODEL_PATH/imagenet/mobilenet_v2/caffe/mobilenet_v2.caffemodel
 export CALI_TABLE=$REGRESSION_PATH/mobilenet_v2/data/mobilenet_v2_calibration_table
-export IMAGE_DIM=299,299
+export IMAGE_DIM=224,224
 export RAW_SCALE=255.0
 export MEAN=103.94,116.78,123.68
 export INPUT_SCALE=0.017
