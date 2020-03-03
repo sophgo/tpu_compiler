@@ -136,5 +136,30 @@ cmake -G Ninja -DCHIP=BM1880v2 -DRUNTIME=CMODEL $BUILD_FLAG \
 cmake --build . --target install
 popd
 
+# build systemc (for profiling)
+# building has some issue, has to build in place for now
+pushd $MLIR_SRC_PATH/third_party/systemc-2.3.3
+autoreconf -ivf
+./configure
+make -j3
+make install
+mkdir -p $SYSTEMC_PATH
+cp -a include $SYSTEMC_PATH/
+cp -a lib-linux64 $SYSTEMC_PATH/
+popd
+
+# build profiling
+if [ ! -e $BUILD_PATH/build_profiling ]; then
+  mkdir $BUILD_PATH/build_profiling
+fi
+pushd $BUILD_PATH/build_profiling
+cmake -G Ninja  \
+    -DSYSTEMC_PATH=$SYSTEMC_PATH \
+    -DCMAKE_INSTALL_PREFIX=$PROFILING_PATH \
+    $MLIR_SRC_PATH/externals/profiling
+cmake --build . --target install
+popd
+cp $MLIR_SRC_PATH/externals/profiling/tool/performance.html $PROFILING_PATH/bin/
+
 # SoC build
 # TODO
