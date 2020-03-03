@@ -9,6 +9,7 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <climits>
 
 #include "mkldnn.hpp"
 #include <math.h>
@@ -724,7 +725,7 @@ int my_softmax4D(float *input, float *output, int axis, const std::vector<int64_
       for (int W = 0; W < shape[3]; ++W) {
 
         // find max and subtract the max to avoid numerical issues
-        float max_val = 0;
+        float max_val = std::numeric_limits<float>::lowest();
         for (int C = 0; C < shape[1]; ++C) {
           iter = (N * shape[1] * shape[2] * shape[3])
             + (C * shape[2] * shape[3]) + (H * shape[3]) + W;
