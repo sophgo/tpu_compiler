@@ -3,6 +3,8 @@ set -e
 
 #default values
 export EXCEPTS=-
+export DO_CALIBRATION=0
+export CALIBRATION_IMAGE_COUNT=1000
 export DO_QUANT_INT8=1
 export DO_QUANT_INT8_PER_TENSOR=1
 export DO_QUANT_INT8_RFHIFT_ONLY=1
@@ -64,11 +66,11 @@ export INPUT=input
 export OUTPUTS_FP32=prob
 export OUTPUTS=classifier
 # export EXCEPTS=prob
-export TOLERANCE_INT8_PER_TENSOR=0.98,0.98,0.84
-export TOLERANCE_INT8_RSHIFT_ONLY=0.99,0.99,0.90
-export TOLERANCE_INT8_MULTIPLER=0.99,0.99,0.92
-export TOLERANCE_BF16=0.99,0.99,0.97
-export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
+export TOLERANCE_INT8_PER_TENSOR=0.84,0.84,0.41
+export TOLERANCE_INT8_RSHIFT_ONLY=0.94,0.93,0.64
+export TOLERANCE_INT8_MULTIPLER=0.95,0.95,0.71
+export TOLERANCE_BF16=0.99,0.99,0.93
+export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
 fi
 
 if [ $NET = "inception_v4" ]; then
@@ -113,7 +115,8 @@ fi
 if [ $NET = "mobilenet_v2" ]; then
 export MODEL_DEF=$MODEL_PATH/imagenet/mobilenet_v2/caffe/mobilenet_v2_deploy.prototxt
 export MODEL_DAT=$MODEL_PATH/imagenet/mobilenet_v2/caffe/mobilenet_v2.caffemodel
-export CALI_TABLE=$REGRESSION_PATH/mobilenet_v2/data/mobilenet_v2_calibration_table
+export DO_CALIBRATION=1
+# export CALI_TABLE=$REGRESSION_PATH/mobilenet_v2/data/mobilenet_v2_calibration_table
 export IMAGE_DIM=224,224
 export RAW_SCALE=255.0
 export MEAN=103.94,116.78,123.68

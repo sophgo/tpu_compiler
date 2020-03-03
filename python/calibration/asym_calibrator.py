@@ -16,23 +16,25 @@ def is_all_zero(data):
     return True
 
 def warn_zeros(layer_name):
-    print("WARNING: layer {} is all zeros. Please check the input data correctness.".format(layer_name))
+    print("WARNING: layer {} is all zeros. Please check the input data "
+          "correctness.".format(layer_name))
     exit(-1)
 
 class Asym_Calibrator(object):
     def __init__(self, args, preprocess_func):
-        with open(args.input_file,'r') as fp:
+        with open(args.image_list_file,'r') as fp:
             self.all_lines = fp.readlines()
 
         if len(self.all_lines) == 0:
-            print("ERROR: No calibration data detect. Please check the input file: {}".format(args.input_file))
+            print("ERROR: No calibration data detect. "
+                  "Please check the input file: {}".format(args.image_list_file))
             exit(-1)
 
         self.input_num = int(args.input_num)
         self.preprocess_func = preprocess_func
 
         self.module = pymlir.module()
-        self.module.load(args.model_path)
+        self.module.load(args.model_file)
 
     def do_find_min_max(self):
         data_max = {}
