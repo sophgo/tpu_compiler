@@ -74,7 +74,7 @@ npz_compare.py \
     ssd300_cmdbuf_out_all_bf16.npz \
     ssd300_tensor_all_bf16.npz \
     --op_info ssd300_op_info.csv \
-    --tolerance=0.99,0.99,0.96 -vvv
+    --tolerance=0.99,0.99,0.96 -vv
 
 # VERDICT
 echo $0 PASSED

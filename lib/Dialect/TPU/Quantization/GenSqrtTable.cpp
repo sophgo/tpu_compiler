@@ -208,7 +208,6 @@ struct TpuGenSqrtTablePattern : public RewritePattern {
   // update op
   if (sqrtOp.getOpQuant() == "INT8") {
 
-
     std::vector<float> newWeights = y0_table ;
     std::vector<int64_t> weightShape{1, NPU_NUM, TABLE_H_INT8, TABLE_W_INT8};
 
@@ -243,9 +242,8 @@ struct TpuGenSqrtTablePattern : public RewritePattern {
       wTF->addTensor<float>(tensor_name, newWeights.at(i).data(), type);
       std::vector<NamedAttribute> attrs;
       attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(tensor_name)));
-      attrs.push_back(rewriter.getNamedAttr("storage", rewriter.getStringAttr("UINT16")));
       sqrtOp.setAttr("has_table", rewriter.getBoolAttr("true"));
-
+      attrs.push_back(rewriter.getNamedAttr("storage",rewriter.getStringAttr("BF16")));
       auto new_weight_op = rewriter.create<tpu::LoadWeightOp>(
           op->getLoc(), type, ArrayRef<Value *>{wfV},
           ArrayRef<NamedAttribute>{attrs});

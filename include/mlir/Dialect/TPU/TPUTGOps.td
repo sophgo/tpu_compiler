@@ -123,7 +123,7 @@ class TPU_TG_ConvOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
   let arguments = (
     ins AnyTensor:$input,
     AnyTensor:$filter,
-    AnyTensor:$pc_info,
+    TPU_TensorOfOrNone<[I32,I8]>:$pc_info,
     OptionalAttr<I8Attr>:$pt_rshift,
     TPU_ConvParamAttr:$param,
     DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
@@ -440,8 +440,7 @@ class TPU_TG_LutOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
   let results = (outs AnyTensor:$output);
 }
 def TPU_TG_INT8_LutOp : TPU_TG_LutOp<"tg_int8_lut", "Int8">;
-def TPU_TG_BF16_Sqrt_LutOp : TPU_TG_LutOp<"tg_bf16_Sqrt_lut", "BF16">;
-def TPU_TG_BF16_Div_LutOp : TPU_TG_LutOp<"tg_bf16_Div_lut", "BF16">;
+def TPU_TG_BF16_LutOp : TPU_TG_LutOp<"tg_bf16_lut", "BF16">;
 
 
 class TPU_TG_PermuteOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,

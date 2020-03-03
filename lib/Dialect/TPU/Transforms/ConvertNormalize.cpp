@@ -66,6 +66,7 @@ struct TpuDecomposeNormalizePattern : public RewritePattern {
     assert(weight_op.name().hasValue());
     auto tensor_name = weight_op.name().getValue();
     std::unique_ptr<std::vector<float> >  scale;
+
     auto type = weight_op.getResult()->getType().cast<TensorType>();
 
     scale = wTF->readTensor<float>(tensor_name, type);
@@ -217,25 +218,25 @@ struct TpuDecomposeNormalizePattern : public RewritePattern {
         ArrayRef<Value *>{operands_sqrt}, ArrayRef<NamedAttribute>{attrs_sqrt});
     auto sqrt_result_var = sqrt_op.getResult();
 
-    /// 4. Div OP
-    std::vector<Value *> operands_div;
-    operands_div.push_back(sqrt_result_var);
-    operands_div.push_back(NoneOp.getResult()); // quant_table
-    operands_div.push_back(NoneOp.getResult()); // quant_table
-    std::vector<NamedAttribute> attrs_div;
-    attrs_div.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(op_name+"_Div")));
-    attrs_div.push_back(rewriter.getNamedAttr("layer_id", normalizeOp.layer_idAttr()));
-    attrs_div.push_back(rewriter.getNamedAttr("has_table", rewriter.getBoolAttr(false)));
-    attrs_div.push_back(rewriter.getNamedAttr("quant", getDefaultQuantParam(rewriter)));
-    auto div_op = rewriter.create<tpu::DivOp>(
+    /// 4. Reciprocal OP
+    std::vector<Value *> operands_reciprocal;
+    operands_reciprocal.push_back(sqrt_result_var);
+    operands_reciprocal.push_back(NoneOp.getResult()); // quant_table
+    operands_reciprocal.push_back(NoneOp.getResult()); // quant_table
+    std::vector<NamedAttribute> attrs_reciprocal;
+    attrs_reciprocal.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(op_name+"_reciprocal")));
+    attrs_reciprocal.push_back(rewriter.getNamedAttr("layer_id", normalizeOp.layer_idAttr()));
+    attrs_reciprocal.push_back(rewriter.getNamedAttr("has_table", rewriter.getBoolAttr(false)));
+    attrs_reciprocal.push_back(rewriter.getNamedAttr("quant", getDefaultQuantParam(rewriter)));
+    auto reciprocal_op = rewriter.create<tpu::ReciprocalOp>(
         loc, result_type,
-        ArrayRef<Value *>{operands_div}, ArrayRef<NamedAttribute>{attrs_div});
-    auto div_result_var = div_op.getResult();
+        ArrayRef<Value *>{operands_reciprocal}, ArrayRef<NamedAttribute>{attrs_reciprocal});
+    auto reciprocal_result_var = reciprocal_op.getResult();
 
     /// 5. Eltwise_Mul OP
     std::vector<Value *> operands_eltwise_mul;
     operands_eltwise_mul.push_back(input_var);
-    operands_eltwise_mul.push_back(div_result_var);
+    operands_eltwise_mul.push_back(reciprocal_result_var);
     operands_eltwise_mul.push_back(NoneOp.getResult());
     operands_eltwise_mul.push_back(NoneOp.getResult());
     operands_eltwise_mul.push_back(NoneOp.getResult());
@@ -313,4 +314,4 @@ std::unique_ptr<OpPassBase<FuncOp>> mlir::createDecomposeNormalizePass() {
 
 static PassRegistration<DecomposeNormalizePass>
     pass("normalize-decompose",
-         "Decompose Normalize to ltwise(prod)+conv2D+sqrt+div+eltwise(prod)+scale");
+         "Decompose Normalize to ltwise(prod)+conv2D+sqrt+reciprocal+eltwise(prod)+scale");

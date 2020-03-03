@@ -144,7 +144,6 @@ Value* tpu::Conv2DOp::convertToTG() {
   auto builder = Builder(op->getContext());
   TensorFile *wTF = getWeightTensorFile(op);
   assert(wTF);
-
   std::vector<Value *> operands;
   operands.push_back(input());
   operands.push_back(filter());
@@ -269,7 +268,7 @@ Value* tpu::DeConv2DOp::convertToTG() {
   return nullptr;
 }
 
-Value *tpu::DivOp::convertToTG() {
+Value *tpu::ReciprocalOp::convertToTG() {
   llvm::errs() << "lowerToTG: " << getOperationName() << " [" << getOpName()
                << "]\n";
   Operation *op = this->getOperation();
@@ -292,7 +291,7 @@ Value *tpu::DivOp::convertToTG() {
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
   } else if (getOpQuant() == "BF16") {
-    auto newOp = OpBuilder(op).create<tpu::TG_BF16_Div_LutOp>(
+    auto newOp = OpBuilder(op).create<tpu::TG_BF16_LutOp>(
         op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
@@ -882,7 +881,7 @@ Value *tpu::SqrtOp::convertToTG() {
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
   } else if (getOpQuant() == "BF16") {
-    auto newOp = OpBuilder(op).create<tpu::TG_BF16_Sqrt_LutOp>(
+    auto newOp = OpBuilder(op).create<tpu::TG_BF16_LutOp>(
         op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
@@ -1572,7 +1571,28 @@ struct LowerWeightLutOpPattern : public RewritePattern {
 
     } else if (getOpQuant(op) == "BF16") {
       // lower filter
-      assert(false && "TOTO BF16");
+        assert(tableOp.storage() == "BF16");
+        assert(table_mantissaOp.storage() == "BF16");
+        std::vector<int64_t> shape;
+        int64_t size;
+        getTensorShapeAndSize(lutOp.table(), shape, size);
+        auto table = readAndDeleteWeightTensor<float>(tableOp, wTF);
+        auto table_mantissa = readAndDeleteWeightTensor<float>(table_mantissaOp, wTF);
+        std::vector<uint16_t> table_uint16(table->begin(), table->end());
+        std::vector<uint16_t> table_mantissa_uint16(table_mantissa->begin(), table_mantissa->end());
+        // 1880 support 256 lookup table
+        // because of 1880 hardware search table only on each local memory
+        // we dupicate table to limit number <32>
+        assert(shape[2] * shape[3] == 256);
+        assert(shape[1] == 32);
+
+        // save it
+        addWeightTensorAndUpdateWeightOp<uint16_t>(
+            tableOp, "lowered", table_uint16, shape, "UINT16", wTF);
+        tableOp.setAttr("lowered", rewriter.getBoolAttr(true));
+        addWeightTensorAndUpdateWeightOp<uint16_t>(
+            table_mantissaOp, "lowered", table_mantissa_uint16, shape, "UINT16", wTF);
+        table_mantissaOp.setAttr("lowered", rewriter.getBoolAttr(true));
     }
 
     return matchSuccess();
@@ -1601,7 +1621,7 @@ public:
     patterns_lower.insert<
         LowerWeightConv2DOpPattern<tpu::Conv2DOp>,
         LowerWeightConv2DOpPattern<tpu::DeConv2DOp>,
-        LowerWeightLutOpPattern<tpu::DivOp>,
+        LowerWeightLutOpPattern<tpu::ReciprocalOp>,
         LowerWeightPReluOpPattern,
         LowerWeightLutOpPattern<tpu::SigmoidOp>,
         LowerWeightLutOpPattern<tpu::SqrtOp>,
@@ -1617,7 +1637,7 @@ public:
         DefaultToTGPattern<tpu::Conv2DOp>,
         DefaultToTGPattern<tpu::CropOp>,
         DefaultToTGPattern<tpu::DeConv2DOp>,
-        DefaultToTGPattern<tpu::DivOp>,
+        DefaultToTGPattern<tpu::ReciprocalOp>,
         DefaultToTGPattern<tpu::EltwiseAddOp>,
         DefaultToTGPattern<tpu::EltwiseMaxOp>,
         DefaultToTGPattern<tpu::EltwiseMulOp>,

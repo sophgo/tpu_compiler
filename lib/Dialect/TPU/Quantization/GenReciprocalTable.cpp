@@ -1,4 +1,4 @@
-//===- GenDivTable.cpp - Implementation of dynamice generate tanh lookup table / slope ---------===//
+//===- GenReciprocalTable.cpp - Implementation of dynamice generate tanh lookup table / slope ---------===//
 //
 // Copyright 2019 The MLIR Authors.
 //
@@ -39,7 +39,7 @@
 #include <bmkernel/bm_kernel_legacy.h>
 #include <bmkernel/bm1880v2/bmkernel_1880v2.h>
 #include <bmkernel/bm1880v2/1880v2_fp_convert.h>
-#define DEBUG_TYPE "gen-Div-table"
+#define DEBUG_TYPE "gen-Reciprocal-table"
 
 using namespace mlir;
 
@@ -154,21 +154,21 @@ void bf16_gen_reciprocal_mantissa(uint16_t* table_mantissa) {
   }
 }
 
-struct TpuGenDivTablePattern : public RewritePattern {
-  TpuGenDivTablePattern(MLIRContext *context)
-      : RewritePattern("tpu.div", 1, context) {}
+struct TpuGenReciprocalTablePattern : public RewritePattern {
+  TpuGenReciprocalTablePattern(MLIRContext *context)
+      : RewritePattern("tpu.reciprocal", 1, context) {}
 
   PatternMatchResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
     TensorFile *wTF = getWeightTensorFile(op);
     Value *wfV = getWeightFileValue(op);
 
-    auto DivOp = cast<tpu::DivOp>(op);
+    auto reciprocalOp = cast<tpu::ReciprocalOp>(op);
     std::vector<std::unique_ptr<std::vector<float> > > weights(1);
 
-    std::string op_name = DivOp.getAttrOfType<StringAttr>("name").getValue().str();
-    if(DivOp.has_table() == true){
-      LLVM_DEBUG(llvm::errs() << DivOp.name() << " gen already\n";);
+    std::string op_name = reciprocalOp.getAttrOfType<StringAttr>("name").getValue().str();
+    if(reciprocalOp.has_table() == true){
+      LLVM_DEBUG(llvm::errs() << reciprocalOp.name() << " gen already\n";);
       return matchFailure();
     }
     std::vector<float> y0_table(TBL_SHAPE_INT8);
@@ -179,7 +179,7 @@ struct TpuGenDivTablePattern : public RewritePattern {
     std::vector<float> table_data_lut(TBL_SHAPE_BF16);
     std::vector<float> table_data_mantissa_lut(TBL_SHAPE_BF16);
 
-  if (DivOp.getOpQuant() == "INT8") {
+  if (reciprocalOp.getOpQuant() == "INT8") {
 
     float threshold_x = getPreviousOpThreshold(op);
     float threshold_y = getOpThreshold(op);
@@ -198,11 +198,11 @@ struct TpuGenDivTablePattern : public RewritePattern {
         y0_table[n * TABLE_HW_INT8 + idx] = lutOutputI32;
       }
     }
-  }else if(DivOp.getOpQuant() == "BF16"){
-    llvm::errs() << " op name: " << DivOp.name()
+  }else if(reciprocalOp.getOpQuant() == "BF16"){
+    llvm::errs() << " op name: " << reciprocalOp.name()
                       << "gen BF16 sqrt table." << "\n";
     bf16_gen_reciprocal(table_data_lut_bf16.data());
-    llvm::errs() << " op name: " << DivOp.name()
+    llvm::errs() << " op name: " << reciprocalOp.name()
                       << "gen BF16 sqrt mantissa table." << "\n";
 
     bf16_gen_reciprocal_mantissa(table_data_mantissa_lut_bf16.data());
@@ -221,7 +221,7 @@ struct TpuGenDivTablePattern : public RewritePattern {
     std::vector<Value *> newOperands;
     newOperands.push_back(op->getOperand(0));
 
-  if (DivOp.getOpQuant() == "INT8") {
+  if (reciprocalOp.getOpQuant() == "INT8") {
 
     // add new filter and bias weight
     std::vector<float> newWeights = y0_table ;
@@ -242,8 +242,8 @@ struct TpuGenDivTablePattern : public RewritePattern {
         ArrayRef<Value *>{wfV}, ArrayRef<NamedAttribute>{attrs});
     newOperands.push_back(new_weight_op);
 
-    DivOp.setAttr("has_table", rewriter.getBoolAttr("true"));
-  }else if(DivOp.getOpQuant() == "BF16"){
+    reciprocalOp.setAttr("has_table", rewriter.getBoolAttr("true"));
+  }else if(reciprocalOp.getOpQuant() == "BF16"){
 
     std::vector<std::vector<float>> newWeights = {table_data_lut, table_data_mantissa_lut};
     std::vector<int64_t> weightShapes = {1, NPU_NUM, TABLE_H_BF16, TABLE_W_BF16};
@@ -258,8 +258,8 @@ struct TpuGenDivTablePattern : public RewritePattern {
       wTF->addTensor<float>(tensor_name, newWeights.at(i).data(), type);
       std::vector<NamedAttribute> attrs;
       attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(tensor_name)));
-      attrs.push_back(rewriter.getNamedAttr("storage", rewriter.getStringAttr("UINT16")));
-      DivOp.setAttr("has_table", rewriter.getBoolAttr("true"));
+      attrs.push_back(rewriter.getNamedAttr("storage", rewriter.getStringAttr("BF16")));
+      reciprocalOp.setAttr("has_table", rewriter.getBoolAttr("true"));
 
       auto new_weight_op = rewriter.create<tpu::LoadWeightOp>(
           op->getLoc(), type, ArrayRef<Value *>{wfV},
@@ -271,23 +271,22 @@ struct TpuGenDivTablePattern : public RewritePattern {
     assert(0&&"not support");
   }
 
-  rewriter.replaceOpWithNewOp<tpu::DivOp>(
-        DivOp, DivOp.getResult()->getType(),
-        ArrayRef<Value *>{newOperands}, ArrayRef<NamedAttribute>{DivOp.getAttrs()});
+  rewriter.replaceOpWithNewOp<tpu::ReciprocalOp>(
+        reciprocalOp, reciprocalOp.getResult()->getType(),
+        ArrayRef<Value *>{newOperands}, ArrayRef<NamedAttribute>{reciprocalOp.getAttrs()});
 
     return matchSuccess();
   }
 };
-
-class GenDivTablePass : public FunctionPass<GenDivTablePass> {
+class GenReciprocalTablePass : public FunctionPass<GenReciprocalTablePass> {
 public:
-  explicit GenDivTablePass(llvm::raw_ostream &os = llvm::errs()) : os(os) {}
+  explicit GenReciprocalTablePass(llvm::raw_ostream &os = llvm::errs()) : os(os) {}
 
   void runOnFunction() override {
     auto fn = getFunction();
     auto *context = &getContext();
     OwningRewritePatternList patterns;
-    patterns.insert<TpuGenDivTablePattern>(context);
+    patterns.insert<TpuGenReciprocalTablePattern>(context);
     applyPatternsGreedily(fn, patterns);
   }
 
@@ -297,10 +296,10 @@ private:
 
 } // namespace
 
-std::unique_ptr<OpPassBase<FuncOp>> mlir::createGenDivTablePass() {
-  return std::make_unique<GenDivTablePass>();
+std::unique_ptr<OpPassBase<FuncOp>> mlir::createGenReciprocalTablePass() {
+  return std::make_unique<GenReciprocalTablePass>();
 }
 
-static PassRegistration<GenDivTablePass>
-    pass("gen-div-table",
-         "generate div look up table, y0");
+static PassRegistration<GenReciprocalTablePass>
+    pass("gen-reciprocal-table",
+         "generate reciprocal look up table, y0");

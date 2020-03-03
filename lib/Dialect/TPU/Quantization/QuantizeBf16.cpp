@@ -303,7 +303,7 @@ public:
         TpuQuantBf16Conv2DOpPattern<tpu::Conv2DOp>,
         TpuQuantBf16DefaultPattern<tpu::CropOp>,
         TpuQuantBf16Conv2DOpPattern<tpu::DeConv2DOp>,
-        TpuQuantBf16DefaultPattern<tpu::DivOp>,
+        TpuQuantBf16DefaultPattern<tpu::ReciprocalOp>,
         TpuQuantBf16DefaultPattern<tpu::EltwiseAddOp>,
         TpuQuantBf16DefaultPattern<tpu::EltwiseMaxOp>,
         TpuQuantBf16DefaultPattern<tpu::EltwiseMulOp>,

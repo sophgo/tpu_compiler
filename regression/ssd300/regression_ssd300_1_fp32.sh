@@ -14,12 +14,6 @@ mlir-translate \
     --caffemodel $MODEL_PATH/object_detection/ssd/caffe/ssd300/VGG_coco_SSD_300x300_iter_400000.caffemodel \
     -o ssd300.mlir
 
-# mlir-opt \
-#     --normalize-decompose \
-#     --debug \
-#     ssd300.mlir \
-#     -o ssd300_decompose_normalize.mlir
-
 if [ $CHECK_NON_OPT_VERSION -eq 1 ]; then
 
 # assign layer_id right away, and output op_info
