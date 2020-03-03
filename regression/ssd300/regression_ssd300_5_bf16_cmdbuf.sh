@@ -39,7 +39,6 @@ mlir-opt \
 # backend translate into cmdbuf
 mlir-translate \
     --mlir-to-cmdbuf \
-    --debug \
     ssd300_quant_bf16_tg_addr.mlir \
     -o cmdbuf_bf16.bin
 
