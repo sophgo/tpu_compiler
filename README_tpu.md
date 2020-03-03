@@ -2,13 +2,27 @@
 
 ## Quick Start
 
-```sh
-$ source llvm-project/llvm/projects/mlir/envsetup.sh
-$ llvm-project/llvm/projects/mlir/build.sh
-$ llvm-project/llvm/projects/mlir/regression/run_regression.sh
-or
-$ llvm-project/llvm/projects/mlir/regression/run_regression.sh resnet50
-```
+* build
+
+  ```sh
+  $ source llvm-project/llvm/projects/mlir/envsetup.sh
+  $ llvm-project/llvm/projects/mlir/build.sh
+  ```
+
+* regression
+
+  ```sh
+  $ llvm-project/llvm/projects/mlir/regression/run_regression.sh
+  or
+  $ llvm-project/llvm/projects/mlir/regression/run_regression.sh resnet50
+  ```
+
+* generic network regression and accuracy
+
+  ```sh
+  $ llvm-project/llvm/projects/mlir/regression/generic/regression_generic.sh mobilenet_v2
+  $ llvm-project/llvm/projects/mlir/regression/generic/accuracy_generic.sh mobilenet_v2
+  ```
 
 ## Get Code and Build
 
@@ -48,9 +62,9 @@ Some libraries are tree build, some rely on manually build for now.\
 Read third_party/README.md for details.
 
 1. pybind11
-1. Caffe (build and install to $TPU_BASE/install_caffe)
-1. MKLDNN (unzip and install to $TPU_BASE/install_mlkdnn)
-1. CNPY (tree build)
+2. Caffe (build and install to $TPU_BASE/install_caffe)
+3. MKLDNN (unzip and install to $TPU_BASE/install_mlkdnn)
+4. CNPY (tree build)
 
 ### 4. External Projects
 
