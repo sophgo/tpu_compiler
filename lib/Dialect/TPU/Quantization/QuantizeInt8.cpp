@@ -33,7 +33,6 @@
 #include "mlir/Pass/Pass.h"
 #include "mlir/Support/TensorFile.h"
 #include "llvm/Support/raw_ostream.h"
-
 #include <sstream>
 #include <fstream>
 
@@ -214,6 +213,7 @@ struct TpuQuantInt8Conv2DOpPattern : public RewritePattern {
       assert(0);
     }
     setOpQuant(op, "INT8");
+    setOpResultType(op, StandardTypes::Integer, 8);
 
     return matchSuccess();
   }
@@ -299,6 +299,7 @@ struct TpuQuantInt8FullyConnectedOpPattern : public RewritePattern {
     setOpQuantParamType(op, "RSHIFT_ONLY");
     setOpQuantPerchannel(op, false);
     setOpQuant(op, "INT8");
+    setOpResultType(op, StandardTypes::Integer, 8);
 
     return matchSuccess();
   }
@@ -393,6 +394,7 @@ struct TpuQuantInt8LeakyReluOpPattern : public RewritePattern {
     setOpQuantParamType(op, "RSHIFT_AND_M_I8");
     setOpQuantPerchannel(op, false);
     setOpQuant(op, "INT8");
+    setOpResultType(op, StandardTypes::Integer, 8);
 
     return matchSuccess();
   }
@@ -505,6 +507,7 @@ struct TpuQuantInt8PReluOpPattern : public RewritePattern {
     setOpQuantParamType(op, "RSHIFT_AND_M_I8");
     setOpQuantPerchannel(op, false);
     setOpQuant(op, "INT8");
+    setOpResultType(op, StandardTypes::Integer, 8);
 
     return matchSuccess();
   }
@@ -601,6 +604,7 @@ struct TpuQuantInt8LutOpPattern : public RewritePattern {
     lutOp.setOperand(2, mantissa_table_op);
     setOpQuantPerchannel(op, false);
     setOpQuant(op, "INT8");
+    setOpResultType(op, StandardTypes::Integer, 8);
 
     return matchSuccess();
   }
@@ -655,6 +659,7 @@ struct TpuQuantInt8DefaultPattern : public RewritePattern {
       setOpQuantParamType(op, "NONE");
       setOpQuantPerchannel(op, false);
       setOpQuant(op, "INT8");
+      setOpResultType(op, StandardTypes::Integer, 8);
 
       return matchSuccess();
     }
@@ -723,6 +728,7 @@ struct TpuQuantInt8DefaultPattern : public RewritePattern {
 
     setOpQuantParamType(op, "RSHIFT_AND_M_I8");
     setOpQuant(op, "INT8");
+    setOpResultType(op, StandardTypes::Integer, 8);
 
     return matchSuccess();
   }
@@ -808,6 +814,7 @@ struct TpuQuantInt8MultiplyOpDefaultPattern : public RewritePattern {
 
     setOpQuantParamType(op, "RSHIFT_AND_M_I32");
     setOpQuant(op, "INT8");
+    setOpResultType(op, StandardTypes::Integer, 8);
 
     return matchSuccess();
   }
@@ -845,6 +852,7 @@ struct TpuQuantInt8BypassPattern : public RewritePattern {
     setOpQuantParamType(op, "NONE");
     setOpQuantPerchannel(op, false);
     setOpQuant(op, "INT8");
+    setOpResultType(op, StandardTypes::Integer, 8);
 
     return matchSuccess();
   }
@@ -865,6 +873,7 @@ struct TpuQuantInt8InputOpPattern : public RewritePattern {
     setOpQuantParamType(op, "NONE");
     setOpQuantPerchannel(op, false);
     setOpQuant(op, "INT8");
+    setOpResultType(op, StandardTypes::Integer, 8);
 
     return matchSuccess();
   }
@@ -897,6 +906,7 @@ struct TpuAddQuantizeOpBeforeOpPattern : public RewritePattern {
         rewriter.getI32IntegerAttr(getOpLayerId(op))));
     auto quantOp = rewriter.create<tpu::QuantOp>(op->getLoc(), type,
         ArrayRef<Value *>{op->getOperand(0)}, ArrayRef<NamedAttribute>{attrs});
+    setOpResultType(quantOp.getOperation(), StandardTypes::Integer, 8);
 
     op->setOperand(0, quantOp.getResult());
 
@@ -935,7 +945,7 @@ struct TpuAddDequantizeOpBeforeOpPattern : public RewritePattern {
           rewriter.getI32IntegerAttr(getOpLayerId(prev_op))));
       auto quantOp = rewriter.create<tpu::QuantOp>(prev_op->getLoc(), type,
           ArrayRef<Value *>{op->getOperand(i)}, ArrayRef<NamedAttribute>{attrs});
-
+      setOpResultType(quantOp.getOperation(), StandardTypes::F32);
       op->setOperand(i, quantOp.getResult());
     }
 

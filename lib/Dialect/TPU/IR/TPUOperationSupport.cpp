@@ -2,6 +2,7 @@
 #include "mlir/Dialect/TPU/TPUDialect.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/StandardTypes.h"
+#include "mlir/IR/TypeUtilities.h"
 #include "llvm/Support/raw_ostream.h"
 
 namespace mlir {
@@ -64,6 +65,24 @@ llvm::StringRef getOpQuant(Operation *op) {
     //assert(false);
     return llvm::StringRef("NONE");
   }
+}
+
+void setOpResultType(Operation *op, StandardTypes::Kind kind, int width) {
+  auto builder = Builder(op->getContext());
+  Type eltType;
+  if (kind == StandardTypes::F32) {
+    eltType = FloatType::getF32(builder.getContext());
+  } else if (kind == StandardTypes::BF16) {
+    eltType = FloatType::getBF16(builder.getContext());
+  } else if (kind == StandardTypes::Integer) {
+    assert(width != 0);
+    eltType = IntegerType::get(width, builder.getContext());
+  } else {
+    assert(false);
+  }
+  auto shape = op->getResult(0)->getType().cast<TensorType>().getShape();
+  auto type = RankedTensorType::get(shape, eltType);
+  op->getResult(0)->setType(type);
 }
 
 LogicalResult setOpQuant(Operation *op, llvm::StringRef mode) {

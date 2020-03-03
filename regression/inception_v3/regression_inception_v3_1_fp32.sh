@@ -17,34 +17,41 @@ mlir-opt \
     --print-tpu-op-info \
     --tpu-op-info-filename inception_v3_op_info.csv \
     inception_v3.mlir \
-    -o inception_v3_id.mlir
-
+    -o dummy.mlir
 ## test mlir interpreter
 mlir-tpu-interpreter inception_v3.mlir \
     --tensor-in inception_v3_in_fp32.npz \
     --tensor-out inception_v3_out_fp32.npz \
     --dump-all-tensor=inception_v3_tensor_all_fp32.npz
 npz_compare.py inception_v3_out_fp32.npz inception_v3_out_fp32_prob.npz -v
-# set tolerance to 0.91 now, need to check this with fp32 later
 npz_compare.py \
     inception_v3_tensor_all_fp32.npz \
     inception_v3_blobs.npz \
     --op_info inception_v3_op_info.csv \
     --tolerance=0.99,0.99,0.91 -vvv
 
-# opt1, convert bn to scale
+# assign layer_id right away, and apply all frontend optimizations
+# Notes: convert-bn-to-scale has to be done before canonicalizer
 mlir-opt \
+    --assign-layer-id \
+    --print-tpu-op-info \
+    --tpu-op-info-filename inception_v3_op_info.csv \
     --convert-bn-to-scale \
-    --fold-scale \
-    --merge-scale-into-conv \
-    inception_v3_id.mlir \
+    --canonicalize \
+    inception_v3.mlir \
     -o inception_v3_opt.mlir
 
 # test frontend optimizations
 mlir-tpu-interpreter inception_v3_opt.mlir \
     --tensor-in inception_v3_in_fp32.npz \
-    --tensor-out inception_v3_opt_out_fp32.npz
+    --tensor-out inception_v3_opt_out_fp32.npz \
+    --dump-all-tensor=inception_v3_tensor_all_fp32.npz
 npz_compare.py inception_v3_opt_out_fp32.npz inception_v3_out_fp32_prob.npz -v
+npz_compare.py \
+    inception_v3_tensor_all_fp32.npz \
+    inception_v3_blobs.npz \
+    --op_info inception_v3_op_info.csv \
+    --tolerance=0.99,0.99,0.99 -vvv
 
 # VERDICT
 echo $0 PASSED
