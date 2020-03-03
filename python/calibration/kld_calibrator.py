@@ -17,31 +17,36 @@ def is_all_zero(data):
     return True
 
 def warn_zeros(layer_name):
-    print("WARNING: layer {} is all zeros. Please check the input data correctness.".format(layer_name))
+    print("WARNING: layer {} is all zeros. Please check the input data "
+          "correctness.".format(layer_name))
     exit(-1)
 
 class KLD_Calibrator(object):
     def __init__(self, args, preprocess_func):
-        with open(args.input_file,'r') as fp:
+        with open(args.image_list_file,'r') as fp:
             self.all_lines = fp.readlines()
 
         if len(self.all_lines) == 0:
-            print("ERROR: No calibration data detect. Please check the input file: {}".format(args.input_file))
+            print("ERROR: No calibration data detect."
+                  " Please check the input file: {}".format(args.image_list_file))
             exit(-1)
 
         self.input_num = int(args.input_num)
         self.preprocess_func = preprocess_func
 
         self.module = pymlir.module()
-        self.module.load(args.model_path)
+        self.module.load(args.model_file)
         self.histogram_bin_num = int(args.histogram_bin_num)
 
         self.calibration_math = CDLL(args.math_lib_path)
         self.calibration_math.kl_diversity.restype = c_float
         self.calibration_math.kl_diversity_hist.restype = c_float
+        self.args = args
 
     def KLD_hist(self, data, width):
-        return self.calibration_math.kl_diversity_hist(data.ctypes.data_as(POINTER(c_int)), c_float(width), c_longlong(self.histogram_bin_num))
+        return self.calibration_math.kl_diversity_hist(
+            data.ctypes.data_as(POINTER(c_int)), c_float(width),
+            c_longlong(self.histogram_bin_num))
 
     def do_find_max(self):
         data_max = {}
@@ -49,7 +54,7 @@ class KLD_Calibrator(object):
         for line in self.all_lines:
             print('Calculating max at iteration: ', str(idx))
 
-            x = self.preprocess_func(line)
+            x = self.preprocess_func(line, self.args)
             _ = self.module.run(x)
             data = self.module.get_all_tensor()
 
@@ -78,7 +83,7 @@ class KLD_Calibrator(object):
         for line in self.all_lines:
             print('Generating histogram at iteration: ', str(idx))
 
-            x = self.preprocess_func(line)
+            x = self.preprocess_func(line, self.args)
             _ = self.module.run(x)
             data = self.module.get_all_tensor()
 
@@ -88,7 +93,10 @@ class KLD_Calibrator(object):
 
                 width = data_max[item] / (self.histogram_bin_num - 1)
                 if t.size > 0:
-                    hist, bins = np.histogram(np.floor(t / width + 0.5), bins=self.histogram_bin_num, range=(0, self.histogram_bin_num-1), density=False)
+                    hist, bins = np.histogram(np.floor(t / width + 0.5),
+                                              bins=self.histogram_bin_num,
+                                              range=(0, self.histogram_bin_num-1),
+                                              density=False)
                 else:
                     hist = np.zeros(self.histogram_bin_num)
                 hist = hist.astype(np.int32)

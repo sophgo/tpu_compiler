@@ -26,9 +26,9 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     # params below used for auto tuning
-    parser.add_argument('model_path', metavar='fp32_model', help='Path to the fp32 mlir model')
+    parser.add_argument('model_file', metavar='fp32_model', help='Path to the fp32 mlir model')
     parser.add_argument('input_threshold_table', metavar='input_threshold_table', help='Path to the threshold table')
-    parser.add_argument('input_file', metavar='input_file', help='Input data file')
+    parser.add_argument('image_list_file', metavar='image_list_file', help='Input image list file')
     parser.add_argument('binary_path', metavar='binary_path', help='MLIR binary path')
     parser.add_argument('--out_path', metavar='output-path', help='Output directory', default='./')
     parser.add_argument('--tune_iteration', metavar='iteration', help='The test iteration number', default=10)

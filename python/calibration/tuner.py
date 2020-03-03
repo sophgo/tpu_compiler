@@ -21,11 +21,11 @@ def parse_threshold_table(threshold_table):
 
 class Tuner(object):
     def __init__(self, args, preprocess_func):
-        self.fp32_model = args.model_path
+        self.fp32_model = args.model_file
         self.fp32_module = pymlir.module()
-        self.fp32_module.load(args.model_path)
+        self.fp32_module.load(args.model_file)
 
-        with open(args.input_file,'r') as fp:
+        with open(args.image_list_file,'r') as fp:
             self.all_lines = fp.readlines()
 
         self.output_path = args.out_path
