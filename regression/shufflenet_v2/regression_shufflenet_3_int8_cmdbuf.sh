@@ -52,10 +52,11 @@ if [ $COMPARE_INT8_PER_LAYER -eq 1 ]; then
         -o cmdbuf_int8_per_layer.bin
 
     # generate cvi model
-    python $TPU_PYTHON_PATH/cvi_model_create.py \
+    build_cvimodel.py \
         --cmdbuf cmdbuf_int8_per_layer.bin \
         --weight weight_int8_per_layer.bin \
-        --neuron_map neuron_map.csv \
+        --mlir shufflenet_quant_int8_per_layer_addr.mlir \
+        --cpufunc_dir ${RUNTIME_PATH}/lib/cpu \
         --output=shufflenet_int8_per_layer.cvimodel
 
     # run cmdbuf
@@ -65,10 +66,10 @@ if [ $COMPARE_INT8_PER_LAYER -eq 1 ]; then
     #    cmdbuf_int8_per_layer.bin \
     #    shufflenet_cmdbuf_out_all_int8_per_layer.bin \
     #    16460784 0 16460784 1
-    test_cvinet \
-        shufflenet_in_int8.bin \
-        shufflenet_int8_per_layer.cvimodel \
-        shufflenet_cmdbuf_out_all_int8_per_layer.bin
+    model_runner \
+        --input shufflenet_in_int8.bin \
+        --model shufflenet_int8_per_layer.cvimodel \
+        --output shufflenet_cmdbuf_out_all_int8_per_layer.bin
 
     bin_to_npz.py \
         shufflenet_cmdbuf_out_all_int8_per_layer.bin \
@@ -114,10 +115,11 @@ mlir-translate \
     -o cmdbuf_int8_multiplier.bin
 
 # generate cvi model
-python $TPU_PYTHON_PATH/cvi_model_create.py \
+build_cvimodel.py \
     --cmdbuf cmdbuf_int8_multiplier.bin \
     --weight weight_int8_multiplier.bin \
-    --neuron_map neuron_map.csv \
+    --mlir shufflenet_quant_int8_multiplier_addr.mlir \
+    --cpufunc_dir ${RUNTIME_PATH}/lib/cpu \
     --output=shufflenet_int8_multiplier.cvimodel
 
 # run cmdbuf
@@ -127,10 +129,10 @@ python $TPU_PYTHON_PATH/cvi_model_create.py \
 #    cmdbuf_int8_multiplier.bin \
 #    shufflenet_cmdbuf_out_all_int8_multiplier.bin \
 #    16460784 0 16460784 1
-test_cvinet \
-    shufflenet_in_int8.bin \
-    shufflenet_int8_multiplier.cvimodel \
-    shufflenet_cmdbuf_out_all_int8_multiplier.bin
+model_runner \
+    --input shufflenet_in_int8.bin \
+    --model shufflenet_int8_multiplier.cvimodel \
+    --output shufflenet_cmdbuf_out_all_int8_multiplier.bin
 
 bin_to_npz.py \
     shufflenet_cmdbuf_out_all_int8_multiplier.bin \

@@ -44,16 +44,17 @@ mlir-translate \
 
 
 #generate cvi model
-python $TPU_PYTHON_PATH/cvi_model_create.py \
+build_cvimodel.py \
     --cmdbuf cmdbuf_bf16.bin \
     --weight weight_bf16.bin \
-    --neuron_map neuron_map_bf16.csv \
+    --mlir ssd300_quant_bf16_tg_addr.mlir \
+    --cpufunc_dir ${RUNTIME_PATH}/lib/cpu \
     --output=ssd300_bf16.cvimodel
 
-test_cvinet \
-    ssd300_in_bf16.bin \
-    ssd300_bf16.cvimodel \
-    ssd300_cmdbuf_out_all_bf16.bin
+model_runner \
+    --input ssd300_in_bf16.bin \
+    --model ssd300_bf16.cvimodel \
+    --output ssd300_cmdbuf_out_all_bf16.bin
 
 
 # # run cmdbuf

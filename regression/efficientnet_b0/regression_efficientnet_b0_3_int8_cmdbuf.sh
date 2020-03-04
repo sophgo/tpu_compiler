@@ -42,17 +42,18 @@ mlir-translate \
      -o cmdbuf.bin
 
 # generate cvi model
-python $TPU_PYTHON_PATH/cvi_model_create.py \
+build_cvimodel.py \
     --cmdbuf cmdbuf.bin \
     --weight weight.bin \
-    --neuron_map neuron_map.csv \
-    --output=efficientnet_int8_multiplier.cvimodel
+    --mlir efficientnet_b0_quant_int8_multiplier_cmdbuf.mlir \
+    --cpufunc_dir ${RUNTIME_PATH}/lib/cpu \
+    --output efficientnet_int8_multiplier.cvimodel
 
 # run cmdbuf
-test_cvinet \
-    efficientnet_in_int8.bin \
-    efficientnet_int8_multiplier.cvimodel \
-    efficientnet_cmdbuf_out_all_int8_multiplier.bin
+model_runner \
+    --input efficientnet_in_int8.bin \
+    --model efficientnet_int8_multiplier.cvimodel \
+    --output efficientnet_cmdbuf_out_all_int8_multiplier.bin
 
 bin_to_npz.py \
     efficientnet_cmdbuf_out_all_int8_multiplier.bin \

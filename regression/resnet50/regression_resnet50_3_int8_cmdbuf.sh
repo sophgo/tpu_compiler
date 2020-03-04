@@ -48,23 +48,18 @@ mlir-translate \
     -o cmdbuf_int8_per_layer.bin
 
 # generate cvi model
-python $TPU_PYTHON_PATH/cvi_model_create.py \
+build_cvimodel.py \
     --cmdbuf cmdbuf_int8_per_layer.bin \
     --weight weight_int8_per_layer.bin \
-    --neuron_map neuron_map.csv \
-    --output=resnet50_int8_per_layer.cvimodel
+    --mlir resnet50_quant_int8_per_layer_addr.mlir \
+    --cpufunc_dir ${RUNTIME_PATH}/lib/cpu \
+    --output=resnet50_int8_per_layer.cm
 
 # run cmdbuf
-#$RUNTIME_PATH/bin/test_bmnet \
-#    resnet50_in_int8.bin \
-#    weight_int8_per_layer.bin \
-#    cmdbuf_int8_per_layer.bin \
-#    resnet50_cmdbuf_out_all_int8_per_layer.bin \
-#    16460784 0 16460784 1
-test_cvinet \
-    resnet50_in_int8.bin \
-    resnet50_int8_per_layer.cvimodel \
-    resnet50_cmdbuf_out_all_int8_per_layer.bin
+model_runner \
+    --input resnet50_in_int8.bin \
+    --model resnet50_int8_per_layer.cm \
+    --output resnet50_cmdbuf_out_all_int8_per_layer.bin
 
 bin_to_npz.py \
     resnet50_cmdbuf_out_all_int8_per_layer.bin \
@@ -118,23 +113,18 @@ mlir-translate \
     -o cmdbuf_int8_multiplier.bin
 
 # generate cvi model
-python $TPU_PYTHON_PATH/cvi_model_create.py \
+build_cvimodel.py \
     --cmdbuf cmdbuf_int8_multiplier.bin \
     --weight weight_int8_multiplier.bin \
-    --neuron_map neuron_map.csv \
-    --output=resnet50_int8_multiplier.cvimodel
+    --mlir resnet50_quant_int8_multiplier_addr.mlir \
+    --cpufunc_dir ${RUNTIME_PATH}/lib/cpu \
+    --output=resnet50_int8_multiplier.cm
 
 # run cmdbuf
-#$RUNTIME_PATH/bin/test_bmnet \
-#    resnet50_in_int8.bin \
-#    weight_int8_multiplier.bin \
-#    cmdbuf_int8_multiplier.bin \
-#    resnet50_cmdbuf_out_all_int8_multiplier.bin \
-#    16460784 0 16460784 1
-test_cvinet \
-    resnet50_in_int8.bin \
-    resnet50_int8_multiplier.cvimodel \
-    resnet50_cmdbuf_out_all_int8_multiplier.bin
+model_runner \
+    --input resnet50_in_int8.bin \
+    --model resnet50_int8_multiplier.cm \
+    --output resnet50_cmdbuf_out_all_int8_multiplier.bin
 
 bin_to_npz.py \
     resnet50_cmdbuf_out_all_int8_multiplier.bin \

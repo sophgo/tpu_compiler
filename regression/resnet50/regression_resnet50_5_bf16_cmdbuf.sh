@@ -39,23 +39,18 @@ mlir-translate \
     -o cmdbuf_bf16.bin
 
 # generate cvi model
-python $TPU_PYTHON_PATH/cvi_model_create.py \
+build_cvimodel.py \
     --cmdbuf cmdbuf_bf16.bin \
     --weight weight_bf16.bin \
-    --neuron_map neuron_map_bf16.csv \
-    --output=resnet50_bf16.cvimodel
+    --mlir resnet50_quant_bf16_addr.mlir \
+    --cpufunc_dir ${RUNTIME_PATH}/lib/cpu \
+    --output=resnet50_bf16.cm
 
 # run cmdbuf
-#$RUNTIME_PATH/bin/test_bmnet \
-#    resnet50_in_bf16.bin \
-#    weight_bf16.bin \
-#    cmdbuf_bf16.bin \
-#    resnet50_cmdbuf_out_all_bf16.bin \
-#    32921552 0 32921552 1
-test_cvinet \
-    resnet50_in_bf16.bin \
-    resnet50_bf16.cvimodel \
-    resnet50_cmdbuf_out_all_bf16.bin
+model_runner \
+    --input resnet50_in_bf16.bin \
+    --model resnet50_bf16.cm \
+    --output resnet50_cmdbuf_out_all_bf16.bin
 
 bin_to_npz.py \
     resnet50_cmdbuf_out_all_bf16.bin \

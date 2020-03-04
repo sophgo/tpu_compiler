@@ -46,16 +46,18 @@ mlir-translate \
     -o cmdbuf_lw.bin
 
 # generate cvimodel
-python $TPU_PYTHON_PATH/cvi_model_create.py \
+build_cvimodel.py \
     --cmdbuf cmdbuf_la.bin \
     --weight weight_int8_multiplier.bin \
-    --neuron_map neuron_map.csv \
+    --mlir ${NET}_quant_int8_multiplier_tl_la.mlir \
+    --cpufunc_dir ${RUNTIME_PATH}/lib/cpu \
     --output=${NET}_int8_la.cvimodel
 
-python $TPU_PYTHON_PATH/cvi_model_create.py \
+build_cvimodel.py \
     --cmdbuf cmdbuf_lw.bin \
     --weight weight_int8_multiplier.bin \
-    --neuron_map neuron_map.csv \
+    --mlir ${NET}_quant_int8_multiplier_tl_lw.mlir \
+    --cpufunc_dir ${RUNTIME_PATH}/lib/cpu \
     --output=${NET}_int8_lw.cvimodel
 
 # profiling cmdbuf
@@ -97,15 +99,15 @@ cvi_profiling --cmdbuf cmdbuf_lw.bin
 #    $REGRESSION_PATH/${NET}/data/test_cat_out_${NET}_${OUTPUTS}_int8_multiplier.bin \
 #    int8 1 1 1 1000 5
 
-test_cvinet \
-    ${NET}_in_int8.bin \
-    ${NET}_int8_la.cvimodel \
-    ${NET}_cmdbuf_out_all_int8_la.bin
+model_runner \
+    --input ${NET}_in_int8.bin \
+    --model ${NET}_int8_la.cvimodel \
+    --output ${NET}_cmdbuf_out_all_int8_la.bin
 
-test_cvinet \
-    ${NET}_in_int8.bin \
-    ${NET}_int8_lw.cvimodel \
-    ${NET}_cmdbuf_out_all_int8_lw.bin
+model_runner \
+    --input ${NET}_in_int8.bin \
+    --model ${NET}_int8_lw.cvimodel \
+    --output ${NET}_cmdbuf_out_all_int8_lw.bin
 
 if [ $COMPARE_ALL -eq 1 ]; then
   bin_to_npz.py \

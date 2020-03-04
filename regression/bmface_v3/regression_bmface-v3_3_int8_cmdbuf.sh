@@ -36,19 +36,18 @@ mlir-translate \
     -o cmdbuf.bin
 
 # generate cvi model
-python $TPU_PYTHON_PATH/cvi_model_create.py \
+build_cvimodel.py \
     --cmdbuf cmdbuf.bin \
     --weight weight.bin \
-    --neuron_map neuron_map.csv \
-    --output=bmface-v3_int8.cvimodel
+    --mlir bmface-v3_quant_int8_cmdbuf.mlir \
+    --cpufunc_dir ${RUNTIME_PATH}/lib/cpu \
+    --output bmface-v3_int8.cvimodel
 
 # run cmdbuf
-
-test_cvinet \
-    bmface_in_int8.bin  \
-    bmface-v3_int8.cvimodel \
-    bmface-v3_cmdbuf_out_all_int8.bin
-
+model_runner \
+    --input bmface_in_int8.bin  \
+    --model bmface-v3_int8.cvimodel \
+    --output bmface-v3_cmdbuf_out_all_int8.bin
 
 # compare all tensors
 bin_to_npz.py \

@@ -45,18 +45,20 @@ mlir-translate \
     --debug-only=tl_conv,tl_eltwise_add \
     -o cmdbuf_lw.bin
 
-# generate cvimodel
-python $TPU_PYTHON_PATH/cvi_model_create.py \
+# generate cvi model
+build_cvimodel.py \
     --cmdbuf cmdbuf_la.bin \
     --weight weight_int8_multiplier.bin \
-    --neuron_map neuron_map.csv \
-    --output=resnet50_int8_la.cvimodel
+    --mlir resnet50_quant_int8_multiplier_tl_la.mlir \
+    --cpufunc_dir ${RUNTIME_PATH}/lib/cpu \
+    --output=resnet50_int8_la.cm
 
-python $TPU_PYTHON_PATH/cvi_model_create.py \
+build_cvimodel.py \
     --cmdbuf cmdbuf_lw.bin \
     --weight weight_int8_multiplier.bin \
-    --neuron_map neuron_map.csv \
-    --output=resnet50_int8_lw.cvimodel
+    --mlir resnet50_quant_int8_multiplier_tl_lw.mlir \
+    --cpufunc_dir ${RUNTIME_PATH}/lib/cpu \
+    --output=resnet50_int8_lw.cm
 
 # profiling cmdbuf
 cvi_profiling --cmdbuf cmdbuf_lw.bin
@@ -97,15 +99,15 @@ cvi_profiling --cmdbuf cmdbuf_lw.bin
 #    $REGRESSION_PATH/resnet50/data/test_cat_out_resnet50_fc1000_int8_multiplier.bin \
 #    int8 1 1 1 1000 5
 
-test_cvinet \
-    resnet50_in_int8.bin \
-    resnet50_int8_la.cvimodel \
-    resnet50_cmdbuf_out_all_int8_la.bin
+model_runner \
+    --input resnet50_in_int8.bin \
+    --model resnet50_int8_la.cm \
+    --output resnet50_cmdbuf_out_all_int8_la.bin
 
-test_cvinet \
-    resnet50_in_int8.bin \
-    resnet50_int8_lw.cvimodel \
-    resnet50_cmdbuf_out_all_int8_lw.bin
+model_runner \
+    --input resnet50_in_int8.bin \
+    --model resnet50_int8_lw.cm \
+    --output resnet50_cmdbuf_out_all_int8_lw.bin
 
 if [ $COMPARE_ALL -eq 1 ]; then
   bin_to_npz.py \

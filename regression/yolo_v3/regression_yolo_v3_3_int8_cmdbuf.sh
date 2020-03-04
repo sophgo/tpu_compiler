@@ -57,10 +57,11 @@ mlir-translate \
     -o cmdbuf_int8_per_layer.bin
 
 # generate cvi model
-python $TPU_PYTHON_PATH/cvi_model_create.py \
+build_cvimodel.py \
     --cmdbuf cmdbuf_int8_per_layer.bin \
     --weight weight_int8_per_layer.bin \
-    --neuron_map neuron_map.csv \
+    --mlir yolo_v3_416_quant_int8_per_layer_addr.mlir \
+    --cpufunc_dir ${RUNTIME_PATH}/lib/cpu \
     --output=yolo_v3_416_int8_per_layer.cvimodel
 
 # run cmdbuf
@@ -70,10 +71,10 @@ python $TPU_PYTHON_PATH/cvi_model_create.py \
 #    cmdbuf_int8_multiplier.bin \
 #    yolo_v3_cmdbuf_out_all_int8_per_layer.bin \
 #    94614832 0 94614832 1
-test_cvinet \
-    yolo_v3_in_int8.bin \
-    yolo_v3_416_int8_per_layer.cvimodel \
-    yolo_v3_cmdbuf_out_all_int8_per_layer.bin
+model_runner \
+    --input yolo_v3_in_int8.bin \
+    --model yolo_v3_416_int8_per_layer.cvimodel \
+    --output yolo_v3_cmdbuf_out_all_int8_per_layer.bin
 
 bin_to_npz.py \
     yolo_v3_cmdbuf_out_all_int8_per_layer.bin \
@@ -136,10 +137,11 @@ mlir-translate \
     -o cmdbuf_int8_multiplier.bin
 
 # generate cvi model
-python $TPU_PYTHON_PATH/cvi_model_create.py \
+build_cvimodel.py \
     --cmdbuf cmdbuf_int8_multiplier.bin \
     --weight weight_int8_multiplier.bin \
-    --neuron_map neuron_map.csv \
+    --mlir yolo_v3_416_quant_int8_multiplier_addr.mlir \
+    --cpufunc_dir ${RUNTIME_PATH}/lib/cpu \
     --output=yolo_v3_416_int8_multiplier.cvimodel
 
 # run cmdbuf
@@ -149,10 +151,10 @@ python $TPU_PYTHON_PATH/cvi_model_create.py \
 #    cmdbuf_int8_multiplier.bin \
 #    yolo_v3_cmdbuf_out_all_int8_multiplier.bin \
 #    94614832 0 94614832 1
-test_cvinet \
-    yolo_v3_in_int8.bin \
-    yolo_v3_416_int8_multiplier.cvimodel \
-    yolo_v3_cmdbuf_out_all_int8_multiplier.bin
+model_runner \
+    --input yolo_v3_in_int8.bin \
+    --model yolo_v3_416_int8_multiplier.cvimodel \
+    --output yolo_v3_cmdbuf_out_all_int8_multiplier.bin
 
 bin_to_npz.py \
     yolo_v3_cmdbuf_out_all_int8_multiplier.bin \

@@ -40,10 +40,11 @@ mlir-translate \
     -o cmdbuf_bf16.bin
 
 # generate cvi model
-python $TPU_PYTHON_PATH/cvi_model_create.py \
+build_cvimodel.py \
     --cmdbuf cmdbuf_bf16.bin \
     --weight weight_bf16.bin \
-    --neuron_map neuron_map_bf16.csv \
+    --mlir inception_v3_quant_bf16_addr.mlir \
+    --cpufunc_dir ${RUNTIME_PATH}/lib/cpu \
     --output=inception_v3_bf16.cvimodel
 
 ## run cmdbuf
@@ -53,10 +54,10 @@ python $TPU_PYTHON_PATH/cvi_model_create.py \
 #    cmdbuf_bf16.bin \
 #    inception_v3_cmdbuf_out_all_bf16.bin \
 #    54587952 0 54587952 1
-test_cvinet \
-    inception_v3_in_bf16.bin \
-    inception_v3_bf16.cvimodel \
-    inception_v3_cmdbuf_out_all_bf16.bin
+model_runner \
+    --input inception_v3_in_bf16.bin \
+    --model inception_v3_bf16.cvimodel \
+    --output inception_v3_cmdbuf_out_all_bf16.bin
 
 bin_to_npz.py \
     inception_v3_cmdbuf_out_all_bf16.bin \

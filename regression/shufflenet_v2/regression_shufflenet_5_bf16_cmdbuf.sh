@@ -39,10 +39,11 @@ mlir-translate \
     -o cmdbuf_bf16.bin
 
 # generate cvi model
-python $TPU_PYTHON_PATH/cvi_model_create.py \
+build_cvimodel.py \
     --cmdbuf cmdbuf_bf16.bin \
     --weight weight_bf16.bin \
-    --neuron_map neuron_map_bf16.csv \
+    --mlir shufflenet_quant_bf16_addr.mlir \
+    --cpufunc_dir ${RUNTIME_PATH}/lib/cpu \
     --output=shufflenet_bf16.cvimodel
 
 # run cmdbuf
@@ -52,10 +53,10 @@ python $TPU_PYTHON_PATH/cvi_model_create.py \
 #    cmdbuf_bf16.bin \
 #    shufflenet_cmdbuf_out_all_bf16.bin \
 #    32921552 0 32921552 1
-test_cvinet \
-    shufflenet_in_bf16.bin \
-    shufflenet_bf16.cvimodel \
-    shufflenet_cmdbuf_out_all_bf16.bin
+model_runner \
+    --input shufflenet_in_bf16.bin \
+    --model shufflenet_bf16.cvimodel \
+    --output shufflenet_cmdbuf_out_all_bf16.bin
 
 bin_to_npz.py \
     shufflenet_cmdbuf_out_all_bf16.bin \

@@ -35,23 +35,18 @@ mlir-translate \
     -o cmdbuf_bf16.bin
 
 # generate cvi model
-python $TPU_PYTHON_PATH/cvi_model_create.py \
+build_cvimodel.py \
     --cmdbuf cmdbuf_bf16.bin \
     --weight weight_bf16.bin \
-    --neuron_map neuron_map_bf16.csv \
+    --mlir densenet_quant_bf16_addr.mlir \
+    --cpufunc_dir ${RUNTIME_PATH}/lib/cpu \
     --output=densenet_bf16.cvimodel
 
 # run cmdbuf
-#$RUNTIME_PATH/bin/test_bmnet \
-#    densenet_in_bf16.bin \
-#    weight_bf16.bin \
-#    cmdbuf_bf16.bin \
-#    densenet_cmdbuf_out_all_bf16.bin \
-#    32921552 0 32921552 1
-test_cvinet \
-    densenet_in_bf16.bin \
-    densenet_bf16.cvimodel \
-    densenet_cmdbuf_out_all_bf16.bin
+model_runner \
+    --input densenet_in_bf16.bin \
+    --model densenet_bf16.cvimodel \
+    --output densenet_cmdbuf_out_all_bf16.bin
 
 bin_extract.py \
     densenet_cmdbuf_out_all_bf16.bin \

@@ -41,29 +41,27 @@ mlir-opt \
     --tpu-neuron-address-align=16 \
     --tpu-neuron-map-filename=neuron_map.csv \
     --assign-layer-id \
-    densenet_quant_int8_multiplier.mlir | \
-  mlir-translate \
+    densenet_quant_int8_multiplier.mlir \
+    -o densenet_quant_int8_multiplier_addr.mlir
+
+mlir-translate \
     --mlir-to-cmdbuf \
+    densenet_quant_int8_multiplier_addr.mlir \
     -o cmdbuf_int8_multiplier.bin
 
 # generate cvi model
-python $TPU_PYTHON_PATH/cvi_model_create.py \
+build_cvimodel.py \
     --cmdbuf cmdbuf_int8_multiplier.bin \
     --weight weight_int8_multiplier.bin \
-    --neuron_map neuron_map.csv \
+    --mlir densenet_quant_int8_multiplier_addr.mlir \
+    --cpufunc_dir ${RUNTIME_PATH}/lib/cpu \
     --output=densenet_int8_multiplier.cvimodel
 
 # run cmdbuf
-# $RUNTIME_PATH/bin/test_bmnet \
-#    densenet_in_int8.bin \
-#    weight_int8_multiplier.bin \
-#    cmdbuf_int8_multiplier.bin \
-#    densenet_cmdbuf_out_all_int8_multiplier.bin \
-#    16460784 0 16460784 1
-test_cvinet \
-    densenet_in_int8.bin \
-    densenet_int8_multiplier.cvimodel \
-    densenet_cmdbuf_out_all_int8_multiplier.bin
+model_runner \
+    --input densenet_in_int8.bin \
+    --model densenet_int8_multiplier.cvimodel \
+    --output densenet_cmdbuf_out_all_int8_multiplier.bin
 
 bin_extract.py \
     densenet_cmdbuf_out_all_int8_multiplier.bin \

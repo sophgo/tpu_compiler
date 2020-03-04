@@ -29,7 +29,7 @@ if [ $CHECK_NON_OPT_VERSION -eq 1 ]; then
       resnet50_tensor_all_fp32.npz \
       resnet50_blobs.npz \
       --op_info resnet50_op_info.csv \
-      --tolerance=0.9999,0.9999,0.999 -vv
+      --tolerance=0.9999,0.999,0.999 -vv
 fi
 
 # assign layer_id right away, and apply all frontend optimizations
@@ -53,7 +53,7 @@ npz_compare.py \
     resnet50_tensor_all_fp32.npz \
     resnet50_blobs.npz \
     --op_info resnet50_op_info.csv \
-    --tolerance=0.9999,0.9999,0.999 -vv
+    --tolerance=0.9999,0.999,0.999 -vv
 
 # VERDICT
 echo $0 PASSED

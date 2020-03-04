@@ -27,16 +27,20 @@ mlir-opt \
     --tpu-neuron-address-align=16 \
     --tpu-neuron-map-filename=neuron_map.csv \
     --assign-layer-id \
-    vgg16_quant_int8_per_layer.mlir | \
-  mlir-translate \
+    vgg16_quant_int8_per_layer.mlir \
+    -o vgg16_quant_int8_per_layer_addr.mlir \
+
+mlir-translate \
     --mlir-to-cmdbuf \
+    vgg16_quant_int8_per_layer_addr.mlir \
     -o cmdbuf_int8_per_layer.bin
 
 # generate cvi model
-python $TPU_PYTHON_PATH/cvi_model_create.py \
+build_cvimodel.py \
     --cmdbuf cmdbuf_int8_per_layer.bin \
     --weight weight_int8_per_layer.bin \
-    --neuron_map neuron_map.csv \
+    --mlir vgg16_quant_int8_per_layer.mlir \
+    --cpufunc_dir ${RUNTIME_PATH}/lib/cpu \
     --output=vgg16_int8_per_layer.cvimodel
 
 # run cmdbuf
@@ -46,10 +50,10 @@ python $TPU_PYTHON_PATH/cvi_model_create.py \
 #    cmdbuf_int8_per_layer.bin \
 #    vgg16_cmdbuf_out_all_int8_per_layer.bin \
 #    16460784 0 16460784 1
-test_cvinet \
-    vgg16_in_int8.bin \
-    vgg16_int8_per_layer.cvimodel \
-    vgg16_cmdbuf_out_all_int8_per_layer.bin
+model_runner \
+    --input vgg16_in_int8.bin \
+    --model vgg16_int8_per_layer.cvimodel \
+    --output vgg16_cmdbuf_out_all_int8_per_layer.bin
 
 bin_extract.py \
     vgg16_cmdbuf_out_all_int8_per_layer.bin \
@@ -89,16 +93,19 @@ mlir-opt \
     --tpu-neuron-address-align=16 \
     --tpu-neuron-map-filename=neuron_map.csv \
     --assign-layer-id \
-    vgg16_quant_int8_multiplier.mlir | \
+    vgg16_quant_int8_multiplier.mlir \
+    -o vgg16_quant_int8_multiplier_addr.mlir
   mlir-translate \
     --mlir-to-cmdbuf \
+    vgg16_quant_int8_multiplier_addr.mlir \
     -o cmdbuf_int8_multiplier.bin
 
 # generate cvi model
-python $TPU_PYTHON_PATH/cvi_model_create.py \
+build_cvimodel.py \
     --cmdbuf cmdbuf_int8_multiplier.bin \
     --weight weight_int8_multiplier.bin \
-    --neuron_map neuron_map.csv \
+    --mlir vgg16_quant_int8_multiplier_addr.mlir \
+    --cpufunc_dir ${RUNTIME_PATH}/lib/cpu \
     --output=vgg16_int8_multiplier.cvimodel
 
 # run cmdbuf
@@ -108,10 +115,10 @@ python $TPU_PYTHON_PATH/cvi_model_create.py \
 #    cmdbuf_int8_multiplier.bin \
 #    vgg16_cmdbuf_out_all_int8_multiplier.bin \
 #    16460784 0 16460784 1
-test_cvinet \
-    vgg16_in_int8.bin \
-    vgg16_int8_multiplier.cvimodel \
-    vgg16_cmdbuf_out_all_int8_multiplier.bin
+model_runner \
+    --input vgg16_in_int8.bin \
+    --model vgg16_int8_multiplier.cvimodel \
+    --output vgg16_cmdbuf_out_all_int8_multiplier.bin
 
 bin_extract.py \
     vgg16_cmdbuf_out_all_int8_multiplier.bin \

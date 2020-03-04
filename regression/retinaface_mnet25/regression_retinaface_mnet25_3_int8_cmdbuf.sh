@@ -46,17 +46,18 @@ mlir-translate retinaface_mnet25_quant_int8_addr.mlir \
     -o cmdbuf_int8.bin
 
 # generate cvi model
-python $TPU_PYTHON_PATH/cvi_model_create.py \
+build_cvimodel.py \
     --cmdbuf cmdbuf_int8.bin \
     --weight weight_int8.bin \
-    --neuron_map neuron_map.csv \
+    --mlir retinaface_mnet25_quant_int8_addr.mlir \
+    --cpufunc_dir ${RUNTIME_PATH}/lib/cpu \
     --output=retinaface_mnet25_int8.cvimodel
 
 # run cmdbuf
-test_cvinet \
-    retinaface_mnet25_in_int8.bin \
-    retinaface_mnet25_int8.cvimodel \
-    retinaface_mnet25_cmdbuf_out_all_int8.bin
+model_runner \
+    --input retinaface_mnet25_in_int8.bin \
+    --model retinaface_mnet25_int8.cvimodel \
+    --output retinaface_mnet25_cmdbuf_out_all_int8.bin
 
 # compare all tensors
 bin_to_npz.py \

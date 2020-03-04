@@ -41,17 +41,18 @@ if [ $DO_QUANT_INT8_PER_TENSOR -eq 1 ]; then
       -o cmdbuf_int8_per_tensor.bin
 
   # generate cvi model
-  python $TPU_PYTHON_PATH/cvi_model_create.py \
+  build_cvimodel.py \
       --cmdbuf cmdbuf_int8_per_tensor.bin \
       --weight weight_int8_per_tensor.bin \
-      --neuron_map neuron_map.csv \
+      --mlir ${NET}_quant_int8_per_tensor_addr.mlir \
+      --cpufunc_dir ${RUNTIME_PATH}/lib/cpu \
       --output=${NET}_int8_per_tensor.cvimodel
 
   # run cvimodel
-  test_cvinet \
-      ${NET}_in_int8.bin \
-      ${NET}_int8_per_tensor.cvimodel \
-      ${NET}_cmdbuf_out_all_int8_per_tensor.bin
+  model_runner \
+      --input ${NET}_in_int8.bin \
+      --model ${NET}_int8_per_tensor.cvimodel \
+      --output ${NET}_cmdbuf_out_all_int8_per_tensor.bin
 
   bin_to_npz.py \
       ${NET}_cmdbuf_out_all_int8_per_tensor.bin \
@@ -109,17 +110,18 @@ if [ $DO_QUANT_INT8_MULTIPLER -eq 1 ]; then
       -o cmdbuf_int8_multiplier.bin
 
   # generate cvimodel
-  python $TPU_PYTHON_PATH/cvi_model_create.py \
+  build_cvimodel.py \
       --cmdbuf cmdbuf_int8_multiplier.bin \
       --weight weight_int8_multiplier.bin \
-      --neuron_map neuron_map.csv \
+      --mlir ${NET}_quant_int8_multiplier_addr.mlir \
+      --cpufunc_dir ${RUNTIME_PATH}/lib/cpu \
       --output=${NET}_int8_multiplier.cvimodel
 
   # run cvimodel
-  test_cvinet \
-      ${NET}_in_int8.bin \
-      ${NET}_int8_multiplier.cvimodel \
-      ${NET}_cmdbuf_out_all_int8_multiplier.bin
+  model_runner \
+      --input ${NET}_in_int8.bin \
+      --model ${NET}_int8_multiplier.cvimodel \
+      --output ${NET}_cmdbuf_out_all_int8_multiplier.bin
 
   bin_to_npz.py \
       ${NET}_cmdbuf_out_all_int8_multiplier.bin \

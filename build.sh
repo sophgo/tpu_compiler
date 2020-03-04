@@ -107,13 +107,14 @@ cp $MLIR_SRC_PATH/python/calibration/*.py $TPU_PYTHON_PATH/
 
 # cvibuilder
 if [ ! -e $BUILD_PATH/build_cvimodel ]; then
-  mkdir -p $BUILD_PATH/build_cvimodel/include
+  mkdir -p $BUILD_PATH/build_cvimodel
 fi
-pushd $BUILD_PATH/build_cvimodel/include
-$INSTALL_PATH/flatbuffers/bin/flatc --cpp --gen-object-api \
-    $MLIR_SRC_PATH/externals/cvibuilder/src/cvimodel.fbs
+pushd $BUILD_PATH/build_cvimodel
+cmake -G Ninja -DFLATBUFFERS_PATH=$FLATBUFFERS_PATH \
+    -DCMAKE_INSTALL_PREFIX=$INSTALL_PATH \
+    $MLIR_SRC_PATH/externals/cvibuilder
+cmake --build . --target install
 popd
-cp -a $MLIR_SRC_PATH/externals/cvibuilder/python/* $TPU_PYTHON_PATH/
 
 # build cmodel
 if [ ! -e $BUILD_PATH/build_cmodel ]; then

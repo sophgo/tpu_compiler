@@ -51,10 +51,11 @@ mlir-translate \
     -o cmdbuf_int8_per_layer.bin
 
 # generate cvi model
-python $TPU_PYTHON_PATH/cvi_model_create.py \
+build_cvimodel.py \
     --cmdbuf cmdbuf_int8_per_layer.bin \
     --weight weight_int8_per_layer.bin \
-    --neuron_map neuron_map.csv \
+    --mlir inception_v4_quant_int8_per_layer_addr.mlir \
+    --cpufunc_dir ${RUNTIME_PATH}/lib/cpu \
     --output=inception_v4_int8_per_layer.cvimodel
 
 ## run cmdbuf
@@ -65,10 +66,10 @@ python $TPU_PYTHON_PATH/cvi_model_create.py \
 #    inception_v4_cmdbuf_out_all_int8_per_layer.bin \
 #    27293984 0 27293984 1
 
-test_cvinet \
-    inception_v4_in_int8.bin \
-    inception_v4_int8_per_layer.cvimodel \
-    inception_v4_cmdbuf_out_all_int8_per_layer.bin
+model_runner \
+    --input inception_v4_in_int8.bin \
+    --model inception_v4_int8_per_layer.cvimodel \
+    --output inception_v4_cmdbuf_out_all_int8_per_layer.bin
 
 bin_to_npz.py \
     inception_v4_cmdbuf_out_all_int8_per_layer.bin \
@@ -122,10 +123,11 @@ mlir-translate \
     -o cmdbuf_int8_multiplier.bin
 
 # generate cvi model
-python $TPU_PYTHON_PATH/cvi_model_create.py \
+build_cvimodel.py \
     --cmdbuf cmdbuf_int8_multiplier.bin \
     --weight weight_int8_multiplier.bin \
-    --neuron_map neuron_map.csv \
+    --mlir inception_v4_quant_int8_multiplier_addr.mlir \
+    --cpufunc_dir ${RUNTIME_PATH}/lib/cpu \
     --output=inception_v4_int8_multiplier.cvimodel
 
 ## run cmdbuf
@@ -135,10 +137,10 @@ python $TPU_PYTHON_PATH/cvi_model_create.py \
 #    cmdbuf_int8_multiplier.bin \
 #    inception_v4_cmdbuf_out_all_int8_multiplier.bin \
 #    27293984 0 27293984 1
-test_cvinet \
-    inception_v4_in_int8.bin \
-    inception_v4_int8_multiplier.cvimodel \
-    inception_v4_cmdbuf_out_all_int8_multiplier.bin
+model_runner \
+    --input inception_v4_in_int8.bin \
+    --model inception_v4_int8_multiplier.cvimodel \
+    --output inception_v4_cmdbuf_out_all_int8_multiplier.bin
 
 bin_to_npz.py \
     inception_v4_cmdbuf_out_all_int8_multiplier.bin \

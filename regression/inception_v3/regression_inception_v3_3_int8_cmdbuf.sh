@@ -42,7 +42,8 @@ mlir-opt \
     --assign-neuron-address \
     --tpu-neuron-address-align=16 \
     --tpu-neuron-map-filename=neuron_map.csv \
-    inception_v3_quant_int8_per_layer_tg.mlir  \
+    --assign-layer-id \
+    inception_v3_quant_int8_per_layer_tg.mlir \
     -o inception_v3_quant_int8_per_layer_addr.mlir
 
 mlir-translate \
@@ -51,24 +52,18 @@ mlir-translate \
     -o cmdbuf_int8_per_layer.bin
 
 # generate cvi model
-python $TPU_PYTHON_PATH/cvi_model_create.py \
+build_cvimodel2.py \
     --cmdbuf cmdbuf_int8_per_layer.bin \
     --weight weight_int8_per_layer.bin \
-    --neuron_map neuron_map.csv \
-    --output=inception_v3_int8_per_layer.cvimodel
+    --mlir inception_v3_quant_int8_per_layer_addr.mlir \
+    --cpufunc_dir ${RUNTIME_PATH}/lib/cpu \
+    --output=inception_v3_int8_per_layer.cm
 
 ## run cmdbuf
-#$RUNTIME_PATH/bin/test_bmnet \
-#    inception_v3_in_int8.bin \
-#    weight_int8_per_layer.bin \
-#    cmdbuf_int8_per_layer.bin \
-#    inception_v3_cmdbuf_out_all_int8_per_layer.bin \
-#    27293984 0 27293984 1
-
-test_cvinet \
-    inception_v3_in_int8.bin \
-    inception_v3_int8_per_layer.cvimodel \
-    inception_v3_cmdbuf_out_all_int8_per_layer.bin
+model_runner \
+    --model inception_v3_int8_per_layer.cm \
+    --input inception_v3_in_int8.bin \
+    --output inception_v3_cmdbuf_out_all_int8_per_layer.bin
 
 bin_to_npz.py \
     inception_v3_cmdbuf_out_all_int8_per_layer.bin \
@@ -122,23 +117,18 @@ mlir-translate \
     -o cmdbuf_int8_multiplier.bin
 
 # generate cvi model
-python $TPU_PYTHON_PATH/cvi_model_create.py \
+build_cvimodel2.py \
     --cmdbuf cmdbuf_int8_multiplier.bin \
     --weight weight_int8_multiplier.bin \
-    --neuron_map neuron_map.csv \
-    --output=inception_v3_int8_multiplier.cvimodel
+    --mlir inception_v3_quant_int8_multiplier_addr.mlir \
+    --cpufunc_dir ${RUNTIME_PATH}/lib/cpu \
+    --output=inception_v3_int8_multiplier.cm
 
 ## run cmdbuf
-#$RUNTIME_PATH/bin/test_bmnet \
-#    inception_v3_in_int8.bin \
-#    weight_int8_multiplier.bin \
-#    cmdbuf_int8_multiplier.bin \
-#    inception_v3_cmdbuf_out_all_int8_multiplier.bin \
-#    27293984 0 27293984 1
-test_cvinet \
-    inception_v3_in_int8.bin \
-    inception_v3_int8_multiplier.cvimodel \
-    inception_v3_cmdbuf_out_all_int8_multiplier.bin
+model_runner \
+    --model inception_v3_int8_multiplier.cm \
+    --input inception_v3_in_int8.bin \
+    --output inception_v3_cmdbuf_out_all_int8_multiplier.bin
 
 bin_to_npz.py \
     inception_v3_cmdbuf_out_all_int8_multiplier.bin \

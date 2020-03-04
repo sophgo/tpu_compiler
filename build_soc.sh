@@ -24,6 +24,13 @@ cp -a python $FLATBUFFERS_PATH/
 popd
 
 # generate target-independent flatbuffer schema
+
+pushd $BUILD_PATH/build_cvimodel/include
+$INSTALL_PATH/flatbuffers/bin/flatc --cpp --gen-object-api \
+    $MLIR_SRC_PATH/externals/cvibuilder/src/cvimodel.fbs
+popd
+
+
 if [ ! -e $CVIBUILDER_PATH ]; then
   mkdir $CVIBUILDER_PATH
   mkdir $CVIBUILDER_PATH/include

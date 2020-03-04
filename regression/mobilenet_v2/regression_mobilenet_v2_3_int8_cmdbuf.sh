@@ -27,16 +27,19 @@ mlir-opt \
     --tpu-neuron-address-align=16 \
     --tpu-neuron-map-filename=neuron_map.csv \
     --assign-layer-id \
-    mobilenet_v2_quant_int8_per_layer.mlir | \
+    mobilenet_v2_quant_int8_per_layer.mlir \
+    --o mobilenet_v2_quant_int8_per_layer_addr.mlir \
   mlir-translate \
     --mlir-to-cmdbuf \
+    mobilenet_v2_quant_int8_per_layer_addr.mlir \
     -o cmdbuf_int8_per_layer.bin
 
 # generate cvi model
-python $TPU_PYTHON_PATH/cvi_model_create.py \
+build_cvimodel.py \
     --cmdbuf cmdbuf_int8_per_layer.bin \
     --weight weight_int8_per_layer.bin \
-    --neuron_map neuron_map.csv \
+    --mlir mobilenet_v2_quant_int8_per_layer_addr.mlir \
+    --cpufunc_dir ${RUNTIME_PATH}/lib/cpu \
     --output=mobilenet_v2_int8_per_layer.cvimodel
 
 # run cmdbuf
@@ -46,10 +49,10 @@ python $TPU_PYTHON_PATH/cvi_model_create.py \
 #    cmdbuf_int8_per_layer.bin \
 #    mobilenet_v2_cmdbuf_out_all_int8_per_layer.bin \
 #    9405584 0 9405584 1
-test_cvinet \
-    mobilenet_v2_in_int8.bin \
-    mobilenet_v2_int8_per_layer.cvimodel \
-    mobilenet_v2_cmdbuf_out_all_int8_per_layer.bin
+model_runner \
+    --input mobilenet_v2_in_int8.bin \
+    --model mobilenet_v2_int8_per_layer.cvimodel \
+    --output mobilenet_v2_cmdbuf_out_all_int8_per_layer.bin
 
 bin_extract.py \
     mobilenet_v2_cmdbuf_out_all_int8_per_layer.bin \
@@ -89,16 +92,19 @@ mlir-opt \
     --tpu-neuron-address-align=16 \
     --tpu-neuron-map-filename=neuron_map.csv \
     --assign-layer-id \
-    mobilenet_v2_quant_int8_multiplier.mlir | \
+    mobilenet_v2_quant_int8_multiplier.mlir \
+    -o mobilenet_v2_quant_int8_multiplier_addr.mlir \
   mlir-translate \
     --mlir-to-cmdbuf \
+    mobilenet_v2_quant_int8_multiplier_addr.mlir \
     -o cmdbuf_int8_multiplier.bin
 
 # generate cvi model
-python $TPU_PYTHON_PATH/cvi_model_create.py \
+build_cvimodel.py \
     --cmdbuf cmdbuf_int8_multiplier.bin \
     --weight weight_int8_multiplier.bin \
-    --neuron_map neuron_map.csv \
+    --mlir mobilenet_v2_quant_int8_multiplier_addr.mlir \
+    --cpufunc_dir ${RUNTIME_PATH}/lib/cpu \
     --output=mobilenet_v2_int8_multiplier.cvimodel
 
 # run cmdbuf
@@ -108,10 +114,10 @@ python $TPU_PYTHON_PATH/cvi_model_create.py \
 #    cmdbuf_int8_multiplier.bin \
 #    mobilenet_v2_cmdbuf_out_all_int8_multiplier.bin \
 #    9405584 0 9405584 1
-test_cvinet \
-    mobilenet_v2_in_int8.bin \
-    mobilenet_v2_int8_multiplier.cvimodel \
-    mobilenet_v2_cmdbuf_out_all_int8_multiplier.bin
+model_runner \
+    --input mobilenet_v2_in_int8.bin \
+    --model mobilenet_v2_int8_multiplier.cvimodel \
+    --output mobilenet_v2_cmdbuf_out_all_int8_multiplier.bin
 
 bin_extract.py \
     mobilenet_v2_cmdbuf_out_all_int8_multiplier.bin \
