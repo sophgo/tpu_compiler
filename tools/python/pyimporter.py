@@ -2,19 +2,19 @@ import inspect
 from enum import Enum
 
 import numpy as np
-
+import re
 import pybind
 
 base = 'tpu.'
 class TPU_OpType(Enum):
-    Weight_file = 'tpu.wieght_file'
+    Weight_file = 'tpu.weight_file'
     Input  = 'tpu.input'
     Load_Weight = 'tpu.load_weight'
 
     BatchNorm = 'tpu.batch_norm'
     Conv2d = 'tpu.conv2d'
     Crop = 'tpu.crop'
-    Eltwise_Sum = 'tpu.eltwise_sum'
+    Eltwise_Add = 'tpu.eltwise_add'
     Eltwise_Mul = 'tpu.eltwise_mul'
     FullyConnected = 'tpu.fully_connected'
     
@@ -50,6 +50,7 @@ class PyImporter():
         self.module = pybind.MLIRModule()
         self.input_shape_list = list()
         self.output_shape_list = list()
+
         for input in inputs_shape:
             assert(isinstance(input, list))
             self.input_shape_list.append(input)
@@ -63,6 +64,16 @@ class PyImporter():
         self.NoneType = self.module.make_none_type()
         self.indexType = self.module.make_index_type()
         self.func_ctx =None
+
+        quant_param = {
+            'is_asymmetric': self.module.boolAttr(False),
+            'is_perchannel': self.module.boolAttr(False),
+            'mode': self.module.stringAttr("None"),
+            'param_type': self.module.stringAttr("None"),
+            'threshold_max': self.module.floatAttr(0),
+            'threshold_min': self.module.floatAttr(0)
+        }
+        self.quant_param = self.module.dictAttr(**quant_param)
         self.declare_func()
 
     def __del__(self):
@@ -83,7 +94,7 @@ class PyImporter():
     
     def add_input_op(self, name, index):
         name = self.module.stringAttr(name)
-        return pybind.op(TPU_OpType.Input.value, [self.func_args[index]], [self.tensor_inputs_type[index]], name=name)
+        return pybind.op(TPU_OpType.Input.value, [self.func_args[index]], [self.tensor_inputs_type[index]], name=name, quant=self.quant_param)
     
     def add_weight_file_op(self, name):
         filename = self.module.stringAttr(name)
@@ -130,9 +141,12 @@ class PyImporter():
           }
       
         dict_attr = self.module.dictAttr(**conv_param)
-
+        none = self.add_none_op()
+        # our TPU Conv IR need 8 opreand
+        for i in range( 8 - len(inputOperands)):
+            inputOperands.append(none)
         return self.buildOp(TPU_OpType.Conv2d.value, inputOperands, [
-                     tensor_output_type], name=conv_name, param=dict_attr)
+                     tensor_output_type], name=conv_name, param=dict_attr, quant=self.quant_param)
     
     def add_crop_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         """
@@ -180,16 +194,18 @@ class PyImporter():
         scale_name = self.module.stringAttr(op_name)
         return self.buildOp(TPU_OpType.Scale.value, inputOperands, [
             tensor_output_type], name=scale_name)
-    
-    def add_eltwise_sum_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+
+    def add_eltwise_add_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = self.module.make_ranked_tensor_type(
             self.f32Type, output_tensor_shape)
         if len(inputOperands) < 2:
             raise ArithmeticError("input operand must great than 2")
-
-        eltwise_sum = self.module.stringAttr(op_name)
-        return self.buildOp(TPU_OpType.Eltwise_Sum.value, inputOperands, [
-            tensor_output_type], name=eltwise_sum)
+        none = self.add_none_op()
+        for i in range( 6 - len(inputOperands)):
+            inputOperands.append(none)
+        eltwise_add = self.module.stringAttr(op_name)
+        return self.buildOp(TPU_OpType.Eltwise_Add.value, inputOperands, [
+            tensor_output_type], name=eltwise_add, quant=self.quant_param)
 
     def add_eltwise_mul_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = self.module.make_ranked_tensor_type(
@@ -206,10 +222,13 @@ class PyImporter():
             self.f32Type, output_tensor_shape)
         if len(inputOperands) < 2:
             raise ArithmeticError("input operand must great than 2")
-
+        
+        none = self.add_none_op()
+        for i in range( 7 - len(inputOperands)):
+            inputOperands.append(none)
         fully_connected_name = self.module.stringAttr(op_name)
         return self.buildOp(TPU_OpType.FullyConnected.value, inputOperands, [
-            tensor_output_type], name=fully_connected_name)
+            tensor_output_type], name=fully_connected_name, qunat=self.quant_param)
     
     def add_pool_avg_2d_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = self.module.make_ranked_tensor_type(
@@ -291,7 +310,32 @@ class PyImporter():
         return pybind.ret(Operands)
 
     def print_module(self):
-        print(self.module)
+        mlir_format = str(self.module)
+        lines = mlir_format.splitlines()
+        
+        reg = '%[0-9]+'
+        shape = ''
+        new_strings = list()
+        for i in lines:
+            filter = "\W*(std\.return)\W*"
+            ret = re.match(filter, i)
+            if ret:
+                reg_filter = "%[0-9]+"
+                reg = re.search(reg_filter, i)
+                reg = reg.group(0)
+                shape_filter = "\<[0-9A-Za-z]+\>"
+                shape =  re.search(shape_filter, i)
+                shape = shape.group(0)
+                new_line = "    return {} : tensor{}".format(reg, shape)
+                new_strings.append(new_line)
+            else:
+                new_strings.append(i)
+        ret = '\n'.join(new_strings)
+    
+        print(ret)
+        return ret 
+
+     
 
     def declare_func(self):
         self.tensor_inputs_type = list()
