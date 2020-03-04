@@ -132,3 +132,22 @@ export TOLERANCE_BF16=0.99,0.99,0.88
 export DO_CMDBUF_BF16=0   # this is a bug to fix
 # export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
 fi
+
+if [ $NET = "shufflenet_v2" ]; then
+export MODEL_DEF=$MODEL_PATH/imagenet/shufflenet_v2/caffe/shufflenet_v2_x0.5.prototxt
+export MODEL_DAT=$MODEL_PATH/imagenet/shufflenet_v2/caffe/shufflenet_v2_x0.5.caffemodel
+#export DO_CALIBRATION=1
+export CALI_TABLE=$REGRESSION_PATH/shufflenet_v2/data/shufflenet_v2_threshold_table
+export IMAGE_DIM=224,224
+export RAW_SCALE=1.0
+export MEAN=0.0,0.0,0.0
+export INPUT_SCALE=1.0
+export INPUT=data
+export OUTPUTS_FP32=fc
+export OUTPUTS=fc
+export TOLERANCE_INT8_PER_TENSOR=0.89,0.88,0.50
+export TOLERANCE_INT8_RSHIFT_ONLY=0.92,0.92,0.55
+export TOLERANCE_INT8_MULTIPLER=0.92,0.92,0.57
+export TOLERANCE_BF16=0.99,0.99,0.94
+export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
+fi

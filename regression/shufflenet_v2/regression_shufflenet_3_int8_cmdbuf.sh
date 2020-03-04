@@ -4,7 +4,7 @@ set -e
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 source $DIR/../../envsetup.sh
 
-COMPARE_INT8_PER_LAYER=0
+COMPARE_INT8_PER_LAYER=1
 
 ################################
 # prepare int8 input
