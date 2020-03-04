@@ -4,6 +4,8 @@ set -e
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 source $DIR/../../envsetup.sh
 
+COMPARE_INT8_PER_LAYER=0
+
 ################################
 # prepare int8 input
 ################################
@@ -26,67 +28,69 @@ npz_to_bin.py \
 ################################
 # Lower for quantization 1: per-layer int8
 ################################
-mlir-opt \
-    --tpu-lower \
-    shufflenet_quant_int8_per_layer.mlir \
-    -o shufflenet_quant_int8_per_layer_tg.mlir
+if [ $COMPARE_INT8_PER_LAYER -eq 1 ]; then
+    mlir-opt \
+        --tpu-lower \
+        shufflenet_quant_int8_per_layer.mlir \
+        -o shufflenet_quant_int8_per_layer_tg.mlir
 
-# assign weight address & neuron address
-mlir-opt \
-    --assign-weight-address \
-    --tpu-weight-address-align=16 \
-    --tpu-weight-map-filename=weight_map.csv \
-    --tpu-weight-bin-filename=weight_int8_per_layer.bin \
-    --assign-neuron-address \
-    --tpu-neuron-address-align=16 \
-    --tpu-neuron-map-filename=neuron_map.csv \
-    shufflenet_quant_int8_per_layer_tg.mlir \
-    -o shufflenet_quant_int8_per_layer_addr.mlir
+    # assign weight address & neuron address
+    mlir-opt \
+        --assign-weight-address \
+        --tpu-weight-address-align=16 \
+        --tpu-weight-map-filename=weight_map.csv \
+        --tpu-weight-bin-filename=weight_int8_per_layer.bin \
+        --assign-neuron-address \
+        --tpu-neuron-address-align=16 \
+        --tpu-neuron-map-filename=neuron_map.csv \
+        shufflenet_quant_int8_per_layer_tg.mlir \
+        -o shufflenet_quant_int8_per_layer_addr.mlir
 
-mlir-translate \
-    --mlir-to-cmdbuf \
-    shufflenet_quant_int8_per_layer_addr.mlir \
-    -o cmdbuf_int8_per_layer.bin
+    mlir-translate \
+        --mlir-to-cmdbuf \
+        shufflenet_quant_int8_per_layer_addr.mlir \
+        -o cmdbuf_int8_per_layer.bin
 
-# generate cvi model
-python $TPU_PYTHON_PATH/cvi_model_create.py \
-    --cmdbuf cmdbuf_int8_per_layer.bin \
-    --weight weight_int8_per_layer.bin \
-    --neuron_map neuron_map.csv \
-    --output=shufflenet_int8_per_layer.cvimodel
+    # generate cvi model
+    python $TPU_PYTHON_PATH/cvi_model_create.py \
+        --cmdbuf cmdbuf_int8_per_layer.bin \
+        --weight weight_int8_per_layer.bin \
+        --neuron_map neuron_map.csv \
+        --output=shufflenet_int8_per_layer.cvimodel
 
-# run cmdbuf
-#$RUNTIME_PATH/bin/test_bmnet \
-#    shufflenet_in_int8.bin \
-#    weight_int8_per_layer.bin \
-#    cmdbuf_int8_per_layer.bin \
-#    shufflenet_cmdbuf_out_all_int8_per_layer.bin \
-#    16460784 0 16460784 1
-test_cvinet \
-    shufflenet_in_int8.bin \
-    shufflenet_int8_per_layer.cvimodel \
-    shufflenet_cmdbuf_out_all_int8_per_layer.bin
+    # run cmdbuf
+    #$RUNTIME_PATH/bin/test_bmnet \
+    #    shufflenet_in_int8.bin \
+    #    weight_int8_per_layer.bin \
+    #    cmdbuf_int8_per_layer.bin \
+    #    shufflenet_cmdbuf_out_all_int8_per_layer.bin \
+    #    16460784 0 16460784 1
+    test_cvinet \
+        shufflenet_in_int8.bin \
+        shufflenet_int8_per_layer.cvimodel \
+        shufflenet_cmdbuf_out_all_int8_per_layer.bin
 
-bin_to_npz.py \
-    shufflenet_cmdbuf_out_all_int8_per_layer.bin \
-    neuron_map.csv \
-    shufflenet_cmdbuf_out_all_int8_per_layer.npz
-npz_to_bin.py \
-    shufflenet_cmdbuf_out_all_int8_per_layer.npz \
-    fc \
-    shufflenet_cmdbuf_out_fc_int8_per_layer.bin \
-    int8
-bin_compare.py \
-    shufflenet_cmdbuf_out_fc_int8_per_layer.bin \
-    $REGRESSION_PATH/shufflenet_v2/data/test_cat_out_shufflenet_fc_int8_per_layer.bin \
-    int8 1 1 1 1000 5
+    bin_to_npz.py \
+        shufflenet_cmdbuf_out_all_int8_per_layer.bin \
+        neuron_map.csv \
+        shufflenet_cmdbuf_out_all_int8_per_layer.npz
+    npz_to_bin.py \
+        shufflenet_cmdbuf_out_all_int8_per_layer.npz \
+        fc \
+        shufflenet_cmdbuf_out_fc_int8_per_layer.bin \
+        int8
+    bin_compare.py \
+        shufflenet_cmdbuf_out_fc_int8_per_layer.bin \
+        $REGRESSION_PATH/shufflenet_v2/data/test_cat_out_shufflenet_fc_int8_per_layer.bin \
+        int8 1 1 1 1000 5
 
-# compare all tensors
-npz_compare.py \
-    shufflenet_cmdbuf_out_all_int8_per_layer.npz \
-    shufflenet_tensor_all_int8_per_layer.npz \
-    --op_info shufflenet_op_info_int8_per_layer.csv
+    # compare all tensors
+    npz_compare.py \
+        shufflenet_cmdbuf_out_all_int8_per_layer.npz \
+        shufflenet_tensor_all_int8_per_layer.npz \
+        --op_info shufflenet_op_info_int8_per_layer.csv
 
+fi
 ################################
 # Lower for quantization 2: per-channel int8
 ################################

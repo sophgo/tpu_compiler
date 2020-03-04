@@ -8,7 +8,7 @@ CHECK_NON_OPT_VERSION=0
 
 # translate from caffe model
 mlir-translate \
-    --caffe-to-mlir $MODEL_PATH/imagenet/shufflenet_v2/caffe/shufflenet_v2_x0.5_fixed.prototxt \
+    --caffe-to-mlir $MODEL_PATH/imagenet/shufflenet_v2/caffe/shufflenet_v2_x0.5.prototxt \
     --caffemodel $MODEL_PATH/imagenet/shufflenet_v2/caffe/shufflenet_v2_x0.5.caffemodel \
     -o shufflenet.mlir
 
@@ -24,7 +24,7 @@ if [ $CHECK_NON_OPT_VERSION -eq 1 ]; then
       --tensor-in shufflenet_in_fp32.npz \
       --tensor-out shufflenet_out_fp32.npz \
       --dump-all-tensor=shufflenet_tensor_all_fp32.npz
-  npz_compare.py shufflenet_out_fp32.npz shufflenet_out_fp32_prob.npz -v
+  npz_compare.py shufflenet_out_fp32.npz shufflenet_out_fp32_fc.npz -v
   npz_compare.py \
       shufflenet_tensor_all_fp32.npz \
       shufflenet_blobs.npz \
@@ -40,6 +40,7 @@ mlir-opt \
     --convert-bn-to-scale \
     --fold-scale \
     --merge-scale-into-conv \
+    --convert-scale-to-dwconv \
     --fuse-relu \
     shufflenet.mlir \
     -o shufflenet_opt.mlir
