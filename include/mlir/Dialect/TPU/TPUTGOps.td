@@ -123,7 +123,7 @@ class TPU_TG_ConvOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
   let arguments = (
     ins AnyTensor:$input,
     AnyTensor:$filter,
-    TPU_TensorOfOrNone<[I32,I8]>:$pc_info,
+    TPU_TensorOfOrNone<[I32,I16,I8]>:$pc_info,
     OptionalAttr<I8Attr>:$pt_rshift,
     TPU_ConvParamAttr:$param,
     DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
