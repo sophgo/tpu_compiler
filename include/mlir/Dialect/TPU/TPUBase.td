@@ -60,4 +60,8 @@ class CPU_Op<string mnemonic, list<OpTrait> traits = []> :
 class TPU_TensorOfOrNone<list<Type> allowedTypes, string description = ""> :
     AnyTypeOf<[TensorOf<allowedTypes>, NoneType], description>;
 
+// MemRef or None type.
+class TPU_MemRefOfOrNone<list<Type> allowedTypes, string description = ""> :
+    AnyTypeOf<[MemRefOf<allowedTypes>, NoneType], description>;
+
 #endif // TPU_BASE
