@@ -2,11 +2,18 @@
 
 ## Quick Start
 
-* build
+* build from scratch
 
   ```sh
   $ source llvm-project/llvm/projects/mlir/envsetup.sh
   $ llvm-project/llvm/projects/mlir/build.sh
+  ```
+
+* build update
+
+  ```sh
+  $ source llvm-project/llvm/projects/mlir/envsetup.sh
+  $ llvm-project/llvm/projects/mlir/build_update.sh
   ```
 
 * regression
@@ -21,7 +28,7 @@
 
   ```sh
   $ llvm-project/llvm/projects/mlir/regression/generic/regression_generic.sh mobilenet_v2
-  $ llvm-project/llvm/projects/mlir/regression/generic/accuracy_generic.sh mobilenet_v2
+  $ llvm-project/llvm/projects/mlir/regression/generic/accuracy_generic.sh mobilenet_v2 50000
   ```
 
 ## Get Code and Build
