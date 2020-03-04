@@ -74,15 +74,6 @@ if [ $COMPARE_INT8_PER_LAYER -eq 1 ]; then
         shufflenet_cmdbuf_out_all_int8_per_layer.bin \
         neuron_map.csv \
         shufflenet_cmdbuf_out_all_int8_per_layer.npz
-    npz_to_bin.py \
-        shufflenet_cmdbuf_out_all_int8_per_layer.npz \
-        fc \
-        shufflenet_cmdbuf_out_fc_int8_per_layer.bin \
-        int8
-    bin_compare.py \
-        shufflenet_cmdbuf_out_fc_int8_per_layer.bin \
-        $REGRESSION_PATH/shufflenet_v2/data/test_cat_out_shufflenet_fc_int8_per_layer.bin \
-        int8 1 1 1 1000 5
 
     # compare all tensors
     npz_compare.py \
@@ -145,15 +136,6 @@ bin_to_npz.py \
     shufflenet_cmdbuf_out_all_int8_multiplier.bin \
     neuron_map.csv \
     shufflenet_cmdbuf_out_all_int8_multiplier.npz
-npz_to_bin.py \
-    shufflenet_cmdbuf_out_all_int8_multiplier.npz \
-    fc \
-    shufflenet_cmdbuf_out_fc_int8_multiplier.bin \
-    int8
-bin_compare.py \
-    shufflenet_cmdbuf_out_fc_int8_multiplier.bin \
-    $REGRESSION_PATH/shufflenet_v2/data/test_cat_out_shufflenet_fc_int8_multiplier.bin \
-    int8 1 1 1 1000 5
 
 # compare all tensors
 npz_compare.py \

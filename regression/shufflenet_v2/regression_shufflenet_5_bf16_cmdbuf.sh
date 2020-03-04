@@ -61,15 +61,6 @@ bin_to_npz.py \
     shufflenet_cmdbuf_out_all_bf16.bin \
     neuron_map_bf16.csv \
     shufflenet_cmdbuf_out_all_bf16.npz
-npz_to_bin.py \
-    shufflenet_cmdbuf_out_all_bf16.npz \
-    fc \
-    shufflenet_cmdbuf_out_fc_bf16.bin \
-    bf16
-bin_compare.py \
-    shufflenet_cmdbuf_out_fc_bf16.bin \
-    $REGRESSION_PATH/shufflenet_v2/data/test_cat_out_shufflenet_fc_bf16.bin \
-    bf16 1 1 1 1000 5
 
 # compare all tensors
 npz_compare.py \
