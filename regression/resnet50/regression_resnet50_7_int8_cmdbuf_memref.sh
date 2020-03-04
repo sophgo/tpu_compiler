@@ -39,6 +39,13 @@ mlir-opt \
     resnet50_quant_int8_multiplier_tg.mlir \
     -o resnet50_quant_int8_multiplier_tg_memref.mlir
 
+# op lower to MemRefType
+mlir-opt \
+    --debug \
+    --convert-tg-op-to-memref \
+    resnet50_quant_int8_multiplier_tg_memref.mlir \
+    -o resnet50_quant_int8_multiplier_tg_op_memref.mlir
+
 # assign weight address & neuron address
 mlir-opt \
     --assign-weight-address \

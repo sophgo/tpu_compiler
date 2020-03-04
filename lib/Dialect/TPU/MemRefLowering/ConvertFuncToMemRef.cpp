@@ -40,13 +40,15 @@ Value *resolveValueToSourceMemRef(Value *value, Operation *useOp) {
 }
 
 // Borrow from IREE
-MemRefType convertLegacyTypeToMemRef(Type type) {
+MemRefType convertLegacyTypeToMemRef(Type type, unsigned memorySpace=0) {
   if (type.isIntOrIndexOrFloat()) {
-    return MemRefType::get({}, type, {}, 0);
+    return MemRefType::get({}, type, {}, memorySpace);
   } else if (auto tensorType = type.dyn_cast<RankedTensorType>()) {
-    return MemRefType::get(tensorType.getShape(), tensorType.getElementType());
+    return MemRefType::get(tensorType.getShape(), tensorType.getElementType(),
+                           {}, memorySpace);
   } else if (auto memRefType = type.dyn_cast<MemRefType>()) {
-    return MemRefType::get(memRefType.getShape(), memRefType.getElementType());
+    return MemRefType::get(memRefType.getShape(), memRefType.getElementType(),
+                           {}, memorySpace);
   } else {
     llvm_unreachable("Unconvertable type");
   }
@@ -88,8 +90,11 @@ Value* insertStore(Operation *oldOp, Value *oldValue, OpBuilder &builder,
     return newValue;
   } else if (oldValue->getType().isa<TensorType>()) {
     // Allocate the memref to store the value.
-    auto newStorage = builder.create<AllocOp>(
-        oldOp->getLoc(), convertLegacyTypeToMemRef(oldValue->getType()));
+    // For simpilcity, I do not distingish activation and output.
+    // Otherwise we need to consider how to handle last activation and output.
+    auto memRefType = convertLegacyTypeToMemRef(oldValue->getType(),
+                                                2/*TPU_MEM_REGION_ACTIVATION*/);
+    auto newStorage = builder.create<AllocOp>(oldOp->getLoc(), memRefType);
 
     // Insert the store we'll use to box the value.
     // builder.create<StoreOp>(oldOp->getLoc(), newValue, newStorage,
@@ -154,7 +159,9 @@ FunctionType getMemRefFunctionType(FunctionType type) {
   }
   llvm::SmallVector<Type, 8> replacementResults;
   for (auto resultType : type.getResults()) {
-    auto memRefType = convertLegacyTypeToMemRef(resultType);
+    // For simpilcity, I do not distingish activation and output.
+    // Otherwise we need to consider how to handle last activation and output.
+    auto memRefType = convertLegacyTypeToMemRef(resultType, 2/*TPU_MEM_REGION_ACTIVATION*/);
     if (!memRefType) {
       return nullptr;
     }
