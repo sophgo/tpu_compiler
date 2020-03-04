@@ -115,8 +115,8 @@ fi
 if [ $NET = "mobilenet_v2" ]; then
 export MODEL_DEF=$MODEL_PATH/imagenet/mobilenet_v2/caffe/mobilenet_v2_deploy.prototxt
 export MODEL_DAT=$MODEL_PATH/imagenet/mobilenet_v2/caffe/mobilenet_v2.caffemodel
-export DO_CALIBRATION=1
-# export CALI_TABLE=$REGRESSION_PATH/mobilenet_v2/data/mobilenet_v2_calibration_table
+#export DO_CALIBRATION=1
+export CALI_TABLE=$REGRESSION_PATH/mobilenet_v2/data/mobilenet_v2_calibration_table
 export IMAGE_DIM=224,224
 export RAW_SCALE=255.0
 export MEAN=103.94,116.78,123.68
