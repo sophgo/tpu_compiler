@@ -335,6 +335,8 @@ public:
           || isa<tpu::NoneOp>(op)) {
         // no need to assign
       } else if (isa<tpu::ReshapeOp>(op)) {
+        // do not assign  
+      } else if (isa<tpu::SliceOp>(op)){
         // do not assign
       } else if ( !failed(setThresholdFromMap(op, threshold_map))) {
         // success

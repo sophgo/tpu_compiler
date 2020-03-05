@@ -652,7 +652,7 @@ struct TpuQuantInt8DefaultPattern : public RewritePattern {
         bypass = false;
       }
     }
-    if (bypass) {
+    if (bypass && OpTy::getOperationName() != "tpu.pool_avg_2d") {
       // leave quant_rshift and quant_mulitplier as NoneOp to indicate bypass
       LLVM_DEBUG(llvm::errs() << " < " << getOpName(op)
                               << ",  quantization bypassed\n";);

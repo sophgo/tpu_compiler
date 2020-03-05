@@ -7,6 +7,7 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 # please keep in alphabetical order
 net_list=(
   "bmface_v3"
+  "liveness"
   "resnet50"
   "yolo_v3"
   "ssd300"
