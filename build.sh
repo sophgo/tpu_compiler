@@ -170,4 +170,6 @@ popd
 cp $MLIR_SRC_PATH/externals/profiling/tool/performance.html $PROFILING_PATH/bin/
 
 # SoC build
-# TODO
+if [ "$1" = "SOC" ]; then
+source build_soc.sh
+fi

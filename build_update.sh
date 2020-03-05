@@ -41,11 +41,9 @@ popd
 cp $MLIR_SRC_PATH/python/calibration/*.py $TPU_PYTHON_PATH/
 
 # cvibuilder
-pushd $BUILD_PATH/build_cvimodel/include
-$INSTALL_PATH/flatbuffers/bin/flatc --cpp --gen-object-api \
-    $MLIR_SRC_PATH/externals/cvibuilder/src/cvimodel.fbs
+pushd $BUILD_PATH/build_cvimodel
+cmake --build . --target install
 popd
-cp -a $MLIR_SRC_PATH/externals/cvibuilder/python/* $TPU_PYTHON_PATH/
 
 # build cmodel
 pushd $BUILD_PATH/build_cmodel
