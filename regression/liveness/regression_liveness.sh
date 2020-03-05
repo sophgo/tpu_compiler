@@ -15,7 +15,7 @@ rm -f *.mlir *.bin *.npz *.csv
 # run tests
 $DIR/regression_liveness_1_fp32.sh
 $DIR/regression_liveness_2_int8.sh
-# $DIR/regression_liveness_3_int8_cmdbuf.sh
+$DIR/regression_liveness_3_int8_cmdbuf.sh
 #$DIR/regression_resnet50_4_bf16.sh
 #$DIR/regression_resnet50_5_bf16_cmdbuf.sh
 

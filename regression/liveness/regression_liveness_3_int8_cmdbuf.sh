@@ -19,7 +19,7 @@ mlir-opt \
     --tpu-lower \
     liveness_quant_int8_multiplier.mlir \
     -o  liveness_quant_int8_tg.mlir
-    
+
 ################################
 # quantization 3: multiplier int8
 ################################
@@ -40,20 +40,19 @@ mlir-translate \
     liveness_quant_int8_cmdbuf.mlir \
     -o cmdbuf.bin
 
-# generate cvi model
-python $TPU_PYTHON_PATH/cvi_model_create.py \
+# generate cvimodel
+build_cvimodel.py \
     --cmdbuf cmdbuf.bin \
     --weight weight.bin \
-    --neuron_map neuron_map.csv \
-    --output=liveness_int8.cvimodel
+    --mlir liveness_quant_int8_cmdbuf.mlir \
+    --cpufunc_dir ${RUNTIME_PATH}/lib/cpu \
+    --output liveness_int8.cvimodel
 
-# run cmdbuf
-test_cvinet \
-    liveness_in_int8.bin  \
-    liveness_int8.cvimodel \
-    liveness_cmdbuf_out_all_int8.bin
-
-
+# run cvimodel
+model_runner \
+    --input liveness_in_int8.bin  \
+    --model liveness_int8.cvimodel \
+    --output liveness_cmdbuf_out_all_int8.bin
 
 # compare all tensors
 bin_to_npz.py \
