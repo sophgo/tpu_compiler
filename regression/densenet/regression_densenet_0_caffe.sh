@@ -10,7 +10,7 @@ run_caffe_classifier.py \
     --pretrained_model $MODEL_PATH/imagenet/densenet/caffe/densenet121.caffemodel \
     --mean 103.94,116.78,123.68 \
     --input_scale 0.017 \
-    --images_dim 224,224 \
+    --net_input_dims 224,224 \
     --dump_blobs densenet_blobs.npz \
     --dump_weights densenet_weights.npz \
     --label_file $PYTHON_TOOLS_PATH/data/ilsvrc12/synset_words.txt \

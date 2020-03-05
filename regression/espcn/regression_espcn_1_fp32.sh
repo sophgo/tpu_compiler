@@ -13,7 +13,7 @@ randomn_image.py 1 1 512 512 $DATA_PATH/test_espcn_cat_in_fp32 \
 python $PYTHON_TOOLS_PATH/run_caffe_inference.py \
 --model_def $MODEL_PATH/caffe/espcn_2x.prototxt \
 --pretrained_model $MODEL_PATH/caffe/espcn_2x.caffemodel \
---images_dim='512,512' \
+--net_input_dims='512,512' \
 --mean_file "" \
 --channel_swap 0 \
 $DATA_PATH/test_espcn_cat_in_fp32.jpg \

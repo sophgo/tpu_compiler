@@ -11,6 +11,6 @@ CALI_PATH=$REGRESSION_PATH/shufflenet_v2
     $CALI_PATH/shufflenet/shufflenet_opt.mlir \
     $CALI_PATH/data/input.txt \
     --output_file=$CALIPATH/data/shufflenet_v2_threshold_table \
-    --images_dim 224,224 \
+    --net_input_dims 224,224 \
     --raw_scale 1.0 \
     --input_num=1000

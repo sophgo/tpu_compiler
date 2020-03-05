@@ -23,7 +23,8 @@ import torchvision.datasets as datasets
 parser = argparse.ArgumentParser(description="Classification Evaluation on ImageNet Dataset.")
 parser.add_argument("--model", type=str)
 parser.add_argument("--dataset", type=str, help="The root directory of the ImageNet dataset.")
-parser.add_argument("--images_dim", type=str, default='224,224')
+parser.add_argument("--image_resize_dims", type=str, default='256,256')
+parser.add_argument("--net_input_dims", type=str, default='224,224')
 parser.add_argument("--raw_scale", type=float, help="Multiply raw input image data by this scale.")
 parser.add_argument("--mean", help="Per Channel image mean values")
 parser.add_argument("--mean_file", type=str, help="the resized ImageNet dataset mean file.")
@@ -69,7 +70,6 @@ class AverageMeter(object):
         fmtstr = '{name} {val' + self.fmt + '} ({avg' + self.fmt + '})'
         return fmtstr.format(**self.__dict__)
 
-
 class ProgressMeter(object):
     def __init__(self, num_batches, meters, prefix=""):
         self.batch_fmtstr = self._get_batch_fmtstr(num_batches)
@@ -85,7 +85,6 @@ class ProgressMeter(object):
         num_digits = len(str(num_batches // 1))
         fmt = '{:' + str(num_digits) + 'd}'
         return '[' + fmt + '/' + fmt.format(num_batches) + ']'
-
 
 def accuracy(output, target, topk=(1,)):
     """Computes the accuracy over the k top predictions for the specified values of k"""
@@ -109,8 +108,10 @@ if __name__ == '__main__':
   # onedir = os.path.join(args.dataset, 'one')
   batch_size = 1
 
+  image_resize_dims = [int(s) for s in args.image_resize_dims.split(',')]
+  net_input_dims = [int(s) for s in args.net_input_dims.split(',')]
+  image_resize_dims = [ max(x,y) for (x,y) in zip(image_resize_dims, net_input_dims)]
 
-  images_dim = [int(s) for s in args.images_dim.split(',')]
   if args.raw_scale:
     raw_scale = float(args.raw_scale)
   else:
@@ -130,7 +131,6 @@ if __name__ == '__main__':
 
   input_scale = float(args.input_scale)
 
-
   # load model
   module = pymlir.module()
   print('load module ', args.model)
@@ -142,8 +142,8 @@ if __name__ == '__main__':
                                      std=[0.229, 0.224, 0.225])
     val_loader = torch.utils.data.DataLoader(
         datasets.ImageFolder(valdir, transforms.Compose([
-            transforms.Resize(images_dim if images_dim[0] > 256 else (256,256)),
-            transforms.CenterCrop(images_dim),
+            transforms.Resize(image_resize_dims),
+            transforms.CenterCrop(net_input_dims),
             transforms.ToTensor(),
             normalize,
         ])),
@@ -151,8 +151,8 @@ if __name__ == '__main__':
   else:
     val_loader = torch.utils.data.DataLoader(
         datasets.ImageFolder(valdir, transforms.Compose([
-            transforms.Resize(images_dim if images_dim[0] > 256 else (256,256)),
-            transforms.CenterCrop(images_dim),
+            transforms.Resize(image_resize_dims),
+            transforms.CenterCrop(net_input_dims),
             transforms.ToTensor()
         ])),
         batch_size=batch_size, shuffle=True)

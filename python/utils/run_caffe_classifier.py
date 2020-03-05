@@ -178,9 +178,14 @@ def main(argv):
         help="Trained model weights file."
     )
     parser.add_argument(
-        "--images_dim",
+        "--net_input_dims",
+        default='224,224',
+        help="'height,width' dimensions of network input spatial dimensions."
+    )
+    parser.add_argument(
+        "--image_resize_dims",
         default='256,256',
-        help="Canonical 'height,width' dimensions of input images."
+        help="To resize to this size first, then crop to net_input_dims."
     )
     parser.add_argument(
         "--mean_file",
@@ -226,7 +231,9 @@ def main(argv):
     )
     args = parser.parse_args()
 
-    image_dims = [int(s) for s in args.images_dim.split(',')]
+    image_resize_dims = [int(s) for s in args.image_resize_dims.split(',')]
+    net_input_dims = [int(s) for s in args.net_input_dims.split(',')]
+    image_resize_dims = [ max(x,y) for (x,y) in zip(image_resize_dims, net_input_dims)]
 
     mean, channel_swap = None, None
     if args.mean:
@@ -239,7 +246,7 @@ def main(argv):
 
     # Make classifier.
     classifier = My_Classifier(args.model_def, args.pretrained_model,
-            image_dims=image_dims, mean=mean,
+            image_dims=image_resize_dims, mean=mean,
             input_scale=args.input_scale, raw_scale=args.raw_scale,
             channel_swap=channel_swap)
 

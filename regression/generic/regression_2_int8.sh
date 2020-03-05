@@ -20,7 +20,7 @@ if [ $DO_CALIBRATION -eq 1 ]; then
     ${NET}_opt.mlir \
     cali_list_imagenet.txt \
     --output_file=${NET}_threshold_table \
-    --images_dim $IMAGE_DIM \
+    --net_input_dims $NET_INPUT_DIMS \
     --raw_scale $RAW_SCALE \
     --mean $MEAN \
     --input_scale $INPUT_SCALE \

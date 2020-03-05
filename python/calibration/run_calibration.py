@@ -46,8 +46,19 @@ def preprocess_yolov3(image_path, args, net_input_dims=(416,416)):
   new_image = np.expand_dims(new_image, axis=0)
   return new_image
 
+def center_crop(img,crop_dim):
+  print(img.shape)
+  h,w,_ = img.shape
+  cropy,cropx = crop_dim
+  startx = w//2-(cropx//2)
+  starty = h//2-(cropy//2)
+  return img[starty:starty+cropy, startx:startx+cropx, :]
+
 def preprocess_generic(image_path, args):
-  images_dim = [int(s) for s in args.images_dim.split(',')]
+  image_resize_dims = [int(s) for s in args.image_resize_dims.split(',')]
+  net_input_dims = [int(s) for s in args.net_input_dims.split(',')]
+  image_resize_dims = [ max(x,y) for (x,y) in zip(image_resize_dims, net_input_dims)]
+
   if args.raw_scale:
     raw_scale = float(args.raw_scale)
   else:
@@ -65,8 +76,13 @@ def preprocess_generic(image_path, args):
 
   image = cv2.imread(str(image_path).rstrip())
   image = image.astype(np.float32)
-  x = cv2.resize(image, (images_dim[1], images_dim[0])) # w,h
+  # resize
+  x = cv2.resize(image, (image_resize_dims[1], image_resize_dims[0])) # w,h
+  # Take center crop.
+  x = center_crop(x, net_input_dims)
+  # transpose
   x = np.transpose(x, (2, 0, 1))
+  # preprocess
   x = x * raw_scale /255.0
   if mean.size != 0:
     x -= mean
@@ -81,7 +97,8 @@ if __name__ == '__main__':
   parser.add_argument('image_list_file', metavar='image_list_file', help='Input image list file')
   parser.add_argument('--output_file', metavar='output_file', help='Output file')
   parser.add_argument('--model_name', metavar='model_name', help='Model name', default='generic')
-  parser.add_argument("--images_dim", type=str, default='224,224')
+  parser.add_argument("--image_resize_dims", type=str, default='256,256')
+  parser.add_argument("--net_input_dims", type=str, default='224,224')
   parser.add_argument("--raw_scale", type=float, help="Multiply raw input image data by this scale.")
   parser.add_argument("--mean", help="Per Channel image mean values")
   parser.add_argument("--mean_file", type=str, help="the resized ImageNet dataset mean file.")
