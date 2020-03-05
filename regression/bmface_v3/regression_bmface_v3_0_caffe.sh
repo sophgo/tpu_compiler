@@ -9,8 +9,8 @@ CAFFE_BLOBS_NPZ="bmface-v3_blobs.npz"
 if [ ! -f "$CAFFE_BLOBS_NPZ" ]; then
   # run caffe model
   run_caffe_feature_extract.py \
-      --model_def $MODEL_PATH/face_recognition/bmface/caffe/fp32/2020.01.15.01/bmface-v3.prototxt \
-      --pretrained_model $MODEL_PATH/face_recognition/bmface/caffe/fp32/2020.01.15.01/bmface-v3.caffemodel \
+      --model_def $MODEL_PATH/face_recognition/bmface/caffe/bmface-v3.prototxt \
+      --pretrained_model $MODEL_PATH/face_recognition/bmface/caffe/bmface-v3.caffemodel \
       --dump_blobs $CAFFE_BLOBS_NPZ \
       --dump_weights bmface-v3_weights.npz \
       --input_file $REGRESSION_PATH/bmface_v3/data/Aaron_Eckhart_0001.jpg 

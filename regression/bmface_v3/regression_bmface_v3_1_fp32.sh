@@ -8,8 +8,8 @@ CHECK_NON_OPT_VERSION=0
 
 # translate from caffe model
 mlir-translate \
-    --caffe-to-mlir $MODEL_PATH/face_recognition/bmface/caffe/fp32/2020.01.15.01/bmface-v3.prototxt \
-    --caffemodel $MODEL_PATH/face_recognition/bmface/caffe/fp32/2020.01.15.01/bmface-v3.caffemodel \
+    --caffe-to-mlir $MODEL_PATH/face_recognition/bmface/caffe/bmface-v3.prototxt \
+    --caffemodel $MODEL_PATH/face_recognition/bmface/caffe/bmface-v3.caffemodel \
     -o bmface-v3.mlir
 
 if [ $CHECK_NON_OPT_VERSION -eq 1 ]; then
