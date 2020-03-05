@@ -78,3 +78,7 @@ if [[ -z "$INSTALL_SOC_PATH" ]]; then
   INSTALL_SOC_PATH=$TPU_BASE/install_soc
 fi
 export INSTALL_SOC_PATH=$INSTALL_SOC_PATH
+if [[ -z "$BUILD_SOC_PATH" ]]; then
+  BUILD_SOC_PATH=$TPU_BASE/build_soc
+fi
+export BUILD_SOC_PATH=$BUILD_SOC_PATH
