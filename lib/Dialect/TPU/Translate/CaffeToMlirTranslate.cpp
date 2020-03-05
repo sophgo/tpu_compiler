@@ -219,12 +219,13 @@ void CaffeImporter::ParseNetInputOutput(caffe::Net<float> &net,
     /// determine the shape by parsing the `keep_top_k` field of the layer
     ///
     auto layer = net.layer_by_name(net.blob_names()[index]);
-    if (strcmp(layer->type(), "DetectionOutput") == 0) {
-      auto layer_param = layer->layer_param();
-      auto detection_output_param = layer_param.detection_output_param();
-      output_shape[2] = detection_output_param.keep_top_k();
+    if(layer.get() != nullptr){
+      if (strcmp(layer->type(), "DetectionOutput") == 0) {   
+        auto layer_param = layer->layer_param();
+        auto detection_output_param = layer_param.detection_output_param();
+        output_shape[2] = detection_output_param.keep_top_k();
+      }
     }
-
     outputs[net.blob_names()[index]] = GetTypeFromCaffeShape(
         output_shape, elementType_);
   }
