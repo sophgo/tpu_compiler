@@ -4,20 +4,22 @@ set -e
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 source $DIR/../../envsetup.sh
 
-#  Lower for quantization
-mlir-opt \
-    --tpu-lower \
-    bmface-v3_quant_int8_multiplier.mlir \
-    -o  bmface-v3_quant_int8_tg.mlir
+
 
 # # create int8 input
-npz_to_bin.py $REGRESSION_PATH/bmface_v3/data/bmface_v3_in_fp32_scale.npz data bmface_in_fp32.bin
+npz_to_bin.py bmface-v3_in_fp32.npz data bmface_in_fp32.bin
+
 bin_fp32_to_int8.py \
     bmface_in_fp32.bin \
     bmface_in_int8.bin \
     1.0 \
     0.996580362
 
+#  Lower for quantization
+mlir-opt \
+    --tpu-lower \
+    bmface-v3_quant_int8_multiplier.mlir \
+    -o  bmface-v3_quant_int8_tg.mlir
 # assign weight address & neuron address
 mlir-opt \
     --assign-weight-address \
@@ -57,7 +59,7 @@ bin_to_npz.py \
 
 npz_compare.py \
     bmface-v3_cmdbuf_out_all_int8.npz \
-    bmface-v3_tensor_all_int8_multiplier.npz\
+    bmface-v3_tensor_all_int8_multiplier.npz \
     --op_info bmface-v3_op_info.csv \
     --tolerance 0.9,0.9,0.6 -v
 

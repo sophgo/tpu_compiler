@@ -22,7 +22,7 @@ mlir-opt \
     -o bmface-v3_quant_int8_multiplier.mlir
 
 mlir-tpu-interpreter bmface-v3_quant_int8_multiplier.mlir \
-    --tensor-in $REGRESSION_PATH/bmface_v3/data/bmface_v3_in_fp32_scale.npz \
+    --tensor-in bmface-v3_in_fp32.npz \
     --tensor-out bmface-v3_out_int8_multiplier.npz \
     --dump-all-tensor=bmface-v3_tensor_all_int8_multiplier.npz
 
