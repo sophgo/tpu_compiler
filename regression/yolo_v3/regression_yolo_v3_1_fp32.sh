@@ -53,7 +53,7 @@ npz_compare.py \
     yolo_v3_tensor_all_fp32.npz \
     yolo_v3_blobs.npz \
     --op_info yolo_v3_op_info.csv \
-    --tolerance=0.9999,0.9999,0.999 -vv
+    --tolerance=0.999,0.999,0.999 -vv
 
 # VERDICT
 echo $0 PASSED

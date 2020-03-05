@@ -28,7 +28,7 @@ npz_compare.py \
     vgg16_tensor_all_fp32.npz \
     vgg16_blobs.npz \
     --op_info vgg16_op_info.csv \
-    --tolerance=0.9999,0.9999,0.999 -vvv
+    --tolerance=0.999,0.999,0.999 -vvv
 
 # apply frontend optimizations
 mlir-opt \
