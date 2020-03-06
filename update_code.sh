@@ -13,7 +13,7 @@ pushd llvm-project/llvm/projects/mlir/externals/backend
 git pull --rebase
 popd
 
-pushd llvm-project/llvm/projects/mlir/externals/bmkernel
+pushd llvm-project/llvm/projects/mlir/externals/cvikernel
 git pull --rebase
 popd
 
@@ -25,7 +25,7 @@ pushd llvm-project/llvm/projects/mlir/externals/cvibuilder
 git pull --rebase
 popd
 
-pushd llvm-project/llvm/projects/mlir/externals/runtime
+pushd llvm-project/llvm/projects/mlir/externals/cviruntime
 git pull --rebase
 popd
 

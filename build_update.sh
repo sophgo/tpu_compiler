@@ -15,8 +15,8 @@ cmake --build . --target install
 popd
 cp -a $MLIR_SRC_PATH/third_party/flatbuffers/python $FLATBUFFERS_PATH/
 
-# build bmkernel
-pushd $BUILD_PATH/build_bmkernel
+# build cvikernel
+pushd $BUILD_PATH/build_cvikernel
 cmake --build . --target install
 popd
 

@@ -79,10 +79,10 @@ All rely on manually build, except backend, backend is using tree build.\
 Read externals/README.md for details.
 
 1. python_tools
-1. bmkernel
+1. cvikernel
 1. backend
 1. cmodel (for testing only)
-1. bmbuilder (for testing only)
+1. cvibuilder (for testing only)
 1. support (for testing only)
 1. runtime (for testing only)
 
@@ -93,7 +93,7 @@ $ cd llvm-project
 $ mkdir build
 $ cd build
 
-$ cmake -G Ninja ../llvm -DLLVM_BUILD_EXAMPLES=ON -DLLVM_TARGETS_TO_BUILD="host" -DCAFFE_PATH=$TPU_BASE/install_caffe -DMKLDNN_PATH=$TPU_BASE/install_mkldnn -DBMKERNEL_PATH=$TPU_BASE/install_bmkernel -DCMAKE_INSTALL_PREFIX=$TPU_BASE/install_mlir -DLLVM_ENABLE_RTTI=ON -DLLVM_ENABLE_EH=ON
+$ cmake -G Ninja ../llvm -DLLVM_BUILD_EXAMPLES=ON -DLLVM_TARGETS_TO_BUILD="host" -DCAFFE_PATH=$TPU_BASE/install_caffe -DMKLDNN_PATH=$TPU_BASE/install_mkldnn -DCVIKERNEL_PATH=$TPU_BASE/install_cvikernel -DCMAKE_INSTALL_PREFIX=$TPU_BASE/install_mlir -DLLVM_ENABLE_RTTI=ON -DLLVM_ENABLE_EH=ON
 
 $ cmake --build . --target check-mlir
 

@@ -11,6 +11,11 @@ else
   BUILD_FLAG="-DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS=-ggdb"
 fi
 
+if [[ $(lsb_release -rs) == "16.04" ]]; then
+ BUILD_SYSTEMC_FLAG="CXXFLAGS=-std=c++11"
+ BUILD_PROFILING_FLAG="-DCMAKE_CXX_FLAGS=-std=gnu++11"
+fi
+
 # mkdir
 if [ ! -e $INSTALL_PATH ]; then
   mkdir -p $INSTALL_PATH
@@ -41,6 +46,7 @@ fi
 pushd $BUILD_PATH/build_caffe
 cmake -G Ninja -DCPU_ONLY=ON -DUSE_OPENCV=OFF \
     -DCMAKE_INSTALL_PREFIX=$CAFFE_PATH \
+    -DBLAS=open -DUSE_OPENMP=TRUE \
     $MLIR_SRC_PATH/third_party/caffe
 cmake --build . --target install
 popd
@@ -56,14 +62,14 @@ cmake --build . --target install
 popd
 cp -a $MLIR_SRC_PATH/third_party/flatbuffers/python $FLATBUFFERS_PATH/
 
-# build bmkernel
-if [ ! -e $BUILD_PATH/build_bmkernel ]; then
-  mkdir -p $BUILD_PATH/build_bmkernel
+# build cvikernel
+if [ ! -e $BUILD_PATH/build_cvikernel ]; then
+  mkdir -p $BUILD_PATH/build_cvikernel
 fi
-pushd $BUILD_PATH/build_bmkernel
+pushd $BUILD_PATH/build_cvikernel
 cmake -G Ninja -DCHIP=BM1880v2 $BUILD_FLAG \
-    -DCMAKE_INSTALL_PREFIX=$BMKERNEL_PATH \
-    $MLIR_SRC_PATH/externals/bmkernel
+    -DCMAKE_INSTALL_PREFIX=$CVIKERNEL_PATH \
+    $MLIR_SRC_PATH/externals/cvikernel
 cmake --build . --target install
 popd
 
@@ -75,7 +81,7 @@ cmake -G Ninja -DLLVM_BUILD_EXAMPLES=OFF \
     $BUILD_FLAG \
     -DMKLDNN_PATH=$MKLDNN_PATH \
     -DCAFFE_PATH=$CAFFE_PATH \
-    -DBMKERNEL_PATH=$BMKERNEL_PATH \
+    -DCVIKERNEL_PATH=$CVIKERNEL_PATH \
     -DCMAKE_INSTALL_PREFIX=$MLIR_PATH \
     $TPU_BASE/llvm-project/llvm
 cmake --build . --target check-mlir
@@ -115,24 +121,24 @@ if [ ! -e $BUILD_PATH/build_cmodel ]; then
 fi
 pushd $BUILD_PATH/build_cmodel
 cmake -G Ninja -DCHIP=BM1880v2 $BUILD_FLAG \
-    -DBMKERNEL_PATH=$BMKERNEL_PATH \
+    -DCVIKERNEL_PATH=$CVIKERNEL_PATH \
     -DCMAKE_INSTALL_PREFIX=$CMODEL_PATH \
     $MLIR_SRC_PATH/externals/cmodel
 cmake --build . --target install
 popd
 
 # build runtime
-if [ ! -e $BUILD_PATH/build_runtime ]; then
-  mkdir $BUILD_PATH/build_runtime
+if [ ! -e $BUILD_PATH/build_cviruntime ]; then
+  mkdir $BUILD_PATH/build_cviruntime
 fi
-pushd $BUILD_PATH/build_runtime
+pushd $BUILD_PATH/build_cviruntime
 cmake -G Ninja -DCHIP=BM1880v2 -DRUNTIME=CMODEL $BUILD_FLAG \
-    -DBMKERNEL_PATH=$BMKERNEL_PATH \
+    -DCVIKERNEL_PATH=$CVIKERNEL_PATH \
     -DCMODEL_PATH=$CMODEL_PATH \
     -DFLATBUFFERS_PATH=$FLATBUFFERS_PATH \
     -DCVIBUILDER_PATH=$BUILD_PATH/build_cvimodel \
     -DCMAKE_INSTALL_PREFIX=$RUNTIME_PATH \
-    $MLIR_SRC_PATH/externals/runtime
+    $MLIR_SRC_PATH/externals/cviruntime
 cmake --build . --target install
 popd
 
@@ -140,8 +146,8 @@ popd
 # building has some issue, has to build in place for now
 pushd $MLIR_SRC_PATH/third_party/systemc-2.3.3
 autoreconf -ivf
-./configure
-make -j3
+./configure $BUILD_SYSTEMC_FLAG
+make -j`nproc`
 make install
 mkdir -p $SYSTEMC_PATH
 cp -a include $SYSTEMC_PATH/
@@ -156,6 +162,7 @@ pushd $BUILD_PATH/build_profiling
 cmake -G Ninja  \
     -DSYSTEMC_PATH=$SYSTEMC_PATH \
     -DCMAKE_INSTALL_PREFIX=$PROFILING_PATH \
+    $BUILD_PROFILING_FLAG \
     $MLIR_SRC_PATH/externals/profiling
 cmake --build . --target install
 popd

@@ -14,43 +14,43 @@ Should update all projects to support tree build later.
 - dependencies
   * none
 
-## bmkernel
+## cvikernel
 
-- git@xxx:../bmkernel.git
+- git@xxx:../cvikernel.git
 - TPU Dialect link to this library for code gen
 - dependencies
   * none
 
 ```
-$ cd externals/bmkernel
+$ cd externals/cvikernel
 $ mkdir build
 $ cd build
-$ cmake -G Ninja -DCHIP=BM1880v2 -DCMAKE_INSTALL_PREFIX=~/work_cvitek/install_bmkernel ..
+$ cmake -G Ninja -DCHIP=BM1880v2 -DCMAKE_INSTALL_PREFIX=~/work_cvitek/install_cvikernel ..
 $ cmake --build . --target install
 ```
-Read bmkernel/README.md for more details.
+Read cvikernel/README.md for more details.
 
 ## backend
 
 - git@xxx:../backend.git
 - TPU Dialect link to this library for code gen
 - dependencies
-  * bmkernel
+  * cvikernel
 
 Only support tree build for now, as it is using some llvm debug facilities.
 
 ## cmodel
 
-- git@xxx:../bmkernel.git
+- git@xxx:../cvikernel.git
 - for testing in cmodel mode, not linking in mlir-tpu
 - dependencies
-  * bmkernel
+  * cvikernel
 
 ```
 $ cd externals/cmodel
 $ mkdir build
 $ cd build
-$ cmake -G Ninja -DCHIP=BM1880v2 -DBMKERNEL_PATH=~/work_cvitek/install_bmkernel -DCMAKE_INSTALL_PREFIX=~/work_cvitek/install_cmodel ..
+$ cmake -G Ninja -DCHIP=BM1880v2 -DCVIKERNEL_PATH=~/work_cvitek/install_cvikernel -DCMAKE_INSTALL_PREFIX=~/work_cvitek/install_cmodel ..
 $ cmake --build . --target install
 ```
 Read cmodel/README.md for more details.
@@ -86,7 +86,7 @@ $ cmake --build . --target install
 - git@xxx:../runtime.git
 - for testing, not linking in mlir-tpu
 - dependencies
-  * bmkernel
+  * cvikernel
   * cvibuilder
   * cmodel
   * support
@@ -95,7 +95,7 @@ $ cmake --build . --target install
 $ cd runtime
 $ mkdir build
 $ cd build
-$ cmake -G Ninja -DCHIP=BM1880v2 -DRUNTIME=CMODEL -DSUPPORT_PATH=~/work_cvitek/install_support -DCVIMODEL_PATH=~/work_cvitek/install_cvibuilder -DBMKERNEL_PATH=~/work_cvitek/install_bmkernel -DCMODEL_PATH=~/work_cvitek/install_cmodel -DCMAKE_INSTALL_PREFIX=~/work_cvitek/install_runtime ..
+$ cmake -G Ninja -DCHIP=BM1880v2 -DRUNTIME=CMODEL -DSUPPORT_PATH=~/work_cvitek/install_support -DCVIMODEL_PATH=~/work_cvitek/install_cvibuilder -DCVIKERNEL_PATH=~/work_cvitek/install_cvikernel -DCMODEL_PATH=~/work_cvitek/install_cmodel -DCMAKE_INSTALL_PREFIX=~/work_cvitek/install_runtime ..
 $ cmake --build . --target install
 ```
 Read runtime/README.md for more details.
