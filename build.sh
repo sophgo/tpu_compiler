@@ -91,6 +91,10 @@ cmake --build . --target install
 cp lib/pymlir.so $TPU_PYTHON_PATH
 cp lib/pybind.so $TPU_PYTHON_PATH
 popd
+
+# python converter
+cp -ar $MLIR_SRC_PATH/python/convert/* $TPU_PYTHON_PATH/
+
 cp $MLIR_SRC_PATH/bindings/python/tools/*.py $TPU_PYTHON_PATH/
 # python utils
 cp -a $MLIR_SRC_PATH/python/utils/* $TPU_PYTHON_PATH/
