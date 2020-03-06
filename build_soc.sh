@@ -38,6 +38,12 @@ fi
 if [ ! -e $BUILD_SOC_PATH ]; then
   mkdir -p $BUILD_SOC_PATH
 fi
+if [ ! -e $INSTALL_PATH ]; then
+  mkdir -p $INSTALL_PATH
+fi
+if [ ! -e $BUILD_PATH ]; then
+  mkdir -p $BUILD_PATH
+fi
 
 # build host flatbuffers
 if [ ! -f $INSTALL_PATH/flatbuffers/bin/flatc ]; then
