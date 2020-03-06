@@ -104,6 +104,8 @@ class OnnxConverter(BaseConverterInterface):
             "Add": lambda node: self.convert_add_op(node),
             "Conv": lambda node: self.convert_conv_op(node),
             "BatchNormalization": lambda node: self.convert_batchnorm_op(node),
+            "Flatten": lambda node: self.convert_flatten_op(node),
+            "Gemm": lambda node: self.convert_gemm_op(node),
             "GlobalAveragePool": lambda node: self.convert_global_avg_pool_op(node),
             "MaxPool": lambda node: self.convert_maxpool_op(node),
             "Relu": lambda node: self.convert_relu_op(node)
@@ -136,7 +138,7 @@ class OnnxConverter(BaseConverterInterface):
     def getTensor(self, op_name):
         find_tensor = [t for t in self.converted_tensors if t.name == op_name]
         if len(find_tensor) < 1:
-            return None
+            raise RuntimeError("No {} tensor in model".format(op_name))
         else:
             return find_tensor[0]
     
@@ -272,6 +274,41 @@ class OnnxConverter(BaseConverterInterface):
         scaleop = self.CVI.add_scale_op(onnx_node.name, operands, output_shape)
         self.addOperand(onnx_node.name, scaleop, output_shape)
     
+    def convert_flatten_op(self, onnx_node):
+        assert(onnx_node.op_type == "Flatten")
+        if onnx_node.attrs["axis"] != 1:
+            raise AttributeError("TODO: axis != 1 case")
+        op, input_shape = self.getOperand(onnx_node.inputs[0])
+        operands = list()
+        operands.append(op)
+        output_shape = [input_shape[0], input_shape[1]]
+        reshape_op = self.CVI.add_reshape_op(onnx_node.name, operands, output_shape)
+        self.addOperand(onnx_node.name, reshape_op, output_shape)
+
+    def convert_gemm_op(self, onnx_node):
+        assert(onnx_node.op_type == "Gemm")
+        #(M, K) * (K, N) => (M, N)
+        op, input_shape = self.getOperand(onnx_node.inputs[0])
+
+        operands = list()
+        operands.append(op)
+        weight_name = onnx_node.inputs[1]
+        weight_tensor = self.getTensor(weight_name)
+        weight_op = self.CVI.add_load_file_op(weight_name, weight_tensor.shape)
+        operands.append(weight_op)
+
+        bias_name = onnx_node.inputs[2]
+        bias_tensor = self.getTensor(bias_name)
+        bias_op = self.CVI.add_load_file_op(weight_name, bias_tensor.shape)
+        operands.append(bias_op)
+
+        M = input_shape[0]
+        K = input_shape[1]
+        N = bias_tensor.shape[0]
+        output_shape = [M, N]
+        fc_op = self.CVI.add_fully_connected_op(onnx_node.name, operands, output_shape)
+        self.addOperand(onnx_node.name, fc_op, output_shape)
+
     def convert_global_avg_pool_op(self, onnx_node):
         assert(onnx_node.op_type == "GlobalAveragePool")
         op, input_shape = self.getOperand(onnx_node.inputs[0])
