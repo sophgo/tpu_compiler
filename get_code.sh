@@ -13,6 +13,11 @@ git clone ssh://10.34.33.3:29418/llvm-project.git
 #git checkout -b tpu origin/tpu
 #pop
 
+git clone --recurse-submodules ssh://10.34.33.3:29418/mlir.git
+# or if forgot to add --recurse-submodules
+# git submodule update --init --recursive
+
+if false; then
 git clone ssh://10.34.33.3:29418/mlir.git
 #pushd mlir
 #git checkout -b tpu origin/tpu
@@ -61,5 +66,6 @@ mv cviruntime mlir/externals/
 mv cvibuilder mlir/externals/
 mv profiling mlir/externals/
 
-mv mlir llvm-project/llvm/projects/
+fi
 
+mv mlir llvm-project/llvm/projects/

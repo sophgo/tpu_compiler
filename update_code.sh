@@ -7,8 +7,10 @@ popd
 
 pushd llvm-project/llvm/projects/mlir
 git pull --rebase
+git submodule update --remote --rebase
 popd
 
+if false; then
 pushd llvm-project/llvm/projects/mlir/externals/backend
 git pull --rebase
 popd
@@ -44,5 +46,7 @@ popd
 pushd llvm-project/llvm/projects/mlir/third_party/pybind11
 git pull --rebase
 popd
+
+fi
 
 echo "Done"
