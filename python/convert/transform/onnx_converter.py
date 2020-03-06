@@ -58,7 +58,7 @@ class OnnxNode():
     def __init__(self, node):
         self.name = str(node.name)
         if self.name == '':
-            self.name = str(node.output)
+            self.name = str(node.output[0])
         self.op_type = str(node.op_type)
         self.attrs = dict([(attr.name, translate_onnx(attr.name, convert_onnx_attribute_proto(attr))) for attr in node.attribute])
         self.inputs = list(node.input)
@@ -101,7 +101,8 @@ class OnnxConverter(BaseConverterInterface):
         self.init_importer()
         self.output_tensor_file = "{}_1_06eeeb7e.npz".format(model_name)
         self.onnxop_factory = {
-            "Conv": lambda node: self.convert_conv_op(node)
+            "Conv": lambda node: self.convert_conv_op(node),
+            "BatchNormalization": lambda node: self.convert_batchnorm_op(node)
         }
     def init_importer(self):
         # get input shape
@@ -168,9 +169,9 @@ class OnnxConverter(BaseConverterInterface):
             raise RuntimeError("{} Op not support now".format(node.op_type))
         # add node op
         for n in self.converted_nodes:
-
+            n.print_info()
             self.onnxop_factory.get(n.op_type, lambda x: NoneAndRaise(x))(n)        
-
+            self.CVI.print_module()
         # add return op
 
 
@@ -215,6 +216,42 @@ class OnnxConverter(BaseConverterInterface):
         output_shape = [on, oc, oh, ow]
         conv_op = self.CVI.add_conv_op(onnx_node.name, opreands, output_shape, **conv_param)
         self.addOperand(onnx_node.name, conv_op, output_shape)
+
+    def convert_batchnorm_op(self, onnx_node):
+        assert(onnx_node.op_type == "BatchNormalization")
+        op, input_shape = self.getOperand(onnx_node.inputs[0])
+        operands = list()
+        operands.append(op)
+        epsilon = onnx_node.attrs['epsilon']
+        # we fuse batchnorm and scale at here
+        gamma_value = self.getTensor(onnx_node.inputs[1]).tensor_data
+        beta_value = self.getTensor(onnx_node.inputs[2]).tensor_data
+        mean_value = self.getTensor(onnx_node.inputs[3]).tensor_data
+        var_value = self.getTensor(onnx_node.inputs[4]).tensor_data
+        
+        scale_name = "{}_0".format(onnx_node.name)
+        scale_value = ((1.0 / np.sqrt(
+                    var_value + epsilon)) * gamma_value)
+        
+        scale_op = self.CVI.add_load_file_op(scale_name, self.getTensor(onnx_node.inputs[1]).shape)
+        # add new weight tensor
+        new_tensor_1 = OnnxTensor(scale_name, scale_value, self.getTensor(onnx_node.inputs[1]).shape)
+        self.converted_tensors.append(new_tensor_1)
+
+        offset_name =  "{}_1".format(onnx_node.name)
+        offset_value = (-mean_value * scale_value) + beta_value
+        offset_op = self.CVI.add_load_file_op(offset_name, self.getTensor(onnx_node.inputs[1]).shape)
+        # add new bias tensor
+        new_tensor_2 = OnnxTensor(offset_name, offset_value, self.getTensor(onnx_node.inputs[1]).shape)
+        self.converted_tensors.append(new_tensor_2)
+
+
+        operands.append(scale_op)
+        operands.append(offset_op)
+
+        output_shape = input_shape
+        scaleop = self.CVI.add_scale_op(onnx_node.name, operands, output_shape)
+        self.addOperand(onnx_node.name, scaleop, output_shape)
 
     def run(self):
         self.convert_node()
