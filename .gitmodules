@@ -1,0 +1,33 @@
+[submodule "externals/cviruntime"]
+	path = externals/cviruntime
+	url = ssh://10.34.33.3:29418/cviruntime.git
+[submodule "externals/cvibuilder"]
+	path = externals/cvibuilder
+	url = ssh://10.34.33.3:29418/cvibuilder.git
+[submodule "externals/cvikernel"]
+	path = externals/cvikernel
+	url = ssh://10.34.33.3:29418/cvikernel.git
+[submodule "externals/profiling"]
+	path = externals/profiling
+	url = ssh://10.34.33.3:29418/profiling.git
+[submodule "externals/cmodel"]
+	path = externals/cmodel
+	url = ssh://10.34.33.3:29418/cmodel.git
+[submodule "externals/backend"]
+	path = externals/backend
+	url = ssh://10.34.33.3:29418/backend.git
+[submodule "third_party/caffe"]
+	path = third_party/caffe
+	url = ssh://10.34.33.3:29418/caffe.git
+[submodule "third_party/cnpy"]
+	path = third_party/cnpy
+	url = ssh://10.34.33.3:29418/cnpy.git
+[submodule "third_party/flatbuffers"]
+	path = third_party/flatbuffers
+	url = ssh://10.34.33.3:29418/flatbuffers.git
+[submodule "third_party/pybind11"]
+	path = third_party/pybind11
+	url = ssh://10.34.33.3:29418/pybind11.git
+[submodule "third_party/systemc-2.3.3"]
+	path = third_party/systemc-2.3.3
+	url = ssh://10.34.33.3:29418/systemc-2.3.3.git
