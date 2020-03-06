@@ -101,8 +101,10 @@ class OnnxConverter(BaseConverterInterface):
         self.init_importer()
         self.output_tensor_file = "{}_1_06eeeb7e.npz".format(model_name)
         self.onnxop_factory = {
+            "Add": lambda node: self.convert_add_op(node),
             "Conv": lambda node: self.convert_conv_op(node),
             "BatchNormalization": lambda node: self.convert_batchnorm_op(node),
+            "GlobalAveragePool": lambda node: self.convert_global_avg_pool_op(node),
             "MaxPool": lambda node: self.convert_maxpool_op(node),
             "Relu": lambda node: self.convert_relu_op(node)
         }
@@ -176,6 +178,21 @@ class OnnxConverter(BaseConverterInterface):
             self.CVI.print_module()
         # add return op
 
+    
+    def convert_add_op(self, onnx_node):
+        assert(len(onnx_node.inputs) == 2)
+        op1, input_shape1 = self.getOperand(onnx_node.inputs[0])
+        op2, input_shape2 = self.getOperand(onnx_node.inputs[1])
+
+        if input_shape1 != input_shape2:
+            raise AttributeError("{} v.s. {} shape not same".format(input_shape1, input_shape2)) 
+        operands = list()
+        operands.append(op1)
+        operands.append(op2)
+        output_shape = input_shape1
+
+        add_op = self.CVI.add_eltwise_add_op(onnx_node.name, operands, output_shape)
+        self.addOperand(onnx_node.name, add_op, output_shape)
 
     def convert_conv_op(self, onnx_node):
         assert(onnx_node.op_type == "Conv")
@@ -254,6 +271,30 @@ class OnnxConverter(BaseConverterInterface):
         output_shape = input_shape
         scaleop = self.CVI.add_scale_op(onnx_node.name, operands, output_shape)
         self.addOperand(onnx_node.name, scaleop, output_shape)
+    
+    def convert_global_avg_pool_op(self, onnx_node):
+        assert(onnx_node.op_type == "GlobalAveragePool")
+        op, input_shape = self.getOperand(onnx_node.inputs[0])
+        operands = list()
+        operands.append(op)
+        # print(input_shape)
+        on = input_shape[0]
+        oc = input_shape[1]
+        
+        pool_avg_2d_param = {
+            'stride_h':  1,
+            'stride_w':  1,
+            'kernel_h':  input_shape[2],
+            'kernel_w':  input_shape[3],
+            'padding_b': 0,
+            'padding_r': 0,
+            'padding_t': 0,
+            'padding_l': 0,
+            'do_relu': False,
+        }
+        output_shape = [int(on), int(oc), 1, 1]
+        pool_avg_op = self.CVI.add_pool_avg_2d_op(onnx_node.name, operands, output_shape, **pool_avg_2d_param)
+        self.addOperand(onnx_node.name, pool_avg_op, output_shape)
     
     def convert_maxpool_op(self, onnx_node):
         assert(onnx_node.op_type == "MaxPool")
