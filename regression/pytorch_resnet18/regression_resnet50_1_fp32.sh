@@ -5,7 +5,8 @@ DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 source $DIR/../../envsetup.sh
 
 CHECK_NON_OPT_VERSION=0
-
+# clear previous output
+rm -f *.mlir *.bin *.npz *.csv
 # use python to mlir , gen golden too
 python resnet50_pytorch_to_mlir.py
 
