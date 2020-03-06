@@ -11,11 +11,6 @@ else
   BUILD_FLAG="-DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS=-ggdb"
 fi
 
-if [[ $(lsb_release -rs) == "16.04" ]]; then
- BUILD_SYSTEMC_FLAG="CXXFLAGS=-std=c++11"
- BUILD_PROFILING_FLAG="-DCMAKE_CXX_FLAGS=-std=gnu++11"
-fi
-
 # mkdir
 if [ ! -e $INSTALL_PATH ]; then
   mkdir -p $INSTALL_PATH
@@ -45,8 +40,8 @@ if [ ! -e $BUILD_PATH/build_caffe ]; then
 fi
 pushd $BUILD_PATH/build_caffe
 cmake -G Ninja -DCPU_ONLY=ON -DUSE_OPENCV=OFF \
-    -DCMAKE_INSTALL_PREFIX=$CAFFE_PATH \
     -DBLAS=open -DUSE_OPENMP=TRUE \
+    -DCMAKE_INSTALL_PREFIX=$CAFFE_PATH \
     $MLIR_SRC_PATH/third_party/caffe
 cmake --build . --target install
 popd
@@ -149,6 +144,9 @@ popd
 
 # build systemc (for profiling)
 # building has some issue, has to build in place for now
+if [[ $(lsb_release -rs) == "16.04" ]]; then
+ BUILD_SYSTEMC_FLAG="CXXFLAGS=-std=c++11"
+fi
 pushd $MLIR_SRC_PATH/third_party/systemc-2.3.3
 autoreconf -ivf
 ./configure $BUILD_SYSTEMC_FLAG
@@ -160,6 +158,9 @@ cp -a lib-linux64 $SYSTEMC_PATH/
 popd
 
 # build profiling
+if [[ $(lsb_release -rs) == "16.04" ]]; then
+ BUILD_PROFILING_FLAG="-DCMAKE_CXX_FLAGS=-std=gnu++11"
+fi
 if [ ! -e $BUILD_PATH/build_profiling ]; then
   mkdir $BUILD_PATH/build_profiling
 fi
