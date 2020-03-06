@@ -76,18 +76,18 @@ class OnnxNode():
 
 class OnnxTensor():
     def __init__(self, name, value, shape):
-        self._name = name
-        self._tensor_data = value
-        self._shape = shape
+        self.name = name
+        self.tensor_data = value
+        self.shape = shape
     
     def print_info(self):
-        cprint("tensor: {}".format(self._name), 'cyan')
-        cprint("    shape: {}".format(self._shape), 'white')
+        cprint("tensor: {}".format(self.name), 'cyan')
+        cprint("    shape: {}".format(self.shape), 'white')
        
 
 
 class OnnxConverter(BaseConverterInterface):
-    def __init__(self, onnx_model):
+    def __init__(self, model_name, onnx_model):
         self.input_nodes = onnx_model.graph.input
         self.output_nodes = onnx_model.graph.output
         self.nodes = onnx_model.graph.node
@@ -99,7 +99,7 @@ class OnnxConverter(BaseConverterInterface):
         self.valueMap = dict() # {op_name: (mlir op, shape)}
         self.CVI = None
         self.init_importer()
-
+        self.output_tensor_file = "{}_1_06eeeb7e.npz".format(model_name)
         self.onnxop_factory = {
             "Conv": lambda node: self.convert_conv_op(node)
         }
@@ -127,7 +127,14 @@ class OnnxConverter(BaseConverterInterface):
     
     def getOperand(self, op_name):
         return self.valueMap[op_name]
-
+    
+    def getTensor(self, op_name):
+        find_tensor = [t for t in self.converted_tensors if t.name == op_name]
+        if len(find_tensor) < 1:
+            return None
+        else:
+            return find_tensor[0]
+    
     def convert_node(self):
         """convert onnx node to OnnxNode"""
         for n in self.nodes:
@@ -147,18 +154,22 @@ class OnnxConverter(BaseConverterInterface):
     
     def convert_graph(self):
         """convert all to mlir"""
-         
+        # add weight op
+        self.CVI.add_weight_file_op(self.output_tensor_file)
+
         # add input op 
         for idx, input in enumerate(self.input_nodes):
             input_shape = list()
             for dim in input.type.tensor_type.shape.dim:
                 input_shape.append(dim.dim_value)
             input_op = self.CVI.add_input_op(input.name, idx)
-            self.addOpernad(input.name, input_op, input_shape)
-            
+            self.addOperand(input.name, input_op, input_shape)
+        def NoneAndRaise(node):
+            raise RuntimeError("{} Op not support now".format(node.op_type))
         # add node op
         for n in self.converted_nodes:
-            self.onnxop_factory.get(n.op_type, lambda x: printf("notsupport"))(n)
+
+            self.onnxop_factory.get(n.op_type, lambda x: NoneAndRaise(x))(n)        
 
         # add return op
 
@@ -178,12 +189,15 @@ class OnnxConverter(BaseConverterInterface):
         }
         op, shape = self.getOperand(onnx_node.inputs[0])
         opreands = list()
-        for weight_name in inputs[1:]:
-            weight_op = self.CVI.add_load_file_op(weight_name, weightShapeMap[weight_name])
+        for weight_name in onnx_node.inputs[1:]:
+            tensor = self.getTensor(weight_name)
+            if tensor == None:
+                raise RuntimeError("No {} tensor in model".format(weight_name))
+            weight_op = self.CVI.add_load_file_op(tensor.name, tensor.shape)
             opreands.append(weight_op)
             
         on = shape[0]
-        oc = weightShapeMap[weight_name][0] # feature map size
+        oc = tensor.shape[0] # feature map size
         oh = calcConv2DSpatial(
             shape[2], 
             onnx_node.attrs['kernel_shape'][0], 
@@ -191,7 +205,7 @@ class OnnxConverter(BaseConverterInterface):
             onnx_node.attrs['pads'][0], 
             onnx_node.attrs['dilations'][0]
         )
-        oh = calcConv2DSpatial(
+        ow = calcConv2DSpatial(
             shape[3], 
             onnx_node.attrs['kernel_shape'][1], 
             onnx_node.attrs['strides'][1], 
@@ -199,8 +213,8 @@ class OnnxConverter(BaseConverterInterface):
             onnx_node.attrs['dilations'][1]
         )
         output_shape = [on, oc, oh, ow]
-        conv_op = importer.add_conv_op(onnx_node.name, opreands, output_shape, **conv_param)
-        self.addOperand(onnx_node.name, conv_op, out_shape)
+        conv_op = self.CVI.add_conv_op(onnx_node.name, opreands, output_shape, **conv_param)
+        self.addOperand(onnx_node.name, conv_op, output_shape)
 
     def run(self):
         self.convert_node()
