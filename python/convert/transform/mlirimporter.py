@@ -10,7 +10,7 @@ class TPU_OpType(Enum):
     Load_Weight = 'tpu.load_weight'
 
     BatchNorm = 'tpu.batch_norm'
-    Conv2d = 'tpu.conv2d'
+    Conv2d = 'tpu.conv_2d'
     Crop = 'tpu.crop'
     Eltwise_Add = 'tpu.eltwise_add'
     Eltwise_Mul = 'tpu.eltwise_mul'
@@ -21,6 +21,14 @@ class TPU_OpType(Enum):
     Sigmoid = 'tpu.sigmoid'
     Reshape = 'tpu.reshape'
     Relu = 'tpu.relu'
+
+def checkKey(dict, key):
+    if not dict.has_key(key):
+        raise AttributeError("No {} attr, please check".format(key))
+
+def checkType(obj, type):
+    if not isinstance(obj, type):
+        raise AttributeError('{} is not {}'.format(obj, type))
 
 class BaseConverterInterface(object):
     def init_importer(self):
@@ -58,8 +66,8 @@ class MLIRImporter(object):
         quant_param = {
             'is_asymmetric': self.module.boolAttr(False),
             'is_perchannel': self.module.boolAttr(False),
-            'mode': self.module.stringAttr("None"),
-            'param_type': self.module.stringAttr("None"),
+            'mode': self.module.stringAttr("NONE"),
+            'param_type': self.module.stringAttr("NONE"),
             'threshold_max': self.module.floatAttr(0),
             'threshold_min': self.module.floatAttr(0)
         }
@@ -133,7 +141,7 @@ class MLIRImporter(object):
       
         dict_attr = self.module.dictAttr(**conv_param)
         none = self.add_none_op()
-        for i in range( 8 - len(inputOperands)):
+        for i in range( 7 - len(inputOperands)):
             inputOperands.append(none)
         return self.buildOp(TPU_OpType.Conv2d.value, inputOperands, [
                      tensor_output_type], name=conv_name, param=dict_attr, quant=self.quant_param)
@@ -218,7 +226,7 @@ class MLIRImporter(object):
             inputOperands.append(none)
         fully_connected_name = self.module.stringAttr(op_name)
         return self.buildOp(TPU_OpType.FullyConnected.value, inputOperands, [
-            tensor_output_type], name=fully_connected_name, qunat=self.quant_param)
+            tensor_output_type], name=fully_connected_name, quant=self.quant_param)
     
     def add_pool_avg_2d_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = self.module.make_ranked_tensor_type(
@@ -246,9 +254,11 @@ class MLIRImporter(object):
             'do_relu': self.module.boolAttr(kargs['do_relu']),
         }
         dict_attr = self.module.dictAttr(**pool_avg_2d_param)
-
+        none = self.add_none_op()
+        for i in range( 5 - len(inputOperands)):
+            inputOperands.append(none)
         return self.buildOp(TPU_OpType.PoolAvg2D.value, inputOperands, [
-            tensor_output_type], name=pool_avg_2d_name, param=dict_attr)
+            tensor_output_type], name=pool_avg_2d_name, param=dict_attr, quant=self.quant_param)
 
     def add_pool_max_2d_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
 
@@ -279,7 +289,7 @@ class MLIRImporter(object):
         dict_attr = self.module.dictAttr(**pool_max_2d_param)
 
         return self.buildOp(TPU_OpType.PoolMax2D.value, inputOperands, [
-            tensor_output_type], name=pool_max_2d_name, param=dict_attr)
+            tensor_output_type], name=pool_max_2d_name, param=dict_attr, quant=self.quant_param)
 
     def add_relu_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = self.module.make_ranked_tensor_type(
@@ -287,7 +297,7 @@ class MLIRImporter(object):
 
         relu_name = self.module.stringAttr(op_name)
         return self.buildOp(TPU_OpType.Relu.value, inputOperands, [
-            tensor_output_type], name=relu_name)
+            tensor_output_type], name=relu_name, quant=self.quant_param)
 
     def add_reshape_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = self.module.make_ranked_tensor_type(
