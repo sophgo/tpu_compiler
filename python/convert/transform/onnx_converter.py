@@ -108,7 +108,8 @@ class OnnxConverter(BaseConverterInterface):
             "Gemm": lambda node: self.convert_gemm_op(node),
             "GlobalAveragePool": lambda node: self.convert_global_avg_pool_op(node),
             "MaxPool": lambda node: self.convert_maxpool_op(node),
-            "Relu": lambda node: self.convert_relu_op(node)
+            "Relu": lambda node: self.convert_relu_op(node),
+            "Shape": lambda node: self.convert_shape_op(node),
         }
     def init_importer(self):
         # get input shape
@@ -383,6 +384,14 @@ class OnnxConverter(BaseConverterInterface):
         output_shape = input_shape
         relu_op = self.CVI.add_relu_op(onnx_node.name, operands, output_shape)
         self.addOperand(onnx_node.name, relu_op, output_shape)
+
+    def convert_shape_op(self, onnx_node):
+        """Just get input shape, we don't create op here."""
+        assert(onnx_node.op_type == "Shape")
+        op, input_shape = self.getOperand(onnx_node.inputs[0])
+        output_shape = input_shape
+        self.addOperand(onnx_node.name, op, output_shape)
+
 
     def run(self):
         self.convert_node()
