@@ -13,6 +13,7 @@ pushd $NET
 rm -f *.mlir *.bin *.npz *.csv
 
 # run tests
+$DIR/regression_liveness_0_caffe.sh
 $DIR/regression_liveness_1_fp32.sh
 $DIR/regression_liveness_2_int8.sh
 $DIR/regression_liveness_3_int8_cmdbuf.sh
