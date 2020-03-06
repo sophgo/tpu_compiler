@@ -122,9 +122,9 @@ class OnnxConverter(BaseConverterInterface):
         outputs = list()
         for output in self.output_nodes:
             output_shape = list()
-            for dim in input.type.tensor_type.shape.dim:
+            for dim in output.type.tensor_type.shape.dim:
                 output_shape.append(dim.dim_value)
-            outputs.append(input_shape)
+            outputs.append(output_shape)
         
         # init importer
         self.CVI = MLIRImporter(inputs, outputs)
@@ -141,6 +141,12 @@ class OnnxConverter(BaseConverterInterface):
             raise RuntimeError("No {} tensor in model".format(op_name))
         else:
             return find_tensor[0]
+    
+    def TensortoNpz(self):
+        tensor_npz = {}
+        for i in self.converted_tensors:
+            tensor_npz[i.name] = i.tensor_data
+        np.savez(self.output_tensor_file, **tensor_npz)
     
     def convert_node(self):
         """convert onnx node to OnnxNode"""
@@ -177,8 +183,18 @@ class OnnxConverter(BaseConverterInterface):
         for n in self.converted_nodes:
             n.print_info()
             self.onnxop_factory.get(n.op_type, lambda x: NoneAndRaise(x))(n)        
-            self.CVI.print_module()
+
         # add return op
+        return_op = list()
+        # Set output
+        for output in self.output_nodes:
+            op, _ = self.getOperand(output.name)
+            return_op.append(op)
+
+        self.CVI.add_return_op(return_op)
+        mlir_txt = self.CVI.print_module()
+        with open("resnet50.mlir", "w") as f:
+            f.write(mlir_txt)
 
     
     def convert_add_op(self, onnx_node):
@@ -195,48 +211,6 @@ class OnnxConverter(BaseConverterInterface):
 
         add_op = self.CVI.add_eltwise_add_op(onnx_node.name, operands, output_shape)
         self.addOperand(onnx_node.name, add_op, output_shape)
-
-    def convert_conv_op(self, onnx_node):
-        assert(onnx_node.op_type == "Conv")
-        conv_param = {
-            'stride_h':  onnx_node.attrs['strides'][0],
-            'stride_w':  onnx_node.attrs['strides'][1],
-            'padding': "SAME" if onnx_node.attrs['pads'][0] > 0 else "VALID",
-            'dilation_h': onnx_node.attrs['dilations'][0],
-            'dilation_w': onnx_node.attrs['dilations'][1],
-            'group': onnx_node.attrs['group'],
-            'is_dw': False,
-            'with_bias': len(onnx_node.inputs) > 2,
-            'do_relu': False,
-        }
-        op, shape = self.getOperand(onnx_node.inputs[0])
-        opreands = list()
-        for weight_name in onnx_node.inputs[1:]:
-            tensor = self.getTensor(weight_name)
-            if tensor == None:
-                raise RuntimeError("No {} tensor in model".format(weight_name))
-            weight_op = self.CVI.add_load_file_op(tensor.name, tensor.shape)
-            opreands.append(weight_op)
-            
-        on = shape[0]
-        oc = tensor.shape[0] # feature map size
-        oh = calcConv2DSpatial(
-            shape[2], 
-            onnx_node.attrs['kernel_shape'][0], 
-            onnx_node.attrs['strides'][0], 
-            onnx_node.attrs['pads'][0], 
-            onnx_node.attrs['dilations'][0]
-        )
-        ow = calcConv2DSpatial(
-            shape[3], 
-            onnx_node.attrs['kernel_shape'][1], 
-            onnx_node.attrs['strides'][1], 
-            onnx_node.attrs['pads'][1], 
-            onnx_node.attrs['dilations'][1]
-        )
-        output_shape = [on, oc, oh, ow]
-        conv_op = self.CVI.add_conv_op(onnx_node.name, opreands, output_shape, **conv_param)
-        self.addOperand(onnx_node.name, conv_op, output_shape)
 
     def convert_batchnorm_op(self, onnx_node):
         assert(onnx_node.op_type == "BatchNormalization")
@@ -274,6 +248,49 @@ class OnnxConverter(BaseConverterInterface):
         scaleop = self.CVI.add_scale_op(onnx_node.name, operands, output_shape)
         self.addOperand(onnx_node.name, scaleop, output_shape)
     
+    def convert_conv_op(self, onnx_node):
+        assert(onnx_node.op_type == "Conv")
+        conv_param = {
+            'stride_h':  onnx_node.attrs['strides'][0],
+            'stride_w':  onnx_node.attrs['strides'][1],
+            'padding': "SAME" if onnx_node.attrs['pads'][0] > 0 else "VALID",
+            'dilation_h': onnx_node.attrs['dilations'][0],
+            'dilation_w': onnx_node.attrs['dilations'][1],
+            'group': onnx_node.attrs['group'],
+            'is_dw': False,
+            'with_bias': len(onnx_node.inputs) > 2,
+            'do_relu': False,
+        }
+        op, shape = self.getOperand(onnx_node.inputs[0])
+        operands = list()
+        operands.append(op)
+        for weight_name in onnx_node.inputs[1:]:
+            tensor = self.getTensor(weight_name)
+            if tensor == None:
+                raise RuntimeError("No {} tensor in model".format(weight_name))
+            weight_op = self.CVI.add_load_file_op(tensor.name, tensor.shape)
+            operands.append(weight_op)
+            
+        on = shape[0]
+        oc = tensor.shape[0] # feature map size
+        oh = calcConv2DSpatial(
+            shape[2], 
+            onnx_node.attrs['kernel_shape'][0], 
+            onnx_node.attrs['strides'][0], 
+            onnx_node.attrs['pads'][0], 
+            onnx_node.attrs['dilations'][0]
+        )
+        ow = calcConv2DSpatial(
+            shape[3], 
+            onnx_node.attrs['kernel_shape'][1], 
+            onnx_node.attrs['strides'][1], 
+            onnx_node.attrs['pads'][1], 
+            onnx_node.attrs['dilations'][1]
+        )
+        output_shape = [on, oc, oh, ow]
+        conv_op = self.CVI.add_conv_op(onnx_node.name, operands, output_shape, **conv_param)
+        self.addOperand(onnx_node.name, conv_op, output_shape)
+
     def convert_flatten_op(self, onnx_node):
         assert(onnx_node.op_type == "Flatten")
         if onnx_node.attrs["axis"] != 1:
@@ -299,7 +316,7 @@ class OnnxConverter(BaseConverterInterface):
 
         bias_name = onnx_node.inputs[2]
         bias_tensor = self.getTensor(bias_name)
-        bias_op = self.CVI.add_load_file_op(weight_name, bias_tensor.shape)
+        bias_op = self.CVI.add_load_file_op(bias_name, bias_tensor.shape)
         operands.append(bias_op)
 
         M = input_shape[0]
@@ -371,4 +388,5 @@ class OnnxConverter(BaseConverterInterface):
         self.convert_node()
         self.convert_tensor()
         self.convert_graph()
+        self.TensortoNpz()
 
