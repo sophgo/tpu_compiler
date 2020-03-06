@@ -102,7 +102,9 @@ class OnnxConverter(BaseConverterInterface):
         self.output_tensor_file = "{}_1_06eeeb7e.npz".format(model_name)
         self.onnxop_factory = {
             "Conv": lambda node: self.convert_conv_op(node),
-            "BatchNormalization": lambda node: self.convert_batchnorm_op(node)
+            "BatchNormalization": lambda node: self.convert_batchnorm_op(node),
+            "MaxPool": lambda node: self.convert_maxpool_op(node),
+            "Relu": lambda node: self.convert_relu_op(node)
         }
     def init_importer(self):
         # get input shape
@@ -252,6 +254,40 @@ class OnnxConverter(BaseConverterInterface):
         output_shape = input_shape
         scaleop = self.CVI.add_scale_op(onnx_node.name, operands, output_shape)
         self.addOperand(onnx_node.name, scaleop, output_shape)
+    
+    def convert_maxpool_op(self, onnx_node):
+        assert(onnx_node.op_type == "MaxPool")
+        pool_max_2d_param = {
+            'stride_h': onnx_node.attrs['strides'][0], 
+            'stride_w': onnx_node.attrs['strides'][1], 
+            'kernel_h': onnx_node.attrs['kernel_shape'][0],
+            'kernel_w': onnx_node.attrs['kernel_shape'][1],
+            'padding_b': onnx_node.attrs['pads'][0],
+            'padding_r': onnx_node.attrs['pads'][1],
+            'padding_t': onnx_node.attrs['pads'][2],
+            'padding_l': onnx_node.attrs['pads'][3],
+            'do_relu': False,
+        }
+        
+        op, input_shape = self.getOperand(onnx_node.inputs[0])
+        operands = list()
+        operands.append(op)
+        on = input_shape[0]
+        oc = input_shape[1]
+        oh = calcPool2DFloor(input_shape[2], onnx_node.attrs['kernel_shape'][0], onnx_node.attrs['strides'][0], onnx_node.attrs['pads'][0])
+        ow = calcPool2DFloor(input_shape[3], onnx_node.attrs['kernel_shape'][1], onnx_node.attrs['strides'][1], onnx_node.attrs['pads'][1])
+        output_shape = [int(on), int(oc), int(oh), int(ow)]
+        pool_max_op = self.CVI.add_pool_max_2d_op(onnx_node.name, operands, output_shape, **pool_max_2d_param)
+        self.addOperand(onnx_node.name, pool_max_op, output_shape)
+
+    def convert_relu_op(self, onnx_node):
+        assert(onnx_node.op_type == "Relu")
+        op, input_shape = self.getOperand(onnx_node.inputs[0])
+        operands = list()
+        operands.append(op)
+        output_shape = input_shape
+        relu_op = self.CVI.add_relu_op(onnx_node.name, operands, output_shape)
+        self.addOperand(onnx_node.name, relu_op, output_shape)
 
     def run(self):
         self.convert_node()
