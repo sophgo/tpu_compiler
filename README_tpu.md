@@ -6,7 +6,7 @@
 
   ```sh
   $ git clone ssh://10.34.33.3:29418/llvm-project.git
-  $ git clone --recurse-submodules ssh://10.34.33.3:29418/llvm-project.git
+  $ git clone --recurse-submodules ssh://10.34.33.3:29418/mlir.git
   $ mv mlir llvm-project/llvm/projects/
 
   # to update
