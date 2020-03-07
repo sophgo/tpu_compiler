@@ -57,11 +57,11 @@ build_cvimodel.py \
     --weight weight_int8_per_layer.bin \
     --mlir inception_v3_quant_int8_per_layer_addr.mlir \
     --cpufunc_dir ${RUNTIME_PATH}/lib/cpu \
-    --output=inception_v3_int8_per_layer.cm
+    --output=inception_v3_int8_per_layer.cvimodel
 
 ## run cmdbuf
 model_runner \
-    --model inception_v3_int8_per_layer.cm \
+    --model inception_v3_int8_per_layer.cvimodel \
     --input inception_v3_in_int8.bin \
     --output inception_v3_cmdbuf_out_all_int8_per_layer.bin
 
@@ -122,11 +122,11 @@ build_cvimodel.py \
     --weight weight_int8_multiplier.bin \
     --mlir inception_v3_quant_int8_multiplier_addr.mlir \
     --cpufunc_dir ${RUNTIME_PATH}/lib/cpu \
-    --output=inception_v3_int8_multiplier.cm
+    --output=inception_v3_int8_multiplier.cvimodel
 
 ## run cmdbuf
 model_runner \
-    --model inception_v3_int8_multiplier.cm \
+    --model inception_v3_int8_multiplier.cvimodel \
     --input inception_v3_in_int8.bin \
     --output inception_v3_cmdbuf_out_all_int8_multiplier.bin
 

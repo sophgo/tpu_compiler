@@ -69,7 +69,7 @@ build_cvimodel.py \
     --weight weight_int8_multiplier.bin \
     --mlir resnet50_quant_int8_multiplier_addr.mlir \
     --cpufunc_dir ${RUNTIME_PATH}/lib/cpu \
-    --output=resnet50_int8_multiplier.cm
+    --output=resnet50_int8_multiplier.cvimodel
 
 # run cmdbuf
 #$RUNTIME_PATH/bin/test_bmnet \
@@ -80,7 +80,7 @@ build_cvimodel.py \
 #    16460784 0 16460784 1
 model_runner \
     --model resnet50_in_int8.bin \
-    --input resnet50_int8_multiplier.cm \
+    --input resnet50_int8_multiplier.cvimodel \
     --output resnet50_cmdbuf_out_all_int8_multiplier.bin
 
 bin_to_npz.py \
