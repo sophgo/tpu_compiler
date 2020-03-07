@@ -10,25 +10,25 @@ CHECK_NON_OPT_VERSION=0
 mlir-translate \
     --caffe-to-mlir $MODEL_PATH/face_recognition/bmface/caffe/bmface-v3.prototxt \
     --caffemodel $MODEL_PATH/face_recognition/bmface/caffe/bmface-v3.caffemodel \
-    -o bmface-v3.mlir
+    -o bmface_v3.mlir
 
 if [ $CHECK_NON_OPT_VERSION -eq 1 ]; then
   mlir-opt \
       --assign-layer-id \
       --print-tpu-op-info \
-      --tpu-op-info-filename bmface-v3_op_info.csv \
-      bmface-v3.mlir \
+      --tpu-op-info-filename bmface_v3_op_info.csv \
+      bmface_v3.mlir \
       -o dummy.mlir
   # test mlir interpreter
-  mlir-tpu-interpreter bmface-v3.mlir \
-      --tensor-in bmface-v3_in_fp32.npz \
-      --tensor-out bmface-v3_out_fp32.npz \
-      --dump-all-tensor=bmface-v3_tensor_all_fp32.npz
-  npz_compare.py bmface-v3_out_fp32.npz bmface-v3_out_fp32_prob.npz -v
+  mlir-tpu-interpreter bmface_v3.mlir \
+      --tensor-in bmface_v3_in_fp32.npz \
+      --tensor-out bmface_v3_out_fp32.npz \
+      --dump-all-tensor=bmface_v3_tensor_all_fp32.npz
+  npz_compare.py bmface_v3_out_fp32.npz bmface_v3_out_fp32_prob.npz -v
   npz_compare.py \
-      bmface-v3_tensor_all_fp32.npz \
-      bmface-v3_blobs.npz \
-      --op_info bmface-v3_op_info.csv \
+      bmface_v3_tensor_all_fp32.npz \
+      bmface_v3_blobs.npz \
+      --op_info bmface_v3_op_info.csv \
       --tolerance=0.9999,0.9999,0.999 -vv
 fi
 
@@ -39,23 +39,23 @@ mlir-opt \
     --convert-bn-to-scale \
     --canonicalize \
     --print-tpu-op-info \
-    --tpu-op-info-filename bmface-v3_op_info.csv \
-    bmface-v3.mlir \
-    -o bmface-v3_opt.mlir
+    --tpu-op-info-filename bmface_v3_op_info.csv \
+    bmface_v3.mlir \
+    -o bmface_v3_opt.mlir
 
 # test mlir interpreter
-mlir-tpu-interpreter bmface-v3_opt.mlir \
-    --tensor-in bmface-v3_in_fp32.npz \
-    --tensor-out bmface-v3_out_fp32.npz \
-    --dump-all-tensor=bmface-v3_tensor_all_fp32.npz
+mlir-tpu-interpreter bmface_v3_opt.mlir \
+    --tensor-in bmface_v3_in_fp32.npz \
+    --tensor-out bmface_v3_out_fp32.npz \
+    --dump-all-tensor=bmface_v3_tensor_all_fp32.npz
 
 # bmface last layer is batchnorm, rename output
-npz_rename.py bmface-v3_out_fp32.npz fc1_scale fc1
-npz_compare.py bmface-v3_out_fp32.npz bmface-v3_out_fp32_prob.npz -v
+npz_rename.py bmface_v3_out_fp32.npz fc1_scale fc1
+npz_compare.py bmface_v3_out_fp32.npz bmface_v3_out_fp32_prob.npz -v
 npz_compare.py \
-      bmface-v3_tensor_all_fp32.npz \
-      bmface-v3_blobs.npz \
-      --op_info bmface-v3_op_info.csv \
+      bmface_v3_tensor_all_fp32.npz \
+      bmface_v3_blobs.npz \
+      --op_info bmface_v3_op_info.csv \
       --tolerance=0.98,0.98,0.98 -vv
 
 

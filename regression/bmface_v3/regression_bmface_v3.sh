@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-NET=bmface-v3
+NET=bmface_v3
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
 if [ ! -e $NET ]; then

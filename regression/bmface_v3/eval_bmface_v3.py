@@ -9,25 +9,25 @@ import copy
 
 import pymlir
 
-#MODEL_MLIR_PATH  = './bmface-v3.mlir'
-#MODEL_MLIR_PATH  = './bmface-v3_opt.mlir'
-MODEL_MLIR_PATH  = './bmface-v3_quant_int8_multiplier.mlir'
+#MODEL_MLIR_PATH  = './bmface_v3.mlir'
+#MODEL_MLIR_PATH  = './bmface_v3_opt.mlir'
+MODEL_MLIR_PATH  = './bmface_v3_quant_int8_multiplier.mlir'
 LFW_DATASET_PATH = '/workspace/data/dataset_zoo/lfw/bmface_preprocess/bmface_LFW/'
 PAIRS_FILE_PATH  = '/workspace/data/dataset_zoo/lfw/pairs.txt'
 
 parser = argparse.ArgumentParser(description="BMFace Evaluation on LFW Dataset.")
-parser.add_argument("--model", type=str, help="The path of the mlir model.", 
+parser.add_argument("--model", type=str, help="The path of the mlir model.",
                     default=MODEL_MLIR_PATH)
 parser.add_argument("--dataset", type=str, help="The root directory of the LFW dataset.",
                     default=LFW_DATASET_PATH)
-parser.add_argument("--pairs", type=str, help="The path of the pairs file.", 
+parser.add_argument("--pairs", type=str, help="The path of the pairs file.",
                     default=PAIRS_FILE_PATH)
 parser.add_argument("--show", type=bool, default=False)
 args = parser.parse_args()
 
 
 def preprocess_func(img):
-# _scale and _bias is reference to bmface-v3_xxx_scale_w_xxx.caffemodel
+# _scale and _bias is reference to bmface_v3_xxx_scale_w_xxx.caffemodel
     _scale = 0.0078125
     _bias  = np.array([-0.99609375, -0.99609375, -0.99609375], dtype=np.float32)
     img *= _scale
@@ -89,8 +89,8 @@ if __name__ == '__main__':
     module.load(args.model)
     print('load module done')
     eval_score = list()
-    
-    # Prepare preprocess images set 
+
+    # Prepare preprocess images set
     preprocess_imgs = []
     for p in os.listdir(args.dataset):
         for img_name in os.listdir(os.path.join(args.dataset, p)):
@@ -141,8 +141,8 @@ if __name__ == '__main__':
     f_pairs.close()
     eval_score = np.array(eval_score)
     #print(eval_score)
-    #np.save('bmface-v3_mlir_eval_score.npy', eval_score)
-    
+    #np.save('bmface_v3_mlir_eval_score.npy', eval_score)
+
     label = eval_score[:, 0]
     score = eval_score[:, 1]
 

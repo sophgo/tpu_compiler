@@ -4,8 +4,6 @@ set -e
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 source $DIR/../../envsetup.sh
 
-
-
 # import calibration table
 mlir-opt \
     --import-calibration-table \
@@ -24,7 +22,7 @@ mlir-opt \
     -o liveness_quant_int8_multiplier.mlir
 
 mlir-tpu-interpreter liveness_quant_int8_multiplier.mlir \
-    --tensor-in $REGRESSION_PATH/liveness/data/liveness_in_fp32.npz \
+    --tensor-in liveness_in_fp32.npz \
     --tensor-out liveness_out_int8_multiplier.npz \
     --dump-all-tensor=liveness_tensor_all_int8_multiplier.npz
 

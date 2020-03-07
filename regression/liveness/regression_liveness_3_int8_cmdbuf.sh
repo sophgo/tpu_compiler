@@ -7,12 +7,20 @@ source $DIR/../../envsetup.sh
 ################################
 # prepare int8 input
 ################################
-npz_to_bin.py $REGRESSION_PATH/liveness/data/liveness_in_fp32.npz arr_0 liveness_in_fp32.bin
-bin_fp32_to_int8.py \
-    liveness_in_fp32.bin \
+npz_to_bin.py \
+    liveness_tensor_all_int8_multiplier.npz \
+    data \
     liveness_in_int8.bin \
-    1.0 \
-    1.00000489
+    int8
+
+# don't use following commands to generate input, as it depends on
+# calibration result.
+#npz_to_bin.py liveness_in_fp32.npz arr_0 liveness_in_fp32.bin
+#bin_fp32_to_int8.py \
+#    liveness_in_fp32.bin \
+#    liveness_in_int8.bin \
+#    1.0 \
+#    1.00000489
 
 #  Lower for quantization
 mlir-opt \

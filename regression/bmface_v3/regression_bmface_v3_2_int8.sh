@@ -8,8 +8,8 @@ source $DIR/../../envsetup.sh
 mlir-opt \
     --import-calibration-table \
     --calibration-table $REGRESSION_PATH/bmface_v3/data/bmface-v3_cali1024_threshold_table \
-    bmface-v3_opt.mlir \
-    -o bmface-v3_cali.mlir
+    bmface_v3_opt.mlir \
+    -o bmface_v3_cali.mlir
 
 # quantization 3: per-channel int8 with multiplier
 mlir-opt \
@@ -17,21 +17,21 @@ mlir-opt \
     --enable-conv-per-channel \
     --enable-conv-multiplier \
     --print-tpu-op-info \
-    --tpu-op-info-filename bmface-v3_op_info_int8_multiplier.csv \
-    bmface-v3_cali.mlir \
-    -o bmface-v3_quant_int8_multiplier.mlir
+    --tpu-op-info-filename bmface_v3_op_info_int8_multiplier.csv \
+    bmface_v3_cali.mlir \
+    -o bmface_v3_quant_int8_multiplier.mlir
 
-mlir-tpu-interpreter bmface-v3_quant_int8_multiplier.mlir \
-    --tensor-in bmface-v3_in_fp32.npz \
-    --tensor-out bmface-v3_out_int8_multiplier.npz \
-    --dump-all-tensor=bmface-v3_tensor_all_int8_multiplier.npz
+mlir-tpu-interpreter bmface_v3_quant_int8_multiplier.mlir \
+    --tensor-in bmface_v3_in_fp32.npz \
+    --tensor-out bmface_v3_out_int8_multiplier.npz \
+    --dump-all-tensor=bmface_v3_tensor_all_int8_multiplier.npz
 
 
 # the result of the compare script is passed currently.
 npz_compare.py \
-    bmface-v3_tensor_all_int8_multiplier.npz \
-    bmface-v3_tensor_all_fp32.npz \
-    --op_info bmface-v3_op_info_int8_multiplier.csv \
+    bmface_v3_tensor_all_int8_multiplier.npz \
+    bmface_v3_tensor_all_fp32.npz \
+    --op_info bmface_v3_op_info_int8_multiplier.csv \
     --dequant \
     --tolerance 0.9,0.9,0.6 -v
 

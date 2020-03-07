@@ -28,13 +28,13 @@ mlir-opt \
     --tpu-neuron-address-align=16 \
     --tpu-neuron-map-filename=neuron_map_bf16.csv \
     --assign-layer-id \
-    bmface-v3_quant_bf16.mlir \
-    -o bmface-v3_quant_bf16_addr.mlir
+    bmface_v3_quant_bf16.mlir \
+    -o bmface_v3_quant_bf16_addr.mlir
 
 # backend translate into cmdbuf
 mlir-translate \
     --mlir-to-cmdbuf \
-    bmface-v3_quant_bf16_addr.mlir \
+    bmface_v3_quant_bf16_addr.mlir \
     -o cmdbuf_bf16.bin
 
 # run cmdbuf
@@ -42,29 +42,29 @@ $RUNTIME_PATH/bin/test_bmnet \
     $TENSOR_IN_BIN_FILE \
     weight_bf16.bin \
     cmdbuf_bf16.bin \
-    bmface-v3_cmdbuf_out_all_bf16.bin \
+    bmface_v3_cmdbuf_out_all_bf16.bin \
     27975168 0 27975168 1
 
 # (27975168 = 0x01925e00 + 2*64*112*112)
 
 #bin_extract.py \
-#    bmface-v3_cmdbuf_out_all_bf16.bin \
-#    bmface-v3_cmdbuf_out_fc1000_bf16.bin \
+#    bmface_v3_cmdbuf_out_all_bf16.bin \
+#    bmface_v3_cmdbuf_out_fc1000_bf16.bin \
 #    bf16 0x00049800 1000
 #bin_compare.py \
-#    bmface-v3_cmdbuf_out_fc1000_bf16.bin \
-#    $REGRESSION_PATH/bmface-v3/data/test_cat_out_bmface-v3_fc1000_bf16.bin \
+#    bmface_v3_cmdbuf_out_fc1000_bf16.bin \
+#    $REGRESSION_PATH/bmface_v3/data/test_cat_out_bmface_v3_fc1000_bf16.bin \
 #    bf16 1 1 1 1000 5
 
 # compare all tensors
 bin_to_npz.py \
-    bmface-v3_cmdbuf_out_all_bf16.bin \
+    bmface_v3_cmdbuf_out_all_bf16.bin \
     neuron_map_bf16.csv \
-    bmface-v3_cmdbuf_out_all_bf16.npz
+    bmface_v3_cmdbuf_out_all_bf16.npz
 npz_compare.py \
-    bmface-v3_cmdbuf_out_all_bf16.npz \
-    bmface-v3_tensor_all_bf16.npz \
-    --op_info bmface-v3_op_info.csv \
+    bmface_v3_cmdbuf_out_all_bf16.npz \
+    bmface_v3_tensor_all_bf16.npz \
+    --op_info bmface_v3_op_info.csv \
     --tolerance=0.99,0.99,0.96 -vvv
 
 # VERDICT
