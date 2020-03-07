@@ -1,4 +1,4 @@
-from transform.mlirimporter import BaseConverterInterface, MLIRImporter
+from transform.mlirimporter import BaseConverterInterface, MLIRImporter, checkKey
 from onnx import numpy_helper, mapping
 from termcolor import colored, cprint
 from math import floor, ceil
@@ -113,7 +113,9 @@ class OnnxConverter(BaseConverterInterface):
             "MaxPool": lambda node: self.convert_maxpool_op(node),
             "Relu": lambda node: self.convert_relu_op(node),
             "Shape": lambda node: self.convert_shape_op(node),
+            "Unsqueeze": lambda node: self.convert_unsqueeze_op(node),
         }
+
     def init_importer(self):
         # get input shape
         inputs = list()
@@ -151,7 +153,12 @@ class OnnxConverter(BaseConverterInterface):
         for i in self.converted_tensors:
             tensor_npz[i.name] = i.tensor_data
         np.savez(self.output_tensor_file, **tensor_npz)
-    
+    @staticmethod
+    def unsqueeze_shape(shape, axis):
+        new_shape = [n for n in shape]
+        for n in axis:
+            new_shape.insert(n, 1)
+        return new_shape
     def convert_node(self):
         """convert onnx node to OnnxNode"""
         for n in self.nodes:
@@ -335,6 +342,9 @@ class OnnxConverter(BaseConverterInterface):
         else:
             value = 0
         # TODO: our IR no Gather function, please add
+        # Hardcode Here
+        output_shape = input_shape
+        self.addOperand(onnx_node.name, op, output_shape)
 
     def convert_gemm_op(self, onnx_node):
         assert(onnx_node.op_type == "Gemm")
@@ -424,6 +434,17 @@ class OnnxConverter(BaseConverterInterface):
         op, input_shape = self.getOperand(onnx_node.inputs[0])
         output_shape = input_shape
         self.addOperand(onnx_node.name, op, output_shape)
+
+    def convert_unsqueeze_op(self, onnx_node):
+        """Unsqueeze """
+        assert(onnx_node.op_type == "Unsqueeze")
+        op, input_shape = self.getOperand(onnx_node.inputs[0])
+        checkKey(onnx_node.attrs, 'axes')
+        operands = [op]
+        axis_value_list = onnx_node.attrs['axes']
+        output_shape = self.unsqueeze_shape(input_shape, axis_value_list)
+        reshape_op = self.CVI.add_reshape_op(onnx_node.name, operands, output_shape)
+        self.addOperand(onnx_node.name, reshape_op, output_shape)
 
 
     def run(self):
