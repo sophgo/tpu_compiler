@@ -107,6 +107,7 @@ class OnnxConverter(BaseConverterInterface):
             "BatchNormalization": lambda node: self.convert_batchnorm_op(node),
             "Constant": lambda node: self.convert_constant_op(node),
             "Flatten": lambda node: self.convert_flatten_op(node),
+            "Gather": lambda node: self.convert_gather_op(node),
             "Gemm": lambda node: self.convert_gemm_op(node),
             "GlobalAveragePool": lambda node: self.convert_global_avg_pool_op(node),
             "MaxPool": lambda node: self.convert_maxpool_op(node),
@@ -325,6 +326,15 @@ class OnnxConverter(BaseConverterInterface):
         output_shape = [input_shape[0], input_shape[1]]
         reshape_op = self.CVI.add_reshape_op(onnx_node.name, operands, output_shape)
         self.addOperand(onnx_node.name, reshape_op, output_shape)
+
+    def convert_gather_op(self, onnx_node):
+        assert(onnx_node.op_type == "Gather")
+        op, input_shape = self.getOperand(onnx_node.inputs[0])
+        if 'axis' in onnx_node.attrs:
+            value = onnx_node.attrs['axis']
+        else:
+            value = 0
+        # TODO: our IR no Gather function, please add
 
     def convert_gemm_op(self, onnx_node):
         assert(onnx_node.op_type == "Gemm")
