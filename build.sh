@@ -144,12 +144,14 @@ popd
 
 # build systemc (for profiling)
 # building has some issue, has to build in place for now
-if [[ $(lsb_release -rs) == "16.04" ]]; then
- BUILD_SYSTEMC_FLAG="CXXFLAGS=-std=c++11"
+# copy the source dir to build dir
+if [ ! -e $BUILD_PATH/build_systemc ]; then
+  mkdir $BUILD_PATH/build_systemc
 fi
-pushd $MLIR_SRC_PATH/third_party/systemc-2.3.3
+pushd $BUILD_PATH/build_systemc
+cp $MLIR_SRC_PATH/third_party/systemc-2.3.3/* . -a
 autoreconf -ivf
-./configure $BUILD_SYSTEMC_FLAG
+./configure CXXFLAGS=-std=c++11
 make -j`nproc`
 make install
 mkdir -p $SYSTEMC_PATH
@@ -158,9 +160,6 @@ cp -a lib-linux64 $SYSTEMC_PATH/
 popd
 
 # build profiling
-if [[ $(lsb_release -rs) == "16.04" ]]; then
- BUILD_PROFILING_FLAG="-DCMAKE_CXX_FLAGS=-std=gnu++11"
-fi
 if [ ! -e $BUILD_PATH/build_profiling ]; then
   mkdir $BUILD_PATH/build_profiling
 fi

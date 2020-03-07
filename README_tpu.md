@@ -13,6 +13,9 @@
 * update code
 
   ```sh
+  $ cd llvm-project/llvm/projects/mlir
+  $ get fetch origin
+  $ get rebase origin/tpu
   $ git submodule update
   # NOTE:
   # don't add "--remote", "--remote --merge", or "--remote rebase"
