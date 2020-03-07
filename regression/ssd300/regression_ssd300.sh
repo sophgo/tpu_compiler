@@ -22,7 +22,7 @@ if [ $NEED_REMOVE_AFTER_FIX_CPU_LAYER -eq 1 ]; then
 fi
 $DIR/regression_ssd300_3_int8_cmdbuf.sh
 $DIR/regression_ssd300_4_bf16.sh
-#$DIR/regression_ssd300_5_bf16_cmdbuf.sh
+$DIR/regression_ssd300_5_bf16_cmdbuf.sh
 
 popd
 
