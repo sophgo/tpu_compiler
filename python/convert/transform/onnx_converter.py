@@ -1,7 +1,8 @@
 from transform.mlirimporter import BaseConverterInterface, MLIRImporter
-from onnx import numpy_helper
+from onnx import numpy_helper, mapping
 from termcolor import colored, cprint
 from math import floor, ceil
+from numbers import Number
 
 import logging
 import numpy as np
@@ -104,6 +105,7 @@ class OnnxConverter(BaseConverterInterface):
             "Add": lambda node: self.convert_add_op(node),
             "Conv": lambda node: self.convert_conv_op(node),
             "BatchNormalization": lambda node: self.convert_batchnorm_op(node),
+            "Constant": lambda node: self.convert_constant_op(node),
             "Flatten": lambda node: self.convert_flatten_op(node),
             "Gemm": lambda node: self.convert_gemm_op(node),
             "GlobalAveragePool": lambda node: self.convert_global_avg_pool_op(node),
@@ -249,6 +251,27 @@ class OnnxConverter(BaseConverterInterface):
         scaleop = self.CVI.add_scale_op(onnx_node.name, operands, output_shape)
         self.addOperand(onnx_node.name, scaleop, output_shape)
     
+    def convert_constant_op(self, onnx_node):
+        """
+            Constant Op is tensor data at IR, 
+            we change it to load weight tensor, and store
+        """
+        assert(onnx_node.op_type == "Constant")
+        onnx_tensor = onnx_node.attrs['value']
+        np_tensor =  numpy_helper.to_array(onnx_tensor)
+        data_type = onnx_dtype(onnx_tensor.data_type)
+  
+        if data_type in [np.float32, np.float64, np.int32, np.int64]:
+            np_tensor = np_tensor.astype(np.float32).flatten()
+            # add new weight tensor
+            new_tensor = OnnxTensor(onnx_node.name, np_tensor, np_tensor.shape)
+            constant_op = self.CVI.add_load_file_op(onnx_node.name, np_tensor.shape)
+            self.converted_tensors.append(new_tensor)
+            self.addOperand(onnx_node.name, constant_op, np_tensor.shape)
+
+        else:
+            raise ValueError("Not Support {} type".format(data_type))
+
     def convert_conv_op(self, onnx_node):
         assert(onnx_node.op_type == "Conv")
         conv_param = {
