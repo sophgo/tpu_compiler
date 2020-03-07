@@ -7,7 +7,11 @@ popd
 
 pushd llvm-project/llvm/projects/mlir
 git pull --rebase
-git submodule update --remote --rebase
+git submodule update
+# NOTE:
+# don't add "--remote", "--remote --merge", or "--remote rebase"
+# update will ensure to checkout to the point that the repo designated
+# IF you have local changes, please do "rebase" manually
 popd
 
 if false; then
