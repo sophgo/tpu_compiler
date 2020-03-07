@@ -46,11 +46,11 @@ build_cvimodel.py \
     --cmdbuf cmdbuf.bin \
     --weight weight.bin \
     --mlir efficientnet_b0_quant_int8_multiplier_cmdbuf.mlir \
-    --cpufunc_dir ${RUNTIME_PATH}/lib/cpu \
     --output efficientnet_int8_multiplier.cvimodel
 
 # run cmdbuf
 model_runner \
+    --dump-all-tensors \
     --input efficientnet_in_int8.bin \
     --model efficientnet_int8_multiplier.cvimodel \
     --output efficientnet_cmdbuf_out_all_int8_multiplier.bin

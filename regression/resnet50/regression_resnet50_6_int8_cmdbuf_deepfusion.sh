@@ -50,14 +50,12 @@ build_cvimodel.py \
     --cmdbuf cmdbuf_la.bin \
     --weight weight_int8_multiplier.bin \
     --mlir resnet50_quant_int8_multiplier_tl_la.mlir \
-    --cpufunc_dir ${RUNTIME_PATH}/lib/cpu \
     --output=resnet50_int8_la.cvimodel
 
 build_cvimodel.py \
     --cmdbuf cmdbuf_lw.bin \
     --weight weight_int8_multiplier.bin \
     --mlir resnet50_quant_int8_multiplier_tl_lw.mlir \
-    --cpufunc_dir ${RUNTIME_PATH}/lib/cpu \
     --output=resnet50_int8_lw.cvimodel
 
 # profiling cmdbuf
@@ -100,11 +98,13 @@ cvi_profiling --cmdbuf cmdbuf_lw.bin
 #    int8 1 1 1 1000 5
 
 model_runner \
+    --dump-all-tensors \
     --input resnet50_in_int8.bin \
     --model resnet50_int8_la.cvimodel \
     --output resnet50_cmdbuf_out_all_int8_la.bin
 
 model_runner \
+    --dump-all-tensors \
     --input resnet50_in_int8.bin \
     --model resnet50_int8_lw.cvimodel \
     --output resnet50_cmdbuf_out_all_int8_lw.bin

@@ -39,7 +39,6 @@ build_cvimodel.py \
     --cmdbuf cmdbuf_int8_per_layer.bin \
     --weight weight_int8_per_layer.bin \
     --mlir mobilenet_v2_quant_int8_per_layer_addr.mlir \
-    --cpufunc_dir ${RUNTIME_PATH}/lib/cpu \
     --output=mobilenet_v2_int8_per_layer.cvimodel
 
 # run cmdbuf
@@ -50,6 +49,7 @@ build_cvimodel.py \
 #    mobilenet_v2_cmdbuf_out_all_int8_per_layer.bin \
 #    9405584 0 9405584 1
 model_runner \
+    --dump-all-tensors \
     --input mobilenet_v2_in_int8.bin \
     --model mobilenet_v2_int8_per_layer.cvimodel \
     --output mobilenet_v2_cmdbuf_out_all_int8_per_layer.bin
@@ -104,7 +104,6 @@ build_cvimodel.py \
     --cmdbuf cmdbuf_int8_multiplier.bin \
     --weight weight_int8_multiplier.bin \
     --mlir mobilenet_v2_quant_int8_multiplier_addr.mlir \
-    --cpufunc_dir ${RUNTIME_PATH}/lib/cpu \
     --output=mobilenet_v2_int8_multiplier.cvimodel
 
 # run cmdbuf
@@ -115,6 +114,7 @@ build_cvimodel.py \
 #    mobilenet_v2_cmdbuf_out_all_int8_multiplier.bin \
 #    9405584 0 9405584 1
 model_runner \
+    --dump-all-tensors \
     --input mobilenet_v2_in_int8.bin \
     --model mobilenet_v2_int8_multiplier.cvimodel \
     --output mobilenet_v2_cmdbuf_out_all_int8_multiplier.bin

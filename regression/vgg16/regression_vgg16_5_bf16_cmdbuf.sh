@@ -39,7 +39,6 @@ build_cvimodel.py \
     --cmdbuf cmdbuf_bf16.bin \
     --weight weight_bf16.bin \
     --mlir vgg16_quant_bf16_addr.mlir \
-    --cpufunc_dir ${RUNTIME_PATH}/lib/cpu \
     --output=vgg16_bf16.cvimodel
 
 # run cmdbuf
@@ -50,6 +49,7 @@ build_cvimodel.py \
 #    vgg16_cmdbuf_out_all_bf16.bin \
 #    32921552 0 32921552 1
 model_runner \
+    --dump-all-tensors \
     --input vgg16_in_bf16.bin \
     --model vgg16_bf16.cvimodel \
     --output vgg16_cmdbuf_out_all_bf16.bin

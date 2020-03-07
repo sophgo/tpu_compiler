@@ -50,11 +50,11 @@ build_cvimodel.py \
     --cmdbuf cmdbuf_int8.bin \
     --weight weight_int8.bin \
     --mlir retinaface_res50_quant_int8_addr.mlir \
-    --cpufunc_dir ${RUNTIME_PATH}/lib/cpu \
     --output=retinaface_res50_int8.cvimodel
 
 # run cmdbuf
 model_runner \
+    --dump-all-tensors \
     --input retinaface_res50_in_int8.bin \
     --model retinaface_res50_int8.cvimodel \
     --output retinaface_res50_cmdbuf_out_all_int8.bin

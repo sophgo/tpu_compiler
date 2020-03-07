@@ -54,11 +54,11 @@ build_cvimodel.py \
     --cmdbuf cmdbuf_int8_multiplier.bin \
     --weight weight_int8_multiplier.bin \
     --mlir densenet_quant_int8_multiplier_addr.mlir \
-    --cpufunc_dir ${RUNTIME_PATH}/lib/cpu \
     --output=densenet_int8_multiplier.cvimodel
 
 # run cmdbuf
 model_runner \
+    --dump-all-tensors \
     --input densenet_in_int8.bin \
     --model densenet_int8_multiplier.cvimodel \
     --output densenet_cmdbuf_out_all_int8_multiplier.bin

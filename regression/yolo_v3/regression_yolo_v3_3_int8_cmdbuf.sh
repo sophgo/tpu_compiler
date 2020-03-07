@@ -61,7 +61,6 @@ build_cvimodel.py \
     --cmdbuf cmdbuf_int8_per_layer.bin \
     --weight weight_int8_per_layer.bin \
     --mlir yolo_v3_416_quant_int8_per_layer_addr.mlir \
-    --cpufunc_dir ${RUNTIME_PATH}/lib/cpu \
     --output=yolo_v3_416_int8_per_layer.cvimodel
 
 # run cmdbuf
@@ -72,6 +71,7 @@ build_cvimodel.py \
 #    yolo_v3_cmdbuf_out_all_int8_per_layer.bin \
 #    94614832 0 94614832 1
 model_runner \
+    --dump-all-tensors \
     --input yolo_v3_in_int8.bin \
     --model yolo_v3_416_int8_per_layer.cvimodel \
     --output yolo_v3_cmdbuf_out_all_int8_per_layer.bin
@@ -141,7 +141,6 @@ build_cvimodel.py \
     --cmdbuf cmdbuf_int8_multiplier.bin \
     --weight weight_int8_multiplier.bin \
     --mlir yolo_v3_416_quant_int8_multiplier_addr.mlir \
-    --cpufunc_dir ${RUNTIME_PATH}/lib/cpu \
     --output=yolo_v3_416_int8_multiplier.cvimodel
 
 # run cmdbuf
@@ -152,6 +151,7 @@ build_cvimodel.py \
 #    yolo_v3_cmdbuf_out_all_int8_multiplier.bin \
 #    94614832 0 94614832 1
 model_runner \
+    --dump-all-tensors \
     --input yolo_v3_in_int8.bin \
     --model yolo_v3_416_int8_multiplier.cvimodel \
     --output yolo_v3_cmdbuf_out_all_int8_multiplier.bin

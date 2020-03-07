@@ -43,11 +43,11 @@ build_cvimodel.py \
     --cmdbuf cmdbuf_bf16.bin \
     --weight weight_bf16.bin \
     --mlir resnet50_quant_bf16_addr.mlir \
-    --cpufunc_dir ${RUNTIME_PATH}/lib/cpu \
     --output=resnet50_bf16.cvimodel
 
 # run cmdbuf
 model_runner \
+    --dump-all-tensors \
     --input resnet50_in_bf16.bin \
     --model resnet50_bf16.cvimodel \
     --output resnet50_cmdbuf_out_all_bf16.bin

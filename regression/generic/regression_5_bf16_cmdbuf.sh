@@ -43,11 +43,11 @@ build_cvimodel.py \
     --cmdbuf cmdbuf_bf16.bin \
     --weight weight_bf16.bin \
     --mlir ${NET}_quant_bf16_addr.mlir \
-    --cpufunc_dir ${RUNTIME_PATH}/lib/cpu \
     --output=${NET}_bf16.cvimodel
 
 # run cvimodel
 model_runner \
+    --dump-all-tensors \
     --input ${NET}_in_bf16.bin \
     --model ${NET}_bf16.cvimodel \
     --output ${NET}_cmdbuf_out_all_bf16.bin

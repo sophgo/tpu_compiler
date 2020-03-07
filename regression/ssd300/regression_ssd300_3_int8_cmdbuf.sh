@@ -108,10 +108,10 @@ build_cvimodel.py \
     --cmdbuf cmdbuf_int8_multiplier.bin \
     --weight weight_int8_multiplier.bin \
     --mlir ssd300_quant_int8_multiplier_addr.mlir \
-    --cpufunc_dir ${RUNTIME_PATH}/lib/cpu \
     --output=ssd300_int8_per_layer.cvimodel
 
 model_runner \
+    --dump-all-tensors \
     --input ssd300_in_int8.bin \
     --model ssd300_int8_per_layer.cvimodel \
     --output ssd300_cmdbuf_out_all_int8_multiplier.bin

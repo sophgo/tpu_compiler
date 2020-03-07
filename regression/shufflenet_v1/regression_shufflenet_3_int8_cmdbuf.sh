@@ -53,7 +53,6 @@ build_cvimodel.py \
     --cmdbuf cmdbuf_int8_per_layer.bin \
     --weight weight_int8_per_layer.bin \
     --mlir shufflenet_quant_int8_per_layer_addr.mlir \
-    --cpufunc_dir ${RUNTIME_PATH}/lib/cpu \
     --output=shufflenet_int8_per_layer.cvimodel
 
 # run cmdbuf
@@ -64,6 +63,7 @@ build_cvimodel.py \
 #    shufflenet_cmdbuf_out_all_int8_per_layer.bin \
 #    16460784 0 16460784 1
 model_runner \
+    --dump-all-tensors \
     --input shufflenet_in_int8.bin \
     --model shufflenet_int8_per_layer.cvimodel \
     --output shufflenet_cmdbuf_out_all_int8_per_layer.bin
@@ -124,7 +124,6 @@ build_cvimodel.py \
     --cmdbuf cmdbuf_int8_multiplier.bin \
     --weight weight_int8_multiplier.bin \
     --mlir shufflenet_quant_int8_multiplier_addr.mlir \
-    --cpufunc_dir ${RUNTIME_PATH}/lib/cpu \
     --output=shufflenet_int8_multiplier.cvimodel
 
 # run cmdbuf
@@ -135,6 +134,7 @@ build_cvimodel.py \
 #    shufflenet_cmdbuf_out_all_int8_multiplier.bin \
 #    16460784 0 16460784 1
 model_runner \
+    --dump-all-tensors \
     --input shufflenet_in_int8.bin \
     --model shufflenet_int8_multiplier.cvimodel \
     --output shufflenet_cmdbuf_out_all_int8_multiplier.bin

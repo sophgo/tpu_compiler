@@ -48,10 +48,10 @@ build_cvimodel.py \
     --cmdbuf cmdbuf_bf16.bin \
     --weight weight_bf16.bin \
     --mlir ssd300_quant_bf16_tg_addr.mlir \
-    --cpufunc_dir ${RUNTIME_PATH}/lib/cpu \
     --output=ssd300_bf16.cvimodel
 
 model_runner \
+    --dump-all-tensors \
     --input ssd300_in_bf16.bin \
     --model ssd300_bf16.cvimodel \
     --output ssd300_cmdbuf_out_all_bf16.bin

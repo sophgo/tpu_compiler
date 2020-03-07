@@ -47,10 +47,10 @@ build_cvimodel.py \
     --cmdbuf cmdbuf_bf16.bin \
     --weight weight_bf16.bin \
     --mlir efficientnet_b0_quant_bf16_cmdbuf.mlir \
-    --cpufunc_dir ${RUNTIME_PATH}/lib/cpu \
     --output efficientnet_bf16.cvimodel
 
 model_runner \
+    --dump-all-tensors \
     --input efficientnet_in_bf16.bin \
     --model efficientnet_bf16.cvimodel \
     --output out_all_bf16.bin

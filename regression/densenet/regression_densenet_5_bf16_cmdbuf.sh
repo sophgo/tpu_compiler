@@ -39,11 +39,11 @@ build_cvimodel.py \
     --cmdbuf cmdbuf_bf16.bin \
     --weight weight_bf16.bin \
     --mlir densenet_quant_bf16_addr.mlir \
-    --cpufunc_dir ${RUNTIME_PATH}/lib/cpu \
     --output=densenet_bf16.cvimodel
 
 # run cmdbuf
 model_runner \
+    --dump-all-tensors \
     --input densenet_in_bf16.bin \
     --model densenet_bf16.cvimodel \
     --output densenet_cmdbuf_out_all_bf16.bin

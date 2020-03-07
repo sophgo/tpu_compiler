@@ -49,11 +49,11 @@ build_cvimodel.py \
     --cmdbuf cmdbuf.bin \
     --weight weight.bin \
     --mlir bmface_v3_quant_int8_cmdbuf.mlir \
-    --cpufunc_dir ${RUNTIME_PATH}/lib/cpu \
     --output bmface_v3_int8.cvimodel
 
 # run cmdbuf
 model_runner \
+    --dump-all-tensors \
     --input bmface_in_int8.bin  \
     --model bmface_v3_int8.cvimodel \
     --output bmface_v3_cmdbuf_out_all_int8.bin

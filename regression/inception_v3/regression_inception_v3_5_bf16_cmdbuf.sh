@@ -44,7 +44,6 @@ build_cvimodel.py \
     --cmdbuf cmdbuf_bf16.bin \
     --weight weight_bf16.bin \
     --mlir inception_v3_quant_bf16_addr.mlir \
-    --cpufunc_dir ${RUNTIME_PATH}/lib/cpu \
     --output=inception_v3_bf16.cvimodel
 
 ## run cmdbuf
@@ -55,6 +54,7 @@ build_cvimodel.py \
 #    inception_v3_cmdbuf_out_all_bf16.bin \
 #    54587952 0 54587952 1
 model_runner \
+    --dump-all-tensors \
     --input inception_v3_in_bf16.bin \
     --model inception_v3_bf16.cvimodel \
     --output inception_v3_cmdbuf_out_all_bf16.bin

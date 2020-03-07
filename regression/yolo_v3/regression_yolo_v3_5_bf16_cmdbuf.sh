@@ -43,11 +43,11 @@ build_cvimodel.py \
     --cmdbuf cmdbuf_bf16.bin \
     --weight weight_bf16.bin \
     --mlir yolo_v3_416_quant_bf16_addr.mlir \
-    --cpufunc_dir ${RUNTIME_PATH}/lib/cpu \
     --output=yolo_v3_416_bf16.cvimodel
 
 # run cmdbuf
 model_runner \
+    --dump-all-tensors \
     --input yolo_v3_in_bf16.bin \
     --model yolo_v3_416_bf16.cvimodel \
     --output yolo_v3_416_cmdbuf_out_all_bf16.bin

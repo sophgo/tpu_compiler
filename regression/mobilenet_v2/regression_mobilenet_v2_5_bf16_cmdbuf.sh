@@ -39,7 +39,6 @@ build_cvimodel.py \
     --cmdbuf cmdbuf_bf16.bin \
     --weight weight_bf16.bin \
     --mlir mobilenet_v2_quant_bf16_addr.mlir \
-    --cpufunc_dir ${RUNTIME_PATH}/lib/cpu \
     --output=mobilenet_v2_bf16.cvimodel
 
 # run cmdbuf
@@ -50,6 +49,7 @@ build_cvimodel.py \
 #    mobilenet_v2_cmdbuf_out_all_bf16.bin \
 #    18811152 0 18811152 1
 model_runner \
+    --dump-all-tensors \
     --input mobilenet_v2_in_bf16.bin \
     --model mobilenet_v2_bf16.cvimodel \
     --output mobilenet_v2_cmdbuf_out_all_bf16.bin
