@@ -114,6 +114,13 @@ struct TpuTL_LW_Conv2DOp_MarkShortPathPattern : public RewritePattern {
       return matchFailure();
     }
 
+    if (! op.getResult()->hasOneUse()) {
+      llvm::errs() << "TL_LA2LW: layer ID " << op.layer_id()
+                 << ", Conv2D " << op.name()
+                 << " has more than one Use " << op.getResult()->hasOneUse() << "\n";
+      op.setAttr("in_short_path", rewriter.getBoolAttr(false));
+      return matchSuccess();
+    }
     assert(op.getResult()->hasOneUse());
 
     // TODO: this is a naive version, looking for one step path, mark as short
@@ -147,6 +154,71 @@ struct TpuTL_LW_Conv2DOp_AssignLayoutPattern : public RewritePattern {
     if (op.lm_layout() != "NONE") {
       // assigned already
       return matchFailure();
+    }
+
+    if (! op.getResult()->hasOneUse()) {
+      llvm::errs() << "TL_LA2LW: layer ID " << op.layer_id()
+                 << ", Conv2D " << op.name()
+                 << " has more than one Use " << op.getResult()->hasOneUse() << "\n";
+      // steal these two conv
+      std::vector<Operation *> conv_ops;
+      std::vector<Operation *> elta_ops;
+      for (auto &use : op.getResult()->getUses()) {
+        Operation *next_opInst = use.getOwner();
+        if (auto next_op = llvm::dyn_cast_or_null<tpu::TL_LW_Conv2DOp>(next_opInst)) {
+          // next is TL_LW_Conv2DOp
+          if (next_op.lm_layout() == "NONE") {
+            // next_op has not been assign layout, return for now
+            return matchSuccess();
+          }
+          conv_ops.push_back(next_opInst);
+        } else if (auto next_op = llvm::dyn_cast_or_null<tpu::TL_EltwiseAddOp>(next_opInst)) {
+          if (next_op.lm_layout() == "NONE") {
+            // next_op has not been assign layout, return for now
+            return matchSuccess();
+          }
+          elta_ops.push_back(next_opInst);
+        }
+      }
+      if (conv_ops.size() == 2) {
+        // inception_v3, two conv Ops steal them
+        auto conv_op_next = llvm::dyn_cast_or_null<tpu::TL_LW_Conv2DOp>(conv_ops[0]);
+        auto conv_op_steal = llvm::dyn_cast_or_null<tpu::TL_LW_Conv2DOp>(conv_ops[1]);
+        if (conv_op_next.lm_layout() == "IWO") {
+          op.setAttr("lm_layout", rewriter.getStringAttr("OWI"));
+        } else if (conv_op_next.lm_layout() ==  "OWI") {
+          op.setAttr("lm_layout", rewriter.getStringAttr("IWO"));
+        } else {
+          assert(0);
+        }
+        // steal the op
+        op.setAttr("tl_store_flag", rewriter.getBoolAttr(false));
+        conv_op_next.setAttr("tl_load_flag", rewriter.getBoolAttr(false));
+        conv_op_steal.setAttr("lm_layout",
+            rewriter.getStringAttr(conv_op_next.lm_layout()));
+        conv_op_steal.setAttr("tl_load_flag", rewriter.getBoolAttr(false));
+
+        return matchSuccess();
+      } else if (conv_ops.size() == 1) {
+        assert(elta_ops.size() == 1);
+        // mobilenet_v2, one conv and one eltwise
+        // fuse with the conv
+        auto conv_op_next = llvm::dyn_cast_or_null<tpu::TL_LW_Conv2DOp>(conv_ops[0]);
+        if (conv_op_next.lm_layout() == "IWO") {
+          op.setAttr("lm_layout", rewriter.getStringAttr("OWI"));
+        } else if (conv_op_next.lm_layout() ==  "OWI") {
+          op.setAttr("lm_layout", rewriter.getStringAttr("IWO"));
+        } else {
+          assert(0);
+        }
+        // steal the op
+        op.setAttr("tl_store_flag", rewriter.getBoolAttr(false));
+        conv_op_next.setAttr("tl_load_flag", rewriter.getBoolAttr(false));
+
+        return matchSuccess();
+      } else {
+        assert(false);
+      }
     }
 
     assert(op.getResult()->hasOneUse());
@@ -221,13 +293,27 @@ struct TpuTL_EltwiseAddOp_AssignLayoutPattern : public RewritePattern {
     if (op.getResult()->hasOneUse()) {
 
       // one user case
-      // TODO: not handle yet
       Operation *next_opInst = getNextOp(op);
       assert(!isa<tpu::TL_EltwiseAddOp>(next_opInst));
-      assert(!isa<tpu::TL_LW_Conv2DOp>(next_opInst));
-      // start a new chain
-      op.setAttr("lm_layout", rewriter.getStringAttr("IWO"));
-
+      if (auto next_op = llvm::dyn_cast_or_null<tpu::TL_LW_Conv2DOp>(next_opInst)) {
+        // next is TL_LW_Conv2DOp, fuse it
+        if (next_op.lm_layout() == "NONE") {
+          // next_op not set layout yet, return for now, wait for next round
+          return matchSuccess();
+        }
+        if (next_op.lm_layout() == "IWO") {
+          op.setAttr("lm_layout", rewriter.getStringAttr("OWI"));
+        } else if (next_op.lm_layout() == "OWI") {
+          op.setAttr("lm_layout", rewriter.getStringAttr("IWO"));
+        } else {
+          assert(0);
+        }
+        op.setAttr("tl_store_flag", rewriter.getBoolAttr(false));
+        next_op.setAttr("tl_load_flag", rewriter.getBoolAttr(false));
+      } else {
+        // start a new chain
+        op.setAttr("lm_layout", rewriter.getStringAttr("IWO"));
+      }
     } else {
 
       // for 2 users EltwiseAdd case
