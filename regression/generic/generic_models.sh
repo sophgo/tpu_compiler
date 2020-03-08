@@ -135,6 +135,7 @@ export TOLERANCE_INT8_MULTIPLER=0.95,0.94,0.69
 export TOLERANCE_BF16=0.99,0.99,0.93
 export DO_CMDBUF_BF16=0   # this is a bug to fix
 # export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
+export DO_DEEPFUSION=1
 fi
 
 if [ $NET = "shufflenet_v2" ]; then

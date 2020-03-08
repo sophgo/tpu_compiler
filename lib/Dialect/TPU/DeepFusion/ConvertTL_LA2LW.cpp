@@ -160,7 +160,6 @@ struct TpuTL_LW_Conv2DOp_AssignLayoutPattern : public RewritePattern {
       llvm::errs() << "TL_LA2LW: layer ID " << op.layer_id()
                  << ", Conv2D " << op.name()
                  << " has more than one Use " << op.getResult()->hasOneUse() << "\n";
-      // steal these two conv
       std::vector<Operation *> conv_ops;
       std::vector<Operation *> elta_ops;
       for (auto &use : op.getResult()->getUses()) {
@@ -181,7 +180,7 @@ struct TpuTL_LW_Conv2DOp_AssignLayoutPattern : public RewritePattern {
         }
       }
       if (conv_ops.size() == 2) {
-        // inception_v3, two conv Ops steal them
+        // inception_v3, two conv Ops, steal them
         auto conv_op_next = llvm::dyn_cast_or_null<tpu::TL_LW_Conv2DOp>(conv_ops[0]);
         auto conv_op_steal = llvm::dyn_cast_or_null<tpu::TL_LW_Conv2DOp>(conv_ops[1]);
         if (conv_op_next.lm_layout() == "IWO") {
@@ -211,8 +210,9 @@ struct TpuTL_LW_Conv2DOp_AssignLayoutPattern : public RewritePattern {
         } else {
           assert(0);
         }
-        // steal the op
-        op.setAttr("tl_store_flag", rewriter.getBoolAttr(false));
+        // however, since the op has another use, the current OP needs to do store
+        op.setAttr("tl_store_flag", rewriter.getBoolAttr(true));
+        // next_conv can skip loading though
         conv_op_next.setAttr("tl_load_flag", rewriter.getBoolAttr(false));
 
         return matchSuccess();

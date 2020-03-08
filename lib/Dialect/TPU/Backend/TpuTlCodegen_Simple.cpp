@@ -173,13 +173,23 @@ LogicalResult tpu::TL_EltwiseAddOp::codegen(void *ctx) {
 
   assert(op->getNumOperands() == 2 && "support 2 inputs only");
 
+  // Always make sure the long path to be input, the short path as augend
+  // TODO: do real search
+  // workaround as followings
+  // 1. for resnet50
+  //    - if opd0 is not Conv, it MUST be short path
+  //    - if opd0 is conv, check in_short_path() flag
+  // 2. for mobilenet_v2 (always both conv, and the is_short_path() is not valid)
+  //    - if opd0 has more than one use, it is the short path
   int augend_idx = 0;
   auto prev_op = op->getOperand(0)->getDefiningOp();
   auto prev_conv_op = llvm::dyn_cast<tpu::TL_LW_Conv2DOp>(prev_op);
   if (!prev_conv_op) {
     augend_idx = 1;
   } else {
-    if (prev_conv_op.in_short_path().getValue()) {
+    if (!op->getOperand(0)->hasOneUse()) {
+      augend_idx = 1;
+    } else if (prev_conv_op.in_short_path().getValue()) {
       augend_idx = 1;
     }
   }
