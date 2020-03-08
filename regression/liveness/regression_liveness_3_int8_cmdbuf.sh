@@ -58,6 +58,7 @@ build_cvimodel.py \
 
 # run cvimodel
 model_runner \
+    --dump-all-tensors \
     --input liveness_in_int8.bin  \
     --model liveness_int8.cvimodel \
     --output liveness_cmdbuf_out_all_int8.bin

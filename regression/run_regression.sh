@@ -22,7 +22,7 @@ generic_net_list=(
   "inception_v3"
   "inception_v4"
   "efficientnet_b0"
-  "shufflenet_v2"
+  # "shufflenet_v2"
 )
 
 generic_accuracy_net_list=(
