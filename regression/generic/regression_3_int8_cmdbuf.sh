@@ -27,11 +27,11 @@ if [ $DO_QUANT_INT8_PER_TENSOR -eq 1 ]; then
   mlir-opt \
       --assign-weight-address \
       --tpu-weight-address-align=16 \
-      --tpu-weight-map-filename=weight_map.csv \
+      --tpu-weight-map-filename=${NET}_weight_map_int8_per_tensor.csv \
       --tpu-weight-bin-filename=weight_int8_per_tensor.bin \
       --assign-neuron-address \
       --tpu-neuron-address-align=16 \
-      --tpu-neuron-map-filename=neuron_map.csv \
+      --tpu-neuron-map-filename=${NET}_neuron_map_int8_per_tensor.csv \
       ${NET}_quant_int8_per_tensor_tg.mlir \
       -o ${NET}_quant_int8_per_tensor_addr.mlir
 
@@ -56,7 +56,7 @@ if [ $DO_QUANT_INT8_PER_TENSOR -eq 1 ]; then
 
   bin_to_npz.py \
       ${NET}_cmdbuf_out_all_int8_per_tensor.bin \
-      neuron_map.csv \
+      ${NET}_neuron_map_int8_per_tensor.csv \
       ${NET}_cmdbuf_out_all_int8_per_tensor.npz
   npz_to_bin.py \
       ${NET}_cmdbuf_out_all_int8_per_tensor.npz \
@@ -96,11 +96,11 @@ if [ $DO_QUANT_INT8_MULTIPLER -eq 1 ]; then
   mlir-opt \
       --assign-weight-address \
       --tpu-weight-address-align=16 \
-      --tpu-weight-map-filename=weight_map.csv \
+      --tpu-weight-map-filename=${NET}_weight_map_int8_multiplier.csv \
       --tpu-weight-bin-filename=weight_int8_multiplier.bin \
       --assign-neuron-address \
       --tpu-neuron-address-align=16 \
-      --tpu-neuron-map-filename=neuron_map.csv \
+      --tpu-neuron-map-filename=${NET}_neuron_map_int8_multiplier.csv \
       ${NET}_quant_int8_multiplier_tg.mlir \
       -o ${NET}_quant_int8_multiplier_addr.mlir
 
@@ -125,7 +125,7 @@ if [ $DO_QUANT_INT8_MULTIPLER -eq 1 ]; then
 
   bin_to_npz.py \
       ${NET}_cmdbuf_out_all_int8_multiplier.bin \
-      neuron_map.csv \
+      ${NET}_neuron_map_int8_multiplier.csv \
       ${NET}_cmdbuf_out_all_int8_multiplier.npz
   npz_to_bin.py \
       ${NET}_cmdbuf_out_all_int8_multiplier.npz \
@@ -142,6 +142,13 @@ if [ $DO_QUANT_INT8_MULTIPLER -eq 1 ]; then
       ${NET}_cmdbuf_out_all_int8_multiplier.npz \
       ${NET}_tensor_all_int8_multiplier.npz \
       --op_info ${NET}_op_info_int8_multiplier.csv
+
+  if [ ! -z $CVIMODEL_REL_PATH -a -d $CVIMODEL_REL_PATH ]; then
+    cp ${NET}_in_int8.bin $CVIMODEL_REL_PATH
+    cp ${NET}_int8_multiplier.cvimodel $CVIMODEL_REL_PATH
+    cp ${NET}_tensor_all_int8_multiplier $CVIMODEL_REL_PATH
+    cp ${NET}_neuron_map_int8_multiplier.csv $CVIMODEL_REL_PATH
+  fi
 
 fi
 

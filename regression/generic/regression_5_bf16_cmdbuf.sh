@@ -24,11 +24,11 @@ mlir-opt \
 mlir-opt \
     --assign-weight-address \
     --tpu-weight-address-align=16 \
-    --tpu-weight-map-filename=weight_map_bf16.csv \
+    --tpu-weight-map-filename=${NET}_weight_map_bf16.csv \
     --tpu-weight-bin-filename=weight_bf16.bin \
     --assign-neuron-address \
     --tpu-neuron-address-align=16 \
-    --tpu-neuron-map-filename=neuron_map_bf16.csv \
+    --tpu-neuron-map-filename=${NET}_neuron_map_bf16.csv \
     ${NET}_quant_bf16_tg.mlir \
     -o ${NET}_quant_bf16_addr.mlir
 
@@ -54,7 +54,7 @@ model_runner \
 
 bin_to_npz.py \
     ${NET}_cmdbuf_out_all_bf16.bin \
-    neuron_map_bf16.csv \
+    ${NET}_neuron_map_bf16.csv \
     ${NET}_cmdbuf_out_all_bf16.npz
 
 # compare all tensors
@@ -63,6 +63,13 @@ npz_compare.py \
     ${NET}_tensor_all_bf16.npz \
     --op_info ${NET}_op_info_bf16.csv \
     --tolerance=$TOLERANCE_BF16_CMDBUF -vv
+
+if [ ! -z $CVIMODEL_REL_PATH -a -d $CVIMODEL_REL_PATH ]; then
+  cp ${NET}_in_bf16.bin $CVIMODEL_REL_PATH
+  cp ${NET}_bf16.cvimodel $CVIMODEL_REL_PATH
+  cp ${NET}_tensor_all_bf16.npz $CVIMODEL_REL_PATH
+  cp ${NET}_neuron_map_bf16.csv $CVIMODEL_REL_PATH
+fi
 
 # VERDICT
 echo $0 PASSED

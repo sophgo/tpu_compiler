@@ -26,6 +26,7 @@ generic_net_list=(
 )
 
 generic_accuracy_net_list=(
+  "resnet50"
   "mobilenet_v2"
   # "shufflenet_v2"
 )
@@ -45,6 +46,10 @@ fi
 
 if [ ! -e regression_out ]; then
   mkdir regression_out
+fi
+export CVIMODEL_REL_PATH=regression_out/cvimodel_release
+if [ ! -e $CVIMODEL_REL_PATH ]; then
+  mkdir $CVIMODEL_REL_PATH
 fi
 
 pushd regression_out

@@ -112,7 +112,7 @@ model_runner \
 if [ $COMPARE_ALL -eq 1 ]; then
   bin_to_npz.py \
       ${NET}_cmdbuf_out_all_int8_la.bin \
-      neuron_map.csv \
+      ${NET}_neuron_map_int8_multiplier.csv \
       ${NET}_cmdbuf_out_all_int8_la.npz
   npz_compare.py \
       ${NET}_cmdbuf_out_all_int8_la.npz \
@@ -121,13 +121,18 @@ if [ $COMPARE_ALL -eq 1 ]; then
 
   bin_to_npz.py \
       ${NET}_cmdbuf_out_all_int8_lw.bin \
-      neuron_map.csv \
+      ${NET}_neuron_map_int8_multiplier.csv \
       ${NET}_cmdbuf_out_all_int8_lw.npz
   # surpress return for time being
   npz_compare.py \
       ${NET}_cmdbuf_out_all_int8_lw.npz \
       ${NET}_tensor_all_int8_multiplier.npz \
       --op_info ${NET}_op_info_int8_multiplier.csv || true
+fi
+
+if [ ! -z $CVIMODEL_REL_PATH -a -d $CVIMODEL_REL_PATH ]; then
+  cp ${NET}_int8_la.cvimodel $CVIMODEL_REL_PATH
+  cp ${NET}_int8_lw.cvimodel $CVIMODEL_REL_PATH
 fi
 
 # VERDICT
