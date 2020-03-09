@@ -181,7 +181,7 @@ if __name__ == '__main__':
       # pytorch ToTensor() will do HWC to CHW, and change range to [0.0, 1.0]
       # for pytorch, seeing errors if not include ToTensor in transforms
       # change to range [0, 255]
-      x = images[0].numpy() * raw_scale
+      x = images[0].numpy() * 255
       x = x.astype('uint8')
       # print(x.shape)
       # transposed already in ToTensor()
@@ -191,6 +191,7 @@ if __name__ == '__main__':
       # print('img mean int8', np.mean(np.reshape(img_swap, (3, -1)), axis=1))
       # print('img std int8', np.std(np.reshape(img_swap, (3, -1)), axis=1))
       x = x.astype(np.float32)
+      x = x * raw_scale / 255.0
       # apply mean
       if mean.size != 0:
         x -= mean
