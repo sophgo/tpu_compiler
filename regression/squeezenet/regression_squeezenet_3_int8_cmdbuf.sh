@@ -7,16 +7,30 @@ source $DIR/../../envsetup.sh
 ################################
 # prepare int8 input
 ################################
-npz_to_bin.py squeezenet_v1.1_in_fp32.npz data squeezenet_v1.1_in_fp32.bin
-bin_fp32_to_int8.py \
-    squeezenet_v1.1_in_fp32.bin \
+
+npz_to_bin.py \
+    squeezenet_v1.1_tensor_all_int8_multiplier.npz \
+    data_quant \
     squeezenet_v1.1_in_int8.bin \
-    1.0 \
-    151.133789
+    int8
+
+# don't use following commands to generate input, as it depends on
+# calibration result.
+# npz_to_bin.py squeezenet_v1.1_in_fp32.npz input squeezenet_v1.1_in_fp32.bin
+# bin_fp32_to_int8.py \
+#    squeezenet_v1.1_in_fp32.bin \
+#    squeezenet_v1.1_in_int8.bin \
+#    1.0 \
+#    161.008057
 
 ################################
-# quantization 1: per-layer int8
+# Lower for quantization 1: per-layer int8
 ################################
+mlir-opt \
+    --tpu-lower \
+    squeezenet_v1.1_quant_int8_per_layer.mlir \
+    -o squeezenet_v1.1_quant_int8_per_layer_tg.mlir
+
 # assign weight address & neuron address
 mlir-opt \
     --assign-weight-address \
@@ -26,47 +40,59 @@ mlir-opt \
     --assign-neuron-address \
     --tpu-neuron-address-align=16 \
     --tpu-neuron-map-filename=neuron_map.csv \
-    --assign-layer-id \
-    squeezenet_v1.1_quant_int8_per_layer.mlir | \
-  mlir-translate \
+    squeezenet_v1.1_quant_int8_per_layer_tg.mlir \
+    -o squeezenet_v1.1_quant_int8_per_layer_addr.mlir
+
+mlir-translate \
     --mlir-to-cmdbuf \
+    squeezenet_v1.1_quant_int8_per_layer_addr.mlir \
     -o cmdbuf_int8_per_layer.bin
 
-# run cmdbuf
-$RUNTIME_PATH/bin/test_bmnet \
-    squeezenet_v1.1_in_int8.bin \
-    weight_int8_per_layer.bin \
-    cmdbuf_int8_per_layer.bin \
-    squeezenet_v1.1_cmdbuf_out_all_int8_per_layer.bin \
-    4838161 0 4838161 1
-bin_extract.py \
-    squeezenet_v1.1_cmdbuf_out_all_int8_per_layer.bin \
-    squeezenet_v1.1_cmdbuf_out_pool10_int8_per_layer.bin \
-    int8 0x00025be0 1000
-bin_compare.py \
-    squeezenet_v1.1_cmdbuf_out_pool10_int8_per_layer.bin \
-    $REGRESSION_PATH/squeezenet/data/test_cat_out_squeezenet_v1.1_pool10_int8_per_layer.bin \
-    int8 1 1 1 1000 5
+# generate cvi model
+build_cvimodel.py \
+    --cmdbuf cmdbuf_int8_per_layer.bin \
+    --weight weight_int8_per_layer.bin \
+    --mlir squeezenet_v1.1_quant_int8_per_layer_addr.mlir \
+    --output=squeezenet_v1.1_int8_per_layer.cvimodel
 
-# compare all tensors
+# run cmdbuf
+#$RUNTIME_PATH/bin/test_bmnet \
+#    squeezenet_v1.1_in_int8.bin \
+#    weight_int8_per_layer.bin \
+#    cmdbuf_int8_per_layer.bin \
+#    squeezenet_v1.1_cmdbuf_out_all_int8_per_layer.bin \
+#    16460784 0 16460784 1
+model_runner \
+    --dump-all-tensors \
+    --input squeezenet_v1.1_in_int8.bin \
+    --model squeezenet_v1.1_int8_per_layer.cvimodel \
+    --output squeezenet_v1.1_cmdbuf_out_all_int8_per_layer.bin
+
 bin_to_npz.py \
     squeezenet_v1.1_cmdbuf_out_all_int8_per_layer.bin \
     neuron_map.csv \
     squeezenet_v1.1_cmdbuf_out_all_int8_per_layer.npz
+
+# compare all tensors
 npz_compare.py \
     squeezenet_v1.1_cmdbuf_out_all_int8_per_layer.npz \
     squeezenet_v1.1_tensor_all_int8_per_layer.npz \
     --op_info squeezenet_v1.1_op_info_int8_per_layer.csv
 
 ################################
-# quantization 2: per-channel int8
+# Lower for quantization 2: per-channel int8
 ################################
 
 # skipped
 
 ################################
-# quantization 3: multiplier int8
+# Lower for quantization 3: multiplier int8
 ################################
+mlir-opt \
+    --tpu-lower \
+    squeezenet_v1.1_quant_int8_multiplier.mlir \
+    -o squeezenet_v1.1_quant_int8_multiplier_tg.mlir
+
 # assign weight address & neuron address
 mlir-opt \
     --assign-weight-address \
@@ -76,33 +102,40 @@ mlir-opt \
     --assign-neuron-address \
     --tpu-neuron-address-align=16 \
     --tpu-neuron-map-filename=neuron_map.csv \
-    --assign-layer-id \
-    squeezenet_v1.1_quant_int8_multiplier.mlir | \
-  mlir-translate \
+    squeezenet_v1.1_quant_int8_multiplier_tg.mlir \
+    -o squeezenet_v1.1_quant_int8_multiplier_addr.mlir
+
+mlir-translate \
     --mlir-to-cmdbuf \
+    squeezenet_v1.1_quant_int8_multiplier_addr.mlir \
     -o cmdbuf_int8_multiplier.bin
 
-# run cmdbuf
-$RUNTIME_PATH/bin/test_bmnet \
-    squeezenet_v1.1_in_int8.bin \
-    weight_int8_multiplier.bin \
-    cmdbuf_int8_multiplier.bin \
-    squeezenet_v1.1_cmdbuf_out_all_int8_multiplier.bin \
-    4838161 0 4838161 1
-bin_extract.py \
-    squeezenet_v1.1_cmdbuf_out_all_int8_multiplier.bin \
-    squeezenet_v1.1_cmdbuf_out_pool10_int8_multiplier.bin \
-    int8 0x00025be0 1000
-bin_compare.py \
-    squeezenet_v1.1_cmdbuf_out_pool10_int8_multiplier.bin \
-    $REGRESSION_PATH/squeezenet/data/test_cat_out_squeezenet_v1.1_pool10_int8_multiplier.bin \
-    int8 1 1 1 1000 5
+# generate cvi model
+build_cvimodel.py \
+    --cmdbuf cmdbuf_int8_multiplier.bin \
+    --weight weight_int8_multiplier.bin \
+    --mlir squeezenet_v1.1_quant_int8_multiplier_addr.mlir \
+    --output=squeezenet_v1.1_int8_multiplier.cvimodel
 
-# compare all tensors
+# run cmdbuf
+#$RUNTIME_PATH/bin/test_bmnet \
+#    squeezenet_v1.1_in_int8.bin \
+#    weight_int8_multiplier.bin \
+#    cmdbuf_int8_multiplier.bin \
+#    squeezenet_v1.1_cmdbuf_out_all_int8_multiplier.bin \
+#    16460784 0 16460784 1
+model_runner \
+    --dump-all-tensors \
+    --input squeezenet_v1.1_in_int8.bin \
+    --model squeezenet_v1.1_int8_multiplier.cvimodel \
+    --output squeezenet_v1.1_cmdbuf_out_all_int8_multiplier.bin
+
 bin_to_npz.py \
     squeezenet_v1.1_cmdbuf_out_all_int8_multiplier.bin \
     neuron_map.csv \
     squeezenet_v1.1_cmdbuf_out_all_int8_multiplier.npz
+
+# compare all tensors
 npz_compare.py \
     squeezenet_v1.1_cmdbuf_out_all_int8_multiplier.npz \
     squeezenet_v1.1_tensor_all_int8_multiplier.npz \

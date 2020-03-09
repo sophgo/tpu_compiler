@@ -33,15 +33,15 @@ mlir-tpu-interpreter squeezenet_v1.1_quant_int8_per_layer.mlir \
     --tensor-out squeezenet_v1.1_out_int8_per_layer.npz \
     --dump-all-tensor=squeezenet_v1.1_tensor_all_int8_per_layer.npz
 
-npz_to_bin.py \
-    squeezenet_v1.1_tensor_all_int8_per_layer.npz \
-    pool10 \
-    squeezenet_v1.1_out_pool10_int8_per_layer.bin \
-    int8
-bin_compare.py \
-    squeezenet_v1.1_out_pool10_int8_per_layer.bin \
-    $REGRESSION_PATH/squeezenet/data/test_cat_out_squeezenet_v1.1_pool10_int8_per_layer.bin \
-    int8 1 1 1 1000 5
+#npz_to_bin.py \
+#    squeezenet_v1.1_tensor_all_int8_per_layer.npz \
+#    pool10 \
+#    squeezenet_v1.1_out_pool10_int8_per_layer.bin \
+#    int8
+#bin_compare.py \
+#    squeezenet_v1.1_out_pool10_int8_per_layer.bin \
+#    $REGRESSION_PATH/squeezenet/data/test_cat_out_squeezenet_v1.1_pool10_int8_per_layer.bin \
+#    int8 1 1 1 1000 5
 
 if [ $COMPARE_ALL ]; then
   # this will fail for now, because prob has been dequantized twice, others should pass
@@ -68,15 +68,15 @@ mlir-tpu-interpreter squeezenet_v1.1_quant_int8_per_channel.mlir \
     --tensor-out squeezenet_v1.1_out_int8_per_channel.npz \
     --dump-all-tensor=squeezenet_v1.1_tensor_all_int8_per_channel.npz
 
-npz_to_bin.py \
-    squeezenet_v1.1_tensor_all_int8_per_channel.npz \
-    pool10 \
-    squeezenet_v1.1_out_pool10_int8_per_channel.bin \
-    int8
-bin_compare.py \
-    squeezenet_v1.1_out_pool10_int8_per_channel.bin \
-    $REGRESSION_PATH/squeezenet/data/test_cat_out_squeezenet_v1.1_pool10_int8_per_channel.bin \
-    int8 1 1 1 1000 5
+#npz_to_bin.py \
+#    squeezenet_v1.1_tensor_all_int8_per_channel.npz \
+#    pool10 \
+#    squeezenet_v1.1_out_pool10_int8_per_channel.bin \
+#    int8
+#bin_compare.py \
+#    squeezenet_v1.1_out_pool10_int8_per_channel.bin \
+#    $REGRESSION_PATH/squeezenet/data/test_cat_out_squeezenet_v1.1_pool10_int8_per_channel.bin \
+#    int8 1 1 1 1000 5
 
 if [ $COMPARE_ALL ]; then
   # this will fail for now, because prob has been dequantized twice, others should pass
@@ -104,15 +104,15 @@ mlir-tpu-interpreter squeezenet_v1.1_quant_int8_multiplier.mlir \
     --tensor-out squeezenet_v1.1_out_int8_multiplier.npz \
     --dump-all-tensor=squeezenet_v1.1_tensor_all_int8_multiplier.npz
 
-npz_to_bin.py \
-    squeezenet_v1.1_tensor_all_int8_multiplier.npz \
-    pool10 \
-    squeezenet_v1.1_out_pool10_int8_multiplier.bin \
-    int8
-bin_compare.py \
-    squeezenet_v1.1_out_pool10_int8_multiplier.bin \
-    $REGRESSION_PATH/squeezenet/data/test_cat_out_squeezenet_v1.1_pool10_int8_multiplier.bin \
-    int8 1 1 1 1000 5
+#npz_to_bin.py \
+#    squeezenet_v1.1_tensor_all_int8_multiplier.npz \
+#    pool10 \
+#    squeezenet_v1.1_out_pool10_int8_multiplier.bin \
+#    int8
+#bin_compare.py \
+#    squeezenet_v1.1_out_pool10_int8_multiplier.bin \
+#    $REGRESSION_PATH/squeezenet/data/test_cat_out_squeezenet_v1.1_pool10_int8_multiplier.bin \
+#    int8 1 1 1 1000 5
 
 if [ $COMPARE_ALL ]; then
   # this will fail for now, because prob has been dequantized twice, others should pass

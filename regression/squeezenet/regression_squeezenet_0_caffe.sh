@@ -8,8 +8,8 @@ source $DIR/../../envsetup.sh
 run_caffe_classifier.py \
     --model_def $MODEL_PATH/imagenet/squeezenet/caffe/deploy_v1.1.prototxt \
     --pretrained_model $MODEL_PATH/imagenet/squeezenet/caffe/squeezenet_v1.1.caffemodel \
-    --mean_file $PYTHON_TOOLS_PATH/data/ilsvrc_2012_mean.npy \
-    --label_file $PYTHON_TOOLS_PATH/data/ilsvrc12/synset_words.txt \
+    --mean_file $REGRESSION_PATH/squeezenet/data/ilsvrc_2012_mean.npy \
+    --label_file $REGRESSION_PATH/squeezenet/data/synset_words.txt \
     --dump_blobs squeezenet_v1.1_blobs.npz \
     --dump_weights squeezenet_v1.1_weights.npz \
     $REGRESSION_PATH/squeezenet/data/cat.jpg \
