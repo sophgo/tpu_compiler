@@ -113,6 +113,7 @@ class OnnxConverter(BaseConverterInterface):
             "GlobalAveragePool": lambda node: self.convert_global_avg_pool_op(node),
             "MaxPool": lambda node: self.convert_maxpool_op(node),
             "Relu": lambda node: self.convert_relu_op(node),
+            "Reshape": lambda node: self.convert_reshape_op(node),
             "Shape": lambda node: self.convert_shape_op(node),
             "Unsqueeze": lambda node: self.convert_unsqueeze_op(node),
         }
@@ -446,6 +447,18 @@ class OnnxConverter(BaseConverterInterface):
         operands = list()
         operands.append(op)
         output_shape = input_shape
+        relu_op = self.CVI.add_relu_op(onnx_node.name, operands, output_shape)
+        self.addOperand(onnx_node.name, relu_op, output_shape)
+
+    def convert_reshape_op(self, onnx_node):
+        assert(onnx_node.op_type == "Reshape")
+        op, input_shape = self.getOperand(onnx_node.inputs[0])
+        _ , new_shape = self.getOperand(onnx_node.inputs[1])
+        if get_shape_size(input_shape) != get_shape_size(new_shape):
+            raise ValueError("can't reshape {} to {}, size different".format(input_shape, new_shape))
+        operands = list()
+        operands.append(op)
+        output_shape = new_shape
         relu_op = self.CVI.add_relu_op(onnx_node.name, operands, output_shape)
         self.addOperand(onnx_node.name, relu_op, output_shape)
 
