@@ -1,0 +1,2 @@
+1. $ sudo apt install parallel
+2. $ parallel -j10 < regression.txt
