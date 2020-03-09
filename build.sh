@@ -42,6 +42,7 @@ pushd $BUILD_PATH/build_caffe
 cmake -G Ninja -DCPU_ONLY=ON -DUSE_OPENCV=OFF \
     -DBLAS=open -DUSE_OPENMP=TRUE \
     -DCMAKE_INSTALL_PREFIX=$CAFFE_PATH \
+    -DCMAKE_CXX_FLAGS=-std=gnu++11 \
     $MLIR_SRC_PATH/third_party/caffe
 cmake --build . --target install
 popd
