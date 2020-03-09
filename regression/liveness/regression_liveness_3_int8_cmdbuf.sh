@@ -53,7 +53,6 @@ build_cvimodel.py \
     --cmdbuf cmdbuf.bin \
     --weight weight.bin \
     --mlir liveness_quant_int8_cmdbuf.mlir \
-    --cpufunc_dir ${RUNTIME_PATH}/lib/cpu \
     --output liveness_int8.cvimodel
 
 # run cvimodel
