@@ -10,6 +10,7 @@ class TPU_OpType(Enum):
     Load_Weight = 'tpu.load_weight'
 
     BatchNorm = 'tpu.batch_norm'
+    Concat = 'tpu.concat'
     Conv2d = 'tpu.conv_2d'
     Crop = 'tpu.crop'
     Eltwise_Add = 'tpu.eltwise_add'
@@ -106,6 +107,20 @@ class MLIRImporter(object):
              self.f32Type, output_tensor_shape)
         load_name = self.module.stringAttr(name)
         return self.buildOp(TPU_OpType.Load_Weight.value, [self.weightop], [tensor_output_type], name=load_name)
+
+    def add_concat_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+        assert(len(inputOperands) >= 2)
+        tensor_output_type = self.module.make_ranked_tensor_type(
+            self.f32Type, output_tensor_shape)
+        checkKey(kargs, 'axis')
+        concat_name = self.module.stringAttr(op_name)
+        
+        axis_attr = self.module.integerAttr(self.i32Type, kargs['axis'])
+        none = self.add_none_op()
+        for i in range( 6 - len(inputOperands)):
+            inputOperands.append(none)
+        return self.buildOp(TPU_OpType.Concat.value, inputOperands, [
+            tensor_output_type], name=concat_name, axis=axis_attr, quant=self.quant_param)
 
     def add_conv_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         """

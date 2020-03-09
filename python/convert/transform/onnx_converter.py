@@ -105,6 +105,7 @@ class OnnxConverter(BaseConverterInterface):
             "Add": lambda node: self.convert_add_op(node),
             "Conv": lambda node: self.convert_conv_op(node),
             "BatchNormalization": lambda node: self.convert_batchnorm_op(node),
+            "Concat": lambda node: self.convert_concat_op(node),
             "Constant": lambda node: self.convert_constant_op(node),
             "Flatten": lambda node: self.convert_flatten_op(node),
             "Gather": lambda node: self.convert_gather_op(node),
@@ -279,6 +280,26 @@ class OnnxConverter(BaseConverterInterface):
 
         else:
             raise ValueError("Not Support {} type".format(data_type))
+
+    def convert_concat_op(self, onnx_node):
+        assert(onnx_node.op_type == "Concat")
+        if len(onnx_node.inputs) < 2:
+            raise ValueError("{} must great than 2".format(onnx_node.op_type))
+        op1, input_shape1 = self.getOperand(onnx_node.inputs[0])
+        op2, input_shape2 = self.getOperand(onnx_node.inputs[1])
+
+        axis = onnx_node.attrs['axis']
+        operands = [op1, op2]
+        output_shape = list()
+        for idx, (s1, s2) in enumerate(zip(input_shape1, input_shape2)):
+            if  idx== axis:
+                output_shape.append(s1+s2)
+            else:
+                assert(s1 == s2)
+                output_shape.append(s1)
+
+        concat_op = self.CVI.add_concat_op(onnx_node.name, operands, output_shape, axis=axis)
+        self.addOperand(onnx_node.name, concat_op, output_shape)
 
     def convert_conv_op(self, onnx_node):
         assert(onnx_node.op_type == "Conv")
