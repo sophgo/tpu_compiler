@@ -16,6 +16,12 @@ def calcPool2DFloor(i, kernel, stride, padding):
 def calcPool2DCeil(i, kernel, stride, padding):
     return ceil((i + 2 * padding - kernel) / stride) + 1
 
+def get_shape_size(shape):
+    size = 1
+    for i in shape:
+        size*=i
+    return size
+
 onnx_attr_translator = {
     "axis": lambda x: int(x),
     "axes": lambda x: [int(a) for a in x],
@@ -103,18 +109,21 @@ class OnnxConverter(BaseConverterInterface):
         self.output_tensor_file = "{}_1_06eeeb7e.npz".format(model_name)
         self.onnxop_factory = {
             "Add": lambda node: self.convert_add_op(node),
-            "Conv": lambda node: self.convert_conv_op(node),
             "BatchNormalization": lambda node: self.convert_batchnorm_op(node),
             "Concat": lambda node: self.convert_concat_op(node),
+            "Conv": lambda node: self.convert_conv_op(node),
             "Constant": lambda node: self.convert_constant_op(node),
             "Flatten": lambda node: self.convert_flatten_op(node),
             "Gather": lambda node: self.convert_gather_op(node),
             "Gemm": lambda node: self.convert_gemm_op(node),
             "GlobalAveragePool": lambda node: self.convert_global_avg_pool_op(node),
             "MaxPool": lambda node: self.convert_maxpool_op(node),
+            "Mul" : lambda node: self.convert_mul_op(node),
             "Relu": lambda node: self.convert_relu_op(node),
             "Reshape": lambda node: self.convert_reshape_op(node),
             "Shape": lambda node: self.convert_shape_op(node),
+            "Sigmoid" :lambda node: self.convert_sigmoid_op(node),
+            "Transpose": lambda node: self.convert_transpose_op(node),
             "Unsqueeze": lambda node: self.convert_unsqueeze_op(node),
         }
 
@@ -357,16 +366,26 @@ class OnnxConverter(BaseConverterInterface):
         self.addOperand(onnx_node.name, reshape_op, output_shape)
 
     def convert_gather_op(self, onnx_node):
+        """
+            first input is tensor data, second input is constant
+        """
         assert(onnx_node.op_type == "Gather")
         op, input_shape = self.getOperand(onnx_node.inputs[0])
+
         if 'axis' in onnx_node.attrs:
-            value = onnx_node.attrs['axis']
+            axis = onnx_node.attrs['axis']
         else:
-            value = 0
+            axis = 0
+       
+        gather_indices = self.getTensor(onnx_node.inputs[1]).tensor_data
+        new_shape = input_shape
+        if new_shape[axis] > len(gather_indices):
+            new_shape[axis] = len(gather_indices)
+        else:
+            raise ValueError("Gather input shape dim {} ({}) must great than {} ({})".format(axis, input_shape, len(gather_indices), gather_indices))
         # TODO: our IR no Gather function, please add
         # Hardcode Here
-        output_shape = input_shape
-        self.addOperand(onnx_node.name, op, output_shape)
+        self.addOperand(onnx_node.name, op, new_shape)
 
     def convert_gemm_op(self, onnx_node):
         assert(onnx_node.op_type == "Gemm")
@@ -450,6 +469,23 @@ class OnnxConverter(BaseConverterInterface):
         relu_op = self.CVI.add_relu_op(onnx_node.name, operands, output_shape)
         self.addOperand(onnx_node.name, relu_op, output_shape)
 
+    def convert_mul_op(self, onnx_node):
+        assert(onnx_node.op_type == "Mul")  
+        op1, input_shape1 = self.getOperand(onnx_node.inputs[0])
+        op2, input_shape2 = self.getOperand(onnx_node.inputs[1])
+        operands = list()
+        operands.append(op1)
+        operands.append(op2)
+        axis = 0
+        for idx, (d1, d2) in enumerate(zip(input_shape1, input_shape2)):
+            if d1 != d2:
+              axis = idx - 1
+        
+
+        output_shape = input_shape1
+        broadcast_mul_op = self.CVI.add_broadcast_mul_op(onnx_node.name, operands, output_shape, axis=axis)
+        self.addOperand(onnx_node.name, broadcast_mul_op, output_shape)
+
     def convert_reshape_op(self, onnx_node):
         assert(onnx_node.op_type == "Reshape")
         op, input_shape = self.getOperand(onnx_node.inputs[0])
@@ -463,11 +499,21 @@ class OnnxConverter(BaseConverterInterface):
         self.addOperand(onnx_node.name, relu_op, output_shape)
 
     def convert_shape_op(self, onnx_node):
-        """Just get input shape, we don't create op here."""
         assert(onnx_node.op_type == "Shape")
         op, input_shape = self.getOperand(onnx_node.inputs[0])
+        data = np.array(input_shape)
+        new_tensor = OnnxTensor(onnx_node.name, data, list(data.shape))
+        self.converted_tensors.append(new_tensor)
+        shape_op = self.CVI.add_load_file_op(onnx_node.name, new_tensor.shape)
+        self.addOperand(onnx_node.name, shape_op, list(data.shape))
+
+    def convert_sigmoid_op(self, onnx_node):
+        assert(onnx_node.op_type == "Sigmoid")
+        op, input_shape = self.getOperand(onnx_node.inputs[0])
+        operands = [op]
         output_shape = input_shape
-        self.addOperand(onnx_node.name, op, output_shape)
+        sigmoid_op = self.CVI.add_sigmoid_op(onnx_node.name, operands, output_shape)
+        self.addOperand(onnx_node.name, sigmoid_op, output_shape)
 
     def convert_unsqueeze_op(self, onnx_node):
         """Unsqueeze """

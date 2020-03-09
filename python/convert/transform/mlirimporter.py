@@ -10,6 +10,7 @@ class TPU_OpType(Enum):
     Load_Weight = 'tpu.load_weight'
 
     BatchNorm = 'tpu.batch_norm'
+    BroadcastMul = 'tpu.broadcast_mul'
     Concat = 'tpu.concat'
     Conv2d = 'tpu.conv_2d'
     Crop = 'tpu.crop'
@@ -107,6 +108,20 @@ class MLIRImporter(object):
              self.f32Type, output_tensor_shape)
         load_name = self.module.stringAttr(name)
         return self.buildOp(TPU_OpType.Load_Weight.value, [self.weightop], [tensor_output_type], name=load_name)
+
+    def add_broadcast_mul_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+        assert(len(inputOperands) >= 2)
+        tensor_output_type = self.module.make_ranked_tensor_type(
+            self.f32Type, output_tensor_shape)
+        
+        broadcast_mul_name = self.module.stringAttr(op_name)
+        
+        axis_attr = self.module.integerAttr(self.i32Type, kargs['axis'])
+        none = self.add_none_op()
+        for i in range( 6 - len(inputOperands)):
+            inputOperands.append(none)
+        return self.buildOp(TPU_OpType.BroadcastMul.value, inputOperands, [
+            tensor_output_type], name=broadcast_mul_name, axis=axis_attr, quant=self.quant_param)
 
     def add_concat_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         assert(len(inputOperands) >= 2)
@@ -321,6 +336,14 @@ class MLIRImporter(object):
         reshape_name = self.module.stringAttr(op_name)
         return self.buildOp(TPU_OpType.Reshape.value, inputOperands, [
             tensor_output_type], name=reshape_name)
+
+    def add_sigmoid_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+        tensor_output_type = self.module.make_ranked_tensor_type(
+        self.f32Type, output_tensor_shape)
+
+        sigmoid_name = self.module.stringAttr(op_name)
+        return self.buildOp(TPU_OpType.Sigmoid.value, inputOperands, [
+            tensor_output_type], name=sigmoid_name, quant=self.quant_param)
 
     def add_return_op(self, Operands):
         return pybind.ret(Operands)
