@@ -9,6 +9,12 @@ import csv
 from math import fabs
 from enum import IntEnum
 from tensor_compare import TensorCompare, TensorCompareStats
+import threading
+import multiprocessing
+
+def chunks(l, n):
+    for i in range(0, len(l), n):
+        yield l[i:i + n]
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Compare two npz tensor files.')
@@ -110,18 +116,24 @@ def discard_res_data(args):
   trunc_data[name[-1]] = res_data[name[-1]][:,:,0:box,:]
   np.savez(args.target_file, **trunc_data)
 
-def compare_one_array(tc, npz1, npz2, name, force_dtype, thresholds, verbose):
+def compare_one_array(tc, npz1, npz2, name, force_dtype, thresholds, verbose, lock, dic):
+  lock.acquire()
   d1 = npz1[name]
   d2 = npz2[name]
+  lock.release()
   if thresholds.has_key(name) and not thresholds[name] == 0.0:
     # print("Apply dequantization with threhold {}".format(thresholds[name]))
     d1 = dequantize(d1, thresholds[name])
   d1, d2 = align_type_and_shape(d1, d2, force_dtype=force_dtype)
   result = tc.compare(d1, d2)
   tc.print_result(d1, d2, name, result, verbose)
+  dic[name] = result
   return result
 
 def main(argv):
+  lock = multiprocessing.Lock() 
+  dic = multiprocessing.Manager().dict()
+
   args = parse_args()
   f1 = args.target_file
   f2 = args.ref_file
@@ -167,7 +179,7 @@ def main(argv):
     print("Comparing %s ..."%(args.tensor))
     name = args.tensor
     result = compare_one_array(tc, npz1, npz2, name, force_dtype,
-                               thresholds, args.verbose)
+                               thresholds, args.verbose, lock, dic)
     sys.exit(0 if result[0] else -1)
 
   common = set(npz1.files) & set(npz2.files)
@@ -185,10 +197,18 @@ def main(argv):
 
   stats = TensorCompareStats()
 
+  processes = []
   for name in names:
-    result = compare_one_array(tc, npz1, npz2, name, force_dtype,
-                               thresholds, args.verbose)
-    stats.update(name, result)
+    p = multiprocessing.Process(target = compare_one_array,
+                                  args = (tc, npz1, npz2, name, force_dtype, thresholds, args.verbose, lock, dic))
+    processes.append(p)
+    p.start()
+
+  for j in processes:
+    j.join()
+
+  for name in names:
+    stats.update(name, dic.get(name))
 
   stats.print_result()
   if (args.save):
