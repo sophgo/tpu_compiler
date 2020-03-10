@@ -1185,16 +1185,12 @@ LogicalResult tpu::PermuteOp::interpret(
   order2 = this->order2().getLimitedValue();
   order3 = this->order3().getLimitedValue();
 
-  int upscale_factor = this->upscale_factor().getLimitedValue();
-
   int ret = 0;
   std::shared_ptr<std::vector<float>> input = opdT[0];
   //As long as there is one order which is different from the natural order
   // of the data, we need to permute.(from caffe permute layer source code mark)
   if( in==on && ic==oc && ih==oh && iw==ow ){
     valueMapping[result] = std::move(opdT[0]);
-  } else if (upscale_factor != 0){
-
   } else {
     std::shared_ptr<std::vector<float>> input = opdT[0];
     ret = my_permute(input->data(),resultT->data(),input_shape.size(),in,ic,ih,iw,

@@ -95,6 +95,7 @@ class OnnxTensor():
 
 class OnnxConverter(BaseConverterInterface):
     def __init__(self, model_name, onnx_model):
+        self.model_name = model_name
         self.input_nodes = onnx_model.graph.input
         self.output_nodes = onnx_model.graph.output
         self.nodes = onnx_model.graph.node
@@ -221,7 +222,7 @@ class OnnxConverter(BaseConverterInterface):
 
         self.CVI.add_return_op(return_op)
         mlir_txt = self.CVI.print_module()
-        with open("resnet50.mlir", "w") as f:
+        with open("{}.mlir".format(self.model_name), "w") as f:
             f.write(mlir_txt)
 
     
@@ -482,10 +483,8 @@ class OnnxConverter(BaseConverterInterface):
         operands = list()
         operands.append(op1)
         operands.append(op2)
-        axis = 0
-        for idx, (d1, d2) in enumerate(zip(input_shape1, input_shape2)):
-            if d1 != d2:
-              axis = idx - 1
+        # Hardcode here
+        axis = 1
         
 
         output_shape = input_shape1
@@ -494,15 +493,28 @@ class OnnxConverter(BaseConverterInterface):
 
     def convert_reshape_op(self, onnx_node):
         assert(onnx_node.op_type == "Reshape")
+        """
+            first input is tensor data, second input is constant
+        """
         op, input_shape = self.getOperand(onnx_node.inputs[0])
-        _ , new_shape = self.getOperand(onnx_node.inputs[1])
-        if get_shape_size(input_shape) != get_shape_size(new_shape):
-            raise ValueError("can't reshape {} to {}, size different".format(input_shape, new_shape))
+        output_shape = list()
+        # TODO: Hardcode here, pls fix Reshape IR
+        try:
+            t = self.getTensor(onnx_node.inputs[1])
+            output_shape = t.tensor_data.tolist()
+            output_shape[0] = 1 # Batch = 1
+        except:
+            output_shape = input_shape[:2]
         operands = list()
         operands.append(op)
-        output_shape = new_shape
-        relu_op = self.CVI.add_relu_op(onnx_node.name, operands, output_shape)
-        self.addOperand(onnx_node.name, relu_op, output_shape)
+        output_shape = [int(x) for x in output_shape]
+        if output_shape == input_shape:
+            # same shape, skip
+            self.addOperand(onnx_node.name, op, output_shape)
+            return 
+        else:
+            reshape_op = self.CVI.add_reshape_op(onnx_node.name, operands, output_shape)
+            self.addOperand(onnx_node.name, reshape_op, output_shape)
 
     def convert_shape_op(self, onnx_node):
         assert(onnx_node.op_type == "Shape")
