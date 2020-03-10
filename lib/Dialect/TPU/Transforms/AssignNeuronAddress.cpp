@@ -295,6 +295,7 @@ public:
         AssignGAddrTGInt8Pattern<tpu::TG_INT8_PoolMax2DOp>,
         AssignGAddrTGInt8Pattern<tpu::TG_INT8_ShuffleChannelOp>,
         AssignGAddrTGInt8Pattern<tpu::TG_INT8_PReluOp>,
+        AssignGAddrTGInt8Pattern<tpu::TG_INT8_ReluOp>,
         AssignGAddrTGInt8Pattern<tpu::TG_INT8_UpsampleOp>,
 
         // tg bf16 ops
@@ -313,6 +314,7 @@ public:
         AssignGAddrTGBf16Pattern<tpu::TG_BF16_PoolAvg2DOp>,
         AssignGAddrTGBf16Pattern<tpu::TG_BF16_PoolMax2DOp>,
         AssignGAddrTGBf16Pattern<tpu::TG_BF16_PReluOp>,
+        AssignGAddrTGBf16Pattern<tpu::TG_BF16_ReluOp>,
         AssignGAddrTGBf16Pattern<tpu::TG_BF16_ShuffleChannelOp>,
         AssignGAddrTGBf16Pattern<tpu::TG_BF16_UpsampleOp>
 
