@@ -521,6 +521,30 @@ class OnnxConverter(BaseConverterInterface):
         sigmoid_op = self.CVI.add_sigmoid_op(onnx_node.name, operands, output_shape)
         self.addOperand(onnx_node.name, sigmoid_op, output_shape)
 
+    def convert_transpose_op(self, onnx_node):
+        assert(onnx_node.op_type == "Transpose")
+        op, input_shape = self.getOperand(onnx_node.inputs[0])
+        transpose_perm = onnx_node.attrs['perm']
+        if transpose_perm == [0, 1, 4, 2, 5, 3]:
+            # pixel shuffle
+            if input_shape[2] != input_shape[3]:
+                raise ValueError("Pixel Shuffle Scale factor not same {} v.s.{}".format(input_shape[2], input_shape[3]))
+
+            upscale_factor = input_shape[2]
+            on = input_shape[0]
+            oc = input_shape[1]
+            oh = upscale_factor * input_shape[4]
+            ow = upscale_factor * input_shape[5]
+            output_shape = [on ,oc , oh, ow]
+            operands = [op]
+            attr={
+                'upscale_factor': upscale_factor
+            }
+            pixel_shuffle_op = self.CVI.add_pixelshuffle_op(onnx_node.name, operands, output_shape, **attr)
+            self.addOperand(onnx_node.name, pixel_shuffle_op, output_shape)
+        else:
+            raise RuntimeError("TODO")
+
     def convert_unsqueeze_op(self, onnx_node):
         """Unsqueeze """
         assert(onnx_node.op_type == "Unsqueeze")
