@@ -13,7 +13,6 @@ wget -nc https://github.com/KaimingHe/deep-residual-networks/raw/master/prototxt
 wget -nc https://github.com/KaimingHe/deep-residual-networks/raw/master/prototxt/ResNet-152-deploy.prototxt
 ```
 
-
 ## Dataset
 
 - imagenet
@@ -24,12 +23,24 @@ wget -nc https://github.com/KaimingHe/deep-residual-networks/raw/master/prototxt
 
 - 20200113
 
-pytorch (50000)
-| mode             | Top-1 (%) | Top-5 (%) |
-| ---              | ---       | ---       |
-| caffe original   | 74.798    | 92.008    |
-| fp32             | 74.798    | 92.008    |
-| int8 Per-layer   | 74.308    | 91.648    |
-| int8 Per-channel | 74.620    | 91.896    |
-| int8 Multiplier  | 74.638    | 91.900    |
-| fp16             | 74.760    | 91.980    |
+  Update caffe to master, and use mean for each channel to replace previous perpixel mean_file.
+
+  | mode             | Top-1 (%) | Top-5 (%) |
+  | ---              | ---       | ---       |
+  | caffe original   | 72.614    | 90.890    |
+  | fp32             | 72.614    | 90.890    |
+  | int8 Per-layer   | 71.368    | 90.132    |
+  | int8 Per-channel | 72.222    | 90.662    |
+  | int8 Multiplier  | 72.430    | 90.788    |
+  | fp16             | 72.610    | 90.858    |
+
+- 20200113
+
+  | mode             | Top-1 (%) | Top-5 (%) |
+  | ---              | ---       | ---       |
+  | caffe original   | 74.798    | 92.008    |
+  | fp32             | 74.798    | 92.008    |
+  | int8 Per-layer   | 74.308    | 91.648    |
+  | int8 Per-channel | 74.620    | 91.896    |
+  | int8 Multiplier  | 74.638    | 91.900    |
+  | fp16             | 74.760    | 91.980    |

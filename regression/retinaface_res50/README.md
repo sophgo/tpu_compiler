@@ -45,6 +45,17 @@ link
 
 ## Accuracy Results
 
+- 20200310
+  - retinaface_res50_600x600
+    - Caffe         0.90437/0.87979/0.61979
+    - FP32          0.90437/0.87979/0.61979
+    - INT8 (kld)    0.89953/0.87047/0.60953
+
+  - retinaface_mnet25_320x320
+    - Caffe         0.70951/0.58483/0.25748
+    - FP32          0.70951/0.58483/0.25748
+    - INT8 (kld)    0.69207/0.56736/0.24945
+
 - widerface easy/medium/hard
   - FP32
     - retinaface_res50     600x600   0.904/0.879/0.619

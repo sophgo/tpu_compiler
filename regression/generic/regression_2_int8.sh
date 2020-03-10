@@ -159,7 +159,8 @@ if [ $DO_QUANT_INT8_MULTIPLER -eq 1 ]; then
         --op_info ${NET}_op_info_int8_multiplier.csv \
         --dequant \
         --excepts $EXCEPTS \
-        --tolerance $TOLERANCE_INT8_MULTIPLER -vv
+        --tolerance $TOLERANCE_INT8_MULTIPLER -vv \
+        --stats_int8_tensor
   fi
 fi
 

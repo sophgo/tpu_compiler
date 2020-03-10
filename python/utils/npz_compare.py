@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+from __future__ import division
 import numpy as np
 import os
 import sys
@@ -40,6 +41,8 @@ def parse_args():
                         help="List of tensors except from comparing")
     parser.add_argument("--full-array", action='store_true', default=False,
                         help="Dump full array data when comparing failed")
+    parser.add_argument("--stats_int8_tensor", action='store_true', default=False,
+                        help="Do statistics on int8 tensor for saturate ratio and low ratio")
     parser.add_argument("--save", type=str,
                         help="Save result as a csv file")
     args = parser.parse_args()
@@ -104,8 +107,8 @@ def dequantize(d1, threshold):
   return d1
 
 def discard_res_data(args):
-  res_data = np.load(args.target_file);
-  ref_data = np.load(args.ref_file);
+  res_data = np.load(args.target_file)
+  ref_data = np.load(args.ref_file)
   name = res_data.files
   length = len(name)
   trunc_data = {}
@@ -115,6 +118,19 @@ def discard_res_data(args):
   box = ref_data[name[-1]].shape[2]
   trunc_data[name[-1]] = res_data[name[-1]][:,:,0:box,:]
   np.savez(args.target_file, **trunc_data)
+
+def tensor_stats(d):
+  stats = {}
+  d_int8 = d.astype(np.int8)
+  b_sat_pos = d_int8 == 127
+  b_sat_neg = d_int8 == -128
+  b_low = np.absolute(d_int8) < 8 # 16, 32, 63
+  stats["sat_ratio_pos"] = len(d_int8[b_sat_pos]) / d_int8.size
+  stats["sat_ratio_neg"] = len(d_int8[b_sat_neg]) / d_int8.size
+  stats["low_ratio"]     = len(d_int8[b_low])     / d_int8.size
+  print("    sat_ratio_pos = {}   [{}/{}]".format(stats["sat_ratio_pos"], len(d_int8[b_sat_pos]), d_int8.size))
+  print("    sat_ratio_neg = {}   [{}/{}]".format(stats["sat_ratio_neg"], len(d_int8[b_sat_neg]), d_int8.size))
+  print("    low_ratio     = {}   [{}/{}]".format(stats["low_ratio"], len(d_int8[b_low]), d_int8.size))
 
 def compare_one_array(tc, npz1, npz2, name, force_dtype, thresholds, verbose, lock, dic):
   lock.acquire()
@@ -131,7 +147,7 @@ def compare_one_array(tc, npz1, npz2, name, force_dtype, thresholds, verbose, lo
   return result
 
 def main(argv):
-  lock = multiprocessing.Lock() 
+  lock = multiprocessing.Lock()
   dic = multiprocessing.Manager().dict()
 
   args = parse_args()
@@ -200,7 +216,8 @@ def main(argv):
   processes = []
   for name in names:
     p = multiprocessing.Process(target = compare_one_array,
-                                  args = (tc, npz1, npz2, name, force_dtype, thresholds, args.verbose, lock, dic))
+        args = (tc, npz1, npz2, name, force_dtype, thresholds,
+                args.verbose, lock, dic))
     processes.append(p)
     p.start()
 
@@ -209,6 +226,9 @@ def main(argv):
 
   for name in names:
     stats.update(name, dic.get(name))
+    if args.stats_int8_tensor:
+      d1 = npz1[name]
+      tensor_stats(d1)
 
   stats.print_result()
   if (args.save):
