@@ -59,9 +59,12 @@ uint64_t getPreviousOpAddress(Operation *op, uint index = 0);
 
 uint64_t getWeightOpAddress(Operation *op);
 
+Operation* getNextOp(Operation *op);
+
 void setOpResultType(Operation *op, StandardTypes::Kind kind, int width = 0);
 
 tpu::QuantParam getDefaultQuantParam(Builder &builder);
+
 void parseConvParam(const tpu::ConvParam &p, bool is_deconv,
     Value *input, Value *output, Value *filter,
     int &n, int &ic, int &ih, int &iw, int &oc, int &oh, int &ow, int &g,
@@ -77,14 +80,6 @@ void parsePoolParam(const tpu::PoolParam &p,
 void parseFullyConnectedParam(
     Value *input, Value *output, Value *filter,
     int &m, int &k, int &n);
-
-
-void getReluOpVariadicTensors(tpu::ReluOp &op,
-    std::vector<std::shared_ptr<std::vector<float> > > &opdT,
-    std::shared_ptr<std::vector<float> > &rshift_pos,
-    std::shared_ptr<std::vector<float> > &multiplier_pos,
-    std::shared_ptr<std::vector<float> > &rshift_neg,
-    std::shared_ptr<std::vector<float> > &multiplier_neg);
 
 } // namespace mlir
 

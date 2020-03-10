@@ -53,19 +53,6 @@ extern int BF16_TABLE_END;
 
 namespace mlir {
 
-
-template <typename OpTy>
-static Operation* getNextOp(const OpTy &op) {
-  assert(op->getResult()->hasOneUse());
-  Operation *nextOp = nullptr;
-  for (auto &use : op->getResult()->getUses()) {
-    nextOp = use.getOwner();
-    break;
-  }
-  assert(nextOp);
-  return nextOp;
-}
-
 static void parseTgLeakyReluParam(Operation *op,
     int8_t &pos_rshift, int8_t &pos_m_i8,
     int8_t &neg_rshift, int8_t &neg_m_i8,
@@ -373,7 +360,7 @@ LogicalResult tpu::TG_INT8_PT_Conv2DOp::codegen(void *ctx) {
   int fused_leakyrelu_neg_m_i8 = 0;
   float fused_negative_slope = 0.0f;
   if (this->fuse_next()) {
-    Operation *nextOp = getNextOp(this);
+    Operation *nextOp = getNextOp(op);
     int8_t pos_rshift, pos_m_i8, neg_rshift, neg_m_i8;
     float negativeSlope;
     parseTgLeakyReluParam(nextOp,
@@ -472,7 +459,7 @@ LogicalResult tpu::TG_INT8_PC_Conv2DOp::codegen(void *ctx) {
   int fused_leakyrelu_neg_m_i8 = 0;
   float fused_negative_slope = 0.0f;
   if (this->fuse_next()) {
-    Operation *nextOp = getNextOp(this);
+    Operation *nextOp = getNextOp(op);
     int8_t pos_rshift, pos_m_i8, neg_rshift, neg_m_i8;
     float negativeSlope;
     parseTgLeakyReluParam(nextOp,
@@ -636,7 +623,7 @@ LogicalResult tpu::TG_INT8_PC_DeConv2DOp::codegen(void *ctx) {
   int fused_leakyrelu_neg_m_i8 = 0;
   float negativeSlope;
   if (this->fuse_next()) {
-    Operation *nextOp = getNextOp(this);
+    Operation *nextOp = getNextOp(op);
     int8_t pos_rshift, pos_m_i8, neg_rshift, neg_m_i8;
     parseTgLeakyReluParam(nextOp,
         pos_rshift, pos_m_i8, neg_rshift, neg_m_i8, negativeSlope);

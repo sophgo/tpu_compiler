@@ -91,18 +91,6 @@ struct TpuTL_LA_Conv2DOpPattern : public RewritePattern {
   }
 };
 
-template <typename OpTy>
-static Operation* getNextOp(OpTy &op) {
-  assert(op.getResult()->hasOneUse());
-  Operation *nextOp = nullptr;
-  for (auto &use : op.getResult()->getUses()) {
-    nextOp = use.getOwner();
-    break;
-  }
-  assert(nextOp);
-  return nextOp;
-}
-
 struct TpuTL_LW_Conv2DOp_MarkShortPathPattern : public RewritePattern {
   TpuTL_LW_Conv2DOp_MarkShortPathPattern(MLIRContext *context)
       : RewritePattern("tpu.tl_lw_conv_2d", 1, context) {}

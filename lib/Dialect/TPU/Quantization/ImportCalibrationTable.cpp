@@ -283,6 +283,79 @@ private:
   float threshold_;
 };
 
+/// force threshold for multiply operations
+/// like eltwise_mul, broadcast_mul
+template<typename TyOp>
+struct ForceThresholdMulOpPattern : public RewritePattern {
+  ForceThresholdMulOpPattern(MLIRContext *context)
+      : RewritePattern(TyOp::getOperationName(), 1, context) {}
+
+  PatternMatchResult matchAndRewrite(Operation *opInst,
+                                     PatternRewriter &rewriter) const override {
+    auto op = cast<TyOp>(opInst);
+
+    assert(opInst->getNumOperands() == 6);
+
+    // skip pow() case
+    if (opInst->getOperand(0)->getDefiningOp()
+        == opInst->getOperand(1)->getDefiningOp()) {
+      return matchFailure();
+    }
+
+    float threshold_x0 = getPreviousOpThreshold(opInst, 0);
+    float threshold_x1 = getPreviousOpThreshold(opInst, 1);
+    float threshold_y = getOpThreshold(opInst);
+    float new_threshold_y = threshold_x0 * threshold_x1;
+
+    // for swish, do backward overwrite
+    //if (isa<tpu::EltwiseMulOp>(opInst)) {
+    //  assert(isa<tpu::Conv2DOp>(opInst->getOperand(0)->getDefiningOp()));
+    //  assert(isa<tpu::SigmoidOp>(opInst->getOperand(1)->getDefiningOp()));
+    //  setOpThreshold(opInst->getOperand(0)->getDefiningOp(),
+    //                 threshold_y);
+    //  new_threshold_y = threshold_y;
+    //}
+
+    // for EltwiseMulOp, handle swish case only, other case needs more tuning
+    if (isa<tpu::EltwiseMulOp>(opInst)) {
+      bool is_swish = false;
+      if (isa<tpu::Conv2DOp>(opInst->getOperand(0)->getDefiningOp())
+          && isa<tpu::SigmoidOp>(opInst->getOperand(1)->getDefiningOp())) {
+        is_swish = true;
+      }
+      if (!is_swish) {
+        return matchFailure();
+      }
+    }
+
+    if (getOpQuantParamType(op) == "THRESHOLD") {
+      if (threshold_y == new_threshold_y) {
+        // assigned already
+        return matchFailure();
+      }
+    }
+
+
+    setOpThreshold(opInst, new_threshold_y);
+    setOpQuantParamType(op, "THRESHOLD");
+    llvm::errs() << opInst->getName() << " [" << op.name() << "] "
+                 << "set threshold by multiply threshold "
+                 << std::to_string(new_threshold_y) << "\n";
+
+    // for broadcast mul, update the ops after as well
+    //if (isa<tpu::BroadcastMulOp>(opInst)) {
+    //  float next_scale = sqrt(new_threshold_y / threshold_y);
+    //  for (auto &use : opInst->getResult(0)->getUses()) {
+    //    auto next_op = use.getOwner();
+    //    float next_threashold_y = getOpThreshold(next_op);
+    //    setOpThreshold(next_op, next_threashold_y * next_scale);
+    //  }
+    //}
+
+    return matchSuccess();
+  }
+};
+
 class ImportCalibrationTablePass : public FunctionPass<ImportCalibrationTablePass> {
 public:
   explicit ImportCalibrationTablePass(llvm::raw_ostream &os = llvm::errs()) : os(os) {}
@@ -335,7 +408,7 @@ public:
           || isa<tpu::NoneOp>(op)) {
         // no need to assign
       } else if (isa<tpu::ReshapeOp>(op)) {
-        // do not assign  
+        // do not assign
       } else if (isa<tpu::SliceOp>(op)){
         // do not assign
       } else if ( !failed(setThresholdFromMap(op, threshold_map))) {
@@ -354,7 +427,8 @@ public:
     // apply force threshold to some ops
     //   SoftmaxOp force to 1.0
     patterns.insert<
-        ForceThresholdDefaultPattern<tpu::SoftmaxOp>
+        ForceThresholdDefaultPattern<tpu::SoftmaxOp>,
+        ForceThresholdDefaultPattern<tpu::SigmoidOp>
         >(context, 1.0f);
     applyPatternsGreedily(fn, patterns);
 
@@ -363,6 +437,15 @@ public:
     patterns.clear();
     patterns.insert<
         BypassThresholdDefaultPattern<tpu::SliceOp>
+        >(context);
+    applyPatternsGreedily(fn, patterns);
+
+    // apply multiply for mul ops
+    llvm::errs() << "Force multiply Ops thresholds\n";
+    patterns.clear();
+    patterns.insert<
+        ForceThresholdMulOpPattern<tpu::BroadcastMulOp>,
+        ForceThresholdMulOpPattern<tpu::EltwiseMulOp>
         >(context);
     applyPatternsGreedily(fn, patterns);
 

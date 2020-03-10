@@ -237,6 +237,17 @@ uint64_t getWeightOpAddress(Operation *op) {
   }
 }
 
+Operation* getNextOp(Operation *op) {
+  assert(op->getResult(0)->hasOneUse());
+  Operation *nextOp = nullptr;
+  for (auto &use : op->getResult(0)->getUses()) {
+    nextOp = use.getOwner();
+    break;
+  }
+  assert(nextOp);
+  return nextOp;
+}
+
 /***********************************************************
  * TPU Ops parameter helpers
  ***********************************************************/
