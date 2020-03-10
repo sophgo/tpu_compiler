@@ -485,13 +485,17 @@ class OnnxConverter(BaseConverterInterface):
         operands = list()
         operands.append(op1)
         operands.append(op2)
-        # Hardcode here
-        axis = 1
+        if input_shape1 == input_shape2:
+            #eltwise mul
+            output_shape = input_shape1
+            mul_op = self.CVI.add_eltwise_mul_op(onnx_node.name, operands, output_shape)
+        else:
+            #broadcast mul
+            axis = len(input_shape1) - len(input_shape2) - 1
+            output_shape = input_shape1
+            mul_op = self.CVI.add_broadcast_mul_op(onnx_node.name, operands, output_shape, axis=axis)
 
-
-        output_shape = input_shape1
-        broadcast_mul_op = self.CVI.add_broadcast_mul_op(onnx_node.name, operands, output_shape, axis=axis)
-        self.addOperand(onnx_node.name, broadcast_mul_op, output_shape)
+        self.addOperand(onnx_node.name, mul_op, output_shape)
 
     def convert_reshape_op(self, onnx_node):
         assert(onnx_node.op_type == "Reshape")
