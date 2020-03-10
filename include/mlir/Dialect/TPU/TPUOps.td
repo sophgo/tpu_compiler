@@ -503,8 +503,6 @@ def TPU_DetectionOutputOp : TPU_Op<"detectionoutput",
   let results = (outs AnyTensor:$output);
 }
 
-def TPU_ReciprocalOp : TPU_LutOp<"reciprocal", "Reciprocal">;
-
 def TPU_EltwiseAddOp : TPU_EltwiseOp<"eltwise_add", "Add">;
 def TPU_EltwiseMulOp : TPU_EltwiseOp<"eltwise_mul", "Mul">;
 def TPU_EltwiseMaxOp : TPU_EltwiseOp<"eltwise_max", "Max">;
@@ -1083,6 +1081,8 @@ def TPU_PriorBoxOp: TPU_Op<"priorbox",
 
   let hasCanonicalizer = 1;
 }
+
+def TPU_ReciprocalOp : TPU_LutOp<"reciprocal", "Reciprocal">;
 
 def TPU_ReluOp: TPU_Op<"relu",
       [NoSideEffect,

@@ -133,6 +133,16 @@ def TpuOpQuantInterface : OpInterface<"TpuOpQuantInterface"> {
     //  }],
     //  "LogicalResult", "setOpQuantThresholdRange", (ins "float &":$threshold_max, "float &":$threshold_min)
     //>,
+    InterfaceMethod<[{
+        Quantize Int8.
+      }],
+      "LogicalResult", "quantizeInt8"
+    >,
+    InterfaceMethod<[{
+        Quantize Bf16.
+      }],
+      "LogicalResult", "quantizeBf16"
+    >,
   ];
 }
 

@@ -268,38 +268,6 @@ Value* tpu::DeConv2DOp::convertToTG() {
   return nullptr;
 }
 
-Value *tpu::ReciprocalOp::convertToTG() {
-  llvm::errs() << "lowerToTG: " << getOperationName() << " [" << getOpName()
-               << "]\n";
-  Operation *op = this->getOperation();
-  auto builder = Builder(op->getContext());
-
-
-  int nInputs = 3; // input and table
-  std::vector<Value *> operands;
-  for (auto i = 0; i < nInputs; ++i) {
-    operands.push_back(op->getOperand(i));
-  }
-
-  std::vector<NamedAttribute> attrs;
-  attrs.push_back(builder.getNamedAttr("name", nameAttr()));
-  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
-
-  if (getOpQuant() == "INT8") {
-    auto newOp = OpBuilder(op).create<tpu::TG_INT8_LutOp>(
-        op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
-        ArrayRef<NamedAttribute>{attrs});
-    return newOp.getResult();
-  } else if (getOpQuant() == "BF16") {
-    auto newOp = OpBuilder(op).create<tpu::TG_BF16_LutOp>(
-        op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
-        ArrayRef<NamedAttribute>{attrs});
-    return newOp.getResult();
-  }
-  assert(false);
-  return nullptr;
-}
-
 Value* tpu::EltwiseAddOp::convertToTG() {
   llvm::errs() << "lowerToTG: " << getOperationName()
                << " [" << getOpName() << "]\n";
@@ -764,6 +732,36 @@ Value *tpu::PReluOp::convertToTG() {
   return nullptr;
 }
 
+Value *tpu::ReciprocalOp::convertToTG() {
+  llvm::errs() << "lowerToTG: " << getOperationName() << " [" << getOpName()
+               << "]\n";
+  Operation *op = this->getOperation();
+  auto builder = Builder(op->getContext());
+
+  int nInputs = 3; // input and table
+  std::vector<Value *> operands;
+  for (auto i = 0; i < nInputs; ++i) {
+    operands.push_back(op->getOperand(i));
+  }
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder.getNamedAttr("name", nameAttr()));
+  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
+
+  if (getOpQuant() == "INT8") {
+    auto newOp = OpBuilder(op).create<tpu::TG_INT8_LutOp>(
+        op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  } else if (getOpQuant() == "BF16") {
+    auto newOp = OpBuilder(op).create<tpu::TG_BF16_LutOp>(
+        op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  }
+  assert(false);
+  return nullptr;
+}
+
 Value *tpu::ReluOp::convertToTG() {
   llvm::errs() << "lowerToTG: " << getOperationName() << " [" << getOpName()
                << "]\n";
@@ -785,7 +783,6 @@ Value *tpu::ReluOp::convertToTG() {
     return newOp.getResult();
   } else if (getOpQuant() == "BF16") {
     auto newOp = OpBuilder(op).create<tpu::TG_BF16_ReluOp>(
-
         op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
