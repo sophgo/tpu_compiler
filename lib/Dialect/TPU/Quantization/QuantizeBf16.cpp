@@ -316,6 +316,7 @@ public:
         TpuQuantBf16DefaultPattern<tpu::PReluOp>,
         TpuQuantBf16DefaultPattern<tpu::ReluOp>,
         TpuQuantBf16DefaultPattern<tpu::ShuffleChannelOp>,
+        TpuQuantBf16DefaultPattern<tpu::PixelShuffleOp>,
         TpuQuantBf16DefaultPattern<tpu::SigmoidOp>,
         TpuQuantBf16DefaultPattern<tpu::SliceOp>,
         TpuQuantBf16DefaultPattern<tpu::SqrtOp>,

@@ -786,9 +786,9 @@ def TPU_PixelShuffleOp: TPU_Op<"pixelshuffle",
 
   let arguments = (
     ins AnyTensor:$input,
+    NonNegativeI32Attr:$upscale_factor,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    DefaultValuedAttr<NonNegativeI32Attr, "0">:$upscale_factor,
     OptionalAttr<NonNegativeI32Attr>:$layer_id
   );
 

@@ -678,6 +678,50 @@ class TPU_TG_ShuffleChannelOp<string mnemonic, string opQuant> : TPU_Op<mnemonic
 def TPU_TG_INT8_ShuffleChannelOp : TPU_TG_ShuffleChannelOp<"tg_int8_shufflechannel", "Int8">;
 def TPU_TG_BF16_ShuffleChannelOp : TPU_TG_ShuffleChannelOp<"tg_bf16_shufflechannel", "Bf16">;
 
+class TPU_TG_PixelShuffleOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
+  let summary = "TG " # opQuant # " PixelShuffle operator.";
+
+  let description = [{
+    Inputs:
+      `input`           : required, the input activation memref.
+
+    Attributes:
+      `upscale_factor`  : required, indicate for upsample upscale_factor. 
+      `region`          : required, the memory region to reside in, could be
+                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
+                          (backend does not support `INPUT`, `OUTPUT` for now)
+      `gaddr`           : optional, address in global memory, normally the
+                                     offset within the memory region.
+
+      `name`            : required, name for comparing, or debug.
+      `layer_id`        : optional, id for profiling.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface`    : support common TPU TG Op interface.
+      `TpuTGOpCodegenInterface` : support generate TPU instuctions.
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    NonNegativeI32Attr:$upscale_factor,
+    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
+    OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+def TPU_TG_INT8_PixelShuffleOp : TPU_TG_PixelShuffleOp<"tg_int8_pixelshuffle", "Int8">;
+def TPU_TG_BF16_PixelShuffleOp : TPU_TG_PixelShuffleOp<"tg_bf16_pixelshuffle", "Bf16">;
+
 
 class TPU_TG_SliceOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,
