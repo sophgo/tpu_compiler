@@ -1,5 +1,16 @@
 from functools import partial, wraps
+import torch
 
+# generate onnx model from torch
+def to_onnx(torch_model, input, model_path, inputs_list, outputs_list):
+    torch.onnx.export(torch_model,               # model being run
+                  input,                         # model input (or a tuple for multiple inputs)
+                  model_path,   # where to save the model (can be a file or file-like object)
+                  export_params=True,        # store the trained parameter weights inside the model file
+                  opset_version=10,          # the ONNX version to export the model to
+                  input_names = inputs_list,   # the model's input names
+                  output_names = outputs_list, # the model's output names
+                  )
 class Color:
     # Foreground:
     HEADER = '\033[95m'

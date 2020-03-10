@@ -94,12 +94,13 @@ class OnnxTensor():
 
 
 class OnnxConverter(BaseConverterInterface):
-    def __init__(self, model_name, onnx_model):
+    def __init__(self, model_name, onnx_model, mlir_file_path):
         self.model_name = model_name
         self.input_nodes = onnx_model.graph.input
         self.output_nodes = onnx_model.graph.output
         self.nodes = onnx_model.graph.node
         self.tensors = onnx_model.graph.initializer
+        self.mlir_file_path = mlir_file_path
 
         self.converted_nodes = list()
         self.converted_tensors = list()
@@ -222,7 +223,7 @@ class OnnxConverter(BaseConverterInterface):
 
         self.CVI.add_return_op(return_op)
         mlir_txt = self.CVI.print_module()
-        with open("{}.mlir".format(self.model_name), "w") as f:
+        with open(self.mlir_file_path, "w") as f:
             f.write(mlir_txt)
 
     
