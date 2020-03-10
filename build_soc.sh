@@ -24,6 +24,7 @@ export ARM_TOOLCHAIN_SYSROOT_PATH=$TPU_BASE/tools/sysroot_aarch64-linux-gnu
 
 export PATH=$ARM_TOOLCHAIN_GCC_PATH/bin:$PATH
 export AARCH64_SYSROOT_PATH=$ARM_TOOLCHAIN_SYSROOT_PATH
+export RAMDISK_PATH=$TPU_BASE/ramdisk/prebuild
 export TOOLCHAIN_FILE_PATH=$MLIR_SRC_PATH/externals/cviruntime/scripts/toolchain-aarch64-linux.cmake
 
 # install path
@@ -92,6 +93,19 @@ cmake -G Ninja -DCHIP=BM1880v2 $BUILD_FLAG \
 cmake --build . --target install
 popd
 
+# build cnpy
+if [ ! -e $BUILD_SOC_PATH/build_cnpy ]; then
+  mkdir -p $BUILD_SOC_PATH/build_cnpy
+fi
+pushd $BUILD_SOC_PATH/build_cnpy
+cmake -G Ninja $BUILD_FLAG \
+    -DCMAKE_TOOLCHAIN_FILE=$TOOLCHAIN_FILE_PATH \
+    -DCMAKE_INSTALL_PREFIX=$INSTALL_SOC_PATH \
+    -DRAMDISK_PATH=${RAMDISK_PATH} \
+    $MLIR_SRC_PATH/third_party/cnpy
+cmake --build . --target install
+popd
+
 # build runtime
 if [ ! -e $BUILD_SOC_PATH/build_cviruntime ]; then
   mkdir $BUILD_SOC_PATH/build_cviruntime
@@ -100,9 +114,11 @@ pushd $BUILD_SOC_PATH/build_cviruntime
 cmake -G Ninja -DCHIP=BM1880v2 -DRUNTIME=SOC $BUILD_FLAG \
     -DCMAKE_TOOLCHAIN_FILE=$TOOLCHAIN_FILE_PATH \
     -DCVIKERNEL_PATH=$CVIKERNEL_SOC_PATH \
+    -DCNPY_PATH=$INSTALL_SOC_PATH/lib \
     -DFLATBUFFERS_PATH=$FLATBUFFERS_SOC_PATH \
     -DCVIBUILDER_PATH=$BUILD_SOC_PATH/build_cvimodel \
     -DCMAKE_INSTALL_PREFIX=$CVIRUNTIME_SOC_PATH \
+    -DRAMDISK_PATH=${RAMDISK_PATH} \
     $MLIR_SRC_PATH/externals/cviruntime
 cmake --build . --target install
 popd

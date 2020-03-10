@@ -101,28 +101,20 @@ model_runner \
     --dump-all-tensors \
     --input ${NET}_in_int8.bin \
     --model ${NET}_int8_la.cvimodel \
-    --output ${NET}_cmdbuf_out_all_int8_la.bin
+    --output ${NET}_cmdbuf_out_all_int8_la.npz
 
 model_runner \
     --dump-all-tensors \
     --input ${NET}_in_int8.bin \
     --model ${NET}_int8_lw.cvimodel \
-    --output ${NET}_cmdbuf_out_all_int8_lw.bin
+    --output ${NET}_cmdbuf_out_all_int8_lw.npz
 
 if [ $COMPARE_ALL -eq 1 ]; then
-  bin_to_npz.py \
-      ${NET}_cmdbuf_out_all_int8_la.bin \
-      ${NET}_neuron_map_int8_multiplier.csv \
-      ${NET}_cmdbuf_out_all_int8_la.npz
   npz_compare.py \
       ${NET}_cmdbuf_out_all_int8_la.npz \
       ${NET}_tensor_all_int8_multiplier.npz \
       --op_info ${NET}_op_info_int8_multiplier.csv
 
-  bin_to_npz.py \
-      ${NET}_cmdbuf_out_all_int8_lw.bin \
-      ${NET}_neuron_map_int8_multiplier.csv \
-      ${NET}_cmdbuf_out_all_int8_lw.npz
   # surpress return for time being
   npz_compare.py \
       ${NET}_cmdbuf_out_all_int8_lw.npz \

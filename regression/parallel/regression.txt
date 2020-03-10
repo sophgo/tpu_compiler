@@ -1,0 +1,14 @@
+./run_normal.sh  bmface_v3
+./run_normal.sh  liveness
+./run_normal.sh  retinaface_mnet25
+./run_normal.sh  retinaface_res50
+./run_normal.sh  ssd300
+./run_normal.sh  yolo_v3
+./run_generic.sh resnet50
+./run_generic.sh vgg16
+./run_generic.sh mobilenet_v2
+./run_generic.sh inception_v3
+./run_generic.sh inception_v4
+./run_generic.sh efficientnet_b0
+./run_accuracy.sh resnet50
+./run_accuracy.sh mobilenet_v2

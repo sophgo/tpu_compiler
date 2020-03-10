@@ -52,12 +52,8 @@ if [ $DO_QUANT_INT8_PER_TENSOR -eq 1 ]; then
       --dump-all-tensors \
       --input ${NET}_in_int8.bin \
       --model ${NET}_int8_per_tensor.cvimodel \
-      --output ${NET}_cmdbuf_out_all_int8_per_tensor.bin
+      --output ${NET}_cmdbuf_out_all_int8_per_tensor.npz
 
-  bin_to_npz.py \
-      ${NET}_cmdbuf_out_all_int8_per_tensor.bin \
-      ${NET}_neuron_map_int8_per_tensor.csv \
-      ${NET}_cmdbuf_out_all_int8_per_tensor.npz
   npz_to_bin.py \
       ${NET}_cmdbuf_out_all_int8_per_tensor.npz \
       ${OUTPUTS} \
@@ -121,12 +117,8 @@ if [ $DO_QUANT_INT8_MULTIPLER -eq 1 ]; then
       --dump-all-tensors \
       --input ${NET}_in_int8.bin \
       --model ${NET}_int8_multiplier.cvimodel \
-      --output ${NET}_cmdbuf_out_all_int8_multiplier.bin
+      --output ${NET}_cmdbuf_out_all_int8_multiplier.npz
 
-  bin_to_npz.py \
-      ${NET}_cmdbuf_out_all_int8_multiplier.bin \
-      ${NET}_neuron_map_int8_multiplier.csv \
-      ${NET}_cmdbuf_out_all_int8_multiplier.npz
   npz_to_bin.py \
       ${NET}_cmdbuf_out_all_int8_multiplier.npz \
       ${OUTPUTS} \
@@ -146,7 +138,7 @@ if [ $DO_QUANT_INT8_MULTIPLER -eq 1 ]; then
   if [ ! -z $CVIMODEL_REL_PATH -a -d $CVIMODEL_REL_PATH ]; then
     cp ${NET}_in_int8.bin $CVIMODEL_REL_PATH
     cp ${NET}_int8_multiplier.cvimodel $CVIMODEL_REL_PATH
-    cp ${NET}_tensor_all_int8_multiplier $CVIMODEL_REL_PATH
+    cp ${NET}_tensor_all_int8_multiplier.npz $CVIMODEL_REL_PATH
     cp ${NET}_neuron_map_int8_multiplier.csv $CVIMODEL_REL_PATH
   fi
 
