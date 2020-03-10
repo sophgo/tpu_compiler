@@ -755,6 +755,46 @@ def TPU_PermuteOp: TPU_Op<"permute",
   let results = (outs AnyTensor:$output);
 }
 
+def TPU_PixelShuffleOp: TPU_Op<"pixelshuffle",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
+       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
+       DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
+
+  let summary = "pixelshuffle operator";
+
+  let description = [{
+      Perform pixelshuffle on input.
+
+    Inputs:
+      `input`               : required, the input activation tensor.
+
+    Attributes:
+      `upscale_factor`: optional, upscale factor.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface` : support common TPU Op interface
+      `TpuOpInterpInterface` : support interperter
+      `TpuOpQuantInterface`  : support quantization
+      `TpuOpLowerInterface`  : support lower to TPU TG Ops
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    TPU_QuantParamAttr:$quant,
+    StrAttr:$name,
+    DefaultValuedAttr<NonNegativeI32Attr, "0">:$upscale_factor,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
 def TPU_PoolAvg2DOp : TPU_Op<"pool_avg_2d",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,

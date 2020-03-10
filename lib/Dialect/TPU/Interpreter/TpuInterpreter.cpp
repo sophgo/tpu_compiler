@@ -1185,20 +1185,70 @@ LogicalResult tpu::PermuteOp::interpret(
   order2 = this->order2().getLimitedValue();
   order3 = this->order3().getLimitedValue();
 
-  int ret = 0 ;
+  int upscale_factor = this->upscale_factor().getLimitedValue();
 
+  int ret = 0;
+  std::shared_ptr<std::vector<float>> input = opdT[0];
   //As long as there is one order which is different from the natural order
   // of the data, we need to permute.(from caffe permute layer source code mark)
   if( in==on && ic==oc && ih==oh && iw==ow ){
     valueMapping[result] = std::move(opdT[0]);
-  }else{
-      std::shared_ptr<std::vector<float>> input = opdT[0];
+  } else if (upscale_factor != 0){
+
+  } else {
+    std::shared_ptr<std::vector<float>> input = opdT[0];
     ret = my_permute(input->data(),resultT->data(),input_shape.size(),in,ic,ih,iw,
               on,oc,oh,ow,
               order0,order1,order2,order3);
     assert(ret == 0);
     valueMapping[result] = std::move(resultT);
   }
+  return success();
+}
+
+LogicalResult tpu::PixelShuffleOp::interpret(
+    DenseMap<Value *, std::shared_ptr<std::vector<float>>> &valueMapping) {
+  Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name()
+                          << "]\n";);
+  auto opdT = getOperandTensors(op, valueMapping);
+  auto result = this->getResult();
+  auto size = getTensorSize(result);
+  auto resultT = std::make_unique<std::vector<float>>(size);
+
+  std::vector<int64_t> input_shape;
+  std::vector<int64_t> output_shape;
+
+  int64_t input_size, output_size;
+  getTensorShapeAndSize(input(), input_shape, input_size);
+  getTensorShapeAndSize(output(), output_shape, output_size);
+
+
+  int in, ic, ih, iw, on, oc, oh, ow;
+  assert(input_shape.size() == 6);
+  int upscale_factor = this->upscale_factor().getLimitedValue();
+  assert(upscale_factor == input_shape[2]);
+  in = input_shape[0];
+  ic = input_shape[1] * upscale_factor * upscale_factor;
+  ih = input_shape[4];
+  iw = input_shape[5];
+
+
+  on = output_shape[0];
+  oc = output_shape[1];
+  oh = output_shape[2];
+  ow = output_shape[3];
+
+  assert(ic == oc * upscale_factor * upscale_factor);
+  assert(ih * upscale_factor == oh);
+  assert(iw * upscale_factor == ow);
+
+  int ret = 0;
+  std::shared_ptr<std::vector<float>> input = opdT[0];
+  ret = my_pixelshuffle(input->data(), resultT->data(), in, ic, ih, iw, on,
+                          oc, oh, ow, upscale_factor);
+  valueMapping[result] = std::move(resultT);
+
   return success();
 }
 

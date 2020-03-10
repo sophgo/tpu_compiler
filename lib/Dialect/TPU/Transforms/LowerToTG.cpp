@@ -630,6 +630,15 @@ Value* tpu::PermuteOp::convertToTG() {
   return nullptr;
 }
 
+Value *tpu::PixelShuffleOp::convertToTG() {
+  llvm::errs() << "lowerToTG: " << getOperationName() << " [" << getOpName()
+               << "]\n";
+  // TODO
+
+  assert(false);
+  return nullptr;
+}
+
 Value* tpu::PoolAvg2DOp::convertToTG() {
   llvm::errs() << "lowerToTG: " << getOperationName()
                << " [" << getOpName() << "]\n";
@@ -1645,6 +1654,7 @@ public:
         DefaultToTGPattern<tpu::InputOp>,
         DefaultToTGPattern<tpu::LeakyReluOp>,
         DefaultToTGPattern<tpu::PermuteOp>,
+        DefaultToTGPattern<tpu::PixelShuffleOp>,
         DefaultToTGPattern<tpu::PoolAvg2DOp>,
         DefaultToTGPattern<tpu::PoolMax2DOp>,
         DefaultToTGPattern<tpu::PReluOp>,

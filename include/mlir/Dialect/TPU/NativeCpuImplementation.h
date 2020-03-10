@@ -36,8 +36,12 @@ int my_shuffle_channel(float *input, float *output, unsigned int group,
 int my_scale(float *input, float *scale, float *bias,
     float *output, int n, int c, int h, int w);
 
-int my_upsample(float *input, float *output,
-    int n, int c, int ih, int iw, int scale);
+int my_pixelshuffle(float *input, float *output, int in, int ic,
+                    int ih, int iw, int on, int oc, int oh, int ow,
+                    int upscale_factor);
+
+int my_upsample(float *input, float *output, int n, int c, int ih, int iw,
+                int scale);
 
 int my_softmax2D(float *input, float *output, int n, int c);
 int my_softmax4D(float *input, float *output, int axis, const std::vector<int64_t>& shape);

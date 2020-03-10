@@ -17,6 +17,8 @@ class TPU_OpType(Enum):
     Eltwise_Add = 'tpu.eltwise_add'
     Eltwise_Mul = 'tpu.eltwise_mul'
     FullyConnected = 'tpu.fully_connected'
+    Permute = 'tpu.permute'
+    PixelShuffle = 'tpu.pixelshuffle'
     PoolAvg2D = 'tpu.pool_avg_2d'
     PoolMax2D  = 'tpu.pool_max_2d'
     Scale = 'tpu.scale'
@@ -320,6 +322,31 @@ class MLIRImporter(object):
 
         return self.buildOp(TPU_OpType.PoolMax2D.value, inputOperands, [
             tensor_output_type], name=pool_max_2d_name, param=dict_attr, quant=self.quant_param)
+    
+    def add_permute_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+        tensor_output_type = self.module.make_ranked_tensor_type(
+        self.f32Type, output_tensor_shape)
+
+        permute_name = self.module.stringAttr(op_name)
+        attr_dict = {
+            'order0': self.module.integerAttr(self.i32Type, kargs['order0']),
+            'order1': self.module.integerAttr(self.i32Type, kargs['order1']),
+            'order2': self.module.integerAttr(self.i32Type, kargs['order2']),
+            'order3': self.module.integerAttr(self.i32Type, kargs['order3']),
+        }
+        return self.buildOp(TPU_OpType.Permute.value, inputOperands, [
+            tensor_output_type], name=permute_name, quant=self.quant_param, **attr_dict)
+
+    def add_pixelshuffle_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+        tensor_output_type = self.module.make_ranked_tensor_type(
+          self.f32Type, output_tensor_shape)
+
+        pixelshuffle_name = self.module.stringAttr(op_name)
+        attr_dict = {
+            'upscale_factor': self.module.integerAttr(self.i32Type, kargs['upscale_factor'])
+        }
+        return self.buildOp(TPU_OpType.PixelShuffle.value, inputOperands, [
+            tensor_output_type], name=pixelshuffle_name, quant=self.quant_param, **attr_dict)
 
     def add_relu_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = self.module.make_ranked_tensor_type(
@@ -342,6 +369,9 @@ class MLIRImporter(object):
         self.f32Type, output_tensor_shape)
 
         sigmoid_name = self.module.stringAttr(op_name)
+        none = self.add_none_op()
+        for i in range( 3 - len(inputOperands)):
+            inputOperands.append(none)
         return self.buildOp(TPU_OpType.Sigmoid.value, inputOperands, [
             tensor_output_type], name=sigmoid_name, quant=self.quant_param)
 
@@ -350,6 +380,7 @@ class MLIRImporter(object):
 
     def print_module(self):
         mlir_format = str(self.module)
+        print(mlir_format)
         lines = mlir_format.splitlines()
         
         reg = '%[0-9]+'

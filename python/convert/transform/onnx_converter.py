@@ -164,12 +164,14 @@ class OnnxConverter(BaseConverterInterface):
         for i in self.converted_tensors:
             tensor_npz[i.name] = i.tensor_data
         np.savez(self.output_tensor_file, **tensor_npz)
+
     @staticmethod
     def unsqueeze_shape(shape, axis):
         new_shape = [n for n in shape]
         for n in axis:
             new_shape.insert(n, 1)
         return new_shape
+        
     def convert_node(self):
         """convert onnx node to OnnxNode"""
         for n in self.nodes:
