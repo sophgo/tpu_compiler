@@ -162,7 +162,11 @@ class OnnxConverter(BaseConverterInterface):
     def TensortoNpz(self):
         tensor_npz = {}
         for i in self.converted_tensors:
-            tensor_npz[i.name] = i.tensor_data
+            # Skip "num_batches_tracked"
+            if "num_batches_tracked" in i.name:
+                continue
+            else:
+                tensor_npz[i.name] = i.tensor_data.astype(np.float32)
         np.savez(self.output_tensor_file, **tensor_npz)
 
     @staticmethod
