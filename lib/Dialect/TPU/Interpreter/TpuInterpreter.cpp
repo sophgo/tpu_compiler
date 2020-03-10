@@ -1239,9 +1239,8 @@ LogicalResult tpu::PixelShuffleOp::interpret(
   assert(ih * upscale_factor == oh);
   assert(iw * upscale_factor == ow);
 
-  int ret = 0;
   std::shared_ptr<std::vector<float>> input = opdT[0];
-  ret = my_pixelshuffle(input->data(), resultT->data(), in, ic, ih, iw, on,
+  my_pixelshuffle(input->data(), resultT->data(), in, ic, ih, iw, on,
                           oc, oh, ow, upscale_factor);
   valueMapping[result] = std::move(resultT);
 
