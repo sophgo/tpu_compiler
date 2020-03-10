@@ -20,7 +20,7 @@ class RetinaFace:
         self.fpn_keys = []
         for s in self._feat_stride_fpn:
             self.fpn_keys.append('stride%s'%s)
-        
+
         self._anchors_fpn = dict(zip(self.fpn_keys, \
             generate_anchors_fpn(dense_anchor=False, cfg=self.anchor_cfg)))
         for k in self._anchors_fpn:
@@ -126,6 +126,7 @@ class RetinaFace:
         proposals_list = []
         scores_list = []
         landmarks_list = []
+        # print(y.keys())
 
         for idx, s in enumerate(self._feat_stride_fpn):
             stride = int(s)
@@ -133,7 +134,7 @@ class RetinaFace:
                 if py_softmax is True:
                     cls_tensor_name = 'face_rpn_cls_score_reshape_stride{}_dequant'.format(s)
                 else:
-                    cls_tensor_name = 'face_rpn_cls_prob_reshape_stride{}_dequant'.format(s)
+                    cls_tensor_name = 'face_rpn_cls_prob_reshape_stride{}'.format(s)
 
                 bbox_tensor_name = 'face_rpn_bbox_pred_stride{}_dequant'.format(s)
                 pts_tensor_name = 'face_rpn_landmark_pred_stride{}_dequant'.format(s)

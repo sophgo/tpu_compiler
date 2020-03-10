@@ -2,7 +2,7 @@ import argparse
 import cv2
 import os
 import scipy.io
-
+from tqdm import tqdm
 
 def widerface_generator(wider_face_gt_folder, wider_face_image, preprocess=None):
     wider_face_label = os.path.join(wider_face_gt_folder, 'wider_face_val.mat')
@@ -11,26 +11,33 @@ def widerface_generator(wider_face_gt_folder, wider_face_image, preprocess=None)
     file_list = f.get('file_list')
     face_bbx_list = f.get('face_bbx_list')
 
+    total_image_num = 0
+    # print("event_list len {}".format(len(event_list)))
     for event_idx, event in enumerate(event_list):
-        directory = event[0][0]
-        for im_idx, im in enumerate(file_list[event_idx][0]):
-            im_name = im[0][0]
-            face_bbx = face_bbx_list[event_idx][0][im_idx][0]
-            bboxes = []
+        total_image_num = total_image_num + len(file_list[event_idx][0])
+        # print("filelist {} len {}".format(event_idx, len(file_list[event_idx][0])))
 
-            for i in range(face_bbx.shape[0]):
-                xmin = int(face_bbx[i][0])
-                ymin = int(face_bbx[i][1])
-                xmax = int(face_bbx[i][2]) + xmin
-                ymax = int(face_bbx[i][3]) + ymin
-                bboxes.append((xmin, ymin, xmax, ymax))
+    with tqdm(total = total_image_num) as pbar:
+        for event_idx, event in enumerate(event_list):
+            directory = event[0][0]
+            for im_idx, im in enumerate(file_list[event_idx][0]):
+                im_name = im[0][0]
+                face_bbx = face_bbx_list[event_idx][0][im_idx][0]
+                bboxes = []
 
-            image_path = os.path.join(wider_face_image, directory, im_name + '.jpg')
-            img = cv2.imread(image_path)
-            if preprocess is not None:
-                img = preprocess(img)
+                for i in range(face_bbx.shape[0]):
+                    xmin = int(face_bbx[i][0])
+                    ymin = int(face_bbx[i][1])
+                    xmax = int(face_bbx[i][2]) + xmin
+                    ymax = int(face_bbx[i][3]) + ymin
+                    bboxes.append((xmin, ymin, xmax, ymax))
 
-            yield img, bboxes, directory, im_name
+                image_path = os.path.join(wider_face_image, directory, im_name + '.jpg')
+                img = cv2.imread(image_path)
+                if preprocess is not None:
+                    img = preprocess(img)
+                pbar.update(1)
+                yield img, bboxes, directory, im_name
 
 
 if __name__ == '__main__':
