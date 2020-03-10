@@ -10,6 +10,7 @@ import numpy as np
 def calcConv2DSpatial(i, kernel, stride, padding, dilation):
     #[i + 2*p - k - (k-1)*(d-1)]/s + 1
     return (i + 2*padding - dilation * (kernel - 1) - 1)/stride + 1
+
 def calcPool2DFloor(i, kernel, stride, padding):
     return floor((i + 2 * padding - kernel) / stride) + 1
 
@@ -86,11 +87,11 @@ class OnnxTensor():
         self.name = name
         self.tensor_data = value
         self.shape = shape
-    
+
     def print_info(self):
         cprint("tensor: {}".format(self.name), 'cyan')
         cprint("    shape: {}".format(self.shape), 'white')
-       
+
 
 
 class OnnxConverter(BaseConverterInterface):
@@ -144,23 +145,23 @@ class OnnxConverter(BaseConverterInterface):
             for dim in output.type.tensor_type.shape.dim:
                 output_shape.append(dim.dim_value)
             outputs.append(output_shape)
-        
+
         # init importer
         self.CVI = MLIRImporter(inputs, outputs)
-    
+
     def addOperand(self, op_name, op, shape):
         self.valueMap[op_name] = (op, shape)
-    
+
     def getOperand(self, op_name):
         return self.valueMap[op_name]
-    
+
     def getTensor(self, op_name):
         find_tensor = [t for t in self.converted_tensors if t.name == op_name]
         if len(find_tensor) < 1:
             raise RuntimeError("No {} tensor in model".format(op_name))
         else:
             return find_tensor[0]
-    
+
     def TensortoNpz(self):
         tensor_npz = {}
         for i in self.converted_tensors:
@@ -177,14 +178,14 @@ class OnnxConverter(BaseConverterInterface):
         for n in axis:
             new_shape.insert(n, 1)
         return new_shape
-        
+
     def convert_node(self):
         """convert onnx node to OnnxNode"""
         for n in self.nodes:
             node = OnnxNode(n)
             node.print_info()
             self.converted_nodes.append(node)
-    
+
     def convert_tensor(self):
         """convert onnx tensor to OnnxTensor"""
         for tensor in self.tensors:
@@ -194,13 +195,13 @@ class OnnxConverter(BaseConverterInterface):
             tensor = OnnxTensor(name, data, shape)
             #tensor.print_info()
             self.converted_tensors.append(tensor)
-    
+
     def convert_graph(self):
         """convert all to mlir"""
         # add weight op
         self.CVI.add_weight_file_op(self.output_tensor_file)
 
-        # add input op 
+        # add input op
         for idx, input in enumerate(self.input_nodes):
             input_shape = list()
             for dim in input.type.tensor_type.shape.dim:
@@ -212,7 +213,7 @@ class OnnxConverter(BaseConverterInterface):
         # add node op
         for n in self.converted_nodes:
             n.print_info()
-            self.onnxop_factory.get(n.op_type, lambda x: NoneAndRaise(x))(n)        
+            self.onnxop_factory.get(n.op_type, lambda x: NoneAndRaise(x))(n)
 
         # add return op
         return_op = list()
@@ -226,14 +227,14 @@ class OnnxConverter(BaseConverterInterface):
         with open(self.mlir_file_path, "w") as f:
             f.write(mlir_txt)
 
-    
+
     def convert_add_op(self, onnx_node):
         assert(len(onnx_node.inputs) == 2)
         op1, input_shape1 = self.getOperand(onnx_node.inputs[0])
         op2, input_shape2 = self.getOperand(onnx_node.inputs[1])
 
         if input_shape1 != input_shape2:
-            raise AttributeError("{} v.s. {} shape not same".format(input_shape1, input_shape2)) 
+            raise AttributeError("{} v.s. {} shape not same".format(input_shape1, input_shape2))
         operands = list()
         operands.append(op1)
         operands.append(op2)
@@ -253,11 +254,11 @@ class OnnxConverter(BaseConverterInterface):
         beta_value = self.getTensor(onnx_node.inputs[2]).tensor_data
         mean_value = self.getTensor(onnx_node.inputs[3]).tensor_data
         var_value = self.getTensor(onnx_node.inputs[4]).tensor_data
-        
+
         scale_name = "{}_0".format(onnx_node.name)
         scale_value = ((1.0 / np.sqrt(
                     var_value + epsilon)) * gamma_value)
-        
+
         scale_op = self.CVI.add_load_file_op(scale_name, self.getTensor(onnx_node.inputs[1]).shape)
         # add new weight tensor
         new_tensor_1 = OnnxTensor(scale_name, scale_value, self.getTensor(onnx_node.inputs[1]).shape)
@@ -277,17 +278,17 @@ class OnnxConverter(BaseConverterInterface):
         output_shape = input_shape
         scaleop = self.CVI.add_scale_op(onnx_node.name, operands, output_shape)
         self.addOperand(onnx_node.name, scaleop, output_shape)
-    
+
     def convert_constant_op(self, onnx_node):
         """
-            Constant Op is tensor data at IR, 
+            Constant Op is tensor data at IR,
             we change it to load weight tensor, and store
         """
         assert(onnx_node.op_type == "Constant")
         onnx_tensor = onnx_node.attrs['value']
         np_tensor =  numpy_helper.to_array(onnx_tensor)
         data_type = onnx_dtype(onnx_tensor.data_type)
-  
+
         if data_type in [np.float32, np.float64, np.int32, np.int64]:
             np_tensor = np_tensor.astype(np.float32).flatten()
             # add new weight tensor
@@ -341,21 +342,21 @@ class OnnxConverter(BaseConverterInterface):
                 raise RuntimeError("No {} tensor in model".format(weight_name))
             weight_op = self.CVI.add_load_file_op(tensor.name, tensor.shape)
             operands.append(weight_op)
-            
+
         on = shape[0]
         oc = tensor.shape[0] # feature map size
         oh = calcConv2DSpatial(
-            shape[2], 
-            onnx_node.attrs['kernel_shape'][0], 
-            onnx_node.attrs['strides'][0], 
-            onnx_node.attrs['pads'][0], 
+            shape[2],
+            onnx_node.attrs['kernel_shape'][0],
+            onnx_node.attrs['strides'][0],
+            onnx_node.attrs['pads'][0],
             onnx_node.attrs['dilations'][0]
         )
         ow = calcConv2DSpatial(
-            shape[3], 
-            onnx_node.attrs['kernel_shape'][1], 
-            onnx_node.attrs['strides'][1], 
-            onnx_node.attrs['pads'][1], 
+            shape[3],
+            onnx_node.attrs['kernel_shape'][1],
+            onnx_node.attrs['strides'][1],
+            onnx_node.attrs['pads'][1],
             onnx_node.attrs['dilations'][1]
         )
         output_shape = [on, oc, oh, ow]
@@ -384,7 +385,7 @@ class OnnxConverter(BaseConverterInterface):
             axis = onnx_node.attrs['axis']
         else:
             axis = 0
-       
+
         gather_indices = self.getTensor(onnx_node.inputs[1]).tensor_data
         new_shape = input_shape
         if new_shape[axis] > len(gather_indices):
@@ -427,7 +428,7 @@ class OnnxConverter(BaseConverterInterface):
         # print(input_shape)
         on = input_shape[0]
         oc = input_shape[1]
-        
+
         pool_avg_2d_param = {
             'stride_h':  1,
             'stride_w':  1,
@@ -442,12 +443,12 @@ class OnnxConverter(BaseConverterInterface):
         output_shape = [int(on), int(oc), 1, 1]
         pool_avg_op = self.CVI.add_pool_avg_2d_op(onnx_node.name, operands, output_shape, **pool_avg_2d_param)
         self.addOperand(onnx_node.name, pool_avg_op, output_shape)
-    
+
     def convert_maxpool_op(self, onnx_node):
         assert(onnx_node.op_type == "MaxPool")
         pool_max_2d_param = {
-            'stride_h': onnx_node.attrs['strides'][0], 
-            'stride_w': onnx_node.attrs['strides'][1], 
+            'stride_h': onnx_node.attrs['strides'][0],
+            'stride_w': onnx_node.attrs['strides'][1],
             'kernel_h': onnx_node.attrs['kernel_shape'][0],
             'kernel_w': onnx_node.attrs['kernel_shape'][1],
             'padding_b': onnx_node.attrs['pads'][0],
@@ -456,7 +457,7 @@ class OnnxConverter(BaseConverterInterface):
             'padding_l': onnx_node.attrs['pads'][3],
             'do_relu': False,
         }
-        
+
         op, input_shape = self.getOperand(onnx_node.inputs[0])
         operands = list()
         operands.append(op)
@@ -478,7 +479,7 @@ class OnnxConverter(BaseConverterInterface):
         self.addOperand(onnx_node.name, relu_op, output_shape)
 
     def convert_mul_op(self, onnx_node):
-        assert(onnx_node.op_type == "Mul")  
+        assert(onnx_node.op_type == "Mul")
         op1, input_shape1 = self.getOperand(onnx_node.inputs[0])
         op2, input_shape2 = self.getOperand(onnx_node.inputs[1])
         operands = list()
@@ -486,7 +487,7 @@ class OnnxConverter(BaseConverterInterface):
         operands.append(op2)
         # Hardcode here
         axis = 1
-        
+
 
         output_shape = input_shape1
         broadcast_mul_op = self.CVI.add_broadcast_mul_op(onnx_node.name, operands, output_shape, axis=axis)
@@ -512,7 +513,7 @@ class OnnxConverter(BaseConverterInterface):
         if output_shape == input_shape:
             # same shape, skip
             self.addOperand(onnx_node.name, op, output_shape)
-            return 
+            return
         else:
             reshape_op = self.CVI.add_reshape_op(onnx_node.name, operands, output_shape)
             self.addOperand(onnx_node.name, reshape_op, output_shape)
