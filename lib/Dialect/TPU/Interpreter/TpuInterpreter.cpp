@@ -26,6 +26,7 @@
 #include "mlir/Dialect/TPU/Interpreter.h"
 #include "mlir/Dialect/TPU/NativeCpuImplementation.h"
 #include "mlir/Dialect/TPU/CpuLayer_DetectionOutput.h"
+#include "mlir/Dialect/TPU/CpuLayer_RetinaFaceDetection.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Function.h"
 #include "mlir/IR/Module.h"
@@ -48,6 +49,7 @@
 #include <numeric>
 #include <functional>
 #include <algorithm>
+#include <unordered_map>
 
 namespace mlir {
 
@@ -1980,6 +1982,142 @@ LogicalResult tpu::UpsampleOp::interpret(
   // compute in fp32
   int ret = my_upsample(input->data(), resultT->data(), n, c, ih, iw, scale);
   assert(ret == 0);
+
+  valueMapping[result] = std::move(resultT);
+
+  return success();
+}
+
+LogicalResult tpu::RetinaFaceDetectionOp::interpret(
+    DenseMap<Value *, std::shared_ptr<std::vector<float>>> &valueMapping) {
+  Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
+
+  auto opT = getOperandTensors(op, valueMapping);
+  auto result = this->getResult();
+  auto size = getTensorSize(result);
+  auto resultT = std::make_unique<std::vector<float>>(size);
+  auto output_data = resultT->data();
+
+  auto confidence_threshold = this->confidence_threshold().convertToFloat();
+  auto nms_threshold = this->nms_threshold().convertToFloat();
+  auto keep_topk = this->keep_topk().getLimitedValue();
+
+  std::vector<AnchorCfg> cfg;
+  std::unordered_map<std::string, std::vector<AnchorBox>> um_anchors_fpn;
+  std::unordered_map<std::string, int> um_num_anchors;
+  std::vector<int> feature_stride_fpn{32, 16, 8};
+
+  AnchorCfg cfg1(32, {32, 16}, 16, {1.0}, 9999);
+  AnchorCfg cfg2(16, {8, 4}, 16, {1.0}, 9999);
+  AnchorCfg cfg3(8, {2, 1}, 16, {1.0}, 9999);
+  cfg.push_back(cfg1);
+  cfg.push_back(cfg2);
+  cfg.push_back(cfg3);
+
+  um_anchors_fpn.clear();
+  auto anchors = generate_anchors_fpn(false, cfg);
+  for (int i = 0; i < feature_stride_fpn.size(); ++i) {
+    std::string key = "stride" + std::to_string(feature_stride_fpn[i]);
+    um_anchors_fpn[key] = anchors[i];
+    um_num_anchors[key] = anchors[i].size();
+  }
+
+  int input_count = opT.size();
+  assert(input_count == 9);
+
+  std::vector<FaceInfo> infos;
+  for (size_t i = 0; i < feature_stride_fpn.size(); ++i) {
+    int stride = feature_stride_fpn[i];
+
+    auto landmark_data = opT[input_count-3*i-1]->data();
+    size_t landmark_count = opT[input_count-3*i-1]->size();
+
+    auto bbox_data = opT[input_count-3*i-2]->data();
+    size_t bbox_count = opT[input_count-3*i-2]->size();
+
+    auto score_data = opT[input_count-3*i-3]->data();
+    size_t score_count = opT[input_count-3*i-3]->size();
+
+    auto shape = getTensorShape(op->getOperand(input_count-3*i-1));
+    assert(shape.size() == 4);
+
+    size_t height = shape[2];
+    size_t width = shape[3];
+
+    std::vector<float> score(score_data + score_count / 2, score_data + score_count);
+    std::vector<float> bbox(bbox_data, bbox_data + bbox_count);
+    std::vector<float> landmark(landmark_data, landmark_data + landmark_count);
+
+    int count = height * width;
+    std::string key = "stride" + std::to_string(stride);
+    auto anchors_fpn = um_anchors_fpn[key];
+    auto num_anchors = um_num_anchors[key];
+
+    std::vector<AnchorBox> anchors = anchors_plane(height, width, stride, anchors_fpn);
+
+    for(size_t num = 0; num < num_anchors; ++num) {
+      for(size_t j = 0; j < count; ++j) {
+        float confidence = score[j+count*num];
+        if (confidence <= confidence_threshold)
+          continue;
+
+        float dx = bbox[j+count*(0+num*4)];
+        float dy = bbox[j+count*(1+num*4)];
+        float dw = bbox[j+count*(2+num*4)];
+        float dh = bbox[j+count*(3+num*4)];
+        std::vector<float> bbox_deltas{dx,dy,dw,dh};
+        auto bbox = bbox_pred(anchors[j+count*num], bbox_deltas);
+
+        std::vector<float> landmark_deltas(10,0);
+        for(size_t k = 0; k < 5; ++k) {
+          landmark_deltas[k] = landmark[j+count*(num*10+k*2)];
+          landmark_deltas[k+5] = landmark[j+count*(num*10+k*2+1)];
+        }
+
+        auto pts = landmark_pred(anchors[j+count*num], landmark_deltas);
+
+        FaceInfo info;
+        info.x1 = bbox[0];
+        info.y1 = bbox[1];
+        info.x2 = bbox[2];
+        info.y2 = bbox[3];
+        info.score = confidence;
+        for(int idx = 0; idx < 5; ++idx) {
+            info.x[idx] = pts[idx];
+            info.y[idx] = pts[idx+5];
+        }
+
+        infos.push_back(info);
+      }
+    }
+  }
+
+  auto preds = nms(infos, nms_threshold);
+  if (keep_topk > preds.size())
+      keep_topk = preds.size();
+
+  long long count = 0;
+  for(int i = 0; i < keep_topk; ++i) {
+    output_data[count++] = preds[i].x1;
+    output_data[count++] = preds[i].y1;
+    output_data[count++] = preds[i].x2;
+    output_data[count++] = preds[i].y2;
+    output_data[count++] = preds[i].score;
+    for(int j = 0; j < 5; ++j) {
+      output_data[count++] = preds[i].x[j];
+      output_data[count++] = preds[i].y[j];
+    }
+
+    LLVM_DEBUG(llvm::errs() << "x1= " << preds[i].x1 << ",y1= " << preds[i].y1
+              << ",x2= " << preds[i].x2 << ",y2= " << preds[i].y2
+              << ", score= " << preds[i].score
+              << ", pts1= " << preds[i].x[0] << ", pts2= " << preds[i].y[0]
+              << ", pts3= " << preds[i].x[1] << ", pts4= " << preds[i].y[1]
+              << ", pts5= " << preds[i].x[2] << ", pts6= " << preds[i].y[2]
+              << ", pts7= " << preds[i].x[3] << ", pts8= " << preds[i].y[3]
+              << ", pts9= " << preds[i].x[4] << ", pts10= " << preds[i].y[4] << "\n";);
+  }
 
   valueMapping[result] = std::move(resultT);
 
