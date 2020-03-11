@@ -1088,7 +1088,8 @@ def TPU_ReluOp: TPU_Op<"relu",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
        DeclareOpInterfaceMethods<TpuOpInterpInterface>,
-       DeclareOpInterfaceMethods<TpuOpQuantInterface>]> {
+       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
+       DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
   let summary = "Relu/Relu6 operator";
 
   let description = [{
@@ -1117,8 +1118,7 @@ def TPU_ReluOp: TPU_Op<"relu",
       `TpuOpCommonInterface` : support common TPU Op interface
       `TpuOpInterpInterface` : support interperter
       `TpuOpQuantInterface`  : support quantization
-      No `TpuOpLowerInterface`  : does NOT support lower to TPU TG Ops, always
-                                  fuse in frontend
+      `TpuOpLowerInterface`  : support lower to TPU TG Ops
   }];
 
   let arguments = (
