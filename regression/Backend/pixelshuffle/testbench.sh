@@ -7,7 +7,7 @@ pushd $DIR
 
 
 # clear previous output
-#rm -f *.mlir *.bin *.npz *.csv *.cvimodel *calibration_table
+rm -f *.mlir *.bin *.npz *.csv *.cvimodel *calibration_table
 
 ## run test
 bash ./testbench_0_fp32.sh
