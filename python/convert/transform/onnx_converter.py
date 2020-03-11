@@ -3,6 +3,7 @@ from onnx import numpy_helper, mapping
 from termcolor import colored, cprint
 from math import floor, ceil
 from numbers import Number
+from enum import Enum
 
 import logging
 import numpy as np
@@ -22,6 +23,10 @@ def get_shape_size(shape):
     for i in shape:
         size*=i
     return size
+
+class TensorType(Enum):
+    FLOAT = 'FLOAT'
+    TENSOR = 'TENSOR'
 
 onnx_attr_translator = {
     "axis": lambda x: int(x),
@@ -149,16 +154,20 @@ class OnnxConverter(BaseConverterInterface):
         # init importer
         self.CVI = MLIRImporter(inputs, outputs)
 
-    def addOperand(self, op_name, op, shape):
-        self.valueMap[op_name] = (op, shape)
+    def addOperand(self, op_name, op, shape, tensor_type):
+        cprint("add {}, {}".format(op_name, shape, tensor_type), "yellow")
+        self.valueMap[op_name] = (op, shape, tensor_type)
 
     def getOperand(self, op_name):
         return self.valueMap[op_name]
 
+    def addTensor(self, op_name, tensor_data, tensor_shape):
+        self.converted_tensors.append(OnnxTensor(op_name, tensor_data, tensor_shape))
+
     def getTensor(self, op_name):
         find_tensor = [t for t in self.converted_tensors if t.name == op_name]
         if len(find_tensor) < 1:
-            raise RuntimeError("No {} tensor in model".format(op_name))
+            raise KeyError("No {} tensor in model".format(op_name))
         else:
             return find_tensor[0]
 
@@ -207,7 +216,7 @@ class OnnxConverter(BaseConverterInterface):
             for dim in input.type.tensor_type.shape.dim:
                 input_shape.append(dim.dim_value)
             input_op = self.CVI.add_input_op(input.name, idx)
-            self.addOperand(input.name, input_op, input_shape)
+            self.addOperand(input.name, input_op, input_shape, TensorType.FLOAT)
         def NoneAndRaise(node):
             raise RuntimeError("{} Op not support now".format(node.op_type))
         # add node op
@@ -219,7 +228,7 @@ class OnnxConverter(BaseConverterInterface):
         return_op = list()
         # Set output
         for output in self.output_nodes:
-            op, _ = self.getOperand(output.name)
+            op, _, _ = self.getOperand(output.name)
             return_op.append(op)
 
         self.CVI.add_return_op(return_op)
@@ -230,8 +239,8 @@ class OnnxConverter(BaseConverterInterface):
 
     def convert_add_op(self, onnx_node):
         assert(len(onnx_node.inputs) == 2)
-        op1, input_shape1 = self.getOperand(onnx_node.inputs[0])
-        op2, input_shape2 = self.getOperand(onnx_node.inputs[1])
+        op1, input_shape1, _ = self.getOperand(onnx_node.inputs[0])
+        op2, input_shape2, _ = self.getOperand(onnx_node.inputs[1])
 
         if input_shape1 != input_shape2:
             raise AttributeError("{} v.s. {} shape not same".format(input_shape1, input_shape2))
@@ -241,11 +250,11 @@ class OnnxConverter(BaseConverterInterface):
         output_shape = input_shape1
 
         add_op = self.CVI.add_eltwise_add_op(onnx_node.name, operands, output_shape)
-        self.addOperand(onnx_node.name, add_op, output_shape)
+        self.addOperand(onnx_node.name, add_op, output_shape, TensorType.FLOAT)
 
     def convert_batchnorm_op(self, onnx_node):
         assert(onnx_node.op_type == "BatchNormalization")
-        op, input_shape = self.getOperand(onnx_node.inputs[0])
+        op, input_shape, _ = self.getOperand(onnx_node.inputs[0])
         operands = list()
         operands.append(op)
         epsilon = onnx_node.attrs['epsilon']
@@ -261,23 +270,20 @@ class OnnxConverter(BaseConverterInterface):
 
         scale_op = self.CVI.add_load_file_op(scale_name, self.getTensor(onnx_node.inputs[1]).shape)
         # add new weight tensor
-        new_tensor_1 = OnnxTensor(scale_name, scale_value, self.getTensor(onnx_node.inputs[1]).shape)
-        self.converted_tensors.append(new_tensor_1)
+        self.addTensor(scale_name, scale_value, self.getTensor(onnx_node.inputs[1]).shape)
 
         offset_name =  "{}_1".format(onnx_node.name)
         offset_value = (-mean_value * scale_value) + beta_value
         offset_op = self.CVI.add_load_file_op(offset_name, self.getTensor(onnx_node.inputs[1]).shape)
         # add new bias tensor
-        new_tensor_2 = OnnxTensor(offset_name, offset_value, self.getTensor(onnx_node.inputs[1]).shape)
-        self.converted_tensors.append(new_tensor_2)
-
+        self.addTensor(offset_name, offset_value, self.getTensor(onnx_node.inputs[1]).shape)
 
         operands.append(scale_op)
         operands.append(offset_op)
 
         output_shape = input_shape
         scaleop = self.CVI.add_scale_op(onnx_node.name, operands, output_shape)
-        self.addOperand(onnx_node.name, scaleop, output_shape)
+        self.addOperand(onnx_node.name, scaleop, output_shape, TensorType.FLOAT)
 
     def convert_constant_op(self, onnx_node):
         """
@@ -292,10 +298,9 @@ class OnnxConverter(BaseConverterInterface):
         if data_type in [np.float32, np.float64, np.int32, np.int64]:
             np_tensor = np_tensor.astype(np.float32).flatten()
             # add new weight tensor
-            new_tensor = OnnxTensor(onnx_node.name, np_tensor, np_tensor.shape)
-            constant_op = self.CVI.add_load_file_op(onnx_node.name, np_tensor.shape)
-            self.converted_tensors.append(new_tensor)
-            self.addOperand(onnx_node.name, constant_op, np_tensor.shape)
+
+            self.addTensor(onnx_node.name, np_tensor, np_tensor.shape)
+            self.addOperand(onnx_node.name, None, np_tensor.shape, TensorType.TENSOR)
 
         else:
             raise ValueError("Not Support {} type".format(data_type))
@@ -304,21 +309,28 @@ class OnnxConverter(BaseConverterInterface):
         assert(onnx_node.op_type == "Concat")
         if len(onnx_node.inputs) < 2:
             raise ValueError("{} must great than 2".format(onnx_node.op_type))
-        op1, input_shape1 = self.getOperand(onnx_node.inputs[0])
-        op2, input_shape2 = self.getOperand(onnx_node.inputs[1])
+        op1, input_shape1, tensor_type1 = self.getOperand(onnx_node.inputs[0])
+        op2, input_shape2, tensor_type2 = self.getOperand(onnx_node.inputs[1])
 
         axis = onnx_node.attrs['axis']
-        operands = [op1, op2]
-        output_shape = list()
-        for idx, (s1, s2) in enumerate(zip(input_shape1, input_shape2)):
-            if  idx== axis:
-                output_shape.append(s1+s2)
-            else:
-                assert(s1 == s2)
-                output_shape.append(s1)
+        if tensor_type1 == TensorType.TENSOR and tensor_type2 == TensorType.TENSOR:
+            t1 = self.getTensor(onnx_node.inputs[0]).tensor_data
+            t2 = self.getTensor(onnx_node.inputs[1]).tensor_data
+            n_t = np.concatenate((t1, t2), axis=axis)
+            self.addTensor(onnx_node.name, n_t, list(n_t.shape))
+            self.addOperand(onnx_node.name, None, list(n_t.shape), TensorType.TENSOR)
+        else:
+            operands = [op1, op2]
+            output_shape = list()
+            for idx, (s1, s2) in enumerate(zip(input_shape1, input_shape2)):
+                if  idx== axis:
+                    output_shape.append(s1+s2)
+                else:
+                    assert(s1 == s2)
+                    output_shape.append(s1)
 
-        concat_op = self.CVI.add_concat_op(onnx_node.name, operands, output_shape, axis=axis)
-        self.addOperand(onnx_node.name, concat_op, output_shape)
+            concat_op = self.CVI.add_concat_op(onnx_node.name, operands, output_shape, axis=axis)
+            self.addOperand(onnx_node.name, concat_op, output_shape, TensorType.FLOAT)
 
     def convert_conv_op(self, onnx_node):
         assert(onnx_node.op_type == "Conv")
@@ -333,7 +345,7 @@ class OnnxConverter(BaseConverterInterface):
             'with_bias': len(onnx_node.inputs) > 2,
             'do_relu': False,
         }
-        op, shape = self.getOperand(onnx_node.inputs[0])
+        op, shape, _ = self.getOperand(onnx_node.inputs[0])
         operands = list()
         operands.append(op)
         for weight_name in onnx_node.inputs[1:]:
@@ -361,45 +373,51 @@ class OnnxConverter(BaseConverterInterface):
         )
         output_shape = [on, oc, oh, ow]
         conv_op = self.CVI.add_conv_op(onnx_node.name, operands, output_shape, **conv_param)
-        self.addOperand(onnx_node.name, conv_op, output_shape)
+        self.addOperand(onnx_node.name, conv_op, output_shape, TensorType.FLOAT)
 
     def convert_flatten_op(self, onnx_node):
         assert(onnx_node.op_type == "Flatten")
         if onnx_node.attrs["axis"] != 1:
             raise AttributeError("TODO: axis != 1 case")
-        op, input_shape = self.getOperand(onnx_node.inputs[0])
+        op, input_shape, _ = self.getOperand(onnx_node.inputs[0])
         operands = list()
         operands.append(op)
         output_shape = [input_shape[0], input_shape[1]]
         reshape_op = self.CVI.add_reshape_op(onnx_node.name, operands, output_shape)
-        self.addOperand(onnx_node.name, reshape_op, output_shape)
+        self.addOperand(onnx_node.name, reshape_op, output_shape, TensorType.FLOAT)
 
     def convert_gather_op(self, onnx_node):
         """
             first input is tensor data, second input is constant
         """
         assert(onnx_node.op_type == "Gather")
-        op, input_shape = self.getOperand(onnx_node.inputs[0])
-
+        op1, input_shape1, tensor_type1 = self.getOperand(onnx_node.inputs[0])
+        op2, input_shape2, tensor_type2 = self.getOperand(onnx_node.inputs[1])
         if 'axis' in onnx_node.attrs:
             axis = onnx_node.attrs['axis']
         else:
             axis = 0
+        if tensor_type1 == TensorType.TENSOR and tensor_type2 == TensorType.TENSOR:
+            input_data =  self.getTensor(onnx_node.inputs[0]).tensor_data
+            gather_indices = self.getTensor(onnx_node.inputs[1]).tensor_data
+        else:
+            raise RuntimeError("TODO: our IR no gather define")
 
-        gather_indices = self.getTensor(onnx_node.inputs[1]).tensor_data
-        new_shape = input_shape
+        new_shape = input_shape1
         if new_shape[axis] > len(gather_indices):
             new_shape[axis] = len(gather_indices)
         else:
             raise ValueError("Gather input shape dim {} ({}) must great than {} ({})".format(axis, input_shape, len(gather_indices), gather_indices))
         # TODO: our IR no Gather function, please add
-        # Hardcode Here
-        self.addOperand(onnx_node.name, op, new_shape)
+        if tensor_type1 == TensorType.TENSOR and tensor_type2 == TensorType.TENSOR:
+            new_data = np.take(input_data, gather_indices.tolist())
+            self.addTensor(onnx_node.name, new_data, list(new_data.shape))
+            self.addOperand(onnx_node.name, None, new_shape, TensorType.TENSOR)
 
     def convert_gemm_op(self, onnx_node):
         assert(onnx_node.op_type == "Gemm")
         #(M, K) * (K, N) => (M, N)
-        op, input_shape = self.getOperand(onnx_node.inputs[0])
+        op, input_shape, _ = self.getOperand(onnx_node.inputs[0])
 
         operands = list()
         operands.append(op)
@@ -418,11 +436,11 @@ class OnnxConverter(BaseConverterInterface):
         N = bias_tensor.shape[0]
         output_shape = [M, N]
         fc_op = self.CVI.add_fully_connected_op(onnx_node.name, operands, output_shape)
-        self.addOperand(onnx_node.name, fc_op, output_shape)
+        self.addOperand(onnx_node.name, fc_op, output_shape, TensorType.FLOAT)
 
     def convert_global_avg_pool_op(self, onnx_node):
         assert(onnx_node.op_type == "GlobalAveragePool")
-        op, input_shape = self.getOperand(onnx_node.inputs[0])
+        op, input_shape, _ = self.getOperand(onnx_node.inputs[0])
         operands = list()
         operands.append(op)
         # print(input_shape)
@@ -442,7 +460,7 @@ class OnnxConverter(BaseConverterInterface):
         }
         output_shape = [int(on), int(oc), 1, 1]
         pool_avg_op = self.CVI.add_pool_avg_2d_op(onnx_node.name, operands, output_shape, **pool_avg_2d_param)
-        self.addOperand(onnx_node.name, pool_avg_op, output_shape)
+        self.addOperand(onnx_node.name, pool_avg_op, output_shape, TensorType.FLOAT)
 
     def convert_maxpool_op(self, onnx_node):
         assert(onnx_node.op_type == "MaxPool")
@@ -458,7 +476,7 @@ class OnnxConverter(BaseConverterInterface):
             'do_relu': False,
         }
 
-        op, input_shape = self.getOperand(onnx_node.inputs[0])
+        op, input_shape, _ = self.getOperand(onnx_node.inputs[0])
         operands = list()
         operands.append(op)
         on = input_shape[0]
@@ -467,21 +485,22 @@ class OnnxConverter(BaseConverterInterface):
         ow = calcPool2DFloor(input_shape[3], onnx_node.attrs['kernel_shape'][1], onnx_node.attrs['strides'][1], onnx_node.attrs['pads'][1])
         output_shape = [int(on), int(oc), int(oh), int(ow)]
         pool_max_op = self.CVI.add_pool_max_2d_op(onnx_node.name, operands, output_shape, **pool_max_2d_param)
-        self.addOperand(onnx_node.name, pool_max_op, output_shape)
+        self.addOperand(onnx_node.name, pool_max_op, output_shape, TensorType.FLOAT)
 
     def convert_relu_op(self, onnx_node):
         assert(onnx_node.op_type == "Relu")
-        op, input_shape = self.getOperand(onnx_node.inputs[0])
+        op, input_shape, _ = self.getOperand(onnx_node.inputs[0])
         operands = list()
         operands.append(op)
         output_shape = input_shape
         relu_op = self.CVI.add_relu_op(onnx_node.name, operands, output_shape)
-        self.addOperand(onnx_node.name, relu_op, output_shape)
+        self.addOperand(onnx_node.name, relu_op, output_shape, TensorType.FLOAT)
 
     def convert_mul_op(self, onnx_node):
         assert(onnx_node.op_type == "Mul")
-        op1, input_shape1 = self.getOperand(onnx_node.inputs[0])
-        op2, input_shape2 = self.getOperand(onnx_node.inputs[1])
+        op1, input_shape1, _ = self.getOperand(onnx_node.inputs[0])
+        op2, input_shape2, _ = self.getOperand(onnx_node.inputs[1])
+
         operands = list()
         operands.append(op1)
         operands.append(op2)
@@ -495,53 +514,52 @@ class OnnxConverter(BaseConverterInterface):
             output_shape = input_shape1
             mul_op = self.CVI.add_broadcast_mul_op(onnx_node.name, operands, output_shape, axis=axis)
 
-        self.addOperand(onnx_node.name, mul_op, output_shape)
+        self.addOperand(onnx_node.name, mul_op, output_shape, TensorType.FLOAT)
 
     def convert_reshape_op(self, onnx_node):
         assert(onnx_node.op_type == "Reshape")
         """
             first input is tensor data, second input is constant
         """
-        op, input_shape = self.getOperand(onnx_node.inputs[0])
+        op1, input_shape1, tensor_type1 = self.getOperand(onnx_node.inputs[0])
+        op2, input_shape2, tensor_type2 = self.getOperand(onnx_node.inputs[1])
         output_shape = list()
-        # TODO: Hardcode here, pls fix Reshape IR
-        try:
-            t = self.getTensor(onnx_node.inputs[1])
-            output_shape = t.tensor_data.tolist()
-            output_shape[0] = 1 # Batch = 1
-        except:
-            output_shape = input_shape[:2]
         operands = list()
-        operands.append(op)
-        output_shape = [int(x) for x in output_shape]
-        if output_shape == input_shape:
-            # same shape, skip
-            self.addOperand(onnx_node.name, op, output_shape)
-            return
+        operands.append(op1)
+        if tensor_type1 == TensorType.FLOAT and tensor_type2 == TensorType.TENSOR:
+            t = self.getTensor(onnx_node.inputs[1])
+            output_shape = list(t.tensor_data.flatten())
+            # FIXME: no batch support now, we set n is 1
+            output_shape[0] = 1 if output_shape[0] == -1 else output_shape[0]
+            output_shape = [int(x) for x in output_shape]
+            if output_shape == input_shape1:
+                # same shape, fuse this op
+                self.addOperand(onnx_node.name, op1, output_shape, TensorType.FLOAT)
+                return
+            else:
+                reshape_op = self.CVI.add_reshape_op(onnx_node.name, operands, output_shape)
+                self.addOperand(onnx_node.name, reshape_op, output_shape, TensorType.FLOAT)
         else:
-            reshape_op = self.CVI.add_reshape_op(onnx_node.name, operands, output_shape)
-            self.addOperand(onnx_node.name, reshape_op, output_shape)
+            raise RuntimeError("Second type must be {}".format(TensorType.TENSOR))
 
     def convert_shape_op(self, onnx_node):
         assert(onnx_node.op_type == "Shape")
-        op, input_shape = self.getOperand(onnx_node.inputs[0])
+        op, input_shape, _ = self.getOperand(onnx_node.inputs[0])
         data = np.array(input_shape)
-        new_tensor = OnnxTensor(onnx_node.name, data, list(data.shape))
-        self.converted_tensors.append(new_tensor)
-        shape_op = self.CVI.add_load_file_op(onnx_node.name, new_tensor.shape)
-        self.addOperand(onnx_node.name, shape_op, list(data.shape))
+        self.addTensor(onnx_node.name, data, list(data.shape))
+        self.addOperand(onnx_node.name, None, list(data.shape), TensorType.TENSOR)
 
     def convert_sigmoid_op(self, onnx_node):
         assert(onnx_node.op_type == "Sigmoid")
-        op, input_shape = self.getOperand(onnx_node.inputs[0])
+        op, input_shape, _ = self.getOperand(onnx_node.inputs[0])
         operands = [op]
         output_shape = input_shape
         sigmoid_op = self.CVI.add_sigmoid_op(onnx_node.name, operands, output_shape)
-        self.addOperand(onnx_node.name, sigmoid_op, output_shape)
+        self.addOperand(onnx_node.name, sigmoid_op, output_shape, TensorType.FLOAT)
 
     def convert_transpose_op(self, onnx_node):
         assert(onnx_node.op_type == "Transpose")
-        op, input_shape = self.getOperand(onnx_node.inputs[0])
+        op, input_shape, _ = self.getOperand(onnx_node.inputs[0])
         transpose_perm = onnx_node.attrs['perm']
         if transpose_perm == [0, 1, 4, 2, 5, 3]:
             # pixel shuffle
@@ -559,20 +577,24 @@ class OnnxConverter(BaseConverterInterface):
                 'upscale_factor': upscale_factor
             }
             pixel_shuffle_op = self.CVI.add_pixelshuffle_op(onnx_node.name, operands, output_shape, **attr)
-            self.addOperand(onnx_node.name, pixel_shuffle_op, output_shape)
+            self.addOperand(onnx_node.name, pixel_shuffle_op, output_shape, TensorType.FLOAT)
         else:
             raise RuntimeError("TODO")
 
     def convert_unsqueeze_op(self, onnx_node):
         """Unsqueeze """
         assert(onnx_node.op_type == "Unsqueeze")
-        op, input_shape = self.getOperand(onnx_node.inputs[0])
+        op, input_shape, tensor_type = self.getOperand(onnx_node.inputs[0])
         checkKey(onnx_node.attrs, 'axes')
-        operands = [op]
-        axis_value_list = onnx_node.attrs['axes']
-        output_shape = self.unsqueeze_shape(input_shape, axis_value_list)
-        reshape_op = self.CVI.add_reshape_op(onnx_node.name, operands, output_shape)
-        self.addOperand(onnx_node.name, reshape_op, output_shape)
+        if tensor_type == TensorType.TENSOR:
+            t = self.getTensor(onnx_node.inputs[0])
+            axis_value_list = onnx_node.attrs['axes']
+            for a in axis_value_list:
+                new_t = np.expand_dims(t.tensor_data, axis=a)
+            self.addTensor(onnx_node.name, new_t, list(new_t.shape))
+            self.addOperand(onnx_node.name, None, list(new_t.shape), TensorType.TENSOR)
+        else:
+            raise RuntimeError("Todo")
 
 
     def run(self):
