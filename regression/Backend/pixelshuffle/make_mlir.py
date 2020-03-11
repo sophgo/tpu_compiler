@@ -19,6 +19,7 @@ def Test(args):
   INPUT = np.arange(n * c * h * w).astype(np.float32)
   assert(c % (factor * factor) == 0)
   shape = [n, c / (factor*factor), factor, factor, h, w]
+  _nodes = []
 
   # make input, half part set to < 0 for test relu case
   s = np.array_split(INPUT, 2)
@@ -28,29 +29,47 @@ def Test(args):
   # reshape for real input
   INPUT = INPUT.reshape(n, c, h, w)
   np.savez(args.output_name, INPUT)
-  return
 
-  data = helper.make_tensor_value_info('data', TensorProto.FLOAT, shape)
-  #value = helper.make_tensor_value_info('value', AttributeProto.FLOAT, INPUT)
-  #value = helper.make_tensor_value_info('value', AttributeProto.FLOAT, list(INPUT.shape))
+  data = helper.make_tensor_value_info('data', TensorProto.FLOAT, INPUT.shape)
 
   # Create one output (ValueInfoProto)
   Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [n, c/(factor*factor), h * factor, w * factor])
 
-  # Create a node (NodeProto) - This is based on Pad-11
+  values = np.array([n, c / (factor*factor), factor, factor, h, w], dtype=np.int64)
+
+  node_def = helper.make_node(
+      'Constant', # node name
+      [], # inputs
+      outputs=['shapeinfo'],
+      value=onnx.helper.make_tensor(
+        name='const_tensor',
+        data_type=onnx.TensorProto.INT64,
+        vals=values.tobytes(),
+        dims=values.flatten().shape,
+        raw=True
+        )
+  )
+  _nodes.append(node_def)
+
+  node_def = helper.make_node(
+      'Reshape', # node name
+      ['data', 'shapeinfo'], # inputs
+      ['S'], # outputs
+  )
+  _nodes.append(node_def)
+
   node_def = helper.make_node(
       args.node_name, # node name
-      #['data', 'value'], # inputs
-      ['data', 'value'], # inputs
+      ['S'], # inputs
       ['Y'], # outputs
-      perm=[0, 1, 4, 2, 5, 3] # refer \onnx_converter.py
+      perm=[0, 1, 4, 2, 5, 3], # refer \onnx_converter.py
   )
+  _nodes.append(node_def)
 
   # Create the graph (GraphProto)
   graph_def = helper.make_graph(
-      [node_def],
+      _nodes,
       'test-model',
-      #[data, value],
       [data],
       [Y],
   )
