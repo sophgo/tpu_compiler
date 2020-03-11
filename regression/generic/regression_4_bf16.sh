@@ -6,7 +6,7 @@ source $DIR/../../envsetup.sh
 
 # quantization
 mlir-opt \
-    --quant-bf16 \
+    --tpu-quant --quant-full-bf16 \
     --print-tpu-op-info \
     --tpu-op-info-filename ${NET}_op_info_bf16.csv \
     ${NET}_opt.mlir \

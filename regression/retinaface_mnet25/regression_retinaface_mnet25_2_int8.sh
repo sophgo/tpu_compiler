@@ -33,9 +33,7 @@ mlir-opt \
 
 # Quantization
 mlir-opt \
-    --quant-int8 \
-    --enable-conv-per-channel \
-    --enable-conv-multiplier \
+    --tpu-quant \
     --print-tpu-op-info \
     --tpu-op-info-filename retinaface_mnet25_op_info_int8.csv \
     retinaface_mnet25_cali.mlir \

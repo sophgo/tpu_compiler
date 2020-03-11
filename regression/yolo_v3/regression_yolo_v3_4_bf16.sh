@@ -6,7 +6,7 @@ source $DIR/../../envsetup.sh
 
 # quantization
 mlir-opt \
-    --quant-bf16 \
+    --tpu-quant --quant-full-bf16 \
     --print-tpu-op-info \
     --tpu-op-info-filename yolo_v3_op_info_bf16_per_layer.csv \
     yolo_v3_416_opt.mlir \

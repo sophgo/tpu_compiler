@@ -28,7 +28,7 @@ mlir-opt \
 #quantization 1: per-layer int8
 ###############################
 mlir-opt \
-    --quant-int8 \
+    --tpu-quant --quant-int8-per-tensor \
     --print-tpu-op-info \
     --tpu-op-info-filename ssd300_op_info_int8_per_layer.csv \
     ssd300_cali.mlir \
@@ -77,8 +77,7 @@ fi
 ################################
 
 mlir-opt \
-    --quant-int8 \
-    --enable-conv-per-channel \
+    --tpu-quant --quant-int8-rshift-only \
     --print-tpu-op-info \
     --tpu-op-info-filename ssd300_op_info_int8_per_channel.csv \
     ssd300_cali.mlir \
@@ -130,9 +129,7 @@ fi
 # quantization 3: per-channel multiplier int8
 ################################
 mlir-opt \
-    --quant-int8 \
-    --enable-conv-per-channel \
-    --enable-conv-multiplier \
+    --tpu-quant \
     --print-tpu-op-info \
     --tpu-op-info-filename ssd300_op_info_int8_multiplier.csv \
     ssd300_cali.mlir \

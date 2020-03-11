@@ -7,7 +7,7 @@ echo $0 IS RUNNING
 
 # quantization
 mlir-opt \
-    --quant-bf16 \
+    --tpu-quant --quant-full-bf16 \
     inception_v3_opt.mlir \
     -o inception_v3_quant_bf16.mlir
 

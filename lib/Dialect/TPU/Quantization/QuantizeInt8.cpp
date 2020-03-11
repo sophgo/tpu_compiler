@@ -41,21 +41,6 @@
 
 using namespace mlir;
 
-static llvm::cl::OptionCategory clOptionsCategory("quantization options");
-
-static llvm::cl::opt<bool> clQuantConvPerChannel(
-    "enable-conv-per-channel",
-    llvm::cl::desc("Enable per channel quantization for convolution weight"),
-    llvm::cl::init(false),
-    llvm::cl::cat(clOptionsCategory));
-
-static llvm::cl::opt<bool> clQuantConvMultiplier(
-    "enable-conv-multiplier",
-    llvm::cl::desc("Enable per channel multiplier quantization for convolution"),
-    llvm::cl::init(false),
-    llvm::cl::cat(clOptionsCategory));
-
-
 namespace mlir {
 
 ///
@@ -63,27 +48,11 @@ namespace mlir {
 ///
 template<typename OpTy>
 LogicalResult quantizeInt8ConvOps(Operation *op) {
-  assert(getOpQuantParamType(op) == "THRESHOLD");
+  assert(getOpQuant(op) == "INT8");
+
   TensorFile *wTF = getWeightTensorFile(op);
   Value *wfV = getWeightFileValue(op);
   auto convOp = cast<OpTy>(op);
-
-  // get quant type
-  typedef enum {
-    CONV_QUANT_PER_TENSOR   = 01,
-    CONV_QUANT_RSHIFT_ONLY = 02,
-    CONV_QUANT_MULTIPLIER   = 03
-  } CONV_QUANT_TYPE_e ;
-  CONV_QUANT_TYPE_e quant;
-  if (!clQuantConvPerChannel) {
-    assert(!clQuantConvMultiplier
-           && "enable per channel before enable multiplier");
-    quant = CONV_QUANT_PER_TENSOR;
-  } else if (!clQuantConvMultiplier) {
-    quant = CONV_QUANT_RSHIFT_ONLY;
-  } else {
-    quant = CONV_QUANT_MULTIPLIER;
-  }
 
   // get filter tensor
   auto filter = readAndDeleteWeightTensor<float>(convOp.filter(), wTF);
@@ -136,19 +105,20 @@ LogicalResult quantizeInt8ConvOps(Operation *op) {
                << ", threshold_x = " << std::to_string(threshold_x) << "\n";);
 
   // quantization
-  if (quant == CONV_QUANT_PER_TENSOR) {
+  if (!isOpQuantPerchannel(op)) {
+    assert(getOpQuantParamType(op) == "RSHIFT_ONLY");
     quantizeWeightInt8PerLayer(filter->data(), bias ? bias->data() : nullptr,
                                oc, isz, threshold_y, threshold_x,
                                new_filter->data(), bias ? new_bias->data() : nullptr,
                                rshift_per_layer->data());
 
-  } else if (quant == CONV_QUANT_RSHIFT_ONLY) {
+  } else if (getOpQuantParamType(op) == "RSHIFT_ONLY") {
     quantizeWeightInt8PerChannel(filter->data(), bias ? bias->data() : nullptr,
                                oc, isz, threshold_y, threshold_x,
                                new_filter->data(), bias ? new_bias->data() : nullptr,
                                rshift_per_channel->data());
 
-  } else if (quant == CONV_QUANT_MULTIPLIER) {
+  } else if (getOpQuantParamType(op) == "RSHIFT_AND_M_I32") {
     quantizeWeightInt8Multiplier(filter->data(), bias ? bias->data() : nullptr,
                                oc, isz, threshold_y, threshold_x,
                                new_filter->data(), bias ? new_bias->data() : nullptr,
@@ -164,31 +134,28 @@ LogicalResult quantizeInt8ConvOps(Operation *op) {
       "quant", *new_filter, filterShape, "INT8", wTF);
   if (bias) {
     // for per_channel quant, bias store as INT32, per layer use INT16
-    StringRef storageType = (quant == CONV_QUANT_PER_TENSOR) ? "INT16" : "INT32";
+    StringRef storageType = isOpQuantPerchannel(op) ? "INT32" : "INT16";
     addWeightTensorAndUpdateWeightOp<float>(convOp.getOperand(2),
         "quant", *new_bias, biasShape, storageType, wTF);
   }
 
   // add rshift and multiplier (if present) to weight
-  if (quant == CONV_QUANT_PER_TENSOR) {
+  if (!isOpQuantPerchannel(op)) {
+    assert(getOpQuantParamType(op) == "RSHIFT_ONLY");
     auto shape = std::vector<int64_t>{1};
     StringRef storageType = "NONE";
     auto rshift_op = addWeightTensorAndCreateWeightOp<float>(
         op, "rshift", *rshift_per_layer, shape, storageType,
         wTF, wfV);
     convOp.setOperand(5, rshift_op);
-    setOpQuantParamType(op, "RSHIFT_ONLY");
-    setOpQuantPerchannel(op, false);
-  } else if (quant == CONV_QUANT_RSHIFT_ONLY) {
+  } else if (getOpQuantParamType(op) == "RSHIFT_ONLY") {
     auto shape = std::vector<int64_t>{oc};
     StringRef storageType = "UINT32";
     auto rshift_op = addWeightTensorAndCreateWeightOp<float>(
         op, "rshift", *rshift_per_channel, shape, storageType,
         wTF, wfV);
     convOp.setOperand(5, rshift_op);
-    setOpQuantParamType(op, "RSHIFT_ONLY");
-    setOpQuantPerchannel(op, true);
-  } else if (quant == CONV_QUANT_MULTIPLIER) {
+  } else if (getOpQuantParamType(op) == "RSHIFT_AND_M_I32") {
     auto shape = std::vector<int64_t>{oc};
     StringRef storageType = "UINT32";
     auto rshift_op = addWeightTensorAndCreateWeightOp<float>(
@@ -199,12 +166,9 @@ LogicalResult quantizeInt8ConvOps(Operation *op) {
         op, "multiplier", *multiplier_per_channel, shape, storageType,
         wTF, wfV);
     convOp.setOperand(6, multiplier_op);
-    setOpQuantParamType(op, "RSHIFT_AND_M_I32");
-    setOpQuantPerchannel(op, true);
   } else {
     assert(0);
   }
-  setOpQuant(op, "INT8");
   setOpResultType(op, StandardTypes::Integer, 8);
 
   return success();
@@ -214,7 +178,12 @@ LogicalResult quantizeInt8ConvOps(Operation *op) {
 /// FC Ops quantization method
 ///
 LogicalResult quantizeInt8FullyConnectedOps(Operation *op) {
-  assert(getOpQuantParamType(op) == "THRESHOLD");
+  assert(getOpQuant(op) == "INT8");
+  // support per-tensor only for now
+  setOpQuantPerchannel(op, false);
+  // support rshift-only only for now
+  setOpQuantParamType(op, "RSHIFT_ONLY");
+
   TensorFile *wTF = getWeightTensorFile(op);
   Value *wfV = getWeightFileValue(op);
   auto fcOp = cast<tpu::FullyConnectedOp>(op);
@@ -280,9 +249,6 @@ LogicalResult quantizeInt8FullyConnectedOps(Operation *op) {
       wTF, wfV);
   fcOp.setOperand(5, rshift_op);
 
-  setOpQuantParamType(op, "RSHIFT_ONLY");
-  setOpQuantPerchannel(op, false);
-  setOpQuant(op, "INT8");
   setOpResultType(op, StandardTypes::Integer, 8);
 
   return success();
@@ -292,7 +258,12 @@ LogicalResult quantizeInt8FullyConnectedOps(Operation *op) {
 /// LeakyRelu Ops quantization method
 ///
 LogicalResult quantizeInt8LeakyReluOps(Operation *op) {
-  assert(getOpQuantParamType(op) == "THRESHOLD");
+  assert(getOpQuant(op) == "INT8");
+  // support per-tensor only for now
+  setOpQuantPerchannel(op, false);
+  // use rshift and INT8 multiplier
+  setOpQuantParamType(op, "RSHIFT_AND_M_I8");
+
   TensorFile *wTF = getWeightTensorFile(op);
   Value *wfV = getWeightFileValue(op);
   auto lreluOp = cast<tpu::LeakyReluOp>(op);
@@ -366,9 +337,6 @@ LogicalResult quantizeInt8LeakyReluOps(Operation *op) {
       wTF, wfV);
   lreluOp.setOperand(8, multiplier_neg_op);
 
-  setOpQuantParamType(op, "RSHIFT_AND_M_I8");
-  setOpQuantPerchannel(op, false);
-  setOpQuant(op, "INT8");
   setOpResultType(op, StandardTypes::Integer, 8);
 
   return success();
@@ -378,6 +346,12 @@ LogicalResult quantizeInt8LeakyReluOps(Operation *op) {
 /// Prelu Ops quantization method
 ///
 LogicalResult quantizeInt8PReluOps(Operation *op) {
+  assert(getOpQuant(op) == "INT8");
+  // support per-tensor only for now
+  setOpQuantPerchannel(op, false);
+  // use rshift and INT8 multiplier
+  setOpQuantParamType(op, "RSHIFT_AND_M_I8");
+
   TensorFile *wTF = getWeightTensorFile(op);
   Value *wfV = getWeightFileValue(op);
   auto preluOp = cast<tpu::PReluOp>(op);
@@ -469,9 +443,6 @@ LogicalResult quantizeInt8PReluOps(Operation *op) {
       op, "rshift_neg", rshift_neg, shape, storageType, wTF, wfV);
   preluOp.setOperand(8, rshift_neg_op);
 
-  setOpQuantParamType(op, "RSHIFT_AND_M_I8");
-  setOpQuantPerchannel(op, false);
-  setOpQuant(op, "INT8");
   setOpResultType(op, StandardTypes::Integer, 8);
 
   return success();
@@ -482,7 +453,12 @@ LogicalResult quantizeInt8PReluOps(Operation *op) {
 ///
 template<typename OpTy>
 LogicalResult quantizeInt8LutOps(Operation *op) {
-  assert(getOpQuantParamType(op) == "THRESHOLD");
+  assert(getOpQuant(op) == "INT8");
+  // support per-tensor only for now
+  setOpQuantPerchannel(op, false);
+  // use LUT
+  setOpQuantParamType(op, "LUT_INT8");
+
   TensorFile *wTF = getWeightTensorFile(op);
   Value *wfV = getWeightFileValue(op);
   auto lutOp = cast<OpTy>(op);
@@ -557,8 +533,7 @@ LogicalResult quantizeInt8LutOps(Operation *op) {
       op, "mantissa_table", table_mantissa, shape, storageType, wTF, wfV);
   lutOp.setOperand(1, y0_table_op);
   lutOp.setOperand(2, mantissa_table_op);
-  setOpQuantPerchannel(op, false);
-  setOpQuant(op, "INT8");
+
   setOpResultType(op, StandardTypes::Integer, 8);
 
   return success();
@@ -575,6 +550,12 @@ LogicalResult quantizeInt8LutOps(Operation *op) {
 ///
 template<typename OpTy>
 LogicalResult quantizeInt8RescaleNoWeightOps(Operation *op) {
+  assert(getOpQuant(op) == "INT8");
+  // support per-tensor only for now
+  setOpQuantPerchannel(op, false);
+  // use rshift and INT8 multiplier
+  setOpQuantParamType(op, "RSHIFT_AND_M_I8");
+
   TensorFile *wTF = getWeightTensorFile(op);
   Value *wfV = getWeightFileValue(op);
 
@@ -601,8 +582,6 @@ LogicalResult quantizeInt8RescaleNoWeightOps(Operation *op) {
     LLVM_DEBUG(llvm::errs() << " < " << getOpName(op)
                             << ",  quantization bypassed\n";);
     setOpQuantParamType(op, "NONE");
-    setOpQuantPerchannel(op, false);
-    setOpQuant(op, "INT8");
     setOpResultType(op, StandardTypes::Integer, 8);
 
     return success();
@@ -670,8 +649,6 @@ LogicalResult quantizeInt8RescaleNoWeightOps(Operation *op) {
       wTF, wfV);
   op->setOperand(nInputs + 3, multiplier_op);
 
-  setOpQuantParamType(op, "RSHIFT_AND_M_I8");
-  setOpQuant(op, "INT8");
   setOpResultType(op, StandardTypes::Integer, 8);
 
   return success();
@@ -687,6 +664,12 @@ LogicalResult quantizeInt8RescaleNoWeightOps(Operation *op) {
 ///
 template<typename OpTy>
 LogicalResult quantizeInt8MultiplyOps(Operation *op) {
+  assert(getOpQuant(op) == "INT8");
+  // support per-tensor only for now
+  setOpQuantPerchannel(op, false);
+  // use rshift and INT8 multiplier
+  setOpQuantParamType(op, "RSHIFT_AND_M_I32");
+
   TensorFile *wTF = getWeightTensorFile(op);
   Value *wfV = getWeightFileValue(op);
 
@@ -743,8 +726,6 @@ LogicalResult quantizeInt8MultiplyOps(Operation *op) {
       wTF, wfV);
   op->setOperand(5, multiplier_op);
 
-  setOpQuantParamType(op, "RSHIFT_AND_M_I32");
-  setOpQuant(op, "INT8");
   setOpResultType(op, StandardTypes::Integer, 8);
 
   return success();
@@ -757,6 +738,12 @@ LogicalResult quantizeInt8MultiplyOps(Operation *op) {
 /// operation handles on INT8 and pass through directly
 ///
 LogicalResult quantizeInt8BypassOps(Operation *op) {
+  assert(getOpQuant(op) == "INT8");
+  // support per-tensor only for now
+  setOpQuantPerchannel(op, false);
+  // use rshift and INT8 multiplier
+  setOpQuantParamType(op, "NONE");
+
   bool skip_checking = false;
   if (isa<tpu::InputOp>(op)) {
     skip_checking = true;
@@ -773,10 +760,6 @@ LogicalResult quantizeInt8BypassOps(Operation *op) {
     }
   }
 
-  // set bypass
-  setOpQuantParamType(op, "NONE");
-  setOpQuantPerchannel(op, false);
-  setOpQuant(op, "INT8");
   setOpResultType(op, StandardTypes::Integer, 8);
 
   return success();
@@ -942,187 +925,4 @@ DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::UpsampleOp)
 DECLARE_QUANTIZE_INT8_DISABLED_METHOD(tpu::ReshapeOp)
 DECLARE_QUANTIZE_INT8_DISABLED_METHOD(tpu::SoftmaxOp)
 
-//===----------------------------------------------------------------------===//
-// Patterns
-//===----------------------------------------------------------------------===//
-
-template<typename OpTy>
-struct QuantizeInt8Pattern : public RewritePattern {
-  QuantizeInt8Pattern(MLIRContext *context)
-      : RewritePattern(OpTy::getOperationName(), 1, context) {}
-
-  PatternMatchResult matchAndRewrite(Operation *op,
-      PatternRewriter &rewriter) const override {
-    if (getOpQuant(op) != "NONE") {
-      LLVM_DEBUG(llvm::errs() << " < " << getOpName(op)
-                              << ", quantized already\n";);
-      return matchFailure();
-    }
-    auto quantOp = llvm::dyn_cast<tpu::TpuOpQuantInterface>(op);
-    if (!quantOp) {
-      assert(false);
-      return matchFailure();
-    }
-    auto ret = quantOp.quantizeInt8();
-    if (failed(ret)) {
-      assert(false);
-      return matchFailure();
-    }
-    return matchSuccess();
-  }
-};
-
-template<typename OpTy>
-struct TpuAddInt8QuantOpBeforeOpPattern : public RewritePattern {
-  TpuAddInt8QuantOpBeforeOpPattern(MLIRContext *context)
-      : RewritePattern(OpTy::getOperationName(), 1, context) {}
-
-  PatternMatchResult matchAndRewrite(Operation *op,
-                                     PatternRewriter &rewriter) const override {
-    if (op->getOperand(0)->getDefiningOp()
-        && isa<tpu::QuantOp>(op->getOperand(0)->getDefiningOp())) {
-      // added already
-      return matchFailure();
-    }
-
-    auto type = op->getResult(0)->getType();
-    std::vector<NamedAttribute> attrs;
-    attrs.push_back(rewriter.getNamedAttr("from",
-        rewriter.getStringAttr("NONE")));
-    attrs.push_back(rewriter.getNamedAttr("to",
-        rewriter.getStringAttr("INT8")));
-    attrs.push_back(rewriter.getNamedAttr("threshold",
-        rewriter.getF32FloatAttr(getOpThreshold(op))));
-    attrs.push_back(rewriter.getNamedAttr("name",
-        rewriter.getStringAttr(getOpName(op).str() + "_quant")));
-    attrs.push_back(rewriter.getNamedAttr("layer_id",
-        rewriter.getI32IntegerAttr(getOpLayerId(op))));
-    auto quantOp = rewriter.create<tpu::QuantOp>(op->getLoc(), type,
-        ArrayRef<Value *>{op->getOperand(0)}, ArrayRef<NamedAttribute>{attrs});
-    setOpResultType(quantOp.getOperation(), StandardTypes::Integer, 8);
-
-    op->setOperand(0, quantOp.getResult());
-
-    return matchSuccess();
-  }
-};
-
-template<typename OpTy>
-struct TpuAddInt8DequantOpBeforeOpPattern : public RewritePattern {
-  TpuAddInt8DequantOpBeforeOpPattern(MLIRContext *context)
-      : RewritePattern(OpTy::getOperationName(), 1, context) {}
-
-  PatternMatchResult matchAndRewrite(Operation *op,
-                                     PatternRewriter &rewriter) const override {
-    if (isa<tpu::QuantOp>(op->getOperand(0)->getDefiningOp())) {
-      // added already
-      return matchFailure();
-    }
-
-    for (unsigned i = 0; i < op->getNumOperands(); i++) {
-      auto prev_op = op->getOperand(i)->getDefiningOp();
-      if (getOpQuant(prev_op) != "INT8") {
-        continue;
-      }
-      auto type = op->getOperand(i)->getType();
-      std::vector<NamedAttribute> attrs;
-      attrs.push_back(rewriter.getNamedAttr("from",
-          rewriter.getStringAttr("INT8")));
-      attrs.push_back(rewriter.getNamedAttr("to",
-          rewriter.getStringAttr("NONE")));
-      attrs.push_back(rewriter.getNamedAttr("threshold",
-          rewriter.getF32FloatAttr(getOpThreshold(prev_op))));
-      attrs.push_back(rewriter.getNamedAttr("name",
-          rewriter.getStringAttr(getOpName(prev_op).str() + "_dequant")));
-      attrs.push_back(rewriter.getNamedAttr("layer_id",
-          rewriter.getI32IntegerAttr(getOpLayerId(prev_op))));
-      auto quantOp = rewriter.create<tpu::QuantOp>(prev_op->getLoc(), type,
-          ArrayRef<Value *>{op->getOperand(i)}, ArrayRef<NamedAttribute>{attrs});
-      setOpResultType(quantOp.getOperation(), StandardTypes::F32);
-      op->setOperand(i, quantOp.getResult());
-    }
-
-    return matchSuccess();
-  }
-};
-
-class QuantizeInt8Pass : public FunctionPass<QuantizeInt8Pass> {
-public:
-  explicit QuantizeInt8Pass() {}
-
-  void runOnFunction() override {
-    auto fn = getFunction();
-    auto *context = &getContext();
-
-#if 0
-    OwningRewritePatternList patterns_q;
-    patterns.insert<
-        QuantizeInt8Pattern<tpu::BroadcastMulOp>,
-        QuantizeInt8Pattern<tpu::ConcatOp>,
-        QuantizeInt8Pattern<tpu::Conv2DOp>,
-        QuantizeInt8Pattern<tpu::CropOp>,
-        QuantizeInt8Pattern<tpu::DeConv2DOp>,
-        QuantizeInt8Pattern<tpu::EltwiseAddOp>,
-        QuantizeInt8Pattern<tpu::EltwiseMaxOp>,
-        QuantizeInt8Pattern<tpu::EltwiseMulOp>,
-        QuantizeInt8Pattern<tpu::FullyConnectedOp>,
-        QuantizeInt8Pattern<tpu::InputOp>,
-        QuantizeInt8Pattern<tpu::LeakyReluOp>,
-        QuantizeInt8Pattern<tpu::PermuteOp>,
-        QuantizeInt8Pattern<tpu::PixelShuffleOp>,
-        QuantizeInt8Pattern<tpu::PoolAvg2DOp>,
-        QuantizeInt8Pattern<tpu::PoolMax2DOp>,
-        QuantizeInt8Pattern<tpu::PReluOp>,
-        QuantizeInt8Pattern<tpu::ReciprocalOp>,
-        QuantizeInt8Pattern<tpu::ReluOp>,
-        QuantizeInt8Pattern<tpu::ShuffleChannelOp>,
-        QuantizeInt8Pattern<tpu::SigmoidOp>,
-        QuantizeInt8Pattern<tpu::SliceOp>,
-        QuantizeInt8Pattern<tpu::SqrtOp>,
-        QuantizeInt8Pattern<tpu::UpsampleOp>
-        >(context);
-    applyPatternsGreedily(fn, patterns_q);
-#endif
-
-    fn.walk([&](Operation *op) {
-      if (op->getName().getDialect().str() != "tpu"
-          || isa<tpu::WeightFileOp>(op)
-          || isa<tpu::LoadWeightOp>(op)
-          || isa<tpu::NoneOp>(op)) {
-      } else if (isa<tpu::ReshapeOp>(op)
-                 || isa<tpu::SoftmaxOp>(op)) {
-        // no need to quant
-      } else if (auto quantOp = llvm::dyn_cast<tpu::TpuOpQuantInterface>(op)) {
-        auto ret = quantOp.quantizeInt8();
-        if (failed(ret)) {
-          assert(false);
-        }
-      } else if (isa<tpu::DetectionOutputOp>(op)
-                 || isa<tpu::PriorBoxOp>(op)) {
-        // cpu Ops that has no quant support
-      } else {
-        llvm::errs() << "lower didn't handle " << op->getName() << "\n";
-        assert(false);
-      }
-    });
-
-    OwningRewritePatternList patterns;
-    patterns.insert<
-        TpuAddInt8QuantOpBeforeOpPattern<tpu::InputOp>,
-        TpuAddInt8DequantOpBeforeOpPattern<tpu::DetectionOutputOp>,
-        TpuAddInt8DequantOpBeforeOpPattern<tpu::SoftmaxOp>,
-        TpuAddInt8DequantOpBeforeOpPattern<ReturnOp>
-        >(context);
-    applyPatternsGreedily(fn, patterns);
-  }
-};
-
 } // namespace mlir
-
-std::unique_ptr<OpPassBase<FuncOp>> mlir::createQuantizeInt8Pass() {
-  return std::make_unique<QuantizeInt8Pass>();
-}
-
-static PassRegistration<QuantizeInt8Pass>
-    pass("quant-int8",
-         "Quantization to int8");

@@ -12,7 +12,7 @@ mlir-opt \
 
 # quantization
 mlir-opt \
-    --quant-bf16 \
+    --tpu-quant --quant-full-bf16 \
     squeezenet_v1.1_opt_fuse_relu.mlir \
     -o squeezenet_v1.1_quant_bf16.mlir
 

@@ -14,7 +14,7 @@ mlir-opt \
 
 # quantization
 mlir-opt \
-    --quant-bf16 \
+    --tpu-quant --quant-full-bf16 \
     mobilenet_v2_opt2.mlir \
     -o mobilenet_v2_quant_bf16.mlir
 

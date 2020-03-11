@@ -13,7 +13,7 @@ mlir-opt \
 
 # quantization
 mlir-opt \
-    --quant-bf16 \
+    --tpu-quant --quant-full-bf16 \
     vgg16_opt2.mlir \
     -o vgg16_quant_bf16.mlir
 

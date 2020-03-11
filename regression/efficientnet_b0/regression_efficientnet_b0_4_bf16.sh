@@ -7,7 +7,7 @@ echo $0 IS RUNNING
 
 # quantization
 mlir-opt \
-    --quant-bf16 \
+    --tpu-quant --quant-full-bf16 \
     efficientnet_b0_opt.mlir \
     -o efficientnet_b0_quant_bf16.mlir
 

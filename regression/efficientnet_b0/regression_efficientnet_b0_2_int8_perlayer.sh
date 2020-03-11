@@ -13,7 +13,7 @@ mlir-opt \
 
 # quantization 1: per-layer int8
 mlir-opt \
-    --quant-int8 \
+    --tpu-quant --quant-int8-per-tensor \
     --print-tpu-op-info \
     --tpu-op-info-filename efficientnet_b0_op_info_int8_per_layer.csv \
     efficientnet_b0_cali.mlir \

@@ -49,6 +49,8 @@ namespace mlir {
 ///
 template<typename OpTy>
 LogicalResult quantizeBf16ConvOps(Operation *op) {
+  assert(getOpQuant(op) == "BF16");
+
   auto convOp = cast<OpTy>(op);
   TensorFile *wTF = getWeightTensorFile(op);
 
@@ -103,7 +105,7 @@ LogicalResult quantizeBf16ConvOps(Operation *op) {
     addWeightTensorAndUpdateWeightOp<bfloat16>(convOp.getOperand(2),
         "quant", *new_bias, biasShape, "BF16", wTF);
   }
-  setOpQuant(op, "BF16");
+
   setOpResultType(op, StandardTypes::BF16);
 
   return success();
@@ -113,6 +115,8 @@ LogicalResult quantizeBf16ConvOps(Operation *op) {
 /// FC Ops quantization method
 ///
 LogicalResult quantizeBf16FullyConnectedOps(Operation *op) {
+  assert(getOpQuant(op) == "BF16");
+
   auto fcOp = cast<tpu::FullyConnectedOp>(op);
   TensorFile *wTF = getWeightTensorFile(op);
 
@@ -151,7 +155,7 @@ LogicalResult quantizeBf16FullyConnectedOps(Operation *op) {
     addWeightTensorAndUpdateWeightOp<bfloat16>(fcOp.getOperand(2),
         "quant", *new_bias, biasShape, "BF16", wTF);
   }
-  setOpQuant(op, "BF16");
+
   setOpResultType(op, StandardTypes::BF16);
 
   return success();
@@ -161,6 +165,8 @@ LogicalResult quantizeBf16FullyConnectedOps(Operation *op) {
 /// LeakyRelu Ops quantization method
 ///
 LogicalResult quantizeBf16LeakyReluOps(Operation *op) {
+  assert(getOpQuant(op) == "BF16");
+
   auto lreluOp = cast<tpu::LeakyReluOp>(op);
   auto builder = Builder(op->getContext());
 
@@ -173,7 +179,6 @@ LogicalResult quantizeBf16LeakyReluOps(Operation *op) {
   BFloat16ToFloat(&bf16_quant_negative_slope, &quant_negative_slope, 1);
   lreluOp.setAttr("negative_slope", builder.getF32FloatAttr(quant_negative_slope));
 
-  setOpQuant(op, "BF16");
   setOpResultType(op, StandardTypes::BF16);
 
   return success();
@@ -183,7 +188,8 @@ LogicalResult quantizeBf16LeakyReluOps(Operation *op) {
 /// bypass Ops quantization method
 ///
 LogicalResult quantizeBf16BypassOps(Operation *op) {
-  setOpQuant(op, "BF16");
+  assert(getOpQuant(op) == "BF16");
+
   setOpResultType(op, StandardTypes::BF16);
 
   return success();
@@ -267,184 +273,4 @@ DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::UpsampleOp)
 DECLARE_QUANTIZE_BF16_DISABLED_METHOD(tpu::ReshapeOp)
 DECLARE_QUANTIZE_BF16_DISABLED_METHOD(tpu::SoftmaxOp)
 
-//===----------------------------------------------------------------------===//
-// Patterns
-//===----------------------------------------------------------------------===//
-
-template<typename OpTy>
-struct QuantizeBf16Pattern : public RewritePattern {
-  QuantizeBf16Pattern(MLIRContext *context)
-      : RewritePattern(OpTy::getOperationName(), 1, context) {}
-
-  PatternMatchResult matchAndRewrite(Operation *op,
-      PatternRewriter &rewriter) const override {
-    if (getOpQuant(op) != "NONE") {
-      LLVM_DEBUG(llvm::errs() << " < " << getOpName(op)
-                              << ", quantized already\n";);
-      return matchFailure();
-    }
-    auto quantOp = llvm::dyn_cast<tpu::TpuOpQuantInterface>(op);
-    if (!quantOp) {
-      assert(false);
-      return matchFailure();
-    }
-    auto ret = quantOp.quantizeBf16();
-    if (failed(ret)) {
-      assert(false);
-      return matchFailure();
-    }
-    return matchSuccess();
-  }
-};
-
-template<typename OpTy>
-struct TpuAddBf16QuantOpBeforeOpPattern : public RewritePattern {
-  TpuAddBf16QuantOpBeforeOpPattern(MLIRContext *context)
-      : RewritePattern(OpTy::getOperationName(), 1, context) {}
-
-  PatternMatchResult matchAndRewrite(Operation *op,
-                                     PatternRewriter &rewriter) const override {
-    if (op->getOperand(0)->getDefiningOp()
-        && isa<tpu::QuantOp>(op->getOperand(0)->getDefiningOp())) {
-      // added already
-      return matchFailure();
-    }
-
-    auto type = op->getResult(0)->getType();
-    std::vector<NamedAttribute> attrs;
-    attrs.push_back(rewriter.getNamedAttr("from",
-        rewriter.getStringAttr("NONE")));
-    attrs.push_back(rewriter.getNamedAttr("to",
-        rewriter.getStringAttr("BF16")));
-    attrs.push_back(rewriter.getNamedAttr("name",
-        rewriter.getStringAttr(getOpName(op).str() + "_quant")));
-    attrs.push_back(rewriter.getNamedAttr("layer_id",
-        rewriter.getI32IntegerAttr(getOpLayerId(op))));
-    auto quantOp = rewriter.create<tpu::QuantOp>(op->getLoc(), type,
-        ArrayRef<Value *>{op->getOperand(0)}, ArrayRef<NamedAttribute>{attrs});
-
-    op->setOperand(0, quantOp.getResult());
-
-    return matchSuccess();
-  }
-};
-
-template<typename OpTy>
-struct TpuAddBf16DequantOpBeforeOpPattern : public RewritePattern {
-  TpuAddBf16DequantOpBeforeOpPattern(MLIRContext *context)
-      : RewritePattern(OpTy::getOperationName(), 1, context) {}
-
-  PatternMatchResult matchAndRewrite(Operation *op,
-                                     PatternRewriter &rewriter) const override {
-    if (isa<tpu::QuantOp>(op->getOperand(0)->getDefiningOp())) {
-      // added already
-      return matchFailure();
-    }
-
-    for (unsigned i = 0; i < op->getNumOperands(); i++) {
-      auto prev_op = op->getOperand(i)->getDefiningOp();
-      if (getOpQuant(prev_op) != "BF16") {
-        continue;
-      }
-      auto type = op->getOperand(i)->getType();
-      std::vector<NamedAttribute> attrs;
-      attrs.push_back(rewriter.getNamedAttr("from",
-          rewriter.getStringAttr("BF16")));
-      attrs.push_back(rewriter.getNamedAttr("to",
-          rewriter.getStringAttr("NONE")));
-      attrs.push_back(rewriter.getNamedAttr("threshold",
-          rewriter.getF32FloatAttr(getOpThreshold(prev_op))));
-      attrs.push_back(rewriter.getNamedAttr("name",
-          rewriter.getStringAttr(getOpName(prev_op).str() + "_dequant")));
-      attrs.push_back(rewriter.getNamedAttr("layer_id",
-          rewriter.getI32IntegerAttr(getOpLayerId(prev_op))));
-      auto quantOp = rewriter.create<tpu::QuantOp>(prev_op->getLoc(), type,
-          ArrayRef<Value *>{op->getOperand(i)}, ArrayRef<NamedAttribute>{attrs});
-      setOpResultType(quantOp.getOperation(), StandardTypes::F32);
-      op->setOperand(i, quantOp.getResult());
-    }
-
-    return matchSuccess();
-  }
-};
-
-class QuantizeBf16Pass : public FunctionPass<QuantizeBf16Pass> {
-public:
-  explicit QuantizeBf16Pass() {}
-
-  void runOnFunction() override {
-    auto fn = getFunction();
-    auto *context = &getContext();
-
-#if 0
-    OwningRewritePatternList patterns_q;
-    patterns.insert<
-        QuantizeBf16Pattern<tpu::BroadcastMulOp>,
-        QuantizeBf16Pattern<tpu::ConcatOp>,
-        QuantizeBf16Pattern<tpu::Conv2DOp>,
-        QuantizeBf16Pattern<tpu::CropOp>,
-        QuantizeBf16Pattern<tpu::DeConv2DOp>,
-        QuantizeBf16Pattern<tpu::EltwiseAddOp>,
-        QuantizeBf16Pattern<tpu::EltwiseMaxOp>,
-        QuantizeBf16Pattern<tpu::EltwiseMulOp>,
-        QuantizeBf16Pattern<tpu::FullyConnectedOp>,
-        QuantizeBf16Pattern<tpu::InputOp>,
-        QuantizeBf16Pattern<tpu::LeakyReluOp>,
-        QuantizeBf16Pattern<tpu::PermuteOp>,
-        QuantizeBf16Pattern<tpu::PixelShuffleOp>,
-        QuantizeBf16Pattern<tpu::PoolAvg2DOp>,
-        QuantizeBf16Pattern<tpu::PoolMax2DOp>,
-        QuantizeBf16Pattern<tpu::PReluOp>,
-        QuantizeBf16Pattern<tpu::ReciprocalOp>,
-        QuantizeBf16Pattern<tpu::ReluOp>,
-        QuantizeBf16Pattern<tpu::ShuffleChannelOp>,
-        QuantizeBf16Pattern<tpu::SigmoidOp>,
-        QuantizeBf16Pattern<tpu::SliceOp>,
-        QuantizeBf16Pattern<tpu::SqrtOp>,
-        QuantizeBf16Pattern<tpu::UpsampleOp>
-        >(context);
-    applyPatternsGreedily(fn, patterns_q);
-#endif
-
-    fn.walk([&](Operation *op) {
-      if (op->getName().getDialect().str() != "tpu"
-          || isa<tpu::WeightFileOp>(op)
-          || isa<tpu::LoadWeightOp>(op)
-          || isa<tpu::NoneOp>(op)) {
-      } else if (isa<tpu::ReshapeOp>(op)
-                 || isa<tpu::SoftmaxOp>(op)) {
-        // no need to quant
-      } else if (auto quantOp = llvm::dyn_cast<tpu::TpuOpQuantInterface>(op)) {
-        auto ret = quantOp.quantizeBf16();
-        if (failed(ret)) {
-          assert(false);
-        }
-      } else if (isa<tpu::DetectionOutputOp>(op)
-                 || isa<tpu::PriorBoxOp>(op)) {
-        // cpu Ops that has no quant support
-      } else {
-        llvm::errs() << "lower didn't handle " << op->getName() << "\n";
-        assert(false);
-      }
-    });
-
-    OwningRewritePatternList patterns;
-    patterns.insert<
-        TpuAddBf16QuantOpBeforeOpPattern<tpu::InputOp>,
-        TpuAddBf16DequantOpBeforeOpPattern<tpu::DetectionOutputOp>,
-        TpuAddBf16DequantOpBeforeOpPattern<tpu::SoftmaxOp>,
-        TpuAddBf16DequantOpBeforeOpPattern<ReturnOp>
-        >(context);
-    applyPatternsGreedily(fn, patterns);
-  }
-};
-
 } // namespace mlir
-
-std::unique_ptr<OpPassBase<FuncOp>> mlir::createQuantizeBf16Pass() {
-  return std::make_unique<QuantizeBf16Pass>();
-}
-
-static PassRegistration<QuantizeBf16Pass>
-    pass("quant-bf16",
-         "Quantization to bf16");

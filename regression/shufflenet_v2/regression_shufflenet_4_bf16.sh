@@ -6,7 +6,7 @@ source $DIR/../../envsetup.sh
 
 # quantization
 mlir-opt \
-    --quant-bf16 \
+    --tpu-quant --quant-full-bf16 \
     shufflenet_opt.mlir \
     -o shufflenet_quant_bf16.mlir
 

@@ -48,8 +48,9 @@ std::unique_ptr<OpPassBase<FuncOp>> createGenSqrtTablePass();
 //std::unique_ptr<OpPassBase<FuncOp>> createGenTanHTablePass();
 
 std::unique_ptr<OpPassBase<FuncOp>> createImportCalibrationTablePass();
-std::unique_ptr<OpPassBase<FuncOp>> createQuantizeInt8Pass();
-std::unique_ptr<OpPassBase<FuncOp>> createQuantizeBf16Pass();
+std::unique_ptr<OpPassBase<FuncOp>> createTpuQuantPass();
+
+std::unique_ptr<OpPassBase<FuncOp>> createTpuLowerPass();
 
 std::unique_ptr<OpPassBase<FuncOp>> createAssignWeightAddressPass();
 std::unique_ptr<OpPassBase<FuncOp>> createAssignNeuronAddressPass();
@@ -62,7 +63,6 @@ std::unique_ptr<OpPassBase<FuncOp>> createDeepFusionTL_LA2LW();
 std::unique_ptr<OpPassBase<FuncOp>> createConvertPriorBoxPass();
 std::unique_ptr<OpPassBase<FuncOp>> createConvertLoadeweightConcatToLoadweightPass();
 
-std::unique_ptr<OpPassBase<FuncOp>> createTpuLowerPass();
 
 std::unique_ptr<OpPassBase<FuncOp>> createTgFuseLeakyReluPass();
 

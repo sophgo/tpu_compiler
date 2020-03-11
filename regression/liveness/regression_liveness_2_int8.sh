@@ -13,9 +13,7 @@ mlir-opt \
 
 # quantization: per-channel int8 with multiplier
 mlir-opt \
-    --quant-int8 \
-    --enable-conv-per-channel \
-    --enable-conv-multiplier \
+    --tpu-quant \
     --print-tpu-op-info \
     --tpu-op-info-filename liveness_op_info_int8_multiplier.csv \
     liveness_cali.mlir \

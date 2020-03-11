@@ -6,7 +6,7 @@ source $DIR/../../envsetup.sh
 
 # quantization
 mlir-opt \
-    --quant-bf16 \
+    --tpu-quant --quant-full-bf16 \
     --print-tpu-op-info \
     --tpu-op-info-filename resnet50_op_info_bf16.csv \
     resnet50_opt.mlir \

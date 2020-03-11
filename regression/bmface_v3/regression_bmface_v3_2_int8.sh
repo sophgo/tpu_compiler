@@ -13,9 +13,7 @@ mlir-opt \
 
 # quantization 3: per-channel int8 with multiplier
 mlir-opt \
-    --quant-int8 \
-    --enable-conv-per-channel \
-    --enable-conv-multiplier \
+    --tpu-quant \
     --print-tpu-op-info \
     --tpu-op-info-filename bmface_v3_op_info_int8_multiplier.csv \
     bmface_v3_cali.mlir \

@@ -15,7 +15,7 @@ mlir-opt \
 
 # quantization
 mlir-opt \
-    --quant-bf16 \
+    --tpu-quant --quant-full-bf16 \
     bmface_v3_opt2.mlir \
     -o bmface_v3_quant_bf16.mlir
 

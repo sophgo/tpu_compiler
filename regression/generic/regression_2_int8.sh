@@ -41,7 +41,7 @@ mlir-opt \
 ###############################################################################
 if [ $DO_QUANT_INT8_PER_TENSOR -eq 1 ]; then
   mlir-opt \
-      --quant-int8 \
+      --tpu-quant --quant-int8-per-tensor \
       --print-tpu-op-info \
       --tpu-op-info-filename ${NET}_op_info_int8_per_tensor.csv \
       ${NET}_cali.mlir \
@@ -83,8 +83,7 @@ fi
 if [ $DO_QUANT_INT8_RFHIFT_ONLY -eq 1 ]; then
 
   mlir-opt \
-      --quant-int8 \
-      --enable-conv-per-channel \
+      --tpu-quant --quant-int8-rshift-only \
       --print-tpu-op-info \
       --tpu-op-info-filename ${NET}_op_info_int8_rshift_only.csv \
       ${NET}_cali.mlir \
@@ -126,9 +125,7 @@ fi
 if [ $DO_QUANT_INT8_MULTIPLER -eq 1 ]; then
 
   mlir-opt \
-      --quant-int8 \
-      --enable-conv-per-channel \
-      --enable-conv-multiplier \
+      --tpu-quant \
       --print-tpu-op-info \
       --tpu-op-info-filename ${NET}_op_info_int8_multiplier.csv \
       ${NET}_cali.mlir \

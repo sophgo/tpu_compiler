@@ -26,6 +26,7 @@ add_llvm_library(MLIRTPU
   Interpreter/CpuLayer_DetectionOutput.cpp
   Quantization/QuantizationArithmetic.cpp
   Quantization/ImportCalibrationTable.cpp
+  Quantization/Quantization.cpp
   Quantization/QuantizeInt8.cpp
   Quantization/QuantizeBf16.cpp
   Quantization/GenLutInt8Table.cpp

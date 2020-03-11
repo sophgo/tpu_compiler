@@ -46,7 +46,7 @@ mlir-opt \
 
 # quantization
 mlir-opt \
-    --quant-bf16 \
+    --tpu-quant --quant-full-bf16 \
     espcn-opt.mlir \
     -o espcn-quant-bf16.mlir
 
