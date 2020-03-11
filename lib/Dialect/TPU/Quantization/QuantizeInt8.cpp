@@ -982,6 +982,7 @@ public:
         TpuQuantInt8PReluOpPattern,
         TpuQuantInt8BypassPattern<tpu::ReluOp>,
         TpuQuantInt8BypassPattern<tpu::ShuffleChannelOp>,
+        TpuQuantInt8BypassPattern<tpu::PixelShuffleOp>,
         TpuQuantInt8LutOpPattern<tpu::SigmoidOp>,
         TpuQuantInt8BypassPattern<tpu::SliceOp>,
         TpuQuantInt8LutOpPattern<tpu::SqrtOp>,

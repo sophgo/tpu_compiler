@@ -294,6 +294,7 @@ public:
         AssignGAddrTGInt8Pattern<tpu::TG_INT8_PoolAvg2DOp>,
         AssignGAddrTGInt8Pattern<tpu::TG_INT8_PoolMax2DOp>,
         AssignGAddrTGInt8Pattern<tpu::TG_INT8_ShuffleChannelOp>,
+        AssignGAddrTGInt8Pattern<tpu::TG_INT8_PixelShuffleOp>,
         AssignGAddrTGInt8Pattern<tpu::TG_INT8_PReluOp>,
         AssignGAddrTGInt8Pattern<tpu::TG_INT8_ReluOp>,
         AssignGAddrTGInt8Pattern<tpu::TG_INT8_UpsampleOp>,
@@ -316,6 +317,7 @@ public:
         AssignGAddrTGBf16Pattern<tpu::TG_BF16_PReluOp>,
         AssignGAddrTGBf16Pattern<tpu::TG_BF16_ReluOp>,
         AssignGAddrTGBf16Pattern<tpu::TG_BF16_ShuffleChannelOp>,
+        AssignGAddrTGBf16Pattern<tpu::TG_BF16_PixelShuffleOp>,
         AssignGAddrTGBf16Pattern<tpu::TG_BF16_UpsampleOp>
 
         >(context, &pos, neuronMapFile->os(), clNeuronAlignment);

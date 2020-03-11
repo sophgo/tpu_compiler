@@ -630,15 +630,6 @@ Value* tpu::PermuteOp::convertToTG() {
   return nullptr;
 }
 
-Value *tpu::PixelShuffleOp::convertToTG() {
-  llvm::errs() << "lowerToTG: " << getOperationName() << " [" << getOpName()
-               << "]\n";
-  // TODO
-
-  assert(false);
-  return nullptr;
-}
-
 Value* tpu::PoolAvg2DOp::convertToTG() {
   llvm::errs() << "lowerToTG: " << getOperationName()
                << " [" << getOpName() << "]\n";
@@ -826,6 +817,38 @@ Value *tpu::ShuffleChannelOp::convertToTG() {
     return newOp.getResult();
   } else if (getOpQuant() == "BF16") {
     auto newOp = OpBuilder(op).create<tpu::TG_BF16_ShuffleChannelOp>(
+        op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  }
+
+  assert(false);
+  return nullptr;
+}
+
+Value *tpu::PixelShuffleOp::convertToTG() {
+  llvm::errs() << "lowerToTG: " << getOperationName() << " [" << getOpName()
+               << "]\n";
+  Operation *op = this->getOperation();
+  auto builder = Builder(op->getContext());
+  //   TensorFile *wTF = getWeightTensorFile(op);
+
+  std::vector<Value *> operands;
+  operands.push_back(input());
+
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder.getNamedAttr("upscale_factor", upscale_factorAttr()));
+  attrs.push_back(builder.getNamedAttr("name", nameAttr()));
+  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
+
+  if (getOpQuant() == "INT8") {
+    assert(getOpQuantParamType() == "NONE");
+    auto newOp = OpBuilder(op).create<tpu::TG_INT8_PixelShuffleOp>(
+        op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  } else if (getOpQuant() == "BF16") {
+    auto newOp = OpBuilder(op).create<tpu::TG_BF16_PixelShuffleOp>(
         op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
