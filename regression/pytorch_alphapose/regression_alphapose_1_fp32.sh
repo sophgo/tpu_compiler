@@ -4,9 +4,6 @@ set -e
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 source $DIR/../../envsetup.sh
 
-CHECK_NON_OPT_VERSION=0
-# clear previous output
-rm -f *.mlir *.bin  *.csv
 # use python to mlir , gen golden too
 convert.py \
     --model_path $MODEL_PATH/pose/alphapose/onnx/alphapose_resnet50_256x192.onnx \

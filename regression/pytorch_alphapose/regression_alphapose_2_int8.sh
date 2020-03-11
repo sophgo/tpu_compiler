@@ -13,9 +13,7 @@ mlir-opt \
 
 # quantization: per-channel int8
 mlir-opt \
-    --quant-int8 \
-    --enable-conv-per-channel \
-    --enable-conv-multiplier \
+    --tpu-quant \
     --print-tpu-op-info \
     --tpu-op-info-filename alphapose_op_info_int8_multiplier.csv \
     alphapose_cali.mlir \
