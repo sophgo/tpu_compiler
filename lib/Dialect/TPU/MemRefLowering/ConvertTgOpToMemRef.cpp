@@ -154,7 +154,7 @@ public:
   }
 };
 
-struct ConvertTgOpToMemRef : public FunctionPass<ConvertTgOpToMemRef> {
+struct ConvertTgOpToMemRefPass : public FunctionPass<ConvertTgOpToMemRefPass> {
   void runOnFunction() override {
     auto fn = getFunction();
     auto *context = &getContext();
@@ -162,26 +162,26 @@ struct ConvertTgOpToMemRef : public FunctionPass<ConvertTgOpToMemRef> {
     OwningRewritePatternList patterns;
 
     target.addLegalOp<tpu::TG_MemRef_INT8_InputOp>();
-    target.addLegalOp<tpu::TG_MemRef_QuantOp>();
-    target.addLegalOp<tpu::TG_MemRef_LoadWeightOp>();
     target.addLegalOp<tpu::TG_MemRef_INT8_EltwiseAddOp>();
     target.addLegalOp<tpu::TG_MemRef_INT8_FullyConnectedOp>();
     target.addLegalOp<tpu::TG_MemRef_INT8_PC_Conv2DOp>();
     target.addLegalOp<tpu::TG_MemRef_INT8_PoolAvg2DOp>();
     target.addLegalOp<tpu::TG_MemRef_INT8_PoolMax2DOp>();
+    target.addLegalOp<tpu::TG_MemRef_LoadWeightOp>();
+    target.addLegalOp<tpu::TG_MemRef_QuantOp>();
     target.addLegalOp<tpu::TG_MemRef_ReshapeOp>();
     target.addLegalOp<ReturnOp>();
 
     patterns.insert<
-        convertTgOpToMemRefPattern<tpu::TG_INT8_InputOp, tpu::TG_MemRef_INT8_InputOp>,
-        convertTgOpToMemRefPattern<tpu::QuantOp, tpu::TG_MemRef_QuantOp>,
         convertTgOpToMemRefPattern<tpu::LoadWeightOp, tpu::TG_MemRef_LoadWeightOp>,
+        convertTgOpToMemRefPattern<tpu::QuantOp, tpu::TG_MemRef_QuantOp>,
+        convertTgOpToMemRefPattern<tpu::ReshapeOp, tpu::TG_MemRef_ReshapeOp>,
+        convertTgOpToMemRefPattern<tpu::TG_INT8_InputOp, tpu::TG_MemRef_INT8_InputOp>,
         convertTgOpToMemRefPattern<tpu::TG_INT8_EltwiseAddOp, tpu::TG_MemRef_INT8_EltwiseAddOp>,
         convertTgOpToMemRefPattern<tpu::TG_INT8_FullyConnectedOp, tpu::TG_MemRef_INT8_FullyConnectedOp>,
         convertTgOpToMemRefPattern<tpu::TG_INT8_PC_Conv2DOp, tpu::TG_MemRef_INT8_PC_Conv2DOp>,
         convertTgOpToMemRefPattern<tpu::TG_INT8_PoolAvg2DOp, tpu::TG_MemRef_INT8_PoolAvg2DOp>,
         convertTgOpToMemRefPattern<tpu::TG_INT8_PoolMax2DOp, tpu::TG_MemRef_INT8_PoolMax2DOp>,
-        convertTgOpToMemRefPattern<tpu::ReshapeOp, tpu::TG_MemRef_ReshapeOp>,
         convertTensorLoadOpPattern,
         convertTensorStoreOpPattern
         >(context);
@@ -193,8 +193,8 @@ struct ConvertTgOpToMemRef : public FunctionPass<ConvertTgOpToMemRef> {
 } // anonymous namespace
 
 std::unique_ptr<OpPassBase<FuncOp>> mlir::createConvertTgOpToMemRefPass() {
-  return std::make_unique<ConvertTgOpToMemRef>();
+  return std::make_unique<ConvertTgOpToMemRefPass>();
 }
 
-static PassRegistration<ConvertTgOpToMemRef>
+static PassRegistration<ConvertTgOpToMemRefPass>
     pass("convert-tg-op-to-memref", "Convert tg op from TensorType to MemRefType");

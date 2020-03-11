@@ -55,8 +55,8 @@ MemRefType convertLegacyTypeToMemRef(Type type, unsigned memorySpace=0) {
 }
 
 // Borrow from IREE
-bool insertLoad(BlockArgument *oldArg, BlockArgument *newArg, OpBuilder &builder,
-                BlockAndValueMapping *mapping) {
+bool insertLoad(BlockArgument *oldArg, BlockArgument *newArg,
+                OpBuilder &builder, BlockAndValueMapping *mapping) {
   auto loc = oldArg->getOwner()->getParent()->getLoc();
   // If old arg was a memref we don't need to change anything. We still need
   // to remap so that the use lists match through coversion, though.
