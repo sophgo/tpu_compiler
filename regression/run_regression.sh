@@ -102,6 +102,6 @@ if [ $ERR -eq 0 ]; then
   echo $0 ALL TEST PASSED
 else
   echo $0 FAILED
-
 fi
+
 exit $ERR
