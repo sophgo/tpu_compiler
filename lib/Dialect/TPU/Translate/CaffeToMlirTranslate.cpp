@@ -133,9 +133,15 @@ private:
   void convertUpsampleLayer(mlir::Block *block, caffe::Layer<float> *layer);
   void convertRetinaFaceDetectionLayer(mlir::Block *block, caffe::Layer<float> *layer);
 
+  void doPreprocess(mlir::Block *block, mlir::Value *input);
+  void doPreChannelSwap(mlir::Block *block);
+  void doPreScale(mlir::Block *block, std::string name, float scale);
+  void doPreMean(mlir::Block *block);
+
   mlir::ModuleOp module_;
   mlir::Builder builder_;
   mlir::Type elementType_;
+  mlir::Value *lastResult_;
   std::map<std::string, mlir::Value *> tensor_map_;
   mlir::Value *weightFileVar_;
 };
@@ -1183,9 +1189,9 @@ void CaffeImporter::convertInputLayer(mlir::Block *block,
       builder_.getUnknownLoc(), result_type,
       ArrayRef<Value *>{operands}, ArrayRef<NamedAttribute>{attrs});
   auto result_var = op.getResult();
-
-  tensor_map_[layer_param.top(0)] = result_var;
+  doPreprocess(block, result_var);
 }
+
 void CaffeImporter::convertNormalizeLayer(mlir::Block *block,
     caffe::Layer<float> *layer) {
 
@@ -2320,22 +2326,133 @@ LogicalResult CaffeImporter::Import(const llvm::StringRef inputFilename,
   return success();
 }
 
+//=========================preprocess=======================================
+static llvm::cl::OptionCategory
+    clOptionsPreprocess("input  data preprocess options");
+
+static llvm::cl::opt<bool>
+    clChannelSwap("channel_swap",
+                  llvm::cl::desc("Specify whether swap RGB to BGR"),
+                  llvm::cl::cat(clOptionsPreprocess), llvm::cl::init(true));
+
+static llvm::cl::opt<std::string> clMean("mean",
+                                         llvm::cl::desc("Specify the mean"),
+                                         llvm::cl::cat(clOptionsPreprocess));
+
+static llvm::cl::opt<float> clScale("scale",
+                                    llvm::cl::desc("Specify the scale"),
+                                    llvm::cl::cat(clOptionsPreprocess),
+                                    llvm::cl::init(1.0f));
+
+static llvm::cl::opt<float> clRawScale("raw_scale",
+                                       llvm::cl::desc("Specify the raw scale"),
+                                       llvm::cl::cat(clOptionsPreprocess),
+                                       llvm::cl::init(1.0f));
+
+void CaffeImporter::doPreChannelSwap(mlir::Block *block) {
+  if (clChannelSwap.getValue() == false) {
+    return;
+  }
+}
+
+void CaffeImporter::doPreScale(mlir::Block *block, std::string name,
+                               float scale) {
+  if (scale == 1.0f) {
+    return;
+  }
+  llvm::ArrayRef<int64_t> input_shape =
+      lastResult_->getType().dyn_cast<mlir::TensorType>().getShape();
+  std::vector<Value *> operands;
+  operands.push_back(lastResult_);
+  int64_t channel = input_shape[1];
+  auto scale_type = RankedTensorType::get({channel}, elementType_);
+  std::vector<float> scale_v(channel, scale);
+  GetWeightFile()->addTensor(name + "_0", scale_v.data(), scale_type);
+  operands.push_back(AddLoadWeightOp(block, name + "_0", scale_type));
+  std::vector<float> bias(channel, 0.0f);
+  auto bias_type = RankedTensorType::get({channel}, elementType_);
+  GetWeightFile()->addTensor(name + "_1", bias.data(), bias_type);
+  operands.push_back(AddLoadWeightOp(block, name + "_1", bias_type));
+  auto result_type = RankedTensorType::get(input_shape, elementType_);
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(name)));
+  auto op = OpBuilder(block).create<tpu::ScaleOp>(
+      builder_.getUnknownLoc(), result_type, ArrayRef<Value *>{operands},
+      ArrayRef<NamedAttribute>{attrs});
+  lastResult_ = op.getResult();
+}
+
+void CaffeImporter::doPreMean(mlir::Block *block) {
+  if (clMean.empty()) {
+    return;
+  }
+  llvm::ArrayRef<int64_t> input_shape =
+      lastResult_->getType().dyn_cast<mlir::TensorType>().getShape();
+  assert(input_shape.size() == 4);
+  int64_t c = input_shape[1];
+  assert(c == 3);
+
+  // input
+  std::vector<Value *> operands;
+  operands.push_back(lastResult_);
+
+  // mean
+  float mean_value[3];
+  sscanf(clMean.c_str(), "%f,%f,%f", &mean_value[0], &mean_value[1],
+         &mean_value[2]);
+  auto data_type = RankedTensorType::get({c}, elementType_);
+  GetWeightFile()->addTensor("pre_mean_0", mean_value, data_type);
+  operands.push_back(AddLoadWeightOp(block, "pre_mean_0", data_type));
+
+  // variance
+  float variance_value[3] = {1.0f, 1.0f, 1.0f};
+  GetWeightFile()->addTensor("pre_mean_1", variance_value, data_type);
+  operands.push_back(AddLoadWeightOp(block, "pre_mean_1", data_type));
+
+  // scale
+  float scale_value[1] = {1.0f};
+  auto scale_type = RankedTensorType::get({1}, elementType_);
+  GetWeightFile()->addTensor("pre_mean_2", scale_value, scale_type);
+  operands.push_back(AddLoadWeightOp(block, "pre_mean_2", scale_type));
+
+  auto result_type = RankedTensorType::get(input_shape, elementType_);
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(
+      builder_.getNamedAttr("name", builder_.getStringAttr("pre_mean")));
+  attrs.push_back(builder_.getNamedAttr("variance_epsilon",
+                                        builder_.getF32FloatAttr(0.0f)));
+  auto op = OpBuilder(block).create<tpu::BatchNormOp>(
+      builder_.getUnknownLoc(), result_type, ArrayRef<Value *>{operands},
+      ArrayRef<NamedAttribute>{attrs});
+  lastResult_ = op.getResult();
+}
+
+void CaffeImporter::doPreprocess(mlir::Block *block, mlir::Value *input) {
+  lastResult_ = input;
+  doPreChannelSwap(block);
+  doPreScale(block, "pre_raw_scale", clRawScale.getValue());
+  doPreMean(block);
+  doPreScale(block, "pre_scale", clScale.getValue());
+  auto inputOp = llvm::cast<tpu::InputOp>(input->getDefiningOp());
+  tensor_map_[inputOp.name()] = lastResult_;
+}
+
 // Translate CaffeModel and returns a module in TPU Dialect.
 static OwningModuleRef caffeToMlirTranslate(llvm::SourceMgr &sourceMgr,
     llvm::StringRef caffemodelFilename, MLIRContext *context) {
-  mlir::OwningModuleRef module =
-      mlir::ModuleOp::create(mlir::UnknownLoc::get(context));
+    mlir::OwningModuleRef module =
+        mlir::ModuleOp::create(mlir::UnknownLoc::get(context));
 
-  // we didn't parse caffe prototxt by ourselves, we pass it to caffe
-  // however caffe take filename as input, therefore we save the source
-  // to a tmp file, the file will be automatically deleted.
-  std::string tmpFile = "./tmp.txt";
-  std::string errorMessage;
-  auto tmp = openOutputFile(tmpFile, &errorMessage);
-  if (!tmp) {
-    llvm::errs() << errorMessage << "\n";
-    return nullptr;
-  }
+    // we didn't parse caffe prototxt by ourselves, we pass it to caffe
+    // however caffe take filename as input, therefore we save the source
+    // to a tmp file, the file will be automatically deleted.
+    std::string tmpFile = "./tmp.txt";
+    std::string errorMessage;
+    auto tmp = openOutputFile(tmpFile, &errorMessage);
+    if (!tmp) {
+      llvm::errs() << errorMessage << "\n";
+      return nullptr;
+    }
   const llvm::MemoryBuffer* buffer =
       sourceMgr.getMemoryBuffer(sourceMgr.getMainFileID());
   //llvm::errs() << buffer->getBufferStart() << "\n";
@@ -2343,13 +2460,13 @@ static OwningModuleRef caffeToMlirTranslate(llvm::SourceMgr &sourceMgr,
   tmp->os().write(buffer->getBufferStart(), buffer->getBufferSize());
   tmp->os().flush();
 
-  CaffeImporter importer(module.get());
-  auto status = importer.Import(tmpFile, caffemodelFilename);
-  if (failed(status)) {
-    mlir::emitError(mlir::UnknownLoc::get(context));
-  }
-  assert(succeeded(status));
-  return module;
+    CaffeImporter importer(module.get());
+    auto status = importer.Import(tmpFile, caffemodelFilename);
+    if (failed(status)) {
+      mlir::emitError(mlir::UnknownLoc::get(context));
+    }
+    assert(succeeded(status));
+    return module;
 }
 
 static TranslateToMLIRRegistration
