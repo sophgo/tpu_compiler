@@ -58,7 +58,7 @@ bin_to_npz.py \
 npz_compare.py \
     alphapose_tensor_all_int8.npz \
     alphapose_cmdbuf_out_all_int8_multiplier.npz \
-    --op_info alphapose_op_info.csv
+    --op_info alphapose_op_info_int8_multiplier.csv
 
 # VERDICT
 echo $0 PASSED

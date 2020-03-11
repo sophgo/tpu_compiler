@@ -249,7 +249,7 @@ class OnnxConverter(BaseConverterInterface):
         operands.append(op2)
         output_shape = input_shape1
 
-        add_op = self.CVI.add_eltwise_add_op(onnx_node.name, operands, output_shape)
+        add_op = self.CVI.add_eltwise_add_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
         self.addOperand(onnx_node.name, add_op, output_shape, TensorType.FLOAT)
 
     def convert_batchnorm_op(self, onnx_node):
@@ -282,7 +282,7 @@ class OnnxConverter(BaseConverterInterface):
         operands.append(offset_op)
 
         output_shape = input_shape
-        scaleop = self.CVI.add_scale_op(onnx_node.name, operands, output_shape)
+        scaleop = self.CVI.add_scale_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
         self.addOperand(onnx_node.name, scaleop, output_shape, TensorType.FLOAT)
 
     def convert_constant_op(self, onnx_node):
@@ -329,7 +329,7 @@ class OnnxConverter(BaseConverterInterface):
                     assert(s1 == s2)
                     output_shape.append(s1)
 
-            concat_op = self.CVI.add_concat_op(onnx_node.name, operands, output_shape, axis=axis)
+            concat_op = self.CVI.add_concat_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, axis=axis)
             self.addOperand(onnx_node.name, concat_op, output_shape, TensorType.FLOAT)
 
     def convert_conv_op(self, onnx_node):
@@ -372,7 +372,7 @@ class OnnxConverter(BaseConverterInterface):
             onnx_node.attrs['dilations'][1]
         )
         output_shape = [on, oc, oh, ow]
-        conv_op = self.CVI.add_conv_op(onnx_node.name, operands, output_shape, **conv_param)
+        conv_op = self.CVI.add_conv_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **conv_param)
         self.addOperand(onnx_node.name, conv_op, output_shape, TensorType.FLOAT)
 
     def convert_flatten_op(self, onnx_node):
@@ -383,7 +383,7 @@ class OnnxConverter(BaseConverterInterface):
         operands = list()
         operands.append(op)
         output_shape = [input_shape[0], input_shape[1]]
-        reshape_op = self.CVI.add_reshape_op(onnx_node.name, operands, output_shape)
+        reshape_op = self.CVI.add_reshape_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
         self.addOperand(onnx_node.name, reshape_op, output_shape, TensorType.FLOAT)
 
     def convert_gather_op(self, onnx_node):
@@ -435,7 +435,7 @@ class OnnxConverter(BaseConverterInterface):
         K = input_shape[1]
         N = bias_tensor.shape[0]
         output_shape = [M, N]
-        fc_op = self.CVI.add_fully_connected_op(onnx_node.name, operands, output_shape)
+        fc_op = self.CVI.add_fully_connected_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
         self.addOperand(onnx_node.name, fc_op, output_shape, TensorType.FLOAT)
 
     def convert_global_avg_pool_op(self, onnx_node):
@@ -459,7 +459,7 @@ class OnnxConverter(BaseConverterInterface):
             'do_relu': False,
         }
         output_shape = [int(on), int(oc), 1, 1]
-        pool_avg_op = self.CVI.add_pool_avg_2d_op(onnx_node.name, operands, output_shape, **pool_avg_2d_param)
+        pool_avg_op = self.CVI.add_pool_avg_2d_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **pool_avg_2d_param)
         self.addOperand(onnx_node.name, pool_avg_op, output_shape, TensorType.FLOAT)
 
     def convert_maxpool_op(self, onnx_node):
@@ -484,7 +484,7 @@ class OnnxConverter(BaseConverterInterface):
         oh = calcPool2DFloor(input_shape[2], onnx_node.attrs['kernel_shape'][0], onnx_node.attrs['strides'][0], onnx_node.attrs['pads'][0])
         ow = calcPool2DFloor(input_shape[3], onnx_node.attrs['kernel_shape'][1], onnx_node.attrs['strides'][1], onnx_node.attrs['pads'][1])
         output_shape = [int(on), int(oc), int(oh), int(ow)]
-        pool_max_op = self.CVI.add_pool_max_2d_op(onnx_node.name, operands, output_shape, **pool_max_2d_param)
+        pool_max_op = self.CVI.add_pool_max_2d_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **pool_max_2d_param)
         self.addOperand(onnx_node.name, pool_max_op, output_shape, TensorType.FLOAT)
 
     def convert_relu_op(self, onnx_node):
@@ -493,7 +493,7 @@ class OnnxConverter(BaseConverterInterface):
         operands = list()
         operands.append(op)
         output_shape = input_shape
-        relu_op = self.CVI.add_relu_op(onnx_node.name, operands, output_shape)
+        relu_op = self.CVI.add_relu_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
         self.addOperand(onnx_node.name, relu_op, output_shape, TensorType.FLOAT)
 
     def convert_mul_op(self, onnx_node):
@@ -507,12 +507,12 @@ class OnnxConverter(BaseConverterInterface):
         if input_shape1 == input_shape2:
             #eltwise mul
             output_shape = input_shape1
-            mul_op = self.CVI.add_eltwise_mul_op(onnx_node.name, operands, output_shape)
+            mul_op = self.CVI.add_eltwise_mul_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
         else:
             #broadcast mul
             axis = len(input_shape1) - len(input_shape2) - 1
             output_shape = input_shape1
-            mul_op = self.CVI.add_broadcast_mul_op(onnx_node.name, operands, output_shape, axis=axis)
+            mul_op = self.CVI.add_broadcast_mul_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, axis=axis)
 
         self.addOperand(onnx_node.name, mul_op, output_shape, TensorType.FLOAT)
 
@@ -537,7 +537,7 @@ class OnnxConverter(BaseConverterInterface):
                 self.addOperand(onnx_node.name, op1, output_shape, TensorType.FLOAT)
                 return
             else:
-                reshape_op = self.CVI.add_reshape_op(onnx_node.name, operands, output_shape)
+                reshape_op = self.CVI.add_reshape_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
                 self.addOperand(onnx_node.name, reshape_op, output_shape, TensorType.FLOAT)
         else:
             raise RuntimeError("Second type must be {}".format(TensorType.TENSOR))
@@ -554,7 +554,7 @@ class OnnxConverter(BaseConverterInterface):
         op, input_shape, _ = self.getOperand(onnx_node.inputs[0])
         operands = [op]
         output_shape = input_shape
-        sigmoid_op = self.CVI.add_sigmoid_op(onnx_node.name, operands, output_shape)
+        sigmoid_op = self.CVI.add_sigmoid_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
         self.addOperand(onnx_node.name, sigmoid_op, output_shape, TensorType.FLOAT)
 
     def convert_transpose_op(self, onnx_node):
@@ -576,7 +576,7 @@ class OnnxConverter(BaseConverterInterface):
             attr={
                 'upscale_factor': upscale_factor
             }
-            pixel_shuffle_op = self.CVI.add_pixelshuffle_op(onnx_node.name, operands, output_shape, **attr)
+            pixel_shuffle_op = self.CVI.add_pixelshuffle_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **attr)
             self.addOperand(onnx_node.name, pixel_shuffle_op, output_shape, TensorType.FLOAT)
         else:
             raise RuntimeError("TODO")
