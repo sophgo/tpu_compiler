@@ -7,10 +7,9 @@ source $DIR/../../envsetup.sh
 ################################
 # prepare int8 input
 ################################
-
 npz_to_bin.py \
     resnet50_tensor_all_int8_multiplier.npz \
-    data_quant \
+    data \
     resnet50_in_int8.bin \
     int8
 
@@ -22,7 +21,6 @@ npz_to_bin.py \
 #    resnet50_in_int8.bin \
 #    1.0 \
 #    161.008057
-
 
 ################################
 # Lower for quantization 3: multiplier int8
@@ -45,6 +43,29 @@ mlir-opt \
     --convert-tg-op-to-memref \
     resnet50_quant_int8_multiplier_tg_memref.mlir \
     -o resnet50_quant_int8_multiplier_tg_op_memref.mlir
+
+# memory space
+mlir-opt \
+    --debug \
+    --assign-neuron-address-memref \
+    --tpu-neuron-address-align-memref=16 \
+    --tpu-neuron-map-filename-memref=neuron_map_memref.csv \
+    resnet50_quant_int8_multiplier_tg_op_memref.mlir \
+    -o resnet50_quant_int8_multiplier_tg_op_memref_addr.mlir
+
+# tg op back to TensorType
+mlir-opt \
+     --debug \
+     --convert-tg-op-to-tensor \
+     resnet50_quant_int8_multiplier_tg_op_memref_addr.mlir \
+     -o resnet50_quant_int8_multiplier_tg_op_roundtrip.mlir
+
+# function argument back to TensorType
+#mlir-opt \
+#    --debug \
+#    --convert-func-to-tensor \
+#    resnet50_quant_int8_multiplier_tg_op_memref_addr.mlir \
+#    -o resnet50_quant_int8_multiplier_tg_roundtrip.mlir
 
 # assign weight address & neuron address
 mlir-opt \
@@ -71,16 +92,10 @@ build_cvimodel.py \
     --output=resnet50_int8_multiplier.cvimodel
 
 # run cmdbuf
-#$RUNTIME_PATH/bin/test_bmnet \
-#    resnet50_in_int8.bin \
-#    weight_int8_multiplier.bin \
-#    cmdbuf_int8_multiplier.bin \
-#    resnet50_cmdbuf_out_all_int8_multiplier.bin \
-#    16460784 0 16460784 1
 model_runner \
     --dump-all-tensors \
-    --model resnet50_in_int8.bin \
-    --input resnet50_int8_multiplier.cvimodel \
+    --input resnet50_in_int8.bin \
+    --model resnet50_int8_multiplier.cvimodel \
     --output resnet50_cmdbuf_out_all_int8_multiplier.bin
 
 bin_to_npz.py \
@@ -105,5 +120,3 @@ npz_compare.py \
 
 # VERDICT
 echo $0 PASSED
-
-

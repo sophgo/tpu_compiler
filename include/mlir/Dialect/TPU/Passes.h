@@ -51,8 +51,6 @@ std::unique_ptr<OpPassBase<FuncOp>> createImportCalibrationTablePass();
 std::unique_ptr<OpPassBase<FuncOp>> createQuantizeInt8Pass();
 std::unique_ptr<OpPassBase<FuncOp>> createQuantizeBf16Pass();
 
-std::unique_ptr<OpPassBase<FuncOp>> createConvertTgOpToMemRefPass();
-
 std::unique_ptr<OpPassBase<FuncOp>> createAssignWeightAddressPass();
 std::unique_ptr<OpPassBase<FuncOp>> createAssignNeuronAddressPass();
 std::unique_ptr<OpPassBase<FuncOp>> createAssignLayerIdPass();
@@ -67,6 +65,10 @@ std::unique_ptr<OpPassBase<FuncOp>> createConvertLoadeweightConcatToLoadweightPa
 std::unique_ptr<OpPassBase<FuncOp>> createTpuLowerPass();
 
 std::unique_ptr<OpPassBase<FuncOp>> createTgFuseLeakyReluPass();
+
+std::unique_ptr<OpPassBase<FuncOp>> createConvertTgOpToMemRefPass();
+std::unique_ptr<OpPassBase<FuncOp>> createConvertTgOpToTensorPass();
+std::unique_ptr<OpPassBase<FuncOp>> createAssignNeuronAddressMemRefPass();
 
 } // namespace mlir
 
