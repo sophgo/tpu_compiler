@@ -425,9 +425,8 @@ public:
 
     OwningRewritePatternList patterns;
     // apply force threshold to some ops
-    //   SoftmaxOp force to 1.0
+    //   SigmoidOp force to 1.0
     patterns.insert<
-        ForceThresholdDefaultPattern<tpu::SoftmaxOp>,
         ForceThresholdDefaultPattern<tpu::SigmoidOp>
         >(context, 1.0f);
     applyPatternsGreedily(fn, patterns);

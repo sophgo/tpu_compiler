@@ -1742,6 +1742,7 @@ public:
     patterns.clear();
     patterns.insert<
         DefaultErasePattern<tpu::SoftmaxOp>,
+        //DefaultErasePattern<tpu::DetectionOutputOp>,
         //DefaultErasePattern<tpu::QuantizationOp>,
         //DefaultErasePattern<tpu::DequantizationOp>,
         FoldReshapePattern<tpu::ReshapeOp>

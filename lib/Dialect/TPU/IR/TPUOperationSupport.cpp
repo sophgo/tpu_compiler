@@ -1,5 +1,6 @@
 #include <numeric>
 #include "mlir/Dialect/TPU/TPUDialect.h"
+#include "mlir/Dialect/StandardOps/Ops.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/TypeUtilities.h"
@@ -19,6 +20,8 @@ void arrayAttrToVector(const ArrayAttr &arrayAttr,
 llvm::StringRef getOpName(Operation *op) {
   if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpCommonInterface>(op)) {
     return tpuOp.getOpName();
+  } else if (isa<ReturnOp>(op)) {
+    return llvm::StringRef("std.return");
   } else {
     llvm::errs() << __func__ << " failed, Op " << op->getName() << "\n";
     assert(false);
@@ -59,11 +62,27 @@ LogicalResult setOpLayerId(Operation *op, int id) {
 llvm::StringRef getOpQuant(Operation *op) {
   if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpQuantInterface>(op)) {
     return tpuOp.getOpQuant();
-  } else {
-    //llvm::errs() << __func__ << " failed, Op " << op->getName() << "\n";
-    //llvm::errs() << __func__ << "       name " << getOpName(op) << "\n";
-    //assert(false);
+  } else if (isa<tpu::DetectionOutputOp>(op)
+             || isa<tpu::PriorBoxOp>(op)
+             || isa<tpu::SoftmaxOp>(op)) {
+    // cpu Ops return NONE
     return llvm::StringRef("NONE");
+  } else {
+    llvm::errs() << __func__ << " failed, Op " << op->getName() << "\n";
+    llvm::errs() << __func__ << "       name " << getOpName(op) << "\n";
+    assert(false);
+    return llvm::StringRef("NONE");
+  }
+}
+
+LogicalResult setOpQuant(Operation *op, llvm::StringRef mode) {
+  if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpQuantInterface>(op)) {
+    return tpuOp.setOpQuantMode(mode);
+  } else {
+    llvm::errs() << __func__ << " failed, Op " << op->getName() << "\n";
+    llvm::errs() << __func__ << "       name " << getOpName(op) << "\n";
+    assert(false);
+    return failure();
   }
 }
 
@@ -83,17 +102,6 @@ void setOpResultType(Operation *op, StandardTypes::Kind kind, int width) {
   auto shape = op->getResult(0)->getType().cast<TensorType>().getShape();
   auto type = RankedTensorType::get(shape, eltType);
   op->getResult(0)->setType(type);
-}
-
-LogicalResult setOpQuant(Operation *op, llvm::StringRef mode) {
-  if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpQuantInterface>(op)) {
-    return tpuOp.setOpQuantMode(mode);
-  } else {
-    llvm::errs() << __func__ << " failed, Op " << op->getName() << "\n";
-    llvm::errs() << __func__ << "       name " << getOpName(op) << "\n";
-    assert(false);
-    return failure();
-  }
 }
 
 llvm::StringRef getOpQuantParamType(Operation *op) {

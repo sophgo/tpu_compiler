@@ -220,7 +220,7 @@ void CaffeImporter::ParseNetInputOutput(caffe::Net<float> &net,
     ///
     auto layer = net.layer_by_name(net.blob_names()[index]);
     if(layer.get() != nullptr){
-      if (strcmp(layer->type(), "DetectionOutput") == 0) {   
+      if (strcmp(layer->type(), "DetectionOutput") == 0) {
         auto layer_param = layer->layer_param();
         auto detection_output_param = layer_param.detection_output_param();
         output_shape[2] = detection_output_param.keep_top_k();
@@ -2139,7 +2139,6 @@ void CaffeImporter::convertSoftmaxLayer(mlir::Block *block,
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder_.getNamedAttr("axis", builder_.getI32IntegerAttr(axis)));
   attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name())));
-  attrs.push_back(builder_.getNamedAttr("quant", getDefaultQuantParam(builder_)));
   auto op = OpBuilder(block).create<tpu::SoftmaxOp>(
       builder_.getUnknownLoc(), result_type,
       ArrayRef<Value *>{input_var}, ArrayRef<NamedAttribute>{attrs});

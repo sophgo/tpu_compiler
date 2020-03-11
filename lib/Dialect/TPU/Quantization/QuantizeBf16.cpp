@@ -271,6 +271,5 @@ DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::UpsampleOp)
 /// This Ops does not support quantizie
 /// their quant interface are kept for holding threshold only
 DECLARE_QUANTIZE_BF16_DISABLED_METHOD(tpu::ReshapeOp)
-DECLARE_QUANTIZE_BF16_DISABLED_METHOD(tpu::SoftmaxOp)
 
 } // namespace mlir
