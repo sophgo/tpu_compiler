@@ -50,12 +50,7 @@ model_runner \
     --dump-all-tensors \
     --input ${NET}_in_bf16.bin \
     --model ${NET}_bf16.cvimodel \
-    --output ${NET}_cmdbuf_out_all_bf16.bin
-
-bin_to_npz.py \
-    ${NET}_cmdbuf_out_all_bf16.bin \
-    ${NET}_neuron_map_bf16.csv \
-    ${NET}_cmdbuf_out_all_bf16.npz
+    --output ${NET}_cmdbuf_out_all_bf16.npz
 
 # compare all tensors
 npz_compare.py \

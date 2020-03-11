@@ -29,7 +29,7 @@ if [ $CHECK_NON_OPT_VERSION -eq 1 ]; then
       ${NET}_tensor_all_fp32.npz \
       ${NET}_blobs.npz \
       --op_info ${NET}_op_info.csv \
-      --tolerance=0.9999,0.9999,0.999 -vv
+      --tolerance=0.9999,0.999,0.999 -vv
 fi
 
 # assign layer_id right away, and apply all frontend optimizations
@@ -53,7 +53,7 @@ npz_compare.py \
     ${NET}_tensor_all_fp32.npz \
     ${NET}_blobs.npz \
     --op_info ${NET}_op_info.csv \
-    --tolerance=0.9999,0.9999,0.999 -vv
+    --tolerance=0.9999,0.999,0.999 -vv
 
 # VERDICT
 echo $0 PASSED

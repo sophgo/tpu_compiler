@@ -56,13 +56,9 @@ model_runner \
     --dump-all-tensors \
     --input bmface_in_int8.bin  \
     --model bmface_v3_int8.cvimodel \
-    --output bmface_v3_cmdbuf_out_all_int8.bin
+    --output bmface_v3_cmdbuf_out_all_int8.npz
 
 # compare all tensors
-bin_to_npz.py \
-    bmface_v3_cmdbuf_out_all_int8.bin \
-    neuron_map.csv \
-    bmface_v3_cmdbuf_out_all_int8.npz
 
 npz_compare.py \
     bmface_v3_cmdbuf_out_all_int8.npz \
