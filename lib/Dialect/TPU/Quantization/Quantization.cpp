@@ -384,6 +384,7 @@ public:
           setOpQuant(op, "BF16");
         }
       } else if (isa<tpu::DetectionOutputOp>(op)
+                 || isa<tpu::RetinaFaceDetectionOp>(op)
                  || isa<tpu::SoftmaxOp>(op)
                  || isa<tpu::PriorBoxOp>(op)) {
         // cpu Ops that has no quant support
@@ -413,6 +414,7 @@ public:
           assert(false);
         }
       } else if (isa<tpu::DetectionOutputOp>(op)
+                 || isa<tpu::RetinaFaceDetectionOp>(op)
                  || isa<tpu::SoftmaxOp>(op)
                  || isa<tpu::PriorBoxOp>(op)) {
         // cpu Ops that has no quant support

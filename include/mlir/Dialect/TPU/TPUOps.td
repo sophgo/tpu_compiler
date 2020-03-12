@@ -1134,6 +1134,49 @@ def TPU_ReluOp: TPU_Op<"relu",
   let hasCanonicalizer = 1;
 }
 
+def TPU_RetinaFaceDetectionOp : TPU_Op<"retinaface_detection",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuOpInterpInterface>]> {
+  let summary = "RetinaFaceDetection operator";
+
+  let description = [{
+    Perform retinaface detection on feature map
+
+    Inputs:
+      `inputs`                  : required, input tensors
+      `nms_threshold`           : required, nms threshold
+      `confidence_threshold`    : required, classification confidence threshold
+      `keep_topk`               : required, after nms, keep bbox num
+
+    Attributes:
+      `name`            : required, name for calibration, comparing, or debug.
+      `layer_id`        : optional, id for profiling.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TPU_QuantSupportPerChannel`
+      `TPU_QuantSupportAsymmetric`
+      `TpuOpCommonInterface` : support common TPU Op interface
+      `TpuOpInterpInterface` : support interperter
+      `TpuOpQuantInterface`  : support quantization
+  }];
+
+  let arguments = (
+    ins Variadic<AnyTensor>:$input,
+    F32Attr:$nms_threshold,
+    F32Attr:$confidence_threshold,
+    I32Attr:$keep_topk,
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
 def TPU_ScaleOp: TPU_Op<"scale",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
@@ -1403,49 +1446,6 @@ def TPU_UpsampleOp: TPU_Op<"upsample",
     ins AnyTensor:$input,
     NonNegativeI32Attr:$scale,
     TPU_QuantParamAttr:$quant,
-    StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
-  );
-
-  let results = (outs AnyTensor:$output);
-}
-
-def TPU_RetinaFaceDetectionOp : TPU_Op<"retinaface_detection",
-      [NoSideEffect,
-       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>]> {
-  let summary = "RetinaFaceDetection operator";
-
-  let description = [{
-    Perform retinaface detection on feature map
-
-    Inputs:
-      `inputs`                  : required, input tensors
-      `nms_threshold`           : required, nms threshold
-      `confidence_threshold`    : required, classification confidence threshold
-      `keep_topk`               : required, after nms, keep bbox num
-
-    Attributes:
-      `name`            : required, name for calibration, comparing, or debug.
-      `layer_id`        : optional, id for profiling.
-
-    Result:
-      `output`          : result tensor.
-
-    Interfaces or Traits:
-      `NoSideEffect`
-      `TPU_QuantSupportPerChannel`
-      `TPU_QuantSupportAsymmetric`
-      `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpInterpInterface` : support interperter
-      `TpuOpQuantInterface`  : support quantization
-  }];
-
-  let arguments = (
-    ins Variadic<AnyTensor>:$input,
-    F32Attr:$nms_threshold,
-    F32Attr:$confidence_threshold,
-    I32Attr:$keep_topk,
     StrAttr:$name,
     OptionalAttr<NonNegativeI32Attr>:$layer_id
   );

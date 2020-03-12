@@ -1895,6 +1895,34 @@ void CaffeImporter::convertReshapeLayer(mlir::Block *block,
   tensor_map_[layer_param.top(0)] = result_var;
 }
 
+void CaffeImporter::convertRetinaFaceDetectionLayer(mlir::Block *block,
+    caffe::Layer<float> *layer) {
+  auto layer_param = layer->layer_param();
+  auto retinaface_detection_param = layer_param.retinaface_detection_param();
+  float nms_threshold = retinaface_detection_param.nms_threshold();
+  float confidence_threshold = retinaface_detection_param.confidence_threshold();
+  int keep_topk = retinaface_detection_param.keep_topk();
+
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder_.getNamedAttr("name",
+              builder_.getStringAttr(layer_param.name())));
+  attrs.push_back(builder_.getNamedAttr("nms_threshold",
+              builder_.getF32FloatAttr(nms_threshold)));
+  attrs.push_back(builder_.getNamedAttr("confidence_threshold",
+              builder_.getF32FloatAttr(confidence_threshold)));
+  attrs.push_back(builder_.getNamedAttr("keep_topk",
+              builder_.getI32IntegerAttr(keep_topk)));
+  std::vector<mlir::Value *> input_vars = GetLayerInputs(layer);
+
+  auto result_type = RankedTensorType::get({1, 1, keep_topk, 15}, elementType_);
+
+  auto retina_op = OpBuilder(block).create<tpu::RetinaFaceDetectionOp>(
+          builder_.getUnknownLoc(), result_type, ArrayRef<Value*>{input_vars},
+          ArrayRef<NamedAttribute>{attrs});
+  auto result_var = retina_op.getResult();
+  tensor_map_[layer_param.top(0)] = result_var;
+}
+
 void CaffeImporter::convertScaleLayer(mlir::Block *block,
     caffe::Layer<float> *layer) {
   std::vector<mlir::Value *> input_vars = GetLayerInputs(layer);
@@ -2267,34 +2295,6 @@ void CaffeImporter::convertUpsampleLayer(mlir::Block *block,
       ArrayRef<Value *>{input_vars}, ArrayRef<NamedAttribute>{attrs});
   auto result_var = op.getResult();
 
-  tensor_map_[layer_param.top(0)] = result_var;
-}
-
-void CaffeImporter::convertRetinaFaceDetectionLayer(mlir::Block *block,
-    caffe::Layer<float> *layer) {
-  auto layer_param = layer->layer_param();
-  auto retinaface_detection_param = layer_param.retinaface_detection_param();
-  float nms_threshold = retinaface_detection_param.nms_threshold();
-  float confidence_threshold = retinaface_detection_param.confidence_threshold();
-  int keep_topk = retinaface_detection_param.keep_topk();
-
-  std::vector<NamedAttribute> attrs;
-  attrs.push_back(builder_.getNamedAttr("name",
-              builder_.getStringAttr(layer_param.name())));
-  attrs.push_back(builder_.getNamedAttr("nms_threshold",
-              builder_.getF32FloatAttr(nms_threshold)));
-  attrs.push_back(builder_.getNamedAttr("confidence_threshold",
-              builder_.getF32FloatAttr(confidence_threshold)));
-  attrs.push_back(builder_.getNamedAttr("keep_topk",
-              builder_.getI32IntegerAttr(keep_topk)));
-  std::vector<mlir::Value *> input_vars = GetLayerInputs(layer);
-
-  auto result_type = RankedTensorType::get({1, 1, keep_topk, 15}, elementType_);
-
-  auto retina_op = OpBuilder(block).create<tpu::RetinaFaceDetectionOp>(
-          builder_.getUnknownLoc(), result_type, ArrayRef<Value*>{input_vars},
-          ArrayRef<NamedAttribute>{attrs});
-  auto result_var = retina_op.getResult();
   tensor_map_[layer_param.top(0)] = result_var;
 }
 

@@ -414,7 +414,8 @@ public:
       } else if ( !failed(setThresholdFromMap(op, threshold_map))) {
         // success
       } else if (isa<tpu::SoftmaxOp>(op)
-                 || isa<tpu::DetectionOutputOp>(op)) {
+                 || isa<tpu::DetectionOutputOp>(op)
+                 || isa<tpu::RetinaFaceDetectionOp>(op)) {
         // doesn't matter assigned or not
       } else {
         llvm::errs() << "setThresholdFromMap didn't handle "
