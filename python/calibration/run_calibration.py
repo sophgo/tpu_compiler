@@ -22,6 +22,10 @@ def preprocess_func_ssd300_face(image_path, args):
   x = np.expand_dims(x, axis=0)
   return x
 
+def preprocess_func_alphapose(npz_path, args):
+  x = np.load(str(npz_path).rstrip())
+  return x
+
 def preprocess_yolov3(image_path, args, net_input_dims=(416,416)):
   bgr_img = cv2.imread(str(image_path).rstrip())
   yolo_w = net_input_dims[1]
@@ -119,6 +123,8 @@ if __name__ == '__main__':
     preprocess = preprocess_yolov3
   elif (args.model_name == 'ssd300_face'):
     preprocess = preprocess_func_ssd300_face
+  elif (args.model_name == 'alpha_pose'):
+    preprocess = preprocess_func_alphapose   
   else:
     assert(False)
 
@@ -140,3 +146,4 @@ if __name__ == '__main__':
     args.input_threshold_table = threshold_table
     tune = Tuner(args, preprocess_generic)
     tune.run_tune(args)
+
