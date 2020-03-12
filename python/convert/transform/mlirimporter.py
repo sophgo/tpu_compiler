@@ -242,10 +242,12 @@ class MLIRImporter(object):
             self.f32Type, output_tensor_shape)
         if len(inputOperands) < 2:
             raise ArithmeticError("input operand must great than 2")
-
+        none = self.add_none_op()
+        for i in range( 6 - len(inputOperands)):
+            inputOperands.append(none)
         eltwise_mul = self.module.stringAttr(op_name)
         return self.buildOp(TPU_OpType.Eltwise_Mul.value, inputOperands, [
-            tensor_output_type], name=eltwise_mul)
+            tensor_output_type], name=eltwise_mul, quant=self.quant_param)
 
     def add_fully_connected_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = self.module.make_ranked_tensor_type(
