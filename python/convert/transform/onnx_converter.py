@@ -131,6 +131,7 @@ class OnnxConverter(BaseConverterInterface):
             "Reshape": lambda node: self.convert_reshape_op(node),
             "Shape": lambda node: self.convert_shape_op(node),
             "Sigmoid" :lambda node: self.convert_sigmoid_op(node),
+            "Squeeze": lambda node: self.convert_squeeze_op(node),
             "Transpose": lambda node: self.convert_transpose_op(node),
             "Unsqueeze": lambda node: self.convert_unsqueeze_op(node),
         }
@@ -348,15 +349,19 @@ class OnnxConverter(BaseConverterInterface):
         op, shape, _ = self.getOperand(onnx_node.inputs[0])
         operands = list()
         operands.append(op)
-        for weight_name in onnx_node.inputs[1:]:
-            tensor = self.getTensor(weight_name)
-            if tensor == None:
-                raise RuntimeError("No {} tensor in model".format(weight_name))
-            weight_op = self.CVI.add_load_file_op(tensor.name, tensor.shape)
-            operands.append(weight_op)
+        filter_name = onnx_node.inputs[1]
+        filter_tensor = self.getTensor(filter_name)
+        filter_shape = filter_tensor.shape
+        with_bias = False
+        if (len(onnx_node.inputs) == 3):
+            #with bias
+            with_bias = True
+            bias_name = onnx_node.inputs[2]
+            bias_tensor = self.getTensor(bias_name)
+
 
         on = shape[0]
-        oc = tensor.shape[0] # feature map size
+        oc = filter_tensor.shape[0] # feature map size
         oh = calcConv2DSpatial(
             shape[2],
             onnx_node.attrs['kernel_shape'][0],
@@ -371,6 +376,23 @@ class OnnxConverter(BaseConverterInterface):
             onnx_node.attrs['pads'][1],
             onnx_node.attrs['dilations'][1]
         )
+
+        if conv_param['group'] != 1:
+            # filter shape s is in (g, oc/g, ic/g, kh, kw)
+            g = conv_param['group']
+            ic = shape[1]
+            kh = onnx_node.attrs['kernel_shape'][0]
+            kw = onnx_node.attrs['kernel_shape'][1]
+            new_shape = [g, oc/g, ic/g, kh, kw]
+            filter_op = self.CVI.add_load_file_op(filter_tensor.name, new_shape)
+        else:
+            filter_op = self.CVI.add_load_file_op(filter_tensor.name, filter_shape)
+        operands.append(filter_op)
+
+        if with_bias:
+            bias_op = self.CVI.add_load_file_op(bias_name, bias_tensor.shape)
+            operands.append(bias_op)
+
         output_shape = [on, oc, oh, ow]
         conv_op = self.CVI.add_conv_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **conv_param)
         self.addOperand(onnx_node.name, conv_op, output_shape, TensorType.FLOAT)
