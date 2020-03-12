@@ -543,7 +543,10 @@ class OnnxConverter(BaseConverterInterface):
             mul_op = self.CVI.add_eltwise_mul_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
         else:
             #broadcast mul
-            axis = len(input_shape1) - len(input_shape2) - 1
+            # FixMe: we only support broadcast mul axis now
+            if len(input_shape1) != 4 and (len(input_shape2) != 2 or len(input_shape2) != 4) :
+                raise RuntimeError("{} vs {}  broadcast mul not support".format(input_shape1, input_shape2))
+            axis = 1
             output_shape = input_shape1
             mul_op = self.CVI.add_broadcast_mul_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, axis=axis)
 
