@@ -50,21 +50,7 @@ model_runner \
     --dump-all-tensors \
     --input resnet50_in_bf16.bin \
     --model resnet50_bf16.cvimodel \
-    --output resnet50_cmdbuf_out_all_bf16.bin
-
-bin_to_npz.py \
-    resnet50_cmdbuf_out_all_bf16.bin \
-    neuron_map_bf16.csv \
-    resnet50_cmdbuf_out_all_bf16.npz
-npz_to_bin.py \
-    resnet50_cmdbuf_out_all_bf16.npz \
-    fc1000 \
-    resnet50_cmdbuf_out_fc1000_bf16.bin \
-    bf16
-bin_compare.py \
-    resnet50_cmdbuf_out_fc1000_bf16.bin \
-    $REGRESSION_PATH/resnet50/data/test_cat_out_resnet50_fc1000_bf16.bin \
-    bf16 1 1 1 1000 5
+    --output resnet50_cmdbuf_out_all_bf16.npz
 
 # compare all tensors
 npz_compare.py \

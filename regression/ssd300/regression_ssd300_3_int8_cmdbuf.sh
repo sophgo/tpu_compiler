@@ -114,32 +114,12 @@ model_runner \
     --dump-all-tensors \
     --input ssd300_in_int8.bin \
     --model ssd300_int8_per_layer.cvimodel \
-    --output ssd300_cmdbuf_out_all_int8_multiplier.bin
+    --output ssd300_cmdbuf_out_all_int8_multiplier.npz
 
 
 
 # # run cmdbuf
-# $RUNTIME_PATH/bin/test_bmnet \
-#     ssd300_in_int8.bin \
-#     weight_int8_multiplier.bin \
-#     cmdbuf_int8_multiplier.bin \
-#     ssd300_cmdbuf_out_all_int8_multiplier.bin \
-#     35113632 0 35113632 1
-
-# bin_extract.py \
-#     ssd300_cmdbuf_out_all_int8_multiplier.bin \
-#     ssd300_cmdbuf_out_fc1000_int8_multiplier.bin \
-#     int8 0x00024c00 1000
-# bin_compare.py \
-#     ssd300_cmdbuf_out_fc1000_int8_multiplier.bin \
-#     $REGRESSION_PATH/ssd300/data/test_cat_out_ssd300_fc1000_int8_multiplier.bin \
-#     int8 1 1 1 1000 5
-
 # compare all tensors
-bin_to_npz.py \
-    ssd300_cmdbuf_out_all_int8_multiplier.bin \
-    neuron_map.csv \
-    ssd300_cmdbuf_out_all_int8_multiplier.npz
 npz_compare.py \
     ssd300_cmdbuf_out_all_int8_multiplier.npz \
     ssd300_tensor_all_int8_multiplier.npz \

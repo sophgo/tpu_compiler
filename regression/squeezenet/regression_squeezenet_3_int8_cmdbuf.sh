@@ -56,22 +56,11 @@ build_cvimodel.py \
     --output=squeezenet_v1.1_int8_per_layer.cvimodel
 
 # run cmdbuf
-#$RUNTIME_PATH/bin/test_bmnet \
-#    squeezenet_v1.1_in_int8.bin \
-#    weight_int8_per_layer.bin \
-#    cmdbuf_int8_per_layer.bin \
-#    squeezenet_v1.1_cmdbuf_out_all_int8_per_layer.bin \
-#    16460784 0 16460784 1
 model_runner \
     --dump-all-tensors \
     --input squeezenet_v1.1_in_int8.bin \
     --model squeezenet_v1.1_int8_per_layer.cvimodel \
-    --output squeezenet_v1.1_cmdbuf_out_all_int8_per_layer.bin
-
-bin_to_npz.py \
-    squeezenet_v1.1_cmdbuf_out_all_int8_per_layer.bin \
-    neuron_map.csv \
-    squeezenet_v1.1_cmdbuf_out_all_int8_per_layer.npz
+    --output squeezenet_v1.1_cmdbuf_out_all_int8_per_layer.npz
 
 # compare all tensors
 npz_compare.py \
@@ -128,12 +117,7 @@ model_runner \
     --dump-all-tensors \
     --input squeezenet_v1.1_in_int8.bin \
     --model squeezenet_v1.1_int8_multiplier.cvimodel \
-    --output squeezenet_v1.1_cmdbuf_out_all_int8_multiplier.bin
-
-bin_to_npz.py \
-    squeezenet_v1.1_cmdbuf_out_all_int8_multiplier.bin \
-    neuron_map.csv \
-    squeezenet_v1.1_cmdbuf_out_all_int8_multiplier.npz
+    --output squeezenet_v1.1_cmdbuf_out_all_int8_multiplier.npz
 
 # compare all tensors
 npz_compare.py \

@@ -53,12 +53,7 @@ model_runner \
     --dump-all-tensors \
     --input test_in_int8.bin \
     --model test_int8_per_layer.cvimodel \
-    --output test_cmdbuf_out_all_int8_per_layer.bin
-
-bin_to_npz.py \
-    test_cmdbuf_out_all_int8_per_layer.bin \
-    neuron_map.csv \
-    test_cmdbuf_out_all_int8_per_layer.npz
+    --output test_cmdbuf_out_all_int8_per_layer.npz
 
 # compare all tensors
 npz_compare.py \
@@ -109,12 +104,7 @@ model_runner \
     --dump-all-tensors \
     --input test_in_int8.bin \
     --model test_int8_multiplier.cvimodel \
-    --output test_cmdbuf_out_all_int8_multiplier.bin
-
-bin_to_npz.py \
-    test_cmdbuf_out_all_int8_multiplier.bin \
-    neuron_map.csv \
-    test_cmdbuf_out_all_int8_multiplier.npz
+    --output test_cmdbuf_out_all_int8_multiplier.npz
 
 # compare all tensors
 npz_compare.py \

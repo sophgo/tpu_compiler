@@ -57,14 +57,9 @@ model_runner \
     --dump-all-tensors \
     --input retinaface_mnet25_in_int8.bin \
     --model retinaface_mnet25_int8.cvimodel \
-    --output retinaface_mnet25_cmdbuf_out_all_int8.bin
+    --output retinaface_mnet25_cmdbuf_out_all_int8.npz
 
 # compare all tensors
-bin_to_npz.py \
-    retinaface_mnet25_cmdbuf_out_all_int8.bin \
-    neuron_map.csv \
-    retinaface_mnet25_cmdbuf_out_all_int8.npz
-
 npz_compare.py \
     retinaface_mnet25_cmdbuf_out_all_int8.npz \
     retinaface_mnet25_tensor_all_int8.npz \

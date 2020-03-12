@@ -21,10 +21,13 @@ if __name__ == "__main__":
     bf16_arr = npz_in[s]
     fp32_arr = np.empty_like(bf16_arr, dtype=np.float32)
     for x, y in np.nditer([bf16_arr, fp32_arr], op_flags=['readwrite']):
-      y[...] = bf16_to_fp32(x)
-  
+      if s.dtype == np.float32:
+        y[...] = x
+      else:
+        y[...] = bf16_to_fp32(x)
+
     npz_out[s] = fp32_arr
-    
+
   np.savez(sys.argv[2], **npz_out)
 
 

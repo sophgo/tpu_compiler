@@ -66,21 +66,7 @@ model_runner \
     --dump-all-tensors \
     --input shufflenet_in_int8.bin \
     --model shufflenet_int8_per_layer.cvimodel \
-    --output shufflenet_cmdbuf_out_all_int8_per_layer.bin
-
-bin_to_npz.py \
-    shufflenet_cmdbuf_out_all_int8_per_layer.bin \
-    neuron_map.csv \
-    shufflenet_cmdbuf_out_all_int8_per_layer.npz
-npz_to_bin.py \
-    shufflenet_cmdbuf_out_all_int8_per_layer.npz \
-    fc1000 \
-    shufflenet_cmdbuf_out_fc1000_int8_per_layer.bin \
-    int8
-bin_compare.py \
-    shufflenet_cmdbuf_out_fc1000_int8_per_layer.bin \
-    $REGRESSION_PATH/shufflenet/data/test_cat_out_shufflenet_fc1000_int8_per_layer.bin \
-    int8 1 1 1 1000 5
+    --output shufflenet_cmdbuf_out_all_int8_per_layer.npz
 
 # compare all tensors
 npz_compare.py \
@@ -137,21 +123,7 @@ model_runner \
     --dump-all-tensors \
     --input shufflenet_in_int8.bin \
     --model shufflenet_int8_multiplier.cvimodel \
-    --output shufflenet_cmdbuf_out_all_int8_multiplier.bin
-
-bin_to_npz.py \
-    shufflenet_cmdbuf_out_all_int8_multiplier.bin \
-    neuron_map.csv \
-    shufflenet_cmdbuf_out_all_int8_multiplier.npz
-npz_to_bin.py \
-    shufflenet_cmdbuf_out_all_int8_multiplier.npz \
-    fc1000 \
-    shufflenet_cmdbuf_out_fc1000_int8_multiplier.bin \
-    int8
-bin_compare.py \
-    shufflenet_cmdbuf_out_fc1000_int8_multiplier.bin \
-    $REGRESSION_PATH/shufflenet/data/test_cat_out_shufflenet_fc1000_int8_multiplier.bin \
-    int8 1 1 1 1000 5
+    --output shufflenet_cmdbuf_out_all_int8_multiplier.npz
 
 # compare all tensors
 npz_compare.py \

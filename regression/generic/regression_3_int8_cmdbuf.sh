@@ -54,16 +54,6 @@ if [ $DO_QUANT_INT8_PER_TENSOR -eq 1 ]; then
       --model ${NET}_int8_per_tensor.cvimodel \
       --output ${NET}_cmdbuf_out_all_int8_per_tensor.npz
 
-  npz_to_bin.py \
-      ${NET}_cmdbuf_out_all_int8_per_tensor.npz \
-      ${OUTPUTS} \
-      ${NET}_cmdbuf_out_${OUTPUTS}_int8_per_tensor.bin \
-      int8
-  bin_compare.py \
-      ${NET}_cmdbuf_out_${OUTPUTS}_int8_per_tensor.bin \
-      ${NET}_out_${OUTPUTS}_int8_per_tensor.bin \
-      int8 1 1 1 1000 5
-
   # compare all tensors
   npz_compare.py \
       ${NET}_cmdbuf_out_all_int8_per_tensor.npz \

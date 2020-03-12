@@ -47,22 +47,12 @@ build_cvimodel.py \
     --output=inception_v3_bf16.cvimodel
 
 ## run cmdbuf
-#$RUNTIME_PATH/bin/test_bmnet \
-#    inception_v3_in_bf16.bin \
-#    weight_bf16.bin \
-#    cmdbuf_bf16.bin \
-#    inception_v3_cmdbuf_out_all_bf16.bin \
-#    54587952 0 54587952 1
 model_runner \
     --dump-all-tensors \
     --input inception_v3_in_bf16.bin \
     --model inception_v3_bf16.cvimodel \
-    --output inception_v3_cmdbuf_out_all_bf16.bin
+    --output inception_v3_cmdbuf_out_all_bf16.npz
 
-bin_to_npz.py \
-    inception_v3_cmdbuf_out_all_bf16.bin \
-    neuron_map_bf16.csv \
-    inception_v3_cmdbuf_out_all_bf16.npz
 npz_to_bin.py \
     inception_v3_cmdbuf_out_all_bf16.npz \
     classifier \

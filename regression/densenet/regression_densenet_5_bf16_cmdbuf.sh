@@ -46,22 +46,9 @@ model_runner \
     --dump-all-tensors \
     --input densenet_in_bf16.bin \
     --model densenet_bf16.cvimodel \
-    --output densenet_cmdbuf_out_all_bf16.bin
-
-bin_extract.py \
-    densenet_cmdbuf_out_all_bf16.bin \
-    densenet_cmdbuf_out_fc6_bf16.bin \
-    bf16 0x00049800 1000
-bin_compare.py \
-    densenet_cmdbuf_out_fc6_bf16.bin \
-    $REGRESSION_PATH/densenet/data/cat_out_densenet_fc6_bf16.bin \
-    bf16 1 1 1 1000 5
+    --output densenet_cmdbuf_out_all_bf16.npz
 
 # compare all tensors
-bin_to_npz.py \
-    densenet_cmdbuf_out_all_bf16.bin \
-    neuron_map_bf16.csv \
-    densenet_cmdbuf_out_all_bf16.npz
 npz_compare.py \
     densenet_cmdbuf_out_all_bf16.npz \
     densenet_tensor_all_bf16.npz \

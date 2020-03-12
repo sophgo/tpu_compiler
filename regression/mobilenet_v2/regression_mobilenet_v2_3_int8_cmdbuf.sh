@@ -42,32 +42,13 @@ build_cvimodel.py \
     --output=mobilenet_v2_int8_per_layer.cvimodel
 
 # run cmdbuf
-#$RUNTIME_PATH/bin/test_bmnet \
-#    mobilenet_v2_in_int8.bin \
-#    weight_int8_per_layer.bin \
-#    cmdbuf_int8_per_layer.bin \
-#    mobilenet_v2_cmdbuf_out_all_int8_per_layer.bin \
-#    9405584 0 9405584 1
 model_runner \
     --dump-all-tensors \
     --input mobilenet_v2_in_int8.bin \
     --model mobilenet_v2_int8_per_layer.cvimodel \
-    --output mobilenet_v2_cmdbuf_out_all_int8_per_layer.bin
-
-bin_extract.py \
-    mobilenet_v2_cmdbuf_out_all_int8_per_layer.bin \
-    mobilenet_v2_cmdbuf_out_fc7_int8_per_layer.bin \
-    int8 0x00024c00 1000
-bin_compare.py \
-    mobilenet_v2_cmdbuf_out_fc7_int8_per_layer.bin \
-    $REGRESSION_PATH/mobilenet_v2/data/test_cat_out_mobilenet_v2_fc7_int8_per_layer.bin \
-    int8 1 1 1 1000 5
+    --output mobilenet_v2_cmdbuf_out_all_int8_per_layer.npz
 
 # compare all tensors
-bin_to_npz.py \
-    mobilenet_v2_cmdbuf_out_all_int8_per_layer.bin \
-    neuron_map.csv \
-    mobilenet_v2_cmdbuf_out_all_int8_per_layer.npz
 npz_compare.py \
     mobilenet_v2_cmdbuf_out_all_int8_per_layer.npz \
     mobilenet_v2_tensor_all_int8_per_layer.npz \
@@ -107,32 +88,13 @@ build_cvimodel.py \
     --output=mobilenet_v2_int8_multiplier.cvimodel
 
 # run cmdbuf
-#$RUNTIME_PATH/bin/test_bmnet \
-#    mobilenet_v2_in_int8.bin \
-#    weight_int8_multiplier.bin \
-#    cmdbuf_int8_multiplier.bin \
-#    mobilenet_v2_cmdbuf_out_all_int8_multiplier.bin \
-#    9405584 0 9405584 1
 model_runner \
     --dump-all-tensors \
     --input mobilenet_v2_in_int8.bin \
     --model mobilenet_v2_int8_multiplier.cvimodel \
-    --output mobilenet_v2_cmdbuf_out_all_int8_multiplier.bin
-
-bin_extract.py \
-    mobilenet_v2_cmdbuf_out_all_int8_multiplier.bin \
-    mobilenet_v2_cmdbuf_out_fc7_int8_multiplier.bin \
-    int8 0x00024c00 1000
-bin_compare.py \
-    mobilenet_v2_cmdbuf_out_fc7_int8_multiplier.bin \
-    $REGRESSION_PATH/mobilenet_v2/data/test_cat_out_mobilenet_v2_fc7_int8_multiplier.bin \
-    int8 1 1 1 1000 5
+    --output mobilenet_v2_cmdbuf_out_all_int8_multiplier.npz
 
 # compare all tensors
-bin_to_npz.py \
-    mobilenet_v2_cmdbuf_out_all_int8_multiplier.bin \
-    neuron_map.csv \
-    mobilenet_v2_cmdbuf_out_all_int8_multiplier.npz
 npz_compare.py \
     mobilenet_v2_cmdbuf_out_all_int8_multiplier.npz \
     mobilenet_v2_tensor_all_int8_multiplier.npz \

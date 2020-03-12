@@ -50,12 +50,7 @@ model_runner \
     --dump-all-tensors \
     --input yolo_v3_in_bf16.bin \
     --model yolo_v3_416_bf16.cvimodel \
-    --output yolo_v3_416_cmdbuf_out_all_bf16.bin
-
-bin_to_npz.py \
-    yolo_v3_416_cmdbuf_out_all_bf16.bin \
-    neuron_map_bf16.csv \
-    yolo_v3_416_cmdbuf_out_all_bf16.npz
+    --output yolo_v3_416_cmdbuf_out_all_bf16.npz
 
 npz_extract.py \
     yolo_v3_416_cmdbuf_out_all_bf16.npz \

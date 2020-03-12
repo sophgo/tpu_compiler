@@ -53,13 +53,7 @@ model_runner \
     --dump-all-tensors \
     --input efficientnet_in_bf16.bin \
     --model efficientnet_bf16.cvimodel \
-    --output out_all_bf16.bin
-
-# convert bin to npz
-bin_to_npz.py \
-    out_all_bf16.bin \
-    neuron_map_bf16.csv \
-    out_all_bf16.npz
+    --output out_all_bf16.npz
 
 # convert npz from bf16 to fp32
 npz_bf16_to_fp32.py out_all_bf16.npz out_all_fp32.npz

@@ -59,22 +59,11 @@ if [ $COMPARE_INT8_PER_LAYER -eq 1 ]; then
         --output=shufflenet_int8_per_layer.cvimodel
 
     # run cmdbuf
-    #$RUNTIME_PATH/bin/test_bmnet \
-    #    shufflenet_in_int8.bin \
-    #    weight_int8_per_layer.bin \
-    #    cmdbuf_int8_per_layer.bin \
-    #    shufflenet_cmdbuf_out_all_int8_per_layer.bin \
-    #    16460784 0 16460784 1
     model_runner \
         --dump-all-tensors \
         --input shufflenet_in_int8.bin \
         --model shufflenet_int8_per_layer.cvimodel \
-        --output shufflenet_cmdbuf_out_all_int8_per_layer.bin
-
-    bin_to_npz.py \
-        shufflenet_cmdbuf_out_all_int8_per_layer.bin \
-        neuron_map.csv \
-        shufflenet_cmdbuf_out_all_int8_per_layer.npz
+        --output shufflenet_cmdbuf_out_all_int8_per_layer.npz
 
     # compare all tensors
     npz_compare.py \
@@ -122,22 +111,11 @@ build_cvimodel.py \
     --output=shufflenet_int8_multiplier.cvimodel
 
 # run cmdbuf
-#$RUNTIME_PATH/bin/test_bmnet \
-#    shufflenet_in_int8.bin \
-#    weight_int8_multiplier.bin \
-#    cmdbuf_int8_multiplier.bin \
-#    shufflenet_cmdbuf_out_all_int8_multiplier.bin \
-#    16460784 0 16460784 1
 model_runner \
     --dump-all-tensors \
     --input shufflenet_in_int8.bin \
     --model shufflenet_int8_multiplier.cvimodel \
-    --output shufflenet_cmdbuf_out_all_int8_multiplier.bin
-
-bin_to_npz.py \
-    shufflenet_cmdbuf_out_all_int8_multiplier.bin \
-    neuron_map.csv \
-    shufflenet_cmdbuf_out_all_int8_multiplier.npz
+    --output shufflenet_cmdbuf_out_all_int8_multiplier.npz
 
 # compare all tensors
 npz_compare.py \
