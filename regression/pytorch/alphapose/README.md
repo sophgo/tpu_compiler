@@ -45,3 +45,13 @@ if __name__ == "__main__":
 
 get a onnx model
 
+# How to do calibration
+
+1. Put all human detect npz files to one folder(e.x. data)
+2. Readlink -f data/* > input.txt
+3. Run calibration
+
+python run_calibration.py --model_name=alpha_pose alphapose_opt.mlir input.txt  --input_num=20
+
+
+
