@@ -42,32 +42,13 @@ build_cvimodel.py \
     --output=vgg16_bf16.cvimodel
 
 # run cmdbuf
-#$RUNTIME_PATH/bin/test_bmnet \
-#    vgg16_in_bf16.bin \
-#    weight_bf16.bin \
-#    cmdbuf_bf16.bin \
-#    vgg16_cmdbuf_out_all_bf16.bin \
-#    32921552 0 32921552 1
 model_runner \
     --dump-all-tensors \
     --input vgg16_in_bf16.bin \
     --model vgg16_bf16.cvimodel \
-    --output vgg16_cmdbuf_out_all_bf16.bin
-
-bin_extract.py \
-    vgg16_cmdbuf_out_all_bf16.bin \
-    vgg16_cmdbuf_out_fc8_bf16.bin \
-    bf16 0x00049800 1000
-bin_compare.py \
-    vgg16_cmdbuf_out_fc8_bf16.bin \
-    $REGRESSION_PATH/vgg16/data/test_cat_out_vgg16_fc8_bf16.bin \
-    bf16 1 1 1 1000 5
+    --output vgg16_cmdbuf_out_all_bf16.npz
 
 # compare all tensors
-bin_to_npz.py \
-    vgg16_cmdbuf_out_all_bf16.bin \
-    neuron_map_bf16.csv \
-    vgg16_cmdbuf_out_all_bf16.npz
 npz_compare.py \
     vgg16_cmdbuf_out_all_bf16.npz \
     vgg16_tensor_all_bf16.npz \

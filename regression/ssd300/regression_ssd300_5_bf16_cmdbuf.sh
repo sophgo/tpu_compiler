@@ -54,23 +54,10 @@ model_runner \
     --dump-all-tensors \
     --input ssd300_in_bf16.bin \
     --model ssd300_bf16.cvimodel \
-    --output ssd300_cmdbuf_out_all_bf16.bin
-
-
-# # run cmdbuf
-# $RUNTIME_PATH/bin/test_bmnet \
-#     ssd300_in_bf16.bin \
-#     weight_bf16.bin \
-#     cmdbuf_bf16.bin \
-#     ssd300_cmdbuf_out_all_bf16.bin \
-#     32921552 0 32921552 1
+    --output ssd300_cmdbuf_out_all_bf16.npz
 
 
 # compare all tensors
-bin_to_npz.py \
-    ssd300_cmdbuf_out_all_bf16.bin \
-    neuron_map_bf16.csv \
-    ssd300_cmdbuf_out_all_bf16.npz
 npz_compare.py \
     ssd300_cmdbuf_out_all_bf16.npz \
     ssd300_tensor_all_bf16.npz \

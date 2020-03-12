@@ -56,12 +56,7 @@ model_runner \
     --dump-all-tensors \
     --input shufflenet_in_bf16.bin \
     --model shufflenet_bf16.cvimodel \
-    --output shufflenet_cmdbuf_out_all_bf16.bin
-
-bin_to_npz.py \
-    shufflenet_cmdbuf_out_all_bf16.bin \
-    neuron_map_bf16.csv \
-    shufflenet_cmdbuf_out_all_bf16.npz
+    --output shufflenet_cmdbuf_out_all_bf16.npz
 
 # compare all tensors
 npz_compare.py \

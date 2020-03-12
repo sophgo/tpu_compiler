@@ -53,18 +53,7 @@ model_runner \
     --dump-all-tensors \
     --input efficientnet_in_int8.bin \
     --model efficientnet_int8_multiplier.cvimodel \
-    --output efficientnet_cmdbuf_out_all_int8_multiplier.bin
-
-bin_to_npz.py \
-    efficientnet_cmdbuf_out_all_int8_multiplier.bin \
-    neuron_map.csv \
-    efficientnet_cmdbuf_out_all_int8_multiplier.npz
-
-# run interpreter, to generate reference tensor all npz
-# mlir-tpu-interpreter efficientnet_b0_quant_int8_multiplier.mlir \
-#     --tensor-in efficientnet_in_fp32.npz  \
-#     --tensor-out efficientnet_out_int8.npz \
-#     --dump-all-tensor=efficientnet_tensor_all_int8.npz
+    --output efficientnet_cmdbuf_out_all_int8_multiplier.npz
 
 # compare all tensors
 npz_compare.py \

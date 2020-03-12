@@ -1741,7 +1741,7 @@ public:
     // erase CPU ops, fold reshape
     patterns.clear();
     patterns.insert<
-        DefaultErasePattern<tpu::SoftmaxOp>,
+        //DefaultErasePattern<tpu::SoftmaxOp>,
         //DefaultErasePattern<tpu::DetectionOutputOp>,
         //DefaultErasePattern<tpu::QuantizationOp>,
         //DefaultErasePattern<tpu::DequantizationOp>,

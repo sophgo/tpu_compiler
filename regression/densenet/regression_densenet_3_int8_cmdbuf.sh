@@ -61,22 +61,9 @@ model_runner \
     --dump-all-tensors \
     --input densenet_in_int8.bin \
     --model densenet_int8_multiplier.cvimodel \
-    --output densenet_cmdbuf_out_all_int8_multiplier.bin
-
-bin_extract.py \
-    densenet_cmdbuf_out_all_int8_multiplier.bin \
-    densenet_cmdbuf_out_fc6_int8_multiplier.bin \
-    int8 0x00024c00 1000
-bin_compare.py \
-    densenet_cmdbuf_out_fc6_int8_multiplier.bin \
-    densenet_out_fc6_int8_multiplier.bin \
-    int8 1 1 1 1000 5
+    --output densenet_cmdbuf_out_all_int8_multiplier.npz
 
 # compare all tensors
-bin_to_npz.py \
-    densenet_cmdbuf_out_all_int8_multiplier.bin \
-    neuron_map.csv \
-    densenet_cmdbuf_out_all_int8_multiplier.npz
 npz_compare.py \
     densenet_cmdbuf_out_all_int8_multiplier.npz \
     densenet_tensor_all_int8_multiplier.npz \

@@ -101,28 +101,20 @@ model_runner \
     --dump-all-tensors \
     --input resnet50_in_int8.bin \
     --model resnet50_int8_la.cvimodel \
-    --output resnet50_cmdbuf_out_all_int8_la.bin
+    --output resnet50_cmdbuf_out_all_int8_la.npz
 
 model_runner \
     --dump-all-tensors \
     --input resnet50_in_int8.bin \
     --model resnet50_int8_lw.cvimodel \
-    --output resnet50_cmdbuf_out_all_int8_lw.bin
+    --output resnet50_cmdbuf_out_all_int8_lw.npz
 
 if [ $COMPARE_ALL -eq 1 ]; then
-  bin_to_npz.py \
-      resnet50_cmdbuf_out_all_int8_la.bin \
-      neuron_map.csv \
-      resnet50_cmdbuf_out_all_int8_la.npz
   npz_compare.py \
       resnet50_cmdbuf_out_all_int8_la.npz \
       resnet50_tensor_all_int8_multiplier.npz \
       --op_info resnet50_op_info_int8_multiplier.csv
 
-  bin_to_npz.py \
-      resnet50_cmdbuf_out_all_int8_lw.bin \
-      neuron_map.csv \
-      resnet50_cmdbuf_out_all_int8_lw.npz
   npz_compare.py \
       resnet50_cmdbuf_out_all_int8_lw.npz \
       resnet50_tensor_all_int8_multiplier.npz \

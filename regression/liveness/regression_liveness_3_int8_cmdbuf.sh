@@ -60,17 +60,9 @@ model_runner \
     --dump-all-tensors \
     --input liveness_in_int8.bin  \
     --model liveness_int8.cvimodel \
-    --output liveness_cmdbuf_out_all_int8.bin
+    --output liveness_cmdbuf_out_all_int8.npz
 
 # compare all tensors
-bin_to_npz.py \
-    liveness_cmdbuf_out_all_int8.bin \
-    neuron_map.csv \
-    liveness_cmdbuf_out_all_int8.npz
-npz_compare.py \
-    liveness_cmdbuf_out_all_int8.npz \
-    liveness_tensor_all_int8_multiplier.npz
-
 npz_compare.py \
     liveness_cmdbuf_out_all_int8.npz \
     liveness_tensor_all_int8_multiplier.npz \

@@ -63,21 +63,7 @@ model_runner \
     --dump-all-tensors \
     --model inception_v3_int8_per_layer.cvimodel \
     --input inception_v3_in_int8.bin \
-    --output inception_v3_cmdbuf_out_all_int8_per_layer.bin
-
-bin_to_npz.py \
-    inception_v3_cmdbuf_out_all_int8_per_layer.bin \
-    neuron_map.csv \
-    inception_v3_cmdbuf_out_all_int8_per_layer.npz
-npz_to_bin.py \
-    inception_v3_cmdbuf_out_all_int8_per_layer.npz \
-    classifier \
-    inception_v3_cmdbuf_out_classifier_int8_per_layer.bin \
-    int8
-#bin_compare.py \
-#    inception_v3_cmdbuf_out_classifier_int8_per_layer.bin \
-#    $REGRESSION_PATH/inception_v3/data/test_cat_out_inception_v3_classifier_int8_per_layer.bin \
-#    int8 1 1 1 1000 5
+    --output inception_v3_cmdbuf_out_all_int8_per_layer.npz
 
 # compare all tensors
 npz_compare.py \
@@ -128,21 +114,7 @@ model_runner \
     --dump-all-tensors \
     --model inception_v3_int8_multiplier.cvimodel \
     --input inception_v3_in_int8.bin \
-    --output inception_v3_cmdbuf_out_all_int8_multiplier.bin
-
-bin_to_npz.py \
-    inception_v3_cmdbuf_out_all_int8_multiplier.bin \
-    neuron_map.csv \
-    inception_v3_cmdbuf_out_all_int8_multiplier.npz
-npz_to_bin.py \
-    inception_v3_cmdbuf_out_all_int8_multiplier.npz \
-    classifier \
-    inception_v3_cmdbuf_out_classifier_int8_multiplier.bin \
-    int8
-#bin_compare.py \
-#    inception_v3_cmdbuf_out_classifier_int8_multiplier.bin \
-#    $REGRESSION_PATH/inception_v3/data/test_cat_out_inception_v3_classifier_int8_multiplier.bin \
-#    int8 1 1 1 1000 5
+    --output inception_v3_cmdbuf_out_all_int8_multiplier.npz
 
 # compare all tensors
 npz_compare.py \

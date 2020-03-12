@@ -56,12 +56,7 @@ model_runner \
     --dump-all-tensors \
     --input squeezenet_v1.1_in_bf16.bin \
     --model squeezenet_v1.1_bf16.cvimodel \
-    --output squeezenet_v1.1_cmdbuf_out_all_bf16.bin
-
-bin_to_npz.py \
-    squeezenet_v1.1_cmdbuf_out_all_bf16.bin \
-    neuron_map_bf16.csv \
-    squeezenet_v1.1_cmdbuf_out_all_bf16.npz
+    --output squeezenet_v1.1_cmdbuf_out_all_bf16.npz
 
 # compare all tensors
 npz_compare.py \

@@ -48,27 +48,9 @@ build_cvimodel.py \
 model_runner \
     --input ssd300_face_in_int8.bin \
     --model ssd300_face_int8_per_layer.cvimodel \
-    --output ssd300_face_cmdbuf_out_all_int8_multiplier.bin
-
-# # run cmdbuf
-# $RUNTIME_PATH/bin/test_bmnet \
-#     ssd300_face_in_int8.bin \
-#     weight_int8_multiplier.bin \
-#     cmdbuf_int8_multiplier.bin \
-#     ssd300_face_cmdbuf_out_all_int8_multiplier.bin \
-#     5313232 0 5313232 1
-# npz_compare.py \
-#    ssd300_face_cmdbuf_out_all_int8_multiplier.npz \
-#    ssd300_face_tensor_all_int8_multiplier.npz \
-#    --op_info ssd300_face_op_info_int8_multiplier.csv \
-#    --excepts mbox_loc,mbox_conf
-
+    --output ssd300_face_cmdbuf_out_all_int8_multiplier.npz
 
 # compare all tensors
-bin_to_npz.py \
-    ssd300_face_cmdbuf_out_all_int8_multiplier.bin \
-    neuron_map.csv \
-    ssd300_face_cmdbuf_out_all_int8_multiplier.npz
 npz_compare.py \
     ssd300_face_cmdbuf_out_all_int8_multiplier.npz \
     ssd300_face_tensor_all_int8_multiplier.npz \

@@ -47,12 +47,7 @@ model_runner \
     --dump-all-tensors \
     --input alphapose_in_int8.bin \
     --model alphapose_int8_multiplier.cvimodel \
-    --output alphapose_cmdbuf_out_all_int8_multiplier.bin
-
-bin_to_npz.py \
-    alphapose_cmdbuf_out_all_int8_multiplier.bin \
-    neuron_map.csv \
-    alphapose_cmdbuf_out_all_int8_multiplier.npz
+    --output alphapose_cmdbuf_out_all_int8_multiplier.npz
 
 # compare all tensors
 npz_compare.py \

@@ -58,32 +58,11 @@ build_cvimodel.py \
     --output=inception_v4_int8_per_layer.cvimodel
 
 ## run cmdbuf
-#$RUNTIME_PATH/bin/test_bmnet \
-#    inception_v4_in_int8.bin \
-#    weight_int8_per_layer.bin \
-#    cmdbuf_int8_per_layer.bin \
-#    inception_v4_cmdbuf_out_all_int8_per_layer.bin \
-#    27293984 0 27293984 1
-
 model_runner \
     --dump-all-tensors \
     --input inception_v4_in_int8.bin \
     --model inception_v4_int8_per_layer.cvimodel \
-    --output inception_v4_cmdbuf_out_all_int8_per_layer.bin
-
-bin_to_npz.py \
-    inception_v4_cmdbuf_out_all_int8_per_layer.bin \
-    neuron_map.csv \
-    inception_v4_cmdbuf_out_all_int8_per_layer.npz
-npz_to_bin.py \
-    inception_v4_cmdbuf_out_all_int8_per_layer.npz \
-    classifier \
-    inception_v4_cmdbuf_out_classifier_int8_per_layer.bin \
-    int8
-#bin_compare.py \
-#    inception_v4_cmdbuf_out_classifier_int8_per_layer.bin \
-#    $REGRESSION_PATH/inception_v4/data/test_cat_out_inception_v4_classifier_int8_per_layer.bin \
-#    int8 1 1 1 1000 5
+    --output inception_v4_cmdbuf_out_all_int8_per_layer.npz
 
 # compare all tensors
 npz_compare.py \
@@ -140,21 +119,7 @@ model_runner \
     --dump-all-tensors \
     --input inception_v4_in_int8.bin \
     --model inception_v4_int8_multiplier.cvimodel \
-    --output inception_v4_cmdbuf_out_all_int8_multiplier.bin
-
-bin_to_npz.py \
-    inception_v4_cmdbuf_out_all_int8_multiplier.bin \
-    neuron_map.csv \
-    inception_v4_cmdbuf_out_all_int8_multiplier.npz
-npz_to_bin.py \
-    inception_v4_cmdbuf_out_all_int8_multiplier.npz \
-    classifier \
-    inception_v4_cmdbuf_out_classifier_int8_multiplier.bin \
-    int8
-#bin_compare.py \
-#    inception_v4_cmdbuf_out_classifier_int8_multiplier.bin \
-#    $REGRESSION_PATH/inception_v4/data/test_cat_out_inception_v4_classifier_int8_multiplier.bin \
-#    int8 1 1 1 1000 5
+    --output inception_v4_cmdbuf_out_all_int8_multiplier.npz
 
 # compare all tensors
 npz_compare.py \
