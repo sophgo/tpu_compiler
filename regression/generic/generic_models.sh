@@ -13,6 +13,7 @@ export DO_CMDBUF_INT8=1
 export DO_QUANT_BF16=1
 export DO_CMDBUF_BF16=1
 export DO_DEEPFUSION=0
+export DO_QUANT_MIX=0
 export DO_ACCURACY_CAFFE=1
 export DO_ACCURACY_INTERPRETER=1
 
@@ -114,6 +115,8 @@ export TOLERANCE_INT8_MULTIPLER=0.47,0.42,-0.44
 export TOLERANCE_BF16=0.99,0.99,0.91
 export DO_CMDBUF_BF16=0   # this is a bug to fix
 # export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
+export DO_QUANT_MIX=1
+export TOLERANCE_MIX=0.45,0.40,-0.45
 fi
 
 if [ $NET = "mobilenet_v2" ]; then
