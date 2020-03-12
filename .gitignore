@@ -1,4 +1,5 @@
 .vscode/
+*.npy
 *.npz
 *.mlir
 *.bin
@@ -6,3 +7,10 @@
 *.pyc
 *.cvimodel
 *.onnx
+*.jpg
+*.pt
+*.pth
+*log
+*cache
+*.cmake
+*.so
