@@ -1281,8 +1281,7 @@ def TPU_SliceOp: TPU_Op<"slice",
 def TPU_SoftmaxOp: TPU_Op<"softmax",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
-       DeclareOpInterfaceMethods<TpuOpQuantInterface>]> {
+       DeclareOpInterfaceMethods<TpuOpInterpInterface>]> {
   let summary = "Softmax operator";
 
   let description = [{
@@ -1293,7 +1292,6 @@ def TPU_SoftmaxOp: TPU_Op<"softmax",
 
     Attributes:
       `axis`            : optional, the axis for softmax to perform.
-      `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
       `layer_id`        : optional, id for profiling.
 
@@ -1312,7 +1310,6 @@ def TPU_SoftmaxOp: TPU_Op<"softmax",
   let arguments = (
     ins AnyTensor:$input,
     DefaultValuedAttr<I32Attr, "1">:$axis,
-    TPU_QuantParamAttr:$quant,
     StrAttr:$name,
     OptionalAttr<NonNegativeI32Attr>:$layer_id
   );

@@ -2003,20 +2003,38 @@ LogicalResult tpu::QuantOp::interpret(
     LLVM_DEBUG(llvm::errs() << "  quantization, threshold = "
                << std::to_string(threshold) << "\n";);
     quantizeActivationInt8WithThreshold(output, input, size, threshold);
-  } else if (this->to() == "NONE" && this->from() == "INT8") {
+  } else if (this->from() == "INT8" && this->to() == "NONE") {
     float *input = (float *)opdT[0]->data();
     float *output = (float *)resultT->data();
     float threshold = this->threshold().getValue().convertToFloat();
     LLVM_DEBUG(llvm::errs() << "  quantization, threshold = "
                << std::to_string(threshold) << "\n";);
-      dequantizeActivationInt8WithThreshold(output, input, size, threshold);
+    dequantizeActivationInt8WithThreshold(output, input, size, threshold);
   } else if (this->from() == "NONE" && this->to() == "BF16") {
     auto tensor_bf16 = std::make_unique<std::vector<bfloat16>>(resultT->size());
     FloatToBFloat16(opdT[0]->data(), tensor_bf16->data(),
                     opdT[0]->size()); // with rounding
     BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
-  } else if (this->to() == "NONE" && this->from() == "BF16") {
+  } else if (this->from() == "BF16" && this->to() == "NONE") {
     resultT->assign(opdT[0]->begin(), opdT[0]->end());
+  } else if (this->from() == "INT8" && this->to() == "BF16") {
+    float *input = (float *)opdT[0]->data();
+    float *output = (float *)resultT->data();
+    float threshold = this->threshold().getValue().convertToFloat();
+    LLVM_DEBUG(llvm::errs() << "  quantization, threshold = "
+               << std::to_string(threshold) << "\n";);
+    dequantizeActivationInt8WithThreshold(output, input, size, threshold);
+    auto tensor_bf16 = std::make_unique<std::vector<bfloat16>>(resultT->size());
+    FloatToBFloat16(resultT->data(), tensor_bf16->data(),
+                    resultT->size()); // with rounding
+    BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
+  } else if (this->from() == "BF16" && this->to() == "INT8") {
+    float *input = (float *)opdT[0]->data();
+    float *output = (float *)resultT->data();
+    float threshold = this->threshold().getValue().convertToFloat();
+    LLVM_DEBUG(llvm::errs() << "  quantization, threshold = "
+               << std::to_string(threshold) << "\n";);
+    quantizeActivationInt8WithThreshold(output, input, size, threshold);
   } else {
     assert(0);
   }

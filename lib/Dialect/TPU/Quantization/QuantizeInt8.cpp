@@ -923,6 +923,5 @@ DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::UpsampleOp)
 /// This Ops does not support quantizie
 /// their quant interface are kept for holding threshold only
 DECLARE_QUANTIZE_INT8_DISABLED_METHOD(tpu::ReshapeOp)
-DECLARE_QUANTIZE_INT8_DISABLED_METHOD(tpu::SoftmaxOp)
 
 } // namespace mlir

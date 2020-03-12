@@ -45,32 +45,6 @@ public:
 
   void runOnModule() override {
     mlir::ModuleOp module = getModule();
-    //mlir::SymbolTable moduleSymTable(module);
-
-#if 0
-    os << "Modules:\n";
-    os << "-----------------------\n";
-    //auto mainFn = moduleSymTable.lookup<mlir::FuncOp>("main");
-    for (mlir::FuncOp func :
-         llvm::make_early_inc_range(module.getOps<mlir::FuncOp>())) {
-      os << func.getName() << "\n";
-      FunctionType type = func.getType();
-      //type.print(os);
-      type.dump();
-      os << "\n";
-    }
-    os << "\n";
-
-    os << "Funcs:\n";
-    os << "-----------------------\n";
-    for (auto func : module.getOps<FuncOp>()) {
-      os << func.getName() << "\n";
-      func.walk([&](Operation *op) {
-        os << " > " << op->getName() << "\n";
-      });
-    }
-    os << "\n";
-#endif
 
     std::unique_ptr<llvm::ToolOutputFile> file = nullptr;
     if (clTpuOpInfoFilename != "-") {
@@ -91,7 +65,11 @@ public:
             file_os << "," << getOpLayerId(op);
             if (auto quantOp = llvm::dyn_cast<tpu::TpuOpQuantInterface>(op)) {
               file_os << "," << getOpQuant(op);
-              file_os << "," << std::to_string(getOpThreshold(op));
+              if (getOpQuant(op) == "INT8") {
+                file_os << "," << std::to_string(getOpThreshold(op));
+              } else {
+                file_os << "," << 0;
+              }
             } else {
               file_os << "," << "NONE";
               file_os << "," << 0;
@@ -108,25 +86,6 @@ public:
         });
       }
     }
-  }
-
-private:
-  template<typename T>
-  int printTpuOpInfo(Operation *op, llvm::raw_ostream &file_os) {
-      auto cast_op = llvm::dyn_cast_or_null<T>(op);
-      if (cast_op) {
-        std::string op_name = mlir::getOpName(op).str();
-        file_os << op_name;
-        if (cast_op.layer_id().hasValue())
-          file_os << "," << cast_op.layer_id().getValue().getLimitedValue();
-        else
-          file_os << "," << "-1";
-        file_os << "," << getOpQuant(op);
-        file_os << "," << getOpThreshold(op);
-        file_os << "\n";
-        return 1;
-      }
-      return 0;
   }
 
   llvm::raw_ostream &os;
