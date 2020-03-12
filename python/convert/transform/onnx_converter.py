@@ -189,6 +189,17 @@ class OnnxConverter(BaseConverterInterface):
             new_shape.insert(n, 1)
         return new_shape
 
+    @staticmethod
+    def squeeze_shape(shape, axis):
+        new_shape = []
+        if len(axis) > 0:
+            for i in range(len(shape)):
+                if i not in axis:
+                    new_shape.append(shape[i])
+        else:
+            new_shape = shape
+        return new_shape
+
     def convert_node(self):
         """convert onnx node to OnnxNode"""
         for n in self.nodes:
@@ -578,6 +589,19 @@ class OnnxConverter(BaseConverterInterface):
         output_shape = input_shape
         sigmoid_op = self.CVI.add_sigmoid_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
         self.addOperand(onnx_node.name, sigmoid_op, output_shape, TensorType.FLOAT)
+
+    def convert_squeeze_op(self, onnx_node):
+        assert(onnx_node.op_type == "Squeeze")
+        op, input_shape, tensor_type = self.getOperand(onnx_node.inputs[0])
+        operands = [op]
+        checkKey(onnx_node.attrs, 'axes')
+        if tensor_type == TensorType.FLOAT:
+            axis_value_list = onnx_node.attrs['axes']
+            new_shape = self.squeeze_shape(input_shape, axis_value_list)
+            reshape_op = self.CVI.add_reshape_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, new_shape)
+            self.addOperand(onnx_node.name, reshape_op, new_shape, TensorType.FLOAT)
+        else:
+            raise RuntimeError("Todo, Squeeze input type is tensor")
 
     def convert_transpose_op(self, onnx_node):
         assert(onnx_node.op_type == "Transpose")
