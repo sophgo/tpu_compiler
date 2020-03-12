@@ -32,6 +32,7 @@ std::unique_ptr<OpPassBase<ModuleOp>> createPrintTpuOpPass();
 std::unique_ptr<OpPassBase<ModuleOp>> createPrintTpuOpStatsPass();
 
 std::unique_ptr<OpPassBase<ModuleOp>> createConvertFuncToMemRefPass();
+std::unique_ptr<OpPassBase<ModuleOp>> createSplitCpuOpPass();
 
 std::unique_ptr<OpPassBase<FuncOp>> createDecomposeNormalizePass();
 std::unique_ptr<OpPassBase<FuncOp>> createConvertBnToScalePass();
@@ -55,6 +56,7 @@ std::unique_ptr<OpPassBase<FuncOp>> createTpuLowerPass();
 std::unique_ptr<OpPassBase<FuncOp>> createAssignWeightAddressPass();
 std::unique_ptr<OpPassBase<FuncOp>> createAssignNeuronAddressPass();
 std::unique_ptr<OpPassBase<FuncOp>> createAssignLayerIdPass();
+std::unique_ptr<OpPassBase<FuncOp>> createAddCpuCallPass();
 
 std::unique_ptr<OpPassBase<FuncOp>> createDeepFusionSimple();
 std::unique_ptr<OpPassBase<FuncOp>> createDeepFusionTG2TL_LA();
