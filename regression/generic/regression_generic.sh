@@ -33,6 +33,9 @@ fi
 if [ $DO_DEEPFUSION -eq 1 ]; then
   $DIR/regression_6_int8_cmdbuf_deepfusion.sh
 fi
+if [ $DO_QUANT_MIX -eq 1 ]; then
+  $DIR/regression_7_mix.sh
+fi
 
 popd
 
