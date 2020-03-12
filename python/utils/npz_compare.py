@@ -102,7 +102,7 @@ def load_order(order_file):
   return ordered_names
 
 def dequantize(d1, threshold):
-  print("Apply dequantization with threshold {}".format(threshold))
+  # print("Apply dequantization with threshold {}".format(threshold))
   d1 = d1 * threshold / 128.0
   return d1
 
@@ -142,9 +142,20 @@ def compare_one_array(tc, npz1, npz2, name, force_dtype, thresholds, verbose, lo
     d1 = dequantize(d1, thresholds[name])
   d1, d2 = align_type_and_shape(d1, d2, force_dtype=force_dtype)
   result = tc.compare(d1, d2)
-  tc.print_result(d1, d2, name, result, verbose)
+  # tc.print_result(d1, d2, name, result, verbose)
   dic[name] = result
   return result
+
+def print_result_one_array(tc, npz1, npz2, name, force_dtype, thresholds, verbose, lock, dic):
+  lock.acquire()
+  d1 = npz1[name]
+  d2 = npz2[name]
+  lock.release()
+  if thresholds.has_key(name) and not thresholds[name] == 0.0:
+    print("Apply dequantization with threhold {}".format(thresholds[name]))
+    d1 = dequantize(d1, thresholds[name])
+  d1, d2 = align_type_and_shape(d1, d2, force_dtype=force_dtype)
+  tc.print_result(d1, d2, name, dic[name], verbose)
 
 def main(argv):
   lock = multiprocessing.Lock()
@@ -196,6 +207,8 @@ def main(argv):
     name = args.tensor
     result = compare_one_array(tc, npz1, npz2, name, force_dtype,
                                thresholds, args.verbose, lock, dic)
+    print_result_one_array(tc, npz1, npz2, name, force_dtype,
+                           thresholds, args.verbose, lock, dic)
     sys.exit(0 if result[0] else -1)
 
   common = set(npz1.files) & set(npz2.files)
@@ -226,6 +239,8 @@ def main(argv):
 
   for name in names:
     stats.update(name, dic.get(name))
+    print_result_one_array(tc, npz1, npz2, name, force_dtype,
+                           thresholds, args.verbose, lock, dic)
     if args.stats_int8_tensor:
       d1 = npz1[name]
       tensor_stats(d1)
