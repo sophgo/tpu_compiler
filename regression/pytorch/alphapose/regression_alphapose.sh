@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-NET=pytorch_alphapose
+NET=alphapose_pytorch
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
 if [ ! -e $NET ]; then

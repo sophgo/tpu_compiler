@@ -2,12 +2,12 @@
 set -e
 
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
-source $DIR/../../envsetup.sh
+source $DIR/../../../envsetup.sh
 
 # import calibration table
 mlir-opt \
     --import-calibration-table \
-    --calibration-table $REGRESSION_PATH/pytorch_alphapose/data/alphapose_threshold_table \
+    --calibration-table $REGRESSION_PATH/pytorch/alphapose/data/alphapose_threshold_table \
     alphapose_opt.mlir \
     -o alphapose_cali.mlir
 

@@ -2,7 +2,7 @@
 set -e
 
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
-source $DIR/../../envsetup.sh
+source $DIR/../../../envsetup.sh
 
 # use python to mlir , gen golden too
 convert.py \
