@@ -44,7 +44,7 @@ build_cvimodel.py \
 # run cmdbuf
 model_runner \
     --dump-all-tensors \
-    --input vgg16_in_bf16.bin \
+    --input vgg16_in_fp32.npz \
     --model vgg16_bf16.cvimodel \
     --output vgg16_cmdbuf_out_all_bf16.npz
 

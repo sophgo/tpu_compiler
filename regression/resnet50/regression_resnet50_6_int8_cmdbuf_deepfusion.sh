@@ -99,13 +99,13 @@ cvi_profiling --cmdbuf cmdbuf_lw.bin
 
 model_runner \
     --dump-all-tensors \
-    --input resnet50_in_int8.bin \
+    --input resnet50_in_fp32.npz \
     --model resnet50_int8_la.cvimodel \
     --output resnet50_cmdbuf_out_all_int8_la.npz
 
 model_runner \
     --dump-all-tensors \
-    --input resnet50_in_int8.bin \
+    --input resnet50_in_fp32.npz \
     --model resnet50_int8_lw.cvimodel \
     --output resnet50_cmdbuf_out_all_int8_lw.npz
 

@@ -54,7 +54,7 @@ build_cvimodel.py \
 #    32921552 0 32921552 1
 model_runner \
     --dump-all-tensors \
-    --input shufflenet_in_bf16.bin \
+    --input shufflenet_in_fp32.npz \
     --model shufflenet_bf16.cvimodel \
     --output shufflenet_cmdbuf_out_all_bf16.npz
 

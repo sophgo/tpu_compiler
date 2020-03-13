@@ -61,7 +61,7 @@ if [ $COMPARE_INT8_PER_LAYER -eq 1 ]; then
     # run cmdbuf
     model_runner \
         --dump-all-tensors \
-        --input shufflenet_in_int8.bin \
+        --input shufflenet_in_fp32.npz \
         --model shufflenet_int8_per_layer.cvimodel \
         --output shufflenet_cmdbuf_out_all_int8_per_layer.npz
 
@@ -113,7 +113,7 @@ build_cvimodel.py \
 # run cmdbuf
 model_runner \
     --dump-all-tensors \
-    --input shufflenet_in_int8.bin \
+    --input shufflenet_in_fp32.npz \
     --model shufflenet_int8_multiplier.cvimodel \
     --output shufflenet_cmdbuf_out_all_int8_multiplier.npz
 

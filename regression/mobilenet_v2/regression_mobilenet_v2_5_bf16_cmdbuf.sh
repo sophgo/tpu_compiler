@@ -44,7 +44,7 @@ build_cvimodel.py \
 # run cmdbuf
 model_runner \
     --dump-all-tensors \
-    --input mobilenet_v2_in_bf16.bin \
+    --input mobilenet_v2_in_fp32.npz \
     --model mobilenet_v2_bf16.cvimodel \
     --output mobilenet_v2_cmdbuf_out_all_bf16.npz
 

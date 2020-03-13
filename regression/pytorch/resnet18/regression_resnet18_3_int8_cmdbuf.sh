@@ -45,7 +45,7 @@ build_cvimodel.py \
 # run cmdbuf
 model_runner \
     --dump-all-tensors \
-    --input resnet18_in_int8.bin \
+    --input resnet18_in_fp32.npz \
     --model resnet18_int8_multiplier.cvimodel \
     --output resnet18_cmdbuf_out_all_int8_multiplier.bin
 

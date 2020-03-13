@@ -54,7 +54,7 @@ build_cvimodel.py \
 # run cmdbuf
 model_runner \
     --dump-all-tensors \
-    --input bmface_in_int8.bin  \
+    --input bmface_v3_in_fp32.npz  \
     --model bmface_v3_int8.cvimodel \
     --output bmface_v3_cmdbuf_out_all_int8.npz
 

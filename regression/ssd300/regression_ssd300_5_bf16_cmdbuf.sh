@@ -52,7 +52,7 @@ build_cvimodel.py \
 
 model_runner \
     --dump-all-tensors \
-    --input ssd300_in_bf16.bin \
+    --input ssd300_in_fp32.npz \
     --model ssd300_bf16.cvimodel \
     --output ssd300_cmdbuf_out_all_bf16.npz
 

@@ -48,7 +48,7 @@ build_cvimodel.py \
 # run cmdbuf
 model_runner \
     --dump-all-tensors \
-    --input yolo_v3_in_bf16.bin \
+    --input yolo_v3_in_fp32.npz \
     --model yolo_v3_416_bf16.cvimodel \
     --output yolo_v3_416_cmdbuf_out_all_bf16.npz
 

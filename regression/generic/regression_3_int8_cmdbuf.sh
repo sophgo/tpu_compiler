@@ -13,6 +13,8 @@ npz_to_bin.py \
     ${NET}_in_int8.bin \
     int8
 
+npz_to_bin.py ${NET}_in_fp32.npz $INPUT ${NET}_in_fp32.bin
+
 ################################
 # Lower for quantization 1: per-layer int8
 ################################
@@ -50,7 +52,7 @@ if [ $DO_QUANT_INT8_PER_TENSOR -eq 1 ]; then
   # run cvimodel
   model_runner \
       --dump-all-tensors \
-      --input ${NET}_in_int8.bin \
+      --input ${NET}_in_fp32.npz \
       --model ${NET}_int8_per_tensor.cvimodel \
       --output ${NET}_cmdbuf_out_all_int8_per_tensor.npz
 
@@ -105,7 +107,7 @@ if [ $DO_QUANT_INT8_MULTIPLER -eq 1 ]; then
   # run cvimodel
   model_runner \
       --dump-all-tensors \
-      --input ${NET}_in_int8.bin \
+      --input ${NET}_in_fp32.npz \
       --model ${NET}_int8_multiplier.cvimodel \
       --output ${NET}_cmdbuf_out_all_int8_multiplier.npz
 
@@ -126,7 +128,7 @@ if [ $DO_QUANT_INT8_MULTIPLER -eq 1 ]; then
       --op_info ${NET}_op_info_int8_multiplier.csv
 
   if [ ! -z $CVIMODEL_REL_PATH -a -d $CVIMODEL_REL_PATH ]; then
-    cp ${NET}_in_int8.bin $CVIMODEL_REL_PATH
+    cp ${NET}_in_fp32.npz $CVIMODEL_REL_PATH
     cp ${NET}_int8_multiplier.cvimodel $CVIMODEL_REL_PATH
     cp ${NET}_tensor_all_int8_multiplier.npz $CVIMODEL_REL_PATH
     cp ${NET}_neuron_map_int8_multiplier.csv $CVIMODEL_REL_PATH

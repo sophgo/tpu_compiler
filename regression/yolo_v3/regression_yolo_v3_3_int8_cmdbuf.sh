@@ -66,7 +66,7 @@ build_cvimodel.py \
 # run cmdbuf
 model_runner \
     --dump-all-tensors \
-    --input yolo_v3_in_int8.bin \
+    --input yolo_v3_in_fp32.npz \
     --model yolo_v3_416_int8_per_layer.cvimodel \
     --output yolo_v3_cmdbuf_out_all_int8_per_layer.npz
 
@@ -141,7 +141,7 @@ build_cvimodel.py \
 #    94614832 0 94614832 1
 model_runner \
     --dump-all-tensors \
-    --input yolo_v3_in_int8.bin \
+    --input yolo_v3_in_fp32.npz \
     --model yolo_v3_416_int8_multiplier.cvimodel \
     --output yolo_v3_cmdbuf_out_all_int8_multiplier.npz
 

@@ -112,7 +112,7 @@ build_cvimodel.py \
 
 model_runner \
     --dump-all-tensors \
-    --input ssd300_in_int8.bin \
+    --input ssd300_in_fp32.npz \
     --model ssd300_int8_per_layer.cvimodel \
     --output ssd300_cmdbuf_out_all_int8_multiplier.npz
 

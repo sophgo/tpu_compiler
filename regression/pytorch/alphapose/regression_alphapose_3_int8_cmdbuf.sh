@@ -45,7 +45,7 @@ build_cvimodel.py \
 # run cmdbuf
 model_runner \
     --dump-all-tensors \
-    --input alphapose_in_int8.bin \
+    --input alphapose_in_fp32.npz \
     --model alphapose_int8_multiplier.cvimodel \
     --output alphapose_cmdbuf_out_all_int8_multiplier.npz
 

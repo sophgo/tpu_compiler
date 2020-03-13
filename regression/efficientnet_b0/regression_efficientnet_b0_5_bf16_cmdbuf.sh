@@ -51,7 +51,7 @@ build_cvimodel.py \
 
 model_runner \
     --dump-all-tensors \
-    --input efficientnet_in_bf16.bin \
+    --input efficientnet_in_fp32.npz \
     --model efficientnet_bf16.cvimodel \
     --output out_all_bf16.npz
 

@@ -51,7 +51,7 @@ build_cvimodel.py \
 # run cmdbuf
 model_runner \
     --dump-all-tensors \
-    --input efficientnet_in_int8.bin \
+    --input efficientnet_in_fp32.npz \
     --model efficientnet_int8_multiplier.cvimodel \
     --output efficientnet_cmdbuf_out_all_int8_multiplier.npz
 

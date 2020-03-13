@@ -60,7 +60,7 @@ build_cvimodel.py \
 ## run cmdbuf
 model_runner \
     --dump-all-tensors \
-    --input inception_v4_in_int8.bin \
+    --input inception_v4_in_fp32.npz \
     --model inception_v4_int8_per_layer.cvimodel \
     --output inception_v4_cmdbuf_out_all_int8_per_layer.npz
 
@@ -117,7 +117,7 @@ build_cvimodel.py \
 #    27293984 0 27293984 1
 model_runner \
     --dump-all-tensors \
-    --input inception_v4_in_int8.bin \
+    --input inception_v4_in_fp32.npz \
     --model inception_v4_int8_multiplier.cvimodel \
     --output inception_v4_cmdbuf_out_all_int8_multiplier.npz
 

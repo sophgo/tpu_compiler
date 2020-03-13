@@ -57,7 +57,7 @@ build_cvimodel.py \
 # run cmdbuf
 model_runner \
     --dump-all-tensors \
-    --input resnet50_in_int8.bin \
+    --input resnet50_in_fp32.npz \
     --model resnet50_int8_per_layer.cvimodel \
     --output resnet50_cmdbuf_out_all_int8_per_layer.npz
 
@@ -108,7 +108,7 @@ build_cvimodel.py \
 # run cmdbuf
 model_runner \
     --dump-all-tensors \
-    --input resnet50_in_int8.bin \
+    --input resnet50_in_fp32.npz \
     --model resnet50_int8_multiplier.cvimodel \
     --output resnet50_cmdbuf_out_all_int8_multiplier.npz
 

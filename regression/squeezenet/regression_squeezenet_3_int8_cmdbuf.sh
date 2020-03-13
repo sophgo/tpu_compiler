@@ -58,7 +58,7 @@ build_cvimodel.py \
 # run cmdbuf
 model_runner \
     --dump-all-tensors \
-    --input squeezenet_v1.1_in_int8.bin \
+    --input squeezenet_v1.1_in_fp32.npz \
     --model squeezenet_v1.1_int8_per_layer.cvimodel \
     --output squeezenet_v1.1_cmdbuf_out_all_int8_per_layer.npz
 
@@ -115,7 +115,7 @@ build_cvimodel.py \
 #    16460784 0 16460784 1
 model_runner \
     --dump-all-tensors \
-    --input squeezenet_v1.1_in_int8.bin \
+    --input squeezenet_v1.1_in_fp32.npz \
     --model squeezenet_v1.1_int8_multiplier.cvimodel \
     --output squeezenet_v1.1_cmdbuf_out_all_int8_multiplier.npz
 

@@ -44,7 +44,7 @@ build_cvimodel.py \
 # run cmdbuf
 model_runner \
     --dump-all-tensors \
-    --input densenet_in_bf16.bin \
+    --input densenet_in_fp32.npz \
     --model densenet_bf16.cvimodel \
     --output densenet_cmdbuf_out_all_bf16.npz
 

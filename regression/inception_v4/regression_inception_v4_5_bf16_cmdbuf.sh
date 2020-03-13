@@ -49,7 +49,7 @@ build_cvimodel.py \
 ## run cmdbuf
 model_runner \
     --dump-all-tensors \
-    --input inception_v4_in_bf16.bin \
+    --input inception_v4_in_fp32.npz \
     --model inception_v4_bf16.cvimodel \
     --output inception_v4_cmdbuf_out_all_bf16.npz
 

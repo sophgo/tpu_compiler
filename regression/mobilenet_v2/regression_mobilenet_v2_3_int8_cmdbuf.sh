@@ -44,7 +44,7 @@ build_cvimodel.py \
 # run cmdbuf
 model_runner \
     --dump-all-tensors \
-    --input mobilenet_v2_in_int8.bin \
+    --input mobilenet_v2_in_fp32.npz \
     --model mobilenet_v2_int8_per_layer.cvimodel \
     --output mobilenet_v2_cmdbuf_out_all_int8_per_layer.npz
 
@@ -90,7 +90,7 @@ build_cvimodel.py \
 # run cmdbuf
 model_runner \
     --dump-all-tensors \
-    --input mobilenet_v2_in_int8.bin \
+    --input mobilenet_v2_in_fp32.npz \
     --model mobilenet_v2_int8_multiplier.cvimodel \
     --output mobilenet_v2_cmdbuf_out_all_int8_multiplier.npz
 

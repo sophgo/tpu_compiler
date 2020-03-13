@@ -45,7 +45,7 @@ build_cvimodel.py \
 # run cmdbuf
 model_runner \
     --dump-all-tensors \
-    --input vgg16_in_int8.bin \
+    --input vgg16_in_fp32.npz \
     --model vgg16_int8_per_layer.cvimodel \
     --output vgg16_cmdbuf_out_all_int8_per_layer.npz
 
@@ -91,7 +91,7 @@ build_cvimodel.py \
 # run cmdbuf
 model_runner \
     --dump-all-tensors \
-    --input vgg16_in_int8.bin \
+    --input vgg16_in_fp32.npz \
     --model vgg16_int8_multiplier.cvimodel \
     --output vgg16_cmdbuf_out_all_int8_multiplier.npz
 

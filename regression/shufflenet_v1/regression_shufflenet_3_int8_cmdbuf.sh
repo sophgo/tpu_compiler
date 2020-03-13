@@ -64,7 +64,7 @@ build_cvimodel.py \
 #    16460784 0 16460784 1
 model_runner \
     --dump-all-tensors \
-    --input shufflenet_in_int8.bin \
+    --input shufflenet_in_fp32.npz \
     --model shufflenet_int8_per_layer.cvimodel \
     --output shufflenet_cmdbuf_out_all_int8_per_layer.npz
 
@@ -121,7 +121,7 @@ build_cvimodel.py \
 #    16460784 0 16460784 1
 model_runner \
     --dump-all-tensors \
-    --input shufflenet_in_int8.bin \
+    --input shufflenet_in_fp32.npz \
     --model shufflenet_int8_multiplier.cvimodel \
     --output shufflenet_cmdbuf_out_all_int8_multiplier.npz
 

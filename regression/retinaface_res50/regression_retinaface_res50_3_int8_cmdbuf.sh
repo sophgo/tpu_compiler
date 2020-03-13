@@ -55,7 +55,7 @@ build_cvimodel.py \
 # run cmdbuf
 model_runner \
     --dump-all-tensors \
-    --input retinaface_res50_in_int8.bin \
+    --input retinaface_res50_in_fp32.npz \
     --model retinaface_res50_int8.cvimodel \
     --output retinaface_res50_cmdbuf_out_all_int8.npz
 

@@ -13,6 +13,13 @@ npz_to_bin.py \
     retinaface_mnet25_in_int8.bin \
     int8
 
+npz_to_bin.py \
+    retinaface_mnet25_in_fp32.npz \
+    data \
+    retinaface_mnet25_in_fp32.bin \
+    float32
+
+
 #npz_to_bin.py retinaface_mnet25_in_fp32.npz data retinaface_mnet25_in_fp32.bin
 # Depend on retinaface_mnet25_threshold_table
 #bin_fp32_to_int8.py \
@@ -55,7 +62,7 @@ build_cvimodel.py \
 # run cmdbuf
 model_runner \
     --dump-all-tensors \
-    --input retinaface_mnet25_in_int8.bin \
+    --input retinaface_mnet25_in_fp32.npz \
     --model retinaface_mnet25_int8.cvimodel \
     --output retinaface_mnet25_cmdbuf_out_all_int8.npz
 

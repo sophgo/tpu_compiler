@@ -48,7 +48,7 @@ build_cvimodel.py \
 # run cmdbuf
 model_runner \
     --dump-all-tensors \
-    --input resnet50_in_bf16.bin \
+    --input resnet50_in_fp32.npz \
     --model resnet50_bf16.cvimodel \
     --output resnet50_cmdbuf_out_all_bf16.npz
 

@@ -7,7 +7,7 @@ source $DIR/../../envsetup.sh
 COMPARE_ALL=1
 
 # assuming ${NET}_quant_int8_multiplier.mlir already exists
-# assuming ${NET}_in_int8.bin already exists
+# assuming ${NET}_in_fp32.bin already exists
 
 ################################
 # deepfusion, simple version first
@@ -68,7 +68,7 @@ cvi_profiling --cmdbuf cmdbuf_lw.bin
 # run cmdbuf with cmodel
 ################################
 #$RUNTIME_PATH/bin/test_bmnet \
-#    ${NET}_in_int8.bin \
+#    ${NET}_in_fp32.bin \
 #    weight_int8_multiplier.bin \
 #    cmdbuf_la.bin \
 #    out_all_la.bin \
@@ -83,7 +83,7 @@ cvi_profiling --cmdbuf cmdbuf_lw.bin
 #    int8 1 1 1 1000 5
 
 #$RUNTIME_PATH/bin/test_bmnet \
-#    ${NET}_in_int8.bin \
+#    ${NET}_in_fp32.bin \
 #    weight_int8_multiplier.bin \
 #    cmdbuf_lw.bin \
 #    out_all_lw.bin \
@@ -99,13 +99,13 @@ cvi_profiling --cmdbuf cmdbuf_lw.bin
 
 model_runner \
     --dump-all-tensors \
-    --input ${NET}_in_int8.bin \
+    --input ${NET}_in_fp32.npz \
     --model ${NET}_int8_la.cvimodel \
     --output ${NET}_cmdbuf_out_all_int8_la.npz
 
 model_runner \
     --dump-all-tensors \
-    --input ${NET}_in_int8.bin \
+    --input ${NET}_in_fp32.npz \
     --model ${NET}_int8_lw.cvimodel \
     --output ${NET}_cmdbuf_out_all_int8_lw.npz
 
