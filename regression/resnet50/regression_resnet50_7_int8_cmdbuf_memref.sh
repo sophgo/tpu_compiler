@@ -53,6 +53,16 @@ mlir-opt \
     resnet50_quant_int8_multiplier_tg_op_memref.mlir \
     -o resnet50_quant_int8_multiplier_tg_op_memref_addr.mlir
 
+# memory space w/ neuron recycle
+mlir-opt \
+    --debug \
+    --enable-tpu-neuron-map-recyle-memref=1 \
+    --assign-neuron-address-memref \
+    --tpu-neuron-address-align-memref=16 \
+    --tpu-neuron-map-filename-memref=neuron_map_memref_recycle.csv \
+    resnet50_quant_int8_multiplier_tg_op_memref.mlir \
+    -o resnet50_quant_int8_multiplier_tg_op_memref_addr_recycle.mlir
+
 # tg op back to TensorType
 mlir-opt \
      --debug \
