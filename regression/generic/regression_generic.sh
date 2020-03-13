@@ -36,6 +36,9 @@ fi
 if [ $DO_QUANT_MIX -eq 1 ]; then
   $DIR/regression_7_mix.sh
 fi
+if [ $DO_LAYERGROUP -eq 1 ]; then
+  $DIR/regression_8_int8_cmdbuf_layergroup.sh
+fi
 
 popd
 

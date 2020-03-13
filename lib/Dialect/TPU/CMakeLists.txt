@@ -22,6 +22,17 @@ add_llvm_library(MLIRTPU
   Transforms/SplitCpuOp.cpp
   Transforms/ConvertPriorBoxToLoadWeight.cpp
   Transforms/LowerToTG.cpp
+  Transforms/group_ops/GroupOps.cpp
+  Transforms/group_ops/NetGraph.cpp
+  Transforms/group_ops/ImLayer.cpp
+  Transforms/group_ops/Tensor.cpp
+  Transforms/group_ops/GroupOptimizer.cpp
+  Transforms/group_ops/Group.cpp
+  Transforms/group_ops/LayerStage.cpp
+  Transforms/group_ops/Steps.cpp
+  Transforms/group_ops/LMemManager.cpp
+  Transforms/group_ops/GMemManager.cpp
+  Transforms/group_ops/MixNet.cpp
   Interpreter/TpuInterpreter.cpp
   Interpreter/NativeCpuImplementation.cpp
   Interpreter/CpuLayer_DetectionOutput.cpp
