@@ -21,6 +21,7 @@
 
 #include "mlir/Dialect/TPU/TPUDialect.h"
 #include "mlir/Dialect/TPU/TPUOperationSupport.h"
+#include "mlir/Dialect/TPU/TPUTensorSupport.h"
 #include "mlir/Dialect/TPU/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
@@ -65,6 +66,8 @@ public:
         } else if (auto op = dyn_cast<mlir::tpu::TG_INT8_PoolMax2DOp>(opInst)) {
           llvm::errs() << "  " << op.name() << "\n";
         } else if (auto op = dyn_cast<mlir::tpu::TG_INT8_FullyConnectedOp>(opInst)) {
+          llvm::errs() << "  " << op.name() << "\n";
+        } else if (auto op = dyn_cast<tpu::TG_INT8_LeakyReluOp>(opInst)) {
           llvm::errs() << "  " << op.name() << "\n";
         } else {
           assert(0);
@@ -141,6 +144,8 @@ public:
         analyzePool2DOpParam<tpu::TG_INT8_PoolMax2DOp>(op, os, false);
       } else if (auto op = dyn_cast<tpu::TG_INT8_FullyConnectedOp>(opInst)) {
         analyzeFullyConnectedOpParam(op, os);
+      } else if (auto op = dyn_cast<tpu::TG_INT8_LeakyReluOp>(opInst)) {
+        analyzeLeakyReluOpParam(op, os);
       } else if (auto op = dyn_cast<tpu::LoadWeightOp>(opInst)) {
         // we do analysis in compute node, skip load node
       } else if (auto op = dyn_cast<mlir::tpu::ReshapeOp>(opInst)) {
@@ -268,7 +273,39 @@ private:
     os << "\n";
   }
 
+  void analyzeLeakyReluOpParam(tpu::TG_INT8_LeakyReluOp &op,
+      llvm::raw_ostream &os) {
+    std::vector<int64_t> shape;
+    int64_t input_size, n, c, h, w;
+    getTensorShapeAndSize(op.input(), shape, input_size);
+    getNCHW(shape, n, c, h, w);
+    uint64_t mac_count = n * c * h * w;
+
+    uint64_t inputNeuronSizePerLane = MInfo::getSizePerLane(n, c, h, w, true);
+    uint64_t outputNeuronSizePerLane = MInfo::getSizePerLane(n, c, h, w, true);
+    uint64_t totalPerLane = inputNeuronSizePerLane + outputNeuronSizePerLane;
+    if (totalPerLane <= MInfo::lmem_per_lane) {
+      stats->pushChain(op.getResult());
+    } else {
+      stats->completeChain();
+    }
+
+    os << op.name() << "," << n << "," << ","
+       << c << "," << h << "," << w << ","
+       << mac_count;
+    os << "," << inputNeuronSizePerLane;
+    os << "," << outputNeuronSizePerLane;
+    os << ",";
+    os << ",";
+    os << ",";
+    os << ",";
+    os << ",";
+    os << "," << totalPerLane;
+    os << "\n";
+
+  }
 };
+
 
 } // namespace
 
