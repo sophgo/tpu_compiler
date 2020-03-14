@@ -1729,6 +1729,7 @@ public:
       } else if (auto tgOp = llvm::dyn_cast<tpu::TpuTGOpCodegenInterface>(op)) {
         // lowered already
       } else if (isa<tpu::QuantOp>(op)
+                 || isa<tpu::RetinaFaceDetectionOp>(op)
                  || isa<tpu::SoftmaxOp>(op)) {
         // no need to lower
       } else {
