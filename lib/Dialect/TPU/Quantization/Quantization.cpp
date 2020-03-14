@@ -452,6 +452,7 @@ public:
         TpuInsertQuantOpPattern<tpu::ReciprocalOp>,
         TpuInsertQuantOpPattern<tpu::ReluOp>,
         TpuInsertQuantOpPattern<tpu::ReshapeOp>,
+        TpuInsertQuantOpPattern<tpu::RetinaFaceDetectionOp>,
         TpuInsertQuantOpPattern<tpu::ScaleOp>,
         TpuInsertQuantOpPattern<tpu::ShuffleChannelOp>,
         TpuInsertQuantOpPattern<tpu::SliceOp>,
