@@ -14,7 +14,7 @@ TEST_MORE_CALIBRATION_TABLE=0
 #     --output_img_list cali_list_coco_100.txt
 # python ../llvm/projects/mlir/externals/calibration_tool/run_calibration.py \
 #     yolo_v3 \
-#     yolo_v3_416_opt.mlir \
+#     ${NET}_opt.mlir \
 #     cali_list_coco_100.txt \
 #     --input_num=100
 
@@ -23,8 +23,8 @@ TEST_MORE_CALIBRATION_TABLE=0
 mlir-opt \
     --import-calibration-table \
     --calibration-table $REGRESSION_PATH/yolo_v3/data/yolo_v3_threshold_table_autotune \
-    yolo_v3_416_opt.mlir \
-    -o yolo_v3_416_cali.mlir
+    ${NET}_opt.mlir \
+    -o ${NET}_cali.mlir
 
 if [ $TEST_MORE_CALIBRATION_TABLE -eq 1 ]; then
 
@@ -34,8 +34,8 @@ mlir-opt \
     --enable-cali-overwrite-threshold-forward-relu=true \
     --enable-cali-overwrite-threshold-backward-relu=false \
     --calibration-table $REGRESSION_PATH/yolo_v3/data/yolo_v3_threshold_table_autotune \
-    yolo_v3_416_opt.mlir \
-    -o yolo_v3_416_cali_fwd.mlir
+    ${NET}_opt.mlir \
+    -o ${NET}_cali_fwd.mlir
 
 # autotune, no relu-overwrite
 mlir-opt \
@@ -43,15 +43,15 @@ mlir-opt \
     --enable-cali-overwrite-threshold-forward-relu=false \
     --enable-cali-overwrite-threshold-backward-relu=false \
     --calibration-table $REGRESSION_PATH/yolo_v3/data/yolo_v3_threshold_table_autotune \
-    yolo_v3_416_opt.mlir \
-    -o yolo_v3_416_cali_no_overwrite.mlir
+    ${NET}_opt.mlir \
+    -o ${NET}_cali_no_overwrite.mlir
 
 # non-autotune, relu-overwrite-backward
 mlir-opt \
     --import-calibration-table \
     --calibration-table $REGRESSION_PATH/yolo_v3/data/yolo_v3_threshold_table \
-    yolo_v3_416_opt.mlir \
-    -o yolo_v3_416_cali_no_tune_bwd.mlir
+    ${NET}_opt.mlir \
+    -o ${NET}_cali_no_tune_bwd.mlir
 
 # non-autotune, relu-overwrite-forward
 mlir-opt \
@@ -59,8 +59,8 @@ mlir-opt \
     --enable-cali-overwrite-threshold-forward-relu=true \
     --enable-cali-overwrite-threshold-backward-relu=false \
     --calibration-table $REGRESSION_PATH/yolo_v3/data/yolo_v3_threshold_table \
-    yolo_v3_416_opt.mlir \
-    -o yolo_v3_416_cali_no_tune_fwd.mlir
+    ${NET}_opt.mlir \
+    -o ${NET}_cali_no_tune_fwd.mlir
 
 # non-autotune, no relu-overwrite
 mlir-opt \
@@ -68,16 +68,16 @@ mlir-opt \
     --enable-cali-overwrite-threshold-forward-relu=false \
     --enable-cali-overwrite-threshold-backward-relu=false \
     --calibration-table $REGRESSION_PATH/yolo_v3/data/yolo_v3_threshold_table \
-    yolo_v3_416_opt.mlir \
-    -o yolo_v3_416_cali_no_tune_no_overwrite.mlir
+    ${NET}_opt.mlir \
+    -o ${NET}_cali_no_tune_no_overwrite.mlir
 
 # non-autotune, concat-overwrite-backward
 mlir-opt \
     --import-calibration-table \
     --enable-cali-overwrite-threshold-backward-concat \
     --calibration-table $REGRESSION_PATH/yolo_v3/data/yolo_v3_threshold_table \
-    yolo_v3_416_opt.mlir \
-    -o yolo_v3_416_cali_concat_bwd.mlir
+    ${NET}_opt.mlir \
+    -o ${NET}_cali_concat_bwd.mlir
 
 fi
 
@@ -87,24 +87,24 @@ fi
 mlir-opt \
     --tpu-quant --quant-int8-per-tensor \
     --print-tpu-op-info \
-    --tpu-op-info-filename yolo_v3_op_info_int8_per_layer.csv \
-    yolo_v3_416_cali.mlir \
-    -o yolo_v3_416_quant_int8_per_layer.mlir
+    --tpu-op-info-filename ${NET}_op_info_int8_per_layer.csv \
+    ${NET}_cali.mlir \
+    -o ${NET}_quant_int8_per_layer.mlir
 
-mlir-tpu-interpreter yolo_v3_416_quant_int8_per_layer.mlir \
-    --tensor-in yolo_v3_in_fp32.npz \
-    --tensor-out yolo_v3_out_dequant_int8_per_layer.npz \
-    --dump-all-tensor=yolo_v3_tensor_all_int8_per_layer.npz
+mlir-tpu-interpreter ${NET}_quant_int8_per_layer.mlir \
+    --tensor-in ${NET}_in_fp32.npz \
+    --tensor-out ${NET}_out_dequant_int8_per_layer.npz \
+    --dump-all-tensor=${NET}_tensor_all_int8_per_layer.npz
 
 npz_extract.py \
-    yolo_v3_tensor_all_int8_per_layer.npz \
-    yolo_v3_out_int8_per_layer.npz \
+    ${NET}_tensor_all_int8_per_layer.npz \
+    ${NET}_out_int8_per_layer.npz \
     layer82-conv,layer94-conv,layer106-conv
 
 npz_compare.py \
-      yolo_v3_out_int8_per_layer.npz \
-      yolo_v3_blobs.npz \
-      --op_info yolo_v3_op_info_int8_per_layer.csv \
+      ${NET}_out_int8_per_layer.npz \
+      ${NET}_blobs.npz \
+      --op_info ${NET}_op_info_int8_per_layer.csv \
       --dequant \
       --tolerance 0.98,0.93,0.84 -vv  # autotune-relu-overwrite-backward (with leakyrelu only neg quant)
 
@@ -112,9 +112,9 @@ if [ $COMPARE_ALL -eq 1 ]; then
   # some tensors do not pass due to threshold bypass
   # need do dequantization in interpreter directly
   npz_compare.py \
-      yolo_v3_tensor_all_int8_per_layer.npz \
-      yolo_v3_blobs.npz \
-      --op_info yolo_v3_op_info_int8_per_layer.csv \
+      ${NET}_tensor_all_int8_per_layer.npz \
+      ${NET}_blobs.npz \
+      --op_info ${NET}_op_info_int8_per_layer.csv \
       --dequant \
       --tolerance 0.90,0.88,0.51 -vv  # autotune-relu-overwrite-backward (with leakyrelu only neg quant)
 fi
@@ -126,24 +126,24 @@ fi
 mlir-opt \
     --tpu-quant --quant-int8-rshift-only \
     --print-tpu-op-info \
-    --tpu-op-info-filename yolo_v3_op_info_int8_per_channel.csv \
-    yolo_v3_416_cali.mlir \
-    -o yolo_v3_416_quant_int8_per_channel.mlir
+    --tpu-op-info-filename ${NET}_op_info_int8_per_channel.csv \
+    ${NET}_cali.mlir \
+    -o ${NET}_quant_int8_per_channel.mlir
 
-mlir-tpu-interpreter yolo_v3_416_quant_int8_per_channel.mlir \
-    --tensor-in yolo_v3_in_fp32.npz \
-    --tensor-out yolo_v3_out_dequant_int8_per_channel.npz \
-    --dump-all-tensor=yolo_v3_tensor_all_int8_per_channel.npz
+mlir-tpu-interpreter ${NET}_quant_int8_per_channel.mlir \
+    --tensor-in ${NET}_in_fp32.npz \
+    --tensor-out ${NET}_out_dequant_int8_per_channel.npz \
+    --dump-all-tensor=${NET}_tensor_all_int8_per_channel.npz
 
 npz_extract.py \
-    yolo_v3_tensor_all_int8_per_channel.npz \
-    yolo_v3_out_int8_per_channel.npz \
+    ${NET}_tensor_all_int8_per_channel.npz \
+    ${NET}_out_int8_per_channel.npz \
     layer82-conv,layer94-conv,layer106-conv
 
 npz_compare.py \
-      yolo_v3_out_int8_per_channel.npz \
-      yolo_v3_blobs.npz \
-      --op_info yolo_v3_op_info_int8_per_channel.csv \
+      ${NET}_out_int8_per_channel.npz \
+      ${NET}_blobs.npz \
+      --op_info ${NET}_op_info_int8_per_channel.csv \
       --dequant \
       --tolerance 0.99,0.95,0.87 -vv  # autotune-relu-overwrite-backward (with leakyrelu only neg quant)
 
@@ -151,9 +151,9 @@ if [ $COMPARE_ALL -eq 1 ]; then
   # some tensors do not pass due to threshold bypass
   # need do dequantization in interpreter directly
   npz_compare.py \
-      yolo_v3_tensor_all_int8_per_channel.npz \
-      yolo_v3_blobs.npz \
-      --op_info yolo_v3_op_info_int8_per_channel.csv \
+      ${NET}_tensor_all_int8_per_channel.npz \
+      ${NET}_blobs.npz \
+      --op_info ${NET}_op_info_int8_per_channel.csv \
       --dequant \
       --tolerance 0.92,0.90,0.58 -vv  # autotune-relu-overwrite-backward (with leakyrelu only neg quant)
 fi
@@ -164,25 +164,25 @@ fi
 mlir-opt \
     --tpu-quant \
     --print-tpu-op-info \
-    --tpu-op-info-filename yolo_v3_op_info_int8_multiplier.csv \
-    -o yolo_v3_416_quant_int8_multiplier.mlir \
-    yolo_v3_416_cali.mlir
+    --tpu-op-info-filename ${NET}_op_info_int8_multiplier.csv \
+    -o ${NET}_quant_int8_multiplier.mlir \
+    ${NET}_cali.mlir
 
 mlir-tpu-interpreter \
-    --tensor-in yolo_v3_in_fp32.npz \
-    --tensor-out yolo_v3_out_dequant_int8_multiplier.npz \
-    --dump-all-tensor yolo_v3_tensor_all_int8_multiplier.npz \
-    yolo_v3_416_quant_int8_multiplier.mlir
+    --tensor-in ${NET}_in_fp32.npz \
+    --tensor-out ${NET}_out_dequant_int8_multiplier.npz \
+    --dump-all-tensor ${NET}_tensor_all_int8_multiplier.npz \
+    ${NET}_quant_int8_multiplier.mlir
 
 npz_extract.py \
-    yolo_v3_tensor_all_int8_multiplier.npz \
-    yolo_v3_out_int8_multiplier.npz \
+    ${NET}_tensor_all_int8_multiplier.npz \
+    ${NET}_out_int8_multiplier.npz \
     layer82-conv,layer94-conv,layer106-conv
 
 npz_compare.py \
-      yolo_v3_out_int8_multiplier.npz \
-      yolo_v3_blobs.npz \
-      --op_info yolo_v3_op_info_int8_multiplier.csv \
+      ${NET}_out_int8_multiplier.npz \
+      ${NET}_blobs.npz \
+      --op_info ${NET}_op_info_int8_multiplier.csv \
       --dequant \
       --tolerance 0.99,0.95,0.87 -vv
 
@@ -204,9 +204,9 @@ if [ $COMPARE_ALL -eq 1 ]; then
   # some tensors do not pass due to threshold bypass
   # need do dequantization in interpreter directly
   npz_compare.py \
-      yolo_v3_tensor_all_int8_multiplier.npz \
-      yolo_v3_blobs.npz \
-      --op_info yolo_v3_op_info_int8_multiplier.csv \
+      ${NET}_tensor_all_int8_multiplier.npz \
+      ${NET}_blobs.npz \
+      --op_info ${NET}_op_info_int8_multiplier.csv \
       --dequant \
       --tolerance 0.93,0.92,0.61 -vv
 

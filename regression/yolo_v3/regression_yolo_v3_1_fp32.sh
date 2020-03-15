@@ -10,25 +10,25 @@ CHECK_NON_OPT_VERSION=0
 mlir-translate \
     --caffe-to-mlir $MODEL_PATH/object_detection/yolo_v3/caffe/416/yolov3_416.prototxt \
     --caffemodel $MODEL_PATH/object_detection/yolo_v3/caffe/416/yolov3_416.caffemodel \
-    -o yolo_v3_416.mlir
+    -o ${NET}.mlir
 
 if [ $CHECK_NON_OPT_VERSION -eq 1 ]; then
   mlir-opt \
       --assign-layer-id \
       --print-tpu-op-info \
-      --tpu-op-info-filename yolo_v3_op_info.csv \
-      yolo_v3_416.mlir \
+      --tpu-op-info-filename ${NET}_op_info.csv \
+      ${NET}.mlir \
       -o dummy.mlir
   # test mlir interpreter
-  mlir-tpu-interpreter yolo_v3_416.mlir \
-      --tensor-in yolo_v3_in_fp32.npz \
-      --tensor-out yolo_v3_out_fp32.npz \
-      --dump-all-tensor=yolo_v3_tensor_all_fp32.npz
-  npz_compare.py yolo_v3_out_fp32.npz yolo_v3_out_fp32_ref.npz -v
+  mlir-tpu-interpreter ${NET}.mlir \
+      --tensor-in ${NET}_in_fp32.npz \
+      --tensor-out ${NET}_out_fp32.npz \
+      --dump-all-tensor=${NET}_tensor_all_fp32.npz
+  npz_compare.py ${NET}_out_fp32.npz ${NET}_out_fp32_ref.npz -v
   npz_compare.py \
-      yolo_v3_tensor_all_fp32.npz \
-      yolo_v3_blobs.npz \
-      --op_info yolo_v3_op_info.csv \
+      ${NET}_tensor_all_fp32.npz \
+      ${NET}_blobs.npz \
+      --op_info ${NET}_op_info.csv \
       --tolerance=0.9999,0.9999,0.999 -vv
 fi
 
@@ -37,22 +37,22 @@ fi
 mlir-opt \
     --assign-layer-id \
     --print-tpu-op-info \
-    --tpu-op-info-filename yolo_v3_op_info.csv \
+    --tpu-op-info-filename ${NET}_op_info.csv \
     --convert-bn-to-scale \
     --canonicalize \
-    yolo_v3_416.mlir \
-    -o yolo_v3_416_opt.mlir
+    ${NET}.mlir \
+    -o ${NET}_opt.mlir
 
 # test mlir interpreter
-mlir-tpu-interpreter yolo_v3_416_opt.mlir \
-    --tensor-in yolo_v3_in_fp32.npz \
-    --tensor-out yolo_v3_out_fp32.npz \
-    --dump-all-tensor=yolo_v3_tensor_all_fp32.npz
-npz_compare.py yolo_v3_out_fp32.npz yolo_v3_out_fp32_ref.npz -v
+mlir-tpu-interpreter ${NET}_opt.mlir \
+    --tensor-in ${NET}_in_fp32.npz \
+    --tensor-out ${NET}_out_fp32.npz \
+    --dump-all-tensor=${NET}_tensor_all_fp32.npz
+npz_compare.py ${NET}_out_fp32.npz ${NET}_out_fp32_ref.npz -v
 npz_compare.py \
-    yolo_v3_tensor_all_fp32.npz \
-    yolo_v3_blobs.npz \
-    --op_info yolo_v3_op_info.csv \
+    ${NET}_tensor_all_fp32.npz \
+    ${NET}_blobs.npz \
+    --op_info ${NET}_op_info.csv \
     --tolerance=0.999,0.999,0.999 -vv
 
 # VERDICT

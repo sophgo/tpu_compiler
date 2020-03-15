@@ -60,26 +60,34 @@ struct TpuTG2TLConv2DOpPattern : public RewritePattern {
       return matchFailure();
     }
 
-    if (1) {
-      llvm::errs() << "TG2TL_LA: " << op.name()
-                   << ", layer ID " << op.layer_id() << "\n";
+    llvm::errs() << "TG2TL_LA: " << op.name()
+                 << ", layer ID " << op.layer_id() << "\n";
 
-      assert(op.getNumOperands() == 3);
-      std::vector<Value *> newOperands;
-      newOperands.push_back(op.getOperand(0));
-      newOperands.push_back(op.getOperand(1));
-      newOperands.push_back(op.getOperand(2));
-
-      std::vector<NamedAttribute> attrs;
-      attrs.push_back(rewriter.getNamedAttr("param", op.paramAttr()));
-      attrs.push_back(rewriter.getNamedAttr("gaddr", op.gaddrAttr()));
-      attrs.push_back(rewriter.getNamedAttr("name", op.nameAttr()));
-      attrs.push_back(rewriter.getNamedAttr("layer_id", op.layer_idAttr()));
-      rewriter.replaceOpWithNewOp<tpu::TL_LA_Conv2DOp>(
-          op, op.getResult()->getType(),
-          ArrayRef<Value *>{newOperands}, ArrayRef<NamedAttribute>{attrs});
-      return matchSuccess();
+    // break leaky relu fuse
+    if (opInst->getResult(0)->hasOneUse()) {
+      auto next_op = getNextOp(opInst);
+      if (auto lreluOp = dyn_cast<tpu::TG_INT8_LeakyReluOp>(next_op)) {
+        lreluOp.setAttr("fuse_prev", rewriter.getBoolAttr(false));
+      }
     }
+
+    // convert to TL_LA_Conv2DOp
+    assert(op.getNumOperands() == 3);
+    std::vector<Value *> newOperands;
+    newOperands.push_back(op.getOperand(0));
+    newOperands.push_back(op.getOperand(1));
+    newOperands.push_back(op.getOperand(2));
+
+    std::vector<NamedAttribute> attrs;
+    attrs.push_back(rewriter.getNamedAttr("param", op.paramAttr()));
+    attrs.push_back(rewriter.getNamedAttr("gaddr", op.gaddrAttr()));
+    attrs.push_back(rewriter.getNamedAttr("name", op.nameAttr()));
+    attrs.push_back(rewriter.getNamedAttr("layer_id", op.layer_idAttr()));
+    rewriter.replaceOpWithNewOp<tpu::TL_LA_Conv2DOp>(
+        op, op.getResult()->getType(),
+        ArrayRef<Value *>{newOperands}, ArrayRef<NamedAttribute>{attrs});
+
+    return matchSuccess();
   }
 };
 
