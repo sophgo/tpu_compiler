@@ -247,13 +247,18 @@ uint64_t getWeightOpAddress(Operation *op) {
 }
 
 Operation* getNextOp(Operation *op) {
-  assert(op->getResult(0)->hasOneUse());
   Operation *nextOp = nullptr;
-  for (auto &use : op->getResult(0)->getUses()) {
-    nextOp = use.getOwner();
-    break;
+  if (op->getResult(0)->hasOneUse()) {
+    for (auto &use : op->getResult(0)->getUses()) {
+      nextOp = use.getOwner();
+      break;
+    }
+    assert(nextOp);
+  } else {
+    llvm::errs() << __func__ << " failed, Op " << op->getName() << "\n";
+    llvm::errs() << __func__ << "       name " << getOpName(op) << "\n";
+    assert(false);
   }
-  assert(nextOp);
   return nextOp;
 }
 

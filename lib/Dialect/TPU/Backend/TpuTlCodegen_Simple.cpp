@@ -100,6 +100,27 @@ LogicalResult tpu::TL_LW_Conv2DOp::codegen(void *ctx) {
   laddr_t la_input = this->la_input().getLimitedValue();
   laddr_t la_output = this->la_output().getLimitedValue();
   laddr_t la_working = this->la_working().getLimitedValue();
+
+  // leaky_relu
+  bool do_leaky_relu = this->do_leaky_relu();
+  int8_t pos_rshift = 0, pos_m_i8 = 0, neg_rshift = 0, neg_m_i8 = 0;
+  if (do_leaky_relu) {
+    if (this->m_i8_pos().hasValue()) {
+      pos_m_i8 = this->m_i8_pos().getValue().getLimitedValue();
+      pos_rshift = this->rshift_pos().getValue().getLimitedValue();
+    } else {
+      pos_m_i8 = 0;
+      pos_rshift = 0;
+    }
+    if (this->m_i8_neg().hasValue()) {
+      neg_m_i8 = this->m_i8_neg().getValue().getLimitedValue();
+      neg_rshift = this->rshift_neg().getValue().getLimitedValue();
+    } else {
+      neg_m_i8 = 0;
+      neg_rshift = 0;
+    }
+  }
+
   int layer_id = mlir::getOpLayerId(op);
 
   llvm::errs() << "    TL_LW_Conv2DOp,  layer_id = " << layer_id;
@@ -145,14 +166,17 @@ LogicalResult tpu::TL_LW_Conv2DOp::codegen(void *ctx) {
         n, ic, ih, iw, g, oc, oh, ow, kh, kw,
         dh, dw, ph, ph, pw, pw, sh, sw,
         false, with_bias, do_relu,
-        true, ga_output);
+        true, ga_output,
+        do_leaky_relu, pos_rshift, pos_m_i8, neg_rshift, neg_m_i8);
   } else {
     cvi_backend_tl_conv_LW(*backend_ctx, layer_id,
         la_input, la_output, la_working,
         ga_filter, ga_pc_info,
         n, ic, ih, iw, g, oc, oh, ow, kh, kw,
         dh, dw, ph, ph, pw, pw, sh, sw,
-        false, with_bias, do_relu);
+        false, with_bias, do_relu,
+        false, GA_INVALID,
+        do_leaky_relu, pos_rshift, pos_m_i8, neg_rshift, neg_m_i8);
   }
   #endif
   return success();

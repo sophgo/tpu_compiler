@@ -8,20 +8,20 @@ source $DIR/../../envsetup.sh
 mlir-opt \
     --tpu-quant --quant-full-bf16 \
     --print-tpu-op-info \
-    --tpu-op-info-filename yolo_v3_op_info_bf16_per_layer.csv \
-    yolo_v3_416_opt.mlir \
-    -o yolo_v3_416_quant_bf16.mlir
+    --tpu-op-info-filename ${NET}_op_info_bf16_per_layer.csv \
+    ${NET}_opt.mlir \
+    -o ${NET}_quant_bf16.mlir
 
 # bf16 inference
-mlir-tpu-interpreter yolo_v3_416_quant_bf16.mlir \
-    --tensor-in yolo_v3_in_fp32.npz \
-    --tensor-out yolo_v3_out_bf16.npz \
-    --dump-all-tensor=yolo_v3_416_tensor_all_bf16.npz
+mlir-tpu-interpreter ${NET}_quant_bf16.mlir \
+    --tensor-in ${NET}_in_fp32.npz \
+    --tensor-out ${NET}_out_bf16.npz \
+    --dump-all-tensor=${NET}_tensor_all_bf16.npz
 
 npz_compare.py \
-    yolo_v3_416_tensor_all_bf16.npz \
-    yolo_v3_tensor_all_fp32.npz \
-    --op_info yolo_v3_op_info.csv \
+    ${NET}_tensor_all_bf16.npz \
+    ${NET}_tensor_all_fp32.npz \
+    --op_info ${NET}_op_info.csv \
     --tolerance=0.99,0.99,0.94 -vv
 
 # VERDICT

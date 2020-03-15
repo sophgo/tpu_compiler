@@ -58,36 +58,77 @@ struct TpuTL_LA_Conv2DOpPattern : public RewritePattern {
                    n, ic, ih, iw, oc, oh, ow, g,
                    kh, kw, sh, sw, ph, pw, dh, dw, is_dw, with_bias, do_relu);
 
-    if (1) {
-      llvm::errs() << "TL_LA2LW: layer ID " << op.layer_id()
-                   << ", convert to LW\n";
+    llvm::errs() << "TL_LA2LW: layer ID " << op.layer_id()
+                 << ", convert to LW\n";
 
-      assert(op.getNumOperands() == 3);
-      std::vector<Value *> newOperands;
-      newOperands.push_back(op.getOperand(0));
-      newOperands.push_back(op.getOperand(1));
-      newOperands.push_back(op.getOperand(2));
+    assert(op.getNumOperands() == 3);
+    std::vector<Value *> newOperands;
+    newOperands.push_back(op.getOperand(0));
+    newOperands.push_back(op.getOperand(1));
+    newOperands.push_back(op.getOperand(2));
 
-      std::vector<NamedAttribute> attrs;
-      attrs.push_back(rewriter.getNamedAttr("param", op.paramAttr()));
-      attrs.push_back(rewriter.getNamedAttr("gaddr", op.gaddrAttr()));
-      attrs.push_back(rewriter.getNamedAttr("name", op.nameAttr()));
-      attrs.push_back(rewriter.getNamedAttr("layer_id", op.layer_idAttr()));
+    std::vector<NamedAttribute> attrs;
+    attrs.push_back(rewriter.getNamedAttr("param", op.paramAttr()));
+    attrs.push_back(rewriter.getNamedAttr("gaddr", op.gaddrAttr()));
+    attrs.push_back(rewriter.getNamedAttr("name", op.nameAttr()));
+    attrs.push_back(rewriter.getNamedAttr("layer_id", op.layer_idAttr()));
 
-      // postpone lmem assignment to next pattern
-      uint32_t la_invalid = 0xffffffff;
-      attrs.push_back(rewriter.getNamedAttr("lm_layout", rewriter.getStringAttr("NONE")));
-      attrs.push_back(rewriter.getNamedAttr("la_input", rewriter.getI32IntegerAttr(la_invalid)));
-      attrs.push_back(rewriter.getNamedAttr("la_working", rewriter.getI32IntegerAttr(la_invalid)));
-      attrs.push_back(rewriter.getNamedAttr("la_output", rewriter.getI32IntegerAttr(la_invalid)));
-      attrs.push_back(rewriter.getNamedAttr("tl_load_flag", rewriter.getBoolAttr(true)));
-      attrs.push_back(rewriter.getNamedAttr("tl_store_flag", rewriter.getBoolAttr(true)));
+    // postpone lmem assignment to next pattern
+    uint32_t la_invalid = 0xffffffff;
+    attrs.push_back(rewriter.getNamedAttr("lm_layout", rewriter.getStringAttr("NONE")));
+    attrs.push_back(rewriter.getNamedAttr("la_input", rewriter.getI32IntegerAttr(la_invalid)));
+    attrs.push_back(rewriter.getNamedAttr("la_working", rewriter.getI32IntegerAttr(la_invalid)));
+    attrs.push_back(rewriter.getNamedAttr("la_output", rewriter.getI32IntegerAttr(la_invalid)));
+    attrs.push_back(rewriter.getNamedAttr("tl_load_flag", rewriter.getBoolAttr(true)));
+    attrs.push_back(rewriter.getNamedAttr("tl_store_flag", rewriter.getBoolAttr(true)));
 
-      rewriter.replaceOpWithNewOp<tpu::TL_LW_Conv2DOp>(
-          op, op.getResult()->getType(),
-          ArrayRef<Value *>{newOperands}, ArrayRef<NamedAttribute>{attrs});
+    // create op
+    rewriter.replaceOpWithNewOp<tpu::TL_LW_Conv2DOp>(
+        op, op.getResult()->getType(),
+        ArrayRef<Value *>{newOperands}, ArrayRef<NamedAttribute>{attrs});
+
+    return matchSuccess();
+  }
+};
+
+struct TpuFuseLeakyReluOpPattern : public RewritePattern {
+  TpuFuseLeakyReluOpPattern(MLIRContext *context)
+      : RewritePattern("tpu.tg_int8_leaky_relu", 1, context) {}
+
+  PatternMatchResult matchAndRewrite(Operation *opInst,
+                                     PatternRewriter &rewriter) const override {
+    auto lreluOp = dyn_cast<tpu::TG_INT8_LeakyReluOp>(opInst);
+    auto prev_op = opInst->getOperand(0)->getDefiningOp();
+    if (auto convOp = dyn_cast<tpu::TL_LW_Conv2DOp>(prev_op)) {
+      int8_t pos_rshift, pos_m_i8, neg_rshift, neg_m_i8;
+      if (lreluOp.m_i8_pos().hasValue()) {
+        pos_m_i8 = lreluOp.m_i8_pos().getValue().getLimitedValue();
+        pos_rshift = lreluOp.rshift_pos().getValue().getLimitedValue();
+        assert(pos_m_i8);
+      } else {
+        pos_m_i8 = 0;
+        pos_rshift = 0;
+      }
+      if (lreluOp.m_i8_neg().hasValue()) {
+        neg_m_i8 = lreluOp.m_i8_neg().getValue().getLimitedValue();
+        neg_rshift = lreluOp.rshift_neg().getValue().getLimitedValue();
+        assert(neg_m_i8);
+      } else {
+        neg_m_i8 = 0;
+        neg_rshift = 0;
+      }
+
+      convOp.setAttr("do_leaky_relu", rewriter.getBoolAttr(true));
+      convOp.setAttr("rshift_pos", rewriter.getI8IntegerAttr(pos_rshift));
+      convOp.setAttr("m_i8_pos", rewriter.getI8IntegerAttr(pos_m_i8));
+      convOp.setAttr("rshift_neg", rewriter.getI8IntegerAttr(neg_rshift));
+      convOp.setAttr("m_i8_neg", rewriter.getI8IntegerAttr(neg_m_i8));
+      convOp.setAttr("name", lreluOp.nameAttr());
+      rewriter.replaceOp(opInst, {convOp.getResult()});
       return matchSuccess();
     }
+
+    return matchFailure();
   }
 };
 
@@ -168,23 +209,30 @@ struct TpuTL_LW_Conv2DOp_AssignLayoutPattern : public RewritePattern {
         }
       }
       if (conv_ops.size() == 2) {
-        // inception_v3, two conv Ops, steal them
-        auto conv_op_next = llvm::dyn_cast_or_null<tpu::TL_LW_Conv2DOp>(conv_ops[0]);
-        auto conv_op_steal = llvm::dyn_cast_or_null<tpu::TL_LW_Conv2DOp>(conv_ops[1]);
-        if (conv_op_next.lm_layout() == "IWO") {
-          op.setAttr("lm_layout", rewriter.getStringAttr("OWI"));
-        } else if (conv_op_next.lm_layout() ==  "OWI") {
-          op.setAttr("lm_layout", rewriter.getStringAttr("IWO"));
+        if (conv_ops[0]->getResult(0)->hasOneUse()
+            && conv_ops[1]->getResult(0)->hasOneUse()
+            && getNextOp(conv_ops[0]) == getNextOp(conv_ops[1])) {
+          // inception_v3, two conv Ops, try steal them
+          // they needs to have the same use before we can steal it
+          auto conv_op_next = llvm::dyn_cast_or_null<tpu::TL_LW_Conv2DOp>(conv_ops[0]);
+          auto conv_op_steal = llvm::dyn_cast_or_null<tpu::TL_LW_Conv2DOp>(conv_ops[1]);
+          if (conv_op_next.lm_layout() == "IWO") {
+            op.setAttr("lm_layout", rewriter.getStringAttr("OWI"));
+          } else if (conv_op_next.lm_layout() ==  "OWI") {
+            op.setAttr("lm_layout", rewriter.getStringAttr("IWO"));
+          } else {
+            assert(0);
+          }
+          // steal the op
+          op.setAttr("tl_store_flag", rewriter.getBoolAttr(false));
+          conv_op_next.setAttr("tl_load_flag", rewriter.getBoolAttr(false));
+          conv_op_steal.setAttr("lm_layout",
+              rewriter.getStringAttr(conv_op_next.lm_layout()));
+          conv_op_steal.setAttr("tl_load_flag", rewriter.getBoolAttr(false));
         } else {
-          assert(0);
+          // otherwise, start a new chain
+          op.setAttr("lm_layout", rewriter.getStringAttr("IWO"));
         }
-        // steal the op
-        op.setAttr("tl_store_flag", rewriter.getBoolAttr(false));
-        conv_op_next.setAttr("tl_load_flag", rewriter.getBoolAttr(false));
-        conv_op_steal.setAttr("lm_layout",
-            rewriter.getStringAttr(conv_op_next.lm_layout()));
-        conv_op_steal.setAttr("tl_load_flag", rewriter.getBoolAttr(false));
-
         return matchSuccess();
       } else if (conv_ops.size() == 1) {
         assert(elta_ops.size() == 1);
@@ -338,7 +386,10 @@ struct TpuTL_EltwiseAddOp_AssignLayoutPattern : public RewritePattern {
         assert(0);
       } else if (elta_ops.empty() && conv_ops.size() == 1) {
         // one conv case
-        assert(0);
+        // YOLO_v3 goes here, the other is concat
+        // start a new chain
+        // assert(0);
+        op.setAttr("lm_layout", rewriter.getStringAttr("IWO"));
       } else if (elta_ops.empty() && conv_ops.size() == 2) {
         // two conv cast
         auto conv_op_0 = llvm::dyn_cast_or_null<tpu::TL_LW_Conv2DOp>(conv_ops[0]);
@@ -521,7 +572,8 @@ public:
     auto *context = &getContext();
     OwningRewritePatternList patterns;
     patterns.insert<
-        TpuTL_LA_Conv2DOpPattern
+        TpuTL_LA_Conv2DOpPattern,
+        TpuFuseLeakyReluOpPattern
         >(context);
     applyPatternsGreedily(fn, patterns);
 

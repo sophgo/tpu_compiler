@@ -292,6 +292,9 @@ private:
 
     os << op.name() << "," << n << "," << ","
        << c << "," << h << "," << w << ","
+       << "," << "," << ","
+       << "," << "," << "," << ","
+       << "," << "," << "," << "," << "," << ","
        << mac_count;
     os << "," << inputNeuronSizePerLane;
     os << "," << outputNeuronSizePerLane;
