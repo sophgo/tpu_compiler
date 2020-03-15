@@ -14,8 +14,8 @@ convert.py \
 
 mlir-opt \
     --assign-layer-id \
-    --canonicalize \
     --convert-bn-to-scale \
+    --canonicalize \
     --print-tpu-op-info \
     alphapose.mlir \
     -o alphapose_opt.mlir

@@ -2,12 +2,41 @@
 
 # Model Path
 
-```https://github.com/MVIG-SJTU/AlphaPose/blob/master/docs/MODEL_ZOO.md```
+  `https://github.com/MVIG-SJTU/AlphaPose/blob/master/docs/MODEL_ZOO.md`
+
+  Download the `Fast Pose`
+    - `https://drive.google.com/open?id=1kQhnMRURFiy7NsdS8EFL-8vtqEXOgECn`, as `alpha_pose_res50_256x192.pth`
+    - `https://raw.githubusercontent.com/MVIG-SJTU/AlphaPose/master/configs/coco/resnet/256x192_res50_lr1e-3_1x.yaml`
+
+  ```sh
+  $ git clone https://github.com/MVIG-SJTU/AlphaPose.git
+  $ cd AlphaPose
+  ```
+
+  ```sh
+  $ bash Miniconda3-latest-Linux-x86_64.sh
+  $ conda create -n mytorch python=3.6 -y
+  $ conda activate mytorch
+  $ conda install pytorch torchvision
+  $ export PATH=/usr/local/cuda/bin/:$PATH
+  $ export LD_LIBRARY_PATH=/usr/local/cuda/lib64/:$LD_LIBRARY_PATH
+  $ python setup.py build develop --user
+  ```
+
+  copy alpha_pose_res50_256x192.pth to scripts
+  copy 256x192_res50_lr1e-3_1x.yaml to scripts
+  copy pose.npz to alphapose root dir
+
+  ```
+  $ conda install pillow=6.1
+  $ python3 convert_to_onnx.py
+  Finish!
+  ```
+  Got alphapose.onnx (162572715 bytes)
 
 # Convert to Onnx
 
 In AlphaPose Repo create python file create_onnx.py, in release repo only accept py3
-
 
 please use python3 create_onnx
 
@@ -44,6 +73,8 @@ if __name__ == "__main__":
 ```
 
 get a onnx model
+
+However, use python2 to run convert.py (convert to mlir) for now
 
 # How to do calibration
 
