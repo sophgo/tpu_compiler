@@ -48,10 +48,100 @@
 using namespace mlir;
 
 namespace {
+static void collectInOutInfo(std::vector<Operation *> &cpuOpVec,
+                             std::vector<Value *> &inputs,
+                             std::vector<Value *> &outputs) {
+  std::vector<Value *> defValue;
+  for (auto op : cpuOpVec) {
+    for (unsigned int i = 0; i < op->getNumOperands(); i++) {
+      auto it = find(defValue.begin(), defValue.end(), op->getOperand(i));
+      if (it == defValue.end()) {
+        auto iter = inputs.begin();
+        for (; iter != inputs.end(); ++iter) {
+          if (*iter == op->getOperand(i))
+            break;
+        }
+        if (inputs.empty() || (iter == inputs.end()))
+          inputs.push_back(op->getOperand(i));
+      }
+    }
+    for (unsigned int i = 0; i < op->getNumResults(); i++)
+      defValue.push_back(op->getResult(i));
+  }
 
-struct CpuSoftmaxOpPattern : public RewritePattern {
+  for (auto value : defValue) {
+    if (value->use_empty())
+        outputs.push_back(value);
+    for (auto it = value->use_begin(); it != value->use_end(); ++it) {
+      auto defOp = it.getUser();
+      auto opIt = find(cpuOpVec.begin(), cpuOpVec.end(), defOp);
+      if (opIt == cpuOpVec.end()) {
+        outputs.push_back(value);
+      }
+    }
+  }
+}
+
+static void collectInOutInfo(Operation * op, std::vector<Operation *> &cpuOpVec,
+                             std::vector<Value *> &inputs,
+                             std::vector<Value *> &outputs) {
+  Block* block = op->getBlock();
+  cpuOpVec.push_back(op);
+  bool foundOp = false;
+  for (auto iter = block->begin(); iter != block->end(); ++iter) {
+    if (&(*iter) == op) {
+      foundOp = true;
+      continue;
+    }
+    if (foundOp) {
+      if ((*iter).getAttr("deleted") != nullptr ) {
+        cpuOpVec.push_back(&(*iter));
+      } else {
+        break;
+      }
+    }
+  }
+  collectInOutInfo(cpuOpVec, inputs, outputs);
+}
+
+
+class commonPattern : public RewritePattern {
+public :
+  void addCpuCall(Operation *op, PatternRewriter &rewriter) const {
+    std::vector<Operation *> cpuOpVec;
+    std::vector<Value *> inputs;
+    std::vector<Value *> outputs;
+    collectInOutInfo(op, cpuOpVec, inputs, outputs);
+
+    std::vector<mlir::Type> resType;
+    for (auto output : outputs) {
+      resType.push_back(output->getType());
+    }
+
+    auto callOp = rewriter.create<CallOp>(op->getLoc(), op->getAttr("callee").cast<StringAttr>().getValue(),
+                                          ArrayRef<mlir::Type>{resType}, inputs);
+
+    for (unsigned int i  = 0; i <  outputs.size(); i++) {
+      auto outputOp = outputs[i]->getDefiningOp();
+      rewriter.replaceOp(outputOp, callOp.getResult(i));
+    }
+
+    if (cpuOpVec.size() > 1) {
+      for (unsigned int i = 1; i < cpuOpVec.size(); i++) {
+        rewriter.eraseOp(cpuOpVec[i]);
+      }
+    }
+  }
+
+protected :
+  commonPattern(StringRef opName, int benefit, MLIRContext *context)
+      : RewritePattern(opName, benefit, context) {}
+};
+
+
+struct CpuSoftmaxOpPattern : public commonPattern {
   CpuSoftmaxOpPattern(MLIRContext *context)
-      : RewritePattern("tpu.softmax", 1, context) {}
+      : commonPattern("tpu.softmax", 1, context) {}
 
   PatternMatchResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
@@ -62,18 +152,15 @@ struct CpuSoftmaxOpPattern : public RewritePattern {
 
       std::string op_name = softmaxOp.getAttrOfType<StringAttr>("name").getValue().str();
       llvm::errs() << "Softmax Op: " << op_name << "\n";
-
-      auto callOp = rewriter.create<CallOp>(op->getLoc(), op->getAttr("callee").cast<StringAttr>().getValue(),
-                             ArrayRef<mlir::Type>{op->getResult(0)->getType()}, op->getOperands());
-      rewriter.replaceOp(op, callOp.getResults());
+      addCpuCall(op, rewriter);
     }
     return matchSuccess();
   }
 };
 
-struct CpuDetectionOutputOpPattern : public RewritePattern {
+struct CpuDetectionOutputOpPattern : public commonPattern {
   CpuDetectionOutputOpPattern(MLIRContext *context)
-      : RewritePattern("tpu.detectionoutput", 1, context) {}
+      : commonPattern("tpu.detectionoutput", 1, context) {}
 
   PatternMatchResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
@@ -84,10 +171,7 @@ struct CpuDetectionOutputOpPattern : public RewritePattern {
       // op_name
       std::string op_name = detectionOutputOp.getAttrOfType<StringAttr>("name").getValue().str();
       llvm::errs() << "DetectionOutput Op: " << op_name << "\n";
-
-      auto callOp = rewriter.create<CallOp>(op->getLoc(), op->getAttr("callee").cast<StringAttr>().getValue(),
-                             ArrayRef<mlir::Type>{op->getResult(0)->getType()}, op->getOperands());
-      rewriter.replaceOp(op, callOp.getResults());
+      addCpuCall(op, rewriter);
     }
     return matchSuccess();
   }
@@ -113,90 +197,122 @@ private:
 
 class SplitCpuOpPass : public ModulePass<SplitCpuOpPass> {
 public:
-  explicit SplitCpuOpPass() {}
-
-  void runOnModule() override {
-    auto module = getModule();
-    auto *context = &getContext();
-    Builder builder(context);
-
-    std::vector<FuncOp> cpuFuncVec;
-    std::vector<Operation *> cpuOpVec;
-    std::vector<Operation *> origCpuOpVec;
-    std::vector<Operation *> replacedOpVec;
-    uint32_t index = 0;
-    bool hasCpuFunc = true;
-
-    for (FuncOp fn : module.getOps<FuncOp>()) {
-      fn.walk([&](Operation *op) {
-        if (isCpuOp(op)) {
-          auto newOp = op->cloneWithoutRegions();
-          cpuOpVec.push_back(newOp);
-          origCpuOpVec.push_back(op);
-          hasCpuFunc = false;
-        } else if (!hasCpuFunc){
-          createCpuFunc(builder, cpuOpVec, cpuFuncVec, index);
-          index++;
-          hasCpuFunc = true;
-          replacedOpVec.push_back(origCpuOpVec[0]);
-          cpuOpVec.clear();
-          origCpuOpVec.clear();
-        }
-      });
-    }
-    for (FuncOp fn : cpuFuncVec) {
-      module.push_back(fn);
-    }
-
-    // add callee attribute
-    for (unsigned int i = 0; i < cpuFuncVec.size(); i++) {
-      auto fn = cpuFuncVec[i];
-      StringRef fnSymbolName = SymbolTable::getSymbolAttrName();
-      auto fnName = fn.getAttr(fnSymbolName);
-      replacedOpVec[i]->setAttr("callee", fnName);
-    }
-  }
-
-  // Create a new cpu function directly through the copy cpu instructions.
-  // Deleted copied instuctions in add-cpu-call pass.
-  void createCpuFunc(Builder &builder, std::vector<Operation *> &cpuOpVec,
-                     std::vector<FuncOp> &cpuFuncVec, int index) {
-    auto firstOp = cpuOpVec[0];
-    auto lastOp = cpuOpVec[cpuOpVec.size() - 1];
-    auto cpuFuncName = std::string("cpu_func") + std::string("_") + std::to_string(index);
-
-    Value* resValue = lastOp->getResult(0);
-    auto resType = resValue->getType();
-    std::vector<mlir::Type> args;
-    for (auto input : firstOp->getOperands()) {
-      args.push_back(input->getType());
-    }
-    auto fnType = builder.getFunctionType(llvm::ArrayRef<mlir::Type>{args},
-                                           llvm::ArrayRef<mlir::Type>{resType});
-    auto cpuFn = FuncOp::create(builder.getUnknownLoc(), cpuFuncName, fnType);
-    auto block = cpuFn.addEntryBlock();
-
-    for (unsigned int i = 0; i < args.size(); i++) {
-      auto arg = block->getArgument(i);
-      firstOp->setOperand(i, arg);
-    }
-
-    for (auto op : cpuOpVec) {
-      block->push_back(op);
-    }
-    OpBuilder(block).create<ReturnOp>(builder.getUnknownLoc(),
-                                      llvm::ArrayRef<mlir::Value *>{resValue});
-    cpuFuncVec.push_back(cpuFn);
-  }
-
-  bool isCpuOp(Operation *op) {
-    if (isa<tpu::DetectionOutputOp>(op) ||
-        isa<tpu::SoftmaxOp>(op)) {
-      return true;
-    } else
-      return false;
-  }
+  explicit SplitCpuOpPass() : fnIndex(0){}
+  void runOnModule() override;
+  void createCpuFunc(std::vector<Operation *> &cpuOpVec,
+                     std::vector<FuncOp> &cpuFuncVec,
+                     std::vector<Operation *> &origCpuOpVec);
+  bool isCpuOp(Operation *op);
+  bool isMixedOp(Operation *op);
+  int fnIndex;
 };
+
+void SplitCpuOpPass::runOnModule() {
+  std::vector<FuncOp> cpuFuncVec;
+  std::vector<Operation *> cpuOpVec;
+  std::vector<Operation *> origCpuOpVec;
+  std::vector<Operation *> replacedOpVec;
+  bool hasCpuFunc = true;
+  auto module = getModule();
+  BlockAndValueMapping mapper;
+  for (FuncOp fn : module.getOps<FuncOp>()) {
+    fn.walk([&](Operation *op) {
+      if (isCpuOp(op) || ((!hasCpuFunc) && isMixedOp(op))) {
+        auto newOp = op->cloneWithoutRegions(mapper);
+        cpuOpVec.push_back(newOp);
+        origCpuOpVec.push_back(op);
+        hasCpuFunc = false;
+      } else if (!hasCpuFunc){
+        createCpuFunc(cpuOpVec, cpuFuncVec, origCpuOpVec);
+        hasCpuFunc = true;
+        replacedOpVec.push_back(origCpuOpVec[0]);
+        cpuOpVec.clear();
+        origCpuOpVec.clear();
+        fnIndex++;
+      }
+    });
+  }
+  for (FuncOp fn : cpuFuncVec) {
+    module.push_back(fn);
+  }
+}
+
+
+// Create a new cpu function directly through the copy cpu instructions.
+// Deleted copied instuctions in add-cpu-call pass.
+void SplitCpuOpPass::createCpuFunc(std::vector<Operation *> &cpuOpVec,
+                                   std::vector<FuncOp> &cpuFuncVec,
+                                   std::vector<Operation *> &origCpuOpVec) {
+  auto *context = &getContext();
+  Builder builder(context);
+
+  auto cpuFuncName = std::string("cpu_func") + std::string("_") + std::to_string(fnIndex);
+
+  std::vector<mlir::Type> argType;
+  std::vector<mlir::Type> resType;
+  std::vector<Value* > inputs;
+  std::vector<Value *> outputs;
+  collectInOutInfo(cpuOpVec, inputs, outputs);
+
+  for (auto input : inputs) {
+    argType.push_back(input->getType());
+  }
+
+  for (auto output : outputs) {
+    resType.push_back(output->getType());
+  }
+
+  auto fnType = builder.getFunctionType(llvm::ArrayRef<mlir::Type>{argType},
+                                        llvm::ArrayRef<mlir::Type>{resType});
+  auto cpuFn = FuncOp::create(builder.getUnknownLoc(), cpuFuncName, fnType);
+  auto block = cpuFn.addEntryBlock();
+
+  // replaced the use with input value
+  for (unsigned int i = 0; i < inputs.size(); i++) {
+    auto arg = block->getArgument(i);
+    for (auto cpuOp : cpuOpVec) {
+      for (unsigned int index = 0; index < cpuOp->getNumOperands(); index++) {
+        if (cpuOp->getOperand(index) == inputs[i]) {
+          cpuOp->setOperand(index, arg);
+        }
+      }
+    }
+  }
+
+  for (auto op : cpuOpVec) {
+    block->push_back(op);
+  }
+  OpBuilder(block).create<ReturnOp>(builder.getUnknownLoc(),
+                                    llvm::ArrayRef<mlir::Value *>{outputs});
+  cpuFuncVec.push_back(cpuFn);
+
+  // add callee and deleted attribute
+  for (unsigned int i = 0; i < origCpuOpVec.size(); i++) {
+    if (0 == i) {
+      StringRef fnSymbolName = SymbolTable::getSymbolAttrName();
+      auto fnName = cpuFn.getAttr(fnSymbolName);
+      origCpuOpVec[i]->setAttr("callee", fnName);
+    } else {
+      origCpuOpVec[i]->setAttr("deleted", builder.getBoolAttr(true));
+    }
+  }
+}
+
+bool SplitCpuOpPass::isCpuOp(Operation *op) {
+  if (isa<tpu::DetectionOutputOp>(op) ||
+      isa<tpu::SoftmaxOp>(op)) {
+    return true;
+  } else
+    return false;
+}
+
+bool SplitCpuOpPass::isMixedOp(Operation *op) {
+ if (isa<tpu::ReshapeOp>(op)) {
+    return true;
+  } else
+    return false;
+}
+
 
 } // namespace
 
@@ -205,7 +321,7 @@ std::unique_ptr<OpPassBase<ModuleOp>> mlir::createSplitCpuOpPass() {
 }
 
 static PassRegistration<SplitCpuOpPass>
-    pass_1("split-cpuop",
+    pass_1("split-cpu-op",
            "split cpu and tpu op");
 
 std::unique_ptr<OpPassBase<FuncOp>> mlir::createAddCpuCallPass() {
