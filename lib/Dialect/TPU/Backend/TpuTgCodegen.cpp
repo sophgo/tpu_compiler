@@ -1573,49 +1573,42 @@ LogicalResult tpu::TG_BF16_ShuffleChannelOp::codegen(void *ctx) {
 LogicalResult tpu::TG_INT8_SwapChannelOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName() << " [" << getOpName()
                << "]\n";
-// TODO(charle.hu)
-#if 0
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
-  std::vector<int64_t> shape;
-  int64_t input_size, n, c, h, w;
-  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
-  getNCHW(shape, n, c, h, w);
-  int frame_size = h * w;
-  uint32_t group = this->group().getLimitedValue();
+  std::vector<int64_t> input_shape = getTensorShape(input());
+  std::vector<int> input_shape_fix;
+    for (auto &dim : input_shape) {
+    input_shape_fix.push_back((int)dim);
+  }
 
   gaddr_t input_gaddr = getPreviousOpAddress(op);
   gaddr_t output_gaddr = getOpAddress(op);
   int layer_id = mlir::getOpLayerId(op);
   swap_channel_forward_kernel(*backend_ctx, 0, 0, layer_id, nullptr, 0,
-                                       input_gaddr, output_gaddr, n, c,
-                                       frame_size, group, FMT_I8);
-#endif
+                                       input_gaddr, output_gaddr,  (int)input_shape_fix.size(),
+                                       input_shape_fix.data(), FMT_I8);
   return success();
 }
 
 LogicalResult tpu::TG_BF16_SwapChannelOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName() << " [" << getOpName()
                << "]\n";
-#if 0
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
-  std::vector<int64_t> shape;
-  int64_t input_size, n, c, h, w;
-  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
-  getNCHW(shape, n, c, h, w);
-  int frame_size = h * w;
-  uint32_t group = this->group().getLimitedValue();
+  std::vector<int64_t> input_shape = getTensorShape(input());
+  std::vector<int> input_shape_fix;
+    for (auto &dim : input_shape) {
+    input_shape_fix.push_back((int)dim);
+  }
 
   gaddr_t input_gaddr = getPreviousOpAddress(op);
   gaddr_t output_gaddr = getOpAddress(op);
   int layer_id = mlir::getOpLayerId(op);
   swap_channel_forward_kernel(*backend_ctx, 0, 0, layer_id, nullptr, 0,
-                                       input_gaddr, output_gaddr, n, c,
-                                       frame_size, group, FMT_BF16);
-#endif
+                                       input_gaddr, output_gaddr,  (int)input_shape_fix.size(),
+                                       input_shape_fix.data(), FMT_BF16);
   return success();
 }
 

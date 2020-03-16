@@ -67,5 +67,55 @@ npz_compare.py \
     --excepts prob \
     --tolerance 0.95,0.94,0.69 -v
 
+# test 3: int8 cmdbuf
+npz_to_bin.py \
+    mobilenet_v2_preprocess_tensor_all_int8_multiplier.npz \
+    data \
+    mobilenet_v2_preprocess_in_int8.bin \
+    int8
+
+npz_to_bin.py mobilenet_v2_preprocess_in_fp32.npz data mobilenet_v2_preprocess_in_fp32.bin
+
+  mlir-opt \
+      --tpu-lower \
+      mobilenet_v2_preprocess_quant_int8_multiplier.mlir \
+      -o mobilenet_v2_preprocess_quant_int8_multiplier_tg.mlir
+
+# assign weight address & neuron address
+mlir-opt \
+    --assign-weight-address \
+    --tpu-weight-address-align=16 \
+    --tpu-weight-map-filename=mobilenet_v2_preprocess_weight_map_int8_multiplier.csv \
+    --tpu-weight-bin-filename=weight_int8_multiplier.bin \
+    --assign-neuron-address \
+    --tpu-neuron-address-align=16 \
+    --tpu-neuron-map-filename=mobilenet_v2_preprocess_neuron_map_int8_multiplier.csv \
+    mobilenet_v2_preprocess_quant_int8_multiplier_tg.mlir \
+    -o mobilenet_v2_preprocess_quant_int8_multiplier_addr.mlir
+
+mlir-translate \
+    --mlir-to-cmdbuf \
+    mobilenet_v2_preprocess_quant_int8_multiplier_addr.mlir \
+    -o cmdbuf_int8_multiplier.bin
+
+# generate cvimodel
+build_cvimodel.py \
+    --cmdbuf cmdbuf_int8_multiplier.bin \
+    --weight weight_int8_multiplier.bin \
+    --mlir mobilenet_v2_preprocess_quant_int8_multiplier_addr.mlir \
+    --output=mobilenet_v2_preprocess_int8_multiplier.cvimodel
+
+# run cvimodel
+model_runner \
+    --dump-all-tensors \
+    --input mobilenet_v2_preprocess_in_fp32.npz \
+    --model mobilenet_v2_preprocess_int8_multiplier.cvimodel \
+    --output mobilenet_v2_preprocess_cmdbuf_out_all_int8_multiplier.npz
+
+npz_compare.py \
+    mobilenet_v2_preprocess_cmdbuf_out_all_int8_multiplier.npz \
+    mobilenet_v2_preprocess_tensor_all_int8_multiplier.npz \
+    --op_info mobilenet_v2_preprocess_op_info_int8_multiplier.csv
+
 # VERDICT
 echo $0 PASSED
