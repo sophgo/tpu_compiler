@@ -253,7 +253,10 @@ struct TpuTL_LW_Conv2DOp_AssignLayoutPattern : public RewritePattern {
 
         return matchSuccess();
       } else {
-        assert(false);
+        //assert(false);
+        // start a new chain
+        op.setAttr("lm_layout", rewriter.getStringAttr("IWO"));
+        return matchSuccess();
       }
     }
 
@@ -407,20 +410,31 @@ struct TpuTL_EltwiseAddOp_AssignLayoutPattern : public RewritePattern {
 
         auto conv_op_next = llvm::dyn_cast_or_null<tpu::TL_LW_Conv2DOp>(conv_ops[next_op_idx]);
         auto conv_op_short = llvm::dyn_cast_or_null<tpu::TL_LW_Conv2DOp>(conv_ops[1 - next_op_idx]);
-        if (conv_op_next.lm_layout() == "IWO") {
-          op.setAttr("lm_layout", rewriter.getStringAttr("OWI"));
-        } else if (conv_op_next.lm_layout() ==  "OWI") {
-          op.setAttr("lm_layout", rewriter.getStringAttr("IWO"));
-        } else {
-          assert(0);
-        }
-        // steal the op
-        op.setAttr("tl_store_flag", rewriter.getBoolAttr(false));
-        conv_op_next.setAttr("tl_load_flag", rewriter.getBoolAttr(false));
-        conv_op_short.setAttr("lm_layout",
-            rewriter.getStringAttr(conv_op_next.lm_layout()));
-        conv_op_short.setAttr("tl_load_flag", rewriter.getBoolAttr(false));
+        // to steal this conv op only if the short path is conv
+        // and the next op to that conv is another eltwise
         // TODO: make sure the short path been walked first
+        // check next_op_idx for now
+        // TODO: figure our how to change walk order
+        // for time being, check if short_op_idx == 0 (i.e. next_op_idx == 1)
+        if (next_op_idx == 1
+            && conv_op_short.getResult()->hasOneUse()
+            && isa<tpu::TL_EltwiseAddOp>(getNextOp(conv_op_short.getOperation()))) {
+          if (conv_op_next.lm_layout() == "IWO") {
+            op.setAttr("lm_layout", rewriter.getStringAttr("OWI"));
+          } else if (conv_op_next.lm_layout() ==  "OWI") {
+            op.setAttr("lm_layout", rewriter.getStringAttr("IWO"));
+          } else {
+            assert(0);
+          }
+          // steal the op
+          op.setAttr("tl_store_flag", rewriter.getBoolAttr(false));
+          conv_op_next.setAttr("tl_load_flag", rewriter.getBoolAttr(false));
+          conv_op_short.setAttr("lm_layout",
+              rewriter.getStringAttr(conv_op_next.lm_layout()));
+          conv_op_short.setAttr("tl_load_flag", rewriter.getBoolAttr(false));
+        } else {
+          op.setAttr("lm_layout", rewriter.getStringAttr("IWO"));
+        }
       } else if (elta_ops.size() == 1 && conv_ops.size() == 1) {
         // one conv and one elt case
         auto conv_op = llvm::dyn_cast_or_null<tpu::TL_LW_Conv2DOp>(conv_ops[0]);
