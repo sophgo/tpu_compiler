@@ -1223,13 +1223,13 @@ LogicalResult tpu::PixelShuffleOp::interpret(
 
 
   int in, ic, ih, iw, on, oc, oh, ow;
-  assert(input_shape.size() == 6);
+
   int upscale_factor = this->upscale_factor().getLimitedValue();
-  assert(upscale_factor == input_shape[2]);
+
   in = input_shape[0];
-  ic = input_shape[1] * upscale_factor * upscale_factor;
-  ih = input_shape[4];
-  iw = input_shape[5];
+  ic = input_shape[1];
+  ih = input_shape[2];
+  iw = input_shape[3];
 
 
   on = output_shape[0];

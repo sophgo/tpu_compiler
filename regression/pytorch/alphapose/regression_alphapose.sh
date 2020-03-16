@@ -17,7 +17,7 @@ rm -f *.mlir *.bin *.npz *.csv
 $DIR/regression_alphapose_0_onnx.sh
 $DIR/regression_alphapose_1_fp32.sh
 $DIR/regression_alphapose_2_int8.sh
-
+$DIR/regression_alphapose_3_int8_cmdbuf.sh
 popd
 
 # VERDICT

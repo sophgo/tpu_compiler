@@ -103,7 +103,7 @@ def load_order(order_file):
 
 def dequantize(d1, threshold):
   # print("Apply dequantization with threshold {}".format(threshold))
-  d1 = d1 * threshold / 128.0
+  d1 = d1 * threshold / 127.0
   return d1
 
 def discard_res_data(args):
