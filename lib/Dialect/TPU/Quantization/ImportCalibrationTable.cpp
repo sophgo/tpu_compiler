@@ -98,8 +98,6 @@ struct BackwardOverwriteThresholdConcatPattern : public OpRewritePattern<tpu::Co
         setOpThreshold(formerOp, threshold_y);
       } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::ReluOp>(formerOp)) {
         setOpThreshold(formerOp, threshold_y);
-      }  else if (auto cast_op = llvm::dyn_cast_or_null<tpu::ShuffleChannelOp>(formerOp)) {
-        setOpThreshold(formerOp, threshold_y);
       }  else if (auto cast_op = llvm::dyn_cast_or_null<tpu::UpsampleOp>(formerOp)) {
         setOpThreshold(formerOp, threshold_y);
       } else {
@@ -164,14 +162,9 @@ struct BackendOverwriteThresholdDefaultPattern : public RewritePattern {
       setOpThreshold(formerOp, threshold_y);
     } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::PermuteOp>(formerOp)) {
       setOpThreshold(formerOp, threshold_y);
-    } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::ShuffleChannelOp>(formerOp)) {
-      setOpThreshold(formerOp, threshold_y);
     } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::PermuteOp>(formerOp)) {
       setOpThreshold(formerOp, threshold_y);
     } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::PReluOp>(formerOp)) {
-      setOpThreshold(formerOp, threshold_y);
-    } else if (auto cast_op =
-                   llvm::dyn_cast_or_null<tpu::ShuffleChannelOp>(formerOp)) {
       setOpThreshold(formerOp, threshold_y);
     } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::ScaleOp>(formerOp)) {
       setOpThreshold(formerOp, threshold_y);
@@ -402,24 +395,22 @@ public:
     fn.walk([&](Operation *op) {
       os << op->getName() << "\n";
 
-      if (op->getName().getDialect().str() != "tpu"
-          || isa<tpu::WeightFileOp>(op)
-          || isa<tpu::LoadWeightOp>(op)
-          || isa<tpu::NoneOp>(op)) {
+      if (op->getName().getDialect().str() != "tpu" ||
+          isa<tpu::WeightFileOp>(op) || isa<tpu::LoadWeightOp>(op) ||
+          isa<tpu::NoneOp>(op)) {
         // no need to assign
-      } else if (isa<tpu::ReshapeOp>(op)) {
+      } else if (isa<tpu::ReshapeOp>(op) || isa<tpu::SliceOp>(op) ||
+                 isa<tpu::ShuffleChannelOp>(op) ||
+                 isa<tpu::SwapChannelOp>(op)) {
         // do not assign
-      } else if (isa<tpu::SliceOp>(op)){
-        // do not assign
-      } else if ( !failed(setThresholdFromMap(op, threshold_map))) {
+      } else if (!failed(setThresholdFromMap(op, threshold_map))) {
         // success
-      } else if (isa<tpu::SoftmaxOp>(op)
-                 || isa<tpu::DetectionOutputOp>(op)
-                 || isa<tpu::RetinaFaceDetectionOp>(op)) {
+      } else if (isa<tpu::SoftmaxOp>(op) || isa<tpu::DetectionOutputOp>(op) ||
+                 isa<tpu::RetinaFaceDetectionOp>(op)) {
         // doesn't matter assigned or not
       } else {
-        llvm::errs() << "setThresholdFromMap didn't handle "
-                     << op->getName() << "\n";
+        llvm::errs() << "setThresholdFromMap didn't handle " << op->getName()
+                     << "\n";
         assert(false);
       }
     });
@@ -436,7 +427,9 @@ public:
     llvm::errs() << "Forword set bypass Ops threshold\n";
     patterns.clear();
     patterns.insert<
-        BypassThresholdDefaultPattern<tpu::SliceOp>
+        BypassThresholdDefaultPattern<tpu::SliceOp>,
+        BypassThresholdDefaultPattern<tpu::ShuffleChannelOp>,
+        BypassThresholdDefaultPattern<tpu::SwapChannelOp>
         >(context);
     applyPatternsGreedily(fn, patterns);
 

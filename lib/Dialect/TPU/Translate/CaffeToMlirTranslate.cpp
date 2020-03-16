@@ -134,9 +134,9 @@ private:
   void convertRetinaFaceDetectionLayer(mlir::Block *block, caffe::Layer<float> *layer);
 
   void doPreprocess(mlir::Block *block, mlir::Value *input);
-  void doPreChannelSwap(mlir::Block *block);
+  void doPreSwapChannel(mlir::Block *block, std::string name);
   void doPreScale(mlir::Block *block, std::string name, float scale);
-  void doPreMean(mlir::Block *block);
+  void doPreMean(mlir::Block *block, std::string name);
 
   mlir::ModuleOp module_;
   mlir::Builder builder_;
@@ -2328,12 +2328,12 @@ LogicalResult CaffeImporter::Import(const llvm::StringRef inputFilename,
 
 //=========================preprocess=======================================
 static llvm::cl::OptionCategory
-    clOptionsPreprocess("input  data preprocess options");
+    clOptionsPreprocess("input data preprocess options");
 
 static llvm::cl::opt<bool>
-    clChannelSwap("channel_swap",
-                  llvm::cl::desc("Specify whether swap RGB to BGR"),
-                  llvm::cl::cat(clOptionsPreprocess), llvm::cl::init(true));
+    clSwapChannel("swap_channel",
+                  llvm::cl::desc("Specify whether swap RGB <=> BGR"),
+                  llvm::cl::cat(clOptionsPreprocess), llvm::cl::init(false));
 
 static llvm::cl::opt<std::string> clMean("mean",
                                          llvm::cl::desc("Specify the mean"),
@@ -2349,10 +2349,23 @@ static llvm::cl::opt<float> clRawScale("raw_scale",
                                        llvm::cl::cat(clOptionsPreprocess),
                                        llvm::cl::init(1.0f));
 
-void CaffeImporter::doPreChannelSwap(mlir::Block *block) {
-  if (clChannelSwap.getValue() == false) {
+void CaffeImporter::doPreSwapChannel(mlir::Block *block, std::string name) {
+  if (clSwapChannel.getValue() == false) {
     return;
   }
+  llvm::ArrayRef<int64_t> input_shape =
+      lastResult_->getType().dyn_cast<mlir::TensorType>().getShape();
+  std::vector<Value *> operands;
+  operands.push_back(lastResult_);
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(name)));
+  attrs.push_back(
+      builder_.getNamedAttr("quant", getDefaultQuantParam(builder_)));
+  auto result_type = RankedTensorType::get(input_shape, elementType_);
+  auto op = OpBuilder(block).create<tpu::SwapChannelOp>(
+      builder_.getUnknownLoc(), result_type, ArrayRef<Value *>{operands},
+      ArrayRef<NamedAttribute>{attrs});
+  lastResult_ = op.getResult();
 }
 
 void CaffeImporter::doPreScale(mlir::Block *block, std::string name,
@@ -2376,13 +2389,15 @@ void CaffeImporter::doPreScale(mlir::Block *block, std::string name,
   auto result_type = RankedTensorType::get(input_shape, elementType_);
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(name)));
+  attrs.push_back(
+      builder_.getNamedAttr("quant", getDefaultQuantParam(builder_)));
   auto op = OpBuilder(block).create<tpu::ScaleOp>(
       builder_.getUnknownLoc(), result_type, ArrayRef<Value *>{operands},
       ArrayRef<NamedAttribute>{attrs});
   lastResult_ = op.getResult();
 }
 
-void CaffeImporter::doPreMean(mlir::Block *block) {
+void CaffeImporter::doPreMean(mlir::Block *block, std::string name) {
   if (clMean.empty()) {
     return;
   }
@@ -2401,24 +2416,23 @@ void CaffeImporter::doPreMean(mlir::Block *block) {
   sscanf(clMean.c_str(), "%f,%f,%f", &mean_value[0], &mean_value[1],
          &mean_value[2]);
   auto data_type = RankedTensorType::get({c}, elementType_);
-  GetWeightFile()->addTensor("pre_mean_0", mean_value, data_type);
-  operands.push_back(AddLoadWeightOp(block, "pre_mean_0", data_type));
+  GetWeightFile()->addTensor(name + "_0", mean_value, data_type);
+  operands.push_back(AddLoadWeightOp(block, name + "_0", data_type));
 
   // variance
   float variance_value[3] = {1.0f, 1.0f, 1.0f};
-  GetWeightFile()->addTensor("pre_mean_1", variance_value, data_type);
-  operands.push_back(AddLoadWeightOp(block, "pre_mean_1", data_type));
+  GetWeightFile()->addTensor(name + "_1", variance_value, data_type);
+  operands.push_back(AddLoadWeightOp(block, name + "_1", data_type));
 
   // scale
   float scale_value[1] = {1.0f};
   auto scale_type = RankedTensorType::get({1}, elementType_);
-  GetWeightFile()->addTensor("pre_mean_2", scale_value, scale_type);
-  operands.push_back(AddLoadWeightOp(block, "pre_mean_2", scale_type));
+  GetWeightFile()->addTensor(name + "_2", scale_value, scale_type);
+  operands.push_back(AddLoadWeightOp(block, name + "_2", scale_type));
 
   auto result_type = RankedTensorType::get(input_shape, elementType_);
   std::vector<NamedAttribute> attrs;
-  attrs.push_back(
-      builder_.getNamedAttr("name", builder_.getStringAttr("pre_mean")));
+  attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(name)));
   attrs.push_back(builder_.getNamedAttr("variance_epsilon",
                                         builder_.getF32FloatAttr(0.0f)));
   auto op = OpBuilder(block).create<tpu::BatchNormOp>(
@@ -2429,13 +2443,15 @@ void CaffeImporter::doPreMean(mlir::Block *block) {
 
 void CaffeImporter::doPreprocess(mlir::Block *block, mlir::Value *input) {
   lastResult_ = input;
-  doPreChannelSwap(block);
+  doPreSwapChannel(block, "pre_swap_channel");
   doPreScale(block, "pre_raw_scale", clRawScale.getValue());
-  doPreMean(block);
+  doPreMean(block, "pre_mean");
   doPreScale(block, "pre_scale", clScale.getValue());
   auto inputOp = llvm::cast<tpu::InputOp>(input->getDefiningOp());
   tensor_map_[inputOp.name()] = lastResult_;
 }
+
+// ====================translate=======================================
 
 // Translate CaffeModel and returns a module in TPU Dialect.
 static OwningModuleRef caffeToMlirTranslate(llvm::SourceMgr &sourceMgr,

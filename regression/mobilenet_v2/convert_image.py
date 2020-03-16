@@ -19,7 +19,7 @@ if __name__ == '__main__':
     parser.add_argument('--image_hw', type=int, default=224)
     parser.add_argument('--save', type=str)
     args = parser.parse_args()
-    image = cv2.imread(args.image)
+    image = cv2.imread(args.image) #BGR
     image = image.astype(np.float32)
     #[0,255] => [0,1]
     image = image / 255.0
@@ -27,7 +27,7 @@ if __name__ == '__main__':
     x = center_crop(x, (args.image_hw, args.image_hw))
     #HWC => CHW
     x = np.transpose(x, (2,0,1))
-    #x = x[[2,1,0],:,:] #BGR => RGB
+    x = x[[2,1,0],:,:] #BGR => RGB
     x = np.expand_dims(x, axis=0)
     np.savez(args.save, data=x)
     np.save(args.save, x)
