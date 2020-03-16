@@ -123,12 +123,13 @@ class KLD_Calibrator(object):
 
         return thresholds
 
-    @staticmethod
-    def dump_threshold_table(threshold_table, thresholds):
+
+    def dump_threshold_table(self, threshold_table, thresholds):
+        op_layer = self.module.op_info
         with open(threshold_table, 'w') as outfile:
-            for layer in thresholds:
-                line = layer
-                for num in thresholds[layer]:
+            for op_dict in op_layer:
+                line = op_dict['name']
+                for num in thresholds[op_dict['name']]:
                     line += ' ' + str(num)
                 outfile.write(line)
                 outfile.write('\n')
