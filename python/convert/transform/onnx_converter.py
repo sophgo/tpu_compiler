@@ -568,6 +568,11 @@ class OnnxConverter(BaseConverterInterface):
             # FIXME: no batch support now, we set n is 1
             output_shape[0] = 1 if output_shape[0] == -1 else output_shape[0]
             output_shape = [int(x) for x in output_shape]
+            if len(output_shape) ==6:
+                # Pixel Shuffle
+                self.addOperand(onnx_node.name, op1, output_shape, TensorType.FLOAT)
+                return
+
             if output_shape == input_shape1:
                 # same shape, fuse this op
                 self.addOperand(onnx_node.name, op1, output_shape, TensorType.FLOAT)
