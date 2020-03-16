@@ -2018,6 +2018,40 @@ LogicalResult tpu::SoftmaxOp::interpret(
   return success();
 }
 
+LogicalResult tpu::SwapChannelOp::interpret(
+    DenseMap<Value *, std::shared_ptr<std::vector<float>>> &valueMapping) {
+
+  Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name()
+                          << "]\n";);
+
+  auto opdT = getOperandTensors(op, valueMapping);
+  auto result = this->getResult();
+  auto size = getTensorSize(result);
+  auto resultT = std::make_unique<std::vector<float>>(size);
+  std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
+  assert(shape.size() == 4);
+
+  std::vector<int64_t> input_shape, output_shape;
+  int64_t input_size, output_size;
+  getTensorShapeAndSize(this->input(), input_shape, input_size);
+  getTensorShapeAndSize(this->output(), output_shape, output_size);
+
+  assert((input_shape == output_shape) &&
+         "input shape not equal to output shape");
+  assert((input_shape.size() == 4) &&
+         "SwapChannel support shape size  must == 4");
+
+  float *input = (float *)opdT[0]->data();
+  float *output = (float *)resultT.get()->data();
+  int ret = my_swap_channel(input, output, input_shape[0], input_shape[1],
+                            input_shape[2], input_shape[3]);
+  assert(ret == 0);
+  valueMapping[result] = std::move(resultT);
+
+  return success();
+}
+
 LogicalResult tpu::TanHOp::interpret(
     DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
   //Operation *op = this->getOperation();

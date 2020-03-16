@@ -459,6 +459,7 @@ public:
         TpuInsertQuantOpPattern<tpu::SoftmaxOp>,
         TpuInsertQuantOpPattern<tpu::SigmoidOp>,
         TpuInsertQuantOpPattern<tpu::SqrtOp>,
+        TpuInsertQuantOpPattern<tpu::SwapChannelOp>,
         TpuInsertQuantOpPattern<tpu::TanHOp>,
         TpuInsertQuantOpPattern<tpu::UpsampleOp>
     >(context);

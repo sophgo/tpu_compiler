@@ -1362,6 +1362,51 @@ def TPU_SoftmaxOp: TPU_Op<"softmax",
 
 def TPU_SqrtOp : TPU_LutOp<"sqrt", "Sqrt">;
 
+def TPU_SwapChannelOp: TPU_Op<"swap_channel",
+    [NoSideEffect,
+     DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+     DeclareOpInterfaceMethods<TpuOpInterpInterface>,
+     DeclareOpInterfaceMethods<TpuOpQuantInterface>,
+     DeclareOpInterfaceMethods<TpuOpLowerInterface>]>  {
+
+  let summary = "swap channel operator, normally RGB <=> BGR";
+
+  let description = [{
+    Swap Channel on input.
+
+    Inputs:
+      `input`           : required, the input activation tensor.
+
+    Attributes:
+      `quant`           : required, a QuantParam struct attributes.
+      `name`            : required, name for calibration, comparing, or debug.
+      `layer_id`        : optional, id for profiling.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TPU_QuantPerTensorOnly`
+      `TPU_QuantSupportAsymmetric`
+      `TPU_QuantSameInputResultScale` : input and result share same threshold
+                                        or scale (bypassed).
+      `TpuOpCommonInterface` : support common TPU Op interface
+      `TpuOpInterpInterface` : support interperter
+      `TpuOpQuantInterface`  : support quantization
+      `TpuOpLowerInterface`  : support lower to TPU TG Ops
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    TPU_QuantParamAttr:$quant,
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
 def TPU_TanHOp: TPU_Op<"tanh",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpInterpInterface>,

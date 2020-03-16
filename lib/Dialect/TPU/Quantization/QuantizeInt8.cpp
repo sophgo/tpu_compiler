@@ -901,6 +901,8 @@ LogicalResult tpu::SqrtOp::quantizeInt8() {
   return quantizeInt8LutOps<tpu::SqrtOp>(op);
 }
 
+DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::SwapChannelOp)
+
 LogicalResult tpu::TanHOp::quantizeInt8() {
   llvm::errs() << "quantizeInt8: " << getOperationName()
                << " [" << getOpName() << "]\n";

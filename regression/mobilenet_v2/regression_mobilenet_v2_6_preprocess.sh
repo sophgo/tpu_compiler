@@ -8,6 +8,7 @@ source $DIR/../../envsetup.sh
 mlir-translate \
     --caffe-to-mlir $MODEL_PATH/imagenet/mobilenet_v2/caffe/mobilenet_v2_deploy.prototxt \
     --caffemodel $MODEL_PATH/imagenet/mobilenet_v2/caffe/mobilenet_v2.caffemodel \
+    --swap_channel\
     --raw_scale 255.0 \
     --mean 103.94,116.78,123.68 \
     --scale 0.017 \
