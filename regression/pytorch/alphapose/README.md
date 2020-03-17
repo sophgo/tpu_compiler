@@ -76,6 +76,7 @@ get a onnx model
 
 However, use python2 to run convert.py (convert to mlir) for now
 
+
 # How to do calibration
 
 1. Put all human detect npz files to one folder(e.x. data)
@@ -84,5 +85,23 @@ However, use python2 to run convert.py (convert to mlir) for now
 
 python run_calibration.py --model_name=alpha_pose alphapose_opt.mlir input.txt  --input_num=20
 
+# Accuracy test
+
+## Fp32 interpreter : 
+
+yolov3 Threshold( obj: 0.6   nms: 0.5)
+
+AP:     0.453441971932   AR:     0.474921284635  
+AP .5:  0.55889326999    AR .5:  0.563916876574  
+AP .75: 0.55889326999    AR .75: 0.563916876574  
+AP (M): 0.271903262457   AR (M): 0.270527178367  
+AP (L): 0.270527178367   AR (L): 0.757673727239  
+
+yolov3 Threshold( obj: 0.2   nms: 0.5)
+AP:     0.468696428951   AR:     0.498740554156  
+AP .5:  0.589867610808   AR .5:   0.603431989924  
+AP .75: 0.589867610808   AR .75:  0.603431989924  
+AP (M): 0.302125147012   AR (M): 0.30128380224  
+AP (L): 0.30128380224    AR (L): 0.771720549981  
 
 
