@@ -80,18 +80,11 @@ def yolov3_detect(module, image, net_input_dims, obj_threshold, nms_threshold):
     predictions = batched_predictions[0]
     return predictions
 
-def alphapose_detect(module, image ,yolov3_model,pose_model,net_input_dims,pose_net_input_dims,
+def alphapose_detect(yolo_module,pose_module, image,net_input_dims,pose_net_input_dims,
                   obj_threshold, nms_threshold,result_image):
 
-    print('load module ', yolov3_model)
-    module.load(yolov3_model)
-    print('load module done')
 
-    module_pose = pymlir.module()
-    # print('load module ', args.yolov3_model)
-    module_pose.load(pose_model)
-
-    predictions = yolov3_detect(module, image, net_input_dims,
+    predictions = yolov3_detect(yolo_module, image, net_input_dims,
                                 obj_threshold, nms_threshold)
 
     human_preds = []
@@ -101,9 +94,8 @@ def alphapose_detect(module, image ,yolov3_model,pose_model,net_input_dims,pose_
         if preds[2] == 0:
             human_preds.append(preds)
 
-
     for idx in range(len(human_preds)):
-        pose_pred = fastpose_detect_one(module_pose, image, human_preds[idx], pose_net_input_dims)
+        pose_pred = fastpose_detect_one(pose_module, image, human_preds[idx], pose_net_input_dims)
         image = draw_pose(image, pose_pred)
 
     cv2.imshow('AlphaPose result', image)
@@ -128,7 +120,6 @@ def fastpose_detect(module, bgr_img, yolo_preds,pose_net_input_dims):
 
     for yolo_pred in yolo_preds:
         bbox = yolo_pred[0]
-        print(bbox)
         x, align_bbox= pose_preprocess(bgr_img, bbox, pose_net_input_dims[0], pose_net_input_dims[1])
         x = np.expand_dims(x, axis=0)
         res = module.run(x)
@@ -152,6 +143,7 @@ def fastpose_detect_one(module, bgr_img, yolo_pred,pose_net_input_dims):
     bbox = yolo_pred[0]
     # print(bbox)
     x, align_bbox= pose_preprocess(bgr_img, bbox, pose_net_input_dims[0], pose_net_input_dims[1])
+    # print(align_bbox)
     x = np.expand_dims(x, axis=0)
     res = module.run(x)
     data = module.get_all_tensor()
@@ -192,7 +184,7 @@ def clip_box(box, image_shape):
     bh = ymax - ymin
     return np.array([bx, by, bw, bh])
 
-def eval_detector(module, yolov3_model,pose_model, result_json_file, dataset_path, net_input_dims,pose_net_input_dims,
+def eval_detector(yolo_module, pose_module, result_json_file, dataset_path, net_input_dims,pose_net_input_dims,
                   obj_threshold, nms_threshold, count=-1):
     coco_ids= [ 1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 13, 14, 15, 16, 17,
                18, 19, 20, 21, 22, 23, 24, 25, 27, 28, 31, 32, 33, 34, 35, 36,
@@ -202,74 +194,60 @@ def eval_detector(module, yolov3_model,pose_model, result_json_file, dataset_pat
 
     jdict = []
     image_list = os.listdir(dataset_path)
-    i=0
-    print('load module ', yolov3_model)
-    module.load(yolov3_model)
-    print('load module done')
+    counter=0
 
-    module_pose = pymlir.module()
-    # print('load module ', args.yolov3_model)
-    module_pose.load(pose_model)
-
-    with tqdm(total= count if count > 0 else len(image_list)) as pbar:
+    with tqdm(total=count if count > 0 else len(image_list)) as pbar:
         for image_name in image_list:
             image_path = os.path.join(dataset_path, image_name)
-            print(image_path)
+
+            # print(image_path)
             if (not os.path.exists(image_path)):
                 print("image not exit,", image_path)
                 exit(-1)
             image_id = get_image_id_in_path(image_path)
             image = cv2.imread(image_path)
-            predictions = yolov3_detect(module, image, net_input_dims,
+            predictions = yolov3_detect(yolo_module, image, net_input_dims,
                                         obj_threshold, nms_threshold)
-            # print(predictions)
-            # human_preds = keep_human_bbox(predictions)
-
+ 
             human_preds = []
             for i in range(len(predictions)):
                 preds = predictions[i]
                 if preds[2] == 0:
                     human_preds.append(preds)
-
-            # return human_preds  
-
-            # print('load module ', pose_model)
-            # module.load(pose_model)
-            # print('load module done')
-            #print(human_preds)
             for idx in range(len(human_preds)):
-                pose_pred = fastpose_detect_one(module_pose, image, human_preds[idx], pose_net_input_dims)
+                pose_pred = fastpose_detect_one(pose_module, image, human_preds[idx], pose_net_input_dims)
                 for human in pose_pred:
                     kp_preds = human['keypoints']
-                    kp_scores = human['kp_score']
-                    kp_preds = np.concatenate((kp_preds, np.expand_dims((kp_preds[5, :] + kp_preds[6, :]) / 2, axis=0)), axis=0)
-                    kp_scores = np.concatenate((kp_scores, np.expand_dims((kp_scores[5, :] + kp_scores[6, :]) / 2, axis=0)), axis=0)
                     # print(kp_preds)
-                    print(kp_scores)
-                    keypoints = kp_preds.reshape(-1).tolist()
-                    # keypoints_score = kp_scores.reshape(-1).tolist()
-                    # float( np.mean(kp_scores) + np.max(kp_scores))
-                    clipped_box = clip_box(human_preds[idx][0], image.shape)
-                    x, y, w, h = clipped_box
+                    kp_scores = human['kp_score']
+                    keypoints = np.concatenate((kp_preds, kp_scores), axis=1)
 
+                    keypoints = keypoints.reshape(-1).tolist()
+                    #nothing to do ,  just call to get align_bbox
+                    x_, align_bbox= pose_preprocess(image, human_preds[idx][0], pose_net_input_dims[0], pose_net_input_dims[1])
+
+                    clipped_box = clip_box(human_preds[idx][0], image.shape)
+                    x, y, w, h = align_bbox
+
+                    # print(np.mean(kp_scores) + np.max(kp_scores))
+                    #Not sure if human_detect score should be added. 
+                    # human_detect_score = human_preds[idx][1]  
                     jdict.append({
-                        "image_id": image_id,
-                        "category_id": 1,
                         "bbox": [x, y, w, h],
                         "image_id": image_id,
                         "score":float(np.mean(kp_scores) + np.max(kp_scores)),
+                        "category_id": 1,                    
                         "keypoints":keypoints
-                })
-            
-            i += 1
-            if (i == count):
+                    })
+
+            counter += 1
+            if (counter == count):
                 break
             pbar.update(1)
 
     if os.path.exists(result_json_file):
         os.remove(result_json_file)
     with open(result_json_file, 'w') as file:
-        #json.dump(jdict, file, indent=4)
         json.dump(jdict, file)
 
 def get_img_id(file_name):
@@ -316,7 +294,7 @@ def evaluate_mAP(annotations, res_file, ann_type='bbox', ann_file='person_keypoi
     if silence:
         sys.stdout = oldstdout  # enable output
 
-    stats_names = ['AP', 'Ap .5', 'AP .75', 'AP (M)', 'AP (L)',
+    stats_names = ['AP', 'AP .5', 'AP .75', 'AP (M)', 'AP (L)',
                    'AR', 'AR .5', 'AR .75', 'AR (M)', 'AR (L)']
     info_str = {}
     for ind, name in enumerate(stats_names):
@@ -324,36 +302,12 @@ def evaluate_mAP(annotations, res_file, ann_type='bbox', ann_file='person_keypoi
 
     return info_str    
 
-
-
-def cal_coco_result(annotations_file, result_json_file):
-    # https://github.com/muyiguangda/tensorflow-keras-yolov3/blob/master/pycocoEval.py
-    if not os.path.exists(result_json_file):
-        print("result file not exist,", result_json_file)
-        exit(-1)
-    if not os.path.exists(annotations_file):
-        print("annotations_file file not exist,", annotations_file)
-        exit(-1)
-
-    annType = ['segm', 'bbox', 'keypoints']
-    annType = annType[1]
-    cocoGt = COCO(annotations_file)
-    imgIds = get_img_id(result_json_file)
-    print (len(imgIds))
-    cocoDt = cocoGt.loadRes(result_json_file)
-    imgIds = sorted(imgIds)
-    imgIds = imgIds[0:5000]
-    cocoEval = COCOeval(cocoGt, cocoDt, annType)
-    cocoEval.params.imgIds = imgIds
-    cocoEval.evaluate()
-    cocoEval.accumulate()
-    cocoEval.summarize()
-
 def main(argv):
     args = parse_args()
 
     if (args.pre_result_json) :
-        cal_coco_result(args.annotations, args.pre_result_json)
+        detbox_AP = evaluate_mAP(args.annotations,args.pre_result_json, ann_type='keypoints')
+        print('##### det box: {} mAP #####'.format(detbox_AP['AP']))
         return
 
     # Make Detector
@@ -366,25 +320,38 @@ def main(argv):
     print("obj_threshold", obj_threshold)
     print("nms_threshold", nms_threshold)
 
-    module = pymlir.module()
+    yolo_module = pymlir.module()
     print('load module ', args.yolov3_model)
-    module.load(args.yolov3_model)
+    yolo_module.load(args.yolov3_model)
     print('load module done')
+
+
+    pose_module = pymlir.module()
+    print('load module ', args.pose_model)    
+    pose_module.load(args.pose_model)
+    print('load module done')
+
 
     # Load image
     if (args.input_file != '') :
         image = cv2.imread(args.input_file)
-        alphapose_detect(module, image,args.yolov3_model,args.pose_model,net_input_dims,pose_net_input_dims,
+        alphapose_detect(yolo_module,pose_module, image,net_input_dims,pose_net_input_dims,
                   obj_threshold, nms_threshold,args.draw_image)
         return
 
     # eval
     result_json_file = args.result_json
-    eval_detector(module, args.yolov3_model,args.pose_model, result_json_file, args.dataset, net_input_dims,pose_net_input_dims,
+    eval_detector(yolo_module,pose_module, result_json_file, args.dataset, net_input_dims,pose_net_input_dims,
                   obj_threshold, nms_threshold, count=args.count)
-    # cal_coco_result(args.annotations, result_json_file)
+
     detbox_AP = evaluate_mAP(args.annotations,result_json_file, ann_type='keypoints')
-    print('##### det box: {} mAP #####'.format(detbox_AP))
+    # print('##### det box: {} mAP #####'.format(detbox_AP))
+    print('AP:     {}   AR:     {}'.format(detbox_AP['AP'],detbox_AP['AR']))
+    print('AP .5:  {}   AR .5:   {}'.format(detbox_AP['AP .5'],detbox_AP['AR .5']))
+    print('AP .75: {}   AR .75:  {}'.format(detbox_AP['AP .5'],detbox_AP['AR .5']))
+    print('AP (M): {}   AR (M): {}'.format(detbox_AP['AP (M)'],detbox_AP['AR (M)']))
+    print('AP (L): {}  AR (L): {}'.format(detbox_AP['AR (M)'],detbox_AP['AR (L)']))
+
 
 if __name__ == '__main__':
     main(sys.argv)
