@@ -10,6 +10,7 @@ CHECK_NON_OPT_VERSION=0
 mlir-translate \
     --caffe-to-mlir $MODEL_DEF \
     --caffemodel $MODEL_DAT \
+    --static-batchsize $DO_BATCHSIZE \
     -o ${NET}.mlir
 
 if [ $CHECK_NON_OPT_VERSION -eq 1 ]; then

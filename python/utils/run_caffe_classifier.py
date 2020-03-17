@@ -28,11 +28,13 @@ class My_Classifier(caffe.Net):
     """
     def __init__(self, model_file, pretrained_file,
                  image_dims=None, mean=None, input_scale=None, raw_scale=None,
-                 channel_swap=None):
+                 channel_swap=None, batch_size=1):
         caffe.Net.__init__(self, model_file, caffe.TEST, weights=pretrained_file)
 
         # configure pre-processing
         in_ = self.inputs[0]
+
+        self.blobs[in_].reshape(batch_size, self.blobs[in_].data.shape[1], self.blobs[in_].data.shape[2], self.blobs[in_].data.shape[3])
         self.transformer = caffe.io.Transformer(
             {in_: self.blobs[in_].data.shape})
         self.transformer.set_transpose(in_, (2, 0, 1))
@@ -226,6 +228,11 @@ def main(argv):
         help="Dump all weights into a file in npz format"
     )
     parser.add_argument(
+        "--batch_size",
+        type=int, default=1,
+        help="Set batch size"
+    )
+    parser.add_argument(
         "--force_input",
         help="Force the input blob data, in npy format"
     )
@@ -248,13 +255,16 @@ def main(argv):
     classifier = My_Classifier(args.model_def, args.pretrained_model,
             image_dims=image_resize_dims, mean=mean,
             input_scale=args.input_scale, raw_scale=args.raw_scale,
-            channel_swap=channel_swap)
+            channel_swap=channel_swap, batch_size=args.batch_size)
 
     # Load image file.
     args.input_file = os.path.expanduser(args.input_file)
     print("Loading file: %s" % args.input_file)
-    inputs = [caffe.io.load_image(args.input_file)]
 
+    input_x = [caffe.io.load_image(args.input_file)]
+    inputs = input_x
+    for i in range(1, args.batch_size):
+      inputs = np.append(inputs, input_x, axis=0)
     # Classify.
     start = time.time()
     predictions = classifier.predict(inputs,
@@ -267,17 +277,19 @@ def main(argv):
     np.save(args.output_file, predictions)
 
     # Print
-    print predictions.argmax()
-    if args.label_file:
-        labels = np.loadtxt(args.label_file, str, delimiter='\t')
-        top_k = predictions.flatten().argsort()[-1:-6:-1]
-        print labels[top_k]
-        print top_k
-        prob = np.squeeze(predictions.flatten())
-        idx = np.argsort(-prob)
-        for i in range(5):
-            label = idx[i]
-            print('%d - %.2f - %s' % (idx[i], prob[label], labels[label]))
+    for ix, in_ in enumerate(inputs):
+      print ("batch : ", ix)
+      print predictions[ix].argmax()
+      if args.label_file:
+         labels = np.loadtxt(args.label_file, str, delimiter='\t')
+         top_k = predictions[ix].flatten().argsort()[-1:-6:-1]
+         print labels[top_k]
+         print top_k
+         prob = np.squeeze(predictions[ix].flatten())
+         idx = np.argsort(-prob)
+         for i in range(5):
+             label = idx[i]
+             print('%d - %.2f - %s' % (idx[i], prob[label], labels[label]))
 
 if __name__ == '__main__':
     main(sys.argv)
