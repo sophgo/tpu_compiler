@@ -4,12 +4,6 @@ set -e
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 source $DIR/../../../envsetup.sh
 
-# create int8 input
-npz_to_bin.py \
-    resnet18_tensor_all_int8.npz \
-    input \
-    resnet18_in_int8.bin \
-    int8
 
 #  Lower for quantization
 mlir-opt \
@@ -47,12 +41,7 @@ model_runner \
     --dump-all-tensors \
     --input resnet18_in_fp32.npz \
     --model resnet18_int8_multiplier.cvimodel \
-    --output resnet18_cmdbuf_out_all_int8_multiplier.bin
-
-bin_to_npz.py \
-    resnet18_cmdbuf_out_all_int8_multiplier.bin \
-    neuron_map.csv \
-    resnet18_cmdbuf_out_all_int8_multiplier.npz
+    --output resnet18_cmdbuf_out_all_int8_multiplier.npz
 
 # compare all tensors
 npz_compare.py \

@@ -18,6 +18,7 @@ $DIR/regression_resnet18_0_onnx.sh
 $DIR/regression_resnet18_1_fp32.sh
 $DIR/regression_resnet18_2_int8.sh
 $DIR/regression_resnet18_3_int8_cmdbuf.sh
+
 popd
 
 # VERDICT

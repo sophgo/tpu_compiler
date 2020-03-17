@@ -31,7 +31,7 @@ npz_compare.py \
     --op_info efficientnet_b0_op_info_int8_multiplier.csv \
     --dequant \
     --save efficientnet_b0_stat.csv \
-    --tolerance=0.7,0.3,0.2 -vv
+    --tolerance=0.7,0.3,0 -vv
 
 # VERDICT
 echo $0 PASSED

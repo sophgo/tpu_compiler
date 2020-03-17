@@ -17,7 +17,7 @@ rm -f *.mlir *.bin *.npz *.csv
 $DIR/regression_efficientnet_b0_0_onnx.sh
 $DIR/regression_efficientnet_b0_1_fp32.sh
 $DIR/regression_efficientnet_b0_2_int8.sh
-# $DIR/regression_efficientnet_b0_3_int8_cmdbuf.sh
+$DIR/regression_efficientnet_b0_3_int8_cmdbuf.sh
 popd
 
 # VERDICT
