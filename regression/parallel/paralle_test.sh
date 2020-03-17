@@ -4,6 +4,8 @@
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
+export GLOG_minloglevel=0
+
 if [ ! -e regression_out ]; then
   mkdir regression_out
 fi
