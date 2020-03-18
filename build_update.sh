@@ -31,7 +31,8 @@ cp lib/pybind.so $TPU_PYTHON_PATH
 popd
 cp $MLIR_SRC_PATH/bindings/python/tools/*.py $TPU_PYTHON_PATH/
 # python utils
-cp -a $MLIR_SRC_PATH/python/utils/* $TPU_PYTHON_PATH/
+cp -ar $MLIR_SRC_PATH/python/utils/* $TPU_PYTHON_PATH/
+cp -ar $MLIR_SRC_PATH/python/convert/* $TPU_PYTHON_PATH/
 pushd $TPU_PYTHON_PATH/model/retinaface; make; popd
 # calibration tool
 pushd $BUILD_PATH/build_calibration

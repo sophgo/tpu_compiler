@@ -9,15 +9,17 @@ if [ ! -e $NET ]; then
 fi
 
 if [ -z "$2" ]; then
- DO_BATCHSIZE=1
+  DO_BATCHSIZE=1
+else
+  DO_BATCHSIZE=$2
 fi
-export NET=$NET
 export DO_BATCHSIZE=$DO_BATCHSIZE
+export NET=$NET
 source $DIR/generic_models.sh
 
 pushd $NET
 # clear previous output
-rm -f *.mlir *.bin *.npz *.csv *.cvimodel *.npy
+# rm -f *.mlir *.bin *.npz *.csv *.cvimodel *.npy
 
 # run tests
 $DIR/regression_0_caffe.sh

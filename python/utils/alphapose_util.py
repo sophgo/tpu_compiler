@@ -90,7 +90,7 @@ def preprocess(bgr_img, bbox, pose_h=256, pose_w=192):
     y = bbox[1]
     w = bbox[2]
     h = bbox[3]
-    
+
     _aspect_ratio = float(pose_w) / pose_h  # w / h
 
     # TODO - test without roi align, crop directly
@@ -187,7 +187,7 @@ def postprocess(pose_preds, align_bbox_list, yolo_preds):
         pose_coord, pose_score = heatmap_to_coord_simple(pred[eval_joints], bbox)
         pose_coords.append(np.expand_dims(pose_coord, axis=0))
         pose_scores.append(np.expand_dims(pose_score, axis=0))
-    
+
     if len(pose_scores) == 0:
         return []
 
@@ -253,6 +253,6 @@ def draw(bgr_img, pred):
                 # cv2.line(bg, start_xy, end_xy, line_color[i], (2 * (kp_scores[start_p] + kp_scores[end_p])) + 1)
                 transparency = max(0, min(1, 0.5 * (kp_scores[start_p] + kp_scores[end_p])))
                 img = cv2.addWeighted(bg, transparency, img, 1 - transparency, 0)
-    
+
     img = cv2.resize(img, (width, height), interpolation=cv2.INTER_CUBIC)
     return img

@@ -80,7 +80,7 @@ cvi_profiling --cmdbuf cmdbuf_lw.bin
 #bin_compare.py \
 #    out_${OUTPUTS}_la.bin \
 #    $REGRESSION_PATH/${NET}/data/test_cat_out_${NET}_${OUTPUTS}_int8_multiplier.bin \
-#    int8 1 1 1 1000 5
+#    int8 ${BATCH_SIZE} 1 1 1000 5
 
 #$RUNTIME_PATH/bin/test_bmnet \
 #    ${NET}_in_fp32.bin \
@@ -95,25 +95,27 @@ cvi_profiling --cmdbuf cmdbuf_lw.bin
 #bin_compare.py \
 #    out_${OUTPUTS}_lw.bin \
 #    $REGRESSION_PATH/${NET}/data/test_cat_out_${NET}_${OUTPUTS}_int8_multiplier.bin \
-#    int8 1 1 1 1000 5
+#    int8 ${BATCH_SIZE} 1 1 1000 5
 
 model_runner \
     --dump-all-tensors \
     --input ${NET}_in_fp32.npz \
     --model ${NET}_int8_la.cvimodel \
+    --batch-num $BATCH_SIZE \
     --output ${NET}_cmdbuf_out_all_int8_la.npz
 
 model_runner \
     --dump-all-tensors \
     --input ${NET}_in_fp32.npz \
     --model ${NET}_int8_lw.cvimodel \
+    --batch-num $BATCH_SIZE \
     --output ${NET}_cmdbuf_out_all_int8_lw.npz
 
 if [ $COMPARE_ALL -eq 1 ]; then
   npz_compare.py \
       ${NET}_cmdbuf_out_all_int8_la.npz \
       ${NET}_tensor_all_int8_multiplier.npz \
-      --op_info ${NET}_op_info_int8_multiplier.csv
+      --op_info ${NET}_op_info_int8_multiplier.csv || true
 
   # surpress return for time being
   npz_compare.py \

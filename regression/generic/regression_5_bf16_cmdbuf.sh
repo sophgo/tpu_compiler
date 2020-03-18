@@ -47,7 +47,7 @@ model_runner \
     --dump-all-tensors \
     --input ${NET}_in_fp32.npz \
     --model ${NET}_bf16.cvimodel \
-    --batch-num $DO_BATCHSIZE \
+    --batch-num $BATCH_SIZE \
     --output ${NET}_cmdbuf_out_all_bf16.npz
 
 # compare all tensors

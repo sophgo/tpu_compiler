@@ -22,7 +22,7 @@ def parse_args():
     parser.add_argument('--pose_model', type=str, default='',
                         help="MLIR Open Pose Model file")
     parser.add_argument('--yolov3_model', type=str, default='',
-                        help="MLIR Yolov3 Model file")                        
+                        help="MLIR Yolov3 Model file")
     parser.add_argument("--net_input_dims", default='416,416',
                         help="'height,width' dimensions of net input tensors.")
     parser.add_argument("--pose_net_input_dims", default='256,192',
@@ -102,7 +102,7 @@ def alphapose_detect(yolo_module,pose_module, image,net_input_dims,pose_net_inpu
     cv2.waitKey(0)
     cv2.imwrite(result_image, image)
     print('##### Pose detection result is saved to  {} #####'.format(result_image))
-    
+
 
 
 def keep_human_bbox(yolo_preds):
@@ -111,7 +111,7 @@ def keep_human_bbox(yolo_preds):
         pred = yolo_preds[i]
         if pred[2] == 0:
             human_preds.append(pred)
-    return human_preds    
+    return human_preds
 
 def fastpose_detect(module, bgr_img, yolo_preds,pose_net_input_dims):
 
@@ -208,7 +208,7 @@ def eval_detector(yolo_module, pose_module, result_json_file, dataset_path, net_
             image = cv2.imread(image_path)
             predictions = yolov3_detect(yolo_module, image, net_input_dims,
                                         obj_threshold, nms_threshold)
- 
+
             human_preds = []
             for i in range(len(predictions)):
                 preds = predictions[i]
@@ -230,13 +230,13 @@ def eval_detector(yolo_module, pose_module, result_json_file, dataset_path, net_
                     x, y, w, h = align_bbox
 
                     # print(np.mean(kp_scores) + np.max(kp_scores))
-                    #Not sure if human_detect score should be added. 
-                    # human_detect_score = human_preds[idx][1]  
+                    #Not sure if human_detect score should be added.
+                    # human_detect_score = human_preds[idx][1]
                     jdict.append({
                         "bbox": [x, y, w, h],
                         "image_id": image_id,
                         "score":float(np.mean(kp_scores) + np.max(kp_scores)),
-                        "category_id": 1,                    
+                        "category_id": 1,
                         "keypoints":keypoints
                     })
 
@@ -300,7 +300,7 @@ def evaluate_mAP(annotations, res_file, ann_type='bbox', ann_file='person_keypoi
     for ind, name in enumerate(stats_names):
         info_str[name] = cocoEval.stats[ind]
 
-    return info_str    
+    return info_str
 
 def main(argv):
     args = parse_args()
@@ -327,7 +327,7 @@ def main(argv):
 
 
     pose_module = pymlir.module()
-    print('load module ', args.pose_model)    
+    print('load module ', args.pose_model)
     pose_module.load(args.pose_model)
     print('load module done')
 

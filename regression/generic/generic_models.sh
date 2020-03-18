@@ -17,6 +17,12 @@ export DO_QUANT_MIX=0
 export DO_ACCURACY_CAFFE=1
 export DO_ACCURACY_INTERPRETER=1
 export DO_LAYERGROUP=0
+if [ -z "$DO_BATCHSIZE" ]; then
+  BATCH_SIZE=1
+else
+  BATCH_SIZE=$DO_BATCHSIZE
+fi
+export BATCH_SIZE
 
 if [ $NET = "resnet50" ]; then
 export MODEL_DEF=$MODEL_PATH/imagenet/resnet/caffe/ResNet-50-deploy.prototxt
@@ -37,6 +43,7 @@ export TOLERANCE_BF16=0.99,0.99,0.89
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.92
 export DO_DEEPFUSION=1
 export DO_LAYERGROUP=1
+# export BATCH_SIZE=4
 fi
 
 if [ $NET = "vgg16" ]; then
