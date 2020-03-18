@@ -807,24 +807,28 @@ void quantizeActivationInt8PerLayerRshift(float *output, float *input,
 
 /// Quantize an Activation tensor, given per channel mulitplier and rshift
 void quantizeActivationInt8PerChannelRShift(float *output, float *input,
-    int64_t oc, int64_t isz, float *rshift_per_channel) {
-  for (int64_t i = 0; i < oc; ++i) {
-    for (int64_t j = 0; j < isz; ++j) {
-      output[i * isz + j] = (float)applyRShiftAndSaturateInt8(
-          input[i * isz + j], rshift_per_channel[i]);
+    int64_t on, int64_t oc, int64_t isz, float *rshift_per_channel) {
+  for (int64_t n = 0; n < on; ++n) {
+    for (int64_t i = 0; i < oc; ++i) {
+      for (int64_t j = 0; j < isz; ++j) {
+        output[n * oc * isz +i * isz + j] = (float)applyRShiftAndSaturateInt8(
+            input[n * oc * isz +i * isz + j], rshift_per_channel[i]);
+      }
     }
   }
 }
 
 /// Quantize an Activation tensor, given per channel mulitplier and rshift
 void quantizeActivationInt8PerChannelMultiplierAndRShift(float *output, float *input,
-    int64_t oc, int64_t isz,
+    int64_t on, int64_t oc, int64_t isz,
     float *rshift_per_channel, float *multiplier_per_channel) {
-  for (int64_t i = 0; i < oc; ++i) {
-    for (int64_t j = 0; j < isz; ++j) {
-      output[i * isz + j] =
-          (float)applyMultiplierAndRShiftAndSaturateInt8(input[i * isz + j],
-              rshift_per_channel[i], multiplier_per_channel[i], true);
+  for (int64_t n = 0; n < on; ++n) {
+    for (int64_t i = 0; i < oc; ++i) {
+      for (int64_t j = 0; j < isz; ++j) {
+        output[n * oc * isz + i * isz + j] =
+            (float)applyMultiplierAndRShiftAndSaturateInt8(input[n * oc * isz + i * isz + j],
+                rshift_per_channel[i], multiplier_per_channel[i], true);
+      }
     }
   }
 }

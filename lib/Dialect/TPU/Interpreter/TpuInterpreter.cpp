@@ -381,13 +381,13 @@ LogicalResult doConv2DOpInterpret(Operation *op,
                && getOpQuantParamType(op) == "RSHIFT_ONLY") {
       assert(quant_rshift);
       quantizeActivationInt8PerChannelRShift(resultT->data(), resultT->data(),
-          oc, size / oc, quant_rshift->data());
+          n, oc, size / oc / n, quant_rshift->data());
     } else if (isOpQuantPerchannel(op)
                && getOpQuantParamType(op) == "RSHIFT_AND_M_I32") {
       assert(quant_rshift);
       assert(quant_multiplier);
       quantizeActivationInt8PerChannelMultiplierAndRShift(resultT->data(),
-          resultT->data(), oc, size / oc,
+          resultT->data(), n, oc, size / oc / n,
           quant_rshift->data(), quant_multiplier->data());
     } else {
       assert(false);

@@ -112,10 +112,10 @@ void quantizeActivationInt8PerLayerRshift(float *output, float *input,
     int64_t size, uint32_t rshift);
 
 void quantizeActivationInt8PerChannelRShift(float *output, float *input,
-    int64_t oc, int64_t isz, float *rshift_per_channel);
+    int64_t on, int64_t oc, int64_t isz, float *rshift_per_channel);
 
 void quantizeActivationInt8PerChannelMultiplierAndRShift(float *output, float *input,
-    int64_t oc, int64_t isz,
+    int64_t on, int64_t oc, int64_t isz,
     float *rshift_per_channel, float *multiplier_per_channel);
 
 } // namespace mlir

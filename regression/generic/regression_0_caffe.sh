@@ -15,6 +15,7 @@ if [ ! -f "$CAFFE_BLOBS_NPZ" ]; then
       --raw_scale $RAW_SCALE \
       --mean $MEAN \
       --input_scale $INPUT_SCALE \
+      --batch_size $DO_BATCHSIZE \
       --label_file $REGRESSION_PATH/resnet50/data/ilsvrc12/synset_words.txt \
       --dump_blobs $CAFFE_BLOBS_NPZ \
       --dump_weights ${NET}_weights.npz \

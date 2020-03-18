@@ -54,6 +54,7 @@ if [ $DO_QUANT_INT8_PER_TENSOR -eq 1 ]; then
       --dump-all-tensors \
       --input ${NET}_in_fp32.npz \
       --model ${NET}_int8_per_tensor.cvimodel \
+      --batch-num $DO_BATCHSIZE \
       --output ${NET}_cmdbuf_out_all_int8_per_tensor.npz
 
   # compare all tensors
@@ -109,6 +110,7 @@ if [ $DO_QUANT_INT8_MULTIPLER -eq 1 ]; then
       --dump-all-tensors \
       --input ${NET}_in_fp32.npz \
       --model ${NET}_int8_multiplier.cvimodel \
+      --batch-num $DO_BATCHSIZE \
       --output ${NET}_cmdbuf_out_all_int8_multiplier.npz
 
   npz_to_bin.py \

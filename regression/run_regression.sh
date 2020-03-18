@@ -35,13 +35,38 @@ generic_accuracy_net_list=(
 
 ERR=0
 
-if [ ! -z "$1" ]; then
-  $DIR/$1/regression_$1.sh 2>&1 | tee $net.log
+helpFunction()
+{
+   echo ""
+   echo "Usage: $0 -batch Batchsize"
+   echo -e "\t-b Description of batch size for test"
+   echo -e "\t-n Description of Net Name for test "
+   exit 1
+}
+
+while getopts "n:b:" opt
+do
+  case "$opt" in
+    n ) net="$OPTARG" ;;
+    b ) bs="$OPTARG" ;;
+    h ) helpFunction ;;
+  esac
+done
+
+if [ -z "$net" ]; then
+  net=$1
+fi
+if [ -z "$bs" ]; then
+  bs=1
+fi
+
+if [ ! -z "$net" ]; then
+  $DIR/$net/regression_$net.sh 2>&1 | tee $net.log
   if [ "${PIPESTATUS[0]}" -ne "0" ]; then
-    echo "regression $1 FAILED"
+    echo "regression $net FAILED"
     ERR=1
   else
-    echo "regression $1 PASSED"
+    echo "regression $net PASSED"
   fi
   exit $ERR
 fi
@@ -74,13 +99,13 @@ done
 # generic
 for net in ${generic_net_list[@]}
 do
-  echo "generic regression $net"
-  $DIR/generic/regression_generic.sh $net 2>&1 | tee $net.log
+  echo "generic regression $net batch=$bs"
+  $DIR/generic/regression_generic.sh $net $bs 2>&1 | tee $net\_bs$bs.log
   if [ "${PIPESTATUS[0]}" -ne "0" ]; then
-    echo "$net generic regression FAILED" >> verdict.log
+    echo "$net batch=$bs generic regression FAILED" >> verdict.log
     ERR=1
   else
-    echo "$net generic regression PASSED" >> verdict.log
+    echo "$net batch=$bs generic regression PASSED" >> verdict.log
   fi
 done
 

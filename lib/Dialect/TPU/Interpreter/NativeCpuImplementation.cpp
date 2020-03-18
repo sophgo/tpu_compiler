@@ -476,12 +476,14 @@ int my_avg_pooling(float *input, float *output, int n, int c, int ih, int iw,
   // Todo: my case only has global average, if your model has other case,
   //       plz add and test
   assert(kh == ih && kw == iw); //global average
-  for (int i = 0; i < c; ++i){
-    float val = 0;
-    for (int j = 0; j < kw * kh; ++j){
-      val += input[i * kh * kw + j];
+  for (int in = 0; in < n; ++in) {
+    for (int i = 0; i < c; ++i) {
+      float val = 0;
+      for (int j = 0; j < kw * kh; ++j) {
+        val += input[in * c * kh * kw +i * kh * kw + j];
+      }
+      output[in * c + i] = val;
     }
-    output[i] = val;
   }
   return 0;
 }
