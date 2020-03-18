@@ -1,7 +1,7 @@
 import cv2
 import math
 import numpy as np
-from pPose_nms import pose_nms
+from utils.pPose_nms import pose_nms
 
 
 def get_3rd_point(a, b):

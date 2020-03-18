@@ -3,7 +3,7 @@
 import numpy as np
 import sys
 import struct
-from tensor_compare import TensorCompare
+from utils.tensor_compare import TensorCompare
 
 def second(elem):
   return elem[1]

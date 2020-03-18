@@ -11,9 +11,9 @@ import argparse
 import os
 import sys
 import numpy as np
-from tqdm import tqdm
-from pycocotools.coco import COCO
-from pycocotools.cocoeval import COCOeval 
+# from tqdm import tqdm
+# from pycocotools.coco import COCO
+# from pycocotools.cocoeval import COCOeval
 from dataset_util.widerface.eval_widerface import detect_on_widerface, evaluation
 
 parser = argparse.ArgumentParser(
@@ -130,10 +130,10 @@ def detection():
          for i in range(len(dataset['images'])):
              #sys.stdout.write('\r%d / %d' % (i + 1, len(dataset['images'])))
              #sys.stdout.flush()
-         
+
              img = cv.imread(dataset['images'][i]['file_name'])
              imageId = int(dataset['images'][i]['id'])
-         
+
              detect(img, imageId)
              if (i == args.count):
                  break

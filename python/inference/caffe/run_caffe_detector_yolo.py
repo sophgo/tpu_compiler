@@ -8,7 +8,7 @@ import glob
 import time
 import cv2
 import caffe
-from yolov3_util import preprocess, postprocess, draw
+from utils.yolov3_util import preprocess, postprocess, draw
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Eval YOLO networks.')

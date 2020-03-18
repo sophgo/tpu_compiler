@@ -9,7 +9,7 @@ import struct
 import csv
 from math import fabs
 from enum import IntEnum
-from tensor_compare import TensorCompare, TensorCompareStats
+from utils.tensor_compare import TensorCompare, TensorCompareStats
 import threading
 import multiprocessing
 
