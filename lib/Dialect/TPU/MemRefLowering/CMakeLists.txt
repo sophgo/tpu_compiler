@@ -1,5 +1,6 @@
 add_llvm_library(MLIRTPUMemRefLowering
   ConvertFuncToMemRef.cpp
+  ConvertFuncToTensor.cpp
   ConvertTgOpToMemRef.cpp
   ConvertTgOpToTensor.cpp
   AssignNeuronAddressMemRef.cpp

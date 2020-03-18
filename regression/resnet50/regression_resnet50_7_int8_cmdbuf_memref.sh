@@ -71,11 +71,11 @@ mlir-opt \
      -o resnet50_quant_int8_multiplier_tg_op_roundtrip.mlir
 
 # function argument back to TensorType
-#mlir-opt \
-#    --debug \
-#    --convert-func-to-tensor \
-#    resnet50_quant_int8_multiplier_tg_op_memref_addr.mlir \
-#    -o resnet50_quant_int8_multiplier_tg_roundtrip.mlir
+mlir-opt \
+    --debug \
+    --convert-func-to-tensor \
+    resnet50_quant_int8_multiplier_tg_op_roundtrip.mlir \
+    -o resnet50_quant_int8_multiplier_tg_func_roundtrip.mlir
 
 # assign weight address & neuron address
 mlir-opt \
@@ -86,7 +86,7 @@ mlir-opt \
     --assign-neuron-address \
     --tpu-neuron-address-align=16 \
     --tpu-neuron-map-filename=neuron_map.csv \
-    resnet50_quant_int8_multiplier_tg_memref.mlir \
+    resnet50_quant_int8_multiplier_tg_func_roundtrip.mlir \
     -o resnet50_quant_int8_multiplier_addr.mlir
 
 mlir-translate \
