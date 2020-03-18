@@ -144,7 +144,7 @@ public:
                        llvm::StringRef caffemodelFilename);
 
 private:
-  mlir::Type GetTypeFromCaffeShape(const std::vector<int> shape, mlir::Type elementType);
+  mlir::Type GetTypeFromCaffeShape(const std::vector<int> shape, mlir::Type elementType, bool transpose=false);
 
   void ParseNetInputOutput(caffe::Net<float> &net,
                            std::map<std::string, mlir::Type> &inputs,
@@ -236,10 +236,16 @@ static void printCaffeNetAllLayer(const caffe::Net<float> &net) {
   ((_s_) * (((_i_)) - 1) + (_d_) * ((_k_)-1) - 2 * (_p_) + 1)
 
 mlir::Type CaffeImporter::GetTypeFromCaffeShape(const std::vector<int> shape,
-                                                mlir::Type elementType) {
+                                                mlir::Type elementType,
+                                                bool transpose) {
   std::vector<int64_t> shape_int64(shape.begin(), shape.end());
-  llvm::ArrayRef<int64_t> mlir_shape(shape_int64);
-  return RankedTensorType::get(mlir_shape, elementType);
+  if (transpose) {
+    assert(shape.size() == 4);
+    shape_int64[1] = shape[2];
+    shape_int64[2] = shape[3];
+    shape_int64[3] = shape[1];
+  }
+  return RankedTensorType::get(llvm::ArrayRef<int64_t>(shape_int64), elementType);
 }
 
 void CaffeImporter::ParseNetInputOutput(caffe::Net<float> &net,
@@ -259,7 +265,11 @@ void CaffeImporter::ParseNetInputOutput(caffe::Net<float> &net,
       input_shape[0] = -1;
     }
 
-    inputs[net.blob_names()[index]] = GetTypeFromCaffeShape(input_shape, elementType_);
+    bool transpose = false;
+    if (i == 0 && clAddPreprocess && clPreprocessTranspose) {
+      transpose = true;
+    }
+    inputs[net.blob_names()[index]] = GetTypeFromCaffeShape(input_shape, elementType_, transpose);
   }
 
   for (int i = 0; i <= net.num_outputs() - 1; ++i) {
@@ -2290,9 +2300,11 @@ mlir::Value* CaffeImporter::insertTransposeLayer(mlir::Block *block, mlir::Value
   std::vector<Value *> operands;
   operands.push_back(opd);
 
-  llvm::ArrayRef<int64_t> input_var_shape =
-      opd->getType().dyn_cast<mlir::TensorType>().getShape();
-  auto result_type = RankedTensorType::get(input_var_shape, elementType_);
+  llvm::ArrayRef<int64_t> opd_shape = opd->getType().dyn_cast<mlir::TensorType>().getShape();
+  assert(opd_shape.size() == 4);
+  // transpose shape from hwc to chw
+  std::vector<int64_t> result_shape{opd_shape[0], opd_shape[3], opd_shape[1], opd_shape[2]};
+  auto result_type = RankedTensorType::get(llvm::ArrayRef<int64_t>(result_shape), elementType_);
 
   std::vector<NamedAttribute> attrs;
   std::string my_name = name + "_trans";

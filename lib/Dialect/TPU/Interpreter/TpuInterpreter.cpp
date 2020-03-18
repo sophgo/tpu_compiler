@@ -2172,7 +2172,7 @@ LogicalResult tpu::TransposeOp::interpret(
   int64_t input_size, n, c, h, w;
   getTensorShapeAndSize(op->getOperand(0), shape, input_size);
   assert(input_size == size);
-  getNCHW(shape, n, c, h, w);
+  getNCHW(shape, n, h, w, c);
   // use copy for now
   my_transpose(opdT[0]->data(), resultT->data(), n, c, h, w);
 
