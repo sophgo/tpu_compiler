@@ -70,12 +70,12 @@ struct TpuFuseReluPattern : public RewritePattern {
       eltOp.setAttr("do_relu", rewriter.getBoolAttr(true));
       eltOp.setAttr("name", rewriter.getStringAttr(reluOp.getOpName()));
     } else if (matchPattern(formerOp, m_Op<tpu::EltwiseMaxOp>())) {
-      auto eltOp = cast<tpu::EltwiseAddOp>(formerOp);
+      auto eltOp = cast<tpu::EltwiseMaxOp>(formerOp);
       assert(!eltOp.do_relu());
       eltOp.setAttr("do_relu", rewriter.getBoolAttr(true));
       eltOp.setAttr("name", rewriter.getStringAttr(reluOp.getOpName()));
     } else if (matchPattern(formerOp, m_Op<tpu::EltwiseMulOp>())) {
-      auto eltOp = cast<tpu::EltwiseAddOp>(formerOp);
+      auto eltOp = cast<tpu::EltwiseMulOp>(formerOp);
       assert(!eltOp.do_relu());
       eltOp.setAttr("do_relu", rewriter.getBoolAttr(true));
       eltOp.setAttr("name", rewriter.getStringAttr(reluOp.getOpName()));
