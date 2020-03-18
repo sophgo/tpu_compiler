@@ -567,8 +567,7 @@ def TPU_InputOp: TPU_Op<"input",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
        DeclareOpInterfaceMethods<TpuOpInterpInterface>,
-       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
-       DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
+       DeclareOpInterfaceMethods<TpuOpQuantInterface>]> {
   let summary = "Input operator";
 
   let description = [{
@@ -1015,6 +1014,50 @@ def TPU_PReluOp : TPU_Op<"prelu",
   let results = (outs AnyTensor:$output);
 }
 
+def TPU_PreprocessOp : TPU_Op<"preprocess",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
+       DeclareOpInterfaceMethods<TpuOpQuantInterface>]> {
+  let summary = "Preprocess operator";
+
+  let description = [{
+    Perform preprocessing to input feature maps
+
+    Inputs:
+      `input`                   : required, input tensors
+
+    Attributes:
+      `mean`            : required, mean value of each channel
+      `scale`           : required, scale value multipled to input feature maps
+      `color_order`     : required, order of feature maps
+      `name`            : required, name for calibration, comparing, or debug.
+      `layer_id`        : optional, id for profiling.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface` : support common TPU Op interface
+      `TpuOpInterpInterface` : support interperter
+      `TpuOpQuantInterface`  : support quantization
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    OptionalAttr<I32ArrayAttr>:$color_order,
+    OptionalAttr<F32ArrayAttr>:$mean,
+    F32Attr:$raw_scale,
+    F32Attr:$scale,
+    StrAttr:$name,
+    TPU_QuantParamAttr:$quant,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
 def TPU_PriorBoxOp: TPU_Op<"priorbox",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
@@ -1151,6 +1194,7 @@ def TPU_RetinaFaceDetectionOp : TPU_Op<"retinaface_detection",
 
     Attributes:
       `name`            : required, name for calibration, comparing, or debug.
+      `quant`           : required, a QuantParam struct attributes.
       `layer_id`        : optional, id for profiling.
 
     Result:
@@ -1445,6 +1489,43 @@ def TPU_TanHOp: TPU_Op<"tanh",
     ins AnyTensor:$input,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
+def TPU_TransposeOp : TPU_Op<"transpose",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
+       DeclareOpInterfaceMethods<TpuOpQuantInterface>]> {
+  let summary = "Transpose operator";
+
+  let description = [{
+    Perform transpose operation for packed image to planar format
+
+    Inputs:
+      `input`                   : required, input tensors
+
+    Attributes:
+      `name`            : required, name for calibration, comparing, or debug.
+      `layer_id`        : optional, id for profiling.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface` : support common TPU Op interface
+      `TpuOpInterpInterface` : support interperter
+      `TpuOpQuantInterface`  : support quantization
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    StrAttr:$name,
+    TPU_QuantParamAttr:$quant,
     OptionalAttr<NonNegativeI32Attr>:$layer_id
   );
 

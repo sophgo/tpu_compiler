@@ -6,14 +6,6 @@ source $DIR/../../envsetup.sh
 echo $0 IS RUNNING
 
 ################################
-# prepare bf16 input
-################################
-npz_to_bin.py inception_v3_in_fp32.npz input inception_v3_in_fp32.bin
-bin_fp32_to_bf16.py \
-    inception_v3_in_fp32.bin \
-    inception_v3_in_bf16.bin
-
-################################
 # Lower
 ################################
 mlir-opt \
@@ -49,19 +41,9 @@ build_cvimodel.py \
 ## run cmdbuf
 model_runner \
     --dump-all-tensors \
-    --input inception_v3_in_fp32.npz \
+    --input inception_v3_in_raw_fp32.npz \
     --model inception_v3_bf16.cvimodel \
     --output inception_v3_cmdbuf_out_all_bf16.npz
-
-npz_to_bin.py \
-    inception_v3_cmdbuf_out_all_bf16.npz \
-    classifier \
-    inception_v3_cmdbuf_out_classifier_bf16.bin \
-    bf16
-bin_compare.py \
-    inception_v3_cmdbuf_out_classifier_bf16.bin \
-    $REGRESSION_PATH/inception_v3/data/test_cat_out_inception_v3_classifier_bf16.bin \
-    bf16 1 1 1 1000 5
 
 # compare all tensors
 npz_compare.py \

@@ -31,7 +31,9 @@ include "mlir/Dialect/TPU/TPUBase.td"
 def TPU_QuantOp: TPU_Op<"quant",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>]> {
+       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
+       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>
+       ]> {
   let summary = "Quantization/Dequantization operator";
 
   let description = [{
@@ -52,6 +54,7 @@ def TPU_QuantOp: TPU_Op<"quant",
     TPU_QuantModeAttr:$to,
     OptionalAttr<F32Attr>:$threshold,
     StrAttr:$name,
+    OptionalAttr<NonNegativeI64Attr>:$gaddr,
     OptionalAttr<NonNegativeI32Attr>:$layer_id
   );
 

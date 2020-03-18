@@ -10,7 +10,7 @@ import sys
 import argparse
 import glob
 import time
-
+import skimage
 import caffe
 
 
@@ -125,6 +125,10 @@ class My_Classifier(caffe.Net):
         if dump_blobs is not None:
             print("Save Blobs: ", dump_blobs)
             blobs_dict = {}
+
+            shape_ = input_.shape
+            raw_data_fp32 = input_.reshape(shape_[0], shape_[3], shape_[1], shape_[2])
+            blobs_dict['raw_data'] = raw_data_fp32
             # for name, blob in self.blobs.iteritems():
             #     blobs_dict[name] = blob.data
             for name, layer in self.layer_dict.iteritems():

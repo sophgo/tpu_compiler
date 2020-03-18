@@ -13,7 +13,7 @@ mlir-opt \
 
 # bf16 inference
 mlir-tpu-interpreter  inception_v3_quant_bf16.mlir \
-    --tensor-in inception_v3_in_fp32.npz \
+    --tensor-in inception_v3_in_raw_fp32.npz \
     --tensor-out inception_v3_out_bf16.npz \
     --dump-all-tensor=inception_v3_tensor_all_bf16.npz
 npz_compare.py inception_v3_out_bf16.npz inception_v3_out_fp32.npz -v

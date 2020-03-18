@@ -9,6 +9,11 @@ echo $0 IS RUNNING
 mlir-translate \
     --caffe-to-mlir $MODEL_PATH/imagenet/inception_v3/caffe/deploy_inception-v3.prototxt \
     --caffemodel $MODEL_PATH/imagenet/inception_v3/caffe/inception-v3.caffemodel \
+    --add-preprocess \
+    --preprocess-transpose \
+    --preprocess-mean 128,128,128 \
+    --preprocess-scale 0.0078125 \
+    --preprocess-color-order 2,1,0 \
     -o inception_v3.mlir
 
 # assign layer_id right away, and output op_info
@@ -20,7 +25,7 @@ mlir-opt \
     -o dummy.mlir
 ## test mlir interpreter
 mlir-tpu-interpreter inception_v3.mlir \
-    --tensor-in inception_v3_in_fp32.npz \
+    --tensor-in inception_v3_in_raw_fp32.npz \
     --tensor-out inception_v3_out_fp32.npz \
     --dump-all-tensor=inception_v3_tensor_all_fp32.npz
 npz_compare.py inception_v3_out_fp32.npz inception_v3_out_fp32_prob.npz -v
@@ -43,7 +48,7 @@ mlir-opt \
 
 # test frontend optimizations
 mlir-tpu-interpreter inception_v3_opt.mlir \
-    --tensor-in inception_v3_in_fp32.npz \
+    --tensor-in inception_v3_in_raw_fp32.npz \
     --tensor-out inception_v3_opt_out_fp32.npz \
     --dump-all-tensor=inception_v3_tensor_all_fp32.npz
 npz_compare.py inception_v3_opt_out_fp32.npz inception_v3_out_fp32_prob.npz -v

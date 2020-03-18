@@ -58,7 +58,7 @@ int my_permute(float *input, float *output, const int input_shape_size,
     int in, int ic, int ih, int iw,int on, int oc, int oh, int ow,
     int order0,int order1,int order2,int order3);
 
-int my_normalize(float *input,float *scale, float *output, 
+int my_normalize(float *input,float *scale, float *output,
     bool across_spatial,bool channel_shared,
     int n, int c, int h, int w);
 
@@ -68,5 +68,12 @@ int my_slice(float *input, float *output, int axis, int offset,
 int my_power(float *input, float *output,
     int n, int c, int h, int w, float scale, float shift, float power);
 
+int my_preprocess(float *input, float *output,
+                  int n, int c, int h, int w,
+                  const std::vector<int>& channel_order,
+                  const std::vector<float>& mean,
+                  float raw_scale, float input_scale);
+
+int my_transpose(float *input, float *output, int n, int c, int h, int w);
 
 #endif // MLIR_DIALECT_TPU_NATIVE_CPU_IMPLEMENTATION_H_

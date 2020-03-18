@@ -64,8 +64,10 @@ llvm::StringRef getOpQuant(Operation *op) {
     return tpuOp.getOpQuant();
   } else if (isa<tpu::DetectionOutputOp>(op)
              || isa<tpu::RetinaFaceDetectionOp>(op)
+             || isa<tpu::PreprocessOp>(op)
              || isa<tpu::PriorBoxOp>(op)
-             || isa<tpu::SoftmaxOp>(op)) {
+             || isa<tpu::SoftmaxOp>(op)
+             || isa<tpu::TransposeOp>(op)) {
     // cpu Ops return NONE
     return llvm::StringRef("NONE");
   } else {
