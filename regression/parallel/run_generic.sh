@@ -16,10 +16,10 @@ fi
 echo -e "\033[1;32mGeneric Regression -> $1 bs $bs\033[0m"
 $DIR/../generic/regression_generic.sh $1 $bs> $1\_bs$bs.log 2>&1 | true
 if [ "${PIPESTATUS[0]}" -ne "0" ]; then
-  echo "$1 generic regression FAILED" >> verdict.log
+  echo "$1 bs $bs generic regression FAILED" >> verdict.log
   ERR=1
 else
-  echo "$1 generic regression PASSED" >> verdict.log
+  echo "$1 bs $bs generic regression PASSED" >> verdict.log
 fi
 
 exit $ERR

@@ -23,12 +23,15 @@ ERR=0
 pushd regression_out
 
 #set BATCH_SIZE="1 4 8 16 32" for batch test
-BATCH_SIZE="1 4 "
+BATCH_SIZE="1 2 4"
 for d in ${BATCH_SIZE}
 do
   cp $DIR/regression.txt $DIR/regression_b.txt
   sed -e "s/$/ $d/" -i $DIR/regression_b.txt
-  parallel -j13 --delay 2.5 --ungroup --joblog job_regression.log < $DIR/regression_b.txt
+  #delete previos regression folder under regression_out
+  find $PWD -type d -name "*" ! -path "$PWD" |xargs rm -rf
+
+  parallel -j13 --delay 2.5 --ungroup --joblog job_regression_b$d.log < $DIR/regression_b.txt
   if [ "$?" -ne "0" ]; then
     ERR=1
   fi
@@ -39,7 +42,10 @@ if [ "$?" -ne "0" ]; then
 fi
 
 echo -e "\033[1;32mDone! $?\n\033[0m"
-cat job_regression.log
+for d in ${BATCH_SIZE}
+do
+  cat job_regression_b$d.log
+done
 cat job_accuracy.log
 echo ""
 cat verdict.log
