@@ -745,7 +745,9 @@ LogicalResult quantizeInt8BypassOps(Operation *op) {
   setOpQuantParamType(op, "NONE");
 
   bool skip_checking = false;
-  if (isa<tpu::InputOp>(op)) {
+  if (isa<tpu::InputOp>(op)
+      || isa<tpu::PreprocessOp>(op)
+      || isa<tpu::TransposeOp>(op)) {
     skip_checking = true;
   }
 
@@ -851,6 +853,7 @@ LogicalResult tpu::PReluOp::quantizeInt8() {
   return quantizeInt8PReluOps(op);
 }
 
+DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::PreprocessOp)
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::PermuteOp)
 
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::PixelShuffleOp)
@@ -913,6 +916,7 @@ LogicalResult tpu::TanHOp::quantizeInt8() {
   return failure();
 }
 
+DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::TransposeOp)
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::UpsampleOp)
 
 #define DECLARE_QUANTIZE_INT8_DISABLED_METHOD(OP) \

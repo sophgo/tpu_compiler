@@ -9,18 +9,12 @@ echo $0 IS RUNNING
 # prepare int8 input
 ################################
 
-npz_to_bin.py \
-    inception_v3_tensor_all_int8_multiplier.npz \
-    data \
-    inception_v3_in_int8.bin \
-    int8
+#npz_to_bin.py \
+#    inception_v3_tensor_all_int8_multiplier.npz \
+#    data \
+#    inception_v3_in_int8.bin \
+#    int8
 
-# npz_to_bin.py inception_v3_in_fp32.npz input inception_v3_in_fp32.bin
-# bin_fp32_to_int8.py \
-#     inception_v3_in_fp32.bin \
-#     inception_v3_in_int8.bin \
-#     1.0 \
-#     0.994933307171
 
 ################################
 # Lower for quantization 1: per-layer int8
@@ -62,7 +56,7 @@ build_cvimodel.py \
 model_runner \
     --dump-all-tensors \
     --model inception_v3_int8_per_layer.cvimodel \
-    --input inception_v3_in_fp32.npz \
+    --input inception_v3_in_raw_fp32.npz \
     --output inception_v3_cmdbuf_out_all_int8_per_layer.npz
 
 # compare all tensors
@@ -113,7 +107,7 @@ build_cvimodel.py \
 model_runner \
     --dump-all-tensors \
     --model inception_v3_int8_multiplier.cvimodel \
-    --input inception_v3_in_fp32.npz \
+    --input inception_v3_in_raw_fp32.npz \
     --output inception_v3_cmdbuf_out_all_int8_multiplier.npz
 
 # compare all tensors

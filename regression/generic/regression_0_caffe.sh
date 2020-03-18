@@ -25,6 +25,7 @@ fi
 
 # extract input and output
 npz_extract.py $CAFFE_BLOBS_NPZ ${NET}_in_fp32.npz $INPUT
+npz_extract.py $CAFFE_BLOBS_NPZ ${NET}_in_raw_fp32.npz raw_data
 npz_extract.py $CAFFE_BLOBS_NPZ ${NET}_out_fp32_prob.npz $OUTPUTS_FP32
 
 # fix input data consistency

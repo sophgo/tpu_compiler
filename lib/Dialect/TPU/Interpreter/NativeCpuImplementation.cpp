@@ -976,12 +976,12 @@ int my_permute(float *input, float *output, const int input_shape_size,
       old_idx += (idx / new_steps[j]) * old_steps[order];
       idx %= new_steps[j];
     }
-     output[i] = input[old_idx];
+    output[i] = input[old_idx];
   }
-    return 0 ;
+  return 0 ;
 }
 
-int my_normalize(float *input,float *scale, float *output, 
+int my_normalize(float *input,float *scale, float *output,
     bool across_spatial,bool channel_shared,
     int n, int c, int h, int w){
   float eps=1.0e-5;
@@ -1053,5 +1053,58 @@ int my_power(float *input, float *output,
   }
   dump_idx ++;
 #endif // DUMP_FLAG
+  return 0;
+}
+
+int my_preprocess(float *input, float *output,
+                  int n, int c, int h, int w,
+                  const std::vector<int>& channel_order,
+                  const std::vector<float>&mean,
+                  float raw_scale, float input_scale) {
+  int csz = h * w;
+  int isz = c * h * w;
+  int count = n * c * h * w;
+  float *p = input;
+  float *q = output;
+
+  if (channel_order.size()) {
+    for (int i = 0; i < n; i++) {
+      for (int j = 0; j < c; j++) {
+        memcpy(q + channel_order[j] * csz,
+               p + j * csz, csz * sizeof(float));
+      }
+      p += isz;
+      q += isz;
+    }
+    p = q = output;
+  }
+
+  for (int i = 0; i < count; i++) {
+    float val = *p++;
+    if (raw_scale != 0) {
+      val *= raw_scale;
+    }
+    if (mean.size()) {
+      val -= mean[(i / csz) % c];
+    }
+    if (input_scale != 1.0f) {
+      val *= input_scale;
+    }
+    *q++ = val;
+  }
+  return 0;
+}
+
+int my_transpose(float *input, float *output, int n, int c, int h, int w) {
+  int csz = h * w;
+  int isz = c * csz;
+
+  for (int i = 0; i < n; i++) {
+    for (int j = 0; j < isz; j++) {
+      int x_idx = i * isz + j;
+      int y_idx = i * isz + (j % c) * csz + j / c;
+      output[y_idx] = input[x_idx];
+    }
+  }
   return 0;
 }

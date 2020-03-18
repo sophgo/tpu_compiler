@@ -1828,9 +1828,13 @@ LogicalResult tpu::TG_BF16_UpsampleOp::codegen(void *ctx) {
   return success();
 }
 
+LogicalResult tpu::QuantOp::codegen(void *ctx) {
+  return success();
+}
+
 // MemRefType dummy
 LogicalResult tpu::TG_MemRef_INT8_PC_Conv2DOp::codegen(void *ctx) {
-    return success();
+  return success();
 }
 
 LogicalResult tpu::TG_MemRef_INT8_EltwiseAddOp::codegen(void *ctx) {

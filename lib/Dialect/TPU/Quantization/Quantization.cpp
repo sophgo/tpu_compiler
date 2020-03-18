@@ -284,10 +284,10 @@ struct TpuInsertQuantOpPattern : public RewritePattern {
             threshold = getOpThreshold(prev_op);
           } else {
             // TODO: should move quant after Input Op
-            assert(isa<tpu::InputOp>(op));
-            threshold = getOpThreshold(op);
+            // assert(isa<tpu::InputOp>(op) || isa<tpu::PreprocessOp>(op));
+            threshold = getOpThreshold(prev_op);
           }
-          name = getOpName(op).str() + "_quant";
+          name = getOpName(prev_op).str() + "_quant";
           layer_id = getOpLayerId(op);
         } else if (prev_quant == "INT8") {
           threshold = getOpThreshold(prev_op);
@@ -300,6 +300,26 @@ struct TpuInsertQuantOpPattern : public RewritePattern {
           name = getOpName(prev_op).str() + "_dequant";
           layer_id = getOpLayerId(prev_op);
         }
+        // check if prev op has inserted quant/dequant op
+        if (prev_op) {
+          bool found = false;
+          for (auto &use : prev_op->getResult(0)->getUses()) {
+            auto nextOp = use.getOwner();
+            if (getOpName(nextOp) == name) {
+              op->setOperand(i, nextOp->getResult(0));
+              LLVM_DEBUG(llvm::errs() << "  opd " << i << ", " << name << ", "
+                        << prev_quant << " => " << curr_quant << "\n";);
+              found = true;
+              nextOp->moveBefore(op);
+              break;
+            }
+          }
+          if (found) {
+            changed++;
+            continue;
+          }
+        }
+
         attrs.push_back(rewriter.getNamedAttr("threshold",
             rewriter.getF32FloatAttr(threshold)));
         attrs.push_back(rewriter.getNamedAttr("name",
@@ -349,14 +369,18 @@ public:
           || isa<tpu::WeightFileOp>(op)
           || isa<tpu::LoadWeightOp>(op)
           || isa<tpu::NoneOp>(op)) {
-      } else if (isa<tpu::ReshapeOp>(op)) {
+      } else if (isa<tpu::ReshapeOp>(op)
+                 || isa<tpu::InputOp>(op)
+                 || isa<tpu::PreprocessOp>(op)
+                 || isa<tpu::TransposeOp>(op)) {
         // no need to quant
       } else if (auto quantOp = llvm::dyn_cast<tpu::TpuOpQuantInterface>(op)) {
         if (clQuantMixTable) {
           //setOpQuant(op, quant_mix_table[getOpName(op)]);
           assert(false);
         } else if (!clQuantBf16) {
-          setOpQuant(op, "INT8");
+          if (!isa<tpu::InputOp>(op))
+            setOpQuant(op, "INT8");
           if (isa<tpu::Conv2DOp>(op) || isa<tpu::DeConv2DOp>(op)) {
             if (clQuantInt8PerTensor) {
               setOpQuantPerchannel(op, false);
@@ -384,9 +408,9 @@ public:
           setOpQuant(op, "BF16");
         }
       } else if (isa<tpu::DetectionOutputOp>(op)
+                 || isa<tpu::PriorBoxOp>(op)
                  || isa<tpu::RetinaFaceDetectionOp>(op)
-                 || isa<tpu::SoftmaxOp>(op)
-                 || isa<tpu::PriorBoxOp>(op)) {
+                 || isa<tpu::SoftmaxOp>(op)) {
         // cpu Ops that has no quant support
       } else {
         llvm::errs() << "quant assignment didn't handle " << op->getName() << "\n";
@@ -401,7 +425,10 @@ public:
           || isa<tpu::LoadWeightOp>(op)
           || isa<tpu::NoneOp>(op)) {
       } else if (isa<tpu::ReshapeOp>(op)
-                 || isa<tpu::QuantOp>(op)) {
+                 || isa<tpu::QuantOp>(op)
+                 || isa<tpu::InputOp>(op)
+                 || isa<tpu::PreprocessOp>(op)
+                 || isa<tpu::TransposeOp>(op)) {
         // no need to quant
       } else if (auto quantOp = llvm::dyn_cast<tpu::TpuOpQuantInterface>(op)) {
         if (getOpQuant(op) == "INT8") {
@@ -414,9 +441,9 @@ public:
           assert(false);
         }
       } else if (isa<tpu::DetectionOutputOp>(op)
+                 || isa<tpu::PriorBoxOp>(op)
                  || isa<tpu::RetinaFaceDetectionOp>(op)
-                 || isa<tpu::SoftmaxOp>(op)
-                 || isa<tpu::PriorBoxOp>(op)) {
+                 || isa<tpu::SoftmaxOp>(op)) {
         // cpu Ops that has no quant support
       } else {
         llvm::errs() << "quant didn't handle " << op->getName() << "\n";
@@ -439,7 +466,7 @@ public:
         TpuInsertQuantOpPattern<tpu::EltwiseMaxOp>,
         TpuInsertQuantOpPattern<tpu::EltwiseMulOp>,
         TpuInsertQuantOpPattern<tpu::FullyConnectedOp>,
-        TpuInsertQuantOpPattern<tpu::InputOp>,
+        //TpuInsertQuantOpPattern<tpu::InputOp>,
         TpuInsertQuantOpPattern<tpu::LeakyReluOp>,
         TpuInsertQuantOpPattern<tpu::NormalizeOp>,
         TpuInsertQuantOpPattern<tpu::PermuteOp>,

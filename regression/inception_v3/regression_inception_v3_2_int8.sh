@@ -26,7 +26,7 @@ mlir-opt \
     -o inception_v3_quant_int8_per_layer.mlir
 
 mlir-tpu-interpreter inception_v3_quant_int8_per_layer.mlir \
-    --tensor-in inception_v3_in_fp32.npz \
+    --tensor-in inception_v3_in_raw_fp32.npz \
     --tensor-out inception_v3_out_int8_per_layer.npz \
     --dump-all-tensor=inception_v3_tensor_all_int8_per_layer.npz
 #npz_to_bin.py \
@@ -61,7 +61,7 @@ mlir-opt \
     -o inception_v3_quant_int8_per_channel.mlir
 
 mlir-tpu-interpreter inception_v3_quant_int8_per_channel.mlir \
-    --tensor-in inception_v3_in_fp32.npz \
+    --tensor-in inception_v3_in_raw_fp32.npz \
     --tensor-out inception_v3_out_int8_per_channel.npz \
     --dump-all-tensor=inception_v3_tensor_all_int8_per_channel.npz
 
@@ -97,7 +97,7 @@ mlir-opt \
     -o inception_v3_quant_int8_multiplier.mlir
 
 mlir-tpu-interpreter inception_v3_quant_int8_multiplier.mlir \
-    --tensor-in inception_v3_in_fp32.npz \
+    --tensor-in inception_v3_in_raw_fp32.npz \
     --tensor-out inception_v3_out_int8_multiplier.npz \
     --dump-all-tensor=inception_v3_tensor_all_int8_multiplier.npz
 

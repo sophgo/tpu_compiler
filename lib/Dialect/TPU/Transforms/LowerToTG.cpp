@@ -472,7 +472,7 @@ Value *tpu::FullyConnectedOp::convertToTG() {
   assert(false);
   return nullptr;
 }
-
+/*
 Value* tpu::InputOp::convertToTG() {
   llvm::errs() << "lowerToTG: " << getOperationName()
                << " [" << getOpName() << "]\n";
@@ -506,7 +506,7 @@ Value* tpu::InputOp::convertToTG() {
 
   return nullptr;
 }
-
+*/
 Value* tpu::LeakyReluOp::convertToTG() {
   llvm::errs() << "lowerToTG: " << getOperationName()
                << " [" << getOpName() << "]\n";
@@ -1732,7 +1732,7 @@ public:
         DefaultToTGPattern<tpu::EltwiseMaxOp>,
         DefaultToTGPattern<tpu::EltwiseMulOp>,
         DefaultToTGPattern<tpu::FullyConnectedOp>,
-        DefaultToTGPattern<tpu::InputOp>,
+        //DefaultToTGPattern<tpu::InputOp>,
         DefaultToTGPattern<tpu::LeakyReluOp>,
         DefaultToTGPattern<tpu::PermuteOp>,
         DefaultToTGPattern<tpu::PixelShuffleOp>,
@@ -1761,8 +1761,10 @@ public:
       } else if (auto tgOp = llvm::dyn_cast<tpu::TpuTGOpCodegenInterface>(op)) {
         // lowered already
       } else if (isa<tpu::QuantOp>(op)
-                 || isa<tpu::RetinaFaceDetectionOp>(op)
-                 || isa<tpu::SoftmaxOp>(op)) {
+                 || isa<tpu::InputOp>(op)
+                 || isa<tpu::PreprocessOp>(op)
+                 || isa<tpu::SoftmaxOp>(op)
+                 || isa<tpu::TransposeOp>(op)) {
         // no need to lower
       } else {
         llvm::errs() << "lower didn't handle " << op->getName() << "\n";
