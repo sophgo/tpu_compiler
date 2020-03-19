@@ -25,8 +25,8 @@ mlir-tpu-interpreter shufflenet.mlir \
     --tensor-in shufflenet_in_fp32.npz \
     --tensor-out shufflenet_out_fp32.npz \
     --dump-all-tensor=shufflenet_tensor_all_fp32.npz
-npz_compare.py shufflenet_out_fp32.npz shufflenet_out_fp32_prob.npz -v
-npz_compare.py \
+npz_tool.py compare shufflenet_out_fp32.npz shufflenet_out_fp32_prob.npz -v
+npz_tool.py compare \
     shufflenet_tensor_all_fp32.npz \
     shufflenet_blobs.npz \
     --op_info shufflenet_op_info.csv \

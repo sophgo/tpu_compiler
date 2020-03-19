@@ -25,8 +25,8 @@ if [ $CHECK_NON_OPT_VERSION -eq 1 ]; then
       --tensor-in ${NET}_in_fp32.npz \
       --tensor-out ${NET}_out_fp32.npz \
       --dump-all-tensor=${NET}_tensor_all_fp32.npz
-  npz_compare.py ${NET}_out_fp32.npz ${NET}_out_fp32_prob.npz -v
-  npz_compare.py \
+  npz_tool.py compare ${NET}_out_fp32.npz ${NET}_out_fp32_prob.npz -v
+  npz_tool.py compare \
       ${NET}_tensor_all_fp32.npz \
       ${NET}_blobs.npz \
       --op_info ${NET}_op_info.csv \
@@ -49,8 +49,8 @@ mlir-tpu-interpreter ${NET}_opt.mlir \
     --tensor-in ${NET}_in_fp32.npz \
     --tensor-out ${NET}_out_fp32.npz \
     --dump-all-tensor=${NET}_tensor_all_fp32.npz
-npz_compare.py ${NET}_out_fp32.npz ${NET}_out_fp32_prob.npz -v
-npz_compare.py \
+npz_tool.py compare ${NET}_out_fp32.npz ${NET}_out_fp32_prob.npz -v
+npz_tool.py compare \
     ${NET}_tensor_all_fp32.npz \
     ${NET}_blobs.npz \
     --op_info ${NET}_op_info.csv \

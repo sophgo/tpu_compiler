@@ -24,8 +24,8 @@ if [ $CHECK_NON_OPT_VERSION -eq 1 ]; then
       --tensor-in resnet50_in_fp32.npz \
       --tensor-out resnet50_out_fp32.npz \
       --dump-all-tensor=resnet50_tensor_all_fp32.npz
-  npz_compare.py resnet50_out_fp32.npz resnet50_out_fp32_prob.npz -v
-  npz_compare.py \
+  npz_tool.py compare resnet50_out_fp32.npz resnet50_out_fp32_prob.npz -v
+  npz_tool.py compare \
       resnet50_tensor_all_fp32.npz \
       resnet50_blobs.npz \
       --op_info resnet50_op_info.csv \
@@ -48,8 +48,8 @@ mlir-tpu-interpreter resnet50_opt.mlir \
     --tensor-in resnet50_in_fp32.npz \
     --tensor-out resnet50_out_fp32.npz \
     --dump-all-tensor=resnet50_tensor_all_fp32.npz
-npz_compare.py resnet50_out_fp32.npz resnet50_out_fp32_prob.npz -v
-npz_compare.py \
+npz_tool.py compare resnet50_out_fp32.npz resnet50_out_fp32_prob.npz -v
+npz_tool.py compare \
     resnet50_tensor_all_fp32.npz \
     resnet50_blobs.npz \
     --op_info resnet50_op_info.csv \

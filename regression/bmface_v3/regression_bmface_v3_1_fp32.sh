@@ -24,8 +24,8 @@ if [ $CHECK_NON_OPT_VERSION -eq 1 ]; then
       --tensor-in bmface_v3_in_fp32.npz \
       --tensor-out bmface_v3_out_fp32.npz \
       --dump-all-tensor=bmface_v3_tensor_all_fp32.npz
-  npz_compare.py bmface_v3_out_fp32.npz bmface_v3_out_fp32_prob.npz -v
-  npz_compare.py \
+  npz_tool.py compare bmface_v3_out_fp32.npz bmface_v3_out_fp32_prob.npz -v
+  npz_tool.py compare \
       bmface_v3_tensor_all_fp32.npz \
       bmface_v3_blobs.npz \
       --op_info bmface_v3_op_info.csv \
@@ -50,9 +50,9 @@ mlir-tpu-interpreter bmface_v3_opt.mlir \
     --dump-all-tensor=bmface_v3_tensor_all_fp32.npz
 
 # bmface last layer is batchnorm, rename output
-npz_rename.py bmface_v3_out_fp32.npz fc1_scale fc1
-npz_compare.py bmface_v3_out_fp32.npz bmface_v3_out_fp32_prob.npz -v
-npz_compare.py \
+npz_tool.py rename bmface_v3_out_fp32.npz fc1_scale fc1
+npz_tool.py compare bmface_v3_out_fp32.npz bmface_v3_out_fp32_prob.npz -v
+npz_tool.py compare \
       bmface_v3_tensor_all_fp32.npz \
       bmface_v3_blobs.npz \
       --op_info bmface_v3_op_info.csv \

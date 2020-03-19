@@ -26,7 +26,7 @@ mlir-tpu-interpreter shufflenet_quant_int8_per_layer.mlir \
     --tensor-out shufflenet_out_int8_per_layer.npz \
     --dump-all-tensor=shufflenet_tensor_all_int8_per_layer.npz
 
-npz_compare.py \
+npz_tool.py compare \
     shufflenet_tensor_all_int8_per_layer.npz \
     shufflenet_blobs.npz \
     --op_info shufflenet_op_info_int8_per_layer.csv \
@@ -48,7 +48,7 @@ mlir-tpu-interpreter shufflenet_quant_int8_per_channel.mlir \
     --tensor-out shufflenet_out_int8_per_channel.npz \
     --dump-all-tensor=shufflenet_tensor_all_int8_per_channel.npz
 
-npz_compare.py \
+npz_tool.py compare \
     shufflenet_tensor_all_int8_per_channel.npz \
     shufflenet_blobs.npz \
     --op_info shufflenet_op_info_int8_per_channel.csv \
@@ -70,7 +70,7 @@ mlir-tpu-interpreter shufflenet_quant_int8_multiplier.mlir \
     --tensor-out shufflenet_out_int8_multiplier.npz \
     --dump-all-tensor=shufflenet_tensor_all_int8_multiplier.npz
 
-npz_compare.py \
+npz_tool.py compare \
     shufflenet_tensor_all_int8_multiplier.npz \
     shufflenet_blobs.npz \
     --op_info shufflenet_op_info_int8_multiplier.csv \

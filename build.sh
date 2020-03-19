@@ -96,6 +96,7 @@ cp -ar $MLIR_SRC_PATH/python/dataset_util $TPU_PYTHON_PATH/
 cp -ar $MLIR_SRC_PATH/python/model $TPU_PYTHON_PATH/
 cp -ar $MLIR_SRC_PATH/python/transform $TPU_PYTHON_PATH/
 cp -ar $MLIR_SRC_PATH/python/utils $TPU_PYTHON_PATH/
+cp -ar $MLIR_SRC_PATH/python/numpy_helper $TPU_PYTHON_PATH/
 
 # python script
 cp $MLIR_SRC_PATH/python/*.py $TPU_PYTHON_PATH/
@@ -105,7 +106,7 @@ cp $MLIR_SRC_PATH/python/eval/*.py $TPU_PYTHON_PATH/
 cp $MLIR_SRC_PATH/python/inference/caffe/*.py $TPU_PYTHON_PATH/
 cp $MLIR_SRC_PATH/python/inference/mlir/*.py $TPU_PYTHON_PATH/
 cp $MLIR_SRC_PATH/python/inference/onnx/*.py $TPU_PYTHON_PATH/
-cp $MLIR_SRC_PATH/python/numpy_helper/*.py $TPU_PYTHON_PATH/
+
 
 
 pushd $TPU_PYTHON_PATH/model/retinaface; make; popd

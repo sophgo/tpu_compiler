@@ -8,7 +8,7 @@ source $DIR/../../envsetup.sh
 # prepare int8 input
 ################################
 
-npz_to_bin.py \
+npz_tool.py to_bin \
     squeezenet_v1.1_tensor_all_int8_multiplier.npz \
     data_quant \
     squeezenet_v1.1_in_int8.bin \
@@ -16,7 +16,7 @@ npz_to_bin.py \
 
 # don't use following commands to generate input, as it depends on
 # calibration result.
-# npz_to_bin.py squeezenet_v1.1_in_fp32.npz input squeezenet_v1.1_in_fp32.bin
+# npz_tool.py to_bin squeezenet_v1.1_in_fp32.npz input squeezenet_v1.1_in_fp32.bin
 # bin_fp32_to_int8.py \
 #    squeezenet_v1.1_in_fp32.bin \
 #    squeezenet_v1.1_in_int8.bin \
@@ -63,7 +63,7 @@ model_runner \
     --output squeezenet_v1.1_cmdbuf_out_all_int8_per_layer.npz
 
 # compare all tensors
-npz_compare.py \
+npz_tool.py compare \
     squeezenet_v1.1_cmdbuf_out_all_int8_per_layer.npz \
     squeezenet_v1.1_tensor_all_int8_per_layer.npz \
     --op_info squeezenet_v1.1_op_info_int8_per_layer.csv
@@ -120,7 +120,7 @@ model_runner \
     --output squeezenet_v1.1_cmdbuf_out_all_int8_multiplier.npz
 
 # compare all tensors
-npz_compare.py \
+npz_tool.py compare \
     squeezenet_v1.1_cmdbuf_out_all_int8_multiplier.npz \
     squeezenet_v1.1_tensor_all_int8_multiplier.npz \
     --op_info squeezenet_v1.1_op_info_int8_multiplier.csv

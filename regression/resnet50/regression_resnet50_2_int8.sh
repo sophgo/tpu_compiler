@@ -30,7 +30,7 @@ mlir-tpu-interpreter resnet50_quant_int8_per_layer.mlir \
     --dump-all-tensor=resnet50_tensor_all_int8_per_layer.npz
 
 if [ $COMPARE_OUTPUT_BIT_TRUE -eq 1 ]; then
-  npz_to_bin.py \
+  npz_tool.py to_bin \
       resnet50_tensor_all_int8_per_layer.npz \
       fc1000 \
       resnet50_out_fc1000_int8_per_layer.bin \
@@ -43,7 +43,7 @@ fi
 
 if [ $COMPARE_ALL -eq 1 ]; then
   # this will fail for now, because prob has been dequantized twice, others should pass
-  npz_compare.py \
+  npz_tool.py compare \
       resnet50_tensor_all_int8_per_layer.npz \
       resnet50_blobs.npz \
       --op_info resnet50_op_info_int8_per_layer.csv \
@@ -68,7 +68,7 @@ mlir-tpu-interpreter resnet50_quant_int8_per_channel.mlir \
     --dump-all-tensor=resnet50_tensor_all_int8_per_channel.npz
 
 if [ $COMPARE_OUTPUT_BIT_TRUE -eq 1 ]; then
-  npz_to_bin.py \
+  npz_tool.py to_bin \
       resnet50_tensor_all_int8_per_channel.npz \
       fc1000 \
       resnet50_out_fc1000_int8_per_channel.bin \
@@ -81,7 +81,7 @@ fi
 
 if [ $COMPARE_ALL -eq 1 ]; then
   # this will fail for now, because prob has been dequantized twice, others should pass
-  npz_compare.py \
+  npz_tool.py compare \
       resnet50_tensor_all_int8_per_channel.npz \
       resnet50_blobs.npz \
       --op_info resnet50_op_info_int8_per_channel.csv \
@@ -106,7 +106,7 @@ mlir-tpu-interpreter resnet50_quant_int8_multiplier.mlir \
     --dump-all-tensor=resnet50_tensor_all_int8_multiplier.npz
 
 if [ $COMPARE_OUTPUT_BIT_TRUE -eq 1 ]; then
-  npz_to_bin.py \
+  npz_tool.py to_bin \
       resnet50_tensor_all_int8_multiplier.npz \
       fc1000 \
       resnet50_out_fc1000_int8_multiplier.bin \
@@ -119,7 +119,7 @@ fi
 
 if [ $COMPARE_ALL -eq 1 ]; then
   # this will fail for now, because prob has been dequantized twice, others should pass
-  npz_compare.py \
+  npz_tool.py compare \
       resnet50_tensor_all_int8_multiplier.npz \
       resnet50_blobs.npz \
       --op_info resnet50_op_info_int8_multiplier.csv \

@@ -88,7 +88,7 @@ mlir-tpu-interpreter espcn-quant-bf16.mlir\
 
 # compare all tensors
 bin_to_npz.py out_all.bin neuron_map_bf16.csv out_all_bf16.npz
-npz_compare.py out_all_bf16.npz ref_tensor_all_quant-bf16.npz show 0
+npz_tool.py compare out_all_bf16.npz ref_tensor_all_quant-bf16.npz show 0
 
 # VERDICT
 echo $0 PASSED

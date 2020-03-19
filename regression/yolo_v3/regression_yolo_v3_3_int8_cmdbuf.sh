@@ -10,7 +10,7 @@ COMPARE_ALL=0
 # prepare int8 input
 ################################
 
-npz_to_bin.py \
+npz_tool.py to_bin \
     ${NET}_tensor_all_int8_multiplier.npz \
     data \
     ${NET}_in_int8.bin \
@@ -18,7 +18,7 @@ npz_to_bin.py \
 
 # don't use following commands to generate input, as it depends on
 # calibration result.
-# npz_to_bin.py ${NET}_in_fp32.npz input ${NET}_in_fp32.bin
+# npz_tool.py to_bin ${NET}_in_fp32.npz input ${NET}_in_fp32.bin
 # bin_fp32_to_int8.py \
 #     ${NET}_in_fp32.bin \
 #     ${NET}_in_int8.bin \
@@ -70,19 +70,19 @@ model_runner \
     --model ${NET}_int8_per_layer.cvimodel \
     --output ${NET}_cmdbuf_out_all_int8_per_layer.npz
 
-npz_extract.py \
+npz_tool.py extract \
     ${NET}_cmdbuf_out_all_int8_per_layer.npz \
     ${NET}_out_int8_three_layer.npz \
     layer82-conv,layer94-conv,layer106-conv
 
-npz_compare.py \
+npz_tool.py compare \
       ${NET}_out_int8_three_layer.npz \
       ${NET}_tensor_all_int8_per_layer.npz \
       --op_info ${NET}_op_info_int8_per_layer.csv
 
 if [ $COMPARE_ALL -eq 1 ]; then
   # some are not equal due to fusion
-  npz_compare.py \
+  npz_tool.py compare \
       ${NET}_cmdbuf_out_all_int8_per_layer.npz \
       ${NET}_tensor_all_int8_per_layer.npz \
       --op_info ${NET}_op_info_int8_per_layer.csv
@@ -145,19 +145,19 @@ model_runner \
     --model ${NET}_int8_multiplier.cvimodel \
     --output ${NET}_cmdbuf_out_all_int8_multiplier.npz
 
-npz_extract.py \
+npz_tool.py extract \
     ${NET}_cmdbuf_out_all_int8_multiplier.npz \
     ${NET}_out_int8_multiplier_three_layer.npz \
     layer82-conv,layer94-conv,layer106-conv
 
-npz_compare.py \
+npz_tool.py compare \
       ${NET}_out_int8_multiplier_three_layer.npz \
       ${NET}_tensor_all_int8_multiplier.npz \
       --op_info ${NET}_op_info_int8_per_layer.csv
 
 if [ $COMPARE_ALL -eq 1 ]; then
   # some are not equal due to fusion
-  npz_compare.py \
+  npz_tool.py compare \
       ${NET}_cmdbuf_out_all_int8_multiplier.npz \
       ${NET}_tensor_all_int8_multiplier.npz \
       --op_info ${NET}_op_info_int8_per_layer.csv

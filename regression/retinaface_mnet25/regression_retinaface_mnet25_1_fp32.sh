@@ -23,8 +23,8 @@ if [ $CHECK_NON_OPT_VERSION -eq 1 ]; then
       --tensor-in retinaface_mnet25_in_fp32.npz \
       --tensor-out retinaface_mnet25_out_fp32.npz \
       --dump-all-tensor=retinaface_mnet25_tensor_all_fp32.npz
-  npz_compare.py retinaface_mnet25_out_fp32.npz retinaface_mnet25_out_fp32_caffe.npz -v
-  npz_compare.py \
+  npz_tool.py compare retinaface_mnet25_out_fp32.npz retinaface_mnet25_out_fp32_caffe.npz -v
+  npz_tool.py compare \
       retinaface_mnet25_tensor_all_fp32.npz \
       retinaface_mnet25_blobs.npz \
       --op_info retinaface_mnet25_op_info.csv \
@@ -48,8 +48,8 @@ mlir-tpu-interpreter \
     --tensor-out retinaface_mnet25_out_fp32.npz \
     --dump-all-tensor=retinaface_mnet25_tensor_all_fp32.npz
 
-npz_compare.py retinaface_mnet25_out_fp32.npz retinaface_mnet25_out_fp32_caffe.npz -v
-npz_compare.py \
+npz_tool.py compare retinaface_mnet25_out_fp32.npz retinaface_mnet25_out_fp32_caffe.npz -v
+npz_tool.py compare \
     retinaface_mnet25_tensor_all_fp32.npz \
     retinaface_mnet25_caffe_blobs.npz \
     --op_info retinaface_mnet25_op_info.csv \

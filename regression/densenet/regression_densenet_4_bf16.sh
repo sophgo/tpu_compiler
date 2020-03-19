@@ -22,8 +22,8 @@ mlir-tpu-interpreter densenet_quant_bf16.mlir \
     --tensor-in densenet_in_fp32.npz \
     --tensor-out densenet_out_bf16.npz \
     --dump-all-tensor=densenet_tensor_all_bf16.npz
-npz_compare.py densenet_out_bf16.npz densenet_out_fp32.npz -v
-npz_compare.py \
+npz_tool.py compare densenet_out_bf16.npz densenet_out_fp32.npz -v
+npz_tool.py compare \
     densenet_tensor_all_bf16.npz \
     densenet_tensor_all_fp32.npz \
     --op_info densenet_op_info.csv \

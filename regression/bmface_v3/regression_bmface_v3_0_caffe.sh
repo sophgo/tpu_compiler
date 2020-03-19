@@ -18,8 +18,8 @@ if [ ! -f "$CAFFE_BLOBS_NPZ" ]; then
 fi
 
 # extract input and output
-npz_extract.py $CAFFE_BLOBS_NPZ bmface_v3_in_fp32.npz data
-npz_extract.py $CAFFE_BLOBS_NPZ bmface_v3_out_fp32_prob.npz fc1
+npz_tool.py extract $CAFFE_BLOBS_NPZ bmface_v3_in_fp32.npz data
+npz_tool.py extract $CAFFE_BLOBS_NPZ bmface_v3_out_fp32_prob.npz fc1
 
 # VERDICT
 echo $0 PASSED

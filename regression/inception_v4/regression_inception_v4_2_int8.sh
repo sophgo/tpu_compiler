@@ -29,7 +29,7 @@ mlir-tpu-interpreter inception_v4_quant_int8_per_layer.mlir \
     --tensor-in inception_v4_in_fp32.npz \
     --tensor-out inception_v4_out_int8_per_layer.npz \
     --dump-all-tensor=inception_v4_tensor_all_int8_per_layer.npz
-#npz_to_bin.py \
+#npz_tool.py to_bin \
 #    inception_v4_tensor_all_int8_per_layer.npz \
 #    classifier \
 #    inception_v4_out_classifier_int8_per_layer.bin \
@@ -42,7 +42,7 @@ mlir-tpu-interpreter inception_v4_quant_int8_per_layer.mlir \
 #if [ $COMPARE_ALL -eq 1 ]; then
 #  # this will fail for now, because prob has been dequantized twice, others should pass
 #  # need to check torlerance later
-#  npz_compare.py \
+#  npz_tool.py compare \
 #      inception_v4_tensor_all_int8_per_layer.npz \
 #      inception_v4_blobs.npz \
 #      --dequant \
@@ -65,7 +65,7 @@ mlir-tpu-interpreter inception_v4_quant_int8_per_channel.mlir \
     --tensor-out inception_v4_out_int8_per_channel.npz \
     --dump-all-tensor=inception_v4_tensor_all_int8_per_channel.npz
 
-#npz_to_bin.py \
+#npz_tool.py to_bin \
 #    inception_v4_tensor_all_int8_per_channel.npz \
 #    classifier \
 #    inception_v4_out_classifier_int8_per_channel.bin \
@@ -78,7 +78,7 @@ mlir-tpu-interpreter inception_v4_quant_int8_per_channel.mlir \
 #if [ $COMPARE_ALL -eq 1 ]; then
 #  # this will fail for now, because prob has been dequantized twice, others should pass
 #  # need to check torlerance later
-#  npz_compare.py \
+#  npz_tool.py compare \
 #      inception_v4_tensor_all_int8_per_channel.npz \
 #      inception_v4_blobs.npz \
 #      --dequant \
@@ -101,7 +101,7 @@ mlir-tpu-interpreter inception_v4_quant_int8_multiplier.mlir \
     --tensor-out inception_v4_out_int8_multiplier.npz \
     --dump-all-tensor=inception_v4_tensor_all_int8_multiplier.npz
 
-#npz_to_bin.py \
+#npz_tool.py to_bin \
 #    inception_v4_tensor_all_int8_multiplier.npz \
 #    classifier \
 #    inception_v4_out_classifier_int8_multiplier.bin \
@@ -114,7 +114,7 @@ mlir-tpu-interpreter inception_v4_quant_int8_multiplier.mlir \
 #if [ $COMPARE_ALL -eq 1 ]; then
 #  # this will fail for now, because prob has been dequantized twice, others should pass
 #  # need to check torlerance later
-#  npz_compare.py \
+#  npz_tool.py compare \
 #      inception_v4_tensor_all_int8_multiplier.npz \
 #      inception_v4_blobs.npz \
 #      --dequant \

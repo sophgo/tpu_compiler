@@ -7,7 +7,7 @@ source $DIR/../../envsetup.sh
 ################################
 # prepare bf16 input
 ################################
-npz_to_bin.py ssd300_in_fp32.npz data ssd300_in_fp32.bin
+npz_tool.py to_bin ssd300_in_fp32.npz data ssd300_in_fp32.bin
 bin_fp32_to_bf16.py \
     ssd300_in_fp32.bin \
     ssd300_in_bf16.bin
@@ -58,7 +58,7 @@ model_runner \
 
 
 # compare all tensors
-npz_compare.py \
+npz_tool.py compare \
     ssd300_cmdbuf_out_all_bf16.npz \
     ssd300_tensor_all_bf16.npz \
     --op_info ssd300_op_info.csv \

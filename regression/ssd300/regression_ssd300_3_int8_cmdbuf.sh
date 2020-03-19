@@ -8,7 +8,7 @@ source $DIR/../../envsetup.sh
 ################################
 # prepare int8 input
 ################################
-npz_to_bin.py ssd300_in_fp32.npz data ssd300_in_fp32.bin
+npz_tool.py to_bin ssd300_in_fp32.npz data ssd300_in_fp32.bin
 bin_fp32_to_int8.py \
     ssd300_in_fp32.bin \
     ssd300_in_int8.bin \
@@ -62,7 +62,7 @@ bin_fp32_to_int8.py \
 #     ssd300_cmdbuf_out_all_int8_per_layer.bin \
 #     neuron_map.csv \
 #     ssd300_cmdbuf_out_all_int8_per_layer.npz
-# npz_compare.py \
+# npz_tool.py compare \
 #     ssd300_cmdbuf_out_all_int8_per_layer.npz \
 #     ssd300_tensor_all_int8_per_layer.npz \
 #     --op_info ssd300_op_info_int8_per_layer.csv
@@ -120,7 +120,7 @@ model_runner \
 
 # # run cmdbuf
 # compare all tensors
-npz_compare.py \
+npz_tool.py compare \
     ssd300_cmdbuf_out_all_int8_multiplier.npz \
     ssd300_tensor_all_int8_multiplier.npz \
     --op_info ssd300_op_info_int8_multiplier.csv

@@ -23,8 +23,8 @@ mlir-tpu-interpreter squeezenet_v1.1.mlir \
     --tensor-in squeezenet_v1.1_in_fp32.npz \
     --tensor-out squeezenet_v1.1_out_fp32.npz \
     --dump-all-tensor squeezenet_v1.1_tensor_all_fp32.npz
-npz_compare.py squeezenet_v1.1_out_fp32.npz squeezenet_v1.1_out_fp32_prob.npz -v
-npz_compare.py \
+npz_tool.py compare squeezenet_v1.1_out_fp32.npz squeezenet_v1.1_out_fp32_prob.npz -v
+npz_tool.py compare \
     squeezenet_v1.1_tensor_all_fp32.npz \
     squeezenet_v1.1_blobs.npz \
     --op_info squeezenet_v1.1_op_info.csv \
@@ -42,7 +42,7 @@ mlir-opt \
 mlir-tpu-interpreter squeezenet_v1.1_opt.mlir \
     --tensor-in squeezenet_v1.1_in_fp32.npz \
     --tensor-out squeezenet_v1.1_opt_out_fp32.npz
-npz_compare.py squeezenet_v1.1_opt_out_fp32.npz squeezenet_v1.1_out_fp32_prob.npz -v
+npz_tool.py compare squeezenet_v1.1_opt_out_fp32.npz squeezenet_v1.1_out_fp32_prob.npz -v
 
 # VERDICT
 echo $0 PASSED

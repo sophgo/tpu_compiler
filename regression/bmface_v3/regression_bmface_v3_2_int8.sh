@@ -26,7 +26,7 @@ mlir-tpu-interpreter bmface_v3_quant_int8_multiplier.mlir \
 
 
 # the result of the compare script is passed currently.
-npz_compare.py \
+npz_tool.py compare \
     bmface_v3_tensor_all_int8_multiplier.npz \
     bmface_v3_tensor_all_fp32.npz \
     --op_info bmface_v3_op_info_int8_multiplier.csv \

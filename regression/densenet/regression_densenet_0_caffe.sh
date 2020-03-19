@@ -21,12 +21,12 @@ run_caffe_classifier.py \
     # --force_input calibration_input.npy \
 
 # extract input and output
-npz_extract.py densenet_blobs.npz densenet_in_fp32.npz input
-npz_extract.py densenet_blobs.npz densenet_out_fp32_fc6.npz fc6
+npz_tool.py extract densenet_blobs.npz densenet_in_fp32.npz input
+npz_tool.py extract densenet_blobs.npz densenet_out_fp32_fc6.npz fc6
 
 # fix input data consistency
 # because jpeg decoder may introduce difference, use save file to overwrite
-#npz_compare.py densenet121_in_fp32.npz $REGRESSION_PATH/densenet121/data/densenet121_in_fp32.npz
+#npz_tool.py compare densenet121_in_fp32.npz $REGRESSION_PATH/densenet121/data/densenet121_in_fp32.npz
 #cp $REGRESSION_PATH/densenet121/data/densenet121_in_fp32.npz densenet121_in_fp32.npz
 
 # VERDICT

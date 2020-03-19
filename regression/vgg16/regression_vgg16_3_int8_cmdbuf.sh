@@ -7,7 +7,7 @@ source $DIR/../../envsetup.sh
 ################################
 # prepare int8 input
 ################################
-npz_to_bin.py vgg16_in_fp32.npz input vgg16_in_fp32.bin
+npz_tool.py to_bin vgg16_in_fp32.npz input vgg16_in_fp32.bin
 bin_fp32_to_int8.py \
     vgg16_in_fp32.bin \
     vgg16_in_int8.bin \
@@ -50,7 +50,7 @@ model_runner \
     --output vgg16_cmdbuf_out_all_int8_per_layer.npz
 
 # compare all tensors
-npz_compare.py \
+npz_tool.py compare \
     vgg16_cmdbuf_out_all_int8_per_layer.npz \
     vgg16_tensor_all_int8_per_layer.npz \
     --op_info vgg16_op_info_int8_per_layer.csv
@@ -96,7 +96,7 @@ model_runner \
     --output vgg16_cmdbuf_out_all_int8_multiplier.npz
 
 # compare all tensors
-npz_compare.py \
+npz_tool.py compare \
     vgg16_cmdbuf_out_all_int8_multiplier.npz \
     vgg16_tensor_all_int8_multiplier.npz \
     --op_info vgg16_op_info_int8_multiplier.csv

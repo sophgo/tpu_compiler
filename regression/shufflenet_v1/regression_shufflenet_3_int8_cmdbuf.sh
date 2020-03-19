@@ -8,7 +8,7 @@ source $DIR/../../envsetup.sh
 # prepare int8 input
 ################################
 
-npz_to_bin.py \
+npz_tool.py to_bin \
     shufflenet_tensor_all_int8_multiplier.npz \
     data_quant \
     shufflenet_in_int8.bin \
@@ -16,7 +16,7 @@ npz_to_bin.py \
 
 # don't use following commands to generate input, as it depends on
 # calibration result.
-# npz_to_bin.py shufflenet_in_fp32.npz input shufflenet_in_fp32.bin
+# npz_tool.py to_bin shufflenet_in_fp32.npz input shufflenet_in_fp32.bin
 # bin_fp32_to_int8.py \
 #    shufflenet_in_fp32.bin \
 #    shufflenet_in_int8.bin \
@@ -69,7 +69,7 @@ model_runner \
     --output shufflenet_cmdbuf_out_all_int8_per_layer.npz
 
 # compare all tensors
-npz_compare.py \
+npz_tool.py compare \
     shufflenet_cmdbuf_out_all_int8_per_layer.npz \
     shufflenet_tensor_all_int8_per_layer.npz \
     --op_info shufflenet_op_info_int8_per_layer.csv
@@ -126,7 +126,7 @@ model_runner \
     --output shufflenet_cmdbuf_out_all_int8_multiplier.npz
 
 # compare all tensors
-npz_compare.py \
+npz_tool.py compare \
     shufflenet_cmdbuf_out_all_int8_multiplier.npz \
     shufflenet_tensor_all_int8_multiplier.npz \
     --op_info shufflenet_op_info_int8_multiplier.csv

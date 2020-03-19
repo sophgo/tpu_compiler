@@ -17,7 +17,7 @@ def chunks(l, n):
     for i in range(0, len(l), n):
         yield l[i:i + n]
 
-def parse_args():
+def parse_args(args_list):
     parser = argparse.ArgumentParser(description='Compare two npz tensor files.')
     parser.add_argument("target_file",
                         help="Comparing target file")
@@ -45,7 +45,7 @@ def parse_args():
                         help="Do statistics on int8 tensor for saturate ratio and low ratio")
     parser.add_argument("--save", type=str,
                         help="Save result as a csv file")
-    args = parser.parse_args()
+    args = parser.parse_args(args_list)
     return args
 
 def bf16_to_fp32(d_bf16):
@@ -157,11 +157,11 @@ def print_result_one_array(tc, npz1, npz2, name, force_dtype, thresholds, verbos
   d1, d2 = align_type_and_shape(d1, d2, force_dtype=force_dtype)
   tc.print_result(d1, d2, name, dic[name], verbose)
 
-def main(argv):
+def npz_compare(args_list):
   lock = multiprocessing.Lock()
   dic = multiprocessing.Manager().dict()
 
-  args = parse_args()
+  args = parse_args(args_list)
   f1 = args.target_file
   f2 = args.ref_file
   if args.discard:
@@ -251,7 +251,6 @@ def main(argv):
     print("Results save as {}".format(args.save))
   print("Target    {}".format(f1))
   print("Reference {}".format(f2))
-  print(sys.argv[1:])
   if (stats.failed == 0):
     print("npz compare PASSED.")
   else:
@@ -259,4 +258,4 @@ def main(argv):
     sys.exit(-1)
 
 if __name__ == '__main__':
-    main(sys.argv)
+    npz_compare(sys.argv)

@@ -25,7 +25,7 @@ mlir-tpu-interpreter efficientnet_b0_quant_int8_per_layer.mlir \
     --tensor-out efficientnet_out_int8.npz \
     --dump-all-tensor=efficientnet_tensor_all_int8.npz
 
-npz_compare.py \
+npz_tool.py compare \
     efficientnet_tensor_all_int8.npz  \
     efficientnet_tensor_all_fp32.npz \
     --op_info efficientnet_b0_op_info_int8_per_layer.csv \

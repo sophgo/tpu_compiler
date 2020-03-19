@@ -112,13 +112,13 @@ model_runner \
     --output ${NET}_cmdbuf_out_all_int8_lw.npz
 
 if [ $COMPARE_ALL -eq 1 ]; then
-  npz_compare.py \
+  npz_tool.py compare \
       ${NET}_cmdbuf_out_all_int8_la.npz \
       ${NET}_tensor_all_int8_multiplier.npz \
       --op_info ${NET}_op_info_int8_multiplier.csv || true
 
   # surpress return for time being
-  npz_compare.py \
+  npz_tool.py compare \
       ${NET}_cmdbuf_out_all_int8_lw.npz \
       ${NET}_tensor_all_int8_multiplier.npz \
       --op_info ${NET}_op_info_int8_multiplier.csv || true

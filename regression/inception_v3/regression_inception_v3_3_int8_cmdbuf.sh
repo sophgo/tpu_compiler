@@ -9,7 +9,7 @@ echo $0 IS RUNNING
 # prepare int8 input
 ################################
 
-#npz_to_bin.py \
+#npz_tool.py to_bin \
 #    inception_v3_tensor_all_int8_multiplier.npz \
 #    data \
 #    inception_v3_in_int8.bin \
@@ -60,7 +60,7 @@ model_runner \
     --output inception_v3_cmdbuf_out_all_int8_per_layer.npz
 
 # compare all tensors
-npz_compare.py \
+npz_tool.py compare \
     inception_v3_cmdbuf_out_all_int8_per_layer.npz \
     inception_v3_tensor_all_int8_per_layer.npz \
     --op_info inception_v3_op_info_int8_per_layer.csv
@@ -111,7 +111,7 @@ model_runner \
     --output inception_v3_cmdbuf_out_all_int8_multiplier.npz
 
 # compare all tensors
-npz_compare.py \
+npz_tool.py compare \
     inception_v3_cmdbuf_out_all_int8_multiplier.npz \
     inception_v3_tensor_all_int8_multiplier.npz \
     --op_info inception_v3_op_info_int8_multiplier.csv

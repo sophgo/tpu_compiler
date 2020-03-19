@@ -22,12 +22,12 @@ run_caffe_detector_ssd.py \
     --draw_image dog_out.jpg
 
 # extract input and output
-npz_extract.py ssd300_blobs.npz ssd300_in_fp32.npz data
-npz_extract.py ssd300_blobs.npz ssd300_out_fp32_ref.npz detection_out
+npz_tool.py extract ssd300_blobs.npz ssd300_in_fp32.npz data
+npz_tool.py extract ssd300_blobs.npz ssd300_out_fp32_ref.npz detection_out
 
 # fix input data consistency
 # because jpeg decoder may introduce difference, use save file to overwrite
-npz_compare.py ssd300_in_fp32.npz $REGRESSION_PATH/ssd300/data/ssd300_in_fp32.npz
+npz_tool.py compare ssd300_in_fp32.npz $REGRESSION_PATH/ssd300/data/ssd300_in_fp32.npz
 cp $REGRESSION_PATH/ssd300/data/ssd300_in_fp32.npz ssd300_in_fp32.npz
 
 # VERDICT

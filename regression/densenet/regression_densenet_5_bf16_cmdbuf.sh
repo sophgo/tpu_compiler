@@ -7,7 +7,7 @@ source $DIR/../../envsetup.sh
 ################################
 # prepare bf16 input
 ################################
-npz_to_bin.py densenet_in_fp32.npz input densenet_in_fp32.bin
+npz_tool.py to_bin densenet_in_fp32.npz input densenet_in_fp32.bin
 bin_fp32_to_bf16.py \
     densenet_in_fp32.bin \
     densenet_in_bf16.bin
@@ -49,7 +49,7 @@ model_runner \
     --output densenet_cmdbuf_out_all_bf16.npz
 
 # compare all tensors
-npz_compare.py \
+npz_tool.py compare \
     densenet_cmdbuf_out_all_bf16.npz \
     densenet_tensor_all_bf16.npz \
     --op_info densenet_op_info.csv \

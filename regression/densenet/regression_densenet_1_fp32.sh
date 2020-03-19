@@ -23,8 +23,8 @@ mlir-tpu-interpreter densenet.mlir \
     --tensor-in densenet_in_fp32.npz \
     --tensor-out densenet_out_fp32.npz \
     --dump-all-tensor=densenet_tensor_all_fp32.npz
-npz_compare.py densenet_out_fp32.npz densenet_out_fp32_fc6.npz -vvv
-npz_compare.py \
+npz_tool.py compare densenet_out_fp32.npz densenet_out_fp32_fc6.npz -vvv
+npz_tool.py compare \
     densenet_tensor_all_fp32.npz \
     densenet_blobs.npz \
     --op_info densenet_op_info.csv \
@@ -42,7 +42,7 @@ mlir-opt \
 mlir-tpu-interpreter densenet_opt.mlir \
     --tensor-in densenet_in_fp32.npz \
     --tensor-out densenet_opt_out_fp32.npz
-npz_compare.py densenet_opt_out_fp32.npz densenet_out_fp32_fc6.npz -v
+npz_tool.py compare densenet_opt_out_fp32.npz densenet_out_fp32_fc6.npz -v
 
 # VERDICT
 echo $0 PASSED

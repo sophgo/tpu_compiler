@@ -33,7 +33,7 @@ mlir-tpu-interpreter squeezenet_v1.1_quant_int8_per_layer.mlir \
     --tensor-out squeezenet_v1.1_out_int8_per_layer.npz \
     --dump-all-tensor=squeezenet_v1.1_tensor_all_int8_per_layer.npz
 
-#npz_to_bin.py \
+#npz_tool.py to_bin \
 #    squeezenet_v1.1_tensor_all_int8_per_layer.npz \
 #    pool10 \
 #    squeezenet_v1.1_out_pool10_int8_per_layer.bin \
@@ -45,7 +45,7 @@ mlir-tpu-interpreter squeezenet_v1.1_quant_int8_per_layer.mlir \
 
 if [ $COMPARE_ALL ]; then
   # this will fail for now, because prob has been dequantized twice, others should pass
-  npz_compare.py \
+  npz_tool.py compare \
       squeezenet_v1.1_tensor_all_int8_per_layer.npz \
       squeezenet_v1.1_blobs.npz \
       --op_info squeezenet_v1.1_op_info_int8_per_layer.csv \
@@ -67,7 +67,7 @@ mlir-tpu-interpreter squeezenet_v1.1_quant_int8_per_channel.mlir \
     --tensor-out squeezenet_v1.1_out_int8_per_channel.npz \
     --dump-all-tensor=squeezenet_v1.1_tensor_all_int8_per_channel.npz
 
-#npz_to_bin.py \
+#npz_tool.py to_bin \
 #    squeezenet_v1.1_tensor_all_int8_per_channel.npz \
 #    pool10 \
 #    squeezenet_v1.1_out_pool10_int8_per_channel.bin \
@@ -79,7 +79,7 @@ mlir-tpu-interpreter squeezenet_v1.1_quant_int8_per_channel.mlir \
 
 if [ $COMPARE_ALL ]; then
   # this will fail for now, because prob has been dequantized twice, others should pass
-  npz_compare.py \
+  npz_tool.py compare \
       squeezenet_v1.1_tensor_all_int8_per_channel.npz \
       squeezenet_v1.1_blobs.npz \
       --op_info squeezenet_v1.1_op_info_int8_per_channel.csv \
@@ -101,7 +101,7 @@ mlir-tpu-interpreter squeezenet_v1.1_quant_int8_multiplier.mlir \
     --tensor-out squeezenet_v1.1_out_int8_multiplier.npz \
     --dump-all-tensor=squeezenet_v1.1_tensor_all_int8_multiplier.npz
 
-#npz_to_bin.py \
+#npz_tool.py to_bin \
 #    squeezenet_v1.1_tensor_all_int8_multiplier.npz \
 #    pool10 \
 #    squeezenet_v1.1_out_pool10_int8_multiplier.bin \
@@ -113,7 +113,7 @@ mlir-tpu-interpreter squeezenet_v1.1_quant_int8_multiplier.mlir \
 
 if [ $COMPARE_ALL ]; then
   # this will fail for now, because prob has been dequantized twice, others should pass
-  npz_compare.py \
+  npz_tool.py compare \
       squeezenet_v1.1_tensor_all_int8_multiplier.npz \
       squeezenet_v1.1_blobs.npz \
       --op_info squeezenet_v1.1_op_info_int8_multiplier.csv \

@@ -42,8 +42,8 @@ mlir-tpu-interpreter ssd300_quant_bf16.mlir \
     --tensor-out ssd300_out_bf16.npz \
     --dump-all-tensor=ssd300_tensor_all_bf16.npz
 
-npz_compare.py ssd300_out_bf16.npz ssd300_out_fp32.npz -v
-npz_compare.py \
+npz_tool.py compare ssd300_out_bf16.npz ssd300_out_fp32.npz -v
+npz_tool.py compare \
     ssd300_tensor_all_bf16.npz \
     ssd300_tensor_all_fp32.npz \
     --op_info ssd300_op_info.csv \

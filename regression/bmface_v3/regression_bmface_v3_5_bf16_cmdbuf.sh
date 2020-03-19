@@ -10,7 +10,7 @@ TENSOR_IN_BIN_FILE=./data/bmface_v3_in_bf16_scale.bin
 ################################
 # prepare bf16 input
 ################################
-npz_to_bin.py $TENSOR_IN_FILE data ./data/bmface_v3_in_fp32_scale.bin
+npz_tool.py to_bin $TENSOR_IN_FILE data ./data/bmface_v3_in_fp32_scale.bin
 bin_fp32_to_bf16.py \
     ./data/bmface_v3_in_fp32_scale.bin \
     $TENSOR_IN_BIN_FILE
@@ -61,7 +61,7 @@ bin_to_npz.py \
     bmface_v3_cmdbuf_out_all_bf16.bin \
     neuron_map_bf16.csv \
     bmface_v3_cmdbuf_out_all_bf16.npz
-npz_compare.py \
+npz_tool.py compare \
     bmface_v3_cmdbuf_out_all_bf16.npz \
     bmface_v3_tensor_all_bf16.npz \
     --op_info bmface_v3_op_info.csv \

@@ -8,7 +8,7 @@ source $DIR/../../envsetup.sh
 ################################
 # prepare int8 input
 ################################
-npz_to_bin.py densenet_in_fp32.npz input densenet_in_fp32.bin
+npz_tool.py to_bin densenet_in_fp32.npz input densenet_in_fp32.bin
 bin_fp32_to_int8.py \
     densenet_in_fp32.bin \
     densenet_in_int8.bin \
@@ -64,7 +64,7 @@ model_runner \
     --output densenet_cmdbuf_out_all_int8_multiplier.npz
 
 # compare all tensors
-npz_compare.py \
+npz_tool.py compare \
     densenet_cmdbuf_out_all_int8_multiplier.npz \
     densenet_tensor_all_int8_multiplier.npz \
     --op_info densenet_op_info_int8_multiplier.csv

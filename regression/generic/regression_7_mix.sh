@@ -26,7 +26,7 @@ if [ $DO_QUANT_MIX -eq 1 ]; then
       --tensor-out ${NET}_out_mix.npz \
       --dump-all-tensor=${NET}_tensor_all_mix.npz
 
-  npz_compare.py \
+  npz_tool.py compare \
       ${NET}_tensor_all_mix.npz \
       ${NET}_blobs.npz \
       --op_info ${NET}_op_info_mix.csv \

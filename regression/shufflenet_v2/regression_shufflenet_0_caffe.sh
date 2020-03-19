@@ -16,8 +16,8 @@ run_caffe_classifier.py \
     caffe_out.npy
 
 # extract input and output
-npz_extract.py shufflenet_blobs.npz shufflenet_in_fp32.npz data
-npz_extract.py shufflenet_blobs.npz shufflenet_out_fp32_fc.npz fc
+npz_tool.py extract shufflenet_blobs.npz shufflenet_in_fp32.npz data
+npz_tool.py extract shufflenet_blobs.npz shufflenet_out_fp32_fc.npz fc
 
 # VERDICT
 echo $0 PASSED

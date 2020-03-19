@@ -7,7 +7,7 @@ source $DIR/../../envsetup.sh
 ################################
 # prepare bf16 input
 ################################
-npz_to_bin.py vgg16_in_fp32.npz input vgg16_in_fp32.bin
+npz_tool.py to_bin vgg16_in_fp32.npz input vgg16_in_fp32.bin
 bin_fp32_to_bf16.py \
     vgg16_in_fp32.bin \
     vgg16_in_bf16.bin
@@ -49,7 +49,7 @@ model_runner \
     --output vgg16_cmdbuf_out_all_bf16.npz
 
 # compare all tensors
-npz_compare.py \
+npz_tool.py compare \
     vgg16_cmdbuf_out_all_bf16.npz \
     vgg16_tensor_all_bf16.npz \
     --op_info vgg16_op_info.csv \

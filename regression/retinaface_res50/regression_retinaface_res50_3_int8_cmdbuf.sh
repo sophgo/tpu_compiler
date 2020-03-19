@@ -7,13 +7,13 @@ source $DIR/../../envsetup.sh
 ################################
 # prepare int8 input
 ################################
-npz_to_bin.py \
+npz_tool.py to_bin \
     retinaface_res50_tensor_all_int8.npz \
     data \
     retinaface_res50_in_int8.bin \
     int8
 
-#npz_to_bin.py retinaface_res50_in_fp32.npz data retinaface_res50_in_fp32.bin
+#npz_tool.py to_bin retinaface_res50_in_fp32.npz data retinaface_res50_in_fp32.bin
 # Depend on retinaface_res50_threshold_table
 #bin_fp32_to_int8.py \
 #    retinaface_res50_in_fp32.bin \
@@ -60,7 +60,7 @@ model_runner \
     --output retinaface_res50_cmdbuf_out_all_int8.npz
 
 # compare all tensors
-npz_compare.py \
+npz_tool.py compare \
     retinaface_res50_cmdbuf_out_all_int8.npz \
     retinaface_res50_tensor_all_int8.npz \
     --op_info retinaface_res50_op_info_int8.csv
