@@ -23,8 +23,8 @@ mlir-tpu-interpreter inception_v4.mlir \
     --tensor-in inception_v4_in_fp32.npz \
     --tensor-out inception_v4_out_fp32.npz \
     --dump-all-tensor=inception_v4_tensor_all_fp32.npz
-npz_compare.py inception_v4_out_fp32.npz inception_v4_out_fp32_prob.npz -v
-npz_compare.py \
+npz_tool.py compare inception_v4_out_fp32.npz inception_v4_out_fp32_prob.npz -v
+npz_tool.py compare \
     inception_v4_tensor_all_fp32.npz \
     inception_v4_blobs.npz \
     --op_info inception_v4_op_info.csv \
@@ -46,8 +46,8 @@ mlir-tpu-interpreter inception_v4_opt.mlir \
     --tensor-in inception_v4_in_fp32.npz \
     --tensor-out inception_v4_opt_out_fp32.npz \
     --dump-all-tensor=inception_v4_tensor_all_fp32.npz
-npz_compare.py inception_v4_opt_out_fp32.npz inception_v4_out_fp32_prob.npz -v
-npz_compare.py \
+npz_tool.py compare inception_v4_opt_out_fp32.npz inception_v4_out_fp32_prob.npz -v
+npz_tool.py compare \
     inception_v4_tensor_all_fp32.npz \
     inception_v4_blobs.npz \
     --op_info inception_v4_op_info.csv \

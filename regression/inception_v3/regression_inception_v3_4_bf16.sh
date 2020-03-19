@@ -16,9 +16,9 @@ mlir-tpu-interpreter  inception_v3_quant_bf16.mlir \
     --tensor-in inception_v3_in_raw_fp32.npz \
     --tensor-out inception_v3_out_bf16.npz \
     --dump-all-tensor=inception_v3_tensor_all_bf16.npz
-npz_compare.py inception_v3_out_bf16.npz inception_v3_out_fp32.npz -v
+npz_tool.py compare inception_v3_out_bf16.npz inception_v3_out_fp32.npz -v
 # need to check torlerance later
-npz_compare.py \
+npz_tool.py compare \
     inception_v3_tensor_all_bf16.npz \
     inception_v3_tensor_all_fp32.npz \
     --op_info inception_v3_op_info.csv \

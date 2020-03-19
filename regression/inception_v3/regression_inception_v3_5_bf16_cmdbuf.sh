@@ -46,7 +46,7 @@ model_runner \
     --output inception_v3_cmdbuf_out_all_bf16.npz
 
 # compare all tensors
-npz_compare.py \
+npz_tool.py compare \
     inception_v3_cmdbuf_out_all_bf16.npz \
     inception_v3_tensor_all_bf16.npz \
     --order neuron_map_bf16.csv \

@@ -8,7 +8,7 @@ source $DIR/../../envsetup.sh
 ################################
 # prepare int8 input
 ################################
-npz_to_bin.py ssd300_face_in_fp32.npz data ssd300_face_in_fp32.bin
+npz_tool.py to_bin ssd300_face_in_fp32.npz data ssd300_face_in_fp32.bin
 bin_fp32_to_int8.py \
     ssd300_face_in_fp32.bin \
     ssd300_face_in_int8.bin \
@@ -51,7 +51,7 @@ model_runner \
     --output ssd300_face_cmdbuf_out_all_int8_multiplier.npz
 
 # compare all tensors
-npz_compare.py \
+npz_tool.py compare \
     ssd300_face_cmdbuf_out_all_int8_multiplier.npz \
     ssd300_face_tensor_all_int8_multiplier.npz \
     --op_info ssd300_face_op_info_int8_multiplier.csv

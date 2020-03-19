@@ -7,7 +7,7 @@ source $DIR/../../envsetup.sh
 ################################
 # prepare bf16 input
 ################################
-npz_to_bin.py ${NET}_in_fp32.npz ${INPUT} ${NET}_in_fp32.bin
+npz_tool.py to_bin ${NET}_in_fp32.npz ${INPUT} ${NET}_in_fp32.bin
 
 ################################
 # Lower
@@ -51,7 +51,7 @@ model_runner \
     --output ${NET}_cmdbuf_out_all_bf16.npz
 
 # compare all tensors
-npz_compare.py \
+npz_tool.py compare \
     ${NET}_cmdbuf_out_all_bf16.npz \
     ${NET}_tensor_all_bf16.npz \
     --op_info ${NET}_op_info_bf16.csv \

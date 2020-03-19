@@ -7,7 +7,7 @@ source $DIR/../../envsetup.sh
 ################################
 # prepare bf16 input
 ################################
-npz_to_bin.py mobilenet_v2_in_fp32.npz input mobilenet_v2_in_fp32.bin
+npz_tool.py to_bin mobilenet_v2_in_fp32.npz input mobilenet_v2_in_fp32.bin
 bin_fp32_to_bf16.py \
     mobilenet_v2_in_fp32.bin \
     mobilenet_v2_in_bf16.bin
@@ -49,7 +49,7 @@ model_runner \
     --output mobilenet_v2_cmdbuf_out_all_bf16.npz
 
 # compare all tensors
-npz_compare.py \
+npz_tool.py compare \
     mobilenet_v2_cmdbuf_out_all_bf16.npz \
     mobilenet_v2_tensor_all_bf16.npz \
     --op_info mobilenet_v2_op_info.csv \

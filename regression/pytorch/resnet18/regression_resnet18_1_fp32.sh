@@ -26,8 +26,8 @@ mlir-tpu-interpreter resnet18_opt.mlir \
     --tensor-out resnet18_out_fp32.npz \
     --dump-all-tensor=resnet18_tensor_all_fp32.npz
 
-npz_rename.py resnet18_out_fp32.npz output_Gemm output
-npz_compare.py resnet18_out_fp32.npz resnet18_out_onnx.npz -vvv
+npz_tool.py rename resnet18_out_fp32.npz output_Gemm output
+npz_tool.py compare resnet18_out_fp32.npz resnet18_out_onnx.npz -vvv
 
 
 # VERDICT

@@ -28,9 +28,9 @@ mlir-tpu-interpreter ssd300_face.mlir \
     --tensor-out ssd300_face_out_fp32.npz \
     --dump-all-tensor=ssd300_face_tensor_all_fp32.npz
 
-npz_compare.py ssd300_face_out_fp32.npz ssd300_face_out_fp32_ref.npz -v -d
+npz_tool.py compare ssd300_face_out_fp32.npz ssd300_face_out_fp32_ref.npz -v -d
 
-npz_compare.py \
+npz_tool.py compare \
     ssd300_face_tensor_all_fp32.npz \
     ssd300_face_blobs.npz \
     --op_info ssd300_face_op_info.csv \
@@ -52,10 +52,10 @@ mlir-tpu-interpreter ssd300_face_opt.mlir \
     --tensor-out ssd300_face_out_fp32.npz \
     --dump-all-tensor=ssd300_face_tensor_all_fp32.npz
 
-npz_compare.py ssd300_face_out_fp32.npz ssd300_face_out_fp32_ref.npz -v -d
+npz_tool.py compare ssd300_face_out_fp32.npz ssd300_face_out_fp32_ref.npz -v -d
 
 if [ $COMPARE_ALL -eq 1 ]; then
- npz_compare.py \
+ npz_tool.py compare \
      ssd300_face_tensor_all_fp32.npz \
      ssd300_face_blobs.npz \
      --op_info ssd300_face_op_info.csv \

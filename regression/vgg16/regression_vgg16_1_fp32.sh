@@ -23,8 +23,8 @@ mlir-tpu-interpreter vgg16.mlir \
     --tensor-in vgg16_in_fp32.npz \
     --tensor-out vgg16_out_fp32.npz \
     --dump-all-tensor=vgg16_tensor_all_fp32.npz
-npz_compare.py vgg16_out_fp32.npz vgg16_out_fp32_prob.npz -v
-npz_compare.py \
+npz_tool.py compare vgg16_out_fp32.npz vgg16_out_fp32_prob.npz -v
+npz_tool.py compare \
     vgg16_tensor_all_fp32.npz \
     vgg16_blobs.npz \
     --op_info vgg16_op_info.csv \
@@ -42,7 +42,7 @@ mlir-opt \
 mlir-tpu-interpreter vgg16_opt.mlir \
     --tensor-in vgg16_in_fp32.npz \
     --tensor-out vgg16_opt_out_fp32.npz
-npz_compare.py vgg16_opt_out_fp32.npz vgg16_out_fp32_prob.npz -v
+npz_tool.py compare vgg16_opt_out_fp32.npz vgg16_out_fp32_prob.npz -v
 
 # VERDICT
 echo $0 PASSED

@@ -12,7 +12,7 @@ mlir-opt \
     -o efficientnet_b0_quant_bf16.mlir
 
 # create bf16 input
-npz_to_bin.py $REGRESSION_PATH/efficientnet_b0/data/efficientnet_in_fp32.npz data efficientnet_in_fp32.bin
+npz_tool.py to_bin $REGRESSION_PATH/efficientnet_b0/data/efficientnet_in_fp32.npz data efficientnet_in_fp32.bin
 bin_fp32_to_bf16.py \
     efficientnet_in_fp32.bin \
     efficientnet_in_bf16.bin \
@@ -24,10 +24,10 @@ mlir-tpu-interpreter efficientnet_b0_quant_bf16.mlir\
     --tensor-out efficientnet_out_bf16.npz \
     --dump-all-tensor=efficientnet_tensor_all_bf16.npz
 
-npz_compare.py ./efficientnet_tensor_all_bf16.npz ./efficientnet_tensor_all_fp32.npz -v
+npz_tool.py compare ./efficientnet_tensor_all_bf16.npz ./efficientnet_tensor_all_fp32.npz -v
 
 # need to check torlerance later
-npz_compare.py \
+npz_tool.py compare \
     ./efficientnet_tensor_all_bf16.npz\
     ./efficientnet_tensor_all_fp32.npz \
     --tolerance=0.99,0.99,0.88 -vvv

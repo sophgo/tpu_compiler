@@ -25,7 +25,7 @@ mlir-tpu-interpreter alphapose_quant_int8_multiplier.mlir \
     --tensor-out alphapose_out_int8.npz \
     --dump-all-tensor=alphapose_tensor_all_int8.npz
 
-npz_compare.py \
+npz_tool.py compare \
     alphapose_tensor_all_int8.npz  \
     alphapose_tensor_all_fp32.npz \
     --op_info alphapose_op_info_int8_multiplier.csv \

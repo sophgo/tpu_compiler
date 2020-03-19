@@ -6,7 +6,7 @@ source $DIR/../../envsetup.sh
 echo $0 IS RUNNING
 
 # create bf16 input
-npz_to_bin.py efficientnet_in_fp32.npz data efficientnet_in_fp32.bin
+npz_tool.py to_bin efficientnet_in_fp32.npz data efficientnet_in_fp32.bin
 bin_fp32_to_bf16.py \
     efficientnet_in_fp32.bin \
     efficientnet_in_bf16.bin \
@@ -56,15 +56,15 @@ model_runner \
     --output out_all_bf16.npz
 
 # convert npz from bf16 to fp32
-npz_bf16_to_fp32.py out_all_bf16.npz out_all_fp32.npz
+npz_tool.py bf16_to_fp32 out_all_bf16.npz out_all_fp32.npz
 
 # compare with golden fp32
-npz_compare.py \
+npz_tool.py compare \
     out_all_fp32.npz \
     efficientnet_tensor_all_bf16.npz -vv
 
 # need to check torlerance later
-npz_compare.py \
+npz_tool.py compare \
     ./efficientnet_tensor_all_bf16.npz\
     ./efficientnet_tensor_all_fp32.npz \
     --tolerance=0.99,0.99,0.88 -vvv

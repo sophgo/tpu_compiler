@@ -25,10 +25,16 @@ mlir-tpu-interpreter efficientnet_b0_opt.mlir \
     --tensor-in efficientnet_b0_in_fp32.npz \
     --tensor-out efficientnet_b0_out_fp32.npz \
     --dump-all-tensor=efficientnet_b0_tensor_all_fp32.npz
-# rename onnx output
 
-npz_rename.py efficientnet_b0_out_fp32.npz output_Gemm output
-npz_compare.py efficientnet_b0_out_fp32.npz efficientnet_b0_out_onnx.npz -vvv
+# rename onnx output
+npz_tool.py rename \
+    efficientnet_b0_out_fp32.npz \
+    output_Gemm \
+    output
+
+npz_tool.py compare \
+    efficientnet_b0_out_fp32.npz \
+    efficientnet_b0_out_onnx.npz -vvv
 
 
 # VERDICT

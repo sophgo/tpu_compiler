@@ -16,12 +16,12 @@ run_caffe_classifier.py \
     caffe_out.npy
 
 # extract input and output
-npz_extract.py squeezenet_v1.1_blobs.npz squeezenet_v1.1_in_fp32.npz data
-npz_extract.py squeezenet_v1.1_blobs.npz squeezenet_v1.1_out_fp32_prob.npz prob
+npz_tool.py extract squeezenet_v1.1_blobs.npz squeezenet_v1.1_in_fp32.npz data
+npz_tool.py extract squeezenet_v1.1_blobs.npz squeezenet_v1.1_out_fp32_prob.npz prob
 
 # fix input data consistency
 # because jpeg decoder may introduce difference, use save file to overwrite
-npz_compare.py squeezenet_v1.1_in_fp32.npz $REGRESSION_PATH/squeezenet/data/squeezenet_v1.1_in_fp32.npz
+npz_tool.py compare squeezenet_v1.1_in_fp32.npz $REGRESSION_PATH/squeezenet/data/squeezenet_v1.1_in_fp32.npz
 cp $REGRESSION_PATH/squeezenet/data/squeezenet_v1.1_in_fp32.npz squeezenet_v1.1_in_fp32.npz
 
 # VERDICT

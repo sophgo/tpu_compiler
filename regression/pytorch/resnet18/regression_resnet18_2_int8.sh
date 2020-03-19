@@ -25,7 +25,7 @@ mlir-tpu-interpreter resnet18_quant_int8_multiplier.mlir \
     --tensor-out resnet18_out_int8.npz \
     --dump-all-tensor=resnet18_tensor_all_int8.npz
 
-npz_compare.py \
+npz_tool.py compare \
     resnet18_tensor_all_int8.npz  \
     resnet18_tensor_all_fp32.npz \
     --op_info resnet18_op_info_int8_multiplier.csv \

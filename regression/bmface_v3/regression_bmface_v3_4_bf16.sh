@@ -25,9 +25,9 @@ mlir-tpu-interpreter bmface_v3_quant_bf16.mlir \
     --tensor-out bmface_v3_out_bf16.npz \
     --dump-all-tensor=bmface_v3_tensor_all_bf16.npz
 
-#$PYTOOL_PATH/npz_compare.py bmface_v3_out_bf16.npz bmface_v3_out_fp32.npz -v
+#$PYTOOL_PATH/npz_tool.py compare bmface_v3_out_bf16.npz bmface_v3_out_fp32.npz -v
 
-npz_compare.py \
+npz_tool.py compare \
     bmface_v3_tensor_all_bf16.npz \
     bmface_v3_tensor_all_fp32.npz \
     --op_info bmface_v3_op_info.csv \
