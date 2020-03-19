@@ -10,6 +10,7 @@ import cv2
 import caffe
 
 suport_model = [
+    "arcface_res50",
     "bmface_v3",
     "liveness"
 ]
@@ -48,6 +49,19 @@ def main(argv):
         input = np.transpose(input, (2, 0, 1))
         input = np.expand_dims(input, axis=0)
         input = input.astype(np.float32)
+    elif args.model_type == "arcface_res50":
+        input = cv2.imread(args.input_file)
+        # from bgr to rgb
+        input[:,:,0], input[:,:,2] = input[:,:,2], input[:,:,0]
+        # normalize
+        _scale = 0.0078125
+        _bias = np.array([-127.5, -127.5, -127.5], dtype=np.float32)
+        input = input.astype(np.float32)
+        input += _bias
+        input = input * _scale
+        # from hwc to chw
+        input = np.transpose(input, (2, 0, 1))
+        input = np.expand_dims(input, axis=0)
     elif args.model_type == "liveness":
         input = np.fromfile(args.input_file, dtype=np.float32)
         input = input.reshape((1, 6, 32, 32))

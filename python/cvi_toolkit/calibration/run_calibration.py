@@ -12,6 +12,16 @@ from kld_calibrator import KLD_Calibrator
 from asym_calibrator import Asym_Calibrator
 from tuner import Tuner
 
+def preprocess_func_arcface(image_path, args):
+  image = cv2.imread(str(image_path).rstrip())
+  image[:,:,0], image[:,:,2] = image[:,:,2], image[:,:,0]
+  image = image.astype(np.float32)
+  image = image - 127.5
+  image = image * 0.0078125
+  image = np.transpose(image, (2, 0, 1))
+  image = np.expand_dims(image, axis=0)
+  return image
+
 def preprocess_func_ssd300_face(image_path, args):
   imgnet_mean = np.array([104, 177, 123], dtype=np.float32)
   image = cv2.imread(str(image_path).rstrip())
@@ -124,7 +134,9 @@ if __name__ == '__main__':
   elif (args.model_name == 'ssd300_face'):
     preprocess = preprocess_func_ssd300_face
   elif (args.model_name == 'alpha_pose'):
-    preprocess = preprocess_func_alphapose   
+    preprocess = preprocess_func_alphapose
+  elif (args.model_name == 'arcface_res50'):
+    preprocess = preprocess_func_arcface
   else:
     assert(False)
 

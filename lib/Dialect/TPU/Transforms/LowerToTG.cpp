@@ -1763,6 +1763,7 @@ public:
       } else if (isa<tpu::QuantOp>(op)
                  || isa<tpu::InputOp>(op)
                  || isa<tpu::PreprocessOp>(op)
+                 || isa<tpu::RetinaFaceDetectionOp>(op)
                  || isa<tpu::SoftmaxOp>(op)
                  || isa<tpu::TransposeOp>(op)) {
         // no need to lower

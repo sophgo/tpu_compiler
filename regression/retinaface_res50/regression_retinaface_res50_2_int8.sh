@@ -62,6 +62,7 @@ if [ $COMPARE_ALL -eq 1 ]; then
       retinaface_res50_caffe_blobs.npz \
       --op_info retinaface_res50_op_info_int8.csv \
       --dequant \
+      --excepts output \
       --tolerance 0.86,0.83,0.49 -vv
 fi
 
