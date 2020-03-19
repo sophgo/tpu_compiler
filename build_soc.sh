@@ -86,6 +86,13 @@ export CVIRUNTIME_SOC_PATH=$INSTALL_SOC_PATH
 #
 # build
 #
+BUILD_TYPE="RELEASE"
+if [ "$BUILD_TYPE" == "RELEASE" ]; then
+  BUILD_FLAG="-DCMAKE_BUILD_TYPE=RELEASE -DCMAKE_C_FLAGS_RELEASE=-O3 -DCMAKE_CXX_FLAGS_RELEASE=-O3"
+else
+  BUILD_FLAG="-DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS=-ggdb"
+  export BUILD_PATH=${BUILD_PATH}_debug
+fi
 
 # build host flatbuffers
 if [ ! -e $BUILD_PATH/build_flatbuffers ]; then
@@ -103,10 +110,11 @@ if [ ! -e $BUILD_SOC_PATH/build_flatbuffers ]; then
 fi
 pushd $BUILD_SOC_PATH/build_flatbuffers
 # CC=aarch64-linux-gnu-gcc CXX=aarch64-linux-gnu-g++
-cmake -G Ninja -DCMAKE_INSTALL_PREFIX=$FLATBUFFERS_SOC_PATH \
+cmake -G Ninja $BUILD_FLAG \
     -DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc \
     -DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++ \
     -DFLATBUFFERS_BUILD_TESTS=OFF \
+    -DCMAKE_INSTALL_PREFIX=$FLATBUFFERS_SOC_PATH \
     $MLIR_SRC_PATH/third_party/flatbuffers
 cmake --build . --target install
 popd
@@ -131,7 +139,7 @@ cmake -G Ninja -DCHIP=BM1880v2 $BUILD_FLAG \
     -DCMAKE_TOOLCHAIN_FILE=$TOOLCHAIN_FILE_PATH \
     -DCMAKE_INSTALL_PREFIX=$CVIKERNEL_SOC_PATH \
     $MLIR_SRC_PATH/externals/cvikernel
-cmake --build . --target install
+cmake --build . --target install -- -v
 popd
 
 # build cnpy
@@ -161,7 +169,7 @@ cmake -G Ninja -DCHIP=BM1880v2 -DRUNTIME=SOC $BUILD_FLAG \
     -DCVIBUILDER_PATH=$BUILD_SOC_PATH/build_cvimodel \
     -DCMAKE_INSTALL_PREFIX=$CVIRUNTIME_SOC_PATH \
     $MLIR_SRC_PATH/externals/cviruntime
-cmake --build . --target install
+cmake --build . --target install -- -v
 popd
 
 export OPENCV_SOC_PATH=$INSTALL_SOC_PATH/opencv
@@ -173,7 +181,7 @@ if [ $BUILD_OPENCV -eq 1 ]; then
     mkdir $BUILD_SOC_PATH/build_opencv
   fi
   pushd $BUILD_SOC_PATH/build_opencv
-  cmake -G Ninja \
+  cmake -G Ninja $BUILD_FLAG \
       -DWITH_CUDA=OFF -DWITH_DC1394=OFF -DWITH_GPHOTO2=OFF \
       -DCMAKE_BUILD_TYPE=RELEASE \
       -DCMAKE_SYSROOT=$AARCH64_SYSROOT_PATH \
@@ -196,7 +204,7 @@ if [ $BUILD_SAMPLES -eq 1 ]; then
     mkdir $BUILD_SOC_PATH/build_samples
   fi
   pushd $BUILD_SOC_PATH/build_samples
-  cmake -G Ninja \
+  cmake -G Ninja $BUILD_FLAG \
       -DCMAKE_SYSROOT=$AARCH64_SYSROOT_PATH \
       -DCMAKE_TOOLCHAIN_FILE=$TOOLCHAIN_FILE_PATH \
       -DRUNTIME_PATH=$CVIRUNTIME_SOC_PATH \
@@ -204,6 +212,6 @@ if [ $BUILD_SAMPLES -eq 1 ]; then
       -DOPENCV_PATH=$OPENCV_SOC_PATH \
       -DCMAKE_INSTALL_PREFIX=$SAMPLES_SOC_PATH \
       $MLIR_SRC_PATH/externals/cviruntime/samples
-  cmake --build . --target install
+  cmake --build . --target install -- -v
   popd
 fi
