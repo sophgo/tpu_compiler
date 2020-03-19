@@ -4,7 +4,7 @@ set -e
 ################################
 # prepare int8 input
 ################################
-npz_tool.py to_bin \
+cvi_npz_tool.py to_bin \
     test_tensor_all_int8_multiplier.npz \
     data \
     test_in_int8.bin \
@@ -56,7 +56,7 @@ model_runner \
     --output test_cmdbuf_out_all_int8_per_layer.npz
 
 # compare all tensors
-npz_tool.py compare \
+cvi_npz_tool.py compare \
     test_cmdbuf_out_all_int8_per_layer.npz \
     test_tensor_all_int8_per_layer.npz \
     --op_info test_op_info_int8_per_layer.csv
@@ -107,7 +107,7 @@ model_runner \
     --output test_cmdbuf_out_all_int8_multiplier.npz
 
 # compare all tensors
-npz_tool.py compare \
+cvi_npz_tool.py compare \
     test_cmdbuf_out_all_int8_multiplier.npz \
     test_tensor_all_int8_multiplier.npz \
     --op_info test_op_info_int8_multiplier.csv

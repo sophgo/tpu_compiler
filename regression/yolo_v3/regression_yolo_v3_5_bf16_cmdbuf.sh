@@ -7,7 +7,7 @@ source $DIR/../../envsetup.sh
 ################################
 # prepare bf16 input
 ################################
-npz_tool.py to_bin ${NET}_in_fp32.npz input ${NET}_in_fp32.bin
+cvi_npz_tool.py to_bin ${NET}_in_fp32.npz input ${NET}_in_fp32.bin
 bin_fp32_to_bf16.py \
     ${NET}_in_fp32.bin \
     ${NET}_in_bf16.bin
@@ -52,12 +52,12 @@ model_runner \
     --model ${NET}_bf16.cvimodel \
     --output ${NET}_cmdbuf_out_all_bf16.npz
 
-npz_tool.py extract \
+cvi_npz_tool.py extract \
     ${NET}_cmdbuf_out_all_bf16.npz \
     ${NET}_out_bf16_three_layer.npz \
     layer82-conv,layer94-conv,layer106-conv
 
-npz_tool.py compare \
+cvi_npz_tool.py compare \
       ${NET}_out_bf16_three_layer.npz \
       ${NET}_tensor_all_bf16.npz \
       --op_info ${NET}_op_info_bf16_per_layer.csv

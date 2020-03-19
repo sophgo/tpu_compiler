@@ -52,7 +52,7 @@ if [ $DO_QUANT_INT8_PER_TENSOR -eq 1 ]; then
       --tensor-out ${NET}_out_int8_per_tensor.npz \
       --dump-all-tensor=${NET}_tensor_all_int8_per_tensor.npz
 
-  npz_tool.py to_bin \
+  cvi_npz_tool.py to_bin \
       ${NET}_tensor_all_int8_per_tensor.npz \
       ${OUTPUTS} \
       ${NET}_out_${OUTPUTS}_int8_per_tensor.bin \
@@ -67,7 +67,7 @@ if [ $DO_QUANT_INT8_PER_TENSOR -eq 1 ]; then
 
   if [ $COMPARE_ALL -eq 1 ]; then
     # this will fail for now, because prob has been dequantized twice, others should pass
-    npz_tool.py compare \
+    cvi_npz_tool.py compare \
         ${NET}_tensor_all_int8_per_tensor.npz \
         ${NET}_blobs.npz \
         --op_info ${NET}_op_info_int8_per_tensor.csv \
@@ -94,7 +94,7 @@ if [ $DO_QUANT_INT8_RFHIFT_ONLY -eq 1 ]; then
       --tensor-out ${NET}_out_int8_rshift_only.npz \
       --dump-all-tensor=${NET}_tensor_all_int8_rshift_only.npz
 
-  npz_tool.py to_bin \
+  cvi_npz_tool.py to_bin \
       ${NET}_tensor_all_int8_rshift_only.npz \
       ${OUTPUTS} \
       ${NET}_out_${OUTPUTS}_int8_rshift_only.bin \
@@ -109,7 +109,7 @@ if [ $DO_QUANT_INT8_RFHIFT_ONLY -eq 1 ]; then
 
   if [ $COMPARE_ALL -eq 1 ]; then
     # this will fail for now, because prob has been dequantized twice, others should pass
-    npz_tool.py compare \
+    cvi_npz_tool.py compare \
         ${NET}_tensor_all_int8_rshift_only.npz \
         ${NET}_blobs.npz \
         --op_info ${NET}_op_info_int8_rshift_only.csv \
@@ -136,7 +136,7 @@ if [ $DO_QUANT_INT8_MULTIPLER -eq 1 ]; then
       --tensor-out ${NET}_out_int8_multiplier.npz \
       --dump-all-tensor=${NET}_tensor_all_int8_multiplier.npz
 
-  npz_tool.py to_bin \
+  cvi_npz_tool.py to_bin \
       ${NET}_tensor_all_int8_multiplier.npz \
       ${OUTPUTS} \
       ${NET}_out_${OUTPUTS}_int8_multiplier.bin \
@@ -150,7 +150,7 @@ if [ $DO_QUANT_INT8_MULTIPLER -eq 1 ]; then
 
   if [ $COMPARE_ALL -eq 1 ]; then
     # this will fail for now, because prob has been dequantized twice, others should pass
-    npz_tool.py compare \
+    cvi_npz_tool.py compare \
         ${NET}_tensor_all_int8_multiplier.npz \
         ${NET}_blobs.npz \
         --op_info ${NET}_op_info_int8_multiplier.csv \

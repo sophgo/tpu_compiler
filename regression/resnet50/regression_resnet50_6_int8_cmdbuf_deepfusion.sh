@@ -110,12 +110,12 @@ model_runner \
     --output resnet50_cmdbuf_out_all_int8_lw.npz
 
 if [ $COMPARE_ALL -eq 1 ]; then
-  npz_tool.py compare \
+  cvi_npz_tool.py compare \
       resnet50_cmdbuf_out_all_int8_la.npz \
       resnet50_tensor_all_int8_multiplier.npz \
       --op_info resnet50_op_info_int8_multiplier.csv
 
-  npz_tool.py compare \
+  cvi_npz_tool.py compare \
       resnet50_cmdbuf_out_all_int8_lw.npz \
       resnet50_tensor_all_int8_multiplier.npz \
       --op_info resnet50_op_info_int8_multiplier.csv

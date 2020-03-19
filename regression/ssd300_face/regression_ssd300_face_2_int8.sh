@@ -53,12 +53,12 @@ mlir-tpu-interpreter ssd300_face_quant_int8_per_layer.mlir \
     --tensor-out ssd300_face_out_dequant_int8_per_layer.npz \
     --dump-all-tensor=ssd300_face_tensor_all_int8_per_layer.npz
 
-npz_tool.py extract \
+cvi_npz_tool.py extract \
     ssd300_face_tensor_all_int8_per_layer.npz \
     ssd300_face_out_int8_per_layer.npz \
     detection_out
 
-npz_tool.py compare \
+cvi_npz_tool.py compare \
       ssd300_face_out_int8_per_layer.npz \
       ssd300_face_blobs.npz \
       --op_info ssd300_face_op_info_int8_per_layer.csv \
@@ -67,7 +67,7 @@ npz_tool.py compare \
 if [ $COMPARE_ALL -eq 1 ]; then
   # some tensors do not pass due to threshold bypass
   # need do dequantization in interpreter directly
-  npz_tool.py compare \
+  cvi_npz_tool.py compare \
       ssd300_face_tensor_all_int8_per_layer.npz \
       ssd300_face_blobs.npz \
       --op_info ssd300_face_op_info_int8_per_layer.csv \
@@ -100,12 +100,12 @@ mlir-tpu-interpreter ssd300_face_quant_int8_per_channel.mlir \
     --tensor-out ssd300_face_out_dequant_int8_per_channel.npz \
     --dump-all-tensor=ssd300_face_tensor_all_int8_per_channel.npz
 
-npz_tool.py extract \
+cvi_npz_tool.py extract \
     ssd300_face_tensor_all_int8_per_channel.npz \
     ssd300_face_out_int8_per_channel.npz \
     detection_out
 
-npz_tool.py compare \
+cvi_npz_tool.py compare \
       ssd300_face_out_int8_per_channel.npz \
       ssd300_face_blobs.npz \
       --op_info ssd300_face_op_info_int8_per_channel.csv \
@@ -115,7 +115,7 @@ npz_tool.py compare \
 if [ $COMPARE_ALL -eq 1 ]; then
   # some tensors do not pass due to threshold bypass
   # need do dequantization in interpreter directly
-  npz_tool.py compare \
+  cvi_npz_tool.py compare \
       ssd300_face_tensor_all_int8_per_channel.npz \
       ssd300_face_blobs.npz \
       --op_info ssd300_face_op_info_int8_per_channel.csv \
@@ -147,12 +147,12 @@ mlir-tpu-interpreter ssd300_face_quant_int8_multiplier.mlir \
     --tensor-out ssd300_face_out_dequant_int8_multiplier.npz \
     --dump-all-tensor=ssd300_face_tensor_all_int8_multiplier.npz
 
-npz_tool.py extract \
+cvi_npz_tool.py extract \
     ssd300_face_tensor_all_int8_multiplier.npz \
     ssd300_face_out_int8_multiplier.npz \
     detection_out
 
-npz_tool.py compare \
+cvi_npz_tool.py compare \
       ssd300_face_out_int8_multiplier.npz \
       ssd300_face_blobs.npz \
       --op_info ssd300_face_op_info_int8_multiplier.csv \
@@ -165,7 +165,7 @@ npz_tool.py compare \
 if [ $COMPARE_ALL -eq 1 ]; then
   # some tensors do not pass due to threshold bypass
   # need do dequantization in interpreter directly
-  npz_tool.py compare \
+  cvi_npz_tool.py compare \
       ssd300_face_tensor_all_int8_multiplier.npz \
       ssd300_face_blobs.npz \
       --op_info ssd300_face_op_info_int8_multiplier.csv \

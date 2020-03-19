@@ -10,7 +10,7 @@ mlir-tpu-interpreter test_conv.mlir \
     --dump-all-tensor=test_tensor_all_fp32.npz
 
 # Compare with golden
-npz_tool.py compare \
+cvi_npz_tool.py compare \
     test_out_fp32.npz \
     test_output_golden.npz -vv
 

@@ -24,7 +24,7 @@ mlir-tpu-interpreter densenet_opt_post_cali.mlir \
     --tensor-in densenet_in_fp32.npz \
     --tensor-out out-opt-post-cali.npz
 
-npz_tool.py compare densenet_out_fp32_fc6.npz out-opt-post-cali.npz --tolerance 0.9,0.9,0.6 -vvv
+cvi_npz_tool.py compare densenet_out_fp32_fc6.npz out-opt-post-cali.npz --tolerance 0.9,0.9,0.6 -vvv
 
 # quantization 1: per-layer int8
 mlir-opt \
@@ -39,7 +39,7 @@ mlir-tpu-interpreter densenet_quant_int8_per_layer.mlir \
     --tensor-out densenet_out_int8_per_layer.npz \
     --dump-all-tensor=densenet_tensor_all_int8_per_layer.npz
 
-npz_tool.py to_bin \
+cvi_npz_tool.py to_bin \
     densenet_tensor_all_int8_per_layer.npz \
     fc6 \
     densenet_out_fc6_int8_per_layer.bin \
@@ -52,7 +52,7 @@ bin_compare.py \
 
 if [ $COMPARE_ALL ]; then
   # this will fail for now, because prob has been dequantized twice, others should pass
-  npz_tool.py compare \
+  cvi_npz_tool.py compare \
       densenet_tensor_all_int8_per_layer.npz \
       densenet_blobs.npz \
       --op_info densenet_op_info_int8_per_layer.csv \
@@ -74,7 +74,7 @@ mlir-tpu-interpreter densenet_quant_int8_per_channel.mlir \
     --tensor-out densenet_out_int8_per_channel.npz \
     --dump-all-tensor=densenet_tensor_all_int8_per_channel.npz
 
-npz_tool.py to_bin \
+cvi_npz_tool.py to_bin \
     densenet_tensor_all_int8_per_channel.npz \
     fc6 \
     densenet_out_fc6_int8_per_channel.bin \
@@ -87,7 +87,7 @@ bin_compare.py \
 
 if [ $COMPARE_ALL ]; then
   # this will fail for now, because prob has been dequantized twice, others should pass
-  npz_tool.py compare \
+  cvi_npz_tool.py compare \
       densenet_tensor_all_int8_per_channel.npz \
       densenet_blobs.npz \
       --op_info densenet_op_info_int8_per_channel.csv \
@@ -109,7 +109,7 @@ mlir-tpu-interpreter densenet_quant_int8_multiplier.mlir \
     --tensor-out densenet_out_int8_multiplier.npz \
     --dump-all-tensor=densenet_tensor_all_int8_multiplier.npz
 
-npz_tool.py to_bin \
+cvi_npz_tool.py to_bin \
     densenet_tensor_all_int8_multiplier.npz \
     fc6 \
     densenet_out_fc6_int8_multiplier.bin \
@@ -121,7 +121,7 @@ bin_compare.py \
 
 if [ $COMPARE_ALL ]; then
   # this will fail for now, because prob has been dequantized twice, others should pass
-  npz_tool.py compare \
+  cvi_npz_tool.py compare \
       densenet_tensor_all_int8_multiplier.npz \
       densenet_blobs.npz \
       --op_info densenet_op_info_int8_multiplier.csv \

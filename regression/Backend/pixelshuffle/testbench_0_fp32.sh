@@ -10,7 +10,7 @@ python ./make_mlir.py \
   --factor 2
 
 # show input
-npz_tool.py dump test_in_fp32.npz arr_0 0
+cvi_npz_tool.py dump test_in_fp32.npz arr_0 0
 
 mlir-opt \
     --assign-layer-id \
@@ -28,4 +28,4 @@ mlir-tpu-interpreter test_opt.mlir \
     --dump-all-tensor=test_tensor_all_fp32.npz
 
 # show output
-npz_tool.py dump test_out_fp32.npz Y 0
+cvi_npz_tool.py dump test_out_fp32.npz Y 0

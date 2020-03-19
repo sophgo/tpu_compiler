@@ -23,8 +23,8 @@ mlir-tpu-interpreter mobilenet_v2.mlir \
     --tensor-in mobilenet_v2_in_fp32.npz \
     --tensor-out mobilenet_v2_out_fp32.npz \
     --dump-all-tensor=mobilenet_v2_tensor_all_fp32.npz
-npz_tool.py compare mobilenet_v2_out_fp32.npz mobilenet_v2_out_fp32_prob.npz -v
-npz_tool.py compare \
+cvi_npz_tool.py compare mobilenet_v2_out_fp32.npz mobilenet_v2_out_fp32_prob.npz -v
+cvi_npz_tool.py compare \
     mobilenet_v2_tensor_all_fp32.npz \
     mobilenet_v2_blobs.npz \
     --op_info mobilenet_v2_op_info.csv \
@@ -42,7 +42,7 @@ mlir-opt \
 mlir-tpu-interpreter mobilenet_v2_opt.mlir \
     --tensor-in mobilenet_v2_in_fp32.npz \
     --tensor-out mobilenet_v2_opt_out_fp32.npz
-npz_tool.py compare mobilenet_v2_opt_out_fp32.npz mobilenet_v2_out_fp32_prob.npz -v
+cvi_npz_tool.py compare mobilenet_v2_opt_out_fp32.npz mobilenet_v2_out_fp32_prob.npz -v
 
 # VERDICT
 echo $0 PASSED

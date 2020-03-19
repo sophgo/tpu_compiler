@@ -8,7 +8,7 @@ echo $0 IS RUNNING
 ################################
 # prepare bf16 input
 ################################
-npz_tool.py to_bin inception_v4_in_fp32.npz input inception_v4_in_fp32.bin
+cvi_npz_tool.py to_bin inception_v4_in_fp32.npz input inception_v4_in_fp32.bin
 bin_fp32_to_bf16.py \
     inception_v4_in_fp32.bin \
     inception_v4_in_bf16.bin
@@ -53,7 +53,7 @@ model_runner \
     --model inception_v4_bf16.cvimodel \
     --output inception_v4_cmdbuf_out_all_bf16.npz
 
-npz_tool.py to_bin \
+cvi_npz_tool.py to_bin \
     inception_v4_cmdbuf_out_all_bf16.npz \
     classifier \
     inception_v4_cmdbuf_out_classifier_bf16.bin \
@@ -64,7 +64,7 @@ bin_compare.py \
     bf16 1 1 1 1000 5
 
 # compare all tensors
-npz_tool.py compare \
+cvi_npz_tool.py compare \
     inception_v4_cmdbuf_out_all_bf16.npz \
     inception_v4_tensor_all_bf16.npz \
     --order neuron_map_bf16.csv \

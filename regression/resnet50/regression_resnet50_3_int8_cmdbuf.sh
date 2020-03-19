@@ -7,7 +7,7 @@ source $DIR/../../envsetup.sh
 ################################
 # prepare int8 input
 ################################
-npz_tool.py to_bin \
+cvi_npz_tool.py to_bin \
     resnet50_tensor_all_int8_multiplier.npz \
     data \
     resnet50_in_int8.bin \
@@ -15,7 +15,7 @@ npz_tool.py to_bin \
 
 # don't use following commands to generate input, as it depends on
 # calibration result.
-# npz_tool.py to_bin resnet50_in_fp32.npz input resnet50_in_fp32.bin
+# cvi_npz_tool.py to_bin resnet50_in_fp32.npz input resnet50_in_fp32.bin
 # bin_fp32_to_int8.py \
 #    resnet50_in_fp32.bin \
 #    resnet50_in_int8.bin \
@@ -62,7 +62,7 @@ model_runner \
     --output resnet50_cmdbuf_out_all_int8_per_layer.npz
 
 # compare all tensors
-npz_tool.py compare \
+cvi_npz_tool.py compare \
     resnet50_cmdbuf_out_all_int8_per_layer.npz \
     resnet50_tensor_all_int8_per_layer.npz \
     --op_info resnet50_op_info_int8_per_layer.csv
@@ -113,7 +113,7 @@ model_runner \
     --output resnet50_cmdbuf_out_all_int8_multiplier.npz
 
 # compare all tensors
-npz_tool.py compare \
+cvi_npz_tool.py compare \
     resnet50_cmdbuf_out_all_int8_multiplier.npz \
     resnet50_tensor_all_int8_multiplier.npz \
     --op_info resnet50_op_info_int8_multiplier.csv

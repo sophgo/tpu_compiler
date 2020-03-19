@@ -5,7 +5,7 @@ DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 source $DIR/../../../envsetup.sh
 
 
-convert.py \
+cvi_model_convert.py \
     --model_path $MODEL_PATH/imagenet/efficientnet-b0/onnx/efficientnet_b0.onnx \
     --model_name efficientnet_b0 \
     --model_type onnx \
@@ -27,12 +27,12 @@ mlir-tpu-interpreter efficientnet_b0_opt.mlir \
     --dump-all-tensor=efficientnet_b0_tensor_all_fp32.npz
 
 # rename onnx output
-npz_tool.py rename \
+cvi_npz_tool.py rename \
     efficientnet_b0_out_fp32.npz \
     output_Gemm \
     output
 
-npz_tool.py compare \
+cvi_npz_tool.py compare \
     efficientnet_b0_out_fp32.npz \
     efficientnet_b0_out_onnx.npz -vvv
 

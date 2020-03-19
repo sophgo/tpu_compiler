@@ -35,7 +35,7 @@ mlir-tpu-interpreter mobilenet_v2_preprocess_opt.mlir \
     --dump-all-tensor mobilenet_v2_preprocess_opt_all_fp32.npz
 
 # compare with caffe result
-npz_tool.py compare mobilenet_v2_preprocess_opt_all_fp32.npz \
+cvi_npz_tool.py compare mobilenet_v2_preprocess_opt_all_fp32.npz \
                                     mobilenet_v2_blobs.npz \
                                      --op_info mobilenet_v2_preprocess_op_info.csv \
                                      -vv
@@ -59,7 +59,7 @@ mlir-tpu-interpreter mobilenet_v2_preprocess_quant_int8_multiplier.mlir \
     --tensor-out mobilenet_v2_preprocess_out_int8_multiplier.npz \
     --dump-all-tensor=mobilenet_v2_preprocess_tensor_all_int8_multiplier.npz
 
-npz_tool.py compare \
+cvi_npz_tool.py compare \
     mobilenet_v2_preprocess_tensor_all_int8_multiplier.npz \
     mobilenet_v2_blobs.npz \
     --op_info mobilenet_v2_preprocess_op_info_int8_multiplier.csv \
@@ -68,13 +68,13 @@ npz_tool.py compare \
     --tolerance 0.95,0.94,0.69 -v
 
 # test 3: int8 cmdbuf
-npz_tool.py to_bin \
+cvi_npz_tool.py to_bin \
     mobilenet_v2_preprocess_tensor_all_int8_multiplier.npz \
     data \
     mobilenet_v2_preprocess_in_int8.bin \
     int8
 
-npz_tool.py to_bin mobilenet_v2_preprocess_in_fp32.npz data mobilenet_v2_preprocess_in_fp32.bin
+cvi_npz_tool.py to_bin mobilenet_v2_preprocess_in_fp32.npz data mobilenet_v2_preprocess_in_fp32.bin
 
   mlir-opt \
       --tpu-lower \
@@ -112,7 +112,7 @@ model_runner \
     --model mobilenet_v2_preprocess_int8_multiplier.cvimodel \
     --output mobilenet_v2_preprocess_cmdbuf_out_all_int8_multiplier.npz
 
-npz_tool.py compare \
+cvi_npz_tool.py compare \
     mobilenet_v2_preprocess_cmdbuf_out_all_int8_multiplier.npz \
     mobilenet_v2_preprocess_tensor_all_int8_multiplier.npz \
     --op_info mobilenet_v2_preprocess_op_info_int8_multiplier.csv

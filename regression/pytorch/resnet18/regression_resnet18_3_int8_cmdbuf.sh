@@ -44,7 +44,7 @@ model_runner \
     --output resnet18_cmdbuf_out_all_int8_multiplier.npz
 
 # compare all tensors
-npz_tool.py compare \
+cvi_npz_tool.py compare \
     resnet18_tensor_all_int8.npz \
     resnet18_cmdbuf_out_all_int8_multiplier.npz \
     --op_info resnet18_op_info_int8_multiplier.csv

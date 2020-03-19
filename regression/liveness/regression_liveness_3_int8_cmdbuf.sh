@@ -7,7 +7,7 @@ source $DIR/../../envsetup.sh
 ################################
 # prepare int8 input
 ################################
-npz_tool.py to_bin \
+cvi_npz_tool.py to_bin \
     liveness_tensor_all_int8_multiplier.npz \
     data \
     liveness_in_int8.bin \
@@ -15,7 +15,7 @@ npz_tool.py to_bin \
 
 # don't use following commands to generate input, as it depends on
 # calibration result.
-#npz_tool.py to_bin liveness_in_fp32.npz arr_0 liveness_in_fp32.bin
+#cvi_npz_tool.py to_bin liveness_in_fp32.npz arr_0 liveness_in_fp32.bin
 #bin_fp32_to_int8.py \
 #    liveness_in_fp32.bin \
 #    liveness_in_int8.bin \
@@ -63,7 +63,7 @@ model_runner \
     --output liveness_cmdbuf_out_all_int8.npz
 
 # compare all tensors
-npz_tool.py compare \
+cvi_npz_tool.py compare \
     liveness_cmdbuf_out_all_int8.npz \
     liveness_tensor_all_int8_multiplier.npz \
     --op_info liveness_op_info.csv \

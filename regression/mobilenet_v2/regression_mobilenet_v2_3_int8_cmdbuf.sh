@@ -7,7 +7,7 @@ source $DIR/../../envsetup.sh
 ################################
 # prepare int8 input
 ################################
-npz_tool.py to_bin mobilenet_v2_in_fp32.npz input mobilenet_v2_in_fp32.bin
+cvi_npz_tool.py to_bin mobilenet_v2_in_fp32.npz input mobilenet_v2_in_fp32.bin
 bin_fp32_to_int8.py \
     mobilenet_v2_in_fp32.bin \
     mobilenet_v2_in_int8.bin \
@@ -49,7 +49,7 @@ model_runner \
     --output mobilenet_v2_cmdbuf_out_all_int8_per_layer.npz
 
 # compare all tensors
-npz_tool.py compare \
+cvi_npz_tool.py compare \
     mobilenet_v2_cmdbuf_out_all_int8_per_layer.npz \
     mobilenet_v2_tensor_all_int8_per_layer.npz \
     --op_info mobilenet_v2_op_info_int8_per_layer.csv
@@ -95,7 +95,7 @@ model_runner \
     --output mobilenet_v2_cmdbuf_out_all_int8_multiplier.npz
 
 # compare all tensors
-npz_tool.py compare \
+cvi_npz_tool.py compare \
     mobilenet_v2_cmdbuf_out_all_int8_multiplier.npz \
     mobilenet_v2_tensor_all_int8_multiplier.npz \
     --op_info mobilenet_v2_op_info_int8_multiplier.csv

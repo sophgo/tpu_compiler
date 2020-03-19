@@ -24,7 +24,7 @@ mlir-tpu-interpreter liveness_quant_int8_multiplier.mlir \
     --tensor-out liveness_out_int8_multiplier.npz \
     --dump-all-tensor=liveness_tensor_all_int8_multiplier.npz
 
-npz_tool.py compare \
+cvi_npz_tool.py compare \
     liveness_tensor_all_int8_multiplier.npz \
     liveness_tensor_all_fp32.npz \
     --op_info liveness_op_info_int8_multiplier.csv \

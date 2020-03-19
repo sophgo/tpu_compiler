@@ -7,7 +7,7 @@ source $DIR/../../envsetup.sh
 ################################
 # prepare bf16 input
 ################################
-npz_tool.py to_bin shufflenet_in_fp32.npz data shufflenet_in_fp32.bin
+cvi_npz_tool.py to_bin shufflenet_in_fp32.npz data shufflenet_in_fp32.bin
 bin_fp32_to_bf16.py \
     shufflenet_in_fp32.bin \
     shufflenet_in_bf16.bin
@@ -59,7 +59,7 @@ model_runner \
     --output shufflenet_cmdbuf_out_all_bf16.npz
 
 # compare all tensors
-npz_tool.py compare \
+cvi_npz_tool.py compare \
     shufflenet_cmdbuf_out_all_bf16.npz \
     shufflenet_tensor_all_bf16.npz \
     --op_info shufflenet_op_info.csv \

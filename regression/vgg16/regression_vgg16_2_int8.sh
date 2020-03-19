@@ -33,7 +33,7 @@ mlir-tpu-interpreter vgg16_quant_int8_per_layer.mlir \
     --tensor-out vgg16_out_int8_per_layer.npz \
     --dump-all-tensor=vgg16_tensor_all_int8_per_layer.npz
 
-npz_tool.py to_bin \
+cvi_npz_tool.py to_bin \
     vgg16_tensor_all_int8_per_layer.npz \
     fc8 \
     vgg16_out_fc8_int8_per_layer.bin \
@@ -45,7 +45,7 @@ bin_compare.py \
 
 if [ $COMPARE_ALL -eq 1 ]; then
   # this will fail for now, because prob has been dequantized twice, others should pass
-  npz_tool.py compare \
+  cvi_npz_tool.py compare \
       vgg16_tensor_all_int8_per_layer.npz \
       vgg16_blobs.npz \
       --op_info vgg16_op_info_int8_per_layer.csv \
@@ -67,7 +67,7 @@ mlir-tpu-interpreter vgg16_quant_int8_per_channel.mlir \
     --tensor-out vgg16_out_int8_per_channel.npz \
     --dump-all-tensor=vgg16_tensor_all_int8_per_channel.npz
 
-npz_tool.py to_bin \
+cvi_npz_tool.py to_bin \
     vgg16_tensor_all_int8_per_channel.npz \
     fc8 \
     vgg16_out_fc8_int8_per_channel.bin \
@@ -79,7 +79,7 @@ bin_compare.py \
 
 if [ $COMPARE_ALL -eq 1 ]; then
   # this will fail for now, because prob has been dequantized twice, others should pass
-  npz_tool.py compare \
+  cvi_npz_tool.py compare \
       vgg16_tensor_all_int8_per_channel.npz \
       vgg16_blobs.npz \
       --op_info vgg16_op_info_int8_per_channel.csv \
@@ -101,7 +101,7 @@ mlir-tpu-interpreter vgg16_quant_int8_multiplier.mlir \
     --tensor-out vgg16_out_int8_multiplier.npz \
     --dump-all-tensor=vgg16_tensor_all_int8_multiplier.npz
 
-npz_tool.py to_bin \
+cvi_npz_tool.py to_bin \
     vgg16_tensor_all_int8_multiplier.npz \
     fc8 \
     vgg16_out_fc8_int8_multiplier.bin \
@@ -113,7 +113,7 @@ bin_compare.py \
 
 if [ $COMPARE_ALL -eq 1 ]; then
   # this will fail for now, because prob has been dequantized twice, others should pass
-  npz_tool.py compare \
+  cvi_npz_tool.py compare \
       vgg16_tensor_all_int8_multiplier.npz \
       vgg16_blobs.npz \
       --op_info vgg16_op_info_int8_multiplier.csv \

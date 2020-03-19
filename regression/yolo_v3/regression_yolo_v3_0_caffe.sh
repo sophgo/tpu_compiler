@@ -22,12 +22,12 @@ if [ ! -f "$CAFFE_BLOBS_NPZ" ]; then
 fi
 
 # extract input and output
-npz_tool.py extract $CAFFE_BLOBS_NPZ ${NET}_in_fp32.npz input
-npz_tool.py extract $CAFFE_BLOBS_NPZ ${NET}_out_fp32_ref.npz layer82-conv,layer94-conv,layer106-conv
+cvi_npz_tool.py extract $CAFFE_BLOBS_NPZ ${NET}_in_fp32.npz input
+cvi_npz_tool.py extract $CAFFE_BLOBS_NPZ ${NET}_out_fp32_ref.npz layer82-conv,layer94-conv,layer106-conv
 
 # fix input data consistency
 # because jpeg decoder may introduce difference, use save file to overwrite
-npz_tool.py compare ${NET}_in_fp32.npz $REGRESSION_PATH/yolo_v3/data/yolo_v3_in_fp32.npz
+cvi_npz_tool.py compare ${NET}_in_fp32.npz $REGRESSION_PATH/yolo_v3/data/yolo_v3_in_fp32.npz
 cp $REGRESSION_PATH/yolo_v3/data/yolo_v3_in_fp32.npz ${NET}_in_fp32.npz
 
 # VERDICT

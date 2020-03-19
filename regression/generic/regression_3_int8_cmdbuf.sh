@@ -7,13 +7,13 @@ source $DIR/../../envsetup.sh
 ################################
 # prepare int8 input
 ################################
-npz_tool.py to_bin \
+cvi_npz_tool.py to_bin \
     ${NET}_tensor_all_int8_multiplier.npz \
     data \
     ${NET}_in_int8.bin \
     int8
 
-npz_tool.py to_bin ${NET}_in_fp32.npz $INPUT ${NET}_in_fp32.bin
+cvi_npz_tool.py to_bin ${NET}_in_fp32.npz $INPUT ${NET}_in_fp32.bin
 
 ################################
 # Lower for quantization 1: per-layer int8
@@ -58,7 +58,7 @@ if [ $DO_QUANT_INT8_PER_TENSOR -eq 1 ]; then
       --output ${NET}_cmdbuf_out_all_int8_per_tensor.npz
 
   # compare all tensors
-  npz_tool.py compare \
+  cvi_npz_tool.py compare \
       ${NET}_cmdbuf_out_all_int8_per_tensor.npz \
       ${NET}_tensor_all_int8_per_tensor.npz \
       --op_info ${NET}_op_info_int8_per_tensor.csv
@@ -113,7 +113,7 @@ if [ $DO_QUANT_INT8_MULTIPLER -eq 1 ]; then
       --batch-num $BATCH_SIZE \
       --output ${NET}_cmdbuf_out_all_int8_multiplier.npz
 
-  npz_tool.py to_bin \
+  cvi_npz_tool.py to_bin \
       ${NET}_cmdbuf_out_all_int8_multiplier.npz \
       ${OUTPUTS} \
       ${NET}_cmdbuf_out_${OUTPUTS}_int8_multiplier.bin \
@@ -124,7 +124,7 @@ if [ $DO_QUANT_INT8_MULTIPLER -eq 1 ]; then
       int8 ${BATCH_SIZE} 1 1 1000 5
 
   # compare all tensors
-  npz_tool.py compare \
+  cvi_npz_tool.py compare \
       ${NET}_cmdbuf_out_all_int8_multiplier.npz \
       ${NET}_tensor_all_int8_multiplier.npz \
       --op_info ${NET}_op_info_int8_multiplier.csv

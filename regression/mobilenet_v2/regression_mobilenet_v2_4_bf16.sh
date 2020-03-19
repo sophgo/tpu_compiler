@@ -23,8 +23,8 @@ mlir-tpu-interpreter mobilenet_v2_quant_bf16.mlir \
     --tensor-in mobilenet_v2_in_fp32.npz \
     --tensor-out mobilenet_v2_out_bf16.npz \
     --dump-all-tensor=mobilenet_v2_tensor_all_bf16.npz
-npz_tool.py compare mobilenet_v2_out_bf16.npz mobilenet_v2_out_fp32.npz -v
-npz_tool.py compare \
+cvi_npz_tool.py compare mobilenet_v2_out_bf16.npz mobilenet_v2_out_fp32.npz -v
+cvi_npz_tool.py compare \
     mobilenet_v2_tensor_all_bf16.npz \
     mobilenet_v2_tensor_all_fp32.npz \
     --op_info mobilenet_v2_op_info.csv \

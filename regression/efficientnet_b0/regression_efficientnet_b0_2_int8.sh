@@ -25,7 +25,7 @@ mlir-tpu-interpreter efficientnet_b0_quant_int8_multiplier.mlir \
     --tensor-out efficientnet_out_int8.npz \
     --dump-all-tensor=efficientnet_tensor_all_int8.npz
 
-npz_tool.py compare \
+cvi_npz_tool.py compare \
     efficientnet_tensor_all_int8.npz  \
     efficientnet_blobs.npz \
     --op_info efficientnet_b0_op_info_int8_multiplier.csv \

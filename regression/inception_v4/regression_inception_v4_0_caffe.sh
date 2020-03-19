@@ -24,12 +24,12 @@ if [ ! -f "$CAFFE_BLOBS_NPZ" ]; then
 fi
 
 # extract input and output
-npz_tool.py extract $CAFFE_BLOBS_NPZ inception_v4_in_fp32.npz input
-npz_tool.py extract $CAFFE_BLOBS_NPZ inception_v4_out_fp32_prob.npz prob
+cvi_npz_tool.py extract $CAFFE_BLOBS_NPZ inception_v4_in_fp32.npz input
+cvi_npz_tool.py extract $CAFFE_BLOBS_NPZ inception_v4_out_fp32_prob.npz prob
 
 # fix input data consistency
 # because jpeg decoder may introduce difference, use save file to overwrite
-npz_tool.py compare inception_v4_in_fp32.npz $REGRESSION_PATH/inception_v4/data/inception_v4_in_fp32.npz
+cvi_npz_tool.py compare inception_v4_in_fp32.npz $REGRESSION_PATH/inception_v4/data/inception_v4_in_fp32.npz
 cp $REGRESSION_PATH/inception_v4/data/inception_v4_in_fp32.npz inception_v4_in_fp32.npz
 
 # VERDICT

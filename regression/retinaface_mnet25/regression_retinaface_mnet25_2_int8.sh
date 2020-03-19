@@ -46,11 +46,11 @@ mlir-tpu-interpreter retinaface_mnet25_int8.mlir \
     --dump-all-tensor=retinaface_mnet25_tensor_all_int8.npz
 
 # compare output
-npz_tool.py extract \
+cvi_npz_tool.py extract \
     retinaface_mnet25_tensor_all_int8.npz \
     retinaface_mnet25_out_int8.npz \
     face_rpn_bbox_pred_stride16,face_rpn_bbox_pred_stride32,face_rpn_bbox_pred_stride8,face_rpn_cls_prob_reshape_stride16,face_rpn_cls_prob_reshape_stride32,face_rpn_cls_prob_reshape_stride8,face_rpn_landmark_pred_stride16,face_rpn_landmark_pred_stride32,face_rpn_landmark_pred_stride8
-npz_tool.py compare \
+cvi_npz_tool.py compare \
       retinaface_mnet25_out_int8.npz \
       retinaface_mnet25_caffe_blobs.npz \
       --op_info retinaface_mnet25_op_info_int8.csv \
@@ -58,7 +58,7 @@ npz_tool.py compare \
       --tolerance 0.95,0.95,0.70 -vvv
 
 if [ $COMPARE_ALL -eq 1 ]; then
-  npz_tool.py compare \
+  cvi_npz_tool.py compare \
       retinaface_mnet25_tensor_all_int8.npz \
       retinaface_mnet25_caffe_blobs.npz \
       --op_info retinaface_mnet25_op_info_int8.csv \

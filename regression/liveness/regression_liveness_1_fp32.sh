@@ -22,8 +22,8 @@ if [ $CHECK_NON_OPT_VERSION -eq 1 ]; then
       --tensor-in liveness_in_fp32.npz \
       --tensor-out liveness_out_fp32.npz \
       --dump-all-tensor=liveness_tensor_all_fp32.npz
-  npz_tool.py compare liveness_out_fp32.npz resnet50_out_fp32_prob.npz -v
-  npz_tool.py compare \
+  cvi_npz_tool.py compare liveness_out_fp32.npz resnet50_out_fp32_prob.npz -v
+  cvi_npz_tool.py compare \
       liveness_tensor_all_fp32.npz \
       liveness_blobs.npz \
       --op_info liveness_op_info.csv \
@@ -46,8 +46,8 @@ mlir-tpu-interpreter liveness_opt.mlir \
     --tensor-out liveness_opt_out_fp32.npz \
     --dump-all-tensor=liveness_tensor_all_fp32.npz
 
-npz_tool.py compare liveness_opt_out_fp32.npz liveness_out_fp32_prob.npz -v
-npz_tool.py compare \
+cvi_npz_tool.py compare liveness_opt_out_fp32.npz liveness_out_fp32_prob.npz -v
+cvi_npz_tool.py compare \
    liveness_tensor_all_fp32.npz \
    liveness_blobs.npz \
    --op_info liveness_op_info.csv \

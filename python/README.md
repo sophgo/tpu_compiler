@@ -4,69 +4,79 @@
 
 A collection of python tools for debugging. The MLIR TPU dialect tensor saving and loading are based on npy and npz file format, which can be easily manipulated by python numpy functions. npz file is just zip of a bunch of npy files, we can just run `unzip` to save a npz into separate npy files.
 
-## utilites commands
+## CVI npz utilites commands
 
-* npz_list.py
+* compare
+Compare two npz tensor files.
 
-List arrayname of all arrays in the npz file
+positional arguments:
+  target_file           Comparing target file
+  ref_file              Comparing reference file
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --verbose, -v
+  --discard, -d
+  --dtype DTYPE         force dtype
+  --tolerance TOLERANCE
+                        tolerance for cos/cor/euclid similarity
+  --op_info OP_INFO     A csv file op_info, including order and dequant
+                        threshold
+  --dequant             Do dequantization flag, use threshold table provided
+                        in --op_info
+  --order ORDER         A csv file containing order of the tensors, used when
+                        --op_info is not present
+  --tensor TENSOR       Compare one specific tensor by name
+  --excepts EXCEPTS     List of tensors except from comparing
+  --full-array          Dump full array data when comparing failed
+  --stats_int8_tensor   Do statistics on int8 tensor for saturate ratio and
+                        low ratio
+  --save SAVE           Save result as a csv file
+
 ```
-$ python npz_list.py file.npz
+python cvi_npz_tool.py compare [-h] [--verbose] [--discard]
+                       [--dtype DTYPE]
+                       [--tolerance TOLERANCE] [--op_info OP_INFO] [--dequant]
+                       [--order ORDER] [--tensor TENSOR] [--excepts EXCEPTS]
+                       [--full-array] [--stats_int8_tensor] [--save SAVE]
+                       target_file ref_file
 ```
 
-* npz_dump.py
+* rename
+
+Rename one array in npz.
+
+```
+$ python rename in.npz name1 name2
+```
+
+* extract
+
+Extract multiple array from npz file to another npz file
+```
+$ python extract in.npz out.npz arr1,arr2,arr3
+```
+
+*  dump
 
 Dump one array from the npz file. Show top-k if [K] is provided.
 ```
-$ python npz_dump.py file.npz arrayname [K]
+$ python cvi_npz_tool.py dump file.npz arrayname [K]
 ```
 
-* npz_to_bin.py
+* to_bin
 
 Save one array from the npz file into a binary file.
 ```
-$ python npz_to_bin.py file.npz arrayname
+$ python cvi_npz_tool.py to_bin file.npz arrayname
 ```
 
-* npy_dump.py
+* bf16_to_fp32
 
-Dump a npy file. Show top-k if [K] is provided.
-```
-$ python npy_dump.py file.npy [K]
-```
+convert npz each array from bfloat16 type to float32
 
-* npy_to_bin.py
-
-Save the array from a npy file into a binary file.
 ```
-$ python npy_to_bin.py file.npy out.bin
-```
-
-* bin_dump.py
-
-Dump a binary file.
-```
-$ python bin_dump.py file.bin int8|float32 N C H W [K]
-```
-
-* bin_to_npy.py
-
-Save a binary file into a npy file. Show top-k if [K] is provided.
-```
-$ python bin_to_npy.py file.bin int8|float32 N C H W
-```
-
-* bin_fp32_to_int8.py
-
-Convert a fp32 binary file into a int8 binary file.
-```
-$ python bin_fp32_to_int8.py fp32.bin int8.bin [input_scale] [threshold]
-```
-
-* bin_fp32_to_bf16.py
-
-Convert a fp32 binary file into a bf16 binary file.
-```
-$ python bin_fp32_to_int8.py fp32.bin bf16.bin [input_scale]
+$python cvi_npz_tool.py bf16_to_fp32 in.npz out.npz
 ```
 
 ## caffe commands

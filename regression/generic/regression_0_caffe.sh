@@ -24,13 +24,13 @@ if [ ! -f "$CAFFE_BLOBS_NPZ" ]; then
 fi
 
 # extract input and output
-npz_tool.py extract $CAFFE_BLOBS_NPZ ${NET}_in_fp32.npz $INPUT
-npz_tool.py extract $CAFFE_BLOBS_NPZ ${NET}_in_raw_fp32.npz raw_data
-npz_tool.py extract $CAFFE_BLOBS_NPZ ${NET}_out_fp32_prob.npz $OUTPUTS_FP32
+cvi_npz_tool.py extract $CAFFE_BLOBS_NPZ ${NET}_in_fp32.npz $INPUT
+cvi_npz_tool.py extract $CAFFE_BLOBS_NPZ ${NET}_in_raw_fp32.npz raw_data
+cvi_npz_tool.py extract $CAFFE_BLOBS_NPZ ${NET}_out_fp32_prob.npz $OUTPUTS_FP32
 
 # fix input data consistency
 # because jpeg decoder may introduce difference, use save file to overwrite
-# npz_tool.py compare ${NET}_in_fp32.npz $REGRESSION_PATH/${NET}/data/${NET}_in_fp32.npz
+# cvi_npz_tool.py compare ${NET}_in_fp32.npz $REGRESSION_PATH/${NET}/data/${NET}_in_fp32.npz
 # cp $REGRESSION_PATH/${NET}/data/${NET}_in_fp32.npz ${NET}_in_fp32.npz
 
 # VERDICT

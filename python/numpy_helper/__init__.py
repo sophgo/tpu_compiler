@@ -53,7 +53,7 @@ def npz_to_bin(args):
 
 def npz_bf16_to_fp32(args):
     if len(args) < 2:
-        print("Usage: {} bf16_to_fp32 in.npz out.npy".format(sys.argv[0]))
+        print("Usage: {} bf16_to_fp32 in.npz out.npz".format(sys.argv[0]))
         exit(-1)
     npz_in = np.load(args[0])
     npz_out = {}

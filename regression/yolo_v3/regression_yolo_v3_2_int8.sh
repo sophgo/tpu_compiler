@@ -96,12 +96,12 @@ mlir-tpu-interpreter ${NET}_quant_int8_per_layer.mlir \
     --tensor-out ${NET}_out_dequant_int8_per_layer.npz \
     --dump-all-tensor=${NET}_tensor_all_int8_per_layer.npz
 
-npz_tool.py extract \
+cvi_npz_tool.py extract \
     ${NET}_tensor_all_int8_per_layer.npz \
     ${NET}_out_int8_per_layer.npz \
     layer82-conv,layer94-conv,layer106-conv
 
-npz_tool.py compare \
+cvi_npz_tool.py compare \
       ${NET}_out_int8_per_layer.npz \
       ${NET}_blobs.npz \
       --op_info ${NET}_op_info_int8_per_layer.csv \
@@ -111,7 +111,7 @@ npz_tool.py compare \
 if [ $COMPARE_ALL -eq 1 ]; then
   # some tensors do not pass due to threshold bypass
   # need do dequantization in interpreter directly
-  npz_tool.py compare \
+  cvi_npz_tool.py compare \
       ${NET}_tensor_all_int8_per_layer.npz \
       ${NET}_blobs.npz \
       --op_info ${NET}_op_info_int8_per_layer.csv \
@@ -135,12 +135,12 @@ mlir-tpu-interpreter ${NET}_quant_int8_per_channel.mlir \
     --tensor-out ${NET}_out_dequant_int8_per_channel.npz \
     --dump-all-tensor=${NET}_tensor_all_int8_per_channel.npz
 
-npz_tool.py extract \
+cvi_npz_tool.py extract \
     ${NET}_tensor_all_int8_per_channel.npz \
     ${NET}_out_int8_per_channel.npz \
     layer82-conv,layer94-conv,layer106-conv
 
-npz_tool.py compare \
+cvi_npz_tool.py compare \
       ${NET}_out_int8_per_channel.npz \
       ${NET}_blobs.npz \
       --op_info ${NET}_op_info_int8_per_channel.csv \
@@ -150,7 +150,7 @@ npz_tool.py compare \
 if [ $COMPARE_ALL -eq 1 ]; then
   # some tensors do not pass due to threshold bypass
   # need do dequantization in interpreter directly
-  npz_tool.py compare \
+  cvi_npz_tool.py compare \
       ${NET}_tensor_all_int8_per_channel.npz \
       ${NET}_blobs.npz \
       --op_info ${NET}_op_info_int8_per_channel.csv \
@@ -174,12 +174,12 @@ mlir-tpu-interpreter \
     --dump-all-tensor ${NET}_tensor_all_int8_multiplier.npz \
     ${NET}_quant_int8_multiplier.mlir
 
-npz_tool.py extract \
+cvi_npz_tool.py extract \
     ${NET}_tensor_all_int8_multiplier.npz \
     ${NET}_out_int8_multiplier.npz \
     layer82-conv,layer94-conv,layer106-conv
 
-npz_tool.py compare \
+cvi_npz_tool.py compare \
       ${NET}_out_int8_multiplier.npz \
       ${NET}_blobs.npz \
       --op_info ${NET}_op_info_int8_multiplier.csv \
@@ -203,7 +203,7 @@ npz_tool.py compare \
 if [ $COMPARE_ALL -eq 1 ]; then
   # some tensors do not pass due to threshold bypass
   # need do dequantization in interpreter directly
-  npz_tool.py compare \
+  cvi_npz_tool.py compare \
       ${NET}_tensor_all_int8_multiplier.npz \
       ${NET}_blobs.npz \
       --op_info ${NET}_op_info_int8_multiplier.csv \

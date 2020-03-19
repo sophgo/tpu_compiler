@@ -74,7 +74,7 @@ if __name__ == "__main__":
 
 get a onnx model
 
-However, use python2 to run convert.py (convert to mlir) for now
+However, use python2 to run cvi_model_convert.py (convert to mlir) for now
 
 
 # How to do calibration

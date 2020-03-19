@@ -22,8 +22,8 @@ mlir-tpu-interpreter vgg16_quant_bf16.mlir \
     --tensor-in vgg16_in_fp32.npz \
     --tensor-out vgg16_out_bf16.npz \
     --dump-all-tensor=vgg16_tensor_all_bf16.npz
-npz_tool.py compare vgg16_out_bf16.npz vgg16_out_fp32.npz -v
-npz_tool.py compare \
+cvi_npz_tool.py compare vgg16_out_bf16.npz vgg16_out_fp32.npz -v
+cvi_npz_tool.py compare \
     vgg16_tensor_all_bf16.npz \
     vgg16_tensor_all_fp32.npz \
     --op_info vgg16_op_info.csv \

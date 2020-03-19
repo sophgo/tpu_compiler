@@ -5,7 +5,7 @@ DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 source $DIR/../../../envsetup.sh
 
 # create int8 input
-npz_tool.py to_bin \
+cvi_npz_tool.py to_bin \
     efficientnet_b0_tensor_all_int8.npz \
     input \
     efficientnet_b0_in_int8.bin \
@@ -51,7 +51,7 @@ model_runner \
 
 
 # compare all tensors
-npz_tool.py compare \
+cvi_npz_tool.py compare \
     efficientnet_b0_tensor_all_int8.npz \
     efficientnet_b0_cmdbuf_out_all_int8_multiplier.npz \
     --op_info efficientnet_b0_op_info_int8_multiplier.csv

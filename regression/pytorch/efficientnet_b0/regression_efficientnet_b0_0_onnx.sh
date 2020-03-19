@@ -12,6 +12,6 @@ run_onnx_inference.py \
     --model_path $MODEL_PATH/imagenet/efficientnet-b0/onnx/efficientnet_b0.onnx
 
 
-npz_tool.py extract $DIR/data/cat.npz efficientnet_b0_in_fp32.npz input
+cvi_npz_tool.py extract $DIR/data/cat.npz efficientnet_b0_in_fp32.npz input
 # VERDICT
 echo $0 PASSED

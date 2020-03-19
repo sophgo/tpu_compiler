@@ -7,7 +7,7 @@ source $DIR/../../envsetup.sh
 ################################
 # prepare bf16 input
 ################################
-npz_tool.py to_bin squeezenet_v1.1_in_fp32.npz data squeezenet_v1.1_in_fp32.bin
+cvi_npz_tool.py to_bin squeezenet_v1.1_in_fp32.npz data squeezenet_v1.1_in_fp32.bin
 bin_fp32_to_bf16.py \
     squeezenet_v1.1_in_fp32.bin \
     squeezenet_v1.1_in_bf16.bin
@@ -59,7 +59,7 @@ model_runner \
     --output squeezenet_v1.1_cmdbuf_out_all_bf16.npz
 
 # compare all tensors
-npz_tool.py compare \
+cvi_npz_tool.py compare \
     squeezenet_v1.1_cmdbuf_out_all_bf16.npz \
     squeezenet_v1.1_tensor_all_bf16.npz \
     --op_info squeezenet_v1.1_op_info.csv \

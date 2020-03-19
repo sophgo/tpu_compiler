@@ -20,12 +20,12 @@ run_caffe_classifier.py \
     caffe_out.npy
 
 # extract input and output
-npz_tool.py extract efficientnet_blobs.npz efficientnet_in_fp32.npz data
-npz_tool.py extract efficientnet_blobs.npz efficientnet_out_fp32_prob.npz _fc
+cvi_npz_tool.py extract efficientnet_blobs.npz efficientnet_in_fp32.npz data
+cvi_npz_tool.py extract efficientnet_blobs.npz efficientnet_out_fp32_prob.npz _fc
 
 # fix input data consistency
 # because jpeg decoder may introduce difference, use save file to overwrite
-npz_tool.py compare efficientnet_in_fp32.npz $REGRESSION_PATH/efficientnet_b0/data/efficientnet_in_fp32.npz
+cvi_npz_tool.py compare efficientnet_in_fp32.npz $REGRESSION_PATH/efficientnet_b0/data/efficientnet_in_fp32.npz
 cp $REGRESSION_PATH/efficientnet_b0/data/efficientnet_in_fp32.npz efficientnet_in_fp32.npz
 
 # VERDICT

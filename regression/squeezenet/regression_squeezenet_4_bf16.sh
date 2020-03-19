@@ -21,8 +21,8 @@ mlir-tpu-interpreter squeezenet_v1.1_quant_bf16.mlir \
     --tensor-in squeezenet_v1.1_in_fp32.npz \
     --tensor-out squeezenet_v1.1_out_bf16.npz \
     --dump-all-tensor=squeezenet_v1.1_tensor_all_bf16.npz
-npz_tool.py compare squeezenet_v1.1_out_bf16.npz squeezenet_v1.1_out_fp32.npz -v
-npz_tool.py compare \
+cvi_npz_tool.py compare squeezenet_v1.1_out_bf16.npz squeezenet_v1.1_out_fp32.npz -v
+cvi_npz_tool.py compare \
     squeezenet_v1.1_tensor_all_bf16.npz \
     squeezenet_v1.1_tensor_all_fp32.npz \
     --op_info squeezenet_v1.1_op_info.csv \

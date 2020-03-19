@@ -7,7 +7,7 @@ source $DIR/../../envsetup.sh
 ################################
 # prepare bf16 input
 ################################
-npz_tool.py to_bin resnet50_in_fp32.npz input resnet50_in_fp32.bin
+cvi_npz_tool.py to_bin resnet50_in_fp32.npz input resnet50_in_fp32.bin
 bin_fp32_to_bf16.py \
     resnet50_in_fp32.bin \
     resnet50_in_bf16.bin
@@ -53,7 +53,7 @@ model_runner \
     --output resnet50_cmdbuf_out_all_bf16.npz
 
 # compare all tensors
-npz_tool.py compare \
+cvi_npz_tool.py compare \
     resnet50_cmdbuf_out_all_bf16.npz \
     resnet50_tensor_all_bf16.npz \
     --op_info resnet50_op_info_bf16.csv \

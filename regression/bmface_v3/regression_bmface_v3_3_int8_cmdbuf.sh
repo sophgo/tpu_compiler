@@ -7,7 +7,7 @@ source $DIR/../../envsetup.sh
 ################################
 # prepare int8 input
 ################################
-npz_tool.py to_bin \
+cvi_npz_tool.py to_bin \
     bmface_v3_tensor_all_int8_multiplier.npz \
     data \
     bmface_in_int8.bin \
@@ -15,7 +15,7 @@ npz_tool.py to_bin \
 
 # don't use following commands to generate input, as it depends on
 # calibration result.
-#npz_tool.py to_bin bmface_v3_in_fp32.npz data bmface_in_fp32.bin
+#cvi_npz_tool.py to_bin bmface_v3_in_fp32.npz data bmface_in_fp32.bin
 #bin_fp32_to_int8.py \
 #    bmface_in_fp32.bin \
 #    bmface_in_int8.bin \
@@ -60,7 +60,7 @@ model_runner \
 
 # compare all tensors
 
-npz_tool.py compare \
+cvi_npz_tool.py compare \
     bmface_v3_cmdbuf_out_all_int8.npz \
     bmface_v3_tensor_all_int8_multiplier.npz \
     --op_info bmface_v3_op_info.csv \

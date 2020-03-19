@@ -10,6 +10,6 @@ run_onnx_inference.py \
     --output_file resnet18_out_onnx.npz \
     --model_path $MODEL_PATH/imagenet/resnet/onnx/resnet18.onnx
 
-npz_tool.py extract $DIR/data/dog.npz resnet18_in_fp32.npz input
+cvi_npz_tool.py extract $DIR/data/dog.npz resnet18_in_fp32.npz input
 # VERDICT
 echo $0 PASSED

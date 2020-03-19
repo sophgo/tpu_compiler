@@ -10,7 +10,7 @@ run_onnx_inference.py \
     --output_file alphapose_res50_out_fp32.npz \
     --model_path $MODEL_PATH/pose/alphapose/onnx/alphapose_resnet50_256x192.onnx
 
-npz_tool.py extract $REGRESSION_PATH/pytorch/alphapose/data/pose.npz alphapose_in_fp32.npz input
+cvi_npz_tool.py extract $REGRESSION_PATH/pytorch/alphapose/data/pose.npz alphapose_in_fp32.npz input
 
 # VERDICT
 echo $0 PASSED

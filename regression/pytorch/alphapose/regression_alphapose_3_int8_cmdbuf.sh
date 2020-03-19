@@ -5,7 +5,7 @@ DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 source $DIR/../../../envsetup.sh
 
 # create int8 input
-npz_tool.py to_bin \
+cvi_npz_tool.py to_bin \
     alphapose_tensor_all_int8.npz \
     input \
     alphapose_in_int8.bin \
@@ -50,7 +50,7 @@ model_runner \
     --output alphapose_cmdbuf_out_all_int8_multiplier.npz
 
 # compare all tensors
-npz_tool.py compare \
+cvi_npz_tool.py compare \
     alphapose_tensor_all_int8.npz \
     alphapose_cmdbuf_out_all_int8_multiplier.npz \
     --op_info alphapose_op_info_int8_multiplier.csv

@@ -5,7 +5,7 @@ DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 source $DIR/../../../envsetup.sh
 
 
-convert.py \
+cvi_model_convert.py \
     --model_path $MODEL_PATH/imagenet/resnet/onnx/resnet18.onnx \
     --model_name resnet18 \
     --model_type onnx \
@@ -26,8 +26,8 @@ mlir-tpu-interpreter resnet18_opt.mlir \
     --tensor-out resnet18_out_fp32.npz \
     --dump-all-tensor=resnet18_tensor_all_fp32.npz
 
-npz_tool.py rename resnet18_out_fp32.npz output_Gemm output
-npz_tool.py compare resnet18_out_fp32.npz resnet18_out_onnx.npz -vvv
+cvi_npz_tool.py rename resnet18_out_fp32.npz output_Gemm output
+cvi_npz_tool.py compare resnet18_out_fp32.npz resnet18_out_onnx.npz -vvv
 
 
 # VERDICT

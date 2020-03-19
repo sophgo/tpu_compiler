@@ -43,7 +43,7 @@ mlir-tpu-interpreter mobilenet_v2_quant_int8_per_layer.mlir \
     --tensor-out mobilenet_v2_out_int8_per_layer.npz \
     --dump-all-tensor=mobilenet_v2_tensor_all_int8_per_layer.npz
 
-npz_tool.py to_bin \
+cvi_npz_tool.py to_bin \
     mobilenet_v2_tensor_all_int8_per_layer.npz \
     fc7 \
     mobilenet_v2_out_fc7_int8_per_layer.bin \
@@ -55,7 +55,7 @@ bin_compare.py \
 
 if [ $COMPARE_ALL -eq 1 ]; then
   # this will fail for now, because prob has been dequantized twice, others should pass
-  npz_tool.py compare \
+  cvi_npz_tool.py compare \
       mobilenet_v2_tensor_all_int8_per_layer.npz \
       mobilenet_v2_blobs.npz \
       --op_info mobilenet_v2_op_info_int8_per_layer.csv \
@@ -77,7 +77,7 @@ mlir-tpu-interpreter mobilenet_v2_quant_int8_per_channel.mlir \
     --tensor-out mobilenet_v2_out_int8_per_channel.npz \
     --dump-all-tensor=mobilenet_v2_tensor_all_int8_per_channel.npz
 
-npz_tool.py to_bin \
+cvi_npz_tool.py to_bin \
     mobilenet_v2_tensor_all_int8_per_channel.npz \
     fc7 \
     mobilenet_v2_out_fc7_int8_per_channel.bin \
@@ -89,7 +89,7 @@ bin_compare.py \
 
 if [ $COMPARE_ALL -eq 1 ]; then
   # this will fail for now, because prob has been dequantized twice, others should pass
-  npz_tool.py compare \
+  cvi_npz_tool.py compare \
       mobilenet_v2_tensor_all_int8_per_channel.npz \
       mobilenet_v2_blobs.npz \
       --op_info mobilenet_v2_op_info_int8_per_channel.csv \
@@ -111,7 +111,7 @@ mlir-tpu-interpreter mobilenet_v2_quant_int8_multiplier.mlir \
     --tensor-out mobilenet_v2_out_int8_multiplier.npz \
     --dump-all-tensor=mobilenet_v2_tensor_all_int8_multiplier.npz
 
-npz_tool.py to_bin \
+cvi_npz_tool.py to_bin \
     mobilenet_v2_tensor_all_int8_multiplier.npz \
     fc7 \
     mobilenet_v2_out_fc7_int8_multiplier.bin \
@@ -123,7 +123,7 @@ bin_compare.py \
 
 if [ $COMPARE_ALL -eq 1 ]; then
   # this will fail for now, because prob has been dequantized twice, others should pass
-  npz_tool.py compare \
+  cvi_npz_tool.py compare \
       mobilenet_v2_tensor_all_int8_multiplier.npz \
       mobilenet_v2_blobs.npz \
       --op_info mobilenet_v2_op_info_int8_multiplier.csv \

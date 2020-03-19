@@ -73,7 +73,7 @@ mlir-tpu-interpreter \
 
 # compare all tensors
 bin_to_npz.py out_all.bin neuron_map_bf16.csv out_all.npz
-npz_tool.py compare out_all.npz tensor_all_bf16.npz show
+cvi_npz_tool.py compare out_all.npz tensor_all_bf16.npz show
 
 # VERDICT
 echo $0 PASSED

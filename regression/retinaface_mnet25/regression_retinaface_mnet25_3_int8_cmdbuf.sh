@@ -7,20 +7,20 @@ source $DIR/../../envsetup.sh
 ################################
 # prepare int8 input
 ################################
-npz_tool.py to_bin \
+cvi_npz_tool.py to_bin \
     retinaface_mnet25_tensor_all_int8.npz \
     data_quant \
     retinaface_mnet25_in_int8.bin \
     int8
 
-npz_tool.py to_bin \
+cvi_npz_tool.py to_bin \
     retinaface_mnet25_in_fp32.npz \
     data \
     retinaface_mnet25_in_fp32.bin \
     float32
 
 
-#npz_tool.py to_bin retinaface_mnet25_in_fp32.npz data retinaface_mnet25_in_fp32.bin
+#cvi_npz_tool.py to_bin retinaface_mnet25_in_fp32.npz data retinaface_mnet25_in_fp32.bin
 # Depend on retinaface_mnet25_threshold_table
 #bin_fp32_to_int8.py \
 #    retinaface_mnet25_in_fp32.bin \
@@ -67,7 +67,7 @@ model_runner \
     --output retinaface_mnet25_cmdbuf_out_all_int8.npz
 
 # compare all tensors
-npz_tool.py compare \
+cvi_npz_tool.py compare \
     retinaface_mnet25_cmdbuf_out_all_int8.npz \
     retinaface_mnet25_tensor_all_int8.npz \
     --op_info retinaface_mnet25_op_info_int8.csv

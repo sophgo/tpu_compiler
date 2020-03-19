@@ -24,8 +24,8 @@ if [ $CHECK_NON_OPT_VERSION -eq 1 ]; then
       --tensor-in efficientnet_in_fp32.npz \
       --tensor-out efficientnet_out_fp32.npz \
       --dump-all-tensor=efficientnet_tensor_all_fp32.npz
-  npz_tool.py compare efficientnet_out_fp32.npz efficientnet_out_fp32_prob.npz -v
-  npz_tool.py compare \
+  cvi_npz_tool.py compare efficientnet_out_fp32.npz efficientnet_out_fp32_prob.npz -v
+  cvi_npz_tool.py compare \
       efficientnet_tensor_all_fp32.npz \
       efficientnet_blobs.npz \
       --op_info efficientnet_b0_op_info.csv \
@@ -49,8 +49,8 @@ mlir-tpu-interpreter efficientnet_b0_opt.mlir \
     --tensor-out efficientnet_out_fp32.npz \
     --dump-all-tensor=efficientnet_tensor_all_fp32.npz
 
-npz_tool.py compare efficientnet_out_fp32.npz efficientnet_out_fp32_prob.npz -v
-npz_tool.py compare \
+cvi_npz_tool.py compare efficientnet_out_fp32.npz efficientnet_out_fp32_prob.npz -v
+cvi_npz_tool.py compare \
       efficientnet_tensor_all_fp32.npz \
       efficientnet_blobs.npz \
       --op_info efficientnet_b0_op_info.csv \

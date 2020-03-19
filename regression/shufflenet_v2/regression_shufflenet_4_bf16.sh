@@ -15,8 +15,8 @@ mlir-tpu-interpreter shufflenet_quant_bf16.mlir \
     --tensor-in shufflenet_in_fp32.npz \
     --tensor-out shufflenet_out_bf16.npz \
     --dump-all-tensor=shufflenet_tensor_all_bf16.npz
-npz_tool.py compare shufflenet_out_bf16.npz shufflenet_out_fp32.npz -v
-npz_tool.py compare \
+cvi_npz_tool.py compare shufflenet_out_bf16.npz shufflenet_out_fp32.npz -v
+cvi_npz_tool.py compare \
     shufflenet_tensor_all_bf16.npz \
     shufflenet_tensor_all_fp32.npz \
     --op_info shufflenet_op_info.csv \
