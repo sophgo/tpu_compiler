@@ -19,20 +19,20 @@ set -e
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 source $DIR/envsetup.sh
 
-export ARM_TOOLCHAIN_GCC_PATH=$TPU_BASE/tools/gcc_aarch64-linux-gnu
-export ARM_TOOLCHAIN_SYSROOT_PATH=$TPU_BASE/tools/sysroot_aarch64-linux-gnu
+if [ -z $BUILD_OPENCV ]; then
+  export BUILD_OPENCV=0
+else
+  export BUILD_OPENCV=$BUILD_OPENCV
+fi
+if [ -z $BUILD_SAMPLES ]; then
+  export BUILD_SAMPLES=0
+else
+  export BUILD_SAMPLES=$BUILD_SAMPLES
+fi
 
-export PATH=$ARM_TOOLCHAIN_GCC_PATH/bin:$PATH
-export AARCH64_SYSROOT_PATH=$ARM_TOOLCHAIN_SYSROOT_PATH
-export RAMDISK_PATH=$TPU_BASE/ramdisk/prebuild
-export TOOLCHAIN_FILE_PATH=$MLIR_SRC_PATH/externals/cviruntime/scripts/toolchain-aarch64-linux.cmake
-
-# install path
-export FLATBUFFERS_SOC_PATH=$INSTALL_SOC_PATH/flatbuffers
-export CVIKERNEL_SOC_PATH=$INSTALL_SOC_PATH/cvikernel
-export CVIRUNTIME_SOC_PATH=$INSTALL_SOC_PATH
-
+#
 # mkdir
+#
 if [ ! -e $INSTALL_SOC_PATH ]; then
   mkdir -p $INSTALL_SOC_PATH
 fi
@@ -45,6 +45,47 @@ fi
 if [ ! -e $BUILD_PATH ]; then
   mkdir -p $BUILD_PATH
 fi
+
+#
+# Setup Toolchain
+#
+export ARM_TOOLCHAIN_GCC_PATH=$TPU_BASE/tools/gcc_aarch64-linux-gnu
+export ARM_TOOLCHAIN_SYSROOT_PATH=$TPU_BASE/tools/sysroot_aarch64-linux-gnu
+export TOOLCHAIN_FILE_PATH=$MLIR_SRC_PATH/externals/cviruntime/scripts/toolchain-aarch64-linux.cmake
+export PATH=$ARM_TOOLCHAIN_GCC_PATH/bin:$PATH
+
+# For rootfs, we need to combine ramdisk and sysroot together for compiling
+# the reason is ramdisk lacks of some header files (for save flash space),
+# and sysroot lacks of some libraries like zlib, etc.
+if [ ! -e $TPU_BASE/ramdisk/prebuild ]; then
+  echo "Please copy or link RAMDISK to $TPU_BASE/ramdisk/prebuild"
+  return 1
+fi
+if [ ! -e $ARM_TOOLCHAIN_SYSROOT_PATH ]; then
+  echo "Please copy or link toolchain sysroot to $ARM_TOOLCHAIN_SYSROOT_PATH"
+  return 1
+fi
+if [ ! -e $BUILD_SOC_PATH/sysroot ]; then
+  mkdir -p $BUILD_SOC_PATH/sysroot
+fi
+cp -a $ARM_TOOLCHAIN_SYSROOT_PATH/* $BUILD_SOC_PATH/sysroot/
+cp -a $TPU_BASE/ramdisk/prebuild/* $BUILD_SOC_PATH/sysroot/
+# some workaround
+cp $BUILD_SOC_PATH/sysroot/include/zlib.h $BUILD_SOC_PATH/sysroot/usr/include/
+cp $BUILD_SOC_PATH/sysroot/include/zconf.h $BUILD_SOC_PATH/sysroot/usr/include/
+
+export AARCH64_SYSROOT_PATH=$BUILD_SOC_PATH/sysroot
+
+#
+# install path
+#
+export FLATBUFFERS_SOC_PATH=$INSTALL_SOC_PATH/flatbuffers
+export CVIKERNEL_SOC_PATH=$INSTALL_SOC_PATH/cvikernel
+export CVIRUNTIME_SOC_PATH=$INSTALL_SOC_PATH
+
+#
+# build
+#
 
 # build host flatbuffers
 if [ ! -e $BUILD_PATH/build_flatbuffers ]; then
@@ -99,9 +140,9 @@ if [ ! -e $BUILD_SOC_PATH/build_cnpy ]; then
 fi
 pushd $BUILD_SOC_PATH/build_cnpy
 cmake -G Ninja $BUILD_FLAG \
+    -DCMAKE_SYSROOT=$AARCH64_SYSROOT_PATH \
     -DCMAKE_TOOLCHAIN_FILE=$TOOLCHAIN_FILE_PATH \
     -DCMAKE_INSTALL_PREFIX=$INSTALL_SOC_PATH \
-    -DRAMDISK_PATH=${RAMDISK_PATH} \
     $MLIR_SRC_PATH/third_party/cnpy
 cmake --build . --target install
 popd
@@ -112,13 +153,57 @@ if [ ! -e $BUILD_SOC_PATH/build_cviruntime ]; then
 fi
 pushd $BUILD_SOC_PATH/build_cviruntime
 cmake -G Ninja -DCHIP=BM1880v2 -DRUNTIME=SOC $BUILD_FLAG \
+    -DCMAKE_SYSROOT=$AARCH64_SYSROOT_PATH \
     -DCMAKE_TOOLCHAIN_FILE=$TOOLCHAIN_FILE_PATH \
     -DCVIKERNEL_PATH=$CVIKERNEL_SOC_PATH \
     -DCNPY_PATH=$INSTALL_SOC_PATH/lib \
     -DFLATBUFFERS_PATH=$FLATBUFFERS_SOC_PATH \
     -DCVIBUILDER_PATH=$BUILD_SOC_PATH/build_cvimodel \
     -DCMAKE_INSTALL_PREFIX=$CVIRUNTIME_SOC_PATH \
-    -DRAMDISK_PATH=${RAMDISK_PATH} \
     $MLIR_SRC_PATH/externals/cviruntime
 cmake --build . --target install
 popd
+
+export OPENCV_SOC_PATH=$INSTALL_SOC_PATH/opencv
+if [ $BUILD_OPENCV -eq 1 ]; then
+  # build opencv
+  # clone opencv to $TPU_BASE/opencv
+  # checkout tag 3.2.0
+  if [ ! -e $BUILD_SOC_PATH/build_opencv ]; then
+    mkdir $BUILD_SOC_PATH/build_opencv
+  fi
+  pushd $BUILD_SOC_PATH/build_opencv
+  cmake -G Ninja \
+      -DWITH_CUDA=OFF -DWITH_DC1394=OFF -DWITH_GPHOTO2=OFF \
+      -DCMAKE_BUILD_TYPE=RELEASE \
+      -DCMAKE_SYSROOT=$AARCH64_SYSROOT_PATH \
+      -DCMAKE_TOOLCHAIN_FILE=$TOOLCHAIN_FILE_PATH \
+      -DBUILD_opencv_videoio=OFF -DBUILD_opencv_highgui=OFF \
+      -DBUILD_opencv_superres=OFF -DBUILD_opencv_videostab=OFF \
+      -DBUILD_opencv_stitching=OFF -DBUILD_opencv_objdetect=OFF \
+      -DBUILD_opencv_calib3d=OFF -DBUILD_opencv_ml=OFF \
+      -DBUILD_opencv_video=OFF -DBUILD_opencv_flann=OFF \
+      -DBUILD_opencv_photo=OFF \
+      -DCMAKE_INSTALL_PREFIX=$OPENCV_SOC_PATH \
+      $TPU_BASE/opencv
+  cmake --build . --target install
+  popd
+fi
+
+export SAMPLES_SOC_PATH=$INSTALL_SOC_PATH/samples
+if [ $BUILD_SAMPLES -eq 1 ]; then
+  if [ ! -e $BUILD_SOC_PATH/build_samples ]; then
+    mkdir $BUILD_SOC_PATH/build_samples
+  fi
+  pushd $BUILD_SOC_PATH/build_samples
+  cmake -G Ninja \
+      -DCMAKE_SYSROOT=$AARCH64_SYSROOT_PATH \
+      -DCMAKE_TOOLCHAIN_FILE=$TOOLCHAIN_FILE_PATH \
+      -DRUNTIME_PATH=$CVIRUNTIME_SOC_PATH \
+      -DCVIKERNEL_PATH=$CVIKERNEL_SOC_PATH \
+      -DOPENCV_PATH=$OPENCV_SOC_PATH \
+      -DCMAKE_INSTALL_PREFIX=$SAMPLES_SOC_PATH \
+      $MLIR_SRC_PATH/externals/cviruntime/samples
+  cmake --build . --target install
+  popd
+fi
