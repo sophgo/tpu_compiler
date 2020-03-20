@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import onnx 
+import onnx
 import argparse
 from transform.onnx_converter import OnnxConverter
 CVI_SupportFramework = [
@@ -14,7 +14,7 @@ def Convert(args):
         c = OnnxConverter(args.model_name, onnx_model, args.mlir_file_path)
         c.run()
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--model_path",
@@ -35,3 +35,6 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
     Convert(args)
+
+
+if __name__ == "__main__":

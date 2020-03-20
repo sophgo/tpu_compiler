@@ -11,11 +11,10 @@ npz_tool_func = {
     "bf16_to_fp32": npz_bf16_to_fp32,
 }
 
-
-if __name__ == "__main__":
+def main():
     args_list = sys.argv
     if len(args_list) < 2:
-        print("Usage: {} {} ".format(args_list[0], npz_tool))
+        print("Usage: {} {} ".format(args_list[0], npz_tool_func.keys()))
         exit(-1)
 
     def NoneAndRaise(func):
@@ -23,3 +22,6 @@ if __name__ == "__main__":
 
     npz_tool_func.get(args_list[1], lambda x: NoneAndRaise(args_list[1]))(args_list[2:])
 
+
+if __name__ == "__main__":
+    main()
