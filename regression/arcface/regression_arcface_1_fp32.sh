@@ -24,8 +24,8 @@ if [ $CHECK_NON_OPT_VERSION -eq 1 ]; then
       --tensor-in arcface_res50_in_fp32.npz \
       --tensor-out arcface_res50_out_fp32.npz \
       --dump-all-tensor=arcface_res50_tensor_all_fp32.npz
-  npz_compare.py arcface_res50_out_fp32.npz arcface_res50_out_fp32_prob.npz -v
-  npz_compare.py \
+  cvi_npz_tool.py compare arcface_res50_out_fp32.npz arcface_res50_out_fp32_prob.npz -v
+  cvi_npz_tool.py compare \
       arcface_res50_tensor_all_fp32.npz \
       arcface_res50_blobs.npz \
       --op_info arcface_res50_op_info.csv \
@@ -50,9 +50,9 @@ mlir-tpu-interpreter arcface_res50_opt.mlir \
     --dump-all-tensor=arcface_res50_tensor_all_fp32.npz
 
 # bmface last layer is batchnorm, rename output
-npz_rename.py arcface_res50_out_fp32.npz fc1_scale fc1
-npz_compare.py arcface_res50_out_fp32.npz arcface_res50_out_fp32_prob.npz -v
-npz_compare.py \
+cvi_npz_tool.py rename arcface_res50_out_fp32.npz fc1_scale fc1
+cvi_npz_tool.py compare arcface_res50_out_fp32.npz arcface_res50_out_fp32_prob.npz -v
+cvi_npz_tool.py compare \
       arcface_res50_tensor_all_fp32.npz \
       arcface_res50_blobs.npz \
       --op_info arcface_res50_op_info.csv \

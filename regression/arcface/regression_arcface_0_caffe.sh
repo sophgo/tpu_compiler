@@ -14,12 +14,12 @@ if [ ! -f "$CAFFE_BLOBS_NPZ" ]; then
       --dump_blobs $CAFFE_BLOBS_NPZ \
       --dump_weights arcface_res50_weights.npz \
       --model_type arcface_res50 \
-      --input_file $REGRESSION_PATH/arcface_res50/data/Aaron_Eckhart_0001.jpg
+      --input_file $REGRESSION_PATH/bmface_v3/data/Aaron_Eckhart_0001.jpg
 fi
 
 # extract input and output
-npz_extract.py $CAFFE_BLOBS_NPZ arcface_res50_in_fp32.npz data
-npz_extract.py $CAFFE_BLOBS_NPZ arcface_res50_out_fp32_prob.npz fc1
+cvi_npz_tool.py extract $CAFFE_BLOBS_NPZ arcface_res50_in_fp32.npz data
+cvi_npz_tool.py extract $CAFFE_BLOBS_NPZ arcface_res50_out_fp32_prob.npz fc1
 
 # VERDICT
 echo $0 PASSED

@@ -15,6 +15,7 @@ net_list=(
   "retinaface_res50"
   "ssd300"
   "yolo_v3"
+  "arcface"
 )
 
 generic_net_list=(

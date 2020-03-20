@@ -7,11 +7,11 @@ source $DIR/../../envsetup.sh
 ################################
 # prepare int8 input
 ################################
-npz_to_bin.py \
-    arcface_res50_tensor_all_int8_multiplier.npz \
-    data \
-    bmface_in_int8.bin \
-    int8
+# npz_to_bin.py \
+#     arcface_res50_tensor_all_int8_multiplier.npz \
+#     data \
+#     bmface_in_int8.bin \
+#     int8
 
 # don't use following commands to generate input, as it depends on
 # calibration result.
@@ -27,6 +27,7 @@ mlir-opt \
     --tpu-lower \
     arcface_res50_quant_int8_multiplier.mlir \
     -o  arcface_res50_quant_int8_tg.mlir
+
 # assign weight address & neuron address
 mlir-opt \
     --assign-weight-address \
@@ -60,7 +61,7 @@ model_runner \
 
 # compare all tensors
 
-npz_compare.py \
+cvi_npz_tool.py compare \
     arcface_res50_cmdbuf_out_all_int8.npz \
     arcface_res50_tensor_all_int8_multiplier.npz \
     --op_info arcface_res50_op_info.csv \
