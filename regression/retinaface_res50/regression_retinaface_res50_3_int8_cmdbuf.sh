@@ -7,11 +7,17 @@ source $DIR/../../envsetup.sh
 ################################
 # prepare int8 input
 ################################
-cvi_npz_tool.py to_bin \
-    retinaface_res50_tensor_all_int8.npz \
-    data \
-    retinaface_res50_in_int8.bin \
-    int8
+# cvi_npz_tool.py to_bin \
+#     retinaface_res50_tensor_all_int8.npz \
+#     data_quant \
+#     retinaface_res50_in_int8.bin \
+#     int8
+
+# cvi_npz_tool.py to_bin \
+#     retinaface_res50_in_fp32.npz \
+#     data \
+#     retinaface_res50_in_fp32.bin \
+#    float32
 
 #cvi_npz_tool.py to_bin retinaface_res50_in_fp32.npz data retinaface_res50_in_fp32.bin
 # Depend on retinaface_res50_threshold_table

@@ -16,6 +16,7 @@ if [ $DO_CALIBRATION -eq 1 ]; then
       retinaface_res50_opt.mlir \
       cali_list_widerface_100.txt \
       retinaface_res50_threshold_table \
+      --net_input_dims=600,600 \
       --input_num=100 \
       --histogram_bin_num=65536 \
       --out_path=. \
@@ -62,7 +63,6 @@ if [ $COMPARE_ALL -eq 1 ]; then
       retinaface_res50_caffe_blobs.npz \
       --op_info retinaface_res50_op_info_int8.csv \
       --dequant \
-      --excepts output \
       --tolerance 0.86,0.83,0.49 -vv
 fi
 

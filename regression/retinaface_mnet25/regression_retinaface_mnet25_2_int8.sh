@@ -37,10 +37,10 @@ mlir-opt \
     --print-tpu-op-info \
     --tpu-op-info-filename retinaface_mnet25_op_info_int8.csv \
     retinaface_mnet25_cali.mlir \
-    -o retinaface_mnet25_int8.mlir
+    -o retinaface_mnet25_quant_int8.mlir
 
 # Interpreter int8 result
-mlir-tpu-interpreter retinaface_mnet25_int8.mlir \
+mlir-tpu-interpreter retinaface_mnet25_quant_int8.mlir \
     --tensor-in retinaface_mnet25_in_fp32.npz \
     --tensor-out retinaface_mnet25_out_dequant_int8.npz \
     --dump-all-tensor=retinaface_mnet25_tensor_all_int8.npz
@@ -63,7 +63,7 @@ if [ $COMPARE_ALL -eq 1 ]; then
       retinaface_mnet25_caffe_blobs.npz \
       --op_info retinaface_mnet25_op_info_int8.csv \
       --dequant \
-      --tolerance 0.90,0.85,0.54 -vvv
+      --tolerance 0.90,0.85,0.54 -vv
 fi
 
 # VERDICT

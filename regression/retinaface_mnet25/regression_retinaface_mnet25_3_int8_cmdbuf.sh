@@ -7,18 +7,17 @@ source $DIR/../../envsetup.sh
 ################################
 # prepare int8 input
 ################################
-cvi_npz_tool.py to_bin \
-    retinaface_mnet25_tensor_all_int8.npz \
-    data_quant \
-    retinaface_mnet25_in_int8.bin \
-    int8
+# cvi_npz_tool.py to_bin \
+#     retinaface_mnet25_tensor_all_int8.npz \
+#     data_quant \
+#     retinaface_mnet25_in_int8.bin \
+#     int8
 
-cvi_npz_tool.py to_bin \
-    retinaface_mnet25_in_fp32.npz \
-    data \
-    retinaface_mnet25_in_fp32.bin \
-    float32
-
+# cvi_npz_tool.py to_bin \
+#     retinaface_mnet25_in_fp32.npz \
+#     data \
+#     retinaface_mnet25_in_fp32.bin \
+#    float32
 
 #cvi_npz_tool.py to_bin retinaface_mnet25_in_fp32.npz data retinaface_mnet25_in_fp32.bin
 # Depend on retinaface_mnet25_threshold_table
@@ -33,7 +32,7 @@ cvi_npz_tool.py to_bin \
 ################################
 mlir-opt \
     --tpu-lower \
-    retinaface_mnet25_int8.mlir \
+    retinaface_mnet25_quant_int8.mlir \
     -o retinaface_mnet25_quant_int8_tg.mlir
 
 # assign weight address & neuron address
