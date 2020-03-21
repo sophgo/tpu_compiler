@@ -451,6 +451,16 @@ public:
       }
     });
 
+    // To make ReshapeOp's result element type same as
+    // operand's after quantization
+    fn.walk([&](tpu::ReshapeOp op) {
+      auto _op = op.getOperation();
+      auto eltType = _op->getOperand(0)->getType().cast<TensorType>().getElementType();
+      auto shape = _op->getResult(0)->getType().cast<TensorType>().getShape();
+      auto type = RankedTensorType::get(shape, eltType);
+      _op->getResult(0)->setType(type);
+    });
+
     // insert quant/dequant
     OwningRewritePatternList patterns;
     patterns.insert<
