@@ -73,5 +73,9 @@ cvi_npz_tool.py compare \
     retinaface_res50_tensor_all_int8.npz \
     --op_info retinaface_res50_with_detection_op_info_int8.csv
 
+if [ ! -z $CVIMODEL_REL_PATH -a -d $CVIMODEL_REL_PATH ]; then
+  cp retinaface_res50_with_detection_int8.cvimodel $CVIMODEL_REL_PATH
+fi
+
 # VERDICT
 echo $0 PASSED

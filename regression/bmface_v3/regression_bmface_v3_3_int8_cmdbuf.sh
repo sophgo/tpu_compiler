@@ -49,23 +49,31 @@ build_cvimodel.py \
     --cmdbuf cmdbuf.bin \
     --weight weight.bin \
     --mlir bmface_v3_quant_int8_cmdbuf.mlir \
-    --output bmface_v3_int8.cvimodel
+    --output bmface_v3_int8_multiplier.cvimodel
 
 # run cmdbuf
 model_runner \
     --dump-all-tensors \
     --input bmface_v3_in_fp32.npz  \
-    --model bmface_v3_int8.cvimodel \
-    --output bmface_v3_cmdbuf_out_all_int8.npz
+    --model bmface_v3_int8_multiplier.cvimodel \
+    --output bmface_v3_cmdbuf_out_all_int8_multiplier.npz
 
 # compare all tensors
 
 cvi_npz_tool.py compare \
-    bmface_v3_cmdbuf_out_all_int8.npz \
+    bmface_v3_cmdbuf_out_all_int8_multiplier.npz \
     bmface_v3_tensor_all_int8_multiplier.npz \
     --op_info bmface_v3_op_info.csv \
     --tolerance 0.9,0.9,0.6 -v
 
+if [ ! -z $CVIMODEL_REL_PATH -a -d $CVIMODEL_REL_PATH ]; then
+  NET=bmface_v3
+  cp ${NET}_in_fp32.npz $CVIMODEL_REL_PATH
+  cp ${NET}_int8_multiplier.cvimodel $CVIMODEL_REL_PATH
+  cp ${NET}_cmdbuf_out_all_int8_multiplier.npz $CVIMODEL_REL_PATH
+  # cp ${NET}_tensor_all_int8_multiplier.npz $CVIMODEL_REL_PATH
+  # cp ${NET}_neuron_map_int8_multiplier.csv $CVIMODEL_REL_PATH
+fi
 
 # VERDICT
 echo $0 PASSED

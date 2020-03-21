@@ -125,7 +125,7 @@ if [ $COMPARE_ALL -eq 1 ]; then
 fi
 
 if [ ! -z $CVIMODEL_REL_PATH -a -d $CVIMODEL_REL_PATH ]; then
-  cp ${NET}_int8_la.cvimodel $CVIMODEL_REL_PATH
+  # cp ${NET}_int8_la.cvimodel $CVIMODEL_REL_PATH
   cp ${NET}_int8_lw.cvimodel $CVIMODEL_REL_PATH
 fi
 

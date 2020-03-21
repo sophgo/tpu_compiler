@@ -56,20 +56,29 @@ build_cvimodel.py \
     --cmdbuf cmdbuf_int8.bin \
     --weight weight_int8.bin \
     --mlir retinaface_res50_quant_int8_addr.mlir \
-    --output=retinaface_res50_int8.cvimodel
+    --output=retinaface_res50_int8_multiplier.cvimodel
 
 # run cmdbuf
 model_runner \
     --dump-all-tensors \
     --input retinaface_res50_in_fp32.npz \
-    --model retinaface_res50_int8.cvimodel \
-    --output retinaface_res50_cmdbuf_out_all_int8.npz
+    --model retinaface_res50_int8_multiplier.cvimodel \
+    --output retinaface_res50_cmdbuf_out_all_int8_multiplier.npz
 
 # compare all tensors
 cvi_npz_tool.py compare \
-    retinaface_res50_cmdbuf_out_all_int8.npz \
+    retinaface_res50_cmdbuf_out_all_int8_multiplier.npz \
     retinaface_res50_tensor_all_int8.npz \
     --op_info retinaface_res50_op_info_int8.csv
+
+if [ ! -z $CVIMODEL_REL_PATH -a -d $CVIMODEL_REL_PATH ]; then
+  NET=retinaface_res50
+  cp ${NET}_in_fp32.npz $CVIMODEL_REL_PATH
+  cp ${NET}_int8_multiplier.cvimodel $CVIMODEL_REL_PATH
+  cp ${NET}_cmdbuf_out_all_int8_multiplier.npz $CVIMODEL_REL_PATH
+  # cp ${NET}_tensor_all_int8_multiplier.npz $CVIMODEL_REL_PATH
+  # cp ${NET}_neuron_map_int8_multiplier.csv $CVIMODEL_REL_PATH
+fi
 
 # VERDICT
 echo $0 PASSED

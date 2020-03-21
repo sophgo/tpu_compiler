@@ -57,12 +57,5 @@ cvi_npz_tool.py compare \
     --op_info ${NET}_op_info_bf16.csv \
     --tolerance=$TOLERANCE_BF16_CMDBUF -vv
 
-if [ ! -z $CVIMODEL_REL_PATH -a -d $CVIMODEL_REL_PATH ]; then
-  cp ${NET}_in_fp32.npz $CVIMODEL_REL_PATH
-  cp ${NET}_bf16.cvimodel $CVIMODEL_REL_PATH
-  cp ${NET}_tensor_all_bf16.npz $CVIMODEL_REL_PATH
-  cp ${NET}_neuron_map_bf16.csv $CVIMODEL_REL_PATH
-fi
-
 # VERDICT
 echo $0 PASSED

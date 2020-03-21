@@ -50,23 +50,31 @@ build_cvimodel.py \
     --cmdbuf cmdbuf.bin \
     --weight weight.bin \
     --mlir arcface_res50_quant_int8_cmdbuf.mlir \
-    --output arcface_res50_int8.cvimodel
+    --output arcface_res50_int8_multiplier.cvimodel
 
 # run cmdbuf
 model_runner \
     --dump-all-tensors \
     --input arcface_res50_in_fp32.npz  \
-    --model arcface_res50_int8.cvimodel \
-    --output arcface_res50_cmdbuf_out_all_int8.npz
+    --model arcface_res50_int8_multiplier.cvimodel \
+    --output arcface_res50_cmdbuf_out_all_int8_multiplier.npz
 
 # compare all tensors
 
 cvi_npz_tool.py compare \
-    arcface_res50_cmdbuf_out_all_int8.npz \
+    arcface_res50_cmdbuf_out_all_int8_multiplier.npz \
     arcface_res50_tensor_all_int8_multiplier.npz \
     --op_info arcface_res50_op_info.csv \
     --tolerance 0.9,0.9,0.6 -v
 
+if [ ! -z $CVIMODEL_REL_PATH -a -d $CVIMODEL_REL_PATH ]; then
+  NET=arcface_res50
+  cp ${NET}_in_fp32.npz $CVIMODEL_REL_PATH
+  cp ${NET}_int8_multiplier.cvimodel $CVIMODEL_REL_PATH
+  cp ${NET}_cmdbuf_out_all_int8_multiplier.npz $CVIMODEL_REL_PATH
+  # cp ${NET}_tensor_all_int8_multiplier.npz $CVIMODEL_REL_PATH
+  # cp ${NET}_neuron_map_int8_multiplier.csv $CVIMODEL_REL_PATH
+fi
 
 # VERDICT
 echo $0 PASSED

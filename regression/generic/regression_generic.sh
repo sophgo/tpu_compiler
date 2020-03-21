@@ -8,6 +8,11 @@ if [ ! -e $NET ]; then
   mkdir $NET
 fi
 
+export CVIMODEL_REL_PATH=$PWD/cvimodel_out
+if [ ! -e $CVIMODEL_REL_PATH ]; then
+  mkdir $CVIMODEL_REL_PATH
+fi
+
 if [ -z "$2" ]; then
   DO_BATCHSIZE=1
 else
