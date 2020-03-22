@@ -64,9 +64,10 @@ static llvm::cl::opt<int> clStaticBatchsize(
     llvm::cl::desc("set static batchsize, dynamic batchsize is used when not set"),
     llvm::cl::cat(clOptionsCategory), llvm::cl::init(1));
 
-//=========================preprocess=======================================
+//=========================do preprocess=======================================
 static llvm::cl::OptionCategory clOptionsPreprocess("input  data preprocess options");
 
+//  preprocess way 1: add preprocess op
 static llvm::cl::opt<bool>
     clAddPreprocess("add-preprocess",
                     llvm::cl::desc("add preprocessing to input feature map"),
@@ -101,15 +102,15 @@ static llvm::cl::opt<std::string>
                            llvm::cl::desc("Specify the order of feature map"),
                            llvm::cl::cat(clOptionsPreprocess));
 
-//=========================preprocess=======================================
+// preprocess way 2: use sub ops
 static llvm::cl::opt<bool>
     clResolvePreprocess("resovle-preprocess",
                         llvm::cl::desc("Resovle Preprocess Op into sub Ops"),
                         llvm::cl::cat(clOptionsPreprocess), llvm::cl::init(false));
 
-static llvm::cl::opt<bool>
-    clSwapChannel("swap_channel", llvm::cl::desc("Specify whether swap RGB <=> BGR"),
-                  llvm::cl::cat(clOptionsPreprocess), llvm::cl::init(false));
+static llvm::cl::opt<std::string>
+    clSwapChannel("swap_channel", llvm::cl::desc("Specify the channel order to swap"),
+                  llvm::cl::cat(clOptionsPreprocess));
 
 static llvm::cl::opt<std::string> clMean("mean", llvm::cl::desc("Specify the mean"),
                                          llvm::cl::cat(clOptionsPreprocess));
@@ -192,9 +193,9 @@ private:
                              const std::string &name);
 
   void doPreprocess(mlir::Block *block, mlir::Value *input);
-  void doPreSwapChannel(mlir::Block *block, std::string name);
+  void doPreSwapChannel(mlir::Block *block, std::string name, const std::vector<int> &order);
   void doPreScale(mlir::Block *block, std::string name, float scale);
-  void doPreMean(mlir::Block *block, std::string name);
+  void doPreMean(mlir::Block *block, std::string name, const std::vector<int> &order);
 
   mlir::ModuleOp module_;
   mlir::Builder builder_;
@@ -2390,8 +2391,9 @@ LogicalResult CaffeImporter::Import(const llvm::StringRef inputFilename,
   return success();
 }
 
-void CaffeImporter::doPreSwapChannel(mlir::Block *block, std::string name) {
-  if (clSwapChannel.getValue() == false) {
+// add preprocess ops
+void CaffeImporter::doPreSwapChannel(mlir::Block *block, std::string name, const std::vector<int> &order) {
+  if (order.empty()) {
     return;
   }
   llvm::ArrayRef<int64_t> input_shape =
@@ -2401,6 +2403,7 @@ void CaffeImporter::doPreSwapChannel(mlir::Block *block, std::string name) {
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(name)));
   attrs.push_back(builder_.getNamedAttr("quant", getDefaultQuantParam(builder_)));
+  attrs.push_back(builder_.getNamedAttr("channel_order", builder_.getI32ArrayAttr(ArrayRef<int32_t>({order}))));
   auto result_type = RankedTensorType::get(input_shape, elementType_);
   auto op = OpBuilder(block).create<tpu::SwapChannelOp>(
       builder_.getUnknownLoc(), result_type, ArrayRef<Value *>{operands},
@@ -2435,7 +2438,7 @@ void CaffeImporter::doPreScale(mlir::Block *block, std::string name, float scale
   lastResult_ = op.getResult();
 }
 
-void CaffeImporter::doPreMean(mlir::Block *block, std::string name) {
+void CaffeImporter::doPreMean(mlir::Block *block, std::string name, const std::vector<int> &order) {
   if (clMean.empty()) {
     return;
   }
@@ -2451,7 +2454,22 @@ void CaffeImporter::doPreMean(mlir::Block *block, std::string name) {
 
   // mean
   float mean_value[3];
-  sscanf(clMean.c_str(), "%f,%f,%f", &mean_value[0], &mean_value[1], &mean_value[2]);
+  SmallVector<StringRef, 3> sub_strs;
+  StringRef(clMean).split(sub_strs, ",");
+  int index = 0;
+  for (auto &str : sub_strs) {
+      double val;
+      assert(!str.getAsDouble(val));
+      mean_value[index++] = (float)val;
+  }
+  if (order.empty() == false) {
+    assert((int)order.size() == c);
+    float val[3];
+    memcpy(val, mean_value, 3 * sizeof(float));
+    for (int i = 0; i < c; i ++) {
+      mean_value[i] = val[order[i]];
+    }
+  }
   auto data_type = RankedTensorType::get({c}, elementType_);
   GetWeightFile()->addTensor(name + "_0", mean_value, data_type);
   operands.push_back(AddLoadWeightOp(block, name + "_0", data_type));
@@ -2480,10 +2498,32 @@ void CaffeImporter::doPreMean(mlir::Block *block, std::string name) {
 
 void CaffeImporter::doPreprocess(mlir::Block *block, mlir::Value *input) {
   lastResult_ = input;
-  doPreSwapChannel(block, "pre_swap_channel");
+  std::vector<int32_t> order;
+  if (!clSwapChannel.empty()) {
+    SmallVector<StringRef, 3> sub_strs;
+    StringRef(clSwapChannel).split(sub_strs, ",");
+    for (auto &str : sub_strs) {
+      int32_t val;
+      assert(!str.getAsInteger(10, val));
+      order.push_back(val);
+    }
+    int index = 0;
+    int order_size = (int)order.size();
+    for (; index < order_size; index++) {
+      assert(order[index] <order_size);
+      if ( index != order[index]) {
+        break;
+      }
+    }
+    // same order , needn't swap
+    if (index ==order_size) {
+      order.clear();
+    }
+  }
   doPreScale(block, "pre_raw_scale", clRawScale.getValue());
-  doPreMean(block, "pre_mean");
+  doPreMean(block, "pre_mean", order);
   doPreScale(block, "pre_scale", clScale.getValue());
+  doPreSwapChannel(block, "pre_swap_channel", order);
   auto inputOp = llvm::cast<tpu::InputOp>(input->getDefiningOp());
   tensor_map_[inputOp.name()] = lastResult_;
 }

@@ -21,6 +21,7 @@ add_llvm_library(MLIRTPU
   Transforms/AssignLayerId.cpp
   Transforms/SplitCpuOp.cpp
   Transforms/ConvertPriorBoxToLoadWeight.cpp
+  Transforms/ConvertConv2D.cpp
   Transforms/LowerToTG.cpp
   Transforms/group_ops/GroupOps.cpp
   Transforms/group_ops/NetGraph.cpp

@@ -836,6 +836,7 @@ Value *tpu::SwapChannelOp::convertToTG() {
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
   attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
+  attrs.push_back(builder.getNamedAttr("channel_order", channel_orderAttr()));
 
   if (getOpQuant() == "INT8") {
     assert(getOpQuantParamType() == "NONE");

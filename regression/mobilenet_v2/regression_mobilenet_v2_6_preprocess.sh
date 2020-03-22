@@ -8,7 +8,8 @@ DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 mlir-translate \
     --caffe-to-mlir $MODEL_PATH/imagenet/mobilenet_v2/caffe/mobilenet_v2_deploy.prototxt \
     --caffemodel $MODEL_PATH/imagenet/mobilenet_v2/caffe/mobilenet_v2.caffemodel \
-    --swap_channel\
+    --resovle-preprocess \
+    --swap_channel 2,1,0\
     --raw_scale 255.0 \
     --mean 103.94,116.78,123.68 \
     --scale 0.017 \

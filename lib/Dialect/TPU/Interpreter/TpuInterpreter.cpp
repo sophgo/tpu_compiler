@@ -2080,11 +2080,13 @@ LogicalResult tpu::SwapChannelOp::interpret(
          "input shape not equal to output shape");
   assert((input_shape.size() == 4) &&
          "SwapChannel support shape size  must == 4");
+  std::vector<int32_t> order;
+  arrayAttrToVector(this->channel_order().getValue(), order);
 
   float *input = (float *)opdT[0]->data();
   float *output = (float *)resultT.get()->data();
   int ret = my_swap_channel(input, output, input_shape[0], input_shape[1],
-                            input_shape[2], input_shape[3]);
+                            input_shape[2], input_shape[3], order.data());
   assert(ret == 0);
   valueMapping[result] = std::move(resultT);
 

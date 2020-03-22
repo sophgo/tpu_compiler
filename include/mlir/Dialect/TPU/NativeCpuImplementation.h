@@ -36,7 +36,7 @@ int my_shuffle_channel(float *input, float *output, unsigned int group,
 int my_scale(float *input, float *scale, float *bias,
     float *output, int n, int c, int h, int w);
 
-int my_swap_channel(float *input, float *output, int n, int c,  int h, int w);
+int my_swap_channel(float *input, float *output, int n, int c,  int h, int w, int * order);
 
 int my_pixelshuffle(float *input, float *output, int in, int ic,
                     int ih, int iw, int on, int oc, int oh, int ow,

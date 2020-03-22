@@ -1585,9 +1585,11 @@ LogicalResult tpu::TG_INT8_SwapChannelOp::codegen(void *ctx) {
   gaddr_t input_gaddr = getPreviousOpAddress(op);
   gaddr_t output_gaddr = getOpAddress(op);
   int layer_id = mlir::getOpLayerId(op);
+  std::vector<int32_t> order;
+  arrayAttrToVector(this->channel_order().getValue(), order);
   swap_channel_forward_kernel(*backend_ctx, 0, 0, layer_id, nullptr, 0,
                                        input_gaddr, output_gaddr,  (int)input_shape_fix.size(),
-                                       input_shape_fix.data(), FMT_I8);
+                                       input_shape_fix.data(), order.data(), FMT_I8);
   return success();
 }
 
@@ -1602,13 +1604,15 @@ LogicalResult tpu::TG_BF16_SwapChannelOp::codegen(void *ctx) {
     for (auto &dim : input_shape) {
     input_shape_fix.push_back((int)dim);
   }
+  std::vector<int32_t> order;
+  arrayAttrToVector(this->channel_order().getValue(), order);
 
   gaddr_t input_gaddr = getPreviousOpAddress(op);
   gaddr_t output_gaddr = getOpAddress(op);
   int layer_id = mlir::getOpLayerId(op);
   swap_channel_forward_kernel(*backend_ctx, 0, 0, layer_id, nullptr, 0,
                                        input_gaddr, output_gaddr,  (int)input_shape_fix.size(),
-                                       input_shape_fix.data(), FMT_BF16);
+                                       input_shape_fix.data(), order.data(), FMT_BF16);
   return success();
 }
 

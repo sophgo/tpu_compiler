@@ -96,6 +96,8 @@ class TPU_ConvOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
   );
 
   let results = (outs AnyTensor:$output);
+
+  let hasCanonicalizer = 1;
 }
 
 class TPU_EltwiseOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
@@ -1422,6 +1424,7 @@ def TPU_SwapChannelOp: TPU_Op<"swap_channel",
       `input`           : required, the input activation tensor.
 
     Attributes:
+      `channel_order` : optional, channel swap order
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
       `layer_id`        : optional, id for profiling.
@@ -1443,6 +1446,7 @@ def TPU_SwapChannelOp: TPU_Op<"swap_channel",
 
   let arguments = (
     ins AnyTensor:$input,
+    OptionalAttr<I32ArrayAttr>:$channel_order,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
     OptionalAttr<NonNegativeI32Attr>:$layer_id

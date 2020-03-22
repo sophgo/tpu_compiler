@@ -660,7 +660,7 @@ int my_scale(float *input, float *scale, float *bias,
 }
 
 // swap channel
-int my_swap_channel(float *input, float *output, int n, int c, int h, int w) {
+int my_swap_channel(float *input, float *output, int n, int c, int h, int w, int * order) {
   LLVM_DEBUG(llvm::errs() << "  n: " << n << ", c: " << c << ",  h: " << h
                           << ", w: " << w << "\n";);
   int frame_size = h * w;
@@ -668,8 +668,8 @@ int my_swap_channel(float *input, float *output, int n, int c, int h, int w) {
 
   for (int i = 0; i < n; ++i) {
     for (int j = 0; j < c; j++) {
-      float *p_in = input + i * batch_length + frame_size * j;
-      float *p_out = output + i * batch_length + frame_size * (c - j - 1);
+      float *p_in = input + i * batch_length + frame_size * order[j];
+      float *p_out = output + i * batch_length + frame_size * j ;
       memcpy((void *)p_out, (void *)p_in, frame_size * sizeof(float));
     }
   }
