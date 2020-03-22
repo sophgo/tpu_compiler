@@ -66,6 +66,27 @@ export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
 export DO_DEEPFUSION=1
 fi
 
+if [ $NET = "googlenet" ]; then
+export MODEL_DEF=$MODEL_PATH/imagenet/googlenet/caffe/deploy.prototxt
+export MODEL_DAT=$MODEL_PATH/imagenet/googlenet/caffe/bvlc_googlenet.caffemodel
+export DO_CALIBRATION=1
+# export CALI_TABLE=$REGRESSION_PATH/googlenet/data/inception_v3_threshold_table
+export NET_INPUT_DIMS=224,224
+export RAW_SCALE=255.0
+export MEAN=104.0,117.0,123.0
+export INPUT_SCALE=1.0
+export INPUT=data
+export OUTPUTS_FP32=prob
+export OUTPUTS=classifier
+# export EXCEPTS=prob
+export TOLERANCE_INT8_PER_TENSOR=0.84,0.84,0.41
+export TOLERANCE_INT8_RSHIFT_ONLY=0.94,0.93,0.64
+export TOLERANCE_INT8_MULTIPLER=0.95,0.95,0.71
+export TOLERANCE_BF16=0.99,0.99,0.93
+export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
+export DO_DEEPFUSION=1
+fi
+
 if [ $NET = "inception_v3" ]; then
 export MODEL_DEF=$MODEL_PATH/imagenet/inception_v3/caffe/deploy_inception-v3.prototxt
 export MODEL_DAT=$MODEL_PATH/imagenet/inception_v3/caffe/inception-v3.caffemodel

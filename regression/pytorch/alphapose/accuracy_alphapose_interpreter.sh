@@ -2,7 +2,6 @@
 set -e
 
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
-#source $DIR/../../../envsetup.sh
 
 # assuming run after run regression_XXX.sh
 EVAL_FUNC=eval_alpha_pose.py

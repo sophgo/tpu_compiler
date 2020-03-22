@@ -2,7 +2,7 @@
 set -e
 
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
-source $DIR/../../envsetup.sh
+
 
 EVAL_FUNC=$TPU_PYTHON_PATH/eval_retinaface_on_widerface.py
 

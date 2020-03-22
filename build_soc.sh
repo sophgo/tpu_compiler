@@ -17,7 +17,6 @@ set -e
 #
 
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
-source $DIR/envsetup.sh
 
 if [ -z $BUILD_OPENCV ]; then
   export BUILD_OPENCV=0
@@ -80,7 +79,7 @@ export AARCH64_SYSROOT_PATH=$BUILD_SOC_PATH/sysroot
 # install path
 #
 export FLATBUFFERS_SOC_PATH=$INSTALL_SOC_PATH/flatbuffers
-export CVIKERNEL_SOC_PATH=$INSTALL_SOC_PATH/cvikernel
+export CVIKERNEL_SOC_PATH=$INSTALL_SOC_PATH
 export CVIRUNTIME_SOC_PATH=$INSTALL_SOC_PATH
 
 #

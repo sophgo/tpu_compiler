@@ -2,7 +2,7 @@
 set -e
 
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
-source $DIR/../../envsetup.sh
+
 
 # compare all only support when global memory optimization close
 COMPARE_ALL=0

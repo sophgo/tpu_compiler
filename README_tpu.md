@@ -67,3 +67,19 @@ Tested with Ubuntu 18.04
 
 * TODO: apt install list
 * TODO: pip install list
+
+# Build Release
+
+  ```sh
+  $ MLIR_INSTALL_PATH=$PWD/cvitek_mlir SDK_INSTALL_PATH=$PWD/cvitek_tpu_sdk \
+      source ./llvm-project/llvm/projects/mlir/envsetup.sh
+  $ BUILD_OPENCV=1 BUILD_SAMPLES=1 build_soc.sh
+  $ build.sh RELEASE
+  ```
+
+  Run regression
+
+  ```sh
+  $ source cvitek_mlir/cvitek_envs.sh
+  $
+  ```

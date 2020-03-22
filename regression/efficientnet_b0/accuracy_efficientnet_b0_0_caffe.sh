@@ -2,7 +2,7 @@
 set -e
 
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
-source $DIR/../../envsetup.sh
+
 
 # assuming run after run regression_XXX.sh
 if [ $2 = "pytorch" ]; then
@@ -20,4 +20,3 @@ $EVAL_FUNC \
     --model_def=/data/models/caffe/efficientnet-b0.prototxt \
     --loader_transforms=1 \
     --count=$1
-    

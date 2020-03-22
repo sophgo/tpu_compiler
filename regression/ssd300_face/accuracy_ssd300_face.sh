@@ -2,7 +2,7 @@
 set -e
 
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
-source $DIR/../../envsetup.sh
+
 
 NET=ssd300_face
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
@@ -14,8 +14,8 @@ fi
 
 pushd $NET
 
-$DIR/accuracy_ssd300_face_0_caffe.sh $1 
-$DIR/accuracy_ssd300_face_1_interpreter.sh $1 
+$DIR/accuracy_ssd300_face_0_caffe.sh $1
+$DIR/accuracy_ssd300_face_1_interpreter.sh $1
 
 popd
 

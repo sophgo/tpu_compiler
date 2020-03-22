@@ -2,7 +2,7 @@
 set -e
 
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
-source $DIR/../../envsetup.sh
+
 
 COMPARE_ALL=1
 COMPARE_OUTPUT_BIT_TRUE=0

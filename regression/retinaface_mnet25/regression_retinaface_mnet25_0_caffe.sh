@@ -2,7 +2,7 @@
 set -e
 
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
-source $DIR/../../envsetup.sh
+
 
 export PATH=$TPU_PYTHON_PATH/model/retinaface:$PATH
 export PYTHONPATH=$TPU_PYTHON_PATH/model/retinaface:$PYTHONPATH

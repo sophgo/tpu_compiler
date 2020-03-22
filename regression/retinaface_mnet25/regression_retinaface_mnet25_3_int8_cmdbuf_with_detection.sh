@@ -2,7 +2,7 @@
 set -e
 
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
-source $DIR/../../envsetup.sh
+
 
 mlir-translate --caffe-to-mlir \
     $MODEL_PATH/face_detection/retinaface/caffe/mnet_320_with_detection.prototxt \

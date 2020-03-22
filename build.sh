@@ -2,7 +2,6 @@
 set -e
 
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
-source $DIR/envsetup.sh
 
 BUILD_TYPE="RELEASE"
 if [ "$BUILD_TYPE" == "RELEASE" ]; then
@@ -188,6 +187,28 @@ cmake -G Ninja  \
 cmake --build . --target install
 popd
 cp $MLIR_SRC_PATH/externals/profiling/tool/performance.html $PROFILING_PATH/bin/
+
+# Clean up some files for release build
+if [ "$1" = "RELEASE" ]; then
+rm $INSTALL_PATH/bin/llvm-*
+rm $INSTALL_PATH/bin/llc
+rm $INSTALL_PATH/bin/lli
+rm $INSTALL_PATH/bin/opt
+rm $INSTALL_PATH/bin/sancov
+rm $INSTALL_PATH/bin/dsymutil
+rm $INSTALL_PATH/bin/bugpoint
+rm $INSTALL_PATH/bin/verify-uselistorder
+rm $INSTALL_PATH/bin/sanstats
+rm $INSTALL_PATH/bin/yaml2obj
+rm $INSTALL_PATH/lib/*.a
+rm $INSTALL_PATH/lib/libLTO.so*
+rm $INSTALL_PATH/lib/libmlir_runner_utils.so*
+rm $INSTALL_PATH/lib/libRemarks.so*
+rm -rf $INSTALL_PATH/lib/cmake/
+cp $MLIR_SRC_PATH/cvitek_envs.sh $INSTALL_PATH/
+# install regression
+cp -a $MLIR_SRC_PATH/regression $INSTALL_PATH/
+fi
 
 # SoC build
 if [ "$1" = "SOC" ]; then

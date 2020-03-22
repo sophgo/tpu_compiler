@@ -2,7 +2,7 @@
 set -e
 
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
-source $DIR/../../envsetup.sh
+
 
 # generate image
 randomn_image.py 1 1 512 512 $DATA_PATH/test_espcn_cat_in_fp32 \

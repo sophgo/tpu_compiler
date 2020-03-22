@@ -2,7 +2,6 @@
 set -e
 
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
-source $DIR/envsetup.sh
 
 # build caffe
 pushd $BUILD_PATH/build_caffe

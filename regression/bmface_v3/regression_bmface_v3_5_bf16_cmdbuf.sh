@@ -2,7 +2,7 @@
 set -e
 
 #DIR="$( cd "$(dirname "$0")" ; pwd -P )"
-#source $DIR/../../envsetup.sh
+#
 
 TENSOR_IN_FILE=./data/bmface_v3_in_fp32_scale.npz
 TENSOR_IN_BIN_FILE=./data/bmface_v3_in_bf16_scale.bin

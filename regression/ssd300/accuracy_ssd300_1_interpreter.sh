@@ -2,7 +2,7 @@
 set -e
 
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
-source $DIR/../../envsetup.sh
+
 
 export EVAL_FUNC=eval_ssd.py
 
@@ -22,7 +22,7 @@ $EVAL_FUNC \
     --coco_image_path=$DATASET_PATH/coco/val2017/ \
     --coco_annotation=$DATASET_PATH/coco/annotations/instances_val2017.json \
     --coco_result_jason_file=./coco_results_fp32_interpreter.json \
-    --count=$1 
+    --count=$1
 fi
 
 if [[ $2 -eq 1 ]]; then
@@ -34,7 +34,7 @@ $EVAL_FUNC \
     --coco_result_jason_file=./coco_results_int8_perlayer.json \
     --count=$1  \
     --pre_result_json=./coco_results_int8_perlayer.json
- 
+
 else
 $EVAL_FUNC \
     --model=ssd300_quant_int8_per_layer.mlir \
@@ -42,7 +42,7 @@ $EVAL_FUNC \
     --coco_image_path=$DATASET_PATH/coco/val2017/ \
     --coco_annotation=$DATASET_PATH/coco/annotations/instances_val2017.json \
     --coco_result_jason_file=./coco_results_int8_perlayer.json \
-    --count=$1 
+    --count=$1
 fi
 
 if [[ $2 -eq 1 ]]; then
@@ -54,7 +54,7 @@ $EVAL_FUNC \
     --coco_result_jason_file=./coco_results_int8_per_channel.json \
     --count=$1   \
     --pre_result_json=./coco_results_int8_per_channel.json
-     
+
 else
 $EVAL_FUNC \
     --model=ssd300_quant_int8_per_channel.mlir \
@@ -75,12 +75,12 @@ $EVAL_FUNC \
     --count=$1 \
     --pre_result_json=./coco_results_int8_multiplier.json
 
-else 
+else
 $EVAL_FUNC \
     --model=ssd300_quant_int8_multiplier.mlir \
     --net_input_dims 300,300 \
     --coco_image_path=$DATASET_PATH/coco/val2017/ \
     --coco_annotation=$DATASET_PATH/coco/annotations/instances_val2017.json \
     --coco_result_jason_file=./coco_results_int8_multiplier.json \
-    --count=$1  	
+    --count=$1
 fi

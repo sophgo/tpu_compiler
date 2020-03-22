@@ -1,6 +1,5 @@
 set -e
 
-source $MLIR_SRC_PATH/envsetup.sh
 CALI_PATH=$REGRESSION_PATH/shufflenet_v1
 
 #input txt

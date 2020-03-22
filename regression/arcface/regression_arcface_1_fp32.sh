@@ -2,7 +2,6 @@
 set -e
 
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
-source $DIR/../../envsetup.sh
 
 CHECK_NON_OPT_VERSION=0
 

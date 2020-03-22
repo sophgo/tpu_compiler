@@ -2,7 +2,7 @@
 set -e
 
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
-source $DIR/../../envsetup.sh
+
 
 EVAL_FUNC=eval_caffe_detector_ssd.py
 
@@ -24,7 +24,7 @@ $EVAL_FUNC \
     --coco_image_path=$DATASET_PATH/coco/val2017/ \
     --coco_annotation=$DATASET_PATH/coco/annotations/instances_val2017.json \
     --coco_result_jason_file=./coco_results_caffe.json \
-    --count=$1 
+    --count=$1
 fi
 
 echo $0 DONE
