@@ -16,15 +16,24 @@ def get_topk(a, k):
 
 def npz_dump(args):
 
-  npzfile = np.load(args.target_file)
-  if args.array_name in npz_file:
-    d = npzfile[args.array_name]
+  npzfile = np.load(args[0])
+
+  if len(args) == 1 or args[1] == "--list":
+    print("\n".join(npzfile.files))
+    exit(0)
+
+  if args[1] in npzfile.files:
+    d = npzfile[args[1]]
   else:
-    raise ValueError("No {} in {} npz file".format(args.array_name, args.target_file))
+    raise ValueError("No {} in {} npz file".format(args[1], args[0]))
+
+  K = 0
+  if len(args) == 3:
+    K = int(args[2])
 
   np.set_printoptions(precision=6)
   np.set_printoptions(suppress=True)
-  if args.k < 0:
+  if K < 0:
     np.set_printoptions(threshold=sys.maxsize)
   print(d)
   print('shape', d.shape)
