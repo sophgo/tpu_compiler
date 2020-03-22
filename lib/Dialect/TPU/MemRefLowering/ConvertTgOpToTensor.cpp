@@ -131,7 +131,6 @@ struct ConvertTgOpToTensorPass : public FunctionPass<ConvertTgOpToTensorPass> {
         convertTgOpToTensorPattern<tpu::TG_MemRef_INT8_PoolAvg2DOp, tpu::TG_INT8_PoolAvg2DOp>,
         convertTgOpToTensorPattern<tpu::TG_MemRef_INT8_PoolMax2DOp, tpu::TG_INT8_PoolMax2DOp>,
         convertTgOpToTensorPattern<tpu::TG_MemRef_LoadWeightOp, tpu::LoadWeightOp>,
-        convertTgOpToTensorPattern<tpu::TG_MemRef_QuantOp, tpu::QuantOp>,
         convertTgOpToTensorPattern<tpu::TG_MemRef_ReshapeOp, tpu::ReshapeOp>
         >(context);
     if (failed(applyPartialConversion(fn, target, patterns)))

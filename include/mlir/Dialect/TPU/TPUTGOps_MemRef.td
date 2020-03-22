@@ -24,6 +24,83 @@
 
 include "mlir/Dialect/TPU/TPUBase.td"
 
+//===----------------------------------------------------------------------===//
+// TPU TG MemRef op definitions.
+//===----------------------------------------------------------------------===//
+
+def TPU_TG_TensorToMemRefOp : TPU_Op<"tensor_to_memref",
+    [SameOperandsAndResultShape, SameOperandsAndResultElementType]> {
+  let summary = "tensor to memref operation";
+  let description = [{
+    The "tensor_load" operation creates a tensor from a memref, making an
+    independent copy of the element data. The result value is a tensor whose
+    shape and element type match the memref operand.
+
+    Produce a value of tensor<4x?xf32> type.
+       %12 = tensor_load %10 : memref<4x?xf32, #layout, memspace0>
+  }];
+
+  let arguments = (ins AnyTensor);
+  let results = (outs AnyMemRef);
+  // TensorLoadOp is fully verified by traits.
+  let verifier = ?;
+
+  let builders = [OpBuilder<
+    "Builder *builder, OperationState &result, Value *tensor", [{
+      auto tensorType = tensor->getType().cast<TensorType>();
+      auto resultType = MemRefType::get(tensorType.getShape(),
+                                        tensorType.getElementType());
+      result.addOperands(tensor);
+      result.addTypes(resultType);
+
+      //auto memrefType = memref->getType().cast<MemRefType>();
+      //auto resultType = RankedTensorType::get(memrefType.getShape(),
+      //                                        memrefType.getElementType());
+      //result.addOperands(memref);
+      //result.addTypes(resultType);
+  }]>];
+
+  let extraClassDeclaration = [{
+    // The result is always a memref.
+    MemRefType getType() { return getResult()->getType().cast<MemRefType>(); }
+
+    /// The result of a tensor_load is always a tensor.
+    // TensorType getType() { return getResult()->getType().cast<TensorType>(); }
+  }];
+}
+
+def TPU_TG_MemRefToTensorOp : TPU_Op<"memref_to_tensor",
+    [SameOperandsAndResultShape, SameOperandsAndResultElementType]> {
+  let summary = "tensor load operation";
+  let description = [{
+    The "tensor_load" operation creates a tensor from a memref, making an
+    independent copy of the element data. The result value is a tensor whose
+    shape and element type match the memref operand.
+
+    Produce a value of tensor<4x?xf32> type.
+       %12 = tensor_load %10 : memref<4x?xf32, #layout, memspace0>
+  }];
+
+  let arguments = (ins AnyMemRef);
+  let results = (outs AnyTensor);
+  // TensorLoadOp is fully verified by traits.
+  let verifier = ?;
+
+  let builders = [OpBuilder<
+    "Builder *builder, OperationState &result, Value *memref", [{
+      auto memrefType = memref->getType().cast<MemRefType>();
+      auto resultType = RankedTensorType::get(memrefType.getShape(),
+                                              memrefType.getElementType());
+      result.addOperands(memref);
+      result.addTypes(resultType);
+  }]>];
+
+  let extraClassDeclaration = [{
+    /// The result of a tensor_load is always a tensor.
+    TensorType getType() { return getResult()->getType().cast<TensorType>(); }
+  }];
+}
+
 class TPU_TG_MemRef_ConvOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
@@ -302,37 +379,6 @@ class TPU_TG_MemRef_Pool2DOp<string mnemonic, string opQuant, string opType> : T
 }
 def TPU_TG_MemRef_INT8_PoolAvg2DOp : TPU_TG_MemRef_Pool2DOp<"tg_memref_int8_pool_avg_2d", "Int8", "Avg">;
 def TPU_TG_MemRef_INT8_PoolMax2DOp : TPU_TG_MemRef_Pool2DOp<"tg_memref_int8_pool_max_2d", "Int8", "Max">;
-
-def TPU_TG_MemRef_QuantOp: TPU_Op<"tg_memref_quant",
-      [NoSideEffect,
-       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
-  let summary = "Quantization/Dequantization operator";
-
-  let description = [{
-    Perform quantization or dequantization among different QuantMode.
-
-    - From `None` to `INT8`
-      Quantize a activation tensor into int8, according to its threshold value.
-      Q(x) = x * 128 / threshold, and saturate to (-128, 127) range
-
-    - From `INT8` to `None`
-      Dequantize a activation tensor from int8 back to float.
-      x = Q(x) * threshold / 128
-  }];
-
-  let arguments = (
-    ins MemRefOf<[AnyFloat, AnyInteger]>:$input,
-    MemRefOf<[AnyFloat, AnyInteger]>:$output,
-    TPU_QuantModeAttr:$from,
-    TPU_QuantModeAttr:$to,
-    OptionalAttr<F32Attr>:$threshold,
-    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
-    OptionalAttr<NonNegativeI64Attr>:$gaddr,
-    StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
-  );
-}
 
 def TPU_TG_MemRef_ReshapeOp: TPU_Op<"tg_memref_reshape",
       [NoSideEffect,

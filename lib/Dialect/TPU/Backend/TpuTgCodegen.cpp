@@ -1857,10 +1857,6 @@ LogicalResult tpu::TG_MemRef_INT8_PoolMax2DOp::codegen(void *ctx) {
   return success();
 }
 
-LogicalResult tpu::TG_MemRef_QuantOp::codegen(void *ctx) {
-  return success();
-}
-
 LogicalResult tpu::TG_MemRef_ReshapeOp::codegen(void *ctx) {
   return success();
 }
