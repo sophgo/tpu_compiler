@@ -42,6 +42,7 @@ struct AssignNeuronAddressMemRefPass :
   void runOnFunction() override;
   void handleAllocOp(Operation *opInst);
   void handleDeallocOp(Operation *opInst);
+  void handleQuantOp(Operation *opInst);
   Operation *findTpuOpFromAllocOp(Operation *op);
   Operation *findTpuOpFromDeallocOp(Operation *op);
 
@@ -120,10 +121,9 @@ AssignNeuronAddressMemRefPass::findTpuOpFromDeallocOp(Operation *op) {
 }
 
 bool AssignNeuronAddressMemRefPass::isMemoryAliasedOp(Operation *op) {
-  // FIXME: skip tg_memref_quant, fc_reshape
+  // FIXME: skip fc_reshape
   // Can replace AllocOp with ViewOp ?
-  if (op->getName().getStringRef().str() == "tpu.tg_memref_quant" ||
-      op->getName().getStringRef().str() == "tpu.tg_memref_reshape") {
+  if (op->getName().getStringRef().str() == "tpu.tg_memref_reshape") {
     return true;
   }
 
@@ -300,6 +300,54 @@ void AssignNeuronAddressMemRefPass::handleDeallocOp(Operation *opInst) {
   }
 }
 
+void AssignNeuronAddressMemRefPass::handleQuantOp(Operation *opInst) {
+  // Reserved space for both input/quantized input.
+  // There is no explicit place to assign input.
+  auto inputType = opInst->getOperand(0)->getType().dyn_cast<RankedTensorType>();
+  assert(inputType && "Expect input is ranked tensor type.");
+  if (!inputType)
+    return;
+
+  // Should be integer(int8) or float(float, bf16)
+  auto elementType = inputType.getElementType();
+  assert(elementType.isIntOrFloat() && "Expect input is int or float");
+  if (!elementType.isIntOrFloat())
+    return;
+
+  std::vector<int64_t> shape = inputType.getShape();
+  uint64_t dataTypeSize = elementType.getIntOrFloatBitWidth() / 8;
+  uint64_t allocatedSize = dataTypeSize;
+  for (unsigned i = 0; i < shape.size(); ++i)
+    allocatedSize *= shape[i];
+
+  std::string dtype;
+  if (elementType.dyn_cast<IntegerType>())
+    dtype = "int";
+  else if (elementType.isBF16())
+    dtype = "bf";
+  else
+    dtype = "f";
+
+  // pad to alignment
+  allocatedSize = llvm::alignTo(allocatedSize, alignment_);
+
+  uint64_t curPos = pos_;
+  uint64_t newPos = curPos + allocatedSize;
+
+  auto tpuOpIf = llvm::dyn_cast<tpu::TpuOpCommonInterface>(opInst);
+  if (!tpuOpIf) {
+    llvm::errs() << "Error ! tpuOp " << opInst->getName() << " does not have common interface\n";
+  }
+  assert(tpuOpIf && "Expect tpu op has common interface");
+
+  llvm::errs() << llvm::format("[%-36s][%8d] : [ ",
+                tpuOpIf.getOpName().str().c_str(), allocatedSize)
+              << llvm::format_hex(curPos, 10) << " --> "
+              << llvm::format_hex(newPos, 10) << " ]\n";
+  setOpAddress(tpuOpIf, curPos);
+  pos_ = newPos;
+}
+
 void AssignNeuronAddressMemRefPass::runOnFunction() {
   // create a map file
   std::unique_ptr<llvm::ToolOutputFile> neuronMapFile = nullptr;
@@ -318,10 +366,12 @@ void AssignNeuronAddressMemRefPass::runOnFunction() {
   map_os_ = &neuronMapFile->os();
 
   getFunction().walk([&](Operation *opInst) {
-    if (auto allocOp = dyn_cast<AllocOp>(opInst)) {
+    if (dyn_cast<AllocOp>(opInst)) {
       handleAllocOp(opInst);
-    } else if (auto deallocOp = dyn_cast<DeallocOp>(opInst)) {
+    } else if (dyn_cast<DeallocOp>(opInst)) {
       handleDeallocOp(opInst);
+    } else if (dyn_cast<tpu::QuantOp>(opInst)) {
+      handleQuantOp(opInst);
     }
   });
 
