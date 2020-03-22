@@ -98,7 +98,7 @@ mlir-opt \
     ssd300_quant_int8_multiplier_tg.mlir  \
     -o ssd300_quant_int8_multiplier_addr.mlir
 
-  mlir-translate \
+mlir-translate \
     --mlir-to-cmdbuf \
     ssd300_quant_int8_multiplier_addr.mlir \
     -o cmdbuf_int8_multiplier.bin
@@ -108,15 +108,13 @@ build_cvimodel.py \
     --cmdbuf cmdbuf_int8_multiplier.bin \
     --weight weight_int8_multiplier.bin \
     --mlir ssd300_quant_int8_multiplier_addr.mlir \
-    --output=ssd300_int8_per_layer.cvimodel
+    --output=ssd300_int8_multiplier.cvimodel
 
 model_runner \
     --dump-all-tensors \
     --input ssd300_in_fp32.npz \
-    --model ssd300_int8_per_layer.cvimodel \
+    --model ssd300_int8_multiplier.cvimodel \
     --output ssd300_cmdbuf_out_all_int8_multiplier.npz
-
-
 
 # # run cmdbuf
 # compare all tensors
@@ -124,6 +122,15 @@ cvi_npz_tool.py compare \
     ssd300_cmdbuf_out_all_int8_multiplier.npz \
     ssd300_tensor_all_int8_multiplier.npz \
     --op_info ssd300_op_info_int8_multiplier.csv
+
+if [ ! -z $CVIMODEL_REL_PATH -a -d $CVIMODEL_REL_PATH ]; then
+  NET=ssd300
+  cp ${NET}_in_fp32.npz $CVIMODEL_REL_PATH
+  cp ${NET}_int8_multiplier.cvimodel $CVIMODEL_REL_PATH
+  cp ${NET}_cmdbuf_out_all_int8_multiplier.npz $CVIMODEL_REL_PATH
+  # cp ${NET}_tensor_all_int8_multiplier.npz $CVIMODEL_REL_PATH
+  # cp ${NET}_neuron_map_int8_multiplier.csv $CVIMODEL_REL_PATH
+fi
 
 # VERDICT
 echo $0 PASSED

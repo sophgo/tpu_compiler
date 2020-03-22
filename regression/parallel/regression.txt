@@ -4,6 +4,7 @@ $REGRESSION_PATH/parallel/run_normal.sh  retinaface_mnet25
 $REGRESSION_PATH/parallel/run_normal.sh  retinaface_res50
 $REGRESSION_PATH/parallel/run_normal.sh  ssd300
 $REGRESSION_PATH/parallel/run_normal.sh  yolo_v3
+$REGRESSION_PATH/parallel/run_normal.sh  arcface
 $REGRESSION_PATH/parallel/run_generic.sh resnet50
 $REGRESSION_PATH/parallel/run_generic.sh vgg16
 $REGRESSION_PATH/parallel/run_generic.sh mobilenet_v2

@@ -62,6 +62,10 @@ if [ -z "$bs" ]; then
 fi
 
 if [ ! -z "$net" ]; then
+  export CVIMODEL_REL_PATH=$PWD/cvimodel_out
+  if [ ! -e $CVIMODEL_REL_PATH ]; then
+    mkdir $CVIMODEL_REL_PATH
+  fi
   $DIR/$net/regression_$net.sh 2>&1 | tee $net.log
   if [ "${PIPESTATUS[0]}" -ne "0" ]; then
     echo "regression $net FAILED"
@@ -75,7 +79,7 @@ fi
 if [ ! -e regression_out ]; then
   mkdir regression_out
 fi
-export CVIMODEL_REL_PATH=regression_out/cvimodel_release
+export CVIMODEL_REL_PATH=$PWD/regression_out/cvimodel_release
 if [ ! -e $CVIMODEL_REL_PATH ]; then
   mkdir $CVIMODEL_REL_PATH
 fi
