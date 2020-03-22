@@ -75,6 +75,7 @@ struct AssignNeuronAddressMemRefPass :
 
 Operation *AssignNeuronAddressMemRefPass::findTpuOpFromAllocOp(Operation *op) {
   // AllocOp has only one result.
+  Operation *firstUseOp = nullptr;
   for (auto &user : op->getResult(0)->getUses()) {
     Operation *userOp = user.getOwner();
     auto lastOperand = userOp->getOperand(userOp->getNumOperands() - 1);
@@ -82,16 +83,23 @@ Operation *AssignNeuronAddressMemRefPass::findTpuOpFromAllocOp(Operation *op) {
     // Find corresponding tpu op.
     if (userOp->getName().getDialect().str() == "tpu" &&
         op->getNumResults() && lastOperand == op->getResult(0)) {
-      return userOp;
+      if (firstUseOp) {
+        if (userOp->isBeforeInBlock(firstUseOp)) {
+          firstUseOp = userOp;
+        }
+      } else {
+        firstUseOp = userOp;
+      }
     }
   }
 
-  return nullptr;
+  return firstUseOp;
 }
 
 Operation *
 AssignNeuronAddressMemRefPass::findTpuOpFromDeallocOp(Operation *op) {
   // DeallocOp has only on operand.
+  Operation *firstUseOp = nullptr;
   for (auto &user : op->getOperand(0)->getUses()) {
     Operation *userOp = user.getOwner();
     auto lastOperand = userOp->getOperand(userOp->getNumOperands() - 1);
@@ -99,10 +107,16 @@ AssignNeuronAddressMemRefPass::findTpuOpFromDeallocOp(Operation *op) {
     // Find coresponding tpu op.
     if (userOp->getName().getDialect().str() == "tpu" &&
         lastOperand == op->getOperand(0)) {
-      return userOp;
+      if (firstUseOp) {
+        if (userOp->isBeforeInBlock(firstUseOp)) {
+          firstUseOp = userOp;
+        }
+      } else {
+        firstUseOp = userOp;
+      }
     }
   }
-  return nullptr;
+  return firstUseOp;
 }
 
 bool AssignNeuronAddressMemRefPass::isMemoryAliasedOp(Operation *op) {
@@ -216,6 +230,9 @@ void AssignNeuronAddressMemRefPass::handleAllocOp(Operation *opInst) {
   }
 
   auto tpuOpIf = llvm::dyn_cast<tpu::TpuOpCommonInterface>(tpuOp);
+  if (!tpuOpIf) {
+    llvm::errs() << "Error ! tpuOp " << tpuOp->getName() << " does not have common interface\n";
+  }
   assert(tpuOpIf && "Expect tpu op has common interface");
 
   // expand to dims=4
@@ -256,6 +273,8 @@ void AssignNeuronAddressMemRefPass::handleDeallocOp(Operation *opInst) {
     return;
 
   auto tpuOpIf = llvm::dyn_cast<tpu::TpuOpCommonInterface>(tpuOp);
+  if (!tpuOpIf)
+    llvm::errs() << "tpuOp " << tpuOp->getName() << " does not have common interface\n";
   assert(tpuOpIf && "Expect tpu op has common interface");
 
   auto layerId = tpuOpIf.getOpLayerId();
