@@ -137,6 +137,15 @@ public:
     module->dump();
   }
 
+  void setDeivce(std::string d) {
+    if (interpreter_ == nullptr){
+      llvm::errs() << "Not initialize model.\n";
+      exit(-1);
+    }else{
+      interpreter_->setDevice(d);
+    }
+  }
+
   void parseMLIRInfo() {
     ModuleOp m = module.get();
 
@@ -235,6 +244,7 @@ PYBIND11_MODULE(pymlir,m)
     .def_readwrite("op_info", &py_module::opInfo_)
     .def("get_weight_file_path", &py_module::getWeightFilePath,
          "get weight file path")
+    .def("setDevice", &py_module::setDeivce, "set inference device, cpu or gpu")
     .def("run", &py_module::run,
          "run module inference with input array, and return output array");
 }

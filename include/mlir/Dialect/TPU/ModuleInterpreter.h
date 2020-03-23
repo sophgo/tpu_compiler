@@ -42,6 +42,10 @@ namespace mlir {
 class ModuleOp;
 typedef DenseMap<Value *, std::shared_ptr<std::vector<float> > > value_map_t;
 
+enum class DeviceMode {
+  CPU,
+  GPU
+};
 // Implementation class for module interpreter.
 class ModuleInterpreter {
 
@@ -121,6 +125,8 @@ public:
     return interpreter.doRun(input_shape, input_vec, results, allTensorMap);
   }
 
+  void setDevice(std::string d);
+
 protected:
   virtual LogicalResult runOperation(Operation &op);
 
@@ -159,6 +165,7 @@ private:
 
   // weight file input stream
   TensorFile *weightFile_;
+  DeviceMode device = DeviceMode::CPU;
 
 protected:
   value_map_t valueMapping;

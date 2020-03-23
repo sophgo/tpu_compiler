@@ -26,6 +26,7 @@
 #include "mlir/Dialect/TPU/Interpreter.h"
 #include "mlir/Dialect/TPU/NativeCpuImplementation.h"
 #include "mlir/Dialect/TPU/CpuOpParam.h"
+#include "mlir/Dialect/TPU/GPUInplementation.h"
 #include "mlir/Dialect/TPU/CpuLayer_DetectionOutput.h"
 #include "mlir/Dialect/TPU/CpuLayer_RetinaFaceDetection.h"
 #include "mlir/Dialect/TPU/CpuLayer_YoloDetection.h"
@@ -62,6 +63,7 @@ static llvm::cl::opt<std::string>
 
 static llvm::sys::DynamicLibrary gCustomerPlugin;
 
+static DeviceMode dm;
 static std::vector<std::shared_ptr<std::vector<float> > >
     getOperandTensors(Operation *op, const value_map_t &valueMapping) {
   std::vector<std::shared_ptr<std::vector<float> > > opdT;
@@ -1756,9 +1758,17 @@ LogicalResult tpu::ReluOp::interpret(
   // get tensors
   assert(opdT.size() == 1);
   std::shared_ptr<std::vector<float> > input = opdT[0];
-
+#ifdef USE_GPU
   // compute in fp32
+  int ret;
+  if (dm == DeviceMode::GPU){
+    ret = gpu_relu(input->data(), resultT->data(), n, c, h, w, 0.0f);
+  }else{
+    ret = my_relu(input->data(), resultT->data(), n, c, h, w, 0.0f);
+  }
+#else
   int ret = my_relu(input->data(), resultT->data(), n, c, h, w, 0.0f);
+#endif
   assert(ret == 0);
 
   valueMapping[result] = std::move(resultT);
@@ -2537,6 +2547,16 @@ std::vector<std::shared_ptr<std::vector<float> > >
   return opdT;
 }
 
+void ModuleInterpreter::setDevice(std::string d) {
+  if(d == "GPU" || d == "gpu"){
+    LLVM_DEBUG(llvm::errs() << "Set Interpreter to gpu mode"
+                            << "\n";);
+    device = DeviceMode::GPU;
+  }else{
+    device = DeviceMode::CPU;
+  }
+}
+
 LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
   if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpInterpInterface>(opInst)) {
     return tpuOp.interpret(valueMapping);
@@ -2620,6 +2640,9 @@ LogicalResult ModuleInterpreter::doRun(std::vector<int64_t> input_shape, std::ve
   assert((int64_t)input_vec.size() == std::accumulate(shape.begin(), shape.end(), 1,
                                                         std::multiplies<int64_t>()));
   updateValue(inputs[0], input_vec);
+
+  // set device mode
+  dm = this->device;
 
   // inference
   if (failed(runFunctions()))
