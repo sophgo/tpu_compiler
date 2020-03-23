@@ -190,24 +190,38 @@ cp $MLIR_SRC_PATH/externals/profiling/tool/performance.html $PROFILING_PATH/bin/
 
 # Clean up some files for release build
 if [ "$1" = "RELEASE" ]; then
-rm $INSTALL_PATH/bin/llvm-*
-rm $INSTALL_PATH/bin/llc
-rm $INSTALL_PATH/bin/lli
-rm $INSTALL_PATH/bin/opt
-rm $INSTALL_PATH/bin/sancov
-rm $INSTALL_PATH/bin/dsymutil
-rm $INSTALL_PATH/bin/bugpoint
-rm $INSTALL_PATH/bin/verify-uselistorder
-rm $INSTALL_PATH/bin/sanstats
-rm $INSTALL_PATH/bin/yaml2obj
-rm $INSTALL_PATH/lib/*.a
-rm $INSTALL_PATH/lib/libLTO.so*
-rm $INSTALL_PATH/lib/libmlir_runner_utils.so*
-rm $INSTALL_PATH/lib/libRemarks.so*
+rm -f $INSTALL_PATH/bin/llvm-*
+rm -f $INSTALL_PATH/bin/llc
+rm -f $INSTALL_PATH/bin/lli
+rm -f $INSTALL_PATH/bin/opt
+rm -f $INSTALL_PATH/bin/sancov
+rm -f $INSTALL_PATH/bin/dsymutil
+rm -f $INSTALL_PATH/bin/bugpoint
+rm -f $INSTALL_PATH/bin/verify-uselistorder
+rm -f $INSTALL_PATH/bin/sanstats
+rm -f $INSTALL_PATH/bin/yaml2obj
+rm -f $INSTALL_PATH/lib/*.a
+rm -f $INSTALL_PATH/lib/libLTO.so*
+rm -f $INSTALL_PATH/lib/libmlir_runner_utils.so*
+rm -f $INSTALL_PATH/lib/libRemarks.so*
 rm -rf $INSTALL_PATH/lib/cmake/
-cp $MLIR_SRC_PATH/cvitek_envs.sh $INSTALL_PATH/
 # install regression
-cp -a $MLIR_SRC_PATH/regression $INSTALL_PATH/
+mkdir -p $INSTALL_PATH/regression
+cp -a $MLIR_SRC_PATH/regression/generic $INSTALL_PATH/regression/
+cp -a $MLIR_SRC_PATH/regression/arcface $INSTALL_PATH/regression/
+cp -a $MLIR_SRC_PATH/regression/bmface_v3 $INSTALL_PATH/regression/
+cp -a $MLIR_SRC_PATH/regression/efficientnet_b0 $INSTALL_PATH/regression/
+cp -a $MLIR_SRC_PATH/regression/inception_v3 $INSTALL_PATH/regression/
+cp -a $MLIR_SRC_PATH/regression/inception_v4 $INSTALL_PATH/regression/
+cp -a $MLIR_SRC_PATH/regression/liveness $INSTALL_PATH/regression/
+cp -a $MLIR_SRC_PATH/regression/parallel $INSTALL_PATH/regression/
+cp -a $MLIR_SRC_PATH/regression/retinaface_mnet25 $INSTALL_PATH/regression/
+cp -a $MLIR_SRC_PATH/regression/retinaface_res50 $INSTALL_PATH/regression/
+cp -a $MLIR_SRC_PATH/regression/ssd300 $INSTALL_PATH/regression/
+cp -a $MLIR_SRC_PATH/regression/yolo_v3 $INSTALL_PATH/regression/
+cp -a $MLIR_SRC_PATH/regression/run_regression.sh $INSTALL_PATH/regression/
+# install env script
+cp $MLIR_SRC_PATH/cvitek_envs.sh $INSTALL_PATH/
 fi
 
 # SoC build

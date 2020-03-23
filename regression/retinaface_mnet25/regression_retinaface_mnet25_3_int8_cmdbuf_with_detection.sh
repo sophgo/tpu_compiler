@@ -74,7 +74,7 @@ cvi_npz_tool.py compare \
     --op_info retinaface_mnet25_with_detection_op_info_int8.csv
 
 if [ ! -z $CVIMODEL_REL_PATH -a -d $CVIMODEL_REL_PATH ]; then
-  cp retinaface_mnet25_with_detection_int8.cvimodel $CVIMODEL_REL_PATH
+  mv retinaface_mnet25_with_detection_int8.cvimodel $CVIMODEL_REL_PATH
 fi
 
 # VERDICT

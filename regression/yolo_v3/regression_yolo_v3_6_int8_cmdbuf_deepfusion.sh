@@ -117,8 +117,8 @@ cvi_npz_tool.py compare \
     --op_info ${NET}_op_info_int8_per_layer.csv || true
 
 if [ ! -z $CVIMODEL_REL_PATH -a -d $CVIMODEL_REL_PATH ]; then
-  # cp ${NET}_int8_la.cvimodel $CVIMODEL_REL_PATH
-  cp ${NET}_int8_lw.cvimodel $CVIMODEL_REL_PATH
+  # mv ${NET}_int8_la.cvimodel $CVIMODEL_REL_PATH
+  mv ${NET}_int8_lw.cvimodel $CVIMODEL_REL_PATH
 fi
 
 # VERDICT

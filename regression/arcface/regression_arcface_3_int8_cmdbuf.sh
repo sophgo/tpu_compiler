@@ -69,10 +69,8 @@ cvi_npz_tool.py compare \
 if [ ! -z $CVIMODEL_REL_PATH -a -d $CVIMODEL_REL_PATH ]; then
   NET=arcface_res50
   cp ${NET}_in_fp32.npz $CVIMODEL_REL_PATH
-  cp ${NET}_int8_multiplier.cvimodel $CVIMODEL_REL_PATH
+  mv ${NET}_int8_multiplier.cvimodel $CVIMODEL_REL_PATH
   cp ${NET}_cmdbuf_out_all_int8_multiplier.npz $CVIMODEL_REL_PATH
-  # cp ${NET}_tensor_all_int8_multiplier.npz $CVIMODEL_REL_PATH
-  # cp ${NET}_neuron_map_int8_multiplier.csv $CVIMODEL_REL_PATH
 fi
 
 # VERDICT

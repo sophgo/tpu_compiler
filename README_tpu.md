@@ -68,18 +68,46 @@ Tested with Ubuntu 18.04
 * TODO: apt install list
 * TODO: pip install list
 
-# Build Release
+## Build Release
+
+  Build mlir and sdk
 
   ```sh
   $ MLIR_INSTALL_PATH=$PWD/cvitek_mlir SDK_INSTALL_PATH=$PWD/cvitek_tpu_sdk \
       source ./llvm-project/llvm/projects/mlir/envsetup.sh
   $ BUILD_OPENCV=1 BUILD_SAMPLES=1 build_soc.sh
   $ build.sh RELEASE
+  Find `cvitek_mlir` and `cvitek_tpu_sdk` dirs
+  $ tar zcf cvitek_tpu_sdk_vx.y.tar.gz cvitek_tpu_sdk
+  $ tar zcf cvitek_mlir_vx.y.tar.gz cvitek_mlir
   ```
 
-  Run regression
+  Run MLIR regression and generate cvimodel release
 
   ```sh
+  $ tar zxf cvitek_mlir.tar.gz
   $ source cvitek_mlir/cvitek_envs.sh
-  $
+  $ ./cvitek_mlir/regression/parallel/paralle_test.sh
+  or ( following should do the same, just slower)
+  $ ./cvitek_mlir/regression/run_regression.sh
+  Find `cvimodel_release` in `regression_out/`
+  ```
+
+  Test SDK on target board
+
+  ```sh
+  $ tar zxf cvitek_tpu_sdk.tar.gz
+  $ . ./cvitek_tpu_sdk/envs_tpu.sh ./cvitek_tpu_sdk/
+
+  $ tar zxf cvimodel_samples.tar.gz
+  $ cd cvimodel_samples
+  $ $TPU_ROOT/samples/bin/cvi_sample_model_info \
+      mobilenet_v2_int8_lw.cvimodel
+  $ $TPU_ROOT/samples/run_classifier.sh
+  $ $TPU_ROOT/samples/run_detector.sh
+  $ $TPU_ROOT/samples/run_alphapose.sh
+  $ $TPU_ROOT/samples/run_insightface.sh
+
+  $ tar zxf cvimodel_release.tar.gz
+  $ MODEL_PATH=$PWD/cvimodel_release $TPU_ROOT/regression_models.sh
   ```
