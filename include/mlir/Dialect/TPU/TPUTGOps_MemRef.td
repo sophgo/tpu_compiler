@@ -1,4 +1,4 @@
-//===-- TPUTLOps.td - TPU dialect operation definitions ------*- tablegen -*-===//
+//===-- TPUTLOps.td - TPU dialect operation definitions ----*- tablegen -*-===//
 //
 // Copyright 2019 The MLIR Authors.
 //
@@ -154,6 +154,7 @@ class TPU_TG_MemRef_ConvOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
   );
 }
 def TPU_TG_MemRef_INT8_PC_Conv2DOp : TPU_TG_MemRef_ConvOp<"tg_memref_int8_pc_conv_2d", "Int8 Per-Channel">;
+def TPU_TG_MemRef_BF16_Conv2DOp : TPU_TG_MemRef_ConvOp<"tg_memref_bf16_conv_2d", "Bf16">;
 
 class TPU_TG_MemRef_EltwiseOp<string mnemonic, string opQuant, string opType> : TPU_Op<mnemonic,
       [NoSideEffect,
@@ -204,6 +205,7 @@ class TPU_TG_MemRef_EltwiseOp<string mnemonic, string opQuant, string opType> : 
   );
 }
 def TPU_TG_MemRef_INT8_EltwiseAddOp : TPU_TG_MemRef_EltwiseOp<"tg_memref_int8_eltwise_add", "Int8", "Add">;
+def TPU_TG_MemRef_BF16_EltwiseAddOp : TPU_TG_MemRef_EltwiseOp<"tg_memref_bf16_eltwise_add", "Bf16", "Add">;
 
 class TPU_TG_MemRef_FullyConnectedOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,
@@ -249,48 +251,7 @@ class TPU_TG_MemRef_FullyConnectedOp<string mnemonic, string opQuant> : TPU_Op<m
   );
 }
 def TPU_TG_MemRef_INT8_FullyConnectedOp : TPU_TG_MemRef_FullyConnectedOp<"tg_memref_int8_fully_connected", "Int8">;
-
-class TPU_TG_MemRef_InputOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
-      [NoSideEffect,
-       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
-  let summary = "TG " # opQuant # " input operator.";
-
-  let description = [{
-    Produces a tensor as input data.
-
-    Inputs:
-      `input`           : required, the input activation tensor.
-
-    Attributes:
-      `region`          : required, the memory region to reside in, could be
-                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
-                          (backend does not support `INPUT`, `OUTPUT` for now)
-      `gaddr`           : optional, address in global memory, normally the
-                                     offset within the memory region.
-
-      `name`            : required, name for comparing, or debug.
-      `layer_id`        : optional, id for profiling.
-
-    Result:
-      `output`          : result tensor.
-
-    Interfaces or Traits:
-      `NoSideEffect`
-      `TpuOpCommonInterface`    : support common TPU TG Op interface.
-      `TpuTGOpCodegenInterface` : support generate TPU instuctions.
-  }];
-
-  let arguments = (
-    ins MemRefOf<[AnyFloat, AnyInteger]>:$input,
-    MemRefOf<[AnyFloat, AnyInteger]>:$output,
-    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
-    OptionalAttr<NonNegativeI64Attr>:$gaddr,
-    StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
-  );
-}
-def TPU_TG_MemRef_INT8_InputOp : TPU_TG_MemRef_InputOp<"tg_memref_int8_input", "Int8">;
+def TPU_TG_MemRef_BF16_FullyConnectedOp : TPU_TG_MemRef_FullyConnectedOp<"tg_memref_bf16_fully_connected", "Bf16">;
 
 def TPU_TG_MemRef_LoadWeightOp : TPU_Op<"tg_memref_load_weight", [NoSideEffect]> {
   let summary = "load_weight operator";
@@ -379,6 +340,8 @@ class TPU_TG_MemRef_Pool2DOp<string mnemonic, string opQuant, string opType> : T
 }
 def TPU_TG_MemRef_INT8_PoolAvg2DOp : TPU_TG_MemRef_Pool2DOp<"tg_memref_int8_pool_avg_2d", "Int8", "Avg">;
 def TPU_TG_MemRef_INT8_PoolMax2DOp : TPU_TG_MemRef_Pool2DOp<"tg_memref_int8_pool_max_2d", "Int8", "Max">;
+def TPU_TG_MemRef_BF16_PoolAvg2DOp : TPU_TG_MemRef_Pool2DOp<"tg_memref_bf16_pool_avg_2d", "Bf16", "Avg">;
+def TPU_TG_MemRef_BF16_PoolMax2DOp : TPU_TG_MemRef_Pool2DOp<"tg_memref_bf16_pool_max_2d", "Bf16", "Max">;
 
 def TPU_TG_MemRef_ReshapeOp: TPU_Op<"tg_memref_reshape",
       [NoSideEffect,

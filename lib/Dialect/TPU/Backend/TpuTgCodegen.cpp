@@ -1833,6 +1833,26 @@ LogicalResult tpu::QuantOp::codegen(void *ctx) {
 }
 
 // MemRefType dummy
+LogicalResult tpu::TG_MemRef_BF16_Conv2DOp::codegen(void *ctx) {
+  return success();
+}
+
+LogicalResult tpu::TG_MemRef_BF16_EltwiseAddOp::codegen(void *ctx) {
+  return success();
+}
+
+LogicalResult tpu::TG_MemRef_BF16_FullyConnectedOp::codegen(void *ctx) {
+  return success();
+}
+
+LogicalResult tpu::TG_MemRef_BF16_PoolAvg2DOp::codegen(void *ctx) {
+  return success();
+}
+
+LogicalResult tpu::TG_MemRef_BF16_PoolMax2DOp::codegen(void *ctx) {
+  return success();
+}
+
 LogicalResult tpu::TG_MemRef_INT8_PC_Conv2DOp::codegen(void *ctx) {
   return success();
 }
@@ -1842,10 +1862,6 @@ LogicalResult tpu::TG_MemRef_INT8_EltwiseAddOp::codegen(void *ctx) {
 }
 
 LogicalResult tpu::TG_MemRef_INT8_FullyConnectedOp::codegen(void *ctx) {
-  return success();
-}
-
-LogicalResult tpu::TG_MemRef_INT8_InputOp::codegen(void *ctx) {
   return success();
 }
 

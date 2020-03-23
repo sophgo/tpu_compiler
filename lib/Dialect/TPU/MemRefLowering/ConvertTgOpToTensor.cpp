@@ -126,6 +126,11 @@ struct ConvertTgOpToTensorPass : public FunctionPass<ConvertTgOpToTensorPass> {
 
     target.addLegalOp<tpu::LoadWeightOp>();
     target.addLegalOp<tpu::ReshapeOp>();
+    target.addLegalOp<tpu::TG_BF16_EltwiseAddOp>();
+    target.addLegalOp<tpu::TG_BF16_FullyConnectedOp>();
+    target.addLegalOp<tpu::TG_BF16_Conv2DOp>();
+    target.addLegalOp<tpu::TG_BF16_PoolAvg2DOp>();
+    target.addLegalOp<tpu::TG_BF16_PoolMax2DOp>();
     target.addLegalOp<tpu::TG_INT8_EltwiseAddOp>();
     target.addLegalOp<tpu::TG_INT8_FullyConnectedOp>();
     target.addLegalOp<tpu::TG_INT8_PC_Conv2DOp>();
@@ -137,6 +142,11 @@ struct ConvertTgOpToTensorPass : public FunctionPass<ConvertTgOpToTensorPass> {
     target.addLegalOp<TensorStoreOp>();
 
     patterns.insert<
+        convertTgOpToTensorPattern<tpu::TG_MemRef_BF16_EltwiseAddOp, tpu::TG_BF16_EltwiseAddOp>,
+        convertTgOpToTensorPattern<tpu::TG_MemRef_BF16_FullyConnectedOp, tpu::TG_BF16_FullyConnectedOp>,
+        convertTgOpToTensorPattern<tpu::TG_MemRef_BF16_Conv2DOp, tpu::TG_BF16_Conv2DOp>,
+        convertTgOpToTensorPattern<tpu::TG_MemRef_BF16_PoolAvg2DOp, tpu::TG_BF16_PoolAvg2DOp>,
+        convertTgOpToTensorPattern<tpu::TG_MemRef_BF16_PoolMax2DOp, tpu::TG_BF16_PoolMax2DOp>,
         convertTgOpToTensorPattern<tpu::TG_MemRef_INT8_EltwiseAddOp, tpu::TG_INT8_EltwiseAddOp>,
         convertTgOpToTensorPattern<tpu::TG_MemRef_INT8_FullyConnectedOp, tpu::TG_INT8_FullyConnectedOp>,
         convertTgOpToTensorPattern<tpu::TG_MemRef_INT8_PC_Conv2DOp, tpu::TG_INT8_PC_Conv2DOp>,
