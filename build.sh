@@ -43,7 +43,7 @@ cmake -G Ninja -DCPU_ONLY=ON -DUSE_OPENCV=OFF \
     -DBLAS=open -DUSE_OPENMP=TRUE \
     -DCMAKE_INSTALL_PREFIX=$CAFFE_PATH \
     -DCMAKE_CXX_FLAGS=-std=gnu++11 \
-    -Dpython_version=2 \
+    -Dpython_version=$PYTHON_VERSION \
     $MLIR_SRC_PATH/third_party/caffe
 cmake --build . --target install
 popd
@@ -80,7 +80,7 @@ cmake -G Ninja -DLLVM_BUILD_EXAMPLES=OFF \
     -DCAFFE_PATH=$CAFFE_PATH \
     -DCVIKERNEL_PATH=$CVIKERNEL_PATH \
     -DCMAKE_INSTALL_PREFIX=$MLIR_PATH \
-    -DPYBIND11_PYTHON_VERSION=2 \
+    -DPYBIND11_PYTHON_VERSION=$PYTHON_VERSION \
     $TPU_BASE/llvm-project/llvm
 cmake --build . --target check-mlir
 cmake --build . --target pymlir
