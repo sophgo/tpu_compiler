@@ -114,5 +114,69 @@ cvi_npz_tool.py compare \
     resnet50_tensor_all_int8_multiplier.npz \
     --op_info resnet50_op_info_int8_multiplier.csv
 
+#################
+# Neuron map recycle
+#################
+# memory space w/ neuron recycle
+mlir-opt \
+    --debug \
+    --enable-tpu-neuron-map-recyle-memref=1 \
+    --assign-neuron-address-memref \
+    --tpu-neuron-address-align-memref=16 \
+    --tpu-neuron-map-filename-memref=neuron_map_memref_recycle.csv \
+    resnet50_quant_int8_multiplier_tg_op_memref.mlir \
+    -o resnet50_quant_int8_multiplier_tg_op_memref_addr_recycle.mlir
+
+# tg op back to TensorType
+mlir-opt \
+     --debug \
+     --convert-tg-op-to-tensor \
+     resnet50_quant_int8_multiplier_tg_op_memref_addr_recycle.mlir \
+     -o resnet50_quant_int8_multiplier_tg_op_roundtrip_recycle.mlir
+
+# function argument back to TensorType
+mlir-opt \
+    --debug \
+    --convert-func-to-tensor \
+    resnet50_quant_int8_multiplier_tg_op_roundtrip_recycle.mlir \
+    -o resnet50_quant_int8_multiplier_tg_func_roundtrip_recycle.mlir
+
+# assign weight address & neuron address
+mlir-opt \
+    --assign-weight-address \
+    --tpu-weight-address-align=16 \
+    --tpu-weight-map-filename=weight_map_recycle.csv \
+    --tpu-weight-bin-filename=weight_int8_multiplier.bin \
+    --assign-neuron-address \
+    --tpu-neuron-address-align=16 \
+    --tpu-neuron-map-filename=neuron_map_recycle.csv \
+    resnet50_quant_int8_multiplier_tg_func_roundtrip_recycle.mlir \
+    -o resnet50_quant_int8_multiplier_addr_recycle.mlir
+
+mlir-translate \
+    --mlir-to-cmdbuf \
+    resnet50_quant_int8_multiplier_addr_recycle.mlir \
+    -o cmdbuf_int8_multiplier_recycle.bin
+
+# generate cvi model
+build_cvimodel.py \
+    --cmdbuf cmdbuf_int8_multiplier_recycle.bin \
+    --weight weight_int8_multiplier.bin \
+    --mlir resnet50_quant_int8_multiplier_addr_recycle.mlir \
+    --output=resnet50_int8_multiplier_recycle.cvimodel
+
+# run cmdbuf
+model_runner \
+    --dump-all-tensors \
+    --input resnet50_in_fp32.npz \
+    --model resnet50_int8_multiplier_recycle.cvimodel \
+    --output resnet50_cmdbuf_out_all_int8_multiplier_recycle.npz
+
+# compare all tensors
+cvi_npz_tool.py compare \
+    resnet50_cmdbuf_out_all_int8_multiplier_recycle.npz \
+    resnet50_tensor_all_int8_multiplier.npz \
+    --op_info resnet50_op_info_int8_multiplier.csv
+
 # VERDICT
 echo $0 PASSED
