@@ -107,7 +107,13 @@ cp $CVI_PY_TOOLKIT/inference/caffe/*.py $TPU_PYTHON_PATH/
 cp $CVI_PY_TOOLKIT/inference/mlir/*.py $TPU_PYTHON_PATH/
 cp $CVI_PY_TOOLKIT/inference/onnx/*.py $TPU_PYTHON_PATH/
 
-
+# build python package
+pushd $MLIR_SRC_PATH
+if [ $PYTHON_VERSION == "2" ]; then
+  pip install wheel
+  python setup/python2/setup.py bdist_wheel --dist-dir=$INSTALL_PATH/python_wheel_package
+fi
+popd
 
 pushd $TPU_PYTHON_PATH/model/retinaface; make; popd
 # calibration tool
