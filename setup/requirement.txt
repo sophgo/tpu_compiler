@@ -1,0 +1,5 @@
+'enum34==1.1.10'
+'numpy>=1.18.0'
+'opencv-python>=3.4.0.14'
+'protobuf==3.11.3'
+'scikit-image==0.14.5'
