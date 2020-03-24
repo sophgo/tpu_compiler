@@ -8,6 +8,77 @@ __global__ void ReLUForward(const int n, const float* in, float* out,
   }
 }
 
+
+int gpu_conv(float *input, float *weight, float *bias,
+    float *output, int in, int ic, int ih, int iw, int oc, int oh, int ow,
+    int kh, int kw, int sh, int sw, int dh, int dw, int ph, int pw, int g){
+    cudnnHandle_t cudnn;
+    CUDNN_CALL(cudnnCreate(&cudnn));
+
+    cudnnTensorDescriptor_t in_desc;
+    CUDNN_CALL(cudnnCreateTensorDescriptor(&in_desc));
+    CUDNN_CALL(cudnnSetTensor4dDescriptor(
+        in_desc, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT, in, ic, ih, iw));
+
+    float *in_data;
+    CUDA_CALL(cudaMallocManaged(&in_data, in * ic * ih * iw * sizeof(float)));
+    CUDA_CALL(cudaMemcpy(in_data, input, in * ic * ih * iw * sizeof(float),
+               cudaMemcpyDefault));
+    cudnnFilterDescriptor_t filt_desc;
+    CUDNN_CALL(cudnnCreateFilterDescriptor(&filt_desc));
+    CUDNN_CALL(cudnnSetFilter4dDescriptor(filt_desc, CUDNN_DATA_FLOAT,
+                                          CUDNN_TENSOR_NCHW, oc, ic, kh, kw));
+
+
+    float *filt_data;
+    CUDA_CALL(cudaMallocManaged(&filt_data, oc * ic * kh * kw * sizeof(float)));
+    CUDA_CALL(cudaMemcpy(filt_data, weight, oc * ic * kh * kw * sizeof(float),
+               cudaMemcpyDefault));
+
+    cudnnConvolutionDescriptor_t conv_desc;
+    CUDNN_CALL(cudnnCreateConvolutionDescriptor(&conv_desc));
+    CUDNN_CALL(cudnnSetConvolution2dDescriptor(
+        conv_desc, ph, pw, sh, sw, dh, dw, CUDNN_CONVOLUTION,
+        CUDNN_DATA_FLOAT));
+
+    cudnnTensorDescriptor_t out_desc;
+    CUDNN_CALL(cudnnCreateTensorDescriptor(&out_desc));
+    CUDNN_CALL(cudnnSetTensor4dDescriptor(out_desc, CUDNN_TENSOR_NCHW,
+                                          CUDNN_DATA_FLOAT, in, oc, oh, ow));
+    float *out_data;
+    CUDA_CALL(cudaMallocManaged(&out_data, in * oc * oh * ow * sizeof(float)));
+
+    cudnnConvolutionFwdAlgo_t algo;
+    CUDNN_CALL(cudnnGetConvolutionForwardAlgorithm(
+        cudnn, in_desc, filt_desc, conv_desc, out_desc,
+        CUDNN_CONVOLUTION_FWD_PREFER_FASTEST, 0, &algo));
+
+    // workspace
+    size_t ws_size;
+    CUDNN_CALL(cudnnGetConvolutionForwardWorkspaceSize(
+        cudnn, in_desc, filt_desc, conv_desc, out_desc, algo, &ws_size));
+    float *ws_data;
+    CUDA_CALL(cudaMallocManaged(&ws_data, ws_size));
+    const float alpha = 1, beta = 0;
+    CUDNN_CALL(cudnnConvolutionForward(
+        cudnn, &alpha, in_desc, in_data, filt_desc, filt_data, conv_desc, algo,
+        ws_data, ws_size, &beta, out_desc, out_data));
+
+    CUDA_CALL(cudaMemcpy(output, out_data, oc * oc * oh * ow * sizeof(float),
+                         cudaMemcpyDefault));
+
+    CUDA_CALL(cudaFree(ws_data));
+    CUDA_CALL(cudaFree(out_data));
+    CUDNN_CALL(cudnnDestroyTensorDescriptor(out_desc));
+    CUDNN_CALL(cudnnDestroyConvolutionDescriptor(conv_desc));
+    CUDA_CALL(cudaFree(filt_data));
+    CUDNN_CALL(cudnnDestroyFilterDescriptor(filt_desc));
+    CUDA_CALL(cudaFree(in_data));
+    CUDNN_CALL(cudnnDestroyTensorDescriptor(in_desc));
+    CUDNN_CALL(cudnnDestroy(cudnn));
+    return 0;
+}
+
 int gpu_relu(float *input, float *output, int n, int c, int h, int w,
              float negative_slope) {
   int size = n * c * h * w;

@@ -76,7 +76,6 @@ if (${USE_GPU})
   )
   target_compile_definitions(MLIRGPUOps PUBLIC -DUSE_GPU)
   set_property(GLOBAL APPEND PROPERTY LLVM_EXPORTS MLIRGPUOps)
-  message(STATUS "!!!${CUDNN_LIBRARY}")
   target_link_libraries(MLIRGPUOps
     ${tpu_LINKER_LIBS}
     ${GPU_LINKER_LIBS}

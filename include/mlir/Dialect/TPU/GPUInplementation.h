@@ -42,8 +42,12 @@ const int CUDA_NUM_THREADS = 512;
 inline int GET_BLOCKS(const int N) {
   return (N + CUDA_NUM_THREADS - 1) / CUDA_NUM_THREADS;
 }
+int gpu_conv(float *input, float *weight, float *bias, float *output, int in,
+                int ic, int ih, int iw, int oc, int oh, int ow, int kh, int kw,
+                int sh, int sw, int dh, int dw, int ph, int pw, int g);
+
 int gpu_relu(float *input, float *output, int n, int c, int h, int w,
-            float negative_slope);
+             float negative_slope);
 
 #endif
 #endif // MLIR_DIALECT_GPU_IMPLEMENTATION_H_

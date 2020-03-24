@@ -361,19 +361,38 @@ LogicalResult doConv2DOpInterpret(Operation *op,
   //std::shared_ptr<std::vector<float> > quant_zeropoint = opdT[4];
   std::shared_ptr<std::vector<float> > quant_rshift = opdT[5];
   std::shared_ptr<std::vector<float> > quant_multiplier = opdT[6];
-
   // compute in fp32
   if (!is_deconv) {
-    int ret = mkldnn_conv(input->data(), filter->data(),
-        bias?bias->data():nullptr, resultT->data(),
-        n, ic, ih, iw, oc, oh, ow, kh, kw, sh, sw, dh,dw, ph, pw, g);
+#ifdef USE_GPU
+    int ret;
+    llvm::errs() << "  k: (" << kh << "*" << kw << "), "
+                 << "s: (" << sh << "*" << sw << "), "
+                 << "p: (" << ph << "*" << pw << "), "
+                 << "g: " << g << "\n";
+    if (dm == DeviceMode::GPU) {
+
+      ret = gpu_conv(input->data(), filter->data(),
+                         bias ? bias->data() : nullptr, resultT->data(), n, ic,
+                         ih, iw, oc, oh, ow, kh, kw, sh, sw, dh, dw, ph, pw, g);
+    }else{
+      ret = mkldnn_conv(input->data(), filter->data(), bias ? bias->data() : nullptr,
+                  resultT->data(), n, ic, ih, iw, oc, oh, ow, kh, kw, sh, sw,
+                  dh, dw, ph, pw, g);
+    }
+#else
+    int ret =
+        mkldnn_conv(input->data(), filter->data(),
+                    bias ? bias->data() : nullptr, resultT->data(), n, ic, ih,
+                    iw, oc, oh, ow, kh, kw, sh, sw, dh, dw, ph, pw, g);
     assert(ret == 0);
+#endif
   } else {
     int ret = mkldnn_deconv(input->data(), filter->data(),
         bias?bias->data():nullptr, resultT->data(),
         n, ic, ih, iw, oc, oh, ow, kh, kw, sh, sw, ph, pw, g);
     assert(ret == 0);
   }
+
   if (do_relu) {
     int ret = my_relu(resultT->data(), resultT->data(), n, oc, oh, ow, 0.0f);
     assert(ret == 0);
