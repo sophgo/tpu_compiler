@@ -2,7 +2,9 @@ from enum import Enum
 import re
 import pybind
 import numpy as np
+import sys
 
+IS_PYTHON3 = sys.version_info > (3,)
 
 class TPU_OpType(Enum):
     Weight_file = 'tpu.weight_file'
@@ -27,7 +29,7 @@ class TPU_OpType(Enum):
     Relu = 'tpu.relu'
 
 def checkKey(dict, key):
-    if not dict.has_key(key):
+    if key not in dict:
         raise AttributeError("No {} attr, please check".format(key))
 
 def checkType(obj, type):

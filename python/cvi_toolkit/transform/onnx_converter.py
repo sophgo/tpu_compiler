@@ -10,13 +10,13 @@ import numpy as np
 
 def calcConv2DSpatial(i, kernel, stride, padding, dilation):
     #[i + 2*p - k - (k-1)*(d-1)]/s + 1
-    return (i + 2*padding - dilation * (kernel - 1) - 1)/stride + 1
+    return int(floor(i + 2*padding - dilation * (kernel - 1) - 1)/stride + 1)
 
 def calcPool2DFloor(i, kernel, stride, padding):
-    return floor((i + 2 * padding - kernel) / stride) + 1
+    return int(floor((i + 2 * padding - kernel) / stride) + 1)
 
 def calcPool2DCeil(i, kernel, stride, padding):
-    return ceil((i + 2 * padding - kernel) / stride) + 1
+    return int(ceil((i + 2 * padding - kernel) / stride) + 1)
 
 def get_shape_size(shape):
     size = 1
@@ -394,7 +394,7 @@ class OnnxConverter(BaseConverterInterface):
             ic = shape[1]
             kh = onnx_node.attrs['kernel_shape'][0]
             kw = onnx_node.attrs['kernel_shape'][1]
-            new_shape = [g, oc/g, ic/g, kh, kw]
+            new_shape = [g, int(oc/g), int(ic/g), kh, kw]
             filter_op = self.CVI.add_load_file_op(filter_tensor.name, new_shape)
         else:
             filter_op = self.CVI.add_load_file_op(filter_tensor.name, filter_shape)

@@ -118,7 +118,7 @@ class TensorCompare():
     print("[{:<32}] {:>12} [{:>6}]".format(name, result[1],
            "PASSED" if result[0] else "FAILED"))
     if (verbose > 0):
-      print("    {:<22} {:<22} ".format(d1.shape, d1.dtype))
+      print("    {} {} ".format(d1.shape, d1.dtype))
       if (result[1] == self.CLOSE):
         print("    close order            = {}".format(result[2]["close_order"]))
       if (result[1] == self.SIMILAR or result[1] == self.NOT_SIMILAR):

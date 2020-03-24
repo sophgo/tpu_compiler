@@ -137,7 +137,7 @@ def compare_one_array(tc, npz1, npz2, name, force_dtype, thresholds, verbose, lo
   d1 = npz1[name]
   d2 = npz2[name]
   lock.release()
-  if thresholds.has_key(name) and not thresholds[name] == 0.0:
+  if name in thresholds and not thresholds[name] == 0.0:
     # print("Apply dequantization with threhold {}".format(thresholds[name]))
     d1 = dequantize(d1, thresholds[name])
   d1, d2 = align_type_and_shape(d1, d2, force_dtype=force_dtype)
@@ -151,7 +151,7 @@ def print_result_one_array(tc, npz1, npz2, name, force_dtype, thresholds, verbos
   d1 = npz1[name]
   d2 = npz2[name]
   lock.release()
-  if thresholds.has_key(name) and not thresholds[name] == 0.0:
+  if name in thresholds and not thresholds[name] == 0.0:
     print("Apply dequantization with threhold {}".format(thresholds[name]))
     d1 = dequantize(d1, thresholds[name])
   d1, d2 = align_type_and_shape(d1, d2, force_dtype=force_dtype)
