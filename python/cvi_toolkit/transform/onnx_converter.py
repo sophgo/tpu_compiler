@@ -25,7 +25,7 @@ def get_shape_size(shape):
     return size
 
 class TensorType(Enum):
-    FLOAT = 'FLOAT'
+    ACTIVATION = 'ACTIVATION'
     TENSOR = 'TENSOR'
 
 onnx_attr_translator = {
@@ -228,7 +228,7 @@ class OnnxConverter(BaseConverterInterface):
             for dim in input.type.tensor_type.shape.dim:
                 input_shape.append(dim.dim_value)
             input_op = self.CVI.add_input_op(input.name, idx)
-            self.addOperand(input.name, input_op, input_shape, TensorType.FLOAT)
+            self.addOperand(input.name, input_op, input_shape, TensorType.ACTIVATION)
         def NoneAndRaise(node):
             raise RuntimeError("{} Op not support now".format(node.op_type))
         # add node op
@@ -251,18 +251,34 @@ class OnnxConverter(BaseConverterInterface):
 
     def convert_add_op(self, onnx_node):
         assert(len(onnx_node.inputs) == 2)
-        op1, input_shape1, _ = self.getOperand(onnx_node.inputs[0])
-        op2, input_shape2, _ = self.getOperand(onnx_node.inputs[1])
+        op1, input_shape1, tensor_type1 = self.getOperand(onnx_node.inputs[0])
+        op2, input_shape2, tensor_type2 = self.getOperand(onnx_node.inputs[1])
 
-        if input_shape1 != input_shape2:
-            raise AttributeError("{} v.s. {} shape not same".format(input_shape1, input_shape2))
+        # broadcast add from constant
+        if tensor_type1 == TensorType.ACTIVATION and tensor_type2 == TensorType.TENSOR:
+            if len(input_shape2) ==1 and input_shape2[0] == 1:
+                #broadcast to all
+                add_value = self.getTensor(onnx_node.inputs[1]).tensor_data
+                tensor_data = np.full(tuple(input_shape1), add_value[0])
+
+                constant_name = "{}_add_constant".format(onnx_node.inputs[0])
+                constant_op = self.CVI.add_load_file_op(constant_name, input_shape1)
+                self.addTensor(constant_name, tensor_data, input_shape1)
+                op2 = constant_op
+
+            else:
+                raise RuntimeError("TODO other axis")
+        else:
+            # eltwise add
+            if input_shape1 != input_shape2:
+                raise AttributeError("{} v.s. {} shape not same".format(input_shape1, input_shape2))
         operands = list()
         operands.append(op1)
         operands.append(op2)
         output_shape = input_shape1
 
         add_op = self.CVI.add_eltwise_add_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
-        self.addOperand(onnx_node.name, add_op, output_shape, TensorType.FLOAT)
+        self.addOperand(onnx_node.name, add_op, output_shape, TensorType.ACTIVATION)
 
     def convert_batchnorm_op(self, onnx_node):
         assert(onnx_node.op_type == "BatchNormalization")
@@ -295,7 +311,7 @@ class OnnxConverter(BaseConverterInterface):
 
         output_shape = input_shape
         scaleop = self.CVI.add_scale_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
-        self.addOperand(onnx_node.name, scaleop, output_shape, TensorType.FLOAT)
+        self.addOperand(onnx_node.name, scaleop, output_shape, TensorType.ACTIVATION)
 
     def convert_constant_op(self, onnx_node):
         """
@@ -312,7 +328,7 @@ class OnnxConverter(BaseConverterInterface):
             # add new weight tensor
 
             self.addTensor(onnx_node.name, np_tensor, np_tensor.shape)
-            self.addOperand(onnx_node.name, None, np_tensor.shape, TensorType.TENSOR)
+            self.addOperand(onnx_node.name, None, list(np_tensor.shape), TensorType.TENSOR)
 
         else:
             raise ValueError("Not Support {} type".format(data_type))
@@ -342,7 +358,7 @@ class OnnxConverter(BaseConverterInterface):
                     output_shape.append(s1)
 
             concat_op = self.CVI.add_concat_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, axis=axis)
-            self.addOperand(onnx_node.name, concat_op, output_shape, TensorType.FLOAT)
+            self.addOperand(onnx_node.name, concat_op, output_shape, TensorType.ACTIVATION)
 
     def convert_conv_op(self, onnx_node):
         assert(onnx_node.op_type == "Conv")
@@ -406,7 +422,7 @@ class OnnxConverter(BaseConverterInterface):
 
         output_shape = [on, oc, oh, ow]
         conv_op = self.CVI.add_conv_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **conv_param)
-        self.addOperand(onnx_node.name, conv_op, output_shape, TensorType.FLOAT)
+        self.addOperand(onnx_node.name, conv_op, output_shape, TensorType.ACTIVATION)
 
     def convert_flatten_op(self, onnx_node):
         assert(onnx_node.op_type == "Flatten")
@@ -417,7 +433,7 @@ class OnnxConverter(BaseConverterInterface):
         operands.append(op)
         output_shape = [input_shape[0], input_shape[1]]
         reshape_op = self.CVI.add_reshape_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
-        self.addOperand(onnx_node.name, reshape_op, output_shape, TensorType.FLOAT)
+        self.addOperand(onnx_node.name, reshape_op, output_shape, TensorType.ACTIVATION)
 
     def convert_gather_op(self, onnx_node):
         """
@@ -469,7 +485,7 @@ class OnnxConverter(BaseConverterInterface):
         N = bias_tensor.shape[0]
         output_shape = [M, N]
         fc_op = self.CVI.add_fully_connected_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
-        self.addOperand(onnx_node.name, fc_op, output_shape, TensorType.FLOAT)
+        self.addOperand(onnx_node.name, fc_op, output_shape, TensorType.ACTIVATION)
 
     def convert_global_avg_pool_op(self, onnx_node):
         assert(onnx_node.op_type == "GlobalAveragePool")
@@ -493,7 +509,7 @@ class OnnxConverter(BaseConverterInterface):
         }
         output_shape = [int(on), int(oc), 1, 1]
         pool_avg_op = self.CVI.add_pool_avg_2d_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **pool_avg_2d_param)
-        self.addOperand(onnx_node.name, pool_avg_op, output_shape, TensorType.FLOAT)
+        self.addOperand(onnx_node.name, pool_avg_op, output_shape, TensorType.ACTIVATION)
 
     def convert_maxpool_op(self, onnx_node):
         assert(onnx_node.op_type == "MaxPool")
@@ -518,7 +534,7 @@ class OnnxConverter(BaseConverterInterface):
         ow = calcPool2DFloor(input_shape[3], onnx_node.attrs['kernel_shape'][1], onnx_node.attrs['strides'][1], onnx_node.attrs['pads'][1])
         output_shape = [int(on), int(oc), int(oh), int(ow)]
         pool_max_op = self.CVI.add_pool_max_2d_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **pool_max_2d_param)
-        self.addOperand(onnx_node.name, pool_max_op, output_shape, TensorType.FLOAT)
+        self.addOperand(onnx_node.name, pool_max_op, output_shape, TensorType.ACTIVATION)
 
     def convert_relu_op(self, onnx_node):
         assert(onnx_node.op_type == "Relu")
@@ -527,7 +543,7 @@ class OnnxConverter(BaseConverterInterface):
         operands.append(op)
         output_shape = input_shape
         relu_op = self.CVI.add_relu_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
-        self.addOperand(onnx_node.name, relu_op, output_shape, TensorType.FLOAT)
+        self.addOperand(onnx_node.name, relu_op, output_shape, TensorType.ACTIVATION)
 
     def convert_mul_op(self, onnx_node):
         assert(onnx_node.op_type == "Mul")
@@ -550,7 +566,7 @@ class OnnxConverter(BaseConverterInterface):
             output_shape = input_shape1
             mul_op = self.CVI.add_broadcast_mul_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, axis=axis)
 
-        self.addOperand(onnx_node.name, mul_op, output_shape, TensorType.FLOAT)
+        self.addOperand(onnx_node.name, mul_op, output_shape, TensorType.ACTIVATION)
 
     def convert_reshape_op(self, onnx_node):
         assert(onnx_node.op_type == "Reshape")
@@ -562,7 +578,7 @@ class OnnxConverter(BaseConverterInterface):
         output_shape = list()
         operands = list()
         operands.append(op1)
-        if tensor_type1 == TensorType.FLOAT and tensor_type2 == TensorType.TENSOR:
+        if tensor_type1 == TensorType.ACTIVATION and tensor_type2 == TensorType.TENSOR:
             t = self.getTensor(onnx_node.inputs[1])
             output_shape = list(t.tensor_data.flatten())
             # FIXME: no batch support now, we set n is 1
@@ -570,16 +586,16 @@ class OnnxConverter(BaseConverterInterface):
             output_shape = [int(x) for x in output_shape]
             if len(output_shape) ==6:
                 # Pixel Shuffle
-                self.addOperand(onnx_node.name, op1, output_shape, TensorType.FLOAT)
+                self.addOperand(onnx_node.name, op1, output_shape, TensorType.ACTIVATION)
                 return
 
             if output_shape == input_shape1:
                 # same shape, fuse this op
-                self.addOperand(onnx_node.name, op1, output_shape, TensorType.FLOAT)
+                self.addOperand(onnx_node.name, op1, output_shape, TensorType.ACTIVATION)
                 return
             else:
                 reshape_op = self.CVI.add_reshape_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
-                self.addOperand(onnx_node.name, reshape_op, output_shape, TensorType.FLOAT)
+                self.addOperand(onnx_node.name, reshape_op, output_shape, TensorType.ACTIVATION)
         else:
             raise RuntimeError("Second type must be {}".format(TensorType.TENSOR))
 
@@ -596,18 +612,18 @@ class OnnxConverter(BaseConverterInterface):
         operands = [op]
         output_shape = input_shape
         sigmoid_op = self.CVI.add_sigmoid_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
-        self.addOperand(onnx_node.name, sigmoid_op, output_shape, TensorType.FLOAT)
+        self.addOperand(onnx_node.name, sigmoid_op, output_shape, TensorType.ACTIVATION)
 
     def convert_squeeze_op(self, onnx_node):
         assert(onnx_node.op_type == "Squeeze")
         op, input_shape, tensor_type = self.getOperand(onnx_node.inputs[0])
         operands = [op]
         checkKey(onnx_node.attrs, 'axes')
-        if tensor_type == TensorType.FLOAT:
+        if tensor_type == TensorType.ACTIVATION:
             axis_value_list = onnx_node.attrs['axes']
             new_shape = self.squeeze_shape(input_shape, axis_value_list)
             reshape_op = self.CVI.add_reshape_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, new_shape)
-            self.addOperand(onnx_node.name, reshape_op, new_shape, TensorType.FLOAT)
+            self.addOperand(onnx_node.name, reshape_op, new_shape, TensorType.ACTIVATION)
         else:
             raise RuntimeError("Todo, Squeeze input type is tensor")
 
@@ -631,7 +647,7 @@ class OnnxConverter(BaseConverterInterface):
                 'upscale_factor': upscale_factor
             }
             pixel_shuffle_op = self.CVI.add_pixelshuffle_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **attr)
-            self.addOperand(onnx_node.name, pixel_shuffle_op, output_shape, TensorType.FLOAT)
+            self.addOperand(onnx_node.name, pixel_shuffle_op, output_shape, TensorType.ACTIVATION)
         else:
             raise RuntimeError("TODO")
 
