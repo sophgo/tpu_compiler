@@ -85,275 +85,95 @@ static llvm::cl::opt<bool> clQuantMixEltwiseMul(
     llvm::cl::init(false),
     llvm::cl::cat(clOptionsCategory));
 
-template<typename OpTy>
-struct TpuAddInt8QuantOpBeforeOpPattern : public RewritePattern {
-  TpuAddInt8QuantOpBeforeOpPattern(MLIRContext *context)
-      : RewritePattern(OpTy::getOperationName(), 1, context) {}
 
-  PatternMatchResult matchAndRewrite(Operation *op,
-                                     PatternRewriter &rewriter) const override {
-    if (op->getOperand(0)->getDefiningOp()
-        && isa<tpu::QuantOp>(op->getOperand(0)->getDefiningOp())) {
-      // added already
-      return matchFailure();
-    }
 
-    auto type = op->getResult(0)->getType();
-    std::vector<NamedAttribute> attrs;
-    attrs.push_back(rewriter.getNamedAttr("from",
-        rewriter.getStringAttr("NONE")));
-    attrs.push_back(rewriter.getNamedAttr("to",
-        rewriter.getStringAttr("INT8")));
-    attrs.push_back(rewriter.getNamedAttr("threshold",
-        rewriter.getF32FloatAttr(getOpThreshold(op))));
-    attrs.push_back(rewriter.getNamedAttr("name",
-        rewriter.getStringAttr(getOpName(op).str() + "_quant")));
-    attrs.push_back(rewriter.getNamedAttr("layer_id",
-        rewriter.getI32IntegerAttr(getOpLayerId(op))));
-    auto quantOp = rewriter.create<tpu::QuantOp>(op->getLoc(), type,
-        ArrayRef<Value *>{op->getOperand(0)}, ArrayRef<NamedAttribute>{attrs});
-    setOpResultType(quantOp.getOperation(), StandardTypes::Integer, 8);
+static void insertQauntOp(Operation *op) {
+  auto builder = OpBuilder(op);
 
-    op->setOperand(0, quantOp.getResult());
-
-    return matchSuccess();
-  }
-};
-
-template<typename OpTy>
-struct TpuAddInt8DequantOpBeforeOpPattern : public RewritePattern {
-  TpuAddInt8DequantOpBeforeOpPattern(MLIRContext *context)
-      : RewritePattern(OpTy::getOperationName(), 1, context) {}
-
-  PatternMatchResult matchAndRewrite(Operation *op,
-                                     PatternRewriter &rewriter) const override {
-    if (isa<tpu::QuantOp>(op->getOperand(0)->getDefiningOp())) {
-      // added already
-      return matchFailure();
-    }
-
-    for (unsigned i = 0; i < op->getNumOperands(); i++) {
-      auto prev_op = op->getOperand(i)->getDefiningOp();
-      if (getOpQuant(prev_op) != "INT8") {
-        continue;
-      }
-      auto type = op->getOperand(i)->getType();
-      std::vector<NamedAttribute> attrs;
-      attrs.push_back(rewriter.getNamedAttr("from",
-          rewriter.getStringAttr("INT8")));
-      attrs.push_back(rewriter.getNamedAttr("to",
-          rewriter.getStringAttr("NONE")));
-      attrs.push_back(rewriter.getNamedAttr("threshold",
-          rewriter.getF32FloatAttr(getOpThreshold(prev_op))));
-      attrs.push_back(rewriter.getNamedAttr("name",
-          rewriter.getStringAttr(getOpName(prev_op).str() + "_dequant")));
-      attrs.push_back(rewriter.getNamedAttr("layer_id",
-          rewriter.getI32IntegerAttr(getOpLayerId(prev_op))));
-      auto quantOp = rewriter.create<tpu::QuantOp>(prev_op->getLoc(), type,
-          ArrayRef<Value *>{op->getOperand(i)}, ArrayRef<NamedAttribute>{attrs});
-      setOpResultType(quantOp.getOperation(), StandardTypes::F32);
-      op->setOperand(i, quantOp.getResult());
-    }
-
-    return matchSuccess();
-  }
-};
-
-template<typename OpTy>
-struct TpuAddBf16QuantOpBeforeOpPattern : public RewritePattern {
-  TpuAddBf16QuantOpBeforeOpPattern(MLIRContext *context)
-      : RewritePattern(OpTy::getOperationName(), 1, context) {}
-
-  PatternMatchResult matchAndRewrite(Operation *op,
-                                     PatternRewriter &rewriter) const override {
-    if (op->getOperand(0)->getDefiningOp()
-        && isa<tpu::QuantOp>(op->getOperand(0)->getDefiningOp())) {
-      // added already
-      return matchFailure();
-    }
-
-    auto type = op->getResult(0)->getType();
-    std::vector<NamedAttribute> attrs;
-    attrs.push_back(rewriter.getNamedAttr("from",
-        rewriter.getStringAttr("NONE")));
-    attrs.push_back(rewriter.getNamedAttr("to",
-        rewriter.getStringAttr("BF16")));
-    attrs.push_back(rewriter.getNamedAttr("name",
-        rewriter.getStringAttr(getOpName(op).str() + "_quant")));
-    attrs.push_back(rewriter.getNamedAttr("layer_id",
-        rewriter.getI32IntegerAttr(getOpLayerId(op))));
-    auto quantOp = rewriter.create<tpu::QuantOp>(op->getLoc(), type,
-        ArrayRef<Value *>{op->getOperand(0)}, ArrayRef<NamedAttribute>{attrs});
-
-    op->setOperand(0, quantOp.getResult());
-
-    return matchSuccess();
-  }
-};
-
-template<typename OpTy>
-struct TpuAddBf16DequantOpBeforeOpPattern : public RewritePattern {
-  TpuAddBf16DequantOpBeforeOpPattern(MLIRContext *context)
-      : RewritePattern(OpTy::getOperationName(), 1, context) {}
-
-  PatternMatchResult matchAndRewrite(Operation *op,
-                                     PatternRewriter &rewriter) const override {
-    if (isa<tpu::QuantOp>(op->getOperand(0)->getDefiningOp())) {
-      // added already
-      return matchFailure();
-    }
-
-    for (unsigned i = 0; i < op->getNumOperands(); i++) {
-      auto prev_op = op->getOperand(i)->getDefiningOp();
-      if (getOpQuant(prev_op) != "BF16") {
-        continue;
-      }
-      auto type = op->getOperand(i)->getType();
-      std::vector<NamedAttribute> attrs;
-      attrs.push_back(rewriter.getNamedAttr("from",
-          rewriter.getStringAttr("BF16")));
-      attrs.push_back(rewriter.getNamedAttr("to",
-          rewriter.getStringAttr("NONE")));
-      attrs.push_back(rewriter.getNamedAttr("threshold",
-          rewriter.getF32FloatAttr(getOpThreshold(prev_op))));
-      attrs.push_back(rewriter.getNamedAttr("name",
-          rewriter.getStringAttr(getOpName(prev_op).str() + "_dequant")));
-      attrs.push_back(rewriter.getNamedAttr("layer_id",
-          rewriter.getI32IntegerAttr(getOpLayerId(prev_op))));
-      auto quantOp = rewriter.create<tpu::QuantOp>(prev_op->getLoc(), type,
-          ArrayRef<Value *>{op->getOperand(i)}, ArrayRef<NamedAttribute>{attrs});
-      setOpResultType(quantOp.getOperation(), StandardTypes::F32);
-      op->setOperand(i, quantOp.getResult());
-    }
-
-    return matchSuccess();
-  }
-};
-
-template<typename OpTy>
-struct TpuInsertQuantOpPattern : public RewritePattern {
-  TpuInsertQuantOpPattern(MLIRContext *context)
-      : RewritePattern(OpTy::getOperationName(), 1, context) {}
-
-  PatternMatchResult matchAndRewrite(Operation *op,
-                                     PatternRewriter &rewriter) const override {
-    if (isa<tpu::WeightFileOp>(op)
-        || isa<tpu::LoadWeightOp>(op)
-        || isa<tpu::NoneOp>(op)
-        || isa<tpu::NoneOp>(op)) {
-      assert(false);
-      return matchFailure();
-    }
-
-    LLVM_DEBUG(llvm::errs() << "insertQuant: " << OpTy::getOperationName()
-                 << " [" << getOpName(op) << "]\n";);
-
-    int changed = 0;
-    StringRef curr_quant;
-    if (isa<ReturnOp>(op)) {
-      curr_quant = "NONE";
+  StringRef curr_quant = isa<ReturnOp>(op) ? "NONE" : getOpQuant(op);
+  for (unsigned i = 0; i < op->getNumOperands(); i++) {
+    auto prev_op = op->getOperand(i)->getDefiningOp();
+    StringRef prev_quant;
+    if (!prev_op) {
+      prev_quant = "NONE";
+    } else if (isa<tpu::QuantOp>(prev_op)
+                || isa<tpu::LoadWeightOp>(prev_op)
+                || isa<tpu::NoneOp>(prev_op)) {
+      continue;
     } else {
-      curr_quant = getOpQuant(op);
+      prev_quant = getOpQuant(prev_op);
     }
-    for (unsigned i = 0; i < op->getNumOperands(); i++) {
-      auto prev_op = op->getOperand(i)->getDefiningOp();
-      StringRef prev_quant;
-      if (!prev_op) {
-        assert(isa<tpu::InputOp>(op));
-        prev_quant = "NONE";
-      } else if (isa<tpu::QuantOp>(prev_op)
-                 || isa<tpu::LoadWeightOp>(prev_op)
-                 || isa<tpu::NoneOp>(prev_op)) {
-        continue;
+
+    // insert quant if prev and curr have different quant mode
+    if (curr_quant != prev_quant) {
+      std::vector<NamedAttribute> attrs;
+      attrs.push_back(builder.getNamedAttr("from",
+          builder.getStringAttr(prev_quant)));
+      attrs.push_back(builder.getNamedAttr("to",
+          builder.getStringAttr(curr_quant)));
+      float threshold = 0.0f;
+      std::string name;
+      int layer_id = -1;
+      if (curr_quant == "INT8") {
+        threshold = getOpThreshold(prev_op);
+        name = getOpName(prev_op).str() + "_quant";
+        layer_id = getOpLayerId(op);
+      } else if (prev_quant == "INT8") {
+        threshold = getOpThreshold(prev_op);
+        name = getOpName(prev_op).str() + "_dequant";
+        layer_id = getOpLayerId(prev_op);
+      } else if (curr_quant == "BF16") {
+        name = getOpName(op).str() + "_quant";
+        layer_id = getOpLayerId(op);
+      } else if (prev_quant == "BF16") {
+        name = getOpName(prev_op).str() + "_dequant";
+        layer_id = getOpLayerId(prev_op);
+      }
+      // check if prev op has inserted quant/dequant op
+      if (prev_op) {
+        bool found = false;
+        for (auto &use : prev_op->getResult(0)->getUses()) {
+          auto nextOp = use.getOwner();
+          if (getOpName(nextOp) == name) {
+            op->setOperand(i, nextOp->getResult(0));
+            LLVM_DEBUG(llvm::errs() << "  opd " << i << ", " << name << ", "
+                      << prev_quant << " => " << curr_quant << "\n";);
+            found = true;
+            break;
+          }
+        }
+        if (found) {
+          continue;
+        }
+      }
+
+      attrs.push_back(builder.getNamedAttr("threshold",
+          builder.getF32FloatAttr(threshold)));
+      attrs.push_back(builder.getNamedAttr("name",
+          builder.getStringAttr(name)));
+      attrs.push_back(builder.getNamedAttr("layer_id",
+          builder.getI32IntegerAttr(layer_id)));
+
+      auto shape = op->getOperand(i)->getType().cast<TensorType>().getShape();
+      Type eltType;
+      if (curr_quant == "INT8") {
+        eltType = IntegerType::get(8, builder.getContext());
+      } else if (curr_quant == "BF16") {
+        eltType = FloatType::getBF16(builder.getContext());
       } else {
-        prev_quant = getOpQuant(prev_op);
+        eltType = FloatType::getF32(builder.getContext());
       }
+      auto type = RankedTensorType::get(shape, eltType);
+      auto quantOp = builder.create<tpu::QuantOp>(op->getLoc(), type,
+          ArrayRef<Value *>{op->getOperand(i)}, ArrayRef<NamedAttribute>{attrs});
 
-      // insert quant if prev and curr have different quant mode
-      if (curr_quant != prev_quant) {
-        std::vector<NamedAttribute> attrs;
-        attrs.push_back(rewriter.getNamedAttr("from",
-            rewriter.getStringAttr(prev_quant)));
-        attrs.push_back(rewriter.getNamedAttr("to",
-            rewriter.getStringAttr(curr_quant)));
-        float threshold = 0.0f;
-        std::string name;
-        int layer_id = -1;
-        if (curr_quant == "INT8") {
-          if (prev_quant == "BF16") {
-            threshold = getOpThreshold(prev_op);
-          } else {
-            // TODO: should move quant after Input Op
-            // assert(isa<tpu::InputOp>(op) || isa<tpu::PreprocessOp>(op));
-            threshold = getOpThreshold(prev_op);
-          }
-          name = getOpName(prev_op).str() + "_quant";
-          layer_id = getOpLayerId(op);
-        } else if (prev_quant == "INT8") {
-          threshold = getOpThreshold(prev_op);
-          name = getOpName(prev_op).str() + "_dequant";
-          layer_id = getOpLayerId(prev_op);
-        } else if (curr_quant == "BF16") {
-          name = getOpName(op).str() + "_quant";
-          layer_id = getOpLayerId(op);
-        } else if (prev_quant == "BF16") {
-          name = getOpName(prev_op).str() + "_dequant";
-          layer_id = getOpLayerId(prev_op);
-        }
-        // check if prev op has inserted quant/dequant op
-        if (prev_op) {
-          bool found = false;
-          for (auto &use : prev_op->getResult(0)->getUses()) {
-            auto nextOp = use.getOwner();
-            if (getOpName(nextOp) == name) {
-              op->setOperand(i, nextOp->getResult(0));
-              LLVM_DEBUG(llvm::errs() << "  opd " << i << ", " << name << ", "
-                        << prev_quant << " => " << curr_quant << "\n";);
-              found = true;
-              nextOp->moveBefore(op);
-              break;
-            }
-          }
-          if (found) {
-            changed++;
-            continue;
-          }
-        }
+      op->setOperand(i, quantOp.getResult());
 
-        attrs.push_back(rewriter.getNamedAttr("threshold",
-            rewriter.getF32FloatAttr(threshold)));
-        attrs.push_back(rewriter.getNamedAttr("name",
-            rewriter.getStringAttr(name)));
-        attrs.push_back(rewriter.getNamedAttr("layer_id",
-            rewriter.getI32IntegerAttr(layer_id)));
-
-        auto shape = op->getOperand(i)->getType().cast<TensorType>().getShape();
-        Type eltType;
-        if (curr_quant == "INT8") {
-          eltType = IntegerType::get(8, rewriter.getContext());
-        } else if (curr_quant == "BF16") {
-          eltType = FloatType::getBF16(rewriter.getContext());
-        } else {
-          eltType = FloatType::getF32(rewriter.getContext());
-        }
-        auto type = RankedTensorType::get(shape, eltType);
-        auto quantOp = rewriter.create<tpu::QuantOp>(op->getLoc(), type,
-            ArrayRef<Value *>{op->getOperand(i)}, ArrayRef<NamedAttribute>{attrs});
-
-        op->setOperand(i, quantOp.getResult());
-
-        LLVM_DEBUG(llvm::errs() << "  opd " << i << ", " << name << ", "
-                   << prev_quant << " => " << curr_quant << "\n";);
-
-        changed++;
-      }
+      LLVM_DEBUG(llvm::errs() << "  opd " << i << ", " << name << ", "
+                  << prev_quant << " => " << curr_quant << "\n";);
     }
-    if (changed) {
-      return matchSuccess();
-    }
-    return matchFailure();
   }
-};
+}
 
 class TpuQuantPass : public FunctionPass<TpuQuantPass> {
 public:
@@ -366,21 +186,15 @@ public:
     // mark quant mode
     fn.walk([&](Operation *op) {
       if (op->getName().getDialect().str() != "tpu"
-          || isa<tpu::WeightFileOp>(op)
-          || isa<tpu::LoadWeightOp>(op)
-          || isa<tpu::NoneOp>(op)) {
-      } else if (isa<tpu::ReshapeOp>(op)
-                 || isa<tpu::InputOp>(op)
-                 || isa<tpu::PreprocessOp>(op)
-                 || isa<tpu::TransposeOp>(op)) {
-        // no need to quant
+          || isa<tpu::ReshapeOp>(op)
+          || isa<tpu::InputOp>(op)
+          || isa<tpu::PreprocessOp>(op)) {
       } else if (auto quantOp = llvm::dyn_cast<tpu::TpuOpQuantInterface>(op)) {
         if (clQuantMixTable) {
           //setOpQuant(op, quant_mix_table[getOpName(op)]);
           assert(false);
         } else if (!clQuantBf16) {
-          if (!isa<tpu::InputOp>(op))
-            setOpQuant(op, "INT8");
+          setOpQuant(op, "INT8");
           if (isa<tpu::Conv2DOp>(op) || isa<tpu::DeConv2DOp>(op)) {
             if (clQuantInt8PerTensor) {
               setOpQuantPerchannel(op, false);
@@ -407,29 +221,16 @@ public:
         } else {
           setOpQuant(op, "BF16");
         }
-      } else if (isa<tpu::DetectionOutputOp>(op)
-                 || isa<tpu::PriorBoxOp>(op)
-                 || isa<tpu::RetinaFaceDetectionOp>(op)
-                 || isa<tpu::SoftmaxOp>(op)) {
-        // cpu Ops that has no quant support
-      } else {
-        llvm::errs() << "quant assignment didn't handle " << op->getName() << "\n";
-        assert(false);
       }
     });
 
     // do quant
     fn.walk([&](Operation *op) {
       if (op->getName().getDialect().str() != "tpu"
-          || isa<tpu::WeightFileOp>(op)
-          || isa<tpu::LoadWeightOp>(op)
-          || isa<tpu::NoneOp>(op)) {
-      } else if (isa<tpu::ReshapeOp>(op)
-                 || isa<tpu::QuantOp>(op)
-                 || isa<tpu::InputOp>(op)
-                 || isa<tpu::PreprocessOp>(op)
-                 || isa<tpu::TransposeOp>(op)) {
-        // no need to quant
+          || isa<tpu::InputOp>(op)
+          || isa<tpu::PreprocessOp>(op)
+          || isa<tpu::QuantOp>(op)
+          || isa<tpu::ReshapeOp>(op)) {
       } else if (auto quantOp = llvm::dyn_cast<tpu::TpuOpQuantInterface>(op)) {
         if (getOpQuant(op) == "INT8") {
           auto ret = quantOp.quantizeInt8();
@@ -438,16 +239,9 @@ public:
           auto ret = quantOp.quantizeBf16();
           assert(!failed(ret));
         } else {
+          llvm::errs() << "assert:" << op->getName() << "\n";
           assert(false);
         }
-      } else if (isa<tpu::DetectionOutputOp>(op)
-                 || isa<tpu::PriorBoxOp>(op)
-                 || isa<tpu::RetinaFaceDetectionOp>(op)
-                 || isa<tpu::SoftmaxOp>(op)) {
-        // cpu Ops that has no quant support
-      } else {
-        llvm::errs() << "quant didn't handle " << op->getName() << "\n";
-        assert(false);
       }
     });
 
@@ -461,46 +255,17 @@ public:
       _op->getResult(0)->setType(type);
     });
 
-    // insert quant/dequant
-    OwningRewritePatternList patterns;
-    patterns.insert<
-        TpuInsertQuantOpPattern<ReturnOp>,
-        TpuInsertQuantOpPattern<tpu::BroadcastMulOp>,
-        TpuInsertQuantOpPattern<tpu::BatchNormOp>,
-        TpuInsertQuantOpPattern<tpu::ConcatOp>,
-        TpuInsertQuantOpPattern<tpu::Conv2DOp>,
-        TpuInsertQuantOpPattern<tpu::CropOp>,
-        TpuInsertQuantOpPattern<tpu::DeConv2DOp>,
-        TpuInsertQuantOpPattern<tpu::DetectionOutputOp>,
-        TpuInsertQuantOpPattern<tpu::EltwiseAddOp>,
-        TpuInsertQuantOpPattern<tpu::EltwiseMaxOp>,
-        TpuInsertQuantOpPattern<tpu::EltwiseMulOp>,
-        TpuInsertQuantOpPattern<tpu::FullyConnectedOp>,
-        //TpuInsertQuantOpPattern<tpu::InputOp>,
-        TpuInsertQuantOpPattern<tpu::LeakyReluOp>,
-        TpuInsertQuantOpPattern<tpu::NormalizeOp>,
-        TpuInsertQuantOpPattern<tpu::PermuteOp>,
-        TpuInsertQuantOpPattern<tpu::PixelShuffleOp>,
-        TpuInsertQuantOpPattern<tpu::PoolAvg2DOp>,
-        TpuInsertQuantOpPattern<tpu::PoolMax2DOp>,
-        TpuInsertQuantOpPattern<tpu::PowerOp>,
-        TpuInsertQuantOpPattern<tpu::PReluOp>,
-        TpuInsertQuantOpPattern<tpu::PriorBoxOp>,
-        TpuInsertQuantOpPattern<tpu::ReciprocalOp>,
-        TpuInsertQuantOpPattern<tpu::ReluOp>,
-        TpuInsertQuantOpPattern<tpu::ReshapeOp>,
-        TpuInsertQuantOpPattern<tpu::RetinaFaceDetectionOp>,
-        TpuInsertQuantOpPattern<tpu::ScaleOp>,
-        TpuInsertQuantOpPattern<tpu::ShuffleChannelOp>,
-        TpuInsertQuantOpPattern<tpu::SliceOp>,
-        TpuInsertQuantOpPattern<tpu::SoftmaxOp>,
-        TpuInsertQuantOpPattern<tpu::SigmoidOp>,
-        TpuInsertQuantOpPattern<tpu::SqrtOp>,
-        TpuInsertQuantOpPattern<tpu::SwapChannelOp>,
-        TpuInsertQuantOpPattern<tpu::TanHOp>,
-        TpuInsertQuantOpPattern<tpu::UpsampleOp>
-    >(context);
-    applyPatternsGreedily(fn, patterns);
+    // insert QuantOp if quant types don't equal.
+    fn.walk([&](Operation *op) {
+      if ((op->getName().getDialect().str() != "tpu"
+           && !isa<ReturnOp>(op))
+          || isa<tpu::WeightFileOp>(op)
+          || isa<tpu::LoadWeightOp>(op)
+          || isa<tpu::NoneOp>(op)) {
+      } else {
+        insertQauntOp(op);
+      }
+    });
   }
 };
 

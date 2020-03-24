@@ -138,6 +138,7 @@ void addWeightTensorAndUpdateWeightOp(Value* opd,
   weightOp.setAttr("storage", builder.getStringAttr(storageType));
   weightOp.getResult()->setType(type);
 }
+
 template void addWeightTensorAndUpdateWeightOp(Value* opd,
     StringRef suffix, std::vector<float> &weight,
     std::vector<int64_t> &shape, StringRef storageType, TensorFile *wTF);

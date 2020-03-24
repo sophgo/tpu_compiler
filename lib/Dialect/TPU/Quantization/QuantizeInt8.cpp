@@ -426,10 +426,8 @@ LogicalResult quantizeInt8PReluOps(Operation *op) {
   // update op
   auto shape = std::vector<int64_t>{1};
   StringRef storageType = "INT8";
-  auto neg_slope_op = addWeightTensorAndCreateWeightOp<float>(
-      op, "negative_slope", new_negative_slope, neg_slope_shape, storageType,
-      wTF, wfV);
-  preluOp.setOperand(1, neg_slope_op);
+  addWeightTensorAndUpdateWeightOp<float>(op->getOperand(1),
+      "negative_slope", new_negative_slope, neg_slope_shape, storageType, wTF);
   auto rshift_pos_op = addWeightTensorAndCreateWeightOp<float>(
       op, "rshift_pos", rshift_pos, shape, storageType, wTF, wfV);
   preluOp.setOperand(6, rshift_pos_op);
@@ -916,7 +914,6 @@ LogicalResult tpu::TanHOp::quantizeInt8() {
   return failure();
 }
 
-DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::TransposeOp)
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::UpsampleOp)
 
 #define DECLARE_QUANTIZE_INT8_DISABLED_METHOD(OP) \

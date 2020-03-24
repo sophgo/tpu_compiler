@@ -1498,8 +1498,7 @@ def TPU_TanHOp: TPU_Op<"tanh",
 def TPU_TransposeOp : TPU_Op<"transpose",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
-       DeclareOpInterfaceMethods<TpuOpQuantInterface>]> {
+       DeclareOpInterfaceMethods<TpuOpInterpInterface>]> {
   let summary = "Transpose operator";
 
   let description = [{
