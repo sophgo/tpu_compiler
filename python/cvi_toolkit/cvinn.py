@@ -2,8 +2,73 @@ import numpy as np
 import onnx
 from .model import CVI_Model
 from .transform import OnnxConverter
+from .build_cvimodel.build_cvimodel import CVIModel as builder
 import subprocess
+from pathlib import Path
 
+
+def mlir_traslate(model_file, weight_file, mlirfile):
+    subprocess.run(["mlir-translate", "--caffe-to-mlir", model_file,
+                    "--caffemodel", weight_file,
+                    "-o", mlirfile
+                    ])
+
+def mlir_opt(mlirfile, opt_mlirfile, op_info_csv):
+    subprocess.run(["mlir-opt",
+                    "--assign-layer-id",
+                    "--print-tpu-op-info",
+                    "--convert-bn-to-scale",
+                    "--canonicalize",
+                    "--tpu-op-info-filename", op_info_csv,
+                    mlirfile,
+                    "-o", opt_mlirfile
+                    ])
+
+def mlir_import_calibration(mlirfile, cali_mlirfile, threshold_table):
+    subprocess.run(["mlir-opt",
+                    "--import-calibration-table",
+                    "--calibration-table", threshold_table,
+                    mlirfile,
+                    "-o", cali_mlirfile
+                    ])
+
+def mlir_tpu_quant(mlirfile, quant_mlirfile, op_info_csv):
+    subprocess.run(["mlir-opt",
+                    "--tpu-quant",
+                    "--print-tpu-op-info",
+                    "--tpu-op-info-filename", op_info_csv,
+                    mlirfile,
+                    "-o", quant_mlirfile
+                    ])
+
+def mlir_lower_opt(mlirfile, opt_mlirfile):
+    subprocess.run(["mlir-opt",
+                    "--tpu-lower",
+                    mlirfile,
+                    "-o", opt_mlirfile
+                    ])
+
+def mlir_gen_cvimodel(mlirfile, cvi_module):
+    cmdbuf_mlir = "cmdbuf_{}".format(mlirfile)
+    subprocess.run(["mlir-opt",
+                    "--assign-weight-address",
+                    "--tpu-weight-address-align=16",
+                    "--tpu-weight-map-filename=weight_map.csv",
+                    "--tpu-weight-bin-filename=weight.bin",
+                    "--assign-neuron-address",
+                    "--tpu-neuron-address-align=16",
+                    "--tpu-neuron-map-filename=neuron_map.csv",
+                    "--assign-layer-id",
+                    mlirfile,
+                    "-o", cmdbuf_mlir
+                    ])
+    subprocess.run(["mlir-translate",
+                    "--mlir-to-cmdbuf",
+                    cmdbuf_mlir,
+                    "-o", "cmdbuf.bin"
+                    ])
+    model_builder = builder("weight.bin", ["cmdbuf.bin"], None, cmdbuf_mlir)
+    model_builder.build(cvi_module)
 
 class cvinn(object):
     def __init__(self):
@@ -13,10 +78,9 @@ class cvinn(object):
             if weight_file == None:
                 print("No caffe weight file")
                 return -1
-            subprocess.run(["mlir-translate", "--caffe-to-mlir", model_file,
-                    "--caffemodel", weight_file,
-                    "-o", mlirfile
-                    ])
+            mlirori = "ori_{}".format(mlirfile)
+            mlir_traslate(model_file, weight_file, mlirori)
+            mlir_opt(mlirori, mlirfile, "{}_op_info.csv".format(model_file.split('.')[0].split('/')[-1]))
             return 0
         elif model_type == 'onnx':
             if not model_file.lower().endswith('.onnx'):
@@ -34,7 +98,21 @@ class cvinn(object):
     def calibration(self):
         return 0
 
-    def build_cvimodel(self):
+    def build_cvimodel(self, mlirfile_fp32: str, cvimodel: str, threshold_table: str, mlirfile_int8: str = None,
+                    quant_method: str = "perchannel", cmd_buf: str=None, quant_info=None):
+        int8_op_csv = "{}_op_info_int8.csv".format(mlirfile_fp32.split('.')[0].split('/')[-1])
+        cali_mlir = "cali_{}".format(mlirfile_fp32)
+        mlir_import_calibration(mlirfile_fp32, cali_mlir, threshold_table)
+        print('do calibration')
+        quant_mlir = "quant_{}".format(mlirfile_fp32)
+        mlir_tpu_quant(cali_mlir, quant_mlir, int8_op_csv)
+        print('do quant')
+        tg_mlir = "tg_{}".format(mlirfile_fp32)
+        mlir_lower_opt(quant_mlir, tg_mlir)
+        print('do lower')
+        print(cvimodel)
+
+        mlir_gen_cvimodel(tg_mlir, cvimodel)
         return 0
 
     def tpu_simulation(self):
@@ -48,7 +126,12 @@ class cvinn(object):
         if all_tensors!=None:
             net.get_all_tensor(all_tensors)
         return out
+
     def cleanup(self):
+        for clean_file in ["*.mlir", "*.bin", "*.csv", "*.cvimodel", "*.npz"]:
+            for p in Path(".").glob(clean_file):
+                p.unlink()
         return 0
+
     def dump_quant_info(self):
         return 0
