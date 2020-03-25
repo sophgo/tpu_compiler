@@ -81,7 +81,7 @@ export PYTHONPATH=$FLATBUFFERS_PATH/python:$PYTHONPATH
 
 # soc build and path
 if [[ -z "$SDK_INSTALL_PATH" ]]; then
-  INSTALL_SOC_PATH=$TPU_BASE/install_soc
+  SDK_INSTALL_PATH=$TPU_BASE/install_soc
 fi
 export INSTALL_SOC_PATH=$SDK_INSTALL_PATH
 if [[ -z "$BUILD_SOC_PATH" ]]; then
