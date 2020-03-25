@@ -8,7 +8,12 @@ install_requires=[
     'numpy>=1.18.0',
     'opencv-python>=3.4.0.14',
     'protobuf==3.11.3',
-    'scikit-image==0.14.5'
+    'scikit-image==0.14.5',
+    'onnx==1.6.0',
+    'onnxruntime==1.1.2',
+    'torch==1.4.0',
+    'torchvision==0.5.0',
+    'termcolor==1.1.0',
 ]
 
 file_path = os.path.dirname(os.path.abspath(__file__))
