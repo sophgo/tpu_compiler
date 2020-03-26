@@ -160,7 +160,6 @@ def print_result_one_array(tc, npz1, npz2, name, force_dtype, thresholds, verbos
 def npz_compare(args_list):
   lock = multiprocessing.Lock()
   dic = multiprocessing.Manager().dict()
-
   args = parse_args(args_list)
   f1 = args.target_file
   f2 = args.ref_file

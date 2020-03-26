@@ -86,7 +86,7 @@ def mlir_calibration(mlirfile_fp32, dataset, threshold_table, auto_tune=False):
                         "--output_file", threshold_table,
                         ])
 def run_cvimodel(input_file, cvi_model, output_tensor, all_tensors=False):
-     if all_tensors:
+    if all_tensors:
         subprocess.run(["cvi_calibration_tool",
                         "--input", input_file,
                         "--model", cvi_model,
