@@ -247,7 +247,7 @@ void AssignNeuronAddressMemRefPass::handleAllocOp(Operation *opInst) {
   llvm::errs() << llvm::format("[%-36s][%8d] : [ ",
                 tpuOpIf.getOpName().str().c_str(), allocatedSize)
               << llvm::format_hex(curPos, 10) << " --> "
-              << llvm::format_hex(newPos, 10) << " ]\n";
+              << llvm::format_hex(curPos+allocatedSize, 10) << " ]\n";
   setOpAddress(tpuOpIf, curPos);
   pos_ = newPos;
 

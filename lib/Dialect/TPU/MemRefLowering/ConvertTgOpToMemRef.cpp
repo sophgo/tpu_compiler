@@ -165,6 +165,13 @@ unsigned getMemorySpace(Operation *op) {
   return 2; // TPU_MEM_REGION_ACTIVATION
 }
 
+bool isMemoryAliasOp(Operation *op) {
+  if (dyn_cast<tpu::ReshapeOp>(op))
+    return true;
+
+  return false;
+}
+
 Value *InsertAllocAndDealloc(Location loc, Value *result,
                              PatternRewriter *rewriter) {
   auto *op = result->getDefiningOp();
@@ -180,10 +187,22 @@ Value *InsertAllocAndDealloc(Location loc, Value *result,
   auto *lastUsedOp = GetLastUse(result);
   allocBuilder.setInsertionPoint(op->getBlock(),
                                  std::next(Block::iterator(lastUsedOp)));
-  auto deallocOp = allocBuilder.create<DeallocOp>(loc, alloc);
 
-  // Place DeallOp after last use
-  lastUsedOp->moveBefore(deallocOp);
+  if (isMemoryAliasOp(lastUsedOp)) {
+    // DeallocOp should be after last use of memory-aliased op.
+    auto lastUsedByAliasOp = GetLastUse(lastUsedOp->getResult(0));
+
+    // Cannot use moveBefore to plac deallocOp just after last use of
+    // memory-aliased op. So put in the end block.
+    auto deallocOp =
+        allocBuilder.create<DeallocOp>(lastUsedByAliasOp->getLoc(), alloc);
+    auto *parentBlock = alloc.getOperation()->getBlock();
+    deallocOp.getOperation()->moveBefore(&parentBlock->back());
+  } else {
+    // Place DeallOp after last use.
+    auto deallocOp = allocBuilder.create<DeallocOp>(loc, alloc);
+    lastUsedOp->moveBefore(deallocOp);
+  }
 
   return alloc;
 }
@@ -311,29 +330,6 @@ public:
     return matchFailure();
   }
 };
-
-#if 0
-class convertTensorLoadOpPattern : public ConversionPattern {
-public:
-  explicit convertTensorLoadOpPattern(MLIRContext *context)
-      : ConversionPattern(TensorLoadOp::getOperationName(), 1, context) {}
-
-  PatternMatchResult
-  matchAndRewrite(Operation *op, ArrayRef<Value *> operands,
-                  ConversionPatternRewriter &rewriter) const final {
-
-
-    // TensorLoadOp does MemRefType -> TensorType conversion.
-    // Replace all uses then erase itself.
-    auto *result = op->getResult(0);
-    result->replaceAllUsesWith(operands[0]);
-
-    rewriter.eraseOp(op);
-
-    return matchSuccess();
-  }
-};
-#endif
 
 class convertTensorStoreOpPattern : public ConversionPattern {
 public:
