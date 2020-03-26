@@ -105,7 +105,7 @@ def preprocess_generic(image_path, args):
   x = np.expand_dims(x, axis=0)
   return x
 
-if __name__ == '__main__':
+def main():
   parser = argparse.ArgumentParser()
   parser.add_argument('model_file', metavar='model_file', help='Model file')
   parser.add_argument('image_list_file', metavar='image_list_file', help='Input image list file')
@@ -158,4 +158,7 @@ if __name__ == '__main__':
     args.input_threshold_table = threshold_table
     tune = Tuner(args, preprocess_generic)
     tune.run_tune(args)
+
+if __name__ == '__main__':
+  main()
 
