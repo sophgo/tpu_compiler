@@ -85,6 +85,20 @@ def mlir_calibration(mlirfile_fp32, dataset, threshold_table, auto_tune=False):
                         dataset,
                         "--output_file", threshold_table,
                         ])
+def run_cvimodel(input_file, cvi_model, output_tensor, all_tensors=False):
+     if all_tensors:
+        subprocess.run(["cvi_calibration_tool",
+                        "--input", input_file,
+                        "--model", cvi_model,
+                        "--output_file", output_tensor,
+                        "--dump-all-tensors"
+                        ])
+    else:
+        subprocess.run(["cvi_calibration_tool",
+                        "--input", input_file,
+                        "--model", cvi_model,
+                        "--output_file", output_tensor,
+                        ])
 class cvinn(object):
     def __init__(self):
         pass
@@ -128,7 +142,8 @@ class cvinn(object):
         mlir_gen_cvimodel(tg_mlir, cvimodel)
         return 0
 
-    def tpu_simulation(self):
+    def tpu_simulation(self, input_file, cvimodel, output_tensor, all_tensors=None):
+        run_cvimodel(input_file, cvimodel, output_tensor, all_tensors)
         return 0
 
     def inference(self, model_type: str, input_data: np.ndarray, model_file=None, weight_file=None, mlirfile=None, all_tensors:str = None):
