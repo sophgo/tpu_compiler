@@ -38,7 +38,8 @@ setuptools.setup(
     entry_points = {
               'console_scripts': [
                   'cvi_npz_tool=cvi_toolkit.cvi_npz_tool:main',
-                  'cvi_model_convert=cvi_toolkit.cvi_model_convert.py:main'
+                  'cvi_model_convert=cvi_toolkit.cvi_model_convert:main',
+                  'cvi_calibration_tool=cvi_toolkit.calibration:main'
               ],
           },
 
