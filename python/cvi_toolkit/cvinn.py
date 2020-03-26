@@ -70,6 +70,21 @@ def mlir_gen_cvimodel(mlirfile, cvi_module):
     model_builder = builder("weight.bin", ["cmdbuf.bin"], None, cmdbuf_mlir)
     model_builder.build(cvi_module)
 
+
+def mlir_calibration(mlirfile_fp32, dataset, threshold_table, auto_tune=False):
+    if auto_tune:
+        subprocess.run(["cvi_calibration_tool",
+                        mlirfile_fp32,
+                        dataset,
+                        "--output_file", threshold_table,
+                        "--auto_tune"
+                        ])
+    else:
+         subprocess.run(["cvi_calibration_tool",
+                        mlirfile_fp32,
+                        dataset,
+                        "--output_file", threshold_table,
+                        ])
 class cvinn(object):
     def __init__(self):
         pass
@@ -95,7 +110,8 @@ class cvinn(object):
             print("Not support {} type, now support onnx and caffe".format(model_type))
             return -1
 
-    def calibration(self):
+    def calibration(self, mlirfile_fp32: str, dataset: str, threshold_table: str, auto_tune=False):
+        mlir_calibration(mlirfile_fp32, dataset, threshold_table, auto_tune)
         return 0
 
     def build_cvimodel(self, mlirfile_fp32: str, cvimodel: str, threshold_table: str, mlirfile_int8: str = None,
@@ -103,15 +119,12 @@ class cvinn(object):
         int8_op_csv = "{}_op_info_int8.csv".format(mlirfile_fp32.split('.')[0].split('/')[-1])
         cali_mlir = "cali_{}".format(mlirfile_fp32)
         mlir_import_calibration(mlirfile_fp32, cali_mlir, threshold_table)
-        print('do calibration')
+
         quant_mlir = "quant_{}".format(mlirfile_fp32)
         mlir_tpu_quant(cali_mlir, quant_mlir, int8_op_csv)
-        print('do quant')
+
         tg_mlir = "tg_{}".format(mlirfile_fp32)
         mlir_lower_opt(quant_mlir, tg_mlir)
-        print('do lower')
-        print(cvimodel)
-
         mlir_gen_cvimodel(tg_mlir, cvimodel)
         return 0
 
