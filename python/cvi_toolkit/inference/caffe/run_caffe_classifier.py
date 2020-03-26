@@ -57,10 +57,10 @@ class My_Classifier(caffe.Net):
         for name, layer in zip(self._layer_names, self.layers):
             print("{:<27}: {:17s}({} blobs)".format(name, layer.type, len(layer.blobs)))
         print("Blobs:")
-        for name, blob in self.blobs.iteritems():
+        for name, blob in self.blobs.items():
             print("{:<27}:  {}".format(name, blob.data.shape))
         print("Weights:")
-        for name, param in self.params.iteritems():
+        for name, param in self.params.items():
             # print("{:<27}:  {}".format(name, param[0].data.shape))
             for p in param:
               print("{:<27}:  {}".format(name, p.data.shape))
@@ -129,7 +129,7 @@ class My_Classifier(caffe.Net):
             blobs_dict['raw_data'] = input_
             # for name, blob in self.blobs.iteritems():
             #     blobs_dict[name] = blob.data
-            for name, layer in self.layer_dict.iteritems():
+            for name, layer in self.layer_dict.items():
                 print("layer : " + str(name))
                 print("  type = " + str(layer.type))
                 print("  top -> " + str(self.top_names[name]))
@@ -152,7 +152,7 @@ class My_Classifier(caffe.Net):
         if dump_weights is not None:
             print("Save Weights:", dump_weights)
             weights_dict = {}
-            for name, param in self.params.iteritems():
+            for name, param in self.params.items():
                 for i in range(len(param)):
                     weights_dict[name + "_" + str(i)] = param[i].data
             np.savez(dump_weights, **weights_dict)
@@ -281,12 +281,12 @@ def main(argv):
     # Print
     for ix, in_ in enumerate(inputs):
       print ("batch : ", ix)
-      print predictions[ix].argmax()
+      print(predictions[ix].argmax())
       if args.label_file:
          labels = np.loadtxt(args.label_file, str, delimiter='\t')
          top_k = predictions[ix].flatten().argsort()[-1:-6:-1]
-         print labels[top_k]
-         print top_k
+         print(labels[top_k])
+         print(top_k)
          prob = np.squeeze(predictions[ix].flatten())
          idx = np.argsort(-prob)
          for i in range(5):
