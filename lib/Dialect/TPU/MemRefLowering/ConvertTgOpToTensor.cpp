@@ -102,6 +102,21 @@ public:
   }
 };
 
+template <typename TensorTyOp>
+class convertTypeConvertedOpPattern : public ConversionPattern {
+public:
+  explicit convertTypeConvertedOpPattern(MLIRContext *context)
+     : ConversionPattern(TensorTyOp::getOperationName(), 1, context) {}
+
+  PatternMatchResult
+  matchAndRewrite(Operation *op, ArrayRef<Value *> operands,
+                  ConversionPatternRewriter &rewriter) const final {
+    op->getResult(0)->replaceAllUsesWith(operands[0]);
+    rewriter.eraseOp(op);
+    return matchSuccess();
+  }
+};
+
 struct ConvertTgOpToTensorPass : public FunctionPass<ConvertTgOpToTensorPass> {
   void runOnFunction() override {
     auto fn = getFunction();
@@ -110,9 +125,7 @@ struct ConvertTgOpToTensorPass : public FunctionPass<ConvertTgOpToTensorPass> {
     OwningRewritePatternList patterns;
 
     target.addLegalOp<tpu::LoadWeightOp>();
-    target.addLegalOp<tpu::QuantOp>();
     target.addLegalOp<tpu::ReshapeOp>();
-    target.addLegalOp<tpu::TG_INT8_InputOp>();
     target.addLegalOp<tpu::TG_INT8_EltwiseAddOp>();
     target.addLegalOp<tpu::TG_INT8_FullyConnectedOp>();
     target.addLegalOp<tpu::TG_INT8_PC_Conv2DOp>();
@@ -124,14 +137,15 @@ struct ConvertTgOpToTensorPass : public FunctionPass<ConvertTgOpToTensorPass> {
     target.addLegalOp<TensorStoreOp>();
 
     patterns.insert<
-        convertTgOpToTensorPattern<tpu::TG_MemRef_INT8_InputOp, tpu::TG_INT8_InputOp>,
         convertTgOpToTensorPattern<tpu::TG_MemRef_INT8_EltwiseAddOp, tpu::TG_INT8_EltwiseAddOp>,
         convertTgOpToTensorPattern<tpu::TG_MemRef_INT8_FullyConnectedOp, tpu::TG_INT8_FullyConnectedOp>,
         convertTgOpToTensorPattern<tpu::TG_MemRef_INT8_PC_Conv2DOp, tpu::TG_INT8_PC_Conv2DOp>,
         convertTgOpToTensorPattern<tpu::TG_MemRef_INT8_PoolAvg2DOp, tpu::TG_INT8_PoolAvg2DOp>,
         convertTgOpToTensorPattern<tpu::TG_MemRef_INT8_PoolMax2DOp, tpu::TG_INT8_PoolMax2DOp>,
         convertTgOpToTensorPattern<tpu::TG_MemRef_LoadWeightOp, tpu::LoadWeightOp>,
-        convertTgOpToTensorPattern<tpu::TG_MemRef_ReshapeOp, tpu::ReshapeOp>
+        convertTgOpToTensorPattern<tpu::TG_MemRef_ReshapeOp, tpu::ReshapeOp>,
+        convertTypeConvertedOpPattern<tpu::TG_TensorToMemRefOp>,
+        convertTypeConvertedOpPattern<tpu::TG_MemRefToTensorOp>
         >(context);
     if (failed(applyPartialConversion(fn, target, patterns)))
       signalPassFailure();
