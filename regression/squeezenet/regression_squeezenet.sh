@@ -10,15 +10,16 @@ fi
 
 pushd $NET
 # clear previous output
-rm -f *.mlir *.bin *.npz *.csv
+#rm -f *.mlir *.bin *.npz *.csv
 
 # run tests
 $DIR/regression_squeezenet_0_caffe.sh
 $DIR/regression_squeezenet_1_fp32.sh
 $DIR/regression_squeezenet_2_int8.sh
 $DIR/regression_squeezenet_3_int8_cmdbuf.sh
-$DIR/regression_squeezenet_4_bf16.sh
-$DIR/regression_squeezenet_5_bf16_cmdbuf.sh
+$DIR/regression_squeezenet_4_int8_cmdbuf_deepfusion.sh
+$DIR/regression_squeezenet_5_bf16.sh
+$DIR/regression_squeezenet_6_bf16_cmdbuf.sh
 
 popd
 

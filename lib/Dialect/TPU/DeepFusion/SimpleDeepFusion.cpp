@@ -61,6 +61,8 @@ public:
         auto opInst = (*v)->getDefiningOp();
         if (auto op = dyn_cast<mlir::tpu::TG_INT8_PC_Conv2DOp>(opInst)) {
           llvm::errs() << "  " << op.name() << "\n";
+        } else if (auto op = dyn_cast<mlir::tpu::TG_INT8_PC_DeConv2DOp>(opInst)) {
+          llvm::errs() << "  " << op.name() << "\n";
         } else if (auto op = dyn_cast<mlir::tpu::TG_INT8_PoolAvg2DOp>(opInst)) {
           llvm::errs() << "  " << op.name() << "\n";
         } else if (auto op = dyn_cast<mlir::tpu::TG_INT8_PoolMax2DOp>(opInst)) {
@@ -70,6 +72,7 @@ public:
         } else if (auto op = dyn_cast<tpu::TG_INT8_LeakyReluOp>(opInst)) {
           llvm::errs() << "  " << op.name() << "\n";
         } else {
+          llvm::errs() << "assert: "  << opInst->getName() << "\n";
           assert(0);
         }
       }

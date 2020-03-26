@@ -63,7 +63,7 @@ cvi_npz_tool.py compare \
     squeezenet_v1.1_cmdbuf_out_all_bf16.npz \
     squeezenet_v1.1_tensor_all_bf16.npz \
     --op_info squeezenet_v1.1_op_info.csv \
-    --tolerance=0.99,0.99,0.96 -vv
+    --tolerance=0.99,0.99,0.93 -vv
 
 # VERDICT
 echo $0 PASSED
