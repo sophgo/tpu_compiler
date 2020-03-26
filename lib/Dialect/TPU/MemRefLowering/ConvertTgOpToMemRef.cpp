@@ -407,16 +407,24 @@ void ConvertTgOpToMemRefPass::runOnFunction() {
   patterns.clear();
   ConversionTarget target(getContext());
 
+  target.addLegalOp<tpu::TG_MemRef_BF16_ConcatOp>();
+  target.addLegalOp<tpu::TG_MemRef_BF16_CropOp>();
+  target.addLegalOp<tpu::TG_MemRef_BF16_Conv2DOp>();
+  target.addLegalOp<tpu::TG_MemRef_BF16_DeConv2DOp>();
   target.addLegalOp<tpu::TG_MemRef_BF16_EltwiseAddOp>();
   target.addLegalOp<tpu::TG_MemRef_BF16_FullyConnectedOp>();
-  target.addLegalOp<tpu::TG_MemRef_BF16_Conv2DOp>();
   target.addLegalOp<tpu::TG_MemRef_BF16_PoolAvg2DOp>();
   target.addLegalOp<tpu::TG_MemRef_BF16_PoolMax2DOp>();
+  target.addLegalOp<tpu::TG_MemRef_INT8_ConcatOp>();
+  target.addLegalOp<tpu::TG_MemRef_INT8_CropOp>();
   target.addLegalOp<tpu::TG_MemRef_INT8_EltwiseAddOp>();
   target.addLegalOp<tpu::TG_MemRef_INT8_FullyConnectedOp>();
-  target.addLegalOp<tpu::TG_MemRef_INT8_PC_Conv2DOp>();
   target.addLegalOp<tpu::TG_MemRef_INT8_PoolAvg2DOp>();
   target.addLegalOp<tpu::TG_MemRef_INT8_PoolMax2DOp>();
+  target.addLegalOp<tpu::TG_MemRef_INT8_PC_Conv2DOp>();
+  target.addLegalOp<tpu::TG_MemRef_INT8_PC_DeConv2DOp>();
+  target.addLegalOp<tpu::TG_MemRef_INT8_PT_Conv2DOp>();
+  target.addLegalOp<tpu::TG_MemRef_INT8_PT_DeConv2DOp>();
   target.addLegalOp<tpu::TG_MemRef_LoadWeightOp>();
   target.addLegalOp<tpu::TG_MemRef_ReshapeOp>();
   target.addLegalOp<tpu::TG_MemRefToTensorOp>();
@@ -425,16 +433,23 @@ void ConvertTgOpToMemRefPass::runOnFunction() {
   patterns.insert<
       convertTgOpToMemRefPattern<tpu::LoadWeightOp, tpu::TG_MemRef_LoadWeightOp>,
       convertTgOpToMemRefPattern<tpu::ReshapeOp, tpu::TG_MemRef_ReshapeOp>,
+      convertTgOpToMemRefPattern<tpu::TG_BF16_ConcatOp, tpu::TG_MemRef_BF16_ConcatOp>,
+      convertTgOpToMemRefPattern<tpu::TG_BF16_Conv2DOp, tpu::TG_MemRef_BF16_Conv2DOp>,
+      convertTgOpToMemRefPattern<tpu::TG_BF16_CropOp, tpu::TG_MemRef_BF16_CropOp>,
       convertTgOpToMemRefPattern<tpu::TG_BF16_EltwiseAddOp, tpu::TG_MemRef_BF16_EltwiseAddOp>,
       convertTgOpToMemRefPattern<tpu::TG_BF16_FullyConnectedOp, tpu::TG_MemRef_BF16_FullyConnectedOp>,
-      convertTgOpToMemRefPattern<tpu::TG_BF16_Conv2DOp, tpu::TG_MemRef_BF16_Conv2DOp>,
       convertTgOpToMemRefPattern<tpu::TG_BF16_PoolAvg2DOp, tpu::TG_MemRef_BF16_PoolAvg2DOp>,
       convertTgOpToMemRefPattern<tpu::TG_BF16_PoolMax2DOp, tpu::TG_MemRef_BF16_PoolMax2DOp>,
+      convertTgOpToMemRefPattern<tpu::TG_INT8_ConcatOp, tpu::TG_MemRef_INT8_ConcatOp>,
+      convertTgOpToMemRefPattern<tpu::TG_INT8_CropOp, tpu::TG_MemRef_INT8_CropOp>,
       convertTgOpToMemRefPattern<tpu::TG_INT8_EltwiseAddOp, tpu::TG_MemRef_INT8_EltwiseAddOp>,
       convertTgOpToMemRefPattern<tpu::TG_INT8_FullyConnectedOp, tpu::TG_MemRef_INT8_FullyConnectedOp>,
-      convertTgOpToMemRefPattern<tpu::TG_INT8_PC_Conv2DOp, tpu::TG_MemRef_INT8_PC_Conv2DOp>,
       convertTgOpToMemRefPattern<tpu::TG_INT8_PoolAvg2DOp, tpu::TG_MemRef_INT8_PoolAvg2DOp>,
       convertTgOpToMemRefPattern<tpu::TG_INT8_PoolMax2DOp, tpu::TG_MemRef_INT8_PoolMax2DOp>,
+      convertTgOpToMemRefPattern<tpu::TG_INT8_PC_Conv2DOp, tpu::TG_MemRef_INT8_PC_Conv2DOp>,
+      convertTgOpToMemRefPattern<tpu::TG_INT8_PC_DeConv2DOp, tpu::TG_MemRef_INT8_PC_DeConv2DOp>,
+      convertTgOpToMemRefPattern<tpu::TG_INT8_PT_Conv2DOp, tpu::TG_MemRef_INT8_PT_Conv2DOp>,
+      convertTgOpToMemRefPattern<tpu::TG_INT8_PT_DeConv2DOp, tpu::TG_MemRef_INT8_PT_DeConv2DOp>,
       convertMemRefToTensorOpPattern,
       convertTensorStoreOpPattern
       >(context);

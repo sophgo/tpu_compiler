@@ -101,6 +101,56 @@ def TPU_TG_MemRefToTensorOp : TPU_Op<"memref_to_tensor",
   }];
 }
 
+class TPU_TG_MemRef_ConcatOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
+  let summary = "TG " # opQuant # " Concat operator.";
+
+  let description = [{
+    Inputs:
+      `inputs`          : required, the variadic activation memref.
+
+    Attributes:
+      `axis`            : required, the axis the concat is applying
+      `rshift`          : optional, rshift, an int8 value.
+      `m_i8_inputs`     : optional, multipliers for inputs. one int8 value for
+                          each input (saved as I32ArrayAttr)
+      `m_i8_output`     : optional, multiplier for output.
+      `region`          : required, the memory region to reside in, could be
+                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
+                          (backend does not support `INPUT`, `OUTPUT` for now)
+      `gaddr`           : optional, address in global memory, normally the
+                          offset within the memory region.
+      `name`            : required, name for comparing, or debug.
+      `layer_id`        : optional, id for profiling.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface`    : support common TPU TG Op interface.
+      `TpuTGOpCodegenInterface` : support generate TPU instuctions.
+  }];
+
+  let arguments = (
+    ins Variadic<MemRefOf<[AnyFloat, AnyInteger]>>:$inputs,
+    MemRefOf<[AnyFloat, AnyInteger]>:$output,
+    OptionalAttr<I8Attr>:$rshift,
+    OptionalAttr<I32ArrayAttr>:$m_i8_inputs,
+    OptionalAttr<I8Attr>:$m_i8_output,
+    I32Attr:$axis,
+    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
+    OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
+  );
+}
+def TPU_TG_MemRef_INT8_ConcatOp : TPU_TG_MemRef_ConcatOp<"tg_memref_int8_concat", "Int8">;
+def TPU_TG_MemRef_BF16_ConcatOp : TPU_TG_MemRef_ConcatOp<"tg_memref_bf16_concat", "Bf16">;
+
+
 class TPU_TG_MemRef_ConvOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
@@ -153,8 +203,57 @@ class TPU_TG_MemRef_ConvOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     DefaultValuedAttr<BoolAttr, "false">:$fuse_next
   );
 }
+def TPU_TG_MemRef_INT8_PT_Conv2DOp : TPU_TG_MemRef_ConvOp<"tg_memref_int8_pt_conv_2d", "Int8 Per-Tensor">;
 def TPU_TG_MemRef_INT8_PC_Conv2DOp : TPU_TG_MemRef_ConvOp<"tg_memref_int8_pc_conv_2d", "Int8 Per-Channel">;
 def TPU_TG_MemRef_BF16_Conv2DOp : TPU_TG_MemRef_ConvOp<"tg_memref_bf16_conv_2d", "Bf16">;
+def TPU_TG_MemRef_INT8_PT_DeConv2DOp : TPU_TG_MemRef_ConvOp<"tg_memref_int8_pt_deconv_2d", "Int8 Per-Tensor">;
+def TPU_TG_MemRef_INT8_PC_DeConv2DOp : TPU_TG_MemRef_ConvOp<"tg_memref_int8_pc_deconv_2d", "Int8 Per-Channel">;
+def TPU_TG_MemRef_BF16_DeConv2DOp : TPU_TG_MemRef_ConvOp<"tg_memref_bf16_deconv_2d", "Bf16">;
+
+class TPU_TG_MemRef_CropOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
+  let summary = "TG " # opQuant # " Crop operator.";
+
+  let description = [{
+    Inputs:
+      `input`          : required, the activation memref.
+
+    Attributes:
+      `crop_shape`      : required, crop shape(saved as I32ArrayAttr).
+      `crop_offset`     : required, crop offset(saved as I32ArrayAttr).
+      `region`          : required, the memory region to reside in, could be
+                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
+                          (backend does not support `INPUT`, `OUTPUT` for now)
+      `gaddr`           : optional, address in global memory, normally the
+                          offset within the memory region.
+      `name`            : required, name for comparing, or debug.
+      `layer_id`        : optional, id for profiling.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface`    : support common TPU TG Op interface.
+      `TpuTGOpCodegenInterface` : support generate TPU instuctions.
+  }];
+
+  let arguments = (
+    ins MemRefOf<[AnyFloat, AnyInteger]>:$input,
+    MemRefOf<[AnyFloat, AnyInteger]>:$output,
+    OptionalAttr<I32ArrayAttr>:$crop_shape,
+    OptionalAttr<I32ArrayAttr>:$crop_offset,
+    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
+    OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
+  );
+}
+def TPU_TG_MemRef_INT8_CropOp : TPU_TG_MemRef_CropOp<"tg_memref_int8_crop", "Int8">;
+def TPU_TG_MemRef_BF16_CropOp : TPU_TG_MemRef_CropOp<"tg_memref_bf16_crop", "Bf16">;
+
 
 class TPU_TG_MemRef_EltwiseOp<string mnemonic, string opQuant, string opType> : TPU_Op<mnemonic,
       [NoSideEffect,
