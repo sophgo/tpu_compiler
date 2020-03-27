@@ -1,0 +1,37 @@
+cvi_config:
+  # int8
+  - cmd: build_cvimodel
+    mlirfile_fp32: efficientnet_b0.mlir
+    cvimodel: efficientnet_int8_multiplier.cvimodel
+    threshold_table: ${REGRESSION_PATH}/efficientnet_b0/data/efficientnet_b0_threshold_table
+    mlirfile_int8: efficientnet_b0_quant_int8_multiplier.mlir
+    quant_method: perchannel
+    cmd_buf: cmdbuf.bin
+    quant_info: efficientnet_b0_op_info_int8_multiplier.csv
+
+  - cmd: inference
+    model_type: mlir
+    mlirfile: efficientnet_b0_quant_int8_multiplier.mlir
+    input_npz: efficientnet_in_fp32.npz
+    all_tensors: efficientnet_tensor_all_int8.npz
+
+  - cmd: cvi_npz_compare
+    target_file: efficientnet_tensor_all_int8.npz
+    ref_file: efficientnet_blobs.npz
+    tolerance: 0.36,0.28,-0.60
+    op_info: efficientnet_b0_op_info_int8_multiplier.csv
+    dequant: True
+    verbose: 2
+
+  # int8 cmdbuf
+  - cmd: tpu_simulation
+    input_file: efficientnet_in_fp32.npz
+    cvimodel: efficientnet_int8_multiplier.cvimodel
+    output_tensor: efficientnet_cmdbuf_out_all_int8_multiplier.npz
+    all_tensors: True
+
+  - cmd: cvi_npz_compare
+    target_file: efficientnet_tensor_all_int8.npz
+    ref_file: efficientnet_cmdbuf_out_all_int8_multiplier.npz
+    op_info: efficientnet_b0_op_info_int8_multiplier.csv
+    verbose: 0

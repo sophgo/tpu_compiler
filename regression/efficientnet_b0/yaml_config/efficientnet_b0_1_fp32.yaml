@@ -27,7 +27,7 @@ cvi_config:
     ref_file: efficientnet_blobs.npz
     tolerance: 0.9999,0.9999,0.999
     op_info: efficientnet_b0_op_info.csv
-    dequant: True
+    dequant: False
     verbose: 2
 
 
