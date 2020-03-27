@@ -51,7 +51,7 @@ mlir-tpu-interpreter \
 cvi_npz_tool.py compare retinaface_mnet25_out_fp32.npz retinaface_mnet25_out_fp32_caffe.npz -v
 cvi_npz_tool.py compare \
     retinaface_mnet25_tensor_all_fp32.npz \
-    retinaface_mnet25_caffe_blobs.npz \
+    retinaface_mnet25_blobs.npz \
     --op_info retinaface_mnet25_op_info.csv \
     --tolerance=0.999,0.999,0.999 -vvv
 

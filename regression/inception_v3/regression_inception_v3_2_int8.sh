@@ -11,7 +11,7 @@ COMPARE_ALL=1
 # import calibration table
 mlir-opt \
     --import-calibration-table \
-    --calibration-table $REGRESSION_PATH/inception_v3/data/inception_v3_threshold_table \
+    --calibration-table $REGRESSION_PATH/inception_v3/data/inception_v3_calibration_table \
     inception_v3_opt.mlir \
     -o inception_v3_cali.mlir
 

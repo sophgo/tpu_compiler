@@ -7,7 +7,7 @@ DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 # import calibration table
 mlir-opt \
     --import-calibration-table \
-    --calibration-table $REGRESSION_PATH/shufflenet_v1/data/shufflenet_threshold_table \
+    --calibration-table $REGRESSION_PATH/shufflenet_v1/data/shufflenet_calibration_table \
     shufflenet_opt.mlir \
     -o shufflenet_cali.mlir
 

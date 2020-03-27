@@ -20,7 +20,7 @@ mlir-opt \
 
 mlir-opt \
     --import-calibration-table \
-    --calibration-table retinaface_res50_threshold_table \
+    --calibration-table retinaface_res50_calibration_table \
     retinaface_res50_with_detection_opt.mlir \
     -o retinaface_res50_with_detection_cali.mlir
 

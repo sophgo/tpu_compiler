@@ -7,7 +7,7 @@ DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 # import calibration table
 mlir-opt \
     --import-calibration-table \
-    --calibration-table $REGRESSION_PATH/pytorch/resnet18/data/resnet18_threshold_table \
+    --calibration-table $REGRESSION_PATH/pytorch/resnet18/data/resnet18_calibration_table \
     resnet18_opt.mlir \
     -o resnet18_cali.mlir
 

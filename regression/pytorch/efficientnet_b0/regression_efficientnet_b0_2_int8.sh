@@ -7,7 +7,7 @@ DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 # import calibration table
 mlir-opt \
     --import-calibration-table \
-    --calibration-table $REGRESSION_PATH/pytorch/efficientnet_b0/data/efficientnet_b0_threshold_table \
+    --calibration-table $REGRESSION_PATH/pytorch/efficientnet_b0/data/efficientnet_b0_calibration_table \
     efficientnet_b0_opt.mlir \
     -o efficientnet_b0_cali.mlir
 

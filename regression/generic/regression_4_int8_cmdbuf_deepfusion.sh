@@ -59,7 +59,7 @@ build_cvimodel.py \
     --output=${NET}_int8_lw.cvimodel
 
 # profiling cmdbuf
-cvi_profiling --cmdbuf cmdbuf_lw.bin
+# cvi_profiling --cmdbuf cmdbuf_lw.bin
 # libreoffice analysis.csv
 # cp $INSTALL_PATH/bin/performance.html .
 # google-chrome performance.html

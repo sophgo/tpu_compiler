@@ -22,11 +22,11 @@ ERR=0
 
 pushd regression_out
 
-parallel -j14 --delay 2.5 --ungroup --joblog job_regression.log < $DIR/regression.txt
+parallel -j0 --delay 2.5  --joblog job_regression.log < $DIR/regression.txt
 if [ "$?" -ne "0" ]; then
   ERR=1
 fi
-parallel -j3 --delay 2.5 --ungroup --joblog job_accuracy.log < $DIR/accuracy.txt
+parallel -j0 --delay 2.5 --joblog job_accuracy.log < $DIR/accuracy.txt
 if [ "$?" -ne "0" ]; then
   ERR=1
 fi

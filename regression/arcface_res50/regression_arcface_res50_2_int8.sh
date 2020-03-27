@@ -8,7 +8,7 @@ COMPARE_ALL=1
 # import calibration table
 mlir-opt \
     --import-calibration-table \
-    --calibration-table $REGRESSION_PATH/arcface/data/arcface_res50_threshold_table \
+    --calibration-table $REGRESSION_PATH/arcface/data/arcface_res50_calibration_table \
     arcface_res50_opt.mlir \
     -o arcface_res50_cali.mlir
 

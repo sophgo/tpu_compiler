@@ -22,7 +22,7 @@ TEST_MORE_CALIBRATION_TABLE=0
 # relu-overwrite-backward is the default (20200209)
 mlir-opt \
     --import-calibration-table \
-    --calibration-table $REGRESSION_PATH/yolo_v3/data/yolo_v3_threshold_table_autotune \
+    --calibration-table $REGRESSION_PATH/yolo_v3/data/yolo_v3_calibration_table_autotune \
     ${NET}_opt.mlir \
     -o ${NET}_cali.mlir
 
@@ -33,7 +33,7 @@ mlir-opt \
     --import-calibration-table \
     --enable-cali-overwrite-threshold-forward-relu=true \
     --enable-cali-overwrite-threshold-backward-relu=false \
-    --calibration-table $REGRESSION_PATH/yolo_v3/data/yolo_v3_threshold_table_autotune \
+    --calibration-table $REGRESSION_PATH/yolo_v3/data/yolo_v3_calibration_table_autotune \
     ${NET}_opt.mlir \
     -o ${NET}_cali_fwd.mlir
 
@@ -42,14 +42,14 @@ mlir-opt \
     --import-calibration-table \
     --enable-cali-overwrite-threshold-forward-relu=false \
     --enable-cali-overwrite-threshold-backward-relu=false \
-    --calibration-table $REGRESSION_PATH/yolo_v3/data/yolo_v3_threshold_table_autotune \
+    --calibration-table $REGRESSION_PATH/yolo_v3/data/yolo_v3_calibration_table_autotune \
     ${NET}_opt.mlir \
     -o ${NET}_cali_no_overwrite.mlir
 
 # non-autotune, relu-overwrite-backward
 mlir-opt \
     --import-calibration-table \
-    --calibration-table $REGRESSION_PATH/yolo_v3/data/yolo_v3_threshold_table \
+    --calibration-table $REGRESSION_PATH/yolo_v3/data/yolo_v3_calibration_table \
     ${NET}_opt.mlir \
     -o ${NET}_cali_no_tune_bwd.mlir
 
@@ -58,7 +58,7 @@ mlir-opt \
     --import-calibration-table \
     --enable-cali-overwrite-threshold-forward-relu=true \
     --enable-cali-overwrite-threshold-backward-relu=false \
-    --calibration-table $REGRESSION_PATH/yolo_v3/data/yolo_v3_threshold_table \
+    --calibration-table $REGRESSION_PATH/yolo_v3/data/yolo_v3_calibration_table \
     ${NET}_opt.mlir \
     -o ${NET}_cali_no_tune_fwd.mlir
 
@@ -67,7 +67,7 @@ mlir-opt \
     --import-calibration-table \
     --enable-cali-overwrite-threshold-forward-relu=false \
     --enable-cali-overwrite-threshold-backward-relu=false \
-    --calibration-table $REGRESSION_PATH/yolo_v3/data/yolo_v3_threshold_table \
+    --calibration-table $REGRESSION_PATH/yolo_v3/data/yolo_v3_calibration_table \
     ${NET}_opt.mlir \
     -o ${NET}_cali_no_tune_no_overwrite.mlir
 
@@ -75,7 +75,7 @@ mlir-opt \
 mlir-opt \
     --import-calibration-table \
     --enable-cali-overwrite-threshold-backward-concat \
-    --calibration-table $REGRESSION_PATH/yolo_v3/data/yolo_v3_threshold_table \
+    --calibration-table $REGRESSION_PATH/yolo_v3/data/yolo_v3_calibration_table \
     ${NET}_opt.mlir \
     -o ${NET}_cali_concat_bwd.mlir
 

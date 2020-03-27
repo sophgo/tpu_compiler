@@ -18,7 +18,7 @@ fi
 
 # extract input and output
 cvi_npz_tool.py extract $CAFFE_BLOBS_NPZ bmface_v3_in_fp32.npz data
-cvi_npz_tool.py extract $CAFFE_BLOBS_NPZ bmface_v3_out_fp32_prob.npz fc1
+cvi_npz_tool.py extract $CAFFE_BLOBS_NPZ bmface_v3_out_fp32.npz fc1
 
 # VERDICT
 echo $0 PASSED

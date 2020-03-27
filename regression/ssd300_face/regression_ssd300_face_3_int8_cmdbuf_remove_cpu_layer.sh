@@ -23,7 +23,7 @@ mlir-opt \
 
 mlir-opt \
     --import-calibration-table \
-    --calibration-table $REGRESSION_PATH/ssd300_face/data/ssd300_face_threshold_table \
+    --calibration-table $REGRESSION_PATH/ssd300_face/data/ssd300_face_calibration_table \
     ssd300_face_opt.mlir \
     -o ssd300_face_cali.mlir
 

@@ -20,8 +20,6 @@ cvi_npz_tool.py extract ssd300_face_blobs.npz ssd300_face_out_fp32_ref.npz detec
 
 # fix input data consistency
 # because jpeg decoder may introduce difference, use save file to overwrite
-cvi_npz_tool.py compare ssd300_face_in_fp32.npz $REGRESSION_PATH/ssd300_face/data/ssd300_face_in_fp32.npz
-cp $REGRESSION_PATH/ssd300_face/data/ssd300_face_in_fp32.npz ssd300_face_in_fp32.npz
 
 # VERDICT
 echo $0 PASSED

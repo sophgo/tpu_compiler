@@ -9,7 +9,7 @@ COMPARE_ALL=1
 # import calibration table
 mlir-opt \
     --import-calibration-table \
-    --calibration-table $REGRESSION_PATH/densenet/data/densenet_threshold_table \
+    --calibration-table $REGRESSION_PATH/densenet/data/densenet_calibration_table \
     densenet_opt.mlir \
     -o densenet_cali.mlir
 

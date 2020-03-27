@@ -15,12 +15,12 @@ python ../../../../mlir/externals/calibration_tool/run_calibration.py \
     $DATA_PATH/input.txt \
     --input_num=100
 
-cp ./result/ssd300_threshold_table $REGRESSION_PATH/ssd300/data/
+cp ./result/ssd300_calibration_table $REGRESSION_PATH/ssd300/data/
 else
 # import calibration table
 mlir-opt \
     --import-calibration-table \
-    --calibration-table $REGRESSION_PATH/ssd300/data/ssd300_threshold_table \
+    --calibration-table $REGRESSION_PATH/ssd300/data/ssd300_calibration_table \
     ssd300_opt.mlir \
     -o ssd300_cali.mlir
 

@@ -7,7 +7,7 @@ DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 # import calibration table
 mlir-opt \
     --import-calibration-table \
-    --calibration-table $REGRESSION_PATH/pytorch/alphapose/data/alphapose_threshold_table \
+    --calibration-table $REGRESSION_PATH/pytorch/alphapose/data/alphapose_calibration_table \
     alphapose_opt.mlir \
     -o alphapose_cali.mlir
 

@@ -20,13 +20,13 @@ python ../../../../mlir/externals/calibration_tool/run_calibration.py \
     --input_num=10 \
     --math_lib_path=../../../../mlir/externals/calibration_tool/build/calibration_math.so
 
-cp ./result/ssd300_face_threshold_table $REGRESSION_PATH/ssd300_face/data/
+cp ./result/ssd300_face_calibration_table $REGRESSION_PATH/ssd300_face/data/
 fi
 
 # import calibration table
 mlir-opt \
     --import-calibration-table \
-    --calibration-table $REGRESSION_PATH/ssd300_face/data/ssd300_face_threshold_table \
+    --calibration-table $REGRESSION_PATH/ssd300_face/data/ssd300_face_calibration_table \
     ssd300_face_opt.mlir \
     -o ssd300_face_cali.mlir
 

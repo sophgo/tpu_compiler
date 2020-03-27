@@ -6,7 +6,7 @@ DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 # import calibration table
 mlir-opt \
     --import-calibration-table \
-    --calibration-table $REGRESSION_PATH/bmface_v3/data/bmface-v3_cali1024_threshold_table \
+    --calibration-table $REGRESSION_PATH/bmface_v3/data/bmface-v3_cali1024_calibration_table \
     bmface_v3_opt.mlir \
     -o bmface_v3_cali.mlir
 

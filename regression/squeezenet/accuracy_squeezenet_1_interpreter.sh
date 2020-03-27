@@ -17,31 +17,31 @@ else
 fi
 
 $EVAL_FUNC \
-    --model=squeezenet_v1.1.mlir \
+    --model=squeezenet.mlir \
     --dataset=$DATASET_PATH/imagenet/img_val_extracted \
     --mean_file=$REGRESSION_PATH/squeezenet/data/mean_resize.npy \
     --count=$1
 
 $EVAL_FUNC \
-    --model=squeezenet_v1.1_quant_int8_per_layer.mlir \
+    --model=squeezenet_quant_int8_per_layer.mlir \
     --dataset=$DATASET_PATH/imagenet/img_val_extracted \
     --mean_file=$REGRESSION_PATH/squeezenet/data/mean_resize.npy \
     --count=$1
 
 $EVAL_FUNC \
-    --model=squeezenet_v1.1_quant_int8_per_channel.mlir \
+    --model=squeezenet_quant_int8_per_channel.mlir \
     --dataset=$DATASET_PATH/imagenet/img_val_extracted \
     --mean_file=$REGRESSION_PATH/squeezenet/data/mean_resize.npy \
     --count=$1
 
 $EVAL_FUNC \
-    --model=squeezenet_v1.1_quant_int8_multiplier.mlir \
+    --model=squeezenet_quant_int8_multiplier.mlir \
     --dataset=$DATASET_PATH/imagenet/img_val_extracted \
     --mean_file=$REGRESSION_PATH/squeezenet/data/mean_resize.npy \
     --count=$1
 
 #$EVAL_FUNC \
-#    --model=squeezenet_v1.1_quant_bf16.mlir \
+#    --model=squeezenet_quant_bf16.mlir \
 #    --dataset=$DATASET_PATH/imagenet/img_val_extracted \
 #    --mean_file=$REGRESSION_PATH/squeezenet/data/mean_resize.npy \
 #    --count=$1

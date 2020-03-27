@@ -15,19 +15,19 @@ if [ $DO_CALIBRATION -eq 1 ]; then
       retinaface_res50 \
       retinaface_res50_opt.mlir \
       cali_list_widerface_100.txt \
-      retinaface_res50_threshold_table \
+      retinaface_res50_calibration_table \
       --net_input_dims=600,600 \
       --input_num=100 \
       --histogram_bin_num=65536 \
       --out_path=. \
       --math_lib_path=$CALIBRATION_TOOL_PATH/calibration_math.so
 else
-  cp $REGRESSION_PATH/retinaface_res50/data/retinaface_res50_threshold_table .
+  cp $REGRESSION_PATH/retinaface_res50/data/retinaface_res50_calibration_table .
 fi
 
 mlir-opt \
     --import-calibration-table \
-    --calibration-table retinaface_res50_threshold_table \
+    --calibration-table retinaface_res50_calibration_table \
     retinaface_res50_opt.mlir \
     -o retinaface_res50_cali.mlir
 
@@ -52,7 +52,7 @@ cvi_npz_tool.py extract \
     face_rpn_bbox_pred_stride16,face_rpn_bbox_pred_stride32,face_rpn_bbox_pred_stride8,face_rpn_cls_prob_reshape_stride16,face_rpn_cls_prob_reshape_stride32,face_rpn_cls_prob_reshape_stride8,face_rpn_landmark_pred_stride16,face_rpn_landmark_pred_stride32,face_rpn_landmark_pred_stride8
 cvi_npz_tool.py compare \
       retinaface_res50_out_int8.npz \
-      retinaface_res50_caffe_blobs.npz \
+      retinaface_res50_blobs.npz \
       --op_info retinaface_res50_op_info_int8.csv \
       --dequant \
       --tolerance 0.95,0.94,0.68 -vvv
@@ -60,7 +60,7 @@ cvi_npz_tool.py compare \
 if [ $COMPARE_ALL -eq 1 ]; then
   cvi_npz_tool.py compare \
       retinaface_res50_tensor_all_int8.npz \
-      retinaface_res50_caffe_blobs.npz \
+      retinaface_res50_blobs.npz \
       --op_info retinaface_res50_op_info_int8.csv \
       --dequant \
       --tolerance 0.86,0.83,0.49 -vv

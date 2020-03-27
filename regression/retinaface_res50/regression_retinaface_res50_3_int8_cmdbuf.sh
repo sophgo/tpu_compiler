@@ -20,7 +20,7 @@ DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 #    float32
 
 #cvi_npz_tool.py to_bin retinaface_res50_in_fp32.npz data retinaface_res50_in_fp32.bin
-# Depend on retinaface_res50_threshold_table
+# Depend on retinaface_res50_calibration_table
 #bin_fp32_to_int8.py \
 #    retinaface_res50_in_fp32.bin \
 #    retinaface_res50_in_int8.bin \

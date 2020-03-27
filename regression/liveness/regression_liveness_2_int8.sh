@@ -7,7 +7,7 @@ DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 # import calibration table
 mlir-opt \
     --import-calibration-table \
-    --calibration-table $REGRESSION_PATH/liveness/data/liveness_threshold_table \
+    --calibration-table $REGRESSION_PATH/liveness/data/liveness_calibration_table \
     liveness_opt.mlir \
     -o liveness_cali.mlir
 

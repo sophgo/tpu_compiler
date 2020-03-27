@@ -44,7 +44,7 @@ cvi_npz_tool.py compare mobilenet_v2_preprocess_opt_all_fp32.npz \
 # test 2: int8
 mlir-opt \
     --import-calibration-table \
-    --calibration-table $REGRESSION_PATH/mobilenet_v2/data/mobilenet_v2_preprocess_threshold_table \
+    --calibration-table $REGRESSION_PATH/mobilenet_v2/data/mobilenet_v2_preprocess_calibration_table \
     mobilenet_v2_preprocess_opt.mlir \
     -o mobilenet_v2_preprocess_cali.mlir
 

@@ -1,10 +1,13 @@
 #!/bin/bash
 set -e
 
+DIR="$( cd "$(dirname "$0")" ; pwd -P )"
+
 #default values
 export EXCEPTS=-
 export DO_CALIBRATION=0
 export CALIBRATION_IMAGE_COUNT=1000
+export MLIR_OPT_FP32="--convert-bn-to-scale"
 export DO_QUANT_INT8=1
 export DO_QUANT_INT8_PER_TENSOR=1
 export DO_QUANT_INT8_RFHIFT_ONLY=1
@@ -23,6 +26,7 @@ else
   BATCH_SIZE=$DO_BATCHSIZE
 fi
 export BATCH_SIZE
+export FP32_INFERENCE_SCRIPT=$DIR/regression_0_caffe.sh
 
 if [ $NET = "resnet50" ]; then
 export MODEL_DEF=$MODEL_PATH/imagenet/resnet/caffe/ResNet-50-deploy.prototxt
@@ -70,7 +74,7 @@ if [ $NET = "googlenet" ]; then
 export MODEL_DEF=$MODEL_PATH/imagenet/googlenet/caffe/deploy.prototxt
 export MODEL_DAT=$MODEL_PATH/imagenet/googlenet/caffe/bvlc_googlenet.caffemodel
 export DO_CALIBRATION=1
-# export CALI_TABLE=$REGRESSION_PATH/googlenet/data/inception_v3_threshold_table
+# export CALI_TABLE=$REGRESSION_PATH/googlenet/data/inception_v3_calibration_table
 export NET_INPUT_DIMS=224,224
 export RAW_SCALE=255.0
 export MEAN=104.0,117.0,123.0
@@ -90,7 +94,7 @@ fi
 if [ $NET = "inception_v3" ]; then
 export MODEL_DEF=$MODEL_PATH/imagenet/inception_v3/caffe/deploy_inception-v3.prototxt
 export MODEL_DAT=$MODEL_PATH/imagenet/inception_v3/caffe/inception-v3.caffemodel
-export CALI_TABLE=$REGRESSION_PATH/inception_v3/data/inception_v3_threshold_table
+export CALI_TABLE=$REGRESSION_PATH/inception_v3/data/inception_v3_calibration_table
 export NET_INPUT_DIMS=299,299
 export RAW_SCALE=255.0
 export MEAN=128.0,128.0,128.0
@@ -110,7 +114,7 @@ fi
 if [ $NET = "inception_v4" ]; then
 export MODEL_DEF=$MODEL_PATH/imagenet/inception_v4/caffe/deploy_inception-v4.prototxt
 export MODEL_DAT=$MODEL_PATH/imagenet/inception_v4/caffe/inception-v4.caffemodel
-export CALI_TABLE=$REGRESSION_PATH/inception_v4/data/inception_v4_threshold_table
+export CALI_TABLE=$REGRESSION_PATH/inception_v4/data/inception_v4_calibration_table
 export NET_INPUT_DIMS=299,299
 export RAW_SCALE=255.0
 export MEAN=128.0,128.0,128.0
@@ -131,7 +135,7 @@ if [ $NET = "efficientnet_b0" ]; then
 export MODEL_DEF=$MODEL_PATH/imagenet/efficientnet-b0/caffe/efficientnet-b0.prototxt
 export MODEL_DAT=$MODEL_PATH/imagenet/efficientnet-b0/caffe/efficientnet-b0.caffemodel
 # export DO_CALIBRATION=1
-export CALI_TABLE=$REGRESSION_PATH/efficientnet_b0/data/efficientnet_b0_threshold_table_1000
+export CALI_TABLE=$REGRESSION_PATH/efficientnet_b0/data/efficientnet_b0_calibration_table_1000
 export NET_INPUT_DIMS=224,224
 export RAW_SCALE=1.0
 export MEAN=0.485,0.456,0.406
@@ -176,7 +180,7 @@ if [ $NET = "shufflenet_v2" ]; then
 export MODEL_DEF=$MODEL_PATH/imagenet/shufflenet_v2/caffe/shufflenet_v2_x0.5.prototxt
 export MODEL_DAT=$MODEL_PATH/imagenet/shufflenet_v2/caffe/shufflenet_v2_x0.5.caffemodel
 #export DO_CALIBRATION=1
-export CALI_TABLE=$REGRESSION_PATH/shufflenet_v2/data/shufflenet_v2_threshold_table
+export CALI_TABLE=$REGRESSION_PATH/shufflenet_v2/data/shufflenet_v2_calibration_table
 export NET_INPUT_DIMS=224,224
 export RAW_SCALE=1.0
 export MEAN=0.0,0.0,0.0
@@ -189,4 +193,110 @@ export TOLERANCE_INT8_RSHIFT_ONLY=0.92,0.92,0.55
 export TOLERANCE_INT8_MULTIPLER=0.92,0.92,0.57
 export TOLERANCE_BF16=0.99,0.99,0.94
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
+fi
+
+if [ $NET = "arcface_res50" ]; then
+export MODEL_DEF=$MODEL_PATH/face_recognition/arcface_res50/caffe/arcface_res50.prototxt
+export MODEL_DAT=$MODEL_PATH/face_recognition/arcface_res50/caffe/arcface_res50.caffemodel
+export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/$NET/regression_${NET}_0_caffe.sh
+export CALI_TABLE=$REGRESSION_PATH/$NET/data/${NET}_calibration_table
+export INPUT=data
+export TOLERANCE_INT8_MULTIPLER=0.59,0.59,-0.12
+export DO_QUANT_INT8_PER_TENSOR=0
+export DO_QUANT_INT8_RFHIFT_ONLY=0
+export DO_QUANT_BF16=0
+export DO_DEEPFUSION=0
+fi
+
+if [ $NET = "bmface_v3" ]; then
+export MODEL_DEF=$MODEL_PATH/face_recognition/bmface/caffe/bmface-v3.prototxt
+export MODEL_DAT=$MODEL_PATH/face_recognition/bmface/caffe/bmface-v3.caffemodel
+export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/$NET/regression_${NET}_0_caffe.sh
+export CALI_TABLE=$REGRESSION_PATH/bmface_v3/data/bmface-v3_cali1024_calibration_table
+export INPUT=data
+export TOLERANCE_INT8_MULTIPLER=0.9,0.9,0.6
+export DO_QUANT_INT8_PER_TENSOR=0
+export DO_QUANT_INT8_RFHIFT_ONLY=0
+export DO_QUANT_BF16=0
+export DO_DEEPFUSION=0
+fi
+
+if [ $NET = "liveness" ]; then
+export MODEL_DEF=$MODEL_PATH/face_antispoofing/RGBIRLiveness/caffe/RGBIRlivenessFacebageNet.prototxt
+export MODEL_DAT=$MODEL_PATH/face_antispoofing/RGBIRLiveness/caffe/RGBIRlivenessFacebageNet.caffemodel
+export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/$NET/regression_${NET}_0_caffe.sh
+export INPUT=data
+export CALI_TABLE=$REGRESSION_PATH/$NET/data/${NET}_calibration_table
+export TOLERANCE_INT8_MULTIPLER=0.9,0.9,0.7
+export DO_QUANT_INT8_PER_TENSOR=0
+export DO_QUANT_INT8_RFHIFT_ONLY=0
+export DO_QUANT_BF16=0
+export DO_DEEPFUSION=0
+fi
+
+if [ $NET = "retinaface_mnet25" ]; then
+export MODEL_DEF=$MODEL_PATH/face_detection/retinaface/caffe/mnet_320.prototxt
+export MODEL_DAT=$MODEL_PATH/face_detection/retinaface/caffe/mnet.caffemodel
+export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/$NET/regression_${NET}_0_caffe.sh
+export CALI_TABLE=$REGRESSION_PATH/$NET/data/${NET}_calibration_table
+export INPUT=data
+export TOLERANCE_INT8_MULTIPLER=0.90,0.85,0.54
+export DO_QUANT_INT8_PER_TENSOR=0
+export DO_QUANT_INT8_RFHIFT_ONLY=0
+export DO_QUANT_BF16=0
+export DO_DEEPFUSION=1
+fi
+
+if [ $NET = "retinaface_res50" ]; then
+export MODEL_DEF=$MODEL_PATH/face_detection/retinaface/caffe/R50-0000.prototxt
+export MODEL_DAT=$MODEL_PATH/face_detection/retinaface/caffe/R50-0000.caffemodel
+export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/$NET/regression_${NET}_0_caffe.sh
+export CALI_TABLE=$REGRESSION_PATH/$NET/data/${NET}_calibration_table
+export INPUT=data
+export TOLERANCE_INT8_MULTIPLER=0.86,0.83,0.49
+export DO_QUANT_INT8_PER_TENSOR=0
+export DO_QUANT_INT8_RFHIFT_ONLY=0
+export DO_QUANT_BF16=0
+export DO_DEEPFUSION=1
+fi
+
+if [ $NET = "squeezenet" ]; then
+export MODEL_DEF=$MODEL_PATH/imagenet/squeezenet/caffe/deploy_v1.1.prototxt
+export MODEL_DAT=$MODEL_PATH/imagenet/squeezenet/caffe/squeezenet_v1.1.caffemodel
+export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/$NET/regression_${NET}_0_caffe.sh
+export CALI_TABLE=$REGRESSION_PATH/$NET/data/${NET}_calibration_table
+export INPUT=data
+export TOLERANCE_INT8_PER_TENSOR=0.9,0.9,0.55
+export TOLERANCE_INT8_RSHIFT_ONLY=0.9,0.9,0.6
+export TOLERANCE_INT8_MULTIPLER=0.9,0.9,0.6
+export TOLERANCE_BF16=0.99,0.99,0.93
+export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.93
+export DO_DEEPFUSION=1
+fi
+
+if [ $NET = "ssd300" ]; then
+export MODEL_DEF=$REGRESSION_PATH/ssd300/data/deploy_tpu.prototxt
+export MODEL_DAT=$MODEL_PATH/object_detection/ssd/caffe/ssd300/VGG_coco_SSD_300x300_iter_400000.caffemodel
+export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/$NET/regression_${NET}_0_caffe.sh
+export CALI_TABLE=$REGRESSION_PATH/$NET/data/${NET}_calibration_table
+export INPUT=data
+export TOLERANCE_INT8_PER_TENSOR=0.99,0.99,0.89
+export TOLERANCE_INT8_RSHIFT_ONLY=0.98,0.98,0.81
+export TOLERANCE_INT8_MULTIPLER=0.99,0.99,0.88
+export DO_QUANT_BF16=0
+export DO_DEEPFUSION=1
+fi
+
+if [ $NET = "yolo_v3" ]; then
+export MODEL_DEF=$MODEL_PATH/object_detection/yolo_v3/caffe/416/yolov3_416.prototxt
+export MODEL_DAT=$MODEL_PATH/object_detection/yolo_v3/caffe/416/yolov3_416.caffemodel
+export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/$NET/regression_${NET}_0_caffe.sh
+export CALI_TABLE=$REGRESSION_PATH/yolo_v3/data/yolo_v3_calibration_table_autotune
+export INPUT=input
+export TOLERANCE_INT8_PER_TENSOR=0.9,0.88,0.51
+export TOLERANCE_INT8_RSHIFT_ONLY=0.92,0.90,0.58
+export TOLERANCE_INT8_MULTIPLER=0.93,0.92,0.61
+export TOLERANCE_BF16=0.99,0.99,0.94
+export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
+export DO_DEEPFUSION=1
 fi

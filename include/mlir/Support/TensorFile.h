@@ -103,9 +103,11 @@ public:
   static std::string generateName(llvm::StringRef base, int index) {
     srand(time(0));
     uint32_t unique = (uint32_t)random();
+    uint32_t pid = getpid();
     std::string name = base.str()
                        + "_" + std::to_string(index)
-                       + "_" + int_to_hex<uint32_t>(unique)
+                       + "_" + int_to_hex<uint16_t>(pid)
+                       + int_to_hex<uint32_t>(unique)
                        + ".npz";
     return name;
   }
@@ -265,11 +267,12 @@ public:
       auto fileInc = TensorFile::incrementName(filename);
       cnpy::npz_save_all(fileInc, map);
       filename = StringRef(fileInc);
-      //llvm::errs() << "save TensorFile to " << filename << "\n";
+      llvm::errs() << "save weight TensorFile to " << filename << "\n";
       if (newName) {
         *newName = filename.str();
       }
     } else {
+      llvm::errs() << "keep weight TensorFile to " << filename << "\n";
       cnpy::npz_save_all(filename.str(), map);
     }
     return cnt_add + cnt_del;

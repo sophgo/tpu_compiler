@@ -28,7 +28,7 @@ cvi_npz_tool.py compare \
     densenet_tensor_all_fp32.npz \
     densenet_blobs.npz \
     --op_info densenet_op_info.csv \
-    --tolerance=0.9999,0.9999,0.999 -vvv
+    --tolerance=0.999,0.999,0.99 -vvv
 
 # apply frontend optimizations
 mlir-opt \
