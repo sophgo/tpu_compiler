@@ -76,18 +76,18 @@ def parse(config: dict):
             cvimodel = t['cvimodel']
             threshold_table = t['threshold_table']
             mlirfile_int8 = t.get('mlirfile_int8', None)
-            quant_method = t['perchannel']
-            cmd_buf = t.get('cmd_buf', None)
+            quant_method = t.get('perchannel', 'perchannel')
+            cmd_buf = t.get('cmd_buf', 'cmdbuf.bin')
             quant_info = t.get('quant_info', None)
 
-            net.build_cvimodel_data(mlirfile_fp32, cvimodel, threshold_table, mlirfile_int8=mlirfile_int8,
+            net.build_cvimodel(mlirfile_fp32, cvimodel, threshold_table, mlirfile_int8=mlirfile_int8,
                         quant_method=quant_method, cmd_buf=cmd_buf, quant_info=quant_info)
 
         elif cmd == "tpu_simulation":
             input_file = t['input_file']
             cvimodel = t['cvimodel']
             output_tensor = t['output_tensor']
-            all_tensors = t.get('all_tensors', False)
+            all_tensors = t.get('all_tensors', True)
 
             net.tpu_simulation(input_file, cvimodel, output_tensor, all_tensors=all_tensors)
 

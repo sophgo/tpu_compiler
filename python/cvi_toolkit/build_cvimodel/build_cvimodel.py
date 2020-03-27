@@ -235,7 +235,6 @@ class Program:
   def __build_routines(self, cmdbufs, so_path):
     idx = 0
     routines = []
-    print('!!!!!!!!!',cmdbufs, so_path)
     for func in self.mlir.functions:
       inputs = self.__tensor_id2name(func.inputs)
       outputs = self.__tensor_id2name(func.outputs)

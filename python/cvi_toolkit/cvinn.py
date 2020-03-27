@@ -85,20 +85,15 @@ def mlir_calibration(mlirfile_fp32, dataset, threshold_table, auto_tune=False):
                         dataset,
                         "--output_file", threshold_table,
                         ])
-def run_cvimodel(input_file, cvi_model, output_tensor, all_tensors=False):
+def run_cvimodel(input_file, cvi_model, output_tensor, all_tensors=True):
+    cmd = ["model_runner",
+            "--input", input_file,
+            "--model", cvi_model,
+            "--output", output_tensor,]
     if all_tensors:
-        subprocess.run(["cvi_calibration_tool",
-                        "--input", input_file,
-                        "--model", cvi_model,
-                        "--output_file", output_tensor,
-                        "--dump-all-tensors"
-                        ])
-    else:
-        subprocess.run(["cvi_calibration_tool",
-                        "--input", input_file,
-                        "--model", cvi_model,
-                        "--output_file", output_tensor,
-                        ])
+        cmd.append("--dump-all-tensors")
+    subprocess.run(cmd)
+
 class cvinn(object):
     def __init__(self):
         pass
@@ -137,11 +132,17 @@ class cvinn(object):
 
     def build_cvimodel(self, mlirfile_fp32: str, cvimodel: str, threshold_table: str, mlirfile_int8: str = None,
                     quant_method: str = "perchannel", cmd_buf: str=None, quant_info=None):
-        int8_op_csv = "{}_op_info_int8.csv".format(mlirfile_fp32.split('.')[0].split('/')[-1])
+        if quant_info:
+            int8_op_csv = quant_info
+        else:
+            int8_op_csv = "{}_op_info_int8.csv".format(mlirfile_fp32.split('.')[0].split('/')[-1])
         cali_mlir = "cali_{}".format(mlirfile_fp32)
         mlir_import_calibration(mlirfile_fp32, cali_mlir, threshold_table)
 
-        quant_mlir = "quant_{}".format(mlirfile_fp32)
+        if mlirfile_int8:
+            quant_mlir = mlirfile_int8
+        else:
+            quant_mlir = "quant_{}".format(mlirfile_fp32)
         mlir_tpu_quant(cali_mlir, quant_mlir, int8_op_csv)
 
         tg_mlir = "tg_{}".format(mlirfile_fp32)
@@ -149,7 +150,7 @@ class cvinn(object):
         mlir_gen_cvimodel(tg_mlir, cvimodel)
         return 0
 
-    def tpu_simulation(self, input_file, cvimodel, output_tensor, all_tensors=None):
+    def tpu_simulation(self, input_file, cvimodel, output_tensor, all_tensors=True):
         run_cvimodel(input_file, cvimodel, output_tensor, all_tensors)
         return 0
 
