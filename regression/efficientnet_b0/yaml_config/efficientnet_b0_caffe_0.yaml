@@ -1,0 +1,28 @@
+cvi_config:
+
+  - cmd: preprocess
+    mean: 0.485,0.456,0.406
+    input_scale: 0.017
+    net_input_dims: 224,224
+    raw_scale: 1
+    input_file: ${REGRESSION_PATH}/resnet50/data/cat.jpg
+    output_npz: efficient_in_fp32.npz
+
+  - cmd: inference
+    model_type: caffe
+    model_file: ${MODEL_PATH}/imagenet/efficientnet-b0/caffe/efficientnet-b0.prototxt
+    weight_file: ${MODEL_PATH}/imagenet/efficientnet-b0/caffe/efficientnet-b0.caffemodel
+    input_npz: efficient_in_fp32.npz
+    all_tensors: efficientnet_blobs.npz
+
+  - cmd: cvi_npz_extract
+    input_npz: efficientnet_blobs.npz
+    ouput_npz: efficientnet_in_fp32.npz
+    extract_name: data
+
+  - cmd: cvi_npz_extract
+    input_npz: efficientnet_blobs.npz
+    ouput_npz: efficientnet_out_fp32_prob.npz
+    extract_name: _fc
+
+
