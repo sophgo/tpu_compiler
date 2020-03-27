@@ -7,13 +7,18 @@ set -e
 # Assuming toolchain setup in $TPU_BASE/tools
 #   $ cd $TPU_BASE/tools
 #
-# Unzip gcc & runtime
+# Unzip gcc & sysroot
 #   $ tar xf gcc-linaro-6.3.1-2017.05-x86_64_aarch64-linux-gnu.tar.xz
 #   $ tar xf sysroot-glibc-linaro-2.23-2017.05-aarch64-linux-gnu.tar.xz
 #
 # Create link
 #   $ ln -s gcc-linaro-6.3.1-2017.05-x86_64_aarch64-linux-gnu gcc_aarch64-linux-gnu
 #   $ ln -s sysroot-glibc-linaro-2.23-2017.05-aarch64-linux-gnu sysroot_aarch64-linux-gnu
+#
+# For integrate with SDK release
+#   - use host-tools.git as toolchain
+#   - merged sysroot headers into ramdisk.git prebuilt dir, therefore no more need for the
+#     sysroot from toolchain
 #
 
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
@@ -48,32 +53,50 @@ fi
 #
 # Setup Toolchain
 #
-export ARM_TOOLCHAIN_GCC_PATH=$TPU_BASE/tools/gcc_aarch64-linux-gnu
-export ARM_TOOLCHAIN_SYSROOT_PATH=$TPU_BASE/tools/sysroot_aarch64-linux-gnu
+if [[ -z "$ARM_TOOLCHAIN_GCC_PATH" ]]; then
+  if [[ -z "$HOST_TOOL_PATH" ]]; then
+    ARM_TOOLCHAIN_GCC_PATH=$TPU_BASE/host-tools/gcc/gcc-linaro-6.3.1-2017.05-x86_64_aarch64-linux-gnu
+  else
+    ARM_TOOLCHAIN_GCC_PATH=$HOST_TOOL_PATH/gcc/gcc-linaro-6.3.1-2017.05-x86_64_aarch64-linux-gnu
+  fi
+fi
+if [ ! -e "$ARM_TOOLCHAIN_GCC_PATH" ]; then
+  echo "ARM_TOOLCHAIN_GCC_PATH not exist"
+  return 1
+fi
+export ARM_TOOLCHAIN_GCC_PATH=$ARM_TOOLCHAIN_GCC_PATH
+# export ARM_TOOLCHAIN_GCC_PATH=$TPU_BASE/tools/gcc_aarch64-linux-gnu
+# export ARM_TOOLCHAIN_SYSROOT_PATH=$TPU_BASE/tools/sysroot_aarch64-linux-gnu
 export TOOLCHAIN_FILE_PATH=$MLIR_SRC_PATH/externals/cviruntime/scripts/toolchain-aarch64-linux.cmake
 export PATH=$ARM_TOOLCHAIN_GCC_PATH/bin:$PATH
 
 # For rootfs, we need to combine ramdisk and sysroot together for compiling
 # the reason is ramdisk lacks of some header files (for save flash space),
 # and sysroot lacks of some libraries like zlib, etc.
-if [ ! -e $TPU_BASE/ramdisk/prebuild ]; then
-  echo "Please copy or link RAMDISK to $TPU_BASE/ramdisk/prebuild"
-  return 1
-fi
-if [ ! -e $ARM_TOOLCHAIN_SYSROOT_PATH ]; then
-  echo "Please copy or link toolchain sysroot to $ARM_TOOLCHAIN_SYSROOT_PATH"
-  return 1
-fi
-if [ ! -e $BUILD_SOC_PATH/sysroot ]; then
-  mkdir -p $BUILD_SOC_PATH/sysroot
-fi
-cp -a $ARM_TOOLCHAIN_SYSROOT_PATH/* $BUILD_SOC_PATH/sysroot/
-cp -a $TPU_BASE/ramdisk/prebuild/* $BUILD_SOC_PATH/sysroot/
+# if [ ! -e $TPU_BASE/ramdisk/prebuild ]; then
+#   echo "Please copy or link RAMDISK to $TPU_BASE/ramdisk/prebuild"
+#   return 1
+# fi
+# if [ ! -e $ARM_TOOLCHAIN_SYSROOT_PATH ]; then
+#   echo "Please copy or link toolchain sysroot to $ARM_TOOLCHAIN_SYSROOT_PATH"
+#   return 1
+# fi
+# if [ ! -e $BUILD_SOC_PATH/sysroot ]; then
+#   mkdir -p $BUILD_SOC_PATH/sysroot
+# fi
+# cp -a $ARM_TOOLCHAIN_SYSROOT_PATH/* $BUILD_SOC_PATH/sysroot/
+# cp -a $TPU_BASE/ramdisk/prebuild/* $BUILD_SOC_PATH/sysroot/
 # some workaround
-cp $BUILD_SOC_PATH/sysroot/include/zlib.h $BUILD_SOC_PATH/sysroot/usr/include/
-cp $BUILD_SOC_PATH/sysroot/include/zconf.h $BUILD_SOC_PATH/sysroot/usr/include/
+# cp $BUILD_SOC_PATH/sysroot/include/zlib.h $BUILD_SOC_PATH/sysroot/usr/include/
+# cp $BUILD_SOC_PATH/sysroot/include/zconf.h $BUILD_SOC_PATH/sysroot/usr/include/
 
-export AARCH64_SYSROOT_PATH=$BUILD_SOC_PATH/sysroot
+# export AARCH64_SYSROOT_PATH=$BUILD_SOC_PATH/sysroot
+if [[ -z "$RAMDISK_PATH" ]]; then
+  AARCH64_SYSROOT_PATH=$TPU_BASE/ramdisk/prebuild
+else
+  AARCH64_SYSROOT_PATH=$RAMDISK_PATH/prebuild
+fi
+export AARCH64_SYSROOT_PATH=$AARCH64_SYSROOT_PATH
 
 #
 # install path

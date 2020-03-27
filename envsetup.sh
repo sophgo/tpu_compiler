@@ -17,27 +17,28 @@ if [ ! -e $MODEL_PATH ]; then
   echo "  Please read README.md in each regression dirs on where to download the models"
   return 1
 fi
+echo "MODEL_PATH set to $MODEL_PATH"
 export MODEL_PATH=$MODEL_PATH
 
 # set DATASET_PATH
 if [[ -z "$DATASET_PATH" ]]; then
   DATASET_PATH=~/data/dataset
 fi
+echo "DATASET_PATH set to $DATASET_PATH"
 export DATASET_PATH=$DATASET_PATH
 
-# set INSTALL_PATH
+# set MLIR_INSTALL_PATH
 if [[ -z "$MLIR_INSTALL_PATH" ]]; then
-  INSTALL_PATH=$TPU_BASE/install
-else
-  INSTALL_PATH=$MLIR_INSTALL_PATH
+  MLIR_INSTALL_PATH=$TPU_BASE/install_host
 fi
-echo "INSTALL_PATH set to $INSTALL_PATH"
-export INSTALL_PATH=$INSTALL_PATH
+echo "INSTALL_PATH set to $MLIR_INSTALL_PATH"
+export INSTALL_PATH=$MLIR_INSTALL_PATH
 
 # set BUILD_PATH
 if [[ -z "$BUILD_PATH" ]]; then
-  BUILD_PATH=$TPU_BASE/build
+  BUILD_PATH=$TPU_BASE/build_out_host
 fi
+echo "BUILD_PATH set to $BUILD_PATH"
 export BUILD_PATH=$BUILD_PATH
 
 # set PATH for all projects
@@ -50,7 +51,6 @@ export CMODEL_PATH=$INSTALL_PATH
 export RUNTIME_PATH=$INSTALL_PATH
 export PROFILING_PATH=$INSTALL_PATH
 export MLIR_PATH=$INSTALL_PATH
-
 
 # set build python version
 export PYTHON_VERSION=2
@@ -83,8 +83,10 @@ export PYTHONPATH=$FLATBUFFERS_PATH/python:$PYTHONPATH
 if [[ -z "$SDK_INSTALL_PATH" ]]; then
   SDK_INSTALL_PATH=$TPU_BASE/install_soc
 fi
+echo "INSTALL_SOC_PATH set to $INSTALL_SOC_PATH"
 export INSTALL_SOC_PATH=$SDK_INSTALL_PATH
 if [[ -z "$BUILD_SOC_PATH" ]]; then
-  BUILD_SOC_PATH=$TPU_BASE/build_soc
+  BUILD_SOC_PATH=$TPU_BASE/build_out_soc
 fi
+echo "BUILD_SOC_PATH set to $BUILD_SOC_PATH"
 export BUILD_SOC_PATH=$BUILD_SOC_PATH
