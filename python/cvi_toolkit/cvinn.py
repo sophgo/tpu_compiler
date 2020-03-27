@@ -146,13 +146,15 @@ class cvinn(object):
         run_cvimodel(input_file, cvimodel, output_tensor, all_tensors)
         return 0
 
-    def inference(self, model_type: str, input_data: np.ndarray, model_file=None, weight_file=None, mlirfile=None, all_tensors:str = None):
+    def inference(self, model_type: str, input_npz: str, model_file=None, weight_file=None, mlirfile=None, all_tensors:str = None):
         net = CVI_Model()
-        print(model_type)
+
         net.load_model(model_type, model_file=model_file, weight_file=weight_file, mlirfile=mlirfile)
+        input_data = np.load(input_npz)['input']
         out = net.inference(input_data)
+        
         if all_tensors!=None:
-            net.get_all_tensor(all_tensors)
+            net.get_all_tensor(input_data, all_tensors)
         return out
 
     def cleanup(self):

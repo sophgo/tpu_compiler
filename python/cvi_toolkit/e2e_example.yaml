@@ -1,0 +1,40 @@
+
+cvi_config:
+  # cvinn.load_model
+  - cmd: load_model
+    model_type: caffe
+    model_file: /data/models/imagenet/efficientnet-b0/caffe/efficientnet-b0.prototxt
+    # if caffe model, need assigned weight model
+    weight_file: /data/models/imagenet/efficientnet-b0/caffe/efficientnet-b0.caffemodel
+    mlirfile: efficientnet_b0.mlir
+
+  # cvinn.inference
+  # input npz struct, {'input': ndarray}
+  - cmd: inference
+    model_type: caffe
+    model_file: /data/models/imagenet/efficientnet-b0/caffe/efficientnet-b0.prototxt
+    weight_file: /data/models/imagenet/efficientnet-b0/caffe/efficientnet-b0.caffemodel
+    input_npz: efficient_in_fp32.npz
+  # inference:
+  #   model_type: mlir
+  #   mlirfile: efficientnet_b0.mlir
+  #   input_npz: efficient_in_fp32.npz
+
+
+
+  # build_cvimodel
+  - cmd: build_cvimodel
+    mlirfile_fp32: efficientnet_b0.mlir #input
+    cvimodel: efficientnet_b0.cvimodel
+    threshold_table: efficientnet_b0_threshold_table
+    mlirfile_int8: efficientnet_b0_int8.mlir # if setting, will output one int8 mlir file
+    quant_method: perchannel
+    #cmd_buf:
+    #quant_info:
+
+  # tpu_simulation
+  - cmd: tpu_simulation 
+    input_file: efficient_in_fp32.npz
+    cvimodel: efficientnet_b0.cvimodel
+    output_tensor: efficientnet_cmdbuf_out_all_int8_multiplier.npz
+    all_tensors: True

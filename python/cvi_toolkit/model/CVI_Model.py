@@ -35,12 +35,8 @@ class CVI_Model(object):
     def inference(self, input):
        return self.model.inference(input)
 
-    def get_all_tensor(self):
-        if self.init_flag:
-            return self.cvi_model.get_all_tensor()
-        else:
-            print("[ERROR] cvi model not initialize")
-            return None
+    def get_all_tensor(self, input_data, npz_file):
+        self.model.get_all_tensor(input_data, npz_file)
 
 
 

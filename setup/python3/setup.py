@@ -14,6 +14,7 @@ install_requires=[
     'torch==1.4.0',
     'torchvision==0.5.0',
     'termcolor==1.1.0',
+    'PyYAML==5.3.1',
 ]
 
 file_path = os.path.dirname(os.path.abspath(__file__))
