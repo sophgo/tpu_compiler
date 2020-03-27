@@ -46,11 +46,11 @@ mlir-translate \
     -o cmdbuf_lw.bin
 
 # generate cvimodel
-build_cvimodel.py \
-    --cmdbuf cmdbuf_la.bin \
-    --weight weight_int8_multiplier.bin \
-    --mlir ${NET}_quant_int8_multiplier_tl_la.mlir \
-    --output=${NET}_int8_la.cvimodel
+#build_cvimodel.py \
+#    --cmdbuf cmdbuf_la.bin \
+#    --weight weight_int8_multiplier.bin \
+#    --mlir ${NET}_quant_int8_multiplier_tl_la.mlir \
+#    --output=${NET}_int8_la.cvimodel
 
 build_cvimodel.py \
     --cmdbuf cmdbuf_lw.bin \
@@ -64,45 +64,12 @@ build_cvimodel.py \
 # cp $INSTALL_PATH/bin/performance.html .
 # google-chrome performance.html
 
-################################
-# run cmdbuf with cmodel
-################################
-#$RUNTIME_PATH/bin/test_bmnet \
-#    ${NET}_in_fp32.bin \
-#    weight_int8_multiplier.bin \
-#    cmdbuf_la.bin \
-#    out_all_la.bin \
-#    16460784 0 16460784 1
-#bin_extract.py \
-#    out_all_la.bin \
-#    out_${OUTPUTS}_la.bin \
-#    int8 0x00024c00 1000
-#bin_compare.py \
-#    out_${OUTPUTS}_la.bin \
-#    $REGRESSION_PATH/${NET}/data/test_cat_out_${NET}_${OUTPUTS}_int8_multiplier.bin \
-#    int8 ${BATCH_SIZE} 1 1 1000 5
-
-#$RUNTIME_PATH/bin/test_bmnet \
-#    ${NET}_in_fp32.bin \
-#    weight_int8_multiplier.bin \
-#    cmdbuf_lw.bin \
-#    out_all_lw.bin \
-#    16460784 0 16460784 1
-#bin_extract.py \
-#    out_all_lw.bin \
-#    out_${OUTPUTS}_lw.bin \
-#    int8 0x00024c00 1000
-#bin_compare.py \
-#    out_${OUTPUTS}_lw.bin \
-#    $REGRESSION_PATH/${NET}/data/test_cat_out_${NET}_${OUTPUTS}_int8_multiplier.bin \
-#    int8 ${BATCH_SIZE} 1 1 1000 5
-
-model_runner \
-    --dump-all-tensors \
-    --input ${NET}_in_fp32.npz \
-    --model ${NET}_int8_la.cvimodel \
-    --batch-num $BATCH_SIZE \
-    --output ${NET}_cmdbuf_out_all_int8_la.npz
+#model_runner \
+#    --dump-all-tensors \
+#    --input ${NET}_in_fp32.npz \
+#    --model ${NET}_int8_la.cvimodel \
+#    --batch-num $BATCH_SIZE \
+#    --output ${NET}_cmdbuf_out_all_int8_la.npz
 
 model_runner \
     --dump-all-tensors \
@@ -112,16 +79,16 @@ model_runner \
     --output ${NET}_cmdbuf_out_all_int8_lw.npz
 
 if [ $COMPARE_ALL -eq 1 ]; then
-  cvi_npz_tool.py compare \
-      ${NET}_cmdbuf_out_all_int8_la.npz \
-      ${NET}_tensor_all_int8_multiplier.npz \
-      --op_info ${NET}_op_info_int8_multiplier.csv || true
+  #cvi_npz_tool.py compare \
+  #    ${NET}_cmdbuf_out_all_int8_la.npz \
+  #    ${NET}_tensor_all_int8_multiplier.npz \
+  #    --op_info ${NET}_op_info_int8_multiplier.csv
 
   # surpress return for time being
   cvi_npz_tool.py compare \
       ${NET}_cmdbuf_out_all_int8_lw.npz \
       ${NET}_tensor_all_int8_multiplier.npz \
-      --op_info ${NET}_op_info_int8_multiplier.csv || true
+      --op_info ${NET}_op_info_int8_multiplier.csv
 fi
 
 if [ ! -z $CVIMODEL_REL_PATH -a -d $CVIMODEL_REL_PATH ]; then

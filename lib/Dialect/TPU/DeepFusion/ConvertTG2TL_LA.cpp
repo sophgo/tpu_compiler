@@ -21,6 +21,7 @@
 
 #include "mlir/Dialect/TPU/TPUDialect.h"
 #include "mlir/Dialect/TPU/TPUOperationSupport.h"
+#include "mlir/Dialect/StandardOps/Ops.h"
 #include "mlir/Dialect/TPU/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
@@ -144,12 +145,45 @@ struct TpuTG2TLElewiseAddOpPattern : public RewritePattern {
   }
 };
 
+static bool isUnaryOp(Operation *op) {
+  int opd_num = 0;
+  for (auto operand : op->getOperands()) {
+    auto opd = operand->getDefiningOp();
+    if ((!isa<tpu::LoadWeightOp>(opd))
+        && (!isa<tpu::NoneOp>(opd))) {
+      opd_num++;
+    }
+  }
+  return (opd_num == 1);
+}
+
 class DeepFusionTG2TL_LA : public FunctionPass<DeepFusionTG2TL_LA> {
 public:
   explicit DeepFusionTG2TL_LA() {}
 
   void runOnFunction() override {
     auto fn = getFunction();
+    // re-order operations
+    fn.walk([&](Operation *op) {
+      if (op->getName().getDialect().str() != "tpu"
+          || isa<tpu::WeightFileOp>(op)
+          || isa<tpu::LoadWeightOp>(op)
+          || isa<tpu::NoneOp>(op)) {
+      } else {
+         auto current = op;
+         while (current->getResult(0)->hasOneUse()) {
+          auto next = getNextOp(current);
+          if (isa<ReturnOp>(next) || !isUnaryOp(next))
+            break;
+          auto insertPoint = current->getNextNode();
+          next->moveBefore(insertPoint);
+          for (auto opd : next->getOperands()) {
+            opd->getDefiningOp()->moveBefore(next);
+          }
+          current = next;
+        }
+      }
+    });
     auto *context = &getContext();
     OwningRewritePatternList patterns;
     patterns.insert<
