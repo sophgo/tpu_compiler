@@ -20,6 +20,11 @@ cvi_config:
     ouput_npz: efficientnet_in_fp32.npz
     extract_name: data
 
+  - cmd: cvi_npz_rename
+    input_npz: efficientnet_in_fp32.npz
+    target_name: data
+    ref_name: input
+
   - cmd: cvi_npz_extract
     input_npz: efficientnet_blobs.npz
     ouput_npz: efficientnet_out_fp32_prob.npz
