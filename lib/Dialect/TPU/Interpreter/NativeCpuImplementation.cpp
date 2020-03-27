@@ -833,6 +833,17 @@ int my_softmax3D(float *input, float *output, int axis, const std::vector<int64_
   return 0;
 }
 
+inline int crop_offset(const std::vector<int>& indices,long int *shape) {
+    int offset = 0;
+    for (int i = 0; i < 4; ++i) {
+      offset *= shape[i];
+      if (indices.size() > i) {
+        offset += indices[i];
+      }
+    }
+    return offset;
+}
+
 int my_crop(float *input, float *output, long int *shape1, int *shape2, long int *top_shape,
             int cur_dim, int *offsets, int *indices) {
   // for loop if dim is not last
@@ -853,22 +864,7 @@ int my_crop(float *input, float *output, long int *shape1, int *shape2, long int
     }
     ind_off[cur_dim] = offsets[cur_dim];
 
-    int c = shape1[1];
-    int h = shape1[2];
-    int w = shape1[3];
-
-    int c2 = shape2[1];
-    int h2 = shape2[2];
-    int w2 = shape2[3];
-
-    int btm_offset =
-        ((ind_off[0] * c + ind_off[1]) * h + ind_off[2]) * w + ind_off[3];
-
-    int top_offset =
-        ((ind_red[0] * c2 + ind_red[1]) * h2 + ind_red[2]) * w2;
-    int offset = shape2[cur_dim] ;
-    std::copy(input + btm_offset, input + btm_offset + offset,
-              output + top_offset);
+    memcpy(output + crop_offset(ind_red, top_shape) , input + crop_offset(ind_off, shape1) , sizeof(float) * shape2[cur_dim]);
   }
   return 0;
 }

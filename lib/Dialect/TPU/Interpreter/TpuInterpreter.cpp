@@ -123,7 +123,7 @@ LogicalResult tpu::BroadcastMulOp::interpret(
   assert(opdT.size() == 6);
   std::shared_ptr<std::vector<float> > input = opdT[0];
   std::shared_ptr<std::vector<float> > scale = opdT[1];
-  assert(scale->size() == (size_t)c);
+  assert(scale->size() == (size_t)c * n);
   std::shared_ptr<std::vector<float> > quant_rshift = opdT[4];
   std::shared_ptr<std::vector<float> > quant_multiplier = opdT[5];
 
@@ -439,7 +439,8 @@ LogicalResult tpu::CropOp::interpret(
 
   arrayAttrToVector(this->crop_shape().getValue(), input_shape2);
   arrayAttrToVector(this->crop_offset().getValue(), crop_offset);
-  std::vector<int> indices(size, 0);
+  assert(output_shape.size() == 4 && " not support dim is not 4\n");
+  std::vector<int> indices(input_shape1.size(), 0);
   float *input = (float *)opdT[0]->data();
   float *output = (float *)resultT.get()->data();
 
