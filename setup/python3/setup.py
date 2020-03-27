@@ -40,7 +40,8 @@ setuptools.setup(
               'console_scripts': [
                   'cvi_npz_tool=cvi_toolkit.cvi_npz_tool:main',
                   'cvi_model_convert=cvi_toolkit.cvi_model_convert:main',
-                  'cvi_calibration_tool=cvi_toolkit.calibration:main'
+                  'cvi_calibration_tool=cvi_toolkit.calibration:main',
+                  'cvi_end2end_tool=cvi_toolkit.end2end:main'
               ],
           },
 

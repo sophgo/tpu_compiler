@@ -2,8 +2,10 @@ import yaml
 import sys, re, os
 import argparse
 from cvi_toolkit import cvinn, preprocess
-from cvi_toolkit.numpy_helper import npz_extract
+from cvi_toolkit.numpy_helper import npz_extract, npz_rename
+from cvi_toolkit import cvi_data
 net = cvinn()
+cvi_data_tool = cvi_data()
 preprocessor = preprocess()
 
 env_matcher = re.compile(r'\$\{([^}^{]+)\}')
@@ -27,8 +29,12 @@ def parse(config: dict):
             model_file = t['model_file']
             weight_file = t.get('weight_file', None)
             mlirfile = t['mlirfile']
+            tpu_op_info = t.get('tpu_op_info', "")
 
-            net.load_model(model_type, model_file, mlirfile, weight_file=weight_file)
+            ret = net.load_model(model_type, model_file, mlirfile, weight_file=weight_file, tpu_op_info=tpu_op_info)
+            if ret != 0:
+                print('load model failed!')
+                exit(-1)
 
         elif cmd == "preprocess":
             mean = t['mean']
@@ -91,6 +97,43 @@ def parse(config: dict):
             extract_name = t['extract_name']
             npz_extract([input_npz, ouput_npz, extract_name])
 
+        elif cmd == "cvi_npz_rename":
+            input_npz = t['input_npz']
+            target_name = t['target_name']
+            ref_name = t['ref_name']
+            npz_rename([input_npz, target_name, ref_name])
+
+        elif cmd == "cvi_npz_compare":
+
+            target_file = t['target_file']
+            ref_file = t['ref_file']
+            verbose = t.get('verbose', 0)
+            discard = t.get('discard', 0)
+            dtype = t.get('dtype', "")
+            tolerance= t.get('tolerance', "0.99,0.99,0.90")
+            op_info = t.get('op_info', None)
+            order = t.get('order', None)
+            tensor = t.get('tensor', None)
+            excepts = t.get('excepts', None)
+            save = t.get('save', None)
+            dequant = t.get('dequant', False)
+            full_array = t.get('full_array', False)
+            stats_int8_tensor = t.get('stats_int8_tensor', False)
+
+            cvi_data_tool.npz_compare(target_file, ref_file,
+                verbose=verbose,
+                discard=discard,
+                dtype=dtype,
+                tolerance=tolerance,
+                op_info=op_info,
+                order=order,
+                tensor=tensor,
+                excepts=excepts,
+                save=save,
+                dequant=dequant,
+                full_array=full_array,
+                stats_int8_tensor=stats_int8_tensor
+                )
 
 
 
@@ -104,6 +147,7 @@ def main():
             config = yaml.safe_load(stream)
         except yaml.YAMLError as exc:
             print(exc)
+            exit(-1)
     parse(config)
 
 

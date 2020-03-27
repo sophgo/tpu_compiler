@@ -1,0 +1,34 @@
+cvi_config:
+  - cmd: load_model
+    model_type: caffe
+    model_file: ${MODEL_PATH}/imagenet/efficientnet-b0/caffe/efficientnet-b0.prototxt
+    weight_file: ${MODEL_PATH}/imagenet/efficientnet-b0/caffe/efficientnet-b0.caffemodel
+    mlirfile: efficientnet_b0.mlir
+    tpu_op_info: efficientnet_b0_op_info.csv
+
+  - cmd: inference
+    model_type: mlir
+    mlirfile: efficientnet_b0.mlir
+    input_npz: efficientnet_in_fp32.npz
+    all_tensors: efficientnet_tensor_all_fp32.npz
+
+  - cmd: cvi_npz_extract
+    input_npz: efficientnet_tensor_all_fp32.npz
+    ouput_npz: efficientnet_out_fp32.npz
+    extract_name: _fc
+
+  - cmd: cvi_npz_compare
+    target_file: efficientnet_out_fp32.npz
+    ref_file: efficientnet_out_fp32_prob.npz
+    verbose: 1
+
+  - cmd: cvi_npz_compare
+    target_file: efficientnet_tensor_all_fp32.npz
+    ref_file: efficientnet_blobs.npz
+    tolerance: 0.9999,0.9999,0.999
+    op_info: efficientnet_b0_op_info.csv
+    dequant: True
+    verbose: 2
+
+
+

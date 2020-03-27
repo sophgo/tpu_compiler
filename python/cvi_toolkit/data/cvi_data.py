@@ -27,11 +27,11 @@ class cvi_data(object):
         if dequant:
             args.append("--dequant")
         if full_array:
-            args.append("--full_array")
+            args.append("--full-array")
         if stats_int8_tensor:
             args.append("--stats_int8_tensor")
         if verbose != 0:
-            args_verbose = '-{}'.format('v'*versbose)
+            args_verbose = '-{}'.format('v'*verbose)
             args.append(args_verbose)
         if discard != 0:
             args_discard = '-{}'.format('d'*discard)

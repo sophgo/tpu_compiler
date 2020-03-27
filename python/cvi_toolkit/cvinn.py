@@ -102,23 +102,30 @@ def run_cvimodel(input_file, cvi_model, output_tensor, all_tensors=False):
 class cvinn(object):
     def __init__(self):
         pass
-    def load_model(self, model_type: str, model_file: str,  mlirfile: str, weight_file: str = None):
+    def load_model(self, model_type: str, model_file: str,  mlirfile: str, weight_file: str = None, tpu_op_info=None):
         if model_type == 'caffe':
             if weight_file == None:
                 print("No caffe weight file")
                 return -1
             mlirori = "ori_{}".format(mlirfile)
             mlir_traslate(model_file, weight_file, mlirori)
-            mlir_opt(mlirori, mlirfile, "{}_op_info.csv".format(model_file.split('.')[0].split('/')[-1]))
+            if tpu_op_info:
+                mlir_opt(mlirori, mlirfile, tpu_op_info)
+            else:
+                mlir_opt(mlirori, mlirfile, "{}_op_info.csv".format(model_file.split('.')[0].split('/')[-1]))
             return 0
         elif model_type == 'onnx':
             if not model_file.lower().endswith('.onnx'):
                 print("{} is not end with .onnx".format(model_file))
                 return -1
-
+            mlirori = "ori_{}".format(mlirfile)
             onnx_model = onnx.load(model_file)
-            c = OnnxConverter(model_file.split('.')[0].split('/')[-1], onnx_model, mlirfile)
+            c = OnnxConverter(model_file.split('.')[0].split('/')[-1], onnx_model, mlirori)
             c.run()
+            if tpu_op_info:
+                mlir_opt(mlirori, mlirfile, tpu_op_info)
+            else:
+                mlir_opt(mlirori, mlirfile, "{}_op_info.csv".format(model_file.split('.')[0].split('/')[-1]))
             return 0
         else:
             print("Not support {} type, now support onnx and caffe".format(model_type))
@@ -152,7 +159,7 @@ class cvinn(object):
         net.load_model(model_type, model_file=model_file, weight_file=weight_file, mlirfile=mlirfile)
         input_data = np.load(input_npz)['input']
         out = net.inference(input_data)
-        
+
         if all_tensors!=None:
             net.get_all_tensor(input_data, all_tensors)
         return out

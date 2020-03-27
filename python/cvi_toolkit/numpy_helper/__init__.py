@@ -16,7 +16,7 @@ def npz_rename(args):
     npz_out = {}
     d = npz_in[args[1]]
     npz_out[args[2]] = d
-    np.savez(args[1], **npz_out)
+    np.savez(args[0], **npz_out)
 
 def npz_extract(args):
     if len(args) < 3:
