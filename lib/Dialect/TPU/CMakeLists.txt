@@ -63,6 +63,7 @@ add_llvm_library(MLIRTPU
   Optimization/FuseLeakyRelu.cpp
   Backend/TpuTgCodegen.cpp
   Backend/TpuTlCodegen_Simple.cpp
+  Backend/TpuTlCodegen_LG.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${MLIR_MAIN_INCLUDE_DIR}/mlir/Dialect/TPU

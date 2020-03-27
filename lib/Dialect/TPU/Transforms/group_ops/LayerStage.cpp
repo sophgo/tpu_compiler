@@ -404,7 +404,7 @@ void net_timestep::generate_hold_coeff_tensor() {
       tensor_type_t tensor_type = net_graph_->get_tensor_type(tensor_id);
 
       if (tensor_type == TENSOR_COEFF || tensor_type == TENSOR_BIAS ||
-          tensor_type == TENSOR_COEFF_WINOGRAD) {
+          tensor_type == TENSOR_COEFF_WINOGRAD || tensor_type == TENSOR_DEPTHCONV_OPD1 ) {
         hold_coeff_tensor[tensor_id] = i;
 
       } else if (tensor_type == TENSOR_COEFF_NEURON || tensor_type == TENSOR_DEPTHCONV_OPD1 ||
@@ -505,6 +505,8 @@ bmerr_t net_timestep::find_best_split(Group* cluster, int batch_num,
     int cur_coeff_mem_require = get_timestep_coeff_memory_req(i);
     float max_secs_tmp = static_cast<float>(LOCAL_MEM_SIZE - cur_coeff_mem_require) /
                          (cur_mem_require - cur_coeff_mem_require);
+    llvm::errs() << "cur_mem_require: " << cur_mem_require << " cur_coeff_mem_require: "
+                 << cur_coeff_mem_require << " max_secs_tmp: " << max_secs_tmp << "\n";
     // [xun] to reduce loop count for speed
     if (max_secs_tmp < 0.0) {
       llvm::errs() << "split data in h dimension failed " << "\n";

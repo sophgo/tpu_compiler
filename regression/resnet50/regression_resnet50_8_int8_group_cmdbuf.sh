@@ -23,43 +23,38 @@ if [ $COMPARE_ALL -eq 1 ]; then
         --layer-group-gm-opt=false \
         resnet50_quant_int8_multiplier.mlir \
         --layer-group-neuron-map-filename=neuron_map_layergroup.csv \
+        --weight-map=weight_map_layergroup.csv \
+        --weight-bin=weight_int8_multiplier_layergroup.bin \
         -o resnet50_quant_int8_multiplier_layergroup.mlir
 else
     mlir-opt \
         --group-ops \
         resnet50_quant_int8_multiplier.mlir \
         --layer-group-neuron-map-filename=neuron_map_layergroup.csv \
+        --weight-map=weight_map_layergroup.csv \
+        --weight-bin=weight_int8_multiplier_layergroup.bin \
         -o resnet50_quant_int8_multiplier_layergroup.mlir
 fi
 
-# # # assign weight address & neuron address
-mlir-opt \
-    --assign-weight-address \
-    --tpu-weight-address-align=16 \
-    --tpu-weight-map-filename=weight_map_layergroup.csv \
-    --tpu-weight-bin-filename=weight_int8_multiplier_layergroup.bin \
-    resnet50_quant_int8_multiplier_layergroup.mlir \
-    -o resnet50_quant_int8_multiplier_layergroup_addr.mlir
-
 mlir-translate \
     --mlir-to-cmdbuf \
-    resnet50_quant_int8_multiplier_layergroup_addr.mlir \
+    resnet50_quant_int8_multiplier_layergroup.mlir \
     -o cmdbuf_int8_multiplier_layergroup.bin
 
-# # generate cvi model
+# # # generate cvi model
 build_cvimodel.py \
     --cmdbuf cmdbuf_int8_multiplier_layergroup.bin \
     --weight weight_int8_multiplier_layergroup.bin \
-    --mlir resnet50_quant_int8_multiplier_layergroup_addr.mlir \
+    --mlir resnet50_quant_int8_multiplier_layergroup.mlir \
     --output=resnet50_int8_multiplier_layergroup.cvimodel
 
-# # run cmdbuf
-# #$RUNTIME_PATH/bin/test_bmnet \
-# #    resnet50_in_int8.bin \
-# #    weight_int8_multiplier.bin \
-# #    cmdbuf_int8_multiplier.bin \
-# #    resnet50_cmdbuf_out_all_int8_multiplier_layergroup.bin \
-# #    16460784 0 16460784 1
+# #run cmdbuf
+# test_1880v2_bmnet \
+#    resnet50_in_int8.bin \
+#    weight_int8_multiplier_layergroup.bin \
+#    cmdbuf_int8_multiplier_layergroup.bin \
+#    resnet50_cmdbuf_out_all_int8_multiplier_layergroup.bin \
+#    16460784 0 16460784 1
 
 
 if [ $COMPARE_ALL -eq 1 ]; then

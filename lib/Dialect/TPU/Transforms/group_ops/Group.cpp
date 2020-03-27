@@ -3,6 +3,7 @@
 #include "LMemManager.hpp"
 #include "Steps.hpp"
 
+#define DEBUG_TYPE "group"
 
 namespace mlir {
 
@@ -136,16 +137,21 @@ bmerr_t Group::group_winograd_out_tensors_check() {
 }
 
 bool Group::check_valid() {
-  return false;
+  // return false;
   bmerr_t status = assign_steps();
 
   if (status != BM_SUCCESS) {
-    llvm::errs() << "invalid layer group: ";
+    LLVM_DEBUG(llvm::errs() << "layer group invalid: ";);
     for (int i = 0; i < layers_.size(); i++)
-      llvm::errs() << " " << layers_[i];
-    llvm::errs() << "\n";
+      LLVM_DEBUG(llvm::errs() << " " << layers_[i];);
+    LLVM_DEBUG(llvm::errs() << "\n";);
     return false;
   }
+
+  LLVM_DEBUG(llvm::errs() << "valid layer group: ";);
+  for (int i = 0; i < layers_.size(); i++)
+    LLVM_DEBUG(llvm::errs() << " " << layers_[i];);
+  LLVM_DEBUG(llvm::errs() << "\n";);
 
   return true;
 }
@@ -178,7 +184,7 @@ static int get_max_hsecs(NetGraph* net_graph_, const vector<int>& layer_group) {
              net_graph_->get_tensor_width(any_tensor) >= 250) {
     max_hsecs = 4;
   } else {
-    max_hsecs = 2;
+    max_hsecs = 8;
   }
 
   return max_hsecs;
@@ -261,11 +267,7 @@ static int get_max_hsecs(NetGraph* net_graph_, const vector<int>& layer_group) {
 // }
 
 bmerr_t Group::assign_steps() {
-  // if (LayerGroupWithTSM > 0) {
-  //   return assign_steps_with_tsm();
-  // } else {
-    return assign_steps_without_tsm();
-  // }
+  return assign_steps_without_tsm();
 }
 
 // This function is used to construct the time step and find the appropriate partitioning
@@ -295,7 +297,16 @@ bmerr_t Group::assign_steps_without_tsm() {
   }
 
   status = BM_ERR_FAILURE;
+
+  if (!(nsecs_and_hsecs.first <= batch_num && nsecs_and_hsecs.second <= max_hsecs)) {
+    LLVM_DEBUG(llvm::errs() << "FAIL: n_slice and h_slice exceed max value: ("
+                            << nsecs_and_hsecs.first << "/" << batch_num
+                            << ", " << nsecs_and_hsecs.second << "/" << max_hsecs << ")\n";);
+  }
   while (nsecs_and_hsecs.first <= batch_num && nsecs_and_hsecs.second <= max_hsecs) {
+    LLVM_DEBUG(llvm::errs() << "check n_slice and h_slice after split layer: ("
+                            << nsecs_and_hsecs.first << "/" << batch_num
+                            << ", " << nsecs_and_hsecs.second << "/" << max_hsecs << ")\n";);
     reset_tensor_hslice_max();
     if (group_has_winograd_tensors()) {
       status = group_winograd_out_tensors_check();
@@ -311,13 +322,17 @@ bmerr_t Group::assign_steps_without_tsm() {
         // to check first loop and last loop of h slices.
         int nsecs = nsecs_and_hsecs.first;
         int hsecs = nsecs_and_hsecs.second;
+        LLVM_DEBUG(llvm::errs() << "check first loop of h slice.\n";);
         status = update_tensor_slices(nsecs, hsecs, 0, 0);
         if (status == BM_ERR_FAILURE) {
+          llvm::errs() << "update tensor_slice fail.\n";
           return BM_ERR_FAILURE;
         }
 
+        LLVM_DEBUG(llvm::errs() << "check last loop of h slice.\n";);
         status = update_tensor_slices(nsecs, hsecs, 0, hsecs - 1);
         if (status == BM_ERR_FAILURE) {
+          llvm::errs() << "update tensor_slice fail....\n";
           return BM_ERR_FAILURE;
         }
       }
@@ -365,7 +380,7 @@ bool Group::validate_tensor_slice() {
 
     for (auto& tensor : im_layer->in_tensors) {
       if (tensor->type() == TENSOR_COEFF || tensor->type() == TENSOR_BIAS ||
-          tensor->type() == TENSOR_COEFF_WINOGRAD) {
+          tensor->type() == TENSOR_COEFF_WINOGRAD || tensor->type() == TENSOR_DEPTHCONV_OPD1) {
         continue;
       }
 
@@ -374,8 +389,8 @@ bool Group::validate_tensor_slice() {
                          << " is smaller than kh = 1" << "\n";
         return false;
       } else if (tensor->h_slice > tensor->h()) {
-        llvm::errs() << "FAIL: h_slice of tensor[" << tensor->id()
-                         << "] is larger than tensor height." << "\n";
+        llvm::errs() << "FAIL: h_slice " << tensor->h_slice << " of tensor[" << tensor->id()
+                         << "] is larger than tensor height: " << tensor->h() <<  "\n";
         return false;
       }
     }
@@ -426,7 +441,7 @@ void Group::reset_tensor_hslice_max() {
 
 // Breadth-first traversal of all the tensors and set n_slice and h_slice.
 bool Group::backward_slice(int out_tensor_id, list<int>& branches, bool max_h_slice,
-                           bool no_split_h) {
+                           bool no_split_h, int n_loop, int h_loop) {
   int id = net_graph_->get_tensor_from_layer(out_tensor_id);
 
   // the out tensor is the input tensor of the group
@@ -451,13 +466,23 @@ bool Group::backward_slice(int out_tensor_id, list<int>& branches, bool max_h_sl
       kh = dh * (kh - 1) + 1;
     }
   } else if (layer_type == IR_POOLING) {
-    auto op = cast<tpu::PoolAvg2DOp>(im_layer->op());
-    bool is_global, do_relu;
-    int n, c, ih, iw, oh, ow, kw, sw, pb, pl, pr;
-    parsePoolParam(op.param(), op.input(), op.output(),
-                   n, c, ih, iw, oh, ow,
-                   kh, kw, sh, sw, ph, pb, pl, pr,
-                   is_global, do_relu);
+    if (isa<tpu::PoolAvg2DOp>(im_layer->op())) {
+      auto op = cast<tpu::PoolAvg2DOp>(im_layer->op());
+      bool is_global, do_relu;
+      int n, c, ih, iw, oh, ow, kw, sw, pb, pl, pr;
+      parsePoolParam(op.param(), op.input(), op.output(),
+                    n, c, ih, iw, oh, ow,
+                    kh, kw, sh, sw, ph, pb, pl, pr,
+                    is_global, do_relu);
+    } else if (isa<tpu::PoolMax2DOp>(im_layer->op())) {
+      auto op = cast<tpu::PoolMax2DOp>(im_layer->op());
+      bool is_global, do_relu;
+      int n, c, ih, iw, oh, ow, kw, sw, pb, pl, pr;
+      parsePoolParam(op.param(), op.input(), op.output(),
+                    n, c, ih, iw, oh, ow,
+                    kh, kw, sh, sw, ph, pb, pl, pr,
+                    is_global, do_relu);
+    }
   }
 
   Tensor* out_tensor = net_graph_->get_tensor_by_id(out_tensor_id);
@@ -480,7 +505,7 @@ bool Group::backward_slice(int out_tensor_id, list<int>& branches, bool max_h_sl
     Tensor* tensor = net_graph_->get_tensor_by_id(back_tensors[i]);
 
     if (tensor->type() == TENSOR_COEFF || tensor->type() == TENSOR_BIAS ||
-        tensor->type() == TENSOR_COEFF_WINOGRAD) {
+        tensor->type() == TENSOR_COEFF_WINOGRAD || tensor->type() == TENSOR_DEPTHCONV_OPD1) {
       continue;
     }
 
@@ -552,6 +577,14 @@ bool Group::backward_slice(int out_tensor_id, list<int>& branches, bool max_h_sl
       }
     }
 
+
+    LLVM_DEBUG(llvm::errs() << "tensor_id: " << tensor->id() << " n_idx: "
+                            << n_idx << " h_idx: " << h_idx
+                            << ", n_slice: " << n_slice << ", h_slice: " << h_slice
+                            << "out_h_idx: " << out_h_idx << " out_h_slice: " << out_h_slice
+                            << " ph: " << ph << " sh: " << sh << " kh: " << kh << "\n";);
+
+
     if (cur_h_slice != -1 && (cur_h_slice != h_slice || cur_h_idx != h_idx)) {
       llvm::errs() << "FAIL: data slice in h dimension is conflicted for tensor "
                        << back_tensors[i] << " cur_h_idx:" << cur_h_idx << " h_idx:" << h_idx
@@ -566,6 +599,7 @@ bool Group::backward_slice(int out_tensor_id, list<int>& branches, bool max_h_sl
     }
 
     tensor->set_nh_slice(n_idx, n_slice, h_idx, h_slice);
+    tensor->set_postfix(group_id_, n_loop, h_loop);
 
     if (cur_h_slice == -1) {
       branches.push_back(back_tensors[i]);
@@ -588,6 +622,7 @@ bmerr_t Group::update_tensor_slices(int nsecs, int hsecs, int nslice_idx, int hs
     int n_step = ceiling_func(batch_num, nsecs);
     int height = tensor->h();
     int h_step = ceiling_func(height, hsecs);
+    tensor->set_postfix(group_id_, nslice_idx, hslice_idx);
 
     if (nslice_idx == -1) {
       tensor->set_nh_slice(0, n_step, 0, h_step);
@@ -607,7 +642,8 @@ bmerr_t Group::update_tensor_slices(int nsecs, int hsecs, int nslice_idx, int hs
       int tensor_id = branches.front();
       branches.pop_front();
 
-      bool success = backward_slice(tensor_id, branches, nslice_idx == -1, hsecs == 1);
+      bool success = backward_slice(tensor_id, branches, nslice_idx == -1,
+                                    hsecs == 1, nslice_idx, hslice_idx);
       if (!success) {
         return BM_ERR_FAILURE;
       }

@@ -26,7 +26,31 @@ Tensor::Tensor(int id, int n, int c, int h, int w, int unit_size, const string& 
   group = 1;
 }
 
-shared_ptr<Tensor> Tensor::register_tensor(int n, int c, int h, int w, int unit_size,
+Tensor::Tensor(int id, int n, int c, int h, int w, int unit_size, string& storage, const string& name,
+               tensor_type_t type, gaddr_t gaddr)
+    : gaddr(gaddr),
+      laddr(0),
+      n_idx(-1),
+      n_slice(-1),
+      h_idx(-1),
+      h_slice(-1),
+      h_slice_max(-1),
+      h_slice_skip_first(false),
+      h_slice_skip_last(false),
+      id_(id),
+      unit_size_(unit_size),
+      type_(type),
+      name_(name),
+      storage_(storage) {
+  dims_[0] = n;
+  dims_[1] = c;
+  dims_[2] = h;
+  dims_[3] = w;
+
+  group = 1;
+}
+
+shared_ptr<Tensor> Tensor::register_tensor(int n, int c, int h, int w, int unit_size, string & storage,
                                            const string& name, tensor_type_t type, gaddr_t gaddr) {
   int id;
   shared_ptr<Tensor> tensor;
@@ -37,7 +61,7 @@ shared_ptr<Tensor> Tensor::register_tensor(int n, int c, int h, int w, int unit_
   } else {
     id = max_tensor_id++;
     map_name_to_id_[name] = id;
-    tensor = make_shared<Tensor>(id, n, c, h, w, unit_size, name, type, gaddr);
+    tensor = make_shared<Tensor>(id, n, c, h, w, unit_size, storage, name, type, gaddr);
     map_id_to_tensor[id] = tensor;
   }
 
@@ -63,7 +87,11 @@ shared_ptr<Tensor> Tensor::register_tensor(ShapedType *s_type, const string& nam
       assert(0);
   }
 
-  return register_tensor(n, c, h, w, DATA_TYPE_SIZE, name, type, gaddr);
+  // default int8 tensor
+  int unit_size = DATA_TYPE_SIZE;
+  string storage = "INT8";
+
+  return register_tensor(n, c, h, w, unit_size, storage, name, type, gaddr);
 }
 
 shared_ptr<Tensor> Tensor::register_imm_tensor(const shared_ptr<Tensor> associate, int count,

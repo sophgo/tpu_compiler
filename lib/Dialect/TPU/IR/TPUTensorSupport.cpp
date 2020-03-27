@@ -82,6 +82,19 @@ TensorFile* getWeightTensorFile(Operation *op) {
 }
 
 template<typename T>
+std::unique_ptr<std::vector<T> > readWeightTensor(
+    Value *opd, TensorFile *wTF) {
+  auto weightOp = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
+      opd->getDefiningOp());
+  auto name = weightOp.name().getValue();
+  auto type = weightOp.getResult()->getType().cast<TensorType>();
+  auto tensor = wTF->readTensor<T>(name, type);
+  return std::move(tensor);
+}
+template std::unique_ptr<std::vector<float> > readWeightTensor(
+    Value *opd, TensorFile *wTF);
+
+template<typename T>
 std::unique_ptr<std::vector<T> > readAndDeleteWeightTensor(
     Value *opd, TensorFile *wTF) {
   auto weightOp = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(

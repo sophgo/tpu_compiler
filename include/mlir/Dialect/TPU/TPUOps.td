@@ -1846,5 +1846,6 @@ include "mlir/Dialect/TPU/TPUTGOps.td"
 include "mlir/Dialect/TPU/TPUTLOps_Simple.td"
 include "mlir/Dialect/TPU/TPUTGOps_MemRef.td"
 include "mlir/Dialect/TPU/TPUTLOps_Simple_MemRef.td"
+include "mlir/Dialect/TPU/TPUTLOps_lg.td"
 
 #endif // TPU_OPS

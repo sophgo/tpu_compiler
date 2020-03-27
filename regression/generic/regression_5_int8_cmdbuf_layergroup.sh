@@ -4,54 +4,59 @@ set -e
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 
 
+# log some data for reference
+# resnet50 pass, on chip performance
+# Batch 1 97.5 fps
+# Batch 2 116 fps
+# Batch 4 121.3 fps
+
+# mobilenet_v2 pass, on chip performance
+# Batch 1, 694.4 fps
+# Batch 2, 826.4 fps
+# Batch 4, 898.9 fps
+
+# VGG16 pass, on chip performance
+# Batch 1, 24.83 fps
+# Batch 2, 31.6 fps
+# Batch 4, 37.4 fps
+
+
 # compare all only support when global memory optimization close
-COMPARE_ALL=0
-################################
-# prepare int8 input
-################################
-cvi_npz_tool.py to_bin \
-    ${NET}_tensor_all_int8_multiplier.npz \
-    data \
-    ${NET}_in_int8.bin \
-    int8
-################################
+COMPARE_ALL=1
+###############################
 # Lower for quantization 3: multiplier int8
-################################
+###############################
 if [ $COMPARE_ALL -eq 1 ]; then
     mlir-opt \
+        --convert-cpu-op \
         --group-ops \
         --layer-group-gm-opt=false \
         ${NET}_quant_int8_multiplier.mlir \
         --layer-group-neuron-map-filename=neuron_map_layergroup.csv \
+        --weight-map=weight_map_layergroup.csv \
+        --weight-bin=weight_int8_multiplier_layergroup.bin \
         -o ${NET}_quant_int8_multiplier_layergroup.mlir
 else
     mlir-opt \
+        --convert-cpu-op \
         --group-ops \
         ${NET}_quant_int8_multiplier.mlir \
         --layer-group-neuron-map-filename=neuron_map_layergroup.csv \
+        --weight-map=weight_map_layergroup.csv \
+        --weight-bin=weight_int8_multiplier_layergroup.bin \
         -o ${NET}_quant_int8_multiplier_layergroup.mlir
 fi
 
-# # # assign weight address & neuron address
-mlir-opt \
-    --assign-weight-address \
-    --tpu-weight-address-align=16 \
-    --tpu-weight-map-filename=weight_map_layergroup.csv \
-    --tpu-weight-bin-filename=weight_int8_multiplier_layergroup.bin \
-    --convert-cpu-op \
-    ${NET}_quant_int8_multiplier_layergroup.mlir \
-    -o ${NET}_quant_int8_multiplier_layergroup_addr.mlir
-
 mlir-translate \
     --mlir-to-cmdbuf \
-    ${NET}_quant_int8_multiplier_layergroup_addr.mlir \
+    ${NET}_quant_int8_multiplier_layergroup.mlir \
     -o cmdbuf_int8_multiplier_layergroup.bin
 
 # # generate cvi model
 build_cvimodel.py \
     --cmdbuf cmdbuf_int8_multiplier_layergroup.bin \
     --weight weight_int8_multiplier_layergroup.bin \
-    --mlir ${NET}_quant_int8_multiplier_layergroup_addr.mlir \
+    --mlir ${NET}_quant_int8_multiplier_layergroup.mlir \
     --output=${NET}_int8_multiplier_layergroup.cvimodel
 
 if [ $COMPARE_ALL -eq 1 ]; then
@@ -60,6 +65,7 @@ if [ $COMPARE_ALL -eq 1 ]; then
     --dump-all-tensors \
     --input ${NET}_in_fp32.npz \
     --model ${NET}_int8_multiplier_layergroup.cvimodel \
+    --batch-num $BATCH_SIZE \
     --output ${NET}_cmdbuf_out_all_int8_multiplier_layergroup.npz
 
     # # compare all tensors
@@ -71,13 +77,14 @@ else
     model_runner \
     --input ${NET}_in_fp32.npz \
     --model ${NET}_int8_multiplier_layergroup.cvimodel \
+    --batch-num $BATCH_SIZE \
     --output ${NET}_cmdbuf_out_all_int8_multiplier_layergroup_fc1000_dequant.npz
 
     # prepare ref data
     cvi_npz_tool.py extract \
         ${NET}_tensor_all_int8_multiplier.npz \
         ${NET}_ref_out_fc1000_int8_multiplier.npz \
-        fc1000_dequant
+        prob
 
     cvi_npz_tool.py compare \
         ${NET}_ref_out_fc1000_int8_multiplier.npz \

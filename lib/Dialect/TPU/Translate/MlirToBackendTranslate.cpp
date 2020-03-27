@@ -60,6 +60,16 @@ static LogicalResult runOperation(Operation &opInst) {
     if (isa<tpu::TG_CallOp>(opInst))
       success();
     return tpuTGOp.codegen((void *)backend_ctx);
+  } else if (isa<tpu::TpuTLOpCodegenInterface>(opInst)) {
+    auto tpuTLOp = llvm::dyn_cast<tpu::TpuTLOpCodegenInterface>(opInst);
+    // enable parallel
+    if (tpuTLOp.getEnableParallel())
+      cvi_backend_parallel_enable(backend_ctx);
+    // tl codegen
+    tpuTLOp.codegen((void *)backend_ctx);
+    // disable parallel
+    if (tpuTLOp.getDisableParallel())
+      cvi_backend_parallel_disable(backend_ctx);
   }
 
   return success();

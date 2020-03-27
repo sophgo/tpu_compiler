@@ -52,7 +52,7 @@ export TOLERANCE_INT8_RSHIFT_ONLY=0.95,0.95,0.7
 export TOLERANCE_INT8_MULTIPLER=0.96,0.95,0.73
 export TOLERANCE_BF16=0.99,0.99,0.89
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.9
-export DO_LAYERGROUP=0
+export DO_LAYERGROUP=1
 # export BATCH_SIZE=4
 fi
 
@@ -73,6 +73,7 @@ export TOLERANCE_INT8_RSHIFT_ONLY=0.99,0.99,0.90
 export TOLERANCE_INT8_MULTIPLER=0.99,0.99,0.91
 export TOLERANCE_BF16=0.99,0.99,0.96
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
+export DO_LAYERGROUP=1
 fi
 
 if [ $NET = "googlenet" ]; then
@@ -156,6 +157,7 @@ export TOLERANCE_INT8_MULTIPLER=0.95,0.94,0.69
 export TOLERANCE_BF16=0.99,0.99,0.92
 export DO_CMDBUF_BF16=0   # this is a bug to fix
 # export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
+export DO_LAYERGROUP=1
 fi
 
 if [ $NET = "shufflenet_v2" ]; then
@@ -389,7 +391,12 @@ fi
 if [ $BATCH_SIZE -gt 1 ]; then
 export DO_DEEPFUSION=0
 export DO_MEMOPT=0
-export DO_LAYERGROUP=0
+export DO_LAYERGROUP=1
 export DO_QUANT_MIX=0
 export DO_E2E=0
+fi
+
+if [ $DO_LAYERGROUP -eq 1 ]; then
+  echo "do layer_group, skip early stride for eltwise"
+  export MLIR_OPT_FE_POST=""
 fi

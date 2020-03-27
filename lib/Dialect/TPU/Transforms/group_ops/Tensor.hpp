@@ -34,8 +34,10 @@ class ImmTensor;
 
 class Tensor {
  public:
-  Tensor(int id, int n, int c, int h, int w, int unit_size, const string& name, tensor_type_t type,
-         uint64_t gaddr);
+  Tensor(int id, int n, int c, int h, int w, int unit_size, const string& name,
+         tensor_type_t type, uint64_t gaddr);
+  Tensor(int id, int n, int c, int h, int w, int unit_size, string &storage,
+         const string& name, tensor_type_t type,uint64_t gaddr);
 
   int n() const { return dims_[0]; }
   int c() const { return dims_[1]; }
@@ -50,6 +52,8 @@ class Tensor {
 
   const string& name() const { return name_; }
 
+  const string& storage() { return storage_; }
+
   int id() const { return id_; }
 
   virtual uint32_t lmem_size();
@@ -60,11 +64,21 @@ class Tensor {
 
   void set_nh_slice(int n_idx, int n_slice, int h_idx, int h_slice);
 
+  void set_postfix(int group_id, int n_loop, int h_loop) {
+    group = group_id;
+    n_loop_ = n_loop;
+    h_loop_ = h_loop;
+  }
+
+  int get_group_id() { return group; }
+  int get_n_loop() { return n_loop_; }
+  int get_h_loop() { return h_loop_; }
+
   void set_h_slice_skip_first() { this->h_slice_skip_first = true; }
 
   void set_h_slice_skip_last() { this->h_slice_skip_last = true; }
 
-  static shared_ptr<Tensor> register_tensor(int n, int c, int h, int w, int unit_size,
+  static shared_ptr<Tensor> register_tensor(int n, int c, int h, int w, int unit_size, string& storage,
                                             const string& name, tensor_type_t type, uint64_t gaddr);
 
   static shared_ptr<Tensor> register_tensor(ShapedType *s_type, const string& name,
@@ -89,6 +103,8 @@ class Tensor {
   int h_slice;
   int h_slice_max;
   int group;
+  int h_loop_;
+  int n_loop_;
   static int max_tensor_id;
   static map<int, shared_ptr<Tensor>> map_id_to_tensor;
   bool h_slice_skip_first;
@@ -100,6 +116,7 @@ class Tensor {
   int unit_size_;
   tensor_type_t type_;
   string name_;
+  string storage_;
   static map<string, int> map_name_to_id_;
 };
 

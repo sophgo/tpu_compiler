@@ -261,17 +261,15 @@ bool LmemManager::figure_out_tensors_real_addr(net_timestep* time_step) {
           key.id_num = iter->tid;
           key.is_layer_imm = (tensor->type() == TENSOR_IMM);
 
-          llvm::errs() << "[" << iter->step << "]"
-                  << "id:" << key.id_num << " imm:" << key.is_layer_imm << "\n";
-
           time_step->set_local_mem_offset(&key, tensor->laddr);
 
           u32 end = iter->start + iter->size;
 
           total_lmem_occupied = total_lmem_occupied < end ? end : total_lmem_occupied;
 
-          llvm::errs() << "[CONFIRM] tid:" << iter->tid << ", " << iter->start << " ~ "
-                  << end << ", size:" << iter->size << "\n";
+          llvm::errs() << "[CONFIRM]";
+          llvm::errs() << "[stage: " << iter->step << "]" << "tensor_id:" << iter->tid << ", " << iter->start << " ~ "
+                  << end << ", size:" << iter->size << "is_imm:" << key.is_layer_imm << "\n";
         }
 
         offset = iter->start + iter->size;

@@ -189,6 +189,49 @@ def TpuTGOpCodegenInterface : OpInterface<"TpuTGOpCodegenInterface"> {
   ];
 }
 
+def TpuTLOpCodegenInterface : OpInterface<"TpuTLOpCodegenInterface"> {
+  let description = [{
+    TPU_TL_Op genenrate TPU instructions.
+  }];
+
+  let methods = [
+    InterfaceMethod<[{
+        Generate TPU instructions.
+      }],
+      "LogicalResult", "codegen", (ins "void *":$ctx)
+    >,
+    InterfaceMethod<[{
+        Get result tensor Global Address.
+      }],
+      "uint64_t", "getGAddr"
+    >,
+    InterfaceMethod<[{
+        Set result tensor Global Address.
+      }],
+      "LogicalResult", "setGAddr", (ins "uint64_t ":$gaddr)
+    >,
+    InterfaceMethod<[{
+        Set enable parallel flag.
+      }],
+      "LogicalResult", "setEnableParallel", (ins "bool ":$flag)
+    >,
+    InterfaceMethod<[{
+        Set disable parallel flag.
+      }],
+      "LogicalResult", "setDisableParallel", (ins "bool ":$flag)
+    >,
+    InterfaceMethod<[{
+        Get enable parallel flag.
+      }],
+      "bool", "getEnableParallel"
+    >,
+    InterfaceMethod<[{
+        Get disable parallel flag.
+      }],
+      "bool", "getDisableParallel"
+    >
+  ];
+}
 //===----------------------------------------------------------------------===//
 // TPU Traits
 //===----------------------------------------------------------------------===//

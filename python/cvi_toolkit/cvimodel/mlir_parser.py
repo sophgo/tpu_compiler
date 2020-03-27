@@ -334,7 +334,7 @@ class MlirParser:
             return None
 
         _shape = re.match('.*?->\s*tensor<(.*?)>', line).groups()[0]
-        _is_weight = (_type == 'load_weight')
+        _is_weight = (_type == 'load_weight' or _type == 'tl_lg_load_coeff')
 
         self.tensor_map[_output] = Tensor(
             _output, _attributes, _shape, _is_weight, _type)

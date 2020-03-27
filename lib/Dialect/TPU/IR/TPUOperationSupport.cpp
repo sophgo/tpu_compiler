@@ -209,13 +209,17 @@ float getPreviousOpThreshold(Operation *op, uint index = 0) {
 }
 
 uint64_t getOpAddress(Operation *op) {
-  if (auto tpuTGOp = llvm::dyn_cast<tpu::TpuTGOpCodegenInterface>(op)) {
+  if (isa<tpu::TpuTGOpCodegenInterface>(op)) {
+    auto tpuTGOp = llvm::dyn_cast<tpu::TpuTGOpCodegenInterface>(op);
     return tpuTGOp.getGAddr();
   } else if (auto castOp = llvm::dyn_cast<tpu::GenericCpuOp>(op)) {
     if (castOp.gaddr().hasValue()) {
       return castOp.gaddr().getValue().getZExtValue();
     }
     assert(false);
+  } else if (isa<tpu::TpuTLOpCodegenInterface>(op)) {
+    auto tpuTLOp = llvm::dyn_cast<tpu::TpuTLOpCodegenInterface>(op);
+    return tpuTLOp.getGAddr();
   } else {
     llvm::errs() << __func__ << " failed, Op " << op->getName() << "\n";
     llvm::errs() << __func__ << "       name " << getOpName(op) << "\n";
@@ -292,7 +296,6 @@ LogicalResult setOpBufferReused(Operation *op, bool flag) {
     (((_i_) + 2 * (_p_) - ((_k_+ (_d_-1)*(_k_-1)) - 1) - 1) / (_s_) + 1)
 
 static int64_t findPadForSamePadding(int64_t i, int64_t o, int64_t k, int64_t s, int64_t d) {
-  //llvm::errs() << "i: " << i << ", o: " << o << ", k: " << k << ", s: " << s << ", d: " << d << "\n";
   if (k == 1) {
     return 0;
   }
@@ -372,10 +375,16 @@ void parseConvParam(const tpu::ConvParam &p, bool is_deconv,
   g = p.group().getValue().getLimitedValue();
   if (g != 1) {
     // f_s is in (g, oc/g, ic/g, kh, kw)
-    assert(f_s.size() == 5);
-    assert(g == f_s[0]);
-    assert(oc/g == f_s[1]);
-    assert(ic/g == f_s[2]);
+    if(f_s.size() == 5) {
+      assert(g == f_s[0]);
+      assert(oc/g == f_s[1]);
+      assert(ic/g == f_s[2]);
+    } else if (f_s.size() == 4) {
+      // tl_layer has filter size of 4
+      assert(ic/g == 1);
+      assert(oc == f_s[1]);
+    }
+
     if (g == oc) {
       is_dw = true;
     } else {

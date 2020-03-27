@@ -73,19 +73,13 @@ class ImLayer {
   void set_type(IR_TYPE type) { type_ = type; }
   const string &type_name() const { return type_name_; }
 
-  void add_in_tensor(int n, int c, int h, int w, int unit_size, const string &name,
+  void add_in_tensor(int n, int c, int h, int w, int unit_size, string& storage, const string &name,
                      tensor_type_t type, gaddr_t gaddr = 0xFFFFFFFF);
 
   void add_in_tensor(ShapedType* shape, const string &name, tensor_type_t type,
                      gaddr_t gaddr = 0xFFFFFFFF);
 
   void add_in_tensor(Value * op, tensor_type_t type, gaddr_t gddr = 0xFFFFFFFF);
-
-  void add_out_tensor(int n, int c, int h, int w, int unit_size, const string &name,
-                      tensor_type_t type, gaddr_t gaddr = 0xFFFFFFFF);
-
-  void add_out_tensor(ShapedType* shape, const string &name, tensor_type_t type,
-                      gaddr_t gaddr = 0xFFFFFFFF);
 
   void add_out_tensor(Value * op, tensor_type_t type, gaddr_t gaddr = 0xFFFFFFFF);
 

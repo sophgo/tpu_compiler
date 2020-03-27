@@ -13,10 +13,9 @@ static llvm::cl::opt<bool> clDisableGMemOptimize(
     llvm::cl::init(true));
 
 
-GroupOptimizer::GroupOptimizer(NetGraph* net_graph)
-    : net_graph_(net_graph)
-     , mix_net_(net_graph), gmem_mgr_(net_graph)
-    {}
+GroupOptimizer::GroupOptimizer(NetGraph* net_graph, FuncOp * fn, MLIRContext * context)
+    : net_graph_(net_graph), fn_(fn), context_(context),
+      mix_net_(net_graph, fn, context), gmem_mgr_(net_graph){}
 
 GroupOptimizer::~GroupOptimizer() {
   for (auto group : groups_) {
@@ -195,29 +194,30 @@ bmerr_t GroupOptimizer::optimize() {
 
   do_group(groups_);
 
-  for (auto Group : groups_) {
-    bmerr_t status = Group->assign_steps();
+  int group_id = 0;
+  for (auto group : groups_) {
+    bmerr_t status = group->assign_steps();
     if (status == BM_ERR_FAILURE) {
       cout << "local memory allocate failed" << endl;
       assert(0);
     }
 
-    if (Group->size() == 1) {
-      int id = Group->layers()[0];
+    if (group->size() == 1) {
+      int id = group->layers()[0];
       ImLayer* layer = const_cast<ImLayer*>(net_graph_->get_layer_by_id(id));
       layer->is_tg_layer = true;
     }
+    group->set_group_id(group_id);
+    group_id++;
   }
 
   string DumpLayerGroupInfo = "layer_optimizer.out";
   if (DumpLayerGroupInfo != "") {
     std::fstream f;
     f.open(DumpLayerGroupInfo, std::ios::out);
-    int group_id = 0;
-    for (auto* Group : groups_) {
-      f << "Group[" << group_id << "]\n";
-      Group->print(f);
-      group_id++;
+    for (auto* group : groups_) {
+      f << "group[" << group->get_group_id() << "]\n";
+      group->print(f);
     }
     f.close();
   }
@@ -260,75 +260,6 @@ void GroupOptimizer::set_input_output_tensor() {
 //     (name == "" ? last_layer->name() : name) << "," <<
 //     last_layer->type() <<
 //     "\n";
-// }
-
-
-// void GroupOptimizer::Group2Graph(int gid, Group* Group) {
-//   int n_secs = Group->nsecs_and_hsecs.first;
-//   int h_secs = Group->nsecs_and_hsecs.second;
-
-//   static const NetParameter* out_net_ = mix_net_.get_net();
-//   mix_net_.add_group_start_layer(gid, Group, n_secs, h_secs);
-//   if (!layer_id_name_mapping_file.empty()) {
-//     const LayerParameter last_layer = out_net_->layer(out_net_->layer_size() - 1);
-//     std::string layer_name = std::string("group ") + std::to_string(gid) + std::string(" start");
-//     _add_layer_id_name_mapping_str(&last_layer, layer_name);
-//   }
-
-//   bool first_loop = true;
-//   for (int n_loop = 0; n_loop < n_secs; n_loop++) {
-//     for (int h_loop = 0; h_loop < h_secs; h_loop++) {
-
-//       Group->update_tensor_slices(n_secs, h_secs, n_loop, h_loop);
-
-//       for (int step_id = 0; step_id < Group->time_step->get_timestep_num(); ++step_id) {
-//         int cur_layer = Group->time_step->get_layer(step_id);
-//         if (cur_layer != -1) {
-//           mix_net_.add_tl_layer(
-//               gid, cur_layer, Group->time_step, step_id,
-//               h_secs != 1, n_loop, h_loop);
-//           if (!layer_id_name_mapping_file.empty()) {
-//             const LayerParameter last_layer = out_net_->layer(out_net_->layer_size() - 1);
-//             _add_layer_id_name_mapping_str(&last_layer);
-//           }
-//         }
-
-//         const vector<TENSOR_STEP>& cur_tensors = Group->time_step->get_tensors(step_id);
-//         for (u32 i = 0; i < cur_tensors.size(); ++i) {
-//           // check if tensor is kept in lmem.
-//           if ((!first_loop) && cur_tensors[i].second == TIMESTEP_LOAD &&
-//               Group->time_step->is_tensor_hold_in_memory(cur_tensors[i].first)) {
-//             continue;
-//           }
-
-//           // if tensor is loaded in tsm and holded, don't load it again.
-//           if ((!first_loop) && cur_tensors[i].second == TIMESTEP_DDR_TO_TSM &&
-//               Group->time_step->is_tensor_hold_in_memory(cur_tensors[i].first)) {
-//             continue;
-//           }
-
-//           if (cur_layer == -1 && step_id == 0) {
-//             mix_net_.add_transport_param_to_next_layer(
-//                 cur_tensors[i], Group->time_step, step_id, false);
-//           } else {
-//             mix_net_.add_transport_param_to_last_layer(
-//                 cur_tensors[i], Group->time_step,
-//                 step_id, cur_layer != -1);
-//           }
-//         }
-//       }
-
-//       first_loop = false;
-//     }
-//   }
-
-//   mix_net_.add_group_end_layer(gid, Group, n_secs, h_secs);
-
-//   if (!layer_id_name_mapping_file.empty()) {
-//     const LayerParameter last_layer = out_net_->layer(out_net_->layer_size() - 1);
-//     std::string layer_name = std::string("group ") + std::to_string(gid) + std::string(" end");
-//     _add_layer_id_name_mapping_str(&last_layer, layer_name);
-//   }
 // }
 
 bool GroupOptimizer::is_tg_op(Operation * op) {
@@ -437,462 +368,322 @@ struct addTGLayerGAddrPattern : public RewritePattern {
   llvm::raw_ostream &map_os_;
 };
 
-template<typename T>
-static void transposeFullyConnectedFilter(std::vector<T> &w,
-    std::vector<int64_t> &s) {
-  assert(s.size() == 2);
-  int row = s[0];
-  int col = s[1];
-  std::vector<T> w_t(w.size());
-  for (int i = 0; i < row; i++) {
-    for (int j = 0; j < col; j++) {
-      w_t[j * row + i] = w[i * col  + j];
-    }
+// use name to judge if ref to the same op
+static bool is_same_layer(Operation * op, const ImLayer * layer) {
+  if (isValidLayerGroupOp(op)) {
+    string op_name = getOpName(op).str();
+    // op_name.erase(std::remove(op_name.begin(), op_name.end(), '\b'), op_name.end());
+    if (op_name == layer->name())
+      return true;
+    else return false;
   }
-  w.assign(w_t.begin(), w_t.end());
+  return false;
 }
 
-static void transposeBiasInt16(std::vector<int16_t> &w_int16) {
-  int8_t *ptr = reinterpret_cast<int8_t *>(w_int16.data());
-  std::vector<int8_t> w(ptr, ptr + w_int16.size() * sizeof(int16_t));
-  std::vector<int8_t> w_t(w.size());
-  for (size_t i = 0; i < w_int16.size(); i++) {
-    for (size_t j = 0; j < 2; j++) {
-      w_t[j * w_int16.size() + i] = w[i * 2 + j];
-    }
+bool GroupOptimizer::is_group_start(Operation * op, int * gid) {
+  if (!isValidLayerGroupOp(op)) {
+    return false;
   }
-  memcpy(ptr, w_t.data(), w_t.size());
+  int group_id = 0;
+  for(auto group: groups_) {
+    // check if is the first layer in the group
+    int id = group->layers()[0];
+    const ImLayer * start_layer = net_graph_->get_layer_by_id(id);
+    if (is_same_layer(op, start_layer)) {
+      // if only one layer, return false
+      if (group->layers().size() > 1) {
+        *gid = group_id;
+        // llvm::errs() << " success.\n";
+        return true;
+      }
+    }
+    group_id++;
+  }
+
+  return false;
 }
 
-template<typename T>
-static void transposeConvolutionFilter(std::vector<T> &w,
-    std::vector<int64_t> &s) {
-  int64_t oc, ic, ks;
-  if (s.size() == 4) {
-    oc = s[0];
-    ic = s[1];
-    ks = s[2] * s[3];
-  } else if (s.size() == 5) {
-    // g, oc/g, ic/g, kh, kw
-    oc = s[0] * s[1];
-    ic = s[2];
-    ks = s[3] * s[4];
-  } else {
-    assert(false);
-  }
-
-  std::vector<T> w_t(w.size());
-  if (ks == 1 || ic == 1) {
+void GroupOptimizer::lower_to_tl(PatternRewriter & rewriter, Operation *op, int gid) {
+  Group * group = groups_[gid];
+  if (group->lowered()) {
     return;
-  } else {
-    // for other conv, transpose ic <-> kh*kw
-    for (int64_t i = 0; i < oc; i++) {
-      for (int64_t j = 0; j < ic; j++) {
-        for (int64_t k = 0; k < ks; k++) {
-          w_t[i * ic * ks + k * ic + j] = w[i * ic * ks + j * ks + k];
+  }
+  int n_secs = group->nsecs_and_hsecs.first;
+  int h_secs = group->nsecs_and_hsecs.second;
+
+  mix_net_.set_rewriter(&rewriter);
+  mix_net_.set_start_op(op);
+  mix_net_.add_group_start_ops(gid, group, op, n_secs, h_secs);
+
+  bool first_loop = true;
+  for (int n_loop = 0; n_loop < n_secs; n_loop++) {
+    for (int h_loop = 0; h_loop < h_secs; h_loop++) {
+
+      group->update_tensor_slices(n_secs, h_secs, n_loop, h_loop);
+
+      for (int step_id = 0; step_id < group->time_step->get_timestep_num(); ++step_id) {
+        mix_net_.parallel_start();
+        int cur_layer = group->time_step->get_layer(step_id);
+
+        if (cur_layer != -1) {
+          mix_net_.add_tl_layer(
+              gid, cur_layer, group->time_step, step_id,
+              h_secs != 1, n_loop, h_loop);
         }
+
+        const vector<TENSOR_STEP>& cur_tensors = group->time_step->get_tensors(step_id);
+        for (u32 i = 0; i < cur_tensors.size(); ++i) {
+          // check if tensor is kept in lmem.
+          if ((!first_loop) && cur_tensors[i].second == TIMESTEP_LOAD &&
+              group->time_step->is_tensor_hold_in_memory(cur_tensors[i].first)) {
+            continue;
+          }
+
+          // if tensor is loaded in tsm and holded, don't load it again.
+          if ((!first_loop) && cur_tensors[i].second == TIMESTEP_DDR_TO_TSM &&
+              group->time_step->is_tensor_hold_in_memory(cur_tensors[i].first)) {
+            continue;
+          }
+
+          mix_net_.add_transport_param(
+              cur_tensors[i], group->time_step, step_id);
+        }
+
+        mix_net_.parallel_end();
       }
+
+      first_loop = false;
     }
   }
-  w.assign(w_t.begin(), w_t.end());
+
+  mix_net_.add_group_end_ops(gid, group, n_secs, h_secs);
+
+  group->set_lowered(true);
 }
 
-template <typename OpTy>
-struct LowerConv2DOpWeightPattern : public RewritePattern {
-  LowerConv2DOpWeightPattern(MLIRContext *context)
-      : RewritePattern(OpTy::getOperationName(), 1, context) {}
+static llvm::cl::opt<std::string> clWeightMapFilename(
+    "weight-map",
+    llvm::cl::desc("record weight offset with its name into a csv map file"),
+    llvm::cl::init("-"));
+
+static llvm::cl::opt<std::string> clWeightBinFilename(
+    "weight-bin",
+    llvm::cl::desc("weight bin filename"),
+    llvm::cl::init("-"));
+
+template <typename opTy>
+struct TpuLoadWeightOpPattern : public RewritePattern {
+  TpuLoadWeightOpPattern(MLIRContext *context,
+      llvm::raw_fd_ostream *weightBinaryFile, llvm::raw_ostream &map_os,
+      size_t alignment)
+      : RewritePattern(opTy::getOperationName(), 1, context),
+        weightBinaryFile_(weightBinaryFile),
+        map_os_(map_os),
+        alignment_(alignment) {}
 
   PatternMatchResult matchAndRewrite(Operation *op,
-      PatternRewriter &rewriter) const override {
-    auto convOp = cast<OpTy>(op);
-    auto filterOp = cast<tpu::LoadWeightOp>(convOp.filter()->getDefiningOp());
-    if (filterOp.lowered()) {
-      // lowered already
-      return matchFailure();
-    }
-    llvm::errs() << "Lower Weight for Conv2D: " << getOpName(op) << "\n";
+                                     PatternRewriter &rewriter) const override {
     TensorFile *wTF = getWeightTensorFile(op);
-
-    if (getOpQuant(op) == "INT8") {
-      // lower filter
-      {
-        assert(filterOp.storage() == "INT8");
-        std::vector<int64_t> shape;
-        int64_t size;
-        getTensorShapeAndSize(convOp.filter(), shape, size);
-        auto filter = readAndDeleteWeightTensor<float>(convOp.filter(), wTF);
-        std::vector<int8_t> filter_int8(filter->begin(), filter->end());
-        // transpose ic <-> kh*kw
-        // if kh*kw == 1 or ic/g == 1, transposeConvolutionFilter() will do nothing
-        assert(shape.size() == 4 || shape.size() == 5);
-        transposeConvolutionFilter<int8_t>(filter_int8, shape);
-
-        // save it
-        addWeightTensorAndUpdateWeightOp<int8_t>(convOp.filter(),
-            "lowered", filter_int8, shape, "INT8", wTF);
-        filterOp.setAttr("lowered", rewriter.getBoolAttr(true));
-      }
-
-      // lower bias
-      if ( !isTensorNone(convOp.bias()) ) {
-        auto biasOp = cast<tpu::LoadWeightOp>(convOp.bias()->getDefiningOp());
-        if (isOpQuantPerchannel(op)
-            && getOpQuantParamType(op) == "RSHIFT_AND_M_I32") {
-          // lowered already, in pack
-          assert(biasOp.lowered());
-          assert(biasOp.storage() == "UINT8");
-        } else if (isOpQuantPerchannel(op)) {
-          // per-channel mode, bias is INT32
-          assert(biasOp.storage() == "INT32");
-          assert(false && "REMINDER: NOT sure if per-channel bias needs transpose");
-
-          // TODO:
-
-          // save it
-          //StringRef storageType = "INT32";
-          //addWeightTensorAndUpdateWeightOp<int32_t>(convOp.bias(),
-          //    "lowered", bias_int16, shape, storageType, wTF);
-          biasOp.setAttr("lowered", rewriter.getBoolAttr(true));
-        } else {
-          // per-tensor mode, bias is INT16
-          assert(biasOp.storage() == "INT16");
-          std::vector<int64_t> shape;
-          int64_t size;
-          getTensorShapeAndSize(convOp.bias(), shape, size);
-          auto bias = readAndDeleteWeightTensor<float>(convOp.bias(), wTF);
-          std::vector<int16_t> bias_int16(bias->begin(), bias->end());
-          transposeBiasInt16(bias_int16);
-          std::vector<uint16_t> bias_uint16(size);
-          memcpy(bias_uint16.data(), bias_int16.data(), size * sizeof(int16_t));
-
-          // save it
-          // after transpose, this is not INT16 anymore, it is 2 stripes of UINT8
-          // we save it as UINT16, to carry the eltment bitwidth, so we don`t need
-          // to change the shape.
-          addWeightTensorAndUpdateWeightOp<uint16_t>(convOp.bias(),
-              "lowered", bias_uint16, shape, "UINT16", wTF);
-          biasOp.setAttr("lowered", rewriter.getBoolAttr(true));
-        }
-      }
-    } else if (getOpQuant(op) == "BF16") {
-      // lower filter
-      {
-        assert(filterOp.storage() == "BF16");
-        std::vector<int64_t> shape;
-        int64_t size;
-        getTensorShapeAndSize(convOp.filter(), shape, size);
-        auto filter = readAndDeleteWeightTensor<bfloat16>(convOp.filter(), wTF);
-        std::vector<uint16_t> filter_bf16(filter->begin(), filter->end());
-
-        // transpose ic <-> kh*kw
-        // if kh*kw == 1 or ic/g == 1, transposeConvolutionFilter() will do nothing
-        assert(shape.size() == 4 || shape.size() == 5);
-        transposeConvolutionFilter<uint16_t>(filter_bf16, shape);
-
-        // save it
-        StringRef storageType = "BF16";
-        addWeightTensorAndUpdateWeightOp<uint16_t>(convOp.filter(),
-            "lowered", filter_bf16, shape, storageType, wTF);
-        filterOp.setAttr("lowered", rewriter.getBoolAttr(true));
-      }
-
-      // lower bias
-      if ( !isTensorNone(convOp.bias()) ) {
-        auto biasOp = cast<tpu::LoadWeightOp>(convOp.bias()->getDefiningOp());
-        assert(biasOp.storage() == "BF16");
-        // NOTE: for 1880v2, bias is fp32, rather than bf16
-        // however, for simplicity, in quantizeBf16, we quantize all tensor into bf16
-        // before lowering to hardware, we need to expand the bf16 to fp32 first
-        // then transpose into 2 stripes of uint16_t
-        std::vector<int64_t> shape;
-        int64_t size;
-        getTensorShapeAndSize(convOp.bias(), shape, size);
-        auto bias = readAndDeleteWeightTensor<bfloat16>(convOp.bias(), wTF);
-        std::vector<uint16_t> bias_bf16(bias->begin(), bias->end());
-        // rather than expand to fp32, then transpose, we simply add a new stripe
-        // of uint16_t with all 0x0000
-        size_t sz = bias_bf16.size();
-        for (size_t i = 0; i < sz; ++i) {
-          bias_bf16.push_back(0x0000);
-        }
-        // then copy into uint32_t
-        std::vector<uint32_t> bias_uint32(sz);
-        memcpy(bias_uint32.data(), bias_bf16.data(), sz * sizeof(uint32_t));
-
-        // save it
-        // after expand to FB32 and transpose, this is not FB32 anymore
-        // it is 2 stripes of UINT16(BF16)
-        // we save it as UINT32, to carry the eltment bitwidth, so we don`t need
-        // to change the shape
-        StringRef storageType = "UINT32";
-        addWeightTensorAndUpdateWeightOp<uint32_t>(convOp.bias(),
-            "lowered", bias_uint32, shape, storageType, wTF);
-        biasOp.setAttr("lowered", rewriter.getBoolAttr(true));
-      }
-    }
-
-    return matchSuccess();
-  }
-};
-
-struct LowerWeightFullyConnectedOpPattern : public RewritePattern {
-  LowerWeightFullyConnectedOpPattern(MLIRContext *context)
-      : RewritePattern("tpu.fully_connected", 1, context) {}
-
-  PatternMatchResult matchAndRewrite(Operation *op,
-      PatternRewriter &rewriter) const override {
-    auto fcOp = cast<tpu::FullyConnectedOp>(op);
-    auto filterOp = cast<tpu::LoadWeightOp>(fcOp.filter()->getDefiningOp());
-    if (filterOp.lowered()) {
-      // lowered already
-      return matchFailure();
-    }
-    llvm::errs() << "Lower Weight for FullyConnectedOp: " << getOpName(op) << "\n";
-    TensorFile *wTF = getWeightTensorFile(op);
-
-    if (getOpQuant(op) == "INT8") {
-      // lower filter
-      {
-        assert(filterOp.storage() == "INT8");
-        std::vector<int64_t> shape;
-        int64_t size;
-        getTensorShapeAndSize(fcOp.filter(), shape, size);
-        auto filter = readAndDeleteWeightTensor<float>(fcOp.filter(), wTF);
-        std::vector<int8_t> filter_int8(filter->begin(), filter->end());
-        // transpose k,n
-        assert(shape.size() == 2);
-        transposeFullyConnectedFilter<int8_t>(filter_int8, shape);
-
-        // save it
-        addWeightTensorAndUpdateWeightOp<int8_t>(fcOp.filter(),
-            "lowered", filter_int8, shape, "INT8", wTF);
-        filterOp.setAttr("lowered", rewriter.getBoolAttr(true));
-      }
-
-      // lower bias
-      if ( !isTensorNone(fcOp.bias()) ) {
-        auto biasOp = cast<tpu::LoadWeightOp>(fcOp.bias()->getDefiningOp());
-        // per-tensor mode, bias is INT16
-        assert(biasOp.storage() == "INT16");
-        std::vector<int64_t> shape;
-        int64_t size;
-        getTensorShapeAndSize(fcOp.bias(), shape, size);
-        auto bias = readAndDeleteWeightTensor<float>(fcOp.bias(), wTF);
-        std::vector<int16_t> bias_int16(bias->begin(), bias->end());
-        transposeBiasInt16(bias_int16);
-        std::vector<uint16_t> bias_uint16(size);
-        memcpy(bias_uint16.data(), bias_int16.data(), size * sizeof(int16_t));
-
-        // save it
-        // after transpose, this is not INT16 anymore, it is 2 stripes of UINT8
-        // we save it as UINT16, to carry the eltment bitwidth, so we don`t need
-        // to change the shape.
-        addWeightTensorAndUpdateWeightOp<uint16_t>(fcOp.bias(),
-            "lowered", bias_uint16, shape, "UINT16", wTF);
-        biasOp.setAttr("lowered", rewriter.getBoolAttr(true));
-      }
-    } else if (getOpQuant(op) == "BF16") {
-      // lower filter
-      {
-        assert(filterOp.storage() == "BF16");
-        std::vector<int64_t> shape;
-        int64_t size;
-        getTensorShapeAndSize(fcOp.filter(), shape, size);
-        auto filter = readAndDeleteWeightTensor<bfloat16>(fcOp.filter(), wTF);
-        std::vector<uint16_t> filter_bf16(filter->begin(), filter->end());
-        // transpose h,n
-        assert(shape.size() == 2);
-        transposeFullyConnectedFilter<uint16_t>(filter_bf16, shape);
-
-        // save it
-        StringRef storageType = "BF16";
-        addWeightTensorAndUpdateWeightOp<uint16_t>(fcOp.filter(),
-            "lowered", filter_bf16, shape, storageType, wTF);
-        filterOp.setAttr("lowered", rewriter.getBoolAttr(true));
-      }
-
-      // lower bias
-      if ( !isTensorNone(fcOp.bias()) ) {
-        auto biasOp = cast<tpu::LoadWeightOp>(fcOp.bias()->getDefiningOp());
-        assert(biasOp.storage() == "BF16");
-        // NOTE: for 1880v2, bias is fp32, rather than bf16
-        // however, for simplicity, in quantizeBf16, we quantize all tensor into bf16
-        // before lowering to hardware, we need to expand the bf16 to fp32 first
-        // then transpose into 2 stripes of uint16_t
-        std::vector<int64_t> shape;
-        int64_t size;
-        getTensorShapeAndSize(fcOp.bias(), shape, size);
-        auto bias = readAndDeleteWeightTensor<bfloat16>(fcOp.bias(), wTF);
-        std::vector<uint16_t> bias_bf16(bias->begin(), bias->end());
-        // rather than expand to fp32, then transpose, we simply add a new stripe
-        // of uint16_t with all 0x0000
-        size_t sz = bias_bf16.size();
-        for (size_t i = 0; i < sz; ++i) {
-          bias_bf16.push_back(0x0000);
-        }
-        // then copy into uint32_t
-        std::vector<uint32_t> bias_uint32(sz);
-        memcpy(bias_uint32.data(), bias_bf16.data(), sz * sizeof(uint32_t));
-
-        // save it
-        // after expand to FB32 and transpose, this is not FB32 anymore
-        // it is 2 stripes of UINT16(BF16)
-        // we save it as UINT32, to carry the eltment bitwidth, so we don`t need
-        // to change the shape
-        StringRef storageType = "UINT32";
-        addWeightTensorAndUpdateWeightOp<uint32_t>(fcOp.bias(),
-            "lowered", bias_uint32, shape, storageType, wTF);
-        biasOp.setAttr("lowered", rewriter.getBoolAttr(true));
-      }
-    }
-
-    return matchSuccess();
-  }
-};
-
-static std::unique_ptr<std::vector<uint8_t> > packWeight(
-    std::vector<float> *bias, std::vector<float> *rshift,
-    std::vector<float> *multiplier, int64_t oc,
-    std::vector<int64_t> &shape) {
-  if (bias)
-    assert(bias->size() == (size_t)oc);
-  assert(rshift->size() == (size_t)oc);
-  assert(multiplier->size() == (size_t)oc);
-
-  int64_t isz = bias ? 9 : 5;
-  shape = std::vector<int64_t>{oc, 1, isz};
-
-  auto packed = std::make_unique<std::vector<uint8_t> >(oc * isz);
-
-  uint8_t *ptr = packed->data();
-  for (int i = 0; i < oc; i++) {
-    if (bias) {
-      uint32_t val = (uint32_t)(*bias)[i];
-      *ptr = (uint8_t)(val & 0xff);
-      ptr++;
-      *ptr = (uint8_t)((val >> 8) & 0xff);
-      ptr++;
-      *ptr = (uint8_t)((val >> 16) & 0xff);
-      ptr++;
-      *ptr = (uint8_t)((val >> 24) & 0xff);
-      ptr++;
-    }
-
-    {
-      uint32_t val = (uint32_t)(*multiplier)[i];
-      *ptr = (uint8_t)(val & 0xff);
-      ptr++;
-      *ptr = (uint8_t)((val >> 8) & 0xff);
-      ptr++;
-      *ptr = (uint8_t)((val >> 16) & 0xff);
-      ptr++;
-      *ptr = (uint8_t)((val >> 24) & 0xff);
-      ptr++;
-    }
-
-    {
-      uint8_t val = (uint8_t)(*rshift)[i];
-      *ptr = (uint8_t)val;
-      ptr++;
-    }
-  }
-
-  return std::move(packed);
-}
-
-
-template <typename OpTy>
-struct PackWeightConv2DOpPattern : public RewritePattern {
-  PackWeightConv2DOpPattern(MLIRContext *context)
-      : RewritePattern(OpTy::getOperationName(), 1, context) {}
-
-  PatternMatchResult matchAndRewrite(Operation *op,
-      PatternRewriter &rewriter) const override {
-    auto convOp = cast<OpTy>(op);
-    if (getOpQuant(op) != "INT8" || !isOpQuantPerchannel(op)
-        || getOpQuantParamType(op) != "RSHIFT_AND_M_I32") {
-      // for perchannel multiplier mode only
-      return matchFailure();
-    }
-    if ( !isTensorNone(convOp.bias()) ) {
-      auto biasOp = cast<tpu::LoadWeightOp>(convOp.bias()->getDefiningOp());
-      if (biasOp.lowered()) {
-        // packed already
+    auto weightOp = cast<opTy>(op);
+    llvm::StringRef tensor_name;
+    TensorType type;
+    if (isa<tpu::LoadWeightOp>(op)) {
+      auto w_Op = cast<tpu::LoadWeightOp>(op);
+      if (w_Op.offset().hasValue()) {
+        // assigned already
         return matchFailure();
       }
+      tensor_name = w_Op.name().getValue();
+      type = w_Op.getResult()->getType().cast<TensorType>();
+    } else if (isa<tpu::TL_LG_LoadCoeffOp>(op)) {
+      auto w_Op = cast<tpu::TL_LG_LoadCoeffOp>(op);
+      if (w_Op.gaddr().hasValue()) {
+        // assigned already
+        return matchFailure();
+      }
+      tensor_name = w_Op.name();
+      type = w_Op.getResult()->getType().cast<TensorType>();
     }
-    assert( !isTensorNone(convOp.quant_rshift()) );
-    assert( !isTensorNone(convOp.quant_multiplier()) );
-    llvm::errs() << "Pack Weight for Conv2D: " << getOpName(op) << "\n";
-    TensorFile *wTF = getWeightTensorFile(op);
-    Value *wfV = getWeightFileValue(op);
 
-    // get param
-    auto filter_type = convOp.filter()->getType().template cast<TensorType>();
-    std::vector<int64_t> filter_shape(filter_type.getShape());
-    int64_t oc;
-    auto g = convOp.param().group().getValue().getLimitedValue();
-    if (g != 1) {
-      assert(filter_shape.size() == 5);
-      oc = filter_shape[0] * filter_shape[1];
+    // read the tensor
+    llvm::errs() << "lower weight for tensor: " << tensor_name << "\n";
+    //auto type = weightOp.getResult(0)->getType().cast<TensorType>();
+    assert(weightOp.lowered());
+    auto curPos = weightBinaryFile_->tell();
+    size_t size = 0;
+    if (weightOp.storage() == "INT8") {
+      std::vector<int8_t> weight_int8;
+      auto weight = wTF->readTensor<int8_t>(tensor_name, type);
+      weight_int8.assign(weight->begin(), weight->end());
+      size = weight_int8.size();
+
+      // pad to alignment
+      if ( weight_int8.size() % alignment_ ) {
+        size_t pad = alignment_ - (weight_int8.size() % alignment_);
+        for (size_t i = 0; i < pad; ++i) {
+          weight_int8.push_back(-128); // assign a special value for debugging
+        }
+      }
+      weightBinaryFile_->write(reinterpret_cast<const char*>(weight_int8.data()),
+          weight_int8.size() * sizeof(int8_t));
+    } else if (weightOp.storage() == "UINT8") {
+      // UINT8 is used for packed per-channel info or LUT table
+      std::vector<uint8_t> weight_uint8;
+      auto weight = wTF->readTensor<uint8_t>(tensor_name, type);
+      weight_uint8.assign(weight->begin(), weight->end());
+      size = weight_uint8.size();
+
+      // pad to alignment
+      if ( weight_uint8.size() % alignment_ ) {
+        size_t pad = alignment_ - (weight_uint8.size() % alignment_);
+        for (size_t i = 0; i < pad; ++i) {
+          weight_uint8.push_back(0xff); // assign a special value for debugging
+        }
+      }
+      weightBinaryFile_->write(reinterpret_cast<const char*>(weight_uint8.data()),
+          weight_uint8.size() * sizeof(uint8_t));
+    } else if (weightOp.storage() == "INT16") {
+      // INT16 is used for bias in INT8 per-tensor mode
+      // after lowering, this should be UINT16 already
+      assert (false);
+    } else if (weightOp.storage() == "UINT16") {
+      // this is NOT BF16 (BF16 uses `BF16` directly)
+      // this is for lowered and transposed INT16 bias
+      auto weight = wTF->readTensor<uint16_t>(tensor_name, type);
+      size = weight->size();
+      std::vector<uint16_t> weight_uint16(weight->begin(), weight->end());
+      size = weight_uint16.size() * sizeof(uint16_t);
+
+      // pad to alignment
+      if ((weight_uint16.size() * sizeof(uint16_t)) % alignment_) {
+        size_t pad = (alignment_ - (weight_uint16.capacity() % alignment_)) /
+                     sizeof(uint16_t);
+        for (size_t i = 0; i < pad; ++i) {
+          weight_uint16.push_back(0xffff); // assign a special value for debugging
+        }
+      }
+      weightBinaryFile_->write(
+          reinterpret_cast<const char *>(weight_uint16.data()),
+          weight_uint16.size() * sizeof(uint16_t));
+    } else if (weightOp.storage() == "BF16") {
+      std::vector<uint16_t> weight_bf16;
+      auto weight = wTF->readTensor<uint16_t>(tensor_name, type);
+      weight_bf16.assign(weight->begin(), weight->end());
+      size = weight_bf16.size() * sizeof(uint16_t);
+
+      // pad to alignment
+      if ( (weight_bf16.size()* sizeof(uint16_t)) % alignment_ ) {
+        size_t pad = ( alignment_ - ( weight_bf16.capacity() % alignment_ ) )
+                     / sizeof(uint16_t);
+        for (size_t i = 0; i < pad; ++i) {
+          weight_bf16.push_back(0xffff); // assign a special value for debugging
+        }
+      }
+      weightBinaryFile_->write(reinterpret_cast<const char*>(weight_bf16.data()),
+          weight_bf16.size() * sizeof(uint16_t));
+    } else if (weightOp.storage() == "UINT32") {
+      // UINT32 is for lowered Conv Bias
+      // 1. Per-Channel (no mulitplier) Conv Bias is supposed to be INT32
+      // after transpose, it is stored in striped way (NOT sure yet)
+      // 2. BF16 Conv Bias is supposed to be FP32
+      // 1880v2 requires storing fp32 into a 2 stripes 16-bit way
+      // one stripe for high 16-bit, and one for low 16-bit
+      // after the lowering, we store the data as `UINT32`
+      std::vector<uint32_t> weight_uint32;
+      auto weight = wTF->readTensor<uint32_t>(tensor_name, type);
+      weight_uint32.assign(weight->begin(), weight->end());
+      size = weight_uint32.size() * sizeof(uint32_t);
+
+      // pad to alignment
+      if ( (weight_uint32.size()* sizeof(uint32_t)) % alignment_ ) {
+        size_t pad = ( alignment_ - ( weight_uint32.capacity() % alignment_ ) )
+                     / sizeof(uint32_t);
+        for (size_t i = 0; i < pad; ++i) {
+          weight_uint32.push_back(0xffffffff); // assign a special value for debugging
+        }
+      }
+      weightBinaryFile_->write(reinterpret_cast<const char*>(weight_uint32.data()),
+          weight_uint32.size() * sizeof(uint32_t));
+    } else if (weightOp.storage() == "FP32") {
+      assert(false);
+    } else if (weightOp.storage() == "NONE") {
+      return matchSuccess();
     } else {
-      assert(filter_shape.size() == 4);
-      oc = filter_shape[0];
+      llvm::errs() << tensor_name << " weight storage type "
+                   << weightOp.storage() << "\n";
+      assert(0 && "not supported weight storage type");
     }
 
-    // get tensor
-    std::unique_ptr<std::vector<float> > bias = nullptr;
-    if ( !isTensorNone(convOp.bias()) ) {
-      bias = readAndDeleteWeightTensor<float>(convOp.bias(), wTF);
+    auto newPos = weightBinaryFile_->tell();
+    map_os_ << tensor_name << "," << llvm::format_hex(curPos, 10) << "\n";
+
+    llvm::errs() << llvm::format("[%-36s][%8d] : [ ",
+                                 tensor_name.str().c_str(), size)
+                 << llvm::format_hex(curPos, 10) << " --> "
+                 << llvm::format_hex(newPos, 10) << " ]\n";
+
+    // assign the address to weightOp
+    if (isa<tpu::LoadWeightOp>(op))
+      weightOp.setAttr("offset", rewriter.getI64IntegerAttr(curPos));
+    else if(isa<tpu::TL_LG_LoadCoeffOp>(op)) {
+      weightOp.setAttr("gaddr", rewriter.getI64IntegerAttr(curPos));
+      llvm::errs() << "set gaddr : " << curPos << "\n";
     }
-    auto rshift = readAndDeleteWeightTensor<float>(convOp.quant_rshift(), wTF);
-    auto multiplier = readAndDeleteWeightTensor<float>(convOp.quant_multiplier(), wTF);
 
-    // pack the weights
-    std::vector<int64_t> packedShape;
-    auto packed = packWeight(bias.get(), rshift.get(), multiplier.get(), oc,
-                             packedShape);
-
-    // store to the packed per_channel operand in "UINT8"
-    if (bias) {
-      addWeightTensorAndUpdateWeightOp<uint8_t>(convOp.bias(),
-          "pack", *packed, packedShape, "UINT8", wTF);
-    } else {
-      auto packed_op = addWeightTensorAndCreateWeightOp<uint8_t>(
-          op, "pack", *packed, packedShape, "UINT8",
-          wTF, wfV);
-      convOp.setOperand(2, packed_op);
-    }
-    auto biasOp = cast<tpu::LoadWeightOp>(convOp.bias()->getDefiningOp());
-    biasOp.setAttr("lowered", rewriter.getBoolAttr(true));
-
-    // erase quant_rshift and quant_multiplier tensor
-    auto NoneOp = OpBuilder(op).create<tpu::NoneOp>(
-        rewriter.getUnknownLoc(), rewriter.getNoneType());
-    convOp.setOperand(5, NoneOp);
-    convOp.setOperand(6, NoneOp);
 
     return matchSuccess();
   }
+
+  llvm::raw_fd_ostream *weightBinaryFile_;
+  llvm::raw_ostream &map_os_;
+  size_t alignment_;
 };
 
-template<typename OpTy>
-struct DefaultErasePattern : public RewritePattern {
-  DefaultErasePattern(MLIRContext *context)
-      : RewritePattern(OpTy::getOperationName(), 1, context) {}
+template<typename TyOp>
+struct LGLoweringPattern : public RewritePattern {
+  LGLoweringPattern(FuncOp * fn , MLIRContext *context, GroupOptimizer * optimizer)
+      : RewritePattern(TyOp::getOperationName(), 1, context),
+      optimizer_(optimizer), fn_(fn), context_(context){
+        //mix_net_ = optimizer->get_net();
+      }
 
   PatternMatchResult matchAndRewrite(Operation *op,
       PatternRewriter &rewriter) const override {
-    rewriter.replaceOp(op, {op->getOperand(0)});
+    // if already lowered to tl, return false
+    int group_id = 0;
+    if (optimizer_->is_group_start(op, &group_id)) {
+      llvm::errs() << "Find group start: " << getOpName(op) << "\n";
+      optimizer_->lower_to_tl(rewriter, op, group_id);
+    }
     return matchSuccess();
   }
+
+  GroupOptimizer *optimizer_;
+  FuncOp * fn_;
+  MLIRContext * context_;
+  MixNet * mix_net_;
 };
 
-Operation* GroupOptimizer::build_fn(FuncOp *fn, MLIRContext * context, GroupOptimizer * optimizer) {
 
+// lower to tl inst according to layer group result
+void GroupOptimizer::lower_to_tl_group(MLIRContext * context) {
   set_input_output_tensor();
   u64 neuron_size = gmem_mgr_.assign_global_memory(groups_, clDisableGMemOptimize);
 
+  OwningRewritePatternList patterns_pack;
+  patterns_pack.insert<
+      LGLoweringPattern<tpu::Conv2DOp>,
+      LGLoweringPattern<tpu::EltwiseAddOp>,
+      LGLoweringPattern<tpu::EltwiseMulOp>,
+      LGLoweringPattern<tpu::EltwiseMaxOp>,
+      LGLoweringPattern<tpu::PoolAvg2DOp>,
+      LGLoweringPattern<tpu::PoolMax2DOp>
+      >(fn_, context, this);
+  applyPatternsGreedily(*fn_, patterns_pack);
+
+}
+
+void GroupOptimizer::lower_to_tg_group(MLIRContext * context) {
   // create a map file
   std::unique_ptr<llvm::ToolOutputFile> neuronMapFile = nullptr;
   if (clNeuronMapFilename != "-") {
@@ -904,23 +695,6 @@ Operation* GroupOptimizer::build_fn(FuncOp *fn, MLIRContext * context, GroupOpti
     }
   }
 
-  // first, merge conv rshift/multiplier/bias into one packed tensor
-  OwningRewritePatternList patterns_pack;
-  patterns_pack.insert<
-      PackWeightConv2DOpPattern<tpu::Conv2DOp>,
-      PackWeightConv2DOpPattern<tpu::DeConv2DOp>
-      >(context);
-  applyPatternsGreedily(*fn, patterns_pack);
-
-  // second, do weight lower on weight tensors
-  // lower means transpose and save as storageType (int8/bf16,etc)
-  OwningRewritePatternList patterns_lower;
-  patterns_lower.insert<
-      LowerConv2DOpWeightPattern<tpu::Conv2DOp>,
-      LowerWeightFullyConnectedOpPattern
-      >(context);
-  applyPatternsGreedily(*fn, patterns_lower);
-
   OwningRewritePatternList tg_patterns;
   tg_patterns.insert<
       addGroupTGLayerPattern<tpu::InputOp>,
@@ -931,15 +705,15 @@ Operation* GroupOptimizer::build_fn(FuncOp *fn, MLIRContext * context, GroupOpti
       addGroupTGLayerPattern<tpu::PoolAvg2DOp>,
       addGroupTGLayerPattern<tpu::PoolMax2DOp>,
       addGroupTGLayerPattern<tpu::FullyConnectedOp>
-  >(context, optimizer);
-  applyPatternsGreedily(*fn, tg_patterns);
+  >(context, this);
+  applyPatternsGreedily(*fn_, tg_patterns);
 
   // write input data in first row of neuron map file
   OwningRewritePatternList tg_addr_patterns;
-  tg_addr_patterns.insert<
-      addTGLayerGAddrPattern<tpu::TG_INT8_InputOp>
-  >(context, optimizer, neuronMapFile->os());
-  applyPatternsGreedily(*fn, tg_addr_patterns);
+  // tg_addr_patterns.insert<
+  //     addTGLayerGAddrPattern<tpu::InputOp>
+  // >(context, this, neuronMapFile->os());
+  // applyPatternsGreedily(*fn_, tg_addr_patterns);
 
   tg_addr_patterns.clear();
   tg_addr_patterns.insert<
@@ -949,20 +723,55 @@ Operation* GroupOptimizer::build_fn(FuncOp *fn, MLIRContext * context, GroupOpti
       addTGLayerGAddrPattern<tpu::TG_INT8_EltwiseMulOp>,
       addTGLayerGAddrPattern<tpu::TG_INT8_PoolAvg2DOp>,
       addTGLayerGAddrPattern<tpu::TG_INT8_PoolMax2DOp>,
-      addTGLayerGAddrPattern<tpu::TG_INT8_FullyConnectedOp>
-  >(context, optimizer, neuronMapFile->os());
-  applyPatternsGreedily(*fn, tg_addr_patterns);
-
-  tg_addr_patterns.clear();
-  tg_addr_patterns.insert<
-      DefaultErasePattern<tpu::SoftmaxOp>
-  >(context);
-  applyPatternsGreedily(*fn, tg_addr_patterns);
+      addTGLayerGAddrPattern<tpu::TG_INT8_FullyConnectedOp>,
+      addTGLayerGAddrPattern<tpu::GenericCpuOp>
+  >(context, this, neuronMapFile->os());
+  applyPatternsGreedily(*fn_, tg_addr_patterns);
 
   if (neuronMapFile) {
     neuronMapFile->keep();
   }
+}
 
+void GroupOptimizer::assign_weight_address(MLIRContext * context) {
+// update coeff weight address
+  // create a bin file
+    std::error_code ec;
+    assert(clWeightBinFilename != "-");
+    llvm::raw_fd_ostream weightBinaryFile(clWeightBinFilename, ec);
+
+    // create a map file
+    std::unique_ptr<llvm::ToolOutputFile> weightMapFile = nullptr;
+    if (clWeightMapFilename != "-") {
+      std::string errorMessage;
+      weightMapFile = openOutputFile(clWeightMapFilename, &errorMessage);
+      if (!weightMapFile) {
+        llvm::errs() << errorMessage << "\n";
+        exit(1);
+      }
+    }
+
+    OwningRewritePatternList patterns;
+    // assign address and generate bin file
+    patterns.insert<
+      TpuLoadWeightOpPattern<tpu::LoadWeightOp>,
+      TpuLoadWeightOpPattern<tpu::TL_LG_LoadCoeffOp>
+    >(context,
+        &weightBinaryFile, weightMapFile->os(), 16);
+    applyPatternsGreedily(*fn_, patterns);
+
+    weightBinaryFile.close();
+
+    if (weightMapFile) {
+      weightMapFile->keep();
+    }
+
+}
+
+void GroupOptimizer::build_fn(MLIRContext * context) {
+  lower_to_tl_group(context);
+  lower_to_tg_group(context);
+  assign_weight_address(context);
 }
 
 }

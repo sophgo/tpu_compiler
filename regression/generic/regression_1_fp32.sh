@@ -24,6 +24,10 @@ else
   return 1
 fi
 
+if [ $DO_LAYERGROUP = 1 ]; then
+  MLIR_OPT_FE_POST=""
+fi
+
 # assign layer_id right away, and apply all frontend optimizations
 # Notes: convert-bn-to-scale has to be done before canonicalizer
 mlir-opt \

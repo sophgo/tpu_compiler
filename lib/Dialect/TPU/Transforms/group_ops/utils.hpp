@@ -27,6 +27,7 @@
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Support/TensorFile.h"
 #include "llvm/Support/raw_ostream.h"
+#include <llvm/Support/Debug.h>
 #include <sstream>
 #include <fstream>
 #include <math.h>
@@ -79,11 +80,86 @@ static inline int ceiling_func(int numerator, int denominator)
 
 #define GLOBAL_MEM_SIZE  0x100000000
 
+
+typedef enum {
+  S2L = 0,
+  L2S = 1,
+  S2S = 2,
+  L2L = 3,
+  S2TSM = 4,
+  L2TSM = 5,
+  TSM2S = 6,
+  TSM2L = 7
+}TransportDirection;
+
+typedef enum  {
+  NEURON = 0,
+  COEFF = 1,
+  COEFF_INT8 = 2,
+  BIAS_INT8 = 3
+}TransportDataType;
+
+typedef enum  {
+  PRE = 0,
+  CUR = 1,
+  POST = 2
+}TransportStage;
+
+static inline void printFunction(FuncOp * fn) {
+  std::string res;
+  llvm::raw_string_ostream os(res);
+  fn->walk([&](Operation * op) {
+    op->print(os);
+    os << "\n";
+  });
+  llvm::errs() << res;
+}
+
+static int getOperandStorageSize(Operation *p) {
+  auto op = cast<tpu::LoadWeightOp>(p);
+
+  if (op.storage() == "INT8" || op.storage() == "UINT8" ) {
+    return 1;
+  } else if (op.storage() == "BF16" || op.storage() == "INT16" ||
+             op.storage() == "UINT16" ) {
+    return 2;
+  } else if(op.storage() == "FP32" || op.storage() == "INT32" ||
+            op.storage() == "UINT32") {
+    return 4;
+  } else {
+    assert(0);
+  }
+}
+
+static Type getElementType(MLIRContext *context, int size) {
+  Builder builder(context);
+  switch(size){
+    case 1:
+      return builder.getIntegerType(8);
+    case 2:
+      return builder.getIntegerType(16);
+    case 4:
+      return builder.getIntegerType(32);
+  }
+}
+
 static inline bool isValidTpuOp(Operation *op)
 {
   return (!isa<tpu::LoadWeightOp>(op) && !isa<tpu::WeightFileOp>(op) &&
           !isa<tpu::NoneOp>(op) &&
           op->getName().getDialect().str() == "tpu");
+}
+
+static inline bool isValidLayerGroupOp(Operation *op) {
+  if (isa<tpu::LoadWeightOp>(op)
+          || isa<tpu::WeightFileOp>(op)
+          || isa<tpu::QuantOp>(op)
+          || isa<ReturnOp>(op)
+          || isa<tpu::NoneOp>(op)) {
+            return false;
+  } else {
+    return true;
+  }
 }
 
 static inline int64_t top_size(Operation * op) {
@@ -100,6 +176,8 @@ static inline llvm::StringRef top_name(Operation * op, int idx) {
     auto name = mlir::getOpName(op_top);
     return name;
   }
+  else if (auto load_op = dyn_cast<tpu::LoadWeightOp>(op_top))
+    return load_op.name().getValue();
   else
     return llvm::StringRef();
 }
@@ -110,8 +188,11 @@ static inline llvm::StringRef bottom_name(Operation * op, int idx) {
     auto name = mlir::getOpName(op_bottom);
     return name;
   }
+  else if (auto load_op = dyn_cast<tpu::LoadWeightOp>(op_bottom))
+    return load_op.name().getValue();
   else
     return llvm::StringRef();
+
 }
 
 static inline llvm::StringRef name(Operation * op) {

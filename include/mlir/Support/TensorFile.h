@@ -118,7 +118,6 @@ public:
     stem.split(ss, '_');
     std::string base;
     for (unsigned i = 0, e = ss.size(); i < e; ++i) {
-      //llvm::errs() << " ss: " << ss[i] << "\n";
       if (i < e - 2)
         base += ss[i];
     }
