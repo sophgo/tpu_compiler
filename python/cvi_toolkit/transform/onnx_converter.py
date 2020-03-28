@@ -117,9 +117,11 @@ class OnnxConverter(BaseConverterInterface):
         self.output_tensor_file = "{}_1_06eeeb7e.npz".format(model_name)
         self.onnxop_factory = {
             "Add": lambda node: self.convert_add_op(node),
+            "Div": lambda node: self.convert_div_op(node),
             "BatchNormalization": lambda node: self.convert_batchnorm_op(node),
             "Concat": lambda node: self.convert_concat_op(node),
             "Conv": lambda node: self.convert_conv_op(node),
+            "Clip": lambda node: self.convert_clip_op(node),
             "Constant": lambda node: self.convert_constant_op(node),
             "Flatten": lambda node: self.convert_flatten_op(node),
             "Gather": lambda node: self.convert_gather_op(node),
@@ -423,6 +425,21 @@ class OnnxConverter(BaseConverterInterface):
         output_shape = [on, oc, oh, ow]
         conv_op = self.CVI.add_conv_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **conv_param)
         self.addOperand(onnx_node.name, conv_op, output_shape, TensorType.ACTIVATION)
+
+    def convert_clip_op(self, onnx_node):
+        assert(onnx_node.op_type == "Clip")
+        clip_param = {
+            'min':  onnx_node.attrs['min'],
+            'max':  onnx_node.attrs['max'],
+        }
+        op, shape, _ = self.getOperand(onnx_node.inputs[0])
+        operands = list()
+        operands.append(op)
+
+        output_shape = shape
+        conv_op = self.CVI.add_clip_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **clip_param)
+        self.addOperand(onnx_node.name, conv_op, output_shape, TensorType.TENSOR)
+
 
     def convert_flatten_op(self, onnx_node):
         assert(onnx_node.op_type == "Flatten")

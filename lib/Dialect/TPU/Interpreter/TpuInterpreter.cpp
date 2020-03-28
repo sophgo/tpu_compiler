@@ -1310,6 +1310,48 @@ LogicalResult tpu::PixelShuffleOp::interpret(
   return success();
 }
 
+LogicalResult tpu::ClipOp::interpret(
+    DenseMap<Value *, std::shared_ptr<std::vector<float>>> &valueMapping) {
+  Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name()
+                          << "]\n";);
+  auto opdT = getOperandTensors(op, valueMapping);
+  auto result = this->getResult();
+  auto size = getTensorSize(result);
+  auto resultT = std::make_unique<std::vector<float>>(size);
+
+  std::vector<int64_t> input_shape;
+  std::vector<int64_t> output_shape;
+
+  int64_t input_size, output_size;
+  getTensorShapeAndSize(input(), input_shape, input_size);
+  getTensorShapeAndSize(output(), output_shape, output_size);
+
+
+  int in, ic, ih, iw, on, oc, oh, ow;
+
+  float min = this->min().convertToFloat();
+  float max = this->max().convertToFloat();
+
+  in = input_shape[0];
+  ic = input_shape[1];
+  ih = input_shape[2];
+  iw = input_shape[3];
+
+
+  on = output_shape[0];
+  oc = output_shape[1];
+  oh = output_shape[2];
+  ow = output_shape[3];
+
+  std::shared_ptr<std::vector<float>> input = opdT[0];
+  my_clip(input->data(), resultT->data(), in, ic, ih, iw, on,
+                          oc, oh, ow, min, max);
+  valueMapping[result] = std::move(resultT);
+
+  return success();
+}
+
 LogicalResult tpu::PoolAvg2DOp::interpret(
     DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();

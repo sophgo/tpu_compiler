@@ -13,9 +13,11 @@ class TPU_OpType(Enum):
 
     BatchNorm = 'tpu.batch_norm'
     BroadcastMul = 'tpu.broadcast_mul'
+    BroadcastAdd = 'tpu.broadcast_add'
     Concat = 'tpu.concat'
     Conv2d = 'tpu.conv_2d'
     Crop = 'tpu.crop'
+    Clip = 'tpu.clip'
     Eltwise_Add = 'tpu.eltwise_add'
     Eltwise_Mul = 'tpu.eltwise_mul'
     FullyConnected = 'tpu.fully_connected'

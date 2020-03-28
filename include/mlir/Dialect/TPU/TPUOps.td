@@ -797,6 +797,53 @@ def TPU_PixelShuffleOp: TPU_Op<"pixelshuffle",
   let results = (outs AnyTensor:$output);
 }
 
+def TPU_ClipOp: TPU_Op<"clip",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
+       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
+       DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
+
+  let summary = "clip operator";
+
+  let description = [{
+      Perform clip on input.
+      clip op comes from onnx, please refer [clip section](https://github.com/onnx/onnx/blob/master/docs/Operators.md#Clip) for more details.
+
+    Inputs:
+      `input`               : required, Input tensor whose elements to be clipped
+
+    Attributes:
+      `max`: optional, Minimum value, under which element is replaced by min. It must be a scalar(tensor of empty shape).
+      `min`: optional, Maximum value, above which element is replaced by max. It must be a scalar(tensor of empty shape).
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface` : support common TPU Op interface
+      `TpuOpInterpInterface` : support interperter
+      `TpuOpQuantInterface`  : support quantization
+      `TpuOpLowerInterface`  : support lower to TPU TG Ops
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_scale,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_zeropoint,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_rshift,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_multiplier,
+    DefaultValuedAttr<F32Attr, "999">:$min,
+    DefaultValuedAttr<F32Attr, "-999">:$max,
+    TPU_QuantParamAttr:$quant,
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
 def TPU_PoolAvg2DOp : TPU_Op<"pool_avg_2d",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,

@@ -861,6 +861,14 @@ DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::PermuteOp)
 
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::PixelShuffleOp)
 
+LogicalResult tpu::ClipOp::quantizeInt8() {
+  LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+
+  return quantizeInt8RescaleNoWeightOps<tpu::ClipOp>(op);
+}
+
 LogicalResult tpu::PoolAvg2DOp::quantizeInt8() {
   LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName()
                << " [" << getOpName() << "]\n";);
