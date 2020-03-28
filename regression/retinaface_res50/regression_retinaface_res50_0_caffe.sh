@@ -10,7 +10,7 @@ export PYTHONPATH=$TPU_PYTHON_PATH/model/retinaface:$PYTHONPATH
 run_caffe_retinaface.py \
     --model_def $MODEL_PATH/face_detection/retinaface/caffe/R50-0000.prototxt \
     --pretrained_model $MODEL_PATH/face_detection/retinaface/caffe/R50-0000.caffemodel \
-    --input_file $REGRESSION_PATH/retinaface_res50/data/parade.jpg \
+    --input_file $REGRESSION_PATH/data/parade.jpg \
     --dump_blobs retinaface_res50_blobs.npz
 
 cvi_npz_tool.py extract retinaface_res50_blobs.npz retinaface_res50_in_fp32.npz data

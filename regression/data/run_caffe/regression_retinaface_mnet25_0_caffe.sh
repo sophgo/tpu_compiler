@@ -10,7 +10,7 @@ export PYTHONPATH=$TPU_PYTHON_PATH/model/retinaface:$PYTHONPATH
 run_caffe_retinaface.py \
     --model_def $MODEL_PATH/face_detection/retinaface/caffe/mnet_320.prototxt \
     --pretrained_model $MODEL_PATH/face_detection/retinaface/caffe/mnet.caffemodel \
-    --input_file $REGRESSION_PATH/retinaface_res50/data/parade.jpg \
+    --input_file $REGRESSION_PATH/data/parade.jpg \
     --net_input_dims 320,320 \
     --dump_blobs retinaface_mnet25_blobs.npz
 

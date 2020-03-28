@@ -13,7 +13,7 @@ if [ ! -f "$CAFFE_BLOBS_NPZ" ]; then
       --dump_blobs $CAFFE_BLOBS_NPZ \
       --dump_weights arcface_res50_weights.npz \
       --model_type arcface_res50 \
-      --input_file $REGRESSION_PATH/bmface_v3/data/Aaron_Eckhart_0001.jpg
+      --input_file $REGRESSION_PATH/data/Aaron_Eckhart_0001.jpg
 fi
 
 # extract input and output

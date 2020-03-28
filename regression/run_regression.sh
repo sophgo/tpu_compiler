@@ -8,30 +8,38 @@ export GLOG_minloglevel=0
 
 # please keep in alphabetical order
 net_list=(
-  "bmface_v3"
-  "liveness"
+  # "arcface"
+  # "bmface_v3"
+  # "liveness"
   # "resnet50"
-  "retinaface_mnet25"
-  "retinaface_res50"
-  "ssd300"
-  "yolo_v3"
-  "arcface"
+  # "retinaface_mnet25"
+  # "retinaface_res50"
+  # "ssd300"
+  # "yolo_v3"
 )
 
 generic_net_list=(
   "resnet50"
   "vgg16"
   "mobilenet_v2"
+  # "googlenet"
   "inception_v3"
   "inception_v4"
   "efficientnet_b0"
-  # "shufflenet_v2"
+  "shufflenet_v2"
+  "squeezenet"
+  "arcface"
+  "bmface_v3"
+  "liveness"
+  "retinaface_mnet25"
+  "retinaface_res50"
+  "ssd300"
+  "yolo_v3"
 )
 
 generic_accuracy_net_list=(
   "resnet50"
   "mobilenet_v2"
-  # "shufflenet_v2"
 )
 
 ERR=0
