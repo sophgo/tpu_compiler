@@ -22,7 +22,7 @@ if [ $DO_CALIBRATION -eq 1 ]; then
       --out_path=. \
       --math_lib_path=$CALIBRATION_TOOL_PATH/calibration_math.so
 else
-  cp $REGRESSION_PATH/retinaface_mnet25/data/retinaface_mnet25_calibration_table .
+  cp $REGRESSION_PATH/data/cali_tables/retinaface_mnet25_calibration_table .
 fi
 
 mlir-opt \
