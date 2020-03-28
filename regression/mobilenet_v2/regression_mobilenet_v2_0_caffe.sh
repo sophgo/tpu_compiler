@@ -10,10 +10,10 @@ run_caffe_classifier.py \
     --pretrained_model $MODEL_PATH/imagenet/mobilenet_v2/caffe/mobilenet_v2.caffemodel \
     --mean 103.94,116.78,123.68 \
     --input_scale 0.017 \
-    --label_file $REGRESSION_PATH/resnet50/data/ilsvrc12/synset_words.txt \
+    --label_file $REGRESSION_PATH/data/synset_words.txt \
     --dump_blobs mobilenet_v2_blobs.npz \
     --dump_weights mobilenet_v2_weights.npz \
-    $REGRESSION_PATH/resnet50/data/cat.jpg \
+    $REGRESSION_PATH/data/cat.jpg \
     caffe_out.npy
 
 # extract input and output

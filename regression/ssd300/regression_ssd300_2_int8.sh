@@ -41,7 +41,7 @@ if [ $CHECK_INFERENCE_RESULT -eq 1 ]; then
       --dump_blobs ssd300_blobs.npz \
       --obj_threshold 0.5 \
       --dump_weights ssd300_weights.npz \
-      --input_file $REGRESSION_PATH/ssd300/data/dog.jpg \
+      --input_file $REGRESSION_PATH/data/dog.jpg \
       --label_file $MODEL_PATH/object_detection/ssd/caffe/ssd300/labelmap_coco.prototxt  \
       --draw_image ssd300_quant_int8_per_layer_result.jpg
 fi
@@ -90,7 +90,7 @@ if [ $CHECK_INFERENCE_RESULT -eq 1 ]; then
       --dump_blobs ssd300_blobs.npz \
       --dump_weights ssd300_weights.npz \
       --obj_threshold 0.5 \
-      --input_file $REGRESSION_PATH/ssd300/data/dog.jpg \
+      --input_file $REGRESSION_PATH/data/dog.jpg \
       --label_file $MODEL_PATH/object_detection/ssd/caffe/ssd300/labelmap_coco.prototxt  \
       --draw_image ssd300_quant_int8_per_channel.jpg
 fi
@@ -142,7 +142,7 @@ if [ $CHECK_INFERENCE_RESULT -eq 1 ]; then
       --dump_blobs ssd300_blobs.npz \
       --obj_threshold 0.5 \
       --dump_weights ssd300_weights.npz \
-      --input_file $REGRESSION_PATH/ssd300/data/dog.jpg \
+      --input_file $REGRESSION_PATH/data/dog.jpg \
       --label_file $MODEL_PATH/object_detection/ssd/caffe/ssd300/labelmap_coco.prototxt  \
       --draw_image ssd300_quant_int8_multiplier.jpg
 fi

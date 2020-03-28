@@ -29,7 +29,7 @@ export DATASET_PATH=$DATASET_PATH
 
 # set MLIR_INSTALL_PATH
 if [[ -z "$MLIR_INSTALL_PATH" ]]; then
-  MLIR_INSTALL_PATH=$TPU_BASE/install_host
+  MLIR_INSTALL_PATH=$TPU_BASE/cvitek_mlir
 fi
 echo "INSTALL_PATH set to $MLIR_INSTALL_PATH"
 export INSTALL_PATH=$MLIR_INSTALL_PATH
@@ -81,7 +81,7 @@ export PYTHONPATH=$FLATBUFFERS_PATH/python:$PYTHONPATH
 
 # soc build and path
 if [[ -z "$SDK_INSTALL_PATH" ]]; then
-  SDK_INSTALL_PATH=$TPU_BASE/install_soc
+  SDK_INSTALL_PATH=$TPU_BASE/cvitek_tpu_sdk
 fi
 echo "INSTALL_SOC_PATH set to $INSTALL_SOC_PATH"
 export INSTALL_SOC_PATH=$SDK_INSTALL_PATH

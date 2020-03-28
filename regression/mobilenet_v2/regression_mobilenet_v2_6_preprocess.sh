@@ -27,7 +27,7 @@ mlir-opt \
 
 # test 1: fp32
 python $REGRESSION_PATH/mobilenet_v2/convert_image.py \
-    --image $REGRESSION_PATH/resnet50/data/cat.jpg \
+    --image $REGRESSION_PATH/data/cat.jpg \
     --save mobilenet_v2_preprocess_in_fp32
 
 mlir-tpu-interpreter mobilenet_v2_preprocess_opt.mlir \

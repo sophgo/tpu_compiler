@@ -13,8 +13,8 @@ run_caffe_classifier.py \
     --net_input_dims 224,224 \
     --dump_blobs densenet_blobs.npz \
     --dump_weights densenet_weights.npz \
-    --label_file $PYTHON_TOOLS_PATH/data/ilsvrc12/synset_words.txt \
-    $REGRESSION_PATH/densenet/data/cat.jpg \
+    --label_file $REGRESSION_PATH/data/synset_words.txt \
+    $REGRESSION_PATH/data/cat.jpg \
     caffe_out.npy
 
 

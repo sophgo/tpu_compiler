@@ -16,10 +16,10 @@ if [ ! -f "$CAFFE_BLOBS_NPZ" ]; then
       --mean $MEAN \
       --input_scale $INPUT_SCALE \
       --batch_size $BATCH_SIZE \
-      --label_file $REGRESSION_PATH/resnet50/data/ilsvrc12/synset_words.txt \
+      --label_file $REGRESSION_PATH/data/synset_words.txt \
       --dump_blobs $CAFFE_BLOBS_NPZ \
       --dump_weights ${NET}_weights.npz \
-      $REGRESSION_PATH/resnet50/data/cat.jpg \
+      $REGRESSION_PATH/data/cat.jpg \
       caffe_out.npy
 fi
 

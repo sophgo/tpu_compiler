@@ -70,7 +70,7 @@ run_mlir_detector_ssd.py \
       --dump_blobs ssd300_blobs.npz \
       --obj_threshold 0.5 \
       --dump_weights ssd300_weights.npz \
-      --input_file $REGRESSION_PATH/ssd300/data/dog.jpg \
+      --input_file $REGRESSION_PATH/data/dog.jpg \
       --label_file $MODEL_PATH/object_detection/ssd/caffe/ssd300/labelmap_coco.prototxt  \
       --draw_image ssd300_fp32_mlir_opt2_result.jpg
 fi

@@ -11,7 +11,7 @@ run_caffe_classifier.py \
     --mean 103.94,116.78,123.68 \
     --dump_blobs vgg16_blobs.npz \
     --dump_weights vgg16_weights.npz \
-    $REGRESSION_PATH/resnet50/data/cat.jpg \
+    $REGRESSION_PATH/data/cat.jpg \
     caffe_out.npy
 
 # extract input and output

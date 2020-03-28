@@ -8,7 +8,7 @@ DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 run_caffe_classifier.py \
     --model_def $MODEL_PATH/imagenet/shufflenet_v2/caffe/shufflenet_v2_x0.5.prototxt \
     --pretrained_model $MODEL_PATH/imagenet/shufflenet_v2/caffe/shufflenet_v2_x0.5.caffemodel \
-    --label_file $REGRESSION_PATH/resnet50/data/ilsvrc12/synset_words.txt \
+    --label_file $REGRESSION_PATH/data/synset_words.txt \
     --dump_blobs shufflenet_blobs.npz \
     --dump_weights shufflenet_weights.npz \
     --raw_scale 1.0 \

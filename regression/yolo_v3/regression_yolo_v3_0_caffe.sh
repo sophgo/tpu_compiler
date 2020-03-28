@@ -16,8 +16,8 @@ if [ ! -f "$CAFFE_BLOBS_NPZ" ]; then
       --nms_threshold 0.5 \
       --dump_blobs $CAFFE_BLOBS_NPZ \
       --dump_weights ${NET}_weights.npz \
-      --input_file $REGRESSION_PATH/yolo_v3/data/dog.jpg \
-      --label_file $REGRESSION_PATH/yolo_v3/data/coco-labels-2014_2017.txt \
+      --input_file $REGRESSION_PATH/data/dog.jpg \
+      --label_file $REGRESSION_PATH/data/coco-labels-2014_2017.txt \
       --draw_image dog_out.jpg
 fi
 

@@ -217,18 +217,8 @@ rm -rf $INSTALL_PATH/lib/cmake/
 # install regression
 mkdir -p $INSTALL_PATH/regression
 cp -a $MLIR_SRC_PATH/regression/generic $INSTALL_PATH/regression/
-cp -a $MLIR_SRC_PATH/regression/arcface $INSTALL_PATH/regression/
-cp -a $MLIR_SRC_PATH/regression/bmface_v3 $INSTALL_PATH/regression/
-cp -a $MLIR_SRC_PATH/regression/efficientnet_b0 $INSTALL_PATH/regression/
-cp -a $MLIR_SRC_PATH/regression/inception_v3 $INSTALL_PATH/regression/
-cp -a $MLIR_SRC_PATH/regression/inception_v4 $INSTALL_PATH/regression/
-cp -a $MLIR_SRC_PATH/regression/liveness $INSTALL_PATH/regression/
 cp -a $MLIR_SRC_PATH/regression/parallel $INSTALL_PATH/regression/
-cp -a $MLIR_SRC_PATH/regression/retinaface_mnet25 $INSTALL_PATH/regression/
-cp -a $MLIR_SRC_PATH/regression/retinaface_res50 $INSTALL_PATH/regression/
-cp -a $MLIR_SRC_PATH/regression/ssd300 $INSTALL_PATH/regression/
-cp -a $MLIR_SRC_PATH/regression/yolo_v3 $INSTALL_PATH/regression/
-cp -a $MLIR_SRC_PATH/regression/run_regression.sh $INSTALL_PATH/regression/
+cp -a $MLIR_SRC_PATH/regression/data $INSTALL_PATH/regression/
 # install env script
 cp $MLIR_SRC_PATH/cvitek_envs.sh $INSTALL_PATH/
 fi

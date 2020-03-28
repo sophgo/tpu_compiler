@@ -16,7 +16,7 @@ run_caffe_classifier.py \
     --input_scale 4.45 \
     --dump_blobs efficientnet_blobs.npz \
     --dump_weights efficientnet_weights.npz \
-    $REGRESSION_PATH/resnet50/data/cat.jpg \
+    $REGRESSION_PATH/data/cat.jpg \
     caffe_out.npy
 
 # extract input and output

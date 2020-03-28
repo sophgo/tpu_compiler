@@ -16,10 +16,10 @@ if [ ! -f "$CAFFE_BLOBS_NPZ" ]; then
       --net_input_dims 299,299 \
       --mean 128,128,128 \
       --input_scale 0.0078125 \
-      --label_file $REGRESSION_PATH/inception_v3/data/ilsvrc2015_synset_words.txt \
+      --label_file $REGRESSION_PATH/data/ilsvrc2015_synset_words.txt \
       --dump_blobs $CAFFE_BLOBS_NPZ \
       --dump_weights inception_v3_weights.npz \
-      $REGRESSION_PATH/inception_v3/data/dog.jpg \
+      $REGRESSION_PATH/data/cat.jpg \
       caffe_out.npy
 fi
 
