@@ -132,6 +132,17 @@ struct TpuFuseLeakyReluOpPattern : public RewritePattern {
   }
 };
 
+static bool isOpCloseToUse(Operation *op) {
+  auto successor = op->getNextNode();
+  assert(successor);
+  for (auto &use : op->getResult(0)->getUses()) {
+    if (successor == use.getOwner()) {
+      return true;
+    }
+  }
+  return false;
+}
+
 struct TpuTL_LW_Conv2DOp_MarkShortPathPattern : public RewritePattern {
   TpuTL_LW_Conv2DOp_MarkShortPathPattern(MLIRContext *context)
       : RewritePattern("tpu.tl_lw_conv_2d", 1, context) {}
@@ -143,7 +154,7 @@ struct TpuTL_LW_Conv2DOp_MarkShortPathPattern : public RewritePattern {
       return matchFailure();
     }
 
-    if (! op.getResult()->hasOneUse()) {
+    if (!op.getResult()->hasOneUse()) {
       llvm::errs() << "TL_LA2LW: layer ID " << op.layer_id()
                  << ", Conv2D " << op.name()
                  << " has more than one Use " << op.getResult()->hasOneUse() << "\n";
@@ -156,8 +167,14 @@ struct TpuTL_LW_Conv2DOp_MarkShortPathPattern : public RewritePattern {
     auto next_op = getNextOp(op);
     auto prev_op = op.getOperand(0);
 
-    if (!prev_op->hasOneUse() && isa<tpu::TL_EltwiseAddOp>(next_op)) {
-      op.setAttr("in_short_path", rewriter.getBoolAttr(true));
+    if (isa<tpu::TL_EltwiseAddOp>(next_op)) {
+      if (!prev_op->hasOneUse()) { // Why?
+        op.setAttr("in_short_path", rewriter.getBoolAttr(true));
+      } else if (!isOpCloseToUse(opInst)) { // if op is not close to eltwiseAdd, it must be short path.
+        op.setAttr("in_short_path", rewriter.getBoolAttr(true));
+      } else {
+        op.setAttr("in_short_path", rewriter.getBoolAttr(false));
+      }
     } else {
       op.setAttr("in_short_path", rewriter.getBoolAttr(false));
     }
@@ -185,7 +202,7 @@ struct TpuTL_LW_Conv2DOp_AssignLayoutPattern : public RewritePattern {
       return matchFailure();
     }
 
-    if (! op.getResult()->hasOneUse()) {
+    if (!op.getResult()->hasOneUse()) {
       llvm::errs() << "TL_LA2LW: layer ID " << op.layer_id()
                  << ", Conv2D " << op.name()
                  << " has more than one Use " << op.getResult()->hasOneUse() << "\n";

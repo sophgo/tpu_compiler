@@ -212,7 +212,6 @@ export TOLERANCE_INT8_MULTIPLER=0.59,0.59,-0.12
 export DO_QUANT_INT8_PER_TENSOR=0
 export DO_QUANT_INT8_RFHIFT_ONLY=0
 export DO_QUANT_BF16=0
-export DO_DEEPFUSION=0
 fi
 
 if [ $NET = "bmface_v3" ]; then
@@ -225,7 +224,6 @@ export TOLERANCE_INT8_MULTIPLER=0.9,0.9,0.6
 export DO_QUANT_INT8_PER_TENSOR=0
 export DO_QUANT_INT8_RFHIFT_ONLY=0
 export DO_QUANT_BF16=0
-export DO_DEEPFUSION=0
 fi
 
 if [ $NET = "liveness" ]; then
@@ -238,7 +236,6 @@ export TOLERANCE_INT8_MULTIPLER=0.9,0.9,0.7
 export DO_QUANT_INT8_PER_TENSOR=0
 export DO_QUANT_INT8_RFHIFT_ONLY=0
 export DO_QUANT_BF16=0
-export DO_DEEPFUSION=0
 fi
 
 if [ $NET = "retinaface_mnet25" ]; then

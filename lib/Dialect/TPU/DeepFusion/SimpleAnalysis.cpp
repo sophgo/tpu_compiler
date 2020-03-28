@@ -51,7 +51,9 @@ uint64_t SimpleConv2DMemoryUsageAnalysis(OpTy &op,
   uint64_t filterSizePerLane = 0;
   // filter working size *2 for double buffer
   if (g != oc) {
-    assert(g == 1);
+    if(g != 1) { // TODO, not support group convolution now.
+      return MInfo::lmem_per_lane + 1;
+    }
     // for non-dw conv, assuming oc_step = lane_num
     int oc_step = MInfo::lane_num;
     filterSizePerLane = MInfo::getSizePerLane(ic, oc_step, kh, kw, false) * 2;
