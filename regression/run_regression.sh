@@ -34,7 +34,11 @@ generic_net_list=(
   "retinaface_mnet25"
   "retinaface_res50"
   "ssd300"
-  "yolo_v3"
+  "yolo_v3_416"
+  # "yolo_v3_608"
+  "yolo_v3_320"
+  # "yolo_v3_160"
+  # "yolo_v3_512x288"
 )
 
 generic_accuracy_net_list=(

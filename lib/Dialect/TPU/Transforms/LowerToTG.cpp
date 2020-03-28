@@ -1615,6 +1615,25 @@ struct LowerWeightPReluOpPattern : public RewritePattern {
   }
 };
 
+struct LowerWeightDetectionOutputOpPattern : public RewritePattern {
+  LowerWeightDetectionOutputOpPattern(MLIRContext *context)
+      : RewritePattern("tpu.detectionoutput", 1, context) {}
+
+  PatternMatchResult matchAndRewrite(Operation *op,
+      PatternRewriter &rewriter) const override {
+    auto prOp = cast<tpu::DetectionOutputOp>(op);
+    auto weightOp = cast<tpu::LoadWeightOp>(prOp.getOperand(2)->getDefiningOp());
+    assert(weightOp);
+    if (weightOp.lowered()) {
+      // lowered already
+      return matchFailure();
+    }
+    llvm::errs() << "Lower Weight for DetectionOutputOp: " << getOpName(op) << "\n";
+    weightOp.setAttr("lowered", rewriter.getBoolAttr(true));
+    return matchSuccess();
+  }
+};
+
 template <typename OpTy>
 struct LowerWeightLutOpPattern : public RewritePattern {
   LowerWeightLutOpPattern(MLIRContext *context)
@@ -1716,7 +1735,8 @@ public:
         LowerWeightPReluOpPattern,
         LowerWeightLutOpPattern<tpu::SigmoidOp>,
         LowerWeightLutOpPattern<tpu::SqrtOp>,
-        LowerWeightFullyConnectedOpPattern
+        LowerWeightFullyConnectedOpPattern,
+        LowerWeightDetectionOutputOpPattern
         >(context);
     applyPatternsGreedily(fn, patterns_lower);
 

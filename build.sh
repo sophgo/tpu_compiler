@@ -97,6 +97,7 @@ cp -ar $CVI_PY_TOOLKIT/model $TPU_PYTHON_PATH/
 cp -ar $CVI_PY_TOOLKIT/transform $TPU_PYTHON_PATH/
 cp -ar $CVI_PY_TOOLKIT/utils $TPU_PYTHON_PATH/
 cp -ar $CVI_PY_TOOLKIT/numpy_helper $TPU_PYTHON_PATH/
+pushd $TPU_PYTHON_PATH/model/retinaface; make; popd
 
 # python script
 cp $CVI_PY_TOOLKIT/*.py $TPU_PYTHON_PATH/
@@ -110,15 +111,12 @@ cp $CVI_PY_TOOLKIT/inference/onnx/*.py $TPU_PYTHON_PATH/
 # build python package
 pushd $MLIR_SRC_PATH
 if [ $PYTHON_VERSION == "2" ]; then
-  pip install wheel
   python setup/python2/setup.py bdist_wheel --dist-dir=$INSTALL_PATH/python_package/
 elif [ $PYTHON_VERSION == "3" ]; then
-  pip3 install wheel
   python3 setup/python3/setup.py bdist_wheel --dist-dir=$INSTALL_PATH/python3_package/
 fi
 popd
 
-pushd $TPU_PYTHON_PATH/model/retinaface; make; popd
 # calibration tool
 if [ ! -e $BUILD_PATH/build_calibration ]; then
   mkdir -p $BUILD_PATH/build_calibration
@@ -151,7 +149,7 @@ cmake -G Ninja -DCHIP=BM1880v2 $BUILD_FLAG \
 cmake --build . --target install
 popd
 
-# build runtime
+# build cviruntime
 if [ ! -e $BUILD_PATH/build_cviruntime ]; then
   mkdir $BUILD_PATH/build_cviruntime
 fi

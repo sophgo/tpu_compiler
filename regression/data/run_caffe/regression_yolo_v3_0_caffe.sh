@@ -9,9 +9,9 @@ CAFFE_BLOBS_NPZ="${NET}_blobs.npz"
 if [ ! -f "$CAFFE_BLOBS_NPZ" ]; then
   # run caffe model
   run_caffe_detector_yolo.py \
-      --model_def $MODEL_PATH/object_detection/yolo_v3/caffe/416/yolov3_416.prototxt \
-      --pretrained_model $MODEL_PATH/object_detection/yolo_v3/caffe/416/yolov3_416.caffemodel \
-      --net_input_dims 416,416 \
+      --model_def $MODEL_DEF \
+      --pretrained_model $MODEL_DAT \
+      --net_input_dims $NET_INPUT_DIMS \
       --obj_threshold 0.3 \
       --nms_threshold 0.5 \
       --dump_blobs $CAFFE_BLOBS_NPZ \
