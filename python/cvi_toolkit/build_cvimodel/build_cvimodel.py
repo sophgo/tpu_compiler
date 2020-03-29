@@ -204,6 +204,7 @@ class Program:
       cm.TensorAddShape(self.builder, tensor_shape)
       cm.TensorAddStride(self.builder, tensor_stride)
       cm.TensorAddQuant(self.builder, tensor_quant)
+      cm.TensorAddOverwrote(self.builder, tensor.overwrote)
       neuron_map.append(cm.TensorEnd(self.builder))
 
     cm.ProgramStartTensorMapVector(self.builder, len(neuron_map))
