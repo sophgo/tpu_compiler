@@ -27,6 +27,7 @@
 #include "mlir/Dialect/TPU/NativeCpuImplementation.h"
 #include "mlir/Dialect/TPU/CpuLayer_DetectionOutput.h"
 #include "mlir/Dialect/TPU/CpuLayer_RetinaFaceDetection.h"
+#include "mlir/Dialect/TPU/CpuLayer_YoloDetection.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Function.h"
 #include "mlir/IR/Module.h"
@@ -2214,6 +2215,85 @@ LogicalResult tpu::UpsampleOp::interpret(
   // compute in fp32
   int ret = my_upsample(input->data(), resultT->data(), n, c, ih, iw, scale);
   assert(ret == 0);
+
+  valueMapping[result] = std::move(resultT);
+
+  return success();
+}
+
+LogicalResult tpu::YoloDetectionOp::interpret(
+    DenseMap<Value *, std::shared_ptr<std::vector<float>>> &valueMapping) {
+  Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
+
+  auto opT = getOperandTensors(op, valueMapping);
+  auto result = this->getResult();
+  auto size = getTensorSize(result);
+  auto resultT = std::make_unique<std::vector<float>>(size);
+  auto output_data = resultT->data();
+
+  auto net_input_h = this->net_input_h().getLimitedValue();
+  auto net_input_w = this->net_input_w().getLimitedValue();
+  auto obj_threshold = this->obj_threshold().convertToFloat();
+  auto nms_threshold = this->nms_threshold().convertToFloat();
+  auto keep_topk = this->keep_topk().getLimitedValue();
+
+  int input_count = opT.size();
+  assert(input_count == 3);
+
+  const float anchors[3][6] = {
+    {10,13,   16,30,    33,23},      // layer106-conv (52*52)
+    {30,61,   62,45,    59,119},     // layer94-conv  (26*26)
+    {116,90,  156,198,  373,326}     // layer82-conv  (13*13)
+  };
+
+  std::vector<std::vector<int>> grid_size(3);
+  std::vector<std::vector<float>> features;
+
+  for (int i = 0; i < 3; ++i) {
+    auto shape = getTensorShape(op->getOperand(i));
+    grid_size[i] = std::vector<int>{shape[2], shape[3]};
+    auto data = opT[i]->data();
+    auto size = opT[i]->size();
+    std::vector<float> bottom_data(data, data + size);
+    features.push_back(bottom_data);
+  }
+
+  detection det_raw[MAX_DET_RAW];
+  detection dets[MAX_DET];
+  int det_raw_idx = 0;
+  for (int i = 0; i < 3; i++) {
+    process_feature(det_raw, &det_raw_idx, features[i].data(), grid_size[i],
+      &anchors[i][0], {net_input_h, net_input_w}, 80, obj_threshold);
+  }
+  nms(det_raw, det_raw_idx, nms_threshold);
+  int det_idx = 0;
+  for (int i = 0; i < det_raw_idx; i++) {
+    if (det_raw[i].score > 0) {
+      dets[det_idx] = det_raw[i];
+      det_idx ++;
+    } else {
+      //std::cout << "erased: " << det_raw[i].cls << std::endl;
+    }
+  }
+
+  if (keep_topk > det_idx)
+      keep_topk = det_idx;
+
+  long long count = 0;
+  for(int i = 0; i < keep_topk; ++i) {
+    output_data[count++] = dets[i].bbox.x;
+    output_data[count++] = dets[i].bbox.y;
+    output_data[count++] = dets[i].bbox.w;
+    output_data[count++] = dets[i].bbox.h;
+    output_data[count++] = dets[i].cls;
+    output_data[count++] = dets[i].score;
+
+    LLVM_DEBUG(llvm::errs() << "x= " << dets[i].bbox.x << ",y= " << dets[i].bbox.y
+              << ",w= " << dets[i].bbox.w << ",h= " << dets[i].bbox.h
+              << ", class= " << dets[i].cls
+              << ", score= " << dets[i].score<< "\n";);
+  }
 
   valueMapping[result] = std::move(resultT);
 

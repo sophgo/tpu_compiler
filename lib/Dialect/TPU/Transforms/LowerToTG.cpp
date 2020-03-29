@@ -1783,11 +1783,12 @@ public:
         // lowered already
       } else if (isa<tpu::QuantOp>(op)
                  || isa<tpu::InputOp>(op)
+                 || isa<tpu::DetectionOutputOp>(op)
                  || isa<tpu::PreprocessOp>(op)
                  || isa<tpu::RetinaFaceDetectionOp>(op)
                  || isa<tpu::SoftmaxOp>(op)
                  || isa<tpu::TransposeOp>(op)
-                 || isa<tpu::DetectionOutputOp>(op)) {
+                 || isa<tpu::YoloDetectionOp>(op)) {
         // no need to lower
       } else {
         llvm::errs() << "lower didn't handle " << op->getName() << "\n";

@@ -1582,6 +1582,54 @@ def TPU_UpsampleOp: TPU_Op<"upsample",
   let results = (outs AnyTensor:$output);
 }
 
+def TPU_YoloDetectionOp : TPU_Op<"yolo_detection",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuOpInterpInterface>]> {
+  let summary = "YoloDetection operator";
+
+  let description = [{
+    Perform yolo detection on feature map
+
+    Inputs:
+      `inputs`                  : required, input tensors
+      `net_input_h`             : required, net input h
+      `net_input_w`             : required, net input w
+      `nms_threshold`           : required, nms threshold
+      `obj_threshold`           : required, confidence threshold
+      `keep_topk`               : required, after nms, keep bbox num
+
+    Attributes:
+      `name`            : required, name for calibration, comparing, or debug.
+      `quant`           : required, a QuantParam struct attributes.
+      `layer_id`        : optional, id for profiling.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TPU_QuantSupportPerChannel`
+      `TPU_QuantSupportAsymmetric`
+      `TpuOpCommonInterface` : support common TPU Op interface
+      `TpuOpInterpInterface` : support interperter
+      `TpuOpQuantInterface`  : support quantization
+  }];
+
+  let arguments = (
+    ins Variadic<AnyTensor>:$input,
+    I32Attr:$net_input_h,
+    I32Attr:$net_input_w,
+    F32Attr:$nms_threshold,
+    F32Attr:$obj_threshold,
+    I32Attr:$keep_topk,
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
 include "mlir/Dialect/TPU/TPUSupportOps.td"
 include "mlir/Dialect/TPU/TPUTGOps.td"
 include "mlir/Dialect/TPU/TPUTLOps_Simple.td"

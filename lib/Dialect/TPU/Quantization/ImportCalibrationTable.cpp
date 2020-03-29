@@ -410,7 +410,8 @@ public:
                  || isa<tpu::PreprocessOp>(op)
                  || isa<tpu::RetinaFaceDetectionOp>(op)
                  || isa<tpu::SoftmaxOp>(op)
-                 || isa<tpu::TransposeOp>(op)) {
+                 || isa<tpu::TransposeOp>(op)
+                 || isa<tpu::YoloDetectionOp>(op)) {
         // doesn't matter assigned or not
       } else {
         llvm::errs() << "setThresholdFromMap didn't handle " << op->getName()

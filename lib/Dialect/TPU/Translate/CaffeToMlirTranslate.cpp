@@ -178,6 +178,7 @@ private:
   // void convertReductionLayer(mlir::Block *block, caffe::Layer<float> *layer);
   void convertReLULayer(mlir::Block *block, caffe::Layer<float> *layer);
   void convertReshapeLayer(mlir::Block *block, caffe::Layer<float> *layer);
+  void convertRetinaFaceDetectionLayer(mlir::Block *block, caffe::Layer<float> *layer);
   void convertScaleLayer(mlir::Block *block, caffe::Layer<float> *layer);
   void convertShuffleChannelLayer(mlir::Block *block, caffe::Layer<float> *layer);
   void convertSigmoidLayer(mlir::Block *block, caffe::Layer<float> *layer);
@@ -186,7 +187,7 @@ private:
   void convertSplitLayer(mlir::Block *block, caffe::Layer<float> *layer);
   void convertTanHLayer(mlir::Block *block, caffe::Layer<float> *layer);
   void convertUpsampleLayer(mlir::Block *block, caffe::Layer<float> *layer);
-  void convertRetinaFaceDetectionLayer(mlir::Block *block, caffe::Layer<float> *layer);
+  void convertYoloDetectionLayer(mlir::Block *block, caffe::Layer<float> *layer);
   mlir::Value *insertTransposeLayer(mlir::Block *block, mlir::Value *opd,
                                     const std::string &name);
   void insertPreprocessLayer(mlir::Block *block, mlir::Value *opd,
@@ -439,6 +440,8 @@ void CaffeImporter::ConvertLayers(mlir::Block *block, caffe::Net<float> &net) {
       convertShuffleChannelLayer(block, layer);
     } else if (strcmp(layer->type(), "RetinaFaceDetection") == 0) {
       convertRetinaFaceDetectionLayer(block, layer);
+    } else if (strcmp(layer->type(), "YoloDetection") == 0) {
+      convertYoloDetectionLayer(block, layer);
     } else {
       llvm::errs() << "    UNKNOWN : " << layer->type() << "\n";
       assert(false);
@@ -2288,6 +2291,40 @@ void CaffeImporter::convertUpsampleLayer(mlir::Block *block, caffe::Layer<float>
       ArrayRef<NamedAttribute>{attrs});
   auto result_var = op.getResult();
 
+  tensor_map_[layer_param.top(0)] = result_var;
+}
+
+void CaffeImporter::convertYoloDetectionLayer(mlir::Block *block,
+                                                    caffe::Layer<float> *layer) {
+  auto layer_param = layer->layer_param();
+  auto yolo_detection_param = layer_param.yolo_detection_param();
+  int net_input_h = yolo_detection_param.net_input_h();
+  int net_input_w = yolo_detection_param.net_input_w();
+  float nms_threshold = yolo_detection_param.nms_threshold();
+  float obj_threshold = yolo_detection_param.obj_threshold();
+  int keep_topk = yolo_detection_param.keep_topk();
+
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(
+      builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name())));
+  attrs.push_back(
+      builder_.getNamedAttr("net_input_h", builder_.getI32IntegerAttr(net_input_h)));
+  attrs.push_back(
+      builder_.getNamedAttr("net_input_w", builder_.getI32IntegerAttr(net_input_w)));
+  attrs.push_back(
+      builder_.getNamedAttr("nms_threshold", builder_.getF32FloatAttr(nms_threshold)));
+  attrs.push_back(
+      builder_.getNamedAttr("obj_threshold", builder_.getF32FloatAttr(obj_threshold)));
+  attrs.push_back(
+      builder_.getNamedAttr("keep_topk", builder_.getI32IntegerAttr(keep_topk)));
+  std::vector<mlir::Value *> input_vars = GetLayerInputs(layer);
+
+  auto result_type = RankedTensorType::get({1, 1, keep_topk, 6}, elementType_);
+
+  auto yolo_op = OpBuilder(block).create<tpu::YoloDetectionOp>(
+      builder_.getUnknownLoc(), result_type, ArrayRef<Value *>{input_vars},
+      ArrayRef<NamedAttribute>{attrs});
+  auto result_var = yolo_op.getResult();
   tensor_map_[layer_param.top(0)] = result_var;
 }
 
