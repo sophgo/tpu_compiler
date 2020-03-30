@@ -107,6 +107,7 @@ cp $CVI_PY_TOOLKIT/eval/*.py $TPU_PYTHON_PATH/
 cp $CVI_PY_TOOLKIT/inference/caffe/*.py $TPU_PYTHON_PATH/
 cp $CVI_PY_TOOLKIT/inference/mlir/*.py $TPU_PYTHON_PATH/
 cp $CVI_PY_TOOLKIT/inference/onnx/*.py $TPU_PYTHON_PATH/
+cp -ar $CVI_PY_TOOLKIT/build_cvimodel/* $TPU_PYTHON_PATH/
 
 # build python package
 pushd $MLIR_SRC_PATH

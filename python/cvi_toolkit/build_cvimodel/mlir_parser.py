@@ -89,6 +89,10 @@ class Tensor:
             self.offset = attributes['gaddr']
         self.is_weight = is_weight
         self.op_type = op_type
+        self.overwrote = True if 'fuse_next' in attributes else False
+        if not self.overwrote:
+            if ('tl_store_flag' in attributes) and attributes['tl_store_flag'] == 'false':
+                self.overwrote = True
 
     def __parse_shape(self, shape):
         array = shape.split('x')

@@ -119,6 +119,7 @@ if (NOT LLVM_INSTALL_TOOLCHAIN_ONLY)
     FILES_MATCHING
     PATTERN "*.h"
     PATTERN "*.inc"
+    PATTERN "*.def"
     PATTERN "LICENSE.TXT"
     )
 
@@ -129,6 +130,7 @@ if (NOT LLVM_INSTALL_TOOLCHAIN_ONLY)
     PATTERN "*.h"
     PATTERN "*.gen"
     PATTERN "*.inc"
+    PATTERN "*.def"
     PATTERN "CMakeFiles" EXCLUDE
     PATTERN "config.h" EXCLUDE
     )
