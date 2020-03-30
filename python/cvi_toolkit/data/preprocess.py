@@ -43,7 +43,7 @@ class preprocess(object):
         self.input_scale = float(input_scale)
         self.channel_swap = tuple([int(s)for s in channel_swap.split(",")])
 
-    def run(self, input_file, output_npz, pfunc=None, input_name=None):
+    def run(self, input_file, output_npz=None, pfunc=None, input_name=None):
         image = cv2.imread(str(input_file).rstrip())
         if image is None:
             print("not existed {}".format(str(input_file).rstrip()))
@@ -69,7 +69,7 @@ class preprocess(object):
 
             output = np.expand_dims(x, axis=0)
 
-        if input_name is None:
+        if output_npz:
             np.savez(output_npz, **{input_name if input_name else "input": output})
 
-        return 0
+        return output

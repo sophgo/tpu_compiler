@@ -13,9 +13,11 @@ class CaffeModel(model_base):
         out = self.net.forward_all(**{self.net.inputs[0]: input})
         return out[self.net.outputs[0]]
 
-    def get_all_tensor(self, input_data, npz_file):
+    def get_all_tensor(self, input_data=None):
+        if input_data is None:
+            print("[Warning] Caffe model get all tensor need input data")
+            return None
 
-        print("Save Blobs: ", npz_file)
         blobs_dict = {}
         for name, layer in self.net.layer_dict.items():
             print("layer : " + str(name))
@@ -34,4 +36,4 @@ class CaffeModel(model_base):
             #out = self.forward(None, prev_name, name, **{prev_name: prev_data})
             out = self.net.forward(None, None, name, **{self.net.inputs[0]: input_data})
             blobs_dict[name] = out[self.net.top_names[name][0]].copy()
-        np.savez(npz_file, **blobs_dict)
+        return blobs_dict

@@ -1,5 +1,6 @@
 import pymlir
 import abc
+import numpy as np
 from enum import Enum
 from .caffe_model import CaffeModel
 from .onnx_model import OnnxModel
@@ -35,8 +36,12 @@ class CVI_Model(object):
     def inference(self, input):
        return self.model.inference(input)
 
-    def get_all_tensor(self, input_data, npz_file):
-        self.model.get_all_tensor(input_data, npz_file)
+    def get_all_tensor(self, input_data=None, npz_file=None):
+        tensor_dict = self.model.get_all_tensor(input_data=input_data)
+        if npz_file:
+            np.savez(npz_file, **tensor_dict)
+        return tensor_dict
 
-
+    def get_op_info(self):
+        return self.model.get_op_info()
 

@@ -3,6 +3,7 @@ import onnx
 from .model import CVI_Model
 from .transform import OnnxConverter
 from .build_cvimodel import CVIModel as builder
+from .calibration.kld_calibrator import KLD_Calibrator_v2
 import subprocess
 from pathlib import Path
 
@@ -126,8 +127,12 @@ class cvinn(object):
             print("Not support {} type, now support onnx and caffe".format(model_type))
             return -1
 
-    def calibration(self, mlirfile_fp32: str, dataset: str, threshold_table: str, auto_tune=False):
-        mlir_calibration(mlirfile_fp32, dataset, threshold_table, auto_tune)
+    def calibration(self, mlirfile_fp32: str, dataset: str, threshold_table: str, pre_func, auto_tune=False):
+        # mlir_calibration(mlirfile_fp32, dataset, threshold_table, auto_tune)
+        cvi_model = CVI_Model()
+        cvi_model.load_model('mlir', None, mlirfile=mlirfile_fp32)
+        calitor = KLD_Calibrator_v2(dataset, pre_func, cvi_model.model)
+        calitor.do_calibration(threshold_table=threshold_table)
         return 0
 
     def build_cvimodel(self, mlirfile_fp32: str, cvimodel: str, threshold_table: str, mlirfile_int8: str = None,

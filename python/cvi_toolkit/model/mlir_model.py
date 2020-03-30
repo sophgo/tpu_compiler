@@ -17,6 +17,9 @@ class MLIRModel(model_base):
         data = self.net.get_all_tensor()
         return data[output_op['name']]
 
-    def get_all_tensor(self, input_data, npz_file):
+    def get_all_tensor(self, input_data=None):
         tensors_dict = self.net.get_all_tensor()
-        np.savez(npz_file, **tensors_dict)
+        return tensors_dict
+
+    def get_op_info(self):
+        return self.net.op_info

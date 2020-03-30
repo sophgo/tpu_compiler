@@ -88,8 +88,8 @@ def parse(config: dict):
                     channel_swap=channel_swap,
                     letter_box=None)
 
-        ret = preprocessor.run(input_file, output_npz)
-        if ret != 0:
+        ret = preprocessor.run(input_file, output_npz=output_npz)
+        if ret is None:
             print('preprocess image failed!')
             exit(-1)
     else:
@@ -128,7 +128,17 @@ def parse(config: dict):
     else:
         print("No acc test")
 
-            net.tpu_simulation(input_file, cvimodel, output_tensor, all_tensors=all_tensors)
+    calibraion_table = "{}_threshold_table".format(model_name)
+    # Calibration
+    Calibration = config.get("Calibration", None)
+    if Calibration:
+        dataset_file = Calibration.get("Dataset")
+        net.calibration(fp32_mlirfile, dataset_file, calibraion_table, preprocessor.run)
+    else:
+        print("No Calibration at yaml")
+    # build cvi_model
+    # cvimodel = config.get("output_file", None)
+    # if cvimodel:
 
         elif cmd == "cvi_npz_extract":
             input_npz = t['input_npz']
