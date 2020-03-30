@@ -13,7 +13,8 @@ cpu_ops = (
     'quant',
     'retinaface_detection',
     'preprocess',
-    'transpose'
+    'transpose',
+    'yolo_detection'
 )
 
 
@@ -75,6 +76,19 @@ def preprocessArgsSerialize(attributes):
     if 'raw_scale' in attributes:
         cpu_op.PreprocessAddRawScale(builder, attributes['raw_scale'])
     args = cpu_op.PreprocessEnd(builder)
+    builder.Finish(args)
+    return bytearray(builder.Output())
+
+
+def yoloArgsSerialize(attributes):
+    builder = flatbuffers.Builder(0)
+    cpu_op.YoloDetectionStart(builder)
+    cpu_op.YoloDetectionAddNetInputH(builder, float(attributes['net_input_h']))
+    cpu_op.YoloDetectionAddNetInputW(builder, float(attributes['net_input_w']))
+    cpu_op.YoloDetectionAddNmsThreshold(builder, float(attributes['nms_threshold']))
+    cpu_op.YoloDetectionAddObjThreshold(builder, float(attributes['obj_threshold']))
+    cpu_op.YoloDetectionAddKeepTopk(builder, int(attributes['keep_topk']))
+    args = cpu_op.YoloDetectionEnd(builder)
     builder.Finish(args)
     return bytearray(builder.Output())
 
@@ -143,6 +157,8 @@ class Op:
             return retinafaceArgsSerialize(attributes)
         elif type == 'preprocess':
             return preprocessArgsSerialize(attributes)
+        elif type == 'yolo_detection':
+            return yoloArgsSerialize(attributes)
         else:
             return bytearray()
 
