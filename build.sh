@@ -92,22 +92,17 @@ popd
 
 CVI_PY_TOOLKIT=$MLIR_SRC_PATH/python/cvi_toolkit
 # python package
-cp -ar $CVI_PY_TOOLKIT/dataset_util $TPU_PYTHON_PATH/
-cp -ar $CVI_PY_TOOLKIT/model $TPU_PYTHON_PATH/
-cp -ar $CVI_PY_TOOLKIT/transform $TPU_PYTHON_PATH/
-cp -ar $CVI_PY_TOOLKIT/utils $TPU_PYTHON_PATH/
-cp -ar $CVI_PY_TOOLKIT/numpy_helper $TPU_PYTHON_PATH/
+cp -ar $CVI_PY_TOOLKIT/* $TPU_PYTHON_PATH/
+
 pushd $TPU_PYTHON_PATH/model/retinaface; make; popd
 
 # python script
-cp $CVI_PY_TOOLKIT/*.py $TPU_PYTHON_PATH/
 cp $CVI_PY_TOOLKIT/binary_helper/*.py $TPU_PYTHON_PATH/
 cp $CVI_PY_TOOLKIT/calibration/*.py $TPU_PYTHON_PATH/
 cp $CVI_PY_TOOLKIT/eval/*.py $TPU_PYTHON_PATH/
 cp $CVI_PY_TOOLKIT/inference/caffe/*.py $TPU_PYTHON_PATH/
 cp $CVI_PY_TOOLKIT/inference/mlir/*.py $TPU_PYTHON_PATH/
 cp $CVI_PY_TOOLKIT/inference/onnx/*.py $TPU_PYTHON_PATH/
-cp -ar $CVI_PY_TOOLKIT/build_cvimodel/* $TPU_PYTHON_PATH/
 
 # build python package
 pushd $MLIR_SRC_PATH

@@ -2,7 +2,7 @@ import numpy as np
 import onnx
 from .model import CVI_Model
 from .transform import OnnxConverter
-from .build_cvimodel.build_cvimodel import CVIModel as builder
+from .build_cvimodel import CVIModel as builder
 import subprocess
 from pathlib import Path
 
@@ -97,7 +97,7 @@ def run_cvimodel(input_file, cvi_model, output_tensor, all_tensors=True):
 class cvinn(object):
     def __init__(self):
         pass
-    def load_model(self, model_type: str, model_file: str,  mlirfile: str, weight_file: str = None, tpu_op_info=None):
+    def convert_model(self, model_type: str, model_file: str,  mlirfile: str, weight_file: str = None, tpu_op_info=None):
         if model_type == 'caffe':
             if weight_file == None:
                 print("No caffe weight file")

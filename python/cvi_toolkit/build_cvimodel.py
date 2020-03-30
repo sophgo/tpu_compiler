@@ -8,9 +8,10 @@ import flatbuffers
 import hashlib
 import struct
 import functools
-import mlir_parser
 import random
-import cvi_model as cm
+
+from cvimodel import mlir_parser
+from cvimodel import cvi_model as cm
 
 # Version shall be in schema
 MAJOR_VER = 0
