@@ -4,7 +4,7 @@ set -e
 # gen fake table
 cat <<EOT > test_calibration_table
 data 1.073760986
-Y 1.073760986
+Y_Transpose 1.073760986
 EOT
 
 # import calibration table

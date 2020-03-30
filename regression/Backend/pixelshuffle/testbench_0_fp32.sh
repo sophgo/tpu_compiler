@@ -6,7 +6,7 @@ set -e
 python ./make_mlir.py \
   --output_name test_in_fp32.npz \
   --node_name Transpose \
-  -n 1 -c 4 --height 3 -w 4 \
+  -n 1 -c 2048 --height 8 -w 6 \
   --factor 2
 
 # show input
@@ -28,4 +28,4 @@ mlir-tpu-interpreter test_opt.mlir \
     --dump-all-tensor=test_tensor_all_fp32.npz
 
 # show output
-cvi_npz_tool.py dump test_out_fp32.npz Y 0
+cvi_npz_tool.py dump test_out_fp32.npz Y_Transpose 0
