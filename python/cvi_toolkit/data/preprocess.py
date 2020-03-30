@@ -2,14 +2,17 @@
 import numpy as np
 import cv2
 
-def center_crop(img,crop_dim):
-    print(img.shape)
-    h,w,_ = img.shape
-    cropy,cropx = crop_dim
-    startx = w//2-(cropx//2)
-    starty = h//2-(cropy//2)
-    return img[starty:starty+cropy, startx:startx+cropx, :]
-
+def center_crop(img, crop_dim):
+    # Take center crop.
+    center = np.array(img.shape[1:]) / 2.0
+    crop_dim = np.array(crop_dim)
+    crop = np.tile(center, (1, 2))[0] + np.concatenate([
+        -(crop_dim / 2.0),
+        crop_dim / 2.0
+    ])
+    crop = crop.astype(int)
+    img = img[:, crop[0]:crop[2], crop[1]:crop[3]]
+    return img
 
 class preprocess(object):
     def __init__(self):
@@ -40,25 +43,33 @@ class preprocess(object):
         self.input_scale = float(input_scale)
         self.channel_swap = tuple([int(s)for s in channel_swap.split(",")])
 
-    def run(self, input_file, output_npz):
+    def run(self, input_file, output_npz, pfunc=None, input_name=None):
         image = cv2.imread(str(input_file).rstrip())
         if image is None:
             print("not existed {}".format(str(input_file).rstrip()))
+            return -1
         image = image.astype(np.float32)
-        # resize
-        x = cv2.resize(image, (self.resize_dims[1], self.resize_dims[0])) # w,h
-        # Take center crop.
+        if pfunc is not None:
+            output = pfunc(image)
+        else:
+            # resize
+            x = cv2.resize(image, (self.resize_dims[1], self.resize_dims[0])) # w,h
 
-        x = center_crop(x, self.net_input_dims)
-        # transpose
+            # transpose
+            x = np.transpose(x, self.channel_swap)
 
-        x = np.transpose(x, self.channel_swap)
-        # preprocess
-        x = x * self.raw_scale /255.0
-        if self.mean.size != 0:
-            x -= self.mean
-        if self.input_scale != 1.0:
-            x *= self.input_scale
-        x = np.expand_dims(x, axis=0)
+            # preprocess
+            if self.mean.size != 0:
+                x -= self.mean
+            if self.input_scale != 1.0:
+                x *= self.input_scale
+            x = x * self.raw_scale /255.0
+            # Take center crop.
+            x = center_crop(x, self.net_input_dims)
 
-        np.savez(output_npz, **{'input': x})
+            output = np.expand_dims(x, axis=0)
+
+        if input_name is None:
+            np.savez(output_npz, **{input_name if input_name else "input": output})
+
+        return 0

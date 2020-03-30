@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 import yaml
 import sys, re, os
 import argparse
@@ -7,6 +8,13 @@ from cvi_toolkit import cvi_data
 net = cvinn()
 cvi_data_tool = cvi_data()
 preprocessor = preprocess()
+
+# close caffe glog
+os.environ['GLOG_minloglevel'] = "2"
+os.environ['GLOG_log_dir'] = "."
+os.environ['GLOG_logbufsecs'] = "1"
+os.environ['GLOG_logtostderr']="0"
+os.environ['GLOG_stderrthreshold'] = "3"
 
 env_matcher = re.compile(r'\$\{([^}^{]+)\}')
 def env_constructor(loader, node):
@@ -21,73 +29,104 @@ yaml.add_constructor('!path', env_constructor, yaml.SafeLoader)
 
 
 def parse(config: dict):
-    task = config.get('cvi_config', None)
-    for t in task:
-        cmd = t.get('cmd', None)
-        if cmd == 'load_model':
-            model_type = t['model_type']
-            model_file = t['model_file']
-            weight_file = t.get('weight_file', None)
-            mlirfile = t['mlirfile']
-            tpu_op_info = t.get('tpu_op_info', "")
+    # model to mlir
+    model_name = None
+    Convert_model = config.get('Convert_model', None)
+    if Convert_model:
+        t = Convert_model
+        model_type = t.get('framework_type')
+        model_file = t.get('model_file')
+        weight_file = t.get('weight_file', None)
 
-            ret = net.load_model(model_type, model_file, mlirfile, weight_file=weight_file, tpu_op_info=tpu_op_info)
-            if ret != 0:
-                print('load model failed!')
-                exit(-1)
+        model_name = model_file.split('.')[0].split('/')[-1]
+        tpu_op_info = "{}_op_info.csv".format(model_name)
+        fp32_mlirfile = "{}.mlir".format(model_name)
+        try:
+            net.convert_model(model_type, model_file, fp32_mlirfile, weight_file=weight_file, tpu_op_info=tpu_op_info)
+        except RuntimeError as err:
+            print("RuntimeError {}".format(err))
+            exit(-1)
 
-        elif cmd == "preprocess":
-            mean = t['mean']
-            mean_file = t.get('mean_file', None)
-            input_scale = t.get('input_scale', 1.0)
-            net_input_dims = t.get('net_input_dims', None)
-            raw_scale = t.get('raw_scale', 255.0)
-            channel_swap = t.get('channel_swap', '2,1,0')
-            resize_dims = t.get('resize_dims', "256,256")
-            letter_box = t.get('letter_box', None)
+    else:
+        print('No Convert_model in yml')
+        exit(-1)
+
+    # preprocess input data and save input_npz
+    data_preprocess = config.get("data_preprocess", None)
+    fp32_in_npz = None
+    if data_preprocess:
+        t = data_preprocess
+        mean = t.get('image_mean', None)
+        channel_mean = t.get('channel_mean', None)
+
+        if mean != None and channel_mean != None:
+            print('[Warning] mean and channel both exist, use channel mean')
+            mean = channel_mean
+
+        mean_file = t.get('mean_file', None)
+        if mean_file != None and mean != None:
+            print('[Warning] mean and mean_file both exist, use mean_file')
+            mean=None
+
+        input_scale = t.get('input_scale', 1.0)
+        net_input_dims = t.get('net_input_dims', "224,224")
+        raw_scale = t.get('raw_scale', 255.0)
+        channel_swap = t.get('channel_swap', '2,1,0')
+        resize_dims = t.get('image_resize_dim', "256,256")
+        letter_box = t.get('LetterBox', None)
 
 
-            input_file = t['input_file']
-            output_npz = t['output_npz']
+        input_file = t['input_file']
+        output_npz = t['output_npz']
+        fp32_in_npz = output_npz
+        preprocessor.config(net_input_dims=net_input_dims,
+                    resize_dims=resize_dims,
+                    mean=mean,
+                    mean_file=mean_file,
+                    input_scale=input_scale,
+                    raw_scale=raw_scale,
+                    channel_swap=channel_swap,
+                    letter_box=None)
 
-            preprocessor.config(net_input_dims=net_input_dims,
-                     resize_dims=resize_dims,
-                     mean=mean,
-                     mean_file=None,
-                     input_scale=input_scale,
-                     raw_scale=raw_scale,
-                     channel_swap=channel_swap,
-                     letter_box=None)
+        ret = preprocessor.run(input_file, output_npz)
+        if ret != 0:
+            print('preprocess image failed!')
+            exit(-1)
+    else:
+        print('No data_preprocess in yml')
+        exit(-1)
 
-            preprocessor.run(input_file, output_npz)
+    # inference with mlir framework
+    input_npz = fp32_in_npz
+    fp32_mlir_tensor_file = "{}_tensor_all_fp32.npz".format(model_name)
+    output = net.inference('mlir', input_npz, mlirfile=fp32_mlirfile, model_file=model_file, weight_file=weight_file, all_tensors=fp32_mlir_tensor_file)
+    if output is not None:
+        print("mlir fp32 inference finish")
 
-        elif cmd == "inference":
-            model_type = t['model_type']
-            model_file = t.get('model_file', None)
-            weight_file = t.get('weight_file', None)
-            mlirfile = t.get('mlirfile', None)
-            input_npz = t['input_npz']
-            all_tensors = t.get('all_tensors', None)
+    # inference with origin framework
+    fp32_origin_tensor_file = "{}_{}_tensor_all_fp32.npz".format(model_name, model_type)
+    output = net.inference(model_type, input_npz, mlirfile=fp32_mlirfile, model_file=model_file, weight_file=weight_file, all_tensors=fp32_origin_tensor_file)
+    if output is not None:
+        print("{} fp32 inference finish".format(model_type))
 
-            net.inference(model_type, input_npz, mlirfile=mlirfile, model_file=model_file, weight_file=weight_file, all_tensors=all_tensors)
 
-        elif cmd == "build_cvimodel":
-            mlirfile_fp32 = t['mlirfile_fp32']
-            cvimodel = t['cvimodel']
-            threshold_table = t['threshold_table']
-            mlirfile_int8 = t.get('mlirfile_int8', None)
-            quant_method = t.get('perchannel', 'perchannel')
-            cmd_buf = t.get('cmd_buf', 'cmdbuf.bin')
-            quant_info = t.get('quant_info', None)
+    # accuracy fp32 test
+    accuracy_test = config.get("Accuracy_test", None)
+    if accuracy_test != None:
+        fp32_acc_test = accuracy_test.get("FP32_Accuracy_test", False)
+        if fp32_acc_test:
+            target_file = fp32_origin_tensor_file
+            ref_file = fp32_mlir_tensor_file
+            tolerance = accuracy_test.get('Tolerance_FP32')
+            tolerance = "{},{},{}".format(tolerance[0], tolerance[1], tolerance[2])
 
-            net.build_cvimodel(mlirfile_fp32, cvimodel, threshold_table, mlirfile_int8=mlirfile_int8,
-                        quant_method=quant_method, cmd_buf=cmd_buf, quant_info=quant_info)
-
-        elif cmd == "tpu_simulation":
-            input_file = t['input_file']
-            cvimodel = t['cvimodel']
-            output_tensor = t['output_tensor']
-            all_tensors = t.get('all_tensors', True)
+            cvi_data_tool.npz_compare(target_file, ref_file,
+                tolerance=tolerance,
+                op_info=tpu_op_info
+                )
+            print("compare fp32 finish!")
+    else:
+        print("No acc test")
 
             net.tpu_simulation(input_file, cvimodel, output_tensor, all_tensors=all_tensors)
 
