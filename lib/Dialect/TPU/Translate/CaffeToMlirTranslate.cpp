@@ -169,6 +169,7 @@ private:
   void convertFlattenLayer(mlir::Block *block, caffe::Layer<float> *layer);
   void convertInnerProductLayer(mlir::Block *block, caffe::Layer<float> *layer);
   void convertInputLayer(mlir::Block *block, caffe::Layer<float> *layer);
+  void convertLrnLayer(mlir::Block *block, caffe::Layer<float> *layer);
   void convertNormalizeLayer(mlir::Block *block, caffe::Layer<float> *layer);
   void convertPermuteLayer(mlir::Block *block, caffe::Layer<float> *layer);
   void convertPoolingLayer(mlir::Block *block, caffe::Layer<float> *layer);
@@ -424,7 +425,9 @@ void CaffeImporter::ConvertLayers(mlir::Block *block, caffe::Net<float> &net) {
       convertReshapeLayer(block, layer);
     } else if (strcmp(layer->type(), "Permute") == 0) {
       convertPermuteLayer(block, layer);
-    } else if (strcmp(layer->type(), "Normalize") == 0) {
+    } else if (strcmp(layer->type(), "LRN") == 0) {
+      convertLrnLayer(block, layer);
+    }  else if (strcmp(layer->type(), "Normalize") == 0) {
       convertNormalizeLayer(block, layer);
     } else if (strcmp(layer->type(), "TanH") == 0) {
       convertTanHLayer(block, layer);
@@ -2048,6 +2051,97 @@ void CaffeImporter::convertShuffleChannelLayer(mlir::Block *block,
   auto result_var = op.getResult();
 
   tensor_map_[layer_param.top(0)] = result_var;
+}
+
+void CaffeImporter::convertLrnLayer(mlir::Block *block,
+                                    caffe::Layer<float> *layer) {
+  auto layer_param = layer->layer_param();
+  assert(layer_param.has_lrn_param());
+  auto &p = layer_param.lrn_param();
+  assert(p.norm_region() == 0);
+  mlir::Value *input_var = GetLayerInput(layer);
+  // type
+  llvm::ArrayRef<int64_t> input_shape =
+      input_var->getType().dyn_cast<mlir::TensorType>().getShape();
+  auto result_type = RankedTensorType::get(input_shape, elementType_);
+  // none op
+  auto NoneOp = OpBuilder(block).create<tpu::NoneOp>(builder_.getUnknownLoc(),
+                                                     builder_.getNoneType());
+  auto none_var = NoneOp.getResult();
+  auto layer_name = layer_param.name();
+  // init params
+  std::vector<Value *> operands;
+  std::vector<NamedAttribute> attrs;
+  operands.push_back(input_var);
+
+  attrs.push_back(builder_.getNamedAttr(
+      "name", builder_.getStringAttr(layer_name + "_one")));
+  attrs.push_back(builder_.getNamedAttr(
+      "local_size", builder_.getI32IntegerAttr(p.local_size())));
+  attrs.push_back(
+      builder_.getNamedAttr("alpha", builder_.getF32FloatAttr(p.alpha())));
+  attrs.push_back(
+      builder_.getNamedAttr("beta", builder_.getF32FloatAttr(p.beta())));
+  attrs.push_back(builder_.getNamedAttr("k", builder_.getF32FloatAttr(p.k())));
+  attrs.push_back(
+      builder_.getNamedAttr("quant", getDefaultQuantParam(builder_)));
+  // step one
+  auto oneOp = OpBuilder(block).create<tpu::LrnOneOp>(
+      builder_.getUnknownLoc(), result_type, ArrayRef<Value *>{operands},
+      ArrayRef<NamedAttribute>{attrs});
+  auto one_result = oneOp.getResult();
+  // step two
+  operands[0] = one_result;
+  attrs[0] = builder_.getNamedAttr("name",
+                                   builder_.getStringAttr(layer_name + "_two"));
+  auto twoOp = OpBuilder(block).create<tpu::LrnTwoOp>(
+      builder_.getUnknownLoc(), result_type, ArrayRef<Value *>{operands},
+      ArrayRef<NamedAttribute>{attrs});
+  auto two_result = twoOp.getResult();
+  // step three
+  operands[0] = two_result;
+  attrs[0] = builder_.getNamedAttr(
+      "name", builder_.getStringAttr(layer_name + "_three"));
+  auto threeOp = OpBuilder(block).create<tpu::LrnThreeOp>(
+      builder_.getUnknownLoc(), result_type, ArrayRef<Value *>{operands},
+      ArrayRef<NamedAttribute>{attrs});
+  auto three_result = threeOp.getResult();
+
+  // main
+  std::vector<Value *> operands2;
+  std::vector<NamedAttribute> attrs2;
+  operands2.push_back(input_var);
+  operands2.push_back(none_var); // power table
+  operands2.push_back(none_var); // sq table
+  operands2.push_back(three_result); // scale
+
+  attrs2.push_back(
+      builder_.getNamedAttr("name", builder_.getStringAttr(layer_name)));
+  attrs2.push_back(builder_.getNamedAttr(
+      "local_size", builder_.getI32IntegerAttr(p.local_size())));
+  attrs2.push_back(
+      builder_.getNamedAttr("alpha", builder_.getF32FloatAttr(p.alpha())));
+  attrs2.push_back(
+      builder_.getNamedAttr("beta", builder_.getF32FloatAttr(p.beta())));
+  attrs2.push_back(builder_.getNamedAttr(
+      "norm_region", builder_.getI32IntegerAttr(p.norm_region())));
+  attrs2.push_back(builder_.getNamedAttr("k", builder_.getF32FloatAttr(p.k())));
+  attrs2.push_back(
+      builder_.getNamedAttr("quant", getDefaultQuantParam(builder_)));
+  attrs2.push_back(builder_.getNamedAttr("lrn_right_shift_width",
+                                         builder_.getI32IntegerAttr(0)));
+  attrs2.push_back(builder_.getNamedAttr("sum_right_shift_width",
+                                         builder_.getI32IntegerAttr(0)));
+  attrs2.push_back(
+      builder_.getNamedAttr("quant_data0", builder_.getI32IntegerAttr(0)));
+  attrs2.push_back(
+      builder_.getNamedAttr("quant_data1", builder_.getI32IntegerAttr(0)));
+  auto mainOp = OpBuilder(block).create<tpu::LrnOp>(
+      builder_.getUnknownLoc(), result_type, ArrayRef<Value *>{operands2},
+      ArrayRef<NamedAttribute>{attrs2});
+  auto main_result = mainOp.getResult();
+
+  tensor_map_[layer_param.top(0)] = main_result;
 }
 
 void CaffeImporter::convertSigmoidLayer(mlir::Block *block, caffe::Layer<float> *layer) {

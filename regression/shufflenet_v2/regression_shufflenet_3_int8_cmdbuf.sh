@@ -33,6 +33,11 @@ if [ $COMPARE_INT8_PER_LAYER -eq 1 ]; then
         --tpu-lower \
         shufflenet_quant_int8_per_layer.mlir \
         -o shufflenet_quant_int8_per_layer_tg.mlir
+    
+    mlir-opt \
+        --tg-fuse-leakyrelu --conv-ic-alignment \
+        shufflenet_quant_int8_per_layer_tg.mlir \
+        -o shufflenet_quant_int8_per_layer_tg_opt.mlir
 
     # assign weight address & neuron address
     mlir-opt \
@@ -43,7 +48,7 @@ if [ $COMPARE_INT8_PER_LAYER -eq 1 ]; then
         --assign-neuron-address \
         --tpu-neuron-address-align=16 \
         --tpu-neuron-map-filename=neuron_map.csv \
-        shufflenet_quant_int8_per_layer_tg.mlir \
+        shufflenet_quant_int8_per_layer_tg_opt.mlir \
         -o shufflenet_quant_int8_per_layer_addr.mlir
 
     mlir-translate \
@@ -86,16 +91,22 @@ mlir-opt \
     shufflenet_quant_int8_multiplier.mlir \
     -o shufflenet_quant_int8_multiplier_tg.mlir
 
+mlir-opt \
+    --tg-fuse-leakyrelu --conv-ic-alignment \
+    shufflenet_quant_int8_multiplier_tg.mlir \
+    -o shufflenet_quant_int8_multiplier_tg_opt.mlir
+
 # assign weight address & neuron address
 mlir-opt \
     --assign-weight-address \
     --tpu-weight-address-align=16 \
-    --tpu-weight-map-filename=weight_map.csv \
+    --tpu-weight-map-filename=shufflenet_weight_map_int8_multiplier.csv \
     --tpu-weight-bin-filename=weight_int8_multiplier.bin \
     --assign-neuron-address \
     --tpu-neuron-address-align=16 \
-    --tpu-neuron-map-filename=neuron_map.csv \
-    shufflenet_quant_int8_multiplier_tg.mlir \
+    --tpu-neuron-map-filename=shufflenet_neuron_map_int8_multiplier.csv \
+    --convert-cpu-op \
+    shufflenet_quant_int8_multiplier_tg_opt.mlir \
     -o shufflenet_quant_int8_multiplier_addr.mlir
 
 mlir-translate \

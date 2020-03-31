@@ -513,6 +513,39 @@ Value* tpu::InputOp::convertToTG() {
   return nullptr;
 }
 */
+
+Value *tpu::LrnOp::convertToTG() {
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  auto builder = Builder(op->getContext());
+
+  int nInputs = 3; // input, sqr table, power table
+  std::vector<Value *> operands;
+  for (auto i = 0; i < nInputs; ++i) {
+    operands.push_back(op->getOperand(i));
+  }
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder.getNamedAttr("local_size", local_sizeAttr()));
+  attrs.push_back(builder.getNamedAttr("lrn_right_shift_width",
+                                       lrn_right_shift_widthAttr()));
+  attrs.push_back(builder.getNamedAttr("sum_right_shift_width",
+                                       sum_right_shift_widthAttr()));
+  attrs.push_back(builder.getNamedAttr("quant_data0", quant_data0Attr()));
+  attrs.push_back(builder.getNamedAttr("quant_data1", quant_data1Attr()));
+  attrs.push_back(builder.getNamedAttr("name", nameAttr()));
+  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
+
+  if (getOpQuant() == "INT8") {
+    auto newOp = OpBuilder(op).create<tpu::TG_INT8_LrnOp>(
+        op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  }
+  assert(false);
+  return nullptr;
+}
+
 Value* tpu::LeakyReluOp::convertToTG() {
   LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
                << " [" << getOpName() << "]\n";);
@@ -1672,6 +1705,48 @@ struct LowerWeightDetectionOutputOpPattern : public RewritePattern {
   }
 };
 
+struct LowerWeightLrnOpPattern : public RewritePattern {
+  LowerWeightLrnOpPattern(MLIRContext *context)
+      : RewritePattern("tpu.lrn", 1, context) {}
+
+  PatternMatchResult matchAndRewrite(Operation *op,
+                                     PatternRewriter &rewriter) const override {
+    auto lrnOp = cast<tpu::LrnOp>(op);
+    assert(getOpQuant(op) == "INT8" && "only support int8 now");
+    auto sqTableOp =
+        cast<tpu::LoadWeightOp>(lrnOp.getOperand(1)->getDefiningOp());
+    auto powerTableOp =
+        cast<tpu::LoadWeightOp>(lrnOp.getOperand(2)->getDefiningOp());
+    if (sqTableOp.lowered() && powerTableOp.lowered()) {
+      // lowered already
+      return matchFailure();
+    }
+    assert(sqTableOp.storage() == "UINT8");
+    assert(powerTableOp.storage() == "UINT8");
+    assert(sqTableOp.lowered() == false && powerTableOp.lowered() == false);
+
+    TensorFile *wTF = getWeightTensorFile(op);
+
+    std::vector<int64_t> shape;
+    int64_t size;
+    // update sq table
+    getTensorShapeAndSize(sqTableOp, shape, size);
+    auto sqTable = readAndDeleteWeightTensor<float>(sqTableOp, wTF);
+    std::vector<int8_t> sqTable_int8(sqTable->begin(), sqTable->end());
+    addWeightTensorAndUpdateWeightOp<int8_t>(sqTableOp, "lowered", sqTable_int8,
+                                             shape, "UINT8", wTF);
+    sqTableOp.setAttr("lowered", rewriter.getBoolAttr(true));
+    // update powerTableOp
+    getTensorShapeAndSize(powerTableOp, shape, size);
+    auto powerTable = readAndDeleteWeightTensor<float>(powerTableOp, wTF);
+    std::vector<int8_t> powerTable_int8(sqTable->begin(), sqTable->end());
+    addWeightTensorAndUpdateWeightOp<int8_t>(
+        powerTableOp, "lowered", powerTable_int8, shape, "UINT8", wTF);
+    powerTableOp.setAttr("lowered", rewriter.getBoolAttr(true));
+    return matchSuccess();
+  }
+};
+
 template <typename OpTy>
 struct LowerWeightLutOpPattern : public RewritePattern {
   LowerWeightLutOpPattern(MLIRContext *context)
@@ -1768,6 +1843,7 @@ public:
     patterns_lower.insert<
         LowerWeightConv2DOpPattern<tpu::Conv2DOp>,
         LowerWeightConv2DOpPattern<tpu::DeConv2DOp>,
+        LowerWeightLrnOpPattern,
         LowerWeightLutOpPattern<tpu::ReciprocalOp>,
         LowerWeightPReluOpPattern,
         LowerWeightLutOpPattern<tpu::SigmoidOp>,
@@ -1791,6 +1867,7 @@ public:
         DefaultToTGPattern<tpu::EltwiseMulOp>,
         DefaultToTGPattern<tpu::FullyConnectedOp>,
         //DefaultToTGPattern<tpu::InputOp>,
+        DefaultToTGPattern<tpu::LrnOp>,
         DefaultToTGPattern<tpu::LeakyReluOp>,
         DefaultToTGPattern<tpu::PermuteOp>,
         DefaultToTGPattern<tpu::PixelShuffleOp>,
