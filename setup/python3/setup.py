@@ -34,7 +34,7 @@ root_path = os.path.join(file_path, "../../")
 print("Now root path is {}".format(root_path))
 
 os.chdir(root_path)
-
+packages = setuptools.find_packages(where='{}/python'.format(root_path)) + setuptools.find_packages(where='./third_party/caffe/python')
 setuptools.setup(
     name='CVI_toolkit',
     version='0.5.0',
@@ -42,15 +42,19 @@ setuptools.setup(
     description='CVI tool python packge',
     author='sam.zheng',
     author_email='sam.zheng@wisecore.com.tw',
-    packages=setuptools.find_packages(where='{}/python'.format(root_path)),
+    packages=packages,
     package_dir={
         '': 'python',
+        'caffe': "third_party/caffe/python/caffe"
+    },
+    package_data ={
+        'caffe': ["*.so"]
     },
     data_files=[
         ('lib', so_lib),
         ('lib', a_lib),
         ('lib/python{}'.format(python_version), py_so_lib),
-        ('bin', cvi_bin)
+        ('bin', cvi_bin),
     ],
     install_requires=install_requires,
     entry_points = {
