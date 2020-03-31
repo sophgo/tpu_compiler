@@ -1,0 +1,77 @@
+#data preprocess paremeter please set to null if no need.
+output_file: resnet50.cvimodel
+
+data_preprocess:
+    image_resize_dim: 256,256
+
+    net_input_dims: 224, 224
+    #image mean value
+    image_mean: 20.5
+    #perchanel mean value
+    channel_mean: 104.01,116.67,122.68
+
+
+    #mean file
+    mean_file: ${REGRESSION_PATH}/data/ilsvrc_2012_mean.npy
+    #Multiply raw input by this scale before preprocession
+    raw scale: 255.0
+    #Multiply input features by this scale to finish preprocession
+    input scale: 1
+    #channel swap
+    RGB order: RGB
+    #not implement yet
+    Standardization: null
+    #letterbox resize
+    LetterBox: null
+    #npz input directly , do nothing for preprocessing
+    npz_input: null
+
+    input_file: ${REGRESSION_PATH}/data/cat.jpg
+    output_npz: resnet50_in_fp32.npz
+
+#step 1: model convert
+Convert_model:
+    #framework type: caffe or onnx
+    framework_type: caffe
+    #for onnx model, please set model file only
+    weight_file: ${MODEL_PATH}/imagenet/resnet/caffe/ResNet-50-model.caffemodel
+    model_file: ${MODEL_PATH}/imagenet/resnet/caffe/ResNet-50-deploy.prototxt
+#step2: do calibration
+Calibration:
+    Dataset: ${REGRESSION_PATH}/data/input.txt
+
+#step3: do quantization
+Quantization:
+    per_channel: true
+    per_tensor: true
+    asymmetric: false
+    symmetric: true
+
+#step4: do accuracy test
+Accuracy_test:
+    # Enable  perlayer tensor fp32 similarity check to make sure convert IR result is correct.
+    FP32_Accuracy_test: True
+    Tolerance_FP32:
+      - 0.999  #cosine similarity
+      - 0.999  #correlation similarity
+      - 0.999  #eulidean similarity
+    # Enable perlayer tensor int8 similarity check to make sure quantization result is correct.
+    INT8_Accuracy_test: True
+    Tolerance_INT8:
+      - 0.9  #cosine similarity
+      - 0.9  #correlation similarity
+      - 0.7  #eulidean similarity
+    excepts: prob
+
+#step5: do tpu offline simulation to check accuracy.
+
+# Do cvimodel TPU simulation or not.
+# This will do accuracy test by default by comparing with INT8 result after quantization.
+# Return fail if not get exactly same result.
+Simulation: true
+
+#other parameter
+
+#Do compression or not when do data store and load.
+vlc_compress(VLC): true
+

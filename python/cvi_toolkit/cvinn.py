@@ -171,7 +171,7 @@ class cvinn(object):
         return out
 
     def cleanup(self):
-        for clean_file in ["*.mlir", "*.bin", "*.csv", "*.cvimodel", "*.npz"]:
+        for clean_file in ["*.mlir", "*.bin", "*.csv", "*.npz", "*threshold_table"]:
             for p in Path(".").glob(clean_file):
                 p.unlink()
         return 0

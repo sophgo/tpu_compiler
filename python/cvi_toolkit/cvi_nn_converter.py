@@ -113,6 +113,7 @@ def parse(config: dict):
     # accuracy fp32 test
     accuracy_test = config.get("Accuracy_test", None)
     if accuracy_test != None:
+        excepts = accuracy_test.get("excepts", None)
         fp32_acc_test = accuracy_test.get("FP32_Accuracy_test", False)
         if fp32_acc_test:
             target_file = fp32_origin_tensor_file
@@ -122,7 +123,8 @@ def parse(config: dict):
 
             cvi_data_tool.npz_compare(target_file, ref_file,
                 tolerance=tolerance,
-                op_info=tpu_op_info
+                op_info=tpu_op_info,
+                excepts=excepts
                 )
             print("compare fp32 finish!")
     else:
@@ -152,43 +154,43 @@ def parse(config: dict):
         print("No cvimodel output_file")
         exit(-1)
 
-        elif cmd == "cvi_npz_rename":
-            input_npz = t['input_npz']
-            target_name = t['target_name']
-            ref_name = t['ref_name']
-            npz_rename([input_npz, target_name, ref_name])
+    # Accuracy_test int8
+    # inference with mlir framework
+    int8_mlir_tensor_file = "{}_tensor_all_int8.npz".format(model_name)
+    output = net.inference('mlir', input_npz, mlirfile=int8_mlirfile, model_file=None, weight_file=None, all_tensors=int8_mlir_tensor_file)
+    if output is not None:
+        print("mlir int8 inference finish")
 
-        elif cmd == "cvi_npz_compare":
+    int8_acc_test = accuracy_test.get("INT8_Accuracy_test", False)
+    if int8_acc_test:
+        target_file = int8_mlir_tensor_file
+        ref_file = fp32_mlir_tensor_file
+        tolerance = accuracy_test.get('Tolerance_INT8')
+        tolerance = "{},{},{}".format(tolerance[0], tolerance[1], tolerance[2])
 
-            target_file = t['target_file']
-            ref_file = t['ref_file']
-            verbose = t.get('verbose', 0)
-            discard = t.get('discard', 0)
-            dtype = t.get('dtype', "")
-            tolerance= t.get('tolerance', "0.99,0.99,0.90")
-            op_info = t.get('op_info', None)
-            order = t.get('order', None)
-            tensor = t.get('tensor', None)
-            excepts = t.get('excepts', None)
-            save = t.get('save', None)
-            dequant = t.get('dequant', False)
-            full_array = t.get('full_array', False)
-            stats_int8_tensor = t.get('stats_int8_tensor', False)
+        cvi_data_tool.npz_compare(target_file, ref_file,
+            tolerance=tolerance,
+            op_info=quant_tpu_op_info,
+            dequant=True,
+            excepts=excepts,
+            verbose=2
+            )
+        print("compare fp32 finish!")
 
-            cvi_data_tool.npz_compare(target_file, ref_file,
-                verbose=verbose,
-                discard=discard,
-                dtype=dtype,
-                tolerance=tolerance,
-                op_info=op_info,
-                order=order,
-                tensor=tensor,
-                excepts=excepts,
-                save=save,
-                dequant=dequant,
-                full_array=full_array,
-                stats_int8_tensor=stats_int8_tensor
-                )
+
+    Simulation = config.get("Simulation", None)
+    if Simulation:
+        simulation_tensor = "{}_tensor_all_simu.npz".format(model_name)
+
+        # tpu_simulation
+        net.tpu_simulation(input_npz, cvimodel, simulation_tensor, all_tensors=True)
+        # compare with interprter
+        cvi_data_tool.npz_compare(simulation_tensor, int8_mlir_tensor_file)
+    else:
+        print("No Simulation")
+
+    # Clean
+    net.cleanup()
 
 
 
@@ -204,6 +206,7 @@ def main():
             print(exc)
             exit(-1)
     parse(config)
+    print("End to end finish")
 
 
 if __name__ == "__main__":
