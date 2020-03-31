@@ -36,15 +36,21 @@ def parse_args():
                         help="Dump all blobs into a file in npz format")
     parser.add_argument("--dump_weights",
                         help="Dump all weights into a file in npz format")
+    parser.add_argument("--batch_size", type=int, default=1, help="Set batch size")
 
     args = parser.parse_args()
     return args
 
 
-def retinaface_detect(net, img_bgr, net_input_dims, obj_threshold, nms_threshold):
-    x = g_detector.preprocess(img_bgr, net_input_dims[0], net_input_dims[1])
-    net.blobs['data'].reshape(1, 3, x.shape[2], x.shape[3])
+def retinaface_detect(net, img_bgr, net_input_dims, net_batch, obj_threshold, nms_threshold):
+    image_x = g_detector.preprocess(img_bgr, net_input_dims[0], net_input_dims[1])
+    x = image_x
+    for i in range(1, net_batch):
+      x = np.append(x, image_x, axis=0)
+
+    net.blobs['data'].reshape(net_batch, 3, x.shape[2], x.shape[3])
     net.blobs['data'].data[...] = x
+
     y = net.forward()
     faces, landmarks = g_detector.postprocess(y, net_input_dims[0], net_input_dims[1])
 
@@ -59,11 +65,14 @@ def dump_weights(net, dump_weights):
     np.savez(dump_weights, **weights_dict)
 
 
-def dump_blobs(net, dump_blobs, img_bgr, net_input_dims):
-    x = g_detector.preprocess(img_bgr, *net_input_dims)
-    net.blobs['data'].reshape(1, 3, x.shape[2], x.shape[3])
-    net.blobs['data'].data[...] = x
+def dump_blobs(net, dump_blobs, img_bgr, net_input_dims, net_batch):
+    image_x = g_detector.preprocess(img_bgr, *net_input_dims)
+    x = image_x
+    for i in range(1, net_batch):
+      x = np.append(x, image_x, axis=0)
 
+    net.blobs['data'].reshape(net_batch, 3, x.shape[2], x.shape[3])
+    net.blobs['data'].data[...] = x
     print("Save Blobs: ", dump_blobs)
     blobs_dict = {}
 
@@ -102,10 +111,10 @@ def main(argv):
         dump_weights(net, args.dump_weights)
 
     if args.dump_blobs is not None:
-        dump_blobs(net, args.dump_blobs, image, net_input_dims) 
+        dump_blobs(net, args.dump_blobs, image, net_input_dims, args.batch_size) 
 
     if (args.draw_image != ''):
-        faces, landmarks = retinaface_detect(net, image, net_input_dims,
+        faces, landmarks = retinaface_detect(net, image, net_input_dims, args.batch_size,
                                 obj_threshold, nms_threshold)
         draw_image = g_detector.draw(image, faces, landmarks, True)
         cv2.imwrite(args.draw_image, draw_image)

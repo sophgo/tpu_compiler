@@ -12,6 +12,7 @@ run_caffe_classifier.py \
     --label_file $REGRESSION_PATH/data/synset_words.txt \
     --dump_blobs squeezenet_blobs.npz \
     --dump_weights squeezenet_weights.npz \
+    --batch_size $BATCH_SIZE \
     $REGRESSION_PATH/data/cat.jpg \
     caffe_out.npy
 

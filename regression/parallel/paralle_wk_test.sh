@@ -1,5 +1,5 @@
 #!/bin/bash
-# set -e
+set -e
 # set -o pipefail
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
@@ -9,7 +9,7 @@ export GLOG_minloglevel=0
 if [ ! -e regression_out ]; then
   mkdir regression_out
 fi
-export CVIMODEL_REL_PATH=regression_out/cvimodel_release
+CVIMODEL_REL_ROOT_PATH=$PWD/regression_out/cvimodel_release
 if [ ! -e $CVIMODEL_REL_PATH ]; then
   mkdir $CVIMODEL_REL_PATH
 fi
@@ -22,14 +22,27 @@ ERR=0
 
 pushd regression_out
 
-#set BATCH_SIZE="1 4 8 16 32" for batch test
-BATCH_SIZE="1 2 4"
+# set BATCH_SIZE="1 4 8 16 32" for batch test
+# execute script and set batch size such as "paralle_wk_test.sh 1 2 4"
+# we can easily to set batch size for CI without changing this script
+for i in $@
+do
+ BATCH_SIZE+=" $i"
+done
+if [[ -z "$BATCH_SIZE" ]]; then
+ BATCH_SIZE="1"
+fi
+
 for d in ${BATCH_SIZE}
 do
+  export CVIMODEL_REL_PATH=$CVIMODEL_REL_ROOT_PATH\_bs$d
+  if [ ! -e $CVIMODEL_REL_PATH ]; then
+    mkdir $CVIMODEL_REL_PATH
+  fi
   cp $DIR/regression.txt $DIR/regression_b.txt
   sed -e "s/$/ $d/" -i $DIR/regression_b.txt
-  #delete previos regression folder under regression_out
-  find $PWD -type d -name "*" ! -path "$PWD" |xargs rm -rf
+  #delete previos regression folder under regression_out and keep CVIMODEL_REL_PATH folder
+  find $PWD -type d -name "*" ! -path "$PWD" ! -path "$CVIMODEL_REL_ROOT_PATH*" |xargs rm -rf
 
   parallel -j13 --delay 2.5 --ungroup --joblog job_regression_b$d.log < $DIR/regression_b.txt
   if [ "$?" -ne "0" ]; then
