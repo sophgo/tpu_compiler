@@ -13,6 +13,7 @@ if [ ! -f "$CAFFE_BLOBS_NPZ" ]; then
       --dump_blobs $CAFFE_BLOBS_NPZ \
       --dump_weights bmface_v3_weights.npz \
       --model_type bmface_v3 \
+      --batch_size $BATCH_SIZE \
       --input_file $REGRESSION_PATH/data/Aaron_Eckhart_0001.jpg
 fi
 

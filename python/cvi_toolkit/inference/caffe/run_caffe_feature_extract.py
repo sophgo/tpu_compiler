@@ -29,6 +29,7 @@ def parse_args():
                         help="Dump all weights into a file in npz format")
     parser.add_argument("--model_type", type=str, default='', 
                         help="bmface_v3, liveness")
+    parser.add_argument("--batch_size", type=int, default=1, help="Set batch size")
 
 
     args = parser.parse_args()
@@ -40,7 +41,11 @@ def main(argv):
     input = None
     net = caffe.Net(args.model_def, args.pretrained_model, caffe.TEST)
     if args.model_type == "bmface_v3":
-        input = cv2.imread(args.input_file)
+        input_x = cv2.imread(args.input_file)
+        input = input_x
+        for i in range(1, args.batch_size):
+          input = np.append(input, input_x, axis=0)
+
         # Normalization
         _scale = 0.0078125
         _bias  = np.array([-0.99609375, -0.99609375, -0.99609375], dtype=np.float32)
@@ -49,10 +54,14 @@ def main(argv):
         input = np.transpose(input, (2, 0, 1))
         input = np.expand_dims(input, axis=0)
         input = input.astype(np.float32)
+        input = input.reshape((args.batch_size, 3, 112, 112))
     elif args.model_type == "arcface_res50":
-        input = cv2.imread(args.input_file)
+        input_x = cv2.imread(args.input_file)
         # from bgr to rgb
-        input[:,:,0], input[:,:,2] = input[:,:,2], input[:,:,0]
+        input_x[:,:,0], input_x[:,:,2] = input_x[:,:,2], input_x[:,:,0]
+        input = input_x
+        for i in range(1, args.batch_size):
+          input = np.append(input, input_x, axis=0)
         # normalize
         _scale = 0.0078125
         _bias = np.array([-127.5, -127.5, -127.5], dtype=np.float32)
@@ -62,10 +71,13 @@ def main(argv):
         # from hwc to chw
         input = np.transpose(input, (2, 0, 1))
         input = np.expand_dims(input, axis=0)
+        input = input.reshape((args.batch_size, 3, 112, 112))
     elif args.model_type == "liveness":
-        input = np.fromfile(args.input_file, dtype=np.float32)
-        input = input.reshape((1, 6, 32, 32))
-        print("shape", input.shape)
+        input_x = np.fromfile(args.input_file, dtype=np.float32)
+        input = input_x
+        for i in range(1, args.batch_size):
+          input = np.append(input, input_x, axis=0)
+        input = input.reshape((args.batch_size, 6, 32, 32))
     else:
         print("Now only support:")
         for i in support_model:
@@ -80,6 +92,9 @@ def main(argv):
 
     print("Save Blobs: ", args.dump_blobs)
     blobs_dict = {}
+    # reshape blobs
+    in_ = net.inputs[0]
+    net.blobs[in_].reshape(args.batch_size, net.blobs[in_].data.shape[1], net.blobs[in_].data.shape[2], net.blobs[in_].data.shape[3])
     # for name, blob in self.blobs.iteritems():
     #     blobs_dict[name] = blob.data
     for name, layer in net.layer_dict.iteritems():
