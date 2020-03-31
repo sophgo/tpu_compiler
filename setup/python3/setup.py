@@ -1,10 +1,9 @@
 #!/usr/bin/python3
-import os
+import os, sys
 import setuptools
-
+import glob
 
 install_requires=[
-    'enum34==1.1.10',
     'numpy>=1.18.0',
     'opencv-python>=3.4.0.14',
     'protobuf==3.11.3',
@@ -16,6 +15,18 @@ install_requires=[
     'termcolor==1.1.0',
     'PyYAML==5.3.1',
 ]
+python_version = "{}.{}".format(sys.version_info.major, sys.version_info.minor)
+
+mlir_install_path = os.environ.get('INSTALL_PATH')
+install_lib = '{}/lib'.format(mlir_install_path)
+install_bin = '{}/bin'.format(mlir_install_path)
+install_py_lib = '{}/python'.format(mlir_install_path)
+
+so_lib = [ x for x in glob.iglob('{}/*.so'.format(install_lib))]
+a_lib = [ x for x in glob.iglob('{}/*.a'.format(install_lib))]
+py_so_lib = [ x for x in glob.iglob('{}/*.so'.format(install_py_lib))]
+cvi_bin = [x for x in glob.iglob('{}/*'.format(install_bin))]
+
 
 file_path = os.path.dirname(os.path.abspath(__file__))
 print("setup.py in {}".format(file_path))
@@ -35,6 +46,12 @@ setuptools.setup(
     package_dir={
         '': 'python',
     },
+    data_files=[
+        ('lib', so_lib),
+        ('lib', a_lib),
+        ('lib/python{}'.format(python_version), py_so_lib),
+        ('bin', cvi_bin)
+    ],
     install_requires=install_requires,
     entry_points = {
               'console_scripts': [
