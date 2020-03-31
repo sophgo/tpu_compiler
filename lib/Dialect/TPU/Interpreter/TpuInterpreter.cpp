@@ -904,7 +904,7 @@ LogicalResult tpu::FullyConnectedOp::interpret(
       bias ? bias->data() : nullptr, resultT->data(), m, k, n, false);
   assert(ret == 0);
   if (do_relu) {
-    ret = my_relu(resultT->data(), resultT->data(), 1, 1, 1, n, 0.0f);
+    ret = my_relu(resultT->data(), resultT->data(), 1, 1, 1, n * m, 0.0f);
     assert(ret == 0);
   }
 
