@@ -136,15 +136,21 @@ def parse(config: dict):
         net.calibration(fp32_mlirfile, dataset_file, calibraion_table, preprocessor.run)
     else:
         print("No Calibration at yaml")
-    # build cvi_model
-    # cvimodel = config.get("output_file", None)
-    # if cvimodel:
 
-        elif cmd == "cvi_npz_extract":
-            input_npz = t['input_npz']
-            ouput_npz = t['ouput_npz']
-            extract_name = t['extract_name']
-            npz_extract([input_npz, ouput_npz, extract_name])
+
+    # build cvi_model
+    cvimodel = config.get("output_file", None)
+    Quantization = config.get("Quantization", None)
+    if cvimodel:
+        int8_mlirfile = "{}_int8.mlir".format(model_name)
+        is_perchannel = Quantization.get("per_channel", True)
+        is_symmetric = Quantization.get("symmetric", True)
+        quant_tpu_op_info = "{}_quant_op_info.csv".format(model_name)
+
+        net.build_cvimodel(fp32_mlirfile, cvimodel, calibraion_table, mlirfile_int8=int8_mlirfile, quant_info=quant_tpu_op_info)
+    else:
+        print("No cvimodel output_file")
+        exit(-1)
 
         elif cmd == "cvi_npz_rename":
             input_npz = t['input_npz']
