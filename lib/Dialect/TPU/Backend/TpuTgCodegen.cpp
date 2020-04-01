@@ -314,7 +314,7 @@ LogicalResult tpu::TG_INT8_CropOp::codegen(void *ctx) {
                               input_gaddr,  // bottom_gaddr,
                               output_gaddr, // top_gaddr
                               i1_s.data(), i2_s.data(), o_s.data(),
-                              offsets.data(), FMT_I8);
+                              offsets.data(), CVI_FMT_I8);
 
   return success();
 }
@@ -1122,7 +1122,7 @@ LogicalResult tpu::TG_INT8_LutOp::codegen(void *ctx) {
                              nullptr,  // const u32 *depends,
                              0,        // depends_len,
                              input_gaddr, output_gaddr, y0_table_gaddr, n, c, h,
-                             w, FMT_I8);
+                             w, CVI_FMT_I8);
 
   return success();
 }
@@ -1152,7 +1152,7 @@ LogicalResult tpu::TG_BF16_LutOp::codegen(void *ctx) {
                                   nullptr,  // const u32 *depends,
                                   0,        // depends_len,
                                   input_gaddr, output_gaddr, table_data_lut,table_data_mantissa_lut,
-                                  n, c, h, w, FMT_BF16);
+                                  n, c, h, w, CVI_FMT_BF16);
 
   return success();
 }
@@ -1469,7 +1469,7 @@ LogicalResult tpu::TG_INT8_PReluOp::codegen(void *ctx) {
       ga_input,             // input_data_gaddr,
       ga_output,            // output_data_gaddr,
       negative_scope_gaddr, // float negative_slope,
-      n, c, h, w, rshift_pos, m_i8_pos, rshift_neg, FMT_I8);
+      n, c, h, w, rshift_pos, m_i8_pos, rshift_neg, CVI_FMT_I8);
 
   return success();
 }
@@ -1512,7 +1512,7 @@ LogicalResult tpu::TG_INT8_ReluOp::codegen(void *ctx) {
       0,
       NULL, // *threshold_x_quantized,
       NULL, // *right_shift_array,
-      FMT_I8);
+      CVI_FMT_I8);
 
   return success();
 }
@@ -1544,7 +1544,7 @@ LogicalResult tpu::TG_INT8_ShuffleChannelOp::codegen(void *ctx) {
   int layer_id = mlir::getOpLayerId(op);
   shuffle_channel_forward_kernel(*backend_ctx, 0, 0, layer_id, nullptr, 0,
                                        input_gaddr, output_gaddr, n, c,
-                                       frame_size, group, FMT_I8);
+                                       frame_size, group, CVI_FMT_I8);
   return success();
 }
 
@@ -1566,7 +1566,7 @@ LogicalResult tpu::TG_BF16_ShuffleChannelOp::codegen(void *ctx) {
   int layer_id = mlir::getOpLayerId(op);
   shuffle_channel_forward_kernel(*backend_ctx, 0, 0, layer_id, nullptr, 0,
                                        input_gaddr, output_gaddr, n, c,
-                                       frame_size, group, FMT_BF16);
+                                       frame_size, group, CVI_FMT_BF16);
   return success();
 }
 
@@ -1589,7 +1589,7 @@ LogicalResult tpu::TG_INT8_SwapChannelOp::codegen(void *ctx) {
   arrayAttrToVector(this->channel_order().getValue(), order);
   swap_channel_forward_kernel(*backend_ctx, 0, 0, layer_id, nullptr, 0,
                                        input_gaddr, output_gaddr,  (int)input_shape_fix.size(),
-                                       input_shape_fix.data(), order.data(), FMT_I8);
+                                       input_shape_fix.data(), order.data(), CVI_FMT_I8);
   return success();
 }
 
@@ -1612,7 +1612,7 @@ LogicalResult tpu::TG_BF16_SwapChannelOp::codegen(void *ctx) {
   int layer_id = mlir::getOpLayerId(op);
   swap_channel_forward_kernel(*backend_ctx, 0, 0, layer_id, nullptr, 0,
                                        input_gaddr, output_gaddr,  (int)input_shape_fix.size(),
-                                       input_shape_fix.data(), order.data(), FMT_BF16);
+                                       input_shape_fix.data(), order.data(), CVI_FMT_BF16);
   return success();
 }
 
@@ -1725,7 +1725,7 @@ LogicalResult tpu::TG_INT8_SliceOp::codegen(void *ctx) {
   slice_forward_kernel(*backend_ctx, 0, 0, layer_id, nullptr, 0, input_gaddr,
                        output_gaddr, (int)input_shape.size(),
                        input_shape_fix.data(), axis, offset,
-                       (int)output_shape[axis], FMT_I8);
+                       (int)output_shape[axis], CVI_FMT_I8);
 
   return success();
 }
@@ -1755,7 +1755,7 @@ LogicalResult tpu::TG_BF16_SliceOp::codegen(void *ctx) {
   slice_forward_kernel(*backend_ctx, 0, 0, layer_id, nullptr, 0, input_gaddr,
                        output_gaddr, (int)input_shape.size(),
                        input_shape_fix.data(), axis, offset,
-                       (int)output_shape[axis], FMT_BF16);
+                       (int)output_shape[axis], CVI_FMT_BF16);
 
   return success();
 }
