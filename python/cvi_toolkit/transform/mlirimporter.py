@@ -129,6 +129,51 @@ class MLIRImporter(object):
         return self.buildOp(TPU_OpType.BroadcastMul.value, inputOperands, [
             tensor_output_type], name=broadcast_mul_name, axis=axis_attr, quant=self.quant_param)
 
+    def add_broadcast_add_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+        assert(len(inputOperands) >= 2)
+        tensor_output_type = self.module.make_ranked_tensor_type(
+            self.f32Type, output_tensor_shape)
+
+        broadcast_add_name = self.module.stringAttr(op_name)
+
+        axis_attr = self.module.integerAttr(self.i32Type, kargs['axis'])
+        none = self.add_none_op()
+        for i in range( 6 - len(inputOperands)):
+            inputOperands.append(none)
+
+        return self.buildOp(TPU_OpType.BroadcastAdd.value, inputOperands, [
+            tensor_output_type], name=broadcast_add_name, axis=axis_attr, quant=self.quant_param)
+
+    def add_clip_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+        assert(len(inputOperands) == 1)
+        tensor_output_type = self.module.make_ranked_tensor_type(
+            self.f32Type, output_tensor_shape)
+
+        name = self.module.stringAttr(op_name)
+
+        checkKey(kargs, 'min')
+        checkKey(kargs, 'max')
+
+        clip_min = kargs['min']
+        clip_max = kargs['max']
+
+        checkType(clip_min, float)
+        checkType(clip_max, float)
+
+        attr_dict = {
+            'min': self.module.floatAttr(clip_min),
+            'max': self.module.floatAttr(clip_max),
+        }
+
+        none = self.add_none_op()
+        # 5 indicate input + 4 quants info, plz refer TPUOps.td#Clip
+        for i in range( 5 - len(inputOperands)):
+            inputOperands.append(none)
+
+        return self.buildOp(TPU_OpType.Clip.value, inputOperands, [
+            tensor_output_type], name=name, quant=self.quant_param, **attr_dict)
+
+
     def add_concat_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         assert(len(inputOperands) >= 2)
         tensor_output_type = self.module.make_ranked_tensor_type(
