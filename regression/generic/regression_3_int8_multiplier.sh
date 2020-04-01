@@ -7,6 +7,8 @@ DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 COMPARE_ALL=1
 COMPARE_OUTPUT_BIT_TRUE=0
 
+OP_LOWERING=0
+
 if [ $DO_QUANT_INT8_MULTIPLER -eq 1 ]; then
   ###############################################################################
   # quantization 3: per-channel int8 with multiplier
@@ -60,17 +62,64 @@ if [ $DO_QUANT_INT8_MULTIPLER -eq 1 ]; then
       ${NET}_quant_int8_multiplier_tg.mlir \
       -o ${NET}_quant_int8_multiplier_tg_opt.mlir
 
-  # assign weight address & neuron address
-  mlir-opt \
-      --assign-weight-address \
-      --tpu-weight-address-align=16 \
-      --tpu-weight-map-filename=${NET}_weight_map_int8_multiplier.csv \
-      --tpu-weight-bin-filename=weight_int8_multiplier.bin \
-      --assign-neuron-address \
-      --tpu-neuron-address-align=16 \
-      --tpu-neuron-map-filename=${NET}_neuron_map_int8_multiplier.csv \
-      ${NET}_quant_int8_multiplier_tg_opt.mlir \
-      -o ${NET}_quant_int8_multiplier_addr.mlir
+  if [ $OP_LOWERING -eq 1 ]; then
+    # function argument lower to MemRefType
+    mlir-opt \
+        --convert-func-to-memref \
+        ${NET}_quant_int8_multiplier_tg_opt.mlir \
+        -o ${NET}_quant_int8_multiplier_tg_opt_memref.mlir
+
+    # op lower to MemRefType
+    mlir-opt \
+      --convert-tg-op-to-memref \
+      ${NET}_quant_int8_multiplier_tg_opt_memref.mlir \
+      -o ${NET}_quant_int8_multiplier_tg_opt_op_memref.mlir
+
+    # memory space w/ neuron recycle
+    #    --enable-tpu-neuron-map-recyle-memref=1
+    mlir-opt \
+        --assign-neuron-address-memref \
+        --tpu-neuron-address-align-memref=16 \
+        --tpu-neuron-map-filename-memref=neuron_map_memref_recycle.csv \
+        ${NET}_quant_int8_multiplier_tg_opt_op_memref.mlir \
+        -o ${NET}_quant_int8_multiplier_tg_opt_op_memref_addr.mlir
+
+    # tg op back to TensorType
+    mlir-opt \
+        --convert-tg-op-to-tensor \
+        ${NET}_quant_int8_multiplier_tg_opt_op_memref_addr.mlir \
+        -o ${NET}_quant_int8_multiplier_tg_opt_op_tensor_addr.mlir
+
+    # function argument back to TensorType
+    mlir-opt \
+        --convert-func-to-tensor \
+        ${NET}_quant_int8_multiplier_tg_opt_op_tensor_addr.mlir \
+        -o ${NET}_quant_int8_multiplier_tg_opt_addr.mlir
+
+    # assign weight address & neuron address
+    mlir-opt \
+        --assign-weight-address \
+        --tpu-weight-address-align=16 \
+        --tpu-weight-map-filename=${NET}_weight_map_int8_multiplier.csv \
+        --tpu-weight-bin-filename=weight_int8_multiplier.bin \
+        --assign-neuron-address \
+        --tpu-neuron-address-align=16 \
+        --tpu-neuron-map-filename=${NET}_neuron_map_int8_multiplier.csv \
+        ${NET}_quant_int8_multiplier_tg_opt_addr.mlir \
+        -o ${NET}_quant_int8_multiplier_addr.mlir
+  else
+    # assign weight address & neuron address
+    mlir-opt \
+        --assign-weight-address \
+        --tpu-weight-address-align=16 \
+        --tpu-weight-map-filename=${NET}_weight_map_int8_multiplier.csv \
+        --tpu-weight-bin-filename=weight_int8_multiplier.bin \
+        --assign-neuron-address \
+        --tpu-neuron-address-align=16 \
+        --tpu-neuron-map-filename=${NET}_neuron_map_int8_multiplier.csv \
+        ${NET}_quant_int8_multiplier_tg_opt.mlir \
+        -o ${NET}_quant_int8_multiplier_addr.mlir
+  fi
 
   mlir-translate \
       --mlir-to-cmdbuf \
