@@ -15,6 +15,18 @@ install_requires=[
     'termcolor==1.1.0',
     'PyYAML==5.3.1',
 ]
+
+class CleanCommand(setuptools.Command):
+    """Custom clean command to tidy up the project root."""
+    user_options = []
+    def initialize_options(self):
+        pass
+    def finalize_options(self):
+        pass
+    def run(self):
+        os.system('rm -vrf ./build ./dist ./python/*.egg-info')
+
+
 python_version = "{}.{}".format(sys.version_info.major, sys.version_info.minor)
 
 mlir_install_path = os.environ.get('INSTALL_PATH')
@@ -80,5 +92,8 @@ setuptools.setup(
                   'cvi_nn_converter_tool=cvi_toolkit.cvi_nn_converter:main'
               ],
           },
+    cmdclass={
+        'clean': CleanCommand,
+    },
 
 )
