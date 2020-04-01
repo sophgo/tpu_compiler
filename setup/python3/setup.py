@@ -29,7 +29,11 @@ cvi_bin = [x for x in glob.iglob('{}/*'.format(install_bin))]
 
 
 caffe_path = "{}/caffe".format(mlir_install_path)
-caffe_lib =  [ x for x in glob.iglob('{}/lib/**'.format(caffe_path))]
+caffe_lib = [ x for x in glob.iglob('{}/lib/**'.format(caffe_path))]
+
+# mkldnn
+mkldnn_path = "{}/mkldnn".format(mlir_install_path)
+mkldnn_lib = [ x for x in glob.iglob('{}/lib/*.so*'.format(mkldnn_path))]
 
 file_path = os.path.dirname(os.path.abspath(__file__))
 print("setup.py in {}".format(file_path))
@@ -37,7 +41,12 @@ root_path = os.path.join(file_path, "../../")
 print("Now root path is {}".format(root_path))
 
 os.chdir(root_path)
-packages = setuptools.find_packages(where='{}/python'.format(root_path)) + setuptools.find_packages(where='./third_party/caffe/python')
+packages = setuptools.find_packages(where='{}/python'.format(root_path))
+packages.extend(setuptools.find_packages(where='./third_party/caffe/python'))
+packages.extend(setuptools.find_packages(where='./third_party/flatbuffers/python'))
+
+# cpu op, generated runtime, we hardcore here
+packages.extend(['cvi', 'cvi.cpu_op', 'cvi.model'])
 setuptools.setup(
     name='CVI_toolkit',
     version='0.5.0',
@@ -48,7 +57,9 @@ setuptools.setup(
     packages=packages,
     package_dir={
         '': 'python',
-        'caffe': "third_party/caffe/python/caffe"
+        'caffe': 'third_party/caffe/python/caffe',
+        'flatbuffers': 'third_party/flatbuffers/python/flatbuffers',
+        'cvi': '{}/python/cvi'.format(mlir_install_path),
     },
     package_data ={
         'caffe': ["*.so"]
@@ -57,6 +68,7 @@ setuptools.setup(
         ('lib', so_lib),
         ('lib', a_lib),
         ('lib/python{}'.format(python_version), py_so_lib),
+        ('lib', mkldnn_lib),
         ('bin', cvi_bin),
     ],
     install_requires=install_requires,

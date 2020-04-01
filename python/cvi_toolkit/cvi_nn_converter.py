@@ -16,17 +16,6 @@ os.environ['GLOG_logbufsecs'] = "1"
 os.environ['GLOG_logtostderr']="0"
 os.environ['GLOG_stderrthreshold'] = "3"
 
-env_matcher = re.compile(r'\$\{([^}^{]+)\}')
-def env_constructor(loader, node):
-  ''' Extract the matched value, expand env variable, and replace the match '''
-  value = node.value
-  match = env_matcher.match(value)
-  env_var = match.group()[2:-1]
-  return os.environ.get(env_var) + value[match.end():]
-
-yaml.add_implicit_resolver('!path', env_matcher,  None, yaml.SafeLoader)
-yaml.add_constructor('!path', env_constructor, yaml.SafeLoader)
-
 
 def parse(config: dict):
     # model to mlir
