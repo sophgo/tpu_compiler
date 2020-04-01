@@ -12,6 +12,7 @@ run_caffe_retinaface.py \
     --pretrained_model $MODEL_PATH/face_detection/retinaface/caffe/mnet.caffemodel \
     --input_file $REGRESSION_PATH/data/parade.jpg \
     --net_input_dims 320,320 \
+    --batch_size $BATCH_SIZE \
     --dump_blobs retinaface_mnet25_blobs.npz
 
 cvi_npz_tool.py extract retinaface_mnet25_blobs.npz retinaface_mnet25_in_fp32.npz data
