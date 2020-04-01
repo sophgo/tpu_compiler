@@ -239,9 +239,11 @@ if [ $BUILD_SAMPLES -eq 1 ]; then
 fi
 
 # Copy some files for release build
+mkdir -p $INSTALL_SOC_PATH/cmake
+cp $TOOLCHAIN_FILE_PATH $INSTALL_SOC_PATH/cmake
 cp $AARCH64_SYSROOT_PATH/lib/libglog.so.0.0.0 $INSTALL_SOC_PATH/lib
 pushd $INSTALL_SOC_PATH/lib
-ln -s libglog.so.0.0.0 libglog.so.0.0
-ln -s libglog.so.0.0.0 libglog.so.0
-ln -s libglog.so.0.0.0 libglog.so
+ln -nsf libglog.so.0.0.0 libglog.so.0.0
+ln -nsf libglog.so.0.0.0 libglog.so.0
+ln -nsf libglog.so.0.0.0 libglog.so
 popd
