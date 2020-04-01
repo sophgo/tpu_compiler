@@ -217,8 +217,10 @@ fi
 pushd $MLIR_SRC_PATH
 if [ $PYTHON_VERSION == "2" ]; then
   python setup/python2/setup.py bdist_wheel --dist-dir=$INSTALL_PATH/python_package/
+  python setup/python2/setup.py clean --all
 elif [ $PYTHON_VERSION == "3" ]; then
   python3 setup/python3/setup.py bdist_wheel --dist-dir=$INSTALL_PATH/python3_package/
+  python3 setup/python3/setup.py clean --all
 fi
 popd
 

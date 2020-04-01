@@ -12,7 +12,7 @@ data_preprocess:
 
 
     #mean file
-    mean_file: ${REGRESSION_PATH}/data/ilsvrc_2012_mean.npy
+    mean_file: /workspace/tpu/mlir/regression/data/ilsvrc_2012_mean.npy
     #Multiply raw input by this scale before preprocession
     raw scale: 255.0
     #Multiply input features by this scale to finish preprocession
@@ -26,7 +26,7 @@ data_preprocess:
     #npz input directly , do nothing for preprocessing
     npz_input: null
 
-    input_file: ${REGRESSION_PATH}/data/cat.jpg
+    input_file: /workspace/tpu/mlir/regression/data/cat.jpg
     output_npz: resnet50_in_fp32.npz
 
 #step 1: model convert
@@ -34,11 +34,11 @@ Convert_model:
     #framework type: caffe or onnx
     framework_type: caffe
     #for onnx model, please set model file only
-    weight_file: ${MODEL_PATH}/imagenet/resnet/caffe/ResNet-50-model.caffemodel
-    model_file: ${MODEL_PATH}/imagenet/resnet/caffe/ResNet-50-deploy.prototxt
+    weight_file: /data/models/imagenet/resnet/caffe/ResNet-50-model.caffemodel
+    model_file: /data/models/imagenet/resnet/caffe/ResNet-50-deploy.prototxt
 #step2: do calibration
 Calibration:
-    Dataset: ${REGRESSION_PATH}/data/input.txt
+    Dataset: /workspace/tpu/mlir/llvm-project/llvm/projects/mlir/regression/data/input.txt
 
 #step3: do quantization
 Quantization:
