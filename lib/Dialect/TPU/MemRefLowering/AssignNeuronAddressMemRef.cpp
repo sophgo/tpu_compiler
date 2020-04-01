@@ -43,10 +43,12 @@ struct AssignNeuronAddressMemRefPass :
   void handleAllocOp(Operation *opInst);
   void handleDeallocOp(Operation *opInst);
   void handleQuantOp(Operation *opInst);
+  void handleSliceOp(Operation *opInst);
   Operation *findTpuOpFromAllocOp(Operation *op);
   Operation *findTpuOpFromDeallocOp(Operation *op);
 
   struct NeuronInfo {
+    llvm::StringRef name;
     int layerId;
     uint64_t offset;
     uint64_t size;
@@ -56,11 +58,14 @@ struct AssignNeuronAddressMemRefPass :
   static constexpr int ActivationMemorySpace = 2;
 
   bool isMemoryAliasedOp(Operation *op);
+  bool isMemoryAliasedOpHandled(Operation *op);
   bool isReuseRecycledNeuron(Operation *op, uint64_t allocatedSize,
                              uint64_t &offset);
   void dumpNeuronInfo(std::vector<NeuronInfo> &neuronLlist);
   bool findNeuronByLayerId(std::vector<NeuronInfo> &neuronList,
                            int layerId);
+  bool findNeuronByName(std::vector<NeuronInfo> &neuronList,
+                        llvm::StringRef name);
   void sortRecycledNeuronBySize(void);
   llvm::raw_ostream &os() { return *map_os_; }
 
@@ -75,11 +80,15 @@ struct AssignNeuronAddressMemRefPass :
 } // anonymous space
 
 Operation *AssignNeuronAddressMemRefPass::findTpuOpFromAllocOp(Operation *op) {
+  llvm::dbgs() << "  findTpuOpFromAllocOp op " << op->getName() << "\n";
+
   // AllocOp has only one result.
   Operation *firstUseOp = nullptr;
   for (auto &user : op->getResult(0)->getUses()) {
     Operation *userOp = user.getOwner();
     auto lastOperand = userOp->getOperand(userOp->getNumOperands() - 1);
+
+    llvm::dbgs() << "    userOp " << userOp->getName() << "\n";
 
     // Find corresponding tpu op.
     if (userOp->getName().getDialect().str() == "tpu" &&
@@ -93,6 +102,11 @@ Operation *AssignNeuronAddressMemRefPass::findTpuOpFromAllocOp(Operation *op) {
       }
     }
   }
+
+  if (firstUseOp)
+    llvm::dbgs() << "    firstUseOp " << firstUseOp->getName() << "\n";
+  else
+    llvm::dbgs() << "    no firstUseOp\n";
 
   return firstUseOp;
 }
@@ -123,7 +137,105 @@ AssignNeuronAddressMemRefPass::findTpuOpFromDeallocOp(Operation *op) {
 bool AssignNeuronAddressMemRefPass::isMemoryAliasedOp(Operation *op) {
   // FIXME: skip fc_reshape
   // Can replace AllocOp with ViewOp ?
-  if (op->getName().getStringRef().str() == "tpu.tg_memref_reshape") {
+  if (dyn_cast<tpu::TG_MemRef_ReshapeOp>(op)) {
+    // No gaddr, skip it
+    return true;
+  } else if (dyn_cast<tpu::TG_INT8_SliceOp>(op) ||
+             dyn_cast<tpu::TG_BF16_SliceOp>(op)) {
+    auto resultType = op->getResult(0)->getType();
+    auto tensorType = resultType.dyn_cast<RankedTensorType>();
+    auto batch = tensorType.getShape()[0];
+
+    // Avoid copy when batch = 1
+    if (batch == 1) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+bool AssignNeuronAddressMemRefPass::isMemoryAliasedOpHandled(Operation *op) {
+   llvm::dbgs() << "isMemoryAliasedOpHandled op " << op->getName() << "\n";
+
+  // FIXME: skip fc_reshape
+  // Can replace AllocOp with ViewOp ?
+  // if (op->getName().getStringRef().str() == "tpu.tg_memref_reshape") {
+  if (dyn_cast<tpu::TG_MemRef_ReshapeOp>(op)) {
+    // No gaddr, skip it
+    return true;
+  } else if (dyn_cast<tpu::TG_MemRef_INT8_SliceOp>(op) ||
+             dyn_cast<tpu::TG_MemRef_BF16_SliceOp>(op)) {
+    auto resultType = op->getOperand(op->getNumOperands()-1)->getType();
+    auto memRefType = resultType.dyn_cast<MemRefType>();
+    std::vector<int64_t> shape = memRefType.getShape();
+    auto batch = shape[0];
+
+    auto elementType = memRefType.getElementType();
+    uint64_t dataTypeSize = elementType.getIntOrFloatBitWidth() / 8;
+    uint64_t allocatedSize = dataTypeSize;
+    for (unsigned i = 0; i < shape.size(); ++i)
+      allocatedSize *= shape[i];
+
+    std::string dtype;
+    if (elementType.dyn_cast<IntegerType>())
+      dtype = "int";
+    else if (elementType.isBF16())
+      dtype = "bf";
+    else
+      dtype = "f";
+
+    uint64_t baseGAddr = pos_;
+
+    // Reuse memory when batch = 1
+    if (batch == 1) {
+      auto operandOp = op->getOperand(0)->getDefiningOp();
+      if (dyn_cast<AllocOp>(operandOp)) {
+        // Previous op is lowed op
+        auto prevOp = findTpuOpFromAllocOp(op->getOperand(0)->getDefiningOp());
+        assert(prevOp && "Not tpu op belong to allocOp");
+        baseGAddr = getOpAddress(prevOp);
+      } else if (dyn_cast<tpu::TG_TensorToMemRefOp>(operandOp)) {
+        // Previous op is not lowed op
+        auto prevOp = operandOp->getOperand(0)->getDefiningOp();
+        baseGAddr = getOpAddress(prevOp);
+      } else {
+        assert("Unexpected previous Op of SliceOp");
+      }
+    }
+
+    uint64_t axis = 0;
+    uint64_t offset = 0;
+    if (auto tpuOp = dyn_cast<tpu::TG_MemRef_INT8_SliceOp>(op)) {
+      axis = tpuOp.axis().getLimitedValue();
+      offset = tpuOp.offset().getLimitedValue();
+    } else if (auto tpuOp = dyn_cast<tpu::TG_MemRef_BF16_SliceOp>(op)) {
+      axis = tpuOp.axis().getLimitedValue();
+      offset = tpuOp.offset().getLimitedValue();
+    }
+
+    offset *= dataTypeSize;
+    for (uint64_t i = axis + 1; i < shape.size(); ++i) {
+      offset *= shape[i];
+    }
+
+    uint64_t curPos = baseGAddr + offset;
+
+    // pad to alignment
+    allocatedSize = llvm::alignTo(allocatedSize, alignment_);
+    auto tpuOpIf = llvm::dyn_cast<tpu::TpuOpCommonInterface>(op);
+    os() << tpuOpIf.getOpName().str().c_str() << ","
+         << llvm::format_hex(curPos, 10) << ","
+            << dtype << elementType.getIntOrFloatBitWidth() << ","
+            << shape[0] << "," << shape[1] << ","
+            << shape[2] << "," << shape[3] << "\n";
+
+    llvm::errs() << llvm::format("[%-36s][%8d] : [ ",
+                  tpuOpIf.getOpName().str().c_str(), allocatedSize)
+                << llvm::format_hex(curPos, 10) << " --> "
+                << llvm::format_hex(curPos+allocatedSize, 10) << " ]\n";
+
+    setOpAddress(op, curPos);
     return true;
   }
 
@@ -155,8 +267,9 @@ bool AssignNeuronAddressMemRefPass::isReuseRecycledNeuron(
 void AssignNeuronAddressMemRefPass::dumpNeuronInfo(
     std::vector<NeuronInfo> &neuronLlist) {
   for (auto &it : neuronLlist) {
-    llvm::dbgs() << "    layerId " << it.layerId
-                 << ", offset " << it.offset
+    llvm::dbgs() << "    name " << it.name
+                 << ", layerId " << it.layerId
+                 << ", offset " << llvm::format_hex(it.offset, 10)
                  << ", size " << it.size
                  << "\n";
   }
@@ -178,6 +291,17 @@ bool AssignNeuronAddressMemRefPass::findNeuronByLayerId(
   for (auto &it : neuronList) {
     if (it.layerId == layerId)
       return true;
+  }
+
+  return false;
+}
+
+bool AssignNeuronAddressMemRefPass::findNeuronByName(
+    std::vector<NeuronInfo> &neuronList, llvm::StringRef name) {
+  for (auto &it : neuronList) {
+    if (!name.compare(it.name)) {
+      return true;
+    }
   }
 
   return false;
@@ -219,7 +343,7 @@ void AssignNeuronAddressMemRefPass::handleAllocOp(Operation *opInst) {
   if (!tpuOp)
     return;
 
-  if (isMemoryAliasedOp(tpuOp))
+  if (isMemoryAliasedOpHandled(tpuOp))
     return;
 
   uint64_t curPos = pos_;
@@ -231,7 +355,8 @@ void AssignNeuronAddressMemRefPass::handleAllocOp(Operation *opInst) {
 
   auto tpuOpIf = llvm::dyn_cast<tpu::TpuOpCommonInterface>(tpuOp);
   if (!tpuOpIf) {
-    llvm::errs() << "Error ! tpuOp " << tpuOp->getName() << " does not have common interface\n";
+    llvm::errs() << "Error ! tpuOp " << tpuOp->getName()
+                 << " does not have common interface\n";
   }
   assert(tpuOpIf && "Expect tpu op has common interface");
 
@@ -251,7 +376,8 @@ void AssignNeuronAddressMemRefPass::handleAllocOp(Operation *opInst) {
   setOpAddress(tpuOpIf, curPos);
   pos_ = newPos;
 
-  NeuronInfo neuronInfo = {0};
+  NeuronInfo neuronInfo;
+  neuronInfo.name = tpuOpIf.getOpName();
   neuronInfo.layerId = tpuOpIf.getOpLayerId();
   neuronInfo.offset = curPos;
   neuronInfo.size = allocatedSize;
@@ -278,13 +404,16 @@ void AssignNeuronAddressMemRefPass::handleDeallocOp(Operation *opInst) {
   assert(tpuOpIf && "Expect tpu op has common interface");
 
   auto layerId = tpuOpIf.getOpLayerId();
+  auto opName = tpuOpIf.getOpName();
 
   for (auto it = usedList.begin(); it != usedList.end(); ++it) {
-    if (it->layerId == layerId) {
+    // if (it->layerId == layerId) {
+    if (!opName.compare(it->name)) {
 
-      auto isLayerIdExisted = findNeuronByLayerId(recycledList, layerId);
+      // auto isLayerIdExisted = findNeuronByLayerId(recycledList, layerId);
+      auto isLayerIdExisted = findNeuronByName(recycledList, opName);
       if (isLayerIdExisted) {
-        llvm::dbgs() << "Error ! layerId " << layerId << " already exists.\n"
+        llvm::errs() << "Error ! name " << opName << "already exists.\n"
                      << "dump error recycledList before insersion\n";
         dumpNeuronInfo(recycledList);
         assert(0);
@@ -336,7 +465,8 @@ void AssignNeuronAddressMemRefPass::handleQuantOp(Operation *opInst) {
 
   auto tpuOpIf = llvm::dyn_cast<tpu::TpuOpCommonInterface>(opInst);
   if (!tpuOpIf) {
-    llvm::errs() << "Error ! tpuOp " << opInst->getName() << " does not have common interface\n";
+    llvm::errs() << "Error ! tpuOp " << opInst->getName()
+                 << " does not have common interface\n";
   }
   assert(tpuOpIf && "Expect tpu op has common interface");
 
