@@ -92,9 +92,9 @@ popd
 
 CVI_PY_TOOLKIT=$MLIR_SRC_PATH/python/cvi_toolkit
 # python package
-cp -ar $CVI_PY_TOOLKIT/* $TPU_PYTHON_PATH/
+cp -ar $CVI_PY_TOOLKIT/ $TPU_PYTHON_PATH/
+cp -ar $CVI_PY_TOOLKIT/*.py $TPU_PYTHON_PATH/
 
-pushd $TPU_PYTHON_PATH/model/retinaface; make; popd
 
 # python script
 cp $CVI_PY_TOOLKIT/binary_helper/*.py $TPU_PYTHON_PATH/
@@ -104,14 +104,10 @@ cp $CVI_PY_TOOLKIT/inference/caffe/*.py $TPU_PYTHON_PATH/
 cp $CVI_PY_TOOLKIT/inference/mlir/*.py $TPU_PYTHON_PATH/
 cp $CVI_PY_TOOLKIT/inference/onnx/*.py $TPU_PYTHON_PATH/
 
-# build python package
-pushd $MLIR_SRC_PATH
-if [ $PYTHON_VERSION == "2" ]; then
-  python setup/python2/setup.py bdist_wheel --dist-dir=$INSTALL_PATH/python_package/
-elif [ $PYTHON_VERSION == "3" ]; then
-  python3 setup/python3/setup.py bdist_wheel --dist-dir=$INSTALL_PATH/python3_package/
-fi
-popd
+cp -ar  $CVI_PY_TOOLKIT/retinaface/ $TPU_PYTHON_PATH/
+pushd $TPU_PYTHON_PATH/retinaface; make; popd
+cp -ar $TPU_PYTHON_PATH/retinaface/* $TPU_PYTHON_PATH/
+
 
 # calibration tool
 if [ ! -e $BUILD_PATH/build_calibration ]; then
@@ -216,6 +212,15 @@ cp -a $MLIR_SRC_PATH/regression/data $INSTALL_PATH/regression/
 # install env script
 cp $MLIR_SRC_PATH/cvitek_envs.sh $INSTALL_PATH/
 fi
+
+# build python package
+pushd $MLIR_SRC_PATH
+if [ $PYTHON_VERSION == "2" ]; then
+  python setup/python2/setup.py bdist_wheel --dist-dir=$INSTALL_PATH/python_package/
+elif [ $PYTHON_VERSION == "3" ]; then
+  python3 setup/python3/setup.py bdist_wheel --dist-dir=$INSTALL_PATH/python3_package/
+fi
+popd
 
 # SoC build
 if [ "$1" = "SOC" ]; then

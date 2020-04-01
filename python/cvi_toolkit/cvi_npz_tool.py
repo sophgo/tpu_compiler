@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import argparse
-from numpy_helper import *
+from cvi_toolkit.numpy_helper import *
 npz_tool_func = {
     "compare": npz_compare,
     'dump':npz_dump,

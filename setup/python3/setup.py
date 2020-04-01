@@ -28,6 +28,9 @@ py_so_lib = [ x for x in glob.iglob('{}/*.so'.format(install_py_lib))]
 cvi_bin = [x for x in glob.iglob('{}/*'.format(install_bin))]
 
 
+caffe_path = "{}/caffe".format(mlir_install_path)
+caffe_lib =  [ x for x in glob.iglob('{}/lib/**'.format(caffe_path))]
+
 file_path = os.path.dirname(os.path.abspath(__file__))
 print("setup.py in {}".format(file_path))
 root_path = os.path.join(file_path, "../../")

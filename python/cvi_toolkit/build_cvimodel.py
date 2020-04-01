@@ -10,8 +10,8 @@ import struct
 import functools
 import random
 
-from cvimodel import mlir_parser
-from cvimodel import cvi_model as cm
+from cvi_toolkit.cvimodel import mlir_parser
+from cvi_toolkit.cvimodel import cvi_model as cm
 
 # Version shall be in schema
 MAJOR_VER = 0

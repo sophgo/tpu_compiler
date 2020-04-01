@@ -1,4 +1,4 @@
-from transform.mlirimporter import BaseConverterInterface, MLIRImporter, checkKey
+from .mlirimporter import BaseConverterInterface, MLIRImporter, checkKey
 from onnx import numpy_helper, mapping
 from termcolor import colored, cprint
 from math import floor, ceil

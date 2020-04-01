@@ -4,7 +4,7 @@ import os
 import re
 import random
 import flatbuffers
-import cpu_op
+from . import cpu_op
 from collections import OrderedDict
 
 

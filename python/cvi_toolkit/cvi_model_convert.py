@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 import onnx
 import argparse
-from .transform.onnx_converter import OnnxConverter
+from cvi_toolkit.transform.onnx_converter import OnnxConverter
 CVI_SupportFramework = [
     "onnx"
 ]

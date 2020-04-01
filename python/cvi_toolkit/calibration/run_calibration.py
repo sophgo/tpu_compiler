@@ -8,9 +8,9 @@ import argparse
 import sys, os, cv2
 import numpy as np
 
-from kld_calibrator import KLD_Calibrator
-from asym_calibrator import Asym_Calibrator
-from tuner import Tuner
+from cvi_toolkit.calibration.kld_calibrator import KLD_Calibrator
+from cvi_toolkit.calibration.asym_calibrator import Asym_Calibrator
+from cvi_toolkit.calibration.tuner import Tuner
 
 def preprocess_func_arcface(image_path, args):
   image = cv2.imread(str(image_path).rstrip())
