@@ -237,3 +237,11 @@ if [ $BUILD_SAMPLES -eq 1 ]; then
   cmake --build . --target install -- -v
   popd
 fi
+
+# Copy some files for release build
+cp $AARCH64_SYSROOT_PATH/lib/libglog.so.0.0.0 $INSTALL_SOC_PATH/lib
+pushd $INSTALL_SOC_PATH/lib
+ln -s libglog.so.0.0.0 libglog.so.0.0
+ln -s libglog.so.0.0.0 libglog.so.0
+ln -s libglog.so.0.0.0 libglog.so
+popd
