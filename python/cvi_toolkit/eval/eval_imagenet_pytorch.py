@@ -177,6 +177,9 @@ if __name__ == '__main__':
     if (do_loader_transforms):
       # loader do normalize already
       x = images[0].numpy() * input_scale
+
+      # reshape 4 dim for cpu inference
+      x = np.expand_dims(x, axis=0)
     else:
       # pytorch ToTensor() will do HWC to CHW, and change range to [0.0, 1.0]
       # for pytorch, seeing errors if not include ToTensor in transforms
