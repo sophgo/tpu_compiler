@@ -86,8 +86,8 @@ class Tuner(object):
             print('Cmd {} execute failed.'.format(cmd))
             exit(-1)
 
-        cmd = self.mlir_opt + ' --quant-int8 --enable-conv-per-channel \
-              --enable-conv-multiplier ' + os.path.join(self.output_path, 'resnet-50-cali.mlir') + \
+        cmd = self.mlir_opt + ' --tpu-quant \
+               ' + os.path.join(self.output_path, 'resnet-50-cali.mlir') + \
               ' -o ' + self.int8_model
         if os.system(cmd) != 0:
             print('Cmd {} execute failed.'.format(cmd))
@@ -160,6 +160,7 @@ class Tuner(object):
         num = 0
         for line in self.all_lines:
             x = self.preprocess_func(line)
+            x = np.expand_dims(x, axis=0)
             _ = self.fp32_module.run(x)
             data = self.fp32_module.get_tensor(tune_layer)
             self.out32[num] = data
@@ -176,6 +177,7 @@ class Tuner(object):
         layer_dist = 0
         for line in self.all_lines:
             x = self.preprocess_func(line)
+            x = np.expand_dims(x, axis=0)
             _ = int8_module.run(x)
             out = int8_module.get_tensor(tune_layer)
 
