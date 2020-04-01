@@ -273,6 +273,69 @@ public:
   }
 };
 
+
+namespace {
+struct TpuTpuQuantClipPassPattern : public RewritePattern {
+  TpuTpuQuantClipPassPattern(MLIRContext *context)
+      : RewritePattern("tpu.clip", 1, context) {}
+
+  PatternMatchResult matchAndRewrite(Operation *op,
+                                     PatternRewriter &rewriter) const override {
+    auto builder = OpBuilder(op);
+
+    if (auto clipOp = llvm::dyn_cast<tpu::ClipOp>(op)) {
+      // check threshold_max/threshold_min has assigned
+      auto threshold_max = clipOp.quant().threshold_max().getValue().convertToFloat();
+      auto threshold_min = clipOp.quant().threshold_min().getValue().convertToFloat();
+      if (threshold_max == 0 && threshold_min == 0) {
+        assert("you MUST do import-calibration-table before\n");
+      }
+
+      // get former one and re-init threshold to it
+      auto formerOp = clipOp.getOperand(0)->getDefiningOp();
+      if (!isa<tpu::Conv2DOp>(formerOp)) {
+          llvm::errs() << "  not suppor non-scale yet"  << "\n";
+          return matchFailure();
+      }
+
+      if (!formerOp->getResult(0)->hasOneUse()) {
+        std::string op_name = formerOp->getAttrOfType<StringAttr>("name").getValue().str();
+        llvm::errs() << "Some one need to use Scale Op: " << op_name << ", not remove it\n";
+        return matchFailure();
+      }
+
+      // update attr Only
+      auto formerConv2DOp = cast<tpu::Conv2DOp>(formerOp);
+      setOpThreshold(formerConv2DOp, threshold_max);
+
+      // remove clip
+      rewriter.replaceOp(clipOp, {clipOp.getOperand(0)});
+      return matchSuccess();
+    }
+
+    // default
+    return matchFailure();
+  }
+};
+
+class TpuQuantClipPass : public FunctionPass<TpuQuantClipPass> {
+public:
+  explicit TpuQuantClipPass(llvm::raw_ostream &os = llvm::errs()) : os(os) {}
+
+  void runOnFunction() override {
+    auto fn = getFunction();
+
+    OwningRewritePatternList patterns;
+    auto *context = &getContext();
+    patterns.insert<TpuTpuQuantClipPassPattern>(context);
+    applyPatternsGreedily(fn, patterns);
+  }
+
+private:
+  llvm::raw_ostream &os;
+};
+} // namespace
+
 std::unique_ptr<OpPassBase<FuncOp>> mlir::createTpuQuantPass() {
   return std::make_unique<TpuQuantPass>();
 }
@@ -280,3 +343,11 @@ std::unique_ptr<OpPassBase<FuncOp>> mlir::createTpuQuantPass() {
 static PassRegistration<TpuQuantPass>
     pass("tpu-quant",
          "Do quantization on TPU Ops");
+
+std::unique_ptr<OpPassBase<FuncOp>> mlir::createTpuQuantClipPass() {
+  return std::make_unique<TpuQuantClipPass>();
+}
+
+static PassRegistration<TpuQuantClipPass>
+    pass_1("tpu-quant-clip",
+         "merge clip's threshold to former");

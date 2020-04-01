@@ -558,7 +558,10 @@ LogicalResult quantizeInt8RescaleNoWeightOps(Operation *op) {
   Value *wfV = getWeightFileValue(op);
 
   // get operands
-  const unsigned nInputs = op->getNumOperands() - 4;
+  unsigned nInputs = op->getNumOperands() - 4;
+  if (isa<tpu::ClipOp>(op)) {
+    nInputs = 1; // clip ONLY one input
+  }
 
   bool bypass = true;
   float bypass_eps = 1e-5;
@@ -865,7 +868,6 @@ LogicalResult tpu::ClipOp::quantizeInt8() {
   LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName()
                << " [" << getOpName() << "]\n";);
   Operation *op = this->getOperation();
-
   return quantizeInt8RescaleNoWeightOps<tpu::ClipOp>(op);
 }
 
