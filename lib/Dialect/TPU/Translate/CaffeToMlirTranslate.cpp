@@ -2408,6 +2408,8 @@ void CaffeImporter::insertPreprocessLayer(mlir::Block *block, mlir::Value *opd,
 
 LogicalResult CaffeImporter::Import(const llvm::StringRef inputFilename,
                                     llvm::StringRef caffemodelFilename) {
+  google::SetCommandLineOption("GLOG_minloglevel", "2");
+
   caffe::Net<float> net(inputFilename, caffe::TEST);
   net.CopyTrainedLayersFrom(caffemodelFilename);
   DEBUG_WITH_TYPE(DEBUG_TYPE "_VERBOSE", printCaffeNetAllLayer(net););

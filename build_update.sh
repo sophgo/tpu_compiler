@@ -4,17 +4,43 @@ set -e
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 
 # build caffe
+if [ ! -e $BUILD_PATH/build_caffe ]; then
+  mkdir -p $BUILD_PATH/build_caffe
+  pushd $BUILD_PATH/build_caffe
+  cmake -G Ninja -DCPU_ONLY=ON -DUSE_OPENCV=OFF \
+      -DBLAS=open -DUSE_OPENMP=TRUE \
+      -DCMAKE_INSTALL_PREFIX=$CAFFE_PATH \
+      -DCMAKE_CXX_FLAGS=-std=gnu++11 \
+      -Dpython_version=$PYTHON_VERSION \
+      $MLIR_SRC_PATH/third_party/caffe
+  popd
+fi
 pushd $BUILD_PATH/build_caffe
 cmake --build . --target install
 popd
 
 # build flatbuffers
+if [ ! -e $BUILD_PATH/build_flatbuffers ]; then
+  mkdir -p $BUILD_PATH/build_flatbuffers
+  pushd $BUILD_PATH/build_flatbuffers
+  cmake -G Ninja -DCMAKE_INSTALL_PREFIX=$FLATBUFFERS_PATH \
+      $MLIR_SRC_PATH/third_party/flatbuffers
+  popd
+fi
 pushd $BUILD_PATH/build_flatbuffers
 cmake --build . --target install
 popd
 cp -a $MLIR_SRC_PATH/third_party/flatbuffers/python $FLATBUFFERS_PATH/
 
 # build cvikernel
+if [ ! -e $BUILD_PATH/build_cvikernel ]; then
+  mkdir -p $BUILD_PATH/build_cvikernel
+  pushd $BUILD_PATH/build_cvikernel
+  cmake -G Ninja -DCHIP=BM1880v2 $BUILD_FLAG \
+      -DCMAKE_INSTALL_PREFIX=$CVIKERNEL_PATH \
+      $MLIR_SRC_PATH/externals/cvikernel
+  popd
+fi
 pushd $BUILD_PATH/build_cvikernel
 cmake --build . --target install
 popd
@@ -31,15 +57,11 @@ popd
 
 CVI_PY_TOOLKIT=$MLIR_SRC_PATH/python/cvi_toolkit
 # python package
-cp -ar $CVI_PY_TOOLKIT/dataset_util $TPU_PYTHON_PATH/
-cp -ar $CVI_PY_TOOLKIT/model $TPU_PYTHON_PATH/
-cp -ar $CVI_PY_TOOLKIT/transform $TPU_PYTHON_PATH/
-cp -ar $CVI_PY_TOOLKIT/utils $TPU_PYTHON_PATH/
-cp -ar $CVI_PY_TOOLKIT/numpy_helper $TPU_PYTHON_PATH/
-pushd $TPU_PYTHON_PATH/model/retinaface; make; popd
+cp -ar $CVI_PY_TOOLKIT/ $TPU_PYTHON_PATH/
+cp -ar $CVI_PY_TOOLKIT/*.py $TPU_PYTHON_PATH/
+
 
 # python script
-cp $CVI_PY_TOOLKIT/*.py $TPU_PYTHON_PATH/
 cp $CVI_PY_TOOLKIT/binary_helper/*.py $TPU_PYTHON_PATH/
 cp $CVI_PY_TOOLKIT/calibration/*.py $TPU_PYTHON_PATH/
 cp $CVI_PY_TOOLKIT/eval/*.py $TPU_PYTHON_PATH/
@@ -47,14 +69,10 @@ cp $CVI_PY_TOOLKIT/inference/caffe/*.py $TPU_PYTHON_PATH/
 cp $CVI_PY_TOOLKIT/inference/mlir/*.py $TPU_PYTHON_PATH/
 cp $CVI_PY_TOOLKIT/inference/onnx/*.py $TPU_PYTHON_PATH/
 
-# build python package
-pushd $MLIR_SRC_PATH
-if [ $PYTHON_VERSION == "2" ]; then
-  python setup/python2/setup.py bdist_wheel --dist-dir=$INSTALL_PATH/python_package/
-elif [ $PYTHON_VERSION == "3" ]; then
-  python3 setup/python3/setup.py bdist_wheel --dist-dir=$INSTALL_PATH/python3_package/
-fi
-popd
+cp -ar  $CVI_PY_TOOLKIT/retinaface/ $TPU_PYTHON_PATH/
+pushd $TPU_PYTHON_PATH/retinaface; make; popd
+cp -ar $TPU_PYTHON_PATH/retinaface/* $TPU_PYTHON_PATH/
+
 
 # calibration tool
 if [ ! -e $BUILD_PATH/build_calibration ]; then

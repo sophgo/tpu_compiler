@@ -58,7 +58,7 @@ if [ $DO_QUANT_INT8_MULTIPLER -eq 1 ]; then
       -o ${NET}_quant_int8_multiplier_tg.mlir
 
   mlir-opt \
-      --tg-fuse-leakyrelu \
+      ${MLIR_OPT_BE} \
       ${NET}_quant_int8_multiplier_tg.mlir \
       -o ${NET}_quant_int8_multiplier_tg_opt.mlir
 

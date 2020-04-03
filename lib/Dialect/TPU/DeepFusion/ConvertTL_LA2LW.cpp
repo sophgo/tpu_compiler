@@ -556,6 +556,11 @@ struct TpuTL_EltwiseAddOp_AssignLAddrPattern : public RewritePattern {
     int64_t input_size, n, c, h, w;
     getTensorShapeAndSize(op.input(), shape, input_size);
     getNCHW(shape, n, c, h, w);
+    std::vector<int64_t> output_shape;
+    int64_t output_size, oh, ow;
+    getTensorShapeAndSize(op.getResult(), output_shape, output_size);
+    oh = output_shape[2];
+    ow = output_shape[3];
     //bool do_relu = op.do_relu();
     assert(op.getNumOperands() == 2 && "support 2 inputs only");
 
@@ -566,7 +571,7 @@ struct TpuTL_EltwiseAddOp_AssignLAddrPattern : public RewritePattern {
     }
 
     uint64_t inputNeuronSizePerLane = MInfo::getSizePerLane(n, c, h, w, true);
-    uint64_t outputNeuronSizePerLane = MInfo::getSizePerLane(n, c, h, w, true);
+    uint64_t outputNeuronSizePerLane = MInfo::getSizePerLane(n, c, oh, ow, true);
     if (1) {
       if (op.lm_layout() == "IWO") {
         op.setAttr("la_input", rewriter.getI32IntegerAttr(0));

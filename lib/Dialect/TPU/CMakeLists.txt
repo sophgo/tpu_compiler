@@ -16,6 +16,8 @@ add_llvm_library(MLIRTPU
   Transforms/ConvertScale.cpp
   Transforms/ConvertNormalize.cpp
   Transforms/FuseRelu.cpp
+  Transforms/RefactorEltAndConv.cpp
+  Transforms/MakeConvIcToEven.cpp
   Transforms/AssignWeightAddress.cpp
   Transforms/AssignNeuronAddress.cpp
   Transforms/AssignLayerId.cpp

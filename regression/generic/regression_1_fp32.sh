@@ -17,8 +17,9 @@ mlir-translate \
 # Notes: convert-bn-to-scale has to be done before canonicalizer
 mlir-opt \
     --assign-layer-id \
-    ${MLIR_OPT_FP32} \
+    ${MLIR_OPT_FE_PRE} \
     --canonicalize \
+    ${MLIR_OPT_FE_POST} \
     --print-tpu-op-info \
     --tpu-op-info-filename ${NET}_op_info.csv \
     ${NET}.mlir \
@@ -35,6 +36,7 @@ cvi_npz_tool.py compare \
     ${NET}_tensor_all_fp32.npz \
     ${NET}_blobs.npz \
     --op_info ${NET}_op_info.csv \
+    --excepts $EXCEPTS \
     --tolerance=0.999,0.999,0.998 -vv
 
 cvi_npz_tool.py to_bin ${NET}_in_fp32.npz $INPUT ${NET}_in_fp32.bin

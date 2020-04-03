@@ -193,7 +193,19 @@ LogicalResult tpu::TL_EltwiseAddOp::codegen(void *ctx) {
   int64_t input_size, n, c, h, w;
   getTensorShapeAndSize(op->getOperand(0), shape, input_size);
   getNCHW(shape, n, c, h, w);
+  std::vector<int64_t> output_shape;
+  int64_t output_size, oh, ow;
+  getTensorShapeAndSize(op->getResult(0), output_shape, output_size);
+  oh = output_shape[2];
+  ow = output_shape[3];
   bool do_relu = this->do_relu();
+  bool do_early_stride = this->do_early_stride();
+  int32_t early_stride_h = this->early_stride_h().getLimitedValue();
+  int32_t early_stride_w = this->early_stride_w().getLimitedValue();
+  if (do_early_stride) {
+    assert(oh == h / early_stride_h);
+    assert(ow == w / early_stride_w);
+  }
 
   assert(op->getNumOperands() == 2 && "support 2 inputs only");
 
@@ -255,6 +267,7 @@ LogicalResult tpu::TL_EltwiseAddOp::codegen(void *ctx) {
     la_input, la_output, la_working,
     ga_input, ga_output, ga_addend,
     n, c, h, w, do_relu,
+    do_early_stride, early_stride_h, early_stride_w,
     rshift, m_i8_input[augend_idx], m_i8_input[1-augend_idx],
     tl_load_flag(), tl_store_flag());
 

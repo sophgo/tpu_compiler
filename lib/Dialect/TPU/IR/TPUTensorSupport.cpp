@@ -96,6 +96,8 @@ template std::unique_ptr<std::vector<float> > readAndDeleteWeightTensor(
     Value *opd, TensorFile *wTF);
 template std::unique_ptr<std::vector<uint16_t> > readAndDeleteWeightTensor(
     Value *opd, TensorFile *wTF);
+template std::unique_ptr<std::vector<int8_t> > readAndDeleteWeightTensor(
+    Value *opd, TensorFile *wTF);
 
 template<typename T>
 void addWeightTensorAndUpdateWeightOp(Value* opd,

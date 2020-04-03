@@ -287,6 +287,12 @@ Value* tpu::EltwiseAddOp::convertToTG() {
   attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
   attrs.push_back(builder.getNamedAttr("do_relu",
       builder.getBoolAttr(do_relu())));
+  if (do_early_stride()) {
+    attrs.push_back(builder.getNamedAttr("do_early_stride",
+        builder.getBoolAttr(do_early_stride())));
+    attrs.push_back(builder.getNamedAttr("early_stride_h", early_stride_hAttr()));
+    attrs.push_back(builder.getNamedAttr("early_stride_w", early_stride_wAttr()));
+  }
 
   if (getOpQuant() == "INT8") {
     if (getOpQuantParamType() == "NONE") {

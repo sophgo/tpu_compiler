@@ -364,7 +364,7 @@ void parseConvParam(const tpu::ConvParam &p, bool is_deconv,
   } else {
     assert(f_s.size() == 4);
     assert(oc == f_s[0]);
-    assert(ic == f_s[1]);
+    assert(ic == f_s[1] || (ic % 2 != 0));
     is_dw = false;
   }
   do_relu = p.do_relu().getValue();

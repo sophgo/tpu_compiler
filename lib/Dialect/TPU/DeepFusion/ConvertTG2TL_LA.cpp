@@ -125,6 +125,11 @@ struct TpuTG2TLElewiseAddOpPattern : public RewritePattern {
       attrs.push_back(rewriter.getNamedAttr("m_i8_inputs", op.m_i8_inputsAttr()));
       attrs.push_back(rewriter.getNamedAttr("do_relu",
           rewriter.getBoolAttr(op.do_relu())));
+      if (op.do_early_stride()) {
+        attrs.push_back(rewriter.getNamedAttr("do_early_stride", rewriter.getBoolAttr(true)));
+        attrs.push_back(rewriter.getNamedAttr("early_stride_h", op.early_stride_hAttr()));
+        attrs.push_back(rewriter.getNamedAttr("early_stride_w", op.early_stride_wAttr()));
+      }
 
       uint32_t la_invalid = 0xffffffff;
       attrs.push_back(rewriter.getNamedAttr("lm_layout", rewriter.getStringAttr("NONE")));

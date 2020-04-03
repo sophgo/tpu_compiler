@@ -352,6 +352,8 @@ LogicalResult tpu::TG_INT8_PT_Conv2DOp::codegen(void *ctx) {
   assert(pt_rshift().hasValue());
   int8_t rshift = pt_rshift().getValue().getLimitedValue();
   int layer_id = mlir::getOpLayerId(op);
+  bool do_ic_alignment = this->do_ic_alignment().hasValue()
+                         ? this->do_ic_alignment().getValue() : false;
 
   // check if fused with a leakyrelu
   int fused_leakyrelu_pos_rshift = 0;
@@ -428,7 +430,8 @@ LogicalResult tpu::TG_INT8_PT_Conv2DOp::codegen(void *ctx) {
       0,         //scale_right_shift_width,
       false,     //use_winograd
       0,         // right_shift_array_len
-      0          // ga_per_channel
+      0,          // ga_per_channel
+      do_ic_alignment
       );
 
   return success();
@@ -451,6 +454,8 @@ LogicalResult tpu::TG_INT8_PC_Conv2DOp::codegen(void *ctx) {
   gaddr_t ga_filter = getWeightOpAddress(filter()->getDefiningOp());
   gaddr_t ga_pc_info = getWeightOpAddress(pc_info()->getDefiningOp());
   int layer_id = mlir::getOpLayerId(op);
+  bool do_ic_alignment = this->do_ic_alignment().hasValue()
+                            ? this->do_ic_alignment().getValue() : false;
 
   // check if fused with a leakyrelu
   int fused_leakyrelu_pos_rshift = 0;
@@ -527,7 +532,8 @@ LogicalResult tpu::TG_INT8_PC_Conv2DOp::codegen(void *ctx) {
       0,         // scale_right_shift_width,
       false,     // use_winograd
       oc,        // right_shift_array_len
-      ga_pc_info // ga_per_channel
+      ga_pc_info, // ga_per_channel
+      do_ic_alignment
       );
 
   return success();
@@ -706,7 +712,19 @@ LogicalResult tpu::TG_INT8_EltwiseAddOp::codegen(void *ctx) {
   int64_t input_size, n, c, h, w;
   getTensorShapeAndSize(op->getOperand(0), shape, input_size);
   getNCHW(shape, n, c, h, w);
+  std::vector<int64_t> output_shape;
+  int64_t output_size, oh, ow;
+  getTensorShapeAndSize(op->getResult(0), output_shape, output_size);
+  oh = output_shape[2];
+  ow = output_shape[3];
   bool do_relu = this->do_relu();
+  bool do_early_stride = this->do_early_stride();
+  int32_t early_stride_h = this->early_stride_h().getLimitedValue();
+  int32_t early_stride_w = this->early_stride_w().getLimitedValue();
+  if (do_early_stride) {
+    assert(oh == h / early_stride_h);
+    assert(ow == w / early_stride_w);
+  }
 
   assert(op->getNumOperands() == 2 && "support 2 inputs only");
 
@@ -755,6 +773,7 @@ LogicalResult tpu::TG_INT8_EltwiseAddOp::codegen(void *ctx) {
       n, c, h, w,
       do_relu,      // bool do_relu,
       0.0f,         // float relu_slope,
+      do_early_stride, early_stride_h, early_stride_w,
       do_quant_rescale ? rshift_int : 0,   // int right_shift_width,
       do_quant_rescale ? m_int : nullptr,
       coeffs);
@@ -782,7 +801,13 @@ LogicalResult tpu::TG_INT8_EltwiseMulOp::codegen(void *ctx) {
   int64_t input_size, n, c, h, w;
   getTensorShapeAndSize(op->getOperand(0), shape, input_size);
   getNCHW(shape, n, c, h, w);
+  std::vector<int64_t> output_shape;
+  int64_t output_size, oh, ow;
+  getTensorShapeAndSize(op->getResult(0), output_shape, output_size);
+  oh = output_shape[2];
+  ow = output_shape[3];
   bool do_relu = this->do_relu();
+  assert(!do_early_stride());
 
   gaddr_t ga_inputs[2];
   ga_inputs[0] = getPreviousOpAddress(op, 0);
@@ -814,6 +839,7 @@ LogicalResult tpu::TG_INT8_EltwiseMulOp::codegen(void *ctx) {
       n, c, h, w,
       do_relu,      // bool do_relu,
       0.0f,         // float relu_slope,
+      false, 1, 1,
       rshift_int,   // int right_shift_width,
       &m_int,
       coeffs
@@ -832,7 +858,19 @@ LogicalResult tpu::TG_BF16_EltwiseAddOp::codegen(void *ctx) {
   int64_t input_size, n, c, h, w;
   getTensorShapeAndSize(op->getOperand(0), shape, input_size);
   getNCHW(shape, n, c, h, w);
+  std::vector<int64_t> output_shape;
+  int64_t output_size, oh, ow;
+  getTensorShapeAndSize(op->getResult(0), output_shape, output_size);
+  oh = output_shape[2];
+  ow = output_shape[3];
   bool do_relu = this->do_relu();
+  bool do_early_stride = this->do_early_stride();
+  int32_t early_stride_h = this->early_stride_h().getLimitedValue();
+  int32_t early_stride_w = this->early_stride_w().getLimitedValue();
+  if (do_early_stride) {
+    assert(oh == h / early_stride_h);
+    assert(ow == w / early_stride_w);
+  }
 
   gaddr_t ga_inputs[2];
   ga_inputs[0] = getPreviousOpAddress(op, 0);
@@ -852,6 +890,7 @@ LogicalResult tpu::TG_BF16_EltwiseAddOp::codegen(void *ctx) {
       n, c, h, w,
       do_relu,      // bool do_relu
       0.0f,         // float relu_slope
+      do_early_stride, early_stride_h, early_stride_w,
       coeffs);
 
   return success();
@@ -877,7 +916,13 @@ LogicalResult tpu::TG_BF16_EltwiseMulOp::codegen(void *ctx) {
   int64_t input_size, n, c, h, w;
   getTensorShapeAndSize(op->getOperand(0), shape, input_size);
   getNCHW(shape, n, c, h, w);
+  std::vector<int64_t> output_shape;
+  int64_t output_size, oh, ow;
+  getTensorShapeAndSize(op->getResult(0), output_shape, output_size);
+  oh = output_shape[2];
+  ow = output_shape[3];
   bool do_relu = this->do_relu();
+  assert(!do_early_stride());
 
   gaddr_t ga_inputs[2];
   ga_inputs[0] = getPreviousOpAddress(op, 0);
@@ -897,6 +942,7 @@ LogicalResult tpu::TG_BF16_EltwiseMulOp::codegen(void *ctx) {
       n, c, h, w,
       do_relu,      // bool do_relu
       0.0f,         // float relu_slope
+      false, 1, 1,
       coeffs);
 
   return success();

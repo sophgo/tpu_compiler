@@ -130,6 +130,7 @@ class TPU_TG_ConvOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     StrAttr:$name,
     OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<BoolAttr>:$do_ic_alignment,
     DefaultValuedAttr<BoolAttr, "false">:$fuse_prev,
     DefaultValuedAttr<BoolAttr, "false">:$fuse_next
   );
@@ -234,6 +235,9 @@ class TPU_TG_EltwiseOp<string mnemonic, string opQuant, string opType> : TPU_Op<
     OptionalAttr<I8Attr>:$m_i8_output,
     OptionalAttr<I32Attr>:$m_i32_output,
     DefaultValuedAttr<BoolAttr, "false">:$do_relu,
+    DefaultValuedAttr<BoolAttr, "false">:$do_early_stride,
+    DefaultValuedAttr<I32Attr, "1">:$early_stride_h,
+    DefaultValuedAttr<I32Attr, "1">:$early_stride_w,
     DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     StrAttr:$name,
@@ -689,7 +693,7 @@ class TPU_TG_PixelShuffleOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       `input`           : required, the input activation memref.
 
     Attributes:
-      `upscale_factor`  : required, indicate for upsample upscale_factor. 
+      `upscale_factor`  : required, indicate for upsample upscale_factor.
       `region`          : required, the memory region to reside in, could be
                           one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
                           (backend does not support `INPUT`, `OUTPUT` for now)

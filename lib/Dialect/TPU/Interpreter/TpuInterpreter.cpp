@@ -764,15 +764,21 @@ static LogicalResult doEltwiseOpInterpret(Operation *op,
     DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
   auto opdT = getOperandTensors(op, valueMapping);
   auto result = op->getResult(0);
-  auto size = getTensorSize(result);
-  auto resultT = std::make_unique<std::vector<float> >(size);
+  // auto size = getTensorSize(result);
 
   // parse param
   std::vector<int64_t> shape;
-  int64_t input_size, n, c, h, w;
+  int64_t input_size, in, ic, ih, iw;
   getTensorShapeAndSize(op->getOperand(0), shape, input_size);
-  assert(input_size == size);
-  getNCHW(shape, n, c, h, w);
+  auto resultT = std::make_unique<std::vector<float> >(input_size);
+  // assert(input_size == size);
+  getNCHW(shape, in, ic, ih, iw);
+  std::vector<int64_t> output_shape;
+  int64_t output_size, oh, ow;
+  getTensorShapeAndSize(op->getResult(0), output_shape, output_size);
+  oh = output_shape[2];
+  ow = output_shape[3];
+  auto resultReal = std::make_unique<std::vector<float> >(output_size);
 
   // get tensors
   const unsigned nInputs = op->getNumOperands() - 4;
@@ -811,17 +817,17 @@ static LogicalResult doEltwiseOpInterpret(Operation *op,
   assert(nInputs == 2);
   int ret = 0;
   if (type == "ADD") {
-    ret = my_eltwise(input[0], input[1], output, n, c, h, w, 1);
+    ret = my_eltwise(input[0], input[1], output, in, ic, ih, iw, 1);
   } else if (type == "MAX") {
-    ret = my_eltwise(input[0], input[1], output, n, c, h, w, 2);
+    ret = my_eltwise(input[0], input[1], output, in, ic, ih, iw, 2);
   } else if (type == "MUL") {
-    ret = my_eltwise(input[0], input[1], output, n, c, h, w, 0);
+    ret = my_eltwise(input[0], input[1], output, in, ic, ih, iw, 0);
   } else {
     assert(false);
   }
   assert(ret == 0);
   if (do_relu) {
-    ret = my_relu(output, output, n, c, h, w, 0.0f);
+    ret = my_relu(output, output, in, ic, ih, iw, 0.0f);
     assert(ret == 0);
   }
 
@@ -831,13 +837,13 @@ static LogicalResult doEltwiseOpInterpret(Operation *op,
   } else if (getOpQuant(op) == "INT8") {
     if (type == "ADD" || type == "MAX") {
       // apply rshift and saturate
-      for (int i = 0; i < size; ++i) {
+      for (int i = 0; i < input_size; ++i) {
         output[i] =
             (float)applyRShiftAndSaturateInt8(output[i], (uint32_t)quant_rshift->at(0));
       }
     } else if (type == "MUL") {
       // apply qscale on output (both rshift and saturate)
-      for (int i = 0; i < size; ++i) {
+      for (int i = 0; i < input_size; ++i) {
         output[i] = (float)applyMultiplierAndRShiftAndSaturateInt8(
             output[i], (uint32_t)quant_rshift->at(0),
             (uint32_t)quant_multiplier->at(0), true);
@@ -851,7 +857,31 @@ static LogicalResult doEltwiseOpInterpret(Operation *op,
     assert(false);
   }
 
-  valueMapping[result] = std::move(resultT);
+  bool isReshape = !((ih == oh) && (iw == ow));
+  if(isReshape){
+    float *output_real = resultReal->data();
+    int hReshapeScale = ih/oh;
+    int wReshapeScale = iw/ow;
+    for(int n_counter = 0;  n_counter < in; n_counter++)
+      for(int c_counter = 0;  c_counter < ic; c_counter++)
+        for(int h_counter = 0;  h_counter < oh; h_counter++)
+          for(int w_counter = 0;  w_counter < ow; w_counter++) {
+            int index_old = w_counter * wReshapeScale +
+                            h_counter * hReshapeScale * iw +
+                            c_counter * iw * ih +
+                            n_counter * ic * iw * ih;
+            int index_new = w_counter +
+                            h_counter * ow +
+                            c_counter * ow * oh +
+                            n_counter * ic * ow * oh;
+            output_real[index_new] = output[index_old];
+          }
+  }
+  if(isReshape){
+    valueMapping[result] = std::move(resultReal);
+  } else {
+    valueMapping[result] = std::move(resultT);
+  }
 
   return success();
 }
