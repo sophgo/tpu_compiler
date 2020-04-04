@@ -50,16 +50,16 @@ struct TpuGenPowerWeightPattern : public RewritePattern {
     TensorFile *wTF = getWeightTensorFile(op);
     Value *wfV = getWeightFileValue(op);
 
-    llvm::errs() << pwOp.getOperationName()
-      << ", scale is " << pwOp.scale().convertToFloat() << "\n"
-      << ", power is " << pwOp.power().convertToFloat() << "\n"
-      << ", shift is " << pwOp.shift().convertToFloat() << "\n";
+    LLVM_DEBUG(llvm::errs() << pwOp.getOperationName()
+        << ", scale is " << pwOp.scale().convertToFloat() << "\n"
+        << ", power is " << pwOp.power().convertToFloat() << "\n"
+        << ", shift is " << pwOp.shift().convertToFloat() << "\n";);
 
     std::string op_name = pwOp.getAttrOfType<StringAttr>("name").getValue().str();
 
     // TODO: not use name as uniq id
     if (std::find(passed.begin(), passed.end(), op_name) != passed.end()) {
-      llvm::errs() << pwOp.name() << " gen already\n";
+      LLVM_DEBUG(llvm::errs() << pwOp.name() << " gen already\n";);
       return matchFailure();
     }
 
@@ -76,7 +76,7 @@ struct TpuGenPowerWeightPattern : public RewritePattern {
       assert(weight_op);
       assert(weight_op.name().hasValue());
       auto tensor_name = weight_op.name().getValue();
-      llvm::errs() << "  weight[" << i << "] : " << tensor_name << "\n";
+      LLVM_DEBUG(llvm::errs() << "  weight[" << i << "] : " << tensor_name << "\n";);
       auto type = weight_op.getResult()->getType().cast<TensorType>();
       weights[weight_idx] = wTF->readTensor<float>(tensor_name, type);
       weight_idx++;
@@ -115,7 +115,7 @@ struct TpuGenPowerWeightPattern : public RewritePattern {
     // 2 means scale / shift
     for (int i = 0; i < 2; ++i) {
       auto tensor_name = op_name + "_gen_weight_" + std::to_string(i);
-      llvm::errs() << "  new_weight[" << i << "] : " << tensor_name << "\n";
+      LLVM_DEBUG(llvm::errs() << "  new_weight[" << i << "] : " << tensor_name << "\n";);
 
       auto type = RankedTensorType::get(weightShapes[i],
               FloatType::getF32(rewriter.getContext()));

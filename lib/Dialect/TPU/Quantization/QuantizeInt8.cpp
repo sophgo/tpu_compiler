@@ -753,9 +753,9 @@ LogicalResult quantizeInt8BypassOps(Operation *op) {
     float threshold_x = getPreviousOpThreshold(op);
     float threshold_y = getOpThreshold(op);
     if (threshold_x != threshold_y) {
-      llvm::errs() << "QuantizeInt8 Bypass pattern, threshold not match"
+      LLVM_DEBUG(llvm::errs() << "QuantizeInt8 Bypass pattern, threshold not match"
                    << ", x = " << std::to_string(threshold_x)
-                   << ", y = " << std::to_string(threshold_y) << "\n";
+                   << ", y = " << std::to_string(threshold_y) << "\n";);
       assert(false);
     }
   }
@@ -771,29 +771,29 @@ LogicalResult quantizeInt8BypassOps(Operation *op) {
 
 #define DECLARE_QUANTIZE_INT8_BYPASS_METHOD(OP) \
   LogicalResult OP::quantizeInt8() { \
-    llvm::errs() << "quantizeInt8: " << getOperationName() \
-                 << " [" << getOpName() << "]\n"; \
+    LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName() \
+                 << " [" << getOpName() << "]\n";); \
     Operation *op = this->getOperation(); \
     return quantizeInt8BypassOps(op); \
   }
 
 LogicalResult tpu::BroadcastMulOp::quantizeInt8() {
-  llvm::errs() << "quantizeInt8: " << getOperationName()
-               << " [" << getOpName() << "]\n";
+  LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
   Operation *op = this->getOperation();
   return quantizeInt8MultiplyOps<tpu::BroadcastMulOp>(op);
 }
 
 LogicalResult tpu::ConcatOp::quantizeInt8() {
-  llvm::errs() << "quantizeInt8: " << getOperationName()
-               << " [" << getOpName() << "]\n";
+  LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
   Operation *op = this->getOperation();
   return quantizeInt8RescaleNoWeightOps<tpu::ConcatOp>(op);
 }
 
 LogicalResult tpu::Conv2DOp::quantizeInt8() {
-  llvm::errs() << "quantizeInt8: " << getOperationName()
-               << " [" << getOpName() << "]\n";
+  LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
   Operation *op = this->getOperation();
   return quantizeInt8ConvOps<tpu::Conv2DOp>(op);
 }
@@ -801,36 +801,36 @@ LogicalResult tpu::Conv2DOp::quantizeInt8() {
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::CropOp)
 
 LogicalResult tpu::DeConv2DOp::quantizeInt8() {
-  llvm::errs() << "quantizeInt8: " << getOperationName()
-               << " [" << getOpName() << "]\n";
+  LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
   Operation *op = this->getOperation();
   return quantizeInt8ConvOps<tpu::DeConv2DOp>(op);
 }
 
 LogicalResult tpu::EltwiseAddOp::quantizeInt8() {
-  llvm::errs() << "quantizeInt8: " << getOperationName()
-               << " [" << getOpName() << "]\n";
+  LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
   Operation *op = this->getOperation();
   return quantizeInt8RescaleNoWeightOps<tpu::EltwiseAddOp>(op);
 }
 
 LogicalResult tpu::EltwiseMaxOp::quantizeInt8() {
-  llvm::errs() << "quantizeInt8: " << getOperationName()
-               << " [" << getOpName() << "]\n";
+  LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
   Operation *op = this->getOperation();
   return quantizeInt8RescaleNoWeightOps<tpu::EltwiseMaxOp>(op);
 }
 
 LogicalResult tpu::EltwiseMulOp::quantizeInt8() {
-  llvm::errs() << "quantizeInt8: " << getOperationName()
-               << " [" << getOpName() << "]\n";
+  LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
   Operation *op = this->getOperation();
   return quantizeInt8MultiplyOps<tpu::EltwiseMulOp>(op);
 }
 
 LogicalResult tpu::FullyConnectedOp::quantizeInt8() {
-  llvm::errs() << "quantizeInt8: " << getOperationName()
-               << " [" << getOpName() << "]\n";
+  LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
   Operation *op = this->getOperation();
   return quantizeInt8FullyConnectedOps(op);
 }
@@ -838,15 +838,15 @@ LogicalResult tpu::FullyConnectedOp::quantizeInt8() {
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::InputOp)
 
 LogicalResult tpu::LeakyReluOp::quantizeInt8() {
-  llvm::errs() << "quantizeInt8: " << getOperationName()
-               << " [" << getOpName() << "]\n";
+  LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
   Operation *op = this->getOperation();
   return quantizeInt8LeakyReluOps(op);
 }
 
 LogicalResult tpu::PReluOp::quantizeInt8() {
-  llvm::errs() << "quantizeInt8: " << getOperationName()
-               << " [" << getOpName() << "]\n";
+  LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
   Operation *op = this->getOperation();
   return quantizeInt8PReluOps(op);
 }
@@ -857,8 +857,8 @@ DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::PermuteOp)
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::PixelShuffleOp)
 
 LogicalResult tpu::PoolAvg2DOp::quantizeInt8() {
-  llvm::errs() << "quantizeInt8: " << getOperationName()
-               << " [" << getOpName() << "]\n";
+  LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
   Operation *op = this->getOperation();
   return quantizeInt8RescaleNoWeightOps<tpu::PoolAvg2DOp>(op);
 }
@@ -866,8 +866,8 @@ LogicalResult tpu::PoolAvg2DOp::quantizeInt8() {
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::PoolMax2DOp)
 
 LogicalResult tpu::PowerOp::quantizeInt8() {
-  llvm::errs() << "quantizeInt8: " << getOperationName()
-               << " [" << getOpName() << "]\n";
+  LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
   //Operation *op = this->getOperation();
   //return quantizeInt8LutOps<tpu::PowerOp>(op);
   // TODO:
@@ -876,8 +876,8 @@ LogicalResult tpu::PowerOp::quantizeInt8() {
 }
 
 LogicalResult tpu::ReciprocalOp::quantizeInt8() {
-  llvm::errs() << "quantizeInt8: " << getOperationName()
-               << " [" << getOpName() << "]\n";
+  LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
   Operation *op = this->getOperation();
   return quantizeInt8LutOps<tpu::ReciprocalOp>(op);
 }
@@ -887,8 +887,8 @@ DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::ReluOp)
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::ShuffleChannelOp)
 
 LogicalResult tpu::SigmoidOp::quantizeInt8() {
-  llvm::errs() << "quantizeInt8: " << getOperationName()
-               << " [" << getOpName() << "]\n";
+  LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
   Operation *op = this->getOperation();
   return quantizeInt8LutOps<tpu::SigmoidOp>(op);
 }
@@ -896,8 +896,8 @@ LogicalResult tpu::SigmoidOp::quantizeInt8() {
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::SliceOp)
 
 LogicalResult tpu::SqrtOp::quantizeInt8() {
-  llvm::errs() << "quantizeInt8: " << getOperationName()
-               << " [" << getOpName() << "]\n";
+  LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
   Operation *op = this->getOperation();
   return quantizeInt8LutOps<tpu::SqrtOp>(op);
 }
@@ -905,8 +905,8 @@ LogicalResult tpu::SqrtOp::quantizeInt8() {
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::SwapChannelOp)
 
 LogicalResult tpu::TanHOp::quantizeInt8() {
-  llvm::errs() << "quantizeInt8: " << getOperationName()
-               << " [" << getOpName() << "]\n";
+  LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
   //Operation *op = this->getOperation();
   //return quantizeInt8LutOps<tpu::TanHOp>(op);
   // TODO:
@@ -918,8 +918,8 @@ DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::UpsampleOp)
 
 #define DECLARE_QUANTIZE_INT8_DISABLED_METHOD(OP) \
   LogicalResult OP::quantizeInt8() { \
-    llvm::errs() << "quantizeInt8: " << getOperationName() \
-                 << " [" << getOpName() << ", disabled]\n"; \
+    LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName() \
+                 << " [" << getOpName() << ", disabled]\n";); \
     assert(false); \
     return failure(); \
   }

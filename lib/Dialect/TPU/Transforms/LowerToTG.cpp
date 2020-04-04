@@ -23,8 +23,8 @@
 namespace mlir {
 
 Value* tpu::BroadcastMulOp::convertToTG() {
-  llvm::errs() << "lowerToTG: " << getOperationName()
-               << " [" << getOpName() << "]\n";
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
   Operation *op = this->getOperation();
   auto builder = Builder(op->getContext());
   TensorFile *wTF = getWeightTensorFile(op);
@@ -81,8 +81,8 @@ Value* tpu::BroadcastMulOp::convertToTG() {
 }
 
 Value* tpu::ConcatOp::convertToTG() {
-  llvm::errs() << "lowerToTG: " << getOperationName()
-               << " [" << getOpName() << "]\n";
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
   Operation *op = this->getOperation();
   auto builder = Builder(op->getContext());
   TensorFile *wTF = getWeightTensorFile(op);
@@ -138,8 +138,8 @@ Value* tpu::ConcatOp::convertToTG() {
 }
 
 Value* tpu::Conv2DOp::convertToTG() {
-  llvm::errs() << "lowerToTG: " << getOperationName()
-               << " [" << getOpName() << "]\n";
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
   Operation *op = this->getOperation();
   auto builder = Builder(op->getContext());
   TensorFile *wTF = getWeightTensorFile(op);
@@ -185,8 +185,8 @@ Value* tpu::Conv2DOp::convertToTG() {
 }
 
 Value* tpu::CropOp::convertToTG() {
-  llvm::errs() << "lowerToTG: " << getOperationName()
-               << " [" << getOpName() << "]\n";
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
   Operation *op = this->getOperation();
   auto builder = Builder(op->getContext());
   TensorFile *wTF = getWeightTensorFile(op);
@@ -221,8 +221,8 @@ Value* tpu::CropOp::convertToTG() {
 }
 
 Value* tpu::DeConv2DOp::convertToTG() {
-  llvm::errs() << "lowerToTG: " << getOperationName()
-               << " [" << getOpName() << "]\n";
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
   Operation *op = this->getOperation();
   auto builder = Builder(op->getContext());
   TensorFile *wTF = getWeightTensorFile(op);
@@ -269,8 +269,8 @@ Value* tpu::DeConv2DOp::convertToTG() {
 }
 
 Value* tpu::EltwiseAddOp::convertToTG() {
-  llvm::errs() << "lowerToTG: " << getOperationName()
-               << " [" << getOpName() << "]\n";
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
   Operation *op = this->getOperation();
   auto builder = Builder(op->getContext());
   TensorFile *wTF = getWeightTensorFile(op);
@@ -334,8 +334,8 @@ Value* tpu::EltwiseAddOp::convertToTG() {
 }
 
 Value* tpu::EltwiseMaxOp::convertToTG() {
-  llvm::errs() << "lowerToTG: " << getOperationName()
-               << " [" << getOpName() << "]\n";
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
   Operation *op = this->getOperation();
   auto builder = Builder(op->getContext());
   TensorFile *wTF = getWeightTensorFile(op);
@@ -391,8 +391,8 @@ Value* tpu::EltwiseMaxOp::convertToTG() {
 }
 
 Value* tpu::EltwiseMulOp::convertToTG() {
-  llvm::errs() << "lowerToTG: " << getOperationName()
-               << " [" << getOpName() << "]\n";
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
   Operation *op = this->getOperation();
   auto builder = Builder(op->getContext());
   TensorFile *wTF = getWeightTensorFile(op);
@@ -439,8 +439,8 @@ Value* tpu::EltwiseMulOp::convertToTG() {
 }
 
 Value *tpu::FullyConnectedOp::convertToTG() {
-  llvm::errs() << "lowerToTG: " << getOperationName()
-               << " [" << getOpName() << "]\n";
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
   Operation *op = this->getOperation();
   auto builder = Builder(op->getContext());
   TensorFile *wTF = getWeightTensorFile(op);
@@ -480,8 +480,8 @@ Value *tpu::FullyConnectedOp::convertToTG() {
 }
 /*
 Value* tpu::InputOp::convertToTG() {
-  llvm::errs() << "lowerToTG: " << getOperationName()
-               << " [" << getOpName() << "]\n";
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
   Operation *op = this->getOperation();
   auto builder = Builder(op->getContext());
   //  TensorFile *wTF = getWeightTensorFile(op);
@@ -514,8 +514,8 @@ Value* tpu::InputOp::convertToTG() {
 }
 */
 Value* tpu::LeakyReluOp::convertToTG() {
-  llvm::errs() << "lowerToTG: " << getOperationName()
-               << " [" << getOpName() << "]\n";
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
   Operation *op = this->getOperation();
   auto builder = Builder(op->getContext());
   TensorFile *wTF = getWeightTensorFile(op);
@@ -573,8 +573,8 @@ Value* tpu::LeakyReluOp::convertToTG() {
 }
 
 Value* tpu::PermuteOp::convertToTG() {
-  llvm::errs() << "lowerToTG: " << getOperationName()
-               << " [" << getOpName() << "]\n";
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
   Operation *op = this->getOperation();
   auto builder = Builder(op->getContext());
 
@@ -605,8 +605,8 @@ Value* tpu::PermuteOp::convertToTG() {
 }
 
 Value* tpu::PoolAvg2DOp::convertToTG() {
-  llvm::errs() << "lowerToTG: " << getOperationName()
-               << " [" << getOpName() << "]\n";
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
   Operation *op = this->getOperation();
   auto builder = Builder(op->getContext());
   TensorFile *wTF = getWeightTensorFile(op);
@@ -649,8 +649,8 @@ Value* tpu::PoolAvg2DOp::convertToTG() {
 }
 
 Value* tpu::PoolMax2DOp::convertToTG() {
-  llvm::errs() << "lowerToTG: " << getOperationName()
-               << " [" << getOpName() << "]\n";
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
   Operation *op = this->getOperation();
   auto builder = Builder(op->getContext());
   //  TensorFile *wTF = getWeightTensorFile(op);
@@ -680,8 +680,8 @@ Value* tpu::PoolMax2DOp::convertToTG() {
 }
 
 Value* tpu::PowerOp::convertToTG() {
-  llvm::errs() << "lowerToTG: " << getOperationName()
-               << " [" << getOpName() << "]\n";
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
   //Operation *op = this->getOperation();
   //auto builder = Builder(op->getContext());
   //  TensorFile *wTF = getWeightTensorFile(op);
@@ -691,8 +691,8 @@ Value* tpu::PowerOp::convertToTG() {
 }
 
 Value *tpu::PReluOp::convertToTG() {
-  llvm::errs() << "lowerToTG: " << getOperationName() << " [" << getOpName()
-               << "]\n";
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
   Operation *op = this->getOperation();
   TensorFile *wTF = getWeightTensorFile(op);
   auto builder = Builder(op->getContext());
@@ -739,8 +739,8 @@ Value *tpu::PReluOp::convertToTG() {
 }
 
 Value *tpu::ReciprocalOp::convertToTG() {
-  llvm::errs() << "lowerToTG: " << getOperationName() << " [" << getOpName()
-               << "]\n";
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
   Operation *op = this->getOperation();
   auto builder = Builder(op->getContext());
 
@@ -769,8 +769,8 @@ Value *tpu::ReciprocalOp::convertToTG() {
 }
 
 Value *tpu::ReluOp::convertToTG() {
-  llvm::errs() << "lowerToTG: " << getOperationName() << " [" << getOpName()
-               << "]\n";
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
   Operation *op = this->getOperation();
   //TensorFile *wTF = getWeightTensorFile(op);
   auto builder = Builder(op->getContext());
@@ -798,8 +798,8 @@ Value *tpu::ReluOp::convertToTG() {
 }
 
 Value *tpu::ShuffleChannelOp::convertToTG() {
-  llvm::errs() << "lowerToTG: " << getOperationName() << " [" << getOpName()
-               << "]\n";
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
   Operation *op = this->getOperation();
   auto builder = Builder(op->getContext());
   //   TensorFile *wTF = getWeightTensorFile(op);
@@ -830,8 +830,8 @@ Value *tpu::ShuffleChannelOp::convertToTG() {
 }
 
 Value *tpu::SwapChannelOp::convertToTG() {
-  llvm::errs() << "lowerToTG: " << getOperationName() << " [" << getOpName()
-               << "]\n";
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
   Operation *op = this->getOperation();
   auto builder = Builder(op->getContext());
   //   TensorFile *wTF = getWeightTensorFile(op);
@@ -862,8 +862,8 @@ Value *tpu::SwapChannelOp::convertToTG() {
 }
 
 Value *tpu::PixelShuffleOp::convertToTG() {
-  llvm::errs() << "lowerToTG: " << getOperationName() << " [" << getOpName()
-               << "]\n";
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
   Operation *op = this->getOperation();
   auto builder = Builder(op->getContext());
   //   TensorFile *wTF = getWeightTensorFile(op);
@@ -894,8 +894,8 @@ Value *tpu::PixelShuffleOp::convertToTG() {
 }
 
 Value *tpu::SigmoidOp::convertToTG() {
-  llvm::errs() << "lowerToTG: " << getOperationName() << " [" << getOpName()
-               << "]\n";
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
   Operation *op = this->getOperation();
   auto builder = Builder(op->getContext());
 
@@ -923,8 +923,8 @@ Value *tpu::SigmoidOp::convertToTG() {
 }
 
 Value* tpu::SliceOp::convertToTG() {
-  llvm::errs() << "lowerToTG: " << getOperationName()
-               << " [" << getOpName() << "]\n";
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
   Operation *op = this->getOperation();
   auto builder = Builder(op->getContext());
   //  TensorFile *wTF = getWeightTensorFile(op);
@@ -956,8 +956,8 @@ Value* tpu::SliceOp::convertToTG() {
 }
 
 Value *tpu::SqrtOp::convertToTG() {
-  llvm::errs() << "lowerToTG: " << getOperationName() << " [" << getOpName()
-               << "]\n";
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
   Operation *op = this->getOperation();
   auto builder = Builder(op->getContext());
 
@@ -988,8 +988,8 @@ Value *tpu::SqrtOp::convertToTG() {
 }
 
 Value* tpu::TanHOp::convertToTG() {
-  llvm::errs() << "lowerToTG: " << getOperationName()
-               << " [" << getOpName() << "]\n";
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
   //Operation *op = this->getOperation();
   //auto builder = Builder(op->getContext());
   //  TensorFile *wTF = getWeightTensorFile(op);
@@ -999,8 +999,8 @@ Value* tpu::TanHOp::convertToTG() {
 }
 
 Value* tpu::UpsampleOp::convertToTG() {
-  llvm::errs() << "lowerToTG: " << getOperationName()
-               << " [" << getOpName() << "]\n";
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
   Operation *op = this->getOperation();
   auto builder = Builder(op->getContext());
   //  TensorFile *wTF = getWeightTensorFile(op);
@@ -1153,7 +1153,7 @@ struct PackWeightConv2DOpPattern : public RewritePattern {
     }
     assert( !isTensorNone(convOp.quant_rshift()) );
     assert( !isTensorNone(convOp.quant_multiplier()) );
-    llvm::errs() << "Pack Weight for Conv2D: " << getOpName(op) << "\n";
+    LLVM_DEBUG(llvm::errs() << "Pack Weight for Conv2D: " << getOpName(op) << "\n";);
     TensorFile *wTF = getWeightTensorFile(op);
     Value *wfV = getWeightFileValue(op);
 
@@ -1231,7 +1231,7 @@ struct PackWeightBroadcastMulOpPattern : public RewritePattern {
     assert(getOpQuantParamType(op) == "RSHIFT_AND_M_I32");
     assert( !isTensorNone(castOp.quant_rshift()) );
     assert( !isTensorNone(castOp.quant_multiplier()) );
-    llvm::errs() << "Pack Weight for BroadcastMul: " << getOpName(op) << "\n";
+    LLVM_DEBUG(llvm::errs() << "Pack Weight for BroadcastMul: " << getOpName(op) << "\n";);
     TensorFile *wTF = getWeightTensorFile(op);
 
     // get param
@@ -1341,7 +1341,7 @@ struct LowerWeightConv2DOpPattern : public RewritePattern {
       // lowered already
       return matchFailure();
     }
-    llvm::errs() << "Lower Weight for Conv2D: " << getOpName(op) << "\n";
+    LLVM_DEBUG(llvm::errs() << "Lower Weight for Conv2D: " << getOpName(op) << "\n";);
     TensorFile *wTF = getWeightTensorFile(op);
 
     if (getOpQuant(op) == "INT8") {
@@ -1478,7 +1478,7 @@ struct LowerWeightFullyConnectedOpPattern : public RewritePattern {
       // lowered already
       return matchFailure();
     }
-    llvm::errs() << "Lower Weight for FullyConnectedOp: " << getOpName(op) << "\n";
+    LLVM_DEBUG(llvm::errs() << "Lower Weight for FullyConnectedOp: " << getOpName(op) << "\n";);
     TensorFile *wTF = getWeightTensorFile(op);
 
     if (getOpQuant(op) == "INT8") {
@@ -1593,7 +1593,7 @@ struct LowerWeightPReluOpPattern : public RewritePattern {
       // lowered already
       return matchFailure();
     }
-    llvm::errs() << "Lower Weight for PReluOp: " << getOpName(op) << "\n";
+    LLVM_DEBUG(llvm::errs() << "Lower Weight for PReluOp: " << getOpName(op) << "\n";);
     TensorFile *wTF = getWeightTensorFile(op);
 
     if (getOpQuant(op) == "INT8") {
@@ -1634,7 +1634,7 @@ struct LowerWeightDetectionOutputOpPattern : public RewritePattern {
       // lowered already
       return matchFailure();
     }
-    llvm::errs() << "Lower Weight for DetectionOutputOp: " << getOpName(op) << "\n";
+    LLVM_DEBUG(llvm::errs() << "Lower Weight for DetectionOutputOp: " << getOpName(op) << "\n";);
     weightOp.setAttr("lowered", rewriter.getBoolAttr(true));
     return matchSuccess();
   }
@@ -1657,8 +1657,7 @@ struct LowerWeightLutOpPattern : public RewritePattern {
       // lowered already
       return matchFailure();
     }
-    llvm::errs() << "Lower Weight for lutOp: " << getOpName(op)
-                 << "\n";
+    LLVM_DEBUG(llvm::errs() << "Lower Weight for lutOp: " << getOpName(op) << "\n";);
     TensorFile *wTF = getWeightTensorFile(op);
 
     if (getOpQuant(op) == "INT8") {

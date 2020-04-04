@@ -38,6 +38,8 @@
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/ToolOutputFile.h"
 
+#define DEBUG_TYPE "assign_neuron_address"
+
 using namespace mlir;
 
 namespace {
@@ -75,10 +77,10 @@ struct AssignGAddrTGInt8Pattern : public RewritePattern {
     }
     auto newPos = curPos + size;
 
-    llvm::errs() << llvm::format("[%-36s][%8d] : [ ",
+    LLVM_DEBUG(llvm::errs() << llvm::format("[%-36s][%8d] : [ ",
                                  getOpName(op).str().c_str(), size)
                  << llvm::format_hex(curPos, 10) << " --> "
-                 << llvm::format_hex(newPos, 10) << " ]\n";
+                 << llvm::format_hex(newPos, 10) << " ]\n";);
     // expand to dims=4
     while (shape.size() < 4)
       shape.insert(shape.begin(), 1);
@@ -131,10 +133,10 @@ struct AssignGAddrTGBf16Pattern : public RewritePattern {
     }
     auto newPos = curPos + size;
 
-    llvm::errs() << llvm::format("[%-36s][%8d] : [ ",
+    LLVM_DEBUG(llvm::errs() << llvm::format("[%-36s][%8d] : [ ",
                                  getOpName(op).str().c_str(), size)
                  << llvm::format_hex(curPos, 10) << " --> "
-                 << llvm::format_hex(newPos, 10) << " ]\n";
+                 << llvm::format_hex(newPos, 10) << " ]\n";);
     // expand to dims=4
     while (shape.size() < 4)
       shape.insert(shape.begin(), 1);
@@ -187,14 +189,14 @@ struct AssignGAddrF32Pattern : public RewritePattern {
     }
     auto newPos = curPos + size;
 
-    llvm::errs() << llvm::format("[%-36s][%8d] : [ ",
+    LLVM_DEBUG(llvm::errs() << llvm::format("[%-36s][%8d] : [ ",
                                  getOpName(op).str().c_str(), size)
                  << llvm::format_hex(curPos, 10) << " --> "
-                 << llvm::format_hex(newPos, 10) << " ]\n";
+                 << llvm::format_hex(newPos, 10) << " ]\n";);
     // expand to dims=4
     while (shape.size() < 4)
       shape.insert(shape.begin(), 1);
- 
+
     map_os_ << getOpName(op) << "," << llvm::format_hex(curPos, 10) << ","
             << dtype << ","
             << shape[0] << "," << shape[1] << ","
@@ -268,10 +270,10 @@ template <typename OpTy> struct TpuSliceAddressPattern : public RewritePattern {
       }
       auto newPos = curPos + size;
 
-      llvm::errs() << llvm::format("[%-36s][%8d] : [ ",
+      LLVM_DEBUG(llvm::errs() << llvm::format("[%-36s][%8d] : [ ",
                                    getOpName(op).str().c_str(), size)
                    << llvm::format_hex(curPos, 10) << " --> "
-                   << llvm::format_hex(newPos, 10) << " ]\n";
+                   << llvm::format_hex(newPos, 10) << " ]\n";);
       // expand to dims=4
       while (shape.size() < 4)
         shape.insert(shape.begin(), 1);
@@ -301,7 +303,7 @@ static llvm::cl::opt<std::string> clNeuronMapFilename(
 
 class AssignNeuronAddressPass : public FunctionPass<AssignNeuronAddressPass> {
 public:
-  explicit AssignNeuronAddressPass(llvm::raw_ostream &os = llvm::errs()) : os(os) {}
+  explicit AssignNeuronAddressPass() {}
 
   void runOnFunction() override {
     auto fn = getFunction();
@@ -399,9 +401,6 @@ public:
       neuronMapFile->keep();
     }
   }
-
-private:
-  llvm::raw_ostream &os;
 };
 
 } // namespace

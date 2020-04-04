@@ -121,6 +121,10 @@ if [ $DO_QUANT_INT8_MULTIPLER -eq 1 ]; then
         -o ${NET}_quant_int8_multiplier_addr.mlir
   fi
 
+  # cat for logging
+  echo "cat ${NET}_quant_int8_multiplier_addr.mlir"
+  cat ${NET}_quant_int8_multiplier_addr.mlir
+
   mlir-translate \
       --mlir-to-cmdbuf \
       ${NET}_quant_int8_multiplier_addr.mlir \

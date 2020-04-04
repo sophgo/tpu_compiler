@@ -31,6 +31,8 @@
 #include "mlir/Support/TensorFile.h"
 #include "llvm/Support/raw_ostream.h"
 
+#define DEBUG_TYPE "fuse_relu"
+
 using namespace mlir;
 
 namespace {
@@ -42,7 +44,8 @@ struct TpuFuseReluPattern : public RewritePattern {
   PatternMatchResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
     auto reluOp = cast<tpu::ReluOp>(op);
-    llvm::errs() << reluOp.getOperationName() << ":" << getOpName(reluOp)<< "\n";
+    LLVM_DEBUG(llvm::errs() << reluOp.getOperationName() << ":"
+                            << getOpName(reluOp)<< "\n";);
 
     // match relu Op that is following conv or eltwise Ops
     auto formerOp = op->getOperand(0)->getDefiningOp();
@@ -131,14 +134,14 @@ struct TpuMoveReluAheadConcatPattern : public RewritePattern {
   PatternMatchResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
     auto reluOp = cast<tpu::ReluOp>(op);
-    llvm::errs() << reluOp.getOperationName() << "\n";
-
     // match relu Op that is following concat Ops
     auto formerOp = op->getOperand(0)->getDefiningOp();
     if (!matchPattern(formerOp, m_Op<tpu::ConcatOp>())) {
       return matchFailure();
     }
     auto concatOp = cast<tpu::ConcatOp>(formerOp);
+    LLVM_DEBUG(llvm::errs() << reluOp.getOperationName() << ":"
+                            << getOpName(reluOp) << ", after concat" << "\n";);
 
     size_t nInputs = concatOp.getNumInputs();
     for (unsigned i = 0; i < nInputs; i++) {

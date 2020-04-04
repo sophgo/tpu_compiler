@@ -37,6 +37,8 @@
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/ToolOutputFile.h"
 
+#define DEBUG_TYPE "layer_id"
+
 using namespace mlir;
 
 namespace {
@@ -57,9 +59,9 @@ public:
           || isa<tpu::NoneOp>(op)) {
         // no need to assign
       } else if ( !failed(setOpLayerId(op, layer_id)) ) {
-        llvm::errs() << " layer_id: " << llvm::format("%04d", layer_id)
-                     << " -> " << mlir::getOpName(op)
-                     << " : " << op->getName() << "\n";
+        LLVM_DEBUG(llvm::errs() << " layer_id: " << llvm::format("%04d", layer_id)
+                                << " -> " << mlir::getOpName(op)
+                                << " : " << op->getName() << "\n";);
         layer_id ++;
       } else {
         llvm::errs() << "addLayerIdAttr didn't handle " << op->getName() << "\n";

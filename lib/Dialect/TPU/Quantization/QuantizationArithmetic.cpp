@@ -32,27 +32,29 @@ uint32_t findRShiftForFilter(float max_filter,
   assert(threshold_y > 0 && threshold_x > 0);
   float a = max_filter * threshold_x / threshold_y;
   if (a > 127) {
-    llvm::errs() << "WARNING: findRShiftForFilter, max_filter too large "
+    LLVM_DEBUG(llvm::errs() << "WARNING: findRShiftForFilter, max_filter too large "
                  << std::to_string(max_filter)
-                 << ", lshift might needed\n";
+                 << ", lshift might needed\n";);
     return 0;
   }
   assert(a <= 127);
   for (uint32_t rshift = 0; rshift < 32; ++rshift) {
     if ( (a * (1 << rshift)) >= 64 ) {
-      if (rshift >= 25) {
-        llvm::errs() << "WARNING: findRShiftForFilter, large rshift = " << rshift
-                     << ", max_filter = " << max_filter
-                     << ", threshold_y = " << std::to_string(threshold_y)
-                     << ", threshold_x = " << std::to_string(threshold_x)
-                     << "\n";
-      }
+      LLVM_DEBUG(
+        if (rshift >= 25) {
+          llvm::errs() << "WARNING: findRShiftForFilter, large rshift = " << rshift
+                       << ", max_filter = " << max_filter
+                       << ", threshold_y = " << std::to_string(threshold_y)
+                       << ", threshold_x = " << std::to_string(threshold_x)
+                       << "\n";
+        }
+      );
       return rshift;
     }
   }
   // we are here because a < 64 / (1 << 32), which mean max_filter is near zero
   //assert(false);
-  llvm::errs() << "WARNING: findRShiftForFilter, max_filter too small\n";
+  LLVM_DEBUG(llvm::errs() << "WARNING: findRShiftForFilter, max_filter too small\n";);
   // return 0, to make sure activation will go zero by multiply such small weight
   return 0;
 }
@@ -68,9 +70,9 @@ uint32_t findRShiftForBiasI16(float max_bias, float threshold_y) {
   assert(threshold_y > 0);
   float a = max_bias * 128.0 / threshold_y;
   if (a > 32767) {
-    llvm::errs() << "WARNING: findRShiftForBiasI16, max_bias too large "
+    LLVM_DEBUG(llvm::errs() << "WARNING: findRShiftForBiasI16, max_bias too large "
                  << std::to_string(max_bias)
-                 << ", lshift might needed\n";
+                 << ", lshift might needed\n";);
     return 0;
   }
   assert(a <= 32767);
@@ -96,20 +98,22 @@ uint32_t findRShiftForBiasI32(float max_bias, float threshold_y) {
   assert(threshold_y > 0);
   float a = max_bias * 128.0 / threshold_y;
   if (a > 0x7fffffff) {
-    llvm::errs() << "WARNING: findRShiftForBiasI32, max_bias too large "
+    LLVM_DEBUG(llvm::errs() << "WARNING: findRShiftForBiasI32, max_bias too large "
                  << std::to_string(max_bias)
-                 << ", lshift might needed\n";
+                 << ", lshift might needed\n";);
     return 0;
   }
   assert(a <= 0x7fffffff);
   for (uint32_t rshift = 0; rshift < 32; ++rshift) {
     if ( (a * (1 << rshift)) >= 0x40000000 ) {
-      if (rshift < 25) {
-        llvm::errs() << "WARNING: findRShiftForBiasI32, find rshift = " << rshift
-                     << ", max_bias = " << std::to_string(max_bias)
-                     << ", threshold_y = " << std::to_string(threshold_y)
-                     << "\n";
-      }
+      LLVM_DEBUG(
+        if (rshift < 25) {
+          llvm::errs() << "WARNING: findRShiftForBiasI32, find rshift = " << rshift
+                       << ", max_bias = " << std::to_string(max_bias)
+                       << ", threshold_y = " << std::to_string(threshold_y)
+                       << "\n";
+        }
+      );
       return rshift;
     }
   }
@@ -225,11 +229,13 @@ int8_t findRShiftAndMultiplierFromQScale(double qscale,
     *multiplier = quantized_multiplier;
     int rshift = -lshift;
     assert(rshift >= 0);
-    if (rshift > 25) {
-      llvm::errs() << "WARNING: large rshift = " << rshift
-                   << ", qscale = " << qscale
-                   << "\n";
-    }
+    LLVM_DEBUG(
+      if (rshift > 25) {
+        llvm::errs() << "WARNING: large rshift = " << rshift
+                     << ", qscale = " << qscale
+                     << "\n";
+      }
+    );
     return (int8_t)rshift;
   } else {
     assert(qscale < max_multiplier);
@@ -242,8 +248,8 @@ int8_t findRShiftAndMultiplierFromQScale(double qscale,
       }
     }
     //assert(false);
-    llvm::errs() << "WARNING: failed to find rshift, qscale = "
-                << std::to_string(qscale) << "\n";
+    LLVM_DEBUG(llvm::errs() << "WARNING: failed to find rshift, qscale = "
+                 << std::to_string(qscale) << "\n";);
     // we are here because qscale is too small, return 0 for both shift and multiplier
     if (multiplier) {
       *multiplier = 0;
@@ -314,10 +320,12 @@ static inline int16_t saturateInt16(float f) {
   // from caffe_int8
   int q = floor(f + 0.5);
   #endif
-  if ( (q > 32767) || (q < -32768) ) {
-    llvm::errs() << "WARNING: exceeds limits [-32768, 32767] : "
-                 << std::to_string(f) << "\n";
-  }
+  LLVM_DEBUG(
+    if ( (q > 32767) || (q < -32768) ) {
+      llvm::errs() << "WARNING: exceeds limits [-32768, 32767] : "
+                   << std::to_string(f) << "\n";
+    }
+  );
   //assert( (q <= 32767) && (q >= -32768) );
   if ( q > 32767 )
     q = 32767;
@@ -328,10 +336,12 @@ static inline int16_t saturateInt16(float f) {
 
 /// saturate a float to int
 static inline int32_t saturateInt32(float f) {
-  if ( (f > INT_MAX) || (f < INT_MIN) ) {
-    llvm::errs() << "WARNING: exceeds INT limits : "
-                 << std::to_string(f) << "\n";
-  }
+  LLVM_DEBUG(
+    if ( (f > INT_MAX) || (f < INT_MIN) ) {
+      llvm::errs() << "WARNING: exceeds INT limits : "
+                   << std::to_string(f) << "\n";
+    }
+  );
   assert( (f <= INT_MAX) && (f >= INT_MIN) );
   #if 0
   // cast
@@ -368,14 +378,16 @@ int8_t quantizeFilterRShift(float w, float threshold_y, float threshold_x,
 int16_t quantizeBiasRShiftI16(float w, float threshold_y, uint32_t rshift) {
   double factor = (128.0f / threshold_y) * (1 << rshift);
   float q_f = (float)(w * factor);
-  if ( (q_f > INT_MAX) || (q_f < INT_MIN) ) {
-    llvm::errs() << "WARNING: quantizeBiasRShiftI16, exceeds INT limits : "
-                 << std::to_string(q_f) << "\n";
-    llvm::errs() << "  w: " << std::to_string(w)
-                 << ", threshold_y: " << std::to_string(threshold_y)
-                 << ", rshift: " << std::to_string(rshift)
-                 << "\n";
-  }
+  LLVM_DEBUG(
+    if ( (q_f > INT_MAX) || (q_f < INT_MIN) ) {
+      llvm::errs() << "WARNING: quantizeBiasRShiftI16, exceeds INT limits : "
+                   << std::to_string(q_f) << "\n";
+      llvm::errs() << "  w: " << std::to_string(w)
+                   << ", threshold_y: " << std::to_string(threshold_y)
+                   << ", rshift: " << std::to_string(rshift)
+                   << "\n";
+    }
+  );
   return saturateInt16(q_f);
 }
 
@@ -385,14 +397,16 @@ int16_t quantizeBiasRShiftI16(float w, float threshold_y, uint32_t rshift) {
 int32_t quantizeBiasRShiftI32(float w, float threshold_y, uint32_t rshift) {
   double factor = (128.0f / threshold_y) * (1 << rshift);
   float q_f = (float)(w * factor);
-  if ( (q_f > INT_MAX) || (q_f < INT_MIN) ) {
-    llvm::errs() << "WARNING: quantizeBiasRShiftI32, exceeds INT limits : "
-                 << std::to_string(q_f) << "\n";
-    llvm::errs() << "  w: " << std::to_string(w)
-                 << ", threshold_y: " << std::to_string(threshold_y)
-                 << ", rshift: " << std::to_string(rshift)
-                 << "\n";
-  }
+  LLVM_DEBUG(
+    if ( (q_f > INT_MAX) || (q_f < INT_MIN) ) {
+      llvm::errs() << "WARNING: quantizeBiasRShiftI32, exceeds INT limits : "
+                   << std::to_string(q_f) << "\n";
+      llvm::errs() << "  w: " << std::to_string(w)
+                   << ", threshold_y: " << std::to_string(threshold_y)
+                   << ", rshift: " << std::to_string(rshift)
+                   << "\n";
+    }
+  );
   return saturateInt32(q_f);
 }
 
@@ -423,15 +437,17 @@ int32_t quantizeBiasRShiftAndMultiplier(float w, float threshold_y,
   double factor = (multiplier == 0) ? 0 :
       (double)(128.0f / threshold_y) * (1ULL << rshift) / multiplier;
   float q_f = (float)(w * factor);
-  if ( (q_f > INT_MAX) || (q_f < INT_MIN) ) {
-    llvm::errs() << "WARNING: quantizeBiasRShiftI32, exceeds INT limits : "
-                 << std::to_string(q_f) << "\n";
-    llvm::errs() << "  w: " << std::to_string(w)
-                 << ", threshold_y: " << std::to_string(threshold_y)
-                 << ", multiplier: " << multiplier
-                 << ", rshift: " << std::to_string(rshift)
-                 << "\n";
-  }
+  LLVM_DEBUG(
+    if ( (q_f > INT_MAX) || (q_f < INT_MIN) ) {
+      llvm::errs() << "WARNING: quantizeBiasRShiftI32, exceeds INT limits : "
+                   << std::to_string(q_f) << "\n";
+      llvm::errs() << "  w: " << std::to_string(w)
+                   << ", threshold_y: " << std::to_string(threshold_y)
+                   << ", multiplier: " << multiplier
+                   << ", rshift: " << std::to_string(rshift)
+                   << "\n";
+    }
+  );
   return saturateInt32(q_f);
 }
 
@@ -592,10 +608,10 @@ void quantizeWeightInt8PerLayer(float *filter, float *bias,
     float rshift_bias =
         (float)findRShiftForBiasI16(max_bias, threshold_y);
     if (rshift_bias < rshift_filter) {
-      llvm::errs() << "WARNING: adjust rshift for bias"
+      LLVM_DEBUG(llvm::errs() << "WARNING: adjust rshift for bias"
                    << ", rshift_filter = " << std::to_string(rshift_filter)
                    << ", rshift_bias = " << std::to_string(rshift_bias)
-                   << "\n";
+                   << "\n";);
       rshift_per_layer[0] = rshift_bias;
     }
   }
@@ -633,10 +649,10 @@ void quantizeWeightInt8PerChannel(float *filter, float *bias,
       float rshift_bias =
           (float)findRShiftForBiasI32(max_bias[i], threshold_y);
       if (rshift_bias < rshift_filter) {
-        llvm::errs() << "WARNING: adjust rshift for bias"
+        LLVM_DEBUG(llvm::errs() << "WARNING: adjust rshift for bias"
                      << ", rshift_filter = " << std::to_string(rshift_filter)
                      << ", rshift_bias = " << std::to_string(rshift_bias)
-                     << "\n";
+                     << "\n";);
         rshift_per_channel[i] = rshift_bias;
       }
     }
@@ -677,9 +693,9 @@ void quantizeWeightInt8PerLayerMultiplier(float *filter, float *bias,
       max_bias[i] = fabs(bias[i]);
       double qscale_bias = findQScaleForBiasI32(max_bias[i], threshold_y);
       if (qscale_bias > qscale) {
-        llvm::errs() << "WARNING: adjust qscale for bias"
+        LLVM_DEBUG(llvm::errs() << "WARNING: adjust qscale for bias"
                      << ", qscale_filter = " << qscale
-                     << ", qscale_bias = " << qscale_bias << "\n";
+                     << ", qscale_bias = " << qscale_bias << "\n";);
         qscale = qscale_bias;
       }
     }
@@ -732,19 +748,19 @@ void quantizeWeightInt8Multiplier(float *filter, float *bias,
       // qscale = 0.99999999
       qscale = 0.999999;
       max_filter[i] = qscale * 127.0 * threshold_y / threshold_x;
-      llvm::errs() << "WARNING: adjust threshold_w for qscale"
+      LLVM_DEBUG(llvm::errs() << "WARNING: adjust threshold_w for qscale"
                    << ", qscale_filter = " << qscale << ", max_filter[" << i
-                   << "] = " << max_filter[i] << "\n";
+                   << "] = " << max_filter[i] << "\n";);
     }
     max_bias[i] = 0.0f;
     if (bias) {
       max_bias[i] = fabs(bias[i]);
       double qscale_bias = findQScaleForBiasI32(max_bias[i], threshold_y);
       if (qscale_bias > qscale) {
-        llvm::errs() << "WARNING: adjust qscale for bias"
+        LLVM_DEBUG(llvm::errs() << "WARNING: adjust qscale for bias"
                      << ", qscale_filter = " << qscale
                      << ", qscale_bias = " << qscale_bias
-                     << "\n";
+                     << "\n";);
         qscale = qscale_bias;
       }
     }

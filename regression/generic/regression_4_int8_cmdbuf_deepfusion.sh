@@ -32,6 +32,10 @@ mlir-opt \
     ${NET}_quant_int8_multiplier_tl_la.mlir \
     -o ${NET}_quant_int8_multiplier_tl_lw.mlir
 
+# cat for logging
+echo "cat ${NET}_quant_int8_multiplier_tl_lw.mlir"
+cat ${NET}_quant_int8_multiplier_tl_lw.mlir
+
 # generate cmdbuf
 mlir-translate \
     ${NET}_quant_int8_multiplier_tl_la.mlir \

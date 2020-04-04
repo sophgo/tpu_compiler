@@ -4,6 +4,11 @@ set -e
 NET=$1
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
+RUN_IN_PARALLEL=0
+if [ ! -z "$PARALLEL" ]; then
+  RUN_IN_PARALLEL=$PARALLEL
+fi
+
 if [ ! -e $NET ]; then
   mkdir $NET
 fi
@@ -34,11 +39,18 @@ pushd $NET
 $DIR/regression_1_fp32.sh
 $DIR/regression_2_int8_calibration.sh
 
-parallel -j4 --delay 2.5 --joblog job_$NET.log /bin/bash {} ::: \
-  $DIR/regression_3_int8_per_tensor.sh \
-  $DIR/regression_3_int8_rshift_only.sh \
-  $DIR/regression_3_int8_multiplier.sh \
+if [ $RUN_IN_PARALLEL -eq 1 ]; then
+  parallel -j4 --delay 2.5 --joblog job_$NET.log /bin/bash {} ::: \
+    $DIR/regression_3_int8_per_tensor.sh \
+    $DIR/regression_3_int8_rshift_only.sh \
+    $DIR/regression_3_int8_multiplier.sh \
+    $DIR/regression_6_bf16.sh
+else
+  $DIR/regression_3_int8_per_tensor.sh
+  $DIR/regression_3_int8_rshift_only.sh
+  $DIR/regression_3_int8_multiplier.sh
   $DIR/regression_6_bf16.sh
+fi
 
 if [ $DO_DEEPFUSION -eq 1 ]; then
   $DIR/regression_4_int8_cmdbuf_deepfusion.sh

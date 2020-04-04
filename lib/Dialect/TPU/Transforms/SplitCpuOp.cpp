@@ -45,6 +45,9 @@
 #include <numeric>
 #include <string>
 #include <vector>
+
+#define DEBUG_TYPE "split_cpu_op"
+
 using namespace mlir;
 
 namespace {
@@ -148,10 +151,10 @@ struct CpuSoftmaxOpPattern : public commonPattern {
     auto softmaxOp = cast<tpu::SoftmaxOp>(op);
     if (op->getAttr("callee") != nullptr ) {
       assert(op->getNumOperands() == 1);
-      llvm::errs() << softmaxOp.getOperationName() << "\n";
+      LLVM_DEBUG(llvm::errs() << softmaxOp.getOperationName() << "\n";);
 
       std::string op_name = softmaxOp.getAttrOfType<StringAttr>("name").getValue().str();
-      llvm::errs() << "Softmax Op: " << op_name << "\n";
+      LLVM_DEBUG(llvm::errs() << "Softmax Op: " << op_name << "\n";);
       addCpuCall(op, rewriter);
     }
     return matchSuccess();
@@ -167,10 +170,10 @@ struct CpuDetectionOutputOpPattern : public commonPattern {
     auto detectionOutputOp = cast<tpu::DetectionOutputOp>(op);
     if (op->getAttr("callee") != nullptr ) {
       assert(op->getNumOperands() == 3);
-      llvm::errs() << detectionOutputOp.getOperationName() << "\n";
+      LLVM_DEBUG(llvm::errs() << detectionOutputOp.getOperationName() << "\n";);
       // op_name
       std::string op_name = detectionOutputOp.getAttrOfType<StringAttr>("name").getValue().str();
-      llvm::errs() << "DetectionOutput Op: " << op_name << "\n";
+      LLVM_DEBUG(llvm::errs() << "DetectionOutput Op: " << op_name << "\n";);
       addCpuCall(op, rewriter);
     }
     return matchSuccess();

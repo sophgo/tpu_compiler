@@ -73,6 +73,10 @@ if [ $DO_QUANT_INT8_PER_TENSOR -eq 1 ]; then
       ${NET}_quant_int8_per_tensor_tg_opt.mlir \
       -o ${NET}_quant_int8_per_tensor_addr.mlir
 
+  # cat for logging
+  echo "cat ${NET}_quant_int8_per_tensor_addr.mlir"
+  cat ${NET}_quant_int8_per_tensor_addr.mlir
+
   mlir-translate \
       --mlir-to-cmdbuf \
       ${NET}_quant_int8_per_tensor_addr.mlir \

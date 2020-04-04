@@ -267,12 +267,12 @@ public:
       auto fileInc = TensorFile::incrementName(filename);
       cnpy::npz_save_all(fileInc, map);
       filename = StringRef(fileInc);
-      llvm::errs() << "save weight TensorFile to " << filename << "\n";
+      //llvm::errs() << "save weight TensorFile to " << filename << "\n";
       if (newName) {
         *newName = filename.str();
       }
     } else {
-      llvm::errs() << "keep weight TensorFile to " << filename << "\n";
+      //llvm::errs() << "keep weight TensorFile to " << filename << "\n";
       cnpy::npz_save_all(filename.str(), map);
     }
     return cnt_add + cnt_del;

@@ -31,6 +31,8 @@
 #include "mlir/Dialect/TPU/TPUTensorSupport.h"
 #include "mlir/Dialect/TPU/TPUOperationSupport.h"
 
+#define DEBUG_TYPE "convert_normalize"
+
 using namespace mlir;
 
 namespace {
@@ -43,7 +45,7 @@ struct TpuDecomposeNormalizePattern : public RewritePattern {
                                      PatternRewriter &rewriter) const override {
 
     auto normalizeOp = cast<tpu::NormalizeOp>(op);
-    llvm::errs() <<normalizeOp.getOperationName() << "\n";
+    LLVM_DEBUG(llvm::errs() <<normalizeOp.getOperationName() << "\n";);
     TensorFile *wTF = getWeightTensorFile(op);
     Value *wfV = getWeightFileValue(op);
 
@@ -52,7 +54,7 @@ struct TpuDecomposeNormalizePattern : public RewritePattern {
 
     // op_name
     std::string op_name = normalizeOp.getAttrOfType<StringAttr>("name").getValue().str();
-    llvm::errs() << "Normalize Op: " << op_name << "\n";
+    LLVM_DEBUG(llvm::errs() << "Normalize Op: " << op_name << "\n";);
 
     // parse param
     std::vector<int64_t> shape;
@@ -74,8 +76,7 @@ struct TpuDecomposeNormalizePattern : public RewritePattern {
 
     auto result_type = normalizeOp.getResult()->getType();
 
-      llvm::errs() << "Normalize Op tensor_name : " << tensor_name << "\n";
-
+    LLVM_DEBUG(llvm::errs() << "Normalize Op tensor_name : " << tensor_name << "\n";);
 
     ///
     /// separate Normalize op to below 6 ops.

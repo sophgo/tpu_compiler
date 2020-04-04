@@ -31,6 +31,7 @@
 #include "mlir/Support/TensorFile.h"
 #include "llvm/Support/raw_ostream.h"
 
+#define DEBUG_TYPE "eltwise_early_stride"
 
 using namespace mlir;
 
@@ -43,7 +44,7 @@ struct TpuRefactorEltAndConvPattern : public RewritePattern {
   PatternMatchResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
     auto eltAddOp = cast<tpu::EltwiseAddOp>(op);
-    llvm::errs() << eltAddOp.getOperationName() << ":" << getOpName(eltAddOp)<< "\n";
+    LLVM_DEBUG(llvm::errs() << eltAddOp.getOperationName() << ":" << getOpName(eltAddOp)<< "\n";);
 
     bool isKernel1x1AndStrideBiggerThanOne = true;
     Operation *nextOp = nullptr;
@@ -74,7 +75,7 @@ struct TpuRefactorEltAndConvPattern : public RewritePattern {
     }
 
     if(isKernel1x1AndStrideBiggerThanOne) {
-        llvm::errs() << "Refactor elt and conv" << "\n";
+        LLVM_DEBUG(llvm::errs() << "Refactor elt and conv" << "\n";);
         for (auto &use : op->getResult(0)->getUses()) { //Refactor convOp
             nextOp = use.getOwner();
             auto convOp = dyn_cast<tpu::Conv2DOp>(nextOp);

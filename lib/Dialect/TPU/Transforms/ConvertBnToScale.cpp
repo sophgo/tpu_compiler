@@ -30,6 +30,8 @@
 #include "mlir/Support/TensorFile.h"
 #include "llvm/Support/raw_ostream.h"
 
+#define DEBUG_TYPE "bn_to_scale"
+
 using namespace mlir;
 
 namespace {
@@ -42,14 +44,14 @@ struct TpuBatchNormOpPattern : public RewritePattern {
                                      PatternRewriter &rewriter) const override {
     auto bnOp = cast<tpu::BatchNormOp>(op);
     assert(op->getNumOperands() == 4);
-    llvm::errs() << bnOp.getOperationName() << "\n";
+    LLVM_DEBUG(llvm::errs() << bnOp.getOperationName() << "\n";);
     auto loc = op->getLoc();
     TensorFile *wTF = getWeightTensorFile(op);
     Value *wfV = getWeightFileValue(op);
 
     // op_name
     std::string op_name = bnOp.getAttrOfType<StringAttr>("name").getValue().str();
-    llvm::errs() << "BatchNorm Op: " << op_name << "\n";
+    LLVM_DEBUG(llvm::errs() << "BatchNorm Op: " << op_name << "\n";);
 
     // find mean, variance, scale tensor, and delete them
     std::vector<std::unique_ptr<std::vector<float> > > bnWeights(3);
@@ -59,7 +61,7 @@ struct TpuBatchNormOpPattern : public RewritePattern {
       assert(weight_op);
       assert(weight_op.name().hasValue());
       auto tensor_name = weight_op.name().getValue();
-      llvm::errs() << "  weight[" << i << "] : " << tensor_name << "\n";
+      LLVM_DEBUG(llvm::errs() << "  weight[" << i << "] : " << tensor_name << "\n";);
       auto type = weight_op.getResult()->getType().cast<TensorType>();
       bnWeights[i] = wTF->readTensor<float>(tensor_name, type);
       // delete the tensor from the weight file
@@ -67,9 +69,9 @@ struct TpuBatchNormOpPattern : public RewritePattern {
     }
 
     // convert tensors
-    llvm::errs() << "  mean size: " << bnWeights[0]->size() << "\n";
-    llvm::errs() << "  variance size: " << bnWeights[1]->size() << "\n";
-    llvm::errs() << "  scale size: " << bnWeights[2]->size() << "\n";
+    LLVM_DEBUG(llvm::errs() << "  mean size: " << bnWeights[0]->size() << "\n"
+                            << "  variance size: " << bnWeights[1]->size() << "\n"
+                            << "  scale size: " << bnWeights[2]->size() << "\n";);
     int oc = (int)bnWeights[0]->size();
     std::vector<float> new_scale(oc);
     std::vector<float> new_bias(oc);
@@ -83,9 +85,9 @@ struct TpuBatchNormOpPattern : public RewritePattern {
       mean[i] = mean[i] * scale_factor;
       variance[i] = variance[i] * scale_factor;
       if (fabs(variance[i]) <= variance_epsilon && fabs(mean[i]) <= 1e-8) {
-        llvm::errs() << "BN: var too small, i=" << i
-                     << ", v=" << std::to_string(variance[i])
-                     << ", m=" << std::to_string(mean[i]) << "\n";
+        LLVM_DEBUG(llvm::errs() << "BN: var too small, i=" << i
+                                << ", v=" << std::to_string(variance[i])
+                                << ", m=" << std::to_string(mean[i]) << "\n";);
         // set to zero
         new_scale[i] = 1.0;
         new_bias[i] = 0.0;
@@ -101,7 +103,7 @@ struct TpuBatchNormOpPattern : public RewritePattern {
     // add new scale and bias ops
     for (int i = 0; i < 2; ++i) {
       auto tensor_name = op_name + "_to_scale_" + std::to_string(i);
-      llvm::errs() << "  new_weight[" << i << "] : " << tensor_name << "\n";
+      LLVM_DEBUG(llvm::errs() << "  new_weight[" << i << "] : " << tensor_name << "\n";);
       auto type = RankedTensorType::get({oc}, FloatType::getF32(rewriter.getContext()));
       wTF->addTensor<float>(tensor_name, newWeights[i], type);
       std::vector<NamedAttribute> attrs;

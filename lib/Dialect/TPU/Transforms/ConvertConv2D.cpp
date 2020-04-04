@@ -22,13 +22,16 @@
 #include "mlir/Dialect/TPU/TPUDialect.h"
 #include "mlir/Dialect/TPU/TPUOperationSupport.h"
 #include "mlir/Dialect/TPU/TPUTensorSupport.h"
+#include "mlir/Dialect/TPU/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
-#include "mlir/IR/Matchers.h"
-#include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/StandardTypes.h"
+#include "mlir/IR/PatternMatch.h"
+#include "mlir/Pass/Pass.h"
 #include "mlir/Support/TensorFile.h"
 #include "llvm/Support/raw_ostream.h"
+
+#define DEBUG_TYPE "convert_conv"
 
 using namespace mlir;
 
@@ -41,8 +44,8 @@ struct TpuMergeSwapChannelToConv2DPattern : public RewritePattern {
   PatternMatchResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
     auto convOp = cast<tpu::Conv2DOp>(op);
-    llvm::errs() << convOp.getOperationName() << ":" << getOpName(convOp)
-                 << "\n";
+    LLVM_DEBUG(llvm::errs() << convOp.getOperationName() << ":"
+                            << getOpName(op)<< "\n";);
 
     // match SwapChannel Op that is following conv2d
     auto formerOp = op->getOperand(0)->getDefiningOp();

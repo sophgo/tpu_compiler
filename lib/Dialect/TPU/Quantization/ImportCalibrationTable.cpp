@@ -34,6 +34,9 @@
 #include <sstream>
 #include <fstream>
 #include <regex>
+
+#define DEBUG_TYPE "import_calibration_table"
+
 using namespace mlir;
 
 static llvm::cl::OptionCategory clOptionsCategory("calibration table options");
@@ -104,16 +107,18 @@ struct BackwardOverwriteThresholdConcatPattern : public OpRewritePattern<tpu::Co
         llvm::errs() << formerOp->getName() << ": behavior not defined\n";
         assert(false);
       }
-      llvm::errs() << "Concat set prev " << formerOp->getName()
+      LLVM_DEBUG(
+        llvm::errs() << "Concat set prev " << formerOp->getName()
                    << " ["<< getOpName(formerOp) << "] threshold, from "
                    << std::to_string(threshold_x) << " to "
                    << std::to_string(threshold_y) << "\n";
-      if (threshold_x < threshold_y * 0.5) {
-        llvm::errs() << "  WARNING: prev threshold is too small to overwrite\n";
-      }
-      if (threshold_x > threshold_y * 2.0) {
-        llvm::errs() << "  WARNING: prev threshold is too large to overwrite\n";
-      }
+        if (threshold_x < threshold_y * 0.5) {
+          llvm::errs() << "  WARNING: prev threshold is too small to overwrite\n";
+        }
+        if (threshold_x > threshold_y * 2.0) {
+          llvm::errs() << "  WARNING: prev threshold is too large to overwrite\n";
+        }
+      );
       written++;
     }
 
@@ -175,17 +180,19 @@ struct BackendOverwriteThresholdDefaultPattern : public RewritePattern {
       llvm::errs() << formerOp->getName() << ": behavior not defined\n";
       assert(false);
     }
-    llvm::errs() << op->getName() << " [" << getOpName(op) << "] set prev "
-                 << formerOp->getName() << " ["<< getOpName(formerOp) << "], "
-                 "threshold from "
-                 << std::to_string(threshold_x) << " to "
-                 << std::to_string(threshold_y) << "\n";
-    if (threshold_x < threshold_y * 0.5) {
-      llvm::errs() << "  WARNING: prev threshold is too small to overwrite\n";
-    }
-    if (threshold_x > threshold_y * 2.0) {
-      llvm::errs() << "  WARNING: prev threshold is too large to overwrite\n";
-    }
+    LLVM_DEBUG(
+      llvm::errs() << op->getName() << " [" << getOpName(op) << "] set prev "
+                   << formerOp->getName() << " ["<< getOpName(formerOp) << "], "
+                   "threshold from "
+                   << std::to_string(threshold_x) << " to "
+                   << std::to_string(threshold_y) << "\n";
+      if (threshold_x < threshold_y * 0.5) {
+        llvm::errs() << "  WARNING: prev threshold is too small to overwrite\n";
+      }
+      if (threshold_x > threshold_y * 2.0) {
+        llvm::errs() << "  WARNING: prev threshold is too large to overwrite\n";
+      }
+    );
 
     return matchSuccess();
   }
@@ -209,10 +216,10 @@ struct ForwardOverwriteThresholdDefaultPattern : public RewritePattern {
       return matchFailure();
     } else {
       setOpThreshold(opInst, threshold_x);
-      llvm::errs() << opInst->getName() << " [" << op.name() << "] "
+      LLVM_DEBUG(llvm::errs() << opInst->getName() << " [" << op.name() << "] "
                    << "set threshold by prev Op threshold, from "
                    << std::to_string(threshold_y) << " to "
-                   << std::to_string(threshold_x) << "\n";
+                   << std::to_string(threshold_x) << "\n";);
       return matchSuccess();
     }
   }
@@ -242,9 +249,9 @@ struct BypassThresholdDefaultPattern : public RewritePattern {
     float threshold_x = getPreviousOpThreshold(op);
     setOpThreshold(opInst, threshold_x);
     setOpQuantParamType(op, "THRESHOLD");
-    llvm::errs() << opInst->getName() << " [" << op.name() << "] "
+    LLVM_DEBUG(llvm::errs() << opInst->getName() << " [" << op.name() << "] "
                  << "set threshold by prev Op threshold "
-                 << std::to_string(threshold_x) << "\n";
+                 << std::to_string(threshold_x) << "\n";);
     return matchSuccess();
   }
 };
@@ -266,9 +273,9 @@ struct ForceThresholdDefaultPattern : public RewritePattern {
     }
     setOpThreshold(op, threshold_);
     setOpQuantParamType(op, "THRESHOLD");
-    llvm::errs() << op->getName() << " [" << getOpName(op) << "] "
+    LLVM_DEBUG(llvm::errs() << op->getName() << " [" << getOpName(op) << "] "
                  << "force threshold to "
-                 << std::to_string(threshold_) << "\n";
+                 << std::to_string(threshold_) << "\n";);
     return matchSuccess();
   }
 
@@ -331,9 +338,9 @@ struct ForceThresholdMulOpPattern : public RewritePattern {
 
     setOpThreshold(opInst, new_threshold_y);
     setOpQuantParamType(op, "THRESHOLD");
-    llvm::errs() << opInst->getName() << " [" << op.name() << "] "
+    LLVM_DEBUG(llvm::errs() << opInst->getName() << " [" << op.name() << "] "
                  << "set threshold by multiply threshold "
-                 << std::to_string(new_threshold_y) << "\n";
+                 << std::to_string(new_threshold_y) << "\n";);
 
     // for broadcast mul, update the ops after as well
     //if (isa<tpu::BroadcastMulOp>(opInst)) {
@@ -351,7 +358,7 @@ struct ForceThresholdMulOpPattern : public RewritePattern {
 
 class ImportCalibrationTablePass : public FunctionPass<ImportCalibrationTablePass> {
 public:
-  explicit ImportCalibrationTablePass(llvm::raw_ostream &os = llvm::errs()) : os(os) {}
+  explicit ImportCalibrationTablePass() {}
 
   void runOnFunction() override {
     auto fn = getFunction();
@@ -359,7 +366,7 @@ public:
     // load the table
     // Support symmetric quantization only
     std::map<std::string, float> threshold_map;
-    os << "Calibration Table File : " << clCalibrationTableFilename << "\n";
+    llvm::errs() << "Calibration Table File : " << clCalibrationTableFilename << "\n";
     std::ifstream infile(clCalibrationTableFilename);
     std::string line;
     std::regex sym_pattern("[a-zA-Z0-9._/-]+ [-0-9.e]+");
@@ -370,15 +377,15 @@ public:
       if (std::regex_match(line, sym_pattern)) {
         float threshold;
         if (!(iss >> name >> threshold)) { break; }
-        llvm::errs() << "  name " << name << ", threshold "
-                     << std::to_string(threshold) << "\n";
+        LLVM_DEBUG(llvm::errs() << "  name " << name << ", threshold "
+                     << std::to_string(threshold) << "\n";);
         threshold_map[name] = threshold;
       } else if (std::regex_match(line, asym_pattern)) {
         float min_threshold, max_threshold;
         if (!(iss >> name >> min_threshold >> max_threshold)) { break; }
-          llvm::errs() << "  name " << name << ", min_threshold = "
+        LLVM_DEBUG(llvm::errs() << "  name " << name << ", min_threshold = "
                      << std::to_string(min_threshold) << ", max_threshold = "
-                     << std::to_string(max_threshold) << "\n";
+                     << std::to_string(max_threshold) << "\n";);
         // Not Support asymmetric quantization so far
         assert(false);
       } else {
@@ -393,7 +400,7 @@ public:
     Builder builder(context);
     // assign the threshold_y to each op
     fn.walk([&](Operation *op) {
-      os << op->getName() << "\n";
+      LLVM_DEBUG(llvm::errs() << op->getName() << "\n";);
 
       if (op->getName().getDialect().str() != "tpu" ||
           isa<tpu::WeightFileOp>(op) || isa<tpu::LoadWeightOp>(op) ||
@@ -429,7 +436,7 @@ public:
     applyPatternsGreedily(fn, patterns);
 
     // apply default bypass for the ops that has no calibration threshold
-    llvm::errs() << "Forword set bypass Ops threshold\n";
+    LLVM_DEBUG(llvm::errs() << "Forword set bypass Ops threshold\n";);
     patterns.clear();
     patterns.insert<
         BypassThresholdDefaultPattern<tpu::SliceOp>,
@@ -439,7 +446,7 @@ public:
     applyPatternsGreedily(fn, patterns);
 
     // apply multiply for mul ops
-    llvm::errs() << "Force multiply Ops thresholds\n";
+    LLVM_DEBUG(llvm::errs() << "Force multiply Ops thresholds\n";);
     patterns.clear();
     patterns.insert<
         ForceThresholdMulOpPattern<tpu::BroadcastMulOp>,
@@ -449,7 +456,7 @@ public:
 
     if (clCaliOverwriteThresholdBackwardRelu) {
       assert(!clCaliOverwriteThresholdForwardRelu);
-      llvm::errs() << "Backward overwrite threshold for all\n";
+      LLVM_DEBUG(llvm::errs() << "Backward overwrite threshold for all\n";);
       patterns.clear();
       patterns.insert<
           BackendOverwriteThresholdDefaultPattern<tpu::LeakyReluOp>,
@@ -460,7 +467,7 @@ public:
           BackendOverwriteThresholdDefaultPattern<tpu::PoolMax2DOp>
           >(context);
       if (clCaliOverwriteThresholdBackwardConcat) {
-        llvm::errs() << "Backward overwrite threshold for concat\n";
+        LLVM_DEBUG(llvm::errs() << "Backward overwrite threshold for concat\n";);
         patterns.insert<
             BackwardOverwriteThresholdConcatPattern
             >(context);
@@ -469,7 +476,7 @@ public:
     }
     if (clCaliOverwriteThresholdForwardRelu) {
       assert(!clCaliOverwriteThresholdBackwardRelu);
-      llvm::errs() << "Forward overwrite threshold for all\n";
+      LLVM_DEBUG(llvm::errs() << "Forward overwrite threshold for all\n";);
       patterns.clear();
       patterns.insert<
           ForwardOverwriteThresholdDefaultPattern<tpu::LeakyReluOp>,
@@ -484,7 +491,7 @@ public:
 
     if (!clCaliOverwriteThresholdBackwardRelu
         && !clCaliOverwriteThresholdForwardRelu) {
-      llvm::errs() << "Default backward overwrite\n";
+      LLVM_DEBUG(llvm::errs() << "Default backward overwrite\n";);
       patterns.clear();
       patterns.insert<
           BackendOverwriteThresholdDefaultPattern<tpu::UpsampleOp>,
@@ -518,12 +525,11 @@ private:
     auto ret = setOpThreshold(op, threshold);
     if (!failed(ret)) {
       setOpQuantParamType(op, "THRESHOLD");
-      os << "  > " << op_name << ", " << std::to_string(threshold) << "\n";
+      LLVM_DEBUG(llvm::errs() << "  > " << op_name << ", "
+                   << std::to_string(threshold) << "\n";);
     }
     return ret;
   }
-
-  llvm::raw_ostream &os;
 };
 
 } // namespace

@@ -32,6 +32,8 @@
 #include "llvm/Support/raw_ostream.h"
 #include "mlir/Dialect/TPU/TPUTensorSupport.h"
 
+#define DEBUG_TYPE "conv_ic_alignment"
+
 using namespace mlir;
 
 namespace {
@@ -44,7 +46,7 @@ struct TpuRefactorOddIcConvPattern : public RewritePattern {
   PatternMatchResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
     auto convOp = cast<OpTy>(op);
-    llvm::errs() << convOp.getOperationName() << ":" << getOpName(convOp)<< "\n";
+    LLVM_DEBUG(llvm::errs() << convOp.getOperationName() << ":" << getOpName(convOp)<< "\n";);
 
     // auto shape = convOp.input()->getType().cast<TensorType>().getShape();//Refactor convOp
     int64_t inputSize;
@@ -81,7 +83,7 @@ struct TpuRefactorOddIcConvPattern : public RewritePattern {
       auto new_filter = std::make_shared<std::vector<int8_t> >(newFilterSize);
       int8_t* filterData = filter->data();
       int8_t* newFilter_data = new_filter->data();
-      llvm::errs() << "Filter shape:(" << kn << ", " << kc << ", " << kh << ", " <<  kw << ")\n";
+      LLVM_DEBUG(llvm::errs() << "Filter shape:(" << kn << ", " << kc << ", " << kh << ", " <<  kw << ")\n";);
       for(int n_counter = 0;  n_counter < kn; n_counter++)
         for(int h_counter = 0;  h_counter < kh; h_counter++)
           for(int w_counter = 0;  w_counter < kw; w_counter++)

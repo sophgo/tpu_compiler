@@ -20,6 +20,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/TPU/TPUDialect.h"
+#include "mlir/Dialect/TPU/TPUOperationSupport.h"
 #include "mlir/Dialect/TPU/TPUTensorSupport.h"
 #include "mlir/Dialect/TPU/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
@@ -30,6 +31,8 @@
 #include "mlir/Pass/Pass.h"
 #include "mlir/Support/TensorFile.h"
 #include "llvm/Support/raw_ostream.h"
+
+#define DEBUG_TYPE "convert_priorbox"
 
 using namespace mlir;
 
@@ -54,6 +57,8 @@ struct TpuConvertLoadeweightConcatToLoadweightPattern : public RewritePattern {
           return matchFailure();
         }
     }
+    LLVM_DEBUG(llvm::errs() << concatOp.getOperationName() << ":"
+                            << getOpName(op)<< "\n";);
 
     uint32_t  c, h, w;
     int tmp_w=0;
@@ -73,7 +78,7 @@ struct TpuConvertLoadeweightConcatToLoadweightPattern : public RewritePattern {
       assert(weight_op);
       assert(weight_op.name().hasValue());
       auto tensor_name = weight_op.name().getValue();
-      llvm::errs() << "  weight[" << i << "] : " << tensor_name << "\n";
+      LLVM_DEBUG(llvm::errs() << "  weight[" << i << "] : " << tensor_name << "\n";);
       auto type = weight_op.getResult()->getType().cast<TensorType>();
       inputloadweight[i] = wTF->readTensor<float>(tensor_name, type);
       // delete the tensor from the weight file
@@ -87,8 +92,8 @@ struct TpuConvertLoadeweightConcatToLoadweightPattern : public RewritePattern {
       h = shape[1];
       w = shape[2];
 
-/*      llvm::errs() << "shape c:" << c <<"\n";
-      llvm::errs() << "shape h:" << h << " w:"<< w <<"\n";*/
+      //llvm::errs() << "shape c:" << c <<"\n";
+      //llvm::errs() << "shape h:" << h << " w:"<< w <<"\n";
 
       float *input_data = (float *)inputloadweight[i]->data();
 

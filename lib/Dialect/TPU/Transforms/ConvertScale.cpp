@@ -31,6 +31,8 @@
 #include "mlir/Support/TensorFile.h"
 #include "llvm/Support/raw_ostream.h"
 
+#define DEBUG_TYPE "convert_scale"
+
 using namespace mlir;
 
 namespace {
@@ -42,7 +44,7 @@ struct TpuFoldScalePattern : public RewritePattern {
                                      PatternRewriter &rewriter) const override {
     auto loc = op->getLoc();
     auto laterScaleOp = cast<tpu::ScaleOp>(op);
-    llvm::errs() << laterScaleOp.getOperationName() << "\n";
+    LLVM_DEBUG(llvm::errs() << laterScaleOp.getOperationName() << "\n";);
     TensorFile *wTF = getWeightTensorFile(op);
     Value *wfV = getWeightFileValue(op);
 
@@ -54,7 +56,7 @@ struct TpuFoldScalePattern : public RewritePattern {
 
     // op_name from the later scale
     std::string op_name = laterScaleOp.getAttrOfType<StringAttr>("name").getValue().str();
-    llvm::errs() << "Scale Op: " << op_name << "\n";
+    LLVM_DEBUG(llvm::errs() << "Scale Op: " << op_name << "\n";);
 
     // find scale and bias tensor for both later and former scale_op
     std::vector<std::unique_ptr<std::vector<float> > > laterWeights(2);
@@ -64,7 +66,7 @@ struct TpuFoldScalePattern : public RewritePattern {
       assert(weight_op);
       assert(weight_op.name().hasValue());
       auto tensor_name = weight_op.name().getValue();
-      llvm::errs() << "  weight[" << i << "] : " << tensor_name << "\n";
+      LLVM_DEBUG(llvm::errs() << "  weight[" << i << "] : " << tensor_name << "\n";);
       auto type = weight_op.getResult()->getType().cast<TensorType>();
       laterWeights[i] = wTF->readTensor<float>(tensor_name, type);
       // delete the tensor from the weight file
@@ -77,7 +79,7 @@ struct TpuFoldScalePattern : public RewritePattern {
       assert(weight_op);
       assert(weight_op.name().hasValue());
       auto tensor_name = weight_op.name().getValue();
-      llvm::errs() << "  weight[" << i << "] : " << tensor_name << "\n";
+      LLVM_DEBUG(llvm::errs() << "  weight[" << i << "] : " << tensor_name << "\n";);
       auto type = weight_op.getResult()->getType().cast<TensorType>();
       formerWeights[i] = wTF->readTensor<float>(tensor_name, type);
       // delete the tensor from the weight file
@@ -85,10 +87,11 @@ struct TpuFoldScalePattern : public RewritePattern {
     }
 
     // convert tensors
-    llvm::errs() << "  former scale size: " << formerWeights[0]->size() << "\n";
-    llvm::errs() << "  former bias size: " << formerWeights[1]->size() << "\n";
-    llvm::errs() << "  later scale size: " << laterWeights[0]->size() << "\n";
-    llvm::errs() << "  later bias size: " << laterWeights[1]->size() << "\n";
+    LLVM_DEBUG(
+        llvm::errs() << "  former scale size: " << formerWeights[0]->size() << "\n"
+                     << "  former bias size: " << formerWeights[1]->size() << "\n"
+                     << "  later scale size: " << laterWeights[0]->size() << "\n"
+                     << "  later bias size: " << laterWeights[1]->size() << "\n";);
     int oc = (int)formerWeights[0]->size();
     std::vector<float> new_scale(oc);
     std::vector<float> new_bias(oc);
@@ -109,7 +112,7 @@ struct TpuFoldScalePattern : public RewritePattern {
     // add new scale and bias ops
     for (int i = 0; i < 2; ++i) {
       auto tensor_name = op_name + "_fold_" + std::to_string(i);
-      llvm::errs() << "  new_weight[" << i << "] : " << tensor_name << "\n";
+      LLVM_DEBUG(llvm::errs() << "  new_weight[" << i << "] : " << tensor_name << "\n";);
       auto type = RankedTensorType::get({oc}, FloatType::getF32(rewriter.getContext()));
       wTF->addTensor<float>(tensor_name, newWeights[i], type);
       std::vector<NamedAttribute> attrs;
@@ -160,7 +163,7 @@ struct TpuMergeScaleIntoConvPattern : public RewritePattern {
                                      PatternRewriter &rewriter) const override {
     auto loc = op->getLoc();
     auto scaleOp = cast<tpu::ScaleOp>(op);
-    llvm::errs() << scaleOp.getOperationName() << "\n";
+    LLVM_DEBUG(llvm::errs() << scaleOp.getOperationName() << "\n";);
     TensorFile *wTF = getWeightTensorFile(op);
     Value *wfV = getWeightFileValue(op);
 
@@ -172,7 +175,7 @@ struct TpuMergeScaleIntoConvPattern : public RewritePattern {
 
     // op_name from the scale
     std::string op_name = scaleOp.getAttrOfType<StringAttr>("name").getValue().str();
-    llvm::errs() << "Scale Op: " << op_name << "\n";
+    LLVM_DEBUG(llvm::errs() << "Scale Op: " << op_name << "\n";);
 
     // find scale and bias tensor for scale op
     std::vector<std::unique_ptr<std::vector<float> > > scaleWeights(2);
@@ -182,7 +185,7 @@ struct TpuMergeScaleIntoConvPattern : public RewritePattern {
       assert(weight_op);
       assert(weight_op.name().hasValue());
       auto tensor_name = weight_op.name().getValue();
-      llvm::errs() << "  weight[" << i << "] : " << tensor_name << "\n";
+      LLVM_DEBUG(llvm::errs() << "  weight[" << i << "] : " << tensor_name << "\n";);
       auto type = weight_op.getResult()->getType().cast<TensorType>();
       scaleWeights[i] = wTF->readTensor<float>(tensor_name, type);
       // delete the tensor from the weight file
@@ -201,7 +204,7 @@ struct TpuMergeScaleIntoConvPattern : public RewritePattern {
       }
       assert(weight_op.name().hasValue());
       auto tensor_name = weight_op.name().getValue();
-      llvm::errs() << "  weight[" << i << "] : " << tensor_name << "\n";
+      LLVM_DEBUG(llvm::errs() << "  weight[" << i << "] : " << tensor_name << "\n";);
       auto type = weight_op.getResult()->getType().cast<TensorType>();
       convWeights[i] = wTF->readTensor<float>(tensor_name, type);
       // delete the tensor from the weight file
@@ -209,14 +212,16 @@ struct TpuMergeScaleIntoConvPattern : public RewritePattern {
     }
 
     // convert tensors
-    llvm::errs() << "  scale scale size: " << scaleWeights[0]->size() << "\n";
-    llvm::errs() << "  scale bias size: " << scaleWeights[1]->size() << "\n";
-    llvm::errs() << "  conv filter size: " << convWeights[0]->size() << "\n";
-    if (convWeights[1]) {
-      llvm::errs() << "  conv bias size: " << convWeights[1]->size() << "\n";
-    } else {
-      llvm::errs() << "  conv has no bias\n";
-    }
+    LLVM_DEBUG(
+      llvm::errs() << "  scale scale size: " << scaleWeights[0]->size() << "\n";
+      llvm::errs() << "  scale bias size: " << scaleWeights[1]->size() << "\n";
+      llvm::errs() << "  conv filter size: " << convWeights[0]->size() << "\n";
+      if (convWeights[1]) {
+        llvm::errs() << "  conv bias size: " << convWeights[1]->size() << "\n";
+      } else {
+        llvm::errs() << "  conv has no bias\n";
+      }
+    );
 
     auto filter_type = convOp.filter()->getType().cast<TensorType>();
     std::vector<int64_t> filter_shape(filter_type.getShape());
@@ -265,7 +270,7 @@ struct TpuMergeScaleIntoConvPattern : public RewritePattern {
     // add new filter and bias weight ops
     for (int i = 0; i < 2; ++i) {
       auto tensor_name = op_name + "_merge_scale_" + std::to_string(i);
-      llvm::errs() << "  new_weight[" << i << "] : " << tensor_name << "\n";
+      LLVM_DEBUG(llvm::errs() << "  new_weight[" << i << "] : " << tensor_name << "\n";);
       auto type = RankedTensorType::get(weightShapes[i], FloatType::getF32(rewriter.getContext()));
       wTF->addTensor<float>(tensor_name, newWeights[i], type);
       std::vector<NamedAttribute> attrs;
@@ -333,12 +338,12 @@ struct TpuConvertScaleToDWConvPattern : public RewritePattern {
   PatternMatchResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
     auto scaleOp = cast<tpu::ScaleOp>(op);
-    llvm::errs() << scaleOp.getOperationName() << "\n";
+    LLVM_DEBUG(llvm::errs() << scaleOp.getOperationName() << "\n";);
     TensorFile *wTF = getWeightTensorFile(op);
 
     // op_name
     std::string op_name = scaleOp.name().str();
-    llvm::errs() << "Scale Op: " << op_name << "\n";
+    LLVM_DEBUG(llvm::errs() << "Scale Op: " << op_name << "\n";);
 
     // parse param
     std::vector<int64_t> shape;

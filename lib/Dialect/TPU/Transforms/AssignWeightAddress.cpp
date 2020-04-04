@@ -37,6 +37,9 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/ToolOutputFile.h"
+#include "llvm/Support/raw_ostream.h"
+
+#define DEBUG_TYPE "assign_weight_address"
 
 using namespace mlir;
 
@@ -62,7 +65,7 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
 
     // read the tensor
     auto tensor_name = weightOp.name().getValue();
-    llvm::errs() << "tensor name " << tensor_name << "\n";
+    LLVM_DEBUG(llvm::errs() << "tensor name " << tensor_name << "\n";);
 
     auto type = weightOp.getResult()->getType().cast<TensorType>();
     assert(weightOp.lowered());
@@ -174,10 +177,10 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
     auto newPos = weightBinaryFile_->tell();
     map_os_ << tensor_name << "," << llvm::format_hex(curPos, 10) << "\n";
 
-    llvm::errs() << llvm::format("[%-36s][%8d] : [ ",
+    LLVM_DEBUG(llvm::errs() << llvm::format("[%-36s][%8d] : [ ",
                                  tensor_name.str().c_str(), size)
                  << llvm::format_hex(curPos, 10) << " --> "
-                 << llvm::format_hex(newPos, 10) << " ]\n";
+                 << llvm::format_hex(newPos, 10) << " ]\n";);
 
     // assign the address to weightOp
     weightOp.setAttr("offset", rewriter.getI64IntegerAttr(curPos));
@@ -207,7 +210,7 @@ static llvm::cl::opt<std::string> clWeightBinFilename(
 
 class AssignWeightAddressPass : public FunctionPass<AssignWeightAddressPass> {
 public:
-  explicit AssignWeightAddressPass(llvm::raw_ostream &os = llvm::errs()) : os(os) {}
+  explicit AssignWeightAddressPass() {}
 
   void runOnFunction() override {
     auto fn = getFunction();
@@ -241,9 +244,6 @@ public:
       weightMapFile->keep();
     }
   }
-
-private:
-  llvm::raw_ostream &os;
 };
 
 } // namespace

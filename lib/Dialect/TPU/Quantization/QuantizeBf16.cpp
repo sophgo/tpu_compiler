@@ -201,8 +201,8 @@ LogicalResult quantizeBf16BypassOps(Operation *op) {
 
 #define DECLARE_QUANTIZE_BF16_BYPASS_METHOD(OP) \
   LogicalResult OP::quantizeBf16() { \
-    llvm::errs() << "quantizeBf16: " << getOperationName() \
-                 << " [" << getOpName() << "]\n"; \
+    LLVM_DEBUG(llvm::errs() << "quantizeBf16: " << getOperationName() \
+                 << " [" << getOpName() << "]\n";); \
     Operation *op = this->getOperation(); \
     return quantizeBf16BypassOps(op); \
   }
@@ -211,8 +211,8 @@ DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::BroadcastMulOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::ConcatOp)
 
 LogicalResult tpu::Conv2DOp::quantizeBf16() {
-  llvm::errs() << "quantizeBf16: " << getOperationName()
-               << " [" << getOpName() << "]\n";
+  LLVM_DEBUG(llvm::errs() << "quantizeBf16: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
   Operation *op = this->getOperation();
   return quantizeBf16ConvOps<tpu::Conv2DOp>(op);
 }
@@ -220,8 +220,8 @@ LogicalResult tpu::Conv2DOp::quantizeBf16() {
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::CropOp)
 
 LogicalResult tpu::DeConv2DOp::quantizeBf16() {
-  llvm::errs() << "quantizeBf16: " << getOperationName()
-               << " [" << getOpName() << "]\n";
+  LLVM_DEBUG(llvm::errs() << "quantizeBf16: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
   Operation *op = this->getOperation();
   return quantizeBf16ConvOps<tpu::DeConv2DOp>(op);
 }
@@ -231,8 +231,8 @@ DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::EltwiseMaxOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::EltwiseMulOp)
 
 LogicalResult tpu::FullyConnectedOp::quantizeBf16() {
-  llvm::errs() << "quantizeBf16: " << getOperationName()
-               << " [" << getOpName() << "]\n";
+  LLVM_DEBUG(llvm::errs() << "quantizeBf16: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
   Operation *op = this->getOperation();
   return quantizeBf16FullyConnectedOps(op);
 }
@@ -240,8 +240,8 @@ LogicalResult tpu::FullyConnectedOp::quantizeBf16() {
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::InputOp)
 
 LogicalResult tpu::LeakyReluOp::quantizeBf16() {
-  llvm::errs() << "quantizeBf16: " << getOperationName()
-               << " [" << getOpName() << "]\n";
+  LLVM_DEBUG(llvm::errs() << "quantizeBf16: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
   Operation *op = this->getOperation();
   return quantizeBf16LeakyReluOps(op);
 }
@@ -265,8 +265,8 @@ DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::UpsampleOp)
 
 #define DECLARE_QUANTIZE_BF16_DISABLED_METHOD(OP) \
   LogicalResult OP::quantizeBf16() { \
-    llvm::errs() << "quantizeBf16: " << getOperationName() \
-                 << " [" << getOpName() << ", disabled]\n"; \
+    LLVM_DEBUG(llvm::errs() << "quantizeBf16: " << getOperationName() \
+                 << " [" << getOpName() << ", disabled]\n";); \
     assert(false); \
     return failure(); \
   }
