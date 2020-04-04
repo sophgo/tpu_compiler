@@ -265,6 +265,17 @@ Operation* getNextOp(Operation *op) {
   return nextOp;
 }
 
+LogicalResult setOpBufferReused(Operation *op, bool flag) {
+  if (auto tpuTGOp = llvm::dyn_cast<tpu::TpuTGOpCodegenInterface>(op)) {
+    return tpuTGOp.setBufferReused(flag);
+  } else {
+    llvm::errs() << __func__ << " failed, Op " << op->getName() << "\n";
+    llvm::errs() << __func__ << "       name " << getOpName(op) << "\n";
+    assert(false);
+    return failure();
+  }
+}
+
 /***********************************************************
  * TPU Ops parameter helpers
  ***********************************************************/

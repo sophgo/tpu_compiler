@@ -104,6 +104,7 @@ class Tensor:
         self.is_weight = is_weight
         self.op_type = op_type
         self.overwrote = True if 'fuse_next' in attributes else False
+        self.overwrote = True if ('buffer_reused' in attributes and attributes['buffer_reused'] == 'true') else self.overwrote
         if not self.overwrote:
             if ('tl_store_flag' in attributes) and attributes['tl_store_flag'] == 'false':
                 self.overwrote = True

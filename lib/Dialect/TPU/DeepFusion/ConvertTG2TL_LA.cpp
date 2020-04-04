@@ -84,6 +84,10 @@ struct TpuTG2TLConv2DOpPattern : public RewritePattern {
     attrs.push_back(rewriter.getNamedAttr("gaddr", op.gaddrAttr()));
     attrs.push_back(rewriter.getNamedAttr("name", op.nameAttr()));
     attrs.push_back(rewriter.getNamedAttr("layer_id", op.layer_idAttr()));
+
+    if (op.buffer_reused().hasValue())
+      attrs.push_back(rewriter.getNamedAttr("buffer_reused", op.buffer_reusedAttr()));
+
     rewriter.replaceOpWithNewOp<tpu::TL_LA_Conv2DOp>(
         op, op.getResult()->getType(),
         ArrayRef<Value *>{newOperands}, ArrayRef<NamedAttribute>{attrs});
@@ -142,6 +146,10 @@ struct TpuTG2TLElewiseAddOpPattern : public RewritePattern {
       attrs.push_back(rewriter.getNamedAttr("gaddr", op.gaddrAttr()));
       attrs.push_back(rewriter.getNamedAttr("name", op.nameAttr()));
       attrs.push_back(rewriter.getNamedAttr("layer_id", op.layer_idAttr()));
+
+      if (op.buffer_reused().hasValue())
+        attrs.push_back(rewriter.getNamedAttr("buffer_reused", op.buffer_reusedAttr()));
+
       rewriter.replaceOpWithNewOp<tpu::TL_EltwiseAddOp>(
           op, op.getResult()->getType(),
           ArrayRef<Value *>{newOperands}, ArrayRef<NamedAttribute>{attrs});

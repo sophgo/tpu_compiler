@@ -117,31 +117,31 @@ if [ ! -z $CVIMODEL_REL_PATH -a -d $CVIMODEL_REL_PATH ]; then
 fi
 
 #################
-# Neuron map recycle
+# Reuse global memory
 #################
-# memory space w/ neuron recycle
+# memory space w/ reuse global memory 
 mlir-opt \
     --debug \
     --enable-tpu-neuron-map-recyle-memref=1 \
     --assign-neuron-address-memref \
     --tpu-neuron-address-align-memref=16 \
-    --tpu-neuron-map-filename-memref=neuron_map_memref_recycle.csv \
+    --tpu-neuron-map-filename-memref=neuron_map_memref_reused.csv \
     retinaface_res50_with_detection_quant_int8_tg_op_memref.mlir \
-    -o retinaface_res50_with_detection_quant_int8_tg_op_memref_addr_recycle.mlir
+    -o retinaface_res50_with_detection_quant_int8_tg_op_memref_addr_reused.mlir
 
 # tg op back to TensorType
 mlir-opt \
      --debug \
      --convert-tg-op-to-tensor \
-    retinaface_res50_with_detection_quant_int8_tg_op_memref_addr_recycle.mlir \
-    -o retinaface_res50_with_detection_quant_int8_tg_roundtrip_recycle.mlir
+    retinaface_res50_with_detection_quant_int8_tg_op_memref_addr_reused.mlir \
+    -o retinaface_res50_with_detection_quant_int8_tg_roundtrip_reused.mlir
 
 # function argument back to TensorType
 mlir-opt \
     --debug \
     --convert-func-to-tensor \
-    retinaface_res50_with_detection_quant_int8_tg_roundtrip_recycle.mlir \
-    -o retinaface_res50_with_detection_quant_int8_tg_func_roundtrip_recycle.mlir
+    retinaface_res50_with_detection_quant_int8_tg_roundtrip_reused.mlir \
+    -o retinaface_res50_with_detection_quant_int8_tg_func_roundtrip_reused.mlir
 
 # assign weight address & neuron address
 mlir-opt \
@@ -151,38 +151,38 @@ mlir-opt \
     --tpu-weight-bin-filename=weight_int8_with_detection.bin \
     --assign-neuron-address \
     --tpu-neuron-address-align=16 \
-    --tpu-neuron-map-filename=neuron_map_with_detection_roundtrip_recycle.csv \
-    retinaface_res50_with_detection_quant_int8_tg_func_roundtrip_recycle.mlir \
-    -o retinaface_res50_with_detection_quant_int8_addr_roundtrip_recycle.mlir
+    --tpu-neuron-map-filename=neuron_map_with_detection_roundtrip_reused.csv \
+    retinaface_res50_with_detection_quant_int8_tg_func_roundtrip_reused.mlir \
+    -o retinaface_res50_with_detection_quant_int8_addr_roundtrip_reused.mlir
 
 # backend translate into cmdbuf
 mlir-translate \
     --mlir-to-cmdbuf \
-    retinaface_res50_with_detection_quant_int8_addr_roundtrip_recycle.mlir \
-    -o cmdbuf_int8_with_detection_roundtrip_recycle.bin
+    retinaface_res50_with_detection_quant_int8_addr_roundtrip_reused.mlir \
+    -o cmdbuf_int8_with_detection_roundtrip_reused.bin
 
 # generate cvi model
 build_cvimodel.py \
-    --cmdbuf cmdbuf_int8_with_detection_roundtrip_recycle.bin \
+    --cmdbuf cmdbuf_int8_with_detection_roundtrip_reused.bin \
     --weight weight_int8_with_detection.bin \
-    --mlir retinaface_res50_with_detection_quant_int8_addr_roundtrip_recycle.mlir \
-    --output=retinaface_res50_with_detection_int8_roundtrip_recycle.cvimodel
+    --mlir retinaface_res50_with_detection_quant_int8_addr_roundtrip_reused.mlir \
+    --output=retinaface_res50_with_detection_int8_roundtrip_reused.cvimodel
 
 # run cmdbuf
 model_runner \
     --dump-all-tensors \
     --input retinaface_res50_in_fp32.npz \
-    --model retinaface_res50_with_detection_int8_roundtrip_recycle.cvimodel \
-    --output retinaface_res50_with_detection_cmdbuf_out_all_int8_roundtrip_recycle.npz
+    --model retinaface_res50_with_detection_int8_roundtrip_reused.cvimodel \
+    --output retinaface_res50_with_detection_cmdbuf_out_all_int8_roundtrip_reused.npz
 
 # compare all tensors
 cvi_npz_tool.py compare \
-    retinaface_res50_with_detection_cmdbuf_out_all_int8_roundtrip_recycle.npz \
+    retinaface_res50_with_detection_cmdbuf_out_all_int8_roundtrip_reused.npz \
     retinaface_res50_tensor_all_int8.npz \
     --op_info retinaface_res50_with_detection_op_info_int8.csv
 
 if [ ! -z $CVIMODEL_REL_PATH -a -d $CVIMODEL_REL_PATH ]; then
-  mv retinaface_res50_with_detection_int8_roundtrip_recycle.cvimodel $CVIMODEL_REL_PATH
+  mv retinaface_res50_with_detection_int8_roundtrip_reused.cvimodel $CVIMODEL_REL_PATH
 fi
 
 # VERDICT

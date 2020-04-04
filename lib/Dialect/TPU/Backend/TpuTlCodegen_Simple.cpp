@@ -279,4 +279,17 @@ LogicalResult tpu::TL_EltwiseAddOp::codegen(void *ctx) {
   return success();
 }
 
+// MemRefType dummy
+LogicalResult tpu::TL_MemRef_EltwiseAddOp::codegen(void *ctx) {
+  return success();
+}
+
+LogicalResult tpu::TL_MemRef_LA_Conv2DOp::codegen(void *ctx) {
+  return success();
+}
+
+LogicalResult tpu::TL_MemRef_LW_Conv2DOp::codegen(void *ctx) {
+  return success();
+}
+
 }

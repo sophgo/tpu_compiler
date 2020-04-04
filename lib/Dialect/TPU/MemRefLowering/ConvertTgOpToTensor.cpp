@@ -171,6 +171,9 @@ struct ConvertTgOpToTensorPass : public FunctionPass<ConvertTgOpToTensorPass> {
     target.addLegalOp<tpu::TG_BF16_SwapChannelOp>();
     target.addLegalOp<tpu::TG_INT8_UpsampleOp>();
     target.addLegalOp<tpu::TG_BF16_UpsampleOp>();
+    target.addLegalOp<tpu::TL_LA_Conv2DOp>();
+    target.addLegalOp<tpu::TL_LW_Conv2DOp>();
+    target.addLegalOp<tpu::TL_EltwiseAddOp>();
 
     target.addLegalOp<AllocOp>();
     target.addLegalOp<ReturnOp>();
@@ -224,6 +227,9 @@ struct ConvertTgOpToTensorPass : public FunctionPass<ConvertTgOpToTensorPass> {
         convertTgOpToTensorPattern<tpu::TG_MemRef_BF16_UpsampleOp, tpu::TG_BF16_UpsampleOp>,
         convertTgOpToTensorPattern<tpu::TG_MemRef_LoadWeightOp, tpu::LoadWeightOp>,
         convertTgOpToTensorPattern<tpu::TG_MemRef_ReshapeOp, tpu::ReshapeOp>,
+        convertTgOpToTensorPattern<tpu::TL_MemRef_LA_Conv2DOp, tpu::TL_LA_Conv2DOp>,
+        convertTgOpToTensorPattern<tpu::TL_MemRef_LW_Conv2DOp, tpu::TL_LW_Conv2DOp>,
+        convertTgOpToTensorPattern<tpu::TL_MemRef_EltwiseAddOp, tpu::TL_EltwiseAddOp>,
         convertTypeConvertedOpPattern<tpu::TG_TensorToMemRefOp>,
         convertTypeConvertedOpPattern<tpu::TG_MemRefToTensorOp>
         >(context);

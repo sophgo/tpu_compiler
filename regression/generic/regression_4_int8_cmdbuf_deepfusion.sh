@@ -3,8 +3,9 @@ set -e
 
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 
-
 COMPARE_ALL=1
+
+OP_LOWERING=0
 
 # assuming ${NET}_quant_int8_multiplier.mlir already exists
 # assuming ${NET}_in_fp32.bin already exists
@@ -35,6 +36,41 @@ mlir-opt \
 # cat for logging
 echo "cat ${NET}_quant_int8_multiplier_tl_lw.mlir"
 cat ${NET}_quant_int8_multiplier_tl_lw.mlir
+
+if [ $OP_LOWERING -eq 1 ]; then
+  # function argument lower to MemRefType
+  mlir-opt \
+      --convert-func-to-memref \
+      ${NET}_quant_int8_multiplier_tl_lw.mlir \
+      -o ${NET}_quant_int8_multiplier_tl_lw_memref.mlir
+
+  # op lower to MemRefType
+  mlir-opt \
+      --convert-tg-op-to-memref \
+      ${NET}_quant_int8_multiplier_tl_lw_memref.mlir \
+      -o ${NET}_quant_int8_multiplier_tl_lw_op_memref.mlir
+
+  # memory space w/ global memory reuse
+  mlir-opt \
+      --enable-reuse-global-memory=true \
+      --assign-neuron-address-memref \
+      --tpu-neuron-address-align-memref=16 \
+      --tpu-neuron-map-filename-memref=neuron_map_memref_reused.csv \
+      ${NET}_quant_int8_multiplier_tl_lw_op_memref.mlir \
+      -o ${NET}_quant_int8_multiplier_tl_lw_op_memref_addr.mlir
+
+  # tg op back to TensorType
+  mlir-opt \
+      --convert-tg-op-to-tensor \
+      ${NET}_quant_int8_multiplier_tl_lw_op_memref_addr.mlir \
+      -o ${NET}_quant_int8_multiplier_tl_lw_op_tensor_addr.mlir
+
+  # function argument back to TensorType
+  mlir-opt \
+      --convert-func-to-tensor \
+      ${NET}_quant_int8_multiplier_tl_lw_op_tensor_addr.mlir \
+      -o ${NET}_quant_int8_multiplier_tl_lw.mlir
+fi
 
 # generate cmdbuf
 # --debug-only=tl_conv,tl_eltwise_add \

@@ -53,6 +53,7 @@ class TPU_TG_ConcatOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
                           (backend does not support `INPUT`, `OUTPUT` for now)
       `gaddr`           : optional, address in global memory, normally the
                           offset within the memory region.
+      `buffer_reused`   : optional, whether buffer is reused.
       `name`            : required, name for comparing, or debug.
       `layer_id`        : optional, id for profiling.
 
@@ -73,6 +74,7 @@ class TPU_TG_ConcatOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     I32Attr:$axis,
     DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
     OptionalAttr<NonNegativeI32Attr>:$layer_id
   );
@@ -105,6 +107,7 @@ class TPU_TG_ConvOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
                           (backend does not support `INPUT`, `OUTPUT` for now)
       `gaddr`           : optional, address in global memory, normally the
                           offset within the memory region.
+      `buffer_reused`   : optional, whether buffer is reused.
       `name`            : required, name for comparing, or debug.
       `layer_id`        : optional, id for profiling.
       `fuse_prev`       : optional, if present, be fused with the prev TG op,
@@ -128,6 +131,7 @@ class TPU_TG_ConvOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     TPU_ConvParamAttr:$param,
     DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
     OptionalAttr<NonNegativeI32Attr>:$layer_id,
     OptionalAttr<BoolAttr>:$do_ic_alignment,
@@ -166,6 +170,7 @@ class TPU_TG_CropOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
                           (backend does not support `INPUT`, `OUTPUT` for now)
       `gaddr`           : optional, address in global memory, normally the
                           offset within the memory region.
+      `buffer_reused`   : optional, whether buffer is reused.
       `name`            : required, name for comparing, or debug.
       `layer_id`        : optional, id for profiling.
 
@@ -184,6 +189,7 @@ class TPU_TG_CropOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     OptionalAttr<I32ArrayAttr>:$crop_offset,
     DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
     OptionalAttr<NonNegativeI32Attr>:$layer_id
   );
@@ -216,6 +222,7 @@ class TPU_TG_EltwiseOp<string mnemonic, string opQuant, string opType> : TPU_Op<
                           (backend does not support `INPUT`, `OUTPUT` for now)
       `gaddr`           : optional, address in global memory, normally the
                           offset within the memory region.
+      `buffer_reused`   : optional, whether buffer is reused.
       `name`            : required, name for comparing, or debug.
       `layer_id`        : optional, id for profiling.
 
@@ -240,6 +247,7 @@ class TPU_TG_EltwiseOp<string mnemonic, string opQuant, string opType> : TPU_Op<
     DefaultValuedAttr<I32Attr, "1">:$early_stride_w,
     DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
     OptionalAttr<NonNegativeI32Attr>:$layer_id
   );
@@ -272,6 +280,7 @@ class TPU_TG_FullyConnectedOp<string mnemonic, string opQuant> : TPU_Op<mnemonic
                           (backend does not support `INPUT`, `OUTPUT` for now)
       `gaddr`           : optional, address in global memory, normally the
                           offset within the memory region.
+      `buffer_reused`   : optional, whether buffer is reused.
       `name`            : required, name for comparing, or debug.
       `layer_id`        : optional, id for profiling.
 
@@ -292,6 +301,7 @@ class TPU_TG_FullyConnectedOp<string mnemonic, string opQuant> : TPU_Op<mnemonic
     OptionalAttr<I8Attr>:$rshift,
     DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
     OptionalAttr<NonNegativeI32Attr>:$layer_id
   );
@@ -320,6 +330,7 @@ class TPU_TG_InputOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
                           (backend does not support `INPUT`, `OUTPUT` for now)
       `gaddr`           : optional, address in global memory, normally the
                                      offset within the memory region.
+      `buffer_reused`   : optional, whether buffer is reused.
 
       `name`            : required, name for comparing, or debug.
       `layer_id`        : optional, id for profiling.
@@ -337,6 +348,7 @@ class TPU_TG_InputOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     ins AnyTensor:$input,
     DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
     OptionalAttr<NonNegativeI32Attr>:$layer_id
   );
@@ -367,6 +379,7 @@ class TPU_TG_LeakyReluOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
                           (backend does not support `INPUT`, `OUTPUT` for now)
       `gaddr`           : optional, address in global memory, normally the
                           offset within the memory region.
+      `buffer_reused`   : optional, whether buffer is reused.
       `name`            : required, name for comparing, or debug.
       `layer_id`        : optional, id for profiling.
       `fuse_prev`       : optional, if present, be fused with the prev TG op,
@@ -391,6 +404,7 @@ class TPU_TG_LeakyReluOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     OptionalAttr<I8Attr>:$m_i8_neg,
     DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
     OptionalAttr<NonNegativeI32Attr>:$layer_id,
     DefaultValuedAttr<BoolAttr, "false">:$fuse_prev,
@@ -419,6 +433,7 @@ class TPU_TG_LutOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
                           (backend does not support `INPUT`, `OUTPUT` for now)
       `gaddr`           : optional, address in global memory, normally the
                           offset within the memory region.
+      `buffer_reused`   : optional, whether buffer is reused.
       `name`            : required, name for comparing, or debug.
       `layer_id`        : optional, id for profiling.
 
@@ -437,6 +452,7 @@ class TPU_TG_LutOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     AnyTensor:$table_mantissa,
     DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
     OptionalAttr<NonNegativeI32Attr>:$layer_id
   );
@@ -467,6 +483,7 @@ class TPU_TG_PermuteOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
                           (backend does not support `INPUT`, `OUTPUT` for now)
       `gaddr`           : optional, address in global memory, normally the
                           offset within the memory region.
+      `buffer_reused`   : optional, whether buffer is reused.
       `name`            : required, name for comparing, or debug.
       `layer_id`        : optional, id for profiling.
 
@@ -487,6 +504,7 @@ class TPU_TG_PermuteOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     NonNegativeI32Attr:$order3,
     DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
     OptionalAttr<NonNegativeI32Attr>:$layer_id
   );
@@ -516,6 +534,7 @@ class TPU_TG_Pool2DOp<string mnemonic, string opQuant, string opType> : TPU_Op<m
                           (backend does not support `INPUT`, `OUTPUT` for now)
       `gaddr`           : optional, address in global memory, normally the
                           offset within the memory region.
+      `buffer_reused`   : optional, whether buffer is reused.
       `name`            : required, name for comparing, or debug.
       `layer_id`        : optional, id for profiling.
 
@@ -535,6 +554,7 @@ class TPU_TG_Pool2DOp<string mnemonic, string opQuant, string opType> : TPU_Op<m
     TPU_PoolParamAttr:$param,
     DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
     OptionalAttr<NonNegativeI32Attr>:$layer_id
   );
@@ -561,6 +581,7 @@ class TPU_TG_PReluOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     Attributes:
       `gaddr`           : optional, address in global memory, normally the
                           offset within the memory region.
+      `buffer_reused`   : optional, whether buffer is reused.
       `region`          : required, the memory region to reside in, could be
                           one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
                           (backend does not support `INPUT`, `OUTPUT` for now)
@@ -587,6 +608,7 @@ class TPU_TG_PReluOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     OptionalAttr<I8Attr>:$m_i8_pos,
     OptionalAttr<I8Attr>:$rshift_neg,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
     OptionalAttr<NonNegativeI32Attr>:$layer_id
   );
@@ -609,6 +631,7 @@ class TPU_TG_ReluOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     Attributes:
       `gaddr`           : optional, address in global memory, normally the
                           offset within the memory region.
+      `buffer_reused`   : optional, whether buffer is reused.
       `region`          : required, the memory region to reside in, could be
                           one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
                           (backend does not support `INPUT`, `OUTPUT` for now)
@@ -628,6 +651,7 @@ class TPU_TG_ReluOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     ins AnyTensor:$input,
     DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
     OptionalAttr<NonNegativeI32Attr>:$layer_id
   );
@@ -655,6 +679,7 @@ class TPU_TG_ShuffleChannelOp<string mnemonic, string opQuant> : TPU_Op<mnemonic
                           (backend does not support `INPUT`, `OUTPUT` for now)
       `gaddr`           : optional, address in global memory, normally the
                                      offset within the memory region.
+      `buffer_reused`   : optional, whether buffer is reused.
 
       `name`            : required, name for comparing, or debug.
       `layer_id`        : optional, id for profiling.
@@ -673,6 +698,7 @@ class TPU_TG_ShuffleChannelOp<string mnemonic, string opQuant> : TPU_Op<mnemonic
     NonNegativeI32Attr:$group,
     DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
     OptionalAttr<NonNegativeI32Attr>:$layer_id
   );
@@ -699,6 +725,7 @@ class TPU_TG_PixelShuffleOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
                           (backend does not support `INPUT`, `OUTPUT` for now)
       `gaddr`           : optional, address in global memory, normally the
                                      offset within the memory region.
+      `buffer_reused`   : optional, whether buffer is reused.
 
       `name`            : required, name for comparing, or debug.
       `layer_id`        : optional, id for profiling.
@@ -717,6 +744,7 @@ class TPU_TG_PixelShuffleOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     NonNegativeI32Attr:$upscale_factor,
     DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
     OptionalAttr<NonNegativeI32Attr>:$layer_id
   );
@@ -749,6 +777,7 @@ class TPU_TG_SliceOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
                           (backend does not support `INPUT`, `OUTPUT` for now)
       `gaddr`           : optional, address in global memory, normally the
                                      offset within the memory region.
+      `buffer_reused`   : optional, whether buffer is reused.
 
       `name`            : required, name for comparing, or debug.
       `layer_id`        : optional, id for profiling.
@@ -768,6 +797,7 @@ class TPU_TG_SliceOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     I32Attr:$offset,
     DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
     OptionalAttr<NonNegativeI32Attr>:$layer_id
   );
@@ -793,6 +823,7 @@ class TPU_TG_SwapChannelOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
                           (backend does not support `INPUT`, `OUTPUT` for now)
       `gaddr`           : optional, address in global memory, normally the
                                      offset within the memory region.
+      `buffer_reused`   : optional, whether buffer is reused.
 
       `name`            : required, name for comparing, or debug.
       `layer_id`        : optional, id for profiling.
@@ -811,6 +842,7 @@ class TPU_TG_SwapChannelOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     OptionalAttr<I32ArrayAttr>:$channel_order,
     DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
     OptionalAttr<NonNegativeI32Attr>:$layer_id
   );
@@ -838,6 +870,7 @@ class TPU_TG_UpsampleOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
                           (backend does not support `INPUT`, `OUTPUT` for now)
       `gaddr`           : optional, address in global memory, normally the
                           offset within the memory region.
+      `buffer_reused`   : optional, whether buffer is reused.
       `name`            : required, name for comparing, or debug.
       `layer_id`        : optional, id for profiling.
 
@@ -855,6 +888,7 @@ class TPU_TG_UpsampleOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     I32Attr:$scale,
     DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
     OptionalAttr<NonNegativeI32Attr>:$layer_id
   );

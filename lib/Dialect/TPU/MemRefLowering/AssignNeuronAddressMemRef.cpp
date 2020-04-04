@@ -32,9 +32,9 @@ static llvm::cl::opt<std::string> clNeuronMapFilenameMemRef(
     llvm::cl::desc("record neuron offset with its name into a csv map file"),
     llvm::cl::init("-"));
 
-static llvm::cl::opt<bool> clNeuronMapEnableRecycleMemRef(
-    "enable-tpu-neuron-map-recyle-memref",
-    llvm::cl::desc("Enable neuron recycle"),
+static llvm::cl::opt<bool> clGlobalMemoryReused(
+    "enable-reuse-global-memory",
+    llvm::cl::desc("Enable reuse global memory"),
     llvm::cl::init(false));
 
 struct AssignNeuronAddressMemRefPass :
@@ -48,6 +48,7 @@ struct AssignNeuronAddressMemRefPass :
   Operation *findTpuOpFromDeallocOp(Operation *op);
 
   struct NeuronInfo {
+    Operation *op;
     llvm::StringRef name;
     int layerId;
     uint64_t offset;
@@ -57,24 +58,22 @@ struct AssignNeuronAddressMemRefPass :
   // FIXME: defined in dialect
   static constexpr int ActivationMemorySpace = 2;
 
-  bool isMemoryAliasedOp(Operation *op);
+  bool isBypassMemoryReuse(Operation *op);
   bool isMemoryAliasedOpHandled(Operation *op);
-  bool isReuseRecycledNeuron(Operation *op, uint64_t allocatedSize,
+  bool isReuseDeletedNeuron(Operation *op, uint64_t allocatedSize,
                              uint64_t &offset);
   void dumpNeuronInfo(std::vector<NeuronInfo> &neuronLlist);
-  bool findNeuronByLayerId(std::vector<NeuronInfo> &neuronList,
-                           int layerId);
   bool findNeuronByName(std::vector<NeuronInfo> &neuronList,
                         llvm::StringRef name);
-  void sortRecycledNeuronBySize(void);
+  void sortReusedNeuronBySize(void);
   llvm::raw_ostream &os() { return *map_os_; }
 
-  bool recycledEnabled;
+  bool globalMemoryReused;
   uint64_t pos_;
   llvm::raw_ostream *map_os_;
   size_t alignment_;
   std::vector<NeuronInfo>usedList;
-  std::vector<NeuronInfo>recycledList;
+  std::vector<NeuronInfo>reusedList;
 };
 
 } // anonymous space
@@ -134,7 +133,7 @@ AssignNeuronAddressMemRefPass::findTpuOpFromDeallocOp(Operation *op) {
   return firstUseOp;
 }
 
-bool AssignNeuronAddressMemRefPass::isMemoryAliasedOp(Operation *op) {
+bool AssignNeuronAddressMemRefPass::isBypassMemoryReuse(Operation *op) {
   // FIXME: skip fc_reshape
   // Can replace AllocOp with ViewOp ?
   if (dyn_cast<tpu::TG_MemRef_ReshapeOp>(op)) {
@@ -152,6 +151,30 @@ bool AssignNeuronAddressMemRefPass::isMemoryAliasedOp(Operation *op) {
     }
   }
 
+  // Bypass TL Op
+  if (dyn_cast<tpu::TL_MemRef_LA_Conv2DOp>(op))
+    return true;
+  else if (dyn_cast<tpu::TL_MemRef_LW_Conv2DOp>(op))
+    return true;
+  else if (dyn_cast<tpu::TL_MemRef_EltwiseAddOp>(op))
+    return true;
+
+  // Bypass not-lowed TG op, especially for multiple outputs.
+  auto allocOp = op->getOperand(op->getNumOperands() - 1)->getDefiningOp();
+  for (auto &user : allocOp->getResult(0)->getUses()) {
+    Operation *userOp = user.getOwner();
+    if (dyn_cast<tpu::TG_MemRefToTensorOp>(userOp)) {
+      return true;
+    }
+  }
+
+  // Bypass fuse-prev
+  if (auto leakyReluOp = dyn_cast<tpu::TG_MemRef_INT8_LeakyReluOp>(op)) {
+    return leakyReluOp.fuse_prev();
+  } else if (auto leakyReluOp = dyn_cast<tpu::TG_MemRef_BF16_LeakyReluOp>(op)) {
+    return leakyReluOp.fuse_prev();
+  }
+
   return false;
 }
 
@@ -160,7 +183,6 @@ bool AssignNeuronAddressMemRefPass::isMemoryAliasedOpHandled(Operation *op) {
 
   // FIXME: skip fc_reshape
   // Can replace AllocOp with ViewOp ?
-  // if (op->getName().getStringRef().str() == "tpu.tg_memref_reshape") {
   if (dyn_cast<tpu::TG_MemRef_ReshapeOp>(op)) {
     // No gaddr, skip it
     return true;
@@ -242,21 +264,26 @@ bool AssignNeuronAddressMemRefPass::isMemoryAliasedOpHandled(Operation *op) {
   return false;
 }
 
-bool AssignNeuronAddressMemRefPass::isReuseRecycledNeuron(
+bool AssignNeuronAddressMemRefPass::isReuseDeletedNeuron(
     Operation *op, uint64_t allocatedSize, uint64_t &offset) {
-  if (!recycledEnabled)
+  if (!globalMemoryReused)
     return false;
 
-  if (!recycledList.size())
+  if (!reusedList.size())
     return false;
 
   // Only sort when needed
-  sortRecycledNeuronBySize();
+  sortReusedNeuronBySize();
 
-  for (auto it = recycledList.begin(); it != recycledList.end(); ++it) {
+  for (auto it = reusedList.begin(); it != reusedList.end(); ++it) {
     if (it->size >= allocatedSize) {
+      // Reuse offset
       offset = it->offset;
-      recycledList.erase(it);
+
+      // Mark buffer reused of previous op
+      setOpBufferReused(it->op, true);
+
+      reusedList.erase(it);
       return true;
     }
   }
@@ -275,25 +302,16 @@ void AssignNeuronAddressMemRefPass::dumpNeuronInfo(
   }
 }
 
-void AssignNeuronAddressMemRefPass::sortRecycledNeuronBySize(void) {
-  if (recycledList.size() < 2)
+void AssignNeuronAddressMemRefPass::sortReusedNeuronBySize(void) {
+  if (reusedList.size() < 2)
     return;
 
-  llvm::array_pod_sort(recycledList.begin(), recycledList.end(),
+  // Sort size from smallest to largest
+  llvm::array_pod_sort(reusedList.begin(), reusedList.end(),
                        [](const auto *lhs, const auto *rhs) {
                          return llvm::array_pod_sort_comparator<uint64_t>(
                              &lhs->size, &rhs->size);
                       });
-}
-
-bool AssignNeuronAddressMemRefPass::findNeuronByLayerId(
-    std::vector<NeuronInfo> &neuronList, int layerId) {
-  for (auto &it : neuronList) {
-    if (it.layerId == layerId)
-      return true;
-  }
-
-  return false;
 }
 
 bool AssignNeuronAddressMemRefPass::findNeuronByName(
@@ -349,8 +367,10 @@ void AssignNeuronAddressMemRefPass::handleAllocOp(Operation *opInst) {
   uint64_t curPos = pos_;
   uint64_t newPos = curPos + allocatedSize;
 
-  if (isReuseRecycledNeuron(tpuOp, allocatedSize, curPos)) {
-    newPos = pos_;
+  if (!isBypassMemoryReuse(tpuOp)) {
+    if (isReuseDeletedNeuron(tpuOp, allocatedSize, curPos)) {
+      newPos = pos_;
+    }
   }
 
   auto tpuOpIf = llvm::dyn_cast<tpu::TpuOpCommonInterface>(tpuOp);
@@ -377,12 +397,12 @@ void AssignNeuronAddressMemRefPass::handleAllocOp(Operation *opInst) {
   pos_ = newPos;
 
   NeuronInfo neuronInfo;
+  neuronInfo.op = tpuOp;
   neuronInfo.name = tpuOpIf.getOpName();
   neuronInfo.layerId = tpuOpIf.getOpLayerId();
   neuronInfo.offset = curPos;
   neuronInfo.size = allocatedSize;
   usedList.push_back(neuronInfo);
-
 }
 
 void AssignNeuronAddressMemRefPass::handleDeallocOp(Operation *opInst) {
@@ -403,24 +423,25 @@ void AssignNeuronAddressMemRefPass::handleDeallocOp(Operation *opInst) {
     llvm::errs() << "tpuOp " << tpuOp->getName() << " does not have common interface\n";
   assert(tpuOpIf && "Expect tpu op has common interface");
 
-  auto layerId = tpuOpIf.getOpLayerId();
   auto opName = tpuOpIf.getOpName();
 
   for (auto it = usedList.begin(); it != usedList.end(); ++it) {
-    // if (it->layerId == layerId) {
     if (!opName.compare(it->name)) {
 
-      // auto isLayerIdExisted = findNeuronByLayerId(recycledList, layerId);
-      auto isLayerIdExisted = findNeuronByName(recycledList, opName);
-      if (isLayerIdExisted) {
+      auto isOpExisted = findNeuronByName(reusedList, opName);
+      if (isOpExisted) {
         llvm::errs() << "Error ! name " << opName << "already exists.\n"
-                     << "dump error recycledList before insersion\n";
-        dumpNeuronInfo(recycledList);
+                     << "dump error reusedList before insersion\n";
+        dumpNeuronInfo(reusedList);
         assert(0);
       }
 
-      if (!isMemoryAliasedOp(tpuOp))
-        recycledList.push_back(*it);
+      // Mark not-reused first
+      setOpBufferReused(tpuOp, false);
+
+      if (!isBypassMemoryReuse(tpuOp)) {
+        reusedList.push_back(*it);
+      }
 
       usedList.erase(it);
 
@@ -490,7 +511,7 @@ void AssignNeuronAddressMemRefPass::runOnFunction() {
     }
   }
 
-  recycledEnabled = clNeuronMapEnableRecycleMemRef;
+  globalMemoryReused = clGlobalMemoryReused;
   pos_ = 0;
   alignment_ = clNeuronAlignmentMemRef;
   map_os_ = &neuronMapFile->os();

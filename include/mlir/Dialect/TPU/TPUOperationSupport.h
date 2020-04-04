@@ -63,6 +63,8 @@ Operation* getNextOp(Operation *op);
 
 void setOpResultType(Operation *op, StandardTypes::Kind kind, int width = 0);
 
+LogicalResult setOpBufferReused(Operation *op, bool flag);
+
 tpu::QuantParam getDefaultQuantParam(Builder &builder);
 
 void parseConvParam(const tpu::ConvParam &p, bool is_deconv,

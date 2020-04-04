@@ -1,4 +1,4 @@
-//===-- TPUTLOps.td - TPU dialect operation definitions ------*- tablegen -*-===//
+//===-- TPUTLOps_Simple_MemREf.td - TPU dialect operation definitions -*- tablegen -*-===//
 //
 // Copyright 2019 The MLIR Authors.
 //
@@ -19,31 +19,18 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef TPU_TL_OPS
-#define TPU_TL_OPS
+#ifndef TPU_TL_MEMREF_OPS
+#define TPU_TL_MEMREF_OPS
 
 include "mlir/Dialect/TPU/TPUBase.td"
 include "mlir/Dialect/TPU/TPUInterface.td"
-
-//===----------------------------------------------------------------------===//
-// Quantization methods enum definitions.
-//===----------------------------------------------------------------------===//
-
-// Allowed quantization methods cases
-def TPU_LM_LO_NONE    : StrEnumAttrCase<"NONE">;
-def TPU_LM_LO_IWO     : StrEnumAttrCase<"IWO">;
-def TPU_LM_LO_OWI     : StrEnumAttrCase<"OWI">;
-
-def TPU_LMLayoutAttr : StrEnumAttr<
-    "TpuLMLayoutType", "TL lmem layout enum", [
-      TPU_LM_LO_NONE,  TPU_LM_LO_IWO,  TPU_LM_LO_OWI
-    ]>;
+include "mlir/Dialect/TPU/TPUTLOps_Simple.td"
 
 //===----------------------------------------------------------------------===//
 // TL op definitions.
 //===----------------------------------------------------------------------===//
 
-def TPU_TL_LA_Conv2DOp : TPU_Op<"tl_la_conv_2d",
+def TPU_TL_MemRef_LA_Conv2DOp : TPU_Op<"tl_memref_la_conv_2d",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
        DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
@@ -62,9 +49,10 @@ def TPU_TL_LA_Conv2DOp : TPU_Op<"tl_la_conv_2d",
   }];
 
   let arguments = (
-    ins AnyTensor:$input,
-    AnyTensor:$filter,
-    AnyTensor:$pc_info,
+    ins MemRefOf<[AnyFloat, AnyInteger]>:$input,
+    MemRefOf<[AnyFloat, AnyInteger]>:$filter,
+    MemRefOf<[I32,I16,I8]>:$pc_info,
+    MemRefOf<[AnyFloat, AnyInteger]>:$output,
     TPU_ConvParamAttr:$param,
     DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
@@ -72,11 +60,9 @@ def TPU_TL_LA_Conv2DOp : TPU_Op<"tl_la_conv_2d",
     StrAttr:$name,
     OptionalAttr<NonNegativeI32Attr>:$layer_id
   );
-
-  let results = (outs AnyTensor:$output);
 }
 
-def TPU_TL_LW_Conv2DOp : TPU_Op<"tl_lw_conv_2d",
+def TPU_TL_MemRef_LW_Conv2DOp : TPU_Op<"tl_memref_lw_conv_2d",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
        DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
@@ -103,9 +89,10 @@ def TPU_TL_LW_Conv2DOp : TPU_Op<"tl_lw_conv_2d",
   }];
 
   let arguments = (
-    ins AnyTensor:$input,
-    AnyTensor:$filter,
-    AnyTensor:$pc_info,
+    ins MemRefOf<[AnyFloat, AnyInteger]>:$input,
+    MemRefOf<[AnyFloat, AnyInteger]>:$filter,
+    MemRefOf<[I32,I16,I8]>:$pc_info,
+    MemRefOf<[AnyFloat, AnyInteger]>:$output,
     TPU_ConvParamAttr:$param,
     TPU_LMLayoutAttr:$lm_layout,
     I32Attr:$la_input,
@@ -125,11 +112,9 @@ def TPU_TL_LW_Conv2DOp : TPU_Op<"tl_lw_conv_2d",
     StrAttr:$name,
     OptionalAttr<NonNegativeI32Attr>:$layer_id
   );
-
-  let results = (outs AnyTensor:$output);
 }
 
-def TPU_TL_EltwiseAddOp : TPU_Op<"tl_eltwise_add",
+def TPU_TL_MemRef_EltwiseAddOp : TPU_Op<"tl_memref_eltwise_add",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
        DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
@@ -139,14 +124,12 @@ def TPU_TL_EltwiseAddOp : TPU_Op<"tl_eltwise_add",
   }];
 
   let arguments = (
-    ins AnyTensor:$input,
-    AnyTensor:$addend,
+    ins MemRefOf<[AnyFloat, AnyInteger]>:$input,
+    MemRefOf<[I32,I16,I8]>:$addend,
+    MemRefOf<[AnyFloat, AnyInteger]>:$output,
     I8Attr:$rshift,
     I32ArrayAttr:$m_i8_inputs,
     DefaultValuedAttr<BoolAttr, "false">:$do_relu,
-    DefaultValuedAttr<BoolAttr, "false">:$do_early_stride,
-    DefaultValuedAttr<I32Attr, "1">:$early_stride_h,
-    DefaultValuedAttr<I32Attr, "1">:$early_stride_w,
     TPU_LMLayoutAttr:$lm_layout,
     I32Attr:$la_input,
     I32Attr:$la_working,
@@ -159,8 +142,6 @@ def TPU_TL_EltwiseAddOp : TPU_Op<"tl_eltwise_add",
     StrAttr:$name,
     OptionalAttr<NonNegativeI32Attr>:$layer_id
   );
-
-  let results = (outs AnyTensor:$output);
 }
 
-#endif // TPU_TL_OPS
+#endif // TPU_TL_MEMREF_OPS

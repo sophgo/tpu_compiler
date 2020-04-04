@@ -224,6 +224,11 @@ DECLARE_ALL_COMMON_INTERFACE_METHODS(TL_LA_Conv2DOp)
 DECLARE_ALL_COMMON_INTERFACE_METHODS(TL_LW_Conv2DOp)
 DECLARE_ALL_COMMON_INTERFACE_METHODS(TL_EltwiseAddOp)
 
+// TPU TL MemRef Ops
+DECLARE_ALL_COMMON_INTERFACE_METHODS(TL_MemRef_LA_Conv2DOp)
+DECLARE_ALL_COMMON_INTERFACE_METHODS(TL_MemRef_LW_Conv2DOp)
+DECLARE_ALL_COMMON_INTERFACE_METHODS(TL_MemRef_EltwiseAddOp)
+
 //
 // Implementation of TpuOpQuant Interface
 //
@@ -368,11 +373,20 @@ DECLARE_ALL_QUANT_INTERFACE_METHODS(UpsampleOp)
       setAttr("gaddr", Builder(getOperation()->getContext()).getI64IntegerAttr(gaddr)); \
       return success(); \
     }
+#define DECLARE_SET_TG_OP_BUFFER_REUSED_METHOD(OP) \
+    LogicalResult OP::setBufferReused(bool flag) { \
+      if (flag) \
+        setAttr("buffer_reused", Builder(getOperation()->getContext()).getBoolAttr(flag)); \
+      else \
+        removeAttr("buffer_reused"); \
+      return success(); \
+    }
 
 // declare TG Codegen methods
 #define DECLARE_ALL_CODEGEN_INTERFACE_METHODS(OP) \
     DECLARE_GET_TG_OP_GADDR_METHOD(OP) \
-    DECLARE_SET_TG_OP_GADDR_METHOD(OP)
+    DECLARE_SET_TG_OP_GADDR_METHOD(OP) \
+    DECLARE_SET_TG_OP_BUFFER_REUSED_METHOD(OP)
 // TG Ops
 DECLARE_ALL_CODEGEN_INTERFACE_METHODS(TG_INT8_BroadcastMulOp)
 DECLARE_ALL_CODEGEN_INTERFACE_METHODS(TG_BF16_BroadcastMulOp)
@@ -475,6 +489,10 @@ DECLARE_ALL_CODEGEN_INTERFACE_METHODS(TL_LA_Conv2DOp)
 DECLARE_ALL_CODEGEN_INTERFACE_METHODS(TL_LW_Conv2DOp)
 DECLARE_ALL_CODEGEN_INTERFACE_METHODS(TL_EltwiseAddOp)
 
+// TL MemRef Ops
+DECLARE_ALL_CODEGEN_INTERFACE_METHODS(TL_MemRef_LA_Conv2DOp)
+DECLARE_ALL_CODEGEN_INTERFACE_METHODS(TL_MemRef_LW_Conv2DOp)
+DECLARE_ALL_CODEGEN_INTERFACE_METHODS(TL_MemRef_EltwiseAddOp)
 
 
 // Reshape Op
@@ -537,4 +555,8 @@ float ReshapeOp::getOpQuantThreshold() { \
 LogicalResult ReshapeOp::setOpQuantThreshold(float threshold) {
   assert(false);
   return failure();
+}
+
+LogicalResult ReshapeOp::setBufferReused(bool flag) {
+  return mlir::setOpBufferReused(this->getOperation(), flag);
 }

@@ -3,6 +3,7 @@ set -e
 
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 
+REUSE_GLOBAL_MEM=${REUSE_GLOBAL_MEM:-0}
 
 ################################
 # prepare bf16 input
@@ -97,67 +98,67 @@ cvi_npz_tool.py compare \
     --tolerance=0.99,0.99,0.96 -vv
 
 #################
-# Neuron map recycle
+# Reuse global memory
 #################
-# memory space w/ neuron recycle
+# memory space w/ reuse global memory
 mlir-opt \
     --debug \
-    --enable-tpu-neuron-map-recyle-memref=1 \
+    --enable-reuse-global-mem=${REUSE_GLOBAL_MEM} \
     --assign-neuron-address-memref \
     --tpu-neuron-address-align-memref=16 \
-    --tpu-neuron-map-filename-memref=neuron_map_memref_recycle.csv \
+    --tpu-neuron-map-filename-memref=neuron_map_memref_reused.csv \
     resnet50_quant_bf16_tg_op_memref.mlir \
-    -o resnet50_quant_bf16_tg_op_memref_addr_recycle.mlir
+    -o resnet50_quant_bf16_tg_op_memref_addr_reused.mlir
 
 # tg op back to TensorType
 mlir-opt \
      --debug \
      --convert-tg-op-to-tensor \
-     resnet50_quant_bf16_tg_op_memref_addr_recycle.mlir \
-     -o resnet50_quant_bf16_tg_op_roundtrip_recycle.mlir
+     resnet50_quant_bf16_tg_op_memref_addr_reused.mlir \
+     -o resnet50_quant_bf16_tg_op_roundtrip_reused.mlir
 
 # function argument back to TensorType
 mlir-opt \
     --debug \
     --convert-func-to-tensor \
-    resnet50_quant_bf16_tg_op_roundtrip_recycle.mlir \
-    -o resnet50_quant_bf16_tg_func_roundtrip_recycle.mlir
+    resnet50_quant_bf16_tg_op_roundtrip_reused.mlir \
+    -o resnet50_quant_bf16_tg_func_roundtrip_reused.mlir
 
 # assign weight address & neuron address
 mlir-opt \
     --assign-weight-address \
     --tpu-weight-address-align=16 \
-    --tpu-weight-map-filename=weight_map_bf16_recycle.csv \
+    --tpu-weight-map-filename=weight_map_bf16_reused.csv \
     --tpu-weight-bin-filename=weight_bf16.bin \
     --assign-neuron-address \
     --tpu-neuron-address-align=16 \
-    --tpu-neuron-map-filename=neuron_map_bf16_recycle.csv \
-    resnet50_quant_bf16_tg_func_roundtrip_recycle.mlir \
-    -o resnet50_quant_bf16_addr_roundtrip_recycle.mlir
+    --tpu-neuron-map-filename=neuron_map_bf16_reused.csv \
+    resnet50_quant_bf16_tg_func_roundtrip_reused.mlir \
+    -o resnet50_quant_bf16_addr_roundtrip_reused.mlir
 
 # backend translate into cmdbuf
 mlir-translate \
     --mlir-to-cmdbuf \
-    resnet50_quant_bf16_addr_roundtrip_recycle.mlir \
-    -o cmdbuf_bf16_roundtrip_recycle.bin
+    resnet50_quant_bf16_addr_roundtrip_reused.mlir \
+    -o cmdbuf_bf16_roundtrip_reused.bin
 
 # generate cvi model
 build_cvimodel.py \
-    --cmdbuf cmdbuf_bf16_roundtrip_recycle.bin \
+    --cmdbuf cmdbuf_bf16_roundtrip_reused.bin \
     --weight weight_bf16.bin \
-    --mlir resnet50_quant_bf16_addr_roundtrip_recycle.mlir \
-    --output=resnet50_bf16_roundtrip_recycle.cvimodel
+    --mlir resnet50_quant_bf16_addr_roundtrip_reused.mlir \
+    --output=resnet50_bf16_roundtrip_reused.cvimodel
 
 # run cmdbuf
 model_runner \
     --dump-all-tensors \
     --input resnet50_in_fp32.npz \
-    --model resnet50_bf16_roundtrip_recycle.cvimodel \
-    --output resnet50_cmdbuf_out_all_bf16_roundtrip_recycle.npz
+    --model resnet50_bf16_roundtrip_reused.cvimodel \
+    --output resnet50_cmdbuf_out_all_bf16_roundtrip_reused.npz
 
 # compare all tensors
 cvi_npz_tool.py compare \
-    resnet50_cmdbuf_out_all_bf16_roundtrip_recycle.npz \
+    resnet50_cmdbuf_out_all_bf16_roundtrip_reused.npz \
     resnet50_tensor_all_bf16.npz \
     --op_info resnet50_op_info_bf16.csv \
     --tolerance=0.99,0.99,0.96 -vv

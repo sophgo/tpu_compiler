@@ -75,12 +75,12 @@ if [ $DO_QUANT_INT8_MULTIPLER -eq 1 ]; then
       ${NET}_quant_int8_multiplier_tg_opt_memref.mlir \
       -o ${NET}_quant_int8_multiplier_tg_opt_op_memref.mlir
 
-    # memory space w/ neuron recycle
-    #    --enable-tpu-neuron-map-recyle-memref=1
+    # memory space w/ global memory reuse
     mlir-opt \
+        --enable-reuse-global-memory=true \
         --assign-neuron-address-memref \
         --tpu-neuron-address-align-memref=16 \
-        --tpu-neuron-map-filename-memref=neuron_map_memref_recycle.csv \
+        --tpu-neuron-map-filename-memref=neuron_map_memref_reused.csv \
         ${NET}_quant_int8_multiplier_tg_opt_op_memref.mlir \
         -o ${NET}_quant_int8_multiplier_tg_opt_op_memref_addr.mlir
 

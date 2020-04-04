@@ -454,7 +454,10 @@ void ConvertTgOpToMemRefPass::runOnFunction() {
       AddTypeConvertedForNotLowedOpPattern<tpu::TG_INT8_SwapChannelOp>,
       AddTypeConvertedForNotLowedOpPattern<tpu::TG_BF16_SwapChannelOp>,
       AddTypeConvertedForNotLowedOpPattern<tpu::TG_INT8_UpsampleOp>,
-      AddTypeConvertedForNotLowedOpPattern<tpu::TG_BF16_UpsampleOp>
+      AddTypeConvertedForNotLowedOpPattern<tpu::TG_BF16_UpsampleOp>,
+      AddTypeConvertedForNotLowedOpPattern<tpu::TL_LA_Conv2DOp>,
+      AddTypeConvertedForNotLowedOpPattern<tpu::TL_LW_Conv2DOp>,
+      AddTypeConvertedForNotLowedOpPattern<tpu::TL_EltwiseAddOp>
       >(context);
   applyPatternsGreedily(fn, patterns);
 
@@ -508,6 +511,9 @@ void ConvertTgOpToMemRefPass::runOnFunction() {
   target.addLegalOp<tpu::TG_MemRef_BF16_SwapChannelOp>();
   target.addLegalOp<tpu::TG_MemRef_INT8_UpsampleOp>();
   target.addLegalOp<tpu::TG_MemRef_BF16_UpsampleOp>();
+  target.addLegalOp<tpu::TL_MemRef_LA_Conv2DOp>();
+  target.addLegalOp<tpu::TL_MemRef_LW_Conv2DOp>();
+  target.addLegalOp<tpu::TL_MemRef_EltwiseAddOp>();
 
   target.addLegalOp<tpu::TG_MemRef_LoadWeightOp>();
   target.addLegalOp<tpu::TG_MemRef_ReshapeOp>();
@@ -562,6 +568,9 @@ void ConvertTgOpToMemRefPass::runOnFunction() {
       convertTgOpToMemRefPattern<tpu::TG_BF16_SwapChannelOp, tpu::TG_MemRef_BF16_SwapChannelOp>,
       convertTgOpToMemRefPattern<tpu::TG_INT8_UpsampleOp, tpu::TG_MemRef_INT8_UpsampleOp>,
       convertTgOpToMemRefPattern<tpu::TG_BF16_UpsampleOp, tpu::TG_MemRef_BF16_UpsampleOp>,
+      convertTgOpToMemRefPattern<tpu::TL_LA_Conv2DOp, tpu::TL_MemRef_LA_Conv2DOp>,
+      convertTgOpToMemRefPattern<tpu::TL_LW_Conv2DOp, tpu::TL_MemRef_LW_Conv2DOp>,
+      convertTgOpToMemRefPattern<tpu::TL_EltwiseAddOp, tpu::TL_MemRef_EltwiseAddOp>,
       convertMemRefToTensorOpPattern,
       convertTensorStoreOpPattern
       >(context);

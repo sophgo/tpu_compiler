@@ -181,6 +181,11 @@ def TpuTGOpCodegenInterface : OpInterface<"TpuTGOpCodegenInterface"> {
       }],
       "LogicalResult", "setGAddr", (ins "uint64_t ":$gaddr)
     >,
+    InterfaceMethod<[{
+        Set buffer reused.
+      }],
+      "LogicalResult", "setBufferReused", (ins "bool":$buffer_reused)
+    >,
   ];
 }
 

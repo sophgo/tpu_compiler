@@ -82,6 +82,9 @@ struct TpuTL_LA_Conv2DOpPattern : public RewritePattern {
     attrs.push_back(rewriter.getNamedAttr("tl_load_flag", rewriter.getBoolAttr(true)));
     attrs.push_back(rewriter.getNamedAttr("tl_store_flag", rewriter.getBoolAttr(true)));
 
+    if (op.buffer_reused().hasValue())
+      attrs.push_back(rewriter.getNamedAttr("buffer_reused", op.buffer_reusedAttr()));
+
     // create op
     rewriter.replaceOpWithNewOp<tpu::TL_LW_Conv2DOp>(
         op, op.getResult()->getType(),
