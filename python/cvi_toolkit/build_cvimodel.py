@@ -145,12 +145,13 @@ class TpuRoutine(Routine):
 
 
 class Program:
-  def __init__(self, builder, cmdbufs, so_path, mlir):
+  def __init__(self, builder, cmdbufs, so_path, mlir, verbose):
     self.builder = builder
     self.mlir = mlir
     self.cmdbufs = cmdbufs
     self.so_path = so_path
     self.sections = []
+    self.verbose = verbose
 
   def __build_dim_vector(self, dims):
     cm.ShapeStartDimVector(self.builder, len(dims))
@@ -185,8 +186,9 @@ class Program:
       if tensor_offset != -1:
         max_neuron_size = (tensor_offset + tensor_size) if max_neuron_size < (
           tensor_offset + tensor_size) else max_neuron_size
-      print(max_neuron_size, tensor_name, tensor_offset,
-          tensor_size, dtype, n, c, h, w, dtype_size_map[dtype])
+      if self.verbose:
+        print(max_neuron_size, tensor_name, tensor_offset,
+            tensor_size, dtype, n, c, h, w, dtype_size_map[dtype])
 
       cm.QuantInfoStart(self.builder)
       cm.QuantInfoAddType(self.builder, 0)
@@ -243,7 +245,8 @@ class Program:
       if func.cpu_function:
         so = "{}/{}.so".format(so_path, func.name)
         if not os.path.isfile(so):
-          print('Warning, connot find {} so, use builtin functin instead.'.format(func.name))
+          if self.verbose:
+            print('Warning, connot find {} so, use builtin functin instead.'.format(func.name))
           so = None
         routine = CpuRoutine(self.builder, func.name, inputs, outputs, so, func.cpu_attr_serial)
       else:
@@ -275,16 +278,17 @@ class Program:
 
 
 class CVIModel:
-  def __init__(self, weight, cmdbufs, so_path, mlir_file):
+  def __init__(self, weight, cmdbufs, so_path, mlir_file, verbose):
     self.mlir = mlir_parser.MlirParser(mlir_file)
     self.builder = flatbuffers.Builder(1024)
-    self.program = Program(self.builder, cmdbufs, so_path, self.mlir)
+    self.program = Program(self.builder, cmdbufs, so_path, self.mlir, verbose)
     self.weight = weight
     self.cmdbufs = cmdbufs
     self.so_path = so_path
     self.model = bytearray()
     self.binary_buf = bytearray()
     self.binary_buf_offset = 0
+    self.verbose = verbose
 
   def __random_tag(self, length):
     chars = '0123456789abcdef'
@@ -382,7 +386,8 @@ if __name__ == '__main__':
   parser.add_argument('--chip', required=False, default=DFT_CHIP, help='Chip, default cv1835')
   parser.add_argument('--output', required=True, help='output cvi.model file')
   parser.add_argument('--cpufunc_dir', required=False, default=None)
+  parser.add_argument('--verbose', required=False, type=bool, default=False)
   args = parser.parse_args()
 
-  model = CVIModel(args.weight, args.cmdbuf.split(','), args.cpufunc_dir, args.mlir)
+  model = CVIModel(args.weight, args.cmdbuf.split(','), args.cpufunc_dir, args.mlir, args.verbose)
   model.build(args.output)

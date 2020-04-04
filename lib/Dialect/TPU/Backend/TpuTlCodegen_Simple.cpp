@@ -55,8 +55,8 @@ namespace mlir {
 
 
 LogicalResult tpu::TL_LA_Conv2DOp::codegen(void *ctx) {
-  llvm::errs() << "TG_codegen: " << getOperationName()
-               << " [" << getOpName() << "]\n";
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
@@ -82,8 +82,8 @@ LogicalResult tpu::TL_LA_Conv2DOp::codegen(void *ctx) {
 }
 
 LogicalResult tpu::TL_LW_Conv2DOp::codegen(void *ctx) {
-  llvm::errs() << "TG_codegen: " << getOperationName()
-               << " [" << getOpName() << "]\n";
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
@@ -123,20 +123,23 @@ LogicalResult tpu::TL_LW_Conv2DOp::codegen(void *ctx) {
 
   int layer_id = mlir::getOpLayerId(op);
 
-  llvm::errs() << "    TL_LW_Conv2DOp,  layer_id = " << layer_id;
-  llvm::errs() << ", " << this->lm_layout();
-  if (tl_load_flag())
-    llvm::errs() << ", LD";
-  if (tl_store_flag())
-    llvm::errs() << ", ST";
-  if (!tl_load_flag() && !tl_store_flag())
-    llvm::errs() << ", FUSED";
-  llvm::errs() << "\n";
+  LLVM_DEBUG(
+    llvm::errs() << "    TL_LW_Conv2DOp,  layer_id = " << layer_id;
+    llvm::errs() << ", " << this->lm_layout();
+    if (tl_load_flag())
+      llvm::errs() << ", LD";
+    if (tl_store_flag())
+      llvm::errs() << ", ST";
+    if (!tl_load_flag() && !tl_store_flag())
+      llvm::errs() << ", FUSED";
+    llvm::errs() << "\n";
+  );
 
   if (tl_load_flag()) {
     cvi_backend_tl_load(*backend_ctx, layer_id,
         la_input, ga_input, n, ic, ih, iw);
   }
+
   #if 0
   //
   // V0: Weight Only version, with no parallel for load/store activations
@@ -184,8 +187,8 @@ LogicalResult tpu::TL_LW_Conv2DOp::codegen(void *ctx) {
 
 
 LogicalResult tpu::TL_EltwiseAddOp::codegen(void *ctx) {
-  llvm::errs() << "TG_codegen: " << getOperationName()
-               << " [" << getOpName() << "]\n";
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
@@ -252,15 +255,17 @@ LogicalResult tpu::TL_EltwiseAddOp::codegen(void *ctx) {
   m_i8_input[0] = static_cast<int8_t>(m_i8_inputs_array[0]);
   m_i8_input[1] = static_cast<int8_t>(m_i8_inputs_array[1]);
 
-  llvm::errs() << "    TL_EltwiseAddOp, layer_id = " << layer_id;
-  llvm::errs() << ", " << this->lm_layout();
-  if (tl_load_flag())
-    llvm::errs() << ", LD";
-  if (tl_store_flag())
-    llvm::errs() << ", ST";
-  if (!tl_load_flag() && !tl_store_flag())
-    llvm::errs() << ", FUSED";
-  llvm::errs() << "\n";
+  LLVM_DEBUG(
+    llvm::errs() << "    TL_EltwiseAddOp, layer_id = " << layer_id;
+    llvm::errs() << ", " << this->lm_layout();
+    if (tl_load_flag())
+      llvm::errs() << ", LD";
+    if (tl_store_flag())
+      llvm::errs() << ", ST";
+    if (!tl_load_flag() && !tl_store_flag())
+      llvm::errs() << ", FUSED";
+    llvm::errs() << "\n";
+  );
 
   cvi_backend_tl_eltwise_add(
     *backend_ctx, layer_id,
