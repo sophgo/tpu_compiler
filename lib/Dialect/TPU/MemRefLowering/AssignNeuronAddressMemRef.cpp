@@ -451,21 +451,21 @@ void AssignNeuronAddressMemRefPass::handleDeallocOp(Operation *opInst) {
 }
 
 void AssignNeuronAddressMemRefPass::handleQuantOp(Operation *opInst) {
-  // Reserved space for both input/quantized input.
-  // There is no explicit place to assign input.
-  auto inputType = opInst->getOperand(0)->getType().dyn_cast<RankedTensorType>();
-  assert(inputType && "Expect input is ranked tensor type.");
-  if (!inputType)
+  // Reserved space for quantized/de-quantized result.
+  auto resultType = opInst->getResult(0)->getType().dyn_cast<RankedTensorType>();
+  assert(resultType && "Expect result is ranked tensor type.");
+  if (!resultType)
     return;
 
   // Should be integer(int8) or float(float, bf16)
-  auto elementType = inputType.getElementType();
+  auto elementType = resultType.getElementType();
   assert(elementType.isIntOrFloat() && "Expect input is int or float");
   if (!elementType.isIntOrFloat())
     return;
 
-  std::vector<int64_t> shape = inputType.getShape();
+  std::vector<int64_t> shape = resultType.getShape();
   uint64_t dataTypeSize = elementType.getIntOrFloatBitWidth() / 8;
+
   uint64_t allocatedSize = dataTypeSize;
   for (unsigned i = 0; i < shape.size(); ++i)
     allocatedSize *= shape[i];
