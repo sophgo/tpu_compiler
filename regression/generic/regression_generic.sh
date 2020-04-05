@@ -64,6 +64,9 @@ fi
 if [ $DO_QUANT_MIX -eq 1 ]; then
   $DIR/regression_7_mix.sh
 fi
+if [ $DO_E2E -eq 1 ]; then
+  $DIR/regression_e2e.sh
+fi
 popd
 
 # VERDICT

@@ -8,7 +8,7 @@ export EXCEPTS=-
 export DO_CALIBRATION=0
 export CALIBRATION_IMAGE_COUNT=1000
 export MLIR_OPT_FE_PRE="--convert-bn-to-scale"
-export MLIR_OPT_FE_POST=""
+export MLIR_OPT_FE_POST="--eltwise-early-stride"
 export MLIR_OPT_BE="--tg-fuse-leakyrelu --conv-ic-alignment"
 export DO_QUANT_INT8=1
 export DO_QUANT_INT8_PER_TENSOR=1
@@ -23,6 +23,7 @@ export DO_LAYERGROUP=0
 export DO_QUANT_MIX=0
 export DO_ACCURACY_CAFFE=1
 export DO_ACCURACY_INTERPRETER=1
+export DO_E2E=1
 
 if [ -z "$DO_BATCHSIZE" ]; then
   BATCH_SIZE=1
@@ -35,7 +36,6 @@ export FP32_INFERENCE_SCRIPT=$DIR/regression_0_caffe.sh
 if [ $NET = "resnet50" ]; then
 export MODEL_DEF=$MODEL_PATH/imagenet/resnet/caffe/ResNet-50-deploy.prototxt
 export MODEL_DAT=$MODEL_PATH/imagenet/resnet/caffe/ResNet-50-model.caffemodel
-export MLIR_OPT_FE_POST="--eltwise-early-stride"
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/resnet50_calibration_table
 export NET_INPUT_DIMS=224,224
 export RAW_SCALE=255.0
@@ -243,6 +243,7 @@ export TOLERANCE_INT8_MULTIPLER=0.9,0.9,0.7
 export DO_QUANT_INT8_PER_TENSOR=0
 export DO_QUANT_INT8_RFHIFT_ONLY=0
 export DO_QUANT_BF16=0
+export DO_E2E=0
 fi
 
 if [ $NET = "retinaface_mnet25" ]; then
