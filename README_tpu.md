@@ -88,26 +88,31 @@ Tested with Ubuntu 18.04
   $ tar zxf cvitek_mlir.tar.gz
   $ source cvitek_mlir/cvitek_envs.sh
   $ ./cvitek_mlir/regression/parallel/paralle_test.sh
-  or ( following should do the same, just slower)
-  $ ./cvitek_mlir/regression/run_regression.sh
-  Find `cvimodel_release` in `regression_out/`
+  Find `cvimodel_regression` in `regression_out/`
+  $ mv regression_out/cvimodel_regression
+  $ tar zcf cvimodel_regression.tar.gz cvimodel_regression
+  Generate cvimodel release
+  $ ./cvitek_mlir/regression/generate_all_cvimodels.sh
+  Find `cvimodel_release`
+  $ tar zcf cvimodel_release.tar.gz cvimodel_release
   ```
 
   Test SDK on target board
 
   ```sh
   $ tar zxf cvitek_tpu_sdk.tar.gz
-  $ . ./cvitek_tpu_sdk/envs_tpu.sh ./cvitek_tpu_sdk/
+  $ export TPU_ROOT=$PWD/cvitek_tpu_sdk
 
-  $ tar zxf cvimodel_samples.tar.gz
-  $ cd cvimodel_samples
+  $ tar zxf cvimodel_release.tar.gz
+  $ export MODEL_PATH=$PWD/cvimodel_release
   $ $TPU_ROOT/samples/bin/cvi_sample_model_info \
-      mobilenet_v2_int8_lw.cvimodel
+      $MODEL_PATH/mobilenet_v2.cvimodel
   $ $TPU_ROOT/samples/run_classifier.sh
   $ $TPU_ROOT/samples/run_detector.sh
   $ $TPU_ROOT/samples/run_alphapose.sh
   $ $TPU_ROOT/samples/run_insightface.sh
 
-  $ tar zxf cvimodel_release.tar.gz
-  $ MODEL_PATH=$PWD/cvimodel_release $TPU_ROOT/regression_models.sh
+  $ tar zxf cvimodel_regression.tar.gz
+  $ export PATH=$TPU_ROOT/bin:$PATH
+  $ MODEL_PATH=$PWD/cvimodel_regression $TPU_ROOT/regression_models.sh
   ```

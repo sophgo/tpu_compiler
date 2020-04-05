@@ -1,8 +1,6 @@
 #!/bin/bash
 set -e
 
-DIR="$( cd "$(dirname "$0")" ; pwd -P )"
-
 #default values
 export EXCEPTS=-
 export DO_CALIBRATION=0
@@ -31,7 +29,7 @@ else
   BATCH_SIZE=$DO_BATCHSIZE
 fi
 export BATCH_SIZE
-export FP32_INFERENCE_SCRIPT=$DIR/regression_0_caffe.sh
+export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/generic/regression_0_caffe.sh
 
 if [ $NET = "resnet50" ]; then
 export MODEL_DEF=$MODEL_PATH/imagenet/resnet/caffe/ResNet-50-deploy.prototxt

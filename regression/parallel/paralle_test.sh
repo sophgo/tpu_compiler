@@ -9,7 +9,7 @@ export GLOG_minloglevel=0
 if [ ! -e regression_out ]; then
   mkdir regression_out
 fi
-export CVIMODEL_REL_PATH=$PWD/regression_out/cvimodel_release
+export CVIMODEL_REL_PATH=$PWD/regression_out/cvimodel_regression
 if [ ! -e $CVIMODEL_REL_PATH ]; then
   mkdir $CVIMODEL_REL_PATH
 fi
