@@ -52,7 +52,7 @@ mlir-translate \
 build_cvimodel.py \
     --cmdbuf cmdbuf_lw_memopt.bin \
     --weight weight_int8_multiplier.bin \
-    --mlir ${NET}_quant_int8_multiplier_tl_lw.mlir \
+    --mlir ${NET}_quant_int8_multiplier_tl_lw_memopt.mlir \
     --output=${NET}_int8_lw_memopt.cvimodel
 
 model_runner \
@@ -69,10 +69,9 @@ if [ $COMPARE_ALL -eq 1 ]; then
       --op_info ${NET}_op_info_int8_multiplier.csv
 fi
 
-if [ ! -z $CVIMODEL_REL_PATH -a -d $CVIMODEL_REL_PATH ]; then
-  # mv ${NET}_int8_la.cvimodel $CVIMODEL_REL_PATH
-  mv ${NET}_cmdbuf_out_all_int8_lw_memopt.cvimodel $CVIMODEL_REL_PATH
-fi
+# if [ ! -z $CVIMODEL_REL_PATH -a -d $CVIMODEL_REL_PATH ]; then
+#   mv ${NET}_int8_lw_memopt.cvimodel $CVIMODEL_REL_PATH
+# fi
 
 # VERDICT
 echo $0 PASSED

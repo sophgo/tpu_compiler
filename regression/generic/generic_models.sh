@@ -18,7 +18,7 @@ export DO_CMDBUF_INT8=1
 export DO_QUANT_BF16=1
 export DO_CMDBUF_BF16=1
 export DO_DEEPFUSION=1
-export DO_MEMOPT=0
+export DO_MEMOPT=1
 export DO_LAYERGROUP=0
 export DO_QUANT_MIX=0
 export DO_ACCURACY_CAFFE=1
@@ -271,7 +271,7 @@ export DO_QUANT_BF16=0
 fi
 
 if [ $NET = "ssd300" ]; then
-export MODEL_DEF=$REGRESSION_PATH/ssd300/data/deploy_tpu.prototxt
+export MODEL_DEF=$MODEL_PATH/object_detection/ssd/caffe/ssd300/deploy_tpu.prototxt
 # export MODEL_DEF=$MODEL_PATH/object_detection/ssd/caffe/ssd300/deploy.prototxt
 export MODEL_DAT=$MODEL_PATH/object_detection/ssd/caffe/ssd300/VGG_coco_SSD_300x300_iter_400000.caffemodel
 export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_caffe/regression_${NET}_0_caffe.sh

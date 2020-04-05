@@ -209,6 +209,8 @@ mkdir -p $INSTALL_PATH/regression
 cp -a $MLIR_SRC_PATH/regression/generic $INSTALL_PATH/regression/
 cp -a $MLIR_SRC_PATH/regression/parallel $INSTALL_PATH/regression/
 cp -a $MLIR_SRC_PATH/regression/data $INSTALL_PATH/regression/
+cp -a $MLIR_SRC_PATH/regression/convert_model_caffe.sh $INSTALL_PATH/regression/
+cp -a $MLIR_SRC_PATH/regression/generate_all_cvimodels.sh $INSTALL_PATH/regression/
 # install env script
 cp $MLIR_SRC_PATH/cvitek_envs.sh $INSTALL_PATH/
 fi

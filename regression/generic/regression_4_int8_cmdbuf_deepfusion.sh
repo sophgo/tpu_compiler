@@ -130,10 +130,9 @@ if [ $COMPARE_ALL -eq 1 ]; then
       --op_info ${NET}_op_info_int8_multiplier.csv
 fi
 
-if [ ! -z $CVIMODEL_REL_PATH -a -d $CVIMODEL_REL_PATH ]; then
-  # mv ${NET}_int8_la.cvimodel $CVIMODEL_REL_PATH
-  mv ${NET}_int8_lw.cvimodel $CVIMODEL_REL_PATH
-fi
+# if [ ! -z $CVIMODEL_REL_PATH -a -d $CVIMODEL_REL_PATH ]; then
+#   mv ${NET}_int8_lw.cvimodel $CVIMODEL_REL_PATH
+# fi
 
 # VERDICT
 echo $0 PASSED

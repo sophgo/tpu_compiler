@@ -54,15 +54,15 @@ struct TpuTG2TLConv2DOpPattern : public RewritePattern {
 
     uint64_t totalPerLane = SimpleConv2DMemoryUsageAnalysis(op, nullptr);
     if (totalPerLane > MInfo::lmem_per_lane) {
-      llvm::errs() << "TG2TL_LA: " << op.name()
+      LLVM_DEBUG(llvm::errs() << "TG2TL_LA: " << op.name()
                    << ", layer ID " << op.layer_id()
                    << ", SKIP, lmem " << totalPerLane
-                   << " needed\n";
+                   << " needed\n";);
       return matchFailure();
     }
 
-    llvm::errs() << "TG2TL_LA: " << op.name()
-                 << ", layer ID " << op.layer_id() << "\n";
+    LLVM_DEBUG(llvm::errs() << "TG2TL_LA: " << op.name()
+                 << ", layer ID " << op.layer_id() << "\n";);
 
     // break leaky relu fuse
     if (opInst->getResult(0)->hasOneUse()) {
@@ -107,16 +107,16 @@ struct TpuTG2TLElewiseAddOpPattern : public RewritePattern {
 
     uint64_t totalPerLane = SimpleEltwiseAddMemoryUsageAnalysis(op, nullptr);
     if (totalPerLane > MInfo::lmem_per_lane) {
-      llvm::errs() << "TG2TL_LA: " << op.name()
+      LLVM_DEBUG(llvm::errs() << "TG2TL_LA: " << op.name()
                    << ", layer ID " << op.layer_id()
                    << ", SKIP, lmem " << totalPerLane
-                   << " needed\n";
+                   << " needed\n";);
       return matchFailure();
     }
 
     if (1) {
-      llvm::errs() << "TG2TL_LA: " << op.name()
-                   << ", layer ID " << op.layer_id() << "\n";
+      LLVM_DEBUG(llvm::errs() << "TG2TL_LA: " << op.name()
+                   << ", layer ID " << op.layer_id() << "\n";);
 
       assert(op.getNumOperands() == 2);
       std::vector<Value *> newOperands;

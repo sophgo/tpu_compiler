@@ -1,6 +1,19 @@
 #!/bin/bash
 set -e
 
+usage()
+{
+   echo ""
+   echo "Usage: $0 prototxt caffemodel batch_size cali_table out.cvimodel"
+   exit 1
+}
+
+if [[ $# -ne 5 ]]; then
+    echo "Illegal number of parameters"
+    usage
+    exit 2
+fi
+
 ONE=1
 
 if [ $ONE -eq 1 ]; then
@@ -39,18 +52,31 @@ mlir-opt \
 mlir-opt \
     --deep-fusion-tg2tl-la | \
 mlir-opt \
-    --deep-fusion-tl-la2lw \
-    -o int8_tl_lw.mlir
+    --deep-fusion-tl-la2lw | \
+mlir-opt \
+    --convert-func-to-memref | \
+mlir-opt \
+    --convert-tg-op-to-memref | \
+mlir-opt \
+    --enable-reuse-global-memory=true \
+    --assign-neuron-address-memref \
+    --tpu-neuron-address-align-memref=16 \
+    --tpu-neuron-map-filename-memref=neuron_map_memopt.csv | \
+mlir-opt \
+    --convert-tg-op-to-tensor | \
+mlir-opt \
+    --convert-func-to-tensor \
+    -o int8_tl_lw_memopt.mlir
 
 mlir-translate \
-    int8_tl_lw.mlir \
+    int8_tl_lw_memopt.mlir \
     --mlir-to-cmdbuf \
     -o cmdbuf.bin
 
 build_cvimodel.py \
     --cmdbuf cmdbuf.bin \
     --weight weight.bin \
-    --mlir int8_tl_lw.mlir \
+    --mlir int8_tl_lw_memopt.mlir \
     --output=$5
 
 else

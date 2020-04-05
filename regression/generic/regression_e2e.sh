@@ -15,15 +15,17 @@ model_runner \
     --input ${NET}_in_fp32.npz \
     --model ${NET}.cvimodel \
     --batch-num $BATCH_SIZE \
-    --output ${NET}_cmdbuf_out_all.npz
+    --output ${NET}_out_all.npz
 
 cvi_npz_tool.py compare \
-    ${NET}_cmdbuf_out_all.npz \
+    ${NET}_out_all.npz \
     ${NET}_tensor_all_int8_multiplier.npz \
     --op_info op_info_int8.csv
 
 if [ ! -z $CVIMODEL_REL_PATH -a -d $CVIMODEL_REL_PATH ]; then
+  cp ${NET}_in_fp32.npz $CVIMODEL_REL_PATH
   mv ${NET}.cvimodel $CVIMODEL_REL_PATH
+  cp ${NET}_out_all.npz $CVIMODEL_REL_PATH
 fi
 
 # VERDICT

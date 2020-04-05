@@ -161,11 +161,11 @@ if [ $DO_QUANT_INT8_MULTIPLER -eq 1 ]; then
       ${NET}_tensor_all_int8_multiplier.npz \
       --op_info ${NET}_op_info_int8_multiplier.csv
 
-  if [ ! -z $CVIMODEL_REL_PATH -a -d $CVIMODEL_REL_PATH ]; then
-    cp ${NET}_in_fp32.npz $CVIMODEL_REL_PATH
-    mv ${NET}_int8_multiplier.cvimodel $CVIMODEL_REL_PATH
-    cp ${NET}_cmdbuf_out_all_int8_multiplier.npz $CVIMODEL_REL_PATH
-  fi
+  # if [ ! -z $CVIMODEL_REL_PATH -a -d $CVIMODEL_REL_PATH ]; then
+  #   cp ${NET}_in_fp32.npz $CVIMODEL_REL_PATH
+  #   mv ${NET}_int8_multiplier.cvimodel $CVIMODEL_REL_PATH
+  #   cp ${NET}_cmdbuf_out_all_int8_multiplier.npz $CVIMODEL_REL_PATH
+  # fi
 
 fi
 

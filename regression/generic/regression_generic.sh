@@ -14,7 +14,7 @@ if [ ! -e $NET ]; then
 fi
 
 if [ -z "$CVIMODEL_REL_PATH" ]; then
-  CVIMODEL_REL_PATH=$PWD/cvimodel_out
+  CVIMODEL_REL_PATH=$PWD/cvimodel_regression
 fi
 export CVIMODEL_REL_PATH=$CVIMODEL_REL_PATH
 if [ ! -e $CVIMODEL_REL_PATH ]; then

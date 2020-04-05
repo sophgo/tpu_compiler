@@ -74,7 +74,7 @@ if [ -z "$bs" ]; then
 fi
 
 if [ ! -z "$net" ]; then
-  export CVIMODEL_REL_PATH=$PWD/cvimodel_out
+  export CVIMODEL_REL_PATH=$PWD/cvimodel_regression
   if [ ! -e $CVIMODEL_REL_PATH ]; then
     mkdir $CVIMODEL_REL_PATH
   fi

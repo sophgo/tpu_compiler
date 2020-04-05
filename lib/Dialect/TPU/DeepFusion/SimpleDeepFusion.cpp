@@ -54,29 +54,31 @@ public:
   ~DeepFusionSimpleStats() = default;
 
   void dump(void) {
-    llvm::errs() << "Total MAC Count: " << totalMacCount << "\n";
-    for (auto it = chains.begin(); it != chains.end(); ++it) {
-      llvm::errs() << "Chain: size = " << (*it)->size() << "\n";
-      for (auto v = (*it)->begin(); v != (*it)->end(); ++v) {
-        auto opInst = (*v)->getDefiningOp();
-        if (auto op = dyn_cast<mlir::tpu::TG_INT8_PC_Conv2DOp>(opInst)) {
-          llvm::errs() << "  " << op.name() << "\n";
-        } else if (auto op = dyn_cast<mlir::tpu::TG_INT8_PC_DeConv2DOp>(opInst)) {
-          llvm::errs() << "  " << op.name() << "\n";
-        } else if (auto op = dyn_cast<mlir::tpu::TG_INT8_PoolAvg2DOp>(opInst)) {
-          llvm::errs() << "  " << op.name() << "\n";
-        } else if (auto op = dyn_cast<mlir::tpu::TG_INT8_PoolMax2DOp>(opInst)) {
-          llvm::errs() << "  " << op.name() << "\n";
-        } else if (auto op = dyn_cast<mlir::tpu::TG_INT8_FullyConnectedOp>(opInst)) {
-          llvm::errs() << "  " << op.name() << "\n";
-        } else if (auto op = dyn_cast<tpu::TG_INT8_LeakyReluOp>(opInst)) {
-          llvm::errs() << "  " << op.name() << "\n";
-        } else {
-          llvm::errs() << "assert: "  << opInst->getName() << "\n";
-          assert(0);
+    LLVM_DEBUG(
+      llvm::errs() << "Total MAC Count: " << totalMacCount << "\n";
+      for (auto it = chains.begin(); it != chains.end(); ++it) {
+        llvm::errs() << "Chain: size = " << (*it)->size() << "\n";
+        for (auto v = (*it)->begin(); v != (*it)->end(); ++v) {
+          auto opInst = (*v)->getDefiningOp();
+          if (auto op = dyn_cast<mlir::tpu::TG_INT8_PC_Conv2DOp>(opInst)) {
+            llvm::errs() << "  " << op.name() << "\n";
+          } else if (auto op = dyn_cast<mlir::tpu::TG_INT8_PC_DeConv2DOp>(opInst)) {
+            llvm::errs() << "  " << op.name() << "\n";
+          } else if (auto op = dyn_cast<mlir::tpu::TG_INT8_PoolAvg2DOp>(opInst)) {
+            llvm::errs() << "  " << op.name() << "\n";
+          } else if (auto op = dyn_cast<mlir::tpu::TG_INT8_PoolMax2DOp>(opInst)) {
+            llvm::errs() << "  " << op.name() << "\n";
+          } else if (auto op = dyn_cast<mlir::tpu::TG_INT8_FullyConnectedOp>(opInst)) {
+            llvm::errs() << "  " << op.name() << "\n";
+          } else if (auto op = dyn_cast<tpu::TG_INT8_LeakyReluOp>(opInst)) {
+            llvm::errs() << "  " << op.name() << "\n";
+          } else {
+            llvm::errs() << "assert: "  << opInst->getName() << "\n";
+            assert(0);
+          }
         }
       }
-    }
+    );
   }
 
   void pushChain(Value *op) {

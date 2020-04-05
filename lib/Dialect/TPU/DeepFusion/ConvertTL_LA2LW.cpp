@@ -58,8 +58,8 @@ struct TpuTL_LA_Conv2DOpPattern : public RewritePattern {
                    n, ic, ih, iw, oc, oh, ow, g,
                    kh, kw, sh, sw, ph, pw, dh, dw, is_dw, with_bias, do_relu);
 
-    llvm::errs() << "TL_LA2LW: layer ID " << op.layer_id()
-                 << ", convert to LW\n";
+    LLVM_DEBUG(llvm::errs() << "TL_LA2LW: layer ID " << op.layer_id()
+                 << ", convert to LW\n";);
 
     assert(op.getNumOperands() == 3);
     std::vector<Value *> newOperands;
@@ -158,9 +158,9 @@ struct TpuTL_LW_Conv2DOp_MarkShortPathPattern : public RewritePattern {
     }
 
     if (!op.getResult()->hasOneUse()) {
-      llvm::errs() << "TL_LA2LW: layer ID " << op.layer_id()
+      LLVM_DEBUG(llvm::errs() << "TL_LA2LW: layer ID " << op.layer_id()
                  << ", Conv2D " << op.name()
-                 << " has more than one Use " << op.getResult()->hasOneUse() << "\n";
+                 << " has more than one Use " << op.getResult()->hasOneUse() << "\n";);
       op.setAttr("in_short_path", rewriter.getBoolAttr(false));
       return matchSuccess();
     }
@@ -206,9 +206,9 @@ struct TpuTL_LW_Conv2DOp_AssignLayoutPattern : public RewritePattern {
     }
 
     if (!op.getResult()->hasOneUse()) {
-      llvm::errs() << "TL_LA2LW: layer ID " << op.layer_id()
+      LLVM_DEBUG(llvm::errs() << "TL_LA2LW: layer ID " << op.layer_id()
                  << ", Conv2D " << op.name()
-                 << " has more than one Use " << op.getResult()->hasOneUse() << "\n";
+                 << " has more than one Use " << op.getResult()->hasOneUse() << "\n";);
       std::vector<Operation *> conv_ops;
       std::vector<Operation *> elta_ops;
       for (auto &use : op.getResult()->getUses()) {
@@ -330,8 +330,8 @@ struct TpuTL_LW_Conv2DOp_AssignLayoutPattern : public RewritePattern {
       op.setAttr("lm_layout", rewriter.getStringAttr("IWO"));
     }
 
-    llvm::errs() << "TL_LA2LW: layer ID " << op.layer_id()
-                 << ", Conv LM_LAYOUT " << op.lm_layout() << "\n";
+    LLVM_DEBUG(llvm::errs() << "TL_LA2LW: layer ID " << op.layer_id()
+                 << ", Conv LM_LAYOUT " << op.lm_layout() << "\n";);
     return matchSuccess();
   }
 };
@@ -470,11 +470,11 @@ struct TpuTL_EltwiseAddOp_AssignLayoutPattern : public RewritePattern {
         assert(0);
       }
     }
-    llvm::errs() << "TL_LA2LW: layer ID " << op.layer_id()
+    LLVM_DEBUG(llvm::errs() << "TL_LA2LW: layer ID " << op.layer_id()
                  << ", EltA LM_LAYOUT " << op.lm_layout()
                  << ", LD " << op.tl_load_flag()
                  << ", ST " << op.tl_store_flag()
-                 << "\n";
+                 << "\n";);
 
     return matchSuccess();
   }
@@ -535,12 +535,12 @@ struct TpuTL_LW_Conv2DOp_AssignLAddrPattern : public RewritePattern {
         assert(0);
       }
 
-      llvm::errs() << "TL_LA2LW: layer ID " << op.layer_id()
+      LLVM_DEBUG(llvm::errs() << "TL_LA2LW: layer ID " << op.layer_id()
                    << ", Conv, " << op.lm_layout()
                    << ", la_i=" << op.la_input()
                    << ", la_o=" << op.la_output()
                    << ", la_w=" << op.la_working()
-                   <<"\n";
+                   <<"\n";);
 
       return matchSuccess();
     }
@@ -590,12 +590,12 @@ struct TpuTL_EltwiseAddOp_AssignLAddrPattern : public RewritePattern {
         assert(0);
       }
 
-      llvm::errs() << "TL_LA2LW: layer ID " << op.layer_id()
+      LLVM_DEBUG(llvm::errs() << "TL_LA2LW: layer ID " << op.layer_id()
                    << ", EltA, " << op.lm_layout()
                    << ", la_i=" << op.la_input()
                    << ", la_o=" << op.la_output()
                    << ", la_w=" << op.la_working()
-                   <<"\n";
+                   <<"\n";);
 
       return matchSuccess();
     }
