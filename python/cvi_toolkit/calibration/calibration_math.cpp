@@ -320,7 +320,7 @@ float real_multi_thread_kl_diversity_hist(int *data, float &width, const long lo
 
   long long m_min = the_min_index(kl, m);
   float threshold = width * (m_min + 1) * BINS;
-  printf("  threshold: %f, m: %lld, kl: %f, width: %f\n", threshold, m_min, kl[m_min], width);
+  // printf("  threshold: %f, m: %lld, kl: %f, width: %f\n", threshold, m_min, kl[m_min], width);
 
   delete[] hist;
   delete[] kl;
