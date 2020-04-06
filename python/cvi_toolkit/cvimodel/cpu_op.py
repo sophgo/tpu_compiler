@@ -3,6 +3,7 @@ from cvi.cpu_op.Softmax import *
 from cvi.cpu_op.Quantization import *
 from cvi.cpu_op.RetinaFaceDetection import *
 from cvi.cpu_op.Preprocess import *
+from cvi.cpu_op.SSDDetection import *
 from cvi.cpu_op.YoloDetection import *
 from cvi.cpu_op.IntAttr import *
 from cvi.cpu_op.FloatAttr import *

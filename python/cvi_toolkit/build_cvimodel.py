@@ -319,16 +319,30 @@ class CVIModel:
       f.write(header)
       f.write(payload)
 
+  def __build_dim_vector(self, dims):
+    cm.ShapeStartDimVector(self.builder, len(dims))
+    for dim in reversed(dims):
+      self.builder.PrependInt64(dim)
+    shape_dim = self.builder.EndVector(len(dims))
+    cm.ShapeStart(self.builder)
+    cm.ShapeAddDim(self.builder, shape_dim)
+    return cm.ShapeEnd(self.builder)
+
   def __build_weight_map(self):
     weight_map = []
     for tensor in self.mlir.tensor_map.values():
       if not tensor.is_weight:
         continue
       name = self.builder.CreateString(tensor.name)
+      n,c,h,w = tensor.shape
+      tensor_shape = self.__build_dim_vector((n, c, h, w))
+      tensor_type = dtype_map[tensor.dtype]
       cm.WeightStart(self.builder)
       cm.WeightAddName(self.builder, name)
       cm.WeightAddOffset(self.builder, tensor.offset)
-      cm.WeightAddSize(self.builder, 0)
+      cm.WeightAddShape(self.builder, tensor_shape)
+      cm.WeightAddType(self.builder, tensor_type)
+      cm.WeightAddSize(self.builder, n*c*h*w)
       weight_map.append(cm.WeightEnd(self.builder))
     cm.ModelStartWeightMapVector(self.builder, len(weight_map))
     for w in reversed(weight_map):

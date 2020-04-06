@@ -113,7 +113,7 @@ struct TpuConvertLoadeweightConcatToLoadweightPattern : public RewritePattern {
   wTF->addTensor<float>(tensor_name, &resultT, type);
   std::vector<NamedAttribute> attrs;
   attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(tensor_name)));
-  attrs.push_back(rewriter.getNamedAttr("storage", rewriter.getStringAttr("NONE")));
+  attrs.push_back(rewriter.getNamedAttr("storage", rewriter.getStringAttr("FP32")));
   auto new_weight_op = rewriter.create<tpu::LoadWeightOp>(loc, type,
        ArrayRef<Value *>{wfV}, ArrayRef<NamedAttribute>{attrs});
 

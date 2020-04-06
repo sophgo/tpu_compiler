@@ -98,6 +98,19 @@ def show_programs(model):
             print(_str)
 
 
+def show_weight_map(model):
+    print("\nWeightMap")
+    print("    {:<5}{:<12}{:<6}{:<16}{:<16}{}".format(
+            'ID', 'OFFSET', 'SIZE', 'TYPE', 'SHAPE', 'NAME'))
+    for i in range(model.WeightMapLength()):
+        weight = model.WeightMap(i);
+        shape = [str(weight.Shape().Dim(k))
+                     for k in range(weight.Shape().DimLength())]
+        print("    {:<5}{:<12}{:<6}{:<16}{:<16}{}".format(
+                  i, weight.Offset(), weight.Size(), dtype_map[weight.Type()],
+                  ','.join(shape), weight.Name().decode()))
+
+
 def extract_programs(model, binary_buf, output_prefix):
     sections = {}
     for i in range(model.SectionsLength()):
@@ -178,6 +191,7 @@ if __name__ == '__main__':
     model, binary_buf = load_model(args.model_file)
     show_model_sections(model, binary_buf)
     show_programs(model)
+    show_weight_map(model)
     if args.extract:
         output_prefix = os.path.splitext(args.model_file)[0]
         extract_programs(model, binary_buf, output_prefix)

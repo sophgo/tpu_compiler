@@ -9,6 +9,7 @@ from collections import OrderedDict
 
 
 cpu_ops = (
+    'detectionoutput',
     'softmax',
     'quant',
     'retinaface_detection',
@@ -78,6 +79,23 @@ def preprocessArgsSerialize(attributes):
     if 'raw_scale' in attributes:
         cpu_op.PreprocessAddRawScale(builder, attributes['raw_scale'])
     args = cpu_op.PreprocessEnd(builder)
+    builder.Finish(args)
+    return bytearray(builder.Output())
+
+
+def ssdArgsSerialize(attributes):
+    builder = flatbuffers.Builder(0)
+    code_type = builder.CreateString(attributes['code_type'])
+    cpu_op.SSDDetectionStart(builder)
+    cpu_op.SSDDetectionAddNumClasses(builder, float(attributes['num_classes']))
+    cpu_op.SSDDetectionAddShareLocation(builder, bool(attributes['share_location']))
+    cpu_op.SSDDetectionAddBackgroundLabelId(builder, int(attributes['background_label_id']))
+    cpu_op.SSDDetectionAddCodeType(builder, code_type)
+    cpu_op.SSDDetectionAddTopK(builder, float(attributes['top_k']))
+    cpu_op.SSDDetectionAddNmsThreshold(builder, float(attributes['nms_threshold']))
+    cpu_op.SSDDetectionAddObjThreshold(builder, float(attributes['confidence_threshold']))
+    cpu_op.SSDDetectionAddKeepTopk(builder, int(attributes['keep_top_k']))
+    args = cpu_op.SSDDetectionEnd(builder)
     builder.Finish(args)
     return bytearray(builder.Output())
 
@@ -241,6 +259,8 @@ class Op:
             return retinafaceArgsSerialize(attributes)
         elif type == 'preprocess':
             return preprocessArgsSerialize(attributes)
+        elif type == 'detectionoutput':
+            return ssdArgsSerialize(attributes)
         elif type == 'yolo_detection':
             return yoloArgsSerialize(attributes)
         elif type == 'generic_cpu':
@@ -276,6 +296,9 @@ class Function:
         for op in ops:
             for input in op.inputs:
                 self.consumers.add(input)
+                if self.cpu_function and op.weights:
+                    for weight in op.weights:
+                        self.consumers.add(weight)
             self.producers.add(op.output)
         self.inputs = self.consumers - self.producers
         self.outputs = self.producers - self.consumers
