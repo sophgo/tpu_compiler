@@ -64,7 +64,7 @@ class preprocess(object):
         image = cv2.imread(str(input_file).rstrip())
         if image is None:
             print("not existed {}".format(str(input_file).rstrip()))
-            return -1
+            return None
         image = image.astype(np.float32)
         if pfunc is not None:
             output = pfunc(image)
@@ -125,7 +125,6 @@ class preprocess(object):
 
 
             output = np.expand_dims(x, axis=0)
-
         if output_npz:
             # Must convert to npz file as input
             np.savez(output_npz, **{input_name if input_name else "input": output})

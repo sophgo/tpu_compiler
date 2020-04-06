@@ -78,7 +78,6 @@ setuptools.setup(
     },
     data_files=[
         ('lib', so_lib),
-        ('lib', a_lib),
         ('lib/python{}'.format(python_version), py_so_lib),
         ('lib', mkldnn_lib),
         ('bin', cvi_bin),
