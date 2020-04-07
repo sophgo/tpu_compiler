@@ -1,4 +1,6 @@
 from .base_model import model_base
+import os
+os.environ['GLOG_minloglevel'] = '3'
 import caffe
 import numpy as np
 
@@ -20,14 +22,9 @@ class CaffeModel(model_base):
 
         blobs_dict = {}
         for name, layer in self.net.layer_dict.items():
-            print("layer : " + str(name))
-            print("  type = " + str(layer.type))
-            print("  top -> " + str(self.net.top_names[name]))
             if layer.type == "Split":
-                print("  skip Split")
                 continue
             if layer.type == "Slice":
-                print(" skip Slice")
                 continue
             assert(len(self.net.top_names[name]) == 1)
             if layer.type == "Input":

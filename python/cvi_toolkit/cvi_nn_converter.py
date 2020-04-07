@@ -1,7 +1,22 @@
 #!/usr/bin/python3
-import yaml
 import sys, re, os
+import yaml
 import argparse
+import site
+
+if os.environ.get('LD_LIBRARY_PATH', None) is None:
+    os.environ['LD_LIBRARY_PATH'] = "{}/lib".format(sys.prefix) + ':' + "{}/lib".format(site.USER_BASE)
+    print("Setting LD_LIBRARY_PATH {}".format(os.environ['LD_LIBRARY_PATH']))
+else:
+    if not sys.prefix in os.environ['LD_LIBRARY_PATH'] or not site.USER_BASE in os.environ['LD_LIBRARY_PATH']:
+        os.environ['LD_LIBRARY_PATH'] += ':' + "{}/lib".format(sys.prefix) + ':' + "{}/lib".format(site.USER_BASE)
+
+        try:
+            os.execv(sys.argv[0], sys.argv)
+        except Exception as e:
+            sys.exit('EXCEPTION: Failed to Execute under modified environment, ' + e)
+
+
 from cvi_toolkit import cvinn, preprocess
 from cvi_toolkit.numpy_helper import npz_extract, npz_rename
 from cvi_toolkit import cvi_data
@@ -9,12 +24,6 @@ net = cvinn()
 cvi_data_tool = cvi_data()
 preprocessor = preprocess()
 
-# close caffe glog
-os.environ['GLOG_minloglevel'] = "2"
-os.environ['GLOG_log_dir'] = "."
-os.environ['GLOG_logbufsecs'] = "1"
-os.environ['GLOG_logtostderr']="0"
-os.environ['GLOG_stderrthreshold'] = "3"
 
 
 def parse(config: dict):
