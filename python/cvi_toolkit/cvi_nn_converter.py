@@ -18,11 +18,6 @@ else:
     if not sys.prefix in os.environ['LD_LIBRARY_PATH'] or not site.USER_BASE in os.environ['LD_LIBRARY_PATH']:
         os.environ['LD_LIBRARY_PATH'] += ':' + "{}/lib".format(sys.prefix) + ':' + "{}/lib".format(site.USER_BASE)
 
-        try:
-            os.execv(sys.argv[0], sys.argv)
-        except Exception as e:
-            sys.exit('EXCEPTION: Failed to Execute under modified environment, ' + e)
-
 
 from cvi_toolkit import cvinn, preprocess
 from cvi_toolkit.numpy_helper import npz_extract, npz_rename
@@ -156,14 +151,15 @@ def parse(config: dict):
 
     if Calibration:
         dataset_file = Calibration.get("Dataset")
-        calibraion_table_in = Calibration.get("calibraion_table")
-
+        calibraion_table_in = Calibration.get("calibraion_table", None)
+        auto_tune = Calibration.get("auto_tune", False)
         if calibraion_table_in != None :  # use calibration_table directly.
             calibraion_table = calibraion_table_in
-        else :  #do calibration
+        else :
+            # if no callibration table do calibration
             image_num = Calibration.get("image_num", 1)
             histogram_bin_num = Calibration.get("histogram_bin_num", 2048)
-            net.calibration(fp32_mlirfile, dataset_file, calibraion_table, preprocessor.run,image_num,histogram_bin_num)
+            net.calibration(fp32_mlirfile, dataset_file, calibraion_table, preprocessor.run,image_num, histogram_bin_num, auto_tune=auto_tune)
     else:
         logger.error("No Calibration in yml!")
         exit(-1)

@@ -48,6 +48,7 @@ Calibration:
     #How many images you want to use to do calibration, if more the num if Dataset, Dataset num will be used
     image_num: 1000
     histogram_bin_num: 204800
+    auto_tune: False
 
 #step3: do quantization
 Quantization:
