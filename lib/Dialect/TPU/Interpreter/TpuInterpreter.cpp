@@ -365,10 +365,10 @@ LogicalResult doConv2DOpInterpret(Operation *op,
   if (!is_deconv) {
 #ifdef USE_GPU
     int ret;
-    llvm::errs() << "  k: (" << kh << "*" << kw << "), "
+    LLVM_DEBUG(llvm::errs() << "  k: (" << kh << "*" << kw << "), "
                  << "s: (" << sh << "*" << sw << "), "
                  << "p: (" << ph << "*" << pw << "), "
-                 << "g: " << g << "\n";
+                 << "g: " << g << "\n";);
     if (dm == DeviceMode::GPU) {
 
       ret = gpu_conv(input->data(), filter->data(),
