@@ -8,7 +8,11 @@ import cv2
 import numpy as np
 import sys, os, copy, math
 import pymlir
+import logging
 from ctypes import *
+
+logger = logging.getLogger(__name__)
+
 
 def is_all_zero(data):
     for num in data:
@@ -81,8 +85,7 @@ class KLD_Calibrator(object):
         width_hist = {}
         idx = 0
         for line in self.all_lines:
-            print('Generating histogram at iteration: ', str(idx))
-
+            # print('Generating histogram at iteration: ', str(idx))
             x = self.preprocess_func(line, self.args)
             _ = self.module.run(x)
             data = self.module.get_all_tensor()
@@ -143,7 +146,7 @@ class KLD_Calibrator_v2(object):
             self.all_lines = fp.readlines()
 
         if len(self.all_lines) == 0:
-            print("ERROR: No calibration data detect."
+            logger.error("No calibration data detect."
                   " Please check the input file: {}".format(image_list_file))
             exit(-1)
 
@@ -166,12 +169,12 @@ class KLD_Calibrator_v2(object):
         data_max = {}
         idx = 0
         for line in self.all_lines:
-            print('Calculating max at iteration: ', str(idx))
+            logger.debug('Calculating max at iteration: ', str(idx))
 
             x = self.preprocess_func(line.rstrip())
             self.model.inference(x)
             data = self.model.get_all_tensor()
-            print(line)
+            logger.debug(line)
             for item in data:
                 if item not in data_max:
                     data_max[item] = 0
@@ -195,7 +198,7 @@ class KLD_Calibrator_v2(object):
         width_hist = {}
         idx = 0
         for line in self.all_lines:
-            print('Generating histogram at iteration: ', str(idx))
+            logger.debug('Generating histogram at iteration: ', str(idx))
 
             x = self.preprocess_func(line)
             _ = self.model.inference(x)

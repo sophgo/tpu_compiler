@@ -3,10 +3,17 @@ import sys, re, os
 import yaml
 import argparse
 import site
+import logging
+
+logging.basicConfig(level=logging.INFO,
+                    datefmt='%Y/%m/%d %H:%M:%S',
+                    format='%(asctime)s-%(name)s-%(levelname)s-%(filename)s:%(lineno)d\n->%(message)s')
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 if os.environ.get('LD_LIBRARY_PATH', None) is None:
     os.environ['LD_LIBRARY_PATH'] = "{}/lib".format(sys.prefix) + ':' + "{}/lib".format(site.USER_BASE)
-    print("Setting LD_LIBRARY_PATH {}".format(os.environ['LD_LIBRARY_PATH']))
+    logger.info("Setting LD_LIBRARY_PATH {}".format(os.environ['LD_LIBRARY_PATH']))
 else:
     if not sys.prefix in os.environ['LD_LIBRARY_PATH'] or not site.USER_BASE in os.environ['LD_LIBRARY_PATH']:
         os.environ['LD_LIBRARY_PATH'] += ':' + "{}/lib".format(sys.prefix) + ':' + "{}/lib".format(site.USER_BASE)
@@ -42,7 +49,7 @@ def parse(config: dict):
         try:
             net.convert_model(model_type, model_file, fp32_mlirfile, weight_file=weight_file, tpu_op_info=tpu_op_info)
         except RuntimeError as err:
-            print("RuntimeError {}".format(err))
+            logger.error("RuntimeError {}".format(err))
             exit(-1)
 
     else:
@@ -59,19 +66,19 @@ def parse(config: dict):
         mean_file = t.get('mean_file', None)
 
         if mean != None and channel_mean != None:
-            print("[Error]channel_mean and mean should not be set at the same time!")
+            logger.error("channel_mean and mean should not be set at the same time!")
             exit(-1)
         elif channel_mean != None:
             mean = channel_mean
 
         if mean != None and mean_file != None:
-            print("[Error]mean_file and mean value should not be set at the same time!")
+            logger.error("mean_file and mean value should not be set at the same time!")
             exit(-1)
 
         input_scale = t.get('input_scale', 1.0)
         net_input_dims = t.get('net_input_dims')
         if net_input_dims == None :
-            print("[Error]net_input_dims should be set in yml file !!")
+            logger.error("net_input_dims should be set in yml file !!")
             exit(-1)
 
         raw_scale = t.get('raw_scale', 255.0)
@@ -84,7 +91,7 @@ def parse(config: dict):
 
         input_file = t.get('input_file')
         if input_file == None :
-            print('[Error] Please set input file image in yml!')
+            logger.error('Please set input file image in yml!')
             exit(-1)
 
         output_npz = t['output_npz']
@@ -102,24 +109,26 @@ def parse(config: dict):
 
         ret = preprocessor.run(input_file, output_npz=output_npz)
         if ret is None:
-            print('preprocess image failed!')
+            logger.error('preprocess image failed!')
             exit(-1)
     else:
-        print('No data_preprocess in yml')
+        logger.error('No data_preprocess in yml')
         exit(-1)
 
     # inference with mlir framework
     input_npz = fp32_in_npz
+    logger.info("run mlir fp32 inference...")
     fp32_mlir_tensor_file = "{}_tensor_all_fp32.npz".format(model_name)
     output = net.inference('mlir', input_npz, mlirfile=fp32_mlirfile, model_file=model_file, weight_file=weight_file, all_tensors=fp32_mlir_tensor_file)
     if output is not None:
-        print("mlir fp32 inference finish")
+        logger.info("mlir fp32 inference finish")
 
     # inference with origin framework
     fp32_origin_tensor_file = "{}_{}_tensor_all_fp32.npz".format(model_name, model_type)
+    logger.info("run {} fp32 inference...".format(model_type))
     output = net.inference(model_type, input_npz, mlirfile=fp32_mlirfile, model_file=model_file, weight_file=weight_file, all_tensors=fp32_origin_tensor_file)
     if output is not None:
-        print("{} fp32 inference finish".format(model_type))
+        logger.info("{} fp32 inference finish".format(model_type))
 
     # accuracy fp32 test
     accuracy_test = config.get("Accuracy_test", None)
@@ -137,9 +146,9 @@ def parse(config: dict):
                 op_info=tpu_op_info,
                 excepts=excepts
                 )
-            print("compare fp32 finish!")
+            logger.info("compare fp32 finish!")
     else:
-        print("No FP32 interpreter accuracy test!")
+        logger.warning("No FP32 interpreter accuracy test!")
 
     calibraion_table = "{}_threshold_table".format(model_name)
     # Calibration
@@ -156,7 +165,7 @@ def parse(config: dict):
             histogram_bin_num = Calibration.get("histogram_bin_num", 2048)
             net.calibration(fp32_mlirfile, dataset_file, calibraion_table, preprocessor.run,image_num,histogram_bin_num)
     else:
-        print("[Error]No Calibration in yml!")
+        logger.error("No Calibration in yml!")
         exit(-1)
 
     # build cvi_model
@@ -170,7 +179,7 @@ def parse(config: dict):
 
         net.build_cvimodel(fp32_mlirfile, cvimodel, calibraion_table, mlirfile_int8=int8_mlirfile, quant_info=quant_tpu_op_info)
     else:
-        print("No cvimodel output_file")
+        logger.error("No cvimodel output_file")
         exit(-1)
 
     # Accuracy_test int8
@@ -178,7 +187,7 @@ def parse(config: dict):
     int8_mlir_tensor_file = "{}_tensor_all_int8.npz".format(model_name)
     output = net.inference('mlir', input_npz, mlirfile=int8_mlirfile, model_file=None, weight_file=None, all_tensors=int8_mlir_tensor_file)
     if output is not None:
-        print("mlir int8 inference finish")
+        logger.info("mlir int8 inference finish")
 
     int8_acc_test = accuracy_test.get("INT8_Accuracy_test", False)
     if int8_acc_test:
@@ -192,11 +201,11 @@ def parse(config: dict):
             op_info=quant_tpu_op_info,
             dequant=True,
             excepts=excepts,
-            verbose=2
+            verbose=0
             )
-        print("compare INT8 interpreter result finish!")
+        logger.info("compare INT8 interpreter result finish!")
     else :
-        print("No INT8 interpreter accuracy test!")
+        logger.error("No INT8 interpreter accuracy test!")
 
     Simulation = config.get("Simulation", None)
     if Simulation:
@@ -207,9 +216,10 @@ def parse(config: dict):
         # compare with interprter
         cvi_data_tool.npz_compare(simulation_tensor, int8_mlir_tensor_file)
     else:
-        print("No Simulation")
+        logger.warning("No Simulation")
 
     # Clean
+    logger.info("cleanup...")
     net.cleanup()
 
 
@@ -226,7 +236,7 @@ def main():
             print(exc)
             exit(-1)
     parse(config)
-    print("End to end finish")
+    logger.info("End to end finish")
 
 
 if __name__ == "__main__":
