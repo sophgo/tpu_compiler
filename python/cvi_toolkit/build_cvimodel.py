@@ -105,15 +105,18 @@ class CpuRoutine(Routine):
 
   def build(self):
     tensor_input_list, tensor_output_list = self._build_inputs_outputs()
-    cm.CpuRoutineStartFunctionArgsVector(self.builder, len(self.func_args))
-    for _byte in reversed(self.func_args):
-      self.builder.PrependByte(_byte)
-    function_args = self.builder.EndVector(len(self.func_args))
+    function_args = None
+    if self.func_args:
+      cm.CpuRoutineStartFunctionArgsVector(self.builder, len(self.func_args))
+      for _byte in reversed(self.func_args):
+        self.builder.PrependByte(_byte)
+      function_args = self.builder.EndVector(len(self.func_args))
 
     function_name = self.builder.CreateString(self.name)
     cm.CpuRoutineStart(self.builder)
     cm.CpuRoutineAddFunctionSection(self.builder, function_name)
-    cm.CpuRoutineAddFunctionArgs(self.builder, function_args)
+    if function_args:
+      cm.CpuRoutineAddFunctionArgs(self.builder, function_args)
     cpu_routine = cm.CpuRoutineEnd(self.builder)
 
     cm.RoutineStart(self.builder)
@@ -248,6 +251,7 @@ class Program:
           if self.verbose:
             print('Warning, connot find {} so, use builtin functin instead.'.format(func.name))
           so = None
+        print("so", so)
         routine = CpuRoutine(self.builder, func.name, inputs, outputs, so, func.cpu_attr_serial)
       else:
         routine = TpuRoutine(self.builder, func.name, inputs, outputs, cmdbufs[idx])

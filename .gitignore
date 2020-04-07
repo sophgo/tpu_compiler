@@ -13,4 +13,5 @@
 *log
 *cache
 *.cmake
+*.tgz
 *.so

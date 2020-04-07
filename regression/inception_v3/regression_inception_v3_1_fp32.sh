@@ -27,6 +27,7 @@ mlir-opt \
 mlir-tpu-interpreter inception_v3.mlir \
     --tensor-in inception_v3_in_raw_fp32.npz \
     --tensor-out inception_v3_out_fp32.npz \
+    --customer-interpret-plugin ~/work/install_host/lib/cpu/CustomerInterpret.so \
     --dump-all-tensor=inception_v3_tensor_all_fp32.npz
 cvi_npz_tool.py compare inception_v3_out_fp32.npz inception_v3_out_fp32_prob.npz -v
 cvi_npz_tool.py compare \
@@ -50,6 +51,7 @@ mlir-opt \
 mlir-tpu-interpreter inception_v3_opt.mlir \
     --tensor-in inception_v3_in_raw_fp32.npz \
     --tensor-out inception_v3_opt_out_fp32.npz \
+    --customer-interpret-plugin ~/work/install_host/lib/cpu/CustomerInterpret.so \
     --dump-all-tensor=inception_v3_tensor_all_fp32.npz
 cvi_npz_tool.py compare inception_v3_opt_out_fp32.npz inception_v3_out_fp32_prob.npz -v
 cvi_npz_tool.py compare \

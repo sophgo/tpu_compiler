@@ -2385,20 +2385,27 @@ void CaffeImporter::insertPreprocessLayer(mlir::Block *block, mlir::Value *opd,
     }
   }
 
+  std::vector<NamedAttribute> param;
+  param.push_back(
+      builder_.getNamedAttr("scale", builder_.getF32FloatAttr(clPreprocessScale)));
+  param.push_back(
+      builder_.getNamedAttr("raw_scale", builder_.getF32FloatAttr(clPreprocessRawScale)));
+  if (mean.size()) {
+    param.push_back(
+        builder_.getNamedAttr("mean", builder_.getF32ArrayAttr(ArrayRef<float>({mean}))));
+  }
+  if (color_order.size()) {
+    param.push_back(builder_.getNamedAttr(
+        "color_order", builder_.getI32ArrayAttr(ArrayRef<int32_t>({color_order}))));
+  }
+
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(name)));
+  attrs.push_back(builder_.getNamedAttr("operation_name", builder_.getStringAttr("generic_preprocess")));
+  attrs.push_back(builder_.getNamedAttr("quantifiable", builder_.getBoolAttr(false)));
   attrs.push_back(builder_.getNamedAttr("quant", getDefaultQuantParam(builder_)));
-  attrs.push_back(
-      builder_.getNamedAttr("scale", builder_.getF32FloatAttr(clPreprocessScale)));
-  attrs.push_back(
-      builder_.getNamedAttr("raw_scale", builder_.getF32FloatAttr(clPreprocessRawScale)));
-  if (mean.size())
-    attrs.push_back(
-        builder_.getNamedAttr("mean", builder_.getF32ArrayAttr(ArrayRef<float>({mean}))));
-  if (color_order.size())
-    attrs.push_back(builder_.getNamedAttr(
-        "color_order", builder_.getI32ArrayAttr(ArrayRef<int32_t>({color_order}))));
-  auto op = OpBuilder(block).create<tpu::PreprocessOp>(
+  attrs.push_back(builder_.getNamedAttr("param", builder_.getDictionaryAttr(param)));
+  auto op = OpBuilder(block).create<tpu::GenericCpuOp>(
       builder_.getUnknownLoc(), result_type, ArrayRef<Value *>{operands},
       ArrayRef<NamedAttribute>{attrs});
   auto result_var = op.getResult();

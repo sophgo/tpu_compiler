@@ -45,8 +45,8 @@ using namespace mlir;
 namespace {
 
 template<typename OpTy>
-struct AssignGAddrTGInt8Pattern : public RewritePattern {
-  AssignGAddrTGInt8Pattern(MLIRContext *context,
+struct AssignGAddrPattern : public RewritePattern {
+  AssignGAddrPattern(MLIRContext *context,
       uint64_t *pos, llvm::raw_ostream &map_os, size_t alignment)
       : RewritePattern(OpTy::getOperationName(), 1, context),
         pos_(pos),
@@ -64,124 +64,25 @@ struct AssignGAddrTGInt8Pattern : public RewritePattern {
     auto curPos = *pos_;
     auto type = castOp.getResult()->getType().template cast<TensorType>();
     std::vector<int64_t> shape = type.getShape();
+    auto elementType = type.getElementType();
     auto count = std::accumulate(std::begin(shape), std::end(shape),
                                  1, std::multiplies<>());
-    size_t size;
+    uint32_t dtype_size;
     std::string dtype;
-    size = count * sizeof(int8_t);
-    dtype = "int8";
-
-    // pad to alignment
-    if (size % alignment_) {
-      size = size + alignment_ - (size % alignment_);
-    }
-    auto newPos = curPos + size;
-
-    LLVM_DEBUG(llvm::errs() << llvm::format("[%-36s][%8d] : [ ",
-                                 getOpName(op).str().c_str(), size)
-                 << llvm::format_hex(curPos, 10) << " --> "
-                 << llvm::format_hex(newPos, 10) << " ]\n";);
-    // expand to dims=4
-    while (shape.size() < 4)
-      shape.insert(shape.begin(), 1);
-    map_os_ << getOpName(op) << "," << llvm::format_hex(curPos, 10) << ","
-            << dtype << ","
-            << shape[0] << "," << shape[1] << ","
-            << shape[2] << "," << shape[3] << "\n";
-
-    setOpAddress(op, curPos);
-    *pos_ = newPos;
-
-    return matchSuccess();
-  }
-
-  uint64_t *pos_;
-  llvm::raw_ostream &map_os_;
-  size_t alignment_;
-};
-
-template<typename OpTy>
-struct AssignGAddrTGBf16Pattern : public RewritePattern {
-  AssignGAddrTGBf16Pattern(MLIRContext *context,
-      uint64_t *pos, llvm::raw_ostream &map_os, size_t alignment)
-      : RewritePattern(OpTy::getOperationName(), 1, context),
-        pos_(pos),
-        map_os_(map_os),
-        alignment_(alignment) {}
-
-  PatternMatchResult matchAndRewrite(Operation *op,
-                                     PatternRewriter &rewriter) const override {
-    auto castOp = cast<OpTy>(op);
-    if (castOp.gaddr().hasValue()) {
-      // assigned already
-      return matchFailure();
+    if (elementType.isF32()) {
+      dtype_size = sizeof(float);
+      dtype = "fp32";
+    } else if (elementType.isInteger(8)) {
+      dtype_size = sizeof(int8_t);
+      dtype = "int8";
+    } else if (elementType.isBF16()) {
+      dtype_size = sizeof(uint16_t);
+      dtype = "uint16";
+    } else {
+      assert(false);
     }
 
-    auto curPos = *pos_;
-    auto type = castOp.getResult()->getType().template cast<TensorType>();
-    std::vector<int64_t> shape = type.getShape();
-    auto count = std::accumulate(std::begin(shape), std::end(shape),
-                                 1, std::multiplies<>());
-    size_t size;
-    std::string dtype;
-    size = count * sizeof(uint16_t);
-    dtype = "uint16";
-
-    // pad to alignment
-    if (size % alignment_) {
-      size = size + alignment_ - (size % alignment_);
-    }
-    auto newPos = curPos + size;
-
-    LLVM_DEBUG(llvm::errs() << llvm::format("[%-36s][%8d] : [ ",
-                                 getOpName(op).str().c_str(), size)
-                 << llvm::format_hex(curPos, 10) << " --> "
-                 << llvm::format_hex(newPos, 10) << " ]\n";);
-    // expand to dims=4
-    while (shape.size() < 4)
-      shape.insert(shape.begin(), 1);
-    map_os_ << getOpName(op) << "," << llvm::format_hex(curPos, 10) << ","
-            << dtype << ","
-            << shape[0] << "," << shape[1] << ","
-            << shape[2] << "," << shape[3] << "\n";
-
-    setOpAddress(op, curPos);
-    *pos_ = newPos;
-
-    return matchSuccess();
-  }
-
-  uint64_t *pos_;
-  llvm::raw_ostream &map_os_;
-  size_t alignment_;
-};
-
-template<typename OpTy>
-struct AssignGAddrF32Pattern : public RewritePattern {
-  AssignGAddrF32Pattern(MLIRContext *context,
-      uint64_t *pos, llvm::raw_ostream &map_os, size_t alignment)
-      : RewritePattern(OpTy::getOperationName(), 1, context),
-        pos_(pos),
-        map_os_(map_os),
-        alignment_(alignment) {}
-
-  PatternMatchResult matchAndRewrite(Operation *op,
-                                     PatternRewriter &rewriter) const override {
-    auto castOp = cast<OpTy>(op);
-    if (castOp.gaddr().hasValue()) {
-      // assigned already
-      return matchFailure();
-    }
-
-    auto curPos = *pos_;
-    auto type = castOp.getResult()->getType().template cast<TensorType>();
-    std::vector<int64_t> shape = type.getShape();
-    auto count = std::accumulate(std::begin(shape), std::end(shape),
-                                 1, std::multiplies<>());
-    size_t size;
-    std::string dtype;
-    size = count * sizeof(float);
-    dtype = "f32";
+    size_t size = count * dtype_size;
 
     // pad to alignment
     if (size % alignment_) {
@@ -324,67 +225,57 @@ public:
     OwningRewritePatternList patterns;
     auto *context = &getContext();
 
-    // assigne InputOp first, as input has to be at address 0
-    // TODO: remove this constrain, input should be able to be any address
-    patterns.insert<
-        AssignGAddrF32Pattern<tpu::QuantOp>
-        >(context, &pos, neuronMapFile->os(), clNeuronAlignment);
-    applyPatternsGreedily(fn, patterns);
-
-    patterns.insert<
-        AssignGAddrTGInt8Pattern<tpu::TG_INT8_InputOp>,
-        AssignGAddrTGBf16Pattern<tpu::TG_BF16_InputOp>
-        >(context, &pos, neuronMapFile->os(), clNeuronAlignment);
-    applyPatternsGreedily(fn, patterns);
-
-    // assigne gaddr for TG Ops
+    // assigne gaddr for Ops
     patterns.clear();
     patterns.insert<
         // tg int8 ops
-        AssignGAddrTGInt8Pattern<tpu::TG_INT8_BroadcastMulOp>,
-        AssignGAddrTGInt8Pattern<tpu::TG_INT8_ConcatOp>,
-        AssignGAddrTGInt8Pattern<tpu::TG_INT8_PT_Conv2DOp>,
-        AssignGAddrTGInt8Pattern<tpu::TG_INT8_PC_Conv2DOp>,
-        AssignGAddrTGInt8Pattern<tpu::TG_INT8_CropOp>,
-        AssignGAddrTGInt8Pattern<tpu::TG_INT8_PT_DeConv2DOp>,
-        AssignGAddrTGInt8Pattern<tpu::TG_INT8_PC_DeConv2DOp>,
-        AssignGAddrTGInt8Pattern<tpu::TG_INT8_EltwiseAddOp>,
-        AssignGAddrTGInt8Pattern<tpu::TG_INT8_EltwiseMaxOp>,
-        AssignGAddrTGInt8Pattern<tpu::TG_INT8_EltwiseMulOp>,
-        AssignGAddrTGInt8Pattern<tpu::TG_INT8_FullyConnectedOp>,
-        AssignGAddrTGInt8Pattern<tpu::TG_INT8_LeakyReluOp>,
-        AssignGAddrTGInt8Pattern<tpu::TG_INT8_LutOp>,
-        AssignGAddrTGInt8Pattern<tpu::TG_INT8_PermuteOp>,
-        AssignGAddrTGInt8Pattern<tpu::TG_INT8_PoolAvg2DOp>,
-        AssignGAddrTGInt8Pattern<tpu::TG_INT8_PoolMax2DOp>,
-        AssignGAddrTGInt8Pattern<tpu::TG_INT8_ShuffleChannelOp>,
-        AssignGAddrTGInt8Pattern<tpu::TG_INT8_SwapChannelOp>,
-        AssignGAddrTGInt8Pattern<tpu::TG_INT8_PixelShuffleOp>,
-        AssignGAddrTGInt8Pattern<tpu::TG_INT8_PReluOp>,
-        AssignGAddrTGInt8Pattern<tpu::TG_INT8_ReluOp>,
-        AssignGAddrTGInt8Pattern<tpu::TG_INT8_UpsampleOp>,
+        AssignGAddrPattern<tpu::TG_INT8_BroadcastMulOp>,
+        AssignGAddrPattern<tpu::TG_INT8_ConcatOp>,
+        AssignGAddrPattern<tpu::TG_INT8_PT_Conv2DOp>,
+        AssignGAddrPattern<tpu::TG_INT8_PC_Conv2DOp>,
+        AssignGAddrPattern<tpu::TG_INT8_CropOp>,
+        AssignGAddrPattern<tpu::TG_INT8_PT_DeConv2DOp>,
+        AssignGAddrPattern<tpu::TG_INT8_PC_DeConv2DOp>,
+        AssignGAddrPattern<tpu::TG_INT8_EltwiseAddOp>,
+        AssignGAddrPattern<tpu::TG_INT8_EltwiseMaxOp>,
+        AssignGAddrPattern<tpu::TG_INT8_EltwiseMulOp>,
+        AssignGAddrPattern<tpu::TG_INT8_FullyConnectedOp>,
+        AssignGAddrPattern<tpu::TG_INT8_LeakyReluOp>,
+        AssignGAddrPattern<tpu::TG_INT8_LutOp>,
+        AssignGAddrPattern<tpu::TG_INT8_PermuteOp>,
+        AssignGAddrPattern<tpu::TG_INT8_PoolAvg2DOp>,
+        AssignGAddrPattern<tpu::TG_INT8_PoolMax2DOp>,
+        AssignGAddrPattern<tpu::TG_INT8_ShuffleChannelOp>,
+        AssignGAddrPattern<tpu::TG_INT8_SwapChannelOp>,
+        AssignGAddrPattern<tpu::TG_INT8_PixelShuffleOp>,
+        AssignGAddrPattern<tpu::TG_INT8_PReluOp>,
+        AssignGAddrPattern<tpu::TG_INT8_ReluOp>,
+        AssignGAddrPattern<tpu::TG_INT8_UpsampleOp>,
 
         // tg bf16 ops
-        AssignGAddrTGInt8Pattern<tpu::TG_BF16_BroadcastMulOp>,
-        AssignGAddrTGBf16Pattern<tpu::TG_BF16_ConcatOp>,
-        AssignGAddrTGBf16Pattern<tpu::TG_BF16_Conv2DOp>,
-        AssignGAddrTGBf16Pattern<tpu::TG_BF16_CropOp>,
-        AssignGAddrTGBf16Pattern<tpu::TG_BF16_DeConv2DOp>,
-        AssignGAddrTGBf16Pattern<tpu::TG_BF16_EltwiseAddOp>,
-        AssignGAddrTGBf16Pattern<tpu::TG_BF16_EltwiseMaxOp>,
-        AssignGAddrTGBf16Pattern<tpu::TG_BF16_EltwiseMulOp>,
-        AssignGAddrTGBf16Pattern<tpu::TG_BF16_FullyConnectedOp>,
-        AssignGAddrTGBf16Pattern<tpu::TG_BF16_LeakyReluOp>,
-        AssignGAddrTGBf16Pattern<tpu::TG_BF16_LutOp>,
-        AssignGAddrTGBf16Pattern<tpu::TG_BF16_PermuteOp>,
-        AssignGAddrTGBf16Pattern<tpu::TG_BF16_PoolAvg2DOp>,
-        AssignGAddrTGBf16Pattern<tpu::TG_BF16_PoolMax2DOp>,
-        AssignGAddrTGBf16Pattern<tpu::TG_BF16_PReluOp>,
-        AssignGAddrTGBf16Pattern<tpu::TG_BF16_ReluOp>,
-        AssignGAddrTGBf16Pattern<tpu::TG_BF16_ShuffleChannelOp>,
-        AssignGAddrTGBf16Pattern<tpu::TG_BF16_SwapChannelOp>,
-        AssignGAddrTGBf16Pattern<tpu::TG_BF16_PixelShuffleOp>,
-        AssignGAddrTGBf16Pattern<tpu::TG_BF16_UpsampleOp>
+        AssignGAddrPattern<tpu::TG_BF16_BroadcastMulOp>,
+        AssignGAddrPattern<tpu::TG_BF16_ConcatOp>,
+        AssignGAddrPattern<tpu::TG_BF16_Conv2DOp>,
+        AssignGAddrPattern<tpu::TG_BF16_CropOp>,
+        AssignGAddrPattern<tpu::TG_BF16_DeConv2DOp>,
+        AssignGAddrPattern<tpu::TG_BF16_EltwiseAddOp>,
+        AssignGAddrPattern<tpu::TG_BF16_EltwiseMaxOp>,
+        AssignGAddrPattern<tpu::TG_BF16_EltwiseMulOp>,
+        AssignGAddrPattern<tpu::TG_BF16_FullyConnectedOp>,
+        AssignGAddrPattern<tpu::TG_BF16_LeakyReluOp>,
+        AssignGAddrPattern<tpu::TG_BF16_LutOp>,
+        AssignGAddrPattern<tpu::TG_BF16_PermuteOp>,
+        AssignGAddrPattern<tpu::TG_BF16_PoolAvg2DOp>,
+        AssignGAddrPattern<tpu::TG_BF16_PoolMax2DOp>,
+        AssignGAddrPattern<tpu::TG_BF16_PReluOp>,
+        AssignGAddrPattern<tpu::TG_BF16_ReluOp>,
+        AssignGAddrPattern<tpu::TG_BF16_ShuffleChannelOp>,
+        AssignGAddrPattern<tpu::TG_BF16_SwapChannelOp>,
+        AssignGAddrPattern<tpu::TG_BF16_PixelShuffleOp>,
+        AssignGAddrPattern<tpu::TG_BF16_UpsampleOp>,
+
+        // fp32 cpu ops
+        AssignGAddrPattern<tpu::QuantOp>
 
         >(context, &pos, neuronMapFile->os(), clNeuronAlignment);
     applyPatternsGreedily(fn, patterns);

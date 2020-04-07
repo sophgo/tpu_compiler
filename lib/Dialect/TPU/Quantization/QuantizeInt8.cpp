@@ -749,6 +749,11 @@ LogicalResult quantizeInt8BypassOps(Operation *op) {
     skip_checking = true;
   }
 
+  if (isa<tpu::GenericCpuOp>(op) &&
+      !cast<tpu::GenericCpuOp>(op).quantifiable()) {
+    skip_checking = true;
+  }
+
   if (!skip_checking) {
     float threshold_x = getPreviousOpThreshold(op);
     float threshold_y = getOpThreshold(op);
@@ -864,6 +869,7 @@ LogicalResult tpu::PoolAvg2DOp::quantizeInt8() {
 }
 
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::PoolMax2DOp)
+DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::GenericCpuOp)
 
 LogicalResult tpu::PowerOp::quantizeInt8() {
   LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName()

@@ -411,6 +411,7 @@ void ConvertTgOpToMemRefPass::runOnFunction() {
       AddTypeConvertedForNotLowedOpPattern<tpu::QuantOp>,
       AddTypeConvertedForNotLowedOpPattern<tpu::ReshapeOp>,
       AddTypeConvertedForNotLowedOpPattern<tpu::SoftmaxOp>,
+      AddTypeConvertedForNotLowedOpPattern<tpu::GenericCpuOp>,
       AddTypeConvertedForNotLowedOpPattern<tpu::TG_INT8_BroadcastMulOp>,
       AddTypeConvertedForNotLowedOpPattern<tpu::TG_BF16_BroadcastMulOp>,
       AddTypeConvertedForNotLowedOpPattern<tpu::TG_INT8_ConcatOp>,

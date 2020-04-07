@@ -418,7 +418,8 @@ public:
                  || isa<tpu::RetinaFaceDetectionOp>(op)
                  || isa<tpu::SoftmaxOp>(op)
                  || isa<tpu::TransposeOp>(op)
-                 || isa<tpu::YoloDetectionOp>(op)) {
+                 || isa<tpu::YoloDetectionOp>(op)
+                 || isa<tpu::GenericCpuOp>(op)) {
         // doesn't matter assigned or not
       } else {
         llvm::errs() << "setThresholdFromMap didn't handle " << op->getName()
@@ -513,6 +514,7 @@ private:
 
     std::string op_name = mlir::getOpName(op).str();
     if (threshold_map.find(op_name) == threshold_map.end()) {
+      llvm::errs() << "Failed to find " << op_name << " in calibration table\n";
       return failure();
     }
 

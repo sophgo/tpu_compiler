@@ -68,7 +68,8 @@ llvm::StringRef getOpQuant(Operation *op) {
              || isa<tpu::PriorBoxOp>(op)
              || isa<tpu::SoftmaxOp>(op)
              || isa<tpu::TransposeOp>(op)
-             || isa<tpu::YoloDetectionOp>(op)) {
+             || isa<tpu::YoloDetectionOp>(op)
+             || isa<tpu::GenericCpuOp>(op)) {
     // cpu Ops return NONE
     return llvm::StringRef("NONE");
   } else {

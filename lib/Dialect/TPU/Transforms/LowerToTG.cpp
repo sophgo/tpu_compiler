@@ -653,7 +653,6 @@ Value* tpu::PoolMax2DOp::convertToTG() {
                << " [" << getOpName() << "]\n";);
   Operation *op = this->getOperation();
   auto builder = Builder(op->getContext());
-  //  TensorFile *wTF = getWeightTensorFile(op);
 
   std::vector<Value *> operands;
   operands.push_back(input());
@@ -1792,6 +1791,7 @@ public:
                  || isa<tpu::PreprocessOp>(op)
                  || isa<tpu::RetinaFaceDetectionOp>(op)
                  || isa<tpu::SoftmaxOp>(op)
+                 || isa<tpu::GenericCpuOp>(op)
                  || isa<tpu::TransposeOp>(op)
                  || isa<tpu::YoloDetectionOp>(op)) {
         // no need to lower

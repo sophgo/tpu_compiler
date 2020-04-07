@@ -11,7 +11,7 @@ COMPARE_ALL=1
 # import calibration table
 mlir-opt \
     --import-calibration-table \
-    --calibration-table $REGRESSION_PATH/inception_v3/data/inception_v3_calibration_table \
+    --calibration-table $REGRESSION_PATH/data/cali_tables/inception_v3_calibration_table \
     inception_v3_opt.mlir \
     -o inception_v3_cali.mlir
 
@@ -28,6 +28,7 @@ mlir-opt \
 mlir-tpu-interpreter inception_v3_quant_int8_per_layer.mlir \
     --tensor-in inception_v3_in_raw_fp32.npz \
     --tensor-out inception_v3_out_int8_per_layer.npz \
+    --customer-interpret-plugin ~/work/install_host/lib/cpu/CustomerInterpret.so \
     --dump-all-tensor=inception_v3_tensor_all_int8_per_layer.npz
 #cvi_npz_tool.py to_bin \
 #    inception_v3_tensor_all_int8_per_layer.npz \
@@ -63,6 +64,7 @@ mlir-opt \
 mlir-tpu-interpreter inception_v3_quant_int8_per_channel.mlir \
     --tensor-in inception_v3_in_raw_fp32.npz \
     --tensor-out inception_v3_out_int8_per_channel.npz \
+    --customer-interpret-plugin ~/work/install_host/lib/cpu/CustomerInterpret.so \
     --dump-all-tensor=inception_v3_tensor_all_int8_per_channel.npz
 
 #cvi_npz_tool.py to_bin \
@@ -99,6 +101,7 @@ mlir-opt \
 mlir-tpu-interpreter inception_v3_quant_int8_multiplier.mlir \
     --tensor-in inception_v3_in_raw_fp32.npz \
     --tensor-out inception_v3_out_int8_multiplier.npz \
+    --customer-interpret-plugin ~/work/install_host/lib/cpu/CustomerInterpret.so \
     --dump-all-tensor=inception_v3_tensor_all_int8_multiplier.npz
 
 #cvi_npz_tool.py to_bin \

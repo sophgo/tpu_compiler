@@ -15,6 +15,8 @@ cpu_ops = (
     'preprocess',
     'transpose',
     'yolo_detection'
+    'generic_cpu',
+    'generic_preprocess'
 )
 
 
@@ -79,6 +81,84 @@ def preprocessArgsSerialize(attributes):
     builder.Finish(args)
     return bytearray(builder.Output())
 
+def genericArgsSerialize(attributes):
+    builder = flatbuffers.Builder(0)
+    param = attributes['param']
+    packed_attrs = []
+    for k, val in param.items():
+        key = builder.CreateString(k)
+        if type(val) == bool:
+            cpu_op.BoolAttrStart(builder)
+            cpu_op.BoolAttrAddKey(builder, key)
+            cpu_op.BoolAttrAddValue(builder, val)
+            attr = cpu_op.BoolAttrEnd(builder)
+            cpu_op.AttributeStart(builder)
+            cpu_op.AttributeAddBoolAttr(builder, attr)
+            packed_attrs.append(cpu_op.AttributeEnd(builder))
+        elif type(val) == int:
+            cpu_op.IntAttrStart(builder)
+            cpu_op.IntAttrAddKey(builder, key)
+            cpu_op.IntAttrAddValue(builder, val)
+            attr = cpu_op.IntAttrEnd(builder)
+            cpu_op.AttributeStart(builder)
+            cpu_op.AttributeAddIntAttr(builder, attr)
+            packed_attrs.append(cpu_op.AttributeEnd(builder))
+        elif type(val) == float:
+            cpu_op.FloatAttrStart(builder)
+            cpu_op.FloatAttrAddKey(builder, key)
+            cpu_op.FloatAttrAddValue(builder, val)
+            attr = cpu_op.FloatAttrEnd(builder)
+            cpu_op.AttributeStart(builder)
+            cpu_op.AttributeAddFloatAttr(builder, attr)
+            packed_attrs.append(cpu_op.AttributeEnd(builder))
+        elif type(val) == str:
+            v = builder.CreateString(val)
+            cpu_op.StrAttrStart(builder)
+            cpu_op.StrAttrAddKey(builder, key)
+            cpu_op.StrAttrAddValue(builder, v)
+            attr = cpu_op.StrAttrEnd(builder)
+            cpu_op.AttributeStart(builder)
+            cpu_op.AttributeAddStrAttr(builder, attr)
+            packed_attrs.append(cpu_op.AttributeEnd(builder))
+        elif type(val) == list:
+            if type(val[0]) == int:
+                cpu_op.IntArrayAttrStartValueVector(builder, len(val))
+                for v in reversed(val):
+                    builder.PrependInt32(v)
+                value = builder.EndVector(len(val))
+                cpu_op.IntArrayAttrStart(builder)
+                cpu_op.IntArrayAttrAddKey(builder, key)
+                cpu_op.IntArrayAttrAddValue(builder, value)
+                attr = cpu_op.IntArrayAttrEnd(builder)
+                cpu_op.AttributeStart(builder)
+                cpu_op.AttributeAddIntArrayAttr(builder, attr)
+                packed_attrs.append(cpu_op.AttributeEnd(builder))
+            elif type(val[0]) == float:
+                cpu_op.FloatArrayAttrStartValueVector(builder, len(val))
+                for v in reversed(val):
+                    builder.PrependFloat32(v)
+                value = builder.EndVector(len(val))
+                cpu_op.FloatArrayAttrStart(builder)
+                cpu_op.FloatArrayAttrAddKey(builder, key)
+                cpu_op.FloatArrayAttrAddValue(builder, value)
+                attr = cpu_op.FloatArrayAttrEnd(builder)
+                cpu_op.AttributeStart(builder)
+                cpu_op.AttributeAddFloatArrayAttr(builder, attr)
+                packed_attrs.append(cpu_op.AttributeEnd(builder))
+            else:
+                raise Exception("unsupported type")
+        else:
+            raise Exception("unsupported type")
+    cpu_op.ParameterStartAttributesVector(builder, len(packed_attrs))
+    for attr in reversed(packed_attrs):
+        builder.PrependUOffsetTRelative(attr)
+    attrs = builder.EndVector(len(packed_attrs))
+    cpu_op.ParameterStart(builder)
+    cpu_op.ParameterAddAttributes(builder, attrs)
+    args = cpu_op.ParameterEnd(builder)
+    builder.Finish(args)
+    return bytearray(builder.Output())
+
 
 def yoloArgsSerialize(attributes):
     builder = flatbuffers.Builder(0)
@@ -104,9 +184,10 @@ class Tensor:
         self.is_weight = is_weight
         self.op_type = op_type
         self.overwrote = True if 'fuse_next' in attributes else False
-        self.overwrote = True if ('buffer_reused' in attributes and attributes['buffer_reused'] == 'true') else self.overwrote
         if not self.overwrote:
-            if ('tl_store_flag' in attributes) and attributes['tl_store_flag'] == 'false':
+            if ('buffer_reused' in attributes) and attributes['buffer_reused'] == True:
+                self.overwrote = True
+            if ('tl_store_flag' in attributes) and attributes['tl_store_flag'] == False:
                 self.overwrote = True
 
     def __parse_shape(self, shape):
@@ -148,6 +229,8 @@ class Op:
         self.output = output
         self.attributes = attributes
         self.attr_serial = self.__serialize_attrs(type, attributes)
+        if self.type == 'generic_cpu':
+            self.type = self.attributes['operation_name']
 
     def __serialize_attrs(self, type, attributes):
         if type == 'softmax':
@@ -160,6 +243,8 @@ class Op:
             return preprocessArgsSerialize(attributes)
         elif type == 'yolo_detection':
             return yoloArgsSerialize(attributes)
+        elif type == 'generic_cpu':
+            return genericArgsSerialize(attributes)
         else:
             return bytearray()
 
@@ -240,65 +325,49 @@ class MlirParser:
                 return int(v)
             else:
                 return v
-        return value
+        elif value == 'true':
+            return True
+        elif value == 'false':
+            return False
+        else:
+            return value.strip('" ')
 
     def __parse_array_val(self, value):
-        values = [x.strip("'\" ") for x in value.split(',')]
+        values = value.split(',')
         ret = []
         for v in values:
             ret.append(self.__parse_normal_val(v))
         return ret
 
-    def __parse_map_val(self, value):
-        values = [x.strip("'\" ") for x in value.split(',')]
-        ret = {}
-        for v in values:
-            k, v = [x.strip("'\" ") for x in v.split('=')]
-            ret[k] = self.__parse_normal_val(v)
-        return ret
-
     def __parse_attributes(self, attributes):
-        def split_attr(attr):
-            arr = []
-            ele = ''
-            end_char = ','
-            for c in attr:
-                if c == '{':
-                    ele += c
-                    end_char = '}'
-                elif c == '}':
-                    ele += c
-                    end_char = ','
-                elif c == '[':
-                    ele += c
-                    end_char = ']'
-                elif c == ']':
-                    ele += c
-                    end_char = ','
-                elif c == end_char:
-                    arr.append(ele)
-                    ele = ''
-                else:
-                    ele += c
-            if ele:
-                arr.append(ele)
-            return arr
-
-        _dict = {}
-        attrs = [x.strip() for x in split_attr(attributes)]
-        for attr in attrs:
-            key, value = [x.strip("'\" ") for x in re.match(
-                '^(.*)\s*=\s*(.*)', attr).groups()]
-            if value.startswith('['):
-                value = re.match('\[(.*)\]', value).groups()[0]
-                value = self.__parse_array_val(value)
-            elif value.startswith('{'):
-                value = re.match('\{(.*)\}', value).groups()[0]
-                value = self.__parse_map_val(value)
+        stops = [',']
+        array = []
+        idx = 0
+        array.append('')
+        for char in attributes:
+            if char == stops[-1]:
+                del stops[-1]
+            if len(stops) == 0:
+                array.append('')
+                idx += 1
+                stops.append(',')
+                continue
+            if char != ' ':
+                array[idx] += char
+            if char == '{':
+                stops.append('}')
+            elif char == '[':
+                stops.append(']')
+        attrs = {}
+        for a in array:
+            k, v = a.split('=', 1)
+            if v[0] == '{':
+                attrs[k] = self.__parse_attributes(v[1:-1])
+            elif v[0] == '[':
+                attrs[k] = self.__parse_array_val(v[1:-1])
             else:
-                value = self.__parse_normal_val(value)
-            _dict[key] = value
-        return _dict
+                attrs[k] = self.__parse_normal_val(v)
+        return attrs
 
     def __parse_op(self, line):
         _output, _type = re.match('(%\d+?)\s*=\s*"tpu\.(.*?)"', line).groups()
@@ -316,14 +385,6 @@ class MlirParser:
 
         _shape = re.match('.*?->\s*tensor<(.*?)>', line).groups()[0]
         _is_weight = (_type == 'load_weight')
-
-        #if _type == 'tg_int8_input' or _type == 'tg_bf16_input' or _type == 'input':
-        #    self.__has_input = True
-        #    self.tensor_map[_output] = Tensor(
-        #        _output, _attributes, _shape, _is_weight, _type)
-        #    return None
-        #if not self.__has_input:
-        #    return None
 
         self.tensor_map[_output] = Tensor(
             _output, _attributes, _shape, _is_weight, _type)
@@ -412,13 +473,6 @@ class MlirParser:
                     del self.ops[i]
                     break
 
-    def __parse_func_args(self, line):
-        args = re.match('.+?\((.*?)\)', line).groups()[0]
-        args = [x.strip() for x in args.split(',')]
-        for arg in args:
-            name, shape = re.match('(.+?):\s?tensor<(.+?)>', arg).groups()
-            self.tensor_map[name] = Tensor(name, {'name': name}, shape, False, 'arg')
-
     def __parse(self, file):
         with open(file, 'r') as f:
             lines = f.readlines()
@@ -429,7 +483,6 @@ class MlirParser:
             if re.match('^return', line):
                 break
             if re.match('^func', line):
-                #self.__parse_func_args(line)
                 start = True
             elif start:
                 op = self.__parse_op(line)

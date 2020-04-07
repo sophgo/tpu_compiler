@@ -14,6 +14,8 @@ fi
 # mkdir
 if [ ! -e $INSTALL_PATH ]; then
   mkdir -p $INSTALL_PATH
+else
+  rm -rf $INSTALL_PATH/*
 fi
 
 if [ ! -e $TPU_PYTHON_PATH ]; then
@@ -26,11 +28,12 @@ fi
 
 # download and unzip mkldnn
 if [ ! -e $MKLDNN_PATH ]; then
-  wget https://github.com/intel/mkl-dnn/releases/download/v1.0.2/mkldnn_lnx_1.0.2_cpu_gomp.tgz
+  if [ ! -f mkldnn_lnx_1.0.2_cpu_gomp.tgz ]; then
+    wget https://github.com/intel/mkl-dnn/releases/download/v1.0.2/mkldnn_lnx_1.0.2_cpu_gomp.tgz
+  fi
   tar zxf mkldnn_lnx_1.0.2_cpu_gomp.tgz
   mkdir -p $MKLDNN_PATH
   mv mkldnn_lnx_1.0.2_cpu_gomp/* $MKLDNN_PATH/
-  rm mkldnn_lnx_1.0.2_cpu_gomp.tgz
   rm -rf mkldnn_lnx_1.0.2_cpu_gomp
 fi
 

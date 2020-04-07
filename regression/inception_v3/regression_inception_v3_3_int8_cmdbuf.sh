@@ -47,6 +47,7 @@ mlir-translate \
 
 # generate cvi model
 build_cvimodel.py \
+    --cpufunc_dir $INSTALL_PATH/lib/cpu/ \
     --cmdbuf cmdbuf_int8_per_layer.bin \
     --weight weight_int8_per_layer.bin \
     --mlir inception_v3_quant_int8_per_layer_addr.mlir \
@@ -98,6 +99,7 @@ mlir-translate \
 
 # generate cvi model
 build_cvimodel.py \
+    --cpufunc_dir $INSTALL_PATH/lib/cpu/ \
     --cmdbuf cmdbuf_int8_multiplier.bin \
     --weight weight_int8_multiplier.bin \
     --mlir inception_v3_quant_int8_multiplier_addr.mlir \

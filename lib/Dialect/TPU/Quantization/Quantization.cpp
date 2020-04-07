@@ -189,6 +189,8 @@ public:
           || isa<tpu::ReshapeOp>(op)
           || isa<tpu::InputOp>(op)
           || isa<tpu::PreprocessOp>(op)) {
+      } else if (isa<tpu::GenericCpuOp>(op) &&
+                 !cast<tpu::GenericCpuOp>(op).quantifiable()) {
       } else if (auto quantOp = llvm::dyn_cast<tpu::TpuOpQuantInterface>(op)) {
         if (clQuantMixTable) {
           //setOpQuant(op, quant_mix_table[getOpName(op)]);
@@ -231,6 +233,8 @@ public:
           || isa<tpu::PreprocessOp>(op)
           || isa<tpu::QuantOp>(op)
           || isa<tpu::ReshapeOp>(op)) {
+      } else if (isa<tpu::GenericCpuOp>(op) &&
+                 !cast<tpu::GenericCpuOp>(op).quantifiable()) {
       } else if (auto quantOp = llvm::dyn_cast<tpu::TpuOpQuantInterface>(op)) {
         if (getOpQuant(op) == "INT8") {
           auto ret = quantOp.quantizeInt8();
