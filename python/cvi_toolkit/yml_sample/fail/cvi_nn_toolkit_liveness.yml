@@ -1,21 +1,21 @@
 #data preprocess paremeter please set to null if no need.
-output_file: ssd300.cvimodel
+output_file: liveness.cvimodel
 
 data_preprocess:
     #image_resize_dim: 256, 256
-    net_input_dims: 300, 300
+    net_input_dims: 112, 112
     # for mean , you should only set one of "image_mean" "channel_mean" and "mean_file"
     #image mean value
     #image_mean: 20.5
     #perchanel mean value
-    channel_mean: 104,117,123
+    channel_mean: 0.99609375, 0.99609375, 0.99609375
     #mean file
     #mean_file: /home/hongjun/models/data/ilsvrc_2012_mean.npy
 
     #Multiply raw input by this scale before preprocession
     raw_scale: 255.0
     #Multiply input features by this scale to finish preprocession
-    input_scale: 1
+    input scale: 1
     #RGB order: rgb or bgr , default is bgr the same as opencv
     RGB_order: bgr
     #transpose, "2,1,0" is HWC->CHW;
@@ -27,21 +27,21 @@ data_preprocess:
     #npz input directly , do nothing for preprocessing, just use npz input 
     npz_input: null
 
-    input_file: /home/hongjun/models/data/dog.jpg
-    output_npz: ssd300_in_fp32.npz
+    input_file: /home/hongjun/models/data/Aaron_Eckhart_0001.jpg
+    output_npz: liveness_in_fp32.npz
 
 #step 1: model convert
 Convert_model:
     #framework type: caffe or onnx
     framework_type: caffe
     #for onnx model, please set model file only
-    weight_file: /home/hongjun/models/object_detection/ssd/caffe/ssd300/VGG_coco_SSD_300x300_iter_400000.caffemodel
-    model_file: /home/hongjun/models/ssd300/deploy_tpu.prototxt
+    weight_file: /home/hongjun/models/face_recognition/bmface/caffe/bmface-v3.caffemodel
+    model_file: /home/hongjun/models/face_recognition/bmface/caffe/bmface-v3.prototxt
 
 #step2: do calibration
 Calibration:
     # You can import calibration table directly or do calibration. 
-    calibraion_table: /home/hongjun/compiler/mlir_tpu_latest/llvm-project/llvm/projects/mlir/regression/data/cali_tables/ssd300_calibration_table
+    calibraion_table: /home/hongjun/compiler/mlir_tpu_latest/llvm-project/llvm/projects/mlir/regression/data/cali_tables/bmface_v3_cali1024_calibration_table
     
     # Do caliration parameters, if you import calibration table below parameters will be ignored.
     Dataset: /home/hongjun/dataset/calibration_data/input.txt
@@ -69,8 +69,8 @@ Accuracy_test:
     Tolerance_INT8:
       - 0.99  #cosine similarity
       - 0.99  #correlation similarity
-      - 0.92  #eulidean similarity
-    excepts: 
+      - 0.90  #eulidean similarity
+    excepts: prob
 
 #step5: do tpu offline simulation to check accuracy.
 

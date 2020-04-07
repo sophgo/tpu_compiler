@@ -3,7 +3,7 @@ output_file: resnet50.cvimodel
 
 data_preprocess:
     image_resize_dim: 256, 256
-    net_input_dims: 224, 224
+    net_input_dims: 224,224
     # for mean , you should only set one of "image_mean" "channel_mean" and "mean_file"
     #image mean value
     #image_mean: 20.5
@@ -15,7 +15,7 @@ data_preprocess:
     #Multiply raw input by this scale before preprocession
     raw_scale: 255.0
     #Multiply input features by this scale to finish preprocession
-    input scale: 1
+    input_scale: 1
     #RGB order: rgb or bgr , default is bgr
     RGB_order: bgr
     #transpose, "2,1,0" is HWC->CHW;

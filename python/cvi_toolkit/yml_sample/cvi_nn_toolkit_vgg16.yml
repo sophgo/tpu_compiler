@@ -15,7 +15,7 @@ data_preprocess:
     #Multiply raw input by this scale before preprocession
     raw_scale: 255.0
     #Multiply input features by this scale to finish preprocession
-    input scale: 1
+    input_scale: 1
     #RGB order: rgb or bgr , default is bgr the same as opencv
     RGB_order: bgr
     #transpose, "2,1,0" is HWC->CHW;

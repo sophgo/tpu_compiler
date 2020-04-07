@@ -70,7 +70,6 @@ class preprocess(object):
             output = pfunc(image)
         else:
             if self.resize_dims != None:
-                # resize
                 x = cv2.resize(image, (self.resize_dims[1], self.resize_dims[0])) # w,h
                 if self.rgb_order == 'rgb' :
                     x[:,:,0], x[:,:,2] = x[:,:,2], x[:,:,0]
@@ -89,6 +88,7 @@ class preprocess(object):
                 x = x * self.raw_scale /255.0
                 # Take center crop.
                 x = center_crop(x, self.net_input_dims)
+
             else :
                 if self.letter_box :
                     bgr_img = cv2.imread(str(input_file).rstrip())
@@ -114,14 +114,22 @@ class preprocess(object):
                     x = new_image
 
                 else :
+                    if self.rgb_order == 'rgb' :
+                        image[:,:,0], image[:,:,2] = image[:,:,2], image[:,:,0]
+                    
                     if self.mean.size != 0:
                         image -= self.mean
+                    if self.input_scale != 1.0:
+                        image *= self.input_scale
+
+
                     if self.mean_file != None:
                         image -= self.mean_file
 
                     x = cv2.resize(image, (self.net_input_dims[1], self.net_input_dims[0]))
+
                     if self.transpose != None :
-                        x = np.transpose(x, self.transpose)
+                        x = np.transpose(x, self.transpose)  
 
 
             output = np.expand_dims(x, axis=0)

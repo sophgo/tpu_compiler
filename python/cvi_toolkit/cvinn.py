@@ -23,13 +23,14 @@ def mlir_traslate(model_file, weight_file, mlirfile):
 def mlir_opt(mlirfile, opt_mlirfile, op_info_csv):
     subprocess.run(["mlir-opt",
                     "--assign-layer-id",
-                    "--print-tpu-op-info",
                     "--convert-bn-to-scale",
                     "--canonicalize",
+                    "--print-tpu-op-info",
                     "--tpu-op-info-filename", op_info_csv,
                     mlirfile,
                     "-o", opt_mlirfile
                     ], **std_output_flag)
+
 
 def mlir_import_calibration(mlirfile, cali_mlirfile, threshold_table):
     subprocess.run(["mlir-opt",
