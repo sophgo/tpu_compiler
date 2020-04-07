@@ -14,7 +14,7 @@ ModelType = [
 ]
 
 
-class CVI_Model(object):
+class ModelFactory(object):
     def __init__(self):
         self.model_type = None
         self.model = None
@@ -33,6 +33,7 @@ class CVI_Model(object):
             else:
                 self.model = MLIRModel()
                 self.model.load_model(mlirfile)
+
     def inference(self, input):
        return self.model.inference(input)
 

@@ -14,3 +14,8 @@ class OnnxModel(model_base):
         ort_outs = self.net.run(None, ort_inputs)
         return ort_outs[0]
 
+    def get_all_tensor(self):
+        raise RuntimeError("Todo")
+
+    def get_op_info(self):
+        raise RuntimeError("Todo")

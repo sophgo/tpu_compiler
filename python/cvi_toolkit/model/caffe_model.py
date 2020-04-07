@@ -34,3 +34,6 @@ class CaffeModel(model_base):
             out = self.net.forward(None, None, name, **{self.net.inputs[0]: input_data})
             blobs_dict[name] = out[self.net.top_names[name][0]].copy()
         return blobs_dict
+
+    def get_op_info(self):
+        return self.net.layer_dict.items()

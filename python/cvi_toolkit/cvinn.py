@@ -1,6 +1,6 @@
 import numpy as np
 import onnx
-from .model import CVI_Model
+from .model.ModelFactory import ModelFactory
 from .transform import OnnxConverter
 from .build_cvimodel import CVIModel as builder
 from .calibration.kld_calibrator import KLD_Calibrator_v2
@@ -136,7 +136,7 @@ class cvinn(object):
 
     def calibration(self, mlirfile_fp32: str, dataset: str, threshold_table: str, pre_func, input_num, histogram_bin_num, auto_tune=False):
         # mlir_calibration(mlirfile_fp32, dataset, threshold_table, auto_tune)
-        cvi_model = CVI_Model()
+        cvi_model = ModelFactory()
         cvi_model.load_model('mlir', None, mlirfile=mlirfile_fp32)
         calitor = KLD_Calibrator_v2(dataset,pre_func, cvi_model.model, input_num=input_num, histogram_bin_num=histogram_bin_num)
         calitor.do_calibration(threshold_table=threshold_table)
@@ -167,7 +167,7 @@ class cvinn(object):
         return 0
 
     def inference(self, model_type: str, input_npz: str, model_file=None, weight_file=None, mlirfile=None, all_tensors:str = None):
-        net = CVI_Model()
+        net = ModelFactory()
 
         net.load_model(model_type, model_file=model_file, weight_file=weight_file, mlirfile=mlirfile)
         input_data = np.load(input_npz)['input']
