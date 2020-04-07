@@ -212,7 +212,10 @@ def parse(config: dict):
         simulation_tensor = "{}_tensor_all_simu.npz".format(model_name)
 
         # tpu_simulation
-        net.tpu_simulation(input_npz, cvimodel, simulation_tensor, all_tensors=True)
+        ret = net.tpu_simulation(input_npz, cvimodel, simulation_tensor, all_tensors=True)
+        if ret != 0:
+            logger.error("Simulation cvimodel Failed!")
+            exit(-1)
         # compare with interprter
         cvi_data_tool.npz_compare(simulation_tensor, int8_mlir_tensor_file)
     else:
