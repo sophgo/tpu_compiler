@@ -20,14 +20,14 @@ os.environ['GLOG_stderrthreshold'] = "3"
 def parse(config: dict):
     # model to mlir
     model_name = None
+    output_file = config.get("output_file", None)
+    model_name = output_file.split('.')[0].split('/')[-1]
     Convert_model = config.get('Convert_model', None)
     if Convert_model:
         t = Convert_model
         model_type = t.get('framework_type')
         model_file = t.get('model_file')
         weight_file = t.get('weight_file', None)
-
-        model_name = model_file.split('.')[0].split('/')[-1]
         tpu_op_info = "{}_op_info.csv".format(model_name)
         fp32_mlirfile = "{}.mlir".format(model_name)
         try:
@@ -47,25 +47,37 @@ def parse(config: dict):
         t = data_preprocess
         mean = t.get('image_mean', None)
         channel_mean = t.get('channel_mean', None)
+        mean_file = t.get('mean_file', None)
 
         if mean != None and channel_mean != None:
-            print('[Warning] mean and channel both exist, use channel mean')
+            print("[Error]channel_mean and mean should not be set at the same time!")
+            exit(-1)
+        elif channel_mean != None:
             mean = channel_mean
 
-        mean_file = t.get('mean_file', None)
-        if mean_file != None and mean != None:
-            print('[Warning] mean and mean_file both exist, use mean_file')
-            mean=None
+        if mean != None and mean_file != None:
+            print("[Error]mean_file and mean value should not be set at the same time!")
+            exit(-1)
 
         input_scale = t.get('input_scale', 1.0)
-        net_input_dims = t.get('net_input_dims', "224,224")
+        net_input_dims = t.get('net_input_dims')
+        if net_input_dims == None :
+            print("[Error]net_input_dims should be set in yml file !!")
+            exit(-1)
+
         raw_scale = t.get('raw_scale', 255.0)
-        channel_swap = t.get('channel_swap', '2,1,0')
-        resize_dims = t.get('image_resize_dim', "256,256")
-        letter_box = t.get('LetterBox', None)
+        transpose = t.get('transpose')
+        resize_dims = t.get('image_resize_dim')
+        letter_box = t.get('LetterBox', False)
 
+        rgb_order = t.get('RGB_order',"bgr")
+        npz_input = t.get('npz_input')
 
-        input_file = t['input_file']
+        input_file = t.get('input_file')
+        if input_file == None :
+            print('[Error] Please set input file image in yml!')
+            exit(-1)
+
         output_npz = t['output_npz']
         fp32_in_npz = output_npz
         preprocessor.config(net_input_dims=net_input_dims,
@@ -74,8 +86,10 @@ def parse(config: dict):
                     mean_file=mean_file,
                     input_scale=input_scale,
                     raw_scale=raw_scale,
-                    channel_swap=channel_swap,
-                    letter_box=None)
+                    transpose=transpose,
+                    rgb_order=rgb_order,
+                    npz_input=npz_input,
+                    letter_box=letter_box)
 
         ret = preprocessor.run(input_file, output_npz=output_npz)
         if ret is None:
@@ -98,7 +112,6 @@ def parse(config: dict):
     if output is not None:
         print("{} fp32 inference finish".format(model_type))
 
-
     # accuracy fp32 test
     accuracy_test = config.get("Accuracy_test", None)
     if accuracy_test != None:
@@ -117,17 +130,25 @@ def parse(config: dict):
                 )
             print("compare fp32 finish!")
     else:
-        print("No acc test")
+        print("No FP32 interpreter accuracy test!")
 
     calibraion_table = "{}_threshold_table".format(model_name)
     # Calibration
     Calibration = config.get("Calibration", None)
+
     if Calibration:
         dataset_file = Calibration.get("Dataset")
-        net.calibration(fp32_mlirfile, dataset_file, calibraion_table, preprocessor.run)
-    else:
-        print("No Calibration at yaml")
+        calibraion_table_in = Calibration.get("calibraion_table")
 
+        if calibraion_table_in != None :  # use calibration_table directly.
+            calibraion_table = calibraion_table_in
+        else :  #do calibration
+            image_num = Calibration.get("image_num", 1)
+            histogram_bin_num = Calibration.get("histogram_bin_num", 2048)
+            net.calibration(fp32_mlirfile, dataset_file, calibraion_table, preprocessor.run,image_num,histogram_bin_num)
+    else:
+        print("[Error]No Calibration in yml!")
+        exit(-1)
 
     # build cvi_model
     cvimodel = config.get("output_file", None)
@@ -153,7 +174,7 @@ def parse(config: dict):
     int8_acc_test = accuracy_test.get("INT8_Accuracy_test", False)
     if int8_acc_test:
         target_file = int8_mlir_tensor_file
-        ref_file = fp32_mlir_tensor_file
+        ref_file = fp32_origin_tensor_file #fp32_mlir_tensor_file
         tolerance = accuracy_test.get('Tolerance_INT8')
         tolerance = "{},{},{}".format(tolerance[0], tolerance[1], tolerance[2])
 
@@ -164,8 +185,9 @@ def parse(config: dict):
             excepts=excepts,
             verbose=2
             )
-        print("compare fp32 finish!")
-
+        print("compare INT8 interpreter result finish!")
+    else :
+        print("No INT8 interpreter accuracy test!")
 
     Simulation = config.get("Simulation", None)
     if Simulation:

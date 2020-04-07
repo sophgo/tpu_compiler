@@ -2,31 +2,32 @@
 output_file: resnet50.cvimodel
 
 data_preprocess:
-    image_resize_dim: 256,256
-
+    image_resize_dim: 256, 256
     net_input_dims: 224, 224
+    # for mean , you should only set one of "image_mean" "channel_mean" and "mean_file"
     #image mean value
-    image_mean: 20.5
+    #image_mean: 20.5
     #perchanel mean value
     channel_mean: 104.01,116.67,122.68
-
-
     #mean file
-    mean_file: /workspace/tpu/mlir/regression/data/ilsvrc_2012_mean.npy
+    #mean_file: /home/hongjun/models/data/ilsvrc_2012_mean.npy
+
     #Multiply raw input by this scale before preprocession
-    raw scale: 255.0
+    raw_scale: 255.0
     #Multiply input features by this scale to finish preprocession
     input scale: 1
-    #channel swap
-    RGB order: RGB
+    #RGB order: rgb or bgr , default is bgr the same as opencv
+    RGB_order: bgr
+    #transpose, "2,0,1" is HWC->CHW;
+    transpose: 2,0,1
     #not implement yet
     Standardization: null
-    #letterbox resize
-    LetterBox: null
-    #npz input directly , do nothing for preprocessing
+    #letterbox resize, for yolov3 case
+    LetterBox: False
+    #npz input directly , do nothing for preprocessing, just use npz input
     npz_input: null
 
-    input_file: /workspace/tpu/mlir/regression/data/cat.jpg
+    input_file: /home/hongjun/models/data/cat.jpg
     output_npz: resnet50_in_fp32.npz
 
 #step 1: model convert
@@ -34,11 +35,19 @@ Convert_model:
     #framework type: caffe or onnx
     framework_type: caffe
     #for onnx model, please set model file only
-    weight_file: /data/models/imagenet/resnet/caffe/ResNet-50-model.caffemodel
-    model_file: /data/models/imagenet/resnet/caffe/ResNet-50-deploy.prototxt
+    weight_file: /home/hongjun/models/imagenet/resnet/caffe/ResNet-50-model.caffemodel
+    model_file: /home/hongjun/models/imagenet/resnet/caffe/ResNet-50-deploy.prototxt
+
 #step2: do calibration
 Calibration:
-    Dataset: /workspace/tpu/mlir/llvm-project/llvm/projects/mlir/regression/data/input.txt
+    # You can import calibration table directly or do calibration.
+    #calibraion_table: /home/hongjun/compiler/mlir_tpu_latest/llvm-project/llvm/projects/mlir/regression/data/cali_tables/resnet50_calibration_table
+
+    # Do caliration parameters, if you import calibration table below parameters will be ignored.
+    Dataset: /home/hongjun/dataset/calibration_data/input.txt
+    #How many images you want to use to do calibration, if more the num if Dataset, Dataset num will be used
+    image_num: 1000
+    histogram_bin_num: 204800
 
 #step3: do quantization
 Quantization:
@@ -58,9 +67,9 @@ Accuracy_test:
     # Enable perlayer tensor int8 similarity check to make sure quantization result is correct.
     INT8_Accuracy_test: True
     Tolerance_INT8:
-      - 0.9  #cosine similarity
-      - 0.9  #correlation similarity
-      - 0.7  #eulidean similarity
+      - 0.96  #cosine similarity
+      - 0.95  #correlation similarity
+      - 0.72  #eulidean similarity
     excepts: prob
 
 #step5: do tpu offline simulation to check accuracy.

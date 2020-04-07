@@ -1,0 +1,86 @@
+#data preprocess paremeter please set to null if no need.
+output_file: ssd300.cvimodel
+
+data_preprocess:
+    #image_resize_dim: 256, 256
+    net_input_dims: 300, 300
+    # for mean , you should only set one of "image_mean" "channel_mean" and "mean_file"
+    #image mean value
+    #image_mean: 20.5
+    #perchanel mean value
+    channel_mean: 104,117,123
+    #mean file
+    #mean_file: /home/hongjun/models/data/ilsvrc_2012_mean.npy
+
+    #Multiply raw input by this scale before preprocession
+    raw_scale: 255.0
+    #Multiply input features by this scale to finish preprocession
+    input scale: 1
+    #RGB order: rgb or bgr , default is bgr the same as opencv
+    RGB_order: bgr
+    #transpose, "2,1,0" is HWC->CHW;
+    transpose: 2,0,1
+    #not implement yet
+    Standardization: null
+    #letterbox resize, not implement yet
+    LetterBox: False
+    #npz input directly , do nothing for preprocessing, just use npz input 
+    npz_input: null
+
+    input_file: /home/hongjun/models/data/dog.jpg
+    output_npz: ssd300_in_fp32.npz
+
+#step 1: model convert
+Convert_model:
+    #framework type: caffe or onnx
+    framework_type: caffe
+    #for onnx model, please set model file only
+    weight_file: /home/hongjun/models/object_detection/ssd/caffe/ssd300/VGG_coco_SSD_300x300_iter_400000.caffemodel
+    model_file: /home/hongjun/models/ssd300/deploy_tpu.prototxt
+
+#step2: do calibration
+Calibration:
+    # You can import calibration table directly or do calibration. 
+    calibraion_table: /home/hongjun/compiler/mlir_tpu_latest/llvm-project/llvm/projects/mlir/regression/data/cali_tables/ssd300_calibration_table
+    
+    # Do caliration parameters, if you import calibration table below parameters will be ignored.
+    Dataset: /home/hongjun/dataset/calibration_data/input.txt
+    #How many images you want to use to do calibration, if more the num if Dataset, Dataset num will be used
+    image_num: 1000
+    histogram_bin_num: 204800
+
+#step3: do quantization
+Quantization:
+    per_channel: true
+    per_tensor: true
+    asymmetric: false
+    symmetric: true
+
+#step4: do accuracy test
+Accuracy_test:
+    # Enable  perlayer tensor fp32 similarity check to make sure convert IR result is correct.
+    FP32_Accuracy_test: True
+    Tolerance_FP32:
+      - 0.999  #cosine similarity
+      - 0.999  #correlation similarity
+      - 0.999  #eulidean similarity
+    # Enable perlayer tensor int8 similarity check to make sure quantization result is correct.
+    INT8_Accuracy_test: True
+    Tolerance_INT8:
+      - 0.99  #cosine similarity
+      - 0.99  #correlation similarity
+      - 0.92  #eulidean similarity
+    excepts: 
+
+#step5: do tpu offline simulation to check accuracy.
+
+# Do cvimodel TPU simulation or not.
+# This will do accuracy test by default by comparing with INT8 result after quantization.
+# Return fail if not get exactly same result.
+Simulation: true
+
+#other parameter
+
+#Do compression or not when do data store and load.
+vlc_compress(VLC): true
+
