@@ -3,6 +3,9 @@ import os
 os.environ['GLOG_minloglevel'] = '3'
 import caffe
 import numpy as np
+import logging
+
+logger = logging.getLogger(__name__)
 
 class CaffeModel(model_base):
     def __init__(self):
@@ -21,7 +24,10 @@ class CaffeModel(model_base):
             return None
 
         blobs_dict = {}
+
         for name, layer in self.net.layer_dict.items():
+            msg = "layer : {}\n\ttype = {} \n\ttop -> {}".format(name, layer.type, self.net.top_names[name])
+            logger.debug(msg)
             if layer.type == "Split":
                 continue
             if layer.type == "Slice":
@@ -30,7 +36,6 @@ class CaffeModel(model_base):
             if layer.type == "Input":
                 blobs_dict[name] = input_data
                 continue
-            #out = self.forward(None, prev_name, name, **{prev_name: prev_data})
             out = self.net.forward(None, None, name, **{self.net.inputs[0]: input_data})
             blobs_dict[name] = out[self.net.top_names[name][0]].copy()
         return blobs_dict

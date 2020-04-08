@@ -1,5 +1,6 @@
 import logging
 import subprocess
+from ..build_cvimodel import CVIModel as builder
 
 logger = logging.getLogger(__name__)
 
@@ -7,38 +8,37 @@ logger = logging.getLogger(__name__)
 std_log_flag = False
 
 if std_log_flag:
-    std_output_flag = dict() # empty
+    std_output_flag = {'capture_output': True}
 else:
     std_output_flag = {'stdout': subprocess.DEVNULL, 'stderr': subprocess.STDOUT}
 
-def checkReturnValue(ret_val: int, func: str):
-    if ret_val == 0:
+def checkReturnValue(ret, func: str):
+    if ret.returncode == 0:
         logger.debug("{} run success".format(func))
     else:
-        logger.error("error occured: {}, func: {}".format(ret_val, func))
+        logger.error("error occured: {}, func: {}\nmsg: {}".format(ret.returncode, func, str(ret.stderr, encoding='utf-8')))
 
 def mlir_traslate(model_file, weight_file, mlirfile):
     ret = subprocess.run(["mlir-translate", "--caffe-to-mlir", model_file,
                     "--caffemodel", weight_file,
                     "-o", mlirfile
                     ], **std_output_flag)
-    r_code = ret.returncode
-    checkReturnValue(r_code, "mlir_traslate")
-    return r_code
+    checkReturnValue(ret, "mlir_traslate")
+    return ret.returncode
 
 def mlir_opt(mlirfile, opt_mlirfile, op_info_csv):
     ret = subprocess.run(["mlir-opt",
                     "--assign-layer-id",
-                    "--print-tpu-op-info",
                     "--convert-bn-to-scale",
                     "--canonicalize",
+                    "--print-tpu-op-info",
                     "--tpu-op-info-filename", op_info_csv,
                     mlirfile,
                     "-o", opt_mlirfile
                     ], **std_output_flag)
-    r_code = ret.returncode
-    checkReturnValue(r_code, "mlir-opt")
-    return r_code
+    checkReturnValue(ret, "mlir-opt")
+    return ret.returncode
+
 
 def mlir_import_calibration(mlirfile, cali_mlirfile, threshold_table):
     ret = subprocess.run(["mlir-opt",
@@ -47,9 +47,8 @@ def mlir_import_calibration(mlirfile, cali_mlirfile, threshold_table):
                     mlirfile,
                     "-o", cali_mlirfile
                     ], **std_output_flag)
-    r_code = ret.returncode
-    checkReturnValue(r_code, "mlir-opt, import-calibration-table")
-    return r_code
+    checkReturnValue(ret, "mlir-opt, import-calibration-table")
+    return ret.returncode
 
 def mlir_tpu_quant(mlirfile, quant_mlirfile, op_info_csv):
     ret = subprocess.run(["mlir-opt",
@@ -59,9 +58,8 @@ def mlir_tpu_quant(mlirfile, quant_mlirfile, op_info_csv):
                     mlirfile,
                     "-o", quant_mlirfile
                     ], **std_output_flag)
-    r_code = ret.returncode
-    checkReturnValue(r_code, "mlir-opt, mlir_tpu_quant")
-    return r_code
+    checkReturnValue(ret, "mlir-opt, mlir_tpu_quant")
+    return ret.returncode
 
 
 def mlir_lower_opt(mlirfile, opt_mlirfile):
@@ -70,9 +68,8 @@ def mlir_lower_opt(mlirfile, opt_mlirfile):
                     mlirfile,
                     "-o", opt_mlirfile
                     ], **std_output_flag)
-    r_code = ret.returncode
-    checkReturnValue(r_code, "mlir-opt, mlir_lower_opt")
-    return r_code
+    checkReturnValue(ret, "mlir-opt, mlir_lower_opt")
+    return ret.returncode
 
 def mlir_gen_cvimodel(mlirfile, cvi_module):
     cmdbuf_mlir = "cmdbuf_{}".format(mlirfile)
@@ -88,20 +85,18 @@ def mlir_gen_cvimodel(mlirfile, cvi_module):
                     mlirfile,
                     "-o", cmdbuf_mlir
                     ], **std_output_flag)
-    r_code = ret.returncode
-    checkReturnValue(r_code, "mlir-opt, mlir_to_tg_cmdbuf")
-    if r_code != 0:
-        return r_code
+    checkReturnValue(ret, "mlir-opt, mlir_to_tg_cmdbuf")
+    if ret.returncode != 0:
+        return ret.returncode
 
     ret = subprocess.run(["mlir-translate",
                     "--mlir-to-cmdbuf",
                     cmdbuf_mlir,
                     "-o", "cmdbuf.bin"
                     ], **std_output_flag)
-    r_code = ret.returncode
-    checkReturnValue(r_code, "mlir-translate, mlir_gen_cmdbuf")
-    if r_code != 0:
-        return r_code
+    checkReturnValue(ret, "mlir-translate, mlir_gen_cmdbuf")
+    if ret.returncode != 0:
+        return ret.returncode
 
     model_builder = builder("weight.bin", ["cmdbuf.bin"], None, cmdbuf_mlir, False)
     model_builder.build(cvi_module)
@@ -133,6 +128,5 @@ def run_cvimodel(input_file, cvi_model, output_tensor, all_tensors=True):
     if all_tensors:
         cmd.append("--dump-all-tensors")
     ret = subprocess.run(cmd)
-    r_code = ret.returncode
-    checkReturnValue(r_code, "model_runner")
-    return r_code
+    checkReturnValue(ret, "model_runner")
+    return ret.returncode

@@ -169,7 +169,7 @@ class KLD_Calibrator_v2(object):
         data_max = {}
         idx = 0
         for line in self.all_lines:
-            logger.debug('Calculating max at iteration: ', str(idx))
+            logger.debug('Calculating max at iteration: {}'.format(idx))
 
             x = self.preprocess_func(line.rstrip())
             self.model.inference(x)
@@ -198,7 +198,7 @@ class KLD_Calibrator_v2(object):
         width_hist = {}
         idx = 0
         for line in self.all_lines:
-            logger.debug('Generating histogram at iteration: ', str(idx))
+            logger.debug('Generating histogram at iteration: {}'.format(idx))
 
             x = self.preprocess_func(line)
             _ = self.model.inference(x)
