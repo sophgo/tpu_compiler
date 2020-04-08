@@ -195,17 +195,29 @@ class cvinn(object):
         else:
             int8_op_csv = "{}_op_info_int8.csv".format(mlirfile_fp32.split('.')[0].split('/')[-1])
         cali_mlir = "cali_{}".format(mlirfile_fp32)
-        mlir_import_calibration(mlirfile_fp32, cali_mlir, threshold_table)
+        ret = mlir_import_calibration(mlirfile_fp32, cali_mlir, threshold_table)
+        if ret != 0:
+            logger.error("mlir_import_callibration failed")
+            exit(-1)
 
         if mlirfile_int8:
             quant_mlir = mlirfile_int8
         else:
             quant_mlir = "quant_{}".format(mlirfile_fp32)
-        mlir_tpu_quant(cali_mlir, quant_mlir, int8_op_csv)
+        ret = mlir_tpu_quant(cali_mlir, quant_mlir, int8_op_csv)
+        if ret != 0:
+            logger.error("mlir_tpu_quant failed")
+            exit(-1)
 
         tg_mlir = "tg_{}".format(mlirfile_fp32)
-        mlir_lower_opt(quant_mlir, tg_mlir)
-        mlir_gen_cvimodel(tg_mlir, cvimodel)
+        ret = mlir_lower_opt(quant_mlir, tg_mlir)
+        if ret != 0:
+            logger.error("mlir_lower_opt failed")
+
+        ret = mlir_gen_cvimodel(tg_mlir, cvimodel)
+        if ret != 0:
+            logger.error("mlir_gen_cvimodel failed")
+            exit(-1)
         return 0
 
     def tpu_simulation(self, input_file, cvimodel, output_tensor, all_tensors=True):
