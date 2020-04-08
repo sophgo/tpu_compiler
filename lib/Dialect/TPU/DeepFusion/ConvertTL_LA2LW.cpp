@@ -72,6 +72,9 @@ struct TpuTL_LA_Conv2DOpPattern : public RewritePattern {
     attrs.push_back(rewriter.getNamedAttr("gaddr", op.gaddrAttr()));
     attrs.push_back(rewriter.getNamedAttr("name", op.nameAttr()));
     attrs.push_back(rewriter.getNamedAttr("layer_id", op.layer_idAttr()));
+    if(op.do_ic_alignment().hasValue()){
+      attrs.push_back(rewriter.getNamedAttr("do_ic_alignment", rewriter.getBoolAttr(op.do_ic_alignment().getValue())));
+    }
 
     // postpone lmem assignment to next pattern
     uint32_t la_invalid = 0xffffffff;

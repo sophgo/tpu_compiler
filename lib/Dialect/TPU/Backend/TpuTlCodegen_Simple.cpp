@@ -71,13 +71,14 @@ LogicalResult tpu::TL_LA_Conv2DOp::codegen(void *ctx) {
   gaddr_t ga_filter = getWeightOpAddress(filter()->getDefiningOp());
   gaddr_t ga_pc_info = getWeightOpAddress(pc_info()->getDefiningOp());
   int layer_id = mlir::getOpLayerId(op);
+  bool do_ic_alignment = (this->do_ic_alignment().hasValue()) ? this->do_ic_alignment().getValue() : false;
 
   LLVM_DEBUG(llvm::errs() << "    TL_LA_Conv2DOp, layer_id = " << layer_id << "\n";);
   cvi_backend_tl_conv_LA(*backend_ctx, layer_id,
       ga_input, ga_output, ga_filter, ga_pc_info,
       n, ic, ih, iw, g, oc, oh, ow, kh, kw,
       dh, dw, ph, ph, pw, pw, sh, sw,
-      false, with_bias, do_relu);
+      false, with_bias, do_relu, do_ic_alignment);
   return success();
 }
 
@@ -103,6 +104,7 @@ LogicalResult tpu::TL_LW_Conv2DOp::codegen(void *ctx) {
 
   // leaky_relu
   bool do_leaky_relu = this->do_leaky_relu();
+  bool do_ic_alignment = (this->do_ic_alignment().hasValue()) ? this->do_ic_alignment().getValue() : false;
   int8_t pos_rshift = 0, pos_m_i8 = 0, neg_rshift = 0, neg_m_i8 = 0;
   if (do_leaky_relu) {
     if (this->m_i8_pos().hasValue()) {
@@ -170,7 +172,7 @@ LogicalResult tpu::TL_LW_Conv2DOp::codegen(void *ctx) {
         dh, dw, ph, ph, pw, pw, sh, sw,
         false, with_bias, do_relu,
         true, ga_output,
-        do_leaky_relu, pos_rshift, pos_m_i8, neg_rshift, neg_m_i8);
+        do_leaky_relu, pos_rshift, pos_m_i8, neg_rshift, neg_m_i8, do_ic_alignment);
   } else {
     cvi_backend_tl_conv_LW(*backend_ctx, layer_id,
         la_input, la_output, la_working,
@@ -179,7 +181,7 @@ LogicalResult tpu::TL_LW_Conv2DOp::codegen(void *ctx) {
         dh, dw, ph, ph, pw, pw, sh, sw,
         false, with_bias, do_relu,
         false, GA_INVALID,
-        do_leaky_relu, pos_rshift, pos_m_i8, neg_rshift, neg_m_i8);
+        do_leaky_relu, pos_rshift, pos_m_i8, neg_rshift, neg_m_i8, do_ic_alignment);
   }
   #endif
   return success();
