@@ -59,6 +59,8 @@ class preprocess(object):
 
         if self.npz_input != None :
             x = np.load(str(self.npz_input).rstrip())
+            if output_npz:
+                np.savez(output_npz, **{input_name if input_name else "input": x})
             return x
 
         image = cv2.imread(str(input_file).rstrip())
