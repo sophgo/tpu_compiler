@@ -83,6 +83,7 @@ public:
             std::unique_ptr<std::vector<float> > tensor= nullptr;
             if (type.getElementType().isF32()) {
               tensor = std::move(weightFile_->readTensor<float>(tensor_name, type));
+              weightFile_->deleteTensor<float>(tensor_name);
             } else if (type.getElementType().isInteger(8)) {
               // TODO: we still save int8 weight as fp32 for now
               assert(0);
@@ -94,6 +95,7 @@ public:
               // TODO: more generic valueMapping
               tensor = std::move(std::make_unique<std::vector<float> >(tensor_bf16->size()));
               BFloat16ToFloat(tensor_bf16->data(), tensor->data(), tensor_bf16->size());
+              weightFile_->deleteTensor<bfloat16>(tensor_name);
             } else {
               assert(0);
             }
