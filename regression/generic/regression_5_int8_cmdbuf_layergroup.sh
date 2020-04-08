@@ -38,6 +38,7 @@ mlir-opt \
     --tpu-weight-address-align=16 \
     --tpu-weight-map-filename=weight_map_layergroup.csv \
     --tpu-weight-bin-filename=weight_int8_multiplier_layergroup.bin \
+    --convert-cpu-op \
     ${NET}_quant_int8_multiplier_layergroup.mlir \
     -o ${NET}_quant_int8_multiplier_layergroup_addr.mlir
 

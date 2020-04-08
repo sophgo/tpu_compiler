@@ -82,6 +82,7 @@ def mlir_gen_cvimodel(mlirfile, cvi_module):
                     "--tpu-neuron-address-align=16",
                     "--tpu-neuron-map-filename=neuron_map.csv",
                     "--assign-layer-id",
+                    "--convert-cpu-op",
                     mlirfile,
                     "-o", cmdbuf_mlir
                     ], **std_output_flag)

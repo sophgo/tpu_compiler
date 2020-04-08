@@ -23,6 +23,18 @@ using namespace tpu;
 
 namespace {
 
+static bool isQuantOp(Operation *op) {
+  if (dyn_cast<QuantOp>(op)) {
+    return true;
+  }
+  if (auto castOp = dyn_cast<GenericCpuOp>(op)) {
+    if (castOp.operation_name() == QuantOp::getOperationName()) {
+      return true;
+    }
+  }
+  return false;
+}
+
 static bool isConvertedOpNeeded(Operation *op) {
   if (dyn_cast<TpuTGOpCodegenInterface>(op))
     llvm::dbgs() << "  isConvertedOpNeeded op " << op->getName() << ", is TgCodeGen\n";
@@ -37,23 +49,24 @@ static bool isConvertedOpNeeded(Operation *op) {
     else
       llvm::dbgs() << "    userOp " << userOp->getName() << ", is not TgCodeGend\n";
 
+    // Handle Quant, treat quant as not-lowed op
+    if (isQuantOp(op)) {
+      if (dyn_cast<TpuTGOpCodegenInterface>(userOp)) {
+        // Quant connected to lowed Op.
+        // E.g. Quant -> conv
+        llvm::dbgs() << "    converted op is needed\n";
+        return true;
+      } else {
+        // Quant connected to not-lowed op.
+        llvm::dbgs() << "    converted op is not needed\n";
+        return false;
+      }
+    }
+
     if (dyn_cast<TpuTGOpCodegenInterface>(op)) {
       // op is Tg CodeGenOp
 
-      // Handle Quant, treat quant as not-lowed op
-      if (dyn_cast<QuantOp>(op)) {
-        if (dyn_cast<TpuTGOpCodegenInterface>(userOp)) {
-          // Quant connected to lowed Op.
-          // E.g. Quant -> conv
-          llvm::dbgs() << "    converted op is needed\n";
-          return true;
-        } else {
-          // Quant connected to not-lowed op.
-          llvm::dbgs() << "    converted op is not needed\n";
-          return false;
-        }
-      }
-      if (dyn_cast<QuantOp>(userOp)) {
+      if (isQuantOp(userOp)) {
         // Lower op connected to Quant
         llvm::dbgs() << "    converted op is needed\n";
         return true;
@@ -364,7 +377,7 @@ public:
     }
 
     // Treat QuantOp as not-lowed op
-    if (dyn_cast<tpu::QuantOp>(operands[0]->getDefiningOp())) {
+    if (isQuantOp(operands[0]->getDefiningOp())) {
       llvm::dbgs() << "convertTensorStoreOpPattern operandOp "
                    << operands[0]->getDefiningOp()->getName() << ", skipped\n";
       return matchFailure();

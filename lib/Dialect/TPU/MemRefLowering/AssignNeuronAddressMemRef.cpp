@@ -499,6 +499,18 @@ void AssignNeuronAddressMemRefPass::handleQuantOp(Operation *opInst) {
   pos_ = newPos;
 }
 
+static bool isQuantOp(Operation *op) {
+  if (dyn_cast<tpu::QuantOp>(op)) {
+    return true;
+  }
+  if (auto castOp = dyn_cast<tpu::GenericCpuOp>(op)) {
+    if (castOp.operation_name() == tpu::QuantOp::getOperationName()) {
+      return true;
+    }
+  }
+  return false;
+}
+
 void AssignNeuronAddressMemRefPass::runOnFunction() {
   // create a map file
   std::unique_ptr<llvm::ToolOutputFile> neuronMapFile = nullptr;
@@ -521,7 +533,7 @@ void AssignNeuronAddressMemRefPass::runOnFunction() {
       handleAllocOp(opInst);
     } else if (dyn_cast<DeallocOp>(opInst)) {
       handleDeallocOp(opInst);
-    } else if (dyn_cast<tpu::QuantOp>(opInst)) {
+    } else if (isQuantOp(opInst)) {
       handleQuantOp(opInst);
     }
   });

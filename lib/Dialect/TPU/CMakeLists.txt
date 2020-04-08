@@ -23,6 +23,7 @@ add_llvm_library(MLIRTPU
   Transforms/AssignLayerId.cpp
   Transforms/SplitCpuOp.cpp
   Transforms/ConvertPriorBoxToLoadWeight.cpp
+  Transforms/ConvertCpuOp.cpp
   Transforms/ConvertConv2D.cpp
   Transforms/LowerToTG.cpp
   Transforms/group_ops/GroupOps.cpp

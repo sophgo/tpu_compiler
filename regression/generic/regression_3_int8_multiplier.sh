@@ -105,6 +105,7 @@ if [ $DO_QUANT_INT8_MULTIPLER -eq 1 ]; then
         --assign-neuron-address \
         --tpu-neuron-address-align=16 \
         --tpu-neuron-map-filename=${NET}_neuron_map_int8_multiplier.csv \
+        --convert-cpu-op \
         ${NET}_quant_int8_multiplier_tg_opt_addr.mlir \
         -o ${NET}_quant_int8_multiplier_addr.mlir
   else
@@ -117,6 +118,7 @@ if [ $DO_QUANT_INT8_MULTIPLER -eq 1 ]; then
         --assign-neuron-address \
         --tpu-neuron-address-align=16 \
         --tpu-neuron-map-filename=${NET}_neuron_map_int8_multiplier.csv \
+        --convert-cpu-op \
         ${NET}_quant_int8_multiplier_tg_opt.mlir \
         -o ${NET}_quant_int8_multiplier_addr.mlir
   fi

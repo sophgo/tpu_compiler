@@ -48,6 +48,7 @@ if [ $DO_QUANT_BF16 -eq 1 ]; then
       --assign-neuron-address \
       --tpu-neuron-address-align=16 \
       --tpu-neuron-map-filename=${NET}_neuron_map_bf16.csv \
+      --convert-cpu-op \
       ${NET}_quant_bf16_tg.mlir \
       -o ${NET}_quant_bf16_addr.mlir
 

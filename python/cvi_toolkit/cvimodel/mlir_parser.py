@@ -8,17 +8,16 @@ from . import cpu_op
 from collections import OrderedDict
 
 
-cpu_ops = (
-    'detectionoutput',
-    'softmax',
-    'quant',
-    'retinaface_detection',
-    'preprocess',
-    'transpose',
-    'yolo_detection'
-    'generic_cpu',
-    'generic_preprocess'
-)
+#cpu_ops = (
+#    'softmax',
+#    'quant',
+#    'retinaface_detection',
+#    'preprocess',
+#    'transpose',
+#    'yolo_detection'
+#    'generic_cpu',
+#    'generic_preprocess'
+#)
 
 
 def softmaxArgsSerialize(attributes):
@@ -82,102 +81,6 @@ def preprocessArgsSerialize(attributes):
     builder.Finish(args)
     return bytearray(builder.Output())
 
-
-def ssdArgsSerialize(attributes):
-    builder = flatbuffers.Builder(0)
-    code_type = builder.CreateString(attributes['code_type'])
-    cpu_op.SSDDetectionStart(builder)
-    cpu_op.SSDDetectionAddNumClasses(builder, float(attributes['num_classes']))
-    cpu_op.SSDDetectionAddShareLocation(builder, bool(attributes['share_location']))
-    cpu_op.SSDDetectionAddBackgroundLabelId(builder, int(attributes['background_label_id']))
-    cpu_op.SSDDetectionAddCodeType(builder, code_type)
-    cpu_op.SSDDetectionAddTopK(builder, float(attributes['top_k']))
-    cpu_op.SSDDetectionAddNmsThreshold(builder, float(attributes['nms_threshold']))
-    cpu_op.SSDDetectionAddObjThreshold(builder, float(attributes['confidence_threshold']))
-    cpu_op.SSDDetectionAddKeepTopk(builder, int(attributes['keep_top_k']))
-    args = cpu_op.SSDDetectionEnd(builder)
-    builder.Finish(args)
-    return bytearray(builder.Output())
-
-def genericArgsSerialize(attributes):
-    builder = flatbuffers.Builder(0)
-    param = attributes['param']
-    packed_attrs = []
-    for k, val in param.items():
-        key = builder.CreateString(k)
-        if type(val) == bool:
-            cpu_op.BoolAttrStart(builder)
-            cpu_op.BoolAttrAddKey(builder, key)
-            cpu_op.BoolAttrAddValue(builder, val)
-            attr = cpu_op.BoolAttrEnd(builder)
-            cpu_op.AttributeStart(builder)
-            cpu_op.AttributeAddBoolAttr(builder, attr)
-            packed_attrs.append(cpu_op.AttributeEnd(builder))
-        elif type(val) == int:
-            cpu_op.IntAttrStart(builder)
-            cpu_op.IntAttrAddKey(builder, key)
-            cpu_op.IntAttrAddValue(builder, val)
-            attr = cpu_op.IntAttrEnd(builder)
-            cpu_op.AttributeStart(builder)
-            cpu_op.AttributeAddIntAttr(builder, attr)
-            packed_attrs.append(cpu_op.AttributeEnd(builder))
-        elif type(val) == float:
-            cpu_op.FloatAttrStart(builder)
-            cpu_op.FloatAttrAddKey(builder, key)
-            cpu_op.FloatAttrAddValue(builder, val)
-            attr = cpu_op.FloatAttrEnd(builder)
-            cpu_op.AttributeStart(builder)
-            cpu_op.AttributeAddFloatAttr(builder, attr)
-            packed_attrs.append(cpu_op.AttributeEnd(builder))
-        elif type(val) == str:
-            v = builder.CreateString(val)
-            cpu_op.StrAttrStart(builder)
-            cpu_op.StrAttrAddKey(builder, key)
-            cpu_op.StrAttrAddValue(builder, v)
-            attr = cpu_op.StrAttrEnd(builder)
-            cpu_op.AttributeStart(builder)
-            cpu_op.AttributeAddStrAttr(builder, attr)
-            packed_attrs.append(cpu_op.AttributeEnd(builder))
-        elif type(val) == list:
-            if type(val[0]) == int:
-                cpu_op.IntArrayAttrStartValueVector(builder, len(val))
-                for v in reversed(val):
-                    builder.PrependInt32(v)
-                value = builder.EndVector(len(val))
-                cpu_op.IntArrayAttrStart(builder)
-                cpu_op.IntArrayAttrAddKey(builder, key)
-                cpu_op.IntArrayAttrAddValue(builder, value)
-                attr = cpu_op.IntArrayAttrEnd(builder)
-                cpu_op.AttributeStart(builder)
-                cpu_op.AttributeAddIntArrayAttr(builder, attr)
-                packed_attrs.append(cpu_op.AttributeEnd(builder))
-            elif type(val[0]) == float:
-                cpu_op.FloatArrayAttrStartValueVector(builder, len(val))
-                for v in reversed(val):
-                    builder.PrependFloat32(v)
-                value = builder.EndVector(len(val))
-                cpu_op.FloatArrayAttrStart(builder)
-                cpu_op.FloatArrayAttrAddKey(builder, key)
-                cpu_op.FloatArrayAttrAddValue(builder, value)
-                attr = cpu_op.FloatArrayAttrEnd(builder)
-                cpu_op.AttributeStart(builder)
-                cpu_op.AttributeAddFloatArrayAttr(builder, attr)
-                packed_attrs.append(cpu_op.AttributeEnd(builder))
-            else:
-                raise Exception("unsupported type")
-        else:
-            raise Exception("unsupported type")
-    cpu_op.ParameterStartAttributesVector(builder, len(packed_attrs))
-    for attr in reversed(packed_attrs):
-        builder.PrependUOffsetTRelative(attr)
-    attrs = builder.EndVector(len(packed_attrs))
-    cpu_op.ParameterStart(builder)
-    cpu_op.ParameterAddAttributes(builder, attrs)
-    args = cpu_op.ParameterEnd(builder)
-    builder.Finish(args)
-    return bytearray(builder.Output())
-
-
 def yoloArgsSerialize(attributes):
     builder = flatbuffers.Builder(0)
     cpu_op.YoloDetectionStart(builder)
@@ -240,33 +143,97 @@ class Tensor:
 
 
 class Op:
+    cpu_ops = []
     def __init__(self, type, attributes, inputs, weights, output):
-        self.type = type
         self.inputs = inputs
         self.weights = weights
         self.output = output
         self.attributes = attributes
-        self.attr_serial = self.__serialize_attrs(type, attributes)
+        self.type = type
+        self.attr_serial = self.__serialize_attrs(attributes)
         if self.type == 'generic_cpu':
-            self.type = self.attributes['operation_name']
+            self.type = self.attributes['operation_name'].split('.')[-1]
+            Op.cpu_ops.append(self.type)
 
-    def __serialize_attrs(self, type, attributes):
-        if type == 'softmax':
-            return softmaxArgsSerialize(attributes)
-        elif type == 'quant':
-            return quantArgsSerialize(attributes)
-        elif type == 'retinaface_detection':
-            return retinafaceArgsSerialize(attributes)
-        elif type == 'preprocess':
-            return preprocessArgsSerialize(attributes)
-        elif type == 'detectionoutput':
-            return ssdArgsSerialize(attributes)
-        elif type == 'yolo_detection':
-            return yoloArgsSerialize(attributes)
-        elif type == 'generic_cpu':
-            return genericArgsSerialize(attributes)
-        else:
-            return bytearray()
+    def __serialize_attrs(self, attributes):
+        if self.type != "generic_cpu":
+            return bytearray();
+        builder = flatbuffers.Builder(0)
+        param = attributes['param']
+        packed_attrs = []
+        for k, val in param.items():
+            key = builder.CreateString(k)
+            if type(val) == bool:
+                cpu_op.BoolAttrStart(builder)
+                cpu_op.BoolAttrAddKey(builder, key)
+                cpu_op.BoolAttrAddValue(builder, val)
+                attr = cpu_op.BoolAttrEnd(builder)
+                cpu_op.AttributeStart(builder)
+                cpu_op.AttributeAddBoolAttr(builder, attr)
+                packed_attrs.append(cpu_op.AttributeEnd(builder))
+            elif type(val) == int:
+                cpu_op.IntAttrStart(builder)
+                cpu_op.IntAttrAddKey(builder, key)
+                cpu_op.IntAttrAddValue(builder, val)
+                attr = cpu_op.IntAttrEnd(builder)
+                cpu_op.AttributeStart(builder)
+                cpu_op.AttributeAddIntAttr(builder, attr)
+                packed_attrs.append(cpu_op.AttributeEnd(builder))
+            elif type(val) == float:
+                cpu_op.FloatAttrStart(builder)
+                cpu_op.FloatAttrAddKey(builder, key)
+                cpu_op.FloatAttrAddValue(builder, val)
+                attr = cpu_op.FloatAttrEnd(builder)
+                cpu_op.AttributeStart(builder)
+                cpu_op.AttributeAddFloatAttr(builder, attr)
+                packed_attrs.append(cpu_op.AttributeEnd(builder))
+            elif type(val) == str:
+                v = builder.CreateString(val)
+                cpu_op.StrAttrStart(builder)
+                cpu_op.StrAttrAddKey(builder, key)
+                cpu_op.StrAttrAddValue(builder, v)
+                attr = cpu_op.StrAttrEnd(builder)
+                cpu_op.AttributeStart(builder)
+                cpu_op.AttributeAddStrAttr(builder, attr)
+                packed_attrs.append(cpu_op.AttributeEnd(builder))
+            elif type(val) == list:
+                if type(val[0]) == int:
+                    cpu_op.IntArrayAttrStartValueVector(builder, len(val))
+                    for v in reversed(val):
+                        builder.PrependInt32(v)
+                    value = builder.EndVector(len(val))
+                    cpu_op.IntArrayAttrStart(builder)
+                    cpu_op.IntArrayAttrAddKey(builder, key)
+                    cpu_op.IntArrayAttrAddValue(builder, value)
+                    attr = cpu_op.IntArrayAttrEnd(builder)
+                    cpu_op.AttributeStart(builder)
+                    cpu_op.AttributeAddIntArrayAttr(builder, attr)
+                    packed_attrs.append(cpu_op.AttributeEnd(builder))
+                elif type(val[0]) == float:
+                    cpu_op.FloatArrayAttrStartValueVector(builder, len(val))
+                    for v in reversed(val):
+                        builder.PrependFloat32(v)
+                    value = builder.EndVector(len(val))
+                    cpu_op.FloatArrayAttrStart(builder)
+                    cpu_op.FloatArrayAttrAddKey(builder, key)
+                    cpu_op.FloatArrayAttrAddValue(builder, value)
+                    attr = cpu_op.FloatArrayAttrEnd(builder)
+                    cpu_op.AttributeStart(builder)
+                    cpu_op.AttributeAddFloatArrayAttr(builder, attr)
+                    packed_attrs.append(cpu_op.AttributeEnd(builder))
+                else:
+                    raise Exception("unsupported type")
+            else:
+                raise Exception("unsupported type")
+        cpu_op.ParameterStartAttributesVector(builder, len(packed_attrs))
+        for attr in reversed(packed_attrs):
+            builder.PrependUOffsetTRelative(attr)
+        attrs = builder.EndVector(len(packed_attrs))
+        cpu_op.ParameterStart(builder)
+        cpu_op.ParameterAddAttributes(builder, attrs)
+        args = cpu_op.ParameterEnd(builder)
+        builder.Finish(args)
+        return bytearray(builder.Output())
 
     def __str__(self):
         if len(self.weights) == 0:
@@ -284,7 +251,7 @@ class Function:
     def __init__(self, ops):
         self.cpu_function = False
         self.cpu_attr_serial = None
-        if len(ops) == 1 and ops[0].type in cpu_ops:
+        if len(ops) == 1 and ops[0].type in Op.cpu_ops:
             self.cpu_function = True
             self.cpu_attr_serial = ops[0].attr_serial
             self.name = ops[0].type
@@ -484,7 +451,7 @@ class MlirParser:
 
     def __move_cpu_op_to_close_consumers(self):
         for i in reversed(range(len(self.ops))):
-            if self.ops[i].type not in cpu_ops:
+            if self.ops[i].type not in Op.cpu_ops:
                 continue
             if self.ops[i].output in self.outputs:
                 self.ops.insert(len(self.ops)-1, self.ops[i])
@@ -532,7 +499,7 @@ class MlirParser:
         idx = 0
         self.__move_cpu_op_to_close_consumers()
         for op in self.ops:
-            if op.type in cpu_ops:
+            if op.type in Op.cpu_ops:
                 if len(groups[idx]) == 0:
                     groups[idx].append(op)
                 else:

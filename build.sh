@@ -11,6 +11,11 @@ else
   export BUILD_PATH=${BUILD_PATH}_debug
 fi
 
+if [[ -z "$INSTALL_PATH" ]]; then
+  echo "Please source envsetup.sh firstly."
+  exit 1
+fi
+
 # mkdir
 if [ ! -e $INSTALL_PATH ]; then
   mkdir -p $INSTALL_PATH
