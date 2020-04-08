@@ -84,6 +84,9 @@ struct TpuTG2TLConv2DOpPattern : public RewritePattern {
     attrs.push_back(rewriter.getNamedAttr("gaddr", op.gaddrAttr()));
     attrs.push_back(rewriter.getNamedAttr("name", op.nameAttr()));
     attrs.push_back(rewriter.getNamedAttr("layer_id", op.layer_idAttr()));
+    if(op.do_ic_alignment().hasValue()){
+      attrs.push_back(rewriter.getNamedAttr("do_ic_alignment", rewriter.getBoolAttr(op.do_ic_alignment().getValue())));
+    }
 
     if (op.buffer_reused().hasValue())
       attrs.push_back(rewriter.getNamedAttr("buffer_reused", op.buffer_reusedAttr()));

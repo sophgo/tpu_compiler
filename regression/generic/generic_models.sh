@@ -235,7 +235,6 @@ export MODEL_DEF=$MODEL_PATH/face_antispoofing/RGBIRLiveness/caffe/RGBIRliveness
 export MODEL_DAT=$MODEL_PATH/face_antispoofing/RGBIRLiveness/caffe/RGBIRlivenessFacebageNet.caffemodel
 export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_caffe/regression_${NET}_0_caffe.sh
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table
-export MLIR_OPT_BE="--tg-fuse-leakyrelu"
 export INPUT=data
 export TOLERANCE_INT8_MULTIPLER=0.9,0.9,0.7
 export DO_QUANT_INT8_PER_TENSOR=0

@@ -70,7 +70,8 @@ def TPU_TL_LA_Conv2DOp : TPU_Op<"tl_la_conv_2d",
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<BoolAttr>:$do_ic_alignment
   );
 
   let results = (outs AnyTensor:$output);
@@ -123,7 +124,8 @@ def TPU_TL_LW_Conv2DOp : TPU_Op<"tl_lw_conv_2d",
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<BoolAttr>:$do_ic_alignment
   );
 
   let results = (outs AnyTensor:$output);
