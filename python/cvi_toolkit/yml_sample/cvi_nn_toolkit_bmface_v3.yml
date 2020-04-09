@@ -8,7 +8,7 @@ data_preprocess:
     #image mean value
     #image_mean: 20.5
     #perchanel mean value
-    channel_mean: 0.99609375, 0.99609375, 0.99609375
+    channel_mean: 127.5,127.5,127.5
     #mean file
     #mean_file: /home/hongjun/models/data/ilsvrc_2012_mean.npy
 

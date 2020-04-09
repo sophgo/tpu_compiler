@@ -41,7 +41,7 @@ Convert_model:
 #step2: do calibration
 Calibration:
     # You can import calibration table directly or do calibration. 
-    calibraion_table: /home/hongjun/compiler/mlir_tpu_latest/llvm-project/llvm/projects/mlir/regression/data/cali_tables/inception_v3_calibration_table
+    calibraion_table: /home/hongjun/compiler/mlir_tpu_develop/llvm-project/llvm/projects/mlir/regression/data/cali_tables/efficientnet_b0_calibration_table_1000
     
     # Do caliration parameters, if you import calibration table below parameters will be ignored.
     Dataset: /home/hongjun/dataset/calibration_data/input.txt

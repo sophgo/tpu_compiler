@@ -5,9 +5,14 @@ import argparse
 import site
 import logging
 
+# logging.basicConfig(level=logging.INFO,
+#                     datefmt='%Y/%m/%d %H:%M:%S',
+#                     format='%(asctime)s-%(name)s-%(levelname)s-%(filename)s:%(lineno)d\n->%(message)s')
+
 logging.basicConfig(level=logging.INFO,
                     datefmt='%Y/%m/%d %H:%M:%S',
-                    format='%(asctime)s-%(name)s-%(levelname)s-%(filename)s:%(lineno)d\n->%(message)s')
+                    format='%(asctime)s->%(message)s')
+
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
@@ -32,6 +37,8 @@ def parse(config: dict):
     # model to mlir
     model_name = None
     output_file = config.get("output_file", None)
+
+
     model_name = output_file.split('.')[0].split('/')[-1]
     Convert_model = config.get('Convert_model', None)
     if Convert_model:
@@ -42,11 +49,12 @@ def parse(config: dict):
         tpu_op_info = "{}_op_info.csv".format(model_name)
         fp32_mlirfile = "{}.mlir".format(model_name)
         try:
+            logger.info("convert model to fp32 mlir ...")
             net.convert_model(model_type, model_file, fp32_mlirfile, weight_file=weight_file, tpu_op_info=tpu_op_info)
         except RuntimeError as err:
             logger.error("RuntimeError {}".format(err))
             exit(-1)
-
+        logger.info("convert model to fp32 mlir finished")
     else:
         print('No Convert_model in yml')
         exit(-1)
@@ -112,23 +120,24 @@ def parse(config: dict):
 
     # inference with mlir framework
     input_npz = fp32_in_npz
-    logger.info("run mlir fp32 inference...")
+    logger.info("run mlir fp32 inference ...")
     fp32_mlir_tensor_file = "{}_tensor_all_fp32.npz".format(model_name)
     output = net.inference('mlir', input_npz, mlirfile=fp32_mlirfile, model_file=model_file, weight_file=weight_file, all_tensors=fp32_mlir_tensor_file)
     if output is not None:
-        logger.info("mlir fp32 inference finish")
+        logger.info("mlir fp32 inference finished")
 
     # inference with origin framework
     fp32_origin_tensor_file = "{}_{}_tensor_all_fp32.npz".format(model_name, model_type)
-    logger.info("run {} fp32 inference...".format(model_type))
+    logger.info("run original {} model fp32 inference ...".format(model_type))
     output = net.inference(model_type, input_npz, mlirfile=fp32_mlirfile, model_file=model_file, weight_file=weight_file, all_tensors=fp32_origin_tensor_file)
     if output is not None:
-        logger.info("{} fp32 inference finish".format(model_type))
+        logger.info("original {} model fp32 inference finished".format(model_type))
 
     # accuracy fp32 test
     accuracy_test = config.get("Accuracy_test", None)
     if accuracy_test != None:
         excepts = accuracy_test.get("excepts", None)
+        logger.info("run mlir fp32 accuracy test ...")
         fp32_acc_test = accuracy_test.get("FP32_Accuracy_test", False)
         if fp32_acc_test:
             target_file = fp32_origin_tensor_file
@@ -139,9 +148,10 @@ def parse(config: dict):
             cvi_data_tool.npz_compare(target_file, ref_file,
                 tolerance=tolerance,
                 op_info=tpu_op_info,
-                excepts=excepts
+                excepts=excepts,
+                verbose=2
                 )
-            logger.info("compare fp32 finish!")
+            logger.info("mlir fp32 accuracy test finished")
     else:
         logger.warning("No FP32 interpreter accuracy test!")
 
@@ -154,12 +164,15 @@ def parse(config: dict):
         calibraion_table_in = Calibration.get("calibraion_table", None)
         auto_tune = Calibration.get("auto_tune", False)
         if calibraion_table_in != None :  # use calibration_table directly.
+            logger.info("import calibration table")
             calibraion_table = calibraion_table_in
         else :
             # if no callibration table do calibration
+            logger.info("run calibration ...")
             image_num = Calibration.get("image_num", 1)
             histogram_bin_num = Calibration.get("histogram_bin_num", 2048)
             net.calibration(fp32_mlirfile, dataset_file, calibraion_table, preprocessor.run,image_num, histogram_bin_num, auto_tune=auto_tune)
+            logger.info("calibration finished")
     else:
         logger.error("No Calibration in yml!")
         exit(-1)
@@ -168,12 +181,14 @@ def parse(config: dict):
     cvimodel = config.get("output_file", None)
     Quantization = config.get("Quantization", None)
     if cvimodel:
+        logger.info("run cvimodel generation ...")
         int8_mlirfile = "{}_int8.mlir".format(model_name)
         is_perchannel = Quantization.get("per_channel", True)
         is_symmetric = Quantization.get("symmetric", True)
         quant_tpu_op_info = "{}_quant_op_info.csv".format(model_name)
 
         net.build_cvimodel(fp32_mlirfile, cvimodel, calibraion_table, mlirfile_int8=int8_mlirfile, quant_info=quant_tpu_op_info)
+        logger.info("cvimodel generation finished")
     else:
         logger.error("No cvimodel output_file")
         exit(-1)
@@ -181,9 +196,10 @@ def parse(config: dict):
     # Accuracy_test int8
     # inference with mlir framework
     int8_mlir_tensor_file = "{}_tensor_all_int8.npz".format(model_name)
+    logger.info("run mlir int8 inference ...")
     output = net.inference('mlir', input_npz, mlirfile=int8_mlirfile, model_file=None, weight_file=None, all_tensors=int8_mlir_tensor_file)
     if output is not None:
-        logger.info("mlir int8 inference finish")
+        logger.info("mlir int8 inference finished")
 
     int8_acc_test = accuracy_test.get("INT8_Accuracy_test", False)
     if int8_acc_test:
@@ -191,22 +207,22 @@ def parse(config: dict):
         ref_file = fp32_origin_tensor_file #fp32_mlir_tensor_file
         tolerance = accuracy_test.get('Tolerance_INT8')
         tolerance = "{},{},{}".format(tolerance[0], tolerance[1], tolerance[2])
-
+        logger.info("run int8 interpreter accurracy test ...")
         cvi_data_tool.npz_compare(target_file, ref_file,
             tolerance=tolerance,
             op_info=quant_tpu_op_info,
             dequant=True,
             excepts=excepts,
-            verbose=0
+            verbose=2
             )
-        logger.info("compare INT8 interpreter result finish!")
+        logger.info("int8 interpreter accurracy test finished")
     else :
         logger.error("No INT8 interpreter accuracy test!")
 
     Simulation = config.get("Simulation", None)
     if Simulation:
         simulation_tensor = "{}_tensor_all_simu.npz".format(model_name)
-
+        logger.info("run cvimodel TPU HW inference simulation ...")
         # tpu_simulation
         ret = net.tpu_simulation(input_npz, cvimodel, simulation_tensor, all_tensors=True)
         if ret != 0:
@@ -214,13 +230,15 @@ def parse(config: dict):
             exit(-1)
         # compare with interprter
         cvi_data_tool.npz_compare(simulation_tensor, int8_mlir_tensor_file)
+        logger.info("cvimodel TPU HW inference simulation finished")
     else:
-        logger.warning("No Simulation")
+        logger.warning("No cvimodel TPU HW simulation")
 
     # Clean
-    logger.info("cleanup...")
+    logger.info("run cleanup ...")
     net.cleanup()
-
+    logger.info("cleanup finished")
+    print("You can get cvimodel:\n {}".format(os.path.abspath(output_file)))
 
 
 def main():
@@ -235,7 +253,6 @@ def main():
             print(exc)
             exit(-1)
     parse(config)
-    logger.info("End to end finish")
 
 
 if __name__ == "__main__":

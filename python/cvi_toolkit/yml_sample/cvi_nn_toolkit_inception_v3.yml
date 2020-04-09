@@ -46,7 +46,7 @@ Calibration:
     # Do caliration parameters, if you import calibration table below parameters will be ignored.
     Dataset: /home/hongjun/dataset/calibration_data/input.txt
     #How many images you want to use to do calibration, if more the num if Dataset, Dataset num will be used
-    image_num: 1000
+    image_num: 100
     histogram_bin_num: 204800
 
 #step3: do quantization

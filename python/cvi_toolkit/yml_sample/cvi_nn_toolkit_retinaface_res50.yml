@@ -24,10 +24,10 @@ data_preprocess:
     Standardization: null
     #letterbox resize, not implement yet
     LetterBox: False
-    #npz input directly , do nothing for preprocessing, just use npz input
+    #npz input directly , do nothing for preprocessing, just use npz input 
     npz_input: null
 
-    input_file: /workspace/tpu/mlir/llvm-project/llvm/projects/mlir/regression/data/parade.jpg
+    input_file: /home/hongjun/models/data/parade.jpg
     output_npz: retinaface_res50_in_fp32.npz
 
 #step 1: model convert
@@ -35,14 +35,14 @@ Convert_model:
     #framework type: caffe or onnx
     framework_type: caffe
     #for onnx model, please set model file only
-    weight_file: /data/models/face_detection/retinaface/caffe/R50-0000.caffemodel
-    model_file: /data/models/face_detection/retinaface/caffe/R50-0000.prototxt
+    weight_file: /home/hongjun/models/face_detection/retinaface/caffe/R50-0000.caffemodel
+    model_file: /home/hongjun/models/face_detection/retinaface/caffe/R50-0000.prototxt
 
 #step2: do calibration
 Calibration:
-    # You can import calibration table directly or do calibration.
-    calibraion_table: /workspace/tpu/mlir/llvm-project/llvm/projects/mlir/regression/data/cali_tables/retinaface_res50_calibration_table
-
+    # You can import calibration table directly or do calibration. 
+    calibraion_table: /home/hongjun/compiler/mlir/regression/data/cali_tables/retinaface_res50_calibration_table
+    
     # Do caliration parameters, if you import calibration table below parameters will be ignored.
     Dataset: /home/hongjun/dataset/calibration_data/input.txt
     #How many images you want to use to do calibration, if more the num if Dataset, Dataset num will be used
@@ -70,7 +70,7 @@ Accuracy_test:
       - 0.8  #cosine similarity
       - 0.8  #correlation similarity
       - 0.4  #eulidean similarity
-
+    excepts: prob
 
 #step5: do tpu offline simulation to check accuracy.
 

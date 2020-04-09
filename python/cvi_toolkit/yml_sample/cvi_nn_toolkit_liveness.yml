@@ -25,7 +25,7 @@ data_preprocess:
     #letterbox resize, not implement yet
     LetterBox: False
     #npz input directly , do nothing for preprocessing, just use npz input
-    npz_input: /workspace/tpu/mlir/llvm-project/llvm/projects/mlir/regression/data/liveness_patch1.npy
+    npz_input: /home/hongjun/compiler/mlir_tpu_develop/llvm-project/llvm/projects/mlir/regression/data/liveness_patch1.npy
 
     input_file: /home/hongjun/models/data/Aaron_Eckhart_0001.jpg
     output_npz: liveness_in_fp32.npz
@@ -35,14 +35,14 @@ Convert_model:
     #framework type: caffe or onnx
     framework_type: caffe
     #for onnx model, please set model file only
-    weight_file: /data/models/face_antispoofing/RGBIRLiveness/caffe/RGBIRlivenessFacebageNet.caffemodel
-    model_file: /data/models/face_antispoofing/RGBIRLiveness/caffe/RGBIRlivenessFacebageNet.prototxt
+    weight_file: /home/hongjun/models/face_antispoofing/RGBIRLiveness/caffe/RGBIRlivenessFacebageNet.caffemodel
+    model_file: /home/hongjun/models/face_antispoofing/RGBIRLiveness/caffe/RGBIRlivenessFacebageNet.prototxt
 
 #step2: do calibration
 Calibration:
-    # You can import calibration table directly or do calibration.
-    calibraion_table: /workspace/tpu/mlir/llvm-project/llvm/projects/mlir/regression/data/cali_tables/liveness_calibration_table
-
+    # You can import calibration table directly or do calibration. 
+    calibraion_table: /home/hongjun/compiler/mlir_tpu_latest/llvm-project/llvm/projects/mlir/regression/data/cali_tables/liveness_calibration_table
+    
     # Do caliration parameters, if you import calibration table below parameters will be ignored.
     Dataset: /home/hongjun/dataset/calibration_data/input.txt
     #How many images you want to use to do calibration, if more the num if Dataset, Dataset num will be used
@@ -70,6 +70,7 @@ Accuracy_test:
       - 0.9  #cosine similarity
       - 0.9  #correlation similarity
       - 0.7  #eulidean similarity
+    excepts: prob
 
 #step5: do tpu offline simulation to check accuracy.
 
