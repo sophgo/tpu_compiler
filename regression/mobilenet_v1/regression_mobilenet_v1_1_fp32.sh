@@ -6,8 +6,8 @@ DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 
 # translate from caffe model
 mlir-translate \
-    --caffe-to-mlir $MODEL_PATH/caffe/mobilenet_deploy.prototxt \
-    --caffemodel $MODEL_PATH/caffe/mobilenet.caffemodel \
+    --caffe-to-mlir $MODEL_PATH/caffe/2018.10.03.01/mobilenet_deploy.prototxt \
+    --caffemodel $MODEL_PATH/caffe/2018.10.03.01/mobilenet.caffemodel \
     -o mobilenet_v1.mlir
 
 # test mlir interpreter
