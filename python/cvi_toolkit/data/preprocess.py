@@ -36,10 +36,13 @@ class preprocess(object):
             self.resize_dims = [ max(x,y) for (x,y) in zip(self.resize_dims, self.net_input_dims)]
         else :
             self.resize_dims = None
+            
         self.raw_scale = raw_scale
 
         if mean:
             self.mean = np.array([float(s) for s in mean.split(',')], dtype=np.float32)
+            if self.resize_dims != None :
+                    self.mean = self.mean[:, np.newaxis, np.newaxis]
             self.mean_file = np.array([])
         else:
             if mean_file != None :
@@ -49,6 +52,7 @@ class preprocess(object):
                 self.mean_file = np.array([])
 
         self.input_scale = float(input_scale)
+
         if transpose != None:
             self.transpose = tuple([int(s)for s in transpose.split(",")])
         else :
@@ -83,7 +87,6 @@ class preprocess(object):
                 if self.mean_file.size != 0 :
                     x -= self.mean_file
                 elif self.mean.size != 0:
-                    self.mean = self.mean[:, np.newaxis, np.newaxis]
                     x -= self.mean
                 if self.input_scale != 1.0:
                     x *= self.input_scale

@@ -59,7 +59,7 @@ Convert_model:
 #step2: do calibration
 Calibration:
     # You can import calibration table directly or do calibration. 
-    calibraion_table: /home/hongjun/compiler/mlir_tpu_latest/llvm-project/llvm/projects/mlir/regression/data/cali_tables/vgg16_calibration_table
+    #calibraion_table: /home/hongjun/compiler/mlir_tpu_latest/llvm-project/llvm/projects/mlir/regression/data/cali_tables/vgg16_calibration_table
     
     # Do caliration parameters, if you import calibration table below parameters will be ignored.
     Dataset: /home/hongjun/dataset/calibration_data/input.txt

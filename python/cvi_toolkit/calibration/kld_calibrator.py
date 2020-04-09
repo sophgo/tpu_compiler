@@ -12,6 +12,7 @@ import logging
 from ctypes import *
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 
 def is_all_zero(data):
