@@ -754,6 +754,52 @@ class TPU_TG_PixelShuffleOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 def TPU_TG_INT8_PixelShuffleOp : TPU_TG_PixelShuffleOp<"tg_int8_pixelshuffle", "Int8">;
 def TPU_TG_BF16_PixelShuffleOp : TPU_TG_PixelShuffleOp<"tg_bf16_pixelshuffle", "Bf16">;
 
+class TPU_TG_ClipOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
+  let summary = "TG " # opQuant # " Clip operator.";
+
+  let description = [{
+    Inputs:
+      `input`           : required, the input activation memref.
+
+    Attributes:
+      `max`: optional, Minimum value, under which element is replaced by min. It must be a scalar(tensor of empty shape).
+      `min`: optional, Maximum value, above which element is replaced by max. It must be a scalar(tensor of empty shape).
+
+      `region`          : required, the memory region to reside in, could be
+                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
+                          (backend does not support `INPUT`, `OUTPUT` for now)
+      `gaddr`           : optional, address in global memory, normally the
+                                     offset within the memory region.
+
+      `name`            : required, name for comparing, or debug.
+      `layer_id`        : optional, id for profiling.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface`    : support common TPU TG Op interface.
+      `TpuTGOpCodegenInterface` : support generate TPU instuctions.
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    DefaultValuedAttr<F32Attr, "999">:$min,
+    DefaultValuedAttr<F32Attr, "-999">:$max,
+    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
+    OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+def TPU_TG_INT8_ClipOp : TPU_TG_ClipOp<"tg_int8_clip", "Int8">;
+def TPU_TG_BF16_ClipOp : TPU_TG_ClipOp<"tg_bf16_clip", "Bf16">;
 
 class TPU_TG_SliceOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,

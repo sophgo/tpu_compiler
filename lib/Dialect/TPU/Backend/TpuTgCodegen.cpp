@@ -1737,6 +1737,85 @@ LogicalResult tpu::TG_BF16_PixelShuffleOp::codegen(void *ctx) {
   return success();
 }
 
+LogicalResult tpu::TG_INT8_ClipOp::codegen(void *ctx) {
+  assert(0 && "not implement yet");
+#if 0
+  llvm::errs() << "TG_codegen: " << getOperationName() << " [" << getOpName()
+               << "]\n";
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  // tranform from pytorch define
+  n = shape[0];
+  c = shape[1];
+  h = shape[2];
+  w = shape[3];
+  uint32_t upscale_factor = this->upscale_factor().getLimitedValue();
+
+  gaddr_t input_gaddr = getPreviousOpAddress(op);
+  gaddr_t output_gaddr = getOpAddress(op);
+  int layer_id = mlir::getOpLayerId(op);
+  pixel_shuffle_fixed_bmkernel(
+      *backend_ctx, //const CviBackendContext &ctx,
+      0, //u32 stream_id,
+      0, //u32 inst_id,
+      layer_id,
+      NULL, //const u32 *depends,
+      0, //u32 depends_len,
+      input_gaddr,
+      output_gaddr,
+      n,
+      c,
+      h,
+      w,
+      upscale_factor);
+#endif
+  return success();
+}
+
+LogicalResult tpu::TG_BF16_ClipOp::codegen(void *ctx) {
+  assert(0 && "not implement yet");
+#if 0
+  llvm::errs() << "TG_codegen: " << getOperationName() << " [" << getOpName()
+               << "]\n";
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  // tranform from pytorch define
+  n = shape[0];
+  c = shape[1] * shape[2] * shape[3];
+  h = shape[4];
+  w = shape[5];
+  uint32_t upscale_factor = this->upscale_factor().getLimitedValue();
+
+  gaddr_t input_gaddr = getPreviousOpAddress(op);
+  gaddr_t output_gaddr = getOpAddress(op);
+  int layer_id = mlir::getOpLayerId(op);
+
+  bf16_pixel_shuffle_fixed_bmkernel(
+      *backend_ctx, //const CviBackendContext &ctx,
+      0, //u32 stream_id,
+      0, //u32 inst_id,
+      layer_id,
+      NULL, //const u32 *depends,
+      0, //u32 depends_len,
+      input_gaddr,
+      output_gaddr,
+      n,
+      c,
+      h,
+      w,
+      upscale_factor);
+#endif
+  return success();
+}
+
 LogicalResult tpu::ReshapeOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);

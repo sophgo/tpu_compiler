@@ -700,6 +700,29 @@ int my_pixelshuffle(float *input, float *output, int in, int ic, int ih, int iw,
   return 0;
 }
 
+int my_clip(float *input, float *output, int in, int ic, int ih, int iw,
+                    int on, int oc, int oh, int ow, float min, float max) {
+  int i_index = 0, o_index = 0;
+  LLVM_DEBUG(llvm::errs() << "  in: " << in << ", ic: " << ic << ", ih: " << ih
+                          << ", iw: " << iw << "\n";);
+  LLVM_DEBUG(llvm::errs() << "  on: " << on << ", oc: " << oc << ", oh: " << oh
+                          << ", ow: " << ow << "\n";);
+  for (int n = 0; n < in; n++) {
+    for (int c = 0; c < ic; c++) {
+      for (int h = 0; h < ih; h++) {
+        for (int w = 0; w < iw; w++) {
+          // copy from caffe
+          //top_data[i] = std::max(min, std::min(bottom_data[i], max));
+          output[o_index] = std::max(min, std::min(input[i_index], max));
+          o_index++;
+          i_index++;
+        }
+      }
+    }
+  }
+  return 0;
+}
+
 int my_upsample(float *input, float *output, int n, int c, int ih, int iw,
                     int scale) {
   int h = ih * scale;
