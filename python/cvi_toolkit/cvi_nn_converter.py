@@ -16,13 +16,6 @@ logging.basicConfig(level=logging.INFO,
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-if os.environ.get('LD_LIBRARY_PATH', None) is None:
-    os.environ['LD_LIBRARY_PATH'] = "{}/lib".format(sys.prefix) + ':' + "{}/lib".format(site.USER_BASE)
-    logger.info("Setting LD_LIBRARY_PATH {}".format(os.environ['LD_LIBRARY_PATH']))
-else:
-    if not sys.prefix in os.environ['LD_LIBRARY_PATH'] or not site.USER_BASE in os.environ['LD_LIBRARY_PATH']:
-        os.environ['LD_LIBRARY_PATH'] += ':' + "{}/lib".format(sys.prefix) + ':' + "{}/lib".format(site.USER_BASE)
-
 
 from cvi_toolkit import cvinn, preprocess
 from cvi_toolkit.numpy_helper import npz_extract, npz_rename

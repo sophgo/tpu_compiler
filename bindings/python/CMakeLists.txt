@@ -6,6 +6,8 @@ if (POLICY CMP0048)
 endif()
 
 project(pymlir)
+SET(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
+SET(CMAKE_INSTALL_RPATH "\${ORIGIN}/")
 
 pybind11_add_module(pymlir pymlir.cpp)
 
