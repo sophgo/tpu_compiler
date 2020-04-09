@@ -250,7 +250,6 @@ class OnnxConverter(BaseConverterInterface):
         with open(self.mlir_file_path, "w") as f:
             f.write(mlir_txt)
 
-
     def convert_add_op(self, onnx_node):
         assert(len(onnx_node.inputs) == 2)
         op1, input_shape1, tensor_type1 = self.getOperand(onnx_node.inputs[0])
@@ -259,14 +258,28 @@ class OnnxConverter(BaseConverterInterface):
         # broadcast add from constant
         if tensor_type1 == TensorType.ACTIVATION and tensor_type2 == TensorType.TENSOR:
             if len(input_shape2) ==1 and input_shape2[0] == 1:
-                #broadcast to all
-                add_value = self.getTensor(onnx_node.inputs[1]).tensor_data
-                tensor_data = np.full(tuple(input_shape1), add_value[0])
+                # we use depthwise for quantize, it could eq x * 1 + y
 
-                constant_name = "{}_add_constant".format(onnx_node.inputs[0])
-                constant_op = self.CVI.add_load_file_op(constant_name, input_shape1)
-                self.addTensor(constant_name, tensor_data, input_shape1)
-                op2 = constant_op
+                operands = list()
+                operands.append(op1)
+
+                tensor_data = np.full(input_shape1[1], 1) # broadcast via channel
+                weight_name = "{}_add_weight".format(onnx_node.inputs[0])
+                self.addTensor(weight_name, tensor_data, tensor_data.shape)
+                op2 = self.CVI.add_load_file_op(weight_name, tensor_data.shape)
+                operands.append(op2)
+
+                add_value = self.getTensor(onnx_node.inputs[1]).tensor_data
+                tensor_data = np.full((input_shape1[1]), add_value[0]) # broadcast via channel
+                bias_name = "{}_add_bias".format(onnx_node.inputs[0])
+                self.addTensor(bias_name, tensor_data, tensor_data.shape)
+                op3 = self.CVI.add_load_file_op(bias_name, tensor_data.shape)
+                operands.append(op3)
+
+                output_shape = input_shape1
+
+                scale_op = self.CVI.add_scale_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
+                self.addOperand(onnx_node.name, scale_op, output_shape, TensorType.ACTIVATION)
 
             else:
                 raise RuntimeError("TODO other axis")
@@ -274,13 +287,44 @@ class OnnxConverter(BaseConverterInterface):
             # eltwise add
             if input_shape1 != input_shape2:
                 raise AttributeError("{} v.s. {} shape not same".format(input_shape1, input_shape2))
-        operands = list()
-        operands.append(op1)
-        operands.append(op2)
-        output_shape = input_shape1
+            operands = list()
+            operands.append(op1)
+            operands.append(op2)
+            output_shape = input_shape1
 
-        add_op = self.CVI.add_eltwise_add_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
-        self.addOperand(onnx_node.name, add_op, output_shape, TensorType.ACTIVATION)
+            add_op = self.CVI.add_eltwise_add_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
+            self.addOperand(onnx_node.name, add_op, output_shape, TensorType.ACTIVATION)
+
+    def convert_div_op(self, onnx_node):
+        assert(len(onnx_node.inputs) == 2)
+        op1, input_shape1, tensor_type1 = self.getOperand(onnx_node.inputs[0])
+        op2, input_shape2, tensor_type2 = self.getOperand(onnx_node.inputs[1])
+        if len(input_shape2) ==1 and input_shape2[0] == 1:
+            # div(x) = input * (1/x) = scale(1/x) = input * (1/x) + 0
+            operands = list()
+            operands.append(op1)
+
+            div_value = self.getTensor(onnx_node.inputs[1]).tensor_data
+            tensor_data = np.full(input_shape1[1], 1 / (div_value * 1.0)) # broadcast via channel
+            weight_name = "{}_div_weight".format(onnx_node.inputs[0])
+            self.addTensor(weight_name, tensor_data, tensor_data.shape)
+            op2 = self.CVI.add_load_file_op(weight_name, tensor_data.shape)
+            operands.append(op2)
+
+            # TODO: add Nonp op
+            tensor_data = np.full((input_shape1[1]), 0) # broadcast via channel
+            bias_name = "{}_div_bias".format(onnx_node.inputs[0])
+            self.addTensor(bias_name, tensor_data, tensor_data.shape)
+            op3 = self.CVI.add_load_file_op(bias_name, tensor_data.shape)
+            operands.append(op3)
+
+            output_shape = input_shape1
+
+            scale_op = self.CVI.add_scale_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
+            self.addOperand(onnx_node.name, scale_op, output_shape, TensorType.ACTIVATION)
+
+        else:
+            raise RuntimeError("not implement yet")
 
     def convert_batchnorm_op(self, onnx_node):
         assert(onnx_node.op_type == "BatchNormalization")
@@ -689,4 +733,5 @@ class OnnxConverter(BaseConverterInterface):
         self.convert_tensor()
         self.convert_graph()
         self.TensortoNpz()
+
 
