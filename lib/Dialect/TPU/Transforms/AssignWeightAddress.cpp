@@ -165,8 +165,6 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
       weightBinaryFile_->write(reinterpret_cast<const char*>(weight_uint32.data()),
           weight_uint32.size() * sizeof(uint32_t));
     } else if (weightOp.storage() == "FP32") {
-      //assert(false);
-      std::cout << "float size: " << sizeof(float) << std::endl;
       std::vector<float> weight_fp32;
       auto weight = wTF->readTensor<float>(tensor_name, type);
       weight_fp32.assign(weight->begin(), weight->end());
