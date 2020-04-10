@@ -14,8 +14,8 @@ from cvi_toolkit.cvimodel import mlir_parser
 from cvi_toolkit.cvimodel import cvi_model as cm
 
 # Version shall be in schema
-MAJOR_VER = 0
-MIN_VER = 9
+MAJOR_VER = 1
+MIN_VER = 0
 SUBMIN_VER = 0
 
 DFT_CHIP = 'cv1835'
