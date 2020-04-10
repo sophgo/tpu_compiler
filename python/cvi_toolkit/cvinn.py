@@ -47,14 +47,14 @@ class cvinn(object):
             print("Not support {} type, now support onnx and caffe".format(model_type))
             return -1
 
-    def calibration(self, mlirfile_fp32: str, dataset: str, threshold_table: str, pre_func, input_num, histogram_bin_num, auto_tune=False):
+    def calibration(self, mlirfile_fp32: str, dataset: str, threshold_table: str, pre_func, input_num, histogram_bin_num, auto_tune=False,tune_image_num=10):
         # mlir_calibration(mlirfile_fp32, dataset, threshold_table, auto_tune)
         cvi_model = ModelFactory()
         cvi_model.load_model('mlir', None, mlirfile=mlirfile_fp32)
         calitor = KLD_Calibrator_v2(dataset,pre_func, cvi_model.model, input_num=input_num, histogram_bin_num=histogram_bin_num)
         calitor.do_calibration(threshold_table=threshold_table)
         if auto_tune == True:
-            tuner = Tuner_v2(mlirfile_fp32, threshold_table, dataset, preprocess_func=pre_func)
+            tuner = Tuner_v2(mlirfile_fp32, threshold_table, dataset, tune_iteration=tune_image_num,preprocess_func=pre_func)
             tuner.run_tune()
         return 0
 

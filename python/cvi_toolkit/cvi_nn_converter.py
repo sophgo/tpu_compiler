@@ -163,8 +163,10 @@ def parse(config: dict):
             # if no callibration table do calibration
             logger.info("run calibration ...")
             image_num = Calibration.get("image_num", 1)
+            tune_image_num = Calibration.get("tune_image_num", 10)
+
             histogram_bin_num = Calibration.get("histogram_bin_num", 2048)
-            net.calibration(fp32_mlirfile, dataset_file, calibraion_table, preprocessor.run,image_num, histogram_bin_num, auto_tune=auto_tune)
+            net.calibration(fp32_mlirfile, dataset_file, calibraion_table, preprocessor.run,image_num, histogram_bin_num, auto_tune=auto_tune,tune_image_num=tune_image_num)
             logger.info("calibration finished")
     else:
         logger.error("No Calibration in yml!")

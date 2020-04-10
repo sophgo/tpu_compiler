@@ -2,29 +2,47 @@
 output_file: resnet50.cvimodel
 
 data_preprocess:
+    #Follow below Process rule. 
+    # 1. if npz_input is given , just use npz file directly. (no calibration support)
+    # 2. if LetterBox set to True , only net_input_dims is used for just yolov3 preprocess. 
+    # 3. if image_resize_dim is set.  
+    #    1) do bgr to rgb convert if RGB_order is set to rgb
+    #    2) resize input to image_resize_dim
+    #    3) transpose if transpose = 2,0,1
+    #    4) multiply  raw_scale/255
+    #    5) reduce mean if channel_mean /mean_file/image_mean is set 
+    #    6) multiply  input_scale 
+    #    7) center_crop to net_input_dims 
+    # 4. if image_resize_dim not set.  
+    #    1) do bgr to rgb convert if RGB_order is set to rgb
+    #    2) reduce mean
+    #    3) multiply input_scale
+    #    4) resize to net_input_dims
+    #    5) transpose if transpose = 2,0,1
+
     image_resize_dim: 256, 256
-    net_input_dims: 224, 224
+    net_input_dims: 224,224
     # for mean , you should only set one of "image_mean" "channel_mean" and "mean_file"
     #image mean value
     #image_mean: 20.5
     #perchanel mean value
-    channel_mean: 104.01,116.67,122.68
+    #channel_mean: 104.01,116.67,122.68
     #mean file
-    #mean_file: /home/hongjun/models/data/ilsvrc_2012_mean.npy
+    mean_file: /home/hongjun/models/data/ilsvrc_2012_mean.npy
 
     #Multiply raw input by this scale before preprocession
     raw_scale: 255.0
     #Multiply input features by this scale to finish preprocession
-    input scale: 1
-    #RGB order: rgb or bgr , default is bgr the same as opencv
+    input_scale: 1
+    #RGB order: rgb or bgr , default is bgr
     RGB_order: bgr
-    #transpose, "2,0,1" is HWC->CHW;
+    #transpose, "2,1,0" is HWC->CHW;
     transpose: 2,0,1
     #not implement yet
     Standardization: null
-    #letterbox resize, for yolov3 case
+    #letterbox resize, not implement yet
     LetterBox: False
-    #npz input directly , do nothing for preprocessing, just use npz input
+    #npz input directly , do nothing for preprocessing, just use npz input 
     npz_input: null
 
     input_file: /home/hongjun/models/data/cat.jpg
@@ -40,14 +58,16 @@ Convert_model:
 
 #step2: do calibration
 Calibration:
-    # You can import calibration table directly or do calibration.
-    #calibraion_table: /home/hongjun/compiler/mlir_tpu_latest/llvm-project/llvm/projects/mlir/regression/data/cali_tables/resnet50_calibration_table
-
+    # You can import calibration table directly or do calibration. 
+    calibraion_table: /home/hongjun/compiler/mlir_tpu_latest/llvm-project/llvm/projects/mlir/regression/data/cali_tables/resnet50_calibration_table
+    
     # Do caliration parameters, if you import calibration table below parameters will be ignored.
     Dataset: /home/hongjun/dataset/calibration_data/input.txt
     #How many images you want to use to do calibration, if more the num if Dataset, Dataset num will be used
-    image_num: 1000
-    histogram_bin_num: 204800
+    image_num: 20
+    histogram_bin_num: 2048
+    auto_tune: True
+    tune_image_num: 20
 
 #step3: do quantization
 Quantization:
