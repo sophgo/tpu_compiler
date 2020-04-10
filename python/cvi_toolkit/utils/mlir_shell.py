@@ -16,14 +16,14 @@ def checkReturnValue(ret, func: str):
     if ret.returncode == 0:
         logger.debug("{} run success".format(func))
     else:
-        logger.error("error occured: {}, func: {}\nmsg: {}".format(ret.returncode, func, str(ret.stderr, encoding='utf-8')))
+        logger.error("error occured: {}, func: {}\nmsg: {}".format(ret.returncode, func, ret))
 
-def mlir_traslate(model_file, weight_file, mlirfile):
+def mlir_translate(model_file, weight_file, mlirfile):
     ret = subprocess.run(["mlir-translate", "--caffe-to-mlir", model_file,
                     "--caffemodel", weight_file,
                     "-o", mlirfile
                     ], **std_output_flag)
-    checkReturnValue(ret, "mlir_traslate")
+    checkReturnValue(ret, "mlir_translate")
     return ret.returncode
 
 def mlir_opt(mlirfile, opt_mlirfile, op_info_csv):

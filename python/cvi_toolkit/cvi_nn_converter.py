@@ -43,7 +43,10 @@ def parse(config: dict):
         fp32_mlirfile = "{}.mlir".format(model_name)
         try:
             logger.info("convert model to fp32 mlir ...")
-            net.convert_model(model_type, model_file, fp32_mlirfile, weight_file=weight_file, tpu_op_info=tpu_op_info)
+            ret = net.convert_model(model_type, model_file, fp32_mlirfile, weight_file=weight_file, tpu_op_info=tpu_op_info)
+            if ret != 0:
+                logger.error("mlir_translate failed")
+                exit(-1)
         except RuntimeError as err:
             logger.error("RuntimeError {}".format(err))
             exit(-1)
@@ -83,7 +86,7 @@ def parse(config: dict):
         letter_box = t.get('LetterBox', False)
 
         rgb_order = t.get('RGB_order',"bgr")
-        npz_input = t.get('npz_input')
+        npy_input = t.get('npy_input')
 
         input_file = t.get('input_file')
         if input_file == None :
@@ -100,7 +103,7 @@ def parse(config: dict):
                     raw_scale=raw_scale,
                     transpose=transpose,
                     rgb_order=rgb_order,
-                    npz_input=npz_input,
+                    npy_input=npy_input,
                     letter_box=letter_box)
 
         ret = preprocessor.run(input_file, output_npz=output_npz)

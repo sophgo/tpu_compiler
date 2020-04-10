@@ -24,8 +24,8 @@ data_preprocess:
     Standardization: null
     #letterbox resize, not implement yet
     LetterBox: False
-    #npz input directly , do nothing for preprocessing, just use npz input 
-    npz_input: null
+    #npz input directly , do nothing for preprocessing, just use npz input
+    npy_input: null
 
     input_file: /home/hongjun/models/data/cat.jpg
     output_npz: resnet50_in_fp32.npz
@@ -40,9 +40,9 @@ Convert_model:
 
 #step2: do calibration
 Calibration:
-    # You can import calibration table directly or do calibration. 
-    #calibraion_table: /home/hongjun/compiler/mlir_tpu_latest/llvm-project/llvm/projects/mlir/regression/data/cali_tables/resnet50_calibration_table
-    
+    # You can import calibration table directly or do calibration.
+    calibraion_table: /home/hongjun/compiler/mlir_tpu_latest/llvm-project/llvm/projects/mlir/regression/data/cali_tables/resnet50_calibration_table
+
     # Do caliration parameters, if you import calibration table below parameters will be ignored.
     Dataset: /home/hongjun/dataset/calibration_data/input.txt
     #How many images you want to use to do calibration, if more the num if Dataset, Dataset num will be used

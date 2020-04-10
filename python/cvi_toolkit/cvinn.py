@@ -5,7 +5,7 @@ from .transform import OnnxConverter
 from .build_cvimodel import CVIModel as builder
 from .calibration.kld_calibrator import KLD_Calibrator_v2
 from .calibration.tuner import Tuner_v2
-from .utils.mlir_shell import checkReturnValue, mlir_traslate, mlir_opt, \
+from .utils.mlir_shell import checkReturnValue, mlir_translate, mlir_opt, \
                                 mlir_import_calibration, mlir_tpu_quant, mlir_lower_opt, mlir_gen_cvimodel, \
                                 mlir_calibration, run_cvimodel
 import subprocess
@@ -24,7 +24,10 @@ class cvinn(object):
                 print("No caffe weight file")
                 return -1
             mlirori = "ori_{}".format(mlirfile)
-            mlir_traslate(model_file, weight_file, mlirori)
+            ret = mlir_translate(model_file, weight_file, mlirori)
+            if ret != 0:
+                logger.error("mlir_translate failed")
+                return -1
             if tpu_op_info:
                 mlir_opt(mlirori, mlirfile, tpu_op_info)
             else:
