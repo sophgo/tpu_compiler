@@ -26,9 +26,9 @@ class preprocess(object):
                      raw_scale=255.0,
                      transpose=None,
                      rgb_order='bgr',
-                     npz_input=None,
+                     npy_input=None,
                      letter_box=False):
-        self.npz_input = npz_input
+        self.npy_input = npy_input
         self.letter_box = letter_box
         self.net_input_dims = [int(s) for s in net_input_dims.split(',')]
         if resize_dims != None :
@@ -61,8 +61,8 @@ class preprocess(object):
 
     def run(self, input_file, output_npz=None, pfunc=None, input_name=None):
 
-        if self.npz_input != None :
-            x = np.load(str(self.npz_input).rstrip())
+        if self.npy_input != None :
+            x = np.load(str(self.npy_input).rstrip())
             if output_npz:
                 np.savez(output_npz, **{input_name if input_name else "input": x})
             return x
