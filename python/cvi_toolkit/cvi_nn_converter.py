@@ -4,6 +4,7 @@ import yaml
 import argparse
 import site
 import logging
+import shutil
 
 # logging.basicConfig(level=logging.INFO,
 #                     datefmt='%Y/%m/%d %H:%M:%S',
@@ -30,7 +31,10 @@ def parse(config: dict):
     # model to mlir
     model_name = None
     output_file = config.get("output_file", None)
-
+    if os.path.exists(output_file):
+        os.remove(output_file)
+    os.makedirs("tmp", exist_ok=True)
+    os.chdir("tmp")
 
     model_name = output_file.split('.')[0].split('/')[-1]
     Convert_model = config.get('Convert_model', None)
@@ -235,8 +239,11 @@ def parse(config: dict):
     # Clean
     logger.info("run cleanup ...")
     net.cleanup()
+    shutil.move(output_file, '../')
+    os.chdir("../")
+    os.rmdir("tmp")
     logger.info("cleanup finished")
-    print("You can get cvimodel:\n {}".format(os.path.abspath(output_file)))
+    logger.info("You can get cvimodel:\n {}".format(os.path.abspath(output_file)))
 
 
 def main():

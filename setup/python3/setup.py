@@ -91,6 +91,7 @@ setuptools.setup(
         ('lib/python{}'.format(python_version), mkldnn_lib),
         ('lib', mkldnn_lib),
         ('lib', so_lib),
+        ('lib', caffe_lib),
         ('bin', cvi_bin),
     ],
     install_requires=install_requires,
