@@ -36,6 +36,13 @@
 using namespace mlir;
 
 namespace {
+
+static llvm::cl::opt<bool> clSkipMultiUsedScaleOp(
+    "skip-mult-used-scale-op",
+    llvm::cl::desc("Skip Multiple uses for Scale Op"),
+    llvm::cl::init(false));
+
+
 struct TpuFoldScalePattern : public RewritePattern {
   TpuFoldScalePattern(MLIRContext *context)
       : RewritePattern("tpu.scale", 5, context) {}
@@ -52,6 +59,12 @@ struct TpuFoldScalePattern : public RewritePattern {
     auto formerOp = laterScaleOp.getOperand(0)->getDefiningOp();
     if (!isa<tpu::ScaleOp>(formerOp))
       return matchFailure();
+    if (clSkipMultiUsedScaleOp && !formerOp->getResult(0)->hasOneUse()) {
+      std::string op_name = formerOp->getAttrOfType<StringAttr>("name").getValue().str();
+      LLVM_DEBUG(llvm::errs() << "Some one need to use Scale Op: " << op_name << ", not remove it\n";);
+      return matchFailure();
+    }
+
     auto formerScaleOp = cast<tpu::ScaleOp>(formerOp);
 
     // op_name from the later scale
@@ -171,6 +184,12 @@ struct TpuMergeScaleIntoConvPattern : public RewritePattern {
     auto formerOp = scaleOp.getOperand(0)->getDefiningOp();
     if (!isa<tpu::Conv2DOp>(formerOp))
       return matchFailure();
+    if (clSkipMultiUsedScaleOp && !formerOp->getResult(0)->hasOneUse()) {
+      std::string op_name = formerOp->getAttrOfType<StringAttr>("name").getValue().str();
+      LLVM_DEBUG(llvm::errs() << "Some one need to use Scale Op: " << op_name << ", not remove it\n";);
+      return matchFailure();
+    }
+
     auto convOp = cast<tpu::Conv2DOp>(formerOp);
 
     // op_name from the scale
@@ -310,6 +329,7 @@ struct TpuMergeScaleIntoConvPattern : public RewritePattern {
     rewriter.replaceOpWithNewOp<tpu::Conv2DOp>(
         scaleOp, convOp.getResult()->getType(),
         ArrayRef<Value *>{newOperands}, ArrayRef<NamedAttribute>{newAttrs});
+
     return matchSuccess();
   }
 };
