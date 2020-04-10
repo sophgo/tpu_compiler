@@ -86,10 +86,10 @@ def parse(config: dict):
         letter_box = t.get('LetterBox', False)
 
         rgb_order = t.get('RGB_order',"bgr")
-        npy_input = t.get('npy_input')
+        npy_input = t.get('npy_input', None)
 
         input_file = t.get('input_file')
-        if input_file == None :
+        if input_file == None and npy_input == None:
             logger.error('Please set input file image in yml!')
             exit(-1)
 

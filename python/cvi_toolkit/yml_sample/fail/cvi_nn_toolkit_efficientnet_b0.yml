@@ -25,9 +25,9 @@ data_preprocess:
     #letterbox resize, not implement yet
     LetterBox: False
     #npz input directly , do nothing for preprocessing, just use npz input 
-    npz_input: null
+    npy_input: /workspace/tpu/llvm-project/llvm/projects/mlir/regression/data/efficientnet_b0_in.npy
 
-    input_file: /home/hongjun/models/data/cat.jpg
+    input_file:
     output_npz: efficientnet_b0_in_fp32.npz
 
 #step 1: model convert
