@@ -2,7 +2,12 @@
 import os, sys
 import setuptools
 import glob
+import subprocess
 
+IS_PY3 = sys.version_info >= (3,0)
+if not IS_PY3:
+    print("python version {} < 3".format(sys.version_info))
+    exit(-1)
 install_requires=[
     'numpy>=1.18.0',
     'opencv-python>=3.4.0.14',
@@ -25,6 +30,10 @@ class CleanCommand(setuptools.Command):
         pass
     def run(self):
         os.system('rm -vrf ./build ./dist ./python/*.egg-info')
+
+def get_git_revision_short_hash():
+    commit = subprocess.check_output(['git', 'rev-parse', '--short', 'HEAD'])
+    return commit.decode("utf-8").strip()
 
 
 python_version = "{}.{}".format(sys.version_info.major, sys.version_info.minor)
@@ -61,7 +70,7 @@ packages.extend(setuptools.find_packages(where='./third_party/flatbuffers/python
 packages.extend(['cvi', 'cvi.cpu_op', 'cvi.model'])
 setuptools.setup(
     name='CVI_toolkit',
-    version='0.5.0',
+    version=get_git_revision_short_hash(),
     keywords='cvi toolkit',
     description='CVI tool python packge',
     author='sam.zheng',
@@ -80,6 +89,8 @@ setuptools.setup(
         ('lib/python{}'.format(python_version), so_lib),
         ('lib/python{}'.format(python_version), py_so_lib),
         ('lib/python{}'.format(python_version), mkldnn_lib),
+        ('lib', mkldnn_lib),
+        ('lib', so_lib),
         ('bin', cvi_bin),
     ],
     install_requires=install_requires,
