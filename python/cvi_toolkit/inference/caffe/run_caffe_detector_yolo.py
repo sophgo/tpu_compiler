@@ -34,16 +34,25 @@ def parse_args():
                         help="Object confidence threshold")
     parser.add_argument("--nms_threshold", type=float, default=0.5,
                         help="NMS threshold")
+    parser.add_argument("--batch_size", type=int, default=1,
+                        help="Set batch size")
 
     args = parser.parse_args()
     return args
 
 def yolov3_detect(net, image, net_input_dims, obj_threshold, nms_threshold,
-                  dump_blobs=None, dump_weights=None):
-    x = preprocess(image, net_input_dims)
+                  dump_blobs=None, dump_weights=None, batch=1):
+    image_x = preprocess(image, net_input_dims)
     # net.blobs['data'].data[...] = x
     # y = net.forward()
-    x = np.expand_dims(x, axis=0)
+    image_x = np.expand_dims(image_x, axis=0)
+    x = image_x
+    for i in range(1, batch):
+      x = np.append(x, image_x, axis=0)
+
+    net.blobs['data'].reshape(batch, x.shape[1], x.shape[2], x.shape[3])
+    net.blobs['data'].data[...] = x
+
     print("input shape", x.shape)
     y = net.forward_all(**{net.inputs[0]: x})
 
@@ -84,10 +93,8 @@ def yolov3_detect(net, image, net_input_dims, obj_threshold, nms_threshold,
     out_feat['layer94-conv'] = y['layer94-conv']
     out_feat['layer106-conv'] = y['layer106-conv']
     batched_predictions = postprocess(out_feat, image.shape, net_input_dims,
-                              obj_threshold, nms_threshold, batch=1)
-    # batch = 1
-    predictions = batched_predictions[0]
-    return predictions
+                              obj_threshold, nms_threshold, batch)
+    return batched_predictions
 
 def main(argv):
     args = parse_args()
@@ -107,11 +114,12 @@ def main(argv):
         image = cv2.imread(args.input_file)
         predictions = yolov3_detect(net, image, net_input_dims,
                                     obj_threshold, nms_threshold,
-                                    args.dump_blobs, args.dump_weights)
+                                    args.dump_blobs, args.dump_weights, args.batch_size)
         print(predictions)
         if (args.draw_image != ''):
-            image = draw(image, predictions, args.label_file)
-            cv2.imwrite(args.draw_image, image)
+            for i in range(1, args.batch_size):
+                image = draw(image, predictions[i], args.label_file)
+                cv2.imwrite(args.draw_image, image)
     else :
         print("No input_file specified")
         exit(1)
