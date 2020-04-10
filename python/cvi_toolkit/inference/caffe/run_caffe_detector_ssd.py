@@ -33,6 +33,8 @@ def parse_args():
                         help="Force the input blob data, in npy format")
     parser.add_argument("--obj_threshold", type=float, default=0.5,
                         help="Object confidence threshold")
+    parser.add_argument("--batch_size", type=int, default=1,
+                        help="Set batch size")
 
 
     args = parser.parse_args()
@@ -109,7 +111,7 @@ def get_label_name(labelmap, labels):
     return label_names
 
 def ssd_detect(net, image_path, net_input_dims,
-                  dump_blobs=None, dump_weights=None):
+                  dump_blobs=None, dump_weights=None, batch=1):
     
     transformer = caffe.io.Transformer({'data': net.blobs['data'].data.shape})
     transformer.set_transpose('data', (2, 0, 1))  # row to col, (HWC -> CHW)
@@ -117,10 +119,15 @@ def ssd_detect(net, image_path, net_input_dims,
     transformer.set_raw_scale('data', 255)  # [0,1] to [0,255]
     transformer.set_channel_swap('data', (2, 1, 0))  # RGB to BGR
 
-    image = caffe.io.load_image(image_path)  # range from 0 to 1
+    image_x = caffe.io.load_image(image_path)  # range from 0 to 1
+    image_x = transformer.preprocess('data', image_x)
+    image_x = np.expand_dims(image_x, axis=0)
+    image = image_x
+    for i in range(1, batch):
+      image = np.append(image, image_x, axis=0)
 
-    net.blobs['data'].reshape(1, 3, net_input_dims[0], net_input_dims[1])
-    net.blobs['data'].data[...] = transformer.preprocess('data', image)
+    net.blobs['data'].reshape(batch, 3, net_input_dims[0], net_input_dims[1])
+    net.blobs['data'].data[...] = image
     net.blobs['data'].data[...].tofile("test_dog_in_fp32.bin")
 
     detections = net.forward()['detection_out']
@@ -167,17 +174,17 @@ def main(argv):
     if (args.input_file != '') :
         image = cv2.imread(args.input_file)
         predictions = ssd_detect(net, args.input_file, net_input_dims,
-                                    args.dump_blobs, args.dump_weights)
+                                    args.dump_blobs, args.dump_weights, args.batch_size)
+        for i in range(1, args.batch_size):
+            top_label_indices, top_conf, bboxs = parse_top_detection(image.shape, predictions[i], obj_threshold)
+            top_label_name = get_label_name(labelmap, top_label_indices)
 
-        top_label_indices, top_conf, bboxs = parse_top_detection(image.shape, predictions, obj_threshold)
-        top_label_name = get_label_name(labelmap, top_label_indices)
+            print(top_label_name)
+            print(top_label_indices, top_conf, bboxs)
 
-        # print(top_label_name)
-        # print(top_label_indices, top_conf, bboxs)
-
-        if (args.draw_image != ''):
-            image = draw(image, top_label_name,top_conf, bboxs,True)
-            cv2.imwrite(args.draw_image, image)
+            if (args.draw_image != ''):
+                image = draw(image, top_label_name,top_conf, bboxs,True)
+                cv2.imwrite(args.draw_image, image)
 
     else :
         print("No input_file specified")
