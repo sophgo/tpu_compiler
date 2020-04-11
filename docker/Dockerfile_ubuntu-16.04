@@ -1,0 +1,69 @@
+FROM ubuntu:16.04
+LABEL maintainer lei.wang@cvitek.com
+
+# Use cn.archive.ubuntu.com apt source;
+COPY sources-16.04.list /etc/apt/sources.list
+
+# ================== apt ==================
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    cmake \
+    ninja-build \
+    vim \
+    wget \
+    git \
+    ssh-client \
+    unzip \
+    python-dev \
+    python-pip \
+    python-setuptools
+
+# for caffe build
+RUN apt-get install -y --no-install-recommends \
+    libboost-all-dev \
+    libgflags-dev \
+    libgoogle-glog-dev \
+    libhdf5-serial-dev \
+    libleveldb-dev \
+    liblmdb-dev \
+    libprotobuf-dev \
+    libsnappy-dev \
+    protobuf-compiler \
+    libopenblas-dev
+
+# ================== pip ==================
+RUN pip install --upgrade pip
+RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
+RUN pip install \
+    Cython \
+    numpy \
+    scipy \
+    scikit-image \
+    matplotlib \
+    leveldb \
+    decorator \
+    networkx \
+    nose \
+    python-dateutil \
+    protobuf \
+    pyyaml \
+    Pillow \
+    six \
+    lmdb \
+    future \
+    pathlib \
+    tqdm \
+    enum34
+
+# ================== zoneinfo ==================
+COPY zoneinfo/PRC /usr/share/zoneinfo/PRC
+# Set time zone to Asia/Shanghai;
+ENV TZ=Asia/Shanghai
+# make timezone links and conf
+RUN mkdir /usr/share/zoneinfo/Asia \
+  && ln -snf /usr/share/zoneinfo/PRC /usr/share/zoneinfo/$TZ \
+  && ln -snf /usr/share/zoneinfo/$TZ /etc/localtime \
+  && echo $TZ > /etc/timezone
+
+# ================== envs ==================
+ENV MODEL_PATH=/work/models
