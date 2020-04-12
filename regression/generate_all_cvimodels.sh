@@ -25,6 +25,7 @@ generic_net_list=(
   "yolo_v3_320"
   # "yolo_v3_160"
   # "yolo_v3_512x288"
+  "alphapose"
 )
 
 get_net_param()

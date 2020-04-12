@@ -196,34 +196,6 @@ cmake --build . --target install
 popd
 cp $MLIR_SRC_PATH/externals/profiling/tool/performance.html $PROFILING_PATH/bin/
 
-# Clean up some files for release build
-if [ "$1" = "RELEASE" ]; then
-rm -f $INSTALL_PATH/bin/llvm-*
-rm -f $INSTALL_PATH/bin/llc
-rm -f $INSTALL_PATH/bin/lli
-rm -f $INSTALL_PATH/bin/opt
-rm -f $INSTALL_PATH/bin/sancov
-rm -f $INSTALL_PATH/bin/dsymutil
-rm -f $INSTALL_PATH/bin/bugpoint
-rm -f $INSTALL_PATH/bin/verify-uselistorder
-rm -f $INSTALL_PATH/bin/sanstats
-rm -f $INSTALL_PATH/bin/yaml2obj
-rm -f $INSTALL_PATH/lib/*.a
-rm -f $INSTALL_PATH/lib/libLTO.so*
-rm -f $INSTALL_PATH/lib/libmlir_runner_utils.so*
-rm -f $INSTALL_PATH/lib/libRemarks.so*
-rm -rf $INSTALL_PATH/lib/cmake/
-# install regression
-mkdir -p $INSTALL_PATH/regression
-cp -a $MLIR_SRC_PATH/regression/generic $INSTALL_PATH/regression/
-cp -a $MLIR_SRC_PATH/regression/parallel $INSTALL_PATH/regression/
-cp -a $MLIR_SRC_PATH/regression/data $INSTALL_PATH/regression/
-cp -a $MLIR_SRC_PATH/regression/convert_model_caffe.sh $INSTALL_PATH/regression/
-cp -a $MLIR_SRC_PATH/regression/generate_all_cvimodels.sh $INSTALL_PATH/regression/
-# install env script
-cp $MLIR_SRC_PATH/cvitek_envs.sh $INSTALL_PATH/
-fi
-
 # build python package
 pushd $MLIR_SRC_PATH
 if [ $PYTHON_VERSION == "2" ]; then
@@ -234,6 +206,39 @@ elif [ $PYTHON_VERSION == "3" ]; then
   python setup/python3/setup.py clean
 fi
 popd
+
+# Clean up some files for release build
+if [ "$1" = "RELEASE" ]; then
+  if [ -z $INSTALL_PATH ]; then
+    echo "INSTALL_PATH not specified"
+    exit 1
+  fi
+  rm -f $INSTALL_PATH/bin/llvm-*
+  rm -f $INSTALL_PATH/bin/llc
+  rm -f $INSTALL_PATH/bin/lli
+  rm -f $INSTALL_PATH/bin/opt
+  rm -f $INSTALL_PATH/bin/sancov
+  rm -f $INSTALL_PATH/bin/dsymutil
+  rm -f $INSTALL_PATH/bin/bugpoint
+  rm -f $INSTALL_PATH/bin/verify-uselistorder
+  rm -f $INSTALL_PATH/bin/sanstats
+  rm -f $INSTALL_PATH/bin/yaml2obj
+  rm -f $INSTALL_PATH/lib/*.a
+  rm -f $INSTALL_PATH/lib/libLTO.so*
+  rm -f $INSTALL_PATH/lib/libmlir_runner_utils.so*
+  rm -f $INSTALL_PATH/lib/libRemarks.so*
+  rm -rf $INSTALL_PATH/lib/cmake/
+  # install regression
+  mkdir -p $INSTALL_PATH/regression
+  cp -a $MLIR_SRC_PATH/regression/generic $INSTALL_PATH/regression/
+  cp -a $MLIR_SRC_PATH/regression/parallel $INSTALL_PATH/regression/
+  cp -a $MLIR_SRC_PATH/regression/data $INSTALL_PATH/regression/
+  cp -a $MLIR_SRC_PATH/regression/convert_model_caffe.sh $INSTALL_PATH/regression/
+  cp -a $MLIR_SRC_PATH/regression/convert_model_onnx.sh $INSTALL_PATH/regression/
+  cp -a $MLIR_SRC_PATH/regression/generate_all_cvimodels.sh $INSTALL_PATH/regression/
+  # install env script
+  cp $MLIR_SRC_PATH/cvitek_envs.sh $INSTALL_PATH/
+fi
 
 # SoC build
 if [ "$1" = "SOC" ]; then

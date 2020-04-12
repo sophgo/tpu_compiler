@@ -2,6 +2,7 @@
 set -e
 
 #default values
+export MODEL_TYPE="caffe"   # caffe, pytorch, onnx, tflite, tf
 export EXCEPTS=-
 export DO_CALIBRATION=0
 export CALIBRATION_IMAGE_COUNT=1000
@@ -340,7 +341,6 @@ export TOLERANCE_BF16=0.99,0.99,0.94
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
 fi
 
-
 if [ $NET = "yolo_v3_512x288" ]; then
 export MODEL_DEF=$MODEL_PATH/object_detection/yolo_v3/caffe/yolov3_512x288.prototxt
 export MODEL_DAT=$MODEL_PATH/object_detection/yolo_v3/caffe/416/yolov3_416.caffemodel
@@ -353,4 +353,19 @@ export TOLERANCE_INT8_RSHIFT_ONLY=0.92,0.90,0.58
 export TOLERANCE_INT8_MULTIPLER=0.93,0.92,0.61
 export TOLERANCE_BF16=0.99,0.99,0.94
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
+fi
+
+if [ $NET = "alphapose" ]; then
+export MODEL_TYPE="onnx"
+export MODEL_DEF=$MODEL_PATH/pose/alphapose/onnx/alphapose_resnet50_256x192.onnx
+export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_onnx/regression_alphapose_0_onnx.sh
+export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/alphapose_calibration_table
+export NET_INPUT_DIMS=256,192
+export INPUT=input
+export TOLERANCE_INT8_PER_TENSOR=0.9,0.88,0.51
+export TOLERANCE_INT8_RSHIFT_ONLY=0.92,0.90,0.58
+export TOLERANCE_INT8_MULTIPLER=0.93,0.92,0.61
+export DO_QUANT_BF16=0
+# export TOLERANCE_BF16=0.99,0.99,0.94
+# export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
 fi

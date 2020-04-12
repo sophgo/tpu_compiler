@@ -3,12 +3,24 @@ set -e
 
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 
-$REGRESSION_PATH/convert_model_caffe.sh \
-    ${MODEL_DEF} \
-    ${MODEL_DAT} \
-    ${BATCH_SIZE} \
-    ${CALI_TABLE} \
-    ${NET}.cvimodel
+if [ $MODEL_TYPE = "caffe" ]; then
+  $REGRESSION_PATH/convert_model_caffe.sh \
+      ${MODEL_DEF} \
+      ${MODEL_DAT} \
+      ${BATCH_SIZE} \
+      ${CALI_TABLE} \
+      ${NET}.cvimodel
+elif [ $MODEL_TYPE = "onnx" ]; then
+  $REGRESSION_PATH/convert_model_onnx.sh \
+      ${MODEL_DEF} \
+      ${NET} \
+      ${BATCH_SIZE} \
+      ${CALI_TABLE} \
+      ${NET}.cvimodel
+else
+  echo "Invalid MODEL_TYPE=$MODEL_TYPE"
+  return 1
+fi
 
 model_runner \
     --dump-all-tensors \
