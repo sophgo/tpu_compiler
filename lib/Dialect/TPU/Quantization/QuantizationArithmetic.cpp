@@ -283,9 +283,13 @@ static inline int8_t saturateInt8(float f) {
   #elif 0
   // trancate, (towards zero)
   int q = (f >= 0) ? (int)floor(f) : (int)ceil(f);
-  #else
+  #elif 1
   // from caffe_int8
   int q = floor(f + 0.5);
+  #else
+  // looks HW is different than std::round()
+  // we shall apply round only for input quant()
+  int q = std::round(f);
   #endif
   //assert( (q <= 127) && (q >= -128) );
   DEBUG_WITH_TYPE(DEBUG_TYPE"_WARNING",
@@ -797,11 +801,23 @@ void quantizeWeightInt8Multiplier(float *filter, float *bias,
   }
 }
 
+static inline signed char float2int8(float v)
+{
+    int int32 = std::round(v);
+    if (int32 > 127) return 127;
+    if (int32 < -128) return -128;
+    return (signed char)int32;
+}
+
 /// Quantize an Activation tensor into INT8, given threshold
 void quantizeActivationInt8WithThreshold(float *output, float *input,
     int64_t size, float threshold) {
   for (int64_t i = 0; i < size; ++i) {
-    output[i] = (float)saturateInt8(input[i] * 128.0 / threshold);
+    float scale = 128.0 / threshold;
+    // note this is using std::round() rather than floor(v+0.5f)
+    // to compliance with NEON implemention on runtime
+    //output[i] = (float)saturateInt8(input[i] * 128.0 / threshold);
+    output[i] = (float)float2int8(input[i] * scale);
   }
 }
 
@@ -809,7 +825,8 @@ void quantizeActivationInt8WithThreshold(float *output, float *input,
 void dequantizeActivationInt8WithThreshold(float *output, float *input,
     int64_t size, float threshold) {
   for (int64_t i = 0; i < size; ++i) {
-    output[i] = input[i] * threshold / 128.0;
+    float scale = threshold / 128.0;
+    output[i] = input[i] * scale;
   }
 }
 
