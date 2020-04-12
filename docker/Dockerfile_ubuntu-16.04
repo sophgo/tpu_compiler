@@ -9,6 +9,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     cmake \
     ninja-build \
+    automake \
+    autoconf \
+    libtool \
     vim \
     wget \
     git \
@@ -16,7 +19,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     unzip \
     python-dev \
     python-pip \
-    python-setuptools
+    python-setuptools \
+    parallel
 
 # for caffe build
 RUN apt-get install -y --no-install-recommends \

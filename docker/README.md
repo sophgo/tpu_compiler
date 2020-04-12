@@ -36,8 +36,6 @@ $ docker exec -it cvitek bash
 ## Run docker for build mlir
 
 ```sh
-
-$ cd ~/work_cvitek
 $ docker run -itd [--cpus="1.5"] \
     -v $PWD:/work \
     -v /data/models:/work/models \
