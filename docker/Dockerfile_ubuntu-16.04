@@ -15,12 +15,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     vim \
     wget \
     git \
+    parallel \
     ssh-client \
     unzip \
     python-dev \
     python-pip \
     python-setuptools \
-    parallel
+    python3-dev \
+    python3-pip \
+    python3-setuptools
 
 # for caffe build
 RUN apt-get install -y --no-install-recommends \
@@ -37,12 +40,43 @@ RUN apt-get install -y --no-install-recommends \
 
 # ================== pip ==================
 RUN pip install --upgrade pip
-RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
+# RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
+RUN pip config set global.index-url https://mirrors.aliyun.com/pypi/simple
 RUN pip install \
     Cython \
     numpy \
     scipy \
-    scikit-image \
+    scikit-image==0.14 \
+    matplotlib \
+    leveldb \
+    decorator \
+    networkx==2.2 \
+    nose \
+    python-dateutil \
+    protobuf \
+    pyyaml \
+    Pillow \
+    six \
+    lmdb \
+    future \
+    pathlib \
+    tqdm \
+    enum34 \
+    termcolor \
+    opencv-python-headless \
+    PyWavelets==1.0.3 \
+    torch \
+    torchvision \
+    onnx
+
+RUN pip3 install --upgrade pip
+# RUN pip3 config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
+RUN pip3 config set global.index-url https://mirrors.aliyun.com/pypi/simple
+RUN pip3 install \
+    Cython \
+    numpy \
+    scipy \
+    scikit-image==0.15 \
     matplotlib \
     leveldb \
     decorator \
@@ -54,10 +88,14 @@ RUN pip install \
     Pillow \
     six \
     lmdb \
-    future \
     pathlib \
     tqdm \
-    enum34
+    enum34 \
+    termcolor \
+    opencv-python-headless \
+    torch \
+    torchvision \
+    onnxruntime
 
 # ================== zoneinfo ==================
 COPY zoneinfo/PRC /usr/share/zoneinfo/PRC
@@ -70,4 +108,10 @@ RUN mkdir /usr/share/zoneinfo/Asia \
   && echo $TZ > /etc/timezone
 
 # ================== envs ==================
+# RUN alias pip=pip3
+# RUN alias python=python3
 ENV MODEL_PATH=/work/models
+ENV DATASET_PATH=/work/dataset
+
+WORKDIR /work/
+

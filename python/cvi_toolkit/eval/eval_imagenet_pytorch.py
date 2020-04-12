@@ -10,7 +10,7 @@ import time
 import warnings
 import numpy as np
 from PIL import Image
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 
 import pymlir
 
