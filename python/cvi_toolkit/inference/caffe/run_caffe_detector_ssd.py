@@ -175,16 +175,16 @@ def main(argv):
         image = cv2.imread(args.input_file)
         predictions = ssd_detect(net, args.input_file, net_input_dims,
                                     args.dump_blobs, args.dump_weights, args.batch_size)
-        for i in range(1, args.batch_size):
-            top_label_indices, top_conf, bboxs = parse_top_detection(image.shape, predictions[i], obj_threshold)
-            top_label_name = get_label_name(labelmap, top_label_indices)
 
-            print(top_label_name)
-            print(top_label_indices, top_conf, bboxs)
+        top_label_indices, top_conf, bboxs = parse_top_detection(image.shape, predictions, obj_threshold)
+        top_label_name = get_label_name(labelmap, top_label_indices)
 
-            if (args.draw_image != ''):
-                image = draw(image, top_label_name,top_conf, bboxs,True)
-                cv2.imwrite(args.draw_image, image)
+        print(top_label_name)
+        print(top_label_indices, top_conf, bboxs)
+
+        if (args.draw_image != ''):
+            image = draw(image, top_label_name,top_conf, bboxs,True)
+            cv2.imwrite(args.draw_image, image)
 
     else :
         print("No input_file specified")
