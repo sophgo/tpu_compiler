@@ -14,3 +14,4 @@ $REGRESSION_PATH/parallel/run_generic.sh retinaface_res50
 $REGRESSION_PATH/parallel/run_generic.sh ssd300
 $REGRESSION_PATH/parallel/run_generic.sh yolo_v3_416
 $REGRESSION_PATH/parallel/run_generic.sh yolo_v3_320
+$REGRESSION_PATH/parallel/run_generic.sh alphapose
