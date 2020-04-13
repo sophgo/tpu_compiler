@@ -98,9 +98,8 @@ class Routine:
 
 
 class CpuRoutine(Routine):
-  def __init__(self, builder, name, inputs, outputs, so, func_args):
+  def __init__(self, builder, name, inputs, outputs, func_args):
     Routine.__init__(self, builder, name, inputs, outputs)
-    self.section = Section(builder, name, cm.SectionType.FUNC_X86, so)
     self.func_args = func_args
 
   def build(self):
@@ -148,11 +147,10 @@ class TpuRoutine(Routine):
 
 
 class Program:
-  def __init__(self, builder, cmdbufs, so_path, mlir, verbose):
+  def __init__(self, builder, cmdbufs, mlir, verbose):
     self.builder = builder
     self.mlir = mlir
     self.cmdbufs = cmdbufs
-    self.so_path = so_path
     self.sections = []
     self.verbose = verbose
 
@@ -239,25 +237,21 @@ class Program:
     program_output_tensors = self.builder.EndVector(len(output_tensors))
     return program_input_tensors, program_output_tensors
 
-  def __build_routines(self, cmdbufs, so_path):
+  def __build_routines(self, cmdbufs):
     idx = 0
     routines = []
     for func in self.mlir.functions:
+      if self.verbose:
+        print(func)
       inputs = self.__tensor_id2name(func.inputs)
       outputs = self.__tensor_id2name(func.outputs)
       if func.cpu_function:
-        so = "{}/{}.so".format(so_path, func.name)
-        if not os.path.isfile(so):
-          if self.verbose:
-            print('Warning, connot find {} so, use builtin functin instead.'.format(func.name))
-          so = None
-        print("so", so)
-        routine = CpuRoutine(self.builder, func.name, inputs, outputs, so, func.cpu_attr_serial)
+        routine = CpuRoutine(self.builder, func.name, inputs, outputs, func.packed_attr)
       else:
         routine = TpuRoutine(self.builder, func.name, inputs, outputs, cmdbufs[idx])
+        self.sections.append(routine.section)
         idx += 1
 
-      self.sections.append(routine.section)
       routines.append(routine.build())
 
     cm.ProgramStartRoutinesVector(
@@ -269,7 +263,7 @@ class Program:
   def build(self):
     program_neuron_map, neuron_size = self.__build_neuron_map()
     program_input_tensors, program_output_tensors = self.__build_inputs_outputs()
-    program_routines = self.__build_routines(self.cmdbufs, self.so_path)
+    program_routines = self.__build_routines(self.cmdbufs)
 
     cm.ProgramStart(self.builder)
     cm.ProgramAddBatchNum(self.builder, self.mlir.batch)
@@ -282,13 +276,14 @@ class Program:
 
 
 class CVIModel:
-  def __init__(self, weight, cmdbufs, so_path, mlir_file, verbose):
+  def __init__(self, weight, cmdbufs, so_path, so_name, mlir_file, verbose):
     self.mlir = mlir_parser.MlirParser(mlir_file)
     self.builder = flatbuffers.Builder(1024)
-    self.program = Program(self.builder, cmdbufs, so_path, self.mlir, verbose)
+    self.program = Program(self.builder, cmdbufs, self.mlir, verbose)
     self.weight = weight
     self.cmdbufs = cmdbufs
     self.so_path = so_path
+    self.so_name = so_name
     self.model = bytearray()
     self.binary_buf = bytearray()
     self.binary_buf_offset = 0
@@ -354,6 +349,18 @@ class CVIModel:
     weight_section = Section(self.builder, 'weight', cm.SectionType.WEIGHT, self.weight)
     sections.append(weight_section.build(self))
 
+    if self.so_path and self.so_name:
+      x86_so = "{}/{}_x86.so".format(self.so_path, self.so_name)
+      if os.path.isfile(x86_so):
+        print("find custom plugin:{}".format(x86_so))
+        x86_so_section = Section(self.builder, "custom", cm.SectionType.FUNC_X86, x86_so)
+        sections.append(x86_so_section.build(self))
+      arm_so = "{}/{}_arm64.so".format(self.so_path, self.so_name)
+      if os.path.isfile(x86_so):
+        print("find custom plugin:{}".format(arm_so))
+        arm_so_section = Section(self.builder, "custom", cm.SectionType.FUNC_AARCH64, arm_so)
+        sections.append(arm_so_section.build(self))
+
     for section in self.program.sections:
       sections.append(section.build(self))
 
@@ -371,7 +378,6 @@ class CVIModel:
     cm.ModelStartProgramsVector(self.builder, 1)
     self.builder.PrependUOffsetTRelative(model_program)
     model_programs = self.builder.EndVector(1)
-
     model_weight_map = self.__build_weight_map()
     model_sections = self.__build_sections()
 
@@ -403,9 +409,10 @@ if __name__ == '__main__':
   parser.add_argument('--weight', required=True, help='weight file', type=check_file_existence)
   parser.add_argument('--chip', required=False, default=DFT_CHIP, help='Chip, default cv1835')
   parser.add_argument('--output', required=True, help='output cvi.model file')
-  parser.add_argument('--cpufunc_dir', required=False, default=None)
+  parser.add_argument('--plugin_dir', required=False, default=None)
+  parser.add_argument('--plugin_name', required=False, default=None)
   parser.add_argument('--verbose', required=False, type=bool, default=False)
   args = parser.parse_args()
 
-  model = CVIModel(args.weight, args.cmdbuf.split(','), args.cpufunc_dir, args.mlir, args.verbose)
+  model = CVIModel(args.weight, args.cmdbuf.split(','), args.plugin_dir, args.plugin_name, args.mlir, args.verbose)
   model.build(args.output)

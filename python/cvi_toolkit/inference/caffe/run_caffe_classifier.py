@@ -280,7 +280,7 @@ def main(argv):
 
     # Print
     for ix, in_ in enumerate(inputs):
-      print ("batch : ", ix)
+      print("batch : ", ix)
       print(predictions[ix].argmax())
       if args.label_file:
          labels = np.loadtxt(args.label_file, str, delimiter='\t')

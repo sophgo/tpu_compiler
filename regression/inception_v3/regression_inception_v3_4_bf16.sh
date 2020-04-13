@@ -15,7 +15,7 @@ mlir-opt \
 mlir-tpu-interpreter  inception_v3_quant_bf16.mlir \
     --tensor-in inception_v3_in_raw_fp32.npz \
     --tensor-out inception_v3_out_bf16.npz \
-    --customer-interpret-plugin ~/work/install_host/lib/cpu/CustomerInterpret.so \
+    --customer-interpret-plugin $INSTALL_PATH/lib/custom_op/CustomInterpret.so \
     --dump-all-tensor=inception_v3_tensor_all_bf16.npz
 cvi_npz_tool.py compare inception_v3_out_bf16.npz inception_v3_out_fp32.npz -v
 # need to check torlerance later

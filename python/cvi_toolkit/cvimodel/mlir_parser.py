@@ -8,90 +8,6 @@ from . import cpu_op
 from collections import OrderedDict
 
 
-#cpu_ops = (
-#    'softmax',
-#    'quant',
-#    'retinaface_detection',
-#    'preprocess',
-#    'transpose',
-#    'yolo_detection'
-#    'generic_cpu',
-#    'generic_preprocess'
-#)
-
-
-def softmaxArgsSerialize(attributes):
-    builder = flatbuffers.Builder(0)
-    cpu_op.SoftmaxStart(builder)
-    cpu_op.SoftmaxAddAxis(builder, int(attributes['axis']))
-    args = cpu_op.SoftmaxEnd(builder)
-    builder.Finish(args)
-    return bytearray(builder.Output())
-
-
-def quantArgsSerialize(attributes):
-    builder = flatbuffers.Builder(0)
-    strFrom = builder.CreateString(attributes['from'])
-    strTo = builder.CreateString(attributes['to'])
-    cpu_op.QuantizationStart(builder)
-    cpu_op.QuantizationAddFrom_(builder, strFrom)
-    cpu_op.QuantizationAddTo(builder, strTo)
-    cpu_op.QuantizationAddThreshold(builder, float(attributes['threshold']))
-    args = cpu_op.QuantizationEnd(builder)
-    builder.Finish(args)
-    return bytearray(builder.Output())
-
-
-def retinafaceArgsSerialize(attributes):
-    builder = flatbuffers.Builder(0)
-    cpu_op.RetinaFaceDetectionStart(builder)
-    cpu_op.RetinaFaceDetectionAddNmsThreshold(builder, float(attributes['nms_threshold']))
-    cpu_op.RetinaFaceDetectionAddConfidenceThreshold(builder, float(attributes['confidence_threshold']))
-    cpu_op.RetinaFaceDetectionAddKeepTopk(builder, int(attributes['keep_topk']))
-    args = cpu_op.RetinaFaceDetectionEnd(builder)
-    builder.Finish(args)
-    return bytearray(builder.Output())
-
-
-def preprocessArgsSerialize(attributes):
-    builder = flatbuffers.Builder(0)
-    print(attributes)
-    mean = None
-    color_order = None
-    if 'mean' in attributes:
-        cpu_op.PreprocessStartMeanVector(builder, len(attributes['mean']))
-        for m in reversed(attributes['mean']):
-            builder.PrependFloat32(m)
-        mean = builder.EndVector(len(attributes['mean']))
-    if 'color_order' in attributes:
-        cpu_op.PreprocessStartColorOrderVector(builder, len(attributes['color_order']))
-        for o in reversed(attributes['color_order']):
-            builder.PrependInt32(o)
-        color_order = builder.EndVector(len(attributes['color_order']))
-    cpu_op.PreprocessStart(builder)
-    if mean:
-        cpu_op.PreprocessAddMean(builder, mean)
-    if color_order:
-        cpu_op.PreprocessAddColorOrder(builder, color_order)
-    if 'scale' in attributes:
-        cpu_op.PreprocessAddScale(builder, attributes['scale'])
-    if 'raw_scale' in attributes:
-        cpu_op.PreprocessAddRawScale(builder, attributes['raw_scale'])
-    args = cpu_op.PreprocessEnd(builder)
-    builder.Finish(args)
-    return bytearray(builder.Output())
-
-def yoloArgsSerialize(attributes):
-    builder = flatbuffers.Builder(0)
-    cpu_op.YoloDetectionStart(builder)
-    cpu_op.YoloDetectionAddNetInputH(builder, float(attributes['net_input_h']))
-    cpu_op.YoloDetectionAddNetInputW(builder, float(attributes['net_input_w']))
-    cpu_op.YoloDetectionAddNmsThreshold(builder, float(attributes['nms_threshold']))
-    cpu_op.YoloDetectionAddObjThreshold(builder, float(attributes['obj_threshold']))
-    cpu_op.YoloDetectionAddKeepTopk(builder, int(attributes['keep_topk']))
-    args = cpu_op.YoloDetectionEnd(builder)
-    builder.Finish(args)
-    return bytearray(builder.Output())
 
 
 class Tensor:
@@ -150,14 +66,14 @@ class Op:
         self.output = output
         self.attributes = attributes
         self.type = type
-        self.attr_serial = self.__serialize_attrs(attributes)
+        self.packed_attr = self.__pack_attributes(attributes)
         if self.type == 'generic_cpu':
             self.type = self.attributes['operation_name'].split('.')[-1]
             Op.cpu_ops.append(self.type)
 
-    def __serialize_attrs(self, attributes):
+    def __pack_attributes(self, attributes):
         if self.type != "generic_cpu":
-            return bytearray();
+            return bytearray()
         builder = flatbuffers.Builder(0)
         param = attributes['param']
         packed_attrs = []
@@ -222,9 +138,9 @@ class Op:
                     cpu_op.AttributeAddFloatArrayAttr(builder, attr)
                     packed_attrs.append(cpu_op.AttributeEnd(builder))
                 else:
-                    raise Exception("unsupported type")
+                    raise Exception("unsupported {} list".format(type(val[0])))
             else:
-                raise Exception("unsupported type")
+                raise Exception("unsupported type {}".format(type(val)))
         cpu_op.ParameterStartAttributesVector(builder, len(packed_attrs))
         for attr in reversed(packed_attrs):
             builder.PrependUOffsetTRelative(attr)
@@ -250,10 +166,10 @@ class Function:
 
     def __init__(self, ops):
         self.cpu_function = False
-        self.cpu_attr_serial = None
+        self.packed_attr = None
         if len(ops) == 1 and ops[0].type in Op.cpu_ops:
             self.cpu_function = True
-            self.cpu_attr_serial = ops[0].attr_serial
+            self.packed_attr = ops[0].packed_attr
             self.name = ops[0].type
         else:
             self.name = self.__tpu_func_name()

@@ -99,7 +99,7 @@ def mlir_gen_cvimodel(mlirfile, cvi_module):
     if ret.returncode != 0:
         return ret.returncode
 
-    model_builder = builder("weight.bin", ["cmdbuf.bin"], None, cmdbuf_mlir, False)
+    model_builder = builder("weight.bin", ["cmdbuf.bin"], None, None, cmdbuf_mlir, False)
     model_builder.build(cvi_module)
     return 0
 

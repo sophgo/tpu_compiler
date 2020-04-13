@@ -50,15 +50,20 @@ struct ConvertCpuOpDefaultPattern : public RewritePattern {
 
     auto builder = Builder(op->getContext());
     std::vector<NamedAttribute> param;
+    tpu::QuantParam quantAttr = getDefaultQuantParam(builder);
     for (auto& attr : op->getAttrs()) {
-      param.push_back(attr);
+      if (attr.first == "quant") {
+        quantAttr = attr.second.cast<tpu::QuantParam>();
+      } else {
+        param.push_back(attr);
+      }
     }
 
     std::vector<NamedAttribute> attrs;
     attrs.push_back(builder.getNamedAttr("name", builder.getStringAttr(castOp.name())));
     attrs.push_back(builder.getNamedAttr("operation_name", builder.getStringAttr(castOp.getOperationName())));
     attrs.push_back(builder.getNamedAttr("quantifiable", builder.getBoolAttr(false)));
-    attrs.push_back(builder.getNamedAttr("quant", getDefaultQuantParam(builder)));
+    attrs.push_back(builder.getNamedAttr("quant", quantAttr));
     attrs.push_back(builder.getNamedAttr("param", builder.getDictionaryAttr(param)));
     auto gaddrAttr = op->getAttr("gaddr").dyn_cast_or_null<IntegerAttr>();
     if (gaddrAttr) {

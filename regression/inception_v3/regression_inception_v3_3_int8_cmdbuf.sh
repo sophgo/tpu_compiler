@@ -37,6 +37,7 @@ mlir-opt \
     --tpu-neuron-address-align=16 \
     --tpu-neuron-map-filename=neuron_map.csv \
     --assign-layer-id \
+    --convert-cpu-op \
     inception_v3_quant_int8_per_layer_tg.mlir \
     -o inception_v3_quant_int8_per_layer_addr.mlir
 
@@ -47,11 +48,13 @@ mlir-translate \
 
 # generate cvi model
 build_cvimodel.py \
-    --cpufunc_dir $INSTALL_PATH/lib/cpu/ \
+    --plugin_dir $INSTALL_PATH/lib/custom_op \
+    --plugin_name CustomRuntimeFunc \
     --cmdbuf cmdbuf_int8_per_layer.bin \
     --weight weight_int8_per_layer.bin \
     --mlir inception_v3_quant_int8_per_layer_addr.mlir \
-    --output=inception_v3_int8_per_layer.cvimodel
+    --output=inception_v3_int8_per_layer.cvimodel \
+    --verbose=1
 
 ## run cmdbuf
 model_runner \
@@ -89,6 +92,7 @@ mlir-opt \
     --assign-neuron-address \
     --tpu-neuron-address-align=16 \
     --tpu-neuron-map-filename=neuron_map.csv \
+    --convert-cpu-op \
     inception_v3_quant_int8_multiplier_tg.mlir \
     -o inception_v3_quant_int8_multiplier_addr.mlir
 
@@ -99,11 +103,13 @@ mlir-translate \
 
 # generate cvi model
 build_cvimodel.py \
-    --cpufunc_dir $INSTALL_PATH/lib/cpu/ \
+    --plugin_dir $INSTALL_PATH/lib/custom_op \
+    --plugin_name CustomRuntimeFunc \
     --cmdbuf cmdbuf_int8_multiplier.bin \
     --weight weight_int8_multiplier.bin \
     --mlir inception_v3_quant_int8_multiplier_addr.mlir \
-    --output=inception_v3_int8_multiplier.cvimodel
+    --output=inception_v3_int8_multiplier.cvimodel \
+    --verbose=1
 
 ## run cmdbuf
 model_runner \

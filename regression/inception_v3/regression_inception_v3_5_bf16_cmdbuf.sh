@@ -22,6 +22,7 @@ mlir-opt \
     --assign-neuron-address \
     --tpu-neuron-address-align=16 \
     --tpu-neuron-map-filename=neuron_map_bf16.csv \
+    --convert-cpu-op \
     inception_v3_quant_bf16_tg.mlir \
     -o inception_v3_quant_bf16_addr.mlir
 
@@ -33,6 +34,8 @@ mlir-translate \
 
 # generate cvi model
 build_cvimodel.py \
+    --plugin_dir $INSTALL_PATH/lib/custom_op \
+    --plugin_name CustomRuntimeFunc \
     --cmdbuf cmdbuf_bf16.bin \
     --weight weight_bf16.bin \
     --mlir inception_v3_quant_bf16_addr.mlir \
