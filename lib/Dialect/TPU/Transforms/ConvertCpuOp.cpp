@@ -95,6 +95,7 @@ public:
     patterns.insert<
         ConvertCpuOpDefaultPattern<tpu::SoftmaxOp>,
         ConvertCpuOpDefaultPattern<tpu::QuantOp>,
+        ConvertCpuOpDefaultPattern<tpu::DetectionOutputOp>,
         ConvertCpuOpDefaultPattern<tpu::RetinaFaceDetectionOp>,
         ConvertCpuOpDefaultPattern<tpu::PreprocessOp>,
         ConvertCpuOpDefaultPattern<tpu::TransposeOp>,
