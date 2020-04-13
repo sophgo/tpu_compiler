@@ -369,3 +369,12 @@ export DO_QUANT_BF16=0
 # export TOLERANCE_BF16=0.99,0.99,0.94
 # export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
 fi
+
+# turn off those optimization when batch_size is larger than 1 temporarily
+if [ $BATCH_SIZE -gt 1 ]; then
+export DO_DEEPFUSION=0
+export DO_MEMOPT=0
+export DO_LAYERGROUP=0
+export DO_QUANT_MIX=0
+export DO_E2E=0
+fi
