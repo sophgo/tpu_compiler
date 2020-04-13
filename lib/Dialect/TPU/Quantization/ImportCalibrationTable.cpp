@@ -440,6 +440,7 @@ public:
     LLVM_DEBUG(llvm::errs() << "Forword set bypass Ops threshold\n";);
     patterns.clear();
     patterns.insert<
+        BypassThresholdDefaultPattern<tpu::PixelShuffleOp>,
         BypassThresholdDefaultPattern<tpu::SliceOp>,
         BypassThresholdDefaultPattern<tpu::ShuffleChannelOp>,
         BypassThresholdDefaultPattern<tpu::SwapChannelOp>
