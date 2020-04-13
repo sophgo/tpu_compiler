@@ -17,6 +17,7 @@ run_caffe_detector_ssd.py \
     --net_input_dims 300,300 \
     --dump_blobs ssd300_blobs.npz \
     --dump_weights ssd300_weights.npz \
+    --batch_size $BATCH_SIZE \
     --input_file $REGRESSION_PATH/data/dog.jpg \
     --label_file $REGRESSION_PATH/data/labelmap_coco.prototxt  \
     --draw_image dog_out.jpg
