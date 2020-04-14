@@ -19,6 +19,27 @@ pushd $BUILD_PATH/build_caffe
 cmake --build . --target install
 popd
 
+# build opencv
+if [ ! -e $BUILD_PATH/build_opencv ]; then
+  mkdir -p $BUILD_PATH/build_opencv
+  pushd $BUILD_PATH/build_opencv
+  cmake -G Ninja \
+      -DWITH_CUDA=OFF -DWITH_DC1394=OFF -DWITH_GPHOTO2=OFF \
+      -DCMAKE_BUILD_TYPE=RELEASE \
+      -DBUILD_opencv_videoio=OFF \
+      -DBUILD_opencv_superres=OFF -DBUILD_opencv_videostab=OFF \
+      -DBUILD_opencv_stitching=OFF -DBUILD_opencv_objdetect=OFF \
+      -DBUILD_opencv_calib3d=OFF -DBUILD_opencv_ml=OFF \
+      -DBUILD_opencv_video=OFF -DBUILD_opencv_flann=OFF \
+      -DBUILD_opencv_photo=OFF \
+      -DCMAKE_INSTALL_PREFIX=$OPENCV_PATH \
+      $MLIR_SRC_PATH/third_party/opencv
+  popd
+fi
+pushd $BUILD_PATH/build_opencv
+cmake --build . --target install
+popd
+
 # build flatbuffers
 if [ ! -e $BUILD_PATH/build_flatbuffers ]; then
   mkdir -p $BUILD_PATH/build_flatbuffers

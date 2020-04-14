@@ -44,3 +44,5 @@ export LD_LIBRARY_PATH=$MLIR_PATH/systemc-2.3.3/lib-linux64:$LD_LIBRARY_PATH
 export PYTHONPATH=$TPU_PYTHON_PATH:$PYTHONPATH
 export PYTHONPATH=$MLIR_PATH/caffe/python:$PYTHONPATH
 export PYTHONPATH=$MLIR_PATH/flatbuffers/python:$PYTHONPATH
+
+export GLOG_minloglevel=2
