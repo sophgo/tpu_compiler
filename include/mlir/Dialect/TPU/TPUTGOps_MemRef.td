@@ -504,6 +504,47 @@ class TPU_TG_MemRef_LutOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 def TPU_TG_MemRef_INT8_LutOp : TPU_TG_MemRef_LutOp<"tg_memref_int8_lut", "Int8">;
 def TPU_TG_MemRef_BF16_LutOp : TPU_TG_MemRef_LutOp<"tg_memref_bf16_lut", "BF16">;
 
+class TPU_TG_MemRef_LrnOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
+  let summary = "TG " # opQuant # " LRN operator.";
+
+  let description = [{
+    Inputs:
+      `input`           : required, the input activation memref.
+
+    Attributes:
+      `region`          : required, the memory region to reside in, could be
+                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
+                          (backend does not support `INPUT`, `OUTPUT` for now)
+      `gaddr`           : optional, address in global memory, normally the
+                                     offset within the memory region.
+
+      `name`            : required, name for comparing, or debug.
+      `layer_id`        : optional, id for profiling.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface`    : support common TPU TG Op interface.
+      `TpuTGOpCodegenInterface` : support generate TPU instuctions.
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
+    OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+def TPU_TG_MemRef_INT8_LrnOp : TPU_TG_MemRef_LrnOp<"tg_memref_int8_lrn", "Int8">;
+def TPU_TG_MemRef_BF16_LrnOp : TPU_TG_MemRef_LrnOp<"tg_memref_bf16_lrn", "Bf16">;
 
 class TPU_TG_MemRef_PermuteOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,

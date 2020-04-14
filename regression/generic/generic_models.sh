@@ -370,6 +370,23 @@ export DO_QUANT_BF16=0
 # export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
 fi
 
+if [ $NET = "googlenet" ]; then
+#TODO(charle.hu): complete later
+export MODEL_DEF=$MODEL_PATH/imagenet/googlenet/caffe/deploy.prototxt
+export MODEL_DAT=$MODEL_PATH/imagenet/googlenet/caffe/bvlc_googlenet.caffemodel
+export CALI_TABLE=$REGRESSION_PATH/googlenet/data/googlenet_calibration_table
+export NET_INPUT_DIMS=224,224
+export MEAN=104,117,123
+export INPUT=data
+export OUTPUTS_FP32=prob
+export OUTPUTS=prob
+export TOLERANCE_INT8_PER_TENSOR=0.1,0.1,0.1
+export TOLERANCE_INT8_RSHIFT_ONLY=0.1,0.1,0.1
+export TOLERANCE_INT8_MULTIPLER=0.1,0.1,0.1
+export DO_QUANT_INT8_PER_TENSOR=0
+export DO_QUANT_INT8_RFHIFT_ONLY=0
+fi
+
 # turn off those optimization when batch_size is larger than 1 temporarily
 if [ $BATCH_SIZE -gt 1 ]; then
 export DO_DEEPFUSION=0

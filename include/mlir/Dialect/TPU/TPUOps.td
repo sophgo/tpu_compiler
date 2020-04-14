@@ -666,6 +666,118 @@ def TPU_LeakyReluOp: TPU_Op<"leaky_relu",
   let results = (outs AnyTensor:$output);
 }
 
+class TPU_LrnPartOp<string mnemonic,  string opSummary> : TPU_Op<mnemonic,
+    [NoSideEffect,
+     DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+     DeclareOpInterfaceMethods<TpuOpInterpInterface>,
+     DeclareOpInterfaceMethods<TpuOpQuantInterface>]>  {
+
+  let summary = opSummary # " operator";
+
+  let description = [{
+    LRN Part on input to calc threshold.
+
+    Inputs:
+      `input`           : required, the input activation tensor.
+
+    Attributes:
+      `local_size`      : optional, local size.
+      `alpha`           : optional, alpha.
+      `beta`            : optional, beta.
+      `norm_region`     : optional, norm region, 0 is across channel; 1 is within channel.
+      `k`               : optional, k.
+      `quant`           : required, a QuantParam struct attributes.
+      `name`            : required, name for calibration, comparing, or debug.
+      `layer_id`        : optional, id for profiling.
+
+    Result:
+      `output`          : result tensor.
+
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    DefaultValuedAttr<NonNegativeI32Attr, "5">:$local_size,
+    DefaultValuedAttr<F32Attr, "1.0">:$alpha,
+    DefaultValuedAttr<F32Attr, "0.75">:$beta,
+    DefaultValuedAttr<F32Attr, "1.0">:$k,
+    TPU_QuantParamAttr:$quant,
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
+def TPU_LrnOneOp : TPU_LrnPartOp<"lrn_one", "lrn part one, for middle data sq">;
+def TPU_LrnTwoOp : TPU_LrnPartOp<"lrn_two", "lrn part two, for middle data sum_sq">;
+def TPU_LrnThreeOp : TPU_LrnPartOp<"lrn_three", "lrn part three, for middle data scale">;
+
+def TPU_LrnOp: TPU_Op<"lrn",
+    [NoSideEffect,
+     DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+     DeclareOpInterfaceMethods<TpuOpInterpInterface>,
+     DeclareOpInterfaceMethods<TpuOpQuantInterface>,
+     DeclareOpInterfaceMethods<TpuOpLowerInterface>]>  {
+
+  let summary = "lrn operator";
+
+  let description = [{
+    LRN on input.
+
+    Inputs:
+      `input`           : required, the input activation tensor.
+      `sqr_table`       : required, sqr lut table used by backend.
+      `power_table`     : required, power lut table used by backend.
+      `scale`           : required, scale data
+
+    Attributes:
+      `local_size`      : optional, local size.
+      `alpha`           : optional, alpha.
+      `beta`            : optional, beta.
+      `norm_region`     : optional, norm region, 0 is across channel; 1 is within channel.
+      `k`               : optional, k.
+      `quant`           : required, a QuantParam struct attributes.
+      `name`            : required, name for calibration, comparing, or debug.
+      `layer_id`        : optional, id for profiling.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TPU_QuantPerTensorOnly`
+      `TPU_QuantSupportAsymmetric`
+      `TPU_QuantSameInputResultScale` : input and result share same threshold
+                                        or scale (bypassed).
+      `TpuOpCommonInterface` : support common TPU Op interface
+      `TpuOpInterpInterface` : support interperter
+      `TpuOpQuantInterface`  : support quantization
+      `TpuOpLowerInterface`  : support lower to TPU TG Ops
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$sqr_table,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$power_table,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$scale,
+    DefaultValuedAttr<NonNegativeI32Attr, "5">:$local_size,
+    DefaultValuedAttr<F32Attr, "1.0">:$alpha,
+    DefaultValuedAttr<F32Attr, "0.75">:$beta,
+    DefaultValuedAttr<NonNegativeI32Attr, "0">:$norm_region,
+    DefaultValuedAttr<F32Attr, "1.0">:$k,
+    I32Attr:$lrn_right_shift_width,
+    I32Attr:$sum_right_shift_width,
+    I32Attr:$quant_data0,
+    I32Attr:$quant_data1,
+    TPU_QuantParamAttr:$quant,
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
 def TPU_NormalizeOp: TPU_Op<"normalize",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,

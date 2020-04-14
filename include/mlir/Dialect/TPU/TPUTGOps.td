@@ -416,6 +416,56 @@ class TPU_TG_LeakyReluOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 def TPU_TG_INT8_LeakyReluOp : TPU_TG_LeakyReluOp<"tg_int8_leaky_relu", "Int8">;
 def TPU_TG_BF16_LeakyReluOp : TPU_TG_LeakyReluOp<"tg_bf16_leaky_relu", "Bf16">;
 
+class TPU_TG_LrnOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
+  let summary = "TG " # opQuant # " LRN operator.";
+
+  let description = [{
+    Inputs:
+      `input`           : required, the input activation memref.
+
+    Attributes:
+      `region`          : required, the memory region to reside in, could be
+                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
+                          (backend does not support `INPUT`, `OUTPUT` for now)
+      `gaddr`           : optional, address in global memory, normally the
+                                     offset within the memory region.
+
+      `name`            : required, name for comparing, or debug.
+      `layer_id`        : optional, id for profiling.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface`    : support common TPU TG Op interface.
+      `TpuTGOpCodegenInterface` : support generate TPU instuctions.
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    AnyTensor:$sqr_table,
+    AnyTensor:$power_table,
+    I32Attr:$local_size,
+    I32Attr:$lrn_right_shift_width,
+    I32Attr:$sum_right_shift_width,
+    I32Attr:$quant_data0,
+    I32Attr:$quant_data1,
+    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
+    OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    OptionalAttr<BoolAttr>:$buffer_reused,
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+def TPU_TG_INT8_LrnOp : TPU_TG_LrnOp<"tg_int8_lrn", "Int8">;
+def TPU_TG_BF16_LrnOp : TPU_TG_LrnOp<"tg_bf16_lrn", "Bf16">;
+
 class TPU_TG_LutOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,

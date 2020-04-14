@@ -449,6 +449,8 @@ void ConvertTgOpToMemRefPass::runOnFunction() {
       AddTypeConvertedForNotLowedOpPattern<tpu::TG_BF16_LeakyReluOp>,
       AddTypeConvertedForNotLowedOpPattern<tpu::TG_INT8_LutOp>,
       AddTypeConvertedForNotLowedOpPattern<tpu::TG_BF16_LutOp>,
+      AddTypeConvertedForNotLowedOpPattern<tpu::TG_INT8_LrnOp>,
+      AddTypeConvertedForNotLowedOpPattern<tpu::TG_BF16_LrnOp>,
       AddTypeConvertedForNotLowedOpPattern<tpu::TG_INT8_PermuteOp>,
       AddTypeConvertedForNotLowedOpPattern<tpu::TG_BF16_PermuteOp>,
       AddTypeConvertedForNotLowedOpPattern<tpu::TG_INT8_PoolAvg2DOp>,
@@ -505,6 +507,8 @@ void ConvertTgOpToMemRefPass::runOnFunction() {
   target.addLegalOp<tpu::TG_MemRef_BF16_LeakyReluOp>();
   target.addLegalOp<tpu::TG_MemRef_INT8_LutOp>();
   target.addLegalOp<tpu::TG_MemRef_BF16_LutOp>();
+  target.addLegalOp<tpu::TG_MemRef_INT8_LrnOp>();
+  target.addLegalOp<tpu::TG_MemRef_BF16_LrnOp>();
   target.addLegalOp<tpu::TG_MemRef_INT8_PermuteOp>();
   target.addLegalOp<tpu::TG_MemRef_BF16_PermuteOp>();
   target.addLegalOp<tpu::TG_MemRef_INT8_PoolAvg2DOp>();
@@ -560,6 +564,8 @@ void ConvertTgOpToMemRefPass::runOnFunction() {
       convertTgOpToMemRefPattern<tpu::TG_BF16_FullyConnectedOp, tpu::TG_MemRef_BF16_FullyConnectedOp>,
       convertTgOpToMemRefPattern<tpu::TG_INT8_LeakyReluOp, tpu::TG_MemRef_INT8_LeakyReluOp>,
       convertTgOpToMemRefPattern<tpu::TG_BF16_LeakyReluOp, tpu::TG_MemRef_BF16_LeakyReluOp>,
+      convertTgOpToMemRefPattern<tpu::TG_INT8_LrnOp, tpu::TG_MemRef_INT8_LrnOp>,
+      convertTgOpToMemRefPattern<tpu::TG_BF16_LrnOp, tpu::TG_MemRef_BF16_LrnOp>,
       convertTgOpToMemRefPattern<tpu::TG_INT8_LutOp, tpu::TG_MemRef_INT8_LutOp>,
       convertTgOpToMemRefPattern<tpu::TG_BF16_LutOp, tpu::TG_MemRef_BF16_LutOp>,
       convertTgOpToMemRefPattern<tpu::TG_INT8_PermuteOp, tpu::TG_MemRef_INT8_PermuteOp>,

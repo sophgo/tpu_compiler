@@ -1167,6 +1167,137 @@ static LogicalResult doPool2DOpInterpret(Operation *op, bool is_average,
   return success();
 }
 
+LogicalResult tpu::LrnOneOp::interpret(
+    DenseMap<Value *, std::shared_ptr<std::vector<float>>> &valueMapping) {
+  Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name()
+                          << "]\n";);
+  auto opdT = getOperandTensors(op, valueMapping);
+  auto result = this->getResult();
+  auto size = getTensorSize(result);
+  auto resultT = std::make_unique<std::vector<float>>(size);
+
+  std::vector<int64_t> input_shape;
+  int64_t input_size;
+  getTensorShapeAndSize(input(), input_shape, input_size);
+  assert(input_shape.size() == 4);
+  int n, c, h, w;
+  n = input_shape[0];
+  c = input_shape[1];
+  h = input_shape[2];
+  w = input_shape[3];
+  std::shared_ptr<std::vector<float>> input = opdT[0];
+  int ret = my_lrn_one(
+      input->data(), resultT->data(), n, c, h, w,
+      this->local_size().getLimitedValue(), this->alpha().convertToFloat(),
+      this->beta().convertToFloat(), this->k().convertToFloat());
+  assert(ret == 0);
+
+  valueMapping[result] = std::move(resultT);
+  return success();
+}
+
+LogicalResult tpu::LrnTwoOp::interpret(
+    DenseMap<Value *, std::shared_ptr<std::vector<float>>> &valueMapping) {
+  Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name()
+                          << "]\n";);
+  auto opdT = getOperandTensors(op, valueMapping);
+  auto result = this->getResult();
+  auto size = getTensorSize(result);
+  auto resultT = std::make_unique<std::vector<float>>(size);
+
+  std::vector<int64_t> input_shape;
+  int64_t input_size;
+  getTensorShapeAndSize(input(), input_shape, input_size);
+  assert(input_shape.size() == 4);
+  int n, c, h, w;
+  n = input_shape[0];
+  c = input_shape[1];
+  h = input_shape[2];
+  w = input_shape[3];
+  std::shared_ptr<std::vector<float>> input = opdT[0];
+  int ret = my_lrn_two(
+      input->data(), resultT->data(), n, c, h, w,
+      this->local_size().getLimitedValue(), this->alpha().convertToFloat(),
+      this->beta().convertToFloat(), this->k().convertToFloat());
+  assert(ret == 0);
+
+  valueMapping[result] = std::move(resultT);
+  return success();
+}
+
+LogicalResult tpu::LrnThreeOp::interpret(
+    DenseMap<Value *, std::shared_ptr<std::vector<float>>> &valueMapping) {
+  Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name()
+                          << "]\n";);
+  auto opdT = getOperandTensors(op, valueMapping);
+  auto result = this->getResult();
+  auto size = getTensorSize(result);
+  auto resultT = std::make_unique<std::vector<float>>(size);
+
+  std::vector<int64_t> input_shape;
+  int64_t input_size;
+  getTensorShapeAndSize(input(), input_shape, input_size);
+  assert(input_shape.size() == 4);
+  int n, c, h, w;
+  n = input_shape[0];
+  c = input_shape[1];
+  h = input_shape[2];
+  w = input_shape[3];
+  std::shared_ptr<std::vector<float>> input = opdT[0];
+  int ret = my_lrn_three(
+      input->data(), resultT->data(), n, c, h, w,
+      this->local_size().getLimitedValue(), this->alpha().convertToFloat(),
+      this->beta().convertToFloat(), this->k().convertToFloat());
+  assert(ret == 0);
+
+  valueMapping[result] = std::move(resultT);
+  return success();
+}
+
+LogicalResult tpu::LrnOp::interpret(
+    DenseMap<Value *, std::shared_ptr<std::vector<float>>> &valueMapping) {
+  Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name()
+                          << "]\n";);
+  auto opdT = getOperandTensors(op, valueMapping);
+  auto result = this->getResult();
+  auto size = getTensorSize(result);
+  auto resultT = std::make_unique<std::vector<float>>(size);
+
+  std::vector<int64_t> input_shape;
+  int64_t input_size;
+  getTensorShapeAndSize(input(), input_shape, input_size);
+  assert(input_shape.size() == 4);
+  int n, c, h, w;
+  n = input_shape[0];
+  c = input_shape[1];
+  h = input_shape[2];
+  w = input_shape[3];
+  std::shared_ptr<std::vector<float>> input = opdT[0];
+  if (getOpQuant() == "INT8") {
+    // TODO(charle.hu): Not OK Now
+    std::shared_ptr<std::vector<float>> sqr_table = opdT[1];
+    std::shared_ptr<std::vector<float>> power_table = opdT[2];
+    int ret = my_lrn_int8(input->data(), resultT->data(), n, c, h, w,
+                this->local_size().getLimitedValue(), sqr_table->data(), power_table->data(),
+                this->quant_data0().getLimitedValue(), this->quant_data1().getLimitedValue());
+    assert(ret == 0);
+  } else {
+    std::shared_ptr<std::vector<float>> scale = opdT[3];
+    int ret = my_lrn_main(
+        input->data(), scale->data(), resultT->data(), n, c, h, w,
+        this->local_size().getLimitedValue(), this->alpha().convertToFloat(),
+        this->beta().convertToFloat(), this->k().convertToFloat());
+    assert(ret == 0);
+  }
+
+  valueMapping[result] = std::move(resultT);
+  return success();
+}
+
 LogicalResult tpu::NormalizeOp::interpret(
     DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();
