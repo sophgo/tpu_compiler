@@ -136,6 +136,7 @@ class OnnxConverter(BaseConverterInterface):
             "Squeeze": lambda node: self.convert_squeeze_op(node),
             "Transpose": lambda node: self.convert_transpose_op(node),
             "Unsqueeze": lambda node: self.convert_unsqueeze_op(node),
+            "Upsample": lambda node: self.convert_upsample_op(node),
         }
 
     def init_importer(self):
@@ -726,6 +727,32 @@ class OnnxConverter(BaseConverterInterface):
             self.addOperand(onnx_node.name, None, list(new_t.shape), TensorType.TENSOR)
         else:
             raise RuntimeError("Todo")
+
+    def convert_upsample_op(self, onnx_node):
+        assert(onnx_node.op_type == "Upsample")
+        op1, input_shape1, tensor_type1 = self.getOperand(onnx_node.inputs[0])
+        op2, input_shape2, tensor_type2 = self.getOperand(onnx_node.inputs[1])
+        if tensor_type1 == TensorType.ACTIVATION and tensor_type2 == TensorType.TENSOR:
+            scale_factor = self.getTensor(onnx_node.inputs[1]).tensor_data
+            if len(scale_factor) != 4:
+                raise RuntimeError("scale_factor length should be 4")
+            if scale_factor[0] != 1 and scale_factor[1] != 1:
+                raise RuntimeError("Not support n,c upsample")
+            if scale_factor[2] != scale_factor[3]:
+                raise RuntimeError("TODO&FIXME:Our IR need to fix it, support w and h upsample")
+
+            operands = list()
+            operands.append(op1)
+            on = int(input_shape1[0])
+            oc = int(input_shape1[1])
+            oh = int(input_shape1[2] * scale_factor[2])
+            ow = int(input_shape1[3] * scale_factor[3])
+            attr={
+                'scale': int(input_shape1[2])
+            }
+            output_shape = [on, oc, oh, ow]
+            upsample_op = self.CVI.add_upsample_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **attr)
+            self.addOperand(onnx_node.name, upsample_op, output_shape, TensorType.ACTIVATION)
 
 
     def run(self):
