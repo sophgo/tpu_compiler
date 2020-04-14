@@ -8,21 +8,8 @@ from enum import Enum
 import logging
 import numpy as np
 
-def calcConv2DSpatial(i, kernel, stride, padding, dilation):
-    #[i + 2*p - k - (k-1)*(d-1)]/s + 1
-    return int(floor(i + 2*padding - dilation * (kernel - 1) - 1)/stride + 1)
-
-def calcPool2DFloor(i, kernel, stride, padding):
-    return int(floor((i + 2 * padding - kernel) / stride) + 1)
-
-def calcPool2DCeil(i, kernel, stride, padding):
-    return int(ceil((i + 2 * padding - kernel) / stride) + 1)
-
-def get_shape_size(shape):
-    size = 1
-    for i in shape:
-        size*=i
-    return size
+from .utils import calcConv2DSpatial, calcPool2DFloor, calcPool2DCeil, \
+                    get_shape_size
 
 class TensorType(Enum):
     ACTIVATION = 'ACTIVATION'
@@ -159,7 +146,7 @@ class OnnxConverter(BaseConverterInterface):
         self.CVI = MLIRImporter(inputs, outputs)
 
     def addOperand(self, op_name, op, shape, tensor_type):
-        cprint("add {}, {}".format(op_name, shape, tensor_type), "yellow")
+        cprint("add opernand name: {}\nshape: {}".format(op_name, shape, tensor_type), "yellow")
         self.valueMap[op_name] = (op, shape, tensor_type)
 
     def getOperand(self, op_name):
@@ -717,13 +704,29 @@ class OnnxConverter(BaseConverterInterface):
             oc = input_shape[1]
             oh = upscale_factor * input_shape[4]
             ow = upscale_factor * input_shape[5]
-            output_shape = [on ,oc , oh, ow]
+            output_shape = [on, oc, oh, ow]
             operands = [op]
             attr={
                 'upscale_factor': upscale_factor
             }
             pixel_shuffle_op = self.CVI.add_pixelshuffle_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **attr)
             self.addOperand(onnx_node.name, pixel_shuffle_op, output_shape, TensorType.ACTIVATION)
+        elif len(transpose_perm) == 4:
+            # channel swap
+            on = input_shape[transpose_perm[0]]
+            oc = input_shape[transpose_perm[1]]
+            oh = input_shape[transpose_perm[2]]
+            ow = input_shape[transpose_perm[3]]
+            output_shape = [on, oc, oh, ow]
+            operands = [op]
+            attr = {
+                'order0': transpose_perm[0],
+                'order1': transpose_perm[1],
+                'order2': transpose_perm[2],
+                'order3': transpose_perm[3],
+            }
+            permute_op = self.CVI.add_permute_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **attr)
+            self.addOperand(onnx_node.name, permute_op, output_shape, TensorType.ACTIVATION)
         else:
             raise RuntimeError("TODO")
 
