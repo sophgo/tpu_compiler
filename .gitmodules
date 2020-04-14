@@ -31,3 +31,6 @@
 [submodule "third_party/systemc-2.3.3"]
 	path = third_party/systemc-2.3.3
 	url = ../systemc-2.3.3.git
+[submodule "third_party/opencv"]
+	path = third_party/opencv
+	url = ../opencv.git
