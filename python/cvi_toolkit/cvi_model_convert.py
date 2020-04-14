@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 import onnx
 import argparse
 from cvi_toolkit.transform.onnx_converter import OnnxConverter

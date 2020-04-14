@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 # use pytorch for dataloader
 # https://github.com/pytorch/examples/blob/master/imagenet/main.py
 
@@ -209,7 +209,7 @@ if __name__ == '__main__':
     res = module.run(x)
     # print('res.shape', res.shape)
     assert(len(res) == 1)
-    prob  = res.values()[0]
+    prob  = list(res.values())[0]
     prob = np.reshape(prob, (prob.shape[0], prob.shape[1]))
 
     if args.show is True:

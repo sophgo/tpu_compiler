@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 from cvi.cpu_op.Softmax import *
 from cvi.cpu_op.Quantization import *
 from cvi.cpu_op.RetinaFaceDetection import *

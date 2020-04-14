@@ -210,7 +210,7 @@ def parse(config: dict):
         tolerance = accuracy_test.get('Tolerance_INT8')
         tolerance = "{},{},{}".format(tolerance[0], tolerance[1], tolerance[2])
         logger.info("run int8 interpreter accurracy test ...")
-        cvi_data_tool.npz_compare(target_file, ref_file,
+        ret = cvi_data_tool.npz_compare(target_file, ref_file,
             tolerance=tolerance,
             op_info=quant_tpu_op_info,
             dequant=True,

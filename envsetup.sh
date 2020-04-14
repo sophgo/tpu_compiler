@@ -53,7 +53,7 @@ export PROFILING_PATH=$INSTALL_PATH
 export MLIR_PATH=$INSTALL_PATH
 
 # set build python version
-export PYTHON_VERSION=2
+export PYTHON_VERSION=3
 
 # python path
 export TPU_PYTHON_PATH=$INSTALL_PATH/python
