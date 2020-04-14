@@ -4,7 +4,7 @@
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
-export GLOG_minloglevel=0
+GLOG_minloglevel=0
 
 if [ ! -e regression_out ]; then
   mkdir regression_out
@@ -45,5 +45,7 @@ if [ $ERR -eq 0 ]; then
 else
   echo $0 FAILED
 fi
+
+export GLOG_minloglevel=2
 
 exit $ERR

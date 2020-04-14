@@ -56,6 +56,26 @@ cmake -G Ninja -DCPU_ONLY=ON -DUSE_OPENCV=OFF \
 cmake --build . --target install
 popd
 
+# build opencv
+if [ ! -e $BUILD_PATH/build_opencv ]; then
+  mkdir -p $BUILD_PATH/build_opencv
+fi
+pushd $BUILD_PATH/build_opencv
+cmake -G Ninja \
+    -DWITH_CUDA=OFF -DWITH_IPP=OFF -DWITH_LAPACK=OFF \
+    -DWITH_DC1394=OFF -DWITH_GPHOTO2=OFF \
+    -DCMAKE_BUILD_TYPE=RELEASE \
+    -DBUILD_opencv_videoio=OFF \
+    -DBUILD_opencv_superres=OFF -DBUILD_opencv_videostab=OFF \
+    -DBUILD_opencv_stitching=OFF -DBUILD_opencv_objdetect=OFF \
+    -DBUILD_opencv_calib3d=OFF -DBUILD_opencv_ml=OFF \
+    -DBUILD_opencv_video=OFF -DBUILD_opencv_flann=OFF \
+    -DBUILD_opencv_photo=OFF \
+    -DCMAKE_INSTALL_PREFIX=$OPENCV_PATH \
+    $MLIR_SRC_PATH/third_party/opencv
+cmake --build . --target install
+popd
+
 # build flatbuffers
 if [ ! -e $BUILD_PATH/build_flatbuffers ]; then
   mkdir -p $BUILD_PATH/build_flatbuffers
@@ -238,6 +258,18 @@ if [ "$1" = "RELEASE" ]; then
   cp -a $MLIR_SRC_PATH/regression/generate_all_cvimodels.sh $INSTALL_PATH/regression/
   # install env script
   cp $MLIR_SRC_PATH/cvitek_envs.sh $INSTALL_PATH/
+
+  # generate models for release and samples
+  pushd $BUILD_PATH
+  $MLIR_SRC_PATH/regression/generate_all_cvimodels.sh
+  mkdir -p cvimodel_samples
+  cp cvimodel_release/mobilenet_v2.cvimodel cvimodel_samples/
+  cp cvimodel_release/yolo_v3_416.cvimodel cvimodel_samples/
+  cp cvimodel_release/alphapose.cvimodel cvimodel_samples/
+  cp cvimodel_release/retinaface_mnet25_with_detection.cvimodel cvimodel_samples/
+  cp cvimodel_release/retinaface_res50_with_detection.cvimodel cvimodel_samples/
+  cp cvimodel_release/arcface_res50.cvimodel cvimodel_samples/
+  popd
 fi
 
 # SoC build

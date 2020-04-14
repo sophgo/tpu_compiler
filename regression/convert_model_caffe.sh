@@ -9,7 +9,7 @@ usage()
 }
 
 if [[ $# -ne 5 ]]; then
-    echo "Illegal number of parameters"
+    echo "$0 Illegal number of parameters"
     usage
     exit 2
 fi
