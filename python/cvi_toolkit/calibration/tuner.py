@@ -7,7 +7,9 @@
 import numpy as np
 import sys, os, copy, math, shutil, time
 import pymlir
-from ..utils.mlir_shell import mlir_import_calibration, mlir_tpu_quant
+IS_PY3 = sys.version_info >= (3,0)
+if IS_PY3:
+    from ..utils.mlir_shell import mlir_import_calibration, mlir_tpu_quant
 
 
 def parse_threshold_table(threshold_table):
