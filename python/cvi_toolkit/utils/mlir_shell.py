@@ -63,12 +63,84 @@ def mlir_tpu_quant(mlirfile, quant_mlirfile, op_info_csv):
 
 
 def mlir_lower_opt(mlirfile, opt_mlirfile):
+    lower_mlir = "lw.mlir"
     ret = subprocess.run(["mlir-opt",
                     "--tpu-lower",
                     mlirfile,
-                    "-o", opt_mlirfile
+                    "-o", lower_mlir,
                     ], **std_output_flag)
     checkReturnValue(ret, "mlir-opt, mlir_lower_opt")
+    if ret.returncode != 0:
+        return ret.returncode
+    opt_mlir = "opt.mlir"
+    ret = subprocess.run(["mlir-opt",
+                    "--tg-fuse-leakyrelu",
+                    "--conv-ic-alignment",
+                    lower_mlir,
+                    "-o", opt_mlir,
+                    ], **std_output_flag)
+    checkReturnValue(ret, "mlir-opt, fuse")
+    if ret.returncode != 0:
+        return ret.returncode
+
+     # function argument lower to MemRefType
+    memref_mlir = "memref_{}".format(mlirfile)
+    ret = subprocess.run(["mlir-opt",
+                    "--convert-func-to-memref",
+                    opt_mlir,
+                    "-o", memref_mlir,
+                    ], **std_output_flag)
+    checkReturnValue(ret, "mlir-opt, func-to-memref")
+    if ret.returncode != 0:
+        return ret.returncode
+
+    # op lower to MemRefType
+    tg_opt_memref = "tg_opt_memref_{}".format(mlirfile)
+    ret = subprocess.run(["mlir-opt",
+                    "--convert-tg-op-to-memref",
+                    memref_mlir,
+                    "-o", tg_opt_memref,
+                    ], **std_output_flag)
+    checkReturnValue(ret, "mlir-opt, tg_opt_memref")
+    if ret.returncode != 0:
+        return ret.returncode
+
+    # memory space w/ global memory reuse
+    tg_opt_op_memref_addr = "tg_opt_op_memref_addr_{}".format(mlirfile)
+    ret = subprocess.run(["mlir-opt",
+                    "--enable-reuse-global-memory=true",
+                    "--assign-neuron-address-memref",
+                    "--tpu-neuron-address-align-memref=16",
+                    "--tpu-neuron-map-filename-memref=neuron_map_memref_reused.csv",
+                    tg_opt_memref,
+                    "-o", tg_opt_op_memref_addr,
+                    ], **std_output_flag)
+    checkReturnValue(ret, "mlir-opt, tg_opt_op_memref_addr")
+    if ret.returncode != 0:
+        return ret.returncode
+
+    # tg op back to TensorType
+    tg_opt_op_tensor_addr = "tg_opt_op_tensor_addr_{}".format(mlirfile)
+    ret = subprocess.run(["mlir-opt",
+                    "--convert-tg-op-to-tensor",
+                    tg_opt_op_memref_addr,
+                    "-o", tg_opt_op_tensor_addr,
+                    ], **std_output_flag)
+    checkReturnValue(ret, "mlir-opt, tg_opt_op_tensor_addr")
+    if ret.returncode != 0:
+        return ret.returncode
+
+    # function argument back to TensorType
+    # tg_opt_addr = "tg_opt_addr_{}".format(mlirfile)
+    ret = subprocess.run(["mlir-opt",
+                    "--convert-func-to-tensor",
+                    tg_opt_op_tensor_addr,
+                    "-o", opt_mlirfile,
+                    ], **std_output_flag)
+    checkReturnValue(ret, "mlir-opt, tg_opt_addr")
+    if ret.returncode != 0:
+        return ret.returncode
+
     return ret.returncode
 
 def mlir_gen_cvimodel(mlirfile, cvi_module):
@@ -81,7 +153,6 @@ def mlir_gen_cvimodel(mlirfile, cvi_module):
                     "--assign-neuron-address",
                     "--tpu-neuron-address-align=16",
                     "--tpu-neuron-map-filename=neuron_map.csv",
-                    "--assign-layer-id",
                     "--convert-cpu-op",
                     mlirfile,
                     "-o", cmdbuf_mlir
