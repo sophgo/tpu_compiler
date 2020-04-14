@@ -89,12 +89,12 @@ def yolov3_detect(net, image, net_input_dims, obj_threshold, nms_threshold,
         np.savez(dump_weights, **weights_dict)
 
     out_feat = {}
-    out_feat['layer82-conv'] = y['layer82-conv']
-    out_feat['layer94-conv'] = y['layer94-conv']
-    out_feat['layer106-conv'] = y['layer106-conv']
+    out_feat['layer82-conv'] = net.blobs['layer82-conv'].data
+    out_feat['layer94-conv'] = net.blobs['layer94-conv'].data
+    out_feat['layer106-conv'] = net.blobs['layer106-conv'].data
     batched_predictions = postprocess(out_feat, image.shape, net_input_dims,
                               obj_threshold, nms_threshold, batch)
-    return batched_predictions
+    return batched_predictions[0]
 
 def main(argv):
     args = parse_args()
