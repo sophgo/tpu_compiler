@@ -53,19 +53,18 @@ namespace {
 #define TBL_SHAPE_INT8 (TABLE_HW_INT8 * NPU_NUM)
 #define TBL_SHAPE_BF16 (TABLE_HW_BF16 * NPU_NUM)
 
-static void quantize_fraction(float numerator, float denominator,
-                              int &right_shift_width,
-                              int &numerator_quantized) {
-  float denominator_ceiling = 255.0 / numerator * denominator;
-  right_shift_width = 0;
-  numerator_quantized = 0;
-  float denominator_quantized = 1.0;
-  while ((denominator_quantized * 2) < denominator_ceiling) {
-    right_shift_width += 1;
-    denominator_quantized = (float)(1 << right_shift_width);
+static void quantize_fraction(float x, float y, int &rshift_width,
+                              int &x_quantized) {
+  float y_ceiling = 256.0 / x * y;
+  rshift_width = 0;
+  x_quantized = 0;
+  float y_quantized = 1.0;
+  while ((y_quantized * 2) < y_ceiling) {
+    rshift_width += 1;
+    y_quantized = (float)(1 << rshift_width);
   }
-  float scale = denominator_quantized / denominator;
-  numerator_quantized = (int)(numerator * scale + 0.5);
+  float scale = y_quantized / y;
+  x_quantized = (int)std::floor((x / y) * y_quantized + 0.5);
 }
 
 struct TpuGenLrnTablePattern : public RewritePattern {
@@ -83,10 +82,7 @@ struct TpuGenLrnTablePattern : public RewritePattern {
         lrnOp.getAttrOfType<StringAttr>("name").getValue().str();
 
     assert(lrnOp.getOpQuant() == "INT8");
-    uint32_t local_size = lrnOp.local_size().getLimitedValue();
-    float alpha = lrnOp.alpha().convertToFloat();
-    float beta = lrnOp.beta().convertToFloat();
-    float k = lrnOp.k().convertToFloat();
+
     auto sq_table_op = lrnOp.getOperand(1)->getDefiningOp();
     if (isa<tpu::NoneOp>(sq_table_op) == false) {
       return matchFailure();
@@ -95,12 +91,26 @@ struct TpuGenLrnTablePattern : public RewritePattern {
     auto lrnTwoOp = lrnThreeOp->getOperand(0)->getDefiningOp();
     auto lrnOneOp = lrnTwoOp->getOperand(0)->getDefiningOp();
 
+    auto lrnPartOp = cast<tpu::LrnThreeOp>(lrnThreeOp);
+    uint32_t local_size = lrnPartOp.local_size().getLimitedValue();
+    float alpha = lrnPartOp.alpha().convertToFloat();
+    float beta = lrnPartOp.beta().convertToFloat();
+    float k = lrnPartOp.k().convertToFloat();
+
     float sq_thy = getOpThreshold(lrnOneOp);
     float sumsq_thy = getOpThreshold(lrnTwoOp);
-    float lrn_factor_thy = getOpThreshold(lrnThreeOp);
+    float scale_thy = getOpThreshold(lrnThreeOp);
     float threshold_x = getPreviousOpThreshold(op);
     float threshold_y = getOpThreshold(op);
-
+    // quant x and rshift
+    int quant_x0, sum_rshift, quant_x1, lrn_rshift;
+    quantize_fraction(sq_thy, sumsq_thy, sum_rshift, quant_x0);
+    quantize_fraction(threshold_x * scale_thy, threshold_y * 256.0, lrn_rshift,
+                      quant_x1);
+    lrnOp.setAttr("sum_rshift", rewriter.getI32IntegerAttr(sum_rshift));
+    lrnOp.setAttr("quant_data0", rewriter.getI32IntegerAttr(quant_x0));
+    lrnOp.setAttr("lrn_rshift", rewriter.getI32IntegerAttr(lrn_rshift));
+    lrnOp.setAttr("quant_data1", rewriter.getI32IntegerAttr(quant_x1));
     // sq table
     std::vector<float> sq_table(TBL_SHAPE_INT8);
 
@@ -116,13 +126,6 @@ struct TpuGenLrnTablePattern : public RewritePattern {
         sq_table[n * TABLE_HW_INT8 + idx] = lut_output;
       }
     }
-    int numerator_quantized0, sum_right_shift_width;
-    quantize_fraction(sq_thy, sumsq_thy, sum_right_shift_width,
-                      numerator_quantized0);
-    lrnOp.setAttr("sum_right_shift_width",
-                  rewriter.getI32IntegerAttr(sum_right_shift_width));
-    lrnOp.setAttr("quant_data0",
-                  rewriter.getI32IntegerAttr(numerator_quantized0));
 
     // power table
     std::vector<float> power_table(TBL_SHAPE_INT8);
@@ -130,7 +133,7 @@ struct TpuGenLrnTablePattern : public RewritePattern {
     for (int idx = 0; idx < TABLE_HW_INT8; ++idx) {
       float lut_input = (float)idx / (256.0 / sumsq_thy);
       float lut_output = std::pow(lut_input + k, -beta);
-      lut_output = lut_output * (256.0 / lrn_factor_thy);
+      lut_output = lut_output * (256.0 / scale_thy);
       lut_output = std::floor(lut_output + 0.5);
       if (lut_output > 255.0) {
         lut_output = 255.0;
@@ -139,13 +142,7 @@ struct TpuGenLrnTablePattern : public RewritePattern {
         power_table[n * TABLE_HW_INT8 + idx] = lut_output;
       }
     }
-    int numerator_quantized1, lrn_right_shift_width;
-    quantize_fraction(threshold_x * lrn_factor_thy, threshold_y * 256.0,
-                      lrn_right_shift_width, numerator_quantized1);
-    lrnOp.setAttr("lrn_right_shift_width",
-                  rewriter.getI32IntegerAttr(lrn_right_shift_width));
-    lrnOp.setAttr("quant_data1",
-                  rewriter.getI32IntegerAttr(numerator_quantized1));
+
     // update op params
     std::vector<int64_t> weightShape{1, NPU_NUM, TABLE_H_INT8, TABLE_W_INT8};
     auto type = RankedTensorType::get(weightShape,

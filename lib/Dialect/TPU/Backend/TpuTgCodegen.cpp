@@ -1156,19 +1156,15 @@ LogicalResult tpu::TG_INT8_LrnOp::codegen(void *ctx) {
   getNCHW(shape, n, c, h, w);
   gaddr_t input_gaddr = getPreviousOpAddress(op);
   gaddr_t output_gaddr = getOpAddress(op);
-  gaddr_t power_table_gaddr =
-      getWeightOpAddress(power_table()->getDefiningOp());
-  gaddr_t sqr_table_gaddr = getWeightOpAddress(sqr_table()->getDefiningOp());
-  int local_size = this->local_size().getLimitedValue();
-  int lrn_right_shift_width = this->lrn_right_shift_width().getLimitedValue();
-  int sum_right_shift_width = this->sum_right_shift_width().getLimitedValue();
-  int quant_data0 = this->quant_data0().getLimitedValue();
-  int quant_data1 = this->quant_data1().getLimitedValue();
+  gaddr_t power_lut_gaddr = getWeightOpAddress(power_lut()->getDefiningOp());
+  gaddr_t sqr_lut_gaddr = getWeightOpAddress(sqr_lut()->getDefiningOp());
   int layer_id = mlir::getOpLayerId(op);
   lrn_fixed_forward_kernel(
       *backend_ctx, 0, 0, layer_id, nullptr, 0, input_gaddr, output_gaddr,
-      sqr_table_gaddr, power_table_gaddr, n, c, h, w, local_size,
-      sum_right_shift_width, lrn_right_shift_width, quant_data0, quant_data1);
+      sqr_lut_gaddr, power_lut_gaddr, n, c, h, w,
+      local_size().getLimitedValue(), sum_rshift().getLimitedValue(),
+      lrn_rshift().getLimitedValue(), quant_data0().getLimitedValue(),
+      quant_data1().getLimitedValue());
   return success();
 }
 

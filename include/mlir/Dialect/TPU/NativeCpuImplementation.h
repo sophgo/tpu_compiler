@@ -31,16 +31,16 @@ int my_bn(float *input, float *mean, float *variance, float *scale, float varian
     float *output, int n, int c, int h, int w);
 
 int my_lrn_one(float *input, float *output, int n, int c, int h, int w,
-               unsigned int local_size, float alpha, float beta, float k);
+               unsigned int local_size, float alpha);
 int my_lrn_two(float *input, float *output, int n, int c, int h, int w,
-               unsigned int local_size, float alpha, float beta, float k);
+               unsigned int local_size);
 int my_lrn_three(float *input, float *output, int n, int c, int h, int w,
-                 unsigned int local_size, float alpha, float beta, float k);
-int my_lrn_main(float *input, float *scale, float *output, int n, int c, int h, int w,
-                unsigned int local_size, float alpha, float beta, float k);
+                 float beta, float k);
+int my_lrn_main(float *input, float *scale, float *output, int n, int c, int h,
+                int w);
 int my_lrn_int8(float *input, float *output, int n, int c, int h, int w,
-                unsigned int local_size, float *sqr_table, float *power_table,
-                int quant0, int quant1);
+                unsigned int local_size, float *sqr_lut, float *power_lut,
+                int sum_rshift, int lrn_rshit, int quant0, int quant1);
 
 int my_shuffle_channel(float *input, float *output, unsigned int group,
     int n, int c,  int frame_size);

@@ -635,7 +635,7 @@ static void array_powx(const int N, const Dtype *a, const Dtype b, Dtype *y) {
 
 // lrn step one
 int my_lrn_one(float *input, float *output, int n, int c, int h, int w,
-               unsigned int local_size, float alpha, float beta, float k) {
+               unsigned int local_size, float alpha) {
   int count = n * c * h * w;
   array_mul(count, input, input, output);
   array_ax(count, output, alpha / local_size, output);
@@ -644,19 +644,17 @@ int my_lrn_one(float *input, float *output, int n, int c, int h, int w,
 
 // lrn step two
 int my_lrn_two(float *input, float *output, int n, int c, int h, int w,
-               unsigned int local_size, float alpha, float beta, float k) {
+               unsigned int local_size) {
   int count = n * c * h * w;
   // start with the constant value
   for (int i = 0; i < count; ++i) {
     output[i] = 0;
   }
-  int padded_c = c + local_size - 1;
   int batch_size = c * h * w;
   int frame_size = h * w;
   int pre_pad = (local_size - 1) / 2;
-  std::vector<float> padded_square(padded_c * h * w, 0);
+  std::vector<float> padded_square((c + local_size - 1) * h * w, 0.0f);
   float *padded_square_data = padded_square.data();
-  float alpha_over_size = alpha / local_size;
   // go through the images
   for (int index_n = 0; index_n < n; ++index_n) {
     float *in_data = input + index_n * batch_size;
@@ -686,7 +684,7 @@ int my_lrn_two(float *input, float *output, int n, int c, int h, int w,
 
 // lrn step three
 int my_lrn_three(float *input, float *output, int n, int c, int h, int w,
-                 unsigned int local_size, float alpha, float beta, float k) {
+                 float beta, float k) {
   int count = n * c * h * w;
   array_add(count, input, k, output);
   array_powx(count, output, -beta, output);
@@ -695,61 +693,70 @@ int my_lrn_three(float *input, float *output, int n, int c, int h, int w,
 
 // lrn step main
 int my_lrn_main(float *input, float *scale, float *output, int n, int c, int h,
-                int w, unsigned int local_size, float alpha, float beta,
-                float k) {
+                int w) {
   int count = n * c * h * w;
   array_mul(count, scale, input, output);
   return 0;
 }
 
 int my_lrn_int8(float *input, float *output, int n, int c, int h, int w,
-                unsigned int local_size, float *sqr_table, float *power_table,
-                int quant0, int quant1) {
+                unsigned int local_size, float *sqr_lut, float *power_lut,
+                int sq_right_shift, int lrn_right_shift, int quant0,
+                int quant1) {
   int count = n * c * h * w;
   int pre_pad = (local_size - 1) / 2;
   int padded_c = c + local_size - 1;
   int batch_size = c * h * w;
   int frame_size = h * w;
-  std::vector<float> padded_square(padded_c * h * w, 0);
-  std::vector<float> sqr_data(count, 0);
-  float * padded_square_data = padded_square.data();
+  std::vector<float> padded_square(padded_c * h * w, 0.0f);
+  std::vector<float> scale(count, 0.0f);
+  float *padded_square_data = padded_square.data();
+  float *scale_data = scale.data();
   for (int i = 0; i < count; i++) {
     output[i] = 0;
-    sqr_data[i] = sqr_table[(uint8_t)input[i]];
   }
+  float *square_data = padded_square_data + pre_pad * frame_size;
   for (int index_n = 0; index_n < n; index_n++) {
-    float *in_data = sqr_data.data() + index_n * batch_size;
-    float *out_data = output + index_n * batch_size;
-    memcpy(padded_square_data + pre_pad * frame_size, in_data,
-           batch_size * sizeof(float));
+    float *in_ndata = input + index_n * batch_size;
+    float *scale_ndata = scale_data + index_n * batch_size;
+    for (int i = 0; i < batch_size; i++) {
+      square_data[i] = sqr_lut[(int)in_ndata[i]];
+    }
     for (uint32_t index_c = 0; index_c < local_size; ++index_c) {
-      array_axpy(frame_size, 1.0f, padded_square_data + index_c * frame_size,
-                 out_data);
+      array_axpy(frame_size, (float)quant0,
+                 padded_square_data + index_c * frame_size, scale_ndata);
     }
     for (int index_c = 1; index_c < c; ++index_c) {
       // copy previous scale
-      memcpy(out_data + index_c * frame_size,
-             out_data + (index_c - 1) * frame_size, frame_size * sizeof(float));
+      memcpy(scale_ndata + index_c * frame_size,
+             scale_ndata + (index_c - 1) * frame_size,
+             frame_size * sizeof(float));
       // add head
-      array_axpy(frame_size, 1.0f,
+      array_axpy(frame_size, (float)quant0,
                  padded_square_data + (index_c + local_size - 1) * frame_size,
-                 out_data + index_c * frame_size);
+                 scale_ndata + index_c * frame_size);
       // subtract tail
-      array_axpy(frame_size, -1.0f,
+      array_axpy(frame_size, (float)-quant0,
                  padded_square_data + (index_c - 1) * frame_size,
-                 out_data + index_c * frame_size);
+                 scale_ndata + index_c * frame_size);
     }
   }
-  array_ax(count, output, (float)quant0, output);
+  float sq_scale = 1.0f / (1 << sq_right_shift);
+  float lrn_scale = 1.0f / (1 << lrn_right_shift);
   for (int i = 0; i < count; i++) {
-    int index = (output[i] > 255.0) ? 255.0 : (uint8_t)output[i];
-    output[i] = power_table[index];
-  }
-  array_mul(count, input, output, output);
-  array_ax(count, output, (float)quant1, output);
-  for (int i = 0; i < count; i++) {
-    if (output[i] > 127.0) {
-      output[i] = 127.0;
+    scale_data[i] = std::floor(scale_data[i] * sq_scale + 0.5f);
+    if (scale_data[i] < 0.0f) {
+      scale_data[i] = 0.0f;
+    } else if (scale_data[i] > 255.0f) {
+      scale_data[i] = 255.0;
+    }
+    output[i] = power_lut[(int)scale_data[i]];
+    output[i] *= input[i] * quant1 * lrn_scale;
+    output[i] = std::floor(output[i] + 0.5f);
+    if (output[i] < -128.0f) {
+      output[i] = -128.0f;
+    } else if (output[i] > 127.0f) {
+      output[i] = 127.0f;
     }
   }
   return 0;

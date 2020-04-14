@@ -527,10 +527,8 @@ Value *tpu::LrnOp::convertToTG() {
   }
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder.getNamedAttr("local_size", local_sizeAttr()));
-  attrs.push_back(builder.getNamedAttr("lrn_right_shift_width",
-                                       lrn_right_shift_widthAttr()));
-  attrs.push_back(builder.getNamedAttr("sum_right_shift_width",
-                                       sum_right_shift_widthAttr()));
+  attrs.push_back(builder.getNamedAttr("sum_rshift", sum_rshiftAttr()));
+  attrs.push_back(builder.getNamedAttr("lrn_rshift", lrn_rshiftAttr()));
   attrs.push_back(builder.getNamedAttr("quant_data0", quant_data0Attr()));
   attrs.push_back(builder.getNamedAttr("quant_data1", quant_data1Attr()));
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
@@ -1732,16 +1730,16 @@ struct LowerWeightLrnOpPattern : public RewritePattern {
     // update sq table
     getTensorShapeAndSize(sqTableOp, shape, size);
     auto sqTable = readAndDeleteWeightTensor<float>(sqTableOp, wTF);
-    std::vector<int8_t> sqTable_int8(sqTable->begin(), sqTable->end());
-    addWeightTensorAndUpdateWeightOp<int8_t>(sqTableOp, "lowered", sqTable_int8,
+    std::vector<uint8_t> sqTable_uint8(sqTable->begin(), sqTable->end());
+    addWeightTensorAndUpdateWeightOp<uint8_t>(sqTableOp, "lowered", sqTable_uint8,
                                              shape, "UINT8", wTF);
     sqTableOp.setAttr("lowered", rewriter.getBoolAttr(true));
     // update powerTableOp
     getTensorShapeAndSize(powerTableOp, shape, size);
     auto powerTable = readAndDeleteWeightTensor<float>(powerTableOp, wTF);
-    std::vector<int8_t> powerTable_int8(sqTable->begin(), sqTable->end());
-    addWeightTensorAndUpdateWeightOp<int8_t>(
-        powerTableOp, "lowered", powerTable_int8, shape, "UINT8", wTF);
+    std::vector<uint8_t> powerTable_uint8(powerTable->begin(), powerTable->end());
+    addWeightTensorAndUpdateWeightOp<uint8_t>(
+        powerTableOp, "lowered", powerTable_uint8, shape, "UINT8", wTF);
     powerTableOp.setAttr("lowered", rewriter.getBoolAttr(true));
     return matchSuccess();
   }

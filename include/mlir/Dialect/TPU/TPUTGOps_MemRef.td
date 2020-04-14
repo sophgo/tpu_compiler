@@ -534,14 +534,16 @@ class TPU_TG_MemRef_LrnOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
   }];
 
   let arguments = (
-    ins AnyTensor:$input,
+    ins MemRefOf<[AnyFloat, AnyInteger]>:$input,
+    MemRefOf<[AnyFloat, AnyInteger]>:$sqr_lut,
+    MemRefOf<[AnyFloat, AnyInteger]>:$power_lut,
+    MemRefOf<[AnyFloat, AnyInteger]>:$output,
     DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
     OptionalAttr<NonNegativeI32Attr>:$layer_id
   );
-
-  let results = (outs AnyTensor:$output);
 }
 def TPU_TG_MemRef_INT8_LrnOp : TPU_TG_MemRef_LrnOp<"tg_memref_int8_lrn", "Int8">;
 def TPU_TG_MemRef_BF16_LrnOp : TPU_TG_MemRef_LrnOp<"tg_memref_bf16_lrn", "Bf16">;

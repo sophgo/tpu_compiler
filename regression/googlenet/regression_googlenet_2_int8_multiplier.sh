@@ -19,17 +19,17 @@ mlir-opt \
     googlenet_cali.mlir \
     -o googlenet_quant_int8_multiplier.mlir
 
-#mlir-tpu-interpreter googlenet_quant_int8_multiplier.mlir \
-#    --tensor-in googlenet_in_fp32.npz \
-#    --tensor-out googlenet_out_int8_multiplier.npz \
-#    --dump-all-tensor=googlenet_tensor_all_int8_multiplier.npz
+mlir-tpu-interpreter googlenet_quant_int8_multiplier.mlir \
+    --tensor-in googlenet_in_fp32.npz \
+    --tensor-out googlenet_out_int8_multiplier.npz \
+    --dump-all-tensor=googlenet_tensor_all_int8_multiplier.npz
 
-#cvi_npz_tool.py compare \
-#      googlenet_tensor_all_int8_multiplier.npz \
-#      googlenet_blobs.npz \
-#      --op_info googlenet_op_info_int8_multiplier.csv \
-#      --dequant \
-#      --tolerance 0.94,0.94,0.63 -vv
+cvi_npz_tool.py compare \
+      googlenet_tensor_all_int8_multiplier.npz \
+      googlenet_blobs.npz \
+      --op_info googlenet_op_info_int8_multiplier.csv \
+      --dequant \
+      --tolerance 0.96,0.96,0.71 -vv
 
 ################################
 # Lower for quantization: multiplier int8
@@ -85,10 +85,8 @@ model_runner \
 # compare all tensors
 cvi_npz_tool.py compare \
     googlenet_cmdbuf_out_all_int8_multiplier.npz \
-    googlenet_blobs.npz \
-    --op_info googlenet_op_info_int8_multiplier.csv \
-    --dequant \
-    --tolerance 0.72,0.65,0.15 -vv
+    googlenet_tensor_all_int8_multiplier.npz \
+    --op_info googlenet_op_info_int8_multiplier.csv
 
 
 # VERDICT
