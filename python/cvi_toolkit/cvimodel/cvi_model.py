@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 from cvi.model.Model import *
 from cvi.model.Version import *
 from cvi.model.Weight import *

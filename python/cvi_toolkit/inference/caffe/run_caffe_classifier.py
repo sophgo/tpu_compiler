@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """
 classify.py is an out-of-the-box image classifer callable from the command line.
 
@@ -127,7 +127,7 @@ class My_Classifier(caffe.Net):
             blobs_dict = {}
 
             blobs_dict['raw_data'] = input_
-            # for name, blob in self.blobs.iteritems():
+            # for name, blob in self.blobs.items():
             #     blobs_dict[name] = blob.data
             for name, layer in self.layer_dict.items():
                 print("layer : " + str(name))

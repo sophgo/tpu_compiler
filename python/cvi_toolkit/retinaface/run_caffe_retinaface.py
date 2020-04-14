@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import numpy as np
 import os
@@ -59,7 +59,7 @@ def retinaface_detect(net, img_bgr, net_input_dims, net_batch, obj_threshold, nm
 
 def dump_weights(net, dump_weights):
     weights_dict = {}
-    for name, param in net.params.iteritems():
+    for name, param in net.params.items():
         for i in range(len(param)):
             weights_dict[name + "_" + str(i)] = param[i].data
     np.savez(dump_weights, **weights_dict)
@@ -76,7 +76,7 @@ def dump_blobs(net, dump_blobs, img_bgr, net_input_dims, net_batch):
     print("Save Blobs: ", dump_blobs)
     blobs_dict = {}
 
-    for layer_name, layer in net.layer_dict.iteritems():
+    for layer_name, layer in net.layer_dict.items():
         pred = net.forward(start=layer_name, end=layer_name)
         print("layer : " + str(layer_name))
         print("  type = " + str(layer.type))

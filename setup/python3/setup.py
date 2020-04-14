@@ -8,18 +8,10 @@ IS_PY3 = sys.version_info >= (3,0)
 if not IS_PY3:
     print("python version {} < 3".format(sys.version_info))
     exit(-1)
-install_requires=[
-    'numpy>=1.18.0',
-    'opencv-python>=3.4.0.14',
-    'protobuf==3.11.3',
-    'scikit-image==0.14.5',
-    'onnx==1.6.0',
-    'onnxruntime==1.1.2',
-    'torch==1.4.0',
-    'torchvision==0.5.0',
-    'termcolor==1.1.0',
-    'PyYAML==5.3.1',
-]
+
+with open("requirements.txt", "r") as req:
+    package = req.readlines()
+install_requires=[x.strip() for x in package]
 
 class CleanCommand(setuptools.Command):
     """Custom clean command to tidy up the project root."""

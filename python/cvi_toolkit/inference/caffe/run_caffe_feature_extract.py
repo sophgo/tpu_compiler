@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import numpy as np
 import os
@@ -85,7 +85,7 @@ def main(argv):
         exit(-1)
     print("Save Weights:", args.dump_weights)
     weights_dict = {}
-    for name, param in net.params.iteritems():
+    for name, param in net.params.items():
         for i in range(len(param)):
             weights_dict[name + "_" + str(i)] = param[i].data
     np.savez(args.dump_weights, **weights_dict)
@@ -95,9 +95,9 @@ def main(argv):
     # reshape blobs
     in_ = net.inputs[0]
     net.blobs[in_].reshape(args.batch_size, net.blobs[in_].data.shape[1], net.blobs[in_].data.shape[2], net.blobs[in_].data.shape[3])
-    # for name, blob in self.blobs.iteritems():
+    # for name, blob in self.blobs.items():
     #     blobs_dict[name] = blob.data
-    for name, layer in net.layer_dict.iteritems():
+    for name, layer in net.layer_dict.items():
         print("layer : " + str(name))
         print("  type = " + str(layer.type))
         print("  top -> " + str(net.top_names[name]))

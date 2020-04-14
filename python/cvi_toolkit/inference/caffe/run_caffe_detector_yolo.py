@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import numpy as np
 import os
@@ -61,9 +61,9 @@ def yolov3_detect(net, image, net_input_dims, obj_threshold, nms_threshold,
     if dump_blobs is not None:
         print("Save Blobs: ", dump_blobs)
         blobs_dict = {}
-        # for name, blob in self.blobs.iteritems():
+        # for name, blob in self.blobs.items():
         #     blobs_dict[name] = blob.data
-        for name, layer in net.layer_dict.iteritems():
+        for name, layer in net.layer_dict.items():
             print("layer : " + str(name))
             print("  type = " + str(layer.type))
             print("  top -> " + str(net.top_names[name]))
@@ -83,7 +83,7 @@ def yolov3_detect(net, image, net_input_dims, obj_threshold, nms_threshold,
     if dump_weights is not None:
         print("Save Weights:", dump_weights)
         weights_dict = {}
-        for name, param in net.params.iteritems():
+        for name, param in net.params.items():
             for i in range(len(param)):
                 weights_dict[name + "_" + str(i)] = param[i].data
         np.savez(dump_weights, **weights_dict)
