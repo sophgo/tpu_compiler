@@ -4,6 +4,7 @@ import numpy as np
 import argparse
 import onnxruntime
 import onnx
+import os
 from onnx import helper
 
 def to_numpy(tensor):
@@ -51,11 +52,14 @@ def main(argv):
         intermediate_layer_value_info.name = intermediate_tensor_name
         model.graph.output.append(intermediate_layer_value_info)
         output_keys.append(intermediate_layer_value_info.name + '_' + x.op_type)
+    model_file = args.model_path.split("/")[-1]
 
-    dump_all_onnx = args.model_path + ".all"
+    dump_all_onnx = "all_{}".format(model_file)
     dump_all_npz = args.output_file + ".all"
-
+    if not os.path.exists(dump_all_onnx):
     onnx.save(model, dump_all_onnx)
+    else:
+        print("{} is exitsed!".format(dump_all_onnx))
     print("dump multi-output onnx all tensor at ", dump_all_onnx)
 
     # dump all inferneced tensor
