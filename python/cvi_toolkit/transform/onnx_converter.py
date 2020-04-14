@@ -636,15 +636,29 @@ class OnnxConverter(BaseConverterInterface):
             first input is tensor data, second input is constant
         """
         op1, input_shape1, tensor_type1 = self.getOperand(onnx_node.inputs[0])
-        op2, input_shape2, tensor_type2 = self.getOperand(onnx_node.inputs[1])
+        _, _, tensor_type2 = self.getOperand(onnx_node.inputs[1])
         output_shape = list()
         operands = list()
         operands.append(op1)
         if tensor_type1 == TensorType.ACTIVATION and tensor_type2 == TensorType.TENSOR:
             t = self.getTensor(onnx_node.inputs[1])
             output_shape = list(t.tensor_data.flatten())
-            # FIXME: no batch support now, we set n is 1
-            output_shape[0] = 1 if output_shape[0] == -1 else output_shape[0]
+
+            if -1 in output_shape:
+                # At most one dimension of the new shape can be -1.
+                # In this case, the value is inferred from the size of the tensor and the remaining dimensions
+                # ref: https://github.com/onnx/onnx/blob/master/docs/Operators.md#Reshape
+                total_tensor_size = get_shape_size(input_shape1)
+                remain_dim = output_shape.index(-1)
+                tmp_size = 1
+                for i in range(len(input_shape1)):
+                    if i != remain_dim:
+                        tmp_size*=input_shape1[i]
+                remain_size  = total_tensor_size / tmp_size
+                if not remain_size.is_integer():
+                    raise RuntimeError("{} not divide exactly by {}".format(total_tensor_size, tmp_size))
+                output_shape[remain_dim] = remain_size
+
             output_shape = [int(x) for x in output_shape]
             if len(output_shape) ==6:
                 # Pixel Shuffle

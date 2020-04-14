@@ -1,5 +1,22 @@
 from functools import partial, wraps
+from math import floor, ceil
 import torch
+
+def calcConv2DSpatial(i, kernel, stride, padding, dilation):
+    #[i + 2*p - k - (k-1)*(d-1)]/s + 1
+    return int(floor(i + 2*padding - dilation * (kernel - 1) - 1)/stride + 1)
+
+def calcPool2DFloor(i, kernel, stride, padding):
+    return int(floor((i + 2 * padding - kernel) / stride) + 1)
+
+def calcPool2DCeil(i, kernel, stride, padding):
+    return int(ceil((i + 2 * padding - kernel) / stride) + 1)
+
+def get_shape_size(shape):
+    size = 1
+    for i in shape:
+        size*=i
+    return size
 
 # generate onnx model from torch
 def to_onnx(torch_model, input, model_path, inputs_list, outputs_list):
