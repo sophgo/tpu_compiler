@@ -4,13 +4,6 @@ set -e
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 NET=$1
 
-# create int8 input
-cvi_npz_tool.py to_bin \
-    ${NET}_tensor_all_int8.npz \
-    input \
-    ${NET}_in_int8.bin \
-    int8
-
 #  Lower for quantization
 mlir-opt \
     --tpu-lower \
@@ -32,7 +25,7 @@ mlir-opt \
 
 # memory space w/ global memory reuse
 mlir-opt \
-    --enable-reuse-global-memory=true \
+    --enable-reuse-global-memory=false \
     --assign-neuron-address-memref \
     --tpu-neuron-address-align-memref=16 \
     --tpu-neuron-map-filename-memref=neuron_map_memref_reused.csv \
@@ -52,6 +45,7 @@ mlir-opt \
     -o ${NET}_quant_int8_multiplier_tg_opt_addr.mlir
 
 # assign weight address & neuron address
+#gdb --args \
 mlir-opt \
     --assign-weight-address \
     --tpu-weight-address-align=16 \
@@ -84,11 +78,24 @@ model_runner \
     --output ${NET}_cmdbuf_out_all_int8_multiplier.npz
 
 
-# compare all tensors
+ compare all tensors
+#cvi_npz_tool.py compare \
+#    ${NET}_tensor_all_int8.npz \
+#    ${NET}_cmdbuf_out_all_int8_multiplier.npz \
+#    --op_info ${NET}_op_info_int8_multiplier.csv \
+#    -vvv
+
+
+# compare fp32 only
 cvi_npz_tool.py compare \
-    ${NET}_tensor_all_int8.npz \
     ${NET}_cmdbuf_out_all_int8_multiplier.npz \
-    --op_info ${NET}_op_info_int8_multiplier.csv
+    ${NET}_tensor_all_fp32.npz \
+    --op_info ${NET}_op_info_int8_multiplier.csv \
+    --dequant \
+    --save ${NET}_stat.csv \
+    --tolerance=0.7,0.3,0.7 -vv
+
+
 
 # VERDICT
 echo $0 PASSED

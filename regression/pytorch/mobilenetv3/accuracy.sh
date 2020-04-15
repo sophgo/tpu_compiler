@@ -2,6 +2,7 @@
 set -e
 
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
+COUNT=$1
 
 
 NET=mobilenetv3_pytorch
@@ -14,7 +15,7 @@ fi
 
 pushd $NET
 
-$DIR/accuracy_1_interpreter.sh $1 pytorch $NET
+$DIR/accuracy_1_interpreter.sh $COUNT pytorch $NET
 
 popd
 
