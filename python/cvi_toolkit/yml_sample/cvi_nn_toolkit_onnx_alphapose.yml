@@ -1,0 +1,88 @@
+#data preprocess paremeter please set to null if no need.
+output_file: alphapose.cvimodel
+
+data_preprocess:
+
+
+    # image_resize_dim: 256, 256
+    net_input_dims: 64,80
+    # for mean , you should only set one of "image_mean" "channel_mean" and "mean_file"
+    #image mean value
+    #image_mean: 20.5
+    #perchanel mean value
+    channel_mean: 103.94,116.78,123.68
+    #mean file
+    #mean_file: /home/hongjun/models/data/ilsvrc_2012_mean.npy
+
+    #Multiply raw input by this scale before preprocession
+    raw_scale: 255.0
+    #Multiply input features by this scale to finish preprocession
+    input_scale: 1
+    #RGB order: rgb or bgr , default is bgr the same as opencv
+    RGB_order: bgr
+    #transpose, "2,1,0" is HWC->CHW;
+    transpose: 2,0,1
+    #not implement yet
+    Standardization: null
+    #letterbox resize, not implement yet
+    LetterBox: False
+    #npz input directly , do nothing for preprocessing, just use npz input
+    npy_input: /workspace/tpu/llvm-project/llvm/projects/mlir/regression/data/alphapose_in.npy
+
+    input_file: /workspace/tpu/llvm-project/llvm/projects/mlir/regression/data/cat.jpg
+    output_npz: retinanet_in_fp32.npz
+
+#step 1: model convert
+Convert_model:
+    #framework type: caffe or onnx
+    framework_type: onnx
+    #for onnx model, please set model file only
+    # weight_file: /home/hongjun/models/imagenet/vgg/caffe/VGG_ILSVRC_16_layers.caffemodel
+    model_file: /data/models/pose/alphapose/onnx/alphapose_resnet50_256x192.onnx
+
+#step2: do calibration
+Calibration:
+    # You can import calibration table directly or do calibration.
+    calibraion_table: /workspace/tpu/llvm-project/llvm/projects/mlir/regression/data/cali_tables/alphapose_calibration_table
+
+    # Do caliration parameters, if you import calibration table below parameters will be ignored.
+    Dataset: /tmp/input.txt
+    #How many images you want to use to do calibration, if more the num if Dataset, Dataset num will be used
+    image_num: 1
+    histogram_bin_num: 2048
+
+#step3: do quantization
+Quantization:
+    per_channel: true
+    per_tensor: false
+    asymmetric: false
+    symmetric: true
+
+#step4: do accuracy test
+Accuracy_test:
+    # Enable  perlayer tensor fp32 similarity check to make sure convert IR result is correct.
+    FP32_Accuracy_test: True
+    Tolerance_FP32:
+      - 0.999  #cosine similarity
+      - 0.999  #correlation similarity
+      - 0.999  #eulidean similarity
+    # Enable perlayer tensor int8 similarity check to make sure quantization result is correct.
+    INT8_Accuracy_test: True
+    Tolerance_INT8:
+      - 0.9  #cosine similarity
+      - 0.9  #correlation similarity
+      - 0.66  #eulidean similarity
+    # excepts: prob
+
+#step5: do tpu offline simulation to check accuracy.
+
+# Do cvimodel TPU simulation or not.
+# This will do accuracy test by default by comparing with INT8 result after quantization.
+# Return fail if not get exactly same result.
+Simulation: true
+
+#other parameter
+
+#Do compression or not when do data store and load.
+vlc_compress(VLC): true
+
