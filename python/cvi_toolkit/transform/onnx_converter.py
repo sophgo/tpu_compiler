@@ -638,9 +638,9 @@ class OnnxConverter(BaseConverterInterface):
                 total_tensor_size = get_shape_size(input_shape1)
                 remain_dim = output_shape.index(-1)
                 tmp_size = 1
-                for i in range(len(input_shape1)):
+                for i in range(len(output_shape)):
                     if i != remain_dim:
-                        tmp_size*=input_shape1[i]
+                        tmp_size*=output_shape[i]
                 remain_size  = total_tensor_size / tmp_size
                 if not remain_size.is_integer():
                     raise RuntimeError("{} not divide exactly by {}".format(total_tensor_size, tmp_size))
@@ -765,7 +765,7 @@ class OnnxConverter(BaseConverterInterface):
             oh = int(input_shape1[2] * scale_factor[2])
             ow = int(input_shape1[3] * scale_factor[3])
             attr={
-                'scale': int(input_shape1[2])
+                'scale': int(scale_factor[2])
             }
             output_shape = [on, oc, oh, ow]
             upsample_op = self.CVI.add_upsample_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **attr)
