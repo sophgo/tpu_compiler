@@ -117,6 +117,23 @@ struct TpuTG2TLElewiseAddOpPattern : public RewritePattern {
       return matchFailure();
     }
 
+    // Check whether operand ConvOp has enough memory
+    for (auto operand : opInst->getOperands()) {
+      auto operandOp = operand->getDefiningOp();
+      if (auto convOp = dyn_cast<tpu::TG_INT8_PC_Conv2DOp>(operandOp)) {
+        uint64_t totalPerLane =
+            SimpleConv2DMemoryUsageAnalysis(convOp, nullptr);
+        if (totalPerLane > MInfo::lmem_per_lane) {
+          LLVM_DEBUG(llvm::errs() << "TG2TL_LA: " << op.name()
+                     << ", layer ID " << op.layer_id()
+                     << ", operandOp " << convOp.name()
+                     << ", SKIP, lmem " << totalPerLane
+                     << " needed\n";);
+          return matchFailure();
+        }
+      }
+    }
+
     if (1) {
       LLVM_DEBUG(llvm::errs() << "TG2TL_LA: " << op.name()
                    << ", layer ID " << op.layer_id() << "\n";);
