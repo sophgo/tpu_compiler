@@ -48,7 +48,8 @@ mlir-opt \
     --tpu-weight-bin-filename=weight.bin \
     --assign-neuron-address \
     --tpu-neuron-address-align=16 \
-    --tpu-neuron-map-filename=neuron_map.csv | \
+    --tpu-neuron-map-filename=neuron_map.csv \
+    --convert-cpu-op | \
 mlir-opt \
     --deep-fusion-tg2tl-la | \
 mlir-opt \

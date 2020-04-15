@@ -23,6 +23,15 @@ using namespace tpu;
 
 namespace {
 
+static bool isDetectionOutputOp(Operation* op) {
+  if (auto castOp = dyn_cast<GenericCpuOp>(op)) {
+    if (castOp.operation_name() == "tpu.detectionoutput") {
+      return true;
+    }
+  }
+  return false;
+}
+
 static bool isQuantOp(Operation *op) {
   if (dyn_cast<QuantOp>(op)) {
     return true;
@@ -83,6 +92,10 @@ static bool isConvertedOpNeeded(Operation *op) {
 
       // Handle LoadWeight
       if (dyn_cast<LoadWeightOp>(op)) {
+          if (isDetectionOutputOp(userOp)) {
+            llvm::dbgs() << "    converted op is needed\n";
+            return true;
+          }
           llvm::dbgs() << "    converted op is not needed\n";
           return false;
       }
