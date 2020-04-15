@@ -25,6 +25,16 @@ net = cvinn()
 cvi_data_tool = cvi_data()
 preprocessor = preprocess()
 
+def check_file_exist(filename):
+    if not os.path.exists(filename):
+        logger.error("File \"{}\" not existed!".format(filename))
+        return False
+    return True
+
+def check_file_assert(filename):
+    if filename != None and not check_file_exist(filename):
+        exit(-1)
+
 
 
 def parse(config: dict):
@@ -32,6 +42,7 @@ def parse(config: dict):
     model_name = None
     output_file = config.get("output_file", None)
     if os.path.exists(output_file):
+        logger.info("remove already existed {}".format(output_file))
         os.remove(output_file)
     os.makedirs("tmp", exist_ok=True)
     os.chdir("tmp")
@@ -44,6 +55,10 @@ def parse(config: dict):
         model_file = t.get('model_file')
         weight_file = t.get('weight_file', None)
         tpu_op_info = "{}_op_info.csv".format(model_name)
+
+        check_file_assert(model_file)
+        check_file_assert(weight_file)
+
         fp32_mlirfile = "{}.mlir".format(model_name)
         try:
             logger.info("convert model to fp32 mlir ...")
@@ -67,6 +82,7 @@ def parse(config: dict):
         mean = t.get('image_mean', None)
         channel_mean = t.get('channel_mean', None)
         mean_file = t.get('mean_file', None)
+        check_file_assert(mean_file)
 
         if mean != None and channel_mean != None:
             logger.error("channel_mean and mean should not be set at the same time!")
@@ -92,7 +108,12 @@ def parse(config: dict):
         rgb_order = t.get('RGB_order',"bgr")
         npy_input = t.get('npy_input', None)
 
-        input_file = t.get('input_file')
+        check_file_assert(npy_input)
+
+        input_file = t.get('input_file', None)
+        if not npy_input:
+            # if has npy_input, we don't need input_file
+            check_file_assert(input_file)
         if input_file == None and npy_input == None:
             logger.error('Please set input file image in yml!')
             exit(-1)
@@ -162,6 +183,9 @@ def parse(config: dict):
     if Calibration:
         dataset_file = Calibration.get("Dataset")
         calibraion_table_in = Calibration.get("calibraion_table", None)
+        check_file_assert(calibraion_table_in)
+        if not calibraion_table_in:
+            check_file_assert(dataset_file)
         auto_tune = Calibration.get("auto_tune", False)
         if calibraion_table_in != None :  # use calibration_table directly.
             logger.info("import calibration table")

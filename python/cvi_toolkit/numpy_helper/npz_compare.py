@@ -251,9 +251,9 @@ def npz_compare(args_list):
   print("Target    {}".format(f1))
   print("Reference {}".format(f2))
   if (stats.failed == 0):
-    print("npz compare PASSED.")
+    print("npz compare PASSED.", flush=True)
   else:
-    print("npz compare FAILED.")
+    print("npz compare FAILED.", flush=True)
     sys.exit(-1)
 
 if __name__ == '__main__':
