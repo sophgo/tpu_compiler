@@ -57,7 +57,7 @@ def main(argv):
     dump_all_onnx = "all_{}".format(model_file)
     dump_all_npz = args.output_file + ".all"
     if not os.path.exists(dump_all_onnx):
-    onnx.save(model, dump_all_onnx)
+        onnx.save(model, dump_all_onnx)
     else:
         print("{} is exitsed!".format(dump_all_onnx))
     print("dump multi-output onnx all tensor at ", dump_all_onnx)
