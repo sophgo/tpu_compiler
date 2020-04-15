@@ -241,7 +241,7 @@ def parse(config: dict):
     net.cleanup()
     shutil.move(output_file, '../')
     os.chdir("../")
-    os.rmdir("tmp")
+    shutil.rmtree("tmp", ignore_errors=True)
     logger.info("cleanup finished")
     logger.info("You can get cvimodel:\n {}".format(os.path.abspath(output_file)))
 

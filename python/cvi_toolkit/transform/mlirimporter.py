@@ -436,12 +436,8 @@ class MLIRImporter(object):
         upsample_param = {
             'scale': self.module.integerAttr(self.i32Type, kargs['scale'])
         }
-        dict_attr = self.module.dictAttr(**upsample_param)
-        none = self.add_none_op()
-        for i in range( 5 - len(inputOperands)):
-            inputOperands.append(none)
         return self.buildOp(TPU_OpType.Upsample.value, inputOperands, [
-            tensor_output_type], name=upsample_name, param=dict_attr, quant=self.quant_param)
+            tensor_output_type], name=upsample_name, quant=self.quant_param, **upsample_param)
 
     def add_return_op(self, Operands):
         return pybind.ret(Operands)
