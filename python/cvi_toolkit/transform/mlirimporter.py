@@ -29,6 +29,7 @@ class TPU_OpType(Enum):
     Sigmoid = 'tpu.sigmoid'
     Reshape = 'tpu.reshape'
     Relu = 'tpu.relu'
+    Upsample = 'tpu.upsample'
 
 def checkKey(dict, key):
     if key not in dict:
@@ -425,6 +426,22 @@ class MLIRImporter(object):
             inputOperands.append(none)
         return self.buildOp(TPU_OpType.Sigmoid.value, inputOperands, [
             tensor_output_type], name=sigmoid_name, quant=self.quant_param)
+
+    def add_upsample_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+        tensor_output_type = self.module.make_ranked_tensor_type(
+            self.f32Type, output_tensor_shape)
+        checkKey(kargs, 'scale')
+
+        upsample_name = self.module.stringAttr(op_name)
+        upsample_param = {
+            'scale': self.module.integerAttr(self.i32Type, kargs['scale'])
+        }
+        dict_attr = self.module.dictAttr(**upsample_param)
+        none = self.add_none_op()
+        for i in range( 5 - len(inputOperands)):
+            inputOperands.append(none)
+        return self.buildOp(TPU_OpType.Upsample.value, inputOperands, [
+            tensor_output_type], name=upsample_name, param=dict_attr, quant=self.quant_param)
 
     def add_return_op(self, Operands):
         return pybind.ret(Operands)
