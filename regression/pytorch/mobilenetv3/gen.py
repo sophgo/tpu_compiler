@@ -6,6 +6,13 @@ import geffnet
 
 #torch_model = torch.hub.load('pytorch/vision:v0.5.0', 'mobilenetv3', pretrained=False)
 #torch_model =  torch.load('./data/tf_mobilenetv3_small_075-da427f52.pth')
+
+# rw version, plz refer https://github.com/rwightman/pytorch-image-models/blob/5a16c533ff7c0b4053345835f6cda80c34b2ed7e/timm/models/mobilenetv3.py#L39
+#torch_model =  torch.load('./data/mobilenetv3_100-35495452.pth')
+#torch_model = MyModel()
+#torch_model.load_state_dict(torch.load('model_best.pth.tar')['state_dict'])
+
+# comes from https://github.com/rwightman/gen-efficientnet-pytorch, https://pypi.org/project/geffnet/
 torch_model = geffnet.create_model('mobilenetv3_rw', pretrained=True)
 torch_model.eval()
 batch_size = 1    # just a random number
