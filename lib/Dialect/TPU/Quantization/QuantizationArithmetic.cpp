@@ -765,7 +765,16 @@ void quantizeWeightInt8Multiplier(float *filter, float *bias,
                      << ", qscale_filter = " << qscale
                      << ", qscale_bias = " << qscale_bias
                      << "\n";);
-        qscale = qscale_bias;
+        if (qscale_bias >= 1) {
+          // prevent for auto tuning
+          LLVM_DEBUG(llvm::errs() << "WARNING:  qscale_bias are valid, keep org qscale"
+            << ", qscale_filter = " << qscale
+            << ", qscale_bias = " << qscale_bias
+            << "\n";);
+        }
+        else {
+          qscale = qscale_bias;
+        }
       }
     }
 

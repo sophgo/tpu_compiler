@@ -134,6 +134,8 @@ struct ConvertTgOpToTensorPass : public FunctionPass<ConvertTgOpToTensorPass> {
     target.addLegalOp<tpu::TG_INT8_PT_Conv2DOp>();
     target.addLegalOp<tpu::TG_INT8_PC_Conv2DOp>();
     target.addLegalOp<tpu::TG_BF16_Conv2DOp>();
+    target.addLegalOp<tpu::TG_INT8_ClipOp>();
+    target.addLegalOp<tpu::TG_BF16_ClipOp>();
     target.addLegalOp<tpu::TG_INT8_CropOp>();
     target.addLegalOp<tpu::TG_BF16_CropOp>();
     target.addLegalOp<tpu::TG_INT8_PT_DeConv2DOp>();
@@ -190,6 +192,8 @@ struct ConvertTgOpToTensorPass : public FunctionPass<ConvertTgOpToTensorPass> {
         convertTgOpToTensorPattern<tpu::TG_MemRef_INT8_PT_Conv2DOp, tpu::TG_INT8_PT_Conv2DOp>,
         convertTgOpToTensorPattern<tpu::TG_MemRef_INT8_PC_Conv2DOp, tpu::TG_INT8_PC_Conv2DOp>,
         convertTgOpToTensorPattern<tpu::TG_MemRef_BF16_Conv2DOp, tpu::TG_BF16_Conv2DOp>,
+        convertTgOpToTensorPattern<tpu::TG_MemRef_INT8_ClipOp, tpu::TG_INT8_ClipOp>,
+        convertTgOpToTensorPattern<tpu::TG_MemRef_BF16_ClipOp, tpu::TG_BF16_ClipOp>,
         convertTgOpToTensorPattern<tpu::TG_MemRef_INT8_CropOp, tpu::TG_INT8_CropOp>,
         convertTgOpToTensorPattern<tpu::TG_MemRef_BF16_CropOp, tpu::TG_BF16_CropOp>,
         convertTgOpToTensorPattern<tpu::TG_MemRef_INT8_PT_DeConv2DOp, tpu::TG_INT8_PT_DeConv2DOp>,

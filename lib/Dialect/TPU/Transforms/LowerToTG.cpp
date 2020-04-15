@@ -940,7 +940,7 @@ Value *tpu::ClipOp::convertToTG() {
   attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
 
   if (getOpQuant() == "INT8") {
-    assert(getOpQuantParamType() == "NONE");
+    assert(getOpQuantParamType() == "RSHIFT_AND_M_I8");
     auto newOp = OpBuilder(op).create<tpu::TG_INT8_ClipOp>(
         op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
         ArrayRef<NamedAttribute>{attrs});
@@ -1285,6 +1285,12 @@ struct PackWeightBroadcastMulOpPattern : public RewritePattern {
       PatternRewriter &rewriter) const override {
     auto castOp = cast<tpu::BroadcastMulOp>(op);
 
+    // Only int8 need pack
+    if (getOpQuant(op) == "BF16") {
+      LLVM_DEBUG(llvm::errs() << "Pack Weight for BroadcastMul ONLY apply INT8 we skip it\n";);
+      return matchFailure();
+    }
+    
     // after quantizeInt8, the quantparam is "RSHIFT_AND_M_I32"
     auto rshiftOp = cast<tpu::LoadWeightOp>(castOp.quant_rshift()->getDefiningOp());
     if (rshiftOp.lowered()) {

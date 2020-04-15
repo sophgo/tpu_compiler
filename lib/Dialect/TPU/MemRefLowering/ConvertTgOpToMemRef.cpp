@@ -451,6 +451,8 @@ void ConvertTgOpToMemRefPass::runOnFunction() {
       AddTypeConvertedForNotLowedOpPattern<tpu::TG_BF16_Conv2DOp>,
       AddTypeConvertedForNotLowedOpPattern<tpu::TG_INT8_CropOp>,
       AddTypeConvertedForNotLowedOpPattern<tpu::TG_BF16_CropOp>,
+      AddTypeConvertedForNotLowedOpPattern<tpu::TG_INT8_ClipOp>,
+      AddTypeConvertedForNotLowedOpPattern<tpu::TG_BF16_ClipOp>,
       AddTypeConvertedForNotLowedOpPattern<tpu::TG_INT8_PT_DeConv2DOp>,
       AddTypeConvertedForNotLowedOpPattern<tpu::TG_INT8_PC_DeConv2DOp>,
       AddTypeConvertedForNotLowedOpPattern<tpu::TG_BF16_DeConv2DOp>,
@@ -509,6 +511,8 @@ void ConvertTgOpToMemRefPass::runOnFunction() {
   target.addLegalOp<tpu::TG_MemRef_BF16_Conv2DOp>();
   target.addLegalOp<tpu::TG_MemRef_INT8_CropOp>();
   target.addLegalOp<tpu::TG_MemRef_BF16_CropOp>();
+  target.addLegalOp<tpu::TG_MemRef_INT8_ClipOp>();
+  target.addLegalOp<tpu::TG_MemRef_BF16_ClipOp>();
   target.addLegalOp<tpu::TG_MemRef_INT8_PT_DeConv2DOp>();
   target.addLegalOp<tpu::TG_MemRef_INT8_PC_DeConv2DOp>();
   target.addLegalOp<tpu::TG_MemRef_BF16_DeConv2DOp>();
@@ -568,6 +572,8 @@ void ConvertTgOpToMemRefPass::runOnFunction() {
       convertTgOpToMemRefPattern<tpu::TG_BF16_Conv2DOp, tpu::TG_MemRef_BF16_Conv2DOp>,
       convertTgOpToMemRefPattern<tpu::TG_INT8_CropOp, tpu::TG_MemRef_INT8_CropOp>,
       convertTgOpToMemRefPattern<tpu::TG_BF16_CropOp, tpu::TG_MemRef_BF16_CropOp>,
+      convertTgOpToMemRefPattern<tpu::TG_INT8_ClipOp, tpu::TG_MemRef_INT8_ClipOp>,
+      convertTgOpToMemRefPattern<tpu::TG_BF16_ClipOp, tpu::TG_MemRef_BF16_ClipOp>,
       convertTgOpToMemRefPattern<tpu::TG_INT8_PT_DeConv2DOp, tpu::TG_MemRef_INT8_PT_DeConv2DOp>,
       convertTgOpToMemRefPattern<tpu::TG_INT8_PC_DeConv2DOp, tpu::TG_MemRef_INT8_PC_DeConv2DOp>,
       convertTgOpToMemRefPattern<tpu::TG_BF16_DeConv2DOp, tpu::TG_MemRef_BF16_DeConv2DOp>,

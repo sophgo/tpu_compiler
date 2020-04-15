@@ -85,6 +85,11 @@ static llvm::cl::opt<bool> clQuantMixEltwiseMul(
     llvm::cl::init(false),
     llvm::cl::cat(clOptionsCategory));
 
+static llvm::cl::list<std::string> clQuantLayer(
+    "quant-int8-mix-bf16-layers",
+    llvm::cl::desc("Enable bf16 mix-presion on specify layer"),
+    llvm::cl::ZeroOrMore,
+    llvm::cl::cat(clOptionsCategory));
 
 
 static void insertQauntOp(Operation *op) {
@@ -129,6 +134,7 @@ static void insertQauntOp(Operation *op) {
         name = getOpName(prev_op).str() + "_dequant";
         layer_id = getOpLayerId(prev_op);
       }
+      name = name + "_" + prev_quant.str() + "_" + curr_quant.str();
       // check if prev op has inserted quant/dequant op
       if (prev_op) {
         bool found = false;
@@ -365,6 +371,14 @@ public:
           if (clQuantMixEltwiseMul && isa<tpu::EltwiseMulOp>(op)) {
             setOpQuant(op, "BF16");
           }
+
+          if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpCommonInterface>(op)) {
+            std::string layer_name = mlir::getOpName(op).str();
+            if (std::find(clQuantLayer.begin(), clQuantLayer.end(), layer_name) != clQuantLayer.end()) {
+              //llvm::errs() << "set " << layer_name << "as bf16\n";
+              setOpQuant(op, "BF16");
+            }
+          }
         } else {
           setOpQuant(op, "BF16");
         }
@@ -456,9 +470,15 @@ struct TpuTpuQuantClipPassPattern : public RewritePattern {
         return matchFailure();
       }
 
+      if (auto formerConv2DOp = cast<tpu::Conv2DOp>(formerOp)) {
+          LLVM_DEBUG(llvm::errs() << "over old " << mlir::getOpName(formerOp).str() << " thre " << 
+              formerConv2DOp.quant().threshold_max().getValue().convertToFloat() << ", new clip " <<
+              mlir::getOpName(clipOp).str() << " thre is " << threshold_max << "\n";);
+      }
+
       // update attr Only
-      auto formerConv2DOp = cast<tpu::Conv2DOp>(formerOp);
-      setOpThreshold(formerConv2DOp, threshold_max);
+      //auto formerConv2DOp = cast<tpu::Conv2DOp>(formerOp);
+      setOpThreshold(formerOp, threshold_max);
 
       // remove clip
       rewriter.replaceOp(clipOp, {clipOp.getOperand(0)});

@@ -49,6 +49,21 @@ struct ConvertCpuOpDefaultPattern : public RewritePattern {
     LLVM_DEBUG(llvm::errs() << castOp.getOperationName() << ":" << getOpName(castOp)<< "\n";);
 
     auto builder = Builder(op->getContext());
+
+    if (isa<tpu::QuantOp>(op)) {
+      auto from = op->getAttr("from").cast<StringAttr>().getValue().str();
+      auto to = op->getAttr("to").cast<StringAttr>().getValue().str();
+
+      if (from == "NONE" || to == "NONE") {
+        // pass to cpu
+      }
+      else {
+        // pass to tpu
+        LLVM_DEBUG(llvm::errs() << "mix: " << castOp.getOperationName() << ":" << getOpName(castOp)<< "\n";);
+        return matchFailure();
+      }
+    }
+
     std::vector<NamedAttribute> param;
     tpu::QuantParam quantAttr = getDefaultQuantParam(builder);
     for (auto& attr : op->getAttrs()) {

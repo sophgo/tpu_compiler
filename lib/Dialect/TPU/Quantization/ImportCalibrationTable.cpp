@@ -63,6 +63,12 @@ static llvm::cl::opt<bool> clCaliOverwriteThresholdBackwardConcat(
                    "threshold to operand ops"),
     llvm::cl::cat(clOptionsCategory), llvm::cl::init(false));
 
+static llvm::cl::opt<bool> clEnableForceTuneBroadcastmul(
+    "enable-force-tune-broadcastmul",
+    llvm::cl::desc("not apply algorithm 'new_threshold_y = threshold_x0 * threshold_x1' "
+                   "in broadcastmul op, used for auto tune"),
+    llvm::cl::cat(clOptionsCategory), llvm::cl::init(false));
+
 namespace {
 
 /// Backpropgate concat threshold by setting all operands' threshold_y same as
@@ -456,9 +462,17 @@ public:
     LLVM_DEBUG(llvm::errs() << "Force multiply Ops thresholds\n";);
     patterns.clear();
     patterns.insert<
-        ForceThresholdMulOpPattern<tpu::BroadcastMulOp>,
         ForceThresholdMulOpPattern<tpu::EltwiseMulOp>
         >(context);
+
+    if (clEnableForceTuneBroadcastmul) {
+        LLVM_DEBUG(llvm::errs() << "by pass Force multiply Broadcast thresholds\n";);
+    }
+    else {
+        patterns.insert<
+            ForceThresholdMulOpPattern<tpu::BroadcastMulOp>
+            >(context);
+    }
     applyPatternsGreedily(fn, patterns);
 
     if (clCaliOverwriteThresholdBackwardRelu) {
