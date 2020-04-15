@@ -184,7 +184,8 @@ class MLIRImporter(object):
 
         axis_attr = self.module.integerAttr(self.i32Type, kargs['axis'])
         none = self.add_none_op()
-        for i in range( 6 - len(inputOperands)):
+        # We assigne 4 reg for quantization
+        for i in range(4):
             inputOperands.append(none)
         return self.buildOp(TPU_OpType.Concat.value, inputOperands, [
             tensor_output_type], name=concat_name, axis=axis_attr, quant=self.quant_param)
@@ -455,12 +456,20 @@ class MLIRImporter(object):
             ret = re.match(filter, i)
             if ret:
                 reg_filter = "%[0-9]+"
-                reg = re.search(reg_filter, i)
-                reg = reg.group(0)
+                regs = re.findall(reg_filter, i)
                 shape_filter = "\<[0-9A-Za-z]+\>"
-                shape =  re.search(shape_filter, i)
-                shape = shape.group(0)
-                new_line = "    return {} : tensor{}".format(reg, shape)
+                shapes = re.findall(shape_filter, i)
+                if len(regs) != len(shapes): raise RuntimeError("{} is error format, regs v.s shapes number not match.".format(i))
+                regstr = str()
+                shapestr = str()
+                for idx, (r, s) in enumerate(zip(regs, shapes)):
+                    if idx != 0:
+                        regstr += ", "
+                        shapestr += ", "
+                    regstr += r
+                    shapestr += "tensor{}".format(s)
+
+                new_line = "    return {} : {}".format(regstr, shapestr)
                 new_strings.append(new_line)
             else:
                 new_strings.append(i)
