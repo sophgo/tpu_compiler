@@ -61,7 +61,7 @@ def preprocess_yolov3(image_path, args, net_input_dims=(416,416)):
   return new_image
 
 def center_crop(img,crop_dim):
-  print(img.shape)
+  # print(img.shape)
   h,w,_ = img.shape
   cropy,cropx = crop_dim
   startx = w//2-(cropx//2)
@@ -79,7 +79,7 @@ def preprocess_generic(image_path, args):
     raw_scale = 255.0
   if args.mean:
     mean = np.array([float(s) for s in args.mean.split(',')], dtype=np.float32)
-    print('mean', mean)
+    # print('mean', mean)
     mean = mean[:, np.newaxis, np.newaxis]
   else:
     mean = np.array([])
