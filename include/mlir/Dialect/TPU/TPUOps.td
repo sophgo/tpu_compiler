@@ -684,7 +684,6 @@ class TPU_LrnPartOp<string mnemonic,  string opSummary> : TPU_Op<mnemonic,
       `local_size`      : optional, local size.
       `alpha`           : optional, alpha.
       `beta`            : optional, beta.
-      `norm_region`     : optional, norm region, 0 is across channel; 1 is within channel.
       `k`               : optional, k.
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
@@ -727,16 +726,16 @@ def TPU_LrnOp: TPU_Op<"lrn",
 
     Inputs:
       `input`           : required, the input activation tensor.
-      `sqr_table`       : required, sqr lut table used by backend.
-      `power_table`     : required, power lut table used by backend.
+      `sqr_lut`         : required, sqr lut table used by backend.
+      `power_lut`       : required, power lut table used by backend.
       `scale`           : required, scale data
 
     Attributes:
       `local_size`      : optional, local size.
-      `alpha`           : optional, alpha.
-      `beta`            : optional, beta.
-      `norm_region`     : optional, norm region, 0 is across channel; 1 is within channel.
-      `k`               : optional, k.
+      `sum_rshift`      : optional, auto generate
+      `lrn_rshift`      : optional, auto generate
+      `quant_data0`     : optional, auto generate
+      `quant_data1`     : optional, auto generate
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
       `layer_id`        : optional, id for profiling.
@@ -758,16 +757,12 @@ def TPU_LrnOp: TPU_Op<"lrn",
 
   let arguments = (
     ins AnyTensor:$input,
-    TPU_TensorOfOrNone<[F32, BF16, I8]>:$sqr_table,
-    TPU_TensorOfOrNone<[F32, BF16, I8]>:$power_table,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$sqr_lut,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$power_lut,
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$scale,
     DefaultValuedAttr<NonNegativeI32Attr, "5">:$local_size,
-    DefaultValuedAttr<F32Attr, "1.0">:$alpha,
-    DefaultValuedAttr<F32Attr, "0.75">:$beta,
-    DefaultValuedAttr<NonNegativeI32Attr, "0">:$norm_region,
-    DefaultValuedAttr<F32Attr, "1.0">:$k,
-    I32Attr:$lrn_right_shift_width,
-    I32Attr:$sum_right_shift_width,
+    I32Attr:$sum_rshift,
+    I32Attr:$lrn_rshift,
     I32Attr:$quant_data0,
     I32Attr:$quant_data1,
     TPU_QuantParamAttr:$quant,

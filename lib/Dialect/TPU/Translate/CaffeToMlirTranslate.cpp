@@ -2128,9 +2128,9 @@ void CaffeImporter::convertLrnLayer(mlir::Block *block,
   attrs2.push_back(builder_.getNamedAttr("k", builder_.getF32FloatAttr(p.k())));
   attrs2.push_back(
       builder_.getNamedAttr("quant", getDefaultQuantParam(builder_)));
-  attrs2.push_back(builder_.getNamedAttr("lrn_right_shift_width",
+  attrs2.push_back(builder_.getNamedAttr("sum_rshift",
                                          builder_.getI32IntegerAttr(0)));
-  attrs2.push_back(builder_.getNamedAttr("sum_right_shift_width",
+  attrs2.push_back(builder_.getNamedAttr("lrn_rshift",
                                          builder_.getI32IntegerAttr(0)));
   attrs2.push_back(
       builder_.getNamedAttr("quant_data0", builder_.getI32IntegerAttr(0)));

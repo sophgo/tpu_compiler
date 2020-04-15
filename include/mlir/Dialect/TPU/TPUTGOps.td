@@ -425,8 +425,15 @@ class TPU_TG_LrnOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
   let description = [{
     Inputs:
       `input`           : required, the input activation memref.
+      `sqr_lut`         : required, sqr lut.
+      `power_lut`       : required, power lut.
 
     Attributes:
+      `local_size`      : required, accross channel local size
+      `sum_rshift`      : required, sum right shift width
+      `lrn_rshift`      : required, lrn right shift width
+      `quant_data0`     : required, quantilization x [0]
+      `quant_data1`     : required, quantilization x [1]
       `region`          : required, the memory region to reside in, could be
                           one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
                           (backend does not support `INPUT`, `OUTPUT` for now)
@@ -447,11 +454,11 @@ class TPU_TG_LrnOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 
   let arguments = (
     ins AnyTensor:$input,
-    AnyTensor:$sqr_table,
-    AnyTensor:$power_table,
+    AnyTensor:$sqr_lut,
+    AnyTensor:$power_lut,
     I32Attr:$local_size,
-    I32Attr:$lrn_right_shift_width,
-    I32Attr:$sum_right_shift_width,
+    I32Attr:$sum_rshift,
+    I32Attr:$lrn_rshift,
     I32Attr:$quant_data0,
     I32Attr:$quant_data1,
     DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
