@@ -6,7 +6,11 @@ DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 
 # onnx inference only on python3, pls pip3 install onnxruntime
 run_onnx_inference.py \
-    --input_file $DIR/data/dog.npz \
+    --input_file $DIR/data/dog.jpg \
+    --mean 0.485,0.456,0.406 \
+    --std 0.229,0.224,0.225 \
+    --image_resize_dims 256,256 \
+    --net_input_dims 224,224 \
     --output_file resnet18_out_onnx.npz \
     --model_path $MODEL_PATH/imagenet/resnet/onnx/resnet18.onnx
 
