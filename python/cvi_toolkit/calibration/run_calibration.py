@@ -11,6 +11,7 @@ import numpy as np
 from cvi_toolkit.calibration.kld_calibrator import KLD_Calibrator
 from cvi_toolkit.calibration.asym_calibrator import Asym_Calibrator
 from cvi_toolkit.calibration.tuner import Tuner
+from cvi_toolkit import preprocess
 
 def preprocess_func_arcface(image_path, args):
   image = cv2.imread(str(image_path).rstrip())
@@ -113,10 +114,11 @@ def main():
   parser.add_argument('--model_name', metavar='model_name', help='Model name', default='generic')
   parser.add_argument("--image_resize_dims", type=str, default='256,256')
   parser.add_argument("--net_input_dims", type=str, default='224,224')
-  parser.add_argument("--raw_scale", type=float, help="Multiply raw input image data by this scale.")
+  parser.add_argument("--raw_scale", type=float, help="Multiply raw input image data by this scale.", default=255.0)
   parser.add_argument("--mean", help="Per Channel image mean values")
+  parser.add_argument("--std", help="Per Channel image std values", default='1,1,1')
   parser.add_argument("--mean_file", type=str, help="the resized ImageNet dataset mean file.")
-  parser.add_argument("--input_scale", type=float, help="Multiply input features by this scale.")
+  parser.add_argument("--input_scale", type=float, help="Multiply input features by this scale.", default=1.0)
   parser.add_argument('--calibrator', metavar='calibrator', help='Calibration method', default='KLD')
   parser.add_argument('--math_lib_path', metavar='math_path', help='Calibration math library path', default='calibration_math.so')
   parser.add_argument('--input_num', metavar='input_num', help='Calibration data number', default=10)
@@ -128,22 +130,30 @@ def main():
   args = parser.parse_args()
 
   if (args.model_name == 'generic'):
-    preprocess = preprocess_generic
+    preprocessor = preprocess()
+    preprocessor.config(net_input_dims=args.net_input_dims,
+                    resize_dims=args.image_resize_dims,
+                    mean=args.mean,
+                    mean_file=args.mean_file,
+                    input_scale=args.input_scale,
+                    raw_scale=args.raw_scale,
+                    std=args.std)
+    p_func = lambda input_file, _ : preprocessor.run(input_file)
   elif (args.model_name == 'yolo_v3'):
-    preprocess = preprocess_yolov3
+    p_func = preprocess_yolov3
   elif (args.model_name == 'ssd300_face'):
-    preprocess = preprocess_func_ssd300_face
+    p_func = preprocess_func_ssd300_face
   elif (args.model_name == 'alpha_pose'):
-    preprocess = preprocess_func_alphapose
+    p_func = preprocess_func_alphapose
   elif (args.model_name == 'arcface_res50'):
-    preprocess = preprocess_func_arcface
+    p_func = preprocess_func_arcface
   else:
     assert(False)
 
   if args.calibrator == 'KLD':
-    calibrator = KLD_Calibrator(args, preprocess)
+    calibrator = KLD_Calibrator(args, p_func)
   elif args.calibrator == 'Asym':
-    calibrator = Asym_Calibrator(args, preprocess)
+    calibrator = Asym_Calibrator(args, p_func)
   else:
     assert(False)
 
