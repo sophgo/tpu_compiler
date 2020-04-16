@@ -18,13 +18,13 @@ logger = logging.getLogger(__name__)
 class cvinn(object):
     def __init__(self):
         pass
-    def convert_model(self, model_type: str, model_file: str,  mlirfile: str, weight_file: str = None, tpu_op_info=None):
+    def convert_model(self, model_type: str, model_file: str,  mlirfile: str, weight_file: str = None, tpu_op_info=None,batch_size=1):
         if model_type == 'caffe':
             if weight_file == None:
                 print("No caffe weight file")
                 return -1
             mlirori = "ori_{}".format(mlirfile)
-            ret = mlir_translate(model_file, weight_file, mlirori)
+            ret = mlir_translate(model_file, weight_file, mlirori,batch_size=batch_size)
             if ret != 0:
                 logger.error("mlir_translate failed")
                 return -1

@@ -18,11 +18,15 @@ def checkReturnValue(ret, func: str):
     else:
         logger.error("error occured: {}, func: {}\nmsg: {}".format(ret.returncode, func, ret))
 
-def mlir_translate(model_file, weight_file, mlirfile):
+def mlir_translate(model_file, weight_file, mlirfile,batch_size=1):
+
     ret = subprocess.run(["mlir-translate", "--caffe-to-mlir", model_file,
                     "--caffemodel", weight_file,
                     "-o", mlirfile
                     ], **std_output_flag)
+    # add multibatch fail
+    # "--static-batchsize",batch_size,
+
     checkReturnValue(ret, "mlir_translate")
     return ret.returncode
 
@@ -144,7 +148,9 @@ def mlir_lower_opt(mlirfile, opt_mlirfile):
     return ret.returncode
 
 def mlir_gen_cvimodel(mlirfile, cvi_module):
-    cmdbuf_mlir = "cmdbuf_{}".format(mlirfile)
+    
+    int8_addr = "int8_addr_{}".format(mlirfile)
+
     ret = subprocess.run(["mlir-opt",
                     "--assign-weight-address",
                     "--tpu-weight-address-align=16",
@@ -155,22 +161,108 @@ def mlir_gen_cvimodel(mlirfile, cvi_module):
                     "--tpu-neuron-map-filename=neuron_map.csv",
                     "--convert-cpu-op",
                     mlirfile,
-                    "-o", cmdbuf_mlir
+                    "-o", int8_addr
                     ], **std_output_flag)
-    checkReturnValue(ret, "mlir-opt, mlir_to_tg_cmdbuf")
+    checkReturnValue(ret, "mlir-opt, int8_addr")
     if ret.returncode != 0:
         return ret.returncode
 
+    deepfusion_tg2tl_la = "deep_fusion_tg2tl_la_{}".format(mlirfile)
+
+    ret = subprocess.run(["mlir-opt",
+                    "--deep-fusion-tg2tl-la",
+                    int8_addr,
+                    "-o", deepfusion_tg2tl_la
+                    ], **std_output_flag)
+    checkReturnValue(ret, "mlir-opt, deepfusion_tg2tl_la")
+    if ret.returncode != 0:
+        return ret.returncode
+    
+    deep_fusion_tl_la2lw = "deep_fusion_tl_la2lw_{}".format(mlirfile)
+
+    ret = subprocess.run(["mlir-opt",
+                    "--deep-fusion-tl-la2lw",
+                    deepfusion_tg2tl_la,
+                    "-o", deep_fusion_tl_la2lw
+                    ], **std_output_flag)
+    checkReturnValue(ret, "mlir-opt, deep_fusion_tl_la2lw")
+    if ret.returncode != 0:
+        return ret.returncode
+
+    convert_func_to_memref = "convert_func_to_memref_{}".format(mlirfile)
+
+    ret = subprocess.run(["mlir-opt",
+                    "--convert-func-to-memref",
+                    deep_fusion_tl_la2lw,
+                    "-o", convert_func_to_memref
+                    ], **std_output_flag)
+    checkReturnValue(ret, "mlir-opt, convert_func_to_memref")
+    if ret.returncode != 0:
+        return ret.returncode
+
+
+    convert_tg_op_to_memref = "convert_tg_op_to_memref_{}".format(mlirfile)
+
+    ret = subprocess.run(["mlir-opt",
+                    "--convert-tg-op-to-memref",
+                    convert_func_to_memref,
+                    "-o", convert_tg_op_to_memref
+                    ], **std_output_flag)
+    checkReturnValue(ret, "mlir-opt, convert_tg_op_to_memref")
+    if ret.returncode != 0:
+        return ret.returncode
+
+    enable_reuse_global_memory = "enable_reuse_global_memory_{}".format(mlirfile)
+
+    ret = subprocess.run(["mlir-opt",
+                    "--enable-reuse-global-memory=true",
+                    "--assign-neuron-address-memref",
+                    "--tpu-neuron-address-align-memref=16",
+                    "--tpu-neuron-map-filename-memref=neuron_map_memopt.csv",
+                    convert_tg_op_to_memref,
+                    "-o", enable_reuse_global_memory
+                    ], **std_output_flag)
+    checkReturnValue(ret, "mlir-opt, enable_reuse_global_memory")
+
+    if ret.returncode != 0:
+        return ret.returncode      
+
+    convert_tg_op_to_tensor = "convert_tg_op_to_tensor_{}".format(mlirfile)
+
+    ret = subprocess.run(["mlir-opt",
+                    "--convert-tg-op-to-tensor",
+                    enable_reuse_global_memory,
+                    "-o", convert_tg_op_to_tensor
+                    ], **std_output_flag)
+    checkReturnValue(ret, "mlir-opt, enable_reuse_global_memory")
+
+    if ret.returncode != 0:
+        return ret.returncode   
+
+    int8_tl_lw_memopt = "int8_tl_lw_memopt_{}".format(mlirfile)
+
+    ret = subprocess.run(["mlir-opt",
+                    "--convert-func-to-tensor",
+                    "--convert-cpu-op",
+                    convert_tg_op_to_tensor,
+                    "-o", int8_tl_lw_memopt
+                    ], **std_output_flag)
+    checkReturnValue(ret, "mlir-opt, int8_tl_lw_memopt")
+
+    if ret.returncode != 0:
+        return ret.returncode    
+
+
     ret = subprocess.run(["mlir-translate",
                     "--mlir-to-cmdbuf",
-                    cmdbuf_mlir,
+                    int8_tl_lw_memopt,
                     "-o", "cmdbuf.bin"
                     ], **std_output_flag)
     checkReturnValue(ret, "mlir-translate, mlir_gen_cmdbuf")
     if ret.returncode != 0:
         return ret.returncode
-
-    model_builder = builder("weight.bin", ["cmdbuf.bin"], None, None, cmdbuf_mlir, False)
+    
+    model_builder = builder("weight.bin", ["cmdbuf.bin"], None, None, int8_tl_lw_memopt, False)
     model_builder.build(cvi_module)
     return 0
 
