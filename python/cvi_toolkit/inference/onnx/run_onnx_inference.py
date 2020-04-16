@@ -128,7 +128,9 @@ def main(argv):
 
         # dump all inferneced tensor
         ort_outs = inference(input, dump_all_onnx)
-        np.savez(args.dump_tensors, **dict(zip(output_keys, map(np.ndarray.flatten, ort_outs))))
+        tensor_all_dict = dict(zip(output_keys, map(np.ndarray.flatten, ort_outs)))
+        tensor_all_dict['input'] = input
+        np.savez(args.dump_tensors, **tensor_all_dict)
         print("dump all tensor at ", args.dump_tensors)
 
 if __name__ == '__main__':
