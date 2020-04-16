@@ -22,12 +22,30 @@ class preprocess(object):
                      resize_dims=None,
                      mean=None,
                      mean_file=None,
+                     std=None,
                      input_scale=1.0,
                      raw_scale=255.0,
-                     transpose=None,
+                     transpose="2,0,1",
                      rgb_order='bgr',
                      npy_input=None,
                      letter_box=False):
+        print("preprocess :\n         \
+            \tnet_input_dims: {}\n    \
+            \tresize_dims   : {}\n    \
+            \tmean          : {}\n    \
+            \tmean_file     : {}\n    \
+            \tstd           : {}\n    \
+            \tinput_scale   : {}\n    \
+            \traw_scale     : {}\n    \
+            \ttranspose     : {}\n    \
+            \trgb_order     : {}\n    \
+            \tnpy_input     : {}\n    \
+            \tletter_box    : {}\n    \
+        ".format(net_input_dims, resize_dims, mean, \
+                mean_file, std, input_scale, raw_scale, \
+                transpose, rgb_order, npy_input, \
+                letter_box
+        ))
         self.npy_input = npy_input
         self.letter_box = letter_box
         self.net_input_dims = [int(s) for s in net_input_dims.split(',')]
@@ -36,7 +54,7 @@ class preprocess(object):
             self.resize_dims = [ max(x,y) for (x,y) in zip(self.resize_dims, self.net_input_dims)]
         else :
             self.resize_dims = None
-            
+
         self.raw_scale = raw_scale
 
         if mean:
@@ -50,7 +68,10 @@ class preprocess(object):
             else:
                 self.mean = np.array([])
                 self.mean_file = np.array([])
-
+        if std:
+            self.std = np.array([float(s) for s in std.split(',')], dtype=np.float32)
+        else:
+            self.std = None
         self.input_scale = float(input_scale)
 
         if transpose != None:
@@ -83,6 +104,8 @@ class preprocess(object):
                 # transpose
                 if self.transpose != None :
                     x = np.transpose(x, self.transpose)
+
+                x = x * self.raw_scale / 255.0
                 # preprocess
                 if self.mean_file.size != 0 :
                     x -= self.mean_file
@@ -90,7 +113,9 @@ class preprocess(object):
                     x -= self.mean
                 if self.input_scale != 1.0:
                     x *= self.input_scale
-                x = x * self.raw_scale /255.0
+                if self.std is not None:
+                    x /= self.std[:,np.newaxis, np.newaxis]
+
                 # Take center crop.
                 x = center_crop(x, self.net_input_dims)
 
@@ -121,7 +146,7 @@ class preprocess(object):
                 else :
                     if self.rgb_order == 'rgb' :
                         image[:,:,0], image[:,:,2] = image[:,:,2], image[:,:,0]
-                    
+
                     if self.mean.size != 0:
                         image -= self.mean
                     if self.input_scale != 1.0:
@@ -134,7 +159,7 @@ class preprocess(object):
                     x = cv2.resize(image, (self.net_input_dims[1], self.net_input_dims[0]))
 
                     if self.transpose != None :
-                        x = np.transpose(x, self.transpose)  
+                        x = np.transpose(x, self.transpose)
 
 
             output = np.expand_dims(x, axis=0)

@@ -18,13 +18,20 @@ class CaffeModel(model_base):
         out = self.net.forward_all(**{self.net.inputs[0]: input})
         return out[self.net.outputs[0]]
 
+    def get_input_shape(self):
+        if not self.net:
+            print("Not init caffe model")
+            return None
+        else:
+            in_ = self.net.inputs[0]
+            return "{},{}".format(self.net.blobs[in_].data.shape[2], self.net.blobs[in_].data.shape[3])
     def get_all_tensor(self, input_data=None):
         if input_data is None:
             print("[Warning] Caffe model get all tensor need input data")
             return None
 
         blobs_dict = {}
-
+        blobs_dict['raw_data'] = input_data
         for name, layer in self.net.layer_dict.items():
             msg = "layer : {}\n\ttype = {} \n\ttop -> {}".format(name, layer.type, self.net.top_names[name])
             logger.debug(msg)
