@@ -12,8 +12,9 @@ run_onnx_inference.py \
     --image_resize_dims 256,256 \
     --net_input_dims 224,224 \
     --output_file resnet18_out_onnx.npz \
+    --dump_tensor resnet18_out_tensor_all_onnx.npz \
     --model_path $MODEL_PATH/imagenet/resnet/onnx/resnet18.onnx
 
-cvi_npz_tool.py extract $DIR/data/dog.npz resnet18_in_fp32.npz input
+cvi_npz_tool.py extract resnet18_out_tensor_all_onnx.npz resnet18_in_fp32.npz input
 # VERDICT
 echo $0 PASSED
