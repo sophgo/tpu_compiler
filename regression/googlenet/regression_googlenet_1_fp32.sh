@@ -29,8 +29,7 @@ cvi_npz_tool.py compare googlenet_out_fp32.npz googlenet_out_fp32_prob.npz -v
 cvi_npz_tool.py compare \
     googlenet_tensor_all_fp32.npz \
     googlenet_blobs.npz \
-    --op_info googlenet_op_info.csv \
-    --tolerance=0.999,0.999,0.999 -vv
+    --op_info googlenet_op_info.csv
 
 # VERDICT
 echo $0 PASSED

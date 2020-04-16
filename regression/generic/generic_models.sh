@@ -78,21 +78,21 @@ fi
 if [ $NET = "googlenet" ]; then
 export MODEL_DEF=$MODEL_PATH/imagenet/googlenet/caffe/deploy.prototxt
 export MODEL_DAT=$MODEL_PATH/imagenet/googlenet/caffe/bvlc_googlenet.caffemodel
-export DO_CALIBRATION=1
-# export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/googlenet_calibration_table
+export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/googlenet_calibration_table
 export NET_INPUT_DIMS=224,224
-export RAW_SCALE=255.0
-export MEAN=104.0,117.0,123.0
-export INPUT_SCALE=1.0
+export MEAN=104,117,123
 export INPUT=data
 export OUTPUTS_FP32=prob
-export OUTPUTS=classifier
-# export EXCEPTS=prob
-export TOLERANCE_INT8_PER_TENSOR=0.84,0.84,0.41
-export TOLERANCE_INT8_RSHIFT_ONLY=0.94,0.93,0.64
-export TOLERANCE_INT8_MULTIPLER=0.95,0.95,0.71
-export TOLERANCE_BF16=0.99,0.99,0.93
-export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
+export OUTPUTS=prob
+export TOLERANCE_INT8_PER_TENSOR=0.96,0.96,0.73
+export TOLERANCE_INT8_RSHIFT_ONLY=0.94,0.94,0.64
+export TOLERANCE_INT8_MULTIPLER=0.96,0.96,0.71
+export DO_QUANT_INT8_PER_TENSOR=1
+export DO_QUANT_INT8_RFHIFT_ONLY=1
+export DO_QUANT_BF16=0
+export DO_CMDBUF_BF16=0
+#export TOLERANCE_BF16=0.99,0.99,0.93
+#export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
 fi
 
 if [ $NET = "inception_v3" ]; then
@@ -370,23 +370,6 @@ export TOLERANCE_INT8_MULTIPLER=0.93,0.92,0.61
 export DO_QUANT_BF16=0
 # export TOLERANCE_BF16=0.99,0.99,0.94
 # export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
-fi
-
-if [ $NET = "googlenet" ]; then
-#TODO(charle.hu): complete later
-export MODEL_DEF=$MODEL_PATH/imagenet/googlenet/caffe/deploy.prototxt
-export MODEL_DAT=$MODEL_PATH/imagenet/googlenet/caffe/bvlc_googlenet.caffemodel
-export CALI_TABLE=$REGRESSION_PATH/googlenet/data/googlenet_calibration_table
-export NET_INPUT_DIMS=224,224
-export MEAN=104,117,123
-export INPUT=data
-export OUTPUTS_FP32=prob
-export OUTPUTS=prob
-export TOLERANCE_INT8_PER_TENSOR=0.1,0.1,0.1
-export TOLERANCE_INT8_RSHIFT_ONLY=0.1,0.1,0.1
-export TOLERANCE_INT8_MULTIPLER=0.1,0.1,0.1
-export DO_QUANT_INT8_PER_TENSOR=0
-export DO_QUANT_INT8_RFHIFT_ONLY=0
 fi
 
 # turn off those optimization when batch_size is larger than 1 temporarily

@@ -175,6 +175,151 @@ static void insertQauntOp(Operation *op) {
   }
 }
 
+struct TpuGenLrnTablePattern : public RewritePattern {
+  TpuGenLrnTablePattern(MLIRContext *context)
+      : RewritePattern("tpu.lrn", 1, context) {}
+
+  static void quantize_fraction(float x, float y, int &rshift_width,
+                                int &x_quantized) {
+    float y_ceiling = 256.0 / x * y;
+    rshift_width = 0;
+    x_quantized = 0;
+    float y_quantized = 1.0;
+    while ((y_quantized * 2) < y_ceiling) {
+      rshift_width += 1;
+      y_quantized = (float)(1 << rshift_width);
+    }
+    x_quantized = (int)std::floor((x / y) * y_quantized + 0.5);
+  }
+
+  PatternMatchResult matchAndRewrite(Operation *op,
+                                     PatternRewriter &rewriter) const override {
+    TensorFile *wTF = getWeightTensorFile(op);
+    Value *wfV = getWeightFileValue(op);
+    auto lrnOp = cast<tpu::LrnOp>(op);
+    std::string quant = lrnOp.getOpQuant();
+
+    if (quant == "NONE") {
+      return matchFailure();
+    }
+
+    auto sq_table_op = lrnOp.getOperand(1)->getDefiningOp();
+    if (isa<tpu::NoneOp>(sq_table_op) == false) {
+      return matchFailure();
+    }
+
+    auto lrnThreeOp = lrnOp.getOperand(3)->getDefiningOp();
+    if (isa<tpu::NoneOp>(lrnThreeOp) == true) {
+      return matchFailure();
+    }
+    auto lrnTwoOp = lrnThreeOp->getOperand(0)->getDefiningOp();
+    auto lrnOneOp = lrnTwoOp->getOperand(0)->getDefiningOp();
+
+    // remote operand 3, not use any more
+    lrnOp.setOperand(3, lrnOp.getOperand(1));
+
+    if (quant == "INT8") {
+      const int NPU_NUM = 32;
+      const int TABLE_H_INT8 = 16;
+      const int TABLE_W_INT8 = 16;
+      const int TABLE_HW_INT8 = (TABLE_H_INT8 * TABLE_W_INT8);
+      const int TBL_SHAPE_INT8 = (TABLE_HW_INT8 * NPU_NUM);
+      auto lrnPartOp = cast<tpu::LrnThreeOp>(lrnThreeOp);
+      uint32_t local_size = lrnPartOp.local_size().getLimitedValue();
+      float alpha = lrnPartOp.alpha().convertToFloat();
+      float beta = lrnPartOp.beta().convertToFloat();
+      float k = lrnPartOp.k().convertToFloat();
+
+      float sq_thy = getOpThreshold(lrnOneOp);
+      float sumsq_thy = getOpThreshold(lrnTwoOp);
+      float scale_thy = getOpThreshold(lrnThreeOp);
+      float threshold_x = getPreviousOpThreshold(op);
+      float threshold_y = getOpThreshold(op);
+      // quant x and rshift
+      int quant_x0, sum_rshift, quant_x1, lrn_rshift;
+      quantize_fraction(sq_thy, sumsq_thy, sum_rshift, quant_x0);
+      quantize_fraction(threshold_x * scale_thy, threshold_y * 256.0,
+                        lrn_rshift, quant_x1);
+      lrnOp.setAttr("sum_rshift", rewriter.getI32IntegerAttr(sum_rshift));
+      lrnOp.setAttr("quant_data0", rewriter.getI32IntegerAttr(quant_x0));
+      lrnOp.setAttr("lrn_rshift", rewriter.getI32IntegerAttr(lrn_rshift));
+      lrnOp.setAttr("quant_data1", rewriter.getI32IntegerAttr(quant_x1));
+      // sq table
+      std::vector<float> sq_table(TBL_SHAPE_INT8);
+
+      for (int idx = 0; idx < TABLE_HW_INT8; ++idx) {
+        float lut_input = threshold_x / 128.0 * idx;
+        float lut_output = std::pow(lut_input, 2) * 256.0 / sq_thy;
+        lut_output = lut_output * alpha / local_size;
+        lut_output = std::floor(lut_output + 0.5);
+        if (lut_output > 255.0) {
+          lut_output = 255.0;
+        }
+        for (int n = 0; n < NPU_NUM; n++) {
+          sq_table[n * TABLE_HW_INT8 + idx] = lut_output;
+        }
+      }
+
+      // power table
+      std::vector<float> power_table(TBL_SHAPE_INT8);
+
+      for (int idx = 0; idx < TABLE_HW_INT8; ++idx) {
+        float lut_input = (float)idx / (256.0 / sumsq_thy);
+        float lut_output = std::pow(lut_input + k, -beta);
+        lut_output = lut_output * (256.0 / scale_thy);
+        lut_output = std::floor(lut_output + 0.5);
+        if (lut_output > 255.0) {
+          lut_output = 255.0;
+        }
+        for (int n = 0; n < NPU_NUM; n++) {
+          power_table[n * TABLE_HW_INT8 + idx] = lut_output;
+        }
+      }
+
+      // update op params
+      std::vector<int64_t> weightShape{1, NPU_NUM, TABLE_H_INT8, TABLE_W_INT8};
+      auto type = RankedTensorType::get(
+          weightShape, FloatType::getF32(rewriter.getContext()));
+      std::string op_name =
+          lrnOp.getAttrOfType<StringAttr>("name").getValue().str();
+
+      // sq weight
+      auto tensor_name = op_name + "_sq_gen_weight";
+
+      wTF->addTensor<float>(tensor_name, sq_table.data(), type);
+      std::vector<NamedAttribute> attrs;
+      attrs.push_back(
+          rewriter.getNamedAttr("name", rewriter.getStringAttr(tensor_name)));
+      attrs.push_back(
+          rewriter.getNamedAttr("storage", rewriter.getStringAttr("UINT8")));
+      auto sq_weight_op = rewriter.create<tpu::LoadWeightOp>(
+          op->getLoc(), type, ArrayRef<Value *>{wfV},
+          ArrayRef<NamedAttribute>{attrs});
+      lrnOp.setOperand(1, sq_weight_op);
+
+      // power weight
+      auto tensor_name2 = op_name + "_power_gen_weight";
+      wTF->addTensor<float>(tensor_name2, power_table.data(), type);
+      std::vector<NamedAttribute> attrs2;
+      attrs2.push_back(
+          rewriter.getNamedAttr("name", rewriter.getStringAttr(tensor_name2)));
+      attrs2.push_back(
+          rewriter.getNamedAttr("storage", rewriter.getStringAttr("UINT8")));
+      auto power_weight_op = rewriter.create<tpu::LoadWeightOp>(
+          op->getLoc(), type, ArrayRef<Value *>{wfV},
+          ArrayRef<NamedAttribute>{attrs2});
+      lrnOp.setOperand(2, power_weight_op);
+    }
+
+    // remove lrn one/two/three op
+    rewriter.replaceOp(lrnThreeOp, {lrnOp});
+    rewriter.replaceOp(lrnTwoOp, {lrnOp});
+    rewriter.replaceOp(lrnOneOp, {lrnOp});
+
+    return matchSuccess();
+  }
+};
+
 class TpuQuantPass : public FunctionPass<TpuQuantPass> {
 public:
   explicit TpuQuantPass() {}
@@ -270,6 +415,13 @@ public:
         insertQauntOp(op);
       }
     });
+    
+    OwningRewritePatternList patterns;
+    // gen special operations
+    patterns.insert<
+      TpuGenLrnTablePattern
+    >(context);
+    applyPatternsGreedily(fn, patterns);
   }
 };
 

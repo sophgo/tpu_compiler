@@ -732,6 +732,9 @@ def TPU_LrnOp: TPU_Op<"lrn",
 
     Attributes:
       `local_size`      : optional, local size.
+      `alpha`           : optional, alpha.
+      `beta`            : optional, beta.
+      `k`               : optional, k.
       `sum_rshift`      : optional, auto generate
       `lrn_rshift`      : optional, auto generate
       `quant_data0`     : optional, auto generate
@@ -761,6 +764,9 @@ def TPU_LrnOp: TPU_Op<"lrn",
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$power_lut,
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$scale,
     DefaultValuedAttr<NonNegativeI32Attr, "5">:$local_size,
+    DefaultValuedAttr<F32Attr, "1.0">:$alpha,
+    DefaultValuedAttr<F32Attr, "0.75">:$beta,
+    DefaultValuedAttr<F32Attr, "1.0">:$k,
     I32Attr:$sum_rshift,
     I32Attr:$lrn_rshift,
     I32Attr:$quant_data0,
