@@ -45,7 +45,6 @@ std::unique_ptr<OpPassBase<FuncOp>> createFuseEltwisePass();
 std::unique_ptr<OpPassBase<FuncOp>> createRefactorEltAndConvPass();
 std::unique_ptr<OpPassBase<FuncOp>> createRefactorOddIcConvPass();
 
-std::unique_ptr<OpPassBase<FuncOp>> createGenLrnTablePass();
 std::unique_ptr<OpPassBase<FuncOp>> createGenReciprocalTablePass();
 //std::unique_ptr<OpPassBase<FuncOp>> createGenPowerWeightPass() ;
 std::unique_ptr<OpPassBase<FuncOp>> createGenSigmoidTablePass();
