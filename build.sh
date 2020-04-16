@@ -255,7 +255,7 @@ if [ "$1" = "RELEASE" ]; then
   $MLIR_SRC_PATH/regression/generate_all_cvimodels.sh
   mkdir -p cvimodel_samples
   cp cvimodel_release/mobilenet_v2.cvimodel cvimodel_samples/
-  cp cvimodel_release/yolo_v3_416.cvimodel cvimodel_samples/
+  cp cvimodel_release/yolo_v3_416_with_detection.cvimodel cvimodel_samples/
   cp cvimodel_release/alphapose.cvimodel cvimodel_samples/
   cp cvimodel_release/retinaface_mnet25_with_detection.cvimodel cvimodel_samples/
   cp cvimodel_release/retinaface_res50_with_detection.cvimodel cvimodel_samples/
