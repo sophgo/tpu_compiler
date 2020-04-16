@@ -7,13 +7,13 @@ COPY sources-16.04.list /etc/apt/sources.list
 # ================== apt ==================
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
-    cmake \
     ninja-build \
     automake \
     autoconf \
     libtool \
     vim \
     wget \
+    curl \
     git \
     parallel \
     ssh-client \
@@ -24,6 +24,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-dev \
     python3-pip \
     python3-setuptools
+
+# bsp tools
+RUN apt-get install -y --no-install-recommends \
+    device-tree-compiler \
+    libssl-dev \
+    ssh \
+    bc \
+    slib \
+    cpio \
+    squashfs-tools \
+    fakeroot
 
 # for caffe build
 RUN apt-get install -y --no-install-recommends \
@@ -37,6 +48,24 @@ RUN apt-get install -y --no-install-recommends \
     libsnappy-dev \
     protobuf-compiler \
     libopenblas-dev
+
+# for cmake
+RUN apt-get install -y --no-install-recommends \
+    apt-transport-https \
+    ca-certificates \
+    gnupg \
+    software-properties-common
+RUN wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | apt-key add -
+RUN apt-add-repository 'deb https://apt.kitware.com/ubuntu/ xenial main'
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    cmake-data=3.16.5-0kitware1 \
+    cmake=3.16.5-0kitware1
+
+# restore source again
+COPY sources-16.04.list /etc/apt/sources.list
+
+# cleanup
+RUN rm -rf /var/lib/apt/lists/*
 
 # ================== pip ==================
 RUN pip install --upgrade pip
@@ -97,6 +126,11 @@ RUN pip3 install \
     torchvision \
     onnxruntime
 
+# ================== toolchain ====================
+COPY host-tools/gcc/gcc-linaro-6.3.1-2017.05-x86_64_aarch64-linux-gnu \
+    /host-tools/gcc/gcc-linaro-6.3.1-2017.05-x86_64_aarch64-linux-gnu
+ENV PATH=/host-tools/gcc/gcc-linaro-6.3.1-2017.05-x86_64_aarch64-linux-gnu/bin:$PATH
+
 # ================== zoneinfo ==================
 COPY zoneinfo/PRC /usr/share/zoneinfo/PRC
 # Set time zone to Asia/Shanghai;
@@ -108,10 +142,9 @@ RUN mkdir /usr/share/zoneinfo/Asia \
   && echo $TZ > /etc/timezone
 
 # ================== envs ==================
-# RUN alias pip=pip3
-# RUN alias python=python3
+RUN alias pip=pip3
+RUN alias python=python3
 ENV MODEL_PATH=/work/models
 ENV DATASET_PATH=/work/dataset
 
 WORKDIR /work/
-

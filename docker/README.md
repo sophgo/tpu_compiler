@@ -22,12 +22,14 @@ $ docker image prune
 
 ## Create docker
 
+Copy host-tools to current dir first
+
 ```sh
 $ cp Dockerfile_ubuntu-18.04 Dockerfile
-$ docker build -t cvitek_dev:1.0-ubuntu-18.04 .
+$ docker build -t cvitek_dev:1.1-ubuntu-18.04 .
 
 $ cp Dockerfile_ubuntu-16.04 Dockerfile
-$ docker build -t cvitek_dev:1.0-ubuntu-16.04 .
+$ docker build -t cvitek_dev:1.1-ubuntu-16.04 .
 ```
 
 ## Run docker as user of cvitek_mlir
@@ -38,13 +40,13 @@ $ docker run -itd \
     -v /data/models:/work/models \
     -v /data/dataset:/work/dataset \
     -v /work:/work/test \
-    --name cvitek cvitek_dev:1.0-ubuntu-18.04
+    --name cvitek cvitek_dev:1.1-ubuntu-18.04
 
 $ docker run -itd \
     -v $PWD:/work \
     -v /data/models:/work/models \
     -v /data/dataset:/work/dataset \
-    --name cvitek cvitek_dev:1.0-ubuntu-16.04
+    --name cvitek cvitek_dev:1.1-ubuntu-16.04
 
 $ docker exec -it cvitek bash
 
@@ -61,13 +63,13 @@ $ docker exec -it cvitek bash
 $ docker run -itd [--cpus="1.5"] \
     -v $PWD:/work \
     -v /data/models:/work/models \
-    --name cvitek_dev_18.04 cvitek_dev:1.0-ubuntu-18.04
+    --name cvitek_dev_18.04 cvitek_dev:1.1-ubuntu-18.04
 $ docker exec -it cvitek_dev_18.04 bash
 
 $ docker run -itd [--cpus="1.5"] \
     -v $PWD:/work \
     -v /data/models:/work/models \
-    --name cvitek_dev_16.04 cvitek_dev:1.0-ubuntu-16.04
+    --name cvitek_dev_16.04 cvitek_dev:1.1-ubuntu-16.04
 $ docker exec -it cvitek_dev_16.04 bash
 
 # cd work
@@ -76,3 +78,4 @@ $ docker exec -it cvitek_dev_16.04 bash
 # source llvm-project/llvm/projects/mlir/envsetup.sh
 # build.sh RELEASE
 ```
+
