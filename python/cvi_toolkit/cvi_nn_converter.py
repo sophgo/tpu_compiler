@@ -35,8 +35,6 @@ def check_file_assert(filename):
     if filename != None and not check_file_exist(filename):
         exit(-1)
 
-
-
 def parse(config: dict):
     # model to mlir
     model_name = None
@@ -62,7 +60,7 @@ def parse(config: dict):
         fp32_mlirfile = "{}.mlir".format(model_name)
         try:
             logger.info("convert model to fp32 mlir ...")
-            ret = net.convert_model(model_type, model_file, fp32_mlirfile, weight_file=weight_file, tpu_op_info=tpu_op_info)
+            ret = net.convert_model(model_type, model_file, fp32_mlirfile, weight_file=weight_file, tpu_op_info=tpu_op_info,batch_size=1)
             if ret != 0:
                 logger.error("mlir_translate failed")
                 exit(-1)
