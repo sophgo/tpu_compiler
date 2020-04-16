@@ -1271,21 +1271,40 @@ LogicalResult tpu::LrnOp::interpret(
   c = input_shape[1];
   h = input_shape[2];
   w = input_shape[3];
+  int ret = 0;
+  std::string quant = getOpQuant();
   std::shared_ptr<std::vector<float>> input = opdT[0];
-  if (getOpQuant() == "INT8") {
+  if (quant == "NONE") {
+    std::shared_ptr<std::vector<float>> scaleT = opdT[3];
+    ret =
+        my_lrn_main(input->data(), scaleT->data(), resultT->data(), n, c, h, w);
+    assert(ret == 0);
+  } else if (quant == "INT8") {
     std::shared_ptr<std::vector<float>> sqr_lut = opdT[1];
     std::shared_ptr<std::vector<float>> power_lut = opdT[2];
-    int ret = my_lrn_int8(
+    ret = my_lrn_int8(
         input->data(), resultT->data(), n, c, h, w,
         local_size().getLimitedValue(), sqr_lut->data(), power_lut->data(),
         sum_rshift().getLimitedValue(), lrn_rshift().getLimitedValue(),
         quant_data0().getLimitedValue(), quant_data1().getLimitedValue());
     assert(ret == 0);
-  } else {
-    std::shared_ptr<std::vector<float>> scale = opdT[3];
-    int ret =
-        my_lrn_main(input->data(), scale->data(), resultT->data(), n, c, h, w);
+  } else if (quant == "BF16") {
+    auto scaleT = std::make_unique<std::vector<float>>(size);
+    ret = my_lrn_one(input->data(), scaleT->data(), n, c, h, w,
+                     local_size().getLimitedValue(), alpha().convertToFloat());
     assert(ret == 0);
+    ret = my_lrn_two(scaleT->data(), resultT->data(), n, c, h, w,
+                     local_size().getLimitedValue());
+    assert(ret == 0);
+    ret = my_lrn_three(resultT->data(), scaleT->data(), n, c, h, w,
+                       beta().convertToFloat(), k().convertToFloat());
+    assert(ret == 0);
+    ret =
+        my_lrn_main(input->data(), scaleT->data(), resultT->data(), n, c, h, w);
+    assert(ret == 0);
+  } else {
+    llvm::errs() << "Quant not supported:" << quant << "\n";
+    assert(false);
   }
 
   valueMapping[result] = std::move(resultT);

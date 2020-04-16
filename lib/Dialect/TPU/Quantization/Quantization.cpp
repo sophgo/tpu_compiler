@@ -415,7 +415,7 @@ public:
         insertQauntOp(op);
       }
     });
-    
+
     OwningRewritePatternList patterns;
     // gen special operations
     patterns.insert<
