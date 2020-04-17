@@ -9,6 +9,15 @@ class OnnxModel(model_base):
     def __init__(self):
         self.net = None
 
+    def get_shape(self, sess):
+        """
+            Onnxruntime output shape maybe wrong, we print here to check
+        """
+        for output in sess.get_outputs():
+            print("output name {}\n".format(output.name))
+            print("output shape {}".format(output.shape))
+
+
     def load_model(self, model_file, wegiht_file=None):
         self.model_file = model_file
         self.net = onnxruntime.InferenceSession(model_file)
@@ -20,6 +29,7 @@ class OnnxModel(model_base):
     def _infernece(self, input, onnx_model=None):
         if onnx_model:
             ort_session = onnxruntime.InferenceSession(onnx_model)
+            # self.get_shape(ort_session)
             ort_inputs = {ort_session.get_inputs()[0].name: input}
             ort_outs = ort_session.run(None, ort_inputs)
         else:
