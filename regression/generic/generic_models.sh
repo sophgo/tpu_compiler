@@ -221,31 +221,6 @@ export DO_QUANT_INT8_RFHIFT_ONLY=0
 export DO_QUANT_BF16=0
 fi
 
-if [ $NET = "bmface_v3" ]; then
-export MODEL_DEF=$MODEL_PATH/face_recognition/bmface/caffe/bmface-v3.prototxt
-export MODEL_DAT=$MODEL_PATH/face_recognition/bmface/caffe/bmface-v3.caffemodel
-export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_caffe/regression_${NET}_0_caffe.sh
-export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/bmface_v3_cali1024_calibration_table
-export INPUT=data
-export TOLERANCE_INT8_MULTIPLER=0.9,0.9,0.6
-export DO_QUANT_INT8_PER_TENSOR=0
-export DO_QUANT_INT8_RFHIFT_ONLY=0
-export DO_QUANT_BF16=0
-fi
-
-if [ $NET = "liveness" ]; then
-export MODEL_DEF=$MODEL_PATH/face_antispoofing/RGBIRLiveness/caffe/RGBIRlivenessFacebageNet.prototxt
-export MODEL_DAT=$MODEL_PATH/face_antispoofing/RGBIRLiveness/caffe/RGBIRlivenessFacebageNet.caffemodel
-export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_caffe/regression_${NET}_0_caffe.sh
-export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table
-export INPUT=data
-export TOLERANCE_INT8_MULTIPLER=0.9,0.9,0.7
-export DO_QUANT_INT8_PER_TENSOR=0
-export DO_QUANT_INT8_RFHIFT_ONLY=0
-export DO_QUANT_BF16=0
-export DO_E2E=0
-fi
-
 if [ $NET = "retinaface_mnet25" ]; then
 export MODEL_DEF=$MODEL_PATH/face_detection/retinaface/caffe/mnet_320.prototxt
 export MODEL_DAT=$MODEL_PATH/face_detection/retinaface/caffe/mnet.caffemodel
@@ -368,8 +343,8 @@ export INPUT_SCALE=1.0
 export INPUT=input
 export OUTPUTS_FP32=output
 export OUTPUTS=output
-export DO_QUANT_INT8_PER_TENSOR=1
-export DO_QUANT_INT8_RFHIFT_ONLY=1
+# export DO_QUANT_INT8_PER_TENSOR=1
+# export DO_QUANT_INT8_RFHIFT_ONLY=1
 export TOLERANCE_INT8_PER_TENSOR=0.97,0.97,0.78
 export TOLERANCE_INT8_RSHIFT_ONLY=0.98,0.98,0.84
 export TOLERANCE_INT8_MULTIPLER=0.98,0.98,0.84

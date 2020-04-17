@@ -7,11 +7,10 @@ $REGRESSION_PATH/parallel/run_generic.sh mobilenet_v2
 $REGRESSION_PATH/parallel/run_generic.sh shufflenet_v2
 $REGRESSION_PATH/parallel/run_generic.sh squeezenet
 $REGRESSION_PATH/parallel/run_generic.sh arcface_res50
-$REGRESSION_PATH/parallel/run_generic.sh bmface_v3
-$REGRESSION_PATH/parallel/run_generic.sh liveness
 $REGRESSION_PATH/parallel/run_generic.sh retinaface_mnet25
 $REGRESSION_PATH/parallel/run_generic.sh retinaface_res50
 $REGRESSION_PATH/parallel/run_generic.sh ssd300
 $REGRESSION_PATH/parallel/run_generic.sh yolo_v3_416
 $REGRESSION_PATH/parallel/run_generic.sh yolo_v3_320
+$REGRESSION_PATH/parallel/run_generic.sh resnet18
 $REGRESSION_PATH/parallel/run_generic.sh alphapose

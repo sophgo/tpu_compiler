@@ -15,7 +15,7 @@ if [ ! -f "$CAFFE_BLOBS_NPZ" ]; then
       --dump_weights liveness_weights.npz \
       --model_type liveness \
       --batch_size $BATCH_SIZE \
-      --input_file $REGRESSION_PATH/data/liveness_1_patch.bin
+      --input_file $REGRESSION_PATH/cvitek_zoo/data/liveness_1_patch.bin
 fi
 
 # extract input and output

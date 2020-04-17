@@ -15,8 +15,6 @@ generic_net_list=(
   "shufflenet_v2"
   "squeezenet"
   "arcface_res50"
-  "bmface_v3"
-  # "liveness"
   "retinaface_mnet25"
   "retinaface_res50"
   "ssd300"
@@ -25,6 +23,7 @@ generic_net_list=(
   "yolo_v3_320"
   # "yolo_v3_160"
   # "yolo_v3_512x288"
+  "resnet18"
   "alphapose"
 )
 

@@ -254,6 +254,7 @@ if [ "$1" = "RELEASE" ]; then
   # generate models for release and samples
   pushd $BUILD_PATH
   $MLIR_SRC_PATH/regression/generate_all_cvimodels.sh
+  $MLIR_SRC_PATH/regression/cvitek_zoo/cvitek_zoo_generate_cvimodels.sh
   mkdir -p cvimodel_samples
   cp cvimodel_release/mobilenet_v2.cvimodel cvimodel_samples/
   cp cvimodel_release/yolo_v3_416_with_detection.cvimodel cvimodel_samples/
