@@ -5,6 +5,9 @@ import numpy as np
 import sys
 
 IS_PYTHON3 = sys.version_info > (3,)
+from ..utils.log_setting import setup_logger
+
+logger = setup_logger('root')
 
 class TPU_OpType(Enum):
     Weight_file = 'tpu.weight_file'
@@ -84,7 +87,7 @@ class MLIRImporter(object):
         self.declare_func()
 
     def __del__(self):
-        print('Close mlir builder context')
+        logger.debug('Close mlir builder context')
         self.func_ctx.__exit__(None, None, None)
 
     def buildOp(self, op_type, inputOperands, outputOperands, **kargs):
@@ -490,7 +493,7 @@ class MLIRImporter(object):
 
         self.func_ctx = self.module.function_context("tpu_func", self.tensor_inputs_type,
                                                      self.tensor_outputs_type)
-        print('Open mlir builder context')
+        logger.debug('Open mlir builder context')
         fun = self.func_ctx.__enter__()
         self.func_args = list()
         for i in range(len(self.input_shape_list)):

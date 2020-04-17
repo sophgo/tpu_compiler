@@ -2,6 +2,9 @@
 import onnx
 import argparse
 from cvi_toolkit.transform.onnx_converter import OnnxConverter
+from cvi_toolkit.utils.log_setting import setup_logger
+
+logger = setup_logger('root', log_level="INFO")
 CVI_SupportFramework = [
     "onnx"
 ]

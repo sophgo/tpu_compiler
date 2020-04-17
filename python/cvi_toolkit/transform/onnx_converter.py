@@ -11,6 +11,12 @@ import numpy as np
 from .utils import calcConv2DSpatial, calcPool2DFloor, calcPool2DCeil, \
                     get_shape_size
 
+from ..utils.log_setting import setup_logger
+
+logger = setup_logger('root')
+
+log_flag = logger.level <= logging.DEBUG
+
 class TensorType(Enum):
     ACTIVATION = 'ACTIVATION'
     TENSOR = 'TENSOR'
@@ -146,13 +152,14 @@ class OnnxConverter(BaseConverterInterface):
         self.CVI = MLIRImporter(inputs, outputs)
 
     def addOperand(self, op_name, op, shape, tensor_type):
-        cprint("add opernand name: {}\nshape: {}".format(op_name, shape, tensor_type), "yellow")
+        #cprint("add opernand name: {}\nshape: {}".format(op_name, shape, tensor_type), "yellow")
         self.valueMap[op_name] = (op, shape, tensor_type)
 
     def getOperand(self, op_name):
         return self.valueMap[op_name]
 
     def addTensor(self, op_name, tensor_data, tensor_shape):
+        #cprint("add tensor, name: {}\ntensor data: {}".format(op_name, tensor_data), "yellow")
         self.converted_tensors.append(OnnxTensor(op_name, tensor_data, tensor_shape))
 
     def getTensor(self, op_name):
@@ -194,7 +201,8 @@ class OnnxConverter(BaseConverterInterface):
         """convert onnx node to OnnxNode"""
         for n in self.nodes:
             node = OnnxNode(n)
-            node.print_info()
+            if log_flag:
+                node.print_info()
             self.converted_nodes.append(node)
 
     def convert_tensor(self):
@@ -223,7 +231,8 @@ class OnnxConverter(BaseConverterInterface):
             raise RuntimeError("{} Op not support now".format(node.op_type))
         # add node op
         for n in self.converted_nodes:
-            n.print_info()
+            if log_flag:
+                n.print_info()
             self.onnxop_factory.get(n.op_type, lambda x: NoneAndRaise(x))(n)
 
         # add return op
