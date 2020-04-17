@@ -19,6 +19,8 @@
 #include "llvm/Support/ToolOutputFile.h"
 #include "mlir/Transforms/DialectConversion.h"
 
+#define DEBUG_TYPE "AssignNeuronAddressMemRef"
+
 using namespace mlir;
 
 namespace {
@@ -79,7 +81,7 @@ struct AssignNeuronAddressMemRefPass :
 } // anonymous space
 
 Operation *AssignNeuronAddressMemRefPass::findTpuOpFromAllocOp(Operation *op) {
-  llvm::dbgs() << "  findTpuOpFromAllocOp op " << op->getName() << "\n";
+  LLVM_DEBUG(llvm::dbgs() << "  findTpuOpFromAllocOp op " << op->getName() << "\n";);
 
   // AllocOp has only one result.
   Operation *firstUseOp = nullptr;
@@ -87,7 +89,7 @@ Operation *AssignNeuronAddressMemRefPass::findTpuOpFromAllocOp(Operation *op) {
     Operation *userOp = user.getOwner();
     auto lastOperand = userOp->getOperand(userOp->getNumOperands() - 1);
 
-    llvm::dbgs() << "    userOp " << userOp->getName() << "\n";
+    LLVM_DEBUG(llvm::dbgs() << "    userOp " << userOp->getName() << "\n";);
 
     // Find corresponding tpu op.
     if (userOp->getName().getDialect().str() == "tpu" &&
@@ -102,10 +104,12 @@ Operation *AssignNeuronAddressMemRefPass::findTpuOpFromAllocOp(Operation *op) {
     }
   }
 
-  if (firstUseOp)
-    llvm::dbgs() << "    firstUseOp " << firstUseOp->getName() << "\n";
-  else
-    llvm::dbgs() << "    no firstUseOp\n";
+  LLVM_DEBUG(
+    if (firstUseOp)
+      llvm::dbgs() << "    firstUseOp " << firstUseOp->getName() << "\n";
+    else
+      llvm::dbgs() << "    no firstUseOp\n";
+  );
 
   return firstUseOp;
 }
@@ -179,7 +183,7 @@ bool AssignNeuronAddressMemRefPass::isBypassMemoryReuse(Operation *op) {
 }
 
 bool AssignNeuronAddressMemRefPass::isMemoryAliasedOpHandled(Operation *op) {
-   llvm::dbgs() << "isMemoryAliasedOpHandled op " << op->getName() << "\n";
+   LLVM_DEBUG(llvm::dbgs() << "isMemoryAliasedOpHandled op " << op->getName() << "\n";);
 
   // FIXME: skip fc_reshape
   // Can replace AllocOp with ViewOp ?
@@ -252,10 +256,10 @@ bool AssignNeuronAddressMemRefPass::isMemoryAliasedOpHandled(Operation *op) {
             << shape[0] << "," << shape[1] << ","
             << shape[2] << "," << shape[3] << "\n";
 
-    llvm::errs() << llvm::format("[%-36s][%8d] : [ ",
+    LLVM_DEBUG(llvm::errs() << llvm::format("[%-36s][%8d] : [ ",
                   tpuOpIf.getOpName().str().c_str(), allocatedSize)
                 << llvm::format_hex(curPos, 10) << " --> "
-                << llvm::format_hex(curPos+allocatedSize, 10) << " ]\n";
+                << llvm::format_hex(curPos+allocatedSize, 10) << " ]\n";);
 
     setOpAddress(op, curPos);
     return true;
@@ -293,13 +297,15 @@ bool AssignNeuronAddressMemRefPass::isReuseDeletedNeuron(
 
 void AssignNeuronAddressMemRefPass::dumpNeuronInfo(
     std::vector<NeuronInfo> &neuronLlist) {
-  for (auto &it : neuronLlist) {
-    llvm::dbgs() << "    name " << it.name
+  LLVM_DEBUG(
+    for (auto &it : neuronLlist) {
+      llvm::dbgs() << "    name " << it.name
                  << ", layerId " << it.layerId
                  << ", offset " << llvm::format_hex(it.offset, 10)
                  << ", size " << it.size
                  << "\n";
-  }
+    }
+  );
 }
 
 void AssignNeuronAddressMemRefPass::sortReusedNeuronBySize(void) {
@@ -389,10 +395,10 @@ void AssignNeuronAddressMemRefPass::handleAllocOp(Operation *opInst) {
           << shape[0] << "," << shape[1] << ","
           << shape[2] << "," << shape[3] << "\n";
 
-  llvm::errs() << llvm::format("[%-36s][%8d] : [ ",
+  LLVM_DEBUG(llvm::errs() << llvm::format("[%-36s][%8d] : [ ",
                 tpuOpIf.getOpName().str().c_str(), allocatedSize)
               << llvm::format_hex(curPos, 10) << " --> "
-              << llvm::format_hex(curPos+allocatedSize, 10) << " ]\n";
+              << llvm::format_hex(curPos+allocatedSize, 10) << " ]\n";);
   setOpAddress(tpuOpIf, curPos);
   pos_ = newPos;
 
@@ -419,8 +425,9 @@ void AssignNeuronAddressMemRefPass::handleDeallocOp(Operation *opInst) {
     return;
 
   auto tpuOpIf = llvm::dyn_cast<tpu::TpuOpCommonInterface>(tpuOp);
-  if (!tpuOpIf)
+  if (!tpuOpIf) {
     llvm::errs() << "tpuOp " << tpuOp->getName() << " does not have common interface\n";
+  }
   assert(tpuOpIf && "Expect tpu op has common interface");
 
   auto opName = tpuOpIf.getOpName();
@@ -491,10 +498,10 @@ void AssignNeuronAddressMemRefPass::handleQuantOp(Operation *opInst) {
   }
   assert(tpuOpIf && "Expect tpu op has common interface");
 
-  llvm::errs() << llvm::format("[%-36s][%8d] : [ ",
+  LLVM_DEBUG(llvm::errs() << llvm::format("[%-36s][%8d] : [ ",
                 tpuOpIf.getOpName().str().c_str(), allocatedSize)
               << llvm::format_hex(curPos, 10) << " --> "
-              << llvm::format_hex(newPos, 10) << " ]\n";
+              << llvm::format_hex(newPos, 10) << " ]\n";);
   setOpAddress(tpuOpIf, curPos);
   pos_ = newPos;
 }
@@ -542,7 +549,7 @@ void AssignNeuronAddressMemRefPass::runOnFunction() {
     neuronMapFile->keep();
   }
 
-  llvm::dbgs() << "total neuron size " << pos_ << "\n";
+  LLVM_DEBUG(llvm::dbgs() << "total neuron size " << pos_ << "\n";);
 }
 
 std::unique_ptr<OpPassBase<FuncOp>>
