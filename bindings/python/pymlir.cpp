@@ -138,9 +138,8 @@ public:
   }
 
   void setDeivce(std::string d) {
-    if (interpreter_ == nullptr){
-      llvm::errs() << "Not initialize model.\n";
-      exit(-1);
+    if (!interpreter_ && !module){
+      throw std::runtime_error("Not load mlir Model");
     }else{
       interpreter_->setDevice(d);
     }
@@ -199,6 +198,9 @@ public:
 
   // wrap C++ function with NumPy array IO
   py::dict run(py::array_t<float, py::array::c_style | py::array::forcecast> array) {
+    if(!module || !interpreter_){
+      throw std::runtime_error("Not load mlir Model");
+    }
     std::vector<float> input_vec(array.size());
     std::memcpy(input_vec.data(), array.data(), array.size() * sizeof(float));
     std::vector<int64_t> input_shape;
