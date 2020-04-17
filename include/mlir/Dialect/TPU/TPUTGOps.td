@@ -1001,4 +1001,29 @@ class TPU_TG_UpsampleOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 def TPU_TG_INT8_UpsampleOp : TPU_TG_UpsampleOp<"tg_int8_upsample", "Int8">;
 def TPU_TG_BF16_UpsampleOp : TPU_TG_UpsampleOp<"tg_bf16_upsample", "Bf16">;
 
+def TPU_TG_CallOp : TPU_Op <"tg_call",
+    [NoSideEffect,
+     DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+     DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]>{
+  let summary = "Call a function.";
+  let description = [{
+    The "call" operation represents a direct call to a function that is within
+    the same symbol scope as the call.  The operands and result types of the
+    call must match the specified function type. The callee is encoded as a
+    function attribute named "callee".
+
+      %2 = tpu.tg_call @my_add(%0, %1) : (f32, f32) -> f32
+  }];
+  let arguments = (ins
+    OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    FlatSymbolRefAttr:$callee,
+    Variadic<AnyType>:$arguments
+    );
+  let parser = [{ return ::parse$cppClass(parser, result); }];
+  let printer = [{ return ::print(p, *this); }];
+  let results = (outs Variadic<AnyType>);
+}
+
 #endif // TPU_TG_OPS

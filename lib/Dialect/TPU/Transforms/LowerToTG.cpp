@@ -1826,6 +1826,10 @@ public:
     auto *context = &getContext();
     auto fn = getFunction();
 
+    std::string fnName = fn.getName().str();
+    if (fnName.compare(0, 8, "cpu_func") == 0) {
+      return;
+    }
     // first, merge conv rshift/multiplier/bias into one packed tensor
     OwningRewritePatternList patterns_pack;
     patterns_pack.insert<

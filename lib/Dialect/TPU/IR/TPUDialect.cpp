@@ -40,6 +40,38 @@ TPUDialect::TPUDialect(MLIRContext *context)
       >();
 }
 
+static ParseResult parseTG_CallOp(OpAsmParser &parser, OperationState &result) {
+  FlatSymbolRefAttr calleeAttr;
+  FunctionType calleeType;
+  SmallVector<OpAsmParser::OperandType, 4> operands;
+  auto calleeLoc = parser.getNameLoc();
+  if (parser.parseAttribute(calleeAttr, "callee", result.attributes) ||
+      parser.parseOperandList(operands, OpAsmParser::Delimiter::Paren) ||
+      parser.parseOptionalAttrDict(result.attributes) ||
+      parser.parseColonType(calleeType) ||
+      parser.addTypesToList(calleeType.getResults(), result.types) ||
+      parser.resolveOperands(operands, calleeType.getInputs(), calleeLoc,
+                             result.operands))
+    return failure();
+  return success();
+}
+
+static void print(OpAsmPrinter &p, TG_CallOp op) {
+  SmallVector<Type, 4> resultTypes(op.getResultTypes());
+  SmallVector<Type, 8> argTypes(op.getOperandTypes());
+  auto callType = FunctionType::get(argTypes, resultTypes, op.getContext());
+
+  p << "tpu.tg_call " << op.getAttr("callee") << '(';
+  p.printOperands(op.getOperands());
+  p << ')';
+  p.printOptionalAttrDict(op.getAttrs(), /*elidedAttrs=*/{"callee"});
+  p << " : ";
+  p.printType(callType);
+}
+
+
+
+
 #define GET_OP_CLASSES
 #include "mlir/Dialect/TPU/TPUOps.cpp.inc"
 
@@ -180,6 +212,7 @@ DECLARE_ALL_COMMON_INTERFACE_METHODS(TG_INT8_SwapChannelOp)
 DECLARE_ALL_COMMON_INTERFACE_METHODS(TG_BF16_SwapChannelOp)
 DECLARE_ALL_COMMON_INTERFACE_METHODS(TG_INT8_UpsampleOp)
 DECLARE_ALL_COMMON_INTERFACE_METHODS(TG_BF16_UpsampleOp)
+DECLARE_ALL_COMMON_INTERFACE_METHODS(TG_CallOp)
 
 // TPU TG MemRef Ops
 DECLARE_ALL_COMMON_INTERFACE_METHODS(TG_MemRef_INT8_BroadcastMulOp)
@@ -457,6 +490,7 @@ DECLARE_ALL_CODEGEN_INTERFACE_METHODS(TG_INT8_SwapChannelOp)
 DECLARE_ALL_CODEGEN_INTERFACE_METHODS(TG_BF16_SwapChannelOp)
 DECLARE_ALL_CODEGEN_INTERFACE_METHODS(TG_INT8_UpsampleOp)
 DECLARE_ALL_CODEGEN_INTERFACE_METHODS(TG_BF16_UpsampleOp)
+DECLARE_ALL_CODEGEN_INTERFACE_METHODS(TG_CallOp)
 
 // TG MemRef Op
 DECLARE_ALL_CODEGEN_INTERFACE_METHODS(TG_MemRef_INT8_BroadcastMulOp)

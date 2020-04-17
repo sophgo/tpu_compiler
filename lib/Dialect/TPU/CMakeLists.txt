@@ -4,6 +4,12 @@ endif(NOT tpu_LINKER_LIBS)
 list(APPEND tpu_LINKER_LIBS
   mkldnn)
 
+if(NOT DEFINED FLATBUFFERS_PATH)
+  set(FLATBUFFERS_PATH $ENV{FLATBUFFERS_PATH})
+endif()
+
+include_directories(${FLATBUFFERS_PATH}/include)
+
 add_llvm_library(MLIRTPU
   IR/TPUDialect.cpp
   IR/WeightFileOp.cpp
