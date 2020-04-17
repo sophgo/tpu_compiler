@@ -228,6 +228,7 @@ LogicalResult tpu::ConcatOp::interpret(
   int shift_idx_c=0;
   int shift_idx_h=0;
   int tmp_w=0;
+  int tmp_h = 0;
   for (uint32_t i = 0; i < nInputs; i++) {
     std::vector<int64_t> shape;
     int64_t input_size, n, c, h, w;
@@ -322,7 +323,15 @@ LogicalResult tpu::ConcatOp::interpret(
         }
         tmp_w += w;
       } else {
-        assert(0&&"not support shape size =1 and axis = 1 now ");
+        for (uint32_t idx_c = 0; idx_c < c; idx_c++) {
+          auto shapeT = std::make_unique<std::vector<float>>(h * w);
+          int insert_offset = ((idx_c + 1) * tmp_h) * w;
+          shapeT.get()->assign(&input_data[idx_c * h * w],
+                               &input_data[(idx_c + 1) * h * w]);
+          tmp_resultT.get()->insert(tmp_resultT.get()->begin() + insert_offset,
+                                    shapeT->begin(), shapeT->end());
+        }
+        tmp_h += h;
       }
     }
   }
