@@ -141,7 +141,10 @@ def parse(config: dict):
     input_npz = fp32_in_npz
     logger.info("run mlir fp32 inference ...")
     fp32_mlir_tensor_file = "{}_tensor_all_fp32.npz".format(model_name)
-    output = net.inference('mlir', input_npz, mlirfile=fp32_mlirfile, model_file=model_file, weight_file=weight_file, all_tensors=fp32_mlir_tensor_file)
+    try:
+        output = net.inference('mlir', input_npz, mlirfile=fp32_mlirfile, model_file=model_file, weight_file=weight_file, all_tensors=fp32_mlir_tensor_file)
+    except Exception as e:
+        logger.error("mlir fp32 inference failed {}".format(e))
     if output is not None:
         logger.info("mlir fp32 inference finished")
 

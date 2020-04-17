@@ -32,7 +32,7 @@ cvi_npz_tool.py compare \
     --dequant \
     --stats_int8_tensor \
     --save alpha.csv \
-    --tolerance=0.9,0.9,-0.6 -vv
+    --tolerance=0.89,0.88,0.5 -vv
 
 # VERDICT
 echo $0 PASSED

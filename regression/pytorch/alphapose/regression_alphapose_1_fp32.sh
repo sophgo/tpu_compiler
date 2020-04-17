@@ -26,7 +26,7 @@ mlir-tpu-interpreter alphapose_opt.mlir \
     --tensor-out alphapose_out_fp32.npz \
     --dump-all-tensor=alphapose_tensor_all_fp32.npz
 cvi_npz_tool.py rename alphapose_out_fp32.npz output_Conv output
-cvi_npz_tool.py compare alphapose_out_fp32.npz alphapose_res50_out_fp32.npz \
+cvi_npz_tool.py compare alphapose_tensor_all_fp32.npz alphapose_res50_out_tensor_all.npz\
     --tolerance=0.9,0.9,-0.9 -vv
 
 

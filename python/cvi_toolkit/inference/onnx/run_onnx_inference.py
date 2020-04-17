@@ -8,6 +8,7 @@ import os
 from onnx import helper
 from PIL import Image
 from torchvision import transforms
+from cvi_toolkit import preprocess as cvi_preprocess
 
 def to_numpy(tensor):
     return tensor.detach().cpu().numpy() if tensor.requires_grad else tensor.cpu().numpy()
@@ -21,14 +22,14 @@ def preprocess(image_file, mean, std, resize, centor_crop):
         centor_crop: list
 
     """
-    normalize = transforms.Normalize(mean=mean,
-                                     std=std)
-    tfms = transforms.Compose([
-            transforms.Resize(resize),
-            transforms.CenterCrop(centor_crop),
-            transforms.ToTensor(),
-            normalize,
-    ])
+    preprocessor = cvi_preprocess()
+    preprocessor.config(net_input_dims=net_input_dims,
+                    resize_dims=resize,
+                    mean=args.mean,
+                    mean_file=args.mean_file,
+                    input_scale=args.input_scale,
+                    raw_scale=args.raw_scale,
+                    std=args.std)
     return tfms(Image.open(image_file)).unsqueeze(0).numpy()
 
 def inference(input, model_path):
@@ -64,8 +65,26 @@ def main(argv):
         help="Per Channel image mean values"
     )
     parser.add_argument(
+        "--mean_file",
+        help="Data set image mean of [Channels x Height x Width] dimensions " +
+             "(numpy array). Set to '' for no mean subtraction."
+    )
+    parser.add_argument(
         "--std",
-        help="Per Channel image mean values"
+        help="Per Channel image std values",
+        default='1,1,1'
+    )
+    parser.add_argument(
+        "--input_scale",
+        type=float,
+        default=1.0,
+        help="Multiply input features by this scale to finish preprocessing."
+    )
+    parser.add_argument(
+        "--raw_scale",
+        type=float,
+        default=255.0,
+        help="Multiply raw input by this scale before preprocessing."
     )
     parser.add_argument(
         "--net_input_dims",
@@ -79,6 +98,14 @@ def main(argv):
     )
     args = parser.parse_args()
 
+    preprocessor = cvi_preprocess()
+    preprocessor.config(net_input_dims=args.net_input_dims,
+                    resize_dims=args.image_resize_dims,
+                    mean=args.mean,
+                    mean_file=args.mean_file,
+                    input_scale=args.input_scale,
+                    raw_scale=args.raw_scale,
+                    std=args.std)
 
     file_extension = args.input_file.split(".")[-1].lower()
     if file_extension == "jpg":
@@ -92,7 +119,7 @@ def main(argv):
             image_resize_dims = [int(x) for x in args.image_resize_dims.split(",")]
         else:
             image_resize_dims = net_input_dims
-        input = preprocess(args.input_file, mean, std, image_resize_dims, net_input_dims)
+        input = preprocessor.run(args.input_file)##(args.input_file, mean, std, image_resize_dims, net_input_dims)
     elif file_extension == "npz":
         input = np.load(args.input_file)['input']
     else:
