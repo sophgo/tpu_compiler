@@ -8,9 +8,9 @@ DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 run_onnx_inference.py \
     --input_file $DIR/data/dog.jpg \
     --mean 0.485,0.456,0.406 \
-    --std 0.229,0.224,0.225 \
     --image_resize_dims 256,256 \
     --net_input_dims 224,224 \
+    --raw_scale 1 \
     --output_file resnet18_out_onnx.npz \
     --dump_tensor resnet18_out_tensor_all_onnx.npz \
     --model_path $MODEL_PATH/imagenet/resnet/onnx/resnet18.onnx
