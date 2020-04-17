@@ -353,17 +353,48 @@ export TOLERANCE_BF16=0.99,0.99,0.94
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
 fi
 
+if [ $NET = "resnet18" ]; then
+export MODEL_TYPE="onnx"
+export MODEL_DEF=$MODEL_PATH/imagenet/resnet/onnx/resnet18.onnx
+export MODEL_DAT=""
+export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/generic/regression_0_onnx.sh
+export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table
+export IMAGE_RESIZE_DIMS=256,256
+export NET_INPUT_DIMS=224,224
+export RAW_SCALE=1.0
+export MEAN=0.406,0.456,0.485  # in BGR, pytorch mean=[0.485, 0.456, 0.406]
+export STD=0.225,0.224,0.229   # in BGR, pytorch std=[0.229, 0.224, 0.225]
+export INPUT_SCALE=1.0
+export INPUT=input
+export OUTPUTS_FP32=output
+export OUTPUTS=output
+export DO_QUANT_INT8_PER_TENSOR=1
+export DO_QUANT_INT8_RFHIFT_ONLY=1
+export TOLERANCE_INT8_PER_TENSOR=0.97,0.97,0.78
+export TOLERANCE_INT8_RSHIFT_ONLY=0.98,0.98,0.84
+export TOLERANCE_INT8_MULTIPLER=0.98,0.98,0.84
+export DO_QUANT_BF16=0
+# export TOLERANCE_BF16=0.99,0.99,0.94
+# export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
+fi
+
 if [ $NET = "alphapose" ]; then
 export MODEL_TYPE="onnx"
 export MODEL_DEF=$MODEL_PATH/pose/alphapose/onnx/alphapose_resnet50_256x192.onnx
 export MODEL_DAT=""
 export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_onnx/regression_alphapose_0_onnx.sh
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/alphapose_calibration_table
+export IMAGE_RESIZE_DIMS=256,192
 export NET_INPUT_DIMS=256,192
+export RAW_SCALE=1.0
+export MEAN=0.406,0.457,0.48
+export STD=1.0,1.0,1.0
+export INPUT_SCALE=1.0
 export INPUT=input
+export EXCEPTS=404_Relu
 export TOLERANCE_INT8_PER_TENSOR=0.9,0.88,0.51
 export TOLERANCE_INT8_RSHIFT_ONLY=0.92,0.90,0.58
-export TOLERANCE_INT8_MULTIPLER=0.93,0.92,0.61
+export TOLERANCE_INT8_MULTIPLER=0.95,0.95,0.70
 export DO_QUANT_BF16=0
 # export TOLERANCE_BF16=0.99,0.99,0.94
 # export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
