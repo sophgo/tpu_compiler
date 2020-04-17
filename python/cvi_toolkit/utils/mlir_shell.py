@@ -1,11 +1,15 @@
 import logging
 import subprocess
 from ..build_cvimodel import CVIModel as builder
+from .log_setting import setup_logger
 
-logger = logging.getLogger(__name__)
+import subprocess
+import logging
+from pathlib import Path
 
+logger = setup_logger('root')
 
-std_log_flag = False
+std_log_flag = logger.level <= logging.DEBUG
 
 if std_log_flag:
     std_output_flag = {'capture_output': True}

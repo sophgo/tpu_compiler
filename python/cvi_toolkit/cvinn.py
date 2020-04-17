@@ -8,12 +8,14 @@ from .calibration.tuner import Tuner_v2
 from .utils.mlir_shell import checkReturnValue, mlir_translate, mlir_opt, \
                                 mlir_import_calibration, mlir_tpu_quant, mlir_lower_opt, mlir_gen_cvimodel, \
                                 mlir_calibration, run_cvimodel
+from .utils.log_setting import setup_logger
+
 import subprocess
 import logging
 from pathlib import Path
 
 
-logger = logging.getLogger(__name__)
+logger = setup_logger('root')
 
 class cvinn(object):
     def __init__(self):

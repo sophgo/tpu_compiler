@@ -11,8 +11,9 @@ import pymlir
 import logging
 from ctypes import *
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+from cvi_toolkit.utils.log_setting import setup_logger
+
+logger = setup_logger('root')
 
 
 def is_all_zero(data):

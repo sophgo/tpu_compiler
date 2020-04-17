@@ -3,24 +3,18 @@ import sys, re, os
 import yaml
 import argparse
 import site
-import logging
+
 import shutil
 
-# logging.basicConfig(level=logging.INFO,
-#                     datefmt='%Y/%m/%d %H:%M:%S',
-#                     format='%(asctime)s-%(name)s-%(levelname)s-%(filename)s:%(lineno)d\n->%(message)s')
-
-logging.basicConfig(level=logging.INFO,
-                    datefmt='%Y/%m/%d %H:%M:%S',
-                    format='%(asctime)s->%(message)s')
-
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
 
 
 from cvi_toolkit import cvinn, preprocess
 from cvi_toolkit.numpy_helper import npz_extract, npz_rename
 from cvi_toolkit import cvi_data
+from cvi_toolkit.utils.log_setting import setup_logger
+
+logger = setup_logger('root', log_level="INFO")
+
 net = cvinn()
 cvi_data_tool = cvi_data()
 preprocessor = preprocess()
