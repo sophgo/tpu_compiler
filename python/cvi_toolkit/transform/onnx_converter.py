@@ -382,14 +382,28 @@ class OnnxConverter(BaseConverterInterface):
             self.addTensor(onnx_node.name, n_t, list(n_t.shape))
             self.addOperand(onnx_node.name, None, list(n_t.shape), TensorType.TENSOR)
         else:
-            operands = [op1, op2]
+            operands = list()
+            in_shapes = list()
+
+            for i in onnx_node.inputs:
+                op, input_shape, tensor_type = self.getOperand(i)
+
+                if tensor_type != TensorType.ACTIVATION: raise RuntimeError("Tensor can not concat with activation")
+
+                in_shapes.append(input_shape)
+                operands.append(op)
             output_shape = list()
-            for idx, (s1, s2) in enumerate(zip(input_shape1, input_shape2)):
-                if  idx== axis:
-                    output_shape.append(s1+s2)
+
+            for idx, op_shape in enumerate(in_shapes):
+                if idx == 0:
+                    output_shape = op_shape
                 else:
-                    assert(s1 == s2)
-                    output_shape.append(s1)
+                    for dim, value in enumerate(op_shape):
+                        if dim == axis:
+                            output_shape[dim] += value
+                        else:
+                            if output_shape[dim] != value:
+                                raise ValueError("axis is {}, {} v.s {} shape can not be concat".format(axis, output_shape, op_shape))
 
             concat_op = self.CVI.add_concat_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, axis=axis)
             self.addOperand(onnx_node.name, concat_op, output_shape, TensorType.ACTIVATION)

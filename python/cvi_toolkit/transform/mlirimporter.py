@@ -445,7 +445,6 @@ class MLIRImporter(object):
 
     def print_module(self):
         mlir_format = str(self.module)
-        print(mlir_format)
         lines = mlir_format.splitlines()
 
         reg = '%[0-9]+'
@@ -475,7 +474,7 @@ class MLIRImporter(object):
                 new_strings.append(i)
         ret = '\n'.join(new_strings)
 
-        print(ret)
+        print(ret, flush=True)
         return ret
 
     def declare_func(self):
