@@ -2,7 +2,7 @@
 set -e
 
 NET=mobilenetv3_pytorch
-MODEL=$MODEL_PATH/imagenet/mobilenetv3_rw/onnx/mobilenetv3_rw.onnx
+MODEL=$MODEL_PATH/imagenet/mobilenet_v3/onnx/2020.04.17.01/mobilenetv3_rw.onnx
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
 if [ ! -e $NET ]; then
