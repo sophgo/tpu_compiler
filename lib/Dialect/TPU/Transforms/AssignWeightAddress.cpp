@@ -229,6 +229,10 @@ public:
   void runOnFunction() override {
     auto fn = getFunction();
 
+    std::string name = fn.getName();
+    if (name.compare(0, 8, "cpu_func") == 0) {
+      return;
+    }
     // create a bin file
     std::error_code ec;
     assert(clWeightBinFilename != "-");

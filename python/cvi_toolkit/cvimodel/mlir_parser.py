@@ -238,6 +238,25 @@ class MlirParser:
         tensor = self.tensor_map[list(self.inputs)[0]]
         self.batch = tensor.shape[0]
         self.__omit_tensors()
+        self.__sort_tensor_map()
+
+    def __sort_tensor_map(self):
+        layer_tensor = OrderedDict()
+        weight_tensor = OrderedDict()
+
+        for name, tensor in self.tensor_map.items():
+            if tensor.is_weight:
+                weight_tensor[name] = tensor
+            else:
+                layer_tensor[name] = tensor
+        layer_list = sorted(layer_tensor.items(), key=lambda obj:obj[1].offset)
+        weight_list = sorted(weight_tensor.items(), key=lambda obj:obj[1].offset)
+
+        self.tensor_map.clear()
+        for iterm in layer_list:
+            self.tensor_map[iterm[0]] = layer_tensor[iterm[0]]
+        for iterm in weight_list:
+            self.tensor_map[iterm[0]] = weight_tensor[iterm[0]]
 
     def __parse_normal_val(self, value):
         if value.find(':') != -1:

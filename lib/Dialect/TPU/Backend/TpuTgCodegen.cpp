@@ -2183,4 +2183,7 @@ LogicalResult tpu::TG_MemRef_BF16_UpsampleOp::codegen(void *ctx) {
   return success();
 }
 
+LogicalResult tpu::TG_CallOp::codegen(void *ctx) {
+  return success();
+}
 }

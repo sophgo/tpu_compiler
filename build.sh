@@ -98,6 +98,17 @@ cmake -G Ninja -DCHIP=BM1880v2 $BUILD_FLAG \
 cmake --build . --target install
 popd
 
+# cvibuilder
+if [ ! -e $BUILD_PATH/build_cvimodel ]; then
+  mkdir -p $BUILD_PATH/build_cvimodel
+fi
+pushd $BUILD_PATH/build_cvimodel
+cmake -G Ninja -DFLATBUFFERS_PATH=$FLATBUFFERS_PATH \
+    -DCMAKE_INSTALL_PREFIX=$INSTALL_PATH \
+    $MLIR_SRC_PATH/externals/cvibuilder
+cmake --build . --target install
+popd
+
 # build mlir-tpu
 pushd $BUILD_PATH
 cmake -G Ninja -DLLVM_BUILD_EXAMPLES=OFF \
@@ -147,16 +158,6 @@ cmake $CVI_PY_TOOLKIT/calibration && make
 cp calibration_math.so $INSTALL_PATH/lib
 popd
 
-# cvibuilder
-if [ ! -e $BUILD_PATH/build_cvimodel ]; then
-  mkdir -p $BUILD_PATH/build_cvimodel
-fi
-pushd $BUILD_PATH/build_cvimodel
-cmake -G Ninja -DFLATBUFFERS_PATH=$FLATBUFFERS_PATH \
-    -DCMAKE_INSTALL_PREFIX=$INSTALL_PATH \
-    $MLIR_SRC_PATH/externals/cvibuilder
-cmake --build . --target install
-popd
 
 # build cmodel
 if [ ! -e $BUILD_PATH/build_cmodel ]; then

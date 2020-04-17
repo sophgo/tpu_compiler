@@ -30,11 +30,12 @@ endif()
 add_llvm_library(MLIRTPUTranslate
   CaffeToMlirTranslate.cpp
   MlirToBackendTranslate.cpp
+  buildCviModel.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${MLIR_MAIN_INCLUDE_DIR}/mlir/Dialect/TPU
   )
-
+list(APPEND translate_LINKER_LIBS ssl crypto)
 target_link_libraries(MLIRTPUTranslate
   MLIRIR
   MLIRTPU
