@@ -106,7 +106,7 @@ def main(argv):
                     input_scale=args.input_scale,
                     raw_scale=args.raw_scale,
                     std=args.std)
-
+    input=None
     file_extension = args.input_file.split(".")[-1].lower()
     if file_extension == "jpg":
         mean = [float(x) for x in args.mean.split(",")]
@@ -119,7 +119,7 @@ def main(argv):
             image_resize_dims = [int(x) for x in args.image_resize_dims.split(",")]
         else:
             image_resize_dims = net_input_dims
-        input = preprocessor.run(args.input_file)##(args.input_file, mean, std, image_resize_dims, net_input_dims)
+        input = preprocessor.run(args.input_file)
     elif file_extension == "npz":
         input = np.load(args.input_file)['input']
     else:
