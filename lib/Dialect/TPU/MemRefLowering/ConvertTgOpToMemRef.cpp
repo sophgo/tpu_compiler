@@ -45,29 +45,33 @@ static bool isQuantOp(Operation *op) {
 }
 
 static bool isConvertedOpNeeded(Operation *op) {
-  if (dyn_cast<TpuTGOpCodegenInterface>(op))
-    llvm::dbgs() << "  isConvertedOpNeeded op " << op->getName() << ", is TgCodeGen\n";
-  else
-    llvm::dbgs() << "  isConvertedOpNeeded op " << op->getName() << ", is not TgCodeGen\n";
+  LLVM_DEBUG(
+    if (dyn_cast<TpuTGOpCodegenInterface>(op))
+      llvm::dbgs() << "  isConvertedOpNeeded op " << op->getName() << ", is TgCodeGen\n";
+    else
+     llvm::dbgs() << "  isConvertedOpNeeded op " << op->getName() << ", is not TgCodeGen\n";
+  );
 
   for (auto &user : op->getResult(0)->getUses()) {
     Operation *userOp = user.getOwner();
 
-    if (dyn_cast<TpuTGOpCodegenInterface>(userOp))
-      llvm::dbgs() << "    userOp " << userOp->getName() << ", is TgCodeGend\n";
-    else
-      llvm::dbgs() << "    userOp " << userOp->getName() << ", is not TgCodeGend\n";
+    LLVM_DEBUG(
+      if (dyn_cast<TpuTGOpCodegenInterface>(userOp))
+        llvm::dbgs() << "    userOp " << userOp->getName() << ", is TgCodeGend\n";
+      else
+        llvm::dbgs() << "    userOp " << userOp->getName() << ", is not TgCodeGend\n";
+    );
 
     // Handle Quant, treat quant as not-lowed op
     if (isQuantOp(op)) {
       if (dyn_cast<TpuTGOpCodegenInterface>(userOp)) {
         // Quant connected to lowed Op.
         // E.g. Quant -> conv
-        llvm::dbgs() << "    converted op is needed\n";
+        LLVM_DEBUG(llvm::dbgs() << "    converted op is needed\n";);
         return true;
       } else {
         // Quant connected to not-lowed op.
-        llvm::dbgs() << "    converted op is not needed\n";
+        LLVM_DEBUG(llvm::dbgs() << "    converted op is not needed\n";);
         return false;
       }
     }
@@ -77,13 +81,13 @@ static bool isConvertedOpNeeded(Operation *op) {
 
       if (isQuantOp(userOp)) {
         // Lower op connected to Quant
-        llvm::dbgs() << "    converted op is needed\n";
+        LLVM_DEBUG(llvm::dbgs() << "    converted op is needed\n";);
         return true;
       }
 
       if (!dyn_cast<TpuTGOpCodegenInterface>(userOp)) {
         // At least one userOp is not Tg CodeGen Op
-        llvm::dbgs() << "    converted op is needed\n";
+        LLVM_DEBUG(llvm::dbgs() << "    converted op is needed\n";);
         return true;
       }
 
@@ -93,17 +97,17 @@ static bool isConvertedOpNeeded(Operation *op) {
       // Handle LoadWeight
       if (dyn_cast<LoadWeightOp>(op)) {
           if (isDetectionOutputOp(userOp)) {
-            llvm::dbgs() << "    converted op is needed\n";
+            LLVM_DEBUG(llvm::dbgs() << "    converted op is needed\n";);
             return true;
           }
-          llvm::dbgs() << "    converted op is not needed\n";
+          LLVM_DEBUG(llvm::dbgs() << "    converted op is not needed\n";);
           return false;
       }
 
       if (dyn_cast<TpuTGOpCodegenInterface>(userOp)) {
         // At least one userOp is Tg CodeGen Op
 
-        llvm::dbgs() << "    converted op is needed\n";
+        LLVM_DEBUG(llvm::dbgs() << "    converted op is needed\n";);
         return true;
 
       } else {
@@ -112,7 +116,7 @@ static bool isConvertedOpNeeded(Operation *op) {
     }
   }
 
-  llvm::dbgs() << "    converted op is not needed\n";
+  LLVM_DEBUG(llvm::dbgs() << "    converted op is not needed\n";);
 
   return false;
 }
@@ -129,14 +133,14 @@ public:
                                      PatternRewriter &rewriter) const override {
     auto op = tensorTyOp.getOperation();
 
-    llvm::dbgs() << "AddTypeConvertedForNotLowedOpPattern op "
-                 << op->getName() << "\n";
+    LLVM_DEBUG(llvm::dbgs() << "AddTypeConvertedForNotLowedOpPattern op "
+                 << op->getName() << "\n";);
 
     for (auto &user : op->getResult(0)->getUses()) {
       Operation *userOp = user.getOwner();
-      llvm::dbgs() << "  userOp " << userOp->getName() << "\n";
+      LLVM_DEBUG(llvm::dbgs() << "  userOp " << userOp->getName() << "\n";);
       if (dyn_cast<TG_TensorToMemRefOp>(userOp)) {
-        llvm::dbgs() << "    TensorToMemRefOp already added, matchFailure\n";
+        LLVM_DEBUG(llvm::dbgs() << "    TensorToMemRefOp already added, matchFailure\n";);
         return Pattern::matchFailure();
       }
     }
@@ -147,7 +151,7 @@ public:
           op->getOperands(),
           op->getAttrs());
 
-      llvm::dbgs() << "    add TensorToMemRef, MemRefToTensor\n";
+      LLVM_DEBUG(llvm::dbgs() << "    add TensorToMemRef, MemRefToTensor\n";);
       auto tensorToMemRefOp =
           rewriter.create<TG_TensorToMemRefOp>(newTpuOp.getLoc(),
                                                newTpuOp.getResult());
@@ -230,12 +234,12 @@ Value *InsertAllocAndDealloc(Location loc, Value *result,
     // Cannot use moveBefore to place deallocOp just after last use of
     // memory-aliased op.
     // Put far away from last use
-    llvm::dbgs() << "InsertAllocAndDealloc: result op " << op->getName()
+    LLVM_DEBUG(llvm::dbgs() << "InsertAllocAndDealloc: result op " << op->getName()
                  << ", lastUsedOp " << lastUsedOp->getName()
                  << ", lasedUsedByAliasOp " << lastUsedByAliasOp->getName()
                  << ", last use of lastUsedByAliasOp "
                  << GetLastUse(lastUsedByAliasOp->getResult(0))->getName()
-                 << "\n";
+                 << "\n";);
     auto deallocOp =
         allocBuilder.create<DeallocOp>(lastUsedByAliasOp->getLoc(), alloc);
     deallocOp.getOperation()->moveBefore(
@@ -263,7 +267,7 @@ public:
   PatternMatchResult
   matchAndRewrite(Operation *op, ArrayRef<Value *> operands,
                   ConversionPatternRewriter &rewriter) const final {
-    llvm::dbgs() << "convertTgOpToMemRefPattern op " << op->getName() << "\n";
+    LLVM_DEBUG(llvm::dbgs() << "convertTgOpToMemRefPattern op " << op->getName() << "\n";);
 
     const auto &original_results = op->getResults();
 
@@ -277,9 +281,9 @@ public:
       // It is possible that operandOp is null during conversion.
       // E.g QuantOp is conneted to TensorLoadOp, but TensorLoadOp is erased.
       if (operandOp) {
-        llvm::dbgs() << "  operand " << operandOp->getName() << "\n";
+        LLVM_DEBUG(llvm::dbgs() << "  operand " << operandOp->getName() << "\n";);
         if (dyn_cast<TG_MemRefToTensorOp>(operandOp)) {
-          llvm::dbgs() << "    erase MemRefToTensorOp\n";
+          LLVM_DEBUG(llvm::dbgs() << "    erase MemRefToTensorOp\n";);
           auto newOperand = operandOp->getOperand(0);
           operandOp->getResult(0)->replaceAllUsesWith(newOperand);
           rewriter.eraseOp(operandOp);
@@ -298,9 +302,9 @@ public:
       for (auto &user : result->getUses()) {
         auto *userOp = user.getOwner();
         if (userOp) {
-          llvm::dbgs() << "  result userOp " << userOp->getName() << "\n";
+          LLVM_DEBUG(llvm::dbgs() << "  result userOp " << userOp->getName() << "\n";);
           if (dyn_cast<TG_TensorToMemRefOp>(userOp)) {
-            llvm::dbgs() << "    erase TensorToMemRefOp\n";
+            LLVM_DEBUG(llvm::dbgs() << "    erase TensorToMemRefOp\n";);
             userOp->getResult(0)->replaceAllUsesWith(result);
             rewriter.eraseOp(userOp);
           }
@@ -331,7 +335,7 @@ public:
   matchAndRewrite(Operation *op, ArrayRef<Value *> operands,
                   ConversionPatternRewriter &rewriter) const final {
 
-    llvm::dbgs() << "convertTgInputOpToMemRefPattern op " << op->getName() << "\n";
+    LLVM_DEBUG(llvm::dbgs() << "convertTgInputOpToMemRefPattern op " << op->getName() << "\n";);
     const auto &original_results = op->getResults();
 
     SmallVector<Value *, 4> buffer_args(operands.begin(), operands.end());
@@ -384,15 +388,15 @@ public:
 
     // Not lowed op -> TensorStore
     if (!dyn_cast<TpuTGOpCodegenInterface>(operands[0]->getDefiningOp())) {
-      llvm::dbgs() << "convertTensorStoreOpPattern operandOp "
-                   << operands[0]->getDefiningOp()->getName() << ", skipped\n";
+      LLVM_DEBUG(llvm::dbgs() << "convertTensorStoreOpPattern operandOp "
+                   << operands[0]->getDefiningOp()->getName() << ", skipped\n";);
       return matchFailure();
     }
 
     // Treat QuantOp as not-lowed op
     if (isQuantOp(operands[0]->getDefiningOp())) {
-      llvm::dbgs() << "convertTensorStoreOpPattern operandOp "
-                   << operands[0]->getDefiningOp()->getName() << ", skipped\n";
+      LLVM_DEBUG(llvm::dbgs() << "convertTensorStoreOpPattern operandOp "
+                   << operands[0]->getDefiningOp()->getName() << ", skipped\n";);
       return matchFailure();
     }
 
