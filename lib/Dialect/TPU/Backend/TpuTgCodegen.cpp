@@ -1146,8 +1146,8 @@ LogicalResult tpu::TG_BF16_LeakyReluOp::codegen(void *ctx) {
 }
 
 LogicalResult tpu::TG_INT8_LrnOp::codegen(void *ctx) {
-  llvm::errs() << "TG_codegen: " << getOperationName() << " [" << getOpName()
-               << "]\n";
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
   std::vector<int64_t> shape;
@@ -1169,8 +1169,8 @@ LogicalResult tpu::TG_INT8_LrnOp::codegen(void *ctx) {
 }
 
 LogicalResult tpu::TG_BF16_LrnOp::codegen(void *ctx) {
-  llvm::errs() << "TG_codegen: " << getOperationName() << " [" << getOpName()
-               << "]\n";
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
   // TODO:
   // CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   // Operation *op = this->getOperation();

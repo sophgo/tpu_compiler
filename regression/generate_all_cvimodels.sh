@@ -8,7 +8,7 @@ generic_net_list=(
   "resnet50"
   "vgg16"
   "mobilenet_v2"
-  # "googlenet"
+  "googlenet"
   "inception_v3"
   "inception_v4"
   "efficientnet_b0"

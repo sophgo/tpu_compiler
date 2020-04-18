@@ -1,8 +1,8 @@
 $REGRESSION_PATH/parallel/run_generic.sh resnet50
 $REGRESSION_PATH/parallel/run_generic.sh vgg16
+$REGRESSION_PATH/parallel/run_generic.sh googlenet
 $REGRESSION_PATH/parallel/run_generic.sh inception_v3
 $REGRESSION_PATH/parallel/run_generic.sh inception_v4
-$REGRESSION_PATH/parallel/run_generic.sh efficientnet_b0
 $REGRESSION_PATH/parallel/run_generic.sh mobilenet_v2
 $REGRESSION_PATH/parallel/run_generic.sh shufflenet_v2
 $REGRESSION_PATH/parallel/run_generic.sh squeezenet
@@ -13,4 +13,5 @@ $REGRESSION_PATH/parallel/run_generic.sh ssd300
 $REGRESSION_PATH/parallel/run_generic.sh yolo_v3_416
 $REGRESSION_PATH/parallel/run_generic.sh yolo_v3_320
 $REGRESSION_PATH/parallel/run_generic.sh resnet18
+$REGRESSION_PATH/parallel/run_generic.sh efficientnet_b0
 $REGRESSION_PATH/parallel/run_generic.sh alphapose

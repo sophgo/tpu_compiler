@@ -515,8 +515,8 @@ Value* tpu::InputOp::convertToTG() {
 */
 
 Value *tpu::LrnOp::convertToTG() {
-  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName() << " ["
-                          << getOpName() << "]\n";);
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
   Operation *op = this->getOperation();
   auto builder = Builder(op->getContext());
 
