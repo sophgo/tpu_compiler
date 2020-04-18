@@ -122,9 +122,9 @@ class TensorCompare():
       if (result[1] == self.CLOSE):
         print("    close order            = {}".format(result[2]["close_order"]))
       if (result[1] == self.SIMILAR or result[1] == self.NOT_SIMILAR):
-        print("    cosine_similarity      = {}".format(result[2]["cosine_similarity"]))
-        print("    correlation_similarity = {}".format(result[2]["correlation_similarity"]))
-        print("    euclidean_similarity   = {}".format(result[2]["euclidean_similarity"]))
+        print("    cosine_similarity      = {:.6f}".format(result[2]["cosine_similarity"]))
+        print("    correlation_similarity = {:.6f}".format(result[2]["correlation_similarity"]))
+        print("    euclidean_similarity   = {:.6f}".format(result[2]["euclidean_similarity"]))
     if (verbose > 1 and not result[0]):
       K = 5
       print("Target")

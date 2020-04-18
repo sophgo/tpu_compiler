@@ -128,9 +128,9 @@ def tensor_stats(d):
   stats["sat_ratio_pos"] = len(d_int8[b_sat_pos]) / d_int8.size
   stats["sat_ratio_neg"] = len(d_int8[b_sat_neg]) / d_int8.size
   stats["low_ratio"]     = len(d_int8[b_low])     / d_int8.size
-  print("    sat_ratio_pos = {}   [{}/{}]".format(stats["sat_ratio_pos"], len(d_int8[b_sat_pos]), d_int8.size))
-  print("    sat_ratio_neg = {}   [{}/{}]".format(stats["sat_ratio_neg"], len(d_int8[b_sat_neg]), d_int8.size))
-  print("    low_ratio     = {}   [{}/{}]".format(stats["low_ratio"], len(d_int8[b_low]), d_int8.size))
+  print("    sat_ratio_pos = {:.4f}   [{}/{}]".format(stats["sat_ratio_pos"], len(d_int8[b_sat_pos]), d_int8.size))
+  print("    sat_ratio_neg = {:.4f}   [{}/{}]".format(stats["sat_ratio_neg"], len(d_int8[b_sat_neg]), d_int8.size))
+  print("    low_ratio     = {:.4f}   [{}/{}]".format(stats["low_ratio"], len(d_int8[b_low]), d_int8.size))
 
 def compare_one_array(tc, npz1, npz2, name, force_dtype, thresholds, verbose, lock, dic):
   lock.acquire()

@@ -130,29 +130,6 @@ export TOLERANCE_BF16=0.99,0.99,0.89
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.93
 fi
 
-if [ $NET = "efficientnet_b0" ]; then
-export MODEL_DEF=$MODEL_PATH/imagenet/efficientnet-b0/caffe/efficientnet-b0.prototxt
-export MODEL_DAT=$MODEL_PATH/imagenet/efficientnet-b0/caffe/efficientnet-b0.caffemodel
-# export DO_CALIBRATION=1
-export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/efficientnet_b0_calibration_table_1000
-export NET_INPUT_DIMS=224,224
-export RAW_SCALE=1.0
-export MEAN=0.485,0.456,0.406
-export INPUT_SCALE=4.45
-export INPUT=data
-export OUTPUTS_FP32=_fc
-export OUTPUTS=_fc
-export DO_QUANT_INT8_PER_TENSOR=0  # need to turn
-#export TOLERANCE_INT8_PER_TENSOR=0.04,-0.24,-1.26
-export TOLERANCE_INT8_RSHIFT_ONLY=0.37,0.29,-0.57
-export TOLERANCE_INT8_MULTIPLER=0.46,0.40,-0.45
-export TOLERANCE_BF16=0.99,0.99,0.91
-export DO_CMDBUF_BF16=0   # this is a bug to fix
-# export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
-export DO_QUANT_MIX=1
-export TOLERANCE_MIX=0.45,0.40,-0.45
-fi
-
 if [ $NET = "mobilenet_v2" ]; then
 export MODEL_DEF=$MODEL_PATH/imagenet/mobilenet_v2/caffe/mobilenet_v2_deploy.prototxt
 export MODEL_DAT=$MODEL_PATH/imagenet/mobilenet_v2/caffe/mobilenet_v2.caffemodel
@@ -351,6 +328,35 @@ export TOLERANCE_INT8_MULTIPLER=0.98,0.98,0.84
 export DO_QUANT_BF16=0
 # export TOLERANCE_BF16=0.99,0.99,0.94
 # export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
+fi
+
+if [ $NET = "efficientnet_b0" ]; then
+export MODEL_TYPE="onnx"
+export MODEL_DEF=$MODEL_PATH/imagenet/efficientnet-b0/onnx/efficientnet_b0.onnx
+export MODEL_DAT=""
+export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/generic/regression_0_onnx.sh
+# export DO_CALIBRATION=1
+export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/efficientnet_b0_onnx_calibration_table_1000
+export IMAGE_RESIZE_DIMS=256,256
+export NET_INPUT_DIMS=224,224
+export RAW_SCALE=1.0
+export MEAN=0.406,0.456,0.485  # in BGR, pytorch mean=[0.485, 0.456, 0.406]
+export STD=0.225,0.224,0.229   # in BGR, pytorch std=[0.229, 0.224, 0.225]
+export INPUT_SCALE=1.0
+export INPUT=input
+export OUTPUTS_FP32=output
+export OUTPUTS=output
+export EXCEPTS=424_Mul,388_Sigmoid
+# export DO_QUANT_INT8_PER_TENSOR=1
+# export DO_QUANT_INT8_RFHIFT_ONLY=1
+# export TOLERANCE_INT8_PER_TENSOR=0.8,0.8,0.8
+# export TOLERANCE_INT8_RSHIFT_ONLY=0.8,0.8,0.8
+export TOLERANCE_INT8_MULTIPLER=0.76,0.48,0.25
+export TOLERANCE_BF16=0.99,0.99,0.91
+export DO_CMDBUF_BF16=0
+# export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
+# export DO_QUANT_MIX=1
+# export TOLERANCE_MIX=0.8,0.8,0.8
 fi
 
 if [ $NET = "alphapose" ]; then
