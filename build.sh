@@ -243,18 +243,19 @@ if [ "$1" = "RELEASE" ]; then
   # install regression
   mkdir -p $INSTALL_PATH/regression
   cp -a $MLIR_SRC_PATH/regression/generic $INSTALL_PATH/regression/
-  cp -a $MLIR_SRC_PATH/regression/parallel $INSTALL_PATH/regression/
+  # cp -a $MLIR_SRC_PATH/regression/parallel $INSTALL_PATH/regression/
   cp -a $MLIR_SRC_PATH/regression/data $INSTALL_PATH/regression/
   cp -a $MLIR_SRC_PATH/regression/convert_model_caffe.sh $INSTALL_PATH/regression/
   cp -a $MLIR_SRC_PATH/regression/convert_model_onnx.sh $INSTALL_PATH/regression/
   cp -a $MLIR_SRC_PATH/regression/generate_all_cvimodels.sh $INSTALL_PATH/regression/
+  cp -a $MLIR_SRC_PATH/regression/run_regression.sh $INSTALL_PATH/regression/
+
   # install env script
   cp $MLIR_SRC_PATH/cvitek_envs.sh $INSTALL_PATH/
 
   # generate models for release and samples
   pushd $BUILD_PATH
   $MLIR_SRC_PATH/regression/generate_all_cvimodels.sh
-  $MLIR_SRC_PATH/regression/cvitek_zoo/cvitek_zoo_generate_cvimodels.sh
   mkdir -p cvimodel_samples
   cp cvimodel_release/mobilenet_v2.cvimodel cvimodel_samples/
   cp cvimodel_release/yolo_v3_416_with_detection.cvimodel cvimodel_samples/
@@ -262,6 +263,7 @@ if [ "$1" = "RELEASE" ]; then
   cp cvimodel_release/retinaface_mnet25_with_detection.cvimodel cvimodel_samples/
   cp cvimodel_release/retinaface_res50_with_detection.cvimodel cvimodel_samples/
   cp cvimodel_release/arcface_res50.cvimodel cvimodel_samples/
+  $MLIR_SRC_PATH/regression/cvitek_zoo/cvitek_zoo_generate_cvimodels.sh
   popd
 fi
 

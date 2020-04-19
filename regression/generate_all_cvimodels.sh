@@ -11,7 +11,6 @@ generic_net_list=(
   "googlenet"
   "inception_v3"
   "inception_v4"
-  "efficientnet_b0"
   "shufflenet_v2"
   "squeezenet"
   "arcface_res50"
@@ -19,11 +18,9 @@ generic_net_list=(
   "retinaface_res50"
   "ssd300"
   "yolo_v3_416"
-  # "yolo_v3_608"
-  "yolo_v3_320"
-  # "yolo_v3_160"
-  # "yolo_v3_512x288"
+  # "yolo_v3_320"
   "resnet18"
+  "efficientnet_b0"
   "alphapose"
 )
 

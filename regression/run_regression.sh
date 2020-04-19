@@ -4,18 +4,9 @@ set -e
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
-export GLOG_minloglevel=0
-
 # please keep in alphabetical order
 net_list=(
-  # "arcface"
-  # "bmface_v3"
-  # "liveness"
   # "resnet50"
-  # "retinaface_mnet25"
-  # "retinaface_res50"
-  # "ssd300"
-  # "yolo_v3"
 )
 
 generic_net_list=(
@@ -27,25 +18,20 @@ generic_net_list=(
   "inception_v4"
   "shufflenet_v2"
   "squeezenet"
-  "arcface"
-  "bmface_v3"
-  "liveness"
+  "arcface_res50"
   "retinaface_mnet25"
   "retinaface_res50"
   "ssd300"
   "yolo_v3_416"
-  # "yolo_v3_608"
-  "yolo_v3_320"
-  # "yolo_v3_160"
-  # "yolo_v3_512x288"
+  # "yolo_v3_320"
   "resnet18"
   "efficientnet_b0"
   "alphapose"
 )
 
 generic_accuracy_net_list=(
-  "resnet50"
-  "mobilenet_v2"
+  # "resnet50"
+  # "mobilenet_v2"
 )
 
 ERR=0
