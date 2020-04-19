@@ -44,17 +44,22 @@ mlir-opt \
     --tg-fuse-leakyrelu \
     --conv-ic-alignment | \
 mlir-opt \
-    --assign-weight-address \
-    --tpu-weight-address-align=16 \
-    --tpu-weight-map-filename=weight_map.csv \
-    --tpu-weight-bin-filename=weight.bin \
     --assign-neuron-address \
     --tpu-neuron-address-align=16 \
-    --tpu-neuron-map-filename=neuron_map.csv | \
+    --tpu-neuron-map-filename=neuron_map.csv \
+    --convert-cpu-op | \
 mlir-opt \
     --deep-fusion-tg2tl-la | \
 mlir-opt \
     --deep-fusion-tl-la2lw | \
+mlir-opt \
+    --compress-weight | \
+mlir-opt \
+    --assign-weight-address \
+    --tpu-weight-address-align=16 \
+    --tpu-weight-map-filename=weight_map.csv \
+    --tpu-weight-bin-filename=weight.bin \
+    --tpu-generate-compressed-weight | \
 mlir-opt \
     --convert-func-to-memref | \
 mlir-opt \

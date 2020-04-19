@@ -6,7 +6,7 @@ DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 COMPARE_ALL=1
 
 OP_LOWERING=0
-COMPRESS_WEIGHT=${COMPRESS_WEIGHT:-0}
+COMPRESS_WEIGHT=1
 
 # assuming ${NET}_quant_int8_multiplier.mlir already exists
 # assuming ${NET}_in_fp32.bin already exists
