@@ -125,7 +125,9 @@ def TPU_TL_LW_Conv2DOp : TPU_Op<"tl_lw_conv_2d",
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
     OptionalAttr<NonNegativeI32Attr>:$layer_id,
-    OptionalAttr<BoolAttr>:$do_ic_alignment
+    OptionalAttr<BoolAttr>:$do_ic_alignment,
+    OptionalAttr<I32Attr>:$tiled_oc_step,
+    OptionalAttr<BoolAttr>:$compressed_weight
   );
 
   let results = (outs AnyTensor:$output);

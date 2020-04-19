@@ -75,6 +75,8 @@ std::unique_ptr<OpPassBase<FuncOp>> createConvertTgOpToMemRefPass();
 std::unique_ptr<OpPassBase<FuncOp>> createConvertTgOpToTensorPass();
 std::unique_ptr<OpPassBase<FuncOp>> createAssignNeuronAddressMemRefPass();
 
+std::unique_ptr<OpPassBase<FuncOp>> createCompressWeightPass();
+
 } // namespace mlir
 
 #endif // MLIR_DIALECT_TPU_PASSES_H_

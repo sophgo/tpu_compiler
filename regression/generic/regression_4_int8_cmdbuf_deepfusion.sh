@@ -6,6 +6,7 @@ DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 COMPARE_ALL=1
 
 OP_LOWERING=0
+COMPRESS_WEIGHT=${COMPRESS_WEIGHT:-0}
 
 # assuming ${NET}_quant_int8_multiplier.mlir already exists
 # assuming ${NET}_in_fp32.bin already exists
@@ -32,6 +33,24 @@ mlir-opt \
     --deep-fusion-tl-la2lw \
     ${NET}_quant_int8_multiplier_tl_la.mlir \
     -o ${NET}_quant_int8_multiplier_tl_lw.mlir
+
+if [ $COMPRESS_WEIGHT -eq 1 ]; then
+  # Compress weight
+  mlir-opt \
+      --compress-weight \
+    ${NET}_quant_int8_multiplier_tl_lw.mlir \
+    -o ${NET}_quant_int8_multiplier_tl_lw_z.mlir
+
+  # assign weight address & neuron address
+  mlir-opt \
+      --assign-weight-address \
+      --tpu-weight-address-align=16 \
+      --tpu-weight-map-filename=${NET}_weight_map_int8_multiplier_z.csv \
+      --tpu-weight-bin-filename=weight_int8_multiplier.bin \
+      --tpu-generate-compressed-weight \
+      ${NET}_quant_int8_multiplier_tl_lw_z.mlir \
+      -o ${NET}_quant_int8_multiplier_tl_lw.mlir
+fi
 
 # cat for logging
 echo "cat ${NET}_quant_int8_multiplier_tl_lw.mlir"
@@ -110,6 +129,8 @@ build_cvimodel.py \
 #    --batch-num $BATCH_SIZE \
 #    --output ${NET}_cmdbuf_out_all_int8_la.npz
 
+# open INFO log with VLOG
+# GLOG_minloglevel=0 GLOG_logtostderr=1 GLOG_v=3 \
 model_runner \
     --dump-all-tensors \
     --input ${NET}_in_fp32.npz \

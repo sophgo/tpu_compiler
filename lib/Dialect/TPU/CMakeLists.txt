@@ -11,6 +11,8 @@ endif()
 include_directories(${FLATBUFFERS_PATH}/include)
 
 add_llvm_library(MLIRTPU
+  IR/TPUCompressUtil.cpp
+  IR/TPUCompressUtilTest.cpp
   IR/TPUDialect.cpp
   IR/WeightFileOp.cpp
   IR/DialectRegistration.cpp
@@ -18,6 +20,7 @@ add_llvm_library(MLIRTPU
   IR/TPUTensorSupport.cpp
   Analysis/TpuOpPrint.cpp
   Analysis/TpuOpStats.cpp
+  Transforms/CompressWeight.cpp
   Transforms/ConvertBnToScale.cpp
   Transforms/ConvertScale.cpp
   Transforms/ConvertNormalize.cpp

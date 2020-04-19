@@ -142,6 +142,11 @@ LogicalResult tpu::TL_LW_Conv2DOp::codegen(void *ctx) {
         la_input, ga_input, n, ic, ih, iw);
   }
 
+  bool compressed_weight = false;
+  auto convOp = dyn_cast<tpu::TL_LW_Conv2DOp>(op);
+  if (convOp.compressed_weight().hasValue())
+    compressed_weight = convOp.compressed_weight().getValue();
+
   #if 0
   //
   // V0: Weight Only version, with no parallel for load/store activations
@@ -172,7 +177,8 @@ LogicalResult tpu::TL_LW_Conv2DOp::codegen(void *ctx) {
         dh, dw, ph, ph, pw, pw, sh, sw,
         false, with_bias, do_relu,
         true, ga_output,
-        do_leaky_relu, pos_rshift, pos_m_i8, neg_rshift, neg_m_i8, do_ic_alignment);
+        do_leaky_relu, pos_rshift, pos_m_i8, neg_rshift, neg_m_i8,
+        do_ic_alignment, compressed_weight);
   } else {
     cvi_backend_tl_conv_LW(*backend_ctx, layer_id,
         la_input, la_output, la_working,
@@ -181,7 +187,8 @@ LogicalResult tpu::TL_LW_Conv2DOp::codegen(void *ctx) {
         dh, dw, ph, ph, pw, pw, sh, sw,
         false, with_bias, do_relu,
         false, GA_INVALID,
-        do_leaky_relu, pos_rshift, pos_m_i8, neg_rshift, neg_m_i8, do_ic_alignment);
+        do_leaky_relu, pos_rshift, pos_m_i8, neg_rshift, neg_m_i8,
+        do_ic_alignment, compressed_weight);
   }
   #endif
   return success();

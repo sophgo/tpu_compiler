@@ -48,11 +48,12 @@ namespace {
 struct TpuLoadWeightOpPattern : public RewritePattern {
   TpuLoadWeightOpPattern(MLIRContext *context,
       llvm::raw_fd_ostream *weightBinaryFile, llvm::raw_ostream &map_os,
-      size_t alignment)
-      : RewritePattern("tpu.load_weight", 1, context),
+      size_t alignment, bool compressedWeight)
+      : RewritePattern(tpu::LoadWeightOp::getOperationName(), 1, context),
         weightBinaryFile_(weightBinaryFile),
         map_os_(map_os),
-        alignment_(alignment) {}
+        alignment_(alignment),
+        compressedWeight_(compressedWeight) {}
 
   PatternMatchResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
@@ -199,12 +200,31 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
     // assign the address to weightOp
     weightOp.setAttr("offset", rewriter.getI64IntegerAttr(curPos));
 
+    // Check whether the weight is used by the convolution which indicate it
+    // uses the compressed weight.
+    if (compressedWeight_) {
+      for (auto &use : op->getResult(0)->getUses()) {
+        auto *useOp = use.getOwner();
+        if (auto convOp = dyn_cast<tpu::TL_LW_Conv2DOp>(useOp)) {
+          // Weight only, exclude bias.
+          if (convOp.filter()->getDefiningOp() == op &&
+              convOp.compressed_weight().hasValue() &&
+              convOp.compressed_weight().getValue()){
+            // Mark the weight compressed
+            weightOp.setAttr("compressed", rewriter.getBoolAttr(true));
+            break;
+          }
+        }
+      }
+    }
+
     return matchSuccess();
   }
 
   llvm::raw_fd_ostream *weightBinaryFile_;
   llvm::raw_ostream &map_os_;
   size_t alignment_;
+  bool compressedWeight_;
 };
 
 static llvm::cl::opt<size_t> clWeightAlignment(
@@ -221,6 +241,11 @@ static llvm::cl::opt<std::string> clWeightBinFilename(
     "tpu-weight-bin-filename",
     llvm::cl::desc("weight bin filename"),
     llvm::cl::init("-"));
+
+static llvm::cl::opt<bool> clCompressedWeight(
+    "tpu-generate-compressed-weight",
+    llvm::cl::desc("Generate the compressed weight"),
+    llvm::cl::init(false));
 
 class AssignWeightAddressPass : public FunctionPass<AssignWeightAddressPass> {
 public:
@@ -253,7 +278,8 @@ public:
     auto *context = &getContext();
     // assign address and generate bin file
     patterns.insert<TpuLoadWeightOpPattern>(context,
-        &weightBinaryFile, weightMapFile->os(), clWeightAlignment);
+        &weightBinaryFile, weightMapFile->os(), clWeightAlignment,
+        clCompressedWeight);
     applyPatternsGreedily(fn, patterns);
 
     weightBinaryFile.close();
