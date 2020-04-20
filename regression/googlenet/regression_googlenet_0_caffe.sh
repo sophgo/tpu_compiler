@@ -6,7 +6,7 @@ DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 
 # run caffe model
 run_caffe_classifier.py \
-    --model_def $MODEL_PATH/imagenet/googlenet/caffe/deploy.prototxt \
+    --model_def $MODEL_PATH/imagenet/googlenet/caffe/deploy_bs1.prototxt \
     --pretrained_model $MODEL_PATH/imagenet/googlenet/caffe/bvlc_googlenet.caffemodel \
     --label_file $REGRESSION_PATH/data/synset_words.txt \
     --mean 104,117,123 \

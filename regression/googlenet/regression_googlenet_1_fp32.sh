@@ -6,7 +6,7 @@ DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 
 # translate from caffe model
 mlir-translate \
-    --caffe-to-mlir $MODEL_PATH/imagenet/googlenet/caffe/deploy.prototxt \
+    --caffe-to-mlir $MODEL_PATH/imagenet/googlenet/caffe/deploy_bs1.prototxt \
     --caffemodel $MODEL_PATH/imagenet/googlenet/caffe/bvlc_googlenet.caffemodel \
     -o googlenet.mlir
 
