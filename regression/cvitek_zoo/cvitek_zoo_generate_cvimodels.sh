@@ -6,7 +6,7 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
 net_list=(
   "bmface_v3"
-  # "liveness"
+  "liveness"
 )
 
 if [ ! -e cvimodel_release ]; then
