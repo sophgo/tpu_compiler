@@ -1,6 +1,12 @@
 
 import numpy as np
 import cv2
+from enum import Enum
+
+
+class InputType(Enum):
+    FILE = 'FILE'
+    NDARRAY = 'NDARRAY'
 
 def center_crop(img, crop_dim):
     # Take center crop.
@@ -53,7 +59,7 @@ class preprocess(object):
             self.resize_dims = [int(s) for s in resize_dims.split(',')]
             self.resize_dims = [ max(x,y) for (x,y) in zip(self.resize_dims, self.net_input_dims)]
         else :
-            self.resize_dims = None
+            self.resize_dims = self.net_input_dims
 
         self.raw_scale = raw_scale
 
@@ -80,31 +86,36 @@ class preprocess(object):
             self.transpose = None
         self.rgb_order = rgb_order
 
-    def run(self, input_file, output_npz=None, pfunc=None, input_name=None):
+    def run(self, input, output_npz=None, pfunc=None, input_name=None, input_type=InputType.FILE):
+        if input_type == InputType.FILE:
+            if self.npy_input != None :
+                x = np.load(str(self.npy_input).rstrip())
+                if output_npz:
+                    np.savez(output_npz, **{input_name if input_name else "input": x})
+                return x
 
-        if self.npy_input != None :
-            x = np.load(str(self.npy_input).rstrip())
-            if output_npz:
-                np.savez(output_npz, **{input_name if input_name else "input": x})
-            return x
+            image = cv2.imread(str(input).rstrip())
+            if image is None:
+                print("not existed {}".format(str(input).rstrip()))
+                return None
 
-        image = cv2.imread(str(input_file).rstrip())
-        if image is None:
-            print("not existed {}".format(str(input_file).rstrip()))
-            return None
-        image = image.astype(np.float32)
+            image = image.astype(np.float32)
+            
+        elif input_type == InputType.NDARRAY:
+            image = input
+
+        # Do preprocess if with call back function
         if pfunc is not None:
             output = pfunc(image)
         else:
             if self.resize_dims != None:
                 x = cv2.resize(image, (self.resize_dims[1], self.resize_dims[0])) # w,h
                 if self.rgb_order == 'rgb' :
-                    x[:,:,0], x[:,:,2] = x[:,:,2], x[:,:,0]
+                    x = x[[2,1,0], :, :]
 
                 # transpose
                 if self.transpose != None :
                     x = np.transpose(x, self.transpose)
-
                 x = x * self.raw_scale / 255.0
                 # preprocess
                 if self.mean_file.size != 0 :
