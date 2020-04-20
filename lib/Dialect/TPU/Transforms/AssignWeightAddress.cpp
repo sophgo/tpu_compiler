@@ -117,8 +117,8 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
 
       // pad to alignment
       if ((weight_uint16.size() * sizeof(uint16_t)) % alignment_) {
-        size_t pad = (alignment_ - (weight_uint16.capacity() % alignment_)) /
-                     sizeof(uint16_t);
+        size_t remain = (weight_uint16.size() * sizeof(uint16_t)) % alignment_;
+        size_t pad = (alignment_ - remain) / sizeof(uint16_t);
         for (size_t i = 0; i < pad; ++i) {
           weight_uint16.push_back(0xffff); // assign a special value for debugging
         }
@@ -133,9 +133,9 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
       size = weight_bf16.size() * sizeof(uint16_t);
 
       // pad to alignment
-      if ( (weight_bf16.size()* sizeof(uint16_t)) % alignment_ ) {
-        size_t pad = ( alignment_ - ( weight_bf16.capacity() % alignment_ ) )
-                     / sizeof(uint16_t);
+      if ( (weight_bf16.size() * sizeof(uint16_t)) % alignment_ ) {
+        size_t remain = (weight_bf16.size() * sizeof(uint16_t)) % alignment_;
+        size_t pad = (alignment_ - remain) / sizeof(uint16_t);
         for (size_t i = 0; i < pad; ++i) {
           weight_bf16.push_back(0xffff); // assign a special value for debugging
         }
@@ -156,9 +156,9 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
       size = weight_uint32.size() * sizeof(uint32_t);
 
       // pad to alignment
-      if ( (weight_uint32.size()* sizeof(uint32_t)) % alignment_ ) {
-        size_t pad = ( alignment_ - ( weight_uint32.capacity() % alignment_ ) )
-                     / sizeof(uint32_t);
+      if ( (weight_uint32.size() * sizeof(uint32_t)) % alignment_ ) {
+        size_t remain = (weight_uint32.size() * sizeof(uint32_t)) % alignment_;
+        size_t pad = (alignment_ - remain) / sizeof(uint32_t);
         for (size_t i = 0; i < pad; ++i) {
           weight_uint32.push_back(0xffffffff); // assign a special value for debugging
         }
@@ -172,9 +172,9 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
       size = weight_fp32.size() * sizeof(float);
 
       // pad to alignment
-      if ( (weight_fp32.size()* sizeof(float)) % alignment_ ) {
-        size_t pad = ( alignment_ - ( weight_fp32.capacity() % alignment_ ) )
-                     / sizeof(float);
+      if ( (weight_fp32.size() * sizeof(float)) % alignment_ ) {
+        size_t remain = (weight_fp32.size() * sizeof(float)) % alignment_;
+        size_t pad = (alignment_ - remain) / sizeof(float);
         for (size_t i = 0; i < pad; ++i) {
           weight_fp32.push_back(0xffffffff); // assign a special value for debugging
         }
@@ -196,6 +196,9 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
                                  tensor_name.str().c_str(), size)
                  << llvm::format_hex(curPos, 10) << " --> "
                  << llvm::format_hex(newPos, 10) << " ]\n";);
+
+    assert(((curPos % alignment_) == 0) && "Expect aligned curPos");
+    assert(((newPos % alignment_) == 0) && "Expect aligned newPos");
 
     // assign the address to weightOp
     weightOp.setAttr("offset", rewriter.getI64IntegerAttr(curPos));
