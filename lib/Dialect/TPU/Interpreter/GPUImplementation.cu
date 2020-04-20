@@ -39,7 +39,7 @@ int gpu_conv(float *input, float *weight, float *bias,
     cudnnConvolutionDescriptor_t conv_desc;
     CUDNN_CALL(cudnnCreateConvolutionDescriptor(&conv_desc));
     CUDNN_CALL(cudnnSetConvolution2dDescriptor(conv_desc, ph, pw, sh, sw, dh,
-                                                dw, CUDNN_CONVOLUTION,
+                                                dw, CUDNN_CROSS_CORRELATION,
                                                 CUDNN_DATA_FLOAT));
     // add group count(only on cudnn v7 or highter)
     cudnnSetConvolutionGroupCount(conv_desc, g);
@@ -79,7 +79,7 @@ int gpu_conv(float *input, float *weight, float *bias,
       CUDA_CALL(cudaMemcpy(biasdata, bias, oc * sizeof(float),
                            cudaMemcpyDefault));
       // add bias
-      CUDNN_CHECK(cudnnAddTensor(cudnn, &alpha, bias_desc, biasdata, &beta,
+      CUDNN_CALL(cudnnAddTensor(cudnn, &alpha, bias_desc, biasdata, &beta,
                                 out_desc, out_data));
 
       CUDNN_CALL(cudnnDestroyTensorDescriptor(bias_desc));
