@@ -18,6 +18,9 @@ import torch.utils.data
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 
+from cvi_toolkit.data.preprocess import preprocess, InputType
+from cvi_toolkit.model import CaffeModel
+
 parser = argparse.ArgumentParser(description="Classification Evaluation on ImageNet Dataset.")
 parser.add_argument('--model_def', type=str, help="Model definition file")
 parser.add_argument('--pretrained_model', type=str, help='Load weights from previously saved parameters.')
@@ -26,6 +29,7 @@ parser.add_argument("--image_resize_dims", type=str, default='256,256')
 parser.add_argument("--net_input_dims", type=str, default='224,224')
 parser.add_argument("--raw_scale", type=float, help="Multiply raw input image data by this scale.")
 parser.add_argument("--mean", help="Per Channel image mean values")
+parser.add_argument("--std", help="Per Channel image std values", default='1,1,1')
 parser.add_argument("--mean_file", type=str, help="the resized ImageNet dataset mean file.")
 parser.add_argument("--input_scale", type=float, help="Multiply input features by this scale.")
 parser.add_argument("--loader_transforms", type=int, help="image transform ny torch loader", default=0)
@@ -105,33 +109,35 @@ if __name__ == '__main__':
   # onedir = os.path.join(args.dataset, 'one')
   batch_size = 1
 
+
+  caffemodel = CaffeModel()
+  # load model
+  caffemodel.load_model(args.model_def, args.pretrained_model)
+  if args.net_input_dims:
+      net_input_dims = args.net_input_dims
+  else:
+      # read from caffe
+      net_input_dims = caffemodel.get_input_shape()
+
+  preprocessor = preprocess()
+  # PyTorch transforms use rgb, still need the swap for caffe models
+  # Because of Resize by PyTorch transforms, we set resize dim same with network input(don't do anything )
+  # transposed already in ToTensor(), we set (0,1,2) here
+  preprocessor.config(net_input_dims=net_input_dims,
+                    resize_dims=net_input_dims,
+                    mean=args.mean,
+                    mean_file=args.mean_file,
+                    input_scale=args.input_scale,
+                    raw_scale=args.raw_scale,
+                    std=args.std,
+                    rgb_order='rgb',
+                    transpose='0,1,2')
+
   image_resize_dims = [int(s) for s in args.image_resize_dims.split(',')]
   net_input_dims = [int(s) for s in args.net_input_dims.split(',')]
   image_resize_dims = [ max(x,y) for (x,y) in zip(image_resize_dims, net_input_dims)]
+  raw_scale = args.raw_scale
 
-  if args.raw_scale:
-    raw_scale = float(args.raw_scale)
-  else:
-    raw_scale = 255.0
-  if args.mean:
-    mean = np.array([float(s) for s in args.mean.split(',')], dtype=np.float32)
-    print('mean', mean)
-    mean = mean[:, np.newaxis, np.newaxis]
-  else:
-    if args.mean_file:
-      mean = np.load(args.mean_file)
-      # print('mean shape', mean.shape)
-      # only need the 3D value
-      mean = mean[0]
-    else:
-      mean = np.array([])
-  if args.input_scale:
-    input_scale = float(args.input_scale)
-  else:
-    input_scale = 1.0
-
-  # load model
-  net = caffe.Net(args.model_def, args.pretrained_model, caffe.TEST)
   if (do_loader_transforms):
     normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                      std=[0.229, 0.224, 0.225])
@@ -174,30 +180,17 @@ if __name__ == '__main__':
       x = np.expand_dims(x, axis=0)
 
     else:
-      # pytorch ToTensor() will do HWC to CHW, and change range to [0.0, 1.0]
-      # for pytorch, seeing errors if not include ToTensor in transforms
-      # change to range [0, 255]
+      # Pytorch ToTensor will make tesnor range to [0, 1]
+      # recover to [0, 255] for caffe
       x = images[0].numpy() * raw_scale
-      # transposed already in ToTensor()
-      # x = np.transpose(x, (2, 0, 1))
-      # still need the swap for caffe models
-      x = x[[2,1,0], :, :]
-      # apply mean
-      if mean.size != 0:
-        x -= mean
-      if input_scale != 1.0:
-        x *= input_scale
-      # expand to 4-D again
-      x = np.expand_dims(x, axis=0)
+      x = preprocessor.run(x, input_type=InputType.NDARRAY)
 
     # run inference
-    #print("net.inputs", net.inputs)
-    y = net.forward_all(**{net.inputs[0]: x})
-    #print("net.outputs", net.outputs)
-    res = y[net.outputs[0]]
-    # print(res.shape)
+
+    res = caffemodel.inference(x)
+
     res = np.reshape(res, (res.shape[0], res.shape[1]))
-    # print(res.shape)
+
 
     output = torch.from_numpy(res)
 
