@@ -199,6 +199,7 @@ class KLD_Calibrator_v2(object):
         data_hist = {}
         width_hist = {}
         idx = 0
+        max_input_num = min(len(self.all_lines), self.input_num)
         for line in self.all_lines:
             logger.debug('Generating histogram at iteration: {}'.format(idx))
 
@@ -227,9 +228,11 @@ class KLD_Calibrator_v2(object):
                     data_hist[item] += hist
 
             idx += 1
-            if idx >= self.input_num:
+            if idx >= max_input_num:
+                logger.info('Max input num is {}, finish'.format(max_input_num))
                 break
-
+            if idx % 10 == 0:
+                logger.info('calibration progress {}/{}'.format(idx, max_input_num))
         return data_hist, width_hist
 
     def do_calibration(self, threshold_table=None):

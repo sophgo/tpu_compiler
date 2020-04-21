@@ -161,7 +161,7 @@ def parse(config: dict):
             tolerance = accuracy_test.get('Tolerance_FP32')
             tolerance = "{},{},{}".format(tolerance[0], tolerance[1], tolerance[2])
 
-            cvi_data_tool.npz_compare(target_file, ref_file,
+            fp32_stat = cvi_data_tool.npz_compare(target_file, ref_file,
                 tolerance=tolerance,
                 op_info=tpu_op_info,
                 excepts=excepts,
@@ -187,6 +187,9 @@ def parse(config: dict):
         else :
             new_table = True
             check_file_assert(dataset_file)
+            if os.path.exists(calibraion_table):
+                logger.info("remove already existed {}".format(calibraion_table))
+                os.remove(calibraion_table)
             # if no callibration table do calibration
             logger.info("run calibration ...")
             image_num = Calibration.get("image_num", 1)
@@ -230,7 +233,7 @@ def parse(config: dict):
         tolerance = accuracy_test.get('Tolerance_INT8')
         tolerance = "{},{},{}".format(tolerance[0], tolerance[1], tolerance[2])
         logger.info("run int8 interpreter accurracy test ...")
-        ret = cvi_data_tool.npz_compare(target_file, ref_file,
+        int8_stat = cvi_data_tool.npz_compare(target_file, ref_file,
             tolerance=tolerance,
             op_info=quant_tpu_op_info,
             dequant=True,
@@ -261,10 +264,21 @@ def parse(config: dict):
     net.cleanup()
     shutil.move(output_file, '../')
     if new_table:
+        if os.path.exists('../{}'.format(calibraion_table)):
+            logger.info("remove already existed {}".format(calibraion_table))
+            os.remove('../{}'.format(calibraion_table))
         shutil.move(calibraion_table, '../')
     os.chdir("../")
     shutil.rmtree("tmp", ignore_errors=True)
     logger.info("cleanup finished")
+    logger.info("float32 tensor min_similiarity = ({}, {}, {})".format(
+            fp32_stat.min_cosine_similarity,
+            fp32_stat.min_correlation_similarity,
+            fp32_stat.min_euclidean_similarity))
+    logger.info("int8 tensor min_similiarity = ({}, {}, {})".format(
+            int8_stat.min_cosine_similarity,
+            int8_stat.min_correlation_similarity,
+            int8_stat.min_euclidean_similarity))
     logger.info("You can get cvimodel:\n {}".format(os.path.abspath(output_file)))
     if new_table:
         logger.info("New Threshold Table:\n {}".format(os.path.abspath(calibraion_table)))

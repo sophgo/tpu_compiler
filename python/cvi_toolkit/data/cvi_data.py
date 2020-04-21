@@ -60,4 +60,4 @@ class cvi_data(object):
             args.append("--save")
             args.append(save)
 
-        base_npz_compare(args)
+        return base_npz_compare(args)
