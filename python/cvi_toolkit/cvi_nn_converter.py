@@ -174,18 +174,19 @@ def parse(config: dict):
     calibraion_table = "{}_threshold_table".format(model_name)
     # Calibration
     Calibration = config.get("Calibration", None)
-
+    new_table = False
     if Calibration:
         dataset_file = Calibration.get("Dataset")
         calibraion_table_in = Calibration.get("calibraion_table", None)
         check_file_assert(calibraion_table_in)
-        if not calibraion_table_in:
-            check_file_assert(dataset_file)
+
         auto_tune = Calibration.get("auto_tune", False)
         if calibraion_table_in != None :  # use calibration_table directly.
             logger.info("import calibration table")
             calibraion_table = calibraion_table_in
         else :
+            new_table = True
+            check_file_assert(dataset_file)
             # if no callibration table do calibration
             logger.info("run calibration ...")
             image_num = Calibration.get("image_num", 1)
@@ -259,10 +260,14 @@ def parse(config: dict):
     logger.info("run cleanup ...")
     net.cleanup()
     shutil.move(output_file, '../')
+    if new_table:
+        shutil.move(calibraion_table, '../')
     os.chdir("../")
     shutil.rmtree("tmp", ignore_errors=True)
     logger.info("cleanup finished")
     logger.info("You can get cvimodel:\n {}".format(os.path.abspath(output_file)))
+    if new_table:
+        logger.info("New Threshold Table:\n {}".format(os.path.abspath(calibraion_table)))
 
 
 def main():
