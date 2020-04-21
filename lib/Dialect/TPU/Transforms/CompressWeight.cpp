@@ -11,22 +11,36 @@
 #include "mlir/Pass/Pass.h"
 #include "mlir/Support/TensorFile.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Support/ToolOutputFile.h"
 
 #include "../DeepFusion/MachineInfo.h"
 
-#define DEBUG_TYPE "compress-conv-weight"
+#define DEBUG_TYPE "compress-weight"
 
 using namespace mlir;
 
 namespace {
+
+static llvm::cl::opt<std::string> clCompressedWeightMapFileName(
+    "tpu-compressed-weight-map-filename",
+    llvm::cl::desc("record neuron offset with its name into a csv map file"),
+    llvm::cl::init("-"));
+
+struct CompressInfo {
+  llvm::StringRef name;
+  uint64_t size;
+  uint64_t compressedSize;
+};
 
 template <typename TensorTyOp>
 class CompressConvolutionWeightPattern : public OpRewritePattern<TensorTyOp> {
 public:
   using OpRewritePattern<TensorTyOp>::OpRewritePattern;
 
-  CompressConvolutionWeightPattern(MLIRContext *ctx)
-      : OpRewritePattern<TensorTyOp>(ctx) {}
+  CompressConvolutionWeightPattern(MLIRContext *ctx,
+      std::vector<CompressInfo> &compressedWeigtInfos)
+      : OpRewritePattern<TensorTyOp>(ctx),
+        compressedWeigtInfos_(compressedWeigtInfos) {}
 
   PatternMatchResult matchAndRewrite(TensorTyOp convOp,
                                      PatternRewriter &rewriter) const override {
@@ -44,8 +58,6 @@ public:
                  << ", not support group convolution\n");
       return Pattern::matchFailure();
     }
-
-    auto op = convOp.getOperation();
 
     auto filterTy =
         convOp.filter()->getType().template dyn_cast<RankedTensorType>();
@@ -75,7 +87,7 @@ public:
     }
 
     // Same filter shape but fill compressed data
-    TensorFile *wTF = getWeightTensorFile(op);
+    TensorFile *wTF = getWeightTensorFile(convOp.getOperation());
     auto filter = readAndDeleteWeightTensor<int8_t>(convOp.filter(), wTF);
     int64_t filterSize;
     std::vector<int64_t> filterShape;
@@ -107,6 +119,9 @@ public:
     int oc_step = MInfo::lane_num;
     auto buffer =
         std::make_unique<std::vector<uint8_t> >(oc_step * kh * kw * ic);
+
+    int totalSize = 0;
+    int totalCompressedSize = 0;
     for (int oc_pos = 0; oc_pos < oc; oc_pos += oc_step) {
       int cur_oc = std::min(oc - oc_pos, oc_step);
       int step_size = cur_oc * kh * kw * ic;
@@ -154,40 +169,13 @@ public:
         canCompress = false;
         break;
       } else {
-        //LLVM_DEBUG(llvm::dbgs()
-        //           << "  [oc_pos=" << oc_pos << "] cur_oc " << cur_oc
-        //           << ", step_size " << step_size
-        //           << ", compressedSize " << compressedSize
-        //           << ", succeeed\n");
+        totalSize += step_size;
+        totalCompressedSize += compressedSize;
       }
 
       // Fill compressed data.
       std::memcpy(newFilter->data() + pos, compressedData->data(),
                   compressedSize);
-
-
-#if 0
-      if (convOp.layer_id().getValue().getLimitedValue() == 6 && oc_pos == 0) {
-        auto data = newFilter->data();
-        LLVM_DEBUG(llvm::dbgs() << "  compressed: "
-                   << "  " << data[0]
-                   << ", " << data[1]
-                   << ", " << data[2]
-                   << ", " << data[3]
-                   << ", " << data[4]
-                   << ", " << data[5]
-                   << ", " << data[6]
-                   << ", " << data[7]
-                   << ", " << data[8]
-                   << ", " << data[9]
-                   << ", " << data[10]
-                   << ", " << data[11]
-                   << ", " << data[12]
-                   << "\n"
-        );
-      }
-#endif
-
     }
 
     if (filterDataTypeSize == 1) {
@@ -204,7 +192,17 @@ public:
 
       convOp.setAttr("tiled_oc_step", rewriter.getI32IntegerAttr(oc_step));
       convOp.setAttr("compressed_weight", rewriter.getBoolAttr(true));
-      
+
+      struct CompressInfo info;
+      info.name = convOp.name();
+      info.size = totalSize;
+      info.compressedSize = totalCompressedSize;
+      compressedWeigtInfos_.push_back(info);
+
+      LLVM_DEBUG(llvm::dbgs()
+                << "  compressedWeigtInfos size "
+                << compressedWeigtInfos_.size() << "\n");
+
       return Pattern::matchSuccess();
     } else  {
       addWeightTensorAndUpdateWeightOp<int8_t>(convOp.filter(),
@@ -213,36 +211,77 @@ public:
       return Pattern::matchFailure();
     }
   }
+
+  std::vector<struct CompressInfo> &compressedWeigtInfos_;
 };
 
-struct CompressWeightPass
-    : public FunctionPass<CompressWeightPass> {
+struct CompressWeightPass : public FunctionPass<CompressWeightPass> {
   void runOnFunction() override;
+
+  void generateReport(std::vector<struct CompressInfo> &compressedWeigtInfos);
 };
 } // anonymous namespace
 
+void CompressWeightPass::generateReport(
+    std::vector<struct CompressInfo> &compressedWeigtInfos) {
+
+  // Create a map file if compressed weight existed.
+  if (clCompressedWeightMapFileName == "-" || !compressedWeigtInfos.size())
+    return;
+
+  std::string errorMessage;
+  std::unique_ptr<llvm::ToolOutputFile> outputFile =
+      openOutputFile(clCompressedWeightMapFileName, &errorMessage);
+  if (!outputFile) {
+    llvm::errs() << errorMessage << "\n";
+    exit(1);
+  }
+
+  auto &outputOS = outputFile->os();
+  uint64_t totalSize = 0;
+  uint64_t totalCompressedSize = 0;
+  outputOS << "name, totalSize, totalCompressedSize, reduced, ratio\n";
+  for (auto info : compressedWeigtInfos) {
+    totalSize += info.size;
+    totalCompressedSize += info.compressedSize;
+    outputOS << info.name << ", " << info.size
+             << ", " << info.compressedSize
+             << ", " << info.size - info.compressedSize
+             << ", "
+             << int(info.compressedSize * 1.0 / info.size * 100.0)
+             << "%\n";
+  }
+
+  outputOS << "totalSize " << totalSize
+           << ", totalCompressedSize " << totalCompressedSize
+           << ", reduced " << totalSize - totalCompressedSize
+           << ", ratio " << int(totalCompressedSize * 1.0 / totalSize * 100.0)
+           << "%\n";
+  outputFile->keep();
+}
+
 void CompressWeightPass::runOnFunction() {
-  auto fn = getFunction();
-  auto *context = &getContext();
+  std::vector<struct CompressInfo> compressedWeigtInfos;
 
   // Compress convolution weight
   OwningRewritePatternList patterns;
   patterns.insert<
       CompressConvolutionWeightPattern<tpu::TL_LW_Conv2DOp>
-      >(context);
-  applyPatternsGreedily(fn, patterns);
+      >(&getContext(), compressedWeigtInfos);
+  applyPatternsGreedily(getFunction(), patterns);
 
   // Remove offset in load weight first.
   // Then run assign-weight-address pass to generate the compressed weight.
-  fn.walk([&](Operation *op) {
+  getFunction().walk([&](Operation *op) {
     if (auto loadWeightOp = dyn_cast<tpu::LoadWeightOp>(op)) {
       loadWeightOp.removeAttr("offset");
     }
   });
+
+  generateReport(compressedWeigtInfos);
 }
 
-std::unique_ptr<OpPassBase<FuncOp>>
-mlir::createCompressWeightPass() {
+std::unique_ptr<OpPassBase<FuncOp>> mlir::createCompressWeightPass() {
   return std::make_unique<CompressWeightPass>();
 }
 
