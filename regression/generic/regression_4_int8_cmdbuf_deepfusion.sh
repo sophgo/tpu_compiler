@@ -38,8 +38,9 @@ if [ $COMPRESS_WEIGHT -eq 1 ]; then
   # Compress weight
   mlir-opt \
       --compress-weight \
-    ${NET}_quant_int8_multiplier_tl_lw.mlir \
-    -o ${NET}_quant_int8_multiplier_tl_lw_z.mlir
+      --tpu-compressed-weight-map-filename=${NET}_quant_int8_tl_lw_compressed_weight_stats.csv \
+      ${NET}_quant_int8_multiplier_tl_lw.mlir \
+      -o ${NET}_quant_int8_multiplier_tl_lw_z.mlir
 
   # assign weight address & neuron address
   mlir-opt \
