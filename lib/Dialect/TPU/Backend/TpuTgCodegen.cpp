@@ -128,10 +128,53 @@ LogicalResult tpu::TG_INT8_BroadcastMulOp::codegen(void *ctx) {
 LogicalResult tpu::TG_BF16_BroadcastMulOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);
-  //CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
-  //Operation *op = this->getOperation();
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
 
-  assert(false);
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  getNCHW(shape, n, c, h, w);
+  bool do_relu = this->param().do_relu().getValue();;
+
+  int64_t input_size_1;
+  std::vector<int64_t> shape_1;
+  getTensorShapeAndSize(op->getOperand(1), shape_1, input_size_1);
+  assert(shape_1[0] == 1 && shape_1[1] == c && shape_1[2] == 1 && shape_1[3] == 1 &&
+          "boradcast means second shape MUST be <1, c, 1, 1>");
+
+  gaddr_t ga_input = getPreviousOpAddress(op);
+  gaddr_t ga_output = getOpAddress(op);
+  gaddr_t ga_scale = getOpAddress(filter()->getDefiningOp());
+  // FIXME: support bias
+  //gaddr_t ga_pc_info = getWeightOpAddress(pc_info()->getDefiningOp());
+  int layer_id = mlir::getOpLayerId(op);
+
+  bf16_scale_forward_kernel(
+      *backend_ctx, // ctx
+      0,            // stream_id
+      0,            // inst_id
+      layer_id,     // layer_id
+      nullptr,      // depends
+      0,            // depends_len
+      ga_input,     // input_addr
+      ga_scale, // scale_addr
+      GA_INVALID,   // pack_addr
+      ga_output,    // output_addr
+      n, c, h, w,
+      n * c,        // scale_dim (axis = 1  =>  n * c)
+      h * w,        // inner_dim (axis = 1  =>  h * w)
+      false,        // is_scale_const
+      0,            // const_scale
+      do_relu,      // do_activation,
+      0,            // activation_method
+      nullptr,      // activation_arg
+      false,        // with_bias
+      false         // second_is_load_weight
+      );
+
+  return success();
+
   return success();
 }
 
@@ -1771,8 +1814,11 @@ LogicalResult tpu::TG_BF16_PixelShuffleOp::codegen(void *ctx) {
 }
 
 LogicalResult tpu::TG_INT8_ClipOp::codegen(void *ctx) {
-  assert(0 && "not implement yet");
-#if 0
+  assert(0 && "not implement yet, plz enable --tpu-quant-clip to fuse clip to its former layer");
+  return success();
+}
+
+LogicalResult tpu::TG_BF16_ClipOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName() << " [" << getOpName()
                << "]\n";
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
@@ -1780,72 +1826,77 @@ LogicalResult tpu::TG_INT8_ClipOp::codegen(void *ctx) {
 
   std::vector<int64_t> shape;
   int64_t input_size, n, c, h, w;
+
   getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+
   // tranform from pytorch define
   n = shape[0];
   c = shape[1];
   h = shape[2];
   w = shape[3];
-  uint32_t upscale_factor = this->upscale_factor().getLimitedValue();
+
+  float min = this->min().convertToFloat();
+  float max = this->max().convertToFloat();
 
   gaddr_t input_gaddr = getPreviousOpAddress(op);
   gaddr_t output_gaddr = getOpAddress(op);
+
   int layer_id = mlir::getOpLayerId(op);
-  pixel_shuffle_fixed_bmkernel(
-      *backend_ctx, //const CviBackendContext &ctx,
-      0, //u32 stream_id,
-      0, //u32 inst_id,
-      layer_id,
-      NULL, //const u32 *depends,
-      0, //u32 depends_len,
-      input_gaddr,
-      output_gaddr,
-      n,
-      c,
-      h,
-      w,
-      upscale_factor);
-#endif
-  return success();
-}
+  bool do_relu = false;
+  float coeffs[2];
+  gaddr_t ga_inputs[1];
+  ga_inputs[0] = input_gaddr;
 
-LogicalResult tpu::TG_BF16_ClipOp::codegen(void *ctx) {
-  assert(0 && "not implement yet");
-#if 0
-  llvm::errs() << "TG_codegen: " << getOperationName() << " [" << getOpName()
-               << "]\n";
-  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
-  Operation *op = this->getOperation();
+  // leverage min/max op rather than clip
+  // FIXME: using EltwiseMaxOp/EltwiseMinOp
+  
+  // op definition refer to \bf16_eltwise_kernel.cpp
+  if (0) {
+    coeffs[0] = {max};
+    bf16_eltwise_forward_kernel(
+        *backend_ctx,
+        layer_id,     // layer_id
+        ga_inputs,    // gaddr_t ga_input[]
+        output_gaddr,    // gaddr_t ga_output
+        1,            // int input_size
+        2,            // int op, 0: prod, 1: sum, 2: max
+        n, c, h, w,
+        do_relu,      // bool do_relu
+        0.0f,         // float relu_slope
+        false, 0, 0,
+        coeffs);
 
-  std::vector<int64_t> shape;
-  int64_t input_size, n, c, h, w;
-  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
-  // tranform from pytorch define
-  n = shape[0];
-  c = shape[1] * shape[2] * shape[3];
-  h = shape[4];
-  w = shape[5];
-  uint32_t upscale_factor = this->upscale_factor().getLimitedValue();
-
-  gaddr_t input_gaddr = getPreviousOpAddress(op);
-  gaddr_t output_gaddr = getOpAddress(op);
-  int layer_id = mlir::getOpLayerId(op);
-
-  bf16_pixel_shuffle_fixed_bmkernel(
-      *backend_ctx, //const CviBackendContext &ctx,
-      0, //u32 stream_id,
-      0, //u32 inst_id,
-      layer_id,
-      NULL, //const u32 *depends,
-      0, //u32 depends_len,
-      input_gaddr,
-      output_gaddr,
-      n,
-      c,
-      h,
-      w,
-      upscale_factor);
-#endif
+    coeffs[0] = {min};
+    bf16_eltwise_forward_kernel(
+        *backend_ctx,
+        layer_id,     // layer_id
+        ga_inputs,    // gaddr_t ga_input[]
+        output_gaddr,    // gaddr_t ga_output
+        1,            // int input_size
+        3,            // int op, 0: prod, 1: sum, 2: max, 3: min
+        n, c, h, w,
+        do_relu,      // bool do_relu
+        0.0f,         // float relu_slope
+        false, 0, 0,
+        coeffs);
+  }
+  else {
+    coeffs[0] = {max};
+    coeffs[1] = {min};
+    bf16_eltwise_forward_kernel(
+        *backend_ctx,
+        layer_id,     // layer_id
+        ga_inputs,    // gaddr_t ga_input[]
+        output_gaddr,    // gaddr_t ga_output
+        1,            // int input_size
+        4,            // int op, 0: prod, 1: sum, 2: max, 3: min, 4:max_min
+        n, c, h, w,
+        do_relu,      // bool do_relu
+        0.0f,         // float relu_slope
+        false, 0, 0,
+        coeffs);
+  }
+  
   return success();
 }
 
@@ -1991,6 +2042,82 @@ LogicalResult tpu::TG_BF16_UpsampleOp::codegen(void *ctx) {
 }
 
 LogicalResult tpu::QuantOp::codegen(void *ctx) {
+  llvm::errs() << "TG_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";
+
+  if (this->from() == "NONE" && this->to() == "INT8") {
+      LLVM_DEBUG(llvm::errs() << "none->int8, first layer, input should auto quant\n";);
+      return success();
+  } else if (this->from() == "NONE" && this->to() == "BF16") {
+      LLVM_DEBUG(llvm::errs() << "none->bf16, first layer, input should auto quant\n";);
+      return success();
+  } else if (this->from() == "BF16" && this->to() == "NONE") {
+      LLVM_DEBUG(llvm::errs() << "bf16->none, last output layer that auto dequant\n";);
+      return success();
+  } else if (this->from() == "INT8" && this->to() == "NONE") {
+      LLVM_DEBUG(llvm::errs() << "int8->none, last output layer that auto dequant\n";);
+      return success();
+  }
+
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  int layer_id = mlir::getOpLayerId(op);
+  gaddr_t ga_input = getPreviousOpAddress(op);
+  gaddr_t ga_output = getOpAddress(op);
+
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  getNCHW(shape, n, c, h, w);
+
+  float threshold = this->threshold().getValue().convertToFloat();
+  // dequant:
+  // output[i] = input[i] * threshold / 128.0;
+  // quant:
+  // output[i] = (float)saturateInt8(input[i] * 128.0 / threshold);
+  float dequant = threshold / 128.0;
+  float quant = 128.0 / threshold;
+
+  // TODO: leverage scaleOp ?
+  if (this->from() == "BF16" && this->to() == "INT8") {
+      //  quant to int8
+      mixed_precision_tg_bf16_s8(
+              *backend_ctx,//CviBackendContext &ctx,
+              0,//u32 stream_id,
+              0,//u32 inst_id,
+              layer_id,//u32 layer_id,
+              NULL,//const u32 *depends,
+              0,//u32 depends_len,
+              ga_input,//gaddr_t bottom_gaddr,
+              ga_output,//gaddr_t top_gaddr,
+              n,//int input_n,
+              c,//int input_c,
+              h,//int input_h,
+              w,//int input_w,
+              quant//float const_scale
+              );
+  } else if (this->from() == "INT8" && this->to() == "BF16") {
+      // dequant to bf16
+      mixed_precision_tg_s8_bf16(
+              *backend_ctx,//CviBackendContext &ctx,
+              0,//u32 stream_id,
+              0,//u32 inst_id,
+              layer_id,//u32 layer_id,
+              NULL,//const u32 *depends,
+              0,//u32 depends_len,
+              ga_input,//gaddr_t bottom_gaddr,
+              ga_output,//gaddr_t top_gaddr,
+              n,//int input_n,
+              c,//int input_c,
+              h,//int input_h,
+              w,//int input_w,
+              dequant//float const_scale
+              );
+  } else {
+    assert(0);
+  }
+
   return success();
 }
 
@@ -2016,6 +2143,14 @@ LogicalResult tpu::TG_MemRef_INT8_CropOp::codegen(void *ctx) {
 }
 
 LogicalResult tpu::TG_MemRef_BF16_CropOp::codegen(void *ctx) {
+  return success();
+}
+
+LogicalResult tpu::TG_MemRef_INT8_ClipOp::codegen(void *ctx) {
+  return success();
+}
+
+LogicalResult tpu::TG_MemRef_BF16_ClipOp::codegen(void *ctx) {
   return success();
 }
 
@@ -2187,3 +2322,4 @@ LogicalResult tpu::TG_CallOp::codegen(void *ctx) {
   return success();
 }
 }
+

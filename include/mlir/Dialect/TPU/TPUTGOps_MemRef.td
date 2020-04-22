@@ -254,6 +254,53 @@ class TPU_TG_MemRef_CropOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 def TPU_TG_MemRef_INT8_CropOp : TPU_TG_MemRef_CropOp<"tg_memref_int8_crop", "Int8">;
 def TPU_TG_MemRef_BF16_CropOp : TPU_TG_MemRef_CropOp<"tg_memref_bf16_crop", "Bf16">;
 
+class TPU_TG_MemRef_ClipOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
+  let summary = "TG " # opQuant # " Clip operator.";
+
+  let description = [{
+    Inputs:
+      `input`           : required, the input activation memref.
+
+    Attributes:
+      `max`: optional, Minimum value, under which element is replaced by min. It must be a scalar(tensor of empty shape).
+      `min`: optional, Maximum value, above which element is replaced by max. It must be a scalar(tensor of empty shape).
+
+      `region`          : required, the memory region to reside in, could be
+                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
+                          (backend does not support `INPUT`, `OUTPUT` for now)
+      `gaddr`           : optional, address in global memory, normally the
+                                     offset within the memory region.
+
+      `name`            : required, name for comparing, or debug.
+      `layer_id`        : optional, id for profiling.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface`    : support common TPU TG Op interface.
+      `TpuTGOpCodegenInterface` : support generate TPU instuctions.
+  }];
+
+  let arguments = (
+    ins MemRefOf<[AnyFloat, AnyInteger]>:$input,
+    MemRefOf<[AnyFloat, AnyInteger]>:$output,
+    DefaultValuedAttr<F32Attr, "999">:$min,
+    DefaultValuedAttr<F32Attr, "-999">:$max,
+    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
+    OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    OptionalAttr<BoolAttr>:$buffer_reused,
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
+  );
+}
+def TPU_TG_MemRef_INT8_ClipOp : TPU_TG_MemRef_ClipOp<"tg_memref_int8_clip", "Int8">;
+def TPU_TG_MemRef_BF16_ClipOp : TPU_TG_MemRef_ClipOp<"tg_memref_bf16_clip", "Bf16">;
+
 
 class TPU_TG_MemRef_EltwiseOp<string mnemonic, string opQuant, string opType> : TPU_Op<mnemonic,
       [NoSideEffect,

@@ -1498,8 +1498,31 @@ LogicalResult tpu::ClipOp::interpret(
   ow = output_shape[3];
 
   std::shared_ptr<std::vector<float>> input = opdT[0];
+  // fp32
   my_clip(input->data(), resultT->data(), in, ic, ih, iw, on,
                           oc, oh, ow, min, max);
+
+  // rshift and saturate on output
+  if (mlir::getOpQuant(op) == "NONE") {
+    // do nothing
+  } else if (mlir::getOpQuant(op) == "INT8") {
+    // order depends on \TPUOps.td
+    std::shared_ptr<std::vector<float> > quant_rshift = opdT[3];
+    std::shared_ptr<std::vector<float> > quant_multiplier = opdT[4];
+
+    for (int i = 0; i < size; ++i) {
+      resultT->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
+          resultT->at(i), (uint32_t)quant_rshift->at(0),
+          (uint32_t)quant_multiplier->at(0), true);
+    }
+  } else if (mlir::getOpQuant(op) == "BF16") {
+    auto tensor_bf16 = std::make_unique<std::vector<bfloat16> >(resultT->size());
+    FloatToBFloat16(resultT->data(), tensor_bf16->data(), resultT->size()); // with rounding
+    BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
+  } else {
+    assert(false);
+  }
+
   valueMapping[result] = std::move(resultT);
 
   return success();
