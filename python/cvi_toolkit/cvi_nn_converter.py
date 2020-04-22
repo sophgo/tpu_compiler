@@ -197,7 +197,7 @@ def parse(config: dict):
             tune_image_num = Calibration.get("tune_image_num", 10)
 
             histogram_bin_num = Calibration.get("histogram_bin_num", 2048)
-            net.calibration(fp32_mlirfile, dataset_file, calibraion_table, preprocessor.run,image_num, histogram_bin_num, auto_tune=auto_tune,tune_image_num=tune_image_num)
+            net.calibration(fp32_mlirfile, dataset_file, calibraion_table, preprocessor.run, image_num, histogram_bin_num, auto_tune=auto_tune,tune_image_num=tune_image_num)
             logger.info("calibration finished")
     else:
         logger.error("No Calibration in yml!")
@@ -272,14 +272,17 @@ def parse(config: dict):
     os.chdir("../")
     shutil.rmtree("tmp", ignore_errors=True)
     logger.info("cleanup finished")
-    logger.info("float32 tensor min_similiarity = ({}, {}, {})".format(
+    if fp32_acc_test:
+        logger.info("float32 tensor min_similiarity = ({}, {}, {})".format(
             fp32_stat.min_cosine_similarity,
             fp32_stat.min_correlation_similarity,
             fp32_stat.min_euclidean_similarity))
-    logger.info("int8 tensor min_similiarity = ({}, {}, {})".format(
+    if int8_acc_test:
+        logger.info("int8 tensor min_similiarity = ({}, {}, {})".format(
             int8_stat.min_cosine_similarity,
             int8_stat.min_correlation_similarity,
             int8_stat.min_euclidean_similarity))
+            
     logger.info("You can get cvimodel:\n {}".format(os.path.abspath(output_file)))
     if new_table:
         logger.info("New Threshold Table:\n {}".format(os.path.abspath(calibraion_table)))
