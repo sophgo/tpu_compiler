@@ -233,8 +233,16 @@ class MlirParser:
         self.__none_args = set()
         self.__has_input = False
         self.ops = self.__parse(file)
+        #for op in self.ops:
+        #    print(op)
+        #print('\n')
         self.inputs, self.outputs = self.__find_inputs_outputs()
         self.__split_functions()
+        #for f in self.functions:
+        #    print(f)
+        #print("\n")
+        #print('self.intputs', self.inputs)
+        #print('self.outputs', self.outputs)
         tensor = self.tensor_map[list(self.inputs)[0]]
         self.batch = tensor.shape[0]
         self.__omit_tensors()
@@ -379,7 +387,9 @@ class MlirParser:
                     target = ops[z]
                     break
             self.__fuse_op(target, ops[i], False)
-            for j in range(i+1, len(ops)):
+            for j in range(0, len(ops)):
+                if j == i:
+                    continue
                 for k in range(len(ops[j].inputs)):
                     if ops[j].inputs[k] == ops[i].inputs[0]:
                         ops[j].inputs[k] = ops[i].output
