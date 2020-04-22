@@ -91,7 +91,7 @@ def parse(config: dict):
         if net_input_dims == None :
             logger.error("net_input_dims should be set in yml file !!")
             exit(-1)
-
+        std = t.get('std', "1,1,1")
         raw_scale = t.get('raw_scale', 255.0)
         transpose = t.get('transpose')
         resize_dims = t.get('image_resize_dim')
@@ -117,6 +117,7 @@ def parse(config: dict):
                     mean=mean,
                     mean_file=mean_file,
                     input_scale=input_scale,
+                    std=std,
                     raw_scale=raw_scale,
                     transpose=transpose,
                     rgb_order=rgb_order,
