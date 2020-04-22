@@ -32,8 +32,8 @@ int gpu_conv(float *input, float *weight, float *bias,
 
 
     float *filt_data;
-    CUDA_CALL(cudaMallocManaged(&filt_data, oc * ic * kh * kw * sizeof(float)));
-    CUDA_CALL(cudaMemcpy(filt_data, weight, oc * ic * kh * kw * sizeof(float),
+    CUDA_CALL(cudaMallocManaged(&filt_data, oc * ic * kh * kw / g * sizeof(float)));
+    CUDA_CALL(cudaMemcpy(filt_data, weight, oc * ic * kh * kw / g * sizeof(float),
                cudaMemcpyDefault));
 
     cudnnConvolutionDescriptor_t conv_desc;
