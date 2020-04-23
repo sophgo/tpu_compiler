@@ -1,4 +1,5 @@
-//===- GenPowerWeight.cpp - Implementation of dynamice generate tanh lookup table / slope ---------===//
+//===- GenPowerWeight.cpp - Implementation of dynamice generate 
+// tanh lookup table slope --------------------------------------------===//
 //
 // Copyright 2019 The MLIR Authors.
 //
@@ -15,7 +16,7 @@
 // limitations under the License.
 // =============================================================================
 //
-// This file implements the TPU dialect OP Stats pass.
+// This file gen power weight.
 //
 //===----------------------------------------------------------------------===//
 
@@ -55,7 +56,8 @@ struct TpuGenPowerWeightPattern : public RewritePattern {
         << ", power is " << pwOp.power().convertToFloat() << "\n"
         << ", shift is " << pwOp.shift().convertToFloat() << "\n";);
 
-    std::string op_name = pwOp.getAttrOfType<StringAttr>("name").getValue().str();
+    auto nameAttr = pwOp.getAttrOfType<StringAttr>("name");
+    std::string op_name = nameAttr.getValue().str();
 
     // TODO: not use name as uniq id
     if (std::find(passed.begin(), passed.end(), op_name) != passed.end()) {
@@ -73,10 +75,11 @@ struct TpuGenPowerWeightPattern : public RewritePattern {
     for (unsigned i = 1; i < pwOp.getNumOperands(); ++i) {
       auto weight_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
           pwOp.getOperand(i)->getDefiningOp());
-      assert(weight_op);
-      assert(weight_op.name().hasValue());
+      assert(weight_op && "weight op should be exist");
+      assert(weight_op.name().hasValue() && "weight op should have name");
       auto tensor_name = weight_op.name().getValue();
-      LLVM_DEBUG(llvm::errs() << "  weight[" << i << "] : " << tensor_name << "\n";);
+      LLVM_DEBUG(llvm::errs() << "  weight[" << i << "] : "
+                              << tensor_name << "\n";);
       auto type = weight_op.getResult()->getType().cast<TensorType>();
       weights[weight_idx] = wTF->readTensor<float>(tensor_name, type);
       weight_idx++;
@@ -86,11 +89,11 @@ struct TpuGenPowerWeightPattern : public RewritePattern {
 
     auto scale_type = pwOp.scale_table()->getType().cast<TensorType>();
     std::vector<int64_t> scale_shape(scale_type.getShape());
-    assert(scale_shape.size() == 4);
+    assert(scale_shape.size() == 4 && "scale shape size should be 4");
 
     auto shift_type = pwOp.shift_table()->getType().cast<TensorType>();
     std::vector<int64_t> shift_shape(shift_type.getShape());
-    assert(shift_shape.size() == 4);
+    assert(shift_shape.size() == 4 && "shift shape size should be 4");
 
     // weight order result from CaffeToMlirTranslate.cpp' push order
     std::vector<float> scale(weights[0]->size());
@@ -115,18 +118,21 @@ struct TpuGenPowerWeightPattern : public RewritePattern {
     // 2 means scale / shift
     for (int i = 0; i < 2; ++i) {
       auto tensor_name = op_name + "_gen_weight_" + std::to_string(i);
-      LLVM_DEBUG(llvm::errs() << "  new_weight[" << i << "] : " << tensor_name << "\n";);
+      LLVM_DEBUG(llvm::errs() << "  new_weight[" << i << "] : "
+                              << tensor_name << "\n";);
 
       auto type = RankedTensorType::get(weightShapes[i],
               FloatType::getF32(rewriter.getContext()));
 
       wTF->addTensor<float>(tensor_name, newWeights[i], type);
       std::vector<NamedAttribute> attrs;
-      attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(tensor_name)));
-      attrs.push_back(rewriter.getNamedAttr("storage", rewriter.getStringAttr("FP32")));
+      attrs.push_back(rewriter.getNamedAttr("name",
+                                  rewriter.getStringAttr(tensor_name)));
+      attrs.push_back(rewriter.getNamedAttr("storage",
+                                  rewriter.getStringAttr("FP32")));
 
-      auto new_weight_op = rewriter.create<tpu::LoadWeightOp>(op->getLoc(), type,
-          ArrayRef<Value *>{wfV}, ArrayRef<NamedAttribute>{attrs});
+      auto new_weight_op = rewriter.create<tpu::LoadWeightOp>(op->getLoc(),
+          type, ArrayRef<Value *>{wfV}, ArrayRef<NamedAttribute>{attrs});
       newOperands.push_back(new_weight_op);
     }
 

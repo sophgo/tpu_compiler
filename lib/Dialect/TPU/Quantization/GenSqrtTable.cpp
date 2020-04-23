@@ -183,11 +183,11 @@ struct TpuGenSqrtTablePattern : public RewritePattern {
       }
     }
   }else if(sqrtOp.getOpQuant() == "BF16"){
-    llvm::errs() << " op name: " << sqrtOp.name()
-                      << "gen BF16 sqrt table." << "\n";
+    LLVM_DEBUG(llvm::errs() << " op name: " << sqrtOp.name()
+                            << "gen BF16 sqrt table." << "\n");
     gen_sqrt(table_data_lut_bf16.data(), TBL_SHAPE_BF16);
-    llvm::errs() << " op name: " << sqrtOp.name()
-                      << "gen BF16 sqrt mantissa table." << "\n";
+    LLVM_DEBUG(llvm::errs() << " op name: " << sqrtOp.name()
+                            << "gen BF16 sqrt mantissa table." << "\n");
     gen_sqrt_mantissa(table_data_mantissa_lut_bf16.data(), TBL_SHAPE_BF16);
 
     std::copy(table_data_lut_bf16.data(), table_data_lut_bf16.data() + TBL_SHAPE_BF16,
@@ -234,7 +234,7 @@ struct TpuGenSqrtTablePattern : public RewritePattern {
     std::vector<int64_t> weightShapes = {1, NPU_NUM, TABLE_H_BF16, TABLE_W_BF16};
     for (int i = 0; i < 2; ++i) {
       auto tensor_name = op_name + "_gen_weight_" + std::to_string(i);
-      llvm::errs() << "  new_weight[" << i << "] : " << tensor_name << "\n";
+      LLVM_DEBUG(llvm::errs() << "  new_weight[" << i << "] : " << tensor_name << "\n");
 
       auto type = RankedTensorType::get(
           weightShapes, FloatType::getF32(rewriter.getContext()));

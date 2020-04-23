@@ -1,4 +1,4 @@
-//===- TpuOpStats.cpp - Implementation of TPU Op Stats ---------===//
+//===- MakeConvIcToEven.cpp - make conv ic to even ------------------------===//
 //
 // Copyright 2019 The MLIR Authors.
 //
@@ -15,7 +15,7 @@
 // limitations under the License.
 // =============================================================================
 //
-// This file implements the TPU dialect OP Stats pass.
+// This file make conv ic to even.
 //
 //===----------------------------------------------------------------------===//
 
@@ -46,7 +46,8 @@ struct TpuRefactorOddIcConvPattern : public RewritePattern {
   PatternMatchResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
     auto convOp = cast<OpTy>(op);
-    LLVM_DEBUG(llvm::errs() << convOp.getOperationName() << ":" << getOpName(convOp)<< "\n";);
+    LLVM_DEBUG(llvm::errs() << convOp.getOperationName() << ":"
+                            << getOpName(convOp)<< "\n";);
 
     // auto shape = convOp.input()->getType().cast<TensorType>().getShape();//Refactor convOp
     int64_t inputSize;
@@ -84,7 +85,8 @@ struct TpuRefactorOddIcConvPattern : public RewritePattern {
       auto new_filter = std::make_shared<std::vector<int8_t> >(newFilterSize);
       int8_t* filterData = filter->data();
       int8_t* newFilter_data = new_filter->data();
-      LLVM_DEBUG(llvm::errs() << "Filter shape:(" << kn << ", " << kc << ", " << kh << ", " <<  kw << ")\n";);
+      LLVM_DEBUG(llvm::errs() << "Filter shape:(" << kn << ", " << kc
+                              << ", " << kh << ", " <<  kw << ")\n";);
       for(int n_counter = 0;  n_counter < kn; n_counter++)
         for(int h_counter = 0;  h_counter < kh; h_counter++)
           for(int w_counter = 0;  w_counter < kw; w_counter++)
@@ -110,7 +112,8 @@ struct TpuRefactorOddIcConvPattern : public RewritePattern {
       // input ic will remain the same, pad ic on weight and change shape for weight
       // auto type = RankedTensorType::get({in, new_ic, ih, iw}, IntegerType::get(8, rewriter.getContext()));
       // convOp.input()->setType(type);//rewrite inputShape
-      auto filterType = RankedTensorType::get({kn, new_ic, kh, kw}, IntegerType::get(8, (rewriter.getContext())));
+      auto filterType = RankedTensorType::get({kn, new_ic, kh, kw},
+                                 IntegerType::get(8, (rewriter.getContext())));
       convOp.filter()->setType(filterType);//rewrite inputShape
       convOp.setAttr("do_ic_alignment", rewriter.getBoolAttr(true));
       return matchSuccess();
@@ -122,7 +125,8 @@ struct TpuRefactorOddIcConvPattern : public RewritePattern {
 
 class RefactorOddIcConvPass : public FunctionPass<RefactorOddIcConvPass> {
 public:
-  explicit RefactorOddIcConvPass(llvm::raw_ostream &os = llvm::errs()) : os(os) {}
+  explicit RefactorOddIcConvPass(llvm::raw_ostream &os = llvm::errs())
+      : os(os) {}
 
   void runOnFunction() override {
     auto fn = getFunction();

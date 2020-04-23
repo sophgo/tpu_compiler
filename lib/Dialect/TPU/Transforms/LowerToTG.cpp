@@ -1,3 +1,24 @@
+//===- LowerToTG.cpp - lower to tg ----------------------------------------===//
+//
+// Copyright 2019 The MLIR Authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+// =============================================================================
+//
+// This file lower generic op to tg op.
+//
+//===----------------------------------------------------------------------===//
+
 #include "mlir/Dialect/TPU/TPUDialect.h"
 #include "mlir/Dialect/TPU/Passes.h"
 #include "mlir/Dialect/TPU/TPUOperationSupport.h"
@@ -64,20 +85,19 @@ Value* tpu::BroadcastMulOp::convertToTG() {
     // convolution. to put the scale tensor as multiplier rather than filter
     // and the multiplier is by nature per-channel.
     assert(getOpQuantParamType() == "RSHIFT_AND_M_I32");
-    assert( !isTensorNone(quant_rshift()) );
+    assert(!isTensorNone(quant_rshift()));
     auto newOp = OpBuilder(op).create<tpu::TG_INT8_BroadcastMulOp>(op->getLoc(),
         getResult()->getType(), ArrayRef<Value *>{operands},
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
   } else if (getOpQuant() == "BF16") {
-    assert( isTensorNone(quant_rshift()) );
+    assert(isTensorNone(quant_rshift()));
     auto newOp = OpBuilder(op).create<tpu::TG_BF16_BroadcastMulOp>(op->getLoc(),
         getResult()->getType(), ArrayRef<Value *>{operands},
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
   }
-  assert(false);
-  return nullptr;
+  llvm_unreachable("unsupported type");
 }
 
 Value* tpu::ConcatOp::convertToTG() {
@@ -133,8 +153,7 @@ Value* tpu::ConcatOp::convertToTG() {
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
   }
-  assert(false);
-  return nullptr;
+  llvm_unreachable("unsupported type");
 }
 
 Value* tpu::Conv2DOp::convertToTG() {
@@ -180,8 +199,7 @@ Value* tpu::Conv2DOp::convertToTG() {
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
   }
-  assert(false);
-  return nullptr;
+  llvm_unreachable("unsupported type");
 }
 
 Value* tpu::CropOp::convertToTG() {
@@ -241,8 +259,8 @@ Value* tpu::DeConv2DOp::convertToTG() {
     if (isOpQuantPerchannel()) {
       // per-channel, rshift and mulitplier are in weight .bin
       assert(getOpQuantParamType() == "RSHIFT_AND_M_I32");
-      auto newOp = OpBuilder(op).create<tpu::TG_INT8_PC_DeConv2DOp>(op->getLoc(),
-          getResult()->getType(), ArrayRef<Value *>{operands},
+      auto newOp = OpBuilder(op).create<tpu::TG_INT8_PC_DeConv2DOp>(
+          op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
           ArrayRef<NamedAttribute>{attrs});
      return newOp.getResult();
     } else {
@@ -253,8 +271,8 @@ Value* tpu::DeConv2DOp::convertToTG() {
       assert(rshift->size() == 1);
       attrs.push_back(builder.getNamedAttr("pt_rshift",
           builder.getI8IntegerAttr(static_cast<int8_t>(rshift->at(0)))));
-      auto newOp = OpBuilder(op).create<tpu::TG_INT8_PT_DeConv2DOp>(op->getLoc(),
-          getResult()->getType(), ArrayRef<Value *>{operands},
+      auto newOp = OpBuilder(op).create<tpu::TG_INT8_PT_DeConv2DOp>(
+          op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
           ArrayRef<NamedAttribute>{attrs});
       return newOp.getResult();
     }
@@ -264,8 +282,7 @@ Value* tpu::DeConv2DOp::convertToTG() {
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
   }
-  assert(false);
-  return nullptr;
+  llvm_unreachable("unsupported type");
 }
 
 Value* tpu::EltwiseAddOp::convertToTG() {
@@ -290,8 +307,10 @@ Value* tpu::EltwiseAddOp::convertToTG() {
   if (do_early_stride()) {
     attrs.push_back(builder.getNamedAttr("do_early_stride",
         builder.getBoolAttr(do_early_stride())));
-    attrs.push_back(builder.getNamedAttr("early_stride_h", early_stride_hAttr()));
-    attrs.push_back(builder.getNamedAttr("early_stride_w", early_stride_wAttr()));
+    attrs.push_back(builder.getNamedAttr("early_stride_h",
+                                         early_stride_hAttr()));
+    attrs.push_back(builder.getNamedAttr("early_stride_w",
+                                         early_stride_wAttr()));
   }
 
   if (getOpQuant() == "INT8") {
@@ -329,8 +348,7 @@ Value* tpu::EltwiseAddOp::convertToTG() {
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
   }
-  assert(false);
-  return nullptr;
+  llvm_unreachable("unsupported type");
 }
 
 Value* tpu::EltwiseMaxOp::convertToTG() {
@@ -386,8 +404,7 @@ Value* tpu::EltwiseMaxOp::convertToTG() {
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
   }
-  assert(false);
-  return nullptr;
+  llvm_unreachable("unsupported type");
 }
 
 Value* tpu::EltwiseMulOp::convertToTG() {
@@ -434,8 +451,7 @@ Value* tpu::EltwiseMulOp::convertToTG() {
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
   }
-  assert(false);
-  return nullptr;
+  llvm_unreachable("unsupported type");
 }
 
 Value *tpu::FullyConnectedOp::convertToTG() {
@@ -465,18 +481,17 @@ Value *tpu::FullyConnectedOp::convertToTG() {
         builder.getI8IntegerAttr(static_cast<int8_t>(rshift->at(0)))));
 
     // create op
-    auto newOp = OpBuilder(op).create<tpu::TG_INT8_FullyConnectedOp>(op->getLoc(),
-        getResult()->getType(), ArrayRef<Value *>{operands},
+    auto newOp = OpBuilder(op).create<tpu::TG_INT8_FullyConnectedOp>(
+        op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
   } else if (getOpQuant() == "BF16") {
-    auto newOp = OpBuilder(op).create<tpu::TG_BF16_FullyConnectedOp>(op->getLoc(),
-        getResult()->getType(), ArrayRef<Value *>{operands},
+    auto newOp = OpBuilder(op).create<tpu::TG_BF16_FullyConnectedOp>(
+        op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
   }
-  assert(false);
-  return nullptr;
+  llvm_unreachable("unsupported type");
 }
 /*
 Value* tpu::InputOp::convertToTG() {
@@ -540,8 +555,7 @@ Value *tpu::LrnOp::convertToTG() {
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
   }
-  assert(false);
-  return nullptr;
+  llvm_unreachable("unsupported type");
 }
 
 Value* tpu::LeakyReluOp::convertToTG() {
@@ -599,8 +613,7 @@ Value* tpu::LeakyReluOp::convertToTG() {
     return newOp.getResult();
   }
 
-  assert(false);
-  return nullptr;
+  llvm_unreachable("unsupported type");
 }
 
 Value* tpu::PermuteOp::convertToTG() {
@@ -631,8 +644,7 @@ Value* tpu::PermuteOp::convertToTG() {
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
   }
-  assert(false);
-  return nullptr;
+  llvm_unreachable("unsupported type");
 }
 
 Value* tpu::PoolAvg2DOp::convertToTG() {
@@ -675,8 +687,7 @@ Value* tpu::PoolAvg2DOp::convertToTG() {
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
   }
-  assert(false);
-  return nullptr;
+  llvm_unreachable("unsupported type");
 }
 
 Value* tpu::PoolMax2DOp::convertToTG() {
@@ -705,8 +716,7 @@ Value* tpu::PoolMax2DOp::convertToTG() {
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
   }
-  assert(false);
-  return nullptr;
+  llvm_unreachable("unsupported type");
 }
 
 Value* tpu::PowerOp::convertToTG() {
@@ -716,8 +726,7 @@ Value* tpu::PowerOp::convertToTG() {
   //auto builder = Builder(op->getContext());
   //  TensorFile *wTF = getWeightTensorFile(op);
 
-  assert(false);
-  return nullptr;
+  llvm_unreachable("unsupported type");
 }
 
 Value *tpu::PReluOp::convertToTG() {
@@ -764,8 +773,7 @@ Value *tpu::PReluOp::convertToTG() {
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
   }
-  assert(false);
-  return nullptr;
+  llvm_unreachable("unsupported type");
 }
 
 Value *tpu::ReciprocalOp::convertToTG() {
@@ -794,8 +802,7 @@ Value *tpu::ReciprocalOp::convertToTG() {
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
   }
-  assert(false);
-  return nullptr;
+  llvm_unreachable("unsupported type");
 }
 
 Value *tpu::ReluOp::convertToTG() {
@@ -823,8 +830,7 @@ Value *tpu::ReluOp::convertToTG() {
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
   }
-  assert(false);
-  return nullptr;
+  llvm_unreachable("unsupported type");
 }
 
 Value *tpu::ShuffleChannelOp::convertToTG() {
@@ -854,9 +860,7 @@ Value *tpu::ShuffleChannelOp::convertToTG() {
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
   }
-
-  assert(false);
-  return nullptr;
+  llvm_unreachable("unsupported type");
 }
 
 Value *tpu::SwapChannelOp::convertToTG() {
@@ -886,9 +890,7 @@ Value *tpu::SwapChannelOp::convertToTG() {
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
   }
-
-  assert(false);
-  return nullptr;
+  llvm_unreachable("unsupported type");
 }
 
 Value *tpu::PixelShuffleOp::convertToTG() {
@@ -918,9 +920,7 @@ Value *tpu::PixelShuffleOp::convertToTG() {
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
   }
-
-  assert(false);
-  return nullptr;
+  llvm_unreachable("unsupported type");
 }
 
 Value *tpu::ClipOp::convertToTG() {
@@ -951,9 +951,7 @@ Value *tpu::ClipOp::convertToTG() {
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
   }
-
-  assert(false);
-  return nullptr;
+  llvm_unreachable("unsupported type");
 }
 
 Value *tpu::SigmoidOp::convertToTG() {
@@ -981,8 +979,7 @@ Value *tpu::SigmoidOp::convertToTG() {
   } else if (getOpQuant() == "BF16") {
     assert(false && "TODO");
   }
-  assert(false);
-  return nullptr;
+  llvm_unreachable("unsupported type");
 }
 
 Value* tpu::SliceOp::convertToTG() {
@@ -1014,8 +1011,7 @@ Value* tpu::SliceOp::convertToTG() {
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
   }
-  assert(false);
-  return nullptr;
+  llvm_unreachable("unsupported type");
 }
 
 Value *tpu::SqrtOp::convertToTG() {
@@ -1046,8 +1042,7 @@ Value *tpu::SqrtOp::convertToTG() {
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
   }
-  assert(false);
-  return nullptr;
+  llvm_unreachable("unsupported type");
 }
 
 Value* tpu::TanHOp::convertToTG() {
@@ -1057,8 +1052,7 @@ Value* tpu::TanHOp::convertToTG() {
   //auto builder = Builder(op->getContext());
   //  TensorFile *wTF = getWeightTensorFile(op);
 
-  assert(false);
-  return nullptr;
+  llvm_unreachable("unsupported type");
 }
 
 Value* tpu::UpsampleOp::convertToTG() {
@@ -1088,8 +1082,7 @@ Value* tpu::UpsampleOp::convertToTG() {
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
   }
-  assert(false);
-  return nullptr;
+  llvm_unreachable("unsupported type");
 }
 
 template<typename OpTy>
@@ -1216,7 +1209,8 @@ struct PackWeightConv2DOpPattern : public RewritePattern {
     }
     assert( !isTensorNone(convOp.quant_rshift()) );
     assert( !isTensorNone(convOp.quant_multiplier()) );
-    LLVM_DEBUG(llvm::errs() << "Pack Weight for Conv2D: " << getOpName(op) << "\n";);
+    LLVM_DEBUG(llvm::errs() << "Pack Weight for Conv2D: "
+                            << getOpName(op) << "\n";);
     TensorFile *wTF = getWeightTensorFile(op);
     Value *wfV = getWeightFileValue(op);
 
@@ -1300,7 +1294,8 @@ struct PackWeightBroadcastMulOpPattern : public RewritePattern {
     assert(getOpQuantParamType(op) == "RSHIFT_AND_M_I32");
     assert( !isTensorNone(castOp.quant_rshift()) );
     assert( !isTensorNone(castOp.quant_multiplier()) );
-    LLVM_DEBUG(llvm::errs() << "Pack Weight for BroadcastMul: " << getOpName(op) << "\n";);
+    LLVM_DEBUG(llvm::errs() << "Pack Weight for BroadcastMul: "
+                            << getOpName(op) << "\n";);
     TensorFile *wTF = getWeightTensorFile(op);
 
     // get param
@@ -1351,7 +1346,7 @@ static void transposeConvolutionFilter(std::vector<T> &w,
     ic = s[2];
     ks = s[3] * s[4];
   } else {
-    assert(false);
+    llvm_unreachable("unsupported shape size");
   }
 
   std::vector<T> w_t(w.size());
@@ -1410,7 +1405,8 @@ struct LowerWeightConv2DOpPattern : public RewritePattern {
       // lowered already
       return matchFailure();
     }
-    LLVM_DEBUG(llvm::errs() << "Lower Weight for Conv2D: " << getOpName(op) << "\n";);
+    LLVM_DEBUG(llvm::errs() << "Lower Weight for Conv2D: "
+                            << getOpName(op) << "\n";);
     TensorFile *wTF = getWeightTensorFile(op);
 
     if (getOpQuant(op) == "INT8") {
@@ -1444,8 +1440,8 @@ struct LowerWeightConv2DOpPattern : public RewritePattern {
         } else if (isOpQuantPerchannel(op)) {
           // per-channel mode, bias is INT32
           assert(biasOp.storage() == "INT32");
-          assert(false && "REMINDER: NOT sure if per-channel bias needs transpose");
-
+          llvm_unreachable("REMINDER: NOT sure if per-channel bias"
+                           "needs transpose");
           // TODO:
 
           // save it
@@ -1547,7 +1543,8 @@ struct LowerWeightFullyConnectedOpPattern : public RewritePattern {
       // lowered already
       return matchFailure();
     }
-    LLVM_DEBUG(llvm::errs() << "Lower Weight for FullyConnectedOp: " << getOpName(op) << "\n";);
+    LLVM_DEBUG(llvm::errs() << "Lower Weight for FullyConnectedOp: "
+                            << getOpName(op) << "\n";);
     TensorFile *wTF = getWeightTensorFile(op);
 
     if (getOpQuant(op) == "INT8") {
@@ -1662,7 +1659,8 @@ struct LowerWeightPReluOpPattern : public RewritePattern {
       // lowered already
       return matchFailure();
     }
-    LLVM_DEBUG(llvm::errs() << "Lower Weight for PReluOp: " << getOpName(op) << "\n";);
+    LLVM_DEBUG(llvm::errs() << "Lower Weight for PReluOp: "
+                            << getOpName(op) << "\n";);
     TensorFile *wTF = getWeightTensorFile(op);
 
     if (getOpQuant(op) == "INT8") {
@@ -1683,7 +1681,7 @@ struct LowerWeightPReluOpPattern : public RewritePattern {
     } else if (getOpQuant(op) == "BF16") {
       // lower filter
       {
-        assert(false && "TODO BF16");
+        llvm_unreachable("TODO BF16");
       }
     }
     return matchSuccess();
@@ -1703,7 +1701,8 @@ struct LowerWeightDetectionOutputOpPattern : public RewritePattern {
       // lowered already
       return matchFailure();
     }
-    LLVM_DEBUG(llvm::errs() << "Lower Weight for DetectionOutputOp: " << getOpName(op) << "\n";);
+    LLVM_DEBUG(llvm::errs() << "Lower Weight for DetectionOutputOp: "
+                            << getOpName(op) << "\n";);
     weightOp.setAttr("lowered", rewriter.getBoolAttr(true));
     return matchSuccess();
   }
@@ -1768,7 +1767,8 @@ struct LowerWeightLutOpPattern : public RewritePattern {
       // lowered already
       return matchFailure();
     }
-    LLVM_DEBUG(llvm::errs() << "Lower Weight for lutOp: " << getOpName(op) << "\n";);
+    LLVM_DEBUG(llvm::errs() << "Lower Weight for lutOp: "
+                            << getOpName(op) << "\n";);
     TensorFile *wTF = getWeightTensorFile(op);
 
     if (getOpQuant(op) == "INT8") {
@@ -1803,9 +1803,11 @@ struct LowerWeightLutOpPattern : public RewritePattern {
         int64_t size;
         getTensorShapeAndSize(lutOp.table(), shape, size);
         auto table = readAndDeleteWeightTensor<float>(tableOp, wTF);
-        auto table_mantissa = readAndDeleteWeightTensor<float>(table_mantissaOp, wTF);
+        auto table_mantissa = readAndDeleteWeightTensor<float>(table_mantissaOp,
+                                                               wTF);
         std::vector<uint16_t> table_uint16(table->begin(), table->end());
-        std::vector<uint16_t> table_mantissa_uint16(table_mantissa->begin(), table_mantissa->end());
+        std::vector<uint16_t> table_mantissa_uint16(table_mantissa->begin(),
+                                                    table_mantissa->end());
         // 1880 support 256 lookup table
         // because of 1880 hardware search table only on each local memory
         // we dupicate table to limit number <32>
@@ -1817,7 +1819,8 @@ struct LowerWeightLutOpPattern : public RewritePattern {
             tableOp, "lowered", table_uint16, shape, "UINT16", wTF);
         tableOp.setAttr("lowered", rewriter.getBoolAttr(true));
         addWeightTensorAndUpdateWeightOp<uint16_t>(
-            table_mantissaOp, "lowered", table_mantissa_uint16, shape, "UINT16", wTF);
+            table_mantissaOp, "lowered", table_mantissa_uint16,
+            shape, "UINT16", wTF);
         table_mantissaOp.setAttr("lowered", rewriter.getBoolAttr(true));
     }
 
@@ -1915,8 +1918,8 @@ public:
                  || isa<tpu::YoloDetectionOp>(op)) {
         // no need to lower
       } else {
-        llvm::errs() << "lower didn't handle " << op->getName() << "\n";
-        assert(false);
+        std::string opName = op->getName().getStringRef();
+        llvm_unreachable(("lower didn't handle " + opName).c_str());
       }
     });
 

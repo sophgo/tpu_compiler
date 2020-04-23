@@ -1,4 +1,4 @@
-//===- TpuOpStats.cpp - Implementation of TPU Op Stats ---------===//
+//===- ConvertConv2D.cpp - convert Conv2D----------------------------------===//
 //
 // Copyright 2019 The MLIR Authors.
 //
@@ -15,7 +15,7 @@
 // limitations under the License.
 // =============================================================================
 //
-// This file implements the TPU dialect OP Stats pass.
+// This file implements the conversion of Conv2D.
 //
 //===----------------------------------------------------------------------===//
 
@@ -68,14 +68,14 @@ struct TpuMergeSwapChannelToConv2DPattern : public RewritePattern {
     Value *wfV = getWeightFileValue(op);
 
     // find filter and bias tensor for conv op
-    assert(convOp.getNumOperands() == 7);
+    assert(convOp.getNumOperands() == 7 && "Conv2D op should have 7 operands");
     std::unique_ptr<std::vector<float>> convWeights;
     auto filter_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
         convOp.getOperand(1)->getDefiningOp());
     if (!filter_op) {
       return matchFailure();
     }
-    assert(filter_op.name().hasValue());
+    assert(filter_op.name().hasValue() && "filter op should have name");
     auto filter_name = filter_op.name().getValue();
     auto filter_type = filter_op.getResult()->getType().cast<TensorType>();
     convWeights = wTF->readTensor<float>(filter_name, filter_type);
@@ -86,10 +86,11 @@ struct TpuMergeSwapChannelToConv2DPattern : public RewritePattern {
     int64_t filter_size =
         std::accumulate(std::begin(filter_shape), std::end(filter_shape), 1,
                         std::multiplies<>());
-    assert(filter_size == (int64_t)convWeights->size());
+    assert(filter_size == (int64_t)convWeights->size() &&
+           "filter size should be equal");
     int64_t oc, ic, frame_size;
     int64_t index = filter_shape.size();
-    assert(index == 4 || index == 5);
+    assert((index == 4 || index == 5) && "filter shape size should be 4 or 5");
     frame_size = filter_shape[index - 1] * filter_shape[index - 2];
     ic = filter_shape[index - 3];
     oc = filter_shape[index - 4];

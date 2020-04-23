@@ -1,4 +1,4 @@
-//===- TpuOpStats.cpp - Implementation of TPU Op Stats ---------===//
+//===- AssignWeightAddress.cpp - assigned weight address ------------------===//
 //
 // Copyright 2019 The MLIR Authors.
 //
@@ -15,7 +15,7 @@
 // limitations under the License.
 // =============================================================================
 //
-// This file implements the TPU dialect OP Stats pass.
+// This file is used to assign address to weight
 //
 //===----------------------------------------------------------------------===//
 
@@ -69,7 +69,7 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
     LLVM_DEBUG(llvm::errs() << "tensor name " << tensor_name << "\n";);
 
     auto type = weightOp.getResult()->getType().cast<TensorType>();
-    assert(weightOp.lowered());
+    assert(weightOp.lowered() && "weight op should be set lowered");
     auto curPos = weightBinaryFile_->tell();
     size_t size = 0;
     if (weightOp.storage() == "INT8") {
@@ -85,8 +85,9 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
           weight_int8.push_back(-128); // assign a special value for debugging
         }
       }
-      weightBinaryFile_->write(reinterpret_cast<const char*>(weight_int8.data()),
-          weight_int8.size() * sizeof(int8_t));
+      auto weightData = reinterpret_cast<const char*>(weight_int8.data());
+      weightBinaryFile_->write(weightData, weight_int8.size() *
+                               sizeof(int8_t));
     } else if (weightOp.storage() == "UINT8") {
       // UINT8 is used for packed per-channel info or LUT table
       std::vector<uint8_t> weight_uint8;
@@ -101,12 +102,13 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
           weight_uint8.push_back(0xff); // assign a special value for debugging
         }
       }
-      weightBinaryFile_->write(reinterpret_cast<const char*>(weight_uint8.data()),
-          weight_uint8.size() * sizeof(uint8_t));
+      auto weightData = reinterpret_cast<const char*>(weight_uint8.data());
+      weightBinaryFile_->write(weightData, weight_uint8.size() *
+                               sizeof(uint8_t));
     } else if (weightOp.storage() == "INT16") {
       // INT16 is used for bias in INT8 per-tensor mode
       // after lowering, this should be UINT16 already
-      assert (false);
+      llvm_unreachable("unsupported type");
     } else if (weightOp.storage() == "UINT16") {
       // this is NOT BF16 (BF16 uses `BF16` directly)
       // this is for lowered and transposed INT16 bias
@@ -120,7 +122,8 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
         size_t remain = (weight_uint16.size() * sizeof(uint16_t)) % alignment_;
         size_t pad = (alignment_ - remain) / sizeof(uint16_t);
         for (size_t i = 0; i < pad; ++i) {
-          weight_uint16.push_back(0xffff); // assign a special value for debugging
+          // assign a special value for debugging
+          weight_uint16.push_back(0xffff);
         }
       }
       weightBinaryFile_->write(
@@ -137,11 +140,13 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
         size_t remain = (weight_bf16.size() * sizeof(uint16_t)) % alignment_;
         size_t pad = (alignment_ - remain) / sizeof(uint16_t);
         for (size_t i = 0; i < pad; ++i) {
-          weight_bf16.push_back(0xffff); // assign a special value for debugging
+          // assign a special value for debugging
+          weight_bf16.push_back(0xffff);
         }
       }
-      weightBinaryFile_->write(reinterpret_cast<const char*>(weight_bf16.data()),
-          weight_bf16.size() * sizeof(uint16_t));
+      auto weightData = reinterpret_cast<const char*>(weight_bf16.data());
+      weightBinaryFile_->write(weightData, weight_bf16.size() *
+                               sizeof(uint16_t));
     } else if (weightOp.storage() == "UINT32") {
       // UINT32 is for lowered Conv Bias
       // 1. Per-Channel (no mulitplier) Conv Bias is supposed to be INT32
@@ -160,11 +165,13 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
         size_t remain = (weight_uint32.size() * sizeof(uint32_t)) % alignment_;
         size_t pad = (alignment_ - remain) / sizeof(uint32_t);
         for (size_t i = 0; i < pad; ++i) {
-          weight_uint32.push_back(0xffffffff); // assign a special value for debugging
+          // assign a special value for debugging
+          weight_uint32.push_back(0xffffffff);
         }
       }
-      weightBinaryFile_->write(reinterpret_cast<const char*>(weight_uint32.data()),
-          weight_uint32.size() * sizeof(uint32_t));
+      auto weightData = reinterpret_cast<const char*>(weight_uint32.data());
+      weightBinaryFile_->write(weightData, weight_uint32.size() *
+                               sizeof(uint32_t));
     } else if (weightOp.storage() == "FP32") {
       std::vector<float> weight_fp32;
       auto weight = wTF->readTensor<float>(tensor_name, type);
@@ -176,11 +183,12 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
         size_t remain = (weight_fp32.size() * sizeof(float)) % alignment_;
         size_t pad = (alignment_ - remain) / sizeof(float);
         for (size_t i = 0; i < pad; ++i) {
-          weight_fp32.push_back(0xffffffff); // assign a special value for debugging
+          // assign a special value for debugging
+          weight_fp32.push_back(0xffffffff);
         }
       }
-      weightBinaryFile_->write(reinterpret_cast<const char*>(weight_fp32.data()),
-          weight_fp32.size() * sizeof(float));
+      auto weightData = reinterpret_cast<const char*>(weight_fp32.data());
+      weightBinaryFile_->write(weightData, weight_fp32.size() * sizeof(float));
     } else if (weightOp.storage() == "NONE") {
       return matchSuccess();
     } else {
@@ -263,7 +271,7 @@ public:
     }
     // create a bin file
     std::error_code ec;
-    assert(clWeightBinFilename != "-");
+    assert((clWeightBinFilename != "-") && "no weight bin file specified");
     llvm::raw_fd_ostream weightBinaryFile(clWeightBinFilename, ec);
 
     // create a map file

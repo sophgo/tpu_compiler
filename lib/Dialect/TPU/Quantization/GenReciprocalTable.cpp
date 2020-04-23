@@ -199,11 +199,11 @@ struct TpuGenReciprocalTablePattern : public RewritePattern {
       }
     }
   }else if(reciprocalOp.getOpQuant() == "BF16"){
-    llvm::errs() << " op name: " << reciprocalOp.name()
-                      << "gen BF16 sqrt table." << "\n";
+    LLVM_DEBUG(llvm::errs() << " op name: " << reciprocalOp.name()
+                            << "gen BF16 sqrt table." << "\n");
     bf16_gen_reciprocal(table_data_lut_bf16.data());
-    llvm::errs() << " op name: " << reciprocalOp.name()
-                      << "gen BF16 sqrt mantissa table." << "\n";
+    LLVM_DEBUG(llvm::errs() << " op name: " << reciprocalOp.name()
+                            << "gen BF16 sqrt mantissa table." << "\n");
 
     bf16_gen_reciprocal_mantissa(table_data_mantissa_lut_bf16.data());
 
@@ -250,7 +250,7 @@ struct TpuGenReciprocalTablePattern : public RewritePattern {
 
     for (int i = 0; i < 2; ++i) {
       auto tensor_name = op_name + "_gen_weight_" + std::to_string(i);
-      llvm::errs() << "  new_weight[" << i << "] : " << tensor_name << "\n";
+      LLVM_DEBUG(llvm::errs() << "  new_weight[" << i << "] : " << tensor_name << "\n");
 
       auto type = RankedTensorType::get(
           weightShapes, FloatType::getF32(rewriter.getContext()));

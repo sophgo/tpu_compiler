@@ -1,4 +1,4 @@
-//===- TpuOpStats.cpp - Implementation of TPU Op Stats ---------===//
+//===- AssignNeuronAddress.cpp - assigned neuron address ------------------===//
 //
 // Copyright 2019 The MLIR Authors.
 //
@@ -15,7 +15,7 @@
 // limitations under the License.
 // =============================================================================
 //
-// This file implements the TPU dialect OP Stats pass.
+// This file assined neuron address
 //
 //===----------------------------------------------------------------------===//
 
@@ -79,7 +79,7 @@ struct AssignGAddrPattern : public RewritePattern {
       dtype_size = sizeof(uint16_t);
       dtype = "uint16";
     } else {
-      assert(false);
+      llvm_unreachable("unsupported data type");
     }
 
     size_t size = count * dtype_size;
@@ -135,7 +135,7 @@ template <typename OpTy> struct TpuSliceAddressPattern : public RewritePattern {
     int axis = castOp.axis().getLimitedValue();
     int offset = castOp.offset().getLimitedValue();
 
-    assert(axis == 1);
+    assert((axis == 1) && "axis should be 1");
     size_t dtype_bytes;
     std::string dtype;
     if (isa<tpu::TG_INT8_SliceOp>(op)) {
@@ -145,7 +145,7 @@ template <typename OpTy> struct TpuSliceAddressPattern : public RewritePattern {
       dtype_bytes = 2;
       dtype = "uint16";
     } else {
-      assert(0);
+      llvm_unreachable("unhandled op");
     }
 
     std::vector<int64_t> input_shape = getTensorShape(castOp.input());

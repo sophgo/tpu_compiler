@@ -1,15 +1,27 @@
+//===- buildCviModel.h - class for cvimodel ---*- C++ -*-===//
+//
+// Copyright 2019 The MLIR Authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+// =============================================================================
+//
+// This header file defines class needed to generate cvimodel.
+//
+//===----------------------------------------------------------------------===//
+
 #ifndef MIR_DIALECT_TPU_BUILD_CVIMODEL_H
 #define MIR_DIALECT_TPU_BUILD_CVIMODEL_H
 
-#include <chrono>
-#include <iomanip>
-#include <ctime>
-#include <string>
-#include <map>
-#include <vector>
-#include <utility>
-#include <sstream>
-#include <openssl/md5.h>
 #include "cvibuilder/cvimodel_generated.h"
 #include "cvibuilder/softmax_generated.h"
 #include "cvibuilder/quantization_generated.h"
@@ -27,6 +39,15 @@
 #include "mlir/IR/Value.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/CommandLine.h"
+#include <chrono>
+#include <iomanip>
+#include <ctime>
+#include <string>
+#include <map>
+#include <vector>
+#include <utility>
+#include <sstream>
+#include <openssl/md5.h>
 
 #ifdef __unix__
 #include <dirent.h>
@@ -36,6 +57,8 @@
 
 using namespace mlir;
 using namespace cvi::model;
+using FlatStrVecOffset = flatbuffers::Offset<flatbuffers::Vector<
+                         flatbuffers::Offset<flatbuffers::String>>>;
 //  Version shall be in schema
 #define MAJOR_VER  1
 #define MIN_VER  0
@@ -59,7 +82,7 @@ typedef struct{
   float min_value;
   float zero_point;
   float qscale;
-}CviQuantInfo;
+} CviQuantInfo;
 
 typedef struct {
   std::string name;
@@ -67,7 +90,7 @@ typedef struct {
   size_t size;
   size_t shape[4];
   DType dtype;
-}CviWeight;
+} CviWeight;
 
 typedef struct {
   size_t tensor_id;
@@ -90,24 +113,57 @@ class CviMlirParser {
     void insertTensorMap(Operation *op);
     void insertWeightMap(Operation *op);
 
-    size_t getBatchNum() {return batchNum_;}
-    std::string getModelName() {return modelName_;}
-    int getTpuNumRoutine() {return tpuOpsVec_.size();}
-    int getCpuNumRoutine() {return cpuInputTensorName_.size();}
-    std::string getCpuLibPath() {return cpuLibPath_;}
-    std::string getWeightBinFileName() {return weightBinFileName_;}
-    std::string getTpuFuncName() {return tpuFuncName_;}
-    std::vector<uint8_t> getCmdBuf() {return cmdBuf_;}
-    std::vector<std::pair<std::string, CviTensor>>& getTensorPairs() {return tensorPairs_;}
-    std::map<std::string, CviWeight>& getWeightMap() {return weightMap_;}
-    std::vector<std::string>& getTpuInputTensorName(int tpuIndex = 0) {return tpuInputTensorName_[tpuIndex];}
-    std::vector<std::string>& getTpuOutputTensorName(int tpuIndex = 0) {return tpuOutputTensorName_[tpuIndex];}
-    std::vector<std::string>& getCpuInputTensorName(int cpuIndex = 0) {return cpuInputTensorName_[cpuIndex];}
-    std::vector<std::string>& getCpuOutputTensorName(int cpuIndex = 0) {return cpuOutputTensorName_[cpuIndex];}
-    std::vector<std::string>& getProgramInTensorName() {return programInTensorName_;}
-    std::vector<std::string>& getProgramOutTensorName() {return programOutTensorName_;}
-    std::vector<FuncOp> getCpuFunc() {return cpuFunc_;}
-    std::vector<std::vector<Operation *>> getTpuOpsVec() {return tpuOpsVec_;}
+    size_t getBatchNum() { return batchNum_; }
+
+    std::string getModelName() { return modelName_; }
+
+    int getTpuNumRoutine() { return tpuOpsVec_.size(); }
+
+    int getCpuNumRoutine() { return cpuInputTensorName_.size(); }
+
+    std::string getCpuLibPath() { return cpuLibPath_;}
+
+    std::string getWeightBinFileName() {return weightBinFileName_; }
+
+    std::string getTpuFuncName() { return tpuFuncName_; }
+
+    std::vector<uint8_t> getCmdBuf() { return cmdBuf_; }
+
+    std::map<std::string, CviWeight>& getWeightMap() { return weightMap_; }
+
+    std::vector<FuncOp> getCpuFunc() { return cpuFunc_; }
+
+    std::vector<std::vector<Operation *>> getTpuOpsVec() {
+      return tpuOpsVec_;
+    }
+
+    std::vector<std::pair<std::string, CviTensor>>& getTensorPairs() {
+      return tensorPairs_;
+    }
+
+    std::vector<std::string>& getTpuInputTensorName(int tpuIndex = 0){
+      return tpuInputTensorName_[tpuIndex];
+    }
+
+    std::vector<std::string>& getTpuOutputTensorName(int tpuIndex = 0) {
+      return tpuOutputTensorName_[tpuIndex];
+    }
+
+    std::vector<std::string>& getCpuInputTensorName(int cpuIndex = 0) {
+      return cpuInputTensorName_[cpuIndex];
+    }
+
+    std::vector<std::string>& getCpuOutputTensorName(int cpuIndex = 0) {
+      return cpuOutputTensorName_[cpuIndex];
+    }
+
+    std::vector<std::string>& getProgramInTensorName() {
+      return programInTensorName_;
+    }
+
+    std::vector<std::string>& getProgramOutTensorName() {
+      return programOutTensorName_;
+    }
 
     void setCmdBuf(std::vector<uint8_t> &cmdBuf) {
        cmdBuf_ = cmdBuf;
@@ -134,16 +190,18 @@ class CviMlirParser {
 
 class CviRoutine {
   public :
-     CviRoutine(flatbuffers::FlatBufferBuilder *flatBuilder, CviMlirParser *parser) :
-                flatBuilder_(flatBuilder), parser_(parser){}
+     CviRoutine(flatbuffers::FlatBufferBuilder *flatBuilder,
+                CviMlirParser *parser)
+                : flatBuilder_(flatBuilder), parser_(parser){}
     flatbuffers::FlatBufferBuilder *flatBuilder_;
     CviMlirParser *parser_;
 };
 
 class CviTpuRoutine : public CviRoutine {
   public :
-    CviTpuRoutine(flatbuffers::FlatBufferBuilder *flatBuilder, CviMlirParser *parser, int tpuIndex) :
-                  CviRoutine(flatBuilder, parser), tpuIndex_(tpuIndex){}
+    CviTpuRoutine(flatbuffers::FlatBufferBuilder *flatBuilder,
+                  CviMlirParser *parser, int tpuIndex)
+                  : CviRoutine(flatBuilder, parser), tpuIndex_(tpuIndex) {}
     flatbuffers::Offset<Routine> buildTpuRoutine();
   private :
     int tpuIndex_;
@@ -151,16 +209,12 @@ class CviTpuRoutine : public CviRoutine {
 
 class CviCpuRoutine : public CviRoutine {
   public :
-    CviCpuRoutine(flatbuffers::FlatBufferBuilder *flatBuilder, CviMlirParser *parser, Operation *op) :
-                  CviRoutine(flatBuilder, parser), op_(op){}
+    CviCpuRoutine(flatbuffers::FlatBufferBuilder *flatBuilder,
+                  CviMlirParser *parser, Operation *op)
+                  : CviRoutine(flatBuilder, parser), op_(op) {}
     flatbuffers::Offset<Routine> buildCpuRoutine();
     void setInputOutputNames();
     std::vector<uint8_t> cpuOpSerialize();
-    std::vector<uint8_t> getSerializedata();
-    std::vector<uint8_t> softmaxArgSerialize();
-    std::vector<uint8_t> detectionOutputArgSerialize();
-    std::vector<uint8_t> quantArgSerialize();
-
   private :
     Operation *op_;
     std::vector<std::string> inputTensorNames_;
@@ -168,14 +222,16 @@ class CviCpuRoutine : public CviRoutine {
 };
 
 class CviProgram {
+  using FlatTensorVecOffset = flatbuffers::Offset<flatbuffers::Vector<
+                              flatbuffers::Offset<Tensor>>>;
   public :
-    CviProgram(CviMlirParser *parser, flatbuffers::FlatBufferBuilder *flatBuilder) :
-               parser_(parser), flatBuilder_(flatBuilder) {}
-    void buildNeuronMap(flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<Tensor>>> &flatTensorMap,
+    CviProgram(CviMlirParser *parser,
+               flatbuffers::FlatBufferBuilder *flatBuilder)
+               : parser_(parser), flatBuilder_(flatBuilder) {}
+    void buildNeuronMap(FlatTensorVecOffset &flatTensorMap,
                         long &allocatedGmem);
-    void buildInputsOutputs(
-         flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<flatbuffers::String>>> &flatInputTensors,
-         flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<flatbuffers::String>>> &flatOutputTensors);
+    void buildInputsOutputs(FlatStrVecOffset& flatInputTensors,
+                            FlatStrVecOffset &flatOutputTensors);
     flatbuffers::Offset<Program> build();
     void buildRoutines();
     void splitCpuRoutines(FuncOp &fn);
@@ -187,12 +243,18 @@ class CviProgram {
 };
 
 class CviModel {
+  using FlatWeightVecOffset = flatbuffers::Offset<flatbuffers::Vector<
+                                            flatbuffers::Offset<Weight>>>;
+  using FlatSectionVecOffset = flatbuffers::Offset<flatbuffers::Vector<
+                                             flatbuffers::Offset<Section>>>;
   public :
-    CviModel(CviMlirParser *parser, flatbuffers::FlatBufferBuilder *flatBuilder) :
-             program_(parser, flatBuilder), parser_(parser), flatBuilder_(flatBuilder) {}
+    CviModel(CviMlirParser *parser,
+             flatbuffers::FlatBufferBuilder *flatBuilder)
+             : program_(parser, flatBuilder), parser_(parser),
+               flatBuilder_(flatBuilder) {}
     void storeModel(llvm::raw_ostream &output);
-    void buildWeightMap(flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<Weight>>> &flatWeightMap);
-    flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<Section>>> buildSections();
+    void buildWeightMap(FlatWeightVecOffset &flatWeightMap);
+    FlatSectionVecOffset buildSections();
     flatbuffers::Offset<Model> build();
     void dataEncrypt(std::vector<uint8_t> &totalBin, uint8_t* resData);
 
@@ -202,4 +264,4 @@ class CviModel {
     flatbuffers::FlatBufferBuilder *flatBuilder_;
 };
 
-#endif // MIR_DIALECT_TPU_BUILD_CVIMODEL_H
+#endif // MIR_DIALECT_TPU_BUILD_CVIMODEL_

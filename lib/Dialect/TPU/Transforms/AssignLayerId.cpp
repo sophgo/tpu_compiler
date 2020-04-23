@@ -59,7 +59,8 @@ public:
           || isa<tpu::NoneOp>(op)) {
         // no need to assign
       } else if ( !failed(setOpLayerId(op, layer_id)) ) {
-        LLVM_DEBUG(llvm::errs() << " layer_id: " << llvm::format("%04d", layer_id)
+        LLVM_DEBUG(llvm::errs() << " layer_id: "
+                                << llvm::format("%04d", layer_id)
                                 << " -> " << mlir::getOpName(op)
                                 << " : " << op->getName() << "\n";);
         layer_id ++;

@@ -1,4 +1,4 @@
-//===- TpuOpStats.cpp - Implementation of TPU Op Stats ---------===//
+//===- ConvertScale.cpp - convert scale -----------------------------------===//
 //
 // Copyright 2019 The MLIR Authors.
 //
@@ -15,7 +15,7 @@
 // limitations under the License.
 // =============================================================================
 //
-// This file implements the TPU dialect OP Stats pass.
+// This file implements the conversion of scale.
 //
 //===----------------------------------------------------------------------===//
 
@@ -60,15 +60,18 @@ struct TpuFoldScalePattern : public RewritePattern {
     if (!isa<tpu::ScaleOp>(formerOp))
       return matchFailure();
     if (clSkipMultiUsedScaleOp && !formerOp->getResult(0)->hasOneUse()) {
-      std::string op_name = formerOp->getAttrOfType<StringAttr>("name").getValue().str();
-      LLVM_DEBUG(llvm::errs() << "Some one need to use Scale Op: " << op_name << ", not remove it\n";);
+      auto nameAttr = formerOp->getAttrOfType<StringAttr>("name");
+      std::string op_name = nameAttr.getValue().str();
+      LLVM_DEBUG(llvm::errs() << "Some one need to use Scale Op: "
+                              << op_name << ", not remove it\n";);
       return matchFailure();
     }
 
     auto formerScaleOp = cast<tpu::ScaleOp>(formerOp);
 
     // op_name from the later scale
-    std::string op_name = laterScaleOp.getAttrOfType<StringAttr>("name").getValue().str();
+    auto nameAttr = laterScaleOp.getAttrOfType<StringAttr>("name");
+    std::string op_name = nameAttr.getValue().str();
     LLVM_DEBUG(llvm::errs() << "Scale Op: " << op_name << "\n";);
 
     // find scale and bias tensor for both later and former scale_op
@@ -76,10 +79,11 @@ struct TpuFoldScalePattern : public RewritePattern {
     for (int i = 0; i < 2; ++i) {
       auto weight_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
           laterScaleOp.getOperand(i + 1)->getDefiningOp());
-      assert(weight_op);
-      assert(weight_op.name().hasValue());
+      assert(weight_op && "weight op should be exist");
+      assert(weight_op.name().hasValue() && "weight op should have name");
       auto tensor_name = weight_op.name().getValue();
-      LLVM_DEBUG(llvm::errs() << "  weight[" << i << "] : " << tensor_name << "\n";);
+      LLVM_DEBUG(llvm::errs() << "  weight[" << i << "] : "
+                              << tensor_name << "\n";);
       auto type = weight_op.getResult()->getType().cast<TensorType>();
       laterWeights[i] = wTF->readTensor<float>(tensor_name, type);
       // delete the tensor from the weight file
@@ -89,10 +93,11 @@ struct TpuFoldScalePattern : public RewritePattern {
     for (int i = 0; i < 2; ++i) {
       auto weight_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
           formerScaleOp.getOperand(i + 1)->getDefiningOp());
-      assert(weight_op);
-      assert(weight_op.name().hasValue());
+      assert(weight_op && "weight op should be exist");
+      assert(weight_op.name().hasValue() && "weight op should have name");
       auto tensor_name = weight_op.name().getValue();
-      LLVM_DEBUG(llvm::errs() << "  weight[" << i << "] : " << tensor_name << "\n";);
+      LLVM_DEBUG(llvm::errs() << "  weight[" << i << "] : "
+                              << tensor_name << "\n";);
       auto type = weight_op.getResult()->getType().cast<TensorType>();
       formerWeights[i] = wTF->readTensor<float>(tensor_name, type);
       // delete the tensor from the weight file
@@ -101,10 +106,14 @@ struct TpuFoldScalePattern : public RewritePattern {
 
     // convert tensors
     LLVM_DEBUG(
-        llvm::errs() << "  former scale size: " << formerWeights[0]->size() << "\n"
-                     << "  former bias size: " << formerWeights[1]->size() << "\n"
-                     << "  later scale size: " << laterWeights[0]->size() << "\n"
-                     << "  later bias size: " << laterWeights[1]->size() << "\n";);
+        llvm::errs() << "  former scale size: "
+                     << formerWeights[0]->size() << "\n"
+                     << "  former bias size: "
+                     << formerWeights[1]->size() << "\n"
+                     << "  later scale size: "
+                     << laterWeights[0]->size() << "\n"
+                     << "  later bias size: "
+                     << laterWeights[1]->size() << "\n";);
     int oc = (int)formerWeights[0]->size();
     std::vector<float> new_scale(oc);
     std::vector<float> new_bias(oc);
@@ -125,11 +134,14 @@ struct TpuFoldScalePattern : public RewritePattern {
     // add new scale and bias ops
     for (int i = 0; i < 2; ++i) {
       auto tensor_name = op_name + "_fold_" + std::to_string(i);
-      LLVM_DEBUG(llvm::errs() << "  new_weight[" << i << "] : " << tensor_name << "\n";);
-      auto type = RankedTensorType::get({oc}, FloatType::getF32(rewriter.getContext()));
+      LLVM_DEBUG(llvm::errs() << "  new_weight[" << i << "] : "
+                              << tensor_name << "\n";);
+      auto type = RankedTensorType::get({oc},
+                                    FloatType::getF32(rewriter.getContext()));
       wTF->addTensor<float>(tensor_name, newWeights[i], type);
       std::vector<NamedAttribute> attrs;
-      attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(tensor_name)));
+      attrs.push_back(rewriter.getNamedAttr("name",
+                      rewriter.getStringAttr(tensor_name)));
       auto new_weight_op = rewriter.create<tpu::LoadWeightOp>(loc, type,
           ArrayRef<Value *>{wfV}, ArrayRef<NamedAttribute>{attrs});
       newOperands.push_back(new_weight_op);
@@ -138,9 +150,11 @@ struct TpuFoldScalePattern : public RewritePattern {
     // replace the later scale with the new scale
     // the former one will be removed automatically
     std::vector<NamedAttribute> attrs;
-    attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(op_name)));
+    attrs.push_back(rewriter.getNamedAttr("name",
+                    rewriter.getStringAttr(op_name)));
     if (laterScaleOp.layer_id().hasValue()) {
-      attrs.push_back(rewriter.getNamedAttr("layer_id", laterScaleOp.layer_idAttr()));
+      attrs.push_back(rewriter.getNamedAttr("layer_id",
+                                            laterScaleOp.layer_idAttr()));
     }
     rewriter.replaceOpWithNewOp<tpu::ScaleOp>(
         laterScaleOp, formerScaleOp.getResult()->getType(),
@@ -185,15 +199,18 @@ struct TpuMergeScaleIntoConvPattern : public RewritePattern {
     if (!isa<tpu::Conv2DOp>(formerOp))
       return matchFailure();
     if (clSkipMultiUsedScaleOp && !formerOp->getResult(0)->hasOneUse()) {
-      std::string op_name = formerOp->getAttrOfType<StringAttr>("name").getValue().str();
-      LLVM_DEBUG(llvm::errs() << "Some one need to use Scale Op: " << op_name << ", not remove it\n";);
+      auto nameAttr = formerOp->getAttrOfType<StringAttr>("name");
+      std::string op_name = nameAttr.getValue().str();
+      LLVM_DEBUG(llvm::errs() << "Some one need to use Scale Op: "
+                              << op_name << ", not remove it\n";);
       return matchFailure();
     }
 
     auto convOp = cast<tpu::Conv2DOp>(formerOp);
 
     // op_name from the scale
-    std::string op_name = scaleOp.getAttrOfType<StringAttr>("name").getValue().str();
+    auto nameAttr = scaleOp.getAttrOfType<StringAttr>("name");
+    std::string op_name = nameAttr.getValue().str();
     LLVM_DEBUG(llvm::errs() << "Scale Op: " << op_name << "\n";);
 
     // find scale and bias tensor for scale op
@@ -201,10 +218,11 @@ struct TpuMergeScaleIntoConvPattern : public RewritePattern {
     for (int i = 0; i < 2; ++i) {
       auto weight_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
           scaleOp.getOperand(i + 1)->getDefiningOp());
-      assert(weight_op);
-      assert(weight_op.name().hasValue());
+      assert(weight_op && "weight op should be exist");
+      assert(weight_op.name().hasValue() && "weight op should have name");
       auto tensor_name = weight_op.name().getValue();
-      LLVM_DEBUG(llvm::errs() << "  weight[" << i << "] : " << tensor_name << "\n";);
+      LLVM_DEBUG(llvm::errs() << "  weight[" << i << "] : "
+                              << tensor_name << "\n";);
       auto type = weight_op.getResult()->getType().cast<TensorType>();
       scaleWeights[i] = wTF->readTensor<float>(tensor_name, type);
       // delete the tensor from the weight file
@@ -212,7 +230,7 @@ struct TpuMergeScaleIntoConvPattern : public RewritePattern {
     }
 
     // find filter and bias tensor for conv op
-    assert(convOp.getNumOperands() == 7);
+    assert(convOp.getNumOperands() == 7 && "operands num should be 7");
     std::vector<std::unique_ptr<std::vector<float> > > convWeights(2);
     for (unsigned i = 0; i < 2; ++i) {
       auto weight_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
@@ -221,9 +239,10 @@ struct TpuMergeScaleIntoConvPattern : public RewritePattern {
         convWeights[i] = nullptr;
         continue;
       }
-      assert(weight_op.name().hasValue());
+      assert(weight_op.name().hasValue() && "weight op should have name");
       auto tensor_name = weight_op.name().getValue();
-      LLVM_DEBUG(llvm::errs() << "  weight[" << i << "] : " << tensor_name << "\n";);
+      LLVM_DEBUG(llvm::errs() << "  weight[" << i << "] : "
+                              << tensor_name << "\n";);
       auto type = weight_op.getResult()->getType().cast<TensorType>();
       convWeights[i] = wTF->readTensor<float>(tensor_name, type);
       // delete the tensor from the weight file
@@ -257,7 +276,7 @@ struct TpuMergeScaleIntoConvPattern : public RewritePattern {
       oc = filter_shape[0] * filter_shape[1];
       inner_size = filter_shape[2] * filter_shape[3] * filter_shape[4];
     } else {
-      assert(0);
+      llvm_unreachable("unsupported shape size");
     }
     assert(oc == (int64_t)scaleWeights[0]->size());
     std::vector<float> new_filter(filter_size);
@@ -282,18 +301,22 @@ struct TpuMergeScaleIntoConvPattern : public RewritePattern {
     }
 
     std::vector<std::vector<float> *> newWeights{ &new_filter, &new_bias };
-    std::vector<std::vector<int64_t> > weightShapes{ filter_shape, std::vector<int64_t>{oc} };
+    std::vector<std::vector<int64_t> > weightShapes{ filter_shape,
+                                                     std::vector<int64_t>{oc} };
 
     std::vector<Value *> newOperands;
     newOperands.push_back(convOp.getOperand(0));
     // add new filter and bias weight ops
     for (int i = 0; i < 2; ++i) {
       auto tensor_name = op_name + "_merge_scale_" + std::to_string(i);
-      LLVM_DEBUG(llvm::errs() << "  new_weight[" << i << "] : " << tensor_name << "\n";);
-      auto type = RankedTensorType::get(weightShapes[i], FloatType::getF32(rewriter.getContext()));
+      LLVM_DEBUG(llvm::errs() << "  new_weight[" << i << "] : "
+                              << tensor_name << "\n";);
+      auto type = RankedTensorType::get(weightShapes[i],
+                                    FloatType::getF32(rewriter.getContext()));
       wTF->addTensor<float>(tensor_name, newWeights[i], type);
       std::vector<NamedAttribute> attrs;
-      attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(tensor_name)));
+      attrs.push_back(rewriter.getNamedAttr("name",
+                      rewriter.getStringAttr(tensor_name)));
       auto new_weight_op = rewriter.create<tpu::LoadWeightOp>(loc, type,
           ArrayRef<Value *>{wfV}, ArrayRef<NamedAttribute>{attrs});
       newOperands.push_back(new_weight_op);
@@ -319,7 +342,8 @@ struct TpuMergeScaleIntoConvPattern : public RewritePattern {
             convOp.param().do_relu(),
             rewriter.getContext()));
     auto origAttrs = convOp.getAttrs();
-    //update name with the later op name, because this name is for calibration table
+    // update name with the later op name, because this name is for
+    // calibration table
     std::vector<NamedAttribute> newAttrs(origAttrs.begin(), origAttrs.end());
     for (auto &elt : newAttrs) {
       if (elt.first == "name") {
@@ -336,7 +360,8 @@ struct TpuMergeScaleIntoConvPattern : public RewritePattern {
 
 class MergeScaleIntoConvPass : public FunctionPass<MergeScaleIntoConvPass> {
 public:
-  explicit MergeScaleIntoConvPass(llvm::raw_ostream &os = llvm::errs()) : os(os) {}
+  explicit MergeScaleIntoConvPass(llvm::raw_ostream &os = llvm::errs())
+     : os(os) {}
 
   void runOnFunction() override {
     auto fn = getFunction();
@@ -403,7 +428,8 @@ struct TpuConvertScaleToDWConvPattern : public RewritePattern {
     operands.push_back(NoneOp.getResult());  // quant_multiplier
 
     std::vector<NamedAttribute> attrs;
-    attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(op_name)));
+    attrs.push_back(rewriter.getNamedAttr("name",
+                    rewriter.getStringAttr(op_name)));
     attrs.push_back(rewriter.getNamedAttr("param",
         tpu::ConvParam::get(
             rewriter.getI32IntegerAttr(1),
@@ -416,9 +442,11 @@ struct TpuConvertScaleToDWConvPattern : public RewritePattern {
             rewriter.getBoolAttr(bias?true:false),
             rewriter.getBoolAttr(scaleOp.do_relu()),
             rewriter.getContext())));
-    attrs.push_back(rewriter.getNamedAttr("quant", getDefaultQuantParam(rewriter)));
+    attrs.push_back(rewriter.getNamedAttr("quant",
+                                          getDefaultQuantParam(rewriter)));
     if (scaleOp.layer_id().hasValue()) {
-      attrs.push_back(rewriter.getNamedAttr("layer_id", scaleOp.layer_idAttr()));
+      attrs.push_back(rewriter.getNamedAttr("layer_id",
+                                            scaleOp.layer_idAttr()));
     }
     rewriter.replaceOpWithNewOp<tpu::Conv2DOp>(
         scaleOp, scaleOp.getResult()->getType(),
@@ -430,7 +458,8 @@ struct TpuConvertScaleToDWConvPattern : public RewritePattern {
 
 class ConvertScaleToDWConvPass : public FunctionPass<ConvertScaleToDWConvPass> {
 public:
-  explicit ConvertScaleToDWConvPass(llvm::raw_ostream &os = llvm::errs()) : os(os) {}
+  explicit ConvertScaleToDWConvPass(llvm::raw_ostream &os = llvm::errs())
+     : os(os) {}
 
   void runOnFunction() override {
     auto fn = getFunction();
@@ -448,7 +477,8 @@ private:
 } // namespace
 
 // Canonicalizer
-void tpu::ScaleOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
+void tpu::ScaleOp::getCanonicalizationPatterns(
+                                              OwningRewritePatternList &results,
                                               MLIRContext *context) {
   results.insert<
       TpuFoldScalePattern,

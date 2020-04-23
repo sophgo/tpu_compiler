@@ -118,7 +118,7 @@ struct TpuGenSigmoidTablePattern : public RewritePattern {
         sigOp.getAttrOfType<StringAttr>("name").getValue().str();
 
     if (sigOp.has_table() == true) {
-      llvm::errs() << sigOp.name() << " gen already\n";
+      LLVM_DEBUG(llvm::errs() << sigOp.name() << " gen already\n");
       return matchFailure();
     }
     int npu_num = 32; //<! 1880v2 hardcode
@@ -219,7 +219,7 @@ struct TpuGenSigmoidTablePattern : public RewritePattern {
       vector<int64_t> weightShape{1, npu_num, table_h, table_w};
 
       auto tensor_name = op_name + "_gen_weight";
-      llvm::errs() << "  new_weight: " << tensor_name << "\n";
+      LLVM_DEBUG(llvm::errs() << "  new_weight: " << tensor_name << "\n");
 
       auto type = RankedTensorType::get(weightShape,
               FloatType::getF32(rewriter.getContext()));
@@ -241,7 +241,7 @@ struct TpuGenSigmoidTablePattern : public RewritePattern {
       vector<int64_t> weightShapes = {1, npu_num, table_h, table_w};
       for (int i = 0; i < 2; ++i) {
         auto tensor_name = op_name + "_gen_weight_" + std::to_string(i);
-        llvm::errs() << "  new_weight[" << i << "] : " << tensor_name << "\n";
+        LLVM_DEBUG(llvm::errs() << "  new_weight[" << i << "] : " << tensor_name << "\n");
 
         auto type = RankedTensorType::get(
             weightShapes, FloatType::getF32(rewriter.getContext()));

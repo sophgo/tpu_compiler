@@ -1,4 +1,4 @@
-//===- TpuOpStats.cpp - Implementation of TPU Op Stats ---------===//
+//===- ConvertNormalize.cpp - convert normalize ---------------------------===//
 //
 // Copyright 2019 The MLIR Authors.
 //
@@ -15,12 +15,14 @@
 // limitations under the License.
 // =============================================================================
 //
-// This file implements the TPU dialect OP Stats pass.
+// This file implements the conversion of normalizaion.
 //
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/TPU/TPUDialect.h"
 #include "mlir/Dialect/TPU/Passes.h"
+#include "mlir/Dialect/TPU/TPUTensorSupport.h"
+#include "mlir/Dialect/TPU/TPUOperationSupport.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/StandardTypes.h"
@@ -28,8 +30,6 @@
 #include "mlir/Pass/Pass.h"
 #include "mlir/Support/TensorFile.h"
 #include "llvm/Support/raw_ostream.h"
-#include "mlir/Dialect/TPU/TPUTensorSupport.h"
-#include "mlir/Dialect/TPU/TPUOperationSupport.h"
 
 #define DEBUG_TYPE "convert_normalize"
 
@@ -53,7 +53,8 @@ struct TpuDecomposeNormalizePattern : public RewritePattern {
     mlir::Value *input_var = normalizeOp.getOperand(0);
 
     // op_name
-    std::string op_name = normalizeOp.getAttrOfType<StringAttr>("name").getValue().str();
+    auto nameAttr = normalizeOp.getAttrOfType<StringAttr>("name");
+    std::string op_name = nameAttr.getValue().str();
     LLVM_DEBUG(llvm::errs() << "Normalize Op: " << op_name << "\n";);
 
     // parse param
@@ -64,8 +65,8 @@ struct TpuDecomposeNormalizePattern : public RewritePattern {
 
     auto weight_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
         normalizeOp.getOperand(1)->getDefiningOp());
-    assert(weight_op);
-    assert(weight_op.name().hasValue());
+    assert(weight_op && "weight should be exist");
+    assert(weight_op.name().hasValue() && "weight should have name");
     auto tensor_name = weight_op.name().getValue();
     std::unique_ptr<std::vector<float> >  scale;
 
@@ -76,7 +77,8 @@ struct TpuDecomposeNormalizePattern : public RewritePattern {
 
     auto result_type = normalizeOp.getResult()->getType();
 
-    LLVM_DEBUG(llvm::errs() << "Normalize Op tensor_name : " << tensor_name << "\n";);
+    LLVM_DEBUG(llvm::errs() << "Normalize Op tensor_name : "
+                            << tensor_name << "\n";);
 
     ///
     /// separate Normalize op to below 6 ops.
@@ -139,13 +141,17 @@ struct TpuDecomposeNormalizePattern : public RewritePattern {
     operands_eltwise_power.push_back(NoneOp.getResult());
 
     std::vector<NamedAttribute> attrs_eltwise_power;
-    attrs_eltwise_power.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(op_name+"_eltwise_prod_power")));
-    attrs_eltwise_power.push_back(rewriter.getNamedAttr("layer_id", normalizeOp.layer_idAttr()));
-    attrs_eltwise_power.push_back(rewriter.getNamedAttr("quant", getDefaultQuantParam(rewriter)));
+    attrs_eltwise_power.push_back(rewriter.getNamedAttr("name",
+                      rewriter.getStringAttr(op_name+"_eltwise_prod_power")));
+    attrs_eltwise_power.push_back(rewriter.getNamedAttr("layer_id",
+                                  normalizeOp.layer_idAttr()));
+    attrs_eltwise_power.push_back(rewriter.getNamedAttr("quant",
+                                  getDefaultQuantParam(rewriter)));
 
     auto eltwiseMulOp = rewriter.create<tpu::EltwiseMulOp>(
         loc, result_type,
-        ArrayRef<Value *>{operands_eltwise_power}, ArrayRef<NamedAttribute>{attrs_eltwise_power});
+        ArrayRef<Value *>{operands_eltwise_power},
+        ArrayRef<NamedAttribute>{attrs_eltwise_power});
     auto power_result_var = eltwiseMulOp.getResult();
 #endif
 
@@ -170,7 +176,8 @@ struct TpuDecomposeNormalizePattern : public RewritePattern {
 
     wTF->addTensor<float>(filter_name_conv, weight.data(), filter_type);
     std::vector<NamedAttribute> attrs;
-    attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(filter_name_conv)));
+    attrs.push_back(rewriter.getNamedAttr("name",
+                    rewriter.getStringAttr(filter_name_conv)));
 
     auto weight_tensor = rewriter.create<tpu::LoadWeightOp>(loc, filter_type,
         ArrayRef<Value *>{wfV}, ArrayRef<NamedAttribute>{attrs});
@@ -183,8 +190,10 @@ struct TpuDecomposeNormalizePattern : public RewritePattern {
     operands_conv.push_back(NoneOp.getResult());  // quant_multiplier
 
     std::vector<NamedAttribute> attrs_conv;
-    attrs_conv.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(op_name+"_conv")));
-    attrs_conv.push_back(rewriter.getNamedAttr("layer_id", normalizeOp.layer_idAttr()));
+    attrs_conv.push_back(rewriter.getNamedAttr("name",
+                         rewriter.getStringAttr(op_name+"_conv")));
+    attrs_conv.push_back(rewriter.getNamedAttr("layer_id",
+                         normalizeOp.layer_idAttr()));
     attrs_conv.push_back(rewriter.getNamedAttr("param",
     tpu::ConvParam::get(
         rewriter.getI32IntegerAttr(stride[0]),
@@ -197,7 +206,8 @@ struct TpuDecomposeNormalizePattern : public RewritePattern {
         rewriter.getBoolAttr(with_bias),
         rewriter.getBoolAttr(false),
         rewriter.getContext())));
-    attrs_conv.push_back(rewriter.getNamedAttr("quant", getDefaultQuantParam(rewriter)));
+    attrs_conv.push_back(rewriter.getNamedAttr("quant",
+                         getDefaultQuantParam(rewriter)));
     auto convOp = rewriter.create<tpu::Conv2DOp>(
         loc, result_type,
         ArrayRef<Value *>{operands_conv}, ArrayRef<NamedAttribute>{attrs_conv});
@@ -210,10 +220,14 @@ struct TpuDecomposeNormalizePattern : public RewritePattern {
     operands_sqrt.push_back(NoneOp.getResult()); // quant_table
 
     std::vector<NamedAttribute> attrs_sqrt;
-    attrs_sqrt.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(op_name+"_sqrt")));
-    attrs_sqrt.push_back(rewriter.getNamedAttr("layer_id", normalizeOp.layer_idAttr()));
-    attrs_sqrt.push_back(rewriter.getNamedAttr("has_table", rewriter.getBoolAttr(false)));
-    attrs_sqrt.push_back(rewriter.getNamedAttr("quant", getDefaultQuantParam(rewriter)));
+    attrs_sqrt.push_back(rewriter.getNamedAttr("name",
+                         rewriter.getStringAttr(op_name + "_sqrt")));
+    attrs_sqrt.push_back(rewriter.getNamedAttr("layer_id",
+                         normalizeOp.layer_idAttr()));
+    attrs_sqrt.push_back(rewriter.getNamedAttr("has_table",
+                         rewriter.getBoolAttr(false)));
+    attrs_sqrt.push_back(rewriter.getNamedAttr("quant",
+                         getDefaultQuantParam(rewriter)));
     auto sqrt_op = rewriter.create<tpu::SqrtOp>(
         loc, result_type,
         ArrayRef<Value *>{operands_sqrt}, ArrayRef<NamedAttribute>{attrs_sqrt});
@@ -225,13 +239,18 @@ struct TpuDecomposeNormalizePattern : public RewritePattern {
     operands_reciprocal.push_back(NoneOp.getResult()); // quant_table
     operands_reciprocal.push_back(NoneOp.getResult()); // quant_table
     std::vector<NamedAttribute> attrs_reciprocal;
-    attrs_reciprocal.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(op_name+"_reciprocal")));
-    attrs_reciprocal.push_back(rewriter.getNamedAttr("layer_id", normalizeOp.layer_idAttr()));
-    attrs_reciprocal.push_back(rewriter.getNamedAttr("has_table", rewriter.getBoolAttr(false)));
-    attrs_reciprocal.push_back(rewriter.getNamedAttr("quant", getDefaultQuantParam(rewriter)));
+    attrs_reciprocal.push_back(rewriter.getNamedAttr("name",
+                               rewriter.getStringAttr(op_name+"_reciprocal")));
+    attrs_reciprocal.push_back(rewriter.getNamedAttr("layer_id",
+                               normalizeOp.layer_idAttr()));
+    attrs_reciprocal.push_back(rewriter.getNamedAttr("has_table",
+                               rewriter.getBoolAttr(false)));
+    attrs_reciprocal.push_back(rewriter.getNamedAttr("quant",
+                               getDefaultQuantParam(rewriter)));
     auto reciprocal_op = rewriter.create<tpu::ReciprocalOp>(
         loc, result_type,
-        ArrayRef<Value *>{operands_reciprocal}, ArrayRef<NamedAttribute>{attrs_reciprocal});
+        ArrayRef<Value *>{operands_reciprocal},
+        ArrayRef<NamedAttribute>{attrs_reciprocal});
     auto reciprocal_result_var = reciprocal_op.getResult();
 
     /// 5. Eltwise_Mul OP
@@ -244,13 +263,17 @@ struct TpuDecomposeNormalizePattern : public RewritePattern {
     operands_eltwise_mul.push_back(NoneOp.getResult());
 
     std::vector<NamedAttribute> attrs_eltwise_mul;
-    attrs_eltwise_mul.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(op_name+"_eltwise_add")));
-    attrs_eltwise_mul.push_back(rewriter.getNamedAttr("layer_id", normalizeOp.layer_idAttr()));
-    attrs_eltwise_mul.push_back(rewriter.getNamedAttr("quant", getDefaultQuantParam(rewriter)));
+    attrs_eltwise_mul.push_back(rewriter.getNamedAttr("name",
+                             rewriter.getStringAttr(op_name+"_eltwise_add")));
+    attrs_eltwise_mul.push_back(rewriter.getNamedAttr("layer_id",
+                                normalizeOp.layer_idAttr()));
+    attrs_eltwise_mul.push_back(rewriter.getNamedAttr("quant",
+                                getDefaultQuantParam(rewriter)));
 
     auto eltwise_op = rewriter.create<tpu::EltwiseMulOp>(
         loc, result_type,
-        ArrayRef<Value *>{operands_eltwise_mul}, ArrayRef<NamedAttribute>{attrs_eltwise_mul});
+        ArrayRef<Value *>{operands_eltwise_mul},
+        ArrayRef<NamedAttribute>{attrs_eltwise_mul});
     auto eltwise_result_var = eltwise_op.getResult();
 
     /// 6. Scale OP
@@ -263,7 +286,8 @@ struct TpuDecomposeNormalizePattern : public RewritePattern {
     wTF->addTensor(scale_name, scale->data(), scale_type);
     std::vector<NamedAttribute> scale_weight_attrs;
 
-    scale_weight_attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(scale_name)));
+    scale_weight_attrs.push_back(rewriter.getNamedAttr("name",
+                                 rewriter.getStringAttr(scale_name)));
     weight_tensor = rewriter.create<tpu::LoadWeightOp>(loc, scale_type,
         ArrayRef<Value *>{wfV}, ArrayRef<NamedAttribute>{scale_weight_attrs});
     operands_scale.push_back(weight_tensor);
@@ -271,8 +295,10 @@ struct TpuDecomposeNormalizePattern : public RewritePattern {
     operands_scale.push_back(NoneOp.getResult());
 
     std::vector<NamedAttribute> scale_attrs;
-    scale_attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(op_name+"_scale")));
-    scale_attrs.push_back(rewriter.getNamedAttr("layer_id", normalizeOp.layer_idAttr()));
+    scale_attrs.push_back(rewriter.getNamedAttr("name",
+                          rewriter.getStringAttr(op_name + "_scale")));
+    scale_attrs.push_back(rewriter.getNamedAttr("layer_id",
+                          normalizeOp.layer_idAttr()));
     auto scale_op = rewriter.create<tpu::ScaleOp>(
         loc, result_type, ArrayRef<Value *>{operands_scale},
         ArrayRef<NamedAttribute>{scale_attrs});
@@ -288,7 +314,8 @@ struct TpuDecomposeNormalizePattern : public RewritePattern {
 
 class DecomposeNormalizePass : public FunctionPass<DecomposeNormalizePass> {
 public:
-  explicit DecomposeNormalizePass(llvm::raw_ostream &os = llvm::errs()) : os(os) {}
+  explicit DecomposeNormalizePass(llvm::raw_ostream &os = llvm::errs())
+      : os(os) {}
 
   void runOnFunction() override {
     auto fn = getFunction();
@@ -304,8 +331,9 @@ private:
 
 } // namespace
 
-void tpu::NormalizeOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
-                                              MLIRContext *context) {
+void tpu::NormalizeOp::getCanonicalizationPatterns(
+                                           OwningRewritePatternList &results,
+                                           MLIRContext *context) {
   results.insert<TpuDecomposeNormalizePattern>(context);
 }
 
@@ -315,4 +343,5 @@ std::unique_ptr<OpPassBase<FuncOp>> mlir::createDecomposeNormalizePass() {
 
 static PassRegistration<DecomposeNormalizePass>
     pass("normalize-decompose",
-         "Decompose Normalize to ltwise(prod)+conv2D+sqrt+reciprocal+eltwise(prod)+scale");
+         "Decompose Normalize to ltwise(prod)+conv2D+sqrt+"
+         "reciprocal+eltwise(prod)+scale");

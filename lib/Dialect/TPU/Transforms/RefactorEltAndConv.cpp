@@ -1,4 +1,4 @@
-//===- TpuOpStats.cpp - Implementation of TPU Op Stats ---------===//
+//===- RefactorEltAndConv.cpp - refactor eltwise and conv -----------------===//
 //
 // Copyright 2019 The MLIR Authors.
 //
@@ -44,7 +44,8 @@ struct TpuRefactorEltAndConvPattern : public RewritePattern {
   PatternMatchResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
     auto eltAddOp = cast<tpu::EltwiseAddOp>(op);
-    LLVM_DEBUG(llvm::errs() << eltAddOp.getOperationName() << ":" << getOpName(eltAddOp)<< "\n";);
+    LLVM_DEBUG(llvm::errs() << eltAddOp.getOperationName()
+                            << ":" << getOpName(eltAddOp)<< "\n";);
 
     bool isKernel1x1AndStrideBiggerThanOne = true;
     Operation *nextOp = nullptr;
@@ -52,7 +53,7 @@ struct TpuRefactorEltAndConvPattern : public RewritePattern {
 
     for (auto &use : op->getResult(0)->getUses()) {
         nextOp = use.getOwner();
-        // llvm::errs() << nextOp->getName() << "\n";
+        LLVM_DEBUG(llvm::errs() << nextOp->getName() << "\n");
         // if (matchPattern(nextOp, m_Op<tpu::Conv2DOp>())) {
         if (auto convOp = dyn_cast<tpu::Conv2DOp>(nextOp)) {
             // auto allocOp = dyn_cast<AllocOp>(opInst)
@@ -62,9 +63,10 @@ struct TpuRefactorEltAndConvPattern : public RewritePattern {
             int kw = f_s[f_s.size() - 1];
             strideH = convOp.param().stride_h().getValue().getLimitedValue();
             strideW = convOp.param().stride_w().getValue().getLimitedValue();
-            // llvm::errs() << convOp.getOperationName() << ":" << getOpName(convOp)<< "\n";
+            LLVM_DEBUG(llvm::errs() << convOp.getOperationName()
+                                    << ":" << getOpName(convOp)<< "\n");
             if((kh == 1) && (kw == 1) && (strideH > 1) && (strideW > 1)) {
-                // llvm::errs() << "Find \n";
+               LLVM_DEBUG(llvm::errs() << "Find \n");
                 //do nothing
             } else {
                 isKernel1x1AndStrideBiggerThanOne = false;
@@ -103,7 +105,8 @@ struct TpuRefactorEltAndConvPattern : public RewritePattern {
         eltAddOp.setAttr("do_early_stride", rewriter.getBoolAttr(true));
         eltAddOp.setAttr("early_stride_h", rewriter.getI32IntegerAttr(strideH));
         eltAddOp.setAttr("early_stride_w", rewriter.getI32IntegerAttr(strideW));
-        auto type = RankedTensorType::get({on, oc, oh, ow}, FloatType::getF32(rewriter.getContext()));
+        auto type = RankedTensorType::get({on, oc, oh, ow},
+                                    FloatType::getF32(rewriter.getContext()));
         eltAddOp.getResult()->setType(type);//rewrite inputShape
     }
     return matchFailure();
@@ -112,7 +115,8 @@ struct TpuRefactorEltAndConvPattern : public RewritePattern {
 
 class RefactorEltAndConvPass : public FunctionPass<RefactorEltAndConvPass> {
 public:
-  explicit RefactorEltAndConvPass(llvm::raw_ostream &os = llvm::errs()) : os(os) {}
+  explicit RefactorEltAndConvPass(llvm::raw_ostream &os = llvm::errs())
+      : os(os) {}
 
   void runOnFunction() override {
     auto fn = getFunction();

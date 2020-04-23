@@ -1,4 +1,4 @@
-//===- TpuOpStats.cpp - Implementation of TPU Op Stats ---------===//
+//===- FuseRelu.cpp - fuse relu -------------------------------------------===//
 //
 // Copyright 2019 The MLIR Authors.
 //
@@ -15,7 +15,7 @@
 // limitations under the License.
 // =============================================================================
 //
-// This file implements the TPU dialect OP Stats pass.
+// This file implements the fusion of relu.
 //
 //===----------------------------------------------------------------------===//
 
@@ -69,17 +69,17 @@ struct TpuFuseReluPattern : public RewritePattern {
       convOp.setAttr("name", rewriter.getStringAttr(reluOp.getOpName()));
     } else if (matchPattern(formerOp, m_Op<tpu::EltwiseAddOp>())) {
       auto eltOp = cast<tpu::EltwiseAddOp>(formerOp);
-      assert(!eltOp.do_relu());
+      assert(!eltOp.do_relu() && "done relu");
       eltOp.setAttr("do_relu", rewriter.getBoolAttr(true));
       eltOp.setAttr("name", rewriter.getStringAttr(reluOp.getOpName()));
     } else if (matchPattern(formerOp, m_Op<tpu::EltwiseMaxOp>())) {
       auto eltOp = cast<tpu::EltwiseMaxOp>(formerOp);
-      assert(!eltOp.do_relu());
+      assert(!eltOp.do_relu() && "done relu");
       eltOp.setAttr("do_relu", rewriter.getBoolAttr(true));
       eltOp.setAttr("name", rewriter.getStringAttr(reluOp.getOpName()));
     } else if (matchPattern(formerOp, m_Op<tpu::EltwiseMulOp>())) {
       auto eltOp = cast<tpu::EltwiseMulOp>(formerOp);
-      assert(!eltOp.do_relu());
+      assert(!eltOp.do_relu() && "done relu");
       eltOp.setAttr("do_relu", rewriter.getBoolAttr(true));
       eltOp.setAttr("name", rewriter.getStringAttr(reluOp.getOpName()));
     } else if (matchPattern(formerOp, m_Op<tpu::FullyConnectedOp>())) {
@@ -88,12 +88,12 @@ struct TpuFuseReluPattern : public RewritePattern {
       fcOp.setAttr("name", rewriter.getStringAttr(reluOp.getOpName()));
     } else if (matchPattern(formerOp, m_Op<tpu::BroadcastMulOp>())) {
       auto bcastOp = cast<tpu::BroadcastMulOp>(formerOp);
-      assert(!bcastOp.do_relu());
+      assert(!bcastOp.do_relu() && "done relu");
       bcastOp.setAttr("do_relu", rewriter.getBoolAttr(true));
       bcastOp.setAttr("name", rewriter.getStringAttr(reluOp.getOpName()));
     }  else if (matchPattern(formerOp, m_Op<tpu::PoolAvg2DOp>())) {
       auto poolOp = cast<tpu::PoolAvg2DOp>(formerOp);
-      assert(poolOp.param().do_relu().getValue() == false);
+      assert(poolOp.param().do_relu().getValue() == false && "done relu");
       poolOp.setAttr("param",
           tpu::PoolParam::get(
               poolOp.param().kernel_h(),
@@ -116,11 +116,10 @@ struct TpuFuseReluPattern : public RewritePattern {
       // TODO: convert to conv
       return matchFailure();
     } else {
-      llvm::errs() << "unhandled relu fuse with " << getOpName(formerOp) << "\n";
-      assert(0);
+      llvm_unreachable(("unhandled relu fuse with " +
+                         getOpName(formerOp).str()).c_str());
       return matchFailure();
     }
-
     // remove the relu Op
     rewriter.replaceOp(op, {op->getOperand(0)});
     return matchSuccess();
@@ -147,16 +146,21 @@ struct TpuMoveReluAheadConcatPattern : public RewritePattern {
     for (unsigned i = 0; i < nInputs; i++) {
       std::vector<NamedAttribute> attrs;
       attrs.push_back(rewriter.getNamedAttr("name",
-          rewriter.getStringAttr(getOpName(op).str() + "_" + std::to_string(i))));
-      attrs.push_back(rewriter.getNamedAttr("quant", getDefaultQuantParam(rewriter)));
+                      rewriter.getStringAttr(getOpName(op).str() + "_" +
+                                             std::to_string(i))));
+      attrs.push_back(rewriter.getNamedAttr("quant",
+                                            getDefaultQuantParam(rewriter)));
       auto op = rewriter.create<tpu::ReluOp>(
           formerOp->getLoc(), formerOp->getOperand(i)->getType(),
-          ArrayRef<Value *>{formerOp->getOperand(i)}, ArrayRef<NamedAttribute>{attrs});
+          ArrayRef<Value *>{ formerOp->getOperand(i) },
+                             ArrayRef<NamedAttribute>{attrs});
       formerOp->setOperand(i, op.getResult());
     }
 
-    // change the concat Op's name to avoid data comparing with caffe for this op
-    concatOp.setAttr("name", rewriter.getStringAttr(concatOp.name().str() + "_relu"));
+    // change the concat Op's name to avoid data comparing with
+    // caffe for this op
+    concatOp.setAttr("name", rewriter.getStringAttr(concatOp.name().str() +
+                                                    "_relu"));
     // remove the relu op after concat
     rewriter.replaceOp(op, {concatOp});
     return matchSuccess();

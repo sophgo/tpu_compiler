@@ -461,13 +461,13 @@ struct TpuTpuQuantClipPassPattern : public RewritePattern {
       // get former one and re-init threshold to it
       auto formerOp = clipOp.getOperand(0)->getDefiningOp();
       if (!isa<tpu::Conv2DOp>(formerOp)) {
-          llvm::errs() << "  not suppor non-scale yet"  << "\n";
+          LLVM_DEBUG(llvm::errs() << "  not suppor non-scale yet"  << "\n");
           return matchFailure();
       }
 
       if (!formerOp->getResult(0)->hasOneUse()) {
         std::string op_name = formerOp->getAttrOfType<StringAttr>("name").getValue().str();
-        llvm::errs() << "Some one need to use Scale Op: " << op_name << ", not remove it\n";
+        LLVM_DEBUG(llvm::errs() << "Some one need to use Scale Op: " << op_name << ", not remove it\n");
         return matchFailure();
       }
 

@@ -1,4 +1,4 @@
-//===- TpuOpStats.cpp - Implementation of TPU Op Stats ---------===//
+//===- ConvertCpuOp.cpp - convert cpu op ----------------------------------===//
 //
 // Copyright 2019 The MLIR Authors.
 //
@@ -15,11 +15,12 @@
 // limitations under the License.
 // =============================================================================
 //
-// This file implements the TPU dialect OP Stats pass.
+// This file implements the conversion of cpu op.
 //
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/TPU/TPUDialect.h"
+#include "mlir/Dialect/TPU/TPUTensorSupport.h"
 #include "mlir/Dialect/TPU/TPUOperationSupport.h"
 #include "mlir/Dialect/TPU/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
@@ -30,7 +31,6 @@
 #include "mlir/Pass/Pass.h"
 #include "mlir/Support/TensorFile.h"
 #include "llvm/Support/raw_ostream.h"
-#include "mlir/Dialect/TPU/TPUTensorSupport.h"
 
 #define DEBUG_TYPE "convert_cpu_op"
 
@@ -46,7 +46,8 @@ struct ConvertCpuOpDefaultPattern : public RewritePattern {
   PatternMatchResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
     auto castOp = cast<OpTy>(op);
-    LLVM_DEBUG(llvm::errs() << castOp.getOperationName() << ":" << getOpName(castOp)<< "\n";);
+    LLVM_DEBUG(llvm::errs() << castOp.getOperationName() << ":"
+                            << getOpName(castOp)<< "\n";);
 
     auto builder = Builder(op->getContext());
 
@@ -75,22 +76,30 @@ struct ConvertCpuOpDefaultPattern : public RewritePattern {
     }
 
     std::vector<NamedAttribute> attrs;
-    attrs.push_back(builder.getNamedAttr("name", builder.getStringAttr(castOp.name())));
-    attrs.push_back(builder.getNamedAttr("operation_name", builder.getStringAttr(castOp.getOperationName())));
-    attrs.push_back(builder.getNamedAttr("quantifiable", builder.getBoolAttr(false)));
+    auto nameAttr = builder.getStringAttr(castOp.name());
+    auto operationAttr = builder.getStringAttr(castOp.getOperationName());
+    auto quantifiableAttr = builder.getBoolAttr(false);
+    auto paramAttr = builder.getDictionaryAttr(param);
+
+    attrs.push_back(builder.getNamedAttr("name", nameAttr));
+    attrs.push_back(builder.getNamedAttr("operation_name", operationAttr));
+    attrs.push_back(builder.getNamedAttr("quantifiable", quantifiableAttr));
     attrs.push_back(builder.getNamedAttr("quant", quantAttr));
-    attrs.push_back(builder.getNamedAttr("param", builder.getDictionaryAttr(param)));
+    attrs.push_back(builder.getNamedAttr("param", paramAttr));
     auto gaddrAttr = op->getAttr("gaddr").dyn_cast_or_null<IntegerAttr>();
     if (gaddrAttr) {
       int64_t gaddr = gaddrAttr.getValue().getSExtValue();
-      attrs.push_back(builder.getNamedAttr("gaddr", builder.getI64IntegerAttr(gaddr)));
+      attrs.push_back(builder.getNamedAttr("gaddr",
+          builder.getI64IntegerAttr(gaddr)));
     }
     if (castOp.layer_id().hasValue()) {
       int32_t layer_id = castOp.layer_id().getValue().getSExtValue();
-      attrs.push_back(builder.getNamedAttr("layer_id", builder.getI32IntegerAttr(layer_id)));
+      attrs.push_back(builder.getNamedAttr("layer_id",
+          builder.getI32IntegerAttr(layer_id)));
     }
 
-    std::vector<Value *> operands(op->getOperands().begin(), op->getOperands().end());
+    std::vector<Value *> operands(op->getOperands().begin(),
+                                  op->getOperands().end());
 
     auto newOp = OpBuilder(op).create<tpu::GenericCpuOp>(op->getLoc(),
         castOp.getResult()->getType(), ArrayRef<Value *>{operands},

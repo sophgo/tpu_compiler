@@ -1,4 +1,4 @@
-//===- TpuOpStats.cpp - Implementation of TPU Op Stats ---------===//
+//===- ConvertPriorBoxToLoadWeight.cpp - convert prior box to load weight -===//
 //
 // Copyright 2019 The MLIR Authors.
 //
@@ -15,7 +15,7 @@
 // limitations under the License.
 // =============================================================================
 //
-// This file implements the TPU dialect OP Stats pass.
+// This file implements the conversion of prior box
 //
 //===----------------------------------------------------------------------===//
 
@@ -64,21 +64,25 @@ struct TpuConvertLoadeweightConcatToLoadweightPattern : public RewritePattern {
     int tmp_w=0;
     auto result = concatOp.getResult();
     // LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";);
-    std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
-    auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
+    auto tensorType = result->getType().cast<TensorType>();
+    std::vector<int64_t> shape = tensorType.getShape();
+    auto size = std::accumulate(std::begin(shape), std::end(shape),
+                                1, std::multiplies<>());
     ///auto resultT = std::make_unique<std::vector<float> >(size);
     auto tmp_resultT = std::make_unique<std::vector<float> >(0);
     std::vector<float> resultT(size);
 
-    std::vector<std::unique_ptr<std::vector<float> > > inputloadweight(input_loadweight_num);
+    std::vector<std::unique_ptr<std::vector<float>>>
+                                        inputloadweight(input_loadweight_num);
 
     for (unsigned i = 0; i < input_loadweight_num; ++i) {
       auto weight_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
           concatOp.getOperand(i)->getDefiningOp());
-      assert(weight_op);
-      assert(weight_op.name().hasValue());
+      assert(weight_op && "weight op should be exist");
+      assert(weight_op.name().hasValue() && "weight op should have name");
       auto tensor_name = weight_op.name().getValue();
-      LLVM_DEBUG(llvm::errs() << "  weight[" << i << "] : " << tensor_name << "\n";);
+      LLVM_DEBUG(llvm::errs() << "  weight[" << i << "] : "
+                              << tensor_name << "\n";);
       auto type = weight_op.getResult()->getType().cast<TensorType>();
       inputloadweight[i] = wTF->readTensor<float>(tensor_name, type);
       // delete the tensor from the weight file
@@ -86,8 +90,9 @@ struct TpuConvertLoadeweightConcatToLoadweightPattern : public RewritePattern {
     }
 
     for (unsigned i = 0; i < input_loadweight_num; i++) {
-      std::vector<int64_t> shape =  concatOp.getOperand(i)->getType().cast<TensorType>().getShape();
-      assert(3==shape.size()&&"only do 3 dim concat opt now");
+      auto tensorType = concatOp.getOperand(i)->getType().cast<TensorType>();
+      std::vector<int64_t> shape =  tensorType.getShape();
+      assert(3 == shape.size() && "only do 3 dim concat opt now");
       c = shape[0];
       h = shape[1];
       w = shape[2];
@@ -100,31 +105,37 @@ struct TpuConvertLoadeweightConcatToLoadweightPattern : public RewritePattern {
       for (uint32_t idx_h = 0; idx_h < h; idx_h++) {
         auto shapeT = std::make_unique<std::vector<float> >(w);
         int insert_offset = ((idx_h+1)* tmp_w) + idx_h*w;
-        shapeT.get()->assign(&input_data[idx_h * w], &input_data[(idx_h + 1) * w]);
-        tmp_resultT.get()->insert(tmp_resultT.get()->begin() + insert_offset, shapeT->begin(), shapeT->end());
+        shapeT.get()->assign(&input_data[idx_h * w],
+                             &input_data[(idx_h + 1) * w]);
+        tmp_resultT.get()->insert(tmp_resultT.get()->begin() + insert_offset,
+                                  shapeT->begin(), shapeT->end());
       }
       tmp_w += w;
     }
 
-  resultT.assign(tmp_resultT.get()->begin(), tmp_resultT.get()->end());
+    resultT.assign(tmp_resultT.get()->begin(), tmp_resultT.get()->end());
 
-  auto tensor_name = concatOp.getAttrOfType<StringAttr>("name").getValue().str() + "_loadweight" ;
-  auto type = RankedTensorType::get(shape, FloatType::getF32(rewriter.getContext()));
-  wTF->addTensor<float>(tensor_name, &resultT, type);
-  std::vector<NamedAttribute> attrs;
-  attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(tensor_name)));
-  attrs.push_back(rewriter.getNamedAttr("storage", rewriter.getStringAttr("FP32")));
-  auto new_weight_op = rewriter.create<tpu::LoadWeightOp>(loc, type,
-       ArrayRef<Value *>{wfV}, ArrayRef<NamedAttribute>{attrs});
+    auto tensor_name = concatOp.getAttrOfType<StringAttr>("name").getValue().str()
+                       + "_loadweight" ;
+    auto type = RankedTensorType::get(shape,
+                                      FloatType::getF32(rewriter.getContext()));
+    wTF->addTensor<float>(tensor_name, &resultT, type);
+    std::vector<NamedAttribute> attrs;
+    attrs.push_back(rewriter.getNamedAttr("name",
+                    rewriter.getStringAttr(tensor_name)));
+    attrs.push_back(rewriter.getNamedAttr("storage",
+                    rewriter.getStringAttr("FP32")));
+    auto new_weight_op = rewriter.create<tpu::LoadWeightOp>(loc, type,
+         ArrayRef<Value *>{wfV}, ArrayRef<NamedAttribute>{attrs});
 
-  // replace concat with loadweight
-  // the former one will be removed automatically
+    // replace concat with loadweight
+    // the former one will be removed automatically
 
-  rewriter.replaceOpWithNewOp<tpu::LoadWeightOp>(
-      concatOp, new_weight_op.getResult()->getType(),
-      ArrayRef<Value *>{wfV},ArrayRef<NamedAttribute>{attrs});
+    rewriter.replaceOpWithNewOp<tpu::LoadWeightOp>(
+        concatOp, new_weight_op.getResult()->getType(),
+        ArrayRef<Value *>{wfV},ArrayRef<NamedAttribute>{attrs});
 
-  return matchSuccess();
+    return matchSuccess();
   }
 };
 
@@ -141,7 +152,8 @@ struct TpuConvertPriorBoxPattern : public RewritePattern {
     auto result = priorboxOp.getResult();
 
     std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
-    auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
+    auto size = std::accumulate(std::begin(shape), std::end(shape),
+                                1, std::multiplies<>());
     auto resultT = std::make_unique<std::vector<float> >(size);
 
     float min_size = priorboxOp.min_size().convertToFloat();
@@ -172,8 +184,10 @@ struct TpuConvertPriorBoxPattern : public RewritePattern {
     float offset_;
 
     aspect_ratios.push_back(priorboxOp.aspect_ratio0().convertToFloat()) ;
-    if(aspect_ratios_size==2)
-      aspect_ratios.push_back(priorboxOp.aspect_ratio1().getValue().convertToFloat()) ;
+    if(aspect_ratios_size == 2) {
+      auto aspectRatio1 = priorboxOp.aspect_ratio1();
+      aspect_ratios.push_back(aspectRatio1.getValue().convertToFloat()) ;
+    }
 
     int max_size_size=priorboxOp.max_size_size().getLimitedValue();
     int min_size_size=priorboxOp.min_size_size().getLimitedValue();
@@ -181,61 +195,64 @@ struct TpuConvertPriorBoxPattern : public RewritePattern {
 
   for (int i = 0; i < min_size_size; ++i) {
     min_sizes_.push_back(min_size);
-    assert(min_sizes_.back()> 0 && "min_size must be positive.");
-    assert(i==0); //more than one min size is not support.
+    assert(min_sizes_.back() > 0 && "min_size must be positive.");
+    assert(i == 0 && "more than one min size is not support");
   }
 
-    aspect_ratios_.clear();
-    aspect_ratios_.push_back(1.);
-    flip_ = flip;
-    for (int i = 0; i < aspect_ratios_size; ++i) {
-          float ar = aspect_ratios[i];
-          bool already_exist = false;
-          for (size_t j = 0; j < aspect_ratios_.size(); ++j) {
-            if (fabs(ar - aspect_ratios_[j]) < 1e-6) {
-              already_exist = true;
-              break;
-            }
-          }
-          if (!already_exist) {
-            aspect_ratios_.push_back(ar);
-            if (flip_) {
-              aspect_ratios_.push_back(1./ar);
-            }
-          }
+  aspect_ratios_.clear();
+  aspect_ratios_.push_back(1.);
+  flip_ = flip;
+  for (int i = 0; i < aspect_ratios_size; ++i) {
+    float ar = aspect_ratios[i];
+    bool already_exist = false;
+    for (size_t j = 0; j < aspect_ratios_.size(); ++j) {
+      if (fabs(ar - aspect_ratios_[j]) < 1e-6) {
+        already_exist = true;
+        break;
       }
+    }
+    if (!already_exist) {
+      aspect_ratios_.push_back(ar);
+      if (flip_) {
+        aspect_ratios_.push_back(1./ar);
+      }
+    }
+  }
 
-    num_priors_ = aspect_ratios_.size() * min_sizes_.size();
+  num_priors_ = aspect_ratios_.size() * min_sizes_.size();
 
 
-    max_sizes_.push_back(max_size);
-    assert(max_sizes_[0]> min_sizes_[0] && "max_size must be greater than min_size.");
-    num_priors_ += 1;
+  max_sizes_.push_back(max_size);
+  assert(max_sizes_[0] > min_sizes_[0] &&
+         "max_size must be greater than min_size.");
+  num_priors_ += 1;
 
-    clip_ = clip;
+  clip_ = clip;
 
-    // Must and only provide 4 variance.
-    assert(variance0> 0);
-    variance_.push_back(variance0);
-    assert(variance1> 0);
-    variance_.push_back(variance1);
-    assert(variance2> 0);
-    variance_.push_back(variance2);
-    assert(variance3> 0);
-    variance_.push_back(variance3);
+  // Must and only provide 4 variance.
+  assert(variance0 > 0 && "variance0 greater than 0");
+  variance_.push_back(variance0);
+  assert(variance1 > 0 && "variance1 greater than 0");
+  variance_.push_back(variance1);
+  assert(variance2 > 0 && "variance2 greater than 0");
+  variance_.push_back(variance2);
+  assert(variance3 > 0 && "variance3 greater than 0");
+  variance_.push_back(variance3);
 
-    img_h_ = 0;
-    img_w_ = 0;
+  img_h_ = 0;
+  img_w_ = 0;
 
-    assert(step>0&&( "step should be larger than 0."));
-    step_h_ = step;
-    step_w_ = step;
+  assert(step>0 && "step should be larger than 0.");
+  step_h_ = step;
+  step_w_ = step;
 
-    offset_ = offset;
+  offset_ = offset;
 
-  std::vector<int64_t> shape1 = priorboxOp.getOperand(1)->getType().cast<TensorType>().getShape();
-  std::vector<int64_t> shape0 = priorboxOp.getOperand(0)->getType().cast<TensorType>().getShape();
-  assert(shape1.size()==4&&shape0.size()==4);
+  auto opd0Type = priorboxOp.getOperand(0)->getType();
+  auto opd1Type = priorboxOp.getOperand(1)->getType();
+  std::vector<int64_t> shape1 = opd1Type.cast<TensorType>().getShape();
+  std::vector<int64_t> shape0 = opd0Type.cast<TensorType>().getShape();
+  assert(shape1.size() == 4 && shape0.size() == 4);
   const int layer_width = shape0[3];
   const int layer_height = shape0[2];
 
@@ -338,11 +355,14 @@ struct TpuConvertPriorBoxPattern : public RewritePattern {
     }
   }
 
-  auto tensor_name = priorboxOp.getAttrOfType<StringAttr>("name").getValue().str() + "_loadweight" ;
-  auto type = RankedTensorType::get(shape, FloatType::getF32(rewriter.getContext()));
+  auto nameAttr = priorboxOp.getAttrOfType<StringAttr>("name");
+  auto tensor_name = nameAttr.getValue().str() + "_loadweight" ;
+  auto type = RankedTensorType::get(shape,
+                                    FloatType::getF32(rewriter.getContext()));
   wTF->addTensor<float>(tensor_name, &top_data, type);
   std::vector<NamedAttribute> attrs;
-  attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(tensor_name)));
+  attrs.push_back(rewriter.getNamedAttr("name",
+                  rewriter.getStringAttr(tensor_name)));
   auto new_weight_op = rewriter.create<tpu::LoadWeightOp>(loc, type,
        ArrayRef<Value *>{wfV},ArrayRef<NamedAttribute>{attrs});
 
@@ -383,8 +403,9 @@ private:
 } // namespace
 
 // Canonicalizer
-void tpu::PriorBoxOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
-                                              MLIRContext *context) {
+void tpu::PriorBoxOp::getCanonicalizationPatterns(
+                                         OwningRewritePatternList &results,
+                                         MLIRContext *context) {
   results.insert<
       TpuConvertPriorBoxPattern,
       TpuConvertLoadeweightConcatToLoadweightPattern>(context);

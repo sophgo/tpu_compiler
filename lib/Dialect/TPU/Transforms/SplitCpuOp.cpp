@@ -1,4 +1,4 @@
-//===- SplitCpuOp - Implementation of Layer id assignment --------------===//
+//===- SplitCpuOp - Implementation of Layer id assignment -----------------===//
 //
 // Copyright 2019 The MLIR Authors.
 //
@@ -28,6 +28,7 @@
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/PatternMatch.h"
+#include "mlir/IR/SymbolTable.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Support/TensorFile.h"
 #include "mlir/Support/FileUtilities.h"
@@ -38,9 +39,6 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/ToolOutputFile.h"
-#include "mlir/IR/PatternMatch.h"
-#include "mlir/IR/SymbolTable.h"
-#include <iostream>
 #include <cstring>
 #include <numeric>
 #include <string>
@@ -52,7 +50,7 @@ using namespace mlir;
 
 namespace {
 
-static void collectInOutInfo(std::vector<Operation *> &cpuOpVec,
+void collectInOutInfo(std::vector<Operation *> &cpuOpVec,
                              std::vector<Value *> &inputs,
                              std::vector<Value *> &outputs) {
   std::vector<Value *> defValue;
@@ -87,7 +85,7 @@ static void collectInOutInfo(std::vector<Operation *> &cpuOpVec,
   }
 }
 
-static void collectInOutInfo(Operation * op, std::vector<Operation *> &cpuOpVec,
+void collectInOutInfo(Operation * op, std::vector<Operation *> &cpuOpVec,
                              std::vector<Value *> &inputs,
                              std::vector<Value *> &outputs) {
   Block* block = op->getBlock();
@@ -138,9 +136,6 @@ public :
       }
     }
 
-    //auto callOp = rewriter.create<CallOp>(op->getLoc(),
-    //              cpuOpVec[0]->getAttr("callee").cast<StringAttr>().getValue(),
-    //              ArrayRef<mlir::Type>{resType}, inputs);
     // set gaddr
     long gaddr = 0;
     for (auto cpuOp : cpuOpVec) {
@@ -152,8 +147,9 @@ public :
     auto gaddrAttr = rewriter.getI64IntegerAttr(gaddr);
     auto layerIdAttr = rewriter.getI32IntegerAttr(0);
     auto callee = cpuOpVec[0]->getAttr("callee").cast<StringAttr>().getValue();
-    auto callOp = rewriter.create<tpu::TG_CallOp>(op->getLoc(),  ArrayRef<mlir::Type>{resType},
-                             gaddrAttr, "call", layerIdAttr, callee, inputs);
+    auto callOp = rewriter.create<tpu::TG_CallOp>(op->getLoc(),
+                           ArrayRef<mlir::Type>{resType}, gaddrAttr, "call",
+                           layerIdAttr, callee, inputs);
 
     for (unsigned int i  = 0; i <  outputs.size(); i++) {
       auto outputOp = outputs[i]->getDefiningOp();
@@ -194,12 +190,14 @@ struct CpuOpPattern : public commonPattern {
   PatternMatchResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
     if (op->getAttr("deleted") != nullptr ) {
-      llvm::errs() << OpTy::getOperationName() << "\n";
-      std::string op_name = op->getAttrOfType<StringAttr>("name").getValue().str();
-      llvm::errs() << "tensor name: " << op_name << "\n";
+      LLVM_DEBUG(llvm::errs() << OpTy::getOperationName() << "\n");
+      std::string op_name =
+          op->getAttrOfType<StringAttr>("name").getValue().str();
+      LLVM_DEBUG(llvm::errs() << "tensor name: " << op_name << "\n");
       addCpuCall(op, rewriter);
+      return matchSuccess();
     }
-    return matchSuccess();
+    return matchFailure();
   }
 };
 
@@ -210,12 +208,13 @@ struct GenericCpuOpPattern : public commonPattern {
   PatternMatchResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
     if (op->getAttr("deleted") != nullptr ) {
-      //llvm::errs() << getOperationName() << "\n";
-      std::string op_name = op->getAttrOfType<StringAttr>("name").getValue().str();
-      llvm::errs() << "tensor name: " << op_name << "\n";
+      std::string op_name =
+          op->getAttrOfType<StringAttr>("name").getValue().str();
+      LLVM_DEBUG(llvm::errs() << "tensor name: " << op_name << "\n");
       addCpuCall(op, rewriter);
+      return matchSuccess();
     }
-    return matchSuccess();
+    return matchFailure();
   }
 };
 
@@ -297,13 +296,15 @@ void SplitCpuOpPass::createCpuFunc(std::vector<FuncOp> &cpuFuncVec,
 
   auto *context = &getContext();
   Builder builder(context);
-  auto cpuFuncName = std::string("cpu_func") + std::string("_") + std::to_string(fnIndex);
+  auto cpuFuncName = std::string("cpu_func") + std::string("_") +
+                     std::to_string(fnIndex);
 
   BlockAndValueMapping mapper;
-  for (auto opIter = maybeIncludedVec.rbegin(); opIter != maybeIncludedVec.rend(); ++opIter) {
+  for (auto opIter = maybeIncludedVec.rbegin(),
+       opRend = maybeIncludedVec.rend(); opIter != opRend; ++opIter) {
     origCpuOpVec.insert(origCpuOpVec.begin(), *opIter);
   }
-  for (auto op : origCpuOpVec) {
+  for (auto &op : origCpuOpVec) {
     auto newOp = op->cloneWithoutRegions(mapper);
     cpuOpVec.push_back(newOp);
   }
@@ -376,8 +377,6 @@ bool SplitCpuOpPass::isMixedOp(Operation *op) {
   } else
     return false;
 }
-
-
 } // namespace
 
 std::unique_ptr<OpPassBase<ModuleOp>> mlir::createSplitCpuOpPass() {

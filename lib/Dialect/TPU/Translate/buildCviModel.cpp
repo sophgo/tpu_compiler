@@ -12,30 +12,30 @@ static llvm::cl::opt<std::string> clInputWeightBin(
 
 static DType convert2DType(Type type) {
   switch (type.getKind()) {
-    case StandardTypes::BF16:
-      return DType::DType_BF16;
-    case StandardTypes::F32:
-      return DType::DType_FP32;
-    case StandardTypes::Integer: {
-      auto integer = type.cast<IntegerType>();
-      switch (integer.getWidth()) {
-        case 8:
-          return DType::DType_INT8;
-        case 16:
-          return DType::DType_INT16;
-        case 32:
-          return DType::DType_INT32;
-        default :
-          assert(0 && "Unsupported type");
-      }
-    }
-    case StandardTypes::RankedTensor: {
-      auto v = type.cast<RankedTensorType>();
-      auto tensorType = v.getElementType();
-      return convert2DType(tensorType);
-    }
+  case StandardTypes::BF16:
+    return DType::DType_BF16;
+  case StandardTypes::F32:
+    return DType::DType_FP32;
+  case StandardTypes::Integer: {
+    auto integer = type.cast<IntegerType>();
+    switch (integer.getWidth()) {
+    case 8:
+      return DType::DType_INT8;
+    case 16:
+      return DType::DType_INT16;
+    case 32:
+      return DType::DType_INT32;
     default :
-      assert(0 && "Unsupported type");
+      llvm_unreachable("unsupported type");
+    }
+  }
+  case StandardTypes::RankedTensor: {
+    auto v = type.cast<RankedTensorType>();
+    auto tensorType = v.getElementType();
+    return convert2DType(tensorType);
+  }
+  default :
+    llvm_unreachable("unsupported type");
   }
 }
 
@@ -72,18 +72,18 @@ static bool findCpuLib(std::string path, std::string libName) {
 
 static size_t getDTypeByteWidths(DType dtype) {
   switch (dtype) {
-    case DType::DType_FP32 :
-    case DType::DType_INT32 :
-    case DType::DType_UINT32 :
-      return 4;
-    case DType::DType_BF16 :
-    case DType::DType_INT16 :
-      return 2;
-    case DType::DType_INT8 :
-    case DType::DType_UINT8 :
-      return 1;
-    default :
-      assert(0 && "Unsupported type");
+  case DType::DType_FP32 :
+  case DType::DType_INT32 :
+  case DType::DType_UINT32 :
+    return 4;
+  case DType::DType_BF16 :
+  case DType::DType_INT16 :
+    return 2;
+  case DType::DType_INT8 :
+  case DType::DType_UINT8 :
+    return 1;
+  default :
+    llvm_unreachable("unsupported type");
   }
 }
 
@@ -179,7 +179,8 @@ void CviMlirParser::insertTensorMap(Operation *op) {
     }
 
     if (op->getAttr("buffer_reused")) {
-     auto reusedFlag  = op->getAttr("buffer_reused").cast<BoolAttr>().getValue();
+     auto reusedFlag  =
+         op->getAttr("buffer_reused").cast<BoolAttr>().getValue();
      if (reusedFlag)
        overWrote = true;
     }
@@ -189,7 +190,8 @@ void CviMlirParser::insertTensorMap(Operation *op) {
   sort(tensorPairs_.begin(), tensorPairs_.end(),
       [](std::pair<std::string, CviTensor> left,
       std::pair<std::string, CviTensor> right) {
-      return left.second.gaddr < right.second.gaddr;});
+        return left.second.gaddr < right.second.gaddr;
+      });
 }
 
 void CviMlirParser::collectedFuncInfo() {
@@ -230,13 +232,15 @@ void CviMlirParser::collectedFuncInfo() {
     tpuInputTensorName_.push_back(inputTensorName);
     tpuOutputTensorName_.push_back(outputTensorName);
   }
+
   std::vector<std::string> cpuInputTensorName;
   std::vector<std::string> cpuOutputTensorName;
   for (auto &fn : cpuFunc_) {
     if (fn == 0)
       continue;
     for (unsigned int i = 0; i < fn.getNumArguments(); i++) {
-      auto name = fn.getArgAttr(i, "tpu.tensor_name").cast<StringAttr>().getValue();
+      auto name =
+          fn.getArgAttr(i, "tpu.tensor_name").cast<StringAttr>().getValue();
       cpuInputTensorName.push_back(name);
     }
     fn.walk([&](Operation *op) {
@@ -249,7 +253,8 @@ void CviMlirParser::collectedFuncInfo() {
             resultNo = result->getResultNumber();
           std::string attrName = "name";
           if (defOp->getNumResults() > 1) {
-            std::string nameSuffix = std::string("_") + std::to_string(resultNo);
+            std::string nameSuffix =
+                std::string("_") + std::to_string(resultNo);
             attrName = "name" + nameSuffix;
           }
           auto name = defOp->getAttr(attrName).cast<StringAttr>().getValue();
@@ -257,6 +262,7 @@ void CviMlirParser::collectedFuncInfo() {
         }
       }
     });
+
     cpuInputTensorName_.push_back(cpuInputTensorName);
     cpuOutputTensorName_.push_back(cpuOutputTensorName);
     cpuInputTensorName.clear();
@@ -264,24 +270,33 @@ void CviMlirParser::collectedFuncInfo() {
   }
 
   for (int i = 0; i < getTpuNumRoutine(); i++) {
-    programInTensorName_.insert(programInTensorName_.end(), tpuInputTensorName_[i].begin(),
-        tpuInputTensorName_[i].end());
-    programOutTensorName_.insert(programOutTensorName_.end(), tpuOutputTensorName_[i].begin(),
-        tpuOutputTensorName_[i].end());
+    programInTensorName_.insert(programInTensorName_.end(),
+                                tpuInputTensorName_[i].begin(),
+                                tpuInputTensorName_[i].end());
+    programOutTensorName_.insert(programOutTensorName_.end(),
+                                 tpuOutputTensorName_[i].begin(),
+                                 tpuOutputTensorName_[i].end());
   }
 
   for (int i = 0; i < getCpuNumRoutine(); i++) {
-    programInTensorName_.insert(programInTensorName_.end(), cpuInputTensorName_[i].begin(),
+    programInTensorName_.insert(programInTensorName_.end(),
+                                cpuInputTensorName_[i].begin(),
                                 cpuInputTensorName_[i].end());
-    programOutTensorName_.insert(programOutTensorName_.end(), cpuOutputTensorName_[i].begin(),
+    programOutTensorName_.insert(programOutTensorName_.end(),
+                                 cpuOutputTensorName_[i].begin(),
                                  cpuOutputTensorName_[i].end());
   }
 
   // input like use, output like def
   std::sort(programInTensorName_.begin(), programInTensorName_.end());
-  programInTensorName_.erase(unique(programInTensorName_.begin(), programInTensorName_.end()), programInTensorName_.end());
-  for (auto outIt = programOutTensorName_.begin(); outIt != programOutTensorName_.end();) {
-    auto inIt = find(programInTensorName_.begin(), programInTensorName_.end(), *outIt);
+  programInTensorName_.erase(unique(programInTensorName_.begin(),
+                                    programInTensorName_.end()),
+                                    programInTensorName_.end());
+
+  for (auto outIt = programOutTensorName_.begin();
+            outIt != programOutTensorName_.end();) {
+    auto inIt = find(programInTensorName_.begin(),
+                     programInTensorName_.end(), *outIt);
     if (inIt != programInTensorName_.end()) {
       programInTensorName_.erase(inIt);
       outIt = programOutTensorName_.erase(outIt);
@@ -366,25 +381,14 @@ static std::string getCpuName(Operation *op) {
   } else if (isa<tpu::QuantOp>(op)) {
     return "quant";
   } else if (isa<tpu::GenericCpuOp>(op)){
-    auto cpuOp = op->getAttr("operation_name").cast<StringAttr>().getValue().str();
+    auto cpuOp =
+        op->getAttr("operation_name").cast<StringAttr>().getValue().str();
     std::string dialect = "tpu.";
     int pos = cpuOp.find(dialect);
     cpuOp = cpuOp.erase(pos, dialect.size());
     return cpuOp;
   } else {
-    assert("Unsupported cpu op" && 0);
-  }
-}
-
-std::vector<uint8_t> CviCpuRoutine::getSerializedata() {
-  if (isa<tpu::DetectionOutputOp>(op_)) {
-    return detectionOutputArgSerialize();
-  } else if (isa<tpu::SoftmaxOp>(op_)) {
-    return softmaxArgSerialize();
-  } else if (isa<tpu::QuantOp>(op_)) {
-    return quantArgSerialize();
-  } else {
-    assert("Unsupported cpu op" && 0);
+    llvm_unreachable("unsupported cpu op");
   }
 }
 
@@ -393,112 +397,56 @@ std::vector<uint8_t> CviCpuRoutine::cpuOpSerialize() {
   flatbuffers::Offset<cvi::cpu_op::Attribute> attr;
   std::vector<flatbuffers::Offset<cvi::cpu_op::Attribute>> param;
   auto paramDictAttr = op_->getAttr("param").cast<DictionaryAttr>();
-  for (auto iter = paramDictAttr.begin(); iter != paramDictAttr.end(); ++iter) {
-    auto key = iter->first.data();
+  for (auto &iter : paramDictAttr) {
+    auto key = iter.first.data();
     auto flatKey = builder.CreateString(key);
-    if (iter->second.isa<StringAttr>()) {
-      auto value = iter->second.cast<StringAttr>().getValue();
+    if (iter.second.isa<StringAttr>()) {
+      auto value = iter.second.cast<StringAttr>().getValue();
       std::string strValue = std::string(value.data(), value.size());
       auto flatValue = builder.CreateString(strValue);
       auto strAttr = cvi::cpu_op::CreateStrAttr(builder, flatKey, flatValue);
       attr = cvi::cpu_op::CreateAttribute(builder, 0, 0, 0, strAttr, 0, 0);
-    } else if (iter->second.isa<IntegerAttr>()) {
-      auto value = iter->second.cast<IntegerAttr>().getInt();
+    } else if (iter.second.isa<IntegerAttr>()) {
+      auto value = iter.second.cast<IntegerAttr>().getInt();
       auto intAttr = cvi::cpu_op::CreateIntAttr(builder, flatKey, value);
       attr = cvi::cpu_op::CreateAttribute(builder, 0, 0, intAttr, 0, 0, 0);
-    } else if (iter->second.isa<FloatAttr>()) {
-      auto value = iter->second.cast<FloatAttr>().getValueAsDouble();
+    } else if (iter.second.isa<FloatAttr>()) {
+      auto value = iter.second.cast<FloatAttr>().getValueAsDouble();
       auto floatAttr = cvi::cpu_op::CreateFloatAttr(builder, flatKey, value);
       attr = cvi::cpu_op::CreateAttribute(builder, floatAttr, 0, 0, 0, 0, 0);
-    } else if (iter->second.isa<BoolAttr>()) {
-      auto value = iter->second.cast<BoolAttr>().getValue();
+    } else if (iter.second.isa<BoolAttr>()) {
+      auto value = iter.second.cast<BoolAttr>().getValue();
       auto boolAttr = cvi::cpu_op::CreateBoolAttr(builder, flatKey, value);
       attr = cvi::cpu_op::CreateAttribute(builder, 0, boolAttr, 0, 0, 0, 0);
-    } else if (iter->second.isa<DenseFPElementsAttr>()) {
+    } else if (iter.second.isa<DenseFPElementsAttr>()) {
       std::vector<float> fpArray;
-      auto value = iter->second.cast<DenseFPElementsAttr>();
+      auto value = iter.second.cast<DenseFPElementsAttr>();
       for (APFloat realVal : value) {
         fpArray.push_back(realVal.convertToFloat());
       }
       auto flatValue = builder.CreateVector(fpArray);
-      auto fpArrayAttr = cvi::cpu_op::CreateFloatArrayAttr(builder, flatKey, flatValue);
+      auto fpArrayAttr =
+          cvi::cpu_op::CreateFloatArrayAttr(builder, flatKey, flatValue);
       attr = cvi::cpu_op::CreateAttribute(builder, 0, 0, 0, 0, fpArrayAttr, 0);
-    } else if (iter->second.isa<DenseIntElementsAttr>()) {
+    } else if (iter.second.isa<DenseIntElementsAttr>()) {
       std::vector<int> intArray;
-      auto value = iter->second.cast<DenseIntElementsAttr>();
+      auto value = iter.second.cast<DenseIntElementsAttr>();
       for (APInt intVal : value) {
         intArray.push_back(intVal.getZExtValue());
       }
       auto flatValue = builder.CreateVector(intArray);
-      auto intArrayAttr = cvi::cpu_op::CreateIntArrayAttr(builder, flatKey, flatValue);
+      auto intArrayAttr =
+          cvi::cpu_op::CreateIntArrayAttr(builder, flatKey, flatValue);
       attr = cvi::cpu_op::CreateAttribute(builder, 0, 0, 0, 0, 0, intArrayAttr);
     } else {
-      assert(0 && "Unsupported type");
+      llvm_unreachable("unsupported type");
     }
     param.push_back(attr);
   }
+
   auto flatParam = cvi::cpu_op::CreateParameterDirect(builder, &param);
   builder.Finish(flatParam);
 
-  std::vector<uint8_t> serializeData;
-  uint8_t* data = builder.GetBufferPointer();
-  for (unsigned int i = 0; i < builder.GetSize(); i++) {
-    serializeData.push_back(*data);
-    data++;
-  }
-  return serializeData;
-}
-
-std::vector<uint8_t> CviCpuRoutine::softmaxArgSerialize() {
-  flatbuffers::FlatBufferBuilder builder(1024);
-  auto axis = op_->getAttr("axis").cast<IntegerAttr>().getInt();
-  auto flatSoftmax = cvi::cpu_op::CreateSoftmax(builder, axis);
-  builder.Finish(flatSoftmax);
-  std::vector<uint8_t> serializeData;
-  uint8_t* data = builder.GetBufferPointer();
-  for (unsigned int i = 0; i < builder.GetSize(); i++) {
-    serializeData.push_back(*data);
-    data++;
-  }
-  return serializeData;
-}
-
-std::vector<uint8_t> CviCpuRoutine::detectionOutputArgSerialize() {
-  flatbuffers::FlatBufferBuilder builder(1024);
-  auto num_classes = op_->getAttr("num_classes").cast<IntegerAttr>().getInt();
-  auto share_location = op_->getAttr("share_location").cast<BoolAttr>().getValue();
-  auto keep_top_k = op_->getAttr("keep_top_k").cast<IntegerAttr>().getInt();
-  auto background_label_id = op_->getAttr("background_label_id").cast<IntegerAttr>().getInt();
-  auto top_k = op_->getAttr("top_k").cast<IntegerAttr>().getInt();
-  auto code_type = op_->getAttr("code_type").cast<StringAttr>().getValue();
-  auto nms_threshold = op_->getAttr("nms_threshold").cast<FloatAttr>().getValueAsDouble();
-  auto confidence_threshold = op_->getAttr("confidence_threshold").cast<FloatAttr>().getValueAsDouble();
-  auto flatDetectionOutput = cvi::cpu_op::CreateSSDDetectionDirect(builder, num_classes,
-                             share_location, background_label_id,
-                             top_k, code_type.data(), nms_threshold, confidence_threshold, keep_top_k);
-
-  builder.Finish(flatDetectionOutput);
-  std::vector<uint8_t> serializeData;
-  uint8_t* data = builder.GetBufferPointer();
-  for (unsigned int i = 0; i < builder.GetSize(); i++) {
-    serializeData.push_back(*data);
-    data++;
-  }
-  return serializeData;
-}
-
-std::vector<uint8_t> CviCpuRoutine::quantArgSerialize() {
-  auto from = op_->getAttr("from").cast<StringAttr>().getValue();
-  auto to = op_->getAttr("to").cast<StringAttr>().getValue();
-  auto threshold = op_->getAttr("threshold").cast<FloatAttr>().getValueAsDouble();
-  flatbuffers::FlatBufferBuilder builder(1024);
-  std::string strFrom = std::string(from.data(), from.size());
-  std::string strTo = std::string(to.data(), to.size());
-  auto flatFrom = builder.CreateString(strFrom.data());
-  auto flatTo = builder.CreateString(strTo.data());
-  auto flatQuant = cvi::cpu_op::CreateQuantization(builder, flatFrom, flatTo, threshold);
-
-  builder.Finish(flatQuant);
   std::vector<uint8_t> serializeData;
   uint8_t* data = builder.GetBufferPointer();
   for (unsigned int i = 0; i < builder.GetSize(); i++) {
@@ -524,10 +472,13 @@ void CviCpuRoutine::setInputOutputNames() {
 
     // It comes from the input of the function
     if (opdDef == nullptr) {
-      for (unsigned int argIndex = 0; argIndex < block->getNumArguments(); argIndex++) {
+      for (unsigned int argIndex = 0; argIndex < block->getNumArguments();
+           argIndex++) {
         auto arg = block->getArgument(argIndex);
         if (arg == opd) {
-          inputName = const_cast<FuncOp*>(&fnOp)->getArgAttr(argIndex, "tpu.tensor_name").cast<StringAttr>().getValue();
+          auto fn = const_cast<FuncOp*>(&fnOp);
+          auto nameAttr = fn->getArgAttr(argIndex, "tpu.tensor_name");
+          inputName = nameAttr.cast<StringAttr>().getValue();
           break;
         }
       }
@@ -537,10 +488,13 @@ void CviCpuRoutine::setInputOutputNames() {
       auto opdReshape = opdDef->getOperand(0);
       opdDef = opdReshape->getDefiningOp();
       if (opdDef == nullptr) {
-        for (unsigned int argIndex = 0; argIndex < block->getNumArguments(); argIndex++) {
+        for (unsigned int argIndex = 0; argIndex < block->getNumArguments();
+             argIndex++) {
           auto arg = block->getArgument(argIndex);
           if (arg == opdReshape) {
-            inputName = const_cast<FuncOp*>(&fnOp)->getArgAttr(argIndex, "tpu.tensor_name").cast<StringAttr>().getValue();
+            auto fn = const_cast<FuncOp*>(&fnOp);
+            auto nameAttr = fn->getArgAttr(argIndex, "tpu.tensor_name");
+            inputName = nameAttr.cast<StringAttr>().getValue();
             break;
           }
         }
@@ -558,8 +512,8 @@ void CviCpuRoutine::setInputOutputNames() {
 
 flatbuffers::Offset<Routine> CviCpuRoutine::buildCpuRoutine() {
   setInputOutputNames();
-  flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<flatbuffers::String>>> flatInputTensorNames;
-  flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<flatbuffers::String>>> flatOutputTensorNames;
+  FlatStrVecOffset flatInputTensorNames;
+  FlatStrVecOffset flatOutputTensorNames;
   std::vector<flatbuffers::Offset<flatbuffers::String>> flatTensorNameVec;
 
   for (auto &tensorName : inputTensorNames_) {
@@ -574,22 +528,21 @@ flatbuffers::Offset<Routine> CviCpuRoutine::buildCpuRoutine() {
     flatTensorNameVec.push_back(flatTensorName);
   }
   flatOutputTensorNames = flatBuilder_->CreateVector(flatTensorNameVec);
-
-
   auto funcName = getCpuName(op_);
-  //std::vector<uint8_t> serializeData = getSerializedata();
   std::vector<uint8_t> serializeData = cpuOpSerialize();
-  auto flatCpuRoutine = CreateCpuRoutineDirect(*flatBuilder_, funcName.data(), &serializeData);
-  return CreateRoutine(*flatBuilder_, RoutineType_CPU,
-                flatInputTensorNames, flatOutputTensorNames, 0, flatCpuRoutine);
+  auto flatCpuRoutine = CreateCpuRoutineDirect(*flatBuilder_, funcName.data(),
+                                               &serializeData);
+  return CreateRoutine(*flatBuilder_, RoutineType_CPU, flatInputTensorNames,
+                       flatOutputTensorNames, 0, flatCpuRoutine);
 
 }
 
 flatbuffers::Offset<Routine> CviTpuRoutine::buildTpuRoutine() {
-  flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<flatbuffers::String>>> flatInputTensorNames;
-  flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<flatbuffers::String>>> flatOutputTensorNames;
+  FlatStrVecOffset flatInputTensorNames;
+  FlatStrVecOffset flatOutputTensorNames;
 
-  std::vector<std::string> inputTensorName = parser_->getTpuInputTensorName(tpuIndex_);;
+  std::vector<std::string> inputTensorName =
+      parser_->getTpuInputTensorName(tpuIndex_);
   std::vector<flatbuffers::Offset<flatbuffers::String>> flatTensorNameVec;
 
   for (auto &tensorName : inputTensorName) {
@@ -598,7 +551,10 @@ flatbuffers::Offset<Routine> CviTpuRoutine::buildTpuRoutine() {
   }
   flatInputTensorNames = flatBuilder_->CreateVector(flatTensorNameVec);
   flatTensorNameVec.clear();
-  std::vector<std::string> outputTensorName = parser_->getTpuOutputTensorName(tpuIndex_);
+
+  std::vector<std::string> outputTensorName =
+      parser_->getTpuOutputTensorName(tpuIndex_);
+
   for (auto &tensorName : outputTensorName) {
     auto flatTensorName = flatBuilder_->CreateString(tensorName);
     flatTensorNameVec.push_back(flatTensorName);
@@ -606,9 +562,8 @@ flatbuffers::Offset<Routine> CviTpuRoutine::buildTpuRoutine() {
   flatOutputTensorNames = flatBuilder_->CreateVector(flatTensorNameVec);
   auto funcName = parser_->getTpuFuncName();
   auto flatTpuRoutine = CreateTpuRoutineDirect(*flatBuilder_, funcName.data());
-  return CreateRoutine(*flatBuilder_, RoutineType_TPU,
-                       flatInputTensorNames, flatOutputTensorNames, flatTpuRoutine, 0);
-
+  return CreateRoutine(*flatBuilder_, RoutineType_TPU, flatInputTensorNames,
+                       flatOutputTensorNames, flatTpuRoutine, 0);
 }
 
 void CviProgram::splitCpuRoutines(FuncOp &fn) {
@@ -637,12 +592,14 @@ void CviProgram::buildRoutines() {
   }
 }
 
-void CviProgram::buildNeuronMap(flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<Tensor>>> &flatTensorMap,
+void CviProgram::buildNeuronMap(FlatTensorVecOffset &flatTensorMap,
                                 long &allocatedGmem) {
   size_t tensorIndex = 1;
   long maxNeuronSize = 0;
   std::vector<flatbuffers::Offset<Tensor>> tensorVec;
-  std::vector<std::pair<std::string, CviTensor>> tensorPairs = parser_->getTensorPairs();
+  std::vector<std::pair<std::string, CviTensor>> tensorPairs =
+      parser_->getTensorPairs();
+
   for (auto &tensorPair : tensorPairs) {
     auto tensorName = flatBuilder_->CreateString(tensorPair.first);
     auto tensor = tensorPair.second;
@@ -673,11 +630,11 @@ void CviProgram::buildNeuronMap(flatbuffers::Offset<flatbuffers::Vector<flatbuff
     auto flatShape = CreateShape(*flatBuilder_, flatShapeVec);
     auto flatStride = CreateShape(*flatBuilder_, flatStrideVec);
     auto flatQuantInfo = CreateQuantInfo(*flatBuilder_, flatQuantType,
-                                     tensor.quant.max_value, tensor.quant.min_value,
-                                     tensor.quant.zero_point, tensor.quant.qscale);
-    auto flatTensor = CreateTensor(*flatBuilder_, tensorIndex, tensorName, tensor.gaddr,
-                                   flatTensorType, flatShape, flatStride, flatQuantInfo, 
-                                   tensor.overWrote);
+                                tensor.quant.max_value, tensor.quant.min_value,
+                                tensor.quant.zero_point, tensor.quant.qscale);
+    auto flatTensor = CreateTensor(*flatBuilder_, tensorIndex, tensorName,
+                                   tensor.gaddr, flatTensorType, flatShape,
+                                   flatStride, flatQuantInfo, tensor.overWrote);
 
     tensorVec.push_back(flatTensor);
     tensorIndex++;
@@ -686,11 +643,11 @@ void CviProgram::buildNeuronMap(flatbuffers::Offset<flatbuffers::Vector<flatbuff
   flatTensorMap = flatBuilder_->CreateVector(tensorVec);
 }
 
-void CviProgram::buildInputsOutputs(
-     flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<flatbuffers::String>>> &flatInputTensors,
-     flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<flatbuffers::String>>> &flatOutputTensors) {
+void CviProgram::buildInputsOutputs(FlatStrVecOffset &flatInputTensors,
+                                    FlatStrVecOffset &flatOutputTensors) {
   std::vector<std::string> inputTensorName = parser_->getProgramInTensorName();
-  std::vector<std::string> outputTensorName = parser_->getProgramOutTensorName();
+  std::vector<std::string> outputTensorName =
+      parser_->getProgramOutTensorName();
 
   std::vector<flatbuffers::Offset<flatbuffers::String>> flatTensorNameVec;
   for (auto &tensorName : inputTensorName) {
@@ -708,9 +665,9 @@ void CviProgram::buildInputsOutputs(
 }
 
 flatbuffers::Offset<Program> CviProgram::build(){
-  flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<flatbuffers::String>>> flatInputTensors;
-  flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<flatbuffers::String>>> flatOutputTensors;
-  flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<Tensor>>> flatTensorMap;
+  FlatStrVecOffset flatInputTensors;
+  FlatStrVecOffset flatOutputTensors;
+  FlatTensorVecOffset flatTensorMap;
   size_t batchNum = parser_->getBatchNum();
   long allocatedGmem = 0;
 
@@ -723,7 +680,7 @@ flatbuffers::Offset<Program> CviProgram::build(){
                        flatOutputTensors, flatTensorMap, flatRoutines);
 }
 
-flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<Section>>> CviModel::buildSections() {
+CviModel::FlatSectionVecOffset CviModel::buildSections() {
   // build weight section
   std::string errorMessage;
   std::vector<flatbuffers::Offset<Section>> sectionVec;
@@ -732,8 +689,8 @@ flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<Section>>> CviModel:
   size_t binBufOffset = 0;
   auto size = weightBinFile->getBufferSize();
   auto flatName = flatBuilder_->CreateString("weight");
-  auto weightSection = CreateSection(*flatBuilder_, SectionType_WEIGHT, flatName,
-                       size, binBufOffset);
+  auto weightSection = CreateSection(*flatBuilder_, SectionType_WEIGHT,
+                                     flatName, size, binBufOffset);
   sectionVec.push_back(weightSection);
 
   // build tpu cmdbuf section
@@ -778,14 +735,15 @@ flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<Section>>> CviModel:
 
 flatbuffers::Offset<Model> CviModel::build() {
   std::stringstream ssTime;
-  auto t = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+  auto clockNow = std::chrono::system_clock::now();
+  auto t = std::chrono::system_clock::to_time_t(clockNow);
   ssTime << std::put_time(std::localtime(&t), "%Y-%m-%d %H.%M.%S");
   std::string strTime = ssTime.str();
   std::string modelName = parser_->getModelName();
   Version modelVersion = Version(MAJOR_VER, MIN_VER, SUBMIN_VER);
   auto flatModelName = flatBuilder_->CreateString(modelName);
   auto flatTime = flatBuilder_->CreateString(strTime);
-  flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<Weight>>> flatWeightMap;
+  FlatWeightVecOffset flatWeightMap;
 
   buildWeightMap(flatWeightMap);
   auto flatSections = buildSections();
@@ -793,11 +751,11 @@ flatbuffers::Offset<Model> CviModel::build() {
   std::vector<flatbuffers::Offset<Program>> programVec;
   programVec.push_back(flatProgram);
   auto flatProgramVec = flatBuilder_->CreateVector(programVec);
-  return CreateModel(*flatBuilder_, &modelVersion, flatModelName, flatTime, 0, 0,
-                     flatWeightMap, flatProgramVec, flatSections);
+  return CreateModel(*flatBuilder_, &modelVersion, flatModelName, flatTime, 0,
+                     0, flatWeightMap, flatProgramVec, flatSections);
 }
 
-void CviModel::buildWeightMap(flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<Weight>>> &flatWeightMap) {
+void CviModel::buildWeightMap(FlatWeightVecOffset &flatWeightMap) {
   std::vector<flatbuffers::Offset<Weight> > flatWeightVec;
   std::string tensorName;
   std::map<std::string, CviWeight> weightMap = parser_->getWeightMap();
