@@ -134,7 +134,8 @@ static void insertQauntOp(Operation *op) {
         name = getOpName(prev_op).str() + "_dequant";
         layer_id = getOpLayerId(prev_op);
       }
-      name = name + "_" + prev_quant.str() + "_" + curr_quant.str();
+      // app recognizes _quant as network output
+      //name = name + "_" + prev_quant.str() + "_" + curr_quant.str();
       // check if prev op has inserted quant/dequant op
       if (prev_op) {
         bool found = false;
