@@ -13,7 +13,6 @@ mlir-opt \
 
 mlir-opt \
     --tpu-quant \
-    --gen-lrn-table \
     --print-tpu-op-info \
     --tpu-op-info-filename googlenet_op_info_int8_multiplier.csv \
     googlenet_cali.mlir \
