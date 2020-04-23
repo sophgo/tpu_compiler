@@ -104,7 +104,11 @@ public:
       }
     }
   }
-  virtual ~ModuleInterpreter() {}
+  virtual ~ModuleInterpreter() {
+    if (weightFile_){
+      delete weightFile_;
+    }
+  }
 
   template <typename T = ModuleInterpreter>
   static LogicalResult runModule(ModuleInterpreter *interpreter,
