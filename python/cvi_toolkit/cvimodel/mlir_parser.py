@@ -14,7 +14,7 @@ def is_cpu_quant(op, cpu_ops):
     r = op.type in cpu_ops
 
     # NONE imply FP32
-    if op.type == "quant":
+    if op.type == "quant" and hasattr(op, 'attributes'):
         param = op.attributes['param']
         attr_from = param.get('from', "NOT_SET")
         attr_to = param.get('to', "NOT_SET")
