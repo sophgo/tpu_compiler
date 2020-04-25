@@ -432,11 +432,7 @@ LogicalResult tpu::TG_INT8_PT_Conv2DOp::codegen(void *ctx) {
 
   cvi_backend_tg_int8_conv(
       *backend_ctx,
-      0, // stream_id,
-      0, // inst_id,
       layer_id, // layer_id,
-      nullptr,  // depends
-      0, // depends_len
       ga_input,  // input_data_gaddr,
       ga_output, // output_data_gaddr,
       ga_filter, // weight_data_gaddr,
@@ -452,7 +448,6 @@ LogicalResult tpu::TG_INT8_PT_Conv2DOp::codegen(void *ctx) {
       dh, dw,
       ph, ph, pw, pw, // pad (t, b, l, r)
       sh, sw,
-      0,         // result_add
       with_bias, // bias_term,
       0,         // do_bn,
       0,         // do_scale,
@@ -471,9 +466,7 @@ LogicalResult tpu::TG_INT8_PT_Conv2DOp::codegen(void *ctx) {
       (int)rshift, // right_shift_width,
       0,         //bn_right_shift_width,
       0,         //scale_right_shift_width,
-      false,     //use_winograd
-      0,         // right_shift_array_len
-      0,          // ga_per_channel
+      false,     // do_chl_quan
       do_ic_alignment
       );
 
@@ -534,11 +527,7 @@ LogicalResult tpu::TG_INT8_PC_Conv2DOp::codegen(void *ctx) {
 
   cvi_backend_tg_int8_conv(
       *backend_ctx,
-      0, // stream_id,
-      0, // inst_id,
       layer_id, // layer_id,
-      nullptr, // depends
-      0, // depends_len
       ga_input,   // input_data_gaddr,
       ga_output,  // output_data_gaddr,
       ga_filter,  // weight_data_gaddr,
@@ -554,7 +543,6 @@ LogicalResult tpu::TG_INT8_PC_Conv2DOp::codegen(void *ctx) {
       dh, dw,
       ph, ph, pw, pw, // pad (t, b, l, r)
       sh, sw,
-      0,         // result_add
       with_bias, // bias_term,
       0,         // do_bn,
       0,         // do_scale,
@@ -573,9 +561,7 @@ LogicalResult tpu::TG_INT8_PC_Conv2DOp::codegen(void *ctx) {
       0,         // (int)rshift[0], //right_shift_width,
       0,         // bn_right_shift_width,
       0,         // scale_right_shift_width,
-      false,     // use_winograd
-      oc,        // right_shift_array_len
-      ga_pc_info, // ga_per_channel
+      true,      // do_chl_quan
       do_ic_alignment
       );
 
