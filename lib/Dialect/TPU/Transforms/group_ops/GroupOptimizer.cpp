@@ -704,6 +704,7 @@ void GroupOptimizer::lower_to_tg_group(MLIRContext * context) {
       addGroupTGLayerPattern<tpu::EltwiseMulOp>,
       addGroupTGLayerPattern<tpu::PoolAvg2DOp>,
       addGroupTGLayerPattern<tpu::PoolMax2DOp>,
+      addGroupTGLayerPattern<tpu::ConcatOp>,
       addGroupTGLayerPattern<tpu::FullyConnectedOp>
   >(context, this);
   applyPatternsGreedily(*fn_, tg_patterns);
@@ -724,6 +725,7 @@ void GroupOptimizer::lower_to_tg_group(MLIRContext * context) {
       addTGLayerGAddrPattern<tpu::TG_INT8_PoolAvg2DOp>,
       addTGLayerGAddrPattern<tpu::TG_INT8_PoolMax2DOp>,
       addTGLayerGAddrPattern<tpu::TG_INT8_FullyConnectedOp>,
+      addTGLayerGAddrPattern<tpu::TG_INT8_ConcatOp>,
       addTGLayerGAddrPattern<tpu::GenericCpuOp>
   >(context, this, neuronMapFile->os());
   applyPatternsGreedily(*fn_, tg_addr_patterns);

@@ -301,6 +301,8 @@ bool NetGraph::is_concat_special_case(int layer_id, int tid, int cluster_size) {
 
 // BM188X check whether concat layer can be optimized
 bool NetGraph::is_concat_optimized_case(int layer_id, int tid, int cluster_size) {
+  // TODO: open it later
+  return false;
   if (is_concat_special_case(layer_id, tid, cluster_size)) {
     return true;
   }

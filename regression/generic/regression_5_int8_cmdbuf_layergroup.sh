@@ -20,6 +20,14 @@ DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 # Batch 2, 31.6 fps
 # Batch 4, 37.4 fps
 
+# inception_v3 pass, on chip performance
+# Batch 1, 82.6 fps
+# Batch 4, 95.2 fps
+
+# inception_v4 pass, on chip performance
+# Batch 1, 37 fps
+# Batch 4, 41.3 fps
+
 
 # compare all only support when global memory optimization close
 COMPARE_ALL=1

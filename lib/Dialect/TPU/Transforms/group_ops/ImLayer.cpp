@@ -214,19 +214,6 @@ ImEltwise::ImEltwise(Operation* op) : ImLayer(IR_ELTWISE, op, true) {
   add_imm_tensor(in_tensors[0], 1, name_ + "_imm");
 }
 
-// ImBatchnorm::ImBatchnorm(Operation* op) : ImLayer(IR_BATCHNORM, op, true) {
-//   auto input_type = op->getOperand(0)->getType().dyn_cast<TensorType>();
-//   std::vector<int64_t> input_shape = input_type.getShape();
-//   add_in_tensor(op->getOperand(0), TENSOR_NEURON);
-
-//   add_in_tensor(2, input_shape[1], 1, 1, DATA_TYPE_SIZE, "int8",
-//                 name_ + "_mean_param", TENSOR_BIAS);
-
-//   add_in_tensor(1, input_shape[1], 1, 1, DATA_TYPE_SIZE, "int8",
-//                 name_ + "_variance_param", TENSOR_COEFF_NEURON);
-
-//   add_out_tensor(op->getResult(0), TENSOR_NEURON);
-// }
 
 ImCommon::ImCommon(Operation* op, bool inplace_compute, IR_TYPE type) : ImLayer(type, op) {
   is_inplace_layer = (is_inplace_layer || inplace_compute);
@@ -245,29 +232,6 @@ ImCommon::ImCommon(Operation* op, bool inplace_compute, IR_TYPE type) : ImLayer(
     add_out_tensor(op->getResult(i), TENSOR_NEURON);
   }
 }
-
-// ImScale::ImScale(Operation* op) : ImLayer(IR_SCALE, op, true) {
-//   auto opd_type = op->getOperand(1)->getType().dyn_cast<TensorType>();
-//   std::vector<int64_t> opd_shape = opd_type.getShape();
-//   tensor_type_t tensor_type = TENSOR_COEFF_NEURON;
-//   if (isa<tpu::LoadWeightOp>(op->getOperand(1)->getDefiningOp()))
-//     tensor_type = TENSOR_NEURON_AS_COEFF;
-
-//   // add input 0
-//   add_in_tensor(op->getOperand(0), TENSOR_NEURON);
-
-//   // add input 1 or weight
-//   add_in_tensor(1, opd_shape[0], 1, 1, DATA_TYPE_SIZE, "int8",
-//                 name_ + "_input1", tensor_type);
-
-//   if (op->getNumOperands() == 3) {
-//     add_in_tensor(2, opd_shape[0], 1, 1, DATA_TYPE_SIZE, "int16",
-//                   name_ + "_bias_factor", TENSOR_BIAS);
-//   }
-
-//   add_out_tensor(op->getResult(0), TENSOR_NEURON);
-// }
-
 
 ImConcat::ImConcat(Operation* op) : ImLayer(IR_CONCAT, op) {
   for (u32 i = 0; i < op->getNumOperands(); ++i) {
