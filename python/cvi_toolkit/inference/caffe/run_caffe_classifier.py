@@ -114,7 +114,7 @@ def main(argv):
                     mean_file=args.mean_file,
                     input_scale=args.input_scale,
                     raw_scale=args.raw_scale,
-                    std=args.std)
+                    std=args.std, batch=args.batch_size)
 
     # Load image file.
     args.input_file = os.path.expanduser(args.input_file)
