@@ -20,6 +20,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/TPU/TPUDialect.h"
+#include "mlir/Dialect/TPU/TPUCompressUtil.h"
 #include "mlir/Dialect/TPU/TPUOperationSupport.h"
 #include "mlir/Dialect/TPU/TPUTensorSupport.h"
 #include "mlir/Dialect/TPU/Passes.h"
@@ -43,6 +44,17 @@
 using namespace mlir;
 
 namespace {
+
+static bool isStoreCompressedActivation(Operation *op) {
+
+  // Only support convolution now.
+  if (auto tpuOp = dyn_cast<tpu::TG_INT8_PC_Conv2DOp>(op)) {
+    if (tpuOp.store_compr_act().hasValue())
+      return true;
+  }
+
+  return false;
+}
 
 template<typename OpTy>
 struct AssignGAddrPattern : public RewritePattern {
@@ -88,6 +100,18 @@ struct AssignGAddrPattern : public RewritePattern {
     if (size % alignment_) {
       size = size + alignment_ - (size % alignment_);
     }
+
+    // Adjust neuron size for compression
+    // Apply int8 only.
+    if (dtype_size == 1 && isStoreCompressedActivation(op)) {
+      size = getCompressedDataSize(size, /*dataType*/0);
+
+      LLVM_DEBUG(llvm::dbgs() <<
+                 "AssignGAddrPattern " << castOp.name()
+                 << ", size " << count * dtype_size
+                 << ", compressed reserved size " << size << "\n");
+    }
+
     auto newPos = curPos + size;
 
     LLVM_DEBUG(llvm::errs() << llvm::format("[%-36s][%8d] : [ ",

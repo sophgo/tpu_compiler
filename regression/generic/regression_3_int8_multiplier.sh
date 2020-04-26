@@ -8,6 +8,7 @@ COMPARE_ALL=1
 COMPARE_OUTPUT_BIT_TRUE=0
 
 OP_LOWERING=0
+COMPRESS_ACTIVATION=0
 
 if [ $DO_QUANT_INT8_MULTIPLER -eq 1 ]; then
   ###############################################################################
@@ -61,6 +62,15 @@ if [ $DO_QUANT_INT8_MULTIPLER -eq 1 ]; then
       ${MLIR_OPT_BE} \
       ${NET}_quant_int8_multiplier_tg.mlir \
       -o ${NET}_quant_int8_multiplier_tg_opt.mlir
+
+  if [ $COMPRESS_ACTIVATION -eq 1 ]; then
+    mlir-opt \
+        --debug \
+        --compress-activation \
+        ${NET}_quant_int8_multiplier_tg_opt.mlir \
+        -o ${NET}_quant_int8_multiplier_tg_opt_ca.mlir
+    mv ${NET}_quant_int8_multiplier_tg_opt_ca.mlir ${NET}_quant_int8_multiplier_tg_opt.mlir
+  fi
 
   if [ $OP_LOWERING -eq 1 ]; then
     # function argument lower to MemRefType

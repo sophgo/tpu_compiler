@@ -20,6 +20,7 @@ add_llvm_library(MLIRTPU
   IR/TPUTensorSupport.cpp
   Analysis/TpuOpPrint.cpp
   Analysis/TpuOpStats.cpp
+  Transforms/CompressActivation.cpp
   Transforms/CompressWeight.cpp
   Transforms/ConvertBnToScale.cpp
   Transforms/ConvertScale.cpp

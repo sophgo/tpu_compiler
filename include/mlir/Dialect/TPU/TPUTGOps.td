@@ -136,7 +136,9 @@ class TPU_TG_ConvOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     OptionalAttr<NonNegativeI32Attr>:$layer_id,
     OptionalAttr<BoolAttr>:$do_ic_alignment,
     DefaultValuedAttr<BoolAttr, "false">:$fuse_prev,
-    DefaultValuedAttr<BoolAttr, "false">:$fuse_next
+    DefaultValuedAttr<BoolAttr, "false">:$fuse_next,
+    OptionalAttr<BoolAttr>:$load_compr_act,
+    OptionalAttr<BoolAttr>:$store_compr_act
   );
 
   let results = (outs AnyTensor:$output);
@@ -249,7 +251,9 @@ class TPU_TG_EltwiseOp<string mnemonic, string opQuant, string opType> : TPU_Op<
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<BoolAttr>:$load_compr_act,
+    OptionalAttr<BoolAttr>:$store_compr_act
   );
 
   let results = (outs AnyTensor:$output);
