@@ -28,6 +28,8 @@ mlir-opt \
     -o ${NET}_quant_int8_multiplier_0.mlir
 
 # quant
+echo "quant bf16 layers:"
+cat ${BF16_QUANT_LAYERS_FILE}
 mlir-opt \
     --tpu-quant \
     --quant-int8-mix-bf16-layers-from-file ${BF16_QUANT_LAYERS_FILE} \
