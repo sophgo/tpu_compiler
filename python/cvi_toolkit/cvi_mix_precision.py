@@ -7,11 +7,16 @@ import numpy as np
 #
 # function comes from bmcompress, plz refre [here](http://10.34.33.3:8480/toolchain/bmcompress/blob/master/experiment/imagenet/mobilenet_v1_pytorch/sqnr_mobilenet_v1.py) for more details
 #
-from gen_imagenet_list import imagenet_generator
-from inference_demo_mobilenet import preprocess
-from get_csv_val import get_csv_val, get_rows_by_column
+from mix_precision.gen_imagenet_list import imagenet_generator
+from mix_precision.inference_demo_mobilenet import preprocess
+from mix_precision.get_csv_val import get_csv_val, get_rows_by_column
 
 import pymlir
+
+import logging
+from utils.log_setting import setup_logger
+logger = setup_logger('root')
+log_flag = logger.level <= logging.DEBUG
 
 def parse_args():
   parser = argparse.ArgumentParser(description="find bf16 layers in int8 net")
@@ -90,54 +95,55 @@ def cal_sqnr(signal_raw, signal_dequant):
 
 # default all set to bf16 than turn off some layer to find it
 def sqnr_mean_one_output(args, layers):
-    sqnr_list = list()
-    pred_fp32 = list()
+  sqnr_list = list()
+  pred_fp32 = list()
 
-    # pred_fp32, mean of fp32
-    print('Collect pred_fp32...')
+  # pred_fp32, mean of fp32
+  print('Collect pred_fp32...')
 
-    # get layers
-    create_bf16_layers(args, layers)
+  # get layers
+  create_bf16_layers(args, layers)
+  gen_mlir(args)
+  module = pymlir.module()
+  module.load(args.model)
+
+  op_info = module.op_info
+  for x, _, _ in imagenet_generator(generate_count=g_val_data_count, preprocess=preprocess):
+    res = module.run(x)
+    y = module.get_all_tensor()
+    y = y[module.op_info[-1]['name']].flatten()
+    pred_fp32.append(y)
+
+  for info in op_info:
+    if info['type'] in skip_ops:
+      continue
+
+    layer_name = info['name']
+    # pred_int8
+    print('Collect pred_int8...', layer_name)
+    create_bf16_layers(args, layers, [layer_name])
+
     gen_mlir(args)
     module = pymlir.module()
     module.load(args.model)
 
-    op_info = module.op_info
+    sqnr = 0
+    data_count = 0
     for x, _, _ in imagenet_generator(generate_count=g_val_data_count, preprocess=preprocess):
-        res = module.run(x)
-        y = module.get_all_tensor()
-        y = y[module.op_info[-1]['name']].flatten()
-        pred_fp32.append(y)
+      res = module.run(x)
+      y = module.get_all_tensor()
+      # get last output
+      y = y[module.op_info[-1]['name']].flatten()
+      #y = y.values()[0].flatten()
+      sqnr += cal_sqnr(pred_fp32[data_count], y)
+      data_count += 1
 
-    for info in op_info:
-      if info['type'] in skip_ops:
-        continue
+    sqnr_list.append((layer_name, sqnr / g_val_data_count))
 
-      layer_name = info['name']
-      create_bf16_layers(args, layers, [layer_name])
-      gen_mlir(args)
-      module = pymlir.module()
-      module.load(args.model)
+  sqnr_list = sorted(sqnr_list, cmp=lambda x, y: cmp(x[1], y[1]))
 
-      # pred_int8
-      print('Collect pred_int8...', layer_name)
-      sqnr = 0
-      data_count = 0
-      for x, _, _ in imagenet_generator(generate_count=g_val_data_count, preprocess=preprocess):
-          res = module.run(x)
-          y = module.get_all_tensor()
-          # get last output
-          y = y[module.op_info[-1]['name']].flatten()
-          #y = y.values()[0].flatten()
-          sqnr += cal_sqnr(pred_fp32[data_count], y)
-          data_count += 1
-
-      sqnr_list.append((layer_name, sqnr / g_val_data_count))
-
-    sqnr_list = sorted(sqnr_list, cmp=lambda x, y: cmp(x[1], y[1]))
-
-    for layer_sqnr in sqnr_list:
-        print('{}, {}'.format(layer_sqnr[0], layer_sqnr[1]))
+  for layer_sqnr in sqnr_list:
+    print('{}, {}'.format(layer_sqnr[0], layer_sqnr[1]))
 
 if __name__ == '__main__':
   args = parse_args()
@@ -145,5 +151,7 @@ if __name__ == '__main__':
 
   layer_names = get_rows_by_column(args.all_layers_name_csv_file,
       [args.layers_column_name])
+  if log_flag:
+    print("all layer:", layer_names)
 
   sqnr_mean_one_output(args, layer_names)
