@@ -412,7 +412,7 @@ public:
         if (auto deallocOp = dyn_cast_or_null<DeallocOp>(user_op))
           rewriter.eraseOp(deallocOp);
         else
-          assert("Expect DeallocOp");
+          llvm_unreachable("Expect DeallocOp");
     }
     rewriter.eraseOp(allocOp);
 

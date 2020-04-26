@@ -80,8 +80,8 @@ public:
                 || isa<tpu::LoadWeightOp>(op)
                 || isa<tpu::NoneOp>(op)) {
           } else {
-            llvm::errs() << "printTpuOpInfo didn't handle " << op->getName() << "\n";
-            assert(false);
+            std::string opName = op->getName().getStringRef();
+            llvm_unreachable(("printTpuOpInfo didn't handle " + opName).c_str());
           }
         });
       }

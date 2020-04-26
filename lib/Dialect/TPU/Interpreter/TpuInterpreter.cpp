@@ -162,7 +162,7 @@ LogicalResult tpu::BroadcastMulOp::interpret(
     FloatToBFloat16(resultT->data(), tensor_bf16->data(), resultT->size()); // with rounding
     BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
   } else {
-    assert(false);
+    llvm_unreachable("unsupported type");
   }
 
   valueMapping[result] = std::move(resultT);
@@ -269,7 +269,7 @@ LogicalResult tpu::ConcatOp::interpret(
         }
         shift_idx_h += h;
       } else {
-        assert(0 && "not support concat_axis >=3 now\n");
+        llvm_unreachable("not support concat_axis >=3 now\n");
       }
     } else if (shape.size() == 2) {
       h = shape[0];
@@ -296,7 +296,7 @@ LogicalResult tpu::ConcatOp::interpret(
         }
         tmp_w += w;
       } else {
-        assert(0 && "not support concat_axis >=2 now\n");
+        llvm_unreachable("not support concat_axis >=2 now\n");
       }
     } else if (shape.size() == 3) {
       c = shape[0];
@@ -436,7 +436,7 @@ LogicalResult doConv2DOpInterpret(Operation *op,
     FloatToBFloat16(resultT->data(), tensor_bf16->data(), resultT->size()); // with rounding
     BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
   } else {
-    assert(false);
+    llvm_unreachable("unsupported type");
   }
 
   valueMapping[result] = std::move(resultT);
@@ -753,7 +753,7 @@ static LogicalResult doLUTOpInterpret(Operation *op, StringRef &type,
     }else if (type == "Sigmoid"){
       my_sigmoid(input, output, n, c, h, w);
     }else{
-      assert(false&&"not support LUT op type");
+      llvm_unreachable("not support LUT op type");
     }
 
     if (getOpQuant(op) == "BF16"){
@@ -764,7 +764,7 @@ static LogicalResult doLUTOpInterpret(Operation *op, StringRef &type,
     }
 
   }else{
-    assert(0&&"not support method");
+    llvm_unreachable("not support method");
   }
 
   valueMapping[result] = std::move(resultT);
@@ -848,7 +848,7 @@ static LogicalResult doEltwiseOpInterpret(Operation *op,
   } else if (type == "MUL") {
     // MUL apply qscale on output put, no scaling on input
   } else {
-    assert(false);
+    llvm_unreachable("unsupported eltwise type");
   }
 
   // compute in fp32
@@ -861,7 +861,7 @@ static LogicalResult doEltwiseOpInterpret(Operation *op,
   } else if (type == "MUL") {
     ret = my_eltwise(input[0], input[1], output, in, ic, ih, iw, 0);
   } else {
-    assert(false);
+    llvm_unreachable("unsupported eltwise type");
   }
   assert(ret == 0);
   if (do_relu) {
@@ -990,7 +990,7 @@ LogicalResult tpu::FullyConnectedOp::interpret(
     FloatToBFloat16(resultT->data(), tensor_bf16->data(), resultT->size()); // with rounding
     BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
   } else {
-    assert(false);
+    llvm_unreachable("unsupported type");
   }
 
   valueMapping[result] = std::move(resultT);
@@ -1089,7 +1089,7 @@ LogicalResult tpu::LeakyReluOp::interpret(
     FloatToBFloat16(resultT->data(), tensor_bf16->data(), resultT->size()); // with rounding
     BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
   } else {
-    assert(false);
+    llvm_unreachable("unsupported type");
   }
 
   valueMapping[result] = std::move(resultT);
@@ -1520,7 +1520,7 @@ LogicalResult tpu::ClipOp::interpret(
     FloatToBFloat16(resultT->data(), tensor_bf16->data(), resultT->size()); // with rounding
     BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
   } else {
-    assert(false);
+    llvm_unreachable("unsupported type");
   }
 
   valueMapping[result] = std::move(resultT);
@@ -1677,7 +1677,7 @@ LogicalResult tpu::PowerOp::interpret(
   }
 #endif
 
-  assert(false);
+  llvm_unreachable("unsupported op");
   return success();
 }
 
@@ -2390,12 +2390,12 @@ static void convertParamAttributesToOpParam(
             break;
           }
           default:
-            assert(false);
+            llvm_unreachable("unsupported attribute");
         }
         break;
       }
       default:
-        assert(false);
+        llvm_unreachable("unsupported attribute");
     }
   }
 }
@@ -2568,7 +2568,7 @@ LogicalResult tpu::TanHOp::interpret(
   }
 #endif
 
-  assert(false);
+  llvm_unreachable("unsupported op");
   return success();
 }
 
@@ -2758,7 +2758,7 @@ LogicalResult tpu::QuantOp::interpret(
                << std::to_string(threshold) << "\n";);
     quantizeActivationInt8WithThreshold(output, input, size, threshold);
   } else {
-    assert(0);
+    llvm_unreachable("unsupported type");
   }
 
   valueMapping[result] = std::move(resultT);
@@ -2845,7 +2845,7 @@ LogicalResult ModuleInterpreter::runFunctions() {
 
     if (!function.getName().equals("tpu_func")) {
       //continue;
-      assert(0);
+      llvm_unreachable("only has tpu func");
     }
     if (failed(runOneFunction(function)))
       return failure();
@@ -2862,9 +2862,9 @@ LogicalResult ModuleInterpreter::doRun(std::vector<int64_t> input_shape, std::ve
     std::string ErrorMsg;
     gCustomerPlugin = llvm::sys::DynamicLibrary::getPermanentLibrary(clCustomerInterpretPlugin.c_str(), &ErrorMsg);
     if (!gCustomerPlugin.isValid()) {
-      llvm::errs() << "Failed to load customer interpret plugin from path:"
-                   << clCustomerInterpretPlugin << ", reason:" << ErrorMsg << "\n";
-      assert(0);
+      ErrorMsg = "Failed to load customer interpret plugin from path:" +
+                 clCustomerInterpretPlugin + ", reason:" + ErrorMsg + "\n";
+      llvm_unreachable(ErrorMsg.c_str());
     }
   }
 

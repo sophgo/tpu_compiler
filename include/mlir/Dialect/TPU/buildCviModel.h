@@ -1,4 +1,4 @@
-//===- buildCviModel.h - class for cvimodel ---*- C++ -*-===//
+//===- buildCviModel.h - class for cvimodel ---------------------*- C++ -*-===//
 //
 // Copyright 2019 The MLIR Authors.
 //

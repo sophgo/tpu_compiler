@@ -31,6 +31,8 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/ToolOutputFile.h"
 
+#define DEBUG_TYPE "tpu_op_stats"
+
 using namespace mlir;
 
 namespace {
@@ -59,14 +61,13 @@ public:
 
     mlir::ModuleOp module = getModule();
     //mlir::SymbolTable moduleSymTable(module);
-
-    os << "name" << "," << "n" << "," << "g" << ","
-       << "ic" << "," << "ih" << "," << "iw" << ","
-       << "oc" << "," << "oh" << "," << "ow" << ","
-       << "kh" << "," << "kw" << "," << "sh" << "," << "sw" << ","
-       << "dh" << "," << "dw" << "," << "ph" << "," << "pw" << ","
-       << "mac_count"
-       <<"\n";
+    LLVM_DEBUG(llvm::dbgs() << "name" << "," << "n" << "," << "g" << ","
+                            << "ic" << "," << "ih" << "," << "iw" << ","
+                            << "oc" << "," << "oh" << "," << "ow" << ","
+                            << "kh" << "," << "kw" << "," << "sh" << ","
+                            << "sw" << "," << "dh" << "," << "dw" << ","
+                            << "ph" << "," << "pw" << "," << "mac_count"
+                            <<"\n");
     total_mac_count = 0;
     for (auto func : module.getOps<FuncOp>()) {
       func.walk([&](Operation *opInst) {
@@ -83,7 +84,7 @@ public:
         }
       });
     }
-    llvm::errs() << "Total MAC Count: " << total_mac_count << "\n";
+    LLVM_DEBUG(llvm::dbgs() << "Total MAC Count: " << total_mac_count << "\n");
   }
 
 private:
@@ -100,14 +101,12 @@ private:
 
     uint64_t mac_count = ow * oh * kh * kw * g * (ic / g) * (oc / g) * n;
     total_mac_count += mac_count;
-
-    os << op.name() << "," << n << "," << g << ","
-       << ic << "," << ih << "," << iw << ","
-       << oc << "," << oh << "," << ow << ","
-       << kh << "," << kw << "," << sh << "," << sw << ","
-       << dh << "," << dw << "," << ph << "," << pw << ","
-       << mac_count
-       <<"\n";
+    LLVM_DEBUG(llvm::dbgs() << op.name() << "," << n << "," << g << ","
+                            << ic << "," << ih << "," << iw << ","
+                            << oc << "," << oh << "," << ow << ","
+                            << kh << "," << kw << "," << sh << "," << sw << ","
+                            << dh << "," << dw << "," << ph << "," << pw << ","
+                            << mac_count <<"\n");
   }
 
   template <typename OpTy>
@@ -123,13 +122,12 @@ private:
     uint64_t mac_count = ow * oh * kh * kw * c * n;
     total_mac_count += mac_count;
 
-    os << op.name() << "," << n << "," << ","
-       << c << "," << ih << "," << iw << ","
-       << "," << oh << "," << ow << ","
-       << kh << "," << kw << "," << sh << "," << sw << ","
-       << "," << "," << pt << "," << pb << "," << pl << "," << pr << ","
-       << mac_count
-       <<"\n";
+    LLVM_DEBUG(llvm::dbgs() << op.name() << "," << n << "," << ","
+                            << c << "," << ih << "," << iw << ","
+                            << "," << oh << "," << ow << ","
+                            << kh << "," << kw << "," << sh << "," << sw << ","
+                            << "," << "," << pt << "," << pb << "," << pl << ","
+                            << pr << "," << mac_count <<"\n");
   }
 
   void dumpFullyConnectedOpParam(tpu::FullyConnectedOp &op, llvm::raw_ostream &os) {
@@ -139,13 +137,12 @@ private:
     uint64_t mac_count = m * k * n;
     total_mac_count += mac_count;
 
-    os << op.name() << "," << m << "," << ","
-       << k << "," << "," << ","
-       << m << "," << "," << ","
-       << "," << "," << "," << ","
-       << "," << "," << "," << ","
-       << mac_count
-       <<"\n";
+    LLVM_DEBUG(llvm::dbgs() << op.name() << "," << m << "," << ","
+                            << k << "," << "," << ","
+                            << m << "," << "," << ","
+                            << "," << "," << "," << ","
+                            << "," << "," << "," << ","
+                            << mac_count <<"\n");
   }
 
 };

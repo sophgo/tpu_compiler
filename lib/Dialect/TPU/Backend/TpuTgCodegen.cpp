@@ -140,8 +140,9 @@ LogicalResult tpu::TG_BF16_BroadcastMulOp::codegen(void *ctx) {
   int64_t input_size_1;
   std::vector<int64_t> shape_1;
   getTensorShapeAndSize(op->getOperand(1), shape_1, input_size_1);
-  assert(shape_1[0] == 1 && shape_1[1] == c && shape_1[2] == 1 && shape_1[3] == 1 &&
-          "boradcast means second shape MUST be <1, c, 1, 1>");
+  assert(shape_1[0] == 1 && shape_1[1] == c &&
+         shape_1[2] == 1 && shape_1[3] == 1 &&
+         "boradcast means second shape MUST be <1, c, 1, 1>");
 
   gaddr_t ga_input = getPreviousOpAddress(op);
   gaddr_t ga_output = getOpAddress(op);
@@ -367,9 +368,8 @@ LogicalResult tpu::TG_BF16_CropOp::codegen(void *ctx) {
                << " [" << getOpName() << "]\n";);
   //CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   //Operation *op = this->getOperation();
-
-  assert(false);
-  return success();
+  std::string errorMsg = "unsupported tg op " + getOpName().str();
+  llvm_unreachable(errorMsg.c_str());
 }
 
 LogicalResult tpu::TG_INT8_PT_Conv2DOp::codegen(void *ctx) {
@@ -643,8 +643,8 @@ LogicalResult tpu::TG_INT8_PT_DeConv2DOp::codegen(void *ctx) {
   //CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   //Operation *op = this->getOperation();
 
-  assert(false);
-  return success();
+  std::string errorMsg = "unsupported tg op " + getOpName().str();
+  llvm_unreachable(errorMsg.c_str());
 }
 
 LogicalResult tpu::TG_INT8_PC_DeConv2DOp::codegen(void *ctx) {
@@ -741,8 +741,8 @@ LogicalResult tpu::TG_BF16_DeConv2DOp::codegen(void *ctx) {
   //CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   //Operation *op = this->getOperation();
 
-  assert(false);
-  return success();
+  std::string errorMsg = "unsupported tg op " + getOpName().str();
+  llvm_unreachable(errorMsg.c_str());
 }
 
 LogicalResult tpu::TG_INT8_EltwiseAddOp::codegen(void *ctx) {
@@ -830,8 +830,8 @@ LogicalResult tpu::TG_INT8_EltwiseMaxOp::codegen(void *ctx) {
   //CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   //Operation *op = this->getOperation();
 
-  assert(false);
-  return success();
+  std::string errorMsg = "unsupported tg op " + getOpName().str() + "\n";
+  llvm_unreachable(errorMsg.c_str());
 }
 
 LogicalResult tpu::TG_INT8_EltwiseMulOp::codegen(void *ctx) {
@@ -945,8 +945,8 @@ LogicalResult tpu::TG_BF16_EltwiseMaxOp::codegen(void *ctx) {
   //CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   //Operation *op = this->getOperation();
 
-  assert(false);
-  return success();
+  std::string errorMsg = "unsupported tg op " + getOpName().str() + "\n";
+  llvm_unreachable(errorMsg.c_str());
 }
 
 LogicalResult tpu::TG_BF16_EltwiseMulOp::codegen(void *ctx) {
@@ -1217,8 +1217,8 @@ LogicalResult tpu::TG_BF16_LrnOp::codegen(void *ctx) {
   // TODO:
   // CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   // Operation *op = this->getOperation();
-  assert(false);
-  return success();
+  std::string errorMsg = "unsupported tg op " + getOpName().str() + "\n";
+  llvm_unreachable(errorMsg.c_str());
 }
 
 LogicalResult tpu::TG_INT8_LutOp::codegen(void *ctx) {
@@ -1601,8 +1601,8 @@ LogicalResult tpu::TG_BF16_PReluOp::codegen(void *ctx) {
                << " [" << getOpName() << "]\n";);
   // CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   // Operation *op = this->getOperation();
-  assert(false);
-  return success();
+  std::string errorMsg = "unsupported tg op " + getOpName().str() + "\n";
+  llvm_unreachable(errorMsg.c_str());
 }
 
 LogicalResult tpu::TG_INT8_ReluOp::codegen(void *ctx) {
@@ -1644,8 +1644,8 @@ LogicalResult tpu::TG_BF16_ReluOp::codegen(void *ctx) {
                << " [" << getOpName() << "]\n";);
   // CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   // Operation *op = this->getOperation();
-  assert(false);
-  return success();
+  std::string errorMsg = "unsupported tg op " + getOpName().str() + "\n";
+  llvm_unreachable(errorMsg.c_str());
 }
 
 LogicalResult tpu::TG_INT8_ShuffleChannelOp::codegen(void *ctx) {
@@ -1814,8 +1814,8 @@ LogicalResult tpu::TG_BF16_PixelShuffleOp::codegen(void *ctx) {
 }
 
 LogicalResult tpu::TG_INT8_ClipOp::codegen(void *ctx) {
-  assert(0 && "not implement yet, plz enable --tpu-quant-clip to fuse clip to its former layer");
-  return success();
+  std::string errorMsg = "unsupported tg op " + getOpName().str() + "\n";
+  llvm_unreachable(errorMsg.c_str());
 }
 
 LogicalResult tpu::TG_BF16_ClipOp::codegen(void *ctx) {
@@ -2115,7 +2115,7 @@ LogicalResult tpu::QuantOp::codegen(void *ctx) {
               dequant//float const_scale
               );
   } else {
-    assert(0);
+    llvm_unreachable("unsupported type");
   }
 
   return success();

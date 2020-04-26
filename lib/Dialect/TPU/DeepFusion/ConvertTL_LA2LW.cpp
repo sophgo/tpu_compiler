@@ -61,7 +61,7 @@ struct TpuTL_LA_Conv2DOpPattern : public RewritePattern {
     LLVM_DEBUG(llvm::errs() << "TL_LA2LW: layer ID " << op.layer_id()
                  << ", convert to LW\n";);
 
-    assert(op.getNumOperands() == 3);
+    assert(op.getNumOperands() == 3 && "support 3 inputs only");
     std::vector<Value *> newOperands;
     newOperands.push_back(op.getOperand(0));
     newOperands.push_back(op.getOperand(1));
@@ -167,7 +167,7 @@ struct TpuTL_LW_Conv2DOp_MarkShortPathPattern : public RewritePattern {
       op.setAttr("in_short_path", rewriter.getBoolAttr(false));
       return matchSuccess();
     }
-    assert(op.getResult()->hasOneUse());
+    assert(op.getResult()->hasOneUse() && "this op has only one use");
 
     // TODO: this is a naive version, looking for one step path, mark as short
     auto next_op = getNextOp(op);
@@ -244,7 +244,7 @@ struct TpuTL_LW_Conv2DOp_AssignLayoutPattern : public RewritePattern {
           } else if (conv_op_next.lm_layout() ==  "OWI") {
             op.setAttr("lm_layout", rewriter.getStringAttr("IWO"));
           } else {
-            assert(0);
+            llvm_unreachable("unsupported layout");
           }
           // steal the op
           op.setAttr("tl_store_flag", rewriter.getBoolAttr(false));
@@ -267,7 +267,7 @@ struct TpuTL_LW_Conv2DOp_AssignLayoutPattern : public RewritePattern {
         } else if (conv_op_next.lm_layout() ==  "OWI") {
           op.setAttr("lm_layout", rewriter.getStringAttr("IWO"));
         } else {
-          assert(0);
+          llvm_unreachable("unsupported layout");
         }
         // however, since the op has another use, the current OP needs to do store
         op.setAttr("tl_store_flag", rewriter.getBoolAttr(true));
@@ -283,7 +283,7 @@ struct TpuTL_LW_Conv2DOp_AssignLayoutPattern : public RewritePattern {
       }
     }
 
-    assert(op.getResult()->hasOneUse());
+    assert(op.getResult()->hasOneUse() && "this op only has one use");
     Operation *next_opInst = getNextOp(op);
     if (auto next_op = llvm::dyn_cast_or_null<tpu::TL_LW_Conv2DOp>(next_opInst)) {
       // next is another TL_LW_Conv2DOp
@@ -296,7 +296,7 @@ struct TpuTL_LW_Conv2DOp_AssignLayoutPattern : public RewritePattern {
       } else if (next_op.lm_layout() == "OWI") {
         op.setAttr("lm_layout", rewriter.getStringAttr("IWO"));
       } else {
-        assert(0);
+        llvm_unreachable("unsupported layout");
       }
       op.setAttr("tl_store_flag", rewriter.getBoolAttr(false));
       next_op.setAttr("tl_load_flag", rewriter.getBoolAttr(false));
@@ -323,7 +323,7 @@ struct TpuTL_LW_Conv2DOp_AssignLayoutPattern : public RewritePattern {
         } else if (next_op.lm_layout() == "OWI") {
           op.setAttr("lm_layout", rewriter.getStringAttr("IWO"));
         } else {
-          assert(0);
+          llvm_unreachable("unsupported layout");
         }
         op.setAttr("tl_store_flag", rewriter.getBoolAttr(false));
         next_op.setAttr("tl_load_flag", rewriter.getBoolAttr(false));
@@ -368,7 +368,7 @@ struct TpuTL_EltwiseAddOp_AssignLayoutPattern : public RewritePattern {
         } else if (next_op.lm_layout() == "OWI") {
           op.setAttr("lm_layout", rewriter.getStringAttr("IWO"));
         } else {
-          assert(0);
+          llvm_unreachable("unsupported layout");
         }
         op.setAttr("tl_store_flag", rewriter.getBoolAttr(false));
         next_op.setAttr("tl_load_flag", rewriter.getBoolAttr(false));
@@ -409,7 +409,7 @@ struct TpuTL_EltwiseAddOp_AssignLayoutPattern : public RewritePattern {
         op.setAttr("lm_layout", rewriter.getStringAttr("IWO"));
       } else if (conv_ops.empty() && elta_ops.size() == 1) {
         // one elta case
-        assert(0);
+        llvm_unreachable("unhandled case");
       } else if (elta_ops.empty() && conv_ops.size() == 1) {
         // one conv case
         // YOLO_v3 goes here, the other is concat
@@ -447,7 +447,7 @@ struct TpuTL_EltwiseAddOp_AssignLayoutPattern : public RewritePattern {
           } else if (conv_op_next.lm_layout() ==  "OWI") {
             op.setAttr("lm_layout", rewriter.getStringAttr("IWO"));
           } else {
-            assert(0);
+            llvm_unreachable("unsupported layout");
           }
           // steal the op
           op.setAttr("tl_store_flag", rewriter.getBoolAttr(false));
@@ -466,11 +466,11 @@ struct TpuTL_EltwiseAddOp_AssignLayoutPattern : public RewritePattern {
         } else if (conv_op.lm_layout() ==  "OWI") {
           op.setAttr("lm_layout", rewriter.getStringAttr("IWO"));
         } else {
-          assert(0);
+          llvm_unreachable("unsupported layout");
         }
         conv_op.setAttr("tl_load_flag", rewriter.getBoolAttr(false));
       } else {
-        assert(0);
+        llvm_unreachable("unsupported layout");
       }
     }
     LLVM_DEBUG(llvm::errs() << "TL_LA2LW: layer ID " << op.layer_id()
@@ -535,7 +535,7 @@ struct TpuTL_LW_Conv2DOp_AssignLAddrPattern : public RewritePattern {
              MInfo::lmem_per_lane - inputNeuronSizePerLane));
         op.setAttr("la_working", rewriter.getI32IntegerAttr(outputNeuronSizePerLane));
       } else {
-        assert(0);
+        llvm_unreachable("unsupported layout");
       }
 
       LLVM_DEBUG(llvm::errs() << "TL_LA2LW: layer ID " << op.layer_id()
@@ -590,7 +590,7 @@ struct TpuTL_EltwiseAddOp_AssignLAddrPattern : public RewritePattern {
              MInfo::lmem_per_lane - inputNeuronSizePerLane));
         op.setAttr("la_working", rewriter.getI32IntegerAttr(outputNeuronSizePerLane));
       } else {
-        assert(0);
+        llvm_unreachable("unsupported layout");
       }
 
       LLVM_DEBUG(llvm::errs() << "TL_LA2LW: layer ID " << op.layer_id()
