@@ -122,8 +122,10 @@ def main(argv):
 
     input_data = preprocessor.run(args.input_file)
     inputs = input_data
+    print("Batch size : %d" % args.batch_size)
     for i in range(1, args.batch_size):
       inputs = np.append(inputs, input_data, axis=0)
+    # print("Input Shape : ", inputs.shape)
 
     # Classify.
     start = time.time()

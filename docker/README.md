@@ -8,7 +8,7 @@ $ systemctl start docker
 $ systemctl enable docker
 
 $ sudo groupadd docker
-$ sudo usermod -aG docker lwang
+$ sudo usermod -aG docker $USER
 $ newgrp docker
 
 $ docker ps

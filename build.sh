@@ -75,7 +75,6 @@ cmake -G Ninja \
     $MLIR_SRC_PATH/third_party/opencv
 cmake --build . --target install
 popd
-
 # build flatbuffers
 if [ ! -e $BUILD_PATH/build_flatbuffers ]; then
   mkdir -p $BUILD_PATH/build_flatbuffers
@@ -135,7 +134,6 @@ CVI_PY_TOOLKIT=$MLIR_SRC_PATH/python/cvi_toolkit
 cp -ar $CVI_PY_TOOLKIT/ $TPU_PYTHON_PATH/
 cp -ar $CVI_PY_TOOLKIT/*.py $TPU_PYTHON_PATH/
 
-
 # python script
 cp $CVI_PY_TOOLKIT/binary_helper/*.py $TPU_PYTHON_PATH/
 cp $CVI_PY_TOOLKIT/calibration/*.py $TPU_PYTHON_PATH/
@@ -148,7 +146,6 @@ cp -ar  $CVI_PY_TOOLKIT/retinaface/ $TPU_PYTHON_PATH/
 pushd $TPU_PYTHON_PATH/retinaface; make; popd
 cp -ar $TPU_PYTHON_PATH/retinaface/* $TPU_PYTHON_PATH/
 
-
 # calibration tool
 if [ ! -e $BUILD_PATH/build_calibration ]; then
   mkdir -p $BUILD_PATH/build_calibration
@@ -157,7 +154,6 @@ pushd $BUILD_PATH/build_calibration
 cmake $CVI_PY_TOOLKIT/calibration && make
 cp calibration_math.so $INSTALL_PATH/lib
 popd
-
 
 # build cmodel
 if [ ! -e $BUILD_PATH/build_cmodel ]; then
@@ -217,7 +213,16 @@ cmake --build . --target install
 popd
 cp $MLIR_SRC_PATH/externals/profiling/tool/performance.html $PROFILING_PATH/bin/
 
-
+# build python package
+pushd $MLIR_SRC_PATH
+if [ $PYTHON_VERSION == "2" ]; then
+  echo "Not support build python2 package"
+elif [ $PYTHON_VERSION == "3" ]; then
+  pip3 install wheel
+  python3 setup/python3/setup.py bdist_wheel --dist-dir=$INSTALL_PATH/python3_package/ --plat-name="linux_x86_64"
+  python3 setup/python3/setup.py clean
+fi
+popd
 
 # Clean up some files for release build
 if [ "$1" = "RELEASE" ]; then
@@ -266,17 +271,6 @@ if [ "$1" = "RELEASE" ]; then
   $MLIR_SRC_PATH/regression/cvitek_zoo/cvitek_zoo_generate_cvimodels.sh
   popd
 fi
-
-# build python package
-pushd $MLIR_SRC_PATH
-if [ $PYTHON_VERSION == "2" ]; then
-  echo "Not support build python2 package"
-elif [ $PYTHON_VERSION == "3" ]; then
-  pip3 install wheel
-  python3 setup/python3/setup.py bdist_wheel --dist-dir=$INSTALL_PATH/python3_package/ --plat-name="linux_x86_64"
-  python3 setup/python3/setup.py clean
-fi
-popd
 
 # SoC build
 if [ "$1" = "SOC" ]; then

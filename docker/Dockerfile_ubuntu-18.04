@@ -36,6 +36,17 @@ RUN apt-get install -y --no-install-recommends \
     squashfs-tools \
     fakeroot
 
+# gst build
+RUN apt-get install -y --no-install-recommends \
+    pkg-config \
+    autopoint \
+    bison \
+    flex \
+    gettext \
+    indent \
+    meson \
+    libglib2.0-dev
+
 # for caffe build
 RUN apt-get install -y --no-install-recommends \
     libboost-all-dev \

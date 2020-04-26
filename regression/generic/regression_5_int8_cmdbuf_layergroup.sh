@@ -65,14 +65,14 @@ build_cvimodel.py \
     --cmdbuf cmdbuf_int8_multiplier_layergroup.bin \
     --weight weight_int8_multiplier_layergroup.bin \
     --mlir ${NET}_quant_int8_multiplier_layergroup.mlir \
-    --output=${NET}_int8_multiplier_layergroup.cvimodel
+    --output=${NET}_lg.cvimodel
 
 if [ $COMPARE_ALL -eq 1 ]; then
     echo "compare all"
     model_runner \
     --dump-all-tensors \
     --input ${NET}_in_fp32.npz \
-    --model ${NET}_int8_multiplier_layergroup.cvimodel \
+    --model ${NET}_lg.cvimodel \
     --batch-num $BATCH_SIZE \
     --output ${NET}_cmdbuf_out_all_int8_multiplier_layergroup.npz
 
@@ -84,7 +84,7 @@ if [ $COMPARE_ALL -eq 1 ]; then
 else
     model_runner \
     --input ${NET}_in_fp32.npz \
-    --model ${NET}_int8_multiplier_layergroup.cvimodel \
+    --model ${NET}_lg.cvimodel \
     --batch-num $BATCH_SIZE \
     --output ${NET}_cmdbuf_out_all_int8_multiplier_layergroup_fc1000_dequant.npz
 
@@ -98,6 +98,10 @@ else
         ${NET}_ref_out_fc1000_int8_multiplier.npz \
         ${NET}_cmdbuf_out_all_int8_multiplier_layergroup_fc1000_dequant.npz \
         --op_info ${NET}_op_info_int8_multiplier.csv
+fi
+
+if [ ! -z $CVIMODEL_REL_PATH -a -d $CVIMODEL_REL_PATH ]; then
+  mv ${NET}_lg.cvimodel $CVIMODEL_REL_PATH
 fi
 
 # VERDICT

@@ -393,7 +393,6 @@ fi
 if [ $BATCH_SIZE -gt 1 ]; then
 export DO_DEEPFUSION=0
 export DO_MEMOPT=0
-export DO_LAYERGROUP=1
 export DO_QUANT_MIX=0
 export DO_E2E=0
 fi

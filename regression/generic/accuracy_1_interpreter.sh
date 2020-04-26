@@ -36,16 +36,16 @@ if [ $DO_QUANT_INT8_PER_TENSOR -eq 1 ]; then
       --count=$1
 fi
 
-if [ $DO_QUANT_INT8_RFHIFT_ONLY -eq 1 ]; then
-  $EVAL_FUNC \
-      --model=${NET}_quant_int8_rshift_only.mlir \
-      --dataset=$DATASET_PATH/imagenet/img_val_extracted \
-      --net_input_dims $NET_INPUT_DIMS \
-      --raw_scale $RAW_SCALE \
-      --mean $MEAN \
-      --input_scale $INPUT_SCALE \
-      --count=$1
-fi
+#if [ $DO_QUANT_INT8_RFHIFT_ONLY -eq 1 ]; then
+#  $EVAL_FUNC \
+#      --model=${NET}_quant_int8_rshift_only.mlir \
+#      --dataset=$DATASET_PATH/imagenet/img_val_extracted \
+#      --net_input_dims $NET_INPUT_DIMS \
+#      --raw_scale $RAW_SCALE \
+#      --mean $MEAN \
+#      --input_scale $INPUT_SCALE \
+#      --count=$1
+#fi
 
 if [ $DO_QUANT_INT8_MULTIPLER -eq 1 ]; then
   $EVAL_FUNC \

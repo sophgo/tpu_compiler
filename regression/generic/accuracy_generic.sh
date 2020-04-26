@@ -9,7 +9,7 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
 if [ ! -e $NET ]; then
   echo "$NET does not exist, run regression first"
-  return 1
+  exit 1
 fi
 
 export NET=$NET
