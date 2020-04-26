@@ -34,7 +34,8 @@ class preprocess(object):
                      transpose="2,0,1",
                      rgb_order='bgr',
                      npy_input=None,
-                     letter_box=False):
+                     letter_box=False,
+                     batch=1):
         print("preprocess :\n         \
             \tnet_input_dims: {}\n    \
             \tresize_dims   : {}\n    \
@@ -47,13 +48,15 @@ class preprocess(object):
             \trgb_order     : {}\n    \
             \tnpy_input     : {}\n    \
             \tletter_box    : {}\n    \
+            \tbatch_size    : {}\n    \
         ".format(net_input_dims, resize_dims, mean, \
                 mean_file, std, input_scale, raw_scale, \
                 transpose, rgb_order, npy_input, \
-                letter_box
+                letter_box, batch
         ))
         self.npy_input = npy_input
         self.letter_box = letter_box
+        self.batch = batch
         self.net_input_dims = [int(s) for s in net_input_dims.split(',')]
         if resize_dims != None :
             self.resize_dims = [int(s) for s in resize_dims.split(',')]

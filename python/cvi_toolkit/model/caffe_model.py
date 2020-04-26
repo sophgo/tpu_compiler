@@ -15,6 +15,10 @@ class CaffeModel(model_base):
         self.net = caffe.Net(model_file, wegiht_file, caffe.TEST)
 
     def inference(self, input):
+        # reshape to multi-batch blobs
+        in_ = self.net.inputs[0]
+        self.net.blobs[in_].reshape(input.data.shape[0], self.net.blobs[in_].data.shape[1],  self.net.blobs[in_].data.shape[2],  self.net.blobs[in_].data.shape[3])
+
         out = self.net.forward_all(**{self.net.inputs[0]: input})
         return out[self.net.outputs[0]]
 
