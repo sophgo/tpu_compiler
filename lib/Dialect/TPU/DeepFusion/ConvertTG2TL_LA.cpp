@@ -73,7 +73,7 @@ struct TpuTG2TLConv2DOpPattern : public RewritePattern {
     }
 
     // convert to TL_LA_Conv2DOp
-    assert(op.getNumOperands() == 3);
+    assert(op.getNumOperands() == 3 && "support 3 inputs only");
     std::vector<Value *> newOperands;
     newOperands.push_back(op.getOperand(0));
     newOperands.push_back(op.getOperand(1));
@@ -138,7 +138,7 @@ struct TpuTG2TLElewiseAddOpPattern : public RewritePattern {
       LLVM_DEBUG(llvm::errs() << "TG2TL_LA: " << op.name()
                    << ", layer ID " << op.layer_id() << "\n";);
 
-      assert(op.getNumOperands() == 2);
+      assert(op.getNumOperands() == 2 && "support 2 inputs only");
       std::vector<Value *> newOperands;
       newOperands.push_back(op.getOperand(0));
       newOperands.push_back(op.getOperand(1));

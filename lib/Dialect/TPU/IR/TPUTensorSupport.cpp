@@ -51,7 +51,7 @@ void getNCHW(std::vector<int64_t> &shape,
     h = 1;
     w = 1;
   } else {
-    assert(false);
+    llvm_unreachable("unsupported shape size");
   }
 }
 
@@ -65,19 +65,19 @@ Value* getWeightFileValue(Operation *op) {
     fn.walk([&](tpu::WeightFileOp op) {
        wfV = op.getResult();
     });
-    assert(wfV);
+    assert(wfV && "wfV is nullptr");
     return wfV;
   } else {
-    assert(0);
+    llvm_unreachable("no FuncOp found");
   }
 }
 
 TensorFile* getWeightTensorFile(Operation *op) {
   auto wfV = getWeightFileValue(op);
   auto wfOp = cast<tpu::WeightFileOp>(wfV->getDefiningOp());
-  assert(wfOp);
+  assert(wfOp && "wfOp is nullptr");
   TensorFile *wTF = wfOp.get();
-  assert(wTF);
+  assert(wTF && "no tensor file found");
   return wTF;
 }
 
@@ -130,7 +130,7 @@ void addWeightTensorAndUpdateWeightOp(Value* opd,
     } else if (storageType == "UINT16") {
       eltType = IntegerType::get(16, builder.getContext());
     } else {
-      assert(false);
+      llvm_unreachable("unsupported storage type");
     }
   } else if ( typeid(T) == typeid(int16_t) ) {
     eltType = IntegerType::get(16, builder.getContext());
@@ -139,9 +139,7 @@ void addWeightTensorAndUpdateWeightOp(Value* opd,
   } else if ( typeid(T) == typeid(int8_t) ) {
     eltType = IntegerType::get(8, builder.getContext());
   } else {
-    llvm::errs() << "add weight tensor failed, tensor = "
-                 << getOpName(opd->getDefiningOp()) << "\n";
-    assert(false);
+    llvm_unreachable("unsupported type");
   }
   auto type = RankedTensorType::get(shape, eltType);
   auto name = weightOp.name().getValue().str();
@@ -186,9 +184,9 @@ Value* addWeightTensorAndCreateWeightOp(Operation *op,
   } else if ( typeid(T) == typeid(uint8_t) ) {
     eltType = IntegerType::get(8, builder.getContext());
   } else {
-    llvm::errs() << "add weight tensor failed, name = "
-                 << name << ", type =" << typeid(T).name() << "\n";
-    assert(false);
+    std::string errorMsg = "add weight tensor failed, name = " + name + 
+                           ", type =" + typeid(T).name();
+    llvm_unreachable(errorMsg.c_str());
   }
   auto type = RankedTensorType::get(shape, eltType);
   wTF->addTensor<T>(name, &weight, type);

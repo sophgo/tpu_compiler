@@ -23,16 +23,15 @@ llvm::StringRef getOpName(Operation *op) {
   } else if (isa<ReturnOp>(op)) {
     return llvm::StringRef("std.return");
   } else {
-    llvm::errs() << __func__ << " failed, Op " << op->getName() << "\n";
-    assert(false);
-    return llvm::StringRef();
+    std::string errorMsg = std::string(__func__) + " failed, Op " +
+                           op->getName().getStringRef().str() + "\n";
+    llvm_unreachable(errorMsg.c_str());
   }
 }
 
 llvm::StringRef getPreviousOpName(Operation *op, uint index = 0) {
-  if ( op->getNumOperands() < (index + 1) ) {
-    assert(false);
-    return llvm::StringRef();
+  if (op->getNumOperands() < (index + 1)) {
+    llvm_unreachable("wrong index");
   }
   return getOpName(op->getOperand(index)->getDefiningOp());
 }
@@ -41,10 +40,9 @@ int getOpLayerId(Operation *op) {
   if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpCommonInterface>(op)) {
     return tpuOp.getOpLayerId();
   } else {
-    llvm::errs() << __func__ << " failed, Op " << op->getName() << "\n";
-    llvm::errs() << __func__ << "       name " << getOpName(op) << "\n";
-    assert(false);
-    return -1;
+    std::string errorMsg = std::string(__func__) + " failed, Op " +
+                           op->getName().getStringRef().str() + "\n";
+    llvm_unreachable(errorMsg.c_str());
   }
 }
 
@@ -52,10 +50,9 @@ LogicalResult setOpLayerId(Operation *op, int id) {
   if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpCommonInterface>(op)) {
     return tpuOp.setOpLayerId(id);
   } else {
-    llvm::errs() << __func__ << " failed, Op " << op->getName() << "\n";
-    llvm::errs() << __func__ << "       name " << getOpName(op) << "\n";
-    assert(false);
-    return failure();
+    std::string errorMsg = std::string(__func__) + " failed, Op " +
+                           op->getName().getStringRef().str() + "\n";
+    llvm_unreachable(errorMsg.c_str());
   }
 }
 
@@ -73,10 +70,9 @@ llvm::StringRef getOpQuant(Operation *op) {
     // cpu Ops return NONE
     return llvm::StringRef("NONE");
   } else {
-    llvm::errs() << __func__ << " failed, Op " << op->getName() << "\n";
-    llvm::errs() << __func__ << "       name " << getOpName(op) << "\n";
-    assert(false);
-    return llvm::StringRef("NONE");
+    std::string errorMsg = std::string(__func__) + " failed, Op " +
+                           op->getName().getStringRef().str() + "\n";
+    llvm_unreachable(errorMsg.c_str());
   }
 }
 
@@ -84,10 +80,9 @@ LogicalResult setOpQuant(Operation *op, llvm::StringRef mode) {
   if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpQuantInterface>(op)) {
     return tpuOp.setOpQuantMode(mode);
   } else {
-    llvm::errs() << __func__ << " failed, Op " << op->getName() << "\n";
-    llvm::errs() << __func__ << "       name " << getOpName(op) << "\n";
-    assert(false);
-    return failure();
+    std::string errorMsg = std::string(__func__) + " failed, Op " +
+                           op->getName().getStringRef().str() + "\n";
+    llvm_unreachable(errorMsg.c_str());
   }
 }
 
@@ -102,7 +97,7 @@ void setOpResultType(Operation *op, StandardTypes::Kind kind, int width) {
     assert(width != 0);
     eltType = IntegerType::get(width, builder.getContext());
   } else {
-    assert(false);
+    llvm_unreachable("unsupported type");
   }
   auto shape = op->getResult(0)->getType().cast<TensorType>().getShape();
   auto type = RankedTensorType::get(shape, eltType);
@@ -113,10 +108,9 @@ llvm::StringRef getOpQuantParamType(Operation *op) {
   if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpQuantInterface>(op)) {
     return tpuOp.getOpQuantParamType();
   } else {
-    llvm::errs() << __func__ << " failed, Op " << op->getName() << "\n";
-    llvm::errs() << __func__ << "       name " << getOpName(op) << "\n";
-    assert(false);
-    return llvm::StringRef();
+    std::string errorMsg = std::string(__func__) + " failed, Op " +
+                           op->getName().getStringRef().str() + "\n";
+    llvm_unreachable(errorMsg.c_str());
   }
 }
 
@@ -124,10 +118,9 @@ LogicalResult setOpQuantParamType(Operation *op, llvm::StringRef type) {
   if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpQuantInterface>(op)) {
     return tpuOp.setOpQuantParamType(type);
   } else {
-    llvm::errs() << __func__ << " failed, Op " << op->getName() << "\n";
-    llvm::errs() << __func__ << "       name " << getOpName(op) << "\n";
-    assert(false);
-    return failure();
+    std::string errorMsg = std::string(__func__) + " failed, Op " +
+                           op->getName().getStringRef().str() + "\n";
+    llvm_unreachable(errorMsg.c_str());
   }
 }
 
@@ -135,10 +128,9 @@ bool isOpQuantPerchannel(Operation *op) {
   if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpQuantInterface>(op)) {
     return tpuOp.isOpQuantPerchannel();
   } else {
-    llvm::errs() << __func__ << " failed, Op " << op->getName() << "\n";
-    llvm::errs() << __func__ << "       name " << getOpName(op) << "\n";
-    assert(false);
-    return false;
+    std::string errorMsg = std::string(__func__) + " failed, Op " +
+                           op->getName().getStringRef().str() + "\n";
+    llvm_unreachable(errorMsg.c_str());
   }
 }
 
@@ -146,10 +138,9 @@ LogicalResult setOpQuantPerchannel(Operation *op, bool flag) {
   if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpQuantInterface>(op)) {
     return tpuOp.setOpQuantPerchannel(flag);
   } else {
-    llvm::errs() << __func__ << " failed, Op " << op->getName() << "\n";
-    llvm::errs() << __func__ << "       name " << getOpName(op) << "\n";
-    assert(false);
-    return failure();
+    std::string errorMsg = std::string(__func__) + " failed, Op " +
+                           op->getName().getStringRef().str() + "\n";
+    llvm_unreachable(errorMsg.c_str());
   }
 }
 
@@ -157,10 +148,9 @@ bool isOpQuantAsymmetric(Operation *op) {
   if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpQuantInterface>(op)) {
     return tpuOp.isOpQuantAsymmetric();
   } else {
-    llvm::errs() << __func__ << " failed, Op " << op->getName() << "\n";
-    llvm::errs() << __func__ << "       name " << getOpName(op) << "\n";
-    assert(false);
-    return false;
+    std::string errorMsg = std::string(__func__) + " failed, Op " +
+                           op->getName().getStringRef().str() + "\n";
+    llvm_unreachable(errorMsg.c_str());
   }
 }
 
@@ -168,10 +158,9 @@ LogicalResult setOpQuantAsymmetric(Operation *op, bool flag) {
   if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpQuantInterface>(op)) {
     return tpuOp.setOpQuantAsymmetric(flag);
   } else {
-    llvm::errs() << __func__ << " failed, Op " << op->getName() << "\n";
-    llvm::errs() << __func__ << "       name " << getOpName(op) << "\n";
-    assert(false);
-    return failure();
+    std::string errorMsg = std::string(__func__) + " failed, Op " +
+                           op->getName().getStringRef().str() + "\n";
+    llvm_unreachable(errorMsg.c_str());
   }
 }
 
@@ -179,10 +168,9 @@ float getOpThreshold(Operation *op) {
   if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpQuantInterface>(op)) {
     return tpuOp.getOpQuantThreshold();
   } else {
-    llvm::errs() << __func__ << " failed, Op " << op->getName() << "\n";
-    llvm::errs() << __func__ << "       name " << getOpName(op) << "\n";
-    assert(false);
-    return NAN;
+    std::string errorMsg = std::string(__func__) + " failed, Op " +
+                           op->getName().getStringRef().str() + "\n";
+    llvm_unreachable(errorMsg.c_str());
   }
 }
 
@@ -190,19 +178,17 @@ LogicalResult setOpThreshold(Operation *op, float threshold) {
   if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpQuantInterface>(op)) {
     return tpuOp.setOpQuantThreshold(threshold);
   } else {
-    llvm::errs() << __func__ << " failed, Op " << op->getName() << "\n";
-    llvm::errs() << __func__ << "       name " << getOpName(op) << "\n";
-    assert(false);
-    return failure();
+    std::string errorMsg = std::string(__func__) + " failed, Op " +
+                           op->getName().getStringRef().str() + "\n";
+    llvm_unreachable(errorMsg.c_str());
   }
 }
 
 float getPreviousOpThreshold(Operation *op, uint index = 0) {
   if ( op->getNumOperands() < (index + 1) ) {
-    llvm::errs() << __func__ << " failed " << getOpName(op)
-                 << ", opd " << index << "\n";
-    assert(false);
-    return NAN;
+    std::string errorMsg = std::string(__func__) + " failed, Op " +
+                           op->getName().getStringRef().str() + "\n";
+    llvm_unreachable(errorMsg.c_str());
   }
   auto formerOp = op->getOperand(index)->getDefiningOp();
   return getOpThreshold(formerOp);
@@ -216,15 +202,14 @@ uint64_t getOpAddress(Operation *op) {
     if (castOp.gaddr().hasValue()) {
       return castOp.gaddr().getValue().getZExtValue();
     }
-    assert(false);
+    llvm_unreachable("unsupported op");
   } else if (isa<tpu::TpuTLOpCodegenInterface>(op)) {
     auto tpuTLOp = llvm::dyn_cast<tpu::TpuTLOpCodegenInterface>(op);
     return tpuTLOp.getGAddr();
   } else {
-    llvm::errs() << __func__ << " failed, Op " << op->getName() << "\n";
-    llvm::errs() << __func__ << "       name " << getOpName(op) << "\n";
-    assert(false);
-    return 0xFFFFFFFFFFFFFFFF;
+    std::string errorMsg = std::string(__func__) + " failed, Op " +
+                           op->getName().getStringRef().str() + "\n";
+    llvm_unreachable(errorMsg.c_str());
   }
 }
 
@@ -235,17 +220,15 @@ LogicalResult setOpAddress(Operation *op, uint64_t gaddr) {
     castOp.setAttr("gaddr", Builder(castOp.getOperation()->getContext()).getI64IntegerAttr(gaddr));
     return success();
   } else {
-    llvm::errs() << __func__ << " failed, Op " << op->getName() << "\n";
-    llvm::errs() << __func__ << "       name " << getOpName(op) << "\n";
-    assert(false);
-    return failure();
+    std::string errorMsg = std::string(__func__) + " failed, Op " +
+                           op->getName().getStringRef().str() + "\n";
+    llvm_unreachable(errorMsg.c_str());
   }
 }
 
 uint64_t getPreviousOpAddress(Operation *op, uint index = 0) {
   if ( op->getNumOperands() < (index + 1) ) {
-    assert(false);
-    return 0xFFFFFFFFFFFFFFFF;
+    llvm_unreachable("index exceeds the number of operations");
   }
   auto formerOp = op->getOperand(index)->getDefiningOp();
   return getOpAddress(formerOp);
@@ -255,10 +238,9 @@ uint64_t getWeightOpAddress(Operation *op) {
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(op)) {
     return cast_op.offset().getValue().getLimitedValue();
   } else {
-    llvm::errs() << __func__ << " failed, Op " << op->getName() << "\n";
-    llvm::errs() << __func__ << "       name " << getOpName(op) << "\n";
-    assert(false);
-    return 0xFFFFFFFFFFFFFFFF;
+    std::string errorMsg = std::string(__func__) + " failed, Op " +
+                           op->getName().getStringRef().str() + "\n";
+    llvm_unreachable(errorMsg.c_str());
   }
 }
 
@@ -269,11 +251,11 @@ Operation* getNextOp(Operation *op) {
       nextOp = use.getOwner();
       break;
     }
-    assert(nextOp);
+    assert(nextOp && "nextOp is nullptr");
   } else {
-    llvm::errs() << __func__ << " failed, Op " << op->getName() << "\n";
-    llvm::errs() << __func__ << "       name " << getOpName(op) << "\n";
-    assert(false);
+    std::string errorMsg = std::string(__func__) + " failed, Op " +
+                           op->getName().getStringRef().str() + "\n";
+    llvm_unreachable(errorMsg.c_str());
   }
   return nextOp;
 }
@@ -282,10 +264,9 @@ LogicalResult setOpBufferReused(Operation *op, bool flag) {
   if (auto tpuTGOp = llvm::dyn_cast<tpu::TpuTGOpCodegenInterface>(op)) {
     return tpuTGOp.setBufferReused(flag);
   } else {
-    llvm::errs() << __func__ << " failed, Op " << op->getName() << "\n";
-    llvm::errs() << __func__ << "       name " << getOpName(op) << "\n";
-    assert(false);
-    return failure();
+    std::string errorMsg = std::string(__func__) + " failed, Op " +
+                           op->getName().getStringRef().str() + "\n";
+    llvm_unreachable(errorMsg.c_str());
   }
 }
 
@@ -353,7 +334,7 @@ void parseConvParam(const tpu::ConvParam &p, bool is_deconv,
     oh = 1;
     ow = 1;
   } else{
-    assert(false);
+    llvm_unreachable("unsupported shape size");
   }
   kh = f_s[f_s.size() - 2];
   kw = f_s[f_s.size() - 1];
@@ -370,7 +351,7 @@ void parseConvParam(const tpu::ConvParam &p, bool is_deconv,
     ph = 0;
     pw = 0;
   } else {
-    assert(false);
+    llvm_unreachable("unsupported padding type");
   }
   g = p.group().getValue().getLimitedValue();
   if (g != 1) {
