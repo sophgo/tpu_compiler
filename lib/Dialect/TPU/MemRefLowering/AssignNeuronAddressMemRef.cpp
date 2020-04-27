@@ -162,6 +162,8 @@ bool AssignNeuronAddressMemRefPass::isBypassMemoryReuse(Operation *op) {
     return true;
   else if (dyn_cast<tpu::TL_MemRef_EltwiseAddOp>(op))
     return true;
+  else if (dyn_cast<tpu::TL_MemRef_LutOp>(op))
+    return true;
 
   // Bypass not-lowed TG op, especially for multiple outputs.
   auto allocOp = op->getOperand(op->getNumOperands() - 1)->getDefiningOp();

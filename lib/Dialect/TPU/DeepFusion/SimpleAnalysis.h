@@ -50,3 +50,7 @@ uint64_t SimpleConv2DMemoryUsageAnalysis(OpTy &op,
 template <typename OpTy>
 uint64_t SimpleEltwiseAddMemoryUsageAnalysis(OpTy &op,
     struct SimpleMemoryUsageAnalysis_details *details);
+
+template <typename OpTy>
+uint64_t SimpleLutMemoryUsageAnalysis(OpTy &op,
+    struct SimpleMemoryUsageAnalysis_details *details);

@@ -81,8 +81,8 @@ uint64_t SimpleConv2DMemoryUsageAnalysis(OpTy &op,
   uint64_t eltwiseWorkingSizePerLane = 0;
   //if (do_eltwise) {
   //  eltwiseInputSizePerLane = outputNeuronSizePerLane;
-  //  #define MIN_eltwise_working_size    (32)
-  //  eltwiseWorkingSizePerLane = MIN_eltwise_working_size * 2;
+  //  #define MIN_ELTWISE_WORKING_SIZE    (32)
+  //  eltwiseWorkingSizePerLane = MIN_ELTWISE_WORKING_SIZE * 2;
   //}
 
   // total
@@ -127,16 +127,16 @@ uint64_t SimpleEltwiseAddMemoryUsageAnalysis(OpTy &op,
 
   uint64_t reluWorkingSizePerLane = 0;
   if (do_relu) {
-    #define MIN_relu_working_size    (8 * MInfo::eu_num)
-    reluWorkingSizePerLane = MIN_relu_working_size * 2;
+    #define MIN_RELU_WORKING_SIZE    (8 * MInfo::eu_num)
+    reluWorkingSizePerLane = MIN_RELU_WORKING_SIZE * 2;
   }
 
   uint64_t eltwiseInputSizePerLane = 0;
   uint64_t eltwiseWorkingSizePerLane = 0;
-  #define MIN_eltwise_working_size    (8 * MInfo::eu_num)
+  #define MIN_ELTWISE_WORKING_SIZE    (8 * MInfo::eu_num)
   // 2 addend buffers for ping-pong
   // 2 for partial result low and high
-  eltwiseWorkingSizePerLane = MIN_eltwise_working_size * 4;
+  eltwiseWorkingSizePerLane = MIN_ELTWISE_WORKING_SIZE * 4;
 
   // total
   uint64_t totalPerLane = inputNeuronSizePerLane + outputNeuronSizePerLane
@@ -159,4 +159,44 @@ uint64_t SimpleEltwiseAddMemoryUsageAnalysis(OpTy &op,
 
 template
 uint64_t SimpleEltwiseAddMemoryUsageAnalysis(tpu::TG_INT8_EltwiseAddOp &op,
+    struct SimpleMemoryUsageAnalysis_details *details);
+
+template <typename OpTy>
+uint64_t SimpleLutMemoryUsageAnalysis(OpTy &op,
+    struct SimpleMemoryUsageAnalysis_details *details) {
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(op.getOperand(0), shape, input_size);
+  getNCHW(shape, n, c, h, w);
+
+  uint64_t inputNeuronSizePerLane = MInfo::getSizePerLane(n, c, h, w, true);
+  uint64_t outputNeuronSizePerLane = MInfo::getSizePerLane(n, c, h, w, true);
+  uint64_t filterSizePerLane = 0;
+  uint64_t biasSizePerLane = 0;
+  uint64_t reluWorkingSizePerLane = 0;
+
+  uint64_t lutInputSizePerLane = 0;
+  const uint64_t lutWorkingSizePerLane = 256; //int8 table size
+
+  // total
+  uint64_t totalPerLane = inputNeuronSizePerLane + outputNeuronSizePerLane
+                          + filterSizePerLane + biasSizePerLane
+                          + reluWorkingSizePerLane
+                          + lutInputSizePerLane + lutWorkingSizePerLane;
+
+  // return
+  if (details) {
+    details->inputNeuronSizePerLane = inputNeuronSizePerLane;
+    details->outputNeuronSizePerLane = outputNeuronSizePerLane;
+    details->filterSizePerLane = filterSizePerLane;
+    details->biasSizePerLane = biasSizePerLane;
+    details->reluWorkingSizePerLane = reluWorkingSizePerLane;
+    details->eltwiseInputSizePerLane = 0;
+    details->eltwiseWorkingSizePerLane = 0;
+  }
+  return totalPerLane;
+}
+
+template
+uint64_t SimpleLutMemoryUsageAnalysis(tpu::TG_INT8_LutOp &op,
     struct SimpleMemoryUsageAnalysis_details *details);

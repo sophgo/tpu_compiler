@@ -55,7 +55,7 @@ namespace mlir {
 
 
 LogicalResult tpu::TL_LA_Conv2DOp::codegen(void *ctx) {
-  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
+  LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
@@ -83,7 +83,7 @@ LogicalResult tpu::TL_LA_Conv2DOp::codegen(void *ctx) {
 }
 
 LogicalResult tpu::TL_LW_Conv2DOp::codegen(void *ctx) {
-  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
+  LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
@@ -194,9 +194,8 @@ LogicalResult tpu::TL_LW_Conv2DOp::codegen(void *ctx) {
   return success();
 }
 
-
 LogicalResult tpu::TL_EltwiseAddOp::codegen(void *ctx) {
-  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
+  LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
@@ -288,7 +287,62 @@ LogicalResult tpu::TL_EltwiseAddOp::codegen(void *ctx) {
   return success();
 }
 
+LogicalResult tpu::TL_LutOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  getNCHW(shape, n, c, h, w);
+  std::vector<int64_t> output_shape;
+  int64_t output_size, oh, ow;
+  getTensorShapeAndSize(op->getResult(0), output_shape, output_size);
+  oh = output_shape[2];
+  ow = output_shape[3];
+
+  gaddr_t ga_input = getPreviousOpAddress(op);
+  gaddr_t ga_output = getOpAddress(op);
+  gaddr_t y0_table_gaddr = getWeightOpAddress(table()->getDefiningOp());
+  int layer_id = mlir::getOpLayerId(op);
+
+  laddr_t la_input = LA_INVALID;
+  laddr_t la_output = LA_INVALID;
+  laddr_t la_working = LA_INVALID;
+  if (this->lm_layout() != "NONE") {
+    la_input = this->la_input().getLimitedValue();
+    la_output = this->la_output().getLimitedValue();
+    la_working = this->la_working().getLimitedValue();
+  }
+
+  LLVM_DEBUG(
+    llvm::errs() << "    TL_LutOp, layer_id = " << layer_id;
+    llvm::errs() << ", " << this->lm_layout();
+    if (tl_load_flag())
+      llvm::errs() << ", LD";
+    if (tl_store_flag())
+      llvm::errs() << ", ST";
+    if (!tl_load_flag() && !tl_store_flag())
+      llvm::errs() << ", FUSED";
+    llvm::errs() << "\n";
+  );
+
+  cvi_backend_tl_lut(
+    *backend_ctx, layer_id,
+    la_input, la_output, la_working,
+    ga_input, ga_output, y0_table_gaddr,
+    n, c, h, w,
+    tl_load_flag(), tl_store_flag());
+  return success();
+}
+
 // MemRefType dummy
+LogicalResult tpu::TL_MemRef_LutOp::codegen(void *ctx) {
+  return success();
+}
+
 LogicalResult tpu::TL_MemRef_EltwiseAddOp::codegen(void *ctx) {
   return success();
 }

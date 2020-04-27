@@ -151,7 +151,9 @@ public:
         analyzeFullyConnectedOpParam(op, os);
       } else if (auto op = dyn_cast<tpu::TG_INT8_LeakyReluOp>(opInst)) {
         analyzeLeakyReluOpParam(op, os);
-      } else if (auto op = dyn_cast<tpu::LoadWeightOp>(opInst)) {
+      } else if (auto op = dyn_cast<tpu::TG_INT8_LutOp>(opInst)) {
+        analyzeLutOpParam(op, os);
+      }else if (auto op = dyn_cast<tpu::LoadWeightOp>(opInst)) {
         // we do analysis in compute node, skip load node
       } else if (auto op = dyn_cast<mlir::tpu::ReshapeOp>(opInst)) {
         // reshape has no computation or load/store, skip
@@ -279,6 +281,41 @@ private:
   }
 
   void analyzeLeakyReluOpParam(tpu::TG_INT8_LeakyReluOp &op,
+      llvm::raw_ostream &os) {
+    std::vector<int64_t> shape;
+    int64_t input_size, n, c, h, w;
+    getTensorShapeAndSize(op.input(), shape, input_size);
+    getNCHW(shape, n, c, h, w);
+    uint64_t mac_count = n * c * h * w;
+
+    uint64_t inputNeuronSizePerLane = MInfo::getSizePerLane(n, c, h, w, true);
+    uint64_t outputNeuronSizePerLane = MInfo::getSizePerLane(n, c, h, w, true);
+    uint64_t totalPerLane = inputNeuronSizePerLane + outputNeuronSizePerLane;
+    if (totalPerLane <= MInfo::lmem_per_lane) {
+      stats->pushChain(op.getResult());
+    } else {
+      stats->completeChain();
+    }
+
+    os << op.name() << "," << n << "," << ","
+       << c << "," << h << "," << w << ","
+       << "," << "," << ","
+       << "," << "," << "," << ","
+       << "," << "," << "," << "," << "," << ","
+       << mac_count;
+    os << "," << inputNeuronSizePerLane;
+    os << "," << outputNeuronSizePerLane;
+    os << ",";
+    os << ",";
+    os << ",";
+    os << ",";
+    os << ",";
+    os << "," << totalPerLane;
+    os << "\n";
+
+  }
+
+  void analyzeLutOpParam(tpu::TG_INT8_LutOp &op,
       llvm::raw_ostream &os) {
     std::vector<int64_t> shape;
     int64_t input_size, n, c, h, w;
