@@ -127,9 +127,12 @@ public:
       llvm::errs() << "could not parse the input IR\n";
       exit(-1);
     }
-
+    if (interpreter_){
+      delete interpreter_;
+      interpreter_ = new ModuleInterpreter(module.get());
+    }else{
     interpreter_ = new ModuleInterpreter(module.get());
-
+    }
     parseMLIRInfo();
   }
 
@@ -225,7 +228,7 @@ private:
   std::string weightFilePath_;
   tensor_map_t tensorMap_;
   shape_map_t shapeMap_;
-  ModuleInterpreter *interpreter_;
+  ModuleInterpreter *interpreter_ = nullptr;
 };
 
 // wrap as Python module
