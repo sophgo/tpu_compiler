@@ -144,4 +144,32 @@ def TPU_TL_MemRef_EltwiseAddOp : TPU_Op<"tl_memref_eltwise_add",
   );
 }
 
+def TPU_TL_MemRef_LutOp : TPU_Op<"tl_memref_lut",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
+  let summary = "TL Lut operator";
+
+  let description = [{
+  }];
+
+  let arguments = (
+    ins MemRefOf<[AnyFloat, AnyInteger]>:$input,
+    MemRefOf<[AnyFloat, AnyInteger]>:$table,
+    MemRefOf<[AnyFloat, AnyInteger]>:$table_mantissa,
+    MemRefOf<[AnyFloat, AnyInteger]>:$output,
+    TPU_LMLayoutAttr:$lm_layout,
+    I32Attr:$la_input,
+    I32Attr:$la_working,
+    I32Attr:$la_output,
+    BoolAttr:$tl_load_flag,
+    BoolAttr:$tl_store_flag,
+    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
+    OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    OptionalAttr<BoolAttr>:$buffer_reused,
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
+  );
+}
+
 #endif // TPU_TL_MEMREF_OPS
