@@ -25,6 +25,7 @@ add_llvm_library(MLIRTPU
   Transforms/ConvertBnToScale.cpp
   Transforms/ConvertScale.cpp
   Transforms/ConvertNormalize.cpp
+  Transforms/ConvertSwishToRelu.cpp
   Transforms/FuseRelu.cpp
   Transforms/RefactorEltAndConv.cpp
   Transforms/MakeConvIcToEven.cpp
