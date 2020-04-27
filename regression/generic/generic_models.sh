@@ -52,7 +52,7 @@ export TOLERANCE_INT8_RSHIFT_ONLY=0.95,0.95,0.7
 export TOLERANCE_INT8_MULTIPLER=0.96,0.95,0.73
 export TOLERANCE_BF16=0.99,0.99,0.89
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.9
-export DO_LAYERGROUP=1
+export DO_LAYERGROUP=0
 # export BATCH_SIZE=4
 fi
 
@@ -73,7 +73,7 @@ export TOLERANCE_INT8_RSHIFT_ONLY=0.99,0.99,0.90
 export TOLERANCE_INT8_MULTIPLER=0.99,0.99,0.91
 export TOLERANCE_BF16=0.99,0.99,0.96
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
-export DO_LAYERGROUP=1
+export DO_LAYERGROUP=0
 fi
 
 if [ $NET = "googlenet" ]; then
@@ -114,7 +114,7 @@ export TOLERANCE_INT8_RSHIFT_ONLY=0.94,0.93,0.64
 export TOLERANCE_INT8_MULTIPLER=0.95,0.95,0.69
 export TOLERANCE_BF16=0.99,0.99,0.93
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
-export DO_LAYERGROUP=1
+export DO_LAYERGROUP=0
 fi
 
 if [ $NET = "inception_v4" ]; then
@@ -134,7 +134,7 @@ export TOLERANCE_INT8_RSHIFT_ONLY=0.93,0.93,0.62
 export TOLERANCE_INT8_MULTIPLER=0.93,0.93,0.63
 export TOLERANCE_BF16=0.99,0.99,0.89
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.93
-export DO_LAYERGROUP=1
+export DO_LAYERGROUP=0
 fi
 
 if [ $NET = "mobilenet_v2" ]; then
@@ -159,7 +159,7 @@ export TOLERANCE_INT8_MULTIPLER=0.95,0.94,0.69
 export TOLERANCE_BF16=0.99,0.99,0.92
 export DO_CMDBUF_BF16=0   # this is a bug to fix
 # export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
-export DO_LAYERGROUP=1
+export DO_LAYERGROUP=0
 fi
 
 if [ $NET = "shufflenet_v2" ]; then
@@ -276,6 +276,7 @@ if [ $NET = "yolo_v3_320" ]; then
 export MODEL_DEF=$MODEL_PATH/object_detection/yolo_v3/caffe/yolov3_320.prototxt
 export MODEL_DAT=$MODEL_PATH/object_detection/yolo_v3/caffe/416/yolov3_416.caffemodel
 export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_caffe/regression_yolo_v3_0_caffe.sh
+export EVAL_SCRIPT=$REGRESSION_PATH/data/eval/accuracy_yolo_v3.sh
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/yolo_v3_calibration_table_autotune
 export NET_INPUT_DIMS=320,320
 export INPUT=input
