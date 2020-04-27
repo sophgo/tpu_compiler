@@ -467,7 +467,9 @@ LogicalResult tpu::TG_INT8_PT_Conv2DOp::codegen(void *ctx) {
       0,         //bn_right_shift_width,
       0,         //scale_right_shift_width,
       false,     // do_chl_quan
-      do_ic_alignment
+      do_ic_alignment,
+      false,     // store_compr_act
+      false      // load_compr_act
       );
 
   return success();
@@ -525,6 +527,11 @@ LogicalResult tpu::TG_INT8_PC_Conv2DOp::codegen(void *ctx) {
     ga_output = getOpAddress(nextOp);
   }
 
+  bool storeComprAct = this->store_compr_act().hasValue() ?
+                       this->store_compr_act().getValue() : false;
+  bool loadComprAct = this->load_compr_act().hasValue() ?
+                      this->load_compr_act().getValue() : false;
+
   cvi_backend_tg_int8_conv(
       *backend_ctx,
       layer_id, // layer_id,
@@ -562,7 +569,9 @@ LogicalResult tpu::TG_INT8_PC_Conv2DOp::codegen(void *ctx) {
       0,         // bn_right_shift_width,
       0,         // scale_right_shift_width,
       true,      // do_chl_quan
-      do_ic_alignment
+      do_ic_alignment,
+      storeComprAct,
+      loadComprAct
       );
 
   return success();
