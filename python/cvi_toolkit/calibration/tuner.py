@@ -342,23 +342,24 @@ class Tuner_v2(object):
                 break
 
     def net8_calculate_diff(self, tune_layer, tune_thresholds):
-        int8_module = pymlir.module()
-        int8_module.load(self.int8_model)
+        self.int8_module = pymlir.module()
+        self.int8_module.load(self.int8_model)
 
         num = 0
         layer_dist = 0
         for line in self.all_lines:
             x = self.preprocess_func(line)
-            _ = int8_module.run(x)
-            out = int8_module.get_tensor(tune_layer)
+            self.int8_module.run(x)
+            out = self.int8_module.get_tensor(tune_layer)
 
-            out = out * tune_thresholds[tune_layer] / 128.0
+            out = out * tune_thresholds[tune_layer] / 127.0
             layer_dist += np.linalg.norm(self.out32[num] - out)
 
             num += 1
             if num >= self.limit:
                 break
 
-        os.remove(int8_module.get_weight_file_path())
+        os.remove(self.int8_module.get_weight_file_path())
+        del self.int8_module
 
         return layer_dist / self.limit
