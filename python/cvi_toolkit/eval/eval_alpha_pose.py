@@ -8,8 +8,8 @@ import glob
 import time
 import cv2
 import caffe
-from utils.yolov3_util import preprocess, postprocess, draw
-from utils.alphapose_util import preprocess as pose_preprocess, postprocess as pose_postprocess,draw as draw_pose
+from cvi_toolkit.utils.yolov3_util import preprocess, postprocess, draw
+from cvi_toolkit.utils.alphapose_util import preprocess as pose_preprocess, postprocess as pose_postprocess,draw as draw_pose
 from pycocotools.coco import COCO
 from pycocotools.cocoeval import COCOeval
 import json

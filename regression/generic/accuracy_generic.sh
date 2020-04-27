@@ -17,13 +17,22 @@ source $DIR/generic_models.sh
 
 pushd $NET
 
-if [ $DO_ACCURACY_CAFFE -eq 1 ]; then
-  $DIR/accuracy_0_caffe.sh $2
+if [ -z $EVAL_SCRIPT ]; then
+  if [ $DO_ACCURACY_CAFFE -eq 1 ]; then
+    $DIR/accuracy_0_caffe.sh $2
+  fi
+  if [ $DO_ACCURACY_INTERPRETER -eq 1 ]; then
+    $DIR/accuracy_1_interpreter.sh $2 pytorch
+    # $DIR/accuracy_1_interpreter.sh $2 gluoncv
+  fi
+else
+  if [ ! -e $EVAL_SCRIPT ]; then
+    echo "$EVAL_SCRIPT not exist"
+    exit 1
+  fi
+  $EVAL_SCRIPT $2
 fi
-if [ $DO_ACCURACY_INTERPRETER -eq 1 ]; then
-  $DIR/accuracy_1_interpreter.sh $2 pytorch
-  # $DIR/accuracy_1_interpreter.sh $2 gluoncv
-fi
+
 popd
 
 echo $0 DONE
