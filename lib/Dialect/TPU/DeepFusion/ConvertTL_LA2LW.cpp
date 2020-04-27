@@ -701,10 +701,9 @@ struct TpuTL_EltwiseAddOp_AssignLAddrPattern : public RewritePattern {
     getTensorShapeAndSize(op.input(), shape, input_size);
     getNCHW(shape, n, c, h, w);
     std::vector<int64_t> output_shape;
-    int64_t output_size, oh, ow;
+    int64_t output_size, on, oc, oh, ow;
     getTensorShapeAndSize(op.getResult(), output_shape, output_size);
-    oh = output_shape[2];
-    ow = output_shape[3];
+    getNCHW(output_shape, on, oc, oh, ow);
     //bool do_relu = op.do_relu();
     assert(op.getNumOperands() == 2 && "support 2 inputs only");
 
