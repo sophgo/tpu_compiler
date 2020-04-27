@@ -318,15 +318,6 @@ struct ForceThresholdMulOpPattern : public RewritePattern {
     float threshold_y = getOpThreshold(opInst);
     float new_threshold_y = threshold_x0 * threshold_x1;
 
-    // for swish, do backward overwrite
-    //if (isa<tpu::EltwiseMulOp>(opInst)) {
-    //  assert(isa<tpu::Conv2DOp>(opInst->getOperand(0)->getDefiningOp()));
-    //  assert(isa<tpu::SigmoidOp>(opInst->getOperand(1)->getDefiningOp()));
-    //  setOpThreshold(opInst->getOperand(0)->getDefiningOp(),
-    //                 threshold_y);
-    //  new_threshold_y = threshold_y;
-    //}
-
     // for EltwiseMulOp, handle swish case only, other case needs more tuning
     if (isa<tpu::EltwiseMulOp>(opInst)) {
       bool is_swish = false;
@@ -352,16 +343,6 @@ struct ForceThresholdMulOpPattern : public RewritePattern {
     LLVM_DEBUG(llvm::errs() << opInst->getName() << " [" << op.name() << "] "
                  << "set threshold by multiply threshold "
                  << std::to_string(new_threshold_y) << "\n";);
-
-    // for broadcast mul, update the ops after as well
-    //if (isa<tpu::BroadcastMulOp>(opInst)) {
-    //  float next_scale = sqrt(new_threshold_y / threshold_y);
-    //  for (auto &use : opInst->getResult(0)->getUses()) {
-    //    auto next_op = use.getOwner();
-    //    float next_threashold_y = getOpThreshold(next_op);
-    //    setOpThreshold(next_op, next_threashold_y * next_scale);
-    //  }
-    //}
 
     return matchSuccess();
   }
@@ -440,12 +421,6 @@ public:
     });
 
     OwningRewritePatternList patterns;
-    // apply force threshold to some ops
-    //   SigmoidOp force to 1.0
-    patterns.insert<
-        ForceThresholdDefaultPattern<tpu::SigmoidOp>
-        >(context, 1.0f);
-    applyPatternsGreedily(fn, patterns);
 
     // apply default bypass for the ops that has no calibration threshold
     LLVM_DEBUG(llvm::errs() << "Forword set bypass Ops threshold\n";);
