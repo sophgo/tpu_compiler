@@ -15,6 +15,18 @@ g_default_weight_fp32 = os.path.join(g_default_fp32_model_path, 'R50-0000.caffem
 g_default_input_image = '/workspace/llvm-project/llvm/projects/mlir/externals/python_tools/data/faces/test.jpg'
 g_detector = RetinaFace()
 
+def check_files(args):
+    if not os.path.isfile(args.model_def):
+        print("cannot find the file %s", args.model_def)
+        sys.exit(1)
+
+    if not os.path.isfile(args.pretrained_model):
+        print("cannot find the file %s", args.pretrained_model)
+        sys.exit(1)
+
+    if not os.path.isfile(args.input_file):
+        print("cannot find the file %s", args.input_file)
+        sys.exit(1)
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Eval Retinaface networks.')
@@ -39,6 +51,7 @@ def parse_args():
     parser.add_argument("--batch_size", type=int, default=1, help="Set batch size")
 
     args = parser.parse_args()
+    check_files(args)
     return args
 
 

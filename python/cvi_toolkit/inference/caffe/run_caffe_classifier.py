@@ -15,6 +15,18 @@ import caffe
 from cvi_toolkit import preprocess
 from cvi_toolkit.model import CaffeModel
 
+def check_files(args):
+    if not os.path.isfile(args.model_def):
+        print("cannot find the file %s", args.model_def)
+        sys.exit(1)
+
+    if not os.path.isfile(args.pretrained_model):
+        print("cannot find the file %s", args.pretrained_model)
+        sys.exit(1)
+
+    if not os.path.isfile(args.input_file):
+        print("cannot find the file %s", args.input_file)
+        sys.exit(1)
 
 def main(argv):
     pycaffe_dir = os.path.dirname(__file__)
@@ -100,6 +112,7 @@ def main(argv):
         help="Force the input blob data, in npy format"
     )
     args = parser.parse_args()
+    check_files(args)
     caffemodel = CaffeModel()
     caffemodel.load_model(args.model_def, args.pretrained_model)
     if args.net_input_dims:

@@ -11,6 +11,20 @@ import caffe
 from caffe.proto import caffe_pb2
 from google.protobuf import text_format
 
+def check_files(args):
+    if not os.path.isfile(args.model_def):
+        print("cannot find the file %s", args.model_def)
+        sys.exit(1)
+
+    if not os.path.isfile(args.pretrained_model):
+        print("cannot find the file %s", args.pretrained_model)
+        sys.exit(1)
+
+    if not os.path.isfile(args.input_file):
+        print("cannot find the file %s", args.input_file)
+        sys.exit(1)
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description='Eval YOLO networks.')
     parser.add_argument('--model_def', type=str, default='',
@@ -38,6 +52,7 @@ def parse_args():
 
 
     args = parser.parse_args()
+    check_files(args)
     return args
 
 

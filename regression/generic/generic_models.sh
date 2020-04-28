@@ -317,6 +317,17 @@ export TOLERANCE_BF16=0.99,0.99,0.94
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
 fi
 
+# check if the MODEL exists of caffe
+if [ ! -f ${MODEL_DEF} ]; then
+  echo "cannot find the file ${MODEL_DEF}"
+  exit 1
+fi
+
+if [ ! -f ${MODEL_DAT} ]; then
+  echo "cannot find the file ${MODEL_DAT}"
+  exit 1
+fi
+
 if [ $NET = "resnet18" ]; then
 export MODEL_TYPE="onnx"
 export MODEL_DEF=$MODEL_PATH/imagenet/resnet/onnx/resnet18.onnx
@@ -391,6 +402,12 @@ export TOLERANCE_INT8_MULTIPLER=0.95,0.95,0.70
 export DO_QUANT_BF16=0
 # export TOLERANCE_BF16=0.99,0.99,0.94
 # export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
+fi
+
+# check if the MODEL exists of onnx case
+if [ ! -f ${MODEL_DEF} ]; then
+  echo "cannot find the file ${MODEL_DEF}"
+  exit 1
 fi
 
 # turn off those optimization when batch_size is larger than 1 temporarily
