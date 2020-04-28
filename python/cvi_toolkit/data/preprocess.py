@@ -114,6 +114,8 @@ class preprocess(object):
                     input = cv2.resize(input, (self.resize_dims[1], self.resize_dims[0])) # w,h
                     # turn back
                     input =  np.transpose(input, (2, 0, 1))
+            else:
+                raise RuntimeError("Not support transpose is not 0, 1, 2 (CHW)case, TODO")
             image = input
 
         # Do preprocess if with call back function
