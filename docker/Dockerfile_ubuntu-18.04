@@ -45,7 +45,8 @@ RUN apt-get install -y --no-install-recommends \
     gettext \
     indent \
     meson \
-    libglib2.0-dev
+    libglib2.0-dev \
+    clang-format
 
 # for caffe build
 RUN apt-get install -y --no-install-recommends \
@@ -82,7 +83,7 @@ RUN rm -rf /var/lib/apt/lists/*
 RUN pip install --upgrade pip
 # RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
 RUN pip config set global.index-url https://mirrors.aliyun.com/pypi/simple
-RUN pip install \
+RUN pip install --no-cache-dir \
     Cython \
     numpy \
     scipy \
@@ -112,7 +113,7 @@ RUN pip install \
 RUN pip3 install --upgrade pip
 # RUN pip3 config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
 RUN pip3 config set global.index-url https://mirrors.aliyun.com/pypi/simple
-RUN pip3 install \
+RUN pip3 install --no-cache-dir \
     Cython \
     numpy \
     scipy \
@@ -137,10 +138,19 @@ RUN pip3 install \
     torchvision \
     onnxruntime
 
+# cocoAPI, pip install has conflict with latest numpy,
+RUN git clone https://github.com/cocodataset/cocoapi.git \
+    && cd cocoapi/PythonAPI && make -j8 \
+    && python2 setup.py install \
+    && python3 setup.py install
+
 # ================== toolchain ====================
 COPY host-tools/gcc/gcc-linaro-6.3.1-2017.05-x86_64_aarch64-linux-gnu \
     /host-tools/gcc/gcc-linaro-6.3.1-2017.05-x86_64_aarch64-linux-gnu
 ENV PATH=/host-tools/gcc/gcc-linaro-6.3.1-2017.05-x86_64_aarch64-linux-gnu/bin:$PATH
+COPY host-tools/gcc/gcc-linaro-6.3.1-2017.05-x86_64_arm-linux-gnueabihf \
+    /host-tools/gcc/gcc-linaro-6.3.1-2017.05-x86_64_arm-linux-gnueabihf
+ENV PATH=/host-tools/gcc/gcc-linaro-6.3.1-2017.05-x86_64_arm-linux-gnueabihf/bin:$PATH
 
 # ================== zoneinfo ==================
 COPY zoneinfo/PRC /usr/share/zoneinfo/PRC
@@ -153,8 +163,8 @@ RUN mkdir /usr/share/zoneinfo/Asia \
   && echo $TZ > /etc/timezone
 
 # ================== envs ==================
-RUN alias pip=pip3
-RUN alias python=python3
+RUN echo 'alias pip="pip3"' >> ~/.bashrc
+RUN echo 'alias python="python3"' >> ~/.bashrc
 ENV MODEL_PATH=/work/models
 ENV DATASET_PATH=/work/dataset
 

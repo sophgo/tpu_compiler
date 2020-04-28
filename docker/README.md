@@ -26,10 +26,10 @@ Copy host-tools to current dir first
 
 ```sh
 $ cp Dockerfile_ubuntu-18.04 Dockerfile
-$ docker build -t cvitek/cvitek_dev:1.1-ubuntu-18.04 .
+$ docker build -t cvitek/cvitek_dev:1.2-ubuntu-18.04 .
 
 $ cp Dockerfile_ubuntu-16.04 Dockerfile
-$ docker build -t cvitek/cvitek_dev:1.1-ubuntu-16.04 .
+$ docker build -t cvitek/cvitek_dev:1.2-ubuntu-16.04 .
 ```
 
 ## Run docker as user of cvitek_mlir
