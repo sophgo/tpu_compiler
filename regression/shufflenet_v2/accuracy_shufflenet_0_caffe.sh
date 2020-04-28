@@ -4,7 +4,7 @@ set -e
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 
 
-EVAL_FUNC=eval_caffe_classifier.py
+EVAL_FUNC=eval_classifier.py
 
 $EVAL_FUNC \
     --model_def $MODEL_PATH/imagenet/shufflenet_v2/caffe/shufflenet_v2_x0.5.prototxt \

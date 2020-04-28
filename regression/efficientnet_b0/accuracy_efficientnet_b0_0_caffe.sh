@@ -7,7 +7,7 @@ DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 # assuming run after run regression_XXX.sh
 if [ $2 = "pytorch" ]; then
   echo "Eval imagenet with pytorch dataloader"
-  export EVAL_FUNC=eval_caffe_classifier.py
+  export EVAL_FUNC=eval_classifier.py
 else
   echo "invalid dataloader, choose [pytorch]"
   return 1

@@ -46,3 +46,5 @@ class ModelFactory(object):
     def get_op_info(self):
         return self.model.get_op_info()
 
+    def get_input_shape(self):
+        return self.model.get_input_shape()

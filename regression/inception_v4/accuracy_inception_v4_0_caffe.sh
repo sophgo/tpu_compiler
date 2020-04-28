@@ -4,7 +4,7 @@ set -e
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 
 
-EVAL_FUNC=eval_caffe_classifier.py
+EVAL_FUNC=eval_classifier.py
 
 $EVAL_FUNC \
     --model_def $MODEL_PATH/caffe/deploy_inception-v4.prototxt \

@@ -131,7 +131,7 @@ public:
       delete interpreter_;
       interpreter_ = new ModuleInterpreter(module.get());
     }else{
-    interpreter_ = new ModuleInterpreter(module.get());
+      interpreter_ = new ModuleInterpreter(module.get());
     }
     parseMLIRInfo();
   }
