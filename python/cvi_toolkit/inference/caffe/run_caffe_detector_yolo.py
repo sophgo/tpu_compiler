@@ -10,6 +10,19 @@ import cv2
 import caffe
 from cvi_toolkit.utils.yolov3_util import preprocess, postprocess, draw
 
+def check_files(args):
+    if not os.path.isfile(args.model_def):
+        print("cannot find the file %s", args.model_def)
+        sys.exit(1)
+
+    if not os.path.isfile(args.pretrained_model):
+        print("cannot find the file %s", args.pretrained_model)
+        sys.exit(1)
+
+    if not os.path.isfile(args.input_file):
+        print("cannot find the file %s", args.input_file)
+        sys.exit(1)
+
 def parse_args():
     parser = argparse.ArgumentParser(description='Eval YOLO networks.')
     parser.add_argument('--model_def', type=str, default='',
@@ -38,6 +51,7 @@ def parse_args():
                         help="Set batch size")
 
     args = parser.parse_args()
+    check_files(args)
     return args
 
 def yolov3_detect(net, image, net_input_dims, obj_threshold, nms_threshold,
