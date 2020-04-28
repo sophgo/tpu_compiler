@@ -213,17 +213,6 @@ cmake --build . --target install
 popd
 cp $MLIR_SRC_PATH/externals/profiling/tool/performance.html $PROFILING_PATH/bin/
 
-# build python package
-pushd $MLIR_SRC_PATH
-if [ $PYTHON_VERSION == "2" ]; then
-  echo "Not support build python2 package"
-elif [ $PYTHON_VERSION == "3" ]; then
-  pip3 install wheel
-  python3 setup/python3/setup.py bdist_wheel --dist-dir=$INSTALL_PATH/python3_package/ --plat-name="linux_x86_64"
-  python3 setup/python3/setup.py clean
-fi
-popd
-
 # Clean up some files for release build
 if [ "$1" = "RELEASE" ]; then
   if [ -z $INSTALL_PATH ]; then
@@ -268,11 +257,26 @@ if [ "$1" = "RELEASE" ]; then
   cp cvimodel_release/retinaface_mnet25_with_detection.cvimodel cvimodel_samples/
   cp cvimodel_release/retinaface_res50_with_detection.cvimodel cvimodel_samples/
   cp cvimodel_release/arcface_res50.cvimodel cvimodel_samples/
-  $MLIR_SRC_PATH/regression/cvitek_zoo/cvitek_zoo_generate_cvimodels.sh
+
+  if [ "$BUILD_CVITEK_ZOO" = "1" ]; then
+    $MLIR_SRC_PATH/regression/cvitek_zoo/cvitek_zoo_generate_cvimodels.sh
+  fi
   popd
 fi
+
+# build python package
+pushd $MLIR_SRC_PATH
+if [ $PYTHON_VERSION == "2" ]; then
+  echo "Not support build python2 package"
+elif [ $PYTHON_VERSION == "3" ]; then
+  pip3 install wheel
+  python3 setup/python3/setup.py bdist_wheel --dist-dir=$INSTALL_PATH/python3_package/ --plat-name="linux_x86_64"
+  python3 setup/python3/setup.py clean
+fi
+popd
 
 # SoC build
 if [ "$1" = "SOC" ]; then
 source build_soc.sh
 fi
+
