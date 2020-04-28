@@ -124,7 +124,7 @@ if __name__ == '__main__':
   # Because of Resize by PyTorch transforms, we set resize dim same with network input(don't do anything )
   # transposed already in ToTensor(), we set (0,1,2) here
   preprocessor.config(net_input_dims=net_input_dims,
-                    resize_dims=net_input_dims,
+                    resize_dims=args.image_resize_dims,
                     mean=args.mean,
                     mean_file=args.mean_file,
                     input_scale=args.input_scale,

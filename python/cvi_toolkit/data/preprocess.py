@@ -103,80 +103,49 @@ class preprocess(object):
                 return None
 
             image = image.astype(np.float32)
-            
+            image = cv2.resize(image, (self.resize_dims[1], self.resize_dims[0])) # w,h
+
         elif input_type == InputType.NDARRAY:
+            if self.transpose == (0, 1, 2):
+                # input tensor shape is CHW
+                if self.resize_dims != self.net_input_dims:
+                    # CHW to HWC, then use cv2 resize
+                    input = np.transpose(input, (1, 2, 0))
+                    input = cv2.resize(input, (self.resize_dims[1], self.resize_dims[0])) # w,h
+                    # turn back
+                    input =  np.transpose(input, (2, 0, 1))
             image = input
 
         # Do preprocess if with call back function
         if pfunc is not None:
             output = pfunc(image)
         else:
-            if self.resize_dims != None:
-                x = cv2.resize(image, (self.resize_dims[1], self.resize_dims[0]), interpolation=cv2.INTER_NEAREST) # w,h
-                if self.rgb_order == 'rgb' :
-                    x = x[[2,1,0], :, :]
+            x = image
 
-                # transpose
-                if self.transpose != None :
-                    x = np.transpose(x, self.transpose)
-                x = x * self.raw_scale / 255.0
-                # preprocess
-                if self.mean_file.size != 0 :
-                    x -= self.mean_file
-                elif self.mean.size != 0:
-                    x -= self.mean
-                if self.input_scale != 1.0:
-                    x *= self.input_scale
-                if self.std is not None:
-                    x /= self.std[:,np.newaxis, np.newaxis]
+            if self.rgb_order == 'rgb' :
+                x = x[[2,1,0], :, :]
 
-                # Take center crop.
-                x = center_crop(x, self.net_input_dims)
+            # transpose
+            if self.transpose != None :
+                x = np.transpose(x, self.transpose)
 
-            else :
-                if self.letter_box :
-                    bgr_img = cv2.imread(str(input_file).rstrip())
-                    yolo_w = self.net_input_dims[1]
-                    yolo_h = self.net_input_dims[0]
-                    rgb_img = cv2.cvtColor(bgr_img, cv2.COLOR_BGR2RGB)
-                    rgb_img = rgb_img / 255.0
+            x = x * self.raw_scale / 255.0
 
-                    ih = rgb_img.shape[0]
-                    iw = rgb_img.shape[1]
+            # preprocess
+            if self.mean_file.size != 0 :
+                x -= self.mean_file
+            elif self.mean.size != 0:
+                x -= self.mean
 
-                    scale = min(float(yolo_w) / iw, float(yolo_h) / ih)
-                    rescale_w = int(iw * scale)
-                    rescale_h = int(ih * scale)
+            if self.input_scale != 1.0:
+                x *= self.input_scale
+            if self.std is not None:
+                x /= self.std[:,np.newaxis, np.newaxis]
 
-                    resized_img = cv2.resize(rgb_img, (rescale_w, rescale_h), interpolation=cv2.INTER_LINEAR)
-                    new_image = np.full((yolo_h, yolo_w, 3), 0, dtype=np.float32)
-                    paste_w = (yolo_w - rescale_w) // 2
-                    paste_h = (yolo_h - rescale_h) // 2
-
-                    new_image[paste_h:paste_h + rescale_h, paste_w: paste_w + rescale_w, :] = resized_img
-                    new_image = np.transpose(new_image, (2, 0, 1))      # row to col, (HWC -> CHW)
-                    x = new_image
-
-                else :
-                    if self.rgb_order == 'rgb' :
-                        image[:,:,0], image[:,:,2] = image[:,:,2], image[:,:,0]
-
-                    if self.mean.size != 0:
-                        image -= self.mean
-                    if self.input_scale != 1.0:
-                        image *= self.input_scale
-
-
-                    if self.mean_file != None:
-                        image -= self.mean_file
-
-                    x = cv2.resize(image, (self.net_input_dims[1], self.net_input_dims[0]))
-
-                    if self.transpose != None :
-                        x = np.transpose(x, self.transpose)
-
-
+            # Take center crop.
+            x = center_crop(x, self.net_input_dims)
             output = np.expand_dims(x, axis=0)
+
         if output_npz:
             # Must convert to npz file as input
             np.savez(output_npz, **{input_name if input_name else "input": output})
