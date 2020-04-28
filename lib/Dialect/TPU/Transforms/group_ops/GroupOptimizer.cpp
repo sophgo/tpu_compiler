@@ -639,6 +639,69 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
   size_t alignment_;
 };
 
+
+template <typename OpTy> struct fixSliceAddrPattern : public RewritePattern {
+  fixSliceAddrPattern(MLIRContext *context)
+      : RewritePattern(OpTy::getOperationName(), 1, context) {}
+
+  PatternMatchResult matchAndRewrite(Operation *op,
+                                     PatternRewriter &rewriter) const override {
+
+    auto castOp = cast<OpTy>(op);
+    if (castOp.gaddr_updated().hasValue()) {
+      return matchFailure();
+    }
+
+    // trying to avoid doing copy
+    // however, since we didn't pass stride info to backend API yet
+    // this is only working for batch_size = 1
+    u64 base_addr = castOp.getGAddr();
+    int axis = castOp.axis().getLimitedValue();
+    int offset = castOp.offset().getLimitedValue();
+
+    assert((axis == 1) && "axis should be 1");
+    size_t dtype_bytes;
+    std::string dtype;
+    if (isa<tpu::TG_INT8_SliceOp>(op)) {
+      dtype_bytes = 1;
+      dtype = "int8";
+    } else if (isa<tpu::TG_BF16_SliceOp>(op)) {
+      dtype_bytes = 2;
+      dtype = "uint16";
+    } else {
+      llvm_unreachable("unhandled op");
+    }
+
+    std::vector<int64_t> input_shape = getTensorShape(castOp.input());
+    if (input_shape[0] == 1) {
+      // if batch is 1, then no copy
+      int64_t isz = 1;
+      for (unsigned i = axis + 1; i < input_shape.size(); i++) {
+        isz *= input_shape[i];
+      }
+      size_t offset_bytes = offset * isz * dtype_bytes;
+      llvm::errs() << "base_addr: " << base_addr << " offset: "<< offset_bytes << "\n";
+      setOpAddress(op, base_addr + offset_bytes);
+
+      // update the global address of the usage
+      for(auto &use : op->getResult(0)->getUses()) {
+        Operation *usage_op = use.getOwner();
+        setOpAddress(usage_op, base_addr + offset_bytes);
+      }
+
+      // set the src op to buffer reuse so that we do not compare this tensor
+      auto srcOp = op->getOperand(0)->getDefiningOp();
+      setOpBufferReused(srcOp, true);
+    } else {
+      llvm::errs() << "multi-batch slice, no need to fix address.\n";
+    }
+
+    castOp.setAttr("gaddr_updated",
+                   Builder(castOp.getOperation()->getContext()).getBoolAttr(true));
+    return matchSuccess();
+  }
+};
+
 template<typename TyOp>
 struct LGLoweringPattern : public RewritePattern {
   LGLoweringPattern(FuncOp * fn , MLIRContext *context, GroupOptimizer * optimizer)
@@ -695,6 +758,7 @@ void GroupOptimizer::lower_to_tg_group(MLIRContext * context) {
     }
   }
 
+  // lower to TG inst
   OwningRewritePatternList tg_patterns;
   tg_patterns.insert<
       addGroupTGLayerPattern<tpu::InputOp>,
@@ -705,17 +769,14 @@ void GroupOptimizer::lower_to_tg_group(MLIRContext * context) {
       addGroupTGLayerPattern<tpu::PoolAvg2DOp>,
       addGroupTGLayerPattern<tpu::PoolMax2DOp>,
       addGroupTGLayerPattern<tpu::ConcatOp>,
+      addGroupTGLayerPattern<tpu::ShuffleChannelOp>,
+      addGroupTGLayerPattern<tpu::SliceOp>,
       addGroupTGLayerPattern<tpu::FullyConnectedOp>
   >(context, this);
   applyPatternsGreedily(*fn_, tg_patterns);
 
-  // write input data in first row of neuron map file
+  // set gaddr from layer group
   OwningRewritePatternList tg_addr_patterns;
-  // tg_addr_patterns.insert<
-  //     addTGLayerGAddrPattern<tpu::InputOp>
-  // >(context, this, neuronMapFile->os());
-  // applyPatternsGreedily(*fn_, tg_addr_patterns);
-
   tg_addr_patterns.clear();
   tg_addr_patterns.insert<
       addTGLayerGAddrPattern<tpu::TG_INT8_PC_Conv2DOp>,
@@ -726,8 +787,18 @@ void GroupOptimizer::lower_to_tg_group(MLIRContext * context) {
       addTGLayerGAddrPattern<tpu::TG_INT8_PoolMax2DOp>,
       addTGLayerGAddrPattern<tpu::TG_INT8_FullyConnectedOp>,
       addTGLayerGAddrPattern<tpu::TG_INT8_ConcatOp>,
+      addTGLayerGAddrPattern<tpu::TG_INT8_ShuffleChannelOp>,
+      addTGLayerGAddrPattern<tpu::TG_INT8_SliceOp>,
       addTGLayerGAddrPattern<tpu::GenericCpuOp>
   >(context, this, neuronMapFile->os());
+  applyPatternsGreedily(*fn_, tg_addr_patterns);
+
+  // when is inplaced slice, no tdma is needed
+  // but need to update the address according to offset
+  tg_addr_patterns.clear();
+  tg_addr_patterns.insert<
+      fixSliceAddrPattern<tpu::TG_INT8_SliceOp>
+      >(context);
   applyPatternsGreedily(*fn_, tg_addr_patterns);
 
   if (neuronMapFile) {

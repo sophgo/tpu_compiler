@@ -95,6 +95,10 @@ shared_ptr<ImLayer> ImLayer::create(Operation* op) {
              isa<tpu::SigmoidOp>(op) ||
              isa<tpu::SqrtOp>(op)) {
     layer = make_shared<ImActivation>(op);
+  } else if (isa<tpu::ShuffleChannelOp>(op)) {
+    layer = make_shared<ImShuffleChannel>(op);
+  } else if (isa<tpu::SliceOp>(op)) {
+    layer = make_shared<ImSlice>(op);
   } else if (isa<tpu::GenericCpuOp>(op)) {
     layer = make_shared<ImCommon>(op, false, IR_OTHER);
   } else if (isa<tpu::QuantOp>(op) ||
@@ -258,6 +262,23 @@ ImActivation::ImActivation(Operation* op) : ImLayer(IR_ACTIVATION, op, true) {
                   name_ + "_slope_param", TENSOR_COEFF_NEURON);
   }
 
+  add_out_tensor(op->getResult(0), TENSOR_NEURON);
+}
+
+// shufflechannel as tg layer
+ImShuffleChannel::ImShuffleChannel(Operation *op): ImLayer(IR_SHUFFLECHANNEL, op, false) {
+  add_in_tensor(op->getOperand(0), TENSOR_NEURON);
+  add_out_tensor(op->getResult(0), TENSOR_NEURON);
+}
+
+ImSlice::ImSlice(Operation *op): ImLayer(IR_SLICE, op, false) {
+  std::vector<int64_t> dst_shape = getTensorShape(op->getResult(0));
+  auto slice_op = dyn_cast<tpu::SliceOp>(op);
+  int axis = slice_op.axis().getLimitedValue();
+  // optimization for batch 1, set as inplace layer
+  if ((dst_shape[0] == 1) && (axis == 1))
+    is_inplace_layer = true;
+  add_in_tensor(op->getOperand(0), TENSOR_NEURON);
   add_out_tensor(op->getResult(0), TENSOR_NEURON);
 }
 

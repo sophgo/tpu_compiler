@@ -906,6 +906,7 @@ class TPU_TG_SliceOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
+    OptionalAttr<BoolAttr>:$gaddr_updated,
     StrAttr:$name,
     OptionalAttr<NonNegativeI32Attr>:$layer_id
   );

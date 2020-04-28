@@ -216,7 +216,9 @@ uint64_t getOpAddress(Operation *op) {
 LogicalResult setOpAddress(Operation *op, uint64_t gaddr) {
   if (auto tpuTGOp = llvm::dyn_cast<tpu::TpuTGOpCodegenInterface>(op)) {
     return tpuTGOp.setGAddr(gaddr);
-  } else if (auto castOp = llvm::dyn_cast<tpu::GenericCpuOp>(op)) {
+  } else if (auto tpuTLOp = llvm::dyn_cast<tpu::TpuTLOpCodegenInterface>(op)) {
+    return tpuTLOp.setGAddr(gaddr);
+  }  else if (auto castOp = llvm::dyn_cast<tpu::GenericCpuOp>(op)) {
     castOp.setAttr("gaddr", Builder(castOp.getOperation()->getContext()).getI64IntegerAttr(gaddr));
     return success();
   } else {

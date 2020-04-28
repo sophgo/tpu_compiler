@@ -28,6 +28,10 @@ DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 # Batch 1, 37 fps
 # Batch 4, 41.3 fps
 
+# shufflenet_v2 pass, on chip performance
+# Batch 1, 1408 fps
+# Batch 4, 1619 fps
+
 
 # compare all only support when global memory optimization close
 COMPARE_ALL=1
