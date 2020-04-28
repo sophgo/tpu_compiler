@@ -14,6 +14,11 @@ from pycocotools.cocoeval import COCOeval
 import json
 from pathlib import Path
 from tqdm import tqdm
+import numpy as np
+
+def convert(o):
+    if isinstance(o, np.int64): return float(o)
+    raise TypeError
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Eval YOLO networks.')
@@ -131,7 +136,7 @@ def eval_detector(net, result_json_file, dataset_path, net_input_dims,
         os.remove(result_json_file)
     with open(result_json_file, 'w') as file:
         #json.dump(jdict, file, indent=4)
-        json.dump(jdict, file)
+        json.dump(jdict, file, default=convert)
 
 def get_img_id(file_name):
     ls = []
