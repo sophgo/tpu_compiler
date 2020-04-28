@@ -112,7 +112,7 @@ class preprocess(object):
             output = pfunc(image)
         else:
             if self.resize_dims != None:
-                x = cv2.resize(image, (self.resize_dims[1], self.resize_dims[0])) # w,h
+                x = cv2.resize(image, (self.resize_dims[1], self.resize_dims[0]), interpolation=cv2.INTER_NEAREST) # w,h
                 if self.rgb_order == 'rgb' :
                     x = x[[2,1,0], :, :]
 
