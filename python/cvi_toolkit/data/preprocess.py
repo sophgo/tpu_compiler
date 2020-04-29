@@ -2,7 +2,9 @@
 import numpy as np
 import cv2
 from enum import Enum
+from cvi_toolkit.utils.log_setting import setup_logger
 
+logger = setup_logger('preprocess')
 
 class InputType(Enum):
     FILE = 'FILE'
@@ -88,16 +90,18 @@ class preprocess(object):
         else :
             self.transpose = None
         self.rgb_order = rgb_order
+        self.ori_channel_order = None
 
-    def run(self, input, output_npz=None, pfunc=None, input_name=None, input_type=InputType.FILE):
+    def run(self, input, output_npz=None, pfunc=None, input_name=None, input_type=InputType.FILE, input_channel_order="rgb", output_channel_order='bgr'):
+
         if input_type == InputType.FILE:
             if self.npy_input != None :
                 x = np.load(str(self.npy_input).rstrip())
                 if output_npz:
                     np.savez(output_npz, **{input_name if input_name else "input": x})
                 return x
-
             image = cv2.imread(str(input).rstrip())
+            self.ori_channel_order = "bgr"
             if image is None:
                 print("not existed {}".format(str(input).rstrip()))
                 return None
@@ -106,6 +110,9 @@ class preprocess(object):
             image = cv2.resize(image, (self.resize_dims[1], self.resize_dims[0])) # w,h
 
         elif input_type == InputType.NDARRAY:
+            logger.debug("input channel order is {}, output channel order is {}".format(input_channel_order, output_channel_order))
+            # Default is rgb in
+            self.ori_channel_order = "rgb"
             if self.transpose == (0, 1, 2):
                 # input tensor shape is CHW
                 if self.resize_dims != self.net_input_dims:
@@ -124,7 +131,11 @@ class preprocess(object):
         else:
             x = image
 
-            if self.rgb_order == 'rgb' :
+            # if source data order is different with handle order
+            # swap source data order
+            # only handle rgb to bgr , bgr to rgb
+            if self.rgb_order != self.ori_channel_order:
+                logger.debug("ori channel order is {}, but we handle order is {}, swap it".format(self.ori_channel_order, self.rgb_order))
                 x = x[[2,1,0], :, :]
 
             # transpose
@@ -146,6 +157,13 @@ class preprocess(object):
 
             # Take center crop.
             x = center_crop(x, self.net_input_dims)
+
+            # if We need output order is not the same with preprocess order
+            # swap it
+            if output_channel_order != self.rgb_order:
+                logger.debug("handle order is {}, but output order need {}, swap it".format(self.rgb_order, output_channel_order))
+                x = x[[2,1,0], :, :]
+
             output = np.expand_dims(x, axis=0)
 
         if output_npz:

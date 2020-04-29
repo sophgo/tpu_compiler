@@ -119,7 +119,7 @@ def main(argv):
             image_resize_dims = [int(x) for x in args.image_resize_dims.split(",")]
         else:
             image_resize_dims = net_input_dims
-        input = preprocessor.run(args.input_file)
+        input = preprocessor.run(args.input_file, output_channel_order="rgb")
     elif file_extension == "npz":
         input = np.load(args.input_file)['input']
     else:

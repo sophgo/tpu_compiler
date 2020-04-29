@@ -121,17 +121,16 @@ if __name__ == '__main__':
       net_input_dims = net.get_input_shape()
 
   preprocessor = preprocess()
-  # PyTorch transforms use rgb, still need the swap for caffe models
   # Because of Resize by PyTorch transforms, we set resize dim same with network input(don't do anything )
   # transposed already in ToTensor(), we set (0,1,2) here
   preprocessor.config(net_input_dims=net_input_dims,
-                    resize_dims=args.image_resize_dims,
+                    resize_dims=net_input_dims,
                     mean=args.mean,
                     mean_file=args.mean_file,
                     input_scale=args.input_scale,
                     raw_scale=args.raw_scale,
                     std=args.std,
-                    rgb_order='rgb',
+                    rgb_order='bgr',
                     transpose='0,1,2')
 
   image_resize_dims = [int(s) for s in args.image_resize_dims.split(',')]
@@ -182,9 +181,13 @@ if __name__ == '__main__':
 
     else:
       # Pytorch ToTensor will make tesnor range to [0, 1]
-      # recover to [0, 255] for caffe
-      x = images[0].numpy() * raw_scale
-      x = preprocessor.run(x, input_type=InputType.NDARRAY)
+      # recover to [0, 255]
+      x = images[0].numpy() * 255
+      if args.model_type == "caffe":
+          x = preprocessor.run(x, input_type=InputType.NDARRAY)
+      elif args.model_type == "onnx":
+          x = preprocessor.run(x, input_type=InputType.NDARRAY, output_channel_order="rgb")
+
 
     # run inference
 
