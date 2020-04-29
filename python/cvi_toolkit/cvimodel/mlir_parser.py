@@ -4,6 +4,7 @@ import os
 import re
 import random
 import flatbuffers
+import functools
 from . import cpu_op
 from collections import OrderedDict
 
@@ -30,7 +31,7 @@ def is_cpu_quant(op, cpu_ops):
 class Tensor:
     def __init__(self, id, attributes, shape, is_weight, op_type):
         self.id = id
-        self.shape, self.dtype = self.__parse_shape(shape)
+        self.shape, self.dtype, self.size = self.__parse_shape(shape)
         self.name = attributes['name'] if 'name' in attributes else ''
         self.offset = attributes['offset'] if 'offset' in attributes else - 1
         if 'gaddr' in attributes:
@@ -58,16 +59,20 @@ class Tensor:
             shape[:] = [shape[0], shape[1], 1, 1]
         elif len(shape) == 1:
             shape[:] = [shape[0], 1, 1, 1]
+        size = functools.reduce(lambda x, y: x * y, shape)
         dtype = array[-1]
         if dtype == 'bf16':
             dtype = 'bf16'
+            size *= 2
         elif dtype == 'i16':
             dtype = 'int16'
+            size *= 2
         elif dtype == 'i8':
             dtype = 'int8'
         else:
             dtype = 'fp32'
-        return shape, dtype
+            size *= 4
+        return shape, dtype, size
 
     def __str__(self):
         return '{}: {} {} [{}] {} {} {}'.format(self.id, self.name, self.offset,
@@ -243,10 +248,21 @@ class MlirParser:
         #print("\n")
         #print('self.intputs', self.inputs)
         #print('self.outputs', self.outputs)
+        self.neuron_size = self.__calc_neuron_size()
         tensor = self.tensor_map[list(self.inputs)[0]]
         self.batch = tensor.shape[0]
         self.__omit_tensors()
         self.__sort_tensor_map()
+
+    def __calc_neuron_size(self):
+        neuron_size = 0
+        for _, tensor in self.tensor_map.items():
+            if tensor.is_weight:
+                continue
+            if tensor.offset != -1:
+                tail = tensor.offset + tensor.size
+                neuron_size = tail if neuron_size < tail else neuron_size
+        return neuron_size
 
     def __sort_tensor_map(self):
         layer_tensor = OrderedDict()

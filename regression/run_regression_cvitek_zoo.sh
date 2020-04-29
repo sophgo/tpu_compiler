@@ -51,8 +51,7 @@ pushd regression_out
 # clear previous output
 rm -f *.mlir *.bin *.npz *.csv *.cvimodel
 
-for net in ${net_list[@]}
-do
+if [ ! -z $net ]; then
   echo "cvitek zoo regression $net batch=$bs"
   $DIR/cvitek_zoo/cvitek_zoo_regression.sh $net $bs 2>&1 | tee $net\_bs$bs.log
   if [ "${PIPESTATUS[0]}" -ne "0" ]; then
@@ -61,8 +60,19 @@ do
   else
     echo "$net batch=$bs generic regression PASSED" >> verdict.log
   fi
-done
-
+else
+  for net in ${net_list[@]}
+  do
+    echo "cvitek zoo regression $net batch=$bs"
+    $DIR/cvitek_zoo/cvitek_zoo_regression.sh $net $bs 2>&1 | tee $net\_bs$bs.log
+    if [ "${PIPESTATUS[0]}" -ne "0" ]; then
+      echo "$net batch=$bs generic regression FAILED" >> verdict.log
+      ERR=1
+    else
+      echo "$net batch=$bs generic regression PASSED" >> verdict.log
+    fi
+  done
+fi
 popd
 
 # VERDICT

@@ -170,7 +170,6 @@ class Program:
     return names
 
   def __build_neuron_map(self):
-    max_neuron_size = 0
     neuron_map = []
     for tensor in self.mlir.tensor_map.values():
       if tensor.is_weight:
@@ -184,11 +183,8 @@ class Program:
       tensor_stride = self.__build_dim_vector((c * h * w, h * w, w, 1))
       tensor_size = functools.reduce(
         lambda x, y: x * y, (n, c, h, w)) * dtype_size_map[dtype]
-      if tensor_offset != -1:
-        max_neuron_size = (tensor_offset + tensor_size) if max_neuron_size < (
-          tensor_offset + tensor_size) else max_neuron_size
       if self.verbose:
-        print(max_neuron_size, tensor_name, tensor_offset,
+        print(tensor_name, tensor_offset,
             tensor_size, dtype, n, c, h, w, dtype_size_map[dtype])
 
       cm.QuantInfoStart(self.builder)
@@ -215,7 +211,7 @@ class Program:
     for tensor in reversed(neuron_map):
       self.builder.PrependUOffsetTRelative(tensor)
     program_neuron_map = self.builder.EndVector(len(neuron_map))
-    return program_neuron_map, max_neuron_size
+    return program_neuron_map
 
   def __build_inputs_outputs(self):
     input_tensors = []
@@ -261,13 +257,13 @@ class Program:
     return self.builder.EndVector(len(routines))
 
   def build(self):
-    program_neuron_map, neuron_size = self.__build_neuron_map()
+    program_neuron_map = self.__build_neuron_map()
     program_input_tensors, program_output_tensors = self.__build_inputs_outputs()
     program_routines = self.__build_routines(self.cmdbufs)
 
     cm.ProgramStart(self.builder)
     cm.ProgramAddBatchNum(self.builder, self.mlir.batch)
-    cm.ProgramAddNeuronSize(self.builder, neuron_size)
+    cm.ProgramAddNeuronSize(self.builder, self.mlir.neuron_size)
     cm.ProgramAddInputTensors(self.builder, program_input_tensors)
     cm.ProgramAddOutputTensors(self.builder, program_output_tensors)
     cm.ProgramAddTensorMap(self.builder, program_neuron_map)
@@ -337,7 +333,7 @@ class CVIModel:
       cm.WeightAddOffset(self.builder, tensor.offset)
       cm.WeightAddShape(self.builder, tensor_shape)
       cm.WeightAddType(self.builder, tensor_type)
-      cm.WeightAddSize(self.builder, n*c*h*w)
+      cm.WeightAddSize(self.builder, tensor.size)
       weight_map.append(cm.WeightEnd(self.builder))
     cm.ModelStartWeightMapVector(self.builder, len(weight_map))
     for w in reversed(weight_map):
