@@ -85,12 +85,24 @@ export PYTHONPATH=$FLATBUFFERS_PATH/python:$PYTHONPATH
 if [[ -z "$SDK_INSTALL_PATH" ]]; then
   SDK_INSTALL_PATH=$TPU_BASE/cvitek_tpu_sdk
 fi
-echo "INSTALL_SOC_PATH set to $INSTALL_SOC_PATH"
+echo "INSTALL_SOC_PATH set to $SDK_INSTALL_PATH"
 export INSTALL_SOC_PATH=$SDK_INSTALL_PATH
 if [[ -z "$BUILD_SOC_PATH" ]]; then
   BUILD_SOC_PATH=$TPU_BASE/build_out_soc
 fi
 echo "BUILD_SOC_PATH set to $BUILD_SOC_PATH"
 export BUILD_SOC_PATH=$BUILD_SOC_PATH
+
+# soc 32bit build and path
+if [[ -z "$SDK_INSTALL_PATH_32BIT" ]]; then
+  SDK_INSTALL_PATH_32BIT=$TPU_BASE/cvitek_tpu_sdk_32bit
+fi
+echo "INSTALL_SOC_PATH_32BIT set to $SDK_INSTALL_PATH_32BIT"
+export INSTALL_SOC_PATH_32BIT=$SDK_INSTALL_PATH_32BIT
+if [[ -z "$BUILD_SOC_PATH_32BIT" ]]; then
+  BUILD_SOC_PATH_32BIT=$TPU_BASE/build_out_soc_32bit
+fi
+echo "BUILD_SOC_PATH_32BIT set to $BUILD_SOC_PATH_32BIT"
+export BUILD_SOC_PATH_32BIT=$BUILD_SOC_PATH_32BIT
 
 export GLOG_minloglevel=2
