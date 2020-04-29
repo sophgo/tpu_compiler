@@ -14,6 +14,7 @@ if [ ! -f "$ONNX_BLOBS_NPZ" ]; then
       --raw_scale ${RAW_SCALE} \
       --mean ${MEAN} \
       --std ${STD} \
+      --batch_size $BATCH_SIZE \
       --input_scale ${INPUT_SCALE} \
       --dump_tensor $ONNX_BLOBS_NPZ \
       --input_file $REGRESSION_PATH/data/cat.jpg \
