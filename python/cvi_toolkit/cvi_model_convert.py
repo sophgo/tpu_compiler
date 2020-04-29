@@ -2,11 +2,14 @@
 import onnx
 import argparse
 from cvi_toolkit.transform.onnx_converter import OnnxConverter
+# from cvi_toolkit.transform.tflite_converter import TFLiteConverter
+
 from cvi_toolkit.utils.log_setting import setup_logger
 
 logger = setup_logger('root', log_level="INFO")
 CVI_SupportFramework = [
-    "onnx"
+    "onnx",
+    "tflite"
 ]
 
 def Convert(args):
@@ -15,7 +18,9 @@ def Convert(args):
     if args.model_type == "onnx":
         onnx_model = onnx.load(args.model_path)
         c = OnnxConverter(args.model_name, onnx_model, args.mlir_file_path)
-        c.run()
+    elif args.model_type == "tflite":
+        c = TFLiteConverter(args.model_name, args.model_path, args.mlir_file_path)
+    c.run()
 
 def main():
     parser = argparse.ArgumentParser()
