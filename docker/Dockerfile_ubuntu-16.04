@@ -7,6 +7,7 @@ COPY sources-16.04.list /etc/apt/sources.list
 # ================== apt ==================
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
+    gdb \
     ninja-build \
     automake \
     autoconf \
@@ -89,6 +90,7 @@ RUN pip install --no-cache-dir \
     scipy \
     scikit-image==0.14 \
     matplotlib \
+    wheel \
     leveldb \
     decorator \
     networkx==2.2 \
@@ -119,6 +121,7 @@ RUN pip3 install --no-cache-dir \
     scipy \
     scikit-image==0.15 \
     matplotlib \
+    wheel \
     leveldb \
     decorator \
     networkx \

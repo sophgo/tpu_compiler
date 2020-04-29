@@ -23,7 +23,7 @@ generic_net_list=(
   "retinaface_res50"
   "ssd300"
   "yolo_v3_416"
-  # "yolo_v3_320"
+  "yolo_v3_320"
   "resnet18"
   "efficientnet_b0"
   "alphapose"
