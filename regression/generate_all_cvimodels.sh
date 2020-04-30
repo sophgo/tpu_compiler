@@ -19,7 +19,7 @@ generic_net_list=(
   "ssd300"
   "yolo_v3_416"
   # "yolo_v3_320"
-  "resnet18"
+  # "resnet18"
   "efficientnet_b0"
   "alphapose"
 )
