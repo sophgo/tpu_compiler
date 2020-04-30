@@ -62,9 +62,7 @@ def convert_onnx_attribute_proto(attr_proto):
 
 class OnnxNode():
     def __init__(self, node):
-        self.name = str(node.name)
-        if self.name == '':
-            self.name = str(node.output[0])
+        self.name = str(node.output[0])
         self.op_type = str(node.op_type)
         self.attrs = dict([(attr.name, translate_onnx(attr.name, convert_onnx_attribute_proto(attr))) for attr in node.attribute])
         self.inputs = list(node.input)
