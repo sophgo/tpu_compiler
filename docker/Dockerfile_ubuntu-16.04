@@ -23,7 +23,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python-pip \
     python-setuptools \
     python3-dev \
-    python3-pip \
     python3-setuptools
 
 # bsp tools
@@ -112,6 +111,12 @@ RUN pip install --no-cache-dir \
     torchvision \
     onnx
 
+# ubuntu 16.04 version pip3 defalt version is broken
+# see  this github issue
+# https://github.com/pypa/pip/issues/5373
+RUN curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
+RUN python3 get-pip.py --force-reinstall
+
 RUN pip3 install --upgrade pip
 # RUN pip3 config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
 RUN pip3 config set global.index-url https://mirrors.aliyun.com/pypi/simple
@@ -137,8 +142,8 @@ RUN pip3 install --no-cache-dir \
     enum34 \
     termcolor \
     opencv-python-headless \
-    torch \
-    torchvision \
+    torch==1.4.0 \
+    torchvision==0.5.0 \
     onnxruntime
 
 # cocoAPI, pip install has conflict with latest numpy,
