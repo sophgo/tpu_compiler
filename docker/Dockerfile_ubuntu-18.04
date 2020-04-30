@@ -108,8 +108,8 @@ RUN pip install --no-cache-dir \
     termcolor \
     opencv-python-headless \
     PyWavelets==1.0.3 \
-    torch \
-    torchvision \
+    torch==1.4.0 \
+    torchvision==0.5.0 \
     onnx
 
 RUN pip3 install --upgrade pip
@@ -137,8 +137,8 @@ RUN pip3 install --no-cache-dir \
     enum34 \
     termcolor \
     opencv-python-headless \
-    torch \
-    torchvision \
+    torch==1.4.0 \
+    torchvision==0.5.0 \
     onnxruntime
 
 # cocoAPI, pip install has conflict with latest numpy,

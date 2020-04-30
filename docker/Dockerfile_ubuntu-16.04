@@ -107,8 +107,8 @@ RUN pip install --no-cache-dir \
     termcolor \
     opencv-python-headless \
     PyWavelets==1.0.3 \
-    torch \
-    torchvision \
+    torch==1.4.0 \
+    torchvision==0.5.0 \
     onnx
 
 # ubuntu 16.04 version pip3 defalt version is broken
