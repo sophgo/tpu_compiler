@@ -22,6 +22,7 @@ cvi_model_convert.py \
     --model_path $1 \
     --model_name $2 \
     --model_type onnx \
+    --batch_size $3 \
     --mlir_file_path fp32.mlir
 
 mlir-opt fp32.mlir \
@@ -93,6 +94,7 @@ cvi_model_convert.py \
     --model_path $1 \
     --model_name $2 \
     --model_type onnx \
+    --batch_size $3 \
     --mlir_file_path fp32.mlir
 
 mlir-opt \

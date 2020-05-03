@@ -12,6 +12,7 @@ run_onnx_inference.py \
     --mean ${MEAN} \
     --input_scale ${INPUT_SCALE} \
     --std ${STD} \
+    --batch ${BATCH_SIZE} \
     --output_file ${NET}_out_fp32_ref.npz \
     --model_path $MODEL_DEF \
     --dump_tensor ${NET}_out_tensor_all.npz

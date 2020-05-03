@@ -18,6 +18,7 @@ elif [ $MODEL_TYPE = "onnx" ]; then
       --model_path $MODEL_DEF \
       --model_name ${NET} \
       --model_type onnx \
+      --batch_size $BATCH_SIZE \
       --mlir_file_path ${NET}.mlir
 else
   echo "Invalid MODEL_TYPE=$MODEL_TYPE"

@@ -96,6 +96,13 @@ def main(argv):
         default='256,256',
         help="To resize to this size first, then crop to net_input_dims."
     )
+    parser.add_argument(
+        "--batch_size",
+        default=1,
+        type=int,
+        help="Input batch size."
+    )
+
     args = parser.parse_args()
 
     preprocessor = cvi_preprocess()
@@ -119,7 +126,12 @@ def main(argv):
             image_resize_dims = [int(x) for x in args.image_resize_dims.split(",")]
         else:
             image_resize_dims = net_input_dims
+
         input = preprocessor.run(args.input_file, output_channel_order="rgb")
+        inputs = input
+        for i in range(1, args.batch_size):
+            inputs = np.append(inputs, input, axis=0)
+        input = inputs
     elif file_extension == "npz":
         input = np.load(args.input_file)['input']
     else:
