@@ -17,7 +17,7 @@ def Convert(args):
         raise ValueError("Not support {} type".format(args.model_type))
     if args.model_type == "onnx":
         onnx_model = onnx.load(args.model_path)
-        c = OnnxConverter(args.model_name, onnx_model, args.mlir_file_path)
+        c = OnnxConverter(args.model_name, onnx_model, args.mlir_file_path, batch_size=args.batch_size)
     elif args.model_type == "tflite":
         c = TFLiteConverter(args.model_name, args.model_path, args.mlir_file_path)
     c.run()
@@ -40,6 +40,12 @@ def main():
         "--mlir_file_path",
         help="path to store mlir file",
         default=""
+    )
+    parser.add_argument(
+        "--batch_size",
+        help="input batch size",
+        type=int,
+        default=1,
     )
     args = parser.parse_args()
     Convert(args)

@@ -93,7 +93,8 @@ class OnnxTensor():
 
 
 class OnnxConverter(BaseConverterInterface):
-    def __init__(self, model_name, onnx_model, mlir_file_path):
+    def __init__(self, model_name, onnx_model, mlir_file_path, batch_size=1):
+        self.batch_size = batch_size
         self.model_name = model_name
         self.input_nodes = onnx_model.graph.input
         self.output_nodes = onnx_model.graph.output
@@ -137,15 +138,25 @@ class OnnxConverter(BaseConverterInterface):
         inputs = list()
         for input in self.input_nodes:
             input_shape = list()
-            for dim in input.type.tensor_type.shape.dim:
-                input_shape.append(dim.dim_value)
+            for i, dim in enumerate(input.type.tensor_type.shape.dim):
+                # batch size
+                # dim is zero, mean mutli batch
+                if i == 0 and dim.dim_value == 0:
+                    input_shape.append(self.batch_size)
+                else:
+                    input_shape.append(dim.dim_value)
             inputs.append(input_shape)
         # get output shape
         outputs = list()
         for output in self.output_nodes:
             output_shape = list()
-            for dim in output.type.tensor_type.shape.dim:
-                output_shape.append(dim.dim_value)
+            for i, dim in enumerate(output.type.tensor_type.shape.dim):
+                # i == 0 mean batch size
+                # if dim is zero, mean mutli batch
+                if i == 0 and dim.dim_value == 0:
+                    output_shape.append(self.batch_size)
+                else:
+                    output_shape.append(dim.dim_value)
             outputs.append(output_shape)
 
         # init importer
@@ -223,8 +234,13 @@ class OnnxConverter(BaseConverterInterface):
         # add input op
         for idx, input in enumerate(self.input_nodes):
             input_shape = list()
-            for dim in input.type.tensor_type.shape.dim:
-                input_shape.append(dim.dim_value)
+            for i, dim in enumerate(input.type.tensor_type.shape.dim):
+                # batch size
+                # dim is zero, mean mutli batch
+                if i == 0 and dim.dim_value == 0:
+                    input_shape.append(self.batch_size)
+                else:
+                    input_shape.append(dim.dim_value)
             input_op = self.CVI.add_input_op(input.name, idx)
             self.addOperand(input.name, input_op, input_shape, TensorType.ACTIVATION)
         def NoneAndRaise(node):
