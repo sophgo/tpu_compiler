@@ -5,12 +5,14 @@ from enum import Enum
 from .caffe_model import CaffeModel
 from .onnx_model import OnnxModel
 from .mlir_model import MLIRModel
+from .tensorflow_lite_model import TFLiteModel
 
 
 ModelType = [
     'caffe',
     'mlir',
     'onnx',
+    'tflite'
 ]
 
 
@@ -30,9 +32,12 @@ class ModelFactory(object):
             elif model_type == 'onnx':
                 self.model = OnnxModel()
                 self.model.load_model(model_file)
-            else:
+            elif model_type == 'mlir':
                 self.model = MLIRModel()
                 self.model.load_model(mlirfile)
+            elif model_type == 'tflite':
+                self.model = TFLiteModel()
+                self.model.load_model(model_file)
 
     def inference(self, input):
        return self.model.inference(input)
