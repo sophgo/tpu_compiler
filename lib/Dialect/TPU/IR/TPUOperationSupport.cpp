@@ -357,6 +357,11 @@ void parseConvParam(const tpu::ConvParam &p, bool is_deconv,
   }
   g = p.group().getValue().getLimitedValue();
   if (g != 1) {
+    if (g == oc) {
+      is_dw = true;
+    } else {
+      is_dw = false;
+    }
     // f_s is in (g, oc/g, ic/g, kh, kw)
     if(f_s.size() == 5) {
       assert(g == f_s[0]);
@@ -364,15 +369,19 @@ void parseConvParam(const tpu::ConvParam &p, bool is_deconv,
       assert(ic/g == f_s[2]);
     } else if (f_s.size() == 4) {
       // tl_layer has filter size of 4
-      assert(ic/g == 1);
-      assert(oc == f_s[1]);
+      if (is_dw) {
+        // (1, oc, kh, kw)
+        assert(ic/g == 1);
+        assert(oc == f_s[1]);
+      } else {
+        // (oc, ic/g, kh, kw)
+        assert(oc == f_s[0]);
+        assert(ic/g == f_s[1]);
+      }
+
     }
 
-    if (g == oc) {
-      is_dw = true;
-    } else {
-      is_dw = false;
-    }
+
   } else {
     assert(f_s.size() == 4);
     assert(oc == f_s[0]);

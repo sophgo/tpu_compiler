@@ -74,7 +74,6 @@ LogicalResult tpu::TL_LG_Conv2DOp::codegen(void *ctx) {
   int ph_b = this->pad_bottom_h().getLimitedValue();
   int pw_l = this->pad_left_w().getLimitedValue();
   int pw_r = this->pad_right_w().getLimitedValue();
-
   int layer_id = mlir::getOpLayerId(op);
 
   cvi_backend_tl_conv(
@@ -219,6 +218,7 @@ LogicalResult tpu::TL_LG_LoadCoeffOp::codegen(void *ctx) {
   getNCHW(shape, r_n, r_c, r_h, r_w);
   getNCHW(shape, n, c, h, w);
 
+  // load coeff as shape (1, oc, kh * kw, ic/g)
   if (this->tensor_type() == "CONV_COEFF") {
     n = 1;
     c = r_n;

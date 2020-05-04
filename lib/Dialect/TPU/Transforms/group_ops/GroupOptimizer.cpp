@@ -390,10 +390,8 @@ bool GroupOptimizer::is_group_start(Operation * op, int * gid) {
     int id = group->layers()[0];
     const ImLayer * start_layer = net_graph_->get_layer_by_id(id);
     if (is_same_layer(op, start_layer)) {
-      // if only one layer, return false
       if (group->layers().size() > 1) {
         *gid = group_id;
-        // llvm::errs() << " success.\n";
         return true;
       }
     }
@@ -403,7 +401,7 @@ bool GroupOptimizer::is_group_start(Operation * op, int * gid) {
   return false;
 }
 
-void GroupOptimizer::lower_to_tl(PatternRewriter & rewriter, Operation *op, int gid) {
+void GroupOptimizer::lower_to_tl(Operation *op, int gid) {
   Group * group = groups_[gid];
   if (group->lowered()) {
     return;
@@ -411,7 +409,6 @@ void GroupOptimizer::lower_to_tl(PatternRewriter & rewriter, Operation *op, int 
   int n_secs = group->nsecs_and_hsecs.first;
   int h_secs = group->nsecs_and_hsecs.second;
 
-  mix_net_.set_rewriter(&rewriter);
   mix_net_.set_start_op(op);
   mix_net_.add_group_start_ops(gid, group, op, n_secs, h_secs);
 
@@ -691,7 +688,8 @@ template <typename OpTy> struct fixSliceAddrPattern : public RewritePattern {
 
       // set the src op to buffer reuse so that we do not compare this tensor
       auto srcOp = op->getOperand(0)->getDefiningOp();
-      setOpBufferReused(srcOp, true);
+      if (dyn_cast<tpu::TpuTGOpCodegenInterface>(srcOp))
+        setOpBufferReused(srcOp, true);
     } else {
       llvm::errs() << "multi-batch slice, no need to fix address.\n";
     }
@@ -716,7 +714,7 @@ struct LGLoweringPattern : public RewritePattern {
     int group_id = 0;
     if (optimizer_->is_group_start(op, &group_id)) {
       llvm::errs() << "Find group start: " << getOpName(op) << "\n";
-      optimizer_->lower_to_tl(rewriter, op, group_id);
+      optimizer_->lower_to_tl(op, group_id);
     }
     return matchSuccess();
   }

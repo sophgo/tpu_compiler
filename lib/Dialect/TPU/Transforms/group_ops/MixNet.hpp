@@ -51,7 +51,6 @@ class MixNet {
   Value* get_op_from_name(string name);
   void add_opd_to_list(string op_name, Value * opd, bool);
   // void init_fn(FuncOp * fn, MLIRContext * context);
-  void set_rewriter(PatternRewriter * rewriter) { rewriter_ = rewriter; }
   void set_net_in_tensor(int tensor_id);
   void set_net_out_tensor(int tensor_id);
   // void add_start_layer(const std::string input_name, const int data_type_size);
@@ -101,7 +100,6 @@ class MixNet {
 
 
   NetGraph* net_graph_;
-  PatternRewriter * rewriter_;
 
   // vector<TLTransportParameter*> suspend_transports_;
   vector<int> net_in_tensors_;
@@ -112,7 +110,6 @@ class MixNet {
   vector<Operation *> parallel_list_;
   Operation * start_op_;
   Operation * weightFileOp_;
-  vector<Value *> quant_ops_;
 };
 
 }

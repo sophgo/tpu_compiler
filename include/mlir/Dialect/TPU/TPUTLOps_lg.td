@@ -82,23 +82,6 @@ def TPU_TL_LG_Conv2DOp : TPU_Op<"tl_lg_conv_2d",
   let summary = "TL Convolution operator";
 
   let description = [{
-    [IMPORTANT] : for INT8_MULTIPLIER quantized convolution only.
-    Performs TL convolution operation on inputs memref, and output to output
-      memref. The weight are still global memory tensors, so this operator NOT has
-      to handle loading weight by itself.
-
-    Examples:
-       %A = tpu.tl_load(%2) {gaddr = 0x60000000}: memref<?x?xf32, offset: 0, strides: [?, 1]>
-       %B = tpu.tl_alloc() : memref<?x?xf32, offset: 0, strides: [?, 1]>
-       tpu.tl_lw_conv_2d(%A, %B, %4, %5) { ... } : \
-           (memref<1x64x56x56xi8, offset: 0x100, strides: [?, 1]>, \
-            memref<1x256x56x56xi8, offset: 0x4000, strides: [?, 1]>, \
-            tensor<256x64x3x3xi8>, tensor<256x9xi8>) -> tensor<1x256x56x56xf32>)
-
-    Inputs:
-      `inputs[0]`  : required: the input memref.
-      `inputs[1]`  : required: the filter tensor.
-      `inputs[2]`  : required: the per_channel_info tensor.
   }];
 
   let arguments = (
@@ -106,16 +89,16 @@ def TPU_TL_LG_Conv2DOp : TPU_Op<"tl_lg_conv_2d",
     AnyTensor:$filter,
     AnyTensor:$pc_info,
     TPU_ConvParamAttr:$param,
-    DefaultValuedAttr<I32Attr, "0">:$pad_top_h,
-    DefaultValuedAttr<I32Attr, "0">:$pad_bottom_h,
-    DefaultValuedAttr<I32Attr, "0">:$pad_left_w,
-    DefaultValuedAttr<I32Attr, "0">:$pad_right_w,
     I32Attr:$la_input,
     I32Attr:$la_filter,
     I32Attr:$la_output,
     I32Attr:$la_bias,
     I32Attr:$la_working,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    DefaultValuedAttr<I32Attr, "0">:$pad_top_h,
+    DefaultValuedAttr<I32Attr, "0">:$pad_bottom_h,
+    DefaultValuedAttr<I32Attr, "0">:$pad_left_w,
+    DefaultValuedAttr<I32Attr, "0">:$pad_right_w,
     DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
     DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
     StrAttr:$name,
@@ -161,29 +144,6 @@ class TPU_TL_LG_Pool2DOp<string mnemonic, string opQuant, string opType> : TPU_O
   let summary = "TL " # opQuant # " Pool2D " # opType # " operator.";
 
   let description = [{
-    Inputs:
-      `input`          : required, the input1 activation memref.
-
-    Attributes:
-      `rshift`          : optional, rshift, an int8 value.
-      `m_i8`            : optional, multiplier for output.
-      `param`           : required, a PoolParam struct attributes, carrying
-                          filter size, stride, padding, and do_relu.
-      `region`          : required, the memory region to reside in, could be
-                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
-                          (backend does not support `INPUT`, `OUTPUT` for now)
-      `gaddr`           : optional, address in global memory, normally the
-                          offset within the memory region.
-      `name`            : required, name for comparing, or debug.
-      `layer_id`        : optional, id for profiling.
-
-    Result:
-      `output`          : result tensor.
-
-    Interfaces or Traits:
-      `NoSideEffect`
-      `TpuOpCommonInterface`    : support common TPU TG Op interface.
-      `TpuTLOpCodegenInterface` : support generate TPU instuctions.
   }];
 
   let arguments = (

@@ -139,7 +139,6 @@ bmerr_t Group::group_winograd_out_tensors_check() {
 bool Group::check_valid() {
   // return false;
   bmerr_t status = assign_steps();
-
   if (status != BM_SUCCESS) {
     LLVM_DEBUG(llvm::errs() << "layer group invalid: ";);
     for (int i = 0; i < layers_.size(); i++)

@@ -332,32 +332,9 @@ void MixNet::_add_tl_convolution_param(MixOp* mix_op,
 
   u32 input_laddr = (net_graph_->get_tensor_local_offset(in_tensors[0]));
   u32 weight_laddr = (net_graph_->get_tensor_local_offset(in_tensors[1]));
-  u32 bias_laddr = 0;
-  u32 group_bias_laddr = 0;
   u32 output_laddr = (net_graph_->get_tensor_local_offset(out_tensors[0]));
-  // Should be has_bias
-  // FIXME: Need to align with im_layers.cpp
-  if (in_tensors.size() > 2) {
-    if (g > 1) {
-      if (g == out_tensor->c() && g == in_tensor->c() && g != 1) {
-        llvm::errs() << "Bias tensor for depthwise layer found!";
-        // Backend only gets bias, not add_group_bias, store both
-        bias_laddr = net_graph_->get_tensor_local_offset(in_tensors[2]);
-        group_bias_laddr = net_graph_->get_tensor_local_offset(in_tensors[2]);
-      } else if (in_tensors.size() == g + 2) {
-        llvm::errs() << "Multiple bias tensors found!";
-        assert(0);
-        // for (int i = 0; i < param.group(); i++) {
-        //   out_param->add_group_bias(net_graph_->get_tensor_local_offset(in_tensors[i + 2]));
-        // }
-      } else {
-        // If you see this message, go to im_layers.cpp:186 (has_bias) for more info.
-        llvm::errs() << "Error nums of bias tensors from optimizer.";
-      }
-    } else {
-      bias_laddr = net_graph_->get_tensor_local_offset(in_tensors[2]);
-    }
-  }
+  int bias_laddr = net_graph_->get_tensor_local_offset(in_tensors[2]);
+
 
   RankedTensorType input_type = RankedTensorType::get(
                           {bottom_dim[0], bottom_dim[1],
@@ -477,7 +454,6 @@ void MixNet::_add_tl_eltwise_param(MixOp* mix_op,
   assert(rshift->size() == 1);
   attrs.push_back(builder_.getNamedAttr("rshift",
       builder_.getI8IntegerAttr(static_cast<int8_t>(rshift->at(0)))));
-  quant_ops_.push_back(quant_rshift);
 
   // m_i8_inputs
   auto multiplier = readWeightTensor<float>(quant_multiplier, wTF);
@@ -487,7 +463,6 @@ void MixNet::_add_tl_eltwise_param(MixOp* mix_op,
   }
   attrs.push_back(builder_.getNamedAttr("m_i8_inputs",
       builder_.getI32ArrayAttr(ArrayRef<int32_t>({m_i8_inputs_array}))));
-  quant_ops_.push_back(quant_multiplier);
 
   // setup input operation
   vector<Value *> operands;
@@ -625,7 +600,6 @@ void MixNet::_add_tl_pooling_param(MixOp * mix_op,
     assert(rshift->size() == 1);
     attrs.push_back(builder_.getNamedAttr("rshift",
         builder_.getI8IntegerAttr(static_cast<int8_t>(rshift->at(0)))));
-    quant_ops_.push_back(quant_rshift);
 
     // m_i8_inputs
     auto multiplier = readWeightTensor<float>(quant_multiplier, wTF);
@@ -634,7 +608,6 @@ void MixNet::_add_tl_pooling_param(MixOp * mix_op,
     m_i8 = static_cast<int32_t>(multiplier->at(0));
     attrs.push_back(builder_.getNamedAttr("m_i8",
         builder_.getI32IntegerAttr((m_i8))));
-    quant_ops_.push_back(quant_multiplier);
   }
 
   // setup input/output type
@@ -721,6 +694,8 @@ void MixNet::_add_load_param_bm1880v2(int tensor_id,
   if (tensor_type == TENSOR_COEFF) {
     laddr = net_graph_->get_tensor_local_offset(tensor_id);
 
+    // to match mlir requirement for conv weight, shape is
+    // (oc, ic, kh, kw)
     local_shape[0] = tensor_dim[1];
     local_shape[1] = tensor_dim[0];
     local_shape[2] = tensor_dim[2];
@@ -744,7 +719,7 @@ void MixNet::_add_load_param_bm1880v2(int tensor_id,
     local_shape[3] = (tensor_dim[3]);
 
     global_shape[0] = (tensor_dim[0]);
-    global_shape[1] = (tensor_dim[1] * tensor->group);
+    global_shape[1] = (tensor_dim[1]);
     global_shape[2] = (tensor_dim[2]);
     global_shape[3] = (tensor_dim[3]);
 

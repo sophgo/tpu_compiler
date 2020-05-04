@@ -25,7 +25,7 @@ class GroupOptimizer {
   void assign_weight_address(MLIRContext * context);
   MixNet * get_net() { return &mix_net_; }
   bool is_group_start(Operation *op, int * id);
-  void lower_to_tl(PatternRewriter & rewriter, Operation *op, int group_id);
+  void lower_to_tl(Operation *op, int group_id);
 
  private:
   NetGraph* net_graph_;

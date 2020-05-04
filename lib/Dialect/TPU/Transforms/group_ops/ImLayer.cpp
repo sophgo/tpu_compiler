@@ -147,28 +147,24 @@ ImConv::ImConv(Operation* p) : ImLayer(IR_CONVOLUTION, p, true), conv1x1_to_fc(f
     add_in_tensor(1, oc, kh, kw, unit_size, storage, weightOpName, TENSOR_DEPTHCONV_OPD1);
   }
   else {
+    // tensor shape in local memory should be (1, oc, kh*kw, ic/g)
     add_in_tensor(ic / g, oc, kh, kw, unit_size, storage, weightOpName, TENSOR_COEFF);
   }
 
   // add bias tensor
-  if (with_bias) {
-    auto load_bias = cast<tpu::LoadWeightOp>(op.getOperand(2)->getDefiningOp());
-    string bias_name = load_bias.name().getValue().str();
-    string storage = getOperandStorage(load_bias);
-    int bias_usize = getOperandStorageSize(load_bias);
-    if (is_dw) {
-      add_in_tensor(1, oc, 1, 9, bias_usize, storage, bias_name, TENSOR_BIAS);
-    } else {
-      int group_oc = oc / g;
-      assert(oc % g == 0);
-      for (int i = 0; i < g; i++) {
-        shared_ptr<Tensor> tensor = Tensor::register_tensor(
-            1, oc / g, 1, 9, bias_usize, storage, bias_name,
-            TENSOR_BIAS, i * group_oc * bias_usize);
-        tensor.get()->group = g;
-        in_tensors.push_back(tensor);
-      }
-    }
+  int perchannel_size = with_bias ? 9 : 5;
+  auto load_bias = cast<tpu::LoadWeightOp>(op.getOperand(2)->getDefiningOp());
+  string bias_name = load_bias.name().getValue().str();
+  string bias_storage = getOperandStorage(load_bias);
+  int bias_usize = getOperandStorageSize(load_bias);
+
+  if (is_dw)
+    add_in_tensor(1, oc, 1, perchannel_size, bias_usize, storage, bias_name, TENSOR_BIAS);
+  else {
+    // bias tensor start address must from tpu0, but the same as input and result that
+    // start address can start from tpux, so here we use the shape (g, oc/g, 1, 9), not
+    // (1, oc, 1, 9)
+    add_in_tensor(g, oc/g, 1, perchannel_size, bias_usize, storage, bias_name, TENSOR_BIAS);
   }
 
   // add out tensor
