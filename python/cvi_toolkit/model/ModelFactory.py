@@ -21,7 +21,7 @@ class ModelFactory(object):
         self.model_type = None
         self.model = None
 
-    def load_model(self, model_type, model_file, weight_file=None, mlirfile=None):
+    def load_model(self, model_type, model_file=None, weight_file=None, mlirfile=None):
         if model_type not in ModelType:
             raise RuntimeError("Model Type {} not support. support {}".format(model_type, ModelType))
         else:

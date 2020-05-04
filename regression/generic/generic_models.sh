@@ -3,6 +3,8 @@ set -e
 
 #default values
 export MODEL_TYPE="caffe"   # caffe, pytorch, onnx, tflite, tf
+export STD=1,1,1
+export MODEL_CHANNEL_ORDER="bgr"
 export EXCEPTS=-
 export DO_CALIBRATION=0
 export CALIBRATION_IMAGE_COUNT=1000

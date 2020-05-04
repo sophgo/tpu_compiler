@@ -10,18 +10,19 @@ import time
 import warnings
 import numpy as np
 
+from cvi_toolkit.data.preprocess import preprocess, InputType
+from cvi_toolkit.model.ModelFactory import ModelFactory
+
 import torch
 import torch.nn as nn
 import torch.utils.data
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 
-from cvi_toolkit.data.preprocess import preprocess, InputType
-from cvi_toolkit.model.ModelFactory import ModelFactory
-
 parser = argparse.ArgumentParser(description="Classification Evaluation on ImageNet Dataset.")
-parser.add_argument('--model_def', type=str, help="Model definition file")
-parser.add_argument('--pretrained_model', type=str, help='Load weights from previously saved parameters.', default=None)
+parser.add_argument("--model_def", type=str, help="Model definition file", default=None)
+parser.add_argument("--pretrained_model", type=str, help="Load weights from previously saved parameters.", default=None)
+parser.add_argument("--mlir_file", type=str, help="mlir file.", default=None)
 parser.add_argument("--dataset", type=str, help="The root directory of the ImageNet dataset.")
 parser.add_argument("--image_resize_dims", type=str, default='256,256')
 parser.add_argument("--net_input_dims", type=str, default='224,224')
@@ -29,10 +30,11 @@ parser.add_argument("--raw_scale", type=float, help="Multiply raw input image da
 parser.add_argument("--mean", help="Per Channel image mean values")
 parser.add_argument("--std", help="Per Channel image std values", default='1,1,1')
 parser.add_argument("--mean_file", type=str, help="the resized ImageNet dataset mean file.")
-parser.add_argument("--input_scale", type=float, help="Multiply input features by this scale.")
+parser.add_argument("--input_scale", type=float, help="Multiply input features by this scale.", default=1.0)
 parser.add_argument("--loader_transforms", type=int, help="image transform ny torch loader", default=0)
-parser.add_argument("--model_type", type=str, help="model framework type", default='caffe')
+parser.add_argument("--model_type", type=str, help="model framework type, default: caffe", default='caffe')
 parser.add_argument("--count", type=int, default=50000)
+parser.add_argument("--model_channel_order", type=str, help="channel order of model inference used, default: bgr", default="bgr")
 args = parser.parse_args()
 
 def second(elem):
@@ -111,7 +113,7 @@ if __name__ == '__main__':
 
   net = ModelFactory()
     # load model
-  net.load_model(args.model_type, args.model_def, weight_file=args.pretrained_model)
+  net.load_model(args.model_type, model_file=args.model_def, weight_file=args.pretrained_model, mlirfile=args.mlir_file)
 
 
   if args.net_input_dims:
@@ -187,6 +189,8 @@ if __name__ == '__main__':
           x = preprocessor.run(x, input_type=InputType.NDARRAY)
       elif args.model_type == "onnx":
           x = preprocessor.run(x, input_type=InputType.NDARRAY, output_channel_order="rgb")
+      elif args.model_type == "mlir":
+          x = preprocessor.run(x, input_type=InputType.NDARRAY, output_channel_order=args.model_channel_order)
 
 
     # run inference
