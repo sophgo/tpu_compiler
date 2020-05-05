@@ -1,10 +1,10 @@
 from .mlirimporter import MLIRImporter, checkKey
-from .BaseConverter import BaseConverter
+from .BaseConverter import BaseConverter, TensorType
 from onnx import numpy_helper, mapping
 from termcolor import colored, cprint
 from math import floor, ceil
 from numbers import Number
-from enum import Enum
+
 
 import logging
 import numpy as np
@@ -18,9 +18,6 @@ logger = setup_logger('root')
 
 log_flag = logger.level <= logging.DEBUG
 
-class TensorType(Enum):
-    ACTIVATION = 'ACTIVATION'
-    TENSOR = 'TENSOR'
 
 onnx_attr_translator = {
     "axis": lambda x: int(x),
