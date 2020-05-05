@@ -19,7 +19,7 @@ class TFLiteModel(model_base):
     def __init__(self):
         self.net = None
 
-    def load_model(self, model_file, wegiht_file=None):
+    def load_model(self, model_file):
         self.net = tf.lite.Interpreter(model_path=model_file)
         self.net.allocate_tensors()
 
