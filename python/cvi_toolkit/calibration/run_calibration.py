@@ -12,6 +12,7 @@ from cvi_toolkit.calibration.kld_calibrator import KLD_Calibrator
 from cvi_toolkit.calibration.asym_calibrator import Asym_Calibrator
 from cvi_toolkit.calibration.tuner import Tuner
 from cvi_toolkit import preprocess
+from cvi_toolkit.data.preprocess import get_preprocess_parser
 
 def preprocess_func_arcface(image_path, args):
   image = cv2.imread(str(image_path).rstrip())
@@ -112,13 +113,6 @@ def main():
   parser.add_argument('image_list_file', metavar='image_list_file', help='Input image list file')
   parser.add_argument('--output_file', metavar='output_file', help='Output file')
   parser.add_argument('--model_name', metavar='model_name', help='Model name', default='generic')
-  parser.add_argument("--image_resize_dims", type=str, default='256,256')
-  parser.add_argument("--net_input_dims", type=str, default='224,224')
-  parser.add_argument("--raw_scale", type=float, help="Multiply raw input image data by this scale.", default=255.0)
-  parser.add_argument("--mean", help="Per Channel image mean values")
-  parser.add_argument("--std", help="Per Channel image std values", default='1,1,1')
-  parser.add_argument("--mean_file", type=str, help="the resized ImageNet dataset mean file.")
-  parser.add_argument("--input_scale", type=float, help="Multiply input features by this scale.", default=1.0)
   parser.add_argument('--calibrator', metavar='calibrator', help='Calibration method', default='KLD')
   parser.add_argument('--math_lib_path', metavar='math_path', help='Calibration math library path', default='calibration_math.so')
   parser.add_argument('--input_num', metavar='input_num', help='Calibration data number', default=10)
@@ -126,7 +120,8 @@ def main():
                       default=2048)
   parser.add_argument('--auto_tune', action='store_true', help='Enable auto tune or not')
   parser.add_argument('--binary_path', metavar='binary_path', help='MLIR binary path')
-  parser.add_argument('--tune_iteration', metavar='iteration', help='The number of data using in tuning process', default=10)
+  parser.add_argument('--tune_iteration', metavar='iteration',type=int, help='The number of data using in tuning process', default=10)
+  parser = get_preprocess_parser(existed_parser=parser)
   args = parser.parse_args()
 
   if (args.model_name == 'generic'):
@@ -137,8 +132,9 @@ def main():
                     mean_file=args.mean_file,
                     input_scale=args.input_scale,
                     raw_scale=args.raw_scale,
-                    std=args.std)
-    p_func = lambda input_file, _ : preprocessor.run(input_file)
+                    std=args.std,
+                    rgb_order=args.model_channel_order)
+    p_func = lambda input_file, _ : preprocessor.run(input_file, output_channel_order=args.model_channel_order)
   elif (args.model_name == 'yolo_v3'):
     p_func = preprocess_yolov3
   elif (args.model_name == 'ssd300_face'):

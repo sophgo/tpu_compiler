@@ -8,29 +8,10 @@ import os
 from onnx import helper
 from PIL import Image
 from torchvision import transforms
-from cvi_toolkit import preprocess as cvi_preprocess
+from cvi_toolkit.data.preprocess import get_preprocess_parser, preprocess
 
 def to_numpy(tensor):
     return tensor.detach().cpu().numpy() if tensor.requires_grad else tensor.cpu().numpy()
-
-def preprocess(image_file, mean, std, resize, centor_crop):
-    """
-        image_file: str
-        mean: list
-        std: list
-        resize: list
-        centor_crop: list
-
-    """
-    preprocessor = cvi_preprocess()
-    preprocessor.config(net_input_dims=net_input_dims,
-                    resize_dims=resize,
-                    mean=args.mean,
-                    mean_file=args.mean_file,
-                    input_scale=args.input_scale,
-                    raw_scale=args.raw_scale,
-                    std=args.std)
-    return tfms(Image.open(image_file)).unsqueeze(0).numpy()
 
 def inference(input, model_path):
     """
@@ -61,58 +42,25 @@ def main(argv):
         help="Dump all output tensors into a file in npz format"
     )
     parser.add_argument(
-        "--mean",
-        help="Per Channel image mean values"
-    )
-    parser.add_argument(
-        "--mean_file",
-        help="Data set image mean of [Channels x Height x Width] dimensions " +
-             "(numpy array). Set to '' for no mean subtraction."
-    )
-    parser.add_argument(
-        "--std",
-        help="Per Channel image std values",
-        default='1,1,1'
-    )
-    parser.add_argument(
-        "--input_scale",
-        type=float,
-        default=1.0,
-        help="Multiply input features by this scale to finish preprocessing."
-    )
-    parser.add_argument(
-        "--raw_scale",
-        type=float,
-        default=255.0,
-        help="Multiply raw input by this scale before preprocessing."
-    )
-    parser.add_argument(
-        "--net_input_dims",
-        default='224,224',
-        help="'height,width' dimensions of network input spatial dimensions."
-    )
-    parser.add_argument(
-        "--image_resize_dims",
-        default='256,256',
-        help="To resize to this size first, then crop to net_input_dims."
-    )
-    parser.add_argument(
         "--batch_size",
         default=1,
         type=int,
         help="Input batch size."
     )
+    parser = get_preprocess_parser(existed_parser=parser)
 
     args = parser.parse_args()
 
-    preprocessor = cvi_preprocess()
+    preprocessor = preprocess()
     preprocessor.config(net_input_dims=args.net_input_dims,
                     resize_dims=args.image_resize_dims,
                     mean=args.mean,
                     mean_file=args.mean_file,
                     input_scale=args.input_scale,
                     raw_scale=args.raw_scale,
-                    std=args.std)
+                    std=args.std,
+                    rgb_order=args.model_channel_order,
+                    )
     input=None
     file_extension = args.input_file.split(".")[-1].lower()
     if file_extension == "jpg":
@@ -127,7 +75,7 @@ def main(argv):
         else:
             image_resize_dims = net_input_dims
 
-        input = preprocessor.run(args.input_file, output_channel_order="rgb")
+        input = preprocessor.run(args.input_file, output_channel_order=args.model_channel_order)
         inputs = input
         for i in range(1, args.batch_size):
             inputs = np.append(inputs, input, axis=0)

@@ -12,7 +12,7 @@ import glob
 import time
 import skimage
 import caffe
-from cvi_toolkit import preprocess
+from cvi_toolkit.data.preprocess import get_preprocess_parser, preprocess
 from cvi_toolkit.model import CaffeModel
 
 def check_files(args):
@@ -50,47 +50,6 @@ def main(argv):
         help="Trained model weights file."
     )
     parser.add_argument(
-        "--net_input_dims",
-        help="'height,width' dimensions of network input spatial dimensions."
-    )
-    parser.add_argument(
-        "--image_resize_dims",
-        default='256,256',
-        help="To resize to this size first, then crop to net_input_dims."
-    )
-    parser.add_argument(
-        "--mean_file",
-        help="Data set image mean of [Channels x Height x Width] dimensions " +
-             "(numpy array). Set to '' for no mean subtraction."
-    )
-    parser.add_argument(
-        "--mean",
-        help="Per Channel image mean values"
-    )
-    parser.add_argument(
-        "--std",
-        help="Per Channel image std values",
-        default='1,1,1'
-    )
-    parser.add_argument(
-        "--input_scale",
-        type=float,
-        default=1.0,
-        help="Multiply input features by this scale to finish preprocessing."
-    )
-    parser.add_argument(
-        "--raw_scale",
-        type=float,
-        default=255.0,
-        help="Multiply raw input by this scale before preprocessing."
-    )
-    parser.add_argument(
-        "--channel_swap",
-        default='2,1,0',
-        help="Order to permute input channels. The default converts " +
-             "RGB -> BGR since BGR is the Caffe default by way of OpenCV."
-    )
-    parser.add_argument(
         "--label_file",
         help="Labels file"
     )
@@ -111,6 +70,8 @@ def main(argv):
         "--force_input",
         help="Force the input blob data, in npy format"
     )
+    parser = get_preprocess_parser(existed_parser=parser)
+
     args = parser.parse_args()
     check_files(args)
     caffemodel = CaffeModel()

@@ -18,6 +18,7 @@ if [ ! -f "$ONNX_BLOBS_NPZ" ]; then
       --input_scale ${INPUT_SCALE} \
       --dump_tensor $ONNX_BLOBS_NPZ \
       --input_file $REGRESSION_PATH/data/cat.jpg \
+      --model_channel_order $MODEL_CHANNEL_ORDER \
       --output_file onnx_out.npz
 fi
 

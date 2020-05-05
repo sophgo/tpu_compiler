@@ -10,7 +10,7 @@ import time
 import warnings
 import numpy as np
 
-from cvi_toolkit.data.preprocess import preprocess, InputType
+from cvi_toolkit.data.preprocess import preprocess, InputType, get_preprocess_parser
 from cvi_toolkit.model.ModelFactory import ModelFactory
 
 import torch
@@ -24,17 +24,11 @@ parser.add_argument("--model_def", type=str, help="Model definition file", defau
 parser.add_argument("--pretrained_model", type=str, help="Load weights from previously saved parameters.", default=None)
 parser.add_argument("--mlir_file", type=str, help="mlir file.", default=None)
 parser.add_argument("--dataset", type=str, help="The root directory of the ImageNet dataset.")
-parser.add_argument("--image_resize_dims", type=str, default='256,256')
-parser.add_argument("--net_input_dims", type=str, default='224,224')
-parser.add_argument("--raw_scale", type=float, help="Multiply raw input image data by this scale.")
-parser.add_argument("--mean", help="Per Channel image mean values")
-parser.add_argument("--std", help="Per Channel image std values", default='1,1,1')
-parser.add_argument("--mean_file", type=str, help="the resized ImageNet dataset mean file.")
-parser.add_argument("--input_scale", type=float, help="Multiply input features by this scale.", default=1.0)
 parser.add_argument("--loader_transforms", type=int, help="image transform ny torch loader", default=0)
 parser.add_argument("--model_type", type=str, help="model framework type, default: caffe", default='caffe')
 parser.add_argument("--count", type=int, default=50000)
-parser.add_argument("--model_channel_order", type=str, help="channel order of model inference used, default: bgr", default="bgr")
+parser = get_preprocess_parser(existed_parser=parser)
+
 args = parser.parse_args()
 
 def second(elem):
@@ -132,7 +126,7 @@ if __name__ == '__main__':
                     input_scale=args.input_scale,
                     raw_scale=args.raw_scale,
                     std=args.std,
-                    rgb_order='bgr',
+                    rgb_order=args.model_channel_order,
                     transpose='0,1,2')
 
   image_resize_dims = [int(s) for s in args.image_resize_dims.split(',')]

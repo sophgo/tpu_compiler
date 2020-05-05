@@ -20,6 +20,7 @@ $EVAL_FUNC \
     --mlir_file=${NET}.mlir \
     --dataset=$DATASET_PATH/imagenet/img_val_extracted \
     --net_input_dims $NET_INPUT_DIMS \
+    --image_resize_dims $IMAGE_RESIZE_DIMS \
     --raw_scale $RAW_SCALE \
     --mean $MEAN \
     --std $STD \
@@ -33,6 +34,7 @@ if [ $DO_QUANT_INT8_PER_TENSOR -eq 1 ]; then
     --mlir_file=${NET}_quant_int8_per_tensor.mlir \
     --dataset=$DATASET_PATH/imagenet/img_val_extracted \
     --net_input_dims $NET_INPUT_DIMS \
+    --image_resize_dims $IMAGE_RESIZE_DIMS \
     --raw_scale $RAW_SCALE \
     --mean $MEAN \
     --std $STD \
@@ -47,6 +49,7 @@ if [ $DO_QUANT_INT8_RFHIFT_ONLY -eq 1 ]; then
     --mlir_file=${NET}_quant_int8_rshift_only.mlir \
     --dataset=$DATASET_PATH/imagenet/img_val_extracted \
     --net_input_dims $NET_INPUT_DIMS \
+    --image_resize_dims $IMAGE_RESIZE_DIMS \
     --raw_scale $RAW_SCALE \
     --mean $MEAN \
     --std $STD \
@@ -61,6 +64,7 @@ if [ $DO_QUANT_INT8_MULTIPLER -eq 1 ]; then
     --mlir_file=${NET}_quant_int8_multiplier.mlir \
     --dataset=$DATASET_PATH/imagenet/img_val_extracted \
     --net_input_dims $NET_INPUT_DIMS \
+    --image_resize_dims $IMAGE_RESIZE_DIMS \
     --raw_scale $RAW_SCALE \
     --mean $MEAN \
     --std $STD \
@@ -75,6 +79,7 @@ if [ $DO_QUANT_BF16 -eq 1 ]; then
     --mlir_file=${NET}_quant_bf16.mlir \
     --dataset=$DATASET_PATH/imagenet/img_val_extracted \
     --net_input_dims $NET_INPUT_DIMS \
+    --image_resize_dims $IMAGE_RESIZE_DIMS \
     --raw_scale $RAW_SCALE \
     --mean $MEAN \
     --std $STD \

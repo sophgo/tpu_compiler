@@ -16,6 +16,7 @@ $EVAL_FUNC \
     --std $STD \
     --input_scale $INPUT_SCALE \
     --model_type onnx \
+    --model_channel_order $MODEL_CHANNEL_ORDER \
     --count=$1
 
 echo $0 DONE
