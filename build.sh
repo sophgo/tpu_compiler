@@ -178,8 +178,10 @@ cmake -G Ninja -DCHIP=BM1880v2 -DRUNTIME=CMODEL $BUILD_FLAG \
     -DFLATBUFFERS_PATH=$FLATBUFFERS_PATH \
     -DCVIBUILDER_PATH=$BUILD_PATH/build_cvimodel \
     -DCMAKE_INSTALL_PREFIX=$RUNTIME_PATH \
+    -DENABLE_TEST=ON \
     $MLIR_SRC_PATH/externals/cviruntime
 cmake --build . --target install
+ctest --progress || true
 popd
 
 # build systemc (for profiling)
