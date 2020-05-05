@@ -33,11 +33,13 @@ class TensorCompare():
   def __init__(self, close_order_tol=3,
                cosine_similarity_tol = 0.99,
                correlation_similarity_tol = 0.99,
-               euclidean_similarity_tol = 0.90):
+               euclidean_similarity_tol = 0.90,
+               signal_to_quantization_noise_tol = 50):
     self.close_order_tol            = close_order_tol
     self.cosine_similarity_tol      = cosine_similarity_tol
     self.correlation_similarity_tol = correlation_similarity_tol
     self.euclidean_similarity_tol   = euclidean_similarity_tol
+    self.signal_to_quantization_noise_tol   = signal_to_quantization_noise_tol
     return
 
   def square_rooted(self, x):
@@ -45,11 +47,37 @@ class TensorCompare():
 
   def cosine_similarity(self, x, y):
     numerator = sum(a*b for a,b in zip(x,y))
-    denominator = square_rooted(x)*square_rooted(y)
+    denominator = self.square_rooted(x)*self.square_rooted(y)
     return round(numerator/float(denominator),3)
 
   def euclidean_distance(self, x, y):
     return sqrt(sum(pow(a-b,2) for a, b in zip(x, y)))
+
+  def signal_to_quantization_noise_ratio(self, signal_raw, signal_dequant, remove_zero=True):
+    # SQNR is non-commutative
+    # Unlike other distance function
+    # Cannot change the order of signal_raw and signal_dequant
+    raw = signal_raw.flatten()
+    dequant = signal_dequant.flatten()
+
+    if remove_zero is True:
+        idx = raw != 0
+        raw = raw[idx]
+        dequant = dequant[idx]
+
+    noise = raw - dequant
+
+    avg_raw = np.sum(raw) / raw.size
+    avg_noise = np.sum(noise) / noise.size
+
+    raw_zero_mean = raw - avg_raw
+    noise_zero_mean = noise - avg_noise
+
+    var_raw_zero_mean = np.sum(np.square(raw_zero_mean))
+    var_noise_zero_mean = np.sum(np.square(noise_zero_mean))
+    sqnr = 10 * np.log10(var_raw_zero_mean / var_noise_zero_mean)
+
+    return sqnr
 
   def show_diff(self, d1, d2):
     d1f = d1.flatten()
@@ -102,13 +130,17 @@ class TensorCompare():
                                 self.square_rooted(m.flatten()))
     # print("Euclidean Similarity (my): ", euclidean_simliarity_my)
 
+    signal_to_quantization_noise_ratio = self.signal_to_quantization_noise_ratio(d1, d2)
+
     details["cosine_similarity"]       = cosine_similarity
     details["correlation_similarity"]  = correlation_similarity
     details["euclidean_similarity"]    = euclidean_similarity
+    details["signal_to_quantization_noise_ratio"]    = signal_to_quantization_noise_ratio
     # check similarity
     if (cosine_similarity > self.cosine_similarity_tol
         and correlation_similarity > self.correlation_similarity_tol
-        and euclidean_similarity > self.euclidean_similarity_tol):
+        and euclidean_similarity > self.euclidean_similarity_tol
+        and signal_to_quantization_noise_ratio > self.signal_to_quantization_noise_tol):
       return (True, self.SIMILAR, details)
     else:
       # Not similar
@@ -125,6 +157,7 @@ class TensorCompare():
         print("    cosine_similarity      = {:.6f}".format(result[2]["cosine_similarity"]))
         print("    correlation_similarity = {:.6f}".format(result[2]["correlation_similarity"]))
         print("    euclidean_similarity   = {:.6f}".format(result[2]["euclidean_similarity"]))
+        print("    signal_to_quantization_noise_ratio (SQNR)   = {:.6f}".format(result[2]["signal_to_quantization_noise_ratio"]))
     if (verbose > 1 and not result[0]):
       K = 5
       print("Target")
@@ -156,6 +189,7 @@ class TensorCompareStats():
     self.min_cosine_similarity = 1.0
     self.min_correlation_similarity = 1.0
     self.min_euclidean_similarity = 1.0
+    self.min_signal_to_quantization_noise_ratio = float('inf')
 
   def update(self, name, result):
     self.results[name] = result
@@ -174,6 +208,7 @@ class TensorCompareStats():
       self.min_cosine_similarity = min(self.min_cosine_similarity, result[2]["cosine_similarity"])
       self.min_correlation_similarity = min(self.min_correlation_similarity, result[2]["correlation_similarity"])
       self.min_euclidean_similarity = min(self.min_euclidean_similarity, result[2]["euclidean_similarity"])
+      self.min_signal_to_quantization_noise_ratio = min(self.min_signal_to_quantization_noise_ratio, result[2]["signal_to_quantization_noise_ratio"])
 
   def print_result(self):
     print("%d compared"%(len(self.results)))
@@ -186,17 +221,18 @@ class TensorCompareStats():
     print("  %d not equal, %d not similar"
           %(self.count[TensorCompare.NOT_EQUAL],
             self.count[TensorCompare.NOT_SIMILAR]))
-    print("min_similiarity = ({}, {}, {})".format(
+    print("min_similiarity = ({}, {}, {}, {})".format(
             self.min_cosine_similarity,
             self.min_correlation_similarity,
-            self.min_euclidean_similarity))
+            self.min_euclidean_similarity,
+            self.min_signal_to_quantization_noise_ratio))
 
   def save_result(self, csv_file):
     has_similarity = lambda x: (x == TensorCompare.SIMILAR
                                 or x == TensorCompare.NOT_SIMILAR)
     with open(csv_file, mode='w') as f:
       f.write("name, equal, close, close_order, similar, "
-              "sim_cosn, sim_corr, sim_eucl, pass\n")
+              "sim_cosn, sim_corr, sim_eucl, SQNR, pass\n")
       for name, result in self.results.items():
         f.write("{}, {}, {}, {}, {}, {}, {}, {}, {}\n".format(
           name,
@@ -207,5 +243,6 @@ class TensorCompareStats():
           result[2]["cosine_similarity"] if has_similarity(result[1]) else "na.",
           result[2]["correlation_similarity"] if has_similarity(result[1])  else "na.",
           result[2]["euclidean_similarity"] if has_similarity(result[1])  else "na.",
+          result[2]["signal_to_quantization_noise_ratio"] if has_similarity(result[1])  else "na.",
           bool(result[0]),
         ))

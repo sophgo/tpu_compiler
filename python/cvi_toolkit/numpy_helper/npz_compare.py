@@ -27,8 +27,8 @@ def parse_args(args_list):
     parser.add_argument('--discard', '-d', action='count', default=0)
     parser.add_argument('--dtype', type=str,
                         help="force dtype")
-    parser.add_argument("--tolerance", type=str, default='0.99,0.99,0.90',
-                        help="tolerance for cos/cor/euclid similarity")
+    parser.add_argument("--tolerance", type=str, default='0.99,0.99,0.90,50',
+                        help="tolerance for cos/cor/euclid similarity/SQNR")
     parser.add_argument('--op_info', type=str,
                         help="A csv file op_info, including order and dequant threshold")
     parser.add_argument("--dequant", action='store_true', default=False,
@@ -196,10 +196,16 @@ def npz_compare(args_list):
   npz1 = np.load(f1)
   npz2 = np.load(f2)
 
+  # Add default similarity threshold to zero
+  # Elder regression script does not have SQNR
+  while (len(tolerance) < 4):
+    tolerance.append(float('-inf'))
+
   tc = TensorCompare(close_order_tol=3,
                      cosine_similarity_tol = tolerance[0],
                      correlation_similarity_tol = tolerance[1],
-                     euclidean_similarity_tol = tolerance[2])
+                     euclidean_similarity_tol = tolerance[2],
+                     signal_to_quantization_noise_tol = tolerance[3])
 
   if args.tensor:
     print("Comparing %s ..."%(args.tensor))
