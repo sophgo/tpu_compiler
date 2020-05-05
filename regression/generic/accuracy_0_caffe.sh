@@ -12,6 +12,7 @@ $EVAL_FUNC \
     --dataset $DATASET_PATH/imagenet/img_val_extracted \
     --net_input_dims $NET_INPUT_DIMS \
     --image_resize_dims $IMAGE_RESIZE_DIMS \
+    --model_channel_order $MODEL_CHANNEL_ORDER \
     --raw_scale $RAW_SCALE \
     --mean $MEAN \
     --input_scale $INPUT_SCALE \

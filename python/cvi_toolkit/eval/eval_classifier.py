@@ -180,7 +180,7 @@ if __name__ == '__main__':
       # recover to [0, 255]
       x = images[0].numpy() * 255
       if args.model_type == "caffe":
-          x = preprocessor.run(x, input_type=InputType.NDARRAY)
+          x = preprocessor.run(x, input_type=InputType.NDARRAY, output_channel_order=args.model_channel_order)
       elif args.model_type == "onnx":
           x = preprocessor.run(x, input_type=InputType.NDARRAY, output_channel_order="rgb")
       elif args.model_type == "mlir":

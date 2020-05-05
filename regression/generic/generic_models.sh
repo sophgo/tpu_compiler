@@ -178,6 +178,7 @@ export MODEL_DAT=$MODEL_PATH/imagenet/shufflenet_v2/caffe/shufflenet_v2_x0.5.caf
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/shufflenet_v2_calibration_table
 export NET_INPUT_DIMS=224,224
 export IMAGE_RESIZE_DIMS=256,256
+export MODEL_CHANNEL_ORDER="rgb"
 export RAW_SCALE=1.0
 export MEAN=0.0,0.0,0.0
 export INPUT_SCALE=1.0
