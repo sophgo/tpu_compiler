@@ -146,6 +146,9 @@ cp -ar  $CVI_PY_TOOLKIT/retinaface/ $TPU_PYTHON_PATH/
 pushd $TPU_PYTHON_PATH/retinaface; make; popd
 cp -ar $TPU_PYTHON_PATH/retinaface/* $TPU_PYTHON_PATH/
 
+# TFLite flatbuffer Schema
+${FLATBUFFERS_PATH}/bin/flatc -o $TPU_PYTHON_PATH --python python/tflite_schema/schema.fbs
+
 # calibration tool
 if [ ! -e $BUILD_PATH/build_calibration ]; then
   mkdir -p $BUILD_PATH/build_calibration
