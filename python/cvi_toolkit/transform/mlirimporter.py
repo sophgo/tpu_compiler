@@ -42,12 +42,6 @@ def checkType(obj, type):
     if not isinstance(obj, type):
         raise AttributeError('{} is not {}'.format(obj, type))
 
-class BaseConverterInterface(object):
-    def init_importer(self):
-        raise NotImplementedError('init_importer')
-    def run(self):
-        raise NotImplementedError('run')
-
 
 class MLIRImporter(object):
     def __init__(self, inputs_shape, outputs_shape):

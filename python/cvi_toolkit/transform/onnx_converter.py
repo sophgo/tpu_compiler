@@ -1,4 +1,5 @@
-from .mlirimporter import BaseConverterInterface, MLIRImporter, checkKey
+from .mlirimporter import MLIRImporter, checkKey
+from .BaseConverter import BaseConverter
 from onnx import numpy_helper, mapping
 from termcolor import colored, cprint
 from math import floor, ceil
@@ -90,8 +91,9 @@ class OnnxTensor():
 
 
 
-class OnnxConverter(BaseConverterInterface):
+class OnnxConverter(BaseConverter):
     def __init__(self, model_name, onnx_model, mlir_file_path, batch_size=1):
+        super().__init__()
         self.batch_size = batch_size
         self.model_name = model_name
         self.input_nodes = onnx_model.graph.input
@@ -160,12 +162,6 @@ class OnnxConverter(BaseConverterInterface):
         # init importer
         self.CVI = MLIRImporter(inputs, outputs)
 
-    def addOperand(self, op_name, op, shape, tensor_type):
-        #cprint("add opernand name: {}\nshape: {}".format(op_name, shape, tensor_type), "yellow")
-        self.valueMap[op_name] = (op, shape, tensor_type)
-
-    def getOperand(self, op_name):
-        return self.valueMap[op_name]
 
     def addTensor(self, op_name, tensor_data, tensor_shape):
         #cprint("add tensor, name: {}\ntensor data: {}".format(op_name, tensor_data), "yellow")
