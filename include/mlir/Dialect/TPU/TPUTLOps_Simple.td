@@ -146,7 +146,8 @@ class TPU_TL_EltwiseOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     ins AnyTensor:$input,
     AnyTensor:$addend,
     I8Attr:$rshift,
-    I32ArrayAttr:$m_i8_inputs,
+    OptionalAttr<I32ArrayAttr>:$m_i8_inputs,
+    OptionalAttr<I32Attr>:$m_i32_output,
     DefaultValuedAttr<BoolAttr, "false">:$do_relu,
     DefaultValuedAttr<BoolAttr, "false">:$do_early_stride,
     DefaultValuedAttr<I32Attr, "1">:$early_stride_h,
@@ -168,6 +169,7 @@ class TPU_TL_EltwiseOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 }
 
 def TPU_TL_EltwiseAddOp : TPU_TL_EltwiseOp<"tl_eltwise_add", "Int8">;
+def TPU_TL_EltwiseMulOp : TPU_TL_EltwiseOp<"tl_eltwise_mul", "Int8">;
 
 
 def TPU_TL_LutOp : TPU_Op<"tl_lut",

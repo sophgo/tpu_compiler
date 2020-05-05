@@ -205,10 +205,9 @@ LogicalResult tpu::TL_EltwiseAddOp::codegen(void *ctx) {
   getTensorShapeAndSize(op->getOperand(0), shape, input_size);
   getNCHW(shape, n, c, h, w);
   std::vector<int64_t> output_shape;
-  int64_t output_size, oh, ow;
+  int64_t output_size, on, oc, oh, ow;
   getTensorShapeAndSize(op->getResult(0), output_shape, output_size);
-  oh = output_shape[2];
-  ow = output_shape[3];
+  getNCHW(output_shape, on, oc, oh, ow);
   bool do_relu = this->do_relu();
   bool do_early_stride = this->do_early_stride();
   int32_t early_stride_h = this->early_stride_h().getLimitedValue();
@@ -257,11 +256,13 @@ LogicalResult tpu::TL_EltwiseAddOp::codegen(void *ctx) {
 
   int8_t rshift = this->rshift().getLimitedValue();
   int8_t m_i8_input[2];
+  if(this->m_i8_inputs().hasValue()){
   std::vector<int32_t> m_i8_inputs_array;
-  arrayAttrToVector(this->m_i8_inputs(), m_i8_inputs_array);
-  assert(m_i8_inputs_array.size() == 2);
-  m_i8_input[0] = static_cast<int8_t>(m_i8_inputs_array[0]);
-  m_i8_input[1] = static_cast<int8_t>(m_i8_inputs_array[1]);
+    arrayAttrToVector(this->m_i8_inputs().getValue(), m_i8_inputs_array);
+    assert(m_i8_inputs_array.size() == 2);
+    m_i8_input[0] = static_cast<int8_t>(m_i8_inputs_array[0]);
+    m_i8_input[1] = static_cast<int8_t>(m_i8_inputs_array[1]);
+  }
 
   LLVM_DEBUG(
     llvm::errs() << "    TL_EltwiseAddOp, layer_id = " << layer_id;
@@ -275,15 +276,92 @@ LogicalResult tpu::TL_EltwiseAddOp::codegen(void *ctx) {
     llvm::errs() << "\n";
   );
 
-  cvi_backend_tl_eltwise_add(
+  // op code PROD = 0; SUM = 1; MAX = 2;
+  int op_code = 1;
+  cvi_backend_tl_eltwise_op(
     *backend_ctx, layer_id,
     la_input, la_output, la_working,
     ga_input, ga_output, ga_addend,
-    n, c, h, w, do_relu,
+    op_code, n, c, h, w, do_relu,
     do_early_stride, early_stride_h, early_stride_w,
-    rshift, m_i8_input[augend_idx], m_i8_input[1-augend_idx],
+    rshift, m_i8_input[augend_idx], m_i8_input[1-augend_idx], 0,
     tl_load_flag(), tl_store_flag());
 
+  return success();
+}
+
+LogicalResult tpu::TL_EltwiseMulOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+  int layer_id = mlir::getOpLayerId(op);
+
+  int augend_idx = 0;
+  auto prev_op = op->getOperand(0)->getDefiningOp();
+  auto prev_conv_op = llvm::dyn_cast<tpu::TL_LW_Conv2DOp>(prev_op);
+  if (!prev_conv_op) {
+    augend_idx = 1;
+  } else {
+    if (!op->getOperand(0)->hasOneUse()) {
+      augend_idx = 1;
+    } else if (prev_conv_op.in_short_path().getValue()) {
+      augend_idx = 1;
+    }
+  }
+
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  getNCHW(shape, n, c, h, w);
+  bool do_relu = this->do_relu();
+  int nInputs = op->getNumOperands();
+  assert(op->getNumOperands() == 2 && "support 2 inputs only");
+
+  gaddr_t ga_input = getPreviousOpAddress(op, augend_idx); //Closest op
+  gaddr_t ga_input2 = getPreviousOpAddress(op, 1 - augend_idx);
+  gaddr_t ga_input2_pre_input =  getPreviousOpAddress(op->getOperand(augend_idx)->getDefiningOp());
+  bool isAllInLocalMem = (ga_input2_pre_input == ga_input2) && (tl_load_flag() == false) && (tl_store_flag() == false);
+  //Fix me: now use global address to present it's unique ID. 
+  gaddr_t ga_output = getOpAddress(op);
+
+  laddr_t la_input = this->la_input().getLimitedValue();
+  laddr_t la_output = this->la_output().getLimitedValue();
+  laddr_t la_working = this->la_working().getLimitedValue();
+
+  bool do_quant_rescale = false;
+  int8_t rshift = this->rshift().getLimitedValue();
+
+  // op code PROD = 0; SUM = 1; MAX = 2;
+  int op_code = 0;
+  const int coeffs[2] = {1, 1};
+  const int i32Multiplier = (this->m_i32_output().hasValue()) ? this->m_i32_output().getValue().getLimitedValue() : 0;
+
+  if(!isAllInLocalMem) {
+    cvi_backend_tl_eltwise_op(
+      *backend_ctx, layer_id,
+      la_input, la_output, la_working,
+      ga_input, ga_output, ga_input2,
+      op_code, n, c, h, w, do_relu,
+      false, 1, 1,
+      rshift, 0, 0, i32Multiplier,
+      tl_load_flag(), tl_store_flag());
+  } else {
+    LLVM_DEBUG(llvm::errs() << "TL_codegen: " << "cvi_backend_tl_eltwise"
+               << " [" << getOpName() << "]\n";);
+    laddr_t la_input_tmp[2];
+    la_input_tmp[0] = la_input;
+    la_input_tmp[1] = la_output;
+    cvi_backend_tl_eltwise(
+        *backend_ctx, layer_id,
+        la_input_tmp, la_output, la_working,
+        n, c, h, w, 2,
+        op_code,
+        rshift, nullptr,
+        true,
+        do_relu, 0, coeffs, i32Multiplier);
+  }
   return success();
 }
 
@@ -344,6 +422,10 @@ LogicalResult tpu::TL_MemRef_LutOp::codegen(void *ctx) {
 }
 
 LogicalResult tpu::TL_MemRef_EltwiseAddOp::codegen(void *ctx) {
+  return success();
+}
+
+LogicalResult tpu::TL_MemRef_EltwiseMulOp::codegen(void *ctx) {
   return success();
 }
 

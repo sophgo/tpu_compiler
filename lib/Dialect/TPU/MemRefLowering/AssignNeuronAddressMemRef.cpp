@@ -162,6 +162,8 @@ bool AssignNeuronAddressMemRefPass::isBypassMemoryReuse(Operation *op) {
     return true;
   else if (dyn_cast<tpu::TL_MemRef_EltwiseAddOp>(op))
     return true;
+  else if (dyn_cast<tpu::TL_MemRef_EltwiseMulOp>(op))
+    return true;
   else if (dyn_cast<tpu::TL_MemRef_LutOp>(op))
     return true;
 

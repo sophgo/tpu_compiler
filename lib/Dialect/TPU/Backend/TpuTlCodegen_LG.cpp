@@ -159,7 +159,8 @@ LogicalResult tpu::TL_LG_EltwiseAddOp::codegen(void *ctx) {
                           true, /*use_default_coeff,*/
                           do_relu,
                           0, /*relu_slope,*/
-                          coeffs);
+                          coeffs,
+                          0);
 
   return success();
 }

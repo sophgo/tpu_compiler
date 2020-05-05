@@ -112,7 +112,7 @@ uint64_t SimpleConv2DMemoryUsageAnalysis(tpu::TG_INT8_PC_DeConv2DOp &op,
     struct SimpleMemoryUsageAnalysis_details *details);
 
 template <typename OpTy>
-uint64_t SimpleEltwiseAddMemoryUsageAnalysis(OpTy &op,
+uint64_t SimpleEltwiseMemoryUsageAnalysis(OpTy &op,
     struct SimpleMemoryUsageAnalysis_details *details) {
   std::vector<int64_t> shape;
   int64_t input_size, n, c, h, w;
@@ -137,6 +137,7 @@ uint64_t SimpleEltwiseAddMemoryUsageAnalysis(OpTy &op,
   // 2 addend buffers for ping-pong
   // 2 for partial result low and high
   eltwiseWorkingSizePerLane = MIN_ELTWISE_WORKING_SIZE * 4;
+  //todo : eltwiseMul ignore this
 
   // total
   uint64_t totalPerLane = inputNeuronSizePerLane + outputNeuronSizePerLane
@@ -158,7 +159,10 @@ uint64_t SimpleEltwiseAddMemoryUsageAnalysis(OpTy &op,
 }
 
 template
-uint64_t SimpleEltwiseAddMemoryUsageAnalysis(tpu::TG_INT8_EltwiseAddOp &op,
+uint64_t SimpleEltwiseMemoryUsageAnalysis(tpu::TG_INT8_EltwiseAddOp &op,
+    struct SimpleMemoryUsageAnalysis_details *details);
+template
+uint64_t SimpleEltwiseMemoryUsageAnalysis(tpu::TG_INT8_EltwiseMulOp &op,
     struct SimpleMemoryUsageAnalysis_details *details);
 
 template <typename OpTy>

@@ -493,6 +493,7 @@ void ConvertTgOpToMemRefPass::runOnFunction() {
       AddTypeConvertedForNotLowedOpPattern<tpu::TL_LA_Conv2DOp>,
       AddTypeConvertedForNotLowedOpPattern<tpu::TL_LW_Conv2DOp>,
       AddTypeConvertedForNotLowedOpPattern<tpu::TL_EltwiseAddOp>,
+      AddTypeConvertedForNotLowedOpPattern<tpu::TL_EltwiseMulOp>,
       AddTypeConvertedForNotLowedOpPattern<tpu::TL_LutOp>
       >(context);
   applyPatternsGreedily(fn, patterns);
@@ -554,6 +555,7 @@ void ConvertTgOpToMemRefPass::runOnFunction() {
   target.addLegalOp<tpu::TL_MemRef_LA_Conv2DOp>();
   target.addLegalOp<tpu::TL_MemRef_LW_Conv2DOp>();
   target.addLegalOp<tpu::TL_MemRef_EltwiseAddOp>();
+  target.addLegalOp<tpu::TL_MemRef_EltwiseMulOp>();
   target.addLegalOp<tpu::TL_MemRef_LutOp>();
 
   target.addLegalOp<tpu::TG_MemRef_LoadWeightOp>();
@@ -616,6 +618,7 @@ void ConvertTgOpToMemRefPass::runOnFunction() {
       convertTgOpToMemRefPattern<tpu::TL_LA_Conv2DOp, tpu::TL_MemRef_LA_Conv2DOp>,
       convertTgOpToMemRefPattern<tpu::TL_LW_Conv2DOp, tpu::TL_MemRef_LW_Conv2DOp>,
       convertTgOpToMemRefPattern<tpu::TL_EltwiseAddOp, tpu::TL_MemRef_EltwiseAddOp>,
+      convertTgOpToMemRefPattern<tpu::TL_EltwiseMulOp, tpu::TL_MemRef_EltwiseMulOp>,
       convertTgOpToMemRefPattern<tpu::TL_LutOp, tpu::TL_MemRef_LutOp>,
       convertMemRefToTensorOpPattern,
       convertTensorStoreOpPattern

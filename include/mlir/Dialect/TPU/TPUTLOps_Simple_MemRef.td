@@ -114,7 +114,7 @@ def TPU_TL_MemRef_LW_Conv2DOp : TPU_Op<"tl_memref_lw_conv_2d",
   );
 }
 
-def TPU_TL_MemRef_EltwiseAddOp : TPU_Op<"tl_memref_eltwise_add",
+class TPU_TL_MemRef_EltwiseOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
        DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
@@ -128,7 +128,7 @@ def TPU_TL_MemRef_EltwiseAddOp : TPU_Op<"tl_memref_eltwise_add",
     MemRefOf<[I32,I16,I8]>:$addend,
     MemRefOf<[AnyFloat, AnyInteger]>:$output,
     I8Attr:$rshift,
-    I32ArrayAttr:$m_i8_inputs,
+    OptionalAttr<I32ArrayAttr>:$m_i8_inputs,
     DefaultValuedAttr<BoolAttr, "false">:$do_relu,
     TPU_LMLayoutAttr:$lm_layout,
     I32Attr:$la_input,
@@ -143,6 +143,9 @@ def TPU_TL_MemRef_EltwiseAddOp : TPU_Op<"tl_memref_eltwise_add",
     OptionalAttr<NonNegativeI32Attr>:$layer_id
   );
 }
+
+def TPU_TL_MemRef_EltwiseAddOp : TPU_TL_MemRef_EltwiseOp<"tl_memref_eltwise_add", "Int8">;
+def TPU_TL_MemRef_EltwiseMulOp : TPU_TL_MemRef_EltwiseOp<"tl_memref_eltwise_mul", "Int8">;
 
 def TPU_TL_MemRef_LutOp : TPU_Op<"tl_memref_lut",
       [NoSideEffect,

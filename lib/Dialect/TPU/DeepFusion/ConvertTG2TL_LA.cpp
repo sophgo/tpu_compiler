@@ -99,16 +99,17 @@ struct TpuTG2TLConv2DOpPattern : public RewritePattern {
   }
 };
 
-struct TpuTG2TLElewiseAddOpPattern : public RewritePattern {
-  TpuTG2TLElewiseAddOpPattern(MLIRContext *context)
-      : RewritePattern("tpu.tg_int8_eltwise_add", 1, context) {}
+template<typename OpTy, typename OpTy2>
+struct TpuTG2TLElewiseOpPattern : public RewritePattern {
+  TpuTG2TLElewiseOpPattern(MLIRContext *context)
+      : RewritePattern(OpTy::getOperationName(), 1, context) {}
 
   PatternMatchResult matchAndRewrite(Operation *opInst,
                                      PatternRewriter &rewriter) const override {
-    auto op = cast<tpu::TG_INT8_EltwiseAddOp>(opInst);
+    auto op = cast<OpTy>(opInst);
     assert(op);
 
-    uint64_t totalPerLane = SimpleEltwiseAddMemoryUsageAnalysis(op, nullptr);
+    uint64_t totalPerLane = SimpleEltwiseMemoryUsageAnalysis(op, nullptr);
     if (totalPerLane > MInfo::lmem_per_lane) {
       LLVM_DEBUG(llvm::errs() << "TG2TL_LA: " << op.name()
                    << ", layer ID " << op.layer_id()
@@ -146,7 +147,10 @@ struct TpuTG2TLElewiseAddOpPattern : public RewritePattern {
       std::vector<NamedAttribute> attrs;
 
       attrs.push_back(rewriter.getNamedAttr("rshift", op.rshiftAttr()));
-      attrs.push_back(rewriter.getNamedAttr("m_i8_inputs", op.m_i8_inputsAttr()));
+      if(op.m_i8_inputs().hasValue()) {
+        attrs.push_back(rewriter.getNamedAttr("m_i8_inputs", op.m_i8_inputsAttr()));
+      }
+
       attrs.push_back(rewriter.getNamedAttr("do_relu",
           rewriter.getBoolAttr(op.do_relu())));
       if (op.do_early_stride()) {
@@ -169,8 +173,12 @@ struct TpuTG2TLElewiseAddOpPattern : public RewritePattern {
 
       if (op.buffer_reused().hasValue())
         attrs.push_back(rewriter.getNamedAttr("buffer_reused", op.buffer_reusedAttr()));
+      // if(op.m_i32_output().hasValue())
+      //   attrs.push_back(rewriter.getNamedAttr("m_i32_output", op.m_i32_outputAttr()));
+      if(op.m_i32_output().hasValue())
+        attrs.push_back(rewriter.getNamedAttr("m_i32_output", rewriter.getI32IntegerAttr(op.m_i32_output().getValue().getLimitedValue())));
 
-      rewriter.replaceOpWithNewOp<tpu::TL_EltwiseAddOp>(
+      rewriter.replaceOpWithNewOp<OpTy2>(
           op, op.getResult()->getType(),
           ArrayRef<Value *>{newOperands}, ArrayRef<NamedAttribute>{attrs});
       return matchSuccess();
@@ -291,7 +299,8 @@ public:
     OwningRewritePatternList patterns;
     patterns.insert<
       TpuTG2TLConv2DOpPattern,
-      TpuTG2TLElewiseAddOpPattern,
+      TpuTG2TLElewiseOpPattern<tpu::TG_INT8_EltwiseAddOp, tpu::TL_EltwiseAddOp>,
+      TpuTG2TLElewiseOpPattern<tpu::TG_INT8_EltwiseMulOp, tpu::TL_EltwiseMulOp>,
       TpuTG2TLLutOpPattern
     >(context);
     applyPatternsGreedily(fn, patterns);

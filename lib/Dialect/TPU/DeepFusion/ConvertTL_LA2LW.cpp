@@ -605,11 +605,90 @@ struct TpuTL_LutOp_AssignLayoutPattern : public RewritePattern {
         }
         op.setAttr("tl_store_flag", rewriter.getBoolAttr(false));
         next_op.setAttr("tl_load_flag", rewriter.getBoolAttr(false));
+      } else if (auto next_op = llvm::dyn_cast_or_null<tpu::TL_EltwiseMulOp>(next_opInst)) {
+        // next is TL_LW_Conv2DOp, fuse it
+        //                               ===========
+       //                               ||        lut         ||
+       //                               ===========
+       //                                            |
+       //                               ===========
+       //                              ||        conv     ||
+       //                               ===========
+        if (next_op.lm_layout() == "NONE") {
+          // next_op not set layout yet, return for now, wait for next round
+          return matchSuccess();
+        }
+        if (next_op.lm_layout() == "IWO") {
+          op.setAttr("lm_layout", rewriter.getStringAttr("OWI"));
+        } else if (next_op.lm_layout() == "OWI") {
+          op.setAttr("lm_layout", rewriter.getStringAttr("IWO"));
+        } else {
+          assert(0);
+        }
+        op.setAttr("tl_store_flag", rewriter.getBoolAttr(false));
+        next_op.setAttr("tl_load_flag", rewriter.getBoolAttr(false));
       } else {
         // start a new chain
         op.setAttr("lm_layout", rewriter.getStringAttr("IWO"));
       }
     } else {
+       op.setAttr("lm_layout", rewriter.getStringAttr("IWO"));
+    }
+    LLVM_DEBUG(llvm::errs() << "TL_LA2LW: layer ID " << op.layer_id()
+                 << ", LUT LM_LAYOUT " << op.lm_layout()
+                 << ", LD " << op.tl_load_flag()
+                 << ", ST " << op.tl_store_flag()
+                 << "\n";);
+
+    return matchSuccess();
+  }
+};
+
+struct TpuTL_EltwiseMulOp_AssignLayoutPattern : public RewritePattern {
+  TpuTL_EltwiseMulOp_AssignLayoutPattern(MLIRContext *context)
+      : RewritePattern("tpu.tl_eltwise_mul", 1, context) {}
+
+  PatternMatchResult matchAndRewrite(Operation *opInst,
+                                     PatternRewriter &rewriter) const override {
+    auto op = cast<tpu::TL_EltwiseMulOp>(opInst);
+
+    if (op.lm_layout() != "NONE") {
+      // assigned already
+      return matchFailure();
+    }
+
+    if (op.getResult()->hasOneUse()) {
+      // one user case
+      Operation *next_opInst = getNextOp(op);
+      assert(!isa<tpu::TL_EltwiseAddOp>(next_opInst));
+      if (auto next_op = llvm::dyn_cast_or_null<tpu::TL_LW_Conv2DOp>(next_opInst)) {
+        // next is TL_LW_Conv2DOp, fuse it
+        //                               ===========
+       //                               ||      eltMul     ||
+       //                               ===========
+       //                                            |
+       //                               ===========
+       //                              ||        conv     ||
+       //                               ===========
+        if (next_op.lm_layout() == "NONE") {
+          // next_op not set layout yet, return for now, wait for next round
+          return matchSuccess();
+        }
+        if (next_op.lm_layout() == "IWO") {
+          op.setAttr("lm_layout", rewriter.getStringAttr("OWI"));
+        } else if (next_op.lm_layout() == "OWI") {
+          op.setAttr("lm_layout", rewriter.getStringAttr("IWO"));
+        } else {
+          assert(0);
+        }
+        op.setAttr("tl_store_flag", rewriter.getBoolAttr(false));
+        next_op.setAttr("tl_load_flag", rewriter.getBoolAttr(false));
+      } else {
+        // start a new chain
+        op.setAttr("lm_layout", rewriter.getStringAttr("IWO"));
+      }
+    } else {
+       op.setAttr("lm_layout", rewriter.getStringAttr("IWO"));
     }
     LLVM_DEBUG(llvm::errs() << "TL_LA2LW: layer ID " << op.layer_id()
                  << ", LUT LM_LAYOUT " << op.lm_layout()
@@ -688,13 +767,14 @@ struct TpuTL_LW_Conv2DOp_AssignLAddrPattern : public RewritePattern {
   }
 };
 
-struct TpuTL_EltwiseAddOp_AssignLAddrPattern : public RewritePattern {
-  TpuTL_EltwiseAddOp_AssignLAddrPattern(MLIRContext *context)
-      : RewritePattern("tpu.tl_eltwise_add", 1, context) {}
+template<typename OpTy>
+struct TpuTL_EltwiseOp_AssignLAddrPattern : public RewritePattern {
+  TpuTL_EltwiseOp_AssignLAddrPattern(MLIRContext *context)
+      : RewritePattern(OpTy::getOperationName(), 1, context) {}
 
   PatternMatchResult matchAndRewrite(Operation *opInst,
                                      PatternRewriter &rewriter) const override {
-    auto op = cast<tpu::TL_EltwiseAddOp>(opInst);
+    auto op = cast<OpTy>(opInst);
 
     std::vector<int64_t> shape;
     int64_t input_size, n, c, h, w;
@@ -731,7 +811,7 @@ struct TpuTL_EltwiseAddOp_AssignLAddrPattern : public RewritePattern {
       }
 
       LLVM_DEBUG(llvm::errs() << "TL_LA2LW: layer ID " << op.layer_id()
-                   << ", EltA, " << op.lm_layout()
+                   << OpTy::getOperationName() << op.lm_layout()
                    << ", la_i=" << op.la_input()
                    << ", la_o=" << op.la_output()
                    << ", la_w=" << op.la_working()
@@ -818,6 +898,7 @@ public:
     patterns.insert<
         TpuTL_LW_Conv2DOp_AssignLayoutPattern,
         TpuTL_EltwiseAddOp_AssignLayoutPattern,
+        TpuTL_EltwiseMulOp_AssignLayoutPattern,
         TpuTL_LutOp_AssignLayoutPattern
         >(context);
     applyPatternsGreedily(fn, patterns);
@@ -825,7 +906,8 @@ public:
     patterns.clear();
     patterns.insert<
         TpuTL_LW_Conv2DOp_AssignLAddrPattern,
-        TpuTL_EltwiseAddOp_AssignLAddrPattern,
+        TpuTL_EltwiseOp_AssignLAddrPattern<tpu::TL_EltwiseAddOp>,
+        TpuTL_EltwiseOp_AssignLAddrPattern<tpu::TL_EltwiseMulOp>,
         TpuTL_LutOp_AssignLAddrPattern
         >(context);
     applyPatternsGreedily(fn, patterns);
