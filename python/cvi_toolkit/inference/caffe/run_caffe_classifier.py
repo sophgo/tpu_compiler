@@ -58,6 +58,11 @@ def main(argv):
         help="Dump all blobs into a file in npz format"
     )
     parser.add_argument(
+        "--dump_blobs_with_inplace",
+        type=bool, default=False,
+        help="Dump all blobs including inplace blobs (takes much longer time)"
+    )
+    parser.add_argument(
         "--dump_weights",
         help="Dump all weights into a file in npz format"
     )
@@ -111,7 +116,8 @@ def main(argv):
     np.save(args.output_file, predictions)
 
     # Get all tensor
-    all_tensor_dict = caffemodel.get_all_tensor(inputs)
+    all_tensor_dict = caffemodel.get_all_tensor(inputs,
+        args.dump_blobs_with_inplace)
     np.savez(args.dump_blobs, **all_tensor_dict)
     # Print
     for ix, in_ in enumerate(inputs):

@@ -67,14 +67,14 @@ class CaffeModel(model_base):
                 if layer.type == "Slice":
                     continue
                 assert(len(self.net.top_names[name]) == 1)
-                if layer.type == "Input":
-                    blobs_dict[name] = input_data
                 top_map[self.net.top_names[name][0]] = name
                 if self.net.top_names[name] == self.net.bottom_names[name]:
                     msg = "layer : {} is inplace, {} is overwritten".format(
                         name, self.net.bottom_names[name][0])
                     logger.debug(msg)
                     print(msg)
+                    if layer.type == "Input":
+                        blobs_dict[name] = input_data
             for top, name in top_map.items():
                 msg = "blob : top {}, name {}".format(top, name)
                 logger.debug(msg)
