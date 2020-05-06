@@ -136,10 +136,11 @@ class TFLiteConverter(BaseConverter):
         self.output_tensor_file = "{}_1_06eeeb7e.npz".format(model_name)
         self.tfliteop_factory = {
             "ADD": lambda node: self.convert_add_op(node),
-            "PAD" : lambda node: self.convert_pad_op(node),
             "CONV_2D": lambda node: self.convert_conv_op(node),
+            "FULLY_CONNECTED": lambda node: self.convert_fc_op(node),
             "MAX_POOL_2D": lambda node: self.convert_maxpool_op(node),
             "MEAN": lambda node: self.convert_mean_op(node),
+            "PAD": lambda node: self.convert_pad_op(node),
         }
 
     def init_importer(self):
@@ -394,8 +395,40 @@ class TFLiteConverter(BaseConverter):
         )
         print(conv_param)
         output_shape = [on, oc, oh, ow]
-        conv_op = self.CVI.add_conv_op("{}_{}".format(node.name, node.op_type), operands, output_shape, **conv_param)
-        self.addOperand(node.name, conv_op, output_shape, TensorType.ACTIVATION)
+        conv_op = self.CVI.add_conv_op("{}_{}".format(
+            node.name, node.op_type), operands, output_shape, **conv_param)
+        self.addOperand(node.name, conv_op, output_shape,
+                        TensorType.ACTIVATION)
+
+    def convert_fc_op(self, node):
+
+        assert(node.op_type == "FULLY_CONNECTED")
+
+        op, shape, _ = self.getOperand(str(node.inputs[0]))
+        operands = list()
+        operands.append(op)
+
+        # filter
+        filter_tensor_idx = node.inputs[1]
+        filter_name = "{}_add_weight".format(filter_tensor_idx)
+        filter_op, filter_shape = self.createLoadWeightOp(
+            filter_tensor_idx, filter_name)
+        operands.append(filter_op)
+
+        # bias
+
+        bias_tensor_idx = node.inputs[2]
+        bias_name = "{}_add_bias".format(bias_tensor_idx)
+        bias_op, bias_shape = self.createLoadWeightOp(
+            bias_tensor_idx, bias_name)
+        operands.append(bias_op)
+
+        M = shape[0]
+        K = shape[1]
+        N = bias_shape[0]
+        output_shape = [M, N]
+        fc_op = self.CVI.add_fully_connected_op("{}_{}".format(node.name, node.op_type), operands, output_shape)
+        self.addOperand(node.name, fc_op, output_shape, TensorType.ACTIVATION)
 
     def convert_maxpool_op(self, node):
         assert(node.op_type == "MAX_POOL_2D")
@@ -451,12 +484,29 @@ class TFLiteConverter(BaseConverter):
         # first input is activate, second is tensor of axis
         assert(len(node.inputs) == 2)
         op, shape, _ = self.getOperand(str(node.inputs[0]))
-
+        operands = list()
+        operands.append(op)
         mean_tensor_idx = node.inputs[1]
         mean_shape, mean_attr_data = self.get_tensor_shape_and_data(
             mean_tensor_idx, data_type=np.int32)
-
-        self.addOperand(node.name, op, shape, TensorType.ACTIVATION)
+        on = shape[0]
+        oc = shape[1]
+        pool_avg_2d_param = {
+            'stride_h':  1,
+            'stride_w':  1,
+            'kernel_h':  shape[2],
+            'kernel_w':  shape[3],
+            'padding_b': 0,
+            'padding_r': 0,
+            'padding_t': 0,
+            'padding_l': 0,
+            'do_relu': False,
+        }
+        output_shape = [int(on), int(oc), 1, 1]
+        pool_avg_op = self.CVI.add_pool_avg_2d_op("{}_{}".format(
+            node.name, node.op_type), operands, output_shape, **pool_avg_2d_param)
+        self.addOperand(node.name, pool_avg_op,
+                        output_shape, TensorType.ACTIVATION)
 
     def run(self):
         self.convert_node()
