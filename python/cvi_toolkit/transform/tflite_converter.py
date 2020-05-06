@@ -320,16 +320,6 @@ class TFLiteConverter(BaseConverter):
         assert(node.op_type == "CONV_2D")
 
         op, shape, _ = self.getOperand(str(node.inputs[0]))
-        # Check if input is padding op
-        padding_data = None
-        try:
-            input_tensor = self.getTensor(str(node.inputs[0]))
-            # Only padding case we handle
-            assert(input_tensor.op_type == "PAD")
-            padding_data = input_tensor.tensor_data
-        except KeyError as k:
-            # Not padding op
-            pass
         operands = list()
         operands.append(op)
 
@@ -351,17 +341,26 @@ class TFLiteConverter(BaseConverter):
         # Parse the Table of options.
         conv_table = Conv2DOptions()
         conv_table.Init(op_build_info.Bytes, op_build_info.Pos)
-
+        # Check if input is padding op
+        padding_data = None
+        try:
+            input_tensor = self.getTensor(str(node.inputs[0]))
+            # Only padding case we handle
+            assert(input_tensor.op_type == "PAD")
+            padding_data = input_tensor.tensor_data
+        except KeyError as k:
+            # Not padding op
+            pass
         conv_param = {
             'stride_h': conv_table.StrideH(),
             'stride_w': conv_table.StrideW(),
             'padding': "SAME" if conv_table.Padding() == Padding.SAME and isinstance(padding_data, np.ndarray) else "VALUE",
             'dilation_h': conv_table.DilationHFactor(),
             'dilation_w': conv_table.DilationWFactor(),
-            'group': 1, # Don't have group option?
+            'group': 1,  # Don't have group option?
             'is_dw': False,
             'with_bias': len(node.inputs) > 2,
-            'do_relu': False,
+            'do_relu': conv_table.FusedActivationFunction() == ActivationFunctionType.RELU,
         }
         on = shape[0]
         oc = filter_shape[0] # feature map size

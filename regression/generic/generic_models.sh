@@ -449,7 +449,7 @@ fi
 
 if [ $NET = "resnet18" ]; then
 export MODEL_TYPE="onnx"
-export MODEL_DEF=$MODEL_PATH/imagenet/resnet/onnx/resnet18.onnx
+export MODEL_DEF=$MODEL_PATH/imagenet/resnet/onnx/resnet18_batch.onnx
 export MODEL_DAT=""
 export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/generic/regression_0_onnx.sh
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table
@@ -475,7 +475,7 @@ fi
 
 if [ $NET = "efficientnet_b0" ]; then
 export MODEL_TYPE="onnx"
-export MODEL_DEF=$MODEL_PATH/imagenet/efficientnet-b0/onnx/efficientnet_b0.onnx
+export MODEL_DEF=$MODEL_PATH/imagenet/efficientnet-b0/onnx/efficientnet_b0_batch.onnx
 export MODEL_DAT=""
 export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/generic/regression_0_onnx.sh
 # export DO_CALIBRATION=1
@@ -507,7 +507,7 @@ fi
 
 if [ $NET = "alphapose" ]; then
 export MODEL_TYPE="onnx"
-export MODEL_DEF=$MODEL_PATH/pose/alphapose/onnx/alphapose_resnet50_256x192.onnx
+export MODEL_DEF=$MODEL_PATH/pose/alphapose/onnx/alphapose_resnet50_256x192_batch.onnx
 export MODEL_DAT=""
 export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_onnx/regression_alphapose_0_onnx.sh
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/alphapose_calibration_table
