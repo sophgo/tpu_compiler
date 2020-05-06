@@ -117,8 +117,7 @@ fi
 pushd $BUILD_SOC_PATH/build_flatbuffers
 # CC=aarch64-linux-gnu-gcc CXX=aarch64-linux-gnu-g++
 cmake -G Ninja $BUILD_FLAG \
-    -DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc \
-    -DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++ \
+    -DCMAKE_TOOLCHAIN_FILE=$TOOLCHAIN_FILE_PATH \
     -DFLATBUFFERS_BUILD_TESTS=OFF \
     -DCMAKE_INSTALL_PREFIX=$FLATBUFFERS_SOC_PATH \
     $MLIR_SRC_PATH/third_party/flatbuffers
