@@ -145,6 +145,32 @@ export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.93
 export DO_LAYERGROUP=0
 fi
 
+if [ $NET = "mobilenet_v1" ]; then
+export MODEL_DEF=$MODEL_PATH/imagenet/mobilenet_v1/caffe/mobilenet_deploy.prototxt
+export MODEL_DAT=$MODEL_PATH/imagenet/mobilenet_v1/caffe/mobilenet.caffemodel
+# export DO_CALIBRATION=1
+export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/mobilenet_v1_calibration_table_1000
+export NET_INPUT_DIMS=224,224
+export IMAGE_RESIZE_DIMS=256,256
+export RAW_SCALE=255.0
+export MEAN=103.94,116.78,123.68
+export INPUT_SCALE=0.017
+export INPUT=input
+export OUTPUTS_FP32=prob
+export OUTPUTS=fc7
+export EXCEPTS=prob
+export DO_QUANT_INT8_PER_TENSOR=1
+export DO_QUANT_INT8_RFHIFT_ONLY=1
+export DO_QUANT_INT8_MULTIPLER=1
+export TOLERANCE_INT8_PER_TENSOR=0.91,0.88,0.56
+export TOLERANCE_INT8_RSHIFT_ONLY=0.96,0.95,0.73
+export TOLERANCE_INT8_MULTIPLER=0.97,0.96,0.76
+export TOLERANCE_BF16=0.99,0.99,0.94
+export DO_CMDBUF_BF16=1
+export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
+export DO_LAYERGROUP=0
+fi
+
 if [ $NET = "mobilenet_v2" ]; then
 export MODEL_DEF=$MODEL_PATH/imagenet/mobilenet_v2/caffe/mobilenet_v2_deploy.prototxt
 export MODEL_DAT=$MODEL_PATH/imagenet/mobilenet_v2/caffe/mobilenet_v2.caffemodel
@@ -209,6 +235,84 @@ export TOLERANCE_INT8_RSHIFT_ONLY=0.9,0.9,0.6
 export TOLERANCE_INT8_MULTIPLER=0.9,0.9,0.6
 export TOLERANCE_BF16=0.99,0.99,0.93
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.93
+fi
+
+if [ $NET = "densenet_121" ]; then
+export MODEL_DEF=$MODEL_PATH/imagenet/densenet/caffe/DenseNet_121.prototxt
+export MODEL_DAT=$MODEL_PATH/imagenet/densenet/caffe/DenseNet_121.caffemodel
+# export DO_CALIBRATION=1
+export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/densenet_121_calibration_table_1000
+export NET_INPUT_DIMS=224,224
+export IMAGE_RESIZE_DIMS=256,256
+export RAW_SCALE=255.0
+export MEAN=103.94,116.78,123.68
+export INPUT_SCALE=0.017
+export INPUT=input
+export OUTPUTS_FP32=fc6
+export OUTPUTS=fc6
+# export EXCEPTS=prob
+export DO_QUANT_INT8_PER_TENSOR=0
+export DO_QUANT_INT8_RFHIFT_ONLY=0
+export DO_QUANT_INT8_MULTIPLER=1
+export TOLERANCE_INT8_PER_TENSOR=0.74,0.73,0.23
+export TOLERANCE_INT8_RSHIFT_ONLY=0.83,0.82,0.39
+export TOLERANCE_INT8_MULTIPLER=0.83,0.82,0.39
+export TOLERANCE_BF16=0.99,0.99,0.94
+export DO_CMDBUF_BF16=1
+export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
+export DO_LAYERGROUP=0
+fi
+
+if [ $NET = "densenet_201" ]; then
+export MODEL_DEF=$MODEL_PATH/imagenet/densenet/caffe/DenseNet_201.prototxt
+export MODEL_DAT=$MODEL_PATH/imagenet/densenet/caffe/DenseNet_201.caffemodel
+# export DO_CALIBRATION=1
+export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/densenet_201_calibration_table_1000
+export NET_INPUT_DIMS=224,224
+export IMAGE_RESIZE_DIMS=256,256
+export RAW_SCALE=255.0
+export MEAN=103.94,116.78,123.68
+export INPUT_SCALE=0.017
+export INPUT=input
+export OUTPUTS_FP32=fc6
+export OUTPUTS=fc6
+# export EXCEPTS=prob
+export DO_QUANT_INT8_PER_TENSOR=0
+export DO_QUANT_INT8_RFHIFT_ONLY=0
+export DO_QUANT_INT8_MULTIPLER=1
+export TOLERANCE_INT8_PER_TENSOR=0.57,0.55,-0.05
+export TOLERANCE_INT8_RSHIFT_ONLY=0.78,0.77,0.30
+export TOLERANCE_INT8_MULTIPLER=0.78,0.77,0.30
+export TOLERANCE_BF16=0.99,0.99,0.92
+export DO_CMDBUF_BF16=1
+export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.95
+export DO_LAYERGROUP=0
+fi
+
+if [ $NET = "senet_res50" ]; then
+export MODEL_DEF=$MODEL_PATH/imagenet/senet/caffe/se_resnet_50_v1_deploy.prototxt
+export MODEL_DAT=$MODEL_PATH/imagenet/senet/caffe/se_resnet_50_v1.caffemodel
+# export DO_CALIBRATION=1
+export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/senet_res50_calibration_table_1000
+export NET_INPUT_DIMS=225,225
+export IMAGE_RESIZE_DIMS=256,256
+export RAW_SCALE=255.0
+export MEAN=103.94,116.78,123.68
+export INPUT_SCALE=0.017
+export INPUT=input
+export OUTPUTS_FP32=prob
+export OUTPUTS=fc6
+# export EXCEPTS=prob
+export DO_QUANT_INT8_PER_TENSOR=1
+export DO_QUANT_INT8_RFHIFT_ONLY=1
+export DO_QUANT_INT8_MULTIPLER=1
+export TOLERANCE_INT8_PER_TENSOR=0.61,0.61,0.92
+export TOLERANCE_INT8_RSHIFT_ONLY=0.94,0.9,0.96
+export TOLERANCE_INT8_MULTIPLER=0.95,0.94,0.99
+export TOLERANCE_BF16=0.99,0.99,0.99
+export DO_CMDBUF_BF16=1
+export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
+export DO_LAYERGROUP=0
 fi
 
 if [ $NET = "arcface_res50" ]; then
