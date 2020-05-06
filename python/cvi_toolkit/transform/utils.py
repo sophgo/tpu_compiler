@@ -12,6 +12,14 @@ def calcPool2DFloor(i, kernel, stride, padding):
 def calcPool2DCeil(i, kernel, stride, padding):
     return int(ceil((i + 2 * padding - kernel) / stride) + 1)
 
+
+def get_TF_SAME_Padding(input_spatial_shape, output_spatial_shape, kernel, stride):
+    """
+    If padding == "SAME":
+      output_spatial_shape[i] = ceil(input_spatial_shape[i] / strides[i])
+    """
+    return ((output_spatial_shape - 1) * stride + kernel - input_spatial_shape) / 2
+
 def get_shape_size(shape):
     size = 1
     for i in shape:

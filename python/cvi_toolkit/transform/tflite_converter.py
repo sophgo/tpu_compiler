@@ -5,7 +5,7 @@ from math import floor, ceil
 from numbers import Number
 from enum import Enum
 from .utils import calcConv2DSpatial, calcPool2DFloor, calcPool2DCeil, \
-                    get_shape_size
+    get_shape_size, get_TF_SAME_Padding
 
 from ..utils.log_setting import setup_logger
 
@@ -17,6 +17,7 @@ from tflite.Model import Model
 from tflite.Padding import Padding
 from tflite.Pool2DOptions import Pool2DOptions
 from tflite.Tensor import Tensor as TFL_TENSOR
+from tflite.ActivationFunctionType import ActivationFunctionType
 
 
 import logging
@@ -362,18 +363,32 @@ class TFLiteConverter(BaseConverter):
         on = shape[0]
         oc = filter_shape[0] # feature map size
         # padding data order is NHWC
+        # if padding data is not np.ndarray (not from bottom layer)
+        # and conv_table.Padding() is SAME, we need to calculate it.
+        if conv_table.Padding() == Padding.SAME:
+            out_h = ceil(shape[2]/conv_param['stride_h'])
+            padding_h = get_TF_SAME_Padding(
+                shape[2], out_h, filter_shape[2], conv_param['stride_h'])
+            out_w = ceil(shape[3]/conv_param['stride_w'])
+            padding_w = get_TF_SAME_Padding(
+                shape[3], out_w, filter_shape[3], conv_param['stride_w'])
+        else:
+            padding_h = 0
+            padding_w = 0
+
         oh = calcConv2DSpatial(
             shape[2],
             filter_shape[2],
             conv_param['stride_h'],
-            padding_data[1][0] if isinstance(padding_data, np.ndarray) else 0,
+            padding_data[1][0] if isinstance(
+                padding_data, np.ndarray) else padding_h,
             conv_param['dilation_h'],
         )
         ow = calcConv2DSpatial(
             shape[3],
             filter_shape[3],
             conv_param['stride_w'],
-            padding_data[2][0] if isinstance(padding_data, np.ndarray) else 0,
+            padding_data[2][0] if isinstance(padding_data, np.ndarray) else padding_w,
             conv_param['dilation_w'],
         )
         print(conv_param)
