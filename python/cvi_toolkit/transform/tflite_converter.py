@@ -138,7 +138,8 @@ class TFLiteConverter(BaseConverter):
             "ADD": lambda node: self.convert_add_op(node),
             "PAD" : lambda node: self.convert_pad_op(node),
             "CONV_2D": lambda node: self.convert_conv_op(node),
-            "MAX_POOL_2D": lambda node: self.convert_maxpool_op(node)
+            "MAX_POOL_2D": lambda node: self.convert_maxpool_op(node),
+            "MEAN": lambda node: self.convert_mean_op(node),
         }
 
     def init_importer(self):
@@ -439,6 +440,23 @@ class TFLiteConverter(BaseConverter):
         output_shape = [int(on), int(oc), int(oh), int(ow)]
         pool_max_op = self.CVI.add_pool_max_2d_op("{}_{}".format(node.name, node.op_type), operands, output_shape, **pool_max_2d_param)
         self.addOperand(node.name, pool_max_op, output_shape, TensorType.ACTIVATION)
+
+    def convert_mean_op(self, node):
+        assert(node.op_type == "MEAN")
+        """
+            Fix: our mlir don't have mean op,
+            we use avg_pool workaround
+            (Sam)
+        """
+        # first input is activate, second is tensor of axis
+        assert(len(node.inputs) == 2)
+        op, shape, _ = self.getOperand(str(node.inputs[0]))
+
+        mean_tensor_idx = node.inputs[1]
+        mean_shape, mean_attr_data = self.get_tensor_shape_and_data(
+            mean_tensor_idx, data_type=np.int32)
+
+        self.addOperand(node.name, op, shape, TensorType.ACTIVATION)
 
     def run(self):
         self.convert_node()
