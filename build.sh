@@ -147,7 +147,9 @@ pushd $TPU_PYTHON_PATH/retinaface; make; popd
 cp -ar $TPU_PYTHON_PATH/retinaface/* $TPU_PYTHON_PATH/
 
 # TFLite flatbuffer Schema
-${FLATBUFFERS_PATH}/bin/flatc -o $TPU_PYTHON_PATH --python python/tflite_schema/schema.fbs
+${FLATBUFFERS_PATH}/bin/flatc \
+    -o $TPU_PYTHON_PATH --python \
+    $MLIR_SRC_PATH/python/tflite_schema/schema.fbs
 
 # calibration tool
 if [ ! -e $BUILD_PATH/build_calibration ]; then
