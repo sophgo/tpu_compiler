@@ -7,7 +7,7 @@ DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 CAFFE_BLOBS_NPZ="${NET}_blobs.npz"
 
 if [ ! -f "$CAFFE_BLOBS_NPZ" ]; then
-  # run caffe model
+    # run caffe model
   run_caffe_classifier.py \
       --model_def $MODEL_DEF \
       --pretrained_model $MODEL_DAT \

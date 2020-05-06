@@ -1,9 +1,11 @@
+#!/usr/bin/env python3
+
 import argparse
 import numpy as np
 import os
 import pymlir
-from model.retinaface.retinaface_util import RetinaFace
-from dataset_util.widerface.eval_widerface import detect_on_widerface, evaluation
+from retinaface.retinaface_util import RetinaFace
+from cvi_toolkit.dataset_util.widerface.eval_widerface import detect_on_widerface, evaluation
 
 g_wider_face_path = os.path.join(os.environ['DATASET_PATH'], 'widerface')
 g_img_path = os.path.join(g_wider_face_path, 'WIDER_val/images')

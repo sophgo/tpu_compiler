@@ -26,7 +26,9 @@ export DO_QUANT_MIX=0
 export DO_ACCURACY_CAFFE=1
 export DO_ACCURACY_ONNX=0
 export DO_ACCURACY_INTERPRETER=1
+export DO_ACCURACY_FP32_INTERPRETER=0
 export DO_E2E=1
+export EVAL_MODEL_TYPE="imagenet"
 
 if [ -z "$DO_BATCHSIZE" ]; then
   BATCH_SIZE=1
@@ -374,6 +376,9 @@ export DO_QUANT_INT8_PER_TENSOR=0
 export DO_QUANT_INT8_RFHIFT_ONLY=0
 export DO_QUANT_BF16=0
 export DO_LAYERGROUP=1
+# accuracy setting
+export EVAL_MODEL_TYPE="lfw"
+#export DO_ACCURACY_CAFFE=0
 fi
 
 if [ $NET = "retinaface_mnet25" ]; then
@@ -387,6 +392,16 @@ export DO_QUANT_INT8_PER_TENSOR=0
 export DO_QUANT_INT8_RFHIFT_ONLY=0
 export DO_QUANT_BF16=0
 export DO_LAYERGROUP=1
+# accuracy setting
+export NET_INPUT_DIMS=320,320
+export EVAL_MODEL_TYPE="face"
+export OBJ_THRESHOLD=0.005
+export NMS_THRESHOLD=0.45
+export DATASET=$DATASET_PATH/widerface/WIDER_val/images
+export ANNOTATION=$DATASET_PATH/widerface/wider_face_split
+#export DO_ACCURACY_CAFFE=0
+#export DO_ACCURACY_ONNX=0
+
 fi
 
 if [ $NET = "retinaface_res50" ]; then
@@ -400,6 +415,15 @@ export DO_QUANT_INT8_PER_TENSOR=0
 export DO_QUANT_INT8_RFHIFT_ONLY=0
 export DO_QUANT_BF16=0
 export DO_LAYERGROUP=1
+# accuracy setting
+export NET_INPUT_DIMS=600,600
+export EVAL_MODEL_TYPE="face"
+export OBJ_THRESHOLD=0.005
+export NMS_THRESHOLD=0.45
+export DATASET=$DATASET_PATH/widerface/WIDER_val/images
+export ANNOTATION=$DATASET_PATH/widerface/wider_face_split
+#export DO_ACCURACY_CAFFE=0
+#export DO_ACCURACY_ONNX=0
 fi
 
 if [ $NET = "ssd300" ]; then
@@ -414,6 +438,12 @@ export TOLERANCE_INT8_RSHIFT_ONLY=0.98,0.98,0.81
 export TOLERANCE_INT8_MULTIPLER=0.99,0.99,0.88
 export DO_QUANT_BF16=0
 export DO_LAYERGROUP=1
+export NET_INPUT_DIMS=300,300
+# accuracy setting
+export EVAL_MODEL_TYPE="coco"
+export EVAL_SCRIPT_CAFFE="eval_caffe_detector_ssd.py"
+export EVAL_SCRIPT_INT8="eval_ssd.py"
+#export DO_ACCURACY_CAFFE=0
 fi
 
 if [ $NET = "yolo_v3_608" ]; then
