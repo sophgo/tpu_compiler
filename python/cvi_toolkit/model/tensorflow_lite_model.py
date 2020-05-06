@@ -7,12 +7,10 @@ try:
     # check Tf2.0
     IS_TF2 = version.parse("2.0.0") < version.parse(tf.__version__)
     if not IS_TF2:
-        print("WANING, tf version is {}, we support TF2".format(version.parse(tf.__version__)))
+        print("WANING, tf version is {}, we support TF2".format(
+            version.parse(tf.__version__)))
 except ImportError as error:
-    print("Please install tensorflow 2 with pip install, we will support in future")
-    tf=None
-
-
+    tf = None
 
 
 class TFLiteModel(model_base):
@@ -34,7 +32,6 @@ class TFLiteModel(model_base):
 
     def get_all_tensor(self, input_data):
         raise NotImplementError("TODO")
-
 
     def get_op_info(self):
         raise NotImplementError("TODO")
