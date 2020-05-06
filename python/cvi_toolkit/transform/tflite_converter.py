@@ -153,7 +153,7 @@ class TFLiteConverter(BaseConverter):
         # get output shape
         outputs = list()
         for output_id in self.output_nodes:
-            output_shape, _ = self.get_tensor_shape_and_data(input_id)
+            output_shape, _ = self.get_tensor_shape_and_data(output_id)
             outputs.append(output_shape)
 
         # init importer
@@ -225,11 +225,7 @@ class TFLiteConverter(BaseConverter):
     def TensortoNpz(self):
         tensor_npz = {}
         for i in self.converted_tensors:
-            # Skip "num_batches_tracked"
-            if "num_batches_tracked" in i.name:
-                continue
-            else:
-                tensor_npz[i.name] = i.tensor_data.astype(np.float32)
+            tensor_npz[i.name] = i.tensor_data.astype(np.float32)
         np.savez(self.output_tensor_file, **tensor_npz)
 
     def convert_node(self):
@@ -510,6 +506,6 @@ class TFLiteConverter(BaseConverter):
     def run(self):
         self.convert_node()
         self.convert_graph()
-        #self.TensortoNpz()
+        self.TensortoNpz()
 
 
