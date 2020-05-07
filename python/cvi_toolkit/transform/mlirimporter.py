@@ -425,6 +425,14 @@ class MLIRImporter(object):
         return self.buildOp(TPU_OpType.Sigmoid.value, inputOperands, [
             tensor_output_type], name=sigmoid_name, quant=self.quant_param)
 
+    def add_softmax_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+        tensor_output_type = self.module.make_ranked_tensor_type(
+            self.f32Type, output_tensor_shape)
+
+        softmax_name = self.module.stringAttr(op_name)
+        return self.buildOp(TPU_OpType.Softmax.value, inputOperands, [
+            tensor_output_type], name=softmax_name)
+
     def add_upsample_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = self.module.make_ranked_tensor_type(
             self.f32Type, output_tensor_shape)
@@ -492,4 +500,3 @@ class MLIRImporter(object):
         self.func_args = list()
         for i in range(len(self.input_shape_list)):
             self.func_args.append(fun.arg(i))
-

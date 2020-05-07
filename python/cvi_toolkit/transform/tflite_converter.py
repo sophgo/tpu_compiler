@@ -141,6 +141,7 @@ class TFLiteConverter(BaseConverter):
             "MAX_POOL_2D": lambda node: self.convert_maxpool_op(node),
             "MEAN": lambda node: self.convert_mean_op(node),
             "PAD": lambda node: self.convert_pad_op(node),
+            "SOFTMAX": lambda node: self.convert_softmax_op(node),
         }
 
     def init_importer(self):
@@ -349,7 +350,7 @@ class TFLiteConverter(BaseConverter):
         conv_param = {
             'stride_h': conv_table.StrideH(),
             'stride_w': conv_table.StrideW(),
-            'padding': "SAME" if conv_table.Padding() == Padding.SAME and isinstance(padding_data, np.ndarray) else "VALUE",
+            'padding': "SAME" if conv_table.Padding() == Padding.SAME or isinstance(padding_data, np.ndarray) else "VALID",
             'dilation_h': conv_table.DilationHFactor(),
             'dilation_w': conv_table.DilationWFactor(),
             'group': 1,  # Don't have group option?
@@ -502,6 +503,17 @@ class TFLiteConverter(BaseConverter):
             node.name, node.op_type), operands, output_shape, **pool_avg_2d_param)
         self.addOperand(node.name, pool_avg_op,
                         output_shape, TensorType.ACTIVATION)
+
+    def convert_softmax_op(self, node):
+        assert(node.op_type == "SOFTMAX")
+        # first input is activate
+        assert(len(node.inputs) == 1)
+        op, shape, _ = self.getOperand(str(node.inputs[0]))
+        operands = list()
+        operands.append(op)
+        self.addOperand(node.name, op, shape, TensorType.ACTIVATION)
+        softmax_op = self.CVI.add_softmax_op("{}_{}".format(
+            node.name, node.op_type), operands, shape)
 
     def run(self):
         self.convert_node()
