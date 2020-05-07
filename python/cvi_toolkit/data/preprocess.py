@@ -34,6 +34,7 @@ def add_preprocess_parser(parser):
     parser.add_argument("--mean_file", type=str, help="the resized ImageNet dataset mean file.")
     parser.add_argument("--input_scale", type=float, help="Multiply input features by this scale.", default=1.0)
     parser.add_argument("--model_channel_order", type=str, help="channel order of model inference used, default: bgr", default="bgr")
+    parser.add_argument("--input_channel_order", type=str, help="input image data dim order, default: chw", default="chw")
     return parser
 
 
@@ -55,7 +56,7 @@ class preprocess(object):
                      std=None,
                      input_scale=1.0,
                      raw_scale=255.0,
-                     transpose="2,0,1",
+                     transpose="chw",
                      rgb_order='bgr',
                      npy_input=None,
                      letter_box=False,
@@ -107,10 +108,13 @@ class preprocess(object):
             self.std = None
         self.input_scale = float(input_scale)
 
-        if transpose != None:
-            self.transpose = tuple([int(s)for s in transpose.split(",")])
-        else :
+        if transpose == "chw":
+            self.transpose = (2, 0, 1)
+        elif transpose == "hwc":
+            self.transpose = (0, 1, 2)
+        else:
             self.transpose = None
+
         self.rgb_order = rgb_order
         self.ori_channel_order = None
 
@@ -154,8 +158,12 @@ class preprocess(object):
         else:
             x = image
             # transpose
-            if self.transpose != None :
+            if self.transpose == (2, 0, 1):
                 x = np.transpose(x, self.transpose)
+            elif self.transpose == (0, 1, 2):
+                # because we all use CHW preprocess, we still turn it to HWC
+                # turn back to CHW after preprcessing
+                x = np.transpose(x, (2, 0, 1))
 
             # if source data order is different with handle order
             # swap source data order
@@ -187,10 +195,14 @@ class preprocess(object):
                 logger.debug("handle order is {}, but output order need {}, swap it".format(self.rgb_order, output_channel_order))
                 x = x[[2,1,0], :, :]
 
-            output = np.expand_dims(x, axis=0)
+            if self.transpose == (0, 1, 2):
+                # turn back to HWC
+                x = np.transpose(x, (1, 2, 0))
 
+            output = np.expand_dims(x, axis=0)
         if output_npz:
             # Must convert to npz file as input
             np.savez(output_npz, **{input_name if input_name else "input": output})
+
 
         return output
