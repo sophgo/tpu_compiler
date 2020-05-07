@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e
+# set -e
 # set -o pipefail
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
@@ -105,18 +105,33 @@ do
   fi
 done
 
-# generic
-for net in ${generic_net_list[@]}
-do
+run_generic()
+{
+  net=$1
+  bs=$2
   echo "generic regression $net batch=$bs"
-  $DIR/generic/regression_generic.sh $net $bs 2>&1 | tee $net\_bs$bs.log
+  regression_generic.sh $net $bs > $1\_bs$bs.log 2>&1 | true
   if [ "${PIPESTATUS[0]}" -ne "0" ]; then
     echo "$net batch=$bs generic regression FAILED" >> verdict.log
-    ERR=1
+    return 1
   else
     echo "$net batch=$bs generic regression PASSED" >> verdict.log
   fi
+}
+export -f run_generic
+
+# generic
+rm -f regression.txt
+for net in ${generic_net_list[@]}
+do
+  echo "run_generic $net $bs" >> regression.txt
 done
+cat regression.txt
+parallel -j0 --delay 0.5  --joblog job_regression.log < regression.txt
+if [ "$?" -ne "0" ]; then
+  echo "parallel run complete with failure, please check verdict.txt"
+  ERR=1
+fi
 
 # generic accuracy
 for net in ${generic_accuracy_net_list[@]}
