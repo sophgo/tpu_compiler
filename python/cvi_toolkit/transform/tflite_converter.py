@@ -269,7 +269,7 @@ class TFLiteConverter(BaseConverter):
         return_op = list()
         # Set output
         for output in self.output_nodes:
-            op, _, _ = self.getOperand(output.name)
+            op, _, _ = self.getOperand(output)
             return_op.append(op)
 
         self.CVI.add_return_op(return_op)
