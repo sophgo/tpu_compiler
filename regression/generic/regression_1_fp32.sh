@@ -20,6 +20,13 @@ elif [ $MODEL_TYPE = "onnx" ]; then
       --model_type onnx \
       --batch_size $BATCH_SIZE \
       --mlir_file_path ${NET}.mlir
+elif [ $MODEL_TYPE = "tflite" ]; then
+  cvi_model_convert.py \
+      --model_path $MODEL_DEF \
+      --model_name ${NET} \
+      --model_type tflite \
+      --batch_size $BATCH_SIZE \
+      --mlir_file_path ${NET}.mlir
 else
   echo "Invalid MODEL_TYPE=$MODEL_TYPE"
   return 1
@@ -40,6 +47,7 @@ mlir-opt \
 
 # test frontend optimizations
 mlir-tpu-interpreter ${NET}_opt.mlir \
+    -debug \
     --tensor-in ${NET}_in_fp32.npz \
     --tensor-out ${NET}_out_fp32.npz \
     --dump-all-tensor=${NET}_tensor_all_fp32.npz
