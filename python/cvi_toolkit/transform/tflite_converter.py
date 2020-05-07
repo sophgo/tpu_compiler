@@ -141,7 +141,6 @@ class TFLiteConverter(BaseConverter):
             "MAX_POOL_2D": lambda node: self.convert_maxpool_op(node),
             "MEAN": lambda node: self.convert_mean_op(node),
             "PAD": lambda node: self.convert_pad_op(node),
-            "SOFTMAX": lambda node: self.convert_softmax_op(node),
         }
 
     def init_importer(self):
@@ -273,7 +272,7 @@ class TFLiteConverter(BaseConverter):
         return_op = list()
         # Set output
         for output in self.output_nodes:
-            op, _, _ = self.getOperand(output)
+            op, _, _ = self.getOperand(output.name)
             return_op.append(op)
 
         self.CVI.add_return_op(return_op)
@@ -508,18 +507,6 @@ class TFLiteConverter(BaseConverter):
             node.name, node.op_type), operands, output_shape, **pool_avg_2d_param)
         self.addOperand(node.name, pool_avg_op,
                         output_shape, TensorType.ACTIVATION)
-
-    def convert_softmax_op(self, node):
-        assert(node.op_type == "SOFTMAX")
-        # first input is activate
-        assert(len(node.inputs) == 1)
-        op, shape, _ = self.getOperand(str(node.inputs[0]))
-        operands = list()
-        operands.append(op)
-        self.addOperand(node.name, op, shape, TensorType.ACTIVATION)
-        softmax_op = self.CVI.add_softmax_op("{}_{}".format(
-            node.name, node.op_type), operands, shape)
-
 
     def run(self):
         self.convert_node()
