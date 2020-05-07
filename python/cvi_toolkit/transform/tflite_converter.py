@@ -289,7 +289,7 @@ class TFLiteConverter(BaseConverter):
         operands.append(op2)
         output_shape = input_shape1
 
-        add_op = self.CVI.add_eltwise_add_op("{}_{}".format(node.name, node.op_type), operands, output_shape)
+        add_op = self.CVI.add_eltwise_add_op("{}".format(node.name), operands, output_shape)
         self.addOperand(node.name, add_op, output_shape, TensorType.ACTIVATION)
 
     def convert_pad_op(self, node):
@@ -391,8 +391,8 @@ class TFLiteConverter(BaseConverter):
         )
         print(conv_param)
         output_shape = [on, oc, oh, ow]
-        conv_op = self.CVI.add_conv_op("{}_{}".format(
-            node.name, node.op_type), operands, output_shape, **conv_param)
+        conv_op = self.CVI.add_conv_op("{}".format(
+            node.name), operands, output_shape, **conv_param)
         self.addOperand(node.name, conv_op, output_shape,
                         TensorType.ACTIVATION)
 
@@ -423,7 +423,7 @@ class TFLiteConverter(BaseConverter):
         K = shape[1]
         N = bias_shape[0]
         output_shape = [M, N]
-        fc_op = self.CVI.add_fully_connected_op("{}_{}".format(node.name, node.op_type), operands, output_shape)
+        fc_op = self.CVI.add_fully_connected_op("{}".format(node.name), operands, output_shape)
         self.addOperand(node.name, fc_op, output_shape, TensorType.ACTIVATION)
 
     def convert_maxpool_op(self, node):
@@ -467,7 +467,7 @@ class TFLiteConverter(BaseConverter):
         oh = calcPool2DFloor(shape[2], pool_max_2d_param['kernel_h'], pool_max_2d_param['stride_h'], pool_max_2d_param['padding_b'])
         ow = calcPool2DFloor(shape[3], pool_max_2d_param['kernel_w'], pool_max_2d_param['stride_w'], pool_max_2d_param['padding_r'])
         output_shape = [int(on), int(oc), int(oh), int(ow)]
-        pool_max_op = self.CVI.add_pool_max_2d_op("{}_{}".format(node.name, node.op_type), operands, output_shape, **pool_max_2d_param)
+        pool_max_op = self.CVI.add_pool_max_2d_op("{}".format(node.name), operands, output_shape, **pool_max_2d_param)
         self.addOperand(node.name, pool_max_op, output_shape, TensorType.ACTIVATION)
 
     def convert_mean_op(self, node):
@@ -499,8 +499,8 @@ class TFLiteConverter(BaseConverter):
             'do_relu': False,
         }
         output_shape = [int(on), int(oc), 1, 1]
-        pool_avg_op = self.CVI.add_pool_avg_2d_op("{}_{}".format(
-            node.name, node.op_type), operands, output_shape, **pool_avg_2d_param)
+        pool_avg_op = self.CVI.add_pool_avg_2d_op("{}".format(
+            node.name), operands, output_shape, **pool_avg_2d_param)
         self.addOperand(node.name, pool_avg_op,
                         output_shape, TensorType.ACTIVATION)
 
@@ -512,8 +512,8 @@ class TFLiteConverter(BaseConverter):
         operands = list()
         operands.append(op)
         self.addOperand(node.name, op, shape, TensorType.ACTIVATION)
-        softmax_op = self.CVI.add_softmax_op("{}_{}".format(
-            node.name, node.op_type), operands, shape)
+        softmax_op = self.CVI.add_softmax_op("{}".format(
+            node.name), operands, shape)
 
     def run(self):
         self.convert_node()
