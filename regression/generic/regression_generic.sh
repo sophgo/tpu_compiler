@@ -9,10 +9,6 @@ if [ ! -z "$PARALLEL" ]; then
   RUN_IN_PARALLEL=$PARALLEL
 fi
 
-if [ ! -e $NET ]; then
-  mkdir $NET
-fi
-
 if [ -z "$CVIMODEL_REL_PATH" ]; then
   CVIMODEL_REL_PATH=$PWD/cvimodel_regression
 fi
@@ -30,9 +26,11 @@ export DO_BATCHSIZE=$DO_BATCHSIZE
 export NET=$NET
 source $DIR/generic_models.sh
 
-pushd $NET
-# clear previous output
-# rm -f *.mlir *.bin *.npz *.csv *.cvimodel *.npy
+WORKDIR=${NET}_bs${DO_BATCHSIZE}
+if [ ! -e $WORKDIR ]; then
+  mkdir $WORKDIR
+fi
+pushd $WORKDIR
 
 # run tests
 /bin/bash $FP32_INFERENCE_SCRIPT

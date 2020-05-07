@@ -3,19 +3,18 @@ set -e
 
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 
-
 NET=$1
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
-
-if [ ! -e $NET ]; then
-  echo "$NET does not exist, run regression first"
-  exit 1
-fi
 
 export NET=$NET
 source $DIR/generic_models.sh
 
-pushd $NET
+WORKDIR=${NET}_bs1
+if [ ! -e $WORKDIR ]; then
+  echo "$WORKDIR does not exist, run regression first"
+  exit 1
+fi
+pushd $WORKDIR
 
 if [ -z $EVAL_SCRIPT ]; then
   if [ $DO_ACCURACY_CAFFE -eq 1 ]; then

@@ -2,14 +2,7 @@
 # set -e
 # set -o pipefail
 
-DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
-
-# please keep in alphabetical order
-net_list=(
-  # "resnet50"
-)
-
-generic_net_list=(
+net_list_generic=(
   "resnet50"
   "vgg16"
   "mobilenet_v1"
@@ -20,7 +13,7 @@ generic_net_list=(
   "squeezenet"
   "shufflenet_v2"
   "densenet_121"
-  "densenet_121"
+  "densenet_201"
   # "senet_res50"
   "arcface_res50"
   "retinaface_mnet25"
@@ -33,14 +26,17 @@ generic_net_list=(
   "alphapose"
 )
 
-generic_accuracy_net_list=(
+net_list_batch=(
+  "resnet50"
+  "mobilenet_v2"
+)
+
+net_list_accuracy=(
   # "resnet50"
   # "mobilenet_v2"
 )
 
-ERR=0
-
-helpFunction()
+usage()
 {
    echo ""
    echo "Usage: $0 -batch Batchsize"
@@ -48,62 +44,6 @@ helpFunction()
    echo -e "\t-n Description of Net Name for test "
    exit 1
 }
-
-while getopts "n:b:" opt
-do
-  case "$opt" in
-    n ) net="$OPTARG" ;;
-    b ) bs="$OPTARG" ;;
-    h ) helpFunction ;;
-  esac
-done
-
-if [ -z "$net" ]; then
-  net=$1
-fi
-if [ -z "$bs" ]; then
-  bs=1
-fi
-
-if [ ! -z "$net" ]; then
-  export CVIMODEL_REL_PATH=$PWD/cvimodel_regression
-  if [ ! -e $CVIMODEL_REL_PATH ]; then
-    mkdir $CVIMODEL_REL_PATH
-  fi
-  $DIR/$net/regression_$net.sh 2>&1 | tee $net.log
-  if [ "${PIPESTATUS[0]}" -ne "0" ]; then
-    echo "regression $net FAILED"
-    ERR=1
-  else
-    echo "regression $net PASSED"
-  fi
-  exit $ERR
-fi
-
-if [ ! -e regression_out ]; then
-  mkdir regression_out
-fi
-export CVIMODEL_REL_PATH=$PWD/regression_out/cvimodel_regression
-if [ ! -e $CVIMODEL_REL_PATH ]; then
-  mkdir $CVIMODEL_REL_PATH
-fi
-
-pushd regression_out
-# clear previous output
-rm -f *.mlir *.bin *.npz *.csv *.cvimodel
-
-# normal
-for net in ${net_list[@]}
-do
-  echo "regression $net"
-  $DIR/$net/regression_$net.sh 2>&1 | tee $net.log
-  if [ "${PIPESTATUS[0]}" -ne "0" ]; then
-    echo "$net regression FAILED" >> verdict.log
-    ERR=1
-  else
-    echo "$net regression PASSED" >> verdict.log
-  fi
-done
 
 run_generic()
 {
@@ -116,35 +56,157 @@ run_generic()
     return 1
   else
     echo "$net batch=$bs generic regression PASSED" >> verdict.log
+    return 0
   fi
 }
 export -f run_generic
 
-# generic
-rm -f regression.txt
-for net in ${generic_net_list[@]}
+run_generic_all()
+{
+  ERR=0
+  # bs = 1
+  for net in ${net_list_generic[@]}
+  do
+    run_generic $net 1
+    if [ "$?" -ne 0 ]; then
+      ERR=1
+    fi
+  done
+  # bs = 4
+  for net in ${net_list_batch[@]}
+  do
+    run_generic $net 4
+    if [ "$?" -ne 0 ]; then
+      ERR=1
+    fi
+  done
+  # return
+  return $ERR
+}
+
+run_generic_all_parallel()
+{
+  rm -f regression.txt
+  for net in ${net_list_generic[@]}
+  do
+    echo "run_generic $net 1" >> regression.txt
+  done
+  for net in ${net_list_batch[@]}
+  do
+    echo "run_generic $net 4" >> regression.txt
+  done
+  cat regression.txt
+  parallel -j0 --delay 0.5  --joblog job_regression.log < regression.txt
+  return $?
+}
+
+run_accuracy()
+{
+  net=$1
+  count=$2
+  echo "generic accuracy $net"
+  accuracy_generic.sh $net $count > accuracy_$1\_$count\.log 2>&1 | true
+  if [ "${PIPESTATUS[0]}" -ne "0" ]; then
+    echo "$net count=$count generic accuracy FAILED" >> verdict.log
+    return 1
+  else
+    echo "$net count=$count generic accuracy PASSED" >> verdict.log
+    return 0
+  fi
+}
+export -f run_accuracy
+
+run_accuracy_all()
+{
+  count=$1
+  ERR=0
+  for net in ${net_list_accuracy[@]}
+  do
+    run_accuracy $net $count
+    if [ "$?" -ne 0 ]; then
+      ERR=1
+    fi
+  done
+  return $ERR
+}
+
+run_accuracy_all_parallel()
+{
+  count=$1
+  rm -f accuracy.txt
+  for net in ${net_list_accuracy[@]}
+  do
+    echo "run_accuracy $net $count" >> accuracy.txt
+  done
+  if [ -f accuracy.txt ]; then
+    cat accuracy.txt
+    parallel -j0 --delay 0.5  --joblog job_accuracy.log < accuracy.txt
+    return $?
+  fi
+}
+
+while getopts "n:b:" opt
 do
-  echo "run_generic $net $bs" >> regression.txt
+  case "$opt" in
+    n ) net="$OPTARG" ;;
+    b ) bs="$OPTARG" ;;
+    h ) usage ;;
+  esac
 done
-cat regression.txt
-parallel -j0 --delay 0.5  --joblog job_regression.log < regression.txt
-if [ "$?" -ne "0" ]; then
-  echo "parallel run complete with failure, please check verdict.txt"
-  ERR=1
+
+if [ -z "$net" ]; then
+  net=$1
+fi
+if [ -z "$bs" ]; then
+  bs=1
 fi
 
-# generic accuracy
-for net in ${generic_accuracy_net_list[@]}
-do
-  echo "accuracy $net"
-  $DIR/generic/accuracy_generic.sh $net 100 2>&1 | tee ${net}_accuracy.log
-  if [ "${PIPESTATUS[0]}" -ne "0" ]; then
-    echo "$net accuracy test FAILED" >> verdict.log
-    ERR=1
-  else
-    echo "$net accuracy test PASSED" >> verdict.log
+# default run in parallel
+if [ -z "$PARALLEL" ]; then
+  PARALLEL=1
+fi
+
+# run single and exit
+if [ ! -z "$net" ]; then
+  export CVIMODEL_REL_PATH=$PWD/cvimodel_regression
+  if [ ! -e $CVIMODEL_REL_PATH ]; then
+    mkdir $CVIMODEL_REL_PATH
   fi
-done
+  run_generic $net $bs
+  exit $?
+fi
+
+# run regression for all
+if [ ! -e regression_out ]; then
+  mkdir regression_out
+fi
+export CVIMODEL_REL_PATH=$PWD/regression_out/cvimodel_regression
+if [ ! -e $CVIMODEL_REL_PATH ]; then
+  mkdir $CVIMODEL_REL_PATH
+fi
+
+pushd regression_out
+
+ERR=0
+if [ $PARALLEL -eq 0 ]; then
+  run_generic_all
+  if [ "$?" -ne 0 ]; then
+    ERR=1
+  fi
+  run_accuracy_all 100
+  if [ "$?" -ne 0 ]; then
+    ERR=1
+  fi
+else
+  run_generic_all_parallel
+  if [ "$?" -ne 0 ]; then
+    ERR=1
+  fi
+  run_accuracy_all_parallel 100
+  if [ "$?" -ne 0 ]; then
+    ERR=1
+  fi
+fi
 
 popd
 
