@@ -14,7 +14,7 @@ net_list_generic=(
   "shufflenet_v2"
   "densenet_121"
   "densenet_201"
-  # "senet_res50"
+  "senet_res50"
   "arcface_res50"
   "retinaface_mnet25"
   "retinaface_res50"
@@ -207,6 +207,8 @@ else
     ERR=1
   fi
 fi
+
+cat verdict.log
 
 popd
 

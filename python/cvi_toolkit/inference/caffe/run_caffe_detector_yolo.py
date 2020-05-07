@@ -129,11 +129,9 @@ def main(argv):
         predictions = yolov3_detect(net, image, net_input_dims,
                                     obj_threshold, nms_threshold,
                                     args.dump_blobs, args.dump_weights, args.batch_size)
-        print(predictions)
         if (args.draw_image != ''):
-            for i in range(1, args.batch_size):
-                image = draw(image, predictions[i], args.label_file)
-                cv2.imwrite(args.draw_image, image)
+            image = draw(image, predictions, args.label_file)
+            cv2.imwrite(args.draw_image, image)
     else :
         print("No input_file specified")
         exit(1)

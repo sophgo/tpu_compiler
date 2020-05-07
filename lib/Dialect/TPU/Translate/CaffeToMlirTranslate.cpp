@@ -910,8 +910,8 @@ void CaffeImporter::convertDetectionOutputLayer(mlir::Block *block,
     code_type = "CORNER_SIZE";
   }
 
-  // llvm::ArrayRef<int64_t> input_shape =
-  //    input_vars[0]->getType().dyn_cast<mlir::TensorType>().getShape();
+  llvm::ArrayRef<int64_t> input_shape =
+      input_vars[0]->getType().dyn_cast<mlir::TensorType>().getShape();
 
   std::vector<NamedAttribute> attrs;
 
@@ -941,7 +941,7 @@ void CaffeImporter::convertDetectionOutputLayer(mlir::Block *block,
   assert(false == detection_output_param.variance_encoded_in_target());
   // construct OP
   auto result_type =
-      RankedTensorType::get({1, 1, detection_output_param.keep_top_k(), 7}, elementType_);
+      RankedTensorType::get({input_shape[0], 1, detection_output_param.keep_top_k(), 7}, elementType_);
 
   auto reshape_op = OpBuilder(block).create<tpu::DetectionOutputOp>(
       builder_.getUnknownLoc(), result_type, ArrayRef<Value *>{input_vars},
@@ -2152,18 +2152,10 @@ void CaffeImporter::convertSigmoidLayer(mlir::Block *block, caffe::Layer<float> 
   int64_t n, c, h, w;
   llvm::ArrayRef<int64_t> input_shape =
       input_var->getType().dyn_cast<mlir::TensorType>().getShape();
-  assert(input_shape.size() == 4);
-  n = input_shape[0];
-  c = input_shape[1];
-  h = input_shape[2];
-  w = input_shape[3];
-
-  LLVM_DEBUG(llvm::errs() << "  N: " << n << ", C: " << c << ", IH*IW: " << h << " * "
-                          << w << "\n";);
   std::vector<Value *> operands;
   operands.push_back(input_var);
   // construct OP
-  auto result_type = RankedTensorType::get({n, c, h, w}, elementType_);
+  auto result_type = RankedTensorType::get(input_shape, elementType_);
 
   auto NoneOp = OpBuilder(block).create<tpu::NoneOp>(builder_.getUnknownLoc(),
                                                      builder_.getNoneType());
