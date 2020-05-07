@@ -3,6 +3,9 @@
 #include "utils.hpp"
 #include "NetGraph.hpp"
 #include "GroupOptimizer.hpp"
+
+#define DEBUG_TYPE "groupops"
+
 namespace mlir {
 
 template<typename T>
@@ -493,24 +496,254 @@ struct LowerWeightLrnOpPattern : public RewritePattern {
   }
 };
 
-template<typename OpTy>
-struct DefaultErasePattern : public RewritePattern {
-  DefaultErasePattern(MLIRContext *context)
-      : RewritePattern(OpTy::getOperationName(), 1, context) {}
+// somehow, existing backend implementation is using per-channel mode
+// to do a per-tensor operation. which means, it needs to copy 1 rshift
+// value to a oc sized vector, so does the 1 multiplier value, then pack
+// these two tensors into one as if this is a per-channel multiplier mode
+// convolution.
+// TODO: the right way maybe doing a `REAL` per-channel multiplier mode
+// convolution. to put the scale tensor as multiplier rather than filter
+// and the multiplier is by nature per-channel.
+struct PackWeightBroadcastMulOpPattern : public RewritePattern {
+  PackWeightBroadcastMulOpPattern(MLIRContext *context)
+      : RewritePattern(tpu::BroadcastMulOp::getOperationName(), 1, context) {}
 
   PatternMatchResult matchAndRewrite(Operation *op,
       PatternRewriter &rewriter) const override {
-    rewriter.replaceOp(op, {op->getOperand(0)});
+    auto castOp = cast<tpu::BroadcastMulOp>(op);
+
+    // Only int8 need pack
+    if (getOpQuant(op) == "BF16") {
+      LLVM_DEBUG(llvm::errs() << "Pack Weight for BroadcastMul ONLY apply INT8 we skip it\n";);
+      return matchFailure();
+    }
+
+    // after quantizeInt8, the quantparam is "RSHIFT_AND_M_I32"
+    auto rshiftOp = cast<tpu::LoadWeightOp>(castOp.quant_rshift()->getDefiningOp());
+    if (rshiftOp.lowered()) {
+      // packed already
+      return matchFailure();
+    }
+    assert(getOpQuantParamType(op) == "RSHIFT_AND_M_I32");
+    assert( !isTensorNone(castOp.quant_rshift()) );
+    assert( !isTensorNone(castOp.quant_multiplier()) );
+    LLVM_DEBUG(llvm::errs() << "Pack Weight for BroadcastMul: "
+                            << getOpName(op) << "\n";);
+    TensorFile *wTF = getWeightTensorFile(op);
+
+    // get param
+    int64_t oc = getTensorSize(castOp.multiplier());
+
+    // get tensor
+    std::unique_ptr<std::vector<float> > pc_info = nullptr;
+    auto rshift = readAndDeleteWeightTensor<float>(castOp.quant_rshift(), wTF);
+    auto multiplier = readAndDeleteWeightTensor<float>(castOp.quant_multiplier(), wTF);
+
+    // expand
+    auto rshift_perchannel = std::make_unique<std::vector<float>>(oc, rshift->at(0));
+    auto multiplier_perchannel =
+          std::make_unique<std::vector<float>>(oc, multiplier->at(0));
+
+    // pack the weights
+    std::vector<int64_t> packedShape;
+    auto packed = packWeight(nullptr, rshift_perchannel.get(),
+        multiplier_perchannel.get(), oc, packedShape);
+
+    // this is tricky, as where is no bias() to reuse, use quant_rshift() instead
+    // store to the packed per_channel operand in "UINT8"
+    addWeightTensorAndUpdateWeightOp<uint8_t>(castOp.quant_rshift(),
+        "pack", *packed, packedShape, "UINT8", wTF);
+    rshiftOp.setAttr("lowered", rewriter.getBoolAttr(true));
+
+    // erase quant_multiplier tensor
+    auto NoneOp = OpBuilder(op).create<tpu::NoneOp>(
+        rewriter.getUnknownLoc(), rewriter.getNoneType());
+    castOp.setOperand(5, NoneOp);
+
+    setOpQuantParamType(op, "RSHIFT_AND_M_I32");
     return matchSuccess();
   }
 };
+
+template <typename OpTy>
+struct LowerWeightLutOpPattern : public RewritePattern {
+  LowerWeightLutOpPattern(MLIRContext *context)
+      : RewritePattern(OpTy::getOperationName(), 1, context) {}
+
+  PatternMatchResult matchAndRewrite(Operation *op,
+                                     PatternRewriter &rewriter) const override {
+    auto lutOp = cast<OpTy>(op);
+
+    auto tableOp = cast<tpu::LoadWeightOp>(lutOp.getOperand(1)->getDefiningOp());
+    auto table_mantissaOp = cast<tpu::LoadWeightOp>(lutOp.getOperand(2)->getDefiningOp());
+
+
+    if (tableOp.lowered()) {
+      // lowered already
+      return matchFailure();
+    }
+    LLVM_DEBUG(llvm::errs() << "Lower Weight for lutOp: "
+                            << getOpName(op) << "\n";);
+    TensorFile *wTF = getWeightTensorFile(op);
+
+    if (getOpQuant(op) == "INT8") {
+      // lower filter
+        assert(tableOp.storage() == "INT8");
+        std::vector<int64_t> shape;
+        int64_t size;
+        getTensorShapeAndSize(lutOp.table(), shape, size);
+        auto table = readAndDeleteWeightTensor<float>(tableOp, wTF);
+        auto table_mantissa = readAndDeleteWeightTensor<float>(table_mantissaOp, wTF);
+        std::vector<int8_t> table_int8(table->begin(), table->end());
+        std::vector<int8_t> table_mantissa_int8(table_mantissa->begin(), table_mantissa->end());
+        // 1880 support 256 lookup table
+        // because of 1880 hardware search table only on each local memory
+        // we dupicate table to limit number <32>
+        assert(shape[2] * shape[3] == 256);
+        assert(shape[1] == 32);
+
+        // save it
+        addWeightTensorAndUpdateWeightOp<int8_t>(
+            tableOp, "lowered", table_int8, shape, "INT8", wTF);
+        tableOp.setAttr("lowered", rewriter.getBoolAttr(true));
+        addWeightTensorAndUpdateWeightOp<int8_t>(
+            table_mantissaOp, "lowered", table_mantissa_int8, shape, "INT8", wTF);
+        table_mantissaOp.setAttr("lowered", rewriter.getBoolAttr(true));
+
+    } else if (getOpQuant(op) == "BF16") {
+      // lower filter
+        assert(tableOp.storage() == "BF16");
+        assert(table_mantissaOp.storage() == "BF16");
+        std::vector<int64_t> shape;
+        int64_t size;
+        getTensorShapeAndSize(lutOp.table(), shape, size);
+        auto table = readAndDeleteWeightTensor<float>(tableOp, wTF);
+        auto table_mantissa = readAndDeleteWeightTensor<float>(table_mantissaOp,
+                                                               wTF);
+        std::vector<uint16_t> table_uint16(table->begin(), table->end());
+        std::vector<uint16_t> table_mantissa_uint16(table_mantissa->begin(),
+                                                    table_mantissa->end());
+        // 1880 support 256 lookup table
+        // because of 1880 hardware search table only on each local memory
+        // we dupicate table to limit number <32>
+        assert(shape[2] * shape[3] == 256);
+        assert(shape[1] == 32);
+
+        // save it
+        addWeightTensorAndUpdateWeightOp<uint16_t>(
+            tableOp, "lowered", table_uint16, shape, "UINT16", wTF);
+        tableOp.setAttr("lowered", rewriter.getBoolAttr(true));
+        addWeightTensorAndUpdateWeightOp<uint16_t>(
+            table_mantissaOp, "lowered", table_mantissa_uint16,
+            shape, "UINT16", wTF);
+        table_mantissaOp.setAttr("lowered", rewriter.getBoolAttr(true));
+    }
+
+    return matchSuccess();
+  }
+};
+
+
+struct LowerWeightPReluOpPattern : public RewritePattern {
+  LowerWeightPReluOpPattern(MLIRContext *context)
+      : RewritePattern("tpu.prelu", 1, context) {}
+
+  PatternMatchResult matchAndRewrite(Operation *op,
+      PatternRewriter &rewriter) const override {
+    auto prOp = cast<tpu::PReluOp>(op);
+    auto filterOp = cast<tpu::LoadWeightOp>(prOp.getOperand(1)->getDefiningOp());
+    if (filterOp.lowered()) {
+      // lowered already
+      return matchFailure();
+    }
+    LLVM_DEBUG(llvm::errs() << "Lower Weight for PReluOp: "
+                            << getOpName(op) << "\n";);
+    TensorFile *wTF = getWeightTensorFile(op);
+
+    if (getOpQuant(op) == "INT8") {
+      // lower filter
+      {
+        assert(filterOp.storage() == "INT8");
+        std::vector<int64_t> shape;
+        int64_t size;
+        getTensorShapeAndSize(filterOp, shape, size);
+        auto filter = readAndDeleteWeightTensor<float>(prOp.filter(), wTF);
+        std::vector<int8_t> filter_int8(filter->begin(), filter->end());
+
+        // save it
+        addWeightTensorAndUpdateWeightOp<int8_t>(prOp.filter(),
+            "lowered", filter_int8, shape, "INT8", wTF);
+        filterOp.setAttr("lowered", rewriter.getBoolAttr(true));
+      }
+    } else if (getOpQuant(op) == "BF16") {
+      // lower filter
+      {
+        llvm_unreachable("TODO BF16");
+      }
+    }
+    return matchSuccess();
+  }
+};
+
+struct LowerWeightDetectionOutputOpPattern : public RewritePattern {
+  LowerWeightDetectionOutputOpPattern(MLIRContext *context)
+      : RewritePattern("tpu.detectionoutput", 1, context) {}
+
+  PatternMatchResult matchAndRewrite(Operation *op,
+      PatternRewriter &rewriter) const override {
+    auto prOp = cast<tpu::DetectionOutputOp>(op);
+    auto weightOp = cast<tpu::LoadWeightOp>(prOp.getOperand(2)->getDefiningOp());
+    assert(weightOp);
+    if (weightOp.lowered()) {
+      // lowered already
+      return matchFailure();
+    }
+    LLVM_DEBUG(llvm::errs() << "Lower Weight for DetectionOutputOp: "
+                            << getOpName(op) << "\n";);
+    weightOp.setAttr("lowered", rewriter.getBoolAttr(true));
+    return matchSuccess();
+  }
+};
+
+struct LowerWeightGenericCpuOpPattern : public RewritePattern {
+  LowerWeightGenericCpuOpPattern(MLIRContext *context)
+      : RewritePattern("tpu.generic_cpu", 1, context) {}
+
+  PatternMatchResult matchAndRewrite(Operation *op,
+      PatternRewriter &rewriter) const override {
+    auto cpu_op = cast<tpu::GenericCpuOp>(op);
+    int operands_num = cpu_op.getNumOperands();
+    for ( int i = 0; i < operands_num; i++) {
+      auto weightOp = dyn_cast<tpu::LoadWeightOp>(cpu_op.getOperand(i)->getDefiningOp());
+      if (weightOp) {
+        LLVM_DEBUG(llvm::errs() << "Lower Weight for GenericCpuOp: "
+                            << getOpName(op) << "Operand index: " << i << "\n";);
+        weightOp.setAttr("lowered", rewriter.getBoolAttr(true));
+      }
+    }
+    return matchSuccess();
+  }
+};
+
+// template<typename OpTy>
+// struct DefaultErasePattern : public RewritePattern {
+//   DefaultErasePattern(MLIRContext *context)
+//       : RewritePattern(OpTy::getOperationName(), 1, context) {}
+
+//   PatternMatchResult matchAndRewrite(Operation *op,
+//       PatternRewriter &rewriter) const override {
+//     rewriter.replaceOp(op, {op->getOperand(0)});
+//     return matchSuccess();
+//   }
+// };
 
 static void preprocess(FuncOp *fn, MLIRContext *context){
   // first, merge conv rshift/multiplier/bias into one packed tensor
   OwningRewritePatternList patterns_pack;
   patterns_pack.insert<
       PackWeightConv2DOpPattern<tpu::Conv2DOp>,
-      PackWeightConv2DOpPattern<tpu::DeConv2DOp>
+      PackWeightConv2DOpPattern<tpu::DeConv2DOp>,
+      PackWeightBroadcastMulOpPattern
       >(context);
   applyPatternsGreedily(*fn, patterns_pack);
   //printFunction(fn);
@@ -520,16 +753,22 @@ static void preprocess(FuncOp *fn, MLIRContext *context){
   OwningRewritePatternList patterns_lower;
   patterns_lower.insert<
       LowerConv2DOpWeightPattern<tpu::Conv2DOp>,
+      LowerConv2DOpWeightPattern<tpu::DeConv2DOp>,
       LowerWeightLrnOpPattern,
-      LowerWeightFullyConnectedOpPattern
+      LowerWeightLutOpPattern<tpu::ReciprocalOp>,
+      LowerWeightPReluOpPattern,
+      LowerWeightLutOpPattern<tpu::SigmoidOp>,
+      LowerWeightLutOpPattern<tpu::SqrtOp>,
+      LowerWeightFullyConnectedOpPattern,
+      LowerWeightGenericCpuOpPattern
       >(context);
   applyPatternsGreedily(*fn, patterns_lower);
 
-  OwningRewritePatternList  tg_addr_patterns;
-  tg_addr_patterns.insert<
-      DefaultErasePattern<tpu::SoftmaxOp>
-  >(context);
-  applyPatternsGreedily(*fn, tg_addr_patterns);
+  // OwningRewritePatternList  tg_addr_patterns;
+  // tg_addr_patterns.insert<
+  //     DefaultErasePattern<tpu::SoftmaxOp>
+  // >(context);
+  // applyPatternsGreedily(*fn, tg_addr_patterns);
 }
 
 class GroupOpsPass : public FunctionPass<GroupOpsPass> {

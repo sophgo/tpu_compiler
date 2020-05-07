@@ -602,7 +602,22 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
       weightBinaryFile_->write(reinterpret_cast<const char*>(weight_uint32.data()),
           weight_uint32.size() * sizeof(uint32_t));
     } else if (weightOp.storage() == "FP32") {
-      assert(false);
+      std::vector<float> weight_fp32;
+      auto weight = wTF->readTensor<float>(tensor_name, type);
+      weight_fp32.assign(weight->begin(), weight->end());
+      size = weight_fp32.size() * sizeof(float);
+
+      // pad to alignment
+      if ( (weight_fp32.size() * sizeof(float)) % alignment_ ) {
+        size_t remain = (weight_fp32.size() * sizeof(float)) % alignment_;
+        size_t pad = (alignment_ - remain) / sizeof(float);
+        for (size_t i = 0; i < pad; ++i) {
+          // assign a special value for debugging
+          weight_fp32.push_back(0xffffffff);
+        }
+      }
+      auto weightData = reinterpret_cast<const char*>(weight_fp32.data());
+      weightBinaryFile_->write(weightData, weight_fp32.size() * sizeof(float));
     } else if (weightOp.storage() == "NONE") {
       return matchSuccess();
     } else {
@@ -760,7 +775,6 @@ void GroupOptimizer::lower_to_tg_group(MLIRContext * context) {
   // lower to TG inst
   OwningRewritePatternList tg_patterns;
   tg_patterns.insert<
-      addGroupTGLayerPattern<tpu::InputOp>,
       addGroupTGLayerPattern<tpu::Conv2DOp>,
       addGroupTGLayerPattern<tpu::EltwiseAddOp>,
       addGroupTGLayerPattern<tpu::EltwiseMaxOp>,
@@ -771,7 +785,23 @@ void GroupOptimizer::lower_to_tg_group(MLIRContext * context) {
       addGroupTGLayerPattern<tpu::ShuffleChannelOp>,
       addGroupTGLayerPattern<tpu::SliceOp>,
       addGroupTGLayerPattern<tpu::LrnOp>,
-      addGroupTGLayerPattern<tpu::FullyConnectedOp>
+      addGroupTGLayerPattern<tpu::FullyConnectedOp>,
+      //
+      addGroupTGLayerPattern<tpu::BroadcastMulOp>,
+      addGroupTGLayerPattern<tpu::CropOp>,
+      addGroupTGLayerPattern<tpu::DeConv2DOp>,
+      addGroupTGLayerPattern<tpu::ReciprocalOp>,
+      addGroupTGLayerPattern<tpu::LeakyReluOp>,
+      addGroupTGLayerPattern<tpu::PermuteOp>,
+      addGroupTGLayerPattern<tpu::PixelShuffleOp>,
+      addGroupTGLayerPattern<tpu::ClipOp>,
+      addGroupTGLayerPattern<tpu::PReluOp>,
+      addGroupTGLayerPattern<tpu::ReluOp>,
+      addGroupTGLayerPattern<tpu::SigmoidOp>,
+      addGroupTGLayerPattern<tpu::SqrtOp>,
+      addGroupTGLayerPattern<tpu::SwapChannelOp>,
+      addGroupTGLayerPattern<tpu::UpsampleOp>
+
   >(context, this);
   applyPatternsGreedily(*fn_, tg_patterns);
 
@@ -790,6 +820,28 @@ void GroupOptimizer::lower_to_tg_group(MLIRContext * context) {
       addTGLayerGAddrPattern<tpu::TG_INT8_ShuffleChannelOp>,
       addTGLayerGAddrPattern<tpu::TG_INT8_SliceOp>,
       addTGLayerGAddrPattern<tpu::TG_INT8_LrnOp>,
+
+      //
+      addTGLayerGAddrPattern<tpu::TG_INT8_BroadcastMulOp>,
+      addTGLayerGAddrPattern<tpu::TG_INT8_CropOp>,
+      addTGLayerGAddrPattern<tpu::TG_INT8_PC_DeConv2DOp>,
+      addTGLayerGAddrPattern<tpu::TG_INT8_LeakyReluOp>,
+      addTGLayerGAddrPattern<tpu::TG_INT8_PermuteOp>,
+      addTGLayerGAddrPattern<tpu::TG_INT8_PixelShuffleOp>,
+      addTGLayerGAddrPattern<tpu::TG_INT8_ClipOp>,
+      addTGLayerGAddrPattern<tpu::TG_INT8_PReluOp>,
+      addTGLayerGAddrPattern<tpu::TG_INT8_ReluOp>,
+      addTGLayerGAddrPattern<tpu::TG_INT8_LutOp>,
+      addTGLayerGAddrPattern<tpu::TG_INT8_SwapChannelOp>,
+      addTGLayerGAddrPattern<tpu::TG_INT8_UpsampleOp>,
+
+      addTGLayerGAddrPattern<tpu::QuantOp>,
+      // addTGLayerGAddrPattern<tpu::DetectionOutputOp>,
+      // addTGLayerGAddrPattern<tpu::RetinaFaceDetectionOp>,
+      // addTGLayerGAddrPattern<tpu::PreprocessOp>,
+      // addTGLayerGAddrPattern<tpu::PriorBoxOp>,
+      // addTGLayerGAddrPattern<tpu::TransposeOp>,
+      // addTGLayerGAddrPattern<tpu::YoloDetectionOp>,
       addTGLayerGAddrPattern<tpu::GenericCpuOp>
   >(context, this, neuronMapFile->os());
   applyPatternsGreedily(*fn_, tg_addr_patterns);

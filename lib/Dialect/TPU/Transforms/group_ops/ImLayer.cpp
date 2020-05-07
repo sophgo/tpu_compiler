@@ -78,9 +78,9 @@ shared_ptr<ImLayer> ImLayer::create(Operation* op) {
   shared_ptr<ImLayer> layer;
   if (isa<tpu::Conv2DOp>(op)) {
     layer = make_shared<ImConv>(op);
-  } else if (isa<tpu::EltwiseAddOp>(op) ||
-             isa<tpu::EltwiseMaxOp>(op)  ||
-             isa<tpu::EltwiseMulOp>(op)) {
+  } else if (isa<tpu::EltwiseAddOp>(op)
+             /*||isa<tpu::EltwiseMaxOp>(op)
+             ||isa<tpu::EltwiseMulOp>(op)*/) {
     layer = make_shared<ImEltwise>(op);
   } else if (isa<tpu::FullyConnectedOp>(op)) {
     layer = make_shared<ImInnerproduct>(op);
@@ -91,11 +91,11 @@ shared_ptr<ImLayer> ImLayer::create(Operation* op) {
     layer = make_shared<ImPooling>(op);
   } else if (isa<tpu::ConcatOp>(op)) {
     layer = make_shared<ImConcat>(op);
-  } else if (isa<tpu::TanHOp>(op) ||
+  }/* else if (isa<tpu::TanHOp>(op) ||
              isa<tpu::SigmoidOp>(op) ||
              isa<tpu::SqrtOp>(op)) {
     layer = make_shared<ImActivation>(op);
-  } else if (isa<tpu::ShuffleChannelOp>(op)) {
+  } */else if (isa<tpu::ShuffleChannelOp>(op)) {
     layer = make_shared<ImShuffleChannel>(op);
   } else if (isa<tpu::SliceOp>(op)) {
     layer = make_shared<ImSlice>(op);
@@ -108,7 +108,7 @@ shared_ptr<ImLayer> ImLayer::create(Operation* op) {
     layer = make_shared<ImCommon>(op, true, IR_OTHER);
   } else {
     llvm::errs() << "Not support ImLayer: " << getOpName(op) << "\n";
-    assert(0);
+    // assert(0);
     layer = make_shared<ImCommon>(op, false, IR_OTHER);
   }
   return layer;
@@ -219,6 +219,9 @@ ImEltwise::ImEltwise(Operation* op) : ImLayer(IR_ELTWISE, op, true) {
 
 ImCommon::ImCommon(Operation* op, bool inplace_compute, IR_TYPE type) : ImLayer(type, op) {
   is_inplace_layer = (is_inplace_layer || inplace_compute);
+  if (isa<tpu::EltwiseMaxOp>(op) ||
+      isa<tpu::EltwiseMulOp>(op))
+      fusible = false;
   // skip rshift and multiplier
   int nInputs = op->getNumOperands();
   for (u32 i = 0; i < nInputs; ++i) {
@@ -246,7 +249,7 @@ ImConcat::ImConcat(Operation* op) : ImLayer(IR_CONCAT, op) {
 }
 
 ImActivation::ImActivation(Operation* op) : ImLayer(IR_ACTIVATION, op, true) {
-  if (isa<tpu::SigmoidOp>(op) || isa<tpu::TanHOp>(op)) {
+  if (isa<tpu::SigmoidOp>(op) || isa<tpu::TanHOp>(op) || isa<tpu::SqrtOp>(op)) {
     this->fusible = false;
   }
 
