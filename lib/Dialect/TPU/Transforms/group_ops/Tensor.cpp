@@ -87,8 +87,8 @@ shared_ptr<Tensor> Tensor::register_tensor(ShapedType *s_type, const string& nam
       assert(0);
   }
 
-  // default int8 tensor
-  int unit_size = DATA_TYPE_SIZE;
+  int unit_size = s_type->getElementTypeBitWidth()/8;
+  //  TODO: update storage
   string storage = "INT8";
 
   return register_tensor(n, c, h, w, unit_size, storage, name, type, gaddr);
