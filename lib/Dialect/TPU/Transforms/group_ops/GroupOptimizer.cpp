@@ -738,7 +738,8 @@ void GroupOptimizer::lower_to_tl_group(MLIRContext * context) {
       LGLoweringPattern<tpu::EltwiseMulOp>,
       LGLoweringPattern<tpu::EltwiseMaxOp>,
       LGLoweringPattern<tpu::PoolAvg2DOp>,
-      LGLoweringPattern<tpu::PoolMax2DOp>
+      LGLoweringPattern<tpu::PoolMax2DOp>,
+      LGLoweringPattern<tpu::LrnOp>
       >(fn_, context, this);
   applyPatternsGreedily(*fn_, patterns_pack);
 
@@ -769,6 +770,7 @@ void GroupOptimizer::lower_to_tg_group(MLIRContext * context) {
       addGroupTGLayerPattern<tpu::ConcatOp>,
       addGroupTGLayerPattern<tpu::ShuffleChannelOp>,
       addGroupTGLayerPattern<tpu::SliceOp>,
+      addGroupTGLayerPattern<tpu::LrnOp>,
       addGroupTGLayerPattern<tpu::FullyConnectedOp>
   >(context, this);
   applyPatternsGreedily(*fn_, tg_patterns);
@@ -787,6 +789,7 @@ void GroupOptimizer::lower_to_tg_group(MLIRContext * context) {
       addTGLayerGAddrPattern<tpu::TG_INT8_ConcatOp>,
       addTGLayerGAddrPattern<tpu::TG_INT8_ShuffleChannelOp>,
       addTGLayerGAddrPattern<tpu::TG_INT8_SliceOp>,
+      addTGLayerGAddrPattern<tpu::TG_INT8_LrnOp>,
       addTGLayerGAddrPattern<tpu::GenericCpuOp>
   >(context, this, neuronMapFile->os());
   applyPatternsGreedily(*fn_, tg_addr_patterns);
@@ -805,37 +808,37 @@ void GroupOptimizer::lower_to_tg_group(MLIRContext * context) {
 }
 
 void GroupOptimizer::assign_weight_address(MLIRContext * context) {
-// update coeff weight address
+  // update coeff weight address
   // create a bin file
-    std::error_code ec;
-    assert(clWeightBinFilename != "-");
-    llvm::raw_fd_ostream weightBinaryFile(clWeightBinFilename, ec);
+  std::error_code ec;
+  assert(clWeightBinFilename != "-");
+  llvm::raw_fd_ostream weightBinaryFile(clWeightBinFilename, ec);
 
-    // create a map file
-    std::unique_ptr<llvm::ToolOutputFile> weightMapFile = nullptr;
-    if (clWeightMapFilename != "-") {
-      std::string errorMessage;
-      weightMapFile = openOutputFile(clWeightMapFilename, &errorMessage);
-      if (!weightMapFile) {
-        llvm::errs() << errorMessage << "\n";
-        exit(1);
-      }
+  // create a map file
+  std::unique_ptr<llvm::ToolOutputFile> weightMapFile = nullptr;
+  if (clWeightMapFilename != "-") {
+    std::string errorMessage;
+    weightMapFile = openOutputFile(clWeightMapFilename, &errorMessage);
+    if (!weightMapFile) {
+      llvm::errs() << errorMessage << "\n";
+      exit(1);
     }
+  }
 
-    OwningRewritePatternList patterns;
-    // assign address and generate bin file
-    patterns.insert<
-      TpuLoadWeightOpPattern<tpu::LoadWeightOp>,
-      TpuLoadWeightOpPattern<tpu::TL_LG_LoadCoeffOp>
-    >(context,
-        &weightBinaryFile, weightMapFile->os(), 16);
-    applyPatternsGreedily(*fn_, patterns);
+  OwningRewritePatternList patterns;
+  // assign address and generate bin file
+  patterns.insert<
+    TpuLoadWeightOpPattern<tpu::LoadWeightOp>,
+    TpuLoadWeightOpPattern<tpu::TL_LG_LoadCoeffOp>
+  >(context,
+      &weightBinaryFile, weightMapFile->os(), 16);
+  applyPatternsGreedily(*fn_, patterns);
 
-    weightBinaryFile.close();
+  weightBinaryFile.close();
 
-    if (weightMapFile) {
-      weightMapFile->keep();
-    }
+  if (weightMapFile) {
+    weightMapFile->keep();
+  }
 
 }
 

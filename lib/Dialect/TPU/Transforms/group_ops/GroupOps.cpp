@@ -451,6 +451,48 @@ struct PackWeightConv2DOpPattern : public RewritePattern {
   }
 };
 
+struct LowerWeightLrnOpPattern : public RewritePattern {
+  LowerWeightLrnOpPattern(MLIRContext *context)
+      : RewritePattern("tpu.lrn", 1, context) {}
+
+  PatternMatchResult matchAndRewrite(Operation *op,
+                                     PatternRewriter &rewriter) const override {
+    auto lrnOp = cast<tpu::LrnOp>(op);
+    assert(getOpQuant(op) == "INT8" && "only support int8 now");
+    auto sqTableOp =
+        cast<tpu::LoadWeightOp>(lrnOp.getOperand(1)->getDefiningOp());
+    auto powerTableOp =
+        cast<tpu::LoadWeightOp>(lrnOp.getOperand(2)->getDefiningOp());
+    if (sqTableOp.lowered() && powerTableOp.lowered()) {
+      // lowered already
+      return matchFailure();
+    }
+    assert(sqTableOp.storage() == "UINT8");
+    assert(powerTableOp.storage() == "UINT8");
+    assert(sqTableOp.lowered() == false && powerTableOp.lowered() == false);
+
+    TensorFile *wTF = getWeightTensorFile(op);
+
+    std::vector<int64_t> shape;
+    int64_t size;
+    // update sq table
+    getTensorShapeAndSize(sqTableOp, shape, size);
+    auto sqTable = readAndDeleteWeightTensor<float>(sqTableOp, wTF);
+    std::vector<uint8_t> sqTable_uint8(sqTable->begin(), sqTable->end());
+    addWeightTensorAndUpdateWeightOp<uint8_t>(sqTableOp, "lowered", sqTable_uint8,
+                                             shape, "UINT8", wTF);
+    sqTableOp.setAttr("lowered", rewriter.getBoolAttr(true));
+    // update powerTableOp
+    getTensorShapeAndSize(powerTableOp, shape, size);
+    auto powerTable = readAndDeleteWeightTensor<float>(powerTableOp, wTF);
+    std::vector<uint8_t> powerTable_uint8(powerTable->begin(), powerTable->end());
+    addWeightTensorAndUpdateWeightOp<uint8_t>(
+        powerTableOp, "lowered", powerTable_uint8, shape, "UINT8", wTF);
+    powerTableOp.setAttr("lowered", rewriter.getBoolAttr(true));
+    return matchSuccess();
+  }
+};
+
 template<typename OpTy>
 struct DefaultErasePattern : public RewritePattern {
   DefaultErasePattern(MLIRContext *context)
@@ -478,6 +520,7 @@ static void preprocess(FuncOp *fn, MLIRContext *context){
   OwningRewritePatternList patterns_lower;
   patterns_lower.insert<
       LowerConv2DOpWeightPattern<tpu::Conv2DOp>,
+      LowerWeightLrnOpPattern,
       LowerWeightFullyConnectedOpPattern
       >(context);
   applyPatternsGreedily(*fn, patterns_lower);

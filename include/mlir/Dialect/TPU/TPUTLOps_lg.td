@@ -165,6 +165,42 @@ class TPU_TL_LG_Pool2DOp<string mnemonic, string opQuant, string opType> : TPU_O
 def TPU_TL_LG_INT8_PoolAvg2DOp : TPU_TL_LG_Pool2DOp<"tl_int8_pool_avg_2d", "Int8", "Avg">;
 def TPU_TL_LG_INT8_PoolMax2DOp : TPU_TL_LG_Pool2DOp<"tl_int8_pool_max_2d", "Int8", "Max">;
 
+def TPU_TL_LG_LrnOp : TPU_Op<"tl_lg_lrn",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuTLOpCodegenInterface>]> {
+  let summary = "TL Lrn operator";
+
+  let description = [{
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$sqr_lut,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$power_lut,
+    DefaultValuedAttr<NonNegativeI32Attr, "5">:$local_size,
+    DefaultValuedAttr<F32Attr, "1.0">:$alpha,
+    DefaultValuedAttr<F32Attr, "0.75">:$beta,
+    DefaultValuedAttr<F32Attr, "1.0">:$k,
+    I32Attr:$sum_rshift,
+    I32Attr:$lrn_rshift,
+    I32Attr:$quant_data0,
+    I32Attr:$quant_data1,
+    StrAttr:$name,
+    I32Attr:$la_input,
+    I32Attr:$la_output,
+    I32Attr:$la_sqrt,
+    I32Attr:$la_power,
+    I32Attr:$la_working,
+    DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
+    DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
+    OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
 
 def TPU_TL_LG_LoadNeuronOp : TPU_Op<"tl_lg_load_neuron",
       [NoSideEffect,

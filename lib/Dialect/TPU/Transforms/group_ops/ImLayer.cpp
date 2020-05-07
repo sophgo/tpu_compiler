@@ -99,6 +99,8 @@ shared_ptr<ImLayer> ImLayer::create(Operation* op) {
     layer = make_shared<ImShuffleChannel>(op);
   } else if (isa<tpu::SliceOp>(op)) {
     layer = make_shared<ImSlice>(op);
+  } else if (isa<tpu::LrnOp>(op)) {
+    layer = make_shared<ImLrn>(op);
   } else if (isa<tpu::GenericCpuOp>(op)) {
     layer = make_shared<ImCommon>(op, false, IR_OTHER);
   } else if (isa<tpu::QuantOp>(op) ||
@@ -278,5 +280,25 @@ ImSlice::ImSlice(Operation *op): ImLayer(IR_SLICE, op, false) {
   add_out_tensor(op->getResult(0), TENSOR_NEURON);
 }
 
+ImLrn::ImLrn(Operation *op): ImLayer(IR_LRN, op, true) {
+  add_in_tensor(op->getOperand(0), TENSOR_NEURON);
+  add_out_tensor(op->getResult(0), TENSOR_NEURON);
+
+  // add sqr weight
+  auto load_sqr = cast<tpu::LoadWeightOp>(op->getOperand(1)->getDefiningOp());
+  int usize = getOperandStorageSize(load_sqr);
+  string storage = getOperandStorage(load_sqr);
+  string sqr_name = load_sqr.name().getValue().str();
+  add_in_tensor(1, 32, 16, 16, usize, storage, sqr_name, TENSOR_COEFF);
+
+  // add power weight
+  auto load_pow = cast<tpu::LoadWeightOp>(op->getOperand(2)->getDefiningOp());
+  usize = getOperandStorageSize(load_pow);
+  storage = getOperandStorage(load_pow);
+  string pow_name = load_pow.name().getValue().str();
+  add_in_tensor(1, 32, 16, 16, usize, storage, pow_name, TENSOR_COEFF);
+
+  add_imm_tensor(in_tensors[0], 5, name_ + "_imm");
+}
 
 }

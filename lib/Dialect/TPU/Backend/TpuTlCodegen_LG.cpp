@@ -164,6 +164,44 @@ LogicalResult tpu::TL_LG_EltwiseAddOp::codegen(void *ctx) {
   return success();
 }
 
+LogicalResult tpu::TL_LG_LrnOp::codegen(void *ctx) {
+  llvm::errs() << "TG_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";
+
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+  int layer_id = mlir::getOpLayerId(op);
+
+  laddr_t la_input = this->la_input().getLimitedValue();
+  laddr_t la_output = this->la_output().getLimitedValue();
+  laddr_t la_working = this->la_working().getLimitedValue();
+  laddr_t la_sqrt = this->la_sqrt().getLimitedValue();
+  laddr_t la_power = this->la_power().getLimitedValue();
+  int local_size = this->local_size().getLimitedValue();
+  int8_t sum_rshift_i8 = this->sum_rshift().getLimitedValue();
+  int8_t lrn_rshift_i8 = this->lrn_rshift().getLimitedValue();
+  int8_t m_i8[2];
+  m_i8[0] = this->quant_data0().getLimitedValue();
+  m_i8[1] = this->quant_data1().getLimitedValue();
+
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  getNCHW(shape, n, c, h, w);
+
+  cvi_backend_tl_lrn( *backend_ctx,
+                      layer_id,
+                      la_input,
+                      la_output,
+                      la_sqrt,
+                      la_power,
+                      la_working,
+                      n, c, h, w, local_size,
+                      sum_rshift_i8,
+                      lrn_rshift_i8,
+                      m_i8);
+}
+
 
 LogicalResult tpu::TL_LG_LoadNeuronOp::codegen(void *ctx) {
   llvm::errs() << "TL Load Neuron codegen.\n";
