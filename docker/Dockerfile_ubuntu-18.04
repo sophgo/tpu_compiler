@@ -139,7 +139,9 @@ RUN pip3 install --no-cache-dir \
     opencv-python-headless \
     torch==1.4.0 \
     torchvision==0.5.0 \
-    onnxruntime
+    onnxruntime \
+    tensorflow==2.1.0 \
+    packaging==20.3
 
 # cocoAPI, pip install has conflict with latest numpy,
 RUN git clone https://github.com/cocodataset/cocoapi.git \

@@ -9,3 +9,4 @@ torchvision==0.5.0
 termcolor==1.1.0
 PyYAML==5.3.1
 tensorflow==2.1.0
+packaging==20.3
