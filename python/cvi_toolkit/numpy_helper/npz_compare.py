@@ -140,7 +140,10 @@ def compare_one_array(tc, npz1, npz2, name, force_dtype, thresholds, verbose, lo
   if name in thresholds and not thresholds[name] == 0.0:
     # print("Apply dequantization with threhold {}".format(thresholds[name]))
     d1 = dequantize(d1, thresholds[name])
-  d1, d2 = align_type_and_shape(d1, d2, force_dtype=force_dtype)
+  try:
+    d1, d2 = align_type_and_shape(d1, d2, force_dtype=force_dtype)
+  except:
+    raise ValueError("{} in two npz file is not same shape. {} v.s. {}".format(name, d1.shape, d2.shape))
   result = tc.compare(d1, d2)
   # tc.print_result(d1, d2, name, result, verbose)
   dic[name] = result
