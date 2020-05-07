@@ -173,7 +173,7 @@ cmake -G Ninja -DCHIP=BM1880v2 -DRUNTIME=SOC $BUILD_FLAG \
     -DFLATBUFFERS_PATH=$FLATBUFFERS_SOC_PATH \
     -DCVIBUILDER_PATH=$BUILD_SOC_PATH/build_cvimodel \
     -DCMAKE_INSTALL_PREFIX=$CVIRUNTIME_SOC_PATH \
-    -DENABLE_TEST=OFF \
+    -DENABLE_TEST=ON \
     $MLIR_SRC_PATH/externals/cviruntime
 cmake --build . --target install -- -v
 popd
@@ -224,9 +224,6 @@ fi
 # Copy some files for release build
 mkdir -p $INSTALL_SOC_PATH/cmake
 cp $TOOLCHAIN_FILE_PATH $INSTALL_SOC_PATH/cmake
-cp $AARCH64_SYSROOT_PATH/lib/libglog.so.0.0.0 $INSTALL_SOC_PATH/lib
+cp $AARCH64_SYSROOT_PATH/lib/libglog* $INSTALL_SOC_PATH/lib
 pushd $INSTALL_SOC_PATH/lib
-ln -nsf libglog.so.0.0.0 libglog.so.0.0
-ln -nsf libglog.so.0.0.0 libglog.so.0
-ln -nsf libglog.so.0.0.0 libglog.so
 popd

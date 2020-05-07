@@ -210,9 +210,6 @@ fi
 # Copy some files for release build
 mkdir -p $INSTALL_SOC_PATH_32BIT/cmake
 cp $TOOLCHAIN_FILE_PATH $INSTALL_SOC_PATH_32BIT/cmake
-cp $AARCH32_SYSROOT_PATH/lib/libglog.so.0.4.0 $INSTALL_SOC_PATH_32BIT/lib
+cp $AARCH32_SYSROOT_PATH/lib/libglog* $INSTALL_SOC_PATH_32BIT/lib
 pushd $INSTALL_SOC_PATH_32BIT/lib
-ln -nsf libglog.so.0.4.0 libglog.so.0.0
-ln -nsf libglog.so.0.4.0 libglog.so.0
-ln -nsf libglog.so.0.4.0 libglog.so
 popd
