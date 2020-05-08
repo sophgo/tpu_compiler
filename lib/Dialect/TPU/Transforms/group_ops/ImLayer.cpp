@@ -78,6 +78,8 @@ shared_ptr<ImLayer> ImLayer::create(Operation* op) {
   shared_ptr<ImLayer> layer;
   if (isa<tpu::Conv2DOp>(op)) {
     layer = make_shared<ImConv>(op);
+  } else if (isa<tpu::DeConv2DOp>(op)) {
+    layer = make_shared<ImDeconv>(op);
   } else if (isa<tpu::EltwiseAddOp>(op)
              /*||isa<tpu::EltwiseMaxOp>(op)
              ||isa<tpu::EltwiseMulOp>(op)*/) {
@@ -177,6 +179,42 @@ ImConv::ImConv(Operation* p) : ImLayer(IR_CONVOLUTION, p, true), conv1x1_to_fc(f
   }
 }
 
+ImDeconv::ImDeconv(Operation* p) : ImLayer(IR_DECONVOLUTION, p, false) {
+  auto op = dyn_cast<tpu::DeConv2DOp>(p);
+  bool is_dw, with_bias, do_relu;
+  int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, ph, pw, dh, dw;
+  bool is_deconv = isa<tpu::DeConv2DOp>(op.getOperation());
+  parseConvParam(op.param(), is_deconv, op.input(), op.output(), op.filter(),
+                  n, ic, ih, iw, oc, oh, ow, g,
+                  kh, kw, sh, sw, ph, pw, dh, dw, is_dw, with_bias, do_relu);
+
+  // add input tensor
+  add_in_tensor(op.input(), TENSOR_NEURON);
+
+  // add weight tensor
+  auto weightOp = cast<tpu::LoadWeightOp>(op.filter()->getDefiningOp());
+  string weightOpName = weightOp.name().getValue().str();
+  int32_t unit_size = getOperandStorageSize(weightOp);
+  string storage = getOperandStorage(weightOp);
+  // tensor shape in local memory should be (1, oc, kh*kw, ic/g)
+  add_in_tensor(ic / g, oc, kh, kw, unit_size, storage, weightOpName, TENSOR_COEFF);
+
+  // add bias tensor
+  int perchannel_size = with_bias ? 9 : 5;
+  auto load_bias = cast<tpu::LoadWeightOp>(op.getOperand(2)->getDefiningOp());
+  string bias_name = load_bias.name().getValue().str();
+  string bias_storage = getOperandStorage(load_bias);
+  int bias_usize = getOperandStorageSize(load_bias);
+
+  // bias tensor start address must from tpu0, but the same as input and result that
+  // start address can start from tpux, so here we use the shape (g, oc/g, 1, 9), not
+  // (1, oc, 1, 9)
+  add_in_tensor(g, oc/g, 1, perchannel_size, bias_usize, storage, bias_name, TENSOR_BIAS);
+
+  // add out tensor
+  add_out_tensor(op.output(), TENSOR_NEURON);
+}
+
 ImPooling::ImPooling(Operation* op) : ImLayer(IR_POOLING, op, true) {
   add_in_tensor(op->getOperand(0), TENSOR_NEURON);
   add_out_tensor(op->getResult(0), TENSOR_NEURON);
@@ -249,7 +287,7 @@ ImConcat::ImConcat(Operation* op) : ImLayer(IR_CONCAT, op) {
 }
 
 ImActivation::ImActivation(Operation* op) : ImLayer(IR_ACTIVATION, op, true) {
-  if (isa<tpu::SigmoidOp>(op) || isa<tpu::TanHOp>(op) || isa<tpu::SqrtOp>(op)) {
+  if (isa<tpu::SigmoidOp>(op) || isa<tpu::TanHOp>(op)) {
     this->fusible = false;
   }
 
