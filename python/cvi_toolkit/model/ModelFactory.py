@@ -6,13 +6,15 @@ from .caffe_model import CaffeModel
 from .onnx_model import OnnxModel
 from .mlir_model import MLIRModel
 from .tensorflow_lite_model import TFLiteModel
+from .tensorflow_model import TFModel
 
 
 ModelType = [
     'caffe',
     'mlir',
     'onnx',
-    'tflite'
+    'tflite',
+    'tensorflow',
 ]
 
 
@@ -37,6 +39,9 @@ class ModelFactory(object):
                 self.model.load_model(mlirfile)
             elif model_type == 'tflite':
                 self.model = TFLiteModel()
+                self.model.load_model(model_file)
+            elif model_type == 'tensorflow':
+                self.model = TFModel()
                 self.model.load_model(model_file)
 
     def inference(self, input):
