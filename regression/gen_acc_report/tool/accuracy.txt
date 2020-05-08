@@ -1,0 +1,13 @@
+$REGRESSION_PATH/parallel/run_accuracy.sh arcface_res50 50000
+$REGRESSION_PATH/parallel/run_accuracy.sh resnet50 50000
+$REGRESSION_PATH/parallel/run_accuracy.sh mobilenet_v2 50000
+$REGRESSION_PATH/parallel/run_accuracy.sh vgg16 50000
+$REGRESSION_PATH/parallel/run_accuracy.sh googlenet 50000
+$REGRESSION_PATH/parallel/run_accuracy.sh inception_v4 50000
+$REGRESSION_PATH/parallel/run_accuracy.sh shufflenet_v2 50000
+$REGRESSION_PATH/parallel/run_accuracy.sh squeezenet 50000
+$REGRESSION_PATH/parallel/run_accuracy.sh retinaface_mnet25 50000
+$REGRESSION_PATH/parallel/run_accuracy.sh retinaface_res50 50000
+$REGRESSION_PATH/parallel/run_accuracy.sh ssd300 50000
+$REGRESSION_PATH/parallel/run_accuracy.sh yolo_v3_416 50000
+$REGRESSION_PATH/parallel/run_accuracy.sh liveness 50000
