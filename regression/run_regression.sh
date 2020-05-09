@@ -19,6 +19,7 @@ net_list_generic=(
   "retinaface_mnet25"
   "retinaface_res50"
   "ssd300"
+  "yolo_v3_608"
   "yolo_v3_416"
   "yolo_v3_320"
   "resnet18"
