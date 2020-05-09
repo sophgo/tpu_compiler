@@ -26,6 +26,8 @@ bmerr_t LmemManager::assign_local_memory(Group* cluster, net_timestep* time_step
       tensor->laddr = 0;
     for (auto& tensor : ir->out_tensors)
       tensor->laddr = 0;
+    for (auto& tensor : ir->imm_tensors)
+      tensor->laddr = 0;
   }
 
   if (!one_shoot) {
@@ -192,7 +194,6 @@ bool LmemManager::alloc_block(list<LMEM_BLOCK>& block_list, int tid, int step_id
     iter->size = tensor_size;
     iter->step = step_idx;
     iter->busy = true;
-
     block_list.insert(++iter, block);
   } else {
     iter->tid = tensor->id();
