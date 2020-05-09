@@ -834,14 +834,7 @@ void GroupOptimizer::lower_to_tg_group(MLIRContext * context) {
       addTGLayerGAddrPattern<tpu::TG_INT8_LutOp>,
       addTGLayerGAddrPattern<tpu::TG_INT8_SwapChannelOp>,
       addTGLayerGAddrPattern<tpu::TG_INT8_UpsampleOp>,
-
       addTGLayerGAddrPattern<tpu::QuantOp>,
-      // addTGLayerGAddrPattern<tpu::DetectionOutputOp>,
-      // addTGLayerGAddrPattern<tpu::RetinaFaceDetectionOp>,
-      // addTGLayerGAddrPattern<tpu::PreprocessOp>,
-      // addTGLayerGAddrPattern<tpu::PriorBoxOp>,
-      // addTGLayerGAddrPattern<tpu::TransposeOp>,
-      // addTGLayerGAddrPattern<tpu::YoloDetectionOp>,
       addTGLayerGAddrPattern<tpu::GenericCpuOp>
   >(context, this, neuronMapFile->os());
   applyPatternsGreedily(*fn_, tg_addr_patterns);
