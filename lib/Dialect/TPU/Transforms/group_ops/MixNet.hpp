@@ -59,50 +59,50 @@ class MixNet {
   void add_tl_layer(int group_idx, int layer_id,
                     net_timestep* time_step, int timestep_idx,
                     bool is_h_split, int n_loop, int h_loop);
-
-  void add_transport_param(const TENSOR_STEP& tensor,
+  void add_transport_op(const TENSOR_STEP& tensor,
                               net_timestep* time_step, int timestep_idx);
-  FuncOp* get_net() { return fn_; }
 
-  void set_start_op(Operation * op) { start_op_ = op; }
-  Operation* get_start_op() { return start_op_; }
-  // enable parallel flag
+
+  // parallel start and end
   void parallel_start();
   void parallel_end();
 
+  FuncOp* get_net() { return fn_; }
+  void set_start_op(Operation * op) { start_op_ = op; }
+  Operation* get_start_op() { return start_op_; }
+
  private:
-  void _add_tl_convolution_param(MixOp* mix_op,
-                                 const vector<int>& in_tensors,
-                                 const vector<int>& out_tensors,
-                                 net_timestep* time_step,
-                                 int timestep_idx, bool is_h_split);
-
-  void _add_tl_pooling_param(MixOp * mix_op,
-                             const vector<int>& in_tensors,
-                             const vector<int>& out_tensors,
-                             net_timestep* time_step,
-                             int timestep_idx, bool is_h_split);
-
-  void _add_tl_eltwise_param(MixOp* mix_op,
-                             const vector<int>& in_tensors,
-                             const vector<int>& out_tensors,
-                             net_timestep* time_step,
-                             int timestep_idx, bool is_h_split);
-
-  void _add_tl_lrn_param(MixOp * mix_op,
+  void _add_tl_convolution_op(MixOp* mix_op,
                               const vector<int>& in_tensors,
                               const vector<int>& out_tensors,
                               net_timestep* time_step,
                               int timestep_idx, bool is_h_split);
 
-  void _add_load_param(int tensor_id,
-                       net_timestep* time_step, int timestep_idx);
+  void _add_tl_pooling_op(MixOp * mix_op,
+                          const vector<int>& in_tensors,
+                          const vector<int>& out_tensors,
+                          net_timestep* time_step,
+                          int timestep_idx, bool is_h_split);
 
-  void _add_store_param(int tensor_id,
-                        net_timestep* time_step, int timestep_idx);
+  void _add_tl_eltwise_op(MixOp* mix_op,
+                          const vector<int>& in_tensors,
+                          const vector<int>& out_tensors,
+                          net_timestep* time_step,
+                          int timestep_idx, bool is_h_split);
+
+  void _add_tl_lrn_op(MixOp * mix_op,
+                      const vector<int>& in_tensors,
+                      const vector<int>& out_tensors,
+                      net_timestep* time_step,
+                      int timestep_idx, bool is_h_split);
+
+  void _add_load_op(int tensor_id,
+                    net_timestep* time_step, int timestep_idx);
+
+  void _add_store_op(int tensor_id,
+                     net_timestep* time_step, int timestep_idx);
 
   NetGraph* net_graph_;
-  // vector<TLTransportParameter*> suspend_transports_;
   vector<int> net_in_tensors_;
   vector<int> net_out_tensors_;
   FuncOp * fn_;
