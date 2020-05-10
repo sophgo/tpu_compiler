@@ -109,7 +109,11 @@ else
 fi
 
 if [ ! -z $CVIMODEL_REL_PATH -a -d $CVIMODEL_REL_PATH ]; then
-  mv ${NET}_lg.cvimodel $CVIMODEL_REL_PATH
+  if [ $BATCH_SIZE -eq 1 ]; then
+    mv ${NET}_lg.cvimodel $CVIMODEL_REL_PATH
+  else
+    mv ${NET}_lg.cvimodel $CVIMODEL_REL_PATH/${NET}_bs${BATCH_SIZE}_lg.cvimodel
+  fi
 fi
 
 # VERDICT

@@ -17,7 +17,8 @@ class CaffeModel(model_base):
     def inference(self, input):
         # reshape to multi-batch blobs
         in_ = self.net.inputs[0]
-        self.net.blobs[in_].reshape(input.data.shape[0], self.net.blobs[in_].data.shape[1],  self.net.blobs[in_].data.shape[2],  self.net.blobs[in_].data.shape[3])
+        self.net.blobs[in_].reshape(input.data.shape[0], self.net.blobs[in_].data.shape[1],
+                                    self.net.blobs[in_].data.shape[2], self.net.blobs[in_].data.shape[3])
 
         out = self.net.forward_all(**{self.net.inputs[0]: input})
         return out[self.net.outputs[0]]
@@ -83,3 +84,10 @@ class CaffeModel(model_base):
 
     def get_op_info(self):
         return self.net.layer_dict.items()
+
+    def get_all_weights(self):
+        weights_dict = {}
+        for name, param in self.net.params.items():
+            for i in range(len(param)):
+                weights_dict[name + "_" + str(i)] = param[i].data
+        return weights_dict

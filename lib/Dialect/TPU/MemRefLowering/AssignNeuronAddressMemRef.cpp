@@ -200,6 +200,9 @@ bool AssignNeuronAddressMemRefPass::isMemoryAliasedOpHandled(Operation *op) {
     auto memRefType = resultType.dyn_cast<MemRefType>();
     std::vector<int64_t> shape = memRefType.getShape();
     auto batch = shape[0];
+    if (batch != 1) {
+      return false;
+    }
 
     auto elementType = memRefType.getElementType();
     uint64_t dataTypeSize = elementType.getIntOrFloatBitWidth() / 8;
@@ -218,7 +221,7 @@ bool AssignNeuronAddressMemRefPass::isMemoryAliasedOpHandled(Operation *op) {
     uint64_t baseGAddr = pos_;
 
     // Reuse memory when batch = 1
-    if (batch == 1) {
+    // if (batch == 1) {
       auto operandOp = op->getOperand(0)->getDefiningOp();
       if (dyn_cast<AllocOp>(operandOp)) {
         // Previous op is lowed op
@@ -232,7 +235,7 @@ bool AssignNeuronAddressMemRefPass::isMemoryAliasedOpHandled(Operation *op) {
       } else {
         assert("Unexpected previous Op of SliceOp");
       }
-    }
+    // }
 
     uint64_t axis = 0;
     uint64_t offset = 0;
@@ -243,7 +246,7 @@ bool AssignNeuronAddressMemRefPass::isMemoryAliasedOpHandled(Operation *op) {
       axis = tpuOp.axis().getLimitedValue();
       offset = tpuOp.offset().getLimitedValue();
     }
-
+    assert(axis==1);
     offset *= dataTypeSize;
     for (uint64_t i = axis + 1; i < shape.size(); ++i) {
       offset *= shape[i];

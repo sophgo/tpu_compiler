@@ -12,6 +12,7 @@ if [ ! -f "$CAFFE_BLOBS_NPZ" ]; then
       --pretrained_model $MODEL_PATH/face_recognition/arcface_res50/caffe/arcface_res50.caffemodel \
       --dump_blobs $CAFFE_BLOBS_NPZ \
       --dump_weights arcface_res50_weights.npz \
+      --dump_blobs_with_inplace=1 \
       --model_type arcface_res50 \
       --batch_size $BATCH_SIZE \
       --input_file $REGRESSION_PATH/data/Aaron_Eckhart_0001.jpg

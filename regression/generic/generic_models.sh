@@ -334,7 +334,7 @@ export MODEL_DAT=$MODEL_PATH/face_recognition/arcface_res50/caffe/arcface_res50.
 export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_caffe/regression_${NET}_0_caffe.sh
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table
 export INPUT=data
-export TOLERANCE_INT8_MULTIPLER=0.59,0.59,-0.12
+export TOLERANCE_INT8_MULTIPLER=0.59,0.59,-0.13
 export DO_QUANT_INT8_PER_TENSOR=0
 export DO_QUANT_INT8_RFHIFT_ONLY=0
 export DO_QUANT_BF16=0
@@ -561,12 +561,12 @@ if [ ! -f ${MODEL_DEF} ]; then
 fi
 
 # turn off those optimization when batch_size is larger than 1 temporarily
-if [ $BATCH_SIZE -gt 1 ]; then
-export DO_DEEPFUSION=0
-export DO_MEMOPT=0
-export DO_QUANT_MIX=0
-export DO_E2E=0
-fi
+#if [ $BATCH_SIZE -gt 1 ]; then
+#export DO_DEEPFUSION=0
+#export DO_MEMOPT=0
+#export DO_QUANT_MIX=0
+#export DO_E2E=0
+#fi
 
 if [ $DO_LAYERGROUP -eq 1 ]; then
   echo "do layer_group, skip early stride for eltwise"

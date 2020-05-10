@@ -393,7 +393,7 @@ struct TpuTL_LW_Conv2DOp_AssignLayoutPattern : public RewritePattern {
     }
 
     LLVM_DEBUG(llvm::errs() << "TL_LA2LW: layer ID " << op.layer_id()
-                 << ", Conv LM_LAYOUT " << op.lm_layout() 
+                 << ", Conv LM_LAYOUT " << op.lm_layout()
                  << ", LD " << op.tl_load_flag()
                  << ", ST " << op.tl_store_flag()
                  << "\n";);
@@ -502,7 +502,7 @@ struct TpuTL_EltwiseAddOp_AssignLayoutPattern : public RewritePattern {
           // conv_op_1 is the long path
           next_op_idx = 1;
         } else {
-          assert(conv_op_1.in_short_path().getValue());
+          // assert(conv_op_1.in_short_path().getValue());
           // convOps[0] is the long path
           next_op_idx = 0;
         }

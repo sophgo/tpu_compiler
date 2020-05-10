@@ -5,8 +5,8 @@ NET=$1
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
 RUN_IN_PARALLEL=0
-if [ ! -z "$PARALLEL" ]; then
-  RUN_IN_PARALLEL=$PARALLEL
+if [ ! -z "$RUN_IN_PARALLEL" ]; then
+  RUN_IN_PARALLEL=$RUN_IN_PARALLEL
 fi
 
 if [ -z "$CVIMODEL_REL_PATH" ]; then
