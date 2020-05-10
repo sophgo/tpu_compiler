@@ -737,6 +737,26 @@ struct LowerWeightGenericCpuOpPattern : public RewritePattern {
 //   }
 // };
 
+template<typename OpTy>
+struct FoldReshapePattern : public RewritePattern {
+  FoldReshapePattern(MLIRContext *context)
+      : RewritePattern(OpTy::getOperationName(), 1, context) {}
+
+  PatternMatchResult matchAndRewrite(Operation *op,
+                                     PatternRewriter &rewriter) const override {
+    auto laterReshapeOp = cast<OpTy>(op);
+
+    auto formerOp = laterReshapeOp.getOperand()->getDefiningOp();
+    if (!matchPattern(formerOp, m_Op<OpTy>())) {
+      return matchFailure();
+    }
+    auto formerScaleOp = cast<OpTy>(formerOp);
+
+    laterReshapeOp.getOperation()->setOperand(0, formerScaleOp.getOperand());
+    return matchSuccess();
+  }
+};
+
 static void preprocess(FuncOp *fn, MLIRContext *context){
   // first, merge conv rshift/multiplier/bias into one packed tensor
   OwningRewritePatternList patterns_pack;
@@ -764,11 +784,11 @@ static void preprocess(FuncOp *fn, MLIRContext *context){
       >(context);
   applyPatternsGreedily(*fn, patterns_lower);
 
-  // OwningRewritePatternList  tg_addr_patterns;
-  // tg_addr_patterns.insert<
-  //     DefaultErasePattern<tpu::SoftmaxOp>
-  // >(context);
-  // applyPatternsGreedily(*fn, tg_addr_patterns);
+  OwningRewritePatternList patterns_clean;
+  patterns_clean.insert<
+      FoldReshapePattern<tpu::ReshapeOp>
+      >(context);
+  applyPatternsGreedily(*fn, patterns_clean);
 }
 
 class GroupOpsPass : public FunctionPass<GroupOpsPass> {
