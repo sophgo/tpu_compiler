@@ -35,8 +35,9 @@ static size_t write_bianry_file(std::string filename, const char *data,
 int mkldnn_conv(float *input, float *weight, float *bias,
     float *output, int n, int ic, int ih, int iw, int oc, int oh, int ow,
     int kh, int kw, int sh, int sw, int dh, int dw, int ph, int pw, int g) {
+  std::shared_ptr<std::vector<float>> zero_bias = NULL;
   if (!bias) {
-    auto zero_bias = new std::vector<float>(oc, 0.0f);
+    zero_bias = std::make_shared<std::vector<float>>(oc, 0.0f);
     bias = zero_bias->data();
   }
 

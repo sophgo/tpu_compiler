@@ -391,13 +391,23 @@ LogicalResult doConv2DOpInterpret(Operation *op,
 #else
     int ret =
         mkldnn_conv(input->data(), filter->data(),
-                    bias ? bias->data() : nullptr, resultT->data(), n, ic, ih,
+                    nullptr, resultT->data(), n, ic, ih,
                     iw, oc, oh, ow, kh, kw, sh, sw, dh, dw, ph, pw, g);
     assert(ret == 0);
+    if (bias) {
+      int isz = oh * ow;
+      for (int in = 0; in < n; in++) {
+        for (int ic = 0; ic < oc; ic++) {
+          for (int j = 0; j < isz; j++) {
+            resultT->data()[in * oc * isz + ic * isz + j] += (bias->data()[ic]);
+          }
+        }
+      }
+    }
 #endif
   } else {
     int ret = mkldnn_deconv(input->data(), filter->data(),
-        bias?bias->data():nullptr, resultT->data(),
+        bias ? bias->data() : nullptr, resultT->data(),
         n, ic, ih, iw, oc, oh, ow, kh, kw, sh, sw, ph, pw, g);
     assert(ret == 0);
   }
