@@ -442,7 +442,7 @@ void GroupOptimizer::lower_to_tl(Operation *op, int gid) {
             continue;
           }
 
-          mix_net_.add_transport_param(
+          mix_net_.add_transport_op(
               cur_tensors[i], group->time_step, step_id);
         }
 

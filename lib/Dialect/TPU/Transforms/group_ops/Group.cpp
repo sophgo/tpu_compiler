@@ -580,7 +580,7 @@ bool Group::backward_slice(int out_tensor_id, list<int>& branches, bool max_h_sl
     LLVM_DEBUG(llvm::errs() << "tensor_id: " << tensor->id() << " n_idx: "
                             << n_idx << " h_idx: " << h_idx
                             << ", n_slice: " << n_slice << ", h_slice: " << h_slice
-                            << "out_h_idx: " << out_h_idx << " out_h_slice: " << out_h_slice
+                            << " out_h_idx: " << out_h_idx << " out_h_slice: " << out_h_slice
                             << " ph: " << ph << " sh: " << sh << " kh: " << kh << "\n";);
 
 
@@ -635,12 +635,10 @@ bmerr_t Group::update_tensor_slices(int nsecs, int hsecs, int nslice_idx, int hs
 
     list<int> branches;
     branches.push_back(tid);
-
     // breadth-first search algorithm
     while (!branches.empty()) {
       int tensor_id = branches.front();
       branches.pop_front();
-
       bool success = backward_slice(tensor_id, branches, nslice_idx == -1,
                                     hsecs == 1, nslice_idx, hslice_idx);
       if (!success) {

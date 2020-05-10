@@ -179,91 +179,30 @@ void MixNet::add_tl_layer(int group_idx, int layer_id, net_timestep* time_step, 
   switch (layer_type) {
     case IR_CONVOLUTION:
       mix_op->set_type("tl_convolution");
-      _add_tl_convolution_param(mix_op, in_tensors, out_tensors, time_step,
+      _add_tl_convolution_op(mix_op, in_tensors, out_tensors, time_step,
                                 timestep_idx, is_h_split);
       break;
     case IR_ELTWISE:
       mix_op->set_type("tl_eltwise");
-      _add_tl_eltwise_param(mix_op, in_tensors, out_tensors, time_step,
+      _add_tl_eltwise_op(mix_op, in_tensors, out_tensors, time_step,
                             timestep_idx, is_h_split);
       break;
     case IR_POOLING:
       mix_op->set_type("tl_pooling");
-      _add_tl_pooling_param(mix_op, in_tensors, out_tensors, time_step, timestep_idx,
+      _add_tl_pooling_op(mix_op, in_tensors, out_tensors, time_step, timestep_idx,
                             is_h_split);
       break;
     case IR_LRN:
       mix_op->set_type("tl_lrn");
-      _add_tl_lrn_param(mix_op, in_tensors, out_tensors, time_step,
+      _add_tl_lrn_op(mix_op, in_tensors, out_tensors, time_step,
                         timestep_idx, is_h_split);
       break;
-  //   case IR_DECONVOLUTION:
-  //     layer->set_type("tl_deconvolution");
-  //     _add_tl_deconvolution_param(layer_id, layer, im_layer, in_tensors, out_tensors, time_step,
-  //                                 timestep_idx, is_h_split);
-  //     break;
-
-
-  //   case IR_LRN:
-  //     layer->set_type("tl_lrn");
-  //     _add_tl_lrn_param(layer_id, layer, im_layer, in_tensors, out_tensors, time_step, timestep_idx,
-  //                       is_h_split);
-  //     break;
-  //   case IR_BATCHNORM:
-  //     layer->set_type("tl_batchnorm");
-  //     _add_tl_batchnorm_param(layer, im_layer, in_tensors, out_tensors, time_step, timestep_idx,
-  //                             is_h_split);
-  //     break;
-  //   case IR_SCALE:
-  //     layer->set_type("tl_scale");
-  //     _add_tl_scale_param(layer, im_layer, in_tensors, out_tensors, time_step, timestep_idx,
-  //                         is_h_split);
-  //     break;
-  //   case IR_MAC:
-  //     layer->set_type("tl_mac");
-  //     _add_tl_mac_param(layer, im_layer, in_tensors, out_tensors, time_step, timestep_idx,
-  //                       is_h_split);
-  //     break;
-
-  //   case IR_UPSAMPLE:
-  //     layer->set_type("tl_upsample");
-  //     _add_tl_upsample_param(layer, im_layer, in_tensors, out_tensors, time_step, timestep_idx,
-  //                            is_h_split);
-  //     break;
-  //   case IR_PRELU:
-  //   case IR_RELU:
-  //   case IR_ACTIVATION:
-  //     layer->set_type("tl_activation");
-  //     _add_tl_activation_param(layer, im_layer, in_tensors, out_tensors, time_step, timestep_idx,
-  //                              is_h_split);
-  //     break;
-  //   case IR_SHUFFLECHANNEL:
-  //     layer->set_type("tl_shufflechannel");
-  //     _add_tl_shuffle_channel_param(layer, im_layer, in_tensors, out_tensors, time_step,
-  //                                   timestep_idx, is_h_split);
-  //     break;
-  //   case IR_ARITHMETIC:
-  //     layer->set_type("tl_arithmetic");
-  //     this->_add_tl_arithmetic_param(layer, im_layer, in_tensors, out_tensors, time_step,
-  //                                    timestep_idx, is_h_split);
-  //     break;
-  //   case IR_INNERPRODUCT:
-  //     layer->set_type("tl_innerproduct");
-  //     _add_tl_innerproduct_param(layer, im_layer, in_tensors, out_tensors, time_step, timestep_idx,
-  //                                is_h_split);
-  //     break;
-  //   case IR_QUANTIZATION:
-  //     layer->set_type("tl_quantization");
-  //     _add_tl_quantization_param(layer, im_layer, in_tensors, out_tensors, time_step, timestep_idx,
-  //                                is_h_split);
-  //     break;
     default:
       cout << "unknown layer type:" << layer_type << endl;
-      //exit(1);
   }
 }
 
-void MixNet::_add_tl_convolution_param(MixOp* mix_op,
+void MixNet::_add_tl_convolution_op(MixOp* mix_op,
                                        const vector<int>& in_tensors,
                                        const vector<int>& out_tensors, net_timestep* time_step,
                                        int timestep_idx, bool is_h_split) {
@@ -413,7 +352,7 @@ void MixNet::_add_tl_convolution_param(MixOp* mix_op,
 }
 
 
-void MixNet::_add_tl_eltwise_param(MixOp* mix_op,
+void MixNet::_add_tl_eltwise_op(MixOp* mix_op,
                                    const vector<int>& in_tensors,
                                    const vector<int>& out_tensors,
                                    net_timestep* time_step,
@@ -513,7 +452,7 @@ void MixNet::_add_tl_eltwise_param(MixOp* mix_op,
   add_opd_to_list(mix_op->name(), op.getResult(), true);
 }
 
-void MixNet::_add_tl_pooling_param(MixOp * mix_op,
+void MixNet::_add_tl_pooling_op(MixOp * mix_op,
                                    const vector<int>& in_tensors,
                                    const vector<int>& out_tensors,
                                    net_timestep* time_step,
@@ -617,10 +556,10 @@ void MixNet::_add_tl_pooling_param(MixOp * mix_op,
     tpu::PoolParam::get(
       builder_.getI32IntegerAttr(kh),
       builder_.getI32IntegerAttr(kw),
-      builder_.getI32IntegerAttr(pt),
-      builder_.getI32IntegerAttr(pb),
-      builder_.getI32IntegerAttr(pl),
-      builder_.getI32IntegerAttr(pr),
+      builder_.getI32IntegerAttr(top_pad_h),
+      builder_.getI32IntegerAttr(bottom_pad_h),
+      builder_.getI32IntegerAttr(left_pad_w),
+      builder_.getI32IntegerAttr(right_pad_w),
       builder_.getI32IntegerAttr(sh),
       builder_.getI32IntegerAttr(sw),
       builder_.getBoolAttr(do_relu),
@@ -686,7 +625,7 @@ void MixNet::_add_tl_pooling_param(MixOp * mix_op,
    }
 }
 
-void MixNet::_add_tl_lrn_param(MixOp * mix_op,
+void MixNet::_add_tl_lrn_op(MixOp * mix_op,
                               const vector<int>& in_tensors,
                               const vector<int>& out_tensors,
                               net_timestep* time_step,
@@ -789,33 +728,24 @@ void MixNet::_add_tl_lrn_param(MixOp * mix_op,
                       ArrayRef<NamedAttribute>{attrs});
 
   add_opd_to_list(mix_op->name(), op.getResult(), true);
-  llvm::errs() << "!!!!!!!!!!!!!!!1" << mix_op->name() << "\n";
 }
 
 
-void MixNet::add_transport_param(const TENSOR_STEP& tensor,
+void MixNet::add_transport_op(const TENSOR_STEP& tensor,
                                  net_timestep* time_step,
                                  int timestep_idx) {
   int tensor_id = tensor.first;
   if (tensor.second == TIMESTEP_LOAD) {
-    _add_load_param(tensor_id, time_step, timestep_idx);
-  }
-  else if (tensor.second == TIMESTEP_DDR_TO_TSM) {
-    assert(0);
-  } else if (tensor.second == TIMESTEP_TSM_TO_LMEM) {
-    assert(0);
-  } else if (tensor.second == TIMESTEP_LMEM_TO_TSM) {
-    assert(false && "not support now");
-    exit(-1);
-  } else if (tensor.second == TIMESTEP_TSM_TO_DDR) {
-    assert(false && "not support now");
-    exit(-1);
+    _add_load_op(tensor_id, time_step, timestep_idx);
   } else if (tensor.second == TIMESTEP_STORE) {
-    _add_store_param(tensor_id, time_step, timestep_idx);
+    _add_store_op(tensor_id, time_step, timestep_idx);
+  } else {
+    assert(false && "not support now");
+    exit(-1);
   }
 }
 
-void MixNet::_add_load_param(int tensor_id,
+void MixNet::_add_load_op(int tensor_id,
                              net_timestep* time_step,
                              int timestep_idx) {
   int tensor_dim[4];
@@ -969,7 +899,7 @@ void MixNet::_add_load_param(int tensor_id,
 }
 
 // do not support concat optimization
-void MixNet::_add_store_param(int tensor_id, net_timestep * time_step, int timestep_idx) {
+void MixNet::_add_store_op(int tensor_id, net_timestep * time_step, int timestep_idx) {
   int tensor_dim[4];
   int local_shape[4], global_shape[4];
   Tensor* tensor = net_graph_->get_tensor_by_id(tensor_id);
