@@ -526,6 +526,7 @@ export DO_CMDBUF_BF16=0
 # export TOLERANCE_MIX=0.8,0.8,0.8
 export DO_ACCURACY_CAFFE=0
 export DO_ACCURACY_ONNX=1
+export DO_LAYERGROUP=1
 fi
 
 if [ $NET = "alphapose" ]; then
