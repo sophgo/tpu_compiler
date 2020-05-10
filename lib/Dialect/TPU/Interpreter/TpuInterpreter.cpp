@@ -347,6 +347,8 @@ LogicalResult doConv2DOpInterpret(Operation *op,
   auto castOp = cast<OpTy>(op);
   assert(castOp);
   bool is_deconv = isa<tpu::DeConv2DOp>(op);
+  bool do_bias_later = false;
+  bool do_relu_later = false;
 
   auto opdT = getOperandTensors(op, valueMapping);
   auto result = castOp.getResult();
@@ -389,21 +391,22 @@ LogicalResult doConv2DOpInterpret(Operation *op,
                   dh, dw, ph, pw, g);
     }
 #else
-    int ret =
-        mkldnn_conv(input->data(), filter->data(),
-                    nullptr, resultT->data(), n, ic, ih,
-                    iw, oc, oh, ow, kh, kw, sh, sw, dh, dw, ph, pw, g);
-    assert(ret == 0);
-    if (bias) {
-      int isz = oh * ow;
-      for (int in = 0; in < n; in++) {
-        for (int ic = 0; ic < oc; ic++) {
-          for (int j = 0; j < isz; j++) {
-            resultT->data()[in * oc * isz + ic * isz + j] += (bias->data()[ic]);
-          }
+    float *bias_data = bias ? bias->data() : nullptr;
+    if (getOpQuant(op) == "INT8" && isOpQuantPerchannel(op) &&
+        getOpQuantParamType(op) == "RSHIFT_AND_M_I32") {
+      if (bias_data) {
+        do_bias_later = true;
+        bias_data = nullptr;
+        if (do_relu) {
+          do_relu_later = true;
+          do_relu = false;
         }
       }
     }
+    int ret = mkldnn_conv(input->data(), filter->data(), bias_data,
+                          resultT->data(), n, ic, ih, iw, oc, oh, ow, kh, kw,
+                          sh, sw, dh, dw, ph, pw, g);
+    assert(ret == 0);
 #endif
   } else {
     int ret = mkldnn_deconv(input->data(), filter->data(),
@@ -435,9 +438,10 @@ LogicalResult doConv2DOpInterpret(Operation *op,
                && getOpQuantParamType(op) == "RSHIFT_AND_M_I32") {
       assert(quant_rshift);
       assert(quant_multiplier);
-      quantizeActivationInt8PerChannelMultiplierAndRShift(resultT->data(),
-          resultT->data(), n, oc, size / oc / n,
-          quant_rshift->data(), quant_multiplier->data());
+      quantizeActivationInt8PerChannelMultiplierAndRShift(
+          resultT->data(), resultT->data(),
+          do_bias_later ? bias->data() : nullptr, do_relu_later, n, oc,
+          size / oc / n, quant_rshift->data(), quant_multiplier->data());
     } else {
       assert(false);
     }
