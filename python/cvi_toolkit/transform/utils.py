@@ -1,6 +1,13 @@
 from functools import partial, wraps
 from math import floor, ceil
+import numpy as np
 import torch
+import logging
+from ..utils.log_setting import setup_logger
+
+
+logger = setup_logger('root')
+log_flag = logger.level <= logging.INFO
 
 def calcConv2DSpatial(i, kernel, stride, padding, dilation):
     #[i + 2*p - k - (k-1)*(d-1)]/s + 1
@@ -25,6 +32,25 @@ def get_shape_size(shape):
     for i in shape:
         size*=i
     return size
+
+def turn_shape_nhwc_to_nchw(shape):
+    if not isinstance(shape, list):
+        raise RuntimeError("Shape is wrong type with {}, it's must be list".format(type(shape)))
+    if len(shape) != 4:
+        raise RuntimeError("Shape length is {}, it's must be 4".format(len(shape)))
+    return [shape[0], shape[3], shape[1], shape[2]]
+
+
+def turn_data_hwio_to_oihw(data):
+    if not isinstance(data, np.ndarray):
+        raise RuntimeError(
+            "Shape is wrong type with {}, it's must be np.ndarray".format(type(data)))
+    if len(data.shape) != 4:
+        logger.warning("Shape length is {}, change hwio to oihw dim must be 4".format(len(data.shape)))
+        return data
+
+    data = np.transpose(data, (3, 2, 0, 1))
+    return data
 
 # generate onnx model from torch
 def to_onnx(torch_model, input, model_path, inputs_list, outputs_list):
