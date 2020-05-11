@@ -24,7 +24,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python-setuptools \
     python3-dev \
     python3-pip \
-    python3-setuptools
+    python3-setuptools \
+    repo
 
 # bsp tools
 RUN apt-get install -y --no-install-recommends \
