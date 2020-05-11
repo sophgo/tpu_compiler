@@ -134,10 +134,10 @@ class preprocess(object):
             image = image.astype(np.float32)
             image = cv2.resize(image, (self.resize_dims[1], self.resize_dims[0])) # w,h
 
-            if self.data_format == "chw":
-                # opencv read image data format is hwc
-                # tranpose here
-                image = np.transpose(image, (2, 0, 1))
+            # opencv read image data format is hwc
+            # tranpose here
+            image = np.transpose(image, (2, 0, 1))
+            input_data_format="chw"
 
         elif input_type == InputType.NDARRAY:
             if not isinstance(input, np.ndarray):
