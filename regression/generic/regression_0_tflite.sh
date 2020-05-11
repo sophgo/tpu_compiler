@@ -19,7 +19,7 @@ if [ ! -f "$TFLITE_BLOBS_NPZ" ]; then
       --dump_tensor $TFLITE_BLOBS_NPZ \
       --input_file $REGRESSION_PATH/data/cat.jpg \
       --model_channel_order $MODEL_CHANNEL_ORDER \
-      --input_channel_order $INPUT_CHANNEL_ORDER \
+      --data_format $DATA_FORMAT \
       --model_type tflite \
       --output_file tflite_out.npz
 fi

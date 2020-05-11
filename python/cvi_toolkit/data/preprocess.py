@@ -34,7 +34,7 @@ def add_preprocess_parser(parser):
     parser.add_argument("--mean_file", type=str, help="the resized ImageNet dataset mean file.")
     parser.add_argument("--input_scale", type=float, help="Multiply input features by this scale.", default=1.0)
     parser.add_argument("--model_channel_order", type=str, help="channel order of model inference used, default: bgr", default="bgr")
-    parser.add_argument("--input_channel_order", type=str, help="input image data dim order, default: chw", default="chw")
+    parser.add_argument("--data_format", type=str, help="input image data dim order, default: chw", default="chw")
     return parser
 
 
@@ -56,7 +56,7 @@ class preprocess(object):
                      std=None,
                      input_scale=1.0,
                      raw_scale=255.0,
-                     transpose="chw",
+                     data_format="chw",
                      rgb_order='bgr',
                      npy_input=None,
                      letter_box=False,
@@ -69,14 +69,14 @@ class preprocess(object):
             \tstd           : {}\n    \
             \tinput_scale   : {}\n    \
             \traw_scale     : {}\n    \
-            \ttranspose     : {}\n    \
+            \tdata_format   : {}\n    \
             \trgb_order     : {}\n    \
             \tnpy_input     : {}\n    \
             \tletter_box    : {}\n    \
             \tbatch_size    : {}\n    \
         ".format(net_input_dims, resize_dims, mean, \
                 mean_file, std, input_scale, raw_scale, \
-                transpose, rgb_order, npy_input, \
+                 data_format, rgb_order, npy_input,
                 letter_box, batch
         ))
         self.npy_input = npy_input
@@ -108,17 +108,15 @@ class preprocess(object):
             self.std = None
         self.input_scale = float(input_scale)
 
-        if transpose == "chw":
-            self.transpose = (2, 0, 1)
-        elif transpose == "hwc":
-            self.transpose = (0, 1, 2)
-        else:
-            self.transpose = None
+        self.data_format = data_format
 
         self.rgb_order = rgb_order
         self.ori_channel_order = None
 
-    def run(self, input, output_npz=None, pfunc=None, input_name=None, input_type=InputType.FILE, input_channel_order="rgb", output_channel_order='bgr'):
+    def run(self, input, output_npz=None, pfunc=None,
+            input_name=None, input_type=InputType.FILE,
+            input_channel_order="rgb", output_channel_order="bgr",
+            input_data_format="chw"):
 
         if input_type == InputType.FILE:
             logger.debug("origin order is bgr(OpenCV), output channel order is {}".format(output_channel_order))
@@ -136,11 +134,18 @@ class preprocess(object):
             image = image.astype(np.float32)
             image = cv2.resize(image, (self.resize_dims[1], self.resize_dims[0])) # w,h
 
+            if self.data_format == "chw":
+                # opencv read image data format is hwc
+                # tranpose here
+                image = np.transpose(image, (2, 0, 1))
+
         elif input_type == InputType.NDARRAY:
+            if not isinstance(input, np.ndarray):
+                raise RuntimeError("input type {} is wrong format, np.ndarray is expected".format(type(input_data)))
             logger.debug("input channel order is {}, output channel order is {}".format(input_channel_order, output_channel_order))
             # Default is rgb in
             self.ori_channel_order = "rgb"
-            if self.transpose == (0, 1, 2):
+            if input_data_format == "chw":
                 # input tensor shape is CHW
                 if self.resize_dims != self.net_input_dims:
                     # CHW to HWC, then use cv2 resize
@@ -148,8 +153,10 @@ class preprocess(object):
                     input = cv2.resize(input, (self.resize_dims[1], self.resize_dims[0])) # w,h
                     # turn back
                     input =  np.transpose(input, (2, 0, 1))
-            else:
-                raise RuntimeError("Not support transpose is not 0, 1, 2 (CHW)case, TODO")
+            elif input_data_format == "hwc":
+                if self.resize_dims != self.net_input_dims:
+                    input = cv2.resize(
+                        input, (self.resize_dims[1], self.resize_dims[0]))  # w,h
             image = input
 
         # Do preprocess if with call back function
@@ -157,12 +164,10 @@ class preprocess(object):
             output = pfunc(image)
         else:
             x = image
-            # transpose
-            if self.transpose == (2, 0, 1):
-                x = np.transpose(x, self.transpose)
-            elif self.transpose == (0, 1, 2):
-                # because we all use CHW preprocess, we still turn it to HWC
-                # turn back to CHW after preprcessing
+            # we default use data format CHW do preprocess
+            # if data format is hwc,  we still turn it to HWC
+            # turn back to CHW after preprcessing
+            if input_data_format == "hwc":
                 x = np.transpose(x, (2, 0, 1))
 
             # if source data order is different with handle order
@@ -195,9 +200,20 @@ class preprocess(object):
                 logger.debug("handle order is {}, but output order need {}, swap it".format(self.rgb_order, output_channel_order))
                 x = x[[2,1,0], :, :]
 
-            if self.transpose == (0, 1, 2):
+            if input_data_format == "hwc" and self.data_format == "hwc":
                 # turn back to HWC
                 x = np.transpose(x, (1, 2, 0))
+            elif input_data_format == "chw" and self.data_format == "hwc":
+                x = np.transpose(x, (2, 1, 0))
+            elif input_data_format == "hwc" and self.data_format == "chw":
+                # input data foramt is hwc
+                # data format is chw
+                # we transpose it before, just return
+                pass
+            else:
+                # input data foramt is chw, data format is chw
+                # no need to do anything
+                pass
 
             output = np.expand_dims(x, axis=0)
         if output_npz:

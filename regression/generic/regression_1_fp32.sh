@@ -13,18 +13,11 @@ if [ $MODEL_TYPE = "caffe" ]; then
       --caffemodel $MODEL_DAT \
       --static-batchsize $BATCH_SIZE \
       -o ${NET}.mlir
-elif [ $MODEL_TYPE = "onnx" ]; then
+elif [[ $MODEL_TYPE = "onnx" || $MODEL_TYPE = "tflite" || $MODEL_TYPE = "tensorflow" ]]; then
   cvi_model_convert.py \
       --model_path $MODEL_DEF \
       --model_name ${NET} \
-      --model_type onnx \
-      --batch_size $BATCH_SIZE \
-      --mlir_file_path ${NET}.mlir
-elif [ $MODEL_TYPE = "tflite" ]; then
-  cvi_model_convert.py \
-      --model_path $MODEL_DEF \
-      --model_name ${NET} \
-      --model_type tflite \
+      --model_type $MODEL_TYPE \
       --batch_size $BATCH_SIZE \
       --mlir_file_path ${NET}.mlir
 else

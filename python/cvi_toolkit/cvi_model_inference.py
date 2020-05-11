@@ -72,7 +72,7 @@ def main(argv):
                     raw_scale=args.raw_scale,
                     std=args.std,
                     rgb_order=args.model_channel_order,
-                    transpose=args.input_channel_order,
+                    data_format=args.data_format,
                     )
     input=None
     file_extension = args.input_file.split(".")[-1].lower()

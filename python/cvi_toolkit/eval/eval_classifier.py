@@ -118,7 +118,7 @@ if __name__ == '__main__':
 
   preprocessor = preprocess()
   # Because of Resize by PyTorch transforms, we set resize dim same with network input(don't do anything )
-  # transposed already in ToTensor(), we set (0,1,2) here
+  # transposed already in ToTensor(),
   preprocessor.config(net_input_dims=net_input_dims,
                     resize_dims=net_input_dims,
                     mean=args.mean,
@@ -127,7 +127,7 @@ if __name__ == '__main__':
                     raw_scale=args.raw_scale,
                     std=args.std,
                     rgb_order=args.model_channel_order,
-                    transpose='0,1,2')
+                    data_format=args.data_format)
 
   image_resize_dims = [int(s) for s in args.image_resize_dims.split(',')]
   net_input_dims = [int(s) for s in args.net_input_dims.split(',')]

@@ -5,7 +5,7 @@ set -e
 export MODEL_TYPE="caffe"   # caffe, pytorch, onnx, tflite, tf
 export STD=1,1,1
 export MODEL_CHANNEL_ORDER="bgr"
-export INPUT_CHANNEL_ORDER="chw"
+export DATA_FORMAT="chw"
 export EXCEPTS=-
 export DO_CALIBRATION=0
 export CALIBRATION_IMAGE_COUNT=1000
