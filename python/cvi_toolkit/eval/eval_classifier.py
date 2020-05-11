@@ -19,31 +19,39 @@ import torch.utils.data
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 
-parser = argparse.ArgumentParser(description="Classification Evaluation on ImageNet Dataset.")
-parser.add_argument("--model_def", type=str, help="Model definition file", default=None)
-parser.add_argument("--pretrained_model", type=str, help="Load weights from previously saved parameters.", default=None)
+parser = argparse.ArgumentParser(
+    description="Classification Evaluation on ImageNet Dataset.")
+parser.add_argument("--model_def", type=str,
+                    help="Model definition file", default=None)
+parser.add_argument("--pretrained_model", type=str,
+                    help="Load weights from previously saved parameters.", default=None)
 parser.add_argument("--mlir_file", type=str, help="mlir file.", default=None)
-parser.add_argument("--dataset", type=str, help="The root directory of the ImageNet dataset.")
-parser.add_argument("--loader_transforms", type=int, help="image transform ny torch loader", default=0)
-parser.add_argument("--model_type", type=str, help="model framework type, default: caffe", default='caffe')
+parser.add_argument("--dataset", type=str,
+                    help="The root directory of the ImageNet dataset.")
+parser.add_argument("--model_type", type=str,
+                    help="model framework type, default: caffe", default='caffe')
 parser.add_argument("--count", type=int, default=50000)
 parser = get_preprocess_parser(existed_parser=parser)
 
 args = parser.parse_args()
 
+
 def second(elem):
   return elem[1]
 
+
 def get_topk(a, k):
-  idx = np.argpartition(-a.ravel(),k)[:k]
+  idx = np.argpartition(-a.ravel(), k)[:k]
   # return np.column_stack(np.unravel_index(idx, a.shape))
   topk = list(zip(idx, np.take(a, idx)))
   #return topk
   topk.sort(key=second, reverse=True)
   return topk
 
+
 class AverageMeter(object):
     """Computes and stores the average and current value"""
+
     def __init__(self, name, fmt=':f'):
         self.name = name
         self.fmt = fmt
@@ -65,6 +73,7 @@ class AverageMeter(object):
         fmtstr = '{name} {val' + self.fmt + '} ({avg' + self.fmt + '})'
         return fmtstr.format(**self.__dict__)
 
+
 class ProgressMeter(object):
     def __init__(self, num_batches, meters, prefix=""):
         self.batch_fmtstr = self._get_batch_fmtstr(num_batches)
@@ -81,6 +90,7 @@ class ProgressMeter(object):
         fmt = '{:' + str(num_digits) + 'd}'
         return '[' + fmt + '/' + fmt.format(num_batches) + ']'
 
+
 def accuracy(output, target, topk=(1,)):
     """Computes the accuracy over the k top predictions for the specified values of k"""
     maxk = max(topk)
@@ -96,19 +106,18 @@ def accuracy(output, target, topk=(1,)):
         res.append(correct_k.mul_(100.0 / batch_size))
     return res
 
+
 if __name__ == '__main__':
 
-  do_loader_transforms = args.loader_transforms
   traindir = os.path.join(args.dataset, 'train')
   valdir = os.path.join(args.dataset, 'val')
   # onedir = os.path.join(args.dataset, 'one')
   batch_size = 1
 
-
   net = ModelFactory()
-    # load model
-  net.load_model(args.model_type, model_file=args.model_def, weight_file=args.pretrained_model, mlirfile=args.mlir_file)
-
+  # load model
+  net.load_model(args.model_type, model_file=args.model_def,
+                 weight_file=args.pretrained_model, mlirfile=args.mlir_file)
 
   if args.net_input_dims:
       net_input_dims = args.net_input_dims
@@ -120,39 +129,27 @@ if __name__ == '__main__':
   # Because of Resize by PyTorch transforms, we set resize dim same with network input(don't do anything )
   # transposed already in ToTensor(),
   preprocessor.config(net_input_dims=net_input_dims,
-                    resize_dims=net_input_dims,
-                    mean=args.mean,
-                    mean_file=args.mean_file,
-                    input_scale=args.input_scale,
-                    raw_scale=args.raw_scale,
-                    std=args.std,
-                    rgb_order=args.model_channel_order,
-                    data_format=args.data_format)
+                      resize_dims=net_input_dims,
+                      mean=args.mean,
+                      mean_file=args.mean_file,
+                      input_scale=args.input_scale,
+                      raw_scale=args.raw_scale,
+                      std=args.std,
+                      rgb_order=args.model_channel_order,
+                      data_format=args.data_format)
 
   image_resize_dims = [int(s) for s in args.image_resize_dims.split(',')]
   net_input_dims = [int(s) for s in args.net_input_dims.split(',')]
-  image_resize_dims = [ max(x,y) for (x,y) in zip(image_resize_dims, net_input_dims)]
+  image_resize_dims = [max(x, y)
+                       for (x, y) in zip(image_resize_dims, net_input_dims)]
   raw_scale = args.raw_scale
 
-  if (do_loader_transforms):
-    normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                     std=[0.229, 0.224, 0.225])
-    val_loader = torch.utils.data.DataLoader(
-        datasets.ImageFolder(valdir, transforms.Compose([
-            transforms.Resize(image_resize_dims),
-            transforms.CenterCrop(net_input_dims),
-            transforms.ToTensor(),
-            normalize,
-        ])),
-        batch_size=batch_size, shuffle=True)
-  else:
-    val_loader = torch.utils.data.DataLoader(
-        datasets.ImageFolder(valdir, transforms.Compose([
-            transforms.Resize(image_resize_dims),
-            transforms.CenterCrop(net_input_dims),
-            transforms.ToTensor()
-        ])),
-        batch_size=batch_size, shuffle=True)
+  val_loader = torch.utils.data.DataLoader(
+      datasets.ImageFolder(valdir, transforms.Compose([
+          transforms.Resize(image_resize_dims),
+          transforms.CenterCrop(net_input_dims),
+          transforms.ToTensor()
+      ])), batch_size=batch_size, shuffle=True)
   # validate(val_loader, module, criterion, args)
   batch_time = AverageMeter('Time', ':6.3f')
   losses = AverageMeter('Loss', ':.4e')
@@ -170,28 +167,23 @@ if __name__ == '__main__':
   for i, (images, target) in enumerate(val_loader):
     # compute output
     # output = model(images)
-    if (do_loader_transforms):
-      # loader do normalize already
-      x = images[0].numpy()
-      x = np.expand_dims(x, axis=0)
-
-    else:
-      # Pytorch ToTensor will make tesnor range to [0, 1]
-      # recover to [0, 255]
-      x = images[0].numpy() * 255
-      if args.model_type == "caffe":
-          x = preprocessor.run(x, input_type=InputType.NDARRAY, output_channel_order=args.model_channel_order)
-      elif args.model_type == "onnx":
-          x = preprocessor.run(x, input_type=InputType.NDARRAY, output_channel_order="rgb")
-      elif args.model_type == "mlir":
-          x = preprocessor.run(x, input_type=InputType.NDARRAY, output_channel_order=args.model_channel_order)
-
+    # Pytorch ToTensor will make tesnor range to [0, 1]
+    # recover to [0, 255]
+    x = images[0].numpy() * 255
+    if args.model_type == "caffe":
+        x = preprocessor.run(x, input_type=InputType.NDARRAY,
+                             output_channel_order=args.model_channel_order)
+    elif args.model_type == "onnx":
+        x = preprocessor.run(x, input_type=InputType.NDARRAY,
+                             output_channel_order="rgb")
+    elif args.model_type == "mlir":
+        x = preprocessor.run(x, input_type=InputType.NDARRAY,
+                             output_channel_order=args.model_channel_order)
 
     # run inference
 
     res = net.inference(x)
     res = np.reshape(res, (res.shape[0], res.shape[1]))
-
 
     output = torch.from_numpy(res)
 
