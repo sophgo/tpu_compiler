@@ -30,9 +30,10 @@ class TFModel(model_base):
         output_values = all_tensor_model.predict(input_data)
         all_tensor_model_names = [l.name for l in all_tensor_model.layers]
         # all_tensor_model_outputs = [l.output for l in all_tensor_model.layers]
-        all_tensor_dict = dict(zip(all_tensor_model_names, output_values[len(self.net.inputs):]))
-        # FIXME: we assume input is 1
-        all_tensor_dict['input'] = output_values[0]
+        all_tensor_dict = dict(
+            zip(all_tensor_model_names, output_values[len(self.net.outputs):]))
+        # data [output1, output2 ... input1 ... ]
+        all_tensor_dict['input'] = output_values[len(self.net.outputs)]
         return all_tensor_dict
 
     def get_op_info(self):
