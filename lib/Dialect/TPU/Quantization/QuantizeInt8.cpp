@@ -907,7 +907,7 @@ LogicalResult tpu::ReciprocalOp::quantizeInt8() {
 }
 
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::ReluOp)
-
+DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::ReorgOp)
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::ShuffleChannelOp)
 
 LogicalResult tpu::SigmoidOp::quantizeInt8() {

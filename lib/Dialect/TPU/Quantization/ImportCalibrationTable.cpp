@@ -398,7 +398,9 @@ public:
           isa<tpu::WeightFileOp>(op) || isa<tpu::LoadWeightOp>(op) ||
           isa<tpu::NoneOp>(op)) {
         // no need to assign
-      } else if (isa<tpu::ReshapeOp>(op) || isa<tpu::SliceOp>(op) ||
+      } else if (isa<tpu::ReorgOp>(op) ||
+                 isa<tpu::ReshapeOp>(op) ||
+                 isa<tpu::SliceOp>(op) ||
                  isa<tpu::ShuffleChannelOp>(op) ||
                  isa<tpu::SwapChannelOp>(op)) {
         // do not assign
@@ -426,6 +428,7 @@ public:
     LLVM_DEBUG(llvm::errs() << "Forword set bypass Ops threshold\n";);
     patterns.clear();
     patterns.insert<
+        BypassThresholdDefaultPattern<tpu::ReorgOp>,
         BypassThresholdDefaultPattern<tpu::PixelShuffleOp>,
         BypassThresholdDefaultPattern<tpu::SliceOp>,
         BypassThresholdDefaultPattern<tpu::ShuffleChannelOp>,

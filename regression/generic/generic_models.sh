@@ -416,6 +416,36 @@ export DO_QUANT_BF16=0
 export DO_LAYERGROUP=1
 fi
 
+if [ $NET = "yolo_v2_1080" ]; then
+export MODEL_DEF=$MODEL_PATH/object_detection/yolo_v2/caffe/2018.03.25.01/caffe_deploy_1080.prototxt
+export MODEL_DAT=$MODEL_PATH/object_detection/yolo_v2/caffe/2018.03.25.01/yolov2.caffemodel
+export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_caffe/regression_yolo_v2_0_caffe.sh
+export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/yolo_v2_calibration_table
+export NET_INPUT_DIMS=1080,1920
+export INPUT=data
+export TOLERANCE_INT8_PER_TENSOR=0.88,0.88,0.46
+export TOLERANCE_INT8_RSHIFT_ONLY=0.92,0.90,0.58
+export TOLERANCE_INT8_MULTIPLER=0.90,0.90,0.50
+export TOLERANCE_BF16=0.99,0.99,0.93
+export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.93
+export DO_DEEPFUSION=0
+export DO_MEMOPT=0
+fi
+
+if [ $NET = "yolo_v2_416" ]; then
+export MODEL_DEF=$MODEL_PATH/object_detection/yolo_v2/caffe/2018.03.25.01/caffe_deploy.prototxt
+export MODEL_DAT=$MODEL_PATH/object_detection/yolo_v2/caffe/2018.03.25.01/yolov2.caffemodel
+export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_caffe/regression_yolo_v2_0_caffe.sh
+export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/yolo_v2_calibration_table
+export NET_INPUT_DIMS=416,416
+export INPUT=data
+export TOLERANCE_INT8_PER_TENSOR=0.88,0.88,0.46
+export TOLERANCE_INT8_RSHIFT_ONLY=0.92,0.90,0.58
+export TOLERANCE_INT8_MULTIPLER=0.90,0.90,0.50
+export TOLERANCE_BF16=0.99,0.99,0.93
+export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.93
+fi
+
 if [ $NET = "yolo_v3_608" ]; then
 export MODEL_DEF=$MODEL_PATH/object_detection/yolo_v3/caffe/608/yolov3_608.prototxt
 export MODEL_DAT=$MODEL_PATH/object_detection/yolo_v3/caffe/608/yolov3_608.caffemodel

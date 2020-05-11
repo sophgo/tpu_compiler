@@ -484,6 +484,8 @@ void ConvertTgOpToMemRefPass::runOnFunction() {
       AddTypeConvertedForNotLowedOpPattern<tpu::TG_BF16_PReluOp>,
       AddTypeConvertedForNotLowedOpPattern<tpu::TG_INT8_ReluOp>,
       AddTypeConvertedForNotLowedOpPattern<tpu::TG_BF16_ReluOp>,
+      AddTypeConvertedForNotLowedOpPattern<tpu::TG_INT8_ReorgOp>,
+      AddTypeConvertedForNotLowedOpPattern<tpu::TG_BF16_ReorgOp>,
       AddTypeConvertedForNotLowedOpPattern<tpu::TG_INT8_SliceOp>,
       AddTypeConvertedForNotLowedOpPattern<tpu::TG_BF16_SliceOp>,
       AddTypeConvertedForNotLowedOpPattern<tpu::TG_INT8_SwapChannelOp>,
@@ -547,6 +549,8 @@ void ConvertTgOpToMemRefPass::runOnFunction() {
   target.addLegalOp<tpu::TG_MemRef_BF16_PReluOp>();
   target.addLegalOp<tpu::TG_MemRef_INT8_ReluOp>();
   target.addLegalOp<tpu::TG_MemRef_BF16_ReluOp>();
+  target.addLegalOp<tpu::TG_MemRef_INT8_ReorgOp>();
+  target.addLegalOp<tpu::TG_MemRef_BF16_ReorgOp>();
   target.addLegalOp<tpu::TG_MemRef_INT8_SliceOp>();
   target.addLegalOp<tpu::TG_MemRef_BF16_SliceOp>();
   target.addLegalOp<tpu::TG_MemRef_INT8_SwapChannelOp>();
@@ -611,6 +615,8 @@ void ConvertTgOpToMemRefPass::runOnFunction() {
       convertTgOpToMemRefPattern<tpu::TG_BF16_PReluOp, tpu::TG_MemRef_BF16_PReluOp>,
       convertTgOpToMemRefPattern<tpu::TG_INT8_ReluOp, tpu::TG_MemRef_INT8_ReluOp>,
       convertTgOpToMemRefPattern<tpu::TG_BF16_ReluOp, tpu::TG_MemRef_BF16_ReluOp>,
+      convertTgOpToMemRefPattern<tpu::TG_INT8_ReorgOp, tpu::TG_MemRef_INT8_ReorgOp>,
+      convertTgOpToMemRefPattern<tpu::TG_BF16_ReorgOp, tpu::TG_MemRef_BF16_ReorgOp>,
       convertTgOpToMemRefPattern<tpu::TG_INT8_SliceOp, tpu::TG_MemRef_INT8_SliceOp>,
       convertTgOpToMemRefPattern<tpu::TG_BF16_SliceOp, tpu::TG_MemRef_BF16_SliceOp>,
       convertTgOpToMemRefPattern<tpu::TG_INT8_SwapChannelOp, tpu::TG_MemRef_INT8_SwapChannelOp>,

@@ -9,7 +9,7 @@ import time
 import cv2
 import caffe
 from cvi_toolkit.model import CaffeModel
-from cvi_toolkit.utils.yolov3_util import preprocess, postprocess, draw
+from cvi_toolkit.utils.yolov3_util import preprocess, postprocess_v2, postprocess_v3, draw
 
 def check_files(args):
     if not os.path.isfile(args.model_def):
@@ -53,11 +53,12 @@ def parse_args():
                         help="NMS threshold")
     parser.add_argument("--batch_size", type=int, default=1,
                         help="Set batch size")
+    parser.add_argument("--yolov3", type=str, default='yes',
+                        help="yolov2 or yolov3")
 
     args = parser.parse_args()
     check_files(args)
     return args
-
 
 def main(argv):
     args = parse_args()
@@ -66,9 +67,11 @@ def main(argv):
     net_input_dims = [int(s) for s in args.net_input_dims.split(',')]
     obj_threshold = float(args.obj_threshold)
     nms_threshold = float(args.nms_threshold)
+    yolov3 = True if args.yolov3 == 'yes' else False
     print("net_input_dims", net_input_dims)
     print("obj_threshold", obj_threshold)
     print("nms_threshold", nms_threshold)
+    print("yolov3", yolov3)
 
     image = cv2.imread(args.input_file)
     image_x = preprocess(image, net_input_dims)
@@ -93,11 +96,17 @@ def main(argv):
         np.savez(args.dump_weights, **weights_dict)
 
     out_feat = {}
-    out_feat['layer82-conv'] = outputs['layer82-conv'].data
-    out_feat['layer94-conv'] = outputs['layer94-conv'].data
-    out_feat['layer106-conv'] = outputs['layer106-conv'].data
-    batched_predictions = postprocess(out_feat, image.shape, net_input_dims,
-                              obj_threshold, nms_threshold, args.batch_size)
+    if yolov3 == True:
+        out_feat['layer82-conv'] = outputs['layer82-conv'].data
+        out_feat['layer94-conv'] = outputs['layer94-conv'].data
+        out_feat['layer106-conv'] = outputs['layer106-conv'].data
+        batched_predictions = postprocess_v3(out_feat, image.shape, net_input_dims,
+                                obj_threshold, nms_threshold, args.batch_size)
+    else:
+        out_feat['conv22'] = outputs['conv22'].data
+        batched_predictions = postprocess_v2(out_feat, image.shape, net_input_dims,
+                                obj_threshold, nms_threshold, args.batch_size)
+    print(batched_predictions[0])
     if (args.draw_image != ''):
         image = draw(image, batched_predictions[0], args.label_file)
         cv2.imwrite(args.draw_image, image)

@@ -1456,6 +1456,14 @@ LogicalResult tpu::TG_INT8_PoolMax2DOp::codegen(void *ctx) {
   assert(!this->rshift().hasValue());
   assert(!this->m_i8().hasValue());
 
+  llvm::errs() << "TG_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";
+
+  llvm::errs() << "n = " << n << ", c = " << c << ", ih = " << ih << ", iw = " << iw << "\n";
+  llvm::errs() << "oh = " << oh << ", ow = " << ow << ", kh = " << kh << ", kw = " << kw << "\n";
+  llvm::errs() << "sh = " << sh << ", sw = " << sw << ", pt = " << pt << ", pb = " << pb << "\n";
+  llvm::errs() << "pl = " << pl << ", pr = " << pr << "\n";
+
   bmnet_pooling_fixed_forward_bmkernel(
       *backend_ctx,
       0, // stream_id,
@@ -1641,6 +1649,52 @@ LogicalResult tpu::TG_BF16_ReluOp::codegen(void *ctx) {
   // Operation *op = this->getOperation();
   std::string errorMsg = "unsupported tg op " + getOpName().str() + "\n";
   llvm_unreachable(errorMsg.c_str());
+}
+
+LogicalResult tpu::TG_INT8_ReorgOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  getNCHW(shape, n, c, h, w);
+  uint32_t stride = this->stride().getLimitedValue();
+
+  gaddr_t input_gaddr = getPreviousOpAddress(op);
+  gaddr_t output_gaddr = getOpAddress(op);
+  int layer_id = mlir::getOpLayerId(op);
+
+  reorg_forward_kernel(*backend_ctx, 0, 0, layer_id, nullptr, 0,
+                                       input_gaddr, output_gaddr, n, c,
+                                       h, w, stride);
+
+  return success();
+}
+
+LogicalResult tpu::TG_BF16_ReorgOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  getNCHW(shape, n, c, h, w);
+  uint32_t stride = this->stride().getLimitedValue();
+
+  gaddr_t input_gaddr = getPreviousOpAddress(op);
+  gaddr_t output_gaddr = getOpAddress(op);
+  int layer_id = mlir::getOpLayerId(op);
+
+  bf16_reorg_forward_kernel(*backend_ctx, layer_id,
+                            input_gaddr, output_gaddr,
+                            n, c, h, w, stride);
+
+  return success();
 }
 
 LogicalResult tpu::TG_INT8_ShuffleChannelOp::codegen(void *ctx) {
@@ -2266,6 +2320,14 @@ LogicalResult tpu::TG_MemRef_INT8_ReluOp::codegen(void *ctx) {
 }
 
 LogicalResult tpu::TG_MemRef_BF16_ReluOp::codegen(void *ctx) {
+  return success();
+}
+
+LogicalResult tpu::TG_MemRef_INT8_ReorgOp::codegen(void *ctx) {
+  return success();
+}
+
+LogicalResult tpu::TG_MemRef_BF16_ReorgOp::codegen(void *ctx) {
   return success();
 }
 
