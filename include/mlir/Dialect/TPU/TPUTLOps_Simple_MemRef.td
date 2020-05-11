@@ -175,4 +175,35 @@ def TPU_TL_MemRef_LutOp : TPU_Op<"tl_memref_lut",
   );
 }
 
+class TPU_TL_MemRef_Pool2DOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
+  let summary = "TL Pool2D operator";
+
+  let description = [{
+  }];
+
+  let arguments = (
+    ins MemRefOf<[AnyFloat, AnyInteger]>:$input,
+    MemRefOf<[AnyFloat, AnyInteger]>:$output,
+    OptionalAttr<I8Attr>:$rshift,
+    OptionalAttr<I8Attr>:$m_i8,
+    TPU_PoolParamAttr:$param,
+    TPU_LMLayoutAttr:$lm_layout,
+    I32Attr:$la_input,
+    I32Attr:$la_working,
+    I32Attr:$la_output,
+    BoolAttr:$tl_load_flag,
+    BoolAttr:$tl_store_flag,
+    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
+    OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    OptionalAttr<BoolAttr>:$buffer_reused,
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
+  );
+}
+
+def TPU_TL_MemRef_PoolAvg2DOp : TPU_TL_MemRef_Pool2DOp<"tl_memref_pool_avg_2d", "Int8">;
+
 #endif // TPU_TL_MEMREF_OPS

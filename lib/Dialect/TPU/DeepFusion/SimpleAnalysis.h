@@ -54,3 +54,7 @@ uint64_t SimpleEltwiseMemoryUsageAnalysis(OpTy &op,
 template <typename OpTy>
 uint64_t SimpleLutMemoryUsageAnalysis(OpTy &op,
     struct SimpleMemoryUsageAnalysis_details *details);
+
+template <typename OpTy>
+uint64_t SimpleIOMemoryUsageAnalysis(OpTy &op,
+    struct SimpleMemoryUsageAnalysis_details *details);

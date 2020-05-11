@@ -173,10 +173,8 @@ struct TpuTG2TLElewiseOpPattern : public RewritePattern {
 
       if (op.buffer_reused().hasValue())
         attrs.push_back(rewriter.getNamedAttr("buffer_reused", op.buffer_reusedAttr()));
-      // if(op.m_i32_output().hasValue())
-      //   attrs.push_back(rewriter.getNamedAttr("m_i32_output", op.m_i32_outputAttr()));
       if(op.m_i32_output().hasValue())
-        attrs.push_back(rewriter.getNamedAttr("m_i32_output", rewriter.getI32IntegerAttr(op.m_i32_output().getValue().getLimitedValue())));
+        attrs.push_back(rewriter.getNamedAttr("m_i32_output", op.m_i32_outputAttr()));
 
       rewriter.replaceOpWithNewOp<OpTy2>(
           op, op.getResult()->getType(),
@@ -256,6 +254,83 @@ struct TpuTG2TLLutOpPattern : public RewritePattern {
   }
 };
 
+template<typename OpTy, typename OpTy2>
+struct TpuTG2TLPoolOpPattern : public RewritePattern {
+  TpuTG2TLPoolOpPattern(MLIRContext *context)
+      : RewritePattern(OpTy::getOperationName(), 1, context) {}
+
+  PatternMatchResult matchAndRewrite(Operation *opInst,
+                                     PatternRewriter &rewriter) const override {
+    auto op = cast<OpTy>(opInst);
+    assert(op);
+
+    uint64_t totalPerLane = SimpleIOMemoryUsageAnalysis(op, nullptr);
+    if (totalPerLane > MInfo::lmem_per_lane) {
+      LLVM_DEBUG(llvm::errs() << "TG2TL_LA: " << op.name()
+                   << ", layer ID " << op.layer_id()
+                   << ", SKIP, lmem " << totalPerLane
+                   << " needed\n";);
+      return matchFailure();
+    }
+
+    // Check whether operand ConvOp has enough memory
+    // ???? 
+    for (auto operand : opInst->getOperands()) {
+      auto operandOp = operand->getDefiningOp();
+      if (auto convOp = dyn_cast<tpu::TG_INT8_PC_Conv2DOp>(operandOp)) {
+        uint64_t totalPerLane =
+            SimpleConv2DMemoryUsageAnalysis(convOp, nullptr);
+        if (totalPerLane > MInfo::lmem_per_lane) {
+          LLVM_DEBUG(llvm::errs() << "TG2TL_LA: " << op.name()
+                     << ", layer ID " << op.layer_id()
+                     << ", operandOp " << convOp.name()
+                     << ", SKIP, lmem " << totalPerLane
+                     << " needed\n";);
+          return matchFailure();
+        }
+      }
+    }
+
+    if (1) {
+      LLVM_DEBUG(llvm::errs() << "TG2TL_LA: " << op.name()
+                   << ", layer ID " << op.layer_id() << "\n";);
+
+      std::vector<Value *> newOperands;
+      newOperands.push_back(op.getOperand());
+
+      std::vector<NamedAttribute> attrs;
+
+      if(op.rshift().hasValue()) {
+        attrs.push_back(rewriter.getNamedAttr("rshift", op.rshiftAttr()));
+      }
+      if(op.m_i8().hasValue()) {
+        attrs.push_back(rewriter.getNamedAttr("m_i8", op.m_i8Attr()));
+      }
+      attrs.push_back(rewriter.getNamedAttr("param", op.paramAttr()));
+
+      uint32_t la_invalid = 0xffffffff;
+      attrs.push_back(rewriter.getNamedAttr("lm_layout", rewriter.getStringAttr("NONE")));
+      attrs.push_back(rewriter.getNamedAttr("la_input", rewriter.getI32IntegerAttr(la_invalid)));
+      attrs.push_back(rewriter.getNamedAttr("la_working", rewriter.getI32IntegerAttr(la_invalid)));
+      attrs.push_back(rewriter.getNamedAttr("la_output", rewriter.getI32IntegerAttr(la_invalid)));
+      attrs.push_back(rewriter.getNamedAttr("tl_load_flag", rewriter.getBoolAttr(true)));
+      attrs.push_back(rewriter.getNamedAttr("tl_store_flag", rewriter.getBoolAttr(true)));
+
+      attrs.push_back(rewriter.getNamedAttr("gaddr", op.gaddrAttr()));
+      attrs.push_back(rewriter.getNamedAttr("name", op.nameAttr()));
+      attrs.push_back(rewriter.getNamedAttr("layer_id", op.layer_idAttr()));
+
+      if (op.buffer_reused().hasValue())
+        attrs.push_back(rewriter.getNamedAttr("buffer_reused", op.buffer_reusedAttr()));
+
+      rewriter.replaceOpWithNewOp<OpTy2>(
+          op, op.getResult()->getType(),
+          ArrayRef<Value *>{newOperands}, ArrayRef<NamedAttribute>{attrs});
+      return matchSuccess();
+    }
+  }
+};
+
 static bool isUnaryOp(Operation *op) {
   int opd_num = 0;
   for (auto operand : op->getOperands()) {
@@ -301,7 +376,8 @@ public:
       TpuTG2TLConv2DOpPattern,
       TpuTG2TLElewiseOpPattern<tpu::TG_INT8_EltwiseAddOp, tpu::TL_EltwiseAddOp>,
       TpuTG2TLElewiseOpPattern<tpu::TG_INT8_EltwiseMulOp, tpu::TL_EltwiseMulOp>,
-      TpuTG2TLLutOpPattern
+      TpuTG2TLLutOpPattern,
+      TpuTG2TLPoolOpPattern<tpu::TG_INT8_PoolAvg2DOp, tpu::TL_PoolAvg2DOp>
     >(context);
     applyPatternsGreedily(fn, patterns);
   }

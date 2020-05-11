@@ -382,10 +382,9 @@ LogicalResult tpu::TL_LutOp::codegen(void *ctx) {
   getTensorShapeAndSize(op->getOperand(0), shape, input_size);
   getNCHW(shape, n, c, h, w);
   std::vector<int64_t> output_shape;
-  int64_t output_size, oh, ow;
+  int64_t output_size, on, oc, oh, ow;
   getTensorShapeAndSize(op->getResult(0), output_shape, output_size);
-  oh = output_shape[2];
-  ow = output_shape[3];
+  getNCHW(output_shape, on, oc, oh, ow);
 
   gaddr_t ga_input = getPreviousOpAddress(op);
   gaddr_t ga_output = getOpAddress(op);
@@ -422,7 +421,75 @@ LogicalResult tpu::TL_LutOp::codegen(void *ctx) {
   return success();
 }
 
+LogicalResult tpu::TL_PoolAvg2DOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  bool is_global, do_relu;
+  int n, c, ih, iw, oh, ow, kw, sw, pb, pl, pr;
+  int kh, sh, ph;
+  parsePoolParam(param(), input(), output(),
+                n, c, ih, iw, oh, ow,
+                kh, kw, sh, sw, ph, pb, pl, pr,
+                is_global, do_relu);
+  int8_t rshift = (this->rshift().hasValue()) ? this->rshift().getValue().getLimitedValue() : 0;
+  int8_t m_i8 = (this->m_i8().hasValue()) ? this->m_i8().getValue().getLimitedValue() : 0;
+
+  gaddr_t ga_input = getPreviousOpAddress(op);
+  gaddr_t ga_output = getOpAddress(op);
+  int layer_id = mlir::getOpLayerId(op);
+
+  laddr_t la_input = LA_INVALID;
+  laddr_t la_output = LA_INVALID;
+  laddr_t la_working = LA_INVALID;
+  if (this->lm_layout() != "NONE") {
+    la_input = this->la_input().getLimitedValue();
+    la_output = this->la_output().getLimitedValue();
+    la_working = this->la_working().getLimitedValue();
+  }
+
+  LLVM_DEBUG(
+    llvm::errs() << "    TL_PoolAvg2DOp, layer_id = " << layer_id;
+    llvm::errs() << ", " << this->lm_layout();
+    if (tl_load_flag())
+      llvm::errs() << ", LD";
+    if (tl_store_flag())
+      llvm::errs() << ", ST";
+    if (!tl_load_flag() && !tl_store_flag())
+      llvm::errs() << ", FUSED";
+    llvm::errs() << "\n";
+  );
+  if(tl_load_flag()) {
+    cvi_backend_tl_load(
+     *backend_ctx, layer_id,
+    la_input, ga_input,
+    n, c, ih, iw);
+  }
+  cvi_backend_tl_pooling(
+    *backend_ctx, layer_id,
+    la_input, la_output,
+    n, c, ih, iw,
+    n, c, oh, ow,
+    kh, kw, sh, sw,
+    ph, pb, pl, pr,
+    true, //avg_pooling
+    rshift, m_i8);
+  if(tl_store_flag()) {
+    cvi_backend_tl_store(
+     *backend_ctx, layer_id,
+    la_output, ga_output,
+    n, c, oh, ow);
+  }
+  return success();
+}
+
 // MemRefType dummy
+LogicalResult tpu::TL_MemRef_PoolAvg2DOp::codegen(void *ctx) {
+  return success();
+}
+
 LogicalResult tpu::TL_MemRef_LutOp::codegen(void *ctx) {
   return success();
 }

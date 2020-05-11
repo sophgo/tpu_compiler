@@ -642,7 +642,7 @@ struct TpuTL_LutOp_AssignLayoutPattern : public RewritePattern {
        //                               ===========
        //                                            |
        //                               ===========
-       //                              ||        conv     ||
+       //                              ||      eltMul     ||
        //                               ===========
         if (next_op.lm_layout() == "NONE") {
           // next_op not set layout yet, return for now, wait for next round
@@ -713,7 +713,104 @@ struct TpuTL_EltwiseMulOp_AssignLayoutPattern : public RewritePattern {
         }
         op.setAttr("tl_store_flag", rewriter.getBoolAttr(false));
         next_op.setAttr("tl_load_flag", rewriter.getBoolAttr(false));
+      } else  if (auto next_op = llvm::dyn_cast_or_null<tpu::TL_PoolAvg2DOp>(next_opInst)) {
+        // next is TL_PoolAvg2DOp, fuse it
+        //                               ===========
+       //                               ||      eltMul     ||
+       //                               ===========
+       //                                            |
+       //                               ===========
+       //                              ||    AvgPool    ||
+       //                               ===========
+        if (next_op.lm_layout() == "NONE") {
+          // next_op not set layout yet, return for now, wait for next round
+          return matchSuccess();
+        }
+        if (next_op.lm_layout() == "IWO") {
+          op.setAttr("lm_layout", rewriter.getStringAttr("OWI"));
+        } else if (next_op.lm_layout() == "OWI") {
+          op.setAttr("lm_layout", rewriter.getStringAttr("IWO"));
+        } else {
+          assert(0);
+        }
+        op.setAttr("tl_store_flag", rewriter.getBoolAttr(false));
+        next_op.setAttr("tl_load_flag", rewriter.getBoolAttr(false));
       } else {
+        // start a new chain
+        op.setAttr("lm_layout", rewriter.getStringAttr("IWO"));
+      }
+    } else {
+      bool isOneOfThemIsTlPooling = false;
+      for (auto &use : op.getResult()->getUses()) {
+        Operation *next_opInst = use.getOwner();
+        if (auto next_op = llvm::dyn_cast_or_null<tpu::TL_PoolAvg2DOp>(next_opInst)) {
+          // next is TL_PoolAvg2DOp
+          if (next_op.lm_layout() == "NONE") {
+            // next_op has not been assign layout, return for now
+            return matchSuccess();
+          } else if (next_op.lm_layout() == "IWO") {
+            op.setAttr("lm_layout", rewriter.getStringAttr("OWI"));
+          } else if (next_op.lm_layout() == "OWI") {
+            op.setAttr("lm_layout", rewriter.getStringAttr("IWO"));
+          }
+          next_op.setAttr("tl_load_flag", rewriter.getBoolAttr(false));
+          isOneOfThemIsTlPooling = true;
+        }
+      }
+      if(!isOneOfThemIsTlPooling) {
+        op.setAttr("lm_layout", rewriter.getStringAttr("IWO"));
+      }
+    }
+    LLVM_DEBUG(llvm::errs() << "TL_LA2LW: layer ID " << op.layer_id()
+                 << ", EltMul LM_LAYOUT " << op.lm_layout()
+                 << ", LD " << op.tl_load_flag()
+                 << ", ST " << op.tl_store_flag()
+                 << "\n";);
+
+    return matchSuccess();
+  }
+};
+
+struct TpuTL_PoolAvg2DOp_AssignLayoutPattern : public RewritePattern {
+  TpuTL_PoolAvg2DOp_AssignLayoutPattern(MLIRContext *context)
+      : RewritePattern("tpu.tl_pool_avg_2d", 1, context) {}
+
+  PatternMatchResult matchAndRewrite(Operation *opInst,
+                                     PatternRewriter &rewriter) const override {
+    auto op = cast<tpu::TL_PoolAvg2DOp>(opInst);
+
+    if (op.lm_layout() != "NONE") {
+      // assigned already
+      return matchFailure();
+    }
+
+    if (op.getResult()->hasOneUse()) {
+      // one user case
+      Operation *next_opInst = getNextOp(op);
+      assert(!isa<tpu::TL_PoolAvg2DOp>(next_opInst));
+      if (auto next_op = llvm::dyn_cast_or_null<tpu::TL_LW_Conv2DOp>(next_opInst)) {
+        // next is TL_LW_Conv2DOp, fuse it
+        //                               ===========
+       //                               ||    AvgPool   ||
+       //                               ===========
+       //                                            |
+       //                               ===========
+       //                              ||        conv     ||
+       //                               ===========
+        if (next_op.lm_layout() == "NONE") {
+          // next_op not set layout yet, return for now, wait for next round
+          return matchSuccess();
+        }
+        if (next_op.lm_layout() == "IWO") {
+          op.setAttr("lm_layout", rewriter.getStringAttr("OWI"));
+        } else if (next_op.lm_layout() == "OWI") {
+          op.setAttr("lm_layout", rewriter.getStringAttr("IWO"));
+        } else {
+          assert(0);
+        }
+        op.setAttr("tl_store_flag", rewriter.getBoolAttr(false));
+        next_op.setAttr("tl_load_flag", rewriter.getBoolAttr(false));
+      }  else {
         // start a new chain
         op.setAttr("lm_layout", rewriter.getStringAttr("IWO"));
       }
@@ -721,7 +818,7 @@ struct TpuTL_EltwiseMulOp_AssignLayoutPattern : public RewritePattern {
        op.setAttr("lm_layout", rewriter.getStringAttr("IWO"));
     }
     LLVM_DEBUG(llvm::errs() << "TL_LA2LW: layer ID " << op.layer_id()
-                 << ", LUT LM_LAYOUT " << op.lm_layout()
+                 << ", AvgPool2D LM_LAYOUT " << op.lm_layout()
                  << ", LD " << op.tl_load_flag()
                  << ", ST " << op.tl_store_flag()
                  << "\n";);
@@ -852,13 +949,14 @@ struct TpuTL_EltwiseOp_AssignLAddrPattern : public RewritePattern {
   }
 };
 
-struct TpuTL_LutOp_AssignLAddrPattern : public RewritePattern {
-  TpuTL_LutOp_AssignLAddrPattern(MLIRContext *context)
-      : RewritePattern("tpu.tl_lut", 1, context) {}
+template<typename OpTy>
+struct TpuTL_Default_AssignLAddrPattern : public RewritePattern {
+  TpuTL_Default_AssignLAddrPattern(MLIRContext *context)
+      : RewritePattern(OpTy::getOperationName(), 1, context) {}
 
   PatternMatchResult matchAndRewrite(Operation *opInst,
                                      PatternRewriter &rewriter) const override {
-    auto op = cast<tpu::TL_LutOp>(opInst);
+    auto op = cast<OpTy>(opInst);
 
     std::vector<int64_t> shape;
     int64_t input_size, n, c, h, w;
@@ -929,7 +1027,8 @@ public:
         TpuTL_LW_Conv2DOp_AssignLayoutPattern,
         TpuTL_EltwiseAddOp_AssignLayoutPattern,
         TpuTL_EltwiseMulOp_AssignLayoutPattern,
-        TpuTL_LutOp_AssignLayoutPattern
+        TpuTL_LutOp_AssignLayoutPattern,
+        TpuTL_PoolAvg2DOp_AssignLayoutPattern
         >(context);
     applyPatternsGreedily(fn, patterns);
 
@@ -938,7 +1037,8 @@ public:
         TpuTL_LW_Conv2DOp_AssignLAddrPattern,
         TpuTL_EltwiseOp_AssignLAddrPattern<tpu::TL_EltwiseAddOp>,
         TpuTL_EltwiseOp_AssignLAddrPattern<tpu::TL_EltwiseMulOp>,
-        TpuTL_LutOp_AssignLAddrPattern
+        TpuTL_Default_AssignLAddrPattern<tpu::TL_LutOp>,
+        TpuTL_Default_AssignLAddrPattern<tpu::TL_PoolAvg2DOp>
         >(context);
     applyPatternsGreedily(fn, patterns);
   }
