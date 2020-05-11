@@ -9,6 +9,7 @@ npz_tool_func = {
     "rename": npz_rename,
     "to_bin": npz_to_bin,
     "bf16_to_fp32": npz_bf16_to_fp32,
+    "tranpose": npz_transpose,
 }
 
 def main():
