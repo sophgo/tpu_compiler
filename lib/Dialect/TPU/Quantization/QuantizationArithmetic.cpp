@@ -513,6 +513,20 @@ int8_t applyMultiplierAndRShiftAndSaturateInt8(float v,
   }
 }
 
+int8_t applyMultiplierAndRShiftAndSaturateInt8(int32_t v,
+    uint32_t rshift, uint32_t multiplier, bool qdm) {
+  if (qdm) {
+    int32_t q = RoundingDivideByPOT(
+        SaturatingRoundingDoublingHighMul(v, (int32_t)multiplier),
+        rshift);
+    //llvm::errs() << "v,rshift,multiplier,q = " << v << ","
+    //             << rshift << "," << multiplier << "," << q << "\n";
+    return saturateInt8((float)q);
+  } else {
+    return saturateInt8(((float)(v * multiplier)) / (1 << rshift));
+  }
+}
+
 ///
 /// BFLOAT16 support
 /// from tensorflow
@@ -861,15 +875,22 @@ void quantizeActivationInt8PerChannelRShift(float *output, float *input,
 }
 
 /// Quantize an Activation tensor, given per channel mulitplier and rshift
-void quantizeActivationInt8PerChannelMultiplierAndRShift(float *output, float *input,
-    int64_t on, int64_t oc, int64_t isz,
-    float *rshift_per_channel, float *multiplier_per_channel) {
+void quantizeActivationInt8PerChannelMultiplierAndRShift(
+    float *output, float *input, float *bias, bool do_relu, int64_t on, int64_t oc,
+    int64_t isz, float *rshift_per_channel, float *multiplier_per_channel) {
   for (int64_t n = 0; n < on; ++n) {
     for (int64_t i = 0; i < oc; ++i) {
       for (int64_t j = 0; j < isz; ++j) {
+        int32_t v = (int32_t)input[n * oc * isz + i * isz + j];
+        if (bias != NULL) {
+          v += (int32_t)bias[i];
+        }
+        if (do_relu && (v < 0)) {
+          v = 0;
+        }
         output[n * oc * isz + i * isz + j] =
-            (float)applyMultiplierAndRShiftAndSaturateInt8(input[n * oc * isz + i * isz + j],
-                rshift_per_channel[i], multiplier_per_channel[i], true);
+            (float)applyMultiplierAndRShiftAndSaturateInt8(
+                v, rshift_per_channel[i], multiplier_per_channel[i], true);
       }
     }
   }

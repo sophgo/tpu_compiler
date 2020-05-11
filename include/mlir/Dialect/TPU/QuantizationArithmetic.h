@@ -66,6 +66,9 @@ int8_t applyRShiftAndSaturateInt8(float v, uint32_t rshift);
 int8_t applyMultiplierAndRShiftAndSaturateInt8(float v,
                                                uint32_t rshift, uint32_t multiplier,
                                                bool qdm = false);
+int8_t applyMultiplierAndRShiftAndSaturateInt8(int32_t v,
+                                               uint32_t rshift, uint32_t multiplier,
+                                               bool qdm = false);
 
 ///
 /// BF16
@@ -114,9 +117,9 @@ void quantizeActivationInt8PerLayerRshift(float *output, float *input,
 void quantizeActivationInt8PerChannelRShift(float *output, float *input,
     int64_t on, int64_t oc, int64_t isz, float *rshift_per_channel);
 
-void quantizeActivationInt8PerChannelMultiplierAndRShift(float *output, float *input,
-    int64_t on, int64_t oc, int64_t isz,
-    float *rshift_per_channel, float *multiplier_per_channel);
+void quantizeActivationInt8PerChannelMultiplierAndRShift(
+    float *output, float *input, float *bias, bool do_relu, int64_t on, int64_t oc,
+    int64_t isz, float *rshift_per_channel, float *multiplier_per_channel);
 
 } // namespace mlir
 
