@@ -50,6 +50,7 @@ def turn_data_hwio_to_oihw(data):
         return data
 
     data = np.transpose(data, (3, 2, 0, 1))
+    data = np.ascontiguousarray(data)
     return data
 
 # generate onnx model from torch
