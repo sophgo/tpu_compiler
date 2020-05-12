@@ -205,6 +205,41 @@ export DO_CMDBUF_BF16=0   # this is a bug to fix
 export DO_LAYERGROUP=1
 fi
 
+if [ $NET = "mobilenet_v3" ]; then
+export MODEL_TYPE="onnx"
+export MODEL_DEF=$MODEL_PATH/imagenet/mobilenet_v3/onnx/2020.04.17.01/mobilenetv3_rw.onnx
+export MODEL_DAT=""
+export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_onnx/regression_mobilenetv3_0_onnx.sh
+export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/mobilenetv3_pytorch_preprocess_calibration_table.bin.65536
+export RAW_SCALE=1
+export INPUT_SCALE=0.875
+# plz refer [here](https://github.com/rwightman/pytorch-image-models/blob/aa4354f4668ee7cf349f24de60e3a23dee43a6ef/timm/data/constants.py) for column \IMAGENET_DEFAULT_MEAN and \IMAGENET_DEFAULT_STD
+export NET_INPUT_DIMS=256,256
+export MEAN=0.406,0.456,0.485  # in BGR, pytorch mean=[0.485, 0.456, 0.406]
+export STD=0.225,0.224,0.229   # in BGR, pytorch std=[0.229, 0.224, 0.225]
+export IMAGE_RESIZE_DIMS=224,224
+export INPUT=input
+export COMPARE_ALL=1
+export TOLERANCE_INT8_MULTIPLER=0.083338,-0.1,-1.0
+export DO_QUANT_BF16=1
+export TOLERANCE_BF16=0.9,0.9,0.9
+export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
+export EXCEPTS=371_Add,315_Add,390_Add,401_Add,409_Add,419_Add,427_Add,438_Add,446_Add,457_Add,465_Add,476_Add,484_Add,492_Add,499_Add,509_Add,517_Add,525_Add,532_Add,543_Add,551_Add,559_Add,566_Add,576_Add,584_Add,592_Add,599_Add,610_Add,618_Add,626_Add,633_Add,644_Add,652_Add # cuz relu6 could add 'relu' layer that could mismatch original layer
+export MLIR_OPT_FE_PRE="$MLIR_OPT_FE_PRE --skip-mult-used-scale-op --relu6-to-clip"
+export MLIR_OPT_FE_INT8_MULTIPLER_PRE="--tpu-quant-clip"
+#export MLIR_OPT_FE_INT8_MULTIPLER_POST="--tpu-quant-clip"
+export DO_QUANT_MIX_CMD=1
+export DO_E2E=0
+export DO_CMDBUF_BF16=0
+export DO_DEEPFUSION=0
+export DO_MEMOPT=0
+export DO_DEEPFUSION=0
+export DO_LAYERGROUP=0
+export BF16_QUANT_LAYERS_FILE=${NET}_bf16_quant_layers
+export BF16_QUANT_LAYERS="316_Clip 354_Clip 372_Clip 391_Clip 402_Clip 410_Clip 420_Clip 428_Clip 428_Clip 439_Clip 447_Clip 458_Clip 466_Clip 477_Clip 485_Clip 493_Clip 500_Clip 510_Clip 518_Clip 526_Clip 533_Clip 544_Clip 552_Clip 560_Clip 567_Clip 577_Clip 585_Clip 593_Clip 600_Clip 611_Clip 619_Clip 627_Clip 634_Clip 645_Clip 653_Clip #656_Mul 313_BatchNormalization 315_Add 319_Mul 322_Relu 353_Add"
+fi
+
+
 if [ $NET = "shufflenet_v2" ]; then
 export MODEL_DEF=$MODEL_PATH/imagenet/shufflenet_v2/caffe/shufflenet_v2_x0.5.prototxt
 export MODEL_DAT=$MODEL_PATH/imagenet/shufflenet_v2/caffe/shufflenet_v2_x0.5.caffemodel
