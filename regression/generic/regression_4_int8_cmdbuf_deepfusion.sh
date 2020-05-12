@@ -5,7 +5,6 @@ DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 
 COMPARE_ALL=1
 
-OP_LOWERING=0
 COMPRESS_WEIGHT=1
 
 # assuming ${NET}_quant_int8_multiplier.mlir already exists
@@ -57,7 +56,7 @@ fi
 echo "cat ${NET}_quant_int8_multiplier_tl_lw.mlir"
 cat ${NET}_quant_int8_multiplier_tl_lw.mlir
 
-if [ $OP_LOWERING -eq 1 ]; then
+if [ $DO_MEMOPT -eq 1 ]; then
   # function argument lower to MemRefType
   mlir-opt \
       --convert-func-to-memref \

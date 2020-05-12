@@ -5,7 +5,6 @@ DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 
 
 COMPARE_ALL=1
-COMPARE_OUTPUT_BIT_TRUE=0
 
 if [ $DO_QUANT_INT8_PER_TENSOR -eq 1 ]; then
   ###############################################################################
@@ -22,19 +21,6 @@ if [ $DO_QUANT_INT8_PER_TENSOR -eq 1 ]; then
       --tensor-in ${NET}_in_fp32.npz \
       --tensor-out ${NET}_out_int8_per_tensor.npz \
       --dump-all-tensor=${NET}_tensor_all_int8_per_tensor.npz
-
-  if [ $COMPARE_OUTPUT_BIT_TRUE -eq 1 ]; then
-    cvi_npz_tool.py to_bin \
-        ${NET}_tensor_all_int8_per_tensor.npz \
-        ${OUTPUTS} \
-        ${NET}_out_${OUTPUTS}_int8_per_tensor.bin \
-        int8
-
-    bin_compare.py \
-        ${NET}_out_${OUTPUTS}_int8_per_tensor.bin \
-        $REGRESSION_PATH/${NET}/data/test_cat_out_${NET}_${OUTPUTS}_int8_per_tensor.bin \
-        int8 ${BATCH_SIZE} 1 1 1000 5
-  fi
 
   if [ $COMPARE_ALL -eq 1 ]; then
     # this will fail for now, because prob has been dequantized twice, others should pass

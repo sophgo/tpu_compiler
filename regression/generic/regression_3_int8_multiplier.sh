@@ -5,9 +5,7 @@ DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 
 
 COMPARE_ALL=1
-COMPARE_OUTPUT_BIT_TRUE=0
 
-OP_LOWERING=0
 COMPRESS_ACTIVATION=0
 
 if [ $DO_QUANT_INT8_MULTIPLER -eq 1 ]; then
@@ -25,18 +23,6 @@ if [ $DO_QUANT_INT8_MULTIPLER -eq 1 ]; then
       --tensor-in ${NET}_in_fp32.npz \
       --tensor-out ${NET}_out_int8_multiplier.npz \
       --dump-all-tensor=${NET}_tensor_all_int8_multiplier.npz
-
-  if [ $COMPARE_OUTPUT_BIT_TRUE -eq 1 ]; then
-    cvi_npz_tool.py to_bin \
-        ${NET}_tensor_all_int8_multiplier.npz \
-        ${OUTPUTS} \
-        ${NET}_out_${OUTPUTS}_int8_multiplier.bin \
-        int8
-    bin_compare.py \
-        ${NET}_out_${OUTPUTS}_int8_multiplier.bin \
-        $REGRESSION_PATH/${NET}/data/test_cat_out_${NET}_${OUTPUTS}_int8_multiplier.bin \
-        int8 ${BATCH_SIZE} 1 1 1000 5
-  fi
 
   if [ $COMPARE_ALL -eq 1 ]; then
     # this will fail for now, because prob has been dequantized twice, others should pass
@@ -72,66 +58,19 @@ if [ $DO_QUANT_INT8_MULTIPLER -eq 1 ]; then
     mv ${NET}_quant_int8_multiplier_tg_opt_ca.mlir ${NET}_quant_int8_multiplier_tg_opt.mlir
   fi
 
-  if [ $OP_LOWERING -eq 1 ]; then
-    # function argument lower to MemRefType
-    mlir-opt \
-        --convert-func-to-memref \
-        ${NET}_quant_int8_multiplier_tg_opt.mlir \
-        -o ${NET}_quant_int8_multiplier_tg_opt_memref.mlir
+  # assign weight address & neuron address
+  mlir-opt \
+      --assign-weight-address \
+      --tpu-weight-address-align=16 \
+      --tpu-weight-map-filename=${NET}_weight_map_int8_multiplier.csv \
+      --tpu-weight-bin-filename=weight_int8_multiplier.bin \
+      --assign-neuron-address \
+      --tpu-neuron-address-align=16 \
+      --tpu-neuron-map-filename=${NET}_neuron_map_int8_multiplier.csv \
+      --convert-cpu-op \
+      ${NET}_quant_int8_multiplier_tg_opt.mlir \
+      -o ${NET}_quant_int8_multiplier_addr.mlir
 
-    # op lower to MemRefType
-    mlir-opt \
-      --convert-tg-op-to-memref \
-      ${NET}_quant_int8_multiplier_tg_opt_memref.mlir \
-      -o ${NET}_quant_int8_multiplier_tg_opt_op_memref.mlir
-
-    # memory space w/ global memory reuse
-    mlir-opt \
-        --enable-reuse-global-memory=true \
-        --assign-neuron-address-memref \
-        --tpu-neuron-address-align-memref=16 \
-        --tpu-neuron-map-filename-memref=neuron_map_memref_reused.csv \
-        ${NET}_quant_int8_multiplier_tg_opt_op_memref.mlir \
-        -o ${NET}_quant_int8_multiplier_tg_opt_op_memref_addr.mlir
-
-    # tg op back to TensorType
-    mlir-opt \
-        --convert-tg-op-to-tensor \
-        ${NET}_quant_int8_multiplier_tg_opt_op_memref_addr.mlir \
-        -o ${NET}_quant_int8_multiplier_tg_opt_op_tensor_addr.mlir
-
-    # function argument back to TensorType
-    mlir-opt \
-        --convert-func-to-tensor \
-        ${NET}_quant_int8_multiplier_tg_opt_op_tensor_addr.mlir \
-        -o ${NET}_quant_int8_multiplier_tg_opt_addr.mlir
-
-    # assign weight address & neuron address
-    mlir-opt \
-        --assign-weight-address \
-        --tpu-weight-address-align=16 \
-        --tpu-weight-map-filename=${NET}_weight_map_int8_multiplier.csv \
-        --tpu-weight-bin-filename=weight_int8_multiplier.bin \
-        --assign-neuron-address \
-        --tpu-neuron-address-align=16 \
-        --tpu-neuron-map-filename=${NET}_neuron_map_int8_multiplier.csv \
-        --convert-cpu-op \
-        ${NET}_quant_int8_multiplier_tg_opt_addr.mlir \
-        -o ${NET}_quant_int8_multiplier_addr.mlir
-  else
-    # assign weight address & neuron address
-    mlir-opt \
-        --assign-weight-address \
-        --tpu-weight-address-align=16 \
-        --tpu-weight-map-filename=${NET}_weight_map_int8_multiplier.csv \
-        --tpu-weight-bin-filename=weight_int8_multiplier.bin \
-        --assign-neuron-address \
-        --tpu-neuron-address-align=16 \
-        --tpu-neuron-map-filename=${NET}_neuron_map_int8_multiplier.csv \
-        --convert-cpu-op \
-        ${NET}_quant_int8_multiplier_tg_opt.mlir \
-        -o ${NET}_quant_int8_multiplier_addr.mlir
-  fi
 
   # cat for logging
   echo "cat ${NET}_quant_int8_multiplier_addr.mlir"

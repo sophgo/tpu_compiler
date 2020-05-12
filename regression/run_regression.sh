@@ -30,25 +30,25 @@ net_list_generic=(
 net_list_batch=(
   "resnet50"
   "mobilenet_v2"
-  #"vgg16"
-  #"mobilenet_v1"
-  #"googlenet"
-  #"inception_v3"
-  #"inception_v4"
-  #"squeezenet"
-  ##"shufflenet_v2"
-  #"densenet_121"
-  #"densenet_201"
-  #"senet_res50"
-  #"arcface_res50"
-  #"retinaface_mnet25"
+  "vgg16"
+  "mobilenet_v1"
+  "googlenet"
+  "inception_v3"
+  "inception_v4"
+  "squeezenet"
+  "shufflenet_v2"
+  "densenet_121"
+  "densenet_201"
+  "senet_res50"
+  "arcface_res50"
+  "retinaface_mnet25"
   #"retinaface_res50"
-  #"ssd300"
-  #"yolo_v3_416"
-  #"yolo_v3_320"
-  #"resnet18"
-  #"efficientnet_b0"
-  #"alphapose"
+  "ssd300"
+  "yolo_v3_416"
+  "yolo_v3_320"
+  "resnet18"
+  "efficientnet_b0"
+  "alphapose"
 )
 
 net_list_accuracy=(
@@ -183,7 +183,7 @@ fi
 
 # default run in parallel
 if [ -z "$RUN_IN_PARALLEL" ]; then
-  RUN_IN_PARALLEL=1
+  export RUN_IN_PARALLEL=1
 fi
 
 # run regression for all
@@ -201,6 +201,7 @@ echo "" > verdict.log
 # run single and exit
 if [ ! -z "$net" ]; then
   export CVIMODEL_REL_PATH=$PWD/cvimodel_regression
+  export RUN_IN_PARALLEL=0
   if [ ! -e $CVIMODEL_REL_PATH ]; then
     mkdir $CVIMODEL_REL_PATH
   fi

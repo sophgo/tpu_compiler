@@ -5,7 +5,6 @@ DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 
 
 COMPARE_ALL=1
-COMPARE_OUTPUT_BIT_TRUE=0
 
 if [ -z $CALI_TABLE ]; then
   echo "empty CALI_TABLE"
