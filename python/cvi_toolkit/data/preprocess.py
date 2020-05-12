@@ -34,7 +34,7 @@ def add_preprocess_parser(parser):
     parser.add_argument("--mean_file", type=str, help="the resized ImageNet dataset mean file.")
     parser.add_argument("--input_scale", type=float, help="Multiply input features by this scale.", default=1.0)
     parser.add_argument("--model_channel_order", type=str, help="channel order of model inference used, default: bgr", default="bgr")
-    parser.add_argument("--data_format", type=str, help="input image data dim order, default: chw", default="chw")
+    parser.add_argument("--data_format", type=str, help="input image data dim order, default: nchw", default="nchw")
     return parser
 
 
@@ -56,7 +56,7 @@ class preprocess(object):
                      std=None,
                      input_scale=1.0,
                      raw_scale=255.0,
-                     data_format="chw",
+                     data_format="nchw",
                      rgb_order='bgr',
                      npy_input=None,
                      letter_box=False,
@@ -108,7 +108,7 @@ class preprocess(object):
             self.std = None
         self.input_scale = float(input_scale)
 
-        self.data_format = data_format
+        self.data_format = data_format[1:]
 
         self.rgb_order = rgb_order
         self.ori_channel_order = None
