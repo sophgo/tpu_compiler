@@ -93,6 +93,6 @@ def npz_transpose(args):
         if len(v.shape) != 4:
             npz_out[k] = v
         else:
-            npz_out[k] = np.transpose(v, tranpose)
+            npz_out[k] = np.ascontiguousarray(np.transpose(v, tranpose))
 
     np.savez(args[0], **npz_out)
