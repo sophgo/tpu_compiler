@@ -2887,7 +2887,20 @@ LogicalResult ModuleInterpreter::doRun(std::vector<int64_t> input_shape, std::ve
   assert(inputs.size() == 1);
   std::vector<int64_t> shape = inputs[0]->getType().template cast<TensorType>().getShape();
 
-  assert(input_shape == shape);
+  if (input_shape != shape){
+    std::string i_s;
+    std::string r_s;
+    for(int i = 0; i < input_shape.size(); i++){
+      i_s = i_s + std::to_string(input_shape.at(i)) + " ";
+    }
+    for (int i = 0; i < shape.size(); i++) {
+      r_s = r_s + std::to_string(shape.at(i)) + " ";
+    }
+    std::stringstream err_msg;
+    err_msg << "input shape(" << i_s << ") v.s. shape(" << r_s
+            << ") not the same\n";
+    throw std::runtime_error(err_msg.str());
+  }
   assert((int64_t)input_vec.size() == std::accumulate(shape.begin(), shape.end(), 1,
                                                         std::multiplies<int64_t>()));
   updateValue(inputs[0], input_vec);
