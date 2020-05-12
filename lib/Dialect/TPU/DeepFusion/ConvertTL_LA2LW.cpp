@@ -214,6 +214,8 @@ struct TpuTL_LW_Conv2DOp_AssignLayoutPattern : public RewritePattern {
                  << " has more than one Use " << op.getResult()->hasOneUse() << "\n";);
       std::vector<Operation *> conv_ops;
       std::vector<Operation *> elta_ops;
+      std::vector<Operation *> eltm_ops;
+      std::vector<Operation *> lut_ops;
       for (auto &use : op.getResult()->getUses()) {
         Operation *next_opInst = use.getOwner();
         if (auto next_op = llvm::dyn_cast_or_null<tpu::TL_LW_Conv2DOp>(next_opInst)) {
@@ -229,6 +231,18 @@ struct TpuTL_LW_Conv2DOp_AssignLayoutPattern : public RewritePattern {
             return matchSuccess();
           }
           elta_ops.push_back(next_opInst);
+        } else if (auto next_op = llvm::dyn_cast_or_null<tpu::TL_EltwiseMulOp>(next_opInst)) {
+          if (next_op.lm_layout() == "NONE") {
+            // next_op has not been assign layout, return for now
+            return matchSuccess();
+          }
+          eltm_ops.push_back(next_opInst);
+        } else if (auto next_op = llvm::dyn_cast_or_null<tpu::TL_LutOp>(next_opInst)) {
+          if (next_op.lm_layout() == "NONE") {
+            // next_op has not been assign layout, return for now
+            return matchSuccess();
+          }
+          lut_ops.push_back(next_opInst);
         }
       }
       LLVM_DEBUG(llvm::errs() << "TL_LA2LW: layer ID " << op.layer_id()
@@ -295,6 +309,22 @@ struct TpuTL_LW_Conv2DOp_AssignLayoutPattern : public RewritePattern {
         // next_conv can skip loading though
         conv_op_next.setAttr("tl_load_flag", rewriter.getBoolAttr(false));
 
+        return matchSuccess();
+      } else if((eltm_ops.size() == 1 )&& (lut_ops.size() == 1)) {
+        //Efficientnet has one eltMul + lut case
+        auto lut_op = llvm::dyn_cast_or_null<tpu::TL_LutOp>(lut_ops[0]);
+        Operation *lut_next_opInst  =getNextOp(lut_ops[0]) ;
+        if(lut_next_opInst == eltm_ops[0]) {
+          op.setAttr("tl_store_flag", rewriter.getBoolAttr(false));
+        }
+        if (lut_op.lm_layout() == "IWO") {
+          op.setAttr("lm_layout", rewriter.getStringAttr("OWI"));
+        } else if (lut_op.lm_layout() ==  "OWI") {
+          op.setAttr("lm_layout", rewriter.getStringAttr("IWO"));
+        } else {
+          llvm_unreachable("unsupported layout");
+        }
+        lut_op.setAttr("tl_load_flag", rewriter.getBoolAttr(false));
         return matchSuccess();
       } else {
         //assert(false);

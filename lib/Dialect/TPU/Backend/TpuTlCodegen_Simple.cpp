@@ -322,7 +322,7 @@ LogicalResult tpu::TL_EltwiseMulOp::codegen(void *ctx) {
   gaddr_t ga_input = getPreviousOpAddress(op, augend_idx); //Closest op
   gaddr_t ga_input2 = getPreviousOpAddress(op, 1 - augend_idx);
   gaddr_t ga_input2_pre_input =  getPreviousOpAddress(op->getOperand(augend_idx)->getDefiningOp());
-  bool isAllInLocalMem = (ga_input2_pre_input == ga_input2) && (tl_load_flag() == false) && (tl_store_flag() == false);
+  bool isAllInLocalMem = (ga_input2_pre_input == ga_input2) && (tl_load_flag() == false);
   //Fix me: now use global address to present it's unique ID. 
   gaddr_t ga_output = getOpAddress(op);
 
@@ -361,6 +361,12 @@ LogicalResult tpu::TL_EltwiseMulOp::codegen(void *ctx) {
         rshift, nullptr,
         true,
         do_relu, 0, coeffs, i32Multiplier);
+    if(tl_store_flag()) {
+      cvi_backend_tl_store(
+      *backend_ctx, layer_id,
+      la_output, ga_output,
+      n, c, h, w);
+    }
   }
   return success();
 }
