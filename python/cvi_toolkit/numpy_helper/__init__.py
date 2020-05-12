@@ -69,3 +69,30 @@ def npz_bf16_to_fp32(args):
     npz_out[s] = fp32_arr
 
     np.savez(args[1], **npz_out)
+
+
+def npz_transpose(args):
+    if len(args) < 3:
+        print("Usage: {} transpose in.npz nhwc nchw ".format(sys.argv[0]))
+        exit(-1)
+    npz_in = np.load(args[0])
+    ref_data_format = args[1]
+    target_data_format = args[2]
+    npz_out = {}
+    mapping = {ref_data_format[0] : 0,
+               ref_data_format[1] : 1,
+               ref_data_format[2] : 2,
+               ref_data_format[3] : 3}
+    tranpose = (
+        mapping[target_data_format[0]],
+        mapping[target_data_format[1]],
+        mapping[target_data_format[2]],
+        mapping[target_data_format[3]],
+    )
+    for k, v in npz_in.items():
+        if len(v.shape) != 4:
+            npz_out[k] = v
+        else:
+            npz_out[k] = np.transpose(v, tranpose)
+
+    np.savez(args[0], **npz_out)
