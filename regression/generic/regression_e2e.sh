@@ -32,7 +32,8 @@ model_runner \
 cvi_npz_tool.py compare \
     ${NET}_out_all.npz \
     ${NET}_tensor_all_int8_multiplier.npz \
-    --op_info op_info_int8.csv
+    --op_info op_info_int8.csv \
+    --excepts $EXCEPTS
 
 if [ ! -z $CVIMODEL_REL_PATH -a -d $CVIMODEL_REL_PATH ]; then
   if [ $BATCH_SIZE -eq 1 ]; then
