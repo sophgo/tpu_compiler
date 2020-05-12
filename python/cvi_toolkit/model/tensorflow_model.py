@@ -36,5 +36,15 @@ class TFModel(model_base):
         all_tensor_dict['input'] = output_values[len(self.net.outputs)]
         return all_tensor_dict
 
+    def get_all_weights(self):
+        weight_tensor = dict()
+        for layer in self.net.layers:
+            config = layer.get_config()
+            ws = layer.get_weights()
+            if len(ws) != 0:
+                for idx, w in enumerate(ws):
+                    weight_tensor['{}_{}'.format(layer.name, idx)] = w
+        return weight_tensor
+
     def get_op_info(self):
         return [l.name for l in self.net.layers]
