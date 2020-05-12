@@ -3,13 +3,14 @@ import onnx
 import argparse
 from cvi_toolkit.transform.onnx_converter import OnnxConverter
 from cvi_toolkit.transform.tflite_converter import TFLiteConverter
-
+from cvi_toolkit.transform.tensorflow_converter import TFConverter
 from cvi_toolkit.utils.log_setting import setup_logger
 
 logger = setup_logger('root', log_level="INFO")
 CVI_SupportFramework = [
     "onnx",
-    "tflite"
+    "tflite",
+    "tensorflow",
 ]
 
 
@@ -23,6 +24,8 @@ def Convert(args):
     elif args.model_type == "tflite":
         c = TFLiteConverter(
             args.model_name, args.model_path, args.mlir_file_path)
+    elif args.model_type == "tensorflow":
+        c = TFConverter(args.model_name, args.model_path, args.mlir_file_path, batch_size=args.batch_size)
     c.run()
 
 
