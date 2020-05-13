@@ -96,4 +96,6 @@ int my_preprocess(float *input, float *output,
 
 int my_transpose(float *input, float *output, int n, int c, int h, int w);
 
+int my_reorg(float *input, float *output, uint32_t stride, int n, int c, int h, int w);
+
 #endif // MLIR_DIALECT_TPU_NATIVE_CPU_IMPLEMENTATION_H_

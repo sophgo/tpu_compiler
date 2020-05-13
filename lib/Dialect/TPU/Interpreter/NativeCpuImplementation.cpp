@@ -1294,3 +1294,25 @@ int my_transpose(float *input, float *output, int n, int c, int h, int w) {
   }
   return 0;
 }
+
+int my_reorg(float *input, float *output, uint32_t stride, int n, int c, int h, int w) {
+  int out_c = c / (stride * stride);
+  int out_w = w * stride;
+  int out_h = h * stride;
+  for (int b = 0; b < n; b++) {
+    for (int k = 0; k < c; k++) {
+      for (int j = 0; j < h; j++) {
+        for (int i = 0; i < w; i++) {
+          int in_index = i + w * (j + h * (k + c * b));
+          int c2 = k % out_c;
+          int offset = k / out_c;
+          int w2 = i * stride + offset % stride;
+          int h2 = j * stride + offset / stride;
+          int out_index = w2 + out_w * (h2 + out_h * (c2 + out_c * b));
+          output[in_index] = input[out_index];
+        }
+      }
+    }
+  }
+  return 0;
+}

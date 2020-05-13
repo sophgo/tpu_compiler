@@ -15,14 +15,66 @@ def _sigmoid(x):
     return 1. / (1. + np.exp(-x))
 
 
-def _process_feats(feature, net_input_dims, anchors, num_of_class, obj_threshold):
+def _process_feats_v2(feature, net_input_dims, anchors, num_of_class, obj_threshold):
     yolo_w = net_input_dims[1]
     yolo_h = net_input_dims[0]
-    grid_size = feature.shape[2]
+    grid_h = feature.shape[1]
+    grid_w = feature.shape[2]
+    num_boxes_per_cell = 5
+
+    feature = np.transpose(feature, (1, 2, 0))
+    feature = np.reshape(feature, (grid_h, grid_w, num_boxes_per_cell,
+                           5 + num_of_class))
+    threshold_predictions = []
+
+    anchors_tensor = np.array(anchors).reshape(1, 1, 5, 2)
+
+    box_xy = _sigmoid(feature[..., :2])
+    box_wh = np.exp(feature[..., 2:4]) * anchors_tensor
+
+    box_confidence = _sigmoid(feature[..., 4])
+    box_confidence = np.expand_dims(box_confidence, axis=-1)
+    box_class_probs = _softmax(feature[..., 5:])
+
+    col = np.tile(np.arange(0, grid_w), grid_h).reshape(-1, grid_h)
+    row = np.tile(np.arange(0, grid_h).reshape(-1, 1), grid_w)
+
+    col = col.reshape(grid_h, grid_w, 1, 1).repeat(5, axis=-2)
+    row = row.reshape(grid_h, grid_w, 1, 1).repeat(5, axis=-2)
+    grid = np.concatenate((col, row), axis=-1)
+
+    box_xy += grid
+    box_xy /= (grid_w, grid_h)
+    box_wh /= (grid_w, grid_h)
+
+    boxes = np.concatenate((box_xy, box_wh), axis=-1)
+
+    box_score = box_confidence * box_class_probs
+    box_classes = np.argmax(box_score, axis=-1)
+    box_class_score = np.max(box_score, axis=-1)
+
+    pos = np.where(box_class_score >= obj_threshold)
+
+    boxes = boxes[pos]
+    scores = box_class_score[pos]
+    scores = np.expand_dims(scores, axis=-1)
+    classes = box_classes[pos]
+    classes = np.expand_dims(classes, axis=-1)
+    if boxes is not None:
+        threshold_predictions = np.concatenate((boxes, scores, classes), axis=-1)
+
+    return threshold_predictions
+
+
+def _process_feats_v3(feature, net_input_dims, anchors, num_of_class, obj_threshold):
+    yolo_w = net_input_dims[1]
+    yolo_h = net_input_dims[0]
+    grid_h = feature.shape[1]
+    grid_w = feature.shape[2]
     num_boxes_per_cell = 3
 
     feature = np.transpose(feature, (1, 2, 0))
-    feature = np.reshape(feature, (grid_size, grid_size, num_boxes_per_cell,
+    feature = np.reshape(feature, (grid_h, grid_w, num_boxes_per_cell,
                            5 + num_of_class))
     threshold_predictions = []
 
@@ -35,15 +87,15 @@ def _process_feats(feature, net_input_dims, anchors, num_of_class, obj_threshold
     box_confidence = np.expand_dims(box_confidence, axis=-1)
     box_class_probs = _softmax(feature[..., 5:])
 
-    col = np.tile(np.arange(0, grid_size), grid_size).reshape(-1, grid_size)
-    row = np.tile(np.arange(0, grid_size).reshape(-1, 1), grid_size)
+    col = np.tile(np.arange(0, grid_w), grid_h).reshape(-1, grid_h)
+    row = np.tile(np.arange(0, grid_h).reshape(-1, 1), grid_w)
 
-    col = col.reshape(grid_size, grid_size, 1, 1).repeat(3, axis=-2)
-    row = row.reshape(grid_size, grid_size, 1, 1).repeat(3, axis=-2)
+    col = col.reshape(grid_h, grid_w, 1, 1).repeat(3, axis=-2)
+    row = row.reshape(grid_h, grid_w, 1, 1).repeat(3, axis=-2)
     grid = np.concatenate((col, row), axis=-1)
 
     box_xy += grid
-    box_xy /= (grid_size, grid_size)
+    box_xy /= (grid_w, grid_h)
     box_wh /= (yolo_w, yolo_h)
 
     boxes = np.concatenate((box_xy, box_wh), axis=-1)
@@ -134,15 +186,32 @@ def _correct_boxes(predictions, image_shape, net_input_dims):
         correct.append([box, score, cls])
     return correct
 
+def _postprocess_v2(features, image_shape, net_input_dims, obj_threshold, nms_threshold):
+    total_predictions = []
+    yolov2_num_of_class = 80
+    yolov2_anchors = [[0.57273,0.677385], [1.87446,2.06253], [3.33843,5.47434], [7.88282,3.52778], [9.77052,9.16828]]
+    for _, feature in enumerate(features):
+        threshold_predictions = _process_feats_v2(feature, net_input_dims, yolov2_anchors,
+                                               yolov2_num_of_class, obj_threshold)
+        total_predictions.extend(threshold_predictions)
 
-def _postprocess(features, image_shape, net_input_dims, obj_threshold, nms_threshold):
+    if not total_predictions:
+        return total_predictions
+
+    correct_predictions = _correct_boxes(total_predictions, image_shape, net_input_dims)
+    correct_predictions.sort(key=lambda tup: tup[1], reverse=True)
+
+    nms_predictions = _non_maximum_suppression(correct_predictions, nms_threshold)
+    return nms_predictions
+
+def _postprocess_v3(features, image_shape, net_input_dims, obj_threshold, nms_threshold):
     total_predictions = []
     yolov3_num_of_class = 80
     yolov3_anchors = [[116, 90, 156, 198, 373, 326],
                       [30, 61, 62, 45, 59, 119],
                       [10, 13, 16, 30, 33, 23]]
     for i, feature in enumerate(features):
-        threshold_predictions = _process_feats(feature, net_input_dims, yolov3_anchors[i],
+        threshold_predictions = _process_feats_v3(feature, net_input_dims, yolov3_anchors[i],
                                                yolov3_num_of_class, obj_threshold)
         total_predictions.extend(threshold_predictions)
 
@@ -155,8 +224,13 @@ def _postprocess(features, image_shape, net_input_dims, obj_threshold, nms_thres
     nms_predictions = _non_maximum_suppression(correct_predictions, nms_threshold)
     return nms_predictions
 
+def _batched_feature_generator_v2(batched_features, batch=1):
+    conv22 = batched_features['conv22']
 
-def _batched_feature_generator(batched_features, batch=1):
+    for i in range(batch):
+        yield [conv22[i]]
+
+def _batched_feature_generator_v3(batched_features, batch=1):
     layer82_conv = batched_features['layer82-conv']
     layer94_conv = batched_features['layer94-conv']
     layer106_conv = batched_features['layer106-conv']
@@ -178,6 +252,8 @@ def preprocess(bgr_img, net_input_dims):
     rescale_w = int(iw * scale)
     rescale_h = int(ih * scale)
 
+    print("yolo_h: {}, yolo_w: {}, rescale_h: {}, rescale_w: {}".format(yolo_h, yolo_w, rescale_h, rescale_w))
+
     resized_img = cv2.resize(rgb_img, (rescale_w, rescale_h), interpolation=cv2.INTER_LINEAR)
     new_image = np.full((yolo_h, yolo_w, 3), 0, dtype=np.float32)
     paste_w = (yolo_w - rescale_w) // 2
@@ -187,14 +263,31 @@ def preprocess(bgr_img, net_input_dims):
     new_image = np.transpose(new_image, (2, 0, 1))      # row to col, (HWC -> CHW)
     return new_image
 
-
-def postprocess(batched_features, image_shape, net_input_dims,
+def postprocess_v2(batched_features, image_shape, net_input_dims,
                 obj_threshold, nms_threshold, batch=1):
     i = 0
     batch_out = {}
 
-    for feature in _batched_feature_generator(batched_features, batch):
-        pred = _postprocess(feature, image_shape, net_input_dims,
+    for feature in _batched_feature_generator_v2(batched_features, batch):
+        pred = _postprocess_v2(feature, image_shape, net_input_dims,
+                            obj_threshold, nms_threshold)
+
+        if not pred:
+            batch_out[i] = []
+        else:
+            batch_out[i] = pred
+
+        i += 1
+
+    return batch_out
+
+def postprocess_v3(batched_features, image_shape, net_input_dims,
+                obj_threshold, nms_threshold, batch=1):
+    i = 0
+    batch_out = {}
+
+    for feature in _batched_feature_generator_v3(batched_features, batch):
+        pred = _postprocess_v3(feature, image_shape, net_input_dims,
                             obj_threshold, nms_threshold)
 
         if not pred:

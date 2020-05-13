@@ -243,6 +243,9 @@ struct TpuTL_LW_Conv2DOp_AssignLayoutPattern : public RewritePattern {
             return matchSuccess();
           }
           lut_ops.push_back(next_opInst);
+        } else {
+          llvm::errs() << "TL_LA2LW: layer ID " << op.layer_id()
+                     << ", next_op is not conv or eltwise\n";
         }
       }
       LLVM_DEBUG(llvm::errs() << "TL_LA2LW: layer ID " << op.layer_id()
@@ -285,7 +288,7 @@ struct TpuTL_LW_Conv2DOp_AssignLayoutPattern : public RewritePattern {
           op.setAttr("lm_layout", rewriter.getStringAttr("IWO"));
         }
         return matchSuccess();
-      } else if (conv_ops.size() == 1) {
+      } else if (conv_ops.size() == 1 && elta_ops.size() == 1) {
         assert(elta_ops.size() == 1);
         // mobilenet_v2, one conv and one eltwise
         // fuse with the conv
@@ -310,7 +313,7 @@ struct TpuTL_LW_Conv2DOp_AssignLayoutPattern : public RewritePattern {
         conv_op_next.setAttr("tl_load_flag", rewriter.getBoolAttr(false));
 
         return matchSuccess();
-      } else if((eltm_ops.size() == 1 )&& (lut_ops.size() == 1)) {
+      } else if((eltm_ops.size() == 1 ) && (lut_ops.size() == 1)) {
         //Efficientnet has one eltMul + lut case
         auto lut_op = llvm::dyn_cast_or_null<tpu::TL_LutOp>(lut_ops[0]);
         Operation *lut_next_opInst  =getNextOp(lut_ops[0]) ;

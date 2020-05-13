@@ -2027,6 +2027,40 @@ LogicalResult tpu::ReluOp::interpret(
   return success();
 }
 
+LogicalResult tpu::ReorgOp::interpret(
+    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+  Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
+
+  auto opdT = getOperandTensors(op, valueMapping);
+  auto result = this->getResult();
+  auto size = getTensorSize(result);
+  auto resultT = std::make_unique<std::vector<float>>(size);
+  std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
+  assert(shape.size() == 4);
+
+  std::vector<int64_t> input_shape, output_shape;
+  int64_t input_size, output_size;
+  getTensorShapeAndSize(this->input(), input_shape, input_size);
+  getTensorShapeAndSize(this->output(), output_shape, output_size);
+
+  int64_t n = input_shape[0];
+  int64_t c = input_shape[1];
+  int64_t h = input_shape[2];
+  int64_t w = input_shape[3];
+
+  float *input = (float *)opdT[0]->data();
+  float *output = (float *)resultT.get()->data();
+  auto stride = this->stride().getLimitedValue();
+  int ret = my_reorg(input, output, stride, n, c, h, w);
+
+  assert(ret == 0);
+
+  valueMapping[result] = std::move(resultT);
+
+  return success();
+}
+
 LogicalResult tpu::ReshapeOp::interpret(
     DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();

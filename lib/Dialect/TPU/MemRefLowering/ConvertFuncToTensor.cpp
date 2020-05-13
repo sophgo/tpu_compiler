@@ -161,6 +161,8 @@ struct ConvertFuncToTensorPass
     target.addLegalOp<tpu::TG_BF16_PReluOp>();
     target.addLegalOp<tpu::TG_INT8_ReluOp>();
     target.addLegalOp<tpu::TG_BF16_ReluOp>();
+    target.addLegalOp<tpu::TG_INT8_ReorgOp>();
+    target.addLegalOp<tpu::TG_BF16_ReorgOp>();
     target.addLegalOp<tpu::TG_INT8_SliceOp>();
     target.addLegalOp<tpu::TG_BF16_SliceOp>();
     target.addLegalOp<tpu::TG_INT8_SwapChannelOp>();

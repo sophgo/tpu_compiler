@@ -178,6 +178,7 @@ private:
   void convertPriorBoxLayer(mlir::Block *block, caffe::Layer<float> *layer);
   // void convertReductionLayer(mlir::Block *block, caffe::Layer<float> *layer);
   void convertReLULayer(mlir::Block *block, caffe::Layer<float> *layer);
+  void convertReorgLayer(mlir::Block *block, caffe::Layer<float> *layer);
   void convertReshapeLayer(mlir::Block *block, caffe::Layer<float> *layer);
   void convertRetinaFaceDetectionLayer(mlir::Block *block, caffe::Layer<float> *layer);
   void convertScaleLayer(mlir::Block *block, caffe::Layer<float> *layer);
@@ -441,6 +442,8 @@ void CaffeImporter::ConvertLayers(mlir::Block *block, caffe::Net<float> &net) {
       convertPowerLayer(block, layer);
     } else if (strcmp(layer->type(), "ShuffleChannel") == 0) {
       convertShuffleChannelLayer(block, layer);
+    } else if (strcmp(layer->type(), "Reorg") == 0) {
+      convertReorgLayer(block, layer);
     } else if (strcmp(layer->type(), "RetinaFaceDetection") == 0) {
       convertRetinaFaceDetectionLayer(block, layer);
     } else if (strcmp(layer->type(), "YoloDetection") == 0) {
@@ -1785,6 +1788,39 @@ void CaffeImporter::convertReLULayer(mlir::Block *block, caffe::Layer<float> *la
   }
 
   tensor_map_[layer_param.top(0)] = result_var;
+}
+
+void CaffeImporter::convertReorgLayer(mlir::Block *block, caffe::Layer<float> *layer) {
+  auto layer_param = layer->layer_param();
+  auto reorg_param = layer_param.reorg_param();
+  auto stride = reorg_param.stride();
+  mlir::Value *input_var = GetLayerInput(layer);
+  llvm::ArrayRef<int64_t> input_shape =
+      input_var->getType().dyn_cast<mlir::TensorType>().getShape();
+  assert(input_shape.size() == 4);
+
+  std::vector<int64_t> output_shape(input_shape.size());
+  output_shape[0] = input_shape[0];
+  output_shape[1] = input_shape[1] * stride * stride;
+  output_shape[2] = input_shape[2] / stride;
+  output_shape[3] = input_shape[3] / stride;
+
+  std::vector<Value *> operands;
+  operands.push_back(input_var);
+
+  auto result_type = RankedTensorType::get(llvm::ArrayRef<int64_t>{output_shape}, elementType_);
+
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder_.getNamedAttr("stride", builder_.getI32IntegerAttr(stride)));
+  attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name())));
+  attrs.push_back(builder_.getNamedAttr("quant", getDefaultQuantParam(builder_)));
+
+  auto op = OpBuilder(block).create<tpu::ReorgOp>(
+      builder_.getUnknownLoc(), result_type, ArrayRef<Value *>{operands},
+      ArrayRef<NamedAttribute>{attrs});
+  auto result_var = op.getResult();
+
+  tensor_map_[layer_param.top(0)] = result_var;  
 }
 
 void CaffeImporter::convertReshapeLayer(mlir::Block *block, caffe::Layer<float> *layer) {

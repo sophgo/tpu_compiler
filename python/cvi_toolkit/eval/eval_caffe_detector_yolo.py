@@ -8,7 +8,7 @@ import glob
 import time
 import cv2
 import caffe
-from cvi_toolkit.utils.yolov3_util import preprocess, postprocess, draw
+from cvi_toolkit.utils.yolov3_util import preprocess, postprocess_v3, postprocess_v2, draw
 from pycocotools.coco import COCO
 from pycocotools.cocoeval import COCOeval
 import json
@@ -53,20 +53,26 @@ def parse_args():
     parser.add_argument("--pre_result_json", type=str,
                         help="when present, use pre detected result file, skip detection")
     parser.add_argument("--count", type=int, default=-1)
+    parser.add_argument("--yolov3", type=str, default='yes')
 
     args = parser.parse_args()
     return args
 
-def yolov3_detect(net, image, net_input_dims, obj_threshold, nms_threshold):
+def yolo_detect(net, image, net_input_dims, obj_threshold, nms_threshold, yolov3):
     x = preprocess(image, net_input_dims)
     net.blobs['data'].data[...] = x
     y = net.forward()
     out_feat = {}
-    out_feat['layer82-conv'] = y['layer82-conv']
-    out_feat['layer94-conv'] = y['layer94-conv']
-    out_feat['layer106-conv'] = y['layer106-conv']
-    batched_predictions = postprocess(out_feat, image.shape, net_input_dims,
-                              obj_threshold, nms_threshold, batch=1)
+    if yolov3 == True:
+        out_feat['layer82-conv'] = y['layer82-conv']
+        out_feat['layer94-conv'] = y['layer94-conv']
+        out_feat['layer106-conv'] = y['layer106-conv']
+        batched_predictions = postprocess_v3(out_feat, image.shape, net_input_dims,
+                                obj_threshold, nms_threshold, batch=1)
+    else:
+        out_feat['conv22'] = y['conv22']
+        batched_predictions = postprocess_v2(out_feat, image.shape, net_input_dims,
+                                obj_threshold, nms_threshold, batch=1)
     # batch = 1
     predictions = batched_predictions[0]
     return predictions
@@ -181,6 +187,7 @@ def main(argv):
     net_input_dims = [int(s) for s in args.net_input_dims.split(',')]
     obj_threshold = float(args.obj_threshold)
     nms_threshold = float(args.nms_threshold)
+    yolov3 = True if args.yolov3 == 'yes' else False
     print("net_input_dims", net_input_dims)
     print("obj_threshold", obj_threshold)
     print("nms_threshold", nms_threshold)
@@ -190,8 +197,8 @@ def main(argv):
     # Load image
     if (args.input_file != '') :
         image = cv2.imread(args.input_file)
-        predictions = yolov3_detect(net, image, net_input_dims,
-                                    obj_threshold, nms_threshold)
+        predictions = yolo_detect(net, image, net_input_dims,
+                                    obj_threshold, nms_threshold, yolov3)
         print(predictions)
         if (args.draw_image != ''):
             image = draw(image, predictions, args.label_file)

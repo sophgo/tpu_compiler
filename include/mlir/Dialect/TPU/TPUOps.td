@@ -1391,6 +1391,53 @@ def TPU_ReluOp: TPU_Op<"relu",
   let hasCanonicalizer = 1;
 }
 
+def TPU_ReorgOp : TPU_Op<"reorg",
+    [NoSideEffect,
+     DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+     DeclareOpInterfaceMethods<TpuOpInterpInterface>,
+     DeclareOpInterfaceMethods<TpuOpQuantInterface>,
+     DeclareOpInterfaceMethods<TpuOpLowerInterface>]>  {
+
+  let summary = "Reorg operator";
+
+  let description = [{
+    reorg on input.
+
+    Inputs:
+      `input`           : required, the input activation tensor.
+
+    Attributes:
+      `stride`           : required, channel / height / width stride.
+      `quant`           : required, a QuantParam struct attributes.
+      `name`            : required, name for calibration, comparing, or debug.
+      `layer_id`        : optional, id for profiling.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TPU_QuantPerTensorOnly`
+      `TPU_QuantSupportAsymmetric`
+      `TPU_QuantSameInputResultScale` : input and result share same threshold
+                                        or scale (bypassed).
+      `TpuOpCommonInterface` : support common TPU Op interface
+      `TpuOpInterpInterface` : support interperter
+      `TpuOpQuantInterface`  : support quantization
+      `TpuOpLowerInterface`  : support lower to TPU TG Ops
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    NonNegativeI32Attr:$stride,
+    TPU_QuantParamAttr:$quant,
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
 def TPU_RetinaFaceDetectionOp : TPU_Op<"retinaface_detection",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
