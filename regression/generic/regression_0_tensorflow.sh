@@ -22,10 +22,11 @@ if [ ! -f "$TF_BLOBS_NPZ" ]; then
       --data_format $DATA_FORMAT \
       --model_type tensorflow \
       --output_file tf_out.npz
+
+      cvi_npz_tool.py tranpose $TF_BLOBS_NPZ nhwc nchw
+      cvi_npz_tool.py extract $TF_BLOBS_NPZ ${NET}_in_fp32.npz input
 fi
 
-cvi_npz_tool.py extract $TF_BLOBS_NPZ ${NET}_in_fp32.npz input
-cvi_npz_tool.py tranpose ${NET}_in_fp32.npz nhwc nchw
 
 # VERDICT
 echo $0 PASSED
