@@ -397,8 +397,8 @@ class TFConverter(BaseConverter):
             'do_relu': False,
         }
         output_shape = [int(on), int(oc), 1, 1]
-        pool_avg_op = self.CVI.add_pool_avg_2d_op("{}_{}".format(
-            node.name, node.op_type), operands, output_shape, **pool_avg_2d_param)
+        pool_avg_op = self.CVI.add_pool_avg_2d_op("{}".format(
+            node.name), operands, output_shape, **pool_avg_2d_param)
         self.addOperand(node.name, pool_avg_op,
                         output_shape, TensorType.ACTIVATION)
 
