@@ -104,13 +104,15 @@ def main(argv):
     caffemodel = CaffeModel()
     caffemodel.load_model(args.model_def, args.pretrained_model)
     caffemodel.inference(input)
-    print("Save Blobs: ", args.dump_blobs)
-    blobs_dict = caffemodel.get_all_tensor(input, args.dump_blobs_with_inplace)
-    np.savez(args.dump_blobs, **blobs_dict)
+    if args.dump_blobs:
+        print("Save Blobs: ", args.dump_blobs)
+        blobs_dict = caffemodel.get_all_tensor(input, args.dump_blobs_with_inplace)
+        np.savez(args.dump_blobs, **blobs_dict)
 
-    print("Save Weights:", args.dump_weights)
-    weights_dict = caffemodel.get_all_weights()
-    np.savez(args.dump_weights, **weights_dict)
+    if args.dump_weights:
+        print("Save Weights:", args.dump_weights)
+        weights_dict = caffemodel.get_all_weights()
+        np.savez(args.dump_weights, **weights_dict)
 
 
 if __name__ == '__main__':

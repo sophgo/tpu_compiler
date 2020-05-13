@@ -40,6 +40,7 @@ class CaffeModel(model_base):
         blobs_dict = {}
         blobs_dict['raw_data'] = input_data
         if get_in_place_tensor:
+            in_place_tensors = []
             for name, layer in self.net.layer_dict.items():
                 msg = "layer : {}\n\ttype = {} \n\ttop -> {} \n\tbottom -> {}".format(
                     name, layer.type, self.net.top_names[name],
@@ -53,8 +54,19 @@ class CaffeModel(model_base):
                 if layer.type == "Input":
                     blobs_dict[name] = input_data
                     continue
+
+                top = self.net.top_names[name][0]
+                if self.net.top_names[name] != self.net.bottom_names[name]:
+                    blobs_dict[name] = self.net.blobs[top].data.copy()
+                else:
+                    msg = "layer : {} is inplace, {} is overwritten".format(
+                        name, self.net.bottom_names[name][0])
+                    logger.debug(msg)
+                    print(msg)
+                    in_place_tensors.append((name, top))
+            for name, top in in_place_tensors:
                 out = self.net.forward(None, None, name, **{self.net.inputs[0]: input_data})
-                blobs_dict[name] = out[self.net.top_names[name][0]].copy()
+                blobs_dict[name] = out[top].copy()
         else:
             top_map = {}
             out = self.net.forward_all(**{self.net.inputs[0]: input_data})
