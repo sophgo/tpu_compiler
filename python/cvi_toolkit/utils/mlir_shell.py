@@ -292,6 +292,7 @@ def run_cvimodel(input_file, cvi_model, output_tensor, all_tensors=True):
     cmd = ["model_runner",
             "--input", input_file,
             "--model", cvi_model,
+            "--batch-num", "1",
             "--output", output_tensor,]
     if all_tensors:
         cmd.append("--dump-all-tensors")

@@ -96,3 +96,4 @@ def npz_transpose(args):
             npz_out[k] = np.ascontiguousarray(np.transpose(v, tranpose))
 
     np.savez(args[0], **npz_out)
+    return True

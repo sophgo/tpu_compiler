@@ -18,8 +18,8 @@ data_preprocess:
     input_scale: 1.0
     #RGB order: rgb or bgr , default is bgr the same as opencv
     RGB_order: bgr
-    #transpose, "2,1,0" is HWC->CHW;
-    transpose: 2,0,1
+    #data_format, "2,1,0" is HWC->CHW;
+    data_format: nchw
     #not implement yet
     Standardization: null
     #letterbox resize, not implement yet

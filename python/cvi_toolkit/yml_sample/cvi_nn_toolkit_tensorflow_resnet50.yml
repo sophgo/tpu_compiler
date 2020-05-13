@@ -1,60 +1,59 @@
 #data preprocess paremeter please set to null if no need.
-output_file: alphapose.cvimodel
+output_file: resnet50_tf.cvimodel
 
 data_preprocess:
-
-
-    # image_resize_dim: 256, 256
-    net_input_dims: 64,80
+    image_resize_dim: 256, 256
+    net_input_dims: 224,224
     # for mean , you should only set one of "image_mean" "channel_mean" and "mean_file"
     #image mean value
     #image_mean: 20.5
     #perchanel mean value
-    channel_mean: 103.94,116.78,123.68
+    channel_mean: 0,0,0
     #mean file
     #mean_file: /home/hongjun/models/data/ilsvrc_2012_mean.npy
+    std: 1,1,1
 
     #Multiply raw input by this scale before preprocession
-    raw_scale: 255.0
+    raw_scale: 1.0
     #Multiply input features by this scale to finish preprocession
-    input_scale: 1
+    input_scale: 1.0
     #RGB order: rgb or bgr , default is bgr the same as opencv
-    RGB_order: bgr
+    RGB_order: rgb
     #data_format, "2,1,0" is HWC->CHW;
-    data_format: nchw
+    data_format: nhwc
     #not implement yet
     Standardization: null
     #letterbox resize, not implement yet
     LetterBox: False
     #npz input directly , do nothing for preprocessing, just use npz input
-    npy_input: /workspace/tpu/llvm-project/llvm/projects/mlir/regression/data/alphapose_in.npy
+    npy_input:
 
     input_file: /workspace/tpu/llvm-project/llvm/projects/mlir/regression/data/cat.jpg
-    output_npz: retinanet_in_fp32.npz
+    output_npz: resnet50_tensorflow_in_fp32.npz
 
 #step 1: model convert
 Convert_model:
     #framework type: caffe or onnx
-    framework_type: onnx
+    framework_type: tensorflow
     #for onnx model, please set model file only
-    # weight_file: /home/hongjun/models/imagenet/vgg/caffe/VGG_ILSVRC_16_layers.caffemodel
-    model_file: /data/models/pose/alphapose/onnx/alphapose_resnet50_256x192.onnx
+    # weight_file: /data/models/imagenet/efficientnet-b0/caffe/efficientnet-b0.caffemodel
+    model_file: /data/models/imagenet/resnet/tensorflow/resnet50/
 
 #step2: do calibration
 Calibration:
     # You can import calibration table directly or do calibration.
-    calibraion_table: /workspace/tpu/llvm-project/llvm/projects/mlir/regression/data/cali_tables/alphapose_calibration_table
+    calibraion_table:
 
     # Do caliration parameters, if you import calibration table below parameters will be ignored.
     Dataset: /tmp/input.txt
     #How many images you want to use to do calibration, if more the num if Dataset, Dataset num will be used
-    image_num: 1
+    image_num: 10
     histogram_bin_num: 2048
 
 #step3: do quantization
 Quantization:
     per_channel: true
-    per_tensor: false
+    per_tensor: true
     asymmetric: false
     symmetric: true
 
@@ -69,10 +68,10 @@ Accuracy_test:
     # Enable perlayer tensor int8 similarity check to make sure quantization result is correct.
     INT8_Accuracy_test: True
     Tolerance_INT8:
-      - 0.9  #cosine similarity
-      - 0.9  #correlation similarity
-      - 0.66  #eulidean similarity
-    # excepts: prob
+      - 0.77  #cosine similarity
+      - 0.63 #correlation similarity
+      - 0.28  #eulidean similarity
+    excepts:
 
 #step5: do tpu offline simulation to check accuracy.
 

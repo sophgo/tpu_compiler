@@ -93,7 +93,7 @@ def parse(config: dict):
             exit(-1)
         std = t.get('std', "1,1,1")
         raw_scale = t.get('raw_scale', 255.0)
-        transpose = t.get('transpose')
+        data_format = t.get('data_format')
         resize_dims = t.get('image_resize_dim')
         letter_box = t.get('LetterBox', False)
 
@@ -119,7 +119,7 @@ def parse(config: dict):
                     input_scale=input_scale,
                     std=std,
                     raw_scale=raw_scale,
-                    transpose=transpose,
+                    data_format=data_format,
                     rgb_order=rgb_order,
                     npy_input=npy_input,
                     letter_box=letter_box)
@@ -132,23 +132,34 @@ def parse(config: dict):
         logger.error('No data_preprocess in yml')
         exit(-1)
 
-    # inference with mlir framework
     input_npz = fp32_in_npz
+    # inference with origin framework
+    fp32_origin_tensor_file = "{}_origin_tensor_all_fp32.npz".format(
+        model_name)
+    logger.info("run original {} model fp32 inference ...".format(model_type))
+    output = net.inference(model_type, input_npz, mlirfile=fp32_mlirfile,
+                           model_file=model_file, weight_file=weight_file, all_tensors=fp32_origin_tensor_file)
+    if output is not None:
+        logger.info(
+            "original {} model fp32 inference finished".format(model_type))
+
+    # inference with mlir framework
     logger.info("run mlir fp32 inference ...")
-    fp32_mlir_tensor_file = "{}_tensor_all_fp32.npz".format(model_name)
+    fp32_mlir_tensor_file = "{}_tensor_all_mlir_fp32.npz".format(model_name)
     try:
+        if data_format == "nhwc":
+            # beacause mlir data_format is nchw,
+            # transpose it
+            cvi_data_tool.npz_transpose(input_npz, "nhwc", "nchw")
+            cvi_data_tool.npz_transpose(
+                fp32_origin_tensor_file, "nhwc", "nchw")
         output = net.inference('mlir', input_npz, mlirfile=fp32_mlirfile, model_file=model_file, weight_file=weight_file, all_tensors=fp32_mlir_tensor_file)
     except Exception as e:
         logger.error("mlir fp32 inference failed {}".format(e))
+        exit(-1)
     if output is not None:
         logger.info("mlir fp32 inference finished")
 
-    # inference with origin framework
-    fp32_origin_tensor_file = "{}_{}_tensor_all_fp32.npz".format(model_name, model_type)
-    logger.info("run original {} model fp32 inference ...".format(model_type))
-    output = net.inference(model_type, input_npz, mlirfile=fp32_mlirfile, model_file=model_file, weight_file=weight_file, all_tensors=fp32_origin_tensor_file)
-    if output is not None:
-        logger.info("original {} model fp32 inference finished".format(model_type))
 
     # accuracy fp32 test
     accuracy_test = config.get("Accuracy_test", None)
@@ -197,6 +208,9 @@ def parse(config: dict):
             tune_image_num = Calibration.get("tune_image_num", 10)
 
             histogram_bin_num = Calibration.get("histogram_bin_num", 2048)
+            if data_format == "nhwc":
+                # mlir data_format is nchw, change it
+                preprocessor.data_format = "nchw"
             net.calibration(fp32_mlirfile, dataset_file, calibraion_table, preprocessor.run, image_num, histogram_bin_num, auto_tune=auto_tune,tune_image_num=tune_image_num)
             logger.info("calibration finished")
     else:
@@ -282,7 +296,7 @@ def parse(config: dict):
             int8_stat.min_cosine_similarity,
             int8_stat.min_correlation_similarity,
             int8_stat.min_euclidean_similarity))
-            
+
     logger.info("You can get cvimodel:\n {}".format(os.path.abspath(output_file)))
     if new_table:
         logger.info("New Threshold Table:\n {}".format(os.path.abspath(calibraion_table)))

@@ -18,13 +18,13 @@ data_preprocess:
     input scale: 1
     #RGB order: rgb or bgr , default is bgr the same as opencv
     RGB_order: bgr
-    #transpose, "2,1,0" is HWC->CHW;
-    transpose: 2,1,0
+    #data_format, "2,1,0" is HWC->CHW;
+    data_format: 2,1,0
     #not implement yet
     Standardization: null
-    #letterbox resize, for yolov3 case 
+    #letterbox resize, for yolov3 case
     LetterBox: True
-    #npz input directly , do nothing for preprocessing, just use npz input 
+    #npz input directly , do nothing for preprocessing, just use npz input
     npz_input: null
 
     input_file: /home/hongjun/models/data/dog.jpg
@@ -40,9 +40,9 @@ Convert_model:
 
 #step2: do calibration
 Calibration:
-    # You can import calibration table directly or do calibration. 
+    # You can import calibration table directly or do calibration.
     calibraion_table: /home/hongjun/compiler/mlir_tpu_latest/llvm-project/llvm/projects/mlir/regression/data/cali_tables/yolo_v3_calibration_table_autotune
-    
+
     # Do caliration parameters, if you import calibration table below parameters will be ignored.
     Dataset: /home/hongjun/dataset/calibration_data/input.txt
     #How many images you want to use to do calibration, if more the num if Dataset, Dataset num will be used
@@ -70,7 +70,7 @@ Accuracy_test:
       - 0.93  #cosine similarity
       - 0.92  #correlation similarity
       - 0.61  #eulidean similarity
-    excepts: 
+    excepts:
 
 #step5: do tpu offline simulation to check accuracy.
 

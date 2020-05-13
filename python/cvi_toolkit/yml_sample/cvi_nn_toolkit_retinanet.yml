@@ -1,5 +1,5 @@
 #data preprocess paremeter please set to null if no need.
-output_file: alphapose.cvimodel
+output_file: retinanet.cvimodel
 
 data_preprocess:
 
@@ -27,7 +27,7 @@ data_preprocess:
     #letterbox resize, not implement yet
     LetterBox: False
     #npz input directly , do nothing for preprocessing, just use npz input
-    npy_input: /workspace/tpu/llvm-project/llvm/projects/mlir/regression/data/alphapose_in.npy
+    npy_input: null
 
     input_file: /workspace/tpu/llvm-project/llvm/projects/mlir/regression/data/cat.jpg
     output_npz: retinanet_in_fp32.npz
@@ -38,12 +38,12 @@ Convert_model:
     framework_type: onnx
     #for onnx model, please set model file only
     # weight_file: /home/hongjun/models/imagenet/vgg/caffe/VGG_ILSVRC_16_layers.caffemodel
-    model_file: /data/models/pose/alphapose/onnx/alphapose_resnet50_256x192.onnx
+    model_file: /tmp/retinanet-tiny_ow_postprocess.onnx
 
 #step2: do calibration
 Calibration:
     # You can import calibration table directly or do calibration.
-    calibraion_table: /workspace/tpu/llvm-project/llvm/projects/mlir/regression/data/cali_tables/alphapose_calibration_table
+    # calibraion_table: /workspace/tpu/cvitek_mlir/tmp/retinanet_threshold_table
 
     # Do caliration parameters, if you import calibration table below parameters will be ignored.
     Dataset: /tmp/input.txt
@@ -63,15 +63,15 @@ Accuracy_test:
     # Enable  perlayer tensor fp32 similarity check to make sure convert IR result is correct.
     FP32_Accuracy_test: True
     Tolerance_FP32:
-      - 0.999  #cosine similarity
-      - 0.999  #correlation similarity
-      - 0.999  #eulidean similarity
+      - 0.9  #cosine similarity
+      - 0.9  #correlation similarity
+      - 0.9  #eulidean similarity
     # Enable perlayer tensor int8 similarity check to make sure quantization result is correct.
     INT8_Accuracy_test: True
     Tolerance_INT8:
-      - 0.9  #cosine similarity
-      - 0.9  #correlation similarity
-      - 0.66  #eulidean similarity
+      - 0  #cosine similarity
+      - 0 #correlation similarity
+      - 0 #eulidean similarity
     # excepts: prob
 
 #step5: do tpu offline simulation to check accuracy.

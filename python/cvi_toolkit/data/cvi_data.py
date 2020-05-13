@@ -1,5 +1,5 @@
 from ..numpy_helper import npz_compare as base_npz_compare
-
+from ..numpy_helper import npz_transpose as base_npz_transpose
 class cvi_data(object):
     def __init__(self):
         pass
@@ -61,3 +61,7 @@ class cvi_data(object):
             args.append(save)
 
         return base_npz_compare(args)
+    @staticmethod
+    def npz_transpose(target_file: str, ref_data_format: str, target_data_format:str):
+        args = [target_file, ref_data_format, target_data_format]
+        return base_npz_transpose(args)
