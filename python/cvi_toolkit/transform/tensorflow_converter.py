@@ -352,7 +352,7 @@ class TFConverter(BaseConverter):
 
         # filter
         filter_data = node.proto.get_weights()[0]
-        filter_data = np.transpose(filter_data, (1, 0))
+        filter_data = np.ascontiguousarray(np.transpose(filter_data, (1, 0)))
         filter_shape = filter_data.shape
         filter_name = "{}_add_weight".format(node.name)
         filter_op = self.createLoadWeightOp(
@@ -372,8 +372,21 @@ class TFConverter(BaseConverter):
         K = shape[1]
         N = bias_shape[0]
         output_shape = [M, N]
-        fc_op = self.CVI.add_fully_connected_op("{}".format(node.name), operands, output_shape)
-        self.addOperand(node.name, fc_op, output_shape, TensorType.ACTIVATION)
+        if config['activation'] == "softmax":
+            fc_op = self.CVI.add_fully_connected_op("{}_fc".format(node.name), operands, output_shape)
+            self.addOperand("{}_fc".format(node.name), fc_op,
+                            output_shape, TensorType.ACTIVATION)
+            softmax_operands = [fc_op]
+            softmax_op = self.CVI.add_softmax_op(
+                "{}".format(node.name), softmax_operands, output_shape)
+
+            self.addOperand(node.name, softmax_op, output_shape,
+                            TensorType.ACTIVATION)
+        else:
+            raise RuntimeError(
+                "TODO Activation is {}".format(config['activation']))
+
+
 
     def convert_global_avg_pool_op(self, node):
         assert(node.op_type == "GlobalAveragePooling2D")
