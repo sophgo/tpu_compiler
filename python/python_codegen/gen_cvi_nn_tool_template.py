@@ -1,5 +1,8 @@
+#! /usr/bin/env python3
 from jinja2 import Template
 import os
+import sys
+
 
 yml_format = """
 #data preprocess paremeter please set to null if no need.
@@ -71,9 +74,10 @@ Accuracy_test:
     # Enable perlayer tensor int8 similarity check to make sure quantization result is correct.
     INT8_Accuracy_test: True
     Tolerance_INT8:
-        - 0
-        - 0
-        - 0
+    {% set list = TOLERANCE_INT8_MULTIPLER.split(',') %}
+    {% for item in list %}
+        - {{ item }}
+    {% endfor %}
     {% if EXCEPTS != "-" %}
     excepts: {{ EXCEPTS }}
     {% endif %}
@@ -96,11 +100,14 @@ vlc_compress(VLC): true
 
 tm = Template(yml_format)
 
-print(os.environ['NET'])
+if (len(sys.argv) < 2):
+    print('Usage: {}  [.yml]'.format(sys.argv[0]))
+    exit(-1)
+net = sys.argv[1]
+os.environ['NET'] = net
 print(os.environ['MODEL_DEF'])
 
 msg = tm.render(os.environ)
-print(msg)
 
 with open("{}.yml".format(os.environ['NET']), "w") as f:
     f.write(msg)

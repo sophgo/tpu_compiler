@@ -15,7 +15,6 @@ class BaseConverter(object):
     def addOperand(self, op_name, op, shape, tensor_type):
         if isinstance(op_name, int):
             op_name = str(op_name)
-        print(op_name, op, shape, tensor_type)
         self.valueMap[op_name] = (op, shape, tensor_type)
 
     def getOperand(self, op_name):

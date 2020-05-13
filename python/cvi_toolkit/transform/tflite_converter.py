@@ -389,7 +389,6 @@ class TFLiteConverter(BaseConverter):
             padding_data[2][0] if isinstance(padding_data, np.ndarray) else padding_w,
             conv_param['dilation_w'],
         )
-        print(conv_param)
         output_shape = [on, oc, oh, ow]
         conv_op = self.CVI.add_conv_op("{}".format(
             node.name), operands, output_shape, **conv_param)

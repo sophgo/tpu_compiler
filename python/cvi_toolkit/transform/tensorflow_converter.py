@@ -371,8 +371,11 @@ class TFConverter(BaseConverter):
             self.addOperand("{}_fc".format(node.name), fc_op,
                             output_shape, TensorType.ACTIVATION)
             softmax_operands = [fc_op]
+            softmax_param = {
+                'axis': len(output_shape) - 1,
+            }
             softmax_op = self.CVI.add_softmax_op(
-                "{}".format(node.name), softmax_operands, output_shape)
+                "{}".format(node.name), softmax_operands, output_shape, **softmax_param)
 
             self.addOperand(node.name, softmax_op, output_shape,
                             TensorType.ACTIVATION)

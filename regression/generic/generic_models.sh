@@ -62,6 +62,8 @@ export TOLERANCE_BF16=0.99,0.99,0.89
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.9
 export DO_LAYERGROUP=1
 export USE_LAYERGROUP=0
+export DO_NN_TOOLKIT=1
+# export BATCH_SIZE=4
 fi
 
 if [ $NET = "vgg16" ]; then
@@ -622,6 +624,7 @@ export INPUT_SCALE=1.0
 export INPUT=input
 export OUTPUTS_FP32=output
 export OUTPUTS=output
+export DO_NN_TOOLKIT=1
 # export DO_QUANT_INT8_PER_TENSOR=1
 # export DO_QUANT_INT8_RFHIFT_ONLY=1
 export TOLERANCE_INT8_PER_TENSOR=0.97,0.97,0.78
@@ -698,6 +701,42 @@ if [ ! -f ${MODEL_DEF} ]; then
   echo "cannot find the file ${MODEL_DEF}"
   exit 1
 fi
+
+if [ $NET = "resnet50_tensorflow" ]; then
+export MODEL_TYPE="tensorflow"
+export MODEL_DEF=$MODEL_PATH/imagenet/resnet/tensorflow/resnet50
+export MODEL_DAT=""
+export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/generic/regression_0_tensorflow.sh
+export MLIR_OPT_FE_POST=""
+export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/resnet50_tensorflow_calibration_table
+export IMAGE_RESIZE_DIMS=256,256
+export NET_INPUT_DIMS=224,224
+export DATA_FORMAT="nhwc"
+export RAW_SCALE=255
+export MODEL_CHANNEL_ORDER="rgb"
+export MEAN=127.5,127.5,127.5 # in RGB
+export STD=127.5,127.5,127.5
+export INPUT_SCALE=1.0
+export INPUT=input
+export TOLERANCE_INT8_PER_TENSOR=0.9,0.88,0.51
+export TOLERANCE_INT8_RSHIFT_ONLY=0.92,0.90,0.58
+export TOLERANCE_INT8_MULTIPLER="0.42,0.3,-0.4"
+export DO_QUANT_BF16=0
+export DO_E2E=0
+export DO_DEEPFUSION=0
+export DO_NN_TOOLKIT=1
+export EXCEPTS=probs # softmax
+# export TOLERANCE_BF16=0.99,0.99,0.94
+# export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
+fi
+
+# turn off those optimization when batch_size is larger than 1 temporarily
+#if [ $BATCH_SIZE -gt 1 ]; then
+#export DO_DEEPFUSION=0
+#export DO_MEMOPT=0
+#export DO_QUANT_MIX=0
+#export DO_E2E=0
+#fi
 
 if [ $DO_LAYERGROUP -eq 1 ]; then
   # echo "do layer_group, skip early stride for eltwise"
