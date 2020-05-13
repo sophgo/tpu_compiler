@@ -36,8 +36,20 @@ def parse_args():
     args = parser.parse_args()
     return args
 
+class NpEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        elif isinstance(obj, np.floating):
+            return float(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        else:
+            return super(NpEncoder, self).default(obj)
 
-def write_result_to_json(image_name, predictions, fp):
+
+
+def write_result_to_json(image_name, predictions, fp, line):
     ori_name = os.path.splitext(image_name)[0]
     image_id = int(ori_name[ori_name.rfind('_') + 1:])
 
@@ -50,6 +62,7 @@ def write_result_to_json(image_name, predictions, fp):
     ]
 
     boxes, classes, scores = predictions
+    cnt = 0
     for box, cls, score in zip(boxes, classes, scores):
         x1, y1, x2, y2 = box
 
@@ -64,8 +77,10 @@ def write_result_to_json(image_name, predictions, fp):
             "bbox": [bx, by, bw, bh],
             "score": float(score)
         }
-        fp.write(json.dumps(res))
-        fp.write(',\n')
+        common = "" if line == 0 and cnt == 0 else "," 
+        fp.write("{}{}".format(common, json.dumps(res, cls=NpEncoder)))
+        fp.write('\n')
+        cnt += 1
 
 def get_img_id(file_name):
     ls = []
@@ -179,7 +194,7 @@ def dump_coco_json():
 
                 classes, scores, boxes = parse_top_detection(image.shape, detections, 0.01)
                 if len(boxes) > 0:
-                    write_result_to_json(img_name, [boxes, classes, scores], coco_result)
+                    write_result_to_json(img_name, [boxes, classes, scores], coco_result, i)
 
                 coco_result.flush()
 
@@ -188,7 +203,7 @@ def dump_coco_json():
                     break
                 pbar.update(1)
 
-        coco_result.seek(-2, 1)
+        #coco_result.seek(-2, 1)
         coco_result.write('\n]')
 
 if __name__ == '__main__':

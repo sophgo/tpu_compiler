@@ -45,14 +45,20 @@ export DO_QUANT_BF16=0
 fi
 
 if [ $NET = "liveness" ]; then
-export MODEL_DEF=$MODEL_PATH/face_antispoofing/RGBIRLiveness/caffe/RGBIRlivenessFacebageNet.prototxt
-export MODEL_DAT=$MODEL_PATH/face_antispoofing/RGBIRLiveness/caffe/RGBIRlivenessFacebageNet.caffemodel
+export MODEL_DEF=$MODEL_PATH/face_antispoofing/RGBIRLiveness/caffe/RGBIRlivenessFacebageNet.prototxt \
+export MODEL_DAT=$MODEL_PATH/face_antispoofing/RGBIRLiveness/caffe/RGBIRlivenessFacebageNet.caffemodel \
 export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/cvitek_zoo/data/run_caffe/regression_${NET}_0_caffe.sh
 export CALI_TABLE=$REGRESSION_PATH/cvitek_zoo/data/cali_tables/${NET}_calibration_table
 export INPUT=data
+export OUTPUTS_FP32=fc2
 export TOLERANCE_INT8_MULTIPLER=0.9,0.9,0.7
 export DO_QUANT_INT8_PER_TENSOR=0
 export DO_QUANT_INT8_RFHIFT_ONLY=0
 export DO_QUANT_BF16=0
 export DO_E2E=0
+# accuracy setting
+export EVAL_MODEL_TYPE="RGBIRliveness"
+export RGBIR_VAL_LIST=$DATASET_PATH/RGBIRliveness/wisecore_rgbir_val_list_noCleanOutFace.txt
+#export DO_ACCURACY_CAFFE=0
+#export DO_ACCURACY_ONNX=0
 fi

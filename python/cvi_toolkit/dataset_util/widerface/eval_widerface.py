@@ -1,4 +1,4 @@
-from widerface_generator import widerface_generator
+from .widerface_generator import widerface_generator
 import numpy as np
 import os
 import subprocess
@@ -28,13 +28,19 @@ def detect_on_widerface(img_path, wider_face_gt_folder, result_folder_path, dete
 
 
 def evaluation(pred_folder, model_name):
-    wider_eval_tool = os.path.join(os.environ['TPU_PYTHON_PATH'], 'dataset_util', 'widerface', 'wider_eval_tools')
+    acc_log = "acc.log"
+    wider_eval_tool = os.path.join(os.environ['TPU_PYTHON_PATH'], 'cvi_toolkit', 'dataset_util', 'widerface', 'wider_eval_tools')
+
+    acc_log_path = os.path.join(wider_eval_tool, acc_log)
     folder_name = os.path.basename(pred_folder)
+
     cmd = 'cp -r {} {};'.format(pred_folder, wider_eval_tool)
     cmd += 'pushd {};'.format(wider_eval_tool)
-    cmd += 'octave --eval \"wider_eval(\'{}\', \'{}\')\";'.format(folder_name, model_name)
+    cmd += 'octave --no-window-system --eval \"wider_eval(\'{}\', \'{}\')\" 2>&1 | tee {} ;'.format(folder_name, model_name, acc_log)
     cmd += 'rm -rf {};'.format(folder_name)
     cmd += 'popd;'
+    cmd += 'mv {} . ;'.format(acc_log_path)
+    print("exec:{}".format(cmd))
     subprocess.call(cmd, shell=True, executable='/bin/bash')
 
 
