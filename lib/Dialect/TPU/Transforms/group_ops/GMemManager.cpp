@@ -178,6 +178,12 @@ void GmemManager::recycle_cluster_gmem(list<GMEM_BLOCK>& block_list, Group* clus
       continue;
     }
 
+    // skip cpu layer to avoid cpu layer override
+    int layer_id = net_graph_->get_tensor_from_layer(tid);
+    const ImLayer *layer = net_graph_->get_layer_by_id(layer_id);
+    if (isa<tpu::GenericCpuOp>(layer->op()))
+      continue;
+
     to_layers.clear();
     find_final_to_layer(net_graph_, tid, to_layers);
     if (to_layers.empty()) {

@@ -38,7 +38,7 @@ DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 
 
 # compare all only support when global memory optimization close
-COMPARE_ALL=1
+COMPARE_ALL=0
 ###############################
 # Lower for quantization 3: multiplier int8
 ###############################
@@ -56,6 +56,7 @@ else
     mlir-opt \
         --convert-cpu-op \
         --group-ops \
+        --layer-group-gm-opt=true \
         ${NET}_quant_int8_multiplier.mlir \
         --layer-group-neuron-map-filename=neuron_map_layergroup.csv \
         --weight-map=weight_map_layergroup.csv \
@@ -82,29 +83,24 @@ if [ $COMPARE_ALL -eq 1 ]; then
     --input ${NET}_in_fp32.npz \
     --model ${NET}_lg.cvimodel \
     --batch-num $BATCH_SIZE \
-    --output ${NET}_cmdbuf_out_all_int8_multiplier_layergroup.npz
+    --output ${NET}_cmdbuf_out_all_int8_multiplier_lg.npz
 
     # # compare all tensors
     cvi_npz_tool.py compare \
-        ${NET}_cmdbuf_out_all_int8_multiplier_layergroup.npz \
+        ${NET}_cmdbuf_out_all_int8_multiplier_lg.npz \
         ${NET}_tensor_all_int8_multiplier.npz \
         --op_info ${NET}_op_info_int8_multiplier.csv
 else
+    echo "compare only output"
     model_runner \
     --input ${NET}_in_fp32.npz \
     --model ${NET}_lg.cvimodel \
     --batch-num $BATCH_SIZE \
-    --output ${NET}_cmdbuf_out_all_int8_multiplier_layergroup_fc1000_dequant.npz
-
-    # prepare ref data
-    cvi_npz_tool.py extract \
-        ${NET}_tensor_all_int8_multiplier.npz \
-        ${NET}_ref_out_fc1000_int8_multiplier.npz \
-        prob
+    --output ${NET}_cmdbuf_out_int8_multiplier_lg.npz
 
     cvi_npz_tool.py compare \
-        ${NET}_ref_out_fc1000_int8_multiplier.npz \
-        ${NET}_cmdbuf_out_all_int8_multiplier_layergroup_fc1000_dequant.npz \
+        ${NET}_out_int8_multiplier.npz \
+        ${NET}_cmdbuf_out_int8_multiplier_lg.npz \
         --op_info ${NET}_op_info_int8_multiplier.csv
 fi
 

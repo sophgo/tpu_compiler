@@ -698,7 +698,8 @@ template <typename OpTy> struct fixSliceAddrPattern : public RewritePattern {
       // update the global address of the usage
       for(auto &use : op->getResult(0)->getUses()) {
         Operation *usage_op = use.getOwner();
-        setOpAddress(usage_op, base_addr + offset_bytes);
+        if (isa<tpu::TL_LG_LoadNeuronOp>(usage_op))
+          setOpAddress(usage_op, base_addr + offset_bytes);
       }
 
       // set the src op to buffer reuse so that we do not compare this tensor
