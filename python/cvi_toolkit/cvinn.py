@@ -1,7 +1,7 @@
 import numpy as np
 import onnx
 from .model.ModelFactory import ModelFactory
-from .transform import OnnxConverter
+from .transform import OnnxConverter, TFConverter
 from .build_cvimodel import CVIModel as builder
 from .calibration.kld_calibrator import KLD_Calibrator_v2
 from .calibration.tuner import Tuner_v2
@@ -12,6 +12,7 @@ from .utils.log_setting import setup_logger
 
 import subprocess
 import logging
+import os
 from pathlib import Path
 
 
@@ -20,37 +21,46 @@ logger = setup_logger('root')
 class cvinn(object):
     def __init__(self):
         pass
-    def convert_model(self, model_type: str, model_file: str,  mlirfile: str, weight_file: str = None, tpu_op_info=None,batch_size=1):
+    def convert_model(self, model_type: str, model_file: str,  mlirfile: str, weight_file: str = None, tpu_op_info=None, batch_size=1):
+        mlirori = "ori_{}".format(mlirfile)
         if model_type == 'caffe':
             if weight_file == None:
                 print("No caffe weight file")
                 return -1
-            mlirori = "ori_{}".format(mlirfile)
+
             ret = mlir_translate(model_file, weight_file, mlirori,batch_size=batch_size)
             if ret != 0:
                 logger.error("mlir_translate failed")
                 return -1
-            if tpu_op_info:
-                mlir_opt(mlirori, mlirfile, tpu_op_info)
-            else:
-                mlir_opt(mlirori, mlirfile, "{}_op_info.csv".format(model_file.split('.')[0].split('/')[-1]))
-            return 0
+
         elif model_type == 'onnx':
             if not model_file.lower().endswith('.onnx'):
                 print("{} is not end with .onnx".format(model_file))
                 return -1
-            mlirori = "ori_{}".format(mlirfile)
+
             c = OnnxConverter(model_file.split(
                 '.')[0].split('/')[-1], model_file, mlirori)
             c.run()
-            if tpu_op_info:
-                mlir_opt(mlirori, mlirfile, tpu_op_info)
-            else:
-                mlir_opt(mlirori, mlirfile, "{}_op_info.csv".format(model_file.split('.')[0].split('/')[-1]))
-            return 0
+        elif model_type == "tensorflow":
+            # Savedmodel is directory
+            path_to_pb = os.path.join(model_file, "saved_model.pb")
+            path_to_pbtxt = os.path.join(model_file, "saved_model.pbtxt")
+            print(os.path.exists(path_to_pb))
+            if not os.path.exists(path_to_pb) and not os.path.exists(path_to_pbtxt):
+                logger.error(
+                    "SavedModel file does not exist at: {}/saved_model.pbtxt|saved_model.pb".format(model_file))
+                return -1
+            c = TFConverter(model_file.split('/')[-1], model_file, mlirori)
+            c.run()
         else:
             print("Not support {} type, now support onnx and caffe".format(model_type))
             return -1
+        ret = 0
+        if tpu_op_info:
+            ret = mlir_opt(mlirori, mlirfile, tpu_op_info)
+        else:
+            ret = mlir_opt(mlirori, mlirfile, "{}_op_info.csv".format(model_file.split('.')[0].split('/')[-1]))
+        return ret
 
     def calibration(self, mlirfile_fp32: str, dataset: str, threshold_table: str, pre_func, input_num, histogram_bin_num, auto_tune=False,tune_image_num=10):
         # mlir_calibration(mlirfile_fp32, dataset, threshold_table, auto_tune)

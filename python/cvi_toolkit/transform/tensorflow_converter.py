@@ -156,10 +156,7 @@ class TFConverter(BaseConverter):
             name = tf_op.name
             node = TFNode(name, op_type, inputs, output, tf_op)
             self.converted_nodes.append(node)
-    # weights = tf_op.get_weights()
-            # print(tf_op.get_config())
-            # for w in weights:
-            #     print(w.shape)
+
     def convert_graph(self):
         """convert all to mlir"""
         # add weight op
@@ -172,8 +169,10 @@ class TFConverter(BaseConverter):
                 input_shape[0] = self.batch_size
             if len(input_shape) ==4:
                 input_shape = turn_shape_nhwc_to_nchw(input_shape)
-            input_op = self.CVI.add_input_op(input.name, idx)
-            name = input.name.split(":")[0] ## FixMe: Hardcore to strip ":""
+                # FixMe: Hardcore to strip ":""
+            name = input.name.split(":")[0]
+            input_op = self.CVI.add_input_op(name, idx)
+
             self.addOperand(name, input_op, input_shape, TensorType.ACTIVATION)
 
         def NoneAndRaise(node):
@@ -239,10 +238,7 @@ class TFConverter(BaseConverter):
         beta_value = node.proto.get_weights()[1]
         mean_value = node.proto.get_weights()[2]
         var_value = node.proto.get_weights()[3]
-        print(gamma_value.shape)
-        print(beta_value.shape)
-        print(mean_value.shape)
-        print(var_value.shape)
+
         scale_name = "{}_0".format(node.name)
         scale_value = ((1.0 / np.sqrt(
                     var_value + epsilon)) * gamma_value)
@@ -273,7 +269,6 @@ class TFConverter(BaseConverter):
             padding_attr_data = self.getTensor(node.inputs[0]).tensor_data
         else:
             padding_attr_data = None
-        print(padding_attr_data)
         operands = list()
         operands.append(op)
 
@@ -295,7 +290,6 @@ class TFConverter(BaseConverter):
             operands.append(bias_op)
 
 
-        print(config)
         conv_param = {
             'stride_h': config['strides'][0],
             'stride_w': config['strides'][1],
@@ -425,11 +419,9 @@ class TFConverter(BaseConverter):
             padding_attr_data = self.getTensor(node.inputs[0]).tensor_data
         else:
             padding_attr_data = None
-        print(padding_attr_data)
 
         operands = list()
         operands.append(op)
-        print(config)
 
         pool_max_2d_param = {
             'stride_h': config['strides'][0],
