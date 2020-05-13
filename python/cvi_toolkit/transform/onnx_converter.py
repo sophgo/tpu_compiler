@@ -5,7 +5,7 @@ from termcolor import colored, cprint
 from math import floor, ceil
 from numbers import Number
 
-
+import onnx
 import logging
 import numpy as np
 
@@ -91,6 +91,8 @@ class OnnxTensor():
 class OnnxConverter(BaseConverter):
     def __init__(self, model_name, onnx_model, mlir_file_path, batch_size=1):
         super().__init__()
+        if isinstance(onnx_model, str):
+            onnx_model = onnx.load(onnx_model)
         self.batch_size = batch_size
         self.model_name = model_name
         self.input_nodes = onnx_model.graph.input

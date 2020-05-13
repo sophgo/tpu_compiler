@@ -40,8 +40,8 @@ class cvinn(object):
                 print("{} is not end with .onnx".format(model_file))
                 return -1
             mlirori = "ori_{}".format(mlirfile)
-            onnx_model = onnx.load(model_file)
-            c = OnnxConverter(model_file.split('.')[0].split('/')[-1], onnx_model, mlirori)
+            c = OnnxConverter(model_file.split(
+                '.')[0].split('/')[-1], model_file, mlirori)
             c.run()
             if tpu_op_info:
                 mlir_opt(mlirori, mlirfile, tpu_op_info)
