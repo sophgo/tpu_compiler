@@ -394,14 +394,13 @@ export DO_QUANT_BF16=0
 export DO_LAYERGROUP=1
 # accuracy setting
 export NET_INPUT_DIMS=320,320
-export EVAL_MODEL_TYPE="face"
+export EVAL_MODEL_TYPE="widerface"
 export OBJ_THRESHOLD=0.005
 export NMS_THRESHOLD=0.45
 export DATASET=$DATASET_PATH/widerface/WIDER_val/images
 export ANNOTATION=$DATASET_PATH/widerface/wider_face_split
 #export DO_ACCURACY_CAFFE=0
 #export DO_ACCURACY_ONNX=0
-
 fi
 
 if [ $NET = "retinaface_res50" ]; then
@@ -417,7 +416,7 @@ export DO_QUANT_BF16=0
 export DO_LAYERGROUP=1
 # accuracy setting
 export NET_INPUT_DIMS=600,600
-export EVAL_MODEL_TYPE="face"
+export EVAL_MODEL_TYPE="widerface"
 export OBJ_THRESHOLD=0.005
 export NMS_THRESHOLD=0.45
 export DATASET=$DATASET_PATH/widerface/WIDER_val/images

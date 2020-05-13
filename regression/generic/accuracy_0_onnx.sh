@@ -3,6 +3,7 @@ set -e
 
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 
+echo "Eval with onnxruntime"
 
 EVAL_FUNC=eval_classifier.py
 
