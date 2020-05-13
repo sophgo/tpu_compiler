@@ -58,3 +58,6 @@ class ModelFactory(object):
 
     def get_input_shape(self):
         return self.model.get_input_shape()
+
+    def get_all_weights(self):
+        return self.model.get_all_weight()
