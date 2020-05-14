@@ -428,7 +428,7 @@ export DO_QUANT_INT8_PER_TENSOR=0
 export DO_QUANT_INT8_RFHIFT_ONLY=0
 export DO_QUANT_BF16=0
 export DO_LAYERGROUP=1
-export USE_LAYERGROUP=1
+export USE_LAYERGROUP=0
 # accuracy setting
 export NET_INPUT_DIMS=600,600
 export EVAL_MODEL_TYPE="widerface"

@@ -100,7 +100,7 @@ net_list_batch_extra=(
   "senet_res50"
   "arcface_res50"
   # "retinaface_mnet25"
-  "retinaface_res50"
+  ## "retinaface_res50"
   "ssd300"
   ## "yolo_v2_1080"
   ## "yolo_v2_416"
