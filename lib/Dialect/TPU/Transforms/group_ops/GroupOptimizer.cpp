@@ -801,7 +801,8 @@ void GroupOptimizer::lower_to_tg_group(MLIRContext * context) {
       addGroupTGLayerPattern<tpu::SigmoidOp>,
       addGroupTGLayerPattern<tpu::SqrtOp>,
       addGroupTGLayerPattern<tpu::SwapChannelOp>,
-      addGroupTGLayerPattern<tpu::UpsampleOp>
+      addGroupTGLayerPattern<tpu::UpsampleOp>,
+      addGroupTGLayerPattern<tpu::ReorgOp>
 
   >(context, this);
   applyPatternsGreedily(*fn_, tg_patterns);
@@ -821,6 +822,7 @@ void GroupOptimizer::lower_to_tg_group(MLIRContext * context) {
       addTGLayerGAddrPattern<tpu::TG_INT8_ShuffleChannelOp>,
       addTGLayerGAddrPattern<tpu::TG_INT8_SliceOp>,
       addTGLayerGAddrPattern<tpu::TG_INT8_LrnOp>,
+      addTGLayerGAddrPattern<tpu::TG_INT8_ReorgOp>,
 
       //
       addTGLayerGAddrPattern<tpu::TG_INT8_BroadcastMulOp>,
