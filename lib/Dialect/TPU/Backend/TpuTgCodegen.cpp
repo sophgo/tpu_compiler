@@ -1456,13 +1456,6 @@ LogicalResult tpu::TG_INT8_PoolMax2DOp::codegen(void *ctx) {
   assert(!this->rshift().hasValue());
   assert(!this->m_i8().hasValue());
 
-  llvm::errs() << "TG_codegen: " << getOperationName()
-               << " [" << getOpName() << "]\n";
-
-  llvm::errs() << "n = " << n << ", c = " << c << ", ih = " << ih << ", iw = " << iw << "\n";
-  llvm::errs() << "oh = " << oh << ", ow = " << ow << ", kh = " << kh << ", kw = " << kw << "\n";
-  llvm::errs() << "sh = " << sh << ", sw = " << sw << ", pt = " << pt << ", pb = " << pb << "\n";
-  llvm::errs() << "pl = " << pl << ", pr = " << pr << "\n";
 
   bmnet_pooling_fixed_forward_bmkernel(
       *backend_ctx,
