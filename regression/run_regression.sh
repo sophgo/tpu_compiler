@@ -118,14 +118,14 @@ net_list_accuracy_extra=(
   "mobilenet_v1"
   # "mobilenet_v2"
   "googlenet"
-  "inception_v3"
+  ### "inception_v3"  # 2015
   "inception_v4"
   "squeezenet"
   "shufflenet_v2"
   "densenet_121"
-  "densenet_201"
+  # "densenet_201"
   "senet_res50"
-  "arcface_res50"
+  ## "arcface_res50"
   ## "retinaface_mnet25"
   ## "retinaface_res50"
   ## "ssd300"
@@ -294,7 +294,7 @@ run_accuracy_all_parallel()
   fi
   if [ -f accuracy.txt ]; then
     cat accuracy.txt
-    parallel -j0 --delay 0.5  --joblog job_accuracy.log < accuracy.txt
+    parallel -j4 --delay 0.5  --joblog job_accuracy.log < accuracy.txt
     return $?
   fi
 }
