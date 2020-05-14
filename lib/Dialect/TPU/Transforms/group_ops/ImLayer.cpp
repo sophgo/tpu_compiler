@@ -1,7 +1,7 @@
 
 #include "ImLayer.hpp"
 
-
+#define DEBUG_TYPE "group_ops"
 namespace mlir {
 
 ImLayer::ImLayer(IR_TYPE type, Operation* op, bool fusible)
@@ -109,7 +109,8 @@ shared_ptr<ImLayer> ImLayer::create(Operation* op) {
              isa<tpu::InputOp>(op) ) {
     layer = make_shared<ImCommon>(op, true, IR_OTHER);
   } else {
-    llvm::errs() << "Not support ImLayer: " << getOpName(op) << "\n";
+    LLVM_DEBUG(llvm::errs()
+      << "Not support ImLayer: " << getOpName(op) << "\n";);
     // assert(0);
     layer = make_shared<ImCommon>(op, false, IR_OTHER);
   }

@@ -41,6 +41,8 @@
 
 #include <fstream>
 
+#define DEBUG_TYPE "mlir-to-cmdbuf"
+
 using namespace mlir;
 
 extern int BF16_TABLE_START;
@@ -52,8 +54,8 @@ extern int BF16_TABLE_END;
 namespace mlir {
 
 LogicalResult tpu::TL_LG_Conv2DOp::codegen(void *ctx) {
-  llvm::errs() << "TG_codegen: " << getOperationName()
-               << " [" << getOpName() << "]\n";
+  LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
@@ -100,8 +102,8 @@ LogicalResult tpu::TL_LG_Conv2DOp::codegen(void *ctx) {
 
 
 LogicalResult tpu::TL_LG_EltwiseAddOp::codegen(void *ctx) {
-  llvm::errs() << "TG_codegen: " << getOperationName()
-               << " [" << getOpName() << "]\n";
+  LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
 
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
@@ -165,8 +167,8 @@ LogicalResult tpu::TL_LG_EltwiseAddOp::codegen(void *ctx) {
 }
 
 LogicalResult tpu::TL_LG_LrnOp::codegen(void *ctx) {
-  llvm::errs() << "TG_codegen: " << getOperationName()
-               << " [" << getOpName() << "]\n";
+  LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
 
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
@@ -204,7 +206,7 @@ LogicalResult tpu::TL_LG_LrnOp::codegen(void *ctx) {
 
 
 LogicalResult tpu::TL_LG_LoadNeuronOp::codegen(void *ctx) {
-  llvm::errs() << "TL Load Neuron codegen.\n";
+  LLVM_DEBUG(llvm::errs() << "TL Load Neuron codegen.\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
   int layer_id = 0;
@@ -244,7 +246,7 @@ LogicalResult tpu::TL_LG_LoadNeuronOp::codegen(void *ctx) {
 }
 
 LogicalResult tpu::TL_LG_LoadCoeffOp::codegen(void *ctx) {
-  llvm::errs() << "TL Load Coeff codegen.\n";
+  LLVM_DEBUG(llvm::errs() << "TL Load Coeff codegen.\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
   int layer_id = 0;
@@ -262,8 +264,9 @@ LogicalResult tpu::TL_LG_LoadCoeffOp::codegen(void *ctx) {
     c = r_n;
     h = r_h * r_w;
     w = r_c;
-    llvm::errs() << "conv coeff load shape(nchw): ( " << n << " ,"
-                 << c << " ," << h << ", " << w << ")\n";
+    LLVM_DEBUG(llvm::errs()
+      << "conv coeff load shape(nchw): ( " << n << " ,"
+      << c << " ," << h << ", " << w << ")\n";);
   }
 
   int local_n = n;
@@ -292,7 +295,7 @@ LogicalResult tpu::TL_LG_LoadCoeffOp::codegen(void *ctx) {
 }
 
 LogicalResult tpu::TL_LG_StoreOp::codegen(void *ctx) {
-  llvm::errs() << "TL Store codegen.\n";
+  LLVM_DEBUG(llvm::errs() << "TL Store codegen.\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
   int layer_id = 0;
@@ -331,12 +334,12 @@ LogicalResult tpu::TL_LG_StoreOp::codegen(void *ctx) {
 }
 
 LogicalResult tpu::TL_LG_JoinOp::codegen(void *ctx) {
-  llvm::errs() << "TL join codegen.\n";
+  LLVM_DEBUG(llvm::errs() << "TL join codegen.\n";);
   return success();
 }
 
 LogicalResult tpu::TL_LG_INT8_PoolAvg2DOp::codegen(void *ctx) {
-  llvm::errs() << "TL int8 pool avg codegen.\n";
+  LLVM_DEBUG(llvm::errs() << "TL int8 pool avg codegen.\n";);
 
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
@@ -373,7 +376,7 @@ LogicalResult tpu::TL_LG_INT8_PoolAvg2DOp::codegen(void *ctx) {
 }
 
 LogicalResult tpu::TL_LG_INT8_PoolMax2DOp::codegen(void *ctx) {
-  llvm::errs() << "TL int8 pool max codegen.\n";
+  LLVM_DEBUG(llvm::errs() << "TL int8 pool max codegen.\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
   int layer_id = mlir::getOpLayerId(op);

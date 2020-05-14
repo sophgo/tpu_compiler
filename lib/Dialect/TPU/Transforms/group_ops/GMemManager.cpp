@@ -1,10 +1,9 @@
 #include <algorithm>
 #include "GMemManager.hpp"
 
-#define DEBUG_TYPE "optimizer_cluster"
+#define DEBUG_TYPE "group_ops"
 
 namespace mlir {
-
 #define TBD_GADDR 0xFFFFFFFFFFFFFFFF
 
 GmemManager::GmemManager(NetGraph* net_graph)
@@ -17,7 +16,7 @@ GmemManager::GmemManager(NetGraph* net_graph)
 }
 
 u64 GmemManager::assign_global_memory(const vector<Group*>& clusters, bool gmem_recycle) {
-  llvm::errs() << "====== assign global memory ======" << "\n";
+  LLVM_DEBUG(llvm::errs() << "====== assign global memory ======" << "\n";);
 
   find_tg_join_tensors();
 
@@ -36,7 +35,7 @@ u64 GmemManager::assign_global_memory(const vector<Group*>& clusters, bool gmem_
 
     show_blocks(block_record_[i]);
 
-    llvm::errs() << "cluster " << i << " end" << "\n";
+    LLVM_DEBUG(llvm::errs() << "cluster " << i << " end" << "\n";);
   }
 
   return figure_out_tensor_offset();
@@ -57,7 +56,8 @@ int GmemManager::set_in_place_layer_tensor_gaddr_unit(const int tid, const uint6
       layer->in_tensors[idx]->gaddr = value;
       return layer->in_tensors[idx]->id();
     }
-    llvm::errs() << "Error correcting in place layer " << layer->name() << " address.\n";
+    LLVM_DEBUG(llvm::errs() << "Error correcting in place layer "
+                            << layer->name() << " address.\n";);
   }
   return -1;
 }
@@ -207,7 +207,7 @@ void GmemManager::recycle_cluster_gmem(list<GMEM_BLOCK>& block_list, Group* clus
     }
 
     if (!keep) {
-      llvm::errs() << "recycle tensor:" << iter->tid << ", threshold layer:" << first_layer << "\n";
+      LLVM_DEBUG(llvm::errs() << "recycle tensor:" << iter->tid << "\n";);
       iter->tid = -1;
       iter->busy = false;
     }
@@ -283,7 +283,8 @@ void GmemManager::prealloc_cluster_gmem(list<GMEM_BLOCK>& block_list, Group* clu
             }
             for (auto ig_idx : c_layer->ignored_bottoms) {
               if (ig_idx == tensor_idx) {
-                llvm::errs() << "This tg tensor cannot be ignored cause it links to multiple layers.\n";
+                LLVM_DEBUG(llvm::errs()
+                  << "This tg tensor cannot be ignored cause it links to multiple layers.\n";);
               }
             }
           }
@@ -311,7 +312,7 @@ void GmemManager::alloc_block(list<GMEM_BLOCK>& block_list, int tid) {
     tensor = net_graph_->get_tensor_by_id(tg_join_out_tensor_);
   }
 
-  llvm::errs() << "prealloc cluster gmem: " << tid << "\n";
+  LLVM_DEBUG(llvm::errs() << "prealloc cluster gmem: " << tid << "\n";);
 
   auto last = --block_list.end();
   auto avail_it = last;
@@ -388,8 +389,9 @@ u64 GmemManager::figure_out_tensor_offset() {
           u64 end = iter->start + iter->size;
           total_neuron_size = total_neuron_size < end ? end : total_neuron_size;
 
-          llvm::errs() << "[CONFIRM] tid:" << iter->tid << ", " << iter->start << " ~ " << end
-                  << ", size:" << iter->size << "\n";
+          LLVM_DEBUG(llvm::errs() << "[CONFIRM] tid:" << iter->tid << ", "
+                                  << iter->start << " ~ " << end
+                                  << ", size:" << iter->size << "\n";);
 
           if (iter->tid == tg_join_out_tensor_) {
             for (auto m : tg_join_input_tensors_) {
@@ -397,9 +399,9 @@ u64 GmemManager::figure_out_tensor_offset() {
               tensor = net_graph_->get_tensor_by_id(tid);
               tensor->gaddr = iter->start + m.second;
 
-              llvm::errs() << "[CONFIRM] tid:" << tid << ", " << tensor->gaddr << " ~ "
-                      << tensor->gaddr + tensor->gmem_size() << ", size:" << tensor->gmem_size()
-                      << "\n";
+              LLVM_DEBUG(llvm::errs() << "[CONFIRM] tid:" << tid << ", "
+                         << tensor->gaddr << " ~ " << tensor->gaddr + tensor->gmem_size()
+                         << ", size:" << tensor->gmem_size() << "\n";);
             }
           }
         }
@@ -418,7 +420,8 @@ u64 GmemManager::figure_out_tensor_offset() {
       uint64_t out_gaddr = layer->out_tensors[0].get()->gaddr;
       if (out_gaddr == 0xFFFFFFFF) {
         // Should do something else or just assert?
-        llvm::errs() << "tg_concat " << layer->out_tensors[0]->name() << " not allocated.\n";
+        LLVM_DEBUG(llvm::errs() << "tg_concat " << layer->out_tensors[0]->name()
+                                << " not allocated.\n";);
         continue;
       }
       uint64_t g_offset = 0;
@@ -427,8 +430,10 @@ u64 GmemManager::figure_out_tensor_offset() {
          * Here we need to fix in place layer address to make concat in place.
          * in->gaddr = 0xFFFFFFFF -> Default value
          */
-        if (in->gaddr == 0xFFFFFFFF && net_graph_->is_concat_optimized_case(layer->id(), in->id())) {
-          LLVM_DEBUG(llvm::errs() << "In place tensor " << in->name() << " found. Fixing global address.\n");
+        if (in->gaddr == 0xFFFFFFFF &&
+            net_graph_->is_concat_optimized_case(layer->id(), in->id())) {
+          LLVM_DEBUG(llvm::errs() << "In place tensor " << in->name()
+                                  << " found. Fixing global address.\n");
           in->gaddr = out_gaddr + g_offset;
           /**
            * Correct in place layer output addr by assigning output addr to intput addr.
@@ -454,14 +459,15 @@ u64 GmemManager::figure_out_tensor_offset() {
     }
   }
 
-  llvm::errs() << "total neuron size " << total_neuron_size << "\n";
+  LLVM_DEBUG(llvm::errs() << "total neuron size " << total_neuron_size << "\n";);
   return total_neuron_size;
 }
 
 void GmemManager::show_blocks(list<GMEM_BLOCK>& block_list) {
   for (auto iter = block_list.begin(); iter != block_list.end(); ++iter) {
-    llvm::errs() << "[BLOCK] start:" << iter->start << " ~ " << iter->start + iter->size
-            << ", size:" << iter->size << ", tid:" << iter->tid << ", busy:" << iter->busy << "\n";
+    LLVM_DEBUG(llvm::errs() << "[BLOCK] start:" << iter->start << " ~ "
+                 << iter->start + iter->size << ", size:" << iter->size
+                 << ", tid:" << iter->tid << ", busy:" << iter->busy << "\n";);
   }
 }
 }

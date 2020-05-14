@@ -5,9 +5,7 @@
 #ifndef GROUPOPS_GROUP_H
 #define GROUPOPS_GROUP_H
 
-// #include "cluster_common.hpp"
 #include "ImLayer.hpp"
-// #include "layer_stage.hpp"
 #include "NetGraph.hpp"
 #include "Tensor.hpp"
 #include "utils.hpp"

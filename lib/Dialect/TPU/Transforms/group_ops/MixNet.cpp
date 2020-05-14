@@ -5,7 +5,7 @@
 #include "MixNet.hpp"
 #include "mlir/Analysis/Dominance.h"
 
-#define DEBUG_TYPE "mixnet"
+#define DEBUG_TYPE "group_ops"
 
 namespace mlir {
 // set bottom
@@ -839,9 +839,10 @@ void MixNet::_add_load_op(int tensor_id,
 
     gaddr += (n_idx * tensor_dim[1] * tensor_dim[2] * tensor_dim[3] + h_idx * tensor_dim[3]) *
               tensor->unit_size();
-    llvm::errs() << name << ":         n_idx/h_idx = " << n_idx << "/" << h_idx << " tensor_dim: ( "
-                 << tensor_dim[0] << ", " << tensor_dim[1] << "," << tensor_dim[2]
-                 << ", " << tensor_dim[3] << ") << gaddr:" << gaddr << "\n";
+    LLVM_DEBUG(llvm::errs()
+      << name << ":         n_idx/h_idx = " << n_idx << "/" << h_idx
+      << " tensor_dim: ( "  << tensor_dim[0] << ", " << tensor_dim[1]
+      << "," << tensor_dim[2] << ", " << tensor_dim[3] << ") << gaddr:" << gaddr << "\n";);
 
     local_shape[0] = (n_slice);
     local_shape[1] = (tensor_dim[1]);

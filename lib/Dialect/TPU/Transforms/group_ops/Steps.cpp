@@ -6,6 +6,8 @@
 #include "Group.hpp"
 #include "LayerStage.hpp"
 
+#define DEBUG_TYPE "group_ops"
+
 namespace mlir {
 
 void ClusterSteps::append(int layer, TensorStep& load_tensors, TensorStep& store_tensors) {
@@ -554,7 +556,9 @@ bmerr_t ClusterSteps::balance_gdma_bdc_steps(NetGraph* net_graph, Group* cluster
         }
 
         if (best_sel_tensor == -1) {
-          llvm::errs() << "WARNING: tensor gdma has not been moved to dest time step" << "\n";
+          LLVM_DEBUG(llvm::errs()
+            << "WARNING: tensor gdma has not been moved to dest time step"
+            << "\n";);
           break;
         }
       }

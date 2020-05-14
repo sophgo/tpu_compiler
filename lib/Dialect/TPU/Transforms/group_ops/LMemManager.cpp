@@ -4,7 +4,7 @@
  */
 #include "LMemManager.hpp"
 
-#define DEBUG_TYPE "optimizer_cluster"
+#define DEBUG_TYPE "group_ops"
 
 namespace mlir {
 
@@ -18,7 +18,7 @@ LmemManager::LmemManager(NetGraph* net_graph) : net_graph_(net_graph) {
 }
 
 bmerr_t LmemManager::assign_local_memory(Group* cluster, net_timestep* time_step, bool one_shoot) {
-  llvm::errs() << "====== assign local memory ======" << "\n";
+  LLVM_DEBUG(llvm::errs() << "====== assign local memory ======" << "\n";);
 
   for (auto layer_id : cluster->layers()) {
     auto* ir = net_graph_->get_layer_by_id(layer_id);
@@ -157,14 +157,10 @@ void LmemManager::recycle_lmem(list<LMEM_BLOCK>& block_list, net_timestep* time_
 }
 
 bool LmemManager::alloc_block(list<LMEM_BLOCK>& block_list, int tid, int step_idx) {
-  //llvm::errs() << "alloc_block: " << tid << "\n";
-
   Tensor* tensor = net_graph_->get_tensor_by_id(tid);
   if (tensor->laddr == TBD_LADDR) {
     return true;
   }
-
-  //llvm::errs() << "prealloc cluster lmem: " << tid << "\n";
 
   auto last = --block_list.end();
   auto avail_it = last;
@@ -204,7 +200,9 @@ bool LmemManager::alloc_block(list<LMEM_BLOCK>& block_list, int tid, int step_id
     // correct the offset of subsequent tensors.
     u64 offset = iter->start + iter->size;
     if (offset >= LOCAL_MEM_SIZE) {
-      llvm::errs() << "offset " << offset << " of tensor: " << iter->tid << " larger than " << LOCAL_MEM_SIZE << "\n";
+      LLVM_DEBUG(llvm::errs()
+        << "offset " << offset << " of tensor: " << iter->tid
+        << " larger than " << LOCAL_MEM_SIZE << "\n";);
       return false;
     }
 
@@ -216,7 +214,8 @@ bool LmemManager::alloc_block(list<LMEM_BLOCK>& block_list, int tid, int step_id
 
   last = --block_list.end();
   if (last->start >= LOCAL_MEM_SIZE) {
-    llvm::errs() << "lmem overflow: " << last->start - LOCAL_MEM_SIZE << "\n";
+    LLVM_DEBUG(llvm::errs() << "lmem overflow: "
+                            << last->start - LOCAL_MEM_SIZE << "\n";);
     return false;
   }
 
@@ -268,9 +267,11 @@ bool LmemManager::figure_out_tensors_real_addr(net_timestep* time_step) {
 
           total_lmem_occupied = total_lmem_occupied < end ? end : total_lmem_occupied;
 
-          llvm::errs() << "[CONFIRM]";
-          llvm::errs() << "[stage: " << iter->step << "]" << "tensor_id:" << iter->tid << ", " << iter->start << " ~ "
-                  << end << ", size:" << iter->size << "is_imm:" << key.is_layer_imm << "\n";
+          LLVM_DEBUG(llvm::errs() << "[CONFIRM]";);
+          LLVM_DEBUG(llvm::errs()
+            << "[stage: " << iter->step << "]" << "tensor_id:" << iter->tid
+            << ", " << iter->start << " ~ " << end
+            << ", size:" << iter->size << "is_imm:" << key.is_layer_imm << "\n";);
         }
 
         offset = iter->start + iter->size;
@@ -283,7 +284,8 @@ bool LmemManager::figure_out_tensors_real_addr(net_timestep* time_step) {
   }
 
   if (total_lmem_occupied > LOCAL_MEM_SIZE) {
-    llvm::errs() << "total needed lmem size: " << total_lmem_occupied << "\n";
+    LLVM_DEBUG(llvm::errs() << "total needed lmem size: "
+                            << total_lmem_occupied << "\n";);
     return false;
   }
   return true;
@@ -291,8 +293,10 @@ bool LmemManager::figure_out_tensors_real_addr(net_timestep* time_step) {
 
 void LmemManager::show_blocks(list<LMEM_BLOCK>& block_list) {
   for (auto iter = block_list.begin(); iter != block_list.end(); ++iter) {
-    llvm::errs() << "[BLOCK] start:" << iter->start << " ~ " << iter->start + iter->size
-            << ", size:" << iter->size << ", tid:" << iter->tid << ", busy:" << iter->busy << "\n";
+    LLVM_DEBUG(llvm::errs()
+      << "[BLOCK] start:" << iter->start << " ~ " << iter->start + iter->size
+      << ", size:" << iter->size << ", tid:" << iter->tid
+      << ", busy:" << iter->busy << "\n";);
   }
 }
 }

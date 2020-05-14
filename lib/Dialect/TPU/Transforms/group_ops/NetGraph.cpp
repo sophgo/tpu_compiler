@@ -1,6 +1,7 @@
 #include "NetGraph.hpp"
 #include "ImLayer.hpp"
 
+#define DEBUG_TYPE "group_ops"
 namespace mlir {
 
 void NetGraph::parse_graph(FuncOp * fn){
@@ -17,7 +18,8 @@ void NetGraph::parse_graph(FuncOp * fn){
 
       int id = layer->id();
 
-      llvm::errs() << "[" << id << "] " << layer->name() << " " << layer->type_name() << "\n";
+      LLVM_DEBUG(llvm::errs()
+        << "[" << id << "] " << layer->name() << " " << layer->type_name() << "\n";);
 
       const auto& in_tensors = layer->in_tensors;
       const auto& out_tensors = layer->out_tensors;
@@ -28,8 +30,9 @@ void NetGraph::parse_graph(FuncOp * fn){
         input_tensor_id.push_back(tid);
         tensor_to_layer_id[tid].push_back(id);
 
-        llvm::errs() << "IN:" << tid << ", name:" << tensor->name() << ", gsize:" << tensor->gmem_size()
-                << ", lsize:" << tensor->lmem_size() << "\n";
+        LLVM_DEBUG(llvm::errs()
+          << "IN:" << tid << ", name:" << tensor->name() << ", gsize:"
+          << tensor->gmem_size() << ", lsize:" << tensor->lmem_size() << "\n";);
       }
 
       for (auto& tensor : out_tensors) {
@@ -37,8 +40,10 @@ void NetGraph::parse_graph(FuncOp * fn){
         output_tensor_id.push_back(tid);
         tensor_from_layer_id[tid] = id;
 
-        llvm::errs() << "OUT:" << tid << ", name:" << tensor->name() << ", gsize:" << tensor->gmem_size()
-                << ", lsize:" << tensor->lmem_size() << "\n";
+        LLVM_DEBUG(llvm::errs()
+          << "OUT:" << tid << ", name:" << tensor->name()
+          << ", gsize:" << tensor->gmem_size()
+          << ", lsize:" << tensor->lmem_size() << "\n";);
       }
 
       if (imm_tensors.size() > 0) {
@@ -46,8 +51,9 @@ void NetGraph::parse_graph(FuncOp * fn){
         int tid = tensor->id();
         tensor_from_layer_id[tid] = id;
 
-        llvm::errs() << "IMM:" << tid << ", name:" << tensor->name() << ", gsize: 0"
-                << ", lsize:" << tensor->lmem_size() << "\n";
+        LLVM_DEBUG(llvm::errs() << "IMM:" << tid << ", name:" << tensor->name()
+                                << ", gsize: 0" << ", lsize:" << tensor->lmem_size()
+                                << "\n";);
       }
 
       layer_id_to_inout_tensor[id] = make_pair(input_tensor_id, output_tensor_id);
@@ -63,7 +69,8 @@ const ImLayer * NetGraph::get_layer_by_op(Operation * op) {
       return layer.get();
     }
   }
-  llvm::errs() << "can not get imlayer for op: " << getOpName(op) << "\n";
+  llvm::errs()
+    << "can not get imlayer for op: " << getOpName(op) << "\n";
   assert(false);
   return NULL;
 }
@@ -281,7 +288,9 @@ bool NetGraph::is_concat_special_case(int layer_id, int tid, int cluster_size) {
     }
 
     if (0/*!FlagInst::get()->flagOpt(hwflags::OPT::TG_CONCAT_IN_PLACE)*/) {
-      llvm::errs() << "Currently this target chip does not support tg tensor concat in place." << "\n";
+      LLVM_DEBUG(llvm::errs()
+        << "Currently this target chip does not support tg tensor concat in place."
+        << "\n";);
       axis_special = false;
     } else if (mul == 1) {
       axis_special = true;

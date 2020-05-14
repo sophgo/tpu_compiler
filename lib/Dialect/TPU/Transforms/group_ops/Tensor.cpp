@@ -83,7 +83,7 @@ shared_ptr<Tensor> Tensor::register_tensor(ShapedType *s_type, const string& nam
       n = shape[0];
       break;
     default:
-      cout << "Shape's dim size " << s_type->getRank() << " is unsupported" << endl;
+      llvm::errs() << "Shape's dim size " << s_type->getRank() << " is unsupported.\n";
       assert(0);
   }
 

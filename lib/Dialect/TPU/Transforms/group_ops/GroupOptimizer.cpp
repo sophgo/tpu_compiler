@@ -1,5 +1,7 @@
 #include "GroupOptimizer.hpp"
 #include "llvm/Support/ToolOutputFile.h"
+
+#define DEBUG_TYPE "group_ops"
 namespace mlir {
 
 static llvm::cl::opt<std::string> clNeuronMapFilename(
@@ -237,7 +239,7 @@ void GroupOptimizer::set_input_output_tensor() {
         int from_layer = net_graph_->get_tensor_from_layer(tid);
         if (from_layer == -1) {
           mix_net_.set_net_in_tensor(tid);
-          llvm::errs() << "Input tensor: " << tid << "\n";
+          LLVM_DEBUG(llvm::errs() << "Input tensor: " << tid << "\n";);
         }
       }
     }
@@ -247,7 +249,7 @@ void GroupOptimizer::set_input_output_tensor() {
       const vector<int>& to_layers = net_graph_->get_tensor_to_layer(tid);
       if (to_layers.empty() && type != IR_MULTIINPUT) {
         mix_net_.set_net_out_tensor(tid);
-        llvm::errs() << "Output tensor: " << tid << "\n";
+        LLVM_DEBUG(llvm::errs() << "Output tensor: " << tid << "\n";);
       }
     }
   }
@@ -263,25 +265,25 @@ void GroupOptimizer::set_input_output_tensor() {
 // }
 
 bool GroupOptimizer::is_tg_op(Operation * op) {
-  llvm::errs() << getOpName(op);
+  LLVM_DEBUG(llvm::errs() << getOpName(op););
   for (auto group : groups_) {
     if (group->size() == 1) {
       int layer_id = group->layers()[0];
       const ImLayer * im_layer = net_graph_->get_layer_by_id(layer_id);
       if (getOpName(im_layer->op()) == getOpName(op)) {
-        llvm::errs() << "   is TG layer.\n";
+        LLVM_DEBUG(llvm::errs() << "   is TG layer.\n";);
         return true;
       }
     }
   }
-  llvm::errs() << "   is not TG layer.\n";
+  LLVM_DEBUG(llvm::errs() << "   is not TG layer.\n";);
   return false;
 }
 
 // set global address for current inst input and output
 uint64_t GroupOptimizer::setOpGAddr(Operation * op) {
   const ImLayer * layer = net_graph_->get_layer_by_op(op);
-  llvm::errs() << "OP: " << getOpName(op) << "\n";
+  LLVM_DEBUG(llvm::errs() << "OP: " << getOpName(op) << "\n";);
   for (int i = 0; i < op->getNumResults(); i++) {
     for (auto& tensor : layer->out_tensors) {
       if (tensor->type() != TENSOR_NEURON &&
@@ -294,7 +296,9 @@ uint64_t GroupOptimizer::setOpGAddr(Operation * op) {
         if (isa<tpu::ReshapeOp>(top))
           continue;
         setOpAddress(top, tensor->gaddr);
-        llvm::errs() << "  set top:" << getOpName(top) << " to address: " << tensor->gaddr << "\n";
+        LLVM_DEBUG(llvm::errs()
+          << "  set top:" << getOpName(top) << " to address: "
+          << tensor->gaddr << "\n";);
         assert(op->getNumResults() == 1);
         return tensor->gaddr;
       }
@@ -350,7 +354,6 @@ struct addTGLayerGAddrPattern : public RewritePattern {
     }
 
     uint64_t offset = opt_->setOpGAddr(op);
-    llvm::errs() << "handle layer: " << getOpName(op) << "\n";
     // generate neuron map
     auto type = op->getResult(0)->getType().cast<TensorType>();
     std::vector<int64_t> shape = type.getShape();
@@ -503,7 +506,7 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
     }
 
     // read the tensor
-    llvm::errs() << "lower weight for tensor: " << tensor_name << "\n";
+    LLVM_DEBUG(llvm::errs() << "lower weight for tensor: " << tensor_name << "\n";);
     //auto type = weightOp.getResult(0)->getType().cast<TensorType>();
     assert(weightOp.lowered());
     auto curPos = weightBinaryFile_->tell();
@@ -621,25 +624,24 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
     } else if (weightOp.storage() == "NONE") {
       return matchSuccess();
     } else {
-      llvm::errs() << tensor_name << " weight storage type "
-                   << weightOp.storage() << "\n";
+      LLVM_DEBUG(llvm::errs() << tensor_name << " weight storage type "
+                   << weightOp.storage() << "\n";);
       assert(0 && "not supported weight storage type");
     }
 
     auto newPos = weightBinaryFile_->tell();
     map_os_ << tensor_name << "," << llvm::format_hex(curPos, 10) << "\n";
 
-    llvm::errs() << llvm::format("[%-36s][%8d] : [ ",
+    LLVM_DEBUG(llvm::errs() << llvm::format("[%-36s][%8d] : [ ",
                                  tensor_name.str().c_str(), size)
                  << llvm::format_hex(curPos, 10) << " --> "
-                 << llvm::format_hex(newPos, 10) << " ]\n";
+                 << llvm::format_hex(newPos, 10) << " ]\n";);
 
     // assign the address to weightOp
     if (isa<tpu::LoadWeightOp>(op))
       weightOp.setAttr("offset", rewriter.getI64IntegerAttr(curPos));
     else if(isa<tpu::TL_LG_LoadCoeffOp>(op)) {
       weightOp.setAttr("gaddr", rewriter.getI64IntegerAttr(curPos));
-      llvm::errs() << "set gaddr : " << curPos << "\n";
     }
 
 
@@ -692,7 +694,6 @@ template <typename OpTy> struct fixSliceAddrPattern : public RewritePattern {
         isz *= input_shape[i];
       }
       size_t offset_bytes = offset * isz * dtype_bytes;
-      llvm::errs() << "base_addr: " << base_addr << " offset: "<< offset_bytes << "\n";
       setOpAddress(op, base_addr + offset_bytes);
 
       // update the global address of the usage
@@ -707,7 +708,7 @@ template <typename OpTy> struct fixSliceAddrPattern : public RewritePattern {
       if (dyn_cast<tpu::TpuTGOpCodegenInterface>(srcOp))
         setOpBufferReused(srcOp, true);
     } else {
-      llvm::errs() << "multi-batch slice, no need to fix address.\n";
+      LLVM_DEBUG(llvm::errs() << "multi-batch slice, no need to fix address.\n";);
     }
 
     castOp.setAttr("gaddr_updated",
@@ -729,7 +730,8 @@ struct LGLoweringPattern : public RewritePattern {
     // if already lowered to tl, return false
     int group_id = 0;
     if (optimizer_->is_group_start(op, &group_id)) {
-      llvm::errs() << "Find group start: " << getOpName(op) << "\n";
+      LLVM_DEBUG(llvm::errs()
+        << "Find group start: " << getOpName(op) << "\n";);
       optimizer_->lower_to_tl(op, group_id);
     }
     return matchSuccess();

@@ -4,7 +4,7 @@
 #include "NetGraph.hpp"
 #include "GroupOptimizer.hpp"
 
-#define DEBUG_TYPE "groupops"
+#define DEBUG_TYPE "group_ops"
 
 namespace mlir {
 
@@ -82,7 +82,8 @@ struct LowerConv2DOpWeightPattern : public RewritePattern {
       // lowered already
       return matchFailure();
     }
-    llvm::errs() << "Lower Weight for Conv2D: " << getOpName(op) << "\n";
+    LLVM_DEBUG(llvm::errs()
+      << "Lower Weight for Conv2D: " << getOpName(op) << "\n";);
     TensorFile *wTF = getWeightTensorFile(op);
 
     if (getOpQuant(op) == "INT8") {
@@ -219,7 +220,8 @@ struct LowerWeightFullyConnectedOpPattern : public RewritePattern {
       // lowered already
       return matchFailure();
     }
-    llvm::errs() << "Lower Weight for FullyConnectedOp: " << getOpName(op) << "\n";
+    LLVM_DEBUG(llvm::errs()
+      << "Lower Weight for FullyConnectedOp: " << getOpName(op) << "\n";);
     TensorFile *wTF = getWeightTensorFile(op);
 
     if (getOpQuant(op) == "INT8") {
@@ -263,9 +265,10 @@ struct LowerWeightFullyConnectedOpPattern : public RewritePattern {
             "lowered", bias_uint16, shape, "UINT16", wTF);
         biasOp.setAttr("lowered", rewriter.getBoolAttr(true));
       }
-      llvm::errs() << "lower rshift for fc. " << fcOp.getNumOperands() << "\n";
+      LLVM_DEBUG(llvm::errs()
+        << "lower rshift for fc. " << fcOp.getNumOperands() << "\n";);
       if (fcOp.getNumOperands() == 7) {
-        llvm::errs() << "lower rshift for fc.\n";
+        LLVM_DEBUG(llvm::errs() << "lower rshift for fc.\n";);
         auto rshift_op = cast<tpu::LoadWeightOp>(fcOp.getOperand(5)->getDefiningOp());
         rshift_op.setAttr("lowered", rewriter.getBoolAttr(true));
       }
@@ -401,7 +404,7 @@ struct PackWeightConv2DOpPattern : public RewritePattern {
     }
     assert( !isTensorNone(convOp.quant_rshift()) );
     assert( !isTensorNone(convOp.quant_multiplier()) );
-    llvm::errs() << "Pack Weight for Conv2D: " << getOpName(op) << "\n";
+    LLVM_DEBUG(llvm::errs() << "Pack Weight for Conv2D: " << getOpName(op) << "\n";);
     TensorFile *wTF = getWeightTensorFile(op);
     Value *wfV = getWeightFileValue(op);
 

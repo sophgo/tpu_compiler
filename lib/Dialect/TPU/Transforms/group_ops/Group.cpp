@@ -3,7 +3,7 @@
 #include "LMemManager.hpp"
 #include "Steps.hpp"
 
-#define DEBUG_TYPE "group"
+#define DEBUG_TYPE "group_ops"
 
 namespace mlir {
 
@@ -125,8 +125,8 @@ bmerr_t Group::group_winograd_out_tensors_check() {
           int res_h = out_tensor->h_slice;
           int res_w = net_graph_->get_tensor_width(tid);
           if (std::ceil((1.0 * res_h / 2)) * std::ceil((1.0 * res_w / 2)) >= 4096) {
-            llvm::errs() << "invalid winograd output res_h=" << res_h << ",res_w=" << res_w
-                             << "\n";
+            LLVM_DEBUG(llvm::errs() << "invalid winograd output res_h="
+                                    << res_h << ",res_w=" << res_w << "\n";);
             return BM_ERR_NOT_SUPPORTED;
           }
         }
@@ -324,14 +324,14 @@ bmerr_t Group::assign_steps_without_tsm() {
         LLVM_DEBUG(llvm::errs() << "check first loop of h slice.\n";);
         status = update_tensor_slices(nsecs, hsecs, 0, 0);
         if (status == BM_ERR_FAILURE) {
-          llvm::errs() << "update tensor_slice fail.\n";
+          LLVM_DEBUG(llvm::errs() << "update tensor_slice fail.\n";);
           return BM_ERR_FAILURE;
         }
 
         LLVM_DEBUG(llvm::errs() << "check last loop of h slice.\n";);
         status = update_tensor_slices(nsecs, hsecs, 0, hsecs - 1);
         if (status == BM_ERR_FAILURE) {
-          llvm::errs() << "update tensor_slice fail....\n";
+          LLVM_DEBUG(llvm::errs() << "update tensor_slice fail....\n";);
           return BM_ERR_FAILURE;
         }
       }
@@ -384,12 +384,13 @@ bool Group::validate_tensor_slice() {
       }
 
       if (tensor->h_slice < 1) {
-        llvm::errs() << "FAIL: h_slice of tensor[" << tensor->id() << "] = " << tensor->h_slice
-                         << " is smaller than kh = 1" << "\n";
+        LLVM_DEBUG(llvm::errs() << "FAIL: h_slice of tensor[" << tensor->id() << "] = "
+                                << tensor->h_slice << " is smaller than kh = 1" << "\n";);
         return false;
       } else if (tensor->h_slice > tensor->h()) {
-        llvm::errs() << "FAIL: h_slice " << tensor->h_slice << " of tensor[" << tensor->id()
-                         << "] is larger than tensor height: " << tensor->h() <<  "\n";
+        LLVM_DEBUG(llvm::errs() << "FAIL: h_slice " << tensor->h_slice
+                     << " of tensor[" << tensor->id() << "] is larger than tensor height: "
+                     << tensor->h() <<  "\n";);
         return false;
       }
     }
@@ -401,8 +402,9 @@ bool Group::validate_tensor_slice() {
     Tensor* tensor = net_graph_->get_tensor_by_id(tid);
 
     if (tensor->h_idx >= tensor->h()) {
-      llvm::errs() << "FAIL: h_idx of out tensor[" << tensor->id() << "] = " << tensor->h_idx
-                       << " is larger than tensor height = " << tensor->h() << "\n";
+      LLVM_DEBUG(llvm::errs() << "FAIL: h_idx of out tensor[" << tensor->id()
+                   << "] = " << tensor->h_idx << " is larger than tensor height = "
+                   << tensor->h() << "\n";);
       return false;
     }
   }
@@ -553,7 +555,7 @@ bool Group::backward_slice(int out_tensor_id, list<int>& branches, bool max_h_sl
       int size = op.scale().getLimitedValue();
 
       if (out_h_slice % size) {
-        llvm::errs() << "FAIL: fractional upsample input h slice" << "\n";
+        LLVM_DEBUG(llvm::errs() << "FAIL: fractional upsample input h slice" << "\n";);
         return false;
       }
 
@@ -578,22 +580,24 @@ bool Group::backward_slice(int out_tensor_id, list<int>& branches, bool max_h_sl
 
 
     LLVM_DEBUG(llvm::errs() << "tensor_id: " << tensor->id() << " n_idx: "
-                            << n_idx << " h_idx: " << h_idx
-                            << ", n_slice: " << n_slice << ", h_slice: " << h_slice
-                            << " out_h_idx: " << out_h_idx << " out_h_slice: " << out_h_slice
-                            << " ph: " << ph << " sh: " << sh << " kh: " << kh << "\n";);
+        << n_idx << " h_idx: " << h_idx
+        << ", n_slice: " << n_slice << ", h_slice: " << h_slice
+        << " out_h_idx: " << out_h_idx << " out_h_slice: " << out_h_slice
+        << " ph: " << ph << " sh: " << sh << " kh: " << kh << "\n";);
 
 
     if (cur_h_slice != -1 && (cur_h_slice != h_slice || cur_h_idx != h_idx)) {
-      llvm::errs() << "FAIL: data slice in h dimension is conflicted for tensor "
-                       << back_tensors[i] << " cur_h_idx:" << cur_h_idx << " h_idx:" << h_idx
-                       << " cur_h_slice:" << cur_h_slice << " h_slice:" << h_slice << "\n";
+      LLVM_DEBUG(llvm::errs()
+        << "FAIL: data slice in h dimension is conflicted for tensor "
+        << back_tensors[i] << " cur_h_idx:" << cur_h_idx << " h_idx:" << h_idx
+        << " cur_h_slice:" << cur_h_slice << " h_slice:" << h_slice << "\n";);
       return false;
     }
 
     if (n_slice < 1 || h_slice < 1) {
-      llvm::errs() << "slice is smaller than than the minimum"
-                       << ", n_slice: " << n_slice << ", h_slice: " << h_slice << "\n";
+      LLVM_DEBUG(llvm::errs()
+        << "slice is smaller than than the minimum"
+        << ", n_slice: " << n_slice << ", h_slice: " << h_slice << "\n";);
       return false;
     }
 
@@ -655,12 +659,13 @@ bmerr_t Group::update_tensor_slices(int nsecs, int hsecs, int nslice_idx, int hs
 }
 
 void Group::show_group() {
-  llvm::errs() <<  "<n_slice: " << nsecs_and_hsecs.first
-                        << " , h_slice: " << nsecs_and_hsecs.second << " >" << "\n";
+  LLVM_DEBUG(llvm::errs()
+    <<  "<n_slice: " << nsecs_and_hsecs.first
+    << " , h_slice: " << nsecs_and_hsecs.second << " >" << "\n";);
   for (uint i = 0; i < layers_.size(); i++) {
-    llvm::errs() << " " << layers_[i];
+    LLVM_DEBUG(llvm::errs() << " " << layers_[i];);
   }
-  llvm::errs() <<  "\n";
+  LLVM_DEBUG(llvm::errs() <<  "\n";);
 }
 
 void Group::print(std::ostream& pOs) const {
@@ -681,8 +686,9 @@ void Group::print(std::ostream& pOs) const {
 }
 
 void Group::clear_temp_data() {
-  llvm::errs() << "clear temp data, layers_ size: " << layers_.size() <<
-                  " Imlayer size:" << net_graph_->getImLayerSize() << "\n";
+  LLVM_DEBUG(llvm::errs() << "clear temp data, layers_ size: "
+               << layers_.size() << " Imlayer size:"
+               << net_graph_->getImLayerSize() << "\n";);
   for (int id : layers_) {
     ImLayer* layer = const_cast<ImLayer*>(net_graph_->get_layer_by_id(id));
     layer->clear_temp_data();

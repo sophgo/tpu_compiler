@@ -4,7 +4,7 @@
 #include "NetGraph.hpp"
 #include "Group.hpp"
 
-#define DEBUG_TYPE "optimizer_cluster"
+#define DEBUG_TYPE "group_ops"
 
 namespace mlir {
 
@@ -505,11 +505,12 @@ bmerr_t net_timestep::find_best_split(Group* cluster, int batch_num,
     int cur_coeff_mem_require = get_timestep_coeff_memory_req(i);
     float max_secs_tmp = static_cast<float>(LOCAL_MEM_SIZE - cur_coeff_mem_require) /
                          (cur_mem_require - cur_coeff_mem_require);
-    llvm::errs() << "cur_mem_require: " << cur_mem_require << " cur_coeff_mem_require: "
-                 << cur_coeff_mem_require << " max_secs_tmp: " << max_secs_tmp << "\n";
+    LLVM_DEBUG(llvm::errs() << "cur_mem_require: " << cur_mem_require
+                            << " cur_coeff_mem_require: " << cur_coeff_mem_require
+                            << " max_secs_tmp: " << max_secs_tmp << "\n";);
     // [xun] to reduce loop count for speed
     if (max_secs_tmp < 0.0) {
-      llvm::errs() << "split data in h dimension failed " << "\n";
+      LLVM_DEBUG(llvm::errs() << "split data in h dimension failed " << "\n";);
       return BM_ERR_FAILURE;
     }
 
@@ -522,15 +523,16 @@ bmerr_t net_timestep::find_best_split(Group* cluster, int batch_num,
     nsecs_and_hsecs.first = batch_num;
     nsecs_and_hsecs.second = static_cast<int>(ceil(1.0f / (max_secs * SPLIT_RATIO)));
     if (nsecs_and_hsecs.second < 1) {
-      llvm::errs() << "split data in h dimension failed, max_nsecs " << max_secs << "\n";
+      LLVM_DEBUG(llvm::errs() << "split data in h dimension failed, max_nsecs "
+                              << max_secs << "\n";);
       return BM_ERR_FAILURE;
     }
   } else {
     int max_num = static_cast<int>(max_secs);
     nsecs_and_hsecs.first = (batch_num + max_num - 1) / max_num;
   }
-
-  llvm::errs() << "[SPLIT] n: " << nsecs_and_hsecs.first << ", h: " << nsecs_and_hsecs.second << "\n";
+  LLVM_DEBUG(llvm::errs() << "[SPLIT] n: " << nsecs_and_hsecs.first
+                          << ", h: " << nsecs_and_hsecs.second << "\n";);
 
   return BM_SUCCESS;
 }
