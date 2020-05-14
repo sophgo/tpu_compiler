@@ -145,7 +145,7 @@ usage()
    echo "Usage: $0 [-b batch_size] [-n net_name] [-e]"
    echo -e "\t-b Description of batch size for test"
    echo -e "\t-n Description of met name for test "
-   echo -e "\t-f Description of whether run extra net list "
+   echo -e "\t-e Description of whether run extra net list "
    exit 1
 }
 
@@ -300,7 +300,8 @@ run_accuracy_all_parallel()
 }
 
 run_extra=0
-while getopts "n:b:f" opt
+bs=1
+while getopts "n:b:e" opt
 do
   case "$opt" in
     n ) net="$OPTARG" ;;
@@ -309,13 +310,6 @@ do
     h ) usage ;;
   esac
 done
-
-if [ -z "$net" ]; then
-  net=$1
-fi
-if [ -z "$bs" ]; then
-  bs=1
-fi
 
 # default run in parallel
 if [ -z "$RUN_IN_PARALLEL" ]; then
