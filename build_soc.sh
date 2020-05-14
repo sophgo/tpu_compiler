@@ -140,7 +140,7 @@ if [ ! -e $BUILD_SOC_PATH/build_cvikernel ]; then
   mkdir -p $BUILD_SOC_PATH/build_cvikernel
 fi
 pushd $BUILD_SOC_PATH/build_cvikernel
-cmake -G Ninja -DCHIP=BM1880v2 $BUILD_FLAG \
+cmake -G Ninja $BUILD_FLAG \
     -DCMAKE_TOOLCHAIN_FILE=$TOOLCHAIN_FILE_PATH \
     -DCMAKE_INSTALL_PREFIX=$CVIKERNEL_SOC_PATH \
     $MLIR_SRC_PATH/externals/cvikernel
@@ -165,7 +165,15 @@ if [ ! -e $BUILD_SOC_PATH/build_cviruntime ]; then
   mkdir $BUILD_SOC_PATH/build_cviruntime
 fi
 pushd $BUILD_SOC_PATH/build_cviruntime
-cmake -G Ninja -DCHIP=BM1880v2 -DRUNTIME=SOC $BUILD_FLAG \
+
+if [ -z "$1" ]; then
+  CHIP_ID=BM1880v2
+else
+  CHIP_ID=$1
+fi
+echo "CHIP_ID=$CHIP_ID"
+
+cmake -G Ninja -DCHIP=$CHIP_ID -DRUNTIME=SOC $BUILD_FLAG \
     -DCMAKE_SYSROOT=$AARCH64_SYSROOT_PATH \
     -DCMAKE_TOOLCHAIN_FILE=$TOOLCHAIN_FILE_PATH \
     -DCVIKERNEL_PATH=$CVIKERNEL_SOC_PATH \
