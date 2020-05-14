@@ -38,11 +38,11 @@ elif [ "$EVAL_MODEL_TYPE" = "lfw" ]; then
   EVAL_FUNC=caffe_eval_arcface.py
 
   $EVAL_FUNC \
-    --model_def $MODEL_DEF \
-    --pretrained_model $MODEL_DAT \
-    --dataset=$DATASET_PATH/lfw/lfw \
-    --pairs=$DATASET_PATH/lfw/pairs.txt \
-    --show=True
+      --model_def $MODEL_DEF \
+      --pretrained_model $MODEL_DAT \
+      --dataset=$DATASET_PATH/lfw/lfw \
+      --pairs=$DATASET_PATH/lfw/pairs.txt \
+      --show=True
 
 elif [ "$EVAL_MODEL_TYPE" = "coco" ]; then
   EVAL_FUNC=$EVAL_SCRIPT_CAFFE

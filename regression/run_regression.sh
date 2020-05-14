@@ -4,35 +4,119 @@
 
 net_list_generic=(
   "resnet50"
-  "vgg16"
+  # "vgg16"
   "mobilenet_v1"
   "mobilenet_v2"
   "googlenet"
-  "inception_v3"
+  # "inception_v3"
   "inception_v4"
   "squeezenet"
   "shufflenet_v2"
   "densenet_121"
-  "densenet_201"
-  "senet_res50"
+  # "densenet_201"
+  # "senet_res50"
   "arcface_res50"
   "retinaface_mnet25"
-  "retinaface_res50"
-  "ssd300"
-  "yolo_v2_416"
-  "yolo_v3_608"
+  # "retinaface_res50"
+  # "ssd300"
+  # "yolo_v2_1080"
+  # "yolo_v2_416"
+  # "yolo_v3_608"
   "yolo_v3_416"
-  "yolo_v3_320"
+  # "yolo_v3_320"
   "resnet18"
   "efficientnet_b0"
-  "alphapose"
+  # "alphapose"
 )
 
 net_list_batch=(
   "resnet50"
+  # "vgg16"
+  # "mobilenet_v1"
   "mobilenet_v2"
+  # "googlenet"
+  # "inception_v3"
+  # "inception_v4"
+  "squeezenet"
+  # "shufflenet_v2"
+  # "densenet_121"
+  # "densenet_201"
+  # "senet_res50"
+  # "arcface_res50"
+  "retinaface_mnet25"
+  # "retinaface_res50"
+  # "ssd300"
+  # "yolo_v3_416"
+  # "yolo_v3_320"
+  # "resnet18"
+  "efficientnet_b0"
+  # "alphapose"
+)
+
+net_list_accuracy=(
+  # "resnet50"
+  "mobilenet_v2"
+)
+
+net_list_generic_extra=(
+  # "resnet50"
+  "vgg16"
+  # "mobilenet_v1"
+  # "mobilenet_v2"
+  # "googlenet"
+  "inception_v3"
+  # "inception_v4"
+  # "squeezenet"
+  # "shufflenet_v2"
+  # "densenet_121"
+  "densenet_201"
+  "senet_res50"
+  # "arcface_res50"
+  # "retinaface_mnet25"
+  "retinaface_res50"
+  "ssd300"
+  "yolo_v2_1080"
+  "yolo_v2_416"
+  "yolo_v3_608"
+  # "yolo_v3_416"
+  "yolo_v3_320"
+  # "resnet18"
+  # "efficientnet_b0"
+  "alphapose"
+)
+
+net_list_batch_extra=(
+  # "resnet50"
+  # "mobilenet_v2"
   "vgg16"
   "mobilenet_v1"
+  "googlenet"
+  "inception_v3"
+  "inception_v4"
+  # "squeezenet"
+  "shufflenet_v2"
+  "densenet_121"
+  "densenet_201"
+  "senet_res50"
+  "arcface_res50"
+  # "retinaface_mnet25"
+  "retinaface_res50"
+  "ssd300"
+  ## "yolo_v2_1080"
+  "yolo_v2_416"
+  ## "yolo_v3_608"
+  "yolo_v3_416"
+  "yolo_v3_320"
+  "resnet18"
+  # "efficientnet_b0"
+  "alphapose"
+)
+
+net_list_accuracy_extra=(
+  "resnet50"
+  ## "vgg16"
+  "mobilenet_v1"
+  # "mobilenet_v2"
   "googlenet"
   "inception_v3"
   "inception_v4"
@@ -42,34 +126,33 @@ net_list_batch=(
   "densenet_201"
   "senet_res50"
   "arcface_res50"
-  "retinaface_mnet25"
-  #"retinaface_res50"
-  "ssd300"
+  ## "retinaface_mnet25"
+  ## "retinaface_res50"
+  ## "ssd300"
+  ## "yolo_v2_1080"
+  ## "yolo_v2_416"
+  "yolo_v3_608"
   "yolo_v3_416"
   "yolo_v3_320"
-  "resnet18"
-  "efficientnet_b0"
-  "alphapose"
-)
-
-net_list_accuracy=(
-  # "resnet50"
-  # "mobilenet_v2"
+  ## "resnet18"
+  ## "efficientnet_b0"
+  ## "alphapose"
 )
 
 usage()
 {
    echo ""
-   echo "Usage: $0 -batch Batchsize"
+   echo "Usage: $0 [-b batch_size] [-n net_name] [-e]"
    echo -e "\t-b Description of batch size for test"
-   echo -e "\t-n Description of Net Name for test "
+   echo -e "\t-n Description of met name for test "
+   echo -e "\t-f Description of whether run extra net list "
    exit 1
 }
 
 run_generic()
 {
-  net=$1
-  bs=$2
+  local net=$1
+  local bs=$2
   echo "generic regression $net batch=$bs"
   regression_generic.sh $net $bs > $1\_bs$bs.log 2>&1 | true
   if [ "${PIPESTATUS[0]}" -ne "0" ]; then
@@ -84,6 +167,7 @@ export -f run_generic
 
 run_generic_all()
 {
+  local run_extra=$1
   ERR=0
   # bs = 1
   for net in ${net_list_generic[@]}
@@ -101,12 +185,31 @@ run_generic_all()
       ERR=1
     fi
   done
-  # return
+  # extra
+  if [ $run_extra -eq 1 ]; then
+    # bs = 1
+    for net in ${net_list_generic_extra[@]}
+    do
+      run_generic $net 1
+      if [ "$?" -ne 0 ]; then
+        ERR=1
+      fi
+    done
+    # bs = 4
+    for net in ${net_list_batch_extra[@]}
+    do
+      run_generic $net 4
+      if [ "$?" -ne 0 ]; then
+        ERR=1
+      fi
+    done
+  fi
   return $ERR
 }
 
 run_generic_all_parallel()
 {
+  local run_extra=$1
   rm -f regression.txt
   for net in ${net_list_generic[@]}
   do
@@ -116,6 +219,17 @@ run_generic_all_parallel()
   do
     echo "run_generic $net 4" >> regression.txt
   done
+  # extra
+  if [ $run_extra -eq 1 ]; then
+    for net in ${net_list_generic_extra[@]}
+    do
+      echo "run_generic $net 1" >> regression.txt
+    done
+    for net in ${net_list_batch_extra[@]}
+    do
+      echo "run_generic $net 4" >> regression.txt
+    done
+  fi
   cat regression.txt
   parallel -j0 --delay 0.5  --joblog job_regression.log < regression.txt
   return $?
@@ -139,7 +253,8 @@ export -f run_accuracy
 
 run_accuracy_all()
 {
-  count=$1
+  local count=$1
+  local run_extra=$2
   ERR=0
   for net in ${net_list_accuracy[@]}
   do
@@ -148,17 +263,35 @@ run_accuracy_all()
       ERR=1
     fi
   done
+  # extra
+  if [ $run_extra -eq 1 ]; then
+    for net in ${net_list_accuracy_extra[@]}
+    do
+      run_accuracy $net $count
+      if [ "$?" -ne 0 ]; then
+        ERR=1
+      fi
+    done
+  fi
   return $ERR
 }
 
 run_accuracy_all_parallel()
 {
-  count=$1
+  local count=$1
+  local run_extra=$2
   rm -f accuracy.txt
   for net in ${net_list_accuracy[@]}
   do
     echo "run_accuracy $net $count" >> accuracy.txt
   done
+  # extra
+  if [ $run_extra -eq 1 ]; then
+    for net in ${net_list_accuracy_extra[@]}
+    do
+      echo "run_accuracy $net $count" >> accuracy.txt
+    done
+  fi
   if [ -f accuracy.txt ]; then
     cat accuracy.txt
     parallel -j0 --delay 0.5  --joblog job_accuracy.log < accuracy.txt
@@ -166,11 +299,13 @@ run_accuracy_all_parallel()
   fi
 }
 
-while getopts "n:b:" opt
+run_extra=0
+while getopts "n:b:f" opt
 do
   case "$opt" in
     n ) net="$OPTARG" ;;
     b ) bs="$OPTARG" ;;
+    e ) run_extra=1 ;;
     h ) usage ;;
   esac
 done
@@ -217,23 +352,24 @@ if [ ! -z "$net" ]; then
   exit $ERR
 fi
 
+combine=(str_array1 str_array2)
 
 ERR=0
 if [ $RUN_IN_PARALLEL -eq 0 ]; then
-  run_generic_all
+  run_generic_all $run_extra
   if [ "$?" -ne 0 ]; then
     ERR=1
   fi
-  run_accuracy_all 100
+  run_accuracy_all 100 $run_extra
   if [ "$?" -ne 0 ]; then
     ERR=1
   fi
 else
-  run_generic_all_parallel
+  run_generic_all_parallel $run_extra
   if [ "$?" -ne 0 ]; then
     ERR=1
   fi
-  run_accuracy_all_parallel 100
+  run_accuracy_all_parallel 100 $run_extra
   if [ "$?" -ne 0 ]; then
     ERR=1
   fi

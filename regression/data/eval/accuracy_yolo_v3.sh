@@ -17,7 +17,7 @@ $EVAL_CAFFE_FUNC \
 EVAL_FUNC=eval_yolo.py
 
 $EVAL_FUNC \
-    --model=yolo_v3_416.mlir \
+    --model=${NET}.mlir \
     --net_input_dims ${NET_INPUT_DIMS} \
     --obj_threshold 0.005 \
     --nms_threshold 0.45 \

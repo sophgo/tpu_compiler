@@ -120,8 +120,8 @@ def eval_detector(net, result_json_file, dataset_path, net_input_dims,
                 exit(-1)
             image_id = get_image_id_in_path(image_path)
             image = cv2.imread(image_path)
-            predictions = yolov3_detect(net, image, net_input_dims,
-                                        obj_threshold, nms_threshold)
+            predictions = yolo_detect(net, image, net_input_dims,
+                                        obj_threshold, nms_threshold, True)
             for pred in predictions:
                 clipped_box = clip_box(pred[0], image.shape)
                 x, y, w, h = clipped_box
