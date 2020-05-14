@@ -17,17 +17,18 @@ export DO_QUANT_INT8_PER_TENSOR=0
 export DO_QUANT_INT8_RFHIFT_ONLY=0
 export DO_QUANT_INT8_MULTIPLER=1
 export DO_CMDBUF_INT8=1
-export DO_QUANT_BF16=1
-export DO_CMDBUF_BF16=1
+export DO_QUANT_BF16=0
+export DO_CMDBUF_BF16=0
 export DO_DEEPFUSION=1
 export DO_MEMOPT=1
-export DO_LAYERGROUP=0
+export DO_LAYERGROUP=1
 export DO_QUANT_MIX=0
 export DO_ACCURACY_CAFFE=1
 export DO_ACCURACY_ONNX=0
-export DO_ACCURACY_INTERPRETER=1
 export DO_ACCURACY_FP32_INTERPRETER=0
+export DO_ACCURACY_INTERPRETER=1
 export DO_E2E=1
+export USE_LAYERGROUP=0
 export EVAL_MODEL_TYPE="imagenet"
 
 if [ -z "$DO_BATCHSIZE" ]; then
@@ -60,7 +61,7 @@ export TOLERANCE_INT8_MULTIPLER=0.96,0.95,0.73
 export TOLERANCE_BF16=0.99,0.99,0.89
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.9
 export DO_LAYERGROUP=1
-# export BATCH_SIZE=4
+export USE_LAYERGROUP=0
 fi
 
 if [ $NET = "vgg16" ]; then
@@ -83,6 +84,7 @@ export TOLERANCE_INT8_MULTIPLER=0.99,0.99,0.91
 export TOLERANCE_BF16=0.99,0.99,0.96
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
 export DO_LAYERGROUP=1
+export USE_LAYERGROUP=1
 fi
 
 if [ $NET = "googlenet" ]; then
@@ -105,8 +107,9 @@ export TOLERANCE_INT8_MULTIPLER=0.96,0.96,0.72
 export DO_QUANT_BF16=0
 export TOLERANCE_BF16=0.99,0.99,0.97
 export DO_CMDBUF_BF16=0
-export DO_LAYERGROUP=1
 #export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
+export DO_LAYERGROUP=1
+export USE_LAYERGROUP=1
 fi
 
 if [ $NET = "inception_v3" ]; then
@@ -127,8 +130,10 @@ export TOLERANCE_INT8_RSHIFT_ONLY=0.94,0.93,0.64
 export TOLERANCE_INT8_MULTIPLER=0.95,0.95,0.69
 export DO_QUANT_BF16=0
 export TOLERANCE_BF16=0.99,0.99,0.93
+export DO_CMDBUF_BF16=0
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
 export DO_LAYERGROUP=1
+export USE_LAYERGROUP=1
 fi
 
 if [ $NET = "inception_v4" ]; then
@@ -149,8 +154,10 @@ export TOLERANCE_INT8_RSHIFT_ONLY=0.93,0.93,0.62
 export TOLERANCE_INT8_MULTIPLER=0.93,0.93,0.63
 export DO_QUANT_BF16=0
 export TOLERANCE_BF16=0.99,0.99,0.89
+export DO_CMDBUF_BF16=0
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.93
 export DO_LAYERGROUP=1
+export USE_LAYERGROUP=1
 fi
 
 if [ $NET = "mobilenet_v1" ]; then
@@ -178,6 +185,7 @@ export TOLERANCE_BF16=0.99,0.99,0.94
 export DO_CMDBUF_BF16=1
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
 export DO_LAYERGROUP=0
+export USE_LAYERGROUP=0
 fi
 
 if [ $NET = "mobilenet_v2" ]; then
@@ -205,6 +213,7 @@ export TOLERANCE_BF16=0.99,0.99,0.92
 export DO_CMDBUF_BF16=0   # this is a bug to fix
 # export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
 export DO_LAYERGROUP=1
+export USE_LAYERGROUP=1
 fi
 
 if [ $NET = "mobilenet_v3" ]; then
@@ -215,7 +224,6 @@ export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_onnx/regression_mobilenet
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/mobilenetv3_pytorch_preprocess_calibration_table.bin.65536
 export RAW_SCALE=1
 export INPUT_SCALE=0.875
-# plz refer [here](https://github.com/rwightman/pytorch-image-models/blob/aa4354f4668ee7cf349f24de60e3a23dee43a6ef/timm/data/constants.py) for column \IMAGENET_DEFAULT_MEAN and \IMAGENET_DEFAULT_STD
 export NET_INPUT_DIMS=256,256
 export MEAN=0.406,0.456,0.485  # in BGR, pytorch mean=[0.485, 0.456, 0.406]
 export STD=0.225,0.224,0.229   # in BGR, pytorch std=[0.229, 0.224, 0.225]
@@ -229,18 +237,17 @@ export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
 export EXCEPTS=371_Add,315_Add,390_Add,401_Add,409_Add,419_Add,427_Add,438_Add,446_Add,457_Add,465_Add,476_Add,484_Add,492_Add,499_Add,509_Add,517_Add,525_Add,532_Add,543_Add,551_Add,559_Add,566_Add,576_Add,584_Add,592_Add,599_Add,610_Add,618_Add,626_Add,633_Add,644_Add,652_Add # cuz relu6 could add 'relu' layer that could mismatch original layer
 export MLIR_OPT_FE_PRE="$MLIR_OPT_FE_PRE --skip-mult-used-scale-op --relu6-to-clip"
 export MLIR_OPT_FE_INT8_MULTIPLER_PRE="--tpu-quant-clip"
-#export MLIR_OPT_FE_INT8_MULTIPLER_POST="--tpu-quant-clip"
 export DO_QUANT_MIX_CMD=1
+export BF16_QUANT_LAYERS_FILE=${NET}_bf16_quant_layers
+export BF16_QUANT_LAYERS="316_Clip 354_Clip 372_Clip 391_Clip 402_Clip 410_Clip 420_Clip 428_Clip 428_Clip 439_Clip 447_Clip 458_Clip 466_Clip 477_Clip 485_Clip 493_Clip 500_Clip 510_Clip 518_Clip 526_Clip 533_Clip 544_Clip 552_Clip 560_Clip 567_Clip 577_Clip 585_Clip 593_Clip 600_Clip 611_Clip 619_Clip 627_Clip 634_Clip 645_Clip 653_Clip #656_Mul 313_BatchNormalization 315_Add 319_Mul 322_Relu 353_Add"
 export DO_E2E=0
 export DO_CMDBUF_BF16=0
 export DO_DEEPFUSION=0
 export DO_MEMOPT=0
 export DO_DEEPFUSION=0
 export DO_LAYERGROUP=0
-export BF16_QUANT_LAYERS_FILE=${NET}_bf16_quant_layers
-export BF16_QUANT_LAYERS="316_Clip 354_Clip 372_Clip 391_Clip 402_Clip 410_Clip 420_Clip 428_Clip 428_Clip 439_Clip 447_Clip 458_Clip 466_Clip 477_Clip 485_Clip 493_Clip 500_Clip 510_Clip 518_Clip 526_Clip 533_Clip 544_Clip 552_Clip 560_Clip 567_Clip 577_Clip 585_Clip 593_Clip 600_Clip 611_Clip 619_Clip 627_Clip 634_Clip 645_Clip 653_Clip #656_Mul 313_BatchNormalization 315_Add 319_Mul 322_Relu 353_Add"
+export USE_LAYERGROUP=0
 fi
-
 
 if [ $NET = "shufflenet_v2" ]; then
 export MODEL_DEF=$MODEL_PATH/imagenet/shufflenet_v2/caffe/shufflenet_v2_x0.5.prototxt
@@ -262,6 +269,7 @@ export TOLERANCE_INT8_MULTIPLER=0.92,0.92,0.57
 export TOLERANCE_BF16=0.99,0.99,0.94
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
 export DO_LAYERGROUP=1
+export USE_LAYERGROUP=1
 fi
 
 if [ $NET = "squeezenet" ]; then
@@ -282,6 +290,7 @@ export TOLERANCE_INT8_MULTIPLER=0.9,0.9,0.6
 export TOLERANCE_BF16=0.99,0.99,0.93
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.93
 export DO_LAYERGROUP=1
+export USE_LAYERGROUP=1
 fi
 
 if [ $NET = "densenet_121" ]; then
@@ -309,6 +318,7 @@ export TOLERANCE_BF16=0.99,0.99,0.94
 export DO_CMDBUF_BF16=0
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
 export DO_LAYERGROUP=0
+export USE_LAYERGROUP=0
 fi
 
 if [ $NET = "densenet_201" ]; then
@@ -336,6 +346,7 @@ export TOLERANCE_BF16=0.99,0.99,0.92
 export DO_CMDBUF_BF16=0
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.95
 export DO_LAYERGROUP=0
+export USE_LAYERGROUP=0
 fi
 
 if [ $NET = "senet_res50" ]; then
@@ -363,6 +374,7 @@ export TOLERANCE_BF16=0.99,0.99,0.99
 export DO_CMDBUF_BF16=0
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
 export DO_LAYERGROUP=0
+export USE_LAYERGROUP=0
 fi
 
 if [ $NET = "arcface_res50" ]; then
@@ -376,6 +388,7 @@ export DO_QUANT_INT8_PER_TENSOR=0
 export DO_QUANT_INT8_RFHIFT_ONLY=0
 export DO_QUANT_BF16=0
 export DO_LAYERGROUP=1
+export USE_LAYERGROUP=0
 # accuracy setting
 export EVAL_MODEL_TYPE="lfw"
 #export DO_ACCURACY_CAFFE=0
@@ -392,6 +405,7 @@ export DO_QUANT_INT8_PER_TENSOR=0
 export DO_QUANT_INT8_RFHIFT_ONLY=0
 export DO_QUANT_BF16=0
 export DO_LAYERGROUP=1
+export USE_LAYERGROUP=1
 # accuracy setting
 export NET_INPUT_DIMS=320,320
 export EVAL_MODEL_TYPE="widerface"
@@ -414,6 +428,7 @@ export DO_QUANT_INT8_PER_TENSOR=0
 export DO_QUANT_INT8_RFHIFT_ONLY=0
 export DO_QUANT_BF16=0
 export DO_LAYERGROUP=1
+export USE_LAYERGROUP=1
 # accuracy setting
 export NET_INPUT_DIMS=600,600
 export EVAL_MODEL_TYPE="widerface"
@@ -437,6 +452,7 @@ export TOLERANCE_INT8_RSHIFT_ONLY=0.98,0.98,0.81
 export TOLERANCE_INT8_MULTIPLER=0.99,0.99,0.88
 export DO_QUANT_BF16=0
 export DO_LAYERGROUP=1
+export USE_LAYERGROUP=1
 export NET_INPUT_DIMS=300,300
 # accuracy setting
 export EVAL_MODEL_TYPE="coco"
@@ -459,6 +475,8 @@ export TOLERANCE_BF16=0.99,0.99,0.93
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.93
 export DO_DEEPFUSION=0
 export DO_MEMOPT=0
+export DO_LAYERGROUP=0
+export USE_LAYERGROUP=0
 fi
 
 if [ $NET = "yolo_v2_416" ]; then
@@ -473,6 +491,10 @@ export TOLERANCE_INT8_RSHIFT_ONLY=0.92,0.90,0.58
 export TOLERANCE_INT8_MULTIPLER=0.90,0.90,0.50
 export TOLERANCE_BF16=0.99,0.99,0.93
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.93
+export DO_DEEPFUSION=0
+export DO_MEMOPT=0
+export DO_LAYERGROUP=0
+export USE_LAYERGROUP=0
 fi
 
 if [ $NET = "yolo_v3_608" ]; then
@@ -489,6 +511,10 @@ export TOLERANCE_INT8_MULTIPLER=0.92,0.90,0.60
 export DO_QUANT_BF16=0
 export TOLERANCE_BF16=0.99,0.99,0.93
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.93
+export DO_DEEPFUSION=0
+export DO_MEMOPT=0
+export DO_LAYERGROUP=0
+export USE_LAYERGROUP=0
 fi
 
 if [ $NET = "yolo_v3_416" ]; then
@@ -505,7 +531,10 @@ export TOLERANCE_INT8_MULTIPLER=0.93,0.92,0.61
 export DO_QUANT_BF16=0
 export TOLERANCE_BF16=0.99,0.99,0.94
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
+export DO_DEEPFUSION=1
+export DO_MEMOPT=1
 export DO_LAYERGROUP=1
+export USE_LAYERGROUP=0
 fi
 
 if [ $NET = "yolo_v3_320" ]; then
@@ -522,6 +551,10 @@ export TOLERANCE_INT8_MULTIPLER=0.93,0.92,0.61
 export DO_QUANT_BF16=0
 export TOLERANCE_BF16=0.99,0.99,0.94
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
+export DO_DEEPFUSION=1
+export DO_MEMOPT=1
+export DO_LAYERGROUP=1
+export USE_LAYERGROUP=0
 fi
 
 if [ $NET = "yolo_v3_160" ]; then
@@ -537,6 +570,10 @@ export TOLERANCE_INT8_MULTIPLER=0.93,0.92,0.61
 export DO_QUANT_BF16=0
 export TOLERANCE_BF16=0.99,0.99,0.94
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
+export DO_DEEPFUSION=1
+export DO_MEMOPT=1
+export DO_LAYERGROUP=1
+export USE_LAYERGROUP=0
 fi
 
 if [ $NET = "yolo_v3_512x288" ]; then
@@ -552,6 +589,10 @@ export TOLERANCE_INT8_MULTIPLER=0.93,0.92,0.61
 export DO_QUANT_BF16=0
 export TOLERANCE_BF16=0.99,0.99,0.94
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
+export DO_DEEPFUSION=1
+export DO_MEMOPT=1
+export DO_LAYERGROUP=1
+export USE_LAYERGROUP=0
 fi
 
 # check if the MODEL exists of caffe
@@ -588,6 +629,7 @@ export TOLERANCE_INT8_RSHIFT_ONLY=0.98,0.98,0.84
 export TOLERANCE_INT8_MULTIPLER=0.99,0.99,0.87
 export DO_QUANT_BF16=0
 export DO_LAYERGROUP=1
+export USE_LAYERGROUP=0
 # export TOLERANCE_BF16=0.99,0.99,0.94
 # export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
 fi
@@ -623,6 +665,7 @@ export DO_CMDBUF_BF16=0
 export DO_ACCURACY_CAFFE=0
 export DO_ACCURACY_ONNX=1
 export DO_LAYERGROUP=1
+export USE_LAYERGROUP=0
 fi
 
 if [ $NET = "alphapose" ]; then
@@ -645,6 +688,7 @@ export TOLERANCE_INT8_RSHIFT_ONLY=0.92,0.90,0.58
 export TOLERANCE_INT8_MULTIPLER=0.95,0.95,0.66
 export DO_QUANT_BF16=0
 export DO_LAYERGROUP=1
+export USE_LAYERGROUP=1
 # export TOLERANCE_BF16=0.99,0.99,0.94
 # export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
 fi
@@ -655,15 +699,7 @@ if [ ! -f ${MODEL_DEF} ]; then
   exit 1
 fi
 
-# turn off those optimization when batch_size is larger than 1 temporarily
-#if [ $BATCH_SIZE -gt 1 ]; then
-#export DO_DEEPFUSION=0
-#export DO_MEMOPT=0
-#export DO_QUANT_MIX=0
-#export DO_E2E=0
-#fi
-
 if [ $DO_LAYERGROUP -eq 1 ]; then
-  echo "do layer_group, skip early stride for eltwise"
+  # echo "do layer_group, skip early stride for eltwise"
   export MLIR_OPT_FE_POST=""
 fi

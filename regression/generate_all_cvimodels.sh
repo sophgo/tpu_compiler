@@ -80,19 +80,37 @@ do
   NET=$net
   source $DIR/generic/generic_models.sh
   if [ $MODEL_TYPE = "caffe" ]; then
-    $DIR/convert_model_caffe.sh \
-      ${MODEL_DEF} \
-      ${MODEL_DAT} \
-      1 \
-      ${CALI_TABLE} \
-      ${NET}.cvimodel
+    if [ $USE_LAYERGROUP = "1" ]; then
+      $DIR/convert_model_caffe_lg.sh \
+        ${MODEL_DEF} \
+        ${MODEL_DAT} \
+        1 \
+        ${CALI_TABLE} \
+        ${NET}.cvimodel
+    else
+      $DIR/convert_model_caffe_df.sh \
+        ${MODEL_DEF} \
+        ${MODEL_DAT} \
+        1 \
+        ${CALI_TABLE} \
+        ${NET}.cvimodel
+    fi
   elif [ $MODEL_TYPE = "onnx" ]; then
-    $DIR/convert_model_onnx.sh \
-      ${MODEL_DEF} \
-      ${NET} \
-      1 \
-      ${CALI_TABLE} \
-      ${NET}.cvimodel
+    if [ $USE_LAYERGROUP = "1" ]; then
+      $DIR/convert_model_onnx_lg.sh \
+        ${MODEL_DEF} \
+        ${NET} \
+        1 \
+        ${CALI_TABLE} \
+        ${NET}.cvimodel
+    else
+      $DIR/convert_model_onnx_df.sh \
+        ${MODEL_DEF} \
+        ${NET} \
+        1 \
+        ${CALI_TABLE} \
+        ${NET}.cvimodel
+    fi
   else
     echo "Invalid MODEL_TYPE=$MODEL_TYPE"
     return 1
@@ -110,19 +128,37 @@ do
   NET=$net
   extra_net_param $NET
   if [ $MODEL_TYPE = "caffe" ]; then
-    $DIR/convert_model_caffe.sh \
-      ${MODEL_DEF} \
-      ${MODEL_DAT} \
-      1 \
-      ${CALI_TABLE} \
-      ${NET}.cvimodel
+    if [ $USE_LAYERGROUP = "1" ]; then
+      $DIR/convert_model_caffe_lg.sh \
+        ${MODEL_DEF} \
+        ${MODEL_DAT} \
+        1 \
+        ${CALI_TABLE} \
+        ${NET}.cvimodel
+    else
+      $DIR/convert_model_caffe_df.sh \
+        ${MODEL_DEF} \
+        ${MODEL_DAT} \
+        1 \
+        ${CALI_TABLE} \
+        ${NET}.cvimodel
+    fi
   elif [ $MODEL_TYPE = "onnx" ]; then
-    $DIR/convert_model_onnx.sh \
-      ${MODEL_DEF} \
-      ${NET} \
-      1 \
-      ${CALI_TABLE} \
-      ${NET}.cvimodel
+    if [ $USE_LAYERGROUP = "1" ]; then
+      $DIR/convert_model_onnx_lg.sh \
+        ${MODEL_DEF} \
+        ${NET} \
+        1 \
+        ${CALI_TABLE} \
+        ${NET}.cvimodel
+    else
+      $DIR/convert_model_onnx_df.sh \
+        ${MODEL_DEF} \
+        ${NET} \
+        1 \
+        ${CALI_TABLE} \
+        ${NET}.cvimodel
+    fi
   else
     echo "Invalid MODEL_TYPE=$MODEL_TYPE"
     return 1

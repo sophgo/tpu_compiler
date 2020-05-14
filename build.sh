@@ -247,8 +247,10 @@ if [ "$1" = "RELEASE" ]; then
   cp -a $MLIR_SRC_PATH/regression/generic $INSTALL_PATH/regression/
   # cp -a $MLIR_SRC_PATH/regression/parallel $INSTALL_PATH/regression/
   cp -a $MLIR_SRC_PATH/regression/data $INSTALL_PATH/regression/
-  cp -a $MLIR_SRC_PATH/regression/convert_model_caffe.sh $INSTALL_PATH/regression/
-  cp -a $MLIR_SRC_PATH/regression/convert_model_onnx.sh $INSTALL_PATH/regression/
+  cp -a $MLIR_SRC_PATH/regression/convert_model_caffe_df.sh $INSTALL_PATH/regression/
+  cp -a $MLIR_SRC_PATH/regression/convert_model_onnx_df.sh $INSTALL_PATH/regression/
+  cp -a $MLIR_SRC_PATH/regression/convert_model_caffe_lg.sh $INSTALL_PATH/regression/
+  cp -a $MLIR_SRC_PATH/regression/convert_model_onnx_lg.sh $INSTALL_PATH/regression/
   cp -a $MLIR_SRC_PATH/regression/generate_all_cvimodels.sh $INSTALL_PATH/regression/
   cp -a $MLIR_SRC_PATH/regression/run_regression.sh $INSTALL_PATH/regression/
 

@@ -103,7 +103,7 @@ net_list_batch_extra=(
   "retinaface_res50"
   "ssd300"
   ## "yolo_v2_1080"
-  "yolo_v2_416"
+  ## "yolo_v2_416"
   ## "yolo_v3_608"
   "yolo_v3_416"
   "yolo_v3_320"
@@ -138,16 +138,6 @@ net_list_accuracy_extra=(
   ## "efficientnet_b0"
   ## "alphapose"
 )
-
-usage()
-{
-   echo ""
-   echo "Usage: $0 [-b batch_size] [-n net_name] [-e]"
-   echo -e "\t-b Description of batch size for test"
-   echo -e "\t-n Description of met name for test "
-   echo -e "\t-e Description of whether run extra net list "
-   exit 1
-}
 
 run_generic()
 {
@@ -299,14 +289,27 @@ run_accuracy_all_parallel()
   fi
 }
 
+usage()
+{
+   echo ""
+   echo "Usage: $0 [-b batch_size] [-n net_name] [-e] [-a count]"
+   echo -e "\t-b Description of batch size for test"
+   echo -e "\t-n Description of met name for test"
+   echo -e "\t-e Enable extra net list"
+   echo -e "\t-a Enable run accuracy, with given image count"
+   exit 1
+}
+
 run_extra=0
 bs=1
-while getopts "n:b:e" opt
+run_accuracy=0
+while getopts "n:b:a:e" opt
 do
   case "$opt" in
     n ) net="$OPTARG" ;;
     b ) bs="$OPTARG" ;;
     e ) run_extra=1 ;;
+    a ) run_accuracy="$OPTARG" ;;
     h ) usage ;;
   esac
 done
@@ -346,26 +349,28 @@ if [ ! -z "$net" ]; then
   exit $ERR
 fi
 
-combine=(str_array1 str_array2)
-
 ERR=0
 if [ $RUN_IN_PARALLEL -eq 0 ]; then
   run_generic_all $run_extra
   if [ "$?" -ne 0 ]; then
     ERR=1
   fi
-  run_accuracy_all 100 $run_extra
-  if [ "$?" -ne 0 ]; then
-    ERR=1
+  if [ $run_accuracy -ne 0 ]; then
+    run_accuracy_all $run_accuracy $run_extra
+    if [ "$?" -ne 0 ]; then
+      ERR=1
+    fi
   fi
 else
   run_generic_all_parallel $run_extra
   if [ "$?" -ne 0 ]; then
     ERR=1
   fi
-  run_accuracy_all_parallel 100 $run_extra
-  if [ "$?" -ne 0 ]; then
-    ERR=1
+  if [ $run_accuracy -ne 0 ]; then
+    run_accuracy_all_parallel $run_accuracy $run_extra
+    if [ "$?" -ne 0 ]; then
+      ERR=1
+    fi
   fi
 fi
 

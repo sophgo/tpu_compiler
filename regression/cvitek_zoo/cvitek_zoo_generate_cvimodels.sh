@@ -25,14 +25,14 @@ do
   NET=$net
   source $DIR/cvitek_zoo_models.sh
   if [ $MODEL_TYPE = "caffe" ]; then
-    $REGRESSION_PATH/convert_model_caffe.sh \
+    $REGRESSION_PATH/convert_model_caffe_df.sh \
       ${MODEL_DEF} \
       ${MODEL_DAT} \
       1 \
       ${CALI_TABLE} \
       ${NET}.cvimodel
   elif [ $MODEL_TYPE = "onnx" ]; then
-    $REGRESSION_PATH/convert_model_onnx.sh \
+    $REGRESSION_PATH/convert_model_onnx_df.sh \
       ${MODEL_DEF} \
       ${NET} \
       1 \
