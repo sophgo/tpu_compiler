@@ -244,8 +244,8 @@ struct TpuTL_LW_Conv2DOp_AssignLayoutPattern : public RewritePattern {
           }
           lut_ops.push_back(next_opInst);
         } else {
-          llvm::errs() << "TL_LA2LW: layer ID " << op.layer_id()
-                     << ", next_op is not conv or eltwise\n";
+          LLVM_DEBUG(llvm::errs() << "TL_LA2LW: layer ID " << op.layer_id()
+                     << ", next_op is not conv or eltwise\n";);
         }
       }
       LLVM_DEBUG(llvm::errs() << "TL_LA2LW: layer ID " << op.layer_id()
