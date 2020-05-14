@@ -209,7 +209,7 @@ fi
 
 if [ $NET = "mobilenet_v3" ]; then
 export MODEL_TYPE="onnx"
-export MODEL_DEF=$MODEL_PATH/imagenet/mobilenet_v3/onnx/2020.04.17.01/mobilenetv3_rw.onnx
+export MODEL_DEF=$MODEL_PATH/imagenet/mobilenet_v3/onnx/mobilenetv3_rw.onnx
 export MODEL_DAT=""
 export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_onnx/regression_mobilenetv3_0_onnx.sh
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/mobilenetv3_pytorch_preprocess_calibration_table.bin.65536
@@ -446,8 +446,8 @@ export EVAL_SCRIPT_INT8="eval_ssd.py"
 fi
 
 if [ $NET = "yolo_v2_1080" ]; then
-export MODEL_DEF=$MODEL_PATH/object_detection/yolo_v2/caffe/2018.03.25.01/caffe_deploy_1080.prototxt
-export MODEL_DAT=$MODEL_PATH/object_detection/yolo_v2/caffe/2018.03.25.01/yolov2.caffemodel
+export MODEL_DEF=$MODEL_PATH/object_detection/yolo_v2/caffe/caffe_deploy_1080.prototxt
+export MODEL_DAT=$MODEL_PATH/object_detection/yolo_v2/caffe/yolov2.caffemodel
 export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_caffe/regression_yolo_v2_0_caffe.sh
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/yolo_v2_calibration_table
 export NET_INPUT_DIMS=1080,1920
@@ -462,8 +462,8 @@ export DO_MEMOPT=0
 fi
 
 if [ $NET = "yolo_v2_416" ]; then
-export MODEL_DEF=$MODEL_PATH/object_detection/yolo_v2/caffe/2018.03.25.01/caffe_deploy.prototxt
-export MODEL_DAT=$MODEL_PATH/object_detection/yolo_v2/caffe/2018.03.25.01/yolov2.caffemodel
+export MODEL_DEF=$MODEL_PATH/object_detection/yolo_v2/caffe/caffe_deploy.prototxt
+export MODEL_DAT=$MODEL_PATH/object_detection/yolo_v2/caffe/yolov2.caffemodel
 export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_caffe/regression_yolo_v2_0_caffe.sh
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/yolo_v2_calibration_table
 export NET_INPUT_DIMS=416,416
