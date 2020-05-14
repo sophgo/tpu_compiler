@@ -252,7 +252,8 @@ def preprocess(bgr_img, net_input_dims):
     rescale_w = int(iw * scale)
     rescale_h = int(ih * scale)
 
-    print("yolo_h: {}, yolo_w: {}, rescale_h: {}, rescale_w: {}".format(yolo_h, yolo_w, rescale_h, rescale_w))
+    # print("yolo_h: {}, yolo_w: {}, rescale_h: {}, rescale_w: {}".format(
+    #       yolo_h, yolo_w, rescale_h, rescale_w))
 
     resized_img = cv2.resize(rgb_img, (rescale_w, rescale_h), interpolation=cv2.INTER_LINEAR)
     new_image = np.full((yolo_h, yolo_w, 3), 0, dtype=np.float32)
