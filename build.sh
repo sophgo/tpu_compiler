@@ -187,7 +187,7 @@ cmake -G Ninja -DCHIP=BM1880v2 -DRUNTIME=CMODEL $BUILD_FLAG \
     -DENABLE_TEST=ON \
     $MLIR_SRC_PATH/externals/cviruntime
 cmake --build . --target install
-ctest --progress || true
+#ctest --progress || true
 popd
 
 # build systemc (for profiling)
