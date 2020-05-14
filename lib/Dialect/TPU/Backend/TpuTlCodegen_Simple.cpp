@@ -485,7 +485,82 @@ LogicalResult tpu::TL_PoolAvg2DOp::codegen(void *ctx) {
   return success();
 }
 
+LogicalResult tpu::TL_BroadcastMulOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  getNCHW(shape, n, c, h, w);
+  bool do_relu = this->param().do_relu().getValue();
+
+  gaddr_t ga_input = getPreviousOpAddress(op);
+  gaddr_t ga_output = getOpAddress(op);
+  gaddr_t ga_scale = getOpAddress(filter()->getDefiningOp());
+  gaddr_t ga_pc_info = getWeightOpAddress(pc_info()->getDefiningOp());
+  int layer_id = mlir::getOpLayerId(op);
+
+  laddr_t la_input = LA_INVALID;
+  laddr_t la_output = LA_INVALID;
+  laddr_t la_working = LA_INVALID;
+  if (this->lm_layout() != "NONE") {
+    la_input = this->la_input().getLimitedValue();
+    la_output = this->la_output().getLimitedValue();
+    la_working = this->la_working().getLimitedValue();
+  }
+
+  LLVM_DEBUG(
+    llvm::errs() << "    TL_BroadcastMulOp, layer_id = " << layer_id;
+    llvm::errs() << ", " << this->lm_layout();
+    if (tl_load_flag())
+      llvm::errs() << ", LD";
+    if (tl_store_flag())
+      llvm::errs() << ", ST";
+    if (!tl_load_flag() && !tl_store_flag())
+      llvm::errs() << ", FUSED";
+    llvm::errs() << "\n";
+  );
+
+  if(tl_load_flag()) {
+    cvi_backend_tl_load(
+     *backend_ctx, layer_id,
+    la_input, ga_input,
+    n, c, h, w);
+  }
+  cvi_backend_tl_scale_qi32(
+      *backend_ctx, // ctx
+      layer_id,     // layer_id
+      la_input, la_output, la_working,
+      ga_scale, // scale_addr
+      ga_pc_info,   // pack_addr
+      n, c, h, w,
+      n * c,        // scale_dim (axis = 1  =>  n * c)
+      h * w,        // inner_dim (axis = 1  =>  h * w)
+      false,        // is_scale_const
+      0,            // const_scale
+      do_relu,      // do_activation,
+      0,            // activation_method
+      nullptr,      // activation_arg
+      false,        // with_bias
+      false         // second_is_load_weight
+      );
+  if(tl_store_flag()) {
+    cvi_backend_tl_store(
+     *backend_ctx, layer_id,
+    la_output, ga_output,
+    n, c, h, w);
+  }
+  return success();
+}
+
 // MemRefType dummy
+LogicalResult tpu::TL_MemRef_BroadcastMulOp::codegen(void *ctx) {
+  return success();
+}
+
 LogicalResult tpu::TL_MemRef_PoolAvg2DOp::codegen(void *ctx) {
   return success();
 }

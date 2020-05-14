@@ -206,4 +206,35 @@ class TPU_TL_MemRef_Pool2DOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 
 def TPU_TL_MemRef_PoolAvg2DOp : TPU_TL_MemRef_Pool2DOp<"tl_memref_pool_avg_2d", "Int8">;
 
+def TPU_TL_MemRef_BroadcastMulOp : TPU_Op<"tl_memref_broadcast_mul",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
+  let summary = "TL BroadcastMul operator";
+
+  let description = [{
+  }];
+
+  let arguments = (
+    ins MemRefOf<[AnyFloat, AnyInteger]>:$input,
+    MemRefOf<[AnyFloat, AnyInteger]>:$filter,
+    MemRefOf<[AnyFloat, AnyInteger]>:$output,
+    MemRefOf<[I32,I16,I8]>:$pc_info,
+    TPU_ConvParamAttr:$param,
+    OptionalAttr<I8Attr>:$pt_rshift,
+    TPU_LMLayoutAttr:$lm_layout,
+    I32Attr:$la_input,
+    I32Attr:$la_working,
+    I32Attr:$la_output,
+    BoolAttr:$tl_load_flag,
+    BoolAttr:$tl_store_flag,
+    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
+    OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    OptionalAttr<BoolAttr>:$buffer_reused,
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
+  );
+
+}
+
 #endif // TPU_TL_MEMREF_OPS
