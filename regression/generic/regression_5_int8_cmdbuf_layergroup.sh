@@ -104,13 +104,13 @@ else
         --op_info ${NET}_op_info_int8_multiplier.csv
 fi
 
-if [ ! -z $CVIMODEL_REL_PATH -a -d $CVIMODEL_REL_PATH ]; then
-  if [ $BATCH_SIZE -eq 1 ]; then
-    mv ${NET}_lg.cvimodel $CVIMODEL_REL_PATH
-  else
-    mv ${NET}_lg.cvimodel $CVIMODEL_REL_PATH/${NET}_bs${BATCH_SIZE}_lg.cvimodel
-  fi
-fi
+#if [ ! -z $CVIMODEL_REL_PATH -a -d $CVIMODEL_REL_PATH ]; then
+#  if [ $BATCH_SIZE -eq 1 ]; then
+#    mv ${NET}_lg.cvimodel $CVIMODEL_REL_PATH
+#  else
+#    mv ${NET}_lg.cvimodel $CVIMODEL_REL_PATH/${NET}_bs${BATCH_SIZE}_lg.cvimodel
+#  fi
+#fi
 
 # VERDICT
 echo $0 PASSED
