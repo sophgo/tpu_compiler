@@ -443,12 +443,16 @@ export ANNOTATION=$DATASET_PATH/widerface/wider_face_split
 fi
 
 if [ $NET = "ssd300" ]; then
-#export MODEL_DEF=$MODEL_PATH/object_detection/ssd/caffe/ssd300/deploy_tpu.prototxt
 export MODEL_DEF=$MODEL_PATH/object_detection/ssd/caffe/ssd300/deploy.prototxt
 export MODEL_DAT=$MODEL_PATH/object_detection/ssd/caffe/ssd300/VGG_coco_SSD_300x300_iter_400000.caffemodel
-export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_caffe/regression_${NET}_0_caffe.sh
+export LABEL_MAP=$MODEL_PATH/object_detection/ssd/caffe/ssd300/labelmap_coco.prototxt
+export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_caffe/regression_ssd_0_caffe.sh
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table
 export INPUT=data
+export NET_INPUT_DIMS=300,300
+export RAW_SCALE=255.0
+export MEAN=104.0,117.0,123.0
+export INPUT_SCALE=1.0
 export TOLERANCE_INT8_PER_TENSOR=0.99,0.99,0.89
 export TOLERANCE_INT8_RSHIFT_ONLY=0.98,0.98,0.81
 export TOLERANCE_INT8_MULTIPLER=0.99,0.99,0.88
@@ -461,6 +465,25 @@ export EVAL_MODEL_TYPE="coco"
 export EVAL_SCRIPT_CAFFE="eval_caffe_detector_ssd.py"
 export EVAL_SCRIPT_INT8="eval_ssd.py"
 #export DO_ACCURACY_CAFFE=0
+fi
+
+if [ $NET = "mobilenet_ssd" ]; then
+export MODEL_DEF=$MODEL_PATH/object_detection/ssd/caffe/mobilenet_ssd/MobileNetSSD_deploy.prototxt
+export MODEL_DAT=$MODEL_PATH/object_detection/ssd/caffe/mobilenet_ssd/MobileNetSSD_deploy.caffemodel
+export LABEL_MAP=$MODEL_PATH/object_detection/ssd/caffe/mobilenet_ssd/labelmap_voc.prototxt
+export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_caffe/regression_ssd_0_caffe.sh
+export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table
+export INPUT=data
+export NET_INPUT_DIMS=300,300
+export RAW_SCALE=255.0
+export MEAN=127.5,127.5,127.5
+export INPUT_SCALE=0.007843
+export EXCEPTS=detection_out
+export TOLERANCE_INT8_PER_TENSOR=0.93,0.87,0.62
+export TOLERANCE_INT8_RSHIFT_ONLY=0.97,0.97,0.70
+export TOLERANCE_INT8_MULTIPLER=0.98,0.96,0.77
+export DO_QUANT_BF16=0
+#export DO_LAYERGROUP=1
 fi
 
 if [ $NET = "yolo_v2_1080" ]; then

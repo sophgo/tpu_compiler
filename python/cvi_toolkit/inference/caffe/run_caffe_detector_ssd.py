@@ -49,6 +49,12 @@ def parse_args():
                         help="Object confidence threshold")
     parser.add_argument("--batch_size", type=int, default=1,
                         help="Set batch size")
+    parser.add_argument("--raw_scale", type=float,
+                        help="Multiply raw input image data by this scale.")
+    parser.add_argument("--mean",
+                        help="Per Channel image mean values")
+    parser.add_argument("--input_scale", type=float,
+                        help="Multiply input features by this scale.", default=1.0)
 
 
     args = parser.parse_args()
@@ -62,15 +68,9 @@ def draw(image, top_label_names,top_confs, bboxs,verbose):
     # https://github.com/amikelive/coco-labels
 
     for i  in range(len(bboxs)):
-        x, y, w, h = bboxs[i]
+        x1, y1, x2, y2 = bboxs[i]
         score = top_confs[i]
         cls = top_label_names[i]
-
-        x1 = max(0, np.floor(x + 0.5).astype(int))
-        y1 = max(0, np.floor(y + 0.5).astype(int))
-
-        x2 = min(image.shape[0], np.floor(x + w ).astype(int))
-        y2 = min(image.shape[1], np.floor(y + h ).astype(int))
 
         cv2.rectangle(image, (x1,y1), (x2,y2), (255, 0, 0), 2)
         cv2.putText(image, '{0} {1:.2f}'.format(cls, score),
@@ -125,13 +125,14 @@ def get_label_name(labelmap, labels):
                 break
     return label_names
 
-def ssd_detect(net, image_path, net_input_dims,
+def ssd_detect(net, image_path, net_input_dims, input_scale, mean, raw_scale,
                   dump_blobs=None, dump_weights=None, batch=1):
-    
+
     transformer = caffe.io.Transformer({'data': net.blobs['data'].data.shape})
     transformer.set_transpose('data', (2, 0, 1))  # row to col, (HWC -> CHW)
-    transformer.set_mean('data', np.array([104, 117, 123], dtype=np.float32))
-    transformer.set_raw_scale('data', 255)  # [0,1] to [0,255]
+    transformer.set_input_scale('data', input_scale)
+    transformer.set_mean('data', mean)
+    transformer.set_raw_scale('data', raw_scale)  # [0,1] to [0,255]
     transformer.set_channel_swap('data', (2, 1, 0))  # RGB to BGR
 
     image_x = caffe.io.load_image(image_path)  # range from 0 to 1
@@ -172,6 +173,7 @@ def main(argv):
 
     # Make Detector
     net_input_dims = [int(s) for s in args.net_input_dims.split(',')]
+    mean = np.array([float(s) for s in args.mean.split(',')], dtype=np.float32)
     obj_threshold = float(args.obj_threshold)
 
     print("net_input_dims", net_input_dims)
@@ -189,7 +191,8 @@ def main(argv):
     if (args.input_file != '') :
         image = cv2.imread(args.input_file)
         predictions = ssd_detect(net, args.input_file, net_input_dims,
-                                    args.dump_blobs, args.dump_weights, args.batch_size)
+                                 args.input_scale, mean, args.raw_scale,
+                                 args.dump_blobs, args.dump_weights, args.batch_size)
 
         top_label_indices, top_conf, bboxs = parse_top_detection(image.shape, predictions, obj_threshold)
         top_label_name = get_label_name(labelmap, top_label_indices)

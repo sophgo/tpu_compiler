@@ -68,9 +68,7 @@ struct TpuConvertLoadeweightConcatToLoadweightPattern : public RewritePattern {
     std::vector<int64_t> shape = tensorType.getShape();
     auto size = std::accumulate(std::begin(shape), std::end(shape),
                                 1, std::multiplies<>());
-    ///auto resultT = std::make_unique<std::vector<float> >(size);
-    auto tmp_resultT = std::make_unique<std::vector<float> >(0);
-    std::vector<float> resultT(size);
+    auto resultT = std::make_unique<std::vector<float> >(0);
 
     std::vector<std::unique_ptr<std::vector<float>>>
                                         inputloadweight(input_loadweight_num);
@@ -107,19 +105,17 @@ struct TpuConvertLoadeweightConcatToLoadweightPattern : public RewritePattern {
         int insert_offset = ((idx_h+1)* tmp_w) + idx_h*w;
         shapeT.get()->assign(&input_data[idx_h * w],
                              &input_data[(idx_h + 1) * w]);
-        tmp_resultT.get()->insert(tmp_resultT.get()->begin() + insert_offset,
-                                  shapeT->begin(), shapeT->end());
+        resultT.get()->insert(resultT.get()->begin() + insert_offset,
+                              shapeT->begin(), shapeT->end());
       }
       tmp_w += w;
     }
-
-    resultT.assign(tmp_resultT.get()->begin(), tmp_resultT.get()->end());
 
     auto tensor_name = concatOp.getAttrOfType<StringAttr>("name").getValue().str()
                        + "_loadweight" ;
     auto type = RankedTensorType::get(shape,
                                       FloatType::getF32(rewriter.getContext()));
-    wTF->addTensor<float>(tensor_name, &resultT, type);
+    wTF->addTensor<float>(tensor_name, resultT->data(), type);
     std::vector<NamedAttribute> attrs;
     attrs.push_back(rewriter.getNamedAttr("name",
                     rewriter.getStringAttr(tensor_name)));
@@ -172,16 +168,10 @@ struct TpuConvertPriorBoxPattern : public RewritePattern {
     std::vector<float> max_sizes_;
     std::vector<float> aspect_ratios;
     std::vector<float> aspect_ratios_;
-    bool flip_;
     int num_priors_;
-    bool clip_;
     std::vector<float> variance_;
-    int img_w_;
-    int img_h_;
-    float step_w_;
-    float step_h_;
-
-    float offset_;
+    float step_w = step;
+    float step_h = step;
 
     aspect_ratios.push_back(priorboxOp.aspect_ratio0().convertToFloat()) ;
     if(aspect_ratios_size == 2) {
@@ -201,7 +191,6 @@ struct TpuConvertPriorBoxPattern : public RewritePattern {
 
   aspect_ratios_.clear();
   aspect_ratios_.push_back(1.);
-  flip_ = flip;
   for (int i = 0; i < aspect_ratios_size; ++i) {
     float ar = aspect_ratios[i];
     bool already_exist = false;
@@ -213,21 +202,18 @@ struct TpuConvertPriorBoxPattern : public RewritePattern {
     }
     if (!already_exist) {
       aspect_ratios_.push_back(ar);
-      if (flip_) {
+      if (flip) {
         aspect_ratios_.push_back(1./ar);
       }
     }
   }
 
-  num_priors_ = aspect_ratios_.size() * min_sizes_.size();
-
-
-  max_sizes_.push_back(max_size);
-  assert(max_sizes_[0] > min_sizes_[0] &&
-         "max_size must be greater than min_size.");
-  num_priors_ += 1;
-
-  clip_ = clip;
+  num_priors_ = aspect_ratios_.size() * min_size_size;
+  if (max_size_size > 0) {
+      max_sizes_.push_back(max_size);
+      assert(max_size > min_size && "max_size must be greater than min_size.");
+      num_priors_ += 1;
+  }
 
   // Must and only provide 4 variance.
   assert(variance0 > 0 && "variance0 greater than 0");
@@ -239,14 +225,6 @@ struct TpuConvertPriorBoxPattern : public RewritePattern {
   assert(variance3 > 0 && "variance3 greater than 0");
   variance_.push_back(variance3);
 
-  img_h_ = 0;
-  img_w_ = 0;
-
-  assert(step>0 && "step should be larger than 0.");
-  step_h_ = step;
-  step_w_ = step;
-
-  offset_ = offset;
 
   auto opd0Type = priorboxOp.getOperand(0)->getType();
   auto opd1Type = priorboxOp.getOperand(1)->getType();
@@ -255,24 +233,13 @@ struct TpuConvertPriorBoxPattern : public RewritePattern {
   assert(shape1.size() == 4 && shape0.size() == 4);
   const int layer_width = shape0[3];
   const int layer_height = shape0[2];
+  const int img_width = shape1[3];
+  const int img_height = shape1[2];
 
-  int img_width, img_height;
-  if (img_h_ == 0 || img_w_ == 0) {
-    img_width = shape1[3];
-    img_height = shape1[2];
-  } else {
-    img_width = img_w_;
-    img_height = img_h_;
-  }
-  float step_w, step_h;
-  if (step_w_ == 0 || step_h_ == 0) {
+  if (step_w == 0 || step_h == 0) {
     step_w = static_cast<float>(img_width) / layer_width;
     step_h = static_cast<float>(img_height) / layer_height;
-  } else {
-    step_w = step_w_;
-    step_h = step_h_;
   }
-
 
   std::vector<float> top_data(size);
 
@@ -280,8 +247,8 @@ struct TpuConvertPriorBoxPattern : public RewritePattern {
   int idx = 0;
   for (int h = 0; h < layer_height; ++h) {
     for (int w = 0; w < layer_width; ++w) {
-      float center_x = (w + offset_) * step_w;
-      float center_y = (h + offset_) * step_h;
+      float center_x = (w + offset) * step_w;
+      float center_y = (h + offset) * step_h;
       float box_width, box_height;
       for (int s = 0; s < min_size_size; ++s) {
         int min_size_ = min_sizes_[s];
@@ -296,7 +263,7 @@ struct TpuConvertPriorBoxPattern : public RewritePattern {
         // ymax
         top_data[idx++] = (center_y + box_height / 2.) / img_height;
 
-        if (max_size_size>0) {
+        if (max_size_size > 0) {
           int max_size_ = max_sizes_[s];
           // second prior: aspect_ratio = 1, size = sqrt(min_size * max_size)
           box_width = box_height = sqrt(min_size_ * max_size_);
@@ -331,7 +298,7 @@ struct TpuConvertPriorBoxPattern : public RewritePattern {
     }
   }
   // clip the prior's coordidate such that it is within [0, 1]
-  if (clip_) {
+  if (clip) {
     for (int d = 0; d < dim; ++d) {
       top_data[d] = std::min<float>(std::max<float>(top_data[d], 0.), 1.);
     }

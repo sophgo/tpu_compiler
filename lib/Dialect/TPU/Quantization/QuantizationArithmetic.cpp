@@ -885,12 +885,12 @@ void quantizeActivationInt8PerChannelMultiplierAndRShift(
         if (bias != NULL) {
           v += (int32_t)bias[i];
         }
+        v = applyMultiplierAndRShiftAndSaturateInt8(
+                v, rshift_per_channel[i], multiplier_per_channel[i], true);
         if (do_relu && (v < 0)) {
           v = 0;
         }
-        output[n * oc * isz + i * isz + j] =
-            (float)applyMultiplierAndRShiftAndSaturateInt8(
-                v, rshift_per_channel[i], multiplier_per_channel[i], true);
+        output[n * oc * isz + i * isz + j] = (float)v;
       }
     }
   }
