@@ -31,32 +31,25 @@ pushd $WORKDIR
 /bin/bash $FP32_INFERENCE_SCRIPT
 $DIR/regression_1_fp32.sh
 $DIR/regression_2_int8_calibration.sh
-
-if [ $RUN_IN_PARALLEL -eq 1 ]; then
-  parallel -j4 --delay 2.5 --joblog job_$NET.log /bin/bash {} ::: \
-    $DIR/regression_3_int8_per_tensor.sh \
-    $DIR/regression_3_int8_rshift_only.sh \
-    $DIR/regression_3_int8_multiplier.sh \
-    $DIR/regression_6_bf16.sh
-else
-  $DIR/regression_3_int8_per_tensor.sh
-  $DIR/regression_3_int8_rshift_only.sh
-  $DIR/regression_3_int8_multiplier.sh
-  $DIR/regression_6_bf16.sh
-fi
+$DIR/regression_3_int8_per_tensor.sh
+$DIR/regression_3_int8_rshift_only.sh
+$DIR/regression_3_int8_multiplier.sh
 if [ $DO_DEEPFUSION -eq 1 ]; then
-  # $DIR/regression_4_int8_cmdbuf_deepfusion.sh
-  $DIR/regression_e2e.sh
+  $DIR/regression_4_int8_cmdbuf_deepfusion.sh
 fi
 if [ $DO_LAYERGROUP -eq 1 ]; then
   $DIR/regression_5_int8_cmdbuf_layergroup.sh
 fi
+if [ $DO_QUANT_BF16 -eq 1 ]; then
+  $DIR/regression_6_bf16.sh
+fi
 if [ $DO_QUANT_MIX -eq 1 ]; then
   $DIR/regression_7_mix.sh
 fi
-#if [ $DO_E2E -eq 1 ]; then
-#  $DIR/regression_e2e.sh
-#fi
+if [ $DO_E2E -eq 1 ]; then
+  $DIR/regression_e2e.sh
+fi
+
 popd
 
 # VERDICT
