@@ -157,6 +157,20 @@ static void find_final_to_layer(NetGraph* net_graph_, int tid, vector<int>& to_l
   }
 }
 
+
+// check if this op's result is a cpu op's input
+static bool check_cpuop_input(Operation * op) {
+  for (auto &use : op->getResult(0)->getUses()) {
+    Operation *usage_op = use.getOwner();
+    if (isa<tpu::ReshapeOp>(usage_op)) {
+        return check_cpuop_input(usage_op);
+    } else if (isa<tpu::GenericCpuOp>(usage_op)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 void GmemManager::recycle_cluster_gmem(list<GMEM_BLOCK>& block_list, Group* cluster,
                                        Group* prev_cluster) {
   int first_layer = cluster->layers()[0];
@@ -182,6 +196,9 @@ void GmemManager::recycle_cluster_gmem(list<GMEM_BLOCK>& block_list, Group* clus
     int layer_id = net_graph_->get_tensor_from_layer(tid);
     const ImLayer *layer = net_graph_->get_layer_by_id(layer_id);
     if (isa<tpu::GenericCpuOp>(layer->op()))
+      continue;
+
+    if (check_cpuop_input(layer->op()))
       continue;
 
     to_layers.clear();
