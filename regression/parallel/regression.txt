@@ -15,3 +15,4 @@ $REGRESSION_PATH/parallel/run_generic.sh yolo_v3_320
 $REGRESSION_PATH/parallel/run_generic.sh resnet18
 $REGRESSION_PATH/parallel/run_generic.sh efficientnet_b0
 $REGRESSION_PATH/parallel/run_generic.sh alphapose
+$REGRESSION_PATH/parallel/run_generic.sh resnet50_tensorflow

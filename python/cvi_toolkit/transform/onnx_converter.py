@@ -573,7 +573,6 @@ class OnnxConverter(BaseConverter):
         op, input_shape, _ = self.getOperand(onnx_node.inputs[0])
         operands = list()
         operands.append(op)
-        # print(input_shape)
         on = input_shape[0]
         oc = input_shape[1]
 

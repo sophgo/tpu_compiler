@@ -426,8 +426,11 @@ class MLIRImporter(object):
             self.f32Type, output_tensor_shape)
 
         softmax_name = self.module.stringAttr(op_name)
+        softmax_param = {
+            'axis': self.module.integerAttr(self.i32Type, kargs['axis'])
+        }
         return self.buildOp(TPU_OpType.Softmax.value, inputOperands, [
-            tensor_output_type], name=softmax_name)
+            tensor_output_type], name=softmax_name, **softmax_param)
 
     def add_upsample_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = self.module.make_ranked_tensor_type(

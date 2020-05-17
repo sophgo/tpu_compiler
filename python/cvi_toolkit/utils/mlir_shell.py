@@ -152,7 +152,7 @@ def mlir_lower_opt(mlirfile, opt_mlirfile):
     return ret.returncode
 
 def mlir_gen_cvimodel(mlirfile, cvi_module):
-    
+
     int8_addr = "int8_addr_{}".format(mlirfile)
 
     ret = subprocess.run(["mlir-opt",
@@ -181,7 +181,7 @@ def mlir_gen_cvimodel(mlirfile, cvi_module):
     checkReturnValue(ret, "mlir-opt, deepfusion_tg2tl_la")
     if ret.returncode != 0:
         return ret.returncode
-    
+
     deep_fusion_tl_la2lw = "deep_fusion_tl_la2lw_{}".format(mlirfile)
 
     ret = subprocess.run(["mlir-opt",
@@ -229,7 +229,7 @@ def mlir_gen_cvimodel(mlirfile, cvi_module):
     checkReturnValue(ret, "mlir-opt, enable_reuse_global_memory")
 
     if ret.returncode != 0:
-        return ret.returncode      
+        return ret.returncode
 
     convert_tg_op_to_tensor = "convert_tg_op_to_tensor_{}".format(mlirfile)
 
@@ -241,7 +241,7 @@ def mlir_gen_cvimodel(mlirfile, cvi_module):
     checkReturnValue(ret, "mlir-opt, enable_reuse_global_memory")
 
     if ret.returncode != 0:
-        return ret.returncode   
+        return ret.returncode
 
     int8_tl_lw_memopt = "int8_tl_lw_memopt_{}".format(mlirfile)
 
@@ -254,7 +254,7 @@ def mlir_gen_cvimodel(mlirfile, cvi_module):
     checkReturnValue(ret, "mlir-opt, int8_tl_lw_memopt")
 
     if ret.returncode != 0:
-        return ret.returncode    
+        return ret.returncode
 
 
     ret = subprocess.run(["mlir-translate",
@@ -265,7 +265,7 @@ def mlir_gen_cvimodel(mlirfile, cvi_module):
     checkReturnValue(ret, "mlir-translate, mlir_gen_cmdbuf")
     if ret.returncode != 0:
         return ret.returncode
-    
+
     model_builder = builder("weight.bin", ["cmdbuf.bin"], None, None, int8_tl_lw_memopt, False)
     model_builder.build(cvi_module)
     return 0

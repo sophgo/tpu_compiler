@@ -124,7 +124,9 @@ def parse(config: dict):
                     npy_input=npy_input,
                     letter_box=letter_box)
 
-        ret = preprocessor.run(input_file, output_npz=output_npz)
+        ret = preprocessor.run(input_file, output_npz=output_npz,
+                               output_channel_order=rgb_order)
+
         if ret is None:
             logger.error('preprocess image failed!')
             exit(-1)

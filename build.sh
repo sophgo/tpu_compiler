@@ -142,6 +142,7 @@ cp $CVI_PY_TOOLKIT/eval/*.py $TPU_PYTHON_PATH/
 cp $CVI_PY_TOOLKIT/inference/caffe/*.py $TPU_PYTHON_PATH/
 cp $CVI_PY_TOOLKIT/inference/mlir/*.py $TPU_PYTHON_PATH/
 cp $CVI_PY_TOOLKIT/inference/onnx/*.py $TPU_PYTHON_PATH/
+cp -ar $MLIR_SRC_PATH/python/python_codegen/*.py $TPU_PYTHON_PATH/
 
 cp -ar  $CVI_PY_TOOLKIT/retinaface/ $TPU_PYTHON_PATH/
 pushd $TPU_PYTHON_PATH/retinaface; make; popd
@@ -280,6 +281,8 @@ if [ $PYTHON_VERSION == "2" ]; then
   echo "Not support build python2 package"
 elif [ $PYTHON_VERSION == "3" ]; then
   pip3 install wheel
+  pip3 install tensorflow==2.1.0 \
+    packaging==20.3 Jinja2==2.11.2 # TODO: Remove when docker update to 1.3
   python3 setup/python3/setup.py bdist_wheel --dist-dir=$INSTALL_PATH/python3_package/ --plat-name="linux_x86_64"
   python3 setup/python3/setup.py clean
 fi
