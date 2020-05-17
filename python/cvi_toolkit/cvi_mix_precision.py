@@ -3,6 +3,8 @@ import csv
 import argparse
 import os
 import numpy as np
+import time
+from functools import cmp_to_key # sorted used
 
 #
 # function comes from bmcompress, plz refre [here](http://10.34.33.3:8480/toolchain/bmcompress/blob/master/experiment/imagenet/mobilenet_v1_pytorch/sqnr_mobilenet_v1.py) for more details
@@ -31,18 +33,13 @@ def parse_args():
       default="input"
   )
   parser.add_argument(
-      "--net_name",
-      help="net name, we could create folder for save temp data",
-      required=True
-  )
-  parser.add_argument(
       "--gen_cmd_script",
       help="script to generate cmd, the possible file like gen_mix_precision.sh",
       required=True
   )
   parser.add_argument(
       "--model",
-      help="mlir model name such like mobilenetv3_pytorch1_op_info.mlir",
+      help="mlir model name such like mobilenetv3_cali.mlir.mlir",
       required=True
   )
   args = parser.parse_args()
@@ -58,11 +55,12 @@ def create_bf16_layers(args, layers, exclude_layers = []):
       if bf16_layer not in exclude_layers:
         myfile.write(bf16_layer + "\n")
 
-def gen_mlir(args):
-  cmd = '{} {} {}'.format(
+def gen_mlir(args, input_mlir, output_mlir):
+  cmd = '{} {} {} {}'.format(
     args.gen_cmd_script,
-    args.net_name,
     args.bf16_quant_layers_file,
+    input_mlir,
+    output_mlir
     )
 
   if os.system(cmd) != 0:
@@ -92,6 +90,13 @@ def cal_sqnr(signal_raw, signal_dequant):
 
   return sqnr
 
+# https://blog.csdn.net/u012436149/article/details/79952975
+def cmp(a, b):
+    if b < a:
+        return -1
+    if a < b:
+        return 1
+    return 0
 
 # default all set to bf16 than turn off some layer to find it
 def sqnr_mean_one_output(args, layers):
@@ -103,11 +108,13 @@ def sqnr_mean_one_output(args, layers):
 
   # get layers
   create_bf16_layers(args, layers)
-  gen_mlir(args)
+  outpur_mlir = "out.mlir"
+  gen_mlir(args, args.model, outpur_mlir)
   module = pymlir.module()
-  module.load(args.model)
+  module.load(outpur_mlir)
 
   op_info = module.op_info
+  print('Collect all fp32 score')
   for x, _, _ in imagenet_generator(generate_count=g_val_data_count, preprocess=preprocess):
     res = module.run(x)
     y = module.get_all_tensor()
@@ -123,9 +130,9 @@ def sqnr_mean_one_output(args, layers):
     print('Collect pred_int8...', layer_name)
     create_bf16_layers(args, layers, [layer_name])
 
-    gen_mlir(args)
+    gen_mlir(args, args.model, outpur_mlir)
     module = pymlir.module()
-    module.load(args.model)
+    module.load(outpur_mlir)
 
     sqnr = 0
     data_count = 0
@@ -140,18 +147,24 @@ def sqnr_mean_one_output(args, layers):
 
     sqnr_list.append((layer_name, sqnr / g_val_data_count))
 
-  sqnr_list = sorted(sqnr_list, cmp=lambda x, y: cmp(x[1], y[1]))
+  # python2
+  #sqnr_list = sorted(sqnr_list, cmp=lambda x, y: cmp(x[1], y[1]))
+  sqnr_list = sorted(sqnr_list, key=cmp_to_key(lambda x, y: cmp(x[1], y[1])))
 
+  print('all score')
   for layer_sqnr in sqnr_list:
     print('{}, {}'.format(layer_sqnr[0], layer_sqnr[1]))
 
 if __name__ == '__main__':
   args = parse_args()
-  args.bf16_quant_layers_file = "{}_bf16_layers".format(args.net_name)
+  args.bf16_quant_layers_file = "bf16_layers"
 
   layer_names = get_rows_by_column(args.all_layers_name_csv_file,
       [args.layers_column_name])
+
   if log_flag:
     print("all layer:", layer_names)
 
+  start_time = time.time()
   sqnr_mean_one_output(args, layer_names)
+  print("--- %s seconds ---" % (time.time() - start_time))
