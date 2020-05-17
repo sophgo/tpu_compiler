@@ -6,37 +6,36 @@ set -e
 #
 
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
-NET=$1
-BF16_QUANT_LAYERS_FILE=$2
+BF16_QUANT_LAYERS_FILE=$1
+INPUT=$2
+OUTPUT=$3
+
+NET=mlir_
 
 #
 # start gen cmd
 #
 
 # import calibration table
-mlir-opt \
-    --import-calibration-table \
-    --calibration-table ${NET}_preprocess_calibration_table \
-    ${NET}_opt.mlir \
-    -o ${NET}_cali.mlir
-
-
+#org_path=$PATH
+export PATH=/home/arvin/Documents/mlir/build/bin:$PATH
 mlir-opt \
     --tpu-quant-clip \
-    ${NET}_cali.mlir \
+    $INPUT \
     --tpu-op-info-filename ${NET}_op_info_int8_multiplier.csv \
     -o ${NET}_quant_int8_multiplier_0.mlir
 
 # quant
-echo "quant bf16 layers:"
-cat ${BF16_QUANT_LAYERS_FILE}
+echo "quant bf16 layers(concat show):"
+cat ${BF16_QUANT_LAYERS_FILE} | tr "\n" ","
+
 mlir-opt \
     --tpu-quant \
     --quant-int8-mix-bf16-layers-from-file ${BF16_QUANT_LAYERS_FILE} \
     --tpu-op-info-filename ${NET}_op_info_int8_multiplier.csv \
     --print-tpu-op-info \
     ${NET}_quant_int8_multiplier_0.mlir \
-    -o ${NET}_quant_int8_multiplier.mlir
+    -o $OUTPUT
 #
 ##  Lower for quantization
 #mlir-opt \
