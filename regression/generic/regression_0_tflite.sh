@@ -22,10 +22,12 @@ if [ ! -f "$TFLITE_BLOBS_NPZ" ]; then
       --data_format $DATA_FORMAT \
       --model_type tflite \
       --output_file tflite_out.npz
+
+      cvi_npz_tool.py tranpose $TFLITE_BLOBS_NPZ nhwc nchw
+      cvi_npz_tool.py extract $TFLITE_BLOBS_NPZ ${NET}_in_fp32.npz input
+
 fi
 
-cvi_npz_tool.py extract $TFLITE_BLOBS_NPZ ${NET}_in_fp32.npz input
-# cvi_npz_tool.py extract $CAFFE_BLOBS_NPZ ${NET}_out_fp32_prob.npz output
 
 # VERDICT
 echo $0 PASSED
