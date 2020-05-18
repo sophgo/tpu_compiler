@@ -18,7 +18,7 @@ from tflite.Padding import Padding
 from tflite.Pool2DOptions import Pool2DOptions
 from tflite.Tensor import Tensor as TFL_TENSOR
 from tflite.ActivationFunctionType import ActivationFunctionType
-
+from tflite.AddOptions import AddOptions
 
 import logging
 import numpy as np
@@ -201,7 +201,7 @@ class TFLiteConverter(BaseConverter):
                 In tflite define is NHWC
                 return List of NCHW
             """
-            return [shape[0], shape[3], shape[1], shape[2]], np.transpose(data, (0,3,1,2)) if HAS_DATA else None
+            return [shape[0], shape[3], shape[1], shape[2]], np.ascontiguousarray(np.transpose(data, (0, 3, 1, 2))) if HAS_DATA else None
         elif len(shape) == 2 or len(shape) == 1:
             return shape, data if HAS_DATA else None
         else:
@@ -289,8 +289,21 @@ class TFLiteConverter(BaseConverter):
         operands.append(op2)
         output_shape = input_shape1
 
+        op_build_info = node.proto.BuiltinOptions()
+        # Parse the Table of options.
+        add_table = AddOptions()
+        add_table.Init(op_build_info.Bytes, op_build_info.Pos)
+
         add_op = self.CVI.add_eltwise_add_op("{}".format(node.name), operands, output_shape)
-        self.addOperand(node.name, add_op, output_shape, TensorType.ACTIVATION)
+        if add_table.FusedActivationFunction() == ActivationFunctionType.RELU:
+            # DO relu
+            relu_op = self.CVI.add_relu_op(
+                "{}_relu".format(node.name), [add_op], output_shape)
+            self.addOperand(node.name, relu_op, output_shape,
+                            TensorType.ACTIVATION)
+        else:
+            self.addOperand(node.name, add_op, output_shape,
+                            TensorType.ACTIVATION)
 
     def convert_pad_op(self, node):
         assert(node.op_type == "PAD")
@@ -510,9 +523,12 @@ class TFLiteConverter(BaseConverter):
         op, shape, _ = self.getOperand(str(node.inputs[0]))
         operands = list()
         operands.append(op)
-        self.addOperand(node.name, op, shape, TensorType.ACTIVATION)
+        softmax_param = {
+            'axis': len(shape) - 1,
+        }
         softmax_op = self.CVI.add_softmax_op("{}".format(
-            node.name), operands, shape)
+            node.name), operands, shape, **softmax_param)
+        self.addOperand(node.name, softmax_op, shape, TensorType.ACTIVATION)
 
     def run(self):
         self.convert_node()
