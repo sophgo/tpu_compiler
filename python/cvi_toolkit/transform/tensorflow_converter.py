@@ -500,17 +500,6 @@ class TFConverter(BaseConverter):
         # For Conv2d Get this data
         self.addTensor(node.name, padding_attr_data, shape, "PAD")
 
-    def convert_softmax_op(self, node):
-        assert(node.op_type == "SOFTMAX")
-        # first input is activate
-        assert(len(node.inputs) == 1)
-        op, shape, _ = self.getOperand(str(node.inputs[0]))
-        operands = list()
-        operands.append(op)
-        self.addOperand(node.name, op, shape, TensorType.ACTIVATION)
-        softmax_op = self.CVI.add_softmax_op("{}".format(
-            node.name), operands, shape)
-
     def run(self):
         self.convert_node()
         self.convert_graph()
