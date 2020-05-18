@@ -28,15 +28,6 @@ logger = setup_logger('root')
 
 log_flag = logger.level <= logging.INFO
 
-op_type_id = {
-    BuiltinOperator.ADD: "ADD",
-    BuiltinOperator.CONV_2D: "CONV_2D",
-    BuiltinOperator.FULLY_CONNECTED: "FULLY_CONNECTED",
-    BuiltinOperator.MAX_POOL_2D: "MAX_POOL_2D",
-    BuiltinOperator.MEAN: "MEAN",
-    BuiltinOperator.PAD: "PAD",
-    BuiltinOperator.SOFTMAX: "SOFTMAX",
-}
 
 def np_uint8_to_fp32(uint8_arr):
     fp32_arr = np.frombuffer(uint8_arr.tobytes(), dtype=np.float32)
@@ -61,15 +52,18 @@ def get_tensor_shape(tensor):
     else:
         raise ValueError("TODO this case shape len is {}".format(tensor.ShapeLength()))
 
-
-
+def get_op_type(type_id):
+    op_type_name = str()
+    for attr in dir(BuiltinOperator()):
+        if type_id == getattr(BuiltinOperator(), attr):
+            op_type_name = str(attr)
+            return op_type_name
+    raise RuntimeError("tflite not support {} type id.".format(type_id))
 
 class TFLiteNode():
     def __init__(self, name, type_id, inputs, outputs, proto):
         self.name = str(name)
-        self.op_type = op_type_id.get(type_id)
-        if self.op_type is None:
-            raise RuntimeError("Not support optype id {}".format(type_id))
+        self.op_type = get_op_type(type_id)
         self.inputs = inputs
         self.outputs = outputs
         self.proto = proto
