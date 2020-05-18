@@ -21,6 +21,7 @@ class TPU_OpType(Enum):
     Conv2d = 'tpu.conv_2d'
     Crop = 'tpu.crop'
     Clip = 'tpu.clip'
+    DeConv2d = 'tpu.deconv_2d'
     Eltwise_Add = 'tpu.eltwise_add'
     Eltwise_Mul = 'tpu.eltwise_mul'
     FullyConnected = 'tpu.fully_connected'
@@ -263,13 +264,44 @@ class MLIRImporter(object):
         return self.buildOp(TPU_OpType.BatchNorm.value, inputOperands, [
             tensor_output_type], name=batchnorm_name, variance_epsilon=variance_epsilon_attr)
 
-    def add_scale_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+    def add_deconv_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+        """
+            inputOperands: List[pybind.op]
+            output_tensorshape: List[int] output tensor type
+            attrs: Dict, about op attrs
+        """
         tensor_output_type = self.module.make_ranked_tensor_type(
             self.f32Type, output_tensor_shape)
 
-        scale_name = self.module.stringAttr(op_name)
-        return self.buildOp(TPU_OpType.Scale.value, inputOperands, [
-            tensor_output_type], name=scale_name)
+        checkKey(kargs, 'dilation_h')
+        checkKey(kargs, 'dilation_w')
+        checkKey(kargs, 'stride_h')
+        checkKey(kargs, 'stride_w')
+        checkKey(kargs, 'padding')
+        checkKey(kargs, 'group')
+        checkKey(kargs, 'is_dw')
+        checkKey(kargs, 'with_bias')
+        checkKey(kargs, 'do_relu')
+
+        deconv_name = self.module.stringAttr(op_name)
+        deconv_param = {
+            'stride_h': self.module.integerAttr(self.i32Type, kargs['stride_h']),
+            'stride_w': self.module.integerAttr(self.i32Type, kargs['stride_w']),
+            'padding': self.module.stringAttr(kargs['padding']),
+            'dilation_h': self.module.integerAttr(self.i32Type,  kargs['dilation_h']),
+            'dilation_w': self.module.integerAttr(self.i32Type, kargs['dilation_w']),
+            'group': self.module.integerAttr(self.i32Type, kargs['group']),
+            'is_dw': self.module.boolAttr(kargs['is_dw']),
+            'with_bias': self.module.boolAttr(kargs['with_bias']),
+            'do_relu': self.module.boolAttr(kargs['do_relu']),
+        }
+
+        dict_attr = self.module.dictAttr(**conv_param)
+        none = self.add_none_op()
+        for i in range(7 - len(inputOperands)):
+            inputOperands.append(none)
+        return self.buildOp(TPU_OpType.DeConv2d.value, inputOperands, [
+            tensor_output_type], name=deconv_name, param=dict_attr, quant=self.quant_param)
 
     def add_eltwise_add_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = self.module.make_ranked_tensor_type(
@@ -408,6 +440,14 @@ class MLIRImporter(object):
         reshape_name = self.module.stringAttr(op_name)
         return self.buildOp(TPU_OpType.Reshape.value, inputOperands, [
             tensor_output_type], name=reshape_name)
+
+    def add_scale_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+        tensor_output_type = self.module.make_ranked_tensor_type(
+            self.f32Type, output_tensor_shape)
+
+        scale_name = self.module.stringAttr(op_name)
+        return self.buildOp(TPU_OpType.Scale.value, inputOperands, [
+            tensor_output_type], name=scale_name)
 
     def add_sigmoid_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = self.module.make_ranked_tensor_type(
