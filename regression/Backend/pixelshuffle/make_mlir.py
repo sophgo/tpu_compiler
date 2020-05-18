@@ -4,7 +4,7 @@ import logging
 import argparse
 
 from onnx import onnx, numpy_helper
-from transform.onnx_converter import OnnxConverter
+from cvi_toolkit.transform.onnx_converter import OnnxConverter
 from onnx import helper
 from onnx import AttributeProto, TensorProto, GraphProto
 
@@ -33,7 +33,8 @@ def Test(args):
   data = helper.make_tensor_value_info('data', TensorProto.FLOAT, INPUT.shape)
 
   # Create one output (ValueInfoProto)
-  Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [n, c/(factor*factor), h * factor, w * factor])
+  # https://stackoverflow.com/questions/19507808/python3-integer-division
+  Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [n, c//(factor*factor), h * factor, w * factor])
 
   values = np.array([n, c / (factor*factor), factor, factor, h, w], dtype=np.int64)
 
