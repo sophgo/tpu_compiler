@@ -10,7 +10,8 @@ from .utils import calcConv2DSpatial, calcPool2DFloor, calcPool2DCeil, \
 from ..utils.log_setting import setup_logger
 
 # tflite gen by flatbuffer
-
+from tflite.ActivationFunctionType import ActivationFunctionType
+from tflite.AddOptions import AddOptions
 from tflite.BuiltinOperator import BuiltinOperator
 from tflite.Conv2DOptions import Conv2DOptions
 from tflite.DepthwiseConv2DOptions import DepthwiseConv2DOptions
@@ -131,6 +132,7 @@ class TFLiteConverter(BaseConverter):
         self.output_tensor_file = "{}_1_06eeeb7e.npz".format(model_name)
         self.tfliteop_factory = {
             "ADD": lambda node: self.convert_add_op(node),
+            "AVERAGE_POOL_2D": lambda node: self.convert_avg_pool_op(node),
             "CONV_2D": lambda node: self.convert_conv_op(node),
             "DEPTHWISE_CONV_2D": lambda node: self.convert_depthwise_conv_op(node),
             "FULLY_CONNECTED": lambda node: self.convert_fc_op(node),
@@ -300,6 +302,34 @@ class TFLiteConverter(BaseConverter):
         else:
             self.addOperand(node.name, add_op, output_shape,
                             TensorType.ACTIVATION)
+
+    def convert_avg_pool_op(self, node):
+        assert(node.op_type == "AVERAGE_POOL_2D")
+        op, input_shape, _ = self.getOperand(str(node.inputs[0]))
+        operands = list()
+        operands.append(op)
+        on = input_shape[0]
+        oc = input_shape[1]
+        print(node)
+        op_build_info = node.proto.BuiltinOptions()
+        pool_table = Pool2DOptions()
+        pool_table.Init(op_build_info.Bytes, op_build_info.Pos)
+        pool_avg_2d_param = {
+            'stride_h':  pool_table.StrideH(),
+            'stride_w':  pool_table.StrideW(),
+            'kernel_h':  pool_table.FilterWidth(),
+            'kernel_w':  pool_table.FilterWidth(),
+            'padding_b': 0,
+            'padding_r': 0,
+            'padding_t': 0,
+            'padding_l': 0,
+            'do_relu': False,
+        }
+        output_shape = [int(on), int(oc), 1, 1]
+        pool_avg_op = self.CVI.add_pool_avg_2d_op("{}".format(
+            node.name, node.op_type), operands, output_shape, **pool_avg_2d_param)
+        self.addOperand(node.name, pool_avg_op,
+                        output_shape, TensorType.ACTIVATION)
 
     def convert_pad_op(self, node):
         assert(node.op_type == "PAD")
