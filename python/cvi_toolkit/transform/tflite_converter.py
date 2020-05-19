@@ -19,8 +19,7 @@ from tflite.Model import Model
 from tflite.Padding import Padding
 from tflite.Pool2DOptions import Pool2DOptions
 from tflite.Tensor import Tensor as TFL_TENSOR
-from tflite.ActivationFunctionType import ActivationFunctionType
-from tflite.AddOptions import AddOptions
+
 
 import logging
 import numpy as np
@@ -275,6 +274,26 @@ class TFLiteConverter(BaseConverter):
         with open(self.mlir_file_path, "w") as f:
             f.write(mlir_txt)
 
+    def add_activation_op(self, name, op, shape, activation):
+        if activation == ActivationFunctionType.RELU6:
+            relu_op = self.CVI.add_relu_op(
+                "{}_relu".format(name), [op], shape)
+            clip_param = {
+                "min": 0.0,
+                "max": 6.0,
+            }
+            clip_op = self.CVI.add_clip_op(
+                "{}_clip".format(name), [relu_op], shape, **clip_param)
+            return clip_op
+        elif activation == ActivationFunctionType.NONE:
+            return op
+        elif activation == ActivationFunctionType.RELU:
+            relu_op = self.CVI.add_relu_op(
+                "{}_relu".format(name), [op], shape)
+            return relu_op
+        else:
+            raise RuntimeError("Not support {} activation".format(activation))
+
     def convert_add_op(self, node):
         assert(node.op_type == "ADD")
         op1, input_shape1, _ = self.getOperand(str(node.inputs[0]))
@@ -395,7 +414,7 @@ class TFLiteConverter(BaseConverter):
             'group': 1,  # Don't have group option?
             'is_dw': False,
             'with_bias': len(node.inputs) > 2,
-            'do_relu': conv_table.FusedActivationFunction() == ActivationFunctionType.RELU,
+            'do_relu': False,
         }
         on = shape[0]
         oc = filter_shape[0] # feature map size
@@ -431,8 +450,11 @@ class TFLiteConverter(BaseConverter):
         output_shape = [on, oc, oh, ow]
         conv_op = self.CVI.add_conv_op("{}".format(
             node.name), operands, output_shape, **conv_param)
+        conv_op = self.add_activation_op("{}".format(
+            node.name), conv_op, output_shape, conv_table.FusedActivationFunction())
         self.addOperand(node.name, conv_op, output_shape,
                         TensorType.ACTIVATION)
+
 
     def convert_depthwise_conv_op(self, node):
         assert(node.op_type == "DEPTHWISE_CONV_2D")
@@ -478,7 +500,7 @@ class TFLiteConverter(BaseConverter):
             'group': 1,  # Don't have group option?
             'is_dw': False,
             'with_bias': len(node.inputs) > 2,
-            'do_relu': depthwise_conv_table.FusedActivationFunction() == ActivationFunctionType.RELU,
+            'do_relu': False,
         }
         on = shape[0]
         oc = filter_shape[0] # feature map size
@@ -514,6 +536,8 @@ class TFLiteConverter(BaseConverter):
         output_shape = [on, oc, oh, ow]
         depthwise_conv_op = self.CVI.add_conv_op("{}".format(
             node.name), operands, output_shape, **depthwise_conv_param)
+        depthwise_conv_op = self.add_activation_op("{}".format(
+            node.name), depthwise_conv_op, output_shape, depthwise_conv_table.FusedActivationFunction())
         self.addOperand(node.name, depthwise_conv_op, output_shape,
                         TensorType.ACTIVATION)
 
