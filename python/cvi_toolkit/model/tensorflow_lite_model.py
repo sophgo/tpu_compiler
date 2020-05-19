@@ -31,8 +31,19 @@ class TFLiteModel(model_base):
         return self.net.get_tensor(output_details[0]['index'])
 
     def get_all_tensor(self, input_data):
+        input_details = self.net.get_input_details()
+        output_details = self.net.get_output_details()
+
+        self.net.set_tensor(input_details[0]['index'], input_data)
+        self.net.invoke()
+        all_tensor_dict = dict()
         # ref:https://stackoverflow.com/questions/56885007/visualize-tflite-graph-and-get-intermediate-values-of-a-particular-node
-        raise RuntimeError("TFLite don't have get all tensor!")
+        # We only save input and output
+        all_tensor_dict['input'] = input_data
+        all_tensor_dict[str(output_details[0]['index'])] = self.net.get_tensor(
+            output_details[0]['index'])
+
+        return all_tensor_dict
 
 
     def get_op_info(self):
