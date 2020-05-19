@@ -167,6 +167,8 @@ struct ConvertTgOpToTensorPass : public FunctionPass<ConvertTgOpToTensorPass> {
     target.addLegalOp<tpu::TG_BF16_PixelShuffleOp>();
     target.addLegalOp<tpu::TG_INT8_PReluOp>();
     target.addLegalOp<tpu::TG_BF16_PReluOp>();
+    target.addLegalOp<tpu::TG_INT8_QuantOp>();
+    target.addLegalOp<tpu::TG_BF16_QuantOp>();
     target.addLegalOp<tpu::TG_INT8_ReluOp>();
     target.addLegalOp<tpu::TG_BF16_ReluOp>();
     target.addLegalOp<tpu::TG_INT8_ReorgOp>();
@@ -230,6 +232,8 @@ struct ConvertTgOpToTensorPass : public FunctionPass<ConvertTgOpToTensorPass> {
         convertTgOpToTensorPattern<tpu::TG_MemRef_BF16_PixelShuffleOp, tpu::TG_BF16_PixelShuffleOp>,
         convertTgOpToTensorPattern<tpu::TG_MemRef_INT8_PReluOp, tpu::TG_INT8_PReluOp>,
         convertTgOpToTensorPattern<tpu::TG_MemRef_BF16_PReluOp, tpu::TG_BF16_PReluOp>,
+        convertTgOpToTensorPattern<tpu::TG_MemRef_INT8_QuantOp, tpu::TG_INT8_QuantOp>,
+        convertTgOpToTensorPattern<tpu::TG_MemRef_BF16_QuantOp, tpu::TG_BF16_QuantOp>,
         convertTgOpToTensorPattern<tpu::TG_MemRef_INT8_ReluOp, tpu::TG_INT8_ReluOp>,
         convertTgOpToTensorPattern<tpu::TG_MemRef_BF16_ReluOp, tpu::TG_BF16_ReluOp>,
         convertTgOpToTensorPattern<tpu::TG_MemRef_INT8_ReorgOp, tpu::TG_INT8_ReorgOp>,

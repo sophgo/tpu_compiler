@@ -72,6 +72,8 @@ public:
             llvm::errs() << "  " << op.name() << "\n";
           } else if (auto op = dyn_cast<tpu::TG_INT8_LeakyReluOp>(opInst)) {
             llvm::errs() << "  " << op.name() << "\n";
+          } else if (auto op = dyn_cast<tpu::TG_INT8_LutOp>(opInst)) {
+            llvm::errs() << "  " << op.name() << "\n";
           } else {
             std::string opName = opInst->getName().getStringRef();
             llvm_unreachable(("unsupported tg op " + opName + "\n").c_str());

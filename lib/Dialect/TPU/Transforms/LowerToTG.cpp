@@ -776,6 +776,53 @@ Value *tpu::PReluOp::convertToTG() {
   llvm_unreachable("unsupported type");
 }
 
+Value *tpu::QuantOp::convertToTG() {
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  auto builder = Builder(op->getContext());
+
+  std::vector<Value *> operands;
+  operands.push_back(input());
+
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder.getNamedAttr("name", nameAttr()));
+  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
+  attrs.push_back(builder.getNamedAttr("from", fromAttr()));
+  attrs.push_back(builder.getNamedAttr("to", toAttr()));
+  attrs.push_back(builder.getNamedAttr("threshold", thresholdAttr()));
+
+  if (this->from() == "INT8" && this->to() == "BF16") {
+    auto newOp = OpBuilder(op).create<tpu::TG_INT8_QuantOp>(
+        op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  } else if (this->from() == "BF16" && this->to() == "INT8") {
+    auto newOp = OpBuilder(op).create<tpu::TG_BF16_QuantOp>(
+        op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  } else {
+    std::vector<NamedAttribute> param;
+    param.push_back(builder.getNamedAttr("from", fromAttr()));
+    param.push_back(builder.getNamedAttr("to", toAttr()));
+    param.push_back(builder.getNamedAttr("threshold", thresholdAttr()));
+    auto paramAttr = builder.getDictionaryAttr(param);
+    auto operationAttr = builder.getStringAttr(getOperationName());
+    auto quantAttr = getDefaultQuantParam(builder);
+    std::vector<NamedAttribute> attrs;
+    attrs.push_back(builder.getNamedAttr("name", nameAttr()));
+    attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
+    attrs.push_back(builder.getNamedAttr("operation_name", operationAttr));
+    attrs.push_back(builder.getNamedAttr("quant", quantAttr));
+    attrs.push_back(builder.getNamedAttr("param", paramAttr));
+    auto newOp = OpBuilder(op).create<tpu::GenericCpuOp>(
+        op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  }
+}
+
 Value *tpu::ReciprocalOp::convertToTG() {
   LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
                << " [" << getOpName() << "]\n";);
@@ -1313,7 +1360,7 @@ struct PackWeightBroadcastMulOpPattern : public RewritePattern {
       LLVM_DEBUG(llvm::errs() << "Pack Weight for BroadcastMul ONLY apply INT8 we skip it\n";);
       return matchFailure();
     }
-    
+
     // after quantizeInt8, the quantparam is "RSHIFT_AND_M_I32"
     auto rshiftOp = cast<tpu::LoadWeightOp>(castOp.quant_rshift()->getDefiningOp());
     if (rshiftOp.lowered()) {
@@ -1857,6 +1904,55 @@ struct LowerWeightLutOpPattern : public RewritePattern {
   }
 };
 
+template <typename OpTy>
+struct LowerCpuOpPattern : public RewritePattern {
+  LowerCpuOpPattern(MLIRContext *context)
+      : RewritePattern(OpTy::getOperationName(), 1, context) {}
+
+  PatternMatchResult matchAndRewrite(Operation *op,
+                                     PatternRewriter &rewriter) const override {
+    auto castOp = cast<OpTy>(op);
+    LLVM_DEBUG(llvm::errs() << "Lower Cpu Op " << castOp.getOperationName() << ":"
+                            << getOpName(castOp)<< "\n";);
+
+    auto builder = Builder(op->getContext());
+    std::vector<NamedAttribute> param;
+    tpu::QuantParam quantAttr = getDefaultQuantParam(builder);
+    for (auto& attr : op->getAttrs()) {
+      if (attr.first == "quant") {
+        quantAttr = attr.second.cast<tpu::QuantParam>();
+      } else {
+        param.push_back(attr);
+      }
+    }
+
+    std::vector<NamedAttribute> attrs;
+    auto nameAttr = builder.getStringAttr(castOp.name());
+    auto operationAttr = builder.getStringAttr(castOp.getOperationName());
+    auto paramAttr = builder.getDictionaryAttr(param);
+
+    attrs.push_back(builder.getNamedAttr("name", nameAttr));
+    attrs.push_back(builder.getNamedAttr("operation_name", operationAttr));
+    attrs.push_back(builder.getNamedAttr("quant", quantAttr));
+    attrs.push_back(builder.getNamedAttr("param", paramAttr));
+    if (castOp.layer_id().hasValue()) {
+      int32_t layer_id = castOp.layer_id().getValue().getSExtValue();
+      attrs.push_back(builder.getNamedAttr("layer_id",
+          builder.getI32IntegerAttr(layer_id)));
+    }
+
+    std::vector<Value *> operands(op->getOperands().begin(),
+                                  op->getOperands().end());
+
+    auto newOp = OpBuilder(op).create<tpu::GenericCpuOp>(op->getLoc(),
+        castOp.getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    auto result = newOp.getResult();
+    rewriter.replaceOp(op, {result});
+
+    return matchSuccess();
+  }
+};
 
 class TpuLowerPass : public FunctionPass<TpuLowerPass> {
 public:
@@ -1893,10 +1989,23 @@ public:
         >(context);
     applyPatternsGreedily(fn, patterns_lower);
 
+    // do cpu op lowering
+    OwningRewritePatternList patterns_cpuop;
+    patterns_cpuop.insert<
+        LowerCpuOpPattern<tpu::DetectionOutputOp>,
+        LowerCpuOpPattern<tpu::PreprocessOp>,
+        LowerCpuOpPattern<tpu::RetinaFaceDetectionOp>,
+        LowerCpuOpPattern<tpu::SoftmaxOp>,
+        LowerCpuOpPattern<tpu::TransposeOp>,
+        LowerCpuOpPattern<tpu::YoloDetectionOp>
+        >(context);
+    applyPatternsGreedily(fn, patterns_cpuop);
+
     // do op lower
     OwningRewritePatternList patterns;
     patterns.insert<
         DefaultToTGPattern<tpu::BroadcastMulOp>,
+        DefaultToTGPattern<tpu::ClipOp>,
         DefaultToTGPattern<tpu::ConcatOp>,
         DefaultToTGPattern<tpu::Conv2DOp>,
         DefaultToTGPattern<tpu::CropOp>,
@@ -1906,15 +2015,14 @@ public:
         DefaultToTGPattern<tpu::EltwiseMaxOp>,
         DefaultToTGPattern<tpu::EltwiseMulOp>,
         DefaultToTGPattern<tpu::FullyConnectedOp>,
-        //DefaultToTGPattern<tpu::InputOp>,
         DefaultToTGPattern<tpu::LrnOp>,
         DefaultToTGPattern<tpu::LeakyReluOp>,
         DefaultToTGPattern<tpu::PermuteOp>,
         DefaultToTGPattern<tpu::PixelShuffleOp>,
-        DefaultToTGPattern<tpu::ClipOp>,
         DefaultToTGPattern<tpu::PoolAvg2DOp>,
         DefaultToTGPattern<tpu::PoolMax2DOp>,
         DefaultToTGPattern<tpu::PReluOp>,
+        DefaultToTGPattern<tpu::QuantOp>,
         DefaultToTGPattern<tpu::ReluOp>,
         DefaultToTGPattern<tpu::ReorgOp>,
         DefaultToTGPattern<tpu::ShuffleChannelOp>,
@@ -1931,22 +2039,15 @@ public:
       if (op->getName().getDialect().str() != "tpu"
           || isa<tpu::WeightFileOp>(op)
           || isa<tpu::LoadWeightOp>(op)
-          || isa<tpu::NoneOp>(op)) {
+          || isa<tpu::NoneOp>(op)
+          || isa<tpu::InputOp>(op)
+          || isa<tpu::GenericCpuOp>(op)) {
+        // no need to lower
       } else if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpLowerInterface>(op)) {
         llvm::errs() << "didn't lower " << op->getName() << "\n";
         assert(false);
       } else if (auto tgOp = llvm::dyn_cast<tpu::TpuTGOpCodegenInterface>(op)) {
         // lowered already
-      } else if (isa<tpu::QuantOp>(op)
-                 || isa<tpu::InputOp>(op)
-                 || isa<tpu::DetectionOutputOp>(op)
-                 || isa<tpu::PreprocessOp>(op)
-                 || isa<tpu::RetinaFaceDetectionOp>(op)
-                 || isa<tpu::SoftmaxOp>(op)
-                 || isa<tpu::GenericCpuOp>(op)
-                 || isa<tpu::TransposeOp>(op)
-                 || isa<tpu::YoloDetectionOp>(op)) {
-        // no need to lower
       } else {
         std::string opName = op->getName().getStringRef();
         llvm_unreachable(("lower didn't handle " + opName).c_str());
@@ -1954,13 +2055,9 @@ public:
     });
 
     // TODO: this is temporary
-    // erase CPU ops, fold reshape
+    // fold reshape
     patterns.clear();
     patterns.insert<
-        //DefaultErasePattern<tpu::SoftmaxOp>,
-        //DefaultErasePattern<tpu::DetectionOutputOp>,
-        //DefaultErasePattern<tpu::QuantizationOp>,
-        //DefaultErasePattern<tpu::DequantizationOp>,
         FoldReshapePattern<tpu::ReshapeOp>
         >(context);
     applyPatternsGreedily(fn, patterns);

@@ -107,7 +107,7 @@ struct ConvertCpuOpDefaultPattern : public RewritePattern {
     auto result = newOp.getResult();
     rewriter.replaceOp(op, {result});
 
-    return matchFailure();
+    return matchSuccess();
   }
 };
 

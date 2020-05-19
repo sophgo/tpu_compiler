@@ -73,6 +73,37 @@ struct AssignGAddrPattern : public RewritePattern {
       return matchFailure();
     }
 
+    // if a cpu op used by a tg op, we should to assign
+    // gmem for it.
+    if (auto cpuOp = dyn_cast<tpu::GenericCpuOp>(op)) {
+      auto hasTgNode = [](Operation *op) {
+        for (auto &use : op->getResult(0)->getUses()) {
+          if (dyn_cast<tpu::TpuTGOpCodegenInterface>(use.getOwner())) {
+            return true;
+          }
+        }
+        return false;
+      };
+
+      bool needed = false;
+      for (auto &use : cpuOp.getResult()->getUses()) {
+        // should recursively check if ReshapeOp has tg node
+        Operation *nextOp = use.getOwner();
+        if (auto reshapeOp = dyn_cast<tpu::ReshapeOp>(nextOp)) {
+          if (hasTgNode(nextOp)) {
+            needed = true;
+            break;
+          }
+        } else if (dyn_cast<tpu::TpuTGOpCodegenInterface>(nextOp)) {
+          needed = true;
+          break;
+        }
+      }
+      if (!needed) {
+        return matchFailure();
+      }
+    }
+
     auto curPos = *pos_;
     auto type = castOp.getResult()->getType().template cast<TensorType>();
     std::vector<int64_t> shape = type.getShape();
@@ -276,6 +307,7 @@ public:
         AssignGAddrPattern<tpu::TG_INT8_PixelShuffleOp>,
         AssignGAddrPattern<tpu::TG_INT8_ClipOp>,
         AssignGAddrPattern<tpu::TG_INT8_PReluOp>,
+        AssignGAddrPattern<tpu::TG_INT8_QuantOp>,
         AssignGAddrPattern<tpu::TG_INT8_ReluOp>,
         AssignGAddrPattern<tpu::TG_INT8_UpsampleOp>,
 
@@ -296,6 +328,7 @@ public:
         AssignGAddrPattern<tpu::TG_BF16_PoolAvg2DOp>,
         AssignGAddrPattern<tpu::TG_BF16_PoolMax2DOp>,
         AssignGAddrPattern<tpu::TG_BF16_PReluOp>,
+        AssignGAddrPattern<tpu::TG_BF16_QuantOp>,
         AssignGAddrPattern<tpu::TG_BF16_ReluOp>,
         AssignGAddrPattern<tpu::TG_BF16_ClipOp>,
         AssignGAddrPattern<tpu::TG_BF16_ReorgOp>,
@@ -306,7 +339,7 @@ public:
         AssignGAddrPattern<tpu::TG_BF16_UpsampleOp>,
 
         // fp32 cpu ops
-        AssignGAddrPattern<tpu::QuantOp>
+        AssignGAddrPattern<tpu::GenericCpuOp>
 
         >(context, &pos, neuronMapFile->os(), clNeuronAlignment);
     applyPatternsGreedily(fn, patterns);

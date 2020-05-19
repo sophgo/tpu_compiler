@@ -33,9 +33,6 @@ static bool isDetectionOutputOp(Operation* op) {
 }
 
 static bool isQuantOp(Operation *op) {
-  if (dyn_cast<QuantOp>(op)) {
-    return true;
-  }
   if (auto castOp = dyn_cast<GenericCpuOp>(op)) {
     if (castOp.operation_name() == QuantOp::getOperationName()) {
       return true;
@@ -438,9 +435,7 @@ void ConvertTgOpToMemRefPass::runOnFunction() {
  OwningRewritePatternList patterns;
   patterns.insert<
       AddTypeConvertedForNotLowedOpPattern<tpu::LoadWeightOp>,
-      AddTypeConvertedForNotLowedOpPattern<tpu::QuantOp>,
       AddTypeConvertedForNotLowedOpPattern<tpu::ReshapeOp>,
-      AddTypeConvertedForNotLowedOpPattern<tpu::SoftmaxOp>,
       AddTypeConvertedForNotLowedOpPattern<tpu::GenericCpuOp>,
       AddTypeConvertedForNotLowedOpPattern<tpu::TG_INT8_BroadcastMulOp>,
       AddTypeConvertedForNotLowedOpPattern<tpu::TG_BF16_BroadcastMulOp>,
@@ -482,6 +477,8 @@ void ConvertTgOpToMemRefPass::runOnFunction() {
       AddTypeConvertedForNotLowedOpPattern<tpu::TG_BF16_PixelShuffleOp>,
       AddTypeConvertedForNotLowedOpPattern<tpu::TG_INT8_PReluOp>,
       AddTypeConvertedForNotLowedOpPattern<tpu::TG_BF16_PReluOp>,
+      AddTypeConvertedForNotLowedOpPattern<tpu::TG_INT8_QuantOp>,
+      AddTypeConvertedForNotLowedOpPattern<tpu::TG_BF16_QuantOp>,
       AddTypeConvertedForNotLowedOpPattern<tpu::TG_INT8_ReluOp>,
       AddTypeConvertedForNotLowedOpPattern<tpu::TG_BF16_ReluOp>,
       AddTypeConvertedForNotLowedOpPattern<tpu::TG_INT8_ReorgOp>,
@@ -547,6 +544,8 @@ void ConvertTgOpToMemRefPass::runOnFunction() {
   target.addLegalOp<tpu::TG_MemRef_BF16_PixelShuffleOp>();
   target.addLegalOp<tpu::TG_MemRef_INT8_PReluOp>();
   target.addLegalOp<tpu::TG_MemRef_BF16_PReluOp>();
+  target.addLegalOp<tpu::TG_MemRef_INT8_QuantOp>();
+  target.addLegalOp<tpu::TG_MemRef_BF16_QuantOp>();
   target.addLegalOp<tpu::TG_MemRef_INT8_ReluOp>();
   target.addLegalOp<tpu::TG_MemRef_BF16_ReluOp>();
   target.addLegalOp<tpu::TG_MemRef_INT8_ReorgOp>();
@@ -613,6 +612,8 @@ void ConvertTgOpToMemRefPass::runOnFunction() {
       convertTgOpToMemRefPattern<tpu::TG_BF16_PixelShuffleOp, tpu::TG_MemRef_BF16_PixelShuffleOp>,
       convertTgOpToMemRefPattern<tpu::TG_INT8_PReluOp, tpu::TG_MemRef_INT8_PReluOp>,
       convertTgOpToMemRefPattern<tpu::TG_BF16_PReluOp, tpu::TG_MemRef_BF16_PReluOp>,
+      convertTgOpToMemRefPattern<tpu::TG_INT8_QuantOp, tpu::TG_MemRef_INT8_QuantOp>,
+      convertTgOpToMemRefPattern<tpu::TG_BF16_QuantOp, tpu::TG_MemRef_BF16_QuantOp>,
       convertTgOpToMemRefPattern<tpu::TG_INT8_ReluOp, tpu::TG_MemRef_INT8_ReluOp>,
       convertTgOpToMemRefPattern<tpu::TG_BF16_ReluOp, tpu::TG_MemRef_BF16_ReluOp>,
       convertTgOpToMemRefPattern<tpu::TG_INT8_ReorgOp, tpu::TG_MemRef_INT8_ReorgOp>,

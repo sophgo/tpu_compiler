@@ -32,8 +32,7 @@ def TPU_QuantOp: TPU_Op<"quant",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
        DeclareOpInterfaceMethods<TpuOpInterpInterface>,
-       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>
-       ]> {
+       DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
   let summary = "Quantization/Dequantization operator";
 
   let description = [{

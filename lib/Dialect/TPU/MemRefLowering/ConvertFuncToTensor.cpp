@@ -115,9 +115,7 @@ struct ConvertFuncToTensorPass
     ConversionTarget target(getContext());
 
     target.addLegalOp<tpu::LoadWeightOp>();
-    target.addLegalOp<tpu::QuantOp>();
     target.addLegalOp<tpu::ReshapeOp>();
-    target.addLegalOp<tpu::SoftmaxOp>();
     target.addLegalOp<tpu::GenericCpuOp>();
     target.addLegalOp<tpu::TG_INT8_InputOp>();
 
@@ -159,6 +157,8 @@ struct ConvertFuncToTensorPass
     target.addLegalOp<tpu::TG_BF16_PixelShuffleOp>();
     target.addLegalOp<tpu::TG_INT8_PReluOp>();
     target.addLegalOp<tpu::TG_BF16_PReluOp>();
+    target.addLegalOp<tpu::TG_INT8_QuantOp>();
+    target.addLegalOp<tpu::TG_BF16_QuantOp>();
     target.addLegalOp<tpu::TG_INT8_ReluOp>();
     target.addLegalOp<tpu::TG_BF16_ReluOp>();
     target.addLegalOp<tpu::TG_INT8_ReorgOp>();

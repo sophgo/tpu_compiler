@@ -748,6 +748,52 @@ class TPU_TG_MemRef_PReluOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 def TPU_TG_MemRef_INT8_PReluOp : TPU_TG_MemRef_PReluOp<"tg_memref_int8_prelu", "Int8">;
 def TPU_TG_MemRef_BF16_PReluOp : TPU_TG_MemRef_PReluOp<"tg_memref_bf16_prelu", "Bf16">;
 
+class TPU_TG_MemRef_QuantOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
+  let summary = "TG " # opQuant # " Qaunt/Dequant operator.";
+
+  let description = [{
+    Inputs:
+      `input`          : required, the input1 activation memref.
+
+    Attributes:
+      `from`           : required, the source type to be dequantized/quantized.
+      `to`             : required, the destination type that quantize/dequantize to.
+      `region`          : required, the memory region to reside in, could be
+                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
+                          (backend does not support `INPUT`, `OUTPUT` for now)
+      `gaddr`           : optional, address in global memory, normally the
+                          offset within the memory region.
+      `buffer_reused`   : optional, whether buffer is reused.
+      `name`            : required, name for comparing, or debug.
+      `layer_id`        : optional, id for profiling.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface`    : support common TPU TG Op interface.
+      `TpuTGOpCodegenInterface` : support generate TPU instuctions.
+  }];
+
+  let arguments = (
+    ins MemRefOf<[AnyFloat, AnyInteger]>:$input,
+    MemRefOf<[AnyFloat, AnyInteger]>:$output,
+    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
+    TPU_QuantModeAttr:$from,
+    TPU_QuantModeAttr:$to,
+    OptionalAttr<F32Attr>:$threshold,
+    OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    OptionalAttr<BoolAttr>:$buffer_reused,
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
+  );
+}
+def TPU_TG_MemRef_INT8_QuantOp : TPU_TG_QuantOp<"tg_memref_int8_quant", "Int8">;
+def TPU_TG_MemRef_BF16_QuantOp : TPU_TG_QuantOp<"tg_memref_bf16_quant", "Bf16">;
 
 class TPU_TG_MemRef_ReluOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,
@@ -941,7 +987,7 @@ class TPU_TG_MemRef_PixelShuffleOp<string mnemonic, string opQuant> : TPU_Op<mne
       `input`           : required, the input activation memref.
 
     Attributes:
-      `upscale_factor`  : required, indicate for upsample upscale_factor. 
+      `upscale_factor`  : required, indicate for upsample upscale_factor.
       `region`          : required, the memory region to reside in, could be
                           one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
                           (backend does not support `INPUT`, `OUTPUT` for now)

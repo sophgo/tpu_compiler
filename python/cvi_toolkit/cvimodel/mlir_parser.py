@@ -9,23 +9,8 @@ from . import cpu_op
 from collections import OrderedDict
 
 
-
-# 'not is_cpu_quant' which means quant for mix precision belowing to TPU OP
-def is_cpu_quant(op, cpu_ops):
+def is_cpu_op(op, cpu_ops):
     r = op.type in cpu_ops
-
-    # NONE imply FP32
-    if op.type == "quant" and hasattr(op, 'attributes'):
-        param = op.attributes['param']
-        attr_from = param.get('from', "NOT_SET")
-        attr_to = param.get('to', "NOT_SET")
-        if attr_from == "NONE" or attr_to == "NONE":
-            # quant/dequant FP32
-            pass
-        else:
-            # mix precision, pass to tpu
-            r = False
-
     return r
 
 class Tensor:
@@ -189,7 +174,7 @@ class Function:
     def __init__(self, ops):
         self.cpu_function = False
         self.packed_attr = None
-        if len(ops) == 1 and is_cpu_quant(ops[0], Op.cpu_ops):
+        if len(ops) == 1 and is_cpu_op(ops[0], Op.cpu_ops):
             self.cpu_function = True
             self.packed_attr = ops[0].packed_attr
             self.name = ops[0].type
@@ -429,7 +414,7 @@ class MlirParser:
 
     def __move_cpu_op_to_close_consumers(self):
         for i in reversed(range(len(self.ops))):
-            if not is_cpu_quant(self.ops[i], Op.cpu_ops):
+            if not is_cpu_op(self.ops[i], Op.cpu_ops):
                 continue
             if self.ops[i].output in self.outputs:
                 self.ops.insert(len(self.ops)-1, self.ops[i])
@@ -477,7 +462,7 @@ class MlirParser:
         idx = 0
         self.__move_cpu_op_to_close_consumers()
         for op in self.ops:
-            if is_cpu_quant(op, Op.cpu_ops):
+            if is_cpu_op(op, Op.cpu_ops):
                 if len(groups[idx]) == 0:
                     groups[idx].append(op)
                 else:

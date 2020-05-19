@@ -1601,6 +1601,93 @@ LogicalResult tpu::TG_BF16_PReluOp::codegen(void *ctx) {
   llvm_unreachable(errorMsg.c_str());
 }
 
+LogicalResult tpu::TG_INT8_QuantOp::codegen(void *ctx) {
+  llvm::errs() << "TG_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";
+  assert(this->from() == "BF16");
+  assert(this->to() == "INT8");
+
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  int layer_id = mlir::getOpLayerId(op);
+  gaddr_t ga_input = getPreviousOpAddress(op);
+  gaddr_t ga_output = getOpAddress(op);
+
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  getNCHW(shape, n, c, h, w);
+
+  // quant:
+  // output[i] = (float)saturateInt8(input[i] * 128.0 / threshold);
+  float threshold = this->threshold().getValue().convertToFloat();
+  float quant = 128.0 / threshold;
+
+  // TODO: leverage scaleOp ?
+  //  quant to int8
+  mixed_precision_tg_bf16_s8(
+          *backend_ctx,//CviBackendContext &ctx,
+          0,//u32 stream_id,
+          0,//u32 inst_id,
+          layer_id,//u32 layer_id,
+          NULL,//const u32 *depends,
+          0,//u32 depends_len,
+          ga_input,//gaddr_t bottom_gaddr,
+          ga_output,//gaddr_t top_gaddr,
+          n,//int input_n,
+          c,//int input_c,
+          h,//int input_h,
+          w,//int input_w,
+          quant//float const_scale
+          );
+  return success();
+}
+
+LogicalResult tpu::TG_BF16_QuantOp::codegen(void *ctx) {
+  llvm::errs() << "TG_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";
+
+  assert(this->from() == "INT8");
+  assert(this->to() == "BF16");
+
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  int layer_id = mlir::getOpLayerId(op);
+  gaddr_t ga_input = getPreviousOpAddress(op);
+  gaddr_t ga_output = getOpAddress(op);
+
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  getNCHW(shape, n, c, h, w);
+
+  // dequant:
+  // output[i] = input[i] * threshold / 128.0;
+  float threshold = this->threshold().getValue().convertToFloat();
+  float dequant = threshold / 128.0;
+
+  // dequant to bf16
+  mixed_precision_tg_s8_bf16(
+          *backend_ctx,//CviBackendContext &ctx,
+          0,//u32 stream_id,
+          0,//u32 inst_id,
+          layer_id,//u32 layer_id,
+          NULL,//const u32 *depends,
+          0,//u32 depends_len,
+          ga_input,//gaddr_t bottom_gaddr,
+          ga_output,//gaddr_t top_gaddr,
+          n,//int input_n,
+          c,//int input_c,
+          h,//int input_h,
+          w,//int input_w,
+          dequant//float const_scale
+          );
+
+  return success();
+}
+
 LogicalResult tpu::TG_INT8_ReluOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);
@@ -1891,7 +1978,7 @@ LogicalResult tpu::TG_BF16_ClipOp::codegen(void *ctx) {
 
   // leverage min/max op rather than clip
   // FIXME: using EltwiseMaxOp/EltwiseMinOp
-  
+
   // op definition refer to \bf16_eltwise_kernel.cpp
   if (0) {
     coeffs[0] = {max};
@@ -1938,7 +2025,7 @@ LogicalResult tpu::TG_BF16_ClipOp::codegen(void *ctx) {
         false, 0, 0,
         coeffs);
   }
-  
+
   return success();
 }
 
@@ -2079,86 +2166,6 @@ LogicalResult tpu::TG_BF16_UpsampleOp::codegen(void *ctx) {
       scale,
       scale
   );
-
-  return success();
-}
-
-LogicalResult tpu::QuantOp::codegen(void *ctx) {
-  llvm::errs() << "TG_codegen: " << getOperationName()
-               << " [" << getOpName() << "]\n";
-
-  if (this->from() == "NONE" && this->to() == "INT8") {
-      LLVM_DEBUG(llvm::errs() << "none->int8, first layer, input should auto quant\n";);
-      return success();
-  } else if (this->from() == "NONE" && this->to() == "BF16") {
-      LLVM_DEBUG(llvm::errs() << "none->bf16, first layer, input should auto quant\n";);
-      return success();
-  } else if (this->from() == "BF16" && this->to() == "NONE") {
-      LLVM_DEBUG(llvm::errs() << "bf16->none, last output layer that auto dequant\n";);
-      return success();
-  } else if (this->from() == "INT8" && this->to() == "NONE") {
-      LLVM_DEBUG(llvm::errs() << "int8->none, last output layer that auto dequant\n";);
-      return success();
-  }
-
-  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
-  Operation *op = this->getOperation();
-
-  int layer_id = mlir::getOpLayerId(op);
-  gaddr_t ga_input = getPreviousOpAddress(op);
-  gaddr_t ga_output = getOpAddress(op);
-
-  std::vector<int64_t> shape;
-  int64_t input_size, n, c, h, w;
-  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
-  getNCHW(shape, n, c, h, w);
-
-  float threshold = this->threshold().getValue().convertToFloat();
-  // dequant:
-  // output[i] = input[i] * threshold / 128.0;
-  // quant:
-  // output[i] = (float)saturateInt8(input[i] * 128.0 / threshold);
-  float dequant = threshold / 128.0;
-  float quant = 128.0 / threshold;
-
-  // TODO: leverage scaleOp ?
-  if (this->from() == "BF16" && this->to() == "INT8") {
-      //  quant to int8
-      mixed_precision_tg_bf16_s8(
-              *backend_ctx,//CviBackendContext &ctx,
-              0,//u32 stream_id,
-              0,//u32 inst_id,
-              layer_id,//u32 layer_id,
-              NULL,//const u32 *depends,
-              0,//u32 depends_len,
-              ga_input,//gaddr_t bottom_gaddr,
-              ga_output,//gaddr_t top_gaddr,
-              n,//int input_n,
-              c,//int input_c,
-              h,//int input_h,
-              w,//int input_w,
-              quant//float const_scale
-              );
-  } else if (this->from() == "INT8" && this->to() == "BF16") {
-      // dequant to bf16
-      mixed_precision_tg_s8_bf16(
-              *backend_ctx,//CviBackendContext &ctx,
-              0,//u32 stream_id,
-              0,//u32 inst_id,
-              layer_id,//u32 layer_id,
-              NULL,//const u32 *depends,
-              0,//u32 depends_len,
-              ga_input,//gaddr_t bottom_gaddr,
-              ga_output,//gaddr_t top_gaddr,
-              n,//int input_n,
-              c,//int input_c,
-              h,//int input_h,
-              w,//int input_w,
-              dequant//float const_scale
-              );
-  } else {
-    llvm_unreachable("unsupported type");
-  }
 
   return success();
 }
@@ -2305,6 +2312,14 @@ LogicalResult tpu::TG_MemRef_INT8_PReluOp::codegen(void *ctx) {
 }
 
 LogicalResult tpu::TG_MemRef_BF16_PReluOp::codegen(void *ctx) {
+  return success();
+}
+
+LogicalResult tpu::TG_MemRef_INT8_QuantOp::codegen(void *ctx) {
+  return success();
+}
+
+LogicalResult tpu::TG_MemRef_BF16_QuantOp::codegen(void *ctx) {
   return success();
 }
 
