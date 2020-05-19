@@ -131,6 +131,7 @@ class TFLiteConverter(BaseConverter):
         self.tfliteop_factory = {
             "ADD": lambda node: self.convert_add_op(node),
             "CONV_2D": lambda node: self.convert_conv_op(node),
+            "DEPTHWISE_CONV_2D": lambda node: self.convert_deconv_op(node),
             "FULLY_CONNECTED": lambda node: self.convert_fc_op(node),
             "MAX_POOL_2D": lambda node: self.convert_maxpool_op(node),
             "MEAN": lambda node: self.convert_mean_op(node),
@@ -400,6 +401,89 @@ class TFLiteConverter(BaseConverter):
         conv_op = self.CVI.add_conv_op("{}".format(
             node.name), operands, output_shape, **conv_param)
         self.addOperand(node.name, conv_op, output_shape,
+                        TensorType.ACTIVATION)
+
+    def convert_deconv_op(self, node):
+        assert(node.op_type == "DEPTHWISE_CONV_2D")
+
+        op, shape, _ = self.getOperand(str(node.inputs[0]))
+        operands = list()
+        operands.append(op)
+
+        # filter
+        filter_tensor_idx = node.inputs[1]
+        filter_name = "{}_add_weight".format(filter_tensor_idx)
+        filter_op, filter_shape = self.createLoadWeightOp(filter_tensor_idx, filter_name)
+        operands.append(filter_op)
+
+        # bias
+        do_bias = len(node.inputs) == 3
+        if do_bias:
+            bias_tensor_idx = node.inputs[2]
+            bias_name = "{}_add_bias".format(bias_tensor_idx)
+            bias_op, bias_shape = self.createLoadWeightOp(bias_tensor_idx, bias_name)
+            operands.append(bias_op)
+
+        op_build_info = node.proto.BuiltinOptions()
+        # Parse the Table of options.
+        deconv_table = DepthwiseConv2DOptions()
+        deconv_table.Init(op_build_info.Bytes, op_build_info.Pos)
+        # Check if input is padding op
+        padding_data = None
+        try:
+            input_tensor = self.getTensor(str(node.inputs[0]))
+            # Only padding case we handle
+            assert(input_tensor.op_type == "PAD")
+            padding_data = input_tensor.tensor_data
+        except KeyError as k:
+            # Not padding op
+            pass
+        deconv_param = {
+            'stride_h': deconv_table.StrideH(),
+            'stride_w': deconv_table.StrideW(),
+            'padding': "SAME" if deconv_table.Padding() == Padding.SAME or isinstance(padding_data, np.ndarray) else "VALID",
+            'dilation_h': deconv_table.DilationHFactor(),
+            'dilation_w': deconv_table.DilationWFactor(),
+            'group': 1,  # Don't have group option?
+            'is_dw': False,
+            'with_bias': len(node.inputs) > 2,
+            'do_relu': deconv_table.FusedActivationFunction() == ActivationFunctionType.RELU,
+        }
+        on = shape[0]
+        oc = filter_shape[0] # feature map size
+        # padding data order is NHWC
+        # if padding data is not np.ndarray (not from bottom layer)
+        # and conv_table.Padding() is SAME, we need to calculate it.
+        if deconv_table.Padding() == Padding.SAME:
+            out_h = ceil(shape[2]/deconv_param['stride_h'])
+            padding_h = get_TF_SAME_Padding(
+                shape[2], out_h, filter_shape[2], deconv_param['stride_h'])
+            out_w = ceil(shape[3]/deconv_param['stride_w'])
+            padding_w = get_TF_SAME_Padding(
+                shape[3], out_w, filter_shape[3], deconv_param['stride_w'])
+        else:
+            padding_h = 0
+            padding_w = 0
+
+        oh = calcConv2DSpatial(
+            shape[2],
+            filter_shape[2],
+            deconv_param['stride_h'],
+            padding_data[1][0] if isinstance(
+                padding_data, np.ndarray) else padding_h,
+            deconv_param['dilation_h'],
+        )
+        ow = calcConv2DSpatial(
+            shape[3],
+            filter_shape[3],
+            deconv_param['stride_w'],
+            padding_data[2][0] if isinstance(padding_data, np.ndarray) else padding_w,
+            deconv_param['dilation_w'],
+        )
+        output_shape = [on, oc, oh, ow]
+        deconv_op = self.CVI.add_deconv_op("{}".format(
+            node.name), operands, output_shape, **deconv_param)
+        self.addOperand(node.name, deconv_op, output_shape,
                         TensorType.ACTIVATION)
 
     def convert_fc_op(self, node):
