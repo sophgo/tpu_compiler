@@ -31,22 +31,8 @@ class TFLiteModel(model_base):
         return self.net.get_tensor(output_details[0]['index'])
 
     def get_all_tensor(self, input_data):
-        input_details = self.net.get_input_details()
-        self.net.set_tensor(input_details[0]['index'], input_data)
-        self.net.invoke()
-        all_tensor_dict = dict()
-        for t in self.net.get_tensor_details():
-
-            tensor_data = self.net.get_tensor(t['index'])
-            tensor_data = tensor_data.reshape(t['shape'])
-            print(t)
-            if len(t['shape']) == 4:
-                # Transpose NHWC tensor to NCHW
-                tensor_data = np.transpose(tensor_data, (0, 3, 1, 2))
-            all_tensor_dict[str(t['index'])] = tensor_data
-        print(input_details[0]['index'])
-        all_tensor_dict['input'] = all_tensor_dict[str(input_details[0]['index'])]
-        return all_tensor_dict
+        # ref:https://stackoverflow.com/questions/56885007/visualize-tflite-graph-and-get-intermediate-values-of-a-particular-node
+        raise RuntimeError("TFLite don't have get all tensor!")
 
 
     def get_op_info(self):
