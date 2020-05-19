@@ -37,7 +37,6 @@ mlir-opt \
     --tpu-neuron-address-align=16 \
     --tpu-neuron-map-filename=neuron_map.csv \
     --assign-layer-id \
-    --convert-cpu-op \
     inception_v3_quant_int8_per_layer_tg.mlir \
     -o inception_v3_quant_int8_per_layer_addr.mlir
 
@@ -92,7 +91,6 @@ mlir-opt \
     --assign-neuron-address \
     --tpu-neuron-address-align=16 \
     --tpu-neuron-map-filename=neuron_map.csv \
-    --convert-cpu-op \
     inception_v3_quant_int8_multiplier_tg.mlir \
     -o inception_v3_quant_int8_multiplier_addr.mlir
 

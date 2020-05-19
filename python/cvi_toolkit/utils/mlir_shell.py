@@ -163,7 +163,6 @@ def mlir_gen_cvimodel(mlirfile, cvi_module):
                     "--assign-neuron-address",
                     "--tpu-neuron-address-align=16",
                     "--tpu-neuron-map-filename=neuron_map.csv",
-                    "--convert-cpu-op",
                     mlirfile,
                     "-o", int8_addr
                     ], **std_output_flag)
@@ -247,7 +246,6 @@ def mlir_gen_cvimodel(mlirfile, cvi_module):
 
     ret = subprocess.run(["mlir-opt",
                     "--convert-func-to-tensor",
-                    "--convert-cpu-op",
                     convert_tg_op_to_tensor,
                     "-o", int8_tl_lw_memopt
                     ], **std_output_flag)

@@ -518,7 +518,6 @@ void AssignNeuronAddressMemRefPass::handleQuantOp(Operation *opInst) {
 static bool isQuantOp(Operation *op) {
   if (auto castOp = dyn_cast<tpu::GenericCpuOp>(op)) {
     if (castOp.operation_name() == tpu::QuantOp::getOperationName()) {
-      llvm::errs() << "isQuantOp:" << castOp.operation_name() << ", yes\n";
       return true;
     }
   }

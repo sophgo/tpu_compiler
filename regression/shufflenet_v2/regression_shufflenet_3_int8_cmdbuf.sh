@@ -33,7 +33,7 @@ if [ $COMPARE_INT8_PER_LAYER -eq 1 ]; then
         --tpu-lower \
         shufflenet_quant_int8_per_layer.mlir \
         -o shufflenet_quant_int8_per_layer_tg.mlir
-    
+
     mlir-opt \
         --tg-fuse-leakyrelu --conv-ic-alignment \
         shufflenet_quant_int8_per_layer_tg.mlir \
@@ -105,7 +105,6 @@ mlir-opt \
     --assign-neuron-address \
     --tpu-neuron-address-align=16 \
     --tpu-neuron-map-filename=shufflenet_neuron_map_int8_multiplier.csv \
-    --convert-cpu-op \
     shufflenet_quant_int8_multiplier_tg_opt.mlir \
     -o shufflenet_quant_int8_multiplier_addr.mlir
 

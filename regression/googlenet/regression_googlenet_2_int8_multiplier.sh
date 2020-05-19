@@ -52,7 +52,6 @@ mlir-opt \
     --assign-neuron-address \
     --tpu-neuron-address-align=16 \
     --tpu-neuron-map-filename=googlenet_neuron_map_int8_multiplier.csv \
-    --convert-cpu-op \
     googlenet_quant_int8_multiplier_tg_opt.mlir \
     -o googlenet_quant_int8_multiplier_addr.mlir
 

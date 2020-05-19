@@ -47,8 +47,7 @@ mlir-opt \
 mlir-opt \
     --assign-neuron-address \
     --tpu-neuron-address-align=16 \
-    --tpu-neuron-map-filename=neuron_map.csv \
-    --convert-cpu-op | \
+    --tpu-neuron-map-filename=neuron_map.csv | \
 mlir-opt \
     --deep-fusion-tg2tl-la | \
 mlir-opt \
@@ -74,7 +73,6 @@ mlir-opt \
     --convert-tg-op-to-tensor | \
 mlir-opt \
     --convert-func-to-tensor \
-    --convert-cpu-op \
     -o int8_tl_lw_memopt.mlir
 
 mlir-translate \
@@ -139,7 +137,6 @@ mlir-opt \
     --assign-neuron-address \
     --tpu-neuron-address-align=16 \
     --tpu-neuron-map-filename=neuron_map.csv \
-    --convert-cpu-op \
     int8_tg_opt.mlir \
     -o int8_addr.mlir
 

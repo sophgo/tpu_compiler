@@ -294,7 +294,7 @@ usage()
    echo ""
    echo "Usage: $0 [-b batch_size] [-n net_name] [-e] [-a count]"
    echo -e "\t-b Description of batch size for test"
-   echo -e "\t-n Description of met name for test"
+   echo -e "\t-n Description of net name for test"
    echo -e "\t-e Enable extra net list"
    echo -e "\t-a Enable run accuracy, with given image count"
    exit 1
@@ -334,7 +334,6 @@ echo "" > verdict.log
 # run single and exit
 if [ ! -z "$net" ]; then
   export CVIMODEL_REL_PATH=$PWD/cvimodel_regression
-  export RUN_IN_PARALLEL=0
   if [ ! -e $CVIMODEL_REL_PATH ]; then
     mkdir $CVIMODEL_REL_PATH
   fi

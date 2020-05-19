@@ -22,7 +22,6 @@ mlir-opt \
     --assign-neuron-address \
     --tpu-neuron-address-align=16 \
     --tpu-neuron-map-filename=neuron_map_bf16.csv \
-    --convert-cpu-op \
     inception_v3_quant_bf16_tg.mlir \
     -o inception_v3_quant_bf16_addr.mlir
 
