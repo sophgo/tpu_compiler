@@ -100,6 +100,57 @@ LogicalResult tpu::TL_LG_Conv2DOp::codegen(void *ctx) {
   return success();
 }
 
+LogicalResult tpu::TL_LG_DeConv2DOp::codegen(void *ctx) {
+  llvm::errs() << "TG_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  bool is_dw, with_bias, do_relu;
+  int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, ph, pw, dh, dw;
+  parseConvParam(param(), false, input(), output(), filter(),
+                 n, ic, ih, iw, oc, oh, ow, g,
+                 kh, kw, sh, sw, ph, pw, dh, dw, is_dw, with_bias, do_relu);
+
+  laddr_t la_input = this->la_input().getLimitedValue();
+  laddr_t la_output = this->la_output().getLimitedValue();
+  laddr_t la_weight = this->la_filter().getLimitedValue();
+  laddr_t la_perchannel = this->la_bias().getLimitedValue();
+
+  // pad is not "SAME", can not get from conv param
+  int ph_t = this->pad_top_h().getLimitedValue();
+  int ph_b = this->pad_bottom_h().getLimitedValue();
+  int pw_l = this->pad_left_w().getLimitedValue();
+  int pw_r = this->pad_right_w().getLimitedValue();
+  int ins_h = this->ins_h().getLimitedValue();
+  int ins_last_h = this->ins_last_h().getLimitedValue();
+  int ins_w = this->ins_w().getLimitedValue();
+  int ins_last_w = this->ins_last_w().getLimitedValue();
+  int layer_id = mlir::getOpLayerId(op);
+
+  cvi_backend_tl_deconv(
+    *backend_ctx,
+    0,
+    0,
+    layer_id,
+    nullptr,
+    0,
+    la_input, la_output, la_weight, la_perchannel,
+    n, ic, ih, iw,
+    g, oc, oh, ow, kh, kw, dh, dw,
+    ins_h, ins_last_h, ins_w, ins_last_w, ph_t, ph_b, pw_l, pw_r, sh, sw,
+    with_bias,
+    false,     // result_add
+    do_relu,   // do_activation,
+    0,         //right_shift_width,
+    false,     //use_winograd,
+    oc,        // right_shift_array_len
+    la_perchannel // ga_per_channel
+    );
+
+  return success();
+}
+
 
 LogicalResult tpu::TL_LG_EltwiseAddOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
@@ -406,5 +457,50 @@ LogicalResult tpu::TL_LG_INT8_PoolMax2DOp::codegen(void *ctx) {
 
   return success();
 }
+
+LogicalResult tpu::TL_LG_BroadcastMulOp::codegen(void *ctx) {
+  llvm::errs() << "TL_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  getNCHW(shape, n, c, h, w);
+  bool do_relu = this->do_relu();
+
+  laddr_t la_input = this->la_input().getLimitedValue();
+  laddr_t la_output = this->la_output().getLimitedValue();
+  laddr_t la_scale = this->la_scale().getLimitedValue();
+  laddr_t la_bias = this->la_bias().getLimitedValue();
+  int layer_id = mlir::getOpLayerId(op);
+
+  cvi_backend_tl_broadcast_mul(
+      *backend_ctx, // ctx
+      0,            // stream_id
+      0,            // inst_id
+      layer_id,     // layer_id
+      nullptr,      // depends
+      0,            // depends_len
+      la_input,     // input_addr
+      la_scale,    // scale_addr
+      la_bias,      // pack_addr
+      la_output,    // output_addr
+      n, c, h, w,
+      n * c,        // scale_dim (axis = 1  =>  n * c)
+      h * w,        // inner_dim (axis = 1  =>  h * w)
+      false,        // is_scale_const
+      0,            // const_scale
+      0,
+      do_relu,      // do_activation,
+      0,            // activation_method
+      nullptr,      // activation_arg
+      nullptr,      // multiplier
+      false);        // with_bias
+
+  return success();
+}
+
 
 }

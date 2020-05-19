@@ -36,6 +36,10 @@ DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 # Batch 1, 201.6 fps
 # Batch 4, 228.6 fps
 
+# efficientnet_b0 pass, on chip performance
+# Batch 1, 112 fps
+# Batch 4, 122 fps
+
 
 # compare all only support when global memory optimization close
 COMPARE_ALL=0

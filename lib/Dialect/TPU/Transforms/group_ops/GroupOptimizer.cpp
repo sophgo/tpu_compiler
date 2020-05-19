@@ -270,7 +270,7 @@ bool GroupOptimizer::is_tg_op(Operation * op) {
     if (group->size() == 1) {
       int layer_id = group->layers()[0];
       const ImLayer * im_layer = net_graph_->get_layer_by_id(layer_id);
-      if (getOpName(im_layer->op()) == getOpName(op)) {
+      if (im_layer->op() == op) {
         LLVM_DEBUG(llvm::errs() << "   is TG layer.\n";);
         return true;
       }
@@ -752,12 +752,14 @@ void GroupOptimizer::lower_to_tl_group(MLIRContext * context) {
   OwningRewritePatternList patterns_pack;
   patterns_pack.insert<
       LGLoweringPattern<tpu::Conv2DOp>,
+      LGLoweringPattern<tpu::DeConv2DOp>,
       LGLoweringPattern<tpu::EltwiseAddOp>,
       LGLoweringPattern<tpu::EltwiseMulOp>,
       LGLoweringPattern<tpu::EltwiseMaxOp>,
       LGLoweringPattern<tpu::PoolAvg2DOp>,
       LGLoweringPattern<tpu::PoolMax2DOp>,
-      LGLoweringPattern<tpu::LrnOp>
+      LGLoweringPattern<tpu::LrnOp>,
+      LGLoweringPattern<tpu::BroadcastMulOp>
       >(fn_, context, this);
   applyPatternsGreedily(*fn_, patterns_pack);
 

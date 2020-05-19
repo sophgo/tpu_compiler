@@ -78,6 +78,12 @@ class MixNet {
                               net_timestep* time_step,
                               int timestep_idx, bool is_h_split);
 
+  void _add_tl_deconvolution_op(MixOp* mix_op,
+                              const vector<int>& in_tensors,
+                              const vector<int>& out_tensors,
+                              net_timestep* time_step,
+                              int timestep_idx, bool is_h_split);
+
   void _add_tl_pooling_op(MixOp * mix_op,
                           const vector<int>& in_tensors,
                           const vector<int>& out_tensors,
@@ -95,6 +101,12 @@ class MixNet {
                       const vector<int>& out_tensors,
                       net_timestep* time_step,
                       int timestep_idx, bool is_h_split);
+
+  void _add_tl_broadcast_mul_op(MixOp * mix_op,
+                               const vector<int>& in_tensors,
+                               const vector<int>& out_tensors,
+                               net_timestep* time_step,
+                               int timestep_idx, bool is_h_split);
 
   void _add_load_op(int tensor_id,
                     net_timestep* time_step, int timestep_idx);

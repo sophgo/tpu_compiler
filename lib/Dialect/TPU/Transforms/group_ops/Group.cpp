@@ -456,13 +456,24 @@ bool Group::backward_slice(int out_tensor_id, list<int>& branches, bool max_h_sl
   int dh = 1;
 
   if (layer_type == IR_CONVOLUTION || layer_type == IR_DECONVOLUTION) {
-    auto op = cast<tpu::Conv2DOp>(im_layer->op());
-    bool is_dw, with_bias, do_relu;
-    int n, ic, ih, iw, oc, oh, ow, g, kw, sw, pw, dw;
-    bool is_deconv = isa<tpu::DeConv2DOp>(im_layer->op());
-    parseConvParam(op.param(), is_deconv, op.input(), op.output(), op.filter(),
-                   n, ic, ih, iw, oc, oh, ow, g,
-                   kh, kw, sh, sw, ph, pw, dh, dw, is_dw, with_bias, do_relu);
+    if (isa<tpu::Conv2DOp>(im_layer->op())) {
+      auto op = cast<tpu::Conv2DOp>(im_layer->op());
+      bool is_dw, with_bias, do_relu;
+      int n, ic, ih, iw, oc, oh, ow, g, kw, sw, pw, dw;
+      bool is_deconv = false;
+      parseConvParam(op.param(), is_deconv, op.input(), op.output(), op.filter(),
+                     n, ic, ih, iw, oc, oh, ow, g,
+                     kh, kw, sh, sw, ph, pw, dh, dw, is_dw, with_bias, do_relu);
+     } else {
+      auto op = cast<tpu::DeConv2DOp>(im_layer->op());
+      bool is_dw, with_bias, do_relu;
+      int n, ic, ih, iw, oc, oh, ow, g, kw, sw, pw, dw;
+      bool is_deconv = true;
+      parseConvParam(op.param(), is_deconv, op.input(), op.output(), op.filter(),
+                     n, ic, ih, iw, oc, oh, ow, g,
+                     kh, kw, sh, sw, ph, pw, dh, dw, is_dw, with_bias, do_relu);
+
+     }
     if (dh > 1) {
       kh = dh * (kh - 1) + 1;
     }

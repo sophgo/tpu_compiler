@@ -703,6 +703,7 @@ export INPUT=input
 export OUTPUTS_FP32=output
 export OUTPUTS=output
 export EXCEPTS=424_Mul,388_Sigmoid
+export USE_LAYERGROUP=1
 # export DO_QUANT_INT8_PER_TENSOR=1
 # export DO_QUANT_INT8_RFHIFT_ONLY=1
 # export TOLERANCE_INT8_PER_TENSOR=0.8,0.8,0.8

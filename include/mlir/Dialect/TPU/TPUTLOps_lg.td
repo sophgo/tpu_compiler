@@ -108,6 +108,43 @@ def TPU_TL_LG_Conv2DOp : TPU_Op<"tl_lg_conv_2d",
   let results = (outs AnyTensor:$output);
 }
 
+def TPU_TL_LG_DeConv2DOp : TPU_Op<"tl_lg_deconv_2d",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuTLOpCodegenInterface>]> {
+  let summary = "TL DeConvolution operator";
+
+  let description = [{
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    AnyTensor:$filter,
+    AnyTensor:$pc_info,
+    TPU_ConvParamAttr:$param,
+    I32Attr:$la_input,
+    I32Attr:$la_filter,
+    I32Attr:$la_output,
+    I32Attr:$la_bias,
+    I32Attr:$la_working,
+    OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    DefaultValuedAttr<I32Attr, "0">:$ins_h,
+    DefaultValuedAttr<I32Attr, "0">:$ins_last_h,
+    DefaultValuedAttr<I32Attr, "0">:$ins_w,
+    DefaultValuedAttr<I32Attr, "0">:$ins_last_w,
+    DefaultValuedAttr<I32Attr, "0">:$pad_top_h,
+    DefaultValuedAttr<I32Attr, "0">:$pad_bottom_h,
+    DefaultValuedAttr<I32Attr, "0">:$pad_left_w,
+    DefaultValuedAttr<I32Attr, "0">:$pad_right_w,
+    DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
+    DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
 def TPU_TL_LG_EltwiseAddOp : TPU_Op<"tl_lg_eltwise_add",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
@@ -302,4 +339,31 @@ def TPU_TL_LG_JoinOp : TPU_Op<"tl_lg_join",
   let results = (outs AnyTensor:$output);
 }
 
+def TPU_TL_LG_BroadcastMulOp : TPU_Op<"tl_lg_broadcast_mul",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuTLOpCodegenInterface>]> {
+  let summary = "TL broadcast operator";
+
+  let description = [{
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    AnyTensor:$scale,
+    AnyTensor:$pc_info,
+    I32Attr:$la_input,
+    I32Attr:$la_scale,
+    I32Attr:$la_output,
+    I32Attr:$la_bias,
+    OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
+    DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
+    DefaultValuedAttr<BoolAttr, "false">:$do_relu,
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
+  );
+
+  let results = (outs AnyTensor:$output);
+}
 #endif // TPU_TL_OPS_LG

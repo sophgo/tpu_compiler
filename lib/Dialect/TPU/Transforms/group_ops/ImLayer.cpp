@@ -103,6 +103,8 @@ shared_ptr<ImLayer> ImLayer::create(Operation* op) {
     layer = make_shared<ImSlice>(op);
   } else if (isa<tpu::LrnOp>(op)) {
     layer = make_shared<ImLrn>(op);
+  } else if (isa<tpu::BroadcastMulOp>(op)) {
+    layer = make_shared<ImBroadcastMul>(op);
   } else if (isa<tpu::GenericCpuOp>(op)) {
     layer = make_shared<ImCommon>(op, false, IR_OTHER);
   } else if (isa<tpu::QuantOp>(op) ||
@@ -197,8 +199,14 @@ ImDeconv::ImDeconv(Operation* p) : ImLayer(IR_DECONVOLUTION, p, false) {
   string weightOpName = weightOp.name().getValue().str();
   int32_t unit_size = getOperandStorageSize(weightOp);
   string storage = getOperandStorage(weightOp);
-  // tensor shape in local memory should be (1, oc, kh*kw, ic/g)
-  add_in_tensor(ic / g, oc, kh, kw, unit_size, storage, weightOpName, TENSOR_COEFF);
+  auto weight_type = op.filter()->getType().template cast<TensorType>();
+
+  if (is_dw) {
+    add_in_tensor(1, oc, kh, kw, unit_size, storage, weightOpName, TENSOR_DEPTHCONV_OPD1);
+  } else {
+    // tensor shape in local memory should be (1, oc, kh*kw, ic/g)
+    add_in_tensor(ic / g, oc, kh, kw, unit_size, storage, weightOpName, TENSOR_COEFF);
+  }
 
   // add bias tensor
   int perchannel_size = with_bias ? 9 : 5;
@@ -244,6 +252,7 @@ ImInnerproduct::ImInnerproduct(Operation* op) : ImLayer(IR_INNERPRODUCT, op) {
 }
 
 ImEltwise::ImEltwise(Operation* op) : ImLayer(IR_ELTWISE, op, true) {
+
   // skip rshift and multiplier
   int nInputs = op->getNumOperands() - 2;
   for (u32 i = 0; i < nInputs; ++i) {
@@ -343,4 +352,21 @@ ImLrn::ImLrn(Operation *op): ImLayer(IR_LRN, op, true) {
   add_imm_tensor(in_tensors[0], 5, name_ + "_imm");
 }
 
+ImBroadcastMul::ImBroadcastMul(Operation *op): ImLayer(IR_BROADCAST_MUL, op, true) {
+  auto bd_op = dyn_cast<tpu::BroadcastMulOp>(op);
+  auto input_type = op->getOperand(0)->getType().dyn_cast<TensorType>();
+  auto input_shape = input_type.getShape();
+  add_in_tensor(op->getOperand(0), TENSOR_NEURON);
+  add_in_tensor(op->getOperand(1), TENSOR_NEURON);
+  add_out_tensor(op->getResult(0), TENSOR_NEURON);
+  // add bias tensor
+  bool with_bias = false;
+  int perchannel_size = with_bias ? 9 : 5;
+  auto load_bias = cast<tpu::LoadWeightOp>(op->getOperand(4)->getDefiningOp());
+  string bias_name = load_bias.name().getValue().str();
+  string bias_storage = getOperandStorage(load_bias);
+  int bias_usize = getOperandStorageSize(load_bias);
+  add_in_tensor(input_shape[0], input_shape[1], 1, perchannel_size, bias_usize, bias_storage,
+                bias_name, TENSOR_BIAS);
+}
 }
