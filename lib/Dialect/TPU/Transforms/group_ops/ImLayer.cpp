@@ -105,6 +105,10 @@ shared_ptr<ImLayer> ImLayer::create(Operation* op) {
     layer = make_shared<ImLrn>(op);
   } else if (isa<tpu::BroadcastMulOp>(op)) {
     layer = make_shared<ImBroadcastMul>(op);
+  } else if (isa<tpu::UpsampleOp>(op)) {
+    layer = make_shared<ImUpsample>(op);
+  } else if (isa<tpu::LeakyReluOp>(op)) {
+    layer = make_shared<ImLeakyRelu>(op);
   } else if (isa<tpu::GenericCpuOp>(op)) {
     layer = make_shared<ImCommon>(op, false, IR_OTHER);
   } else if (isa<tpu::QuantOp>(op) ||
@@ -369,4 +373,15 @@ ImBroadcastMul::ImBroadcastMul(Operation *op): ImLayer(IR_BROADCAST_MUL, op, tru
   add_in_tensor(input_shape[0], input_shape[1], 1, perchannel_size, bias_usize, bias_storage,
                 bias_name, TENSOR_BIAS);
 }
+
+ImUpsample::ImUpsample(Operation *op): ImLayer(IR_UPSAMPLE, op, true) {
+  add_in_tensor(op->getOperand(0), TENSOR_NEURON);
+  add_out_tensor(op->getResult(0), TENSOR_NEURON);
+}
+
+ImLeakyRelu::ImLeakyRelu(Operation *op): ImLayer(IR_LEAKY_RELU, op, true) {
+  add_in_tensor(op->getOperand(0), TENSOR_NEURON);
+  add_out_tensor(op->getResult(0), TENSOR_NEURON);
+}
+
 }

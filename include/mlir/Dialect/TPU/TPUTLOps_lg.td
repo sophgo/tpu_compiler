@@ -369,4 +369,57 @@ def TPU_TL_LG_BroadcastMulOp : TPU_Op<"tl_lg_broadcast_mul",
 
   let results = (outs AnyTensor:$output);
 }
+
+def TPU_TL_LG_UpsampleOp : TPU_Op<"tl_lg_upsample",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuTLOpCodegenInterface>]> {
+  let summary = "TL upsample operator";
+
+  let description = [{
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    I32Attr:$la_input,
+    I32Attr:$scale,
+    I32Attr:$la_output,
+    OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
+    DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
+    DefaultValuedAttr<BoolAttr, "false">:$do_relu,
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
+def TPU_TL_LG_LeakyReluOp : TPU_Op<"tl_lg_leaky_relu",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuTLOpCodegenInterface>]> {
+  let summary = "TL leaky relu operator";
+
+  let description = [{
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    I32Attr:$la_input,
+    I32Attr:$la_output,
+    OptionalAttr<I8Attr>:$rshift_pos,
+    OptionalAttr<I8Attr>:$m_i8_pos,
+    OptionalAttr<I8Attr>:$rshift_neg,
+    OptionalAttr<I8Attr>:$m_i8_neg,
+    OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
+    DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
 #endif // TPU_TL_OPS_LG

@@ -47,6 +47,7 @@ typedef enum {
   IR_MAC,
   IR_ELTWISE,
   IR_PRELU,
+  IR_LEAKY_RELU,
   IR_ACTIVATION,
   IR_UPSAMPLE,
   IR_SHUFFLECHANNEL,
@@ -173,6 +174,11 @@ class ImConcat : public ImLayer {
 class ImUpsample : public ImLayer {
  public:
   explicit ImUpsample(Operation *op);
+};
+
+class ImLeakyRelu : public ImLayer {
+ public:
+  explicit ImLeakyRelu(Operation *op);
 };
 
 class ImDeconv : public ImLayer {

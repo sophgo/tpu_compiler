@@ -207,6 +207,16 @@ void MixNet::add_tl_layer(int group_idx, int layer_id, net_timestep* time_step, 
       _add_tl_broadcast_mul_op(mix_op, in_tensors, out_tensors, time_step,
                         timestep_idx, is_h_split);
       break;
+    case IR_UPSAMPLE:
+      mix_op->set_type("tl_upsample");
+      _add_tl_upsample_op(mix_op, in_tensors, out_tensors, time_step,
+                          timestep_idx, is_h_split);
+      break;
+    case IR_LEAKY_RELU:
+      mix_op->set_type("tl_leaky_relu");
+      _add_tl_leaky_relu_op(mix_op, in_tensors, out_tensors, time_step,
+                            timestep_idx, is_h_split);
+      break;
     default:
       cout << "unknown layer type:" << layer_type << endl;
   }
@@ -912,10 +922,7 @@ void MixNet::_add_tl_broadcast_mul_op(MixOp * mix_op,
                       ArrayRef<Value *>{operands},
                       ArrayRef<NamedAttribute>{attrs});
   add_opd_to_list(mix_op->name(), op.getResult(), true);
-
-
 }
-
 
 void MixNet::_add_tl_lrn_op(MixOp * mix_op,
                               const vector<int>& in_tensors,
@@ -1254,6 +1261,191 @@ void MixNet::_add_store_op(int tensor_id, net_timestep * time_step, int timestep
           output_type, ArrayRef<Value *>{operands}, ArrayRef<NamedAttribute>{attrs});
   add_opd_to_list(store_op_name, op.getResult(), true);
 
+}
+
+void MixNet::_add_tl_upsample_op(MixOp * mix_op,
+                                   const vector<int>& in_tensors,
+                                   const vector<int>& out_tensors,
+                                   net_timestep* time_step,
+                                   int timestep_idx,
+                                   bool is_h_split) {
+  const ImLayer* im_layer = net_graph_->get_layer_by_id(mix_op->get_layer_id());
+  const Tensor* in_tensor = net_graph_->get_tensor_by_id(in_tensors[0]);
+  const Tensor* out_tensor = net_graph_->get_tensor_by_id(out_tensors[0]);
+  auto old_op = (im_layer->op());
+  auto upsample_op = dyn_cast<tpu::UpsampleOp>(old_op);
+  auto opd0 = old_op->getOperand(0);
+  auto old_input_type = opd0->getType().cast<RankedTensorType>();
+  auto scale = upsample_op.scale().getLimitedValue();
+
+  int bottom_dim[4];
+  int top_dim[4];
+
+  net_graph_->get_tensor_dim(in_tensors[0], bottom_dim);
+  net_graph_->get_tensor_dim(out_tensors[0], top_dim);
+  bottom_dim[0] = in_tensor->n_slice;
+  bottom_dim[2] = in_tensor->h_slice;
+
+  top_dim[0] = out_tensor->n_slice;
+  top_dim[2] = out_tensor->h_slice;
+
+  if (is_h_split) {
+    int real_h_slice = 0;
+    int real_h_idx = 0;
+
+    // bottom
+    if (in_tensor->h_idx > 0) {
+      real_h_idx = in_tensor->h_idx;
+    } else {
+      real_h_idx = 0;
+    }
+    int h_end = in_tensor->h_idx + in_tensor->h_slice;
+    if (h_end > in_tensor->h()) {
+      real_h_slice = in_tensor->h() - real_h_idx;
+    } else {
+      real_h_slice = h_end - real_h_idx;
+    }
+    bottom_dim[2] = real_h_slice;
+    top_dim[2] = bottom_dim[2] * scale;
+  }
+
+  string name = mix_op->name();
+  int layer_id = mix_op->get_layer_id();
+  u32 la_input = net_graph_->get_tensor_local_offset(in_tensors[0]);
+  u32 la_output = net_graph_->get_tensor_local_offset(out_tensors[0]);
+
+  Builder builder_(context_);
+  vector<NamedAttribute> attrs;
+  attrs.push_back(builder_.getNamedAttr("name",
+                           builder_.getStringAttr(name)));
+  attrs.push_back(builder_.getNamedAttr("layer_id",
+                           builder_.getI32IntegerAttr(layer_id)));
+  attrs.push_back(builder_.getNamedAttr("la_input",
+                           builder_.getI32IntegerAttr(la_input)));
+  attrs.push_back(builder_.getNamedAttr("la_output",
+                           builder_.getI32IntegerAttr(la_output)));
+  attrs.push_back(builder_.getNamedAttr("scale",
+                           builder_.getI32IntegerAttr(scale)));
+
+
+
+  // setup input/output type
+  RankedTensorType input_type = RankedTensorType::get(
+                          {bottom_dim[0], bottom_dim[1],
+                           bottom_dim[2], bottom_dim[3]},
+                           old_input_type.getElementType());
+
+  RankedTensorType output_type = RankedTensorType::get(
+                          {top_dim[0], top_dim[1],
+                           top_dim[2], top_dim[3]},
+                           old_input_type.getElementType());
+
+
+   // setup input operation
+  vector<Value *> operands;
+  Operation * input_op =
+                    get_op_from_name(mix_op->bottom_name(0))->getDefiningOp();
+  input_op->getResult(0)->setType(input_type);
+  operands.push_back(input_op->getResult(0));
+
+  // build tl_upsample operation
+  auto op = OpBuilder(get_start_op()).create<tpu::TL_LG_UpsampleOp>(
+                      get_start_op()->getLoc(), output_type,
+                      ArrayRef<Value *>{operands},
+                      ArrayRef<NamedAttribute>{attrs});
+  add_opd_to_list(mix_op->name(), op.getResult(), true);
+}
+
+void MixNet::_add_tl_leaky_relu_op(MixOp * mix_op,
+                                   const vector<int>& in_tensors,
+                                   const vector<int>& out_tensors,
+                                   net_timestep* time_step,
+                                   int timestep_idx,
+                                   bool is_h_split) {
+  const ImLayer* im_layer = net_graph_->get_layer_by_id(mix_op->get_layer_id());
+  const Tensor* in_tensor = net_graph_->get_tensor_by_id(in_tensors[0]);
+  const Tensor* out_tensor = net_graph_->get_tensor_by_id(out_tensors[0]);
+  auto old_op = (im_layer->op());
+  auto leaky_relu_op = dyn_cast<tpu::LeakyReluOp>(old_op);
+  auto opd0 = old_op->getOperand(0);
+  auto old_input_type = opd0->getType().cast<RankedTensorType>();
+  Builder builder_(context_);
+  vector<NamedAttribute> attrs;
+
+  TensorFile *wTF = getWeightTensorFile(old_op);
+
+  auto rshift_pos     = readWeightTensor<float>(
+                            leaky_relu_op.quant_pos_rshift(), wTF);
+  auto multiplier_pos = readWeightTensor<float>(
+                            leaky_relu_op.quant_pos_multiplier(), wTF);
+  auto rshift_neg     = readWeightTensor<float>(
+                            leaky_relu_op.quant_neg_rshift(), wTF);
+  auto multiplier_neg = readWeightTensor<float>(
+                            leaky_relu_op.quant_neg_multiplier(), wTF);
+
+  bool do_pos_scale = (multiplier_pos->at(0) != 0.0) ? true : false;
+
+  if (do_pos_scale) {
+    LLVM_DEBUG(llvm::errs() << "    do_pos_scale\n";);
+    attrs.push_back(builder_.getNamedAttr("rshift_pos",
+        builder_.getI8IntegerAttr(static_cast<int8_t>(rshift_pos->at(0)))));
+    attrs.push_back(builder_.getNamedAttr("m_i8_pos",
+        builder_.getI8IntegerAttr(static_cast<int8_t>(multiplier_pos->at(0)))));
+  } else {
+    LLVM_DEBUG(llvm::errs() << "    NO pos_scale\n";);
+  }
+  attrs.push_back(builder_.getNamedAttr("rshift_neg",
+      builder_.getI8IntegerAttr(static_cast<int8_t>(rshift_neg->at(0)))));
+  attrs.push_back(builder_.getNamedAttr("m_i8_neg",
+      builder_.getI8IntegerAttr(static_cast<int8_t>(multiplier_neg->at(0)))));
+
+  int bottom_dim[4];
+  int top_dim[4];
+
+  net_graph_->get_tensor_dim(in_tensors[0], bottom_dim);
+  net_graph_->get_tensor_dim(out_tensors[0], top_dim);
+  bottom_dim[0] = in_tensor->n_slice;
+  bottom_dim[2] = in_tensor->h_slice;
+
+  top_dim[0] = out_tensor->n_slice;
+  top_dim[2] = out_tensor->h_slice;
+
+  string name = mix_op->name();
+  int layer_id = mix_op->get_layer_id();
+  u32 la_input = net_graph_->get_tensor_local_offset(in_tensors[0]);
+  u32 la_output = net_graph_->get_tensor_local_offset(out_tensors[0]);
+
+  attrs.push_back(builder_.getNamedAttr("name",
+                           builder_.getStringAttr(name)));
+  attrs.push_back(builder_.getNamedAttr("layer_id",
+                           builder_.getI32IntegerAttr(layer_id)));
+  attrs.push_back(builder_.getNamedAttr("la_input",
+                           builder_.getI32IntegerAttr(la_input)));
+  attrs.push_back(builder_.getNamedAttr("la_output",
+                           builder_.getI32IntegerAttr(la_output)));
+  // setup input/output type
+  RankedTensorType input_type = RankedTensorType::get(
+                          { bottom_dim[0], bottom_dim[1],
+                            bottom_dim[2], bottom_dim[3]},
+                            old_input_type.getElementType());
+
+  RankedTensorType output_type = RankedTensorType::get(
+                          { top_dim[0], top_dim[1],
+                            top_dim[2], top_dim[3]},
+                            old_input_type.getElementType());
+  // setup input operation
+  vector<Value *> operands;
+  Operation * input_op =
+                    get_op_from_name(mix_op->bottom_name(0))->getDefiningOp();
+  input_op->getResult(0)->setType(input_type);
+  operands.push_back(input_op->getResult(0));
+
+  // build tl_upsample operation
+  auto op = OpBuilder(get_start_op()).create<tpu::TL_LG_LeakyReluOp>(
+                      get_start_op()->getLoc(), output_type,
+                      ArrayRef<Value *>{operands},
+                      ArrayRef<NamedAttribute>{attrs});
+  add_opd_to_list(mix_op->name(), op.getResult(), true);
 }
 
 }

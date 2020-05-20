@@ -53,6 +53,31 @@ extern int BF16_TABLE_END;
 
 namespace mlir {
 
+static void parseTLLeakyReluParam(Operation *op,
+    int8_t &pos_rshift, int8_t &pos_m_i8,
+    int8_t &neg_rshift, int8_t &neg_m_i8) {
+  auto lreluOp = llvm::dyn_cast<tpu::TL_LG_LeakyReluOp>(op);
+  assert(lreluOp);
+
+  if (lreluOp.m_i8_pos().hasValue()) {
+    pos_m_i8 = lreluOp.m_i8_pos().getValue().getLimitedValue();
+    pos_rshift = lreluOp.rshift_pos().getValue().getLimitedValue();
+    assert(pos_m_i8);
+  } else {
+    pos_m_i8 = 0;
+    pos_rshift = 0;
+  }
+
+  if (lreluOp.m_i8_neg().hasValue()) {
+    neg_m_i8 = lreluOp.m_i8_neg().getValue().getLimitedValue();
+    neg_rshift = lreluOp.rshift_neg().getValue().getLimitedValue();
+    assert(neg_m_i8);
+  } else {
+    neg_m_i8 = 0;
+    neg_rshift = 0;
+  }
+}
+
 LogicalResult tpu::TL_LG_Conv2DOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);
@@ -515,5 +540,74 @@ LogicalResult tpu::TL_LG_BroadcastMulOp::codegen(void *ctx) {
   return success();
 }
 
+LogicalResult tpu::TL_LG_UpsampleOp::codegen(void *ctx) {
+  llvm::errs() << "TL_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
 
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  getNCHW(shape, n, c, h, w);
+
+  laddr_t la_input = this->la_input().getLimitedValue();
+  laddr_t la_output = this->la_output().getLimitedValue();
+  auto scale = this->scale().getLimitedValue();
+  int layer_id = mlir::getOpLayerId(op);
+
+  cvi_backend_tl_upsample(
+      *backend_ctx,
+      0, //stream_id,
+      0, //inst_id,
+      layer_id, //layer_id,
+      nullptr, //const u32 *depends,
+      0, //depends_len,
+      la_input,
+      la_output,
+      n,
+      c,
+      h,
+      w,
+      scale,
+      scale
+  );
+  return success();
+}
+
+LogicalResult tpu::TL_LG_LeakyReluOp::codegen(void *ctx) {
+  llvm::errs() << "TL_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  int8_t pos_rshift, pos_m_i8, neg_rshift, neg_m_i8;
+  parseTLLeakyReluParam(op, pos_rshift, pos_m_i8, neg_rshift, neg_m_i8);
+
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  getNCHW(shape, n, c, h, w);
+
+  laddr_t la_input = this->la_input().getLimitedValue();
+  laddr_t la_output = this->la_output().getLimitedValue();
+  int layer_id = mlir::getOpLayerId(op);
+
+  cvi_backend_tl_leaky_relu(
+      *backend_ctx,
+      0, //stream_id,
+      0, //inst_id,
+      layer_id, //layer_id,
+      nullptr, //const u32 *depends,
+      0, //depends_len,
+      la_input,
+      la_output,
+      n,
+      c,
+      h,
+      w,
+      pos_rshift, neg_rshift, pos_m_i8, neg_m_i8
+  );
+  return success();
+}
 }

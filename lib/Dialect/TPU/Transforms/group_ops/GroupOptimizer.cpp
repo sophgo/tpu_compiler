@@ -759,7 +759,9 @@ void GroupOptimizer::lower_to_tl_group(MLIRContext * context) {
       LGLoweringPattern<tpu::PoolAvg2DOp>,
       LGLoweringPattern<tpu::PoolMax2DOp>,
       LGLoweringPattern<tpu::LrnOp>,
-      LGLoweringPattern<tpu::BroadcastMulOp>
+      LGLoweringPattern<tpu::BroadcastMulOp>,
+      LGLoweringPattern<tpu::UpsampleOp>,
+      LGLoweringPattern<tpu::LeakyReluOp>
       >(fn_, context, this);
   applyPatternsGreedily(*fn_, patterns_pack);
 

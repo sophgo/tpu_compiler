@@ -43,6 +43,9 @@ DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 # Batch 1, 112 fps
 # Batch 4, 122 fps
 
+# yolo_v3_416 pass, on chip performance
+# Batch 1, 16 fps
+# Batch 4, 16.8 fps
 
 # compare all only support when global memory optimization close
 COMPARE_ALL=0
