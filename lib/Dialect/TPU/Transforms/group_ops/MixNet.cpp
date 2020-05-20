@@ -213,9 +213,9 @@ void MixNet::add_tl_layer(int group_idx, int layer_id, net_timestep* time_step, 
 }
 
 void MixNet::_add_tl_convolution_op(MixOp* mix_op,
-                                       const vector<int>& in_tensors,
-                                       const vector<int>& out_tensors, net_timestep* time_step,
-                                       int timestep_idx, bool is_h_split) {
+                                    const vector<int>& in_tensors,
+                                    const vector<int>& out_tensors, net_timestep* time_step,
+                                    int timestep_idx, bool is_h_split) {
   const ImLayer* im_layer = net_graph_->get_layer_by_id(mix_op->get_layer_id());
   auto old_op = dyn_cast<tpu::Conv2DOp>(im_layer->op());
   bool is_dw, with_bias, do_relu;
@@ -567,6 +567,7 @@ void MixNet::_add_tl_eltwise_op(MixOp* mix_op,
   int nInputs = old_op.getNumOperands();
   int newNInputs = nInputs - 4;
   int bottom_dim[4];
+  int top_dim[4];
 
   u64 working_laddr = 0;
   u64 la_output = 0;
@@ -603,6 +604,19 @@ void MixNet::_add_tl_eltwise_op(MixOp* mix_op,
                           builder_.getBoolAttr(do_relu)));
   attrs.push_back(builder_.getNamedAttr("layer_id", old_op.layer_idAttr()));
 
+  top_dim[2] = bottom_dim[2];
+  top_dim[3] = bottom_dim[3];
+  if (old_op.do_early_stride()) {
+    attrs.push_back(builder_.getNamedAttr("do_early_stride",
+        builder_.getBoolAttr(old_op.do_early_stride())));
+    attrs.push_back(builder_.getNamedAttr("early_stride_h",
+                                         old_op.early_stride_hAttr()));
+    attrs.push_back(builder_.getNamedAttr("early_stride_w",
+                                         old_op.early_stride_wAttr()));
+    top_dim[2] = bottom_dim[2] / old_op.early_stride_h().getLimitedValue();
+    top_dim[3] = bottom_dim[3] / old_op.early_stride_w().getLimitedValue();
+  }
+
   // setup input/output type
   RankedTensorType input_type =
     RankedTensorType::get({
@@ -613,7 +627,7 @@ void MixNet::_add_tl_eltwise_op(MixOp* mix_op,
   RankedTensorType output_type =
     RankedTensorType::get({
       bottom_dim[0], bottom_dim[1],
-      bottom_dim[2], bottom_dim[3] },
+      top_dim[2],    top_dim[3] },
       old_input_type.getElementType());
 
 
@@ -1010,8 +1024,8 @@ void MixNet::_add_tl_lrn_op(MixOp * mix_op,
 
 
 void MixNet::add_transport_op(const TENSOR_STEP& tensor,
-                                 net_timestep* time_step,
-                                 int timestep_idx) {
+                              net_timestep* time_step,
+                              int timestep_idx) {
   int tensor_id = tensor.first;
   if (tensor.second == TIMESTEP_LOAD) {
     _add_load_op(tensor_id, time_step, timestep_idx);
@@ -1024,8 +1038,8 @@ void MixNet::add_transport_op(const TENSOR_STEP& tensor,
 }
 
 void MixNet::_add_load_op(int tensor_id,
-                             net_timestep* time_step,
-                             int timestep_idx) {
+                          net_timestep* time_step,
+                          int timestep_idx) {
   int tensor_dim[4];
   int local_shape[4], global_shape[4];
   u64 laddr = 0, gaddr = 0;

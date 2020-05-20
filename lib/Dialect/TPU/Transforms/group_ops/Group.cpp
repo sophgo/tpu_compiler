@@ -572,6 +572,16 @@ bool Group::backward_slice(int out_tensor_id, list<int>& branches, bool max_h_sl
 
       h_idx = out_h_idx / size;
       h_slice = out_h_slice / size;
+    } else if ( layer_type == IR_ELTWISE ) {
+      h_idx = out_h_idx;
+      h_slice = out_h_slice;
+      if (auto op = dyn_cast<tpu::EltwiseAddOp>(im_layer->op())) {
+        if (op.do_early_stride() == true) {
+          int h_stride = op.early_stride_h().getLimitedValue();
+          h_idx = out_h_idx * h_stride;
+          h_slice = out_h_slice * h_stride;
+        }
+      }
     } else {
       h_idx = out_h_idx;
       h_slice = out_h_slice;

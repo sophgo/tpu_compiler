@@ -167,6 +167,9 @@ def TPU_TL_LG_EltwiseAddOp : TPU_Op<"tl_lg_eltwise_add",
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
     DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
+    DefaultValuedAttr<BoolAttr, "false">:$do_early_stride,
+    DefaultValuedAttr<I32Attr, "1">:$early_stride_h,
+    DefaultValuedAttr<I32Attr, "1">:$early_stride_w,
     StrAttr:$name,
     OptionalAttr<NonNegativeI32Attr>:$layer_id
   );
