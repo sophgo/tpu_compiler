@@ -109,6 +109,7 @@ class OnnxConverter(BaseConverter):
         self.output_tensor_file = "{}_1_06eeeb7e.npz".format(model_name)
         self.onnxop_factory = {
             "Add": lambda node: self.convert_add_op(node),
+            "AveragePool": lambda node: self.convert_avg_pool_op(node),
             "BatchNormalization": lambda node: self.convert_batchnorm_op(node),
             "Concat": lambda node: self.convert_concat_op(node),
             "Conv": lambda node: self.convert_conv_op(node),
@@ -304,6 +305,32 @@ class OnnxConverter(BaseConverter):
             add_op = self.CVI.add_eltwise_add_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
             self.addOperand(onnx_node.name, add_op, output_shape, TensorType.ACTIVATION)
 
+    def convert_avg_pool_op(self, onnx_node):
+        assert(onnx_node.op_type == "AveragePool")
+        op, input_shape, _ = self.getOperand(onnx_node.inputs[0])
+        operands = list()
+        operands.append(op)
+        on = input_shape[0]
+        oc = input_shape[1]
+        pads = onnx_node.attrs['pads'] if "pads" in onnx_node.attrs else [0, 0, 0, 0]
+        strides = onnx_node.attrs['strides'] if "strides" in onnx_node.attrs else [1, 1]
+        kernel_shape = onnx_node.attrs['kernel_shape']
+        pool_avg_2d_param = {
+            'stride_h':  strides[0],
+            'stride_w':  strides[1],
+            'kernel_h':  kernel_shape[0],
+            'kernel_w':  kernel_shape[1],
+            'padding_t': pads[0],
+            'padding_b': pads[1],
+            'padding_l': pads[2],
+            'padding_r': pads[3],
+            'do_relu': False,
+        }
+        oh = calcPool2DFloor(input_shape[2], pool_avg_2d_param['kernel_h'], pool_avg_2d_param['stride_h'], pool_avg_2d_param['padding_t'])
+        ow = calcPool2DFloor(input_shape[2], pool_avg_2d_param['kernel_w'], pool_avg_2d_param['stride_w'], pool_avg_2d_param['padding_l'])
+        output_shape = [int(on), int(oc), oh, ow]
+        pool_avg_op = self.CVI.add_pool_avg_2d_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **pool_avg_2d_param)
+        self.addOperand(onnx_node.name, pool_avg_op, output_shape, TensorType.ACTIVATION)
 
     def convert_batchnorm_op(self, onnx_node):
         assert(onnx_node.op_type == "BatchNormalization")
