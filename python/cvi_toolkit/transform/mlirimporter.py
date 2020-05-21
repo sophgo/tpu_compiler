@@ -25,6 +25,7 @@ class TPU_OpType(Enum):
     Eltwise_Add = 'tpu.eltwise_add'
     Eltwise_Mul = 'tpu.eltwise_mul'
     FullyConnected = 'tpu.fully_connected'
+    LeakyRelu = 'tpu.leaky_relu'
     Permute = 'tpu.permute'
     PixelShuffle = 'tpu.pixelshuffle'
     PoolAvg2D = 'tpu.pool_avg_2d'
@@ -147,6 +148,20 @@ class MLIRImporter(object):
         return self.buildOp(TPU_OpType.BroadcastAdd.value, inputOperands, [
             tensor_output_type], name=broadcast_add_name, axis=axis_attr, quant=self.quant_param)
 
+    def add_batchnorm_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+        tensor_output_type = self.module.make_ranked_tensor_type(
+            self.f32Type, output_tensor_shape)
+        checkKey(kargs, 'variance_epsilon')
+
+        variance_epsilon = kargs['variance_epsilon']
+        checkType(variance_epsilon, float)
+
+        batchnorm_name = self.module.stringAttr(op_name)
+        variance_epsilon_attr = self.module.floatAttr(variance_epsilon)
+
+        return self.buildOp(TPU_OpType.BatchNorm.value, inputOperands, [
+            tensor_output_type], name=batchnorm_name, variance_epsilon=variance_epsilon_attr)
+
     def add_clip_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         assert(len(inputOperands) == 1)
         tensor_output_type = self.module.make_ranked_tensor_type(
@@ -185,6 +200,7 @@ class MLIRImporter(object):
         inputOpernads = self.add_quant_reg(inputOperands)
         return self.buildOp(TPU_OpType.Concat.value, inputOperands, [
             tensor_output_type], name=concat_name, axis=axis_attr, quant=self.quant_param)
+
 
     def add_conv_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         """
@@ -225,6 +241,7 @@ class MLIRImporter(object):
         return self.buildOp(TPU_OpType.Conv2d.value, inputOperands, [
                      tensor_output_type], name=conv_name, param=dict_attr, quant=self.quant_param)
 
+
     def add_crop_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         """
             args:
@@ -249,20 +266,6 @@ class MLIRImporter(object):
 
         return self.buildOp(TPU_OpType.Crop.value, inputOperands, [
             tensor_output_type], name=crop_name, crop_offset=crop_offset_attr, crop_shape=crop_shape_attr)
-
-    def add_batchnorm_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
-        tensor_output_type = self.module.make_ranked_tensor_type(
-            self.f32Type, output_tensor_shape)
-        checkKey(kargs, 'variance_epsilon')
-
-        variance_epsilon = kargs['variance_epsilon']
-        checkType(variance_epsilon, float)
-
-        batchnorm_name = self.module.stringAttr(op_name)
-        variance_epsilon_attr = self.module.floatAttr(variance_epsilon)
-
-        return self.buildOp(TPU_OpType.BatchNorm.value, inputOperands, [
-            tensor_output_type], name=batchnorm_name, variance_epsilon=variance_epsilon_attr)
 
     def add_deconv_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         """
@@ -338,6 +341,27 @@ class MLIRImporter(object):
         fully_connected_name = self.module.stringAttr(op_name)
         return self.buildOp(TPU_OpType.FullyConnected.value, inputOperands, [
             tensor_output_type], name=fully_connected_name, quant=self.quant_param)
+
+    def add_leaky_relu_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+        tensor_output_type = self.module.make_ranked_tensor_type(
+        self.f32Type, output_tensor_shape)
+
+        checkKey(kargs, 'negative_slope')
+
+        leaky_relu_param = {
+            'negative_slope': self.module.floatAttr(kargs['negative_slope'])
+        }
+
+        leaky_relu_name = self.module.stringAttr(op_name)
+
+        none = self.add_none_op()
+        # quant_pos_scale, quant_pos_zeropoint, quant_neg_scale, quant_neg_zeropoint
+        # quant_pos_rshift, quant_pos_multiplier, quant_neg_rshift, quant_neg_multiplier
+        for i in range( 9 - len(inputOperands)):
+            inputOperands.append(none)
+
+        return self.buildOp(TPU_OpType.LeakyRelu.value, inputOperands, [
+            tensor_output_type], name=leaky_relu_name, quant=self.quant_param, **leaky_relu_param)
 
     def add_pool_avg_2d_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = self.module.make_ranked_tensor_type(
