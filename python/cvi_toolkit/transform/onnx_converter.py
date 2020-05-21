@@ -116,6 +116,7 @@ class OnnxConverter(BaseConverter):
             "Clip": lambda node: self.convert_clip_op(node),
             "Constant": lambda node: self.convert_constant_op(node),
             "ConstantOfShape": lambda node: self.convert_constant_of_shape_op(node),
+            "DepthToSpace": lambda node: self.convert_depth_to_space_op(node),
             "Div": lambda node: self.convert_div_op(node),
             "Flatten": lambda node: self.convert_flatten_op(node),
             "Gather": lambda node: self.convert_gather_op(node),
@@ -400,7 +401,7 @@ class OnnxConverter(BaseConverter):
             self.addOperand(onnx_node.name, None, input_shape, TensorType.TENSOR)
         else:
             raise ValueError("Not Support {} type".format(data_type))
-            
+
     def convert_concat_op(self, onnx_node):
         assert(onnx_node.op_type == "Concat")
         if len(onnx_node.inputs) < 2:
@@ -524,6 +525,23 @@ class OnnxConverter(BaseConverter):
             operands.append(op)
             clip_op = self.CVI.add_clip_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **clip_param)
             self.addOperand(onnx_node.name, clip_op, output_shape, TensorType.TENSOR)
+
+    def convert_depth_to_space_op(self, onnx_node):
+        assert(onnx_node.op_type == "DepthToSpace")
+        op, input_shape, _ = self.getOperand(onnx_node.inputs[0])
+        upscale_factor = onnx_node.attrs['blocksize']
+
+        on = input_shape[0]
+        oc = input_shape[1] / upscale_factor**2
+        oh = upscale_factor * input_shape[2]
+        ow = upscale_factor * input_shape[3]
+        output_shape = [on, int(oc), oh, ow]
+        operands = [op]
+        attr={
+            'upscale_factor': upscale_factor
+        }
+        pixel_shuffle_op = self.CVI.add_pixelshuffle_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **attr)
+        self.addOperand(onnx_node.name, pixel_shuffle_op, output_shape, TensorType.ACTIVATION)
 
     def convert_div_op(self, onnx_node):
         assert(len(onnx_node.inputs) == 2)
