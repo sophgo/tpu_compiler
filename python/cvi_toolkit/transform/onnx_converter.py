@@ -129,6 +129,7 @@ class OnnxConverter(BaseConverter):
             "Reshape": lambda node: self.convert_reshape_op(node),
             "Shape": lambda node: self.convert_shape_op(node),
             "Sigmoid" :lambda node: self.convert_sigmoid_op(node),
+            "Softmax": lambda node: self.convert_softmax_op(node),
             "Squeeze": lambda node: self.convert_squeeze_op(node),
             "Transpose": lambda node: self.convert_transpose_op(node),
             "Unsqueeze": lambda node: self.convert_unsqueeze_op(node),
@@ -803,6 +804,25 @@ class OnnxConverter(BaseConverter):
         output_shape = input_shape
         sigmoid_op = self.CVI.add_sigmoid_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
         self.addOperand(onnx_node.name, sigmoid_op, output_shape, TensorType.ACTIVATION)
+
+    def convert_softmax_op(self, onnx_node):
+        assert(onnx_node.op_type == "Softmax")
+        op, input_shape, tensor_type = self.getOperand(onnx_node.inputs[0])
+        output_shape = input_shape
+        
+        if tensor_type == TensorType.TENSOR:
+            data = self.getTensor(onnx_node.inputs[0]).tensor_data
+            output_data = np.exp(data) / np.sum(np.exp(data), axis=(len(input_shape) - 1))
+            self.addTensor(onnx_node.name, output_data, list(output_shape))
+            self.addOperand(onnx_node.name, None, output_shape, TensorType.TENSOR)
+        else:
+            operands = [op]
+
+            softmax_param = {
+                'axis': len(input_shape) - 1,
+            }
+            softmax_op = self.CVI.add_softmax_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **softmax_param)
+            self.addOperand(onnx_node.name, softmax_op, output_shape, TensorType.ACTIVATION)
 
     def convert_squeeze_op(self, onnx_node):
         assert(onnx_node.op_type == "Squeeze")
