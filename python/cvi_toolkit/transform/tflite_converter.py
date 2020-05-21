@@ -13,6 +13,7 @@ from ..utils.log_setting import setup_logger
 
 from tflite.BuiltinOperator import BuiltinOperator
 from tflite.Conv2DOptions import Conv2DOptions
+from tflite.DepthwiseConv2DOptions import DepthwiseConv2DOptions
 from tflite.Model import Model
 from tflite.Padding import Padding
 from tflite.Pool2DOptions import Pool2DOptions
@@ -131,7 +132,7 @@ class TFLiteConverter(BaseConverter):
         self.tfliteop_factory = {
             "ADD": lambda node: self.convert_add_op(node),
             "CONV_2D": lambda node: self.convert_conv_op(node),
-            "DEPTHWISE_CONV_2D": lambda node: self.convert_deconv_op(node),
+            "DEPTHWISE_CONV_2D": lambda node: self.convert_depthwise_conv_op(node),
             "FULLY_CONNECTED": lambda node: self.convert_fc_op(node),
             "MAX_POOL_2D": lambda node: self.convert_maxpool_op(node),
             "MEAN": lambda node: self.convert_mean_op(node),
@@ -403,7 +404,7 @@ class TFLiteConverter(BaseConverter):
         self.addOperand(node.name, conv_op, output_shape,
                         TensorType.ACTIVATION)
 
-    def convert_deconv_op(self, node):
+    def convert_depthwise_conv_op(self, node):
         assert(node.op_type == "DEPTHWISE_CONV_2D")
 
         op, shape, _ = self.getOperand(str(node.inputs[0]))
@@ -426,8 +427,8 @@ class TFLiteConverter(BaseConverter):
 
         op_build_info = node.proto.BuiltinOptions()
         # Parse the Table of options.
-        deconv_table = DepthwiseConv2DOptions()
-        deconv_table.Init(op_build_info.Bytes, op_build_info.Pos)
+        depthwise_conv_table = DepthwiseConv2DOptions()
+        depthwise_conv_table.Init(op_build_info.Bytes, op_build_info.Pos)
         # Check if input is padding op
         padding_data = None
         try:
@@ -438,29 +439,29 @@ class TFLiteConverter(BaseConverter):
         except KeyError as k:
             # Not padding op
             pass
-        deconv_param = {
-            'stride_h': deconv_table.StrideH(),
-            'stride_w': deconv_table.StrideW(),
-            'padding': "SAME" if deconv_table.Padding() == Padding.SAME or isinstance(padding_data, np.ndarray) else "VALID",
-            'dilation_h': deconv_table.DilationHFactor(),
-            'dilation_w': deconv_table.DilationWFactor(),
+        depthwise_conv_param = {
+            'stride_h': depthwise_conv_table.StrideH(),
+            'stride_w': depthwise_conv_table.StrideW(),
+            'padding': "SAME" if depthwise_conv_table.Padding() == Padding.SAME or isinstance(padding_data, np.ndarray) else "VALID",
+            'dilation_h': depthwise_conv_table.DilationHFactor(),
+            'dilation_w': depthwise_conv_table.DilationWFactor(),
             'group': 1,  # Don't have group option?
             'is_dw': False,
             'with_bias': len(node.inputs) > 2,
-            'do_relu': deconv_table.FusedActivationFunction() == ActivationFunctionType.RELU,
+            'do_relu': depthwise_conv_table.FusedActivationFunction() == ActivationFunctionType.RELU,
         }
         on = shape[0]
         oc = filter_shape[0] # feature map size
         # padding data order is NHWC
         # if padding data is not np.ndarray (not from bottom layer)
         # and conv_table.Padding() is SAME, we need to calculate it.
-        if deconv_table.Padding() == Padding.SAME:
-            out_h = ceil(shape[2]/deconv_param['stride_h'])
+        if depthwise_conv_table.Padding() == Padding.SAME:
+            out_h = ceil(shape[2]/depthwise_conv_param['stride_h'])
             padding_h = get_TF_SAME_Padding(
-                shape[2], out_h, filter_shape[2], deconv_param['stride_h'])
-            out_w = ceil(shape[3]/deconv_param['stride_w'])
+                shape[2], out_h, filter_shape[2], depthwise_conv_param['stride_h'])
+            out_w = ceil(shape[3]/depthwise_conv_param['stride_w'])
             padding_w = get_TF_SAME_Padding(
-                shape[3], out_w, filter_shape[3], deconv_param['stride_w'])
+                shape[3], out_w, filter_shape[3], depthwise_conv_param['stride_w'])
         else:
             padding_h = 0
             padding_w = 0
@@ -468,22 +469,22 @@ class TFLiteConverter(BaseConverter):
         oh = calcConv2DSpatial(
             shape[2],
             filter_shape[2],
-            deconv_param['stride_h'],
+            depthwise_conv_param['stride_h'],
             padding_data[1][0] if isinstance(
                 padding_data, np.ndarray) else padding_h,
-            deconv_param['dilation_h'],
+            depthwise_conv_param['dilation_h'],
         )
         ow = calcConv2DSpatial(
             shape[3],
             filter_shape[3],
-            deconv_param['stride_w'],
+            depthwise_conv_param['stride_w'],
             padding_data[2][0] if isinstance(padding_data, np.ndarray) else padding_w,
-            deconv_param['dilation_w'],
+            depthwise_conv_param['dilation_w'],
         )
         output_shape = [on, oc, oh, ow]
-        deconv_op = self.CVI.add_deconv_op("{}".format(
-            node.name), operands, output_shape, **deconv_param)
-        self.addOperand(node.name, deconv_op, output_shape,
+        depthwise_conv_op = self.CVI.add_conv_op("{}".format(
+            node.name), operands, output_shape, **depthwise_conv_param)
+        self.addOperand(node.name, depthwise_conv_op, output_shape,
                         TensorType.ACTIVATION)
 
     def convert_fc_op(self, node):
@@ -541,8 +542,8 @@ class TFLiteConverter(BaseConverter):
         pool_max_2d_param = {
             'stride_h': pool_table.StrideH(),
             'stride_w': pool_table.StrideW(),
-            'kernel_h': pool_table.FilterWidth(),
-            'kernel_w': pool_table.FilterHeight(),
+            'kernel_h': pool_table.FilterHeight(),
+            'kernel_w': pool_table.FilterWidth(),
             'padding_b': padding_data[1][0] if isinstance(padding_data, np.ndarray) else 0,
             'padding_r': padding_data[2][0] if isinstance(padding_data, np.ndarray) else 0,
             'padding_t': padding_data[1][1] if isinstance(padding_data, np.ndarray) else 0,

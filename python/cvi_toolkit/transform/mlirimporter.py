@@ -296,7 +296,7 @@ class MLIRImporter(object):
             'do_relu': self.module.boolAttr(kargs['do_relu']),
         }
 
-        dict_attr = self.module.dictAttr(**conv_param)
+        dict_attr = self.module.dictAttr(**deconv_param)
         none = self.add_none_op()
         for i in range(7 - len(inputOperands)):
             inputOperands.append(none)
@@ -451,7 +451,7 @@ class MLIRImporter(object):
 
     def add_sigmoid_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = self.module.make_ranked_tensor_type(
-        self.f32Type, output_tensor_shape)
+            self.f32Type, output_tensor_shape)
 
         sigmoid_name = self.module.stringAttr(op_name)
         none = self.add_none_op()
