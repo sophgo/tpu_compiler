@@ -195,8 +195,8 @@ class TFLiteConverter(BaseConverter):
 
         if len(shape) == 4:
             """
-                In tflite define is NHWC
-                return List of NCHW
+                In tflite define is OHWI
+                return List of OIHW
             """
             return [shape[0], shape[3], shape[1], shape[2]], np.ascontiguousarray(np.transpose(data, (0, 3, 1, 2))) if HAS_DATA else None
         elif len(shape) == 2 or len(shape) == 1:
@@ -237,8 +237,8 @@ class TFLiteConverter(BaseConverter):
             output = tflite_op.Outputs(0)
             name = str(output)
             node = TFLiteNode(name, op_type, inputs, output, tflite_op)
-
-            node.print_info()
+            if log_flag:
+                node.print_info()
             self.converted_nodes.append(node)
 
     def convert_graph(self):
@@ -329,7 +329,6 @@ class TFLiteConverter(BaseConverter):
         operands.append(op)
         on = input_shape[0]
         oc = input_shape[1]
-        print(node)
         op_build_info = node.proto.BuiltinOptions()
         pool_table = Pool2DOptions()
         pool_table.Init(op_build_info.Bytes, op_build_info.Pos)
@@ -466,7 +465,28 @@ class TFLiteConverter(BaseConverter):
         # filter
         filter_tensor_idx = node.inputs[1]
         filter_name = "{}_add_weight".format(filter_tensor_idx)
-        filter_op, filter_shape = self.createLoadWeightOp(filter_tensor_idx, filter_name)
+
+        filter_tensor = self.tflite_graph.Tensors(filter_tensor_idx)
+        filter_shape = self.get_tflite_tensor_shape(filter_tensor)
+        filter_data = self.get_tflite_tensor_data(filter_tensor)
+
+        filter_data = np.frombuffer(filter_data.tobytes(), dtype=np.float32)
+        filter_data = filter_data.reshape(tuple(filter_shape))
+
+        # origin shape is (ic/g, kh, kw, g)
+        g = filter_shape[3]
+        kh = filter_shape[1]
+        kw = filter_shape[2]
+        ic = shape[1]
+        oc = ic
+        # tranpose to (g, oc/g, ic/g, kh, kw)
+        filter_data = np.transpose(filter_data, (3, 0, 1, 2))  # (g, ic/g, kh, kw)
+
+        filter_data = np.ascontiguousarray(
+            filter_data.flatten().reshape(g, int(ic/g), int(oc/g), kh, kw))
+        filter_shape = [g, int(ic/g), int(oc/g), kh, kw]
+        self.addTensor(filter_name, filter_data, filter_shape, None)
+        filter_op = self.CVI.add_load_file_op(filter_name, filter_shape)
         operands.append(filter_op)
 
         # bias
@@ -497,30 +517,31 @@ class TFLiteConverter(BaseConverter):
             'padding': "SAME" if depthwise_conv_table.Padding() == Padding.SAME or isinstance(padding_data, np.ndarray) else "VALID",
             'dilation_h': depthwise_conv_table.DilationHFactor(),
             'dilation_w': depthwise_conv_table.DilationWFactor(),
-            'group': 1,  # Don't have group option?
-            'is_dw': False,
+            'group': filter_shape[0],
+            'is_dw': True,
             'with_bias': len(node.inputs) > 2,
             'do_relu': False,
         }
+        print(depthwise_conv_param, node.name)
         on = shape[0]
-        oc = filter_shape[0] # feature map size
+
         # padding data order is NHWC
         # if padding data is not np.ndarray (not from bottom layer)
         # and conv_table.Padding() is SAME, we need to calculate it.
         if depthwise_conv_table.Padding() == Padding.SAME:
             out_h = ceil(shape[2]/depthwise_conv_param['stride_h'])
             padding_h = get_TF_SAME_Padding(
-                shape[2], out_h, filter_shape[2], depthwise_conv_param['stride_h'])
+                shape[2], out_h, filter_shape[3], depthwise_conv_param['stride_h'])
             out_w = ceil(shape[3]/depthwise_conv_param['stride_w'])
             padding_w = get_TF_SAME_Padding(
-                shape[3], out_w, filter_shape[3], depthwise_conv_param['stride_w'])
+                shape[3], out_w, filter_shape[4], depthwise_conv_param['stride_w'])
         else:
             padding_h = 0
             padding_w = 0
 
         oh = calcConv2DSpatial(
             shape[2],
-            filter_shape[2],
+            filter_shape[3],
             depthwise_conv_param['stride_h'],
             padding_data[1][0] if isinstance(
                 padding_data, np.ndarray) else padding_h,
@@ -528,7 +549,7 @@ class TFLiteConverter(BaseConverter):
         )
         ow = calcConv2DSpatial(
             shape[3],
-            filter_shape[3],
+            filter_shape[4],
             depthwise_conv_param['stride_w'],
             padding_data[2][0] if isinstance(padding_data, np.ndarray) else padding_w,
             depthwise_conv_param['dilation_w'],
