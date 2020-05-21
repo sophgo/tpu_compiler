@@ -115,6 +115,7 @@ class OnnxConverter(BaseConverter):
             "Conv": lambda node: self.convert_conv_op(node),
             "Clip": lambda node: self.convert_clip_op(node),
             "Constant": lambda node: self.convert_constant_op(node),
+            "ConstantOfShape": lambda node: self.convert_constant_of_shape_op(node),
             "Div": lambda node: self.convert_div_op(node),
             "Flatten": lambda node: self.convert_flatten_op(node),
             "Gather": lambda node: self.convert_gather_op(node),
@@ -379,12 +380,27 @@ class OnnxConverter(BaseConverter):
             np_tensor = np_tensor.astype(np.float32).flatten()
             # add new weight tensor
 
-            self.addTensor(onnx_node.name, np_tensor, np_tensor.shape)
+            self.addTensor(onnx_node.name, np_tensor, list(np_tensor.shape))
             self.addOperand(onnx_node.name, None, list(np_tensor.shape), TensorType.TENSOR)
 
         else:
             raise ValueError("Not Support {} type".format(data_type))
+    def convert_constant_of_shape_op(self, onnx_node):
+        assert(onnx_node.op_type == "ConstantOfShape")
+        op, input_shape, tensor_type = self.getOperand(onnx_node.inputs[0])
+        onnx_tensor = onnx_node.attrs['value']
+        np_tensor =  numpy_helper.to_array(onnx_tensor)
+        data_type = onnx_dtype(onnx_tensor.data_type)
 
+        if data_type in [np.float32, np.float64, np.int32, np.int64]:
+            np_tensor = np_tensor.astype(np.float32).flatten()
+            constant_data = np.full(tuple(input_shape), np_tensor[0])
+            # add new weight tensor
+            self.addTensor(onnx_node.name, constant_data, input_shape)
+            self.addOperand(onnx_node.name, None, input_shape, TensorType.TENSOR)
+        else:
+            raise ValueError("Not Support {} type".format(data_type))
+            
     def convert_concat_op(self, onnx_node):
         assert(onnx_node.op_type == "Concat")
         if len(onnx_node.inputs) < 2:
