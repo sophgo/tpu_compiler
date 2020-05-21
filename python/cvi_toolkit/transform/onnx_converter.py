@@ -123,6 +123,7 @@ class OnnxConverter(BaseConverter):
             "Gemm": lambda node: self.convert_gemm_op(node),
             "GlobalAveragePool": lambda node: self.convert_global_pool_op(node),
             "GlobalMaxPool": lambda node: self.convert_global_pool_op(node),
+            "LeakyRelu": lambda node: self.convert_leaky_relu_op(node),
             "MaxPool": lambda node: self.convert_maxpool_op(node),
             "Mul" : lambda node: self.convert_mul_op(node),
             "Relu": lambda node: self.convert_relu_op(node),
@@ -673,6 +674,27 @@ class OnnxConverter(BaseConverter):
             pool_op = self.CVI.add_pool_max_2d_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **pool_2d_param)
         self.addOperand(onnx_node.name, pool_op, output_shape, TensorType.ACTIVATION)
 
+    def convert_leaky_relu_op(self, onnx_node):
+        assert(onnx_node.op_type == "LeakyRelu")
+        alpha = onnx_node.attrs.get("alpha", 0.01)
+        leaky_relu_param = {
+            'negative_slope': float(alpha),
+        }
+        op, input_shape, tensor_type = self.getOperand(onnx_node.inputs[0])
+        if tensor_type == TensorType.TENSOR:
+            tensor_data = self.getTensor(onnx_node.inputs[0]).tensor_data
+            output_data = y = np.clip(tensor_data, 0, np.inf) + np.clip(tensor_data, -np.inf, 0) * alpha
+            output_shape = output_data.shape
+            self.addTensor(onnx_node.name, output_data, list(output_shape))
+            self.addOperand(onnx_node.name, None, output_shape, TensorType.TENSOR)
+        else:
+            operands = list()
+            operands.append(op)
+            output_shape = input_shape
+            leaky_relu_op = self.CVI.add_leaky_relu_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **leaky_relu_param)
+            self.addOperand(onnx_node.name, leaky_relu_op, output_shape, TensorType.ACTIVATION)
+
+
     def convert_maxpool_op(self, onnx_node):
         assert(onnx_node.op_type == "MaxPool")
         pool_max_2d_param = {
@@ -698,21 +720,6 @@ class OnnxConverter(BaseConverter):
         pool_max_op = self.CVI.add_pool_max_2d_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **pool_max_2d_param)
         self.addOperand(onnx_node.name, pool_max_op, output_shape, TensorType.ACTIVATION)
 
-    def convert_relu_op(self, onnx_node):
-        assert(onnx_node.op_type == "Relu")
-        op, input_shape, tensor_type = self.getOperand(onnx_node.inputs[0])
-        if tensor_type == TensorType.TENSOR:
-            tensor_data = self.getTensor(onnx_node.inputs[0]).tensor_data
-            output_data = np.clip(tensor_data, 0, np.inf)
-            output_shape = output_data.shape
-            self.addTensor(onnx_node.name, output_data, list(output_shape))
-            self.addOperand(onnx_node.name, None, output_shape, TensorType.TENSOR)
-        else:
-            operands = list()
-            operands.append(op)
-            output_shape = input_shape
-            relu_op = self.CVI.add_relu_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
-            self.addOperand(onnx_node.name, relu_op, output_shape, TensorType.ACTIVATION)
 
     def convert_mul_op(self, onnx_node):
         assert(onnx_node.op_type == "Mul")
@@ -745,6 +752,22 @@ class OnnxConverter(BaseConverter):
 
             self.addOperand(onnx_node.name, mul_op, output_shape, TensorType.ACTIVATION)
 
+    def convert_relu_op(self, onnx_node):
+        assert(onnx_node.op_type == "Relu")
+        op, input_shape, tensor_type = self.getOperand(onnx_node.inputs[0])
+        if tensor_type == TensorType.TENSOR:
+            tensor_data = self.getTensor(onnx_node.inputs[0]).tensor_data
+            output_data = np.clip(tensor_data, 0, np.inf)
+            output_shape = output_data.shape
+            self.addTensor(onnx_node.name, output_data, list(output_shape))
+            self.addOperand(onnx_node.name, None, output_shape, TensorType.TENSOR)
+        else:
+            operands = list()
+            operands.append(op)
+            output_shape = input_shape
+            relu_op = self.CVI.add_relu_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
+            self.addOperand(onnx_node.name, relu_op, output_shape, TensorType.ACTIVATION)
+            
     def convert_reshape_op(self, onnx_node):
         assert(onnx_node.op_type == "Reshape")
         """
@@ -809,7 +832,7 @@ class OnnxConverter(BaseConverter):
         assert(onnx_node.op_type == "Softmax")
         op, input_shape, tensor_type = self.getOperand(onnx_node.inputs[0])
         output_shape = input_shape
-        
+
         if tensor_type == TensorType.TENSOR:
             data = self.getTensor(onnx_node.inputs[0]).tensor_data
             output_data = np.exp(data) / np.sum(np.exp(data), axis=(len(input_shape) - 1))
