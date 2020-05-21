@@ -22,7 +22,7 @@ def checkReturnValue(ret, func: str):
     else:
         logger.error("error occured: {}, func: {}\nmsg: {}".format(ret.returncode, func, ret))
 
-def mlir_translate(model_file, weight_file, mlirfile,batch_size=1):
+def mlir_translate(model_file, weight_file, mlirfile, batch_size=1):
 
     ret = subprocess.run(["mlir-translate", "--caffe-to-mlir", model_file,
                     "--caffemodel", weight_file,
