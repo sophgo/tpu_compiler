@@ -121,7 +121,8 @@ class OnnxConverter(BaseConverter):
             "Flatten": lambda node: self.convert_flatten_op(node),
             "Gather": lambda node: self.convert_gather_op(node),
             "Gemm": lambda node: self.convert_gemm_op(node),
-            "GlobalAveragePool": lambda node: self.convert_global_avg_pool_op(node),
+            "GlobalAveragePool": lambda node: self.convert_global_pool_op(node),
+            "GlobalMaxPool": lambda node: self.convert_global_pool_op(node),
             "MaxPool": lambda node: self.convert_maxpool_op(node),
             "Mul" : lambda node: self.convert_mul_op(node),
             "Relu": lambda node: self.convert_relu_op(node),
@@ -645,15 +646,15 @@ class OnnxConverter(BaseConverter):
         fc_op = self.CVI.add_fully_connected_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
         self.addOperand(onnx_node.name, fc_op, output_shape, TensorType.ACTIVATION)
 
-    def convert_global_avg_pool_op(self, onnx_node):
-        assert(onnx_node.op_type == "GlobalAveragePool")
+    def convert_global_pool_op(self, onnx_node):
+        assert(onnx_node.op_type == "GlobalAveragePool" or onnx_node.op_type == "GlobalMaxPool")
         op, input_shape, _ = self.getOperand(onnx_node.inputs[0])
         operands = list()
         operands.append(op)
         on = input_shape[0]
         oc = input_shape[1]
 
-        pool_avg_2d_param = {
+        pool_2d_param = {
             'stride_h':  1,
             'stride_w':  1,
             'kernel_h':  input_shape[2],
@@ -665,8 +666,11 @@ class OnnxConverter(BaseConverter):
             'do_relu': False,
         }
         output_shape = [int(on), int(oc), 1, 1]
-        pool_avg_op = self.CVI.add_pool_avg_2d_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **pool_avg_2d_param)
-        self.addOperand(onnx_node.name, pool_avg_op, output_shape, TensorType.ACTIVATION)
+        if onnx_node.op_type == "GlobalAveragePool":
+            pool_op = self.CVI.add_pool_avg_2d_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **pool_2d_param)
+        elif onnx_node.op_type == "GlobalMaxPool":
+            pool_op = self.CVI.add_pool_max_2d_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **pool_2d_param)
+        self.addOperand(onnx_node.name, pool_op, output_shape, TensorType.ACTIVATION)
 
     def convert_maxpool_op(self, onnx_node):
         assert(onnx_node.op_type == "MaxPool")
