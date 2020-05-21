@@ -634,12 +634,19 @@ class OnnxConverter(BaseConverter):
 
     def convert_relu_op(self, onnx_node):
         assert(onnx_node.op_type == "Relu")
-        op, input_shape, _ = self.getOperand(onnx_node.inputs[0])
-        operands = list()
-        operands.append(op)
-        output_shape = input_shape
-        relu_op = self.CVI.add_relu_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
-        self.addOperand(onnx_node.name, relu_op, output_shape, TensorType.ACTIVATION)
+        op, input_shape, tensor_type = self.getOperand(onnx_node.inputs[0])
+        if tensor_type == TensorType.TENSOR:
+            tensor_data = self.getTensor(onnx_node.inputs[0]).tensor_data
+            output_data = np.clip(tensor_data, 0, np.inf)
+            output_shape = output_data.shape
+            self.addTensor(onnx_node.name, output_data, list(output_shape))
+            self.addOperand(onnx_node.name, None, output_shape, TensorType.TENSOR)
+        else:
+            operands = list()
+            operands.append(op)
+            output_shape = input_shape
+            relu_op = self.CVI.add_relu_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
+            self.addOperand(onnx_node.name, relu_op, output_shape, TensorType.ACTIVATION)
 
     def convert_mul_op(self, onnx_node):
         assert(onnx_node.op_type == "Mul")
