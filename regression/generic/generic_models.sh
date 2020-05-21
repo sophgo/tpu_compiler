@@ -396,12 +396,37 @@ export EVAL_MODEL_TYPE="lfw"
 #export DO_ACCURACY_CAFFE=0
 fi
 
+if [ $NET = "retinaface_mnet25_600" ]; then
+export MODEL_DEF=$MODEL_PATH/face_detection/retinaface/caffe/mnet_600.prototxt
+export MODEL_DAT=$MODEL_PATH/face_detection/retinaface/caffe/mnet.caffemodel
+export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_caffe/regression_retinaface_mnet25_0_caffe.sh
+export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/retinaface_mnet25_calibration_table
+export INPUT=data
+export NET_INPUT_DIMS=600,600
+export TOLERANCE_INT8_MULTIPLER=0.90,0.85,0.54
+export DO_QUANT_INT8_PER_TENSOR=0
+export DO_QUANT_INT8_RFHIFT_ONLY=0
+export DO_QUANT_BF16=0
+export DO_LAYERGROUP=1
+export USE_LAYERGROUP=1
+# accuracy setting
+export NET_INPUT_DIMS=600,600
+export EVAL_MODEL_TYPE="widerface"
+export OBJ_THRESHOLD=0.005
+export NMS_THRESHOLD=0.45
+export DATASET=$DATASET_PATH/widerface/WIDER_val/images
+export ANNOTATION=$DATASET_PATH/widerface/wider_face_split
+#export DO_ACCURACY_CAFFE=0
+#export DO_ACCURACY_ONNX=0
+fi
+
 if [ $NET = "retinaface_mnet25" ]; then
 export MODEL_DEF=$MODEL_PATH/face_detection/retinaface/caffe/mnet_320.prototxt
 export MODEL_DAT=$MODEL_PATH/face_detection/retinaface/caffe/mnet.caffemodel
-export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_caffe/regression_${NET}_0_caffe.sh
-export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table
+export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_caffe/regression_retinaface_mnet25_0_caffe.sh
+export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/retinaface_mnet25_calibration_table
 export INPUT=data
+export NET_INPUT_DIMS=320,320
 export TOLERANCE_INT8_MULTIPLER=0.90,0.85,0.54
 export DO_QUANT_INT8_PER_TENSOR=0
 export DO_QUANT_INT8_RFHIFT_ONLY=0

@@ -73,6 +73,7 @@ net_list_generic_extra=(
   "senet_res50"
   # "arcface_res50"
   # "retinaface_mnet25"
+  "retinaface_mnet25_600"
   "retinaface_res50"
   "ssd300"
   "yolo_v2_1080"
