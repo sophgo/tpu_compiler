@@ -1713,50 +1713,7 @@ def TPU_SwapChannelOp: TPU_Op<"swap_channel",
 
   let results = (outs AnyTensor:$output);
 }
-
-def TPU_TanHOp: TPU_Op<"tanh",
-      [NoSideEffect,
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
-       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
-       DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
-  let summary = "TanH operator";
-
-  let description = [{
-    TanH operator.
-
-    Inputs:
-      `input`           : required, the input activation tensor.
-
-    Attributes:
-      `quant`           : required, a QuantParam struct attributes.
-      `name`            : required, name for calibration, comparing, or debug.
-      `layer_id`        : optional, id for profiling.
-
-    Result:
-      `output`          : result tensor.
-
-    Interfaces or Traits:
-      `NoSideEffect`
-      `TPU_QuantPerTensorOnly`
-      `TPU_QuantSupportAsymmetric`
-      `TPU_QuantSameInputResultScale` : input and result share same threshold
-                                        or scale (bypassed).
-      `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpInterpInterface` : support interperter
-      `TpuOpQuantInterface`  : support quantization
-      `TpuOpLowerInterface`  : support lower
-  }];
-
-  let arguments = (
-    ins AnyTensor:$input,
-    TPU_QuantParamAttr:$quant,
-    StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
-  );
-
-  let results = (outs AnyTensor:$output);
-}
+def TPU_TanHOp : TPU_LutOp<"tanh", "TanH">;
 
 def TPU_TransposeOp : TPU_Op<"transpose",
       [NoSideEffect,

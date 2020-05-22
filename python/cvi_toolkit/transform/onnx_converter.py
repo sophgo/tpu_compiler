@@ -129,9 +129,10 @@ class OnnxConverter(BaseConverter):
             "Relu": lambda node: self.convert_relu_op(node),
             "Reshape": lambda node: self.convert_reshape_op(node),
             "Shape": lambda node: self.convert_shape_op(node),
-            "Sigmoid" :lambda node: self.convert_sigmoid_op(node),
+            "Sigmoid" :lambda node: self.convert_activation_op(node),
             "Softmax": lambda node: self.convert_softmax_op(node),
             "Squeeze": lambda node: self.convert_squeeze_op(node),
+            "Tanh": lambda node: self.convert_activation_op(node),
             "Transpose": lambda node: self.convert_transpose_op(node),
             "Unsqueeze": lambda node: self.convert_unsqueeze_op(node),
             "Upsample": lambda node: self.convert_upsample_op(node),
@@ -260,6 +261,25 @@ class OnnxConverter(BaseConverter):
         mlir_txt = self.CVI.print_module()
         with open(self.mlir_file_path, "w") as f:
             f.write(mlir_txt)
+
+    def convert_activation_op(self, onnx_node):
+        op, input_shape, tensor_type = self.getOperand(onnx_node.inputs[0])
+        operands = [op]
+        output_shape = input_shape
+        if tensor_type == TensorType.TENSOR:
+            tensor_data = self.getTensor(onnx_node.inputs[0]).tensor_data
+            if onnx_node.op_type == "Sigmoid":
+                tensor_data = 1.0 / (1.0 + np.exp(np.negative(tensor_data)))
+            elif onnx_node.op_type == "Tanh":
+                tensor_data = np.tanh(tensor_data)
+            self.addTensor(onnx_node.name, tensor_data, output_shape)
+            self.addOperand(onnx_node.name, None, output_shape, TensorType.TENSOR)
+        else:
+            if onnx_node.op_type == "Sigmoid":
+                activation_op = self.CVI.add_sigmoid_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
+            elif onnx_node.op_type == "Tanh":
+                activation_op = self.CVI.add_tanh_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
+            self.addOperand(onnx_node.name, activation_op, output_shape, TensorType.ACTIVATION)
 
     def convert_add_op(self, onnx_node):
         assert(len(onnx_node.inputs) == 2)
@@ -767,7 +787,7 @@ class OnnxConverter(BaseConverter):
             output_shape = input_shape
             relu_op = self.CVI.add_relu_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
             self.addOperand(onnx_node.name, relu_op, output_shape, TensorType.ACTIVATION)
-            
+
     def convert_reshape_op(self, onnx_node):
         assert(onnx_node.op_type == "Reshape")
         """
@@ -820,13 +840,6 @@ class OnnxConverter(BaseConverter):
         self.addTensor(onnx_node.name, data, list(data.shape))
         self.addOperand(onnx_node.name, None, list(data.shape), TensorType.TENSOR)
 
-    def convert_sigmoid_op(self, onnx_node):
-        assert(onnx_node.op_type == "Sigmoid")
-        op, input_shape, _ = self.getOperand(onnx_node.inputs[0])
-        operands = [op]
-        output_shape = input_shape
-        sigmoid_op = self.CVI.add_sigmoid_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
-        self.addOperand(onnx_node.name, sigmoid_op, output_shape, TensorType.ACTIVATION)
 
     def convert_softmax_op(self, onnx_node):
         assert(onnx_node.op_type == "Softmax")
