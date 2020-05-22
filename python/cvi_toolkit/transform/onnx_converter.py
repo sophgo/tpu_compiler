@@ -131,6 +131,7 @@ class OnnxConverter(BaseConverter):
             "Shape": lambda node: self.convert_shape_op(node),
             "Sigmoid" :lambda node: self.convert_activation_op(node),
             "Softmax": lambda node: self.convert_softmax_op(node),
+            "Split": lambda node: self.convert_split_op(node),
             "Squeeze": lambda node: self.convert_squeeze_op(node),
             "Tanh": lambda node: self.convert_activation_op(node),
             "Transpose": lambda node: self.convert_transpose_op(node),
@@ -859,6 +860,27 @@ class OnnxConverter(BaseConverter):
             }
             softmax_op = self.CVI.add_softmax_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **softmax_param)
             self.addOperand(onnx_node.name, softmax_op, output_shape, TensorType.ACTIVATION)
+    def convert_split_op(self, onnx_node):
+        assert(onnx_node.op_type == "Split")
+        op, input_shape, tensor_type = self.getOperand(onnx_node.inputs[0])
+        axis = onnx_node.attrs.get('axis', 0)
+        if axis != 0:
+            raise RuntimeError("Now only support 1 dim")
+        if tensor_type == TensorType.TENSOR:
+            split = onnx_node.attrs.get('split', [len(onnx_node.outputs)])
+            data = self.getTensor(onnx_node.inputs[0]).tensor_data
+            if len(split) == 1:
+                outputs = np.split(data, len(onnx_node.outputs))
+                for i in onnx_node.outputs:
+                    self.addTensor(str(i), outputs[i], list(outputs[i].shape))
+                    self.addOperand(str(i), None, list(outputs[i].shape), TensorType.TENSOR)
+            else:
+                outputs = np.split(data, split)
+                for i in onnx_node.outputs:
+                    self.addTensor(str(i), outputs[i], list(outputs[i].shape))
+                    self.addOperand(str(i), None, list(outputs[i].shape), TensorType.TENSOR)
+        else:
+            raise RuntimeError("No Activation Case")
 
     def convert_squeeze_op(self, onnx_node):
         assert(onnx_node.op_type == "Squeeze")
