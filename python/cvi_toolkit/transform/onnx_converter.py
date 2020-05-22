@@ -887,13 +887,17 @@ class OnnxConverter(BaseConverter):
         op, input_shape, tensor_type = self.getOperand(onnx_node.inputs[0])
         operands = [op]
         checkKey(onnx_node.attrs, 'axes')
+        axis_value_list = onnx_node.attrs['axes']
         if tensor_type == TensorType.ACTIVATION:
-            axis_value_list = onnx_node.attrs['axes']
             new_shape = self.squeeze_shape(input_shape, axis_value_list)
             reshape_op = self.CVI.add_reshape_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, new_shape)
             self.addOperand(onnx_node.name, reshape_op, new_shape, TensorType.ACTIVATION)
         else:
-            raise RuntimeError("Todo, Squeeze input type is tensor")
+            tensor_data = self.getTensor(onnx_node.inputs[0]).tensor_data
+            output_data = np.squeeze(tensor_data, axis=axis_value_list[0])
+            output_shape = tensor_data.shape
+            self.addTensor(onnx_node.name, output_data, list(output_shape))
+            self.addOperand(onnx_node.name, None, output_shape, TensorType.TENSOR)
 
     def convert_transpose_op(self, onnx_node):
         assert(onnx_node.op_type == "Transpose")
@@ -940,15 +944,20 @@ class OnnxConverter(BaseConverter):
         assert(onnx_node.op_type == "Unsqueeze")
         op, input_shape, tensor_type = self.getOperand(onnx_node.inputs[0])
         checkKey(onnx_node.attrs, 'axes')
+        axis_value_list = onnx_node.attrs['axes']
         if tensor_type == TensorType.TENSOR:
             t = self.getTensor(onnx_node.inputs[0])
-            axis_value_list = onnx_node.attrs['axes']
+            new_t = t.tensor_data
             for a in axis_value_list:
-                new_t = np.expand_dims(t.tensor_data, axis=a)
+                new_t = np.expand_dims(new_t, axis=a)
             self.addTensor(onnx_node.name, new_t, list(new_t.shape))
             self.addOperand(onnx_node.name, None, list(new_t.shape), TensorType.TENSOR)
         else:
-            raise RuntimeError("Todo")
+            if len(axis_value_list) != 1:
+                raise RuntimeError("now only support one axis")
+            new_shape = self.unsqueeze_shape(input_shape, axis_value_list)
+            reshape_op = self.CVI.add_reshape_op("{}_{}".format(onnx_node.name, onnx_node.op_type), [op], new_shape)
+            self.addOperand(onnx_node.name, reshape_op, new_shape, TensorType.ACTIVATION)
 
     def convert_upsample_op(self, onnx_node):
         assert(onnx_node.op_type == "Upsample")
