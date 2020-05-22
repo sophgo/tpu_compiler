@@ -52,7 +52,7 @@ class ModuleInterpreter {
 public:
   // Interpret the given MLIR module expressed in MLIR TPU IR dialect
   explicit ModuleInterpreter(ModuleOp module)
-      : mlirModule(module) {
+      : mlirModule(module), weightFile_(nullptr) {
 
     for (FuncOp func : module.getOps<FuncOp>()) {
       // collect inputsList

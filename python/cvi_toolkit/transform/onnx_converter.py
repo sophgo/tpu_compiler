@@ -133,6 +133,7 @@ class OnnxConverter(BaseConverter):
             "Softmax": lambda node: self.convert_softmax_op(node),
             "Split": lambda node: self.convert_split_op(node),
             "Squeeze": lambda node: self.convert_squeeze_op(node),
+            "Sum": lambda node: self.convert_sum_op(node),
             "Tanh": lambda node: self.convert_activation_op(node),
             "Transpose": lambda node: self.convert_transpose_op(node),
             "Unsqueeze": lambda node: self.convert_unsqueeze_op(node),
@@ -898,6 +899,25 @@ class OnnxConverter(BaseConverter):
             output_shape = tensor_data.shape
             self.addTensor(onnx_node.name, output_data, list(output_shape))
             self.addOperand(onnx_node.name, None, output_shape, TensorType.TENSOR)
+
+    def convert_sum_op(self, onnx_node):
+        input_num = len(onnx_node.inputs)
+        op, input_shape, tensor_type = self.getOperand(onnx_node.inputs[0])
+        output_shape = input_shape
+        if input_num == 1:
+            self.addOperand(onnx_node.name, op, output_shape, TensorType.ACTIVATION)
+            return
+        for index in range(1, input_num):
+            op_i, input_shape_i, tensor_type_i = self.getOperand(onnx_node.inputs[index])
+            operands = list()
+            operands.append(op)
+            operands.append(op_i)
+            #broadcast not support now
+            assert(input_shape_i == input_shape)
+            op_name = "{}{}_{}".format(onnx_node.name, index, onnx_node.op_type)
+            add_op = self.CVI.add_eltwise_add_op(op_name, operands, output_shape)
+            op = add_op
+        self.addOperand(onnx_node.name, op, output_shape, TensorType.ACTIVATION)
 
     def convert_transpose_op(self, onnx_node):
         assert(onnx_node.op_type == "Transpose")
