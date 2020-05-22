@@ -9,6 +9,9 @@ DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 # Batch 1 97.5 fps
 # Batch 2 116 fps
 # Batch 4 121.3 fps
+# update
+# Batch 1 103.6 fps
+# Batch 4, 123.4 fps
 
 # mobilenet_v2 pass, on chip performance
 # Batch 1, 694.4 fps

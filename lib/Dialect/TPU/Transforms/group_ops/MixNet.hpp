@@ -60,7 +60,7 @@ class MixNet {
                     net_timestep* time_step, int timestep_idx,
                     bool is_h_split, int n_loop, int h_loop);
   void add_transport_op(const TENSOR_STEP& tensor,
-                              net_timestep* time_step, int timestep_idx);
+                        net_timestep* time_step, int timestep_idx);
 
 
   // parallel start and end

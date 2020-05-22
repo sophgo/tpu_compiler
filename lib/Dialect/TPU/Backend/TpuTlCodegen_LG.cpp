@@ -169,6 +169,11 @@ LogicalResult tpu::TL_LG_EltwiseAddOp::codegen(void *ctx) {
   int nInputs = op->getNumOperands();
   assert(op->getNumOperands() == 2 && "support 2 inputs only");
 
+  int64_t output_size, oh, ow;
+  getTensorShapeAndSize(op->getResult(0), shape, output_size);
+  oh = shape[2];
+  ow = shape[3];
+
   std::vector<int32_t> la_input_array;
   laddr_t la_input[nInputs];
   arrayAttrToVector(this->la_input().getValue(), la_input_array);
@@ -194,6 +199,13 @@ LogicalResult tpu::TL_LG_EltwiseAddOp::codegen(void *ctx) {
     m_i8_input[1] = static_cast<int8_t>(m_i8_inputs_array[1]);
   }
 
+  bool do_early_stride = this->do_early_stride();
+  int32_t early_stride_h = this->early_stride_h().getLimitedValue();
+  int32_t early_stride_w = this->early_stride_w().getLimitedValue();
+  if (do_early_stride) {
+    assert(oh == h / early_stride_h);
+    assert(ow == w / early_stride_w);
+  }
 
   // op code PROD = 0; SUM = 1; MAX = 2;
   int op_code = 1;
@@ -212,7 +224,8 @@ LogicalResult tpu::TL_LG_EltwiseAddOp::codegen(void *ctx) {
                           do_relu,
                           0, /*relu_slope,*/
                           coeffs,
-                          0);
+                          0,
+                          do_early_stride, early_stride_h, early_stride_w);
 
   return success();
 }

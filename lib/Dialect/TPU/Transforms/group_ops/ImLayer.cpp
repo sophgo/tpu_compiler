@@ -261,7 +261,7 @@ ImEltwise::ImEltwise(Operation* op) : ImLayer(IR_ELTWISE, op, true) {
 
   add_out_tensor(op->getResult(0), TENSOR_NEURON);
 
-  add_imm_tensor(in_tensors[0], 1, name_ + "_imm");
+  add_imm_tensor(out_tensors[0], 1, name_ + "_imm");
 }
 
 
