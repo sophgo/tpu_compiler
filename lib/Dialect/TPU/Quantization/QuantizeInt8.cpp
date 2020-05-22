@@ -508,16 +508,26 @@ LogicalResult quantizeInt8LutOps(Operation *op) {
                           ? 127
                           : (lutOutputI32 < -128) ? -128 : lutOutputI32;
         y0_table[n * table_hw + idx] = lutOutputI32;
-      }else if(OpTy::getOperationName()=="tpu.sigmoid"){
+      } else if (OpTy::getOperationName() == "tpu.sigmoid") {
         index = -lutInput * threshold_x / 127.0;
         float lutOutput = 1.0 / (1 + std::exp(index)) * 127.0 / threshold_y;
         int lutOutputI32 = std::floor(lutOutput + 0.5);
         lutOutputI32 = (lutOutputI32 > 127)
-                          ? 127
-                          : (lutOutputI32 < -128) ? -128 : lutOutputI32;
+                           ? 127
+                           : (lutOutputI32 < -128) ? -128 : lutOutputI32;
         y0_table[n * table_hw + idx] = lutOutputI32;
-      }else{
-        assert(false&&"not support now");
+      } else if (OpTy::getOperationName() == "tpu.tanh") {
+        index = -lutInput * threshold_x / 127.0;
+        float lutOutput = (std::exp(index) - std::exp(-index)) /
+                          (std::exp(index) + std::exp(-index)) * 127.0 /
+                          threshold_y;
+        int lutOutputI32 = std::floor(lutOutput + 0.5);
+        lutOutputI32 = (lutOutputI32 > 127)
+                           ? 127
+                           : (lutOutputI32 < -128) ? -128 : lutOutputI32;
+        y0_table[n * table_hw + idx] = lutOutputI32;
+      } else {
+        assert(false && "not support now");
       }
     }
   }

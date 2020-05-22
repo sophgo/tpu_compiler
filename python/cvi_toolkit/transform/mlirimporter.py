@@ -30,11 +30,12 @@ class TPU_OpType(Enum):
     PixelShuffle = 'tpu.pixelshuffle'
     PoolAvg2D = 'tpu.pool_avg_2d'
     PoolMax2D  = 'tpu.pool_max_2d'
+    Reshape = 'tpu.reshape'
+    Relu = 'tpu.relu'
     Scale = 'tpu.scale'
     Sigmoid = 'tpu.sigmoid'
     Softmax = 'tpu.softmax'
-    Reshape = 'tpu.reshape'
-    Relu = 'tpu.relu'
+    Tanh = 'tpu.tanh'
     Upsample = 'tpu.upsample'
 
 def checkKey(dict, key):
@@ -495,6 +496,18 @@ class MLIRImporter(object):
         }
         return self.buildOp(TPU_OpType.Softmax.value, inputOperands, [
             tensor_output_type], name=softmax_name, **softmax_param)
+
+    def add_tanh_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+        tensor_output_type = self.module.make_ranked_tensor_type(
+            self.f32Type, output_tensor_shape)
+
+        tanh_name = self.module.stringAttr(op_name)
+        none = self.add_none_op()
+        # We assigne 4 reg for tanh quant table
+        for i in range(2):
+            inputOperands.append(none)
+        return self.buildOp(TPU_OpType.Tanh.value, inputOperands, [
+            tensor_output_type], name=tanh_name, quant=self.quant_param)
 
     def add_upsample_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = self.module.make_ranked_tensor_type(
