@@ -81,8 +81,8 @@ shared_ptr<ImLayer> ImLayer::create(Operation* op) {
   } else if (isa<tpu::DeConv2DOp>(op)) {
     layer = make_shared<ImDeconv>(op);
   } else if (isa<tpu::EltwiseAddOp>(op)
-             /*||isa<tpu::EltwiseMaxOp>(op)
-             ||isa<tpu::EltwiseMulOp>(op)*/) {
+             ||isa<tpu::EltwiseMulOp>(op)
+             /*||isa<tpu::EltwiseMaxOp>(op)*/) {
     layer = make_shared<ImEltwise>(op);
   } else if (isa<tpu::FullyConnectedOp>(op)) {
     layer = make_shared<ImInnerproduct>(op);
@@ -93,11 +93,11 @@ shared_ptr<ImLayer> ImLayer::create(Operation* op) {
     layer = make_shared<ImPooling>(op);
   } else if (isa<tpu::ConcatOp>(op)) {
     layer = make_shared<ImConcat>(op);
-  }/* else if (isa<tpu::TanHOp>(op) ||
-             isa<tpu::SigmoidOp>(op) ||
-             isa<tpu::SqrtOp>(op)) {
+  }else if ( isa<tpu::SigmoidOp>(op) /* ||
+             isa<tpu::TanHOp>(op) ||
+             isa<tpu::SqrtOp>(op)*/) {
     layer = make_shared<ImActivation>(op);
-  } */else if (isa<tpu::ShuffleChannelOp>(op)) {
+  } else if (isa<tpu::ShuffleChannelOp>(op)) {
     layer = make_shared<ImShuffleChannel>(op);
   } else if (isa<tpu::SliceOp>(op)) {
     layer = make_shared<ImSlice>(op);
@@ -117,7 +117,7 @@ shared_ptr<ImLayer> ImLayer::create(Operation* op) {
   } else {
     LLVM_DEBUG(llvm::errs()
       << "Not support ImLayer: " << getOpName(op) << "\n";);
-    // assert(0);
+    //assert(0);
     layer = make_shared<ImCommon>(op, false, IR_OTHER);
   }
   return layer;
@@ -172,8 +172,8 @@ ImConv::ImConv(Operation* p) : ImLayer(IR_CONVOLUTION, p, true), conv1x1_to_fc(f
   if (is_dw)
     add_in_tensor(1, oc, 1, perchannel_size, bias_usize, storage, bias_name, TENSOR_BIAS);
   else {
-    // bias tensor start address must from tpu0, but the same as input and result that
-    // start address can start from tpux, so here we use the shape (g, oc/g, 1, 9), not
+    // bias tensor start address must from tpu0, but input and result
+    // can start from tpux, so we use the shape (g, oc/g, 1, 9), not
     // (1, oc, 1, 9)
     add_in_tensor(g, oc/g, 1, perchannel_size, bias_usize, storage, bias_name, TENSOR_BIAS);
   }
@@ -265,14 +265,14 @@ ImEltwise::ImEltwise(Operation* op) : ImLayer(IR_ELTWISE, op, true) {
 
   add_out_tensor(op->getResult(0), TENSOR_NEURON);
 
-  add_imm_tensor(out_tensors[0], 1, name_ + "_imm");
+  if (isa<tpu::EltwiseAddOp>(op))
+    add_imm_tensor(out_tensors[0], 1, name_ + "_imm");
 }
 
 
 ImCommon::ImCommon(Operation* op, bool inplace_compute, IR_TYPE type) : ImLayer(type, op) {
   is_inplace_layer = (is_inplace_layer || inplace_compute);
-  if (isa<tpu::EltwiseMaxOp>(op) ||
-      isa<tpu::EltwiseMulOp>(op))
+  if (isa<tpu::EltwiseMaxOp>(op))
       fusible = false;
   // skip rshift and multiplier
   int nInputs = op->getNumOperands();
@@ -301,11 +301,27 @@ ImConcat::ImConcat(Operation* op) : ImLayer(IR_CONCAT, op) {
 }
 
 ImActivation::ImActivation(Operation* op) : ImLayer(IR_ACTIVATION, op, true) {
-  if (isa<tpu::SigmoidOp>(op) || isa<tpu::TanHOp>(op)) {
+  if (isa<tpu::TanHOp>(op)) {
     this->fusible = false;
   }
 
   add_in_tensor(op->getOperand(0), TENSOR_NEURON);
+
+  // add y table
+  auto load_y_table = cast<tpu::LoadWeightOp>(op->getOperand(1)->getDefiningOp());
+  int usize = getOperandStorageSize(load_y_table);
+  string storage = getOperandStorage(load_y_table);
+  string y_table_name = load_y_table.name().getValue().str();
+  add_in_tensor(1, 32, 16, 16, usize, storage, y_table_name, TENSOR_COEFF);
+
+  // add m_table
+  if (!isa<tpu::SigmoidOp>(op)) {
+    auto load_m_table = cast<tpu::LoadWeightOp>(op->getOperand(2)->getDefiningOp());
+    usize = getOperandStorageSize(load_m_table);
+    storage = getOperandStorage(load_m_table);
+    string m_table_name = load_m_table.name().getValue().str();
+    add_in_tensor(1, 32, 16, 16, usize, storage, m_table_name, TENSOR_COEFF);
+  }
 
   if (isa<tpu::PReluOp>(op) && (op->getNumOperands() == 2 )) {
     string storage = "int8";

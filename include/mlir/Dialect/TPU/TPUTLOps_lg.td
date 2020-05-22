@@ -177,6 +177,35 @@ def TPU_TL_LG_EltwiseAddOp : TPU_Op<"tl_lg_eltwise_add",
   let results = (outs AnyTensor:$output);
 }
 
+def TPU_TL_LG_EltwiseMulOp : TPU_Op<"tl_lg_eltwise_mul",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuTLOpCodegenInterface>]> {
+  let summary = "TL Eltwise mul operator";
+
+  let description = [{
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    AnyTensor:$addend,
+    OptionalAttr<I8Attr>:$rshift,
+    OptionalAttr<I32Attr>:$m_i32,
+    DefaultValuedAttr<BoolAttr, "false">:$do_relu,
+    OptionalAttr<I32ArrayAttr>:$la_input,
+    I32Attr:$la_working,
+    I32Attr:$la_output,
+    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
+    OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
+    DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
 class TPU_TL_LG_Pool2DOp<string mnemonic, string opQuant, string opType> : TPU_Op<mnemonic,
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
@@ -231,6 +260,32 @@ def TPU_TL_LG_LrnOp : TPU_Op<"tl_lg_lrn",
     I32Attr:$la_output,
     I32Attr:$la_sqrt,
     I32Attr:$la_power,
+    I32Attr:$la_working,
+    DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
+    DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
+    OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
+def TPU_TL_LG_LutOp : TPU_Op<"tl_lg_lut",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuTLOpCodegenInterface>]> {
+  let summary = "TL Lut operator";
+
+  let description = [{
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$y_lut,
+    StrAttr:$name,
+    I32Attr:$la_input,
+    I32Attr:$la_output,
+    I32Attr:$la_y_table,
     I32Attr:$la_working,
     DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
     DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,

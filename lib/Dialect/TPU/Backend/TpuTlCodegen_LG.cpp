@@ -255,6 +255,65 @@ LogicalResult tpu::TL_LG_EltwiseAddOp::codegen(void *ctx) {
   return success();
 }
 
+LogicalResult tpu::TL_LG_EltwiseMulOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+  int layer_id = mlir::getOpLayerId(op);
+  TensorFile *wTF = getWeightTensorFile(op);
+
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  getNCHW(shape, n, c, h, w);
+  bool do_relu = this->do_relu();
+  int nInputs = op->getNumOperands();
+  assert(op->getNumOperands() == 2 && "support 2 inputs only");
+
+  std::vector<int32_t> la_input_array;
+  laddr_t la_input[nInputs];
+  arrayAttrToVector(this->la_input().getValue(), la_input_array);
+  for (unsigned i = 0; i < nInputs; ++i) {
+      la_input[i] = la_input_array[i];
+  }
+
+  laddr_t la_output = this->la_output().getLimitedValue();
+  laddr_t la_working = this->la_working().getLimitedValue();
+
+  bool do_quant_rescale = false;
+  int8_t rshift;
+  int32_t m_i32;
+  if (this->rshift().hasValue() && this->m_i32().hasValue()) {
+    do_quant_rescale = true;
+    rshift = this->rshift().getValue().getLimitedValue();
+    m_i32 = this->m_i32().getValue().getLimitedValue();
+  }
+
+  // op code PROD = 0; SUM = 1; MAX = 2;
+  int op_code = 0;
+  const int coeffs[2] = {1, 1};
+
+  cvi_backend_tl_eltwise( *backend_ctx,
+                          layer_id, /*u32 layer_id,*/
+                          la_input,
+                          la_output,
+                          la_working,
+                          n, c, h, w, nInputs,
+                          op_code,
+                          rshift,
+                          0, /*m_i8*/
+                          true, /*use_default_coeff,*/
+                          do_relu,
+                          0, /*relu_slope,*/
+                          coeffs,
+                          m_i32,
+                          0, 0, 0);
+
+  return success();
+}
+
 LogicalResult tpu::TL_LG_LrnOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);
@@ -291,6 +350,35 @@ LogicalResult tpu::TL_LG_LrnOp::codegen(void *ctx) {
                       sum_rshift_i8,
                       lrn_rshift_i8,
                       m_i8);
+}
+
+LogicalResult tpu::TL_LG_LutOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+  int layer_id = mlir::getOpLayerId(op);
+
+  laddr_t la_input = this->la_input().getLimitedValue();
+  laddr_t la_output = this->la_output().getLimitedValue();
+  laddr_t la_working = this->la_working().getLimitedValue();
+  laddr_t la_y_table = this->la_y_table().getLimitedValue();
+
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  getNCHW(shape, n, c, h, w);
+
+  cvi_backend_tl_lut( *backend_ctx,
+                      layer_id,
+                      la_input,
+                      la_output,
+                      la_working,
+                      la_y_table,
+                      n, c, h, w);
+  return success();
+
 }
 
 
@@ -497,8 +585,8 @@ LogicalResult tpu::TL_LG_INT8_PoolMax2DOp::codegen(void *ctx) {
 }
 
 LogicalResult tpu::TL_LG_BroadcastMulOp::codegen(void *ctx) {
-  llvm::errs() << "TL_codegen: " << getOperationName()
-               << " [" << getOpName() << "]\n";
+  LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 

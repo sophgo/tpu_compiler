@@ -413,7 +413,7 @@ LogicalResult tpu::TL_LutOp::codegen(void *ctx) {
     llvm::errs() << "\n";
   );
 
-  cvi_backend_tl_lut(
+  cvi_backend_tl_lut_LA(
     *backend_ctx, layer_id,
     la_input, la_output, la_working,
     ga_input, ga_output, y0_table_gaddr,

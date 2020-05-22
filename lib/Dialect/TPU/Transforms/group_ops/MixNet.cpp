@@ -179,33 +179,39 @@ void MixNet::add_tl_layer(int group_idx, int layer_id, net_timestep* time_step, 
   switch (layer_type) {
     case IR_CONVOLUTION:
       mix_op->set_type("tl_convolution");
-      _add_tl_convolution_op(mix_op, in_tensors, out_tensors, time_step,
-                                timestep_idx, is_h_split);
+      _add_tl_convolution_op(mix_op, in_tensors, out_tensors,
+                             time_step, timestep_idx, is_h_split);
       break;
     case IR_DECONVOLUTION:
       mix_op->set_type("tl_deconvolution");
-      _add_tl_deconvolution_op(mix_op, in_tensors, out_tensors, time_step,
-                                timestep_idx, is_h_split);
+      _add_tl_deconvolution_op(mix_op, in_tensors, out_tensors,
+                               time_step, timestep_idx, is_h_split);
       break;
     case IR_ELTWISE:
       mix_op->set_type("tl_eltwise");
-      _add_tl_eltwise_op(mix_op, in_tensors, out_tensors, time_step,
-                            timestep_idx, is_h_split);
+      _add_tl_eltwise_op(mix_op, in_tensors, out_tensors,
+                          time_step, timestep_idx, is_h_split);
+
       break;
     case IR_POOLING:
       mix_op->set_type("tl_pooling");
-      _add_tl_pooling_op(mix_op, in_tensors, out_tensors, time_step, timestep_idx,
-                            is_h_split);
+      _add_tl_pooling_op(mix_op, in_tensors, out_tensors,
+                          time_step, timestep_idx, is_h_split);
       break;
     case IR_LRN:
       mix_op->set_type("tl_lrn");
-      _add_tl_lrn_op(mix_op, in_tensors, out_tensors, time_step,
-                        timestep_idx, is_h_split);
+      _add_tl_lrn_op(mix_op, in_tensors, out_tensors,
+                      time_step, timestep_idx, is_h_split);
       break;
     case IR_BROADCAST_MUL:
       mix_op->set_type("tl_broadcast_mul");
-      _add_tl_broadcast_mul_op(mix_op, in_tensors, out_tensors, time_step,
-                        timestep_idx, is_h_split);
+      _add_tl_broadcast_mul_op(mix_op, in_tensors, out_tensors,
+                               time_step, timestep_idx, is_h_split);
+      break;
+    case IR_ACTIVATION:
+      mix_op->set_type("tl_activation");
+      _add_tl_activation_op(mix_op, in_tensors, out_tensors,
+                            time_step, timestep_idx, is_h_split);
       break;
     case IR_UPSAMPLE:
       mix_op->set_type("tl_upsample");
@@ -562,11 +568,29 @@ void MixNet::_add_tl_deconvolution_op(MixOp* mix_op,
   add_opd_to_list(mix_op->name(), op.getResult(), true);
 }
 
+
 void MixNet::_add_tl_eltwise_op(MixOp* mix_op,
-                                   const vector<int>& in_tensors,
-                                   const vector<int>& out_tensors,
-                                   net_timestep* time_step,
-                                   int timestep_idx, bool is_h_split) {
+                                const vector<int>& in_tensors,
+                                const vector<int>& out_tensors,
+                                net_timestep* time_step,
+                                int timestep_idx, bool is_h_split) {
+  int id = mix_op->get_layer_id();
+  const ImLayer* im_layer = net_graph_->get_layer_by_id(id);
+  if (isa<tpu::EltwiseAddOp>(im_layer->op())) {
+    _add_tl_eltwise_add_op(mix_op, in_tensors, out_tensors,
+                           time_step, timestep_idx, is_h_split);
+  } else if (isa<tpu::EltwiseMulOp>(im_layer->op())) {
+    _add_tl_eltwise_mul_op(mix_op, in_tensors, out_tensors,
+                           time_step, timestep_idx, is_h_split);
+  }
+}
+
+
+void MixNet::_add_tl_eltwise_add_op(MixOp* mix_op,
+                                const vector<int>& in_tensors,
+                                const vector<int>& out_tensors,
+                                net_timestep* time_step,
+                                int timestep_idx, bool is_h_split) {
   int id = mix_op->get_layer_id();
   const ImLayer* im_layer = net_graph_->get_layer_by_id(id);
   const Tensor* in_tensor = im_layer->in_tensors[0].get();
@@ -669,6 +693,100 @@ void MixNet::_add_tl_eltwise_op(MixOp* mix_op,
 
   // build eltwiseadd operation
   auto op = OpBuilder(get_start_op()).create<tpu::TL_LG_EltwiseAddOp>(
+                      get_start_op()->getLoc(), output_type,
+                      ArrayRef<Value *>{operands},
+                      ArrayRef<NamedAttribute>{attrs});
+
+  add_opd_to_list(mix_op->name(), op.getResult(), true);
+}
+
+
+void MixNet::_add_tl_eltwise_mul_op(MixOp* mix_op,
+                                const vector<int>& in_tensors,
+                                const vector<int>& out_tensors,
+                                net_timestep* time_step,
+                                int timestep_idx, bool is_h_split) {
+  int id = mix_op->get_layer_id();
+  const ImLayer* im_layer = net_graph_->get_layer_by_id(id);
+  const Tensor* in_tensor = im_layer->in_tensors[0].get();
+  auto old_op = dyn_cast<tpu::EltwiseMulOp>(im_layer->op());
+  auto old_input_type =
+       old_op.getOperand(0)->getType().cast<RankedTensorType>();
+  bool do_relu = old_op.do_relu();
+  int nInputs = old_op.getNumOperands();
+  int newNInputs = nInputs - 4;
+  int bottom_dim[4];
+  u64 working_laddr = 0;
+  u64 la_output = 0;
+  vector<int32_t> la_input;
+  net_graph_->get_tensor_dim(in_tensors[0], bottom_dim);
+
+  bottom_dim[0] = in_tensor->n_slice;
+  bottom_dim[2] = in_tensor->h_slice;
+
+  assert(nInputs == 6);
+  // input0, input2, rshift, multiplier, only support two inputs
+  for (int i = 0; i < newNInputs; i++) {
+    la_input.push_back(net_graph_->get_tensor_local_offset(in_tensors[i]));
+  }
+
+  la_output = (net_graph_->get_tensor_local_offset(out_tensors[0]));
+
+  // build eltwise op
+  vector<NamedAttribute> attrs;
+  Builder builder_(context_);
+  attrs.push_back(builder_.getNamedAttr("name",
+                           builder_.getStringAttr(mix_op->name())));
+  attrs.push_back(builder_.getNamedAttr("la_input",
+                  builder_.getI32ArrayAttr(ArrayRef<int32_t>({la_input}))));
+  attrs.push_back(builder_.getNamedAttr("la_output",
+                           builder_.getI32IntegerAttr(la_output)));
+  attrs.push_back(builder_.getNamedAttr("la_working",
+                           builder_.getI32IntegerAttr(working_laddr)));
+  attrs.push_back(builder_.getNamedAttr("do_relu",
+                          builder_.getBoolAttr(do_relu)));
+  attrs.push_back(builder_.getNamedAttr("layer_id", old_op.layer_idAttr()));
+
+
+  // setup input/output type
+  RankedTensorType input_type =
+    RankedTensorType::get({
+      bottom_dim[0], bottom_dim[1],
+      bottom_dim[2], bottom_dim[3] },
+      old_input_type.getElementType());
+
+  RankedTensorType output_type =
+    RankedTensorType::get({
+      bottom_dim[0], bottom_dim[1],
+      bottom_dim[2], bottom_dim[3] },
+      old_input_type.getElementType());
+
+
+  TensorFile *wTF = getWeightTensorFile(im_layer->op());
+  Value * quant_rshift = old_op.getOperand(nInputs - 2);
+  Value * quant_multiplier = old_op.getOperand(nInputs - 1);
+  auto rshift = readWeightTensor<float>(quant_rshift, wTF);
+  assert(rshift->size() == 1);
+  attrs.push_back(builder_.getNamedAttr("rshift",
+      builder_.getI8IntegerAttr(static_cast<int8_t>(rshift->at(0)))));
+
+  // m_i32
+  auto m_i32 = readWeightTensor<float>(quant_multiplier, wTF);
+  assert(m_i32->size() == 1);
+  attrs.push_back(builder_.getNamedAttr("m_i32",
+      builder_.getI32IntegerAttr(static_cast<int32_t>(m_i32->at(0)))));
+
+  // setup input operation
+  vector<Value *> operands;
+  for( u32 i = 0; i < in_tensors.size(); i++) {
+    Operation * input_op =
+      get_op_from_name(mix_op->bottom_name(i))->getDefiningOp();
+    input_op->getResult(0)->setType(input_type);
+    operands.push_back(input_op->getResult(0));
+  }
+
+  // build eltwise_mul operation
+  auto op = OpBuilder(get_start_op()).create<tpu::TL_LG_EltwiseMulOp>(
                       get_start_op()->getLoc(), output_type,
                       ArrayRef<Value *>{operands},
                       ArrayRef<NamedAttribute>{attrs});
@@ -921,6 +1039,77 @@ void MixNet::_add_tl_broadcast_mul_op(MixOp * mix_op,
                       get_start_op()->getLoc(), input_type,
                       ArrayRef<Value *>{operands},
                       ArrayRef<NamedAttribute>{attrs});
+  add_opd_to_list(mix_op->name(), op.getResult(), true);
+}
+
+// only test sigmoid
+void MixNet::_add_tl_activation_op(MixOp * mix_op,
+                                  const vector<int>& in_tensors,
+                                  const vector<int>& out_tensors,
+                                  net_timestep* time_step,
+                                  int timestep_idx, bool is_h_split) {
+  int bottom_dim[4];
+  const ImLayer* im_layer =
+      net_graph_->get_layer_by_id(mix_op->get_layer_id());
+  auto old_op = im_layer->op();
+  auto act_op = dyn_cast<tpu::SigmoidOp>(old_op);
+  auto old_input_type =
+    old_op->getOperand(0)->getType().cast<RankedTensorType>();
+
+  Tensor* in_tensor = net_graph_->get_tensor_by_id(in_tensors[0]);
+  net_graph_->get_tensor_dim(in_tensors[0], bottom_dim);
+  bottom_dim[0] = in_tensor->n_slice;
+  bottom_dim[2] = in_tensor->h_slice;
+
+  string name = mix_op->name();
+  int layer_id = mix_op->get_layer_id();
+  u32 la_input = net_graph_->get_tensor_local_offset(in_tensors[0]);
+  u32 la_output = net_graph_->get_tensor_local_offset(out_tensors[0]);
+  u32 la_y_table = net_graph_->get_tensor_local_offset(in_tensors[1]);
+
+  // attrs
+  Builder builder_(context_);
+  vector<NamedAttribute> attrs;
+  attrs.push_back(builder_.getNamedAttr("name",
+                           builder_.getStringAttr(name)));
+  attrs.push_back(builder_.getNamedAttr("layer_id",
+                           builder_.getI32IntegerAttr(layer_id)));
+  attrs.push_back(builder_.getNamedAttr("la_input",
+                           builder_.getI32IntegerAttr(la_input)));
+  attrs.push_back(builder_.getNamedAttr("la_output",
+                           builder_.getI32IntegerAttr(la_output)));
+  attrs.push_back(builder_.getNamedAttr("la_working",
+                           builder_.getI32IntegerAttr(0)));
+  attrs.push_back(builder_.getNamedAttr("la_y_table",
+                           builder_.getI32IntegerAttr(la_y_table)));
+
+  // setup input/output type
+  RankedTensorType input_type = RankedTensorType::get(
+                          {bottom_dim[0], bottom_dim[1],
+                           bottom_dim[2], bottom_dim[3]},
+                           old_input_type.getElementType());
+
+  RankedTensorType output_type = RankedTensorType::get(
+                          {bottom_dim[0], bottom_dim[1],
+                           bottom_dim[2], bottom_dim[3]},
+                           old_input_type.getElementType());
+
+  // setup operands
+  vector<Value *> operands;
+
+  for( u32 i = 0; i < 2; i++) {
+    Operation * input_op =
+      get_op_from_name(mix_op->bottom_name(i))->getDefiningOp();
+    if ( i == 0)
+      input_op->getResult(0)->setType(input_type);
+    operands.push_back(input_op->getResult(0));
+  }
+
+  auto op = OpBuilder(get_start_op()).create<tpu::TL_LG_LutOp>(
+                      get_start_op()->getLoc(), output_type,
+                      ArrayRef<Value *>{operands},
+                      ArrayRef<NamedAttribute>{attrs});
+
   add_opd_to_list(mix_op->name(), op.getResult(), true);
 }
 

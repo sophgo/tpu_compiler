@@ -758,6 +758,7 @@ void GroupOptimizer::lower_to_tl_group(MLIRContext * context) {
       LGLoweringPattern<tpu::EltwiseMaxOp>,
       LGLoweringPattern<tpu::PoolAvg2DOp>,
       LGLoweringPattern<tpu::PoolMax2DOp>,
+      LGLoweringPattern<tpu::SigmoidOp>,
       LGLoweringPattern<tpu::LrnOp>,
       LGLoweringPattern<tpu::BroadcastMulOp>,
       LGLoweringPattern<tpu::UpsampleOp>,

@@ -42,6 +42,9 @@ DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 # efficientnet_b0 pass, on chip performance
 # Batch 1, 112 fps
 # Batch 4, 122 fps
+# update
+# Batch 1, 310.6 fps
+# Batch 4, 405.7 fps
 
 # yolo_v3_416 pass, on chip performance
 # Batch 1, 16 fps

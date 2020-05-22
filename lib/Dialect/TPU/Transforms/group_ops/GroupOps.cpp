@@ -728,18 +728,6 @@ struct LowerWeightGenericCpuOpPattern : public RewritePattern {
   }
 };
 
-// template<typename OpTy>
-// struct DefaultErasePattern : public RewritePattern {
-//   DefaultErasePattern(MLIRContext *context)
-//       : RewritePattern(OpTy::getOperationName(), 1, context) {}
-
-//   PatternMatchResult matchAndRewrite(Operation *op,
-//       PatternRewriter &rewriter) const override {
-//     rewriter.replaceOp(op, {op->getOperand(0)});
-//     return matchSuccess();
-//   }
-// };
-
 template<typename OpTy>
 struct FoldReshapePattern : public RewritePattern {
   FoldReshapePattern(MLIRContext *context)
