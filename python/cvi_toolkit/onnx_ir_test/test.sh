@@ -1,5 +1,7 @@
 
 test_cases=(
+  "test_Neg"
+  "test_Sub"
   "test_Sum"
 )
 
@@ -7,7 +9,7 @@ TOOLKIT_PATH=${MLIR_SRC_PATH}/python/cvi_toolkit
 #cp ${TOOLKIT_PATH}/transform/* ${INSTALL_PATH}/python/cvi_toolkit/transform/ -rf
 mkdir -p out
 pushd out
-for test_case in ${test_cases}
+for test_case in ${test_cases[@]}
 do
     rm *.npz *.csv -rf
     python3 ${TOOLKIT_PATH}/onnx_ir_test/${test_case}.py
@@ -34,6 +36,11 @@ do
     output_fp32_name=`cvi_npz_tool.py dump output_fp32.npz`
     cvi_npz_tool.py rename output_fp32.npz ${output_fp32_name} output
     cvi_npz_tool.py compare output.npz output_fp32.npz
+   if [ "$?" -ne 0 ]; then
+        echo ${test_case} failed
+        exit
+    fi
+    echo ${test_case} success
 done
 
 popd

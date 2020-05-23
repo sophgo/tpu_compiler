@@ -126,6 +126,7 @@ class OnnxConverter(BaseConverter):
             "LeakyRelu": lambda node: self.convert_leaky_relu_op(node),
             "MaxPool": lambda node: self.convert_maxpool_op(node),
             "Mul" : lambda node: self.convert_mul_op(node),
+            "Neg" : lambda node: self.convert_neg_op(node),
             "Relu": lambda node: self.convert_relu_op(node),
             "Reshape": lambda node: self.convert_reshape_op(node),
             "Shape": lambda node: self.convert_shape_op(node),
@@ -133,6 +134,7 @@ class OnnxConverter(BaseConverter):
             "Softmax": lambda node: self.convert_softmax_op(node),
             "Split": lambda node: self.convert_split_op(node),
             "Squeeze": lambda node: self.convert_squeeze_op(node),
+            "Sub": lambda node: self.convert_sub_op(node),
             "Sum": lambda node: self.convert_sum_op(node),
             "Tanh": lambda node: self.convert_activation_op(node),
             "Transpose": lambda node: self.convert_transpose_op(node),
@@ -774,6 +776,26 @@ class OnnxConverter(BaseConverter):
 
             self.addOperand(onnx_node.name, mul_op, output_shape, TensorType.ACTIVATION)
 
+    def convert_neg_op(self, onnx_node):
+        assert(onnx_node.op_type == "Neg")
+        # y = x * (-1) + 0
+        op, input_shape, tensor_type = self.getOperand(onnx_node.inputs[0])
+        operands = list()
+        operands.append(op)
+        tensor_data = np.full(input_shape[1], -1) # broadcast via channel
+        weight_name = "{}_add_weight".format(onnx_node.name)
+        self.addTensor(weight_name, tensor_data, tensor_data.shape)
+        op2 = self.CVI.add_load_file_op(weight_name, tensor_data.shape)
+        operands.append(op2)
+        bias_data = np.full(input_shape[1], 0)
+        bias_name = "{}_add_bias".format(onnx_node.name)
+        self.addTensor(bias_name, bias_data, bias_data.shape)
+        op3 = self.CVI.add_load_file_op(bias_name, tensor_data.shape)
+        operands.append(op3)
+        output_shape = input_shape
+        scale_op = self.CVI.add_scale_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
+        self.addOperand(onnx_node.name, scale_op, output_shape, TensorType.ACTIVATION)
+
     def convert_relu_op(self, onnx_node):
         assert(onnx_node.op_type == "Relu")
         op, input_shape, tensor_type = self.getOperand(onnx_node.inputs[0])
@@ -900,7 +922,38 @@ class OnnxConverter(BaseConverter):
             self.addTensor(onnx_node.name, output_data, list(output_shape))
             self.addOperand(onnx_node.name, None, output_shape, TensorType.TENSOR)
 
+    def convert_sub_op(self, onnx_node):
+        assert(onnx_node.op_type == "Sub")
+        # Y = X0 + X1*(-1)
+        input_num = len(onnx_node.inputs)
+        op0, input_shape0, tensor_type0 = self.getOperand(onnx_node.inputs[0])
+        op1, input_shape1, tensor_type1 = self.getOperand(onnx_node.inputs[1])
+        #broadcasting not support now
+        assert(input_shape0 == input_shape1)
+        output_shape = input_shape0
+        # scale_op = X1 * (-1)
+        operands1 = list()
+        operands1.append(op1)
+        tensor_data = np.full(input_shape1[1], -1) # broadcast via channel
+        weight_name = "{}_add_weight".format(onnx_node.name)
+        self.addTensor(weight_name, tensor_data, tensor_data.shape)
+        op2 = self.CVI.add_load_file_op(weight_name, tensor_data.shape)
+        operands1.append(op2)
+        bias_data = np.full(input_shape1[1], 0)
+        bias_name = "{}_add_bias".format(onnx_node.name)
+        self.addTensor(bias_name, bias_data, bias_data.shape)
+        op3 = self.CVI.add_load_file_op(bias_name, tensor_data.shape)
+        operands1.append(op3)
+        scale_op = self.CVI.add_scale_op("{}_scale_{}".format(onnx_node.name, onnx_node.op_type), operands1, output_shape)
+        # add_op = X0 + scale_op
+        operands0 = list()
+        operands0.append(op0)
+        operands0.append(scale_op)
+        add_op = self.CVI.add_eltwise_add_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands0, output_shape)
+        self.addOperand(onnx_node.name, add_op, output_shape, TensorType.ACTIVATION)
+
     def convert_sum_op(self, onnx_node):
+        assert(onnx_node.op_type == "Sum")
         input_num = len(onnx_node.inputs)
         op, input_shape, tensor_type = self.getOperand(onnx_node.inputs[0])
         output_shape = input_shape
