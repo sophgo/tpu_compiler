@@ -191,6 +191,21 @@ cmake --build . --target install
 #ctest --progress || true
 popd
 
+# build cvimath
+if [ ! -e $BUILD_PATH/build_cvimath ]; then
+  mkdir $BUILD_PATH/build_cvimath
+fi
+pushd $BUILD_PATH/build_cvimath
+cmake -G Ninja -DCHIP=BM1880v2 -DRUNTIME=CMODEL \
+    -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_FLAGS_RELEASE=-O3 -DCMAKE_CXX_FLAGS_RELEASE=-O3 \
+    -DTPU_SDK_ROOT=$CVIKERNEL_PATH \
+    -DCMAKE_INSTALL_PREFIX=$INSTALL_PATH \
+    $MLIR_SRC_PATH/externals/cvimath
+cmake --build . --target install
+#ctest --progress || true
+popd
+
+
 # build systemc (for profiling)
 # building has some issue, has to build in place for now
 # copy the source dir to build dir

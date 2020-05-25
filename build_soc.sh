@@ -186,6 +186,23 @@ cmake -G Ninja -DCHIP=$CHIP_ID -DRUNTIME=SOC $BUILD_FLAG \
 cmake --build . --target install -- -v
 popd
 
+
+# build cvimath
+if [ ! -e $BUILD_SOC_PATH/build_cvimath ]; then
+  mkdir $BUILD_SOC_PATH/build_cvimath
+fi
+pushd $BUILD_SOC_PATH/build_cvimath
+
+cmake -G Ninja  \
+    -DTOOLCHAIN_ROOT_DIR=$ARM_TOOLCHAIN_GCC_PATH \
+    -DCMAKE_TOOLCHAIN_FILE=$TOOLCHAIN_FILE_PATH \
+    -DTPU_SDK_ROOT=$CVIKERNEL_SOC_PATH \
+    -DCMAKE_INSTALL_PREFIX=$INSTALL_SOC_PATH \
+    $MLIR_SRC_PATH/externals/cvimath
+cmake --build . --target install -- -v
+popd
+
+
 export OPENCV_SOC_PATH=$INSTALL_SOC_PATH/opencv
 if [ $BUILD_OPENCV -eq 1 ]; then
   # build opencv

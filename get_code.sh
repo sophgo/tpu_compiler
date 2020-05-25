@@ -43,6 +43,7 @@ git clone ssh://10.34.33.3:29418/cmodel.git
 git clone ssh://10.34.33.3:29418/cviruntime.git
 git clone ssh://10.34.33.3:29418/cvibuilder.git
 git clone ssh://10.34.33.3:29418/profiling.git
+git clone ssh://10.34.33.3:29418/cvimath.git
 
 #export GIT_LFS_SKIP_SMUDGE=1
 #git clone ssh://10.34.33.3:29418/mlir-models.git
