@@ -131,6 +131,7 @@ class OnnxConverter(BaseConverter):
             "Reshape": lambda node: self.convert_reshape_op(node),
             "Shape": lambda node: self.convert_shape_op(node),
             "Sigmoid" :lambda node: self.convert_activation_op(node),
+            "Slice": lambda node: self.convert_slice_op(node),
             "Softmax": lambda node: self.convert_softmax_op(node),
             "Split": lambda node: self.convert_split_op(node),
             "Squeeze": lambda node: self.convert_squeeze_op(node),
@@ -863,6 +864,57 @@ class OnnxConverter(BaseConverter):
         data = np.array(input_shape)
         self.addTensor(onnx_node.name, data, list(data.shape))
         self.addOperand(onnx_node.name, None, list(data.shape), TensorType.TENSOR)
+
+    def convert_slice_op(self, onnx_node):
+        assert(onnx_node.op_type == "Slice")
+        op, input_shape, tesnor_type = self.getOperand(onnx_node.inputs[0])
+        # start
+        _, _, _tesnor_type = self.getOperand(onnx_node.inputs[1])
+        if _tesnor_type != TensorType.TENSOR:
+            raise RuntimeError("{} start type be tensor, not find".format(onnx_node.name))
+        else:
+            starts = self.getTensor(onnx_node.inputs[1]).tensor_data
+        # ends
+        _, _, _tesnor_type = self.getOperand(onnx_node.inputs[2])
+        if _tesnor_type != TensorType.TENSOR:
+            raise RuntimeError("{} end type be tensor, not find".format(onnx_node.name))
+        else:
+            ends = self.getTensor(onnx_node.inputs[2]).tensor_data
+        # axes
+        _, _, _tesnor_type = self.getOperand(onnx_node.inputs[3])
+        if _tesnor_type != TensorType.TENSOR:
+           raise RuntimeError("{} axes type be tensor, not find".format(onnx_node.name))
+        else:
+            axes = self.getTensor(onnx_node.inputs[3]).tensor_data
+
+        if len(onnx_node.inputs) > 4:
+            raise RuntimeError("No support steps")
+        assert(len(starts) == len(ends))
+        assert(len(axes) == len(ends))
+        if tesnor_type == TensorType.TENSOR:
+            raise RuntimeError("TODO")
+        else:
+            if len(input_shape) != 4:
+                raise RuntimeError("Only support dim 4 Slice")
+            crop_shape = input_shape.copy()
+            crop_offset = input_shape.copy()
+            idx = 0
+            for j in range(len(crop_shape)):
+                if j in axes:
+                    crop_shape[j] = ends[idx] - starts[idx]
+                    crop_offset[j] = starts[idx]
+                    idx +=1
+                else:
+                    crop_shape[j] = input_shape[j]
+                    crop_offset[j] = 0
+
+            crop_param = {
+                "crop_offset": crop_offset,
+                "crop_shape": crop_shape,
+            }
+            output_shape = crop_shape
+            crop_op = self.CVI.add_crop_op("{}_{}".format(onnx_node.name, onnx_node.op_type), [op], output_shape, **crop_param)
+            self.addOperand(onnx_node.name, crop_op, output_shape, TensorType.ACTIVATION)
 
 
     def convert_softmax_op(self, onnx_node):
