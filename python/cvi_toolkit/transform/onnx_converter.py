@@ -1020,20 +1020,34 @@ class OnnxConverter(BaseConverter):
         input_num = len(onnx_node.inputs)
         op, input_shape, tensor_type = self.getOperand(onnx_node.inputs[0])
         output_shape = input_shape
-        if input_num == 1:
+        if tensor_type == TensorType.TENSOR:
+            for idx, _ in enumerate(onnx_node.inputs):
+                if idx == 0: # first op skip
+                    output_data = self.getTensor(onnx_node.inputs[idx]).tensor_data
+                else:
+                    _, _, tensor_type = self.getOperand(onnx_node.inputs[idx])
+                    if tensor_type != TensorType.TENSOR:
+                        raise RuntimeError("Wrong type")
+                    tensor_data = self.getTensor(onnx_node.inputs[idx]).tensor_data
+                    output_data = output_data + tensor_data
+            self.addTensor(onnx_node.name, output_data, output_shape)
+            self.addOperand(onnx_node.name, None, output_shape, TensorType.TENSOR)
+
+        else:
+            if input_num == 1:
+                self.addOperand(onnx_node.name, op, output_shape, TensorType.ACTIVATION)
+                return
+            for index in range(1, input_num):
+                op_i, input_shape_i, tensor_type_i = self.getOperand(onnx_node.inputs[index])
+                operands = list()
+                operands.append(op)
+                operands.append(op_i)
+                #broadcast not support now
+                assert(input_shape_i == input_shape)
+                op_name = "{}{}_{}".format(onnx_node.name, index, onnx_node.op_type)
+                add_op = self.CVI.add_eltwise_add_op(op_name, operands, output_shape)
+                op = add_op
             self.addOperand(onnx_node.name, op, output_shape, TensorType.ACTIVATION)
-            return
-        for index in range(1, input_num):
-            op_i, input_shape_i, tensor_type_i = self.getOperand(onnx_node.inputs[index])
-            operands = list()
-            operands.append(op)
-            operands.append(op_i)
-            #broadcast not support now
-            assert(input_shape_i == input_shape)
-            op_name = "{}{}_{}".format(onnx_node.name, index, onnx_node.op_type)
-            add_op = self.CVI.add_eltwise_add_op(op_name, operands, output_shape)
-            op = add_op
-        self.addOperand(onnx_node.name, op, output_shape, TensorType.ACTIVATION)
 
     def convert_transpose_op(self, onnx_node):
         assert(onnx_node.op_type == "Transpose")
