@@ -7,11 +7,14 @@ import onnxruntime
 import numpy as np
 
 TEST_ONNX_IR = [
+    "AveragePool",
+    "GlobalMaxPool",
     "Neg",
-    "Relu",
+    # "Relu",
     "Sub",
     "Sum",
 ]
+
 
 def onnx_inference(input, model_def, model_name):
     onnx.save(model_def, model_name)
@@ -38,7 +41,50 @@ def onnx_convert_and_infernece(input_data, model_def, model_name):
         print("{} test FAILD".format(model_name))
 
 
+def test_AveragePool():
+    test_case = 'test_AveragePool'
+    input_data = np.random.randn(1, 3, 28, 28).astype(np.float32)
+    input = helper.make_tensor_value_info('input', TensorProto.FLOAT, list(input_data.shape))
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT, [1, 3, 30, 30])
+    node_def = onnx.helper.make_node(
+        "AveragePool",
+        inputs=['input'],
+        outputs=['output'],
+        kernel_shape=[3, 3],
+        strides=[1,1],
+        pads=[2, 2, 2, 2]
+    )
+    graph_def = helper.make_graph(
+        [node_def],
+        test_case,
+        [input],
+        [output],
+    )
+    model_def = helper.make_model(graph_def, producer_name=test_case)
+    onnx.checker.check_model(model_def)
 
+    onnx_convert_and_infernece(input_data, model_def, test_case)
+
+def test_GlobalMaxPool():
+    test_case = 'test_GlobalMaxPool'
+    input_data = np.random.randn(1, 3, 28, 28).astype(np.float32)
+    input = helper.make_tensor_value_info('input', TensorProto.FLOAT, list(input_data.shape))
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT, [1, 3, 1, 1])
+    node_def = onnx.helper.make_node(
+        "GlobalMaxPool",
+        inputs=['input'],
+        outputs=['output'],
+    )
+    graph_def = helper.make_graph(
+        [node_def],
+        test_case,
+        [input],
+        [output],
+    )
+    model_def = helper.make_model(graph_def, producer_name=test_case)
+    onnx.checker.check_model(model_def)
+
+    onnx_convert_and_infernece(input_data, model_def, test_case)
 
 def test_Neg():
     test_case = 'test_Neg'
@@ -63,8 +109,9 @@ def test_Neg():
     model_def = helper.make_model(graph_def, producer_name=test_case)
     input_data = np.random.rand(input_shape[0], input_shape[1],
                        input_shape[2], input_shape[3]).astype(np.float32)
-    onnx_convert_and_infernece(input_data, model_def, test_case)
+
     onnx.checker.check_model(model_def)
+    onnx_convert_and_infernece(input_data, model_def, test_case)
 
 
 def test_Relu():
@@ -91,9 +138,9 @@ def test_Relu():
     model_def = helper.make_model(graph_def, producer_name=test_case)
     input_data = np.random.rand(input_shape[0], input_shape[1],
                        input_shape[2], input_shape[3]).astype(np.float32)
-    onnx_convert_and_infernece(input_data, model_def, test_case)
-    onnx.checker.check_model(model_def)
 
+    onnx.checker.check_model(model_def)
+    onnx_convert_and_infernece(input_data, model_def, test_case)
 
 def test_Sub():
     test_case = 'test_Sub'
@@ -171,16 +218,33 @@ def test_Sum():
 
     input_data = np.random.rand(input_shape[0], input_shape[1],
                        input_shape[2], input_shape[3]).astype(np.float32)
-    onnx_convert_and_infernece(input_data, model_def, test_case)
-    onnx.checker.check_model(model_def)
 
+    onnx.checker.check_model(model_def)
+    onnx_convert_and_infernece(input_data, model_def, test_case)
+
+
+test_function = {
+    "AveragePool": test_AveragePool,
+    "GlobalMaxPool": test_GlobalMaxPool,
+    "Neg": test_Neg,
+    "Relu": test_Relu,
+    "Sub": test_Sub,
+    "Sum": test_Sum,
+}
 
 if __name__ == "__main__":
-    if "Neg" in TEST_ONNX_IR:
-        test_Neg()
-    if "Relu" in TEST_ONNX_IR:
-        test_Relu()
-    if "Sub" in TEST_ONNX_IR:
-        test_Sub()
-    if "Sum" in TEST_ONNX_IR:
-        test_Sum()
+    pass_list = list()
+    fail_list = list()
+    for i in TEST_ONNX_IR:
+        try:
+            test_function.get(i)()
+            pass_list.append(i)
+        except:
+            fail_list.append(i)
+    print("{} PASS {}".format("="*4, "="*4))
+    for i in pass_list:
+        print(i)
+    if len(fail_list) != 0:
+        print("{} FAILD {}".format("="*4, "="*4))
+        for i in fail_list:
+            print(i)
