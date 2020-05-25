@@ -127,10 +127,11 @@ def TPU_PoolAttr : StrEnumAttr<
 def TPU_ELTWISE_SUM  : StrEnumAttrCase<"SUM">;
 def TPU_ELTWISE_PROD : StrEnumAttrCase<"PROD">;
 def TPU_ELTWISE_MAX  : StrEnumAttrCase<"MAX">;
+def TPU_ELTWISE_MIN  : StrEnumAttrCase<"MIN">;
 
 def TPU_EltwiseAttr : StrEnumAttr<
     "EltwiseMethodType", "eltwise method enum", [
-      TPU_ELTWISE_SUM, TPU_ELTWISE_PROD, TPU_ELTWISE_MAX
+      TPU_ELTWISE_SUM, TPU_ELTWISE_PROD, TPU_ELTWISE_MAX, TPU_ELTWISE_MIN
     ]>;
 
 //===----------------------------------------------------------------------===//

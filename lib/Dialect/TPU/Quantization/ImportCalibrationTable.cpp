@@ -101,7 +101,9 @@ struct BackwardOverwriteThresholdConcatPattern : public OpRewritePattern<tpu::Co
         setOpThreshold(formerOp, threshold_y);
       } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::EltwiseMaxOp>(formerOp)) {
         setOpThreshold(formerOp, threshold_y);
-      } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::EltwiseMulOp>(formerOp)) {
+      } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::EltwiseMinOp>(formerOp)) {
+        setOpThreshold(formerOp, threshold_y);
+      }  else if (auto cast_op = llvm::dyn_cast_or_null<tpu::EltwiseMulOp>(formerOp)) {
         setOpThreshold(formerOp, threshold_y);
       } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::LeakyReluOp>(formerOp)) {
         setOpThreshold(formerOp, threshold_y);
@@ -163,7 +165,9 @@ struct BackendOverwriteThresholdDefaultPattern : public RewritePattern {
       setOpThreshold(formerOp, threshold_y);
     } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::EltwiseMaxOp>(formerOp)) {
       setOpThreshold(formerOp, threshold_y);
-    } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::EltwiseMulOp>(formerOp)) {
+    } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::EltwiseMinOp>(formerOp)) {
+      setOpThreshold(formerOp, threshold_y);
+    }  else if (auto cast_op = llvm::dyn_cast_or_null<tpu::EltwiseMulOp>(formerOp)) {
       setOpThreshold(formerOp, threshold_y);
     } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::FullyConnectedOp>(formerOp)) {
       setOpThreshold(formerOp, threshold_y);

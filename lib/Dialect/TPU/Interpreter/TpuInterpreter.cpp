@@ -858,7 +858,7 @@ static LogicalResult doEltwiseOpInterpret(Operation *op,
 
   // apply qscale on input tensors before f32 compute
   std::vector<std::vector<float> > input_copy(nInputs);
-  if (type == "ADD" || type == "MAX") {
+  if (type == "ADD" || type == "MAX" || type == "MIN") {
     if (getOpQuant(op) == "INT8") {
       for (unsigned i = 0; i < nInputs; ++i) {
         // make copy
@@ -890,7 +890,9 @@ static LogicalResult doEltwiseOpInterpret(Operation *op,
           output[i] = output[i] + input[ni][i];
         } else if (type == "MAX") {
           output[i] = output[i] > input[ni][i] ? output[i] : input[ni][i];
-        } else if (type == "MUL") {
+        } else if (type == "MIN") {
+          output[i] = output[i] < input[ni][i] ? output[i] : input[ni][i];
+        }  else if (type == "MUL") {
           output[i] = output[i] * input[ni][i];
         } else {
           llvm_unreachable("unsupported eltwise type");
@@ -898,7 +900,7 @@ static LogicalResult doEltwiseOpInterpret(Operation *op,
       }
     }
   }
-  assert(ret == 0);
+
   if (do_relu) {
     ret = my_relu(output, output, in, ic, ih, iw, 0.0f);
     assert(ret == 0);
@@ -908,7 +910,7 @@ static LogicalResult doEltwiseOpInterpret(Operation *op,
   if (getOpQuant(op) == "NONE") {
     // do nothing
   } else if (getOpQuant(op) == "INT8") {
-    if (type == "ADD" || type == "MAX") {
+    if (type == "ADD" || type == "MAX" || type == "MIN") {
       // apply rshift and saturate
       for (int i = 0; i < input_size; ++i) {
         output[i] =
@@ -972,6 +974,14 @@ LogicalResult tpu::EltwiseMaxOp::interpret(
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
   StringRef type = "MAX";
+  return doEltwiseOpInterpret(op, type, do_relu(), valueMapping);
+}
+
+LogicalResult tpu::EltwiseMinOp::interpret(
+    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+  Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
+  StringRef type = "MIN";
   return doEltwiseOpInterpret(op, type, do_relu(), valueMapping);
 }
 

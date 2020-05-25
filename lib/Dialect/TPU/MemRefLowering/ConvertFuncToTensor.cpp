@@ -132,9 +132,11 @@ struct ConvertFuncToTensorPass
     target.addLegalOp<tpu::TG_BF16_DeConv2DOp>();
     target.addLegalOp<tpu::TG_INT8_EltwiseAddOp>();
     target.addLegalOp<tpu::TG_INT8_EltwiseMaxOp>();
+    target.addLegalOp<tpu::TG_INT8_EltwiseMinOp>();
     target.addLegalOp<tpu::TG_INT8_EltwiseMulOp>();
     target.addLegalOp<tpu::TG_BF16_EltwiseAddOp>();
     target.addLegalOp<tpu::TG_BF16_EltwiseMaxOp>();
+    target.addLegalOp<tpu::TG_BF16_EltwiseMinOp>();
     target.addLegalOp<tpu::TG_BF16_EltwiseMulOp>();
     target.addLegalOp<tpu::TG_INT8_FullyConnectedOp>();
     target.addLegalOp<tpu::TG_BF16_FullyConnectedOp>();

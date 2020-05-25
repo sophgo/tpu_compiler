@@ -23,6 +23,8 @@ class TPU_OpType(Enum):
     Clip = 'tpu.clip'
     DeConv2d = 'tpu.deconv_2d'
     Eltwise_Add = 'tpu.eltwise_add'
+    Eltwise_Max = 'tpu.eltwise_max'
+    Eltwise_Min = 'tpu.eltwise_min'
     Eltwise_Mul = 'tpu.eltwise_mul'
     FullyConnected = 'tpu.fully_connected'
     LeakyRelu = 'tpu.leaky_relu'
@@ -318,6 +320,30 @@ class MLIRImporter(object):
         eltwise_add = self.module.stringAttr(op_name)
         return self.buildOp(TPU_OpType.Eltwise_Add.value, inputOperands, [
             tensor_output_type], name=eltwise_add, quant=self.quant_param)
+
+    def add_eltwise_max_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+        tensor_output_type = self.module.make_ranked_tensor_type(
+            self.f32Type, output_tensor_shape)
+        if len(inputOperands) < 2:
+            raise ArithmeticError("input operand must great than 2")
+
+        inputOpernads = self.add_quant_reg(inputOperands)
+
+        eltwise_max = self.module.stringAttr(op_name)
+        return self.buildOp(TPU_OpType.Eltwise_Max.value, inputOperands, [
+            tensor_output_type], name=eltwise_max, quant=self.quant_param)
+
+    def add_eltwise_min_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+        tensor_output_type = self.module.make_ranked_tensor_type(
+            self.f32Type, output_tensor_shape)
+        if len(inputOperands) < 2:
+            raise ArithmeticError("input operand must great than 2")
+
+        inputOpernads = self.add_quant_reg(inputOperands)
+
+        eltwise_min = self.module.stringAttr(op_name)
+        return self.buildOp(TPU_OpType.Eltwise_Min.value, inputOperands, [
+            tensor_output_type], name=eltwise_min, quant=self.quant_param)
 
     def add_eltwise_mul_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = self.module.make_ranked_tensor_type(

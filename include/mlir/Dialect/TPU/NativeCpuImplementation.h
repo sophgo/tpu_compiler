@@ -71,8 +71,6 @@ int my_softmax3D(float *input, float *output, int axis, const std::vector<int64_
 
 int my_tanh(float *input, float *output,
     int n, int c, int h, int w);
-int my_eltwise(float *input_1, float *input_2, float *output,
-    int n, int c, int h, int w, int op);
 
 int my_permute(float *input, float *output, const int input_shape_size,
     int in, int ic, int ih, int iw,int on, int oc, int oh, int ow,

@@ -830,6 +830,16 @@ LogicalResult tpu::TG_INT8_EltwiseMaxOp::codegen(void *ctx) {
   llvm_unreachable(errorMsg.c_str());
 }
 
+LogicalResult tpu::TG_INT8_EltwiseMinOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  //CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  //Operation *op = this->getOperation();
+
+  std::string errorMsg = "unsupported tg op " + getOpName().str() + "\n";
+  llvm_unreachable(errorMsg.c_str());
+}
+
 LogicalResult tpu::TG_INT8_EltwiseMulOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);
@@ -936,6 +946,16 @@ LogicalResult tpu::TG_BF16_EltwiseAddOp::codegen(void *ctx) {
 }
 
 LogicalResult tpu::TG_BF16_EltwiseMaxOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  //CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  //Operation *op = this->getOperation();
+
+  std::string errorMsg = "unsupported tg op " + getOpName().str() + "\n";
+  llvm_unreachable(errorMsg.c_str());
+}
+
+LogicalResult tpu::TG_BF16_EltwiseMinOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);
   //CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
@@ -2218,6 +2238,10 @@ LogicalResult tpu::TG_MemRef_INT8_EltwiseMaxOp::codegen(void *ctx) {
   return success();
 }
 
+LogicalResult tpu::TG_MemRef_INT8_EltwiseMinOp::codegen(void *ctx) {
+  return success();
+}
+
 LogicalResult tpu::TG_MemRef_INT8_EltwiseMulOp::codegen(void *ctx) {
   return success();
 }
@@ -2227,6 +2251,10 @@ LogicalResult tpu::TG_MemRef_BF16_EltwiseAddOp::codegen(void *ctx) {
 }
 
 LogicalResult tpu::TG_MemRef_BF16_EltwiseMaxOp::codegen(void *ctx) {
+  return success();
+}
+
+LogicalResult tpu::TG_MemRef_BF16_EltwiseMinOp::codegen(void *ctx) {
   return success();
 }
 

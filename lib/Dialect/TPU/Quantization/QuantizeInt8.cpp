@@ -843,6 +843,13 @@ LogicalResult tpu::EltwiseMaxOp::quantizeInt8() {
   return quantizeInt8RescaleNoWeightOps<tpu::EltwiseMaxOp>(op);
 }
 
+LogicalResult tpu::EltwiseMinOp::quantizeInt8() {
+  LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  return quantizeInt8RescaleNoWeightOps<tpu::EltwiseMinOp>(op);
+}
+
 LogicalResult tpu::EltwiseMulOp::quantizeInt8() {
   LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName()
                << " [" << getOpName() << "]\n";);

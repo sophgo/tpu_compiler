@@ -407,6 +407,62 @@ Value* tpu::EltwiseMaxOp::convertToTG() {
   llvm_unreachable("unsupported type");
 }
 
+Value* tpu::EltwiseMinOp::convertToTG() {
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  auto builder = Builder(op->getContext());
+  TensorFile *wTF = getWeightTensorFile(op);
+
+  const unsigned nInputs = this->getNumInputs();
+  std::vector<Value *> operands;
+  for (unsigned i = 0; i < nInputs; ++i) {
+    operands.push_back(op->getOperand(i));
+  }
+
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder.getNamedAttr("name", nameAttr()));
+  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
+  attrs.push_back(builder.getNamedAttr("do_relu", do_reluAttr()));
+
+  if (getOpQuant() == "INT8") {
+    if (getOpQuantParamType() == "NONE") {
+      // the quant is bypassed (threshold for input and output are the same)
+      // do nothing
+    } else {
+      assert(getOpQuantParamType() == "RSHIFT_AND_M_I8");
+      // MAX
+      // rshift
+      auto rshift = readAndDeleteWeightTensor<float>(quant_rshift(), wTF);
+      assert(rshift->size() == 1);
+      attrs.push_back(builder.getNamedAttr("rshift",
+          builder.getI8IntegerAttr(static_cast<int8_t>(rshift->at(0)))));
+
+      // m_i8_inputs
+      auto multiplier = readAndDeleteWeightTensor<float>(quant_multiplier(),
+                                                       wTF);
+      std::vector<int32_t> m_i8_inputs_array(nInputs);
+      for (unsigned i = 0; i < nInputs; ++i) {
+        m_i8_inputs_array[i] = static_cast<int32_t>(multiplier->at(i));
+      }
+      attrs.push_back(builder.getNamedAttr("m_i8_inputs",
+          builder.getI32ArrayAttr(ArrayRef<int32_t>({m_i8_inputs_array}))));
+    }
+
+    // create op
+    auto newOp = OpBuilder(op).create<tpu::TG_INT8_EltwiseMinOp>(op->getLoc(),
+        getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  } else if (getOpQuant() == "BF16") {
+    auto newOp = OpBuilder(op).create<tpu::TG_BF16_EltwiseMinOp>(op->getLoc(),
+        getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  }
+  llvm_unreachable("unsupported type");
+}
+
 Value* tpu::EltwiseMulOp::convertToTG() {
   LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
                << " [" << getOpName() << "]\n";);
@@ -1974,6 +2030,7 @@ public:
         DefaultToTGPattern<tpu::ReciprocalOp>,
         DefaultToTGPattern<tpu::EltwiseAddOp>,
         DefaultToTGPattern<tpu::EltwiseMaxOp>,
+        DefaultToTGPattern<tpu::EltwiseMinOp>,
         DefaultToTGPattern<tpu::EltwiseMulOp>,
         DefaultToTGPattern<tpu::FullyConnectedOp>,
         DefaultToTGPattern<tpu::LrnOp>,

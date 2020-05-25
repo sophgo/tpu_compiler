@@ -272,7 +272,7 @@ ImEltwise::ImEltwise(Operation* op) : ImLayer(IR_ELTWISE, op, true) {
 
 ImCommon::ImCommon(Operation* op, bool inplace_compute, IR_TYPE type) : ImLayer(type, op) {
   is_inplace_layer = (is_inplace_layer || inplace_compute);
-  if (isa<tpu::EltwiseMaxOp>(op))
+  if (isa<tpu::EltwiseMaxOp>(op) || isa<tpu::EltwiseMinOp>(op))
       fusible = false;
   // skip rshift and multiplier
   int nInputs = op->getNumOperands();

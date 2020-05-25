@@ -1048,7 +1048,12 @@ void CaffeImporter::convertEltwiseLayer(mlir::Block *block, caffe::Layer<float> 
         builder_.getUnknownLoc(), result_type, ArrayRef<Value *>{operands},
         ArrayRef<NamedAttribute>{attrs});
     result_var = op.getResult();
-  } else {
+  } else if (method == "MIN") {
+    auto op = OpBuilder(block).create<tpu::EltwiseMinOp>(
+        builder_.getUnknownLoc(), result_type, ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    result_var = op.getResult();
+  }  else {
     assert(false);
   }
 
