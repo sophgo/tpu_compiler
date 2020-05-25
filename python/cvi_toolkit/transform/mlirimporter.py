@@ -266,7 +266,7 @@ class MLIRImporter(object):
             [self.module.integerAttr(self.i32Type, x) for x in crop_shape])
 
         return self.buildOp(TPU_OpType.Crop.value, inputOperands, [
-            tensor_output_type], name=crop_name, crop_offset=crop_offset_attr, crop_shape=crop_shape_attr)
+            tensor_output_type], name=crop_name, crop_offset=crop_offset_attr, quant=self.quant_param, crop_shape=crop_shape_attr)
 
     def add_deconv_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         """
