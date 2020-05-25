@@ -32,6 +32,8 @@ class TPU_OpType(Enum):
     PixelShuffle = 'tpu.pixelshuffle'
     PoolAvg2D = 'tpu.pool_avg_2d'
     PoolMax2D  = 'tpu.pool_max_2d'
+    PRelu = 'tpu.prelu'
+    Reciprocal = 'tpu.reciprocal'
     Reshape = 'tpu.reshape'
     Relu = 'tpu.relu'
     Scale = 'tpu.scale'
@@ -475,6 +477,36 @@ class MLIRImporter(object):
         }
         return self.buildOp(TPU_OpType.PixelShuffle.value, inputOperands, [
             tensor_output_type], name=pixelshuffle_name, quant=self.quant_param, **attr_dict)
+
+
+    def add_prelu_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+        tensor_output_type = self.module.make_ranked_tensor_type(
+        self.f32Type, output_tensor_shape)
+
+        prelu_name = self.module.stringAttr(op_name)
+
+        none = self.add_none_op()
+        # quant_pos_scale, quant_pos_zeropoint, quant_neg_scale, quant_neg_zeropoint
+        # quant_pos_rshift, quant_pos_multiplier, quant_neg_rshift, quant_neg_multiplier
+        for i in range( 10 - len(inputOperands)):
+            inputOperands.append(none)
+
+        return self.buildOp(TPU_OpType.PRelu.value, inputOperands, [
+            tensor_output_type], name=prelu_name, quant=self.quant_param)
+
+    def add_reciprocal_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+        tensor_output_type = self.module.make_ranked_tensor_type(
+            self.f32Type, output_tensor_shape)
+
+        reciprocal_name = self.module.stringAttr(op_name)
+
+        # table and table_mantissa all are none
+        none = self.add_none_op()
+        for i in range( 3 - len(inputOperands)):
+            inputOperands.append(none)
+
+        return self.buildOp(TPU_OpType.Reciprocal.value, inputOperands, [
+            tensor_output_type], name=prelu_name, quant=self.quant_param)
 
     def add_relu_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = self.module.make_ranked_tensor_type(

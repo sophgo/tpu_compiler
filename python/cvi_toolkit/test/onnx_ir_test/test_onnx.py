@@ -24,6 +24,8 @@ TEST_ONNX_IR = [
     "Neg",
     "Relu",
     "Slice",
+    "PRelu",
+    # "Reciprocal",
     "Sub",
     "Sum",
 ]
@@ -57,6 +59,8 @@ class ONNX_IR_TESTER(object):
             "Max": self.test_Max,
             "Min": self.test_Min,
             "Neg": self.test_Neg,
+            "PRelu": self.test_PRelu,
+            "Reciprocal": self.test_Reciprocal,
             "Relu": self.test_Relu,
             "Slice": self.test_Slice,
             "Sub": self.test_Sub,
@@ -356,6 +360,74 @@ class ONNX_IR_TESTER(object):
         onnx.checker.check_model(model_def)
         self.onnx_convert_and_infernece(input_data, model_def, test_case)
 
+    def test_PRelu(self):
+        test_case = 'test_PRelu'
+        input_shape = [1, 3, 27, 27]
+        pooling_kernel_shape = [27, 27]
+        pooling_output_shape = [1, 3, 1, 1]
+        input = helper.make_tensor_value_info('input', TensorProto.FLOAT, input_shape)
+        pooling_output = helper.make_tensor_value_info(
+            'pooling_output', TensorProto.FLOAT, pooling_output_shape)
+        pooling_kernel = helper.make_tensor_value_info(
+            'pooling_kernel', TensorProto.FLOAT, pooling_kernel_shape)
+        max_pooling_def = helper.make_node(
+            'MaxPool',  # node name
+            ['input'],  # inputs
+            ['pooling_output'],  # outputs
+            kernel_shape=[27, 27],
+            strides=[1, 1],
+            dilations=[1, 1],
+            pads=[0, 0, 0, 0]
+        )
+
+        output_shape = [1, 3, 27, 27]
+        output = helper.make_tensor_value_info(
+            'output', TensorProto.FLOAT, output_shape)
+        prelu_def = helper.make_node(
+            'PRelu',  # node name
+            ['input', 'pooling_output'],  # inputs
+            ['output'],  # outputs
+        )
+
+        graph_def = helper.make_graph(
+            [max_pooling_def, prelu_def],
+            test_case,
+            [input],
+            [output],
+        )
+        model_def = helper.make_model(graph_def, producer_name=test_case)
+        model_name = '{}.onnx'.format(test_case)
+        onnx.save(model_def, model_name)
+        input_data = np.random.rand(input_shape[0], input_shape[1],
+                            input_shape[2], input_shape[3]).astype(np.float32)
+        onnx.checker.check_model(model_def)
+        self.onnx_convert_and_infernece(input_data, model_def, test_case)
+
+    def test_Reciprocal(self):
+        test_case = 'test_Reciprocal'
+        input_shape = [1, 3, 224, 224]
+        node_def = helper.make_node(
+            "Reciprocal", # node name
+            ['input'], # inputs
+            ['y'], # outputs
+        )
+
+        input = helper.make_tensor_value_info('input', TensorProto.FLOAT, input_shape)
+        y = helper.make_tensor_value_info('y', TensorProto.FLOAT, input_shape)
+        # Create the graph (GraphProto)
+        graph_def = helper.make_graph(
+            [node_def],
+            test_case,
+            [input],
+            [y],
+        )
+
+        # Create the model (ModelProto)
+        model_def = helper.make_model(graph_def, producer_name=test_case)
+        input_data = np.random.rand(input_shape[0], input_shape[1],
+                        input_shape[2], input_shape[3]).astype(np.float32)
+        onnx.checker.check_model(model_def)
+        self.onnx_convert_and_infernece(input_data, model_def, test_case)
 
     def test_Relu(self):
         test_case = 'test_Relu'
