@@ -880,16 +880,23 @@ static LogicalResult doEltwiseOpInterpret(Operation *op,
   }
 
   // compute in fp32
-  assert(nInputs == 2);
   int ret = 0;
-  if (type == "ADD") {
-    ret = my_eltwise(input[0], input[1], output, in, ic, ih, iw, 1);
-  } else if (type == "MAX") {
-    ret = my_eltwise(input[0], input[1], output, in, ic, ih, iw, 2);
-  } else if (type == "MUL") {
-    ret = my_eltwise(input[0], input[1], output, in, ic, ih, iw, 0);
-  } else {
-    llvm_unreachable("unsupported eltwise type");
+  for (size_t ni = 0; ni < nInputs; ++ni) {
+    for (size_t i = 0; i < in * ic * ih * iw; ++i) {
+      if (ni == 0) { // first input
+        output[i] = input[ni][i];
+      } else {
+        if (type == "ADD") {
+          output[i] = output[i] + input[ni][i];
+        } else if (type == "MAX") {
+          output[i] = output[i] > input[ni][i] ? output[i] : input[ni][i];
+        } else if (type == "MUL") {
+          output[i] = output[i] * input[ni][i];
+        } else {
+          llvm_unreachable("unsupported eltwise type");
+        }
+      }
+    }
   }
   assert(ret == 0);
   if (do_relu) {
