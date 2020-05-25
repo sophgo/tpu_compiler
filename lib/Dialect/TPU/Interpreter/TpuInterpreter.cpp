@@ -2298,56 +2298,6 @@ LogicalResult tpu::ShuffleChannelOp::interpret(
   return success();
 }
 
-#if 0
-LogicalResult tpu::SigmoidOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float>>> &valueMapping) {
-  Operation *op = this->getOperation();
-  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name()
-                          << "]\n";);
-
-  auto opdT = getOperandTensors(op, valueMapping);
-  auto result = this->getResult();
-  auto size = getTensorSize(result);
-  auto resultT = std::make_unique<std::vector<float>>(size);
-
-  // parse param
-
-  std::vector<int64_t> shape = getTensorShape(op->getOperand(0));
-  int64_t input_size, n, c, h, w;
-  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
-  assert(input_size == size);
-  getNCHW(shape, n, c, h, w);
-
-  std::vector<int> indices(size, 0);
-  float *input = (float *)opdT[0]->data();
-  float *output = (float *)resultT.get()->data();
-  if (getOpQuant() == "INT8") {
-    std::vector<int> data(256, 0);
-    float threshold_x = getPreviousOpThreshold(op);
-    float threshold_y = getOpThreshold(op);
-
-    assert(threshold_x != 0.0);
-    for (int idx = 0; idx < 256; ++idx) {
-      char lutInput = static_cast<char>(idx);
-      float index = -lutInput * threshold_x / 127.0;
-      float lutOutput = 1.0 / (1 + std::exp(index)) * 127.0 / threshold_y;
-      int lutOutputI32 = std::floor(lutOutput + 0.5);
-      lutOutputI32 = (lutOutputI32 > 127)
-                         ? 127
-                         : (lutOutputI32 < -128) ? -128 : lutOutputI32;
-      data[idx] = lutOutputI32;
-    }
-    for (int i = 0; i < size; ++i) {
-      output[i] = data[(unsigned char)input[i]];
-    }
-  } else {
-    my_sigmoid(input, output, n, c, h, w);
-  }
-  valueMapping[result] = std::move(resultT);
-
-  return success();
-}
-#endif
 
 LogicalResult tpu::SliceOp::interpret(
     DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
