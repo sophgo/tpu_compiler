@@ -186,8 +186,8 @@ export DO_QUANT_BF16=1
 export TOLERANCE_BF16=0.99,0.99,0.94
 export DO_CMDBUF_BF16=1
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
-export DO_LAYERGROUP=0
-export USE_LAYERGROUP=0
+export DO_LAYERGROUP=1
+export USE_LAYERGROUP=1
 fi
 
 if [ $NET = "mobilenet_v2" ]; then

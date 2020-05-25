@@ -237,7 +237,7 @@ class MlirParser:
         tensor = self.tensor_map[list(self.inputs)[0]]
         self.batch = tensor.shape[0]
         self.__omit_tensors()
-        self.__sort_tensor_map()
+        #self.__sort_tensor_map()
 
     def __calc_neuron_size(self):
         neuron_size = 0
@@ -416,10 +416,12 @@ class MlirParser:
         for i in reversed(range(len(self.ops))):
             if not is_cpu_op(self.ops[i], Op.cpu_ops):
                 continue
+            # if op is in the outputs set, move it to the bottom
             if self.ops[i].output in self.outputs:
                 self.ops.insert(len(self.ops)-1, self.ops[i])
                 del self.ops[i]
                 continue
+            # move cpu op to close to its consumers.
             for j in range(i+1, len(self.ops)):
                 if self.ops[i].output in self.ops[j].inputs:
                     self.ops.insert(j, self.ops[i])

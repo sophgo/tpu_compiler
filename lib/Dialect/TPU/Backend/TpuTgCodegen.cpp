@@ -1081,24 +1081,6 @@ LogicalResult tpu::TG_BF16_FullyConnectedOp::codegen(void *ctx) {
   return success();
 }
 
-LogicalResult tpu::TG_INT8_InputOp::codegen(void *ctx) {
-  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
-               << " [" << getOpName() << "]\n";);
-  //CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
-  //Operation *op = this->getOperation();
-
-  return success();
-}
-
-LogicalResult tpu::TG_BF16_InputOp::codegen(void *ctx) {
-  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
-               << " [" << getOpName() << "]\n";);
-  //CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
-  //Operation *op = this->getOperation();
-
-  return success();
-}
-
 LogicalResult tpu::TG_INT8_LeakyReluOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);

@@ -10,6 +10,7 @@ if [ ! -f "$CAFFE_BLOBS_NPZ" ]; then
   run_caffe_feature_extract.py \
       --model_def $MODEL_PATH/face_recognition/bmface/caffe/bmface-v3.prototxt \
       --pretrained_model $MODEL_PATH/face_recognition/bmface/caffe/bmface-v3.caffemodel \
+      --dump_blobs_with_inplace=1 \
       --dump_blobs $CAFFE_BLOBS_NPZ \
       --dump_weights bmface_v3_weights.npz \
       --model_type bmface_v3 \

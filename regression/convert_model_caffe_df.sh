@@ -71,17 +71,16 @@ mlir-opt \
 mlir-opt \
     --convert-func-to-tensor \
     -o int8_tl_lw_memopt.mlir
+mlir-opt \
+    --divide-ops-to-func \
+    int8_tl_lw_memopt.mlir \
+    -o int8_tl_lw_memopt_func.mlir
 
 mlir-translate \
-    int8_tl_lw_memopt.mlir \
-    --mlir-to-cmdbuf \
-    -o cmdbuf.bin
-
-build_cvimodel.py \
-    --cmdbuf cmdbuf.bin \
-    --weight weight.bin \
-    --mlir int8_tl_lw_memopt.mlir \
-    --output=$5
+    --mlir-to-cvimodel \
+    --weight-file weight.bin \
+    int8_tl_lw_memopt_func.mlir \
+    -o $5
 
 else
 
@@ -146,15 +145,15 @@ mlir-opt \
     int8_tl_la.mlir \
     -o int8_tl_lw.mlir
 
-mlir-translate \
+mlir-opt \
+    --divide-ops-to-func \
     int8_tl_lw.mlir \
-    --mlir-to-cmdbuf \
-    -o cmdbuf.bin
+    -o int8_tl_lw_func.mlir
 
-build_cvimodel.py \
-    --cmdbuf cmdbuf.bin \
-    --weight weight.bin \
-    --mlir int8_tl_lw.mlir \
-    --output=$5
+mlir-translate \
+    --mlir-to-cvimodel \
+    --weight-file weight.bin \
+    int8_tl_lw_func.mlir \
+    -o $5
 
 fi

@@ -43,17 +43,16 @@ mlir-opt \
     -o ${NET}_quant_int8_multiplier_tl_lw_memopt.mlir
 
 # generate cmdbuf
-mlir-translate \
+mlir-opt \
+    --divide-ops-to-func \
     ${NET}_quant_int8_multiplier_tl_lw_memopt.mlir \
-    --mlir-to-cmdbuf \
-    -o cmdbuf_lw_memopt.bin
+    -o ${NET}_quant_int8_multiplier_tl_lw_memopt_func.mlir
 
-# generate cvimodel
-build_cvimodel.py \
-    --cmdbuf cmdbuf_lw_memopt.bin \
-    --weight weight_int8_multiplier.bin \
-    --mlir ${NET}_quant_int8_multiplier_tl_lw_memopt.mlir \
-    --output=${NET}_int8_lw_memopt.cvimodel
+mlir-translate \
+    --mlir-to-cvimodel \
+    --weight-file weight_int8_multiplier.bin \
+    ${NET}_quant_int8_multiplier_tl_lw_memopt_func.mlir \
+    -o ${NET}_int8_lw_memopt.cvimodel
 
 model_runner \
     --dump-all-tensors \

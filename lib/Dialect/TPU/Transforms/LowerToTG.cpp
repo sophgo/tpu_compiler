@@ -493,41 +493,6 @@ Value *tpu::FullyConnectedOp::convertToTG() {
   }
   llvm_unreachable("unsupported type");
 }
-/*
-Value* tpu::InputOp::convertToTG() {
-  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
-               << " [" << getOpName() << "]\n";);
-  Operation *op = this->getOperation();
-  auto builder = Builder(op->getContext());
-  //  TensorFile *wTF = getWeightTensorFile(op);
-
-  std::vector<Value *> operands;
-  operands.push_back(input());
-
-  std::vector<NamedAttribute> attrs;
-  attrs.push_back(builder.getNamedAttr("name", nameAttr()));
-  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
-
-  if (getOpQuant() == "INT8") {
-    assert(getOpQuantParamType() == "NONE");
-    auto newOp = OpBuilder(op).create<tpu::TG_INT8_InputOp>(op->getLoc(),
-        getResult()->getType(), ArrayRef<Value *>{operands},
-        ArrayRef<NamedAttribute>{attrs});
-    return newOp.getResult();
-  } else if (getOpQuant() == "BF16") {
-    auto newOp = OpBuilder(op).create<tpu::TG_BF16_InputOp>(op->getLoc(),
-        getResult()->getType(), ArrayRef<Value *>{operands},
-        ArrayRef<NamedAttribute>{attrs});
-    return newOp.getResult();
-  } else if (getOpQuant() == "NONE") {
-    assert(false);
-  } else {
-    assert(false);
-  }
-
-  return nullptr;
-}
-*/
 
 Value *tpu::LrnOp::convertToTG() {
   LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
@@ -1960,10 +1925,6 @@ public:
     auto *context = &getContext();
     auto fn = getFunction();
 
-    std::string fnName = fn.getName().str();
-    if (fnName.compare(0, 8, "cpu_func") == 0) {
-      return;
-    }
     // first, merge conv rshift/multiplier/bias into one packed tensor
     OwningRewritePatternList patterns_pack;
     patterns_pack.insert<

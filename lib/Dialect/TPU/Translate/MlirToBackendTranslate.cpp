@@ -37,7 +37,6 @@
 #include "mlir/Support/FileUtilities.h"
 #include "mlir/Support/TensorFile.h"
 #include "cvibuilder/cvimodel_generated.h"
-#include "mlir/Dialect/TPU/buildCviModel.h"
 
 #include <fstream>
 
@@ -97,7 +96,7 @@ static LogicalResult runOneFunction(FuncOp func) {
   return success();
 }
 
-LogicalResult translateModule(ModuleOp module, llvm::raw_ostream &output) {
+static LogicalResult translateModule(ModuleOp module, llvm::raw_ostream &output) {
   if (!module)
     return failure();
 
@@ -124,42 +123,8 @@ LogicalResult translateModule(ModuleOp module, llvm::raw_ostream &output) {
   return success();
 }
 
-LogicalResult translateModule_cvimodel(ModuleOp module, llvm::raw_ostream &output) {
-  if (!module)
-   return failure();
-
-  std::vector<int8_t> weight_data;
-  backend_ctx = cvi_backend_create_context(weight_data);
-
-  for (FuncOp function : module.getOps<FuncOp>()) {
-    LLVM_DEBUG(llvm::errs() << "run " << function.getName() << "\n";);
-
-    if (!function.getName().equals("tpu_func")) {
-      continue;
-    }
-    if (failed(runOneFunction(function)))
-      return failure();
-  }
-
-  cvi_backend_submit(backend_ctx);
-  std::vector<uint8_t> cmdbuf;
-  cvi_backend_get_cmdbuf(backend_ctx, cmdbuf);
-  flatbuffers::FlatBufferBuilder builder(1024);
-  CviMlirParser parser(module);
-  parser.setCmdBuf(cmdbuf);
-  CviModel model(&parser, &builder);
-  model.storeModel(output);
-  return success();
-}
-
 static TranslateFromMLIRRegistration
     registration("mlir-to-cmdbuf",
                  [](ModuleOp module, llvm::raw_ostream &output) {
                    return translateModule(module, output);
-                 });
-
-static TranslateFromMLIRRegistration
-    registration_cvimodel("mlir-to-cvimodel",
-                 [](ModuleOp module, llvm::raw_ostream &output) {
-                   return translateModule_cvimodel(module, output);
                  });

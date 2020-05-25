@@ -117,7 +117,6 @@ struct ConvertFuncToTensorPass
     target.addLegalOp<tpu::LoadWeightOp>();
     target.addLegalOp<tpu::ReshapeOp>();
     target.addLegalOp<tpu::GenericCpuOp>();
-    target.addLegalOp<tpu::TG_INT8_InputOp>();
 
     target.addLegalOp<tpu::TG_INT8_BroadcastMulOp>();
     target.addLegalOp<tpu::TG_BF16_BroadcastMulOp>();

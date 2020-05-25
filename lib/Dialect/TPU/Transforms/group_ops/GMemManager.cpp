@@ -118,7 +118,7 @@ bool GmemManager::is_tensor_of_join_layer(int tid) {
 
 void GmemManager::prealloc_io_tensors(list<GMEM_BLOCK>& block_list) {
   for (auto& layer : ImLayer::layers) {
-    if (isa<tpu::InputOp>(layer->op()) || isa<tpu::TG_INT8_InputOp>(layer->op())) {
+    if (isa<tpu::InputOp>(layer->op())) {
       for (auto& tensor : layer->out_tensors) {
         int tid = tensor->id();
         if (tensor->type() == TENSOR_NEURON || tensor->type() == TENSOR_NEURON_WINOGRAD) {

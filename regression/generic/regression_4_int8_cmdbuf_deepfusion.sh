@@ -92,29 +92,23 @@ if [ $DO_MEMOPT -eq 1 ]; then
 fi
 
 # generate cmdbuf
-# --debug-only=tl_conv,tl_eltwise_add \
-mlir-translate \
-    ${NET}_quant_int8_multiplier_tl_la.mlir \
-    --mlir-to-cmdbuf \
-    -o cmdbuf_la.bin
+# mlir-translate \
+#    --divide-ops-to-func \
+#    --mlir-to-cvimodel \
+#    --weight-file weight_int8_multiplier.bin \
+#    ${NET}_quant_int8_multiplier_tl_la.mlir \
+#    -o ${NET}_int8_la.cvimodel
 
-mlir-translate \
+mlir-opt \
+    --divide-ops-to-func \
     ${NET}_quant_int8_multiplier_tl_lw.mlir \
-    --mlir-to-cmdbuf \
-    -o cmdbuf_lw.bin
+    -o ${NET}_quant_int8_multiplier_tl_lw_func.mlir
 
-# generate cvimodel
-#build_cvimodel.py \
-#    --cmdbuf cmdbuf_la.bin \
-#    --weight weight_int8_multiplier.bin \
-#    --mlir ${NET}_quant_int8_multiplier_tl_la.mlir \
-#    --output=${NET}_int8_la.cvimodel
-
-build_cvimodel.py \
-    --cmdbuf cmdbuf_lw.bin \
-    --weight weight_int8_multiplier.bin \
-    --mlir ${NET}_quant_int8_multiplier_tl_lw.mlir \
-    --output=${NET}_int8_lw.cvimodel
+mlir-translate \
+    --mlir-to-cvimodel \
+    --weight-file weight_int8_multiplier.bin \
+    ${NET}_quant_int8_multiplier_tl_lw_func.mlir \
+    -o ${NET}_int8_lw.cvimodel
 
 # profiling cmdbuf
 # cvi_profiling --cmdbuf cmdbuf_lw.bin

@@ -33,6 +33,7 @@ add_llvm_library(MLIRTPU
   Transforms/AssignWeightAddress.cpp
   Transforms/AssignNeuronAddress.cpp
   Transforms/AssignLayerId.cpp
+  Transforms/DivideOpsToFunc.cpp
   Transforms/SplitCpuOp.cpp
   Transforms/ConvertPriorBoxToLoadWeight.cpp
   Transforms/ConvertCpuOp.cpp
