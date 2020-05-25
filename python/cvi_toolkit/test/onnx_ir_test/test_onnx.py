@@ -37,11 +37,7 @@ def onnx_convert_and_infernece(input_data, model_def, model_name):
     mlir_out = m.inference(input_data)
 
     #print(mlir_out, onnx_out)
-    try:
-        np.testing.assert_allclose(mlir_out, onnx_out, rtol=1e-5, atol=1e-01)
-        print("{} test PASS".format(model_name))
-    except:
-        print("{} test FAILD".format(model_name))
+    np.testing.assert_allclose(mlir_out, onnx_out, rtol=1e-5, atol=1e-01)
 
 
 def test_AveragePool():
@@ -55,7 +51,8 @@ def test_AveragePool():
         outputs=['output'],
         kernel_shape=[3, 3],
         strides=[1,1],
-        pads=[2, 2, 2, 2]
+        pads=[2, 2, 2, 2],
+        count_include_pad=1
     )
     graph_def = helper.make_graph(
         [node_def],
@@ -333,18 +330,21 @@ test_function = {
 if __name__ == "__main__":
     pass_list = list()
     fail_list = list()
+    err_msg = list()
     os.makedirs("tmp", exist_ok=True)
     os.chdir("tmp")
     for i in TEST_ONNX_IR:
         try:
             test_function.get(i)()
             pass_list.append(i)
-        except:
+        except Exception as err :
             fail_list.append(i)
+            err_msg.append(str(err))
     print("{} PASS {}".format("="*4, "="*4))
     for i in pass_list:
         print(i)
     if len(fail_list) != 0:
         print("{} FAILD {}".format("="*4, "="*4))
-        for i in fail_list:
+        for i, msg in zip(fail_list, err_msg) :
             print(i)
+            print("msg: ".format(msg))
