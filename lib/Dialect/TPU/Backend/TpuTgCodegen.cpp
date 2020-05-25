@@ -764,17 +764,17 @@ LogicalResult tpu::TG_INT8_EltwiseAddOp::codegen(void *ctx) {
     assert(ow == w / early_stride_w);
   }
 
-  assert(op->getNumOperands() == 2 && "support 2 inputs only");
-
-  gaddr_t ga_inputs[2];
-  ga_inputs[0] = getPreviousOpAddress(op, 0);
-  ga_inputs[1] = getPreviousOpAddress(op, 1);
+  int32_t input_number = op->getNumOperands();
+  gaddr_t ga_inputs[input_number];
+  for(size_t i = 0; i < input_number; i++){
+    ga_inputs[i] = getPreviousOpAddress(op, i);
+  }
   gaddr_t ga_output = getOpAddress(op);
   int layer_id = mlir::getOpLayerId(op);
 
   bool do_quant_rescale = false;
   int8_t rshift;
-  int8_t m_i8_input[2];
+  int8_t m_i8_input[input_number];
   if (this->rshift().hasValue() && this->m_i8_inputs().hasValue()) {
     do_quant_rescale = true;
     rshift = this->rshift().getValue().getLimitedValue();
@@ -782,18 +782,19 @@ LogicalResult tpu::TG_INT8_EltwiseAddOp::codegen(void *ctx) {
     std::vector<int32_t> m_i8_inputs_array;
     arrayAttrToVector(this->m_i8_inputs().getValue(), m_i8_inputs_array);
     assert(m_i8_inputs_array.size() == op->getNumOperands());
-    assert(m_i8_inputs_array.size() >= 2);
-    m_i8_input[0] = static_cast<int8_t>(m_i8_inputs_array[0]);
-    m_i8_input[1] = static_cast<int8_t>(m_i8_inputs_array[1]);
+    for (size_t i = 0; i < input_number; i++ ){
+      m_i8_input[i] = static_cast<int8_t>(m_i8_inputs_array[i]);
+    }
   }
 
   // TODO: should change on backend API, rather than doing cast
   int rshift_int;
-  int m_int[2];
+  int m_int[input_number];
   if (do_quant_rescale) {
     rshift_int = static_cast<int>(rshift);
-    m_int[0] = static_cast<int>(m_i8_input[0]);
-    m_int[1] = static_cast<int>(m_i8_input[1]);
+    for (size_t i = 0; i < input_number; i++ ){
+    m_int[i] = static_cast<int>(m_i8_input[i]);
+    }
   }
   const int coeffs[2] = {1, 1};
 
@@ -806,13 +807,13 @@ LogicalResult tpu::TG_INT8_EltwiseAddOp::codegen(void *ctx) {
       0,            // depends_len
       ga_inputs,    // gaddr_t ga_input[],
       ga_output,    // gaddr_t ga_output,
-      2,            // int input_size,
+      input_number, // int input_size,
       1,            // int op,  0, prod, 1, sum, 2, max
       n, c, h, w,
-      do_relu,      // bool do_relu,
-      0.0f,         // float relu_slope,
+      do_relu, // bool do_relu,
+      0.0f,    // float relu_slope,
       do_early_stride, early_stride_h, early_stride_w,
-      do_quant_rescale ? rshift_int : 0,   // int right_shift_width,
+      do_quant_rescale ? rshift_int : 0, // int right_shift_width,
       do_quant_rescale ? m_int : nullptr,
       coeffs);
 
