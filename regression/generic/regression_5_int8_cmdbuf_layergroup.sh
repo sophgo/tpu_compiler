@@ -77,17 +77,16 @@ else
         -o ${NET}_quant_int8_multiplier_layergroup.mlir
 fi
 
-mlir-translate \
-    --mlir-to-cmdbuf \
+mlir-opt \
+    --divide-ops-to-func \
     ${NET}_quant_int8_multiplier_layergroup.mlir \
-    -o cmdbuf_int8_multiplier_layergroup.bin
+    -o ${NET}_quant_int8_multiplier_layergroup_func.mlir
 
-# # generate cvi model
-build_cvimodel.py \
-    --cmdbuf cmdbuf_int8_multiplier_layergroup.bin \
-    --weight weight_int8_multiplier_layergroup.bin \
-    --mlir ${NET}_quant_int8_multiplier_layergroup.mlir \
-    --output=${NET}_lg.cvimodel
+mlir-translate \
+    --mlir-to-cvimodel \
+    --weight-file weight_int8_multiplier_layergroup.bin \
+    ${NET}_quant_int8_multiplier_layergroup_func.mlir \
+    -o ${NET}_lg.cvimodel
 
 if [ $COMPARE_ALL -eq 1 ]; then
     echo "compare all"

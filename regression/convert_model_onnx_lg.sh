@@ -44,13 +44,13 @@ mlir-opt \
     --weight-bin=weight.bin \
     -o int8_layergroup.mlir
 
-mlir-translate \
+mlir-opt \
+    --divide-ops-to-func \
     int8_layergroup.mlir \
-    --mlir-to-cmdbuf \
-    -o cmdbuf.bin
+    -o int8_layergroup_func.mlir
 
-build_cvimodel.py \
-    --cmdbuf cmdbuf.bin \
-    --weight weight.bin \
-    --mlir int8_layergroup.mlir \
-    --output=$5
+mlir-translate \
+    --mlir-to-cvimodel \
+    --weight-file weight.bin \
+    int8_layergroup_func.mlir \
+    -o $5

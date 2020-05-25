@@ -258,12 +258,15 @@ void SplitCpuOpPass::runOnModule() {
   BlockAndValueMapping mapper;
   bool hasCpuFunc = true;
   auto module = getModule();
-  for (FuncOp fn : module.getOps<FuncOp>()) {
+  for (auto fn : module.getOps<FuncOp>()) {
     fn.walk([&](Operation *op) {
+      // if op is cpu op, push it to vector.
       if (isCpuOp(op) || ((!hasCpuFunc) && isMixedOp(op))) {
         origCpuOpVec.push_back(op);
         hasCpuFunc = false;
-      } else if (!hasCpuFunc){
+      } else if (!hasCpuFunc) {
+        // if encounter a tpu op, stop loop and
+        // create a cpu function with prevois cpu ops in the vector.
         createCpuFunc(cpuFuncVec, origCpuOpVec, maybeIncludedVec);
         hasCpuFunc = true;
         origCpuOpVec.clear();

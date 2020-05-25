@@ -52,17 +52,16 @@ if [ $DO_QUANT_BF16 -eq 1 ]; then
       -o ${NET}_quant_bf16_addr.mlir
 
     # backend translate into cmdbuf
-    mlir-translate \
-      --mlir-to-cmdbuf \
-      ${NET}_quant_bf16_addr.mlir \
-      -o cmdbuf_bf16.bin
+    mlir-opt \
+        --divide-ops-to-func \
+        ${NET}_quant_bf16_addr.mlir \
+        -o ${NET}_quant_bf16_addr_func.mlir
 
-    # generate cvimodel
-    build_cvimodel.py \
-      --cmdbuf cmdbuf_bf16.bin \
-      --weight weight_bf16.bin \
-      --mlir ${NET}_quant_bf16_addr.mlir \
-      --output=${NET}_bf16.cvimodel
+    mlir-translate \
+        --mlir-to-cvimodel \
+        --weight-file weight_bf16.bin \
+        ${NET}_quant_bf16_addr_func.mlir \
+        -o ${NET}_bf16.cvimodel
 
     # run cvimodel
     model_runner \

@@ -285,13 +285,6 @@ class CVIModel:
     self.binary_buf_offset = 0
     self.verbose = verbose
 
-  def __random_tag(self, length):
-    chars = '0123456789abcdef'
-    ret = ''
-    for i in range(length):
-      ret += chars[random.randint(0, len(chars) - 1)]
-    return ret
-
   def __store_model(self, model, binary_buf, output_file):
     model_size = len(model)
     model_tag = 'CviModel'
@@ -303,9 +296,6 @@ class CVIModel:
       model), MAJOR_VER, MIN_VER, md5, "AA".encode())
     if len(header) != 32:
       raise Exception('header size != 32 bytes')
-    if not output_file:
-      ts = time.strftime('%Y%m%d%H%M%S', time.localtime())
-      output_file = '{}_{}.cm'.format(self.mlir.name, ts, random)
     with open(output_file, 'wb') as f:
       f.write(header)
       f.write(payload)

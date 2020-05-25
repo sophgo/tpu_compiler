@@ -63,17 +63,16 @@ if [ $DO_QUANT_INT8_PER_TENSOR -eq 1 ]; then
   echo "cat ${NET}_quant_int8_per_tensor_addr.mlir"
   cat ${NET}_quant_int8_per_tensor_addr.mlir
 
-  mlir-translate \
-      --mlir-to-cmdbuf \
+  mlir-opt \
+      --divide-ops-to-func \
       ${NET}_quant_int8_per_tensor_addr.mlir \
-      -o cmdbuf_int8_per_tensor.bin
+      -o ${NET}_quant_int8_per_tensor_addr_func.mlir
 
-  # generate cvi model
-  build_cvimodel.py \
-      --cmdbuf cmdbuf_int8_per_tensor.bin \
-      --weight weight_int8_per_tensor.bin \
-      --mlir ${NET}_quant_int8_per_tensor_addr.mlir \
-      --output=${NET}_int8_per_tensor.cvimodel
+  mlir-translate \
+      --mlir-to-cvimodel \
+      --weight-file weight_int8_per_tensor.bin \
+      ${NET}_quant_int8_per_tensor_addr_func.mlir \
+      -o ${NET}_int8_per_tensor.cvimodel
 
   # run cvimodel
   model_runner \
