@@ -220,10 +220,10 @@ fi
 
 if [ $NET = "mobilenet_v3" ]; then
 export MODEL_TYPE="onnx"
-export MODEL_DEF=$MODEL_PATH/imagenet/mobilenet_v3/onnx/mobilenetv3_rw.onnx
+export MODEL_DEF=$MODEL_PATH/imagenet/mobilenet_v3/onnx/2020.04.17.01/mobilenetv3_rw.onnx
 export MODEL_DAT=""
 export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_onnx/regression_mobilenetv3_0_onnx.sh
-export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/mobilenetv3_pytorch_preprocess_calibration_table.bin.65536
+export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/mobilenetv3_calibration_table
 export RAW_SCALE=1
 export INPUT_SCALE=0.875
 export NET_INPUT_DIMS=256,256
@@ -233,7 +233,11 @@ export IMAGE_RESIZE_DIMS=224,224
 export INPUT=input
 export COMPARE_ALL=1
 export TOLERANCE_INT8_MULTIPLER=0.083338,-0.1,-1.0
+export DO_QUANT_INT8_MULTIPLER=0
+export DO_CMDBUF_INT8=0
 export DO_QUANT_BF16=1
+export DO_CMDBUF_BF16=1
+export DO_NN_TOOLKIT=0
 export TOLERANCE_BF16=0.9,0.9,0.9
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
 export EXCEPTS=371_Add,315_Add,390_Add,401_Add,409_Add,419_Add,427_Add,438_Add,446_Add,457_Add,465_Add,476_Add,484_Add,492_Add,499_Add,509_Add,517_Add,525_Add,532_Add,543_Add,551_Add,559_Add,566_Add,576_Add,584_Add,592_Add,599_Add,610_Add,618_Add,626_Add,633_Add,644_Add,652_Add # cuz relu6 could add 'relu' layer that could mismatch original layer

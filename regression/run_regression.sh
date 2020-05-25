@@ -84,6 +84,7 @@ net_list_generic_extra=(
   # "resnet18"
   # "efficientnet_b0"
   "alphapose"
+  "mobilenet_v3"
 )
 
 net_list_batch_extra=(
