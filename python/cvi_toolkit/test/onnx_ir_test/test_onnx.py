@@ -5,6 +5,7 @@ from onnx import helper
 from onnx import AttributeProto, TensorProto, GraphProto
 import onnxruntime
 import numpy as np
+import os 
 
 TEST_ONNX_IR = [
     "AveragePool",
@@ -235,6 +236,8 @@ test_function = {
 if __name__ == "__main__":
     pass_list = list()
     fail_list = list()
+    os.makedirs("tmp", exist_ok=True)
+    os.chdir("tmp")
     for i in TEST_ONNX_IR:
         try:
             test_function.get(i)()
