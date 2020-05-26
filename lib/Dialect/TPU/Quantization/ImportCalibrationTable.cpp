@@ -171,6 +171,8 @@ struct BackendOverwriteThresholdDefaultPattern : public RewritePattern {
       setOpThreshold(formerOp, threshold_y);
     } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::FullyConnectedOp>(formerOp)) {
       setOpThreshold(formerOp, threshold_y);
+    } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::InputOp>(formerOp)) {
+      setOpThreshold(formerOp, threshold_y);
     } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::LeakyReluOp>(formerOp)) {
       setOpThreshold(formerOp, threshold_y);
     } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::ReluOp>(formerOp)) {

@@ -175,8 +175,6 @@ LogicalResult tpu::TG_BF16_BroadcastMulOp::codegen(void *ctx) {
       );
 
   return success();
-
-  return success();
 }
 
 LogicalResult tpu::TG_INT8_ConcatOp::codegen(void *ctx) {
@@ -796,7 +794,7 @@ LogicalResult tpu::TG_INT8_EltwiseAddOp::codegen(void *ctx) {
     m_int[i] = static_cast<int>(m_i8_input[i]);
     }
   }
-  const int coeffs[2] = {1, 1};
+  std::vector<int>coeffs(input_number, 1);
 
   bmnet_eltwise_fixed_forward_bmkernel(
       *backend_ctx,
@@ -815,7 +813,7 @@ LogicalResult tpu::TG_INT8_EltwiseAddOp::codegen(void *ctx) {
       do_early_stride, early_stride_h, early_stride_w,
       do_quant_rescale ? rshift_int : 0, // int right_shift_width,
       do_quant_rescale ? m_int : nullptr,
-      coeffs);
+      coeffs.data());
 
   return success();
 }
@@ -921,26 +919,29 @@ LogicalResult tpu::TG_BF16_EltwiseAddOp::codegen(void *ctx) {
     assert(ow == w / early_stride_w);
   }
 
-  gaddr_t ga_inputs[2];
-  ga_inputs[0] = getPreviousOpAddress(op, 0);
-  ga_inputs[1] = getPreviousOpAddress(op, 1);
+  int32_t input_number = op->getNumOperands();
+  gaddr_t ga_inputs[input_number];
+  for (int i = 0; i < input_number; i++) {
+    ga_inputs[i] = getPreviousOpAddress(op, i);
+  }
   gaddr_t ga_output = getOpAddress(op);
   int layer_id = mlir::getOpLayerId(op);
 
-  const float coeffs[2] = {1.0, 1.0};
+  // only need two coeff now, here just for safety coding
+  std::vector<float> coeffs(input_number, 1.0f);
 
   bf16_eltwise_forward_kernel(
       *backend_ctx,
       layer_id,     // layer_id
       ga_inputs,    // gaddr_t ga_input[]
       ga_output,    // gaddr_t ga_output
-      2,            // int input_size
+      input_number,            // int input_size
       1,            // int op, 0: prod, 1: sum, 2: max
       n, c, h, w,
       do_relu,      // bool do_relu
       0.0f,         // float relu_slope
       do_early_stride, early_stride_h, early_stride_w,
-      coeffs);
+      coeffs.data());
 
   return success();
 }

@@ -20,13 +20,23 @@ TEST_ONNX_IR = [
     "Sum",
 ]
 
-
 def onnx_inference(input, model_def, model_name):
     onnx.save(model_def, model_name)
     ort_session = onnxruntime.InferenceSession(model_name)
     ort_inputs = {'input': input}
     ort_outs = ort_session.run(None, ort_inputs)
     return ort_outs[0]
+
+def export_test_data(tensors, model_name):
+    # simple calibration table
+    f = open("{}_cali_table".format(model_name), 'wt')
+    for name in tensors:
+        t = 1.1 * max(np.abs(tensors[name].flatten())) + 0.01
+        f.write("{} {}\n".format(name,t))
+    f.close
+    # input and all tensor data
+    np.savez("{}_onnx_all_fp32.npz".format(model_name), **tensors)
+    np.savez("{}_input.npz".format(model_name), input=tensors['input'])
 
 def onnx_convert_and_infernece(input_data, model_def, model_name):
     c = OnnxConverter(model_name, model_def, "{}.mlir".format(model_name))
@@ -37,6 +47,7 @@ def onnx_convert_and_infernece(input_data, model_def, model_name):
     m = MLIRModel()
     m.load_model("{}.mlir".format(model_name))
     mlir_out = m.inference(input_data)
+    export_test_data(m.get_all_tensor(), model_name)
 
     #print(mlir_out, onnx_out)
     np.testing.assert_allclose(mlir_out, onnx_out, rtol=1e-5, atol=1e-01)
@@ -92,9 +103,14 @@ def test_LeakyRelu():
     alpha = 0.01
     test_case = "test_LeakyRelu"
     input_shape = [1, 3, 224, 224]
+    x1_def = helper.make_node(
+        'Neg',  # node name
+        ['input'],  # inputs
+        ['X1'],  # outputs
+    )
     node_def = helper.make_node(
         "LeakyRelu", # node name
-        ['input'], # inputs
+        ['X1'], # inputs
         ['output'], # outputs
         alpha=alpha
     )
@@ -103,7 +119,7 @@ def test_LeakyRelu():
     output = helper.make_tensor_value_info('output', TensorProto.FLOAT, input_shape)
     # Create the graph (GraphProto)
     graph_def = helper.make_graph(
-        [node_def],
+        [x1_def, node_def],
         test_case,
         [input],
         [output],
@@ -111,7 +127,7 @@ def test_LeakyRelu():
 
     # Create the model (ModelProto)
     model_def = helper.make_model(graph_def, producer_name=test_case)
-    input_data = np.random.rand(input_shape[0], input_shape[1],
+    input_data = np.random.randn(input_shape[0], input_shape[1],
                        input_shape[2], input_shape[3]).astype(np.float32)
 
     onnx.checker.check_model(model_def)
@@ -119,8 +135,8 @@ def test_LeakyRelu():
 
 def test_Max():
     test_case = 'test_Max'
-    input_shape = [4, 3, 27, 27]
-    output_shape = [4, 3, 27, 27]
+    input_shape = [1, 3, 27, 27]
+    output_shape = [1, 3, 27, 27]
 
     input = helper.make_tensor_value_info('input', TensorProto.FLOAT, input_shape)
     output = helper.make_tensor_value_info(
@@ -128,40 +144,46 @@ def test_Max():
 
     #test only one input
     x1_def = helper.make_node(
-        'Max',  # node name
+        'Neg',  # node name
         ['input'],  # inputs
         ['X1'],  # outputs
     )
 
     x2_def = helper.make_node(
-        'Sum',  # node name
-        ['input', 'X1'],  # inputs
+        'Max',  # node name
+        ['input'],  # inputs
         ['X2'],  # outputs
+    )
+
+    x3_def = helper.make_node(
+        'Sum',  # node name
+        ['input', 'X2'],  # inputs
+        ['X3'],  # outputs
     )
 
     #test three input
     max_def = helper.make_node(
         'Max',  # node name
-        ['input', 'X1', 'X2'],  # inputs
+        ['input', 'X1', 'X2', 'X3'],  # inputs
         ['output'],  # outputs
     )
 
     graph_def = helper.make_graph(
-        [x1_def, x2_def, max_def],
+        [x1_def, x2_def, x3_def, max_def],
         test_case,
         [input],
         [output],
     )
     model_def = helper.make_model(graph_def, producer_name=test_case)
-    input_data = np.random.rand(input_shape[0], input_shape[1],
+    input_data = np.random.randn(input_shape[0], input_shape[1],
                        input_shape[2], input_shape[3]).astype(np.float32)
     onnx.checker.check_model(model_def)
     onnx_convert_and_infernece(input_data, model_def, test_case)
 
 def test_Min():
     test_case = 'test_Min'
-    input_shape = [4, 3, 27, 27]
-    output_shape = [4, 3, 27, 27]
+    input_shape = [1, 3, 27, 27]
+    output_shape = [1, 3, 27, 27]
 
     input = helper.make_tensor_value_info('input', TensorProto.FLOAT, input_shape)
     output = helper.make_tensor_value_info(
@@ -207,8 +229,8 @@ def test_Min():
 
 def test_Neg():
     test_case = 'test_Neg'
-    input_shape = [4, 3, 27, 27]
-    output_shape = [4, 3, 27, 27]
+    input_shape = [1, 3, 27, 27]
+    output_shape = [1, 3, 27, 27]
 
     input = helper.make_tensor_value_info('input', TensorProto.FLOAT, input_shape)
     output = helper.make_tensor_value_info(
@@ -262,8 +284,8 @@ def test_Relu():
 
 def test_Slice():
     test_case = 'test_Slice'
-    x = np.random.randn(4, 20, 10, 5).astype(np.float32)
-    input_shape = [4, 20, 10, 5]
+    x = np.random.randn(1, 20, 10, 5).astype(np.float32)
+    input_shape = [1, 20, 10, 5]
     y = x[0:3, 0:10]
     output_shape = y.shape
     starts = np.array([0, 0], dtype=np.int64)
@@ -327,8 +349,8 @@ def test_Slice():
 
 def test_Sub():
     test_case = 'test_Sub'
-    input_shape = [4, 3, 27, 27]
-    output_shape = [4, 3, 27, 27]
+    input_shape = [1, 3, 27, 27]
+    output_shape = [1, 3, 27, 27]
 
     input = helper.make_tensor_value_info('input', TensorProto.FLOAT, input_shape)
     output = helper.make_tensor_value_info(
@@ -354,44 +376,48 @@ def test_Sub():
     )
     model_def = helper.make_model(graph_def, producer_name=test_case)
 
-    input_data = np.random.rand(input_shape[0], input_shape[1],
+    input_data = np.random.randn(input_shape[0], input_shape[1],
                        input_shape[2], input_shape[3]).astype(np.float32)
     onnx_convert_and_infernece(input_data, model_def, test_case)
     onnx.checker.check_model(model_def)
 
 def test_Sum():
-
     test_case = 'test_Sum'
-    input_shape = [4, 3, 27, 27]
-    output_shape = [4, 3, 27, 27]
+    input_shape = [1, 3, 27, 27]
+    output_shape = [1, 3, 27, 27]
 
     input = helper.make_tensor_value_info('input', TensorProto.FLOAT, input_shape)
     output = helper.make_tensor_value_info(
         'output', TensorProto.FLOAT, output_shape)
 
     x1_def = helper.make_node(
-        'Transpose',  # node name
+        'Neg',  # node name
         ['input'],  # inputs
         ['X1'],  # outputs
-        perm=[0, 1, 2, 3]
+    )
+
+    x2_def = helper.make_node(
+        'Neg',  # node name
+        ['input'],  # inputs
+        ['X2'],  # outputs
     )
 
     #test only one input
-    x2_def = helper.make_node(
+    x3_def = helper.make_node(
         'Sum',  # node name
         ['input'],  # inputs
-        ['X2'],  # outputs
+        ['X3'],  # outputs
     )
 
     #test three input
     sum_def = helper.make_node(
         'Sum',  # node name
-        ['input', 'X1', 'X2'],  # inputs
+        ['input', 'X1', 'X2', 'X3'],  # inputs
         ['output'],  # outputs
     )
 
     graph_def = helper.make_graph(
-        [x1_def, x2_def, sum_def],
+        [x1_def, x2_def, x3_def, sum_def],
         test_case,
         [input],
         [output],
@@ -399,17 +425,22 @@ def test_Sum():
     model_def = helper.make_model(graph_def, producer_name=test_case)
     onnx.checker.check_model(model_def)
 
-    input_data = np.random.rand(input_shape[0], input_shape[1],
+    input_data = np.random.randn(input_shape[0], input_shape[1],
                        input_shape[2], input_shape[3]).astype(np.float32)
 
     onnx.checker.check_model(model_def)
     onnx_convert_and_infernece(input_data, model_def, test_case)
 
+def test_int8_cmdbuf(name):
+    ret = os.system('../test_int8_cmdbuf.sh test_{}'.format(i))
+    if ret != 0:
+        raise Exception("test_{} int8 cmdbuf failed".format(name))
 
 test_function = {
     "AveragePool": test_AveragePool,
     "LeakyRelu": test_LeakyRelu,
     "GlobalMaxPool": test_GlobalMaxPool,
+    "LeakyRelu": test_LeakyRelu,
     "Max": test_Max,
     "Min": test_Min,
     "Neg": test_Neg,
@@ -428,6 +459,7 @@ if __name__ == "__main__":
     for i in TEST_ONNX_IR:
         try:
             test_function.get(i)()
+            test_int8_cmdbuf(i)
             pass_list.append(i)
         except Exception as err :
             fail_list.append(i)
@@ -439,4 +471,4 @@ if __name__ == "__main__":
         print("{} FAILD {}".format("="*4, "="*4))
         for i, msg in zip(fail_list, err_msg) :
             print(i)
-            print("msg: ".format(msg))
+            print("msg:{}".format(msg))
