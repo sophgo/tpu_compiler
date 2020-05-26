@@ -101,6 +101,8 @@ class OnnxConverter(BaseConverter):
         self.tensors = onnx_model.graph.initializer
         self.mlir_file_path = mlir_file_path
 
+        self.remove_tensor_from_input_nodes()
+
         self.converted_nodes = list()
         self.converted_tensors = list()
 
@@ -118,6 +120,7 @@ class OnnxConverter(BaseConverter):
             "ConstantOfShape": lambda node: self.convert_constant_of_shape_op(node),
             "DepthToSpace": lambda node: self.convert_depth_to_space_op(node),
             "Div": lambda node: self.convert_div_op(node),
+            "Dropout": lambda node: self.convert_skip_op(node),
             "Flatten": lambda node: self.convert_flatten_op(node),
             "Gather": lambda node: self.convert_gather_op(node),
             "Gemm": lambda node: self.convert_gemm_op(node),
@@ -174,10 +177,19 @@ class OnnxConverter(BaseConverter):
         # init importer
         self.CVI = MLIRImporter(inputs, outputs)
 
+    def remove_tensor_from_input_nodes(self):
+        def find_name_in_tensor_list(name):
+            for i in self.tensors:
+                if name == i.name:
+                    return True
+            return False
+        self.input_nodes = [x for x in self.input_nodes if not find_name_in_tensor_list(x.name)]
+
 
     def addTensor(self, op_name, tensor_data, tensor_shape):
         #cprint("add tensor, name: {}\ntensor data: {}".format(op_name, tensor_data), "yellow")
         self.converted_tensors.append(OnnxTensor(op_name, tensor_data, tensor_shape))
+
 
     def getTensor(self, op_name):
         find_tensor = [t for t in self.converted_tensors if t.name == op_name]
@@ -231,6 +243,7 @@ class OnnxConverter(BaseConverter):
             tensor = OnnxTensor(name, data, shape)
             #tensor.print_info()
             self.converted_tensors.append(tensor)
+            self.addOperand(name, None, shape, TensorType.TENSOR)
 
     def convert_graph(self):
         """convert all to mlir"""
@@ -292,22 +305,38 @@ class OnnxConverter(BaseConverter):
         assert(len(onnx_node.inputs) == 2)
         op1, input_shape1, tensor_type1 = self.getOperand(onnx_node.inputs[0])
         op2, input_shape2, tensor_type2 = self.getOperand(onnx_node.inputs[1])
+
+        if tensor_type1 == TensorType.TENSOR and tensor_type2 == TensorType.ACTIVATION:
+            # put activation first
+            onnx_node.inputs[0], onnx_node.inputs[1] = onnx_node.inputs[1], onnx_node.inputs[0]
+            self.convert_add_op(onnx_node)
+            return
+
         operands = list()
         # broadcast add from constant
+        # TODO: Our IR now only support channel broadcast
+        # [n,c,h,w] broadcast mul [1,c,1,1]
         if tensor_type1 == TensorType.ACTIVATION and tensor_type2 == TensorType.TENSOR:
-            if len(input_shape2) ==1 and input_shape2[0] == 1:
-                # we use depthwise for quantize, it could eq x * 1 + y
+            # Use scale op, x * 1 + y
+            if len(input_shape1) == 4 and (len(input_shape2) == 1 or len(input_shape2) == 3): # [1] or [c, 1, 1]
+                channel = input_shape1[1]
+                # only one constant
                 operands.append(op1)
-
                 tensor_data = np.full(input_shape1[1], 1) # broadcast via channel
-                weight_name = "{}_add_weight".format(onnx_node.inputs[0])
+                weight_name = "{}_add_weight".format(onnx_node.name)
                 self.addTensor(weight_name, tensor_data, tensor_data.shape)
                 op2 = self.CVI.add_load_file_op(weight_name, tensor_data.shape)
                 operands.append(op2)
 
                 add_value = self.getTensor(onnx_node.inputs[1]).tensor_data
-                tensor_data = np.full((input_shape1[1]), add_value[0]) # broadcast via channel
-                bias_name = "{}_add_bias".format(onnx_node.inputs[0])
+                if len(add_value.flatten()) == 1:
+                    tensor_data = np.full(input_shape1[1], add_value[0]) # broadcast via channel
+                elif len(add_value.flatten()) == channel:
+                    tensor_data = add_value.flatten()
+                else:
+                    raise RuntimeError("could not broadcast input array from shape {} into shape {}".format(input_shape1, input_shape2))
+
+                bias_name = "{}_add_bias".format(onnx_node.name)
                 self.addTensor(bias_name, tensor_data, tensor_data.shape)
                 op3 = self.CVI.add_load_file_op(bias_name, tensor_data.shape)
                 operands.append(op3)
@@ -617,7 +646,8 @@ class OnnxConverter(BaseConverter):
             self.addTensor(onnx_node.name, output_data, output_shape)
             self.addOperand(onnx_node.name, None, output_shape, TensorType.TENSOR)
         else:
-            if onnx_node.attrs["axis"] != 1:
+            axis = onnx_node.attrs.get("axis", 1) # Default is 1
+            if axis != 1:
                 raise AttributeError("TODO: axis != 1 case")
 
             operands.append(op)
@@ -828,15 +858,32 @@ class OnnxConverter(BaseConverter):
             self.addOperand(onnx_node.name, None, output_shape, TensorType.TENSOR)
         else:
             operands.append(op1)
-            operands.append(op2)
+            if tensor_type2 == TensorType.TENSOR:
+                channel = input_shape1[1]
+                mul_value = self.getTensor(onnx_node.inputs[1]).tensor_data
+
+                if len(mul_value.flatten()) == 1:
+                    tensor_data = np.full(channel, mul_value[0]) # broadcast via channel
+                elif len(mul_value.flatten()) == channel:
+                    tensor_data = mul_value.flatten()
+                else:
+                    raise RuntimeError("could not broadcast input array from shape {} into shape {}".format(input_shape1, input_shape2))
+
+                weight_name = "{}_mul_weight".format(onnx_node.inputs[0])
+                self.addTensor(weight_name, tensor_data, tensor_data.shape)
+                op2 = self.CVI.add_load_file_op(weight_name, tensor_data.shape)
+                operands.append(op2)
+            else:
+                operands.append(op2)
             if input_shape1 == input_shape2:
                 #eltwise mul
                 output_shape = input_shape1
                 mul_op = self.CVI.add_eltwise_mul_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
             else:
-                #broadcast mul
-                # FixMe: we only support broadcast mul axis now
-                if len(input_shape1) != 4 and (len(input_shape2) != 2 or len(input_shape2) != 4) :
+                # broadcast mul
+                # TODO: only support broadcast mul channel axis now
+                # [n, c, h, w] broadcast with [n, c]
+                if len(input_shape1) != 4 or np.prod(input_shape2) != input_shape1[0] * input_shape1[1] :
                     raise RuntimeError("{} vs {}  broadcast mul not support".format(input_shape1, input_shape2))
                 axis = 1
                 output_shape = input_shape1
@@ -1013,6 +1060,11 @@ class OnnxConverter(BaseConverter):
             }
             softmax_op = self.CVI.add_softmax_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **softmax_param)
             self.addOperand(onnx_node.name, softmax_op, output_shape, TensorType.ACTIVATION)
+
+    def convert_skip_op(self, onnx_node):
+        op, input_shape, _ = self.getOperand(onnx_node.inputs[0])
+        self.addOperand(onnx_node.name, op, input_shape, TensorType.ACTIVATION)
+
     def convert_split_op(self, onnx_node):
         assert(onnx_node.op_type == "Split")
         op, input_shape, tensor_type = self.getOperand(onnx_node.inputs[0])
