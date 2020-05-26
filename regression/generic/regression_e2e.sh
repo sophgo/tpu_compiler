@@ -4,20 +4,51 @@ set -e
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 
 if [ $MODEL_TYPE = "caffe" ]; then
-  if [ $USE_LAYERGROUP = "1" ]; then
-    $REGRESSION_PATH/convert_model_caffe_lg.sh \
-        ${MODEL_DEF} \
-        ${MODEL_DAT} \
-        ${BATCH_SIZE} \
-        ${CALI_TABLE} \
-        ${NET}.cvimodel
+  if [ $DO_PREPROCESS -eq 1 ]; then
+    if [ $MODEL_CHANNEL_ORDER = "rgb" ]; then
+      RGB_ORDER=2,1,0
+    else
+      RGB_ORDER=0,1,2
+    fi
+    if [ $USE_LAYERGROUP = "1" ]; then
+      $REGRESSION_PATH/convert_model_caffe_lg_preprocess.sh \
+          ${MODEL_DEF} \
+          ${MODEL_DAT} \
+          ${RAW_SCALE} \
+          ${MEAN} \
+          ${INPUT_SCALE} \
+          ${RGB_ORDER} \
+          ${BATCH_SIZE} \
+          ${CALI_TABLE} \
+          ${NET}.cvimodel
+    else
+      $REGRESSION_PATH/convert_model_caffe_df_preprocess.sh \
+          ${MODEL_DEF} \
+          ${MODEL_DAT} \
+          ${RAW_SCALE} \
+          ${MEAN} \
+          ${INPUT_SCALE} \
+          ${RGB_ORDER} \
+          ${BATCH_SIZE} \
+          ${CALI_TABLE} \
+          ${NET}.cvimodel
+    fi
   else
-    $REGRESSION_PATH/convert_model_caffe_df.sh \
-        ${MODEL_DEF} \
-        ${MODEL_DAT} \
-        ${BATCH_SIZE} \
-        ${CALI_TABLE} \
-        ${NET}.cvimodel
+    if [ $USE_LAYERGROUP = "1" ]; then
+      $REGRESSION_PATH/convert_model_caffe_lg.sh \
+          ${MODEL_DEF} \
+          ${MODEL_DAT} \
+          ${BATCH_SIZE} \
+          ${CALI_TABLE} \
+          ${NET}.cvimodel
+    else
+      $REGRESSION_PATH/convert_model_caffe_df.sh \
+          ${MODEL_DEF} \
+          ${MODEL_DAT} \
+          ${BATCH_SIZE} \
+          ${CALI_TABLE} \
+          ${NET}.cvimodel
+    fi
   fi
 elif [ $MODEL_TYPE = "onnx" ]; then
   if [ $USE_LAYERGROUP = "1" ]; then
