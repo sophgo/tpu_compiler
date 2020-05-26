@@ -46,7 +46,7 @@
 #include <stdlib.h>
 #include <time.h>
 
-#define DEBUG_TYPE "gather_ops_to_func"
+#define DEBUG_TYPE "devide_ops_to_func"
 
 using namespace mlir;
 
@@ -106,6 +106,64 @@ struct EliminateReshapeOpPattern : public RewritePattern {
   }
 };
 
+struct SinkCpuOPsToBottomPattern : public RewritePattern {
+  SinkCpuOPsToBottomPattern(MLIRContext *context)
+      : RewritePattern(ReturnOp::getOperationName(), 1, context) {}
+
+  PatternMatchResult matchAndRewrite(Operation *op,
+                                     PatternRewriter &rewriter) const override {
+    auto insertPoint = op;
+    for (int i = (int)op->getNumOperands() - 1; i >= 0; --i) {
+      auto opd = op->getOperand(i)->getDefiningOp();
+      if (!isa<tpu::GenericCpuOp>(op)) {
+        continue;
+      }
+      opd->moveBefore(insertPoint);
+      insertPoint = opd;
+    }
+    return matchSuccess();
+  }
+};
+
+struct MoveCpuOPsToCloseConsumerPattern : public RewritePattern {
+  MoveCpuOPsToCloseConsumerPattern(MLIRContext *context)
+      : RewritePattern(tpu::GenericCpuOp::getOperationName(), 1, context) {}
+
+  PatternMatchResult matchAndRewrite(Operation *op,
+                                     PatternRewriter &rewriter) const override {
+    auto myName = [](Operation *op) {
+      if (!op->getAttr("name"))
+        return op->getName().getStringRef();
+      return op->getAttr("name").cast<StringAttr>().getValue();
+    };
+
+    auto getLastUse = [](Operation *op) {
+      auto it = op->getResult(0)->use_begin();
+      auto last = it;
+      while (++it != op->getResult(0)->use_end()) {
+        last = it;
+      }
+      return last->getOwner();
+    };
+
+    LLVM_DEBUG(llvm::errs() << "MoveCpuOPs, find generic_cpu:" << myName(op) << "\n");
+    auto nextOp = getLastUse(op);
+    LLVM_DEBUG(llvm::errs() << "MoveCpuOPs, find use:" << myName(nextOp) << "\n");
+    auto insertPoint = nextOp;
+    for (int i = 0; i < (int)nextOp->getNumOperands(); i++) {
+      auto opd = nextOp->getOperand(i)->getDefiningOp();
+      if (opd == op) {
+        if (i - 1 >= 0) {
+          insertPoint = nextOp->getOperand(i - 1)->getDefiningOp();
+        }
+        op->moveBefore(insertPoint);
+        break;
+      }
+    }
+    return matchSuccess();
+  }
+};
+
 class DivideOpsToFuncPass : public ModulePass<DivideOpsToFuncPass> {
 public:
   void runOnModule() override {
@@ -117,6 +175,16 @@ public:
           EliminateReshapeOpPattern<tpu::ReshapeOp>
           >(context);
       applyPatternsGreedily(fn, patterns);
+      patterns.clear();
+      patterns.insert<
+          SinkCpuOPsToBottomPattern
+          >(context);
+      applyPatternsGreedily(fn, patterns);
+      patterns.clear();
+      patterns.insert<
+          MoveCpuOPsToCloseConsumerPattern
+          >(context);
+      applyPatternsGreedily(fn, patterns);
     }
 
     std::vector<SubFunction *> tpuFuncs;
@@ -124,9 +192,13 @@ public:
 
     for (auto fn : module.getOps<FuncOp>()) {
       fn.walk([&](Operation *op) {
-        if (op->getName().getDialect().str() != "tpu" || isa<tpu::LoadWeightOp>(op) ||
-            isa<tpu::WeightFileOp>(op) || isa<tpu::NoneOp>(op) || isa<tpu::InputOp>(op) ||
-            isa<ReturnOp>(op) || isa<FuncOp>(op)) {
+        if (op->getName().getDialect().str() != "tpu"
+           || isa<tpu::LoadWeightOp>(op)
+           || isa<tpu::WeightFileOp>(op)
+           || isa<tpu::NoneOp>(op)
+           || isa<tpu::InputOp>(op)
+           || isa<ReturnOp>(op)
+           || isa<FuncOp>(op)) {
           // continue
         }
         if (isa<tpu::ReshapeOp>(op)) {
