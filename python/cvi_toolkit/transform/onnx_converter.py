@@ -1060,9 +1060,12 @@ class OnnxConverter(BaseConverter):
             self.addOperand(onnx_node.name, None, output_shape, TensorType.TENSOR)
         else:
             operands = [op]
-
+            axis = len(input_shape) - 1
+            for i in range(len(output_shape)):
+                if output_shape[axis] == 1:
+                    axis = axis -1
             softmax_param = {
-                'axis': len(input_shape) - 1,
+                'axis': axis,
             }
             softmax_op = self.CVI.add_softmax_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **softmax_param)
             self.addOperand(onnx_node.name, softmax_op, output_shape, TensorType.ACTIVATION)
