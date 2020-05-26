@@ -354,9 +354,11 @@ class TPU_TG_MemRef_EltwiseOp<string mnemonic, string opQuant, string opType> : 
 }
 def TPU_TG_MemRef_INT8_EltwiseAddOp : TPU_TG_MemRef_EltwiseOp<"tg_memref_int8_eltwise_add", "Int8", "Add">;
 def TPU_TG_MemRef_INT8_EltwiseMaxOp : TPU_TG_MemRef_EltwiseOp<"tg_memref_int8_eltwise_max", "Int8", "Max">;
+def TPU_TG_MemRef_INT8_EltwiseMinOp : TPU_TG_MemRef_EltwiseOp<"tg_memref_int8_eltwise_min", "Int8", "Min">;
 def TPU_TG_MemRef_INT8_EltwiseMulOp : TPU_TG_MemRef_EltwiseOp<"tg_memref_int8_eltwise_mul", "Int8", "Mul">;
 def TPU_TG_MemRef_BF16_EltwiseAddOp : TPU_TG_MemRef_EltwiseOp<"tg_memref_bf16_eltwise_add", "Bf16", "Add">;
 def TPU_TG_MemRef_BF16_EltwiseMaxOp : TPU_TG_MemRef_EltwiseOp<"tg_memref_bf16_eltwise_max", "Bf16", "Max">;
+def TPU_TG_MemRef_BF16_EltwiseMinOp : TPU_TG_MemRef_EltwiseOp<"tg_memref_bf16_eltwise_min", "Bf16", "Min">;
 def TPU_TG_MemRef_BF16_EltwiseMulOp : TPU_TG_MemRef_EltwiseOp<"tg_memref_bf16_eltwise_mul", "Bf16", "Mul">;
 
 class TPU_TG_MemRef_FullyConnectedOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,

@@ -228,6 +228,7 @@ LogicalResult tpu::DeConv2DOp::quantizeBf16() {
 
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::EltwiseAddOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::EltwiseMaxOp)
+DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::EltwiseMinOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::EltwiseMulOp)
 
 LogicalResult tpu::FullyConnectedOp::quantizeBf16() {

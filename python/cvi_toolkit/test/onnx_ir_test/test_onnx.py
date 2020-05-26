@@ -11,6 +11,8 @@ TEST_ONNX_IR = [
     "AveragePool",
     "GlobalMaxPool",
     "LeakyRelu",
+    "Max",
+    "Min",
     "Neg",
     # "Relu",
     "Slice",
@@ -112,6 +114,94 @@ def test_LeakyRelu():
     input_data = np.random.rand(input_shape[0], input_shape[1],
                        input_shape[2], input_shape[3]).astype(np.float32)
 
+    onnx.checker.check_model(model_def)
+    onnx_convert_and_infernece(input_data, model_def, test_case)
+
+def test_Max():
+    test_case = 'test_Max'
+    input_shape = [4, 3, 27, 27]
+    output_shape = [4, 3, 27, 27]
+
+    input = helper.make_tensor_value_info('input', TensorProto.FLOAT, input_shape)
+    output = helper.make_tensor_value_info(
+        'output', TensorProto.FLOAT, output_shape)
+
+    #test only one input
+    x1_def = helper.make_node(
+        'Max',  # node name
+        ['input'],  # inputs
+        ['X1'],  # outputs
+    )
+
+    x2_def = helper.make_node(
+        'Sum',  # node name
+        ['input', 'X1'],  # inputs
+        ['X2'],  # outputs
+    )
+
+    #test three input
+    max_def = helper.make_node(
+        'Max',  # node name
+        ['input', 'X1', 'X2'],  # inputs
+        ['output'],  # outputs
+    )
+
+    graph_def = helper.make_graph(
+        [x1_def, x2_def, max_def],
+        test_case,
+        [input],
+        [output],
+    )
+    model_def = helper.make_model(graph_def, producer_name=test_case)
+    input_data = np.random.rand(input_shape[0], input_shape[1],
+                       input_shape[2], input_shape[3]).astype(np.float32)
+    onnx.checker.check_model(model_def)
+    onnx_convert_and_infernece(input_data, model_def, test_case)
+
+def test_Min():
+    test_case = 'test_Min'
+    input_shape = [4, 3, 27, 27]
+    output_shape = [4, 3, 27, 27]
+
+    input = helper.make_tensor_value_info('input', TensorProto.FLOAT, input_shape)
+    output = helper.make_tensor_value_info(
+        'output', TensorProto.FLOAT, output_shape)
+
+    #test only one input
+    x1_def = helper.make_node(
+        'Min',  # node name
+        ['input'],  # inputs
+        ['X1'],  # outputs
+    )
+
+    x2_def = helper.make_node(
+        'Sum',  # node name
+        ['input', 'X1'],  # inputs
+        ['X2'],  # outputs
+    )
+
+    x3_def = helper.make_node(
+        'Neg',  # node name
+        ['input'],  # inputs
+        ['X3'],  # outputs
+    )
+
+    #test four input
+    min_def = helper.make_node(
+        'Min',  # node name
+        ['input', 'X1', 'X2', 'X3'],  # inputs
+        ['output'],  # outputs
+    )
+
+    graph_def = helper.make_graph(
+        [x1_def, x2_def, x3_def, min_def],
+        test_case,
+        [input],
+        [output],
+    )
+    model_def = helper.make_model(graph_def, producer_name=test_case)
+    input_data = np.random.rand(input_shape[0], input_shape[1],
+                       input_shape[2], input_shape[3]).astype(np.float32)
     onnx.checker.check_model(model_def)
     onnx_convert_and_infernece(input_data, model_def, test_case)
 
@@ -320,6 +410,8 @@ test_function = {
     "AveragePool": test_AveragePool,
     "LeakyRelu": test_LeakyRelu,
     "GlobalMaxPool": test_GlobalMaxPool,
+    "Max": test_Max,
+    "Min": test_Min,
     "Neg": test_Neg,
     "Relu": test_Relu,
     "Slice": test_Slice,

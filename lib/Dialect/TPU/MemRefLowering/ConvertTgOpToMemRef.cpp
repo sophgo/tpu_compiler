@@ -453,9 +453,11 @@ void ConvertTgOpToMemRefPass::runOnFunction() {
       AddTypeConvertedForNotLowedOpPattern<tpu::TG_BF16_DeConv2DOp>,
       AddTypeConvertedForNotLowedOpPattern<tpu::TG_INT8_EltwiseAddOp>,
       AddTypeConvertedForNotLowedOpPattern<tpu::TG_INT8_EltwiseMaxOp>,
+      AddTypeConvertedForNotLowedOpPattern<tpu::TG_INT8_EltwiseMinOp>,
       AddTypeConvertedForNotLowedOpPattern<tpu::TG_INT8_EltwiseMulOp>,
       AddTypeConvertedForNotLowedOpPattern<tpu::TG_BF16_EltwiseAddOp>,
       AddTypeConvertedForNotLowedOpPattern<tpu::TG_BF16_EltwiseMaxOp>,
+      AddTypeConvertedForNotLowedOpPattern<tpu::TG_BF16_EltwiseMinOp>,
       AddTypeConvertedForNotLowedOpPattern<tpu::TG_BF16_EltwiseMulOp>,
       AddTypeConvertedForNotLowedOpPattern<tpu::TG_INT8_FullyConnectedOp>,
       AddTypeConvertedForNotLowedOpPattern<tpu::TG_BF16_FullyConnectedOp>,
@@ -521,9 +523,11 @@ void ConvertTgOpToMemRefPass::runOnFunction() {
   target.addLegalOp<tpu::TG_MemRef_BF16_DeConv2DOp>();
   target.addLegalOp<tpu::TG_MemRef_INT8_EltwiseAddOp>();
   target.addLegalOp<tpu::TG_MemRef_INT8_EltwiseMaxOp>();
+  target.addLegalOp<tpu::TG_MemRef_INT8_EltwiseMinOp>();
   target.addLegalOp<tpu::TG_MemRef_INT8_EltwiseMulOp>();
   target.addLegalOp<tpu::TG_MemRef_BF16_EltwiseAddOp>();
   target.addLegalOp<tpu::TG_MemRef_BF16_EltwiseMaxOp>();
+  target.addLegalOp<tpu::TG_MemRef_BF16_EltwiseMinOp>();
   target.addLegalOp<tpu::TG_MemRef_BF16_EltwiseMulOp>();
   target.addLegalOp<tpu::TG_MemRef_INT8_FullyConnectedOp>();
   target.addLegalOp<tpu::TG_MemRef_BF16_FullyConnectedOp>();
@@ -590,9 +594,11 @@ void ConvertTgOpToMemRefPass::runOnFunction() {
       convertTgOpToMemRefPattern<tpu::TG_BF16_DeConv2DOp, tpu::TG_MemRef_BF16_DeConv2DOp>,
       convertTgOpToMemRefPattern<tpu::TG_INT8_EltwiseAddOp, tpu::TG_MemRef_INT8_EltwiseAddOp>,
       convertTgOpToMemRefPattern<tpu::TG_INT8_EltwiseMaxOp, tpu::TG_MemRef_INT8_EltwiseMaxOp>,
+      convertTgOpToMemRefPattern<tpu::TG_INT8_EltwiseMinOp, tpu::TG_MemRef_INT8_EltwiseMinOp>,
       convertTgOpToMemRefPattern<tpu::TG_INT8_EltwiseMulOp, tpu::TG_MemRef_INT8_EltwiseMulOp>,
       convertTgOpToMemRefPattern<tpu::TG_BF16_EltwiseAddOp, tpu::TG_MemRef_BF16_EltwiseAddOp>,
       convertTgOpToMemRefPattern<tpu::TG_BF16_EltwiseMaxOp, tpu::TG_MemRef_BF16_EltwiseMaxOp>,
+      convertTgOpToMemRefPattern<tpu::TG_BF16_EltwiseMinOp, tpu::TG_MemRef_BF16_EltwiseMinOp>,
       convertTgOpToMemRefPattern<tpu::TG_BF16_EltwiseMulOp, tpu::TG_MemRef_BF16_EltwiseMulOp>,
       convertTgOpToMemRefPattern<tpu::TG_INT8_FullyConnectedOp, tpu::TG_MemRef_INT8_FullyConnectedOp>,
       convertTgOpToMemRefPattern<tpu::TG_BF16_FullyConnectedOp, tpu::TG_MemRef_BF16_FullyConnectedOp>,

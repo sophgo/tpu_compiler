@@ -510,6 +510,7 @@ def TPU_DetectionOutputOp : TPU_Op<"detectionoutput",
 
 def TPU_EltwiseAddOp : TPU_EltwiseOp<"eltwise_add", "Add">;
 def TPU_EltwiseMaxOp : TPU_EltwiseOp<"eltwise_max", "Max">;
+def TPU_EltwiseMinOp : TPU_EltwiseOp<"eltwise_min", "Min">;
 def TPU_EltwiseMulOp : TPU_EltwiseOp<"eltwise_mul", "Mul">;
 
 

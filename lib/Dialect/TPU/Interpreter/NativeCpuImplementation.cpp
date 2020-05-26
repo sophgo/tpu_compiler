@@ -1086,44 +1086,6 @@ int my_tanh(float *input, float *output,
 #endif // DUMP_FLAG
   return 0;
 }
-int my_eltwise(float *input_1, float *input_2, float *output, int n, int c,
-               int h, int w, int op) {
-#ifdef DUMP_FLAG
-  static int dump_idx = 0;
-  std::string prefix = std::string("eltwise") + std::to_string(dump_idx);
-  if (dump_idx < 4) {
-    write_bianry_file(prefix + std::string("_1_in.bin"),
-        (const char *)input_1, n * c * h * w * sizeof(float));
-    write_bianry_file(prefix + std::string("_2_in.bin"),
-        (const char *)input_2, n * c * h * w * sizeof(float));
-  }
-#endif // DUMP_FLAG
-
-  for (int i = 0; i < n * c * h * w; ++i) {
-    switch (op) {
-    case 0: //caffe::EltwiseParameter_EltwiseOp_PROD:
-      output[i] = input_1[i] * input_2[i];
-      break;
-    case 1: //caffe::EltwiseParameter_EltwiseOp_SUM:
-      output[i] = input_1[i] + input_2[i];
-      break;
-    case 2: //caffe::EltwiseParameter_EltwiseOp_MAX:
-      output[i] = input_1[i] > input_2[i] ? input_1[i] : input_2[i];
-      break;
-    default:
-      assert(0);
-    }
-  }
-#ifdef DUMP_FLAG
-  if (dump_idx < 4) {
-    write_bianry_file(prefix + std::string("_out.bin"),
-        (const char *)output, n * c * h * w * sizeof(float));
-  }
-  dump_idx ++;
-#endif // DUMP_FLAG
-
-  return 0;
-}
 
 int my_permute(float *input, float *output, const int input_shape_size,
     int in, int ic, int ih, int iw,

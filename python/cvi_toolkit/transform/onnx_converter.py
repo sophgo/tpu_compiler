@@ -125,6 +125,8 @@ class OnnxConverter(BaseConverter):
             "GlobalMaxPool": lambda node: self.convert_global_pool_op(node),
             "LeakyRelu": lambda node: self.convert_leaky_relu_op(node),
             "MaxPool": lambda node: self.convert_maxpool_op(node),
+            "Max" : lambda node: self.convert_max_op(node),
+            "Min" : lambda node: self.convert_min_op(node),
             "Mul" : lambda node: self.convert_mul_op(node),
             "Neg" : lambda node: self.convert_neg_op(node),
             "Relu": lambda node: self.convert_relu_op(node),
@@ -747,6 +749,69 @@ class OnnxConverter(BaseConverter):
         pool_max_op = self.CVI.add_pool_max_2d_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **pool_max_2d_param)
         self.addOperand(onnx_node.name, pool_max_op, output_shape, TensorType.ACTIVATION)
 
+    def convert_max_op(self, onnx_node):
+        assert(onnx_node.op_type == "Max")
+        input_num = len(onnx_node.inputs)
+        op, input_shape, tensor_type = self.getOperand(onnx_node.inputs[0])
+        output_shape = input_shape
+        if tensor_type == TensorType.TENSOR:
+            for idx, _ in enumerate(onnx_node.inputs):
+                if idx == 0: # first op skip
+                    output_data = self.getTensor(onnx_node.inputs[idx]).tensor_data
+                else:
+                    _, _, tensor_type = self.getOperand(onnx_node.inputs[idx])
+                    if tensor_type != TensorType.TENSOR:
+                        raise RuntimeError("Wrong type")
+                    tensor_data = self.getTensor(onnx_node.inputs[idx]).tensor_data
+                    output_data = np.maximum(output_data, tensor_data)
+            self.addTensor(onnx_node.name, output_data, output_shape)
+            self.addOperand(onnx_node.name, None, output_shape, TensorType.TENSOR)
+
+        else:
+            if input_num == 1:
+                self.addOperand(onnx_node.name, op, output_shape, TensorType.ACTIVATION)
+                return
+            operands = list()
+            operands.append(op)
+            for index in range(1, input_num):
+                op_i, input_shape_i, tensor_type_i = self.getOperand(onnx_node.inputs[index])
+                operands.append(op_i)
+                #broadcast not support now
+                assert(input_shape_i == input_shape)
+            max_op = self.CVI.add_eltwise_max_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
+            self.addOperand(onnx_node.name, max_op, output_shape, TensorType.ACTIVATION)
+
+    def convert_min_op(self, onnx_node):
+        assert(onnx_node.op_type == "Min")
+        input_num = len(onnx_node.inputs)
+        op, input_shape, tensor_type = self.getOperand(onnx_node.inputs[0])
+        output_shape = input_shape
+        if tensor_type == TensorType.TENSOR:
+            for idx, _ in enumerate(onnx_node.inputs):
+                if idx == 0: # first op skip
+                    output_data = self.getTensor(onnx_node.inputs[idx]).tensor_data
+                else:
+                    _, _, tensor_type = self.getOperand(onnx_node.inputs[idx])
+                    if tensor_type != TensorType.TENSOR:
+                        raise RuntimeError("Wrong type")
+                    tensor_data = self.getTensor(onnx_node.inputs[idx]).tensor_data
+                    output_data = np.minimum(output_data, tensor_data)
+            self.addTensor(onnx_node.name, output_data, output_shape)
+            self.addOperand(onnx_node.name, None, output_shape, TensorType.TENSOR)
+
+        else:
+            if input_num == 1:
+                self.addOperand(onnx_node.name, op, output_shape, TensorType.ACTIVATION)
+                return
+            operands = list()
+            operands.append(op)
+            for index in range(1, input_num):
+                op_i, input_shape_i, tensor_type_i = self.getOperand(onnx_node.inputs[index])
+                operands.append(op_i)
+                #broadcast not support now
+                assert(input_shape_i == input_shape)
+            min_op = self.CVI.add_eltwise_min_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
+            self.addOperand(onnx_node.name, min_op, output_shape, TensorType.ACTIVATION)
 
     def convert_mul_op(self, onnx_node):
         assert(onnx_node.op_type == "Mul")
@@ -1050,17 +1115,15 @@ class OnnxConverter(BaseConverter):
             if input_num == 1:
                 self.addOperand(onnx_node.name, op, output_shape, TensorType.ACTIVATION)
                 return
+            operands = list()
+            operands.append(op)
             for index in range(1, input_num):
                 op_i, input_shape_i, tensor_type_i = self.getOperand(onnx_node.inputs[index])
-                operands = list()
-                operands.append(op)
                 operands.append(op_i)
                 #broadcast not support now
                 assert(input_shape_i == input_shape)
-                op_name = "{}{}_{}".format(onnx_node.name, index, onnx_node.op_type)
-                add_op = self.CVI.add_eltwise_add_op(op_name, operands, output_shape)
-                op = add_op
-            self.addOperand(onnx_node.name, op, output_shape, TensorType.ACTIVATION)
+            sum_op = self.CVI.add_eltwise_add_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
+            self.addOperand(onnx_node.name, sum_op, output_shape, TensorType.ACTIVATION)
 
     def convert_transpose_op(self, onnx_node):
         assert(onnx_node.op_type == "Transpose")

@@ -143,9 +143,11 @@ struct ConvertTgOpToTensorPass : public FunctionPass<ConvertTgOpToTensorPass> {
     target.addLegalOp<tpu::TG_BF16_DeConv2DOp>();
     target.addLegalOp<tpu::TG_INT8_EltwiseAddOp>();
     target.addLegalOp<tpu::TG_INT8_EltwiseMaxOp>();
+    target.addLegalOp<tpu::TG_INT8_EltwiseMinOp>();
     target.addLegalOp<tpu::TG_INT8_EltwiseMulOp>();
     target.addLegalOp<tpu::TG_BF16_EltwiseAddOp>();
     target.addLegalOp<tpu::TG_BF16_EltwiseMaxOp>();
+    target.addLegalOp<tpu::TG_BF16_EltwiseMinOp>();
     target.addLegalOp<tpu::TG_BF16_EltwiseMulOp>();
     target.addLegalOp<tpu::TG_INT8_FullyConnectedOp>();
     target.addLegalOp<tpu::TG_BF16_FullyConnectedOp>();
@@ -209,9 +211,11 @@ struct ConvertTgOpToTensorPass : public FunctionPass<ConvertTgOpToTensorPass> {
         convertTgOpToTensorPattern<tpu::TG_MemRef_BF16_DeConv2DOp, tpu::TG_BF16_DeConv2DOp>,
         convertTgOpToTensorPattern<tpu::TG_MemRef_INT8_EltwiseAddOp, tpu::TG_INT8_EltwiseAddOp>,
         convertTgOpToTensorPattern<tpu::TG_MemRef_INT8_EltwiseMaxOp, tpu::TG_INT8_EltwiseMaxOp>,
+        convertTgOpToTensorPattern<tpu::TG_MemRef_INT8_EltwiseMinOp, tpu::TG_INT8_EltwiseMinOp>,
         convertTgOpToTensorPattern<tpu::TG_MemRef_INT8_EltwiseMulOp, tpu::TG_INT8_EltwiseMulOp>,
         convertTgOpToTensorPattern<tpu::TG_MemRef_BF16_EltwiseAddOp, tpu::TG_BF16_EltwiseAddOp>,
         convertTgOpToTensorPattern<tpu::TG_MemRef_BF16_EltwiseMaxOp, tpu::TG_BF16_EltwiseMaxOp>,
+        convertTgOpToTensorPattern<tpu::TG_MemRef_BF16_EltwiseMinOp, tpu::TG_BF16_EltwiseMinOp>,
         convertTgOpToTensorPattern<tpu::TG_MemRef_BF16_EltwiseMulOp, tpu::TG_BF16_EltwiseMulOp>,
         convertTgOpToTensorPattern<tpu::TG_MemRef_INT8_FullyConnectedOp, tpu::TG_INT8_FullyConnectedOp>,
         convertTgOpToTensorPattern<tpu::TG_MemRef_BF16_FullyConnectedOp, tpu::TG_BF16_FullyConnectedOp>,

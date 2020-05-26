@@ -260,9 +260,11 @@ class TPU_TG_EltwiseOp<string mnemonic, string opQuant, string opType> : TPU_Op<
 }
 def TPU_TG_INT8_EltwiseAddOp : TPU_TG_EltwiseOp<"tg_int8_eltwise_add", "Int8", "Add">;
 def TPU_TG_INT8_EltwiseMaxOp : TPU_TG_EltwiseOp<"tg_int8_eltwise_max", "Int8", "Max">;
+def TPU_TG_INT8_EltwiseMinOp : TPU_TG_EltwiseOp<"tg_int8_eltwise_min", "Int8", "Min">;
 def TPU_TG_INT8_EltwiseMulOp : TPU_TG_EltwiseOp<"tg_int8_eltwise_mul", "Int8", "Mul">;
 def TPU_TG_BF16_EltwiseAddOp : TPU_TG_EltwiseOp<"tg_bf16_eltwise_add", "Bf16", "Add">;
 def TPU_TG_BF16_EltwiseMaxOp : TPU_TG_EltwiseOp<"tg_bf16_eltwise_max", "Bf16", "Max">;
+def TPU_TG_BF16_EltwiseMinOp : TPU_TG_EltwiseOp<"tg_bf16_eltwise_min", "Bf16", "Min">;
 def TPU_TG_BF16_EltwiseMulOp : TPU_TG_EltwiseOp<"tg_bf16_eltwise_mul", "Bf16", "Mul">;
 
 
