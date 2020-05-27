@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 from onnx import onnx, numpy_helper
 from cvi_toolkit.transform.onnx_converter import OnnxConverter
 from cvi_toolkit.model.mlir_model import MLIRModel
@@ -476,15 +478,17 @@ test_function = {
 if __name__ == "__main__":
     os.makedirs("tmp", exist_ok=True)
     os.chdir("tmp")
-    if len(sys.argv) == 3:
+    if len(sys.argv) >= 3:
         input_shape = sys.argv[1].split(",")
-        test_model(input_shape, sys.argv[2])
+        if len(sys.argv) >= 4:
+            test_model(input_shape, sys.argv[2], sys.argv[3])
+        else:
+            test_model(input_shape, sys.argv[2])
         exit(0)
     elif len(sys.argv) == 1:
         pass_list = list()
         fail_list = list()
         err_msg = list()
-
         for i in TEST_ONNX_IR:
             try:
                 test_function.get(i)()
@@ -501,5 +505,7 @@ if __name__ == "__main__":
             for i, msg in zip(fail_list, err_msg) :
                 print(i)
                 print("msg: ".format(msg))
+            exit(-1)
     else:
         print("Usage: exe.py [input_shape] [model]")
+        exit(-1)
