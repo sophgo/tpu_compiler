@@ -477,4 +477,32 @@ def TPU_TL_LG_LeakyReluOp : TPU_Op<"tl_lg_leaky_relu",
   let results = (outs AnyTensor:$output);
 }
 
+def TPU_TL_LG_PReluOp : TPU_Op<"tl_lg_prelu",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuTLOpCodegenInterface>]> {
+  let summary = "TL prelu operator";
+
+  let description = [{
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    AnyTensor:$slope,
+    I32Attr:$la_input,
+    I32Attr:$la_output,
+    I32Attr:$la_slope,
+    OptionalAttr<I8Attr>:$r_i8_pos,
+    OptionalAttr<I8Attr>:$m_i8_pos,
+    OptionalAttr<I8Attr>:$r_i8_neg,
+    OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
+    DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
 #endif // TPU_TL_OPS_LG
