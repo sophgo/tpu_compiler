@@ -756,9 +756,8 @@ static LogicalResult doLUTOpInterpret(Operation *op, StringRef &type,
     getNCHW(shape, n, c, h, w);
 
     if (type == "Reciprocal") {
-      float eps = 1.0e-5;
       for (int i = 0; i < input_size; ++i) {
-        output[i] = 1.0 / (input[i] + eps);
+        output[i] = 1.0 / input[i];
       }
     } else if (type == "Sqrt") {
       for (int i = 0; i < input_size; ++i) {
