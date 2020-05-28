@@ -142,6 +142,8 @@ class ONNX_IR_TESTER(object):
         model_name = model_path.split("/")[-1].split(".")[0]
         onnx_model = onnx.load(model_path)
 
+        fp32_mlir = "{}.mlir".format(model_name)
+
         self.converter = OnnxConverter(model_name, onnx_model, fp32_mlir)
         self.converter.run()
         del self.converter
