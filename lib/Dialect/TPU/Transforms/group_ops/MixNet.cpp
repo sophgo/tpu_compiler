@@ -75,20 +75,28 @@ void MixNet::parallel_end() {
   }
 }
 
-void MixNet::set_net_in_tensor(int tensor_id) { this->net_in_tensors_.push_back(tensor_id); }
+void MixNet::set_net_in_tensor(int tensor_id) {
+  this->net_in_tensors_.push_back(tensor_id);
+}
 
-void MixNet::set_net_out_tensor(int tensor_id) { this->net_out_tensors_.push_back(tensor_id); }
+void MixNet::set_net_out_tensor(int tensor_id) {
+  this->net_out_tensors_.push_back(tensor_id);
+}
 
-static const std::string _get_postfix_name(int group_idx, int n_loop, int h_loop) {
-  const std::string name = std::string("_") + std::to_string(group_idx) + "_" +
-                           std::to_string(n_loop) + "_" + std::to_string(h_loop);
+static const std::string _get_postfix_name(int group_idx,
+                                          int n_loop,
+                                          int h_loop) {
+  const std::string name = std::string("_") +
+                           std::to_string(group_idx) + "_" +
+                           std::to_string(n_loop) + "_" +
+                           std::to_string(h_loop);
   return name;
 }
 
 
-
 // add group start layer
-void MixNet::add_group_start_ops(int group_idx, Group* group, Operation *op,
+void MixNet::add_group_start_ops(int group_idx, Group* group,
+                                 Operation *op,
                                  int n_secs, int h_secs) {
   Builder builder_(context_);
   set<int> in_neuron_tensors = group->get_group_in_neuron_tensors();
@@ -128,10 +136,14 @@ void MixNet::add_group_end_ops(int group_idx, Group* group, int n_secs, int h_se
       }
     }
     std::vector<NamedAttribute> attrs;
-    attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(old_name)));
-    attrs.push_back(builder_.getNamedAttr("gaddr", builder_.getI64IntegerAttr(start_gaddr)));
-    auto join_op = OpBuilder(get_start_op()).create<tpu::TL_LG_JoinOp>(get_start_op()->getLoc(), old_op_r->getType(),
-        ArrayRef<Value *>{operands}, ArrayRef<NamedAttribute>{attrs});
+    attrs.push_back(builder_.getNamedAttr("name",
+                    builder_.getStringAttr(old_name)));
+    attrs.push_back(builder_.getNamedAttr("gaddr",
+                    builder_.getI64IntegerAttr(start_gaddr)));
+    auto join_op = OpBuilder(get_start_op()).create<tpu::TL_LG_JoinOp>(
+                             get_start_op()->getLoc(), old_op_r->getType(),
+                             ArrayRef<Value *>{operands},
+                             ArrayRef<NamedAttribute>{attrs});
     add_opd_to_list(old_name, join_op.getResult(), false);
 
     // replace the next group's usage to this new generated op
@@ -153,7 +165,8 @@ void MixNet::add_tl_layer(int group_idx, int layer_id, net_timestep* time_step, 
   for (u32 i = 0; i < in_tensors.size(); i++) {
     Tensor* in_tensor = net_graph_->get_tensor_by_id(in_tensors[i]);
     const string& name = in_tensor->name();
-    if (in_tensor->type() != TENSOR_NEURON && in_tensor->type() != TENSOR_NEURON_WINOGRAD &&
+    if (in_tensor->type() != TENSOR_NEURON &&
+        in_tensor->type() != TENSOR_NEURON_WINOGRAD &&
         in_tensor->type() != TENSOR_MATRIX) {
       // coeff not do slice, no need postfix
       mix_op->add_bottom_name(name);
@@ -191,7 +204,6 @@ void MixNet::add_tl_layer(int group_idx, int layer_id, net_timestep* time_step, 
       mix_op->set_type("tl_eltwise");
       _add_tl_eltwise_op(mix_op, in_tensors, out_tensors,
                           time_step, timestep_idx, is_h_split);
-
       break;
     case IR_POOLING:
       mix_op->set_type("tl_pooling");
@@ -223,6 +235,11 @@ void MixNet::add_tl_layer(int group_idx, int layer_id, net_timestep* time_step, 
       _add_tl_leaky_relu_op(mix_op, in_tensors, out_tensors, time_step,
                             timestep_idx, is_h_split);
       break;
+    case IR_PRELU:
+      mix_op->set_type("tl_leaky_relu");
+      _add_tl_prelu_op(mix_op, in_tensors, out_tensors, time_step,
+                            timestep_idx, is_h_split);
+      break;
     default:
       cout << "unknown layer type:" << layer_type << endl;
   }
@@ -230,17 +247,20 @@ void MixNet::add_tl_layer(int group_idx, int layer_id, net_timestep* time_step, 
 
 void MixNet::_add_tl_convolution_op(MixOp* mix_op,
                                     const vector<int>& in_tensors,
-                                    const vector<int>& out_tensors, net_timestep* time_step,
+                                    const vector<int>& out_tensors,
+                                    net_timestep* time_step,
                                     int timestep_idx, bool is_h_split) {
   const ImLayer* im_layer = net_graph_->get_layer_by_id(mix_op->get_layer_id());
-  auto old_op = dyn_cast<tpu::Conv2DOp>(im_layer->op());
+  auto old_op = dyn_cast<tpu::TG_INT8_PC_Conv2DOp>(im_layer->op());
   bool is_dw, with_bias, do_relu;
   int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, ph, pw, dh, dw;
-  bool is_deconv = isa<tpu::DeConv2DOp>(old_op.getOperation());
+  bool is_deconv = isa<tpu::TG_INT8_PC_DeConv2DOp>(old_op.getOperation());
 
-  parseConvParam(old_op.param(), is_deconv, old_op.input(), old_op.output(), old_op.filter(),
-                  n, ic, ih, iw, oc, oh, ow, g,
-                  kh, kw, sh, sw, ph, pw, dh, dw, is_dw, with_bias, do_relu);
+  parseConvParam(old_op.param(), is_deconv, old_op.input(),
+                 old_op.output(), old_op.filter(),
+                 n, ic, ih, iw, oc, oh, ow, g,
+                 kh, kw, sh, sw, ph, pw, dh, dw,
+                 is_dw, with_bias, do_relu);
 
   auto old_input_type = old_op.input()->getType().cast<RankedTensorType>();
   Tensor* in_tensor = im_layer->in_tensors[0].get();
@@ -382,14 +402,15 @@ void MixNet::_add_tl_deconvolution_op(MixOp* mix_op,
                                       const vector<int>& out_tensors, net_timestep* time_step,
                                       int timestep_idx, bool is_h_split) {
   const ImLayer* im_layer = net_graph_->get_layer_by_id(mix_op->get_layer_id());
-  auto old_op = dyn_cast<tpu::DeConv2DOp>(im_layer->op());
+  auto old_op = dyn_cast<tpu::TG_INT8_PC_DeConv2DOp>(im_layer->op());
   bool is_dw, with_bias, do_relu;
   int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, ph, pw, dh, dw;
-  bool is_deconv = isa<tpu::DeConv2DOp>(old_op.getOperation());
+  bool is_deconv = isa<tpu::TG_INT8_PC_DeConv2DOp>(old_op.getOperation());
 
-  parseConvParam(old_op.param(), is_deconv, old_op.input(), old_op.output(), old_op.filter(),
-                  n, ic, ih, iw, oc, oh, ow, g,
-                  kh, kw, sh, sw, ph, pw, dh, dw, is_dw, with_bias, do_relu);
+  parseConvParam(old_op.param(), is_deconv, old_op.input(),
+                 old_op.output(), old_op.filter(),
+                 n, ic, ih, iw, oc, oh, ow, g,
+                 kh, kw, sh, sw, ph, pw, dh, dw, is_dw, with_bias, do_relu);
 
   auto old_input_type = old_op.input()->getType().cast<RankedTensorType>();
   Tensor* in_tensor = im_layer->in_tensors[0].get();
@@ -576,10 +597,10 @@ void MixNet::_add_tl_eltwise_op(MixOp* mix_op,
                                 int timestep_idx, bool is_h_split) {
   int id = mix_op->get_layer_id();
   const ImLayer* im_layer = net_graph_->get_layer_by_id(id);
-  if (isa<tpu::EltwiseAddOp>(im_layer->op())) {
+  if (isa<tpu::TG_INT8_EltwiseAddOp>(im_layer->op())) {
     _add_tl_eltwise_add_op(mix_op, in_tensors, out_tensors,
                            time_step, timestep_idx, is_h_split);
-  } else if (isa<tpu::EltwiseMulOp>(im_layer->op())) {
+  } else if (isa<tpu::TG_INT8_EltwiseMulOp>(im_layer->op())) {
     _add_tl_eltwise_mul_op(mix_op, in_tensors, out_tensors,
                            time_step, timestep_idx, is_h_split);
   }
@@ -594,12 +615,11 @@ void MixNet::_add_tl_eltwise_add_op(MixOp* mix_op,
   int id = mix_op->get_layer_id();
   const ImLayer* im_layer = net_graph_->get_layer_by_id(id);
   const Tensor* in_tensor = im_layer->in_tensors[0].get();
-  auto old_op = dyn_cast<tpu::EltwiseAddOp>(im_layer->op());
+  auto old_op = dyn_cast<tpu::TG_INT8_EltwiseAddOp>(im_layer->op());
   auto old_input_type =
        old_op.getOperand(0)->getType().cast<RankedTensorType>();
   bool do_relu = old_op.do_relu();
   int nInputs = old_op.getNumOperands();
-  int newNInputs = nInputs - 4;
   int bottom_dim[4];
   int top_dim[4];
 
@@ -615,9 +635,9 @@ void MixNet::_add_tl_eltwise_add_op(MixOp* mix_op,
   const mem_buffer_value_t* imm = time_step->get_mem_buffer_value(&key);
   working_laddr = (imm->local_mem_offset);
 
-  assert(nInputs == 6);
-  // input0, input2, rshift, multiplier, only support two inputs
-  for (int i = 0; i < newNInputs; i++) {
+  assert(nInputs == 2);
+  // input0, input1
+  for (int i = 0; i < nInputs; i++) {
     la_input.push_back(net_graph_->get_tensor_local_offset(in_tensors[i]));
   }
 
@@ -665,26 +685,12 @@ void MixNet::_add_tl_eltwise_add_op(MixOp* mix_op,
       old_input_type.getElementType());
 
 
-  TensorFile *wTF = getWeightTensorFile(im_layer->op());
-  Value * quant_rshift = old_op.getOperand(nInputs - 2);
-  Value * quant_multiplier = old_op.getOperand(nInputs - 1);
-  auto rshift = readWeightTensor<float>(quant_rshift, wTF);
-  assert(rshift->size() == 1);
-  attrs.push_back(builder_.getNamedAttr("rshift",
-      builder_.getI8IntegerAttr(static_cast<int8_t>(rshift->at(0)))));
-
-  // m_i8_inputs
-  auto multiplier = readWeightTensor<float>(quant_multiplier, wTF);
-  std::vector<int32_t> m_i8_inputs_array(newNInputs);
-  for (int i = 0; i < newNInputs; ++i) {
-    m_i8_inputs_array[i] = static_cast<int32_t>(multiplier->at(i));
-  }
-  attrs.push_back(builder_.getNamedAttr("m_i8_inputs",
-      builder_.getI32ArrayAttr(ArrayRef<int32_t>({m_i8_inputs_array}))));
+  attrs.push_back(builder_.getNamedAttr("rshift", old_op.rshiftAttr()));
+  attrs.push_back(builder_.getNamedAttr("m_i8_inputs", old_op.m_i8_inputsAttr()));
 
   // setup input operation
   vector<Value *> operands;
-  for( u32 i = 0; i < in_tensors.size(); i++) {
+  for( u32 i = 0; i < nInputs; i++) {
     Operation * input_op =
       get_op_from_name(mix_op->bottom_name(i))->getDefiningOp();
     input_op->getResult(0)->setType(input_type);
@@ -709,12 +715,11 @@ void MixNet::_add_tl_eltwise_mul_op(MixOp* mix_op,
   int id = mix_op->get_layer_id();
   const ImLayer* im_layer = net_graph_->get_layer_by_id(id);
   const Tensor* in_tensor = im_layer->in_tensors[0].get();
-  auto old_op = dyn_cast<tpu::EltwiseMulOp>(im_layer->op());
+  auto old_op = dyn_cast<tpu::TG_INT8_EltwiseMulOp>(im_layer->op());
   auto old_input_type =
        old_op.getOperand(0)->getType().cast<RankedTensorType>();
   bool do_relu = old_op.do_relu();
   int nInputs = old_op.getNumOperands();
-  int newNInputs = nInputs - 4;
   int bottom_dim[4];
   u64 working_laddr = 0;
   u64 la_output = 0;
@@ -724,9 +729,9 @@ void MixNet::_add_tl_eltwise_mul_op(MixOp* mix_op,
   bottom_dim[0] = in_tensor->n_slice;
   bottom_dim[2] = in_tensor->h_slice;
 
-  assert(nInputs == 6);
-  // input0, input2, rshift, multiplier, only support two inputs
-  for (int i = 0; i < newNInputs; i++) {
+  assert(nInputs == 2);
+  // input0, input1
+  for (int i = 0; i < nInputs; i++) {
     la_input.push_back(net_graph_->get_tensor_local_offset(in_tensors[i]));
   }
 
@@ -761,24 +766,12 @@ void MixNet::_add_tl_eltwise_mul_op(MixOp* mix_op,
       bottom_dim[2], bottom_dim[3] },
       old_input_type.getElementType());
 
-
-  TensorFile *wTF = getWeightTensorFile(im_layer->op());
-  Value * quant_rshift = old_op.getOperand(nInputs - 2);
-  Value * quant_multiplier = old_op.getOperand(nInputs - 1);
-  auto rshift = readWeightTensor<float>(quant_rshift, wTF);
-  assert(rshift->size() == 1);
-  attrs.push_back(builder_.getNamedAttr("rshift",
-      builder_.getI8IntegerAttr(static_cast<int8_t>(rshift->at(0)))));
-
-  // m_i32
-  auto m_i32 = readWeightTensor<float>(quant_multiplier, wTF);
-  assert(m_i32->size() == 1);
-  attrs.push_back(builder_.getNamedAttr("m_i32",
-      builder_.getI32IntegerAttr(static_cast<int32_t>(m_i32->at(0)))));
+  attrs.push_back(builder_.getNamedAttr("rshift", old_op.rshiftAttr()));
+  attrs.push_back(builder_.getNamedAttr("m_i32", old_op.m_i32_outputAttr()));
 
   // setup input operation
   vector<Value *> operands;
-  for( u32 i = 0; i < in_tensors.size(); i++) {
+  for( u32 i = 0; i < nInputs; i++) {
     Operation * input_op =
       get_op_from_name(mix_op->bottom_name(i))->getDefiningOp();
     input_op->getResult(0)->setType(input_type);
@@ -803,23 +796,27 @@ void MixNet::_add_tl_pooling_op(MixOp * mix_op,
   const ImLayer* im_layer = net_graph_->get_layer_by_id(mix_op->get_layer_id());
   const Tensor* in_tensor = net_graph_->get_tensor_by_id(in_tensors[0]);
   const Tensor* out_tensor = net_graph_->get_tensor_by_id(out_tensors[0]);
-  bool is_avg = isa<tpu::PoolAvg2DOp>(im_layer->op());
+  bool is_avg = isa<tpu::TG_INT8_PoolAvg2DOp>(im_layer->op());
   auto old_op = (im_layer->op());
   auto old_input_type = old_op->getOperand(0)->getType().cast<RankedTensorType>();
   int nInputs = old_op->getNumOperands();
+  Builder builder_(context_);
   vector<NamedAttribute> attrs;
   // parse param
   bool is_global, do_relu;
   int n, c, ih, iw, oh, ow, kh, kw, sh, sw, pt, pb, pl, pr;
   if (is_avg) {
-    auto tmp_op = dyn_cast<tpu::PoolAvg2DOp>(im_layer->op());
+    auto tmp_op = dyn_cast<tpu::TG_INT8_PoolAvg2DOp>(im_layer->op());
     parsePoolParam(tmp_op.param(), tmp_op.input(), tmp_op.output(),
                   n, c, ih, iw, oh, ow,
                   kh, kw, sh, sw, pt, pb, pl, pr,
                   is_global, do_relu);
+    attrs.push_back(builder_.getNamedAttr("rshift", tmp_op.rshiftAttr()));
+
+    attrs.push_back(builder_.getNamedAttr("m_i8", tmp_op.m_i8Attr()));
 
   } else {
-    auto tmp_op = dyn_cast<tpu::PoolMax2DOp>(im_layer->op());
+    auto tmp_op = dyn_cast<tpu::TG_INT8_PoolMax2DOp>(im_layer->op());
     parsePoolParam(tmp_op.param(), tmp_op.input(), tmp_op.output(),
                   n, c, ih, iw, oh, ow,
                   kh, kw, sh, sw, pt, pb, pl, pr,
@@ -891,7 +888,6 @@ void MixNet::_add_tl_pooling_op(MixOp * mix_op,
   u64 la_output = (net_graph_->get_tensor_local_offset(out_tensors[0]));
 
    // build pooling op
-  Builder builder_(context_);
   attrs.push_back(builder_.getNamedAttr("name",
                            builder_.getStringAttr(mix_op->name())));
   attrs.push_back(builder_.getNamedAttr("param",
@@ -912,25 +908,6 @@ void MixNet::_add_tl_pooling_op(MixOp * mix_op,
                            builder_.getI32IntegerAttr(la_output)));
   attrs.push_back(builder_.getNamedAttr("layer_id",
                            builder_.getI32IntegerAttr(getOpLayerId(old_op))));
-
-  if (is_avg) {
-    // add rshift and multiplier
-    TensorFile *wTF = getWeightTensorFile(im_layer->op());
-    Value * quant_rshift = old_op->getOperand(nInputs - 2);
-    Value * quant_multiplier = old_op->getOperand(nInputs - 1);
-    auto rshift = readWeightTensor<float>(quant_rshift, wTF);
-    assert(rshift->size() == 1);
-    attrs.push_back(builder_.getNamedAttr("rshift",
-        builder_.getI8IntegerAttr(static_cast<int8_t>(rshift->at(0)))));
-
-    // m_i8_inputs
-    auto multiplier = readWeightTensor<float>(quant_multiplier, wTF);
-    int32_t m_i8;
-    // only 2 input
-    m_i8 = static_cast<int32_t>(multiplier->at(0));
-    attrs.push_back(builder_.getNamedAttr("m_i8",
-        builder_.getI32IntegerAttr((m_i8))));
-  }
 
   // setup input/output type
   RankedTensorType input_type = RankedTensorType::get(
@@ -975,11 +952,10 @@ void MixNet::_add_tl_broadcast_mul_op(MixOp * mix_op,
   int bottom_dim[4];
   const ImLayer* im_layer =
       net_graph_->get_layer_by_id(mix_op->get_layer_id());
-  auto old_op = im_layer->op();
-  auto bd_mul_op = dyn_cast<tpu::BroadcastMulOp>(old_op);
-  auto old_input_type =
-    old_op->getOperand(0)->getType().cast<RankedTensorType>();
-
+  auto bd_mul_op = dyn_cast<tpu::TG_INT8_BroadcastMulOp>(im_layer->op());
+  auto op_input_type =
+    bd_mul_op.input()->getType().cast<RankedTensorType>();
+  auto do_relu = bd_mul_op.param().do_relu().getValue();
 
   Tensor* in_tensor = net_graph_->get_tensor_by_id(in_tensors[0]);
   net_graph_->get_tensor_dim(in_tensors[0], bottom_dim);
@@ -993,12 +969,11 @@ void MixNet::_add_tl_broadcast_mul_op(MixOp * mix_op,
   u32 la_bias = net_graph_->get_tensor_local_offset(in_tensors[2]);
   u32 la_output = net_graph_->get_tensor_local_offset(out_tensors[0]);
 
-  bool do_relu = bd_mul_op.do_relu();
-  RankedTensorType input_type = RankedTensorType::get(
-                          {bottom_dim[0], bottom_dim[1],
-                           bottom_dim[2], bottom_dim[3]},
-                           old_input_type.getElementType());
-
+  RankedTensorType input_type =
+          RankedTensorType::get({
+                  bottom_dim[0], bottom_dim[1],
+                  bottom_dim[2], bottom_dim[3]},
+                  op_input_type.getElementType());
 
   // setup parameter
   vector<NamedAttribute> attrs;
@@ -1016,7 +991,7 @@ void MixNet::_add_tl_broadcast_mul_op(MixOp * mix_op,
   attrs.push_back(builder_.getNamedAttr("la_bias",
                            builder_.getI32IntegerAttr(la_bias)));
   attrs.push_back(builder_.getNamedAttr("layer_id",
-                           builder_.getI32IntegerAttr(getOpLayerId(old_op))));
+                           builder_.getI32IntegerAttr(getOpLayerId(bd_mul_op))));
 
   // setup input operation
   vector<Value *> operands;
@@ -1034,7 +1009,7 @@ void MixNet::_add_tl_broadcast_mul_op(MixOp * mix_op,
     get_op_from_name(mix_op->bottom_name(2))->getDefiningOp();
   operands.push_back(bias_op->getResult(0));
 
-  // build tl_deconv operation
+  // build tl_broadcast operation
   auto op = OpBuilder(get_start_op()).create<tpu::TL_LG_BroadcastMulOp>(
                       get_start_op()->getLoc(), input_type,
                       ArrayRef<Value *>{operands},
@@ -1042,29 +1017,8 @@ void MixNet::_add_tl_broadcast_mul_op(MixOp * mix_op,
   add_opd_to_list(mix_op->name(), op.getResult(), true);
 }
 
-void MixNet::_add_tl_activation_op(
-              MixOp * mix_op,
-              const vector<int>& in_tensors,
-              const vector<int>& out_tensors,
-              net_timestep* time_step,
-              int timestep_idx, bool is_h_split) {
-  const ImLayer* im_layer =
-      net_graph_->get_layer_by_id(mix_op->get_layer_id());
-  auto old_op = im_layer->op();
-
-  if (isa<tpu::SigmoidOp>(old_op)) {
-    _add_tl_sigmoid_op(mix_op, in_tensors, out_tensors,
-                       time_step, timestep_idx, is_h_split);
-  } else if (isa<tpu::PReluOp>(old_op)) {
-    _add_tl_prelu_op(mix_op, in_tensors, out_tensors,
-                     time_step, timestep_idx, is_h_split);
-  } else {
-    assert(0);
-  }
-}
-
 // only test sigmoid
-void MixNet::_add_tl_sigmoid_op(MixOp * mix_op,
+void MixNet::_add_tl_activation_op(MixOp * mix_op,
                                   const vector<int>& in_tensors,
                                   const vector<int>& out_tensors,
                                   net_timestep* time_step,
@@ -1072,10 +1026,10 @@ void MixNet::_add_tl_sigmoid_op(MixOp * mix_op,
   int bottom_dim[4];
   const ImLayer* im_layer =
       net_graph_->get_layer_by_id(mix_op->get_layer_id());
-  auto old_op = im_layer->op();
-  auto act_op = dyn_cast<tpu::SigmoidOp>(old_op);
+  auto old_op = dyn_cast<tpu::TG_INT8_LutOp>(im_layer->op());
+  assert(old_op);
   auto old_input_type =
-    old_op->getOperand(0)->getType().cast<RankedTensorType>();
+    old_op.getOperand(0)->getType().cast<RankedTensorType>();
 
   Tensor* in_tensor = net_graph_->get_tensor_by_id(in_tensors[0]);
   net_graph_->get_tensor_dim(in_tensors[0], bottom_dim);
@@ -1142,10 +1096,9 @@ void MixNet::_add_tl_lrn_op(MixOp * mix_op,
   int bottom_dim[4];
   const ImLayer* im_layer =
       net_graph_->get_layer_by_id(mix_op->get_layer_id());
-  auto old_op = im_layer->op();
-  auto lrn_op = dyn_cast<tpu::LrnOp>(old_op);
-  auto old_input_type =
-    old_op->getOperand(0)->getType().cast<RankedTensorType>();
+  auto lrn_op = dyn_cast<tpu::TG_INT8_LrnOp>(im_layer->op());
+  auto op_input_type =
+    lrn_op.getOperand(0)->getType().cast<RankedTensorType>();
 
 
   Tensor* in_tensor = net_graph_->get_tensor_by_id(in_tensors[0]);
@@ -1164,9 +1117,6 @@ void MixNet::_add_tl_lrn_op(MixOp * mix_op,
   u32 la_sqrt = net_graph_->get_tensor_local_offset(in_tensors[1]);
   u32 la_power = net_graph_->get_tensor_local_offset(in_tensors[2]);
   u32 la_working = imm->local_mem_offset;
-  float alpha = lrn_op.alpha().convertToFloat();
-  float beta = lrn_op.beta().convertToFloat();
-  float k = lrn_op.k().convertToFloat();
   u32 local_size = lrn_op.local_size().getLimitedValue();
   int sum_rshift = lrn_op.sum_rshift().getLimitedValue();
   int lrn_rshift = lrn_op.lrn_rshift().getLimitedValue();
@@ -1190,12 +1140,6 @@ void MixNet::_add_tl_lrn_op(MixOp * mix_op,
                            builder_.getI32IntegerAttr(la_power)));
   attrs.push_back(builder_.getNamedAttr("la_working",
                            builder_.getI32IntegerAttr(la_working)));
-  attrs.push_back(builder_.getNamedAttr("alpha",
-                           builder_.getF32FloatAttr(alpha)));
-  attrs.push_back(builder_.getNamedAttr("beta",
-                           builder_.getF32FloatAttr(beta)));
-  attrs.push_back(builder_.getNamedAttr("k",
-                           builder_.getF32FloatAttr(k)));
   attrs.push_back(builder_.getNamedAttr("local_size",
                            builder_.getI32IntegerAttr(local_size)));
   // attrs.push_back(builder_.getNamedAttr("norm_region",
@@ -1213,12 +1157,12 @@ void MixNet::_add_tl_lrn_op(MixOp * mix_op,
   RankedTensorType input_type = RankedTensorType::get(
                           {bottom_dim[0], bottom_dim[1],
                            bottom_dim[2], bottom_dim[3]},
-                           old_input_type.getElementType());
+                           op_input_type.getElementType());
 
   RankedTensorType output_type = RankedTensorType::get(
                           {bottom_dim[0], bottom_dim[1],
                            bottom_dim[2], bottom_dim[3]},
-                           old_input_type.getElementType());
+                           op_input_type.getElementType());
 
   // setup operands
   vector<Value *> operands;
@@ -1483,7 +1427,7 @@ void MixNet::_add_tl_upsample_op(MixOp * mix_op,
   const Tensor* in_tensor = net_graph_->get_tensor_by_id(in_tensors[0]);
   const Tensor* out_tensor = net_graph_->get_tensor_by_id(out_tensors[0]);
   auto old_op = (im_layer->op());
-  auto upsample_op = dyn_cast<tpu::UpsampleOp>(old_op);
+  auto upsample_op = dyn_cast<tpu::TG_INT8_UpsampleOp>(old_op);
   auto opd0 = old_op->getOperand(0);
   auto old_input_type = opd0->getType().cast<RankedTensorType>();
   auto scale = upsample_op.scale().getLimitedValue();
@@ -1575,40 +1519,10 @@ void MixNet::_add_tl_leaky_relu_op(MixOp * mix_op,
   const ImLayer* im_layer = net_graph_->get_layer_by_id(mix_op->get_layer_id());
   const Tensor* in_tensor = net_graph_->get_tensor_by_id(in_tensors[0]);
   const Tensor* out_tensor = net_graph_->get_tensor_by_id(out_tensors[0]);
-  auto old_op = (im_layer->op());
-  auto leaky_relu_op = dyn_cast<tpu::LeakyReluOp>(old_op);
-  auto opd0 = old_op->getOperand(0);
-  auto old_input_type = opd0->getType().cast<RankedTensorType>();
+  auto leaky_relu_op = dyn_cast<tpu::TG_INT8_LeakyReluOp>(im_layer->op());
+  auto old_input_type = leaky_relu_op.input()->getType().cast<RankedTensorType>();
   Builder builder_(context_);
   vector<NamedAttribute> attrs;
-
-  TensorFile *wTF = getWeightTensorFile(old_op);
-
-  auto rshift_pos     = readWeightTensor<float>(
-                            leaky_relu_op.quant_pos_rshift(), wTF);
-  auto multiplier_pos = readWeightTensor<float>(
-                            leaky_relu_op.quant_pos_multiplier(), wTF);
-  auto rshift_neg     = readWeightTensor<float>(
-                            leaky_relu_op.quant_neg_rshift(), wTF);
-  auto multiplier_neg = readWeightTensor<float>(
-                            leaky_relu_op.quant_neg_multiplier(), wTF);
-
-  bool do_pos_scale = (multiplier_pos->at(0) != 0.0) ? true : false;
-
-  if (do_pos_scale) {
-    LLVM_DEBUG(llvm::errs() << "    do_pos_scale\n";);
-    attrs.push_back(builder_.getNamedAttr("rshift_pos",
-        builder_.getI8IntegerAttr(static_cast<int8_t>(rshift_pos->at(0)))));
-    attrs.push_back(builder_.getNamedAttr("m_i8_pos",
-        builder_.getI8IntegerAttr(static_cast<int8_t>(multiplier_pos->at(0)))));
-  } else {
-    LLVM_DEBUG(llvm::errs() << "    NO pos_scale\n";);
-  }
-  attrs.push_back(builder_.getNamedAttr("rshift_neg",
-      builder_.getI8IntegerAttr(static_cast<int8_t>(rshift_neg->at(0)))));
-  attrs.push_back(builder_.getNamedAttr("m_i8_neg",
-      builder_.getI8IntegerAttr(static_cast<int8_t>(multiplier_neg->at(0)))));
-
   int bottom_dim[4];
   int top_dim[4];
 
@@ -1633,6 +1547,14 @@ void MixNet::_add_tl_leaky_relu_op(MixOp * mix_op,
                            builder_.getI32IntegerAttr(la_input)));
   attrs.push_back(builder_.getNamedAttr("la_output",
                            builder_.getI32IntegerAttr(la_output)));
+
+  if (leaky_relu_op.rshift_pos().hasValue()) {
+    attrs.push_back(builder_.getNamedAttr("rshift_pos", leaky_relu_op.rshift_posAttr()));
+    attrs.push_back(builder_.getNamedAttr("m_i8_pos", leaky_relu_op.m_i8_posAttr()));
+  }
+  attrs.push_back(builder_.getNamedAttr("rshift_neg", leaky_relu_op.rshift_negAttr()));
+  attrs.push_back(builder_.getNamedAttr("m_i8_neg", leaky_relu_op.m_i8_negAttr()));
+
   // setup input/output type
   RankedTensorType input_type = RankedTensorType::get(
                           { bottom_dim[0], bottom_dim[1],
@@ -1650,7 +1572,7 @@ void MixNet::_add_tl_leaky_relu_op(MixOp * mix_op,
   input_op->getResult(0)->setType(input_type);
   operands.push_back(input_op->getResult(0));
 
-  // build tl_upsample operation
+  // build tl_leaky operation
   auto op = OpBuilder(get_start_op()).create<tpu::TL_LG_LeakyReluOp>(
                       get_start_op()->getLoc(), output_type,
                       ArrayRef<Value *>{operands},
@@ -1667,35 +1589,11 @@ void MixNet::_add_tl_prelu_op(MixOp * mix_op,
   const ImLayer* im_layer = net_graph_->get_layer_by_id(mix_op->get_layer_id());
   const Tensor* in_tensor = net_graph_->get_tensor_by_id(in_tensors[0]);
   const Tensor* out_tensor = net_graph_->get_tensor_by_id(out_tensors[0]);
-  auto old_op = (im_layer->op());
-  auto prelu_op = dyn_cast<tpu::PReluOp>(old_op);
-  auto opd0 = old_op->getOperand(0);
+  auto prelu_op = dyn_cast<tpu::TG_INT8_PReluOp>(im_layer->op());
+  auto opd0 = prelu_op.getOperand(0);
   auto old_input_type = opd0->getType().cast<RankedTensorType>();
   Builder builder_(context_);
   vector<NamedAttribute> attrs;
-
-  TensorFile *wTF = getWeightTensorFile(old_op);
-
-  auto rshift_pos     = readWeightTensor<float>(
-                            prelu_op.quant_pos_rshift(), wTF);
-  auto multiplier_pos = readWeightTensor<float>(
-                            prelu_op.quant_pos_multiplier(), wTF);
-  auto rshift_neg     = readWeightTensor<float>(
-                            prelu_op.quant_neg_rshift(), wTF);
-
-  bool do_pos_scale = (multiplier_pos->at(0) != 0.0) ? true : false;
-
-  if (do_pos_scale) {
-    LLVM_DEBUG(llvm::errs() << "    do_pos_scale\n";);
-    attrs.push_back(builder_.getNamedAttr("r_i8_pos",
-        builder_.getI8IntegerAttr(static_cast<int8_t>(rshift_pos->at(0)))));
-    attrs.push_back(builder_.getNamedAttr("m_i8_pos",
-        builder_.getI8IntegerAttr(static_cast<int8_t>(multiplier_pos->at(0)))));
-  } else {
-    LLVM_DEBUG(llvm::errs() << "    NO pos_scale\n";);
-  }
-  attrs.push_back(builder_.getNamedAttr("r_i8_neg",
-      builder_.getI8IntegerAttr(static_cast<int8_t>(rshift_neg->at(0)))));
 
   int bottom_dim[4];
   int top_dim[4];
@@ -1724,6 +1622,12 @@ void MixNet::_add_tl_prelu_op(MixOp * mix_op,
                            builder_.getI32IntegerAttr(la_output)));
   attrs.push_back(builder_.getNamedAttr("la_slope",
                            builder_.getI32IntegerAttr(la_slope)));
+  if (prelu_op.rshift_pos().hasValue()) {
+    attrs.push_back(builder_.getNamedAttr("r_i8_pos", prelu_op.rshift_posAttr()));
+    attrs.push_back(builder_.getNamedAttr("m_i8_pos", prelu_op.m_i8_posAttr()));
+  }
+  attrs.push_back(builder_.getNamedAttr("r_i8_neg", prelu_op.rshift_negAttr()));
+
   // setup input/output type
   RankedTensorType input_type = RankedTensorType::get(
                           { bottom_dim[0], bottom_dim[1],

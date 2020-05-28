@@ -176,6 +176,11 @@ class ImUpsample : public ImLayer {
   explicit ImUpsample(Operation *op);
 };
 
+class ImPRelu : public ImLayer {
+ public:
+  explicit ImPRelu(Operation *op);
+};
+
 class ImLeakyRelu : public ImLayer {
  public:
   explicit ImLeakyRelu(Operation *op);

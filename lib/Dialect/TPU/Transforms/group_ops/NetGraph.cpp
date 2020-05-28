@@ -228,7 +228,7 @@ bool NetGraph::is_concat_special_case(int layer_id, int tid, int cluster_size) {
     return false;
   }
 
-  auto op = cast<tpu::ConcatOp>(im_layer->op());
+  auto op = cast<tpu::TG_INT8_ConcatOp>(im_layer->op());
   const int axis = op.axis().getLimitedValue();
   assert(axis < 4);
   // if you don't consider the in tensor connected to the concat layer, let tid = -1.

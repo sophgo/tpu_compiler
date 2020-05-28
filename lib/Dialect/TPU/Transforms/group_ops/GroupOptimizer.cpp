@@ -751,19 +751,19 @@ void GroupOptimizer::lower_to_tl_group(MLIRContext * context) {
 
   OwningRewritePatternList patterns_pack;
   patterns_pack.insert<
-      LGLoweringPattern<tpu::Conv2DOp>,
-      LGLoweringPattern<tpu::DeConv2DOp>,
-      LGLoweringPattern<tpu::EltwiseAddOp>,
-      LGLoweringPattern<tpu::EltwiseMulOp>,
-      LGLoweringPattern<tpu::EltwiseMaxOp>,
-      LGLoweringPattern<tpu::EltwiseMinOp>,
-      LGLoweringPattern<tpu::PoolAvg2DOp>,
-      LGLoweringPattern<tpu::PoolMax2DOp>,
-      LGLoweringPattern<tpu::SigmoidOp>,
-      LGLoweringPattern<tpu::LrnOp>,
-      LGLoweringPattern<tpu::BroadcastMulOp>,
-      LGLoweringPattern<tpu::UpsampleOp>,
-      LGLoweringPattern<tpu::LeakyReluOp>
+      LGLoweringPattern<tpu::TG_INT8_PC_Conv2DOp>,
+      LGLoweringPattern<tpu::TG_INT8_PC_DeConv2DOp>,
+      LGLoweringPattern<tpu::TG_INT8_EltwiseAddOp>,
+      LGLoweringPattern<tpu::TG_INT8_EltwiseMulOp>,
+      LGLoweringPattern<tpu::TG_INT8_EltwiseMaxOp>,
+      LGLoweringPattern<tpu::TG_INT8_EltwiseMinOp>,
+      LGLoweringPattern<tpu::TG_INT8_PoolAvg2DOp>,
+      LGLoweringPattern<tpu::TG_INT8_PoolMax2DOp>,
+      LGLoweringPattern<tpu::TG_INT8_LutOp>,
+      LGLoweringPattern<tpu::TG_INT8_LrnOp>,
+      LGLoweringPattern<tpu::TG_INT8_BroadcastMulOp>,
+      LGLoweringPattern<tpu::TG_INT8_UpsampleOp>,
+      LGLoweringPattern<tpu::TG_INT8_LeakyReluOp>
       >(fn_, context, this);
   applyPatternsGreedily(*fn_, patterns_pack);
 
@@ -780,41 +780,6 @@ void GroupOptimizer::lower_to_tg_group(MLIRContext * context) {
       exit(1);
     }
   }
-
-  // lower to TG inst
-  OwningRewritePatternList tg_patterns;
-  tg_patterns.insert<
-      addGroupTGLayerPattern<tpu::Conv2DOp>,
-      addGroupTGLayerPattern<tpu::EltwiseAddOp>,
-      addGroupTGLayerPattern<tpu::EltwiseMaxOp>,
-      addGroupTGLayerPattern<tpu::EltwiseMinOp>,
-      addGroupTGLayerPattern<tpu::EltwiseMulOp>,
-      addGroupTGLayerPattern<tpu::PoolAvg2DOp>,
-      addGroupTGLayerPattern<tpu::PoolMax2DOp>,
-      addGroupTGLayerPattern<tpu::ConcatOp>,
-      addGroupTGLayerPattern<tpu::ShuffleChannelOp>,
-      addGroupTGLayerPattern<tpu::SliceOp>,
-      addGroupTGLayerPattern<tpu::LrnOp>,
-      addGroupTGLayerPattern<tpu::FullyConnectedOp>,
-      //
-      addGroupTGLayerPattern<tpu::BroadcastMulOp>,
-      addGroupTGLayerPattern<tpu::CropOp>,
-      addGroupTGLayerPattern<tpu::DeConv2DOp>,
-      addGroupTGLayerPattern<tpu::ReciprocalOp>,
-      addGroupTGLayerPattern<tpu::LeakyReluOp>,
-      addGroupTGLayerPattern<tpu::PermuteOp>,
-      addGroupTGLayerPattern<tpu::PixelShuffleOp>,
-      addGroupTGLayerPattern<tpu::ClipOp>,
-      addGroupTGLayerPattern<tpu::PReluOp>,
-      addGroupTGLayerPattern<tpu::ReluOp>,
-      addGroupTGLayerPattern<tpu::SigmoidOp>,
-      addGroupTGLayerPattern<tpu::SqrtOp>,
-      addGroupTGLayerPattern<tpu::SwapChannelOp>,
-      addGroupTGLayerPattern<tpu::UpsampleOp>,
-      addGroupTGLayerPattern<tpu::ReorgOp>
-
-  >(context, this);
-  applyPatternsGreedily(*fn_, tg_patterns);
 
   // set gaddr from layer group
   OwningRewritePatternList tg_addr_patterns;

@@ -76,36 +76,37 @@ void ImLayer::add_imm_tensor(const shared_ptr<Tensor> associcate, int count, con
 
 shared_ptr<ImLayer> ImLayer::create(Operation* op) {
   shared_ptr<ImLayer> layer;
-  if (isa<tpu::Conv2DOp>(op)) {
+  if (isa<tpu::TG_INT8_PC_Conv2DOp>(op)) {
     layer = make_shared<ImConv>(op);
-  } else if (isa<tpu::DeConv2DOp>(op)) {
+  } else if (isa<tpu::TG_INT8_PC_DeConv2DOp>(op)) {
     layer = make_shared<ImDeconv>(op);
-  } else if (isa<tpu::EltwiseAddOp>(op)
-             ||isa<tpu::EltwiseMulOp>(op)) {
+  } else if (isa<tpu::TG_INT8_EltwiseAddOp>(op)
+             ||isa<tpu::TG_INT8_EltwiseMulOp>(op)) {
     layer = make_shared<ImEltwise>(op);
-  } else if (isa<tpu::FullyConnectedOp>(op)) {
+  } else if (isa<tpu::TG_INT8_FullyConnectedOp>(op)) {
     layer = make_shared<ImInnerproduct>(op);
   } else if (isa<tpu::ReshapeOp>(op)){
     layer = make_shared<ImCommon>(op, true, IR_OTHER);
-  } else if (isa<tpu::PoolAvg2DOp>(op) ||
-             isa<tpu::PoolMax2DOp>(op)) {
+  } else if (isa<tpu::TG_INT8_PoolAvg2DOp>(op) ||
+             isa<tpu::TG_INT8_PoolMax2DOp>(op)) {
     layer = make_shared<ImPooling>(op);
-  } else if (isa<tpu::ConcatOp>(op)) {
+  } else if (isa<tpu::TG_INT8_ConcatOp>(op)) {
     layer = make_shared<ImConcat>(op);
-  }else if ( isa<tpu::SigmoidOp>(op) ||
-             isa<tpu::PReluOp>(op)) {
+  }else if ( isa<tpu::TG_INT8_LutOp>(op)) {
     layer = make_shared<ImActivation>(op);
-  } else if (isa<tpu::ShuffleChannelOp>(op)) {
+  } else if ( isa<tpu::TG_INT8_PReluOp>(op)) {
+    layer = make_shared<ImPRelu>(op);
+  } else if (isa<tpu::TG_INT8_ShuffleChannelOp>(op)) {
     layer = make_shared<ImShuffleChannel>(op);
-  } else if (isa<tpu::SliceOp>(op)) {
+  } else if (isa<tpu::TG_INT8_SliceOp>(op)) {
     layer = make_shared<ImSlice>(op);
-  } else if (isa<tpu::LrnOp>(op)) {
+  } else if (isa<tpu::TG_INT8_LrnOp>(op)) {
     layer = make_shared<ImLrn>(op);
-  } else if (isa<tpu::BroadcastMulOp>(op)) {
+  } else if (isa<tpu::TG_INT8_BroadcastMulOp>(op)) {
     layer = make_shared<ImBroadcastMul>(op);
-  } else if (isa<tpu::UpsampleOp>(op)) {
+  } else if (isa<tpu::TG_INT8_UpsampleOp>(op)) {
     layer = make_shared<ImUpsample>(op);
-  } else if (isa<tpu::LeakyReluOp>(op)) {
+  } else if (isa<tpu::TG_INT8_LeakyReluOp>(op)) {
     layer = make_shared<ImLeakyRelu>(op);
   } else if (isa<tpu::GenericCpuOp>(op)) {
     layer = make_shared<ImCommon>(op, false, IR_OTHER);
@@ -136,10 +137,11 @@ static string getOperandStorage(Operation *p) {
 }
 
 ImConv::ImConv(Operation* p) : ImLayer(IR_CONVOLUTION, p, true), conv1x1_to_fc(false) {
-  auto op = dyn_cast<tpu::Conv2DOp>(p);
+  auto op = dyn_cast<tpu::TG_INT8_PC_Conv2DOp>(p);
+  assert(op);
   bool is_dw, with_bias, do_relu;
   int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, ph, pw, dh, dw;
-  bool is_deconv = isa<tpu::DeConv2DOp>(op.getOperation());
+  bool is_deconv = isa<tpu::TG_INT8_PC_DeConv2DOp>(op.getOperation());
   parseConvParam(op.param(), is_deconv, op.input(), op.output(), op.filter(),
                   n, ic, ih, iw, oc, oh, ow, g,
                   kh, kw, sh, sw, ph, pw, dh, dw, is_dw, with_bias, do_relu);
@@ -185,10 +187,10 @@ ImConv::ImConv(Operation* p) : ImLayer(IR_CONVOLUTION, p, true), conv1x1_to_fc(f
 }
 
 ImDeconv::ImDeconv(Operation* p) : ImLayer(IR_DECONVOLUTION, p, true) {
-  auto op = dyn_cast<tpu::DeConv2DOp>(p);
+  auto op = dyn_cast<tpu::TG_INT8_PC_DeConv2DOp>(p);
   bool is_dw, with_bias, do_relu;
   int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, ph, pw, dh, dw;
-  bool is_deconv = isa<tpu::DeConv2DOp>(op.getOperation());
+  bool is_deconv = isa<tpu::TG_INT8_PC_DeConv2DOp>(op.getOperation());
   parseConvParam(op.param(), is_deconv, op.input(), op.output(), op.filter(),
                   n, ic, ih, iw, oc, oh, ow, g,
                   kh, kw, sh, sw, ph, pw, dh, dw, is_dw, with_bias, do_relu);
@@ -258,23 +260,23 @@ ImInnerproduct::ImInnerproduct(Operation* op) : ImLayer(IR_INNERPRODUCT, op) {
 }
 
 ImEltwise::ImEltwise(Operation* op) : ImLayer(IR_ELTWISE, op, true) {
-
   // skip rshift and multiplier
-  int nInputs = op->getNumOperands() - 2;
+  int nInputs = op->getNumOperands();
   for (u32 i = 0; i < nInputs; ++i) {
     add_in_tensor(op->getOperand(i), TENSOR_NEURON);
   }
 
   add_out_tensor(op->getResult(0), TENSOR_NEURON);
 
-  if (isa<tpu::EltwiseAddOp>(op))
+  if (isa<tpu::TG_INT8_EltwiseAddOp>(op))
     add_imm_tensor(out_tensors[0], 1, name_ + "_imm");
 }
 
 
 ImCommon::ImCommon(Operation* op, bool inplace_compute, IR_TYPE type) : ImLayer(type, op) {
   is_inplace_layer = (is_inplace_layer || inplace_compute);
-  if (isa<tpu::EltwiseMaxOp>(op) || isa<tpu::EltwiseMinOp>(op))
+  if (isa<tpu::TG_INT8_EltwiseMaxOp>(op) ||
+      isa<tpu::TG_INT8_EltwiseMinOp>(op))
       fusible = false;
   // skip rshift and multiplier
   int nInputs = op->getNumOperands();
@@ -310,13 +312,11 @@ ImActivation::ImActivation(Operation* op) : ImLayer(IR_ACTIVATION, op, true) {
   add_in_tensor(op->getOperand(0), TENSOR_NEURON);
 
   // add y table
-  if (isa<tpu::SigmoidOp>(op)) {
-    auto load_y_table = cast<tpu::LoadWeightOp>(op->getOperand(1)->getDefiningOp());
-    int usize = getOperandStorageSize(load_y_table);
-    string storage = getOperandStorage(load_y_table);
-    string y_table_name = load_y_table.name().getValue().str();
-    add_in_tensor(1, 32, 16, 16, usize, storage, y_table_name, TENSOR_COEFF);
-  }
+  auto load_y_table = cast<tpu::LoadWeightOp>(op->getOperand(1)->getDefiningOp());
+  int usize = getOperandStorageSize(load_y_table);
+  string storage = getOperandStorage(load_y_table);
+  string y_table_name = load_y_table.name().getValue().str();
+  add_in_tensor(1, 32, 16, 16, usize, storage, y_table_name, TENSOR_COEFF);
 
   // add m_table
   if (0) {
@@ -326,13 +326,16 @@ ImActivation::ImActivation(Operation* op) : ImLayer(IR_ACTIVATION, op, true) {
     string m_table_name = load_m_table.name().getValue().str();
     add_in_tensor(1, 32, 16, 16, usize, storage, m_table_name, TENSOR_COEFF);
   }
+  add_out_tensor(op->getResult(0), TENSOR_NEURON);
+}
 
-  if (isa<tpu::PReluOp>(op)) {
-    auto load_slope = cast<tpu::LoadWeightOp>(op->getOperand(1)->getDefiningOp());
-    string weightOpName = load_slope.name().getValue().str();
-    auto s_type = op->getOperand(1)->getType().dyn_cast<TensorType>();
-    add_in_tensor(&s_type, weightOpName, TENSOR_DEPTHCONV_OPD1);
-  }
+ImPRelu::ImPRelu(Operation* op) : ImLayer(IR_PRELU, op, true) {
+  add_in_tensor(op->getOperand(0), TENSOR_NEURON);
+
+  auto load_slope = cast<tpu::LoadWeightOp>(op->getOperand(1)->getDefiningOp());
+  string weightOpName = load_slope.name().getValue().str();
+  auto s_type = op->getOperand(1)->getType().dyn_cast<TensorType>();
+  add_in_tensor(&s_type, weightOpName, TENSOR_DEPTHCONV_OPD1);
 
   add_out_tensor(op->getResult(0), TENSOR_NEURON);
 }
@@ -345,7 +348,7 @@ ImShuffleChannel::ImShuffleChannel(Operation *op): ImLayer(IR_SHUFFLECHANNEL, op
 
 ImSlice::ImSlice(Operation *op): ImLayer(IR_SLICE, op, false) {
   std::vector<int64_t> dst_shape = getTensorShape(op->getResult(0));
-  auto slice_op = dyn_cast<tpu::SliceOp>(op);
+  auto slice_op = dyn_cast<tpu::TG_INT8_SliceOp>(op);
   int axis = slice_op.axis().getLimitedValue();
   // optimization for batch 1, set as inplace layer
   if ((dst_shape[0] == 1) && (axis == 1))
@@ -376,7 +379,7 @@ ImLrn::ImLrn(Operation *op): ImLayer(IR_LRN, op, true) {
 }
 
 ImBroadcastMul::ImBroadcastMul(Operation *op): ImLayer(IR_BROADCAST_MUL, op, true) {
-  auto bd_op = dyn_cast<tpu::BroadcastMulOp>(op);
+  auto bd_op = dyn_cast<tpu::TG_INT8_BroadcastMulOp>(op);
   auto input_type = op->getOperand(0)->getType().dyn_cast<TensorType>();
   auto input_shape = input_type.getShape();
   add_in_tensor(op->getOperand(0), TENSOR_NEURON);
@@ -385,7 +388,7 @@ ImBroadcastMul::ImBroadcastMul(Operation *op): ImLayer(IR_BROADCAST_MUL, op, tru
   // add bias tensor
   bool with_bias = false;
   int perchannel_size = with_bias ? 9 : 5;
-  auto load_bias = cast<tpu::LoadWeightOp>(op->getOperand(4)->getDefiningOp());
+  auto load_bias = cast<tpu::LoadWeightOp>(op->getOperand(2)->getDefiningOp());
   string bias_name = load_bias.name().getValue().str();
   string bias_storage = getOperandStorage(load_bias);
   int bias_usize = getOperandStorageSize(load_bias);

@@ -60,7 +60,7 @@ if [ $COMPARE_ALL -eq 1 ]; then
         --convert-cpu-op \
         --group-ops \
         --layer-group-gm-opt=false \
-        ${NET}_quant_int8_multiplier.mlir \
+        ${NET}_quant_int8_multiplier_tg.mlir \
         --layer-group-neuron-map-filename=neuron_map_layergroup.csv \
         --weight-map=weight_map_layergroup.csv \
         --weight-bin=weight_int8_multiplier_layergroup.bin \
@@ -70,7 +70,7 @@ else
         --convert-cpu-op \
         --group-ops \
         --layer-group-gm-opt=true \
-        ${NET}_quant_int8_multiplier.mlir \
+        ${NET}_quant_int8_multiplier_tg.mlir \
         --layer-group-neuron-map-filename=neuron_map_layergroup.csv \
         --weight-map=weight_map_layergroup.csv \
         --weight-bin=weight_int8_multiplier_layergroup.bin \
@@ -116,13 +116,11 @@ else
         --op_info ${NET}_op_info_int8_multiplier.csv
 fi
 
-#if [ ! -z $CVIMODEL_REL_PATH -a -d $CVIMODEL_REL_PATH ]; then
-#  if [ $BATCH_SIZE -eq 1 ]; then
-#    mv ${NET}_lg.cvimodel $CVIMODEL_REL_PATH
-#  else
-#    mv ${NET}_lg.cvimodel $CVIMODEL_REL_PATH/${NET}_bs${BATCH_SIZE}_lg.cvimodel
-#  fi
-#fi
+# if [ ! -z $CVIMODEL_REL_PATH -a -d $CVIMODEL_REL_PATH ]; then
+#   cp ${NET}_in_fp32.npz $CVIMODEL_REL_PATH/${NET}_bs${BATCH_SIZE}_in_fp32.npz
+#   cp ${NET}_lg.cvimodel $CVIMODEL_REL_PATH/${NET}_bs${BATCH_SIZE}_lg.cvimodel
+#   cp ${NET}_out_int8_multiplier.npz $CVIMODEL_REL_PATH/${NET}_bs${BATCH_SIZE}_out_int8_multiplier.npz
+# fi
 
 # VERDICT
 echo $0 PASSED
