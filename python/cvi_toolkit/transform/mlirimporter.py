@@ -28,6 +28,10 @@ class TPU_OpType(Enum):
     Eltwise_Mul = 'tpu.eltwise_mul'
     FullyConnected = 'tpu.fully_connected'
     LeakyRelu = 'tpu.leaky_relu'
+    LrnOne = 'tpu.lrn_one'
+    LrnTwo = 'tpu.lrn_two'
+    LrnThree = 'tpu.lrn_three'
+    Lrn = 'tpu.lrn'
     Permute = 'tpu.permute'
     PixelShuffle = 'tpu.pixelshuffle'
     PoolAvg2D = 'tpu.pool_avg_2d'
@@ -391,6 +395,54 @@ class MLIRImporter(object):
 
         return self.buildOp(TPU_OpType.LeakyRelu.value, inputOperands, [
             tensor_output_type], name=leaky_relu_name, quant=self.quant_param, **leaky_relu_param)
+
+    def add_lrn_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+        tensor_output_type = self.module.make_ranked_tensor_type(self.f32Type, output_tensor_shape)
+
+        checkKey(kargs, 'alpha')
+        checkKey(kargs, 'beta')
+        checkKey(kargs, 'bias')
+        checkKey(kargs, 'size')
+
+        lrn_param = {
+            'alpha': self.module.floatAttr(kargs['alpha']),
+            'beta': self.module.floatAttr(kargs['beta']),
+            'k': self.module.floatAttr(kargs['bias']),
+            'local_size': self.module.integerAttr(self.i32Type, kargs['size']),
+        }
+
+        lrn_name_1 = self.module.stringAttr("{}_1".format(op_name))
+        lrn_name_2 = self.module.stringAttr("{}_2".format(op_name))
+        lrn_name_3 = self.module.stringAttr("{}_3".format(op_name))
+        lrn_name_main = self.module.stringAttr("{}_main".format(op_name))
+
+        input_op = inputOperands[0]
+        # lrn one
+        lrn_one_op = self.buildOp(TPU_OpType.LrnOne.value, inputOperands, [
+            tensor_output_type], name=lrn_name_1, quant=self.quant_param, **lrn_param)
+        # lrn two
+        operands2 = list()
+        operands2.append(lrn_one_op)
+        lrn_two_op = self.buildOp(TPU_OpType.LrnTwo.value, operands2, [
+            tensor_output_type], name=lrn_name_2, quant=self.quant_param, **lrn_param)
+        # lrn three
+        operands3 = list()
+        operands3.append(lrn_two_op)
+        lrn_three_op = self.buildOp(TPU_OpType.LrnThree.value, operands3, [
+            tensor_output_type], name=lrn_name_3, quant=self.quant_param, **lrn_param)
+        # lrn
+        none = self.add_none_op()
+        operands = list()
+        operands.append(input_op)
+        operands.append(none)
+        operands.append(none)
+        operands.append(lrn_three_op)
+        lrn_param['sum_rshift'] = self.module.integerAttr(self.i32Type, 0)
+        lrn_param['lrn_rshift'] = self.module.integerAttr(self.i32Type, 0)
+        lrn_param['quant_data0'] = self.module.integerAttr(self.i32Type, 0)
+        lrn_param['quant_data1'] = self.module.integerAttr(self.i32Type, 0)
+        return self.buildOp(TPU_OpType.Lrn.value, operands, [
+            tensor_output_type], name=lrn_name_main, quant=self.quant_param, **lrn_param)
 
     def add_pool_avg_2d_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = self.module.make_ranked_tensor_type(

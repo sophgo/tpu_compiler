@@ -19,6 +19,7 @@ TEST_ONNX_IR = [
     "AveragePool",
     "GlobalMaxPool",
     "LeakyRelu",
+    "LRN",
     "Max",
     "Min",
     "Neg",
@@ -55,6 +56,7 @@ class ONNX_IR_TESTER(object):
         self.test_function = {
             "AveragePool": self.test_AveragePool,
             "LeakyRelu": self.test_LeakyRelu,
+            "LRN": self.test_LRN,
             "GlobalMaxPool": self.test_GlobalMaxPool,
             "Max": self.test_Max,
             "Min": self.test_Min,
@@ -244,6 +246,42 @@ class ONNX_IR_TESTER(object):
         model_def = helper.make_model(graph_def, producer_name=test_case)
         input_data = np.random.randn(input_shape[0], input_shape[1],
                         input_shape[2], input_shape[3]).astype(np.float32)
+
+        onnx.checker.check_model(model_def)
+        self.onnx_convert_and_infernece(input_data, model_def, test_case)
+
+    def test_LRN(self):
+        test_case = 'test_LRN'
+        input_shape = [1, 10, 27, 27]
+        output_shape = [1, 10, 27, 27]
+
+        input = helper.make_tensor_value_info(
+            'input', TensorProto.FLOAT, input_shape)
+        output = helper.make_tensor_value_info(
+            'output', TensorProto.FLOAT, output_shape)
+
+        x1_def = helper.make_node(
+            'Neg',  # node name
+            ['input'],  # inputs
+            ['X1'],  # outputs
+        )
+
+        lrn_def = helper.make_node(
+            'LRN',  # node name
+            ['X1'],  # inputs
+            ['output'],  # outputs
+            size=5,
+        )
+
+        graph_def = helper.make_graph(
+            [x1_def, lrn_def],
+            test_case,
+            [input],
+            [output],
+        )
+        model_def = helper.make_model(graph_def, producer_name=test_case)
+        input_data = np.random.rand(input_shape[0], input_shape[1],
+                                    input_shape[2], input_shape[3]).astype(np.float32)
 
         onnx.checker.check_model(model_def)
         self.onnx_convert_and_infernece(input_data, model_def, test_case)

@@ -129,6 +129,7 @@ class OnnxConverter(BaseConverter):
             "GlobalMaxPool": lambda node: self.convert_global_pool_op(node),
             "Identity": lambda node: self.convert_skip_op(node),
             "LeakyRelu": lambda node: self.convert_leaky_relu_op(node),
+            "LRN": lambda node: self.convert_lrn_op(node),
             "MaxPool": lambda node: self.convert_maxpool_op(node),
             "Max" : lambda node: self.convert_max_op(node),
             "Min" : lambda node: self.convert_min_op(node),
@@ -767,6 +768,33 @@ class OnnxConverter(BaseConverter):
             leaky_relu_op = self.CVI.add_leaky_relu_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **leaky_relu_param)
             self.addOperand(onnx_node.name, leaky_relu_op, output_shape, TensorType.ACTIVATION)
 
+    def convert_lrn_op(self, onnx_node):
+        assert(onnx_node.op_type == "LRN")
+        alpha = onnx_node.attrs.get('alpha', 0.0001)
+        beta = onnx_node.attrs.get('beta', 0.75)
+        bias = onnx_node.attrs.get('bias', 1.0)
+        size = onnx_node.attrs['size']
+        lrn_param = {
+            'alpha': alpha, 'beta': beta, 'bias': bias, 'size': size,
+        }
+        op, input_shape, tensor_type = self.getOperand(onnx_node.inputs[0])
+        if tensor_type == TensorType.TENSOR:
+            x = self.getTensor(onnx_node.inputs[0]).tensor_data
+            square_sum = np.zeros(input_shape).astype(np.float32)
+            for n, c, h, w in np.ndindex(input_shape):
+                square_sum[n, c, h, w] = sum(x[n, max(0, c - int(math.floor((size - 1) / 2))):
+                                               min(size, c + int(math.ceil((size - 1) / 2)) + 1), h, w] ** 2)
+            output_data = x / ((bias + (alpha / size) * square_sum) ** beta)
+            output_shape = list(output_data.shape)
+            self.addTensor(onnx_node.name, output_data, output_shape)
+            self.addOperand(onnx_node.name, None, output_shape, TensorType.TENSOR)
+        else:
+            operands = list()
+            operands.append(op)
+            output_shape = input_shape
+            lrn_op = self.CVI.add_lrn_op("{}_{}".format(
+                onnx_node.name, onnx_node.op_type), operands, output_shape, **lrn_param)
+            self.addOperand(onnx_node.name, lrn_op, output_shape, TensorType.ACTIVATION)
 
     def convert_maxpool_op(self, onnx_node):
         assert(onnx_node.op_type == "MaxPool")
