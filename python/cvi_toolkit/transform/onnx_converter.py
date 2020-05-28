@@ -1057,8 +1057,6 @@ class OnnxConverter(BaseConverter):
 
             output_shape = [int(x) for x in output_shape]
 
-            if np.prod(input_shape1) != np.prod(output_shape):
-                raise RuntimeError("can not reshape {} v.s. {}".format(input_shape1, output_shape))
             if len(output_shape) ==6:
                 # Pixel Shuffle
                 self.addOperand(onnx_node.name, op1, output_shape, TensorType.ACTIVATION)
