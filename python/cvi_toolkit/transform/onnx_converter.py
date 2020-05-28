@@ -473,14 +473,17 @@ class OnnxConverter(BaseConverter):
         assert(onnx_node.op_type == "Concat")
         if len(onnx_node.inputs) < 2:
             raise ValueError("{} must great than 2".format(onnx_node.op_type))
+
         op1, input_shape1, tensor_type1 = self.getOperand(onnx_node.inputs[0])
         op2, input_shape2, tensor_type2 = self.getOperand(onnx_node.inputs[1])
 
         axis = onnx_node.attrs['axis']
         if tensor_type1 == TensorType.TENSOR and tensor_type2 == TensorType.TENSOR:
-            t1 = self.getTensor(onnx_node.inputs[0]).tensor_data
-            t2 = self.getTensor(onnx_node.inputs[1]).tensor_data
-            n_t = np.concatenate((t1, t2), axis=axis)
+            tensor_datas = list()
+            for i in onnx_node.inputs:
+                tensor_datas.append(self.getTensor(i).tensor_data)
+
+            n_t = np.concatenate(tuple(tensor_datas), axis=axis)
             self.addTensor(onnx_node.name, n_t, list(n_t.shape))
             self.addOperand(onnx_node.name, None, list(n_t.shape), TensorType.TENSOR)
         else:
@@ -489,7 +492,6 @@ class OnnxConverter(BaseConverter):
 
             for i in onnx_node.inputs:
                 op, input_shape, tensor_type = self.getOperand(i)
-
                 if tensor_type != TensorType.ACTIVATION: raise RuntimeError("Tensor can not concat with activation")
 
                 in_shapes.append(input_shape)
@@ -1055,6 +1057,8 @@ class OnnxConverter(BaseConverter):
 
             output_shape = [int(x) for x in output_shape]
 
+            if np.prod(input_shape1) != np.prod(output_shape):
+                raise RuntimeError("can not reshape {} v.s. {}".format(input_shape1, output_shape))
             if len(output_shape) ==6:
                 # Pixel Shuffle
                 self.addOperand(onnx_node.name, op1, output_shape, TensorType.ACTIVATION)
@@ -1070,6 +1074,14 @@ class OnnxConverter(BaseConverter):
             else:
                 reshape_op = self.CVI.add_reshape_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
                 self.addOperand(onnx_node.name, reshape_op, output_shape, TensorType.ACTIVATION)
+        elif tensor_type1 == TensorType.TENSOR and tensor_type2 == TensorType.TENSOR:
+            tensor_data = self.getTensor(onnx_node.inputs[0]).tensor_data
+            shape_data = self.getTensor(onnx_node.inputs[1]).tensor_data.astype(np.int)
+            output_data = np.reshape(tensor_data, shape_data)
+            output_shape = list(output_data.shape)
+            self.addTensor(onnx_node.name, output_data, output_shape)
+            self.addOperand(onnx_node.name, None,
+                            output_shape, TensorType.TENSOR)
         else:
             raise RuntimeError("Second type must be {}".format(TensorType.TENSOR))
 
@@ -1102,15 +1114,23 @@ class OnnxConverter(BaseConverter):
         else:
             axes = self.getTensor(onnx_node.inputs[3]).tensor_data
 
-        if len(onnx_node.inputs) > 4:
-            raise RuntimeError("No support steps")
+        if len(onnx_node.inputs) == 5:
+            # steps
+            _, _, _tesnor_type = self.getOperand(onnx_node.inputs[4])
+            if _tesnor_type != TensorType.TENSOR:
+                raise RuntimeError(
+                    "{} steps type be tensor, not find".format(onnx_node.name))
+            else:
+                steps = self.getTensor(onnx_node.inputs[4]).tensor_data
+                assert(len(steps.flatten()) == 1)  # steps only has one value
+                if steps.flatten()[0] != 1:
+                    raise RuntimeError("only support one steps slices")
+
         assert(len(starts) == len(ends))
         assert(len(axes) == len(ends))
         if tesnor_type == TensorType.TENSOR:
             raise RuntimeError("TODO")
         else:
-            if len(input_shape) != 4:
-                raise RuntimeError("Only support dim 4 Slice")
             crop_shape = input_shape.copy()
             crop_offset = input_shape.copy()
             idx = 0
@@ -1127,6 +1147,7 @@ class OnnxConverter(BaseConverter):
                 "crop_offset": crop_offset,
                 "crop_shape": crop_shape,
             }
+
             output_shape = crop_shape
             crop_op = self.CVI.add_crop_op("{}_{}".format(onnx_node.name, onnx_node.op_type), [op], output_shape, **crop_param)
             self.addOperand(onnx_node.name, crop_op, output_shape, TensorType.ACTIVATION)
@@ -1351,6 +1372,34 @@ class OnnxConverter(BaseConverter):
                 }
                 permute_op = self.CVI.add_permute_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **attr)
                 self.addOperand(onnx_node.name, permute_op, output_shape, TensorType.ACTIVATION)
+            elif len(transpose_perm) == 3:
+                """
+                    Our tpu only support 4 dim transpose, we reshape 3dim to 4
+                    and after transpose reshape back
+                """
+                assert(len(input_shape) == 3)
+                input_shape.insert(0, 1)
+                reshape_op = self.CVI.add_reshape_op("{}_{}".format(
+                    onnx_node.name, onnx_node.op_type), [op], input_shape)
+                on = input_shape[0]
+                oc = input_shape[transpose_perm[0]+1]
+                oh = input_shape[transpose_perm[1]+1]
+                ow = input_shape[transpose_perm[2]+1]
+                output_shape = [on, oc, oh, ow]
+
+                attr = {
+                    'order0': 0,
+                    'order1': transpose_perm[0]+1,
+                    'order2': transpose_perm[1]+1,
+                    'order3': transpose_perm[2]+1,
+                }
+                permute_op = self.CVI.add_permute_op("{}_{}".format(
+                    onnx_node.name, onnx_node.op_type), [reshape_op], output_shape, **attr)
+                output_shape = input_shape[1:]
+                reshape_back_op = self.CVI.add_reshape_op("{}_{}".format(
+                    onnx_node.name, onnx_node.op_type), [permute_op], input_shape)
+                self.addOperand(onnx_node.name, reshape_back_op,
+                                output_shape, TensorType.ACTIVATION)
             else:
                 raise RuntimeError("only support dim 4 transpose and pixel shuffle case")
 
