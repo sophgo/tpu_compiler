@@ -821,21 +821,163 @@ LogicalResult tpu::TG_INT8_EltwiseAddOp::codegen(void *ctx) {
 LogicalResult tpu::TG_INT8_EltwiseMaxOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);
-  //CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
-  //Operation *op = this->getOperation();
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
 
-  std::string errorMsg = "unsupported tg op " + getOpName().str() + "\n";
-  llvm_unreachable(errorMsg.c_str());
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  getNCHW(shape, n, c, h, w);
+
+  std::vector<int64_t> output_shape;
+  int64_t output_size, oh, ow;
+  getTensorShapeAndSize(op->getResult(0), output_shape, output_size);
+  oh = output_shape[2];
+  ow = output_shape[3];
+  bool do_relu = this->do_relu();
+  bool do_early_stride = this->do_early_stride();
+  int32_t early_stride_h = this->early_stride_h().getLimitedValue();
+  int32_t early_stride_w = this->early_stride_w().getLimitedValue();
+  if (do_early_stride) {
+    assert(oh == h / early_stride_h);
+    assert(ow == w / early_stride_w);
+  }
+
+  int32_t input_number = op->getNumOperands();
+  gaddr_t ga_inputs[input_number];
+  for(size_t i = 0; i < input_number; i++){
+    ga_inputs[i] = getPreviousOpAddress(op, i);
+  }
+  gaddr_t ga_output = getOpAddress(op);
+  int layer_id = mlir::getOpLayerId(op);
+
+  bool do_quant_rescale = false;
+  int8_t rshift;
+  int8_t m_i8_input[input_number];
+  if (this->rshift().hasValue() && this->m_i8_inputs().hasValue()) {
+    do_quant_rescale = true;
+    rshift = this->rshift().getValue().getLimitedValue();
+
+    std::vector<int32_t> m_i8_inputs_array;
+    arrayAttrToVector(this->m_i8_inputs().getValue(), m_i8_inputs_array);
+    assert(m_i8_inputs_array.size() == op->getNumOperands());
+    for (size_t i = 0; i < input_number; i++ ){
+      m_i8_input[i] = static_cast<int8_t>(m_i8_inputs_array[i]);
+    }
+  }
+
+  // TODO: should change on backend API, rather than doing cast
+  int rshift_int;
+  int m_int[input_number];
+  if (do_quant_rescale) {
+    rshift_int = static_cast<int>(rshift);
+    for (size_t i = 0; i < input_number; i++ ){
+    m_int[i] = static_cast<int>(m_i8_input[i]);
+    }
+  }
+  const int coeffs[2] = {1, 1};
+
+  bmnet_eltwise_fixed_forward_bmkernel(
+      *backend_ctx,
+      0,            // stream_id,
+      0,            // inst_id,
+      layer_id,     // layer_id,
+      nullptr,      // depends
+      0,            // depends_len
+      ga_inputs,    // gaddr_t ga_input[],
+      ga_output,    // gaddr_t ga_output,
+      input_number, // int input_size,
+      2,            // int op,  0, prod, 1, sum, 2, max
+      n, c, h, w,
+      do_relu, // bool do_relu,
+      0.0f,    // float relu_slope,
+      do_early_stride, early_stride_h, early_stride_w,
+      do_quant_rescale ? rshift_int : 0, // int right_shift_width,
+      do_quant_rescale ? m_int : nullptr,
+      coeffs);
+
+  return success();
 }
 
 LogicalResult tpu::TG_INT8_EltwiseMinOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);
-  //CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
-  //Operation *op = this->getOperation();
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
 
-  std::string errorMsg = "unsupported tg op " + getOpName().str() + "\n";
-  llvm_unreachable(errorMsg.c_str());
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  getNCHW(shape, n, c, h, w);
+
+  std::vector<int64_t> output_shape;
+  int64_t output_size, oh, ow;
+  getTensorShapeAndSize(op->getResult(0), output_shape, output_size);
+  oh = output_shape[2];
+  ow = output_shape[3];
+  bool do_relu = this->do_relu();
+  bool do_early_stride = this->do_early_stride();
+  int32_t early_stride_h = this->early_stride_h().getLimitedValue();
+  int32_t early_stride_w = this->early_stride_w().getLimitedValue();
+  if (do_early_stride) {
+    assert(oh == h / early_stride_h);
+    assert(ow == w / early_stride_w);
+  }
+
+  int32_t input_number = op->getNumOperands();
+  gaddr_t ga_inputs[input_number];
+  for(size_t i = 0; i < input_number; i++){
+    ga_inputs[i] = getPreviousOpAddress(op, i);
+  }
+  gaddr_t ga_output = getOpAddress(op);
+  int layer_id = mlir::getOpLayerId(op);
+
+  bool do_quant_rescale = false;
+  int8_t rshift;
+  int8_t m_i8_input[input_number];
+  if (this->rshift().hasValue() && this->m_i8_inputs().hasValue()) {
+    do_quant_rescale = true;
+    rshift = this->rshift().getValue().getLimitedValue();
+
+    std::vector<int32_t> m_i8_inputs_array;
+    arrayAttrToVector(this->m_i8_inputs().getValue(), m_i8_inputs_array);
+    assert(m_i8_inputs_array.size() == op->getNumOperands());
+    for (size_t i = 0; i < input_number; i++ ){
+      m_i8_input[i] = static_cast<int8_t>(m_i8_inputs_array[i]);
+    }
+  }
+
+  // TODO: should change on backend API, rather than doing cast
+  int rshift_int;
+  int m_int[input_number];
+  if (do_quant_rescale) {
+    rshift_int = static_cast<int>(rshift);
+    for (size_t i = 0; i < input_number; i++ ){
+    m_int[i] = static_cast<int>(m_i8_input[i]);
+    }
+  }
+  const int coeffs[2] = {1, 1};
+
+  bmnet_eltwise_fixed_forward_bmkernel(
+      *backend_ctx,
+      0,            // stream_id,
+      0,            // inst_id,
+      layer_id,     // layer_id,
+      nullptr,      // depends
+      0,            // depends_len
+      ga_inputs,    // gaddr_t ga_input[],
+      ga_output,    // gaddr_t ga_output,
+      input_number, // int input_size,
+      3,            // int op,  0, prod, 1, sum, 2, max, 3, min
+      n, c, h, w,
+      do_relu, // bool do_relu,
+      0.0f,    // float relu_slope,
+      do_early_stride, early_stride_h, early_stride_w,
+      do_quant_rescale ? rshift_int : 0, // int right_shift_width,
+      do_quant_rescale ? m_int : nullptr,
+      coeffs);
+
+  return success();
 }
 
 LogicalResult tpu::TG_INT8_EltwiseMulOp::codegen(void *ctx) {
