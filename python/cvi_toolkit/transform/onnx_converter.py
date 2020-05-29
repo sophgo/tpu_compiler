@@ -134,6 +134,8 @@ class OnnxConverter(BaseConverter):
             "Min" : lambda node: self.convert_min_op(node),
             "Mul" : lambda node: self.convert_mul_op(node),
             "Neg" : lambda node: self.convert_neg_op(node),
+            "PRelu": lambda node: self.convert_prelu_op(node),
+            "Reciprocal": lambda node: self.convert_reciprocal_op(node),
             "Relu": lambda node: self.convert_relu_op(node),
             "Reshape": lambda node: self.convert_reshape_op(node),
             "Shape": lambda node: self.convert_shape_op(node),
@@ -932,6 +934,47 @@ class OnnxConverter(BaseConverter):
             output_shape = input_shape
             scale_op = self.CVI.add_scale_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
             self.addOperand(onnx_node.name, scale_op, output_shape, TensorType.ACTIVATION)
+
+    def convert_prelu_op(self, onnx_node):
+        assert(onnx_node.op_type == "PRelu")
+        if len(onnx_node.inputs) != 2:
+            raise ValueError("{} must equal to 2".format(onnx_node.op_type))
+        op1, input_shape1, tensor_type1 = self.getOperand(onnx_node.inputs[0])
+        op2, input_shape2, tensor_type2 = self.getOperand(onnx_node.inputs[1])
+
+        if tensor_type1 == TensorType.TENSOR and tensor_type2 == TensorType.TENSOR:
+            tensor_data1 = self.getTensor(onnx_node.inputs[0]).tensor_data
+            tensor_data2 = self.getTensor(onnx_node.inputs[1]).tensor_data
+            output_data = np.clip(tensor_data1, 0, np.inf) + np.clip(tensor_data, -np.inf, 0) * tensor_data2 
+            output_shape = output_data.shape
+            self.addTensor(onnx_node.name, output_data, list(output_shape))
+            self.addOperand(onnx_node.name, None, output_shape, TensorType.TENSOR)
+        else:
+            operands = list()
+            operands.append(op1)
+            operands.append(op2)
+            output_shape = input_shape1
+            relu_op = self.CVI.add_prelu_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
+            self.addOperand(onnx_node.name, relu_op, output_shape, TensorType.ACTIVATION)
+
+    def convert_reciprocal_op(self, onnx_node):
+        assert(onnx_node.op_type == "Reciprocal")
+        if len(onnx_node.inputs) != 1:
+            raise ValueError("{} must only one input".format(onnx_node.op_type))
+        op1, input_shape1, tensor_type1 = self.getOperand(onnx_node.inputs[0])
+
+        if tensor_type1 == TensorType.TENSOR:
+            tensor_data1 = self.getTensor(onnx_node.inputs[0]).tensor_data
+            output_data = 1.0 / tensor_data1
+            output_shape = output_data.shape
+            self.addTensor(onnx_node.name, output_data, list(output_shape))
+            self.addOperand(onnx_node.name, None, output_shape, TensorType.TENSOR)
+        else:
+            operands = list()
+            operands.append(op1)
+            output_shape = input_shape1
+            relu_op = self.CVI.add_reciprocal_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
+            self.addOperand(onnx_node.name, relu_op, output_shape, TensorType.ACTIVATION)
 
     def convert_relu_op(self, onnx_node):
         assert(onnx_node.op_type == "Relu")
