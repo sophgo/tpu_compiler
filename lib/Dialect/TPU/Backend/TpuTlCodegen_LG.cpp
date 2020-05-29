@@ -155,22 +155,16 @@ LogicalResult tpu::TL_LG_DeConv2DOp::codegen(void *ctx) {
 
   cvi_backend_tl_deconv(
     *backend_ctx,
-    0,
-    0,
     layer_id,
-    nullptr,
-    0,
     la_input, la_output, la_weight, la_perchannel,
     n, ic, ih, iw,
     g, oc, oh, ow, kh, kw, dh, dw,
-    ins_h, ins_last_h, ins_w, ins_last_w, ph_t, ph_b, pw_l, pw_r, sh, sw,
+    ins_h, ins_last_h, ins_w, ins_last_w,
+    ph_t, ph_b, pw_l, pw_r, sh, sw,
     with_bias,
-    false,     // result_add
     do_relu,   // do_activation,
     0,         //right_shift_width,
-    false,     //use_winograd,
-    oc,        // right_shift_array_len
-    la_perchannel // ga_per_channel
+    oc       // right_shift_array_len
     );
 
   return success();
@@ -604,11 +598,7 @@ LogicalResult tpu::TL_LG_BroadcastMulOp::codegen(void *ctx) {
 
   cvi_backend_tl_broadcast_mul(
       *backend_ctx, // ctx
-      0,            // stream_id
-      0,            // inst_id
       layer_id,     // layer_id
-      nullptr,      // depends
-      0,            // depends_len
       la_input,     // input_addr
       la_scale,    // scale_addr
       la_bias,      // pack_addr
@@ -646,11 +636,7 @@ LogicalResult tpu::TL_LG_UpsampleOp::codegen(void *ctx) {
 
   cvi_backend_tl_upsample(
       *backend_ctx,
-      0, //stream_id,
-      0, //inst_id,
       layer_id, //layer_id,
-      nullptr, //const u32 *depends,
-      0, //depends_len,
       la_input,
       la_output,
       n,
@@ -683,11 +669,7 @@ LogicalResult tpu::TL_LG_LeakyReluOp::codegen(void *ctx) {
 
   cvi_backend_tl_leaky_relu(
       *backend_ctx,
-      0, //stream_id,
-      0, //inst_id,
       layer_id, //layer_id,
-      nullptr, //const u32 *depends,
-      0, //depends_len,
       la_input,
       la_output,
       n,
@@ -698,4 +680,56 @@ LogicalResult tpu::TL_LG_LeakyReluOp::codegen(void *ctx) {
   );
   return success();
 }
+
+LogicalResult tpu::TL_LG_PReluOp::codegen(void *ctx) {
+  llvm::errs() << "TL_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  int8_t r_i8_pos, m_i8_pos, r_i8_neg;
+  auto prelu_op = llvm::dyn_cast<tpu::TL_LG_PReluOp>(op);
+  assert(prelu_op);
+
+  if (prelu_op.m_i8_pos().hasValue()) {
+    m_i8_pos = prelu_op.m_i8_pos().getValue().getLimitedValue();
+    r_i8_pos = prelu_op.r_i8_pos().getValue().getLimitedValue();
+    assert(m_i8_pos);
+  } else {
+    m_i8_pos = 0;
+    r_i8_pos = 0;
+  }
+
+  if (prelu_op.r_i8_neg().hasValue()) {
+    r_i8_neg = prelu_op.r_i8_neg().getValue().getLimitedValue();
+    assert(r_i8_neg);
+  } else {
+    r_i8_neg = 0;
+  }
+
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  getNCHW(shape, n, c, h, w);
+
+  laddr_t la_input = this->la_input().getLimitedValue();
+  laddr_t la_output = this->la_output().getLimitedValue();
+  laddr_t la_slope = this->la_slope().getLimitedValue();
+  int layer_id = mlir::getOpLayerId(op);
+
+  cvi_backend_tl_prelu(
+      *backend_ctx,
+      layer_id, //layer_id,
+      la_input,
+      la_output,
+      la_slope,
+      n,
+      c,
+      h,
+      w,
+      r_i8_pos, m_i8_pos, r_i8_neg);
+
+  return success();
+}
+
 }

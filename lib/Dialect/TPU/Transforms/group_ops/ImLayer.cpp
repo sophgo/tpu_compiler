@@ -81,8 +81,7 @@ shared_ptr<ImLayer> ImLayer::create(Operation* op) {
   } else if (isa<tpu::DeConv2DOp>(op)) {
     layer = make_shared<ImDeconv>(op);
   } else if (isa<tpu::EltwiseAddOp>(op)
-             ||isa<tpu::EltwiseMulOp>(op)
-             /*||isa<tpu::EltwiseMaxOp>(op)*/) {
+             ||isa<tpu::EltwiseMulOp>(op)) {
     layer = make_shared<ImEltwise>(op);
   } else if (isa<tpu::FullyConnectedOp>(op)) {
     layer = make_shared<ImInnerproduct>(op);
@@ -93,9 +92,8 @@ shared_ptr<ImLayer> ImLayer::create(Operation* op) {
     layer = make_shared<ImPooling>(op);
   } else if (isa<tpu::ConcatOp>(op)) {
     layer = make_shared<ImConcat>(op);
-  }else if ( isa<tpu::SigmoidOp>(op) /* ||
-             isa<tpu::TanHOp>(op) ||
-             isa<tpu::SqrtOp>(op)*/) {
+  }else if ( isa<tpu::SigmoidOp>(op) ||
+             isa<tpu::PReluOp>(op)) {
     layer = make_shared<ImActivation>(op);
   } else if (isa<tpu::ShuffleChannelOp>(op)) {
     layer = make_shared<ImShuffleChannel>(op);
@@ -186,7 +184,7 @@ ImConv::ImConv(Operation* p) : ImLayer(IR_CONVOLUTION, p, true), conv1x1_to_fc(f
   }
 }
 
-ImDeconv::ImDeconv(Operation* p) : ImLayer(IR_DECONVOLUTION, p, false) {
+ImDeconv::ImDeconv(Operation* p) : ImLayer(IR_DECONVOLUTION, p, true) {
   auto op = dyn_cast<tpu::DeConv2DOp>(p);
   bool is_dw, with_bias, do_relu;
   int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, ph, pw, dh, dw;
@@ -219,10 +217,14 @@ ImDeconv::ImDeconv(Operation* p) : ImLayer(IR_DECONVOLUTION, p, false) {
   string bias_storage = getOperandStorage(load_bias);
   int bias_usize = getOperandStorageSize(load_bias);
 
-  // bias tensor start address must from tpu0, but the same as input and result that
-  // start address can start from tpux, so here we use the shape (g, oc/g, 1, 9), not
-  // (1, oc, 1, 9)
-  add_in_tensor(g, oc/g, 1, perchannel_size, bias_usize, storage, bias_name, TENSOR_BIAS);
+  if (is_dw) {
+    add_in_tensor(1, oc, 1, perchannel_size, bias_usize, storage, bias_name, TENSOR_BIAS);
+  } else {
+    // bias tensor start address must from tpu0, but the same as input and result that
+    // start address can start from tpux, so here we use the shape (g, oc/g, 1, 9), not
+    // (1, oc, 1, 9)
+    add_in_tensor(g, oc/g, 1, perchannel_size, bias_usize, storage, bias_name, TENSOR_BIAS);
+  }
 
   // add out tensor
   add_out_tensor(op.output(), TENSOR_NEURON);
@@ -308,27 +310,28 @@ ImActivation::ImActivation(Operation* op) : ImLayer(IR_ACTIVATION, op, true) {
   add_in_tensor(op->getOperand(0), TENSOR_NEURON);
 
   // add y table
-  auto load_y_table = cast<tpu::LoadWeightOp>(op->getOperand(1)->getDefiningOp());
-  int usize = getOperandStorageSize(load_y_table);
-  string storage = getOperandStorage(load_y_table);
-  string y_table_name = load_y_table.name().getValue().str();
-  add_in_tensor(1, 32, 16, 16, usize, storage, y_table_name, TENSOR_COEFF);
+  if (isa<tpu::SigmoidOp>(op)) {
+    auto load_y_table = cast<tpu::LoadWeightOp>(op->getOperand(1)->getDefiningOp());
+    int usize = getOperandStorageSize(load_y_table);
+    string storage = getOperandStorage(load_y_table);
+    string y_table_name = load_y_table.name().getValue().str();
+    add_in_tensor(1, 32, 16, 16, usize, storage, y_table_name, TENSOR_COEFF);
+  }
 
   // add m_table
-  if (!isa<tpu::SigmoidOp>(op)) {
+  if (0) {
     auto load_m_table = cast<tpu::LoadWeightOp>(op->getOperand(2)->getDefiningOp());
-    usize = getOperandStorageSize(load_m_table);
-    storage = getOperandStorage(load_m_table);
+    int usize = getOperandStorageSize(load_m_table);
+    string storage = getOperandStorage(load_m_table);
     string m_table_name = load_m_table.name().getValue().str();
     add_in_tensor(1, 32, 16, 16, usize, storage, m_table_name, TENSOR_COEFF);
   }
 
-  if (isa<tpu::PReluOp>(op) && (op->getNumOperands() == 2 )) {
-    string storage = "int8";
-    auto opd_type = op->getOperand(0)->getType().dyn_cast<TensorType>();
-    std::vector<int64_t> opd_shape = opd_type.getShape();
-    add_in_tensor(1, opd_shape[1], 1, 1, DATA_TYPE_SIZE, storage,
-                  name_ + "_slope_param", TENSOR_COEFF_NEURON);
+  if (isa<tpu::PReluOp>(op)) {
+    auto load_slope = cast<tpu::LoadWeightOp>(op->getOperand(1)->getDefiningOp());
+    string weightOpName = load_slope.name().getValue().str();
+    auto s_type = op->getOperand(1)->getType().dyn_cast<TensorType>();
+    add_in_tensor(&s_type, weightOpName, TENSOR_DEPTHCONV_OPD1);
   }
 
   add_out_tensor(op->getResult(0), TENSOR_NEURON);
