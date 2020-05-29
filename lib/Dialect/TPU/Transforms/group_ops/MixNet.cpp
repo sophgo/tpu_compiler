@@ -372,7 +372,10 @@ void MixNet::_add_tl_convolution_op(MixOp* mix_op,
                            builder_.getI32IntegerAttr(left_pad_w)));
   attrs.push_back(builder_.getNamedAttr("pad_right_w",
                            builder_.getI32IntegerAttr(right_pad_w)));
-
+  if(old_op.do_ic_alignment().hasValue()){
+      attrs.push_back(builder_.getNamedAttr("do_ic_alignment",
+                           old_op.do_ic_alignmentAttr()));
+  }
   // setup input operation
   vector<Value *> operands;
   Operation * input_op =
@@ -564,6 +567,10 @@ void MixNet::_add_tl_deconvolution_op(MixOp* mix_op,
                            builder_.getI32IntegerAttr(pad_w_left)));
   attrs.push_back(builder_.getNamedAttr("pad_right_w",
                            builder_.getI32IntegerAttr(pad_w_right)));
+  if(old_op.do_ic_alignment().hasValue()){
+      attrs.push_back(builder_.getNamedAttr("do_ic_alignment",
+                           old_op.do_ic_alignmentAttr()));
+  }
 
   // setup input operation
   vector<Value *> operands;

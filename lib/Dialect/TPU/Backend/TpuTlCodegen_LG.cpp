@@ -95,6 +95,8 @@ LogicalResult tpu::TL_LG_Conv2DOp::codegen(void *ctx) {
   laddr_t la_weight = this->la_filter().getLimitedValue();
   laddr_t la_perchanel = this->la_bias().getLimitedValue();
   laddr_t la_working = this->la_working().getLimitedValue();
+  bool do_ic_alignment = this->do_ic_alignment().hasValue()
+                            ? this->do_ic_alignment().getValue() : false;
 
   // pad is not "SAME", can not get from conv param
   int ph_t = this->pad_top_h().getLimitedValue();
@@ -119,7 +121,8 @@ LogicalResult tpu::TL_LG_Conv2DOp::codegen(void *ctx) {
     0, /*rshift_pos*/
     0, /*rshift8_neg*/
     0, /*m_i8_pos*/
-    0 /*m_i8_neg*/
+    0, /*m_i8_neg*/
+    do_ic_alignment
     );
 
   return success();
@@ -141,6 +144,8 @@ LogicalResult tpu::TL_LG_DeConv2DOp::codegen(void *ctx) {
   laddr_t la_output = this->la_output().getLimitedValue();
   laddr_t la_weight = this->la_filter().getLimitedValue();
   laddr_t la_perchannel = this->la_bias().getLimitedValue();
+  bool do_ic_alignment = this->do_ic_alignment().hasValue()
+                            ? this->do_ic_alignment().getValue() : false;
 
   // pad is not "SAME", can not get from conv param
   int ph_t = this->pad_top_h().getLimitedValue();
@@ -164,7 +169,8 @@ LogicalResult tpu::TL_LG_DeConv2DOp::codegen(void *ctx) {
     with_bias,
     do_relu,   // do_activation,
     0,         //right_shift_width,
-    oc       // right_shift_array_len
+    oc,       // right_shift_array_len
+    do_ic_alignment
     );
 
   return success();

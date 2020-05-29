@@ -151,6 +151,14 @@ ImConv::ImConv(Operation* p) : ImLayer(IR_CONVOLUTION, p, true), conv1x1_to_fc(f
 
   // add weight tensor
   auto weightOp = cast<tpu::LoadWeightOp>(op.filter()->getDefiningOp());
+  // if has ic align
+
+  bool do_ic_alignment = op.do_ic_alignment().hasValue() ?
+                            op.do_ic_alignment().getValue() : false;
+  int w_ic = ic;
+  if (do_ic_alignment && (ic % 2 != 0)) {
+    w_ic += 1;
+  }
   string weightOpName = weightOp.name().getValue().str();
   int32_t unit_size = getOperandStorageSize(weightOp);
   string storage = getOperandStorage(weightOp);
@@ -159,7 +167,7 @@ ImConv::ImConv(Operation* p) : ImLayer(IR_CONVOLUTION, p, true), conv1x1_to_fc(f
   }
   else {
     // tensor shape in local memory should be (1, oc, kh*kw, ic/g)
-    add_in_tensor(ic / g, oc, kh, kw, unit_size, storage, weightOpName, TENSOR_COEFF);
+    add_in_tensor(w_ic / g, oc, kh, kw, unit_size, storage, weightOpName, TENSOR_COEFF);
   }
 
   // add bias tensor
@@ -200,6 +208,13 @@ ImDeconv::ImDeconv(Operation* p) : ImLayer(IR_DECONVOLUTION, p, true) {
 
   // add weight tensor
   auto weightOp = cast<tpu::LoadWeightOp>(op.filter()->getDefiningOp());
+  // if has ic align
+  bool do_ic_alignment = op.do_ic_alignment().hasValue() ?
+                            op.do_ic_alignment().getValue() : false;
+  int w_ic = ic;
+  if (do_ic_alignment && (ic % 2 != 0)) {
+    w_ic += 1;
+  }
   string weightOpName = weightOp.name().getValue().str();
   int32_t unit_size = getOperandStorageSize(weightOp);
   string storage = getOperandStorage(weightOp);
@@ -209,7 +224,7 @@ ImDeconv::ImDeconv(Operation* p) : ImLayer(IR_DECONVOLUTION, p, true) {
     add_in_tensor(1, oc, kh, kw, unit_size, storage, weightOpName, TENSOR_DEPTHCONV_OPD1);
   } else {
     // tensor shape in local memory should be (1, oc, kh*kw, ic/g)
-    add_in_tensor(ic / g, oc, kh, kw, unit_size, storage, weightOpName, TENSOR_COEFF);
+    add_in_tensor(w_ic / g, oc, kh, kw, unit_size, storage, weightOpName, TENSOR_COEFF);
   }
 
   // add bias tensor

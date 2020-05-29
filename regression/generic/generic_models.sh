@@ -791,7 +791,7 @@ fi
 #export DO_E2E=0
 #fi
 
-if [ $DO_LAYERGROUP -eq 1 ]; then
-  # echo "do layer_group, fuse leaky relu"
-  export MLIR_OPT_BE="--tg-fuse-leakyrelu"
-fi
+# if [ $DO_LAYERGROUP -eq 1 ]; then
+#   # echo "do layer_group, fuse leaky relu"
+#   export MLIR_OPT_BE="--tg-fuse-leakyrelu  --conv-ic-alignment"
+# fi
