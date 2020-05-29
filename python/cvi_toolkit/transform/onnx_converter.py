@@ -390,13 +390,13 @@ class OnnxConverter(BaseConverter):
             'kernel_h':  kernel_shape[0],
             'kernel_w':  kernel_shape[1],
             'padding_t': pads[0],
-            'padding_b': pads[1],
-            'padding_l': pads[2],
+            'padding_l': pads[1],
+            'padding_b': pads[2],
             'padding_r': pads[3],
             'do_relu': False,
         }
-        oh = calcPool2DFloor(input_shape[2], pool_avg_2d_param['kernel_h'], pool_avg_2d_param['stride_h'], pool_avg_2d_param['padding_t'])
-        ow = calcPool2DFloor(input_shape[2], pool_avg_2d_param['kernel_w'], pool_avg_2d_param['stride_w'], pool_avg_2d_param['padding_l'])
+        oh = calcPool2DFloor(input_shape[2], pool_avg_2d_param['kernel_h'], pool_avg_2d_param['stride_h'], pool_avg_2d_param['padding_t'], pool_avg_2d_param['padding_b'])
+        ow = calcPool2DFloor(input_shape[2], pool_avg_2d_param['kernel_w'], pool_avg_2d_param['stride_w'], pool_avg_2d_param['padding_l'], pool_avg_2d_param['padding_r'])
         output_shape = [int(on), int(oc), oh, ow]
         pool_avg_op = self.CVI.add_pool_avg_2d_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **pool_avg_2d_param)
         self.addOperand(onnx_node.name, pool_avg_op, output_shape, TensorType.ACTIVATION)
@@ -805,10 +805,10 @@ class OnnxConverter(BaseConverter):
             'stride_w': strides[1],
             'kernel_h': onnx_node.attrs['kernel_shape'][0],
             'kernel_w': onnx_node.attrs['kernel_shape'][1],
-            'padding_b': pads[0],
-            'padding_r': pads[1],
-            'padding_t': pads[2],
-            'padding_l': pads[3],
+            'padding_t': pads[0],
+            'padding_l': pads[1],
+            'padding_b': pads[2],
+            'padding_r': pads[3],
             'do_relu': False,
         }
 
@@ -817,8 +817,8 @@ class OnnxConverter(BaseConverter):
         operands.append(op)
         on = input_shape[0]
         oc = input_shape[1]
-        oh = calcPool2DFloor(input_shape[2], onnx_node.attrs['kernel_shape'][0], strides[0], pads[0])
-        ow = calcPool2DFloor(input_shape[3], onnx_node.attrs['kernel_shape'][1], strides[1], pads[1])
+        oh = calcPool2DFloor(input_shape[2], onnx_node.attrs['kernel_shape'][0], strides[0], pads[0], pads[2])
+        ow = calcPool2DFloor(input_shape[3], onnx_node.attrs['kernel_shape'][1], strides[1], pads[1], pads[3])
         output_shape = [int(on), int(oc), int(oh), int(ow)]
         pool_max_op = self.CVI.add_pool_max_2d_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **pool_max_2d_param)
         self.addOperand(onnx_node.name, pool_max_op, output_shape, TensorType.ACTIVATION)

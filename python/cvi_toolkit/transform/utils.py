@@ -13,11 +13,12 @@ def calcConv2DSpatial(i, kernel, stride, padding, dilation):
     #[i + 2*p - k - (k-1)*(d-1)]/s + 1
     return int(floor(i + 2*padding - dilation * (kernel - 1) - 1)/stride + 1)
 
-def calcPool2DFloor(i, kernel, stride, padding):
-    return int(floor((i + 2 * padding - kernel) / stride) + 1)
+def calcPool2DFloor(i, kernel, stride, padding_t, padding_l):
+    return int(floor((i + padding_t + padding_l - kernel) / stride) + 1)
 
-def calcPool2DCeil(i, kernel, stride, padding):
-    return int(ceil((i + 2 * padding - kernel) / stride) + 1)
+
+def calcPool2DCeil(i, kernel, stride, padding_t, padding_l):
+    return int(ceil((i + padding_t + padding_l - kernel) / stride) + 1)
 
 
 def get_TF_SAME_Padding(input_spatial_shape, output_spatial_shape, kernel, stride):

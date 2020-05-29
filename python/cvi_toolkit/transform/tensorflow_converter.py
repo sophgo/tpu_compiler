@@ -442,8 +442,10 @@ class TFConverter(BaseConverter):
         operands.append(op)
         on = shape[0]
         oc = shape[1]
-        oh = calcPool2DFloor(shape[2], pool_max_2d_param['kernel_h'], pool_max_2d_param['stride_h'], pool_max_2d_param['padding_b'])
-        ow = calcPool2DFloor(shape[3], pool_max_2d_param['kernel_w'], pool_max_2d_param['stride_w'], pool_max_2d_param['padding_r'])
+        oh = calcPool2DFloor(shape[2], pool_max_2d_param['kernel_h'], pool_max_2d_param['stride_h'],
+                             pool_max_2d_param['padding_b'], pool_max_2d_param['padding_t'])
+        ow = calcPool2DFloor(shape[3], pool_max_2d_param['kernel_w'], pool_max_2d_param['stride_w'],
+                             pool_max_2d_param['padding_r'], pool_max_2d_param['padding_l'])
         output_shape = [int(on), int(oc), int(oh), int(ow)]
         pool_max_op = self.CVI.add_pool_max_2d_op("{}".format(node.name), operands, output_shape, **pool_max_2d_param)
         self.addOperand(node.name, pool_max_op, output_shape, TensorType.ACTIVATION)
