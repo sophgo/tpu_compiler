@@ -42,6 +42,7 @@ class TPU_OpType(Enum):
     Relu = 'tpu.relu'
     Scale = 'tpu.scale'
     Sigmoid = 'tpu.sigmoid'
+    Slice = 'tpu.slice'
     Softmax = 'tpu.softmax'
     Tanh = 'tpu.tanh'
     Upsample = 'tpu.upsample'
@@ -595,6 +596,19 @@ class MLIRImporter(object):
             inputOperands.append(none)
         return self.buildOp(TPU_OpType.Sigmoid.value, inputOperands, [
             tensor_output_type], name=sigmoid_name, quant=self.quant_param)
+
+    def add_slice_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+        tensor_output_type = self.module.make_ranked_tensor_type(
+            self.f32Type, output_tensor_shape)
+
+        attr_dict = {
+            'axis': self.module.integerAttr(self.i32Type, kargs['axis']),
+            'offset': self.module.integerAttr(self.i32Type, kargs['offset']),
+        }
+
+        slice_name = self.module.stringAttr(op_name)
+        return self.buildOp(TPU_OpType.Slice.value, inputOperands, [
+            tensor_output_type], name=slice_name, **attr_dict)
 
     def add_softmax_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = self.module.make_ranked_tensor_type(
