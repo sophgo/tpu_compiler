@@ -21,6 +21,7 @@ class TPU_OpType(Enum):
     Conv2d = 'tpu.conv_2d'
     Crop = 'tpu.crop'
     Clip = 'tpu.clip'
+    CustomOp = 'tpu.custom_op'
     DeConv2d = 'tpu.deconv_2d'
     Eltwise_Add = 'tpu.eltwise_add'
     Eltwise_Max = 'tpu.eltwise_max'
@@ -55,6 +56,25 @@ def checkType(obj, type):
     if not isinstance(obj, type):
         raise AttributeError('{} is not {}'.format(obj, type))
 
+def checkAttrType(attr):
+    if type(attr) == int:
+        return 'int'
+    elif type(attr) == float:
+        return 'float'
+    elif type(attr) == str:
+        return 'str'
+    elif type(attr) == bool:
+        return 'bool'
+    elif type(attr) == list:
+        if type(attr) == int:
+            return 'int_arr'
+        elif type(attr) == float:
+            return 'float_arr'
+        elif type(attr) == str:
+            return 'str_arr'
+        elif type(attr) == bool:
+            return 'bool_arr'
+    raise AttributeError("unsupported attributes type")
 
 class MLIRImporter(object):
     def __init__(self, inputs_shape, outputs_shape):
@@ -276,6 +296,63 @@ class MLIRImporter(object):
 
         return self.buildOp(TPU_OpType.Crop.value, inputOperands, [
             tensor_output_type], name=crop_name, crop_offset=crop_offset_attr, quant=self.quant_param, crop_shape=crop_shape_attr)
+
+    def add_custom_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+        """
+            args:
+                operation_name: string
+                do_quant: bool
+                tpu: bool
+                threshold_overwrite: string, 'none', 'backward' or 'forward'
+                param: dictionary
+        """
+        tensor_output_type = self.module.make_ranked_tensor_type(
+            self.f32Type, output_tensor_shape)
+
+        checkKey(kargs, 'operation_name')
+        checkKey(kargs, 'do_quant')
+        checkKey(kargs, 'tpu')
+        checkKey(kargs, 'threshold_overwrite')
+        checkKey(kargs, 'param')
+        checkType(kargs['param'], map)
+        if kargs['threshold_overwrite'] not in ['none', 'backward', 'forward']:
+            raise AttributeError("invalid value of parameter threshold_overwrite: {}"
+                  .format(kargs['threshold_overwrite']))
+
+        name = self.module.stringAttr(op_name)
+        operation_name = self.module.stringAttr(kargs['operation_name'])
+        do_quant = self.module.boolAttr(kargs['do_quant'])
+        tpu = self.module.boolAttr(kargs['tpu'])
+        threshold_overwrite = self.module.stringAttr(kargs['threshold_overwrite'])
+
+        op_param = {}
+        for key, val in kargs['param'].items():
+            attr_type = checkAttrType(val)
+            if attr_type == 'int':
+                op_param[key] = self.module.integerAttr(self.i32Type, val)
+            elif attr_type == 'float':
+                op_param[key] = self.module.floatAttr(val)
+            elif attr_type == 'str':
+                op_param[key] = self.module.stringAttr(val)
+            elif attr_type == 'bool':
+                op_param[key] = self.module.boolAttr(val)
+            elif attr_type == 'int_arr':
+                arr = [self.module.integerAttr(self.i32Type, x) for x in val]
+                op_param[key] = self.module.arrayAttr(arr)
+            elif attr_type == 'float_arr':
+                arr = [self.module.floatAttr(x) for x in val]
+                op_param[key] = self.module.arrayAttr(arr)
+            elif attr_type == 'str_arr':
+                arr = [self.module.stringAttr(x) for x in val]
+                op_param[key] = self.module.arrayAttr(arr)
+            elif attr_type == 'bool_arr':
+                arr = [self.module.boolAttr(x) for x in val]
+                op_param[key] = self.module.arrayAttr(arr)
+        self.quant_param = self.module.dictAttr(**quant_param)
+
+        return self.buildOp(TPU_OpType.CustomOp.value, inputOperands, [
+            tensor_output_type], name=name, operation_name=operation_name, quant=self.quant_param,
+            do_quant=do_quant, param=op_param, tpu=tpu, threshold_overwrite = threshold_overwrite)
 
     def add_deconv_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         """

@@ -3,6 +3,10 @@ set -e
 
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 
+CUSTOM_OP_PLUGIN_OPTION=""
+if [[ ! -z $CUSTOM_OP_PLUGIN ]]; then
+    CUSTOM_OP_PLUGIN_OPTION="--custom-op-plugin ${CUSTOM_OP_PLUGIN}"
+fi
 
 # log some data for reference
 # resnet50 pass, on chip performance
@@ -87,6 +91,7 @@ mlir-opt \
 
 mlir-translate \
     --mlir-to-cvimodel \
+    ${CUSTOM_OP_PLUGIN_OPTION}\
     --weight-file weight_int8_multiplier_layergroup.bin \
     ${NET}_quant_int8_multiplier_layergroup_func.mlir \
     -o ${NET}_lg.cvimodel

@@ -51,41 +51,63 @@ struct ConvertCpuOpDefaultPattern : public RewritePattern {
 
     auto builder = Builder(op->getContext());
 
-    if (isa<tpu::QuantOp>(op)) {
-      auto from = op->getAttr("from").cast<StringAttr>().getValue().str();
-      auto to = op->getAttr("to").cast<StringAttr>().getValue().str();
-
-      if (from == "NONE" || to == "NONE") {
-        // pass to cpu
-      }
-      else {
-        // pass to tpu
-        LLVM_DEBUG(llvm::errs() << "mix: " << castOp.getOperationName() << ":" << getOpName(castOp)<< "\n";);
-        return matchFailure();
-      }
-    }
-
     std::vector<NamedAttribute> param;
-    tpu::QuantParam quantAttr = getDefaultQuantParam(builder);
     for (auto& attr : op->getAttrs()) {
-      if (attr.first == "quant") {
-        quantAttr = attr.second.cast<tpu::QuantParam>();
-      } else {
+      if (attr.first != "name" &&
+          attr.first != "gaddr" &&
+          attr.first != "layer_id") {
         param.push_back(attr);
       }
     }
 
     std::vector<NamedAttribute> attrs;
-    auto nameAttr = builder.getStringAttr(castOp.name());
     auto operationAttr = builder.getStringAttr(castOp.getOperationName());
-    auto quantifiableAttr = builder.getBoolAttr(false);
     auto paramAttr = builder.getDictionaryAttr(param);
 
-    attrs.push_back(builder.getNamedAttr("name", nameAttr));
+    attrs.push_back(builder.getNamedAttr("name", castOp.nameAttr()));
     attrs.push_back(builder.getNamedAttr("operation_name", operationAttr));
-    attrs.push_back(builder.getNamedAttr("quantifiable", quantifiableAttr));
-    attrs.push_back(builder.getNamedAttr("quant", quantAttr));
     attrs.push_back(builder.getNamedAttr("param", paramAttr));
+    auto gaddrAttr = op->getAttr("gaddr").dyn_cast_or_null<IntegerAttr>();
+    if (gaddrAttr) {
+      int64_t gaddr = gaddrAttr.getValue().getSExtValue();
+      attrs.push_back(builder.getNamedAttr("gaddr",
+          builder.getI64IntegerAttr(gaddr)));
+    }
+    if (castOp.layer_id().hasValue()) {
+      int32_t layer_id = castOp.layer_id().getValue().getSExtValue();
+      attrs.push_back(builder.getNamedAttr("layer_id",
+          builder.getI32IntegerAttr(layer_id)));
+    }
+
+    std::vector<Value *> operands(op->getOperands().begin(),
+                                  op->getOperands().end());
+
+    auto newOp = OpBuilder(op).create<tpu::GenericCpuOp>(op->getLoc(),
+        castOp.getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    auto result = newOp.getResult();
+    rewriter.replaceOp(op, {result});
+
+    return matchSuccess();
+  }
+};
+
+template <typename OpTy>
+struct ConvertCustomOpPattern : public RewritePattern {
+  ConvertCustomOpPattern(MLIRContext *context)
+      : RewritePattern(OpTy::getOperationName(), 1, context) {}
+
+  PatternMatchResult matchAndRewrite(Operation *op,
+                                     PatternRewriter &rewriter) const override {
+    auto castOp = cast<OpTy>(op);
+    LLVM_DEBUG(llvm::errs() << castOp.getOperationName() << ":"
+                            << getOpName(castOp)<< "\n";);
+
+    auto builder = Builder(op->getContext());
+    std::vector<NamedAttribute> attrs;
+    attrs.push_back(builder.getNamedAttr("name", castOp.nameAttr()));
+    attrs.push_back(builder.getNamedAttr("operation_name", castOp.operation_nameAttr()));
+    attrs.push_back(builder.getNamedAttr("param", castOp.paramAttr()));
     auto gaddrAttr = op->getAttr("gaddr").dyn_cast_or_null<IntegerAttr>();
     if (gaddrAttr) {
       int64_t gaddr = gaddrAttr.getValue().getSExtValue();
@@ -128,7 +150,8 @@ public:
         ConvertCpuOpDefaultPattern<tpu::RetinaFaceDetectionOp>,
         ConvertCpuOpDefaultPattern<tpu::PreprocessOp>,
         ConvertCpuOpDefaultPattern<tpu::TransposeOp>,
-        ConvertCpuOpDefaultPattern<tpu::YoloDetectionOp>
+        ConvertCpuOpDefaultPattern<tpu::YoloDetectionOp>,
+        ConvertCustomOpPattern<tpu::CustomOp>
       >(context);
     applyPatternsGreedily(fn, patterns);
   }

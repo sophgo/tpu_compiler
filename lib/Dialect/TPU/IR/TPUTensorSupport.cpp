@@ -55,6 +55,18 @@ void getNCHW(std::vector<int64_t> &shape,
   }
 }
 
+std::vector<std::vector<int64_t>> getOperandShapes(Operation *op) {
+  std::vector<std::vector<int64_t>> shapes;
+  for (auto operand : op->getOperands()) {
+    if (isTensorNone(operand) ) {
+      shapes.push_back({0});
+      continue;
+    }
+    shapes.push_back(getTensorShape(operand));
+  }
+  return shapes;
+}
+
 /***********************************************************
  * Weight helpers
  ***********************************************************/
@@ -184,7 +196,7 @@ Value* addWeightTensorAndCreateWeightOp(Operation *op,
   } else if ( typeid(T) == typeid(uint8_t) ) {
     eltType = IntegerType::get(8, builder.getContext());
   } else {
-    std::string errorMsg = "add weight tensor failed, name = " + name + 
+    std::string errorMsg = "add weight tensor failed, name = " + name +
                            ", type =" + typeid(T).name();
     llvm_unreachable(errorMsg.c_str());
   }

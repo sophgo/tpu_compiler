@@ -140,6 +140,8 @@ struct ConvertFuncToTensorPass
     target.addLegalOp<tpu::TG_BF16_EltwiseMulOp>();
     target.addLegalOp<tpu::TG_INT8_FullyConnectedOp>();
     target.addLegalOp<tpu::TG_BF16_FullyConnectedOp>();
+    target.addLegalOp<tpu::TG_INT8_GenericTpuOp>();
+    target.addLegalOp<tpu::TG_BF16_GenericTpuOp>();
     target.addLegalOp<tpu::TG_INT8_LeakyReluOp>();
     target.addLegalOp<tpu::TG_BF16_LeakyReluOp>();
     target.addLegalOp<tpu::TG_INT8_LrnOp>();

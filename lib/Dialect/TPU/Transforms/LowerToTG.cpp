@@ -846,12 +846,10 @@ Value *tpu::QuantOp::convertToTG() {
     param.push_back(builder.getNamedAttr("threshold", thresholdAttr()));
     auto paramAttr = builder.getDictionaryAttr(param);
     auto operationAttr = builder.getStringAttr(getOperationName());
-    auto quantAttr = getDefaultQuantParam(builder);
     std::vector<NamedAttribute> attrs;
     attrs.push_back(builder.getNamedAttr("name", nameAttr()));
     attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
     attrs.push_back(builder.getNamedAttr("operation_name", operationAttr));
-    attrs.push_back(builder.getNamedAttr("quant", quantAttr));
     attrs.push_back(builder.getNamedAttr("param", paramAttr));
     auto newOp = OpBuilder(op).create<tpu::GenericCpuOp>(
         op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
@@ -1942,8 +1940,8 @@ struct LowerWeightLutOpPattern : public RewritePattern {
 };
 
 template <typename OpTy>
-struct LowerCpuOpPattern : public RewritePattern {
-  LowerCpuOpPattern(MLIRContext *context)
+struct LowerCpuOpDefaultPattern : public RewritePattern {
+  LowerCpuOpDefaultPattern(MLIRContext *context)
       : RewritePattern(OpTy::getOperationName(), 1, context) {}
 
   PatternMatchResult matchAndRewrite(Operation *op,
@@ -1954,23 +1952,20 @@ struct LowerCpuOpPattern : public RewritePattern {
 
     auto builder = Builder(op->getContext());
     std::vector<NamedAttribute> param;
-    tpu::QuantParam quantAttr = getDefaultQuantParam(builder);
-    for (auto& attr : op->getAttrs()) {
-      if (attr.first == "quant") {
-        quantAttr = attr.second.cast<tpu::QuantParam>();
-      } else {
-        param.push_back(attr);
-      }
-    }
-
     std::vector<NamedAttribute> attrs;
-    auto nameAttr = builder.getStringAttr(castOp.name());
+    for (auto& attr : op->getAttrs()) {
+      if (attr.first == "name"
+         || attr.first == "layer_id"
+         || attr.first == "gaddr") {
+        continue;
+      }
+      param.push_back(attr);
+    }
     auto operationAttr = builder.getStringAttr(castOp.getOperationName());
     auto paramAttr = builder.getDictionaryAttr(param);
 
-    attrs.push_back(builder.getNamedAttr("name", nameAttr));
+    attrs.push_back(builder.getNamedAttr("name", castOp.nameAttr()));
     attrs.push_back(builder.getNamedAttr("operation_name", operationAttr));
-    attrs.push_back(builder.getNamedAttr("quant", quantAttr));
     attrs.push_back(builder.getNamedAttr("param", paramAttr));
     if (castOp.layer_id().hasValue()) {
       int32_t layer_id = castOp.layer_id().getValue().getSExtValue();
@@ -1986,6 +1981,54 @@ struct LowerCpuOpPattern : public RewritePattern {
         ArrayRef<NamedAttribute>{attrs});
     auto result = newOp.getResult();
     rewriter.replaceOp(op, {result});
+
+    return matchSuccess();
+  }
+};
+
+template <typename OpTy>
+struct LowerCustomOpPattern : public RewritePattern {
+  LowerCustomOpPattern(MLIRContext *context)
+      : RewritePattern(OpTy::getOperationName(), 1, context) {}
+
+  PatternMatchResult matchAndRewrite(Operation *op,
+                                     PatternRewriter &rewriter) const override {
+    auto castOp = cast<OpTy>(op);
+    LLVM_DEBUG(llvm::errs() << "Lower Custom Op " << castOp.getOperationName() << ":"
+                            << getOpName(castOp)<< "\n";);
+    auto builder = Builder(op->getContext());
+    std::vector<NamedAttribute> attrs;
+    attrs.push_back(builder.getNamedAttr("name", castOp.nameAttr()));
+    attrs.push_back(builder.getNamedAttr("operation_name", castOp.operation_nameAttr()));
+    attrs.push_back(builder.getNamedAttr("param", castOp.paramAttr()));
+    attrs.push_back(builder.getNamedAttr("layer_id", castOp.layer_idAttr()));
+
+    std::vector<Value *> operands(op->getOperands().begin(),
+                                  op->getOperands().end());
+
+    if (castOp.tpu()) {
+      if (castOp.getOpQuant() == "INT8") {
+        auto newOp = OpBuilder(op).create<tpu::TG_INT8_GenericTpuOp>(
+            op->getLoc(), castOp.getResult()->getType(), ArrayRef<Value *>{operands},
+            ArrayRef<NamedAttribute>{attrs});
+        auto result = newOp.getResult();
+        rewriter.replaceOp(op, {result});
+      } else if (castOp.getOpQuant() == "BF16") {
+        auto newOp = OpBuilder(op).create<tpu::TG_BF16_GenericTpuOp>(
+            op->getLoc(), castOp.getResult()->getType(), ArrayRef<Value *>{operands},
+            ArrayRef<NamedAttribute>{attrs});
+        auto result = newOp.getResult();
+        rewriter.replaceOp(op, {result});
+      } else {
+        llvm_unreachable("unsupported type");
+      }
+    } else {
+      auto newOp = OpBuilder(op).create<tpu::GenericCpuOp>(op->getLoc(),
+          castOp.getResult()->getType(), ArrayRef<Value *>{operands},
+          ArrayRef<NamedAttribute>{attrs});
+      auto result = newOp.getResult();
+      rewriter.replaceOp(op, {result});
+    }
 
     return matchSuccess();
   }
@@ -2025,12 +2068,13 @@ public:
     // do cpu op lowering
     OwningRewritePatternList patterns_cpuop;
     patterns_cpuop.insert<
-        LowerCpuOpPattern<tpu::DetectionOutputOp>,
-        LowerCpuOpPattern<tpu::PreprocessOp>,
-        LowerCpuOpPattern<tpu::RetinaFaceDetectionOp>,
-        LowerCpuOpPattern<tpu::SoftmaxOp>,
-        LowerCpuOpPattern<tpu::TransposeOp>,
-        LowerCpuOpPattern<tpu::YoloDetectionOp>
+        LowerCpuOpDefaultPattern<tpu::DetectionOutputOp>,
+        LowerCpuOpDefaultPattern<tpu::PreprocessOp>,
+        LowerCpuOpDefaultPattern<tpu::RetinaFaceDetectionOp>,
+        LowerCpuOpDefaultPattern<tpu::SoftmaxOp>,
+        LowerCpuOpDefaultPattern<tpu::TransposeOp>,
+        LowerCpuOpDefaultPattern<tpu::YoloDetectionOp>,
+        LowerCustomOpPattern<tpu::CustomOp>
         >(context);
     applyPatternsGreedily(fn, patterns_cpuop);
 

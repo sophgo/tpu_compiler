@@ -14,6 +14,11 @@ if [[ $# -ne 5 ]]; then
     exit 2
 fi
 
+CUSTOM_OP_PLUGIN_OPTION=""
+if [[ ! -z $CUSTOM_OP_PLUGIN ]]; then
+    CUSTOM_OP_PLUGIN_OPTION="--custom-op-plugin ${CUSTOM_OP_PLUGIN}"
+fi
+
 ONE=1
 
 if [ $ONE -eq 1 ]; then
@@ -37,6 +42,7 @@ mlir-opt \
     --calibration-table $4 | \
 mlir-opt \
     --tpu-quant \
+    ${CUSTOM_OP_PLUGIN_OPTION}\
     --print-tpu-op-info \
     --tpu-op-info-filename op_info_int8.csv | \
 mlir-opt \
@@ -82,6 +88,7 @@ mlir-opt \
 
 mlir-translate \
     --mlir-to-cvimodel \
+    ${CUSTOM_OP_PLUGIN_OPTION}\
     --weight-file weight.bin \
     int8_tl_lw_memopt_func.mlir \
     -o $5
@@ -113,6 +120,7 @@ mlir-opt \
 
 mlir-opt \
     --tpu-quant \
+    ${CUSTOM_OP_PLUGIN_OPTION}\
     --print-tpu-op-info \
     --tpu-op-info-filename op_info_int8.csv \
     cali.mlir \
@@ -157,6 +165,7 @@ mlir-opt \
 
 mlir-translate \
     --mlir-to-cvimodel \
+    ${CUSTOM_OP_PLUGIN_OPTION}\
     --weight-file weight.bin \
     int8_tl_lw_func.mlir \
     -o $5

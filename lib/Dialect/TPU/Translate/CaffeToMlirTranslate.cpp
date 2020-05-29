@@ -1779,6 +1779,7 @@ void CaffeImporter::convertReLULayer(mlir::Block *block, caffe::Layer<float> *la
   } else {
     std::vector<Value *> operands;
     operands.push_back(input_var);
+  #if 1
     auto NoneOp = OpBuilder(block).create<tpu::NoneOp>(builder_.getUnknownLoc(),
                                                        builder_.getNoneType());
     for (int i = 0; i < 8; i++) {
@@ -1791,6 +1792,19 @@ void CaffeImporter::convertReLULayer(mlir::Block *block, caffe::Layer<float> *la
     auto op = OpBuilder(block).create<tpu::LeakyReluOp>(
         builder_.getUnknownLoc(), result_type, ArrayRef<Value *>{operands},
         ArrayRef<NamedAttribute>{attrs});
+  #else
+    std::vector<NamedAttribute> param;
+    param.push_back(builder_.getNamedAttr("negative_slope",
+                                          builder_.getF32FloatAttr(negative_slope)));
+    attrs.push_back(builder_.getNamedAttr("operation_name", builder_.getStringAttr("leaky_relu")));
+    attrs.push_back(builder_.getNamedAttr("do_quant", builder_.getBoolAttr(true)));
+    attrs.push_back(builder_.getNamedAttr("threshold_overwrite", builder_.getStringAttr("backward")));
+    attrs.push_back(builder_.getNamedAttr("tpu", builder_.getBoolAttr(true)));
+    attrs.push_back(builder_.getNamedAttr("param", builder_.getDictionaryAttr(param)));
+    auto op = OpBuilder(block).create<tpu::CustomOp>(
+        builder_.getUnknownLoc(), result_type, ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+  #endif
     result_var = op.getResult();
   }
 
@@ -1827,7 +1841,7 @@ void CaffeImporter::convertReorgLayer(mlir::Block *block, caffe::Layer<float> *l
       ArrayRef<NamedAttribute>{attrs});
   auto result_var = op.getResult();
 
-  tensor_map_[layer_param.top(0)] = result_var;  
+  tensor_map_[layer_param.top(0)] = result_var;
 }
 
 void CaffeImporter::convertReshapeLayer(mlir::Block *block, caffe::Layer<float> *layer) {
@@ -2316,11 +2330,11 @@ void CaffeImporter::convertSoftmaxLayer(mlir::Block *block, caffe::Layer<float> 
   param.push_back(builder_.getNamedAttr("axis", builder_.getI32IntegerAttr(axis)));
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name())));
-  attrs.push_back(builder_.getNamedAttr("operation_name", builder_.getStringAttr("custom_softmax")));
-  attrs.push_back(builder_.getNamedAttr("quantifiable", builder_.getBoolAttr(false)));
+  attrs.push_back(builder_.getNamedAttr("operation_name", builder_.getStringAttr("mysoftmax")));
+  attrs.push_back(builder_.getNamedAttr("do_quant", builder_.getBoolAttr(false)));
   attrs.push_back(builder_.getNamedAttr("quant", getDefaultQuantParam(builder_)));
   attrs.push_back(builder_.getNamedAttr("param", builder_.getDictionaryAttr(param)));
-  auto op = OpBuilder(block).create<tpu::GenericCpuOp>(
+  auto op = OpBuilder(block).create<tpu::CustomOp>(
       builder_.getUnknownLoc(), result_type, ArrayRef<Value *>{input_var},
       ArrayRef<NamedAttribute>{attrs});
   #endif
@@ -2526,7 +2540,6 @@ void CaffeImporter::insertPreprocessLayer(mlir::Block *block, mlir::Value *opd,
       color_order.push_back(val);
     }
   }
-  #if 1
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(name)));
   attrs.push_back(builder_.getNamedAttr("quant", getDefaultQuantParam(builder_)));
@@ -2539,32 +2552,6 @@ void CaffeImporter::insertPreprocessLayer(mlir::Block *block, mlir::Value *opd,
   auto op = OpBuilder(block).create<tpu::PreprocessOp>(
       builder_.getUnknownLoc(), result_type, ArrayRef<Value *>{operands},
       ArrayRef<NamedAttribute>{attrs});
-  #else
-  std::vector<NamedAttribute> param;
-  param.push_back(
-      builder_.getNamedAttr("scale", builder_.getF32FloatAttr(clPreprocessScale)));
-  param.push_back(
-      builder_.getNamedAttr("raw_scale", builder_.getF32FloatAttr(clPreprocessRawScale)));
-  if (mean.size()) {
-    param.push_back(
-        builder_.getNamedAttr("mean", builder_.getF32ArrayAttr(ArrayRef<float>({mean}))));
-  }
-  if (color_order.size()) {
-    param.push_back(builder_.getNamedAttr(
-        "color_order", builder_.getI32ArrayAttr(ArrayRef<int32_t>({color_order}))));
-  }
-
-  std::vector<NamedAttribute> attrs;
-  attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(name)));
-  attrs.push_back(builder_.getNamedAttr("operation_name", builder_.getStringAttr("custom_scale")));
-  attrs.push_back(builder_.getNamedAttr("quantifiable", builder_.getBoolAttr(false)));
-  attrs.push_back(builder_.getNamedAttr("quant", getDefaultQuantParam(builder_)));
-  attrs.push_back(builder_.getNamedAttr("param", builder_.getDictionaryAttr(param)));
-  auto op = OpBuilder(block).create<tpu::GenericCpuOp>(
-      builder_.getUnknownLoc(), result_type, ArrayRef<Value *>{operands},
-      ArrayRef<NamedAttribute>{attrs});
-  #endif
-
   auto result_var = op.getResult();
   tensor_map_[name] = result_var;
 }

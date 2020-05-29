@@ -409,6 +409,41 @@ class TPU_TG_MemRef_FullyConnectedOp<string mnemonic, string opQuant> : TPU_Op<m
 def TPU_TG_MemRef_INT8_FullyConnectedOp : TPU_TG_MemRef_FullyConnectedOp<"tg_memref_int8_fully_connected", "Int8">;
 def TPU_TG_MemRef_BF16_FullyConnectedOp : TPU_TG_MemRef_FullyConnectedOp<"tg_memref_bf16_fully_connected", "Bf16">;
 
+class TPU_TG_MemRef_GenericTpuOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
+  let summary = "TG " # opQuant # " LeakyRelu operator.";
+
+  let description = [{
+    Generic Tpu Op.
+
+    Inputs:
+      `input`           : required, the input activation tensor.
+
+    Attributes:
+      `param`           : required
+      `name`            : required
+      `layer_id`        : optional, id for profiling.
+
+    Result:
+      `output`          : result tensor.
+  }];
+
+  let arguments = (
+    ins Variadic<MemRefOf<[AnyFloat, AnyInteger, NoneType]>>:$inputs,
+    MemRefOf<[AnyFloat, AnyInteger]>:$output,
+    StrAttr:$name,
+    StrAttr:$operation_name,
+    DictionaryAttr:$param,
+    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
+    OptionalAttr<BoolAttr>:$buffer_reused,
+    OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
+  );
+}
+def TPU_TG_MemRef_INT8_GenericTpuOp : TPU_TG_MemRef_GenericTpuOp<"tg_memref_int8_generic_tpu_op", "Int8">;
+def TPU_TG_MemRef_BF16_GenericTpuOp : TPU_TG_MemRef_GenericTpuOp<"tg_memref_bf16_generic_tpu_op", "Bf16">;
 
 class TPU_TG_MemRef_LeakyReluOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,

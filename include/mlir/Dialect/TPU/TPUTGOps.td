@@ -1056,6 +1056,74 @@ class TPU_TG_UpsampleOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 def TPU_TG_INT8_UpsampleOp : TPU_TG_UpsampleOp<"tg_int8_upsample", "Int8">;
 def TPU_TG_BF16_UpsampleOp : TPU_TG_UpsampleOp<"tg_bf16_upsample", "Bf16">;
 
+class TPU_TG_GenericTpuOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
+  let summary = "TG " # opQuant # " LeakyRelu operator.";
+
+  let description = [{
+    Generic Tpu Op.
+
+    Inputs:
+      `input`           : required, the input activation tensor.
+
+    Attributes:
+      `param`           : required
+      `name`            : required
+      `layer_id`        : optional, id for profiling.
+
+    Result:
+      `output`          : result tensor.
+  }];
+
+  let arguments = (
+    ins Variadic<TPU_TensorOfOrNone<[F32, BF16, I8]>>:$inputs,
+    StrAttr:$name,
+    StrAttr:$operation_name,
+    DictionaryAttr:$param,
+    OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+def TPU_TG_INT8_GenericTpuOp : TPU_TG_GenericTpuOp<"tg_int8_generic_tpu_op", "Int8">;
+def TPU_TG_BF16_GenericTpuOp : TPU_TG_GenericTpuOp<"tg_bf16_generic_tpu_op", "Bf16">;
+
+def TPU_GenericCpuOp : TPU_Op<"generic_cpu_op",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>]> {
+  let summary = "generic cpu operator";
+
+  let description = [{
+    Generic Cpu Op.
+
+    Inputs:
+      `input`           : required, the input activation tensor.
+
+    Attributes:
+      `param`           : required
+      `name`            : required
+      `layer_id`        : optional, id for profiling.
+
+    Result:
+      `output`          : result tensor.
+
+  }];
+
+  let arguments = (
+    ins Variadic<TPU_TensorOfOrNone<[F32, BF16, I8]>>:$inputs,
+    StrAttr:$name,
+    StrAttr:$operation_name,
+    DictionaryAttr:$param,
+    OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
 def TPU_TG_CallOp : TPU_Op <"tg_call",
     [NoSideEffect,
      DeclareOpInterfaceMethods<TpuOpCommonInterface>,

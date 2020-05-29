@@ -74,12 +74,12 @@ class Op:
         self.attributes = attributes
         self.type = type
         self.packed_attr = self.__pack_attributes(attributes)
-        if self.type == 'generic_cpu':
+        if self.type == 'generic_cpu_op':
             self.type = self.attributes['operation_name'].split('.')[-1]
             Op.cpu_ops.append(self.type)
 
     def __pack_attributes(self, attributes):
-        if self.type != "generic_cpu":
+        if self.type != "generic_cpu_op":
             return bytearray()
         builder = flatbuffers.Builder(0)
         param = attributes['param']

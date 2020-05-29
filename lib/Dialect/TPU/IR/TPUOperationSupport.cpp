@@ -5,11 +5,142 @@
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/TypeUtilities.h"
 #include "llvm/Support/raw_ostream.h"
+#include "mlir/Dialect/TPU/CustomOpParam.h"
 
 namespace mlir {
 
+void convertAttributesToOpParam(const DictionaryAttr &attrs, cvi::OpParam &param) {
+  auto getBoolValue = [](const Attribute& attr) {
+    return (bool)attr.cast<BoolAttr>().getValue();
+  };
+  auto getIntValue = [](const Attribute& attr) {
+    return (int32_t)attr.cast<IntegerAttr>().getValue().getSExtValue();
+  };
+  auto getFloatValue = [](const Attribute& attr) {
+    return (float)attr.cast<FloatAttr>().getValue().convertToFloat();
+  };
+  auto getStringValue = [](const Attribute& attr) {
+    return attr.cast<StringAttr>().getValue().str();
+  };
+  auto getArrayKind = [](const ArrayAttr& array) {
+    auto& attr = *(array.begin());
+    return attr.getKind();
+  };
+
+  for (auto& a : attrs) {
+    auto name = a.first.str();
+    auto &attr = a.second;
+    switch (attr.getKind()) {
+      case StandardAttributes::Bool:
+        param.put<bool>(name, getBoolValue(attr));
+        break;
+      case StandardAttributes::Integer: {
+        auto intAttr = attr.cast<IntegerAttr>();
+        if (intAttr.getType().isInteger(16)) {
+          param.put<int16_t>(name, (int16_t)getIntValue(attr));
+        } else if (intAttr.getType().isInteger(8)) {
+          param.put<int8_t>(name, (int8_t)getIntValue(attr));
+        } else {
+          param.put<int32_t>(name, (int32_t)getIntValue(attr));
+        }
+        break;
+      }
+      case StandardAttributes::Float:
+        param.put<float>(name, getFloatValue(attr));
+        break;
+      case StandardAttributes::String:
+        param.put<std::string>(name, getStringValue(attr));
+        break;
+      case StandardAttributes::Array: {
+        auto array = attr.cast<ArrayAttr>();
+        switch (getArrayKind(array)) {
+          case StandardAttributes::Bool: {
+            std::vector<bool> vec;
+            for (auto& item : array) {
+              vec.push_back(getBoolValue(item));
+            }
+            param.put<std::vector<bool>>(name, vec);
+            break;
+          }
+          case StandardAttributes::Integer: {
+            std::vector<int32_t> vec;
+            for (auto& item : array) {
+              vec.push_back(getIntValue(item));
+            }
+            param.put<std::vector<int32_t>>(name, vec);
+            break;
+          }
+          case StandardAttributes::Float: {
+            std::vector<float> vec;
+            for (auto& item : array) {
+              vec.push_back(getFloatValue(item));
+            }
+            param.put<std::vector<float>>(name, vec);
+            break;
+          }
+          case StandardAttributes::String: {
+            std::vector<std::string> vec;
+            for (auto& item : array) {
+              vec.push_back(getStringValue(item));
+            }
+            param.put<std::vector<std::string>>(name, vec);
+            break;
+          }
+          default:
+            llvm_unreachable("unsupported attribute");
+        }
+        break;
+      }
+      default:
+        llvm_unreachable("unsupported attribute");
+    }
+  }
+}
+
+void convertOpParamToAttributes(
+    mlir::Builder &builder, cvi::OpParam &param,
+    std::vector<NamedAttribute> &out) {
+  auto isInt32 = [](std::shared_ptr<cvi::FieldBase> &f) {
+    return strcmp(typeid(int32_t).name(), f->signature) == 0;
+  };
+  auto isFloat = [](std::shared_ptr<cvi::FieldBase> &f) {
+    return strcmp(typeid(float).name(), f->signature) == 0;
+  };
+  auto isInt8 = [](std::shared_ptr<cvi::FieldBase> &f) {
+    return strcmp(typeid(int8_t).name(), f->signature) == 0;
+  };
+  auto isBool = [](std::shared_ptr<cvi::FieldBase> &f) {
+    return strcmp(typeid(bool).name(), f->signature) == 0;
+  };
+  auto isString = [](std::shared_ptr<cvi::FieldBase> &f) {
+    return strcmp(typeid(std::string).name(), f->signature) == 0;
+  };
+
+  for (auto &it : param.fields) {
+    if (isInt32(it.second)) {
+      int32_t val = dynamic_cast<cvi::Field<int32_t> *>(it.second.get())->data;
+      out.push_back(builder.getNamedAttr(it.first, builder.getI32IntegerAttr(val)));
+    } else if (isInt8(it.second)) {
+      int8_t val = dynamic_cast<cvi::Field<int8_t> *>(it.second.get())->data;
+      out.push_back(builder.getNamedAttr(it.first, builder.getI8IntegerAttr(val)));
+    } else if (isFloat(it.second)) {
+      float val = dynamic_cast<cvi::Field<float> *>(it.second.get())->data;
+      out.push_back(builder.getNamedAttr(it.first, builder.getF32FloatAttr(val)));
+    } else if (isBool(it.second)) {
+      bool val = dynamic_cast<cvi::Field<bool> *>(it.second.get())->data;
+      out.push_back(builder.getNamedAttr(it.first, builder.getBoolAttr(val)));
+    } else if (isString(it.second)) {
+      std::string val = dynamic_cast<cvi::Field<std::string> *>(it.second.get())->data;
+      out.push_back(builder.getNamedAttr(it.first, builder.getStringAttr(val)));
+    } else {
+      llvm::errs() << "field type:" << it.second->signature << "\n";
+      assert(0);
+    }
+  }
+}
+
 void arrayAttrToVector(const ArrayAttr &arrayAttr,
-                              std::vector<int32_t> &vector) {
+                       std::vector<int32_t> &vector) {
   vector.clear();
   for (auto en : llvm::enumerate(arrayAttr)) {
     auto attr = en.value().dyn_cast<IntegerAttr>();
@@ -65,8 +196,7 @@ llvm::StringRef getOpQuant(Operation *op) {
              || isa<tpu::PriorBoxOp>(op)
              || isa<tpu::SoftmaxOp>(op)
              || isa<tpu::TransposeOp>(op)
-             || isa<tpu::YoloDetectionOp>(op)
-             || isa<tpu::GenericCpuOp>(op)) {
+             || isa<tpu::YoloDetectionOp>(op)) {
     // cpu Ops return NONE
     return llvm::StringRef("NONE");
   } else {
@@ -206,6 +336,8 @@ uint64_t getOpAddress(Operation *op) {
   } else if (isa<tpu::TpuTLOpCodegenInterface>(op)) {
     auto tpuTLOp = llvm::dyn_cast<tpu::TpuTLOpCodegenInterface>(op);
     return tpuTLOp.getGAddr();
+  } else if (isa<tpu::NoneOp>(op)) {
+    return 0;
   } else {
     std::string errorMsg = std::string(__func__) + " failed, Op " +
                            op->getName().getStringRef().str() + "\n";
