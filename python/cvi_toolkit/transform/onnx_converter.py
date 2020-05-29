@@ -150,6 +150,9 @@ class OnnxConverter(BaseConverter):
             "Upsample": lambda node: self.convert_upsample_op(node),
         }
 
+    def __del__(self):
+        del self.CVI
+
     def init_importer(self):
         # get input shape
         inputs = list()
