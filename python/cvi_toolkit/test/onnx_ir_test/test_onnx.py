@@ -25,7 +25,7 @@ TEST_ONNX_IR = [
     "Relu",
     "Slice",
     "PRelu",
-    # "Reciprocal",
+    "Reciprocal",
     "Sub",
     "Sum",
 ]
@@ -165,17 +165,24 @@ class ONNX_IR_TESTER(object):
         input_data = np.random.randn(1, 3, 28, 28).astype(np.float32)
         input = helper.make_tensor_value_info('input', TensorProto.FLOAT, list(input_data.shape))
         output = helper.make_tensor_value_info('output', TensorProto.FLOAT, [1, 3, 30, 30])
+
+        x1_def = helper.make_node(
+            'Neg',  # node name
+            ['input'],  # inputs
+            ['X1'],  # outputs
+        )
+
         node_def = onnx.helper.make_node(
             "AveragePool",
-            inputs=['input'],
+            inputs=['X1'],
             outputs=['output'],
             kernel_shape=[3, 3],
-            strides=[1,1],
+            strides=[1, 1],
             pads=[2, 2, 2, 2],
             count_include_pad=1
         )
         graph_def = helper.make_graph(
-            [node_def],
+            [x1_def, node_def],
             test_case,
             [input],
             [output],

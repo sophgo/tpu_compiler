@@ -506,7 +506,7 @@ class MLIRImporter(object):
             inputOperands.append(none)
 
         return self.buildOp(TPU_OpType.Reciprocal.value, inputOperands, [
-            tensor_output_type], name=prelu_name, quant=self.quant_param)
+            tensor_output_type], name=reciprocal_name, quant=self.quant_param)
 
     def add_relu_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = self.module.make_ranked_tensor_type(
