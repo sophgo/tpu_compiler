@@ -6,6 +6,7 @@ from onnx import AttributeProto, TensorProto, GraphProto
 import onnxruntime
 import numpy as np
 import os
+import sys
 
 TEST_ONNX_IR = [
     "AveragePool",
@@ -20,13 +21,6 @@ TEST_ONNX_IR = [
     "Sum",
 ]
 
-def onnx_inference(input, model_def, model_name):
-    onnx.save(model_def, model_name)
-    ort_session = onnxruntime.InferenceSession(model_name)
-    ort_inputs = {'input': input}
-    ort_outs = ort_session.run(None, ort_inputs)
-    return ort_outs[0]
-
 def export_test_data(tensors, model_name):
     # simple calibration table
     f = open("{}_cali_table".format(model_name), 'wt')
@@ -37,6 +31,16 @@ def export_test_data(tensors, model_name):
     # input and all tensor data
     np.savez("{}_onnx_all_fp32.npz".format(model_name), **tensors)
     np.savez("{}_input.npz".format(model_name), input=tensors['input'])
+
+def _onnx_inference(input, model_name, input_name="input"):
+    ort_session = onnxruntime.InferenceSession(model_name)
+    ort_inputs = {input_name: input}
+    ort_outs = ort_session.run(None, ort_inputs)
+    return ort_outs[0]
+
+def onnx_inference(input, model_def, model_name):
+    onnx.save(model_def, model_name)
+    return _onnx_inference(input, model_name)
 
 def onnx_convert_and_infernece(input_data, model_def, model_name):
     c = OnnxConverter(model_name, model_def, "{}.mlir".format(model_name))
@@ -52,6 +56,25 @@ def onnx_convert_and_infernece(input_data, model_def, model_name):
     #print(mlir_out, onnx_out)
     np.testing.assert_allclose(mlir_out, onnx_out, rtol=1e-5, atol=1e-01)
 
+def test_model(input_shape, model_path, input_name="input"):
+    if isinstance(input_shape, list):
+        input_shape = [int(x) for x in input_shape]
+        input_shape = tuple(input_shape)
+    input_data = np.random.randn(*input_shape).astype(np.float32)
+    model_name = model_path.split("/")[-1].split(".")[0]
+    onnx_model = onnx.load(model_path)
+
+    c = OnnxConverter(model_name, onnx_model, "{}.mlir".format(model_name))
+    c.run()
+    exit()
+    onnx_out = _onnx_inference(input_data, model_path, input_name)
+
+    m = MLIRModel()
+    m.load_model("{}.mlir".format(model_name))
+    mlir_out = m.inference(input_data)
+
+    np.testing.assert_allclose(mlir_out, onnx_out, rtol=1e-5, atol=1e-01)
+    print("PASS")
 
 def test_AveragePool():
     test_case = 'test_AveragePool'
@@ -451,24 +474,32 @@ test_function = {
 }
 
 if __name__ == "__main__":
-    pass_list = list()
-    fail_list = list()
-    err_msg = list()
     os.makedirs("tmp", exist_ok=True)
     os.chdir("tmp")
-    for i in TEST_ONNX_IR:
-        try:
-            test_function.get(i)()
-            test_int8_cmdbuf(i)
-            pass_list.append(i)
-        except Exception as err :
-            fail_list.append(i)
-            err_msg.append(str(err))
-    print("{} PASS {}".format("="*4, "="*4))
-    for i in pass_list:
-        print(i)
-    if len(fail_list) != 0:
-        print("{} FAILD {}".format("="*4, "="*4))
-        for i, msg in zip(fail_list, err_msg) :
+    if len(sys.argv) == 3:
+        input_shape = sys.argv[1].split(",")
+        test_model(input_shape, sys.argv[2])
+        exit(0)
+    elif len(sys.argv) == 1:
+        pass_list = list()
+        fail_list = list()
+        err_msg = list()
+
+        for i in TEST_ONNX_IR:
+            try:
+                test_function.get(i)()
+                test_int8_cmdbuf(i)
+                pass_list.append(i)
+            except Exception as err :
+                fail_list.append(i)
+                err_msg.append(str(err))
+        print("{} PASS {}".format("="*4, "="*4))
+        for i in pass_list:
             print(i)
-            print("msg:{}".format(msg))
+        if len(fail_list) != 0:
+            print("{} FAILD {}".format("="*4, "="*4))
+            for i, msg in zip(fail_list, err_msg) :
+                print(i)
+                print("msg: ".format(msg))
+    else:
+        print("Usage: exe.py [input_shape] [model]")
