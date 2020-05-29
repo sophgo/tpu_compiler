@@ -504,13 +504,17 @@ class OnnxConverter(BaseConverter):
 
     def convert_conv_op(self, onnx_node):
         assert(onnx_node.op_type == "Conv")
+        dilations = onnx_node.attrs.get("dilations", [1, 1])
+        group = onnx_node.attrs.get("group", 1)
+        pads = onnx_node.attrs.get("pads",[0,0,0,0])
+        strides = onnx_node.attrs.get("strides",[1,1])
         conv_param = {
-            'stride_h':  onnx_node.attrs['strides'][0],
-            'stride_w':  onnx_node.attrs['strides'][1],
-            'padding': "SAME" if onnx_node.attrs['pads'][0] > 0 else "VALID",
-            'dilation_h': onnx_node.attrs['dilations'][0],
-            'dilation_w': onnx_node.attrs['dilations'][1],
-            'group': onnx_node.attrs['group'],
+            'stride_h':  strides[0],
+            'stride_w':  strides[1],
+            'padding': "SAME" if pads[0] > 0 else "VALID",
+            'dilation_h': dilations[0],
+            'dilation_w': dilations[1],
+            'group': group,
             'is_dw': False,
             'with_bias': len(onnx_node.inputs) > 2,
             'do_relu': False,
@@ -534,16 +538,16 @@ class OnnxConverter(BaseConverter):
         oh = calcConv2DSpatial(
             shape[2],
             onnx_node.attrs['kernel_shape'][0],
-            onnx_node.attrs['strides'][0],
-            onnx_node.attrs['pads'][0],
-            onnx_node.attrs['dilations'][0]
+            strides[0],
+            pads[0],
+            dilations[0]
         )
         ow = calcConv2DSpatial(
             shape[3],
             onnx_node.attrs['kernel_shape'][1],
-            onnx_node.attrs['strides'][1],
-            onnx_node.attrs['pads'][1],
-            onnx_node.attrs['dilations'][1]
+            strides[1],
+            pads[1],
+            dilations[1]
         )
 
         if conv_param['group'] != 1:
@@ -756,15 +760,17 @@ class OnnxConverter(BaseConverter):
 
     def convert_maxpool_op(self, onnx_node):
         assert(onnx_node.op_type == "MaxPool")
+        pads = onnx_node.attrs.get("pads",[0,0,0,0])
+        strides = onnx_node.attrs.get("strides",[1,1])
         pool_max_2d_param = {
-            'stride_h': onnx_node.attrs['strides'][0],
-            'stride_w': onnx_node.attrs['strides'][1],
+            'stride_h': strides[0],
+            'stride_w': strides[1],
             'kernel_h': onnx_node.attrs['kernel_shape'][0],
             'kernel_w': onnx_node.attrs['kernel_shape'][1],
-            'padding_b': onnx_node.attrs['pads'][0],
-            'padding_r': onnx_node.attrs['pads'][1],
-            'padding_t': onnx_node.attrs['pads'][2],
-            'padding_l': onnx_node.attrs['pads'][3],
+            'padding_b': pads[0],
+            'padding_r': pads[1],
+            'padding_t': pads[2],
+            'padding_l': pads[3],
             'do_relu': False,
         }
 
@@ -773,8 +779,8 @@ class OnnxConverter(BaseConverter):
         operands.append(op)
         on = input_shape[0]
         oc = input_shape[1]
-        oh = calcPool2DFloor(input_shape[2], onnx_node.attrs['kernel_shape'][0], onnx_node.attrs['strides'][0], onnx_node.attrs['pads'][0])
-        ow = calcPool2DFloor(input_shape[3], onnx_node.attrs['kernel_shape'][1], onnx_node.attrs['strides'][1], onnx_node.attrs['pads'][1])
+        oh = calcPool2DFloor(input_shape[2], onnx_node.attrs['kernel_shape'][0], strides[0], pads[0])
+        ow = calcPool2DFloor(input_shape[3], onnx_node.attrs['kernel_shape'][1], strides[1], pads[1])
         output_shape = [int(on), int(oc), int(oh), int(ow)]
         pool_max_op = self.CVI.add_pool_max_2d_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **pool_max_2d_param)
         self.addOperand(onnx_node.name, pool_max_op, output_shape, TensorType.ACTIVATION)
