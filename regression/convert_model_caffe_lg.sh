@@ -33,6 +33,8 @@ mlir-opt \
     --print-tpu-op-info \
     --tpu-op-info-filename op_info_int8.csv | \
 mlir-opt \
+    --tpu-lower | \
+mlir-opt \
     --convert-cpu-op \
     --group-ops \
     --layer-group-gm-opt=true \

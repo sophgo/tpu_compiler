@@ -456,8 +456,8 @@ bool Group::backward_slice(int out_tensor_id, list<int>& branches, bool max_h_sl
   int dh = 1;
 
   if (layer_type == IR_CONVOLUTION || layer_type == IR_DECONVOLUTION) {
-    if (isa<tpu::Conv2DOp>(im_layer->op())) {
-      auto op = cast<tpu::Conv2DOp>(im_layer->op());
+    if (isa<tpu::TG_INT8_PC_Conv2DOp>(im_layer->op())) {
+      auto op = cast<tpu::TG_INT8_PC_Conv2DOp>(im_layer->op());
       bool is_dw, with_bias, do_relu;
       int n, ic, ih, iw, oc, oh, ow, g, kw, sw, pw, dw;
       bool is_deconv = false;
@@ -465,7 +465,7 @@ bool Group::backward_slice(int out_tensor_id, list<int>& branches, bool max_h_sl
                      n, ic, ih, iw, oc, oh, ow, g,
                      kh, kw, sh, sw, ph, pw, dh, dw, is_dw, with_bias, do_relu);
      } else {
-      auto op = cast<tpu::DeConv2DOp>(im_layer->op());
+      auto op = cast<tpu::TG_INT8_PC_DeConv2DOp>(im_layer->op());
       bool is_dw, with_bias, do_relu;
       int n, ic, ih, iw, oc, oh, ow, g, kw, sw, pw, dw;
       bool is_deconv = true;
@@ -478,16 +478,16 @@ bool Group::backward_slice(int out_tensor_id, list<int>& branches, bool max_h_sl
       kh = dh * (kh - 1) + 1;
     }
   } else if (layer_type == IR_POOLING) {
-    if (isa<tpu::PoolAvg2DOp>(im_layer->op())) {
-      auto op = cast<tpu::PoolAvg2DOp>(im_layer->op());
+    if (isa<tpu::TG_INT8_PoolAvg2DOp>(im_layer->op())) {
+      auto op = cast<tpu::TG_INT8_PoolAvg2DOp>(im_layer->op());
       bool is_global, do_relu;
       int n, c, ih, iw, oh, ow, kw, sw, pb, pl, pr;
       parsePoolParam(op.param(), op.input(), op.output(),
                     n, c, ih, iw, oh, ow,
                     kh, kw, sh, sw, ph, pb, pl, pr,
                     is_global, do_relu);
-    } else if (isa<tpu::PoolMax2DOp>(im_layer->op())) {
-      auto op = cast<tpu::PoolMax2DOp>(im_layer->op());
+    } else if (isa<tpu::TG_INT8_PoolMax2DOp>(im_layer->op())) {
+      auto op = cast<tpu::TG_INT8_PoolMax2DOp>(im_layer->op());
       bool is_global, do_relu;
       int n, c, ih, iw, oh, ow, kw, sw, pb, pl, pr;
       parsePoolParam(op.param(), op.input(), op.output(),
@@ -562,7 +562,7 @@ bool Group::backward_slice(int out_tensor_id, list<int>& branches, bool max_h_sl
       h_idx = (if_insert_h_t + sh - 1) / sh;
       h_slice = (if_insert_h_b + sh - 1) / sh - h_idx;
     } else if (layer_type == IR_UPSAMPLE) {
-      auto op = cast<tpu::UpsampleOp>(im_layer->op());
+      auto op = cast<tpu::TG_INT8_UpsampleOp>(im_layer->op());
       int size = op.scale().getLimitedValue();
 
       if (out_h_slice % size) {
@@ -575,7 +575,7 @@ bool Group::backward_slice(int out_tensor_id, list<int>& branches, bool max_h_sl
     } else if ( layer_type == IR_ELTWISE ) {
       h_idx = out_h_idx;
       h_slice = out_h_slice;
-      if (auto op = dyn_cast<tpu::EltwiseAddOp>(im_layer->op())) {
+      if (auto op = dyn_cast<tpu::TG_INT8_EltwiseAddOp>(im_layer->op())) {
         if (op.do_early_stride() == true) {
           int h_stride = op.early_stride_h().getLimitedValue();
           h_idx = out_h_idx * h_stride;
