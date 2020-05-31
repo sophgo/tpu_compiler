@@ -269,6 +269,59 @@ def mlir_gen_cvimodel(mlirfile, cvi_module):
     return 0
 
 
+def mlir_build_cvimodel_no_opt(mlirfile, cvi_model):
+    """
+        only build cvi model
+    """
+    int8_addr = "int8_addr_{}".format(mlirfile)
+    command = ["mlir-opt",
+               "--assign-weight-address",
+               "--tpu-weight-address-align=16",
+               "--tpu-weight-map-filename=weight_map.csv",
+               "--tpu-weight-bin-filename=weight.bin",
+               "--assign-neuron-address",
+               "--tpu-neuron-address-align=16",
+               "--tpu-neuron-map-filename=neuron_map.csv",
+               mlirfile,
+               "-o", int8_addr
+               ]
+    if std_log_flag:
+        logger.debug(command)
+    ret = subprocess.run(command, **std_output_flag)
+    checkReturnValue(ret, "mlir-opt, int8_addr")
+    if ret.returncode != 0:
+        return ret.returncode
+
+    fucn_int8_tl_lw = "tl_lw_memopt_func_{}".format(mlirfile)
+    # func to tensor
+    command = ["mlir-opt",
+               "--divide-ops-to-func",
+               int8_addr,
+               "-o", fucn_int8_tl_lw
+               ]
+    if std_log_flag:
+        logger.debug(command)
+    ret = subprocess.run(command, **std_output_flag)
+    checkReturnValue(ret, "mlir-opt, divide-ops-to-func")
+    if ret.returncode != 0:
+        return ret.returncode
+
+    command = ["mlir-translate",
+               "--mlir-to-cvimodel",
+               "--weight-file=weight.bin",
+               fucn_int8_tl_lw,
+               "-o", cvi_model
+               ]
+
+    if std_log_flag:
+        logger.info(command)
+    ret = subprocess.run(command, **std_output_flag)
+    checkReturnValue(ret, "mlir-translate, mlir-to-cvimodel")
+    if ret.returncode != 0:
+        return ret.returncode
+
+    return 0
+
 def mlir_calibration(mlirfile_fp32, dataset, threshold_table, auto_tune=False):
     if auto_tune:
         subprocess.run(["cvi_calibration_tool",

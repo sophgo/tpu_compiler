@@ -4,7 +4,7 @@ from onnx import onnx, numpy_helper
 from cvi_toolkit.transform.onnx_converter import OnnxConverter
 from cvi_toolkit.model.mlir_model import MLIRModel
 from cvi_toolkit.utils.mlir_shell import mlir_import_calibration, mlir_tpu_quant, \
-                                        mlir_lower_opt, mlir_gen_cvimodel, mlir_opt, \
+    mlir_lower_opt, mlir_build_cvimodel_no_opt, mlir_opt, \
                                         run_cvimodel
 from cvi_toolkit.numpy_helper import npz_compare
 from onnx import helper
@@ -16,6 +16,7 @@ import sys
 import gc
 
 TEST_ONNX_IR = [
+    "Add",
     "AveragePool",
     "GlobalMaxPool",
     "LeakyRelu",
@@ -30,6 +31,8 @@ TEST_ONNX_IR = [
     "Sub",
     "Sum",
 ]
+
+NOT_SUPPORT_CMDBUF_TEST_IR = ["Relu", "Max", "Min", "PRelu", "Reciprocal"]
 
 def make_test_calibration_table(tensors, table_name):
     # simple calibration table
@@ -54,6 +57,7 @@ class ONNX_IR_TESTER(object):
         self.cvi_model_test = False
 
         self.test_function = {
+            "Add": self.test_Add,
             "AveragePool": self.test_AveragePool,
             "LeakyRelu": self.test_LeakyRelu,
             "LRN": self.test_LRN,
@@ -86,6 +90,11 @@ class ONNX_IR_TESTER(object):
         np.testing.assert_allclose(mlir_out, onnx_out, rtol=1e-5, atol=1e-01)
 
         if self.cvi_model_test:
+            for i in NOT_SUPPORT_CMDBUF_TEST_IR:
+                if i in model_name:
+                    print("{} not support cmdbuf test!".format(model_name))
+                    return
+
             tensors = self.mlir_model.get_all_tensor()
             # opt
             fp32_opt_mlir = "{}_opt.mlir".format(model_name)
@@ -122,7 +131,7 @@ class ONNX_IR_TESTER(object):
 
             # gen cvimodel
             cvimodel = "{}.cvimodel".format(model_name)
-            ret = mlir_gen_cvimodel(tg_mlir, cvimodel)
+            ret = mlir_build_cvimodel_no_opt(tg_mlir, cvimodel)
             if ret < 0: raise RuntimeError("gen_cvimodel failed")
             # run cvi_model
             input_file = "{}_input_int8.npz".format(model_name)
@@ -163,6 +172,39 @@ class ONNX_IR_TESTER(object):
         del self.mlir_model
 
         print("PASS")
+
+    def test_Add(self):
+        test_case = 'test_Add'
+        input_shape = [1, 3, 27, 27]
+        output_shape = [1, 3, 27, 27]
+
+        input = helper.make_tensor_value_info(
+            'input', TensorProto.FLOAT, input_shape)
+        output = helper.make_tensor_value_info(
+            'output', TensorProto.FLOAT, output_shape)
+
+        x1_node = helper.make_node(
+            'Neg',  # node name
+            ['input'],  # inputs
+            ['X1'],  # outputs
+        )
+        add_node = helper.make_node(
+            'Add',  # node name
+            ['input', 'X1'],  # inputs
+            ['output'],  # outputs
+        )
+        graph_def = helper.make_graph(
+            [x1_node, add_node],
+            test_case,
+            [input],
+            [output],
+        )
+        model_def = helper.make_model(graph_def, producer_name=test_case)
+        input_data = np.random.rand(input_shape[0], input_shape[1],
+                                    input_shape[2], input_shape[3]).astype(np.float32)
+
+        onnx.checker.check_model(model_def)
+        self.onnx_convert_and_infernece(input_data, model_def, test_case)
 
     def test_AveragePool(self):
         test_case = 'test_AveragePool'
@@ -282,6 +324,8 @@ class ONNX_IR_TESTER(object):
         model_def = helper.make_model(graph_def, producer_name=test_case)
         input_data = np.random.rand(input_shape[0], input_shape[1],
                                     input_shape[2], input_shape[3]).astype(np.float32)
+        #only support positive input for lrn
+        input_data = -input_data
 
         onnx.checker.check_model(model_def)
         self.onnx_convert_and_infernece(input_data, model_def, test_case)
@@ -505,17 +549,22 @@ class ONNX_IR_TESTER(object):
 
     def test_Slice(self):
         test_case = 'test_Slice'
-        x = np.random.randn(4, 20, 10, 5).astype(np.float32)
+        x = np.random.randn(1, 20, 10, 5).astype(np.float32)
         input_shape = list(x.shape)
         y = x[0:3, 0:10]
         output_shape = y.shape
         starts = np.array([0, 0], dtype=np.int64)
-        ends = np.array([3, 10], dtype=np.int64)
+        ends = np.array([1, 10], dtype=np.int64)
         axes = np.array([0, 1], dtype=np.int64)
         input = helper.make_tensor_value_info('input', TensorProto.FLOAT, input_shape)
         output = helper.make_tensor_value_info(
             'output', TensorProto.FLOAT, output_shape)
 
+        neg_node = helper.make_node(
+            'Neg',  # node name
+            ['input'],  # inputs
+            ['input_neg'],  # outputs
+        )
         start_node = onnx.helper.make_node(
             'Constant',
             inputs=[],
@@ -551,12 +600,12 @@ class ONNX_IR_TESTER(object):
         )
         node_def = helper.make_node(
             'Slice',  # node name
-            ['input', 'starts', 'ends', 'axes'],  # inputs
+            ['input_neg', 'starts', 'ends', 'axes'],  # inputs
             ['output'],  # outputs
         )
 
         graph_def = helper.make_graph(
-            [start_node, ends_node, axes_node, node_def],
+            [neg_node, start_node, ends_node, axes_node, node_def],
             test_case,
             [input],
             [output],
@@ -651,7 +700,7 @@ class ONNX_IR_TESTER(object):
         model_def = helper.make_model(graph_def, producer_name=test_case)
         onnx.checker.check_model(model_def)
 
-        input_data = np.random.randn(input_shape[0], input_shape[1],
+        input_data = np.random.rand(input_shape[0], input_shape[1],
                         input_shape[2], input_shape[3]).astype(np.float32)
 
         onnx.checker.check_model(model_def)

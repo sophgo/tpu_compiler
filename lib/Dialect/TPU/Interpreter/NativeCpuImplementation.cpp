@@ -721,7 +721,7 @@ int my_lrn_int8(float *input, float *output, int n, int c, int h, int w,
     float *in_ndata = input + index_n * batch_size;
     float *scale_ndata = scale_data + index_n * batch_size;
     for (int i = 0; i < batch_size; i++) {
-      square_data[i] = sqr_lut[(int)in_ndata[i]];
+      square_data[i] = sqr_lut[(uint8_t)in_ndata[i]];
     }
     for (uint32_t index_c = 0; index_c < local_size; ++index_c) {
       array_axpy(frame_size, (float)quant0,
@@ -751,7 +751,7 @@ int my_lrn_int8(float *input, float *output, int n, int c, int h, int w,
     } else if (scale_data[i] > 255.0f) {
       scale_data[i] = 255.0;
     }
-    output[i] = power_lut[(int)scale_data[i]];
+    output[i] = power_lut[(uint8_t)scale_data[i]];
     output[i] *= input[i] * quant1 * lrn_scale;
     output[i] = std::floor(output[i] + 0.5f);
     if (output[i] < -128.0f) {

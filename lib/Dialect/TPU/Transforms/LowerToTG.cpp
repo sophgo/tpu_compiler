@@ -369,6 +369,14 @@ Value* tpu::EltwiseMaxOp::convertToTG() {
   attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
   attrs.push_back(builder.getNamedAttr("do_relu", do_reluAttr()));
 
+  if (do_early_stride()) {
+    attrs.push_back(builder.getNamedAttr("do_early_stride",
+        builder.getBoolAttr(do_early_stride())));
+    attrs.push_back(builder.getNamedAttr("early_stride_h",
+                                         early_stride_hAttr()));
+    attrs.push_back(builder.getNamedAttr("early_stride_w",
+                                         early_stride_wAttr()));
+  }
   if (getOpQuant() == "INT8") {
     if (getOpQuantParamType() == "NONE") {
       // the quant is bypassed (threshold for input and output are the same)
@@ -425,13 +433,21 @@ Value* tpu::EltwiseMinOp::convertToTG() {
   attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
   attrs.push_back(builder.getNamedAttr("do_relu", do_reluAttr()));
 
+  if (do_early_stride()) {
+    attrs.push_back(builder.getNamedAttr("do_early_stride",
+        builder.getBoolAttr(do_early_stride())));
+    attrs.push_back(builder.getNamedAttr("early_stride_h",
+                                         early_stride_hAttr()));
+    attrs.push_back(builder.getNamedAttr("early_stride_w",
+                                         early_stride_wAttr()));
+  }
   if (getOpQuant() == "INT8") {
     if (getOpQuantParamType() == "NONE") {
       // the quant is bypassed (threshold for input and output are the same)
       // do nothing
     } else {
       assert(getOpQuantParamType() == "RSHIFT_AND_M_I8");
-      // MAX
+      // MIN
       // rshift
       auto rshift = readAndDeleteWeightTensor<float>(quant_rshift(), wTF);
       assert(rshift->size() == 1);
