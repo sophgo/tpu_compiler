@@ -791,7 +791,7 @@ fi
 #export DO_E2E=0
 #fi
 
-# if [ $DO_LAYERGROUP -eq 1 ]; then
-#   # echo "do layer_group, skip early stride for eltwise"
-#   export MLIR_OPT_FE_POST=""
-# fi
+if [ $DO_LAYERGROUP -eq 1 ]; then
+  # echo "do layer_group, fuse leaky relu"
+  export MLIR_OPT_BE="--tg-fuse-leakyrelu"
+fi

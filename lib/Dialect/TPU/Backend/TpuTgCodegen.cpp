@@ -499,8 +499,22 @@ LogicalResult tpu::TG_INT8_PC_Conv2DOp::codegen(void *ctx) {
   int fused_leakyrelu_neg_rshift = 0;
   int fused_leakyrelu_neg_m_i8 = 0;
   float fused_negative_slope = 0.0f;
+
+  // check if has only one use and is leaky relu.
+  // since after layer group, leaky may split to
+  // several ops
+  bool has_only_use_on_leaky = false;
+  Operation *nextOp = nullptr;
   if (this->fuse_next()) {
-    Operation *nextOp = getNextOp(op);
+    if (op->getResult(0)->hasOneUse()) {
+      nextOp = getNextOp(op);
+      if (isa<tpu::TG_INT8_LeakyReluOp>(nextOp)) {
+        has_only_use_on_leaky = true;
+      }
+    }
+  }
+
+  if (has_only_use_on_leaky) {
     int8_t pos_rshift, pos_m_i8, neg_rshift, neg_m_i8;
     float negativeSlope;
     parseTgLeakyReluParam(nextOp,

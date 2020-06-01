@@ -619,8 +619,8 @@ LogicalResult tpu::TL_LG_BroadcastMulOp::codegen(void *ctx) {
 }
 
 LogicalResult tpu::TL_LG_UpsampleOp::codegen(void *ctx) {
-  llvm::errs() << "TL_codegen: " << getOperationName()
-               << " [" << getOpName() << "]\n";
+  LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
@@ -650,8 +650,8 @@ LogicalResult tpu::TL_LG_UpsampleOp::codegen(void *ctx) {
 }
 
 LogicalResult tpu::TL_LG_LeakyReluOp::codegen(void *ctx) {
-  llvm::errs() << "TL_codegen: " << getOperationName()
-               << " [" << getOpName() << "]\n";
+  LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
@@ -682,8 +682,8 @@ LogicalResult tpu::TL_LG_LeakyReluOp::codegen(void *ctx) {
 }
 
 LogicalResult tpu::TL_LG_PReluOp::codegen(void *ctx) {
-  llvm::errs() << "TL_codegen: " << getOperationName()
-               << " [" << getOpName() << "]\n";
+  LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
