@@ -49,6 +49,9 @@ DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 # yolo_v3_416 pass, on chip performance
 # Batch 1, 16 fps
 # Batch 4, 16.8 fps
+# update
+# Batch 1, 16.9fps
+# Batch 4, 17.6fps
 
 # compare all only support when global memory optimization close
 COMPARE_ALL=0
@@ -60,7 +63,7 @@ if [ $COMPARE_ALL -eq 1 ]; then
         --convert-cpu-op \
         --group-ops \
         --layer-group-gm-opt=false \
-        ${NET}_quant_int8_multiplier_tg.mlir \
+        ${NET}_quant_int8_multiplier_tg_opt.mlir \
         --layer-group-neuron-map-filename=neuron_map_layergroup.csv \
         --weight-map=weight_map_layergroup.csv \
         --weight-bin=weight_int8_multiplier_layergroup.bin \
@@ -70,7 +73,7 @@ else
         --convert-cpu-op \
         --group-ops \
         --layer-group-gm-opt=true \
-        ${NET}_quant_int8_multiplier_tg.mlir \
+        ${NET}_quant_int8_multiplier_tg_opt.mlir \
         --layer-group-neuron-map-filename=neuron_map_layergroup.csv \
         --weight-map=weight_map_layergroup.csv \
         --weight-bin=weight_int8_multiplier_layergroup.bin \
