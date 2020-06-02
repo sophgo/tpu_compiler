@@ -50,6 +50,7 @@ add_llvm_library(MLIRTPU
   Transforms/group_ops/LMemManager.cpp
   Transforms/group_ops/GMemManager.cpp
   Transforms/group_ops/MixNet.cpp
+  Transforms/group_ops/DeadCodeEliminate.cpp
   Interpreter/TpuInterpreter.cpp
   Interpreter/NativeCpuImplementation.cpp
   Interpreter/CpuLayer_DetectionOutput.cpp

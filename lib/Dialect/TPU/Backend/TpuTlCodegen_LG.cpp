@@ -515,6 +515,32 @@ LogicalResult tpu::TL_LG_JoinOp::codegen(void *ctx) {
   return success();
 }
 
+LogicalResult tpu::TL_LG_CopyOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TL Copy codegen.\n";);
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+  int layer_id = 0;
+
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  shape = getTensorShape(op->getOperand(0));
+  getNCHW(shape, n, c, h, w);
+
+  laddr_t la_src = this->la_src()->getLimitedValue();
+  laddr_t la_dst = this->la_dst()->getLimitedValue();
+  bool align = this->align();
+
+  cvi_backend_tl_copy(*backend_ctx,
+                      layer_id,
+                      la_src,
+                      la_dst,
+                      n, c, h, w,
+                      align
+                      );
+
+  return success();
+}
+
 LogicalResult tpu::TL_LG_INT8_PoolAvg2DOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TL int8 pool avg codegen.\n";);
 
