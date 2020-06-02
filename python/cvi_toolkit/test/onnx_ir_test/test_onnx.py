@@ -133,10 +133,11 @@ class ONNX_IR_TESTER(object):
             cvimodel = "{}.cvimodel".format(model_name)
             ret = mlir_build_cvimodel_no_opt(tg_mlir, cvimodel)
             if ret < 0: raise RuntimeError("gen_cvimodel failed")
+
             # run cvi_model
-            input_file = "{}_input_int8.npz".format(model_name)
-            output_tensor_npz = "{}_int8_all_tensor.npz".format(model_name)
-            np.savez(input_file, **{"input": int8_tensors['input']})
+            input_file = "{}_input.npz".format(model_name)
+            output_tensor_npz = "{}_all_tensor.npz".format(model_name)
+            np.savez(input_file, **{"input": tensors['input']})
 
             ret = run_cvimodel(input_file, cvimodel, output_tensor_npz, all_tensors=True)
             if ret < 0: raise RuntimeError("run_cvimodel failed")
