@@ -367,7 +367,7 @@ Value* tpu::EltwiseMaxOp::convertToTG() {
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
   attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
-  attrs.push_back(builder.getNamedAttr("do_relu", do_reluAttr()));
+  attrs.push_back(builder.getNamedAttr("do_relu",  builder.getBoolAttr(do_relu())));
 
   if (do_early_stride()) {
     attrs.push_back(builder.getNamedAttr("do_early_stride",
@@ -431,7 +431,7 @@ Value* tpu::EltwiseMinOp::convertToTG() {
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
   attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
-  attrs.push_back(builder.getNamedAttr("do_relu", do_reluAttr()));
+  attrs.push_back(builder.getNamedAttr("do_relu", builder.getBoolAttr(do_relu())));
 
   if (do_early_stride()) {
     attrs.push_back(builder.getNamedAttr("do_early_stride",

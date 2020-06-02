@@ -29,8 +29,8 @@ succss:
 
 fail:
 * Relu: will fused in int8
-* Max: low-to-tg failed
-* Min: low-to-tg failed
+* Max: compare failed
+* Min: compare failed
 * PRelu: mlir-opt failed
 * Reciprocal: mlir-opt failed
 

@@ -588,7 +588,10 @@ LogicalResult quantizeInt8RescaleNoWeightOps(Operation *op) {
       bypass = false;
     }
   }
-  if (bypass && OpTy::getOperationName() != "tpu.pool_avg_2d") {
+  if (bypass && OpTy::getOperationName() != "tpu.pool_avg_2d"
+             && OpTy::getOperationName() != "tpu.eltwise_max"
+             && OpTy::getOperationName() != "tpu.eltwise_min"
+             && OpTy::getOperationName() != "tpu.eltwise_add") {
     // leave quant_rshift and quant_mulitplier as NoneOp to indicate bypass
     LLVM_DEBUG(llvm::errs() << " < " << getOpName(op)
                             << ",  quantization bypassed\n";);

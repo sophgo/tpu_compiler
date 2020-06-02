@@ -346,27 +346,15 @@ class ONNX_IR_TESTER(object):
             ['X1'],  # outputs
         )
 
-        x2_def = helper.make_node(
-            'Max',  # node name
-            ['input'],  # inputs
-            ['X2'],  # outputs
-        )
-
-        x3_def = helper.make_node(
-            'Sum',  # node name
-            ['input', 'X2'],  # inputs
-            ['X3'],  # outputs
-        )
-
         #test three input
         max_def = helper.make_node(
             'Max',  # node name
-            ['input', 'X1', 'X2', 'X3'],  # inputs
+            ['input', 'X1'],  # inputs
             ['output'],  # outputs
         )
 
         graph_def = helper.make_graph(
-            [x1_def, x2_def, x3_def, max_def],
+            [x1_def, max_def],
             test_case,
             [input],
             [output],
@@ -387,33 +375,22 @@ class ONNX_IR_TESTER(object):
             'output', TensorProto.FLOAT, output_shape)
 
         #test only one input
+
         x1_def = helper.make_node(
-            'Min',  # node name
-            ['input'],  # inputs
-            ['X1'],  # outputs
-        )
-
-        x2_def = helper.make_node(
-            'Sum',  # node name
-            ['input', 'X1'],  # inputs
-            ['X2'],  # outputs
-        )
-
-        x3_def = helper.make_node(
             'Neg',  # node name
             ['input'],  # inputs
-            ['X3'],  # outputs
+            ['X1'],  # outputs
         )
 
         #test four input
         min_def = helper.make_node(
             'Min',  # node name
-            ['input', 'X1', 'X2', 'X3'],  # inputs
+            ['input', 'X1'],  # inputs
             ['output'],  # outputs
         )
 
         graph_def = helper.make_graph(
-            [x1_def, x2_def, x3_def, min_def],
+            [x1_def, min_def],
             test_case,
             [input],
             [output],
