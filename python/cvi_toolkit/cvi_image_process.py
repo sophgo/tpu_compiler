@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # encoding: utf-8
 
 import argparse
@@ -27,7 +27,6 @@ if __name__ == '__main__':
     resize_dims = [int(dim) for dim in args.resize_dims.strip().split(',')]
     net_input_dims = [float(dim) for dim in args.net_input_dims.strip().split(',')]
     image = cv2.imread(args.image) #BGR
-    image = image.astype(np.float32)
     x = cv2.resize(image, (resize_dims[1], resize_dims[0]))
     #HWC => CHW
     x = np.transpose(x, (2,0,1))
@@ -42,4 +41,5 @@ if __name__ == '__main__':
     x = center_crop(x, (net_input_dims[0], net_input_dims[1]))
     x = np.expand_dims(x, axis=0)
     x = np.tile(x, (args.batch, 1, 1, 1))
+    x = x.astype(np.float32)
     np.savez(args.save, x)

@@ -42,7 +42,7 @@ mlir-opt \
 
 # generate input data without preprocess
 cvi_image_process.py \
-    --image $REGRESSION_PATH/data/cat.jpg \
+    --image $IMAGE_PATH \
     --resize_dims $IMAGE_RESIZE_DIMS \
     --net_input_dims $NET_INPUT_DIMS \
     --batch $BATCH_SIZE \
