@@ -93,13 +93,14 @@ def main(argv):
                     mean_file=args.mean_file,
                     input_scale=args.input_scale,
                     raw_scale=args.raw_scale,
+                    rgb_order=args.model_channel_order,
                     std=args.std, batch=args.batch_size)
 
     # Load image file.
     args.input_file = os.path.expanduser(args.input_file)
     print("Loading file: %s" % args.input_file)
 
-    input_data = preprocessor.run(args.input_file)
+    input_data = preprocessor.run(args.input_file, output_channel_order=args.model_channel_order)
     inputs = input_data
     print("Batch size : %d" % args.batch_size)
     for i in range(1, args.batch_size):

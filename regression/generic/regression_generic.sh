@@ -29,7 +29,11 @@ pushd $WORKDIR
 
 # run tests
 /bin/bash $FP32_INFERENCE_SCRIPT
-$DIR/regression_1_fp32.sh
+if [ $DO_PREPROCESS -eq 1 ]; then
+  $DIR/regression_1_fp32_preprocess.sh
+else
+  $DIR/regression_1_fp32.sh
+fi
 $DIR/regression_2_int8_calibration.sh
 $DIR/regression_3_int8_per_tensor.sh
 $DIR/regression_3_int8_rshift_only.sh

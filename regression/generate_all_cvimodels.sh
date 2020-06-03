@@ -80,12 +80,30 @@ do
   NET=$net
   source $DIR/generic/generic_models.sh
   if [ $MODEL_TYPE = "caffe" ]; then
-    $DIR/convert_model_caffe_df.sh \
-      ${MODEL_DEF} \
-      ${MODEL_DAT} \
-      1 \
-      ${CALI_TABLE} \
-      ${NET}.cvimodel
+    if [ $DO_PREPROCESS -eq 1 ]; then
+      if [ $MODEL_CHANNEL_ORDER = "rgb" ]; then
+        RGB_ORDER=2,1,0
+      else
+        RGB_ORDER=0,1,2
+      fi
+      $DIR/convert_model_caffe_df_preprocess.sh \
+        ${MODEL_DEF} \
+        ${MODEL_DAT} \
+        ${RAW_SCALE} \
+        ${MEAN} \
+        ${INPUT_SCALE} \
+        ${RGB_ORDER} \
+        1 \
+        ${CALI_TABLE} \
+        ${NET}.cvimodel
+    else
+      $DIR/convert_model_caffe_df.sh \
+        ${MODEL_DEF} \
+        ${MODEL_DAT} \
+        1 \
+        ${CALI_TABLE} \
+        ${NET}.cvimodel
+    fi
   elif [ $MODEL_TYPE = "onnx" ]; then
     $DIR/convert_model_onnx_df.sh \
       ${MODEL_DEF} \

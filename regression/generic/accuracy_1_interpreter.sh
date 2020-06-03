@@ -15,6 +15,13 @@ else
   return 1
 fi
 
+if [ $DO_PREPROCESS -eq 1 ]; then
+  RAW_SCALE=255.0
+  MODEL_CHANNEL_ORDER="bgr"
+  MEAN=0,0,0
+  INPUT_SCALE=1.0
+fi
+
 if [ $DO_ACCURACY_FP32_INTERPRETER -eq 1 ]; then
   echo "Eval fp32 with interpreter"
   $EVAL_FUNC \

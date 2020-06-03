@@ -28,6 +28,7 @@ export DO_ACCURACY_ONNX=0
 export DO_ACCURACY_FP32_INTERPRETER=0
 export DO_ACCURACY_INTERPRETER=1
 export DO_E2E=1
+export DO_PREPROCESS=0
 export USE_LAYERGROUP=0
 export EVAL_MODEL_TYPE="imagenet"
 export CUSTOM_OP_PLUGIN="$INSTALL_PATH/lib/custom_op/libCustomPlugin.so"
@@ -43,7 +44,6 @@ export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/generic/regression_0_caffe.sh
 if [ $NET = "resnet50" ]; then
 export MODEL_DEF=$MODEL_PATH/imagenet/resnet/caffe/ResNet-50-deploy.prototxt
 export MODEL_DAT=$MODEL_PATH/imagenet/resnet/caffe/ResNet-50-model.caffemodel
-export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/resnet50_calibration_table
 export NET_INPUT_DIMS=224,224
 export IMAGE_RESIZE_DIMS=256,256
 export RAW_SCALE=255.0
@@ -53,7 +53,7 @@ export INPUT=input
 export OUTPUTS_FP32=prob
 export OUTPUTS=fc1000
 #export EXCEPTS=prob
-export EXCEPTS=prob,res2c_relu,res3d_relu,res4f_relu   # for "--eltwise-early-stride"
+#export EXCEPTS=prob,res2c_relu,res3d_relu,res4f_relu   # for "--eltwise-early-stride"
 export DO_QUANT_INT8_PER_TENSOR=1
 export DO_QUANT_INT8_RFHIFT_ONLY=1
 export TOLERANCE_INT8_PER_TENSOR=0.91,0.89,0.56
@@ -65,12 +65,19 @@ export DO_LAYERGROUP=1
 export USE_LAYERGROUP=0
 export DO_NN_TOOLKIT=1
 # export BATCH_SIZE=4
+export DO_PREPROCESS=0
+if [ $DO_PREPROCESS -eq 1 ]; then
+  export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table_preprocess
+  export EXCEPTS=data,prob,res2c_relu,res3d_relu,res4f_relu
+else
+  export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table
+  export EXCEPTS=prob,res2c_relu,res3d_relu,res4f_relu
+fi
 fi
 
 if [ $NET = "vgg16" ]; then
 export MODEL_DEF=$MODEL_PATH/imagenet/vgg/caffe/VGG_ILSVRC_16_layers_deploy.prototxt
 export MODEL_DAT=$MODEL_PATH/imagenet/vgg/caffe/VGG_ILSVRC_16_layers.caffemodel
-export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/vgg16_calibration_table
 export NET_INPUT_DIMS=224,224
 export IMAGE_RESIZE_DIMS=256,256
 export RAW_SCALE=255.0
@@ -88,12 +95,18 @@ export TOLERANCE_BF16=0.99,0.99,0.96
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
 export DO_LAYERGROUP=1
 export USE_LAYERGROUP=1
+export DO_PREPROCESS=0
+if [ $DO_PREPROCESS -eq 1 ]; then
+  export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table_preprocess
+  export EXCEPTS=data
+else
+  export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table
+fi
 fi
 
 if [ $NET = "googlenet" ]; then
 export MODEL_DEF=$MODEL_PATH/imagenet/googlenet/caffe/deploy_bs1.prototxt
 export MODEL_DAT=$MODEL_PATH/imagenet/googlenet/caffe/bvlc_googlenet.caffemodel
-export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/googlenet_calibration_table
 export NET_INPUT_DIMS=224,224
 export IMAGE_RESIZE_DIMS=256,256
 export RAW_SCALE=255.0
@@ -113,12 +126,18 @@ export DO_CMDBUF_BF16=0
 #export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
 export DO_LAYERGROUP=1
 export USE_LAYERGROUP=1
+export DO_PREPROCESS=0
+if [ $DO_PREPROCESS -eq 1 ]; then
+  export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table_preprocess
+  export EXCEPTS=data
+else
+  export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table
+fi
 fi
 
 if [ $NET = "inception_v3" ]; then
 export MODEL_DEF=$MODEL_PATH/imagenet/inception_v3/caffe/deploy_inception-v3.prototxt
 export MODEL_DAT=$MODEL_PATH/imagenet/inception_v3/caffe/inception-v3.caffemodel
-export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/inception_v3_calibration_table
 export NET_INPUT_DIMS=299,299
 export IMAGE_RESIZE_DIMS=299,299
 export RAW_SCALE=255.0
@@ -137,12 +156,18 @@ export DO_CMDBUF_BF16=0
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
 export DO_LAYERGROUP=1
 export USE_LAYERGROUP=1
+export DO_PREPROCESS=0
+if [ $DO_PREPROCESS -eq 1 ]; then
+  export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table_preprocess
+  export EXCEPTS=data
+else
+  export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table
+fi
 fi
 
 if [ $NET = "inception_v4" ]; then
 export MODEL_DEF=$MODEL_PATH/imagenet/inception_v4/caffe/deploy_inception-v4.prototxt
 export MODEL_DAT=$MODEL_PATH/imagenet/inception_v4/caffe/inception-v4.caffemodel
-export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/inception_v4_calibration_table
 export NET_INPUT_DIMS=299,299
 export IMAGE_RESIZE_DIMS=299,299
 export RAW_SCALE=255.0
@@ -161,13 +186,18 @@ export DO_CMDBUF_BF16=0
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.93
 export DO_LAYERGROUP=1
 export USE_LAYERGROUP=1
+export DO_PREPROCESS=0
+if [ $DO_PREPROCESS -eq 1 ]; then
+  export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table_preprocess
+  export EXCEPTS=data
+else
+  export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table
+fi
 fi
 
 if [ $NET = "mobilenet_v1" ]; then
 export MODEL_DEF=$MODEL_PATH/imagenet/mobilenet_v1/caffe/mobilenet_deploy.prototxt
 export MODEL_DAT=$MODEL_PATH/imagenet/mobilenet_v1/caffe/mobilenet.caffemodel
-# export DO_CALIBRATION=1
-export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/mobilenet_v1_calibration_table_1000
 export NET_INPUT_DIMS=224,224
 export IMAGE_RESIZE_DIMS=256,256
 export RAW_SCALE=255.0
@@ -176,26 +206,31 @@ export INPUT_SCALE=0.017
 export INPUT=input
 export OUTPUTS_FP32=prob
 export OUTPUTS=fc7
-export EXCEPTS=prob
 export DO_QUANT_INT8_PER_TENSOR=1
 export DO_QUANT_INT8_RFHIFT_ONLY=0
 export DO_QUANT_INT8_MULTIPLER=1
-export TOLERANCE_INT8_PER_TENSOR=0.91,0.88,0.56
+export TOLERANCE_INT8_PER_TENSOR=0.9,0.86,0.52
 export TOLERANCE_INT8_RSHIFT_ONLY=0.96,0.95,0.73
-export TOLERANCE_INT8_MULTIPLER=0.97,0.96,0.76
+export TOLERANCE_INT8_MULTIPLER=0.96,0.95,0.74
 export DO_QUANT_BF16=1
 export TOLERANCE_BF16=0.99,0.99,0.94
 export DO_CMDBUF_BF16=1
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
 export DO_LAYERGROUP=1
 export USE_LAYERGROUP=1
+export DO_PREPROCESS=0
+if [ $DO_PREPROCESS -eq 1 ]; then
+  export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table_1000_preprocess
+  export EXCEPTS=data,prob
+else
+  export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table_1000
+  export EXCEPTS=prob
+fi
 fi
 
 if [ $NET = "mobilenet_v2" ]; then
 export MODEL_DEF=$MODEL_PATH/imagenet/mobilenet_v2/caffe/mobilenet_v2_deploy.prototxt
 export MODEL_DAT=$MODEL_PATH/imagenet/mobilenet_v2/caffe/mobilenet_v2.caffemodel
-# export DO_CALIBRATION=1
-export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/mobilenet_v2_calibration_table_1000
 export NET_INPUT_DIMS=224,224
 export IMAGE_RESIZE_DIMS=256,256
 export RAW_SCALE=255.0
@@ -204,19 +239,26 @@ export INPUT_SCALE=0.017
 export INPUT=input
 export OUTPUTS_FP32=prob
 export OUTPUTS=fc7
-export EXCEPTS=prob
 export DO_QUANT_INT8_PER_TENSOR=1
 export DO_QUANT_INT8_RFHIFT_ONLY=0
 export DO_QUANT_INT8_MULTIPLER=1
-export TOLERANCE_INT8_PER_TENSOR=0.61,0.61,0.02
+export TOLERANCE_INT8_PER_TENSOR=0.61,0.61,0.01
 export TOLERANCE_INT8_RSHIFT_ONLY=0.94,0.9,0.66
-export TOLERANCE_INT8_MULTIPLER=0.95,0.94,0.69
+export TOLERANCE_INT8_MULTIPLER=0.94,0.94,0.67
 export DO_QUANT_BF16=1
 export TOLERANCE_BF16=0.99,0.99,0.92
 export DO_CMDBUF_BF16=0   # this is a bug to fix
 # export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
 export DO_LAYERGROUP=1
 export USE_LAYERGROUP=1
+export DO_PREPROCESS=0
+if [ $DO_PREPROCESS -eq 1 ]; then
+  export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table_1000_preprocess
+  export EXCEPTS=data,prob
+else
+  export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table_1000
+  export EXCEPTS=prob
+fi
 fi
 
 if [ $NET = "mobilenet_v3" ]; then
@@ -259,8 +301,6 @@ fi
 if [ $NET = "shufflenet_v2" ]; then
 export MODEL_DEF=$MODEL_PATH/imagenet/shufflenet_v2/caffe/shufflenet_v2_x0.5.prototxt
 export MODEL_DAT=$MODEL_PATH/imagenet/shufflenet_v2/caffe/shufflenet_v2_x0.5.caffemodel
-#export DO_CALIBRATION=1
-export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/shufflenet_v2_calibration_table
 export NET_INPUT_DIMS=224,224
 export IMAGE_RESIZE_DIMS=256,256
 export MODEL_CHANNEL_ORDER="rgb"
@@ -277,12 +317,18 @@ export TOLERANCE_BF16=0.99,0.99,0.94
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
 export DO_LAYERGROUP=1
 export USE_LAYERGROUP=1
+export DO_PREPROCESS=0
+if [ $DO_PREPROCESS -eq 1 ]; then
+  export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table_preprocess
+  export EXCEPTS=data
+else
+  export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table
+fi
 fi
 
 if [ $NET = "squeezenet" ]; then
 export MODEL_DEF=$MODEL_PATH/imagenet/squeezenet/caffe/deploy_v1.1.prototxt
 export MODEL_DAT=$MODEL_PATH/imagenet/squeezenet/caffe/squeezenet_v1.1.caffemodel
-export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table
 export NET_INPUT_DIMS=227,227
 export IMAGE_RESIZE_DIMS=256,256
 export RAW_SCALE=255.0
@@ -293,18 +339,23 @@ export OUTPUTS_FP32=prob
 export OUTPUTS=pool10
 export TOLERANCE_INT8_PER_TENSOR=0.9,0.9,0.55
 export TOLERANCE_INT8_RSHIFT_ONLY=0.9,0.9,0.6
-export TOLERANCE_INT8_MULTIPLER=0.9,0.9,0.6
+export TOLERANCE_INT8_MULTIPLER=0.9,0.9,0.56
 export TOLERANCE_BF16=0.99,0.99,0.93
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.93
 export DO_LAYERGROUP=1
 export USE_LAYERGROUP=1
+export DO_PREPROCESS=0
+if [ $DO_PREPROCESS -eq 1 ]; then
+  export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table_preprocess
+  export EXCEPTS=data
+else
+  export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table
+fi
 fi
 
 if [ $NET = "densenet_121" ]; then
 export MODEL_DEF=$MODEL_PATH/imagenet/densenet/caffe/DenseNet_121.prototxt
 export MODEL_DAT=$MODEL_PATH/imagenet/densenet/caffe/DenseNet_121.caffemodel
-# export DO_CALIBRATION=1
-export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/densenet_121_calibration_table_1000
 export NET_INPUT_DIMS=224,224
 export IMAGE_RESIZE_DIMS=256,256
 export RAW_SCALE=255.0
@@ -326,13 +377,18 @@ export DO_CMDBUF_BF16=0
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
 export DO_LAYERGROUP=0
 export USE_LAYERGROUP=0
+export DO_PREPROCESS=0
+if [ $DO_PREPROCESS -eq 1 ]; then
+  export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table_1000_preprocess
+  export EXCEPTS=data
+else
+  export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table_1000
+fi
 fi
 
 if [ $NET = "densenet_201" ]; then
 export MODEL_DEF=$MODEL_PATH/imagenet/densenet/caffe/DenseNet_201.prototxt
 export MODEL_DAT=$MODEL_PATH/imagenet/densenet/caffe/DenseNet_201.caffemodel
-# export DO_CALIBRATION=1
-export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/densenet_201_calibration_table_1000
 export NET_INPUT_DIMS=224,224
 export IMAGE_RESIZE_DIMS=256,256
 export RAW_SCALE=255.0
@@ -354,13 +410,18 @@ export DO_CMDBUF_BF16=0
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.95
 export DO_LAYERGROUP=0
 export USE_LAYERGROUP=0
+export DO_PREPROCESS=0
+if [ $DO_PREPROCESS -eq 1 ]; then
+  export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table_1000_preprocess
+  export EXCEPTS=data
+else
+  export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table_1000
+fi
 fi
 
 if [ $NET = "senet_res50" ]; then
 export MODEL_DEF=$MODEL_PATH/imagenet/senet/caffe/se_resnet_50_v1_deploy.prototxt
 export MODEL_DAT=$MODEL_PATH/imagenet/senet/caffe/se_resnet_50_v1.caffemodel
-#export DO_CALIBRATION=1
-export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/senet_res50_calibration_table_1000
 export NET_INPUT_DIMS=225,225
 export IMAGE_RESIZE_DIMS=256,256
 export RAW_SCALE=255.0
@@ -374,14 +435,21 @@ export DO_QUANT_INT8_PER_TENSOR=1
 export DO_QUANT_INT8_RFHIFT_ONLY=1
 export DO_QUANT_INT8_MULTIPLER=1
 export TOLERANCE_INT8_PER_TENSOR=0.94,0.93,0.66
-export TOLERANCE_INT8_RSHIFT_ONLY=0.96,0.96,0.74
-export TOLERANCE_INT8_MULTIPLER=0.97,0.96,0.76
+export TOLERANCE_INT8_RSHIFT_ONLY=0.96,0.96,0.73
+export TOLERANCE_INT8_MULTIPLER=0.96,0.96,0.75
 export DO_QUANT_BF16=0
 export TOLERANCE_BF16=0.99,0.99,0.99
 export DO_CMDBUF_BF16=0
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
 export DO_LAYERGROUP=0
 export USE_LAYERGROUP=0
+export DO_PREPROCESS=0
+if [ $DO_PREPROCESS -eq 1 ]; then
+  export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table_1000_preprocess
+  export EXCEPTS=data
+else
+  export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table_1000
+fi
 fi
 
 if [ $NET = "arcface_res50" ]; then

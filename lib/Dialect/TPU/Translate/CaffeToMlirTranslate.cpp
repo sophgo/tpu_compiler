@@ -104,8 +104,8 @@ static llvm::cl::opt<std::string>
 
 // preprocess way 2: use sub ops
 static llvm::cl::opt<bool>
-    clResolvePreprocess("resovle-preprocess",
-                        llvm::cl::desc("Resovle Preprocess Op into sub Ops"),
+    clResolvePreprocess("resolve-preprocess",
+                        llvm::cl::desc("Resolve Preprocess Op into sub Ops"),
                         llvm::cl::cat(clOptionsPreprocess), llvm::cl::init(false));
 
 static llvm::cl::opt<std::string>
@@ -122,7 +122,7 @@ static llvm::cl::opt<float> clScale("scale", llvm::cl::desc("Specify the scale")
 static llvm::cl::opt<float> clRawScale("raw_scale",
                                        llvm::cl::desc("Specify the raw scale"),
                                        llvm::cl::cat(clOptionsPreprocess),
-                                       llvm::cl::init(1.0f));
+                                       llvm::cl::init(255.0f));
 
 // Importer that takes an Caffe model and imports it as an MLIR module in the
 // TPU dialect.
@@ -2699,17 +2699,17 @@ void CaffeImporter::doPreprocess(mlir::Block *block, mlir::Value *input) {
     int index = 0;
     int order_size = (int)order.size();
     for (; index < order_size; index++) {
-      assert(order[index] <order_size);
+      assert(order[index] < order_size);
       if ( index != order[index]) {
         break;
       }
     }
     // same order , needn't swap
-    if (index ==order_size) {
+    if (index == order_size) {
       order.clear();
     }
   }
-  doPreScale(block, "pre_raw_scale", clRawScale.getValue());
+  doPreScale(block, "pre_raw_scale", clRawScale.getValue() / 255.0);
   doPreMean(block, "pre_mean", order);
   doPreScale(block, "pre_scale", clScale.getValue());
   doPreSwapChannel(block, "pre_swap_channel", order);
