@@ -22,18 +22,19 @@ succss:
 * GlobalMaxPool
 * LeakyRelu
 * LRN
+* Max
+* Min
 * Neg
+* PRelu
 * Slice
 * Sub
 * Sum
 
 fail:
 * Relu: will fused in int8
-* Max: compare failed
-* Min: compare failed
-* PRelu: mlir-opt failed
 * Reciprocal: mlir-opt failed
 
 ## issue
-* LRN not support negtive input
 * if onnx model have no weight, quant to int8 will fail
+* LRN: not support negtive input
+* PRelu: input[1] must be weight; only support per channel

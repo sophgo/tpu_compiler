@@ -32,7 +32,7 @@ TEST_ONNX_IR = [
     "Sum",
 ]
 
-NOT_SUPPORT_CMDBUF_TEST_IR = ["Relu", "Max", "Min", "PRelu", "Reciprocal"]
+NOT_SUPPORT_CMDBUF_TEST_IR = ["Relu", "Reciprocal"]
 
 def make_test_calibration_table(tensors, table_name):
     # simple calibration table
@@ -91,7 +91,7 @@ class ONNX_IR_TESTER(object):
 
         if self.cvi_model_test:
             for i in NOT_SUPPORT_CMDBUF_TEST_IR:
-                if i in model_name:
+                if i == model_name:
                     print("{} not support cmdbuf test!".format(model_name))
                     return
 
@@ -175,7 +175,7 @@ class ONNX_IR_TESTER(object):
         print("PASS")
 
     def test_Add(self):
-        test_case = 'test_Add'
+        test_case = 'Add'
         input_shape = [1, 3, 27, 27]
         output_shape = [1, 3, 27, 27]
 
@@ -208,7 +208,7 @@ class ONNX_IR_TESTER(object):
         self.onnx_convert_and_infernece(input_data, model_def, test_case)
 
     def test_AveragePool(self):
-        test_case = 'test_AveragePool'
+        test_case = 'AveragePool'
         input_data = np.random.randn(1, 3, 28, 28).astype(np.float32)
         input = helper.make_tensor_value_info('input', TensorProto.FLOAT, list(input_data.shape))
         output = helper.make_tensor_value_info('output', TensorProto.FLOAT, [1, 3, 30, 30])
@@ -239,7 +239,7 @@ class ONNX_IR_TESTER(object):
         self.onnx_convert_and_infernece(input_data, model_def, test_case)
 
     def test_GlobalMaxPool(self):
-        test_case = 'test_GlobalMaxPool'
+        test_case = 'GlobalMaxPool'
         input_data = np.random.randn(1, 3, 28, 28).astype(np.float32)
         input = helper.make_tensor_value_info('input', TensorProto.FLOAT, list(input_data.shape))
         output = helper.make_tensor_value_info('output', TensorProto.FLOAT, [1, 3, 1, 1])
@@ -261,7 +261,7 @@ class ONNX_IR_TESTER(object):
 
     def test_LeakyRelu(self):
         alpha = 0.01
-        test_case = "test_LeakyRelu"
+        test_case = "LeakyRelu"
         input_shape = [1, 3, 224, 224]
         x1_def = helper.make_node(
             'Neg',  # node name
@@ -294,7 +294,7 @@ class ONNX_IR_TESTER(object):
         self.onnx_convert_and_infernece(input_data, model_def, test_case)
 
     def test_LRN(self):
-        test_case = 'test_LRN'
+        test_case = 'LRN'
         input_shape = [1, 10, 27, 27]
         output_shape = [1, 10, 27, 27]
 
@@ -332,7 +332,7 @@ class ONNX_IR_TESTER(object):
         self.onnx_convert_and_infernece(input_data, model_def, test_case)
 
     def test_Max(self):
-        test_case = 'test_Max'
+        test_case = 'Max'
         input_shape = [1, 3, 27, 27]
         output_shape = [1, 3, 27, 27]
 
@@ -367,7 +367,7 @@ class ONNX_IR_TESTER(object):
         self.onnx_convert_and_infernece(input_data, model_def, test_case)
 
     def test_Min(self):
-        test_case = 'test_Min'
+        test_case = 'Min'
         input_shape = [1, 3, 27, 27]
         output_shape = [1, 3, 27, 27]
 
@@ -403,7 +403,7 @@ class ONNX_IR_TESTER(object):
         self.onnx_convert_and_infernece(input_data, model_def, test_case)
 
     def test_Neg(self):
-        test_case = 'test_Neg'
+        test_case = 'Neg'
         input_shape = [1, 3, 27, 27]
         output_shape = [1, 3, 27, 27]
 
@@ -430,23 +430,21 @@ class ONNX_IR_TESTER(object):
         self.onnx_convert_and_infernece(input_data, model_def, test_case)
 
     def test_PRelu(self):
-        test_case = 'test_PRelu'
+        test_case = 'PRelu'
         input_shape = [1, 3, 27, 27]
-        pooling_kernel_shape = [27, 27]
-        pooling_output_shape = [1, 3, 1, 1]
         input = helper.make_tensor_value_info('input', TensorProto.FLOAT, input_shape)
-        pooling_output = helper.make_tensor_value_info(
-            'pooling_output', TensorProto.FLOAT, pooling_output_shape)
-        pooling_kernel = helper.make_tensor_value_info(
-            'pooling_kernel', TensorProto.FLOAT, pooling_kernel_shape)
-        max_pooling_def = helper.make_node(
-            'MaxPool',  # node name
-            ['input'],  # inputs
-            ['pooling_output'],  # outputs
-            kernel_shape=[27, 27],
-            strides=[1, 1],
-            dilations=[1, 1],
-            pads=[0, 0, 0, 0]
+        weight_data = np.random.rand(input_shape[0], input_shape[1],
+                           1, 1).astype(np.float32)
+        prelu_weight_constant = onnx.helper.make_node(
+            'Constant',
+            inputs=[],
+            outputs=['prelu_weight'],
+            value=onnx.helper.make_tensor(
+                name='const_tensor',
+                data_type=onnx.TensorProto.FLOAT,
+                dims=weight_data.shape,
+                vals=weight_data.flatten().astype(int),
+            ),
         )
 
         output_shape = [1, 3, 27, 27]
@@ -454,12 +452,12 @@ class ONNX_IR_TESTER(object):
             'output', TensorProto.FLOAT, output_shape)
         prelu_def = helper.make_node(
             'PRelu',  # node name
-            ['input', 'pooling_output'],  # inputs
+            ['input', 'prelu_weight'],  # inputs
             ['output'],  # outputs
         )
 
         graph_def = helper.make_graph(
-            [max_pooling_def, prelu_def],
+            [prelu_weight_constant, prelu_def],
             test_case,
             [input],
             [output],
@@ -467,13 +465,13 @@ class ONNX_IR_TESTER(object):
         model_def = helper.make_model(graph_def, producer_name=test_case)
         model_name = '{}.onnx'.format(test_case)
         onnx.save(model_def, model_name)
-        input_data = np.random.rand(input_shape[0], input_shape[1],
+        input_data = np.random.randn(input_shape[0], input_shape[1],
                             input_shape[2], input_shape[3]).astype(np.float32)
         onnx.checker.check_model(model_def)
         self.onnx_convert_and_infernece(input_data, model_def, test_case)
 
     def test_Reciprocal(self):
-        test_case = 'test_Reciprocal'
+        test_case = 'Reciprocal'
         input_shape = [1, 3, 224, 224]
         node_def = helper.make_node(
             "Reciprocal", # node name
@@ -499,7 +497,7 @@ class ONNX_IR_TESTER(object):
         self.onnx_convert_and_infernece(input_data, model_def, test_case)
 
     def test_Relu(self):
-        test_case = 'test_Relu'
+        test_case = 'Relu'
         input_shape = [1, 3, 224, 224]
         node_def = helper.make_node(
             "Relu", # node name
@@ -526,7 +524,7 @@ class ONNX_IR_TESTER(object):
         self.onnx_convert_and_infernece(input_data, model_def, test_case)
 
     def test_Slice(self):
-        test_case = 'test_Slice'
+        test_case = 'Slice'
         x = np.random.randn(1, 20, 10, 5).astype(np.float32)
         input_shape = list(x.shape)
         y = x[0:3, 0:10]
@@ -598,7 +596,7 @@ class ONNX_IR_TESTER(object):
 
 
     def test_Sub(self):
-        test_case = 'test_Sub'
+        test_case = 'Sub'
         input_shape = [1, 3, 27, 27]
         output_shape = [1, 3, 27, 27]
 
@@ -635,7 +633,7 @@ class ONNX_IR_TESTER(object):
 
 
     def test_Sum(self):
-        test_case = 'test_Sum'
+        test_case = 'Sum'
         input_shape = [1, 3, 27, 27]
         output_shape = [1, 3, 27, 27]
 

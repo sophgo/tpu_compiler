@@ -445,10 +445,9 @@ class OnnxConverter(BaseConverter):
         data_type = onnx_dtype(onnx_tensor.data_type)
 
         if data_type in [np.float32, np.float64, np.int32, np.int64]:
-            np_tensor = np_tensor.astype(np.float32).flatten()
             # add new weight tensor
 
-            self.addTensor(onnx_node.name, np_tensor, list(np_tensor.shape))
+            self.addTensor(onnx_node.name, np_tensor.astype(np.float32).flatten(), list(np_tensor.shape))
             self.addOperand(onnx_node.name, None, list(np_tensor.shape), TensorType.TENSOR)
 
         else:
@@ -676,27 +675,18 @@ class OnnxConverter(BaseConverter):
         assert(onnx_node.op_type == "Gather")
         op1, input_shape1, tensor_type1 = self.getOperand(onnx_node.inputs[0])
         op2, input_shape2, tensor_type2 = self.getOperand(onnx_node.inputs[1])
-        if 'axis' in onnx_node.attrs:
-            axis = onnx_node.attrs['axis']
-        else:
-            axis = 0
+
+        axis = onnx_node.attrs.get('axis', 0)
+
         if tensor_type1 == TensorType.TENSOR and tensor_type2 == TensorType.TENSOR:
             input_data =  self.getTensor(onnx_node.inputs[0]).tensor_data
             gather_indices = self.getTensor(onnx_node.inputs[1]).tensor_data
-        else:
-            raise RuntimeError("TODO: our IR no gather define")
-
-        new_shape = input_shape1
-        if new_shape[axis] > len(gather_indices):
-            new_shape[axis] = len(gather_indices)
-        else:
-            raise ValueError("Gather input shape dim {} ({}) must great than {} ({})".format(
-                axis, input_shape1, len(gather_indices), gather_indices))
-        # TODO: our IR no Gather function, please add
-        if tensor_type1 == TensorType.TENSOR and tensor_type2 == TensorType.TENSOR:
-            new_data = np.take(input_data, gather_indices.tolist())
+            new_data = np.take(input_data, gather_indices.astype(np.int64), axis=axis)
             self.addTensor(onnx_node.name, new_data, list(new_data.shape))
-            self.addOperand(onnx_node.name, None, new_shape, TensorType.TENSOR)
+            self.addOperand(onnx_node.name, None, list(new_data.shape), TensorType.TENSOR)
+        else:
+            raise("TODO: Our Ir not support gather function")
+
 
     def convert_gemm_op(self, onnx_node):
         assert(onnx_node.op_type == "Gemm")
@@ -1000,10 +990,12 @@ class OnnxConverter(BaseConverter):
             output_shape = output_data.shape
             self.addTensor(onnx_node.name, output_data, list(output_shape))
             self.addOperand(onnx_node.name, None, output_shape, TensorType.TENSOR)
+
         elif tensor_type1 == TensorType.ACTIVATION and tensor_type2 == TensorType.TENSOR:
-            slope_data = self.getTensor(onnx_node.inputs[1]).tensor_data
+            slope = self.getTensor(onnx_node.inputs[1])
+            slope_data = slope.tensor_data
             slope_name = "{}_slope_weight".format(onnx_node.name)
-            slope_shape = list(slope_data.shape)
+            slope_shape = slope.shape
             self.addTensor(slope_name, slope_data, slope_shape)
             slope_op = self.CVI.add_load_file_op(slope_name, slope_shape)
             operands.append(slope_op)
