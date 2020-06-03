@@ -25,6 +25,7 @@ succss:
 * Max
 * Min
 * Neg
+* Reciprocal
 * PRelu
 * Slice
 * Sub
@@ -32,9 +33,8 @@ succss:
 
 fail:
 * Relu: will fused in int8
-* Reciprocal: mlir-opt failed
 
 ## issue
 * if onnx model have no weight, quant to int8 will fail
-* LRN: not support negtive input
+* LRN: not support negative input
 * PRelu: input[1] must be weight; only support per channel

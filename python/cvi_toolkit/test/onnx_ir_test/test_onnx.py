@@ -32,7 +32,7 @@ TEST_ONNX_IR = [
     "Sum",
 ]
 
-NOT_SUPPORT_CMDBUF_TEST_IR = ["Relu", "Reciprocal"]
+NOT_SUPPORT_CMDBUF_TEST_IR = ["Relu"]
 
 def make_test_calibration_table(tensors, table_name):
     # simple calibration table
@@ -476,22 +476,28 @@ class ONNX_IR_TESTER(object):
         node_def = helper.make_node(
             "Reciprocal", # node name
             ['input'], # inputs
-            ['y'], # outputs
+            ['X1'], # outputs
+        )
+
+        neg_def = helper.make_node(
+            "Neg", # node name
+            ['X1'], # inputs
+            ['output'], # outputs
         )
 
         input = helper.make_tensor_value_info('input', TensorProto.FLOAT, input_shape)
-        y = helper.make_tensor_value_info('y', TensorProto.FLOAT, input_shape)
+        output = helper.make_tensor_value_info('output', TensorProto.FLOAT, input_shape)
         # Create the graph (GraphProto)
         graph_def = helper.make_graph(
-            [node_def],
+            [node_def, neg_def],
             test_case,
             [input],
-            [y],
+            [output],
         )
 
         # Create the model (ModelProto)
         model_def = helper.make_model(graph_def, producer_name=test_case)
-        input_data = np.random.rand(input_shape[0], input_shape[1],
+        input_data = np.random.randn(input_shape[0], input_shape[1],
                         input_shape[2], input_shape[3]).astype(np.float32)
         onnx.checker.check_model(model_def)
         self.onnx_convert_and_infernece(input_data, model_def, test_case)

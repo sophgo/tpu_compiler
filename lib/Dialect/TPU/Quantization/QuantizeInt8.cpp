@@ -495,11 +495,14 @@ LogicalResult quantizeInt8LutOps(Operation *op) {
       float index = lutInput * threshold_x / 127.0;
 
       if(OpTy::getOperationName()=="tpu.reciprocal"){
-        float lutOutput = 1.0 /(index) * 127.0 / threshold_y;
-        int lutOutputI32 = std::floor(lutOutput + 0.5);
-        lutOutputI32 = (lutOutputI32 > 127)
-                            ? 127
-                            : (lutOutputI32 < -128) ? -128 : lutOutputI32;
+        int lutOutputI32 = 127;
+        if (index != 0) {
+          float lutOutput = 1.0 / (index)*127.0 / threshold_y;
+          lutOutputI32 = std::floor(lutOutput + 0.5);
+          lutOutputI32 = (lutOutputI32 > 127)
+                             ? 127
+                             : (lutOutputI32 < -128) ? -128 : lutOutputI32;
+        }
         y0_table[n * table_hw + idx] = lutOutputI32;
       }else if(OpTy::getOperationName()=="tpu.sqrt"){
         float lutOutput = pow(index,0.5) * 127.0 / threshold_y;
