@@ -151,6 +151,8 @@ struct ConvertTgOpToTensorPass : public FunctionPass<ConvertTgOpToTensorPass> {
     target.addLegalOp<tpu::TG_BF16_EltwiseMulOp>();
     target.addLegalOp<tpu::TG_INT8_FullyConnectedOp>();
     target.addLegalOp<tpu::TG_BF16_FullyConnectedOp>();
+    target.addLegalOp<tpu::TG_INT8_GenericTpuOp>();
+    target.addLegalOp<tpu::TG_BF16_GenericTpuOp>();
     target.addLegalOp<tpu::TG_INT8_LeakyReluOp>();
     target.addLegalOp<tpu::TG_BF16_LeakyReluOp>();
     target.addLegalOp<tpu::TG_INT8_LrnOp>();
@@ -219,6 +221,8 @@ struct ConvertTgOpToTensorPass : public FunctionPass<ConvertTgOpToTensorPass> {
         convertTgOpToTensorPattern<tpu::TG_MemRef_BF16_EltwiseMulOp, tpu::TG_BF16_EltwiseMulOp>,
         convertTgOpToTensorPattern<tpu::TG_MemRef_INT8_FullyConnectedOp, tpu::TG_INT8_FullyConnectedOp>,
         convertTgOpToTensorPattern<tpu::TG_MemRef_BF16_FullyConnectedOp, tpu::TG_BF16_FullyConnectedOp>,
+        convertTgOpToTensorPattern<tpu::TG_MemRef_INT8_GenericTpuOp, tpu::TG_INT8_GenericTpuOp>,
+        convertTgOpToTensorPattern<tpu::TG_MemRef_BF16_GenericTpuOp, tpu::TG_BF16_GenericTpuOp>,
         convertTgOpToTensorPattern<tpu::TG_MemRef_INT8_LeakyReluOp, tpu::TG_INT8_LeakyReluOp>,
         convertTgOpToTensorPattern<tpu::TG_MemRef_BF16_LeakyReluOp, tpu::TG_BF16_LeakyReluOp>,
         convertTgOpToTensorPattern<tpu::TG_MemRef_INT8_LrnOp, tpu::TG_INT8_LrnOp>,

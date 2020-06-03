@@ -25,8 +25,14 @@
 #include "mlir/Dialect/TPU/TPUDialect.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/Support/LogicalResult.h"
+#include "mlir/Dialect/TPU/CustomOpParam.h"
 
 namespace mlir {
+
+void convertAttributesToOpParam(const DictionaryAttr &attrs, cvi::OpParam &param);
+void convertOpParamToAttributes(
+    mlir::Builder &builder, cvi::OpParam &param,
+    std::vector<NamedAttribute> &out);
 
 void arrayAttrToVector(const ArrayAttr &arrayAttr,
                        std::vector<int32_t> &vector);

@@ -36,6 +36,7 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ToolOutputFile.h"
+#include "llvm/Support/DynamicLibrary.h"
 #include "mlir/Support/FileUtilities.h"
 #include "mlir/Support/TensorFile.h"
 #include "cvibuilder/cvimodel_generated.h"
@@ -191,7 +192,7 @@ CviCpuRoutine::CviCpuRoutine(flatbuffers::FlatBufferBuilder &fbb, FuncOp &fn,
           SmallVector<StringRef, 2> sub_strs;
           auto opName = castOp.operation_name();
           opName.split(sub_strs, ".");
-          name = sub_strs[1];
+          name = sub_strs.size() > 1 ? sub_strs[1] : sub_strs[0];
         }
       }
     }

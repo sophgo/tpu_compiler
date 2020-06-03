@@ -40,6 +40,7 @@ void getTensorShapeAndSize(Value *value, std::vector<int64_t> &shape,
                            int64_t &size);
 void getNCHW(std::vector<int64_t> &shape, int64_t &n, int64_t &c, int64_t &h,
              int64_t &w);
+std::vector<std::vector<int64_t>> getOperandShapes(Operation *op);
 
 /******************************************************************************
  * Weight helpers

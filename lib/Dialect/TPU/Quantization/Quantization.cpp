@@ -25,6 +25,7 @@
 #include "mlir/Dialect/TPU/TPUTensorSupport.h"
 #include "mlir/Dialect/TPU/QuantizationArithmetic.h"
 #include "mlir/Dialect/StandardOps/Ops.h"
+#include "mlir/Dialect/TPU/CustomOpPlugin.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/StandardTypes.h"
@@ -34,6 +35,7 @@
 #include "mlir/Support/TensorFile.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Support/DynamicLibrary.h"
 #include <sstream>
 #include <fstream>
 
@@ -328,21 +330,24 @@ struct TpuGenLrnTablePattern : public RewritePattern {
 };
 
 class TpuQuantPass : public FunctionPass<TpuQuantPass> {
+
 public:
   explicit TpuQuantPass() {}
 
   void runOnFunction() override {
     auto fn = getFunction();
     auto *context = &getContext();
-
+    auto builder = Builder(context);
     // mark quant mode
     fn.walk([&](Operation *op) {
       if (op->getName().getDialect().str() != "tpu"
           || isa<tpu::ReshapeOp>(op)
           || isa<tpu::InputOp>(op)
           || isa<tpu::PreprocessOp>(op)) {
-      } else if (isa<tpu::GenericCpuOp>(op) &&
-                 !cast<tpu::GenericCpuOp>(op).quantifiable()) {
+        // continue
+      } else if (isa<tpu::CustomOp>(op) &&
+                 !cast<tpu::CustomOp>(op).do_quant()) {
+        // continue
       } else if (auto quantOp = llvm::dyn_cast<tpu::TpuOpQuantInterface>(op)) {
         if (clQuantMixTable) {
           //setOpQuant(op, quant_mix_table[getOpName(op)]);
@@ -393,8 +398,28 @@ public:
           || isa<tpu::PreprocessOp>(op)
           || isa<tpu::QuantOp>(op)
           || isa<tpu::ReshapeOp>(op)) {
-      } else if (isa<tpu::GenericCpuOp>(op) &&
-                 !cast<tpu::GenericCpuOp>(op).quantifiable()) {
+      } else if (auto castOp = llvm::dyn_cast<tpu::CustomOp>(op)) {
+        if (getOpQuant(op) != "NONE") {
+          cvi::OpParam param, quant;
+          auto operation_name = castOp.operation_name().str().c_str();
+          float prevThreshold = getPreviousOpThreshold(op);
+          convertAttributesToOpParam(castOp.param(), param);
+          convertAttributesToOpParam(castOp.quant(), quant);
+          cvi::CustomOpPlugin *plugin = cvi::CustomOpPlugin::load();
+          assert(plugin);
+          if (getOpQuant(op) == "INT8") {
+            plugin->int8Quant(operation_name, param, &quant, prevThreshold);
+            setOpResultType(op, StandardTypes::Integer, 8);
+          } else if (getOpQuant(op) == "BF16") {
+            plugin->bf16Quant(operation_name, param, &quant, prevThreshold);
+            setOpResultType(op, StandardTypes::BF16);
+          }
+          std::vector<NamedAttribute> newParam, newQuant;
+          convertOpParamToAttributes(builder, param, newParam);
+          convertOpParamToAttributes(builder, quant, newQuant);
+          castOp.setAttr("param", DictionaryAttr::get(newParam, context));
+          castOp.setAttr("quant", DictionaryAttr::get(newQuant, context));
+        }
       } else if (auto quantOp = llvm::dyn_cast<tpu::TpuOpQuantInterface>(op)) {
         if (getOpQuant(op) == "INT8") {
           auto ret = quantOp.quantizeInt8();
@@ -472,7 +497,7 @@ struct TpuTpuQuantClipPassPattern : public RewritePattern {
       }
 
       if (auto formerConv2DOp = cast<tpu::Conv2DOp>(formerOp)) {
-          LLVM_DEBUG(llvm::errs() << "over old " << mlir::getOpName(formerOp).str() << " thre " << 
+          LLVM_DEBUG(llvm::errs() << "over old " << mlir::getOpName(formerOp).str() << " thre " <<
               formerConv2DOp.quant().threshold_max().getValue().convertToFloat() << ", new clip " <<
               mlir::getOpName(clipOp).str() << " thre is " << threshold_max << "\n";);
       }

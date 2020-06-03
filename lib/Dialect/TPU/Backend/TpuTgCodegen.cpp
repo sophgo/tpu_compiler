@@ -24,6 +24,7 @@
 #include "mlir/Dialect/TPU/TPUOperationSupport.h"
 #include "mlir/Dialect/TPU/TPUTensorSupport.h"
 #include "mlir/Dialect/TPU/QuantizationArithmetic.h"
+#include "mlir/Dialect/TPU/CustomOpPlugin.h"
 #include "mlir/IR/Function.h"
 #include "mlir/IR/Module.h"
 #include "mlir/IR/StandardTypes.h"
@@ -1259,6 +1260,58 @@ LogicalResult tpu::TG_BF16_FullyConnectedOp::codegen(void *ctx) {
   return success();
 }
 
+LogicalResult tpu::TG_INT8_GenericTpuOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+  int layer_id = mlir::getOpLayerId(op);
+  auto name = operation_name().str().c_str();
+  auto operandShapes = getOperandShapes(op);
+  auto resultShape = getTensorShape(getResult());
+
+  std::vector<uint64_t> operandGaddrs;
+  for (auto operand : op->getOperands()) {
+    auto addr = getOpAddress(operand->getDefiningOp());
+    operandGaddrs.push_back(addr);
+  }
+  cvi::OpParam param;
+  convertAttributesToOpParam(this->param(), param);
+
+  cvi::CustomOpPlugin *plugin = cvi::CustomOpPlugin::load();
+  assert(plugin);
+  plugin->int8CodeGen(name, param, cvi_backend_get_cvk_ctx(*backend_ctx),
+                      operandShapes, operandGaddrs, resultShape,
+                      getOpAddress(op), layer_id);
+  return success();
+}
+
+LogicalResult tpu::TG_BF16_GenericTpuOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+  int layer_id = mlir::getOpLayerId(op);
+  auto name = operation_name().str().c_str();
+  auto operandShapes = getOperandShapes(op);
+  auto resultShape = getTensorShape(getResult());
+
+  std::vector<uint64_t> operandGaddrs;
+  for (auto operand : op->getOperands()) {
+    auto addr = getOpAddress(operand->getDefiningOp());
+    operandGaddrs.push_back(addr);
+  }
+  cvi::OpParam param;
+  convertAttributesToOpParam(this->param(), param);
+
+  cvi::CustomOpPlugin *plugin = cvi::CustomOpPlugin::load();
+  assert(plugin);
+  plugin->bf16CodeGen(name, param, cvi_backend_get_cvk_ctx(*backend_ctx),
+                      operandShapes, operandGaddrs, resultShape,
+                      getOpAddress(op), layer_id);
+  return success();
+}
+
 LogicalResult tpu::TG_INT8_LeakyReluOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);
@@ -2424,6 +2477,14 @@ LogicalResult tpu::TG_MemRef_BF16_FullyConnectedOp::codegen(void *ctx) {
 }
 
 LogicalResult tpu::TG_MemRef_INT8_FullyConnectedOp::codegen(void *ctx) {
+  return success();
+}
+
+LogicalResult tpu::TG_MemRef_BF16_GenericTpuOp::codegen(void *ctx) {
+  return success();
+}
+
+LogicalResult tpu::TG_MemRef_INT8_GenericTpuOp::codegen(void *ctx) {
   return success();
 }
 

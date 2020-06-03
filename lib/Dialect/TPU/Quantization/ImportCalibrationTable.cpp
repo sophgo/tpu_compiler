@@ -107,6 +107,8 @@ struct BackwardOverwriteThresholdConcatPattern : public OpRewritePattern<tpu::Co
         setOpThreshold(formerOp, threshold_y);
       } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::LeakyReluOp>(formerOp)) {
         setOpThreshold(formerOp, threshold_y);
+      } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::CustomOp>(formerOp)) {
+        setOpThreshold(formerOp, threshold_y);
       } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::ReluOp>(formerOp)) {
         setOpThreshold(formerOp, threshold_y);
       }  else if (auto cast_op = llvm::dyn_cast_or_null<tpu::UpsampleOp>(formerOp)) {
@@ -174,6 +176,8 @@ struct BackendOverwriteThresholdDefaultPattern : public RewritePattern {
     } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::InputOp>(formerOp)) {
       setOpThreshold(formerOp, threshold_y);
     } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::LeakyReluOp>(formerOp)) {
+      setOpThreshold(formerOp, threshold_y);
+    } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::CustomOp>(formerOp)) {
       setOpThreshold(formerOp, threshold_y);
     } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::ReluOp>(formerOp)) {
       setOpThreshold(formerOp, threshold_y);
@@ -354,6 +358,43 @@ struct ForceThresholdMulOpPattern : public RewritePattern {
   }
 };
 
+template<typename TyOp>
+struct ForceThresholdCustomOpPattern : public RewritePattern {
+  ForceThresholdCustomOpPattern(MLIRContext *context)
+      : RewritePattern(TyOp::getOperationName(), 1, context) {}
+
+  PatternMatchResult matchAndRewrite(Operation *op,
+                                     PatternRewriter &rewriter) const override {
+    auto castOp = cast<TyOp>(op);
+    auto overwrite = castOp.threshold_overwrite();
+    llvm::errs() << "custom op overwrite:" << overwrite << "\n";
+    if (overwrite == "none") {
+      return matchFailure();
+    }
+
+    float threshold_x = getPreviousOpThreshold(op);
+    float threshold_y = getOpThreshold(op);
+
+    if (getOpQuantParamType(op) == "THRESHOLD") {
+      if (threshold_y == threshold_x) {
+        // assigned already
+        return matchFailure();
+      }
+    }
+
+    /// be careful about call sequence
+    /// since this is assuming previous Op has threshold_y already
+    if (overwrite == "forward") {
+      setOpThreshold(op, threshold_x);
+    } else if (overwrite == "backward") { // "backward"
+      auto formerOp = op->getOperand(0)->getDefiningOp();
+      setOpThreshold(formerOp, threshold_y);
+    }
+    setOpQuantParamType(op, "THRESHOLD");
+    return matchSuccess();
+  }
+};
+
 class ImportCalibrationTablePass : public FunctionPass<ImportCalibrationTablePass> {
 public:
   explicit ImportCalibrationTablePass() {}
@@ -419,7 +460,7 @@ public:
                  || isa<tpu::SoftmaxOp>(op)
                  || isa<tpu::TransposeOp>(op)
                  || isa<tpu::YoloDetectionOp>(op)
-                 || isa<tpu::GenericCpuOp>(op)) {
+                 /*|| isa<tpu::CustomOp>(op)*/) {
         // doesn't matter assigned or not
       } else {
         llvm::errs() << "setThresholdFromMap didn't handle " << op->getName()
@@ -506,6 +547,13 @@ public:
           >(context);
       applyPatternsGreedily(fn, patterns);
     }
+
+    LLVM_DEBUG(llvm::errs() << "set CustomOp's threshold\n";);
+    patterns.clear();
+    patterns.insert<
+        ForceThresholdCustomOpPattern<tpu::CustomOp>
+        >(context);
+    applyPatternsGreedily(fn, patterns);
   }
 
 private:

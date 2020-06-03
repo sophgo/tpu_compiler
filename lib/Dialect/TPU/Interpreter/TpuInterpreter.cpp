@@ -25,11 +25,12 @@
 #include "mlir/Dialect/TPU/TPUTensorSupport.h"
 #include "mlir/Dialect/TPU/Interpreter.h"
 #include "mlir/Dialect/TPU/NativeCpuImplementation.h"
-#include "mlir/Dialect/TPU/CpuOpParam.h"
+#include "mlir/Dialect/TPU/CustomOpParam.h"
 #include "mlir/Dialect/TPU/GPUInplementation.h"
 #include "mlir/Dialect/TPU/CpuLayer_DetectionOutput.h"
 #include "mlir/Dialect/TPU/CpuLayer_RetinaFaceDetection.h"
 #include "mlir/Dialect/TPU/CpuLayer_YoloDetection.h"
+#include "mlir/Dialect/TPU/CustomOpPlugin.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Function.h"
 #include "mlir/IR/Module.h"
@@ -56,12 +57,6 @@
 #include <unordered_map>
 
 namespace mlir {
-
-static llvm::cl::opt<std::string>
-    clCustomerInterpretPlugin("customer-interpret-plugin",
-        llvm::cl::desc("Specify the interpret library to customer op"));
-
-static llvm::sys::DynamicLibrary gCustomerPlugin;
 
 static DeviceMode dm;
 static std::vector<std::shared_ptr<std::vector<float> > >
@@ -2342,126 +2337,37 @@ LogicalResult tpu::SliceOp::interpret(
   return success();
 }
 
-static bool getBoolAttributeValue(const Attribute& attr) {
-  return (bool)attr.cast<BoolAttr>().getValue();
-}
-
-static int32_t getIntegerAttributeValue(const Attribute& attr) {
-  return (int32_t)attr.cast<IntegerAttr>().getValue().getSExtValue();
-}
-
-static float getFloatAttributeValue(const Attribute& attr) {
-  return (float)attr.cast<FloatAttr>().getValue().convertToFloat();
-}
-
-static std::string getStringAttributeValue(const Attribute& attr) {
-  return attr.cast<StringAttr>().getValue().str();
-}
-
-static uint32_t getAttributeArrayKind(const ArrayAttr& array) {
-  auto& attr = *(array.begin());
-  return attr.getKind();
-}
-
-static void convertParamAttributesToOpParam(
-    const DictionaryAttr &attrs,
-    cvi::OpParam &param) {
-  for (auto& a : attrs) {
-    auto name = a.first.str();
-    auto &attr = a.second;
-    switch (attr.getKind()) {
-      case StandardAttributes::Bool:
-        param.put<bool>(name, getBoolAttributeValue(attr));
-        break;
-      case StandardAttributes::Integer:
-        param.put<int32_t>(name, getIntegerAttributeValue(attr));
-        break;
-      case StandardAttributes::Float:
-        param.put<float>(name, getFloatAttributeValue(attr));
-        break;
-      case StandardAttributes::String:
-        param.put<std::string>(name, getStringAttributeValue(attr));
-        break;
-      case StandardAttributes::Array: {
-        auto array = attr.cast<ArrayAttr>();
-        switch (getAttributeArrayKind(array)) {
-          case StandardAttributes::Bool: {
-            std::vector<bool> vec;
-            for (auto& item : array) {
-              vec.push_back(getBoolAttributeValue(item));
-            }
-            param.put<std::vector<bool>>(name, vec);
-            break;
-          }
-          case StandardAttributes::Integer: {
-            std::vector<int32_t> vec;
-            for (auto& item : array) {
-              vec.push_back(getIntegerAttributeValue(item));
-            }
-            param.put<std::vector<int32_t>>(name, vec);
-            break;
-          }
-          case StandardAttributes::Float: {
-            std::vector<float> vec;
-            for (auto& item : array) {
-              vec.push_back(getFloatAttributeValue(item));
-            }
-            param.put<std::vector<float>>(name, vec);
-            break;
-          }
-          case StandardAttributes::String: {
-            std::vector<std::string> vec;
-            for (auto& item : array) {
-              vec.push_back(getStringAttributeValue(item));
-            }
-            param.put<std::vector<std::string>>(name, vec);
-            break;
-          }
-          default:
-            llvm_unreachable("unsupported attribute");
-        }
-        break;
-      }
-      default:
-        llvm_unreachable("unsupported attribute");
-    }
-  }
-}
-
-using CustomerInterpretFn =
-    void (*)(std::vector<std::shared_ptr<std::vector<float>>>&,
-             std::vector<std::vector<int64_t>>&,
-             std::shared_ptr<std::vector<float>>&,
-             std::vector<int64_t>&,
-             cvi::OpParam&);
-
-LogicalResult tpu::GenericCpuOp::interpret(
+LogicalResult tpu::CustomOp::interpret(
     DenseMap<Value*, std::shared_ptr<std::vector<float>>> &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
   auto result = this->getResult();
   auto operandTensors = getOperandTensors(op, valueMapping);
-  std::vector<std::vector<int64_t>> operandShapes;
-  for (auto operand : op->getOperands()) {
-    operandShapes.push_back(getTensorShape(operand));
-  }
+  auto operandShapes = getOperandShapes(op);
   auto resultTensor = std::make_shared<std::vector<float>>(getTensorSize(result));
   auto resultShape = getTensorShape(result);
 
-  assert(gCustomerPlugin.isValid());
-  auto fn = this->operation_name().str() + "_interpret";
-  std::transform(fn.begin(), fn.end(), fn.begin(), [](char c) {
-    return std::tolower(c);
-  });
-
-  auto func = reinterpret_cast<CustomerInterpretFn>(
-                gCustomerPlugin.getAddressOfSymbol(fn.c_str()));
-  llvm::errs() << "[Interpret] to find " << fn << "\n";
-  assert(func);
   cvi::OpParam param;
-  // parse param
-  convertParamAttributesToOpParam(this->param(), param);
-  func(operandTensors, operandShapes, resultTensor, resultShape, param);
+  convertAttributesToOpParam(this->param(), param);
+
+  cvi::CustomOpPlugin *plugin = cvi::CustomOpPlugin::load();
+  assert(plugin);
+
+  if (getOpQuant() == "NONE") {
+    plugin->fp32Interpret(
+        operation_name().str().c_str(), param, operandTensors,
+        operandShapes, resultTensor, resultShape);
+  } else if (getOpQuant() == "INT8") {
+    plugin->int8Interpret(
+        operation_name().str().c_str(), param, operandTensors,
+        operandShapes, resultTensor, resultShape);
+  } else if (getOpQuant() == "BF16") {
+    plugin->bf16Interpret(
+        operation_name().str().c_str(), param, operandTensors,
+        operandShapes, resultTensor, resultShape);
+  } else {
+    llvm_unreachable("unsupported type");
+  }
   valueMapping[result] = resultTensor;
   return success();
 }
@@ -2816,17 +2722,6 @@ LogicalResult ModuleInterpreter::runFunctions() {
 LogicalResult ModuleInterpreter::doRun(std::vector<int64_t> input_shape, std::vector<float> &input_vec,
                                        std::map<std::string, std::vector<float> > *results,
                                        std::map<std::string, std::vector<float> > *allTensorMap) {
-  // load customer interpret plugin firstly if has.
-  if (!clCustomerInterpretPlugin.empty() && !gCustomerPlugin.isValid()) {
-    std::string ErrorMsg;
-    gCustomerPlugin = llvm::sys::DynamicLibrary::getPermanentLibrary(clCustomerInterpretPlugin.c_str(), &ErrorMsg);
-    if (!gCustomerPlugin.isValid()) {
-      ErrorMsg = "Failed to load customer interpret plugin from path:" +
-                 clCustomerInterpretPlugin + ", reason:" + ErrorMsg + "\n";
-      llvm_unreachable(ErrorMsg.c_str());
-    }
-  }
-
   // set inputs
   auto inputs = getInputsList();
   assert(inputs.size() == 1);

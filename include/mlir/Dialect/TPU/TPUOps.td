@@ -1062,7 +1062,7 @@ def TPU_PoolMax2DOp : TPU_Op<"pool_max_2d",
   let results = (outs AnyTensor:$output);
 }
 
-def TPU_GenericCpuOp : TPU_Op<"generic_cpu",
+def TPU_CustomOp : TPU_Op<"custom_op",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
        DeclareOpInterfaceMethods<TpuOpInterpInterface>,
@@ -1070,7 +1070,7 @@ def TPU_GenericCpuOp : TPU_Op<"generic_cpu",
   let summary = "generic customer cpu operator";
 
   let description = [{
-    Performs max pooling operation on input.
+    Custom Cpu Op.
 
     Inputs:
       `input`           : required, the input activation tensor.
@@ -1080,29 +1080,23 @@ def TPU_GenericCpuOp : TPU_Op<"generic_cpu",
                           filter size, stride, padding, and do_relu.
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
+      `do_quan`         : required, quantize to int8/bf16 or not.
+      `threshold_overwrite` : required, overwrite threshold backward/forward or not.
       `layer_id`        : optional, id for profiling.
 
     Result:
       `output`          : result tensor.
-
-    Interfaces or Traits:
-      `NoSideEffect`
-      `TPU_QuantPerTensorOnly`
-      `TPU_QuantSupportAsymmetric`
-      `TPU_QuantSameInputResultScale` : input and result share same threshold
-                                        or scale (bypassed).
-      `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpInterpInterface` : support interperter
-      `TpuOpQuantInterface`  : support quantization
   }];
 
   let arguments = (
-    ins Variadic<AnyTensor>:$inputs,
+    ins Variadic<TPU_TensorOfOrNone<[F32, BF16, I8]>>:$inputs,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
     StrAttr:$operation_name,
     DictionaryAttr:$param,
-    DefaultValuedAttr<BoolAttr, "false">:$quantifiable,
+    DefaultValuedAttr<BoolAttr, "false">:$tpu,
+    DefaultValuedAttr<BoolAttr, "false">:$do_quant,
+    DefaultValuedAttr<StrAttr, "none">:$threshold_overwrite,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     OptionalAttr<NonNegativeI32Attr>:$layer_id
   );
