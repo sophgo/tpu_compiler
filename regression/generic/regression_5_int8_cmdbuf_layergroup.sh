@@ -66,6 +66,10 @@ fi
 # Batch 1, 251.7 fps
 # Batch 4, 318.7 fps
 
+# sqeezenet
+# Batch 1, 892.9 fps
+# Batch 4, 1000.0 fps
+
 # compare all only support when global memory optimization close
 COMPARE_ALL=0
 ###############################
