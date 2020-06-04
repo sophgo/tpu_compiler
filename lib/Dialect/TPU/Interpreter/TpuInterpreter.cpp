@@ -2350,7 +2350,8 @@ LogicalResult tpu::CustomOp::interpret(
   cvi::OpParam param;
   convertAttributesToOpParam(this->param(), param);
 
-  cvi::CustomOpPlugin *plugin = cvi::CustomOpPlugin::load();
+  auto& pluginFile = ModuleInterpreter::getCustomOpPluginFile();
+  cvi::CustomOpPlugin *plugin = cvi::CustomOpPlugin::load(pluginFile);
   assert(plugin);
 
   if (getOpQuant() == "NONE") {
@@ -2792,19 +2793,25 @@ static bool isValidTpuOp(Operation &op) {
           op.getName().getDialect().str() == "tpu");
 }
 
-LogicalResult runTpuModule(ModuleOp m,
+LogicalResult runTpuModule(ModuleOp m, std::string pluginFile,
     std::vector<int64_t> input_shape, std::vector<float> &input_vec,
     std::map<std::string, std::vector<float> > *results,
     std::map<std::string, std::vector<int64_t> > *shapeMap,
     std::map<std::string, std::vector<float> > *allTensorMap) {
-  return runTpuModule(m, nullptr, input_shape, input_vec, results, shapeMap, allTensorMap);
+  return runTpuModule(m, pluginFile, nullptr, input_shape, input_vec, results, shapeMap, allTensorMap);
 }
 
-LogicalResult runTpuModule(ModuleOp m, ModuleInterpreter *interpreter,
+std::string ModuleInterpreter::customOpPluginFile_ = "";
+
+LogicalResult runTpuModule(ModuleOp m,
+    std::string pluginFile, ModuleInterpreter *interpreter,
     std::vector<int64_t> input_shape, std::vector<float> &input_vec,
     std::map<std::string, std::vector<float> > *results,
     std::map<std::string, std::vector<int64_t> > *shapeMap,
     std::map<std::string, std::vector<float> > *allTensorMap) {
+
+  ModuleInterpreter::setCustomOpPluginFile(pluginFile);
+
   for (FuncOp function : m.getOps<FuncOp>()) {
     for (Block &bb : function.getBlocks()) {
       for (auto &op : bb) {

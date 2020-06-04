@@ -401,17 +401,17 @@ public:
       } else if (auto castOp = llvm::dyn_cast<tpu::CustomOp>(op)) {
         if (getOpQuant(op) != "NONE") {
           cvi::OpParam param, quant;
-          auto operation_name = castOp.operation_name().str().c_str();
+          auto operation_name = castOp.operation_name().str();
           float prevThreshold = getPreviousOpThreshold(op);
           convertAttributesToOpParam(castOp.param(), param);
           convertAttributesToOpParam(castOp.quant(), quant);
           cvi::CustomOpPlugin *plugin = cvi::CustomOpPlugin::load();
           assert(plugin);
           if (getOpQuant(op) == "INT8") {
-            plugin->int8Quant(operation_name, param, &quant, prevThreshold);
+            plugin->int8Quant(operation_name.c_str(), param, &quant, prevThreshold);
             setOpResultType(op, StandardTypes::Integer, 8);
           } else if (getOpQuant(op) == "BF16") {
-            plugin->bf16Quant(operation_name, param, &quant, prevThreshold);
+            plugin->bf16Quant(operation_name.c_str(), param, &quant, prevThreshold);
             setOpResultType(op, StandardTypes::BF16);
           }
           std::vector<NamedAttribute> newParam, newQuant;

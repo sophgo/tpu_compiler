@@ -139,6 +139,7 @@ class OnnxConverter(BaseConverter):
             "Reciprocal": lambda node: self.convert_reciprocal_op(node),
             "Relu": lambda node: self.convert_relu_op(node),
             "Reshape": lambda node: self.convert_reshape_op(node),
+            "Resize": lambda node: self.convert_resize_op(node),
             "Shape": lambda node: self.convert_shape_op(node),
             "Sigmoid" :lambda node: self.convert_activation_op(node),
             "Slice": lambda node: self.convert_slice_op(node),
@@ -471,8 +472,16 @@ class OnnxConverter(BaseConverter):
 
     def convert_concat_op(self, onnx_node):
         assert(onnx_node.op_type == "Concat")
-        if len(onnx_node.inputs) < 2:
-            raise ValueError("{} must great than 2".format(onnx_node.op_type))
+        if len(onnx_node.inputs) == 1:
+            # convert concat op to reshape op if has only one input
+            op, input_shape, tensor_type = self.getOperand(onnx_node.inputs[0])
+            if tensor_type != TensorType.ACTIVATION:
+                raise RuntimeError("Tensor can not concat with activation")
+            operands = [op]
+            reshape_op = self.CVI.add_reshape_op("{}_{}".format(onnx_node.name, onnx_node.op_type),
+                                                  operands, input_shape)
+            self.addOperand(onnx_node.name, reshape_op, input_shape, TensorType.ACTIVATION)
+            return
 
         op1, input_shape1, tensor_type1 = self.getOperand(onnx_node.inputs[0])
         op2, input_shape2, tensor_type2 = self.getOperand(onnx_node.inputs[1])
@@ -492,7 +501,8 @@ class OnnxConverter(BaseConverter):
 
             for i in onnx_node.inputs:
                 op, input_shape, tensor_type = self.getOperand(i)
-                if tensor_type != TensorType.ACTIVATION: raise RuntimeError("Tensor can not concat with activation")
+                if tensor_type != TensorType.ACTIVATION:
+                    raise RuntimeError("Tensor can not concat with activation")
 
                 in_shapes.append(input_shape)
                 operands.append(op)
@@ -1102,6 +1112,39 @@ class OnnxConverter(BaseConverter):
                             output_shape, TensorType.TENSOR)
         else:
             raise RuntimeError("Second type must be {}".format(TensorType.TENSOR))
+
+    def convert_resize_op(self, onnx_node):
+        assert(onnx_node.op_type == "Resize")
+        mode = onnx_node.attrs.get("mode", "nearest")
+        if mode != b"nearest":
+            raise RuntimeError("Unsupported mode {}".format(mode))
+
+        op1, input_shape1, tensor_type1 = self.getOperand(onnx_node.inputs[0])
+        op2, input_shape2, tensor_type2 = self.getOperand(onnx_node.inputs[2])
+        if tensor_type1 != TensorType.ACTIVATION or tensor_type2 != TensorType.TENSOR:
+            raise RuntimeError("Unsupported tensor type")
+
+        scale_factor = self.getTensor(onnx_node.inputs[2]).tensor_data
+        if len(scale_factor) != 4:
+            raise RuntimeError("scale_factor length should be 4")
+        if scale_factor[0] != 1 and scale_factor[1] != 1:
+            raise RuntimeError("Not support n,c upsample")
+        if scale_factor[2] != scale_factor[3]:
+            raise RuntimeError("TODO&FIXME:Our IR need to fix it, support w and h upsample")
+
+        operands = list()
+        operands.append(op1)
+        on = int(input_shape1[0])
+        oc = int(input_shape1[1])
+        oh = int(input_shape1[2] * scale_factor[2])
+        ow = int(input_shape1[3] * scale_factor[3])
+        attr={
+            'scale': int(scale_factor[2])
+        }
+        output_shape = [on, oc, oh, ow]
+        upsample_op = self.CVI.add_upsample_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **attr)
+        self.addOperand(onnx_node.name, upsample_op, output_shape, TensorType.ACTIVATION)
+
 
     def convert_shape_op(self, onnx_node):
         assert(onnx_node.op_type == "Shape")

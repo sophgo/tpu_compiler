@@ -35,6 +35,7 @@ class Asym_Calibrator(object):
 
         self.module = pymlir.module()
         self.module.load(args.model_file)
+        self.module.set_plugin(args.custom_op_plugin)
 
     def do_find_min_max(self):
         data_max = {}

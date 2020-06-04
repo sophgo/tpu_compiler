@@ -314,7 +314,7 @@ class MLIRImporter(object):
         checkKey(kargs, 'tpu')
         checkKey(kargs, 'threshold_overwrite')
         checkKey(kargs, 'param')
-        checkType(kargs['param'], map)
+        checkType(kargs['param'], dict)
         if kargs['threshold_overwrite'] not in ['none', 'backward', 'forward']:
             raise AttributeError("invalid value of parameter threshold_overwrite: {}"
                   .format(kargs['threshold_overwrite']))
@@ -348,11 +348,11 @@ class MLIRImporter(object):
             elif attr_type == 'bool_arr':
                 arr = [self.module.boolAttr(x) for x in val]
                 op_param[key] = self.module.arrayAttr(arr)
-        self.quant_param = self.module.dictAttr(**quant_param)
+        param = self.module.dictAttr(**op_param)
 
         return self.buildOp(TPU_OpType.CustomOp.value, inputOperands, [
             tensor_output_type], name=name, operation_name=operation_name, quant=self.quant_param,
-            do_quant=do_quant, param=op_param, tpu=tpu, threshold_overwrite = threshold_overwrite)
+            do_quant=do_quant, param=param, tpu=tpu, threshold_overwrite = threshold_overwrite)
 
     def add_deconv_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         """

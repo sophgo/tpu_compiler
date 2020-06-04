@@ -199,6 +199,10 @@ public:
     return py_s;
   }
 
+  void setPluginFilePath(std::string path) {
+    pluginFilePath_ = path;
+  }
+
   // wrap C++ function with NumPy array IO
   py::dict run(py::array_t<float, py::array::c_style | py::array::forcecast> array) {
     if(!module || !interpreter_){
@@ -211,7 +215,7 @@ public:
       input_shape.push_back((int64_t)array.shape()[i]);
     }
     tensor_map_t results;
-    if (failed(runTpuModule(module.get(), interpreter_, input_shape, input_vec,
+    if (failed(runTpuModule(module.get(), pluginFilePath_, interpreter_, input_shape, input_vec,
                             &results, &shapeMap_, &tensorMap_))) {
       assert(false);
     }
@@ -229,6 +233,7 @@ private:
   tensor_map_t tensorMap_;
   shape_map_t shapeMap_;
   ModuleInterpreter *interpreter_ = nullptr;
+  std::string pluginFilePath_ = "";
 };
 
 // wrap as Python module
@@ -242,6 +247,8 @@ PYBIND11_MODULE(pymlir,m)
          "load module from IR")
     .def("dump", &py_module::dump,
          "dump module")
+    .def("set_plugin", &py_module::setPluginFilePath,
+         "set file path of custom op plugin")
     .def("get_all_tensor", &py_module::getAllTensor,
          "dump all tensor data")
     .def("get_tensor", &py_module::getTensor,

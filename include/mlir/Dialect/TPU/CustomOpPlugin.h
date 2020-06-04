@@ -49,7 +49,7 @@ public:
                std::vector<uint64_t> &operand_gaddrs, std::vector<int64_t> &result_shape,
                uint64_t result_gaddr, int layer_id);
 
-  static CustomOpPlugin *load();
+  static CustomOpPlugin *load(std::string pluginFile = "");
 
 private:
   CustomOpPlugin(std::string pluginFile);

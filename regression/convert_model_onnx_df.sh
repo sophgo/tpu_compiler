@@ -44,8 +44,10 @@ mlir-opt \
     --tpu-quant \
     ${CUSTOM_OP_PLUGIN_OPTION}\
     --print-tpu-op-info \
-    --tpu-op-info-filename op_info_int8.csv | \
+    --tpu-op-info-filename op_info_int8.csv \
+    -o int8.mlir
 mlir-opt \
+    int8.mlir \
     --tpu-lower | \
 mlir-opt \
     --tg-fuse-leakyrelu \

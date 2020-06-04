@@ -6,18 +6,16 @@ import sys
 import argparse
 import glob
 import time
+import onnx
+import onnxruntime
 import cv2
 import caffe
-from cvi_toolkit.model import CaffeModel
+from cvi_toolkit.model import OnnxModel
 from cvi_toolkit.utils.yolov3_util import preprocess, postprocess_v2, postprocess_v3, draw
 
 def check_files(args):
     if not os.path.isfile(args.model_def):
         print("cannot find the file %s", args.model_def)
-        sys.exit(1)
-
-    if not os.path.isfile(args.pretrained_model):
-        print("cannot find the file %s", args.pretrained_model)
         sys.exit(1)
 
     if not os.path.isfile(args.input_file):
@@ -28,8 +26,6 @@ def parse_args():
     parser = argparse.ArgumentParser(description='Eval YOLO networks.')
     parser.add_argument('--model_def', type=str, default='',
                         help="Model definition file")
-    parser.add_argument('--pretrained_model', type=str, default='',
-                        help='Load weights from previously saved parameters.')
     parser.add_argument("--net_input_dims", default='416,416',
                         help="'height,width' dimensions of net input tensors.")
     parser.add_argument("--input_file", type=str, default='',
@@ -40,11 +36,6 @@ def parse_args():
                         help="Draw results on image")
     parser.add_argument("--dump_blobs",
                         help="Dump all blobs into a file in npz format")
-    parser.add_argument("--dump_weights",
-                        help="Dump all weights into a file in npz format")
-    parser.add_argument("--dump_blobs_with_inplace",
-                        type=bool, default=False,
-                        help="Dump all blobs including inplace blobs (takes much longer time)")
     parser.add_argument("--force_input",
                         help="Force the input blob data, in npy format")
     parser.add_argument("--obj_threshold", type=float, default=0.3,
@@ -80,39 +71,54 @@ def main(argv):
     inputs = image_x
     for i in range(1, args.batch_size):
       inputs = np.append(inputs, image_x, axis=0)
-
-    caffemodel = CaffeModel()
-    caffemodel.load_model(args.model_def, args.pretrained_model)
-    caffemodel.inference(inputs)
-    outputs = caffemodel.net.blobs
-
-    all_tensor_dict = caffemodel.get_all_tensor(inputs, args.dump_blobs_with_inplace)
-    np.savez(args.dump_blobs, **all_tensor_dict)
-
-    # dump weight to file
-    if args.dump_weights is not None:
-        print("Save Weights:", args.dump_weights)
-        weights_dict = caffemodel.get_all_weights()
-        np.savez(args.dump_weights, **weights_dict)
+    input_shape = np.array([net_input_dims[0], net_input_dims[1]], dtype=np.float32).reshape(1, 2)
+    ort_session = onnxruntime.InferenceSession(args.model_def)
+    ort_inputs = {'input': inputs}
+    ort_outs = ort_session.run(None, ort_inputs)
 
     out_feat = {}
-    print(outputs['layer82-conv'].data, outputs['layer82-conv'].data.shape)
-    print(outputs['layer94-conv'].data, outputs['layer94-conv'].data.shape)
-    print(outputs['layer106-conv'].data, outputs['layer106-conv'].data.shape)
-    if yolov3 == True:
-        out_feat['layer82-conv'] = outputs['layer82-conv'].data
-        out_feat['layer94-conv'] = outputs['layer94-conv'].data
-        out_feat['layer106-conv'] = outputs['layer106-conv'].data
-        batched_predictions = postprocess_v3(out_feat, image.shape, net_input_dims,
-                                obj_threshold, nms_threshold, args.batch_size)
-    else:
-        out_feat['conv22'] = outputs['conv22'].data
-        batched_predictions = postprocess_v2(out_feat, image.shape, net_input_dims,
+    out_feat['layer82-conv'] = ort_outs[0]
+    out_feat['layer94-conv'] = ort_outs[1]
+    out_feat['layer106-conv'] = ort_outs[2]
+    batched_predictions = postprocess_v3(out_feat, image.shape, net_input_dims,
                                 obj_threshold, nms_threshold, args.batch_size)
     print(batched_predictions[0])
-    if (args.draw_image != ''):
+    if args.draw_image:
         image = draw(image, batched_predictions[0], args.label_file)
         cv2.imwrite(args.draw_image, image)
+
+    if args.dump_blobs:
+        # second pass for dump all output
+        # plz refre https://github.com/microsoft/onnxruntime/issues/1455
+        output_keys = []
+        for i in range(len(ort_outs)):
+            output_keys.append('output_{}'.format(i))
+
+        model = onnx.load(args.model_def)
+
+        # tested commited #c3cea486d https://github.com/microsoft/onnxruntime.git
+        for x in model.graph.node:
+            _intermediate_tensor_name = list(x.output)
+            intermediate_tensor_name = ",".join(_intermediate_tensor_name)
+            intermediate_layer_value_info = onnx.helper.ValueInfoProto()
+            intermediate_layer_value_info.name = intermediate_tensor_name
+            model.graph.output.append(intermediate_layer_value_info)
+            output_keys.append(intermediate_layer_value_info.name + '_' + x.op_type)
+
+        dump_all_onnx = "dump_all.onnx"
+        if not os.path.exists(dump_all_onnx):
+            onnx.save(model, dump_all_onnx)
+        else:
+            print("{} is exitsed!".format(dump_all_onnx))
+        print("dump multi-output onnx all tensor at ", dump_all_onnx)
+
+        # dump all inferneced tensor
+        ort_session = onnxruntime.InferenceSession(dump_all_onnx)
+        ort_outs = ort_session.run(None, ort_inputs)
+        tensor_all_dict = dict(zip(output_keys, map(np.ndarray.flatten, ort_outs)))
+        tensor_all_dict['input'] = inputs
+        np.savez(args.dump_blobs, **tensor_all_dict)
+        print("dump all tensor at ", args.dump_blobs)
 
 
 if __name__ == '__main__':

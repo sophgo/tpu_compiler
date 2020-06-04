@@ -1080,7 +1080,7 @@ def TPU_CustomOp : TPU_Op<"custom_op",
                           filter size, stride, padding, and do_relu.
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
-      `do_quan`         : required, quantize to int8/bf16 or not.
+      `do_quant`         : required, quantize to int8/bf16 or not.
       `threshold_overwrite` : required, overwrite threshold backward/forward or not.
       `layer_id`        : optional, id for profiling.
 

@@ -680,6 +680,27 @@ export DO_LAYERGROUP=1
 export USE_LAYERGROUP=0
 fi
 
+if [ $NET = "yolo_v3_416_onnx" ]; then
+export MODEL_TYPE="onnx"
+export MODEL_DEF=$MODEL_PATH/object_detection/yolo_v3/onnx/yolov3-416.onnx
+export MODEL_DAT=""
+export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_onnx/regression_yolo_v3_0_onnx.sh
+export EVAL_SCRIPT=$REGRESSION_PATH/data/eval/accuracy_yolo_v3.sh
+export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/yolo_v3_416_onnx_threshold_table
+export NET_INPUT_DIMS=416,416
+export INPUT=input
+export TOLERANCE_INT8_PER_TENSOR=0.9,0.88,0.51
+export TOLERANCE_INT8_RSHIFT_ONLY=0.92,0.90,0.58
+export TOLERANCE_INT8_MULTIPLER=0.82,0.79,0.29
+export DO_QUANT_BF16=0
+export TOLERANCE_BF16=0.99,0.99,0.94
+export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
+export DO_DEEPFUSION=1
+export DO_MEMOPT=1
+export DO_LAYERGROUP=1
+export USE_LAYERGROUP=0
+fi
+
 if [ $NET = "yolo_v3_320" ]; then
 export MODEL_DEF=$MODEL_PATH/object_detection/yolo_v3/caffe/yolov3_320.prototxt
 export MODEL_DAT=$MODEL_PATH/object_detection/yolo_v3/caffe/416/yolov3_416.caffemodel

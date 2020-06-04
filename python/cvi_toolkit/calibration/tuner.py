@@ -28,6 +28,8 @@ class Tuner(object):
         self.fp32_model = args.model_file
         self.fp32_module = pymlir.module()
         self.fp32_module.load(args.model_file)
+        self.fp32_module.set_plugin(args.custom_op_plugin)
+        self.custom_op_plugin = args.custom_op_plugin
 
         with open(args.image_list_file,'r') as fp:
             self.all_lines = fp.readlines()
@@ -94,7 +96,7 @@ class Tuner(object):
             print('Cmd {} execute failed.'.format(cmd))
             exit(-1)
 
-        cmd = self.mlir_opt + ' --tpu-quant \
+        cmd = self.mlir_opt + ' --tpu-quant --custom-op-plugin ' + self.custom_op_plugin + ' \
                ' + os.path.join(self.output_path, 'resnet-50-cali.mlir') + \
               ' -o ' + self.int8_model
         if os.system(cmd) != 0:
@@ -180,6 +182,7 @@ class Tuner(object):
     def net8_calculate_diff(self, tune_layer, tune_thresholds):
         int8_module = pymlir.module()
         int8_module.load(self.int8_model)
+        int8_module.set_plugin(self.custom_op_plugin)
 
         num = 0
         layer_dist = 0

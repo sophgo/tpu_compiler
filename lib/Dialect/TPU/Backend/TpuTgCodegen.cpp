@@ -1266,7 +1266,7 @@ LogicalResult tpu::TG_INT8_GenericTpuOp::codegen(void *ctx) {
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
   int layer_id = mlir::getOpLayerId(op);
-  auto name = operation_name().str().c_str();
+  auto op_name = operation_name().str();
   auto operandShapes = getOperandShapes(op);
   auto resultShape = getTensorShape(getResult());
 
@@ -1280,7 +1280,7 @@ LogicalResult tpu::TG_INT8_GenericTpuOp::codegen(void *ctx) {
 
   cvi::CustomOpPlugin *plugin = cvi::CustomOpPlugin::load();
   assert(plugin);
-  plugin->int8CodeGen(name, param, cvi_backend_get_cvk_ctx(*backend_ctx),
+  plugin->int8CodeGen(op_name.c_str(), param, cvi_backend_get_cvk_ctx(*backend_ctx),
                       operandShapes, operandGaddrs, resultShape,
                       getOpAddress(op), layer_id);
   return success();
@@ -1292,7 +1292,7 @@ LogicalResult tpu::TG_BF16_GenericTpuOp::codegen(void *ctx) {
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
   int layer_id = mlir::getOpLayerId(op);
-  auto name = operation_name().str().c_str();
+  auto op_name = operation_name().str();
   auto operandShapes = getOperandShapes(op);
   auto resultShape = getTensorShape(getResult());
 
@@ -1306,7 +1306,7 @@ LogicalResult tpu::TG_BF16_GenericTpuOp::codegen(void *ctx) {
 
   cvi::CustomOpPlugin *plugin = cvi::CustomOpPlugin::load();
   assert(plugin);
-  plugin->bf16CodeGen(name, param, cvi_backend_get_cvk_ctx(*backend_ctx),
+  plugin->bf16CodeGen(op_name.c_str(), param, cvi_backend_get_cvk_ctx(*backend_ctx),
                       operandShapes, operandGaddrs, resultShape,
                       getOpAddress(op), layer_id);
   return success();

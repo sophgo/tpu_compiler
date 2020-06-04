@@ -111,14 +111,14 @@ void CustomOpPlugin::bf16CodeGen(const char *opName, OpParam &param, void *ctx,
 
 CustomOpPlugin* CustomOpPlugin::plugin = nullptr;
 
-CustomOpPlugin *CustomOpPlugin::load() {
+CustomOpPlugin *CustomOpPlugin::load(std::string pluginFile) {
   if (plugin)
     return plugin;
-  if (clCustomOpPlugin.empty()) {
+  if (clCustomOpPlugin.empty() && pluginFile.empty()) {
     llvm::errs() << "need to add --custom-op-plugin to load custom op plugin\n";
     return nullptr;
   }
-  plugin = new CustomOpPlugin(clCustomOpPlugin);
+  plugin = new CustomOpPlugin(clCustomOpPlugin.empty() ? pluginFile : clCustomOpPlugin);
   return plugin;
 }
 

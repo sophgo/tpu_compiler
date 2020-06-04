@@ -121,6 +121,7 @@ def main():
   parser.add_argument('--auto_tune', action='store_true', help='Enable auto tune or not')
   parser.add_argument('--binary_path', metavar='binary_path', help='MLIR binary path')
   parser.add_argument('--tune_iteration', metavar='iteration',type=int, help='The number of data using in tuning process', default=10)
+  parser.add_argument('--custom_op_plugin', metavar='custom_op_plugin', help='set file path of custom op plugin', default='')
   parser = get_preprocess_parser(existed_parser=parser)
   args = parser.parse_args()
 

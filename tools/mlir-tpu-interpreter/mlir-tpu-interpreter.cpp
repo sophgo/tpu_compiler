@@ -108,7 +108,7 @@ int main(int argc, char **argv) {
   std::map<std::string, std::vector<int64_t> > shapeMap;
   std::map<std::string, std::vector<float> > allTensorMap;
 
-  if (failed(runTpuModule(m.get(), input_shapes[0], *input_tensors[0],
+  if (failed(runTpuModule(m.get(), "", input_shapes[0], *input_tensors[0],
                           &results, &shapeMap, &allTensorMap)))
     return EXIT_FAILURE;
 

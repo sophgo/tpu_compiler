@@ -42,6 +42,7 @@ class KLD_Calibrator(object):
 
         self.module = pymlir.module()
         self.module.load(args.model_file)
+        self.module.set_plugin(args.custom_op_plugin)
         self.histogram_bin_num = int(args.histogram_bin_num)
 
         self.calibration_math = CDLL(args.math_lib_path)

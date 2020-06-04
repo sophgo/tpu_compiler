@@ -129,6 +129,14 @@ public:
     return interpreter.doRun(input_shape, input_vec, results, allTensorMap);
   }
 
+  static std::string& getCustomOpPluginFile() {
+    return customOpPluginFile_;
+  }
+
+  static void setCustomOpPluginFile(std::string &file) {
+    customOpPluginFile_ = file;
+  }
+
   void setDevice(std::string d);
 
 protected:
@@ -170,6 +178,7 @@ private:
   // weight file input stream
   TensorFile *weightFile_;
   DeviceMode device = DeviceMode::CPU;
+  static std::string customOpPluginFile_;
 
 protected:
   value_map_t valueMapping;
