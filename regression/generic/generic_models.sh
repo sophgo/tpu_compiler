@@ -68,6 +68,7 @@ export DO_NN_TOOLKIT=1
 export DO_PREPROCESS=0
 if [ $DO_PREPROCESS -eq 1 ]; then
   export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table_preprocess
+  export IMAGE_PATH=$REGRESSION_PATH/data/cat.jpg
   export EXCEPTS=data,prob,res2c_relu,res3d_relu,res4f_relu
 else
   export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table
@@ -98,6 +99,7 @@ export USE_LAYERGROUP=1
 export DO_PREPROCESS=0
 if [ $DO_PREPROCESS -eq 1 ]; then
   export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table_preprocess
+  export IMAGE_PATH=$REGRESSION_PATH/data/cat.jpg
   export EXCEPTS=data
 else
   export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table
@@ -129,6 +131,7 @@ export USE_LAYERGROUP=1
 export DO_PREPROCESS=0
 if [ $DO_PREPROCESS -eq 1 ]; then
   export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table_preprocess
+  export IMAGE_PATH=$REGRESSION_PATH/data/cat.jpg
   export EXCEPTS=data
 else
   export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table
@@ -159,6 +162,7 @@ export USE_LAYERGROUP=1
 export DO_PREPROCESS=0
 if [ $DO_PREPROCESS -eq 1 ]; then
   export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table_preprocess
+  export IMAGE_PATH=$REGRESSION_PATH/data/cat.jpg
   export EXCEPTS=data
 else
   export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table
@@ -189,6 +193,7 @@ export USE_LAYERGROUP=1
 export DO_PREPROCESS=0
 if [ $DO_PREPROCESS -eq 1 ]; then
   export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table_preprocess
+  export IMAGE_PATH=$REGRESSION_PATH/data/cat.jpg
   export EXCEPTS=data
 else
   export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table
@@ -221,6 +226,7 @@ export USE_LAYERGROUP=1
 export DO_PREPROCESS=0
 if [ $DO_PREPROCESS -eq 1 ]; then
   export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table_1000_preprocess
+  export IMAGE_PATH=$REGRESSION_PATH/data/cat.jpg
   export EXCEPTS=data,prob
 else
   export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table_1000
@@ -254,6 +260,7 @@ export USE_LAYERGROUP=1
 export DO_PREPROCESS=0
 if [ $DO_PREPROCESS -eq 1 ]; then
   export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table_1000_preprocess
+  export IMAGE_PATH=$REGRESSION_PATH/data/cat.jpg
   export EXCEPTS=data,prob
 else
   export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table_1000
@@ -320,6 +327,7 @@ export USE_LAYERGROUP=1
 export DO_PREPROCESS=0
 if [ $DO_PREPROCESS -eq 1 ]; then
   export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table_preprocess
+  export IMAGE_PATH=$REGRESSION_PATH/data/cat.jpg
   export EXCEPTS=data
 else
   export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table
@@ -347,6 +355,7 @@ export USE_LAYERGROUP=1
 export DO_PREPROCESS=0
 if [ $DO_PREPROCESS -eq 1 ]; then
   export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table_preprocess
+  export IMAGE_PATH=$REGRESSION_PATH/data/cat.jpg
   export EXCEPTS=data
 else
   export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table
@@ -380,6 +389,7 @@ export USE_LAYERGROUP=0
 export DO_PREPROCESS=0
 if [ $DO_PREPROCESS -eq 1 ]; then
   export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table_1000_preprocess
+  export IMAGE_PATH=$REGRESSION_PATH/data/cat.jpg
   export EXCEPTS=data
 else
   export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table_1000
@@ -413,6 +423,7 @@ export USE_LAYERGROUP=0
 export DO_PREPROCESS=0
 if [ $DO_PREPROCESS -eq 1 ]; then
   export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table_1000_preprocess
+  export IMAGE_PATH=$REGRESSION_PATH/data/cat.jpg
   export EXCEPTS=data
 else
   export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table_1000
@@ -446,6 +457,7 @@ export USE_LAYERGROUP=0
 export DO_PREPROCESS=0
 if [ $DO_PREPROCESS -eq 1 ]; then
   export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table_1000_preprocess
+  export IMAGE_PATH=$REGRESSION_PATH/data/cat.jpg
   export EXCEPTS=data
 else
   export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table_1000
@@ -545,8 +557,9 @@ export MODEL_DEF=$MODEL_PATH/object_detection/ssd/caffe/ssd300/deploy.prototxt
 export MODEL_DAT=$MODEL_PATH/object_detection/ssd/caffe/ssd300/VGG_coco_SSD_300x300_iter_400000.caffemodel
 export LABEL_MAP=$MODEL_PATH/object_detection/ssd/caffe/ssd300/labelmap_coco.prototxt
 export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_caffe/regression_ssd_0_caffe.sh
-export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table
+#export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table
 export INPUT=data
+export IMAGE_RESIZE_DIMS=300,300
 export NET_INPUT_DIMS=300,300
 export RAW_SCALE=255.0
 export MEAN=104.0,117.0,123.0
@@ -557,12 +570,19 @@ export TOLERANCE_INT8_MULTIPLER=0.99,0.99,0.88
 export DO_QUANT_BF16=0
 export DO_LAYERGROUP=1
 export USE_LAYERGROUP=1
-export NET_INPUT_DIMS=300,300
 # accuracy setting
 export EVAL_MODEL_TYPE="coco"
 export EVAL_SCRIPT_CAFFE="eval_caffe_detector_ssd.py"
 export EVAL_SCRIPT_INT8="eval_ssd.py"
 #export DO_ACCURACY_CAFFE=0
+export DO_PREPROCESS=0
+if [ $DO_PREPROCESS -eq 1 ]; then
+  export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table_preprocess
+  export IMAGE_PATH=$REGRESSION_PATH/data/dog.jpg
+  export EXCEPTS=data,detection_out
+else
+  export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table
+fi
 fi
 
 if [ $NET = "mobilenet_ssd" ]; then

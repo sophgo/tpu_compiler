@@ -127,19 +127,16 @@ def get_label_name(labelmap, labels):
 
 def ssd_detect(net, image_path, net_input_dims, input_scale, mean, raw_scale,
                   dump_blobs=None, dump_weights=None, batch=1):
-
-    transformer = caffe.io.Transformer({'data': net.blobs['data'].data.shape})
-    transformer.set_transpose('data', (2, 0, 1))  # row to col, (HWC -> CHW)
-    transformer.set_input_scale('data', input_scale)
-    transformer.set_mean('data', mean)
-    transformer.set_raw_scale('data', raw_scale)  # [0,1] to [0,255]
-    transformer.set_channel_swap('data', (2, 1, 0))  # RGB to BGR
-
-    image_x = caffe.io.load_image(image_path)  # range from 0 to 1
-    image_x = transformer.preprocess('data', image_x)
+    image_x = cv2.imread(image_path)
+    image_x = cv2.imresize(image_x, [net_input_dims[1], net_input_dims[0]])
+    image_x = image_x.astype(np.float32)
+    image_x = np.transpose(image_x, [2,0,1])
+    mean = mean[:, np.newaxis, np.newaxis]
+    image_x = image_x - mean
+    image_x = image_x * input_scale
     image_x = np.expand_dims(image_x, axis=0)
     image = image_x
-    for i in range(1, batch):
+    for i in range(1, batch): 
       image = np.append(image, image_x, axis=0)
 
     net.blobs['data'].reshape(batch, 3, net_input_dims[0], net_input_dims[1])
