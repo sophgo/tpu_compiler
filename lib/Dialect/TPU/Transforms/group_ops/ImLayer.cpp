@@ -152,7 +152,6 @@ ImConv::ImConv(Operation* p) : ImLayer(IR_CONVOLUTION, p, true), conv1x1_to_fc(f
   // add weight tensor
   auto weightOp = cast<tpu::LoadWeightOp>(op.filter()->getDefiningOp());
   // if has ic align
-
   bool do_ic_alignment = op.do_ic_alignment().hasValue() ?
                             op.do_ic_alignment().getValue() : false;
   int w_ic = ic;
@@ -309,7 +308,12 @@ ImCommon::ImCommon(Operation* op, bool inplace_compute, IR_TYPE type) : ImLayer(
   }
 }
 
-ImConcat::ImConcat(Operation* op) : ImLayer(IR_CONCAT, op) {
+ImConcat::ImConcat(Operation* op) : ImLayer(IR_CONCAT, op, true) {
+  // only support axis = 1 for fuse
+  auto concat_op = dyn_cast<tpu::TG_INT8_ConcatOp>(op);
+  int axis = concat_op.axis().getLimitedValue();
+  if (axis != 1)
+    fusible = false;
   for (u32 i = 0; i < op->getNumOperands(); ++i) {
       add_in_tensor(op->getOperand(i),TENSOR_NEURON);
   }

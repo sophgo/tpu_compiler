@@ -295,6 +295,33 @@ def TPU_TL_LG_LutOp : TPU_Op<"tl_lg_lut",
   let results = (outs AnyTensor:$output);
 }
 
+def TPU_TL_LG_ConcatOp : TPU_Op<"tl_lg_concat",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuTLOpCodegenInterface>]> {
+  let summary = "TL Concat operator";
+
+  let description = [{
+  }];
+
+  let arguments = (
+    ins Variadic<AnyTensor>:$input,
+    OptionalAttr<I32ArrayAttr>:$la_input,
+    I32Attr:$la_output,
+    I32Attr:$la_working,
+    I32Attr:$axis,
+    OptionalAttr<I8Attr>:$r_i8,
+    OptionalAttr<I32ArrayAttr>:$m_i8,
+    DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
+    DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
+    OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    StrAttr:$name
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
 
 def TPU_TL_LG_LoadNeuronOp : TPU_Op<"tl_lg_load_neuron",
       [NoSideEffect,

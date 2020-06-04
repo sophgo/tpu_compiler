@@ -381,6 +381,80 @@ LogicalResult tpu::TL_LG_LutOp::codegen(void *ctx) {
 
 }
 
+LogicalResult tpu::TL_LG_ConcatOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+  unsigned nInputs = op->getNumOperands();
+  int layer_id = mlir::getOpLayerId(op);
+  int axis = this->axis().getLimitedValue();
+
+  std::vector<int32_t> la_input_array;
+  laddr_t la_input[nInputs];
+  arrayAttrToVector(this->la_input().getValue(), la_input_array);
+  for (unsigned i = 0; i < nInputs; ++i) {
+      la_input[i] = static_cast<laddr_t>(la_input_array[i]);
+    }
+
+  laddr_t la_output = this->la_output().getLimitedValue();
+  laddr_t la_working = this->la_working().getLimitedValue();
+
+
+  #define SHAPE_DIM 4
+  int32_t input_dims[nInputs * SHAPE_DIM];
+  for ( unsigned i = 0; i < nInputs; i++) {
+    std::vector<int64_t> shape;
+    int64_t size;
+    getTensorShapeAndSize(op->getOperand(i), shape, size);
+    // TODO: this looks very strange. 4 allocated for each input
+    // TODO: but only 1 is set for each input
+    input_dims[i] = shape[axis];
+  }
+  int output_dim[SHAPE_DIM];
+  int output_dim_size;
+  {
+    std::vector<int64_t> shape;
+    int64_t size;
+    getTensorShapeAndSize(this->getResult(), shape, size);
+    output_dim[0] = shape[0];
+    output_dim[1] = shape[1];
+    output_dim[2] = shape[2];
+    output_dim[3] = shape[3];
+    output_dim_size = shape.size();
+  }
+
+  // prepare quant info
+  bool do_quant_rescale = false;
+  int8_t r_i8;
+  int8_t m_i8[nInputs];
+  if (this->r_i8().hasValue() && this->m_i8().hasValue()) {
+    do_quant_rescale = true;
+    r_i8 = this->r_i8().getValue().getLimitedValue();
+
+    std::vector<int32_t> m_i8_array;
+    arrayAttrToVector(this->m_i8().getValue(), m_i8_array);
+    assert(m_i8_array.size() == nInputs);
+    for (unsigned i = 0; i < nInputs; ++i) {
+      m_i8[i] = static_cast<int8_t>(m_i8_array[i]);
+    }
+  }
+
+  cvi_backend_tl_concat( *backend_ctx,
+                      layer_id,
+                      input_dims,
+                      nInputs,
+                      output_dim,
+                      la_input,
+                      la_output,
+                      la_working,
+                      r_i8,
+                      m_i8);
+  return success();
+
+}
+
 
 LogicalResult tpu::TL_LG_LoadNeuronOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TL Load Neuron codegen.\n";);
