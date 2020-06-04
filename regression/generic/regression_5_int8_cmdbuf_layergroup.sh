@@ -21,6 +21,9 @@ fi
 # Batch 1, 694.4 fps
 # Batch 2, 826.4 fps
 # Batch 4, 898.9 fps
+# update
+# Batch 1, 704.2 fps
+# Batch 4, 902.9 fps
 
 # VGG16 pass, on chip performance
 # Batch 1, 24.83 fps
@@ -49,6 +52,8 @@ fi
 # update
 # Batch 1, 310.6 fps
 # Batch 4, 405.7 fps
+# update
+# Batch 1, 346 fps
 
 # yolo_v3_416 pass, on chip performance
 # Batch 1, 16 fps
@@ -56,6 +61,10 @@ fi
 # update
 # Batch 1, 16.9fps
 # Batch 4, 17.6fps
+
+# resnet18
+# Batch 1, 251.7 fps
+# Batch 4, 318.7 fps
 
 # compare all only support when global memory optimization close
 COMPARE_ALL=0
@@ -85,9 +94,19 @@ else
 fi
 
 mlir-opt \
-    --divide-ops-to-func \
+    --dce \
     ${NET}_quant_int8_multiplier_layergroup.mlir \
+    -o ${NET}_quant_int8_multiplier_layergroup_dce.mlir
+
+mlir-opt \
+    --divide-ops-to-func \
+    ${NET}_quant_int8_multiplier_layergroup_dce.mlir \
     -o ${NET}_quant_int8_multiplier_layergroup_func.mlir
+
+# mlir-opt \
+#     --divide-ops-to-func \
+#     ${NET}_quant_int8_multiplier_layergroup.mlir \
+#     -o ${NET}_quant_int8_multiplier_layergroup_func.mlir
 
 mlir-translate \
     --mlir-to-cvimodel \

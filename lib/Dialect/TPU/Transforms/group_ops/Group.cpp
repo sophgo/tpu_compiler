@@ -140,7 +140,7 @@ bool Group::check_valid() {
   // return false;
   bmerr_t status = assign_steps();
   if (status != BM_SUCCESS) {
-    LLVM_DEBUG(llvm::errs() << "layer group invalid: ";);
+    LLVM_DEBUG(llvm::errs() << "invalid layer group: ";);
     for (int i = 0; i < layers_.size(); i++)
       LLVM_DEBUG(llvm::errs() << " " << layers_[i];);
     LLVM_DEBUG(llvm::errs() << "\n";);
@@ -188,82 +188,6 @@ static int get_max_hsecs(NetGraph* net_graph_, const vector<int>& layer_group) {
 
   return max_hsecs;
 }
-
-// bmerr_t Group::assign_steps_with_tsm() {
-//   // clear time_step and nescs_and_hsecs.
-//   if (time_step) {
-//     delete time_step;
-//   }
-
-//   nsecs_and_hsecs = {1, 1};
-//   time_step = new net_timestep(net_graph_);
-
-//   ClusterSteps::timestep_assign_with_tsm(net_graph_, this, time_step);
-
-//   if (layers_.size() == 1) {
-//     return BM_SUCCESS;
-//   }
-
-//   int batch_num = get_batch_num();
-//   int max_hsecs = get_max_hsecs(net_graph_, layers_);
-
-//   bmerr_t status;
-//   {
-//     if (BM_ERR_FAILURE == update_tensor_slices(batch_num, 1)) {
-//       return BM_ERR_FAILURE;
-//     }
-
-//     time_step->update_mem_buffer_size();
-//   }
-
-//   status = BM_ERR_FAILURE;
-//   while (nsecs_and_hsecs.first <= batch_num && nsecs_and_hsecs.second <= max_hsecs) {
-//     // check validation of layer group if nsecs_and_hsecs.second > 1
-//     if (nsecs_and_hsecs.second > 1) {
-//       // to check first loop and last loop of h slices.
-//       int nsecs = nsecs_and_hsecs.first;
-//       int hsecs = nsecs_and_hsecs.second;
-//       status = update_tensor_slices(nsecs, hsecs, 0, 0);
-//       if (status == BM_ERR_FAILURE) {
-//         return BM_ERR_FAILURE;
-//       }
-
-//       status = update_tensor_slices(nsecs, hsecs, 0, hsecs - 1);
-//       if (status == BM_ERR_FAILURE) {
-//         return BM_ERR_FAILURE;
-//       }
-//     }
-
-//     net_timestep* tmp_timestep = new net_timestep(*time_step);
-
-//     tmp_timestep->update_mem_buffer_size();
-
-//     // Always assume one loop to reuse LMEM
-//     // because we can reload tensor from TSM quickly
-//     pair<int, int> one_loop_sec = {1, 1};
-//     status = local_mem_allocate(net_graph_, layers_, tmp_timestep, one_loop_sec);
-//     if (status != BM_ERR_FAILURE) {
-//       bool one_loop = (nsecs_and_hsecs.first == 1) && (nsecs_and_hsecs.second == 1);
-//       tmp_timestep->generate_tsm_buffer(one_loop);
-//       status = tsm_allocate(net_graph_, layers_, tmp_timestep);
-//     }
-
-//     if (status == BM_ERR_FAILURE) {
-//       delete tmp_timestep;
-//       if (nsecs_and_hsecs.first < batch_num) {
-//         nsecs_and_hsecs.first++;
-//       } else {
-//         nsecs_and_hsecs.second++;
-//       }
-//     } else {
-//       delete time_step;
-//       time_step = tmp_timestep;
-//       break;
-//     }
-//   }
-
-//   return status;
-// }
 
 bmerr_t Group::assign_steps() {
   return assign_steps_without_tsm();

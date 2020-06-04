@@ -42,7 +42,6 @@ class GroupOptimizer {
   vector<int> optimize_cut_points(Group* target, const vector<int>& cut_points);
   int calc_group_out_tensors_size(Group* target, const vector<int>& cut_points);
   void set_input_output_tensor();
-  // void group2Graph(int gid, Group* group);
 };
 
 }

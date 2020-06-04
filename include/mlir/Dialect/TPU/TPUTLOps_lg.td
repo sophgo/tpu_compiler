@@ -504,4 +504,28 @@ def TPU_TL_LG_PReluOp : TPU_Op<"tl_lg_prelu",
   let results = (outs AnyTensor:$output);
 }
 
+def TPU_TL_LG_CopyOp : TPU_Op<"tl_lg_copy",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuTLOpCodegenInterface>]> {
+  let summary = "TL copy operator";
+
+  let description = [{
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI64Attr>:$la_src,
+    OptionalAttr<NonNegativeI64Attr>:$la_dst,
+    BoolAttr:$align,
+    OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
+    DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
 #endif // TPU_TL_OPS_LG
