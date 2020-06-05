@@ -21,6 +21,7 @@
 //===----------------------------------------------------------------------===//
 #include <set>
 #include <memory>
+#include <elf.h>
 #include <openssl/md5.h>
 #include "mlir/Dialect/TPU/TPUDialect.h"
 #include "mlir/Dialect/TPU/TPUOperationSupport.h"
@@ -52,10 +53,8 @@
 #define SUBMIN_VER 0
 
 static llvm::cl::opt<std::string>
-    clCustomPluginPath("plugin-dir", llvm::cl::desc("indicated cpu lib path"));
-
-static llvm::cl::opt<std::string>
-    clCustomPluginName("plugin-name", llvm::cl::desc("indicated cpu lib name"));
+    clCustomRuntimeLibraries("custom-runtime-lib",
+                             llvm::cl::desc("Specify a comma-delimited list of custom op runtime lib"));
 
 static llvm::cl::opt<std::string>
     clWeightBinFileName("weight-file", llvm::cl::desc("saved weight bin filename"));
@@ -177,10 +176,10 @@ CviCpuRoutine::CviCpuRoutine(flatbuffers::FlatBufferBuilder &fbb, FuncOp &fn,
                              std::string &fnName)
     : CviRoutine(fbb, false) {
   fn.walk([&](Operation *op) {
-    if (op->getName().getDialect().str() != "tpu"
-        || llvm::isa<tpu::InputOp>(op)
-        || llvm::isa<tpu::WeightFileOp>(op)
-        || llvm::isa<ReturnOp>(op)) {
+    if (op->getName().getDialect().str() != "tpu" ||
+        llvm::isa<tpu::InputOp>(op) ||
+        llvm::isa<tpu::WeightFileOp>(op) ||
+        llvm::isa<ReturnOp>(op)) {
     } else if (op->getAttr("fn")) {
       auto belong = op->getAttr("fn").cast<StringAttr>().getValue();
       if (belong == fnName) {
@@ -269,14 +268,13 @@ flatbuffers::Offset<Routine> CviCpuRoutine::build() {
   return CreateRoutine(fbb_, RoutineType_CPU, fbInputs, fbOutputs, 0, fbRoutine);
 }
 
-CviTpuRoutine::CviTpuRoutine(flatbuffers::FlatBufferBuilder &fbb, FuncOp &fn, std::string &fnName)
+CviTpuRoutine::CviTpuRoutine(flatbuffers::FlatBufferBuilder &fbb, FuncOp &fn,
+                             std::string &fnName)
     : CviRoutine(fbb, true) {
   name = fnName;
   fn.walk([&](Operation *op) {
-    if (op->getName().getDialect().str() != "tpu"
-        || llvm::isa<tpu::InputOp>(op)
-        || llvm::isa<tpu::WeightFileOp>(op)
-        || llvm::isa<ReturnOp>(op)) {
+    if (op->getName().getDialect().str() != "tpu" || llvm::isa<tpu::InputOp>(op) ||
+        llvm::isa<tpu::WeightFileOp>(op) || llvm::isa<ReturnOp>(op)) {
     } else if (op->getAttr("fn")) {
       auto belong = op->getAttr("fn").cast<StringAttr>().getValue();
       if (name == belong) {
@@ -346,10 +344,8 @@ void CviModelBuilder::addRoutine(std::string funcName) {
 
 void CviModelBuilder::parseModule() {
   mainFunc_.walk([&](Operation *op) {
-    if (op->getName().getDialect().str() != "tpu"
-        || isa<tpu::InputOp>(op)
-        || isa<tpu::WeightFileOp>(op)
-        || isa<ReturnOp>(op)) {
+    if (op->getName().getDialect().str() != "tpu" || isa<tpu::InputOp>(op) ||
+        isa<tpu::WeightFileOp>(op) || isa<ReturnOp>(op)) {
     } else {
       ops_.push_back(op);
     }
@@ -357,9 +353,8 @@ void CviModelBuilder::parseModule() {
   getOpGroupInputsOutputs(ops_, inputs_, outputs_);
 
   mainFunc_.walk([&](Operation *op) {
-    if (op->getName().getDialect().str() != "tpu"
-        || isa<tpu::NoneOp>(op)
-        || isa<ReturnOp>(op)) {
+    if (op->getName().getDialect().str() != "tpu" || isa<tpu::NoneOp>(op) ||
+        isa<ReturnOp>(op)) {
       // continue
     } else if (llvm::dyn_cast<tpu::TpuTLOpCodegenInterface>(op) &&
                !isa<tpu::TL_LG_JoinOp>(op)) {
@@ -401,7 +396,7 @@ void CviModelBuilder::parseModule() {
       auto tensor = std::make_shared<CviTensor>(name, type, offset, false);
       if (offset != -1) {
         size_t len = offset + tensor->size;
-        if (totalNeuronSize_  < len) {
+        if (totalNeuronSize_ < len) {
           totalNeuronSize_ = len;
         }
       }
@@ -477,23 +472,38 @@ FBSectionVector CviModelBuilder::buildSections() {
   }
 
   // build custom cpu functions section
-  if (!clCustomPluginPath.empty() && !clCustomPluginName.empty()) {
-    auto isFileExist = [](std::string &file) {
-      std::ifstream ifs(file.c_str());
+  if (!clCustomRuntimeLibraries.empty()) {
+    auto isFileExist = [](StringRef &file) {
+      std::ifstream ifs(file.str().c_str());
       return ifs.good();
     };
+    auto getElfMachineField = [](StringRef &file) {
+      std::ifstream ifs(file.str().c_str());
+      Elf64_Ehdr hdr;
+      ifs.read((char *)(&hdr), sizeof(hdr));
+      return (uint16_t)hdr.e_machine;
+    };
 
-    auto x86_so = clCustomPluginPath + "/" + clCustomPluginName + "_x86.so";
-    if (isFileExist(x86_so)) {
-      llvm::errs() << "find custom plugin:" << x86_so << "\n";
-      auto customSec = buildSection("custom", SectionType_FUNC_X86, x86_so);
-      sectionVec.push_back(customSec);
-    }
-    auto arm_so = clCustomPluginPath + "/" + clCustomPluginName + "_arm64.so";
-    if (isFileExist(arm_so)) {
-      llvm::errs() << "find custom plugin:" << arm_so << "\n";
-      auto customSec = buildSection("custom", SectionType_FUNC_AARCH64, arm_so);
-      sectionVec.push_back(customSec);
+    SmallVector<StringRef, 2> paths;
+    StringRef(clCustomRuntimeLibraries).split(paths, ",");
+
+    for (auto &path : paths) {
+      if (isFileExist(path)) {
+        auto machine = getElfMachineField(path);
+        SectionType type = SectionType_FUNC_X86;
+        if (machine == 0x3E) { // 'amd64'
+          type = SectionType_FUNC_X86;
+          llvm::errs() << "find x86_64 custom plugin:" << path << "\n";
+        } else if (machine == 0xB7) { // 'aarch64'
+          type = SectionType_FUNC_AARCH64;
+          llvm::errs() << "find aarch64 custom plugin:" << path << "\n";
+        } else {
+          llvm::errs() << "unsupported plugin format\n";
+          assert(0);
+        }
+        auto customSec = buildSection("custom", type, path);
+        sectionVec.push_back(customSec);
+      }
     }
   }
   return fbb_.CreateVector(sectionVec);
