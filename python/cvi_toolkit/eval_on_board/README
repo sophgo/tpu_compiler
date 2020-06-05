@@ -1,0 +1,15 @@
+### evaluate accuracy on board
+
+# why
+we inference on board to reduce evaluation accuracy time
+
+# how
+please refer `eval_imagenet_wrapper.sh` or as following command
+```sh
+# you are at any folder
+name=mobilenet0.25_all_int8.cvimodel
+board_path=/mnt/data/arvin/mobilenet0.25
+board_ip=10.34.33.129
+model_runner_path=/mnt/data/arvin/old/cvitek_tpu_sdk/bin/model_runner
+${CVI_PY_TOOLKIT}/eval_on_board/eval_imagenet_board.sh $name $board_path $board_ip $model_runner_path
+```
