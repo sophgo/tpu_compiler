@@ -291,6 +291,17 @@ run_accuracy_all_parallel()
   fi
 }
 
+run_onnx_ir_test()
+{
+  # IR test
+  ERR=0
+  onnx_ir_test.sh
+  if [ "$?" -ne 0 ]; then
+    ERR=1
+  fi
+  return $ERR
+}
+
 usage()
 {
    echo ""
@@ -305,6 +316,7 @@ usage()
 run_extra=0
 bs=1
 run_accuracy=0
+run_onnx_test=1
 while getopts "n:b:a:e" opt
 do
   case "$opt" in
@@ -373,6 +385,10 @@ else
       ERR=1
     fi
   fi
+fi
+
+if [ $run_onnx_test -ne 0 ]; then
+  run_onnx_ir_test
 fi
 
 cat verdict.log
