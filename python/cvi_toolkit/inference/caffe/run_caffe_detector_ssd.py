@@ -128,7 +128,7 @@ def get_label_name(labelmap, labels):
 def ssd_detect(net, image_path, net_input_dims, input_scale, mean, raw_scale,
                   dump_blobs=None, dump_weights=None, batch=1):
     image_x = cv2.imread(image_path)
-    image_x = cv2.imresize(image_x, [net_input_dims[1], net_input_dims[0]])
+    image_x = cv2.resize(image_x, (net_input_dims[1], net_input_dims[0]))
     image_x = image_x.astype(np.float32)
     image_x = np.transpose(image_x, [2,0,1])
     mean = mean[:, np.newaxis, np.newaxis]
@@ -136,7 +136,7 @@ def ssd_detect(net, image_path, net_input_dims, input_scale, mean, raw_scale,
     image_x = image_x * input_scale
     image_x = np.expand_dims(image_x, axis=0)
     image = image_x
-    for i in range(1, batch): 
+    for i in range(1, batch):
       image = np.append(image, image_x, axis=0)
 
     net.blobs['data'].reshape(batch, 3, net_input_dims[0], net_input_dims[1])
