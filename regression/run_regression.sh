@@ -141,6 +141,17 @@ net_list_accuracy_extra=(
   ## "alphapose"
 )
 
+
+net_list_onnx=(
+  "resnet50"
+  "squeezenet"
+  "vgg19"
+  "sub_pixel_cnn_2016"
+  "mobilenet"
+  "densenet-121"
+)
+
+
 run_generic()
 {
   local net=$1
@@ -295,10 +306,26 @@ run_onnx_ir_test()
 {
   # IR test
   ERR=0
-  onnx_ir_test.sh
-  if [ "$?" -ne 0 ]; then
-    ERR=1
+  onnx_ir_test.sh all_ir > onnx_all_ir\.log | true
+  if [ "${PIPESTATUS[0]}" -ne "0" ]; then
+    echo "onnx all ir test FAILED" >> verdict.log
+    return 1
+  else
+    echo "onnx all ir test PASSED" >> verdict.log
   fi
+
+  # Net test
+  for net in ${net_list_onnx[@]}
+  do
+    onnx_ir_test.sh $net > onnx_$net\.log 2>&1 | true
+    if [ "${PIPESTATUS[0]}" -ne "0" ]; then
+      echo "$net onnx test FAILED" >> verdict.log
+    ERR=1
+    else
+      echo "$net onnx test PASSED" >> verdict.log
+  fi
+  done
+
   return $ERR
 }
 
