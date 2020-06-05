@@ -32,6 +32,7 @@ export DO_PREPROCESS=0
 export USE_LAYERGROUP=0
 export EVAL_MODEL_TYPE="imagenet"
 export CUSTOM_OP_PLUGIN="$INSTALL_PATH/lib/custom_op/libCustomPlugin.so"
+export DO_NN_TOOLKIT=0
 
 if [ -z "$DO_BATCHSIZE" ]; then
   BATCH_SIZE=1
