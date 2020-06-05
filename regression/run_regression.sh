@@ -149,6 +149,11 @@ net_list_onnx=(
   "sub_pixel_cnn_2016"
   "mobilenet"
   "densenet-121"
+  "caffenet"
+  "googlenet"
+  "inception_v1"
+  ## "inception_v2" # todo: not same output with onnx runtime
+  "zfnet-512"
 )
 
 
