@@ -96,9 +96,6 @@ def main(argv):
         np.savez(args.dump_weights, **weights_dict)
 
     out_feat = {}
-    print(outputs['layer82-conv'].data, outputs['layer82-conv'].data.shape)
-    print(outputs['layer94-conv'].data, outputs['layer94-conv'].data.shape)
-    print(outputs['layer106-conv'].data, outputs['layer106-conv'].data.shape)
     if yolov3 == True:
         out_feat['layer82-conv'] = outputs['layer82-conv'].data
         out_feat['layer94-conv'] = outputs['layer94-conv'].data

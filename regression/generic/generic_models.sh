@@ -31,7 +31,7 @@ export DO_E2E=1
 export DO_PREPROCESS=0
 export USE_LAYERGROUP=0
 export EVAL_MODEL_TYPE="imagenet"
-export CUSTOM_OP_PLUGIN="$INSTALL_PATH/lib/custom_op/libCustomPlugin.so"
+export CUSTOM_OP_PLUGIN="$INSTALL_PATH/lib/custom_op/libCustomOpPlugin.so"
 export DO_NN_TOOLKIT=0
 
 if [ -z "$DO_BATCHSIZE" ]; then
@@ -694,8 +694,6 @@ export TOLERANCE_INT8_PER_TENSOR=0.9,0.88,0.51
 export TOLERANCE_INT8_RSHIFT_ONLY=0.92,0.90,0.58
 export TOLERANCE_INT8_MULTIPLER=0.82,0.79,0.29
 export DO_QUANT_BF16=0
-export TOLERANCE_BF16=0.99,0.99,0.94
-export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
 export DO_DEEPFUSION=1
 export DO_MEMOPT=1
 export DO_LAYERGROUP=1
