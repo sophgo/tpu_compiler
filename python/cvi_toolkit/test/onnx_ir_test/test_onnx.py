@@ -48,13 +48,14 @@ def _onnx_inference(input, model_name, input_name="input"):
     return ort_outs[0]
 
 def onnx_inference(input, model_def, model_name):
-    onnx.save(model_def, model_name)
-    return _onnx_inference(input, model_name)
+    model = "{}.onnx".format(model_name)
+    onnx.save(model_def, model)
+    return _onnx_inference(input, model)
 
 class ONNX_IR_TESTER(object):
     def __init__(self):
         self.converter = None
-        self.cvi_model_test = False
+        self.cvi_model_test = True
 
         self.test_function = {
             "Add": self.test_Add,
@@ -690,8 +691,8 @@ class ONNX_IR_TESTER(object):
 
 
 if __name__ == "__main__":
-    os.makedirs("tmp", exist_ok=True)
-    os.chdir("tmp")
+    os.makedirs("onnx_test", exist_ok=True)
+    os.chdir("onnx_test")
     tester = ONNX_IR_TESTER()
     if len(sys.argv) >= 3:
         input_shape = sys.argv[1].split(",")
