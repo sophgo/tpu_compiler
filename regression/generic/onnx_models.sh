@@ -38,3 +38,33 @@ export MODEL_DEF=$MODEL_PATH/imagenet/densenet/onnx/densenet-9.onnx
 export INPUT_SHAPE=1,3,224,224
 export INPUT_NAME=data_0
 fi
+
+if [ $NET = "caffenet" ]; then
+export MODEL_DEF=$MODEL_PATH/imagenet/caffenet/onnx/caffenet-9.onnx
+export INPUT_SHAPE=1,3,224,224
+export INPUT_NAME=data_0
+fi
+
+if [ $NET = "googlenet" ]; then
+export MODEL_DEF=$MODEL_PATH/imagenet/googlenet/onnx/googlenet-9.onnx
+export INPUT_SHAPE=1,3,224,224
+export INPUT_NAME=data_0
+fi
+
+if [ $NET = "inception_v1" ]; then
+export MODEL_DEF=$MODEL_PATH/imagenet/inception_v1/onnx/inception-v1-9.onnx
+export INPUT_SHAPE=1,3,224,224
+export INPUT_NAME=data_0
+fi
+
+if [ $NET = "inception_v2" ]; then
+export MODEL_DEF=$MODEL_PATH/imagenet/inception_v2/onnx/inception-v2-9.onnx
+export INPUT_SHAPE=1,3,224,224
+export INPUT_NAME=data_0
+fi
+
+if [ $NET = "zfnet-512" ]; then
+export MODEL_DEF=$MODEL_PATH/imagenet/zfnet-512/onnx/zfnet512-9.onnx
+export INPUT_SHAPE=1,3,224,224
+export INPUT_NAME=gpu_0/data_0
+fi
