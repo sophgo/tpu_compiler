@@ -176,13 +176,13 @@ export -f run_generic
 run_generic_all()
 {
   local run_extra=$1
-  ERR=0
+  local err=0
   # bs = 1
   for net in ${net_list_generic[@]}
   do
     run_generic $net 1
     if [ "$?" -ne 0 ]; then
-      ERR=1
+      err=1
     fi
   done
   # bs = 4
@@ -190,7 +190,7 @@ run_generic_all()
   do
     run_generic $net 4
     if [ "$?" -ne 0 ]; then
-      ERR=1
+      err=1
     fi
   done
   # extra
@@ -200,7 +200,7 @@ run_generic_all()
     do
       run_generic $net 1
       if [ "$?" -ne 0 ]; then
-        ERR=1
+        err=1
       fi
     done
     # bs = 4
@@ -208,11 +208,11 @@ run_generic_all()
     do
       run_generic $net 4
       if [ "$?" -ne 0 ]; then
-        ERR=1
+        err=1
       fi
     done
   fi
-  return $ERR
+  return $err
 }
 
 run_generic_all_parallel()
@@ -263,12 +263,12 @@ run_accuracy_all()
 {
   local count=$1
   local run_extra=$2
-  ERR=0
+  local err=0
   for net in ${net_list_accuracy[@]}
   do
     run_accuracy $net $count
     if [ "$?" -ne 0 ]; then
-      ERR=1
+      err=1
     fi
   done
   # extra
@@ -277,11 +277,11 @@ run_accuracy_all()
     do
       run_accuracy $net $count
       if [ "$?" -ne 0 ]; then
-        ERR=1
+        err=1
       fi
     done
   fi
-  return $ERR
+  return $err
 }
 
 run_accuracy_all_parallel()
@@ -310,7 +310,7 @@ run_accuracy_all_parallel()
 run_onnx_ir_test()
 {
   # IR test
-  ERR=0
+  local err=0
   onnx_ir_test.sh all_ir > onnx_all_ir\.log | true
   if [ "${PIPESTATUS[0]}" -ne "0" ]; then
     echo "onnx all ir test FAILED" >> verdict.log
@@ -325,13 +325,13 @@ run_onnx_ir_test()
     onnx_ir_test.sh $net > onnx_$net\.log 2>&1 | true
     if [ "${PIPESTATUS[0]}" -ne "0" ]; then
       echo "$net onnx test FAILED" >> verdict.log
-    ERR=1
+      err=1
     else
       echo "$net onnx test PASSED" >> verdict.log
   fi
   done
 
-  return $ERR
+  return $err
 }
 
 usage()
@@ -421,6 +421,9 @@ fi
 
 if [ $run_onnx_test -ne 0 ]; then
   run_onnx_ir_test
+  if [ "$?" -ne 0 ]; then
+    ERR=1
+  fi
 fi
 
 cat verdict.log
