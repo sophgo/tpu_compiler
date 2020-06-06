@@ -15,6 +15,7 @@ generic_net_list=(
   "squeezenet"
   "arcface_res50"
   "retinaface_mnet25"
+  "retinaface_mnet25_600"
   "retinaface_res50"
   "ssd300"
   "yolo_v3_416"
@@ -31,6 +32,13 @@ extra_net_param()
   if [ $NET = "retinaface_mnet25_with_detection" ]; then
   export MODEL_TYPE="caffe"
   export MODEL_DEF=$MODEL_PATH/face_detection/retinaface/caffe/mnet_320_with_detection.prototxt
+  export MODEL_DAT=$MODEL_PATH/face_detection/retinaface/caffe/mnet.caffemodel
+  export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/retinaface_mnet25_calibration_table
+  fi
+
+  if [ $NET = "retinaface_mnet25_600_with_detection" ]; then
+  export MODEL_TYPE="caffe"
+  export MODEL_DEF=$MODEL_PATH/face_detection/retinaface/caffe/mnet_600_with_detection.prototxt
   export MODEL_DAT=$MODEL_PATH/face_detection/retinaface/caffe/mnet.caffemodel
   export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/retinaface_mnet25_calibration_table
   fi
@@ -59,6 +67,7 @@ extra_net_param()
 
 extra_net_list=(
   "retinaface_mnet25_with_detection"
+  "retinaface_mnet25_600_with_detection"
   "retinaface_res50_with_detection"
   "yolo_v3_416_with_detection"
   "yolo_v3_320_with_detection"
