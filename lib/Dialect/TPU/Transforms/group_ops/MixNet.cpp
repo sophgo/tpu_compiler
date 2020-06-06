@@ -329,6 +329,7 @@ void MixNet::_add_tl_convolution_op(MixOp* mix_op,
   u32 weight_laddr = (net_graph_->get_tensor_local_offset(in_tensors[1]));
   u32 output_laddr = (net_graph_->get_tensor_local_offset(out_tensors[0]));
   int bias_laddr = net_graph_->get_tensor_local_offset(in_tensors[2]);
+  int working_laddr = 0;
 
 
   RankedTensorType input_type = RankedTensorType::get(
@@ -365,8 +366,6 @@ void MixNet::_add_tl_convolution_op(MixOp* mix_op,
                            builder_.getI32IntegerAttr(weight_laddr)));
   attrs.push_back(builder_.getNamedAttr("la_bias",
                            builder_.getI32IntegerAttr(bias_laddr)));
-  attrs.push_back(builder_.getNamedAttr("la_working",
-                           builder_.getI32IntegerAttr(0)));
   attrs.push_back(builder_.getNamedAttr("layer_id",
                            old_op.layer_idAttr()));
   attrs.push_back(builder_.getNamedAttr("pad_top_h",
@@ -381,6 +380,32 @@ void MixNet::_add_tl_convolution_op(MixOp* mix_op,
       attrs.push_back(builder_.getNamedAttr("do_ic_alignment",
                            old_op.do_ic_alignmentAttr()));
   }
+  if(old_op.fused_leaky()) {
+    if (old_op.negative_slope().hasValue())
+      attrs.push_back(builder_.getNamedAttr("negative_slope",
+                      old_op.negative_slopeAttr()));
+    if (old_op.rshift_pos().hasValue())
+      attrs.push_back(builder_.getNamedAttr("rshift_pos",
+                      old_op.rshift_posAttr()));
+    if (old_op.m_i8_pos().hasValue())
+      attrs.push_back(builder_.getNamedAttr("m_i8_pos",
+                      old_op.m_i8_posAttr()));
+    if (old_op.rshift_neg().hasValue())
+      attrs.push_back(builder_.getNamedAttr("rshift_neg",
+                      old_op.rshift_negAttr()));
+    if (old_op.m_i8_neg().hasValue())
+      attrs.push_back(builder_.getNamedAttr("m_i8_neg",
+                      old_op.m_i8_negAttr()));
+    attrs.push_back(builder_.getNamedAttr("fused_leaky",
+                    builder_.getBoolAttr(true)));
+  }
+  if(old_op.fused_leaky()) {
+    mem_buffer_key_t key = {timestep_idx, im_layer->imm_tensors[0].get()->id(), true};
+    const mem_buffer_value_t* imm = time_step->get_mem_buffer_value(&key);
+    working_laddr = (imm->local_mem_offset);
+  }
+  attrs.push_back(builder_.getNamedAttr("la_working",
+                           builder_.getI32IntegerAttr(working_laddr)));
   // setup input operation
   vector<Value *> operands;
   Operation * input_op =
@@ -1561,12 +1586,17 @@ void MixNet::_add_tl_leaky_relu_op(MixOp * mix_op,
                            builder_.getI32IntegerAttr(la_output)));
 
   if (leaky_relu_op.rshift_pos().hasValue()) {
-    attrs.push_back(builder_.getNamedAttr("rshift_pos", leaky_relu_op.rshift_posAttr()));
-    attrs.push_back(builder_.getNamedAttr("m_i8_pos", leaky_relu_op.m_i8_posAttr()));
+    attrs.push_back(builder_.getNamedAttr("rshift_pos",
+                                          leaky_relu_op.rshift_posAttr()));
+    attrs.push_back(builder_.getNamedAttr("m_i8_pos",
+                                          leaky_relu_op.m_i8_posAttr()));
   }
-  attrs.push_back(builder_.getNamedAttr("rshift_neg", leaky_relu_op.rshift_negAttr()));
-  attrs.push_back(builder_.getNamedAttr("m_i8_neg", leaky_relu_op.m_i8_negAttr()));
-
+  attrs.push_back(builder_.getNamedAttr("rshift_neg",
+                                         leaky_relu_op.rshift_negAttr()));
+  attrs.push_back(builder_.getNamedAttr("m_i8_neg",
+                                         leaky_relu_op.m_i8_negAttr()));
+  attrs.push_back(builder_.getNamedAttr("negative_slope",
+                                         leaky_relu_op.negative_slopeAttr()));
   // setup input/output type
   RankedTensorType input_type = RankedTensorType::get(
                           { bottom_dim[0], bottom_dim[1],

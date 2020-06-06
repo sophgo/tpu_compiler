@@ -137,6 +137,12 @@ class TPU_TG_ConvOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     OptionalAttr<BoolAttr>:$do_ic_alignment,
     DefaultValuedAttr<BoolAttr, "false">:$fuse_prev,
     DefaultValuedAttr<BoolAttr, "false">:$fuse_next,
+    OptionalAttr<F32Attr>:$negative_slope,
+    OptionalAttr<I8Attr>:$rshift_pos,
+    OptionalAttr<I8Attr>:$m_i8_pos,
+    OptionalAttr<I8Attr>:$rshift_neg,
+    OptionalAttr<I8Attr>:$m_i8_neg,
+    DefaultValuedAttr<BoolAttr, "false">:$fused_leaky,
     OptionalAttr<BoolAttr>:$load_compr_act,
     OptionalAttr<BoolAttr>:$store_compr_act
   );

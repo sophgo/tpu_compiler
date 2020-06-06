@@ -187,9 +187,8 @@ ImConv::ImConv(Operation* p) : ImLayer(IR_CONVOLUTION, p, true), conv1x1_to_fc(f
 
   // add out tensor
   add_out_tensor(op.output(), TENSOR_NEURON);
-
-  if (do_relu) {
-    //add_imm_tensor(out_tensors[0], 1, name_ + "_imm");
+  if (op.fused_leaky()) {
+    add_imm_tensor(out_tensors[0], 1, name_ + "_imm");
   }
 }
 

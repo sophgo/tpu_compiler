@@ -82,6 +82,34 @@ static void parseTgLeakyReluParam(Operation *op,
   negative_slope = lreluOp.negative_slope().convertToFloat();
 }
 
+static void parseTgConvLeakyParam(Operation *op,
+    int8_t &pos_rshift, int8_t &pos_m_i8,
+    int8_t &neg_rshift, int8_t &neg_m_i8,
+    float &negative_slope) {
+  auto lreluOp = llvm::dyn_cast<tpu::TG_INT8_PC_Conv2DOp>(op);
+  assert(lreluOp);
+
+  if (lreluOp.m_i8_pos().hasValue()) {
+    pos_m_i8 = lreluOp.m_i8_pos().getValue().getLimitedValue();
+    pos_rshift = lreluOp.rshift_pos().getValue().getLimitedValue();
+    assert(pos_m_i8);
+  } else {
+    pos_m_i8 = 0;
+    pos_rshift = 0;
+  }
+
+  if (lreluOp.m_i8_neg().hasValue()) {
+    neg_m_i8 = lreluOp.m_i8_neg().getValue().getLimitedValue();
+    neg_rshift = lreluOp.rshift_neg().getValue().getLimitedValue();
+    assert(neg_m_i8);
+  } else {
+    neg_m_i8 = 0;
+    neg_rshift = 0;
+  }
+
+  negative_slope = lreluOp.negative_slope().getValue().convertToFloat();
+}
+
 LogicalResult tpu::TG_INT8_BroadcastMulOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);
@@ -407,10 +435,10 @@ LogicalResult tpu::TG_INT8_PT_Conv2DOp::codegen(void *ctx) {
     Operation *nextOp = getNextOp(op);
     int8_t pos_rshift, pos_m_i8, neg_rshift, neg_m_i8;
     float negativeSlope;
-    parseTgLeakyReluParam(nextOp,
-        pos_rshift, pos_m_i8, neg_rshift, neg_m_i8, negativeSlope);
-
+    parseTgLeakyReluParam(nextOp, pos_rshift, pos_m_i8,
+                          neg_rshift, neg_m_i8, negativeSlope);
     assert(neg_m_i8);
+
     // TODO: fix the type in backend API
     fused_leakyrelu_pos_rshift = static_cast<int>(pos_rshift);
     fused_leakyrelu_pos_m_i8   = static_cast<int>(pos_m_i8);
@@ -501,43 +529,48 @@ LogicalResult tpu::TG_INT8_PC_Conv2DOp::codegen(void *ctx) {
   int fused_leakyrelu_neg_m_i8 = 0;
   float fused_negative_slope = 0.0f;
 
-  // check if has only one use and is leaky relu.
-  // since after layer group, leaky may split to
-  // several ops
-  bool has_only_use_on_leaky = false;
-  Operation *nextOp = nullptr;
-  if (this->fuse_next()) {
-    if (op->getResult(0)->hasOneUse()) {
-      nextOp = getNextOp(op);
-      if (isa<tpu::TG_INT8_LeakyReluOp>(nextOp)) {
-        has_only_use_on_leaky = true;
-      }
-    }
+  // in layer group, conv + leaky will be one op
+  if (this->fused_leaky()) {
+      int8_t pos_rshift, pos_m_i8, neg_rshift, neg_m_i8;
+      float negativeSlope;
+      parseTgConvLeakyParam(op, pos_rshift, pos_m_i8,
+                            neg_rshift, neg_m_i8, negativeSlope);
+      assert(neg_m_i8);
+
+      fused_leakyrelu_pos_rshift = static_cast<int>(pos_rshift);
+      fused_leakyrelu_pos_m_i8   = static_cast<int>(pos_m_i8);
+      fused_leakyrelu_neg_rshift = static_cast<int>(neg_rshift);
+      fused_leakyrelu_neg_m_i8   = static_cast<int>(neg_m_i8);
+      fused_negative_slope       = negativeSlope;
+      do_relu = true;
   }
+  else {
+    // for deepfusion case
+    if (this->fuse_next()) {
+      Operation *nextOp = getNextOp(op);
+      int8_t pos_rshift, pos_m_i8, neg_rshift, neg_m_i8;
+      float negativeSlope;
+      parseTgLeakyReluParam(nextOp, pos_rshift, pos_m_i8,
+                            neg_rshift, neg_m_i8, negativeSlope);
+      assert(neg_m_i8);
 
-  if (has_only_use_on_leaky) {
-    int8_t pos_rshift, pos_m_i8, neg_rshift, neg_m_i8;
-    float negativeSlope;
-    parseTgLeakyReluParam(nextOp,
-        pos_rshift, pos_m_i8, neg_rshift, neg_m_i8, negativeSlope);
-    assert(neg_m_i8);
+      // TODO: fix the type in backend API
+      fused_leakyrelu_pos_rshift = static_cast<int>(pos_rshift);
+      fused_leakyrelu_pos_m_i8   = static_cast<int>(pos_m_i8);
+      fused_leakyrelu_neg_rshift = static_cast<int>(neg_rshift);
+      fused_leakyrelu_neg_m_i8   = static_cast<int>(neg_m_i8);
+      fused_negative_slope       = negativeSlope;
+      do_relu = true;
 
-    // TODO: fix the type in backend API
-    fused_leakyrelu_pos_rshift = static_cast<int>(pos_rshift);
-    fused_leakyrelu_pos_m_i8   = static_cast<int>(pos_m_i8);
-    fused_leakyrelu_neg_rshift = static_cast<int>(neg_rshift);
-    fused_leakyrelu_neg_m_i8   = static_cast<int>(neg_m_i8);
-    fused_negative_slope       = negativeSlope;
-    do_relu = true;
+      LLVM_DEBUG(llvm::errs() << "  fused leaky relu, pos ("
+          << fused_leakyrelu_pos_m_i8 << ", " << fused_leakyrelu_pos_rshift
+          << "), neg ("
+          << fused_leakyrelu_neg_m_i8 << ", " << fused_leakyrelu_neg_rshift
+          << ")\n";);
 
-    LLVM_DEBUG(llvm::errs() << "  fused leaky relu, pos ("
-        << fused_leakyrelu_pos_m_i8 << ", " << fused_leakyrelu_pos_rshift
-        << "), neg ("
-        << fused_leakyrelu_neg_m_i8 << ", " << fused_leakyrelu_neg_rshift
-        << ")\n";);
-
-    // finally, change gaddr to the nextOp's
-    ga_output = getOpAddress(nextOp);
+      // finally, change gaddr to the nextOp's
+      ga_output = getOpAddress(nextOp);
+    }
   }
 
   bool storeComprAct = this->store_compr_act().hasValue() ?
@@ -682,8 +715,8 @@ LogicalResult tpu::TG_INT8_PC_DeConv2DOp::codegen(void *ctx) {
   if (this->fuse_next()) {
     Operation *nextOp = getNextOp(op);
     int8_t pos_rshift, pos_m_i8, neg_rshift, neg_m_i8;
-    parseTgLeakyReluParam(nextOp,
-        pos_rshift, pos_m_i8, neg_rshift, neg_m_i8, negativeSlope);
+    parseTgLeakyReluParam(nextOp, pos_rshift, pos_m_i8,
+                          neg_rshift, neg_m_i8, negativeSlope);
     assert(neg_m_i8);
 
     // TODO: fix the type in backend API
@@ -1324,8 +1357,8 @@ LogicalResult tpu::TG_INT8_LeakyReluOp::codegen(void *ctx) {
   }
   int8_t pos_rshift, pos_m_i8, neg_rshift, neg_m_i8;
   float negativeSlope;
-  parseTgLeakyReluParam(op,
-      pos_rshift, pos_m_i8, neg_rshift, neg_m_i8, negativeSlope);
+  parseTgLeakyReluParam(op, pos_rshift, pos_m_i8,
+                        neg_rshift, neg_m_i8, negativeSlope);
   assert(neg_m_i8);
 
   std::vector<int64_t> shape;

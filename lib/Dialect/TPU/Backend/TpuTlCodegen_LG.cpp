@@ -55,7 +55,8 @@ namespace mlir {
 
 static void parseTLLeakyReluParam(Operation *op,
     int8_t &pos_rshift, int8_t &pos_m_i8,
-    int8_t &neg_rshift, int8_t &neg_m_i8) {
+    int8_t &neg_rshift, int8_t &neg_m_i8,
+    float & negative_slope) {
   auto lreluOp = llvm::dyn_cast<tpu::TL_LG_LeakyReluOp>(op);
   assert(lreluOp);
 
@@ -76,6 +77,34 @@ static void parseTLLeakyReluParam(Operation *op,
     neg_m_i8 = 0;
     neg_rshift = 0;
   }
+  negative_slope = lreluOp.negative_slope().convertToFloat();
+}
+
+static void parseTLConvLeakyParam(Operation *op,
+    int8_t &pos_rshift, int8_t &pos_m_i8,
+    int8_t &neg_rshift, int8_t &neg_m_i8,
+    float & negative_slope) {
+  auto lreluOp = llvm::dyn_cast<tpu::TL_LG_Conv2DOp>(op);
+  assert(lreluOp);
+
+  if (lreluOp.m_i8_pos().hasValue()) {
+    pos_m_i8 = lreluOp.m_i8_pos().getValue().getLimitedValue();
+    pos_rshift = lreluOp.rshift_pos().getValue().getLimitedValue();
+    assert(pos_m_i8);
+  } else {
+    pos_m_i8 = 0;
+    pos_rshift = 0;
+  }
+
+  if (lreluOp.m_i8_neg().hasValue()) {
+    neg_m_i8 = lreluOp.m_i8_neg().getValue().getLimitedValue();
+    neg_rshift = lreluOp.rshift_neg().getValue().getLimitedValue();
+    assert(neg_m_i8);
+  } else {
+    neg_m_i8 = 0;
+    neg_rshift = 0;
+  }
+  negative_slope = lreluOp.negative_slope().getValue().convertToFloat();
 }
 
 LogicalResult tpu::TL_LG_Conv2DOp::codegen(void *ctx) {
@@ -105,6 +134,14 @@ LogicalResult tpu::TL_LG_Conv2DOp::codegen(void *ctx) {
   int pw_r = this->pad_right_w().getLimitedValue();
   int layer_id = mlir::getOpLayerId(op);
 
+  int8_t pos_rshift = 0, pos_m_i8 = 0;
+  int8_t neg_rshift = 0, neg_m_i8 = 0;
+  float neg_slope = 0.0;
+
+  if (this->fused_leaky())
+    parseTLConvLeakyParam(op, pos_rshift, pos_m_i8,
+                          neg_rshift, neg_m_i8, neg_slope);
+
   cvi_backend_tl_conv(
     *backend_ctx,
     layer_id,
@@ -116,12 +153,13 @@ LogicalResult tpu::TL_LG_Conv2DOp::codegen(void *ctx) {
     0, /*ctrl*/
     with_bias,
     do_relu,
+    neg_slope,
     0,/*rshift,*/
     oc, /*right_shift_len,*/
-    0, /*rshift_pos*/
-    0, /*rshift8_neg*/
-    0, /*m_i8_pos*/
-    0, /*m_i8_neg*/
+    pos_rshift, /*rshift_pos*/
+    neg_rshift, /*rshift8_neg*/
+    pos_m_i8, /*m_i8_pos*/
+    neg_m_i8, /*m_i8_neg*/
     do_ic_alignment
     );
 
@@ -762,7 +800,9 @@ LogicalResult tpu::TL_LG_LeakyReluOp::codegen(void *ctx) {
   Operation *op = this->getOperation();
 
   int8_t pos_rshift, pos_m_i8, neg_rshift, neg_m_i8;
-  parseTLLeakyReluParam(op, pos_rshift, pos_m_i8, neg_rshift, neg_m_i8);
+  float neg_slope;
+  parseTLLeakyReluParam(
+    op, pos_rshift, pos_m_i8, neg_rshift, neg_m_i8, neg_slope);
 
   std::vector<int64_t> shape;
   int64_t input_size, n, c, h, w;

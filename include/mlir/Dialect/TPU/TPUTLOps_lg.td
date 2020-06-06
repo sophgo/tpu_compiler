@@ -102,6 +102,12 @@ def TPU_TL_LG_Conv2DOp : TPU_Op<"tl_lg_conv_2d",
     DefaultValuedAttr<I32Attr, "0">:$pad_right_w,
     DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
     DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
+    OptionalAttr<F32Attr>:$negative_slope,
+    OptionalAttr<I8Attr>:$rshift_pos,
+    OptionalAttr<I8Attr>:$m_i8_pos,
+    OptionalAttr<I8Attr>:$rshift_neg,
+    OptionalAttr<I8Attr>:$m_i8_neg,
+    DefaultValuedAttr<BoolAttr, "false">:$fused_leaky,
     StrAttr:$name,
     OptionalAttr<NonNegativeI32Attr>:$layer_id
   );
@@ -487,6 +493,7 @@ def TPU_TL_LG_LeakyReluOp : TPU_Op<"tl_lg_leaky_relu",
 
   let arguments = (
     ins AnyTensor:$input,
+    F32Attr:$negative_slope,
     I32Attr:$la_input,
     I32Attr:$la_output,
     OptionalAttr<I8Attr>:$rshift_pos,
