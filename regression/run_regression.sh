@@ -2,146 +2,6 @@
 # set -e
 # set -o pipefail
 
-net_list_generic=(
-  "resnet50"
-  # "vgg16"
-  "mobilenet_v1"
-  "mobilenet_v2"
-  "googlenet"
-  # "inception_v3"
-  "inception_v4"
-  "squeezenet"
-  "shufflenet_v2"
-  "densenet_121"
-  # "densenet_201"
-  # "senet_res50"
-  "arcface_res50"
-  "retinaface_mnet25"
-  # "retinaface_res50"
-  # "ssd300"
-  # "yolo_v2_1080"
-  # "yolo_v2_416"
-  # "yolo_v3_608"
-  "yolo_v3_416"
-  # "yolo_v3_320"
-  "resnet18"
-  "efficientnet_b0"
-  # "alphapose"
-)
-
-net_list_batch=(
-  "resnet50"
-  # "vgg16"
-  # "mobilenet_v1"
-  "mobilenet_v2"
-  # "googlenet"
-  # "inception_v3"
-  # "inception_v4"
-  "squeezenet"
-  # "shufflenet_v2"
-  # "densenet_121"
-  # "densenet_201"
-  # "senet_res50"
-  # "arcface_res50"
-  "retinaface_mnet25"
-  # "retinaface_res50"
-  # "ssd300"
-  # "yolo_v3_416"
-  # "yolo_v3_320"
-  # "resnet18"
-  "efficientnet_b0"
-  # "alphapose"
-)
-
-net_list_accuracy=(
-  # "resnet50"
-  "mobilenet_v2"
-)
-
-net_list_generic_extra=(
-  # "resnet50"
-  "vgg16"
-  # "mobilenet_v1"
-  # "mobilenet_v2"
-  # "googlenet"
-  "inception_v3"
-  # "inception_v4"
-  # "squeezenet"
-  # "shufflenet_v2"
-  # "densenet_121"
-  "densenet_201"
-  "senet_res50"
-  # "arcface_res50"
-  # "retinaface_mnet25"
-  "retinaface_mnet25_600"
-  "retinaface_res50"
-  "ssd300"
-  "yolo_v2_1080"
-  "yolo_v2_416"
-  "yolo_v3_608"
-  # "yolo_v3_416"
-  "yolo_v3_320"
-  # "resnet18"
-  # "efficientnet_b0"
-  "alphapose"
-  # "mobilenet_v3"
-)
-
-net_list_batch_extra=(
-  # "resnet50"
-  # "mobilenet_v2"
-  "vgg16"
-  "mobilenet_v1"
-  "googlenet"
-  "inception_v3"
-  "inception_v4"
-  # "squeezenet"
-  "shufflenet_v2"
-  "densenet_121"
-  "densenet_201"
-  "senet_res50"
-  "arcface_res50"
-  # "retinaface_mnet25"
-  ## "retinaface_res50"
-  "ssd300"
-  ## "yolo_v2_1080"
-  ## "yolo_v2_416"
-  ## "yolo_v3_608"
-  "yolo_v3_416"
-  "yolo_v3_320"
-  "resnet18"
-  # "efficientnet_b0"
-  "alphapose"
-)
-
-net_list_accuracy_extra=(
-  "resnet50"
-  ## "vgg16"
-  "mobilenet_v1"
-  # "mobilenet_v2"
-  "googlenet"
-  ### "inception_v3"  # 2015
-  "inception_v4"
-  "squeezenet"
-  "shufflenet_v2"
-  "densenet_121"
-  # "densenet_201"
-  "senet_res50"
-  ## "arcface_res50"
-  ## "retinaface_mnet25"
-  ## "retinaface_res50"
-  ## "ssd300"
-  ## "yolo_v2_1080"
-  ## "yolo_v2_416"
-  "yolo_v3_608"
-  "yolo_v3_416"
-  "yolo_v3_320"
-  ## "resnet18"
-  ## "efficientnet_b0"
-  ## "alphapose"
-)
-
-
 net_list_onnx=(
   "resnet50"
   "squeezenet"
@@ -155,7 +15,6 @@ net_list_onnx=(
   ## "inception_v2" # todo: not same output with onnx runtime
   "zfnet-512"
 )
-
 
 run_generic()
 {
@@ -342,6 +201,7 @@ usage()
    echo -e "\t-n Description of net name for test"
    echo -e "\t-e Enable extra net list"
    echo -e "\t-a Enable run accuracy, with given image count"
+   echo -e "\t-f Model list filename"
    exit 1
 }
 
@@ -349,13 +209,14 @@ run_extra=0
 bs=1
 run_accuracy=0
 run_onnx_test=1
-while getopts "n:b:a:e" opt
+while getopts "n:b:a:f:e" opt
 do
   case "$opt" in
     n ) net="$OPTARG" ;;
     b ) bs="$OPTARG" ;;
     e ) run_extra=1 ;;
     a ) run_accuracy="$OPTARG" ;;
+    f ) model_list_file="$OPTARG" ;;
     h ) usage ;;
   esac
 done
@@ -374,6 +235,50 @@ export CVIMODEL_REL_PATH=$PWD/regression_out/cvimodel_regression
 if [ ! -e $CVIMODEL_REL_PATH ]; then
   mkdir $CVIMODEL_REL_PATH
 fi
+
+net_list_generic=()
+net_list_batch=()
+net_list_accuracy=()
+net_list_generic_extra=()
+net_list_batch_extra=()
+net_list_accuracy_extra=()
+
+while read net bs1 bs4 acc bs1_ext bs4_ext acc_ext
+do
+  [[ $net =~ ^#.* ]] && continue
+  # echo "net='$net' bs1='$bs1' bs4='$bs4' acc='$acc' bs1_ext='$bs1_ext' bs4_ext='$bs4_ext' acc_ext='$acc_ext'"
+  if [ "$bs1" = "Y" ]; then
+    # echo "bs1 add $net"
+    net_list_generic+=($net)
+  fi
+  if [ "$bs4" = "Y" ]; then
+    # echo "bs4 add $net"
+    net_list_batch+=($net)
+  fi
+  if [ "$acc" = "Y" ]; then
+    # echo "acc add $net"
+    net_list_accuracy+=($net)
+  fi
+  if [ "$bs1_ext" = "Y" ]; then
+    # echo "bs1_ext add $net"
+    net_list_generic_extra+=($net)
+  fi
+  if [ "$bs4_ext" = "Y" ]; then
+    # echo "bs4_ext add $net"
+    net_list_batch_extra+=($net)
+  fi
+  if [ "$acc_ext" = "Y" ]; then
+    # echo "acc_ext add $net"
+    net_list_accuracy_extra+=($net)
+  fi
+done < $model_list_file
+
+# printf '%s\n' "${net_list_generic[@]}"
+# printf '%s\n' "${net_list_batch[@]}"
+# printf '%s\n' "${net_list_accuracy[@]}"
+# printf '%s\n' "${net_list_generic_extra[@]}"
+# printf '%s\n' "${net_list_batch_extra[@]}"
+# printf '%s\n' "${net_list_accuracy_extra[@]}"
 
 pushd regression_out
 echo "" > verdict.log

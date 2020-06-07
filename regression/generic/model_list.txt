@@ -1,0 +1,29 @@
+#
+# Name                   bs1      bs4      acc    bs1_ext  bs4_ext  acc_ext
+#
+resnet50                  Y        Y        N        N        N        Y
+vgg16                     N        N        N        Y        Y        N
+mobilenet_v1              Y        N        Y        N        Y        Y
+mobilenet_v2              Y        Y        N        N        N        N
+googlenet                 Y        N        N        N        Y        Y
+inception_v3              N        N        N        Y        Y        N
+inception_v4              Y        N        N        N        Y        Y
+squeezenet                Y        Y        N        N        N        Y
+shufflenet_v2             Y        N        N        N        Y        Y
+densenet_121              Y        N        N        N        Y        Y
+densenet_201              N        N        N        Y        Y        N
+senet_res50               N        N        N        Y        Y        Y
+arcface_res50             Y        N        N        N        Y        N
+retinaface_mnet25         Y        Y        N        N        N        N
+retinaface_mnet25_600     N        N        N        Y        N        N
+retinaface_res50          N        N        N        Y        N        N
+ssd300                    N        N        N        Y        Y        N
+yolo_v2_1080              N        N        N        Y        N        N
+yolo_v2_416               N        N        N        Y        N        N
+yolo_v3_608               N        N        N        Y        N        Y
+yolo_v3_416               Y        N        N        N        Y        Y
+yolo_v3_320               N        N        N        Y        Y        N
+resnet18                  Y        N        N        N        Y        N
+efficientnet_b0           Y        Y        N        N        N        N
+alphapose                 N        N        N        Y        Y        N
+# mobilenet_v3              N        N        N        Y        Y        N
