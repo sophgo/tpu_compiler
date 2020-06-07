@@ -271,7 +271,7 @@ fi
 
 if [ $NET = "mobilenet_v3" ]; then
 export MODEL_TYPE="onnx"
-export MODEL_DEF=$MODEL_PATH/imagenet/mobilenet_v3/onnx/2020.04.17.01/mobilenetv3_rw.onnx
+export MODEL_DEF=$MODEL_PATH/imagenet/mobilenet_v3/onnx/mobilenetv3_rw.onnx
 export MODEL_DAT=""
 export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_onnx/regression_mobilenetv3_0_onnx.sh
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/mobilenetv3_calibration_table
