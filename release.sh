@@ -8,18 +8,24 @@ rm -rf $dest_dir
 mkdir -p $dest_dir
 
 # cvitek_mlir
-if [ ! -e "./cvitek_mlir" ]; then
+if [ ! -e $INSTALL_PATH ]; then
+  echo "INSTALL_PATH=$INSTALL_PATH not exist"
+  exit 1
+fi
+pushd $INSTALL_PATH/..
+if [ ! -e ./cvitek_mlir ]; then
   echo "./cvitek_mlir not exist"
   exit 1
 fi
 os_ver=$( lsb_release -sr )
 tar zcf cvitek_mlir_ubuntu-${os_ver}.tar.gz cvitek_mlir
-cp cvitek_mlir_ubuntu-${os_ver}.tar.gz $dest_dir/
+mv cvitek_mlir_ubuntu-${os_ver}.tar.gz $dest_dir/
+popd
 
 # "./regression_out"
 REGRESSION_DIR=$2
 if [ ! -e $REGRESSION_DIR ]; then
-  echo "$REGRESSION_DIR not exist"
+  echo "REGRESSION_DIR=$REGRESSION_DIR not exist"
   exit 1
 fi
 if [ ! -e $REGRESSION_DIR/cvimodel_regression ]; then
