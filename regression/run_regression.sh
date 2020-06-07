@@ -2,6 +2,8 @@
 # set -e
 # set -o pipefail
 
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+
 net_list_onnx=(
   "resnet50"
   "squeezenet"
@@ -243,6 +245,10 @@ net_list_generic_extra=()
 net_list_batch_extra=()
 net_list_accuracy_extra=()
 
+if [ -z $model_list_file ]; then
+  model_list_file=$SCRIPT_DIR/generic/model_list.txt
+fi
+
 while read net bs1 bs4 acc bs1_ext bs4_ext acc_ext
 do
   [[ $net =~ ^#.* ]] && continue
@@ -271,7 +277,7 @@ do
     # echo "acc_ext add $net"
     net_list_accuracy_extra+=($net)
   fi
-done < $model_list_file
+done < ${model_list_file}
 
 # printf '%s\n' "${net_list_generic[@]}"
 # printf '%s\n' "${net_list_batch[@]}"
