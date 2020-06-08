@@ -27,7 +27,7 @@ export INPUT_SHAPE=1,1,224,224
 export INPUT_NAME=input
 fi
 
-if [ $NET = "mobilenet" ]; then
+if [ $NET = "mobilenet_v2" ]; then
 export MODEL_DEF=$MODEL_PATH/imagenet/mobilenet_v2/onnx/mobilenetv2-7.onnx
 export INPUT_SHAPE=1,3,224,224
 export INPUT_NAME=data
@@ -67,4 +67,10 @@ if [ $NET = "zfnet-512" ]; then
 export MODEL_DEF=$MODEL_PATH/imagenet/zfnet-512/onnx/zfnet512-9.onnx
 export INPUT_SHAPE=1,3,224,224
 export INPUT_NAME=gpu_0/data_0
+fi
+
+if [ $NET = "mobilenet_v3" ]; then
+export MODEL_DEF=$MODEL_PATH/imagenet/mobilenet_v3/onnx/mobilenetv3_rw.onnx
+export INPUT_SHAPE=1,3,224,224
+export INPUT_NAME=input
 fi

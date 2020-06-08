@@ -446,7 +446,9 @@ class OnnxConverter(BaseConverter):
         data_type = onnx_dtype(onnx_tensor.data_type)
 
         if data_type in [np.float32, np.float64, np.int32, np.int64]:
-            # add new weight tensor
+            # if tensor is constant, make tensor shape dim is 1
+            if len(np_tensor.shape) == 0:
+                np_tensor = np_tensor.flatten()
 
             self.addTensor(onnx_node.name, np_tensor.astype(np.float32).flatten(), list(np_tensor.shape))
             self.addOperand(onnx_node.name, None, list(np_tensor.shape), TensorType.TENSOR)

@@ -9,13 +9,14 @@ net_list_onnx=(
   "squeezenet"
   "vgg19"
   "sub_pixel_cnn_2016"
-  "mobilenet"
+  "mobilenet_v2"
   "densenet-121"
   "caffenet"
   "googlenet"
   "inception_v1"
   ## "inception_v2" # todo: not same output with onnx runtime
   "zfnet-512"
+  "mobilenet_v3"
 )
 
 run_generic()
