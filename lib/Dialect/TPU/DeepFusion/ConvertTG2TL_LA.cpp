@@ -88,6 +88,18 @@ struct TpuTG2TLConv2DOpPattern : public RewritePattern {
       attrs.push_back(rewriter.getNamedAttr("do_ic_alignment", rewriter.getBoolAttr(op.do_ic_alignment().getValue())));
     }
 
+    if (op.fuse_next()) {
+      attrs.push_back(rewriter.getNamedAttr("do_leaky_relu", op.fuse_nextAttr()));
+      if (op.rshift_pos().hasValue())
+        attrs.push_back(rewriter.getNamedAttr("rshift_pos", op.rshift_posAttr()));
+      if (op.m_i8_pos().hasValue())
+        attrs.push_back(rewriter.getNamedAttr("m_i8_pos", op.m_i8_posAttr()));
+      if (op.rshift_neg().hasValue())
+        attrs.push_back(rewriter.getNamedAttr("rshift_neg", op.rshift_negAttr()));
+      if (op.m_i8_neg().hasValue())
+        attrs.push_back(rewriter.getNamedAttr("m_i8_neg", op.m_i8_negAttr()));
+    }
+
     if (op.buffer_reused().hasValue())
       attrs.push_back(rewriter.getNamedAttr("buffer_reused", op.buffer_reusedAttr()));
 
@@ -437,10 +449,14 @@ public:
           || isa<tpu::WeightFileOp>(op)
           || isa<tpu::LoadWeightOp>(op)
           || isa<tpu::NoneOp>(op)) {
+      } else if (llvm::isa<tpu::TpuTLOpCodegenInterface>(op)) {
+        return;
       } else {
          auto current = op;
          while (current->getResult(0)->hasOneUse()) {
           auto next = getNextOp(current);
+          if (isa<tpu::TpuTLOpCodegenInterface>(next))
+            break;
           if (isa<ReturnOp>(next) || !isUnaryOp(next))
             break;
           auto insertPoint = current->getNextNode();

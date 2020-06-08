@@ -75,6 +75,7 @@ COMPARE_ALL=0
 ###############################
 # Lower for quantization 3: multiplier int8
 ###############################
+
 if [ $COMPARE_ALL -eq 1 ]; then
     mlir-opt \
         --convert-cpu-op \
@@ -103,14 +104,19 @@ mlir-opt \
     -o ${NET}_quant_int8_multiplier_layergroup_dce.mlir
 
 mlir-opt \
-    --divide-ops-to-func \
+    --deep-fusion-tg2tl-la \
     ${NET}_quant_int8_multiplier_layergroup_dce.mlir \
-    -o ${NET}_quant_int8_multiplier_layergroup_func.mlir
+    -o ${NET}_quant_int8_multiplier_layergroup_la.mlir
 
-# mlir-opt \
-#     --divide-ops-to-func \
-#     ${NET}_quant_int8_multiplier_layergroup.mlir \
-#     -o ${NET}_quant_int8_multiplier_layergroup_func.mlir
+mlir-opt \
+    --deep-fusion-tl-la2lw \
+    ${NET}_quant_int8_multiplier_layergroup_la.mlir \
+    -o ${NET}_quant_int8_multiplier_layergroup_lw.mlir
+
+mlir-opt \
+    --divide-ops-to-func \
+    ${NET}_quant_int8_multiplier_layergroup_lw.mlir \
+    -o ${NET}_quant_int8_multiplier_layergroup_func.mlir
 
 mlir-translate \
     --mlir-to-cvimodel \

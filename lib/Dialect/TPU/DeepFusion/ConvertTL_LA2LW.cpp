@@ -76,6 +76,18 @@ struct TpuTL_LA_Conv2DOpPattern : public RewritePattern {
       attrs.push_back(rewriter.getNamedAttr("do_ic_alignment", rewriter.getBoolAttr(op.do_ic_alignment().getValue())));
     }
 
+    if (op.do_leaky_relu()) {
+      attrs.push_back(rewriter.getNamedAttr("do_leaky_relu", op.do_leaky_reluAttr()));
+      if (op.rshift_pos().hasValue())
+        attrs.push_back(rewriter.getNamedAttr("rshift_pos", op.rshift_posAttr()));
+      if (op.m_i8_pos().hasValue())
+        attrs.push_back(rewriter.getNamedAttr("m_i8_pos", op.m_i8_posAttr()));
+      if (op.rshift_neg().hasValue())
+        attrs.push_back(rewriter.getNamedAttr("rshift_neg", op.rshift_negAttr()));
+      if (op.m_i8_neg().hasValue())
+        attrs.push_back(rewriter.getNamedAttr("m_i8_neg", op.m_i8_negAttr()));
+    }
+
     // postpone lmem assignment to next pattern
     uint32_t la_invalid = 0xffffffff;
     attrs.push_back(rewriter.getNamedAttr("lm_layout", rewriter.getStringAttr("NONE")));
