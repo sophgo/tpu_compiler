@@ -1159,10 +1159,30 @@ Value *tpu::SqrtOp::convertToTG() {
 Value* tpu::TanHOp::convertToTG() {
   LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
                << " [" << getOpName() << "]\n";);
-  //Operation *op = this->getOperation();
-  //auto builder = Builder(op->getContext());
-  //  TensorFile *wTF = getWeightTensorFile(op);
+  Operation *op = this->getOperation();
+  auto builder = Builder(op->getContext());
 
+  int nInputs = 3; // input and table
+  std::vector<Value *> operands;
+  for (auto i = 0; i < nInputs; ++i) {
+    operands.push_back(op->getOperand(i));
+  }
+
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder.getNamedAttr("name", nameAttr()));
+  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
+
+  if (getOpQuant() == "INT8") {
+    auto newOp = OpBuilder(op).create<tpu::TG_INT8_LutOp>(
+        op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  } else if (getOpQuant() == "BF16") {
+    auto newOp = OpBuilder(op).create<tpu::TG_BF16_LutOp>(
+        op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  }
   llvm_unreachable("unsupported type");
 }
 
@@ -2060,6 +2080,7 @@ public:
         LowerWeightPReluOpPattern,
         LowerWeightLutOpPattern<tpu::SigmoidOp>,
         LowerWeightLutOpPattern<tpu::SqrtOp>,
+        LowerWeightLutOpPattern<tpu::TanHOp>,
         LowerWeightFullyConnectedOpPattern,
         LowerWeightDetectionOutputOpPattern
         >(context);
@@ -2108,6 +2129,7 @@ public:
         DefaultToTGPattern<tpu::SliceOp>,
         DefaultToTGPattern<tpu::SqrtOp>,
         DefaultToTGPattern<tpu::SwapChannelOp>,
+        DefaultToTGPattern<tpu::TanHOp>,
         DefaultToTGPattern<tpu::UpsampleOp>
         >(context);
     applyPatternsGreedily(fn, patterns);

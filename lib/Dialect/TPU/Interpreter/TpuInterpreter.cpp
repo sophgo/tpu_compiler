@@ -762,8 +762,7 @@ static LogicalResult doLUTOpInterpret(Operation *op, StringRef &type,
       my_sigmoid(input, output, n, c, h, w);
     } else if (type == "TanH") {
       for (int i = 0; i < input_size; ++i) {
-        output[i] = (std::exp(input[i]) - std::exp(-1 * input[i])) /
-                    (std::exp(input[i]) + std::exp(-1 * input[i]));
+        output[i] = std::tanh(input[i]);
       }
     } else {
       llvm_unreachable("not support LUT op type");
