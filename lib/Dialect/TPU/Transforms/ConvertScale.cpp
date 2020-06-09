@@ -19,6 +19,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+
 #include "mlir/Dialect/TPU/TPUDialect.h"
 #include "mlir/Dialect/TPU/TPUOperationSupport.h"
 #include "mlir/Dialect/TPU/TPUTensorSupport.h"
@@ -30,6 +31,8 @@
 #include "mlir/Pass/Pass.h"
 #include "mlir/Support/TensorFile.h"
 #include "llvm/Support/raw_ostream.h"
+
+#include <sstream>
 
 #define DEBUG_TYPE "convert_scale"
 
@@ -278,7 +281,12 @@ struct TpuMergeScaleIntoConvPattern : public RewritePattern {
     } else {
       llvm_unreachable("unsupported shape size");
     }
-    assert(oc == (int64_t)scaleWeights[0]->size());
+    if (oc != (int64_t)scaleWeights[0]->size()) {
+      std::stringstream err_msg;
+      err_msg << op_name << " oc v.s. scaleWeights (" << oc << " v.s "
+              << (int64_t)scaleWeights[0]->size() << ") size not equal";
+      throw std::runtime_error(err_msg.str());
+    }
     std::vector<float> new_filter(filter_size);
     std::vector<float> new_bias(oc);
 
