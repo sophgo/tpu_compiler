@@ -148,8 +148,9 @@ RUN pip3 install --no-cache-dir \
     torch==1.4.0 \
     torchvision==0.5.0 \
     onnxruntime \
-    tensorflow==2.1.0 \
-    packaging==20.3
+    tensorflow==2.2.0 \
+    packaging==20.3 \
+    Jinja2==2.11.2
 
 # cocoAPI, pip install has conflict with latest numpy,
 RUN git clone https://github.com/cocodataset/cocoapi.git \
