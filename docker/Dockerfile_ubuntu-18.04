@@ -36,7 +36,9 @@ RUN apt-get install -y --no-install-recommends \
     slib \
     cpio \
     squashfs-tools \
-    fakeroot
+    fakeroot \
+    android-tools-fsutils \
+    jq
 
 # gst build
 RUN apt-get install -y --no-install-recommends \
