@@ -51,11 +51,12 @@ if __name__ == "__main__":
     img = Image.open(args.input_file)
     img = img.resize((input_dims[0],input_dims[1]), Image.ANTIALIAS).convert("RGB")
     img = ToTensor()(img).view(1, -1, img.size[1], img.size[0])
-    inputs = img
+    inputs = to_numpy(img)
     for i in range(1, args.batch_size):
-      inputs = np.append(inputs, img, axis=0)
+      inputs = np.append(inputs, to_numpy(img), axis=0)
 
-    ort_inputs = {ort_session.get_inputs()[0].name: to_numpy(inputs)}
+    print(inputs.shape)
+    ort_inputs = {ort_session.get_inputs()[0].name: inputs}
     ort_outs = ort_session.run(None, ort_inputs)
     np.savez(args.output_file, **{'output': ort_outs[0]})
 
