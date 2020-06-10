@@ -344,6 +344,10 @@ struct TpuMergeScaleIntoConvPattern : public RewritePattern {
             convOp.param().padding(),
             convOp.param().dilation_h(),
             convOp.param().dilation_w(),
+            convOp.param().padding_t(),
+            convOp.param().padding_b(),
+            convOp.param().padding_l(),
+            convOp.param().padding_r(),
             convOp.param().group(),
             convOp.param().is_dw(),
             rewriter.getBoolAttr(true),
@@ -445,6 +449,10 @@ struct TpuConvertScaleToDWConvPattern : public RewritePattern {
             rewriter.getStringAttr("VALID"),
             rewriter.getI32IntegerAttr(1),
             rewriter.getI32IntegerAttr(1),
+            rewriter.getI32IntegerAttr(0), // pd_t
+            rewriter.getI32IntegerAttr(0), // pd_b
+            rewriter.getI32IntegerAttr(0), // pd_l
+            rewriter.getI32IntegerAttr(0), // pd_r
             rewriter.getI32IntegerAttr(c),
             rewriter.getBoolAttr(true),
             rewriter.getBoolAttr(bias?true:false),

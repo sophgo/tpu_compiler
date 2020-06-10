@@ -353,6 +353,10 @@ void MixNet::_add_tl_convolution_op(MixOp* mix_op,
       builder_.getStringAttr("VALID"),
       builder_.getI32IntegerAttr(dh),
       builder_.getI32IntegerAttr(dw),
+      builder_.getI32IntegerAttr(0), // pd_t
+      builder_.getI32IntegerAttr(0), // pd_b
+      builder_.getI32IntegerAttr(0), // pd_l
+      builder_.getI32IntegerAttr(0), // pd_r
       builder_.getI32IntegerAttr(g),
       builder_.getBoolAttr(is_dw),
       builder_.getBoolAttr(with_bias),
@@ -564,6 +568,10 @@ void MixNet::_add_tl_deconvolution_op(MixOp* mix_op,
       builder_.getStringAttr("VALID"),
       builder_.getI32IntegerAttr(dh),
       builder_.getI32IntegerAttr(dw),
+      builder_.getI32IntegerAttr(0), // pd_t
+      builder_.getI32IntegerAttr(0), // pd_b
+      builder_.getI32IntegerAttr(0), // pd_l
+      builder_.getI32IntegerAttr(0), // pd_r
       builder_.getI32IntegerAttr(g),
       builder_.getBoolAttr(is_dw),
       builder_.getBoolAttr(with_bias),

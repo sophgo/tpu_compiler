@@ -786,7 +786,12 @@ void CaffeImporter::convertConvolutionLayer(mlir::Block *block,
           (padding[0] || padding[1]) ? builder_.getStringAttr("SAME")
                                      : builder_.getStringAttr("VALID"),
           builder_.getI32IntegerAttr(dilation[0]),
-          builder_.getI32IntegerAttr(dilation[1]), builder_.getI32IntegerAttr(g),
+          builder_.getI32IntegerAttr(dilation[1]),
+          builder_.getI32IntegerAttr(padding[0]), // t
+          builder_.getI32IntegerAttr(padding[0]), // b
+          builder_.getI32IntegerAttr(padding[1]), // l
+          builder_.getI32IntegerAttr(padding[1]), // r
+          builder_.getI32IntegerAttr(g),
           builder_.getBoolAttr(is_dw), builder_.getBoolAttr(with_bias),
           builder_.getBoolAttr(false), builder_.getContext())));
   attrs.push_back(builder_.getNamedAttr("quant", getDefaultQuantParam(builder_)));

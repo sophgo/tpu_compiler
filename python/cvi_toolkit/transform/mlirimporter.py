@@ -246,6 +246,10 @@ class MLIRImporter(object):
         checkKey(kargs, 'stride_h')
         checkKey(kargs, 'stride_w')
         checkKey(kargs, 'padding')
+        checkKey(kargs, 'padding_t')
+        checkKey(kargs, 'padding_b')
+        checkKey(kargs, 'padding_l')
+        checkKey(kargs, 'padding_r')
         checkKey(kargs, 'group')
         checkKey(kargs, 'is_dw')
         checkKey(kargs, 'with_bias')
@@ -258,6 +262,12 @@ class MLIRImporter(object):
             'padding': self.module.stringAttr(kargs['padding']),
             'dilation_h': self.module.integerAttr(self.i32Type,  kargs['dilation_h']),
             'dilation_w': self.module.integerAttr(self.i32Type, kargs['dilation_w']),
+            'padding_t': self.module.integerAttr(self.i32Type, kargs['padding_t']),
+            'padding_b': self.module.integerAttr(self.i32Type, kargs['padding_b']),
+            'padding_l': self.module.integerAttr(self.i32Type, kargs['padding_l']),
+            'padding_r': self.module.integerAttr(self.i32Type,
+            kargs['padding_r']),
+            'padding': self.module.stringAttr(kargs['padding']),
             'group': self.module.integerAttr(self.i32Type, kargs['group']),
             'is_dw': self.module.boolAttr(kargs['is_dw']),
             'with_bias': self.module.boolAttr(kargs['with_bias']),

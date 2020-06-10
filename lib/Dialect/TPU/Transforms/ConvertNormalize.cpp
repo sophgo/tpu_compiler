@@ -201,6 +201,10 @@ struct TpuDecomposeNormalizePattern : public RewritePattern {
         rewriter.getStringAttr("VALID"),
         rewriter.getI32IntegerAttr(dilation[0]),
         rewriter.getI32IntegerAttr(dilation[1]),
+        rewriter.getI32IntegerAttr(0), // pd_t
+        rewriter.getI32IntegerAttr(0), // pd_b
+        rewriter.getI32IntegerAttr(0), // pd_l
+        rewriter.getI32IntegerAttr(0), // pd_r
         rewriter.getI32IntegerAttr(g),
         rewriter.getBoolAttr(is_dw),
         rewriter.getBoolAttr(with_bias),
