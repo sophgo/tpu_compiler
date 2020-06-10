@@ -858,6 +858,27 @@ export USE_LAYERGROUP=1
 # export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
 fi
 
+if [ $NET = "espcn_3x" ]; then
+export MODEL_TYPE="onnx"
+export MODEL_DEF=$MODEL_PATH/super_resolution/espcn/onnx/espcn_3x.onnx
+export MODEL_DAT=""
+export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_onnx/regression_espcn_0_onnx.sh
+export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/espcn_3x_calibration_table
+export NET_INPUT_DIMS=85,85
+export RAW_SCALE=1.0
+export MODEL_CHANNEL_ORDER="rgb"
+export INPUT_SCALE=1.0
+export INPUT=input
+export TOLERANCE_INT8_PER_TENSOR=0.97,0.96,0.80
+export TOLERANCE_INT8_RSHIFT_ONLY=0.97,0.96,0.80
+export TOLERANCE_INT8_MULTIPLER=0.98,0.97,0.81
+export DO_QUANT_BF16=0
+export DO_LAYERGROUP=1
+export USE_LAYERGROUP=1
+#export TOLERANCE_BF16=0.99,0.99,0.94
+#export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
+fi
+
 # check if the MODEL exists of onnx case
 if [ ! -f ${MODEL_DEF} ]; then
   echo "cannot find the file ${MODEL_DEF}"

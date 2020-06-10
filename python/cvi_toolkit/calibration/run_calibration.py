@@ -14,6 +14,15 @@ from cvi_toolkit.calibration.tuner import Tuner
 from cvi_toolkit import preprocess
 from cvi_toolkit.data.preprocess import get_preprocess_parser
 
+def preprocess_func_espcn(image_path, args):
+  image = cv2.imread(str(image_path).rstrip())
+  image = cv2.resize(image, (85, 85))
+  image = image / 255.0
+  image[:,:,0], image[:,:,2] = image[:,:,2], image[:,:,0]
+  image = np.transpose(image, (2, 0, 1))
+  image = np.expand_dims(image, axis=0)
+  return image
+
 def preprocess_func_arcface(image_path, args):
   image = cv2.imread(str(image_path).rstrip())
   image[:,:,0], image[:,:,2] = image[:,:,2], image[:,:,0]
@@ -144,6 +153,8 @@ def main():
     p_func = preprocess_func_alphapose
   elif (args.model_name == 'arcface_res50'):
     p_func = preprocess_func_arcface
+  elif (args.model_name == 'espcn'):
+    p_func = preprocess_func_espcn
   else:
     assert(False)
 

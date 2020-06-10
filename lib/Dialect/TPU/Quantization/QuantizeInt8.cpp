@@ -520,10 +520,8 @@ LogicalResult quantizeInt8LutOps(Operation *op) {
                            : (lutOutputI32 < -128) ? -128 : lutOutputI32;
         y0_table[n * table_hw + idx] = lutOutputI32;
       } else if (OpTy::getOperationName() == "tpu.tanh") {
-        index = -lutInput * threshold_x / 127.0;
-        float lutOutput = (std::exp(index) - std::exp(-index)) /
-                          (std::exp(index) + std::exp(-index)) * 127.0 /
-                          threshold_y;
+        index = lutInput * threshold_x / 127.0;
+        float lutOutput = std::tanh(index) * 127.0 / threshold_y;
         int lutOutputI32 = std::floor(lutOutput + 0.5);
         lutOutputI32 = (lutOutputI32 > 127)
                            ? 127
@@ -954,11 +952,8 @@ DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::SwapChannelOp)
 LogicalResult tpu::TanHOp::quantizeInt8() {
   LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName()
                << " [" << getOpName() << "]\n";);
-  //Operation *op = this->getOperation();
-  //return quantizeInt8LutOps<tpu::TanHOp>(op);
-  // TODO:
-  assert(false);
-  return failure();
+  Operation *op = this->getOperation();
+  return quantizeInt8LutOps<tpu::TanHOp>(op);
 }
 
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::UpsampleOp)
