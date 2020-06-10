@@ -93,11 +93,11 @@ private:
   template <typename OpTy>
   void dumpConv2DOpParam(OpTy &op, llvm::raw_ostream &os) {
     bool is_dw, with_bias, do_relu;
-    int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, ph, pw, dh, dw;
+    int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw;
     bool is_deconv = isa<tpu::DeConv2DOp>(op.getOperation());
     parseConvParam(op.param(), is_deconv, op.input(), op.output(), op.filter(),
-                   n, ic, ih, iw, oc, oh, ow, g,
-                   kh, kw, sh, sw, ph, pw, dh, dw, is_dw, with_bias, do_relu);
+                   n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr,
+                   dh, dw, is_dw, with_bias, do_relu);
 
     uint64_t mac_count = ow * oh * kh * kw * g * (ic / g) * (oc / g) * n;
     total_mac_count += mac_count;
@@ -105,7 +105,8 @@ private:
        << ic << "," << ih << "," << iw << ","
        << oc << "," << oh << "," << ow << ","
        << kh << "," << kw << "," << sh << "," << sw << ","
-       << dh << "," << dw << "," << ph << "," << pw << ","
+       << dh << "," << dw << "," << pt << "," << pb << ","
+       << pl << "," << pr << ","
        << mac_count
        << "\n";
   }

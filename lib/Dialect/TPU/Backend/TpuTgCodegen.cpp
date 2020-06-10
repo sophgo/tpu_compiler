@@ -406,10 +406,10 @@ LogicalResult tpu::TG_INT8_PT_Conv2DOp::codegen(void *ctx) {
   Operation *op = this->getOperation();
 
   bool is_dw, with_bias, do_relu;
-  int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, ph, pw, dh, dw;
-  parseConvParam(param(), false, input(), output(), filter(),
-                 n, ic, ih, iw, oc, oh, ow, g,
-                 kh, kw, sh, sw, ph, pw, dh, dw, is_dw, with_bias, do_relu);
+  int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw;
+  parseConvParam(param(), false, input(), output(), filter(), n, ic, ih, iw, oc,
+                 oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, is_dw,
+                 with_bias, do_relu);
 
   gaddr_t ga_input = getPreviousOpAddress(op);
   gaddr_t ga_output = getOpAddress(op);
@@ -473,7 +473,7 @@ LogicalResult tpu::TG_INT8_PT_Conv2DOp::codegen(void *ctx) {
       oc,
       kh, kw,
       dh, dw,
-      ph, ph, pw, pw, // pad (t, b, l, r)
+      pt, pb, pl, pr, // pad (t, b, l, r)
       sh, sw,
       with_bias, // bias_term,
       0,         // do_bn,
@@ -509,10 +509,10 @@ LogicalResult tpu::TG_INT8_PC_Conv2DOp::codegen(void *ctx) {
   Operation *op = this->getOperation();
 
   bool is_dw, with_bias, do_relu;
-  int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, ph, pw, dh, dw;
-  parseConvParam(param(), false, input(), output(), filter(),
-                 n, ic, ih, iw, oc, oh, ow, g,
-                 kh, kw, sh, sw, ph, pw, dh, dw, is_dw, with_bias, do_relu);
+  int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw;
+  parseConvParam(param(), false, input(), output(), filter(), n, ic, ih, iw, oc,
+                 oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, is_dw,
+                 with_bias, do_relu);
 
   gaddr_t ga_input = getPreviousOpAddress(op);
   gaddr_t ga_output = getOpAddress(op);
@@ -594,7 +594,7 @@ LogicalResult tpu::TG_INT8_PC_Conv2DOp::codegen(void *ctx) {
       oc,
       kh, kw,
       dh, dw,
-      ph, ph, pw, pw, // pad (t, b, l, r)
+      pt, pb, pl, pr, // pad (t, b, l, r)
       sh, sw,
       with_bias, // bias_term,
       0,         // do_bn,
@@ -630,10 +630,10 @@ LogicalResult tpu::TG_BF16_Conv2DOp::codegen(void *ctx) {
   Operation *op = this->getOperation();
 
   bool is_dw, with_bias, do_relu;
-  int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, ph, pw, dh, dw;
+  int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw;
   parseConvParam(param(), false, input(), output(), filter(),
                  n, ic, ih, iw, oc, oh, ow, g,
-                 kh, kw, sh, sw, ph, pw, dh, dw, is_dw, with_bias, do_relu);
+                 kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, is_dw, with_bias, do_relu);
 
   gaddr_t ga_input = getPreviousOpAddress(op);
   gaddr_t ga_output = getOpAddress(op);
@@ -661,7 +661,7 @@ LogicalResult tpu::TG_BF16_Conv2DOp::codegen(void *ctx) {
       oc,
       kh, kw,
       dh, dw,
-      ph, ph, pw, pw, // pad (t, b, l, r)
+      pt, pb, pl, pr, // pad (t, b, l, r)
       sh, sw,
       with_bias,
       0,         // do_bn
@@ -695,10 +695,10 @@ LogicalResult tpu::TG_INT8_PC_DeConv2DOp::codegen(void *ctx) {
   Operation *op = this->getOperation();
 
   bool is_dw, with_bias, do_relu;
-  int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, ph, pw, dh, dw;
+  int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw;
   parseConvParam(param(), false, input(), output(), filter(),
                  n, ic, ih, iw, oc, oh, ow, g,
-                 kh, kw, sh, sw, ph, pw, dh, dw, is_dw, with_bias, do_relu);
+                 kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, is_dw, with_bias, do_relu);
 
   gaddr_t ga_input = getPreviousOpAddress(op);
   gaddr_t ga_output = getOpAddress(op);
@@ -758,10 +758,10 @@ LogicalResult tpu::TG_INT8_PC_DeConv2DOp::codegen(void *ctx) {
       kw,
       dh,
       dw,
-      ph, // pad_h_top,
-      ph, // pad_h_bottom,
-      pw, // pad_w_left,
-      pw, // pad_w_right,
+      pt, // pad_h_top,
+      pb, // pad_h_bottom,
+      pl, // pad_w_left,
+      pr, // pad_w_right,
       sh,
       sw,
       with_bias, // do_bias

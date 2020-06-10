@@ -76,7 +76,7 @@ tpu::QuantParam getDefaultQuantParam(Builder &builder);
 void parseConvParam(const tpu::ConvParam &p, bool is_deconv,
     Value *input, Value *output, Value *filter,
     int &n, int &ic, int &ih, int &iw, int &oc, int &oh, int &ow, int &g,
-    int &kh, int &kw, int &sh, int &sw, int &ph, int &pw, int &dh, int &dw,
+    int &kh, int &kw, int &sh, int &sw, int &pt, int &pb, int &pl, int &pr, int &dh, int &dw,
     bool &is_dw, bool &with_bias, bool &do_relu);
 
 void parsePoolParam(const tpu::PoolParam &p,
