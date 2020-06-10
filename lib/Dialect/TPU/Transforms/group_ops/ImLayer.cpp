@@ -140,11 +140,11 @@ ImConv::ImConv(Operation* p) : ImLayer(IR_CONVOLUTION, p, true), conv1x1_to_fc(f
   auto op = dyn_cast<tpu::TG_INT8_PC_Conv2DOp>(p);
   assert(op);
   bool is_dw, with_bias, do_relu;
-  int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, ph, pw, dh, dw;
+  int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw;
   bool is_deconv = isa<tpu::TG_INT8_PC_DeConv2DOp>(op.getOperation());
   parseConvParam(op.param(), is_deconv, op.input(), op.output(), op.filter(),
                   n, ic, ih, iw, oc, oh, ow, g,
-                  kh, kw, sh, sw, ph, pw, dh, dw, is_dw, with_bias, do_relu);
+                  kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, is_dw, with_bias, do_relu);
 
   // add input tensor
   add_in_tensor(op.input(), TENSOR_NEURON);
@@ -195,11 +195,11 @@ ImConv::ImConv(Operation* p) : ImLayer(IR_CONVOLUTION, p, true), conv1x1_to_fc(f
 ImDeconv::ImDeconv(Operation* p) : ImLayer(IR_DECONVOLUTION, p, true) {
   auto op = dyn_cast<tpu::TG_INT8_PC_DeConv2DOp>(p);
   bool is_dw, with_bias, do_relu;
-  int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, ph, pw, dh, dw;
+  int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw;
   bool is_deconv = isa<tpu::TG_INT8_PC_DeConv2DOp>(op.getOperation());
   parseConvParam(op.param(), is_deconv, op.input(), op.output(), op.filter(),
                   n, ic, ih, iw, oc, oh, ow, g,
-                  kh, kw, sh, sw, ph, pw, dh, dw, is_dw, with_bias, do_relu);
+                  kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, is_dw, with_bias, do_relu);
 
   // add input tensor
   add_in_tensor(op.input(), TENSOR_NEURON);

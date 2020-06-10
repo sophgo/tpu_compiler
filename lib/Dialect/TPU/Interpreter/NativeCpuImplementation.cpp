@@ -34,7 +34,7 @@ static size_t write_bianry_file(std::string filename, const char *data,
 
 int mkldnn_conv(float *input, float *weight, float *bias,
     float *output, int n, int ic, int ih, int iw, int oc, int oh, int ow,
-    int kh, int kw, int sh, int sw, int dh, int dw, int ph, int pw, int g) {
+    int kh, int kw, int sh, int sw, int dh, int dw, int pt, int pb, int pl, int pr, int g) {
   std::shared_ptr<std::vector<float>> zero_bias = NULL;
   if (!bias) {
     zero_bias = std::make_shared<std::vector<float>>(oc, 0.0f);
@@ -56,7 +56,7 @@ int mkldnn_conv(float *input, float *weight, float *bias,
   LLVM_DEBUG(
     llvm::errs() << "  k: (" << kh << "*" << kw << "), "
                  << "s: (" << sh << "*" << sw << "), "
-                 << "p: (" << ph << "*" << pw << "), "
+                 << "pt:" << pt << " pb:" << pb << " pl: " << pl << "pr:" << pr
                  << "g: " << g << "\n";
   );
 
@@ -76,10 +76,10 @@ int mkldnn_conv(float *input, float *weight, float *bias,
   memory::dims bias_tz = { oc };
   memory::dims dst_tz = { batch, oc, oh, ow };
   memory::dims strides = { sh, sw };
-  int ph_t = ph;
-  int pw_l = pw;
-  int ph_b = ph;
-  int pw_r = pw;
+  int ph_t = pt;
+  int pw_l = pl;
+  int ph_b = pb;
+  int pw_r = pr;
   memory::dims padding_l = { ph_t, pw_l };
   memory::dims padding_r = { ph_b, pw_r };
   memory::dims dilation = { dh-1, dw-1 }; // mkldnn dialtion is different with caffe
@@ -158,26 +158,26 @@ int mkldnn_conv(float *input, float *weight, float *bias,
 
 int mkldnn_deconv(float *input, float *weight, float *bias,
     float *output, int n, int ic, int ih, int iw, int oc, int oh, int ow,
-    int kh, int kw, int sh, int sw, int ph, int pw, int g) {
+    int kh, int kw, int sh, int sw, int pt, int pb, int pl, int pr, int g) {
   if (!bias) {
     auto zero_bias = new std::vector<float>(oc, 0.0f);
     bias = zero_bias->data();
   }
 
   // TODO - padding
-  assert(ph == 0);
-  assert(pw == 0);
-  int ph_t = ph;
-  int pw_l = pw;
-  int ph_b = ph;
-  int pw_r = pw;
+  assert(pt == 0);
+  assert(pl == 0);
+  int ph_t = pt;
+  int pw_l = pl;
+  int ph_b = pb;
+  int pw_r = pr;
 
   LLVM_DEBUG(
     llvm::errs() << "  i: (" << ih << "*" << iw << "), "
                  << "  o: (" << oh << "*" << ow << "), "
                  << "  k: (" << kh << "*" << kw << "), "
                  << "s: (" << sh << "*" << sw << "), "
-                 << "p: (" << ph << "*" << pw << "), "
+                 << "pt: " << pt << " pb: " << pb << " pl: " << pl << " pr: " << pr
                  << "g: " << g << "\n";
   );
 

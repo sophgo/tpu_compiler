@@ -352,11 +352,11 @@ LogicalResult doConv2DOpInterpret(Operation *op,
 
   // parse param
   bool is_dw, with_bias, do_relu;
-  int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, ph, pw, dh, dw;
+  int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw;
   parseConvParam(castOp.param(), is_deconv,
                  castOp.input(), castOp.output(), castOp.filter(),
                  n, ic, ih, iw, oc, oh, ow, g,
-                 kh, kw, sh, sw, ph, pw, dh, dw, is_dw, with_bias, do_relu);
+                 kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, is_dw, with_bias, do_relu);
 
   // get tensors
   assert(opdT.size() == 7);
@@ -383,7 +383,7 @@ LogicalResult doConv2DOpInterpret(Operation *op,
     }else{
       ret = mkldnn_conv(input->data(), filter->data(), bias ? bias->data() : nullptr,
                   resultT->data(), n, ic, ih, iw, oc, oh, ow, kh, kw, sh, sw,
-                  dh, dw, ph, pw, g);
+                  dh, dw, pt, pb, pl, pr, g);
     }
 #else
     float *bias_data = bias ? bias->data() : nullptr;
@@ -400,13 +400,13 @@ LogicalResult doConv2DOpInterpret(Operation *op,
     }
     int ret = mkldnn_conv(input->data(), filter->data(), bias_data,
                           resultT->data(), n, ic, ih, iw, oc, oh, ow, kh, kw,
-                          sh, sw, dh, dw, ph, pw, g);
+                          sh, sw, dh, dw, pt, pb, pl, pr, g);
     assert(ret == 0);
 #endif
   } else {
     int ret = mkldnn_deconv(input->data(), filter->data(),
         bias ? bias->data() : nullptr, resultT->data(),
-        n, ic, ih, iw, oc, oh, ow, kh, kw, sh, sw, ph, pw, g);
+        n, ic, ih, iw, oc, oh, ow, kh, kw, sh, sw, pt, pb, pl, pr, g);
     assert(ret == 0);
   }
 

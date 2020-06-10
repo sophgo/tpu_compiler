@@ -376,26 +376,23 @@ bool Group::backward_slice(int out_tensor_id, list<int>& branches, bool max_h_sl
 
   const ImLayer* im_layer = net_graph_->get_layer_by_id(id);
   IR_TYPE layer_type = im_layer->type();
-  int kh, sh, ph;
-  int dh = 1;
 
+  bool is_dw, with_bias, do_relu;
+  int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh = 1, dw;
+  bool is_deconv = false;
   if (layer_type == IR_CONVOLUTION || layer_type == IR_DECONVOLUTION) {
     if (isa<tpu::TG_INT8_PC_Conv2DOp>(im_layer->op())) {
       auto op = cast<tpu::TG_INT8_PC_Conv2DOp>(im_layer->op());
-      bool is_dw, with_bias, do_relu;
-      int n, ic, ih, iw, oc, oh, ow, g, kw, sw, pw, dw;
-      bool is_deconv = false;
+      is_deconv = false;
       parseConvParam(op.param(), is_deconv, op.input(), op.output(), op.filter(),
                      n, ic, ih, iw, oc, oh, ow, g,
-                     kh, kw, sh, sw, ph, pw, dh, dw, is_dw, with_bias, do_relu);
+                     kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, is_dw, with_bias, do_relu);
      } else {
       auto op = cast<tpu::TG_INT8_PC_DeConv2DOp>(im_layer->op());
-      bool is_dw, with_bias, do_relu;
-      int n, ic, ih, iw, oc, oh, ow, g, kw, sw, pw, dw;
-      bool is_deconv = true;
+      is_deconv = true;
       parseConvParam(op.param(), is_deconv, op.input(), op.output(), op.filter(),
                      n, ic, ih, iw, oc, oh, ow, g,
-                     kh, kw, sh, sw, ph, pw, dh, dw, is_dw, with_bias, do_relu);
+                     kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, is_dw, with_bias, do_relu);
 
      }
     if (dh > 1) {
@@ -408,7 +405,7 @@ bool Group::backward_slice(int out_tensor_id, list<int>& branches, bool max_h_sl
       int n, c, ih, iw, oh, ow, kw, sw, pb, pl, pr;
       parsePoolParam(op.param(), op.input(), op.output(),
                     n, c, ih, iw, oh, ow,
-                    kh, kw, sh, sw, ph, pb, pl, pr,
+                    kh, kw, sh, sw, pt, pb, pl, pr,
                     is_global, do_relu);
     } else if (isa<tpu::TG_INT8_PoolMax2DOp>(im_layer->op())) {
       auto op = cast<tpu::TG_INT8_PoolMax2DOp>(im_layer->op());
@@ -416,7 +413,7 @@ bool Group::backward_slice(int out_tensor_id, list<int>& branches, bool max_h_sl
       int n, c, ih, iw, oh, ow, kw, sw, pb, pl, pr;
       parsePoolParam(op.param(), op.input(), op.output(),
                     n, c, ih, iw, oh, ow,
-                    kh, kw, sh, sw, ph, pb, pl, pr,
+                    kh, kw, sh, sw, pt, pb, pl, pr,
                     is_global, do_relu);
     }
   }
@@ -452,11 +449,11 @@ bool Group::backward_slice(int out_tensor_id, list<int>& branches, bool max_h_sl
       h_idx = 0;
       h_slice = tensor->h();
     } else if (layer_type == IR_CONVOLUTION || layer_type == IR_POOLING) {
-      h_idx = out_h_idx * sh - ph;
+      h_idx = out_h_idx * sh - pt;
       h_slice = (out_h_slice - 1) * sh + kh;
       if (out_tensor->type() == TENSOR_NEURON_WINOGRAD) {
         if (out_h_slice % 2 == 1) {
-          if ((h_idx + ph) % 2 == 1) {
+          if ((h_idx + pt) % 2 == 1) {
             h_idx -= 1;
             h_slice += 1;
             out_tensor->set_h_slice_skip_first();
@@ -472,16 +469,16 @@ bool Group::backward_slice(int out_tensor_id, list<int>& branches, bool max_h_sl
       int real_o_h_t = out_h_idx;
       int real_o_h_b = out_h_idx + out_h_slice;
       int kh_ext = (kh - 1) * dh + 1;
-      ph = kh_ext - ph - 1;
+      pt = kh_ext - pt - 1;
       int if_pad_h_t = real_o_h_t;
       int if_pad_h_b = real_o_h_b + kh_ext - 1;
       int if_insert_h_t = 0;
-      if (if_pad_h_t >= ph) {
-        if_insert_h_t = if_pad_h_t - ph;
+      if (if_pad_h_t >= pt) {
+        if_insert_h_t = if_pad_h_t - pt;
       }
       int if_insert_h_b = height_insert0;
-      if ((if_pad_h_b - ph) < height_insert0) {
-        if_insert_h_b = if_pad_h_b - ph;
+      if ((if_pad_h_b - pt) < height_insert0) {
+        if_insert_h_b = if_pad_h_b - pt;
       }
       h_idx = (if_insert_h_t + sh - 1) / sh;
       h_slice = (if_insert_h_b + sh - 1) / sh - h_idx;
@@ -528,7 +525,7 @@ bool Group::backward_slice(int out_tensor_id, list<int>& branches, bool max_h_sl
         << n_idx << " h_idx: " << h_idx
         << ", n_slice: " << n_slice << ", h_slice: " << h_slice
         << " out_h_idx: " << out_h_idx << " out_h_slice: " << out_h_slice
-        << " ph: " << ph << " sh: " << sh << " kh: " << kh << "\n";);
+        << " pt: " << pt << " sh: " << sh << " kh: " << kh << "\n";);
 
 
     if (cur_h_slice != -1 && (cur_h_slice != h_slice || cur_h_idx != h_idx)) {

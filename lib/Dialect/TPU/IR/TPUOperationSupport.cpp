@@ -437,12 +437,16 @@ tpu::QuantParam getDefaultQuantParam(Builder &builder) {
 void parseConvParam(const tpu::ConvParam &p, bool is_deconv,
     Value *input, Value *output, Value *filter,
     int &n, int &ic, int &ih, int &iw, int &oc, int &oh, int &ow, int &g,
-    int &kh, int &kw, int &sh, int &sw, int &ph, int &pw, int &dh, int &dw,
+    int &kh, int &kw, int &sh, int &sw, int &pt, int &pb, int &pl, int &pr, int &dh, int &dw,
     bool &is_dw, bool &with_bias, bool &do_relu) {
   dh = p.dilation_h().getValue().getLimitedValue();
   dw = p.dilation_w().getValue().getLimitedValue();
   sh = p.stride_h().getValue().getLimitedValue();
   sw = p.stride_w().getValue().getLimitedValue();
+  pt = p.padding_t().getValue().getLimitedValue();
+  pb = p.padding_b().getValue().getLimitedValue();
+  pl = p.padding_l().getValue().getLimitedValue();
+  pr = p.padding_r().getValue().getLimitedValue();
   auto input_type = input->getType().template cast<TensorType>();
   std::vector<int64_t> i_s(input_type.getShape());
   auto output_type = output->getType().template cast<TensorType>();
@@ -473,20 +477,7 @@ void parseConvParam(const tpu::ConvParam &p, bool is_deconv,
   kh = f_s[f_s.size() - 2];
   kw = f_s[f_s.size() - 1];
 
-  auto padding = p.padding().getValue();
-  if (padding == "SAME") {
-    if (!is_deconv) {
-      ph = findPadForSamePadding(ih, oh, kh, sh, dh);
-      pw = findPadForSamePadding(iw, ow, kw, sw, dw);
-    } else {
-      assert(false && "not implemented yet for deconv with padding");
-    }
-  } else if (padding == "VALID") {
-    ph = 0;
-    pw = 0;
-  } else {
-    llvm_unreachable("unsupported padding type");
-  }
+
   g = p.group().getValue().getLimitedValue();
   if (g != 1) {
     if (g == oc) {

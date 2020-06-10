@@ -258,13 +258,13 @@ void MixNet::_add_tl_convolution_op(MixOp* mix_op,
   const ImLayer* im_layer = net_graph_->get_layer_by_id(mix_op->get_layer_id());
   auto old_op = dyn_cast<tpu::TG_INT8_PC_Conv2DOp>(im_layer->op());
   bool is_dw, with_bias, do_relu;
-  int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, ph, pw, dh, dw;
+  int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw;
   bool is_deconv = isa<tpu::TG_INT8_PC_DeConv2DOp>(old_op.getOperation());
 
   parseConvParam(old_op.param(), is_deconv, old_op.input(),
                  old_op.output(), old_op.filter(),
                  n, ic, ih, iw, oc, oh, ow, g,
-                 kh, kw, sh, sw, ph, pw, dh, dw,
+                 kh, kw, sh, sw, pt, pb, pl, pr, dh, dw,
                  is_dw, with_bias, do_relu);
 
   auto old_input_type = old_op.input()->getType().cast<RankedTensorType>();
@@ -282,10 +282,10 @@ void MixNet::_add_tl_convolution_op(MixOp* mix_op,
 
   bottom_dim[0] = in_tensor->n_slice;
   bottom_dim[2] = in_tensor->h_slice;
-  top_pad_h = ph;
-  bottom_pad_h = ph;
-  left_pad_w = pw;
-  right_pad_w = pw;
+  top_pad_h = pt;
+  bottom_pad_h = pb;
+  left_pad_w = pl;
+  right_pad_w = pr;
 
   if (is_h_split) {
     if (in_tensor->h_idx > 0) {
@@ -441,13 +441,13 @@ void MixNet::_add_tl_deconvolution_op(MixOp* mix_op,
   const ImLayer* im_layer = net_graph_->get_layer_by_id(mix_op->get_layer_id());
   auto old_op = dyn_cast<tpu::TG_INT8_PC_DeConv2DOp>(im_layer->op());
   bool is_dw, with_bias, do_relu;
-  int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, ph, pw, dh, dw;
+  int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw;
   bool is_deconv = isa<tpu::TG_INT8_PC_DeConv2DOp>(old_op.getOperation());
 
   parseConvParam(old_op.param(), is_deconv, old_op.input(),
                  old_op.output(), old_op.filter(),
                  n, ic, ih, iw, oc, oh, ow, g,
-                 kh, kw, sh, sw, ph, pw, dh, dw, is_dw, with_bias, do_relu);
+                 kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, is_dw, with_bias, do_relu);
 
   auto old_input_type = old_op.input()->getType().cast<RankedTensorType>();
   Tensor* in_tensor = im_layer->in_tensors[0].get();
@@ -464,10 +464,10 @@ void MixNet::_add_tl_deconvolution_op(MixOp* mix_op,
 
   bottom_dim[0] = in_tensor->n_slice;
   bottom_dim[2] = in_tensor->h_slice;
-  pad_h_top = ph;
-  pad_h_bottom = ph;
-  pad_w_left = pw;
-  pad_w_right = pw;
+  pad_h_top = pt;
+  pad_h_bottom = pb;
+  pad_w_left = pl;
+  pad_w_right = pr;
 
   real_h_slice = in_tensor->h_slice;
   real_h_idx = in_tensor->h_idx;
