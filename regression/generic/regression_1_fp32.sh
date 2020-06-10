@@ -44,7 +44,6 @@ mlir-opt \
 
 # test frontend optimizations
 mlir-tpu-interpreter ${NET}_opt.mlir \
-    -debug \
     ${CUSTOM_OP_PLUGIN_OPTION}\
     --tensor-in ${NET}_in_fp32.npz \
     --tensor-out ${NET}_out_fp32.npz \
