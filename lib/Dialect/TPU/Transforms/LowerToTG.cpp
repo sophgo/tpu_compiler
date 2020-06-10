@@ -68,6 +68,10 @@ Value* tpu::BroadcastMulOp::convertToTG() {
           builder.getStringAttr("VALID"),
           builder.getI32IntegerAttr(1),
           builder.getI32IntegerAttr(1),
+          builder.getI32IntegerAttr(0), // pd_t
+          builder.getI32IntegerAttr(0), // pd_b
+          builder.getI32IntegerAttr(0), // pd_l
+          builder.getI32IntegerAttr(0), // pd_r
           builder.getI32IntegerAttr(1),
           builder.getBoolAttr(true),    // is_dw
           builder.getBoolAttr(false),   // with_bias

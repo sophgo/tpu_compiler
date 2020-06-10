@@ -328,6 +328,10 @@ struct TpuTG2TLBroadcastMulOpPattern : public RewritePattern {
             rewriter.getStringAttr("VALID"),
             rewriter.getI32IntegerAttr(1),
             rewriter.getI32IntegerAttr(1),
+            rewriter.getI32IntegerAttr(0), // pd_t
+            rewriter.getI32IntegerAttr(0), // pd_b
+            rewriter.getI32IntegerAttr(0), // pd_l
+            rewriter.getI32IntegerAttr(0), // pd_r
             rewriter.getI32IntegerAttr(1),
             rewriter.getBoolAttr(true),    // is_dw
             rewriter.getBoolAttr(false),   // with_bias
