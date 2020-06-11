@@ -111,10 +111,29 @@ namespace mlir {
       return success(); \
     }
 
+#define DECLARE_GET_CHIP_NAME_METHOD(OP) \
+    StringRef OP::getChipName() { \
+      if (chipname().hasValue()) { \
+        return chipname().getValue(); \
+      } else { \
+        return "NONE"; \
+      } \
+    }
+
+#define DECLARE_SET_CHIP_NAME_METHOD(OP) \
+    LogicalResult OP::setChipName(StringRef &chipname) { \
+      setAttr("chipname", \
+          Builder(getOperation()->getContext()).getStringAttr(chipname)); \
+      return success(); \
+    }
+
 #define DECLARE_ALL_COMMON_INTERFACE_METHODS(OP) \
     DECLARE_GET_OP_NAME_METHOD(OP) \
     DECLARE_GET_LAYER_ID_METHOD(OP) \
-    DECLARE_SET_LAYER_ID_METHOD(OP)
+    DECLARE_SET_LAYER_ID_METHOD(OP) \
+    DECLARE_GET_CHIP_NAME_METHOD(OP) \
+    DECLARE_SET_CHIP_NAME_METHOD(OP)
+
 // TPU Ops
 DECLARE_ALL_COMMON_INTERFACE_METHODS(BroadcastMulOp)
 DECLARE_ALL_COMMON_INTERFACE_METHODS(BatchNormOp)
@@ -425,6 +444,8 @@ DECLARE_ALL_COMMON_INTERFACE_METHODS(TL_LG_ConcatOp)
     DECLARE_SET_OP_QUANT_IS_ASYMMETRIC_METHOD(OP) \
     DECLARE_GET_OP_QUANT_THRESHOLD_METHOD(OP) \
     DECLARE_SET_OP_QUANT_THRESHOLD_METHOD(OP)
+
+
 
 DECLARE_ALL_QUANT_INTERFACE_METHODS(BroadcastMulOp)
 DECLARE_ALL_QUANT_INTERFACE_METHODS(ClipOp)

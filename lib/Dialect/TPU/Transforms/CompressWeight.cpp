@@ -24,6 +24,7 @@
 #include "mlir/Dialect/TPU/TPUCompressUtil.h"
 #include "mlir/Dialect/TPU/TPUOperationSupport.h"
 #include "mlir/Dialect/TPU/TPUTensorSupport.h"
+#include "mlir/Dialect/TPU/MachineInfo.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/StandardTypes.h"
@@ -33,8 +34,6 @@
 #include "mlir/Support/TensorFile.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/ToolOutputFile.h"
-
-#include "../DeepFusion/MachineInfo.h"
 
 #define DEBUG_TYPE "compress-weight"
 
@@ -284,6 +283,11 @@ void CompressWeightPass::generateReport(
 
 void CompressWeightPass::runOnFunction() {
   std::vector<struct CompressInfo> compressedWeigtInfos;
+  std::string getRunChipType;
+  MInfo Machineinfo;
+  get_cvichip_name(getRunChipType);
+  Machineinfo.getChipInfo(getRunChipType.c_str());
+  assert(MInfo::version && "refer to set-chip");
 
   // Compress convolution weight
   OwningRewritePatternList patterns;

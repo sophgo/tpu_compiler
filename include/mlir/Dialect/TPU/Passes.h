@@ -61,6 +61,7 @@ std::unique_ptr<OpPassBase<FuncOp>> createTpuLowerPass();
 std::unique_ptr<OpPassBase<FuncOp>> createAssignWeightAddressPass();
 std::unique_ptr<OpPassBase<FuncOp>> createAssignNeuronAddressPass();
 std::unique_ptr<OpPassBase<FuncOp>> createAssignLayerIdPass();
+std::unique_ptr<OpPassBase<FuncOp>> createAssignChipNamePass();
 std::unique_ptr<OpPassBase<FuncOp>> createAddCpuCallPass();
 
 std::unique_ptr<OpPassBase<FuncOp>> createDeepFusionSimple();
@@ -79,6 +80,7 @@ std::unique_ptr<OpPassBase<FuncOp>> createAssignNeuronAddressMemRefPass();
 
 std::unique_ptr<OpPassBase<FuncOp>> createCompressActivationPass();
 std::unique_ptr<OpPassBase<FuncOp>> createCompressWeightPass();
+std::unique_ptr<OpPassBase<FuncOp>> createMInfo();
 
 } // namespace mlir
 

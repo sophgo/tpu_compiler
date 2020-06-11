@@ -37,6 +37,8 @@ def mlir_translate(model_file, weight_file, mlirfile, batch_size=1):
 def mlir_opt(mlirfile, opt_mlirfile, op_info_csv):
     ret = subprocess.run(["mlir-opt",
                     "--assign-layer-id",
+                    "--assign-chip-name",
+                    "--chipname=cv1880v2",
                     "--convert-bn-to-scale",
                     "--canonicalize",
                     "--print-tpu-op-info",
@@ -257,6 +259,7 @@ def mlir_gen_cvimodel(mlirfile, cvi_module):
 
     ret = subprocess.run(["mlir-translate",
                     "--mlir-to-cmdbuf",
+                    "--cbuf-set-chip=cv1880v2",
                     int8_tl_lw_memopt,
                     "-o", "cmdbuf.bin"
                     ], **std_output_flag)
@@ -308,6 +311,7 @@ def mlir_build_cvimodel_no_opt(mlirfile, cvi_model):
 
     command = ["mlir-translate",
                "--mlir-to-cvimodel",
+               "--cvi-set-chip=cv1880v2",
                "--weight-file=weight.bin",
                fucn_int8_tl_lw,
                "-o", cvi_model
@@ -344,6 +348,7 @@ def run_cvimodel(input_file, cvi_model, output_tensor, all_tensors=True):
             "--input", input_file,
             "--model", cvi_model,
             "--batch-num", "1",
+            "--set-chip", "cv1880v2",
             "--output", output_tensor,]
     if all_tensors:
         cmd.append("--dump-all-tensors")

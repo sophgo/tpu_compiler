@@ -43,6 +43,9 @@ llvm::StringRef getPreviousOpName(Operation *op, uint index = 0);
 int getOpLayerId(Operation *op);
 LogicalResult setOpLayerId(Operation *op, int id);
 
+llvm::StringRef getChipName(Operation *op);
+LogicalResult setChipName(Operation *op, llvm::StringRef chipname);
+
 llvm::StringRef getOpQuant(Operation *op);
 LogicalResult setOpQuant(Operation *op, llvm::StringRef mode);
 

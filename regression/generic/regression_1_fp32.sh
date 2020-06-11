@@ -34,6 +34,8 @@ fi
 # Notes: convert-bn-to-scale has to be done before canonicalizer
 mlir-opt \
     --assign-layer-id \
+    --assign-chip-name \
+    --chipname ${SET_CHIP_NAME} \
     ${MLIR_OPT_FE_PRE} \
     --canonicalize \
     ${MLIR_OPT_FE_POST} \

@@ -32,6 +32,8 @@ fi
 # assign layer_id right away, and output op_info
 mlir-opt \
     --assign-layer-id \
+    --assign-chip-name \
+    --chipname ${SET_CHIP_NAME} \
     ${MLIR_OPT_FE_PRE} \
     --canonicalize \
     ${MLIR_OPT_FE_POST} \

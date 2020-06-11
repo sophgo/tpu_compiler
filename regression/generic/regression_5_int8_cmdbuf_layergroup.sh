@@ -120,6 +120,7 @@ mlir-opt \
 
 mlir-translate \
     --mlir-to-cvimodel \
+    --cvi-set-chip ${SET_CHIP_NAME} \
     ${CUSTOM_OP_PLUGIN_OPTION}\
     --weight-file weight_int8_multiplier_layergroup.bin \
     ${NET}_quant_int8_multiplier_layergroup_func.mlir \
@@ -132,6 +133,7 @@ if [ $COMPARE_ALL -eq 1 ]; then
     --input ${NET}_in_fp32.npz \
     --model ${NET}_lg.cvimodel \
     --batch-num $BATCH_SIZE \
+    --set-chip ${SET_CHIP_NAME} \
     --output ${NET}_cmdbuf_out_all_int8_multiplier_lg.npz
 
     # # compare all tensors
@@ -145,6 +147,7 @@ else
     --input ${NET}_in_fp32.npz \
     --model ${NET}_lg.cvimodel \
     --batch-num $BATCH_SIZE \
+    --set-chip ${SET_CHIP_NAME} \
     --output ${NET}_cmdbuf_out_int8_multiplier_lg.npz
 
     cvi_npz_tool.py compare \

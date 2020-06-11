@@ -76,7 +76,8 @@ def TPU_TL_LA_Conv2DOp : TPU_Op<"tl_la_conv_2d",
     OptionalAttr<I8Attr>:$m_i8_neg,
     StrAttr:$name,
     OptionalAttr<NonNegativeI32Attr>:$layer_id,
-    OptionalAttr<BoolAttr>:$do_ic_alignment
+    OptionalAttr<BoolAttr>:$do_ic_alignment,
+    OptionalAttr<StrAttr>:$chipname
   );
 
   let results = (outs AnyTensor:$output);
@@ -132,7 +133,8 @@ def TPU_TL_LW_Conv2DOp : TPU_Op<"tl_lw_conv_2d",
     OptionalAttr<NonNegativeI32Attr>:$layer_id,
     OptionalAttr<BoolAttr>:$do_ic_alignment,
     OptionalAttr<I32Attr>:$tiled_oc_step,
-    OptionalAttr<BoolAttr>:$compressed_weight
+    OptionalAttr<BoolAttr>:$compressed_weight,
+    OptionalAttr<StrAttr>:$chipname
   );
 
   let results = (outs AnyTensor:$output);
@@ -163,7 +165,8 @@ def TPU_TL_BroadcastMulOp : TPU_Op<"tl_broadcast_mul",
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
   );
 
   let results = (outs AnyTensor:$output);
@@ -198,7 +201,8 @@ class TPU_TL_EltwiseOp<string mnemonic, string opQuant, string opType> : TPU_Op<
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
   );
 
   let results = (outs AnyTensor:$output);
@@ -230,6 +234,7 @@ class TPU_TL_Pool2DOp<string mnemonic, string opQuant, string opType> : TPU_Op<m
       `buffer_reused`   : optional, whether buffer is reused.
       `name`            : required, name for comparing, or debug.
       `layer_id`        : optional, id for profiling.
+      `chipname`        : optional, chipname.
 
     Result:
       `output`          : result tensor.
@@ -255,7 +260,8 @@ class TPU_TL_Pool2DOp<string mnemonic, string opQuant, string opType> : TPU_Op<m
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
   );
 
   let results = (outs AnyTensor:$output);
@@ -283,6 +289,7 @@ def TPU_TL_LutOp : TPU_Op<"tl_lut",
                           offset within the memory region.
       `name`            : required, name for comparing, or debug.
       `layer_id`        : optional, id for profiling.
+      `chipname`        : optional, chipname.
 
     Result:
       `output`          : result tensor.
@@ -307,7 +314,8 @@ def TPU_TL_LutOp : TPU_Op<"tl_lut",
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
   );
 
   let results = (outs AnyTensor:$output);

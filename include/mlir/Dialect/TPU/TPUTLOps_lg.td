@@ -109,7 +109,8 @@ def TPU_TL_LG_Conv2DOp : TPU_Op<"tl_lg_conv_2d",
     OptionalAttr<I8Attr>:$m_i8_neg,
     DefaultValuedAttr<BoolAttr, "false">:$fused_leaky,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
   );
 
   let results = (outs AnyTensor:$output);
@@ -147,7 +148,8 @@ def TPU_TL_LG_DeConv2DOp : TPU_Op<"tl_lg_deconv_2d",
     DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
     DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
   );
 
   let results = (outs AnyTensor:$output);
@@ -179,7 +181,8 @@ def TPU_TL_LG_EltwiseAddOp : TPU_Op<"tl_lg_eltwise_add",
     DefaultValuedAttr<I32Attr, "1">:$early_stride_h,
     DefaultValuedAttr<I32Attr, "1">:$early_stride_w,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
   );
 
   let results = (outs AnyTensor:$output);
@@ -208,7 +211,8 @@ def TPU_TL_LG_EltwiseMulOp : TPU_Op<"tl_lg_eltwise_mul",
     DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
     DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
   );
 
   let results = (outs AnyTensor:$output);
@@ -234,7 +238,8 @@ class TPU_TL_LG_Pool2DOp<string mnemonic, string opQuant, string opType> : TPU_O
     DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
     DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
   );
 
   let results = (outs AnyTensor:$output);
@@ -269,7 +274,8 @@ def TPU_TL_LG_LrnOp : TPU_Op<"tl_lg_lrn",
     DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
     DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
   );
 
   let results = (outs AnyTensor:$output);
@@ -295,7 +301,8 @@ def TPU_TL_LG_LutOp : TPU_Op<"tl_lg_lut",
     DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
     DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
   );
 
   let results = (outs AnyTensor:$output);
@@ -322,7 +329,8 @@ def TPU_TL_LG_ConcatOp : TPU_Op<"tl_lg_concat",
     DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     OptionalAttr<NonNegativeI32Attr>:$layer_id,
-    StrAttr:$name
+    StrAttr:$name,
+    OptionalAttr<StrAttr>:$chipname
   );
 
   let results = (outs AnyTensor:$output);
@@ -349,7 +357,8 @@ def TPU_TL_LG_LoadNeuronOp : TPU_Op<"tl_lg_load_neuron",
     StrAttr:$name,
     DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
     DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
   );
 
   let results = (outs AnyTensor:$output);
@@ -377,7 +386,8 @@ def TPU_TL_LG_LoadCoeffOp : TPU_Op<"tl_lg_load_coeff",
     StrAttr:$name,
     DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
     DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
   );
 
   let results = (outs AnyTensor:$output);
@@ -402,7 +412,8 @@ def TPU_TL_LG_StoreOp : TPU_Op<"tl_lg_store",
     StrAttr:$name,
     DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
     DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
   );
 
   let results = (outs AnyTensor:$output);
@@ -423,7 +434,8 @@ def TPU_TL_LG_JoinOp : TPU_Op<"tl_lg_join",
     StrAttr:$name,
     DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
     DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
   );
 
   let results = (outs AnyTensor:$output);
@@ -451,7 +463,8 @@ def TPU_TL_LG_BroadcastMulOp : TPU_Op<"tl_lg_broadcast_mul",
     DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
     DefaultValuedAttr<BoolAttr, "false">:$do_relu,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
   );
 
   let results = (outs AnyTensor:$output);
@@ -476,7 +489,8 @@ def TPU_TL_LG_UpsampleOp : TPU_Op<"tl_lg_upsample",
     DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
     DefaultValuedAttr<BoolAttr, "false">:$do_relu,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
   );
 
   let results = (outs AnyTensor:$output);
@@ -504,7 +518,8 @@ def TPU_TL_LG_LeakyReluOp : TPU_Op<"tl_lg_leaky_relu",
     DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
     DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
   );
 
   let results = (outs AnyTensor:$output);
@@ -532,7 +547,8 @@ def TPU_TL_LG_PReluOp : TPU_Op<"tl_lg_prelu",
     DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
     DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
   );
 
   let results = (outs AnyTensor:$output);
@@ -556,7 +572,8 @@ def TPU_TL_LG_CopyOp : TPU_Op<"tl_lg_copy",
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
     DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
   );
 
   let results = (outs AnyTensor:$output);

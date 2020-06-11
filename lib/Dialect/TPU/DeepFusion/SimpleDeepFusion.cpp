@@ -23,6 +23,7 @@
 #include "mlir/Dialect/TPU/TPUOperationSupport.h"
 #include "mlir/Dialect/TPU/TPUTensorSupport.h"
 #include "mlir/Dialect/TPU/Passes.h"
+#include "mlir/Dialect/TPU/MachineInfo.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/StandardTypes.h"
@@ -32,7 +33,6 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/MathExtras.h"
-#include "MachineInfo.h"
 #include "SimpleAnalysis.h"
 
 #define DEBUG_TYPE "deep-fusion-simple"
@@ -122,6 +122,12 @@ public:
       file->keep();
     }
     llvm::raw_ostream &os = file ? file->os() : llvm::errs();
+
+    std::string getRunChipType;
+    MInfo Machineinfo;
+    get_cvichip_name(getRunChipType);
+    Machineinfo.getChipInfo(getRunChipType.c_str());
+    assert(MInfo::version && "refer to set-chip");
 
     auto func = getFunction();
     os << "name" << "," << "n" << "," << "g" << ","

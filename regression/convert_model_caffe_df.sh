@@ -29,6 +29,8 @@ mlir-translate \
     --static-batchsize $3 | \
 mlir-opt \
     --assign-layer-id \
+    --assign-chip-name \
+    --chipname ${SET_CHIP_NAME} \
     --convert-bn-to-scale \
     --canonicalize \
     --eltwise-early-stride \
@@ -86,6 +88,7 @@ mlir-opt \
 
 mlir-translate \
     --mlir-to-cvimodel \
+    --cvi-set-chip ${SET_CHIP_NAME} \
     ${CUSTOM_OP_PLUGIN_OPTION}\
     --weight-file weight.bin \
     int8_tl_lw_memopt_func.mlir \
@@ -101,6 +104,8 @@ mlir-translate \
 
 mlir-opt \
     --assign-layer-id \
+    --assign-chip-name \
+    --chipname ${SET_CHIP_NAME} \
     --convert-bn-to-scale \
     --canonicalize \
     --eltwise-early-stride \
@@ -162,6 +167,7 @@ mlir-opt \
 
 mlir-translate \
     --mlir-to-cvimodel \
+    --cvi-set-chip ${SET_CHIP_NAME} \
     ${CUSTOM_OP_PLUGIN_OPTION}\
     --weight-file weight.bin \
     int8_tl_lw_func.mlir \

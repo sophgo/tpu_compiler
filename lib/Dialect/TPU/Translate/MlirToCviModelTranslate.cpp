@@ -59,6 +59,11 @@ static llvm::cl::opt<std::string>
 static llvm::cl::opt<std::string>
     clWeightBinFileName("weight-file", llvm::cl::desc("saved weight bin filename"));
 
+static llvm::cl::opt<std::string> clRunChipType(
+     "cvi-set-chip",
+     llvm::cl::desc("set and translate chip type to cvimodel"),
+     llvm::cl::init("cv1880v2"));
+
 extern int BF16_TABLE_START;
 extern int BF16_TABLE_END;
 
@@ -288,7 +293,7 @@ CviTpuRoutine::CviTpuRoutine(flatbuffers::FlatBufferBuilder &fbb, FuncOp &fn,
 
 void CviTpuRoutine::codeGen() {
   std::vector<int8_t> weight_data;
-  auto backend_ctx = cvi_backend_create_context(weight_data);
+  auto backend_ctx = cvi_backend_create_context_chip(weight_data, clRunChipType.c_str());
 
   for (auto op : ops) {
     if (auto tgOp = llvm::dyn_cast<tpu::TpuTGOpCodegenInterface>(op)) {

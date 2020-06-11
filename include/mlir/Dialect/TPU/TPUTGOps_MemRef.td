@@ -116,6 +116,7 @@ class TPU_TG_MemRef_ConcatOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       `buffer_reused`   : optional, whether buffer is reused.
       `name`            : required, name for comparing, or debug.
       `layer_id`        : optional, id for profiling.
+      `chipname`        : optional, chipname.
 
     Result:
       `output`          : result tensor.
@@ -137,7 +138,8 @@ class TPU_TG_MemRef_ConcatOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
   );
 }
 def TPU_TG_MemRef_INT8_ConcatOp : TPU_TG_MemRef_ConcatOp<"tg_memref_int8_concat", "Int8">;
@@ -172,6 +174,7 @@ class TPU_TG_MemRef_ConvOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       `fuse_prev`       : optional, if present, be fused with the prev TG op,
                           and current Op shouldn't generate any code anymore.
       `fuse_next`       : optional, if present, fuse with the next TG op.
+      `chipname`        : optional, chipname.
 
     Result:
       `output`          : result tensor.
@@ -195,7 +198,9 @@ class TPU_TG_MemRef_ConvOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     StrAttr:$name,
     OptionalAttr<NonNegativeI32Attr>:$layer_id,
     DefaultValuedAttr<BoolAttr, "false">:$fuse_prev,
-    DefaultValuedAttr<BoolAttr, "false">:$fuse_next
+    DefaultValuedAttr<BoolAttr, "false">:$fuse_next,
+    OptionalAttr<StrAttr>:$chipname
+
   );
 }
 def TPU_TG_MemRef_INT8_PT_Conv2DOp : TPU_TG_MemRef_ConvOp<"tg_memref_int8_pt_conv_2d", "Int8 Per-Tensor">;
@@ -229,6 +234,7 @@ class TPU_TG_MemRef_CropOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       `buffer_reused`   : optional, whether buffer is reused.
       `name`            : required, name for comparing, or debug.
       `layer_id`        : optional, id for profiling.
+      `chipname`        : optional, chipname.
 
     Result:
       `output`          : result tensor.
@@ -248,7 +254,8 @@ class TPU_TG_MemRef_CropOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
   );
 }
 def TPU_TG_MemRef_INT8_CropOp : TPU_TG_MemRef_CropOp<"tg_memref_int8_crop", "Int8">;
@@ -276,6 +283,7 @@ class TPU_TG_MemRef_ClipOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 
       `name`            : required, name for comparing, or debug.
       `layer_id`        : optional, id for profiling.
+      `chipname`        : optional, chipname.
 
     Result:
       `output`          : result tensor.
@@ -295,7 +303,8 @@ class TPU_TG_MemRef_ClipOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
   );
 }
 def TPU_TG_MemRef_INT8_ClipOp : TPU_TG_MemRef_ClipOp<"tg_memref_int8_clip", "Int8">;
@@ -327,6 +336,7 @@ class TPU_TG_MemRef_EltwiseOp<string mnemonic, string opQuant, string opType> : 
       `buffer_reused`   : optional, whether buffer is reused.
       `name`            : required, name for comparing, or debug.
       `layer_id`        : optional, id for profiling.
+      `chipname`        : optional, chipname.
 
     Result:
       `output`          : result tensor.
@@ -349,7 +359,8 @@ class TPU_TG_MemRef_EltwiseOp<string mnemonic, string opQuant, string opType> : 
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
   );
 }
 def TPU_TG_MemRef_INT8_EltwiseAddOp : TPU_TG_MemRef_EltwiseOp<"tg_memref_int8_eltwise_add", "Int8", "Add">;
@@ -382,6 +393,7 @@ class TPU_TG_MemRef_FullyConnectedOp<string mnemonic, string opQuant> : TPU_Op<m
       `buffer_reused`   : optional, whether buffer is reused.
       `name`            : required, name for comparing, or debug.
       `layer_id`        : optional, id for profiling.
+      `chipname`        : optional, chipname.
 
     Result:
       `output`          : result tensor.
@@ -403,7 +415,8 @@ class TPU_TG_MemRef_FullyConnectedOp<string mnemonic, string opQuant> : TPU_Op<m
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
   );
 }
 def TPU_TG_MemRef_INT8_FullyConnectedOp : TPU_TG_MemRef_FullyConnectedOp<"tg_memref_int8_fully_connected", "Int8">;
@@ -425,6 +438,7 @@ class TPU_TG_MemRef_GenericTpuOp<string mnemonic, string opQuant> : TPU_Op<mnemo
       `param`           : required
       `name`            : required
       `layer_id`        : optional, id for profiling.
+      `chipname`        : optional, chipname.
 
     Result:
       `output`          : result tensor.
@@ -439,7 +453,8 @@ class TPU_TG_MemRef_GenericTpuOp<string mnemonic, string opQuant> : TPU_Op<mnemo
     DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<BoolAttr>:$buffer_reused,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
   );
 }
 def TPU_TG_MemRef_INT8_GenericTpuOp : TPU_TG_MemRef_GenericTpuOp<"tg_memref_int8_generic_tpu_op", "Int8">;
@@ -471,6 +486,7 @@ class TPU_TG_MemRef_LeakyReluOp<string mnemonic, string opQuant> : TPU_Op<mnemon
       `fuse_prev`       : optional, if present, be fused with the prev TG op,
                           and current Op shouldn't generate any code anymore.
       `fuse_next`       : optional, if present, fuse with the next TG op.
+      `chipname`        : optional, chipname.
 
     Result:
       `output`          : result tensor.
@@ -495,7 +511,8 @@ class TPU_TG_MemRef_LeakyReluOp<string mnemonic, string opQuant> : TPU_Op<mnemon
     StrAttr:$name,
     OptionalAttr<NonNegativeI32Attr>:$layer_id,
     DefaultValuedAttr<BoolAttr, "false">:$fuse_prev,
-    DefaultValuedAttr<BoolAttr, "false">:$fuse_next
+    DefaultValuedAttr<BoolAttr, "false">:$fuse_next,
+    OptionalAttr<StrAttr>:$chipname
   );
 }
 def TPU_TG_MemRef_INT8_LeakyReluOp : TPU_TG_MemRef_LeakyReluOp<"tg_memref_int8_leaky_relu", "Int8">;
@@ -563,6 +580,7 @@ class TPU_TG_MemRef_LutOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       `buffer_reused`   : optional, whether buffer is reused.
       `name`            : required, name for comparing, or debug.
       `layer_id`        : optional, id for profiling.
+      `chipname`        : optional, chipname.
 
     Result:
       `output`          : result tensor.
@@ -582,7 +600,8 @@ class TPU_TG_MemRef_LutOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
   );
 }
 def TPU_TG_MemRef_INT8_LutOp : TPU_TG_MemRef_LutOp<"tg_memref_int8_lut", "Int8">;
@@ -607,6 +626,7 @@ class TPU_TG_MemRef_LrnOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 
       `name`            : required, name for comparing, or debug.
       `layer_id`        : optional, id for profiling.
+      `chipname`        : optional, chipname.
 
     Result:
       `output`          : result tensor.
@@ -626,7 +646,8 @@ class TPU_TG_MemRef_LrnOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
   );
 }
 def TPU_TG_MemRef_INT8_LrnOp : TPU_TG_MemRef_LrnOp<"tg_memref_int8_lrn", "Int8">;
@@ -655,6 +676,7 @@ class TPU_TG_MemRef_PermuteOp<string mnemonic, string opQuant> : TPU_Op<mnemonic
       `buffer_reused`   : optional, whether buffer is reused.
       `name`            : required, name for comparing, or debug.
       `layer_id`        : optional, id for profiling.
+      `chipname`        : optional, chipname.
 
     Result:
       `output`          : result tensor.
@@ -676,7 +698,8 @@ class TPU_TG_MemRef_PermuteOp<string mnemonic, string opQuant> : TPU_Op<mnemonic
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
   );
 }
 def TPU_TG_MemRef_INT8_PermuteOp : TPU_TG_MemRef_PermuteOp<"tg_memref_int8_permute", "Int8">;
@@ -705,6 +728,7 @@ class TPU_TG_MemRef_Pool2DOp<string mnemonic, string opQuant, string opType> : T
       `buffer_reused`   : optional, whether buffer is reused.
       `name`            : required, name for comparing, or debug.
       `layer_id`        : optional, id for profiling.
+      `chipname`        : optional, chipname.
 
     Result:
       `output`          : result tensor.
@@ -725,7 +749,8 @@ class TPU_TG_MemRef_Pool2DOp<string mnemonic, string opQuant, string opType> : T
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
   );
 }
 def TPU_TG_MemRef_INT8_PoolAvg2DOp : TPU_TG_MemRef_Pool2DOp<"tg_memref_int8_pool_avg_2d", "Int8", "Avg">;
@@ -757,6 +782,7 @@ class TPU_TG_MemRef_PReluOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       `rshift_pos`     : optional, rshift for positive, an int8 value.
       `m_i8_pos`       : optional, multiplier for positive, an int8 value.
       `rshift_neg`     : required, rshift for negative, an int8 value.
+      `chipname`        : optional, chipname.
 
     Result:
       `output`          : result tensor.
@@ -778,7 +804,8 @@ class TPU_TG_MemRef_PReluOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
   );
 
 }
@@ -806,6 +833,7 @@ class TPU_TG_MemRef_QuantOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       `buffer_reused`   : optional, whether buffer is reused.
       `name`            : required, name for comparing, or debug.
       `layer_id`        : optional, id for profiling.
+      `chipname`        : optional, chipname.
 
     Result:
       `output`          : result tensor.
@@ -826,7 +854,8 @@ class TPU_TG_MemRef_QuantOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
   );
 }
 def TPU_TG_MemRef_INT8_QuantOp : TPU_TG_QuantOp<"tg_memref_int8_quant", "Int8">;
@@ -851,6 +880,7 @@ class TPU_TG_MemRef_ReluOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
                           (backend does not support `INPUT`, `OUTPUT` for now)
       `name`            : required, name for comparing, or debug.
       `layer_id`        : optional, id for profiling.
+      `chipname`        : optional, chipname.
 
     Result:
       `output`          : result tensor.
@@ -869,7 +899,8 @@ class TPU_TG_MemRef_ReluOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
   );
 
 }
@@ -892,6 +923,7 @@ def TPU_TG_MemRef_ReshapeOp: TPU_Op<"tg_memref_reshape",
 
     Attributes:
       `name`            : required, name for calibration, comparing, or debug.
+      `chipname`        : optional, chipname.
 
     Result:
       `output`          : result tensor.
@@ -916,7 +948,8 @@ def TPU_TG_MemRef_ReshapeOp: TPU_Op<"tg_memref_reshape",
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
   );
 }
 
@@ -942,6 +975,7 @@ class TPU_TG_MemRef_ReorgOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 
       `name`            : required, name for comparing, or debug.
       `layer_id`        : optional, id for profiling.
+      `chipname`        : optional, chipname.
 
     Result:
       `output`          : result tensor.
@@ -960,7 +994,8 @@ class TPU_TG_MemRef_ReorgOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
   );
 }
 def TPU_TG_MemRef_INT8_ReorgOp : TPU_TG_MemRef_ReorgOp<"tg_memref_int8_reorg", "Int8">;
@@ -988,6 +1023,7 @@ class TPU_TG_MemRef_ShuffleChannelOp<string mnemonic, string opQuant> : TPU_Op<m
 
       `name`            : required, name for comparing, or debug.
       `layer_id`        : optional, id for profiling.
+      `chipname`        : optional, chipname.
 
     Result:
       `output`          : result tensor.
@@ -1006,7 +1042,8 @@ class TPU_TG_MemRef_ShuffleChannelOp<string mnemonic, string opQuant> : TPU_Op<m
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
   );
 }
 def TPU_TG_MemRef_INT8_ShuffleChannelOp : TPU_TG_MemRef_ShuffleChannelOp<"tg_memref_int8_shufflechannel", "Int8">;
@@ -1034,6 +1071,7 @@ class TPU_TG_MemRef_PixelShuffleOp<string mnemonic, string opQuant> : TPU_Op<mne
 
       `name`            : required, name for comparing, or debug.
       `layer_id`        : optional, id for profiling.
+      `chipname`        : optional, chipname.
 
     Result:
       `output`          : result tensor.
@@ -1052,7 +1090,8 @@ class TPU_TG_MemRef_PixelShuffleOp<string mnemonic, string opQuant> : TPU_Op<mne
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
   );
 }
 def TPU_TG_MemRef_INT8_PixelShuffleOp : TPU_TG_MemRef_PixelShuffleOp<"tg_memref_int8_pixelshuffle", "Int8">;
@@ -1085,6 +1124,7 @@ class TPU_TG_MemRef_SliceOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 
       `name`            : required, name for comparing, or debug.
       `layer_id`        : optional, id for profiling.
+      `chipname`        : optional, chipname.
 
     Result:
       `output`          : result tensor.
@@ -1104,7 +1144,8 @@ class TPU_TG_MemRef_SliceOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
   );
 }
 def TPU_TG_MemRef_INT8_SliceOp : TPU_TG_MemRef_SliceOp<"tg_memref_int8_slice", "Int8">;
@@ -1130,6 +1171,7 @@ class TPU_TG_MemRef_SwapChannelOp<string mnemonic, string opQuant> : TPU_Op<mnem
 
       `name`            : required, name for comparing, or debug.
       `layer_id`        : optional, id for profiling.
+      `chipname`        : optional, chipname.
 
     Result:
       `output`          : result tensor.
@@ -1148,7 +1190,8 @@ class TPU_TG_MemRef_SwapChannelOp<string mnemonic, string opQuant> : TPU_Op<mnem
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
   );
 }
 def TPU_TG_MemRef_INT8_SwapChannelOp : TPU_TG_MemRef_SwapChannelOp<"tg_memref_int8_swapchannel", "Int8">;
@@ -1175,6 +1218,7 @@ class TPU_TG_MemRef_UpsampleOp<string mnemonic, string opQuant> : TPU_Op<mnemoni
       `buffer_reused`   : optional, whether buffer is reused.
       `name`            : required, name for comparing, or debug.
       `layer_id`        : optional, id for profiling.
+      `chipname`        : optional, chipname.
 
     Result:
       `output`          : result tensor.
@@ -1193,7 +1237,8 @@ class TPU_TG_MemRef_UpsampleOp<string mnemonic, string opQuant> : TPU_Op<mnemoni
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
   );
 }
 def TPU_TG_MemRef_INT8_UpsampleOp : TPU_TG_MemRef_UpsampleOp<"tg_memref_int8_upsample", "Int8">;

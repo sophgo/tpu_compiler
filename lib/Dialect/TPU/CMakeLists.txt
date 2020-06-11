@@ -34,6 +34,7 @@ add_llvm_library(MLIRTPU
   Transforms/AssignNeuronAddress.cpp
   Transforms/AssignLayerId.cpp
   Transforms/DivideOpsToFunc.cpp
+  Transforms/AssignChipName.cpp
   Transforms/SplitCpuOp.cpp
   Transforms/ConvertPriorBoxToLoadWeight.cpp
   Transforms/ConvertCpuOp.cpp
@@ -70,6 +71,7 @@ add_llvm_library(MLIRTPU
   Backend/TpuTlCodegen_Simple.cpp
   Backend/TpuTlCodegen_LG.cpp
   Plugin/CustomOpPlugin.cpp
+  Backend/MachineInfo.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${MLIR_MAIN_INCLUDE_DIR}/mlir/Dialect/TPU

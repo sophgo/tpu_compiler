@@ -25,6 +25,8 @@ mlir-translate \
     --static-batchsize $7 | \
 mlir-opt \
     --assign-layer-id \
+    --assign-chip-name \
+    --chipname ${SET_CHIP_NAME} \
     --convert-bn-to-scale \
     --canonicalize \
     --eltwise-early-stride \
@@ -53,6 +55,7 @@ mlir-opt \
 
 mlir-translate \
     --mlir-to-cvimodel \
+    --cvi-set-chip ${SET_CHIP_NAME} \
     --weight-file weight.bin \
     int8_layergroup_func.mlir \
     -o $9

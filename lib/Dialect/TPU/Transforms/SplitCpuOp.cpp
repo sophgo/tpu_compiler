@@ -146,10 +146,11 @@ public :
     }
     auto gaddrAttr = rewriter.getI64IntegerAttr(gaddr);
     auto layerIdAttr = rewriter.getI32IntegerAttr(0);
+    auto chipname = rewriter.getStringAttr("CPU");
     auto callee = cpuOpVec[0]->getAttr("callee").cast<StringAttr>().getValue();
     auto callOp = rewriter.create<tpu::TG_CallOp>(op->getLoc(),
                            ArrayRef<mlir::Type>{resType}, gaddrAttr, "call",
-                           layerIdAttr, callee, inputs);
+                           layerIdAttr, callee, inputs, chipname);
 
     for (unsigned int i  = 0; i <  outputs.size(); i++) {
       auto outputOp = outputs[i]->getDefiningOp();

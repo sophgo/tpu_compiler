@@ -52,6 +52,11 @@ extern int BF16_TABLE_END;
 
 static CviBackendContext *backend_ctx = nullptr;
 
+static llvm::cl::opt<std::string> clRunChipType(
+     "cbuf-set-chip",
+     llvm::cl::desc("set and translate chip type to cmdbuf"),
+     llvm::cl::init("cv1880v2"));
+
 static LogicalResult runOperation(Operation &opInst) {
   LLVM_DEBUG(llvm::errs() << "  op " << opInst.getName() << "\n";);
 
@@ -101,7 +106,7 @@ static LogicalResult translateModule(ModuleOp module, llvm::raw_ostream &output)
     return failure();
 
   std::vector<int8_t> weight_data;
-  backend_ctx = cvi_backend_create_context(weight_data);
+  backend_ctx = cvi_backend_create_context_chip(weight_data, clRunChipType.c_str());
 
   for (FuncOp function : module.getOps<FuncOp>()) {
     LLVM_DEBUG(llvm::errs() << "run " << function.getName() << "\n";);

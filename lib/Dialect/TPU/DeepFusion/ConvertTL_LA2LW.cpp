@@ -34,7 +34,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/MathExtras.h"
-#include "MachineInfo.h"
+#include "mlir/Dialect/TPU/MachineInfo.h"
 #include "SimpleAnalysis.h"
 
 #define DEBUG_TYPE "deep-fusion-tl-la2lw"
@@ -1102,6 +1102,12 @@ public:
   void runOnFunction() override {
     auto fn = getFunction();
     auto *context = &getContext();
+    std::string getRunChipType;
+    MInfo Machineinfo;
+    get_cvichip_name(getRunChipType);
+    Machineinfo.getChipInfo(getRunChipType.c_str());
+    assert(MInfo::version && "refer to set-chip");
+
     OwningRewritePatternList patterns;
     patterns.insert<
         TpuTL_LA_Conv2DOpPattern,

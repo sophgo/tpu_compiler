@@ -33,6 +33,7 @@ export USE_LAYERGROUP=0
 export EVAL_MODEL_TYPE="imagenet"
 export CUSTOM_OP_PLUGIN="$INSTALL_PATH/lib/custom_op/libCustomOpPlugin.so"
 export DO_NN_TOOLKIT=0
+export SET_CHIP_NAME="cv1880v2"
 
 if [ -z "$DO_BATCHSIZE" ]; then
   BATCH_SIZE=1

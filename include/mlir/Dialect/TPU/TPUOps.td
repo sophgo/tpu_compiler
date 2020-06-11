@@ -67,6 +67,7 @@ class TPU_ConvOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
       `layer_id`        : optional, id for profiling.
+      `chipname`        : optional, chipname.
 
     Result:
       `output`          : result tensor.
@@ -92,7 +93,8 @@ class TPU_ConvOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
     TPU_ConvParamAttr:$param,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
   );
 
   let results = (outs AnyTensor:$output);
@@ -129,6 +131,7 @@ class TPU_EltwiseOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
       `layer_id`        : optional, id for profiling.
+      `chipname`        : optional, chipname.
 
     Result:
       `output`          : result tensor.
@@ -155,7 +158,8 @@ class TPU_EltwiseOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
     DefaultValuedAttr<I32Attr, "1">:$early_stride_w,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
   );
 
   let results = (outs AnyTensor:$output);
@@ -188,6 +192,7 @@ class TPU_LutOp<string mnemonic,  string opSummary> : TPU_Op<mnemonic,
       `name`            : required, name for calibration, comparing, or debug.
       `layer_id`        : optional, id for profiling.
       `has_table`       : optional, if has lookup table.
+      `chipname`        : optional, chipname.
 
     Result:
       `output`          : result tensor.
@@ -209,7 +214,8 @@ class TPU_LutOp<string mnemonic,  string opSummary> : TPU_Op<mnemonic,
     OptionalAttr<BoolAttr>:$has_table,
     StrAttr:$name,
     OptionalAttr<NonNegativeI32Attr>:$layer_id,
-    TPU_QuantParamAttr:$quant
+    TPU_QuantParamAttr:$quant,
+    OptionalAttr<StrAttr>:$chipname
   );
 
   let results = (outs AnyTensor:$output);
@@ -240,6 +246,7 @@ def TPU_BatchNormOp: TPU_Op<"batch_norm",
       `variance_epsilon`: required, eps for variance.
       `name`            : required, name for calibration, comparing, or debug.
       `layer_id`        : optional, id for profiling.
+      `chipname`        : optional, chipname.
 
     Result:
       `output`          : result tensor.
@@ -259,7 +266,8 @@ def TPU_BatchNormOp: TPU_Op<"batch_norm",
     AnyTensor:$scale,
     DefaultValuedAttr<F32Attr, "1.0e-5">:$variance_epsilon,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
   );
 
   let results = (outs AnyTensor:$output);
@@ -291,6 +299,7 @@ def TPU_BroadcastMulOp: TPU_Op<"broadcast_mul",
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
       `layer_id`        : optional, id for profiling.
+      `chipname`        : optional, chipname.
 
     Result:
       `output`          : result tensor.
@@ -316,7 +325,8 @@ def TPU_BroadcastMulOp: TPU_Op<"broadcast_mul",
     DefaultValuedAttr<BoolAttr, "false">:$do_relu,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
   );
 
   let results = (outs AnyTensor:$output);
@@ -349,6 +359,7 @@ def TPU_ConcatOp: TPU_Op<"concat",
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
       `layer_id`        : optional, id for profiling.
+      `chipname`        : optional, chipname.
 
     Result:
       `output`          : result tensor.
@@ -372,7 +383,8 @@ def TPU_ConcatOp: TPU_Op<"concat",
     DefaultValuedAttr<I32Attr, "1">:$axis,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
   );
 
   let results = (outs AnyTensor:$output);
@@ -426,6 +438,7 @@ def TPU_CropOp: TPU_Op<"crop",
       `crop_shape`      : required, crop shape.
       `crop_offset`     : required, crop offset.
       `layer_id`        : optional, id for profiling.
+      `chipname`        : optional, chipname.
 
     Result:
       `output`          : result tensor.
@@ -448,7 +461,8 @@ def TPU_CropOp: TPU_Op<"crop",
     OptionalAttr<I32ArrayAttr>:$crop_offset,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
   );
   let results = (outs AnyTensor:$output);
 }
@@ -477,6 +491,7 @@ def TPU_DetectionOutputOp : TPU_Op<"detectionoutput",
     Attributes:
       `name`            : required, name for calibration, comparing, or debug.
       `layer_id`        : optional, id for profiling.
+      `chipname`        : optional, chipname.
 
     Result:
       `output`          : result tensor.
@@ -502,7 +517,8 @@ def TPU_DetectionOutputOp : TPU_Op<"detectionoutput",
     I32Attr:$keep_top_k,
     F32Attr:$confidence_threshold,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
   );
 
   let results = (outs AnyTensor:$output);
@@ -539,6 +555,7 @@ def TPU_FullyConnectedOp : TPU_Op<"fully_connected",
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
       `layer_id`        : optional, id for profiling.
+      `chipname`        : optional, chipname.
 
     Result:
       `output`          : result tensor.
@@ -564,7 +581,8 @@ def TPU_FullyConnectedOp : TPU_Op<"fully_connected",
     DefaultValuedAttr<BoolAttr, "false">:$do_relu,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
   );
 
   let results = (outs AnyTensor:$output);
@@ -587,13 +605,15 @@ def TPU_InputOp: TPU_Op<"input",
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
       `layer_id`        : optional, id for profiling.
+      `chipname`        : optional, chipname.
   }];
 
   let arguments = (
     ins AnyTensor:$input,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
   );
 
   let results = (outs AnyTensor:$output);
@@ -635,6 +655,7 @@ def TPU_LeakyReluOp: TPU_Op<"leaky_relu",
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
       `layer_id`        : optional, id for profiling.
+      `chipname`        : optional, chipname.
 
     Result:
       `output`          : result tensor.
@@ -662,7 +683,8 @@ def TPU_LeakyReluOp: TPU_Op<"leaky_relu",
     F32Attr:$negative_slope,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
   );
 
   let results = (outs AnyTensor:$output);
@@ -690,6 +712,7 @@ class TPU_LrnPartOp<string mnemonic,  string opSummary> : TPU_Op<mnemonic,
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
       `layer_id`        : optional, id for profiling.
+      `chipname`        : optional, chipname.
 
     Result:
       `output`          : result tensor.
@@ -704,7 +727,8 @@ class TPU_LrnPartOp<string mnemonic,  string opSummary> : TPU_Op<mnemonic,
     DefaultValuedAttr<F32Attr, "1.0">:$k,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
   );
 
   let results = (outs AnyTensor:$output);
@@ -744,6 +768,7 @@ def TPU_LrnOp: TPU_Op<"lrn",
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
       `layer_id`        : optional, id for profiling.
+      `chipname`        : optional, chipname.
 
     Result:
       `output`          : result tensor.
@@ -775,7 +800,8 @@ def TPU_LrnOp: TPU_Op<"lrn",
     I32Attr:$quant_data1,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
   );
 
   let results = (outs AnyTensor:$output);
@@ -800,6 +826,7 @@ def TPU_NormalizeOp: TPU_Op<"normalize",
       `channel_shared`  : required, scale cross channel or not.
       `name`            : required, name for calibration, comparing, or debug.
       `layer_id`        : optional, id for profiling.
+      `chipname`        : optional, chipname.
 
     Result:
       `output`          : result tensor.
@@ -818,7 +845,8 @@ def TPU_NormalizeOp: TPU_Op<"normalize",
     DefaultValuedAttr<BoolAttr, "true">:$across_spatial,
     DefaultValuedAttr<BoolAttr, "true">:$channel_shared,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
   );
 
   let results = (outs AnyTensor:$output);
@@ -842,10 +870,11 @@ def TPU_PermuteOp: TPU_Op<"permute",
       `input`               : required, the input activation tensor.
 
     Attributes:
-      `order0`  : required, The new order0 of the axes of data.
-      `order1`  : required, The new order1 of the axes of data.
-      `order2`  : required, The new order2 of the axes of data.
-      `order3`  : required, The new order3 of the axes of data.
+      `order0`    : required, The new order0 of the axes of data.
+      `order1`    : required, The new order1 of the axes of data.
+      `order2`    : required, The new order2 of the axes of data.
+      `order3`    : required, The new order3 of the axes of data.
+      `chipname`  : optional, chipname.
 
     Result:
       `output`          : result tensor.
@@ -866,7 +895,8 @@ def TPU_PermuteOp: TPU_Op<"permute",
     NonNegativeI32Attr:$order3,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
   );
 
   let results = (outs AnyTensor:$output);
@@ -889,6 +919,8 @@ def TPU_PixelShuffleOp: TPU_Op<"pixelshuffle",
 
     Attributes:
       `upscale_factor`: optional, upscale factor.
+      `chipname`  : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -906,7 +938,8 @@ def TPU_PixelShuffleOp: TPU_Op<"pixelshuffle",
     NonNegativeI32Attr:$upscale_factor,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
   );
 
   let results = (outs AnyTensor:$output);
@@ -931,6 +964,7 @@ def TPU_ClipOp: TPU_Op<"clip",
     Attributes:
       `max`: optional, Minimum value, under which element is replaced by min. It must be a scalar(tensor of empty shape).
       `min`: optional, Maximum value, above which element is replaced by max. It must be a scalar(tensor of empty shape).
+      `chipname`  : optional, chipname.
 
     Result:
       `output`          : result tensor.
@@ -953,7 +987,8 @@ def TPU_ClipOp: TPU_Op<"clip",
     DefaultValuedAttr<F32Attr, "999">:$max,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
   );
 
   let results = (outs AnyTensor:$output);
@@ -986,6 +1021,7 @@ def TPU_PoolAvg2DOp : TPU_Op<"pool_avg_2d",
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
       `layer_id`        : optional, id for profiling.
+      `chipname`        : optional, chipname.
 
     Result:
       `output`          : result tensor.
@@ -1009,7 +1045,8 @@ def TPU_PoolAvg2DOp : TPU_Op<"pool_avg_2d",
     TPU_PoolParamAttr:$param,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
   );
 
   let results = (outs AnyTensor:$output);
@@ -1035,6 +1072,7 @@ def TPU_PoolMax2DOp : TPU_Op<"pool_max_2d",
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
       `layer_id`        : optional, id for profiling.
+      `chipname`        : optional, chipname.
 
     Result:
       `output`          : result tensor.
@@ -1056,7 +1094,8 @@ def TPU_PoolMax2DOp : TPU_Op<"pool_max_2d",
     TPU_PoolParamAttr:$param,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
   );
 
   let results = (outs AnyTensor:$output);
@@ -1083,6 +1122,7 @@ def TPU_CustomOp : TPU_Op<"custom_op",
       `do_quant`         : required, quantize to int8/bf16 or not.
       `threshold_overwrite` : required, overwrite threshold backward/forward or not.
       `layer_id`        : optional, id for profiling.
+      `chipname`        : optional, chipname.
 
     Result:
       `output`          : result tensor.
@@ -1098,7 +1138,8 @@ def TPU_CustomOp : TPU_Op<"custom_op",
     DefaultValuedAttr<BoolAttr, "false">:$do_quant,
     DefaultValuedAttr<StrAttr, "none">:$threshold_overwrite,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
   );
 
   let results = (outs AnyTensor:$output);
@@ -1125,6 +1166,7 @@ def TPU_PowerOp: TPU_Op<"power",
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
       `layer_id`        : optional, id for profiling.
+      `chipname`        : optional, chipname.
 
     Result:
       `output`          : result tensor.
@@ -1148,7 +1190,8 @@ def TPU_PowerOp: TPU_Op<"power",
     DefaultValuedAttr<F32Attr, "0.0">:$shift,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
   );
 
   let results = (outs AnyTensor:$output);
@@ -1190,6 +1233,7 @@ def TPU_PReluOp : TPU_Op<"prelu",
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
       `layer_id`        : optional, id for profiling.
+      `chipname`        : optional, chipname.
 
     Result:
       `output`          : result tensor.
@@ -1217,7 +1261,8 @@ def TPU_PReluOp : TPU_Op<"prelu",
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_neg_multiplier,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
   );
 
   let results = (outs AnyTensor:$output);
@@ -1242,6 +1287,7 @@ def TPU_PreprocessOp : TPU_Op<"preprocess",
       `color_order`     : required, order of feature maps
       `name`            : required, name for calibration, comparing, or debug.
       `layer_id`        : optional, id for profiling.
+      `chipname`        : optional, chipname.
 
     Result:
       `output`          : result tensor.
@@ -1261,7 +1307,8 @@ def TPU_PreprocessOp : TPU_Op<"preprocess",
     F32Attr:$scale,
     StrAttr:$name,
     TPU_QuantParamAttr:$quant,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
   );
 
   let results = (outs AnyTensor:$output);
@@ -1298,6 +1345,7 @@ def TPU_PriorBoxOp: TPU_Op<"priorbox",
     Attributes:
       `name`            : required, name for calibration, comparing, or debug.
       `layer_id`        : optional, id for profiling.
+      `chipname`        : optional, chipname.
 
     Result:
       `output`          : result tensor.
@@ -1326,7 +1374,8 @@ def TPU_PriorBoxOp: TPU_Op<"priorbox",
     F32Attr:$step,
     DefaultValuedAttr<F32Attr, "0.5">:$offset,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
   );
 
   let results = (outs AnyTensor:$output);
@@ -1358,6 +1407,7 @@ def TPU_ReluOp: TPU_Op<"relu",
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
       `layer_id`        : optional, id for profiling.
+      `chipname`        : optional, chipname.
 
     Result:
       `output`          : result tensor.
@@ -1378,7 +1428,8 @@ def TPU_ReluOp: TPU_Op<"relu",
     OptionalAttr<F32Attr>:$maximum,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
   );
 
   let results = (outs AnyTensor:$output);
@@ -1402,10 +1453,11 @@ def TPU_ReorgOp : TPU_Op<"reorg",
       `input`           : required, the input activation tensor.
 
     Attributes:
-      `stride`           : required, channel / height / width stride.
+      `stride`          : required, channel / height / width stride.
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
       `layer_id`        : optional, id for profiling.
+      `chipname`        : optional, chipname.
 
     Result:
       `output`          : result tensor.
@@ -1427,7 +1479,8 @@ def TPU_ReorgOp : TPU_Op<"reorg",
     NonNegativeI32Attr:$stride,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
   );
 
   let results = (outs AnyTensor:$output);
@@ -1452,6 +1505,7 @@ def TPU_RetinaFaceDetectionOp : TPU_Op<"retinaface_detection",
       `name`            : required, name for calibration, comparing, or debug.
       `quant`           : required, a QuantParam struct attributes.
       `layer_id`        : optional, id for profiling.
+      `chipname`        : optional, chipname.
 
     Result:
       `output`          : result tensor.
@@ -1471,7 +1525,8 @@ def TPU_RetinaFaceDetectionOp : TPU_Op<"retinaface_detection",
     F32Attr:$confidence_threshold,
     I32Attr:$keep_topk,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
   );
 
   let results = (outs AnyTensor:$output);
@@ -1495,6 +1550,7 @@ def TPU_ScaleOp: TPU_Op<"scale",
       `do_relu`         : required, if need to preform relu on result.
       `name`            : required, name for calibration, comparing, or debug.
       `layer_id`        : optional, id for profiling.
+      `chipname`        : optional, chipname.
 
     Result:
       `output`          : result tensor.
@@ -1513,7 +1569,8 @@ def TPU_ScaleOp: TPU_Op<"scale",
     TPU_TensorOfOrNone<[F32, BF16, I16, I8]>:$bias,
     DefaultValuedAttr<BoolAttr, "false">:$do_relu,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
   );
 
   let results = (outs AnyTensor:$output);
@@ -1541,6 +1598,7 @@ def TPU_ShuffleChannelOp: TPU_Op<"shuffle_channel",
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
       `layer_id`        : optional, id for profiling.
+      `chipname`        : optional, chipname.
 
     Result:
       `output`          : result tensor.
@@ -1562,7 +1620,8 @@ def TPU_ShuffleChannelOp: TPU_Op<"shuffle_channel",
     NonNegativeI32Attr:$group,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
   );
 
   let results = (outs AnyTensor:$output);
@@ -1593,6 +1652,7 @@ def TPU_SliceOp: TPU_Op<"slice",
                           threshold, although the quantization is bypassed.
       `name`            : required, name for calibration, comparing, or debug.
       `layer_id`        : optional, id for profiling.
+      `chipname`        : optional, chipname.
 
     Result:
       `output`          : result tensor.
@@ -1615,7 +1675,8 @@ def TPU_SliceOp: TPU_Op<"slice",
     I32Attr:$offset,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
   );
 
   let results = (outs AnyTensor:$output);
@@ -1637,6 +1698,7 @@ def TPU_SoftmaxOp: TPU_Op<"softmax",
       `axis`            : optional, the axis for softmax to perform.
       `name`            : required, name for calibration, comparing, or debug.
       `layer_id`        : optional, id for profiling.
+      `chipname`        : optional, chipname.
 
     Result:
       `output`          : result tensor.
@@ -1654,7 +1716,8 @@ def TPU_SoftmaxOp: TPU_Op<"softmax",
     ins AnyTensor:$input,
     DefaultValuedAttr<I32Attr, "1">:$axis,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
   );
 
   let results = (outs AnyTensor:$output);
@@ -1682,6 +1745,7 @@ def TPU_SwapChannelOp: TPU_Op<"swap_channel",
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
       `layer_id`        : optional, id for profiling.
+      `chipname`        : optional, chipname.
 
     Result:
       `output`          : result tensor.
@@ -1703,7 +1767,8 @@ def TPU_SwapChannelOp: TPU_Op<"swap_channel",
     OptionalAttr<I32ArrayAttr>:$channel_order,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
   );
 
   let results = (outs AnyTensor:$output);
@@ -1725,6 +1790,7 @@ def TPU_TransposeOp : TPU_Op<"transpose",
     Attributes:
       `name`            : required, name for calibration, comparing, or debug.
       `layer_id`        : optional, id for profiling.
+      `chipname`        : optional, chipname.
 
     Result:
       `output`          : result tensor.
@@ -1740,7 +1806,8 @@ def TPU_TransposeOp : TPU_Op<"transpose",
     ins AnyTensor:$input,
     StrAttr:$name,
     TPU_QuantParamAttr:$quant,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
   );
 
   let results = (outs AnyTensor:$output);
@@ -1766,6 +1833,7 @@ def TPU_UpsampleOp: TPU_Op<"upsample",
                           threshold, although the quantization is bypassed.
       `name`            : required, name for calibration, comparing, or debug.
       `layer_id`        : optional, id for profiling.
+      `chipname`        : optional, chipname.
 
     Result:
       `output`          : result tensor.
@@ -1787,7 +1855,8 @@ def TPU_UpsampleOp: TPU_Op<"upsample",
     NonNegativeI32Attr:$scale,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
   );
 
   let results = (outs AnyTensor:$output);
@@ -1814,6 +1883,7 @@ def TPU_YoloDetectionOp : TPU_Op<"yolo_detection",
       `name`            : required, name for calibration, comparing, or debug.
       `quant`           : required, a QuantParam struct attributes.
       `layer_id`        : optional, id for profiling.
+      `chipname`        : optional, chipname.
 
     Result:
       `output`          : result tensor.
@@ -1835,7 +1905,8 @@ def TPU_YoloDetectionOp : TPU_Op<"yolo_detection",
     F32Attr:$obj_threshold,
     I32Attr:$keep_topk,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
   );
 
   let results = (outs AnyTensor:$output);
