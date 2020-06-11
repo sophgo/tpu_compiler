@@ -13,7 +13,7 @@ net_list_onnx=(
   "densenet-121"
   "caffenet"
   "googlenet"
-  "inception_v1"
+  #"inception_v1"
   ## "inception_v2" # todo: not same output with onnx runtime
   "zfnet-512"
   "mobilenet_v3"
