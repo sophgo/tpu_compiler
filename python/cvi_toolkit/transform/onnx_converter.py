@@ -537,8 +537,8 @@ class OnnxConverter(BaseConverter):
             'dilation_h': dilations[0],
             'dilation_w': dilations[1],
             'padding_t': pads[0],
-            'padding_b': pads[1],
-            'padding_l': pads[2],
+            'padding_b': pads[2],
+            'padding_l': pads[1],
             'padding_r': pads[3],
             'group': group,
             'is_dw': False,
@@ -565,14 +565,16 @@ class OnnxConverter(BaseConverter):
             shape[2],
             onnx_node.attrs['kernel_shape'][0],
             strides[0],
-            pads[0],
+            conv_param['padding_t'],
+            conv_param['padding_b'],
             dilations[0]
         )
         ow = calcConv2DSpatial(
             shape[3],
             onnx_node.attrs['kernel_shape'][1],
             strides[1],
-            pads[1],
+            conv_param['padding_l'],
+            conv_param['padding_r'],
             dilations[1]
         )
 
