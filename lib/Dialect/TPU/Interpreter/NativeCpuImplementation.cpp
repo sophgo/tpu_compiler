@@ -58,6 +58,8 @@ int mkldnn_conv(float *input, float *weight, float *bias,
                  << "s: (" << sh << "*" << sw << "), "
                  << "pt:" << pt << " pb:" << pb << "pl: " << pl << " pr:" << pr
                  << "g: " << g << "\n";
+    llvm::errs() << "n:" << n << " c: " << ic << " h:" << ih << " w:" << iw << "\n"
+                << " oc: " << oc << " oh:" << oh << " ow:" << ow << "\n"
   );
 
   using tag = memory::format_tag;

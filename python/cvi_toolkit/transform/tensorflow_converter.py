@@ -36,12 +36,15 @@ class TFNode():
         self.inputs = inputs
         self.outputs = outputs
         self.proto = proto
+        self.config = proto.get_config()
 
     def print_info(self):
         cprint("node: {}".format(self.name), 'cyan')
         cprint("    type: {}".format(self.op_type), 'white')
         cprint("    inputs: {}".format(self.inputs), 'white')
         cprint("    outputs: {}".format(self.outputs), 'white')
+        cprint("    config: {}".format(self.config), 'green')
+
 
 class TFTensor():
     def __init__(self, name, value, shape, op_type):
@@ -67,6 +70,10 @@ class TFConverter(BaseConverter):
 
         # read tensorflow model
         self.net = tf.keras.models.load_model(model_path)
+        if not isinstance(self.net, tf.python.keras.engine.training.Model):
+            raise RuntimeError("Not support tf type: {} now".format(type(self.net)))
+        print(self.net.summary())
+
         self.layers = self.net.layers
         self.inputs = self.net.inputs
         self.outputs = self.net.outputs
@@ -84,10 +91,14 @@ class TFConverter(BaseConverter):
             "Activation": lambda node: self.convert_activation_op(node),
             "BatchNormalization": lambda node: self.convert_batchnorm_op(node),
             "Conv2D": lambda node: self.convert_conv_op(node),
+            "DepthwiseConv2D": lambda node: self.convert_depthwise_conv_op(node),
             "Dense": lambda node: self.convert_fc_op(node),
+            "Dropout":  lambda node: self.convert_skip_op(node),
             "GlobalAveragePooling2D": lambda node: self.convert_global_avg_pool_op(node),
             "InputLayer": lambda node: None,
             "MaxPooling2D": lambda node: self.convert_maxpool_op(node),
+            "ReLU": lambda node: self.convert_activation_op(node),
+            "Reshape": lambda node: self.convert_reshape_op(node),
             "ZeroPadding2D": lambda node: self.convert_pad_op(node),
 
         }
@@ -198,16 +209,42 @@ class TFConverter(BaseConverter):
             f.write(mlir_txt)
 
     def convert_activation_op(self, node):
-        assert(node.op_type == "Activation")
-        config = node.proto.get_config()
+
         op, input_shape, _ = self.getOperand(node.inputs[0])
         operands = list()
         operands.append(op)
         output_shape = input_shape
+        if node.op_type == "Activation":
+            if node.config['activation'] == "relu":
+                activation_op = self.CVI.add_relu_op("{}".format(node.name), operands, output_shape)
+            elif node.config['activation'] == "softmax":
+                axis = len(input_shape) - 1
 
-        if config['activation'] == "relu":
-            activation_op = self.CVI.add_relu_op("{}".format(node.name), operands, output_shape)
-
+                for i in range(len(output_shape)):
+                    if output_shape[axis] == 1:
+                        axis = axis -1
+                softmax_param = {
+                    'axis': axis,
+                }
+                activation_op = self.CVI.add_softmax_op(node.name, operands, output_shape, **softmax_param)
+            else:
+                raise RuntimeError("No support {} activation".format(node.config['activation']))
+        elif node.op_type == "ReLU":
+            max_value = node.config['max_value']
+            if int(max_value) == 6:
+                # relu6
+                relu_op = self.CVI.add_relu_op(
+                    "{}_relu".format(node.name), operands, output_shape)
+                clip_param = {
+                    "min": 0.0,
+                    "max": 6.0,
+                }
+                activation_op = self.CVI.add_clip_op(
+                    "{}_relu6".format(node.name), [relu_op], output_shape, **clip_param)
+            else:
+                activation_op = self.CVI.add_relu_op("{}".format(node.name), operands, output_shape)
+        else:
+            raise RuntimeError("No support {} activation".format(node.op_type))
         self.addOperand(node.name, activation_op, output_shape, TensorType.ACTIVATION)
 
     def convert_add_op(self, node):
@@ -227,11 +264,10 @@ class TFConverter(BaseConverter):
 
     def convert_batchnorm_op(self, node):
         assert(node.op_type == "BatchNormalization")
-        config = node.proto.get_config()
         op, input_shape, _ = self.getOperand(node.inputs[0])
         operands = list()
         operands.append(op)
-        epsilon = config['epsilon']
+        epsilon = node.config['epsilon']
 
         # we fuse batchnorm and scale at here
         gamma_value = node.proto.get_weights()[0]
@@ -262,16 +298,10 @@ class TFConverter(BaseConverter):
 
     def convert_conv_op(self, node):
         assert(node.op_type == "Conv2D")
-        config = node.proto.get_config()
         op, shape, tesnor_type = self.getOperand(node.inputs[0])
-        if tesnor_type == TensorType.TENSOR:
-            # get padding data from tensor
-            padding_attr_data = self.getTensor(node.inputs[0]).tensor_data
-        else:
-            padding_attr_data = None
+
         operands = list()
         operands.append(op)
-
         # filter
         filter_data = node.proto.get_weights()[0]
         filter_data = turn_data_hwio_to_oihw(filter_data)
@@ -281,7 +311,7 @@ class TFConverter(BaseConverter):
         operands.append(filter_op)
 
         # bias
-        do_bias = config['use_bias']
+        do_bias = node.config['use_bias']
         if do_bias:
             bias_data = node.proto.get_weights()[1]
             bias_shape = bias_data.shape
@@ -289,46 +319,62 @@ class TFConverter(BaseConverter):
             bias_op = self.createLoadWeightOp(bias_name, bias_data, bias_shape)
             operands.append(bias_op)
 
+        stride_h = node.config['strides'][0]
+        stride_w = node.config['strides'][1]
+        # Check padding method
+        if tesnor_type == TensorType.TENSOR:
+            # get padding data from tensor
+            padding_attr_data = self.getTensor(node.inputs[0]).tensor_data
+            padding_t = padding_attr_data[0][0]
+            padding_b = padding_attr_data[0][1]
+            padding_l = padding_attr_data[1][0]
+            padding_r = padding_attr_data[1][1]
+        else:
+            padding_attr_data = None
+            if node.config['padding'] == "same":
+                padding_along_h = get_TF_SAME_Padding(shape[2], filter_shape[2], stride_h)
+                padding_along_w = get_TF_SAME_Padding(shape[3], filter_shape[3], stride_w)
+                padding_t = padding_along_h // 2
+                padding_l = padding_along_w // 2
+                padding_b = padding_along_h - padding_t
+                padding_r = padding_along_w - padding_l
+            else:
+                padding_t = 0
+                padding_b = 0
+                padding_l = 0
+                padding_r = 0
 
         conv_param = {
-            'stride_h': config['strides'][0],
-            'stride_w': config['strides'][1],
-            'padding': "SAME" if config['padding'] == "same" or isinstance(padding_attr_data, np.ndarray) else "VALID",
-            'dilation_h': config['dilation_rate'][0],
-            'dilation_w': config['dilation_rate'][1],
+            'stride_h': stride_h,
+            'stride_w': stride_w,
+            'padding': "VALID",
+            'dilation_h': node.config['dilation_rate'][0],
+            'dilation_w': node.config['dilation_rate'][1],
+            'padding_t': int(padding_t),
+            'padding_b': int(padding_b),
+            'padding_l': int(padding_l),
+            'padding_r': int(padding_r),
             'group': 1,  # Don't have group option?
             'is_dw': False,
-            'with_bias': config['use_bias'],
+            'with_bias': node.config['use_bias'],
             'do_relu': False,
         }
         on = shape[0]
         oc = filter_shape[0] # feature map size
-        # padding data order is NHWC
-        # if padding data is not np.ndarray (not from bottom layer)
-        # and conv_table.Padding() is SAME, we need to calculate it.
-        if config['padding'] == "same":
-            out_h = ceil(shape[2]/conv_param['stride_h'])
-            padding_h = get_TF_SAME_Padding(
-                shape[2], out_h, filter_shape[2], conv_param['stride_h'])
-            out_w = ceil(shape[3]/conv_param['stride_w'])
-            padding_w = get_TF_SAME_Padding(
-                shape[3], out_w, filter_shape[3], conv_param['stride_w'])
-        else:
-            padding_h = 0
-            padding_w = 0
-
         oh = calcConv2DSpatial(
             shape[2],
             filter_shape[2],
             conv_param['stride_h'],
-            padding_attr_data[0][0] if isinstance(padding_attr_data, np.ndarray) else padding_h,
+            padding_t,
+            padding_b,
             conv_param['dilation_h'],
         )
         ow = calcConv2DSpatial(
             shape[3],
             filter_shape[3],
             conv_param['stride_w'],
-            padding_attr_data[1][0] if isinstance(padding_attr_data, np.ndarray) else padding_w,
+            padding_l,
+            padding_r,
             conv_param['dilation_w'],
         )
         output_shape = [on, oc, oh, ow]
@@ -337,9 +383,105 @@ class TFConverter(BaseConverter):
         self.addOperand(node.name, conv_op, output_shape,
                         TensorType.ACTIVATION)
 
+    def convert_depthwise_conv_op(self, node):
+        assert(node.op_type == "DepthwiseConv2D")
+        op, shape, tesnor_type = self.getOperand(node.inputs[0])
+
+        operands = list()
+        operands.append(op)
+        ic = shape[1]
+        g = ic
+        kh = node.config['kernel_size'][0]
+        kw = node.config['kernel_size'][1]
+        oc = ic
+
+        # filter
+        filter_data = node.proto.get_weights()[0]
+        filter_data = turn_data_hwio_to_oihw(filter_data)
+        filter_data = np.ascontiguousarray(
+            filter_data.flatten().reshape(g, int(oc/g), int(ic/g), kh, kw))
+        filter_shape = filter_data.shape
+        filter_name = "{}_add_weight".format(node.name)
+
+        filter_op = self.createLoadWeightOp(filter_name, filter_data, filter_shape)
+        operands.append(filter_op)
+
+
+        # bias
+        do_bias = node.config['use_bias']
+        if do_bias:
+            bias_data = node.proto.get_weights()[1]
+            bias_shape = bias_data.shape
+            bias_name = "{}_add_bias".format(node.name)
+            bias_op = self.createLoadWeightOp(bias_name, bias_data, bias_shape)
+            operands.append(bias_op)
+
+        stride_h = node.config['strides'][0]
+        stride_w = node.config['strides'][1]
+        # Check padding method
+        if tesnor_type == TensorType.TENSOR:
+            # get padding data from tensor
+            padding_attr_data = self.getTensor(node.inputs[0]).tensor_data
+            padding_t = padding_attr_data[0][0]
+            padding_b = padding_attr_data[0][1]
+            padding_l = padding_attr_data[1][0]
+            padding_r = padding_attr_data[1][1]
+        else:
+            padding_attr_data = None
+            if node.config['padding'] == "same":
+                padding_along_h = get_TF_SAME_Padding(shape[2], filter_shape[3], stride_h)
+                padding_along_w = get_TF_SAME_Padding(shape[3], filter_shape[4], stride_w)
+                padding_t = padding_along_h // 2
+                padding_l = padding_along_w // 2
+                padding_b = padding_along_h - padding_t
+                padding_r = padding_along_w - padding_l
+            else:
+                padding_t = 0
+                padding_b = 0
+                padding_l = 0
+                padding_r = 0
+
+
+        depthwise_conv_param = {
+            'stride_h': stride_h,
+            'stride_w': stride_w,
+            'padding': "SAME",
+            'dilation_h': node.config['dilation_rate'][0],
+            'dilation_w': node.config['dilation_rate'][1],
+            'padding_t': int(padding_t),
+            'padding_b': int(padding_b),
+            'padding_l': int(padding_l),
+            'padding_r': int(padding_r),
+            'group': g,
+            'is_dw': True,
+            'with_bias': node.config['use_bias'],
+            'do_relu': False,
+        }
+        on = shape[0]
+
+        oh = calcConv2DSpatial(
+            shape[2],
+            filter_shape[3],
+            depthwise_conv_param['stride_h'],
+            padding_t,
+            padding_b,
+            depthwise_conv_param['dilation_h'],
+        )
+        ow = calcConv2DSpatial(
+            shape[3],
+            filter_shape[4],
+            depthwise_conv_param['stride_w'],
+            padding_l,
+            padding_r,
+            depthwise_conv_param['dilation_w'],
+        )
+        output_shape = [on, oc, oh, ow]
+        depthwise_conv_op = self.CVI.add_conv_op(node.name, operands, output_shape, **depthwise_conv_param)
+        self.addOperand(node.name, depthwise_conv_op, output_shape,
+                        TensorType.ACTIVATION)
+
     def convert_fc_op(self, node):
         assert(node.op_type == "Dense")
-        config = node.proto.get_config()
         op, shape, _ = self.getOperand(node.inputs[0])
         operands = list()
         operands.append(op)
@@ -354,7 +496,7 @@ class TFConverter(BaseConverter):
         operands.append(filter_op)
 
         # bias
-        do_bias = config['use_bias']
+        do_bias = node.config['use_bias']
         if do_bias:
             bias_data = node.proto.get_weights()[1]
             bias_shape = bias_data.shape
@@ -366,7 +508,7 @@ class TFConverter(BaseConverter):
         K = shape[1]
         N = bias_shape[0]
         output_shape = [M, N]
-        if config['activation'] == "softmax":
+        if node.config['activation'] == "softmax":
             fc_op = self.CVI.add_fully_connected_op("{}_fc".format(node.name), operands, output_shape)
             self.addOperand("{}_fc".format(node.name), fc_op,
                             output_shape, TensorType.ACTIVATION)
@@ -381,13 +523,10 @@ class TFConverter(BaseConverter):
                             TensorType.ACTIVATION)
         else:
             raise RuntimeError(
-                "TODO Activation is {}".format(config['activation']))
-
-
+                "TODO Activation is {}".format(node.config['activation']))
 
     def convert_global_avg_pool_op(self, node):
         assert(node.op_type == "GlobalAveragePooling2D")
-        config = node.proto.get_config()
         op, input_shape, _ = self.getOperand(node.inputs[0])
         operands = list()
         operands.append(op)
@@ -414,7 +553,6 @@ class TFConverter(BaseConverter):
 
     def convert_maxpool_op(self, node):
         assert(node.op_type == "MaxPooling2D")
-        config = node.proto.get_config()
         op, shape, tensor_type = self.getOperand(node.inputs[0])
 
         if tensor_type == TensorType.TENSOR:
@@ -427,10 +565,10 @@ class TFConverter(BaseConverter):
         operands.append(op)
 
         pool_max_2d_param = {
-            'stride_h': config['strides'][0],
-            'stride_w': config['strides'][1],
-            'kernel_h': config['pool_size'][0],
-            'kernel_w': config['pool_size'][1],
+            'stride_h': node.config['strides'][0],
+            'stride_w': node.config['strides'][1],
+            'kernel_h': node.config['pool_size'][0],
+            'kernel_w': node.config['pool_size'][1],
             'padding_b': padding_attr_data[0][0] if isinstance(padding_attr_data, np.ndarray) else 0,
             'padding_r': padding_attr_data[1][0] if isinstance(padding_attr_data, np.ndarray) else 0,
             'padding_t': padding_attr_data[0][1] if isinstance(padding_attr_data, np.ndarray) else 0,
@@ -501,6 +639,22 @@ class TFConverter(BaseConverter):
         self.addOperand(node.name, op, shape, TensorType.TENSOR)
         # For Conv2d Get this data
         self.addTensor(node.name, padding_attr_data, shape, "PAD")
+
+    def convert_reshape_op(self, node):
+        op, input_shape, _ = self.getOperand(node.inputs[0])
+        operands = list()
+        operands.append(op)
+        output_shape = list(node.config['target_shape']) # none batch size infomatiion [h, w, c]
+        if len(output_shape) == 3:
+            # hwc -> chw
+            output_shape = [output_shape[2], output_shape[0], output_shape[1]]
+        output_shape.insert(0, input_shape[0]) # add batch size
+        reshape_op = self.CVI.add_reshape_op(node.name, operands, output_shape)
+        self.addOperand(node.name, reshape_op, output_shape, TensorType.ACTIVATION)
+
+    def convert_skip_op(self, node):
+        op, input_shape, _ = self.getOperand(node.inputs[0])
+        self.addOperand(node.name, op, input_shape, TensorType.ACTIVATION)
 
     def run(self):
         self.convert_node()
