@@ -56,7 +56,7 @@ int mkldnn_conv(float *input, float *weight, float *bias,
   LLVM_DEBUG(
     llvm::errs() << "  k: (" << kh << "*" << kw << "), "
                  << "s: (" << sh << "*" << sw << "), "
-                 << "pt:" << pt << " pb:" << pb << " pl: " << pl << "pr:" << pr
+                 << "pt:" << pt << " pb:" << pb << "pl: " << pl << " pr:" << pr
                  << "g: " << g << "\n";
   );
 
