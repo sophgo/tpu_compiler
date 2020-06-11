@@ -470,15 +470,11 @@ static inline s32 RoundingDivideByPOT(s32 x, int exponent)
   if (exponent == 0) {
     return x;
   }
-  assert(exponent > 0);
-  const s32 shift_vec = -exponent;
-  const s32 fixup = (x & shift_vec) >> 31;
-  const s32 fixed_up_x = x + fixup;
-
-  s32 nudge = 1 << (exponent - 1);
-  s32 val = (fixed_up_x + nudge) >> exponent;
-
-  return val;
+  assert(exponent > 0 && exponent <= 31);
+  const int32_t mask = (1ll << exponent) - 1;
+  const int32_t remainder = x & mask;
+  const int32_t threshold = (mask >> 1) + ((x < 0) ? 1 : 0);
+  return ((x >> exponent) + ((remainder > threshold) ? 1 : 0));
 }
 
 static inline s32 SaturatingRoundingDoublingHighMul(s32 a, s32 b)
