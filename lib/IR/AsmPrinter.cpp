@@ -586,6 +586,10 @@ static void printFloatValue(const APFloat &apValue, raw_ostream &os) {
       strValue.clear();
       apValue.toString(strValue);
     }
+    // avoid parser mistake it as integer. e.g. 1234 => 1234.0
+    if (strValue.count('.') == 0 && strValue.count('E') == 0) {
+      strValue.append(".0");
+    }
     os << strValue;
     return;
   }

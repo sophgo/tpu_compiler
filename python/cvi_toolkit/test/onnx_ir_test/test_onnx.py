@@ -502,6 +502,8 @@ class ONNX_IR_TESTER(object):
         model_def = helper.make_model(graph_def, producer_name=test_case)
         input_data = np.random.randn(input_shape[0], input_shape[1],
                         input_shape[2], input_shape[3]).astype(np.float32)
+        # avoid divide 0
+        input_data[input_data==0] = 1
         onnx.checker.check_model(model_def)
         self.onnx_convert_and_infernece(input_data, model_def, test_case)
 
