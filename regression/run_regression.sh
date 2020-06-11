@@ -211,7 +211,7 @@ usage()
 run_extra=0
 bs=1
 run_accuracy=0
-run_onnx_test=1
+run_onnx_test=0
 while getopts "n:b:a:f:e" opt
 do
   case "$opt" in
