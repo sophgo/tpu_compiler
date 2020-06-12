@@ -240,7 +240,7 @@ class TFConverter(BaseConverter):
                     "max": 6.0,
                 }
                 activation_op = self.CVI.add_clip_op(
-                    "{}_relu6".format(node.name), [relu_op], output_shape, **clip_param)
+                    "{}".format(node.name), [relu_op], output_shape, **clip_param)
             else:
                 activation_op = self.CVI.add_relu_op("{}".format(node.name), operands, output_shape)
         else:
