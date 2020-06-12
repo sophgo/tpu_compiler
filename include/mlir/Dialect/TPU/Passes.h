@@ -36,6 +36,7 @@ std::unique_ptr<OpPassBase<ModuleOp>> createSplitCpuOpPass();
 
 std::unique_ptr<OpPassBase<FuncOp>> createDecomposeNormalizePass();
 std::unique_ptr<OpPassBase<FuncOp>> createConvertBnToScalePass();
+std::unique_ptr<OpPassBase<FuncOp>> createConvertUpsampleToDeconvPass();
 std::unique_ptr<OpPassBase<FuncOp>> createFoldScalePass();
 std::unique_ptr<OpPassBase<FuncOp>> createMergeScaleIntoConvPass();
 std::unique_ptr<OpPassBase<FuncOp>> createConvertScaleToDWConvPass();

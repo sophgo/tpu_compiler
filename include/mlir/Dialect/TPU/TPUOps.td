@@ -1860,6 +1860,7 @@ def TPU_UpsampleOp: TPU_Op<"upsample",
   );
 
   let results = (outs AnyTensor:$output);
+  let hasCanonicalizer = 1;
 }
 
 def TPU_YoloDetectionOp : TPU_Op<"yolo_detection",
