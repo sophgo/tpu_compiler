@@ -2,7 +2,7 @@ FROM ubuntu:16.04
 LABEL maintainer lei.wang@cvitek.com
 
 # Use cn.archive.ubuntu.com apt source;
-COPY sources-16.04.list /etc/apt/sources.list
+# COPY sources-16.04.list /etc/apt/sources.list
 
 # ================== apt ==================
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -21,9 +21,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     unzip \
     python-dev \
     python-pip \
-    python-setuptools \
     python3-dev \
-    python3-setuptools \
+    dpkg \
     repo
 
 # bsp tools
@@ -86,6 +85,7 @@ RUN rm -rf /var/lib/apt/lists/*
 RUN pip install --upgrade pip
 # RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
 RUN pip config set global.index-url https://mirrors.aliyun.com/pypi/simple
+RUN pip install --no-cache-dir --upgrade setuptools
 RUN pip install --no-cache-dir \
     Cython \
     numpy \
@@ -123,6 +123,7 @@ RUN python3 get-pip.py --force-reinstall
 RUN pip3 install --upgrade pip
 # RUN pip3 config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
 RUN pip3 config set global.index-url https://mirrors.aliyun.com/pypi/simple
+RUN pip3 install --no-cache-dir --upgrade setuptools
 RUN pip3 install --no-cache-dir \
     Cython \
     numpy \
