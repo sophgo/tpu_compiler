@@ -21,12 +21,18 @@ def calcPool2DCeil(i, kernel, stride, padding_t, padding_l):
     return int(ceil((i + padding_t + padding_l - kernel) / stride) + 1)
 
 
-def get_TF_SAME_Padding(input_spatial_shape, output_spatial_shape, kernel, stride):
+def get_TF_SAME_Padding(input_spatial_shape, kernel, stride):
     """
     If padding == "SAME":
       output_spatial_shape[i] = ceil(input_spatial_shape[i] / strides[i])
     """
-    return ((output_spatial_shape - 1) * stride + kernel - input_spatial_shape) / 2
+    output_spatial_shape = int(ceil(float(input_spatial_shape) / float(stride)))
+    if input_spatial_shape % stride == 0:
+        pad_along = max((kernel - stride), 0)
+    else:
+        pad_along = max(kernel - (input_spatial_shape % stride), 0)
+
+    return pad_along
 
 def get_shape_size(shape):
     size = 1
