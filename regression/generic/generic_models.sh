@@ -914,6 +914,37 @@ export EXCEPTS=probs # softmax
 # export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
 fi
 
+if [ $NET = "mobilenet_v1_tf" ]; then
+export MODEL_TYPE="tensorflow"
+export MODEL_DEF=$MODEL_PATH/imagenet/mobilenet_v1/tensorflow/mobilenet
+export MODEL_DAT=""
+export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/generic/regression_0_tensorflow.sh
+export MLIR_OPT_FE_POST=""
+export MLIR_OPT_CALI="--tpu-quant-clip"
+export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/mobilenet_v1_tf_threshold_table_100
+export IMAGE_RESIZE_DIMS=256,256
+export NET_INPUT_DIMS=224,224
+export DATA_FORMAT="nhwc"
+export RAW_SCALE=255
+export MODEL_CHANNEL_ORDER="rgb"
+export MEAN=127.5,127.5,127.5 # in RGB
+export STD=127.5,127.5,127.5
+export INPUT_SCALE=1.0
+export INPUT=input
+export TOLERANCE_INT8_PER_TENSOR=0.95,0.95,0.6
+export TOLERANCE_INT8_RSHIFT_ONLY=0.92,0.90,0.58
+export TOLERANCE_INT8_MULTIPLER=0.95,0.95,0.7
+export DO_QUANT_BF16=0
+export DO_E2E=0
+export DO_DEEPFUSION=0
+export DO_NN_TOOLKIT=1
+
+# export EXCEPTS=probs # softmax
+# export TOLERANCE_BF16=0.99,0.99,0.94
+# export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
+fi
+
+
 # turn off those optimization when batch_size is larger than 1 temporarily
 #if [ $BATCH_SIZE -gt 1 ]; then
 #export DO_DEEPFUSION=0
