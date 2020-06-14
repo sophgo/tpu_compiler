@@ -16,7 +16,7 @@ $ docker stop cvitek
 $ docker rm cvitek
 
 $ docker images
-$ docker image rm cvitek/cvitek_dev:1.1-ubuntu-18.04
+$ docker image rm cvitek/cvitek_dev:1.3-ubuntu-18.04
 $ docker image prune
 ```
 
@@ -26,10 +26,18 @@ Copy host-tools to current dir first
 
 ```sh
 $ cp Dockerfile_ubuntu-18.04 Dockerfile
-$ docker build -t cvitek/cvitek_dev:1.2-ubuntu-18.04 .
+$ docker build -t cvitek/cvitek_dev:1.3-ubuntu-18.04 .
 
 $ cp Dockerfile_ubuntu-16.04 Dockerfile
-$ docker build -t cvitek/cvitek_dev:1.2-ubuntu-16.04 .
+$ docker build -t cvitek/cvitek_dev:1.3-ubuntu-16.04 .
+```
+
+## Pull docker
+
+```sh
+$ docker pull cvitek/cvitek_dev:1.3-ubuntu-18.04
+
+$ docker pull cvitek/cvitek_dev:1.3-ubuntu-16.04
 ```
 
 ## Run docker as user of cvitek_mlir
@@ -39,13 +47,13 @@ $ docker run -itd \
     -v $PWD:/work \
     -v /data/models:/work/models \
     -v /data/dataset:/work/dataset \
-    --name cvitek cvitek/cvitek_dev:1.1-ubuntu-18.04
+    --name cvitek cvitek/cvitek_dev:1.3-ubuntu-18.04
 
 $ docker run -itd \
     -v $PWD:/work \
     -v /data/models:/work/models \
     -v /data/dataset:/work/dataset \
-    --name cvitek cvitek/cvitek_dev:1.1-ubuntu-16.04
+    --name cvitek cvitek/cvitek_dev:1.3-ubuntu-16.04
 
 $ docker exec -it cvitek bash
 
@@ -62,13 +70,13 @@ $ docker exec -it cvitek bash
 $ docker run -itd [--cpus="1.5"] \
     -v $PWD:/work \
     -v /data/models:/work/models \
-    --name cvitek_dev_18.04 cvitek_dev:1.1-ubuntu-18.04
+    --name cvitek_dev_18.04 cvitek/cvitek_dev:1.3-ubuntu-18.04
 $ docker exec -it cvitek_dev_18.04 bash
 
 $ docker run -itd [--cpus="1.5"] \
     -v $PWD:/work \
     -v /data/models:/work/models \
-    --name cvitek_dev_16.04 cvitek_dev:1.1-ubuntu-16.04
+    --name cvitek_dev_16.04 cvitek/cvitek_dev:1.3-ubuntu-16.04
 $ docker exec -it cvitek_dev_16.04 bash
 
 # cd work
