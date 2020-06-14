@@ -358,6 +358,56 @@ struct ForceThresholdMulOpPattern : public RewritePattern {
   }
 };
 
+
+/// force threshold for clip operations
+/// use for rel6(relu + clip[0, 6])
+/// relu will be fused in conv, we overwrite clip to this conv
+
+template<typename TyOp>
+struct ForceThresholdClipOpPattern : public RewritePattern {
+  ForceThresholdClipOpPattern(MLIRContext *context)
+      : RewritePattern(TyOp::getOperationName(), 1, context) {}
+
+  PatternMatchResult matchAndRewrite(Operation *opInst,
+                                     PatternRewriter &rewriter) const override {
+    float threshold_y;
+    float threshold_x;
+
+    if (isa<tpu::ClipOp>(opInst)) {
+      threshold_x = getPreviousOpThreshold(opInst, 0);
+      threshold_y = getOpThreshold(opInst);
+
+    } else {
+      return matchFailure();
+    }
+
+    auto formerOp = opInst->getOperand(0)->getDefiningOp();
+    if (auto cast_op = llvm::dyn_cast_or_null<tpu::Conv2DOp>(formerOp)) {
+      setOpThreshold(formerOp, threshold_y);
+    } else {
+      return matchFailure();
+    }
+
+    if (getOpQuantParamType(opInst) == "THRESHOLD") {
+      if (threshold_y == threshold_x) {
+        // assigned already
+        return matchFailure();
+      }
+    }
+
+    setOpQuantParamType(opInst, "THRESHOLD");
+    LLVM_DEBUG(llvm::errs()
+                   << opInst->getName() << " [" << getOpName(opInst) << "] set prev "
+                   << formerOp->getName() << " [" << getOpName(formerOp)
+                   << "], "
+                      "threshold from "
+                   << std::to_string(threshold_x) << " to "
+                   << std::to_string(threshold_y) << "\n";);
+
+    return matchSuccess();
+  }
+};
+
 template<typename TyOp>
 struct ForceThresholdCustomOpPattern : public RewritePattern {
   ForceThresholdCustomOpPattern(MLIRContext *context)
@@ -547,6 +597,12 @@ public:
           >(context);
       applyPatternsGreedily(fn, patterns);
     }
+
+    // apply clip overwrite conv threshold
+    patterns.clear();
+    patterns.insert<
+        ForceThresholdClipOpPattern<tpu::ClipOp>
+        >(context);
 
     LLVM_DEBUG(llvm::errs() << "set CustomOp's threshold\n";);
     patterns.clear();
