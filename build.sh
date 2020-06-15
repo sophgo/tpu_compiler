@@ -21,6 +21,7 @@ if [ ! -e $INSTALL_PATH ]; then
   mkdir -p $INSTALL_PATH
 else
   rm -rf $INSTALL_PATH/mkldnn
+  find $INSTALL_PATH -name *.inc -exec rm {} \;
   find $INSTALL_PATH -name *.h -exec rm {} \;
 fi
 
