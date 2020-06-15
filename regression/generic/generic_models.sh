@@ -916,12 +916,10 @@ fi
 
 if [ $NET = "mobilenet_v1_tf" ]; then
 export MODEL_TYPE="tensorflow"
-export MODEL_DEF=$MODEL_PATH/imagenet/mobilenet_v1/tensorflow/mobilenet
+export MODEL_DEF=$MODEL_PATH/imagenet/mobilenet_v1/tensorflow/mobilenet_v1
 export MODEL_DAT=""
 export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/generic/regression_0_tensorflow.sh
-export MLIR_OPT_FE_POST=""
-export MLIR_OPT_CALI="--tpu-quant-clip"
-export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/mobilenet_v1_tf_threshold_table_100
+export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/mobilenet_v1_tf_threshold_table_1000
 export IMAGE_RESIZE_DIMS=256,256
 export NET_INPUT_DIMS=224,224
 export DATA_FORMAT="nhwc"

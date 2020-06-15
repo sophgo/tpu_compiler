@@ -42,7 +42,6 @@ fi
 mlir-opt \
     --import-calibration-table \
     --calibration-table ${CALI_TABLE} \
-    ${MLIR_OPT_CALI} \
     ${NET}_opt.mlir \
     -o ${NET}_cali.mlir
 
