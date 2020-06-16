@@ -60,14 +60,19 @@ def mlir_import_calibration(mlirfile, cali_mlirfile, threshold_table):
     checkReturnValue(ret, "mlir-opt, import-calibration-table")
     return ret.returncode
 
-def mlir_tpu_quant(mlirfile, quant_mlirfile, op_info_csv):
-    ret = subprocess.run(["mlir-opt",
-                    "--tpu-quant",
-                    "--print-tpu-op-info",
-                    "--tpu-op-info-filename", op_info_csv,
-                    mlirfile,
-                    "-o", quant_mlirfile
-                    ], **std_output_flag)
+
+def mlir_tpu_quant(mlirfile, quant_mlirfile, op_info_csv, quant_mode="int8"):
+    command = [
+        "mlir-opt",
+        "--tpu-quant",
+        "--print-tpu-op-info",
+        "--tpu-op-info-filename", op_info_csv,
+        mlirfile,
+        "-o", quant_mlirfile
+    ]
+    if quant_mode == "bf16":
+        command.insert(2, "--quant-full-bf16")
+    ret = subprocess.run(command, **std_output_flag)
     checkReturnValue(ret, "mlir-opt, mlir_tpu_quant")
     return ret.returncode
 
@@ -172,33 +177,11 @@ def mlir_gen_cvimodel(mlirfile, cvi_module):
     if ret.returncode != 0:
         return ret.returncode
 
-    deepfusion_tg2tl_la = "deep_fusion_tg2tl_la_{}".format(mlirfile)
-
-    ret = subprocess.run(["mlir-opt",
-                    "--deep-fusion-tg2tl-la",
-                    int8_addr,
-                    "-o", deepfusion_tg2tl_la
-                    ], **std_output_flag)
-    checkReturnValue(ret, "mlir-opt, deepfusion_tg2tl_la")
-    if ret.returncode != 0:
-        return ret.returncode
-
-    deep_fusion_tl_la2lw = "deep_fusion_tl_la2lw_{}".format(mlirfile)
-
-    ret = subprocess.run(["mlir-opt",
-                    "--deep-fusion-tl-la2lw",
-                    deepfusion_tg2tl_la,
-                    "-o", deep_fusion_tl_la2lw
-                    ], **std_output_flag)
-    checkReturnValue(ret, "mlir-opt, deep_fusion_tl_la2lw")
-    if ret.returncode != 0:
-        return ret.returncode
-
     convert_func_to_memref = "convert_func_to_memref_{}".format(mlirfile)
 
     ret = subprocess.run(["mlir-opt",
                     "--convert-func-to-memref",
-                    deep_fusion_tl_la2lw,
+                    int8_addr,
                     "-o", convert_func_to_memref
                     ], **std_output_flag)
     checkReturnValue(ret, "mlir-opt, convert_func_to_memref")
@@ -276,7 +259,7 @@ def mlir_build_cvimodel_no_opt(mlirfile, cvi_model):
     """
         only build cvi model
     """
-    int8_addr = "int8_addr_{}".format(mlirfile)
+    addr_mlir = "addr_{}".format(mlirfile)
     command = ["mlir-opt",
                "--assign-weight-address",
                "--tpu-weight-address-align=16",
@@ -286,7 +269,7 @@ def mlir_build_cvimodel_no_opt(mlirfile, cvi_model):
                "--tpu-neuron-address-align=16",
                "--tpu-neuron-map-filename=neuron_map.csv",
                mlirfile,
-               "-o", int8_addr
+               "-o", addr_mlir
                ]
     if std_log_flag:
         logger.debug(command)
@@ -295,12 +278,12 @@ def mlir_build_cvimodel_no_opt(mlirfile, cvi_model):
     if ret.returncode != 0:
         return ret.returncode
 
-    fucn_int8_tl_lw = "tl_lw_memopt_func_{}".format(mlirfile)
+    fucn_tl_lw = "tl_lw_memopt_func_{}".format(mlirfile)
     # func to tensor
     command = ["mlir-opt",
                "--divide-ops-to-func",
-               int8_addr,
-               "-o", fucn_int8_tl_lw
+               addr_mlir,
+               "-o", fucn_tl_lw
                ]
     if std_log_flag:
         logger.debug(command)
@@ -313,7 +296,7 @@ def mlir_build_cvimodel_no_opt(mlirfile, cvi_model):
                "--mlir-to-cvimodel",
                "--cvi-set-chip=cv1880v2",
                "--weight-file=weight.bin",
-               fucn_int8_tl_lw,
+               fucn_tl_lw,
                "-o", cvi_model
                ]
 
@@ -349,7 +332,7 @@ def run_cvimodel(input_file, cvi_model, output_tensor, all_tensors=True):
             "--model", cvi_model,
             "--batch-num", "1",
             "--set-chip", "cv1880v2",
-            "--output", output_tensor,]
+            "--output", output_tensor]
     if all_tensors:
         cmd.append("--dump-all-tensors")
     ret = subprocess.run(cmd)

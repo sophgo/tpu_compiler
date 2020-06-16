@@ -112,7 +112,7 @@ class ONNX_IR_TESTER(object):
             int8_csv = "{}_int8.csv".format(model_name)
             ret = mlir_import_calibration(fp32_opt_mlir, cali_mlir, table_name)
             if ret < 0: raise RuntimeError("import_calibration failed")
-            print(ret)
+
             # quant
             quant_mlir = "{}_quant_int8.mlir".format(model_name)
             ret = mlir_tpu_quant(cali_mlir, quant_mlir, int8_csv)
