@@ -384,6 +384,7 @@ struct ForceThresholdClipOpPattern : public RewritePattern {
     auto formerOp = opInst->getOperand(0)->getDefiningOp();
     if (auto cast_op = llvm::dyn_cast_or_null<tpu::Conv2DOp>(formerOp)) {
       setOpThreshold(formerOp, threshold_y);
+
     } else {
       return matchFailure();
     }
@@ -404,6 +405,8 @@ struct ForceThresholdClipOpPattern : public RewritePattern {
                    << std::to_string(threshold_x) << " to "
                    << std::to_string(threshold_y) << "\n";);
 
+    // remove clip op
+    rewriter.replaceOp(opInst, {opInst->getOperand(0)});
     return matchSuccess();
   }
 };
@@ -599,10 +602,12 @@ public:
     }
 
     // apply clip overwrite conv threshold
+    LLVM_DEBUG(llvm::errs() << "Default clip threshold overwrite\n";);
     patterns.clear();
     patterns.insert<
         ForceThresholdClipOpPattern<tpu::ClipOp>
         >(context);
+    applyPatternsGreedily(fn, patterns);
 
     LLVM_DEBUG(llvm::errs() << "set CustomOp's threshold\n";);
     patterns.clear();
