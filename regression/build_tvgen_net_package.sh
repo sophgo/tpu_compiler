@@ -12,6 +12,7 @@ testcase+="resnet50  "
 
 batch="1 "
 PROJECT="bm1822"
+CHIP_NAME="cv1822"
 OPT_TYPE="int8_multiplier"
 
 RED='\033[0;31m'
@@ -60,6 +61,7 @@ do
       --input $CVIMODEL_REL_PATH\/${d}_in_fp32.npz \
       --model $CVIMODEL_REL_PATH\/${d}_$OPT_TYPE.cvimodel \
       --batch-num $b \
+      --set-chip ${CHIP_NAME} \
       --output ${d}_cmdbuf_out.npz
 
   build_fw
