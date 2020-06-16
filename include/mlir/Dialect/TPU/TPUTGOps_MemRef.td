@@ -858,8 +858,8 @@ class TPU_TG_MemRef_QuantOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     OptionalAttr<StrAttr>:$chipname
   );
 }
-def TPU_TG_MemRef_INT8_QuantOp : TPU_TG_QuantOp<"tg_memref_int8_quant", "Int8">;
-def TPU_TG_MemRef_BF16_QuantOp : TPU_TG_QuantOp<"tg_memref_bf16_quant", "Bf16">;
+def TPU_TG_MemRef_INT8_QuantOp : TPU_TG_MemRef_QuantOp<"tg_memref_int8_quant", "Int8">;
+def TPU_TG_MemRef_BF16_QuantOp : TPU_TG_MemRef_QuantOp<"tg_memref_bf16_quant", "Bf16">;
 
 class TPU_TG_MemRef_ReluOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,
