@@ -26,7 +26,7 @@ cvi_npz_tool.py to_bin \
 # Lower for quantization 1: per-layer int8
 ################################
 mlir-opt \
-    --tpu-lower \
+    --tpu-lower --reorder-op \
     inception_v4_quant_int8_per_layer.mlir \
     -o inception_v4_quant_int8_per_layer_tg.mlir
 
@@ -80,7 +80,7 @@ cvi_npz_tool.py compare \
 # Lower for quantization 3: multiplier int8
 ################################
 mlir-opt \
-    --tpu-lower \
+    --tpu-lower --reorder-op \
     inception_v4_quant_int8_multiplier.mlir \
     -o inception_v4_quant_int8_multiplier_tg.mlir
 

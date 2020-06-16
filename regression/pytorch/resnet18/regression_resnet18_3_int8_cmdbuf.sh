@@ -7,7 +7,7 @@ DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 
 #  Lower for quantization
 mlir-opt \
-    --tpu-lower \
+    --tpu-lower --reorder-op \
     resnet18_quant_int8_multiplier.mlir \
     -o resnet18_quant_int8_multiplier_tg.mlir
 

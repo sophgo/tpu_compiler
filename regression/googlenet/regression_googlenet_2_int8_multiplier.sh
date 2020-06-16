@@ -34,7 +34,7 @@ cvi_npz_tool.py compare \
 # Lower for quantization: multiplier int8
 ################################
 mlir-opt \
-    --tpu-lower \
+    --tpu-lower --reorder-op \
     googlenet_quant_int8_multiplier.mlir \
     -o googlenet_quant_int8_multiplier_tg.mlir
 

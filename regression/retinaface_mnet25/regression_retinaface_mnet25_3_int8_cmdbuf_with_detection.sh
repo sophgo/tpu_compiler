@@ -33,7 +33,7 @@ mlir-opt \
     -o retinaface_mnet25_with_detection_quant_int8.mlir
 
 mlir-opt \
-    --tpu-lower \
+    --tpu-lower --reorder-op \
     retinaface_mnet25_with_detection_quant_int8.mlir \
     -o retinaface_mnet25_with_detection_quant_int8_tg.mlir
 

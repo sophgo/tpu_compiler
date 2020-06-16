@@ -31,7 +31,7 @@ DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 # Lower for quantization 3: multiplier int8
 ################################
 mlir-opt \
-    --tpu-lower \
+    --tpu-lower --reorder-op \
     retinaface_mnet25_quant_int8.mlir \
     -o retinaface_mnet25_quant_int8_tg.mlir
 

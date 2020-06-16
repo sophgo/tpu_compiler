@@ -47,7 +47,7 @@ mlir-opt \
     -o int8.mlir
 mlir-opt \
     int8.mlir \
-    --tpu-lower | \
+    --tpu-lower --reorder-op | \
 mlir-opt \
     --tg-fuse-leakyrelu \
     --conv-ic-alignment | \
@@ -129,7 +129,7 @@ mlir-opt \
     -o int8.mlir
 
 mlir-opt \
-    --tpu-lower \
+    --tpu-lower --reorder-op \
     int8.mlir \
     -o int8_tg.mlir
 

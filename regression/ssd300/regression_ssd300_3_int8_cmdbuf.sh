@@ -82,7 +82,7 @@ bin_fp32_to_int8.py \
 ################################
 
 mlir-opt \
-    --tpu-lower \
+    --tpu-lower --reorder-op \
     ssd300_quant_int8_multiplier.mlir \
     -o ssd300_quant_int8_multiplier_tg.mlir
 

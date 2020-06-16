@@ -27,7 +27,7 @@ cvi_npz_tool.py to_bin \
 # Lower for quantization 3: multiplier int8
 ################################
 mlir-opt \
-    --tpu-lower \
+    --tpu-lower --reorder-op \
     resnet50_quant_int8_multiplier.mlir \
     -o resnet50_quant_int8_multiplier_tg.mlir
 

@@ -35,7 +35,7 @@ if [ $DO_QUANT_BF16 -eq 1 ]; then
     # Lower
     ################################
     mlir-opt \
-      --tpu-lower \
+      --tpu-lower --reorder-op \
       ${NET}_quant_bf16.mlir \
       -o ${NET}_quant_bf16_tg.mlir
 

@@ -76,6 +76,7 @@ def mlir_lower_opt(mlirfile, opt_mlirfile):
     lower_mlir = "lw.mlir"
     ret = subprocess.run(["mlir-opt",
                     "--tpu-lower",
+                    "--reorder-op",
                     mlirfile,
                     "-o", lower_mlir,
                     ], **std_output_flag)

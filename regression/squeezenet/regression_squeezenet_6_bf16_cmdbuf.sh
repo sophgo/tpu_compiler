@@ -16,7 +16,7 @@ bin_fp32_to_bf16.py \
 # Lower
 ################################
 mlir-opt \
-    --tpu-lower \
+    --tpu-lower --reorder-op \
     squeezenet_quant_bf16.mlir \
     -o squeezenet_quant_bf16_tg.mlir
 

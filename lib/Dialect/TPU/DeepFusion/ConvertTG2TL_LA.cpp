@@ -372,7 +372,7 @@ struct TpuTG2TLPoolOpPattern : public RewritePattern {
     }
 
     // Check whether operand ConvOp has enough memory
-    // ???? 
+    // ????
     for (auto operand : opInst->getOperands()) {
       auto operandOp = operand->getDefiningOp();
       if (auto convOp = dyn_cast<tpu::TG_INT8_PC_Conv2DOp>(operandOp)) {
@@ -429,18 +429,6 @@ struct TpuTG2TLPoolOpPattern : public RewritePattern {
   }
 };
 
-static bool isUnaryOp(Operation *op) {
-  int opd_num = 0;
-  for (auto operand : op->getOperands()) {
-    auto opd = operand->getDefiningOp();
-    if ((!isa<tpu::LoadWeightOp>(opd))
-        && (!isa<tpu::NoneOp>(opd))) {
-      opd_num++;
-    }
-  }
-  return (opd_num == 1);
-}
-
 class DeepFusionTG2TL_LA : public FunctionPass<DeepFusionTG2TL_LA> {
 public:
   explicit DeepFusionTG2TL_LA() {}
@@ -452,31 +440,6 @@ public:
     Machineinfo.getChipInfo(getRunChipType.c_str());
     assert(MInfo::version && "refer to set-chip");
     auto fn = getFunction();
-    // re-order operations
-    fn.walk([&](Operation *op) {
-      if (op->getName().getDialect().str() != "tpu"
-          || isa<tpu::WeightFileOp>(op)
-          || isa<tpu::LoadWeightOp>(op)
-          || isa<tpu::NoneOp>(op)) {
-      } else if (llvm::isa<tpu::TpuTLOpCodegenInterface>(op)) {
-        return;
-      } else {
-         auto current = op;
-         while (current->getResult(0)->hasOneUse()) {
-          auto next = getNextOp(current);
-          if (isa<tpu::TpuTLOpCodegenInterface>(next))
-            break;
-          if (isa<ReturnOp>(next) || !isUnaryOp(next))
-            break;
-          auto insertPoint = current->getNextNode();
-          next->moveBefore(insertPoint);
-          for (auto opd : next->getOperands()) {
-            opd->getDefiningOp()->moveBefore(next);
-          }
-          current = next;
-        }
-      }
-    });
     auto *context = &getContext();
     OwningRewritePatternList patterns;
     patterns.insert<

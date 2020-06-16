@@ -17,7 +17,7 @@ bin_fp32_to_bf16.py \
 ################################
 whereis mlir-opt
 mlir-opt \
-    --tpu-lower \
+    --tpu-lower --reorder-op \
     ${NET}_quant_bf16.mlir \
     -o ${NET}_quant_bf16_tg.mlir
 

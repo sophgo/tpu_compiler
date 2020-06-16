@@ -24,7 +24,7 @@ cvi_npz_tool.py to_bin \
 
 #  Lower for quantization
 mlir-opt \
-    --tpu-lower \
+    --tpu-lower --reorder-op \
     bmface_v3_quant_int8_multiplier.mlir \
     -o  bmface_v3_quant_int8_tg.mlir
 # assign weight address & neuron address

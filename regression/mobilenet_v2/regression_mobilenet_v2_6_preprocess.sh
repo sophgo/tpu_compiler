@@ -78,7 +78,7 @@ cvi_npz_tool.py to_bin \
 cvi_npz_tool.py to_bin mobilenet_v2_preprocess_in_fp32.npz data mobilenet_v2_preprocess_in_fp32.bin
 
   mlir-opt \
-      --tpu-lower \
+      --tpu-lower --reorder-op \
       mobilenet_v2_preprocess_quant_int8_multiplier.mlir \
       -o mobilenet_v2_preprocess_quant_int8_multiplier_tg.mlir
 

@@ -215,7 +215,7 @@ run_onnx_test=0
 while getopts "n:b:a:f:e" opt
 do
   case "$opt" in
-    n ) net="$OPTARG" ;;
+    n ) network="$OPTARG" ;;
     b ) bs="$OPTARG" ;;
     e ) run_extra=1 ;;
     a ) run_accuracy="$OPTARG" ;;
@@ -289,18 +289,18 @@ done < ${model_list_file}
 
 pushd regression_out
 echo "" > verdict.log
-# run single and exit
-if [ ! -z "$net" ]; then
+# run specified network and exit
+if [ ! -z "$network" ]; then
   export CVIMODEL_REL_PATH=$PWD/cvimodel_regression
   if [ ! -e $CVIMODEL_REL_PATH ]; then
     mkdir $CVIMODEL_REL_PATH
   fi
-  run_generic $net $bs
+  run_generic $network $bs
   ERR=$?
   if [ $ERR -eq 0 ]; then
-    echo $net TEST PASSED
+    echo $network TEST PASSED
   else
-    echo $net FAILED
+    echo $network FAILED
   fi
   popd
   exit $ERR

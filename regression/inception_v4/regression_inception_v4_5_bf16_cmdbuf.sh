@@ -17,7 +17,7 @@ bin_fp32_to_bf16.py \
 # Lower
 ################################
 mlir-opt \
-    --tpu-lower \
+    --tpu-lower --reorder-op \
     inception_v4_quant_bf16.mlir \
     -o inception_v4_quant_bf16_tg.mlir
 

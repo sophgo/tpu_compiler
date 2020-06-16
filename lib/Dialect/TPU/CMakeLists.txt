@@ -37,7 +37,7 @@ add_llvm_library(MLIRTPU
   Transforms/AssignChipName.cpp
   Transforms/SplitCpuOp.cpp
   Transforms/ConvertPriorBoxToLoadWeight.cpp
-  Transforms/ConvertCpuOp.cpp
+  Transforms/ReorderOp.cpp
   Transforms/ConvertConv2D.cpp
   Transforms/ConvertUpsampleToDeconv.cpp
   Transforms/LowerToTG.cpp

@@ -29,7 +29,7 @@ cvi_npz_tool.py to_bin \
 # Lower for quantization 1: per-layer int8
 ################################
 mlir-opt \
-    --tpu-lower \
+    --tpu-lower --reorder-op \
     ${NET}_quant_int8_per_layer.mlir \
     -o ${NET}_quant_int8_per_layer_tg.mlir
 
@@ -98,7 +98,7 @@ fi
 # Lower for quantization 3: multiplier int8
 ################################
 mlir-opt \
-    --tpu-lower \
+    --tpu-lower --reorder-op \
     ${NET}_quant_int8_multiplier.mlir \
     -o ${NET}_quant_int8_multiplier_tg.mlir
 
