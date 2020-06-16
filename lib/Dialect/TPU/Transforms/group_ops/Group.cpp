@@ -240,23 +240,16 @@ bmerr_t Group::assign_steps_without_tsm() {
         continue;
       }
     } else {
-      // check validation of layer group if nsecs_and_hsecs.second > 1
+      // check validation of layer group if nsecs_and_hsecs.second > 1,
+      // and update h_slice_max
       if (nsecs_and_hsecs.second > 1) {
-        // to check first loop and last loop of h slices.
-        int nsecs = nsecs_and_hsecs.first;
-        int hsecs = nsecs_and_hsecs.second;
-        LLVM_DEBUG(llvm::errs() << "check first loop of h slice.\n";);
-        status = update_tensor_slices(nsecs, hsecs, 0, 0);
-        if (status == BM_ERR_FAILURE) {
-          LLVM_DEBUG(llvm::errs() << "update tensor_slice fail.\n";);
-          return BM_ERR_FAILURE;
-        }
-
-        LLVM_DEBUG(llvm::errs() << "check last loop of h slice.\n";);
-        status = update_tensor_slices(nsecs, hsecs, 0, hsecs - 1);
-        if (status == BM_ERR_FAILURE) {
-          LLVM_DEBUG(llvm::errs() << "update tensor_slice fail....\n";);
-          return BM_ERR_FAILURE;
+        for (int h_idx = 0; h_idx < nsecs_and_hsecs.second; h_idx++) {
+          status = update_tensor_slices(nsecs_and_hsecs.first,
+                                        nsecs_and_hsecs.second, 0, h_idx);
+          if (status == BM_ERR_FAILURE) {
+            LLVM_DEBUG(llvm::errs() << "update tensor_slice fail....\n";);
+            return BM_ERR_FAILURE;
+          }
         }
       }
     }
