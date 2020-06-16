@@ -1878,10 +1878,11 @@ LogicalResult tpu::PriorBoxOp::interpret(
 
   num_priors_ = aspect_ratios_.size() * min_sizes_.size();
 
-
-  max_sizes_.push_back(max_size);
-  assert(max_sizes_[0]> min_sizes_[0] && "max_size must be greater than min_size.");
-  num_priors_ += 1;
+  if (max_size_size > 0) {
+    max_sizes_.push_back(max_size);
+    assert(max_sizes_[0]> min_sizes_[0] && "max_size must be greater than min_size.");
+    num_priors_ += 1;
+  }
 
   clip_ = clip;
 
@@ -1898,7 +1899,6 @@ LogicalResult tpu::PriorBoxOp::interpret(
   img_h_ = 0;
   img_w_ = 0;
 
-  assert(step>0&&( "step should be larger than 0."));
   step_h_ = step;
   step_w_ = step;
 

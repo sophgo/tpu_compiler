@@ -24,18 +24,33 @@ fi
 
 if [ $DO_ACCURACY_FP32_INTERPRETER -eq 1 ]; then
   echo "Eval fp32 with interpreter"
-  $EVAL_FUNC \
-      --mlir_file=${NET}.mlir \
-      --dataset=$DATASET_PATH/imagenet/img_val_extracted \
-      --net_input_dims $NET_INPUT_DIMS \
-      --image_resize_dims $IMAGE_RESIZE_DIMS \
-      --raw_scale $RAW_SCALE \
+  if [ "$EVAL_MODEL_TYPE" = "imagenet" ]; then
+    $EVAL_FUNC \
+        --mlir_file=${NET}.mlir \
+        --dataset=$DATASET_PATH/imagenet/img_val_extracted \
+        --net_input_dims $NET_INPUT_DIMS \
+        --image_resize_dims $IMAGE_RESIZE_DIMS \
+        --raw_scale $RAW_SCALE \
+        --mean $MEAN \
+        --std $STD \
+        --input_scale $INPUT_SCALE \
+        --model_type mlir \
+        --model_channel_order $MODEL_CHANNEL_ORDER \
+        --count=$1
+
+  elif [ "$EVAL_MODEL_TYPE" = "voc2012" ]; then
+    _EVAL_FUNC=$EVAL_SCRIPT_VOC
+    $_EVAL_FUNC \
+      --mlir=${NET}.mlir \
+      --net_input_dims ${NET_INPUT_DIMS} \
       --mean $MEAN \
-      --std $STD \
       --input_scale $INPUT_SCALE \
-      --model_type mlir \
-      --model_channel_order $MODEL_CHANNEL_ORDER \
-      --count=$1
+      --dataset=$DATASET_PATH
+
+  else
+    echo "Unknown EVAL_MODEL_TYPE $EVAL_MODEL_TYPE"
+    exit 1
+  fi
 fi
 
 if [ $DO_QUANT_INT8_PER_TENSOR -eq 1 ]; then
@@ -117,6 +132,15 @@ if [ $DO_QUANT_INT8_MULTIPLER -eq 1 ]; then
       --coco_annotation=$DATASET_PATH/coco/annotations/instances_val2017.json \
       --coco_result_jason_file=./${NET}_coco_results_int8_multiplier.json \
       --count=$1
+
+  elif [ "$EVAL_MODEL_TYPE" = "voc2012" ]; then
+    _EVAL_FUNC=$EVAL_SCRIPT_VOC
+    $_EVAL_FUNC \
+      --mlir=${NET}_quant_int8_multiplier.mlir \
+      --net_input_dims ${NET_INPUT_DIMS} \
+      --mean $MEAN \
+      --input_scale $INPUT_SCALE \
+      --dataset=$DATASET_PATH
 
   else
     echo "Unknown EVAL_MODEL_TYPE $EVAL_MODEL_TYPE"

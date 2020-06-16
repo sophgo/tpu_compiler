@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # --------------------------------------------------------
 # Fast/er R-CNN
 # Licensed under The MIT License [see LICENSE for details]
@@ -10,11 +11,9 @@ import xml.etree.ElementTree as ET
 import os
 import argparse
 import numpy as np
-from tqdm import tqdm
 import uuid
+import pymlir
 
-ssd_mean = np.array([127.5, 127.5, 127.5], dtype=np.float32)
-input_scale = 0.007843
 over_threshold = 0.5
 
 voc_class = ('__background__',  # always index 0
@@ -333,12 +332,17 @@ class pascal_voc():
 def parse_args():
     parser = argparse.ArgumentParser(description='Eval SSD networks.')
     parser.add_argument('--model_def', type=str, default='',
-                        help="Model definition file")
+                        help="Caffe model definition file")
     parser.add_argument('--pretrained_model', type=str, default='',
-                        help='Load weights from previously saved parameters.')
+                        help='Load weights from caffemodel, and eval by Caffe.')
+    parser.add_argument('--mlir', type=str, default='',
+                        help='load mlir file, and eval by mlir')
     parser.add_argument("--net_input_dims", default='300,300',
                         help="'height,width' dimensions of net input tensors.")
-    parser.add_argument("--voc_path", type=str, default='',
+    parser.add_argument("--input_scale", type=float,
+                        help="Multiply input features by this scale.", default=1.0)
+    parser.add_argument("--mean", help="Per Channel image mean values")
+    parser.add_argument("--dataset", type=str, default='',
                         help="dataset path")
     parser.add_argument("--output_dir", type=str, default="output",
                         help="Result output dir")
@@ -348,30 +352,44 @@ def parse_args():
 
 
 def eval_voc_main():
-    voc = pascal_voc('trainval', '2012', args.voc_path)
+    voc = pascal_voc('trainval', '2012', args.dataset)
     net_input_dims = [int(s) for s in args.net_input_dims.split(',')]
 
-    net = caffe.Net(args.model_def, args.pretrained_model, caffe.TEST)
-
-    transformer = caffe.io.Transformer({'data': net.blobs['data'].data.shape})
+    mean = np.array([float(s) for s in args.mean.split(',')], dtype=np.float32)
+    transformer = caffe.io.Transformer({'data': (1,3,net_input_dims[0],net_input_dims[1])})
     transformer.set_transpose('data', (2, 0, 1))  # row to col, (HWC -> CHW)
-    transformer.set_mean('data', ssd_mean)
-    transformer.set_input_scale('data', input_scale)
+    transformer.set_mean('data', mean)
+    transformer.set_input_scale('data', args.input_scale)
     transformer.set_raw_scale('data', 255)  # [0,1] to [0,255]
     transformer.set_channel_swap('data', (2, 1, 0))  # RGB to BGR
 
-    for i in range(voc._image_num):
-        if i % 50 == 0:
-            print("caffe inference image:{}/{}".format(i, voc._image_num))
-        image = caffe.io.load_image(voc.image_path_at(i))  # range from 0 to 1
-        net.blobs['data'].reshape(1, 3, net_input_dims[0], net_input_dims[1])
-        net.blobs['data'].data[...] = transformer.preprocess('data', image)
-        detections = net.forward()['detection_out']
-        voc.parse_top_detection(
-            voc._image_index[i], image.shape, detections, over_threshold)
-
+    if not args.mlir.strip():
+        # eval by caffe
+        net = caffe.Net(args.model_def, args.pretrained_model, caffe.TEST)
+        for i in range(voc._image_num):
+            if i % 50 == 0:
+                print("caffe inference image:{}/{}".format(i, voc._image_num))
+            image = caffe.io.load_image(voc.image_path_at(i))
+            net.blobs['data'].reshape(1, 3, net_input_dims[0], net_input_dims[1])
+            net.blobs['data'].data[...] = transformer.preprocess('data', image)
+            detections = net.forward()['detection_out']
+            voc.parse_top_detection(
+                voc._image_index[i], image.shape, detections, over_threshold)
+    else:
+        module = pymlir.module()
+        module.load(args.mlir)
+        for i in range(voc._image_num):
+            if i % 50 == 0:
+                print("mlir inference image:{}/{}".format(i, voc._image_num))
+            image = caffe.io.load_image(voc.image_path_at(i))
+            x = transformer.preprocess('data', image)
+            x = np.expand_dims(x, axis=0)
+            _ = module.run(x)
+            data = module.get_all_tensor()
+            detections = data['detection_out']
+            voc.parse_top_detection(
+                voc._image_index[i], image.shape, detections, over_threshold)
     voc.evaluate_detections(args.output_dir)
-
 
 if __name__ == '__main__':
     args = parse_args()

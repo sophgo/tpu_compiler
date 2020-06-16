@@ -604,6 +604,8 @@ export TOLERANCE_INT8_RSHIFT_ONLY=0.97,0.97,0.70
 export TOLERANCE_INT8_MULTIPLER=0.98,0.96,0.77
 export DO_QUANT_BF16=0
 #export DO_LAYERGROUP=1
+export EVAL_MODEL_TYPE="voc2012"
+export EVAL_SCRIPT_VOC="eval_detector_voc.py"
 fi
 
 if [ $NET = "yolo_v2_1080" ]; then

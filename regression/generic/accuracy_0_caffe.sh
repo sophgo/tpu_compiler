@@ -56,6 +56,19 @@ elif [ "$EVAL_MODEL_TYPE" = "coco" ]; then
       --coco_result_jason_file=./${NET}_coco_results_caffe.json \
       --count=$1
 
+elif [ "$EVAL_MODEL_TYPE" = "voc2012" ]; then
+  EVAL_FUNC=$EVAL_SCRIPT_VOC
+
+  $EVAL_FUNC \
+      --model_def $MODEL_DEF \
+      --pretrained_model $MODEL_DAT \
+      --net_input_dims $NET_INPUT_DIMS \
+      --mean $MEAN \
+      --input_scale $INPUT_SCALE \
+      --dataset=$DATASET_PATH
+# if count not set, do eval with all images
+#      --count=$1
+
 else
   echo "Unknown EVAL_MODEL_TYPE $EVAL_MODEL_TYPE"
   exit 1
