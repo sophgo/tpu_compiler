@@ -4,21 +4,6 @@
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
-net_list_onnx=(
-  "resnet50"
-  "squeezenet"
-  "vgg19"
-  "sub_pixel_cnn_2016"
-  "mobilenet_v2"
-  "densenet-121"
-  "caffenet"
-  "googlenet"
-  #"inception_v1"
-  ## "inception_v2" # todo: not same output with onnx runtime
-  "zfnet-512"
-  "mobilenet_v3"
-)
-
 run_generic()
 {
   local net=$1
@@ -181,18 +166,6 @@ run_onnx_ir_test()
     echo "onnx all ir test PASSED" >> verdict.log
   fi
 
-  # Net test
-  for net in ${net_list_onnx[@]}
-  do
-    onnx_ir_test.sh $net > onnx_$net\.log 2>&1 | true
-    if [ "${PIPESTATUS[0]}" -ne "0" ]; then
-      echo "$net onnx test FAILED" >> verdict.log
-      err=1
-    else
-      echo "$net onnx test PASSED" >> verdict.log
-  fi
-  done
-
   return $err
 }
 
@@ -211,7 +184,7 @@ usage()
 run_extra=0
 bs=1
 run_accuracy=0
-run_onnx_test=0
+run_onnx_test=1
 while getopts "n:b:a:f:e" opt
 do
   case "$opt" in
