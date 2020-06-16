@@ -81,7 +81,7 @@ fi
 
 # test int8 cmdbuf
 mlir-opt \
-    --tpu-lower \
+    --tpu-lower --reorder-op \
     ${1}_quant_int8_multiplier.mlir \
     -o ${1}_quant_int8_multiplier_tg.mlir
 if [ $? != 0 ]; then

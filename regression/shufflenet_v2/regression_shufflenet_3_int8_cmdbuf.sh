@@ -30,7 +30,7 @@ cvi_npz_tool.py to_bin \
 ################################
 if [ $COMPARE_INT8_PER_LAYER -eq 1 ]; then
     mlir-opt \
-        --tpu-lower \
+        --tpu-lower --reorder-op \
         shufflenet_quant_int8_per_layer.mlir \
         -o shufflenet_quant_int8_per_layer_tg.mlir
 
@@ -87,7 +87,7 @@ fi
 # Lower for quantization 3: multiplier int8
 ################################
 mlir-opt \
-    --tpu-lower \
+    --tpu-lower --reorder-op \
     shufflenet_quant_int8_multiplier.mlir \
     -o shufflenet_quant_int8_multiplier_tg.mlir
 

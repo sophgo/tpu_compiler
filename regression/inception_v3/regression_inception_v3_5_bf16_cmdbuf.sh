@@ -9,7 +9,7 @@ echo $0 IS RUNNING
 # Lower
 ################################
 mlir-opt \
-    --tpu-lower \
+    --tpu-lower --reorder-op \
     inception_v3_quant_bf16.mlir \
     -o inception_v3_quant_bf16_tg.mlir
 

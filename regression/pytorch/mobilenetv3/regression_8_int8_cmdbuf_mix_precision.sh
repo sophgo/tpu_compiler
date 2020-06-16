@@ -6,7 +6,7 @@ NET=$1
 
 #  Lower for quantization
 mlir-opt \
-    --tpu-lower \
+    --tpu-lower --reorder-op \
     ${NET}_quant_int8_multiplier.mlir \
     -o ${NET}_quant_int8_multiplier_tg.mlir
 

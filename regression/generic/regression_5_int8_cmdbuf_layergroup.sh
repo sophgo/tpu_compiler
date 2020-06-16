@@ -75,28 +75,19 @@ COMPARE_ALL=0
 ###############################
 # Lower for quantization 3: multiplier int8
 ###############################
-
+ENABLE_GMEM_OPT=false
 if [ $COMPARE_ALL -eq 1 ]; then
-    mlir-opt \
-        --convert-cpu-op \
-        --group-ops \
-        --layer-group-gm-opt=false \
-        ${NET}_quant_int8_multiplier_tg_opt.mlir \
-        --layer-group-neuron-map-filename=neuron_map_layergroup.csv \
-        --weight-map=weight_map_layergroup.csv \
-        --weight-bin=weight_int8_multiplier_layergroup.bin \
-        -o ${NET}_quant_int8_multiplier_layergroup.mlir
-else
-    mlir-opt \
-        --convert-cpu-op \
-        --group-ops \
-        --layer-group-gm-opt=true \
-        ${NET}_quant_int8_multiplier_tg_opt.mlir \
-        --layer-group-neuron-map-filename=neuron_map_layergroup.csv \
-        --weight-map=weight_map_layergroup.csv \
-        --weight-bin=weight_int8_multiplier_layergroup.bin \
-        -o ${NET}_quant_int8_multiplier_layergroup.mlir
+    ENABLE_GMEM_OPT=true
 fi
+
+mlir-opt \
+    --group-ops \
+    --layer-group-gm-opt=$ENABLE_GMEM_OPT \
+    ${NET}_quant_int8_multiplier_tg_opt.mlir \
+    --layer-group-neuron-map-filename=neuron_map_layergroup.csv \
+    --weight-map=weight_map_layergroup.csv \
+    --weight-bin=weight_int8_multiplier_layergroup.bin \
+    -o ${NET}_quant_int8_multiplier_layergroup.mlir
 
 mlir-opt \
     --dce \

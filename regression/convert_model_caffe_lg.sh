@@ -43,9 +43,8 @@ mlir-opt \
     -o int8.mlir
 mlir-opt \
     int8.mlir \
-    --tpu-lower | \
+    --tpu-lower --reorder-op | \
 mlir-opt \
-    --convert-cpu-op \
     --group-ops \
     --layer-group-gm-opt=true \
     --layer-group-neuron-map-filename=neuron_map_layergroup.csv \

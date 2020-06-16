@@ -13,7 +13,7 @@ cvi_npz_tool.py to_bin \
 
 #  Lower for quantization
 mlir-opt \
-    --tpu-lower \
+    --tpu-lower --reorder-op \
     alphapose_quant_int8_multiplier.mlir \
     -o alphapose_quant_int8_multiplier_tg.mlir
 

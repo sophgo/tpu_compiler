@@ -33,7 +33,7 @@ mlir-opt \
     -o retinaface_res50_with_detection_quant_int8.mlir
 
 mlir-opt \
-    --tpu-lower \
+    --tpu-lower --reorder-op \
     retinaface_res50_with_detection_quant_int8.mlir \
     -o retinaface_res50_with_detection_quant_int8_tg.mlir
 
@@ -119,7 +119,7 @@ fi
 #################
 # Reuse global memory
 #################
-# memory space w/ reuse global memory 
+# memory space w/ reuse global memory
 mlir-opt \
     --debug \
     --enable-tpu-neuron-map-recyle-memref=1 \

@@ -45,7 +45,7 @@ if [ $DO_QUANT_INT8_PER_TENSOR -eq 1 ]; then
   # Lower for quantization 1: per-layer int8
   ################################
   mlir-opt \
-      --tpu-lower \
+      --tpu-lower --reorder-op \
       ${NET}_quant_int8_per_tensor.mlir \
       -o ${NET}_quant_int8_per_tensor_tg.mlir
 

@@ -23,7 +23,7 @@ DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 
 #  Lower for quantization
 mlir-opt \
-    --tpu-lower \
+    --tpu-lower --reorder-op \
     arcface_res50_quant_int8_multiplier.mlir \
     -o  arcface_res50_quant_int8_tg.mlir
 
