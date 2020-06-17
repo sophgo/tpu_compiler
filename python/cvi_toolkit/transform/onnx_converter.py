@@ -586,6 +586,9 @@ class OnnxConverter(BaseConverter):
             kw = onnx_node.attrs['kernel_shape'][1]
             new_shape = [g, int(oc/g), int(ic/g), kh, kw]
             filter_op = self.CVI.add_load_file_op(filter_tensor.name, new_shape)
+            if g == oc:
+                conv_param['is_dw'] = True
+
         else:
             filter_op = self.CVI.add_load_file_op(filter_tensor.name, filter_shape)
         operands.append(filter_op)
