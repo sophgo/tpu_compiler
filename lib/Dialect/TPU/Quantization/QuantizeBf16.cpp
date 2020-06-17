@@ -40,8 +40,72 @@
 
 #define DEBUG_TYPE "quantize_bf16"
 
+extern const int BF16_TABLE_START = -8;
+extern const int BF16_TABLE_END = 8;
+
+
+double sigmoid(double x) {
+  return 0.5 * tanh(0.5 * x) + 0.5;
+}
+
 using namespace mlir;
 
+static void gen_bf16_table(int start, int end, int table_hw, float *table,
+                           double (*activate_func)(double)) {
+  int half = table_hw / 2;
+  int table_idx = 0;
+  int range = abs(end - start);
+  float interval = (float)range / (float)table_hw;
+  double x_value;
+  double y_value;
+
+
+
+  // Set idx [0 , 127] fp32 and bf16 data
+  for (int i = 0; i < half; i++) {
+    x_value = i * interval;
+    y_value = activate_func(x_value);
+    table[table_idx] = y_value;
+    table_idx++;
+  }
+  // set idx 128 fp32 and bf16 data
+  table[table_idx] = activate_func(start);
+
+  ++table_idx;
+  // set idx 129 to 256, 2's complment
+  for (int i = 1; i < half; i++) {
+    x_value = start + i * interval;
+    y_value = activate_func(x_value);
+    table[table_idx] = y_value;
+    table_idx++;
+  }
+}
+
+static void gen_bf16_slope_table(int start, int end, int table_hw,
+                                         float *table,
+                                         float *slope_table, double (*activate_func)(double)) {
+  int range = abs(end - start);
+  float interval = (float)range / (float)table_hw;
+  int half = table_hw / 2;
+  for (int i = 0; i < table_hw; ++i) {
+    double x0 = table[i];
+    double x1 = table[i + 1];
+    double delta = 1.0;
+    if (i == half - 1) {
+      x1 = activate_func(end);
+    } else if (i == half) {
+      // idx = 128, x0 is -128, x1 is -129
+      x1 = activate_func(start - interval);
+      delta = -1.0;
+    } else if (i > half) {
+      x0 = table[i];
+      x1 = table[i - 1];
+      delta = -1.0;
+    }
+    float slope = (x1 - x0) / delta;
+    table[i] = slope;
+  }
+}
 namespace mlir {
 
 ///
@@ -107,6 +171,87 @@ LogicalResult quantizeBf16ConvOps(Operation *op) {
   }
 
   setOpResultType(op, StandardTypes::BF16);
+
+  return success();
+}
+
+///
+/// Lut Ops quantization method
+///
+template <typename OpTy>
+LogicalResult quantizeBF16LutOps(Operation *op) {
+  assert(getOpQuant(op) == "BF16");
+  // support per-tensor only for now
+  setOpQuantPerchannel(op, false);
+  // use LUT
+  setOpQuantParamType(op, "LUT_BF16");
+
+  TensorFile *wTF = getWeightTensorFile(op);
+  Value *wfV = getWeightFileValue(op);
+  auto lutOp = cast<OpTy>(op);
+
+  // quantization
+  float threshold_x = getPreviousOpThreshold(op);
+  float threshold_y = getOpThreshold(op);
+  LLVM_DEBUG(llvm::errs() << " > " << getOpName(op)
+                          << ", threshold_y = " << std::to_string(threshold_y)
+                          << ", threshold_x = " << std::to_string(threshold_x)
+                          << "\n";);
+  int npu_num = 32; //<! 1880v2 hardcode
+
+  //<! 1880v2 hw bf16 config
+  int table_h = 32;
+  int table_w = 8;
+  std::vector<float> y0_table;
+  std::vector<float> y0_slope_table; // use in bf16
+  int table_hw = table_h * table_w;
+  int tbl_shape = npu_num * table_hw;
+  y0_table.resize(tbl_shape);
+  y0_slope_table.resize(tbl_shape);
+  std::vector<float> y0_fp32_table(table_hw);
+  std::vector<float> y0_fp32_slope_table(table_hw);
+  std::vector<uint16_t> y0_bf16_table(table_hw);
+  std::vector<uint16_t> y0_bf16_slope_table(table_hw);
+
+  // use function pointer
+  double (*activate_func)(double);
+  if (OpTy::getOperationName() == "tpu.sigmoid") {
+    activate_func = sigmoid;
+  }
+
+  gen_bf16_table(BF16_TABLE_START, BF16_TABLE_END, table_hw,
+                 y0_fp32_table.data(), activate_func);
+
+  gen_bf16_slope_table(BF16_TABLE_START, BF16_TABLE_END, table_hw,
+                       y0_fp32_table.data(), y0_fp32_slope_table.data(),
+                       activate_func);
+
+  // convert fp32 to bf16
+  FloatToBFloat16(y0_fp32_table.data(),
+                  y0_bf16_table.data(), table_hw);
+  FloatToBFloat16(y0_fp32_slope_table.data(),
+                  y0_bf16_slope_table.data(), table_hw);
+
+  // copy bf16 data to float table
+  for (int i = 0; i < npu_num; ++i){
+    std::copy(y0_bf16_table.data(), y0_bf16_table.data() + table_hw,
+              y0_table.data() + i * table_hw);
+    std::copy(y0_bf16_slope_table.data(),
+              y0_bf16_slope_table.data() + table_hw,
+              y0_slope_table.data() + i * table_hw);
+  }
+
+  // update op
+  auto shape = std::vector<int64_t>{1, npu_num, table_h, table_w};
+  StringRef storageType = "BF16";
+  auto y0_table_op = addWeightTensorAndCreateWeightOp<float>(
+      op, "y0_table", y0_table, shape, storageType, wTF, wfV);
+  auto mantissa_table_op = addWeightTensorAndCreateWeightOp<float>(
+      op, "mantissa_table", y0_slope_table, shape, storageType, wTF, wfV);
+  lutOp.setOperand(1, y0_table_op);
+  lutOp.setOperand(2, mantissa_table_op);
+
+  setOpResultType(op, StandardTypes::Integer, 8);
 
   return success();
 }
@@ -264,7 +409,14 @@ DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::ReciprocalOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::ReluOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::ReorgOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::ShuffleChannelOp)
-DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::SigmoidOp)
+
+LogicalResult tpu::SigmoidOp::quantizeBf16() {
+  LLVM_DEBUG(llvm::errs() << "quantizeBf16: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  return quantizeBF16LutOps<tpu::SigmoidOp>(op);
+}
+
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::SliceOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::SqrtOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::SwapChannelOp)

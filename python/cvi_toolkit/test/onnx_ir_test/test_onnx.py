@@ -28,13 +28,14 @@ TEST_ONNX_IR = [
     "PRelu",
     "Reciprocal",
     "Slice",
+    "Sigmoid",
     "Sub",
     "Sum",
     "Transpose",
 ]
 
 NOT_SUPPORT_CMDBUF_TEST_IR = ["Relu"]
-NOT_SUPPORT_BF16_TEST_IR = ["Relu", "LRN", "Max", "Min", "PRelu", "Reciprocal", "Slice", "Transpose", "Sum"]
+NOT_SUPPORT_BF16_TEST_IR = ["Relu", "LRN", "Max", "Min", "PRelu", "Reciprocal", "Slice", "Transpose", "Sum", "Sigmoid"]
 
 def make_test_calibration_table(tensors, table_name):
     # simple calibration table
@@ -72,6 +73,7 @@ class ONNX_IR_TESTER(object):
             "Reciprocal": self.test_Reciprocal,
             "Relu": self.test_Relu,
             "Slice": self.test_Slice,
+            "Sigmoid": self.test_Sigmoid,
             "Sub": self.test_Sub,
             "Sum": self.test_Sum,
             "Transpose": self.test_Transpose,
@@ -654,6 +656,39 @@ class ONNX_IR_TESTER(object):
         )
         model_def = helper.make_model(graph_def, producer_name=test_case)
 
+        input_data = np.random.rand(input_shape[0], input_shape[1],
+                        input_shape[2], input_shape[3]).astype(np.float32)
+
+        onnx.checker.check_model(model_def)
+        self.onnx_convert_and_infernece(input_data, model_def, test_case)
+
+    def test_Sigmoid(self):
+        test_case = 'Sigmoid'
+        input_shape = [1, 3, 27, 27]
+        output_shape = [1, 3, 27, 27]
+
+        input = helper.make_tensor_value_info('input', TensorProto.FLOAT, input_shape)
+        output = helper.make_tensor_value_info(
+            'output', TensorProto.FLOAT, output_shape)
+
+        x1_node = helper.make_node(
+            'Neg',
+            ['input'],
+            ['X1'],
+        )
+        sigmoid_node = helper.make_node(
+            'Sigmoid',
+            ['X1'],
+            ['output'],
+        )
+        graph_def = helper.make_graph(
+            [x1_node, sigmoid_node],
+            test_case,
+            [input],
+            [output],
+        )
+
+        model_def = helper.make_model(graph_def, producer_name=test_case)
         input_data = np.random.rand(input_shape[0], input_shape[1],
                         input_shape[2], input_shape[3]).astype(np.float32)
 

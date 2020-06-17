@@ -1092,7 +1092,10 @@ Value *tpu::SigmoidOp::convertToTG() {
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
   } else if (getOpQuant() == "BF16") {
-    assert(false && "TODO");
+    auto newOp = OpBuilder(op).create<tpu::TG_BF16_LutOp>(
+        op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
   }
   llvm_unreachable("unsupported type");
 }
