@@ -63,7 +63,7 @@ class pascal_voc():
         Load the indexes listed in this dataset's image set file.
         """
         # Example path to image set file:
-        # /data/dataset/VOC2012/ImageSets/Main/trainval.txt
+        # /data/dataset/VOCdevkit/VOC2012/ImageSets/Main/trainval.txt
         image_set_file = os.path.join(self._data_path, 'ImageSets', 'Main',
                                       self._image_set + '.txt')
         assert os.path.exists(image_set_file), \

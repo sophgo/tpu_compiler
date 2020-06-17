@@ -7,7 +7,7 @@ OUT_PATH=$REGRESSION_PATH/regression_out/${NET}_bs1
 
 pushd $OUT_PATH
 gen_data_list.py \
-         $DATASET_PATH/VOC2012/JPEGImages \
+         $DATASET_PATH/VOCdevkit/VOC2012/JPEGImages \
          $CALIBRATION_IMAGE_COUNT \
          cali_list_voc2012.txt
 
