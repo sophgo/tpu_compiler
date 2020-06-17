@@ -114,6 +114,10 @@ shared_ptr<ImLayer> ImLayer::create(Operation* op) {
     layer = make_shared<ImCrop>(op);
   } else if (isa<tpu::TG_INT8_ReluOp>(op)) {
     layer = make_shared<ImRelu>(op);
+  } else if (isa<tpu::TG_CastOp>(op)) {
+    layer = make_shared<ImCommon>(op, false, IR_OTHER);
+  } else if (isa<tpu::TG_INT8_QuantOp>(op) || isa<tpu::TG_BF16_QuantOp>(op)) {
+    layer = make_shared<ImCommon>(op, false, IR_OTHER);
   } else if (isa<tpu::GenericCpuOp>(op)) {
     layer = make_shared<ImCommon>(op, false, IR_OTHER);
   } else if (isa<tpu::QuantOp>(op) ||

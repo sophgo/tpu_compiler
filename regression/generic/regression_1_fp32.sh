@@ -10,24 +10,41 @@ fi
 
 CHECK_NON_OPT_VERSION=0
 
-# translate from caffe model
-# mlir-translate \
-#    --caffe-to-mlir $MODEL_DEF \
-#    --caffemodel $MODEL_DAT \
-#    --static-batchsize $BATCH_SIZE \
-#    -o ${NET}.mlir
-
 if [ $MODEL_TYPE != "caffe" ]; then
     MODEL_DAT="-"
 fi
 
-cvi_model_convert.py \
+if [ $DO_PREPROCESS -eq 1 ]; then
+  # can't use caffe input directly
+  # need to generate input data
+  cvi_image_process.py \
+      --image $IMAGE_PATH \
+      --resize_dims $IMAGE_RESIZE_DIMS \
+      --net_input_dims $NET_INPUT_DIMS \
+      --batch $BATCH_SIZE \
+      --yolo $YOLO \
+      --save ${NET}_in_fp32.npz
+
+  cvi_model_convert.py \
+      --model_path $MODEL_DEF \
+      --model_dat $MODEL_DAT \
+      --model_name ${NET} \
+      --model_type $MODEL_TYPE \
+      --batch_size $BATCH_SIZE \
+      --swap_channel $SWAP_CHANNEL \
+      --raw_scale $RAW_SCALE \
+      --mean $MEAN \
+      --scale $INPUT_SCALE \
+      --mlir_file_path ${NET}.mlir
+else
+  cvi_model_convert.py \
       --model_path $MODEL_DEF \
       --model_dat $MODEL_DAT \
       --model_name ${NET} \
       --model_type $MODEL_TYPE \
       --batch_size $BATCH_SIZE \
       --mlir_file_path ${NET}.mlir
+fi
 
 # assign layer_id right away, and apply all frontend optimizations
 # Notes: convert-bn-to-scale has to be done before canonicalizer
@@ -57,7 +74,9 @@ cvi_npz_tool.py compare \
     --excepts $EXCEPTS \
     --tolerance=0.999,0.999,0.998 -vv
 
+if [ $DO_PREPROCESS -ne 1 ]; then
 cvi_npz_tool.py to_bin ${NET}_in_fp32.npz $INPUT ${NET}_in_fp32.bin
+fi
 
 # VERDICT
 echo $0 PASSED

@@ -42,6 +42,7 @@ mlir-opt \
     --chipname ${SET_CHIP_NAME} \
     ${CUSTOM_OP_PLUGIN_OPTION} \
     --tpu-quant \
+    --convert-quant-op \
     --print-tpu-op-info \
     --tpu-op-info-filename op_info_int8.csv | \
 mlir-opt \

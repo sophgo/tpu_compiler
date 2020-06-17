@@ -523,6 +523,9 @@ static bool isQuantOp(Operation *op) {
       return true;
     }
   }
+  if (isa<tpu::TG_INT8_QuantOp>(op) || isa<tpu::TG_BF16_QuantOp>(op)) {
+    return true;
+  }
   return false;
 }
 
@@ -548,7 +551,9 @@ void AssignNeuronAddressMemRefPass::runOnFunction() {
       handleAllocOp(opInst);
     } else if (dyn_cast<DeallocOp>(opInst)) {
       handleDeallocOp(opInst);
-    } else if (isQuantOp(opInst)) {
+    } else if (isQuantOp(opInst) ||
+               isa<tpu::TG_CastOp>(opInst) ||
+               isa<tpu::InputOp>(opInst)) {
       handleQuantOp(opInst);
     }
   });

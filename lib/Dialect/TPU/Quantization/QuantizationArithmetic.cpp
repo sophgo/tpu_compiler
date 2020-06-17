@@ -820,12 +820,33 @@ void quantizeWeightInt8Multiplier(float *filter, float *bias,
   }
 }
 
-static inline signed char float2int8(float v)
+static inline signed char float2int8(float v, int mode = 0)
 {
+  if (mode == 0) {
     int int32 = std::round(v);
     if (int32 > 127) return 127;
     if (int32 < -128) return -128;
     return (signed char)int32;
+  } else {
+    int int32 = 0;
+    float fraction, integer;
+    float abs_v = std::abs(v);
+    fraction = std::modf(abs_v, &integer); 
+    int32 = (int)integer;
+    if (fraction > 0.5) {
+      int32 = int32 + 1;
+    } else if (fraction == 0.5) {
+      if (int32 & 0x01) {
+        int32 = int32 + 1;
+      }
+    }
+
+    if (v < 0) int32 = -int32;
+
+    if (int32 > 127) return 127;
+    if (int32 < -128) return -128;
+    return (signed char)int32;
+  }
 }
 
 /// Quantize an Activation tensor into INT8, given threshold
@@ -836,7 +857,7 @@ void quantizeActivationInt8WithThreshold(float *output, float *input,
     // note this is using std::round() rather than floor(v+0.5f)
     // to compliance with NEON implemention on runtime
     //output[i] = (float)saturateInt8(input[i] * 128.0 / threshold);
-    output[i] = (float)float2int8(input[i] * scale);
+    output[i] = (float)float2int8(input[i] * scale, 0);
   }
 }
 
@@ -847,6 +868,67 @@ void dequantizeActivationInt8WithThreshold(float *output, float *input,
     float scale = threshold / 128.0;
     output[i] = input[i] * scale;
   }
+}
+
+/// HW float to bfloat16
+bfloat16 FloatToBFloat16(float value)
+{
+  float f32_val = value;
+  uint32_t* u32_val = reinterpret_cast<uint32_t*>(&f32_val);
+  uint32_t input = *u32_val;
+  uint32_t lsb = (input >> 16) & 1;
+  uint32_t rounding_bias = 0x7fff + lsb;
+  input += rounding_bias;
+  bfloat16 bf_val = (bfloat16)(input >> 16);
+
+  /* HW behavior */
+  if ((bf_val & 0x7f80) == 0x7f80) {
+    bf_val = 0x7f7f;
+  }
+  return bf_val;
+}
+
+float BFloat16ToFloat(bfloat16 value)
+{
+  float dst = 0;
+  uint16_t* p = reinterpret_cast<uint16_t*>(&value);
+  uint16_t* q = reinterpret_cast<uint16_t*>(&dst);
+
+  q[0] = 0;
+  q[1] = *p;
+
+  return dst;
+}
+
+/// Quantize an Bf16 Activation tensor into INT8, given threshold
+/// Keep interpreter bf16 quant align with TPU
+/// TPU HW round mode support 0: round to nearest even, 1: round to zero
+void quantizeActivationFromBf16ToInt8WithThreshold(float *output, float *input,
+    int64_t size, float threshold) {
+    float scale = 128.0 / threshold;
+    bfloat16 bf_scale, bf_tmp;
+    bf_scale = FloatToBFloat16(scale);
+    scale = BFloat16ToFloat(bf_scale);
+    for (int64_t i = 0; i < size; ++i) {
+      float f_tmp = input[i] * scale;
+      bf_tmp = FloatToBFloat16(f_tmp);
+      f_tmp = BFloat16ToFloat(bf_tmp);
+      output[i] = (float)float2int8(f_tmp, 1);
+    }
+}
+
+/// Dequant an Int8 Activation tensor to Bf16, given threshold
+/// Keep interpreter int8 quant align with TPU
+void dequantizeActivationFromInt8ToBf16WithThreshold(float *output, float *input,
+    int64_t size, float threshold) {
+    float scale = threshold / 128.0;
+    bfloat16 bf_scale;
+    bf_scale = FloatToBFloat16(scale);
+    scale = BFloat16ToFloat(bf_scale);
+    for (int64_t i = 0; i < size; ++i) {
+      bfloat16 out = FloatToBFloat16(input[i] * scale);
+      output[i] = (float)BFloat16ToFloat(out);
+    }
 }
 
 /// Quantize an Activation tensor, given per channel mulitplier and rshift

@@ -96,11 +96,13 @@ public:
            || isa<FuncOp>(op)) {
           // continue
         }
+
         if (isa<tpu::ReshapeOp>(op)) {
           // if ReshapeOp's next node is tg/tl op, it should be treat as tpu op
           if (!sf) {
             sf = new SubFunction(isReshapeOpConnectToTpuOp(op));
           }
+
           sf->ops.push_back(op);
         } else if (llvm::dyn_cast<tpu::TpuTGOpCodegenInterface>(op) ||
                    llvm::dyn_cast<tpu::TpuTLOpCodegenInterface>(op)) {
@@ -151,6 +153,13 @@ public:
           }
         }
       });
+    }
+
+    // for allOp are tpuOp case
+    if (sf != nullptr) {
+      addSubFunction(sf);
+      subFuncs.push_back(sf);
+      sf = nullptr;
     }
 
     for (auto sf : subFuncs) {

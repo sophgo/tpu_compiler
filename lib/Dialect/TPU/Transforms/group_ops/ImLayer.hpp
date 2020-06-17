@@ -58,6 +58,7 @@ typedef enum {
   IR_CROP,
   IR_JOIN,
   IR_MULTIINPUT,
+  IR_CAST,
   IR_OTHER,
 } IR_TYPE;
 
@@ -226,6 +227,11 @@ class ImCrop : public ImLayer {
 class ImRelu : public ImLayer {
  public:
   explicit ImRelu(Operation *op);
+};
+
+class ImCast : public ImLayer {
+ public:
+  explicit ImCast(Operation *op);
 };
 
 class ImCommon : public ImLayer {

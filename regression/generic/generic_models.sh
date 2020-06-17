@@ -36,6 +36,8 @@ export CUSTOM_OP_PLUGIN="$INSTALL_PATH/lib/custom_op/libCustomOpPlugin.so"
 export LABEL_FILE=$REGRESSION_PATH/data/synset_words.txt
 export DO_NN_TOOLKIT=0
 export SET_CHIP_NAME="cv183x"
+export SWAP_CHANNEL=0,1,2
+export YOLO="false"
 
 if [ -z "$DO_BATCHSIZE" ]; then
   BATCH_SIZE=1
@@ -68,7 +70,7 @@ export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.9
 export DO_LAYERGROUP=1
 export DO_NN_TOOLKIT=1
 # export BATCH_SIZE=4
-export DO_PREPROCESS=0
+export DO_PREPROCESS=1
 if [ $DO_PREPROCESS -eq 1 ]; then
   export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table_preprocess
   export IMAGE_PATH=$REGRESSION_PATH/data/cat.jpg
@@ -119,11 +121,11 @@ export EXCEPTS=prob
 export DO_QUANT_BF16=0
 export TOLERANCE_INT8_PER_TENSOR=0.98,0.98,0.84
 export TOLERANCE_INT8_RSHIFT_ONLY=0.99,0.99,0.90
-export TOLERANCE_INT8_MULTIPLER=0.99,0.99,0.91
+export TOLERANCE_INT8_MULTIPLER=0.99,0.99,0.90
 export TOLERANCE_BF16=0.99,0.99,0.96
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
 export DO_LAYERGROUP=1
-export DO_PREPROCESS=0
+export DO_PREPROCESS=1
 if [ $DO_PREPROCESS -eq 1 ]; then
   export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table_preprocess
   export IMAGE_PATH=$REGRESSION_PATH/data/cat.jpg
@@ -148,13 +150,13 @@ export OUTPUTS=prob
 # export DO_QUANT_INT8_RFHIFT_ONLY=1
 export TOLERANCE_INT8_PER_TENSOR=0.96,0.95,0.72
 export TOLERANCE_INT8_RSHIFT_ONLY=0.96,0.96,0.71
-export TOLERANCE_INT8_MULTIPLER=0.96,0.96,0.72
+export TOLERANCE_INT8_MULTIPLER=0.96,0.96,0.71
 export DO_QUANT_BF16=0
 export TOLERANCE_BF16=0.99,0.99,0.97
 export DO_CMDBUF_BF16=0
 #export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
 export DO_LAYERGROUP=1
-export DO_PREPROCESS=0
+export DO_PREPROCESS=1
 if [ $DO_PREPROCESS -eq 1 ]; then
   export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table_preprocess
   export IMAGE_PATH=$REGRESSION_PATH/data/cat.jpg
@@ -178,13 +180,13 @@ export OUTPUTS=classifier
 # export EXCEPTS=prob
 export TOLERANCE_INT8_PER_TENSOR=0.84,0.84,0.41
 export TOLERANCE_INT8_RSHIFT_ONLY=0.94,0.93,0.64
-export TOLERANCE_INT8_MULTIPLER=0.95,0.95,0.69
+export TOLERANCE_INT8_MULTIPLER=0.95,0.95,0.68
 export DO_QUANT_BF16=0
 export TOLERANCE_BF16=0.99,0.99,0.93
 export DO_CMDBUF_BF16=0
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
 export DO_LAYERGROUP=1
-export DO_PREPROCESS=0
+export DO_PREPROCESS=1
 if [ $DO_PREPROCESS -eq 1 ]; then
   export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table_preprocess
   export IMAGE_PATH=$REGRESSION_PATH/data/cat.jpg
@@ -214,7 +216,7 @@ export TOLERANCE_BF16=0.99,0.99,0.89
 export DO_CMDBUF_BF16=0
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.93
 export DO_LAYERGROUP=1
-export DO_PREPROCESS=0
+export DO_PREPROCESS=1
 if [ $DO_PREPROCESS -eq 1 ]; then
   export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table_preprocess
   export IMAGE_PATH=$REGRESSION_PATH/data/cat.jpg
@@ -238,15 +240,15 @@ export OUTPUTS=fc7
 export DO_QUANT_INT8_PER_TENSOR=1
 export DO_QUANT_INT8_RFHIFT_ONLY=0
 export DO_QUANT_INT8_MULTIPLER=1
-export TOLERANCE_INT8_PER_TENSOR=0.9,0.86,0.52
+export TOLERANCE_INT8_PER_TENSOR=0.89,0.86,0.52
 export TOLERANCE_INT8_RSHIFT_ONLY=0.96,0.95,0.73
-export TOLERANCE_INT8_MULTIPLER=0.96,0.95,0.74
+export TOLERANCE_INT8_MULTIPLER=0.96,0.95,0.73
 export DO_QUANT_BF16=1
-export TOLERANCE_BF16=0.99,0.99,0.94
+export TOLERANCE_BF16=0.99,0.99,0.92
 export DO_CMDBUF_BF16=1
-export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
+export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.95
 export DO_LAYERGROUP=1
-export DO_PREPROCESS=0
+export DO_PREPROCESS=1
 if [ $DO_PREPROCESS -eq 1 ]; then
   export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table_1000_preprocess
   export IMAGE_PATH=$REGRESSION_PATH/data/cat.jpg
@@ -271,7 +273,7 @@ export OUTPUTS=fc7
 export DO_QUANT_INT8_PER_TENSOR=1
 export DO_QUANT_INT8_RFHIFT_ONLY=0
 export DO_QUANT_INT8_MULTIPLER=1
-export TOLERANCE_INT8_PER_TENSOR=0.61,0.61,0.01
+export TOLERANCE_INT8_PER_TENSOR=0.61,0.60,0.01
 export TOLERANCE_INT8_RSHIFT_ONLY=0.94,0.9,0.66
 export TOLERANCE_INT8_MULTIPLER=0.94,0.94,0.67
 export DO_QUANT_BF16=1
@@ -279,7 +281,7 @@ export TOLERANCE_BF16=0.99,0.99,0.92
 export DO_CMDBUF_BF16=0   # this is a bug to fix
 # export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
 export DO_LAYERGROUP=1
-export DO_PREPROCESS=0
+export DO_PREPROCESS=1
 if [ $DO_PREPROCESS -eq 1 ]; then
   export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table_1000_preprocess
   export IMAGE_PATH=$REGRESSION_PATH/data/cat.jpg
@@ -341,7 +343,7 @@ export STD=0.5,0.5,0.5   # in BGR, pytorch std=[0.5, 0.5, 0.5]
 export IMAGE_RESIZE_DIMS=256,256
 export INPUT=input
 export COMPARE_ALL=1
-export TOLERANCE_INT8_MULTIPLER=0.77,0.88,0.277
+export TOLERANCE_INT8_MULTIPLER=0.77,0.86,0.277
 export ENABLE_CALI_OVERWRITE_THRESHOLD_FORWARD="--enable-cali-overwrite-threshold-forward-relu"
 export DO_CALIBRATION=0
 export CALIBRATION_IMAGE_COUNT=2000
@@ -372,6 +374,7 @@ export MODEL_DAT=$MODEL_PATH/imagenet/shufflenet_v2/caffe/shufflenet_v2_x0.5.caf
 export NET_INPUT_DIMS=224,224
 export IMAGE_RESIZE_DIMS=256,256
 export MODEL_CHANNEL_ORDER="rgb"
+export SWAP_CHANNEL=2,1,0
 export RAW_SCALE=1.0
 export MEAN=0.0,0.0,0.0
 export INPUT_SCALE=1.0
@@ -384,7 +387,7 @@ export TOLERANCE_INT8_MULTIPLER=0.92,0.92,0.57
 export TOLERANCE_BF16=0.99,0.99,0.94
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
 export DO_LAYERGROUP=1
-export DO_PREPROCESS=0
+export DO_PREPROCESS=1
 if [ $DO_PREPROCESS -eq 1 ]; then
   export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table_preprocess
   export IMAGE_PATH=$REGRESSION_PATH/data/cat.jpg
@@ -411,7 +414,7 @@ export TOLERANCE_INT8_MULTIPLER=0.9,0.9,0.56
 export TOLERANCE_BF16=0.99,0.99,0.93
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.93
 export DO_LAYERGROUP=1
-export DO_PREPROCESS=0
+export DO_PREPROCESS=1
 if [ $DO_PREPROCESS -eq 1 ]; then
   export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table_preprocess
   export IMAGE_PATH=$REGRESSION_PATH/data/cat.jpg
@@ -438,13 +441,13 @@ export DO_QUANT_INT8_RFHIFT_ONLY=0
 export DO_QUANT_INT8_MULTIPLER=1
 export TOLERANCE_INT8_PER_TENSOR=0.74,0.73,0.23
 export TOLERANCE_INT8_RSHIFT_ONLY=0.83,0.82,0.39
-export TOLERANCE_INT8_MULTIPLER=0.83,0.82,0.39
+export TOLERANCE_INT8_MULTIPLER=0.82,0.81,0.37
 export DO_QUANT_BF16=0
 export TOLERANCE_BF16=0.99,0.99,0.94
 export DO_CMDBUF_BF16=0
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
 export DO_LAYERGROUP=1
-export DO_PREPROCESS=0
+export DO_PREPROCESS=1
 if [ $DO_PREPROCESS -eq 1 ]; then
   export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table_1000_preprocess
   export IMAGE_PATH=$REGRESSION_PATH/data/cat.jpg
@@ -471,13 +474,13 @@ export DO_QUANT_INT8_RFHIFT_ONLY=0
 export DO_QUANT_INT8_MULTIPLER=1
 export TOLERANCE_INT8_PER_TENSOR=0.57,0.55,-0.05
 export TOLERANCE_INT8_RSHIFT_ONLY=0.78,0.77,0.30
-export TOLERANCE_INT8_MULTIPLER=0.78,0.77,0.30
+export TOLERANCE_INT8_MULTIPLER=0.77,0.76,0.28
 export DO_QUANT_BF16=0
 export TOLERANCE_BF16=0.99,0.99,0.92
 export DO_CMDBUF_BF16=0
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.95
 export DO_LAYERGROUP=1
-export DO_PREPROCESS=0
+export DO_PREPROCESS=1
 if [ $DO_PREPROCESS -eq 1 ]; then
   export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table_1000_preprocess
   export IMAGE_PATH=$REGRESSION_PATH/data/cat.jpg
@@ -503,13 +506,13 @@ export DO_QUANT_INT8_PER_TENSOR=1
 export DO_QUANT_INT8_RFHIFT_ONLY=1
 export DO_QUANT_INT8_MULTIPLER=1
 export TOLERANCE_INT8_PER_TENSOR=0.94,0.93,0.66
-export TOLERANCE_INT8_RSHIFT_ONLY=0.96,0.96,0.73
+export TOLERANCE_INT8_RSHIFT_ONLY=0.96,0.95,0.71
 export TOLERANCE_INT8_MULTIPLER=0.96,0.96,0.75
 export DO_QUANT_BF16=0
 export TOLERANCE_BF16=0.99,0.99,0.99
 export DO_CMDBUF_BF16=0
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
-export DO_PREPROCESS=0
+export DO_PREPROCESS=1
 export DO_LAYERGROUP=1
 if [ $DO_PREPROCESS -eq 1 ]; then
   export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table_1000_preprocess
@@ -526,7 +529,14 @@ export MODEL_DAT=$MODEL_PATH/face_recognition/arcface_res50/caffe/arcface_res50.
 export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_caffe/regression_${NET}_0_caffe.sh
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table
 export INPUT=data
-export TOLERANCE_INT8_MULTIPLER=0.59,0.59,-0.13
+export MODEL_CHANNEL_ORDER="rgb"
+export SWAP_CHANNEL=2,1,0
+export NET_INPUT_DIMS=112,112
+export IMAGE_RESIZE_DIMS=112,112
+export RAW_SCALE=255.0
+export MEAN=127.5,127.5,127.5
+export INPUT_SCALE=0.0078125
+export TOLERANCE_INT8_MULTIPLER=0.45,0.45,-0.39
 export DO_QUANT_INT8_PER_TENSOR=0
 export DO_QUANT_INT8_RFHIFT_ONLY=0
 export DO_QUANT_BF16=0
@@ -534,6 +544,14 @@ export DO_LAYERGROUP=1
 # accuracy setting
 export EVAL_MODEL_TYPE="lfw"
 #export DO_ACCURACY_CAFFE=0
+export DO_PREPROCESS=1
+if [ $DO_PREPROCESS -eq 1 ]; then
+  export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table_preprocess
+  export IMAGE_PATH=$REGRESSION_PATH/data/Aaron_Eckhart_0001.jpg
+  export EXCEPTS=data
+else
+  export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table
+fi
 fi
 
 if [ $NET = "retinaface_mnet25_600" ]; then
@@ -542,7 +560,13 @@ export MODEL_DAT=$MODEL_PATH/face_detection/retinaface/caffe/mnet.caffemodel
 export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_caffe/regression_retinaface_mnet25_0_caffe.sh
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/retinaface_mnet25_calibration_table
 export INPUT=data
+export MODEL_CHANNEL_ORDER="rgb"
+export SWAP_CHANNEL=2,1,0
+export IMAGE_RESIZE_DIMS=600,600
 export NET_INPUT_DIMS=600,600
+export RAW_SCALE=255.0
+export MEAN=0,0,0
+export INPUT_SCALE=1
 export TOLERANCE_INT8_MULTIPLER=0.90,0.85,0.54
 export DO_QUANT_INT8_PER_TENSOR=0
 export DO_QUANT_INT8_RFHIFT_ONLY=0
@@ -557,6 +581,14 @@ export DATASET=$DATASET_PATH/widerface/WIDER_val/images
 export ANNOTATION=$DATASET_PATH/widerface/wider_face_split
 #export DO_ACCURACY_CAFFE=0
 #export DO_ACCURACY_ONNX=0
+export DO_PREPROCESS=1
+if [ $DO_PREPROCESS -eq 1 ]; then
+  export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/retinaface_mnet25_calibration_table_preprocess
+  export IMAGE_PATH=$REGRESSION_PATH/data/parade.jpg
+  export EXCEPTS=data
+else
+  export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/retinaface_mnet25_calibration_table
+fi
 fi
 
 if [ $NET = "retinaface_mnet25" ]; then
@@ -565,7 +597,13 @@ export MODEL_DAT=$MODEL_PATH/face_detection/retinaface/caffe/mnet.caffemodel
 export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_caffe/regression_retinaface_mnet25_0_caffe.sh
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/retinaface_mnet25_calibration_table
 export INPUT=data
+export MODEL_CHANNEL_ORDER="rgb"
+export SWAP_CHANNEL=2,1,0
+export IMAGE_RESIZE_DIMS=320,320
 export NET_INPUT_DIMS=320,320
+export RAW_SCALE=255.0
+export MEAN=0,0,0
+export INPUT_SCALE=1
 export TOLERANCE_INT8_MULTIPLER=0.90,0.85,0.54
 export DO_QUANT_INT8_PER_TENSOR=0
 export DO_QUANT_INT8_RFHIFT_ONLY=0
@@ -580,6 +618,14 @@ export DATASET=$DATASET_PATH/widerface/WIDER_val/images
 export ANNOTATION=$DATASET_PATH/widerface/wider_face_split
 #export DO_ACCURACY_CAFFE=0
 #export DO_ACCURACY_ONNX=0
+export DO_PREPROCESS=1
+if [ $DO_PREPROCESS -eq 1 ]; then
+  export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/retinaface_mnet25_calibration_table_preprocess
+  export IMAGE_PATH=$REGRESSION_PATH/data/parade.jpg
+  export EXCEPTS=data
+else
+  export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/retinaface_mnet25_calibration_table
+fi
 fi
 
 if [ $NET = "retinaface_res50" ]; then
@@ -588,6 +634,13 @@ export MODEL_DAT=$MODEL_PATH/face_detection/retinaface/caffe/R50-0000.caffemodel
 export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_caffe/regression_${NET}_0_caffe.sh
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table
 export INPUT=data
+export MODEL_CHANNEL_ORDER="rgb"
+export SWAP_CHANNEL=2,1,0
+export IMAGE_RESIZE_DIMS=600,600
+export NET_INPUT_DIMS=600,600
+export RAW_SCALE=255.0
+export MEAN=0,0,0
+export INPUT_SCALE=1
 export TOLERANCE_INT8_MULTIPLER=0.86,0.83,0.49
 export DO_QUANT_INT8_PER_TENSOR=0
 export DO_QUANT_INT8_RFHIFT_ONLY=0
@@ -602,6 +655,14 @@ export DATASET=$DATASET_PATH/widerface/WIDER_val/images
 export ANNOTATION=$DATASET_PATH/widerface/wider_face_split
 #export DO_ACCURACY_CAFFE=0
 #export DO_ACCURACY_ONNX=0
+export DO_PREPROCESS=1
+if [ $DO_PREPROCESS -eq 1 ]; then
+  export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table_preprocess
+  export IMAGE_PATH=$REGRESSION_PATH/data/parade.jpg
+  export EXCEPTS=data
+else
+  export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table
+fi
 fi
 
 if [ $NET = "ssd300" ]; then
@@ -618,7 +679,7 @@ export MEAN=104.0,117.0,123.0
 export INPUT_SCALE=1.0
 export TOLERANCE_INT8_PER_TENSOR=0.99,0.99,0.89
 export TOLERANCE_INT8_RSHIFT_ONLY=0.98,0.98,0.81
-export TOLERANCE_INT8_MULTIPLER=0.99,0.99,0.88
+export TOLERANCE_INT8_MULTIPLER=0.98,0.98,0.85
 export DO_QUANT_BF16=0
 export DO_LAYERGROUP=1
 # accuracy setting
@@ -626,7 +687,7 @@ export EVAL_MODEL_TYPE="coco"
 export EVAL_SCRIPT_CAFFE="eval_caffe_detector_ssd.py"
 export EVAL_SCRIPT_INT8="eval_ssd.py"
 #export DO_ACCURACY_CAFFE=0
-export DO_PREPROCESS=0
+export DO_PREPROCESS=1
 if [ $DO_PREPROCESS -eq 1 ]; then
   export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table_preprocess
   export IMAGE_PATH=$REGRESSION_PATH/data/dog.jpg
@@ -643,6 +704,7 @@ export LABEL_MAP=$MODEL_PATH/object_detection/ssd/caffe/mobilenet_ssd/labelmap_v
 export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_caffe/regression_ssd_0_caffe.sh
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table
 export INPUT=data
+export IMAGE_RESIZE_DIMS=300,300
 export NET_INPUT_DIMS=300,300
 export RAW_SCALE=255.0
 export MEAN=127.5,127.5,127.5
@@ -655,6 +717,14 @@ export DO_QUANT_BF16=0
 export DO_LAYERGROUP=1
 export EVAL_MODEL_TYPE="voc2012"
 export EVAL_SCRIPT_VOC="eval_detector_voc.py"
+export DO_PREPROCESS=1
+if [ $DO_PREPROCESS -eq 1 ]; then
+  export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table_preprocess
+  export IMAGE_PATH=$REGRESSION_PATH/data/dog.jpg
+  export EXCEPTS=data,detection_out
+else
+  export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table
+fi
 fi
 
 if [ $NET = "yolo_v2_1080" ]; then
@@ -662,8 +732,14 @@ export MODEL_DEF=$MODEL_PATH/object_detection/yolo_v2/caffe/caffe_deploy_1080.pr
 export MODEL_DAT=$MODEL_PATH/object_detection/yolo_v2/caffe/yolov2.caffemodel
 export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_caffe/regression_yolo_v2_0_caffe.sh
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/yolo_v2_calibration_table
-export NET_INPUT_DIMS=1080,1920
 export INPUT=data
+export MODEL_CHANNEL_ORDER="rgb"
+export SWAP_CHANNEL=2,1,0
+export IMAGE_RESIZE_DIMS=1080,1920
+export NET_INPUT_DIMS=1080,1920
+export RAW_SCALE=1.0
+export MEAN=0,0,0
+export INPUT_SCALE=1.0
 export TOLERANCE_INT8_PER_TENSOR=0.88,0.88,0.46
 export TOLERANCE_INT8_RSHIFT_ONLY=0.92,0.90,0.58
 export TOLERANCE_INT8_MULTIPLER=0.90,0.90,0.50
@@ -673,6 +749,15 @@ export DO_DEEPFUSION=1
 export DO_MEMOPT=1
 export DO_LAYERGROUP=1
 export USE_LAYERGROUP=0
+export DO_PREPROCESS=1
+if [ $DO_PREPROCESS -eq 1 ]; then
+  export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/yolo_v2_calibration_table_preprocess
+  export IMAGE_PATH=$REGRESSION_PATH/data/dog.jpg
+  export YOLO="true"
+  export EXCEPTS=data
+else
+  export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/yolo_v2_calibration_table
+fi
 fi
 
 if [ $NET = "yolo_v2_416" ]; then
@@ -680,16 +765,31 @@ export MODEL_DEF=$MODEL_PATH/object_detection/yolo_v2/caffe/caffe_deploy.prototx
 export MODEL_DAT=$MODEL_PATH/object_detection/yolo_v2/caffe/yolov2.caffemodel
 export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_caffe/regression_yolo_v2_0_caffe.sh
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/yolo_v2_calibration_table
-export NET_INPUT_DIMS=416,416
 export INPUT=data
+export MODEL_CHANNEL_ORDER="rgb"
+export SWAP_CHANNEL=2,1,0
+export IMAGE_RESIZE_DIMS=416,416
+export NET_INPUT_DIMS=416,416
+export RAW_SCALE=1.0
+export MEAN=0,0,0
+export INPUT_SCALE=1.0
 export TOLERANCE_INT8_PER_TENSOR=0.88,0.88,0.46
 export TOLERANCE_INT8_RSHIFT_ONLY=0.92,0.90,0.58
-export TOLERANCE_INT8_MULTIPLER=0.90,0.90,0.50
+export TOLERANCE_INT8_MULTIPLER=0.90,0.90,0.49
 export TOLERANCE_BF16=0.99,0.99,0.93
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.93
 export DO_DEEPFUSION=1
 export DO_MEMOPT=1
 export DO_LAYERGROUP=1
+export DO_PREPROCESS=1
+if [ $DO_PREPROCESS -eq 1 ]; then
+  export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/yolo_v2_calibration_table_preprocess
+  export IMAGE_PATH=$REGRESSION_PATH/data/dog.jpg
+  export YOLO="true"
+  export EXCEPTS=data
+else
+  export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/yolo_v2_calibration_table
+fi
 fi
 
 if [ $NET = "yolo_v3_608" ]; then
@@ -698,17 +798,32 @@ export MODEL_DAT=$MODEL_PATH/object_detection/yolo_v3/caffe/608/yolov3_608.caffe
 export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_caffe/regression_yolo_v3_0_caffe.sh
 export EVAL_SCRIPT=$REGRESSION_PATH/data/eval/accuracy_yolo_v3.sh
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/yolo_v3_calibration_table_autotune
-export NET_INPUT_DIMS=608,608
 export INPUT=input
+export MODEL_CHANNEL_ORDER="rgb"
+export SWAP_CHANNEL=2,1,0
+export IMAGE_RESIZE_DIMS=608,608
+export NET_INPUT_DIMS=608,608
+export RAW_SCALE=1.0
+export MEAN=0,0,0
+export INPUT_SCALE=1.0
 export TOLERANCE_INT8_PER_TENSOR=0.89,0.86,0.51
 export TOLERANCE_INT8_RSHIFT_ONLY=0.92,0.90,0.58
-export TOLERANCE_INT8_MULTIPLER=0.92,0.90,0.60
+export TOLERANCE_INT8_MULTIPLER=0.92,0.90,0.59
 export DO_QUANT_BF16=0
 export TOLERANCE_BF16=0.99,0.99,0.93
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.93
 export DO_DEEPFUSION=1
 export DO_MEMOPT=1
 export DO_LAYERGROUP=1
+export DO_PREPROCESS=1
+if [ $DO_PREPROCESS -eq 1 ]; then
+  export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/yolo_v3_calibration_table_autotune_preprocess
+  export IMAGE_PATH=$REGRESSION_PATH/data/dog.jpg
+  export YOLO="true"
+  export EXCEPTS=data
+else
+  export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/yolo_v3_calibration_table_autotune
+fi
 fi
 
 if [ $NET = "yolo_v3_416" ]; then
@@ -717,17 +832,32 @@ export MODEL_DAT=$MODEL_PATH/object_detection/yolo_v3/caffe/416/yolov3_416.caffe
 export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_caffe/regression_yolo_v3_0_caffe.sh
 export EVAL_SCRIPT=$REGRESSION_PATH/data/eval/accuracy_yolo_v3.sh
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/yolo_v3_calibration_table_autotune
-export NET_INPUT_DIMS=416,416
 export INPUT=input
+export MODEL_CHANNEL_ORDER="rgb"
+export SWAP_CHANNEL=2,1,0
+export IMAGE_RESIZE_DIMS=416,416
+export NET_INPUT_DIMS=416,416
+export RAW_SCALE=1.0
+export MEAN=0,0,0
+export INPUT_SCALE=1.0
 export TOLERANCE_INT8_PER_TENSOR=0.9,0.88,0.51
 export TOLERANCE_INT8_RSHIFT_ONLY=0.92,0.90,0.58
-export TOLERANCE_INT8_MULTIPLER=0.93,0.92,0.61
+export TOLERANCE_INT8_MULTIPLER=0.93,0.91,0.60
 export DO_QUANT_BF16=0
 export TOLERANCE_BF16=0.99,0.99,0.94
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
 export DO_DEEPFUSION=1
 export DO_MEMOPT=1
 export DO_LAYERGROUP=1
+export DO_PREPROCESS=1
+if [ $DO_PREPROCESS -eq 1 ]; then
+  export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/yolo_v3_calibration_table_autotune_preprocess
+  export IMAGE_PATH=$REGRESSION_PATH/data/dog.jpg
+  export YOLO="true"
+  export EXCEPTS=data
+else
+  export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/yolo_v3_calibration_table_autotune
+fi
 fi
 
 if [ $NET = "yolo_v3_416_onnx" ]; then
@@ -754,8 +884,14 @@ export MODEL_DAT=$MODEL_PATH/object_detection/yolo_v3/caffe/416/yolov3_416.caffe
 export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_caffe/regression_yolo_v3_0_caffe.sh
 export EVAL_SCRIPT=$REGRESSION_PATH/data/eval/accuracy_yolo_v3.sh
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/yolo_v3_calibration_table_autotune
-export NET_INPUT_DIMS=320,320
 export INPUT=input
+export MODEL_CHANNEL_ORDER="rgb"
+export SWAP_CHANNEL=2,1,0
+export IMAGE_RESIZE_DIMS=320,320
+export NET_INPUT_DIMS=320,320
+export RAW_SCALE=1.0
+export MEAN=0,0,0
+export INPUT_SCALE=1.0
 export TOLERANCE_INT8_PER_TENSOR=0.9,0.88,0.51
 export TOLERANCE_INT8_RSHIFT_ONLY=0.92,0.90,0.58
 export TOLERANCE_INT8_MULTIPLER=0.93,0.92,0.61
@@ -765,6 +901,15 @@ export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
 export DO_DEEPFUSION=1
 export DO_MEMOPT=1
 export DO_LAYERGROUP=1
+export DO_PREPROCESS=1
+if [ $DO_PREPROCESS -eq 1 ]; then
+  export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/yolo_v3_calibration_table_autotune_preprocess
+  export IMAGE_PATH=$REGRESSION_PATH/data/dog.jpg
+  export YOLO="true"
+  export EXCEPTS=data
+else
+  export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/yolo_v3_calibration_table_autotune
+fi
 fi
 
 if [ $NET = "yolo_v3_160" ]; then
@@ -772,17 +917,32 @@ export MODEL_DEF=$MODEL_PATH/object_detection/yolo_v3/caffe/yolov3_160.prototxt
 export MODEL_DAT=$MODEL_PATH/object_detection/yolo_v3/caffe/416/yolov3_416.caffemodel
 export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_caffe/regression_yolo_v3_0_caffe.sh
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/yolo_v3_calibration_table_autotune
-export NET_INPUT_DIMS=160,160
 export INPUT=input
+export MODEL_CHANNEL_ORDER="rgb"
+export SWAP_CHANNEL=2,1,0
+export IMAGE_RESIZE_DIMS=160,160
+export NET_INPUT_DIMS=160,160
+export RAW_SCALE=1.0
+export MEAN=0,0,0
+export INPUT_SCALE=1.0
 export TOLERANCE_INT8_PER_TENSOR=0.9,0.88,0.51
 export TOLERANCE_INT8_RSHIFT_ONLY=0.92,0.90,0.58
-export TOLERANCE_INT8_MULTIPLER=0.93,0.92,0.61
+export TOLERANCE_INT8_MULTIPLER=0.93,0.92,0.59
 export DO_QUANT_BF16=0
 export TOLERANCE_BF16=0.99,0.99,0.94
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
 export DO_DEEPFUSION=1
 export DO_MEMOPT=1
 export DO_LAYERGROUP=1
+export DO_PREPROCESS=1
+if [ $DO_PREPROCESS -eq 1 ]; then
+  export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/yolo_v3_calibration_table_autotune_preprocess
+  export IMAGE_PATH=$REGRESSION_PATH/data/dog.jpg
+  export YOLO="true"
+  export EXCEPTS=data
+else
+  export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/yolo_v3_calibration_table_autotune
+fi
 fi
 
 if [ $NET = "yolo_v3_512x288" ]; then
@@ -790,8 +950,14 @@ export MODEL_DEF=$MODEL_PATH/object_detection/yolo_v3/caffe/yolov3_512x288.proto
 export MODEL_DAT=$MODEL_PATH/object_detection/yolo_v3/caffe/416/yolov3_416.caffemodel
 export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_caffe/regression_yolo_v3_0_caffe.sh
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/yolo_v3_calibration_table_autotune
-export NET_INPUT_DIMS=288,512
 export INPUT=input
+export MODEL_CHANNEL_ORDER="rgb"
+export SWAP_CHANNEL=2,1,0
+export IMAGE_RESIZE_DIMS=288,512
+export NET_INPUT_DIMS=288,512
+export RAW_SCALE=1.0
+export MEAN=0,0,0
+export INPUT_SCALE=1.0
 export TOLERANCE_INT8_PER_TENSOR=0.9,0.88,0.51
 export TOLERANCE_INT8_RSHIFT_ONLY=0.92,0.90,0.58
 export TOLERANCE_INT8_MULTIPLER=0.93,0.92,0.61
@@ -801,6 +967,15 @@ export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
 export DO_DEEPFUSION=1
 export DO_MEMOPT=1
 export DO_LAYERGROUP=1
+export DO_PREPROCESS=1
+if [ $DO_PREPROCESS -eq 1 ]; then
+  export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/yolo_v3_calibration_table_autotune_preprocess
+  export IMAGE_PATH=$REGRESSION_PATH/data/dog.jpg
+  export YOLO="true"
+  export EXCEPTS=data
+else
+  export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/yolo_v3_calibration_table_autotune
+fi
 fi
 
 if [ $NET = "resnet18" ]; then
@@ -824,7 +999,7 @@ export DO_NN_TOOLKIT=1
 # export DO_QUANT_INT8_RFHIFT_ONLY=1
 export TOLERANCE_INT8_PER_TENSOR=0.97,0.97,0.78
 export TOLERANCE_INT8_RSHIFT_ONLY=0.98,0.98,0.84
-export TOLERANCE_INT8_MULTIPLER=0.99,0.99,0.87
+export TOLERANCE_INT8_MULTIPLER=0.99,0.99,0.86
 export DO_QUANT_BF16=0
 export DO_LAYERGROUP=1
 # export TOLERANCE_BF16=0.99,0.99,0.94
@@ -853,7 +1028,7 @@ export EXCEPTS=424_Mul,388_Sigmoid
 # export DO_QUANT_INT8_RFHIFT_ONLY=1
 # export TOLERANCE_INT8_PER_TENSOR=0.8,0.8,0.8
 # export TOLERANCE_INT8_RSHIFT_ONLY=0.8,0.8,0.8
-export TOLERANCE_INT8_MULTIPLER=0.77,0.63,0.28
+export TOLERANCE_INT8_MULTIPLER=0.76,0.60,0.26
 export TOLERANCE_BF16=0.99,0.99,0.91
 export DO_CMDBUF_BF16=0
 # export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
@@ -1010,7 +1185,7 @@ export MEAN=127.5,127.5,127.5 # in RGB
 export STD=127.5,127.5,127.5
 export INPUT_SCALE=1.0
 export INPUT=input
-export TOLERANCE_INT8_MULTIPLER=0.93,0.93,0.61
+export TOLERANCE_INT8_MULTIPLER=0.93,0.93,0.52
 export DO_QUANT_BF16=0
 export DO_E2E=0
 export DO_DEEPFUSION=0

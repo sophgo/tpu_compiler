@@ -104,6 +104,27 @@ Value* tpu::BroadcastMulOp::convertToTG() {
   llvm_unreachable("unsupported type");
 }
 
+Value *tpu::CastOp::convertToTG() {
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  auto builder = Builder(op->getContext());
+
+  std::vector<Value *> operands;
+  operands.push_back(input());
+
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder.getNamedAttr("from", fromAttr()));
+  attrs.push_back(builder.getNamedAttr("to", toAttr()));
+  attrs.push_back(builder.getNamedAttr("name", nameAttr()));
+  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
+
+  auto newOp = OpBuilder(op).create<tpu::TG_CastOp>(
+      op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
+      ArrayRef<NamedAttribute>{attrs});
+  return newOp.getResult();
+}
+
 Value* tpu::ConcatOp::convertToTG() {
   LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
                << " [" << getOpName() << "]\n";);
@@ -863,12 +884,12 @@ Value *tpu::QuantOp::convertToTG() {
   attrs.push_back(builder.getNamedAttr("to", toAttr()));
   attrs.push_back(builder.getNamedAttr("threshold", thresholdAttr()));
 
-  if (this->from() == "INT8" && this->to() == "BF16") {
+  if (this->from() == "BF16" && this->to() == "INT8") {
     auto newOp = OpBuilder(op).create<tpu::TG_INT8_QuantOp>(
         op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
-  } else if (this->from() == "BF16" && this->to() == "INT8") {
+  } else if (this->from() == "INT8" && this->to() == "BF16") {
     auto newOp = OpBuilder(op).create<tpu::TG_BF16_QuantOp>(
         op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
         ArrayRef<NamedAttribute>{attrs});
@@ -2148,6 +2169,7 @@ public:
     OwningRewritePatternList patterns;
     patterns.insert<
         DefaultToTGPattern<tpu::BroadcastMulOp>,
+        DefaultToTGPattern<tpu::CastOp>,
         DefaultToTGPattern<tpu::ClipOp>,
         DefaultToTGPattern<tpu::ConcatOp>,
         DefaultToTGPattern<tpu::Conv2DOp>,

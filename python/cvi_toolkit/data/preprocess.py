@@ -134,9 +134,8 @@ class preprocess(object):
                 print("not existed {}".format(str(input).rstrip()))
                 return None
 
-            image = image.astype(np.float32)
             image = cv2.resize(image, (self.resize_dims[1], self.resize_dims[0])) # w,h
-
+            image = image.astype(np.float32)
             # opencv read image data format is hwc
             # tranpose here
             image = np.transpose(image, (2, 0, 1))
