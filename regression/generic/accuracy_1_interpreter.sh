@@ -45,7 +45,7 @@ if [ $DO_ACCURACY_FP32_INTERPRETER -eq 1 ]; then
       --net_input_dims ${NET_INPUT_DIMS} \
       --mean $MEAN \
       --input_scale $INPUT_SCALE \
-      --dataset=$DATASET_PATH
+      --dataset=$DATASET_PATH/VOCdevkit
 
   else
     echo "Unknown EVAL_MODEL_TYPE $EVAL_MODEL_TYPE"
@@ -140,7 +140,7 @@ if [ $DO_QUANT_INT8_MULTIPLER -eq 1 ]; then
       --net_input_dims ${NET_INPUT_DIMS} \
       --mean $MEAN \
       --input_scale $INPUT_SCALE \
-      --dataset=$DATASET_PATH
+      --dataset=$DATASET_PATH/VOCdevkit
 
   else
     echo "Unknown EVAL_MODEL_TYPE $EVAL_MODEL_TYPE"
