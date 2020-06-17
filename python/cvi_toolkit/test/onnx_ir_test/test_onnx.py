@@ -33,7 +33,8 @@ TEST_ONNX_IR = [
     "Transpose",
 ]
 
-NOT_SUPPORT_CMDBUF_TEST_IR = ["Relu", "Transpose"]
+NOT_SUPPORT_CMDBUF_TEST_IR = ["Relu"]
+NOT_SUPPORT_BF16_TEST_IR = ["Relu", "LRN", "Max", "Min", "PRelu", "Reciprocal", "Slice", "Transpose", "Sum"]
 
 def make_test_calibration_table(tensors, table_name):
     # simple calibration table
@@ -75,6 +76,15 @@ class ONNX_IR_TESTER(object):
             "Sum": self.test_Sum,
             "Transpose": self.test_Transpose,
         }
+        self.set_quant_mode()
+
+    def set_quant_mode(self, mode="int8"):
+        if mode == "int8":
+            self.quant_mode = "int8"
+        elif mode == "bf16":
+            self.quant_mode = "bf16"
+        else:
+            raise RuntimeError("Not support quant mode {}".format(mode))
 
     def onnx_convert_and_infernece(self, input_data, model_def, model_name):
         fp32_mlir = "{}.mlir".format(model_name)
@@ -99,53 +109,98 @@ class ONNX_IR_TESTER(object):
                     return
 
             tensors = self.mlir_model.get_all_tensor()
-            # opt
-            fp32_opt_mlir = "{}_opt.mlir".format(model_name)
-            fp32_csv = "{}_fp32.csv".format(model_name)
-            mlir_opt(fp32_mlir, fp32_opt_mlir, fp32_csv)
-            table_name = "{}_cali_table".format(model_name)
-            # gen cali table
-            make_test_calibration_table(tensors, table_name)
+            if self.quant_mode == "int8":
+                # opt
+                fp32_opt_mlir = "{}_opt.mlir".format(model_name)
+                fp32_csv = "{}_fp32.csv".format(model_name)
+                mlir_opt(fp32_mlir, fp32_opt_mlir, fp32_csv)
+                table_name = "{}_cali_table".format(model_name)
+                # gen cali table
+                make_test_calibration_table(tensors, table_name)
 
-            # import table
-            cali_mlir = "{}_cali.mlir".format(model_name)
-            int8_csv = "{}_int8.csv".format(model_name)
-            ret = mlir_import_calibration(fp32_opt_mlir, cali_mlir, table_name)
-            if ret < 0: raise RuntimeError("import_calibration failed")
+                # import table
+                cali_mlir = "{}_cali.mlir".format(model_name)
+                int8_csv = "{}_int8.csv".format(model_name)
+                ret = mlir_import_calibration(fp32_opt_mlir, cali_mlir, table_name)
+                if ret < 0: raise RuntimeError("import_calibration failed")
 
-            # quant
-            quant_mlir = "{}_quant_int8.mlir".format(model_name)
-            ret = mlir_tpu_quant(cali_mlir, quant_mlir, int8_csv)
-            if ret < 0: raise RuntimeError("tpu_quant failed")
+                # quant
+                quant_mlir = "{}_quant_int8.mlir".format(model_name)
+                ret = mlir_tpu_quant(cali_mlir, quant_mlir, int8_csv)
+                if ret < 0: raise RuntimeError("tpu_quant failed")
 
-            # get mlir output
-            del self.mlir_model
-            self.mlir_model = MLIRModel()
-            self.mlir_model.load_model(quant_mlir)
-            mlir_int8_out = self.mlir_model.inference(input_data)
-            int8_tensors = self.mlir_model.get_all_tensor()
-            ref_npz = "{}_tensor_all_int8.npz".format(model_name)
-            np.savez(ref_npz, **int8_tensors)
+                # get mlir output
+                del self.mlir_model
+                self.mlir_model = MLIRModel()
+                self.mlir_model.load_model(quant_mlir)
+                mlir_int8_out = self.mlir_model.inference(input_data)
+                int8_tensors = self.mlir_model.get_all_tensor()
+                ref_npz = "{}_tensor_all_int8.npz".format(model_name)
+                np.savez(ref_npz, **int8_tensors)
 
-            # lower
-            tg_mlir = "tg_{}.mlir".format(model_name)
-            ret = mlir_lower_opt(quant_mlir, tg_mlir)
-            if ret < 0: raise RuntimeError("lower_opt failed")
+                # lower
+                tg_mlir = "tg_{}.mlir".format(model_name)
+                ret = mlir_lower_opt(quant_mlir, tg_mlir)
+                if ret < 0: raise RuntimeError("lower_opt failed")
 
-            # gen cvimodel
-            cvimodel = "{}.cvimodel".format(model_name)
-            ret = mlir_build_cvimodel_no_opt(tg_mlir, cvimodel)
-            if ret < 0: raise RuntimeError("gen_cvimodel failed")
+                # gen cvimodel
+                cvimodel = "{}.cvimodel".format(model_name)
+                ret = mlir_build_cvimodel_no_opt(tg_mlir, cvimodel)
+                if ret < 0: raise RuntimeError("gen_cvimodel failed")
 
-            # run cvi_model
-            input_file = "{}_input.npz".format(model_name)
-            output_tensor_npz = "{}_all_tensor.npz".format(model_name)
-            np.savez(input_file, **{"input": tensors['input']})
+                # run cvi_model
+                input_file = "{}_input.npz".format(model_name)
+                output_tensor_npz = "{}_all_tensor.npz".format(model_name)
+                np.savez(input_file, **{"input": tensors['input']})
 
-            ret = run_cvimodel(input_file, cvimodel, output_tensor_npz, all_tensors=True)
-            if ret < 0: raise RuntimeError("run_cvimodel failed")
-            npz_compare([output_tensor_npz,ref_npz])
+                ret = run_cvimodel(input_file, cvimodel, output_tensor_npz, all_tensors=True)
+                if ret < 0: raise RuntimeError("run_cvimodel failed")
+                npz_compare([output_tensor_npz,ref_npz])
 
+            elif self.quant_mode == "bf16":
+                for i in NOT_SUPPORT_BF16_TEST_IR:
+                    if i == model_name:
+                        print("{} not support bf16 test!".format(model_name))
+                        return
+                # opt
+                fp32_opt_mlir = "{}_opt.mlir".format(model_name)
+                fp32_csv = "{}_fp32.csv".format(model_name)
+                mlir_opt(fp32_mlir, fp32_opt_mlir, fp32_csv)
+
+                bf16_csv = "{}_bf16.csv".format(model_name)
+
+                # quant
+                quant_mlir = "{}_quant_bf16.mlir".format(model_name)
+                ret = mlir_tpu_quant(fp32_opt_mlir, quant_mlir, bf16_csv, quant_mode="bf16")
+                if ret < 0: raise RuntimeError("tpu_quant failed")
+
+                # get mlir output
+                del self.mlir_model
+                self.mlir_model = MLIRModel()
+                self.mlir_model.load_model(quant_mlir)
+                mlir_bf16_out = self.mlir_model.inference(input_data)
+                bf16_tensors = self.mlir_model.get_all_tensor()
+                ref_npz = "{}_tensor_all_bf16.npz".format(model_name)
+                np.savez(ref_npz, **bf16_tensors)
+
+                # lower
+                tg_mlir = "tg_{}.mlir".format(model_name)
+                ret = mlir_lower_opt(quant_mlir, tg_mlir)
+                if ret < 0: raise RuntimeError("lower_opt failed")
+
+                # gen cvimodel
+                cvimodel = "{}.cvimodel".format(model_name)
+                ret = mlir_build_cvimodel_no_opt(tg_mlir, cvimodel)
+                if ret < 0: raise RuntimeError("gen_cvimodel failed")
+
+                # run cvi_model
+                input_file = "{}_input.npz".format(model_name)
+                output_tensor_npz = "{}_all_tensor.npz".format(model_name)
+                np.savez(input_file, **{"input": tensors['input']})
+
+                ret = run_cvimodel(input_file, cvimodel, output_tensor_npz, all_tensors=True)
+                if ret < 0: raise RuntimeError("run_cvimodel failed")
+                npz_compare([output_tensor_npz, ref_npz, "--op_info", bf16_csv, "--tolerance", "0.9,0.9,0.9", "-vv"])
 
         del self.mlir_model
 
@@ -753,16 +808,27 @@ if __name__ == "__main__":
             tester.test_model(input_shape, sys.argv[2])
         exit(0)
     elif len(sys.argv) == 1:
-        pass_list = list()
+        pass_list_i8 = list()
+        pass_list_bf16 = list()
 
         for i in TEST_ONNX_IR:
             tester.test_function.get(i)()
-            pass_list.append(i)
+            pass_list_i8.append(i)
             print("TEST {} Finish".format(i))
 
-        print("{} PASS {}".format("="*4, "="*4))
-        for i in pass_list:
-            print(i)
+        for i in TEST_ONNX_IR:
+            tester.set_quant_mode(mode="bf16")
+            tester.test_function.get(i)()
+            pass_list_bf16.append(i)
+
+        print("INT8 {} PASS {}".format("="*4, "="*4))
+        for i in pass_list_i8:
+            print("\t {}".format(i))
+
+        print("BF16 {} PASS {}".format("="*4, "="*4))
+        for i in pass_list_bf16:
+            if i not in NOT_SUPPORT_BF16_TEST_IR:
+                print("\t {}".format(i))
 
     else:
         print("Usage: exe.py [input_shape] [model]")
