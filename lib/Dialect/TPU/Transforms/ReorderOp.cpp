@@ -81,7 +81,7 @@ struct SinkCpuOPToReturnOpPattern : public RewritePattern {
     auto insertPoint = op;
     for (int i = (int)op->getNumOperands() - 1; i >= 0; --i) {
       auto opd = op->getOperand(i)->getDefiningOp();
-      if (!isa<tpu::GenericCpuOp>(opd) || !isa<tpu::ReshapeOp>(opd)) {
+      if (!isa<tpu::GenericCpuOp>(opd) && !isa<tpu::ReshapeOp>(opd)) {
         continue;
       }
       opd->moveBefore(insertPoint);
