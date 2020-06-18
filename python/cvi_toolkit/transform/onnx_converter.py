@@ -616,7 +616,7 @@ class OnnxConverter(BaseConverter):
         else:
             operands.append(op)
             clip_op = self.CVI.add_clip_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **clip_param)
-            self.addOperand(onnx_node.name, clip_op, output_shape, TensorType.TENSOR)
+            self.addOperand(onnx_node.name, clip_op, output_shape, TensorType.ACTIVATION)
 
     def convert_depth_to_space_op(self, onnx_node):
         assert(onnx_node.op_type == "DepthToSpace")
@@ -639,7 +639,15 @@ class OnnxConverter(BaseConverter):
         assert(len(onnx_node.inputs) == 2)
         op1, input_shape1, tensor_type1 = self.getOperand(onnx_node.inputs[0])
         op2, input_shape2, tensor_type2 = self.getOperand(onnx_node.inputs[1])
-        if len(input_shape2) ==1 and input_shape2[0] == 1:
+        if tensor_type1 == TensorType.TENSOR and tensor_type2 == TensorType.TENSOR:
+            data1 = self.getTensor(onnx_node.inputs[0]).tensor_data
+            data2 = self.getTensor(onnx_node.inputs[1]).tensor_data
+            output_data = data1/data2
+            output_shape = list(output_data.shape)
+            self.addTensor(onnx_node.name, output_data, output_shape)
+            self.addOperand(onnx_node.name, None, output_shape, TensorType.TENSOR)
+
+        elif len(input_shape2) ==1 and input_shape2[0] == 1:
             # div(x) = input * (1/x) = scale(1/x) = input * (1/x) + 0
             operands = list()
             operands.append(op1)

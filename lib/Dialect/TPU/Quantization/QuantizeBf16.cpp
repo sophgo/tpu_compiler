@@ -251,7 +251,7 @@ LogicalResult quantizeBF16LutOps(Operation *op) {
   lutOp.setOperand(1, y0_table_op);
   lutOp.setOperand(2, mantissa_table_op);
 
-  setOpResultType(op, StandardTypes::Integer, 8);
+  setOpResultType(op, StandardTypes::BF16);
 
   return success();
 }
