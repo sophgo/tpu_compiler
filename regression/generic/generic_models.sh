@@ -944,6 +944,41 @@ export DO_NN_TOOLKIT=1
 # export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
 fi
 
+if [ $NET = "unet" ]; then
+export MODEL_TYPE="onnx"
+export MODEL_DEF=$MODEL_PATH/segmentation/unet/onnx/unet.onnx
+export MODEL_DAT=""
+export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_onnx/regression_unet_0_onnx.sh
+export NET_INPUT_DIMS=256,256
+export IMAGE_RESIZE_DIMS=256,256
+export RAW_SCALE=255.0
+export MEAN=0,0,0
+export INPUT_SCALE=1.0
+export INPUT=input
+export OUTPUTS_FP32=prob
+export OUTPUTS=prob
+export CALIBRATION_IMAGE_COUNT=30
+export DO_CALIBRATION=0
+export TOLERANCE_INT8_PER_TENSOR=0.99,0.98,0.91
+export TOLERANCE_INT8_RSHIFT_ONLY=0.99,0.98,0.91
+export TOLERANCE_INT8_MULTIPLER=0.99,0.98,0.91
+export DO_QUANT_BF16=0
+export TOLERANCE_BF16=0.99,0.98,0.97
+export DO_CMDBUF_BF16=0
+export DO_LAYERGROUP=1
+export USE_LAYERGROUP=1
+export DO_PREPROCESS=0
+export EVAL_MODEL_TYPE="isbi"
+export DO_ACCURACY_CAFFE=0
+export DO_ACCURACY_ONNX=1
+if [ $DO_PREPROCESS -eq 1 ]; then
+  export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table_preprocess
+  export IMAGE_PATH=$REGRESSION_PATH/data/0.png
+  export EXCEPTS=data
+else
+  export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table_0
+fi
+fi
 
 # turn off those optimization when batch_size is larger than 1 temporarily
 #if [ $BATCH_SIZE -gt 1 ]; then
@@ -952,8 +987,3 @@ fi
 #export DO_QUANT_MIX=0
 #export DO_E2E=0
 #fi
-
-# if [ $DO_LAYERGROUP -eq 1 ]; then
-#   # echo "do layer_group, fuse leaky relu"
-#   export MLIR_OPT_BE="--tg-fuse-leakyrelu --conv-ic-alignment"
-# fi

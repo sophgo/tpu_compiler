@@ -14,6 +14,14 @@ from cvi_toolkit.calibration.tuner import Tuner
 from cvi_toolkit import preprocess
 from cvi_toolkit.data.preprocess import get_preprocess_parser
 
+def preprocess_func_unet(image_path, args):
+  image = cv2.imread(str(image_path).rstrip(), cv2.IMREAD_GRAYSCALE)
+  image = image.astype(np.float32)
+  x = cv2.resize(image, (256, 256))
+  x = np.expand_dims(x, axis=0)
+  x = np.expand_dims(x, axis=1)
+  return x
+
 def preprocess_func_espcn(image_path, args):
   image = cv2.imread(str(image_path).rstrip())
   image = cv2.resize(image, (85, 85))
@@ -155,6 +163,8 @@ def main():
     p_func = preprocess_func_arcface
   elif (args.model_name == 'espcn'):
     p_func = preprocess_func_espcn
+  elif (args.model_name == 'unet'):
+    p_func = preprocess_func_unet
   else:
     assert(False)
 

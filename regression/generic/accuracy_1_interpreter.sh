@@ -142,6 +142,21 @@ if [ $DO_QUANT_INT8_MULTIPLER -eq 1 ]; then
       --input_scale $INPUT_SCALE \
       --dataset=$DATASET_PATH/VOCdevkit
 
+  elif [ "$EVAL_MODEL_TYPE" = "isbi" ]; then
+    _EVAL_FUNC=eval_unet.py
+    $_EVAL_FUNC \
+      --mlir_file=${NET}_quant_int8_multiplier.mlir \
+      --dataset=$DATASET_PATH/unet/ \
+      --net_input_dims $NET_INPUT_DIMS \
+      --image_resize_dims $IMAGE_RESIZE_DIMS \
+      --raw_scale $RAW_SCALE \
+      --mean $MEAN \
+      --std $STD \
+      --input_scale $INPUT_SCALE \
+      --model_type mlir \
+      --model_channel_order $MODEL_CHANNEL_ORDER \
+      --count=$1
+
   else
     echo "Unknown EVAL_MODEL_TYPE $EVAL_MODEL_TYPE"
     exit 1

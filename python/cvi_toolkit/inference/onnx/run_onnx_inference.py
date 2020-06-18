@@ -47,6 +47,11 @@ def main(argv):
         type=int,
         help="Input batch size."
     )
+    parser.add_argument(
+        "--bgray",
+        type=bool, default=False,
+        help="whether the input image is gray(channel size = 1)"
+    )
     parser = get_preprocess_parser(existed_parser=parser)
 
     args = parser.parse_args()
@@ -60,10 +65,12 @@ def main(argv):
                     raw_scale=args.raw_scale,
                     std=args.std,
                     rgb_order=args.model_channel_order,
+                    data_format=args.data_format,
+                    bgray=args.bgray
                     )
     input=None
     file_extension = args.input_file.split(".")[-1].lower()
-    if file_extension == "jpg":
+    if file_extension == "jpg" or file_extension == "png":
         mean = [float(x) for x in args.mean.split(",")]
         if args.std:
             std = [float(x) for x in args.std.split(",")]
@@ -87,7 +94,6 @@ def main(argv):
 
     ort_outs = inference(input, args.model_path)
     np.savez(args.output_file, **{'output': ort_outs[0]})
-    #print("org ort_outs", ort_outs)
 
     if args.dump_tensors:
         # second pass for dump all output
