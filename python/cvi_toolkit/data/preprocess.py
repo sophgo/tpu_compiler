@@ -60,7 +60,8 @@ class preprocess(object):
                      rgb_order='bgr',
                      npy_input=None,
                      letter_box=False,
-                     batch=1):
+                     batch=1,
+                     bgray=False):
         print("preprocess :\n         \
             \tnet_input_dims: {}\n    \
             \tresize_dims   : {}\n    \
@@ -74,14 +75,16 @@ class preprocess(object):
             \tnpy_input     : {}\n    \
             \tletter_box    : {}\n    \
             \tbatch_size    : {}\n    \
+            \tbgray         : {}\n    \
         ".format(net_input_dims, resize_dims, mean, \
                 mean_file, std, input_scale, raw_scale, \
                  data_format, rgb_order, npy_input,
-                letter_box, batch
+                letter_box, batch, bgray
         ))
         self.npy_input = npy_input
         self.letter_box = letter_box
         self.batch = batch
+        self.bgray = bgray
         self.net_input_dims = [int(s) for s in net_input_dims.split(',')]
         if resize_dims != None :
             self.resize_dims = [int(s) for s in resize_dims.split(',')]
@@ -216,6 +219,9 @@ class preprocess(object):
                 pass
 
             output = np.expand_dims(x, axis=0)
+        if self.bgray is True:
+            # if is grayscale, then output only one channel
+            output=output[:,0:1,:,:]
         if output_npz:
             # Must convert to npz file as input
             np.savez(output_npz, **{input_name if input_name else "input": output})

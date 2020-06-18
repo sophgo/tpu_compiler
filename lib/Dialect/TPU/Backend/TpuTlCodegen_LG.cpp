@@ -167,8 +167,8 @@ LogicalResult tpu::TL_LG_Conv2DOp::codegen(void *ctx) {
 }
 
 LogicalResult tpu::TL_LG_DeConv2DOp::codegen(void *ctx) {
-  llvm::errs() << "TG_codegen: " << getOperationName()
-               << " [" << getOpName() << "]\n";
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
