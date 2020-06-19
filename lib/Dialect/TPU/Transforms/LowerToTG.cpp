@@ -883,6 +883,8 @@ Value *tpu::ReciprocalOp::convertToTG() {
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
   } else if (getOpQuant() == "BF16") {
+    attrs.push_back(
+        builder.getNamedAttr("method", builder.getStringAttr("mantissa")));
     auto newOp = OpBuilder(op).create<tpu::TG_BF16_LutOp>(
         op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
         ArrayRef<NamedAttribute>{attrs});
@@ -1092,6 +1094,8 @@ Value *tpu::SigmoidOp::convertToTG() {
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
   } else if (getOpQuant() == "BF16") {
+    attrs.push_back(
+        builder.getNamedAttr("method", builder.getStringAttr("slope")));
     auto newOp = OpBuilder(op).create<tpu::TG_BF16_LutOp>(
         op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
         ArrayRef<NamedAttribute>{attrs});
@@ -1155,6 +1159,8 @@ Value *tpu::SqrtOp::convertToTG() {
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
   } else if (getOpQuant() == "BF16") {
+    attrs.push_back(
+        builder.getNamedAttr("method", builder.getStringAttr("mantissa")));
     auto newOp = OpBuilder(op).create<tpu::TG_BF16_LutOp>(
         op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
         ArrayRef<NamedAttribute>{attrs});
@@ -1185,6 +1191,8 @@ Value* tpu::TanHOp::convertToTG() {
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
   } else if (getOpQuant() == "BF16") {
+    attrs.push_back(builder.getNamedAttr(
+        "method", builder.getStringAttr("slope")));
     auto newOp = OpBuilder(op).create<tpu::TG_BF16_LutOp>(
         op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
         ArrayRef<NamedAttribute>{attrs});

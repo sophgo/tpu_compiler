@@ -1506,8 +1506,12 @@ LogicalResult tpu::TG_BF16_LutOp::codegen(void *ctx) {
   gaddr_t table_data_lut = getWeightOpAddress(table()->getDefiningOp());
   gaddr_t table_data_mantissa_lut = getWeightOpAddress(table_mantissa()->getDefiningOp());
 
-  int layer_id = mlir::getOpLayerId(op);
 
+  int layer_id = mlir::getOpLayerId(op);
+  auto lut_method = method().getValue().str();
+  LLVM_DEBUG(llvm::errs() << "lut method:" << lut_method << " [" << getOpName()
+                          << "]\n";);
+  if(lut_method == "mantissa"){
   bf16_lut_scientific_forward_kernel(*backend_ctx,
                                   0,        // stream_id,
                                   0,        // inst_id,
@@ -1516,7 +1520,19 @@ LogicalResult tpu::TG_BF16_LutOp::codegen(void *ctx) {
                                   0,        // depends_len,
                                   input_gaddr, output_gaddr, table_data_lut,table_data_mantissa_lut,
                                   n, c, h, w, CVI_FMT_BF16);
-
+  } else if (lut_method == "slope"){
+    lut_interpolation_forward_kernel(
+        *backend_ctx,
+        0, // strean_id
+        0, // inst_id,
+        layer_id, nullptr, 0, input_gaddr, output_gaddr, table_data_lut,
+        table_data_mantissa_lut, n, c, h, w, BF16_TABLE_START, BF16_TABLE_END,
+        16 // scale
+    );
+  }else{
+    std::string errorMsg = "unsupported lut method op: (manntissa or slope)" + lut_method + "\n";
+    llvm_unreachable(errorMsg.c_str());
+  }
   return success();
 }
 

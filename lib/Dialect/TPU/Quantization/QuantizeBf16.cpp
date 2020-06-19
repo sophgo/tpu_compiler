@@ -59,8 +59,6 @@ static void gen_bf16_table(int start, int end, int table_hw, float *table,
   double x_value;
   double y_value;
 
-
-
   // Set idx [0 , 127] fp32 and bf16 data
   for (int i = 0; i < half; i++) {
     x_value = i * interval;
@@ -103,7 +101,7 @@ static void gen_bf16_slope_table(int start, int end, int table_hw,
       delta = -1.0;
     }
     float slope = (x1 - x0) / delta;
-    table[i] = slope;
+    slope_table[i] = slope;
   }
 }
 namespace mlir {

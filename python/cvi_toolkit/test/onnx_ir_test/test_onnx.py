@@ -35,7 +35,7 @@ TEST_ONNX_IR = [
 ]
 
 NOT_SUPPORT_CMDBUF_TEST_IR = ["Relu"]
-NOT_SUPPORT_BF16_TEST_IR = ["Relu", "LRN", "Max", "Min", "PRelu", "Reciprocal", "Slice", "Transpose", "Sum", "Sigmoid"]
+NOT_SUPPORT_BF16_TEST_IR = ["Relu", "LRN", "Max", "Min", "PRelu", "Reciprocal", "Slice", "Transpose", "Sum"]
 
 def make_test_calibration_table(tensors, table_name):
     # simple calibration table

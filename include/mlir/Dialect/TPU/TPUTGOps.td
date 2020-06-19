@@ -471,6 +471,7 @@ class TPU_TG_LutOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       `buffer_reused`   : optional, whether buffer is reused.
       `name`            : required, name for comparing, or debug.
       `layer_id`        : optional, id for profiling.
+      `method`          : optional(bf16 required)lookup table method, mantissa or slope
       `chipname`        : optional, chipname.
 
     Result:
@@ -490,6 +491,7 @@ class TPU_TG_LutOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
+    OptionalAttr<StrAttr>:$method,
     OptionalAttr<NonNegativeI32Attr>:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
