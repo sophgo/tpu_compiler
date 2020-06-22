@@ -19,6 +19,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     parallel \
     ssh-client \
     unzip \
+    zip \
     python-dev \
     python-pip \
     python3-dev \
@@ -48,7 +49,7 @@ RUN apt-get install -y --no-install-recommends \
     indent \
     meson \
     libglib2.0-dev \
-    clang-format
+    clang-format-5.0
 
 # for caffe build
 RUN apt-get install -y --no-install-recommends \
