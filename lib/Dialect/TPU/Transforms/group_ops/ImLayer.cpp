@@ -39,7 +39,7 @@ void ImLayer::add_in_tensor(Value * v, tensor_type_t type, gaddr_t gaddr) {
   if (def_op && !isa<tpu::NoneOp>(def_op) && !isa<tpu::WeightFileOp>(def_op)
       && !isa<ReturnOp>(def_op)) {
     if (auto load_op = dyn_cast<tpu::LoadWeightOp>(def_op)) {
-      string name = load_op.name().getValue();
+      string name = load_op.name();
       shared_ptr<Tensor> tensor = Tensor::register_tensor(&shape, name, TENSOR_COEFF, gaddr);
       in_tensors.push_back(tensor);
     } else {
@@ -55,7 +55,7 @@ void ImLayer::add_out_tensor(Value * v, tensor_type_t type, gaddr_t gaddr) {
   auto shape = v->getType().dyn_cast<TensorType>();
   if (!isa<tpu::NoneOp>(def_op) && !isa<tpu::WeightFileOp>(def_op)) {
     if (auto load_op = dyn_cast<tpu::LoadWeightOp>(def_op)) {
-      string name = load_op.name().getValue();
+      string name = load_op.name();
       shared_ptr<Tensor> tensor = Tensor::register_tensor(&shape, name, TENSOR_COEFF, gaddr);
       out_tensors.push_back(tensor);
     } else if (auto ret_op = dyn_cast<ReturnOp>(def_op)) {
@@ -158,7 +158,7 @@ ImConv::ImConv(Operation* p) : ImLayer(IR_CONVOLUTION, p, true), conv1x1_to_fc(f
   if (do_ic_alignment && (ic % 2 != 0)) {
     w_ic += 1;
   }
-  string weightOpName = weightOp.name().getValue().str();
+  string weightOpName = weightOp.name().str();
   int32_t unit_size = getOperandStorageSize(weightOp);
   string storage = getOperandStorage(weightOp);
   if (is_dw) {
@@ -172,7 +172,7 @@ ImConv::ImConv(Operation* p) : ImLayer(IR_CONVOLUTION, p, true), conv1x1_to_fc(f
   // add bias tensor
   int perchannel_size = with_bias ? 9 : 5;
   auto load_bias = cast<tpu::LoadWeightOp>(op.getOperand(2)->getDefiningOp());
-  string bias_name = load_bias.name().getValue().str();
+  string bias_name = load_bias.name().str();
   string bias_storage = getOperandStorage(load_bias);
   int bias_usize = getOperandStorageSize(load_bias);
 
@@ -213,7 +213,7 @@ ImDeconv::ImDeconv(Operation* p) : ImLayer(IR_DECONVOLUTION, p, true) {
   if (do_ic_alignment && (ic % 2 != 0)) {
     w_ic += 1;
   }
-  string weightOpName = weightOp.name().getValue().str();
+  string weightOpName = weightOp.name().str();
   int32_t unit_size = getOperandStorageSize(weightOp);
   string storage = getOperandStorage(weightOp);
   auto weight_type = op.filter()->getType().template cast<TensorType>();
@@ -228,7 +228,7 @@ ImDeconv::ImDeconv(Operation* p) : ImLayer(IR_DECONVOLUTION, p, true) {
   // add bias tensor
   int perchannel_size = with_bias ? 9 : 5;
   auto load_bias = cast<tpu::LoadWeightOp>(op.getOperand(2)->getDefiningOp());
-  string bias_name = load_bias.name().getValue().str();
+  string bias_name = load_bias.name().str();
   string bias_storage = getOperandStorage(load_bias);
   int bias_usize = getOperandStorageSize(load_bias);
 
@@ -256,7 +256,7 @@ ImInnerproduct::ImInnerproduct(Operation* op) : ImLayer(IR_INNERPRODUCT, op) {
 
   // weight
   auto weightOp = cast<tpu::LoadWeightOp>(op->getOperand(1)->getDefiningOp());
-  string weightOpName = weightOp.name().getValue().str();
+  string weightOpName = weightOp.name().str();
   auto s_type = op->getOperand(1)->getType().dyn_cast<TensorType>();
   add_in_tensor(&s_type, weightOpName, TENSOR_COEFF);
 
@@ -333,7 +333,7 @@ ImActivation::ImActivation(Operation* op) : ImLayer(IR_ACTIVATION, op, true) {
   auto load_y_table = cast<tpu::LoadWeightOp>(op->getOperand(1)->getDefiningOp());
   int usize = getOperandStorageSize(load_y_table);
   string storage = getOperandStorage(load_y_table);
-  string y_table_name = load_y_table.name().getValue().str();
+  string y_table_name = load_y_table.name().str();
   add_in_tensor(1, 32, 16, 16, usize, storage, y_table_name, TENSOR_COEFF);
 
   // add m_table
@@ -341,7 +341,7 @@ ImActivation::ImActivation(Operation* op) : ImLayer(IR_ACTIVATION, op, true) {
     auto load_m_table = cast<tpu::LoadWeightOp>(op->getOperand(2)->getDefiningOp());
     int usize = getOperandStorageSize(load_m_table);
     string storage = getOperandStorage(load_m_table);
-    string m_table_name = load_m_table.name().getValue().str();
+    string m_table_name = load_m_table.name().str();
     add_in_tensor(1, 32, 16, 16, usize, storage, m_table_name, TENSOR_COEFF);
   }
   add_out_tensor(op->getResult(0), TENSOR_NEURON);
@@ -351,7 +351,7 @@ ImPRelu::ImPRelu(Operation* op) : ImLayer(IR_PRELU, op, true) {
   add_in_tensor(op->getOperand(0), TENSOR_NEURON);
 
   auto load_slope = cast<tpu::LoadWeightOp>(op->getOperand(1)->getDefiningOp());
-  string weightOpName = load_slope.name().getValue().str();
+  string weightOpName = load_slope.name().str();
   auto s_type = op->getOperand(1)->getType().dyn_cast<TensorType>();
   add_in_tensor(&s_type, weightOpName, TENSOR_DEPTHCONV_OPD1);
 
@@ -383,14 +383,14 @@ ImLrn::ImLrn(Operation *op): ImLayer(IR_LRN, op, true) {
   auto load_sqr = cast<tpu::LoadWeightOp>(op->getOperand(1)->getDefiningOp());
   int usize = getOperandStorageSize(load_sqr);
   string storage = getOperandStorage(load_sqr);
-  string sqr_name = load_sqr.name().getValue().str();
+  string sqr_name = load_sqr.name().str();
   add_in_tensor(1, 32, 16, 16, usize, storage, sqr_name, TENSOR_COEFF);
 
   // add power weight
   auto load_pow = cast<tpu::LoadWeightOp>(op->getOperand(2)->getDefiningOp());
   usize = getOperandStorageSize(load_pow);
   storage = getOperandStorage(load_pow);
-  string pow_name = load_pow.name().getValue().str();
+  string pow_name = load_pow.name().str();
   add_in_tensor(1, 32, 16, 16, usize, storage, pow_name, TENSOR_COEFF);
 
   add_imm_tensor(in_tensors[0], 5, name_ + "_imm");
@@ -407,7 +407,7 @@ ImBroadcastMul::ImBroadcastMul(Operation *op): ImLayer(IR_BROADCAST_MUL, op, tru
   bool with_bias = false;
   int perchannel_size = with_bias ? 9 : 5;
   auto load_bias = cast<tpu::LoadWeightOp>(op->getOperand(2)->getDefiningOp());
-  string bias_name = load_bias.name().getValue().str();
+  string bias_name = load_bias.name().str();
   string bias_storage = getOperandStorage(load_bias);
   int bias_usize = getOperandStorageSize(load_bias);
   add_in_tensor(input_shape[0], input_shape[1], 1, perchannel_size, bias_usize, bias_storage,

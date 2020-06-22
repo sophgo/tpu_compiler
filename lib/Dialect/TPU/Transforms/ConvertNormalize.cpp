@@ -66,8 +66,7 @@ struct TpuDecomposeNormalizePattern : public RewritePattern {
     auto weight_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
         normalizeOp.getOperand(1)->getDefiningOp());
     assert(weight_op && "weight should be exist");
-    assert(weight_op.name().hasValue() && "weight should have name");
-    auto tensor_name = weight_op.name().getValue();
+    auto tensor_name = weight_op.name();
     std::unique_ptr<std::vector<float> >  scale;
 
     auto type = weight_op.getResult()->getType().cast<TensorType>();

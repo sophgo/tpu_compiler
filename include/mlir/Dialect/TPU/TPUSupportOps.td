@@ -147,7 +147,7 @@ def TPU_LoadWeightOp : TPU_Op<"load_weight", [NoSideEffect]> {
   let arguments = (
     ins AnyMemRef:$weight_file,
     DefaultValuedAttr<TPU_WeightAttr, "FP32">:$storage,
-    OptionalAttr<StrAttr>:$name,
+    StrAttr:$name,
     DefaultValuedAttr<BoolAttr, "false">:$lowered,
     DefaultValuedAttr<BoolAttr, "false">:$compressed,
     OptionalAttr<NonNegativeI64Attr>:$offset

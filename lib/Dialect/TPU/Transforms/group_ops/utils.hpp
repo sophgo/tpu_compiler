@@ -99,12 +99,6 @@ typedef enum  {
   BIAS_INT8 = 3
 }TransportDataType;
 
-typedef enum  {
-  PRE = 0,
-  CUR = 1,
-  POST = 2
-}TransportStage;
-
 static inline void printFunction(FuncOp * fn) {
   std::string res;
   llvm::raw_string_ostream os(res);
@@ -177,7 +171,7 @@ static inline llvm::StringRef top_name(Operation * op, int idx) {
     return name;
   }
   else if (auto load_op = dyn_cast<tpu::LoadWeightOp>(op_top))
-    return load_op.name().getValue();
+    return load_op.name();
   else
     return llvm::StringRef();
 }
@@ -189,7 +183,7 @@ static inline llvm::StringRef bottom_name(Operation * op, int idx) {
     return name;
   }
   else if (auto load_op = dyn_cast<tpu::LoadWeightOp>(op_bottom))
-    return load_op.name().getValue();
+    return load_op.name();
   else
     return llvm::StringRef();
 

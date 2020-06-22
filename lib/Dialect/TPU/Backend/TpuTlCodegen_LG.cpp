@@ -567,7 +567,7 @@ LogicalResult tpu::TL_LG_LoadCoeffOp::codegen(void *ctx) {
   int global_h = h;
   int global_w = w;
 
-  gaddr_t src_gaddr = this->gaddr()->getLimitedValue();
+  gaddr_t src_gaddr = this->offset()->getLimitedValue();
   laddr_t dst_laddr = this->laddr()->getLimitedValue();
   bool transpose = this->transpose();
   bool aligned = this->align();

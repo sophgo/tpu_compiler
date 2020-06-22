@@ -373,7 +373,7 @@ void CviModelBuilder::parseModule() {
     } else if (auto castOp = llvm::dyn_cast<tpu::LoadWeightOp>(op)) {
       auto type = castOp.getResult()->getType().template cast<TensorType>();
       auto tensor =
-          std::make_shared<CviTensor>(castOp.name().getValue().str(), type,
+          std::make_shared<CviTensor>(castOp.name().str(), type,
                                       castOp.offset().getValue().getSExtValue(), true);
       tensorMaps_.push_back(tensor);
     } else if (auto castOp = llvm::dyn_cast<tpu::ReshapeOp>(op)) {

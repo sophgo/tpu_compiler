@@ -44,12 +44,12 @@
 using namespace mlir;
 
 namespace {
-
+template<typename OpTy>
 struct TpuLoadWeightOpPattern : public RewritePattern {
   TpuLoadWeightOpPattern(MLIRContext *context,
       llvm::raw_fd_ostream *weightBinaryFile, llvm::raw_ostream &map_os,
       size_t alignment, bool compressedWeight)
-      : RewritePattern(tpu::LoadWeightOp::getOperationName(), 1, context),
+      : RewritePattern(OpTy::getOperationName(), 1, context),
         weightBinaryFile_(weightBinaryFile),
         map_os_(map_os),
         alignment_(alignment),
@@ -58,17 +58,17 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
   PatternMatchResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
     TensorFile *wTF = getWeightTensorFile(op);
-    auto weightOp = cast<tpu::LoadWeightOp>(op);
+    auto weightOp = cast<OpTy>(op);
     if (weightOp.offset().hasValue()) {
       // assigned already
       return matchFailure();
     }
 
     // read the tensor
-    auto tensor_name = weightOp.name().getValue();
+    auto tensor_name = weightOp.name();
     LLVM_DEBUG(llvm::errs() << "tensor name " << tensor_name << "\n";);
 
-    auto type = weightOp.getResult()->getType().cast<TensorType>();
+    auto type = weightOp.getResult()->getType().template cast<TensorType>();
     assert(weightOp.lowered() && "weight op should be set lowered");
     auto curPos = weightBinaryFile_->tell();
     size_t size = 0;
@@ -283,7 +283,9 @@ public:
     OwningRewritePatternList patterns;
     auto *context = &getContext();
     // assign address and generate bin file
-    patterns.insert<TpuLoadWeightOpPattern>(context,
+    patterns.insert<TpuLoadWeightOpPattern<tpu::LoadWeightOp>,
+                    TpuLoadWeightOpPattern<tpu::TL_LG_LoadCoeffOp>
+    >(context,
         &weightBinaryFile, weightMapFile->os(), clWeightAlignment,
         clCompressedWeight);
     applyPatternsGreedily(fn, patterns);

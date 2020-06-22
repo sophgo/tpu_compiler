@@ -75,8 +75,7 @@ public:
 
             auto result = loadWeightOp.getResult();
             LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";);
-            assert(loadWeightOp.name().hasValue());
-            auto tensor_name = loadWeightOp.name().getValue();
+            auto tensor_name = loadWeightOp.name();
             LLVM_DEBUG(llvm::errs() << "  tensor_name " << tensor_name << "\n";);
 
             auto type = result->getType().cast<TensorType>();

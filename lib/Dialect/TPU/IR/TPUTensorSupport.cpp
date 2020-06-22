@@ -98,7 +98,7 @@ std::unique_ptr<std::vector<T> > readWeightTensor(
     Value *opd, TensorFile *wTF) {
   auto weightOp = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
       opd->getDefiningOp());
-  auto name = weightOp.name().getValue();
+  auto name = weightOp.name();
   auto type = weightOp.getResult()->getType().cast<TensorType>();
   auto tensor = wTF->readTensor<T>(name, type);
   return std::move(tensor);
@@ -109,13 +109,23 @@ template std::unique_ptr<std::vector<float> > readWeightTensor(
 template<typename T>
 std::unique_ptr<std::vector<T> > readAndDeleteWeightTensor(
     Value *opd, TensorFile *wTF) {
-  auto weightOp = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
-      opd->getDefiningOp());
-  auto name = weightOp.name().getValue();
-  auto type = weightOp.getResult()->getType().cast<TensorType>();
-  auto tensor = wTF->readTensor<T>(name, type);
-  wTF->deleteTensor<T>(name);
-  return std::move(tensor);
+  if (auto weightOp = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
+                  opd->getDefiningOp())) {
+    auto name = weightOp.name();
+    auto type = weightOp.getResult()->getType().cast<TensorType>();
+    auto tensor = wTF->readTensor<T>(name, type);
+    wTF->deleteTensor<T>(name);
+    return std::move(tensor);
+  } else if (auto weightOp = llvm::dyn_cast_or_null<tpu::TL_LG_LoadCoeffOp>(
+                  opd->getDefiningOp())) {
+    auto name = weightOp.name();
+    auto type = weightOp.getResult()->getType().cast<TensorType>();
+    auto tensor = wTF->readTensor<T>(name, type);
+    wTF->deleteTensor<T>(name);
+    return std::move(tensor);
+  } else {
+    assert(0);
+  }
 }
 template std::unique_ptr<std::vector<float> > readAndDeleteWeightTensor(
     Value *opd, TensorFile *wTF);
@@ -128,8 +138,6 @@ template<typename T>
 void addWeightTensorAndUpdateWeightOp(Value* opd,
     StringRef suffix, std::vector<T> &weight, std::vector<int64_t> &shape,
     StringRef storageType, TensorFile *wTF) {
-  auto weightOp = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
-      opd->getDefiningOp());
   auto builder = Builder(opd->getContext());
   Type eltType;
   if ( typeid(T) == typeid(float) ) {
@@ -153,15 +161,30 @@ void addWeightTensorAndUpdateWeightOp(Value* opd,
   } else {
     llvm_unreachable("unsupported type");
   }
-  auto type = RankedTensorType::get(shape, eltType);
-  auto name = weightOp.name().getValue().str();
-  if (!suffix.empty()) {
-    name = name + "_" + suffix.str();
+
+  if (auto weightOp = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
+      opd->getDefiningOp())) {
+    auto type = RankedTensorType::get(shape, eltType);
+    auto name = weightOp.name().str();
+    if (!suffix.empty()) {
+      name = name + "_" + suffix.str();
+    }
+    wTF->addTensor<T>(name, &weight, type);
+    weightOp.setAttr("name", builder.getStringAttr(name));
+    weightOp.setAttr("storage", builder.getStringAttr(storageType));
+    weightOp.getResult()->setType(type);
+  } else if (auto weightOp = llvm::dyn_cast_or_null<tpu::TL_LG_LoadCoeffOp>(
+      opd->getDefiningOp())) {
+    auto type = RankedTensorType::get(shape, eltType);
+    auto name = weightOp.name().str();
+    if (!suffix.empty()) {
+      name = name + "_" + suffix.str();
+    }
+    wTF->addTensor<T>(name, &weight, type);
+    weightOp.setAttr("name", builder.getStringAttr(name));
+    weightOp.setAttr("storage", builder.getStringAttr(storageType));
+    weightOp.getResult()->setType(type);
   }
-  wTF->addTensor<T>(name, &weight, type);
-  weightOp.setAttr("name", builder.getStringAttr(name));
-  weightOp.setAttr("storage", builder.getStringAttr(storageType));
-  weightOp.getResult()->setType(type);
 }
 
 template void addWeightTensorAndUpdateWeightOp(Value* opd,

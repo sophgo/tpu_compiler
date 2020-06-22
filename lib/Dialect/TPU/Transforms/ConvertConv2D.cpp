@@ -75,8 +75,7 @@ struct TpuMergeSwapChannelToConv2DPattern : public RewritePattern {
     if (!filter_op) {
       return matchFailure();
     }
-    assert(filter_op.name().hasValue() && "filter op should have name");
-    auto filter_name = filter_op.name().getValue();
+    auto filter_name = filter_op.name();
     auto filter_type = filter_op.getResult()->getType().cast<TensorType>();
     convWeights = wTF->readTensor<float>(filter_name, filter_type);
     // delete the tensor from the weight file

@@ -85,8 +85,6 @@ mlir-opt \
     --layer-group-gm-opt=$ENABLE_GMEM_OPT \
     ${NET}_quant_int8_multiplier_tg_opt.mlir \
     --layer-group-neuron-map-filename=neuron_map_layergroup.csv \
-    --weight-map=weight_map_layergroup.csv \
-    --weight-bin=weight_int8_multiplier_layergroup.bin \
     -o ${NET}_quant_int8_multiplier_layergroup.mlir
 
 mlir-opt \
@@ -105,8 +103,22 @@ mlir-opt \
     -o ${NET}_quant_int8_multiplier_layergroup_lw.mlir
 
 mlir-opt \
-    --divide-ops-to-func \
+    --assign-weight-address \
+    --tpu-weight-address-align=16 \
+    --tpu-weight-map-filename=${NET}_weight_map_int8_multiplier_layergroup.csv \
+    --tpu-weight-bin-filename=weight_int8_multiplier_layergroup.bin \
     ${NET}_quant_int8_multiplier_layergroup_lw.mlir \
+    -o ${NET}_quant_int8_multiplier_layergroup_lw_addr.mlir
+
+# mlir-opt \
+#     --compress-weight \
+#     ${NET}_quant_int8_multiplier_layergroup_lw_addr.mlir \
+#     -o ${NET}_quant_int8_multiplier_layergroup_lw_compressed.mlir \
+#     --debug
+
+mlir-opt \
+    --divide-ops-to-func \
+    ${NET}_quant_int8_multiplier_layergroup_lw_addr.mlir \
     -o ${NET}_quant_int8_multiplier_layergroup_func.mlir
 
 mlir-translate \

@@ -60,8 +60,7 @@ struct TpuBatchNormOpPattern : public RewritePattern {
       auto weight_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
           bnOp.getOperand(i + 1)->getDefiningOp());
       assert(weight_op && "weight op should be exist");
-      assert(weight_op.name().hasValue() && "weight op should have name");
-      auto tensor_name = weight_op.name().getValue();
+      auto tensor_name = weight_op.name();
       LLVM_DEBUG(llvm::errs() << "  weight[" << i << "] : "
                               << tensor_name << "\n";);
       auto type = weight_op.getResult()->getType().cast<TensorType>();
