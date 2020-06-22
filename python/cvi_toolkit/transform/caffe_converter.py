@@ -67,6 +67,7 @@ class CaffeConverter(BaseConverter):
             "Eltwise": lambda layer: self.convert_eltwise_op(layer),
             "Flatten": lambda layer: self.convert_flatten_op(layer),
             "InnerProduct": lambda layer: self.convert_inner_product_op(layer),
+            "Input": lambda layer: self.convert_input_op(layer),
             "LRN": lambda layer: self.convert_lrn_op(layer),
             "Normalize": lambda layer: self.convert_normalize_op(layer),
             "Permute": lambda layer: self.convert_permute_op(layer),
@@ -118,7 +119,9 @@ class CaffeConverter(BaseConverter):
         name = layer.name + "_{}".format(index)
         blob = self.layer_dict[layer.name].blobs[index]
         value = blob.data
-        weight_shape = shape if shape != None else list(blob.shape)
+        weight_shape = list(blob.shape)
+        if shape != None:
+            weight_shape = [int(i) for i in shape]
         self.addTensor(name, value, weight_shape)
         weight_op = self.CVI.add_load_file_op(name, weight_shape)
         return weight_op
@@ -147,8 +150,33 @@ class CaffeConverter(BaseConverter):
 
     def convert_concat_op(self, layer):
         assert(layer.type == 'Concat')
+        op, input_shape, _ = self.getOperand(layer.bottom[0])
         input_num = len(layer.bottom)
-        raise RuntimeError("{} will support later".format(layer.type))
+        if input_num == 1:
+            return self.addOperand(layer.top[0], op, input_shape, TensorType.ACTIVATION)
+        axis = layer.concat_param.axis
+        assert(axis < len(input_shape))
+        concat_axis_dim = 0
+        operands = list()
+        for bottom in layer.bottom:
+            bottom_op, shape, _ = self.getOperand(bottom)
+            assert(len(shape) == len(input_shape))
+            concat_axis_dim += shape[axis]
+            operands.append(bottom_op)
+        output_shape = list(input_shape)
+        output_shape[axis] = concat_axis_dim
+        param = {
+            'axis': axis
+        }
+        new_op = self.CVI.add_concat_op(
+            layer.name, operands, output_shape, **param)
+        self.addOperand(layer.top[0], new_op,
+                        output_shape, TensorType.ACTIVATION)
+
+    def convert_dropout_op(self, layer):
+        assert(layer.type == 'Dropout')
+        op, input_shape, _ = self.getOperand(layer.bottom[0])
+        self.addOperand(layer.top[0], op, input_shape, TensorType.ACTIVATION)
 
     def convert_eltwise_op(self, layer):
         assert(layer.type == 'Eltwise')
@@ -330,6 +358,28 @@ class CaffeConverter(BaseConverter):
         self.addOperand(layer.top[0], new_op, output_shape,
                         TensorType.ACTIVATION)
 
+    def convert_input_op(self, layer):
+        assert(layer.type == 'Input')
+        # do nothing
+
+    def convert_lrn_op(self, layer):
+        assert(layer.type == 'LRN')
+        op, input_shape, _ = self.getOperand(layer.bottom[0])
+        operands = list()
+        operands.append(op)
+        p = layer.lrn_param
+        param = {
+            'alpha': p.alpha,
+            'beta': p.beta,
+            'bias': p.k,
+            'size': p.local_size,
+        }
+        output_shape = input_shape
+        new_op = self.CVI.add_lrn_op(
+            layer.name, operands, output_shape, **param)
+        self.addOperand(layer.top[0], new_op,
+                        output_shape, TensorType.ACTIVATION)
+
     def convert_relu_op(self, layer):
         assert(layer.type == 'ReLU')
         op, input_shape, _ = self.getOperand(layer.bottom[0])
@@ -385,7 +435,7 @@ class CaffeConverter(BaseConverter):
         if round_mode == 1:
             ceil_mode = False
         padding_tl = [padding[0], padding[1]]
-        padding_br =  [padding[0], padding[1]]
+        padding_br = [padding[0], padding[1]]
         ofmap = [0, 0]
         for i in [0, 1]:
             if ceil_mode:
@@ -457,6 +507,61 @@ class CaffeConverter(BaseConverter):
             self.addOperand(layer.top[0], new_op, output_shape,
                             TensorType.ACTIVATION)
 
+    def convert_shufflechannel_op(self, layer):
+        assert(layer.type == 'ShuffleChannel')
+        op, input_shape, _ = self.getOperand(layer.bottom[0])
+        group = layer.shuffle_channel_param.group
+        operands = list()
+        operands.append(op)
+        param = {
+            'group': group
+        }
+        output_shape = input_shape
+        new_op = self.CVI.add_shufflechannel_op(
+            layer.name, operands, output_shape, **param)
+        self.addOperand(layer.top[0], new_op,
+                        output_shape, TensorType.ACTIVATION)
+
+    def convert_slice_op(self, layer):
+        assert(layer.type == 'Slice')
+        op, input_shape, _ = self.getOperand(layer.bottom[0])
+        operands = list()
+        operands.append(op)
+        assert(len(input_shape) == 4)
+        p = layer.slice_param
+        axis = p.axis
+        assert(axis == 1)  # only support channel slice
+        bottom_slice_axis = input_shape[axis]
+        top_size = len(layer.top)
+        slice_num = len(p.slice_point)
+        slices = list()
+        if slice_num > 0:
+            assert(slice_num == top_size - 1)
+            assert(top_size < bottom_slice_axis)
+            prev = 0
+            for i in range(slice_num):
+                assert(p.slice_point[i] > prev)
+                slices.append(p.slice_point[i] - prev)
+                prev = p.slice_point[i]
+            slices.append(bottom_slice_axis - prev)
+        else:
+            assert(bottom_slice_axis % top_size == 0)
+            for i in range(top_size):
+                slices.append(bottom_slice_axis / top_size)
+        offset = 0
+        for i in range(top_size):
+            output_shape = list(input_shape)
+            output_shape[axis] = slices[i]
+            param = {
+                "axis": axis,
+                "offset": offset,
+            }
+            new_op = self.CVI.add_slice_op("{}_{}".format(
+                layer.name, i), operands, output_shape, **param)
+            self.addOperand(layer.top[i], new_op,
+                            output_shape, TensorType.ACTIVATION)
+            offset += slices[i]
+
     def convert_softmax_op(self, layer):
         assert(layer.type == 'Softmax')
         op, input_shape, _ = self.getOperand(layer.bottom[0])
@@ -479,8 +584,8 @@ class CaffeConverter(BaseConverter):
         # add weight op
         self.CVI.add_weight_file_op(self.output_tensor_file)
 
-        def NoneAndRaise(node):
-            raise RuntimeError("{} Op not support now".format(node.op_type))
+        def NoneAndRaise(layer):
+            raise RuntimeError("{} Op not support now".format(layer.type))
 
         # add input op
         for idx, name in enumerate(self.inputs):

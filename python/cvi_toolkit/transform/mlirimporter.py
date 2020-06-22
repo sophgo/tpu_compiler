@@ -43,6 +43,7 @@ class TPU_OpType(Enum):
     Reshape = 'tpu.reshape'
     Relu = 'tpu.relu'
     Scale = 'tpu.scale'
+    ShuffelChannel = 'tpu.shuffle_channel'
     Sigmoid = 'tpu.sigmoid'
     Slice = 'tpu.slice'
     Softmax = 'tpu.softmax'
@@ -524,10 +525,10 @@ class MLIRImporter(object):
             'local_size': self.module.integerAttr(self.i32Type, kargs['size']),
         }
 
-        lrn_name_1 = self.module.stringAttr("{}_1".format(op_name))
-        lrn_name_2 = self.module.stringAttr("{}_2".format(op_name))
-        lrn_name_3 = self.module.stringAttr("{}_3".format(op_name))
-        lrn_name_main = self.module.stringAttr("{}_main".format(op_name))
+        lrn_name_1 = self.module.stringAttr("{}_one".format(op_name))
+        lrn_name_2 = self.module.stringAttr("{}_two".format(op_name))
+        lrn_name_3 = self.module.stringAttr("{}_three".format(op_name))
+        lrn_name_main = self.module.stringAttr("{}".format(op_name))
 
         input_op = inputOperands[0]
         # lrn one
@@ -554,6 +555,7 @@ class MLIRImporter(object):
         lrn_param['lrn_rshift'] = self.module.integerAttr(self.i32Type, 0)
         lrn_param['quant_data0'] = self.module.integerAttr(self.i32Type, 0)
         lrn_param['quant_data1'] = self.module.integerAttr(self.i32Type, 0)
+        lrn_param['norm_region'] = self.module.integerAttr(self.i32Type, 0)
         return self.buildOp(TPU_OpType.Lrn.value, operands, [
             tensor_output_type], name=lrn_name_main, quant=self.quant_param, **lrn_param)
 
@@ -697,6 +699,17 @@ class MLIRImporter(object):
         return self.buildOp(TPU_OpType.Scale.value, inputOperands, [
             tensor_output_type], name=scale_name)
 
+    def add_shufflechannel_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+        tensor_output_type = self.module.make_ranked_tensor_type(
+            self.f32Type, output_tensor_shape)
+        checkKey(kargs, 'group')
+        attr_dict = {
+            'group': self.module.integerAttr(self.i32Type, kargs['group']),
+        }
+        sc_name = self.module.stringAttr(op_name)
+        return self.buildOp(TPU_OpType.ShuffelChannel.value, inputOperands, [
+            tensor_output_type], name=sc_name, quant=self.quant_param, **attr_dict)
+
     def add_sigmoid_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = self.module.make_ranked_tensor_type(
             self.f32Type, output_tensor_shape)
@@ -720,7 +733,7 @@ class MLIRImporter(object):
 
         slice_name = self.module.stringAttr(op_name)
         return self.buildOp(TPU_OpType.Slice.value, inputOperands, [
-            tensor_output_type], name=slice_name, **attr_dict)
+            tensor_output_type], name=slice_name, quant=self.quant_param, **attr_dict)
 
     def add_softmax_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = self.module.make_ranked_tensor_type(
