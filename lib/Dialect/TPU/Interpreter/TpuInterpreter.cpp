@@ -1147,12 +1147,12 @@ static LogicalResult doPool2DOpInterpret(Operation *op, bool is_average,
   auto resultT = std::make_unique<std::vector<float> >(size);
 
   // parse param
-  bool is_global, do_relu;
+  bool is_global, do_relu, count_include_pad;
   int n, c, ih, iw, oh, ow, kh, kw, sh, sw, pt, pb, pl, pr;
   parsePoolParam(castOp.param(), castOp.input(), castOp.output(),
                  n, c, ih, iw, oh, ow,
                  kh, kw, sh, sw, pt, pb, pl, pr,
-                 is_global, do_relu);
+                 is_global, do_relu, count_include_pad);
 
   // get tensors
   float *input = opdT[0]->data();
@@ -1183,7 +1183,7 @@ static LogicalResult doPool2DOpInterpret(Operation *op, bool is_average,
                          ow, kh, kw, sh, sw, pt, pb, pl, pr);
   } else {
     ret = mkldnn_pool(input, output, n, c, ih, iw, oh, ow, kh, kw,
-                      sh, sw, pt, pb, pl, pr, is_average);
+                      sh, sw, pt, pb, pl, pr, is_average, count_include_pad);
   }
   assert(ret == 0);
 

@@ -544,6 +544,7 @@ class TFConverter(BaseConverter):
             'padding_t': 0,
             'padding_l': 0,
             'do_relu': False,
+            'count_include_pad':True,
         }
         output_shape = [int(on), int(oc), 1, 1]
         pool_avg_op = self.CVI.add_pool_avg_2d_op("{}".format(

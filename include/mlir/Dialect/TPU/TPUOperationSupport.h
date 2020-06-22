@@ -86,7 +86,7 @@ void parsePoolParam(const tpu::PoolParam &p,
     Value *input, Value *output,
     int &n, int &c, int &ih, int &iw, int &oh, int &ow,
     int &kh, int &kw, int &sh, int &sw, int &pt, int &pb, int &pl, int &pr,
-    bool &is_global, bool &do_relu);
+    bool &is_global, bool &do_relu, bool &count_include_pad);
 
 void parseFullyConnectedParam(
     Value *input, Value *output, Value *filter,

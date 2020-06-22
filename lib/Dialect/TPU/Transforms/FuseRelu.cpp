@@ -114,6 +114,7 @@ struct TpuFuseReluPattern : public RewritePattern {
               poolOp.param().stride_h(),
               poolOp.param().stride_w(),
               rewriter.getBoolAttr(true),
+              rewriter.getBoolAttr(true),
               rewriter.getContext()));
       poolOp.setAttr("name", rewriter.getStringAttr(reluOp.getOpName()));
     }  else if (matchPattern(formerOp, m_Op<tpu::ConcatOp>())) {

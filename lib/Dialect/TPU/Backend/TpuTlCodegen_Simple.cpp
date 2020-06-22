@@ -428,13 +428,13 @@ LogicalResult tpu::TL_PoolAvg2DOp::codegen(void *ctx) {
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
-  bool is_global, do_relu;
+  bool is_global, do_relu, count_include_pad;
   int n, c, ih, iw, oh, ow, kw, sw, pb, pl, pr;
   int kh, sh, ph;
   parsePoolParam(param(), input(), output(),
                 n, c, ih, iw, oh, ow,
                 kh, kw, sh, sw, ph, pb, pl, pr,
-                is_global, do_relu);
+                is_global, do_relu, count_include_pad);
   int8_t rshift = (this->rshift().hasValue()) ? this->rshift().getValue().getLimitedValue() : 0;
   int8_t m_i8 = (this->m_i8().hasValue()) ? this->m_i8().getValue().getLimitedValue() : 0;
 

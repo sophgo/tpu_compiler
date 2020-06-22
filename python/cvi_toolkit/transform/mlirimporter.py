@@ -569,6 +569,7 @@ class MLIRImporter(object):
         checkKey(kargs, 'stride_h')
         checkKey(kargs, 'stride_w')
         checkKey(kargs, 'do_relu')
+        checkKey(kargs, 'count_include_pad')
 
         pool_avg_2d_name = self.module.stringAttr(op_name)
         pool_avg_2d_param = {
@@ -581,6 +582,7 @@ class MLIRImporter(object):
             'padding_r': self.module.integerAttr(self.i32Type, kargs['padding_r']),
             'padding_t': self.module.integerAttr(self.i32Type, kargs['padding_t']),
             'do_relu': self.module.boolAttr(kargs['do_relu']),
+            'count_include_pad': self.module.boolAttr(kargs['count_include_pad']),
         }
         dict_attr = self.module.dictAttr(**pool_avg_2d_param)
         inputOpernads = self.add_quant_reg(inputOperands)
@@ -612,6 +614,7 @@ class MLIRImporter(object):
             'padding_r': self.module.integerAttr(self.i32Type, kargs['padding_r']),
             'padding_t': self.module.integerAttr(self.i32Type, kargs['padding_t']),
             'do_relu': self.module.boolAttr(kargs['do_relu']),
+            'count_include_pad': self.module.boolAttr(False), # max pool has no count_include_pad method
         }
         dict_attr = self.module.dictAttr(**pool_max_2d_param)
 

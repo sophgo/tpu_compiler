@@ -386,6 +386,10 @@ class OnnxConverter(BaseConverter):
         pads = onnx_node.attrs['pads'] if "pads" in onnx_node.attrs else [0, 0, 0, 0]
         strides = onnx_node.attrs['strides'] if "strides" in onnx_node.attrs else [1, 1]
         kernel_shape = onnx_node.attrs['kernel_shape']
+        count_include_pad = onnx_node.attrs.get('count_include_pad', False)
+        if kernel_shape[0] == 1:
+            count_include_pad = True
+
         pool_avg_2d_param = {
             'stride_h':  strides[0],
             'stride_w':  strides[1],
@@ -396,6 +400,7 @@ class OnnxConverter(BaseConverter):
             'padding_b': pads[2],
             'padding_r': pads[3],
             'do_relu': False,
+            'count_include_pad': count_include_pad,
         }
         oh = calcPool2DFloor(input_shape[2], pool_avg_2d_param['kernel_h'], pool_avg_2d_param['stride_h'], pool_avg_2d_param['padding_t'], pool_avg_2d_param['padding_b'])
         ow = calcPool2DFloor(input_shape[2], pool_avg_2d_param['kernel_w'], pool_avg_2d_param['stride_w'], pool_avg_2d_param['padding_l'], pool_avg_2d_param['padding_r'])
@@ -760,6 +765,7 @@ class OnnxConverter(BaseConverter):
             'padding_t': 0,
             'padding_l': 0,
             'do_relu': False,
+            'count_include_pad': True,
         }
         output_shape = [int(on), int(oc), 1, 1]
         if onnx_node.op_type == "GlobalAveragePool":
