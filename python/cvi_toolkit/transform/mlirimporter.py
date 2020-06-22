@@ -33,6 +33,7 @@ class TPU_OpType(Enum):
     LrnTwo = 'tpu.lrn_two'
     LrnThree = 'tpu.lrn_three'
     Lrn = 'tpu.lrn'
+    Pad = 'tpu.pad'
     Permute = 'tpu.permute'
     PixelShuffle = 'tpu.pixelshuffle'
     PoolAvg2D = 'tpu.pool_avg_2d'
@@ -306,6 +307,30 @@ class MLIRImporter(object):
 
         return self.buildOp(TPU_OpType.Crop.value, inputOperands, [
             tensor_output_type], name=crop_name, crop_offset=crop_offset_attr, quant=self.quant_param, crop_shape=crop_shape_attr)
+
+    def add_pad_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+        """
+            args:
+                pads : List[int, int, int, int]
+                const_val : int
+        """
+        tensor_output_type = self.module.make_ranked_tensor_type(
+            self.f32Type, output_tensor_shape)
+
+        checkKey(kargs, 'pads')
+        checkKey(kargs, 'const_val')
+
+        pads = kargs['pads']
+        const_val = kargs['const_val']
+        checkType(pads, list)
+
+        pad_name = self.module.stringAttr(op_name)
+        pads_attr = self.module.arrayAttr([self.module.integerAttr(self.i32Type, x) for x in pads])
+        const_val_attr = self.module.floatAttr(const_val)
+
+        return self.buildOp(TPU_OpType.Pad.value, inputOperands, [
+            tensor_output_type], name=pad_name, pads=pads_attr, const_val=const_val_attr)
+
 
     def add_custom_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         """

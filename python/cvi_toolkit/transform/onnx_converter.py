@@ -1002,6 +1002,42 @@ class OnnxConverter(BaseConverter):
             scale_op = self.CVI.add_scale_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
             self.addOperand(onnx_node.name, scale_op, output_shape, TensorType.ACTIVATION)
 
+    def convert_pad_op(self, onnx_node):
+        assert(onnx_node.op_type == "Pad")
+        input_num = len(onnx_node.inputs)
+        constant_value = 0
+        mode = onnx_node.attrs.get("mode")
+        if mode == b"constant":
+          constant_value = onnx_node.attrs.get("value")
+
+        input, input_shape, input_type = self.getOperand(onnx_node.inputs[0])
+        pads = onnx_node.attrs.get("pads")
+        assert(len(pads) == 2 * len(input_shape))
+
+        pads_len = len(pads)
+        dims = int(pads_len / 2)
+        np_pads = tuple(zip(pads[:dims], pads[dims:]))
+        pads_param = {
+          "pads": pads,
+          "const_val": constant_value,
+        }
+        output_shape = np.sum([input_shape, pads[:dims], pads[dims:]], axis=0)
+        if input_type == TensorType.TENSOR :
+            input_data = self.getTensor(onnx_node.inputs[0]).tensor_data
+            if mode == b'constant':
+              output_data = np.pad(input_data, np_pads, 'constant', constant_values=constant_value)
+            elif mode == b'reflect':
+              output_data = np.pad(input_data, np_pads, 'reflect')
+            else:
+              output_data = np.pad(input_data, np_pads, 'edge')
+            self.addTensor(onnx_node.name, output_data, list(output_shape))
+            self.addOperand(onnx_node.name, None, output_shape, TensorType.TENSOR)
+        else:
+            operands = list()
+            operands.append(input)
+            pads_op = self.CVI.add_pad_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **pads_param)
+            self.addOperand(onnx_node.name, pads_op, output_shape, TensorType.ACTIVATION)
+
     def convert_prelu_op(self, onnx_node):
         assert(onnx_node.op_type == "PRelu")
         if len(onnx_node.inputs) != 2:
@@ -1217,6 +1253,7 @@ class OnnxConverter(BaseConverter):
             idx = 0
             for j in range(len(crop_shape)):
                 if j in axes:
+                    ends[idx] = input_shape[j] if ends[idx] > input_shape[j] else ends[idx]
                     crop_shape[j] = ends[idx] - starts[idx]
                     crop_offset[j] = starts[idx]
                     idx +=1
@@ -1225,8 +1262,8 @@ class OnnxConverter(BaseConverter):
                     crop_offset[j] = 0
 
             crop_param = {
-                "crop_offset": crop_offset,
-                "crop_shape": crop_shape,
+                "crop_offset": list(crop_offset),
+                "crop_shape": list(crop_shape),
             }
 
             output_shape = crop_shape

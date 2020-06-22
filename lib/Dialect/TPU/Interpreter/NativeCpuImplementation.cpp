@@ -1280,3 +1280,62 @@ int my_reorg(float *input, float *output, uint32_t stride, int n, int c, int h, 
   }
   return 0;
 }
+
+// input shape (in_n, in_c, in_h, in_w)
+// output_shape (out_n, out_c, out_h, out_w)
+// pads (x0_begin, x1_begin, x2_begin, x3_begin, x0_end, x1_end, x2_end, x3_end)
+//
+// on = x0_begin + x0_end + in
+// oc = x1_begin + x1_end + ic
+// oh = x2_begin + x2_end + ih
+// ow = x3_begin + x3_end + iw
+int my_pad_constant(float *input, float *output,
+                     std::vector<int64_t> &input_shape,
+                     std::vector<int> &pads, float const_val) {
+  int in = input_shape[0];
+  int ic = input_shape[1];
+  int ih = input_shape[2];
+  int iw = input_shape[3];
+  int on = pads[0] + pads[4] + in;
+  int oc = pads[1] + pads[5] + ic;
+  int oh = pads[2] + pads[6] + ih;
+  int ow = pads[3] + pads[7] + iw;
+
+  int in_offset = 0;
+  int out_offset = 0;
+  auto pad_n_begin_size = pads[0] * oc * oh * ow;
+  for (int in_idx = 0; in_idx < in ; in_idx++) {
+    in_offset = in_idx * ic * ih * iw;
+    auto pad_c_begin_size = pads[1] * oh * ow;
+    out_offset = pad_n_begin_size + pad_c_begin_size +
+                                    in_idx * oc * oh * ow;
+    for (int ic_idx = 0; ic_idx < ic ; ic_idx++) {
+      auto in_ic_offset = in_offset + ic_idx * ih * iw;
+      auto out_oc_offset = out_offset + ic_idx * oh * ow;
+
+      // padding h_top and h_bottom;
+      int pad_h_size = oh * iw;
+      std::vector<float> out_pad_h(pad_h_size, const_val);
+
+      int pad_top_offset = pads[2] * iw;
+      memcpy(out_pad_h.data() + pad_top_offset, input + in_ic_offset,
+                                                ih * iw * sizeof(int));
+
+      if ((pads[3] != 0) || (pads[7] != 0)) {
+        int pad_hw_size = oh * ow;
+        std::vector<float> out_pad_hw(pad_hw_size, const_val);
+
+        for (int i = 0; i < oh; i++) {
+          int offset = i * ow + pads[3];
+          memcpy(out_pad_hw.data() + offset, out_pad_h.data() + i * iw,
+                                             iw * sizeof(int));
+        }
+        memcpy(output + out_oc_offset, out_pad_hw.data(), pad_hw_size * sizeof(int));
+      } else {
+        memcpy(output + out_oc_offset, out_pad_h.data(), pad_h_size * sizeof(int));
+      }
+    }
+  }
+  return 0;
+}
+

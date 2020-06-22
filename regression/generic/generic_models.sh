@@ -307,6 +307,42 @@ export DO_E2E=0
 export USE_LAYERGROUP=0
 fi
 
+if [ $NET = "nasnet_mobile" ]; then
+export MODEL_TYPE="onnx"
+export MODEL_DEF=$MODEL_PATH/imagenet/nasnet_mobile/onnx/nasnet_mobile.onnx
+export MODEL_DAT=""
+export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_onnx/regression_nasnet_mobile_0_onnx.sh
+export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/nasnet_mobile_calibration_table
+export RAW_SCALE=1
+export INPUT_SCALE=1
+export NET_INPUT_DIMS=224,224
+export MEAN=0.5,0.5,0.5  # in BGR, pytorch mean=[0.5, 0.5, 0.5]
+export STD=0.5,0.5,0.5   # in BGR, pytorch std=[0.5, 0.5, 0.5]
+export IMAGE_RESIZE_DIMS=256,256
+export INPUT=input
+export COMPARE_ALL=1
+export TOLERANCE_INT8_MULTIPLER=0.083338,-0.1,-1.0
+export DO_CALIBRATION=1
+export DO_QUANT_INT8_MULTIPLER=0
+export DO_CMDBUF_INT8=0
+export DO_QUANT_BF16=1
+export DO_CMDBUF_BF16=1
+export DO_NN_TOOLKIT=0
+export TOLERANCE_BF16=0.9,0.9,0.9
+export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
+export MLIR_OPT_FE_PRE="$MLIR_OPT_FE_PRE --skip-mult-used-scale-op --relu6-to-clip"
+export MLIR_OPT_FE_INT8_MULTIPLER_PRE="--tpu-quant-clip"
+export DO_QUANT_MIX_CMD=1
+export BF16_QUANT_LAYERS_FILE=${NET}_bf16_quant_layers
+export DO_CMDBUF_BF16=0
+export DO_DEEPFUSION=0
+export DO_MEMOPT=0
+export DO_DEEPFUSION=0
+export DO_LAYERGROUP=0
+export DO_E2E=0
+export USE_LAYERGROUP=0
+fi
+
 if [ $NET = "shufflenet_v2" ]; then
 export MODEL_DEF=$MODEL_PATH/imagenet/shufflenet_v2/caffe/shufflenet_v2_x0.5.prototxt
 export MODEL_DAT=$MODEL_PATH/imagenet/shufflenet_v2/caffe/shufflenet_v2_x0.5.caffemodel

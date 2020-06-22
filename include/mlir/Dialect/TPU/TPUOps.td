@@ -1913,6 +1913,44 @@ def TPU_YoloDetectionOp : TPU_Op<"yolo_detection",
   let results = (outs AnyTensor:$output);
 }
 
+def TPU_PadOp: TPU_Op<"pad",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuOpInterpInterface>]> {
+  let summary = "Pad operator";
+
+  let description = [{
+    Perform padding on input.
+
+    Inputs:
+      `input`           : required, the input activation tensor.
+
+    Attributes:
+      `name`            : required, name for calibration, comparing, or debug.
+      `layer_id`        : optional, id for profiling.
+      `chipname`        : optional, chipname.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface` : support common TPU Op interface
+      `TpuOpInterpInterface` : support interperter
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    StrAttr:$name,
+    OptionalAttr<I32ArrayAttr>:$pads,
+    OptionalAttr<F32Attr>:$const_val,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
 include "mlir/Dialect/TPU/TPUSupportOps.td"
 include "mlir/Dialect/TPU/TPUTGOps.td"
 include "mlir/Dialect/TPU/TPUTLOps_Simple.td"
