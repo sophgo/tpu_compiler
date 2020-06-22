@@ -2494,6 +2494,42 @@ LogicalResult tpu::UpsampleOp::interpret(
   return success();
 }
 
+LogicalResult tpu::PadOp::interpret(
+    DenseMap<Value *, std::shared_ptr<std::vector<float>>> &valueMapping) {
+  Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
+
+  auto opdT = getOperandTensors(op, valueMapping);
+  std::shared_ptr<std::vector<float> > input = opdT[0];
+  auto result = this->getResult();
+  std::vector<int64_t> shape = getTensorShape(result);
+  auto size = getTensorSize(result);
+  auto resultT = std::make_unique<std::vector<float> >(size);
+
+  // parse param
+  std::vector<int32_t> pads;
+  auto const_val = this->const_val().getValue().convertToFloat();
+  arrayAttrToVector(this->pads().getValue(), pads);
+
+  std::vector<int64_t> input_shape = getTensorShape(this->input());
+
+  int on = pads[0] + pads[4] + input_shape[0];
+  int oc = pads[1] + pads[5] + input_shape[1];
+  int oh = pads[2] + pads[6] + input_shape[2];
+  int ow = pads[3] + pads[7] + input_shape[3];
+
+  assert(on == shape[0]);
+  assert(oc == shape[1]);
+  assert(oh == shape[2]);
+  assert(ow == shape[3]);
+
+  int ret = my_pad_constant(input->data(), resultT->data(), input_shape, pads,
+                            const_val);
+  assert(ret == 0);
+  valueMapping[result] = std::move(resultT);
+  return success();
+}
+
 LogicalResult tpu::YoloDetectionOp::interpret(
     DenseMap<Value *, std::shared_ptr<std::vector<float>>> &valueMapping) {
   Operation *op = this->getOperation();

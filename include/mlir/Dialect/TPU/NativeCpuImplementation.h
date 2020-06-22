@@ -96,4 +96,8 @@ int my_transpose(float *input, float *output, int n, int c, int h, int w);
 
 int my_reorg(float *input, float *output, uint32_t stride, int n, int c, int h, int w);
 
+int my_pad_constant(float *input, float *output,
+                    std::vector<int64_t> &input_shape,
+                    std::vector<int> &pads, float const_val);
+
 #endif // MLIR_DIALECT_TPU_NATIVE_CPU_IMPLEMENTATION_H_
