@@ -9,9 +9,9 @@ from ..utils.log_setting import setup_logger
 logger = setup_logger('root')
 log_flag = logger.level <= logging.INFO
 
-def calcConv2DSpatial(i, kernel, stride, padding_l, padding_t, dilation):
-    #[i + 2*p - k - (k-1)*(d-1)]/s + 1
-    return int(floor(i + padding_t + padding_l - dilation * (kernel - 1) - 1)/stride + 1)
+def calcConv2DSpatial(i, kernel, stride, padding_t, padding_b, dilation):
+    #[i + pt + pb - k - (k-1)*(d-1)]/s + 1
+    return int(floor(i + padding_t + padding_b - kernel - ((kernel-1) * (dilation-1)))/stride + 1)
 
 def calcPool2DFloor(i, kernel, stride, padding_t, padding_l):
     return int(floor((i + padding_t + padding_l - kernel) / stride) + 1)
