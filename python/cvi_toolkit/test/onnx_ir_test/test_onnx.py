@@ -18,6 +18,7 @@ import gc
 TEST_ONNX_IR = [
     "Add",
     "AveragePool",
+    #"Concat",
     "GlobalMaxPool",
     "LeakyRelu",
     "LRN",
@@ -44,16 +45,20 @@ def make_test_calibration_table(tensors, table_name):
             t = 1.1 * max(np.abs(tensors[name].flatten())) + 0.01
             f.write("{} {}\n".format(name, t))
 
-def _onnx_inference(input, model_name, input_name="input"):
+def _onnx_inference(input, model_name, input_name="input", input_cb=None):
     ort_session = onnxruntime.InferenceSession(model_name)
-    ort_inputs = {input_name: input}
+    if callable(input_cb):
+        ort_inputs = input_cb(model_name, "onnx", input)
+    else:
+        ort_inputs = {input_name: input}
+
     ort_outs = ort_session.run(None, ort_inputs)
     return ort_outs[0]
 
-def onnx_inference(input, model_def, model_name):
+def onnx_inference(input, model_def, model_name, input_cb = None):
     model = "{}.onnx".format(model_name)
     onnx.save(model_def, model)
-    return _onnx_inference(input, model)
+    return _onnx_inference(input, model, input_cb=input_cb)
 
 class ONNX_IR_TESTER(object):
     def __init__(self):
@@ -63,6 +68,7 @@ class ONNX_IR_TESTER(object):
         self.test_function = {
             "Add": self.test_Add,
             "AveragePool": self.test_AveragePool,
+            "Concat": self.test_Concat,
             "LeakyRelu": self.test_LeakyRelu,
             "LRN": self.test_LRN,
             "GlobalMaxPool": self.test_GlobalMaxPool,
@@ -88,14 +94,14 @@ class ONNX_IR_TESTER(object):
         else:
             raise RuntimeError("Not support quant mode {}".format(mode))
 
-    def onnx_convert_and_infernece(self, input_data, model_def, model_name):
+    def onnx_convert_and_infernece(self, input_data, model_def, model_name, input_cb=None):
         fp32_mlir = "{}.mlir".format(model_name)
         self.converter = OnnxConverter(model_name, model_def, fp32_mlir)
         self.converter.run()
         del self.converter
         gc.collect()
 
-        onnx_out = onnx_inference(input_data, model_def, model_name)
+        onnx_out = onnx_inference(input_data, model_def, model_name, input_cb)
         self.mlir_model = None
         self.mlir_model = MLIRModel()
         self.mlir_model.load_model(fp32_mlir)
@@ -153,7 +159,12 @@ class ONNX_IR_TESTER(object):
                 # run cvi_model
                 input_file = "{}_input.npz".format(model_name)
                 output_tensor_npz = "{}_all_tensor.npz".format(model_name)
-                np.savez(input_file, **{"input": tensors['input']})
+
+                if callable(input_cb):
+                    inputs = input_cb(model_name, "cvimodel", tensors)
+                else:
+                    inputs = {"input": tensors['input']}
+                np.savez(input_file, **inputs)
 
                 ret = run_cvimodel(input_file, cvimodel, output_tensor_npz, all_tensors=True)
                 if ret < 0: raise RuntimeError("run_cvimodel failed")
@@ -198,7 +209,13 @@ class ONNX_IR_TESTER(object):
                 # run cvi_model
                 input_file = "{}_input.npz".format(model_name)
                 output_tensor_npz = "{}_all_tensor.npz".format(model_name)
-                np.savez(input_file, **{"input": tensors['input']})
+
+                if callable(input_cb):
+                    inputs = input_cb(model_name, "cvimodel", tensors)
+                else:
+                    inputs = {"input": tensors['input']}
+
+                np.savez(input_file, **inputs)
 
                 ret = run_cvimodel(input_file, cvimodel, output_tensor_npz, all_tensors=True)
                 if ret < 0: raise RuntimeError("run_cvimodel failed")
@@ -220,7 +237,7 @@ class ONNX_IR_TESTER(object):
         self.converter.run()
         del self.converter
         gc.collect()
-        onnx_out = _onnx_inference(input_data, model_path, input_name)
+        onnx_out = _onnx_inference(input_data, model_path, input_name, input_cb)
 
         self.mlir_model = MLIRModel()
         self.mlir_model.load_model(fp32_mlir)
@@ -831,6 +848,194 @@ class ONNX_IR_TESTER(object):
             onnx.checker.check_model(model_def)
             self.onnx_convert_and_infernece(input_data, model_def, test_case)
 
+    def test_Concat(self):
+        test_case = 'Concat'
+        # first MUST be 4 dim for connect conv that avoid weight check
+        class testbench(object):
+            def __init__(self, inputs_shape, output_shape, axis, reshape_input_0=[]):
+                self.inputs_shape = inputs_shape
+                self.output_shape = output_shape
+                self.axis = axis
+                self.reshape_input_0 = reshape_input_0
+
+            def gen_model_def(self, test_case):
+                tensor_value_infos = []
+                reshaped_value_infos = []
+
+                inputs_shape = list(self.inputs_shape)
+
+                is_not_4d = len(inputs_shape[0]) != 4
+                concat_first_intput = 'X1'
+
+                # need to reshape for conv
+                if is_not_4d:
+                    inputs_shape[0] = self.reshape_input_0
+
+                for idx, shape in enumerate(inputs_shape):
+                    tensor_value_infos.append(
+                        helper.make_tensor_value_info('input_{}'.format(idx), TensorProto.FLOAT, shape))
+                output = helper.make_tensor_value_info(
+                        'output', TensorProto.FLOAT, self.output_shape)
+
+                # conv ONLY accept 4d
+                input_def_0 = helper.make_node(
+                    'Neg',  # node name
+                    [ 'input_0'],
+                    ['X1'],  # outputs
+                )
+
+                if is_not_4d:
+                    concat_first_intput = 'input_0_reshape_4_3_shaped'
+
+                    # prepare reshape second input
+                    const = np.array(self.inputs_shape[0], dtype=np.int64)
+                    input_0_reshape_4_3_shape_const = helper.make_node(
+                        'Constant',
+                        inputs=[],
+                        outputs=['input_0_reshape_4_3_shape'],
+                        value=onnx.helper.make_tensor(
+                            name='const_tensor',
+                            data_type=onnx.TensorProto.INT64,
+                            dims=const.shape,
+                            vals=const.flatten().astype(int),
+                        ),
+                    )
+
+                    # narrow down from 4d to 3d for concat
+                    input_def_0_reshape4_3 = helper.make_node(
+                        'Reshape',
+                        [ 'X1', 'input_0_reshape_4_3_shape'],
+                        [ concat_first_intput ],
+                    )
+                    reshaped_value_infos = [input_0_reshape_4_3_shape_const, input_def_0_reshape4_3]
+
+                mlir_inputs = ['input_{}'.format(idx) for idx, v in enumerate(self.inputs_shape)]
+                test_node_def = helper.make_node(
+                    'Concat',  # node name
+                    inputs=[concat_first_intput] + mlir_inputs[1:],  # inputs
+                    axis=self.axis,
+                    outputs=['output'],  # outputs
+                )
+
+                graph_def = helper.make_graph(
+                    [input_def_0] + reshaped_value_infos + [test_node_def],
+                    test_case,
+                    tensor_value_infos,
+                    [output],
+                )
+
+                return helper.make_model(graph_def, producer_name=test_case)
+
+            def gen_inputs(self):
+                # random data
+                inputs = [np.random.rand(*_input).astype(np.float32) for _input in self.inputs_shape]
+                #inputs = [np.arange(np.prod(_input)).reshape(_input).astype(np.float32) for _input in self.inputs_shape]
+                # concat with 1d for mlir inference
+                # https://stackoverflow.com/questions/13730468/from-nd-to-1d-arrays
+                input_concated = np.concatenate([v.reshape(-1) for v in inputs])
+
+                return inputs, input_concated
+
+            # closure input_data
+            @staticmethod
+            def input_cb(input_data, reshape_input_0):
+                def _input_cb(model_name, phase, input):
+                    if phase == 'onnx':
+                        input_data[0] = input_data[0].reshape(reshape_input_0)
+                        return {'input_{}'.format(_idx): _input for _idx, _input in enumerate(input_data)}
+                    elif phase == 'cvimodel':
+                        cvimodel_inputs = {}
+                        for _idx, _input in enumerate(input_data):
+                            key = 'input_{}'.format(_idx)
+                            cvimodel_inputs[key] = input[key]
+                        return cvimodel_inputs
+
+                return _input_cb
+
+        testbenchs = {
+            # need to assign `--batch-num`
+            #'dim2_axis0': {
+            #    'inputs_shape':[[1, 3072],[1, 3072]],
+            #    'output_shape':[2, 3072],
+            #    'axis': 0,
+            #    'reshape_input_0': [1, 192, 16, 1] # for conv once dim != 4
+            #},
+            #'dim4_axis0': {
+            #    'inputs_shape':[[1, 20, 30, 40], [6, 20, 30, 40]],
+            #    'output_shape':[7, 20, 30, 40],
+            #    'axis': 0,
+            #},
+            #'dim3_axis0': {
+            #    'inputs_shape':[[1, 3072, 1],[1, 3072, 1]],
+            #    'output_shape':[2, 3072, 1],
+            #    'axis': 0,
+            #    'reshape_input_0': [1, 192, 16, 1] # for conv once dim != 4
+            #},
+            'dim3_axis1_small': {
+                'inputs_shape':[[1, 3072, 1],[1, 680, 1]],
+                'output_shape':[1, 3752, 1],
+                'axis': 1,
+                'reshape_input_0': [1, 192, 16, 1] # for conv once dim != 4
+            },
+            # FIXME: wait backend merged
+            #'dim3_axis2': {
+            #    'inputs_shape':[[1, 3072, 1],[1, 3072, 11]],
+            #    'output_shape':[1, 3072, 12],
+            #    'axis': 2,
+            #    'reshape_input_0': [1, 192, 16, 1] # for conv once dim != 4
+            #},
+            # FIXME: need to fix getOpGroupInputsOutputs for keep inputs order
+            #'dim3_axis1': {
+            #    'inputs_shape':[[1, 30720, 1],[1, 7680, 1],[1, 1920, 1],[1, 480, 1],[1, 120, 1]],
+            #    'output_shape':[1, 40920, 1],
+            #    'axis': 1,
+            #    'reshape_input_0': [1, 1024, 30, 1] # for conv once dim != 4
+            #},
+            'dim4_axis1': {
+                'inputs_shape':[[1, 21, 31, 4], [1, 11, 31, 4]],
+                'output_shape':[1, 32, 31, 4],
+                'axis': 1,
+            },
+            # FIXME: wait backend merged
+            #'dim4_axis2': {
+            #    'inputs_shape':[[1, 21, 31, 4], [1, 21, 61, 4]],
+            #    'output_shape':[1, 21, 92, 4],
+            #    'axis': 2,
+            #},
+            #'dim4_axis3': {
+            #    'inputs_shape':[[1, 21, 31, 4], [1, 21, 31, 14]],
+            #    'output_shape':[1, 21, 31, 18],
+            #    'axis': 3,
+            #},
+            'dim2_axis1': {
+                'inputs_shape':[[1, 400], [1, 200]],
+                'output_shape':[1, 600],
+                'axis': 1,
+                'reshape_input_0': [1, 20, 10, 2] # for conv once dim != 4
+            },
+        }
+
+        for test_case, setting in testbenchs.items():
+            # init testcase
+            test_case = "Concat_" + test_case
+            inputs_shape = setting['inputs_shape']
+            output_shape = setting['output_shape']
+            axis = setting['axis']
+            if 'reshape_input_0' in setting:
+                reshape_input_0 = setting['reshape_input_0']
+            else:
+                reshape_input_0 = inputs_shape[0]
+
+            # emit test
+            tb = testbench(inputs_shape, output_shape, axis, reshape_input_0)
+            model_def = tb.gen_model_def(test_case)
+            input_data, input_concated = tb.gen_inputs()
+            input_cb = tb.input_cb(input_data, reshape_input_0)
+
+            onnx.checker.check_model(model_def)
+
+            self.onnx_convert_and_infernece(input_concated, model_def, test_case, input_cb)
+
 if __name__ == "__main__":
     os.makedirs("onnx_test", exist_ok=True)
     os.chdir("onnx_test")
@@ -841,6 +1046,9 @@ if __name__ == "__main__":
             tester.test_model(input_shape, sys.argv[2], sys.argv[3])
         else:
             tester.test_model(input_shape, sys.argv[2])
+        exit(0)
+    elif len(sys.argv) == 2:
+        tester.test_function.get(sys.argv[1])()
         exit(0)
     elif len(sys.argv) == 1:
         pass_list_i8 = list()

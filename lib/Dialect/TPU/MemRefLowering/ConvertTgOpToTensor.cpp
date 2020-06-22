@@ -47,7 +47,15 @@ public:
 
           buffer_args.push_back(tensorLoadOp.getResult());
         } else {
-          buffer_args.push_back(operands[i]);
+          if (op->getBlock()->getArguments().size() > 1) {
+            if (std::find(buffer_args.begin(), buffer_args.end(), operands[i]) == buffer_args.end()) {
+              // skip duplicate insert for multi input
+              buffer_args.push_back(operands[i]);
+            }
+          }
+          else {
+            buffer_args.push_back(operands[i]);
+          }
         }
       }
     }

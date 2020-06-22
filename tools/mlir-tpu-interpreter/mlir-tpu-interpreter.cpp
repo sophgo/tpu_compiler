@@ -100,15 +100,30 @@ int main(int argc, char **argv) {
     llvm::errs() << "cound not read input tensor\n";
     return EXIT_FAILURE;
   }
-  // support one input only for now
-  assert(input_tensors.size() == 1);
-  assert(input_shapes.size() == 1);
+  //// support one input only for now
+  //assert(input_tensors.size() == 1);
+  //assert(input_shapes.size() == 1);
+  int64_t shape_size = 0;
+  for (auto s : input_shapes) {
+    shape_size += std::accumulate(s.begin(), s.end(), 1, std::multiplies<int64_t>());
+  }
+
+  std::vector<float> input_vec(shape_size);
+
+  // flatten shapes/tensors to one array
+  shape_size = 0;
+  for (uint64_t i = 0; i < input_shapes.size(); i++) {
+    int64_t size = std::accumulate(input_shapes[i].begin(), input_shapes[i].end(), 1, std::multiplies<int64_t>());
+    std::memcpy(input_vec.data() + shape_size, input_tensors[i]->data(), size * sizeof(float));
+    shape_size += size;
+  }
 
   std::map<std::string, std::vector<float> > results;
   std::map<std::string, std::vector<int64_t> > shapeMap;
   std::map<std::string, std::vector<float> > allTensorMap;
 
-  if (failed(runTpuModule(m.get(), "", input_shapes[0], *input_tensors[0],
+  // its find for give input_shapes[0] cuz input shape is recorded in .mlir file
+  if (failed(runTpuModule(m.get(), "", input_shapes[0], input_vec,
                           &results, &shapeMap, &allTensorMap)))
     return EXIT_FAILURE;
 
