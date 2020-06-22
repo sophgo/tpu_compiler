@@ -135,6 +135,7 @@ class OnnxConverter(BaseConverter):
             "Min" : lambda node: self.convert_min_op(node),
             "Mul" : lambda node: self.convert_mul_op(node),
             "Neg" : lambda node: self.convert_neg_op(node),
+            "Pad": lambda nnode: self.convert_pad_op(node),
             "PRelu": lambda node: self.convert_prelu_op(node),
             "Reciprocal": lambda node: self.convert_reciprocal_op(node),
             "Relu": lambda node: self.convert_relu_op(node),
