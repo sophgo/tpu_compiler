@@ -974,10 +974,28 @@ export DO_QUANT_BF16=0
 export DO_E2E=0
 export DO_DEEPFUSION=0
 export DO_NN_TOOLKIT=1
+fi
 
-# export EXCEPTS=probs # softmax
-# export TOLERANCE_BF16=0.99,0.99,0.94
-# export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
+if [ $NET = "mobilenet_v2_tf" ]; then
+export MODEL_TYPE="tensorflow"
+export MODEL_DEF=$MODEL_PATH/imagenet/mobilenet_v2/tensorflow/mobilenetv2
+export MODEL_DAT=""
+export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/generic/regression_0_tensorflow.sh
+export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/mobilenet_v2_tf_threshold_table_1000
+export IMAGE_RESIZE_DIMS=256,256
+export NET_INPUT_DIMS=224,224
+export DATA_FORMAT="nhwc"
+export RAW_SCALE=255
+export MODEL_CHANNEL_ORDER="rgb"
+export MEAN=127.5,127.5,127.5 # in RGB
+export STD=127.5,127.5,127.5
+export INPUT_SCALE=1.0
+export INPUT=input
+export TOLERANCE_INT8_MULTIPLER=0.93,0.93,0.61
+export DO_QUANT_BF16=0
+export DO_E2E=0
+export DO_DEEPFUSION=0
+export EXCEPTS=block_15_project_BN
 fi
 
 if [ $NET = "unet" ]; then

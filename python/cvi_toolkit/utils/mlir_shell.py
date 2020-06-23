@@ -336,6 +336,8 @@ def run_cvimodel(input_file, cvi_model, output_tensor, all_tensors=True):
             "--output", output_tensor]
     if all_tensors:
         cmd.append("--dump-all-tensors")
+
+    logger.info(cmd)
     ret = subprocess.run(cmd)
     checkReturnValue(ret, "model_runner")
     return ret.returncode
