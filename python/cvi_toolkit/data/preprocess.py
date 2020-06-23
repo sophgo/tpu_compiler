@@ -168,8 +168,8 @@ class preprocess(object):
         else:
             x = image
             # we default use data format CHW do preprocess
-            # if data format is hwc,  we still turn it to HWC
-            # turn back to CHW after preprcessing
+            # if data format is HWC,  we still turn it to CHW
+            # turn back to HWC after preprcessing
             if input_data_format == "hwc":
                 x = np.transpose(x, (2, 0, 1))
 
@@ -204,10 +204,11 @@ class preprocess(object):
                 x = x[[2,1,0], :, :]
 
             if input_data_format == "hwc" and self.data_format == "hwc":
-                # turn back to HWC
+                # if data format is HWC,  turn it to CHW at first
+                # here we turn back to HWC
                 x = np.transpose(x, (1, 2, 0))
             elif input_data_format == "chw" and self.data_format == "hwc":
-                x = np.transpose(x, (2, 1, 0))
+                x = np.transpose(x, (1, 2, 0))
             elif input_data_format == "hwc" and self.data_format == "chw":
                 # input data foramt is hwc
                 # data format is chw
