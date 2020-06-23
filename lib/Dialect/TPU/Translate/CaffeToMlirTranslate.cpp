@@ -1632,6 +1632,7 @@ void CaffeImporter::convertPriorBoxLayer(mlir::Block *block, caffe::Layer<float>
 
   int min_size_size = prior_box_param.min_size_size();
   int max_size_size = prior_box_param.max_size_size();
+  int aspect_ratio_size = prior_box_param.aspect_ratio_size();
   float min_size = prior_box_param.min_size(0);
   float max_size = max_size_size == 0 ? 0.0f : prior_box_param.max_size(0);
   assert(max_size_size <= 1 && min_size_size == 1 &&
@@ -1655,14 +1656,13 @@ void CaffeImporter::convertPriorBoxLayer(mlir::Block *block, caffe::Layer<float>
   attrs.push_back(builder_.getNamedAttr(
       "aspect_ratio0", builder_.getF32FloatAttr(prior_box_param.aspect_ratio(0))));
 
-  if (prior_box_param.aspect_ratio_size() == 2) {
+  if (aspect_ratio_size == 2) {
     attrs.push_back(builder_.getNamedAttr(
         "aspect_ratio1", builder_.getF32FloatAttr(prior_box_param.aspect_ratio(1))));
   }
 
   attrs.push_back(builder_.getNamedAttr(
-      "aspect_ratios_size",
-      builder_.getI32IntegerAttr(prior_box_param.aspect_ratio_size())));
+      "aspect_ratios_size", builder_.getI32IntegerAttr(aspect_ratio_size)));
   attrs.push_back(
       builder_.getNamedAttr("flip", builder_.getBoolAttr(prior_box_param.flip())));
   attrs.push_back(
@@ -1682,22 +1682,12 @@ void CaffeImporter::convertPriorBoxLayer(mlir::Block *block, caffe::Layer<float>
   attrs.push_back(builder_.getNamedAttr(
       "offset", builder_.getF32FloatAttr(prior_box_param.offset())));
 
-  std::vector<float> min_sizes_;
-  std::vector<float> max_sizes_;
   std::vector<float> aspect_ratios_;
-  bool flip_ = true;
   int num_priors_ = 0;
-  // bool clip_=false;
-  std::vector<float> variance_;
 
-  for (int i = 0; i < min_size_size; ++i) {
-    min_sizes_.push_back(prior_box_param.min_size(i));
-    assert(min_sizes_.back() > 0 && "min_size must be positive.");
-  }
-  aspect_ratios_.clear();
   aspect_ratios_.push_back(1.);
-  flip_ = prior_box_param.flip();
-  for (int i = 0; i < prior_box_param.aspect_ratio_size(); ++i) {
+  bool flip_ = prior_box_param.flip();
+  for (int i = 0; i < aspect_ratio_size; ++i) {
     float ar = prior_box_param.aspect_ratio(i);
     bool already_exist = false;
     for (size_t j = 0; j < aspect_ratios_.size(); ++j) {
@@ -1714,16 +1704,7 @@ void CaffeImporter::convertPriorBoxLayer(mlir::Block *block, caffe::Layer<float>
     }
   }
 
-  num_priors_ = aspect_ratios_.size() * min_sizes_.size();
-  if (max_size_size > 0) {
-    CHECK_EQ(min_size_size, max_size_size);
-    for (int i = 0; i < max_size_size; ++i) {
-      max_sizes_.push_back(prior_box_param.max_size(i));
-      assert(max_sizes_[i] > min_sizes_[i] &&
-             ("max_size must be greater than min_size."));
-      num_priors_ += 1;
-    }
-  }
+  num_priors_ = aspect_ratios_.size() * min_size_size + max_size_size;
 
   // construct OP
   auto result_type =
