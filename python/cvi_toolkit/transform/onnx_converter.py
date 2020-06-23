@@ -5,6 +5,7 @@ from termcolor import colored, cprint
 from math import floor, ceil
 from numbers import Number
 
+
 import onnx
 import logging
 import numpy as np
@@ -135,7 +136,7 @@ class OnnxConverter(BaseConverter):
             "Min" : lambda node: self.convert_min_op(node),
             "Mul" : lambda node: self.convert_mul_op(node),
             "Neg" : lambda node: self.convert_neg_op(node),
-            "Pad": lambda nnode: self.convert_pad_op(node),
+            "Pad": lambda node: self.convert_pad_op(node),
             "PRelu": lambda node: self.convert_prelu_op(node),
             "Reciprocal": lambda node: self.convert_reciprocal_op(node),
             "Relu": lambda node: self.convert_relu_op(node),
@@ -215,7 +216,12 @@ class OnnxConverter(BaseConverter):
             if "num_batches_tracked" in i.name:
                 continue
             else:
-                tensor_npz[i.name] = i.tensor_data.astype(np.float32)
+                try:
+                    tensor_npz[i.name] = i.tensor_data.astype(np.float32)
+                except AttributeError as attr_err:
+                    print("{} data type {} can not transform to float, skip it".format(i.name, type(i.tensor_data)))
+                except:
+                    raise
         np.savez(self.output_tensor_file, **tensor_npz)
 
     @staticmethod
@@ -235,6 +241,7 @@ class OnnxConverter(BaseConverter):
         else:
             new_shape = shape
         return new_shape
+
 
     def convert_node(self):
         """convert onnx node to OnnxNode"""
@@ -384,6 +391,7 @@ class OnnxConverter(BaseConverter):
         on = input_shape[0]
         oc = input_shape[1]
         pads = onnx_node.attrs['pads'] if "pads" in onnx_node.attrs else [0, 0, 0, 0]
+
         strides = onnx_node.attrs['strides'] if "strides" in onnx_node.attrs else [1, 1]
         kernel_shape = onnx_node.attrs['kernel_shape']
         count_include_pad = onnx_node.attrs.get('count_include_pad', False)
@@ -498,7 +506,14 @@ class OnnxConverter(BaseConverter):
         if tensor_type1 == TensorType.TENSOR and tensor_type2 == TensorType.TENSOR:
             tensor_datas = list()
             for i in onnx_node.inputs:
-                tensor_datas.append(self.getTensor(i).tensor_data)
+                # FIXME: if tensor data is from weight, and it's shape just one
+                #        match with other input shape, use squeeze
+                t_d = self.getTensor(i).tensor_data
+                if len(t_d.shape) == 1 and t_d[0] == -1:
+                    t_d = np.expand_dims(t_d, axis=0)
+                    print(t_d)
+                tensor_datas.append(t_d)
+
 
             n_t = np.concatenate(tuple(tensor_datas), axis=axis)
             self.addTensor(onnx_node.name, n_t, list(n_t.shape))
@@ -535,6 +550,8 @@ class OnnxConverter(BaseConverter):
         dilations = onnx_node.attrs.get("dilations", [1, 1])
         group = onnx_node.attrs.get("group", 1)
         pads = onnx_node.attrs.get("pads",[0,0,0,0])
+
+
         strides = onnx_node.attrs.get("strides",[1,1])
         conv_param = {
             'stride_h':  strides[0],
@@ -826,6 +843,7 @@ class OnnxConverter(BaseConverter):
         assert(onnx_node.op_type == "MaxPool")
         pads = onnx_node.attrs.get("pads",[0,0,0,0])
         strides = onnx_node.attrs.get("strides",[1,1])
+
         pool_max_2d_param = {
             'stride_h': strides[0],
             'stride_w': strides[1],
@@ -1010,23 +1028,26 @@ class OnnxConverter(BaseConverter):
 
     def convert_pad_op(self, onnx_node):
         assert(onnx_node.op_type == "Pad")
-        input_num = len(onnx_node.inputs)
-        constant_value = 0
-        mode = onnx_node.attrs.get("mode")
-        if mode == b"constant":
-          constant_value = onnx_node.attrs.get("value")
 
-        input, input_shape, input_type = self.getOperand(onnx_node.inputs[0])
+        # get pad mode
+        mode = onnx_node.attrs.get("mode", "constant")
+        if isinstance(mode, bytes):
+            mode = mode.decode("utf-8")
+        if mode != "constant": raise RuntimeError("Todo support pad op mode {}".format(mode))
+        constant_value = onnx_node.attrs.get("value", 0.0)
         pads = onnx_node.attrs.get("pads")
-        assert(len(pads) == 2 * len(input_shape))
 
-        pads_len = len(pads)
-        dims = int(pads_len / 2)
+        op, input_shape, input_type = self.getOperand(onnx_node.inputs[0])
+        if len(pads) != 2 * len(input_shape):
+            raise RuntimeError("pads number is two times as same as input shape ({} v.s 2 * {})".format(len(pads), len(input_shape)))
+
+        dims = len(input_shape)
         np_pads = tuple(zip(pads[:dims], pads[dims:]))
         pads_param = {
           "pads": pads,
           "const_val": constant_value,
         }
+
         output_shape = np.sum([input_shape, pads[:dims], pads[dims:]], axis=0)
         if input_type == TensorType.TENSOR :
             input_data = self.getTensor(onnx_node.inputs[0]).tensor_data
@@ -1040,7 +1061,7 @@ class OnnxConverter(BaseConverter):
             self.addOperand(onnx_node.name, None, output_shape, TensorType.TENSOR)
         else:
             operands = list()
-            operands.append(input)
+            operands.append(op)
             pads_op = self.CVI.add_pad_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **pads_param)
             self.addOperand(onnx_node.name, pads_op, output_shape, TensorType.ACTIVATION)
 
@@ -1217,6 +1238,15 @@ class OnnxConverter(BaseConverter):
 
     def convert_slice_op(self, onnx_node):
         assert(onnx_node.op_type == "Slice")
+        # check if upper op is pad op
+        # if it is, pass to next layer
+        try:
+            pad_op_data = self.getTensor("{}_pad".format(onnx_node.inputs[0])).tensor_data
+            self.addTensor("{}_pad".format(onnx_node.name), pad_op_data, None)
+        except KeyError as ke:
+            # not pad op, pass
+            pass
+
         op, input_shape, tesnor_type = self.getOperand(onnx_node.inputs[0])
         # start
         _, _, _tesnor_type = self.getOperand(onnx_node.inputs[1])
@@ -1266,7 +1296,9 @@ class OnnxConverter(BaseConverter):
                 else:
                     crop_shape[j] = input_shape[j]
                     crop_offset[j] = 0
-
+            print(crop_shape, crop_offset)
+            crop_shape = [int(x) for x in crop_shape]
+            crop_offset = [int(x) for x in crop_offset]
             crop_param = {
                 "crop_offset": list(crop_offset),
                 "crop_shape": list(crop_shape),
