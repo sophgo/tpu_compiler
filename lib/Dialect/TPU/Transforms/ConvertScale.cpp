@@ -216,7 +216,25 @@ struct TpuMergeScaleIntoConvPattern : public RewritePattern {
 
     // find scale and bias tensor for scale op
     std::vector<std::unique_ptr<std::vector<float> > > scaleWeights(2);
-    for (int i = 0; i < 2; ++i) {
+
+    // if no bias, we make fake one
+    int weight_nr = 1;
+
+    if (auto bias = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(scaleOp.getOperand(2)->getDefiningOp())) {
+      // has bias
+      weight_nr = 2;
+    }
+    else {
+      std::vector<int64_t> shape;
+      int64_t input_size, n, c, h, w;
+      getTensorShapeAndSize(scaleOp.input(), shape, input_size);
+      getNCHW(shape, n, c, h, w);
+
+      // bias shape should be as same as channel, fill with 0 for non-bias case
+      scaleWeights[1] = std::make_unique<std::vector<float>> (c, 0);
+    }
+
+    for (int i = 0; i < weight_nr; ++i) {
       auto weight_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
           scaleOp.getOperand(i + 1)->getDefiningOp());
       assert(weight_op && "weight op should be exist");
