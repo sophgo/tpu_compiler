@@ -924,7 +924,7 @@ if [ ! -f ${MODEL_DEF} ]; then
   exit 1
 fi
 
-if [ $NET = "resnet50_tensorflow" ]; then
+if [ $NET = "resnet50_tf" ]; then
 export MODEL_TYPE="tensorflow"
 export MODEL_DEF=$MODEL_PATH/imagenet/resnet/tensorflow/resnet50
 export MODEL_DAT=""
@@ -936,8 +936,8 @@ export NET_INPUT_DIMS=224,224
 export DATA_FORMAT="nhwc"
 export RAW_SCALE=255
 export MODEL_CHANNEL_ORDER="rgb"
-export MEAN=127.5,127.5,127.5 # in RGB
-export STD=127.5,127.5,127.5
+export MEAN=122.68,116.67,104.01 # in RGB
+export STD=1,1,1
 export INPUT_SCALE=1.0
 export INPUT=input
 export TOLERANCE_INT8_PER_TENSOR=0.9,0.88,0.51
