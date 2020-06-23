@@ -530,7 +530,8 @@ LogicalResult tpu::TL_LG_LoadNeuronOp::codegen(void *ctx) {
                               dst_laddr,
                               local_n, local_c, local_h, local_w,
                               global_c, global_h, global_w,
-                              transpose, aligned, isNeuron);
+                              transpose, aligned, isNeuron,
+                              false);
   return success();
 }
 
@@ -572,6 +573,9 @@ LogicalResult tpu::TL_LG_LoadCoeffOp::codegen(void *ctx) {
   bool transpose = this->transpose();
   bool aligned = this->align();
   bool isNeuron = false;
+  bool bcompressed = false;
+  if (this->compressed_weight().hasValue())
+    bcompressed = this->compressed_weight().getValue();
 
   cvi_backend_tl_load_stride( *backend_ctx,
                               layer_id,
@@ -579,7 +583,9 @@ LogicalResult tpu::TL_LG_LoadCoeffOp::codegen(void *ctx) {
                               dst_laddr,
                               local_n, local_c, local_h, local_w,
                               global_c, global_h, global_w,
-                              transpose, aligned, isNeuron);
+                              transpose, aligned, isNeuron,
+                              bcompressed);
+
   return success();
 }
 

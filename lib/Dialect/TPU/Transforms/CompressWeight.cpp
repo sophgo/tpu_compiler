@@ -69,6 +69,16 @@ public:
     if (convOp.compressed_weight().hasValue())
       return Pattern::matchFailure();
 
+    // for layer group, several conv may refer to one load coeff op
+    // no need to compress every time.
+    if (auto load_op = dyn_cast<tpu::TL_LG_LoadCoeffOp>
+                                  (convOp.filter()->getDefiningOp())) {
+      if (load_op.compressed_weight().hasValue() &&
+          load_op.compressed_weight().getValue()) {
+        convOp.setAttr("compressed_weight", rewriter.getBoolAttr(true));
+        return Pattern::matchFailure();
+      }
+    }
     // Not support group convolution and depthwise convolution
     if (convOp.param().group().getValue().getLimitedValue() > 1) {
       LLVM_DEBUG(llvm::dbgs()
@@ -135,9 +145,14 @@ public:
     int kh = filterShape[2];
     int kw = filterShape[3];
 
-    // Split output channel in unit of lane number
+
     bool canCompress = true;
+    // Split output channel in unit of lane number for df only
     int oc_step = MInfo::lane_num;
+    // not split for lg
+    if (TensorTyOp::getOperationName() == "tpu.tl_lg_conv_2d")
+      oc_step = oc;
+
     auto buffer =
         std::make_unique<std::vector<uint8_t> >(oc_step * kh * kw * ic);
 
@@ -213,6 +228,12 @@ public:
 
       convOp.setAttr("tiled_oc_step", rewriter.getI32IntegerAttr(oc_step));
       convOp.setAttr("compressed_weight", rewriter.getBoolAttr(true));
+
+      // set compressed flag on TL_LoadCoeffOp for layer group
+      if (auto load_op = dyn_cast<tpu::TL_LG_LoadCoeffOp>
+                                  (convOp.filter()->getDefiningOp())) {
+        load_op.setAttr("compressed_weight", rewriter.getBoolAttr(true));
+      }
 
       struct CompressInfo info;
       info.name = convOp.name();
@@ -292,7 +313,8 @@ void CompressWeightPass::runOnFunction() {
   // Compress convolution weight
   OwningRewritePatternList patterns;
   patterns.insert<
-      CompressConvolutionWeightPattern<tpu::TL_LW_Conv2DOp>
+      CompressConvolutionWeightPattern<tpu::TL_LW_Conv2DOp>,
+      CompressConvolutionWeightPattern<tpu::TL_LG_Conv2DOp>
       >(&getContext(), compressedWeigtInfos);
   applyPatternsGreedily(getFunction(), patterns);
 

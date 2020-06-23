@@ -72,6 +72,7 @@ fi
 
 # compare all only support when global memory optimization close
 COMPARE_ALL=0
+COMPRESS_WEIGHT=1
 ###############################
 # Lower for quantization 3: multiplier int8
 ###############################
@@ -89,32 +90,35 @@ mlir-opt \
 
 mlir-opt \
     --dce \
-    ${NET}_quant_int8_multiplier_layergroup.mlir \
-    -o ${NET}_quant_int8_multiplier_layergroup_dce.mlir
-
-mlir-opt \
     --deep-fusion-tg2tl-la \
-    ${NET}_quant_int8_multiplier_layergroup_dce.mlir \
-    -o ${NET}_quant_int8_multiplier_layergroup_la.mlir
-
-mlir-opt \
     --deep-fusion-tl-la2lw \
-    ${NET}_quant_int8_multiplier_layergroup_la.mlir \
+    ${NET}_quant_int8_multiplier_layergroup.mlir \
     -o ${NET}_quant_int8_multiplier_layergroup_lw.mlir
+
+if [ $COMPRESS_WEIGHT -eq 1 ]; then
+mlir-opt \
+    --compress-weight \
+    ${NET}_quant_int8_multiplier_layergroup_lw.mlir \
+    -o ${NET}_quant_int8_multiplier_layergroup_lw_compressed.mlir
 
 mlir-opt \
     --assign-weight-address \
     --tpu-weight-address-align=16 \
     --tpu-weight-map-filename=${NET}_weight_map_int8_multiplier_layergroup.csv \
     --tpu-weight-bin-filename=weight_int8_multiplier_layergroup.bin \
+    --tpu-generate-compressed-weight \
+    ${NET}_quant_int8_multiplier_layergroup_lw_compressed.mlir \
+    -o ${NET}_quant_int8_multiplier_layergroup_lw_addr.mlir
+else
+mlir-opt \
+    --assign-weight-address \
+    --tpu-weight-address-align=16 \
+    --tpu-weight-map-filename=${NET}_weight_map_int8_multiplier_layergroup.csv \
+    --tpu-weight-bin-filename=weight_int8_multiplier_layergroup.bin \
+    --tpu-generate-compressed-weight \
     ${NET}_quant_int8_multiplier_layergroup_lw.mlir \
     -o ${NET}_quant_int8_multiplier_layergroup_lw_addr.mlir
-
-# mlir-opt \
-#     --compress-weight \
-#     ${NET}_quant_int8_multiplier_layergroup_lw_addr.mlir \
-#     -o ${NET}_quant_int8_multiplier_layergroup_lw_compressed.mlir \
-#     --debug
+fi
 
 mlir-opt \
     --divide-ops-to-func \
