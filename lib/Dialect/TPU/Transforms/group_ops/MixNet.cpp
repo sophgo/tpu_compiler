@@ -848,14 +848,14 @@ void MixNet::_add_tl_pooling_op(MixOp * mix_op,
   Builder builder_(context_);
   vector<NamedAttribute> attrs;
   // parse param
-  bool is_global, do_relu;
+  bool is_global, do_relu, count_include_pad;
   int n, c, ih, iw, oh, ow, kh, kw, sh, sw, pt, pb, pl, pr;
   if (is_avg) {
     auto tmp_op = dyn_cast<tpu::TG_INT8_PoolAvg2DOp>(im_layer->op());
     parsePoolParam(tmp_op.param(), tmp_op.input(), tmp_op.output(),
                   n, c, ih, iw, oh, ow,
                   kh, kw, sh, sw, pt, pb, pl, pr,
-                  is_global, do_relu);
+                  is_global, do_relu, count_include_pad);
     attrs.push_back(builder_.getNamedAttr("rshift", tmp_op.rshiftAttr()));
 
     attrs.push_back(builder_.getNamedAttr("m_i8", tmp_op.m_i8Attr()));
@@ -865,7 +865,7 @@ void MixNet::_add_tl_pooling_op(MixOp * mix_op,
     parsePoolParam(tmp_op.param(), tmp_op.input(), tmp_op.output(),
                   n, c, ih, iw, oh, ow,
                   kh, kw, sh, sw, pt, pb, pl, pr,
-                  is_global, do_relu);
+                  is_global, do_relu, count_include_pad);
   }
 
 
@@ -946,6 +946,7 @@ void MixNet::_add_tl_pooling_op(MixOp * mix_op,
       builder_.getI32IntegerAttr(sh),
       builder_.getI32IntegerAttr(sw),
       builder_.getBoolAttr(do_relu),
+      builder_.getBoolAttr(count_include_pad),
       builder_.getContext())));
   attrs.push_back(builder_.getNamedAttr("la_input",
                            builder_.getI32IntegerAttr(la_input)));

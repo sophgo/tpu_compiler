@@ -532,13 +532,14 @@ void parseConvParam(const tpu::ConvParam &p, bool is_deconv,
   }
   do_relu = p.do_relu().getValue();
   with_bias = p.with_bias().getValue();
+
 }
 
 void parsePoolParam(const tpu::PoolParam &p,
     Value *input, Value *output,
     int &n, int &c, int &ih, int &iw, int &oh, int &ow,
     int &kh, int &kw, int &sh, int &sw, int &pt, int &pb, int &pl, int &pr,
-    bool &is_global, bool &do_relu) {
+    bool &is_global, bool &do_relu, bool &count_include_pad) {
   kh = p.kernel_h().getValue().getLimitedValue();
   kw = p.kernel_w().getValue().getLimitedValue();
   sh = p.stride_h().getValue().getLimitedValue();
@@ -565,6 +566,7 @@ void parsePoolParam(const tpu::PoolParam &p,
     is_global = true;
   }
   do_relu = p.do_relu().getValue();
+  count_include_pad = p.count_include_pad().getValue();
 }
 
 void parseFullyConnectedParam(

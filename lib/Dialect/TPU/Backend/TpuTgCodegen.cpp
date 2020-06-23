@@ -1650,12 +1650,12 @@ LogicalResult tpu::TG_INT8_PoolAvg2DOp::codegen(void *ctx) {
   Operation *op = this->getOperation();
 
   // parse param
-  bool is_global, do_relu;
+  bool is_global, do_relu, count_include_pad;
   int n, c, ih, iw, oh, ow, kh, kw, sh, sw, pt, pb, pl, pr;
   parsePoolParam(param(), input(), output(),
                  n, c, ih, iw, oh, ow,
                  kh, kw, sh, sw, pt, pb, pl, pr,
-                 is_global, do_relu);
+                 is_global, do_relu, count_include_pad);
   assert(!do_relu);
 
   gaddr_t ga_input = getPreviousOpAddress(op);
@@ -1703,12 +1703,12 @@ LogicalResult tpu::TG_INT8_PoolMax2DOp::codegen(void *ctx) {
   Operation *op = this->getOperation();
 
   // parse param
-  bool is_global, do_relu;
+  bool is_global, do_relu, count_include_pad;
   int n, c, ih, iw, oh, ow, kh, kw, sh, sw, pt, pb, pl, pr;
   parsePoolParam(param(), input(), output(),
                  n, c, ih, iw, oh, ow,
                  kh, kw, sh, sw, pt, pb, pl, pr,
-                 is_global, do_relu);
+                 is_global, do_relu, count_include_pad);
   assert(!do_relu);
 
   gaddr_t ga_input = getPreviousOpAddress(op);
@@ -1751,12 +1751,12 @@ LogicalResult tpu::TG_BF16_PoolAvg2DOp::codegen(void *ctx) {
   Operation *op = this->getOperation();
 
   // parse param
-  bool is_global, do_relu;
+  bool is_global, do_relu, count_include_pad;
   int n, c, ih, iw, oh, ow, kh, kw, sh, sw, pt, pb, pl, pr;
   parsePoolParam(param(), input(), output(),
                  n, c, ih, iw, oh, ow,
                  kh, kw, sh, sw, pt, pb, pl, pr,
-                 is_global, do_relu);
+                 is_global, do_relu, count_include_pad);
   assert(!do_relu);
 
   gaddr_t ga_input = getPreviousOpAddress(op);
@@ -1789,12 +1789,12 @@ LogicalResult tpu::TG_BF16_PoolMax2DOp::codegen(void *ctx) {
   Operation *op = this->getOperation();
 
   // parse param
-  bool is_global, do_relu;
+  bool is_global, do_relu, count_include_pad;
   int n, c, ih, iw, oh, ow, kh, kw, sh, sw, pt, pb, pl, pr;
   parsePoolParam(param(), input(), output(),
                  n, c, ih, iw, oh, ow,
                  kh, kw, sh, sw, pt, pb, pl, pr,
-                 is_global, do_relu);
+                 is_global, do_relu, count_include_pad);
   assert(!do_relu);
 
   gaddr_t ga_input = getPreviousOpAddress(op);

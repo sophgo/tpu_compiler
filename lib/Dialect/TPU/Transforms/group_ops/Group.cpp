@@ -394,20 +394,20 @@ bool Group::backward_slice(int out_tensor_id, list<int>& branches, bool max_h_sl
   } else if (layer_type == IR_POOLING) {
     if (isa<tpu::TG_INT8_PoolAvg2DOp>(im_layer->op())) {
       auto op = cast<tpu::TG_INT8_PoolAvg2DOp>(im_layer->op());
-      bool is_global, do_relu;
+      bool is_global, do_relu, count_include_pad;
       int n, c, ih, iw, oh, ow, kw, sw, pb, pl, pr;
       parsePoolParam(op.param(), op.input(), op.output(),
                     n, c, ih, iw, oh, ow,
                     kh, kw, sh, sw, pt, pb, pl, pr,
-                    is_global, do_relu);
+                    is_global, do_relu, count_include_pad);
     } else if (isa<tpu::TG_INT8_PoolMax2DOp>(im_layer->op())) {
       auto op = cast<tpu::TG_INT8_PoolMax2DOp>(im_layer->op());
-      bool is_global, do_relu;
+      bool is_global, do_relu, count_include_pad;
       int n, c, ih, iw, oh, ow, kw, sw, pb, pl, pr;
       parsePoolParam(op.param(), op.input(), op.output(),
                     n, c, ih, iw, oh, ow,
                     kh, kw, sh, sw, pt, pb, pl, pr,
-                    is_global, do_relu);
+                    is_global, do_relu, count_include_pad);
     }
   }
 

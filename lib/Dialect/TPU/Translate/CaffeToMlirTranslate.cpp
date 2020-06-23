@@ -1474,6 +1474,7 @@ void CaffeImporter::convertPoolingLayer(mlir::Block *block, caffe::Layer<float> 
                           builder_.getI32IntegerAttr(stride[0]),     // stride_h
                           builder_.getI32IntegerAttr(stride[1]),     // stride_w
                           builder_.getBoolAttr(false),               // do_relu
+                          builder_.getBoolAttr(true),               // count_include_pad (caffe always true)
                           builder_.getContext())));
   attrs.push_back(builder_.getNamedAttr("quant", getDefaultQuantParam(builder_)));
 

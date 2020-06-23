@@ -270,14 +270,15 @@ int mkldnn_deconv(float *input, float *weight, float *bias,
 int mkldnn_pool(float *input, float *output,
     int n, int c, int ih, int iw, int oh, int ow,
     int kh, int kw, int sh, int sw, int pt, int pb, int pl, int pr,
-    bool is_avg) {
-  LLVM_DEBUG(
-    llvm::errs() << "mkldnn_pool: "<< "  i: (" << ih << "*" << iw << "), "
-              << "o: (" << oh << "*" << ow << "), "
-              << "k: (" << kh << "*" << kw << "), "
-              << "s: (" << sh << ", " << sw << "), "
-              << "p: (" << pt << ", " << pb  << ", " << pl << ", "  << pr << "), " << "\n";
-  );
+    bool is_avg, bool count_include_pad) {
+  LLVM_DEBUG(llvm::errs() << "mkldnn_pool: "
+                          << "  i: (" << ih << "*" << iw << "), "
+                          << "o: (" << oh << "*" << ow << "), "
+                          << "k: (" << kh << "*" << kw << "), "
+                          << "s: (" << sh << ", " << sw << "), "
+                          << "p: (" << pt << ", " << pb << ", " << pl << ", "
+                          << pr << "), count_include_pad"
+                          << ": " << count_include_pad << "\n";);
 
 #ifdef DUMP_FLAG
   static int dump_idx = 0;
@@ -320,12 +321,15 @@ int mkldnn_pool(float *input, float *output,
   // md
   //auto src_md = memory::desc({ src_tz }, dt::f32, tag::any);
   //auto dst_md = memory::desc({ dst_tz }, dt::f32, tag::any);
-
+  auto pool_avg_algo = count_include_pad
+                           ? algorithm::pooling_avg_include_padding
+                           : algorithm::pooling_avg_exclude_padding;
   // pool desc
-  auto pool_desc = pooling_forward::desc(prop_kind::forward_inference,
-      is_avg ? algorithm::pooling_avg_include_padding : algorithm::pooling_max,
-      user_src_memory.get_desc(), user_dst_memory.get_desc(),
-      strides, kernel, padding_t_l, padding_b_r);
+  auto pool_desc = pooling_forward::desc(
+      prop_kind::forward_inference,
+      is_avg ? pool_avg_algo : algorithm::pooling_max,
+      user_src_memory.get_desc(), user_dst_memory.get_desc(), strides, kernel,
+      padding_t_l, padding_b_r);
   auto prim_desc = pooling_forward::primitive_desc(pool_desc, eng);
 
   // do reorder if needed

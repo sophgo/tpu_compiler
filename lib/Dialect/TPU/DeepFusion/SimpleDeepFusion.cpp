@@ -218,12 +218,12 @@ private:
   template <typename Opty>
   void analyzePool2DOpParam(Opty &op, llvm::raw_ostream &os,
       bool is_average) {
-    bool is_global, do_relu;
+    bool is_global, do_relu, count_include_pad;
     int n, c, ih, iw, oh, ow, kh, kw, sh, sw, pt, pb, pl, pr;
     parsePoolParam(op.param(), op.input(), op.output(),
                    n, c, ih, iw, oh, ow,
                    kh, kw, sh, sw, pt, pb, pl, pr,
-                   is_global, do_relu);
+                   is_global, do_relu, count_include_pad);
 
     uint64_t mac_count = ow * oh * kh * kw * c * n;
     stats->increaseMacCount(mac_count);

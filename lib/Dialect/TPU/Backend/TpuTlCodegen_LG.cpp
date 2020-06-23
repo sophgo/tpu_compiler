@@ -661,12 +661,12 @@ LogicalResult tpu::TL_LG_INT8_PoolAvg2DOp::codegen(void *ctx) {
   int layer_id = mlir::getOpLayerId(op);
   TensorFile *wTF = getWeightTensorFile(op);
 
-  bool is_global, do_relu;
+  bool is_global, do_relu, count_include_pad;
   int n, c, ih, iw, oh, ow, kh, kw, sh, sw, pt, pb, pl, pr;
   parsePoolParam(param(), input(), output(),
                  n, c, ih, iw, oh, ow,
                  kh, kw, sh, sw, pt, pb, pl, pr,
-                 is_global, do_relu);
+                 is_global, do_relu, count_include_pad);
 
   laddr_t la_input = this->la_input().getLimitedValue();
   laddr_t la_output = this->la_output().getLimitedValue();
@@ -697,12 +697,12 @@ LogicalResult tpu::TL_LG_INT8_PoolMax2DOp::codegen(void *ctx) {
   int layer_id = mlir::getOpLayerId(op);
   TensorFile *wTF = getWeightTensorFile(op);
 
-  bool is_global, do_relu;
+  bool is_global, do_relu, count_include_pad;
   int n, c, ih, iw, oh, ow, kh, kw, sh, sw, pt, pb, pl, pr;
   parsePoolParam(param(), input(), output(),
                  n, c, ih, iw, oh, ow,
                  kh, kw, sh, sw, pt, pb, pl, pr,
-                 is_global, do_relu);
+                 is_global, do_relu, count_include_pad);
 
   laddr_t la_input = this->la_input().getLimitedValue();
   laddr_t la_output = this->la_output().getLimitedValue();
