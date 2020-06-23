@@ -1916,7 +1916,9 @@ def TPU_YoloDetectionOp : TPU_Op<"yolo_detection",
 def TPU_PadOp: TPU_Op<"pad",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>]> {
+       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
+       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
+       DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
   let summary = "Pad operator";
 
   let description = [{
@@ -1927,6 +1929,10 @@ def TPU_PadOp: TPU_Op<"pad",
 
     Attributes:
       `name`            : required, name for calibration, comparing, or debug.
+      `pads`            : tensor containing the number of start and end
+                          pad values for axis
+      `const_val`       : A scalar value to be used if the mode
+                          chosen is `constant` (by default it is 0).
       `layer_id`        : optional, id for profiling.
       `chipname`        : optional, chipname.
 
@@ -1937,13 +1943,16 @@ def TPU_PadOp: TPU_Op<"pad",
       `NoSideEffect`
       `TpuOpCommonInterface` : support common TPU Op interface
       `TpuOpInterpInterface` : support interperter
+      `TpuOpQuantInterface`  : support quantization
+      `TpuOpLowerInterface`  : support lower to TPU TG Ops
   }];
 
   let arguments = (
     ins AnyTensor:$input,
+    TPU_QuantParamAttr:$quant,
     StrAttr:$name,
     OptionalAttr<I32ArrayAttr>:$pads,
-    OptionalAttr<F32Attr>:$const_val,
+    DefaultValuedAttr<F32Attr, "0">:$const_val,
     OptionalAttr<NonNegativeI32Attr>:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );

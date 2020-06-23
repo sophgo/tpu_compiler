@@ -2533,7 +2533,7 @@ LogicalResult tpu::PadOp::interpret(
 
   // parse param
   std::vector<int32_t> pads;
-  auto const_val = this->const_val().getValue().convertToFloat();
+  auto const_val = this->const_val().convertToFloat();
   arrayAttrToVector(this->pads().getValue(), pads);
 
   std::vector<int64_t> input_shape = getTensorShape(this->input());

@@ -1202,4 +1202,57 @@ def TPU_TG_CallOp : TPU_Op <"tg_call",
   let results = (outs Variadic<AnyType>);
 }
 
+class TPU_TG_PadOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
+  let summary = "TG " # opQuant # " Pad operator.";
+
+  let description = [{
+    Inputs:
+      `input`           : required, the input activation memref.
+
+    Attributes:
+      `scale`           : required, scale for upsampling.
+      `region`          : required, the memory region to reside in, could be
+                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
+                          (backend does not support `INPUT`, `OUTPUT` for now)
+      `gaddr`           : optional, address in global memory, normally the
+                          offset within the memory region.
+      `buffer_reused`   : optional, whether buffer is reused.
+      `pads`            : tensor containing the number of start and end
+                          pad values for axis
+      `const_val`       : A scalar value to be used if the mode
+                          chosen is `constant` (by default it is 0).
+      `name`            : required, name for comparing, or debug.
+      `layer_id`        : optional, id for profiling.
+      `chipname`        : optional, chipname.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface`    : support common TPU TG Op interface.
+      `TpuTGOpCodegenInterface` : support generate TPU instuctions.
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
+    OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    OptionalAttr<BoolAttr>:$buffer_reused,
+    OptionalAttr<I32ArrayAttr>:$pads,
+    DefaultValuedAttr<F32Attr, "0">:$const_val,
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+def TPU_TG_INT8_PadOp : TPU_TG_PadOp<"tg_int8_pad", "Int8">;
+def TPU_TG_BF16_PadOp : TPU_TG_PadOp<"tg_bf16_pad", "Bf16">;
+
+
 #endif // TPU_TG_OPS

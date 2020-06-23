@@ -181,6 +181,8 @@ struct BackendOverwriteThresholdDefaultPattern : public RewritePattern {
       setOpThreshold(formerOp, threshold_y);
     } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::ReluOp>(formerOp)) {
       setOpThreshold(formerOp, threshold_y);
+    }  else if (auto cast_op = llvm::dyn_cast_or_null<tpu::PadOp>(formerOp)) {
+      setOpThreshold(formerOp, threshold_y);
     }  else if (auto cast_op = llvm::dyn_cast_or_null<tpu::PoolMax2DOp>(formerOp)) {
       setOpThreshold(formerOp, threshold_y);
     } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::PermuteOp>(formerOp)) {
@@ -516,8 +518,9 @@ public:
                  /*|| isa<tpu::CustomOp>(op)*/) {
         // doesn't matter assigned or not
       } else {
-        llvm::errs() << "setThresholdFromMap didn't handle " << op->getName()
-                     << "\n";
+        std::string op_name = mlir::getOpName(op).str();
+        llvm::errs() << "setThresholdFromMap didn't handle op " << op->getName()
+                     << " layer name " << op_name << "\n";
         assert(false);
       }
     });
@@ -529,6 +532,7 @@ public:
     patterns.clear();
     patterns.insert<
         BypassThresholdDefaultPattern<tpu::ReorgOp>,
+        BypassThresholdDefaultPattern<tpu::PadOp>,
         BypassThresholdDefaultPattern<tpu::PixelShuffleOp>,
         BypassThresholdDefaultPattern<tpu::SliceOp>,
         BypassThresholdDefaultPattern<tpu::ShuffleChannelOp>,
@@ -554,12 +558,13 @@ public:
     applyPatternsGreedily(fn, patterns);
 
     if (clCaliOverwriteThresholdBackwardRelu) {
-      assert(!clCaliOverwriteThresholdForwardRelu);
+      //assert(!clCaliOverwriteThresholdForwardRelu);
       LLVM_DEBUG(llvm::errs() << "Backward overwrite threshold for all\n";);
       patterns.clear();
       patterns.insert<
           BackendOverwriteThresholdDefaultPattern<tpu::LeakyReluOp>,
           BackendOverwriteThresholdDefaultPattern<tpu::ReluOp>,
+          BackendOverwriteThresholdDefaultPattern<tpu::PadOp>,
           BackendOverwriteThresholdDefaultPattern<tpu::UpsampleOp>,
           BackendOverwriteThresholdDefaultPattern<tpu::PermuteOp>,
           BackendOverwriteThresholdDefaultPattern<tpu::CropOp>,
@@ -574,13 +579,14 @@ public:
       applyPatternsGreedily(fn, patterns);
     }
     if (clCaliOverwriteThresholdForwardRelu) {
-      assert(!clCaliOverwriteThresholdBackwardRelu);
+      //assert(!clCaliOverwriteThresholdBackwardRelu);
       LLVM_DEBUG(llvm::errs() << "Forward overwrite threshold for all\n";);
       patterns.clear();
       patterns.insert<
           ForwardOverwriteThresholdDefaultPattern<tpu::LeakyReluOp>,
           ForwardOverwriteThresholdDefaultPattern<tpu::ReluOp>,
           ForwardOverwriteThresholdDefaultPattern<tpu::UpsampleOp>,
+          ForwardOverwriteThresholdDefaultPattern<tpu::PadOp>,
           ForwardOverwriteThresholdDefaultPattern<tpu::PermuteOp>,
           ForwardOverwriteThresholdDefaultPattern<tpu::CropOp>,
           ForwardOverwriteThresholdDefaultPattern<tpu::PoolMax2DOp>

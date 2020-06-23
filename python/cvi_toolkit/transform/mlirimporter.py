@@ -363,7 +363,7 @@ class MLIRImporter(object):
         const_val_attr = self.module.floatAttr(const_val)
 
         return self.buildOp(TPU_OpType.Pad.value, inputOperands, [
-            tensor_output_type], name=pad_name, pads=pads_attr, const_val=const_val_attr)
+            tensor_output_type], name=pad_name, quant=self.quant_param, pads=pads_attr, const_val=const_val_attr)
 
 
     def add_custom_op(self, op_name, inputOperands, output_tensor_shape, **kargs):

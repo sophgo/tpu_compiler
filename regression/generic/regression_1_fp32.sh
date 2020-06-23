@@ -33,6 +33,7 @@ fi
 # assign layer_id right away, and apply all frontend optimizations
 # Notes: convert-bn-to-scale has to be done before canonicalizer
 mlir-opt \
+    --fuse-relu \
     --assign-layer-id \
     --assign-chip-name \
     --chipname ${SET_CHIP_NAME} \

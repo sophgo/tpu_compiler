@@ -516,6 +516,10 @@ class OnnxConverter(BaseConverter):
                     print(t_d)
                 tensor_datas.append(t_d)
 
+             # handle input0 shape(1, 1), intput1 shape (1,)
+            if np.array(tensor_datas[0]).size == np.array(tensor_datas[1]).size:
+              shape = np.array(tensor_datas[1]).shape
+              tensor_datas[0] = (np.array(tensor_datas[0]).reshape(shape)).tolist()
 
             n_t = np.concatenate(tuple(tensor_datas), axis=axis)
             self.addTensor(onnx_node.name, n_t, list(n_t.shape))
