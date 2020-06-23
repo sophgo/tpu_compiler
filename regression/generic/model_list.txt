@@ -1,6 +1,8 @@
 #
 # Name                   bs1      bs4      acc    bs1_ext  bs4_ext  acc_ext
 #
+
+# caffe
 resnet50                  Y        Y        N        N        N        Y
 vgg16                     N        N        N        Y        Y        N
 mobilenet_v1              Y        N        Y        N        Y        Y
@@ -24,11 +26,17 @@ yolo_v2_416               N        N        N        Y        N        N
 yolo_v3_608               N        N        N        Y        N        Y
 yolo_v3_416               Y        N        N        N        Y        Y
 yolo_v3_320               N        N        N        Y        Y        N
+
+# onnx
 resnet18                  Y        N        N        N        Y        N
 efficientnet_b0           Y        Y        N        N        N        N
 alphapose                 N        N        N        Y        Y        N
 espcn_3x                  Y        Y        N        N        N        N
 unet                      Y        Y        N        N        N        N
+
+# tensorflow
 mobilenet_v1_tf           Y        N        N        N        N        N
+mobilenet_v2_tf           Y        N        N        N        N        N
+
 
 # mobilenet_v3              N        N        N        Y        Y        N
