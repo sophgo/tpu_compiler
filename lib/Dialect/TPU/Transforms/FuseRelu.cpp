@@ -52,7 +52,12 @@ struct TpuFuseReluPattern : public RewritePattern {
 
     if (matchPattern(formerOp, m_Op<tpu::Conv2DOp>())) {
       auto convOp = cast<tpu::Conv2DOp>(formerOp);
-      assert(convOp.param().do_relu().getValue() == false);
+      if(convOp.param().do_relu().getValue() == true){
+        LLVM_DEBUG(llvm::errs() << convOp.getOperationName() << ":"
+                                << getOpName(convOp) << " is already fused relu"
+                                << "\n";);
+        return matchFailure();
+      }
       // set do_relu
       convOp.setAttr("param",
           tpu::ConvParam::get(
