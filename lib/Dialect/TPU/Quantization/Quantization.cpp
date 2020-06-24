@@ -505,6 +505,8 @@ struct TpuTpuQuantClipPassPattern : public RewritePattern {
       // update attr Only
       //auto formerConv2DOp = cast<tpu::Conv2DOp>(formerOp);
       setOpThreshold(formerOp, threshold_max);
+      auto layer_name = mlir::getOpName(clipOp).str();
+      formerOp->setAttr(llvm::StringRef("name"), rewriter.getStringAttr(layer_name));
 
       // remove clip
       rewriter.replaceOp(clipOp, {clipOp.getOperand(0)});
