@@ -130,7 +130,7 @@ static void insertQauntOp(Operation *op) {
         name = getOpName(prev_op).str() + "_dequant";
         layer_id = getOpLayerId(prev_op);
       } else if (curr_quant == "BF16") {
-        name = getOpName(op).str() + "_quant";
+        name = getOpName(prev_op).str() + "_quant";
         layer_id = getOpLayerId(op);
       } else if (prev_quant == "BF16") {
         name = getOpName(prev_op).str() + "_dequant";
