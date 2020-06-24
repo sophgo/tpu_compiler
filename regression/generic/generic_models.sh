@@ -1037,3 +1037,25 @@ export DO_DEEPFUSION=0
 export EXCEPTS=block_15_project_BN
 fi
 
+
+if [ $NET = "vgg16_tf" ]; then
+export MODEL_TYPE="tensorflow"
+export MODEL_DEF=$MODEL_PATH/imagenet/vgg/tensorflow/vgg16
+export MODEL_DAT=""
+export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/generic/regression_0_tensorflow.sh
+export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/vgg16_tf_threshold_table_1000
+export IMAGE_RESIZE_DIMS=256,256
+export NET_INPUT_DIMS=224,224
+export DATA_FORMAT="nhwc"
+export RAW_SCALE=255
+export MODEL_CHANNEL_ORDER="bgr"
+export MEAN=103.939,116.779,123.68 # in BGR
+export STD=1,1,1
+export INPUT_SCALE=1.0
+export INPUT=input
+export TOLERANCE_INT8_MULTIPLER=0.99,0.99,0.90
+export DO_QUANT_BF16=0
+export DO_E2E=0
+export DO_DEEPFUSION=0
+export EXCEPTS=block_15_project_BN
+fi
