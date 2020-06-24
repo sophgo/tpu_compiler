@@ -222,6 +222,7 @@ LogicalResult tpu::ConcatOp::interpret(
   auto tmp_resultT = std::make_unique<std::vector<float> >(0);
   int shift_idx_c=0;
   int shift_idx_h=0;
+  int shift_idx_w=0;
   int tmp_w=0;
   int tmp_h = 0;
   for (uint32_t i = 0; i < nInputs; i++) {
@@ -257,14 +258,38 @@ LogicalResult tpu::ConcatOp::interpret(
         for (uint32_t idx_n = 0; idx_n < n; idx_n++) {
           for (uint32_t idx_c = 0; idx_c < c ;idx_c++) {
             auto shapeT = std::make_unique<std::vector<float> >(h * w);
-            int insert_offset = (idx_n * c * h + (idx_c + 1) * shift_idx_h + idx_c * h) * w;
+            int insert_offset = (idx_n * c * (h + shift_idx_h) + (idx_c + 1) * shift_idx_h + idx_c * h) * w;
             shapeT.get()->assign(&input_data[(idx_n * c + idx_c) * h * w], &input_data[(idx_n * c + (idx_c + 1)) * h * w]);
             tmp_resultT.get()->insert(tmp_resultT.get()->begin() + insert_offset, shapeT->begin(), shapeT->end());
           }
         }
         shift_idx_h += h;
-      } else {
-        llvm_unreachable("not support concat_axis >=3 now\n");
+      } else if (concat_axis == 3) {
+        for (uint32_t idx_n = 0; idx_n < n; idx_n++) {
+          for (uint32_t idx_c = 0; idx_c < c ;idx_c++) {
+            for (uint32_t idx_h = 0; idx_h < h ;idx_h++) {
+              auto shapeT = std::make_unique<std::vector<float> >(w);
+              int insert_offset =
+                idx_n * c * h * (w + shift_idx_w)+
+                idx_c * h * (w + shift_idx_w) +
+                (idx_h + 1) * shift_idx_w +
+                idx_h * w;
+
+              shapeT.get()->assign(
+                  &input_data[(idx_n * c * h + idx_c * h + idx_h) * w],
+                  &input_data[(idx_n * c * h + idx_c * h + (idx_h + 1)) * w]);
+
+              tmp_resultT.get()->insert(
+                  tmp_resultT.get()->begin() + insert_offset,
+                  shapeT->begin(), shapeT->end());
+            }
+          }
+        }
+        shift_idx_w += w;
+        shift_idx_h += h;
+      }
+      else {
+        llvm_unreachable("concat_axis only support 0,1,2,3 now\n");
       }
     } else if (shape.size() == 2) {
       h = shape[0];
