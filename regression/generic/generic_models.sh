@@ -29,7 +29,7 @@ export DO_ACCURACY_FP32_INTERPRETER=0
 export DO_ACCURACY_INTERPRETER=1
 export DO_E2E=1
 export DO_PREPROCESS=0
-export USE_LAYERGROUP=0
+export USE_LAYERGROUP=1
 export EVAL_MODEL_TYPE="imagenet"
 export CUSTOM_OP_PLUGIN="$INSTALL_PATH/lib/custom_op/libCustomOpPlugin.so"
 export DO_NN_TOOLKIT=0
@@ -64,7 +64,6 @@ export TOLERANCE_INT8_MULTIPLER=0.96,0.95,0.73
 export TOLERANCE_BF16=0.99,0.99,0.89
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.9
 export DO_LAYERGROUP=1
-export USE_LAYERGROUP=0
 export DO_NN_TOOLKIT=1
 # export BATCH_SIZE=4
 export DO_PREPROCESS=0
@@ -97,7 +96,6 @@ export TOLERANCE_INT8_MULTIPLER=0.99,0.99,0.91
 export TOLERANCE_BF16=0.99,0.99,0.96
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
 export DO_LAYERGROUP=1
-export USE_LAYERGROUP=1
 export DO_PREPROCESS=0
 if [ $DO_PREPROCESS -eq 1 ]; then
   export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table_preprocess
@@ -129,7 +127,6 @@ export TOLERANCE_BF16=0.99,0.99,0.97
 export DO_CMDBUF_BF16=0
 #export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
 export DO_LAYERGROUP=1
-export USE_LAYERGROUP=1
 export DO_PREPROCESS=0
 if [ $DO_PREPROCESS -eq 1 ]; then
   export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table_preprocess
@@ -160,7 +157,6 @@ export TOLERANCE_BF16=0.99,0.99,0.93
 export DO_CMDBUF_BF16=0
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
 export DO_LAYERGROUP=1
-export USE_LAYERGROUP=1
 export DO_PREPROCESS=0
 if [ $DO_PREPROCESS -eq 1 ]; then
   export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table_preprocess
@@ -191,7 +187,6 @@ export TOLERANCE_BF16=0.99,0.99,0.89
 export DO_CMDBUF_BF16=0
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.93
 export DO_LAYERGROUP=1
-export USE_LAYERGROUP=1
 export DO_PREPROCESS=0
 if [ $DO_PREPROCESS -eq 1 ]; then
   export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table_preprocess
@@ -224,7 +219,6 @@ export TOLERANCE_BF16=0.99,0.99,0.94
 export DO_CMDBUF_BF16=1
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
 export DO_LAYERGROUP=1
-export USE_LAYERGROUP=1
 export DO_PREPROCESS=0
 if [ $DO_PREPROCESS -eq 1 ]; then
   export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table_1000_preprocess
@@ -258,7 +252,6 @@ export TOLERANCE_BF16=0.99,0.99,0.92
 export DO_CMDBUF_BF16=0   # this is a bug to fix
 # export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
 export DO_LAYERGROUP=1
-export USE_LAYERGROUP=1
 export DO_PREPROCESS=0
 if [ $DO_PREPROCESS -eq 1 ]; then
   export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table_1000_preprocess
@@ -361,7 +354,6 @@ export TOLERANCE_INT8_MULTIPLER=0.92,0.92,0.57
 export TOLERANCE_BF16=0.99,0.99,0.94
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
 export DO_LAYERGROUP=1
-export USE_LAYERGROUP=1
 export DO_PREPROCESS=0
 if [ $DO_PREPROCESS -eq 1 ]; then
   export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table_preprocess
@@ -389,7 +381,6 @@ export TOLERANCE_INT8_MULTIPLER=0.9,0.9,0.56
 export TOLERANCE_BF16=0.99,0.99,0.93
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.93
 export DO_LAYERGROUP=1
-export USE_LAYERGROUP=1
 export DO_PREPROCESS=0
 if [ $DO_PREPROCESS -eq 1 ]; then
   export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table_preprocess
@@ -422,8 +413,7 @@ export DO_QUANT_BF16=0
 export TOLERANCE_BF16=0.99,0.99,0.94
 export DO_CMDBUF_BF16=0
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
-export DO_LAYERGROUP=0
-export USE_LAYERGROUP=0
+export DO_LAYERGROUP=1
 export DO_PREPROCESS=0
 if [ $DO_PREPROCESS -eq 1 ]; then
   export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table_1000_preprocess
@@ -456,8 +446,7 @@ export DO_QUANT_BF16=0
 export TOLERANCE_BF16=0.99,0.99,0.92
 export DO_CMDBUF_BF16=0
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.95
-export DO_LAYERGROUP=0
-export USE_LAYERGROUP=0
+export DO_LAYERGROUP=1
 export DO_PREPROCESS=0
 if [ $DO_PREPROCESS -eq 1 ]; then
   export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table_1000_preprocess
@@ -490,9 +479,9 @@ export DO_QUANT_BF16=0
 export TOLERANCE_BF16=0.99,0.99,0.99
 export DO_CMDBUF_BF16=0
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
-export DO_LAYERGROUP=0
 export USE_LAYERGROUP=0
 export DO_PREPROCESS=0
+export DO_LAYERGROUP=0
 if [ $DO_PREPROCESS -eq 1 ]; then
   export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table_1000_preprocess
   export IMAGE_PATH=$REGRESSION_PATH/data/cat.jpg
@@ -513,7 +502,6 @@ export DO_QUANT_INT8_PER_TENSOR=0
 export DO_QUANT_INT8_RFHIFT_ONLY=0
 export DO_QUANT_BF16=0
 export DO_LAYERGROUP=1
-export USE_LAYERGROUP=0
 # accuracy setting
 export EVAL_MODEL_TYPE="lfw"
 #export DO_ACCURACY_CAFFE=0
@@ -531,7 +519,6 @@ export DO_QUANT_INT8_PER_TENSOR=0
 export DO_QUANT_INT8_RFHIFT_ONLY=0
 export DO_QUANT_BF16=0
 export DO_LAYERGROUP=1
-export USE_LAYERGROUP=1
 # accuracy setting
 export NET_INPUT_DIMS=600,600
 export EVAL_MODEL_TYPE="widerface"
@@ -555,7 +542,6 @@ export DO_QUANT_INT8_PER_TENSOR=0
 export DO_QUANT_INT8_RFHIFT_ONLY=0
 export DO_QUANT_BF16=0
 export DO_LAYERGROUP=1
-export USE_LAYERGROUP=1
 # accuracy setting
 export NET_INPUT_DIMS=320,320
 export EVAL_MODEL_TYPE="widerface"
@@ -578,7 +564,6 @@ export DO_QUANT_INT8_PER_TENSOR=0
 export DO_QUANT_INT8_RFHIFT_ONLY=0
 export DO_QUANT_BF16=0
 export DO_LAYERGROUP=1
-export USE_LAYERGROUP=0
 # accuracy setting
 export NET_INPUT_DIMS=600,600
 export EVAL_MODEL_TYPE="widerface"
@@ -607,7 +592,6 @@ export TOLERANCE_INT8_RSHIFT_ONLY=0.98,0.98,0.81
 export TOLERANCE_INT8_MULTIPLER=0.99,0.99,0.88
 export DO_QUANT_BF16=0
 export DO_LAYERGROUP=1
-export USE_LAYERGROUP=1
 # accuracy setting
 export EVAL_MODEL_TYPE="coco"
 export EVAL_SCRIPT_CAFFE="eval_caffe_detector_ssd.py"
@@ -639,7 +623,7 @@ export TOLERANCE_INT8_PER_TENSOR=0.93,0.87,0.62
 export TOLERANCE_INT8_RSHIFT_ONLY=0.97,0.97,0.70
 export TOLERANCE_INT8_MULTIPLER=0.98,0.96,0.77
 export DO_QUANT_BF16=0
-#export DO_LAYERGROUP=1
+export DO_LAYERGROUP=1
 export EVAL_MODEL_TYPE="voc2012"
 export EVAL_SCRIPT_VOC="eval_detector_voc.py"
 fi
@@ -677,7 +661,6 @@ export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.93
 export DO_DEEPFUSION=1
 export DO_MEMOPT=1
 export DO_LAYERGROUP=1
-export USE_LAYERGROUP=0
 fi
 
 if [ $NET = "yolo_v3_608" ]; then
@@ -697,7 +680,6 @@ export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.93
 export DO_DEEPFUSION=1
 export DO_MEMOPT=1
 export DO_LAYERGROUP=1
-export USE_LAYERGROUP=0
 fi
 
 if [ $NET = "yolo_v3_416" ]; then
@@ -717,7 +699,6 @@ export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
 export DO_DEEPFUSION=1
 export DO_MEMOPT=1
 export DO_LAYERGROUP=1
-export USE_LAYERGROUP=0
 fi
 
 if [ $NET = "yolo_v3_416_onnx" ]; then
@@ -736,7 +717,6 @@ export DO_QUANT_BF16=0
 export DO_DEEPFUSION=1
 export DO_MEMOPT=1
 export DO_LAYERGROUP=1
-export USE_LAYERGROUP=0
 fi
 
 if [ $NET = "yolo_v3_320" ]; then
@@ -756,7 +736,6 @@ export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
 export DO_DEEPFUSION=1
 export DO_MEMOPT=1
 export DO_LAYERGROUP=1
-export USE_LAYERGROUP=0
 fi
 
 if [ $NET = "yolo_v3_160" ]; then
@@ -775,7 +754,6 @@ export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
 export DO_DEEPFUSION=1
 export DO_MEMOPT=1
 export DO_LAYERGROUP=1
-export USE_LAYERGROUP=0
 fi
 
 if [ $NET = "yolo_v3_512x288" ]; then
@@ -794,7 +772,6 @@ export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
 export DO_DEEPFUSION=1
 export DO_MEMOPT=1
 export DO_LAYERGROUP=1
-export USE_LAYERGROUP=0
 fi
 
 # check if the MODEL exists of caffe
@@ -832,7 +809,6 @@ export TOLERANCE_INT8_RSHIFT_ONLY=0.98,0.98,0.84
 export TOLERANCE_INT8_MULTIPLER=0.99,0.99,0.87
 export DO_QUANT_BF16=0
 export DO_LAYERGROUP=1
-export USE_LAYERGROUP=0
 # export TOLERANCE_BF16=0.99,0.99,0.94
 # export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
 fi
@@ -855,7 +831,6 @@ export INPUT=input
 export OUTPUTS_FP32=output
 export OUTPUTS=output
 export EXCEPTS=424_Mul,388_Sigmoid
-export USE_LAYERGROUP=1
 # export DO_QUANT_INT8_PER_TENSOR=1
 # export DO_QUANT_INT8_RFHIFT_ONLY=1
 # export TOLERANCE_INT8_PER_TENSOR=0.8,0.8,0.8
@@ -869,7 +844,6 @@ export DO_CMDBUF_BF16=0
 export DO_ACCURACY_CAFFE=0
 export DO_ACCURACY_ONNX=1
 export DO_LAYERGROUP=1
-export USE_LAYERGROUP=0
 fi
 
 if [ $NET = "alphapose" ]; then
@@ -892,7 +866,6 @@ export TOLERANCE_INT8_RSHIFT_ONLY=0.92,0.90,0.58
 export TOLERANCE_INT8_MULTIPLER=0.95,0.95,0.66
 export DO_QUANT_BF16=0
 export DO_LAYERGROUP=1
-export USE_LAYERGROUP=1
 # export TOLERANCE_BF16=0.99,0.99,0.94
 # export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
 fi
@@ -913,7 +886,6 @@ export TOLERANCE_INT8_RSHIFT_ONLY=0.97,0.96,0.80
 export TOLERANCE_INT8_MULTIPLER=0.98,0.97,0.81
 export DO_QUANT_BF16=0
 export DO_LAYERGROUP=1
-export USE_LAYERGROUP=1
 #export TOLERANCE_BF16=0.99,0.99,0.94
 #export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
 fi
@@ -942,7 +914,6 @@ export DO_QUANT_BF16=0
 export TOLERANCE_BF16=0.99,0.98,0.97
 export DO_CMDBUF_BF16=0
 export DO_LAYERGROUP=1
-export USE_LAYERGROUP=1
 export DO_PREPROCESS=0
 export EVAL_MODEL_TYPE="isbi"
 export DO_ACCURACY_CAFFE=0
