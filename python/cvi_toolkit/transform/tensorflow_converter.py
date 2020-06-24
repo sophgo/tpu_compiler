@@ -24,6 +24,7 @@ except ImportError as error:
 import logging
 import numpy as np
 import operator
+import functools
 
 logger = setup_logger('root')
 log_flag = logger.level <= logging.INFO
@@ -94,6 +95,7 @@ class TFConverter(BaseConverter):
             "DepthwiseConv2D": lambda node: self.convert_depthwise_conv_op(node),
             "Dense": lambda node: self.convert_fc_op(node),
             "Dropout":  lambda node: self.convert_skip_op(node),
+            "Flatten": lambda node: self.convert_flatten_op(node),
             "GlobalAveragePooling2D": lambda node: self.convert_global_avg_pool_op(node),
             "InputLayer": lambda node: None,
             "MaxPooling2D": lambda node: self.convert_maxpool_op(node),
@@ -344,6 +346,7 @@ class TFConverter(BaseConverter):
                 padding_l = 0
                 padding_r = 0
 
+        do_relu = node.config.get("activation", None) == "relu"
         conv_param = {
             'stride_h': stride_h,
             'stride_w': stride_w,
@@ -357,7 +360,7 @@ class TFConverter(BaseConverter):
             'group': 1,  # Don't have group option?
             'is_dw': False,
             'with_bias': node.config['use_bias'],
-            'do_relu': False,
+            'do_relu': do_relu,
         }
         on = shape[0]
         oc = filter_shape[0] # feature map size
@@ -508,22 +511,54 @@ class TFConverter(BaseConverter):
         K = shape[1]
         N = bias_shape[0]
         output_shape = [M, N]
+        fc_op = self.CVI.add_fully_connected_op("{}_fc".format(node.name), operands, output_shape)
+        self.addOperand("{}_fc".format(node.name), fc_op,
+                        output_shape, TensorType.ACTIVATION)
+        activation_operands = [fc_op]
         if node.config['activation'] == "softmax":
-            fc_op = self.CVI.add_fully_connected_op("{}_fc".format(node.name), operands, output_shape)
-            self.addOperand("{}_fc".format(node.name), fc_op,
-                            output_shape, TensorType.ACTIVATION)
-            softmax_operands = [fc_op]
             softmax_param = {
                 'axis': len(output_shape) - 1,
             }
-            softmax_op = self.CVI.add_softmax_op(
-                "{}".format(node.name), softmax_operands, output_shape, **softmax_param)
-
-            self.addOperand(node.name, softmax_op, output_shape,
-                            TensorType.ACTIVATION)
+            activation_op = self.CVI.add_softmax_op(
+               node.name, activation_operands, output_shape, **softmax_param)
+        elif node.config['activation'] == "relu":
+            activation_op = self.CVI.add_relu_op(node.name, activation_operands, output_shape)
         else:
             raise RuntimeError(
                 "TODO Activation is {}".format(node.config['activation']))
+
+        self.addOperand(node.name, activation_op, output_shape,
+                            TensorType.ACTIVATION)
+    def convert_flatten_op(self, node):
+        """
+        In Tensorflow, flatten channels_last means [n,h,w,c] -> [n,hwc]
+        But In milr, our order is [n,c,h,w] -> [n,chw]
+        tranpose [nchw] -> [nhwc] than reshape to [n,hwc]
+        if input dim less than 4, ignore
+        """
+        assert(node.op_type == "Flatten")
+        op, input_shape, _ = self.getOperand(node.inputs[0])
+        data_format = node.config.get('data_format')
+
+        if data_format != "channels_last":
+            raise RuntimeError("Not support {} data_format".format(data_format))
+        if len(input_shape) > 4:
+            raise RuntimeError("Todo, input dim is {} dim (only support <4 case)".format(len(input_shape)))
+        elif len(input_shape) == 4:
+            attr = {
+                        'order0': 0,
+                        'order1': 2,
+                        'order2': 3,
+                        'order3': 1,
+            }
+            permute_shape = [input_shape[0], input_shape[2], input_shape[3], input_shape[1]]
+            op = self.CVI.add_permute_op("{}_transpose".format(
+                node.name), [op], permute_shape, **attr)
+
+        reduce_shape = functools.reduce(operator.mul, input_shape[1:])
+        output_shape = [input_shape[0], reduce_shape]
+        reshape_op = self.CVI.add_reshape_op(node.name, [permute_op], output_shape)
+        self.addOperand(node.name, reshape_op, output_shape, TensorType.ACTIVATION)
 
     def convert_global_avg_pool_op(self, node):
         assert(node.op_type == "GlobalAveragePooling2D")

@@ -9,6 +9,8 @@ from numbers import Number
 import onnx
 import logging
 import numpy as np
+import operator
+import functools
 
 from .utils import calcConv2DSpatial, calcPool2DFloor, calcPool2DCeil, \
                     get_shape_size
@@ -716,7 +718,8 @@ class OnnxConverter(BaseConverter):
                 raise AttributeError("TODO: axis != 1 case")
 
             operands.append(op)
-            output_shape = [input_shape[0], input_shape[1]]
+            reduce_shape = functools.reduce(operator.mul, input_shape[1:])
+            output_shape = [input_shape[0], reduce_shape]
             reshape_op = self.CVI.add_reshape_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
             self.addOperand(onnx_node.name, reshape_op, output_shape, TensorType.ACTIVATION)
 
