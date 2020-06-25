@@ -99,7 +99,7 @@ private:
                    n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr,
                    dh, dw, is_dw, with_bias, do_relu);
 
-    uint64_t mac_count = ow * oh * kh * kw * g * (ic / g) * (oc / g) * n;
+    uint64_t mac_count = (uint64_t)ow * oh * kh * kw * g * (ic / g) * (oc / g) * n;
     total_mac_count += mac_count;
     os << op.name() << "," << n << "," << g << ","
        << ic << "," << ih << "," << iw << ","
@@ -120,7 +120,7 @@ private:
                    kh, kw, sh, sw, pt, pb, pl, pr, is_global, do_relu,
                    count_include_pad);
 
-    uint64_t mac_count = ow * oh * kh * kw * c * n;
+    uint64_t mac_count = (uint64_t)ow * oh * kh * kw * c * n;
     total_mac_count += mac_count;
 
     os << op.name() << "," << n << "," << ","
@@ -136,7 +136,7 @@ private:
     int m, k, n;
     parseFullyConnectedParam(op.input(), op.output(), op.filter(), m, k, n);
 
-    uint64_t mac_count = m * k * n;
+    uint64_t mac_count = (uint64_t)m * k * n;
     total_mac_count += mac_count;
 
     os << op.name() << "," << m << "," << ","
