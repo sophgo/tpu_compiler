@@ -4,26 +4,24 @@ set -e
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
-generic_net_list=(
-  "resnet50"
-  "vgg16"
-  "mobilenet_v2"
-  "googlenet"
-  "inception_v3"
-  "inception_v4"
-  "shufflenet_v2"
-  "squeezenet"
-  "arcface_res50"
-  "retinaface_mnet25"
-  "retinaface_mnet25_600"
-  "retinaface_res50"
-  "ssd300"
-  "yolo_v3_416"
-  "yolo_v3_320"
-  "resnet18"
-  "efficientnet_b0"
-  "alphapose"
-)
+generic_net_list=()
+
+if [ -z $model_list_file ]; then
+  model_list_file=$DIR/generic/model_list.txt
+fi
+while read net bs1 bs4 acc bs1_ext bs4_ext acc_ext
+do
+  [[ $net =~ ^#.* ]] && continue
+  # echo "net='$net' bs1='$bs1' bs4='$bs4' acc='$acc' bs1_ext='$bs1_ext' bs4_ext='$bs4_ext' acc_ext='$acc_ext'"
+  if [ "$bs1" = "Y" ]; then
+    # echo "bs1 add $net"
+    generic_net_list+=($net)
+  fi
+  if [ "$bs1_ext" = "Y" ]; then
+    # echo "bs1_ext add $net"
+    generic_net_list+=($net)
+  fi
+done < ${model_list_file}
 
 extra_net_param()
 {
@@ -77,6 +75,7 @@ if [ ! -e cvimodel_release ]; then
   mkdir cvimodel_release
 fi
 
+err=0
 pushd cvimodel_release
 rm -rf working
 mkdir working
@@ -88,20 +87,104 @@ do
   pushd working
   NET=$net
   source $DIR/generic/generic_models.sh
+  echo "NET=$NET MODEL_TYPE=$MODEL_TYPE"
   if [ $MODEL_TYPE = "caffe" ]; then
-    if [ $DO_PREPROCESS -eq 1 ]; then
-      if [ $MODEL_CHANNEL_ORDER = "rgb" ]; then
-        RGB_ORDER=2,1,0
+    if [ $USE_LAYERGROUP = "1" ]; then
+      if [ $DO_PREPROCESS -eq 1 ]; then
+        if [ $MODEL_CHANNEL_ORDER = "rgb" ]; then
+          RGB_ORDER=2,1,0
+        else
+          RGB_ORDER=0,1,2
+        fi
+        $DIR/convert_model_caffe_lg_preprocess.sh \
+          ${MODEL_DEF} \
+          ${MODEL_DAT} \
+          ${RAW_SCALE} \
+          ${MEAN} \
+          ${INPUT_SCALE} \
+          ${RGB_ORDER} \
+          1 \
+          ${CALI_TABLE} \
+          ${NET}.cvimodel
       else
-        RGB_ORDER=0,1,2
+        $DIR/convert_model_caffe_lg.sh \
+          ${MODEL_DEF} \
+          ${MODEL_DAT} \
+          1 \
+          ${CALI_TABLE} \
+          ${NET}.cvimodel
       fi
-      $DIR/convert_model_caffe_df_preprocess.sh \
+    else
+      if [ $DO_PREPROCESS -eq 1 ]; then
+        if [ $MODEL_CHANNEL_ORDER = "rgb" ]; then
+          RGB_ORDER=2,1,0
+        else
+          RGB_ORDER=0,1,2
+        fi
+        $DIR/convert_model_caffe_df_preprocess.sh \
+          ${MODEL_DEF} \
+          ${MODEL_DAT} \
+          ${RAW_SCALE} \
+          ${MEAN} \
+          ${INPUT_SCALE} \
+          ${RGB_ORDER} \
+          1 \
+          ${CALI_TABLE} \
+          ${NET}.cvimodel
+      else
+        $DIR/convert_model_caffe_df.sh \
+          ${MODEL_DEF} \
+          ${MODEL_DAT} \
+          1 \
+          ${CALI_TABLE} \
+          ${NET}.cvimodel
+      fi
+    fi
+    mv ${NET}.cvimodel ..
+  elif [ $MODEL_TYPE = "onnx" ]; then
+    if [ $USE_LAYERGROUP = "1" ]; then
+      $DIR/convert_model_onnx_lg.sh \
+        ${MODEL_DEF} \
+        ${NET} \
+        1 \
+        ${CALI_TABLE} \
+        ${NET}.cvimodel
+    else
+      $DIR/convert_model_onnx_df.sh \
+        ${MODEL_DEF} \
+        ${NET} \
+        1 \
+        ${CALI_TABLE} \
+        ${NET}.cvimodel
+    fi
+    mv ${NET}.cvimodel ..
+  elif [ $MODEL_TYPE = "tensorflow" ]; then
+    echo "Not supported MODEL_TYPE=$MODEL_TYPE"
+  else
+    echo "Invalid MODEL_TYPE=$MODEL_TYPE"
+    err=1
+  fi
+  rm -f ./*
+  popd
+  if [ "$err" -ne 0 ]; then
+    rm -rf working
+    popd
+    exit 1
+  fi
+done
+
+# extra
+for net in ${extra_net_list[@]}
+do
+  echo "generate cvimodel for $net"
+  pushd working
+  NET=$net
+  extra_net_param $NET
+  if [ $MODEL_TYPE = "caffe" ]; then
+    if [ $USE_LAYERGROUP = "1" ]; then
+      $DIR/convert_model_caffe_lg.sh \
         ${MODEL_DEF} \
         ${MODEL_DAT} \
-        ${RAW_SCALE} \
-        ${MEAN} \
-        ${INPUT_SCALE} \
-        ${RGB_ORDER} \
         1 \
         ${CALI_TABLE} \
         ${NET}.cvimodel
@@ -113,50 +196,37 @@ do
         ${CALI_TABLE} \
         ${NET}.cvimodel
     fi
+    mv ${NET}.cvimodel ..
   elif [ $MODEL_TYPE = "onnx" ]; then
-    $DIR/convert_model_onnx_df.sh \
-      ${MODEL_DEF} \
-      ${NET} \
-      1 \
-      ${CALI_TABLE} \
-      ${NET}.cvimodel
+    if [ $USE_LAYERGROUP = "1" ]; then
+      $DIR/convert_model_onnx_lg.sh \
+        ${MODEL_DEF} \
+        ${NET} \
+        1 \
+        ${CALI_TABLE} \
+        ${NET}.cvimodel
+    else
+      $DIR/convert_model_onnx_df.sh \
+        ${MODEL_DEF} \
+        ${NET} \
+        1 \
+        ${CALI_TABLE} \
+        ${NET}.cvimodel
+    fi
+    mv ${NET}.cvimodel ..
+  elif [ $MODEL_TYPE = "tensorflow" ]; then
+    echo "Not supported MODEL_TYPE=$MODEL_TYPE"
   else
     echo "Invalid MODEL_TYPE=$MODEL_TYPE"
-    return 1
+    err=1
   fi
-  mv ${NET}.cvimodel ..
-  rm ./*
+  rm -f ./*
   popd
-done
-
-# extra
-for net in ${extra_net_list[@]}
-do
-  echo "generate cvimodel for $net"
-  pushd working
-  NET=$net
-  extra_net_param $NET
-  if [ $MODEL_TYPE = "caffe" ]; then
-    $DIR/convert_model_caffe_df.sh \
-      ${MODEL_DEF} \
-      ${MODEL_DAT} \
-      1 \
-      ${CALI_TABLE} \
-      ${NET}.cvimodel
-  elif [ $MODEL_TYPE = "onnx" ]; then
-    $DIR/convert_model_onnx_df.sh \
-      ${MODEL_DEF} \
-      ${NET} \
-      1 \
-      ${CALI_TABLE} \
-      ${NET}.cvimodel
-  else
-    echo "Invalid MODEL_TYPE=$MODEL_TYPE"
-    return 1
+  if [ "$err" -ne 0 ]; then
+    rm -rf working
+    popd
+    exit 1
   fi
-  mv ${NET}.cvimodel ..
-  rm ./*
-  popd
 done
 
 rm -rf working
