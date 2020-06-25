@@ -40,7 +40,51 @@ class CaffeConverter(BaseConverter):
 
         self.mlir_file_path = mlir_file_path
         self.converted_tensors = list()
+        self.input_shapes = list()
+        self.output_shapes = list()
+        self.CVI = None
+        self.init_importer()
+        self.output_tensor_file = "{}_1_06eeeb7e.npz".format(model_name)
+        self.caffeop_factory = {
+            'BatchNorm': lambda layer: self.convert_batchnorm_op(layer),
+            'Concat': lambda layer: self.convert_concat_op(layer),
+            'Convolution': lambda layer: self.convert_convolution_op(layer),
+            'ConvolutionDepthwise': lambda layer: self.convert_convolution_op(layer),
+            'Crop': lambda layer: self.convert_crop_op(layer),
+            'Deconvolution': lambda layer: self.convert_convolution_op(layer),
+            'DetectionOutput': lambda layer: self.convert_detection_output_op(layer),
+            'Dropout': lambda layer: self.convert_dropout_op(layer),
+            'DummyData': lambda layer: self.convert_dummydata_op(layer),
+            'Eltwise': lambda layer: self.convert_eltwise_op(layer),
+            'Flatten': lambda layer: self.convert_flatten_op(layer),
+            'InnerProduct': lambda layer: self.convert_inner_product_op(layer),
+            'Input': lambda layer: self.convert_input_op(layer),
+            'LRN': lambda layer: self.convert_lrn_op(layer),
+            'Normalize': lambda layer: self.convert_normalize_op(layer),
+            'Permute': lambda layer: self.convert_permute_op(layer),
+            'Pooling': lambda layer: self.convert_pooling_op(layer),
+            'Power': lambda layer: self.convert_power_op(layer),
+            'PReLU': lambda layer: self.convert_prelu_op(layer),
+            'PriorBox': lambda layer: self.convert_priorbox_op(layer),
+            'ReLU': lambda layer: self.convert_relu_op(layer),
+            'Reorg': lambda layer: self.convert_reorg_op(layer),
+            'Reshape': lambda layer: self.convert_reshape_op(layer),
+            'RetinaFaceDetection': lambda layer: self.convert_retinaface_detection_op(layer),
+            'Scale': lambda layer: self.convert_scale_op(layer),
+            'ShuffleChannel': lambda layer: self.convert_shufflechannel_op(layer),
+            'Sigmoid': lambda layer: self.convert_sigmoid_op(layer),
+            'Slice': lambda layer: self.convert_slice_op(layer),
+            'Softmax': lambda layer: self.convert_softmax_op(layer),
+            'Split': lambda layer: self.convert_split_op(layer),
+            'TanH': lambda layer: self.convert_tanh_op(layer),
+            'Upsample': lambda layer: self.convert_upsample_op(layer),
+            'YoloDetection': lambda layer: self.convert_yolo_detection_op(layer),
+        }
 
+    def __del__(self):
+        del self.CVI
+
+    def init_importer(self):
         self.input_shapes = list()
         for i in self.inputs:
             i_shape = list(self.blobs[i].shape)
@@ -51,47 +95,11 @@ class CaffeConverter(BaseConverter):
         for o in self.outputs:
             o_shape = list(self.blobs[o].shape)
             o_shape[0] = self.batch_size
+            for layer in self.layers:
+                if layer.name == o and layer.type == 'DetectionOutput':
+                    o_shape[2] = layer.detection_output_param.keep_top_k
             self.output_shapes.append(o_shape)
         self.CVI = MLIRImporter(self.input_shapes, self.output_shapes)
-        self.output_tensor_file = "{}_1_06eeeb7e.npz".format(model_name)
-        self.caffeop_factory = {
-            "BatchNorm": lambda layer: self.convert_batchnorm_op(layer),
-            "Concat": lambda layer: self.convert_concat_op(layer),
-            "Convolution": lambda layer: self.convert_convolution_op(layer),
-            "ConvolutionDepthwise": lambda layer: self.convert_convolution_op(layer),
-            "Crop": lambda layer: self.convert_crop_op(layer),
-            "Deconvolution": lambda layer: self.convert_convolution_op(layer),
-            "DetectionOutput": lambda layer: self.convert_detection_output_op(layer),
-            "Dropout": lambda layer: self.convert_dropout_op(layer),
-            "DummyData": lambda layer: self.convert_dummydata_op(layer),
-            "Eltwise": lambda layer: self.convert_eltwise_op(layer),
-            "Flatten": lambda layer: self.convert_flatten_op(layer),
-            "InnerProduct": lambda layer: self.convert_inner_product_op(layer),
-            "Input": lambda layer: self.convert_input_op(layer),
-            "LRN": lambda layer: self.convert_lrn_op(layer),
-            "Normalize": lambda layer: self.convert_normalize_op(layer),
-            "Permute": lambda layer: self.convert_permute_op(layer),
-            "Pooling": lambda layer: self.convert_pooling_op(layer),
-            "Power": lambda layer: self.convert_power_op(layer),
-            "PReLU": lambda layer: self.convert_prelu_op(layer),
-            "PriorBox": lambda layer: self.convert_priorbox_op(layer),
-            "ReLU": lambda layer: self.convert_relu_op(layer),
-            "Reorg": lambda layer: self.convert_reorg_op(layer),
-            "Reshape": lambda layer: self.convert_reshape_op(layer),
-            "RetinaFaceDetection": lambda layer: self.convert_retinaface_detection_op(layer),
-            "Scale": lambda layer: self.convert_scale_op(layer),
-            "ShuffleChannel": lambda layer: self.convert_shufflechannel_op(layer),
-            "Sigmoid": lambda layer: self.convert_sigmoid_op(layer),
-            "Slice": lambda layer: self.convert_slice_op(layer),
-            "Softmax": lambda layer: self.convert_softmax_op(layer),
-            "Split": lambda layer: self.convert_split_op(layer),
-            "TanH": lambda layer: self.convert_tanh_op(layer),
-            "Upsample": lambda layer: self.convert_upsample_op(layer),
-            "YoloDetection": lambda layer: self.convert_yolo_detection_op(layer),
-        }
-
-    def __del__(self):
-        del self.CVI
 
     def addTensor(self, op_name, tensor_data, tensor_shape):
         self.converted_tensors.append(CaffeTensor(
@@ -118,12 +126,17 @@ class CaffeConverter(BaseConverter):
     def blob_to_weight_op(self, layer, index, shape=None):
         name = layer.name + "_{}".format(index)
         blob = self.layer_dict[layer.name].blobs[index]
-        value = blob.data
-        weight_shape = list(blob.shape)
+        blob_shape = list(blob.shape)
+        value = np.array
+        new_shape = list(blob_shape)
         if shape != None:
-            weight_shape = [int(i) for i in shape]
-        self.addTensor(name, value, weight_shape)
-        weight_op = self.CVI.add_load_file_op(name, weight_shape)
+            new_shape = [int(i) for i in shape]
+        if new_shape == blob_shape:
+            value = blob.data
+        else:
+            value = blob.data.reshape(new_shape)
+        self.addTensor(name, value, new_shape)
+        weight_op = self.CVI.add_load_file_op(name, new_shape)
         return weight_op
 
     def convert_batchnorm_op(self, layer):
@@ -173,43 +186,6 @@ class CaffeConverter(BaseConverter):
         self.addOperand(layer.top[0], new_op,
                         output_shape, TensorType.ACTIVATION)
 
-    def convert_dropout_op(self, layer):
-        assert(layer.type == 'Dropout')
-        op, input_shape, _ = self.getOperand(layer.bottom[0])
-        self.addOperand(layer.top[0], op, input_shape, TensorType.ACTIVATION)
-
-    def convert_eltwise_op(self, layer):
-        assert(layer.type == 'Eltwise')
-        operands = list()
-        for bottom in layer.bottom:
-            op, _, _ = self.getOperand(bottom)
-            operands.append(op)
-        _, input_shape, _ = self.getOperand(layer.bottom[0])
-        p = layer.eltwise_param
-        assert(len(p.coeff) == 0)
-        operation = p.operation
-        output_shape = input_shape
-        if operation == 0:
-            new_op = self.CVI.add_eltwise_mul_op(
-                layer.name, operands, output_shape)
-            self.addOperand(layer.top[0], new_op, output_shape,
-                            TensorType.ACTIVATION)
-        elif operation == 1:
-            new_op = self.CVI.add_eltwise_add_op(
-                layer.name, operands, output_shape)
-            self.addOperand(layer.top[0], new_op, output_shape,
-                            TensorType.ACTIVATION)
-        elif operation == 2:
-            new_op = self.CVI.add_eltwise_max_op(
-                layer.name, operands, output_shape)
-            self.addOperand(layer.top[0], new_op, output_shape,
-                            TensorType.ACTIVATION)
-        elif operation == 3:
-            new_op = self.CVI.add_eltwise_min_op(
-                layer.name, operands, output_shape)
-            self.addOperand(layer.top[0], new_op, output_shape,
-                            TensorType.ACTIVATION)
-
     @staticmethod
     def calcConv2DSpatialOutput(_i_, _k_, _s_, _p_, _d_):
         return int(((_i_) + 2 * (_p_) - (_d_) * ((_k_)-1) - 1) / (_s_) + 1)
@@ -228,7 +204,7 @@ class CaffeConverter(BaseConverter):
         p = layer.convolution_param
         oc = p.num_output
         g = 1
-        if layer.type == "ConvolutionDepthwise":
+        if layer.type == 'ConvolutionDepthwise':
             g = oc
         else:
             g = p.group
@@ -320,6 +296,137 @@ class CaffeConverter(BaseConverter):
             self.addOperand(layer.top[0], new_op, output_shape,
                             TensorType.ACTIVATION)
 
+    def convert_crop_op(self, layer):
+        assert(layer.type == 'Crop')
+        op, input_shape, _ = self.getOperand(layer.bottom[0])
+        crop_op, crop_shape, _ = self.getOperand(layer.bottom[1])
+        p = layer.crop_param
+        input_dim = len(input_shape)
+        axis_index = p.axis
+        start_axis = axis_index
+        offset_size = len(p.offset)
+        if offset_size > 1:
+            assert(offset_size + axis_index <= input_dim)
+        output_shape = list(input_shape)
+        crop_offset = list(input_shape)
+        for i in range(input_dim):
+            offset = 0
+            new_size = input_shape[i]
+            if i >= start_axis:
+                new_size = crop_shape[i]
+                if offset_size == 1:
+                    # If only one offset is given, all crops have the same offset.
+                    offset = p.offset[0]
+                elif offset_size > 1:
+                    # For several offsets, the number of offsets must be equal to the
+                    # number of dimensions to crop, that is dimensions after the axis.
+                    offset = p.offset[i - start_axis]
+            output_shape[i] = new_size
+            crop_offset[i] = offset
+        # TODO(charle.hu):if crop_op is dummy op, need to erase?
+        operands = list()
+        operands.append(op)
+        param = {
+            'crop_offset': crop_offset,
+            'crop_shape': crop_shape
+        }
+        new_op = self.CVI.add_crop_op(
+            layer.name, operands, output_shape, **param)
+        self.addOperand(layer.top[0], new_op,
+                        output_shape, TensorType.ACTIVATION)
+
+    def convert_detection_output_op(self, layer):
+        assert(layer.type == "DetectionOutput")
+        _, input_shape, _ = self.getOperand(layer.bottom[0])
+        operands = list()
+        for bottom in layer.bottom:
+            op, _, _ = self.getOperand(bottom)
+            operands.append(op)
+        p = layer.detection_output_param
+        code_type = "CORNER"
+        if p.code_type == 2:
+            code_type = "CENTER_SIZE"
+        elif p.code_type == 3:
+            code_type = "CORNER_SIZE"
+        param = {
+            'num_classes': p.num_classes,
+            'share_location': p.share_location,
+            'background_label_id': p.background_label_id,
+            'nms_threshold': p.nms_param.nms_threshold,
+            'top_k': p.nms_param.top_k,
+            'code_type': code_type,
+            'keep_top_k': p.keep_top_k,
+            'confidence_threshold': p.confidence_threshold
+        }
+        assert(1.0 == p.nms_param.eta)
+        assert(False == p.variance_encoded_in_target)
+        output_shape = [input_shape[0], 1, p.keep_top_k, 7]
+        new_op = self.CVI.add_detection_output_op(
+            layer.name, operands, output_shape, **param)
+        self.addOperand(layer.top[0], new_op,
+                        output_shape, TensorType.ACTIVATION)
+
+    def convert_dropout_op(self, layer):
+        assert(layer.type == 'Dropout')
+        op, input_shape, _ = self.getOperand(layer.bottom[0])
+        self.addOperand(layer.top[0], op, input_shape, TensorType.ACTIVATION)
+
+    def convert_dummydata_op(self, layer):
+        assert(layer.type == 'DummyData')
+        operands = list()
+        p = layer.dummy_data_param
+        assert(len(p.shape) > 0)
+        output_shape = list(p.shape[0].dim)
+        new_op = self.CVI.add_dummydata_op(layer.name, operands, output_shape)
+        self.addOperand(layer.top[0], new_op,
+                        output_shape, TensorType.ACTIVATION)
+
+    def convert_eltwise_op(self, layer):
+        assert(layer.type == 'Eltwise')
+        operands = list()
+        for bottom in layer.bottom:
+            op, _, _ = self.getOperand(bottom)
+            operands.append(op)
+        _, input_shape, _ = self.getOperand(layer.bottom[0])
+        p = layer.eltwise_param
+        assert(len(p.coeff) == 0)
+        operation = p.operation
+        output_shape = input_shape
+        if operation == 0:
+            new_op = self.CVI.add_eltwise_mul_op(
+                layer.name, operands, output_shape)
+            self.addOperand(layer.top[0], new_op, output_shape,
+                            TensorType.ACTIVATION)
+        elif operation == 1:
+            new_op = self.CVI.add_eltwise_add_op(
+                layer.name, operands, output_shape)
+            self.addOperand(layer.top[0], new_op, output_shape,
+                            TensorType.ACTIVATION)
+        elif operation == 2:
+            new_op = self.CVI.add_eltwise_max_op(
+                layer.name, operands, output_shape)
+            self.addOperand(layer.top[0], new_op, output_shape,
+                            TensorType.ACTIVATION)
+        elif operation == 3:
+            new_op = self.CVI.add_eltwise_min_op(
+                layer.name, operands, output_shape)
+            self.addOperand(layer.top[0], new_op, output_shape,
+                            TensorType.ACTIVATION)
+
+    def convert_flatten_op(self, layer):
+        assert(layer.type == 'Flatten')
+        op, input_shape, _ = self.getOperand(layer.bottom[0])
+        operands = list()
+        operands.append(op)
+        num_dims = len(input_shape)
+        assert(num_dims > 1)
+        output_shape = [input_shape[0], 1]
+        for i in range(1, num_dims):
+            output_shape[1] *= input_shape[i]
+        new_op = self.CVI.add_reshape_op(layer.name, operands, output_shape)
+        self.addOperand(layer.top[0], new_op,
+                        output_shape, TensorType.ACTIVATION)
+
     def convert_inner_product_op(self, layer):
         assert(layer.type == 'InnerProduct')
         op, input_shape, _ = self.getOperand(layer.bottom[0])
@@ -380,29 +487,59 @@ class CaffeConverter(BaseConverter):
         self.addOperand(layer.top[0], new_op,
                         output_shape, TensorType.ACTIVATION)
 
-    def convert_relu_op(self, layer):
-        assert(layer.type == 'ReLU')
+    def convert_normalize_op(self, layer):
+        assert(layer.type == 'Normalize')
         op, input_shape, _ = self.getOperand(layer.bottom[0])
         operands = list()
         operands.append(op)
-        assert(len(input_shape) == 4 or len(input_shape) == 2)
-        negative_slope = 0.0
-        if layer.HasField('batch_norm_param'):
-            negative_slope = layer.batch_norm_param.negative_slope
-        output_shape = input_shape
-        if negative_slope == 0.0:
-            new_op = self.CVI.add_relu_op(
-                layer.name, operands, output_shape)
-            self.addOperand(layer.top[0], new_op, output_shape,
-                            TensorType.ACTIVATION)
+        p = layer.norm_param
+        param = {
+            'across_spatial': p.across_spatial,
+            'channel_shared': p.channel_shared,
+        }
+        assert(p.across_spatial)
+        assert(len(input_shape) == 4)
+        c = input_shape[1]
+        # scale
+        scale_shape = [1, c]
+        scale_name = layer.name + "_0"
+        blob = self.layer_dict[layer.name].blobs[0]
+        scale_data = np.array
+        if p.channel_shared:
+            assert(blob.count == 1)
+            value = blob.data.flatten()[0]
+            scale_data = np.array([[value for i in range(c)]], dtype=float)
         else:
-            param = {
-                'negative_slope': negative_slope
-            }
-            new_op = self.CVI.add_leaky_relu_op(
-                layer.name, operands, output_shape, **param)
-            self.addOperand(layer.top[0], new_op, output_shape,
-                            TensorType.ACTIVATION)
+            assert(blob.count == c)
+            scale_data = blob.data.reshape(scale_shape)
+        self.addTensor(scale_name, scale_data, scale_shape)
+        scale_op = self.CVI.add_load_file_op(scale_name, scale_shape)
+        operands.append(scale_op)
+        output_shape = input_shape
+        new_op = self.CVI.add_normalize_op(layer.name, operands, output_shape)
+        self.addOperand(layer.top[0], new_op,
+                        output_shape, TensorType.ACTIVATION)
+
+    def convert_permute_op(self, layer):
+        assert(layer.type == 'Permute')
+        op, input_shape, _ = self.getOperand(layer.bottom[0])
+        operands = list()
+        operands.append(op)
+        p = layer.permute_param
+        assert(len(p.order) == 4)
+        output_shape = list(input_shape)
+        for i in range(4):
+            output_shape[i] = input_shape[p.order[i]]
+        param = {
+            'order0': p.order[0],
+            'order1': p.order[1],
+            'order2': p.order[2],
+            'order3': p.order[3],
+        }
+        new_op = self.CVI.add_permute_op(
+            layer.name, operands, output_shape, **param)
+        self.addOperand(layer.top[0], new_op,
+                        output_shape, TensorType.ACTIVATION)
 
     def convert_pooling_op(self, layer):
         assert(layer.type == 'Pooling')
@@ -463,7 +600,8 @@ class CaffeConverter(BaseConverter):
             'padding_r': padding_br[1],
             'stride_h': stride[0],
             'stride_w': stride[1],
-            'do_relu': False
+            'do_relu': False,
+            'count_include_pad': True,
         }
         output_shape = [n, c, ofmap[0], ofmap[1]]
         if pool_method == 0:  # MAX
@@ -477,6 +615,254 @@ class CaffeConverter(BaseConverter):
             self.addOperand(layer.top[0], new_op, output_shape,
                             TensorType.ACTIVATION)
 
+    def convert_power_op(self, layer):
+        assert(layer.type == 'Power')
+        op, input_shape, _ = self.getOperand(layer.bottom[0])
+        operands = list()
+        operands.append(op)
+        p = layer.power_param
+        if p.shift == 0 and p.power == 1 and p.scale == 1:
+            # do nothing
+            return self.addOperand(layer.top[0], op, input_shape, TensorType.ACTIVATION)
+        param = {
+            'power': p.power,
+            'scale': p.scale,
+            'shift': p.shift,
+        }
+        output_shape = input_shape
+        new_op = self.CVI.add_power_op(
+            layer.name, operands, output_shape, **param)
+        self.addOperand(layer.top[0], new_op,
+                        output_shape, TensorType.ACTIVATION)
+
+    def convert_prelu_op(self, layer):
+        assert(layer.type == 'PReLU')
+        op, input_shape, _ = self.getOperand(layer.bottom[0])
+        operands = list()
+        operands.append(op)
+        assert(len(input_shape) == 4)
+        c = input_shape[1]
+        # negative_slope
+        slope_op = self.blob_to_weight_op(layer, 0, [1, c, 1, 1])
+        operands.append(slope_op)
+        output_shape = input_shape
+        new_op = self.CVI.add_prelu_op(layer.name, operands, output_shape)
+        self.addOperand(layer.top[0], new_op,
+                        output_shape, TensorType.ACTIVATION)
+
+    def convert_priorbox_op(self, layer):
+        assert(layer.type == 'PriorBox')
+        op0, input_shape0, _ = self.getOperand(layer.bottom[0])
+        op1, input_shape1, _ = self.getOperand(layer.bottom[1])
+        operands = list()
+        operands.append(op0)
+        operands.append(op1)
+        assert(len(input_shape0) == 4)
+        h = input_shape0[2]
+        w = input_shape0[3]
+        p = layer.prior_box_param
+        min_size_size = len(p.min_size)
+        max_size_size = len(p.max_size)
+        min_size = p.min_size[0]
+        max_size = 0.0
+        if max_size_size == 1:
+            max_size = p.max_size[0]
+        aspect_ratio_size = len(p.aspect_ratio)
+        assert(max_size_size <= 1 and min_size_size ==
+               1 and aspect_ratio_size <= 2)
+        param = {
+            'min_size': min_size,
+            'min_size_size': min_size_size,
+            'max_size': max_size,
+            'max_size_size': max_size_size,
+            'aspect_ratio0': p.aspect_ratio[0],
+            'aspect_ratios_size': aspect_ratio_size,
+            'flip': p.flip,
+            'clip': p.clip,
+            'variance0': p.variance[0],
+            'variance1': p.variance[1],
+            'variance2': p.variance[2],
+            'variance3': p.variance[3],
+            'step': p.step,
+            'offset': p.offset,
+        }
+        if aspect_ratio_size == 2:
+            param['aspect_ratio1'] = p.aspect_ratio[1]
+
+        aspect_ratios_ = list()
+        aspect_ratios_.append(1.0)
+        for i in range(aspect_ratio_size):
+            ar = p.aspect_ratio[i]
+            already_exist = False
+            for j in range(len(aspect_ratios_)):
+                if math.fabs(ar - aspect_ratios_[j]) < 1e-6:
+                    already_exist = True
+                    break
+            if not already_exist:
+                aspect_ratios_.append(ar)
+                if p.flip:
+                    aspect_ratios_.append(1.0 / ar)
+        num_priors = len(aspect_ratios_) * min_size_size + max_size_size
+        output_shape = [1, 2, int(h * w * num_priors * 4)]
+        new_op = self.CVI.add_priorbox_op(
+            layer.name, operands, output_shape, **param)
+        self.addOperand(layer.top[0], new_op,
+                        output_shape, TensorType.ACTIVATION)
+
+    def convert_relu_op(self, layer):
+        assert(layer.type == 'ReLU')
+        op, input_shape, _ = self.getOperand(layer.bottom[0])
+        operands = list()
+        operands.append(op)
+        assert(len(input_shape) == 4 or len(input_shape) == 2)
+        negative_slope = layer.relu_param.negative_slope
+        output_shape = input_shape
+        if negative_slope == 0.0:
+            new_op = self.CVI.add_relu_op(
+                layer.name, operands, output_shape)
+            self.addOperand(layer.top[0], new_op, output_shape,
+                            TensorType.ACTIVATION)
+        else:
+            param = {
+                'negative_slope': negative_slope
+            }
+            new_op = self.CVI.add_leaky_relu_op(
+                layer.name, operands, output_shape, **param)
+            self.addOperand(layer.top[0], new_op, output_shape,
+                            TensorType.ACTIVATION)
+
+    def convert_reorg_op(self, layer):
+        assert(layer.type == 'Reorg')
+        op, input_shape, _ = self.getOperand(layer.bottom[0])
+        operands = list()
+        operands.append(op)
+        assert(len(input_shape) == 4)
+        stride = layer.reorg_param.stride
+        output_shape = list(input_shape)
+        output_shape[0] = input_shape[0]
+        output_shape[1] = input_shape[1] * stride * stride
+        output_shape[2] = input_shape[2] / stride
+        output_shape[3] = input_shape[3] / stride
+        param = {
+            'stride': stride
+        }
+        new_op = self.CVI.add_reorg_op(
+            layer.name, operands, output_shape, **param)
+        self.addOperand(layer.top[0], new_op,
+                        output_shape, TensorType.ACTIVATION)
+
+    def convert_reshape_op(self, layer):
+        assert(layer.type == 'Reshape')
+        op, input_shape, _ = self.getOperand(layer.bottom[0])
+        operands = list()
+        operands.append(op)
+        num_dims = len(input_shape)
+        assert(num_dims == 4 or num_dims == 2)
+        p = layer.reshape_param
+        top_dims = list(p.shape.dim)
+        output_shape = list()
+        input_count = 1
+        for dim in input_shape:
+            input_count *= dim
+        if num_dims == 4:
+            num_axes = p.num_axes
+            start_axis = p.axis if p.axis >= 0 else (
+                num_dims + p.axis + 1)
+            assert(start_axis >= 0)
+            assert(start_axis <= num_dims)
+            assert(num_axes >= -1)
+            end_axis = num_dims if num_axes == -1 else (start_axis + num_axes)
+            assert(end_axis <= num_dims)
+
+            num_axes_replaced = end_axis - start_axis
+            num_axes_retained = num_dims - num_axes_replaced
+            num_new_axes = len(top_dims)
+
+            copy_axes = list()
+            inferred_axis = -1
+            constant_count = 1
+            for i in range(num_new_axes):
+                dim = top_dims[i]
+                if dim == 0:
+                    copy_axes.append(i)
+                elif dim == -1:
+                    assert(inferred_axis == -1)
+                    inferred_axis = i
+                else:
+                    constant_count *= dim
+            output_shape = [0] * (num_axes_retained + num_new_axes)
+            output_shape_index = 0
+            for i in range(start_axis):
+                output_shape[output_shape_index] = input_shape[i]
+                output_shape_index += 1
+            for i in range(num_new_axes):
+                output_shape[output_shape_index] = top_dims[i]
+                output_shape_index += 1
+            for i in range(end_axis, num_dims):
+                output_shape[output_shape_index] = input_shape[i]
+                output_shape_index += 1
+            assert(output_shape_index == len(output_shape))
+            for i in range(len(copy_axes)):
+                copy_axis_index = copy_axes[i]
+                assert(num_dims > start_axis + copy_axis_index)
+                output_shape[start_axis +
+                             copy_axis_index] = input_shape[start_axis + copy_axis_index]
+
+            if inferred_axis >= 0:
+                # A -1 dim was specified; infer the correct dimension by computing the
+                # product of the other dimensions.
+                explicit_count = constant_count
+                for i in range(start_axis):
+                    explicit_count *= input_shape[i]
+                for i in range(end_axis, num_dims):
+                    explicit_count *= input_shape[i]
+                for i in range(len(copy_axes)):
+                    copy_axis_index = copy_axes[i]
+                    explicit_count *= (output_shape[start_axis +
+                                                    copy_axis_index])
+                assert(0 == input_count % explicit_count)
+                inferred_dim = input_count / explicit_count
+                output_shape[start_axis + inferred_axis] = int(inferred_dim)
+        else:
+            # only support input shape size is 2 && output shape size is 3 case
+            assert(len(top_dims) == 3)
+            output_shape = [0, 0, 0]
+            inference_dim = 0
+            for i in range(len(top_dims)):
+                dim = top_dims[i]
+                if dim == 0:
+                    output_shape[i] = int(input_shape[i])
+                    input_count /= output_shape[i]
+                elif dim == -1:
+                    inference_dim = i
+                else:
+                    output_shape[i] = int(top_dims[i])
+                    input_count /= top_dims[i]
+            output_shape[inference_dim] = int(input_count)
+        new_op = self.CVI.add_reshape_op(layer.name, operands, output_shape)
+        self.addOperand(layer.top[0], new_op, output_shape,
+                        TensorType.ACTIVATION)
+
+    def convert_retinaface_detection_op(self, layer):
+        assert(layer.type == 'RetinaFaceDetection')
+        op, input_shape, _ = self.getOperand(layer.bottom[0])
+        operands = list()
+        operands.append(op)
+        p = layer.retinaface_detection_param
+        nms_threshold = p.nms_threshold
+        confidence_threshold = p.confidence_threshold
+        keep_topk = p.keep_topk
+        output_shape = [1, 1, keep_topk, 15]
+        param = {
+            'nms_threshold': nms_threshold,
+            'confidence_threshold': confidence_threshold,
+            'keep_topk': keep_topk,
+        }
+        new_op = self.CVI.add_retinaface_detection_op(
+            layer.name, operands, output_shape)
+        self.addOperand(layer.top[0], new_op, output_shape,
+                        TensorType.ACTIVATION)
+
     def convert_scale_op(self, layer):
         assert(layer.type == 'Scale')
         op, input_shape, _ = self.getOperand(layer.bottom[0])
@@ -486,8 +872,16 @@ class CaffeConverter(BaseConverter):
         assert(num_dims == 4 or num_dims == 2)
         if len(layer.bottom) == 2:
             # add broadcast mul
-            raise RuntimeError(
-                "{} with two bottom will support later".format(layer.type))
+            op1, _, _ = self.getOperand(layer.bottom[1])
+            operands.append(op1)
+            param = {
+                'axis': 1
+            }
+            output_shape = input_shape
+            new_op = self.CVI.add_broadcast_mul_op(
+                layer.name, operands, output_shape, **param)
+            self.addOperand(layer.top[0], new_op, output_shape,
+                            TensorType.ACTIVATION)
         else:
             with_bias = False
             if layer.HasField('scale_param') and layer.scale_param.HasField('bias_term'):
@@ -522,6 +916,17 @@ class CaffeConverter(BaseConverter):
         self.addOperand(layer.top[0], new_op,
                         output_shape, TensorType.ACTIVATION)
 
+    def convert_sigmoid_op(self, layer):
+        assert(layer.type == 'Sigmoid')
+        op, input_shape, _ = self.getOperand(layer.bottom[0])
+        operands = list()
+        operands.append(op)
+        output_shape = input_shape
+        new_op = self.CVI.add_sigmoid_op(
+            layer.name, operands, output_shape)
+        self.addOperand(layer.top[0], new_op,
+                        output_shape, TensorType.ACTIVATION)
+
     def convert_slice_op(self, layer):
         assert(layer.type == 'Slice')
         op, input_shape, _ = self.getOperand(layer.bottom[0])
@@ -553,8 +958,8 @@ class CaffeConverter(BaseConverter):
             output_shape = list(input_shape)
             output_shape[axis] = slices[i]
             param = {
-                "axis": axis,
-                "offset": offset,
+                'axis': axis,
+                'offset': offset,
             }
             new_op = self.CVI.add_slice_op("{}_{}".format(
                 layer.name, i), operands, output_shape, **param)
@@ -578,6 +983,61 @@ class CaffeConverter(BaseConverter):
             layer.name, operands, output_shape, **param)
         self.addOperand(layer.top[0], new_op, output_shape,
                         TensorType.ACTIVATION)
+
+    def convert_split_op(self, layer):
+        assert(layer.type == 'Split')
+        op, input_shape, _ = self.getOperand(layer.bottom[0])
+        # simply bypass, register top and bottom blobs to the same tensor
+        for top in layer.top:
+            self.addOperand(top, op, input_shape, TensorType.ACTIVATION)
+
+    def convert_tanh_op(self, layer):
+        assert(layer.type == 'TanH')
+        op, input_shape, _ = self.getOperand(layer.bottom[0])
+        operands = list()
+        operands.append(op)
+        output_shape = input_shape
+        new_op = self.CVI.add_tanh_op(
+            layer.name, operands, output_shape)
+        self.addOperand(layer.top[0], new_op,
+                        output_shape, TensorType.ACTIVATION)
+
+    def convert_upsample_op(self, layer):
+        assert(layer.type == 'Upsample')
+        op, input_shape, _ = self.getOperand(layer.bottom[0])
+        operands = list()
+        operands.append(op)
+        assert(len(input_shape) == 4)
+        scale = layer.upsample_param.scale
+        assert(scale == 2)
+        output_shape = [input_shape[0], input_shape[1],
+                        scale * input_shape[2], scale * input_shape[3]]
+        param = {
+            'scale': scale
+        }
+        new_op = self.CVI.add_upsample_op(
+            layer.name, operands, output_shape, **param)
+        self.addOperand(layer.top[0], new_op,
+                        output_shape, TensorType.ACTIVATION)
+
+    def convert_yolo_detection_op(self, layer):
+        assert(layer.type == 'YoloDetection')
+        op, input_shape, _ = self.getOperand(layer.bottom[0])
+        operands = list()
+        operands.append(op)
+        p = layer.yolo_detection_param
+        param = {
+            'net_input_h': p.net_input_h,
+            "net_input_w": p.net_input_w,
+            "nms_threshold": p.nms_threshold,
+            "obj_threshold": p.obj_threshold,
+            "keep_topk": p.keep_topk,
+        }
+        output_shape = [1, 1, p.keep_topk, 6]
+        new_op = self.CVI.add_yolo_detection_op(
+            layer.name, operands, output_shape, **param)
+        self.addOperand(layer.top[0], new_op,
+                        output_shape, TensorType.ACTIVATION)
 
     def convert_graph(self):
         """convert all to mlir"""
