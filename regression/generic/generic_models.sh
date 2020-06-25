@@ -774,17 +774,6 @@ export DO_MEMOPT=1
 export DO_LAYERGROUP=1
 fi
 
-# check if the MODEL exists of caffe
-if [ ! -f ${MODEL_DEF} ]; then
-  echo "cannot find the file ${MODEL_DEF}"
-  exit 1
-fi
-
-if [ ! -f ${MODEL_DAT} ]; then
-  echo "cannot find the file ${MODEL_DAT}"
-  exit 1
-fi
-
 if [ $NET = "resnet18" ]; then
 export MODEL_TYPE="onnx"
 export MODEL_DEF=$MODEL_PATH/imagenet/resnet/onnx/resnet18.onnx
@@ -890,8 +879,6 @@ export DO_LAYERGROUP=1
 #export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
 fi
 
-
-
 if [ $NET = "unet" ]; then
 export MODEL_TYPE="onnx"
 export MODEL_DEF=$MODEL_PATH/segmentation/unet/onnx/unet.onnx
@@ -925,13 +912,6 @@ if [ $DO_PREPROCESS -eq 1 ]; then
 else
   export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table_0
 fi
-fi
-
-
-# check if the MODEL exists of onnx case
-if [ ! -f ${MODEL_DEF} ]; then
-  echo "cannot find the file ${MODEL_DEF}"
-  exit 1
 fi
 
 if [ $NET = "resnet50_tf" ]; then
@@ -1007,7 +987,6 @@ export DO_E2E=0
 export DO_DEEPFUSION=0
 export EXCEPTS=block_15_project_BN
 fi
-
 
 if [ $NET = "vgg16_tf" ]; then
 export MODEL_TYPE="tensorflow"
