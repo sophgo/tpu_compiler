@@ -35,8 +35,10 @@ espcn_3x                  Y        Y        N        N        N        N
 unet                      Y        Y        N        N        N        N
 
 # tensorflow
-mobilenet_v1_tf           Y        N        N        N        N        N
+mobilenet_v1_tf           Y        Y        N        N        N        N
 mobilenet_v2_tf           Y        N        N        N        N        N
+resnet50_tf               Y        Y        N        N        N        N
+vgg16_tf                  Y        Y        N        N        N        N
 
 
 # mobilenet_v3              N        N        N        Y        Y        N

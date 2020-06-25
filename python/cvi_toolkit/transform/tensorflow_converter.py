@@ -557,7 +557,7 @@ class TFConverter(BaseConverter):
 
         reduce_shape = functools.reduce(operator.mul, input_shape[1:])
         output_shape = [input_shape[0], reduce_shape]
-        reshape_op = self.CVI.add_reshape_op(node.name, [permute_op], output_shape)
+        reshape_op = self.CVI.add_reshape_op(node.name, [op], output_shape)
         self.addOperand(node.name, reshape_op, output_shape, TensorType.ACTIVATION)
 
     def convert_global_avg_pool_op(self, node):
