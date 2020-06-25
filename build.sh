@@ -240,6 +240,16 @@ cmake --build . --target install
 popd
 cp $MLIR_SRC_PATH/externals/profiling/tool/performance.html $PROFILING_PATH/bin/
 
+# build python package
+pushd $MLIR_SRC_PATH
+if [ $PYTHON_VERSION == "2" ]; then
+  echo "Not support build python2 package"
+elif [ $PYTHON_VERSION == "3" ]; then
+  python3 setup/python3/setup.py bdist_wheel --dist-dir=$INSTALL_PATH/python3_package/ --plat-name="linux_x86_64"
+  python3 setup/python3/setup.py clean
+fi
+popd
+
 # Clean up some files for release build
 if [ "$1" = "RELEASE" ]; then
   if [ -z $INSTALL_PATH ]; then
@@ -256,11 +266,28 @@ if [ "$1" = "RELEASE" ]; then
   rm -f $INSTALL_PATH/bin/verify-uselistorder
   rm -f $INSTALL_PATH/bin/sanstats
   rm -f $INSTALL_PATH/bin/yaml2obj
+  rm -f $INSTALL_PATH/bin/obj2yaml
   rm -f $INSTALL_PATH/lib/*.a
   rm -f $INSTALL_PATH/lib/libLTO.so*
   rm -f $INSTALL_PATH/lib/libmlir_runner_utils.so*
   rm -f $INSTALL_PATH/lib/libRemarks.so*
   rm -rf $INSTALL_PATH/lib/cmake/
+  rm -f $INSTALL_PATH/regression_models.sh
+  rm -f $INSTALL_PATH/regression_models_e2e.sh
+  rm -f $INSTALL_PATH/regression_models_e2e_skip_preprocess.sh
+  # rm python3_package for now, as we release tar.gz for now
+  rm -rf $INSTALL_PATH/python3_package
+  # rm all test prgram
+  rm -f $INSTALL_PATH/bin/test_*
+  rm -f $INSTALL_PATH/bin/sample_*
+  # strip mlir tools
+  strip $INSTALL_PATH/bin/mlir-opt
+  strip $INSTALL_PATH/bin/mlir-tblgen
+  strip $INSTALL_PATH/bin/mlir-tblgen
+  strip $INSTALL_PATH/bin/mlir-tpu-interpreter
+  strip $INSTALL_PATH/bin/mlir-translate
+  strip $INSTALL_PATH/bin/cvi_profiling
+
   # install regression
   mkdir -p $INSTALL_PATH/regression
   cp -a $MLIR_SRC_PATH/regression/generic $INSTALL_PATH/regression/
@@ -270,6 +297,8 @@ if [ "$1" = "RELEASE" ]; then
   cp -a $MLIR_SRC_PATH/regression/convert_model_onnx_df.sh $INSTALL_PATH/regression/
   cp -a $MLIR_SRC_PATH/regression/convert_model_caffe_lg.sh $INSTALL_PATH/regression/
   cp -a $MLIR_SRC_PATH/regression/convert_model_onnx_lg.sh $INSTALL_PATH/regression/
+  cp -a $MLIR_SRC_PATH/regression/convert_model_caffe_df_preprocess.sh $INSTALL_PATH/regression/
+  cp -a $MLIR_SRC_PATH/regression/convert_model_caffe_lg_preprocess.sh $INSTALL_PATH/regression/
   cp -a $MLIR_SRC_PATH/regression/generate_all_cvimodels.sh $INSTALL_PATH/regression/
   cp -a $MLIR_SRC_PATH/regression/run_regression.sh $INSTALL_PATH/regression/
 
@@ -293,18 +322,7 @@ if [ "$1" = "RELEASE" ]; then
   popd
 fi
 
-# build python package
-pushd $MLIR_SRC_PATH
-if [ $PYTHON_VERSION == "2" ]; then
-  echo "Not support build python2 package"
-elif [ $PYTHON_VERSION == "3" ]; then
-  python3 setup/python3/setup.py bdist_wheel --dist-dir=$INSTALL_PATH/python3_package/ --plat-name="linux_x86_64"
-  python3 setup/python3/setup.py clean
-fi
-popd
-
 # SoC build
 if [ "$1" = "SOC" ]; then
 source build_soc.sh
 fi
-
