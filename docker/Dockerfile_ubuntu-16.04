@@ -1,7 +1,7 @@
 FROM ubuntu:16.04
 LABEL maintainer lei.wang@cvitek.com
 
-# Use cn.archive.ubuntu.com apt source;
+# Use aliyun apt source;
 # COPY sources-16.04.list /etc/apt/sources.list
 
 # ================== apt ==================
@@ -20,6 +20,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ssh-client \
     unzip \
     zip \
+    tree \
     python-dev \
     python-pip \
     python3-dev \
@@ -85,7 +86,7 @@ RUN rm -rf /var/lib/apt/lists/*
 # ================== pip ==================
 RUN pip install --upgrade pip
 # RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
-RUN pip config set global.index-url https://mirrors.aliyun.com/pypi/simple
+# RUN pip config set global.index-url https://mirrors.aliyun.com/pypi/simple
 RUN pip install --no-cache-dir --upgrade setuptools
 RUN pip install --no-cache-dir \
     Cython \
@@ -109,11 +110,7 @@ RUN pip install --no-cache-dir \
     tqdm \
     enum34 \
     termcolor \
-    opencv-python-headless \
-    PyWavelets==1.0.3 \
-    torch==1.4.0 \
-    torchvision==0.5.0 \
-    onnx
+    opencv-python-headless
 
 # ubuntu 16.04 version pip3 defalt version is broken
 # see  this github issue
@@ -123,12 +120,12 @@ RUN python3 get-pip.py --force-reinstall
 
 RUN pip3 install --upgrade pip
 # RUN pip3 config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
-RUN pip3 config set global.index-url https://mirrors.aliyun.com/pypi/simple
+# RUN pip3 config set global.index-url https://mirrors.aliyun.com/pypi/simple
 RUN pip3 install --no-cache-dir --upgrade setuptools
 RUN pip3 install --no-cache-dir \
     Cython \
     numpy \
-    scipy \
+    scipy==1.4.1 \
     scikit-image==0.15 \
     matplotlib \
     wheel \
@@ -164,9 +161,9 @@ RUN git clone https://github.com/cocodataset/cocoapi.git \
 COPY host-tools/gcc/gcc-linaro-6.3.1-2017.05-x86_64_aarch64-linux-gnu \
     /host-tools/gcc/gcc-linaro-6.3.1-2017.05-x86_64_aarch64-linux-gnu
 ENV PATH=/host-tools/gcc/gcc-linaro-6.3.1-2017.05-x86_64_aarch64-linux-gnu/bin:$PATH
-COPY host-tools/gcc/gcc-linaro-6.3.1-2017.05-x86_64_arm-linux-gnueabihf \
-    /host-tools/gcc/gcc-linaro-6.3.1-2017.05-x86_64_arm-linux-gnueabihf
-ENV PATH=/host-tools/gcc/gcc-linaro-6.3.1-2017.05-x86_64_arm-linux-gnueabihf/bin:$PATH
+COPY host-tools/gcc/gcc-linaro-6.3.1-2017.05-i686_arm-linux-gnueabihf \
+    /host-tools/gcc/gcc-linaro-6.3.1-2017.05-i686_arm-linux-gnueabihf
+ENV PATH=/host-tools/gcc/gcc-linaro-6.3.1-2017.05-i686_arm-linux-gnueabihf/bin:$PATH
 
 # ================== zoneinfo ==================
 COPY zoneinfo/PRC /usr/share/zoneinfo/PRC
