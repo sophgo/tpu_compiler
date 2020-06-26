@@ -19,10 +19,6 @@ if [[ ! -z $CUSTOM_OP_PLUGIN ]]; then
     CUSTOM_OP_PLUGIN_OPTION="--custom-op-plugin ${CUSTOM_OP_PLUGIN}"
 fi
 
-ONE=1
-
-if [ $ONE -eq 1 ]; then
-
 cvi_model_convert.py \
     --model_path $1 \
     --model_name $2 \
@@ -33,8 +29,6 @@ cvi_model_convert.py \
 mlir-opt fp32.mlir \
     --fuse-relu \
     --assign-layer-id \
-    --assign-chip-name \
-    --chipname ${SET_CHIP_NAME} \
     --convert-bn-to-scale \
     --canonicalize \
     --eltwise-early-stride \
@@ -45,8 +39,10 @@ mlir-opt \
     --import-calibration-table \
     --calibration-table $4 | \
 mlir-opt \
+    --assign-chip-name \
+    --chipname ${SET_CHIP_NAME} \
+    ${CUSTOM_OP_PLUGIN_OPTION} \
     --tpu-quant \
-    ${CUSTOM_OP_PLUGIN_OPTION}\
     --print-tpu-op-info \
     --tpu-op-info-filename op_info_int8.csv \
     -o int8.mlir
@@ -86,7 +82,6 @@ mlir-opt \
 mlir-opt \
     --convert-func-to-tensor \
     -o int8_tl_lw_memopt.mlir
-
 mlir-opt \
     --divide-ops-to-func \
     int8_tl_lw_memopt.mlir \
@@ -95,89 +90,7 @@ mlir-opt \
 mlir-translate \
     --mlir-to-cvimodel \
     --cvi-set-chip ${SET_CHIP_NAME} \
-    ${CUSTOM_OP_PLUGIN_OPTION}\
+    ${CUSTOM_OP_PLUGIN_OPTION} \
     --weight-file weight.bin \
     int8_tl_lw_memopt_func.mlir \
     -o $5
-
-else
-
-cvi_model_convert.py \
-    --model_path $1 \
-    --model_name $2 \
-    --model_type onnx \
-    --batch_size $3 \
-    --mlir_file_path fp32.mlir
-
-mlir-opt \
-    --assign-layer-id \
-    --assign-chip-name \
-    --chipname ${SET_CHIP_NAME} \
-    --convert-bn-to-scale \
-    --canonicalize \
-    --eltwise-early-stride \
-    --print-tpu-op-info \
-    --tpu-op-info-filename op_info.csv \
-    fp32.mlir \
-    -o fp32_opt.mlir
-
-mlir-opt \
-    --import-calibration-table \
-    --calibration-table $4 \
-    fp32_opt.mlir \
-    -o cali.mlir
-
-mlir-opt \
-    --tpu-quant \
-    ${CUSTOM_OP_PLUGIN_OPTION}\
-    --print-tpu-op-info \
-    --tpu-op-info-filename op_info_int8.csv \
-    cali.mlir \
-    -o int8.mlir
-
-mlir-opt \
-    --tpu-lower --reorder-op \
-    int8.mlir \
-    -o int8_tg.mlir
-
-mlir-opt \
-    --tg-fuse-leakyrelu \
-    --conv-ic-alignment \
-    int8_tg.mlir \
-    -o int8_tg_opt.mlir
-
-mlir-opt \
-    --assign-weight-address \
-    --tpu-weight-address-align=16 \
-    --tpu-weight-map-filename=weight_map.csv \
-    --tpu-weight-bin-filename=weight.bin \
-    --assign-neuron-address \
-    --tpu-neuron-address-align=16 \
-    --tpu-neuron-map-filename=neuron_map.csv \
-    int8_tg_opt.mlir \
-    -o int8_addr.mlir
-
-mlir-opt \
-    --deep-fusion-tg2tl-la \
-    int8_addr.mlir \
-    -o int8_tl_la.mlir
-
-mlir-opt \
-    --deep-fusion-tl-la2lw \
-    int8_tl_la.mlir \
-    -o int8_tl_lw.mlir
-
-mlir-opt \
-    --divide-ops-to-func \
-    int8_tl_lw.mlir \
-    -o int8_tl_lw_func.mlir
-
-mlir-translate \
-    --mlir-to-cvimodel \
-    --cvi-set-chip ${SET_CHIP_NAME} \
-    ${CUSTOM_OP_PLUGIN_OPTION}\
-    --weight-file weight.bin \
-    int8_tl_lw_func.mlir \
-    -o $5
-
-fi

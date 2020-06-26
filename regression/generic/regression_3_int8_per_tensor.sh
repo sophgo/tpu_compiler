@@ -16,8 +16,10 @@ if [ $DO_QUANT_INT8_PER_TENSOR -eq 1 ]; then
   # quantization 1: per-layer int8
   ###############################################################################
   mlir-opt \
+      --assign-chip-name \
+      --chipname ${SET_CHIP_NAME} \
+      ${CUSTOM_OP_PLUGIN_OPTION} \
       --tpu-quant --quant-int8-per-tensor \
-      ${CUSTOM_OP_PLUGIN_OPTION}\
       --print-tpu-op-info \
       --tpu-op-info-filename ${NET}_op_info_int8_per_tensor.csv \
       ${NET}_cali.mlir \
