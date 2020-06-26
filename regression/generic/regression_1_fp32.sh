@@ -10,25 +10,24 @@ fi
 
 CHECK_NON_OPT_VERSION=0
 
-if [ $MODEL_TYPE = "caffe" ]; then
-  # translate from caffe model
-  mlir-translate \
-      --caffe-to-mlir $MODEL_DEF \
-      --caffemodel $MODEL_DAT \
-      --static-batchsize $BATCH_SIZE \
-      -o ${NET}.mlir
-elif [[ $MODEL_TYPE = "onnx" || $MODEL_TYPE = "tflite" || $MODEL_TYPE = "tensorflow" ]]; then
-  cvi_model_convert.py \
+# translate from caffe model
+# mlir-translate \
+#    --caffe-to-mlir $MODEL_DEF \
+#    --caffemodel $MODEL_DAT \
+#    --static-batchsize $BATCH_SIZE \
+#    -o ${NET}.mlir
+
+if [ $MODEL_TYPE != "caffe" ]; then
+    MODEL_DAT="-"
+fi
+
+cvi_model_convert.py \
       --model_path $MODEL_DEF \
+      --model_dat $MODEL_DAT \
       --model_name ${NET} \
       --model_type $MODEL_TYPE \
       --batch_size $BATCH_SIZE \
       --mlir_file_path ${NET}.mlir
-else
-  echo "Invalid MODEL_TYPE=$MODEL_TYPE"
-  return 1
-fi
-
 
 # assign layer_id right away, and apply all frontend optimizations
 # Notes: convert-bn-to-scale has to be done before canonicalizer

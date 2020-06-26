@@ -98,6 +98,7 @@ class CaffeConverter(BaseConverter):
             for layer in self.layers:
                 if layer.name == o and layer.type == 'DetectionOutput':
                     o_shape[2] = layer.detection_output_param.keep_top_k
+                    break
             self.output_shapes.append(o_shape)
         self.CVI = MLIRImporter(self.input_shapes, self.output_shapes)
 
