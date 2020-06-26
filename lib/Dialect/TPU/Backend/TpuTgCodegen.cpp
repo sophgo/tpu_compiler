@@ -2432,6 +2432,81 @@ LogicalResult tpu::TG_BF16_UpsampleOp::codegen(void *ctx) {
   return success();
 }
 
+LogicalResult tpu::TG_INT8_PadOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  getNCHW(shape, n, c, h, w);
+
+  // parse param
+  std::vector<int32_t> pads;
+  auto const_val = this->const_val().convertToFloat();
+  arrayAttrToVector(this->pads().getValue(), pads);
+
+  gaddr_t ga_input = getPreviousOpAddress(op);
+  gaddr_t ga_output = getOpAddress(op);
+  int layer_id = mlir::getOpLayerId(op);
+
+  pad_forward_kernel(
+      *backend_ctx,
+      layer_id,
+      ga_input,
+      ga_output,
+      n,
+      c,
+      h,
+      w,
+      pads.data(),
+      const_val,
+      CVI_FMT_I8
+  );
+
+  return success();
+}
+
+LogicalResult tpu::TG_BF16_PadOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  getNCHW(shape, n, c, h, w);
+
+  // parse param
+  std::vector<int32_t> pads;
+  auto const_val = this->const_val().convertToFloat();
+  arrayAttrToVector(this->pads().getValue(), pads);
+
+  gaddr_t ga_input = getPreviousOpAddress(op);
+  gaddr_t ga_output = getOpAddress(op);
+  int layer_id = mlir::getOpLayerId(op);
+
+  pad_forward_kernel(
+      *backend_ctx,
+      layer_id,
+      ga_input,
+      ga_output,
+      n,
+      c,
+      h,
+      w,
+      pads.data(),
+      const_val,
+      CVI_FMT_BF16
+  );
+
+  return success();
+}
+
+
 // MemRefType dummy
 LogicalResult tpu::TG_MemRef_INT8_BroadcastMulOp::codegen(void *ctx) {
   return success();
@@ -2658,6 +2733,14 @@ LogicalResult tpu::TG_MemRef_INT8_UpsampleOp::codegen(void *ctx) {
 }
 
 LogicalResult tpu::TG_MemRef_BF16_UpsampleOp::codegen(void *ctx) {
+  return success();
+}
+
+LogicalResult tpu::TG_MemRef_INT8_PadOp::codegen(void *ctx) {
+  return success();
+}
+
+LogicalResult tpu::TG_MemRef_BF16_PadOp::codegen(void *ctx) {
   return success();
 }
 

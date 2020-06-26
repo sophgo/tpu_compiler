@@ -547,7 +547,7 @@ struct TpuTL_EltwiseAddOp_AssignLayoutPattern : public RewritePattern {
         op.setAttr("lm_layout", rewriter.getStringAttr("IWO"));
       } else if (conv_ops.empty() && elta_ops.size() == 1) {
         // one elta case
-        llvm_unreachable("unhandled case");
+        op.setAttr("lm_layout", rewriter.getStringAttr("IWO"));
       } else if (elta_ops.empty() && conv_ops.size() == 1) {
         // one conv case
         // YOLO_v3 goes here, the other is concat

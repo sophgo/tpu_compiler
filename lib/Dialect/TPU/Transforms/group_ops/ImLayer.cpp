@@ -108,6 +108,8 @@ shared_ptr<ImLayer> ImLayer::create(Operation* op) {
     layer = make_shared<ImUpsample>(op);
   } else if (isa<tpu::TG_INT8_LeakyReluOp>(op)) {
     layer = make_shared<ImLeakyRelu>(op);
+  } else if (isa<tpu::TG_INT8_PadOp>(op)) {
+    layer = make_shared<ImCommon>(op, false, IR_OTHER);
   } else if (isa<tpu::GenericCpuOp>(op)) {
     layer = make_shared<ImCommon>(op, false, IR_OTHER);
   } else if (isa<tpu::QuantOp>(op) ||

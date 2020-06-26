@@ -27,6 +27,7 @@ cvi_model_convert.py \
     --mlir_file_path fp32.mlir
 
 mlir-opt fp32.mlir \
+    --fuse-relu \
     --assign-layer-id \
     --assign-chip-name \
     --chipname ${SET_CHIP_NAME} \
@@ -36,6 +37,7 @@ mlir-opt fp32.mlir \
     --print-tpu-op-info \
     --tpu-op-info-filename op_info.csv | \
 mlir-opt \
+    ${ENABLE_CALI_OVERWRITE_THRESHOLD_FORWARD} \
     --import-calibration-table \
     --calibration-table $4 | \
 mlir-opt \

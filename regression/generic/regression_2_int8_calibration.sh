@@ -40,6 +40,7 @@ fi
 
 # import calibration table
 mlir-opt \
+    ${ENABLE_CALI_OVERWRITE_THRESHOLD_FORWARD} \
     --import-calibration-table \
     --calibration-table ${CALI_TABLE} \
     ${NET}_opt.mlir \

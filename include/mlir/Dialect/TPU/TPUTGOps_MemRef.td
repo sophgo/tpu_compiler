@@ -1243,4 +1243,56 @@ class TPU_TG_MemRef_UpsampleOp<string mnemonic, string opQuant> : TPU_Op<mnemoni
 }
 def TPU_TG_MemRef_INT8_UpsampleOp : TPU_TG_MemRef_UpsampleOp<"tg_memref_int8_upsample", "Int8">;
 def TPU_TG_MemRef_BF16_UpsampleOp : TPU_TG_MemRef_UpsampleOp<"tg_memref_bf16_upsample", "Bf16">;
+
+class TPU_TG_MemRef_PadOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
+  let summary = "TG " # opQuant # " Pad operator.";
+
+  let description = [{
+    Inputs:
+      `input`           : required, the input activation memref.
+
+    Attributes:
+      `scale`           : required, scale for upsampling.
+      `region`          : required, the memory region to reside in, could be
+                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
+                          (backend does not support `INPUT`, `OUTPUT` for now)
+      `gaddr`           : optional, address in global memory, normally the
+                          offset within the memory region.
+      `buffer_reused`   : optional, whether buffer is reused.
+      `pads`            : tensor containing the number of start and end
+                          pad values for axis
+      `const_val`       : A scalar value to be used if the mode
+                          chosen is `constant` (by default it is 0).
+      `name`            : required, name for comparing, or debug.
+      `layer_id`        : optional, id for profiling.
+      `chipname`        : optional, chipname.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface`    : support common TPU TG Op interface.
+      `TpuTGOpCodegenInterface` : support generate TPU instuctions.
+  }];
+
+  let arguments = (
+    ins MemRefOf<[AnyFloat, AnyInteger]>:$input,
+    MemRefOf<[AnyFloat, AnyInteger]>:$output,
+    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
+    OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    OptionalAttr<BoolAttr>:$buffer_reused,
+    OptionalAttr<I32ArrayAttr>:$pads,
+    DefaultValuedAttr<F32Attr, "0">:$const_val,
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
+  );
+}
+def TPU_TG_MemRef_INT8_PadOp : TPU_TG_MemRef_PadOp<"tg_memref_int8_pad", "Int8">;
+def TPU_TG_MemRef_BF16_PadOp : TPU_TG_MemRef_PadOp<"tg_memref_bf16_pad", "Bf16">;
+
 #endif // TPU_TG_OPS_MemRef

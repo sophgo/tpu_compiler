@@ -49,6 +49,8 @@ struct TpuFuseReluPattern : public RewritePattern {
 
     // match relu Op that is following conv or eltwise Ops
     auto formerOp = op->getOperand(0)->getDefiningOp();
+    if (!formerOp->getResult(0)->hasOneUse())
+      return matchFailure();
 
     if (matchPattern(formerOp, m_Op<tpu::Conv2DOp>())) {
       auto convOp = cast<tpu::Conv2DOp>(formerOp);
@@ -153,11 +155,16 @@ struct TpuMoveReluAheadConcatPattern : public RewritePattern {
     if (!matchPattern(formerOp, m_Op<tpu::ConcatOp>())) {
       return matchFailure();
     }
+
+    if (!formerOp->getResult(0)->hasOneUse())
+      return matchFailure();
+
     auto concatOp = cast<tpu::ConcatOp>(formerOp);
     LLVM_DEBUG(llvm::errs() << reluOp.getOperationName() << ":"
                             << getOpName(reluOp) << ", after concat" << "\n";);
 
     size_t nInputs = concatOp.getNumInputs();
+    rewriter.setInsertionPoint(formerOp);
     for (unsigned i = 0; i < nInputs; i++) {
       std::vector<NamedAttribute> attrs;
       attrs.push_back(rewriter.getNamedAttr("name",
@@ -182,6 +189,44 @@ struct TpuMoveReluAheadConcatPattern : public RewritePattern {
   }
 };
 
+struct TpuDelRedundantReluPattern : public RewritePattern {
+  TpuDelRedundantReluPattern(MLIRContext *context)
+      : RewritePattern("tpu.relu", 10, context) {}
+
+  PatternMatchResult matchAndRewrite(Operation *op,
+                                     PatternRewriter &rewriter) const override {
+    auto formerOp = op->getOperand(0)->getDefiningOp();
+    auto firstUseOp = op;
+    if (formerOp->getResult(0)->hasOneUse())
+      return matchFailure();
+
+    for (auto &use : formerOp->getResult(0)->getUses()) {
+      auto useOp = use.getOwner();
+      if (!llvm::isa<tpu::ReluOp>(useOp)) {
+        continue;
+      }
+      if (useOp->isBeforeInBlock(firstUseOp))
+        firstUseOp = useOp;
+    }
+
+    for (auto &use : formerOp->getResult(0)->getUses()) {
+      auto useOp = use.getOwner();
+      if (useOp == firstUseOp)
+        continue;
+
+      if (!llvm::isa<tpu::ReluOp>(useOp))
+        continue;
+
+      auto reluOp = cast<tpu::ReluOp>(firstUseOp);
+      LLVM_DEBUG(llvm::errs() << "deleted ReluOp "
+                              << reluOp.getOperationName() << ":"
+                              << getOpName(useOp) <<  "\n";);
+      // delete the redundant relu op
+      rewriter.replaceOp(useOp, {reluOp});
+    }
+    return matchSuccess();
+  }
+};
 
 class FuseReluPass : public FunctionPass<FuseReluPass> {
 public:
@@ -193,9 +238,14 @@ public:
     auto *context = &getContext();
 
     patterns.clear();
+    patterns.insert<TpuDelRedundantReluPattern>(context);
+    applyPatternsGreedily(fn, patterns);
+
+    patterns.clear();
     patterns.insert<TpuMoveReluAheadConcatPattern>(context);
     applyPatternsGreedily(fn, patterns);
 
+    patterns.clear();
     patterns.insert<TpuFuseReluPattern>(context);
     applyPatternsGreedily(fn, patterns);
   }
@@ -209,6 +259,7 @@ private:
 void tpu::ReluOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
                                               MLIRContext *context) {
   results.insert<
+      TpuDelRedundantReluPattern,
       TpuMoveReluAheadConcatPattern,
       TpuFuseReluPattern>(context);
 }

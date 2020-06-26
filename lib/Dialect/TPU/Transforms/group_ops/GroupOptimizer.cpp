@@ -620,6 +620,7 @@ void GroupOptimizer::lower_to_tg_group(MLIRContext * context) {
       addTGLayerGAddrPattern<tpu::TG_INT8_LutOp>,
       addTGLayerGAddrPattern<tpu::TG_INT8_SwapChannelOp>,
       addTGLayerGAddrPattern<tpu::TG_INT8_UpsampleOp>,
+      addTGLayerGAddrPattern<tpu::TG_INT8_PadOp>,
       addTGLayerGAddrPattern<tpu::TG_INT8_QuantOp>,
       addTGLayerGAddrPattern<tpu::TG_INT8_GenericTpuOp>,
       addTGLayerGAddrPattern<tpu::GenericCpuOp>
