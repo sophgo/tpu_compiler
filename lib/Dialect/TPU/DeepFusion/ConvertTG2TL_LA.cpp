@@ -43,12 +43,21 @@ using namespace mlir;
 
 namespace {
 
+static int64_t getBatchSize(Operation *op) {
+  auto resultType = op->getResult(0)->getType();
+  auto tensorType = resultType.dyn_cast<RankedTensorType>();
+  auto batch = tensorType.getShape()[0];
+  return (int64_t)batch;
+}
+
 struct TpuTG2TLConv2DOpPattern : public RewritePattern {
   TpuTG2TLConv2DOpPattern(MLIRContext *context)
       : RewritePattern("tpu.tg_int8_pc_conv_2d", 1, context) {}
-
   PatternMatchResult matchAndRewrite(Operation *opInst,
                                      PatternRewriter &rewriter) const override {
+    if (getBatchSize(opInst) != 1) {
+      return matchFailure();
+    }
     auto op = cast<tpu::TG_INT8_PC_Conv2DOp>(opInst);
     assert(op);
 
@@ -118,6 +127,9 @@ struct TpuTG2TLElewiseOpPattern : public RewritePattern {
 
   PatternMatchResult matchAndRewrite(Operation *opInst,
                                      PatternRewriter &rewriter) const override {
+    if (getBatchSize(opInst) != 1) {
+      return matchFailure();
+    }
     auto op = cast<OpTy>(opInst);
     assert(op);
 
@@ -202,6 +214,9 @@ struct TpuTG2TLLutOpPattern : public RewritePattern {
 
   PatternMatchResult matchAndRewrite(Operation *opInst,
                                      PatternRewriter &rewriter) const override {
+    if (getBatchSize(opInst) != 1) {
+      return matchFailure();
+    }
     auto op = cast<tpu::TG_INT8_LutOp>(opInst);
     assert(op);
 
@@ -272,6 +287,9 @@ struct TpuTG2TLBroadcastMulOpPattern : public RewritePattern {
 
   PatternMatchResult matchAndRewrite(Operation *opInst,
                                      PatternRewriter &rewriter) const override {
+    if (getBatchSize(opInst) != 1) {
+      return matchFailure();
+    }
     auto op = cast<tpu::TG_INT8_BroadcastMulOp>(opInst);
     assert(op);
 
@@ -359,6 +377,9 @@ struct TpuTG2TLPoolOpPattern : public RewritePattern {
 
   PatternMatchResult matchAndRewrite(Operation *opInst,
                                      PatternRewriter &rewriter) const override {
+    if (getBatchSize(opInst) != 1) {
+      return matchFailure();
+    }
     auto op = cast<OpTy>(opInst);
     assert(op);
 
