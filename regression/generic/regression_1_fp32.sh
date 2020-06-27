@@ -34,8 +34,6 @@ cvi_model_convert.py \
 mlir-opt \
     --fuse-relu \
     --assign-layer-id \
-    --assign-chip-name \
-    --chipname ${SET_CHIP_NAME} \
     ${MLIR_OPT_FE_PRE} \
     --canonicalize \
     ${MLIR_OPT_FE_POST} \
@@ -46,7 +44,7 @@ mlir-opt \
 
 # test frontend optimizations
 mlir-tpu-interpreter ${NET}_opt.mlir \
-    ${CUSTOM_OP_PLUGIN_OPTION}\
+    ${CUSTOM_OP_PLUGIN_OPTION} \
     --tensor-in ${NET}_in_fp32.npz \
     --tensor-out ${NET}_out_fp32.npz \
     --dump-all-tensor=${NET}_tensor_all_fp32.npz

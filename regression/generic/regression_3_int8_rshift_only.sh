@@ -16,8 +16,10 @@ if [ $DO_QUANT_INT8_RFHIFT_ONLY -eq 1 ]; then
   # quantization 2: per-channel(rshift_only) int8
   ###############################################################################
   mlir-opt \
+      --assign-chip-name \
+      --chipname ${SET_CHIP_NAME} \
+      ${CUSTOM_OP_PLUGIN_OPTION} \
       --tpu-quant --quant-int8-rshift-only \
-      ${CUSTOM_OP_PLUGIN_OPTION}\
       --print-tpu-op-info \
       --tpu-op-info-filename ${NET}_op_info_int8_rshift_only.csv \
       ${NET}_cali.mlir \

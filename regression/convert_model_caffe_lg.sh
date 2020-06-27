@@ -25,8 +25,6 @@ mlir-translate \
     --static-batchsize $3 | \
 mlir-opt \
     --assign-layer-id \
-    --assign-chip-name \
-    --chipname ${SET_CHIP_NAME} \
     --convert-bn-to-scale \
     --canonicalize \
     --eltwise-early-stride \
@@ -36,8 +34,10 @@ mlir-opt \
     --import-calibration-table \
     --calibration-table $4 | \
 mlir-opt \
+    --assign-chip-name \
+    --chipname ${SET_CHIP_NAME} \
+    ${CUSTOM_OP_PLUGIN_OPTION} \
     --tpu-quant \
-    ${CUSTOM_OP_PLUGIN_OPTION}\
     --print-tpu-op-info \
     --tpu-op-info-filename op_info_int8.csv \
     -o int8.mlir
@@ -52,8 +52,7 @@ mlir-opt \
     --dce \
     --deep-fusion-tg2tl-la \
     --deep-fusion-tl-la2lw \
-    -o int8_layergroup.mlir \
-
+    -o int8_layergroup.mlir
 mlir-opt \
     --assign-weight-address \
     --tpu-weight-address-align=16 \
@@ -61,7 +60,6 @@ mlir-opt \
     --tpu-weight-bin-filename=weight.bin \
     int8_layergroup.mlir \
     -o int8_layergroup_addr.mlir
-
 mlir-opt \
     --divide-ops-to-func \
     int8_layergroup_addr.mlir \
@@ -70,7 +68,7 @@ mlir-opt \
 mlir-translate \
     --mlir-to-cvimodel \
     --cvi-set-chip ${SET_CHIP_NAME} \
-    ${CUSTOM_OP_PLUGIN_OPTION}\
+    ${CUSTOM_OP_PLUGIN_OPTION} \
     --weight-file weight.bin \
     int8_layergroup_func.mlir \
     -o $5

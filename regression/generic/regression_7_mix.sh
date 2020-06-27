@@ -12,6 +12,9 @@ COMPARE_ALL=1
 if [ $DO_QUANT_MIX -eq 1 ]; then
 
   mlir-opt \
+      --assign-chip-name \
+      --chipname ${SET_CHIP_NAME} \
+      ${CUSTOM_OP_PLUGIN_OPTION} \
       --tpu-quant \
       --quant-int8-mix-bf16-sigmoid \
       --quant-int8-mix-bf16-broadcastmul \
@@ -22,6 +25,7 @@ if [ $DO_QUANT_MIX -eq 1 ]; then
       -o ${NET}_quant_mix.mlir
 
   mlir-tpu-interpreter ${NET}_quant_mix.mlir \
+      ${CUSTOM_OP_PLUGIN_OPTION} \
       --tensor-in ${NET}_in_fp32.npz \
       --tensor-out ${NET}_out_mix.npz \
       --dump-all-tensor=${NET}_tensor_all_mix.npz
