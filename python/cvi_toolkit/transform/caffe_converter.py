@@ -32,7 +32,8 @@ class CaffeConverter(BaseConverter):
         self.net = caffe.Net(self.prototxt, self.caffemodel, caffe.TEST)
         self.param = caffe_pb2.NetParameter()
         text_format.Merge(open(prototxt).read(), self.param)
-        self.layers = self.param.layer
+        self.layers = self.param.layer if len(
+            self.param.layer) != 0 else self.param.layers
         self.inputs = self.net.inputs
         self.outputs = self.net.outputs
         self.blobs = self.net.blobs
@@ -43,7 +44,6 @@ class CaffeConverter(BaseConverter):
         self.input_shapes = list()
         self.output_shapes = list()
         self.CVI = None
-        self.init_importer()
         self.output_tensor_file = "{}_1_06eeeb7e.npz".format(model_name)
         self.caffeop_factory = {
             'BatchNorm': lambda layer: self.convert_batchnorm_op(layer),
@@ -80,9 +80,28 @@ class CaffeConverter(BaseConverter):
             'Upsample': lambda layer: self.convert_upsample_op(layer),
             'YoloDetection': lambda layer: self.convert_yolo_detection_op(layer),
         }
+        # for caffe v1
+        self.layer_type = {
+            0: 'None', 35: 'Absval', 1: 'Accuracy', 30: 'Argmax', 2: 'Bnll',
+            3: 'Concat', 37: 'ContrastiveLoss', 4: 'Convolution', 5: 'Data',
+            39: 'Deconvolution', 6: 'Dropout', 32: 'DummyData', 7: 'EuclideanLoss',
+            25: 'Eltwise', 38: 'Exp', 8: 'Flatten', 9: 'Hdf5Data', 10: 'Hdf5Output',
+            28: 'HingeLoss', 11: 'Im2col', 12: 'ImageData', 13: 'InfogainLoss',
+            14: 'InnerProduct', 15: 'LRN', 29: 'MemoryData', 16: 'MultinomialLogisticLoss',
+            34: 'MVN', 17: 'Pooling', 26: 'Power', 18: 'ReLU', 19: 'Sigmoid',
+            27: 'SigmoidCrossEntropyLoss', 36: 'Silence', 20: 'Softmax', 21: 'SoftmaxLoss',
+            22: 'Split', 33: 'Slice', 23: 'Tanh', 24: 'WindowData', 31: 'Threshold',
+        }
+        self.init_importer()
 
     def __del__(self):
         del self.CVI
+
+    def layerType(self, layer):
+        if type(layer.type) == int:
+            return self.layer_type.get(layer.type)
+        else:
+            return layer.type
 
     def init_importer(self):
         self.input_shapes = list()
@@ -96,7 +115,7 @@ class CaffeConverter(BaseConverter):
             o_shape = list(self.blobs[o].shape)
             o_shape[0] = self.batch_size
             for layer in self.layers:
-                if layer.name == o and layer.type == 'DetectionOutput':
+                if layer.name == o and self.layerType(layer) == 'DetectionOutput':
                     o_shape[2] = layer.detection_output_param.keep_top_k
                     break
             self.output_shapes.append(o_shape)
@@ -141,7 +160,7 @@ class CaffeConverter(BaseConverter):
         return weight_op
 
     def convert_batchnorm_op(self, layer):
-        assert(layer.type == "BatchNorm")
+        assert(self.layerType(layer) == "BatchNorm")
         op, input_shape, _ = self.getOperand(layer.bottom[0])
         operands = list()
         operands.append(op)
@@ -163,7 +182,7 @@ class CaffeConverter(BaseConverter):
                         output_shape, TensorType.ACTIVATION)
 
     def convert_concat_op(self, layer):
-        assert(layer.type == 'Concat')
+        assert(self.layerType(layer) == 'Concat')
         op, input_shape, _ = self.getOperand(layer.bottom[0])
         input_num = len(layer.bottom)
         if input_num == 1:
@@ -187,17 +206,17 @@ class CaffeConverter(BaseConverter):
         self.addOperand(layer.top[0], new_op,
                         output_shape, TensorType.ACTIVATION)
 
-    @staticmethod
+    @ staticmethod
     def calcConv2DSpatialOutput(_i_, _k_, _s_, _p_, _d_):
         return int(((_i_) + 2 * (_p_) - (_d_) * ((_k_)-1) - 1) / (_s_) + 1)
 
-    @staticmethod
+    @ staticmethod
     def calcDeConv2DSpatialOutput(_i_, _k_, _s_, _p_, _d_):
         return int((_s_) * (((_i_)) - 1) + (_d_) * ((_k_)-1) - 2 * (_p_) + 1)
 
     def convert_convolution_op(self, layer):
-        assert(layer.type == "Convolution" or layer.type ==
-               "ConvolutionDepthwise" or layer.type == 'Deconvolution')
+        assert(self.layerType(layer) == "Convolution" or self.layerType(layer) ==
+               "ConvolutionDepthwise" or self.layerType(layer) == 'Deconvolution')
         op, input_shape, _ = self.getOperand(layer.bottom[0])
         assert(len(input_shape) == 4)
         operands = list()
@@ -205,11 +224,11 @@ class CaffeConverter(BaseConverter):
         p = layer.convolution_param
         oc = p.num_output
         g = 1
-        if layer.type == 'ConvolutionDepthwise':
+        if self.layerType(layer) == 'ConvolutionDepthwise':
             g = oc
         else:
             g = p.group
-        is_deconv = True if layer.type == 'Deconvolution' else False
+        is_deconv = True if self.layerType(layer) == 'Deconvolution' else False
         with_bias = p.bias_term
         kernel = [0, 0]
         if len(p.kernel_size) != 0:
@@ -298,7 +317,7 @@ class CaffeConverter(BaseConverter):
                             TensorType.ACTIVATION)
 
     def convert_crop_op(self, layer):
-        assert(layer.type == 'Crop')
+        assert(self.layerType(layer) == 'Crop')
         op, input_shape, _ = self.getOperand(layer.bottom[0])
         crop_op, crop_shape, _ = self.getOperand(layer.bottom[1])
         p = layer.crop_param
@@ -337,7 +356,7 @@ class CaffeConverter(BaseConverter):
                         output_shape, TensorType.ACTIVATION)
 
     def convert_detection_output_op(self, layer):
-        assert(layer.type == "DetectionOutput")
+        assert(self.layerType(layer) == "DetectionOutput")
         _, input_shape, _ = self.getOperand(layer.bottom[0])
         operands = list()
         for bottom in layer.bottom:
@@ -368,12 +387,12 @@ class CaffeConverter(BaseConverter):
                         output_shape, TensorType.ACTIVATION)
 
     def convert_dropout_op(self, layer):
-        assert(layer.type == 'Dropout')
+        assert(self.layerType(layer) == 'Dropout')
         op, input_shape, _ = self.getOperand(layer.bottom[0])
         self.addOperand(layer.top[0], op, input_shape, TensorType.ACTIVATION)
 
     def convert_dummydata_op(self, layer):
-        assert(layer.type == 'DummyData')
+        assert(self.layerType(layer) == 'DummyData')
         operands = list()
         p = layer.dummy_data_param
         assert(len(p.shape) > 0)
@@ -383,7 +402,7 @@ class CaffeConverter(BaseConverter):
                         output_shape, TensorType.ACTIVATION)
 
     def convert_eltwise_op(self, layer):
-        assert(layer.type == 'Eltwise')
+        assert(self.layerType(layer) == 'Eltwise')
         operands = list()
         for bottom in layer.bottom:
             op, _, _ = self.getOperand(bottom)
@@ -415,7 +434,7 @@ class CaffeConverter(BaseConverter):
                             TensorType.ACTIVATION)
 
     def convert_flatten_op(self, layer):
-        assert(layer.type == 'Flatten')
+        assert(self.layerType(layer) == 'Flatten')
         op, input_shape, _ = self.getOperand(layer.bottom[0])
         operands = list()
         operands.append(op)
@@ -429,7 +448,7 @@ class CaffeConverter(BaseConverter):
                         output_shape, TensorType.ACTIVATION)
 
     def convert_inner_product_op(self, layer):
-        assert(layer.type == 'InnerProduct')
+        assert(self.layerType(layer) == 'InnerProduct')
         op, input_shape, _ = self.getOperand(layer.bottom[0])
         operands = list()
         assert(len(input_shape) == 4 or len(input_shape) == 2)
@@ -467,11 +486,11 @@ class CaffeConverter(BaseConverter):
                         TensorType.ACTIVATION)
 
     def convert_input_op(self, layer):
-        assert(layer.type == 'Input')
+        assert(self.layerType(layer) == 'Input')
         # do nothing
 
     def convert_lrn_op(self, layer):
-        assert(layer.type == 'LRN')
+        assert(self.layerType(layer) == 'LRN')
         op, input_shape, _ = self.getOperand(layer.bottom[0])
         operands = list()
         operands.append(op)
@@ -489,7 +508,7 @@ class CaffeConverter(BaseConverter):
                         output_shape, TensorType.ACTIVATION)
 
     def convert_normalize_op(self, layer):
-        assert(layer.type == 'Normalize')
+        assert(self.layerType(layer) == 'Normalize')
         op, input_shape, _ = self.getOperand(layer.bottom[0])
         operands = list()
         operands.append(op)
@@ -498,7 +517,7 @@ class CaffeConverter(BaseConverter):
             'across_spatial': p.across_spatial,
             'channel_shared': p.channel_shared,
         }
-        assert(p.across_spatial)
+        assert(False == p.across_spatial)
         assert(len(input_shape) == 4)
         c = input_shape[1]
         # scale
@@ -517,12 +536,13 @@ class CaffeConverter(BaseConverter):
         scale_op = self.CVI.add_load_file_op(scale_name, scale_shape)
         operands.append(scale_op)
         output_shape = input_shape
-        new_op = self.CVI.add_normalize_op(layer.name, operands, output_shape)
+        new_op = self.CVI.add_normalize_op(
+            layer.name, operands, output_shape, **param)
         self.addOperand(layer.top[0], new_op,
                         output_shape, TensorType.ACTIVATION)
 
     def convert_permute_op(self, layer):
-        assert(layer.type == 'Permute')
+        assert(self.layerType(layer) == 'Permute')
         op, input_shape, _ = self.getOperand(layer.bottom[0])
         operands = list()
         operands.append(op)
@@ -543,7 +563,7 @@ class CaffeConverter(BaseConverter):
                         output_shape, TensorType.ACTIVATION)
 
     def convert_pooling_op(self, layer):
-        assert(layer.type == 'Pooling')
+        assert(self.layerType(layer) == 'Pooling')
         op, input_shape, _ = self.getOperand(layer.bottom[0])
         operands = list()
         operands.append(op)
@@ -565,7 +585,7 @@ class CaffeConverter(BaseConverter):
             stride[1] = p.stride_w
         padding = [p.pad, p.pad]
         if p.HasField('pad_h'):
-            paddding[0] = p.pad_h
+            padding[0] = p.pad_h
         if p.HasField('pad_w'):
             padding[1] = p.pad_w
         ceil_mode = p.ceil_mode
@@ -617,7 +637,7 @@ class CaffeConverter(BaseConverter):
                             TensorType.ACTIVATION)
 
     def convert_power_op(self, layer):
-        assert(layer.type == 'Power')
+        assert(self.layerType(layer) == 'Power')
         op, input_shape, _ = self.getOperand(layer.bottom[0])
         operands = list()
         operands.append(op)
@@ -637,7 +657,7 @@ class CaffeConverter(BaseConverter):
                         output_shape, TensorType.ACTIVATION)
 
     def convert_prelu_op(self, layer):
-        assert(layer.type == 'PReLU')
+        assert(self.layerType(layer) == 'PReLU')
         op, input_shape, _ = self.getOperand(layer.bottom[0])
         operands = list()
         operands.append(op)
@@ -652,7 +672,7 @@ class CaffeConverter(BaseConverter):
                         output_shape, TensorType.ACTIVATION)
 
     def convert_priorbox_op(self, layer):
-        assert(layer.type == 'PriorBox')
+        assert(self.layerType(layer) == 'PriorBox')
         op0, input_shape0, _ = self.getOperand(layer.bottom[0])
         op1, input_shape1, _ = self.getOperand(layer.bottom[1])
         operands = list()
@@ -711,7 +731,7 @@ class CaffeConverter(BaseConverter):
                         output_shape, TensorType.ACTIVATION)
 
     def convert_relu_op(self, layer):
-        assert(layer.type == 'ReLU')
+        assert(self.layerType(layer) == 'ReLU')
         op, input_shape, _ = self.getOperand(layer.bottom[0])
         operands = list()
         operands.append(op)
@@ -733,7 +753,7 @@ class CaffeConverter(BaseConverter):
                             TensorType.ACTIVATION)
 
     def convert_reorg_op(self, layer):
-        assert(layer.type == 'Reorg')
+        assert(self.layerType(layer) == 'Reorg')
         op, input_shape, _ = self.getOperand(layer.bottom[0])
         operands = list()
         operands.append(op)
@@ -741,9 +761,9 @@ class CaffeConverter(BaseConverter):
         stride = layer.reorg_param.stride
         output_shape = list(input_shape)
         output_shape[0] = input_shape[0]
-        output_shape[1] = input_shape[1] * stride * stride
-        output_shape[2] = input_shape[2] / stride
-        output_shape[3] = input_shape[3] / stride
+        output_shape[1] = int(input_shape[1] * stride * stride)
+        output_shape[2] = int(input_shape[2] / stride)
+        output_shape[3] = int(input_shape[3] / stride)
         param = {
             'stride': stride
         }
@@ -753,7 +773,7 @@ class CaffeConverter(BaseConverter):
                         output_shape, TensorType.ACTIVATION)
 
     def convert_reshape_op(self, layer):
-        assert(layer.type == 'Reshape')
+        assert(self.layerType(layer) == 'Reshape')
         op, input_shape, _ = self.getOperand(layer.bottom[0])
         operands = list()
         operands.append(op)
@@ -845,7 +865,7 @@ class CaffeConverter(BaseConverter):
                         TensorType.ACTIVATION)
 
     def convert_retinaface_detection_op(self, layer):
-        assert(layer.type == 'RetinaFaceDetection')
+        assert(self.layerType(layer) == 'RetinaFaceDetection')
         op, input_shape, _ = self.getOperand(layer.bottom[0])
         operands = list()
         operands.append(op)
@@ -865,7 +885,7 @@ class CaffeConverter(BaseConverter):
                         TensorType.ACTIVATION)
 
     def convert_scale_op(self, layer):
-        assert(layer.type == 'Scale')
+        assert(self.layerType(layer) == 'Scale')
         op, input_shape, _ = self.getOperand(layer.bottom[0])
         operands = list()
         operands.append(op)
@@ -903,7 +923,7 @@ class CaffeConverter(BaseConverter):
                             TensorType.ACTIVATION)
 
     def convert_shufflechannel_op(self, layer):
-        assert(layer.type == 'ShuffleChannel')
+        assert(self.layerType(layer) == 'ShuffleChannel')
         op, input_shape, _ = self.getOperand(layer.bottom[0])
         group = layer.shuffle_channel_param.group
         operands = list()
@@ -918,7 +938,7 @@ class CaffeConverter(BaseConverter):
                         output_shape, TensorType.ACTIVATION)
 
     def convert_sigmoid_op(self, layer):
-        assert(layer.type == 'Sigmoid')
+        assert(self.layerType(layer) == 'Sigmoid')
         op, input_shape, _ = self.getOperand(layer.bottom[0])
         operands = list()
         operands.append(op)
@@ -929,7 +949,7 @@ class CaffeConverter(BaseConverter):
                         output_shape, TensorType.ACTIVATION)
 
     def convert_slice_op(self, layer):
-        assert(layer.type == 'Slice')
+        assert(self.layerType(layer) == 'Slice')
         op, input_shape, _ = self.getOperand(layer.bottom[0])
         operands = list()
         operands.append(op)
@@ -969,7 +989,7 @@ class CaffeConverter(BaseConverter):
             offset += slices[i]
 
     def convert_softmax_op(self, layer):
-        assert(layer.type == 'Softmax')
+        assert(self.layerType(layer) == 'Softmax')
         op, input_shape, _ = self.getOperand(layer.bottom[0])
         operands = list()
         operands.append(op)
@@ -986,14 +1006,14 @@ class CaffeConverter(BaseConverter):
                         TensorType.ACTIVATION)
 
     def convert_split_op(self, layer):
-        assert(layer.type == 'Split')
+        assert(self.layerType(layer) == 'Split')
         op, input_shape, _ = self.getOperand(layer.bottom[0])
         # simply bypass, register top and bottom blobs to the same tensor
         for top in layer.top:
             self.addOperand(top, op, input_shape, TensorType.ACTIVATION)
 
     def convert_tanh_op(self, layer):
-        assert(layer.type == 'TanH')
+        assert(self.layerType(layer) == 'TanH')
         op, input_shape, _ = self.getOperand(layer.bottom[0])
         operands = list()
         operands.append(op)
@@ -1004,7 +1024,7 @@ class CaffeConverter(BaseConverter):
                         output_shape, TensorType.ACTIVATION)
 
     def convert_upsample_op(self, layer):
-        assert(layer.type == 'Upsample')
+        assert(self.layerType(layer) == 'Upsample')
         op, input_shape, _ = self.getOperand(layer.bottom[0])
         operands = list()
         operands.append(op)
@@ -1022,7 +1042,7 @@ class CaffeConverter(BaseConverter):
                         output_shape, TensorType.ACTIVATION)
 
     def convert_yolo_detection_op(self, layer):
-        assert(layer.type == 'YoloDetection')
+        assert(self.layerType(layer) == 'YoloDetection')
         op, input_shape, _ = self.getOperand(layer.bottom[0])
         operands = list()
         operands.append(op)
@@ -1046,7 +1066,8 @@ class CaffeConverter(BaseConverter):
         self.CVI.add_weight_file_op(self.output_tensor_file)
 
         def NoneAndRaise(layer):
-            raise RuntimeError("{} Op not support now".format(layer.type))
+            raise RuntimeError(
+                "{} Op not support now".format(self.layerType(layer)))
 
         # add input op
         for idx, name in enumerate(self.inputs):
@@ -1056,7 +1077,7 @@ class CaffeConverter(BaseConverter):
 
         for layer in self.layers:
             self.caffeop_factory.get(
-                layer.type, lambda x: NoneAndRaise(x))(layer)
+                self.layerType(layer), lambda x: NoneAndRaise(x))(layer)
 
         # add return op
         return_op = list()
