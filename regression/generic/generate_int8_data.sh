@@ -38,7 +38,7 @@ model_list_2=(
   "efficientnet_b0"
   "alphapose"
   "espcn_3x"
-  "unet"
+  # "unet"
 )
 
 for model in ${model_list_1[@]}
@@ -58,3 +58,10 @@ do
       ${model}_in_int8.npz \
       input_quant
 done
+
+# special cases
+model=unet
+cvi_npz_tool.py extract \
+    ${model}_out_all.npz \
+    ${model}_in_int8.npz \
+    input_1_01_quant
