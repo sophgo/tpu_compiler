@@ -110,6 +110,7 @@ do
         $DIR/convert_model_caffe_lg.sh \
           ${MODEL_DEF} \
           ${MODEL_DAT} \
+          ${NET} \
           1 \
           ${CALI_TABLE} \
           ${NET}.cvimodel
@@ -135,6 +136,7 @@ do
         $DIR/convert_model_caffe_df.sh \
           ${MODEL_DEF} \
           ${MODEL_DAT} \
+          ${NET} \
           1 \
           ${CALI_TABLE} \
           ${NET}.cvimodel
@@ -185,6 +187,7 @@ do
       $DIR/convert_model_caffe_lg.sh \
         ${MODEL_DEF} \
         ${MODEL_DAT} \
+        ${NET} \
         1 \
         ${CALI_TABLE} \
         ${NET}.cvimodel
@@ -192,6 +195,7 @@ do
       $DIR/convert_model_caffe_df.sh \
         ${MODEL_DEF} \
         ${MODEL_DAT} \
+        ${NET} \
         1 \
         ${CALI_TABLE} \
         ${NET}.cvimodel

@@ -38,6 +38,7 @@ if [ $MODEL_TYPE = "caffe" ]; then
       $REGRESSION_PATH/convert_model_caffe_lg.sh \
           ${MODEL_DEF} \
           ${MODEL_DAT} \
+          ${NET} \
           ${BATCH_SIZE} \
           ${CALI_TABLE} \
           ${NET}.cvimodel
@@ -45,6 +46,7 @@ if [ $MODEL_TYPE = "caffe" ]; then
       $REGRESSION_PATH/convert_model_caffe_df.sh \
           ${MODEL_DEF} \
           ${MODEL_DAT} \
+          ${NET} \
           ${BATCH_SIZE} \
           ${CALI_TABLE} \
           ${NET}.cvimodel

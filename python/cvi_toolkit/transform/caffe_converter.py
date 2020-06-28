@@ -880,7 +880,7 @@ class CaffeConverter(BaseConverter):
             'keep_topk': keep_topk,
         }
         new_op = self.CVI.add_retinaface_detection_op(
-            layer.name, operands, output_shape)
+            layer.name, operands, output_shape, **param)
         self.addOperand(layer.top[0], new_op, output_shape,
                         TensorType.ACTIVATION)
 

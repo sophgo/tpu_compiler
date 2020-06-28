@@ -28,6 +28,7 @@ do
     $REGRESSION_PATH/convert_model_caffe_df.sh \
       ${MODEL_DEF} \
       ${MODEL_DAT} \
+      ${NET} \
       1 \
       ${CALI_TABLE} \
       ${NET}.cvimodel

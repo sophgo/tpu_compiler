@@ -4,11 +4,11 @@ set -e
 usage()
 {
    echo ""
-   echo "Usage: $0 prototxt caffemodel batch_size cali_table out.cvimodel"
+   echo "Usage: $0 prototxt caffemodel name batch_size cali_table out.cvimodel"
    exit 1
 }
 
-if [[ $# -ne 5 ]]; then
+if [[ $# -ne 6 ]]; then
     echo "$0 Illegal number of parameters"
     usage
     exit 2
@@ -19,11 +19,15 @@ if [[ ! -z $CUSTOM_OP_PLUGIN ]]; then
     CUSTOM_OP_PLUGIN_OPTION="--custom-op-plugin ${CUSTOM_OP_PLUGIN}"
 fi
 
-mlir-translate \
-    --caffe-to-mlir $1 \
-    --caffemodel $2 \
-    --static-batchsize $3 | \
-mlir-opt \
+cvi_model_convert.py \
+    --model_path $1 \
+    --model_dat $2 \
+    --model_name $3 \
+    --model_type caffe \
+    --batch_size $4 \
+    --mlir_file_path fp32.mlir
+
+mlir-opt fp32.mlir \
     --assign-layer-id \
     --convert-bn-to-scale \
     --canonicalize \
@@ -32,7 +36,7 @@ mlir-opt \
     --tpu-op-info-filename op_info.csv | \
 mlir-opt \
     --import-calibration-table \
-    --calibration-table $4 | \
+    --calibration-table $5 | \
 mlir-opt \
     --assign-chip-name \
     --chipname ${SET_CHIP_NAME} \
@@ -78,4 +82,4 @@ mlir-translate \
     ${CUSTOM_OP_PLUGIN_OPTION} \
     --weight-file weight.bin \
     int8_layergroup_func.mlir \
-    -o $5
+    -o $6

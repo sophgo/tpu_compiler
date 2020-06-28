@@ -4,7 +4,7 @@ set -e
 usage()
 {
    echo ""
-   echo "Usage: $0 prototxt caffemodel batch_size cali_table out.cvimodel"
+   echo "Usage: $0 onnxmodel name batch_size cali_table out.cvimodel"
    exit 1
 }
 
