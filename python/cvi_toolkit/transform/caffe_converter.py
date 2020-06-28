@@ -22,12 +22,13 @@ class CaffeTensor():
 
 
 class CaffeConverter(BaseConverter):
-    def __init__(self, model_name, prototxt, caffemodel, mlir_file_path, batch_size=1):
+    def __init__(self, model_name, prototxt, caffemodel, mlir_file_path, batch_size=1, preprocess=None):
         super().__init__()
         self.model_name = model_name
         self.prototxt = prototxt
         self.caffemodel = caffemodel
         self.batch_size = batch_size
+        self.preprocess = preprocess
 
         self.net = caffe.Net(self.prototxt, self.caffemodel, caffe.TEST)
         self.param = caffe_pb2.NetParameter()
@@ -1060,6 +1061,114 @@ class CaffeConverter(BaseConverter):
         self.addOperand(layer.top[0], new_op,
                         output_shape, TensorType.ACTIVATION)
 
+    def do_pre_scale(self, input_name, op_name, scale):
+        if scale == 1.0:
+            return
+        op, input_shape, _ = self.getOperand(input_name)
+        operands = list()
+        operands.append(op)
+        # weight scale
+        scale_name = op_name + "_0"
+        c = input_shape[1]
+        scale_shape = [c]
+        scale_data = np.array([scale for i in range(c)], dtype=float)
+        self.addTensor(scale_name, scale_data, scale_shape)
+        scale_op = self.CVI.add_load_file_op(scale_name, scale_shape)
+        operands.append(scale_op)
+        # weiht bias
+        bias_name = op_name + "_1"
+        bias_shape = [c]
+        bias_data = np.array([0.0 for i in range(c)], dtype=float)
+        self.addTensor(bias_name, bias_data, bias_shape)
+        bias_op = self.CVI.add_load_file_op(bias_name, bias_shape)
+        operands.append(bias_op)
+        output_shape = input_shape
+        new_op = self.CVI.add_scale_op(op_name, operands, output_shape)
+        self.addOperand(input_name, new_op, output_shape,
+                        TensorType.ACTIVATION)
+
+    def do_pre_mean(self, input_name, op_name, value, order):
+        if len(value) == 0:
+            return
+        mean_value = [float(i) for i in value.strip().split(',')]
+        assert(len(mean_value) == 3)
+        op, input_shape, _ = self.getOperand(input_name)
+        operands = list()
+        operands.append(op)
+        # weight mean
+        mean_name = op_name + "_0"
+        mean_shape = [input_shape[1]]
+        mean_data = np.array(mean_value, dtype=float)
+        if order != None:
+            tmp = list(mean_value)
+            for i, j in enumerate(order):
+                mean_data[i] = tmp[j]
+        self.addTensor(mean_name, mean_data, mean_shape)
+        mean_op = self.CVI.add_load_file_op(mean_name, mean_shape)
+        operands.append(mean_op)
+        # weight variance
+        variance_name = op_name + "_1"
+        variance_shape = [input_shape[1]]
+        variance_data = np.array([1.0, 1.0, 1.0], dtype=float)
+        self.addTensor(variance_name, variance_data, variance_shape)
+        variance_op = self.CVI.add_load_file_op(variance_name, variance_shape)
+        operands.append(variance_op)
+        # weight scale
+        scale_name = op_name + "_2"
+        scale_shape = [1]
+        scale_data = np.array([1.0], dtype=float)
+        self.addTensor(scale_name, scale_data, scale_shape)
+        scale_op = self.CVI.add_load_file_op(scale_name, scale_shape)
+        operands.append(scale_op)
+        param = {
+            'variance_epsilon': 0.0
+        }
+        output_shape = input_shape
+        new_op = self.CVI.add_batchnorm_op(
+            op_name, operands, output_shape, **param)
+        self.addOperand(input_name, new_op, output_shape,
+                        TensorType.ACTIVATION)
+
+    def do_pre_swap_channel(self, input_name, op_name, order):
+        op, input_shape, _ = self.getOperand(input_name)
+        operands = list()
+        operands.append(op)
+        param = {
+            'channel_order': order
+        }
+        output_shape = input_shape
+        new_op = self.CVI.add_swap_channel_op(
+            op_name, operands, output_shape, **param)
+        self.addOperand(input_name, new_op, output_shape,
+                        TensorType.ACTIVATION)
+
+    def do_preprocess(self, input_name):
+        if self.preprocess == None:
+            return
+        order = None
+        if "swap_channel" in self.preprocess and len(self.preprocess["swap_channel"]) != 0:
+            order = [int(i)
+                     for i in self.preprocess["swap_channel"].strip().split(',')]
+            assert(len(order) == 3 or len(order) == 0)
+            need_order = False
+            for i, data in enumerate(order):
+                if i != data:
+                    need_order = True
+                    break
+            if need_order == False:
+                order = None
+        if "raw_scale" in self.preprocess:
+            self.do_pre_scale(input_name, "pre_raw_scale",
+                              self.preprocess['raw_scale']/255.0)
+        if "mean" in self.preprocess:
+            self.do_pre_mean(input_name, "pre_mean",
+                             self.preprocess['mean'], order)
+        if "scale" in self.preprocess:
+            self.do_pre_scale(input_name, "pre_scale",
+                              self.preprocess['scale'])
+        if order != None:
+            self.do_pre_swap_channel(input_name, "pre_swap_channel", order)
+
     def convert_graph(self):
         """convert all to mlir"""
         # add weight op
@@ -1074,6 +1183,9 @@ class CaffeConverter(BaseConverter):
             input_shape = self.input_shapes[idx]
             input_op = self.CVI.add_input_op(name, idx)
             self.addOperand(name, input_op, input_shape, TensorType.ACTIVATION)
+            # only first input do preprocess
+            if idx == 0:
+                self.do_preprocess(name)
 
         for layer in self.layers:
             self.caffeop_factory.get(
