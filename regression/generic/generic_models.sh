@@ -315,10 +315,10 @@ export STD=0.5,0.5,0.5   # in BGR, pytorch std=[0.5, 0.5, 0.5]
 export IMAGE_RESIZE_DIMS=256,256
 export INPUT=input
 export COMPARE_ALL=1
-export TOLERANCE_INT8_MULTIPLER=0.76,0.80,0.269
+export TOLERANCE_INT8_MULTIPLER=0.77,0.88,0.277
 export ENABLE_CALI_OVERWRITE_THRESHOLD_FORWARD="--enable-cali-overwrite-threshold-forward-relu"
 export DO_CALIBRATION=0
-export CALIBRATION_IMAGE_COUNT=100
+export CALIBRATION_IMAGE_COUNT=2000
 export DO_QUANT_INT8_MULTIPLER=1
 export DO_CMDBUF_INT8=0
 export DO_QUANT_BF16=1
@@ -335,7 +335,9 @@ export DO_DEEPFUSION=1
 export DO_MEMOPT=1
 export DO_LAYERGROUP=1
 export DO_E2E=1
-export USE_LAYERGROUP=0
+export DO_ACCURACY_CAFFE=0
+export DO_ACCURACY_ONNX=1
+export DO_QUANT_INT8_MULTIPLER=1
 fi
 
 if [ $NET = "shufflenet_v2" ]; then

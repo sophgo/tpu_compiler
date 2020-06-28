@@ -33,6 +33,7 @@ efficientnet_b0           Y        Y        N        N        N        N
 alphapose                 N        N        N        Y        Y        N
 espcn_3x                  Y        N        N        N        Y        N
 unet                      Y        N        N        N        Y        N
+nasnet_mobile             Y        N        N        N        Y        N
 
 # tensorflow
 mobilenet_v1_tf           Y        Y        N        N        N        N
