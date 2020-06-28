@@ -50,6 +50,9 @@ mlir-opt \
     int8.mlir \
     --tpu-lower --reorder-op | \
 mlir-opt \
+    --tg-fuse-leakyrelu \
+    --conv-ic-alignment | \
+mlir-opt \
     --group-ops \
     --layer-group-gm-opt=true \
     --layer-group-neuron-map-filename=neuron_map_layergroup.csv | \
@@ -59,11 +62,15 @@ mlir-opt \
     --deep-fusion-tl-la2lw \
     -o int8_layergroup.mlir
 mlir-opt \
+    --compress-weight \
+    int8_layergroup.mlir \
+    -o int8_layergroup_compressed.mlir
+mlir-opt \
     --assign-weight-address \
     --tpu-weight-address-align=16 \
     --tpu-weight-map-filename=weight_map_int8_lg.csv \
     --tpu-weight-bin-filename=weight.bin \
-    int8_layergroup.mlir \
+    int8_layergroup_compressed.mlir \
     -o int8_layergroup_addr.mlir
 mlir-opt \
     --divide-ops-to-func \
