@@ -54,6 +54,7 @@ class TPU_OpType(Enum):
     Sigmoid = 'tpu.sigmoid'
     Slice = 'tpu.slice'
     Softmax = 'tpu.softmax'
+    SwapChannel = 'tpu.swap_channel'
     Tanh = 'tpu.tanh'
     Upsample = 'tpu.upsample'
     YoloDetection = 'tpu.yolo_detection'
@@ -898,6 +899,19 @@ class MLIRImporter(object):
         }
         return self.buildOp(TPU_OpType.Softmax.value, inputOperands, [
             tensor_output_type], name=softmax_name, **softmax_param)
+
+    def add_swap_channel_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+        tensor_output_type = self.module.make_ranked_tensor_type(
+            self.f32Type, output_tensor_shape)
+
+        name_attr = self.module.stringAttr(op_name)
+        checkKey(kargs, 'channel_order')
+        order = self.module.arrayAttr([self.module.integerAttr(self.i32Type, x) for x in kargs['channel_order']])
+        param = {
+            'channel_order': order,
+        }
+        return self.buildOp(TPU_OpType.SwapChannel.value, inputOperands, [
+            tensor_output_type], name=name_attr, quant=self.quant_param, **param)
 
     def add_tanh_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = self.module.make_ranked_tensor_type(

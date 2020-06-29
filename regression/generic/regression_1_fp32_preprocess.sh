@@ -5,29 +5,22 @@ DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 
 
 # translate from caffe model
+CHANNEL_ORDER=0,1,2
 if [ $MODEL_CHANNEL_ORDER = "rgb" ]; then
-    mlir-translate \
-        --caffe-to-mlir $MODEL_DEF \
-        --caffemodel $MODEL_DAT \
-        --resolve-preprocess \
-        --raw_scale $RAW_SCALE \
-        --mean $MEAN \
-        --scale $INPUT_SCALE \
-        --swap_channel 2,1,0 \
-        --static-batchsize $BATCH_SIZE \
-        -o ${NET}.mlir
-else
-    mlir-translate \
-        --caffe-to-mlir $MODEL_DEF \
-        --caffemodel $MODEL_DAT \
-        --resolve-preprocess \
-        --raw_scale $RAW_SCALE \
-        --mean $MEAN \
-        --scale $INPUT_SCALE \
-        --swap_channel 0,1,2 \
-        --static-batchsize $BATCH_SIZE \
-        -o ${NET}.mlir
+    CHANNEL_ORDER=2,1,0
 fi
+
+cvi_model_convert.py \
+      --model_path $MODEL_DEF \
+      --model_dat $MODEL_DAT \
+      --model_name ${NET} \
+      --model_type $MODEL_TYPE \
+      --batch_size $BATCH_SIZE \
+      --raw_scale $RAW_SCALE \
+      --mean $MEAN \
+      --scale $INPUT_SCALE \
+      --swap_channel $CHANNEL_ORDER \
+      --mlir_file_path ${NET}.mlir
 
 # assign layer_id right away, and output op_info
 mlir-opt \

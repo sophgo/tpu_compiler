@@ -19,6 +19,13 @@ CVI_SupportFramework = [
 def Convert(args):
     if args.model_type not in CVI_SupportFramework:
         raise ValueError("Not support {} type".format(args.model_type))
+    # only caffe support
+    preprocess_args = {
+        "swap_channel": args.swap_channel,
+        "raw_scale": args.raw_scale,
+        "mean": args.mean,
+        "scale": args.scale,
+    }
     if args.model_type == "onnx":
         onnx_model = onnx.load(args.model_path)
         c = OnnxConverter(args.model_name, onnx_model,
@@ -27,9 +34,11 @@ def Convert(args):
         c = TFLiteConverter(
             args.model_name, args.model_path, args.mlir_file_path)
     elif args.model_type == "tensorflow":
-        c = TFConverter(args.model_name, args.model_path, args.mlir_file_path, batch_size=args.batch_size)
+        c = TFConverter(args.model_name, args.model_path,
+                        args.mlir_file_path, batch_size=args.batch_size)
     elif args.model_type == "caffe":
-        c = CaffeConverter(args.model_name, args.model_path, args.model_dat, args.mlir_file_path, batch_size=args.batch_size)
+        c = CaffeConverter(args.model_name, args.model_path, args.model_dat,
+                           args.mlir_file_path, batch_size=args.batch_size, preprocess=preprocess_args)
     c.run()
 
 
@@ -49,7 +58,7 @@ def main():
     )
     parser.add_argument(
         "--model_dat",
-        help="model weights, caffe need",
+        help="model weights, only caffemodel need",
         default=""
     )
     parser.add_argument(
@@ -62,6 +71,30 @@ def main():
         help="input batch size",
         type=int,
         default=1,
+    )
+    parser.add_argument(
+        "--swap_channel",
+        help="Do preprocess, specify the channel order to swap",
+        type=str,
+        default="",
+    )
+    parser.add_argument(
+        "--raw_scale",
+        help="Do preprocess, specify the raw_scale",
+        type=float,
+        default=255.0,
+    )
+    parser.add_argument(
+        "--mean",
+        help="Do preprocess, specify the mean",
+        type=str,
+        default="",
+    )
+    parser.add_argument(
+        "--scale",
+        help="Do preprocess, specify the scale",
+        type=float,
+        default=1.0,
     )
     args = parser.parse_args()
     Convert(args)
