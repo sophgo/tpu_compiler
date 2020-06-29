@@ -161,6 +161,27 @@ class MixNet {
                          int timestep_idx,
                          bool is_h_split);
 
+  void _add_tl_pad_op(MixOp * mix_op,
+                      const vector<int>& in_tensors,
+                      const vector<int>& out_tensors,
+                      net_timestep* time_step,
+                      int timestep_idx,
+                      bool is_h_split);
+
+  void _add_tl_crop_op(MixOp * mix_op,
+                      const vector<int>& in_tensors,
+                      const vector<int>& out_tensors,
+                      net_timestep* time_step,
+                      int timestep_idx,
+                      bool is_h_split);
+
+  void _add_tl_relu_op(MixOp * mix_op,
+                       const vector<int>& in_tensors,
+                       const vector<int>& out_tensors,
+                       net_timestep* time_step,
+                       int timestep_idx,
+                       bool is_h_split);
+
   void _add_load_op(int tensor_id,
                     net_timestep* time_step, int timestep_idx);
 

@@ -109,7 +109,11 @@ shared_ptr<ImLayer> ImLayer::create(Operation* op) {
   } else if (isa<tpu::TG_INT8_LeakyReluOp>(op)) {
     layer = make_shared<ImLeakyRelu>(op);
   } else if (isa<tpu::TG_INT8_PadOp>(op)) {
-    layer = make_shared<ImCommon>(op, false, IR_OTHER);
+    layer = make_shared<ImPad>(op);
+  } else if (isa<tpu::TG_INT8_CropOp>(op)) {
+    layer = make_shared<ImCrop>(op);
+  } else if (isa<tpu::TG_INT8_ReluOp>(op)) {
+    layer = make_shared<ImRelu>(op);
   } else if (isa<tpu::GenericCpuOp>(op)) {
     layer = make_shared<ImCommon>(op, false, IR_OTHER);
   } else if (isa<tpu::QuantOp>(op) ||
@@ -426,4 +430,18 @@ ImLeakyRelu::ImLeakyRelu(Operation *op): ImLayer(IR_LEAKY_RELU, op, true) {
   add_out_tensor(op->getResult(0), TENSOR_NEURON);
 }
 
+ImPad::ImPad(Operation *op): ImLayer(IR_PAD, op, true) {
+  add_in_tensor(op->getOperand(0), TENSOR_NEURON);
+  add_out_tensor(op->getResult(0), TENSOR_NEURON);
+}
+
+ImCrop::ImCrop(Operation *op): ImLayer(IR_CROP, op, true) {
+  add_in_tensor(op->getOperand(0), TENSOR_NEURON);
+  add_out_tensor(op->getResult(0), TENSOR_NEURON);
+}
+
+ImRelu::ImRelu(Operation *op): ImLayer(IR_RELU, op, true) {
+  add_in_tensor(op->getOperand(0), TENSOR_NEURON);
+  add_out_tensor(op->getResult(0), TENSOR_NEURON);
+}
 }

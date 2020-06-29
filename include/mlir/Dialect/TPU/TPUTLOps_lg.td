@@ -582,4 +582,129 @@ def TPU_TL_LG_CopyOp : TPU_Op<"tl_lg_copy",
   let results = (outs AnyTensor:$output);
 }
 
+def TPU_TL_LG_PadOp : TPU_Op<"tl_lg_pad",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuTLOpCodegenInterface>]> {
+  let summary = "TL pad operator" ;
+  let description = [{
+    Inputs:
+      `input`           : required, the input activation memref.
+
+    Attributes:
+      `pads`            : tensor containing the number of start and end
+                          pad values for axis
+      `const_val`       : A scalar value to be used if the mode
+                          chosen is `constant` (by default it is 0).
+      `name`            : required, name for comparing, or debug.
+      `layer_id`        : optional, id for profiling.
+      `chipname`        : optional, chipname.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface`    : support common TPU TG Op interface.
+      `TpuTLOpCodegenInterface` : support generate TPU instuctions.
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    StrAttr:$name,
+    I32Attr:$la_input,
+    I32Attr:$la_output,
+    OptionalAttr<I32ArrayAttr>:$pads,
+    DefaultValuedAttr<F32Attr, "0">:$const_val,
+    BoolAttr:$align,
+    OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
+    DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
+def TPU_TL_LG_CropOp : TPU_Op<"tl_lg_crop",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuTLOpCodegenInterface>]> {
+  let summary = "TL crop operator" ;
+  let description = [{
+    Inputs:
+      `input`           : required, the input activation memref.
+
+    Attributes:
+      `crop_offsets`    : required, crop offset(saved as I32ArrayAttr).
+      `name`            : required, name for comparing, or debug.
+      `layer_id`        : optional, id for profiling.
+      `chipname`        : optional, chipname.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface`    : support common TPU TG Op interface.
+      `TpuTLOpCodegenInterface` : support generate TPU instuctions.
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    StrAttr:$name,
+    I32Attr:$la_input,
+    I32Attr:$la_output,
+    OptionalAttr<I32ArrayAttr>:$crop_offsets,
+    BoolAttr:$align,
+    OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
+    DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
+def TPU_TL_LG_ReluOp : TPU_Op<"tl_lg_relu",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuTLOpCodegenInterface>]> {
+  let summary = "TL relu operator" ;
+  let description = [{
+    Inputs:
+      `input`           : required, the input activation memref.
+
+    Attributes:
+      `name`            : required, name for comparing, or debug.
+      `layer_id`        : optional, id for profiling.
+      `chipname`        : optional, chipname.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface`    : support common TPU TG Op interface.
+      `TpuTLOpCodegenInterface` : support generate TPU instuctions.
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    StrAttr:$name,
+    I32Attr:$la_input,
+    I32Attr:$la_output,
+    BoolAttr:$align,
+    OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
+    DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
 #endif // TPU_TL_OPS_LG

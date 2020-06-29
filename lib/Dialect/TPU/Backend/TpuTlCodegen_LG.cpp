@@ -884,4 +884,89 @@ LogicalResult tpu::TL_LG_PReluOp::codegen(void *ctx) {
   return success();
 }
 
+LogicalResult tpu::TL_LG_PadOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  auto input_shape = getTensorShape(op->getOperand(0));
+  auto output_shape = getTensorShape(op->getResult(0));
+
+  laddr_t la_input = this->la_input().getLimitedValue();
+  laddr_t la_output = this->la_output().getLimitedValue();
+
+  // parse param
+  int layer_id = mlir::getOpLayerId(op);
+  std::vector<int32_t> pads;
+  auto const_val = this->const_val().convertToFloat();
+  arrayAttrToVector(this->pads().getValue(), pads);
+
+  cvi_backend_tl_pad(
+      *backend_ctx,
+      layer_id, //layer_id,
+      input_shape.data(),
+      output_shape.data(),
+      la_input,
+      la_output,
+      const_val,
+      pads.data()
+  );
+  return success();
+}
+
+LogicalResult tpu::TL_LG_CropOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  auto input_shape = getTensorShape(op->getOperand(0));
+  auto output_shape = getTensorShape(op->getResult(0));
+
+  laddr_t la_input = this->la_input().getLimitedValue();
+  laddr_t la_output = this->la_output().getLimitedValue();
+
+  // parse param
+  int layer_id = mlir::getOpLayerId(op);
+  std::vector<int32_t> crop_offsets;
+  arrayAttrToVector(this->crop_offsets().getValue(), crop_offsets);
+
+  cvi_backend_tl_crop(
+      *backend_ctx,
+      layer_id, //layer_id,
+      input_shape.data(),
+      output_shape.data(),
+      la_input,
+      la_output,
+      crop_offsets.data()
+  );
+  return success();
+}
+
+LogicalResult tpu::TL_LG_ReluOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  auto input_shape = getTensorShape(op->getOperand(0));
+  int64_t n, c, h, w;
+  getNCHW(input_shape, n, c, h, w);
+
+  laddr_t la_input = this->la_input().getLimitedValue();
+  laddr_t la_output = this->la_output().getLimitedValue();
+
+  // parse param
+  int layer_id = mlir::getOpLayerId(op);
+
+  cvi_backend_tl_relu(
+      *backend_ctx,
+      layer_id, //layer_id,
+      n, c, h, w,
+      la_input,
+      la_output
+  );
+  return success();
+}
 }

@@ -54,6 +54,8 @@ typedef enum {
   IR_SLICE,
   IR_ARITHMETIC,
   IR_QUANTIZATION,
+  IR_PAD,
+  IR_CROP,
   IR_JOIN,
   IR_MULTIINPUT,
   IR_OTHER,
@@ -209,6 +211,21 @@ class ImArithmetic : public ImLayer {
 class ImQuantization : public ImLayer {
  public:
   explicit ImQuantization(Operation *op);
+};
+
+class ImPad : public ImLayer {
+ public:
+  explicit ImPad(Operation *op);
+};
+
+class ImCrop : public ImLayer {
+ public:
+  explicit ImCrop(Operation *op);
+};
+
+class ImRelu : public ImLayer {
+ public:
+  explicit ImRelu(Operation *op);
 };
 
 class ImCommon : public ImLayer {
