@@ -99,11 +99,12 @@ do
         $DIR/convert_model_caffe_lg_preprocess.sh \
           ${MODEL_DEF} \
           ${MODEL_DAT} \
+          ${NET} \
+          1 \
           ${RAW_SCALE} \
           ${MEAN} \
           ${INPUT_SCALE} \
           ${RGB_ORDER} \
-          1 \
           ${CALI_TABLE} \
           ${NET}.cvimodel
       else
@@ -125,11 +126,12 @@ do
         $DIR/convert_model_caffe_df_preprocess.sh \
           ${MODEL_DEF} \
           ${MODEL_DAT} \
+          ${NET} \
+          1 \
           ${RAW_SCALE} \
           ${MEAN} \
           ${INPUT_SCALE} \
           ${RGB_ORDER} \
-          1 \
           ${CALI_TABLE} \
           ${NET}.cvimodel
       else

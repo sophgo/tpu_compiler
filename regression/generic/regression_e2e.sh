@@ -14,22 +14,24 @@ if [ $MODEL_TYPE = "caffe" ]; then
       $REGRESSION_PATH/convert_model_caffe_lg_preprocess.sh \
           ${MODEL_DEF} \
           ${MODEL_DAT} \
+          ${NET} \
+          ${BATCH_SIZE} \
           ${RAW_SCALE} \
           ${MEAN} \
           ${INPUT_SCALE} \
           ${RGB_ORDER} \
-          ${BATCH_SIZE} \
           ${CALI_TABLE} \
           ${NET}.cvimodel
     else
       $REGRESSION_PATH/convert_model_caffe_df_preprocess.sh \
           ${MODEL_DEF} \
           ${MODEL_DAT} \
+          ${NET} \
+          ${BATCH_SIZE} \
           ${RAW_SCALE} \
           ${MEAN} \
           ${INPUT_SCALE} \
           ${RGB_ORDER} \
-          ${BATCH_SIZE} \
           ${CALI_TABLE} \
           ${NET}.cvimodel
     fi

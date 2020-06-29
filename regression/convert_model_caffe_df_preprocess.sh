@@ -4,27 +4,30 @@ set -e
 usage()
 {
    echo ""
-   echo "Usage: $0 prototxt caffemodel raw_scale mean scale swap_channel batch_size cali_table out.cvimodel"
+   echo "Usage: $0 prototxt caffemodel name batch_size raw_scale mean scale swap_channel cali_table out.cvimodel"
    echo $#
    exit 1
 }
 
-if [[ $# -ne 9 ]]; then
+if [[ $# -ne 10 ]]; then
     echo "$0 Illegal number of parameters"
     usage
     exit 2
 fi
 
-mlir-translate \
-    --caffe-to-mlir $1 \
-    --caffemodel $2 \
-    --resolve-preprocess \
-    --raw_scale $3 \
-    --mean $4 \
-    --scale $5 \
-    --swap_channel $6 \
-    --static-batchsize $7 | \
-mlir-opt \
+cvi_model_convert.py \
+    --model_path $1 \
+    --model_dat $2 \
+    --model_name $3 \
+    --model_type caffe \
+    --batch_size $4 \
+    --raw_scale $5 \
+    --mean $6 \
+    --scale $7 \
+    --swap_channel $8 \
+    --mlir_file_path fp32.mlir
+
+mlir-opt fp32.mlir \
     --assign-layer-id \
     --convert-bn-to-scale \
     --canonicalize \
@@ -33,7 +36,7 @@ mlir-opt \
     --tpu-op-info-filename op_info.csv | \
 mlir-opt \
     --import-calibration-table \
-    --calibration-table $8 | \
+    --calibration-table $9 | \
 mlir-opt \
     --assign-chip-name \
     --chipname ${SET_CHIP_NAME} \
@@ -87,4 +90,4 @@ mlir-translate \
     ${CUSTOM_OP_PLUGIN_OPTION} \
     --weight-file weight.bin \
     int8_tl_lw_memopt_func.mlir \
-    -o $9
+    -o ${10}
