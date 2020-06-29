@@ -5,7 +5,8 @@ models = {
     'resnet50': tf.keras.applications.ResNet50,
     'mobilenet': tf.keras.applications.MobileNet,
     'mobilenetv2': tf.keras.applications.MobileNetV2,
-    'vgg16': tf.keras.applications.VGG16
+    'vgg16': tf.keras.applications.VGG16,
+    'densenet121': tf.keras.applications.DenseNet121,
 }
 
 if __name__ == "__main__":
