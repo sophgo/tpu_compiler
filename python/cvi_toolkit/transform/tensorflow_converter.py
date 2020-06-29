@@ -104,7 +104,6 @@ class TFConverter(BaseConverter):
             "ReLU": lambda node: self.convert_activation_op(node),
             "Reshape": lambda node: self.convert_reshape_op(node),
             "ZeroPadding2D": lambda node: self.convert_pad_op(node),
-
         }
 
     def init_importer(self):
