@@ -90,8 +90,10 @@ class TFConverter(BaseConverter):
         self.tensorflowop_factory = {
             "Add": lambda node: self.convert_add_op(node),
             "Activation": lambda node: self.convert_activation_op(node),
+            "AveragePooling2D": lambda node: self.convert_avg_pool_op(node),
             "BatchNormalization": lambda node: self.convert_batchnorm_op(node),
             "Conv2D": lambda node: self.convert_conv_op(node),
+            "Concatenate": lambda node: self.convert_concat_op(node),
             "DepthwiseConv2D": lambda node: self.convert_depthwise_conv_op(node),
             "Dense": lambda node: self.convert_fc_op(node),
             "Dropout":  lambda node: self.convert_skip_op(node),
@@ -264,6 +266,66 @@ class TFConverter(BaseConverter):
         add_op = self.CVI.add_eltwise_add_op("{}".format(node.name), operands, output_shape)
         self.addOperand(node.name, add_op, output_shape, TensorType.ACTIVATION)
 
+    def convert_avg_pool_op(self, node):
+        assert(node.op_type == "AveragePooling2D")
+
+        op, shape, _ = self.getOperand(node.inputs[0])
+        operands = list()
+        operands.append(op)
+
+        pool_size = node.config.get("pool_size")
+        padding = node.config.get("padding")
+        strides = node.config.get("strides")
+        data_format = node.config.get("data_format")
+        if data_format != "channels_last": raise RuntimeError("Only support channel pool")
+
+        if padding == "same":
+            padding_along_h = get_TF_SAME_Padding(shape[2], pool_size[0], strides[0])
+            padding_along_w = get_TF_SAME_Padding(shape[3], pool_size[1], strides[1])
+            padding_t = padding_along_h // 2
+            padding_l = padding_along_w // 2
+            padding_b = padding_along_h - padding_t
+            padding_r = padding_along_w - padding_l
+        else:
+            padding_t = 0
+            padding_b = 0
+            padding_l = 0
+            padding_r = 0
+
+        on = shape[0]
+        oc = shape[1]
+        oh = calcPool2DFloor(
+            shape[2],
+            pool_size[0],
+            strides[0],
+            padding_t,
+            padding_b,
+        )
+        ow = calcPool2DFloor(
+            shape[3],
+            pool_size[1],
+            strides[1],
+            padding_l,
+            padding_r,
+        )
+
+        pool_avg_2d_param = {
+            'stride_h':  strides[0],
+            'stride_w':  strides[1],
+            'kernel_h':  pool_size[0],
+            'kernel_w':  pool_size[1],
+            'padding_t': padding_t,
+            'padding_b': padding_b,
+            'padding_l': padding_l,
+            'padding_r': padding_r,
+            'count_include_pad': False,
+            'do_relu': False,
+        }
+        output_shape = [int(on), int(oc), int(oh), int(ow)]
+        pool_avg_op = self.CVI.add_pool_avg_2d_op(node.name, operands, output_shape, **pool_avg_2d_param)
+        self.addOperand(node.name, pool_avg_op,
+                        output_shape, TensorType.ACTIVATION)
+
     def convert_batchnorm_op(self, node):
         assert(node.op_type == "BatchNormalization")
         op, input_shape, _ = self.getOperand(node.inputs[0])
@@ -297,6 +359,41 @@ class TFConverter(BaseConverter):
         output_shape = input_shape
         scaleop = self.CVI.add_scale_op("{}".format(node.name, node.op_type), operands, output_shape)
         self.addOperand(node.name, scaleop, output_shape, TensorType.ACTIVATION)
+
+    def convert_concat_op(self, node):
+        """
+            In tensorflow, case of dim 4, data format is NHWC,
+            We handle all op in NCHW, if axis is 3, we change to 1
+        """
+        axis = node.config.get("axis")
+        in_shapes = list()
+        operands = list()
+        output_shape = list()
+        for i in node.inputs:
+            op, input_shape, _ = self.getOperand(i)
+            in_shapes.append(input_shape)
+            operands.append(op)
+        if len(in_shapes[0]) == 4 and axis != 3:
+            raise RuntimeError("case of dim 4, data format is NHWC, we handle all op in NCHW, if axis is 3, we change to 1\n axis is {}".format(axis))
+        elif len(in_shapes[0]) == 4 and axis == 3:
+            logger.info("case of dim 4, data format is NHWC, we handle all op in NCHW, if axis is 3, we change to 1")
+            axis = 1
+        else:
+            pass
+
+        for idx, op_shape in enumerate(in_shapes):
+            if idx == 0:
+                output_shape = op_shape
+            else:
+                for dim, value in enumerate(op_shape):
+                    if dim == axis:
+                        output_shape[dim] += value
+                    else:
+                        if output_shape[dim] != value:
+                            raise ValueError("axis is {}, {} v.s {} shape can not be concat".format(axis, output_shape, op_shape))
+
+        concat_op = self.CVI.add_concat_op(node.name, operands, output_shape, axis=axis)
+        self.addOperand(node.name, concat_op, output_shape, TensorType.ACTIVATION)
 
     def convert_conv_op(self, node):
         assert(node.op_type == "Conv2D")
@@ -529,6 +626,7 @@ class TFConverter(BaseConverter):
 
         self.addOperand(node.name, activation_op, output_shape,
                             TensorType.ACTIVATION)
+
     def convert_flatten_op(self, node):
         """
         In Tensorflow, flatten channels_last means [n,h,w,c] -> [n,hwc]
@@ -624,39 +722,6 @@ class TFConverter(BaseConverter):
         pool_max_op = self.CVI.add_pool_max_2d_op("{}".format(node.name), operands, output_shape, **pool_max_2d_param)
         self.addOperand(node.name, pool_max_op, output_shape, TensorType.ACTIVATION)
 
-    def convert_mean_op(self, node):
-        assert(node.op_type == "MEAN")
-        """
-            Fix: our mlir don't have mean op,
-            we use avg_pool workaround
-            (Sam)
-        """
-        # first input is activate, second is tensor of axis
-        assert(len(node.inputs) == 2)
-        op, shape, _ = self.getOperand(str(node.inputs[0]))
-        operands = list()
-        operands.append(op)
-        mean_tensor_idx = node.inputs[1]
-        mean_shape, mean_attr_data = self.get_tensor_shape_and_data(
-            mean_tensor_idx, data_type=np.int32)
-        on = shape[0]
-        oc = shape[1]
-        pool_avg_2d_param = {
-            'stride_h':  1,
-            'stride_w':  1,
-            'kernel_h':  shape[2],
-            'kernel_w':  shape[3],
-            'padding_b': 0,
-            'padding_r': 0,
-            'padding_t': 0,
-            'padding_l': 0,
-            'do_relu': False,
-        }
-        output_shape = [int(on), int(oc), 1, 1]
-        pool_avg_op = self.CVI.add_pool_avg_2d_op("{}".format(
-            node.name), operands, output_shape, **pool_avg_2d_param)
-        self.addOperand(node.name, pool_avg_op,
-                        output_shape, TensorType.ACTIVATION)
 
     def convert_pad_op(self, node):
         assert(node.op_type == "ZeroPadding2D")
