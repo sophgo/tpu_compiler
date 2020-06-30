@@ -26,6 +26,7 @@ parser.add_argument("--model_def", type=str,
 parser.add_argument("--pretrained_model", type=str,
                     help="Load weights from previously saved parameters.", default=None)
 parser.add_argument("--mlir_file", type=str, help="mlir file.", default=None)
+parser.add_argument("--label_file", type=str, help="label file.", default=None)
 parser.add_argument("--dataset", type=str,
                     help="The root directory of the ImageNet dataset.")
 parser.add_argument("--model_type", type=str,
@@ -163,8 +164,27 @@ if __name__ == '__main__':
   # define loss function (criterion) and optimizer
   criterion = nn.CrossEntropyLoss()
 
+  # target translate
+  label_map = list()
+  if args.label_file != None:
+    labels = np.loadtxt(args.label_file, str, delimiter='\t')
+    sorted_labels = sorted(labels)
+    label_map = [i for i in range(len(labels))]
+    is_sorted = True
+    for i,label in enumerate(labels):
+      index = sorted_labels.index(label)
+      label_map[index] = i
+      if index != i and is_sorted:
+        is_sorted = False
+    if is_sorted:
+      label_map.clear()
+
   end = time.time()
   for i, (images, target) in enumerate(val_loader):
+    if len(label_map) != 0:
+      # adjust target
+      for j in range(len(target)):
+        target[j] = label_map[target[j]]
     # compute output
     # output = model(images)
     # Pytorch ToTensor will make tesnor range to [0, 1]

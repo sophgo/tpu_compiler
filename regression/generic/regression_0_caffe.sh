@@ -16,7 +16,7 @@ if [ ! -f "$CAFFE_BLOBS_NPZ" ]; then
       --input_scale $INPUT_SCALE \
       --model_channel_order $MODEL_CHANNEL_ORDER \
       --batch_size $BATCH_SIZE \
-      --label_file $REGRESSION_PATH/data/synset_words.txt \
+      --label_file $LABEL_FILE \
       --dump_blobs $CAFFE_BLOBS_NPZ \
       --dump_weights ${NET}_weights.npz \
       $REGRESSION_PATH/data/cat.jpg \
