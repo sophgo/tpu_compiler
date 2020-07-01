@@ -332,11 +332,22 @@ class TFConverter(BaseConverter):
         operands.append(op)
         epsilon = node.config['epsilon']
 
+        weights = node.proto.get_weights()
         # we fuse batchnorm and scale at here
-        gamma_value = node.proto.get_weights()[0]
-        beta_value = node.proto.get_weights()[1]
-        mean_value = node.proto.get_weights()[2]
-        var_value = node.proto.get_weights()[3]
+        if node.config.get('scale') == False:
+            gamma_value = 1.0
+        else:
+            gamma_value = weights[0]
+            weights = weights[1:]
+
+        if node.config.get('center') == False:
+            beta_value = 0.0
+        else:
+            beta_value = weights[0]
+            weights = weights[1:]
+
+        mean_value =  weights[0]
+        var_value =  weights[1]
 
         scale_name = "{}_0".format(node.name)
         scale_value = ((1.0 / np.sqrt(
