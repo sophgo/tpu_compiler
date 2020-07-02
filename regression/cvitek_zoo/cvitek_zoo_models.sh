@@ -23,7 +23,7 @@ export DO_QUANT_MIX=0
 export DO_ACCURACY_CAFFE=1
 export DO_ACCURACY_INTERPRETER=1
 export DO_E2E=1
-export SET_CHIP_NAME="cv1880v2"
+export SET_CHIP_NAME="cv183x"
 
 if [ -z "$DO_BATCHSIZE" ]; then
   BATCH_SIZE=1

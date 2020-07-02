@@ -42,11 +42,11 @@
 using namespace mlir;
 
 /// set static run-chip 
-// TODO: enable by default for now, should set default "cv1880v2"
+// TODO: enable by default for now, should set default "cv183x"
 static llvm::cl::opt<std::string> clRunChipType(
      "chipname",
      llvm::cl::desc("set chip type"),
-     llvm::cl::init("cv1880v2"));
+     llvm::cl::init("cv183x"));
 
 namespace {
 class AssignChipNamePass : public FunctionPass<AssignChipNamePass> {

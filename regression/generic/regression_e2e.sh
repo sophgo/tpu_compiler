@@ -80,7 +80,6 @@ model_runner \
     --input ${NET}_in_fp32.npz \
     --model ${NET}.cvimodel \
     --batch-num $BATCH_SIZE \
-    --set-chip ${SET_CHIP_NAME} \
     --output ${NET}_out_all.npz
 
 if [ $USE_LAYERGROUP = "1" ]; then

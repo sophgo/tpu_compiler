@@ -15,10 +15,10 @@ from cvi_toolkit.cvimodel import cvi_model as cm
 
 # Version shall be in schema
 MAJOR_VER = 1
-MIN_VER = 0
+MIN_VER = 1
 SUBMIN_VER = 0
 
-DFT_CHIP = 'cv1835'
+DFT_CHIP = 'cv183x'
 DFT_MODEL_FILENAME = 'default.cm'
 
 dtype_map = {
@@ -292,10 +292,11 @@ class CVIModel:
     m = hashlib.md5()
     m.update(payload)
     md5 = m.digest()
-    header = struct.pack('<8sLBB16s2s', model_tag.encode(), len(
-      model), MAJOR_VER, MIN_VER, md5, "AA".encode())
-    if len(header) != 32:
-      raise Exception('header size != 32 bytes')
+    chip = 'cv183x'
+    header = struct.pack('<8sLBB16s16s2s', model_tag.encode(), len(
+      model), MAJOR_VER, MIN_VER, md5, chip.encode(), "AA".encode())
+    if len(header) != 48:
+      raise Exception('header size != 48 bytes')
     with open(output_file, 'wb') as f:
       f.write(header)
       f.write(payload)

@@ -49,7 +49,7 @@
 
 // Version shall be in schema
 #define MAJOR_VER 1
-#define MIN_VER 0
+#define MIN_VER 1
 #define SUBMIN_VER 0
 
 static llvm::cl::opt<std::string>
@@ -59,10 +59,7 @@ static llvm::cl::opt<std::string>
 static llvm::cl::opt<std::string>
     clWeightBinFileName("weight-file", llvm::cl::desc("saved weight bin filename"));
 
-static llvm::cl::opt<std::string> clRunChipType(
-     "cvi-set-chip",
-     llvm::cl::desc("set and translate chip type to cvimodel"),
-     llvm::cl::init("cv1880v2"));
+std::string clRunChipType;
 
 extern int BF16_TABLE_START;
 extern int BF16_TABLE_END;
@@ -73,6 +70,7 @@ typedef struct {
   char major;
   char minor;
   char md5[16];
+  char chip[16];
   char padding[2];
 } CviModelHeader;
 
@@ -276,7 +274,9 @@ flatbuffers::Offset<Routine> CviCpuRoutine::build() {
 CviTpuRoutine::CviTpuRoutine(flatbuffers::FlatBufferBuilder &fbb, FuncOp &fn,
                              std::string &fnName)
     : CviRoutine(fbb, true) {
+
   name = fnName;
+
   fn.walk([&](Operation *op) {
     if (op->getName().getDialect().str() != "tpu" || llvm::isa<tpu::InputOp>(op) ||
         llvm::isa<tpu::WeightFileOp>(op) || llvm::isa<ReturnOp>(op)) {
@@ -286,8 +286,14 @@ CviTpuRoutine::CviTpuRoutine(flatbuffers::FlatBufferBuilder &fbb, FuncOp &fn,
         ops.push_back(op);
       }
     }
+    /*get chip name from InputOp*/
+    if (llvm::isa<tpu::InputOp>(op)) {
+        clRunChipType = getChipName(op);
+      }
   });
+
   getOpGroupInputsOutputs(ops, inputs, outputs);
+
   codeGen();
 }
 
@@ -331,8 +337,10 @@ CviModelBuilder::CviModelBuilder(ModuleOp &module) : fbb_(1024) {
       mainFunc_ = fn;
       continue;
     }
+
     addRoutine(fn.getName());
   }
+
   parseModule();
 }
 
@@ -411,6 +419,10 @@ void CviModelBuilder::parseModule() {
       bool overwritten = false;
       if (op->getAttr("fuse_next")) {
         overwritten = true;
+      }
+
+      if (op->getAttr("chipname")) {
+        clRunChipType = op->getAttr("chipname").cast<StringAttr>().getValue();
       }
       if (op->getAttr("tl_store_flag") &&
           !op->getAttr("tl_store_flag").cast<BoolAttr>().getValue()) {
@@ -608,6 +620,8 @@ void CviModelBuilder::storeModel(llvm::raw_ostream &output) {
   std::string padding = u8"AA";
   strncpy(header.magic, magic.c_str(), 8);
   strncpy(header.padding, padding.c_str(), 2);
+  memset(header.chip, 0, sizeof(header.chip));
+  strncpy(header.chip, clRunChipType.c_str(), clRunChipType.length());
   header.body_size = fbb_.GetSize();
   header.major = MAJOR_VER;
   header.minor = MIN_VER;

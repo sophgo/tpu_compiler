@@ -55,7 +55,7 @@ static CviBackendContext *backend_ctx = nullptr;
 static llvm::cl::opt<std::string> clRunChipType(
      "cbuf-set-chip",
      llvm::cl::desc("set and translate chip type to cmdbuf"),
-     llvm::cl::init("cv1880v2"));
+     llvm::cl::init("cv183x"));
 
 static LogicalResult runOperation(Operation &opInst) {
   LLVM_DEBUG(llvm::errs() << "  op " << opInst.getName() << "\n";);

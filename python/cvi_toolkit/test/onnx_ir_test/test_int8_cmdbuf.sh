@@ -11,7 +11,7 @@ echo "test case: $1"
 mlir-opt ${1}.mlir \
     --assign-layer-id \
     --assign-chip-name \
-     --chipname cv1880v2 \
+     --chipname cv183x \
     --convert-bn-to-scale \
     --canonicalize \
     --eltwise-early-stride \
@@ -120,7 +120,6 @@ fi
 
 mlir-translate \
     --mlir-to-cvimodel \
-    --cvi-set-chip cv1880v2 \
     --weight-file weight_int8_multiplier.bin \
     ${1}_quant_int8_multiplier_addr_func.mlir \
     -o ${1}_int8_multiplier.cvimodel

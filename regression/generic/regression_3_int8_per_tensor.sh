@@ -79,7 +79,6 @@ if [ $DO_QUANT_INT8_PER_TENSOR -eq 1 ]; then
 
   mlir-translate \
       --mlir-to-cvimodel \
-      --cvi-set-chip ${SET_CHIP_NAME} \
       ${CUSTOM_OP_PLUGIN_OPTION}\
       --weight-file weight_int8_per_tensor.bin \
       ${NET}_quant_int8_per_tensor_addr_func.mlir \
@@ -91,7 +90,6 @@ if [ $DO_QUANT_INT8_PER_TENSOR -eq 1 ]; then
       --input ${NET}_in_fp32.npz \
       --model ${NET}_int8_per_tensor.cvimodel \
       --batch-num $BATCH_SIZE \
-      --set-chip ${SET_CHIP_NAME} \
       --output ${NET}_cmdbuf_out_all_int8_per_tensor.npz
 
   # compare all tensors

@@ -97,7 +97,6 @@ if [ $DO_QUANT_INT8_MULTIPLER -eq 1 ]; then
 
   mlir-translate \
       --mlir-to-cvimodel \
-      --cvi-set-chip ${SET_CHIP_NAME} \
       ${CUSTOM_OP_PLUGIN_OPTION}\
       --weight-file weight_int8_multiplier.bin \
       ${NET}_quant_int8_multiplier_addr_func.mlir \
@@ -109,7 +108,6 @@ if [ $DO_QUANT_INT8_MULTIPLER -eq 1 ]; then
       --input ${NET}_in_fp32.npz \
       --model ${NET}_int8_multiplier.cvimodel \
       --batch-num $BATCH_SIZE \
-      --set-chip ${SET_CHIP_NAME} \
       --output ${NET}_cmdbuf_out_all_int8_multiplier.npz
 
   #cvi_npz_tool.py to_bin \

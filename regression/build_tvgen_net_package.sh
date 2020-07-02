@@ -61,7 +61,6 @@ do
       --input $CVIMODEL_REL_PATH\/${d}_in_fp32.npz \
       --model $CVIMODEL_REL_PATH\/${d}_$OPT_TYPE.cvimodel \
       --batch-num $b \
-      --set-chip ${CHIP_NAME} \
       --output ${d}_cmdbuf_out.npz
 
   build_fw

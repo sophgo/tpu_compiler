@@ -78,7 +78,6 @@ mlir-opt \
 
 mlir-translate \
     --mlir-to-cvimodel \
-    --cvi-set-chip ${SET_CHIP_NAME} \
     ${CUSTOM_OP_PLUGIN_OPTION} \
     --weight-file weight.bin \
     int8_layergroup_func.mlir \
