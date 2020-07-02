@@ -27,6 +27,7 @@ public:
   static uint32_t lane_num;
   static uint32_t eu_num;
   static uint64_t lmem_per_lane;
+  static uint32_t lmem_bank_num;
 
   explicit MInfo() {};
   void runOnFunction();

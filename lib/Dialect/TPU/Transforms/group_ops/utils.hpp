@@ -28,6 +28,7 @@
 #include "mlir/Support/TensorFile.h"
 #include "llvm/Support/raw_ostream.h"
 #include <llvm/Support/Debug.h>
+#include "mlir/Dialect/TPU/MachineInfo.h"
 #include <sstream>
 #include <fstream>
 #include <math.h>
@@ -51,9 +52,10 @@ using std::vector;
 #define gaddr_t uint64_t
 #define laddr_t uint32_t
 
-#define NPU_NUM 32
-#define EU_NUM 16
-
+#define NPU_NUM (MInfo::lane_num)
+#define EU_NUM (MInfo::eu_num)
+#define LOCAL_MEM_SIZE (MInfo::lmem_per_lane)
+#define LOCAL_BANK_SIZE (MInfo::lmem_per_lane/MInfo::lmem_bank_num)
 
 static inline int ceiling_func(int numerator, int denominator)
 {
@@ -75,8 +77,7 @@ static inline int ceiling_func(int numerator, int denominator)
 #define BM_ERR_DATA 7              // Data error
 #define BM_ERR_BUSY 8              // Busy
 #define BM_ERR_NOT_SUPPORTED 9     // Not supported yet
-#define LOCAL_BANK_SIZE (1 << 12)
-#define LOCAL_MEM_SIZE (1 << 15)
+
 
 #define GLOBAL_MEM_SIZE  0x100000000
 
