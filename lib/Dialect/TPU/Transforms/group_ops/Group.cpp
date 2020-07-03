@@ -496,6 +496,30 @@ bool Group::backward_slice(int out_tensor_id, list<int>& branches, bool max_h_sl
           h_slice = out_h_slice * h_stride;
         }
       }
+    } else if (layer_type == IR_PAD) {
+      h_slice = out_h_slice;
+      std::vector<int32_t> pads;
+      auto pad_op = cast<tpu::TG_INT8_PadOp>(im_layer->op());
+      arrayAttrToVector(pad_op.pads().getValue(), pads);
+      h_idx = out_h_idx ? out_h_idx - pads[2] : 0;
+      if (out_h_idx == 0) {
+        if (out_h_slice == out_tensor->h())
+          h_slice = out_h_slice - pads[2] - pads[6];
+        else
+          h_slice = out_h_slice - pads[2];
+      } else if (out_h_idx + out_h_slice >= out_tensor->h()) {
+        h_slice = out_h_slice - pads[6];
+      } else
+        h_slice = out_h_slice;
+    } else if (layer_type == IR_CROP) {
+      std::vector<int32_t> crop_offsets;
+      auto crop_op = cast<tpu::TG_INT8_CropOp>(im_layer->op());
+      arrayAttrToVector(crop_op.crop_offset().getValue(), crop_offsets);
+      h_idx = out_h_idx ? out_h_idx + crop_offsets[2] : 0;
+      if (out_h_idx == 0) {
+        h_slice = out_h_slice + crop_offsets[2];
+      } else
+        h_slice = out_h_slice;
     } else {
       h_idx = out_h_idx;
       h_slice = out_h_slice;

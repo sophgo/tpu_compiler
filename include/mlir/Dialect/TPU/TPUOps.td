@@ -465,6 +465,7 @@ def TPU_CropOp: TPU_Op<"crop",
     OptionalAttr<StrAttr>:$chipname
   );
   let results = (outs AnyTensor:$output);
+  let hasCanonicalizer = 1;
 }
 
 def TPU_DeConv2DOp : TPU_ConvOp<"deconv_2d", "Deconvolution">;
@@ -1958,6 +1959,7 @@ def TPU_PadOp: TPU_Op<"pad",
   );
 
   let results = (outs AnyTensor:$output);
+  let hasCanonicalizer = 1;
 }
 
 include "mlir/Dialect/TPU/TPUSupportOps.td"

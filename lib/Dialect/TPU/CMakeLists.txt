@@ -28,6 +28,7 @@ add_llvm_library(MLIRTPU
   Transforms/ConvertNormalize.cpp
   Transforms/ConvertSwishToRelu.cpp
   Transforms/FuseRelu.cpp
+  Transforms/FusePad.cpp
   Transforms/RefactorEltAndConv.cpp
   Transforms/MakeConvIcToEven.cpp
   Transforms/AssignWeightAddress.cpp

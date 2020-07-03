@@ -155,6 +155,7 @@ struct EliminateDeadcodePattern : public RewritePattern {
       auto tl_copy_op = build_tl_copy_op(ctx_, store_op, load_op);
       tl_load.replaceAllUsesWith(tl_copy_op.getResult());
     }
+    return matchSuccess();
   }
 
   MLIRContext * ctx_;
