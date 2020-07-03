@@ -13,6 +13,11 @@ public:
   explicit GroupOpsPass(llvm::raw_ostream &os = llvm::errs()) : os(os) {}
 
   void runOnFunction() override {
+    std::string getRunChipType;
+    MInfo Machineinfo;
+    get_cvichip_name(getRunChipType);
+    Machineinfo.getChipInfo(getRunChipType.c_str());
+    assert(MInfo::version && "refer to set-chip");
     auto fn = getFunction();
     auto *context = &getContext();
     pre_process(&fn, context);
