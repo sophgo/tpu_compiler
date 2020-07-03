@@ -544,9 +544,11 @@ class CaffeConverter(BaseConverter):
 
     def convert_permute_op(self, layer):
         assert(self.layerType(layer) == 'Permute')
-        op, input_shape, _ = self.getOperand(layer.bottom[0])
+        _, input_shape, _ = self.getOperand(layer.bottom[0])
         operands = list()
-        operands.append(op)
+        for bottom in layer.bottom:
+            op, _, _ = self.getOperand(bottom)
+            operands.append(op)
         p = layer.permute_param
         assert(len(p.order) == 4)
         output_shape = list(input_shape)
@@ -867,8 +869,11 @@ class CaffeConverter(BaseConverter):
 
     def convert_retinaface_detection_op(self, layer):
         assert(self.layerType(layer) == 'RetinaFaceDetection')
-        op, input_shape, _ = self.getOperand(layer.bottom[0])
+        _, input_shape, _ = self.getOperand(layer.bottom[0])
         operands = list()
+        for bottom in layer.bottom:
+            op, _, _ = self.getOperand(bottom)
+            operands.append(op)
         operands.append(op)
         p = layer.retinaface_detection_param
         nms_threshold = p.nms_threshold
@@ -1026,9 +1031,11 @@ class CaffeConverter(BaseConverter):
 
     def convert_upsample_op(self, layer):
         assert(self.layerType(layer) == 'Upsample')
-        op, input_shape, _ = self.getOperand(layer.bottom[0])
+        _, input_shape, _ = self.getOperand(layer.bottom[0])
         operands = list()
-        operands.append(op)
+        for bottom in layer.bottom:
+            op, _, _ = self.getOperand(bottom)
+            operands.append(op)
         assert(len(input_shape) == 4)
         scale = layer.upsample_param.scale
         assert(scale == 2)
@@ -1044,9 +1051,11 @@ class CaffeConverter(BaseConverter):
 
     def convert_yolo_detection_op(self, layer):
         assert(self.layerType(layer) == 'YoloDetection')
-        op, input_shape, _ = self.getOperand(layer.bottom[0])
+        _, input_shape, _ = self.getOperand(layer.bottom[0])
         operands = list()
-        operands.append(op)
+        for bottom in layer.bottom:
+            op, _, _ = self.getOperand(bottom)
+            operands.append(op)
         p = layer.yolo_detection_param
         param = {
             'net_input_h': p.net_input_h,
