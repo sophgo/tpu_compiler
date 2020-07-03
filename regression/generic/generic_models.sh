@@ -483,9 +483,8 @@ export DO_QUANT_BF16=0
 export TOLERANCE_BF16=0.99,0.99,0.99
 export DO_CMDBUF_BF16=0
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
-export USE_LAYERGROUP=0
 export DO_PREPROCESS=0
-export DO_LAYERGROUP=0
+export DO_LAYERGROUP=1
 if [ $DO_PREPROCESS -eq 1 ]; then
   export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table_1000_preprocess
   export IMAGE_PATH=$REGRESSION_PATH/data/cat.jpg
