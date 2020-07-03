@@ -7,22 +7,43 @@ dest_dir=$REL_DIR/$(date '+%Y-%m-%d')
 rm -rf $dest_dir
 mkdir -p $dest_dir
 
-# cvitek_mlir
+# check dirs
+if [ ! -e $BUILD_PATH ]; then
+  echo "BUILD_PATH=$BUILD_PATH not exist"
+  exit 1
+fi
 if [ ! -e $INSTALL_PATH ]; then
   echo "INSTALL_PATH=$INSTALL_PATH not exist"
   exit 1
 fi
+
+###########################################################
+# pack cvitek_mlir
+###########################################################
 pushd $INSTALL_PATH/..
 if [ ! -e ./cvitek_mlir ]; then
   echo "./cvitek_mlir not exist"
   exit 1
 fi
 os_ver=$( lsb_release -sr )
-tar zcf cvitek_mlir_ubuntu-${os_ver}.tar.gz cvitek_mlir
-mv cvitek_mlir_ubuntu-${os_ver}.tar.gz $dest_dir/
+tar zcvf $dest_dir/cvitek_mlir_ubuntu-${os_ver}.tar.gz cvitek_mlir
 popd
 
-# "./regression_out"
+###########################################################
+# pack cvimodel_samples and samples
+###########################################################
+pushd $BUILD_PATH
+tar zcvf $dest_dir/cvimodel_samples.tar.gz cvimodel_samples
+# tar zcvf $dest_dir/cvimodel_release.tar.gz cvimodel_release
+popd
+# tpu_samples
+cp -a $INSTALL_PATH/cvitek_mlir/samples -a ./cvitek_tpu_samples
+tar zcvf $dest_dir/cvitek_tpu_samples.tar.gz cvitek_tpu_samples
+rm -rf cvitek_tpu_samples
+
+###########################################################
+# pack regresion cvimodels
+###########################################################
 REGRESSION_DIR=$2
 if [ ! -e $REGRESSION_DIR ]; then
   echo "REGRESSION_DIR=$REGRESSION_DIR not exist"
@@ -45,9 +66,6 @@ mv cvimodel_regression/*bs4_in_fp32.npz cvimodel_regression_bs4/
 mv cvimodel_regression/*bs4_out_all.npz cvimodel_regression_bs4/
 mv cvimodel_regression/* cvimodel_regression_bs1/
 # tar
-tar zcf cvimodel_regression_bs1.tar.gz cvimodel_regression_bs1
-tar zcf cvimodel_regression_bs4.tar.gz cvimodel_regression_bs4
+tar zcvf $dest_dir/cvimodel_regression_bs1.tar.gz cvimodel_regression_bs1
+tar zcvf $dest_dir/cvimodel_regression_bs4.tar.gz cvimodel_regression_bs4
 popd
-# release
-mv $REGRESSION_DIR/cvimodel_regression_bs1.tar.gz $dest_dir/
-mv $REGRESSION_DIR/cvimodel_regression_bs4.tar.gz $dest_dir/
