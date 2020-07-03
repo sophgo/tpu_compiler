@@ -11,6 +11,7 @@ if [ "$EVAL_MODEL_TYPE" = "imagenet" ]; then
   $EVAL_FUNC \
       --model_def $MODEL_DEF \
       --pretrained_model $MODEL_DAT \
+      --label_file $LABEL_FILE \
       --dataset $DATASET_PATH/imagenet/img_val_extracted \
       --net_input_dims $NET_INPUT_DIMS \
       --image_resize_dims $IMAGE_RESIZE_DIMS \

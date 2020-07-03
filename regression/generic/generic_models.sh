@@ -33,6 +33,7 @@ export DO_PREPROCESS=0
 export USE_LAYERGROUP=1
 export EVAL_MODEL_TYPE="imagenet"
 export CUSTOM_OP_PLUGIN="$INSTALL_PATH/lib/custom_op/libCustomOpPlugin.so"
+export LABEL_FILE=$REGRESSION_PATH/data/synset_words.txt
 export DO_NN_TOOLKIT=0
 export SET_CHIP_NAME="cv1880v2"
 
@@ -76,6 +77,31 @@ else
   export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table
   export EXCEPTS=prob,res2c_relu,res3d_relu,res4f_relu
 fi
+fi
+
+if [ $NET = "resnext50" ]; then
+export MODEL_DEF=$MODEL_PATH/imagenet/resnext/caffe/resnext50-deploy.prototxt
+export MODEL_DAT=$MODEL_PATH/imagenet/resnext/caffe/resnext50.caffemodel
+export LABEL_FILE=$MODEL_PATH/imagenet/resnext/caffe/corresp.txt
+export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table
+export NET_INPUT_DIMS=224,224
+export IMAGE_RESIZE_DIMS=256,256
+export RAW_SCALE=255.0
+export MODEL_CHANNEL_ORDER="rgb"
+export MEAN=0.0,0.0,0.0
+export INPUT_SCALE=1.0
+export INPUT=data
+export OUTPUTS_FP32=prob
+export OUTPUTS=prob
+export TOLERANCE_INT8_PER_TENSOR=0.84,0.83,0.41
+export TOLERANCE_INT8_RSHIFT_ONLY=0.95,0.95,0.69
+export TOLERANCE_INT8_MULTIPLER=0.96,0.95,0.72
+export TOLERANCE_BF16=0.99,0.99,0.91
+export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.91
+export DO_LAYERGROUP=0
+export DO_NN_TOOLKIT=0
+# export BATCH_SIZE=4
+export DO_PREPROCESS=0
 fi
 
 if [ $NET = "vgg16" ]; then
