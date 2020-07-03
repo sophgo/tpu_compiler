@@ -93,8 +93,35 @@ static llvm::cl::list<std::string> clQuantLayer(
     llvm::cl::ZeroOrMore,
     llvm::cl::cat(clOptionsCategory));
 
+static llvm::cl::opt<std::string> clQuantLayerByFile(
+    "quant-int8-mix-bf16-layers-from-file",
+    llvm::cl::desc("Enable bf16 mix-presion on specify layers by file"),
+    llvm::cl::cat(clOptionsCategory));
 
-static void insertQauntOp(Operation *op) {
+static llvm::cl::list<std::string> clFuseClipLayers(
+    "fuse-clip-layers",
+    llvm::cl::desc("fuse clips by name"),
+    llvm::cl::ZeroOrMore,
+    llvm::cl::cat(clOptionsCategory));
+
+static llvm::cl::opt<std::string> clFuseClipLayersByFile(
+    "fuse-clip-layers-from-file",
+    llvm::cl::desc("fuse clips from file"),
+    llvm::cl::cat(clOptionsCategory));
+
+static llvm::cl::list<std::string> clSkipFuseClipLayers(
+    "skip-fuse-clip-layers",
+    llvm::cl::desc("skip fuse clips by name"),
+    llvm::cl::ZeroOrMore,
+    llvm::cl::cat(clOptionsCategory));
+
+static llvm::cl::opt<std::string> clSkipFuseClipLayersByFile(
+    "skip-fuse-clip-layers-from-file",
+    llvm::cl::desc("skip fuse clips from file"),
+    llvm::cl::cat(clOptionsCategory));
+
+
+static void insertQuantOp(Operation *op) {
   auto builder = OpBuilder(op);
 
   StringRef curr_quant = isa<ReturnOp>(op) ? "NONE" : getOpQuant(op);
@@ -338,6 +365,14 @@ public:
     auto fn = getFunction();
     auto *context = &getContext();
     auto builder = Builder(context);
+
+    // read mix precision from file, seperated by \n
+    std::ifstream infile(clQuantLayerByFile);
+    std::string line;
+    while (std::getline(infile, line)) {
+        clQuantLayer.push_back(line);
+    }
+
     // mark quant mode
     fn.walk([&](Operation *op) {
       if (op->getName().getDialect().str() != "tpu"
@@ -452,7 +487,7 @@ public:
           || isa<tpu::LoadWeightOp>(op)
           || isa<tpu::NoneOp>(op)) {
       } else {
-        insertQauntOp(op);
+        insertQuantOp(op);
       }
     });
 
@@ -480,36 +515,44 @@ struct TpuTpuQuantClipPassPattern : public RewritePattern {
       auto threshold_max = clipOp.quant().threshold_max().getValue().convertToFloat();
       auto threshold_min = clipOp.quant().threshold_min().getValue().convertToFloat();
       if (threshold_max == 0 && threshold_min == 0) {
-        assert("you MUST do import-calibration-table before\n");
+        assert(0 && "you MUST do import-calibration-table before\n");
       }
 
-      // get former one and re-init threshold to it
       auto formerOp = clipOp.getOperand(0)->getDefiningOp();
-      if (!isa<tpu::Conv2DOp>(formerOp)) {
-          LLVM_DEBUG(llvm::errs() << "  not suppor non-scale yet"  << "\n");
-          return matchFailure();
-      }
-
+      std::string formerOpName = formerOp->getAttrOfType<StringAttr>("name").getValue().str();
       if (!formerOp->getResult(0)->hasOneUse()) {
-        std::string op_name = formerOp->getAttrOfType<StringAttr>("name").getValue().str();
-        LLVM_DEBUG(llvm::errs() << "Some one need to use Scale Op: " << op_name << ", not remove it\n");
+        LLVM_DEBUG(llvm::errs() << "Not overwrtie more users op: " << formerOpName << ", not remove it\n";);
         return matchFailure();
       }
 
-      if (auto formerConv2DOp = cast<tpu::Conv2DOp>(formerOp)) {
-          LLVM_DEBUG(llvm::errs() << "over old " << mlir::getOpName(formerOp).str() << " thre " <<
-              formerConv2DOp.quant().threshold_max().getValue().convertToFloat() << ", new clip " <<
-              mlir::getOpName(clipOp).str() << " thre is " << threshold_max << "\n";);
+      auto layer_name = mlir::getOpName(clipOp).str();
+      //bool in_black_list = std::find(clFuseClipLayers.begin(), clFuseClipLayers.end(), layer_name) != clFuseClipLayers.end();
+      bool in_white_list = std::find(clSkipFuseClipLayers.begin(), clSkipFuseClipLayers.end(), layer_name) != clSkipFuseClipLayers.end();
+
+      // white list priority is more than black one
+      if (in_white_list) {
+          LLVM_DEBUG(llvm::errs() << "config not quant op: " << layer_name << "\n";);
+          return matchFailure();
+      }
+
+      if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpQuantInterface>(formerOp)) {
+          LLVM_DEBUG(llvm::errs() << "over old " << mlir::getOpName(formerOp).str()
+                  << " thre " << tpuOp.getOpQuantThreshold()
+                  << ", new clip " << mlir::getOpName(clipOp).str()
+                  << " thre is " << threshold_max << "\n";);
+      }
+      else {
+        LLVM_DEBUG(llvm::errs() << "cant fuse previous op " << formerOpName << ", not remove it\n";);
+        return matchFailure();
       }
 
       // update attr Only
-      //auto formerConv2DOp = cast<tpu::Conv2DOp>(formerOp);
       setOpThreshold(formerOp, threshold_max);
-      auto layer_name = mlir::getOpName(clipOp).str();
       formerOp->setAttr(llvm::StringRef("name"), rewriter.getStringAttr(layer_name));
 
       // remove clip
       rewriter.replaceOp(clipOp, {clipOp.getOperand(0)});
+
       return matchSuccess();
     }
 
@@ -523,6 +566,20 @@ public:
   explicit TpuQuantClipPass(llvm::raw_ostream &os = llvm::errs()) : os(os) {}
 
   void runOnFunction() override {
+
+    // black list
+    std::ifstream infile(clFuseClipLayersByFile);
+    std::string line;
+    while (std::getline(infile, line)) {
+        clFuseClipLayers.push_back(line);
+    }
+
+    // white list
+    std::ifstream infile2(clSkipFuseClipLayersByFile);
+    while (std::getline(infile2, line)) {
+        clSkipFuseClipLayers.push_back(line);
+    }
+
     auto fn = getFunction();
 
     OwningRewritePatternList patterns;
