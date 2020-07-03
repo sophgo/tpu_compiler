@@ -78,6 +78,32 @@ struct TpuFuseReluPattern : public RewritePattern {
               rewriter.getBoolAttr(true),
               rewriter.getContext()));
       convOp.setAttr("name", rewriter.getStringAttr(reluOp.getOpName()));
+    } else if (matchPattern(formerOp, m_Op<tpu::DeConv2DOp>())) {
+      auto deconvOp = cast<tpu::DeConv2DOp>(formerOp);
+      if(deconvOp.param().do_relu().getValue() == true){
+        LLVM_DEBUG(llvm::errs() << deconvOp.getOperationName() << ":"
+                                << getOpName(deconvOp) << " is already fused relu"
+                                << "\n";);
+        return matchFailure();
+      }
+      // set do_relu
+      deconvOp.setAttr("param",
+          tpu::ConvParam::get(
+              deconvOp.param().stride_h(),
+              deconvOp.param().stride_w(),
+              deconvOp.param().padding(),
+              deconvOp.param().dilation_h(),
+              deconvOp.param().dilation_w(),
+              deconvOp.param().padding_t(),
+              deconvOp.param().padding_b(),
+              deconvOp.param().padding_l(),
+              deconvOp.param().padding_r(),
+              deconvOp.param().group(),
+              deconvOp.param().is_dw(),
+              deconvOp.param().with_bias(),
+              rewriter.getBoolAttr(true),
+              rewriter.getContext()));
+      deconvOp.setAttr("name", rewriter.getStringAttr(reluOp.getOpName()));
     } else if (matchPattern(formerOp, m_Op<tpu::EltwiseAddOp>())) {
       auto eltOp = cast<tpu::EltwiseAddOp>(formerOp);
       assert(!eltOp.do_relu() && "done relu");
