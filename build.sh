@@ -281,12 +281,12 @@ if [ "$1" = "RELEASE" ]; then
   rm -f $INSTALL_PATH/bin/test_*
   rm -f $INSTALL_PATH/bin/sample_*
   # strip mlir tools
-  strip $INSTALL_PATH/bin/mlir-opt
-  strip $INSTALL_PATH/bin/mlir-tblgen
-  strip $INSTALL_PATH/bin/mlir-tblgen
-  strip $INSTALL_PATH/bin/mlir-tpu-interpreter
-  strip $INSTALL_PATH/bin/mlir-translate
-  strip $INSTALL_PATH/bin/cvi_profiling
+  # strip $INSTALL_PATH/bin/mlir-opt
+  # strip $INSTALL_PATH/bin/mlir-tblgen
+  # strip $INSTALL_PATH/bin/mlir-tblgen
+  # strip $INSTALL_PATH/bin/mlir-tpu-interpreter
+  # strip $INSTALL_PATH/bin/mlir-translate
+  # strip $INSTALL_PATH/bin/cvi_profiling
 
   # install regression
   mkdir -p $INSTALL_PATH/regression
