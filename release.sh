@@ -6,9 +6,9 @@ set -e
 #
 
 # "/home/ftp/mlir/daily_build"
-local RELEASE_DIR=$1
-local REGRESSION_DIR=$2
-local dest_dir=$RELEASE_DIR/$(date '+%Y-%m-%d')
+RELEASE_DIR=$1
+REGRESSION_DIR=$2
+dest_dir=$RELEASE_DIR/$(date '+%Y-%m-%d')
 rm -rf $dest_dir
 mkdir -p $dest_dir
 
@@ -33,7 +33,7 @@ fi
 ###########################################################
 # pack cvitek_mlir
 ###########################################################
-local os_ver=$( lsb_release -sr )
+os_ver=$( lsb_release -sr )
 pushd $INSTALL_PATH/..
 if [ ! -e ./cvitek_mlir ]; then
   echo "./cvitek_mlir not exist"
