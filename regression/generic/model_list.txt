@@ -4,7 +4,7 @@
 
 # caffe
 resnet50                  Y        Y        N        N        N        Y
-# resnext50                 N        N        N        Y        Y        N
+resnext50                 N        N        N        Y        Y        N
 vgg16                     N        N        N        Y        Y        N
 mobilenet_v1              Y        N        Y        N        Y        Y
 mobilenet_v2              Y        Y        N        N        N        N
