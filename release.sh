@@ -8,7 +8,8 @@ set -e
 # "/home/ftp/mlir/daily_build"
 RELEASE_DIR=$1
 REGRESSION_DIR=$2
-dest_dir=$RELEASE_DIR/$(date '+%Y-%m-%d')
+os_ver=$( lsb_release -sr )
+dest_dir=$RELEASE_DIR/$(date '+%Y-%m-%d')-${os_ver}
 rm -rf $dest_dir
 mkdir -p $dest_dir
 
@@ -33,7 +34,6 @@ fi
 ###########################################################
 # pack cvitek_mlir
 ###########################################################
-os_ver=$( lsb_release -sr )
 pushd $INSTALL_PATH/..
 if [ ! -e ./cvitek_mlir ]; then
   echo "./cvitek_mlir not exist"
@@ -41,11 +41,6 @@ if [ ! -e ./cvitek_mlir ]; then
 fi
 tar zcvf $dest_dir/cvitek_mlir_ubuntu-${os_ver}.tar.gz cvitek_mlir
 popd
-
-# exit if os_ver is not 18.04
-if [ "$os_ver" != "18.04" ]; then
-  exit 0
-fi
 
 ###########################################################
 # pack cvimodel_samples and samples
