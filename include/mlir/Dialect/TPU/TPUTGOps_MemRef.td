@@ -92,6 +92,55 @@ def TPU_TG_MemRefToTensorOp : TPU_Op<"memref_to_tensor",
   }];
 }
 
+def TPU_TG_MemRef_CastOp: TPU_Op<"tg_memref_cast",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
+  let summary = "Cast operator";
+
+  let description = [{
+    Convert a tensor with the same values but different type defined by output.
+
+    Inputs:
+      `input`           : required, the input activation tensor.
+
+    Attributes:
+      `from`           : required, the source type to be cast.
+      `to`             : required, the destination type that cast to.
+      `region`          : required, the memory region to reside in, could be
+                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
+                          (backend does not support `INPUT`, `OUTPUT` for now)
+      `gaddr`           : optional, address in global memory, normally the
+                          offset within the memory region.
+      `buffer_reused`   : optional, whether buffer is reused.
+      `name`            : required, name for comparing, or debug.
+      `layer_id`        : optional, id for profiling.
+      `chipname`        : optional, chipname.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface`    : support common TPU TG Op interface.
+      `TpuTGOpCodegenInterface` : support generate TPU instuctions.
+  }];
+
+  let arguments = (
+    ins MemRefOf<[AnyFloat, AnyInteger]>:$input,
+    MemRefOf<[AnyFloat, AnyInteger]>:$output,
+    StrAttr:$from,
+    StrAttr:$to,
+    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
+    OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    OptionalAttr<BoolAttr>:$buffer_reused,
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
+  );
+}
+
+
 class TPU_TG_MemRef_ConcatOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
@@ -213,6 +262,7 @@ def TPU_TG_MemRef_BF16_DeConv2DOp : TPU_TG_MemRef_ConvOp<"tg_memref_bf16_deconv_
 def TPU_TG_MemRef_INT8_BroadcastMulOp : TPU_TG_MemRef_ConvOp<"tg_memref_int8_broadcast_mul", "Int8">;
 def TPU_TG_MemRef_BF16_BroadcastMulOp : TPU_TG_MemRef_ConvOp<"tg_memref_bf16_broadcast_mul", "Bf16">;
 
+
 class TPU_TG_MemRef_CropOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
@@ -260,6 +310,7 @@ class TPU_TG_MemRef_CropOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 }
 def TPU_TG_MemRef_INT8_CropOp : TPU_TG_MemRef_CropOp<"tg_memref_int8_crop", "Int8">;
 def TPU_TG_MemRef_BF16_CropOp : TPU_TG_MemRef_CropOp<"tg_memref_bf16_crop", "Bf16">;
+
 
 class TPU_TG_MemRef_ClipOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,
@@ -372,6 +423,7 @@ def TPU_TG_MemRef_BF16_EltwiseMaxOp : TPU_TG_MemRef_EltwiseOp<"tg_memref_bf16_el
 def TPU_TG_MemRef_BF16_EltwiseMinOp : TPU_TG_MemRef_EltwiseOp<"tg_memref_bf16_eltwise_min", "Bf16", "Min">;
 def TPU_TG_MemRef_BF16_EltwiseMulOp : TPU_TG_MemRef_EltwiseOp<"tg_memref_bf16_eltwise_mul", "Bf16", "Mul">;
 
+
 class TPU_TG_MemRef_FullyConnectedOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
@@ -422,6 +474,7 @@ class TPU_TG_MemRef_FullyConnectedOp<string mnemonic, string opQuant> : TPU_Op<m
 def TPU_TG_MemRef_INT8_FullyConnectedOp : TPU_TG_MemRef_FullyConnectedOp<"tg_memref_int8_fully_connected", "Int8">;
 def TPU_TG_MemRef_BF16_FullyConnectedOp : TPU_TG_MemRef_FullyConnectedOp<"tg_memref_bf16_fully_connected", "Bf16">;
 
+
 class TPU_TG_MemRef_GenericTpuOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
@@ -459,6 +512,7 @@ class TPU_TG_MemRef_GenericTpuOp<string mnemonic, string opQuant> : TPU_Op<mnemo
 }
 def TPU_TG_MemRef_INT8_GenericTpuOp : TPU_TG_MemRef_GenericTpuOp<"tg_memref_int8_generic_tpu_op", "Int8">;
 def TPU_TG_MemRef_BF16_GenericTpuOp : TPU_TG_MemRef_GenericTpuOp<"tg_memref_bf16_generic_tpu_op", "Bf16">;
+
 
 class TPU_TG_MemRef_LeakyReluOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,
@@ -517,6 +571,7 @@ class TPU_TG_MemRef_LeakyReluOp<string mnemonic, string opQuant> : TPU_Op<mnemon
 }
 def TPU_TG_MemRef_INT8_LeakyReluOp : TPU_TG_MemRef_LeakyReluOp<"tg_memref_int8_leaky_relu", "Int8">;
 def TPU_TG_MemRef_BF16_LeakyReluOp : TPU_TG_MemRef_LeakyReluOp<"tg_memref_bf16_leaky_relu", "Bf16">;
+
 
 def TPU_TG_MemRef_LoadWeightOp : TPU_Op<"tg_memref_load_weight", [NoSideEffect]> {
   let summary = "load_weight operator";
@@ -607,6 +662,7 @@ class TPU_TG_MemRef_LutOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 def TPU_TG_MemRef_INT8_LutOp : TPU_TG_MemRef_LutOp<"tg_memref_int8_lut", "Int8">;
 def TPU_TG_MemRef_BF16_LutOp : TPU_TG_MemRef_LutOp<"tg_memref_bf16_lut", "BF16">;
 
+
 class TPU_TG_MemRef_LrnOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
@@ -652,6 +708,7 @@ class TPU_TG_MemRef_LrnOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 }
 def TPU_TG_MemRef_INT8_LrnOp : TPU_TG_MemRef_LrnOp<"tg_memref_int8_lrn", "Int8">;
 def TPU_TG_MemRef_BF16_LrnOp : TPU_TG_MemRef_LrnOp<"tg_memref_bf16_lrn", "Bf16">;
+
 
 class TPU_TG_MemRef_PermuteOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,
@@ -704,6 +761,7 @@ class TPU_TG_MemRef_PermuteOp<string mnemonic, string opQuant> : TPU_Op<mnemonic
 }
 def TPU_TG_MemRef_INT8_PermuteOp : TPU_TG_MemRef_PermuteOp<"tg_memref_int8_permute", "Int8">;
 def TPU_TG_MemRef_BF16_PermuteOp : TPU_TG_MemRef_PermuteOp<"tg_memref_bf16_permute", "Bf16">;
+
 
 class TPU_TG_MemRef_Pool2DOp<string mnemonic, string opQuant, string opType> : TPU_Op<mnemonic,
       [NoSideEffect,
@@ -807,10 +865,10 @@ class TPU_TG_MemRef_PReluOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     OptionalAttr<NonNegativeI32Attr>:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
-
 }
 def TPU_TG_MemRef_INT8_PReluOp : TPU_TG_MemRef_PReluOp<"tg_memref_int8_prelu", "Int8">;
 def TPU_TG_MemRef_BF16_PReluOp : TPU_TG_MemRef_PReluOp<"tg_memref_bf16_prelu", "Bf16">;
+
 
 class TPU_TG_MemRef_QuantOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,
@@ -845,8 +903,8 @@ class TPU_TG_MemRef_QuantOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
   }];
 
   let arguments = (
-    ins MemRefOf<[AnyFloat, AnyInteger]>:$input,
-    MemRefOf<[AnyFloat, AnyInteger]>:$output,
+    ins MemRefOf<[AnyFloat, AnyInteger, BF16]>:$input,
+    MemRefOf<[AnyFloat, AnyInteger, BF16]>:$output,
     DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     TPU_QuantModeAttr:$from,
     TPU_QuantModeAttr:$to,
@@ -860,6 +918,7 @@ class TPU_TG_MemRef_QuantOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 }
 def TPU_TG_MemRef_INT8_QuantOp : TPU_TG_MemRef_QuantOp<"tg_memref_int8_quant", "Int8">;
 def TPU_TG_MemRef_BF16_QuantOp : TPU_TG_MemRef_QuantOp<"tg_memref_bf16_quant", "Bf16">;
+
 
 class TPU_TG_MemRef_ReluOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,
@@ -902,7 +961,6 @@ class TPU_TG_MemRef_ReluOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     OptionalAttr<NonNegativeI32Attr>:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
-
 }
 def TPU_TG_MemRef_INT8_ReluOp : TPU_TG_MemRef_ReluOp<"tg_memref_int8_relu", "Int8">;
 def TPU_TG_MemRef_BF16_ReluOp : TPU_TG_MemRef_ReluOp<"tg_memref_bf16_relu", "Bf16">;
@@ -1150,6 +1208,7 @@ class TPU_TG_MemRef_SliceOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 }
 def TPU_TG_MemRef_INT8_SliceOp : TPU_TG_MemRef_SliceOp<"tg_memref_int8_slice", "Int8">;
 def TPU_TG_MemRef_BF16_SliceOp : TPU_TG_MemRef_SliceOp<"tg_memref_bf16_slice", "Bf16">;
+
 
 class TPU_TG_MemRef_SwapChannelOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,

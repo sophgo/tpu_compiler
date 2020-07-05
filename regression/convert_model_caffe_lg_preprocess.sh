@@ -8,7 +8,7 @@ usage()
    exit 1
 }
 
-if [[ $# -ne 9 ]]; then
+if [[ $# -ne 10 ]]; then
     echo "$0 Illegal number of parameters"
     usage
     exit 2
@@ -41,12 +41,13 @@ mlir-opt \
     --chipname ${SET_CHIP_NAME} \
     ${CUSTOM_OP_PLUGIN_OPTION} \
     --tpu-quant \
+    --convert-quant-op \
     --print-tpu-op-info \
     --tpu-op-info-filename op_info_int8.csv | \
 mlir-opt \
     --tpu-lower --reorder-op \
     --tg-fuse-leakyrelu \
-    --conv-ic-alignment | \
+    --conv-ic-alignment \
     --group-ops \
     --layer-group-gm-opt=true \
     --layer-group-neuron-map-filename=neuron_map_layergroup.csv | \

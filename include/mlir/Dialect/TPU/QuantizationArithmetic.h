@@ -84,6 +84,8 @@ void FloatToBFloat16(const float* src, bfloat16* dst, size_t size,
     bool rounding = true);
 void BFloat16ToFloat(const bfloat16* src, float* dst, size_t size);
 
+bfloat16 FloatToBFloat16(float value);
+float BFloat16ToFloat(bfloat16 value);
 //
 // Wrapper APIs
 //
@@ -109,6 +111,12 @@ void quantizeActivationInt8WithThreshold(float *output, float *input,
     int64_t size, float threshold);
 
 void dequantizeActivationInt8WithThreshold(float *output, float *input,
+    int64_t size, float threshold);
+
+void quantizeActivationFromBf16ToInt8WithThreshold(float *output, float *input,
+    int64_t size, float threshold);
+
+void dequantizeActivationFromInt8ToBf16WithThreshold(float *output, float *input,
     int64_t size, float threshold);
 
 void quantizeActivationInt8PerLayerRshift(float *output, float *input,

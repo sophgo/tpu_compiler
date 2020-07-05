@@ -31,7 +31,6 @@ include "mlir/Dialect/TPU/TPUBase.td"
 //===----------------------------------------------------------------------===//
 // TPU TG op definitions.
 //===----------------------------------------------------------------------===//
-
 class TPU_TG_ConcatOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
@@ -1201,6 +1200,55 @@ def TPU_TG_CallOp : TPU_Op <"tg_call",
   let printer = [{ return ::print(p, *this); }];
   let results = (outs Variadic<AnyType>);
 }
+
+
+def TPU_TG_CastOp : TPU_Op<"tg_cast",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
+  let summary = "cast operator.";
+
+  let description = [{
+    Inputs:
+      `input`          : required, the input1 activation memref.
+
+    Attributes:
+      `from`           : required, the source type to be cast.
+      `to`             : required, the destination type that cast to.
+      `region`          : required, the memory region to reside in, could be
+                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
+                          (backend does not support `INPUT`, `OUTPUT` for now)
+      `gaddr`           : optional, address in global memory, normally the
+                          offset within the memory region.
+      `buffer_reused`   : optional, whether buffer is reused.
+      `name`            : required, name for comparing, or debug.
+      `layer_id`        : optional, id for profiling.
+      `chipname`        : optional, chipname.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface`    : support common TPU TG Op interface.
+      `TpuTGOpCodegenInterface` : support generate TPU instuctions.
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    StrAttr:$from,
+    StrAttr:$to,
+    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
+    OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    OptionalAttr<BoolAttr>:$buffer_reused,
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
 
 class TPU_TG_PadOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,

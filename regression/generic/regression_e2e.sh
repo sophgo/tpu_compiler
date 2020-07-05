@@ -5,11 +5,6 @@ DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 
 if [ $MODEL_TYPE = "caffe" ]; then
   if [ $DO_PREPROCESS -eq 1 ]; then
-    if [ $MODEL_CHANNEL_ORDER = "rgb" ]; then
-      RGB_ORDER=2,1,0
-    else
-      RGB_ORDER=0,1,2
-    fi
     if [ $USE_LAYERGROUP = "1" ]; then
       $REGRESSION_PATH/convert_model_caffe_lg_preprocess.sh \
           ${MODEL_DEF} \
@@ -19,7 +14,7 @@ if [ $MODEL_TYPE = "caffe" ]; then
           ${RAW_SCALE} \
           ${MEAN} \
           ${INPUT_SCALE} \
-          ${RGB_ORDER} \
+          ${SWAP_CHANNEL} \
           ${CALI_TABLE} \
           ${NET}.cvimodel
     else
@@ -31,7 +26,7 @@ if [ $MODEL_TYPE = "caffe" ]; then
           ${RAW_SCALE} \
           ${MEAN} \
           ${INPUT_SCALE} \
-          ${RGB_ORDER} \
+          ${SWAP_CHANNEL} \
           ${CALI_TABLE} \
           ${NET}.cvimodel
     fi

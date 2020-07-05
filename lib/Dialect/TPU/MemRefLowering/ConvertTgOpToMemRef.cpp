@@ -38,6 +38,7 @@ static bool isQuantOp(Operation *op) {
       return true;
     }
   }
+
   return false;
 }
 
@@ -61,6 +62,7 @@ static bool isConvertedOpNeeded(Operation *op) {
 
     // Handle Quant, treat quant as not-lowed op
     if (isQuantOp(op)) {
+
       if (dyn_cast<TpuTGOpCodegenInterface>(userOp)) {
         // Quant connected to lowed Op.
         // E.g. Quant -> conv
@@ -155,7 +157,6 @@ public:
       auto memRefToTensorOp =
           rewriter.create<TG_MemRefToTensorOp>(tensorToMemRefOp.getLoc(),
                                                tensorToMemRefOp.getResult());
-
       auto oldResult = op->getResult(0);
       oldResult->replaceAllUsesWith(memRefToTensorOp.getResult());
       rewriter.eraseOp(op);
@@ -434,9 +435,11 @@ void ConvertTgOpToMemRefPass::runOnFunction() {
   // some during lowering for non-lowed op.
  OwningRewritePatternList patterns;
   patterns.insert<
+      AddTypeConvertedForNotLowedOpPattern<tpu::InputOp>,
       AddTypeConvertedForNotLowedOpPattern<tpu::LoadWeightOp>,
       AddTypeConvertedForNotLowedOpPattern<tpu::ReshapeOp>,
       AddTypeConvertedForNotLowedOpPattern<tpu::GenericCpuOp>,
+      AddTypeConvertedForNotLowedOpPattern<tpu::TG_CastOp>,
       AddTypeConvertedForNotLowedOpPattern<tpu::TG_INT8_BroadcastMulOp>,
       AddTypeConvertedForNotLowedOpPattern<tpu::TG_BF16_BroadcastMulOp>,
       AddTypeConvertedForNotLowedOpPattern<tpu::TG_INT8_ConcatOp>,
@@ -575,6 +578,7 @@ void ConvertTgOpToMemRefPass::runOnFunction() {
   target.addLegalOp<tpu::TL_MemRef_PoolAvg2DOp>();
   target.addLegalOp<tpu::TL_MemRef_BroadcastMulOp>();
 
+  target.addLegalOp<tpu::TG_MemRef_CastOp>();
   target.addLegalOp<tpu::TG_MemRef_LoadWeightOp>();
   target.addLegalOp<tpu::TG_MemRef_ReshapeOp>();
 
@@ -584,6 +588,7 @@ void ConvertTgOpToMemRefPass::runOnFunction() {
   patterns.insert<
       convertTgOpToMemRefPattern<tpu::LoadWeightOp, tpu::TG_MemRef_LoadWeightOp>,
       convertTgOpToMemRefPattern<tpu::ReshapeOp, tpu::TG_MemRef_ReshapeOp>,
+      convertTgOpToMemRefPattern<tpu::TG_CastOp, tpu::TG_MemRef_CastOp>,
       convertTgOpToMemRefPattern<tpu::TG_INT8_BroadcastMulOp, tpu::TG_MemRef_INT8_BroadcastMulOp>,
       convertTgOpToMemRefPattern<tpu::TG_BF16_BroadcastMulOp, tpu::TG_MemRef_BF16_BroadcastMulOp>,
       convertTgOpToMemRefPattern<tpu::TG_INT8_ConcatOp, tpu::TG_MemRef_INT8_ConcatOp>,

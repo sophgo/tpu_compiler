@@ -74,19 +74,20 @@ def main(argv):
         input = input.reshape((args.batch_size, 3, 112, 112))
     elif args.model_type == "arcface_res50":
         input_x = cv2.imread(args.input_file)
-        # from bgr to rgb
-        input_x[:,:,0], input_x[:,:,2] = input_x[:,:,2], input_x[:,:,0]
-        input = input_x
-        for i in range(1, args.batch_size):
-          input = np.append(input, input_x, axis=0)
+        input_x = input_x.astype(np.float32)
+        # from hwc to chw
+        input_x = np.transpose(input_x, (2, 0, 1))
         # normalize
         _scale = 0.0078125
         _bias = np.array([-127.5, -127.5, -127.5], dtype=np.float32)
-        input = input.astype(np.float32)
-        input += _bias
-        input = input * _scale
-        # from hwc to chw
-        input = np.transpose(input, (2, 0, 1))
+        _bias = _bias[:, np.newaxis, np.newaxis]
+        input_x += _bias
+        input_x = input_x * _scale
+        # from bgr to rgb
+        input_x[[0,1,2],:,:] = input_x[[2,1,0],:,:]
+        input = input_x
+        for i in range(1, args.batch_size):
+          input = np.append(input, input_x, axis=0)
         input = np.expand_dims(input, axis=0)
         input = input.reshape((args.batch_size, 3, 112, 112))
     elif args.model_type == "liveness":

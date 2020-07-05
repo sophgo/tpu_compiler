@@ -343,8 +343,10 @@ public:
         AssignGAddrPattern<tpu::TG_BF16_SwapChannelOp>,
         AssignGAddrPattern<tpu::TG_BF16_PixelShuffleOp>,
         AssignGAddrPattern<tpu::TG_BF16_UpsampleOp>,
-
+        AssignGAddrPattern<tpu::TG_CastOp>,
+        
         // fp32 cpu ops
+        AssignGAddrPattern<tpu::InputOp>,
         AssignGAddrPattern<tpu::GenericCpuOp>
 
         >(context, &pos, neuronMapFile->os(), clNeuronAlignment);

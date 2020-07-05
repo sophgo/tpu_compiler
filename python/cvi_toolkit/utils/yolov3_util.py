@@ -242,11 +242,9 @@ def _batched_feature_generator_v3(batched_features, batch=1):
 def preprocess(bgr_img, net_input_dims):
     yolo_w = net_input_dims[1]
     yolo_h = net_input_dims[0]
-    rgb_img = cv2.cvtColor(bgr_img, cv2.COLOR_BGR2RGB)
-    rgb_img = rgb_img / 255.0
 
-    ih = rgb_img.shape[0]
-    iw = rgb_img.shape[1]
+    ih = bgr_img.shape[0]
+    iw = bgr_img.shape[1]
 
     scale = min(float(yolo_w) / iw, float(yolo_h) / ih)
     rescale_w = int(iw * scale)
@@ -255,13 +253,15 @@ def preprocess(bgr_img, net_input_dims):
     # print("yolo_h: {}, yolo_w: {}, rescale_h: {}, rescale_w: {}".format(
     #       yolo_h, yolo_w, rescale_h, rescale_w))
 
-    resized_img = cv2.resize(rgb_img, (rescale_w, rescale_h), interpolation=cv2.INTER_LINEAR)
+    resized_img = cv2.resize(bgr_img, (rescale_w, rescale_h), interpolation=cv2.INTER_LINEAR)
     new_image = np.full((yolo_h, yolo_w, 3), 0, dtype=np.float32)
     paste_w = (yolo_w - rescale_w) // 2
     paste_h = (yolo_h - rescale_h) // 2
 
     new_image[paste_h:paste_h + rescale_h, paste_w: paste_w + rescale_w, :] = resized_img
     new_image = np.transpose(new_image, (2, 0, 1))      # row to col, (HWC -> CHW)
+    new_image = new_image / 255.0
+    new_image[[0,1,2],:,:] = new_image[[2,1,0],:,:]
     return new_image
 
 def postprocess_v2(batched_features, image_shape, net_input_dims,

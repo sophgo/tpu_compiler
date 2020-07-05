@@ -206,6 +206,36 @@ LogicalResult tpu::TG_BF16_BroadcastMulOp::codegen(void *ctx) {
   return success();
 }
 
+LogicalResult tpu::TG_CastOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  getNCHW(shape, n, c, h, w);
+
+  gaddr_t input_gaddr = getPreviousOpAddress(op);
+  gaddr_t output_gaddr = getOpAddress(op);
+  int layer_id = mlir::getOpLayerId(op);
+
+  if (from() == "FP32" && to() == "BF16") {
+    convert_fp32_bf16_kernel(*backend_ctx, 0, 0, layer_id, nullptr, 0,
+                                       input_gaddr, output_gaddr, n, c,
+                                       h, w);
+  } else if (from() == "BF16" && to() == "FP32") {
+    convert_bf16_fp32_kernel(*backend_ctx, 0, 0, layer_id, nullptr, 0,
+                                       input_gaddr, output_gaddr, n, c,
+                                       h, w);
+  } else {
+    llvm_unreachable("unsupport other type cast");
+  }
+
+  return success();
+}
+
 LogicalResult tpu::TG_INT8_ConcatOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);
@@ -2713,6 +2743,10 @@ LogicalResult tpu::TG_MemRef_INT8_PixelShuffleOp::codegen(void *ctx) {
 }
 
 LogicalResult tpu::TG_MemRef_BF16_PixelShuffleOp::codegen(void *ctx) {
+  return success();
+}
+
+LogicalResult tpu::TG_MemRef_CastOp::codegen(void *ctx) {
   return success();
 }
 

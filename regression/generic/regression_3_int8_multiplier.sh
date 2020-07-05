@@ -17,15 +17,28 @@ if [ $DO_QUANT_INT8_MULTIPLER -eq 1 ]; then
   ###############################################################################
   # quantization 3: per-channel int8 with multiplier
   ###############################################################################
-  mlir-opt \
-      --assign-chip-name \
-      --chipname ${SET_CHIP_NAME} \
-      ${CUSTOM_OP_PLUGIN_OPTION} \
-      --tpu-quant \
-      --print-tpu-op-info \
-      --tpu-op-info-filename ${NET}_op_info_int8_multiplier.csv \
-      ${NET}_cali.mlir \
-      -o ${NET}_quant_int8_multiplier.mlir
+  if [ $DO_PREPROCESS -eq 1 ]; then
+    mlir-opt \
+        --assign-chip-name \
+        --chipname ${SET_CHIP_NAME} \
+        ${CUSTOM_OP_PLUGIN_OPTION} \
+        --tpu-quant \
+        --convert-quant-op \
+        --print-tpu-op-info \
+        --tpu-op-info-filename ${NET}_op_info_int8_multiplier.csv \
+        ${NET}_cali.mlir \
+        -o ${NET}_quant_int8_multiplier.mlir
+  else
+    mlir-opt \
+        --assign-chip-name \
+        --chipname ${SET_CHIP_NAME} \
+        ${CUSTOM_OP_PLUGIN_OPTION} \
+        --tpu-quant \
+        --print-tpu-op-info \
+        --tpu-op-info-filename ${NET}_op_info_int8_multiplier.csv \
+        ${NET}_cali.mlir \
+        -o ${NET}_quant_int8_multiplier.mlir
+  fi
 
   mlir-tpu-interpreter ${NET}_quant_int8_multiplier.mlir \
       ${CUSTOM_OP_PLUGIN_OPTION} \
