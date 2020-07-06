@@ -32,6 +32,7 @@ def parse_args():
     
     parser.add_argument("--pre_result_json", type=str,
                         help="when present, use pre detected result file, skip detection")
+    parser.add_argument('--do_preprocess', type=str, default='yes')
 
     args = parser.parse_args()
     return args
@@ -172,11 +173,11 @@ def dump_coco_json():
 
     net_input_dims = [int(s) for s in args.net_input_dims.split(',')]
 
-    transformer = caffe.io.Transformer({'data': (1,3,net_input_dims[0],net_input_dims[1])})
-    transformer.set_transpose('data', (2, 0, 1))  # row to col, (HWC -> CHW)
-    transformer.set_mean('data', ssd_mean)
-    transformer.set_raw_scale('data', 255)  # [0,1] to [0,255]
-    transformer.set_channel_swap('data', (2, 1, 0))  # RGB to BGR
+    # transformer = caffe.io.Transformer({'data': (1,3,net_input_dims[0],net_input_dims[1])})
+    # transformer.set_transpose('data', (2, 0, 1))  # row to col, (HWC -> CHW)
+    # transformer.set_mean('data', ssd_mean)
+    # transformer.set_raw_scale('data', 255)  # [0,1] to [0,255]
+    # transformer.set_channel_swap('data', (2, 1, 0))  # RGB to BGR
     if os.path.exists(args.coco_result_jason_file):
         os.remove(args.coco_result_jason_file)
     with open(args.coco_result_jason_file, 'w') as coco_result:
@@ -188,19 +189,20 @@ def dump_coco_json():
         with tqdm(total= args.count if args.count > 0 else len(image_list)) as pbar:
             for img_name in imgs_name:
                 image_path = os.path.join(args.coco_image_path, img_name)
-                image = caffe.io.load_image(image_path)  # range from 0 to 1
-
-                # net.blobs['data'].reshape(1, 3, net_input_dims[0], net_input_dims[1])
-                # net.blobs['data'].data[...] = transformer.preprocess('data', image)
-                # detections = net.forward()['detection_out']
-
-
-                x = transformer.preprocess('data', image)
-                x = np.expand_dims(x, axis=0)
-                _ = module.run(x)
+                image_x = cv2.imread(image_path)
+                image_ori = image_x
+                image_x = cv2.resize(image_x, (net_input_dims[1], net_input_dims[0]))
+                image_x = image_x.astype(np.float32)
+                image_x = np.transpose(image_x, [2,0,1])
+                if args.do_preprocess:
+                    mean = ssd_mean[:, np.newaxis, np.newaxis]
+                    image_x = image_x - mean
+                image = image_x
+                image = np.expand_dims(image, axis=0)
+                _ = module.run(image)
                 data = module.get_all_tensor()
                 detections = data['detection_out']
-                classes, scores, boxes = parse_top_detection(image.shape, detections, 0.01)
+                classes, scores, boxes = parse_top_detection(image_ori.shape, detections, 0.01)
                 if len(boxes) > 0:
                     write_result_to_json(img_name, [boxes, classes, scores], coco_result, i)
 

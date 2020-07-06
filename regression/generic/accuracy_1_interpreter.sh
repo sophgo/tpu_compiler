@@ -129,13 +129,24 @@ if [ $DO_QUANT_INT8_MULTIPLER -eq 1 ]; then
 
   elif [ "$EVAL_MODEL_TYPE" = "coco" ]; then
     _EVAL_FUNC=$EVAL_SCRIPT_INT8
-    $_EVAL_FUNC \
-      --model=${NET}_quant_int8_multiplier.mlir \
-      --net_input_dims ${NET_INPUT_DIMS} \
-      --coco_image_path=$DATASET_PATH/coco/val2017/ \
-      --coco_annotation=$DATASET_PATH/coco/annotations/instances_val2017.json \
-      --coco_result_jason_file=./${NET}_coco_results_int8_multiplier.json \
-      --count=$1
+    if [ $DO_PREPROCESS -eq 1 ]; then
+      $_EVAL_FUNC \
+        --model=${NET}_quant_int8_multiplier.mlir \
+        --net_input_dims ${NET_INPUT_DIMS} \
+        --coco_image_path=$DATASET_PATH/coco/val2017/ \
+        --coco_annotation=$DATASET_PATH/coco/annotations/instances_val2017.json \
+        --coco_result_jason_file=./${NET}_coco_results_int8_multiplier.json \
+        --do_preprocess no \
+        --count=$1
+    else
+      $_EVAL_FUNC \
+        --model=${NET}_quant_int8_multiplier.mlir \
+        --net_input_dims ${NET_INPUT_DIMS} \
+        --coco_image_path=$DATASET_PATH/coco/val2017/ \
+        --coco_annotation=$DATASET_PATH/coco/annotations/instances_val2017.json \
+        --coco_result_jason_file=./${NET}_coco_results_int8_multiplier.json \
+        --count=$1
+    fi 
 
   elif [ "$EVAL_MODEL_TYPE" = "voc2012" ]; then
     _EVAL_FUNC=$EVAL_SCRIPT_VOC

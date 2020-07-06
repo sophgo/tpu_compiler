@@ -239,7 +239,7 @@ def _batched_feature_generator_v3(batched_features, batch=1):
         yield [layer82_conv[i], layer94_conv[i], layer106_conv[i]]
 
 
-def preprocess(bgr_img, net_input_dims):
+def preprocess(bgr_img, net_input_dims, do_preprocess=True):
     yolo_w = net_input_dims[1]
     yolo_h = net_input_dims[0]
 
@@ -260,8 +260,9 @@ def preprocess(bgr_img, net_input_dims):
 
     new_image[paste_h:paste_h + rescale_h, paste_w: paste_w + rescale_w, :] = resized_img
     new_image = np.transpose(new_image, (2, 0, 1))      # row to col, (HWC -> CHW)
-    new_image = new_image / 255.0
-    new_image[[0,1,2],:,:] = new_image[[2,1,0],:,:]
+    if do_preprocess:
+        new_image = new_image / 255.0
+        new_image[[0,1,2],:,:] = new_image[[2,1,0],:,:]
     return new_image
 
 def postprocess_v2(batched_features, image_shape, net_input_dims,
