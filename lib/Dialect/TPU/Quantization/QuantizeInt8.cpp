@@ -622,6 +622,25 @@ LogicalResult quantizeInt8RescaleNoWeightOps(Operation *op) {
     qscale[0] = qscale[0] / (kh * kw);
   }
 
+  // special handlings with pool_avg_2d count_include_padding
+  if (auto castOp = dyn_cast<tpu::PoolAvg2DOp>(op)) {
+    // tpu  handle pool_avg_2d only use count_include_padding.
+    // set true
+    auto rewriter = Builder(castOp.getContext());
+    castOp.setAttr("param",
+        tpu::PoolParam::get(
+            castOp.param().kernel_h(),
+            castOp.param().kernel_w(),
+            castOp.param().padding_t(),
+            castOp.param().padding_b(),
+            castOp.param().padding_l(),
+            castOp.param().padding_r(),
+            castOp.param().stride_h(),
+            castOp.param().stride_w(),
+            castOp.param().do_relu(),
+            rewriter.getBoolAttr(true),
+            rewriter.getContext()));
+  }
   // create tensors for rshift and multiplier
   auto rshift = std::make_unique<std::vector<float> >(1);
   auto multiplier = std::make_unique<std::vector<float> >(nInputs);
