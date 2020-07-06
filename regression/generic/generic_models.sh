@@ -13,6 +13,7 @@ export CALIBRATION_IMAGE_COUNT=1000
 export MLIR_OPT_FE_PRE="--convert-bn-to-scale"
 export MLIR_OPT_FE_POST="--eltwise-early-stride"
 export MLIR_OPT_BE="--tg-fuse-leakyrelu --conv-ic-alignment"
+export TOLERANCE_FP32=0.999,0.999,0.998
 export DO_QUANT_INT8=1
 export DO_QUANT_INT8_PER_TENSOR=0
 export DO_QUANT_INT8_RFHIFT_ONLY=0
@@ -1078,6 +1079,7 @@ export INPUT=input
 export OUTPUTS_FP32=output
 export OUTPUTS=output
 export EXCEPTS=424_Mul,388_Sigmoid
+export TOLERANCE_FP32=0.999,0.999,0.97 # we leverage bf16 lut do sigmoid
 # export DO_QUANT_INT8_PER_TENSOR=1
 # export DO_QUANT_INT8_RFHIFT_ONLY=1
 # export TOLERANCE_INT8_PER_TENSOR=0.8,0.8,0.8
@@ -1156,6 +1158,7 @@ export RAW_SCALE=1.0
 export MODEL_CHANNEL_ORDER="rgb"
 export INPUT_SCALE=1.0
 export INPUT=input
+export TOLERANCE_FP32=0.999,0.999,0.997 # we leverage bf16 lut do sigmoid
 export TOLERANCE_INT8_PER_TENSOR=0.97,0.96,0.80
 export TOLERANCE_INT8_RSHIFT_ONLY=0.97,0.96,0.80
 export TOLERANCE_INT8_MULTIPLER=0.98,0.97,0.81
@@ -1478,5 +1481,63 @@ if [ $DO_PREPROCESS -eq 1 ]; then
   export EXCEPTS=data,prob,res2c_relu,res3d_relu,res4f_relu
 else
   export EXCEPTS=prob,res2c_relu,res3d_relu,res4f_relu
+fi
+fi
+
+if [ $NET = "espcn_tf" ]; then
+export MODEL_TYPE="tensorflow"
+export MODEL_DEF=
+export MODEL_DAT=""
+export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/generic/regression_0_tensorflow.sh
+export CALI_TABLE=
+export IMAGE_RESIZE_DIMS=540,960
+export NET_INPUT_DIMS=540,960
+export SHAPE_HW=$NET_INPUT_DIMS
+export DATA_FORMAT="nhwc"
+export RAW_SCALE=255
+export MODEL_CHANNEL_ORDER="bgr"
+export MEAN=127.5 # in BGR
+export STD=127.5
+export INPUT_SCALE=1.0
+export INPUT=input
+export TOLERANCE_INT8_MULTIPLER=0.86,0.83,0.38
+export DO_QUANT_BF16=0
+export DO_E2E=0
+export DO_DEEPFUSION=0
+export BGRAY="true"
+fi
+
+if [ $NET = "icnet" ]; then
+export MODEL_TYPE="caffe"
+export MODEL_DEF=$MODEL_PATH/segmentation/ICNet/caffe/icnet_cityscapes_bnnomerge.prototxt
+export MODEL_DAT=$MODEL_PATH/segmentation/ICNet/caffe/icnet_cityscapes_trainval_90k_bnnomerge.caffemodel
+export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/generic/regression_0_caffe.sh
+export NET_INPUT_DIMS=1025,2049
+export IMAGE_RESIZE_DIMS=1025,2049
+export RAW_SCALE=255.0
+export MEAN=0,0,0
+export INPUT_SCALE=1.0
+export INPUT=data
+export OUTPUTS_FP32=conv5_3_pool1_interp
+export OUTPUTS=conv5_3_pool1_interp
+export CALIBRATION_IMAGE_COUNT=30
+export DO_CALIBRATION=0
+export TOLERANCE_INT8_PER_TENSOR=0.99,0.98,0.91
+export TOLERANCE_INT8_RSHIFT_ONLY=0.99,0.98,0.91
+export TOLERANCE_INT8_MULTIPLER=0.99,0.98,0.91
+export DO_QUANT_BF16=0
+export TOLERANCE_BF16=0.99,0.98,0.97
+export DO_CMDBUF_BF16=0
+export DO_LAYERGROUP=1
+export DO_PREPROCESS=0
+export EVAL_MODEL_TYPE="isbi"
+export DO_ACCURACY_CAFFE=0
+export DO_ACCURACY_ONNX=0
+if [ $DO_PREPROCESS -eq 1 ]; then
+  export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table_preprocess
+  export IMAGE_PATH=$REGRESSION_PATH/data/0.png
+  export EXCEPTS=input
+else
+  export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table_0
 fi
 fi

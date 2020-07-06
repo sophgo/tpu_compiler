@@ -24,6 +24,7 @@
 #include "mlir/Dialect/TPU/TPUOperationSupport.h"
 #include "mlir/Dialect/TPU/TPUTensorSupport.h"
 #include "mlir/Dialect/TPU/QuantizationArithmetic.h"
+#include "mlir/Dialect/TPU/NativeCpuImplementation.h"
 #include "mlir/Dialect/StandardOps/Ops.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
@@ -50,60 +51,7 @@ double sigmoid(double x) {
 
 using namespace mlir;
 
-static void gen_bf16_table(int start, int end, int table_hw, float *table,
-                           double (*activate_func)(double)) {
-  int half = table_hw / 2;
-  int table_idx = 0;
-  int range = abs(end - start);
-  float interval = (float)range / (float)table_hw;
-  double x_value;
-  double y_value;
 
-  // Set idx [0 , 127] fp32 and bf16 data
-  for (int i = 0; i < half; i++) {
-    x_value = i * interval;
-    y_value = activate_func(x_value);
-    table[table_idx] = y_value;
-    table_idx++;
-  }
-  // set idx 128 fp32 and bf16 data
-  table[table_idx] = activate_func(start);
-
-  ++table_idx;
-  // set idx 129 to 256, 2's complment
-  for (int i = 1; i < half; i++) {
-    x_value = start + i * interval;
-    y_value = activate_func(x_value);
-    table[table_idx] = y_value;
-    table_idx++;
-  }
-}
-
-static void gen_bf16_slope_table(int start, int end, int table_hw,
-                                         float *table,
-                                         float *slope_table, double (*activate_func)(double)) {
-  int range = abs(end - start);
-  float interval = (float)range / (float)table_hw;
-  int half = table_hw / 2;
-  for (int i = 0; i < table_hw; ++i) {
-    double x0 = table[i];
-    double x1 = table[i + 1];
-    double delta = 1.0;
-    if (i == half - 1) {
-      x1 = activate_func(end);
-    } else if (i == half) {
-      // idx = 128, x0 is -128, x1 is -129
-      x1 = activate_func(start - interval);
-      delta = -1.0;
-    } else if (i > half) {
-      x0 = table[i];
-      x1 = table[i - 1];
-      delta = -1.0;
-    }
-    float slope = (x1 - x0) / delta;
-    slope_table[i] = slope;
-  }
-}
 namespace mlir {
 
 ///
