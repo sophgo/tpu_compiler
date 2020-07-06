@@ -309,20 +309,25 @@ if [ "$1" = "RELEASE" ]; then
   pushd $BUILD_PATH
   $MLIR_SRC_PATH/regression/generate_all_cvimodels.sh
   mkdir -p cvimodel_samples
+
   cp cvimodel_release/mobilenet_v2.cvimodel cvimodel_samples/
   cp cvimodel_release/yolo_v3_416_with_detection.cvimodel cvimodel_samples/
   cp cvimodel_release/alphapose.cvimodel cvimodel_samples/
   cp cvimodel_release/retinaface_mnet25_with_detection.cvimodel cvimodel_samples/
   cp cvimodel_release/retinaface_res50_with_detection.cvimodel cvimodel_samples/
+  cp cvimodel_release/retinaface_mnet25_600_with_detection.cvimodel cvimodel_samples/
   cp cvimodel_release/arcface_res50.cvimodel cvimodel_samples/
+
+  cp cvimodel_release/mobilenet_v2_preprocess.cvimodel cvimodel_samples/
+  cp cvimodel_release/yolo_v3_416_with_detection_preprocess.cvimodel cvimodel_samples/
+  # cp cvimodel_release/alphapose_preprocess.cvimodel cvimodel_samples/
+  cp cvimodel_release/retinaface_mnet25_with_detection_preprocess.cvimodel cvimodel_samples/
+  cp cvimodel_release/retinaface_res50_with_detection_preprocess.cvimodel cvimodel_samples/
+  cp cvimodel_release/retinaface_mnet25_600_with_detection_preprocess.cvimodel cvimodel_samples/
+  cp cvimodel_release/arcface_res50_preprocess.cvimodel cvimodel_samples/
 
   if [ "$BUILD_CVITEK_ZOO" = "1" ]; then
     $MLIR_SRC_PATH/regression/cvitek_zoo/cvitek_zoo_generate_cvimodels.sh
   fi
   popd
-fi
-
-# SoC build
-if [ "$1" = "SOC" ]; then
-source build_soc.sh
 fi

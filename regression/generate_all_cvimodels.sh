@@ -38,7 +38,7 @@ extra_net_param()
   export RAW_SCALE=255.0
   export MEAN=0,0,0
   export INPUT_SCALE=1
-  export DO_PREPROCESS=0
+  export DO_PREPROCESS=1
   if [ $DO_PREPROCESS -eq 1 ]; then
   export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/retinaface_mnet25_calibration_table_preprocess
   else
@@ -58,7 +58,7 @@ extra_net_param()
   export RAW_SCALE=255.0
   export MEAN=0,0,0
   export INPUT_SCALE=1
-  export DO_PREPROCESS=0
+  export DO_PREPROCESS=1
   if [ $DO_PREPROCESS -eq 1 ]; then
   export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/retinaface_mnet25_calibration_table_preprocess
   else
@@ -78,7 +78,7 @@ extra_net_param()
   export RAW_SCALE=255.0
   export MEAN=0,0,0
   export INPUT_SCALE=1
-  export DO_PREPROCESS=0
+  export DO_PREPROCESS=1
   if [ $DO_PREPROCESS -eq 1 ]; then
   export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/retinaface_res50_calibration_table_preprocess
   else
@@ -98,7 +98,7 @@ extra_net_param()
   export RAW_SCALE=1.0
   export MEAN=0,0,0
   export INPUT_SCALE=1.0
-  export DO_PREPROCESS=0
+  export DO_PREPROCESS=1
   if [ $DO_PREPROCESS -eq 1 ]; then
   export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/yolo_v3_calibration_table_autotune_preprocess
   else
@@ -118,7 +118,7 @@ extra_net_param()
   export RAW_SCALE=1.0
   export MEAN=0,0,0
   export INPUT_SCALE=1.0
-  export DO_PREPROCESS=0
+  export DO_PREPROCESS=1
   if [ $DO_PREPROCESS -eq 1 ]; then
   export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/yolo_v3_calibration_table_autotune_preprocess
   else
@@ -154,6 +154,14 @@ do
   echo "NET=$NET MODEL_TYPE=$MODEL_TYPE"
   if [ $MODEL_TYPE = "caffe" ]; then
     if [ $USE_LAYERGROUP = "1" ]; then
+      $DIR/convert_model_caffe_lg.sh \
+        ${MODEL_DEF} \
+        ${MODEL_DAT} \
+        ${NET} \
+        1 \
+        ${CALI_TABLE} \
+        ${NET}.cvimodel
+      mv ${NET}.cvimodel ..
       if [ $DO_PREPROCESS -eq 1 ]; then
         $DIR/convert_model_caffe_lg_preprocess.sh \
           ${MODEL_DEF} \
@@ -167,17 +175,16 @@ do
           ${CALI_TABLE} \
           ${NET}_preprocess.cvimodel
         mv ${NET}_preprocess.cvimodel ..
-      else
-        $DIR/convert_model_caffe_lg.sh \
-          ${MODEL_DEF} \
-          ${MODEL_DAT} \
-          ${NET} \
-          1 \
-          ${CALI_TABLE} \
-          ${NET}.cvimodel
-        mv ${NET}.cvimodel ..
       fi
     else
+      $DIR/convert_model_caffe_df.sh \
+        ${MODEL_DEF} \
+        ${MODEL_DAT} \
+        ${NET} \
+        1 \
+        ${CALI_TABLE} \
+        ${NET}.cvimodel
+      mv ${NET}.cvimodel ..
       if [ $DO_PREPROCESS -eq 1 ]; then
         $DIR/convert_model_caffe_df_preprocess.sh \
           ${MODEL_DEF} \
@@ -191,15 +198,6 @@ do
           ${CALI_TABLE} \
           ${NET}_preprocess.cvimodel
         mv ${NET}_preprocess.cvimodel ..
-      else
-        $DIR/convert_model_caffe_df.sh \
-          ${MODEL_DEF} \
-          ${MODEL_DAT} \
-          ${NET} \
-          1 \
-          ${CALI_TABLE} \
-          ${NET}.cvimodel
-        mv ${NET}.cvimodel ..
       fi
     fi
   elif [ $MODEL_TYPE = "onnx" ]; then
@@ -243,6 +241,14 @@ do
   extra_net_param $NET
   if [ $MODEL_TYPE = "caffe" ]; then
     if [ $USE_LAYERGROUP = "1" ]; then
+      $DIR/convert_model_caffe_lg.sh \
+        ${MODEL_DEF} \
+        ${MODEL_DAT} \
+        ${NET} \
+        1 \
+        ${CALI_TABLE} \
+        ${NET}.cvimodel
+      mv ${NET}.cvimodel ..
       if [ $DO_PREPROCESS -eq 1 ]; then
         $DIR/convert_model_caffe_lg_preprocess.sh \
           ${MODEL_DEF} \
@@ -256,17 +262,16 @@ do
           ${CALI_TABLE} \
           ${NET}_preprocess.cvimodel
         mv ${NET}_preprocess.cvimodel ..
-      else
-        $DIR/convert_model_caffe_lg.sh \
-          ${MODEL_DEF} \
-          ${MODEL_DAT} \
-          ${NET} \
-          1 \
-          ${CALI_TABLE} \
-          ${NET}.cvimodel
-        mv ${NET}.cvimodel ..
       fi
     else
+      $DIR/convert_model_caffe_df.sh \
+        ${MODEL_DEF} \
+        ${MODEL_DAT} \
+        ${NET} \
+        1 \
+        ${CALI_TABLE} \
+        ${NET}.cvimodel
+      mv ${NET}.cvimodel ..
       if [ $DO_PREPROCESS -eq 1 ]; then
         $DIR/convert_model_caffe_df_preprocess.sh \
           ${MODEL_DEF} \
@@ -280,15 +285,6 @@ do
           ${CALI_TABLE} \
           ${NET}_preprocess.cvimodel
         mv ${NET}_preprocess.cvimodel ..
-      else
-        $DIR/convert_model_caffe_df.sh \
-          ${MODEL_DEF} \
-          ${MODEL_DAT} \
-          ${NET} \
-          1 \
-          ${CALI_TABLE} \
-          ${NET}.cvimodel
-        mv ${NET}.cvimodel ..
       fi
     fi
   elif [ $MODEL_TYPE = "onnx" ]; then
