@@ -1197,8 +1197,17 @@ class CaffeConverter(BaseConverter):
                 self.do_preprocess(name)
 
         for layer in self.layers:
-            self.caffeop_factory.get(
-                self.layerType(layer), lambda x: NoneAndRaise(x))(layer)
+            is_test_phase = True
+            if len(layer.include) != 0:
+                # only test phase convert
+                is_test_phase = False
+                for include in layer.include:
+                    if include.HasField('phase') and include.phase == 1:
+                        is_test_phase = True
+                        break
+            if is_test_phase:
+                self.caffeop_factory.get(
+                    self.layerType(layer), lambda x: NoneAndRaise(x))(layer)
 
         # add return op
         return_op = list()
