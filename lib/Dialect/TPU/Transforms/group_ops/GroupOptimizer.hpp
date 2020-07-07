@@ -31,7 +31,7 @@ class GroupOptimizer {
   NetGraph* net_graph_;
   vector<Group*> groups_;
   MixNet mix_net_;
-  GmemManager gmem_mgr_;
+  // GmemManager gmem_mgr_;
   FuncOp * fn_;
   FuncOp out_fn_;
   MLIRContext * context_;

@@ -17,7 +17,7 @@ static llvm::cl::opt<bool> clDisableGMemOptimize(
 
 GroupOptimizer::GroupOptimizer(NetGraph* net_graph, FuncOp * fn, MLIRContext * context)
     : net_graph_(net_graph), fn_(fn), context_(context),
-      mix_net_(net_graph, fn, context), gmem_mgr_(net_graph){}
+      mix_net_(net_graph, fn, context)/*, gmem_mgr_(net_graph)*/ {}
 
 GroupOptimizer::~GroupOptimizer() {
   for (auto group : groups_) {
@@ -554,7 +554,7 @@ struct LGLoweringPattern : public RewritePattern {
 // lower to tl inst according to layer group result
 void GroupOptimizer::lower_to_tl_group(MLIRContext * context) {
   set_input_output_tensor();
-  u64 neuron_size = gmem_mgr_.assign_global_memory(groups_, clDisableGMemOptimize);
+  // u64 neuron_size = gmem_mgr_.assign_global_memory(groups_, clDisableGMemOptimize);
 
   OwningRewritePatternList patterns_pack;
   patterns_pack.insert<

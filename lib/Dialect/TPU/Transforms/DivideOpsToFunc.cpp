@@ -1,4 +1,3 @@
-//===- SplitCpuOp - Implementation of Layer id assignment -----------------===//
 //
 // Copyright 2019 The MLIR Authors.
 //
@@ -159,7 +158,6 @@ public:
     if (sf != nullptr) {
       addSubFunction(sf);
       subFuncs.push_back(sf);
-      sf = nullptr;
     }
 
     for (auto sf : subFuncs) {

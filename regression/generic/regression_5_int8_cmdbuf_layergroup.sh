@@ -119,10 +119,16 @@ mlir-opt \
     ${NET}_quant_int8_multiplier_layergroup_lw.mlir \
     -o ${NET}_quant_int8_multiplier_layergroup_lw_addr.mlir
 fi
+mlir-opt \
+    --assign-neuron-address \
+    --tpu-neuron-address-align=16 \
+    --tpu-neuron-map-filename=neuron_map_lg.csv \
+    ${NET}_quant_int8_multiplier_layergroup_lw_addr.mlir \
+    -o ${NET}_quant_int8_multiplier_layergroup_lw_addr_1.mlir
 
 mlir-opt \
     --divide-ops-to-func \
-    ${NET}_quant_int8_multiplier_layergroup_lw_addr.mlir \
+    ${NET}_quant_int8_multiplier_layergroup_lw_addr_1.mlir \
     -o ${NET}_quant_int8_multiplier_layergroup_func.mlir
 
 mlir-translate \

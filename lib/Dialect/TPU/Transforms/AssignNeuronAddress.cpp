@@ -23,6 +23,8 @@
 #include "mlir/Dialect/TPU/TPUCompressUtil.h"
 #include "mlir/Dialect/TPU/TPUOperationSupport.h"
 #include "mlir/Dialect/TPU/TPUTensorSupport.h"
+#include "mlir/Dialect/TPU/DivideOpsToSubFunc.h"
+#include "mlir/Dialect/TPU/GmemAllocator.hpp"
 #include "mlir/Dialect/TPU/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
@@ -45,217 +47,184 @@ using namespace mlir;
 
 namespace {
 
-static bool isStoreCompressedActivation(Operation *op) {
+static llvm::cl::opt<size_t>
+    clNeuronAlignment("tpu-neuron-address-align",
+                      llvm::cl::desc("Specify the alignment for neuron"),
+                      llvm::cl::init(16));
 
-  // Only support convolution now.
-  if (auto tpuOp = dyn_cast<tpu::TG_INT8_PC_Conv2DOp>(op)) {
-    if (tpuOp.store_compr_act().hasValue())
-      return true;
-  }
-
-  return false;
-}
-
-template<typename OpTy>
-struct AssignGAddrPattern : public RewritePattern {
-  AssignGAddrPattern(MLIRContext *context,
-      uint64_t *pos, llvm::raw_ostream &map_os, size_t alignment)
-      : RewritePattern(OpTy::getOperationName(), 1, context),
-        pos_(pos),
-        map_os_(map_os),
-        alignment_(alignment) {}
-
-  PatternMatchResult matchAndRewrite(Operation *op,
-                                     PatternRewriter &rewriter) const override {
-    auto castOp = cast<OpTy>(op);
-    if (castOp.gaddr().hasValue()) {
-      // assigned already
-      return matchFailure();
-    }
-
-    // if a cpu op used by a tg op, we should to assign
-    // gmem for it.
-    if (auto cpuOp = dyn_cast<tpu::GenericCpuOp>(op)) {
-      auto hasTgNode = [](Operation *op) {
-        for (auto &use : op->getResult(0)->getUses()) {
-          if (dyn_cast<tpu::TpuTGOpCodegenInterface>(use.getOwner())) {
-            return true;
-          }
-        }
-        return false;
-      };
-
-      bool needed = false;
-      for (auto &use : cpuOp.getResult()->getUses()) {
-        // should recursively check if ReshapeOp has tg node
-        Operation *nextOp = use.getOwner();
-        if (auto reshapeOp = dyn_cast<tpu::ReshapeOp>(nextOp)) {
-          if (hasTgNode(nextOp)) {
-            needed = true;
-            break;
-          }
-        } else if (dyn_cast<tpu::TpuTGOpCodegenInterface>(nextOp)) {
-          needed = true;
-          break;
-        }
-      }
-      if (!needed) {
-        return matchFailure();
-      }
-    }
-
-    auto curPos = *pos_;
-    auto type = castOp.getResult()->getType().template cast<TensorType>();
-    std::vector<int64_t> shape = type.getShape();
-    auto elementType = type.getElementType();
-    auto count = std::accumulate(std::begin(shape), std::end(shape),
-                                 1, std::multiplies<>());
-    uint32_t dtype_size;
-    std::string dtype;
-    if (elementType.isF32()) {
-      dtype_size = sizeof(float);
-      dtype = "fp32";
-    } else if (elementType.isInteger(8)) {
-      dtype_size = sizeof(int8_t);
-      dtype = "int8";
-    } else if (elementType.isBF16()) {
-      dtype_size = sizeof(uint16_t);
-      dtype = "uint16";
-    } else {
-      llvm_unreachable("unsupported data type");
-    }
-
-    size_t size = count * dtype_size;
-
-    // pad to alignment
-    if (size % alignment_) {
-      size = size + alignment_ - (size % alignment_);
-    }
-
-    // Adjust neuron size for compression
-    // Apply int8 only.
-    if (dtype_size == 1 && isStoreCompressedActivation(op)) {
-      size = getCompressedDataSize(size, /*dataType*/0);
-
-      LLVM_DEBUG(llvm::dbgs() <<
-                 "AssignGAddrPattern " << castOp.name()
-                 << ", size " << count * dtype_size
-                 << ", compressed reserved size " << size << "\n");
-    }
-
-    auto newPos = curPos + size;
-
-    LLVM_DEBUG(llvm::errs() << llvm::format("[%-36s][%8d] : [ ",
-                                 getOpName(op).str().c_str(), size)
-                 << llvm::format_hex(curPos, 10) << " --> "
-                 << llvm::format_hex(newPos, 10) << " ]\n";);
-    // expand to dims=4
-    while (shape.size() < 4)
-      shape.insert(shape.begin(), 1);
-
-    map_os_ << getOpName(op) << "," << llvm::format_hex(curPos, 10) << ","
-            << dtype << ","
-            << shape[0] << "," << shape[1] << ","
-            << shape[2] << "," << shape[3] << "\n";
-
-    setOpAddress(op, curPos);
-    *pos_ = newPos;
-
-    return matchSuccess();
-  }
-
-  uint64_t *pos_;
-  llvm::raw_ostream &map_os_;
-  size_t alignment_;
-};
-
-template <typename OpTy> struct TpuSliceAddressPattern : public RewritePattern {
-  TpuSliceAddressPattern(MLIRContext *context, uint64_t *pos,
-                         llvm::raw_ostream &map_os, size_t alignment)
-      : RewritePattern(OpTy::getOperationName(), 1, context), pos_(pos),
-        map_os_(map_os), alignment_(alignment) {}
-
-  PatternMatchResult matchAndRewrite(Operation *op,
-                                     PatternRewriter &rewriter) const override {
-    auto castOp = cast<OpTy>(op);
-    if (castOp.gaddr().hasValue()) {
-      // assigned already
-      return matchFailure();
-    }
-
-    // trying to avoid doing copy
-    // however, since we didn't pass stride info to backend API yet
-    // this is only working for batch_size = 1
-    auto curPos = getPreviousOpAddress(castOp);
-    int axis = castOp.axis().getLimitedValue();
-    int offset = castOp.offset().getLimitedValue();
-
-    assert((axis == 1) && "axis should be 1");
-    size_t dtype_bytes;
-    std::string dtype;
-    if (isa<tpu::TG_INT8_SliceOp>(op)) {
-      dtype_bytes = 1;
-      dtype = "int8";
-    } else if (isa<tpu::TG_BF16_SliceOp>(op)) {
-      dtype_bytes = 2;
-      dtype = "uint16";
-    } else {
-      llvm_unreachable("unhandled op");
-    }
-
-    std::vector<int64_t> input_shape = getTensorShape(castOp.input());
-    if (input_shape[0] == 1) {
-      // if batch is 1, then no copy
-      int64_t isz = 1;
-      for (unsigned i = axis + 1; i < input_shape.size(); i++) {
-        isz *= input_shape[i];
-      }
-      size_t offset_bytes = offset * isz * dtype_bytes;
-      setOpAddress(op, curPos + offset_bytes);
-
-    } else {
-      auto curPos = *pos_;
-      std::vector<int64_t> shape = getTensorShape(castOp.getResult());
-      auto count = std::accumulate(std::begin(shape), std::end(shape), 1,
-                                   std::multiplies<>());
-      size_t size = count * dtype_bytes;
-
-      // pad to alignment
-      if (size % alignment_) {
-        size = size + alignment_ - (size % alignment_);
-      }
-      auto newPos = curPos + size;
-
-      LLVM_DEBUG(llvm::errs() << llvm::format("[%-36s][%8d] : [ ",
-                                   getOpName(op).str().c_str(), size)
-                   << llvm::format_hex(curPos, 10) << " --> "
-                   << llvm::format_hex(newPos, 10) << " ]\n";);
-      // expand to dims=4
-      while (shape.size() < 4)
-        shape.insert(shape.begin(), 1);
-      map_os_ << getOpName(op) << "," << llvm::format_hex(curPos, 10) << ","
-              << dtype << "," << shape[0] << "," << shape[1] << "," << shape[2]
-              << "," << shape[3] << "\n";
-
-      setOpAddress(op, curPos);
-      *pos_ = newPos;
-    }
-    return matchSuccess();
-  }
-  uint64_t *pos_;
-  llvm::raw_ostream &map_os_;
-  size_t alignment_;
-};
-
-static llvm::cl::opt<size_t> clNeuronAlignment(
-    "tpu-neuron-address-align",
-    llvm::cl::desc("Specify the alignment for neuron"),
-    llvm::cl::init(16));
+static llvm::cl::opt<bool>
+    clNeuronReuse("tpu-neuron-memory-reuse",
+                  llvm::cl::desc("Reuse neuron's memory"),
+                  llvm::cl::init(false));
 
 static llvm::cl::opt<std::string> clNeuronMapFilename(
     "tpu-neuron-map-filename",
     llvm::cl::desc("record neuron offset with its name into a csv map file"),
     llvm::cl::init("-"));
+
+static int32_t getOpDtypeSize(Operation *op) {
+  int32_t dsize = 1;
+  auto elementType =
+      op->getResult(0)->getType().template cast<TensorType>().getElementType();
+  if (elementType.isF32()) {
+    dsize = sizeof(float);
+  } else if (elementType.isInteger(8)) {
+    dsize = sizeof(int8_t);
+  } else if (elementType.isBF16()) {
+    dsize = sizeof(uint16_t);
+  } else {
+    llvm_unreachable("unsupported data type");
+  }
+  return dsize;
+}
+
+template <typename OpTy>
+struct TgLeakyReluAddressPattern : public RewritePattern {
+  TgLeakyReluAddressPattern(MLIRContext *context)
+      : RewritePattern(OpTy::getOperationName(), 1, context) {}
+
+  PatternMatchResult matchAndRewrite(Operation *op,
+                                     PatternRewriter &rewriter) const override {
+    auto castOp = cast<OpTy>(op);
+    if (castOp.gaddr().hasValue()) {
+      return matchFailure();
+    }
+    if (!castOp.fuse_prev()) {
+      return matchFailure();
+    }
+
+    auto opd = op->getOperand(0)->getDefiningOp();
+    if (opd->getAttr("buffer_reused")) {
+      castOp.setAttr("buffer_reused", rewriter.getBoolAttr(true));
+    }
+
+    auto curPos = getPreviousOpAddress(castOp);
+    setOpAddress(op, curPos);
+    return matchSuccess();
+  }
+};
+
+template <typename OpTy>
+struct TlLgLoadNeuronAddressPattern : public RewritePattern {
+  TlLgLoadNeuronAddressPattern(MLIRContext *context)
+      : RewritePattern(OpTy::getOperationName(), 1, context) {}
+
+  PatternMatchResult matchAndRewrite(Operation *op,
+                                     PatternRewriter &rewriter) const override {
+    auto castOp = cast<OpTy>(op);
+    if (castOp.gaddr().hasValue()) {
+      return matchFailure();
+    }
+
+    auto curPos = getPreviousOpAddress(castOp);
+    auto offset = (int)castOp.offset().getValue().getSExtValue();
+    setOpAddress(op, curPos + offset);
+    return matchSuccess();
+  }
+};
+
+template <typename OpTy>
+struct TgSliceAddressPattern : public RewritePattern {
+  TgSliceAddressPattern(MLIRContext *context)
+      : RewritePattern(OpTy::getOperationName(), 1, context) {}
+
+  PatternMatchResult matchAndRewrite(Operation *op,
+                                     PatternRewriter &rewriter) const override {
+    auto castOp = cast<OpTy>(op);
+    if (castOp.gaddr().hasValue()) {
+      return matchFailure();
+    }
+    int axis = castOp.axis().getLimitedValue();
+    int offset = castOp.offset().getLimitedValue();
+    assert((axis == 1) && "axis should be 1");
+
+    std::vector<int64_t> shape = getTensorShape(castOp.input());
+    if (shape[0] != 1) {
+      return matchFailure();
+    }
+
+    int32_t dsize = getOpDtypeSize(op);
+    int64_t isz = 1;
+    for (unsigned i = axis + 1; i < shape.size(); i++) {
+      isz *= shape[i];
+    }
+    size_t offset_bytes = offset * isz * dsize;
+    auto curPos = getPreviousOpAddress(castOp);
+    setOpAddress(op, curPos + offset_bytes);
+    return matchSuccess();
+  }
+};
+
+template <typename OpTy>
+struct TlLgStoreAddressNeuronPattern : public RewritePattern {
+  TlLgStoreAddressNeuronPattern(MLIRContext *context)
+      : RewritePattern(OpTy::getOperationName(), 1, context) {}
+
+  PatternMatchResult matchAndRewrite(Operation *op,
+                                     PatternRewriter &rewriter) const override {
+    auto castOp = cast<OpTy>(op);
+    if (castOp.gaddr().hasValue()) {
+      return matchFailure();
+    }
+
+    auto nextOp = getNextOp(op);
+    auto curPos = getOpAddress(nextOp);
+    auto offset = (int)castOp.offset().getValue().getSExtValue();
+    setOpAddress(op, curPos + offset);
+    return matchSuccess();
+  }
+};
+
+
+static bool isInPlaceOp(Operation *op) {
+  if (auto sliceOp = llvm::dyn_cast<tpu::TG_INT8_SliceOp>(op)) {
+    auto type = sliceOp.getResult()->getType().template cast<TensorType>();
+    int axis = sliceOp.axis().getLimitedValue();
+    std::vector<int64_t> shape = type.getShape();
+    if (shape[0] == 1 && axis == 1) {
+      return true;
+    }
+  } else if (auto sliceOp = llvm::dyn_cast<tpu::TG_BF16_SliceOp>(op)) {
+    auto type = sliceOp.getResult()->getType().template cast<TensorType>();
+    int axis = sliceOp.axis().getLimitedValue();
+    std::vector<int64_t> shape = type.getShape();
+    if (shape[0] == 1 && axis == 1) {
+      return true;
+    }
+  } else if (auto leakyReluOp = llvm::dyn_cast<tpu::TG_INT8_LeakyReluOp>(op)) {
+    auto fusePrev = leakyReluOp.fuse_prev();
+    if (fusePrev) {
+      return true;
+    }
+  } else if (auto leakyReluOp = llvm::dyn_cast<tpu::TG_BF16_LeakyReluOp>(op)) {
+    auto fusePrev = leakyReluOp.fuse_prev();
+    if (fusePrev) {
+      return true;
+    }
+  } else if (isa<tpu::ReshapeOp>(op)) {
+    return true;
+  }
+  return false;
+}
+
+static uint32_t getOpLine(Operation *op) {
+  auto loc = op->getLoc().cast<FileLineColLoc>();
+  return loc.getLine();
+}
+
+static void findInPlaceOpMaxUsePosition(Operation *op, uint32_t& maxPosition) {
+  for (auto &use : op->getResult(0)->getUses()) {
+    Operation *next = use.getOwner();
+    if (isInPlaceOp(next)) {
+      findInPlaceOpMaxUsePosition(next, maxPosition);
+    } else {
+      uint32_t curPosition = getOpLine(next) + 1;
+      if (maxPosition < curPosition) {
+        maxPosition = curPosition;
+      }
+    }
+  }
+}
 
 class AssignNeuronAddressPass : public FunctionPass<AssignNeuronAddressPass> {
 public:
@@ -263,7 +232,7 @@ public:
 
   void runOnFunction() override {
     auto fn = getFunction();
-
+    auto *context = &getContext();
     // create a map file
     std::unique_ptr<llvm::ToolOutputFile> neuronMapFile = nullptr;
     if (clNeuronMapFilename != "-") {
@@ -275,89 +244,110 @@ public:
       }
     }
 
-    // TODO: to add mutex to pretect pos for thread safe
-    uint64_t pos = 0;
+    // remove gaddr attribute of all op
+    fn.walk([&](Operation *op) {
+      if (llvm::dyn_cast<tpu::TpuOpCommonInterface>(op)) {
+        op->removeAttr(Identifier::get("gaddr", context));
+      }
+    });
+
+    std::vector<Operation *> ops;
+    std::map<Operation *, std::vector<uint32_t>> liveRange;
+
+    auto updateOperandLiveRange = [&](Operation *op, uint32_t endPosition) {
+      for (uint32_t i = 0; i < op->getNumOperands(); i++) {
+        auto opd = op->getOperand(i)->getDefiningOp();
+        if (liveRange.find(opd) != liveRange.end()) {
+          if (liveRange[opd][1] == 0xFFFFFFFF || liveRange[opd][1] < endPosition) {
+            liveRange[opd][1] = endPosition;
+          }
+        }
+      }
+    };
+
+    fn.walk([&](Operation *op) {
+      uint32_t endPosition = getOpLine(op) + 1;
+      if (isa<tpu::TL_LW_Conv2DOp>(op) ||
+          isa<tpu::TL_BroadcastMulOp>(op) ||
+          isa<tpu::TL_EltwiseAddOp>(op) ||
+          isa<tpu::TL_EltwiseMulOp>(op) ||
+          isa<tpu::TL_PoolAvg2DOp>(op) ||
+          isa<tpu::TL_LutOp>(op)) {
+        bool store = op->getAttr("tl_store_flag").cast<BoolAttr>().getValue();
+        if (store) {
+          ops.push_back(op);
+          liveRange[op] = {getOpLine(op), 0xFFFFFFFF};
+        }
+        updateOperandLiveRange(op, endPosition);
+      } else if (isInPlaceOp(op)) {
+        uint32_t maxPosition = getOpLine(op) + 1;
+        findInPlaceOpMaxUsePosition(op, maxPosition);
+        updateOperandLiveRange(op, maxPosition);
+      } else if (isa<tpu::TL_LG_StoreOp>(op)) {
+        auto joinOp = getNextOp(op);
+        if (liveRange.find(joinOp) == liveRange.end()) {
+          ops.push_back(joinOp);
+          liveRange[joinOp] = {getOpLine(op), 0xFFFFFFFF};
+        }
+        updateOperandLiveRange(op, endPosition);
+      } else if (isa<tpu::InputOp>(op) ||
+                 isa<tpu::GenericCpuOp>(op) ||
+                 llvm::dyn_cast<tpu::TpuTGOpCodegenInterface>(op)) {
+        ops.push_back(op);
+        liveRange[op] = {getOpLine(op), 0xFFFFFFFF};
+        updateOperandLiveRange(op, endPosition);
+      } else {
+        updateOperandLiveRange(op, endPosition);
+      }
+    });
+
+    GmemAllocator allocator(clNeuronAlignment);
+    allocator.assignGaddr(ops, liveRange, clNeuronReuse);
+    auto &gaddrMap = allocator.gaddrMap;
+    auto &gaddrReusedSet = allocator.gaddrReusedSet;
+
+    fn.walk([&](Operation *op) {
+      if (gaddrMap.find(op) != gaddrMap.end()) {
+        if (!isa<tpu::ReshapeOp>(op)) {
+          setOpAddress(op, gaddrMap[op]);
+        }
+        if (gaddrReusedSet.find(op) != gaddrReusedSet.end()) {
+          auto castOp = llvm::dyn_cast<tpu::TpuOpCommonInterface>(op);
+          castOp.setAttr("buffer_reused", Builder(context).getBoolAttr(true));
+        }
+        if (neuronMapFile) {
+          auto dsize = getOpDtypeSize(op);
+          std::string dtype = "int8";
+          if (dsize == 4) {
+            dtype = "int16";
+          } else if (dsize == 2) {
+            dtype = "fp32";
+          }
+          std::vector<int64_t> shape =
+              op->getResult(0)->getType().cast<TensorType>().getShape();
+          while (shape.size() < 4) {
+            shape.insert(shape.begin(), 1);
+          }
+          auto &os = neuronMapFile->os();
+          os << mlir::getOpName(op) << "," << llvm::format_hex(gaddrMap[op], 10) << ","
+             << dtype << ","
+             << shape[0] << "," << shape[1] << ","
+             << shape[2] << "," << shape[3] << "\n";
+        }
+      }
+    });
+
     OwningRewritePatternList patterns;
-    auto *context = &getContext();
-
-    // assigne gaddr for Ops
-    patterns.clear();
-    patterns.insert<
-        // tg int8 ops
-        AssignGAddrPattern<tpu::TG_INT8_BroadcastMulOp>,
-        AssignGAddrPattern<tpu::TG_INT8_ConcatOp>,
-        AssignGAddrPattern<tpu::TG_INT8_PT_Conv2DOp>,
-        AssignGAddrPattern<tpu::TG_INT8_PC_Conv2DOp>,
-        AssignGAddrPattern<tpu::TG_INT8_CropOp>,
-        AssignGAddrPattern<tpu::TG_INT8_PT_DeConv2DOp>,
-        AssignGAddrPattern<tpu::TG_INT8_PC_DeConv2DOp>,
-        AssignGAddrPattern<tpu::TG_INT8_EltwiseAddOp>,
-        AssignGAddrPattern<tpu::TG_INT8_EltwiseMaxOp>,
-        AssignGAddrPattern<tpu::TG_INT8_EltwiseMinOp>,
-        AssignGAddrPattern<tpu::TG_INT8_EltwiseMulOp>,
-        AssignGAddrPattern<tpu::TG_INT8_FullyConnectedOp>,
-        AssignGAddrPattern<tpu::TG_INT8_GenericTpuOp>,
-        AssignGAddrPattern<tpu::TG_INT8_LeakyReluOp>,
-        AssignGAddrPattern<tpu::TG_INT8_LutOp>,
-        AssignGAddrPattern<tpu::TG_INT8_LrnOp>,
-        AssignGAddrPattern<tpu::TG_INT8_PadOp>,
-        AssignGAddrPattern<tpu::TG_INT8_PermuteOp>,
-        AssignGAddrPattern<tpu::TG_INT8_PoolAvg2DOp>,
-        AssignGAddrPattern<tpu::TG_INT8_PoolMax2DOp>,
-        AssignGAddrPattern<tpu::TG_INT8_ReorgOp>,
-        AssignGAddrPattern<tpu::TG_INT8_ShuffleChannelOp>,
-        AssignGAddrPattern<tpu::TG_INT8_SwapChannelOp>,
-        AssignGAddrPattern<tpu::TG_INT8_PixelShuffleOp>,
-        AssignGAddrPattern<tpu::TG_INT8_ClipOp>,
-        AssignGAddrPattern<tpu::TG_INT8_PReluOp>,
-        AssignGAddrPattern<tpu::TG_INT8_QuantOp>,
-        AssignGAddrPattern<tpu::TG_INT8_ReluOp>,
-        AssignGAddrPattern<tpu::TG_INT8_UpsampleOp>,
-
-        // tg bf16 ops
-        AssignGAddrPattern<tpu::TG_BF16_BroadcastMulOp>,
-        AssignGAddrPattern<tpu::TG_BF16_ConcatOp>,
-        AssignGAddrPattern<tpu::TG_BF16_Conv2DOp>,
-        AssignGAddrPattern<tpu::TG_BF16_CropOp>,
-        AssignGAddrPattern<tpu::TG_BF16_DeConv2DOp>,
-        AssignGAddrPattern<tpu::TG_BF16_EltwiseAddOp>,
-        AssignGAddrPattern<tpu::TG_BF16_EltwiseMaxOp>,
-        AssignGAddrPattern<tpu::TG_BF16_EltwiseMinOp>,
-        AssignGAddrPattern<tpu::TG_BF16_EltwiseMulOp>,
-        AssignGAddrPattern<tpu::TG_BF16_FullyConnectedOp>,
-        AssignGAddrPattern<tpu::TG_BF16_GenericTpuOp>,
-        AssignGAddrPattern<tpu::TG_BF16_LeakyReluOp>,
-        AssignGAddrPattern<tpu::TG_BF16_LutOp>,
-        AssignGAddrPattern<tpu::TG_BF16_LrnOp>,
-        AssignGAddrPattern<tpu::TG_BF16_PadOp>,
-        AssignGAddrPattern<tpu::TG_BF16_PermuteOp>,
-        AssignGAddrPattern<tpu::TG_BF16_PoolAvg2DOp>,
-        AssignGAddrPattern<tpu::TG_BF16_PoolMax2DOp>,
-        AssignGAddrPattern<tpu::TG_BF16_PReluOp>,
-        AssignGAddrPattern<tpu::TG_BF16_QuantOp>,
-        AssignGAddrPattern<tpu::TG_BF16_ReluOp>,
-        AssignGAddrPattern<tpu::TG_BF16_ClipOp>,
-        AssignGAddrPattern<tpu::TG_BF16_ReorgOp>,
-        AssignGAddrPattern<tpu::TG_BF16_ShuffleChannelOp>,
-        AssignGAddrPattern<tpu::TG_BF16_ClipOp>,
-        AssignGAddrPattern<tpu::TG_BF16_SwapChannelOp>,
-        AssignGAddrPattern<tpu::TG_BF16_PixelShuffleOp>,
-        AssignGAddrPattern<tpu::TG_BF16_UpsampleOp>,
-        AssignGAddrPattern<tpu::TG_CastOp>,
-        
-        // fp32 cpu ops
-        AssignGAddrPattern<tpu::InputOp>,
-        AssignGAddrPattern<tpu::GenericCpuOp>
-
-        >(context, &pos, neuronMapFile->os(), clNeuronAlignment);
+    patterns.insert<TgSliceAddressPattern<tpu::TG_INT8_SliceOp>,
+                    TgSliceAddressPattern<tpu::TG_BF16_SliceOp>
+                   >(context);
     applyPatternsGreedily(fn, patterns);
-
-    // no copy address assignment
     patterns.clear();
-    patterns.insert<
-        TpuSliceAddressPattern<tpu::TG_INT8_SliceOp>,
-        TpuSliceAddressPattern<tpu::TG_BF16_SliceOp>
-        >(context, &pos, neuronMapFile->os(), clNeuronAlignment);
+    patterns.insert<TlLgStoreAddressNeuronPattern<tpu::TL_LG_StoreOp>,
+                    TlLgLoadNeuronAddressPattern<tpu::TL_LG_LoadNeuronOp>,
+                    TgLeakyReluAddressPattern<tpu::TG_INT8_LeakyReluOp>,
+                    TgLeakyReluAddressPattern<tpu::TG_BF16_LeakyReluOp>
+                   >(context);
     applyPatternsGreedily(fn, patterns);
 
     if (neuronMapFile) {
@@ -372,6 +362,5 @@ std::unique_ptr<OpPassBase<FuncOp>> mlir::createAssignNeuronAddressPass() {
   return std::make_unique<AssignNeuronAddressPass>();
 }
 
-static PassRegistration<AssignNeuronAddressPass>
-    pass("assign-neuron-address",
-         "Assign address to each neuron");
+static PassRegistration<AssignNeuronAddressPass> pass("assign-neuron-address",
+                                                      "Assign address to each neuron");

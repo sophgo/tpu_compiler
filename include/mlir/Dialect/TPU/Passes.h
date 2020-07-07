@@ -32,7 +32,6 @@ std::unique_ptr<OpPassBase<ModuleOp>> createPrintTpuOpPass();
 std::unique_ptr<OpPassBase<ModuleOp>> createPrintTpuOpStatsPass();
 
 std::unique_ptr<OpPassBase<ModuleOp>> createConvertFuncToMemRefPass();
-std::unique_ptr<OpPassBase<ModuleOp>> createSplitCpuOpPass();
 
 std::unique_ptr<OpPassBase<FuncOp>> createDecomposeNormalizePass();
 std::unique_ptr<OpPassBase<FuncOp>> createConvertBnToScalePass();

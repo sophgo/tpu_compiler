@@ -70,6 +70,10 @@ mlir-opt \
     --tpu-weight-address-align=16 \
     --tpu-weight-map-filename=weight_map_int8_lg.csv \
     --tpu-weight-bin-filename=weight.bin \
+    --assign-neuron-address \
+    --tpu-neuron-memory-reuse \
+    --tpu-neuron-address-align=16 \
+    --tpu-neuron-map-filename=neuron_map_xxx.csv \
     int8_layergroup_compressed.mlir \
     -o int8_layergroup_addr.mlir
 mlir-opt \

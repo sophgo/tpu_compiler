@@ -57,44 +57,51 @@ if [ $COMPRESS_WEIGHT -eq 1 ]; then
       -o ${NET}_quant_int8_multiplier_tl_lw.mlir
 fi
 
+mlir-opt \
+    --assign-neuron-address \
+    --tpu-neuron-address-align=16 \
+    --tpu-neuron-map-filename=neuron_map_xxx.csv \
+    ${NET}_quant_int8_multiplier_tl_lw.mlir \
+    -o ${NET}_quant_int8_multiplier_tl_lw_1.mlir
+
 # cat for logging
-# echo "cat ${NET}_quant_int8_multiplier_tl_lw.mlir"
-# cat ${NET}_quant_int8_multiplier_tl_lw.mlir
+# echo "cat ${NET}_quant_int8_multiplier_tl_lw_1.mlir"
+# cat ${NET}_quant_int8_multiplier_tl_lw_1.mlir
 
-if [ $DO_MEMOPT -eq 1 ]; then
-  # function argument lower to MemRefType
-  mlir-opt \
-      --convert-func-to-memref \
-      ${NET}_quant_int8_multiplier_tl_lw.mlir \
-      -o ${NET}_quant_int8_multiplier_tl_lw_memref.mlir
-
-  # op lower to MemRefType
-  mlir-opt \
-      --convert-tg-op-to-memref \
-      ${NET}_quant_int8_multiplier_tl_lw_memref.mlir \
-      -o ${NET}_quant_int8_multiplier_tl_lw_op_memref.mlir
-
-  # memory space w/ global memory reuse
-  mlir-opt \
-      --enable-reuse-global-memory=true \
-      --assign-neuron-address-memref \
-      --tpu-neuron-address-align-memref=16 \
-      --tpu-neuron-map-filename-memref=neuron_map_memref_reused.csv \
-      ${NET}_quant_int8_multiplier_tl_lw_op_memref.mlir \
-      -o ${NET}_quant_int8_multiplier_tl_lw_op_memref_addr.mlir
-
-  # tg op back to TensorType
-  mlir-opt \
-      --convert-tg-op-to-tensor \
-      ${NET}_quant_int8_multiplier_tl_lw_op_memref_addr.mlir \
-      -o ${NET}_quant_int8_multiplier_tl_lw_op_tensor_addr.mlir
-
-  # function argument back to TensorType
-  mlir-opt \
-      --convert-func-to-tensor \
-      ${NET}_quant_int8_multiplier_tl_lw_op_tensor_addr.mlir \
-      -o ${NET}_quant_int8_multiplier_tl_lw.mlir
-fi
+#if [ $DO_MEMOPT -eq 1 ]; then
+#  # function argument lower to MemRefType
+#  mlir-opt \
+#      --convert-func-to-memref \
+#      ${NET}_quant_int8_multiplier_tl_lw.mlir \
+#      -o ${NET}_quant_int8_multiplier_tl_lw_memref.mlir
+#
+#  # op lower to MemRefType
+#  mlir-opt \
+#      --convert-tg-op-to-memref \
+#      ${NET}_quant_int8_multiplier_tl_lw_memref.mlir \
+#      -o ${NET}_quant_int8_multiplier_tl_lw_op_memref.mlir
+#
+#  # memory space w/ global memory reuse
+#  mlir-opt \
+#      --enable-reuse-global-memory=true \
+#      --assign-neuron-address-memref \
+#      --tpu-neuron-address-align-memref=16 \
+#      --tpu-neuron-map-filename-memref=neuron_map_memref_reused.csv \
+#      ${NET}_quant_int8_multiplier_tl_lw_op_memref.mlir \
+#      -o ${NET}_quant_int8_multiplier_tl_lw_op_memref_addr.mlir
+#
+#  # tg op back to TensorType
+#  mlir-opt \
+#      --convert-tg-op-to-tensor \
+#      ${NET}_quant_int8_multiplier_tl_lw_op_memref_addr.mlir \
+#      -o ${NET}_quant_int8_multiplier_tl_lw_op_tensor_addr.mlir
+#
+#  # function argument back to TensorType
+#  mlir-opt \
+#      --convert-func-to-tensor \
+#      ${NET}_quant_int8_multiplier_tl_lw_op_tensor_addr.mlir \
+#      -o ${NET}_quant_int8_multiplier_tl_lw.mlir
+#fi
 
 # generate cmdbuf
 # mlir-translate \
@@ -106,7 +113,7 @@ fi
 
 mlir-opt \
     --divide-ops-to-func \
-    ${NET}_quant_int8_multiplier_tl_lw.mlir \
+    ${NET}_quant_int8_multiplier_tl_lw_1.mlir \
     -o ${NET}_quant_int8_multiplier_tl_lw_func.mlir
 
 mlir-translate \
@@ -123,7 +130,6 @@ mlir-translate \
 # google-chrome performance.html
 
 #model_runner \
-#    --dump-all-tensors \
 #    --input ${NET}_in_fp32.npz \
 #    --model ${NET}_int8_la.cvimodel \
 #    --batch-num $BATCH_SIZE \

@@ -71,26 +71,25 @@
 
 namespace mlir {
 
-static tpu::TL_LG_CopyOp build_tl_copy_op(MLIRContext * ctx,
+static tpu::TL_LG_CopyOp build_tl_copy_op(PatternRewriter &rewriter,
                                           Operation * src,
                                           Operation * dst) {
   std::vector<NamedAttribute> attrs;
-  Builder builder_(ctx);
 
   // build tl_copy instruction
   auto src_op = dyn_cast<tpu::TL_LG_StoreOp>(src);
   auto dst_op = dyn_cast<tpu::TL_LG_LoadNeuronOp>(dst);
 
-  attrs.push_back(builder_.getNamedAttr("name", dst_op.nameAttr()));
-  attrs.push_back(builder_.getNamedAttr("la_src", src_op.laddrAttr()));
-  attrs.push_back(builder_.getNamedAttr("la_dst", dst_op.laddrAttr()));
-  attrs.push_back(builder_.getNamedAttr("align", dst_op.alignAttr()));
+  attrs.push_back(rewriter.getNamedAttr("name", dst_op.nameAttr()));
+  attrs.push_back(rewriter.getNamedAttr("la_src", src_op.laddrAttr()));
+  attrs.push_back(rewriter.getNamedAttr("la_dst", dst_op.laddrAttr()));
+  attrs.push_back(rewriter.getNamedAttr("align", dst_op.alignAttr()));
 
   std::vector<Value *> operands;
   operands.push_back(src->getOperand(0));
 
   // build tl_load operation
-  auto op = OpBuilder(dst).create<tpu::TL_LG_CopyOp>(dst->getLoc(),
+  auto op = rewriter.create<tpu::TL_LG_CopyOp>(dst->getLoc(),
           dst_op.getType(), ArrayRef<Value *>{operands},
           ArrayRef<NamedAttribute>{attrs});
 
@@ -106,7 +105,6 @@ struct EliminateDeadcodePattern : public RewritePattern {
   PatternMatchResult
       matchAndRewrite(Operation *op,
                      PatternRewriter &rewriter) const override {
-
     Operation * tl_join = op;
     Operation * load_op;
     if (tl_join->getNumOperands() != 1)
@@ -152,9 +150,10 @@ struct EliminateDeadcodePattern : public RewritePattern {
         next_tl_op.setEnableParallel(true);
 
       // build tl copy
-      auto tl_copy_op = build_tl_copy_op(ctx_, store_op, load_op);
+      auto tl_copy_op = build_tl_copy_op(rewriter, store_op, load_op);
       tl_load.replaceAllUsesWith(tl_copy_op.getResult());
     }
+    rewriter.eraseOp(tl_load);
     return matchSuccess();
   }
 

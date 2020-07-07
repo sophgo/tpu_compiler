@@ -94,8 +94,8 @@ LogicalResult tpu::TL_LW_Conv2DOp::codegen(void *ctx) {
                  n, ic, ih, iw, oc, oh, ow, g,
                  kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, is_dw, with_bias, do_relu);
 
-  gaddr_t ga_input = getPreviousOpAddress(op);
-  gaddr_t ga_output = getOpAddress(op);
+  gaddr_t ga_input = tl_load_flag() ? getPreviousOpAddress(op) : GA_INVALID;
+  gaddr_t ga_output = tl_store_flag() ? getOpAddress(op) : GA_INVALID;
   gaddr_t ga_filter = getWeightOpAddress(filter()->getDefiningOp());
   gaddr_t ga_pc_info = getWeightOpAddress(pc_info()->getDefiningOp());
   laddr_t la_input = this->la_input().getLimitedValue();
@@ -240,9 +240,9 @@ LogicalResult tpu::TL_EltwiseAddOp::codegen(void *ctx) {
     }
   }
 
-  gaddr_t ga_input = getPreviousOpAddress(op, augend_idx);
+  gaddr_t ga_input = tl_load_flag() ? getPreviousOpAddress(op, augend_idx) : GA_INVALID;
   gaddr_t ga_addend = getPreviousOpAddress(op, 1 - augend_idx);
-  gaddr_t ga_output = getOpAddress(op);
+  gaddr_t ga_output = tl_store_flag() ? getOpAddress(op) : GA_INVALID;
   int layer_id = mlir::getOpLayerId(op);
 
   laddr_t la_input = LA_INVALID;
@@ -319,12 +319,13 @@ LogicalResult tpu::TL_EltwiseMulOp::codegen(void *ctx) {
   int nInputs = op->getNumOperands();
   assert(op->getNumOperands() == 2 && "support 2 inputs only");
 
-  gaddr_t ga_input = getPreviousOpAddress(op, augend_idx); //Closest op
-  gaddr_t ga_input2 = getPreviousOpAddress(op, 1 - augend_idx);
-  gaddr_t ga_input2_pre_input =  getPreviousOpAddress(op->getOperand(augend_idx)->getDefiningOp());
-  bool isAllInLocalMem = (ga_input2_pre_input == ga_input2) && (tl_load_flag() == false);
+  gaddr_t ga_input = tl_load_flag() ? getPreviousOpAddress(op, augend_idx) : GA_INVALID; //Closest op
+  auto opd2 = op->getOperand(1 - augend_idx)->getDefiningOp();
+  gaddr_t ga_input2 = opd2->getAttr("gaddr") ?
+                      opd2->getAttr("gaddr").cast<IntegerAttr>().getInt() : GA_INVALID;
+  bool isAllInLocalMem = (ga_input2 == GA_INVALID) && (tl_load_flag() == false);
   //Fix me: now use global address to present it's unique ID.
-  gaddr_t ga_output = getOpAddress(op);
+  gaddr_t ga_output = tl_store_flag() ? getOpAddress(op) : GA_INVALID;
 
   laddr_t la_input = this->la_input().getLimitedValue();
   laddr_t la_output = this->la_output().getLimitedValue();
@@ -387,8 +388,8 @@ LogicalResult tpu::TL_LutOp::codegen(void *ctx) {
   getTensorShapeAndSize(op->getResult(0), output_shape, output_size);
   getNCHW(output_shape, on, oc, oh, ow);
 
-  gaddr_t ga_input = getPreviousOpAddress(op);
-  gaddr_t ga_output = getOpAddress(op);
+  gaddr_t ga_input = tl_load_flag() ? getPreviousOpAddress(op) : GA_INVALID;
+  gaddr_t ga_output = tl_store_flag() ? getOpAddress(op) : GA_INVALID;
   gaddr_t y0_table_gaddr = getWeightOpAddress(table()->getDefiningOp());
   int layer_id = mlir::getOpLayerId(op);
 
@@ -438,8 +439,8 @@ LogicalResult tpu::TL_PoolAvg2DOp::codegen(void *ctx) {
   int8_t rshift = (this->rshift().hasValue()) ? this->rshift().getValue().getLimitedValue() : 0;
   int8_t m_i8 = (this->m_i8().hasValue()) ? this->m_i8().getValue().getLimitedValue() : 0;
 
-  gaddr_t ga_input = getPreviousOpAddress(op);
-  gaddr_t ga_output = getOpAddress(op);
+  gaddr_t ga_input = tl_load_flag() ? getPreviousOpAddress(op) : GA_INVALID;
+  gaddr_t ga_output = tl_store_flag() ? getOpAddress(op) : GA_INVALID;
   int layer_id = mlir::getOpLayerId(op);
 
   laddr_t la_input = LA_INVALID;
@@ -498,8 +499,8 @@ LogicalResult tpu::TL_BroadcastMulOp::codegen(void *ctx) {
   getNCHW(shape, n, c, h, w);
   bool do_relu = this->param().do_relu().getValue();
 
-  gaddr_t ga_input = getPreviousOpAddress(op);
-  gaddr_t ga_output = getOpAddress(op);
+  gaddr_t ga_input = tl_load_flag() ? getPreviousOpAddress(op) : GA_INVALID;
+  gaddr_t ga_output = tl_store_flag() ? getOpAddress(op) : GA_INVALID;
   gaddr_t ga_scale = getOpAddress(filter()->getDefiningOp());
   gaddr_t ga_pc_info = getWeightOpAddress(pc_info()->getDefiningOp());
   int layer_id = mlir::getOpLayerId(op);

@@ -432,7 +432,8 @@ void CviModelBuilder::parseModule() {
           op->getAttr("buffer_reused").cast<BoolAttr>().getValue()) {
         overwritten = true;
       }
-      if (isa<tpu::TG_INT8_SliceOp>(op) || isa<tpu::TG_BF16_SliceOp>(op)) {
+      if (isa<tpu::TG_INT8_SliceOp>(op) ||
+          isa<tpu::TG_BF16_SliceOp>(op)) {
         overwritten = true;
       }
       tensor->overwritten = overwritten;

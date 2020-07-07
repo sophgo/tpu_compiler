@@ -349,9 +349,9 @@ def TPU_TL_LG_LoadNeuronOp : TPU_Op<"tl_lg_load_neuron",
 
   let arguments = (
     ins AnyTensor:$input,
-    TPU_LSDirAttr:$ls_direction,
     OptionalAttr<NonNegativeI64Attr>:$laddr,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    OptionalAttr<NonNegativeI64Attr>:$offset,
     TPU_TensorTypeAttr:$tensor_type,
     BoolAttr:$align,
     BoolAttr:$transpose,
@@ -376,9 +376,8 @@ def TPU_TL_LG_LoadCoeffOp : TPU_Op<"tl_lg_load_coeff",
 
   let arguments = (
     ins AnyMemRef:$input,
-    TPU_LSDirAttr:$ls_direction,
-    OptionalAttr<NonNegativeI64Attr>:$laddr,
     OptionalAttr<NonNegativeI64Attr>:$offset,
+    OptionalAttr<NonNegativeI64Attr>:$laddr,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     DefaultValuedAttr<BoolAttr, "true">:$lowered,
     TPU_TensorTypeAttr:$tensor_type,
@@ -407,7 +406,7 @@ def TPU_TL_LG_StoreOp : TPU_Op<"tl_lg_store",
 
   let arguments = (
     ins AnyTensor:$input,
-    TPU_LSDirAttr:$ls_direction,
+    OptionalAttr<NonNegativeI64Attr>:$offset,
     OptionalAttr<NonNegativeI64Attr>:$laddr,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     BoolAttr:$align,

@@ -51,10 +51,6 @@ mlir-opt \
     --tg-fuse-leakyrelu \
     --conv-ic-alignment | \
 mlir-opt \
-    --assign-neuron-address \
-    --tpu-neuron-address-align=16 \
-    --tpu-neuron-map-filename=neuron_map.csv | \
-mlir-opt \
     --deep-fusion-tg2tl-la | \
 mlir-opt \
     --deep-fusion-tl-la2lw | \
@@ -67,18 +63,10 @@ mlir-opt \
     --tpu-weight-bin-filename=weight.bin \
     --tpu-generate-compressed-weight | \
 mlir-opt \
-    --convert-func-to-memref | \
-mlir-opt \
-    --convert-tg-op-to-memref | \
-mlir-opt \
-    --enable-reuse-global-memory=true \
-    --assign-neuron-address-memref \
-    --tpu-neuron-address-align-memref=16 \
-    --tpu-neuron-map-filename-memref=neuron_map_memopt.csv | \
-mlir-opt \
-    --convert-tg-op-to-tensor | \
-mlir-opt \
-    --convert-func-to-tensor \
+    --assign-neuron-address \
+    --tpu-neuron-memory-reuse \
+    --tpu-neuron-address-align=16 \
+    --tpu-neuron-map-filename=neuron_map.csv \
     -o int8_tl_lw_memopt.mlir
 mlir-opt \
     --divide-ops-to-func \

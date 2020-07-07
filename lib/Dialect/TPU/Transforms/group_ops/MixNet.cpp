@@ -139,7 +139,7 @@ void MixNet::add_group_end_ops(int group_idx, Group* group, int n_secs, int h_se
     attrs.push_back(builder_.getNamedAttr("name",
                     builder_.getStringAttr(old_name)));
     attrs.push_back(builder_.getNamedAttr("gaddr",
-                    builder_.getI64IntegerAttr(start_gaddr)));
+                    builder_.getI64IntegerAttr(0/*start_gaddr*/)));
     auto join_op = OpBuilder(get_start_op()).create<tpu::TL_LG_JoinOp>(
                              get_start_op()->getLoc(), old_op_r->getType(),
                              ArrayRef<Value *>{operands},
@@ -1267,7 +1267,7 @@ void MixNet::_add_load_op(int tensor_id,
   u64 laddr = 0, gaddr = 0;
   bool aligned = false;
   bool transpose = false;
-  string direction = "S2L";
+  int32_t offset = 0;
   string tensor_type_str = "CONV_COEFF";
   int dtype = NEURON;
   string name;
@@ -1350,9 +1350,10 @@ void MixNet::_add_load_op(int tensor_id,
     mem_buffer_key_t key = {timestep_idx, tensor_id, false};
     const mem_buffer_value_t* value = time_step->get_mem_buffer_value(&key);
     laddr = value->local_mem_offset;
-
-    gaddr += (n_idx * tensor_dim[1] * tensor_dim[2] * tensor_dim[3] + h_idx * tensor_dim[3]) *
+    offset = (n_idx * tensor_dim[1] * tensor_dim[2] * tensor_dim[3] + h_idx * tensor_dim[3]) *
               tensor->unit_size();
+    gaddr += offset;
+
     LLVM_DEBUG(llvm::errs()
       << name << ":         n_idx/h_idx = " << n_idx << "/" << h_idx
       << " tensor_dim: ( "  << tensor_dim[0] << ", " << tensor_dim[1]
@@ -1380,12 +1381,12 @@ void MixNet::_add_load_op(int tensor_id,
     transpose = (false);
     net_graph_->set_tensor_local_offest(tensor_id, laddr);
     tensor_type_str = "NEURON";
-    attrs.push_back(builder_.getNamedAttr("gaddr", builder_.getI64IntegerAttr(gaddr)));
+    attrs.push_back(builder_.getNamedAttr("offset", builder_.getI64IntegerAttr(offset)));
+    attrs.push_back(builder_.getNamedAttr("gaddr", builder_.getI64IntegerAttr(0/*gaddr*/)));
   }
 
   // build tl_load instruction
   attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(name)));
-  attrs.push_back(builder_.getNamedAttr("ls_direction", builder_.getStringAttr(direction)));
   attrs.push_back(builder_.getNamedAttr("laddr", builder_.getI64IntegerAttr(laddr)));
   attrs.push_back(builder_.getNamedAttr("align", builder_.getBoolAttr(aligned)));
   attrs.push_back(builder_.getNamedAttr("transpose", builder_.getBoolAttr(transpose)));
@@ -1423,7 +1424,6 @@ void MixNet::_add_store_op(int tensor_id, net_timestep * time_step, int timestep
   u64 gaddr = net_graph_->get_tensor_global_mem(tensor_id);
   bool aligned = true;
   bool transpose = false;
-  string direction = "L2S";
 
   net_graph_->get_tensor_dim(tensor_id, tensor_dim);
 
@@ -1450,15 +1450,16 @@ void MixNet::_add_store_op(int tensor_id, net_timestep * time_step, int timestep
   global_shape[2] = (tensor_dim[2]);
   global_shape[3] = (tensor_dim[3]);
 
-  gaddr += (n_idx * tensor_dim[1] * tensor_dim[2] * tensor_dim[3] + h_idx * tensor_dim[3]) *
-            tensor->unit_size();
+  int32_t offset = (n_idx * tensor_dim[1] * tensor_dim[2] * tensor_dim[3] + h_idx * tensor_dim[3]) *
+                   tensor->unit_size();
+  gaddr += offset;
 
   vector<NamedAttribute> attrs;
   Builder builder_(context_);
   attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(store_op_name)));
-  attrs.push_back(builder_.getNamedAttr("ls_direction", builder_.getStringAttr(direction)));
+  attrs.push_back(builder_.getNamedAttr("offset", builder_.getI64IntegerAttr(offset)));
   attrs.push_back(builder_.getNamedAttr("laddr", builder_.getI64IntegerAttr(laddr)));
-  attrs.push_back(builder_.getNamedAttr("gaddr", builder_.getI64IntegerAttr(gaddr)));
+  attrs.push_back(builder_.getNamedAttr("gaddr", builder_.getI64IntegerAttr(0/*gaddr*/)));
   attrs.push_back(builder_.getNamedAttr("align", builder_.getBoolAttr(aligned)));
   attrs.push_back(builder_.getNamedAttr("transpose", builder_.getBoolAttr(transpose)));
 
