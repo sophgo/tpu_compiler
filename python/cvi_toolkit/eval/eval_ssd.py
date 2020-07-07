@@ -170,9 +170,8 @@ def dump_coco_json():
     module = pymlir.module()
     module.load(args.model)
 
-
     net_input_dims = [int(s) for s in args.net_input_dims.split(',')]
-
+    do_preprocess = True if args.do_preprocess == 'yes' else False
     # transformer = caffe.io.Transformer({'data': (1,3,net_input_dims[0],net_input_dims[1])})
     # transformer.set_transpose('data', (2, 0, 1))  # row to col, (HWC -> CHW)
     # transformer.set_mean('data', ssd_mean)
@@ -194,7 +193,7 @@ def dump_coco_json():
                 image_x = cv2.resize(image_x, (net_input_dims[1], net_input_dims[0]))
                 image_x = image_x.astype(np.float32)
                 image_x = np.transpose(image_x, [2,0,1])
-                if args.do_preprocess:
+                if do_preprocess:
                     mean = ssd_mean[:, np.newaxis, np.newaxis]
                     image_x = image_x - mean
                 image = image_x
