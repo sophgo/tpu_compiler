@@ -109,20 +109,21 @@ class RetinaFace:
         out = exp_x / np.sum(exp_x, axis=axis, keepdims=True)
         return out
 
-    def preprocess(self, img_bgr, retinaface_w, retinaface_h):
+    def preprocess(self, img_bgr, retinaface_w, retinaface_h, do_preprocess=True):
         # FIXME - Do not resize directly
         # Imitate yolo, fill the zero to the correct aspect ratio, and then resize
 
         self.im_scale_w = float(retinaface_w) / float(img_bgr.shape[1])
         self.im_scale_h = float(retinaface_h) / float(img_bgr.shape[0])
         img = cv2.resize(img_bgr, None, None, fx=self.im_scale_w, fy=self.im_scale_h, interpolation=cv2.INTER_LINEAR)
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        if do_preprocess:
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         img = np.transpose(img, (2, 0, 1))  # row to col, (HWC -> CHW)
         img = img.reshape((1, 3, img.shape[1], img.shape[2]))
         img = img.astype(np.float32)
         return img
 
-    def postprocess(self, y, retinaface_x, retinaface_y, py_softmax=False, dequant=False):
+    def postprocess(self, y, retinaface_x, retinaface_y, py_softmax=False, dequant=False, do_preprocess=True):
         proposals_list = []
         scores_list = []
         landmarks_list = []
@@ -138,6 +139,10 @@ class RetinaFace:
 
                 bbox_tensor_name = 'face_rpn_bbox_pred_stride{}_dequant'.format(s)
                 pts_tensor_name = 'face_rpn_landmark_pred_stride{}_dequant'.format(s)
+
+                if do_preprocess == False:
+                    bbox_tensor_name = bbox_tensor_name + '_cast'
+                    pts_tensor_name = pts_tensor_name + '_cast'
             else:
                 if py_softmax is True:
                     cls_tensor_name = 'face_rpn_cls_score_reshape_stride{}'.format(s)

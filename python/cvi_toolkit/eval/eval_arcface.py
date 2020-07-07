@@ -20,6 +20,7 @@ parser.add_argument("--dataset", type=str, help="The root directory of the LFW d
                     default=LFW_DATASET_PATH)
 parser.add_argument("--pairs", type=str, help="The path of the pairs file.",
                     default=PAIRS_FILE_PATH)
+parser.add_argument("--do_preprocess", type=str, default="yes")
 parser.add_argument("--show", type=bool, default=False)
 args = parser.parse_args()
 
@@ -88,6 +89,7 @@ if __name__ == '__main__':
     print('load module done')
     eval_score = list()
 
+    do_preprocess = True if args.do_preprocess == 'yes' else False
     # Prepare preprocess images set
     preprocess_imgs = []
     for p in os.listdir(args.dataset):
@@ -118,15 +120,27 @@ if __name__ == '__main__':
         img2 = cv2.imread(os.path.join(args.dataset, person2, img2_name))
         img1 = cv2.resize(img1, (112, 112))
         img2 = cv2.resize(img2, (112, 112))
-        img1 = preprocess_func(img1.astype(np.float32))
-        img2 = preprocess_func(img2.astype(np.float32))
+        if do_preprocess:
+            img1 = preprocess_func(img1.astype(np.float32))
+            img2 = preprocess_func(img2.astype(np.float32))
+        else:
+            img1 = img1.astype(np.float32)
+            img2 = img2.astype(np.float32)
+            img1 = np.transpose(img1, (2, 0, 1))
+            img2 = np.transpose(img2, (2, 0, 1))
         img1 = img1[np.newaxis, ...]
         img2 = img2[np.newaxis, ...]
 
         out = module.run(img1)
-        face_feature_1 = copy.copy(out['fc1_scale_dequant'])
+        if do_preprocess:
+            face_feature_1 = copy.copy(out['fc1_scale_dequant'])
+        else:
+            face_feature_1 = copy.copy(out['fc1_scale_dequant_cast'])
         out = module.run(img2)
-        face_feature_2 = copy.copy(out['fc1_scale_dequant'])
+        if do_preprocess:
+            face_feature_2 = copy.copy(out['fc1_scale_dequant'])
+        else:
+            face_feature_2 = copy.copy(out['fc1_scale_dequant_cast'])
 
         feature_diff = eval_difference(face_feature_1, face_feature_2)
         _score = diff2score(feature_diff)

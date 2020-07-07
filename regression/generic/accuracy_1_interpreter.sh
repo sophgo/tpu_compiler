@@ -109,23 +109,45 @@ if [ $DO_QUANT_INT8_MULTIPLER -eq 1 ]; then
     _EVAL_FUNC=eval_retinaface_on_widerface.py
 
     #rm ${NET}_interpreter_result_int8 -rf
-    $_EVAL_FUNC \
-        --model ${NET}_quant_int8_multiplier.mlir \
-        --net_input_dims $NET_INPUT_DIMS \
-        --obj_threshold $OBJ_THRESHOLD \
-        --nms_threshold $NMS_THRESHOLD \
-        --images=$DATASET \
-        --annotation=$ANNOTATION \
-        --result=./${NET}_interpreter_result_int8 \
-        --int8
+    if [ $DO_PREPROCESS -eq 1 ]; then
+      $_EVAL_FUNC \
+          --model ${NET}_quant_int8_multiplier.mlir \
+          --net_input_dims $NET_INPUT_DIMS \
+          --obj_threshold $OBJ_THRESHOLD \
+          --nms_threshold $NMS_THRESHOLD \
+          --images=$DATASET \
+          --annotation=$ANNOTATION \
+          --do_preprocess no \
+          --result=./${NET}_interpreter_result_int8 \
+          --int8
+    else
+      $_EVAL_FUNC \
+          --model ${NET}_quant_int8_multiplier.mlir \
+          --net_input_dims $NET_INPUT_DIMS \
+          --obj_threshold $OBJ_THRESHOLD \
+          --nms_threshold $NMS_THRESHOLD \
+          --images=$DATASET \
+          --annotation=$ANNOTATION \
+          --result=./${NET}_interpreter_result_int8 \
+          --int8
+    fi
 
   elif [ "$EVAL_MODEL_TYPE" = "lfw" ]; then
     _EVAL_FUNC=eval_arcface.py
-    $_EVAL_FUNC \
-      --model=${NET}_quant_int8_multiplier.mlir \
-      --dataset=$DATASET_PATH/lfw/lfw \
-      --pairs=$DATASET_PATH/lfw/pairs.txt \
-      --show=True
+    if [ $DO_PREPROCESS -eq 1 ];then
+      $_EVAL_FUNC \
+        --model=${NET}_quant_int8_multiplier.mlir \
+        --dataset=$DATASET_PATH/lfw/lfw \
+        --pairs=$DATASET_PATH/lfw/pairs.txt \
+        --do_preprocess no \
+        --show=True
+    else
+      $_EVAL_FUNC \
+        --model=${NET}_quant_int8_multiplier.mlir \
+        --dataset=$DATASET_PATH/lfw/lfw \
+        --pairs=$DATASET_PATH/lfw/pairs.txt \
+        --show=True
+    fi
 
   elif [ "$EVAL_MODEL_TYPE" = "coco" ]; then
     _EVAL_FUNC=$EVAL_SCRIPT_INT8
