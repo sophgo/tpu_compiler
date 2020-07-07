@@ -41,5 +41,5 @@ mobilenet_v1_tf           Y        Y        N        N        N        N
 mobilenet_v2_tf           Y        N        N        N        Y        N
 resnet50_tf               Y        N        N        N        Y        N
 vgg16_tf                  N        N        N        Y        Y        N
-inception_v3_tf           Y        N        N        N        Y        N
+# inception_v3_tf           Y        N        N        N        Y        N
 # mobilenet_v3              N        N        N        Y        Y        N
