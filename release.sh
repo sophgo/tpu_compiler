@@ -59,9 +59,9 @@ rm -rf cvitek_tpu_samples
 ###########################################################
 pushd $REGRESSION_DIR
 # generate int8 input data (for bs1 only)
-pushd cvimodel_regression
-generate_int8_data.sh
-popd
+# pushd cvimodel_regression
+# generate_int8_data.sh
+# popd
 # seperate bs1/bs4
 mkdir -p cvimodel_regression_bs1
 mkdir -p cvimodel_regression_bs4
