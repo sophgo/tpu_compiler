@@ -25,7 +25,7 @@ if [ $DO_PREPROCESS -eq 1 ]; then
       --dataset=$DATASET_PATH/coco/val2017 \
       --annotations=$DATASET_PATH/coco/annotations/instances_val2017.json \
       --result_json=result_416.json \
-      --do_preprocess no \
+      --model_do_preprocess=True \
       --count=$1
 else
   $EVAL_FUNC \
@@ -73,7 +73,7 @@ if [ $DO_QUANT_INT8_MULTIPLER -eq 1 ]; then
         --dataset=$DATASET_PATH/coco/val2017 \
         --annotations=$DATASET_PATH/coco/annotations/instances_val2017.json \
         --result_json=result_416.json \
-        --do_preprocess no \
+        --model_do_preprocess=True \
         --count=$1
   else
     $EVAL_FUNC \

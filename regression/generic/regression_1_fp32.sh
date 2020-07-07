@@ -22,7 +22,7 @@ if [ $DO_PREPROCESS -eq 1 ]; then
       --resize_dims $IMAGE_RESIZE_DIMS \
       --net_input_dims $NET_INPUT_DIMS \
       --batch $BATCH_SIZE \
-      --yolo $YOLO \
+      --yolo $YOLO_PREPROCESS \
       --save ${NET}_in_fp32.npz
 
   cvi_model_convert.py \

@@ -23,11 +23,12 @@ g_is_int8 = False
 
 def detect(img_bgr):
     retinaface_h, retinaface_w = g_net_input_dims[0], g_net_input_dims[1]
-    do_preprocess = True if args.do_preprocess == 'yes' else False
+    do_preprocess = not args.model_do_preprocess
     x = g_detector.preprocess(img_bgr, retinaface_w, retinaface_h, do_preprocess)
     y = g_mlir_model.run(x)
 
-    faces, landmarks = g_detector.postprocess(y, retinaface_w, retinaface_h, dequant=g_is_int8, do_preprocess=do_preprocess)
+    faces, landmarks = g_detector.postprocess(y, retinaface_w, retinaface_h,
+        dequant=g_is_int8, do_preprocess=do_preprocess)
     ret = np.zeros(faces.shape)
 
     for i in range(faces.shape[0]):
@@ -56,7 +57,7 @@ if __name__ == '__main__':
                         help="Object confidence threshold")
     parser.add_argument("--nms_threshold", type=float, default=0.45,
                         help="NMS threshold")
-    parser.add_argument("--do_preprocess", type=str, default='yes')
+    parser.add_argument("--model_do_preprocess", type=bool, default=False)
     parser.add_argument('--int8', default=False, action="store_true", help="int8 model")
     args = parser.parse_args()
 

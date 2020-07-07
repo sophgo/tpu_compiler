@@ -51,7 +51,7 @@ def parse_args():
     parser.add_argument("--pre_result_json", type=str,
                         help="when present, use pre detected result file, skip detection")
     parser.add_argument("--count", type=int, default=-1)
-    parser.add_argument("--do_preprocess", type=str, default='yes')
+    parser.add_argument("--model_do_preprocess", type=bool, default=False)
     parser.add_argument("--yolov3", type=str, default='yes')
 
     args = parser.parse_args()
@@ -209,7 +209,7 @@ def main(argv):
     net_input_dims = [int(s) for s in args.net_input_dims.split(',')]
     obj_threshold = float(args.obj_threshold)
     nms_threshold = float(args.nms_threshold)
-    do_preprocess = True if args.do_preprocess == 'yes' else False
+    do_preprocess = not args.model_do_preprocess
     yolov3 = True if args.yolov3 == 'yes' else False
     print("net_input_dims", net_input_dims)
     print("obj_threshold", obj_threshold)

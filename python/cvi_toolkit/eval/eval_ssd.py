@@ -29,10 +29,10 @@ def parse_args():
     parser.add_argument("--coco_result_jason_file", type=str,
                         help="Result json file")
     parser.add_argument("--count", type=int, default=-1)
-    
+
     parser.add_argument("--pre_result_json", type=str,
                         help="when present, use pre detected result file, skip detection")
-    parser.add_argument('--do_preprocess', type=str, default='yes')
+    parser.add_argument('--model_do_preprocess', type=bool, default=False)
 
     args = parser.parse_args()
     return args
@@ -78,7 +78,7 @@ def write_result_to_json(image_name, predictions, fp, line):
             "bbox": [bx, by, bw, bh],
             "score": float(score)
         }
-        common = "" if line == 0 and cnt == 0 else "," 
+        common = "" if line == 0 and cnt == 0 else ","
         fp.write("{}{}".format(common, json.dumps(res, cls=NpEncoder)))
         fp.write('\n')
         cnt += 1
@@ -90,7 +90,7 @@ def get_img_id(file_name):
     for anno in annos:
         ls.append(anno['image_id'])
     myset = {}.fromkeys(ls).keys()
-    return myset   
+    return myset
 
 def cal_coco_result_from_json(annotations_file, result_json_file):
     # https://github.com/muyiguangda/tensorflow-keras-yolov3/blob/master/pycocoEval.py
@@ -101,7 +101,7 @@ def cal_coco_result_from_json(annotations_file, result_json_file):
         print("annotations_file file not exist,", annotations_file)
         exit(-1)
     print("load json name:",result_json_file)
-    
+
     annType = ['segm', 'bbox', 'keypoints']
     annType = annType[1]
     cocoGt = COCO(annotations_file)
@@ -171,7 +171,7 @@ def dump_coco_json():
     module.load(args.model)
 
     net_input_dims = [int(s) for s in args.net_input_dims.split(',')]
-    do_preprocess = True if args.do_preprocess == 'yes' else False
+    do_preprocess = not args.model_do_preprocess
     # transformer = caffe.io.Transformer({'data': (1,3,net_input_dims[0],net_input_dims[1])})
     # transformer.set_transpose('data', (2, 0, 1))  # row to col, (HWC -> CHW)
     # transformer.set_mean('data', ssd_mean)

@@ -117,7 +117,7 @@ if [ $DO_QUANT_INT8_MULTIPLER -eq 1 ]; then
           --nms_threshold $NMS_THRESHOLD \
           --images=$DATASET \
           --annotation=$ANNOTATION \
-          --do_preprocess no \
+          --model_do_preprocess=True \
           --result=./${NET}_interpreter_result_int8 \
           --int8
     else
@@ -139,7 +139,7 @@ if [ $DO_QUANT_INT8_MULTIPLER -eq 1 ]; then
         --model=${NET}_quant_int8_multiplier.mlir \
         --dataset=$DATASET_PATH/lfw/lfw \
         --pairs=$DATASET_PATH/lfw/pairs.txt \
-        --do_preprocess no \
+        --model_do_preprocess=True \
         --show=True
     else
       $_EVAL_FUNC \
@@ -158,7 +158,7 @@ if [ $DO_QUANT_INT8_MULTIPLER -eq 1 ]; then
         --coco_image_path=$DATASET_PATH/coco/val2017/ \
         --coco_annotation=$DATASET_PATH/coco/annotations/instances_val2017.json \
         --coco_result_jason_file=./${NET}_coco_results_int8_multiplier.json \
-        --do_preprocess no \
+        --model_do_preprocess=True \
         --count=$1
     else
       $_EVAL_FUNC \
@@ -168,7 +168,7 @@ if [ $DO_QUANT_INT8_MULTIPLER -eq 1 ]; then
         --coco_annotation=$DATASET_PATH/coco/annotations/instances_val2017.json \
         --coco_result_jason_file=./${NET}_coco_results_int8_multiplier.json \
         --count=$1
-    fi 
+    fi
 
   elif [ "$EVAL_MODEL_TYPE" = "voc2012" ]; then
     _EVAL_FUNC=$EVAL_SCRIPT_VOC

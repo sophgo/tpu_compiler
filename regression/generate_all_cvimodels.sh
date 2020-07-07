@@ -40,7 +40,7 @@ extra_net_param()
   export INPUT_SCALE=1
   export DO_PREPROCESS=1
   if [ $DO_PREPROCESS -eq 1 ]; then
-  export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/retinaface_mnet25_calibration_table_preprocess
+  export CALI_TABLE_PREPROCESS=$REGRESSION_PATH/data/cali_tables/retinaface_mnet25_calibration_table_preprocess
   else
   export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/retinaface_mnet25_calibration_table
   fi
@@ -60,7 +60,7 @@ extra_net_param()
   export INPUT_SCALE=1
   export DO_PREPROCESS=1
   if [ $DO_PREPROCESS -eq 1 ]; then
-  export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/retinaface_mnet25_calibration_table_preprocess
+  export CALI_TABLE_PREPROCESS=$REGRESSION_PATH/data/cali_tables/retinaface_mnet25_calibration_table_preprocess
   else
   export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/retinaface_mnet25_calibration_table
   fi
@@ -80,7 +80,7 @@ extra_net_param()
   export INPUT_SCALE=1
   export DO_PREPROCESS=1
   if [ $DO_PREPROCESS -eq 1 ]; then
-  export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/retinaface_res50_calibration_table_preprocess
+  export CALI_TABLE_PREPROCESS=$REGRESSION_PATH/data/cali_tables/retinaface_res50_calibration_table_preprocess
   else
   export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/retinaface_res50_calibration_table
   fi
@@ -100,7 +100,7 @@ extra_net_param()
   export INPUT_SCALE=1.0
   export DO_PREPROCESS=1
   if [ $DO_PREPROCESS -eq 1 ]; then
-  export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/yolo_v3_calibration_table_autotune_preprocess
+  export CALI_TABLE_PREPROCESS=$REGRESSION_PATH/data/cali_tables/yolo_v3_calibration_table_autotune_preprocess
   else
   export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/yolo_v3_calibration_table_autotune
   fi
@@ -120,7 +120,7 @@ extra_net_param()
   export INPUT_SCALE=1.0
   export DO_PREPROCESS=1
   if [ $DO_PREPROCESS -eq 1 ]; then
-  export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/yolo_v3_calibration_table_autotune_preprocess
+  export CALI_TABLE_PREPROCESS=$REGRESSION_PATH/data/cali_tables/yolo_v3_calibration_table_autotune_preprocess
   else
   export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/yolo_v3_calibration_table_autotune
   fi
@@ -162,20 +162,6 @@ do
         ${CALI_TABLE} \
         ${NET}.cvimodel
       mv ${NET}.cvimodel ..
-      if [ $DO_PREPROCESS -eq 1 ]; then
-        $DIR/convert_model_caffe_lg_preprocess.sh \
-          ${MODEL_DEF} \
-          ${MODEL_DAT} \
-          ${NET} \
-          1 \
-          ${RAW_SCALE} \
-          ${MEAN} \
-          ${INPUT_SCALE} \
-          ${SWAP_CHANNEL} \
-          ${CALI_TABLE} \
-          ${NET}_preprocess.cvimodel
-        mv ${NET}_preprocess.cvimodel ..
-      fi
     else
       $DIR/convert_model_caffe_df.sh \
         ${MODEL_DEF} \
@@ -185,20 +171,6 @@ do
         ${CALI_TABLE} \
         ${NET}.cvimodel
       mv ${NET}.cvimodel ..
-      if [ $DO_PREPROCESS -eq 1 ]; then
-        $DIR/convert_model_caffe_df_preprocess.sh \
-          ${MODEL_DEF} \
-          ${MODEL_DAT} \
-          ${NET} \
-          1 \
-          ${RAW_SCALE} \
-          ${MEAN} \
-          ${INPUT_SCALE} \
-          ${SWAP_CHANNEL} \
-          ${CALI_TABLE} \
-          ${NET}_preprocess.cvimodel
-        mv ${NET}_preprocess.cvimodel ..
-      fi
     fi
   elif [ $MODEL_TYPE = "onnx" ]; then
     if [ $USE_LAYERGROUP = "1" ]; then
@@ -232,7 +204,65 @@ do
   fi
 done
 
-# extra
+# with preprocess (only support caffe for now)
+for net in ${generic_net_list[@]}
+do
+  echo "generate cvimodel for $net with preprocess"
+  pushd working
+  NET=$net
+  ENABLE_PREPROCESS=1
+  source $DIR/generic/generic_models.sh
+  echo "NET=$NET MODEL_TYPE=$MODEL_TYPE"
+  if [ $MODEL_TYPE = "caffe" ]; then
+    if [ $DO_PREPROCESS -eq 1 ]; then
+      if [ $USE_LAYERGROUP = "1" ]; then
+        $DIR/convert_model_caffe_lg_preprocess.sh \
+          ${MODEL_DEF} \
+          ${MODEL_DAT} \
+          ${NET} \
+          1 \
+          ${RAW_SCALE} \
+          ${MEAN} \
+          ${INPUT_SCALE} \
+          ${SWAP_CHANNEL} \
+          ${CALI_TABLE_PREPROCESS} \
+          ${NET}_preprocess.cvimodel
+        mv ${NET}_preprocess.cvimodel ..
+      else
+        $DIR/convert_model_caffe_df_preprocess.sh \
+          ${MODEL_DEF} \
+          ${MODEL_DAT} \
+          ${NET} \
+          1 \
+          ${RAW_SCALE} \
+          ${MEAN} \
+          ${INPUT_SCALE} \
+          ${SWAP_CHANNEL} \
+          ${CALI_TABLE_PREPROCESS} \
+          ${NET}_preprocess.cvimodel
+        mv ${NET}_preprocess.cvimodel ..
+      fi
+    else
+      echo "not support preprocess yet"
+    fi
+  elif [ $MODEL_TYPE = "onnx" ]; then
+    echo "Not supported MODEL_TYPE=$MODEL_TYPE"
+  elif [ $MODEL_TYPE = "tensorflow" ]; then
+    echo "Not supported MODEL_TYPE=$MODEL_TYPE"
+  else
+    echo "Invalid MODEL_TYPE=$MODEL_TYPE"
+    err=1
+  fi
+  rm -f ./*
+  popd
+  if [ "$err" -ne 0 ]; then
+    rm -rf working
+    popd
+    exit 1
+  fi
+done
+
+# extra (assuming all extra models support preprocess, and all are caffe)
 for net in ${extra_net_list[@]}
 do
   echo "generate cvimodel for $net"
@@ -259,7 +289,7 @@ do
           ${MEAN} \
           ${INPUT_SCALE} \
           ${SWAP_CHANNEL} \
-          ${CALI_TABLE} \
+          ${CALI_TABLE_PREPROCESS} \
           ${NET}_preprocess.cvimodel
         mv ${NET}_preprocess.cvimodel ..
       fi
@@ -282,28 +312,13 @@ do
           ${MEAN} \
           ${INPUT_SCALE} \
           ${SWAP_CHANNEL} \
-          ${CALI_TABLE} \
+          ${CALI_TABLE_PREPROCESS} \
           ${NET}_preprocess.cvimodel
         mv ${NET}_preprocess.cvimodel ..
       fi
     fi
   elif [ $MODEL_TYPE = "onnx" ]; then
-    if [ $USE_LAYERGROUP = "1" ]; then
-      $DIR/convert_model_onnx_lg.sh \
-        ${MODEL_DEF} \
-        ${NET} \
-        1 \
-        ${CALI_TABLE} \
-        ${NET}.cvimodel
-    else
-      $DIR/convert_model_onnx_df.sh \
-        ${MODEL_DEF} \
-        ${NET} \
-        1 \
-        ${CALI_TABLE} \
-        ${NET}.cvimodel
-    fi
-    mv ${NET}.cvimodel ..
+    echo "Not supported MODEL_TYPE=$MODEL_TYPE"
   elif [ $MODEL_TYPE = "tensorflow" ]; then
     echo "Not supported MODEL_TYPE=$MODEL_TYPE"
   else
