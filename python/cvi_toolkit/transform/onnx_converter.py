@@ -133,6 +133,7 @@ class OnnxConverter(BaseConverter):
             "Identity": lambda node: self.convert_skip_op(node),
             "LeakyRelu": lambda node: self.convert_leaky_relu_op(node),
             "LRN": lambda node: self.convert_lrn_op(node),
+            "MatMul": lambda node: self.convert_matmul_op(node),
             "MaxPool": lambda node: self.convert_maxpool_op(node),
             "Max" : lambda node: self.convert_max_op(node),
             "Min" : lambda node: self.convert_min_op(node),
@@ -337,7 +338,7 @@ class OnnxConverter(BaseConverter):
         # [n,c,h,w] broadcast mul [1,c,1,1]
         if tensor_type1 == TensorType.ACTIVATION and tensor_type2 == TensorType.TENSOR:
             # Use scale op, x * 1 + y
-            if len(input_shape1) == 4 and (len(input_shape2) == 1 or len(input_shape2) == 3): # [1] or [c, 1, 1]
+            if len(input_shape2) == 1 or len(input_shape2) == 3: # [1] or [c, 1, 1]
                 channel = input_shape1[1]
                 # only one constant
                 operands.append(op1)
@@ -845,6 +846,42 @@ class OnnxConverter(BaseConverter):
             lrn_op = self.CVI.add_lrn_op("{}_{}".format(
                 onnx_node.name, onnx_node.op_type), operands, output_shape, **lrn_param)
             self.addOperand(onnx_node.name, lrn_op, output_shape, TensorType.ACTIVATION)
+
+    def convert_matmul_op(self, onnx_node):
+        assert(onnx_node.op_type == "MatMul")
+        # Use fully connectly op, set bias is zero
+        #(M, K) * (K, N) => (M, N)
+        op, input_shape, _ = self.getOperand(onnx_node.inputs[0])
+
+        operands = list()
+        operands.append(op)
+
+        weight_name = "{}_add_weight".format(onnx_node.name)
+        weight_tensor = self.getTensor(onnx_node.inputs[1]).tensor_data
+
+        # in onnx matmul data is put in (K,N), but mlir put in (N, K)
+        weight_tensor = np.ascontiguousarray(np.transpose(weight_tensor, (1, 0)))
+        weight_shape = list(weight_tensor.shape)
+        print(weight_shape)
+        self.addTensor(weight_name, weight_tensor, weight_shape)
+        weight_op = self.CVI.add_load_file_op(weight_name, weight_tensor.shape)
+        operands.append(weight_op)
+
+        bias_tensor = np.full(weight_tensor.shape[1], 0)
+        bias_name = "{}_add_bias".format(onnx_node.name)
+        self.addTensor(bias_name, bias_tensor, bias_tensor.shape)
+        bias_op = self.CVI.add_load_file_op(bias_name, bias_tensor.shape)
+        operands.append(bias_op)
+
+        M = input_shape[0]
+        K = input_shape[1]
+        if input_shape[1] != weight_tensor.shape[1]:
+            raise RuntimeError("{} vs {} can not matmul".format(input_shape, weight_tensor.shape))
+        N = weight_tensor.shape[0]
+        output_shape = [M, N]
+        print(output_shape)
+        fc_op = self.CVI.add_fully_connected_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
+        self.addOperand(onnx_node.name, fc_op, output_shape, TensorType.ACTIVATION)
 
     def convert_maxpool_op(self, onnx_node):
         assert(onnx_node.op_type == "MaxPool")
