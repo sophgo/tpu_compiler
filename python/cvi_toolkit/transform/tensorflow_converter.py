@@ -70,7 +70,7 @@ class TFConverter(BaseConverter):
         self.batch_size=batch_size
 
         # read tensorflow model
-        self.net = tf.keras.models.load_model(model_path)
+        self.net = tf.keras.models.load_model(model_path, custom_objects = {'tf':tf})
         if not isinstance(self.net, tf.python.keras.engine.training.Model):
             raise RuntimeError("Not support tf type: {} now".format(type(self.net)))
         print(self.net.summary())
