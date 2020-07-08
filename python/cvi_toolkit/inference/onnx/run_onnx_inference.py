@@ -47,11 +47,7 @@ def main(argv):
         type=int,
         help="Input batch size."
     )
-    parser.add_argument(
-        "--bgray",
-        type=bool, default=False,
-        help="whether the input image is gray(channel size = 1)"
-    )
+
     parser = get_preprocess_parser(existed_parser=parser)
 
     args = parser.parse_args()

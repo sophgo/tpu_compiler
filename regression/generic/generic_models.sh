@@ -36,6 +36,8 @@ export DO_NN_TOOLKIT=0
 export SET_CHIP_NAME="cv183x"
 export SWAP_CHANNEL=0,1,2
 export YOLO="false"
+export BGRAY=0
+
 if [ -z "$DO_BATCHSIZE" ]; then
   BATCH_SIZE=1
 else

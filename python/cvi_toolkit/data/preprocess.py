@@ -35,6 +35,7 @@ def add_preprocess_parser(parser):
     parser.add_argument("--input_scale", type=float, help="Multiply input features by this scale.", default=1.0)
     parser.add_argument("--model_channel_order", type=str, help="channel order of model inference used, default: bgr", default="bgr")
     parser.add_argument("--data_format", type=str, help="input image data dim order, default: nchw", default="nchw")
+    parser.add_argument("--bgray", type=int, default=0, help="whether the input image is gray, channel size is 1")
     return parser
 
 
@@ -128,7 +129,9 @@ class preprocess(object):
                 if output_npz:
                     np.savez(output_npz, **{input_name if input_name else "input": x})
                 return x
-            image = cv2.imread(str(input).rstrip())
+
+            image = cv2.imread(str(input).rstrip(), cv2.IMREAD_GRAYSCALE if self.bgray else cv2.IMREAD_COLOR)
+
             self.ori_channel_order = "bgr"
             if image is None:
                 print("not existed {}".format(str(input).rstrip()))
@@ -136,9 +139,16 @@ class preprocess(object):
 
             image = cv2.resize(image, (self.resize_dims[1], self.resize_dims[0])) # w,h
             image = image.astype(np.float32)
-            # opencv read image data format is hwc
-            # tranpose here
-            image = np.transpose(image, (2, 0, 1))
+
+            if not self.bgray:
+                # opencv read image data format is hwc
+                # tranpose to chw
+                image = np.transpose(image, (2, 0, 1))
+            else:
+                # if grapscale image,
+                # expand dim to (1, h, w)
+                image = np.expand_dims(image, axis=0)
+
             input_data_format="chw"
 
         elif input_type == InputType.NDARRAY:

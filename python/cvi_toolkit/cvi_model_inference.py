@@ -55,6 +55,7 @@ def main(argv):
         type=str,
         help="mlir file."
     )
+
     parser = get_preprocess_parser(existed_parser=parser)
     args = parser.parse_args()
 
@@ -73,6 +74,7 @@ def main(argv):
                     std=args.std,
                     rgb_order=args.model_channel_order,
                     data_format=args.data_format,
+                    bgray=args.bgray,
                     )
     input=None
     file_extension = args.input_file.split(".")[-1].lower()
