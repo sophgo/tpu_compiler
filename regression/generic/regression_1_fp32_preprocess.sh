@@ -42,7 +42,6 @@ cvi_image_process.py \
     --save ${NET}_in_fp32.npz
 
 mlir-tpu-interpreter ${NET}_opt.mlir \
-    ${CUSTOM_OP_PLUGIN_OPTION} \
     --tensor-in ${NET}_in_fp32.npz \
     --tensor-out ${NET}_out_fp32.npz \
     --dump-all-tensor ${NET}_tensor_all_fp32.npz

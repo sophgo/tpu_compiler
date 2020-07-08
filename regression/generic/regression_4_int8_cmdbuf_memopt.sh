@@ -6,11 +6,6 @@ DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 
 COMPARE_ALL=1
 
-CUSTOM_OP_PLUGIN_OPTION=""
-if [[ ! -z $CUSTOM_OP_PLUGIN ]]; then
-    CUSTOM_OP_PLUGIN_OPTION="--custom-op-plugin ${CUSTOM_OP_PLUGIN}"
-fi
-
 # assuming ${NET}_quant_int8_multiplier_tl_lw.mlir already exists
 # assuming ${NET}_in_fp32.bin already exists
 
@@ -55,7 +50,6 @@ mlir-opt \
 
 mlir-translate \
     --mlir-to-cvimodel \
-    ${CUSTOM_OP_PLUGIN_OPTION}\
     --weight-file weight_int8_multiplier.bin \
     ${NET}_quant_int8_multiplier_tl_lw_memopt_func.mlir \
     -o ${NET}_int8_lw_memopt.cvimodel

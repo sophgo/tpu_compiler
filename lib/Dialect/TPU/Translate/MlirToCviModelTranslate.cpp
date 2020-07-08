@@ -417,7 +417,7 @@ void CviModelBuilder::parseModule() {
         batchNum_ = tensor->shape[0];
       }
       bool overwritten = false;
-      if (op->getAttr("fuse_next")) {
+      if (op->getAttr("fuse_next") && !op->getAttr("fused_leaky")) {
         overwritten = true;
       }
 

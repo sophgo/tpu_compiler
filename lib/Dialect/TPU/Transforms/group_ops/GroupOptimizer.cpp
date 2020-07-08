@@ -648,7 +648,7 @@ void GroupOptimizer::lower_to_tg_group(MLIRContext * context) {
 
 void GroupOptimizer::build_fn(MLIRContext * context) {
   lower_to_tl_group(context);
-  lower_to_tg_group(context);
+  // lower_to_tg_group(context);
 }
 
 }

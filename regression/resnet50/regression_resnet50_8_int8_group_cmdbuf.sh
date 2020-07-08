@@ -20,9 +20,7 @@ cvi_npz_tool.py to_bin \
 if [ $COMPARE_ALL -eq 1 ]; then
     mlir-opt \
         --group-ops \
-        --layer-group-gm-opt=false \
         resnet50_quant_int8_multiplier.mlir \
-        --layer-group-neuron-map-filename=neuron_map_layergroup.csv \
         --weight-map=weight_map_layergroup.csv \
         --weight-bin=weight_int8_multiplier_layergroup.bin \
         -o resnet50_quant_int8_multiplier_layergroup.mlir

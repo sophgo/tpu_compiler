@@ -69,7 +69,6 @@ struct TpuTL_LA_Conv2DOpPattern : public RewritePattern {
 
     std::vector<NamedAttribute> attrs;
     attrs.push_back(rewriter.getNamedAttr("param", op.paramAttr()));
-    attrs.push_back(rewriter.getNamedAttr("gaddr", op.gaddrAttr()));
     attrs.push_back(rewriter.getNamedAttr("name", op.nameAttr()));
     attrs.push_back(rewriter.getNamedAttr("layer_id", op.layer_idAttr()));
     if(op.do_ic_alignment().hasValue()){
@@ -96,9 +95,6 @@ struct TpuTL_LA_Conv2DOpPattern : public RewritePattern {
     attrs.push_back(rewriter.getNamedAttr("la_output", rewriter.getI32IntegerAttr(la_invalid)));
     attrs.push_back(rewriter.getNamedAttr("tl_load_flag", rewriter.getBoolAttr(true)));
     attrs.push_back(rewriter.getNamedAttr("tl_store_flag", rewriter.getBoolAttr(true)));
-
-    if (op.buffer_reused().hasValue())
-      attrs.push_back(rewriter.getNamedAttr("buffer_reused", op.buffer_reusedAttr()));
 
     // create op
     rewriter.replaceOpWithNewOp<tpu::TL_LW_Conv2DOp>(

@@ -31,7 +31,6 @@ export DO_ACCURACY_INTERPRETER=1
 export DO_E2E=1
 export USE_LAYERGROUP=1
 export EVAL_MODEL_TYPE="imagenet"
-export CUSTOM_OP_PLUGIN="$INSTALL_PATH/lib/custom_op/libCustomOpPlugin.so"
 export LABEL_FILE=$REGRESSION_PATH/data/synset_words.txt
 export DO_NN_TOOLKIT=0
 export SET_CHIP_NAME="cv183x"

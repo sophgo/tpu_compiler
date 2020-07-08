@@ -81,7 +81,6 @@ struct TpuTG2TLConv2DOpPattern : public RewritePattern {
 
     std::vector<NamedAttribute> attrs;
     attrs.push_back(rewriter.getNamedAttr("param", op.paramAttr()));
-    attrs.push_back(rewriter.getNamedAttr("gaddr", op.gaddrAttr()));
     attrs.push_back(rewriter.getNamedAttr("name", op.nameAttr()));
     attrs.push_back(rewriter.getNamedAttr("layer_id", op.layer_idAttr()));
     if(op.do_ic_alignment().hasValue()){
@@ -99,9 +98,6 @@ struct TpuTG2TLConv2DOpPattern : public RewritePattern {
       if (op.m_i8_neg().hasValue())
         attrs.push_back(rewriter.getNamedAttr("m_i8_neg", op.m_i8_negAttr()));
     }
-
-    if (op.buffer_reused().hasValue())
-      attrs.push_back(rewriter.getNamedAttr("buffer_reused", op.buffer_reusedAttr()));
 
     rewriter.replaceOpWithNewOp<tpu::TL_LA_Conv2DOp>(
         op, op.getResult()->getType(),
@@ -179,12 +175,9 @@ struct TpuTG2TLElewiseOpPattern : public RewritePattern {
       attrs.push_back(rewriter.getNamedAttr("tl_load_flag", rewriter.getBoolAttr(true)));
       attrs.push_back(rewriter.getNamedAttr("tl_store_flag", rewriter.getBoolAttr(true)));
 
-      attrs.push_back(rewriter.getNamedAttr("gaddr", op.gaddrAttr()));
       attrs.push_back(rewriter.getNamedAttr("name", op.nameAttr()));
       attrs.push_back(rewriter.getNamedAttr("layer_id", op.layer_idAttr()));
 
-      if (op.buffer_reused().hasValue())
-        attrs.push_back(rewriter.getNamedAttr("buffer_reused", op.buffer_reusedAttr()));
       if(op.m_i32_output().hasValue())
         attrs.push_back(rewriter.getNamedAttr("m_i32_output", op.m_i32_outputAttr()));
 
@@ -251,12 +244,8 @@ struct TpuTG2TLLutOpPattern : public RewritePattern {
       attrs.push_back(rewriter.getNamedAttr("tl_load_flag", rewriter.getBoolAttr(true)));
       attrs.push_back(rewriter.getNamedAttr("tl_store_flag", rewriter.getBoolAttr(true)));
 
-      attrs.push_back(rewriter.getNamedAttr("gaddr", op.gaddrAttr()));
       attrs.push_back(rewriter.getNamedAttr("name", op.nameAttr()));
       attrs.push_back(rewriter.getNamedAttr("layer_id", op.layer_idAttr()));
-
-      if (op.buffer_reused().hasValue())
-        attrs.push_back(rewriter.getNamedAttr("buffer_reused", op.buffer_reusedAttr()));
 
       rewriter.replaceOpWithNewOp<tpu::TL_LutOp>(
           op, op.getResult()->getType(),
@@ -337,12 +326,8 @@ struct TpuTG2TLBroadcastMulOpPattern : public RewritePattern {
             rewriter.getBoolAttr(false),   // with_bias
             rewriter.getBoolAttr(false),   // do_relu
             rewriter.getContext())));
-      attrs.push_back(rewriter.getNamedAttr("gaddr", op.gaddrAttr()));
       attrs.push_back(rewriter.getNamedAttr("name", op.nameAttr()));
       attrs.push_back(rewriter.getNamedAttr("layer_id", op.layer_idAttr()));
-
-      if (op.buffer_reused().hasValue())
-        attrs.push_back(rewriter.getNamedAttr("buffer_reused", op.buffer_reusedAttr()));
 
       rewriter.replaceOpWithNewOp<tpu::TL_BroadcastMulOp>(
           op, op.getResult()->getType(),
@@ -414,12 +399,8 @@ struct TpuTG2TLPoolOpPattern : public RewritePattern {
       attrs.push_back(rewriter.getNamedAttr("tl_load_flag", rewriter.getBoolAttr(true)));
       attrs.push_back(rewriter.getNamedAttr("tl_store_flag", rewriter.getBoolAttr(true)));
 
-      attrs.push_back(rewriter.getNamedAttr("gaddr", op.gaddrAttr()));
       attrs.push_back(rewriter.getNamedAttr("name", op.nameAttr()));
       attrs.push_back(rewriter.getNamedAttr("layer_id", op.layer_idAttr()));
-
-      if (op.buffer_reused().hasValue())
-        attrs.push_back(rewriter.getNamedAttr("buffer_reused", op.buffer_reusedAttr()));
 
       rewriter.replaceOpWithNewOp<OpTy2>(
           op, op.getResult()->getType(),

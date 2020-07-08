@@ -9,7 +9,6 @@ if [ $DO_QUANT_BF16 -eq 1 ]; then
   mlir-opt \
       --assign-chip-name \
       --chipname ${SET_CHIP_NAME} \
-      ${CUSTOM_OP_PLUGIN_OPTION} \
       --tpu-quant --quant-full-bf16 \
       --print-tpu-op-info \
       --tpu-op-info-filename ${NET}_op_info_bf16.csv \

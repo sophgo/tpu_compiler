@@ -3,11 +3,6 @@ set -e
 
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 
-CUSTOM_OP_PLUGIN_OPTION=""
-if [[ ! -z $CUSTOM_OP_PLUGIN ]]; then
-    CUSTOM_OP_PLUGIN_OPTION="--custom-op-plugin ${CUSTOM_OP_PLUGIN}"
-fi
-
 CHECK_NON_OPT_VERSION=0
 
 if [ $MODEL_TYPE != "caffe" ]; then
@@ -61,7 +56,6 @@ mlir-opt \
 
 # test frontend optimizations
 mlir-tpu-interpreter ${NET}_opt.mlir \
-    ${CUSTOM_OP_PLUGIN_OPTION} \
     --tensor-in ${NET}_in_fp32.npz \
     --tensor-out ${NET}_out_fp32.npz \
     --dump-all-tensor=${NET}_tensor_all_fp32.npz

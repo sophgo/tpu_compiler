@@ -77,20 +77,11 @@ model_runner \
     --batch-num $BATCH_SIZE \
     --output ${NET}_out_all.npz
 
-if [ $USE_LAYERGROUP = "1" ]; then
-  # echo "compare only output"
-  cvi_npz_tool.py compare \
-      ${NET}_out_all.npz \
-      ${NET}_out_int8_multiplier.npz \
-      --op_info op_info_int8.csv \
-      --excepts $EXCEPTS
-else
-  cvi_npz_tool.py compare \
-      ${NET}_out_all.npz \
-      ${NET}_tensor_all_int8_multiplier.npz \
-      --op_info op_info_int8.csv \
-      --excepts $EXCEPTS
-fi
+cvi_npz_tool.py compare \
+    ${NET}_out_all.npz \
+    ${NET}_tensor_all_int8_multiplier.npz \
+    --op_info op_info_int8.csv \
+    --excepts $EXCEPTS
 
 if [ ! -z $CVIMODEL_REL_PATH -a -d $CVIMODEL_REL_PATH ]; then
   if [ $BATCH_SIZE -eq 1 ]; then

@@ -67,6 +67,7 @@ struct fuseLeakyReluPattern : public RewritePattern {
       if (relu.m_i8_neg().hasValue())
         conv_op.setAttr("m_i8_neg", relu.m_i8_negAttr());
       conv_op.setAttr("fused_leaky",rewriter.getBoolAttr(true));
+      conv_op.setAttr("name", relu.nameAttr());
 
       // delete leaky relu
       relu_op->replaceAllUsesWith(conv_op);

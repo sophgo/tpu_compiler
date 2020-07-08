@@ -14,11 +14,6 @@ if [[ $# -ne 5 ]]; then
     exit 2
 fi
 
-CUSTOM_OP_PLUGIN_OPTION=""
-if [[ ! -z $CUSTOM_OP_PLUGIN ]]; then
-    CUSTOM_OP_PLUGIN_OPTION="--custom-op-plugin ${CUSTOM_OP_PLUGIN}"
-fi
-
 cvi_model_convert.py \
     --model_path $1 \
     --model_name $2 \
@@ -41,7 +36,6 @@ mlir-opt \
 mlir-opt \
     --assign-chip-name \
     --chipname ${SET_CHIP_NAME} \
-    ${CUSTOM_OP_PLUGIN_OPTION} \
     --tpu-quant \
     --print-tpu-op-info \
     --tpu-op-info-filename op_info_int8.csv \
@@ -83,7 +77,6 @@ mlir-opt \
 
 mlir-translate \
     --mlir-to-cvimodel \
-    ${CUSTOM_OP_PLUGIN_OPTION} \
     --weight-file weight.bin \
     int8_tl_lw_memopt_func.mlir \
     -o $5

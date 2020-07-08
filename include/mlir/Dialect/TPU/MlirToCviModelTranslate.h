@@ -33,9 +33,6 @@
 #include <sstream>
 #include <fstream>
 #include "cvibuilder/cvimodel_generated.h"
-#include "cvibuilder/softmax_generated.h"
-#include "cvibuilder/quantization_generated.h"
-#include "cvibuilder/ssd_detection_generated.h"
 #include "cvibuilder/parameter_generated.h"
 #include "mlir/Dialect/TPU/TPUDialect.h"
 #include "mlir/Dialect/TPU/TPUOperationSupport.h"

@@ -6,11 +6,6 @@ DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 
 COMPARE_ALL=1
 
-CUSTOM_OP_PLUGIN_OPTION=""
-if [[ ! -z $CUSTOM_OP_PLUGIN ]]; then
-    CUSTOM_OP_PLUGIN_OPTION="--custom-op-plugin ${CUSTOM_OP_PLUGIN}"
-fi
-
 if [ $DO_QUANT_INT8_PER_TENSOR -eq 1 ]; then
   ###############################################################################
   # quantization 1: per-layer int8
@@ -18,7 +13,6 @@ if [ $DO_QUANT_INT8_PER_TENSOR -eq 1 ]; then
   mlir-opt \
       --assign-chip-name \
       --chipname ${SET_CHIP_NAME} \
-      ${CUSTOM_OP_PLUGIN_OPTION} \
       --tpu-quant --quant-int8-per-tensor \
       --print-tpu-op-info \
       --tpu-op-info-filename ${NET}_op_info_int8_per_tensor.csv \
@@ -26,7 +20,6 @@ if [ $DO_QUANT_INT8_PER_TENSOR -eq 1 ]; then
       -o ${NET}_quant_int8_per_tensor.mlir
 
   mlir-tpu-interpreter ${NET}_quant_int8_per_tensor.mlir \
-      ${CUSTOM_OP_PLUGIN_OPTION}\
       --tensor-in ${NET}_in_fp32.npz \
       --tensor-out ${NET}_out_int8_per_tensor.npz \
       --dump-all-tensor=${NET}_tensor_all_int8_per_tensor.npz
@@ -79,7 +72,6 @@ if [ $DO_QUANT_INT8_PER_TENSOR -eq 1 ]; then
 
   mlir-translate \
       --mlir-to-cvimodel \
-      ${CUSTOM_OP_PLUGIN_OPTION}\
       --weight-file weight_int8_per_tensor.bin \
       ${NET}_quant_int8_per_tensor_addr_func.mlir \
       -o ${NET}_int8_per_tensor.cvimodel

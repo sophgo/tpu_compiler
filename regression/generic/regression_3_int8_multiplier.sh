@@ -8,11 +8,6 @@ COMPARE_ALL=1
 
 COMPRESS_ACTIVATION=0
 
-CUSTOM_OP_PLUGIN_OPTION=""
-if [[ ! -z $CUSTOM_OP_PLUGIN ]]; then
-    CUSTOM_OP_PLUGIN_OPTION="--custom-op-plugin ${CUSTOM_OP_PLUGIN}"
-fi
-
 if [ $DO_QUANT_INT8_MULTIPLER -eq 1 ]; then
   ###############################################################################
   # quantization 3: per-channel int8 with multiplier
@@ -21,7 +16,6 @@ if [ $DO_QUANT_INT8_MULTIPLER -eq 1 ]; then
     mlir-opt \
         --assign-chip-name \
         --chipname ${SET_CHIP_NAME} \
-        ${CUSTOM_OP_PLUGIN_OPTION} \
         --tpu-quant \
         --convert-quant-op \
         --print-tpu-op-info \
@@ -32,7 +26,6 @@ if [ $DO_QUANT_INT8_MULTIPLER -eq 1 ]; then
     mlir-opt \
         --assign-chip-name \
         --chipname ${SET_CHIP_NAME} \
-        ${CUSTOM_OP_PLUGIN_OPTION} \
         --tpu-quant \
         --print-tpu-op-info \
         --tpu-op-info-filename ${NET}_op_info_int8_multiplier.csv \
@@ -41,7 +34,6 @@ if [ $DO_QUANT_INT8_MULTIPLER -eq 1 ]; then
   fi
 
   mlir-tpu-interpreter ${NET}_quant_int8_multiplier.mlir \
-      ${CUSTOM_OP_PLUGIN_OPTION} \
       --tensor-in ${NET}_in_fp32.npz \
       --tensor-out ${NET}_out_int8_multiplier.npz \
       --dump-all-tensor=${NET}_tensor_all_int8_multiplier.npz
@@ -110,7 +102,6 @@ if [ $DO_QUANT_INT8_MULTIPLER -eq 1 ]; then
 
   mlir-translate \
       --mlir-to-cvimodel \
-      ${CUSTOM_OP_PLUGIN_OPTION}\
       --weight-file weight_int8_multiplier.bin \
       ${NET}_quant_int8_multiplier_addr_func.mlir \
       -o ${NET}_int8_multiplier.cvimodel

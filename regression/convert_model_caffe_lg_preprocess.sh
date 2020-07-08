@@ -39,7 +39,6 @@ mlir-opt \
 mlir-opt \
     --assign-chip-name \
     --chipname ${SET_CHIP_NAME} \
-    ${CUSTOM_OP_PLUGIN_OPTION} \
     --tpu-quant \
     --convert-quant-op \
     --print-tpu-op-info \
@@ -48,9 +47,7 @@ mlir-opt \
     --tpu-lower --reorder-op \
     --tg-fuse-leakyrelu \
     --conv-ic-alignment \
-    --group-ops \
-    --layer-group-gm-opt=true \
-    --layer-group-neuron-map-filename=neuron_map_layergroup.csv | \
+    --group-ops | \
 mlir-opt \
     --dce \
     --deep-fusion-tg2tl-la \
@@ -78,7 +75,6 @@ mlir-opt \
 
 mlir-translate \
     --mlir-to-cvimodel \
-    ${CUSTOM_OP_PLUGIN_OPTION} \
     --weight-file weight.bin \
     int8_layergroup_func.mlir \
     -o ${10}
