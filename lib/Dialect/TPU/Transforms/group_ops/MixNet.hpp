@@ -120,6 +120,12 @@ class MixNet {
                              net_timestep* time_step,
                              int timestep_idx, bool is_h_split);
 
+  void _add_tl_quant_op(MixOp * mix_op,
+                             const vector<int>& in_tensors,
+                             const vector<int>& out_tensors,
+                             net_timestep* time_step,
+                             int timestep_idx, bool is_h_split);
+
   void _add_tl_broadcast_mul_op(MixOp * mix_op,
                                 const vector<int>& in_tensors,
                                 const vector<int>& out_tensors,

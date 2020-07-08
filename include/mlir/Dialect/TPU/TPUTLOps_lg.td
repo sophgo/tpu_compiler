@@ -61,6 +61,7 @@ def TPU_LSDirAttr:StrEnumAttr<
     ]>;
 
 def TPU_TENSOR_NEURON : StrEnumAttrCase<"NEURON">;
+def TPU_TENSOR_COEFF_LUT : StrEnumAttrCase<"LUT_COEFF">;
 def TPU_TENSOR_COEFF : StrEnumAttrCase<"CONV_COEFF">;
 def TPU_TENSOR_DEPTH : StrEnumAttrCase<"CONV_DEPTH_OPD1">;
 def TPU_TENSOR_BIAS : StrEnumAttrCase<"BIAS">;
@@ -68,7 +69,7 @@ def TPU_TENSOR_MATRIX : StrEnumAttrCase<"MATRIX">;
 
 def TPU_TensorTypeAttr:StrEnumAttr<
     "TPU_TensorTypeAttr", "Tensor type for load/store", [
-      TPU_TENSOR_NEURON, TPU_TENSOR_COEFF,  TPU_TENSOR_DEPTH,
+      TPU_TENSOR_NEURON, TPU_TENSOR_COEFF_LUT, TPU_TENSOR_COEFF,  TPU_TENSOR_DEPTH,
       TPU_TENSOR_BIAS,  TPU_TENSOR_MATRIX
     ]>;
 //===----------------------------------------------------------------------===//
@@ -289,16 +290,49 @@ def TPU_TL_LG_LutOp : TPU_Op<"tl_lg_lut",
   let summary = "TL Lut operator";
 
   let description = [{
+    `slope_lut` means we use interpolation method to get high accuracy under bf16
+    and it could defined as 'mantissa' part for sqrt/reciprocal op
   }];
 
   let arguments = (
     ins AnyTensor:$input,
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$y_lut,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$slope_lut,
     StrAttr:$name,
     I32Attr:$la_input,
     I32Attr:$la_output,
-    I32Attr:$la_y_table,
     I32Attr:$la_working,
+    I32Attr:$la_y_table,
+    DefaultValuedAttr<I32Attr, "0">:$la_slope_lut,
+    DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
+    DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
+    OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
+def TPU_TL_LG_QuantOp : TPU_Op<"tl_lg_quant",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuTLOpCodegenInterface>]> {
+  let summary = "TL Quant operator";
+
+  let description = [{
+    quant op for layer group
+    `const_scale` comes from calibration table and we calculate in host for keeping accuricy
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    TPU_QuantModeAttr:$from,
+    TPU_QuantModeAttr:$to,
+    StrAttr:$name,
+    I32Attr:$la_input,
+    I32Attr:$la_output,
+    F32Attr:$const_scale,
     DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
     DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,

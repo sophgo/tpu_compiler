@@ -42,6 +42,7 @@ typedef enum {
   IR_INNERPRODUCT,
   IR_RELU,
   IR_CONCAT,
+  IR_QUANT,
   IR_BATCHNORM,
   IR_SCALE,
   IR_MAC,
@@ -237,6 +238,11 @@ class ImCast : public ImLayer {
 class ImCommon : public ImLayer {
  public:
   ImCommon(Operation *op, bool inplace_compute, IR_TYPE type = IR_OTHER);
+};
+
+class ImQuant : public ImLayer {
+ public:
+  explicit ImQuant(Operation *op);
 };
 
 }
