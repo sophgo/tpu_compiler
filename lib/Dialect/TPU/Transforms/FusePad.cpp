@@ -201,8 +201,18 @@ struct TpuFusePadPattern : public RewritePattern {
     if (const_val != 0)
       return matchFailure();
 
-    if (pad_n_begin != 0 || pad_n_end != 0 || 
+    if (pad_n_begin != 0 || pad_n_end != 0 ||
         pad_c_begin != 0 || pad_c_end != 0)
+      return matchFailure();
+
+    const int PAD_H_MAX = 15;
+    const int PAD_W_MAX = 15;
+    auto pad_h_begin = pads[2];
+    auto pad_w_begin = pads[3];
+    auto pad_h_end = pads[6];
+    auto pad_w_end = pads[7];
+    if (pad_h_begin > PAD_H_MAX || pad_h_end > PAD_H_MAX ||
+        pad_w_begin > PAD_W_MAX || pad_w_end > PAD_W_MAX)
       return matchFailure();
 
     for (auto &use : op->getResult(0)->getUses()) {

@@ -124,12 +124,219 @@ struct TpuMergeSwapChannelToConv2DPattern : public RewritePattern {
   }
 };
 
+struct TpuConvertDilationWeightPattern : public RewritePattern {
+  TpuConvertDilationWeightPattern(MLIRContext *context)
+      : RewritePattern("tpu.conv_2d", 1, context) {}
+
+  PatternMatchResult matchAndRewrite(Operation *op,
+                                     PatternRewriter &rewriter) const override {
+    auto convOp = cast<tpu::Conv2DOp>(op);
+    LLVM_DEBUG(llvm::errs() << convOp.getOperationName() << ":"
+                            << getOpName(op)<< "\n";);
+
+    auto dh = convOp.param().dilation_h().getValue().getLimitedValue();
+    auto dw = convOp.param().dilation_w().getValue().getLimitedValue();
+    const int DILATION_H_MAX = 15;
+    const int DILATION_W_MAX = 15;
+    if (dh <= DILATION_H_MAX && dw <= DILATION_W_MAX)
+      return matchFailure();
+
+    TensorFile *wTF = getWeightTensorFile(op);
+    auto filter = readAndDeleteWeightTensor<float>(convOp.filter(), wTF);
+    std::vector<int64_t> filterShape;
+    filterShape = getTensorShape(convOp.filter());
+
+    int64_t oc = 0;
+    int64_t ic = 0;
+    int64_t kh = 0;
+    int64_t kw = 0;
+    if (filterShape.size() == 4) {
+      oc = filterShape[0];
+      ic = filterShape[1];
+      kh = filterShape[2];
+      kw = filterShape[3];
+    } else if (filterShape.size() == 5) {
+      // g, oc/g, ic/g, kh, kw
+      oc = filterShape[0] * filterShape[1];
+      ic = filterShape[2];
+      kh = filterShape[3];
+      kw = filterShape[4];
+    } else {
+      assert(0);
+    }
+
+    int insertNumH = 0;
+    int insertNumW = 0;
+    int newDilationH = dh;
+    int newDilationW = dw;
+    while(1) {
+      insertNumH++;
+      newDilationH = (dh - 1 - insertNumH) / (insertNumH + 1) + 1;
+      if (((dh - 1 - insertNumH) % (insertNumH + 1) == 0) &&
+         newDilationH < DILATION_H_MAX)
+        break;
+    }
+
+    while(1) {
+      insertNumW++;
+      newDilationW = (dw - 1 - insertNumW) / (insertNumW + 1) + 1;
+      if (((dw - 1 - insertNumW) % (insertNumW + 1) == 0) &&
+         newDilationW < DILATION_W_MAX)
+        break;
+    }
+
+    int k_ext_h = (insertNumH + 1) * (kh - 1) + 1;
+    int k_ext_w = (insertNumW + 1) * (kw - 1) + 1;
+    filterShape[2] = k_ext_h;
+    filterShape[3] = k_ext_w;
+    auto filterSize = oc * ic * k_ext_h * k_ext_w;
+    std::vector<float> newFilter(filterSize, 0);
+    for (int i = 0; i < oc * ic; i++) {
+      for (int j = 0; j < kh; j++) {
+        for (int k = 0; k < kw; k++) {
+          auto old_offset = i * kh * kw + j * kw + k;
+          auto new_offset = i * k_ext_h * k_ext_w +
+                            j * (insertNumW + 1) * k_ext_w +
+                            k * (insertNumH + 1);
+          newFilter[new_offset] = filter->data()[old_offset];
+        }
+      }
+    }
+    // update op
+    addWeightTensorAndUpdateWeightOp<float>(convOp.getOperand(1),
+        "dilation", newFilter, filterShape, "INT8", wTF);
+
+    // rewrite pad
+    convOp.setAttr("param",
+           tpu::ConvParam::get(
+                convOp.param().stride_h(),
+                convOp.param().stride_w(),
+                convOp.param().padding(),
+                rewriter.getI32IntegerAttr(newDilationH),
+                rewriter.getI32IntegerAttr(newDilationW),
+                convOp.param().padding_t(),
+                convOp.param().padding_b(),
+                convOp.param().padding_l(),
+                convOp.param().padding_r(),
+                convOp.param().group(),
+                convOp.param().is_dw(),
+                convOp.param().with_bias(),
+                convOp.param().do_relu(),
+                rewriter.getContext()));
+
+    return matchSuccess();
+  }
+};
+
+
+struct TpuSplitConv2DPattern : public RewritePattern {
+  TpuSplitConv2DPattern(MLIRContext *context)
+      : RewritePattern("tpu.conv_2d", 1, context) {}
+
+  PatternMatchResult matchAndRewrite(Operation *op,
+                                     PatternRewriter &rewriter) const override {
+    auto convOp = cast<tpu::Conv2DOp>(op);
+    LLVM_DEBUG(llvm::errs() << convOp.getOperationName() << ":"
+                            << getOpName(op)<< "\n";);
+    auto param = convOp.param();
+    auto pt = param.padding_t().getValue().getLimitedValue();
+    auto pb = param.padding_b().getValue().getLimitedValue();
+    auto pl = param.padding_l().getValue().getLimitedValue();
+    auto pr = param.padding_r().getValue().getLimitedValue();
+
+    const int PAD_H_MAX = 15;
+    const int PAD_W_MAX = 15;
+    if (pt <= PAD_H_MAX && pb <= PAD_H_MAX &&
+        pl <= PAD_W_MAX && pr <= PAD_W_MAX)
+      return matchFailure();
+
+    std::vector<NamedAttribute> attrs;
+    std::vector<Value *> operands;
+    operands.push_back(op->getOperand(0));
+
+    auto name = convOp.name().str();
+    name = name + "_" + "pad";
+    attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(name)));
+
+    SmallVector<Attribute, 8> padsAttr;
+    int pad_h_begin = pt;
+    int pad_w_begin = pl;
+
+    int pad_h_end = pb;
+    int pad_w_end = pr;
+
+    auto padAttr = rewriter.getI32IntegerAttr(0);
+    padsAttr.push_back(padAttr); // pad_n_begin;
+    padsAttr.push_back(padAttr); // pad_c_begin;
+
+    padAttr = rewriter.getI32IntegerAttr(pad_h_begin);
+    padsAttr.push_back(padAttr);
+
+    padAttr = rewriter.getI32IntegerAttr(pad_w_begin);
+    padsAttr.push_back(padAttr);
+
+    padAttr = rewriter.getI32IntegerAttr(0);
+    padsAttr.push_back(padAttr); // pad_n_end;
+    padsAttr.push_back(padAttr); // pad_c_end;
+
+    padAttr = rewriter.getI32IntegerAttr(pad_h_end);
+    padsAttr.push_back(padAttr);
+
+    padAttr = rewriter.getI32IntegerAttr(pad_w_end);
+    padsAttr.push_back(padAttr);
+
+
+    attrs.push_back(rewriter.getNamedAttr("pads",
+                                      rewriter.getArrayAttr(padsAttr)));
+    attrs.push_back(rewriter.getNamedAttr("const_val",
+                                      rewriter.getF32FloatAttr(0)));
+    attrs.push_back(rewriter.getNamedAttr("quant",
+                                      getDefaultQuantParam(rewriter)));
+
+    auto input_type = convOp.input()->getType().dyn_cast<TensorType>();
+    auto input_shape = input_type.getShape();
+    int64_t output_h = input_shape[2] + pt + pb;
+    int64_t output_w = input_shape[3] + pl + pr;
+
+    auto output_type = RankedTensorType::get(
+                          {input_shape[0], input_shape[1],
+                           output_h, output_w},
+                           input_type.getElementType());
+
+    rewriter.setInsertionPoint(op);
+    auto padOp = rewriter.create<tpu::PadOp>(op->getLoc(),
+                           ArrayRef<mlir::Type>{output_type}, operands, attrs);
+    // rewrite pad
+    convOp.setAttr("param",
+           tpu::ConvParam::get(
+                convOp.param().stride_h(),
+                convOp.param().stride_w(),
+                convOp.param().padding(),
+                convOp.param().dilation_h(),
+                convOp.param().dilation_w(),
+                rewriter.getI32IntegerAttr(0),
+                rewriter.getI32IntegerAttr(0),
+                rewriter.getI32IntegerAttr(0),
+                rewriter.getI32IntegerAttr(0),
+                convOp.param().group(),
+                convOp.param().is_dw(),
+                convOp.param().with_bias(),
+                convOp.param().do_relu(),
+                rewriter.getContext()));
+    op->setOperand(0, padOp.getResult());
+    return matchSuccess();
+  }
+};
 } // namespace
 
 void tpu::Conv2DOp::getCanonicalizationPatterns(
     OwningRewritePatternList &results, MLIRContext *context) {
-  results.insert<TpuMergeSwapChannelToConv2DPattern>(context);
+  results.insert<TpuMergeSwapChannelToConv2DPattern,
+                 TpuSplitConv2DPattern,
+                 TpuConvertDilationWeightPattern >(context);
 }
 
 void tpu::DeConv2DOp::getCanonicalizationPatterns(
     OwningRewritePatternList &results, MLIRContext *context) {}
+
+

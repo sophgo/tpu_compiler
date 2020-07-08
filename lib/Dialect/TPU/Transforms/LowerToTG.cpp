@@ -1592,6 +1592,42 @@ struct PackWeightBroadcastMulOpPattern : public RewritePattern {
 };
 
 template<typename T>
+static void rotateConvolutionFilter(std::vector<T> &w,
+    std::vector<int64_t> &s) {
+  int64_t oc, ic, kh, kw;
+  if (s.size() == 4) {
+    oc = s[0];
+    ic = s[1];
+    kh = s[2];
+    kw = s[3];
+  } else if (s.size() == 5) {
+    // g, oc/g, ic/g, kh, kw
+    oc = s[0] * s[1];
+    ic = s[2];
+    kh = s[3];
+    kw = s[4];
+  } else {
+    llvm_unreachable("unsupported shape size");
+  }
+
+  std::vector<T> w_t(w.size());
+  if (kh == 1 || kw == 1) {
+    return;
+  } else {
+    // for other conv, rotate 180
+    for (int64_t i = 0; i < oc * ic; i++) {
+      for (int64_t j = 0; j < kh; j++) {
+        for (int64_t k = 0; k < kw; k++) {
+          w_t[i * kh * kw + (kh - 1 - j) * kw + (kw - 1) - k] =
+                                                w[i * kh * kw + j * kw + k];
+        }
+      }
+    }
+  }
+  w.assign(w_t.begin(), w_t.end());
+}
+
+template<typename T>
 static void transposeConvolutionFilter(std::vector<T> &w,
     std::vector<int64_t> &s) {
   int64_t oc, ic, ks;
@@ -1680,6 +1716,8 @@ struct LowerWeightConv2DOpPattern : public RewritePattern {
         // transpose ic <-> kh*kw
         // if kh*kw == 1 or ic/g == 1, transposeConvolutionFilter() will do nothing
         assert(shape.size() == 4 || shape.size() == 5);
+        if (isa<tpu::DeConv2DOp>(op))
+          rotateConvolutionFilter<int8_t>(filter_int8, shape);
         transposeConvolutionFilter<int8_t>(filter_int8, shape);
 
         // save it
