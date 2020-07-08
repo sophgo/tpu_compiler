@@ -69,8 +69,8 @@ if [ $DO_QUANT_INT8_PER_TENSOR -eq 1 ]; then
       -o ${NET}_quant_int8_per_tensor_addr.mlir
 
   # cat for logging
-  echo "cat ${NET}_quant_int8_per_tensor_addr.mlir"
-  cat ${NET}_quant_int8_per_tensor_addr.mlir
+  # echo "cat ${NET}_quant_int8_per_tensor_addr.mlir"
+  # cat ${NET}_quant_int8_per_tensor_addr.mlir
 
   mlir-opt \
       --divide-ops-to-func \
