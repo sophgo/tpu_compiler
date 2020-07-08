@@ -15,7 +15,7 @@ if [ $MODEL_TYPE = "caffe" ]; then
           ${MEAN} \
           ${INPUT_SCALE} \
           ${SWAP_CHANNEL} \
-          ${CALI_TABLE} \
+          ${CALI_TABLE_PREPROCESS} \
           ${NET}.cvimodel
     else
       $REGRESSION_PATH/convert_model_caffe_df_preprocess.sh \
@@ -27,7 +27,7 @@ if [ $MODEL_TYPE = "caffe" ]; then
           ${MEAN} \
           ${INPUT_SCALE} \
           ${SWAP_CHANNEL} \
-          ${CALI_TABLE} \
+          ${CALI_TABLE_PREPROCESS} \
           ${NET}.cvimodel
     fi
   else

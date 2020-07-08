@@ -31,6 +31,8 @@ extra_net_param()
   export MODEL_TYPE="caffe"
   export MODEL_DEF=$MODEL_PATH/face_detection/retinaface/caffe/mnet_320_with_detection.prototxt
   export MODEL_DAT=$MODEL_PATH/face_detection/retinaface/caffe/mnet.caffemodel
+  export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/retinaface_mnet25_calibration_table
+  export CALI_TABLE_PREPROCESS=$REGRESSION_PATH/data/cali_tables/retinaface_mnet25_calibration_table_preprocess
   export MODEL_CHANNEL_ORDER="rgb"
   export SWAP_CHANNEL=2,1,0
   export IMAGE_RESIZE_DIMS=320,320
@@ -39,11 +41,6 @@ extra_net_param()
   export MEAN=0,0,0
   export INPUT_SCALE=1
   export DO_PREPROCESS=1
-  if [ $DO_PREPROCESS -eq 1 ]; then
-  export CALI_TABLE_PREPROCESS=$REGRESSION_PATH/data/cali_tables/retinaface_mnet25_calibration_table_preprocess
-  else
-  export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/retinaface_mnet25_calibration_table
-  fi
   fi
 
   if [ $NET = "retinaface_mnet25_600_with_detection" ]; then
@@ -51,6 +48,7 @@ extra_net_param()
   export MODEL_DEF=$MODEL_PATH/face_detection/retinaface/caffe/mnet_600_with_detection.prototxt
   export MODEL_DAT=$MODEL_PATH/face_detection/retinaface/caffe/mnet.caffemodel
   export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/retinaface_mnet25_calibration_table
+  export CALI_TABLE_PREPROCESS=$REGRESSION_PATH/data/cali_tables/retinaface_mnet25_calibration_table_preprocess
   export MODEL_CHANNEL_ORDER="rgb"
   export SWAP_CHANNEL=2,1,0
   export IMAGE_RESIZE_DIMS=600,600
@@ -59,11 +57,6 @@ extra_net_param()
   export MEAN=0,0,0
   export INPUT_SCALE=1
   export DO_PREPROCESS=1
-  if [ $DO_PREPROCESS -eq 1 ]; then
-  export CALI_TABLE_PREPROCESS=$REGRESSION_PATH/data/cali_tables/retinaface_mnet25_calibration_table_preprocess
-  else
-  export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/retinaface_mnet25_calibration_table
-  fi
   fi
 
   if [ $NET = "retinaface_res50_with_detection" ]; then
@@ -71,6 +64,7 @@ extra_net_param()
   export MODEL_DEF=$MODEL_PATH/face_detection/retinaface/caffe/R50-0000_with_detection.prototxt
   export MODEL_DAT=$MODEL_PATH/face_detection/retinaface/caffe/R50-0000.caffemodel
   export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/retinaface_res50_calibration_table
+  export CALI_TABLE_PREPROCESS=$REGRESSION_PATH/data/cali_tables/retinaface_res50_calibration_table_preprocess
   export MODEL_CHANNEL_ORDER="rgb"
   export SWAP_CHANNEL=2,1,0
   export IMAGE_RESIZE_DIMS=600,600
@@ -79,11 +73,6 @@ extra_net_param()
   export MEAN=0,0,0
   export INPUT_SCALE=1
   export DO_PREPROCESS=1
-  if [ $DO_PREPROCESS -eq 1 ]; then
-  export CALI_TABLE_PREPROCESS=$REGRESSION_PATH/data/cali_tables/retinaface_res50_calibration_table_preprocess
-  else
-  export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/retinaface_res50_calibration_table
-  fi
   fi
 
   if [ $NET = "yolo_v3_416_with_detection" ]; then
@@ -91,6 +80,7 @@ extra_net_param()
   export MODEL_DEF=$MODEL_PATH/object_detection/yolo_v3/caffe/416/yolov3_416_with_detection.prototxt
   export MODEL_DAT=$MODEL_PATH/object_detection/yolo_v3/caffe/416/yolov3_416.caffemodel
   export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/yolo_v3_calibration_table_autotune
+  export CALI_TABLE_PREPROCESS=$REGRESSION_PATH/data/cali_tables/yolo_v3_calibration_table_autotune_preprocess
   export MODEL_CHANNEL_ORDER="rgb"
   export SWAP_CHANNEL=2,1,0
   export IMAGE_RESIZE_DIMS=416,416
@@ -99,11 +89,6 @@ extra_net_param()
   export MEAN=0,0,0
   export INPUT_SCALE=1.0
   export DO_PREPROCESS=1
-  if [ $DO_PREPROCESS -eq 1 ]; then
-  export CALI_TABLE_PREPROCESS=$REGRESSION_PATH/data/cali_tables/yolo_v3_calibration_table_autotune_preprocess
-  else
-  export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/yolo_v3_calibration_table_autotune
-  fi
   fi
 
   if [ $NET = "yolo_v3_320_with_detection" ]; then
@@ -111,6 +96,7 @@ extra_net_param()
   export MODEL_DEF=$MODEL_PATH/object_detection/yolo_v3/caffe/yolov3_320_with_detection.prototxt
   export MODEL_DAT=$MODEL_PATH/object_detection/yolo_v3/caffe/416/yolov3_416.caffemodel
   export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/yolo_v3_calibration_table_autotune
+  export CALI_TABLE_PREPROCESS=$REGRESSION_PATH/data/cali_tables/yolo_v3_calibration_table_autotune_preprocess
   export MODEL_CHANNEL_ORDER="rgb"
   export SWAP_CHANNEL=2,1,0
   export IMAGE_RESIZE_DIMS=320,320
@@ -119,11 +105,6 @@ extra_net_param()
   export MEAN=0,0,0
   export INPUT_SCALE=1.0
   export DO_PREPROCESS=1
-  if [ $DO_PREPROCESS -eq 1 ]; then
-  export CALI_TABLE_PREPROCESS=$REGRESSION_PATH/data/cali_tables/yolo_v3_calibration_table_autotune_preprocess
-  else
-  export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/yolo_v3_calibration_table_autotune
-  fi
   fi
 }
 
