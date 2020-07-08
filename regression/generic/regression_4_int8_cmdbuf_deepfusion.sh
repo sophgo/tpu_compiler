@@ -58,8 +58,8 @@ if [ $COMPRESS_WEIGHT -eq 1 ]; then
 fi
 
 # cat for logging
-echo "cat ${NET}_quant_int8_multiplier_tl_lw.mlir"
-cat ${NET}_quant_int8_multiplier_tl_lw.mlir
+# echo "cat ${NET}_quant_int8_multiplier_tl_lw.mlir"
+# cat ${NET}_quant_int8_multiplier_tl_lw.mlir
 
 if [ $DO_MEMOPT -eq 1 ]; then
   # function argument lower to MemRefType

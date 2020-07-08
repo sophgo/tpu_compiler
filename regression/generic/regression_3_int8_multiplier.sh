@@ -100,8 +100,8 @@ if [ $DO_QUANT_INT8_MULTIPLER -eq 1 ]; then
 
 
   # cat for logging
-  echo "cat ${NET}_quant_int8_multiplier_addr.mlir"
-  cat ${NET}_quant_int8_multiplier_addr.mlir
+  # echo "cat ${NET}_quant_int8_multiplier_addr.mlir"
+  # cat ${NET}_quant_int8_multiplier_addr.mlir
 
   mlir-opt \
       --divide-ops-to-func \

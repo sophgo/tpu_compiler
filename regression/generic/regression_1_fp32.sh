@@ -11,7 +11,7 @@ fi
 CHECK_NON_OPT_VERSION=0
 
 if [ $MODEL_TYPE != "caffe" ]; then
-    MODEL_DAT="-"
+  MODEL_DAT="-"
 fi
 
 if [ $DO_PREPROCESS -eq 1 ]; then
@@ -75,7 +75,7 @@ cvi_npz_tool.py compare \
     --tolerance=0.999,0.999,0.998 -vv
 
 if [ $DO_PREPROCESS -ne 1 ]; then
-cvi_npz_tool.py to_bin ${NET}_in_fp32.npz $INPUT ${NET}_in_fp32.bin
+  cvi_npz_tool.py to_bin ${NET}_in_fp32.npz $INPUT ${NET}_in_fp32.bin
 fi
 
 # VERDICT
