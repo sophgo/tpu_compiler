@@ -126,6 +126,7 @@ class OnnxConverter(BaseConverter):
             "DepthToSpace": lambda node: self.convert_depth_to_space_op(node),
             "Div": lambda node: self.convert_div_op(node),
             "Dropout": lambda node: self.convert_skip_op(node),
+            "Expand": lambda node: self.convert_expand_op(node),
             "Flatten": lambda node: self.convert_flatten_op(node),
             "Gather": lambda node: self.convert_gather_op(node),
             "Gemm": lambda node: self.convert_gemm_op(node),
@@ -553,8 +554,74 @@ class OnnxConverter(BaseConverter):
             concat_op = self.CVI.add_concat_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, axis=axis)
             self.addOperand(onnx_node.name, concat_op, output_shape, TensorType.ACTIVATION)
 
+    def convert_conv1d_op(self, onnx_node):
+        assert(onnx_node.op_type == "Conv")
+        dilations = onnx_node.attrs.get("dilations", [1])
+        group = onnx_node.attrs.get("group", 1)
+        pads = onnx_node.attrs.get("pads",[0,0])
+        strides = onnx_node.attrs.get("strides",[1])
+        conv_param = {
+            'stride_h':  1,
+            'stride_w':  strides[0],
+            'padding': "SAME" if pads[0] > 0 else "VALID",
+            'dilation_h': 1,
+            'dilation_w': dilations[0],
+            'padding_t': 0,
+            'padding_b': 0,
+            'padding_l': pads[0],
+            'padding_r': pads[1],
+            'group': group,
+            'is_dw': False,
+            'with_bias': len(onnx_node.inputs) > 2,
+            'do_relu': False,
+        }
+        op, shape, _ = self.getOperand(onnx_node.inputs[0])
+        # convert conv1d to conv2d
+        if len(shape) == 3:
+            shape.insert(2,1)
+            reshape_input_op = self.CVI.add_reshape_op("{}_{}_input".format(
+                    onnx_node.name, onnx_node.op_type), [op], shape)
+            op = reshape_input_op
+        operands = list()
+        operands.append(op)
+        filter_name = onnx_node.inputs[1]
+        filter_tensor = self.getTensor(filter_name)
+        if len(filter_tensor.shape) == 3:
+            filter_tensor.shape.insert(2, 1)
+            filter_tensor.tensor_data.reshape(filter_tensor.shape)
+        filter_shape = filter_tensor.shape
+        with_bias = False
+        on = shape[0]
+        oc = filter_shape[0] # feature map size
+        oh = 1
+        ow = calcConv2DSpatial(
+            shape[3],
+            onnx_node.attrs['kernel_shape'][0],
+            strides[0],
+            conv_param['padding_l'],
+            conv_param['padding_r'],
+            dilations[0]
+        )
+        filter_op = self.CVI.add_load_file_op(filter_tensor.name, filter_shape)
+        operands.append(filter_op)
+        if len(onnx_node.inputs) == 3:
+            bias_name = onnx_node.inputs[2]
+            bias_tensor = self.getTensor(bias_name)
+            bias_op = self.CVI.add_load_file_op(bias_name, bias_tensor.shape)
+            operands.append(bias_op)
+        output_shape = [on, oc, oh, ow]
+        conv_op = self.CVI.add_conv_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **conv_param)
+        new_output_shape = [on, oc, ow]
+        reshape_back_op = self.CVI.add_reshape_op("{}_{}_back_dim".format(
+                    onnx_node.name, onnx_node.op_type), [conv_op], new_output_shape)
+        self.addOperand(onnx_node.name, reshape_back_op,
+                                new_output_shape, TensorType.ACTIVATION)
+
     def convert_conv_op(self, onnx_node):
         assert(onnx_node.op_type == "Conv")
+        if len(onnx_node.attrs['kernel_shape']) == 1:
+            return self.convert_conv1d_op(onnx_node)
+
         dilations = onnx_node.attrs.get("dilations", [1, 1])
         group = onnx_node.attrs.get("group", 1)
         pads = onnx_node.attrs.get("pads",[0,0,0,0])
@@ -709,6 +776,28 @@ class OnnxConverter(BaseConverter):
             scale_op = self.CVI.add_scale_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
             self.addOperand(onnx_node.name, scale_op, output_shape, TensorType.ACTIVATION)
 
+        else:
+            raise RuntimeError("not implement yet")
+
+    def convert_expand_op(self, onnx_node):
+        assert(onnx_node.op_type == "Expand")
+        op0, input_shape0, tensor_type0 = self.getOperand(onnx_node.inputs[0])
+        op1, input_shape1, tensor_type1 = self.getOperand(onnx_node.inputs[1])
+        operands = list()
+        if tensor_type1 == TensorType.TENSOR:
+            operands = list()
+            operands.append(op0)
+            tensor_data = self.getTensor(onnx_node.inputs[1]).tensor_data
+            assert(len(tensor_data)==4)
+            assert(input_shape0[2] == 1 and input_shape0[3] == 1)
+            assert(input_shape0[0] == tensor_data[0] and input_shape0[1] == tensor_data[1])
+            assert(tensor_data[2] == tensor_data[3])
+            output_shape = list(tensor_data)
+            attr={
+                'scale': int(tensor_data[2])
+            }
+            upsample_op = self.CVI.add_upsample_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **attr)
+            self.addOperand(onnx_node.name, upsample_op, output_shape, TensorType.ACTIVATION)
         else:
             raise RuntimeError("not implement yet")
 
@@ -1642,9 +1731,9 @@ class OnnxConverter(BaseConverter):
                 }
                 permute_op = self.CVI.add_permute_op("{}_{}".format(
                     onnx_node.name, onnx_node.op_type), [reshape_op], output_shape, **attr)
-                output_shape = input_shape[1:]
+                output_shape = output_shape[1:]
                 reshape_back_op = self.CVI.add_reshape_op("{}_{}_back_dim".format(
-                    onnx_node.name, onnx_node.op_type), [permute_op], input_shape)
+                    onnx_node.name, onnx_node.op_type), [permute_op], output_shape)
                 self.addOperand(onnx_node.name, reshape_back_op,
                                 output_shape, TensorType.ACTIVATION)
             elif len(transpose_perm) == 5:
