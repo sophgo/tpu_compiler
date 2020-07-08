@@ -160,7 +160,9 @@ export DO_CMDBUF_BF16=0
 #export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
 export DO_LAYERGROUP=1
 if [ $DO_PREPROCESS -eq 1 ]; then
-  export EXCEPTS=data
+  export EXCEPTS=data,prob
+else
+  export EXCEPTS=prob
 fi
 fi
 
