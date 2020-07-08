@@ -33,13 +33,13 @@ resnet18                  Y        N        N        N        Y        N
 efficientnet_b0           Y        Y        N        N        N        N
 alphapose                 N        N        N        Y        Y        N
 espcn_3x                  Y        N        N        N        Y        N
-unet                      Y        N        N        N        Y        N
-nasnet_mobile             Y        N        N        N        Y        N
+unet                      N        N        N        Y        Y        N
+nasnet_mobile             N        N        N        Y        Y        N
 
 # tensorflow
 mobilenet_v1_tf           Y        Y        N        N        N        N
 mobilenet_v2_tf           Y        N        N        N        Y        N
 resnet50_tf               Y        N        N        N        Y        N
 vgg16_tf                  N        N        N        Y        Y        N
-inception_v3_tf           Y        N        N        N        Y        N
+inception_v3_tf           N        N        N        Y        Y        N
 # mobilenet_v3              N        N        N        Y        Y        N
