@@ -1079,11 +1079,28 @@ class OnnxConverter(BaseConverter):
             mode = mode.decode("utf-8")
         if mode != "constant": raise RuntimeError("Todo support pad op mode {}".format(mode))
         constant_value = onnx_node.attrs.get("value", 0.0)
-        pads = onnx_node.attrs.get("pads")
 
         op, input_shape, input_type = self.getOperand(onnx_node.inputs[0])
+
+        if len(onnx_node.inputs) == 2:
+            # padding data from input
+            _, _, pad_data_type = self.getOperand(onnx_node.inputs[1])
+            if pad_data_type == TensorType.TENSOR:
+                pads = list(self.getTensor(onnx_node.inputs[1]).tensor_data)
+            else:
+                raise RuntimeError("not support paddings data with runtime data")
+        else:
+            pads = onnx_node.attrs.get("pads")
+            if pads == None:
+                raise RuntimeError("No paddings value")
         if len(pads) != 2 * len(input_shape):
             raise RuntimeError("pads number is two times as same as input shape ({} v.s 2 * {})".format(len(pads), len(input_shape)))
+
+        # fuesd if padding all zero
+        if all(i == 0 for i in pads):
+            print("All pad is zero ({}), Fuse padding op {}".format(pads, onnx_node.name))
+            self.addOperand(onnx_node.name, op, input_shape, TensorType.ACTIVATION)
+            return
 
         dims = len(input_shape)
         np_pads = tuple(zip(pads[:dims], pads[dims:]))
@@ -1093,6 +1110,7 @@ class OnnxConverter(BaseConverter):
         }
 
         output_shape = np.sum([input_shape, pads[:dims], pads[dims:]], axis=0)
+        output_shape = [int(i) for i in output_shape]
         if input_type == TensorType.TENSOR :
             input_data = self.getTensor(onnx_node.inputs[0]).tensor_data
             if mode == b'constant':
