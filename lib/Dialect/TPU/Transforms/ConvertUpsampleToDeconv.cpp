@@ -67,7 +67,9 @@ struct TpuUpsampleOpPattern : public RewritePattern {
     int count = g * oc * ic * h * w;
     std::vector<float> filter(count, 1);
     std::vector<int64_t> filter_shape;
-    filter_shape.push_back(g);
+    if (g != 1) {
+      filter_shape.push_back(g);
+    }
     filter_shape.push_back(oc);
     filter_shape.push_back(ic);
     filter_shape.push_back(h);
