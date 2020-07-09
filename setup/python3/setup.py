@@ -58,8 +58,6 @@ packages = setuptools.find_packages(where='{}/python'.format(root_path))
 packages.extend(setuptools.find_packages(where='./third_party/caffe/python'))
 packages.extend(setuptools.find_packages(where='./third_party/flatbuffers/python'))
 
-# cpu op, generated runtime, we hardcore here
-packages.extend(['cvi', 'cvi.cpu_op', 'cvi.model'])
 # tflite
 packages.extend(['tflite'])
 setuptools.setup(
@@ -74,7 +72,6 @@ setuptools.setup(
         '': 'python',
         'caffe': 'third_party/caffe/python/caffe',
         'flatbuffers': 'third_party/flatbuffers/python/flatbuffers',
-        'cvi': '{}/python/cvi'.format(mlir_install_path),
         'tflite':'{}/python/tflite'.format(mlir_install_path),
     },
     package_data ={

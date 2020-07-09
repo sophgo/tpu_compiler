@@ -2,7 +2,6 @@ import numpy as np
 import onnx
 from .model.ModelFactory import ModelFactory
 from .transform import OnnxConverter, TFConverter
-from .build_cvimodel import CVIModel as builder
 from .calibration.kld_calibrator import KLD_Calibrator_v2
 from .calibration.tuner import Tuner_v2
 from .utils.mlir_shell import checkReturnValue, mlir_translate, mlir_opt, \

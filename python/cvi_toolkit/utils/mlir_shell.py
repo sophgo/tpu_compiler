@@ -1,6 +1,5 @@
 import logging
 import subprocess
-from ..build_cvimodel import CVIModel as builder
 from .log_setting import setup_logger
 
 import subprocess
@@ -93,82 +92,23 @@ def mlir_lower_opt(mlirfile, opt_mlirfile):
                     "--tg-fuse-leakyrelu",
                     "--conv-ic-alignment",
                     lower_mlir,
-                    "-o", opt_mlir,
+                    "-o", opt_mlirfile,
                     ], **std_output_flag)
     checkReturnValue(ret, "mlir-opt, fuse")
     if ret.returncode != 0:
         return ret.returncode
-
-     # function argument lower to MemRefType
-    memref_mlir = "memref_{}".format(mlirfile)
-    ret = subprocess.run(["mlir-opt",
-                    "--convert-func-to-memref",
-                    opt_mlir,
-                    "-o", memref_mlir,
-                    ], **std_output_flag)
-    checkReturnValue(ret, "mlir-opt, func-to-memref")
-    if ret.returncode != 0:
-        return ret.returncode
-
-    # op lower to MemRefType
-    tg_opt_memref = "tg_opt_memref_{}".format(mlirfile)
-    ret = subprocess.run(["mlir-opt",
-                    "--convert-tg-op-to-memref",
-                    memref_mlir,
-                    "-o", tg_opt_memref,
-                    ], **std_output_flag)
-    checkReturnValue(ret, "mlir-opt, tg_opt_memref")
-    if ret.returncode != 0:
-        return ret.returncode
-
-    # memory space w/ global memory reuse
-    tg_opt_op_memref_addr = "tg_opt_op_memref_addr_{}".format(mlirfile)
-    ret = subprocess.run(["mlir-opt",
-                    "--enable-reuse-global-memory=true",
-                    "--assign-neuron-address-memref",
-                    "--tpu-neuron-address-align-memref=16",
-                    "--tpu-neuron-map-filename-memref=neuron_map_memref_reused.csv",
-                    tg_opt_memref,
-                    "-o", tg_opt_op_memref_addr,
-                    ], **std_output_flag)
-    checkReturnValue(ret, "mlir-opt, tg_opt_op_memref_addr")
-    if ret.returncode != 0:
-        return ret.returncode
-
-    # tg op back to TensorType
-    tg_opt_op_tensor_addr = "tg_opt_op_tensor_addr_{}".format(mlirfile)
-    ret = subprocess.run(["mlir-opt",
-                    "--convert-tg-op-to-tensor",
-                    tg_opt_op_memref_addr,
-                    "-o", tg_opt_op_tensor_addr,
-                    ], **std_output_flag)
-    checkReturnValue(ret, "mlir-opt, tg_opt_op_tensor_addr")
-    if ret.returncode != 0:
-        return ret.returncode
-
-    # function argument back to TensorType
-    # tg_opt_addr = "tg_opt_addr_{}".format(mlirfile)
-    ret = subprocess.run(["mlir-opt",
-                    "--convert-func-to-tensor",
-                    tg_opt_op_tensor_addr,
-                    "-o", opt_mlirfile,
-                    ], **std_output_flag)
-    checkReturnValue(ret, "mlir-opt, tg_opt_addr")
-    if ret.returncode != 0:
-        return ret.returncode
-
-    return ret.returncode
+    return 0
 
 def mlir_gen_cvimodel(mlirfile, cvi_module):
 
     int8_addr = "int8_addr_{}".format(mlirfile)
-
     ret = subprocess.run(["mlir-opt",
                     "--assign-weight-address",
                     "--tpu-weight-address-align=16",
                     "--tpu-weight-map-filename=weight_map.csv",
                     "--tpu-weight-bin-filename=weight.bin",
                     "--assign-neuron-address",
+                    "--tpu-neuron-memory-reuse",
                     "--tpu-neuron-address-align=16",
                     "--tpu-neuron-map-filename=neuron_map.csv",
                     mlirfile,
@@ -178,81 +118,27 @@ def mlir_gen_cvimodel(mlirfile, cvi_module):
     if ret.returncode != 0:
         return ret.returncode
 
-    convert_func_to_memref = "convert_func_to_memref_{}".format(mlirfile)
+    int8_addr_func = "int8_addr_func_{}".format(mlirfile)
 
     ret = subprocess.run(["mlir-opt",
-                    "--convert-func-to-memref",
+                    "--divide-ops-to-func",
                     int8_addr,
-                    "-o", convert_func_to_memref
+                    "-o", int8_addr_func
                     ], **std_output_flag)
-    checkReturnValue(ret, "mlir-opt, convert_func_to_memref")
+    checkReturnValue(ret, "mlir-opt, int8_addr_func")
     if ret.returncode != 0:
         return ret.returncode
-
-
-    convert_tg_op_to_memref = "convert_tg_op_to_memref_{}".format(mlirfile)
-
-    ret = subprocess.run(["mlir-opt",
-                    "--convert-tg-op-to-memref",
-                    convert_func_to_memref,
-                    "-o", convert_tg_op_to_memref
-                    ], **std_output_flag)
-    checkReturnValue(ret, "mlir-opt, convert_tg_op_to_memref")
-    if ret.returncode != 0:
-        return ret.returncode
-
-    enable_reuse_global_memory = "enable_reuse_global_memory_{}".format(mlirfile)
-
-    ret = subprocess.run(["mlir-opt",
-                    "--enable-reuse-global-memory=true",
-                    "--assign-neuron-address-memref",
-                    "--tpu-neuron-address-align-memref=16",
-                    "--tpu-neuron-map-filename-memref=neuron_map_memopt.csv",
-                    convert_tg_op_to_memref,
-                    "-o", enable_reuse_global_memory
-                    ], **std_output_flag)
-    checkReturnValue(ret, "mlir-opt, enable_reuse_global_memory")
-
-    if ret.returncode != 0:
-        return ret.returncode
-
-    convert_tg_op_to_tensor = "convert_tg_op_to_tensor_{}".format(mlirfile)
-
-    ret = subprocess.run(["mlir-opt",
-                    "--convert-tg-op-to-tensor",
-                    enable_reuse_global_memory,
-                    "-o", convert_tg_op_to_tensor
-                    ], **std_output_flag)
-    checkReturnValue(ret, "mlir-opt, enable_reuse_global_memory")
-
-    if ret.returncode != 0:
-        return ret.returncode
-
-    int8_tl_lw_memopt = "int8_tl_lw_memopt_{}".format(mlirfile)
-
-    ret = subprocess.run(["mlir-opt",
-                    "--convert-func-to-tensor",
-                    convert_tg_op_to_tensor,
-                    "-o", int8_tl_lw_memopt
-                    ], **std_output_flag)
-    checkReturnValue(ret, "mlir-opt, int8_tl_lw_memopt")
-
-    if ret.returncode != 0:
-        return ret.returncode
-
 
     ret = subprocess.run(["mlir-translate",
-                    "--mlir-to-cmdbuf",
-                    "--cbuf-set-chip=cv183x",
-                    int8_tl_lw_memopt,
-                    "-o", "cmdbuf.bin"
+                    "--mlir-to-cvimodel",
+                    "--weight-file=weight.bin",
+                    int8_addr_func,
+                    "-o", cvi_module
                     ], **std_output_flag)
     checkReturnValue(ret, "mlir-translate, mlir_gen_cmdbuf")
     if ret.returncode != 0:
         return ret.returncode
 
-    model_builder = builder("weight.bin", ["cmdbuf.bin"], None, None, int8_tl_lw_memopt, False)
-    model_builder.build(cvi_module)
     return 0
 
 
