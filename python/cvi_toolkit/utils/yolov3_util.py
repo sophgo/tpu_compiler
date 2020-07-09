@@ -204,12 +204,16 @@ def _postprocess_v2(features, image_shape, net_input_dims, obj_threshold, nms_th
     nms_predictions = _non_maximum_suppression(correct_predictions, nms_threshold)
     return nms_predictions
 
-def _postprocess_v3(features, image_shape, net_input_dims, obj_threshold, nms_threshold):
+def _postprocess_v3(features, image_shape, net_input_dims, obj_threshold, nms_threshold, tiny=False):
     total_predictions = []
     yolov3_num_of_class = 80
-    yolov3_anchors = [[116, 90, 156, 198, 373, 326],
-                      [30, 61, 62, 45, 59, 119],
-                      [10, 13, 16, 30, 33, 23]]
+    if not tiny:
+        yolov3_anchors = [[116,90, 156,198, 373,326],
+                        [30,61, 62,45, 59,119],
+                        [10,13, 16,30, 33,23]]
+    else:
+        yolov3_anchors = [[81,82,  135,169,  344,319],
+                        [10,14,  23,27,  37,58]]
     for i, feature in enumerate(features):
         threshold_predictions = _process_feats_v3(feature, net_input_dims, yolov3_anchors[i],
                                                yolov3_num_of_class, obj_threshold)
@@ -238,6 +242,12 @@ def _batched_feature_generator_v3(batched_features, batch=1):
     for i in range(batch):
         yield [layer82_conv[i], layer94_conv[i], layer106_conv[i]]
 
+def _batched_feature_generator_v3_tiny(batched_features, batch=1):
+    layer16_conv = batched_features['layer16-conv']
+    layer23_conv = batched_features['layer23-conv']
+
+    for i in range(batch):
+        yield [layer16_conv[i], layer23_conv[i]]
 
 def preprocess(bgr_img, net_input_dims, do_preprocess=True):
     yolo_w = net_input_dims[1]
@@ -291,6 +301,24 @@ def postprocess_v3(batched_features, image_shape, net_input_dims,
     for feature in _batched_feature_generator_v3(batched_features, batch):
         pred = _postprocess_v3(feature, image_shape, net_input_dims,
                             obj_threshold, nms_threshold)
+
+        if not pred:
+            batch_out[i] = []
+        else:
+            batch_out[i] = pred
+
+        i += 1
+
+    return batch_out
+
+def postprocess_v3_tiny(batched_features, image_shape, net_input_dims,
+                obj_threshold, nms_threshold, batch=1):
+    i = 0
+    batch_out = {}
+
+    for feature in _batched_feature_generator_v3_tiny(batched_features, batch):
+        pred = _postprocess_v3(feature, image_shape, net_input_dims,
+                            obj_threshold, nms_threshold, True)
 
         if not pred:
             batch_out[i] = []

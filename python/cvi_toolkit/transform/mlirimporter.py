@@ -945,6 +945,7 @@ class MLIRImporter(object):
         checkKey(kargs, 'nms_threshold')
         checkKey(kargs, 'obj_threshold')
         checkKey(kargs, 'keep_topk')
+        checkKey(kargs, 'tiny')
 
         name_attr=self.module.stringAttr(op_name)
         param = {
@@ -952,7 +953,8 @@ class MLIRImporter(object):
             'net_input_w': self.module.integerAttr(self.i32Type, kargs['net_input_w']),
             'nms_threshold': self.module.floatAttr(kargs['nms_threshold']),
             'obj_threshold': self.module.floatAttr(kargs['obj_threshold']),
-            'keep_topk': self.module.integerAttr(self.i32Type, kargs['keep_topk'])
+            'keep_topk': self.module.integerAttr(self.i32Type, kargs['keep_topk']),
+            'tiny': self.module.boolAttr(kargs['tiny'])
         }
         return self.buildOp(TPU_OpType.YoloDetection.value, inputOperands, [
             tensor_output_type], name=name_attr, **param)

@@ -1951,6 +1951,7 @@ def TPU_YoloDetectionOp : TPU_Op<"yolo_detection",
     F32Attr:$nms_threshold,
     F32Attr:$obj_threshold,
     I32Attr:$keep_topk,
+    BoolAttr:$tiny,
     StrAttr:$name,
     OptionalAttr<NonNegativeI32Attr>:$layer_id,
     OptionalAttr<StrAttr>:$chipname
