@@ -28,21 +28,21 @@ class LmemManager {
 
  private:
   NetGraph* net_graph_;
-  vector<list<LMEM_BLOCK>> block_record_;
-  list<LMEM_BLOCK> block_list;
+  std::vector<std::list<LMEM_BLOCK>> block_record_;
+  std::list<LMEM_BLOCK> block_list;
 
   bool is_tensor_resident_in_lmem(int tid);
 
-  void recycle_lmem(list<LMEM_BLOCK>& block_list, net_timestep* time_step, int cur_step,
+  void recycle_lmem(std::list<LMEM_BLOCK>& block_list, net_timestep* time_step, int cur_step,
                     bool one_shoot);
 
-  bool alloc_block(list<LMEM_BLOCK>& block_list, int tid, int step_idx);
+  bool alloc_block(std::list<LMEM_BLOCK>& block_list, int tid, int step_idx);
 
-  void merge_free_blocks(list<LMEM_BLOCK>& block_list);
+  void merge_free_blocks(std::list<LMEM_BLOCK>& block_list);
 
   bool figure_out_tensors_real_addr(net_timestep* time_step);
 
-  void show_blocks(list<LMEM_BLOCK>& block_list);
+  void show_blocks(std::list<LMEM_BLOCK>& block_list);
 };
 
 }

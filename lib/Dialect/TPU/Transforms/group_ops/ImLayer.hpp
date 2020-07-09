@@ -31,8 +31,6 @@
 
 namespace mlir {
 
-using namespace std;
-
 typedef enum {
   IR_CONVOLUTION = 0,
   IR_DECONVOLUTION,
@@ -70,7 +68,7 @@ class ImLayer {
 
   IR_TYPE type() const { return type_; }
 
-  const string &name() const { return name_; }
+  const std::string &name() const { return name_; }
 
   Operation *op() const { return op_; }
 
@@ -78,41 +76,40 @@ class ImLayer {
   int id() const { return id_; }
 
   void set_type(IR_TYPE type) { type_ = type; }
-  const string &type_name() const { return type_name_; }
+  const std::string &type_name() const { return type_name_; }
 
-  void add_in_tensor(int n, int c, int h, int w, int unit_size, string& storage, const string &name,
-                     tensor_type_t type, gaddr_t gaddr = 0xFFFFFFFF);
+  void add_in_tensor(int n, int c, int h, int w, int unit_size, std::string& storage, const std::string &name,
+                     tensor_type_t type);
 
-  void add_in_tensor(ShapedType* shape, const string &name, tensor_type_t type,
-                     gaddr_t gaddr = 0xFFFFFFFF);
+  void add_in_tensor(ShapedType* shape, const std::string &name, tensor_type_t type);
 
-  void add_in_tensor(Value * op, tensor_type_t type, gaddr_t gddr = 0xFFFFFFFF);
+  void add_in_tensor(Value * op, tensor_type_t type);
 
-  void add_out_tensor(Value * op, tensor_type_t type, gaddr_t gaddr = 0xFFFFFFFF);
+  void add_out_tensor(Value * op, tensor_type_t type);
 
-  void add_imm_tensor(const shared_ptr<Tensor> associcate, int count, const string &name);
+  void add_imm_tensor(const std::shared_ptr<Tensor> associcate, int count, const std::string &name);
   // // clear temp_data if has.
   virtual void clear_temp_data() {}
 
-  static shared_ptr<ImLayer> create(Operation *op);
-  static void register_it(shared_ptr<ImLayer> &layer);
+  static std::shared_ptr<ImLayer> create(Operation *op);
+  static void register_it(std::shared_ptr<ImLayer> &layer);
   static void unregister_all();
-  static vector<shared_ptr<ImLayer>> layers;
+  static std::vector<std::shared_ptr<ImLayer>> layers;
 
 
   bool is_inplace_layer;
   bool do_relu;
-  vector<shared_ptr<Tensor>> in_tensors;
-  vector<shared_ptr<Tensor>> out_tensors;
-  vector<shared_ptr<Tensor>> imm_tensors;
+  std::vector<std::shared_ptr<Tensor>> in_tensors;
+  std::vector<std::shared_ptr<Tensor>> out_tensors;
+  std::vector<std::shared_ptr<Tensor>> imm_tensors;
   bool is_tg_layer;
   bool fusible;  // if could fuse to other IRs.
 
  protected:
   int id_;
   IR_TYPE type_;
-  string type_name_;
-  string name_;
+  std::string type_name_;
+  std::string name_;
   Operation *op_;
 };
 
@@ -170,7 +167,7 @@ class ImBroadcastMul : public ImLayer {
 class ImConcat : public ImLayer {
  public:
   explicit ImConcat(Operation *op);
-  set<int> ignored_bottoms;
+  std::set<int> ignored_bottoms;
 
   void clear_temp_data() override { ignored_bottoms.clear(); }
 };

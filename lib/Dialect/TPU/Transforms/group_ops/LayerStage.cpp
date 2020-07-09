@@ -27,7 +27,7 @@ net_timestep::net_timestep(const net_timestep& src) {
 
 net_timestep::~net_timestep() = default;
 
-void net_timestep::add_layer_tensor_step(int layer_step, const vector<TENSOR_STEP>& tensor_step) {
+void net_timestep::add_layer_tensor_step(int layer_step, const std::vector<TENSOR_STEP>& tensor_step) {
   layer_to_execute.push_back(layer_step);
   tensor_load_store.push_back(tensor_step);
   timestep_num++;
@@ -37,7 +37,7 @@ int net_timestep::get_timestep_num() { return timestep_num; }
 
 int net_timestep::get_layer(int time_step) { return layer_to_execute[time_step]; }
 
-const vector<TENSOR_STEP>& net_timestep::get_tensors(int time_step) {
+const std::vector<TENSOR_STEP>& net_timestep::get_tensors(int time_step) {
   return tensor_load_store[time_step];
 }
 
@@ -59,7 +59,7 @@ void net_timestep::add_mem_buffer(int start_step, int end_step, int id, bool imm
 void net_timestep::generate_tsm_buffer(bool one_loop) {
   tsm_buffer.clear();
   for (int i = 0; i < timestep_num; ++i) {
-    for (u32 j = 0; j < tensor_load_store[i].size(); ++j) {
+    for (uint32_t j = 0; j < tensor_load_store[i].size(); ++j) {
       int tid = tensor_load_store[i][j].first;
       auto ldst_type = tensor_load_store[i][j].second;
 
@@ -78,7 +78,7 @@ void net_timestep::generate_tsm_buffer(bool one_loop) {
         // look up mem buffer
         assert(tsm_buffer.find(tid) != tsm_buffer.end());
         if (tsm_buffer.find(tid) == tsm_buffer.end()) {
-          cout << "ERROR: tid not found in tsm_buffer\n";
+          llvm::errs() << "ERROR: tid not found in tsm_buffer\n";
           exit(-1);
         }
         tensor_mem_t& mem_param = tsm_buffer[tid];
@@ -89,7 +89,7 @@ void net_timestep::generate_tsm_buffer(bool one_loop) {
         } else {
           // Weight
           if (ldst_type == TIMESTEP_TSM_TO_DDR) {
-            cout << "ERROR: move weight back to DDR\n";
+            llvm::errs() << "ERROR: move weight back to DDR\n";
             exit(-1);
           }
           // TIMESTEP_TSM_TO_LMEM
@@ -109,7 +109,7 @@ void net_timestep::generate_tsm_buffer(bool one_loop) {
 // and save this information in mem_buf.
 void net_timestep::generate_mem_buffer() {
   int layer_id, tensor_id;
-  map<mem_buffer_key_t, mem_buffer_value_t>::iterator iter;
+  std::map<mem_buffer_key_t, mem_buffer_value_t>::iterator iter;
   int begin_timestep;
 
   mem_buffer.clear();
@@ -128,7 +128,7 @@ void net_timestep::generate_mem_buffer() {
           }
         }
         if (begin_timestep == -1) {
-          cout << "ERROR: cannot find the producer that is consumed by layer, tensor_id "
+          llvm::errs() << "ERROR: cannot find the producer that is consumed by layer, tensor_id "
                << tensor->id() << "\n";
           assert(0);
         }
@@ -148,7 +148,7 @@ void net_timestep::generate_mem_buffer() {
 
     // process tensor timestep
     if (!tensor_load_store[i].empty()) {
-      for (u32 j = 0; j < tensor_load_store[i].size(); ++j) {
+      for (uint32_t j = 0; j < tensor_load_store[i].size(); ++j) {
         tensor_id = tensor_load_store[i][j].first;
 
         auto ldst_type = tensor_load_store[i][j].second;
@@ -164,7 +164,7 @@ void net_timestep::generate_mem_buffer() {
           }
 
           if (begin_timestep == -1) {
-            cout << "ERROR: cannot find the producer that is consumed by storing, tensor_id "
+            llvm::errs() << "ERROR: cannot find the producer that is consumed by storing, tensor_id "
                  << tensor_id << "\n";
             assert(0);
           }
@@ -178,9 +178,9 @@ void net_timestep::generate_mem_buffer() {
   for (iter = mem_buffer.begin(); iter != mem_buffer.end(); ++iter) {
     if ((iter->second).end_timestep == -1) {
       if ((iter->first).is_layer_imm) {
-        cout << "ERROR: layer imm " << (iter->first).id_num << " has no end timestep." << "\n";
+        llvm::errs() << "ERROR: layer imm " << (iter->first).id_num << " has no end timestep." << "\n";
       } else {
-        cout << "ERROR: tensor " << (iter->first).id_num << " has no end timestep." << "\n";
+        llvm::errs() << "ERROR: tensor " << (iter->first).id_num << " has no end timestep." << "\n";
       }
       assert(0);
     }
@@ -197,7 +197,7 @@ void net_timestep::update_mem_buffer_size() {
 
   int tensor_local_mem_size;
 
-  map<mem_buffer_key_t, mem_buffer_value_t>::iterator iter;
+  std::map<mem_buffer_key_t, mem_buffer_value_t>::iterator iter;
 
   for (iter = mem_buffer.begin(); iter != mem_buffer.end(); ++iter) {
     int tensor_id = (iter->first).id_num;
@@ -206,8 +206,8 @@ void net_timestep::update_mem_buffer_size() {
 
     // Disable temporarily. Reopen if needed.
     // // handled fc;
-    // u32 updated_fc_tensor_local_mem_size = 0;
-    // vector<int> layer_ids = net_graph_->get_tensor_to_layer(tensor_id);
+    // uint32_t updated_fc_tensor_local_mem_size = 0;
+    // std::vector<int> layer_ids = net_graph_->get_tensor_to_layer(tensor_id);
     // for (int i = 0; i < layer_ids.size(); i++) {
     //   const ImLayer* layer = net_graph_->get_layer_by_id(layer_ids[i]);
     //   if (layer->type() == IR_INNERPRODUCT) {
@@ -219,15 +219,12 @@ void net_timestep::update_mem_buffer_size() {
     //   }
     // }
 
-    // DEBUG_BMNET(std::cout << tensor->name() << " local mem size: "
-    //                       << tensor_local_mem_size << ". fc size: "
-    //                       << updated_fc_tensor_local_mem_size << "\n";);
     // if (tensor_local_mem_size < updated_fc_tensor_local_mem_size) {
     //   tensor_local_mem_size = updated_fc_tensor_local_mem_size;
     // }
 
     if (tensor_local_mem_size < 0) {
-      cout << "wrong local mem size " << tensor_local_mem_size << "\n";
+      llvm::errs() << "wrong local mem size " << tensor_local_mem_size << "\n";
       assert(0);
     }
 
@@ -236,46 +233,46 @@ void net_timestep::update_mem_buffer_size() {
 }
 
 const mem_buffer_value_t* net_timestep::get_mem_buffer_value(const mem_buffer_key_t* key) {
-  map<mem_buffer_key_t, mem_buffer_value_t>::iterator iter;
+  std::map<mem_buffer_key_t, mem_buffer_value_t>::iterator iter;
   iter = mem_buffer.find(*key);
   if (iter != mem_buffer.end()) {
     return &(iter->second);
   } else {
-    cout << "No key " << key->id_num << " in mem buffer,"
+    llvm::errs() << "No key " << key->id_num << " in mem buffer,"
          << "start step id " << key->start_timestep << ", imm: " << key->is_layer_imm << "\n";
     assert(0);
   }
 }
 
 int net_timestep::get_mem_buffer_size(const mem_buffer_key_t* key) {
-  map<mem_buffer_key_t, mem_buffer_value_t>::iterator iter;
+  std::map<mem_buffer_key_t, mem_buffer_value_t>::iterator iter;
   iter = mem_buffer.find(*key);
   if (iter != mem_buffer.end()) {
     return (iter->second).local_mem_size;
   } else {
-    cout << "No key in mem buffer" << "\n";
+    llvm::errs() << "No key in mem buffer" << "\n";
     assert(0);
   }
 }
 
 int net_timestep::get_mem_buffer_offset(const mem_buffer_key_t* key) {
-  map<mem_buffer_key_t, mem_buffer_value_t>::iterator iter;
+  std::map<mem_buffer_key_t, mem_buffer_value_t>::iterator iter;
   iter = mem_buffer.find(*key);
   if (iter != mem_buffer.end()) {
     return (iter->second).local_mem_offset;
   } else {
-    cout << "No key in mem buffer" << "\n";
+    llvm::errs() << "No key in mem buffer" << "\n";
     assert(0);
   }
 }
 
 int net_timestep::get_mem_buffer_end_timestep(const mem_buffer_key_t* key) {
-  map<mem_buffer_key_t, mem_buffer_value_t>::iterator iter;
+  std::map<mem_buffer_key_t, mem_buffer_value_t>::iterator iter;
   iter = mem_buffer.find(*key);
   if (iter != mem_buffer.end()) {
     return (iter->second).end_timestep;
   } else {
-    cout << "No key in mem buffer" << "\n";
+    llvm::errs() << "No key in mem buffer" << "\n";
     assert(0);
   }
 }
@@ -285,18 +282,18 @@ void net_timestep::set_tsm_offset(int tensor_id, uint64_t offset) {
 }
 
 void net_timestep::set_local_mem_offset(const mem_buffer_key_t* key, int local_mem_offset) {
-  map<mem_buffer_key_t, mem_buffer_value_t>::iterator iter;
+  std::map<mem_buffer_key_t, mem_buffer_value_t>::iterator iter;
   iter = mem_buffer.find(*key);
   if (iter != mem_buffer.end()) {
     (iter->second).local_mem_offset = local_mem_offset;
   } else {
-    cout << "No key in mem buffer" << "\n";
+    llvm::errs() << "No key in mem buffer" << "\n";
     assert(0);
   }
 }
 
 void net_timestep::show_timestep() {
-    show_timestep(cout);
+    show_timestep(std::cout);
 }
 
 void net_timestep::show_timestep(std::ostream& pOs) {
@@ -319,7 +316,7 @@ void net_timestep::show_timestep(std::ostream& pOs) {
       }
     }
 
-    for (u32 i = 0; i < tensor_load_store[time_idx].size(); ++i) {
+    for (uint32_t i = 0; i < tensor_load_store[time_idx].size(); ++i) {
       if (tensor_load_store[time_idx][i].second == TIMESTEP_LOAD) {
         pOs << "ddr-lmem tensor_id ";
       } else if (tensor_load_store[time_idx][i].second == TIMESTEP_DDR_TO_TSM) {
@@ -337,7 +334,7 @@ void net_timestep::show_timestep(std::ostream& pOs) {
     }
     pOs << "\n";
 
-    map<mem_buffer_key_t, mem_buffer_value_t>::iterator iter;
+    std::map<mem_buffer_key_t, mem_buffer_value_t>::iterator iter;
     mem_buffer_key_t key;
     mem_buffer_value_t value;
 
@@ -358,9 +355,9 @@ void net_timestep::show_timestep(std::ostream& pOs) {
   }
 }
 
-void net_timestep::show_mem_buffer() { show_mem_buffer(cout); }
+void net_timestep::show_mem_buffer() { show_mem_buffer(std::cout); }
 
-void net_timestep::show_tsm_buffer() { show_tsm_buffer(cout); }
+void net_timestep::show_tsm_buffer() { show_tsm_buffer(std::cout); }
 
 void net_timestep::show_tsm_buffer(std::ostream& pOs) {
   pOs << "******show tsm buffer******" << "\n";
@@ -374,7 +371,7 @@ void net_timestep::show_tsm_buffer(std::ostream& pOs) {
 
 void net_timestep::show_mem_buffer(std::ostream& pOs) {
   pOs << "******show mem buffer******" << "\n";
-  map<mem_buffer_key_t, mem_buffer_value_t>::iterator iter;
+  std::map<mem_buffer_key_t, mem_buffer_value_t>::iterator iter;
   mem_buffer_key_t key;
   mem_buffer_value_t value;
   int index = 0;
@@ -399,7 +396,7 @@ void net_timestep::generate_hold_coeff_tensor() {
   hold_coeff_tensor.clear();
 
   for (int i = 0; i < timestep_num; ++i) {
-    for (u32 j = 0; j < tensor_load_store[i].size(); ++j) {
+    for (uint32_t j = 0; j < tensor_load_store[i].size(); ++j) {
       int tensor_id = tensor_load_store[i][j].first;
       tensor_type_t tensor_type = net_graph_->get_tensor_type(tensor_id);
 
@@ -420,7 +417,7 @@ void net_timestep::generate_hold_coeff_tensor() {
 }
 
 bool net_timestep::is_tensor_hold_in_memory(int tensor_id) {
-  map<int, int>::iterator iter = hold_coeff_tensor.find(tensor_id);
+  std::map<int, int>::iterator iter = hold_coeff_tensor.find(tensor_id);
   if (iter != hold_coeff_tensor.end()) {
     return true;
   } else {
@@ -441,7 +438,7 @@ bool net_timestep::is_tensor_weight(tensor_type_t tensor_type) {
 int net_timestep::get_timestep_coeff_memory_req(int time_step) {
   int total_memory_req = 0;
   int start_timestep, end_timestep;
-  map<mem_buffer_key_t, mem_buffer_value_t>::iterator iter;
+  std::map<mem_buffer_key_t, mem_buffer_value_t>::iterator iter;
 
   for (iter = mem_buffer.begin(); iter != mem_buffer.end(); ++iter) {
     if (!(iter->first).is_layer_imm &&
@@ -463,7 +460,7 @@ int net_timestep::get_timestep_coeff_memory_req(int time_step) {
 
 int net_timestep::get_timestep_memory_req(int time_step) {
   int total_memory_req = 0;
-  map<mem_buffer_key_t, mem_buffer_value_t>::iterator iter;
+  std::map<mem_buffer_key_t, mem_buffer_value_t>::iterator iter;
 
   for (iter = mem_buffer.begin(); iter != mem_buffer.end(); ++iter) {
     int start_timestep = (iter->first).start_timestep;
@@ -486,7 +483,7 @@ int net_timestep::get_timestep_memory_req(int time_step) {
 // by n and h. The slicing strategy is based on the size of local memory
 // used by each step.
 bmerr_t net_timestep::find_best_split(Group* cluster, int batch_num,
-                                      pair<int, int>& nsecs_and_hsecs) {
+                                      std::pair<int, int>& nsecs_and_hsecs) {
   nsecs_and_hsecs.first = batch_num;
   nsecs_and_hsecs.second = 1;
 
@@ -538,7 +535,7 @@ bmerr_t net_timestep::find_best_split(Group* cluster, int batch_num,
 }
 
 void net_timestep::update_tensor_timestep(int time_idx,
-                                          const vector<TENSOR_STEP>& new_tensor_timestep) {
+                                          const std::vector<TENSOR_STEP>& new_tensor_timestep) {
   tensor_load_store[time_idx].clear();
   tensor_load_store[time_idx] = new_tensor_timestep;
 }

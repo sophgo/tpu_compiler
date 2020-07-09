@@ -151,6 +151,11 @@ struct TgSliceAddressPattern : public RewritePattern {
     size_t offset_bytes = offset * isz * dsize;
     auto curPos = getPreviousOpAddress(castOp);
     setOpAddress(op, curPos + offset_bytes);
+
+    auto opd = op->getOperand(0)->getDefiningOp();
+    if (opd->getAttr("buffer_reused")) {
+      castOp.setAttr("buffer_reused", rewriter.getBoolAttr(true));
+    }
     return matchSuccess();
   }
 };

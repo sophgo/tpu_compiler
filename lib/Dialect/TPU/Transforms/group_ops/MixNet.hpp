@@ -18,28 +18,28 @@ public:
     mix_net_ = net;
     layer_id_ = layer_id;
   }
-  void set_name(string name) { op_name_ = name; };
-  string name() { return op_name_; }
+  void set_name(std::string name) { op_name_ = name; };
+  std::string name() { return op_name_; }
   void set_param();
-  void set_type(string type) { type_ = type; }
-  string bottom_name(int idx) {
+  void set_type(std::string type) { type_ = type; }
+  std::string bottom_name(int idx) {
     assert(idx < operands_.size());
     return operands_[idx];
   }
-  string top_name(int idx) {
+  std::string top_name(int idx) {
     assert(idx < results_.size());
     return results_[idx];
   }
 
-  void add_bottom_name(string bottom_name);
-  void add_top_name(string top_name);
+  void add_bottom_name(std::string bottom_name);
+  void add_top_name(std::string top_name);
   int get_layer_id() { return layer_id_; }
 
 private:
-  vector<string> operands_;
-  vector<string> results_;
-  string op_name_;
-  string type_;
+  std::vector<std::string> operands_;
+  std::vector<std::string> results_;
+  std::string op_name_;
+  std::string type_;
   int layer_id_;
   MixNet * mix_net_;
 };
@@ -48,8 +48,8 @@ class MixNet {
  public:
   explicit MixNet(NetGraph* net_graph, FuncOp * fn, MLIRContext * context);
 
-  Value* get_op_from_name(string name);
-  void add_opd_to_list(string op_name, Value * opd, bool);
+  Value* get_op_from_name(std::string name);
+  void add_opd_to_list(std::string op_name, Value * opd, bool);
   void set_net_in_tensor(int tensor_id);
   void set_net_out_tensor(int tensor_id);
   void add_group_start_ops(int group_idx, Group* group,
@@ -73,117 +73,117 @@ class MixNet {
 
  private:
   void _add_tl_convolution_op(MixOp* mix_op,
-                              const vector<int>& in_tensors,
-                              const vector<int>& out_tensors,
+                              const std::vector<int>& in_tensors,
+                              const std::vector<int>& out_tensors,
                               net_timestep* time_step,
                               int timestep_idx, bool is_h_split);
 
   void _add_tl_deconvolution_op(MixOp* mix_op,
-                                const vector<int>& in_tensors,
-                                const vector<int>& out_tensors,
+                                const std::vector<int>& in_tensors,
+                                const std::vector<int>& out_tensors,
                                 net_timestep* time_step,
                                 int timestep_idx, bool is_h_split);
 
   void _add_tl_pooling_op(MixOp * mix_op,
-                          const vector<int>& in_tensors,
-                          const vector<int>& out_tensors,
+                          const std::vector<int>& in_tensors,
+                          const std::vector<int>& out_tensors,
                           net_timestep* time_step,
                           int timestep_idx, bool is_h_split);
 
   void _add_tl_eltwise_op(MixOp* mix_op,
-                          const vector<int>& in_tensors,
-                          const vector<int>& out_tensors,
+                          const std::vector<int>& in_tensors,
+                          const std::vector<int>& out_tensors,
                           net_timestep* time_step,
                           int timestep_idx, bool is_h_split);
 
   void _add_tl_eltwise_add_op(MixOp* mix_op,
-                              const vector<int>& in_tensors,
-                              const vector<int>& out_tensors,
+                              const std::vector<int>& in_tensors,
+                              const std::vector<int>& out_tensors,
                               net_timestep* time_step,
                               int timestep_idx, bool is_h_split);
 
   void _add_tl_eltwise_mul_op(MixOp* mix_op,
-                              const vector<int>& in_tensors,
-                              const vector<int>& out_tensors,
+                              const std::vector<int>& in_tensors,
+                              const std::vector<int>& out_tensors,
                               net_timestep* time_step,
                               int timestep_idx, bool is_h_split);
 
   void _add_tl_lrn_op(MixOp * mix_op,
-                      const vector<int>& in_tensors,
-                      const vector<int>& out_tensors,
+                      const std::vector<int>& in_tensors,
+                      const std::vector<int>& out_tensors,
                       net_timestep* time_step,
                       int timestep_idx, bool is_h_split);
 
   void _add_tl_activation_op(MixOp * mix_op,
-                             const vector<int>& in_tensors,
-                             const vector<int>& out_tensors,
+                             const std::vector<int>& in_tensors,
+                             const std::vector<int>& out_tensors,
                              net_timestep* time_step,
                              int timestep_idx, bool is_h_split);
 
   void _add_tl_quant_op(MixOp * mix_op,
-                             const vector<int>& in_tensors,
-                             const vector<int>& out_tensors,
+                             const std::vector<int>& in_tensors,
+                             const std::vector<int>& out_tensors,
                              net_timestep* time_step,
                              int timestep_idx, bool is_h_split);
 
   void _add_tl_broadcast_mul_op(MixOp * mix_op,
-                                const vector<int>& in_tensors,
-                                const vector<int>& out_tensors,
+                                const std::vector<int>& in_tensors,
+                                const std::vector<int>& out_tensors,
                                 net_timestep* time_step,
                                 int timestep_idx, bool is_h_split);
 
   void _add_tl_upsample_op(MixOp * mix_op,
-                           const vector<int>& in_tensors,
-                           const vector<int>& out_tensors,
+                           const std::vector<int>& in_tensors,
+                           const std::vector<int>& out_tensors,
                            net_timestep* time_step,
                            int timestep_idx,
                            bool is_h_split);
 
   void _add_tl_leaky_relu_op(MixOp * mix_op,
-                            const vector<int>& in_tensors,
-                            const vector<int>& out_tensors,
+                            const std::vector<int>& in_tensors,
+                            const std::vector<int>& out_tensors,
                             net_timestep* time_step,
                             int timestep_idx,
                             bool is_h_split);
 
   void _add_tl_sigmoid_op(MixOp * mix_op,
-                          const vector<int>& in_tensors,
-                          const vector<int>& out_tensors,
+                          const std::vector<int>& in_tensors,
+                          const std::vector<int>& out_tensors,
                           net_timestep* time_step,
                           int timestep_idx,
                           bool is_h_split);
 
   void _add_tl_prelu_op(MixOp * mix_op,
-                        const vector<int>& in_tensors,
-                        const vector<int>& out_tensors,
+                        const std::vector<int>& in_tensors,
+                        const std::vector<int>& out_tensors,
                         net_timestep* time_step,
                         int timestep_idx,
                         bool is_h_split);
 
   void _add_tl_concat_op(MixOp * mix_op,
-                         const vector<int>& in_tensors,
-                         const vector<int>& out_tensors,
+                         const std::vector<int>& in_tensors,
+                         const std::vector<int>& out_tensors,
                          net_timestep* time_step,
                          int timestep_idx,
                          bool is_h_split);
 
   void _add_tl_pad_op(MixOp * mix_op,
-                      const vector<int>& in_tensors,
-                      const vector<int>& out_tensors,
+                      const std::vector<int>& in_tensors,
+                      const std::vector<int>& out_tensors,
                       net_timestep* time_step,
                       int timestep_idx,
                       bool is_h_split);
 
   void _add_tl_crop_op(MixOp * mix_op,
-                      const vector<int>& in_tensors,
-                      const vector<int>& out_tensors,
+                      const std::vector<int>& in_tensors,
+                      const std::vector<int>& out_tensors,
                       net_timestep* time_step,
                       int timestep_idx,
                       bool is_h_split);
 
   void _add_tl_relu_op(MixOp * mix_op,
-                       const vector<int>& in_tensors,
-                       const vector<int>& out_tensors,
+                       const std::vector<int>& in_tensors,
+                       const std::vector<int>& out_tensors,
                        net_timestep* time_step,
                        int timestep_idx,
                        bool is_h_split);
@@ -195,12 +195,12 @@ class MixNet {
                      net_timestep* time_step, int timestep_idx);
 
   NetGraph* net_graph_;
-  vector<int> net_in_tensors_;
-  vector<int> net_out_tensors_;
+  std::vector<int> net_in_tensors_;
+  std::vector<int> net_out_tensors_;
   FuncOp * fn_;
   MLIRContext * context_;
-  map<string, Value *> name_op_map_;
-  vector<Operation *> parallel_list_;
+  std::map<std::string, Value *> name_op_map_;
+  std::vector<Operation *> parallel_list_;
   Operation * start_op_;
   Operation * weightFileOp_;
 };

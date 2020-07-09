@@ -12,6 +12,8 @@
 #include <set>
 #include <string>
 #include <vector>
+#include <sstream>
+#include <fstream>
 #include "mlir/Dialect/TPU/TPUDialect.h"
 #include "mlir/Dialect/TPU/Passes.h"
 #include "mlir/Dialect/TPU/TPUOperationSupport.h"
@@ -29,25 +31,9 @@
 #include "llvm/Support/raw_ostream.h"
 #include <llvm/Support/Debug.h>
 #include "mlir/Dialect/TPU/MachineInfo.h"
-#include <sstream>
-#include <fstream>
 #include <math.h>
-namespace mlir {
-using std::cout;
-using std::endl;
-using std::list;
-using std::make_pair;
-using std::make_shared;
-using std::map;
-using std::move;
-using std::pair;
-using std::set;
-using std::shared_ptr;
-using std::string;
-using std::vector;
 
-#define u64 uint64_t
-#define u32 uint32_t
+namespace mlir {
 
 #define gaddr_t uint64_t
 #define laddr_t uint32_t
@@ -65,7 +51,6 @@ static inline int ceiling_func(int numerator, int denominator)
 #define __ALIGN_MASK(x,mask)    (((x)+(mask))&~(mask))
 #define ALIGN(x,a)              __ALIGN_MASK(x,(__typeof__(x))(a)-1)
 
-#define DATA_TYPE_SIZE 1
 #define bmerr_t int
 #define BM_SUCCESS 0               // The operation was successful
 #define BM_ERR_AGAIN 1             // Not ready yet
@@ -78,20 +63,6 @@ static inline int ceiling_func(int numerator, int denominator)
 #define BM_ERR_BUSY 8              // Busy
 #define BM_ERR_NOT_SUPPORTED 9     // Not supported yet
 
-
-#define GLOBAL_MEM_SIZE  0x100000000
-
-
-typedef enum {
-  S2L = 0,
-  L2S = 1,
-  S2S = 2,
-  L2L = 3,
-  S2TSM = 4,
-  L2TSM = 5,
-  TSM2S = 6,
-  TSM2L = 7
-}TransportDirection;
 
 typedef enum  {
   NEURON = 0,
@@ -200,17 +171,15 @@ static inline uint64_t id(Operation * op) {
   return layer_id;
 }
 
-static inline vector<int64_t> input_shape(Operation *op, int idx) {
-  vector<int64_t> shape = op->getOperand(idx)->getType().cast<TensorType>().getShape();
+static inline std::vector<int64_t> input_shape(Operation *op, int idx) {
+  std::vector<int64_t> shape = op->getOperand(idx)->getType().cast<TensorType>().getShape();
   return shape;
 }
 
-static inline vector<int64_t> output_shape(Operation *op, int idx) {
-  vector<int64_t> shape = op->getResult(idx)->getType().cast<TensorType>().getShape();
+static inline std::vector<int64_t> output_shape(Operation *op, int idx) {
+  std::vector<int64_t> shape = op->getResult(idx)->getType().cast<TensorType>().getShape();
   return shape;
 }
-
-
 
 }
 #endif

@@ -29,16 +29,16 @@ typedef enum ld_st_type {
   TIMESTEP_TSM_TO_DDR = 5,
 } TIMESTEP_LD_ST;
 
-typedef pair<int, TIMESTEP_LD_ST> TENSOR_STEP;
+typedef std::pair<int, TIMESTEP_LD_ST> TENSOR_STEP;
 
 class ImmTensor;
 
 class Tensor {
  public:
-  Tensor(int id, int n, int c, int h, int w, int unit_size, const string& name,
-         tensor_type_t type, uint64_t gaddr);
-  Tensor(int id, int n, int c, int h, int w, int unit_size, string &storage,
-         const string& name, tensor_type_t type,uint64_t gaddr);
+  Tensor(int id, int n, int c, int h, int w, int unit_size, const std::string& name,
+         tensor_type_t type);
+  Tensor(int id, int n, int c, int h, int w, int unit_size, std::string &storage,
+         const std::string& name, tensor_type_t type);
 
   int n() const { return dims_[0]; }
   int c() const { return dims_[1]; }
@@ -51,9 +51,9 @@ class Tensor {
 
   tensor_type_t type() const { return type_; }
 
-  const string& name() const { return name_; }
+  const std::string& name() const { return name_; }
 
-  const string& storage() { return storage_; }
+  const std::string& storage() { return storage_; }
 
   int id() const { return id_; }
 
@@ -79,14 +79,14 @@ class Tensor {
 
   void set_h_slice_skip_last() { this->h_slice_skip_last = true; }
 
-  static shared_ptr<Tensor> register_tensor(int n, int c, int h, int w, int unit_size, string& storage,
-                                            const string& name, tensor_type_t type, uint64_t gaddr);
+  static std::shared_ptr<Tensor> register_tensor(int n, int c, int h, int w, int unit_size, std::string& storage,
+                                            const std::string& name, tensor_type_t type);
 
-  static shared_ptr<Tensor> register_tensor(ShapedType *s_type, const string& name,
-                                            tensor_type_t type, uint64_t gaddr);
+  static std::shared_ptr<Tensor> register_tensor(ShapedType *s_type, const std::string& name,
+                                            tensor_type_t type);
 
-  static shared_ptr<Tensor> register_imm_tensor(const shared_ptr<Tensor> associate, int count,
-                                                const string& name);
+  static std::shared_ptr<Tensor> register_imm_tensor(const std::shared_ptr<Tensor> associate, int count,
+                                                const std::string& name);
 
   static void unregister_tensors() {
     map_id_to_tensor.clear();
@@ -94,7 +94,6 @@ class Tensor {
     max_tensor_id = 0;
   }
 
-  uint64_t gaddr;
   uint64_t tsm_addr;
   uint32_t laddr;
 
@@ -107,7 +106,7 @@ class Tensor {
   int h_loop_;
   int n_loop_;
   static int max_tensor_id;
-  static map<int, shared_ptr<Tensor>> map_id_to_tensor;
+  static std::map<int, std::shared_ptr<Tensor>> map_id_to_tensor;
   bool h_slice_skip_first;
   bool h_slice_skip_last;
 
@@ -116,15 +115,15 @@ class Tensor {
   int dims_[4];
   int unit_size_;
   tensor_type_t type_;
-  string name_;
-  string storage_;
-  static map<string, int> map_name_to_id_;
+  std::string name_;
+  std::string storage_;
+  static std::map<std::string, int> map_name_to_id_;
 };
 
 class ImmTensor : public Tensor {
  public:
-  ImmTensor(int id, shared_ptr<Tensor> associate, int count, const string& name)
-      : Tensor(id, 0, 0, 0, 0, 0, name, TENSOR_IMM, 0xFFFFFFFF),
+  ImmTensor(int id, std::shared_ptr<Tensor> associate, int count, const std::string& name)
+      : Tensor(id, 0, 0, 0, 0, 0, name, TENSOR_IMM),
         associate_(associate),
         count_(count) {
     dims_[0] = associate->n();
@@ -137,7 +136,7 @@ class ImmTensor : public Tensor {
   uint32_t lmem_size() override { return count_ * associate_.get()->lmem_size(); }
 
  private:
-  shared_ptr<Tensor> associate_;
+  std::shared_ptr<Tensor> associate_;
   int count_;
 };
 

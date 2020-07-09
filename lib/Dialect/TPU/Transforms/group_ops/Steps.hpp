@@ -13,7 +13,7 @@
 
 namespace mlir {
 
-using TensorStep = vector<int>;
+using TensorStep = std::vector<int>;
 
 class ClusterSteps {
  public:
@@ -47,17 +47,17 @@ class ClusterSteps {
 
   static bmerr_t balance_gdma_bdc_steps(NetGraph* net_graph, Group* cluster,
                                         net_timestep* time_step,
-                                        const pair<int, int>& nsecs_and_hsec);
+                                        const std::pair<int, int>& nsecs_and_hsec);
 
  private:
   NetGraph* net_graph_;
-  vector<int> layers_;
-  vector<TensorStep> loads_;
-  vector<TensorStep> stores_;
-  vector<TensorStep> tsm_to_lmem_;
-  vector<TensorStep> ddr_to_tsm_;
-  vector<TensorStep> lmem_to_tsm_;
-  vector<TensorStep> tsm_to_ddr_;
+  std::vector<int> layers_;
+  std::vector<TensorStep> loads_;
+  std::vector<TensorStep> stores_;
+  std::vector<TensorStep> tsm_to_lmem_;
+  std::vector<TensorStep> ddr_to_tsm_;
+  std::vector<TensorStep> lmem_to_tsm_;
+  std::vector<TensorStep> tsm_to_ddr_;
   int max_step_num_;
 };
 

@@ -3,10 +3,9 @@
 
 namespace mlir {
 
-Tensor::Tensor(int id, int n, int c, int h, int w, int unit_size, const string& name,
-               tensor_type_t type, gaddr_t gaddr)
-    : gaddr(gaddr),
-      laddr(0),
+Tensor::Tensor(int id, int n, int c, int h, int w, int unit_size, const std::string& name,
+               tensor_type_t type)
+    : laddr(0),
       n_idx(-1),
       n_slice(-1),
       h_idx(-1),
@@ -26,10 +25,9 @@ Tensor::Tensor(int id, int n, int c, int h, int w, int unit_size, const string& 
   group = 1;
 }
 
-Tensor::Tensor(int id, int n, int c, int h, int w, int unit_size, string& storage, const string& name,
-               tensor_type_t type, gaddr_t gaddr)
-    : gaddr(gaddr),
-      laddr(0),
+Tensor::Tensor(int id, int n, int c, int h, int w, int unit_size, std::string& storage, const std::string& name,
+               tensor_type_t type)
+    : laddr(0),
       n_idx(-1),
       n_slice(-1),
       h_idx(-1),
@@ -50,10 +48,10 @@ Tensor::Tensor(int id, int n, int c, int h, int w, int unit_size, string& storag
   group = 1;
 }
 
-shared_ptr<Tensor> Tensor::register_tensor(int n, int c, int h, int w, int unit_size, string & storage,
-                                           const string& name, tensor_type_t type, gaddr_t gaddr) {
+std::shared_ptr<Tensor> Tensor::register_tensor(int n, int c, int h, int w, int unit_size, std::string & storage,
+                                           const std::string& name, tensor_type_t type) {
   int id;
-  shared_ptr<Tensor> tensor;
+  std::shared_ptr<Tensor> tensor;
   auto iter = map_name_to_id_.find(name);
   if (iter != map_name_to_id_.end()) {
     id = iter->second;
@@ -61,17 +59,17 @@ shared_ptr<Tensor> Tensor::register_tensor(int n, int c, int h, int w, int unit_
   } else {
     id = max_tensor_id++;
     map_name_to_id_[name] = id;
-    tensor = make_shared<Tensor>(id, n, c, h, w, unit_size, storage, name, type, gaddr);
+    tensor = std::make_shared<Tensor>(id, n, c, h, w, unit_size, storage, name, type);
     map_id_to_tensor[id] = tensor;
   }
 
   return tensor;
 }
 
-shared_ptr<Tensor> Tensor::register_tensor(ShapedType *s_type, const string& name,
-                                           tensor_type_t type, gaddr_t gaddr) {
+std::shared_ptr<Tensor> Tensor::register_tensor(ShapedType *s_type, const std::string& name,
+                                           tensor_type_t type) {
   int n = 0, c = 0, h = 0, w = 0;
-  vector<int64_t> shape = s_type->getShape();
+  std::vector<int64_t> shape = s_type->getShape();
   switch (s_type->getRank()) {
     case 4:
       w = shape[3];
@@ -89,15 +87,15 @@ shared_ptr<Tensor> Tensor::register_tensor(ShapedType *s_type, const string& nam
 
   int unit_size = s_type->getElementTypeBitWidth()/8;
   //  TODO: update storage
-  string storage = "INT8";
+  std::string storage = "INT8";
 
-  return register_tensor(n, c, h, w, unit_size, storage, name, type, gaddr);
+  return register_tensor(n, c, h, w, unit_size, storage, name, type);
 }
 
-shared_ptr<Tensor> Tensor::register_imm_tensor(const shared_ptr<Tensor> associate, int count,
-                                               const string& name) {
+std::shared_ptr<Tensor> Tensor::register_imm_tensor(const std::shared_ptr<Tensor> associate, int count,
+                                               const std::string& name) {
   int id;
-  shared_ptr<Tensor> tensor;
+  std::shared_ptr<Tensor> tensor;
   auto iter = map_name_to_id_.find(name);
   if (iter != map_name_to_id_.end()) {
     id = iter->second;
@@ -105,14 +103,14 @@ shared_ptr<Tensor> Tensor::register_imm_tensor(const shared_ptr<Tensor> associat
   } else {
     id = max_tensor_id++;
     map_name_to_id_[name] = id;
-    tensor = make_shared<ImmTensor>(id, associate, count, name);
+    tensor = std::make_shared<ImmTensor>(id, associate, count, name);
     map_id_to_tensor[id] = tensor;
   }
 
   return tensor;
 }
 
-u32 Tensor::lmem_size() {
+uint32_t Tensor::lmem_size() {
   int n = n_slice < 1 ? dims_[0] : n_slice;
   int c = dims_[1];
   int h = h_slice < 1 ? dims_[2] : h_slice;
@@ -149,7 +147,7 @@ u32 Tensor::lmem_size() {
   }
 }
 
-u32 Tensor::lmem_size(bool bMatrixTpye) {
+uint32_t Tensor::lmem_size(bool bMatrixTpye) {
   if (!bMatrixTpye) {
     return lmem_size();
   }
@@ -174,7 +172,7 @@ u32 Tensor::lmem_size(bool bMatrixTpye) {
   int row = n;
   int col = c * h * w;
   int channel_size_local = EU_NUM * unit_size_;
-  u32 tensor_local_mem_size;
+  uint32_t tensor_local_mem_size;
   tensor_local_mem_size =
       row * ceiling_func(ceiling_func(col, EU_NUM), NPU_NUM) * channel_size_local;
   return tensor_local_mem_size;
@@ -190,7 +188,7 @@ void Tensor::set_nh_slice(int n_idx, int n_slice, int h_idx, int h_slice) {
   }
 }
 
-u64 Tensor::gmem_size() {
+uint64_t Tensor::gmem_size() {
   int n = dims_[0];
   int c = dims_[1];
   int h = dims_[2];
@@ -213,11 +211,11 @@ u64 Tensor::gmem_size() {
     w = 1;
   }
 
-  return static_cast<u64>(n) * c * h * w * unit_size_;
+  return static_cast<uint64_t>(n) * c * h * w * unit_size_;
 }
 
 int Tensor::max_tensor_id = 0;
-map<string, int> Tensor::map_name_to_id_;
-map<int, shared_ptr<Tensor>> Tensor::map_id_to_tensor;
+std::map<std::string, int> Tensor::map_name_to_id_;
+std::map<int, std::shared_ptr<Tensor>> Tensor::map_id_to_tensor;
 
 }

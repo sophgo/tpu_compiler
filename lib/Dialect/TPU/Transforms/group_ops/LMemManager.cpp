@@ -32,7 +32,7 @@ bmerr_t LmemManager::assign_local_memory(Group* cluster, net_timestep* time_step
 
   if (!one_shoot) {
     for (int i = 0; i < time_step->get_timestep_num(); ++i) {
-      const vector<TENSOR_STEP>& timestep_tensors = time_step->get_tensors(i);
+      const std::vector<TENSOR_STEP>& timestep_tensors = time_step->get_tensors(i);
       for (auto& step : timestep_tensors) {
         if (step.second == TIMESTEP_LOAD && is_tensor_resident_in_lmem(step.first)) {
           if (!alloc_block(block_list, step.first, i))
@@ -44,7 +44,7 @@ bmerr_t LmemManager::assign_local_memory(Group* cluster, net_timestep* time_step
 
   for (int i = 0; i < time_step->get_timestep_num(); ++i) {
     int layer_id = time_step->get_layer(i);
-    const vector<TENSOR_STEP>& timestep_tensors = time_step->get_tensors(i);
+    const std::vector<TENSOR_STEP>& timestep_tensors = time_step->get_tensors(i);
 
     recycle_lmem(block_list, time_step, i, one_shoot);
 
@@ -90,7 +90,7 @@ bool LmemManager::is_tensor_resident_in_lmem(int tid) {
   return false;
 }
 
-void LmemManager::recycle_lmem(list<LMEM_BLOCK>& block_list, net_timestep* time_step, int cur_step,
+void LmemManager::recycle_lmem(std::list<LMEM_BLOCK>& block_list, net_timestep* time_step, int cur_step,
                                bool one_shoot) {
   for (auto iter = block_list.begin(); iter != block_list.end(); ++iter) {
     // skip free blocks.
@@ -108,7 +108,7 @@ void LmemManager::recycle_lmem(list<LMEM_BLOCK>& block_list, net_timestep* time_
     for (int i = cur_step; i < time_step->get_timestep_num(); ++i) {
       int layer_id = time_step->get_layer(i);
       const ImLayer* layer = net_graph_->get_layer_by_id(layer_id);
-      const vector<TENSOR_STEP>& timestep_tensors = time_step->get_tensors(i);
+      const std::vector<TENSOR_STEP>& timestep_tensors = time_step->get_tensors(i);
       for (auto& step : timestep_tensors) {
         if (step.first == iter->tid) {
           resident = true;
@@ -156,7 +156,7 @@ void LmemManager::recycle_lmem(list<LMEM_BLOCK>& block_list, net_timestep* time_
   merge_free_blocks(block_list);
 }
 
-bool LmemManager::alloc_block(list<LMEM_BLOCK>& block_list, int tid, int step_idx) {
+bool LmemManager::alloc_block(std::list<LMEM_BLOCK>& block_list, int tid, int step_idx) {
   Tensor* tensor = net_graph_->get_tensor_by_id(tid);
   if (tensor->laddr == TBD_LADDR) {
     return true;
@@ -164,7 +164,7 @@ bool LmemManager::alloc_block(list<LMEM_BLOCK>& block_list, int tid, int step_id
 
   auto last = --block_list.end();
   auto avail_it = last;
-  u64 max_free_size = 0;
+  uint64_t max_free_size = 0;
 
   // find max free block size.
   for (auto iter = block_list.begin(); iter != last; ++iter) {
@@ -198,7 +198,7 @@ bool LmemManager::alloc_block(list<LMEM_BLOCK>& block_list, int tid, int step_id
     iter->busy = true;
 
     // correct the offset of subsequent tensors.
-    u64 offset = iter->start + iter->size;
+    uint64_t offset = iter->start + iter->size;
     if (offset >= LOCAL_MEM_SIZE) {
       LLVM_DEBUG(llvm::errs()
         << "offset " << offset << " of tensor: " << iter->tid
@@ -223,7 +223,7 @@ bool LmemManager::alloc_block(list<LMEM_BLOCK>& block_list, int tid, int step_id
   return true;
 }
 
-void LmemManager::merge_free_blocks(list<LMEM_BLOCK>& block_list) {
+void LmemManager::merge_free_blocks(std::list<LMEM_BLOCK>& block_list) {
   auto iter = block_list.begin();
   while (iter != block_list.end()) {
     auto cur = iter++;
@@ -235,13 +235,13 @@ void LmemManager::merge_free_blocks(list<LMEM_BLOCK>& block_list) {
 }
 
 bool LmemManager::figure_out_tensors_real_addr(net_timestep* time_step) {
-  u32 total_lmem_occupied = 0;
+  uint32_t total_lmem_occupied = 0;
   mem_buffer_key_t key;
 
   for (int i = block_record_.size() - 1; i >= 0; --i) {
-    list<LMEM_BLOCK>& block_list = block_record_[i];
+    std::list<LMEM_BLOCK>& block_list = block_record_[i];
 
-    u32 offset = 0;
+    uint32_t offset = 0;
     for (auto iter = block_list.begin(); iter != block_list.end(); ++iter) {
       if (iter->busy) {
         Tensor* tensor = net_graph_->get_tensor_by_id(iter->tid);
@@ -263,7 +263,7 @@ bool LmemManager::figure_out_tensors_real_addr(net_timestep* time_step) {
 
           time_step->set_local_mem_offset(&key, tensor->laddr);
 
-          u32 end = iter->start + iter->size;
+          uint32_t end = iter->start + iter->size;
 
           total_lmem_occupied = total_lmem_occupied < end ? end : total_lmem_occupied;
 
@@ -291,7 +291,7 @@ bool LmemManager::figure_out_tensors_real_addr(net_timestep* time_step) {
   return true;
 }
 
-void LmemManager::show_blocks(list<LMEM_BLOCK>& block_list) {
+void LmemManager::show_blocks(std::list<LMEM_BLOCK>& block_list) {
   for (auto iter = block_list.begin(); iter != block_list.end(); ++iter) {
     LLVM_DEBUG(llvm::errs()
       << "[BLOCK] start:" << iter->start << " ~ " << iter->start + iter->size

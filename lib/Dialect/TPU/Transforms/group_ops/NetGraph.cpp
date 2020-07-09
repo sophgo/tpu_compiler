@@ -10,11 +10,11 @@ void NetGraph::parse_graph(FuncOp * fn){
         isa<tpu::NoneOp>(op) ||
         isa<ReturnOp>(op)|| isa<FuncOp>(op)) {;}
     else{
-      shared_ptr<ImLayer> layer = ImLayer::create(op);
+      std::shared_ptr<ImLayer> layer = ImLayer::create(op);
       ImLayer::register_it(layer);
 
-      vector<int> input_tensor_id;
-      vector<int> output_tensor_id;
+      std::vector<int> input_tensor_id;
+      std::vector<int> output_tensor_id;
 
       int id = layer->id();
 
@@ -56,7 +56,7 @@ void NetGraph::parse_graph(FuncOp * fn){
                                 << "\n";);
       }
 
-      layer_id_to_inout_tensor[id] = make_pair(input_tensor_id, output_tensor_id);
+      layer_id_to_inout_tensor[id] = std::make_pair(input_tensor_id, output_tensor_id);
 
     }
   });
@@ -83,12 +83,12 @@ const ImLayer* NetGraph::get_layer_by_id(int layer_id) {
 int NetGraph::getImLayerSize() {
   return ImLayer::layers.size();
 }
-const vector<int>& NetGraph::get_in_tensors_of_layer(int layer_id) {
+const std::vector<int>& NetGraph::get_in_tensors_of_layer(int layer_id) {
   auto iter = layer_id_to_inout_tensor.find(layer_id);
   return iter->second.first;
 }
 
-const vector<int>& NetGraph::get_out_tensors_of_layer(int layer_id) {
+const std::vector<int>& NetGraph::get_out_tensors_of_layer(int layer_id) {
   auto iter = layer_id_to_inout_tensor.find(layer_id);
   return iter->second.second;
 }
@@ -101,11 +101,6 @@ bool NetGraph::layer_inplace_compute(int layer_id) {
 tensor_type_t NetGraph::get_tensor_type(int tensor_id) {
   auto iter = Tensor::map_id_to_tensor.find(tensor_id);
   return iter->second.get()->type();
-}
-
-int NetGraph::get_tensor_gmem_size(int tensor_id) {
-  auto iter = Tensor::map_id_to_tensor.find(tensor_id);
-  return iter->second.get()->gmem_size();
 }
 
 int NetGraph::get_tensor_nums(int tensor_id) {
@@ -141,21 +136,10 @@ void NetGraph::get_tensor_dim(int tensor_id, int* tensor_dim) {
   tensor_dim[3] = iter->second.get()->w();
 }
 
-gaddr_t NetGraph::get_tensor_global_mem(int tensor_id) {
-  auto iter = Tensor::map_id_to_tensor.find(tensor_id);
-  return iter->second.get()->gaddr;
-}
-
 gaddr_t NetGraph::get_tensor_tsm_mem(int tensor_id) {
   auto iter = Tensor::map_id_to_tensor.find(tensor_id);
   return iter->second.get()->tsm_addr;
 }
-
-void NetGraph::set_tensor_global_mem(int tensor_id, gaddr_t gaddr) {
-  auto iter = Tensor::map_id_to_tensor.find(tensor_id);
-  iter->second.get()->gaddr = gaddr;
-}
-
 void NetGraph::set_tensor_local_offest(int tensor_id, int local_mem_offset) {
   auto iter = Tensor::map_id_to_tensor.find(tensor_id);
   iter->second.get()->laddr = local_mem_offset;
@@ -188,7 +172,7 @@ Tensor* NetGraph::get_tensor_by_id(int id) {
   if (iter != Tensor::map_id_to_tensor.end()) {
     return iter->second.get();
   } else {
-    cout << "wrong tensor id " << id << " when get tensor" << endl;
+    llvm::errs() << "wrong tensor id " << id << " when get tensor\n";
     assert(0);
   }
 }
@@ -207,7 +191,7 @@ int NetGraph::get_tensor_from_layer(int tensor_id) {
   }
 }
 
-const vector<int>& NetGraph::get_tensor_to_layer(int tensor_id) {
+const std::vector<int>& NetGraph::get_tensor_to_layer(int tensor_id) {
   auto iter = tensor_to_layer_id.find(tensor_id);
   if (iter != tensor_to_layer_id.end()) {
     return iter->second;
@@ -271,8 +255,8 @@ bool NetGraph::is_concat_special_case(int layer_id, int tid, int cluster_size) {
      *
      * mul will always be one if in place is valid.
      */
-    const vector<int64_t> &in_shape = input_shape(op, idx);
-    const vector<int64_t> &out_shape = output_shape(op, 0);
+    const std::vector<int64_t> &in_shape = input_shape(op, idx);
+    const std::vector<int64_t> &out_shape = output_shape(op, 0);
     int mul = 1;
     for (int i = 0; i < axis; i++) {
       mul *= in_shape[i] * out_shape[i];

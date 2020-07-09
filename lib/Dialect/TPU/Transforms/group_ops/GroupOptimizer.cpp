@@ -4,20 +4,10 @@
 #define DEBUG_TYPE "group_ops"
 namespace mlir {
 
-static llvm::cl::opt<std::string> clNeuronMapFilename(
-    "layer-group-neuron-map-filename",
-    llvm::cl::desc("record neuron offset with its name into a csv map file"),
-    llvm::cl::init("-"));
-
-static llvm::cl::opt<bool> clDisableGMemOptimize(
-    "layer-group-gm-opt",
-    llvm::cl::desc("Enable global memory optimzation for layer group, default enable"),
-    llvm::cl::init(true));
-
 
 GroupOptimizer::GroupOptimizer(NetGraph* net_graph, FuncOp * fn, MLIRContext * context)
     : net_graph_(net_graph), fn_(fn), context_(context),
-      mix_net_(net_graph, fn, context)/*, gmem_mgr_(net_graph)*/ {}
+      mix_net_(net_graph, fn, context) {}
 
 GroupOptimizer::~GroupOptimizer() {
   for (auto group : groups_) {
@@ -28,7 +18,7 @@ GroupOptimizer::~GroupOptimizer() {
 // This function is used to group all layers. In a group, the top layer can directly
 // use the results of the bottom layer without going through the store/load process,
 // which reduces GDMA operations.
-void GroupOptimizer::do_group(vector<Group*>& Groups) {
+void GroupOptimizer::do_group(std::vector<Group*>& Groups) {
   Group* rough = new Group(net_graph_);
 
   for (auto layer = ImLayer::layers.begin(); layer != ImLayer::layers.end(); ++layer) {
@@ -65,13 +55,13 @@ void GroupOptimizer::do_group(vector<Group*>& Groups) {
 // This fucntion does two things:
 //   1. Use the binary search to group all layers;
 //   2. Adjust the position before and after grouping to minimize global memory.
-void GroupOptimizer::add_valid_custers(vector<Group*>& groups, Group* target) {
+void GroupOptimizer::add_valid_custers(std::vector<Group*>& groups, Group* target) {
   int num = target->size();
   int start = 0;
   const int end = num - 1;
   int cut = end, right = end;
   int left = start, valid = start;
-  vector<int> cut_points;
+  std::vector<int> cut_points;
 
   while (start < num) {
     if (cut == left) {
@@ -110,8 +100,8 @@ void GroupOptimizer::add_valid_custers(vector<Group*>& groups, Group* target) {
 
 // After getting the cut node of the whole network, we can adjust the position of the node
 // before and after, so that the size of the global memory used is the smallest.
-vector<int> GroupOptimizer::optimize_cut_points(Group* target, const vector<int>& cut_points) {
-  vector<int> best_solution(cut_points);
+std::vector<int> GroupOptimizer::optimize_cut_points(Group* target, const std::vector<int>& cut_points) {
+  std::vector<int> best_solution(cut_points);
   int minimum_ddr_occupied = calc_group_out_tensors_size(target, cut_points);
 
   if (cut_points.size() == 1) {
@@ -120,8 +110,8 @@ vector<int> GroupOptimizer::optimize_cut_points(Group* target, const vector<int>
 
   int moving_idx = cut_points.size() - 2;
   while (moving_idx >= 0) {
-    vector<vector<int>> solutions;
-    vector<int> solution(best_solution);
+    std::vector<std::vector<int>> solutions;
+    std::vector<int> solution(best_solution);
 
     int left_point = (moving_idx == 0) ? 0 : solution[moving_idx - 1] + 1;
 
@@ -167,8 +157,8 @@ vector<int> GroupOptimizer::optimize_cut_points(Group* target, const vector<int>
 }
 
 // return the output data size of layer group, unit: word
-int GroupOptimizer::calc_group_out_tensors_size(Group* target, const vector<int>& cut_points) {
-  vector<Group> Groups;
+int GroupOptimizer::calc_group_out_tensors_size(Group* target, const std::vector<int>& cut_points) {
+  std::vector<Group> Groups;
 
   int start = 0;
   for (int i = 0; i < static_cast<int>(cut_points.size()); i++) {
@@ -182,9 +172,9 @@ int GroupOptimizer::calc_group_out_tensors_size(Group* target, const vector<int>
   int total_data_size = 0;
 
   for (auto Group : Groups) {
-    vector<int> out_tensors = Group.get_group_out_tensors();
+    std::vector<int> out_tensors = Group.get_group_out_tensors();
 
-    for (int j = 0; j < static_cast<u32>(out_tensors.size()); ++j) {
+    for (int j = 0; j < static_cast<uint32_t>(out_tensors.size()); ++j) {
       Tensor* tensor = net_graph_->get_tensor_by_id(out_tensors[j]);
       total_data_size += tensor->gmem_size();
     }
@@ -200,7 +190,7 @@ bmerr_t GroupOptimizer::optimize() {
   for (auto group : groups_) {
     bmerr_t status = group->assign_steps();
     if (status == BM_ERR_FAILURE) {
-      cout << "local memory allocate failed" << endl;
+      llvm::errs() << "local memory allocate failed\n";
       assert(0);
     }
 
@@ -213,7 +203,7 @@ bmerr_t GroupOptimizer::optimize() {
     group_id++;
   }
 
-  string DumpLayerGroupInfo = "layer_optimizer.out";
+  std::string DumpLayerGroupInfo = "layer_optimizer.out";
   if (DumpLayerGroupInfo != "") {
     std::fstream f;
     f.open(DumpLayerGroupInfo, std::ios::out);
@@ -246,7 +236,7 @@ void GroupOptimizer::set_input_output_tensor() {
 
     for (auto& tensor : layer->out_tensors) {
       int tid = tensor->id();
-      const vector<int>& to_layers = net_graph_->get_tensor_to_layer(tid);
+      const std::vector<int>& to_layers = net_graph_->get_tensor_to_layer(tid);
       if (to_layers.empty() && type != IR_MULTIINPUT) {
         mix_net_.set_net_out_tensor(tid);
         LLVM_DEBUG(llvm::errs() << "Output tensor: " << tid << "\n";);
@@ -255,126 +245,10 @@ void GroupOptimizer::set_input_output_tensor() {
   }
 }
 
-// static std::ofstream layer_id_name_mapping_file_fp;
-// void _add_layer_id_name_mapping_str(const LayerParameter* last_layer, std::string name = "") {
-//   layer_id_name_mapping_file_fp <<
-//     last_layer->id() << "," <<
-//     (name == "" ? last_layer->name() : name) << "," <<
-//     last_layer->type() <<
-//     "\n";
-// }
-
-bool GroupOptimizer::is_tg_op(Operation * op) {
-  LLVM_DEBUG(llvm::errs() << getOpName(op););
-  for (auto group : groups_) {
-    if (group->size() == 1) {
-      int layer_id = group->layers()[0];
-      const ImLayer * im_layer = net_graph_->get_layer_by_id(layer_id);
-      if (im_layer->op() == op) {
-        LLVM_DEBUG(llvm::errs() << "   is TG layer.\n";);
-        return true;
-      }
-    }
-  }
-  LLVM_DEBUG(llvm::errs() << "   is not TG layer.\n";);
-  return false;
-}
-
-// set global address for current inst input and output
-uint64_t GroupOptimizer::setOpGAddr(Operation * op) {
-  const ImLayer * layer = net_graph_->get_layer_by_op(op);
-  LLVM_DEBUG(llvm::errs() << "OP: " << getOpName(op) << "\n";);
-  for (int i = 0; i < op->getNumResults(); i++) {
-    for (auto& tensor : layer->out_tensors) {
-      if (tensor->type() != TENSOR_NEURON &&
-        tensor->type() != TENSOR_NEURON_AS_COEFF &&
-        tensor->type() != TENSOR_NEURON_WINOGRAD &&
-        tensor->type() != TENSOR_MATRIX)
-          continue;
-      if (tensor->name() == top_name(op, i).str()) {
-        Operation * top = op->getResult(i)->getDefiningOp();
-        if (isa<tpu::ReshapeOp>(top))
-          continue;
-        setOpAddress(top, tensor->gaddr);
-        LLVM_DEBUG(llvm::errs()
-          << "  set top:" << getOpName(top) << " to address: "
-          << tensor->gaddr << "\n";);
-        assert(op->getNumResults() == 1);
-        return tensor->gaddr;
-      }
-    }
-  }
-}
-
-template<typename OpTy>
-struct addGroupTGLayerPattern : public RewritePattern {
-  addGroupTGLayerPattern(MLIRContext *context, GroupOptimizer * optimizer)
-      : RewritePattern(OpTy::getOperationName(), 1, context) {opt_ = optimizer;}
-  GroupOptimizer * opt_;
-
-  PatternMatchResult matchAndRewrite(Operation *op,
-      PatternRewriter &rewriter) const override {
-
-    if (!isa<OpTy>(op))
-      return matchFailure();
-
-    if (!opt_->is_tg_op(op))
-      return matchFailure();
-
-    auto tpuOp = llvm::dyn_cast<tpu::TpuOpLowerInterface>(op);
-    if (!tpuOp) {
-      return matchFailure();
-    }
-
-    auto tg_op = tpuOp.convertToTG();
-    if (!tg_op) {
-       return matchFailure();
-    }
-
-    rewriter.replaceOp(op, {tg_op});
-
-    return matchSuccess();
-  }
-};
-
-
-template<typename OpTy>
-struct addTGLayerGAddrPattern : public RewritePattern {
-  addTGLayerGAddrPattern(MLIRContext *context, GroupOptimizer * optimizer,
-                         llvm::raw_ostream &map_os)
-      : RewritePattern(OpTy::getOperationName(), 1, context),
-      opt_(optimizer),
-      map_os_(map_os){}
-
-  PatternMatchResult matchAndRewrite(Operation *op,
-      PatternRewriter &rewriter) const override {
-    auto cast_op = cast<OpTy>(op);
-    if (cast_op.gaddr().hasValue()) {
-      return matchFailure();
-    }
-
-    uint64_t offset = opt_->setOpGAddr(op);
-    // generate neuron map
-    auto type = op->getResult(0)->getType().cast<TensorType>();
-    std::vector<int64_t> shape = type.getShape();
-    string dtype = "int8";
-    while (shape.size() < 4)
-      shape.insert(shape.begin(), 1);
-    map_os_ << getOpName(op) << "," << llvm::format_hex(offset, 10) << ","
-            << dtype << ","
-            << shape[0] << "," << shape[1] << ","
-            << shape[2] << "," << shape[3] << "\n";
-    return matchSuccess();
-  }
-
-  GroupOptimizer * opt_;
-  llvm::raw_ostream &map_os_;
-};
-
 // use name to judge if ref to the same op
 static bool is_same_layer(Operation * op, const ImLayer * layer) {
   if (isValidLayerGroupOp(op)) {
-    string op_name = getOpName(op).str();
+    std::string op_name = getOpName(op).str();
     // op_name.erase(std::remove(op_name.begin(), op_name.end(), '\b'), op_name.end());
     if (op_name == layer->name())
       return true;
@@ -431,16 +305,10 @@ void GroupOptimizer::lower_to_tl(Operation *op, int gid) {
               h_secs != 1, n_loop, h_loop);
         }
 
-        const vector<TENSOR_STEP>& cur_tensors = group->time_step->get_tensors(step_id);
-        for (u32 i = 0; i < cur_tensors.size(); ++i) {
+        const std::vector<TENSOR_STEP>& cur_tensors = group->time_step->get_tensors(step_id);
+        for (uint32_t i = 0; i < cur_tensors.size(); ++i) {
           // check if tensor is kept in lmem.
           if ((!first_loop) && cur_tensors[i].second == TIMESTEP_LOAD &&
-              group->time_step->is_tensor_hold_in_memory(cur_tensors[i].first)) {
-            continue;
-          }
-
-          // if tensor is loaded in tsm and holded, don't load it again.
-          if ((!first_loop) && cur_tensors[i].second == TIMESTEP_DDR_TO_TSM &&
               group->time_step->is_tensor_hold_in_memory(cur_tensors[i].first)) {
             continue;
           }
@@ -460,69 +328,6 @@ void GroupOptimizer::lower_to_tl(Operation *op, int gid) {
 
   group->set_lowered(true);
 }
-
-template <typename OpTy> struct fixSliceAddrPattern : public RewritePattern {
-  fixSliceAddrPattern(MLIRContext *context)
-      : RewritePattern(OpTy::getOperationName(), 1, context) {}
-
-  PatternMatchResult matchAndRewrite(Operation *op,
-                                     PatternRewriter &rewriter) const override {
-
-    auto castOp = cast<OpTy>(op);
-    if (castOp.gaddr_updated().hasValue()) {
-      return matchFailure();
-    }
-
-    // trying to avoid doing copy
-    // however, since we didn't pass stride info to backend API yet
-    // this is only working for batch_size = 1
-    u64 base_addr = castOp.getGAddr();
-    int axis = castOp.axis().getLimitedValue();
-    int offset = castOp.offset().getLimitedValue();
-
-    assert((axis == 1) && "axis should be 1");
-    size_t dtype_bytes;
-    std::string dtype;
-    if (isa<tpu::TG_INT8_SliceOp>(op)) {
-      dtype_bytes = 1;
-      dtype = "int8";
-    } else if (isa<tpu::TG_BF16_SliceOp>(op)) {
-      dtype_bytes = 2;
-      dtype = "uint16";
-    } else {
-      llvm_unreachable("unhandled op");
-    }
-
-    std::vector<int64_t> input_shape = getTensorShape(castOp.input());
-    if (input_shape[0] == 1) {
-      // if batch is 1, then no copy
-      int64_t isz = 1;
-      for (unsigned i = axis + 1; i < input_shape.size(); i++) {
-        isz *= input_shape[i];
-      }
-      size_t offset_bytes = offset * isz * dtype_bytes;
-      setOpAddress(op, base_addr + offset_bytes);
-
-      // update the global address of the usage
-      for(auto &use : op->getResult(0)->getUses()) {
-        Operation *usage_op = use.getOwner();
-        if (isa<tpu::TL_LG_LoadNeuronOp>(usage_op))
-          setOpAddress(usage_op, base_addr + offset_bytes);
-      }
-
-      // set the src op to buffer reuse so that we do not compare this tensor
-      auto srcOp = op->getOperand(0)->getDefiningOp();
-      if (dyn_cast<tpu::TpuTGOpCodegenInterface>(srcOp))
-        setOpBufferReused(srcOp, true);
-    } else {
-      LLVM_DEBUG(llvm::errs() << "multi-batch slice, no need to fix address.\n";);
-    }
-
-    castOp.setAttr("gaddr_updated",
-                   Builder(castOp.getOperation()->getContext()).getBoolAttr(true));
-    return matchSuccess();
-  }
-};
 
 template<typename TyOp>
 struct LGLoweringPattern : public RewritePattern {
@@ -552,9 +357,8 @@ struct LGLoweringPattern : public RewritePattern {
 
 
 // lower to tl inst according to layer group result
-void GroupOptimizer::lower_to_tl_group(MLIRContext * context) {
+void GroupOptimizer::build_fn(MLIRContext * context) {
   set_input_output_tensor();
-  // u64 neuron_size = gmem_mgr_.assign_global_memory(groups_, clDisableGMemOptimize);
 
   OwningRewritePatternList patterns_pack;
   patterns_pack.insert<
@@ -578,77 +382,6 @@ void GroupOptimizer::lower_to_tl_group(MLIRContext * context) {
       >(fn_, context, this);
   applyPatternsGreedily(*fn_, patterns_pack);
 
-}
-
-void GroupOptimizer::lower_to_tg_group(MLIRContext * context) {
-  // create a map file
-  std::unique_ptr<llvm::ToolOutputFile> neuronMapFile = nullptr;
-  if (clNeuronMapFilename != "-") {
-    std::string errorMessage;
-    neuronMapFile = openOutputFile(clNeuronMapFilename, &errorMessage);
-    if (!neuronMapFile) {
-      llvm::errs() << errorMessage << "\n";
-      exit(1);
-    }
-  }
-
-  // set gaddr from layer group
-  OwningRewritePatternList tg_addr_patterns;
-  tg_addr_patterns.clear();
-  tg_addr_patterns.insert<
-      addTGLayerGAddrPattern<tpu::TG_INT8_PC_Conv2DOp>,
-      addTGLayerGAddrPattern<tpu::TG_INT8_EltwiseAddOp>,
-      addTGLayerGAddrPattern<tpu::TG_INT8_EltwiseMaxOp>,
-      addTGLayerGAddrPattern<tpu::TG_INT8_EltwiseMinOp>,
-      addTGLayerGAddrPattern<tpu::TG_INT8_EltwiseMulOp>,
-      addTGLayerGAddrPattern<tpu::TG_INT8_PoolAvg2DOp>,
-      addTGLayerGAddrPattern<tpu::TG_INT8_PoolMax2DOp>,
-      addTGLayerGAddrPattern<tpu::TG_INT8_FullyConnectedOp>,
-      addTGLayerGAddrPattern<tpu::TG_INT8_ConcatOp>,
-      addTGLayerGAddrPattern<tpu::TG_INT8_ShuffleChannelOp>,
-      addTGLayerGAddrPattern<tpu::TG_INT8_SliceOp>,
-      addTGLayerGAddrPattern<tpu::TG_INT8_LrnOp>,
-      addTGLayerGAddrPattern<tpu::TG_INT8_ReorgOp>,
-
-      //
-      addTGLayerGAddrPattern<tpu::TG_INT8_BroadcastMulOp>,
-      addTGLayerGAddrPattern<tpu::TG_INT8_CropOp>,
-      addTGLayerGAddrPattern<tpu::TG_INT8_PC_DeConv2DOp>,
-      addTGLayerGAddrPattern<tpu::TG_INT8_LeakyReluOp>,
-      addTGLayerGAddrPattern<tpu::TG_INT8_PermuteOp>,
-      addTGLayerGAddrPattern<tpu::TG_INT8_PixelShuffleOp>,
-      addTGLayerGAddrPattern<tpu::TG_INT8_ClipOp>,
-      addTGLayerGAddrPattern<tpu::TG_INT8_PReluOp>,
-      addTGLayerGAddrPattern<tpu::TG_INT8_ReluOp>,
-      addTGLayerGAddrPattern<tpu::TG_INT8_LutOp>,
-      addTGLayerGAddrPattern<tpu::TG_INT8_SwapChannelOp>,
-      addTGLayerGAddrPattern<tpu::TG_INT8_UpsampleOp>,
-      addTGLayerGAddrPattern<tpu::TG_INT8_PadOp>,
-      addTGLayerGAddrPattern<tpu::TG_INT8_QuantOp>,
-      addTGLayerGAddrPattern<tpu::TG_BF16_QuantOp>,
-      addTGLayerGAddrPattern<tpu::TG_INT8_GenericTpuOp>,
-      addTGLayerGAddrPattern<tpu::TG_CastOp>,
-      addTGLayerGAddrPattern<tpu::GenericCpuOp>,
-      addTGLayerGAddrPattern<tpu::InputOp>
-  >(context, this, neuronMapFile->os());
-  applyPatternsGreedily(*fn_, tg_addr_patterns);
-
-  // when is inplaced slice, no tdma is needed
-  // but need to update the address according to offset
-  tg_addr_patterns.clear();
-  tg_addr_patterns.insert<
-      fixSliceAddrPattern<tpu::TG_INT8_SliceOp>
-      >(context);
-  applyPatternsGreedily(*fn_, tg_addr_patterns);
-
-  if (neuronMapFile) {
-    neuronMapFile->keep();
-  }
-}
-
-void GroupOptimizer::build_fn(MLIRContext * context) {
-  lower_to_tl_group(context);
-  // lower_to_tg_group(context);
 }
 
 }

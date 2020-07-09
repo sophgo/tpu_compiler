@@ -47,11 +47,11 @@ class net_timestep {
   net_timestep(const net_timestep& src);
   ~net_timestep();
 
-  void add_layer_tensor_step(int layer_step, const vector<TENSOR_STEP>& tensor_step);
+  void add_layer_tensor_step(int layer_step, const std::vector<TENSOR_STEP>& tensor_step);
 
   int get_timestep_num();
   int get_layer(int time_step);
-  const vector<TENSOR_STEP>& get_tensors(int time_step);
+  const std::vector<TENSOR_STEP>& get_tensors(int time_step);
 
   void generate_mem_buffer();
   void update_mem_buffer_size();
@@ -75,24 +75,24 @@ class net_timestep {
 
   bool is_tensor_hold_in_memory(int tensor_id);
 
-  void update_tensor_timestep(int time_idx, const vector<TENSOR_STEP>& new_tensor_timestep);
+  void update_tensor_timestep(int time_idx, const std::vector<TENSOR_STEP>& new_tensor_timestep);
 
-  const map<mem_buffer_key_t, mem_buffer_value_t>& get_memory_buffer() { return mem_buffer; }
-  const map<int, tensor_mem_t>& get_tsm_buffer() { return tsm_buffer; }
+  const std::map<mem_buffer_key_t, mem_buffer_value_t>& get_memory_buffer() { return mem_buffer; }
+  const std::map<int, tensor_mem_t>& get_tsm_buffer() { return tsm_buffer; }
 
   int tensor_range_end_timestep(const TENSOR_STEP& tensor_timestep);
 
-  bmerr_t find_best_split(Group* group, int batch_num, pair<int, int>& nsecs_and_hsecs);
+  bmerr_t find_best_split(Group* group, int batch_num, std::pair<int, int>& nsecs_and_hsecs);
 
  protected:
   NetGraph* net_graph_;
   int timestep_num;
-  vector<int> layer_to_execute;
-  vector<vector<TENSOR_STEP>> tensor_load_store;
+  std::vector<int> layer_to_execute;
+  std::vector<std::vector<TENSOR_STEP>> tensor_load_store;
 
-  map<mem_buffer_key_t, mem_buffer_value_t> mem_buffer;  // for LMEM alloc
-  map<int, tensor_mem_t> tsm_buffer;                     // for TSM alloc
-  map<int, int> hold_coeff_tensor;
+  std::map<mem_buffer_key_t, mem_buffer_value_t> mem_buffer;  // for LMEM alloc
+  std::map<int, tensor_mem_t> tsm_buffer;                     // for TSM alloc
+  std::map<int, int> hold_coeff_tensor;
 
   void add_mem_buffer(int start_step, int end_step, int id, bool imm_tensor);
   bool is_tensor_weight(tensor_type_t tensor_type);

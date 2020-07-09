@@ -34,33 +34,33 @@ void ClusterSteps::insert(int layer, TensorStep& load_tensors, TensorStep& store
   max_step_num_++;
 }
 
-static void dump(const vector<int>& v) {
+static void dump(const std::vector<int>& v) {
   for (int i = 0; i < static_cast<int>(v.size()); i++) {
-    cout << v[i];
+    std::cout << v[i];
   }
-  cout << endl;
+  std::cout << "\n";
 }
 
-static vector<int> intersection(vector<int> v1, vector<int> v2) {
-  vector<int> v;
+static std::vector<int> intersection(std::vector<int> v1, std::vector<int> v2) {
+  std::vector<int> v;
   sort(v1.begin(), v1.end());
   sort(v2.begin(), v2.end());
   set_intersection(v1.begin(), v1.end(), v2.begin(), v2.end(), back_inserter(v));
   if (!v.empty()) {
-    cout << "intersection: ";
+    std::cout << "intersection: ";
     dump(v);
   }
 
   return v;
 }
 
-static vector<int> difference(vector<int> v1, vector<int> v2) {
-  vector<int> v;
+static std::vector<int> difference(std::vector<int> v1, std::vector<int> v2) {
+  std::vector<int> v;
   sort(v1.begin(), v1.end());
   sort(v2.begin(), v2.end());
   set_difference(v1.begin(), v1.end(), v2.begin(), v2.end(), back_inserter(v));
   if (!v.empty()) {
-    cout << "difference: ";
+    std::cout << "difference: ";
     dump(v);
   }
 
@@ -132,11 +132,11 @@ loop:
       continue;
     }
 
-    const vector<int>& in_tensors = net_graph_->get_in_tensors_of_layer(id);
-    const vector<int>& out_tensors = net_graph_->get_out_tensors_of_layer(id);
+    const std::vector<int>& in_tensors = net_graph_->get_in_tensors_of_layer(id);
+    const std::vector<int>& out_tensors = net_graph_->get_out_tensors_of_layer(id);
 
     if (!loads_[i].empty()) {
-      vector<int> conflict = intersection(in_tensors, loads_[i]);
+      std::vector<int> conflict = intersection(in_tensors, loads_[i]);
       if (!conflict.empty()) {
         restart = true;
         loads_[i] = difference(loads_[i], conflict);
@@ -145,7 +145,7 @@ loop:
     }
 
     if (!stores_[i].empty()) {
-      vector<int> conflict = intersection(out_tensors, stores_[i]);
+      std::vector<int> conflict = intersection(out_tensors, stores_[i]);
       if (!conflict.empty()) {
         restart = true;
         stores_[i] = difference(stores_[i], conflict);
@@ -160,8 +160,8 @@ loop:
 }
 
 void ClusterSteps::assign_with_tsm(Group* cluster) {
-  set<int> tensors_in_lmem;
-  set<int> tensors_in_tsm;
+  std::set<int> tensors_in_lmem;
+  std::set<int> tensors_in_tsm;
 
   // Ignore tg layer
   if (cluster->size() == 1) {
@@ -183,7 +183,7 @@ void ClusterSteps::assign_with_tsm(Group* cluster) {
     // FIXME(arcbbb): concat layer support
 
     // Check Input tensors: generate load inst. if necessary
-    const vector<int>& in_tensors = net_graph_->get_in_tensors_of_layer(id);
+    const std::vector<int>& in_tensors = net_graph_->get_in_tensors_of_layer(id);
     for (int j = 0; j < static_cast<int>(in_tensors.size()); ++j) {
       int tid = in_tensors[j];
 
@@ -206,7 +206,7 @@ void ClusterSteps::assign_with_tsm(Group* cluster) {
     }
 
     // Check Output tensors: generate store inst. if necessary
-    const vector<int>& out_tensors = net_graph_->get_out_tensors_of_layer(id);
+    const std::vector<int>& out_tensors = net_graph_->get_out_tensors_of_layer(id);
     for (int j = 0; j < static_cast<int>(out_tensors.size()); ++j) {
       int tid = out_tensors[j];
       tensors_in_lmem.insert(tid);
@@ -241,7 +241,7 @@ void ClusterSteps::assign_with_tsm(Group* cluster) {
 //   2. loads_ save the tensor need to load.
 //   3. stores_ save the tensor need to store.
 void ClusterSteps::assign(Group* cluster) {
-  set<int> tensors_in_lmem;
+  std::set<int> tensors_in_lmem;
 
   bool single_layer_cluster = (cluster->size() == 1);
 
@@ -257,34 +257,34 @@ void ClusterSteps::assign(Group* cluster) {
       layer_step = id;
 
       // push all layers' in tensors to tensors_in_lmem and tensor step
-      const vector<int>& in_tensors = net_graph_->get_in_tensors_of_layer(id);
+      const std::vector<int>& in_tensors = net_graph_->get_in_tensors_of_layer(id);
       for (int j = 0; j < static_cast<int>(in_tensors.size()); ++j) {
         auto ret = tensors_in_lmem.insert(in_tensors[j]);
         if (ret.second == true) {
-          // cout << "load tensor: " << in_tensors[j] << endl;
+          // std::cout << "load tensor: " << in_tensors[j] << "\n";
           load_tensors.push_back(in_tensors[j]);
         }
       }
     }
 
     // push out tensors of layer to local mem.
-    const vector<int>& out_tensors = net_graph_->get_out_tensors_of_layer(id);
+    const std::vector<int>& out_tensors = net_graph_->get_out_tensors_of_layer(id);
     for (int j = 0; j < static_cast<int>(out_tensors.size()); ++j) {
       int tid = out_tensors[j];
       tensors_in_lmem.insert(tid);
 
-      const vector<int>& to_layers = net_graph_->get_tensor_to_layer(tid);
+      const std::vector<int>& to_layers = net_graph_->get_tensor_to_layer(tid);
       // Why need ignore_concat_layer?
       if (cluster->is_group_out_tensor(tid)) {
         // you are not concat layer, and your output tensor is shared
         store_tensors.push_back(tid);
         // if your consumer is concat layer in next group,
-        // add this tensor to the ignore list of concat layer
+        // add this tensor to the ignore std::list of concat layer
         std::vector<std::pair<int, int>> ignore_pair;
         bool is_concat_in_place = true;
         for (int k = 0; k < static_cast<int>(to_layers.size()); ++k) {
           if (net_graph_->is_concat_optimized_case(to_layers[k], tid, cluster->size())) {
-            vector<int> in_tensors = net_graph_->get_in_tensors_of_layer(to_layers[k]);
+            std::vector<int> in_tensors = net_graph_->get_in_tensors_of_layer(to_layers[k]);
             for (int x = 0; x < static_cast<int>(in_tensors.size()); x++) {
               if (in_tensors[x] == tid) {
                 ignore_pair.push_back(std::pair<int, int>(k,x));
@@ -324,13 +324,13 @@ static bool tensor_conflict_with_npu_exe(NetGraph* net_graph, net_timestep* time
                                          int tensor_id, int timestep_idx) {
   int layer_id = time_step->get_layer(timestep_idx);
   if (layer_id != -1) {
-    const vector<int>& in_tensors = net_graph->get_in_tensors_of_layer(layer_id);
+    const std::vector<int>& in_tensors = net_graph->get_in_tensors_of_layer(layer_id);
 
     if (std::find(in_tensors.begin(), in_tensors.end(), tensor_id) != in_tensors.end()) {
       return true;
     }
 
-    const vector<int>& out_tensors = net_graph->get_out_tensors_of_layer(layer_id);
+    const std::vector<int>& out_tensors = net_graph->get_out_tensors_of_layer(layer_id);
     if (std::find(out_tensors.begin(), out_tensors.end(), tensor_id) != out_tensors.end()) {
       return true;
     }
@@ -346,7 +346,7 @@ static bool tensor_conflict_with_npu_exe(NetGraph* net_graph, net_timestep* time
 // operations to keep balance.
 bmerr_t ClusterSteps::balance_gdma_bdc_steps(NetGraph* net_graph, Group* cluster,
                                              net_timestep* time_step,
-                                             const pair<int, int>& nsecs_and_hsecs) {
+                                             const std::pair<int, int>& nsecs_and_hsecs) {
   if (cluster->size() == 1) {
     return BM_SUCCESS;
   }
@@ -365,20 +365,20 @@ bmerr_t ClusterSteps::balance_gdma_bdc_steps(NetGraph* net_graph, Group* cluster
     timestep_cycle_slack[i] = 0;
   }
 
-  map<int, int> tensor_to_gdma_cycle;
-  map<int, int> tensor_to_buffer_size;
-  vector<list<TENSOR_STEP>> tensor_timesteps;
+  std::map<int, int> tensor_to_gdma_cycle;
+  std::map<int, int> tensor_to_buffer_size;
+  std::vector<std::list<TENSOR_STEP>> tensor_timesteps;
 
   // get cycle slack of each time step
   int tensor_id;
   int tensor_gdma_cycle;
   int tensor_local_size;
 
-  list<TENSOR_STEP> list_tensors;
+  std::list<TENSOR_STEP> list_tensors;
 
   for (int i = 0; i < timestep_num; ++i) {
     int cur_layer = time_step->get_layer(i);
-    const vector<TENSOR_STEP>& cur_tensors = time_step->get_tensors(i);
+    const std::vector<TENSOR_STEP>& cur_tensors = time_step->get_tensors(i);
     // add layer cycle for each time step
     if (cur_layer != -1) {
       //timestep_cycle_slack[i] += get_layer_cycle_count(net_graph, cur_layer);
@@ -386,7 +386,7 @@ bmerr_t ClusterSteps::balance_gdma_bdc_steps(NetGraph* net_graph, Group* cluster
     }
     // sub tensor gdma cycle for each time step
     list_tensors.clear();
-    for (u32 j = 0; j < cur_tensors.size(); ++j) {
+    for (uint32_t j = 0; j < cur_tensors.size(); ++j) {
       tensor_id = cur_tensors[j].first;
       // get cycle
       //tensor_gdma_cycle = get_gdma_cycle_count(net_graph, cur_tensors[j]);
@@ -400,7 +400,7 @@ bmerr_t ClusterSteps::balance_gdma_bdc_steps(NetGraph* net_graph, Group* cluster
 
       tensor_to_buffer_size[tensor_id] = tensor_local_size;
 
-      // generate tensor gdma list
+      // generate tensor gdma std::list
       list_tensors.push_back(cur_tensors[j]);
 
       // slack minus gdma cycle
@@ -413,8 +413,8 @@ bmerr_t ClusterSteps::balance_gdma_bdc_steps(NetGraph* net_graph, Group* cluster
   int cycle_profit, max_cycle_profit;
   int best_ts_to, best_sel_tensor;
   int cur_profit, dst_cost;
-  list<TENSOR_STEP>::iterator list_iter;
-  list<TENSOR_STEP>::iterator sel_list_iter;
+  std::list<TENSOR_STEP>::iterator list_iter;
+  std::list<TENSOR_STEP>::iterator sel_list_iter;
 
   int to_ts_i, pre_ts;
   bool valid_flag;
@@ -574,8 +574,8 @@ bmerr_t ClusterSteps::balance_gdma_bdc_steps(NetGraph* net_graph, Group* cluster
   }
 
   // update time step
-  vector<TENSOR_STEP> new_tensor_timestep;
-  for (u32 i = 0; i < tensor_timesteps.size(); ++i) {
+  std::vector<TENSOR_STEP> new_tensor_timestep;
+  for (uint32_t i = 0; i < tensor_timesteps.size(); ++i) {
     new_tensor_timestep.clear();
     for (list_iter = tensor_timesteps[i].begin(); list_iter != tensor_timesteps[i].end();
          ++list_iter) {
@@ -591,9 +591,9 @@ bmerr_t ClusterSteps::balance_gdma_bdc_steps(NetGraph* net_graph, Group* cluster
 void ClusterSteps::to_timestep_with_tsm(net_timestep* time_step) {
   struct tmp_step {
     int layer_id;
-    vector<TENSOR_STEP> tensor_step;
+    std::vector<TENSOR_STEP> tensor_step;
   };
-  vector<struct tmp_step> step;
+  std::vector<struct tmp_step> step;
 
   step.resize(max_step_num_ + 4);
   for (int i = 0; i < static_cast<int>(step.size()); i++) {
@@ -610,15 +610,15 @@ void ClusterSteps::to_timestep_with_tsm(net_timestep* time_step) {
     // DMA
     for (int j = 0; j < ddr_to_tsm_[i].size(); j++) {
       int tid = ddr_to_tsm_[i][j];
-      step[i].tensor_step.push_back(make_pair(tid, TIMESTEP_DDR_TO_TSM));
+      step[i].tensor_step.push_back(std::make_pair(tid, TIMESTEP_DDR_TO_TSM));
     }
     for (int j = 0; j < tsm_to_lmem_[i].size(); j++) {
       int tid = tsm_to_lmem_[i][j];
-      step[i + 1].tensor_step.push_back(make_pair(tid, TIMESTEP_TSM_TO_LMEM));
+      step[i + 1].tensor_step.push_back(std::make_pair(tid, TIMESTEP_TSM_TO_LMEM));
     }
     for (int j = 0; j < loads_[i].size(); j++) {
       int tid = loads_[i][j];
-      step[i + 1].tensor_step.push_back(make_pair(tid, TIMESTEP_LOAD));
+      step[i + 1].tensor_step.push_back(std::make_pair(tid, TIMESTEP_LOAD));
     }
 
     // BDC
@@ -627,15 +627,15 @@ void ClusterSteps::to_timestep_with_tsm(net_timestep* time_step) {
     // DMA
     for (int j = 0; j < stores_[i].size(); j++) {
       int tid = stores_[i][j];
-      step[i + 3].tensor_step.push_back(make_pair(tid, TIMESTEP_STORE));
+      step[i + 3].tensor_step.push_back(std::make_pair(tid, TIMESTEP_STORE));
     }
     for (int j = 0; j < lmem_to_tsm_[i].size(); j++) {
       int tid = lmem_to_tsm_[i][j];
-      step[i + 3].tensor_step.push_back(make_pair(tid, TIMESTEP_LMEM_TO_TSM));
+      step[i + 3].tensor_step.push_back(std::make_pair(tid, TIMESTEP_LMEM_TO_TSM));
     }
     for (int j = 0; j < tsm_to_ddr_[i].size(); j++) {
       int tid = tsm_to_ddr_[i][j];
-      step[i + 4].tensor_step.push_back(make_pair(tid, TIMESTEP_TSM_TO_DDR));
+      step[i + 4].tensor_step.push_back(std::make_pair(tid, TIMESTEP_TSM_TO_DDR));
     }
   }
 
@@ -654,16 +654,16 @@ void ClusterSteps::to_timestep_with_tsm(net_timestep* time_step) {
 // and timestep_num in time_step.
 void ClusterSteps::to_timestep(net_timestep* time_step) {
   for (int i = 0; i < static_cast<int>(layers_.size()); i++) {
-    vector<TENSOR_STEP> tensor_step;
+    std::vector<TENSOR_STEP> tensor_step;
 
     if (!loads_[i].empty()) {
       for (int j = 0; j < static_cast<int>(loads_[i].size()); j++) {
-        tensor_step.push_back(make_pair(loads_[i][j], TIMESTEP_LOAD));
+        tensor_step.push_back(std::make_pair(loads_[i][j], TIMESTEP_LOAD));
       }
     }
     if (!stores_[i].empty()) {
       for (int j = 0; j < static_cast<int>(stores_[i].size()); j++) {
-        tensor_step.push_back(make_pair(stores_[i][j], TIMESTEP_STORE));
+        tensor_step.push_back(std::make_pair(stores_[i][j], TIMESTEP_STORE));
       }
     }
 

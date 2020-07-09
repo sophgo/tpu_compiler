@@ -7,12 +7,6 @@
 
 namespace mlir {
 
-namespace cl = llvm::cl;
-// cl::opt<int> LayerGroupWithTSM("layer-group-with-tsm", cl::desc("Specify TSM Size in KB"),
-//                                cl::value_desc("size"), cl::init(0), cl::cat(CatBM188X), cl::ReallyHidden);
-
-// cl::opt<bool> OptIgnoreBankConflict("ignore-bank-conflict", cl::init(false), cl::cat(CatOptimizer));
-
 Group::~Group() {
   if (time_step) {
     delete time_step;
@@ -21,7 +15,7 @@ Group::~Group() {
 
 // to check if a tensor points to out of group.
 bool Group::is_group_out_tensor(int tid) {
-  const vector<int>& to_layers = net_graph_->get_tensor_to_layer(tid);
+  const std::vector<int>& to_layers = net_graph_->get_tensor_to_layer(tid);
   if (to_layers.empty()) {
     return true;
   }
@@ -38,17 +32,17 @@ bool Group::is_group_out_tensor(int tid) {
 
 // Check if a tensor belongs to neuron tensor.
 bool Group::is_group_in_neuron_tensor(int tid) {
-  set<int> in_neurons = get_group_in_neuron_tensors();
+  std::set<int> in_neurons = get_group_in_neuron_tensors();
   return in_neurons.find(tid) != in_neurons.end();
 }
 
 // Get out tensor not in the group
-vector<int> Group::get_group_out_tensors() {
-  vector<int> group_out_tensors;
+std::vector<int> Group::get_group_out_tensors() {
+  std::vector<int> group_out_tensors;
 
   for (int i = 0; i < static_cast<int>(layers_.size()); i++) {
     int id = layers_[i];
-    const vector<int>& out_tensors = net_graph_->get_out_tensors_of_layer(id);
+    const std::vector<int>& out_tensors = net_graph_->get_out_tensors_of_layer(id);
 
     for (int j = 0; j < static_cast<int>(out_tensors.size()); ++j) {
       int tid = out_tensors[j];
@@ -62,8 +56,8 @@ vector<int> Group::get_group_out_tensors() {
 }
 
 // Get neuron tensor in group.
-set<int> Group::get_group_in_neuron_tensors() {
-  set<int> group_in_neuron_tensors;
+std::set<int> Group::get_group_in_neuron_tensors() {
+  std::set<int> group_in_neuron_tensors;
 
   for (int i = 0; i < static_cast<int>(layers_.size()); i++) {
     const ImLayer* layer = net_graph_->get_layer_by_id(layers_[i]);
@@ -95,7 +89,7 @@ set<int> Group::get_group_in_neuron_tensors() {
 bool Group::group_has_winograd_tensors() {
   for (int i = 0; i < static_cast<int>(layers_.size()); i++) {
     int id = layers_[i];
-    const vector<int>& out_tensors = net_graph_->get_out_tensors_of_layer(id);
+    const std::vector<int>& out_tensors = net_graph_->get_out_tensors_of_layer(id);
     for (int j = 0; j < static_cast<int>(out_tensors.size()); ++j) {
       int tid = out_tensors[j];
       if (net_graph_->get_tensor_type(tid) == TENSOR_NEURON_WINOGRAD) {
@@ -117,7 +111,7 @@ bmerr_t Group::group_winograd_out_tensors_check() {
     }
     for (int i = 0; i < static_cast<int>(layers_.size()); i++) {
       int id = layers_[i];
-      const vector<int>& out_tensors = net_graph_->get_out_tensors_of_layer(id);
+      const std::vector<int>& out_tensors = net_graph_->get_out_tensors_of_layer(id);
       for (int j = 0; j < static_cast<int>(out_tensors.size()); ++j) {
         int tid = out_tensors[j];
         if (net_graph_->get_tensor_type(tid) == TENSOR_NEURON_WINOGRAD) {
@@ -161,7 +155,7 @@ int Group::get_batch_num() const {
   return net_graph_->get_tensor_nums(any_tensor);
 }
 
-static int get_max_hsecs(NetGraph* net_graph_, const vector<int>& layer_group) {
+static int get_max_hsecs(NetGraph* net_graph_, const std::vector<int>& layer_group) {
   int max_hsecs;
   int any_layer = layer_group[0];
   int any_tensor = net_graph_->get_in_tensors_of_layer(any_layer)[0];
@@ -314,7 +308,7 @@ bool Group::validate_tensor_slice() {
   }
 
   // Validate out tensor slice
-  vector<int> out_tensors = get_group_out_tensors();
+  std::vector<int> out_tensors = get_group_out_tensors();
   for (auto tid : out_tensors) {
     Tensor* tensor = net_graph_->get_tensor_by_id(tid);
 
@@ -358,7 +352,7 @@ void Group::reset_tensor_hslice_max() {
 }
 
 // Breadth-first traversal of all the tensors and set n_slice and h_slice.
-bool Group::backward_slice(int out_tensor_id, list<int>& branches, bool max_h_slice,
+bool Group::backward_slice(int out_tensor_id, std::list<int>& branches, bool max_h_slice,
                            bool no_split_h, int n_loop, int h_loop) {
   int id = net_graph_->get_tensor_from_layer(out_tensor_id);
 
@@ -425,9 +419,9 @@ bool Group::backward_slice(int out_tensor_id, list<int>& branches, bool max_h_sl
   }
 
   int h_slice, h_idx;
-  const vector<int>& back_tensors = net_graph_->get_in_tensors_of_layer(id);
+  const std::vector<int>& back_tensors = net_graph_->get_in_tensors_of_layer(id);
 
-  for (u32 i = 0; i < back_tensors.size(); ++i) {
+  for (uint32_t i = 0; i < back_tensors.size(); ++i) {
     Tensor* tensor = net_graph_->get_tensor_by_id(back_tensors[i]);
 
     if (tensor->type() == TENSOR_COEFF || tensor->type() == TENSOR_BIAS ||
@@ -574,7 +568,7 @@ bool Group::backward_slice(int out_tensor_id, list<int>& branches, bool max_h_sl
 // According to the slicing number and index, update each tensor's
 // information in current group by breadth-first search algorithm.
 bmerr_t Group::update_tensor_slices(int nsecs, int hsecs, int nslice_idx, int hslice_idx) {
-  vector<int> out_tensors = get_group_out_tensors();
+  std::vector<int> out_tensors = get_group_out_tensors();
 
   reset_tensor_slice();
 
@@ -596,7 +590,7 @@ bmerr_t Group::update_tensor_slices(int nsecs, int hsecs, int nslice_idx, int hs
       tensor->set_nh_slice(n_idx, n_slice, h_idx, h_slice);
     }
 
-    list<int> branches;
+    std::list<int> branches;
     branches.push_back(tid);
     // breadth-first search algorithm
     while (!branches.empty()) {

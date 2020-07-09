@@ -416,24 +416,21 @@ void CviModelBuilder::parseModule() {
       if (!batchNum_) {
         batchNum_ = tensor->shape[0];
       }
+      if (op->getAttr("chipname")) {
+        clRunChipType = op->getAttr("chipname").cast<StringAttr>().getValue();
+      }
+
       bool overwritten = false;
       if (op->getAttr("fuse_next") && !op->getAttr("fused_leaky")) {
         overwritten = true;
       }
 
-      if (op->getAttr("chipname")) {
-        clRunChipType = op->getAttr("chipname").cast<StringAttr>().getValue();
-      }
       if (op->getAttr("tl_store_flag") &&
           !op->getAttr("tl_store_flag").cast<BoolAttr>().getValue()) {
         overwritten = true;
       }
       if (op->getAttr("buffer_reused") &&
           op->getAttr("buffer_reused").cast<BoolAttr>().getValue()) {
-        overwritten = true;
-      }
-      if (isa<tpu::TG_INT8_SliceOp>(op) ||
-          isa<tpu::TG_BF16_SliceOp>(op)) {
         overwritten = true;
       }
       tensor->overwritten = overwritten;

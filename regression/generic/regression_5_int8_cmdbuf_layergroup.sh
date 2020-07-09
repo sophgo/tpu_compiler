@@ -6,7 +6,6 @@ DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 mlir-opt \
     --group-ops \
     ${NET}_quant_int8_multiplier_tg_opt.mlir \
-    --layer-group-neuron-map-filename=neuron_map_layergroup.csv \
     -o ${NET}_quant_int8_multiplier_layergroup.mlir
 
 mlir-opt \
