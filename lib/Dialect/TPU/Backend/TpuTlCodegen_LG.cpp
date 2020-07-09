@@ -41,6 +41,8 @@
 
 #include <fstream>
 
+#include "backend/backend_common.h" // cvi_backend_fmt_t
+
 #define DEBUG_TYPE "mlir-to-cmdbuf"
 
 using namespace mlir;
@@ -401,6 +403,7 @@ LogicalResult tpu::TL_LG_LutOp::codegen(void *ctx) {
   laddr_t la_input = this->la_input().getLimitedValue();
   laddr_t la_output = this->la_output().getLimitedValue();
   laddr_t la_working = this->la_working().getLimitedValue();
+  laddr_t la_slope_lut = this->la_slope_lut().getLimitedValue();
   laddr_t la_y_table = this->la_y_table().getLimitedValue();
 
   std::vector<int64_t> shape;
@@ -414,9 +417,58 @@ LogicalResult tpu::TL_LG_LutOp::codegen(void *ctx) {
                       la_output,
                       la_working,
                       la_y_table,
+                      la_slope_lut,
                       n, c, h, w);
   return success();
 
+}
+
+LogicalResult tpu::TL_LG_QuantOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+  int layer_id = mlir::getOpLayerId(op);
+
+  laddr_t la_input = this->la_input().getLimitedValue();
+  laddr_t la_output = this->la_output().getLimitedValue();
+
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  getNCHW(shape, n, c, h, w);
+
+  cvi_backend_fmt_t from, to;
+  if (this->from() == "BF16") {
+    from = CVI_FMT_BF16;
+  }
+  else if (this->from() == "INT8") {
+    from = CVI_FMT_I8;
+  }
+  else {
+    llvm_unreachable("current `from` only support int8/bf16");
+  }
+
+  if (this->to() == "BF16") {
+    to = CVI_FMT_BF16;
+  }
+  else if (this->to() == "INT8") {
+    to = CVI_FMT_I8;
+  }
+  else {
+    llvm_unreachable("current `to` only support int8/bf16");
+  }
+
+  // FIXME: support U8 type
+  cvi_backend_tl_quant(*backend_ctx,
+                      layer_id,
+                      la_input,
+                      la_output,
+                      from, to,
+                      this->const_scale().convertToFloat(),
+                      n, c, h, w);
+  return success();
 }
 
 LogicalResult tpu::TL_LG_ConcatOp::codegen(void *ctx) {
@@ -524,6 +576,34 @@ LogicalResult tpu::TL_LG_LoadNeuronOp::codegen(void *ctx) {
   bool aligned = this->align();
   bool isNeuron = true;
 
+  cvi_backend_fmt_t from, to;
+  RankedTensorType in_type = this->getOperand()->getType().cast<RankedTensorType>();
+  RankedTensorType out_type = this->getResult()->getType().cast<RankedTensorType>();
+
+  // convert type to `cvi_backend_fmt`
+  if (in_type.getElementType().isBF16()) {
+    from = CVI_FMT_BF16;
+  }
+  else if (in_type.getElementType().isInteger(8)) {
+    // int8
+    from = CVI_FMT_I8;
+  }
+  else {
+    llvm_unreachable("current `from` only support int8/bf16");
+  }
+
+  // convert type to `cvi_backend_fmt`
+  if (out_type.getElementType().isBF16()) {
+    to = CVI_FMT_BF16;
+  }
+  else if (out_type.getElementType().isInteger(8)) {
+    // int8
+    to = CVI_FMT_I8;
+  }
+  else {
+    llvm_unreachable("current `to` only support int8/bf16");
+  }
+
   cvi_backend_tl_load_stride( *backend_ctx,
                               layer_id,
                               src_gaddr,
@@ -531,6 +611,7 @@ LogicalResult tpu::TL_LG_LoadNeuronOp::codegen(void *ctx) {
                               local_n, local_c, local_h, local_w,
                               global_c, global_h, global_w,
                               transpose, aligned, isNeuron,
+                              from, to,
                               false);
   return success();
 }
@@ -577,6 +658,24 @@ LogicalResult tpu::TL_LG_LoadCoeffOp::codegen(void *ctx) {
   if (this->compressed_weight().hasValue())
     bcompressed = this->compressed_weight().getValue();
 
+  cvi_backend_fmt_t from, to;
+  // Coeff dont need to quant, just check result type
+  RankedTensorType out_type = this->getResult()->getType().cast<RankedTensorType>();
+
+  // convert type to `cvi_backend_fmt`
+  if (out_type.getElementType().isBF16()) {
+    from = CVI_FMT_BF16;
+    to = CVI_FMT_BF16;
+  }
+  else if (out_type.getElementType().isInteger(8)) {
+    // int8
+    from = CVI_FMT_I8;
+    to = CVI_FMT_I8;
+  }
+  else {
+    llvm_unreachable("current `from/to` only support int8/bf16");
+  }
+
   cvi_backend_tl_load_stride( *backend_ctx,
                               layer_id,
                               src_gaddr,
@@ -584,8 +683,8 @@ LogicalResult tpu::TL_LG_LoadCoeffOp::codegen(void *ctx) {
                               local_n, local_c, local_h, local_w,
                               global_c, global_h, global_w,
                               transpose, aligned, isNeuron,
+                              from, to,
                               bcompressed);
-
   return success();
 }
 
@@ -618,13 +717,43 @@ LogicalResult tpu::TL_LG_StoreOp::codegen(void *ctx) {
   bool aligned = this->align();
   bool isNeuron = true;
 
+  cvi_backend_fmt_t from, to;
+  RankedTensorType in_type = this->getOperand()->getType().cast<RankedTensorType>();
+  RankedTensorType out_type = this->getResult()->getType().cast<RankedTensorType>();
+
+  // convert type to `cvi_backend_fmt`
+  if (in_type.getElementType().isBF16()) {
+    from = CVI_FMT_BF16;
+  }
+  else if (in_type.getElementType().isInteger(8)) {
+    // int8
+    from = CVI_FMT_I8;
+  }
+  else {
+    llvm_unreachable("current `from` only support int8/bf16");
+  }
+
+  // convert type to `cvi_backend_fmt`
+  if (out_type.getElementType().isBF16()) {
+    to = CVI_FMT_BF16;
+  }
+  else if (out_type.getElementType().isInteger(8)) {
+    // int8
+    to = CVI_FMT_I8;
+  }
+  else {
+    llvm_unreachable("current `to` only support int8/bf16");
+  }
+
   cvi_backend_tl_store_stride( *backend_ctx,
                                 layer_id,
                                 src_gaddr,
                                 dst_laddr,
                                 local_n, local_c, local_h, local_w,
                                 global_c, global_h, global_w,
-                                transpose, aligned, isNeuron);
+                                transpose, aligned, isNeuron,
+                                from, to
+                                );
   return success();
 }
 

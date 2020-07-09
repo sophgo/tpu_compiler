@@ -9,6 +9,7 @@ namespace mlir {
 typedef enum tensor_type {
   TENSOR_NEURON = 0,
   TENSOR_MATRIX,
+  TENSOR_COEFF_LUT,
   TENSOR_COEFF,
   TENSOR_BIAS,
   TENSOR_COEFF_NEURON,

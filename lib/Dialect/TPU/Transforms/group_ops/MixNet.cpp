@@ -260,6 +260,11 @@ void MixNet::add_tl_layer(int group_idx, int layer_id, net_timestep* time_step, 
       _add_tl_relu_op(mix_op, in_tensors, out_tensors, time_step,
                       timestep_idx, is_h_split);
      break;
+    case IR_QUANT:
+      mix_op->set_type("tl_quant");
+      _add_tl_quant_op(mix_op, in_tensors, out_tensors, time_step,
+                        timestep_idx, is_h_split);
+      break;
     default:
       cout << "unknown layer type:" << layer_type << endl;
   }
@@ -1087,10 +1092,21 @@ void MixNet::_add_tl_activation_op(MixOp * mix_op,
   int bottom_dim[4];
   const ImLayer* im_layer =
       net_graph_->get_layer_by_id(mix_op->get_layer_id());
-  auto old_op = dyn_cast<tpu::TG_INT8_LutOp>(im_layer->op());
-  assert(old_op);
-  auto old_input_type =
-    old_op.getOperand(0)->getType().cast<RankedTensorType>();
+  RankedTensorType old_input_type;
+  int is_int8 = 1;
+
+  if (auto old_op = dyn_cast<tpu::TG_INT8_LutOp>(im_layer->op())) {
+    old_input_type =
+      old_op.getOperand(0)->getType().cast<RankedTensorType>();
+  }
+  else if (auto old_op = dyn_cast<tpu::TG_BF16_LutOp>(im_layer->op())) {
+    old_input_type =
+      old_op.getResult()->getType().cast<RankedTensorType>();
+    is_int8 = 0;
+  }
+  else {
+    llvm_unreachable("unsupported type, it should be TG_INT8_LutOp/TG_BF16_LutOp");
+  }
 
   Tensor* in_tensor = net_graph_->get_tensor_by_id(in_tensors[0]);
   net_graph_->get_tensor_dim(in_tensors[0], bottom_dim);
@@ -1102,6 +1118,15 @@ void MixNet::_add_tl_activation_op(MixOp * mix_op,
   u32 la_input = net_graph_->get_tensor_local_offset(in_tensors[0]);
   u32 la_output = net_graph_->get_tensor_local_offset(out_tensors[0]);
   u32 la_y_table = net_graph_->get_tensor_local_offset(in_tensors[1]);
+  u32 la_slope_lut = 0, la_working = 0;
+  if (!is_int8) {
+    // order by \ImLayer.cpp
+    la_slope_lut = net_graph_->get_tensor_local_offset(in_tensors[2]);
+
+    mem_buffer_key_t key = {timestep_idx, im_layer->imm_tensors[0].get()->id(), true};
+    const mem_buffer_value_t* imm = time_step->get_mem_buffer_value(&key);
+    la_working = imm->local_mem_offset;
+  }
 
   // attrs
   Builder builder_(context_);
@@ -1114,10 +1139,12 @@ void MixNet::_add_tl_activation_op(MixOp * mix_op,
                            builder_.getI32IntegerAttr(la_input)));
   attrs.push_back(builder_.getNamedAttr("la_output",
                            builder_.getI32IntegerAttr(la_output)));
-  attrs.push_back(builder_.getNamedAttr("la_working",
-                           builder_.getI32IntegerAttr(0)));
+  attrs.push_back(builder_.getNamedAttr("la_slope_lut",
+                           builder_.getI32IntegerAttr(la_slope_lut)));
   attrs.push_back(builder_.getNamedAttr("la_y_table",
                            builder_.getI32IntegerAttr(la_y_table)));
+  attrs.push_back(builder_.getNamedAttr("la_working",
+                           builder_.getI32IntegerAttr(la_working)));
 
   // setup input/output type
   RankedTensorType input_type = RankedTensorType::get(
@@ -1129,19 +1156,142 @@ void MixNet::_add_tl_activation_op(MixOp * mix_op,
                           {bottom_dim[0], bottom_dim[1],
                            bottom_dim[2], bottom_dim[3]},
                            old_input_type.getElementType());
+  // setup operands
+  vector<Value *> operands;
+  Operation * input_op =
+    get_op_from_name(mix_op->bottom_name(0))->getDefiningOp();
+  input_op->getResult(0)->setType(input_type);
+  operands.push_back(input_op->getResult(0));
+
+  int lut_nr = 1; // one lut for int8
+  Type bf16Type;
+  if (is_int8) {
+  }
+  else {
+     lut_nr = 2; // y0 + mantissa
+     bf16Type = FloatType::getBF16(builder_.getContext()); // for td define
+  }
+
+  u32 i;
+  for (i = 0; i < lut_nr ; i++) {
+    // + 1 means shift after 0(input)
+    input_op = get_op_from_name(mix_op->bottom_name(i + 1))->getDefiningOp();
+    auto shape = input_op->getResult(0)->getType().cast<TensorType>().getShape();
+    if (!is_int8) {
+      auto shape = input_op->getResult(0)->getType().cast<TensorType>().getShape();
+      auto type = RankedTensorType::get(shape, bf16Type);
+      input_op->getResult(0)->setType(type);
+    }
+    operands.push_back(input_op->getResult(0));
+  }
+
+  if (is_int8) {
+    // fix occupied \slope_lut
+    auto NoneOp = OpBuilder(get_start_op()).create<tpu::NoneOp>(builder_.getUnknownLoc(),
+        builder_.getNoneType());
+    operands.push_back(NoneOp.getResult());
+  }
+
+  auto op = OpBuilder(get_start_op()).create<tpu::TL_LG_LutOp>(
+                      get_start_op()->getLoc(), output_type,
+                      ArrayRef<Value *>{operands},
+                      ArrayRef<NamedAttribute>{attrs});
+
+  add_opd_to_list(mix_op->name(), op.getResult(), true);
+}
+
+void MixNet::_add_tl_quant_op(MixOp * mix_op,
+                                  const vector<int>& in_tensors,
+                                  const vector<int>& out_tensors,
+                                  net_timestep* time_step,
+                                  int timestep_idx, bool is_h_split) {
+  int bottom_dim[4];
+  float const_scale;
+  float threshold;
+  StringRef from, to;
+  const ImLayer* im_layer =
+      net_graph_->get_layer_by_id(mix_op->get_layer_id());
+
+  // it MUST quant op
+  auto quant_inter = llvm::dyn_cast<tpu::TpuOpQuantInterface>(im_layer->op());
+  RankedTensorType old_input_type, old_output_type;
+
+  if (auto quantOp = dyn_cast<tpu::TG_INT8_QuantOp>(im_layer->op())) {
+    old_input_type = quantOp.getOperand()->getType().cast<RankedTensorType>();
+    old_output_type = quantOp.getResult()->getType().cast<RankedTensorType>();
+    threshold = quantOp.threshold().getValue().convertToFloat();
+    from = quantOp.from();
+    to = quantOp.to();
+  }
+  else if (auto quantOp = dyn_cast<tpu::TG_BF16_QuantOp>(im_layer->op())) {
+    old_input_type = quantOp.getOperand()->getType().cast<RankedTensorType>();
+    old_output_type = quantOp.getResult()->getType().cast<RankedTensorType>();
+    threshold = quantOp.threshold().getValue().convertToFloat();
+    from = quantOp.from();
+    to = quantOp.to();
+  }
+  else {
+    assert(0 && "it should be quant interface");
+  }
+
+  Tensor* in_tensor = net_graph_->get_tensor_by_id(in_tensors[0]);
+  net_graph_->get_tensor_dim(in_tensors[0], bottom_dim);
+  bottom_dim[0] = in_tensor->n_slice;
+  bottom_dim[2] = in_tensor->h_slice;
+
+  string name = mix_op->name();
+  int layer_id = mix_op->get_layer_id();
+  u32 la_input = net_graph_->get_tensor_local_offset(in_tensors[0]);
+  u32 la_output = net_graph_->get_tensor_local_offset(out_tensors[0]);
+
+  if (from == "INT8" && to == "BF16") {
+    // dequant
+    const_scale = threshold / 127.0;
+  }
+  else if (from == "BF16" && to == "INT8") {
+    // quant
+    const_scale = 127.0 / threshold;
+  }
+
+  // attrs
+  Builder builder_(context_);
+  vector<NamedAttribute> attrs;
+  attrs.push_back(builder_.getNamedAttr("name",
+                           builder_.getStringAttr(name)));
+  attrs.push_back(builder_.getNamedAttr("layer_id",
+                           builder_.getI32IntegerAttr(layer_id)));
+  attrs.push_back(builder_.getNamedAttr("la_input",
+                           builder_.getI32IntegerAttr(la_input)));
+  attrs.push_back(builder_.getNamedAttr("la_output",
+                           builder_.getI32IntegerAttr(la_output)));
+  attrs.push_back(builder_.getNamedAttr("from",
+                           builder_.getStringAttr(from)));
+  attrs.push_back(builder_.getNamedAttr("to",
+                           builder_.getStringAttr(to)));
+  attrs.push_back(builder_.getNamedAttr("const_scale",
+                           builder_.getF32FloatAttr(const_scale)));
+
+  // setup input/output type
+  RankedTensorType input_type = RankedTensorType::get(
+                          {bottom_dim[0], bottom_dim[1],
+                           bottom_dim[2], bottom_dim[3]},
+                           old_input_type.getElementType());
+
+  RankedTensorType output_type = RankedTensorType::get(
+                          {bottom_dim[0], bottom_dim[1],
+                           bottom_dim[2], bottom_dim[3]},
+                           old_output_type.getElementType());
 
   // setup operands
   vector<Value *> operands;
 
-  for( u32 i = 0; i < 2; i++) {
-    Operation * input_op =
-      get_op_from_name(mix_op->bottom_name(i))->getDefiningOp();
-    if ( i == 0)
-      input_op->getResult(0)->setType(input_type);
-    operands.push_back(input_op->getResult(0));
-  }
+  // only one input
+  Operation * input_op =
+    get_op_from_name(mix_op->bottom_name(0))->getDefiningOp();
+  input_op->getResult(0)->setType(input_type);
+  operands.push_back(input_op->getResult(0));
 
-  auto op = OpBuilder(get_start_op()).create<tpu::TL_LG_LutOp>(
+  auto op = OpBuilder(get_start_op()).create<tpu::TL_LG_QuantOp>(
                       get_start_op()->getLoc(), output_type,
                       ArrayRef<Value *>{operands},
                       ArrayRef<NamedAttribute>{attrs});
@@ -1283,24 +1433,41 @@ void MixNet::_add_load_op(int tensor_id,
   Value * src_opd = weightFileOp_->getResult(0);
   gaddr = net_graph_->get_tensor_global_mem(tensor_id);
 
-  if (tensor_type == TENSOR_COEFF) {
+  if (tensor_type == TENSOR_COEFF || tensor_type == TENSOR_COEFF_LUT) {
     laddr = net_graph_->get_tensor_local_offset(tensor_id);
 
-    // to match mlir requirement for conv weight, shape is
-    // (oc, ic, kh, kw)
-    local_shape[0] = tensor_dim[1];
-    local_shape[1] = tensor_dim[0];
-    local_shape[2] = tensor_dim[2];
-    local_shape[3] = tensor_dim[3];
+    if (tensor_type == TENSOR_COEFF_LUT) {
+      // lut case, no need to reshape
+      local_shape[0] = (tensor_dim[0]);
+      local_shape[1] = (tensor_dim[1]);
+      local_shape[2] = (tensor_dim[2]);
+      local_shape[3] = (tensor_dim[3]);
 
-    global_shape[0] = tensor_dim[1];
-    global_shape[1] = tensor_dim[0];
-    global_shape[2] = tensor_dim[2];
-    global_shape[3] = tensor_dim[3];
+      global_shape[0] = (tensor_dim[0]);
+      global_shape[1] = (tensor_dim[1]);
+      global_shape[2] = (tensor_dim[2]);
+      global_shape[3] = (tensor_dim[3]);
+    }
+    else {
+      // to match mlir requirement for conv weight, shape is
+      // (oc, ic, kh, kw)
+      local_shape[0] = tensor_dim[1];
+      local_shape[1] = tensor_dim[0];
+      local_shape[2] = tensor_dim[2];
+      local_shape[3] = tensor_dim[3];
+
+      global_shape[0] = tensor_dim[1];
+      global_shape[1] = tensor_dim[0];
+      global_shape[2] = tensor_dim[2];
+      global_shape[3] = tensor_dim[3];
+    }
 
     aligned = (false);
     transpose = (false);
     tensor_type_str = "CONV_COEFF";
+    if (tensor_type == TENSOR_COEFF_LUT) {
+      tensor_type_str = "LUT_COEFF";
+    }
     dtype = COEFF;
   } else if (tensor_type == TENSOR_BIAS) {
     laddr = net_graph_->get_tensor_local_offset(tensor_id);
@@ -1466,10 +1633,16 @@ void MixNet::_add_store_op(int tensor_id, net_timestep * time_step, int timestep
   // setup input operation
   vector<Value *> operands;
   operands.push_back(src_opd);
+  Type _output_type = getElementType(context_, tensor->unit_size());
+  Type _input_type = src_opd->getType().cast<RankedTensorType>().getElementType();
+  if (_input_type.isBF16()) {
+    // quant case, we replace i16 to bf16 for codegen
+    _output_type = _input_type;
+  }
   RankedTensorType output_type = RankedTensorType::get(
                           {global_shape[0], global_shape[1],
                            global_shape[2], global_shape[3]},
-                           getElementType(context_, tensor->unit_size()));
+                           _output_type);
 
 
   // build tl_load operation
