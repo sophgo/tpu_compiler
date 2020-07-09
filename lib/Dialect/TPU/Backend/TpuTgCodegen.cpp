@@ -1383,6 +1383,29 @@ LogicalResult tpu::TG_BF16_GenericTpuOp::codegen(void *ctx) {
   return success();
 }
 
+LogicalResult tpu::TG_INT8_InterpOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+  int layer_id = mlir::getOpLayerId(op);
+  std::string errorMsg = "unsupported tg op " + getOpName().str() + "\n";
+  llvm_unreachable(errorMsg.c_str());
+  return success();
+}
+
+LogicalResult tpu::TG_BF16_InterpOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+  int layer_id = mlir::getOpLayerId(op);
+  
+  std::string errorMsg = "unsupported tg op " + getOpName().str() + "\n";
+  llvm_unreachable(errorMsg.c_str());
+  return success();
+}
+
 LogicalResult tpu::TG_INT8_LeakyReluOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);
@@ -2022,6 +2045,7 @@ LogicalResult tpu::TG_INT8_ReluOp::codegen(void *ctx) {
   return success();
 }
 
+
 LogicalResult tpu::TG_BF16_ReluOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);
@@ -2164,6 +2188,37 @@ LogicalResult tpu::TG_BF16_SwapChannelOp::codegen(void *ctx) {
   swap_channel_forward_kernel(*backend_ctx, 0, 0, layer_id, nullptr, 0,
                                        input_gaddr, output_gaddr,  (int)input_shape_fix.size(),
                                        input_shape_fix.data(), order.data(), CVI_FMT_BF16);
+  return success();
+}
+
+LogicalResult tpu::TG_INT8_TileInterpOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  std::vector<int64_t> input_shape = getTensorShape(input());
+
+  gaddr_t input_gaddr = getPreviousOpAddress(op);
+  gaddr_t output_gaddr = getOpAddress(op);
+  int layer_id = mlir::getOpLayerId(op);
+  std::vector<int32_t> resp;
+  arrayAttrToVector(this->resp().getValue(), resp);
+
+  std::string errorMsg = "unsupported tg op " + getOpName().str() + "\n";
+  llvm_unreachable(errorMsg.c_str());
+  return success();
+}
+
+LogicalResult tpu::TG_BF16_TileInterpOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  std::string errorMsg = "unsupported tg op " + getOpName().str() + "\n";
+  llvm_unreachable(errorMsg.c_str());
+
   return success();
 }
 

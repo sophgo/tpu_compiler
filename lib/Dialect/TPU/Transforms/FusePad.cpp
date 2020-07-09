@@ -163,6 +163,7 @@ struct TpuFusePadPattern : public RewritePattern {
                 convOp.param().is_dw(),
                 convOp.param().with_bias(),
                 convOp.param().do_relu(),
+                convOp.param().ins(),
                 rewriter.getContext()));
   }
 

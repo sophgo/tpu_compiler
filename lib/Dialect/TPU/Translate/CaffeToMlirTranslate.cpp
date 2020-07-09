@@ -505,6 +505,11 @@ void CaffeImporter::convertBatchNormLayer(mlir::Block *block,
   GetWeightFile()->addTensor(scale_name, layer->blobs()[2].get()->cpu_data(), scale_type);
   operands.push_back(AddLoadWeightOp(block, scale_name, scale_type));
 
+
+  auto NoneOp = OpBuilder(block).create<tpu::NoneOp>(builder_.getUnknownLoc(),
+                                                     builder_.getNoneType());
+  operands.push_back(NoneOp.getResult()); // pspnet BN layer used
+
   // auto result_type = RankedTensorType::get({n, c, h, w}, elementType_);
   auto result_type = RankedTensorType::get(input_var_shape, elementType_);
 
@@ -793,7 +798,9 @@ void CaffeImporter::convertConvolutionLayer(mlir::Block *block,
           builder_.getI32IntegerAttr(padding[1]), // r
           builder_.getI32IntegerAttr(g),
           builder_.getBoolAttr(is_dw), builder_.getBoolAttr(with_bias),
-          builder_.getBoolAttr(false), builder_.getContext())));
+          builder_.getBoolAttr(false),
+          builder_.getI32ArrayAttr(ArrayRef<int32_t>({})), // [0]ins_w/[1]ins_h
+          builder_.getContext())));
   attrs.push_back(builder_.getNamedAttr("quant", getDefaultQuantParam(builder_)));
   Value *result_var;
   if (!is_deconv) {

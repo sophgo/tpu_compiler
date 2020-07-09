@@ -418,6 +418,36 @@ LogicalResult doConv2DOpInterpret(Operation *op,
   //std::shared_ptr<std::vector<float> > quant_zeropoint = opdT[4];
   std::shared_ptr<std::vector<float> > quant_rshift = opdT[5];
   std::shared_ptr<std::vector<float> > quant_multiplier = opdT[6];
+
+  // get is dilate activation
+  std::vector<int32_t> ins;
+  arrayAttrToVector(castOp.param().ins(), ins);
+
+  if (ins.size()) {
+    int ins_w = ins[0];
+    int ins_h = 0;
+    if (ins.size() > 1) {
+      ins_h = ins[1];
+    }
+
+    if (ins_w == 0 && ins_h == 0) {
+      // no need to dilate
+    }
+    else {
+      
+      int oh = calc_dilute_hw(ih, ins_h, 0, 0, 0);
+      int ow = calc_dilute_hw(iw, ins_w, 0, 0, 0);
+      int size = n * ic * oh * ow;
+      auto dilateActivation = std::vector<float> (size);
+      my_dilateActivation (input->data(), dilateActivation.data(), 0, 0, ins_h, 0, 0, 0, ins_w, 0, n, ic, ih, iw);
+      // update dilated info
+      input = std::make_shared<std::vector<float>>(dilateActivation);
+      ih = oh;
+      iw = ow;
+    }
+  }
+
+
   // compute in fp32
   if (!is_deconv) {
 #ifdef USE_GPU
@@ -1142,6 +1172,70 @@ LogicalResult tpu::InputOp::interpret(
 
   // use copy for now
   resultT->assign(opdT[0]->begin(), opdT[0]->end());
+
+  valueMapping[result] = std::move(resultT);
+
+  return success();
+}
+
+LogicalResult tpu::InterpOp::interpret(
+    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+  Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
+
+  auto opdT = getOperandTensors(op, valueMapping);
+  auto result = this->getResult();
+  auto size = getTensorSize(result);
+  auto resultT = std::make_unique<std::vector<float> >(size);
+  float *input = (float *)opdT[0]->data();
+  float *output = (float *)resultT.get()->data();
+  auto pad_beg_ = pad_beg().getLimitedValue();
+  auto pad_end_ = pad_end().getLimitedValue();
+
+  std::vector<int64_t> shape;
+  int64_t input_size, in, ic, ih, iw;
+  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  getNCHW(shape, in, ic, ih, iw);
+
+  int num_ = in;
+  int channels_ = ic;
+  int height_in_ = ih;
+  int width_in_ = iw;
+  int height_in_eff_ = height_in_ + pad_beg_ + pad_end_;
+  int width_in_eff_ = width_in_ + pad_beg_ + pad_end_;
+  int height_out_ = -1;
+  int width_out_ = -1;
+  if (this->shrink_factor().getLimitedValue() && !this->zoom_factor().getLimitedValue()) {
+    const int shrink_factor = this->shrink_factor().getLimitedValue();
+    assert(shrink_factor >= 1 && "Shrink factor must be positive");
+    height_out_ = (height_in_eff_ - 1) / shrink_factor + 1;
+    width_out_ = (width_in_eff_ - 1) / shrink_factor + 1;
+  } else if (this->zoom_factor().getLimitedValue() &&
+             !this->shrink_factor().getLimitedValue()) {
+    const int zoom_factor = this->zoom_factor().getLimitedValue();
+    assert(zoom_factor >= 1 && "Zoom factor must be positive");
+    height_out_ = height_in_eff_ + (height_in_eff_ - 1) * (zoom_factor - 1);
+    width_out_ = width_in_eff_ + (width_in_eff_ - 1) * (zoom_factor - 1);
+  } else if (this->height().getLimitedValue() && this->width().getLimitedValue()) {
+    height_out_  = this->height().getLimitedValue();
+    width_out_  = this->width().getLimitedValue();
+  } else if (this->zoom_factor().getLimitedValue() &&
+             this->shrink_factor().getLimitedValue()) {
+    const int shrink_factor = this->shrink_factor().getLimitedValue();
+    const int zoom_factor = this->zoom_factor().getLimitedValue();
+    assert(shrink_factor >= 1 && "Shrink factor must be positive");
+    assert(zoom_factor >= 1 && "Zoom factor must be positive");
+
+    height_out_ = (height_in_eff_ - 1) / shrink_factor + 1;
+    width_out_ = (width_in_eff_ - 1) / shrink_factor + 1;
+    height_out_ = height_out_ + (height_out_ - 1) * (zoom_factor - 1);
+    width_out_ = width_out_ + (width_out_ - 1) * (zoom_factor - 1);
+  }
+
+  // TODO: verify pad_end_ > 0
+  my_interp(in * ic,
+    input, - pad_beg_, - pad_beg_, height_in_eff_, width_in_eff_, height_in_, width_in_,
+    output, 0, 0, height_out_, width_out_, height_out_, width_out_);
 
   valueMapping[result] = std::move(resultT);
 
@@ -2599,6 +2693,70 @@ LogicalResult tpu::SwapChannelOp::interpret(
   int ret = my_swap_channel(input, output, input_shape[0], input_shape[1],
                             input_shape[2], input_shape[3], order.data());
   assert(ret == 0);
+  valueMapping[result] = std::move(resultT);
+
+  return success();
+}
+
+LogicalResult tpu::TileInterpOp::interpret(
+    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+  Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
+
+  auto opdT = getOperandTensors(op, valueMapping);
+  auto result = this->getResult();
+  auto size = getTensorSize(result);
+  auto resultT = std::make_unique<std::vector<float> >(size);
+  float *input = (float *)opdT[0]->data();
+  float *output = (float *)resultT.get()->data();
+
+  // input
+  std::vector<int64_t> shape;
+  int64_t input_size, in, ic, ih, iw;
+  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  getNCHW(shape, in, ic, ih, iw);
+
+  // output
+  std::vector<int64_t> output_shape;
+  int64_t output_size, oh, ow;
+  getTensorShapeAndSize(this->output(), output_shape, output_size);
+  oh = output_shape[2];
+  ow = output_shape[3];
+
+  
+  // get scale info
+  std::vector<int32_t> resp;
+  arrayAttrToVector(this->resp().getValue(), resp);
+  assert(resp.size() == 2 && "oonly support h/w tile");
+
+  // check oh/ow is valid
+  int interpOw = ow / resp[0]; // w
+  int interpOh = oh / resp[1]; // h
+  int interpIw = iw / 2; // 2 for deconv twice in w-axis, plz refer \getTwiceWDeConv
+  int interpIh = ih;
+
+  my_interptile(input, output, in, ic, interpOh, interpOw, interpIh, interpIw);
+
+  if (mlir::getOpQuant(op) == "NONE") {
+    // do nothing
+  } else if (mlir::getOpQuant(op) == "INT8") {
+    // order depends on \TPUOps.td
+    std::shared_ptr<std::vector<float> > quant_rshift = opdT[3];
+    std::shared_ptr<std::vector<float> > quant_multiplier = opdT[4];
+
+    for (int i = 0; i < size; ++i) {
+      resultT->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
+          resultT->at(i), (uint32_t)quant_rshift->at(0),
+          (uint32_t)quant_multiplier->at(0), true);
+    }
+  } else if (mlir::getOpQuant(op) == "BF16") {
+    auto tensor_bf16 = std::make_unique<std::vector<bfloat16> >(resultT->size());
+    FloatToBFloat16(resultT->data(), tensor_bf16->data(), resultT->size()); // with rounding
+    BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
+  } else {
+    llvm_unreachable("unsupported type");
+  }
+
   valueMapping[result] = std::move(resultT);
 
   return success();

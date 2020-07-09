@@ -348,6 +348,7 @@ struct TpuTG2TLBroadcastMulOpPattern : public RewritePattern {
             rewriter.getBoolAttr(true),    // is_dw
             rewriter.getBoolAttr(false),   // with_bias
             rewriter.getBoolAttr(false),   // do_relu
+            rewriter.getI32ArrayAttr(ArrayRef<int32_t>({})), // [0]ins_w/[1]ins_h
             rewriter.getContext())));
       attrs.push_back(rewriter.getNamedAttr("name", op.nameAttr()));
       attrs.push_back(rewriter.getNamedAttr("layer_id", op.layer_idAttr()));

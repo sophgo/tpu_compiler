@@ -29,6 +29,14 @@ int my_avg_pooling(float *input, float *output, int n, int c, int ih, int iw,
 int my_sigmoid(float *input, float *output, int n, int c, int h, int w, bool is_bf16 = false);
 int my_crop(float *input, float *output, long int *input_shape, long int *output_shape,  int cur_dim, int *offsets, int *indices);
 
+int calc_dilute_hw (int h, int ins_h, int ins_h_l, int pad_h_b, int pad_h_t);
+void my_dilateActivation (float* input, float* output,
+    int pad_h_t, int pad_h_b,
+    int ins_h,   int ins_h_l,
+    int pad_w_l, int pad_w_r,
+    int ins_w,   int ins_w_l,
+    int n, int c, int h, int w);
+
 int my_relu(float *input, float *output,
     int n, int c, int h, int w, float negative_slope);
 
@@ -37,6 +45,13 @@ int my_prelu(float *input, float *output, int n, int c, int h, int w,
 
 int my_bn(float *input, float *mean, float *variance, float *scale, float variance_epsilon,
     float *output, int n, int c, int h, int w);
+
+void my_interp(const int channels,
+    const float *data1, const int x1, const int y1, const int height1, const int width1, const int Height1, const int Width1,
+    float *data2, const int x2, const int y2, const int height2, const int width2, const int Height2, const int Width2);
+
+int my_interptile(float *input, float *output, int n, int c, int h, int w,
+    int _ih, int _iw);
 
 int my_lrn_one(float *input, float *output, int n, int c, int h, int w,
                unsigned int local_size, float alpha);

@@ -645,6 +645,7 @@ class OnnxConverter(BaseConverter):
             'is_dw': False,
             'with_bias': len(onnx_node.inputs) > 2,
             'do_relu': False,
+            'ins': [],
         }
         op, shape, _ = self.getOperand(onnx_node.inputs[0])
         # convert conv1d to conv2d
@@ -713,6 +714,7 @@ class OnnxConverter(BaseConverter):
             'is_dw': False,
             'with_bias': len(onnx_node.inputs) > 2,
             'do_relu': False,
+            'ins': [],
         }
         op, shape, _ = self.getOperand(onnx_node.inputs[0])
         operands = list()
@@ -1538,6 +1540,7 @@ class OnnxConverter(BaseConverter):
             'is_dw': False,
             'with_bias': False,
             'do_relu': False,
+            'ins': [],
         }
 
         # deconv weight all one

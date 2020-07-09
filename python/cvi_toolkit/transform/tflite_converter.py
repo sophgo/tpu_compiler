@@ -415,6 +415,7 @@ class TFLiteConverter(BaseConverter):
             'is_dw': False,
             'with_bias': len(node.inputs) > 2,
             'do_relu': False,
+            'ins': [],
         }
         on = shape[0]
         oc = filter_shape[0] # feature map size
@@ -522,6 +523,7 @@ class TFLiteConverter(BaseConverter):
             'is_dw': True,
             'with_bias': len(node.inputs) > 2,
             'do_relu': False,
+            'ins': [],
         }
         print(depthwise_conv_param, node.name)
         on = shape[0]

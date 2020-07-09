@@ -810,6 +810,107 @@ int my_bn(float *input, float *mean, float *variance, float *scale, float varian
   return 0;
 }
 
+int my_pspnet_bn(float *input, float *slope, float *bias, float* mean, float* variance,
+    float *output, float variance_epsilon, bool frozen, int n, int c, int h, int w) {
+  if (frozen) {
+    float scale[1] = {1};
+    my_bn(input, mean, variance, scale, variance_epsilon,
+        output, n, c, h, w);
+
+    for (int ni = 0; ni < n; ++ni) {
+      for (int ci = 0; ci < c; ++ci) {
+        for (int i = 0; i < h * w; ++i) {
+          auto x = output[ni * c * h * w + ci * h * w + i] * slope[ni*c + ci];
+          output[ni * c * h * w + ci * h * w + i] = x + bias[ni*c + ci];
+        }
+      }
+    }
+  }
+  else {
+    llvm_unreachable("unsupported setting");
+  }
+  
+  return 0;
+}
+
+// copy from caffe_cpu_interp2
+void my_interp(const int channels,
+    const float *data1, const int x1, const int y1, const int height1, const int width1, const int Height1, const int Width1,
+    float *data2, const int x2, const int y2, const int height2, const int width2, const int Height2, const int Width2) {
+  bool packed = false;
+
+  assert(x1 >= 0 && y1 >= 0 && height1 > 0 && width1 > 0 && x2 >= 0 && y2 >= 0 && height2 > 0 && width2 > 0);
+  assert(Width1 >= width1 + x1 && Height1 >= height1 + y1 && Width2 >= width2 + x2 && Height2 >= height2 + y2);
+  
+  // special case: just copy
+  if (height1 == height2 && width1 == width2) {
+    for (int h2 = 0; h2 < height2; ++h2) {
+      const int h1 = h2;
+      for (int w2 = 0; w2 < width2; ++w2) {
+        const int w1 = w2;
+        if (packed) {
+          const float* pos1 = &data1[channels * ((y1 + h1) * Width1 + (x1 + w1))];
+          float* pos2 = &data2[channels * ((y2 + h2) * Width2 + (x2 + w2))];
+          for (int c = 0; c < channels; ++c) {
+            pos2[0] = pos1[0];
+            pos1++;
+            pos2++;
+          }
+        }
+        else {
+          const float* pos1 = &data1[(y1 + h1) * Width1 + (x1 + w1)];
+          float* pos2 = &data2[(y2 + h2) * Width2 + (x2 + w2)];
+          for (int c = 0; c < channels; ++c) {
+            pos2[0] = pos1[0];
+            pos1 += Width1 * Height1;
+            pos2 += Width2 * Height2;
+          }
+        }
+      }
+    }
+    return;
+  }
+  const float rheight = (height2 > 1) ? static_cast<float>(height1 - 1) / (height2 - 1) : 0.f;
+  const float rwidth = (width2 > 1) ? static_cast<float>(width1 - 1) / (width2 - 1) : 0.f;
+  for (int h2 = 0; h2 < height2; ++h2) {
+    const float h1r = rheight * h2;
+    const int h1 = h1r;
+    const int h1p = (h1 < height1 - 1) ? 1 : 0;
+    const float h1lambda = h1r - h1;
+    const float h0lambda = float(1.) - h1lambda;
+    for (int w2 = 0; w2 < width2; ++w2) {
+      const float w1r = rwidth * w2;
+      const int w1 = w1r;
+      const int w1p = (w1 < width1 - 1) ? 1 : 0;
+      const float w1lambda = w1r - w1;
+      const float w0lambda = float(1.) - w1lambda;
+      if (packed) {
+        const float* pos1 = &data1[channels * ((y1 + h1) * Width1 + (x1 + w1))];
+        float* pos2 = &data2[channels * ((y2 + h2) * Width2 + (x2 + w2))];
+        for (int c = 0; c < channels; ++c) {
+          pos2[0] =
+            h0lambda * (w0lambda * pos1[0]            + w1lambda * pos1[channels * w1p]) + 
+            h1lambda * (w0lambda * pos1[channels * h1p * Width1] + w1lambda * pos1[channels * (h1p * Width1 + w1p)]);
+          pos1++;
+          pos2++;
+        }
+      }
+      else {
+        const float* pos1 = &data1[(y1 + h1) * Width1 + (x1 + w1)];
+        float* pos2 = &data2[(y2 + h2) * Width2 + (x2 + w2)];
+        for (int c = 0; c < channels; ++c) {
+          pos2[0] =
+            h0lambda * (w0lambda * pos1[0]            + w1lambda * pos1[w1p]) + 
+            h1lambda * (w0lambda * pos1[h1p * Width1] + w1lambda * pos1[h1p * Width1 + w1p]);
+          pos1 += Width1 * Height1;
+          pos2 += Width2 * Height2;
+        }
+      }
+    }
+  }
+}
+
+
 template <typename Dtype>
 static void array_mul(const int N, const Dtype *a, Dtype *b, Dtype *y) {
   for (int i = 0; i < N; i++) {
@@ -1274,6 +1375,36 @@ int my_crop(float *input, float *output, long int *input_shape, long int *output
   return 0;
 }
 
+int calc_dilute_hw (int h, int ins_h, int ins_h_l, int pad_h_b, int pad_h_t) {
+  return (h - 1) * (ins_h + 1) + ins_h_l +
+    1 + pad_h_t + pad_h_b;
+}
+
+void my_dilateActivation (float* input, float* output,
+    int pad_h_t, int pad_h_b,
+    int ins_h,   int ins_h_l,
+    int pad_w_l, int pad_w_r,
+    int ins_w,   int ins_w_l,
+    int n, int c, int h, int w) {
+  int oh = calc_dilute_hw(h, ins_h, ins_h_l, pad_h_t, pad_h_b);
+  int ow = calc_dilute_hw(w, ins_w, ins_w_l, pad_w_l, pad_w_r);
+  assert(!ins_h_l && !ins_w_l);
+  for (int in = 0; in < n; in++) {
+    for (int ic = 0; ic < c; ic++) {
+      for (int _oh = 0; _oh < oh; _oh++) {
+        for (int _ow = 0; _ow < ow; _ow++) {
+          int out_idx = (((in * c + ic) * oh) + _oh) * ow + _ow;
+          int in_nc = (in * c + ic) * h * w;
+          output[out_idx] = 0; //dilate
+          if (_ow % (ins_w+1) == 0 && _oh % (ins_h+1) == 0) {
+            output[out_idx] = input[in_nc + (_oh / (ins_h+1)) * w + _ow / (ins_w+1)];
+          }
+        }
+      }
+    }
+  }
+}
+
 int my_tanh(float *input, float *output,
     int n, int c, int h, int w) {
 #ifdef DUMP_FLAG
@@ -1299,6 +1430,53 @@ int my_tanh(float *input, float *output,
   }
   dump_idx ++;
 #endif // DUMP_FLAG
+  return 0;
+}
+
+int my_interptile(float *input, float *output, int n, int c, int h, int w,
+    int _ih, int _iw) {
+  /**
+   * input:   output: (5x5)
+   * (3x3)
+   * 0 1 2    0.0 1.0 0.0 1.0 1.0 2.0 1.0 2.0 2.0 2.0
+   * 3 4 5 -> 3.0 4.0 3.0 4.0 4.0 5.0 4.0 5.0 5.0 5.0
+   * 6 7 8    0.0 1.0 0.0 1.0 1.0 2.0 1.0 2.0 2.0 2.0
+   *          3.0 4.0 3.0 4.0 4.0 5.0 4.0 5.0 5.0 5.0
+   *          3.0 4.0 3.0 4.0 4.0 5.0 4.0 5.0 5.0 5.0
+   *          6.0 7.0 6.0 7.0 7.0 8.0 7.0 8.0 8.0 8.0
+   *          3.0 4.0 3.0 4.0 4.0 5.0 4.0 5.0 5.0 5.0
+   *          6.0 7.0 6.0 7.0 7.0 8.0 7.0 8.0 8.0 8.0
+   *          6.0 7.0 6.0 7.0 7.0 8.0 7.0 8.0 8.0 8.0
+   *          6.0 7.0 6.0 7.0 7.0 8.0 7.0 8.0 8.0 8.0
+   */
+  // for last one
+  int scale_h = (h - 1) / (_ih - 1);
+  int scale_w = (w - 1) / (_iw - 1);
+  h = h * 2;
+  w = w * 2;
+  for (int in = 0; in < n; in++) {
+    for (int ic = 0; ic < c; ic++) {
+      for (int ih = 0; ih < h; ih++) {
+        for (int iw = 0; iw < w; iw++) {
+          int nc = (in * c + ic) * _ih * _iw;
+          int out_idx = (((in * c + ic) * h) + ih) * w + iw;
+
+          int riw = iw;
+          int rih = ih;
+          if (riw >= (int)(scale_w * (_iw-1) * 2)) {
+            // last w
+            riw = (int)(scale_w * (_iw-1) * 2) - 1;
+          }
+          if (rih >= (int)(scale_h * (_ih-1) * 2)) {
+            // last h
+            rih = (int)(scale_h * (_ih-1) * 2) - 1;
+          }
+
+          output[out_idx] = input[nc + ((rih / (scale_h * 2) + rih % 2) * _iw) + riw / (scale_w * 2) + riw % 2];
+        }
+      }
+    }
+  }
   return 0;
 }
 

@@ -241,10 +241,12 @@ def TPU_BatchNormOp: TPU_Op<"batch_norm",
       `variance`        : required, the variance weight tensor, per-channel
                           value.
       `scale`           : required, the scale weight tensor, one value.
+      `bias`            : option, pspnet BN layer used
 
     Attributes:
       `variance_epsilon`: required, eps for variance.
       `name`            : required, name for calibration, comparing, or debug.
+      `frozon`          : optional, pspnet BN layer used
       `layer_id`        : optional, id for profiling.
       `chipname`        : optional, chipname.
 
@@ -264,6 +266,7 @@ def TPU_BatchNormOp: TPU_Op<"batch_norm",
     AnyTensor:$mean,
     AnyTensor:$variance,
     AnyTensor:$scale,
+    TPU_TensorOfOrNone<[F32, BF16, I16, I8]>:$bias,
     DefaultValuedAttr<F32Attr, "1.0e-5">:$variance_epsilon,
     StrAttr:$name,
     OptionalAttr<NonNegativeI32Attr>:$layer_id,
@@ -715,6 +718,76 @@ def TPU_InputOp: TPU_Op<"input",
 
   let results = (outs AnyTensor:$output);
 }
+
+def TPU_InterpOp: TPU_Op<"interp",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
+       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
+       DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
+  let summary = "Interp operator";
+
+  let description = [{
+    Perform interp on input.
+
+    Inputs:
+      `input`           : required, the input activation tensor.
+      `quant_scale`     : optional,
+      `quant_zeropoint` : optional,
+      `quant_rshift`    : optional,
+      `quant_multiplier`: optional,
+
+    Attributes:
+      `quant`           : required, a QuantParam struct attributes, to carrying
+                          threshold, although the quantization is bypassed.
+      `name`            : required, name for calibration, comparing, or debug.
+
+      `shrink_factor`   : optional, shrink h/w to small one, leverage conv
+      `zoom_factor`     : optional, enlarge h/w to larger one, leverage deconv
+      `pad_beg`         : optional, padding twice in h/w
+      `pad_end`         : optional, padding twice in h/w
+
+      `layer_id`        : optional, id for profiling.
+      `chipname`        : optional, chipname.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TPU_QuantPerTensorOnly`
+      `TPU_QuantSupportAsymmetric`
+      `TPU_QuantSameInputResultScale` : input and result share same threshold
+                                        or scale (bypassed).
+      `TpuOpCommonInterface` : support common TPU Op interface
+      `TpuOpInterpInterface` : support interperter
+      `TpuOpQuantInterface`  : support quantization
+      `TpuOpLowerInterface`  : support lower to TPU TG Ops
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_scale,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_zeropoint,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_rshift,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_multiplier,
+    TPU_QuantParamAttr:$quant,
+    StrAttr:$name,
+    DefaultValuedAttr<NonNegativeI32Attr, "0">:$height,
+    DefaultValuedAttr<NonNegativeI32Attr, "0">:$width,
+    DefaultValuedAttr<NonNegativeI32Attr, "0">:$shrink_factor,
+    DefaultValuedAttr<NonNegativeI32Attr, "0">:$zoom_factor,
+    DefaultValuedAttr<NonNegativeI32Attr, "0">:$pad_beg,
+    DefaultValuedAttr<NonNegativeI32Attr, "0">:$pad_end,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
+  );
+
+  let results = (outs AnyTensor:$output);
+  let hasCanonicalizer = 1;
+}
+
+
 
 def TPU_LeakyReluOp: TPU_Op<"leaky_relu",
       [NoSideEffect,
@@ -1880,6 +1953,76 @@ def TPU_SwapChannelOp: TPU_Op<"swap_channel",
   let results = (outs AnyTensor:$output);
 }
 def TPU_TanHOp : TPU_LutOp<"tanh", "TanH">;
+
+class TPU_TileOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
+       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
+       DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
+  let summary = "Tile operator";
+
+  let description = [{
+    numpy tile operation,
+    Construct an array by repeating A the number of times given by reps.
+    e.g:
+    >>>b = np.array([[1, 2], [3, 4]])
+    >>>np.tile(b, [2])
+    array([[1, 2, 1, 2],
+       [3, 4, 3, 4]])
+    >>>np.tile(b, [2, 1])
+    array([[1, 2],
+       [3, 4],
+       [1, 2],
+       [3, 4]])
+
+    Inputs:
+      `input`           : required, the input activation tensor.
+      `resp`            : optional, `input` is promoted to be d-dimensional by prepending new axes. So a shape (3,) array is promoted to (1, 3) for 2-D replication, or shape (1, 1, 3) for 3-D replication. If this is not the desired behavior, promote `input` to d-dimensions manually before calling this function.
+      `quant_scale`     : optional,
+      `quant_zeropoint` : optional,
+      `quant_rshift`    : optional,
+      `quant_multiplier`: optional,
+
+    Attributes:
+      `quant`           : required, a QuantParam struct attributes, to carrying
+                          threshold, although the quantization is bypassed.
+      `name`            : required, name for calibration, comparing, or debug.
+      `layer_id`        : optional, id for profiling.
+      `chipname`        : optional, chipname.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TPU_QuantPerTensorOnly`
+      `TPU_QuantSupportAsymmetric`
+      `TPU_QuantSameInputResultScale` : input and result share same threshold
+                                        or scale (bypassed).
+      `TpuOpCommonInterface` : support common TPU Op interface
+      `TpuOpInterpInterface` : support interperter
+      `TpuOpQuantInterface`  : support quantization
+      `TpuOpLowerInterface`  : support lower to TPU TG Ops
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_scale,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_zeropoint,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_rshift,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_multiplier,
+    TPU_QuantParamAttr:$quant,
+    OptionalAttr<I32ArrayAttr>:$resp,
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
+def TPU_TileInterpOp : TPU_TileOp<"tile_interp", "interp">;
 
 def TPU_TransposeOp : TPU_Op<"transpose",
       [NoSideEffect,

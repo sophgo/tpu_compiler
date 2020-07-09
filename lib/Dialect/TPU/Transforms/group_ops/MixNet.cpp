@@ -386,6 +386,7 @@ void MixNet::_add_tl_convolution_op(MixOp* mix_op,
       builder_.getBoolAttr(is_dw),
       builder_.getBoolAttr(with_bias),
       builder_.getBoolAttr(do_relu),
+      builder_.getI32ArrayAttr(ArrayRef<int32_t>({})), // [0]ins_w/[1]ins_h
       builder_.getContext())));
   attrs.push_back(builder_.getNamedAttr("la_input",
                            builder_.getI32IntegerAttr(input_laddr)));
@@ -601,6 +602,7 @@ void MixNet::_add_tl_deconvolution_op(MixOp* mix_op,
       builder_.getBoolAttr(is_dw),
       builder_.getBoolAttr(with_bias),
       builder_.getBoolAttr(do_relu),
+      builder_.getI32ArrayAttr(ArrayRef<int32_t>({})), // [0]ins_w/[1]ins_h
       builder_.getContext())));
   attrs.push_back(builder_.getNamedAttr("la_input",
                            builder_.getI32IntegerAttr(input_laddr)));

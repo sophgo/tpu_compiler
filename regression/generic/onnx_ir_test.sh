@@ -6,6 +6,9 @@ NET=$1
 
 source $DIR/onnx_models.sh
 
+# remove previous result
+rm -rf onnx_test
+
 if [ $NET = "all_ir" ]; then
     test_onnx.py
 else
