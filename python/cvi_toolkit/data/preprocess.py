@@ -7,9 +7,6 @@ from cvi_toolkit.utils.log_setting import setup_logger
 
 logger = setup_logger('preprocess')
 
-class InputType(Enum):
-    FILE = 'FILE'
-    NDARRAY = 'NDARRAY'
 
 def center_crop(img, crop_dim):
     # Take center crop.
@@ -28,7 +25,7 @@ def add_preprocess_parser(parser):
         raise RuntimeError("parser is invaild")
     parser.add_argument("--image_resize_dims", type=str, default='256,256')
     parser.add_argument("--net_input_dims", type=str, default='224,224')
-    parser.add_argument("--raw_scale", type=float, help="Multiply raw input image data by this scale.")
+    parser.add_argument("--raw_scale", type=float, help="Multiply raw input image data by this scale.", default=255)
     parser.add_argument("--mean", help="Per Channel image mean values")
     parser.add_argument("--std", help="Per Channel image std values", default='1,1,1')
     parser.add_argument("--mean_file", type=str, help="the resized ImageNet dataset mean file.")
@@ -62,7 +59,7 @@ class preprocess(object):
                      npy_input=None,
                      letter_box=False,
                      batch=1,
-                     bgray=False):
+                     bgray=0):
         print("preprocess :\n         \
             \tnet_input_dims: {}\n    \
             \tresize_dims   : {}\n    \
@@ -118,11 +115,11 @@ class preprocess(object):
         self.ori_channel_order = None
 
     def run(self, input, output_npz=None, pfunc=None,
-            input_name=None, input_type=InputType.FILE,
+            input_name=None, input_type='file',
             input_channel_order="rgb", output_channel_order="bgr",
-            input_data_format="chw"):
+            input_data_format="chw", output_data_format="chw"):
 
-        if input_type == InputType.FILE:
+        if input_type == 'file':
             logger.debug("origin order is bgr(OpenCV), output channel order is {}".format(output_channel_order))
             if self.npy_input != None :
                 x = np.load(str(self.npy_input).rstrip())
@@ -151,12 +148,12 @@ class preprocess(object):
 
             input_data_format="chw"
 
-        elif input_type == InputType.NDARRAY:
+        elif input_type == 'tensor':
             if not isinstance(input, np.ndarray):
                 raise RuntimeError("input type {} is wrong format, np.ndarray is expected".format(type(input_data)))
             logger.debug("input channel order is {}, output channel order is {}".format(input_channel_order, output_channel_order))
             # Default is rgb in
-            self.ori_channel_order = "rgb"
+            self.ori_channel_order = input_channel_order
             if input_data_format == "chw":
                 # input tensor shape is CHW
                 if self.resize_dims != self.net_input_dims:
@@ -190,8 +187,7 @@ class preprocess(object):
                 x = x[[2,1,0], :, :]
 
 
-            x = x * self.raw_scale / 255.0
-
+            x = x * (self.raw_scale / 255.0)
             # preprocess
             if self.mean_file.size != 0 :
                 x -= self.mean_file
@@ -229,9 +225,10 @@ class preprocess(object):
                 pass
 
             output = np.expand_dims(x, axis=0)
-        if self.bgray is True:
+        if self.bgray:
             # if is grayscale, then output only one channel
             output=output[:,0:1,:,:]
+
         if output_npz:
             # Must convert to npz file as input
             np.savez(output_npz, **{input_name if input_name else "input": output})
