@@ -1350,7 +1350,17 @@ class OnnxConverter(BaseConverter):
         assert(len(starts) == len(ends))
         assert(len(axes) == len(ends))
         if tesnor_type == TensorType.TENSOR:
-            raise RuntimeError("TODO")
+            tensor_data = self.getTensor(onnx_node.inputs[0]).tensor_data
+            if len(axes) > 1:
+                raise RuntimeError("Todo: Slice not support axes > 1 case")
+            else:
+                # slice
+                output_data = tensor_data.take(indices=range(int(starts[0]), int(ends[0])), axis=int(axes[0]))
+
+                output_shape = list(output_data.shape)
+                self.addTensor(onnx_node.name, output_data, output_shape)
+                self.addOperand(onnx_node.name, None, output_shape, TensorType.TENSOR)
+            return
         else:
             crop_shape = input_shape.copy()
             crop_offset = input_shape.copy()
