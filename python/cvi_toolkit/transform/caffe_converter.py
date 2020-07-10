@@ -598,6 +598,7 @@ class CaffeConverter(BaseConverter):
         padding_tl = [padding[0], padding[1]]
         padding_br = [padding[0], padding[1]]
         ofmap = [0, 0]
+        yolo = p.yolo # for Yolo padding=SAME
         for i in [0, 1]:
             if ceil_mode:
                 ofmap[i] = math.ceil(
@@ -611,6 +612,19 @@ class CaffeConverter(BaseConverter):
                     padding_br[i] += (stride[i] - remain_pixel)
                 else:
                     padding_br[i] -= remain_pixel
+        if yolo:
+            # for stride = 1, add padding right and bottom
+            if stride[0] == 1 and stride[1] == 1:
+                assert(padding_tl[0] == 0)
+                assert(padding_tl[1] == 0)
+                assert(padding_br[0] == 0)
+                assert(padding_br[1] == 0)
+                padding_br[0] = 1
+                padding_br[1] = 1
+
+                ofmap[0] += 1
+                ofmap[1] += 1
+
         if is_global_pooling:
             assert((padding[0] == 0) and (padding[1] == 0))
             assert((stride[0] == 1) and (stride[1] == 1))
@@ -1057,12 +1071,14 @@ class CaffeConverter(BaseConverter):
             op, _, _ = self.getOperand(bottom)
             operands.append(op)
         p = layer.yolo_detection_param
+        print(p.tiny)
         param = {
             'net_input_h': p.net_input_h,
             "net_input_w": p.net_input_w,
             "nms_threshold": p.nms_threshold,
             "obj_threshold": p.obj_threshold,
             "keep_topk": p.keep_topk,
+            "tiny": p.tiny
         }
         output_shape = [1, 1, p.keep_topk, 6]
         new_op = self.CVI.add_yolo_detection_op(

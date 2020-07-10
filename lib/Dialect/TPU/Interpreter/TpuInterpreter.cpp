@@ -2597,9 +2597,9 @@ LogicalResult tpu::YoloDetectionOp::interpret(
   auto obj_threshold = this->obj_threshold().convertToFloat();
   auto nms_threshold = this->nms_threshold().convertToFloat();
   auto keep_topk = this->keep_topk().getLimitedValue();
+  auto tiny = this->tiny();
 
   int input_count = opT.size();
-  assert(input_count == 3);
 
   const float anchors[3][6] = {
     {10,13,   16,30,    33,23},      // layer106-conv (52*52)
@@ -2607,12 +2607,17 @@ LogicalResult tpu::YoloDetectionOp::interpret(
     {116,90,  156,198,  373,326}     // layer82-conv  (13*13)
   };
 
-  std::vector<std::vector<int>> grid_size(3);
+  const float tiny_anchors[2][6] = {
+    {10,14,  23,27,  37,58},    // layer23-conv (26*26)
+    {81,82,  135,169,  344,319} // layer16-conv (13*13)
+  };
+
+  std::vector<std::vector<int>> grid_size;
   std::vector<std::vector<float>> features;
 
-  for (int i = 0; i < 3; ++i) {
+  for (int i = 0; i < input_count; ++i) {
     auto shape = getTensorShape(op->getOperand(i));
-    grid_size[i] = std::vector<int>{shape[2], shape[3]};
+    grid_size.push_back(std::vector<int>{shape[2], shape[3]});
     auto data = opT[i]->data();
     auto size = opT[i]->size();
     std::vector<float> bottom_data(data, data + size);
@@ -2622,9 +2627,14 @@ LogicalResult tpu::YoloDetectionOp::interpret(
   detection det_raw[MAX_DET_RAW];
   detection dets[MAX_DET];
   int det_raw_idx = 0;
-  for (int i = 0; i < 3; i++) {
-    process_feature(det_raw, &det_raw_idx, features[i].data(), grid_size[i],
-      &anchors[i][0], {net_input_h, net_input_w}, 80, obj_threshold);
+  for (int i = 0; i < features.size(); i++) {
+    if (!tiny) {
+      process_feature(det_raw, &det_raw_idx, features[i].data(), grid_size[i],
+        &anchors[i][0], {net_input_h, net_input_w}, 80, obj_threshold);
+    } else {
+      process_feature(det_raw, &det_raw_idx, features[i].data(), grid_size[i],
+        &tiny_anchors[i][0], {net_input_h, net_input_w}, 80, obj_threshold);
+    }
   }
   nms(det_raw, det_raw_idx, nms_threshold);
   int det_idx = 0;

@@ -919,6 +919,35 @@ if [ $DO_PREPROCESS -eq 1 ]; then
 fi
 fi
 
+if [ $NET = "yolo_v3_tiny" ]; then
+export MODEL_DEF=$MODEL_PATH/object_detection/yolo_v3/caffe/yolov3_tiny.prototxt
+export MODEL_DAT=$MODEL_PATH/object_detection/yolo_v3/caffe/yolov3_tiny.caffemodel
+export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_caffe/regression_yolo_v3_tiny_0_caffe.sh
+export EVAL_SCRIPT=$REGRESSION_PATH/data/eval/accuracy_yolo_v3.sh
+export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/yolo_v3_tiny_calibration_table
+export INPUT=input
+export MODEL_CHANNEL_ORDER="rgb"
+export SWAP_CHANNEL=2,1,0
+export IMAGE_RESIZE_DIMS=416,416
+export NET_INPUT_DIMS=416,416
+export RAW_SCALE=1.0
+export MEAN=0,0,0
+export INPUT_SCALE=1.0
+export EXCEPTS=output
+export TOLERANCE_INT8_PER_TENSOR=0.9,0.88,0.51
+export TOLERANCE_INT8_RSHIFT_ONLY=0.92,0.90,0.58
+export TOLERANCE_INT8_MULTIPLER=0.97,0.97,0.76
+export DO_QUANT_BF16=0
+export TOLERANCE_BF16=0.99,0.99,0.94
+export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
+export DO_DEEPFUSION=1
+export DO_MEMOPT=1
+export DO_LAYERGROUP=1
+if [ $DO_PREPROCESS -eq 1 ]; then
+  export EXCEPTS=data,output
+fi
+fi
+
 if [ $NET = "resnet18" ]; then
 export MODEL_TYPE="onnx"
 export MODEL_DEF=$MODEL_PATH/imagenet/resnet/onnx/resnet18.onnx
