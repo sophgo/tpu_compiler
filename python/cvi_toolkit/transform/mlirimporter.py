@@ -290,83 +290,6 @@ class MLIRImporter(object):
         return self.buildOp(TPU_OpType.Conv2d.value, inputOperands, [
                      tensor_output_type], name=conv_name, param=dict_attr, quant=self.quant_param)
 
-
-    def add_crop_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
-        """
-            args:
-                crop_offset: List[int, int, int, int]
-                crop_shape : List[int, int, int, int]
-        """
-        tensor_output_type = self.module.make_ranked_tensor_type(
-            self.f32Type, output_tensor_shape)
-
-        checkKey(kargs, 'crop_offset')
-        checkKey(kargs, 'crop_shape')
-
-        crop_offset = kargs['crop_offset']
-        crop_shape = kargs['crop_shape']
-        checkType(crop_offset, list)
-        checkType(crop_shape , list)
-
-        crop_name = self.module.stringAttr(op_name)
-        crop_offset_attr = self.module.arrayAttr([self.module.integerAttr(self.i32Type, x) for x in crop_offset])
-        crop_shape_attr = self.module.arrayAttr(
-            [self.module.integerAttr(self.i32Type, x) for x in crop_shape])
-
-        return self.buildOp(TPU_OpType.Crop.value, inputOperands, [
-            tensor_output_type], name=crop_name, crop_offset=crop_offset_attr, quant=self.quant_param, crop_shape=crop_shape_attr)
-
-    def add_detection_output_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
-        tensor_output_type = self.module.make_ranked_tensor_type(
-            self.f32Type, output_tensor_shape)
-
-        checkKey(kargs, 'num_classes')
-        checkKey(kargs, 'share_location')
-        checkKey(kargs, 'background_label_id')
-        checkKey(kargs, 'nms_threshold')
-        checkKey(kargs, 'top_k')
-        checkKey(kargs, 'code_type')
-        checkKey(kargs, 'keep_top_k')
-        checkKey(kargs, 'confidence_threshold')
-        name_attr = self.module.stringAttr(op_name)
-        param = {
-            'num_classes': self.module.integerAttr(self.i32Type, kargs['num_classes']),
-            'share_location': self.module.boolAttr(kargs['share_location']),
-            'background_label_id': self.module.integerAttr(self.i32Type, kargs['background_label_id']),
-            'nms_threshold': self.module.floatAttr(kargs['nms_threshold']),
-            'top_k': self.module.integerAttr(self.i32Type, kargs['top_k']),
-            'code_type': self.module.stringAttr(kargs['code_type']),
-            'keep_top_k': self.module.integerAttr(self.i32Type, kargs['keep_top_k']),
-            'confidence_threshold': self.module.floatAttr(kargs['confidence_threshold']),
-        }
-        return self.buildOp(TPU_OpType.DetectionOutput.value, inputOperands, [
-            tensor_output_type], name=name_attr, **param)
-
-
-    def add_pad_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
-        """
-            args:
-                pads : List[int, int, int, int]
-                const_val : int
-        """
-        tensor_output_type = self.module.make_ranked_tensor_type(
-            self.f32Type, output_tensor_shape)
-
-        checkKey(kargs, 'pads')
-        checkKey(kargs, 'const_val')
-
-        pads = kargs['pads']
-        const_val = kargs['const_val']
-        checkType(pads, list)
-
-        pad_name = self.module.stringAttr(op_name)
-        pads_attr = self.module.arrayAttr([self.module.integerAttr(self.i32Type, x) for x in pads])
-        const_val_attr = self.module.floatAttr(const_val)
-
-        return self.buildOp(TPU_OpType.Pad.value, inputOperands, [
-            tensor_output_type], name=pad_name, quant=self.quant_param, pads=pads_attr, const_val=const_val_attr)
-
-
     def add_custom_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         """
             args:
@@ -423,6 +346,58 @@ class MLIRImporter(object):
         return self.buildOp(TPU_OpType.CustomOp.value, inputOperands, [
             tensor_output_type], name=name, operation_name=operation_name, quant=self.quant_param,
             do_quant=do_quant, param=param, tpu=tpu, threshold_overwrite = threshold_overwrite)
+
+    def add_crop_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+        """
+            args:
+                crop_offset: List[int, int, int, int]
+                crop_shape : List[int, int, int, int]
+        """
+        tensor_output_type = self.module.make_ranked_tensor_type(
+            self.f32Type, output_tensor_shape)
+
+        checkKey(kargs, 'crop_offset')
+        checkKey(kargs, 'crop_shape')
+
+        crop_offset = kargs['crop_offset']
+        crop_shape = kargs['crop_shape']
+        checkType(crop_offset, list)
+        checkType(crop_shape , list)
+
+        crop_name = self.module.stringAttr(op_name)
+        crop_offset_attr = self.module.arrayAttr([self.module.integerAttr(self.i32Type, x) for x in crop_offset])
+        crop_shape_attr = self.module.arrayAttr(
+            [self.module.integerAttr(self.i32Type, x) for x in crop_shape])
+
+        return self.buildOp(TPU_OpType.Crop.value, inputOperands, [
+            tensor_output_type], name=crop_name, crop_offset=crop_offset_attr, quant=self.quant_param, crop_shape=crop_shape_attr)
+
+    def add_detection_output_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+        tensor_output_type = self.module.make_ranked_tensor_type(
+            self.f32Type, output_tensor_shape)
+
+        checkKey(kargs, 'num_classes')
+        checkKey(kargs, 'share_location')
+        checkKey(kargs, 'background_label_id')
+        checkKey(kargs, 'nms_threshold')
+        checkKey(kargs, 'top_k')
+        checkKey(kargs, 'code_type')
+        checkKey(kargs, 'keep_top_k')
+        checkKey(kargs, 'confidence_threshold')
+        name_attr = self.module.stringAttr(op_name)
+        param = {
+            'num_classes': self.module.integerAttr(self.i32Type, kargs['num_classes']),
+            'share_location': self.module.boolAttr(kargs['share_location']),
+            'background_label_id': self.module.integerAttr(self.i32Type, kargs['background_label_id']),
+            'nms_threshold': self.module.floatAttr(kargs['nms_threshold']),
+            'top_k': self.module.integerAttr(self.i32Type, kargs['top_k']),
+            'code_type': self.module.stringAttr(kargs['code_type']),
+            'keep_top_k': self.module.integerAttr(self.i32Type, kargs['keep_top_k']),
+            'confidence_threshold': self.module.floatAttr(kargs['confidence_threshold']),
+        }
+        return self.buildOp(TPU_OpType.DetectionOutput.value, inputOperands, [
+            tensor_output_type], name=name_attr, **param)
+
 
     def add_deconv_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         """
@@ -621,6 +596,30 @@ class MLIRImporter(object):
         }
         return self.buildOp(TPU_OpType.Normalize.value, inputOperands, [
             tensor_output_type], name=name_attr, **param)
+
+    def add_pad_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+        """
+            args:
+                pads : List[int, int, int, int]
+                const_val : int
+        """
+        tensor_output_type = self.module.make_ranked_tensor_type(
+            self.f32Type, output_tensor_shape)
+
+        checkKey(kargs, 'pads')
+        checkKey(kargs, 'const_val')
+
+        pads = kargs['pads']
+        const_val = kargs['const_val']
+        checkType(pads, list)
+
+        pad_name = self.module.stringAttr(op_name)
+        pads_attr = self.module.arrayAttr([self.module.integerAttr(self.i32Type, x) for x in pads])
+        const_val_attr = self.module.floatAttr(const_val)
+
+        return self.buildOp(TPU_OpType.Pad.value, inputOperands, [
+            tensor_output_type], name=pad_name, quant=self.quant_param, pads=pads_attr, const_val=const_val_attr)
+
 
     def add_pool_avg_2d_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = self.module.make_ranked_tensor_type(
