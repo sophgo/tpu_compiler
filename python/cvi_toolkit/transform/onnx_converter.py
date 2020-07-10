@@ -117,6 +117,7 @@ class OnnxConverter(BaseConverter):
             "Add": lambda node: self.convert_add_op(node),
             "AveragePool": lambda node: self.convert_avg_pool_op(node),
             "BatchNormalization": lambda node: self.convert_batchnorm_op(node),
+            "Cast": lambda node: self.convert_skip_op(node),
             "Concat": lambda node: self.convert_concat_op(node),
             "Conv": lambda node: self.convert_conv_op(node),
             "Clip": lambda node: self.convert_clip_op(node),
@@ -1404,7 +1405,7 @@ class OnnxConverter(BaseConverter):
         if tensor_type == TensorType.TENSOR:
             data = self.getTensor(onnx_node.inputs[0]).tensor_data
             output_data = data
-            output_shape = list(output_shape.shape)
+            output_shape = input_shape
             self.addTensor(onnx_node.name, output_data, output_shape)
             self.addOperand(onnx_node.name, None, output_shape, TensorType.TENSOR)
         else:
