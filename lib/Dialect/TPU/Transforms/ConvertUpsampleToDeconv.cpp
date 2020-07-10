@@ -99,7 +99,7 @@ struct TpuUpsampleOpPattern : public RewritePattern {
     kernel[0] = kernel[1] = scale;
     padding[0] = padding[1] = 0;
     dilation[0] = dilation[1] = 1;
-    stride[0] = stride[1] = 2;
+    stride[0] = stride[1] = scale;
 
     std::vector<NamedAttribute> attrs;
     attrs.push_back(rewriter.getNamedAttr("name", upsampleOp.nameAttr()));

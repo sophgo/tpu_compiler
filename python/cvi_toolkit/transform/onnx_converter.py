@@ -1364,26 +1364,55 @@ class OnnxConverter(BaseConverter):
         if tensor_type1 != TensorType.ACTIVATION or tensor_type2 != TensorType.TENSOR:
             raise RuntimeError("Unsupported tensor type")
 
-        scale_factor = self.getTensor(onnx_node.inputs[2]).tensor_data
+        if len(onnx_node.inputs) > 2:
+            # onnx opset 11
+            scale_factor = self.getTensor(onnx_node.inputs[-1]).tensor_data
+            scale_factor = scale_factor.flatten()
+        else:
+            scale_factor = self.getTensor(onnx_node.inputs[2]).tensor_data
+
+
         if len(scale_factor) != 4:
             raise RuntimeError("scale_factor length should be 4")
         if scale_factor[0] != 1 and scale_factor[1] != 1:
             raise RuntimeError("Not support n,c upsample")
-        if scale_factor[2] != scale_factor[3]:
-            raise RuntimeError("TODO&FIXME:Our IR need to fix it, support w and h upsample")
 
         operands = list()
         operands.append(op1)
+        ic = input_shape1[1]
         on = int(input_shape1[0])
         oc = int(input_shape1[1])
         oh = int(input_shape1[2] * scale_factor[2])
         ow = int(input_shape1[3] * scale_factor[3])
-        attr={
-            'scale': int(scale_factor[2])
+        group = ic
+        output_shape = [int(on), int(oc), int(oh), int(ow)]
+        # use deconv(depthwise)
+        deconv_param = {
+            'stride_h':  scale_factor[2],
+            'stride_w':  scale_factor[3],
+            'padding': "VALID",
+            'dilation_h': 1,
+            'dilation_w': 1,
+            'padding_t': 0,
+            'padding_b': 0,
+            'padding_l': 0,
+            'padding_r': 0,
+            'group': ic,
+            'is_dw': False,
+            'with_bias': False,
+            'do_relu': False,
         }
-        output_shape = [on, oc, oh, ow]
-        upsample_op = self.CVI.add_upsample_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **attr)
-        self.addOperand(onnx_node.name, upsample_op, output_shape, TensorType.ACTIVATION)
+
+        # deconv weight all one
+        weight_shape = [group, int(oc/group), int(ic/group), int(scale_factor[2]), int(scale_factor[3])]
+        tensor_data = np.full(weight_shape, 1)
+        weight_name = "{}_add_weight".format(onnx_node.name)
+        self.addTensor(weight_name, tensor_data, tensor_data.shape)
+        weight_op = self.CVI.add_load_file_op(weight_name, tensor_data.shape)
+        operands.append(weight_op)
+
+        deconv_op = self.CVI.add_deconv_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **deconv_param)
+        self.addOperand(onnx_node.name, deconv_op, output_shape, TensorType.ACTIVATION)
 
 
     def convert_shape_op(self, onnx_node):
