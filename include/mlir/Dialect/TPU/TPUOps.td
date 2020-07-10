@@ -648,7 +648,7 @@ def TPU_InputOp: TPU_Op<"input",
     Attributes:
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
-      
+
       `layer_id`        : optional, id for profiling.
       `chipname`        : optional, chipname.
   }];
@@ -946,6 +946,8 @@ def TPU_PermuteOp: TPU_Op<"permute",
   );
 
   let results = (outs AnyTensor:$output);
+
+  let hasCanonicalizer = 1;
 }
 
 def TPU_PixelShuffleOp: TPU_Op<"pixelshuffle",

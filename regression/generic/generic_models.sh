@@ -1091,6 +1091,39 @@ if [ $DO_PREPROCESS -eq 1 ]; then
 fi
 fi
 
+if [ $NET = "ecanet50" ]; then
+export MODEL_TYPE="onnx"
+export MODEL_DEF=$MODEL_PATH/imagenet/ecanet/onnx/ecanet50.onnx
+export MODEL_DAT=""
+export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table
+export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/generic/regression_0_onnx.sh
+export MODEL_CHANNEL_ORDER="rgb"
+export NET_INPUT_DIMS=224,224
+export IMAGE_RESIZE_DIMS=256,256
+export RAW_SCALE=1.0
+export MEAN=0.485,0.456,0.406
+export STD=0.229,0.224,0.225
+export INPUT_SCALE=1.0
+export INPUT=input
+export OUTPUTS_FP32=output_Gemm
+export OUTPUTS=output_Gemm
+#export DO_QUANT_INT8_PER_TENSOR=1
+#export DO_QUANT_INT8_RFHIFT_ONLY=1
+export TOLERANCE_INT8_PER_TENSOR=0.91,0.91,0.58
+export TOLERANCE_INT8_RSHIFT_ONLY=0.91,0.91,0.58
+export TOLERANCE_INT8_MULTIPLER=0.96,0.96,0.72
+export TOLERANCE_BF16=0.99,0.99,0.89
+export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.9
+export DO_DEEPFUSION=0
+export DO_LAYERGROUP=0
+export USE_LAYERGROUP=0
+export DO_MEMOPT=0
+export DO_E2E=0
+export DO_NN_TOOLKIT=0
+# export BATCH_SIZE=4
+export DO_PREPROCESS=0
+fi
+
 if [ $NET = "resnet50_tf" ]; then
 export MODEL_TYPE="tensorflow"
 export MODEL_DEF=$MODEL_PATH/imagenet/resnet/tensorflow/resnet50

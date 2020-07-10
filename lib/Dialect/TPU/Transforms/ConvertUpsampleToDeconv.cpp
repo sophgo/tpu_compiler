@@ -58,6 +58,12 @@ struct TpuUpsampleOpPattern : public RewritePattern {
     auto input_type = input->getType().cast<RankedTensorType>();
     auto input_shape = input_type.getShape();
     auto scale = upsampleOp.scale().getLimitedValue();
+    if (input_shape.size() == 4 && input_shape[2] == 1 && input_shape[3] == 1) {
+      if (isa<tpu::SigmoidOp>(input->getDefiningOp())) {
+        // TODO(charle.hu): workaround, if convert to deconv, will fail in backend, test by ecanet50
+        return matchFailure();
+      }
+    }
     int g = input_shape[1];
     int oc = input_shape[1] / g;
     int ic = input_shape[1] / g;
