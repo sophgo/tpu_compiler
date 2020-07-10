@@ -639,7 +639,8 @@ class OnnxConverter(BaseConverter):
         }
         op, shape, tensor_type = self.getOperand(onnx_node.inputs[0])
         output_shape = shape
-        operands = list()
+        # FIXME: Now not support clip quantize
+        # Only support relu6 case
         if tensor_type == TensorType.TENSOR:
             data = self.getTensor(onnx_node.inputs[0]).tensor_data
             output_data = np.clip(data, onnx_node.attrs['min'],onnx_node.attrs['max'])
@@ -647,9 +648,13 @@ class OnnxConverter(BaseConverter):
             self.addTensor(onnx_node.name, output_data, output_shape)
             self.addOperand(onnx_node.name, None, output_shape, TensorType.TENSOR)
         else:
-            operands.append(op)
-            clip_op = self.CVI.add_clip_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **clip_param)
-            self.addOperand(onnx_node.name, clip_op, output_shape, TensorType.ACTIVATION)
+            if clip_param.get("min") == 0:
+                # relu6
+                relu_op = self.CVI.add_relu_op("{}_relu6_relu{}".format(onnx_node.name, onnx_node.op_type), [op], output_shape)
+                clip_op = self.CVI.add_clip_op("{}_{}".format(onnx_node.name, onnx_node.op_type), [relu_op], output_shape, **clip_param)
+                self.addOperand(onnx_node.name, clip_op, output_shape, TensorType.ACTIVATION)
+            else:
+                raise RuntimeError("Not support clip min not zero case (min: {})".format(clip_param.get("min")))
 
     def convert_depth_to_space_op(self, onnx_node):
         assert(onnx_node.op_type == "DepthToSpace")
@@ -867,7 +872,7 @@ class OnnxConverter(BaseConverter):
         weight_op = self.CVI.add_load_file_op(weight_name, weight_tensor.shape)
         operands.append(weight_op)
 
-        bias_tensor = np.full(weight_tensor.shape[1], 0)
+        bias_tensor = np.full(weight_tensor.shape[0], 0)
         bias_name = "{}_add_bias".format(onnx_node.name)
         self.addTensor(bias_name, bias_tensor, bias_tensor.shape)
         bias_op = self.CVI.add_load_file_op(bias_name, bias_tensor.shape)
