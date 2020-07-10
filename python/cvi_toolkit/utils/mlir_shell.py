@@ -210,6 +210,21 @@ def mlir_calibration(mlirfile_fp32, dataset, threshold_table, auto_tune=False):
                         "--output_file", threshold_table,
                         ], **std_output_flag)
 
+def gen_bf16_mlir(mlir_src, mlir_target, bf16_layer_table):
+    command = ["mlir-opt",
+               "--tpu-quant",
+               "--quant-int8-mix-bf16-layers-from-file", bf16_layer_table,
+               mlir_src,
+               "-o", mlir_target
+               ]
+
+    if std_log_flag:
+        logger.info(command)
+
+    ret = subprocess.run(command, **std_output_flag)
+    checkReturnValue(ret, "mlir-opt, --quant-int8-mix-bf16-layers-from-file")
+    if ret.returncode != 0:
+        return ret.returncode
 
 def run_cvimodel(input_file, cvi_model, output_tensor, all_tensors=True):
 
