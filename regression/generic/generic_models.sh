@@ -1013,6 +1013,31 @@ export DO_LAYERGROUP=1
 export DO_PREPROCESS=0
 fi
 
+
+if [ $NET = "efficientnet-lite_b0" ]; then
+export MODEL_TYPE="onnx"
+export MODEL_DEF=$MODEL_PATH/imagenet/efficientnet-lite/b0/onnx/efficientnet_lite.onnx
+export MODEL_DAT=""
+export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/generic/regression_0_onnx.sh
+export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/efficientnet-lite-b0_onnx_threshold_table_1000
+export IMAGE_RESIZE_DIMS=256,256
+export NET_INPUT_DIMS=224,224
+export RAW_SCALE=1.0
+export MODEL_CHANNEL_ORDER="rgb"
+export MEAN=127,127,127
+export STD=128,128,128 
+export INPUT_SCALE=1.0
+export INPUT=input
+export OUTPUTS_FP32=output
+export OUTPUTS=output
+export TOLERANCE_INT8_MULTIPLER=0.95,0.95,0.7
+export TOLERANCE_BF16=0.99,0.99,0.91
+export DO_ACCURACY_CAFFE=0
+export DO_ACCURACY_ONNX=1
+export DO_LAYERGROUP=1
+export DO_PREPROCESS=0
+fi
+
 if [ $NET = "alphapose" ]; then
 export MODEL_TYPE="onnx"
 export MODEL_DEF=$MODEL_PATH/pose/alphapose/onnx/alphapose_resnet50_256x192.onnx
