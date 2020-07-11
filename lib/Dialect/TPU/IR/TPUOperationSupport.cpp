@@ -414,11 +414,8 @@ Operation* getNextOp(Operation *op) {
       break;
     }
     assert(nextOp && "nextOp is nullptr");
-  } else {
-    std::string errorMsg = std::string(__func__) + " failed, Op " +
-                           op->getName().getStringRef().str() + "\n";
-    llvm_unreachable(errorMsg.c_str());
   }
+  // if not found, will return NULL
   return nextOp;
 }
 

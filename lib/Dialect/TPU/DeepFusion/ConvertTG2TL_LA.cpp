@@ -52,6 +52,14 @@ struct TpuTG2TLConv2DOpPattern : public RewritePattern {
     auto op = cast<tpu::TG_INT8_PC_Conv2DOp>(opInst);
     assert(op);
 
+    int64_t input_size;
+    std::vector<int64_t> shape;
+    getTensorShapeAndSize(op.getOperand(0), shape, input_size);
+    if (shape.size() > 1 && shape[1] == 1) {
+      // workaround: input_c == 1 not support
+      return matchFailure();
+    }
+
     uint64_t totalPerLane = SimpleConv2DMemoryUsageAnalysis(op, nullptr);
     if (totalPerLane > MInfo::lmem_per_lane) {
       LLVM_DEBUG(llvm::errs() << "TG2TL_LA: " << op.name()
@@ -124,6 +132,21 @@ struct TpuTG2TLElewiseOpPattern : public RewritePattern {
                    << ", SKIP, lmem " << totalPerLane
                    << " needed\n";);
       return matchFailure();
+    }
+
+    // workaround: if add is after mul, not support now
+    if (isa<tpu::TG_INT8_EltwiseMulOp>(opInst)) {
+      auto next_op = getNextOp(opInst);
+      if (next_op != nullptr && isa<tpu::TG_INT8_EltwiseAddOp>(next_op)) {
+        return matchFailure();
+      }
+    } else if(isa<tpu::TG_INT8_EltwiseAddOp>(opInst)) {
+      for (auto operand : opInst->getOperands()) {
+        auto operandOp = operand->getDefiningOp();
+        if(operandOp != nullptr && isa<tpu::TG_INT8_EltwiseMulOp>(operandOp)){
+          return matchFailure();
+        }
+      }
     }
 
     // Check whether operand ConvOp has enough memory
