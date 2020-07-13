@@ -36,7 +36,7 @@
 using namespace mlir;
 
 namespace {
-
+#define MAX_CONV_STRIDE 16
 struct TpuUpsampleOpPattern : public RewritePattern {
   TpuUpsampleOpPattern(MLIRContext *context)
       : RewritePattern("tpu.upsample", 7, context) {}
@@ -58,17 +58,16 @@ struct TpuUpsampleOpPattern : public RewritePattern {
     auto input_type = input->getType().cast<RankedTensorType>();
     auto input_shape = input_type.getShape();
     auto scale = upsampleOp.scale().getLimitedValue();
-    if (input_shape.size() == 4 && input_shape[2] == 1 && input_shape[3] == 1) {
-      if (isa<tpu::SigmoidOp>(input->getDefiningOp())) {
-        // TODO(charle.hu): workaround, if convert to deconv, will fail in backend, test by ecanet50
-        return matchFailure();
-      }
-    }
     int g = input_shape[1];
     int oc = input_shape[1] / g;
     int ic = input_shape[1] / g;
     int h = scale;
     int w = scale;
+
+    // stride exceed hw limitation, can not convert
+    if (scale >= MAX_CONV_STRIDE) {
+     return matchFailure();
+    }
 
     int count = g * oc * ic * h * w;
     std::vector<float> filter(count, 1);
@@ -99,7 +98,7 @@ struct TpuUpsampleOpPattern : public RewritePattern {
     kernel[0] = kernel[1] = scale;
     padding[0] = padding[1] = 0;
     dilation[0] = dilation[1] = 1;
-    stride[0] = stride[1] = 2;
+    stride[0] = stride[1] = scale;
 
     std::vector<NamedAttribute> attrs;
     attrs.push_back(rewriter.getNamedAttr("name", upsampleOp.nameAttr()));

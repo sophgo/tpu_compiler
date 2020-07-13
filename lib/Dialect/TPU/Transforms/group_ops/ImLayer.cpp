@@ -424,6 +424,12 @@ ImBroadcastMul::ImBroadcastMul(Operation *op): ImLayer(IR_BROADCAST_MUL, op, tru
 }
 
 ImUpsample::ImUpsample(Operation *op): ImLayer(IR_UPSAMPLE, op, true) {
+  auto upsample_op = dyn_cast<tpu::TG_INT8_UpsampleOp>(op);
+  int scale = upsample_op.scale().getLimitedValue();
+  // ins_h/ins_w can not exceed 16 for average pooling in tl_upsample
+  // which has only 4 bits in hw
+  if (scale >= 16)
+    fusible = false;
   add_in_tensor(op->getOperand(0), TENSOR_NEURON);
   add_out_tensor(op->getResult(0), TENSOR_NEURON);
 }
