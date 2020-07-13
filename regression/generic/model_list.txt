@@ -31,6 +31,7 @@ yolo_v3_320               N        N        N        Y        Y        N
 # onnx
 resnet18                  Y        N        N        N        Y        N
 efficientnet_b0           Y        Y        N        N        N        N
+efficientnet-lite_b0      Y        N        N        N        Y        N
 alphapose                 N        N        N        Y        Y        N
 espcn_3x                  Y        N        N        N        Y        N
 unet                      N        N        N        Y        Y        N
