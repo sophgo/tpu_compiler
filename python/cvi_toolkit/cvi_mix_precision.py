@@ -4,10 +4,11 @@ import argparse
 import os
 import numpy as np
 import time
-from functools import cmp_to_key # sorted used
+
 from cvi_toolkit.mix_precision.MixPrecision import MixPrecisior
 from cvi_toolkit.data.preprocess import get_preprocess_parser
 from cvi_toolkit import preprocess
+from cvi_toolkit.utils.mlir_shell import gen_bf16_mlir
 
 import logging
 
