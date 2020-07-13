@@ -12,6 +12,8 @@ $EVAL_CAFFE_FUNC \
     --dataset=$DATASET_PATH/coco/val2017 \
     --annotations=$DATASET_PATH/coco/annotations/instances_val2017.json \
     --result_json=result_416.json \
+    --spp_net=$SPP_NET \
+    --tiny=$TINY \
     --count=$1
 
 EVAL_FUNC=eval_yolo.py
@@ -26,6 +28,8 @@ if [ $DO_PREPROCESS -eq 1 ]; then
       --annotations=$DATASET_PATH/coco/annotations/instances_val2017.json \
       --result_json=result_416.json \
       --model_do_preprocess=True \
+      --spp_net=$SPP_NET \
+      --tiny=$TINY \
       --count=$1
 else
   $EVAL_FUNC \
@@ -36,6 +40,8 @@ else
     --dataset=$DATASET_PATH/coco/val2017 \
     --annotations=$DATASET_PATH/coco/annotations/instances_val2017.json \
     --result_json=result_416.json \
+    --spp_net=$SPP_NET \
+    --tiny=$TINY \
     --count=$1
 fi
 
@@ -48,6 +54,8 @@ if [ $DO_QUANT_INT8_PER_TENSOR -eq 1 ]; then
       --dataset=$DATASET_PATH/coco/val2017 \
       --annotations=$DATASET_PATH/coco/annotations/instances_val2017.json \
       --result_json=result_416.json \
+      --spp_net=$SPP_NET \
+      --tiny=$TINY \
       --count=$1
 fi
 
@@ -60,6 +68,8 @@ if [ $DO_QUANT_INT8_RFHIFT_ONLY -eq 1 ]; then
       --dataset=$DATASET_PATH/coco/val2017 \
       --annotations=$DATASET_PATH/coco/annotations/instances_val2017.json \
       --result_json=result_416.json \
+      --spp_net=$SPP_NET \
+      --tiny=$TINY \
       --count=$1
 fi
 
@@ -74,6 +84,8 @@ if [ $DO_QUANT_INT8_MULTIPLER -eq 1 ]; then
         --annotations=$DATASET_PATH/coco/annotations/instances_val2017.json \
         --result_json=result_416.json \
         --model_do_preprocess=True \
+        --spp_net=$SPP_NET \
+        --tiny=$TINY \
         --count=$1
   else
     $EVAL_FUNC \
@@ -84,6 +96,8 @@ if [ $DO_QUANT_INT8_MULTIPLER -eq 1 ]; then
       --dataset=$DATASET_PATH/coco/val2017 \
       --annotations=$DATASET_PATH/coco/annotations/instances_val2017.json \
       --result_json=result_416.json \
+      --spp_net=$SPP_NET \
+      --tiny=$TINY \
       --count=$1
   fi
 fi
@@ -97,6 +111,8 @@ if [ $DO_QUANT_BF16 -eq 1 ]; then
       --dataset=$DATASET_PATH/coco/val2017 \
       --annotations=$DATASET_PATH/coco/annotations/instances_val2017.json \
       --result_json=result_416.json \
+      --spp_net=$SPP_NET \
+      --tiny=$TINY \
       --count=$1
 fi
 

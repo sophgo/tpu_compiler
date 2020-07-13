@@ -1,48 +1,50 @@
 #
-# Name                   bs1      bs4      acc    bs1_ext  bs4_ext  acc_ext
+# Name                   bs1      bs4      acc    bs1_ext  bs4_ext  acc_ext   model_preprocess
 #
 
 # caffe
-resnet50                  Y        Y        N        N        N        Y
-resnext50                 N        N        N        Y        Y        N
-vgg16                     N        N        N        Y        Y        N
-mobilenet_v1              Y        N        Y        N        Y        Y
-mobilenet_v2              Y        Y        N        N        N        N
-googlenet                 Y        N        N        N        Y        Y
-inception_v3              N        N        N        Y        Y        N
-inception_v4              Y        N        N        N        Y        Y
-squeezenet                Y        Y        N        N        N        Y
-shufflenet_v2             Y        N        N        N        Y        Y
-densenet_121              Y        N        N        N        Y        Y
-densenet_201              N        N        N        Y        Y        N
-senet_res50               N        N        N        Y        Y        Y
-arcface_res50             Y        N        N        N        Y        N
-retinaface_mnet25         Y        Y        N        N        N        N
-retinaface_mnet25_600     N        N        N        Y        N        N
-retinaface_res50          N        N        N        Y        N        N
-ssd300                    N        N        N        Y        Y        N
-mobilenet_ssd             Y        Y        N        N        N        N
-yolo_v2_1080              N        N        N        Y        N        N
-yolo_v2_416               N        N        N        Y        N        N
-yolo_v3_608               N        N        N        Y        N        Y
-yolo_v3_416               Y        N        N        N        Y        Y
-yolo_v3_320               N        N        N        Y        Y        N
+resnet50                  Y        Y        N        N        N        Y          Y
+resnext50                 N        N        N        Y        Y        N          N
+vgg16                     N        N        N        Y        Y        N          N
+mobilenet_v1              Y        N        Y        N        Y        Y          N
+mobilenet_v2              Y        Y        N        N        N        N          N
+googlenet                 Y        N        N        N        Y        Y          N
+inception_v3              N        N        N        Y        Y        N          N
+inception_v4              Y        N        N        N        Y        Y          N
+squeezenet                Y        Y        N        N        N        Y          N
+shufflenet_v2             Y        N        N        N        Y        Y          N
+densenet_121              Y        N        N        N        Y        Y          N
+densenet_201              N        N        N        Y        Y        N          N
+senet_res50               N        N        N        Y        Y        Y          N
+arcface_res50             Y        N        N        N        Y        N          N
+retinaface_mnet25         Y        Y        N        N        N        N          N
+retinaface_mnet25_600     N        N        N        Y        N        N          N
+retinaface_res50          N        N        N        Y        N        N          N
+ssd300                    N        N        N        Y        Y        N          N
+mobilenet_ssd             Y        Y        N        N        N        N          N
+yolo_v2_1080              N        N        N        Y        N        N          N
+yolo_v2_416               N        N        N        Y        N        N          N
+yolo_v3_608               N        N        N        Y        N        Y          N
+yolo_v3_416               Y        N        N        N        Y        Y          N
+yolo_v3_320               N        N        N        Y        Y        N          N
+yolo_v3_tiny              Y        N        N        N        N        N          Y
+yolo_v3_spp               N        N        N        N        N        N          N
 
 # onnx
-resnet18                  Y        N        N        N        Y        N
-efficientnet_b0           Y        Y        N        N        N        N
-efficientnet-lite_b0      Y        N        N        N        Y        N
-alphapose                 N        N        N        Y        Y        N
-espcn_3x                  Y        N        N        N        Y        N
-unet                      N        N        N        Y        Y        N
-nasnet_mobile             N        N        N        Y        Y        N
-ecanet50                  Y        N        N        N        N        N
-#res2net50                 Y        N        N        Y        N        N
+resnet18                  Y        N        N        N        Y        N          N
+efficientnet_b0           Y        Y        N        N        N        N          N
+efficientnet-lite_b0      Y        N        N        N        Y        N          N
+alphapose                 N        N        N        Y        Y        N          N
+espcn_3x                  Y        N        N        N        Y        N          N
+unet                      N        N        N        Y        Y        N          N
+nasnet_mobile             N        N        N        Y        Y        N          N
+ecanet50                  Y        N        N        N        N        N          N
+#res2net50                 Y        N        N        Y        N        N          N
 
 # tensorflow
-mobilenet_v1_tf           Y        Y        N        N        N        N
-mobilenet_v2_tf           Y        N        N        N        Y        N
-resnet50_tf               Y        N        N        N        Y        N
-vgg16_tf                  N        N        N        Y        Y        N
-inception_v3_tf           N        N        N        Y        Y        N
-# mobilenet_v3              N        N        N        Y        Y        N
+mobilenet_v1_tf           Y        Y        N        N        N        N          N
+mobilenet_v2_tf           Y        N        N        N        Y        N          N
+resnet50_tf               Y        N        N        N        Y        N          N
+vgg16_tf                  N        N        N        Y        Y        N          N
+inception_v3_tf           N        N        N        Y        Y        N          N
+# mobilenet_v3              N        N        N        Y        Y        N          N

@@ -35,7 +35,7 @@ export LABEL_FILE=$REGRESSION_PATH/data/synset_words.txt
 export DO_NN_TOOLKIT=0
 export SET_CHIP_NAME="cv183x"
 export SWAP_CHANNEL=0,1,2
-export YOLO="false"
+export YOLO_PREPROCESS="false"
 export BGRAY=0
 
 if [ -z "$DO_BATCHSIZE" ]; then
@@ -280,7 +280,7 @@ if [ $DO_PREPROCESS -eq 1 ]; then
   export EXCEPTS=data,prob
 else
   export EXCEPTS=prob
-fi
+fi 
 fi
 
 if [ $NET = "mobilenet_v3" ]; then
@@ -775,6 +775,8 @@ export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.93
 export DO_DEEPFUSION=1
 export DO_MEMOPT=1
 export DO_LAYERGROUP=1
+export SPP_NET="false"
+export TINY="false"
 if [ $DO_PREPROCESS -eq 1 ]; then
   export EXCEPTS=data
 fi
@@ -806,6 +808,8 @@ export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
 export DO_DEEPFUSION=1
 export DO_MEMOPT=1
 export DO_LAYERGROUP=1
+export SPP_NET="false"
+export TINY="false"
 if [ $DO_PREPROCESS -eq 1 ]; then
   export EXCEPTS=data
 fi
@@ -856,6 +860,8 @@ export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
 export DO_DEEPFUSION=1
 export DO_MEMOPT=1
 export DO_LAYERGROUP=1
+export SPP_NET="false"
+export TINY="false"
 if [ $DO_PREPROCESS -eq 1 ]; then
   export EXCEPTS=data
 fi
@@ -886,6 +892,8 @@ export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
 export DO_DEEPFUSION=1
 export DO_MEMOPT=1
 export DO_LAYERGROUP=1
+export SPP_NET="false"
+export TINY="false"
 if [ $DO_PREPROCESS -eq 1 ]; then
   export EXCEPTS=data
 fi
@@ -916,6 +924,8 @@ export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
 export DO_DEEPFUSION=1
 export DO_MEMOPT=1
 export DO_LAYERGROUP=1
+export SPP_NET="false"
+export TINY="false"
 if [ $DO_PREPROCESS -eq 1 ]; then
   export EXCEPTS=data
 fi
@@ -924,10 +934,13 @@ fi
 if [ $NET = "yolo_v3_tiny" ]; then
 export MODEL_DEF=$MODEL_PATH/object_detection/yolo_v3/caffe/yolov3_tiny.prototxt
 export MODEL_DAT=$MODEL_PATH/object_detection/yolo_v3/caffe/yolov3_tiny.caffemodel
-export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_caffe/regression_yolo_v3_tiny_0_caffe.sh
+export IMAGE_PATH=$REGRESSION_PATH/data/dog.jpg
+export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_caffe/regression_yolo_v3_0_caffe.sh
 export EVAL_SCRIPT=$REGRESSION_PATH/data/eval/accuracy_yolo_v3.sh
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/yolo_v3_tiny_calibration_table
+export CALI_TABLE_PREPROCESS=$REGRESSION_PATH/data/cali_tables/yolo_v3_tiny_calibration_table_preprocess
 export INPUT=input
+export YOLO_PREPROCESS="true"
 export MODEL_CHANNEL_ORDER="rgb"
 export SWAP_CHANNEL=2,1,0
 export IMAGE_RESIZE_DIMS=416,416
@@ -945,6 +958,42 @@ export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
 export DO_DEEPFUSION=1
 export DO_MEMOPT=1
 export DO_LAYERGROUP=1
+export TINY="true"
+export SPP_NET="false"
+if [ $DO_PREPROCESS -eq 1 ]; then
+  export EXCEPTS=data,output
+fi
+fi
+
+if [ $NET = "yolo_v3_spp" ]; then
+export MODEL_DEF=$MODEL_PATH/object_detection/yolo_v3/caffe/yolov3_spp.prototxt
+export MODEL_DAT=$MODEL_PATH/object_detection/yolo_v3/caffe/yolov3_spp.caffemodel
+export IMAGE_PATH=$REGRESSION_PATH/data/dog.jpg
+export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_caffe/regression_yolo_v3_0_caffe.sh
+export EVAL_SCRIPT=$REGRESSION_PATH/data/eval/accuracy_yolo_v3.sh
+export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/yolo_v3_spp_calibration_table
+export CALI_TABLE_PREPROCESS=$REGRESSION_PATH/data/cali_tables/yolo_v3_spp_calibration_table_preprocess
+export INPUT=input
+export YOLO_PREPROCESS="true"
+export MODEL_CHANNEL_ORDER="rgb"
+export SWAP_CHANNEL=2,1,0
+export IMAGE_RESIZE_DIMS=608,608
+export NET_INPUT_DIMS=608,608
+export RAW_SCALE=1.0
+export MEAN=0,0,0
+export INPUT_SCALE=1.0
+export EXCEPTS=output
+export TOLERANCE_INT8_PER_TENSOR=0.9,0.88,0.51
+export TOLERANCE_INT8_RSHIFT_ONLY=0.92,0.90,0.58
+export TOLERANCE_INT8_MULTIPLER=0.86,0.86,0.34
+export DO_QUANT_BF16=0
+export TOLERANCE_BF16=0.99,0.99,0.94
+export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
+export DO_DEEPFUSION=1
+export DO_MEMOPT=1
+export DO_LAYERGROUP=1
+export SPP_NET="true"
+export TINY="false"
 if [ $DO_PREPROCESS -eq 1 ]; then
   export EXCEPTS=data,output
 fi

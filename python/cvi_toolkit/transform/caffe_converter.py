@@ -598,7 +598,7 @@ class CaffeConverter(BaseConverter):
         padding_tl = [padding[0], padding[1]]
         padding_br = [padding[0], padding[1]]
         ofmap = [0, 0]
-        yolo = p.yolo # for Yolo padding=SAME
+        yolo = p.yolo if p.HasField('yolo') else False
         for i in [0, 1]:
             if ceil_mode:
                 ofmap[i] = math.ceil(
@@ -1066,19 +1066,22 @@ class CaffeConverter(BaseConverter):
     def convert_yolo_detection_op(self, layer):
         assert(self.layerType(layer) == 'YoloDetection')
         _, input_shape, _ = self.getOperand(layer.bottom[0])
+        
         operands = list()
         for bottom in layer.bottom:
             op, _, _ = self.getOperand(bottom)
             operands.append(op)
         p = layer.yolo_detection_param
-        print(p.tiny)
+        spp_net = p.spp_net if p.HasField("spp_net") else False
+        tiny = p.tiny if p.HasField("tiny") else False
         param = {
             'net_input_h': p.net_input_h,
             "net_input_w": p.net_input_w,
             "nms_threshold": p.nms_threshold,
             "obj_threshold": p.obj_threshold,
             "keep_topk": p.keep_topk,
-            "tiny": p.tiny
+            "spp_net": spp_net,
+            "tiny": tiny
         }
         output_shape = [1, 1, p.keep_topk, 6]
         new_op = self.CVI.add_yolo_detection_op(

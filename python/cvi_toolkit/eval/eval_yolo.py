@@ -8,7 +8,7 @@ import glob
 import time
 import cv2
 import caffe
-from cvi_toolkit.utils.yolov3_util import preprocess, postprocess_v3, postprocess_v2, draw
+from cvi_toolkit.utils.yolov3_util import preprocess, postprocess_v3, postprocess_v3_tiny, postprocess_v2, draw
 from pycocotools.coco import COCO
 from pycocotools.cocoeval import COCOeval
 import json
@@ -53,6 +53,8 @@ def parse_args():
     parser.add_argument("--count", type=int, default=-1)
     parser.add_argument("--model_do_preprocess", type=bool, default=False)
     parser.add_argument("--yolov3", type=str, default='yes')
+    parser.add_argument("--spp_net", type=str, default="false")
+    parser.add_argument("--tiny", type=str, default="false")
 
     args = parser.parse_args()
     return args
@@ -65,20 +67,49 @@ def yolo_detect(module, image, net_input_dims, obj_threshold, nms_threshold, yol
 
     out_feat = {}
     if yolov3 == True:
-        if ('layer82-conv' in res.keys()):
-            out_feat['layer82-conv'] = res['layer82-conv']
-            out_feat['layer94-conv'] = res['layer94-conv']
-            out_feat['layer106-conv'] = res['layer106-conv']
-        elif ('layer82-conv_dequant' in res.keys()):
-            out_feat['layer82-conv'] = res['layer82-conv_dequant']
-            out_feat['layer94-conv'] = res['layer94-conv_dequant']
-            out_feat['layer106-conv'] = res['layer106-conv_dequant']
-        elif ('layer82-conv_dequant_cast' in res.keys()):
-            out_feat['layer82-conv'] = res['layer82-conv_dequant_cast']
-            out_feat['layer94-conv'] = res['layer94-conv_dequant_cast']
-            out_feat['layer106-conv'] = res['layer106-conv_dequant_cast']
+        if tiny:
+            if 'layer16-conv' in res.keys():
+                out_feat['layer16-conv'] = res['layer16-conv']
+                out_feat['layer23-conv'] = res['layer23-conv']
+            elif 'layer16-conv_dequant' in res.keys():
+                out_feat['layer16-conv'] = res['layer16-conv_dequant']
+                out_feat['layer23-conv'] = res['layer23-conv_dequant']
+            elif 'layer16-conv_dequant_cast' in res.keys():
+                out_feat['layer16-conv'] = res['layer16-conv_dequant_cast']
+                out_feat['layer23-conv'] = res['layer23-conv_dequant_cast']
+            else:
+                assert(0)
         else:
-            assert(False)
+            if not spp_net:
+                if ('layer82-conv' in res.keys()):
+                    out_feat['layer82-conv'] = res['layer82-conv']
+                    out_feat['layer94-conv'] = res['layer94-conv']
+                    out_feat['layer106-conv'] = res['layer106-conv']
+                elif ('layer82-conv_dequant' in res.keys()):
+                    out_feat['layer82-conv'] = res['layer82-conv_dequant']
+                    out_feat['layer94-conv'] = res['layer94-conv_dequant']
+                    out_feat['layer106-conv'] = res['layer106-conv_dequant']
+                elif ('layer82-conv_dequant_cast' in res.keys()):
+                    out_feat['layer82-conv'] = res['layer82-conv_dequant_cast']
+                    out_feat['layer94-conv'] = res['layer94-conv_dequant_cast']
+                    out_feat['layer106-conv'] = res['layer106-conv_dequant_cast']
+                else:
+                    assert(False)
+            else:
+                if ('layer89-conv' in res.keys()):
+                    out_feat['layer89-conv'] = res['layer89-conv']
+                    out_feat['layer101-conv'] = res['layer101-conv']
+                    out_feat['layer113-conv'] = res['layer113-conv']
+                elif ('layer89-conv_dequant' in res.keys()):
+                    out_feat['layer89-conv'] = res['layer89-conv_dequant']
+                    out_feat['layer101-conv'] = res['layer101-conv_dequant']
+                    out_feat['layer113-conv'] = res['layer113-conv_dequant']
+                elif ('layer89-conv_dequant_cast' in res.keys()):
+                    out_feat['layer89-conv'] = res['layer89-conv_dequant_cast']
+                    out_feat['layer101-conv'] = res['layer101-conv_dequant_cast']
+                    out_feat['layer113-conv'] = res['layer113-conv_dequant_cast']
+                else:
+                    assert(False)
     else:
         if ('conv22' in res.keys()):
             out_feat['conv22'] = res['conv22']
@@ -90,8 +121,12 @@ def yolo_detect(module, image, net_input_dims, obj_threshold, nms_threshold, yol
             assert(False)
 
     if yolov3 == True:
-        batched_predictions = postprocess_v3(out_feat, image.shape, net_input_dims,
-                                obj_threshold, nms_threshold, batch=1)
+        if tiny:
+            batched_predictions = postprocess_v3_tiny(out_feat, image.shape, net_input_dims,
+                        obj_threshold, nms_threshold, args.batch_size)
+        else:
+            batched_predictions = postprocess_v3(out_feat, image.shape, net_input_dims,
+                                    obj_threshold, nms_threshold, spp_net, batch=1)
     else:
         batched_predictions = postprocess_v2(out_feat, image.shape, net_input_dims,
                                 obj_threshold, nms_threshold, batch=1)
@@ -211,6 +246,8 @@ def main(argv):
     nms_threshold = float(args.nms_threshold)
     do_preprocess = not args.model_do_preprocess
     yolov3 = True if args.yolov3 == 'yes' else False
+    spp_net = True if args.spp_net == "true" else False
+    tiny = True if args.tiny == "true" else False
     print("net_input_dims", net_input_dims)
     print("obj_threshold", obj_threshold)
     print("nms_threshold", nms_threshold)

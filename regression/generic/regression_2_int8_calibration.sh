@@ -39,11 +39,20 @@ if [ ! -f $CALI_TABLE ]; then
 fi
 
 # import calibration table
-mlir-opt \
+if [ $DO_PREPROCESS -ne 1 ]; then
+  mlir-opt \
     ${ENABLE_CALI_OVERWRITE_THRESHOLD_FORWARD} \
     --import-calibration-table \
     --calibration-table ${CALI_TABLE} \
     ${NET}_opt.mlir \
     -o ${NET}_cali.mlir
+else
+  mlir-opt \
+    ${ENABLE_CALI_OVERWRITE_THRESHOLD_FORWARD} \
+    --import-calibration-table \
+    --calibration-table ${CALI_TABLE_PREPROCESS} \
+    ${NET}_opt.mlir \
+    -o ${NET}_cali.mlir
+fi
 
 echo $0 PASSED

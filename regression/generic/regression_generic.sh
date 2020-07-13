@@ -17,7 +17,14 @@ if [ -z "$2" ]; then
 else
   DO_BATCHSIZE=$2
 fi
+
+if [ -z "$3" ]; then
+  ENABLE_PREPROCESS=0
+else
+  ENABLE_PREPROCESS=$3
+fi
 export DO_BATCHSIZE=$DO_BATCHSIZE
+export ENABLE_PREPROCESS=$ENABLE_PREPROCESS
 export NET=$NET
 source $DIR/generic_models.sh
 

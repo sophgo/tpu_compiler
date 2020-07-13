@@ -9,7 +9,7 @@ import time
 import cv2
 import caffe
 from cvi_toolkit.model import CaffeModel
-from cvi_toolkit.utils.yolov3_util import preprocess, postprocess_v2, postprocess_v3, draw
+from cvi_toolkit.utils.yolov3_util import preprocess, postprocess_v2, postprocess_v3, postprocess_v3_tiny, draw
 
 def check_files(args):
     if not os.path.isfile(args.model_def):
@@ -55,6 +55,10 @@ def parse_args():
                         help="Set batch size")
     parser.add_argument("--yolov3", type=str, default='yes',
                         help="yolov2 or yolov3")
+    parser.add_argument("--spp_net", type=str, default="false",
+                        help="yolov3 spp")
+    parser.add_argument("--tiny", type=str, default="false",
+                        help="yolov3 tiny")
 
     args = parser.parse_args()
     check_files(args)
@@ -68,10 +72,14 @@ def main(argv):
     obj_threshold = float(args.obj_threshold)
     nms_threshold = float(args.nms_threshold)
     yolov3 = True if args.yolov3 == 'yes' else False
+    spp_net = True if args.spp_net == "true" else False
+    tiny = True if args.tiny == "true" else False
     print("net_input_dims", net_input_dims)
     print("obj_threshold", obj_threshold)
     print("nms_threshold", nms_threshold)
     print("yolov3", yolov3)
+    print("spp_net", spp_net)
+    print("tiny", tiny)
 
     image = cv2.imread(args.input_file)
     image_x = preprocess(image, net_input_dims)
@@ -97,11 +105,24 @@ def main(argv):
 
     out_feat = {}
     if yolov3 == True:
-        out_feat['layer82-conv'] = outputs['layer82-conv'].data
-        out_feat['layer94-conv'] = outputs['layer94-conv'].data
-        out_feat['layer106-conv'] = outputs['layer106-conv'].data
-        batched_predictions = postprocess_v3(out_feat, image.shape, net_input_dims,
-                                obj_threshold, nms_threshold, args.batch_size)
+        if tiny:
+            out_feat['layer16-conv'] = outputs['layer16-conv'].data
+            out_feat['layer23-conv'] = outputs['layer23-conv'].data
+            batched_predictions = postprocess_v3_tiny(out_feat, image.shape, net_input_dims,
+                                    obj_threshold, nms_threshold, args.batch_size)
+        else:
+            if not spp_net:
+                out_feat['layer82-conv'] = outputs['layer82-conv'].data
+                out_feat['layer94-conv'] = outputs['layer94-conv'].data
+                out_feat['layer106-conv'] = outputs['layer106-conv'].data
+                batched_predictions = postprocess_v3(out_feat, image.shape, net_input_dims,
+                                        obj_threshold, nms_threshold, spp_net, args.batch_size)
+            else:
+                out_feat['layer89-conv'] = outputs['layer89-conv'].data
+                out_feat['layer101-conv'] = outputs['layer101-conv'].data
+                out_feat['layer113-conv'] = outputs['layer113-conv'].data
+                batched_predictions = postprocess_v3(out_feat, image.shape, net_input_dims,
+                                        obj_threshold, nms_threshold, spp_net, args.batch_size)
     else:
         out_feat['conv22'] = outputs['conv22'].data
         batched_predictions = postprocess_v2(out_feat, image.shape, net_input_dims,

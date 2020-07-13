@@ -234,13 +234,21 @@ def _batched_feature_generator_v2(batched_features, batch=1):
     for i in range(batch):
         yield [conv22[i]]
 
-def _batched_feature_generator_v3(batched_features, batch=1):
-    layer82_conv = batched_features['layer82-conv']
-    layer94_conv = batched_features['layer94-conv']
-    layer106_conv = batched_features['layer106-conv']
+def _batched_feature_generator_v3(batched_features, spp_net, batch=1):
+    if not spp_net:
+        layer82_conv = batched_features['layer82-conv']
+        layer94_conv = batched_features['layer94-conv']
+        layer106_conv = batched_features['layer106-conv']
 
-    for i in range(batch):
-        yield [layer82_conv[i], layer94_conv[i], layer106_conv[i]]
+        for i in range(batch):
+            yield [layer82_conv[i], layer94_conv[i], layer106_conv[i]]
+    else:
+        layer89_conv = batched_features['layer89-conv']
+        layer101_conv = batched_features['layer101-conv']
+        layer113_conv = batched_features['layer113-conv']
+
+        for i in range(batch):
+            yield [layer89_conv[i], layer101_conv[i], layer113_conv[i]]
 
 def _batched_feature_generator_v3_tiny(batched_features, batch=1):
     layer16_conv = batched_features['layer16-conv']
@@ -294,11 +302,11 @@ def postprocess_v2(batched_features, image_shape, net_input_dims,
     return batch_out
 
 def postprocess_v3(batched_features, image_shape, net_input_dims,
-                obj_threshold, nms_threshold, batch=1):
+                obj_threshold, nms_threshold, spp_net, batch=1):
     i = 0
     batch_out = {}
 
-    for feature in _batched_feature_generator_v3(batched_features, batch):
+    for feature in _batched_feature_generator_v3(batched_features, spp_net, batch):
         pred = _postprocess_v3(feature, image_shape, net_input_dims,
                             obj_threshold, nms_threshold)
 

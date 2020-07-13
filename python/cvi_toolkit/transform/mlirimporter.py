@@ -944,6 +944,7 @@ class MLIRImporter(object):
         checkKey(kargs, 'nms_threshold')
         checkKey(kargs, 'obj_threshold')
         checkKey(kargs, 'keep_topk')
+        checkKey(kargs, 'spp_net')
         checkKey(kargs, 'tiny')
 
         name_attr=self.module.stringAttr(op_name)
@@ -953,6 +954,7 @@ class MLIRImporter(object):
             'nms_threshold': self.module.floatAttr(kargs['nms_threshold']),
             'obj_threshold': self.module.floatAttr(kargs['obj_threshold']),
             'keep_topk': self.module.integerAttr(self.i32Type, kargs['keep_topk']),
+            'spp_net': self.module.boolAttr(kargs['spp_net']),
             'tiny': self.module.boolAttr(kargs['tiny'])
         }
         return self.buildOp(TPU_OpType.YoloDetection.value, inputOperands, [
