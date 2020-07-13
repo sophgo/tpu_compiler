@@ -220,17 +220,23 @@ def parse(config: dict):
         logger.error("No Calibration in yml!")
         exit(-1)
 
+    # import calibration
+    mlirfile_cali = "cali_{}".format(fp32_mlirfile)
+    net.import_cali_table(fp32_mlirfile, calibraion_table, mlirfile_cali)
+
+    # quant
+    mlirfile_int8 = "quant_int8_{}".format(fp32_mlirfile)
+    quant_tpu_op_info = "{}_quant_op_info.csv".format(model_name)
+    net.mlir_quant(mlirfile_cali, mlirfile_int8, quant_info=quant_tpu_op_info)
+
     # build cvi_model
     cvimodel = config.get("output_file", None)
     Quantization = config.get("Quantization", None)
     if cvimodel:
         logger.info("run cvimodel generation ...")
-        int8_mlirfile = "{}_int8.mlir".format(model_name)
         is_perchannel = Quantization.get("per_channel", True)
         is_symmetric = Quantization.get("symmetric", True)
-        quant_tpu_op_info = "{}_quant_op_info.csv".format(model_name)
-
-        net.build_cvimodel(fp32_mlirfile, cvimodel, calibraion_table, mlirfile_int8=int8_mlirfile, quant_info=quant_tpu_op_info)
+        net.build_cvimodel(mlirfile_int8, cvimodel)
         logger.info("cvimodel generation finished")
     else:
         logger.error("No cvimodel output_file")
@@ -240,7 +246,7 @@ def parse(config: dict):
     # inference with mlir framework
     int8_mlir_tensor_file = "{}_tensor_all_int8.npz".format(model_name)
     logger.info("run mlir int8 inference ...")
-    output = net.inference('mlir', input_npz, mlirfile=int8_mlirfile, model_file=None, weight_file=None, all_tensors=int8_mlir_tensor_file)
+    output = net.inference('mlir', input_npz, mlirfile=mlirfile_int8, model_file=None, weight_file=None, all_tensors=int8_mlir_tensor_file)
     if output is not None:
         logger.info("mlir int8 inference finished")
 

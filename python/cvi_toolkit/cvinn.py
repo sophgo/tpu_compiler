@@ -72,29 +72,27 @@ class cvinn(object):
             tuner.run_tune()
         return 0
 
-    def build_cvimodel(self, mlirfile_fp32: str, cvimodel: str, threshold_table: str, mlirfile_int8: str = None,
-                    quant_method: str = "perchannel", cmd_buf: str=None, quant_info=None):
-        if quant_info:
-            int8_op_csv = quant_info
-        else:
-            int8_op_csv = "{}_op_info_int8.csv".format(mlirfile_fp32.split('.')[0].split('/')[-1])
-        cali_mlir = "cali_{}".format(mlirfile_fp32)
-        ret = mlir_import_calibration(mlirfile_fp32, cali_mlir, threshold_table)
+    def import_cali_table(self, mlirfile_fp32: str, threshold_table: str, mlirfile_cali: str = None):
+        ret = mlir_import_calibration(mlirfile_fp32, mlirfile_cali, threshold_table)
         if ret != 0:
             logger.error("mlir_import_callibration failed")
             exit(-1)
 
-        if mlirfile_int8:
-            quant_mlir = mlirfile_int8
+    def mlir_quant(self, mlirfile_cali, mlirfile_int8, quant_info=None):
+        if quant_info:
+            int8_op_csv = quant_info
         else:
-            quant_mlir = "quant_{}".format(mlirfile_fp32)
-        ret = mlir_tpu_quant(cali_mlir, quant_mlir, int8_op_csv)
+            int8_op_csv = "{}_op_info_int8.csv".format(mlirfile_fp32.split('.')[0].split('/')[-1])
+        ret = mlir_tpu_quant(mlirfile_cali, mlirfile_int8, int8_op_csv)
         if ret != 0:
             logger.error("mlir_tpu_quant failed")
             exit(-1)
 
-        tg_mlir = "tg_{}".format(mlirfile_fp32)
-        ret = mlir_lower_opt(quant_mlir, tg_mlir)
+    def build_cvimodel(self, mlirfile_int8: str, cvimodel: str,
+                    quant_method: str = "perchannel"):
+
+        tg_mlir = "tg_{}".format(mlirfile_int8)
+        ret = mlir_lower_opt(mlirfile_int8, tg_mlir)
         if ret != 0:
             logger.error("mlir_lower_opt failed")
 
