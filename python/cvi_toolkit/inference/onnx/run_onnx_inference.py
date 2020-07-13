@@ -99,6 +99,8 @@ def main(argv):
 
         # tested commited #c3cea486d https://github.com/microsoft/onnxruntime.git
         for x in model.graph.node:
+            if x.op_type == 'Split':
+                continue
             _intermediate_tensor_name = list(x.output)
             intermediate_tensor_name = ",".join(_intermediate_tensor_name)
             intermediate_layer_value_info = helper.ValueInfoProto()
