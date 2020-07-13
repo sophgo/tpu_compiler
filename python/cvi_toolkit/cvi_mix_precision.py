@@ -5,166 +5,66 @@ import os
 import numpy as np
 import time
 from functools import cmp_to_key # sorted used
-
-#
-# function comes from bmcompress, plz refre [here](http://10.34.33.3:8480/toolchain/bmcompress/blob/master/experiment/imagenet/mobilenet_v1_pytorch/sqnr_mobilenet_v1.py) for more details
-#
-from mix_precision.gen_imagenet_list import imagenet_generator
-from mix_precision.inference_demo_mobilenet import preprocess
-from mix_precision.get_csv_val import get_csv_val, get_rows_by_column
-
-import pymlir
+from cvi_toolkit.mix_precision.MixPrecision import MixPrecisior
+from cvi_toolkit.data.preprocess import get_preprocess_parser
+from cvi_toolkit import preprocess
 
 import logging
-from utils.log_setting import setup_logger
+
+
+from cvi_toolkit.utils.log_setting import setup_logger
 logger = setup_logger('root')
 log_flag = logger.level <= logging.DEBUG
 
+
+
 def parse_args():
-  parser = argparse.ArgumentParser(description="find bf16 layers in int8 net")
-  parser.add_argument(
-      "--all_layers_name_csv_file",
-      help="file record all layers name in this network, may be like mobilenetv3_pytorch1_op_info.csv",
-      required=True
-  )
-  parser.add_argument(
-      "--layers_column_name",
-      help="column name in --all_layers_name_csv_file",
-      default="input"
-  )
-  parser.add_argument(
-      "--gen_cmd_script",
-      help="script to generate cmd, the possible file like gen_mix_precision.sh",
-      required=True
-  )
-  parser.add_argument(
-      "--model",
-      help="mlir model name such like mobilenetv3_cali.mlir.mlir",
-      required=True
-  )
-  args = parser.parse_args()
-  return args
+    parser = argparse.ArgumentParser(description="Generate bf16 table")
+    parser.add_argument('fp32_cali_mlir_file', metavar='fp32_cali_mlir_file', help='Model file')
+    parser.add_argument('image_list_file', metavar='image_list_file', help='Input image list file')
+    parser.add_argument('output_bf16_table', metavar='output_bf16_layer_file', help='Output bf16 layer table')
+    parser.add_argument('--output_mlir', metavar='output mix precision mlir', help='output mix precision mlir')
+    parser.add_argument('--model_name', metavar='model_name', help='Model name', default='generic')
+    parser.add_argument('--number_bf16', metavar='number of swich int8 to bf16', help='number of bf16 layer', type=int, default=10)
+    parser.add_argument('--input_num', metavar='input_num', help='Calibration data number', type=int, default=10)
+    parser = get_preprocess_parser(existed_parser=parser)
+    args = parser.parse_args()
+
+    return args
 
 
-skip_ops = ['tpu.input', 'tpu.quant']
-g_val_data_count = 100
-
-def create_bf16_layers(args, layers, exclude_layers = []):
-  with open(args.bf16_quant_layers_file, 'w') as myfile:
-    for bf16_layer in layers:
-      if bf16_layer not in exclude_layers:
-        myfile.write(bf16_layer + "\n")
-
-def gen_mlir(args, input_mlir, output_mlir):
-  cmd = '{} {} {} {}'.format(
-    args.gen_cmd_script,
-    args.bf16_quant_layers_file,
-    input_mlir,
-    output_mlir
-    )
-
-  if os.system(cmd) != 0:
-    print('Cmd {} execute failed'.format(cmd))
-    exit(-1)
-
-def cal_sqnr(signal_raw, signal_dequant):
-  raw = signal_raw.flatten()
-  dequant = signal_dequant.flatten()
-  noise = raw - dequant
-
-  avg_raw = np.sum(raw) / raw.size
-  avg_noise = np.sum(noise) / noise.size
-
-  raw_zero_mean = raw - avg_raw
-  noise_zero_mean = noise - avg_noise
-
-  var_raw_zero_mean = np.var(raw_zero_mean)
-  var_noise_zero_mean = np.var(noise_zero_mean)
-  # print(np.max(signal_raw), np.max(signal_dequant))
-  # print(var_raw_zero_mean, var_noise_zero_mean)
-
-  if var_noise_zero_mean == 0.0:
-      return 2^31 - 1
-
-  sqnr = 10 * np.log10(var_raw_zero_mean / var_noise_zero_mean)
-
-  return sqnr
-
-# https://blog.csdn.net/u012436149/article/details/79952975
-def cmp(a, b):
-    if b < a:
-        return -1
-    if a < b:
-        return 1
-    return 0
-
-# default all set to bf16 than turn off some layer to find it
-def sqnr_mean_one_output(args, layers):
-  sqnr_list = list()
-  pred_fp32 = list()
-
-  # pred_fp32, mean of fp32
-  print('Collect pred_fp32...')
-
-  # get layers
-  create_bf16_layers(args, layers)
-  outpur_mlir = "out.mlir"
-  gen_mlir(args, args.model, outpur_mlir)
-  module = pymlir.module()
-  module.load(outpur_mlir)
-
-  op_info = module.op_info
-  print('Collect all fp32 score')
-  for x, _, _ in imagenet_generator(generate_count=g_val_data_count, preprocess=preprocess):
-    res = module.run(x)
-    y = module.get_all_tensor()
-    y = y[module.op_info[-1]['name']].flatten()
-    pred_fp32.append(y)
-
-  for info in op_info:
-    if info['type'] in skip_ops:
-      continue
-
-    layer_name = info['name']
-    # pred_int8
-    print('Collect pred_int8...', layer_name)
-    create_bf16_layers(args, layers, [layer_name])
-
-    gen_mlir(args, args.model, outpur_mlir)
-    module = pymlir.module()
-    module.load(outpur_mlir)
-
-    sqnr = 0
-    data_count = 0
-    for x, _, _ in imagenet_generator(generate_count=g_val_data_count, preprocess=preprocess):
-      res = module.run(x)
-      y = module.get_all_tensor()
-      # get last output
-      y = y[module.op_info[-1]['name']].flatten()
-      #y = y.values()[0].flatten()
-      sqnr += cal_sqnr(pred_fp32[data_count], y)
-      data_count += 1
-
-    sqnr_list.append((layer_name, sqnr / g_val_data_count))
-
-  # python2
-  #sqnr_list = sorted(sqnr_list, cmp=lambda x, y: cmp(x[1], y[1]))
-  sqnr_list = sorted(sqnr_list, key=cmp_to_key(lambda x, y: cmp(x[1], y[1])))
-
-  print('all score')
-  for layer_sqnr in sqnr_list:
-    print('{}, {}'.format(layer_sqnr[0], layer_sqnr[1]))
 
 if __name__ == '__main__':
-  args = parse_args()
-  args.bf16_quant_layers_file = "bf16_layers"
+    args = parse_args()
+    os.makedirs("tmp", exist_ok=True)
+    os.chdir("tmp")
+    if (args.model_name == 'generic'):
+        preprocessor = preprocess()
+        preprocessor.config(net_input_dims=args.net_input_dims,
+                    resize_dims=args.image_resize_dims,
+                    mean=args.mean,
+                    mean_file=args.mean_file,
+                    input_scale=args.input_scale,
+                    raw_scale=args.raw_scale,
+                    std=args.std,
+                    rgb_order=args.model_channel_order)
+        # read with opencv, bgr, hwc
+        p_func = lambda input_tensor: preprocessor.run(input_tensor, input_channel_order="bgr", input_data_format="hwc",
+                        output_channel_order=args.model_channel_order, input_type='tensor')
+    else:
+        assert(False)
 
-  layer_names = get_rows_by_column(args.all_layers_name_csv_file,
-      [args.layers_column_name])
+    os.chdir("../")
+    mix_precisior = MixPrecisior(args.fp32_cali_mlir_file, args.image_list_file, precrocess_func=p_func, input_num=args.input_num)
+    sort_bf16_layers = mix_precisior.run(args.output_mlir)
+    print(sort_bf16_layers)
 
-  if log_flag:
-    print("all layer:", layer_names)
+    with open(args.output_bf16_table, "w") as f:
+        sort_bf16_layers = sort_bf16_layers[:args.number_bf16]
+        for i in sort_bf16_layers:
+            f.write("{}\n".format(i[0]))
+    print("Output bf16 table to {}".format(args.output_bf16_table))
 
-  start_time = time.time()
-  sqnr_mean_one_output(args, layer_names)
-  print("--- %s seconds ---" % (time.time() - start_time))
+    if args.output_mlir:
+        gen_bf16_mlir(args.fp32_cali_mlir_file , args.output_mlir, args.output_bf16_table)
+        print("gen bf16 mix precision mlir => {}".format(args.output_bf16_table))
