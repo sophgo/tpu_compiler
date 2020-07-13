@@ -83,6 +83,7 @@ class preprocess(object):
         self.letter_box = letter_box
         self.batch = batch
         self.bgray = bgray
+
         self.net_input_dims = [int(s) for s in net_input_dims.split(',')]
         if resize_dims != None :
             self.resize_dims = [int(s) for s in resize_dims.split(',')]
@@ -95,7 +96,7 @@ class preprocess(object):
         if mean:
             self.mean = np.array([float(s) for s in mean.split(',')], dtype=np.float32)
             if self.resize_dims != None :
-                    self.mean = self.mean[:, np.newaxis, np.newaxis]
+                self.mean = self.mean[:, np.newaxis, np.newaxis]
             self.mean_file = np.array([])
         else:
             if mean_file != None :
@@ -107,6 +108,11 @@ class preprocess(object):
             self.std = np.array([float(s) for s in std.split(',')], dtype=np.float32)
         else:
             self.std = None
+
+        if bgray:
+            self.mean = self.mean[:1]
+            self.std = self.std[:1]
+
         self.input_scale = float(input_scale)
 
         self.data_format = data_format[1:]

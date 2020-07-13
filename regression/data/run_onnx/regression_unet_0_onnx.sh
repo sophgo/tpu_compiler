@@ -16,7 +16,7 @@ run_onnx_inference.py \
     --output_file ${NET}_out_fp32_ref.npz \
     --model_path $MODEL_DEF \
     --dump_tensor ${NET}_out_tensor_all.npz \
-    --bgray true
+    --bgray 1
 
 cvi_npz_tool.py extract ${NET}_out_tensor_all.npz ${NET}_in_fp32.npz input
 cp ${NET}_out_tensor_all.npz ${NET}_blobs.npz
