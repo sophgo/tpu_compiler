@@ -33,11 +33,11 @@ def mlir_translate(model_file, weight_file, mlirfile, batch_size=1):
     checkReturnValue(ret, "mlir_translate")
     return ret.returncode
 
-def mlir_opt(mlirfile, opt_mlirfile, op_info_csv):
+def mlir_opt(mlirfile, opt_mlirfile, op_info_csv, chip="cv183x"):
     ret = subprocess.run(["mlir-opt",
                     "--assign-layer-id",
                     "--assign-chip-name",
-                    "--chipname=cv183x",
+                    "--chipname={}".format(chip),
                     "--convert-bn-to-scale",
                     "--canonicalize",
                     "--print-tpu-op-info",

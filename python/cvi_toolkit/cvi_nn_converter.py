@@ -41,6 +41,7 @@ def parse(config: dict):
 
     model_name = output_file.split('.')[0].split('/')[-1]
     Convert_model = config.get('Convert_model', None)
+    chip = config.get('chip', 'cv183x')
     if Convert_model:
         t = Convert_model
         model_type = t.get('framework_type')
@@ -54,7 +55,7 @@ def parse(config: dict):
         fp32_mlirfile = "{}.mlir".format(model_name)
         try:
             logger.info("convert model to fp32 mlir ...")
-            ret = net.convert_model(model_type, model_file, fp32_mlirfile, weight_file=weight_file, tpu_op_info=tpu_op_info,batch_size=1)
+            ret = net.convert_model(model_type, model_file, fp32_mlirfile, weight_file=weight_file, tpu_op_info=tpu_op_info,batch_size=1, chip=chip)
             if ret != 0:
                 logger.error("mlir_translate failed")
                 exit(-1)

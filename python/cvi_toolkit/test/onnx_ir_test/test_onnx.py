@@ -34,6 +34,7 @@ TEST_ONNX_IR = [
     "Sum",
     "Transpose",
 ]
+chip = "cv183x"
 
 NOT_SUPPORT_CMDBUF_TEST_IR = ["Relu"]
 NOT_SUPPORT_BF16_TEST_IR = ["Relu", "LRN", "Max", "Min", "PRelu", "Reciprocal", "Slice", "Transpose", "Sum"]
@@ -121,7 +122,7 @@ class ONNX_IR_TESTER(object):
                 # opt
                 fp32_opt_mlir = "{}_opt.mlir".format(model_name)
                 fp32_csv = "{}_fp32.csv".format(model_name)
-                mlir_opt(fp32_mlir, fp32_opt_mlir, fp32_csv)
+                mlir_opt(fp32_mlir, fp32_opt_mlir, fp32_csv, chip=chip)
                 table_name = "{}_cali_table".format(model_name)
                 # gen cali table
                 make_test_calibration_table(tensors, table_name)
@@ -178,7 +179,7 @@ class ONNX_IR_TESTER(object):
                 # opt
                 fp32_opt_mlir = "{}_opt.mlir".format(model_name)
                 fp32_csv = "{}_fp32.csv".format(model_name)
-                mlir_opt(fp32_mlir, fp32_opt_mlir, fp32_csv)
+                mlir_opt(fp32_mlir, fp32_opt_mlir, fp32_csv, chip=chip)
 
                 bf16_csv = "{}_bf16.csv".format(model_name)
 

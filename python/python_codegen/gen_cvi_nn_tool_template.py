@@ -7,7 +7,7 @@ import sys
 yml_format = """
 #data preprocess paremeter please set to null if no need.
 output_file: {{ NET }}.cvimodel
-
+chip: {{ SET_CHIP_NAME }}
 data_preprocess:
     image_resize_dim: {{ IMAGE_RESIZE_DIMS }}
     net_input_dims: {{ NET_INPUT_DIMS }}

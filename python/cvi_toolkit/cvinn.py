@@ -20,7 +20,7 @@ logger = setup_logger('root')
 class cvinn(object):
     def __init__(self):
         pass
-    def convert_model(self, model_type: str, model_file: str,  mlirfile: str, weight_file: str = None, tpu_op_info=None, batch_size=1):
+    def convert_model(self, model_type: str, model_file: str,  mlirfile: str, weight_file: str = None, tpu_op_info=None, batch_size=1, chip="cv183x"):
         mlirori = "ori_{}".format(mlirfile)
         if model_type == 'caffe':
             if weight_file == None:
@@ -56,9 +56,9 @@ class cvinn(object):
             return -1
         ret = 0
         if tpu_op_info:
-            ret = mlir_opt(mlirori, mlirfile, tpu_op_info)
+            ret = mlir_opt(mlirori, mlirfile, tpu_op_info, chip=chip)
         else:
-            ret = mlir_opt(mlirori, mlirfile, "{}_op_info.csv".format(model_file.split('.')[0].split('/')[-1]))
+            ret = mlir_opt(mlirori, mlirfile, "{}_op_info.csv".format(model_file.split('.')[0].split('/')[-1]), chip=chip)
         return ret
 
     def calibration(self, mlirfile_fp32: str, dataset: str, threshold_table: str, pre_func, input_num, histogram_bin_num, auto_tune=False,tune_image_num=10):
