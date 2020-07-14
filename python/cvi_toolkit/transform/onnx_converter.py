@@ -1366,8 +1366,10 @@ class OnnxConverter(BaseConverter):
 
         if len(onnx_node.inputs) > 2:
             # onnx opset 11
-            scale_factor = self.getTensor(onnx_node.inputs[-1]).tensor_data
-            scale_factor = scale_factor.flatten()
+            scale_factor = self.getTensor(onnx_node.inputs[2]).tensor_data
+            if len(scale_factor) == 0:
+                # size
+                scale_factor = self.getTensor(onnx_node.inputs[3]).tensor_data
         else:
             scale_factor = self.getTensor(onnx_node.inputs[2]).tensor_data
 
