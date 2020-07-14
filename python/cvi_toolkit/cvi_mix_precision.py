@@ -58,7 +58,8 @@ if __name__ == '__main__':
     os.chdir("../")
     mix_precisior = MixPrecisior(args.fp32_cali_mlir_file, args.image_list_file, precrocess_func=p_func, input_num=args.input_num)
     sort_bf16_layers = mix_precisior.run(args.output_mlir)
-    print(sort_bf16_layers)
+    for idx, layer in enumerate(sort_bf16_layers):
+        print("No.{:<4}: Layer: {:<30} SQNR: {}".format(idx, layer[0], layer[1]))
 
     with open(args.output_bf16_table, "w") as f:
         sort_bf16_layers = sort_bf16_layers[:args.number_bf16]

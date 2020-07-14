@@ -3,6 +3,7 @@ from ..utils.mlir_shell import gen_bf16_mlir
 import cv2
 import numpy as np
 import sys, os, copy, math, shutil, time
+from tqdm import tqdm
 
 class MixPrecisior(object):
     def __init__(self, mlir_file, data_file=None, skip_op=['tpu.input', 'tpu.quant', 'tpu.cast'],
@@ -90,12 +91,12 @@ class MixPrecisior(object):
 
         print("bf16 inference done")
 
-        for layer in self.fp32_cali_model.op_info:
+        pbar = tqdm(self.fp32_cali_model.op_info)
+        for layer in pbar:
             if layer['type'] in self.skip_ops:
                 continue
-
+            pbar.set_description("Processing {}".format(layer['name']))
             layer_name = layer['name']
-            print('predict op {}, and set it to bf16'.format(layer_name))
             bf16_tmp_txt = "bf16_tmp_file.txt"
             self.create_bf16_layer_files(bf16_tmp_txt, [layer_name])
 
@@ -113,7 +114,7 @@ class MixPrecisior(object):
                 pred_tensor = all_tensor[self.bf16_model.op_info[-1]['name']].flatten()
                 sqnr += self.cal_sqnr(predictions_gt[idx], pred_tensor)
 
-            print("Layer: {}, SQNR: {}\n\n".format(layer_name, sqnr / len(self.image_txt_list)))
+            # print("Layer: {}, SQNR: {}\n\n".format(layer_name, sqnr / len(self.image_txt_list)))
 
             sqnr_list.append((layer_name, sqnr / len(self.image_txt_list)))
 
