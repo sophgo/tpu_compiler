@@ -1,14 +1,13 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 import csv
 import argparse
 import os
 import numpy as np
 import time
 
-from cvi_toolkit.mix_precision.MixPrecision import MixPrecisior
-from cvi_toolkit.data.preprocess import get_preprocess_parser
-from cvi_toolkit import preprocess
+from cvi_toolkit.data.preprocess import get_preprocess_parser, preprocess
 from cvi_toolkit.utils.mlir_shell import gen_bf16_mlir
+from cvi_toolkit.mix_precision.MixPrecision import MixPrecisior
 
 import logging
 
@@ -16,8 +15,6 @@ import logging
 from cvi_toolkit.utils.log_setting import setup_logger
 logger = setup_logger('root')
 log_flag = logger.level <= logging.DEBUG
-
-
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Generate bf16 table")
@@ -57,7 +54,7 @@ if __name__ == '__main__':
 
     os.chdir("../")
     mix_precisior = MixPrecisior(args.fp32_cali_mlir_file, args.image_list_file, precrocess_func=p_func, input_num=args.input_num)
-    sort_bf16_layers = mix_precisior.run(args.output_mlir)
+    sort_bf16_layers = mix_precisior.run()
     for idx, layer in enumerate(sort_bf16_layers):
         print("No.{:<4}: Layer: {:<30} SQNR: {}".format(idx, layer[0], layer[1]))
 
