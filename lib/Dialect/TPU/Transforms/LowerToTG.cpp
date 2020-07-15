@@ -189,12 +189,74 @@ Value* tpu::Conv2DOp::convertToTG() {
   TensorFile *wTF = getWeightTensorFile(op);
   assert(wTF);
   std::vector<Value *> operands;
-  operands.push_back(input());
+
+  auto pad_t = param().padding_t().getValue().getLimitedValue();
+  auto pad_b = param().padding_b().getValue().getLimitedValue();
+  auto pad_l = param().padding_l().getValue().getLimitedValue();
+  auto pad_r = param().padding_r().getValue().getLimitedValue();
+  int32_t pad_h_begin = 0, pad_h_end = 0;
+  int32_t pad_w_begin = 0, pad_w_end = 0;
+  if (pad_t > 15) {
+    pad_h_begin = pad_t;
+    pad_t = 0;
+  }
+  if (pad_b > 15) {
+    pad_h_end = pad_b;
+    pad_b = 0;
+  }
+  if (pad_l > 15) {
+    pad_w_begin = pad_l;
+    pad_l = 0;
+  }
+  if (pad_r > 15) {
+    pad_w_end = pad_r;
+    pad_r = 0;
+  }
+  if (pad_h_begin > 0 || pad_h_end > 0 || pad_w_begin > 0 || pad_w_end > 0) {
+    std::vector<int32_t> pads = {0, 0, 0, 0, pad_h_begin, pad_h_end, pad_w_begin, pad_w_end};
+    std::vector<NamedAttribute> attrs;
+    auto inputShape = getTensorShape(input());
+    auto type = getResult()->getType().template cast<TensorType>();
+    std::vector<int64_t> shape = type.getShape();
+    shape[1] = inputShape[1];
+    auto resultType = RankedTensorType::get(shape, type.getElementType());
+    attrs.push_back(builder.getNamedAttr("name", builder.getStringAttr(name().str() + "_pad")));
+    attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
+    attrs.push_back(builder.getNamedAttr("pads", builder.getI32ArrayAttr(ArrayRef<int32_t>({pads}))));
+    if (getOpQuant() == "INT8") {
+      auto padOp = OpBuilder(op).create<tpu::TG_INT8_PadOp>(op->getLoc(),
+          resultType, ArrayRef<Value *>{input()},
+          ArrayRef<NamedAttribute>{attrs});
+      operands.push_back(padOp);
+    } else if (getOpQuant() == "BF16") {
+      auto padOp = OpBuilder(op).create<tpu::TG_BF16_PadOp>(op->getLoc(),
+          getResult()->getType(), ArrayRef<Value *>{input()},
+          ArrayRef<NamedAttribute>{attrs});
+      operands.push_back(padOp);
+    }
+  } else {
+    operands.push_back(input());
+  }
   operands.push_back(filter());
   operands.push_back(bias());
 
   std::vector<NamedAttribute> attrs;
-  attrs.push_back(builder.getNamedAttr("param", paramAttr()));
+  attrs.push_back(builder.getNamedAttr("param",
+          tpu::ConvParam::get(
+              param().stride_h(),
+              param().stride_w(),
+              param().padding(),
+              param().dilation_h(),
+              param().dilation_w(),
+              builder.getI32IntegerAttr(pad_t),
+              builder.getI32IntegerAttr(pad_b),
+              builder.getI32IntegerAttr(pad_l),
+              builder.getI32IntegerAttr(pad_r),
+              param().group(),
+              param().is_dw(),
+              param().with_bias(),
+              param().do_relu(),
+              builder.getContext())));
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
   attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
   if (getOpQuant() == "INT8") {

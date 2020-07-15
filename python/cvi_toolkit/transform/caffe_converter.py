@@ -140,9 +140,7 @@ class CaffeConverter(BaseConverter):
             return find_tensor[0]
 
     def noneOp(self):
-        if not hasattr(self, 'none_op'):
-            self.none_op = self.CVI.add_none_op()
-        return self.none_op
+        return self.CVI.add_none_op()
 
     def blob_to_weight_op(self, layer, index, shape=None):
         name = layer.name + "_{}".format(index)
