@@ -303,6 +303,7 @@ class OnnxConverter(BaseConverter):
         mlir_txt = self.CVI.print_module()
         with open(self.mlir_file_path, "w") as f:
             f.write(mlir_txt)
+        print("Save mlir file: {}".format(self.mlir_file_path))
 
     def convert_activation_op(self, onnx_node):
         op, input_shape, tensor_type = self.getOperand(onnx_node.inputs[0])

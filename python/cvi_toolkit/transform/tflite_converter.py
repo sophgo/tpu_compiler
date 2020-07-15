@@ -273,6 +273,7 @@ class TFLiteConverter(BaseConverter):
         mlir_txt = self.CVI.print_module()
         with open(self.mlir_file_path, "w") as f:
             f.write(mlir_txt)
+        print("Save mlir file: {}".format(self.mlir_file_path))
 
     def add_activation_op(self, name, op, shape, activation):
         if activation == ActivationFunctionType.RELU6:

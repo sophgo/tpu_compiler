@@ -994,7 +994,6 @@ class MLIRImporter(object):
                 new_strings.append(i)
         ret = '\n'.join(new_strings)
 
-        print(ret, flush=True)
         return ret
 
     def declare_func(self):
