@@ -59,7 +59,7 @@ def parse_args():
     args = parser.parse_args()
     return args
 
-def yolo_detect(module, image, net_input_dims, obj_threshold, nms_threshold, yolov3, do_preprocess):
+def yolo_detect(module, image, net_input_dims, obj_threshold, nms_threshold, yolov3, spp_net, tiny, do_preprocess):
     x = preprocess(image, net_input_dims, do_preprocess)
     x = np.expand_dims(x, axis=0)
     res = module.run(x)
@@ -68,55 +68,55 @@ def yolo_detect(module, image, net_input_dims, obj_threshold, nms_threshold, yol
     out_feat = {}
     if yolov3 == True:
         if tiny:
-            if 'layer16-conv' in res.keys():
-                out_feat['layer16-conv'] = res['layer16-conv']
-                out_feat['layer23-conv'] = res['layer23-conv']
-            elif 'layer16-conv_dequant' in res.keys():
-                out_feat['layer16-conv'] = res['layer16-conv_dequant']
-                out_feat['layer23-conv'] = res['layer23-conv_dequant']
-            elif 'layer16-conv_dequant_cast' in res.keys():
-                out_feat['layer16-conv'] = res['layer16-conv_dequant_cast']
-                out_feat['layer23-conv'] = res['layer23-conv_dequant_cast']
+            if 'layer16-conv' in data.keys():
+                out_feat['layer16-conv'] = data['layer16-conv']
+                out_feat['layer23-conv'] = data['layer23-conv']
+            elif 'layer16-conv_dequant' in data.keys():
+                out_feat['layer16-conv'] = data['layer16-conv_dequant']
+                out_feat['layer23-conv'] = data['layer23-conv_dequant']
+            elif 'layer16-conv_dequant_cast' in data.keys():
+                out_feat['layer16-conv'] = data['layer16-conv_dequant_cast']
+                out_feat['layer23-conv'] = data['layer23-conv_dequant_cast']
             else:
                 assert(0)
         else:
             if not spp_net:
-                if ('layer82-conv' in res.keys()):
-                    out_feat['layer82-conv'] = res['layer82-conv']
-                    out_feat['layer94-conv'] = res['layer94-conv']
-                    out_feat['layer106-conv'] = res['layer106-conv']
-                elif ('layer82-conv_dequant' in res.keys()):
-                    out_feat['layer82-conv'] = res['layer82-conv_dequant']
-                    out_feat['layer94-conv'] = res['layer94-conv_dequant']
-                    out_feat['layer106-conv'] = res['layer106-conv_dequant']
-                elif ('layer82-conv_dequant_cast' in res.keys()):
-                    out_feat['layer82-conv'] = res['layer82-conv_dequant_cast']
-                    out_feat['layer94-conv'] = res['layer94-conv_dequant_cast']
-                    out_feat['layer106-conv'] = res['layer106-conv_dequant_cast']
+                if ('layer82-conv' in data.keys()):
+                    out_feat['layer82-conv'] = data['layer82-conv']
+                    out_feat['layer94-conv'] = data['layer94-conv']
+                    out_feat['layer106-conv'] = data['layer106-conv']
+                elif ('layer82-conv_dequant' in data.keys()):
+                    out_feat['layer82-conv'] = data['layer82-conv_dequant']
+                    out_feat['layer94-conv'] = data['layer94-conv_dequant']
+                    out_feat['layer106-conv'] = data['layer106-conv_dequant']
+                elif ('layer82-conv_dequant_cast' in data.keys()):
+                    out_feat['layer82-conv'] = data['layer82-conv_dequant_cast']
+                    out_feat['layer94-conv'] = data['layer94-conv_dequant_cast']
+                    out_feat['layer106-conv'] = data['layer106-conv_dequant_cast']
                 else:
                     assert(False)
             else:
-                if ('layer89-conv' in res.keys()):
-                    out_feat['layer89-conv'] = res['layer89-conv']
-                    out_feat['layer101-conv'] = res['layer101-conv']
-                    out_feat['layer113-conv'] = res['layer113-conv']
-                elif ('layer89-conv_dequant' in res.keys()):
-                    out_feat['layer89-conv'] = res['layer89-conv_dequant']
-                    out_feat['layer101-conv'] = res['layer101-conv_dequant']
-                    out_feat['layer113-conv'] = res['layer113-conv_dequant']
-                elif ('layer89-conv_dequant_cast' in res.keys()):
-                    out_feat['layer89-conv'] = res['layer89-conv_dequant_cast']
-                    out_feat['layer101-conv'] = res['layer101-conv_dequant_cast']
-                    out_feat['layer113-conv'] = res['layer113-conv_dequant_cast']
+                if ('layer89-conv' in data.keys()):
+                    out_feat['layer89-conv'] = data['layer89-conv']
+                    out_feat['layer101-conv'] = data['layer101-conv']
+                    out_feat['layer113-conv'] = data['layer113-conv']
+                elif ('layer89-conv_dequant' in data.keys()):
+                    out_feat['layer89-conv'] = data['layer89-conv_dequant']
+                    out_feat['layer101-conv'] = data['layer101-conv_dequant']
+                    out_feat['layer113-conv'] = data['layer113-conv_dequant']
+                elif ('layer89-conv_dequant_cast' in data.keys()):
+                    out_feat['layer89-conv'] = data['layer89-conv_dequant_cast']
+                    out_feat['layer101-conv'] = data['layer101-conv_dequant_cast']
+                    out_feat['layer113-conv'] = data['layer113-conv_dequant_cast']
                 else:
                     assert(False)
     else:
-        if ('conv22' in res.keys()):
-            out_feat['conv22'] = res['conv22']
-        elif ('conv22_dequant' in res.keys()):
-            out_feat['conv22'] = res['conv22_dequant']
-        elif ('conv22_dequant_cast' in res.keys()):
-            out_feat['conv22'] = res['conv22_dequant_cast']
+        if ('conv22' in data.keys()):
+            out_feat['conv22'] = data['conv22']
+        elif ('conv22_dequant' in data.keys()):
+            out_feat['conv22'] = data['conv22_dequant']
+        elif ('conv22_dequant_cast' in data.keys()):
+            out_feat['conv22'] = data['conv22_dequant_cast']
         else:
             assert(False)
 
@@ -158,7 +158,7 @@ def clip_box(box, image_shape):
     return np.array([bx, by, bw, bh])
 
 def eval_detector(module, result_json_file, dataset_path, net_input_dims,
-                  obj_threshold, nms_threshold, yolov3, do_preprocess, count=-1):
+                  obj_threshold, nms_threshold, yolov3, spp_net, tiny, do_preprocess, count=-1):
     coco_ids= [ 1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 13, 14, 15, 16, 17,
                18, 19, 20, 21, 22, 23, 24, 25, 27, 28, 31, 32, 33, 34, 35, 36,
                37, 38, 39, 40, 41, 42, 43, 44, 46, 47, 48, 49, 50, 51, 52, 53,
@@ -178,7 +178,7 @@ def eval_detector(module, result_json_file, dataset_path, net_input_dims,
             image_id = get_image_id_in_path(image_path)
             image = cv2.imread(image_path)
             predictions = yolo_detect(module, image, net_input_dims,
-                                        obj_threshold, nms_threshold, yolov3, do_preprocess)
+                                        obj_threshold, nms_threshold, yolov3, spp_net, tiny, do_preprocess)
             for pred in predictions:
                 clipped_box = clip_box(pred[0], image.shape)
                 x, y, w, h = clipped_box
@@ -261,7 +261,7 @@ def main(argv):
     if (args.input_file != '') :
         image = cv2.imread(args.input_file)
         predictions = yolo_detect(module, image, net_input_dims,
-                                    obj_threshold, nms_threshold, yolov3, do_preprocess)
+                                    obj_threshold, nms_threshold, yolov3, spp_net, tiny, do_preprocess)
         print(predictions)
         if (args.draw_image != ''):
             image = draw(image, predictions, args.label_file)
@@ -271,8 +271,9 @@ def main(argv):
     # eval
     result_json_file = args.result_json
     eval_detector(module, result_json_file, args.dataset, net_input_dims,
-                  obj_threshold, nms_threshold, yolov3, do_preprocess, count=args.count)
+                  obj_threshold, nms_threshold, yolov3, spp_net, tiny, do_preprocess, count=args.count)
     cal_coco_result(args.annotations, result_json_file)
 
 if __name__ == '__main__':
     main(sys.argv)
+ 
