@@ -78,7 +78,7 @@ export TOLERANCE_BF16=0.99,0.99,0.89
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.9
 export DO_LAYERGROUP=1
 export DO_NN_TOOLKIT=1
-export DO_QUANT_MIX=1
+export DO_QUANT_MIX=0
 # export BATCH_SIZE=4
 if [ $DO_PREPROCESS -eq 1 ]; then
   export EXCEPTS=data,prob,res2c_relu,res3d_relu,res4f_relu
@@ -281,7 +281,7 @@ if [ $DO_PREPROCESS -eq 1 ]; then
   export EXCEPTS=data,prob
 else
   export EXCEPTS=prob
-fi 
+fi
 fi
 
 if [ $NET = "mobilenet_v3" ]; then
@@ -1056,7 +1056,7 @@ export DO_ACCURACY_CAFFE=0
 export DO_ACCURACY_ONNX=1
 export DO_LAYERGROUP=1
 export DO_PREPROCESS=0
-export DO_QUANT_MIX=1
+export DO_QUANT_MIX=0
 fi
 
 
@@ -1078,7 +1078,7 @@ export OUTPUTS_FP32=output
 export OUTPUTS=output
 export TOLERANCE_INT8_MULTIPLER=0.95,0.95,0.7
 export TOLERANCE_BF16=0.99,0.99,0.91
-export DO_QUANT_MIX=1
+export DO_QUANT_MIX=0
 export DO_ACCURACY_CAFFE=0
 export DO_ACCURACY_ONNX=1
 export DO_LAYERGROUP=1
