@@ -38,8 +38,8 @@ alphapose                 N        N        N        Y        Y        N        
 espcn_3x                  Y        N        N        N        Y        N          N
 unet                      N        N        N        Y        Y        N          N
 nasnet_mobile             N        N        N        Y        Y        N          N
-ecanet50                  Y        N        N        N        N        N          N
-#res2net50                 Y        N        N        Y        N        N          N
+ecanet50                  Y        N        N        N        Y        N          N
+res2net50                 Y        N        N        N        Y        N          N
 
 # tensorflow
 mobilenet_v1_tf           Y        Y        N        N        N        N          N
