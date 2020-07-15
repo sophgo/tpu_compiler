@@ -210,10 +210,12 @@ def mlir_calibration(mlirfile_fp32, dataset, threshold_table, auto_tune=False):
                         "--output_file", threshold_table,
                         ], **std_output_flag)
 
-def gen_bf16_mlir(mlir_src, mlir_target, bf16_layer_table):
+def gen_bf16_mlir(mlir_src, mlir_target, bf16_layer_table, op_info_csv):
     command = ["mlir-opt",
                "--tpu-quant",
                "--quant-int8-mix-bf16-layers-from-file", bf16_layer_table,
+               "--print-tpu-op-info",
+               "--tpu-op-info-filename", op_info_csv,
                mlir_src,
                "-o", mlir_target
                ]

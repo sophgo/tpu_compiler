@@ -66,7 +66,7 @@ class MixPrecisior(object):
         sqnr = 10 * np.log10(var_gt_zero_mean / var_noise_zero_mean)
         return sqnr
 
-    def run(self, output_mlir):
+    def run(self):
         sqnr_list = list()
         predictions_gt = list()
 
@@ -76,7 +76,8 @@ class MixPrecisior(object):
         self.create_bf16_layer_files(bf16_txt, self.op_layer)
 
         bf16_mlir = "bf16.mlir"
-        gen_bf16_mlir(self.fp32_cali_mlir_file ,bf16_mlir, bf16_txt)
+        bf16_quant_tpu_op_info = "bf16_quant_op_info.csv"
+        gen_bf16_mlir(self.fp32_cali_mlir_file ,bf16_mlir, bf16_txt, bf16_quant_tpu_op_info)
 
         # read bf16 mlir
         self.bf16_model = pymlir.module()
@@ -101,7 +102,7 @@ class MixPrecisior(object):
             self.create_bf16_layer_files(bf16_tmp_txt, [layer_name])
 
             bf16_tmp_mlir = "bf16_tmp.mlir"
-            gen_bf16_mlir(self.fp32_cali_mlir_file ,bf16_tmp_mlir, bf16_tmp_txt)
+            gen_bf16_mlir(self.fp32_cali_mlir_file ,bf16_tmp_mlir, bf16_tmp_txt, "tmp_quant_op_info.csv")
 
             self.bf16_model = pymlir.module()
             self.bf16_model.load(bf16_tmp_mlir)

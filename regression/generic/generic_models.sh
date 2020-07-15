@@ -78,6 +78,7 @@ export TOLERANCE_BF16=0.99,0.99,0.89
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.9
 export DO_LAYERGROUP=1
 export DO_NN_TOOLKIT=1
+export DO_QUANT_MIX=1
 # export BATCH_SIZE=4
 if [ $DO_PREPROCESS -eq 1 ]; then
   export EXCEPTS=data,prob,res2c_relu,res3d_relu,res4f_relu
@@ -308,7 +309,6 @@ export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
 export EXCEPTS=371_Add,315_Add,390_Add,401_Add,409_Add,419_Add,427_Add,438_Add,446_Add,457_Add,465_Add,476_Add,484_Add,492_Add,499_Add,509_Add,517_Add,525_Add,532_Add,543_Add,551_Add,559_Add,566_Add,576_Add,584_Add,592_Add,599_Add,610_Add,618_Add,626_Add,633_Add,644_Add,652_Add # cuz relu6 could add 'relu' layer that could mismatch original layer
 export MLIR_OPT_FE_PRE="$MLIR_OPT_FE_PRE --skip-mult-used-scale-op --relu6-to-clip"
 export MLIR_OPT_FE_INT8_MULTIPLER_PRE="--tpu-quant-clip"
-export DO_QUANT_MIX_CMD=1
 export BF16_QUANT_LAYERS_FILE=${NET}_bf16_quant_layers
 export BF16_QUANT_LAYERS="316_Clip 354_Clip 372_Clip 391_Clip 402_Clip 410_Clip 420_Clip 428_Clip 428_Clip 439_Clip 447_Clip 458_Clip 466_Clip 477_Clip 485_Clip 493_Clip 500_Clip 510_Clip 518_Clip 526_Clip 533_Clip 544_Clip 552_Clip 560_Clip 567_Clip 577_Clip 585_Clip 593_Clip 600_Clip 611_Clip 619_Clip 627_Clip 634_Clip 645_Clip 653_Clip #656_Mul 313_BatchNormalization 315_Add 319_Mul 322_Relu 353_Add"
 export DO_CMDBUF_BF16=0
@@ -348,7 +348,6 @@ export TOLERANCE_BF16=0.9,0.9,0.9
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
 export MLIR_OPT_FE_PRE="$MLIR_OPT_FE_PRE --skip-mult-used-scale-op --relu6-to-clip"
 export MLIR_OPT_FE_INT8_MULTIPLER_PRE="--tpu-quant-clip"
-export DO_QUANT_MIX_CMD=1
 export BF16_QUANT_LAYERS_FILE=${NET}_bf16_quant_layers
 export DO_CMDBUF_BF16=0
 export DO_DEEPFUSION=1
@@ -1053,13 +1052,11 @@ export EXCEPTS=424_Mul,388_Sigmoid
 export TOLERANCE_INT8_MULTIPLER=0.76,0.60,0.26
 export TOLERANCE_BF16=0.99,0.99,0.91
 export DO_CMDBUF_BF16=0
-# export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
-# export DO_QUANT_MIX=1
-# export TOLERANCE_MIX=0.8,0.8,0.8
 export DO_ACCURACY_CAFFE=0
 export DO_ACCURACY_ONNX=1
 export DO_LAYERGROUP=1
 export DO_PREPROCESS=0
+export DO_QUANT_MIX=1
 fi
 
 
@@ -1081,6 +1078,7 @@ export OUTPUTS_FP32=output
 export OUTPUTS=output
 export TOLERANCE_INT8_MULTIPLER=0.95,0.95,0.7
 export TOLERANCE_BF16=0.99,0.99,0.91
+export DO_QUANT_MIX=1
 export DO_ACCURACY_CAFFE=0
 export DO_ACCURACY_ONNX=1
 export DO_LAYERGROUP=1
@@ -1162,6 +1160,7 @@ export EVAL_MODEL_TYPE="isbi"
 export DO_ACCURACY_CAFFE=0
 export DO_ACCURACY_ONNX=1
 export DO_PREPROCESS=0
+export BGRAY=1
 if [ $DO_PREPROCESS -eq 1 ]; then
   export EXCEPTS=data
 fi
