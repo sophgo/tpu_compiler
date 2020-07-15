@@ -34,8 +34,7 @@ def parse_args():
 
 if __name__ == '__main__':
     args = parse_args()
-    os.makedirs("tmp", exist_ok=True)
-    os.chdir("tmp")
+
     if (args.model_name == 'generic'):
         preprocessor = preprocess()
         preprocessor.config(net_input_dims=args.net_input_dims,
@@ -52,12 +51,15 @@ if __name__ == '__main__':
     else:
         assert(False)
 
-    os.chdir("../")
+
     mix_precisior = MixPrecisior(args.fp32_cali_mlir_file, args.image_list_file, precrocess_func=p_func, input_num=args.input_num)
+
+
     sort_bf16_layers = mix_precisior.run()
     for idx, layer in enumerate(sort_bf16_layers):
         print("No.{:<4}: Layer: {:<30} SQNR: {}".format(idx, layer[0], layer[1]))
 
+    os.chdir("../")
     with open(args.output_bf16_table, "w") as f:
         sort_bf16_layers = sort_bf16_layers[:args.number_bf16]
         for i in sort_bf16_layers:

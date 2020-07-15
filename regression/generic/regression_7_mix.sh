@@ -7,10 +7,15 @@ DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 # Mix-Precison 1: mix-bf16-broadcastmul + mix-bf16-sigmoid mix-bf16-eltwisemul
 ###############################################################################
 if [ $DO_QUANT_MIX -eq 1 ] && [ $BATCH_SIZE -eq 1 ]; then
-    gen_data_list.py \
-    $DATASET_PATH/imagenet/img_val_extracted \
-    10 \
-    cali_list_imagenet.txt
+
+    # imagenet : --dataset $DATASET_PATH/imagenet/img_val_extracted
+    # wider    : --dataset $DATASET_PATH/widerface/WIDER_val
+    # gen_data_list.py \
+    #     $DATASET_PATH/imagenet/img_val_extracted \
+    #     10 \
+    #     cali_list_imagenet.txt
+
+    echo $REGRESSION_PATH/data/cat.jpg > cali_list_imagenet.txt
 
     cvi_mix_precision.py \
         ${NET}_cali.mlir \
@@ -23,7 +28,7 @@ if [ $DO_QUANT_MIX -eq 1 ] && [ $BATCH_SIZE -eq 1 ]; then
         --std ${STD} \
         --input_scale ${INPUT_SCALE} \
         --input_num=1 \
-        --number_bf16=10
+        --number_bf16=$MIX_PRECISION_BF16_LAYER_NUM
 
     mlir-opt \
         --tpu-quant \
@@ -44,8 +49,7 @@ if [ $DO_QUANT_MIX -eq 1 ] && [ $BATCH_SIZE -eq 1 ]; then
         --op_info ${NET}_op_info_mix.csv \
         --dequant \
         --excepts $EXCEPTS \
-        --tolerance $TOLERANCE_INT8_MULTIPLER -vv \
-        --stats_int8_tensor
+        --tolerance=$TOLERANCE_MIX_PRECISION -vv
 fi
 
 # VERDICT
