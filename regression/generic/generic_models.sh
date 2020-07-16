@@ -715,7 +715,8 @@ export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.93
 export DO_DEEPFUSION=1
 export DO_MEMOPT=1
 export DO_LAYERGROUP=1
-export USE_LAYERGROUP=0
+export USE_LAYERGROUP=1
+export DO_PREPROCESS=0
 if [ $DO_PREPROCESS -eq 1 ]; then
   export EXCEPTS=data
 fi
