@@ -40,7 +40,7 @@ extra_net_param()
   export RAW_SCALE=255.0
   export MEAN=0,0,0
   export INPUT_SCALE=1
-  export DO_PREPROCESS=1
+  export ENABLE_PREPROCESS=1
   fi
 
   if [ $NET = "retinaface_mnet25_600_with_detection" ]; then
@@ -56,7 +56,7 @@ extra_net_param()
   export RAW_SCALE=255.0
   export MEAN=0,0,0
   export INPUT_SCALE=1
-  export DO_PREPROCESS=1
+  export ENABLE_PREPROCESS=1
   fi
 
   if [ $NET = "retinaface_res50_with_detection" ]; then
@@ -72,7 +72,7 @@ extra_net_param()
   export RAW_SCALE=255.0
   export MEAN=0,0,0
   export INPUT_SCALE=1
-  export DO_PREPROCESS=1
+  export ENABLE_PREPROCESS=1
   fi
 
   if [ $NET = "yolo_v3_416_with_detection" ]; then
@@ -88,7 +88,7 @@ extra_net_param()
   export RAW_SCALE=1.0
   export MEAN=0,0,0
   export INPUT_SCALE=1.0
-  export DO_PREPROCESS=1
+  export ENABLE_PREPROCESS=1
   fi
 
   if [ $NET = "yolo_v3_320_with_detection" ]; then
@@ -104,7 +104,7 @@ extra_net_param()
   export RAW_SCALE=1.0
   export MEAN=0,0,0
   export INPUT_SCALE=1.0
-  export DO_PREPROCESS=1
+  export ENABLE_PREPROCESS=1
   fi
 }
 
@@ -250,6 +250,7 @@ do
   pushd working
   NET=$net
   extra_net_param $NET
+  source $DIR/generic/generic_models.sh
   if [ $MODEL_TYPE = "caffe" ]; then
     if [ $USE_LAYERGROUP = "1" ]; then
       $DIR/convert_model_caffe_lg.sh \
