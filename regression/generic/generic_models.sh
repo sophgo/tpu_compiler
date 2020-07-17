@@ -1247,6 +1247,66 @@ export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.9
 export DO_PREPROCESS=0
 fi
 
+if [ $NET = "erfnet" ]; then
+export MODEL_DEF=$MODEL_PATH/segmentation/erfnet/caffe/erfnet_deploy_mergebn.prototxt
+export MODEL_DAT=$MODEL_PATH/segmentation/erfnet/caffe/erfnet_cityscapes_mergebn.caffemodel
+export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_caffe/regression_erfnet_0_caffe.sh
+export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/erfnet_calibration_table
+export DO_CALIBRATION=0
+export NET_INPUT_DIMS=512,1024
+export IMAGE_RESIZE_DIMS=512,1024
+export RAW_SCALE=255.0
+export MEAN=0,0,0
+export INPUT_SCALE=1.0
+export STD=1,1,1
+export CALIBRATION_IMAGE_COUNT=60
+export INPUT=data
+export OUTPUTS_FP32=Deconvolution23_deconv
+export OUTPUTS=Deconvolution23_deconv
+export DO_QUANT_INT8_PER_TENSOR=0
+export DO_QUANT_INT8_RFHIFT_ONLY=0
+export DO_QUANT_INT8_MULTIPLER=1
+export TOLERANCE_INT8_PER_TENSOR=0.91,0.89,0.56
+export TOLERANCE_INT8_RSHIFT_ONLY=0.95,0.95,0.7
+export TOLERANCE_INT8_MULTIPLER=0.96,0.95,0.73
+export TOLERANCE_BF16=0.99,0.99,0.89
+export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.9
+export DO_LAYERGROUP=1
+export DO_NN_TOOLKIT=1
+# export BATCH_SIZE=4
+export DO_PREPROCESS=0
+fi
+
+if [ $NET = "enet" ]; then
+export MODEL_DEF=$MODEL_PATH/segmentation/enet/caffe/enet_deploy_final.prototxt
+export MODEL_DAT=$MODEL_PATH/segmentation/enet/caffe/cityscapes_weights.caffemodel
+export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_caffe/regression_erfnet_0_caffe.sh
+export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/enet_calibration_table
+export DO_CALIBRATION=0
+export NET_INPUT_DIMS=512,1024
+export IMAGE_RESIZE_DIMS=512,1024
+export RAW_SCALE=255.0
+export MEAN=0,0,0
+export INPUT_SCALE=1.0
+export STD=1,1,1
+export CALIBRATION_IMAGE_COUNT=60
+export INPUT=data
+export OUTPUTS_FP32=Deconvolution23_deconv
+export OUTPUTS=Deconvolution23_deconv
+export DO_QUANT_INT8_PER_TENSOR=0
+export DO_QUANT_INT8_RFHIFT_ONLY=0
+export DO_QUANT_INT8_MULTIPLER=1
+export TOLERANCE_INT8_PER_TENSOR=0.91,0.89,0.56
+export TOLERANCE_INT8_RSHIFT_ONLY=0.95,0.95,0.7
+export TOLERANCE_INT8_MULTIPLER=0.96,0.95,0.73
+export TOLERANCE_BF16=0.99,0.99,0.89
+export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.9
+export DO_LAYERGROUP=1
+export DO_NN_TOOLKIT=1
+# export BATCH_SIZE=4
+export DO_PREPROCESS=0
+fi
+
 if [ $NET = "resnet50_tf" ]; then
 export MODEL_TYPE="tensorflow"
 export MODEL_DEF=$MODEL_PATH/imagenet/resnet/tensorflow/resnet50

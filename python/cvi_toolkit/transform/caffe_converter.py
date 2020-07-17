@@ -3,6 +3,7 @@ from .BaseConverter import BaseConverter, TensorType
 
 import math
 import caffe
+import torch
 import numpy as np
 from caffe.proto import caffe_pb2
 from google.protobuf import text_format
@@ -142,7 +143,7 @@ class CaffeConverter(BaseConverter):
     def noneOp(self):
         return self.CVI.add_none_op()
 
-    def blob_to_weight_op(self, layer, index, shape=None):
+    def blob_to_weight_op(self, layer, index, shape=None, permute_order=None):
         name = layer.name + "_{}".format(index)
         blob = self.layer_dict[layer.name].blobs[index]
         blob_shape = list(blob.shape)
@@ -154,6 +155,11 @@ class CaffeConverter(BaseConverter):
             value = blob.data
         else:
             value = blob.data.reshape(new_shape)
+        if permute_order != None:
+            value_tensor = torch.tensor(value)
+            value_tensor = value_tensor.permute(permute_order)
+            value = np.array(value_tensor)
+            value = value.reshape(new_shape)
         self.addTensor(name, value, new_shape)
         weight_op = self.CVI.add_load_file_op(name, new_shape)
         return weight_op
@@ -277,9 +283,13 @@ class CaffeConverter(BaseConverter):
         is_dw = True if g == oc else False
 
         # filter op
-        filter_shape = [g, oc / g, ic / g, kernel[0], kernel[1]
+        filter_shape = [g, int(oc / g), int(ic / g), kernel[0], kernel[1]
                         ] if g != 1 else [oc, ic, kernel[0], kernel[1]]
-        filter_op = self.blob_to_weight_op(layer, 0, filter_shape)
+        if is_deconv:
+            permute_order = [0, 2, 1, 3, 4] if g != 1 else [1, 0, 2, 3]
+            filter_op = self.blob_to_weight_op(layer, 0, filter_shape, permute_order)
+        else:
+            filter_op = self.blob_to_weight_op(layer, 0, filter_shape)
         operands.append(filter_op)
         # bias op
         if with_bias:
