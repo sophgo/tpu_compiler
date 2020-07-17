@@ -394,13 +394,6 @@ struct ForceThresholdClipOpPattern : public RewritePattern {
       return matchFailure();
     }
 
-    if (getOpQuantParamType(opInst) == "THRESHOLD") {
-      if (threshold_y == threshold_x) {
-        // assigned already
-        return matchFailure();
-      }
-    }
-
     setOpQuantParamType(opInst, "THRESHOLD");
     LLVM_DEBUG(llvm::errs()
                    << opInst->getName() << " [" << getOpName(opInst) << "] set prev "
