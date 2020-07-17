@@ -306,17 +306,49 @@ public:
       }
     });
 
-    GmemAllocator allocator(clNeuronAlignment);
-    allocator.assignGaddr(ops, liveRange, clNeuronReuse);
-    auto &gaddrMap = allocator.gaddrMap;
-    auto &gaddrReusedSet = allocator.gaddrReusedSet;
+    int64_t sharedGmemSize = 0;
+    int64_t privateGmemSize = 0;
+    std::map<Operation *, int64_t> gaddrMap;
+    std::set<Operation *> gmemReusedSet;
+    std::vector<Operation *> opsOfMainFunc;
+    auto subFunctions = SubFunction::divideOpsToSubFunc(&fn);
+    for (auto subFn : subFunctions) {
+      if (subFn->tpu) {
+        std::vector<Operation *> opsOfSubFunc;
+        for (auto op : subFn->ops) {
+          if (isOpInVector(op, ops)) {
+            if (!isOpInVector(op, subFn->outputs)) {
+              opsOfSubFunc.push_back(op);
+            } else {
+              opsOfMainFunc.push_back(op);
+            }
+          }
+        }
+        GmemAllocator allocator(gaddrMap, gmemReusedSet, clNeuronAlignment);
+        auto gmemUsed = allocator.assignGaddr(opsOfSubFunc, liveRange, clNeuronReuse, 0);
+        if (sharedGmemSize < gmemUsed) {
+          sharedGmemSize = gmemUsed;
+        }
+      } else {
+        for (auto op : subFn->ops) {
+          if (isOpInVector(op, ops)) {
+            opsOfMainFunc.push_back(op);
+          }
+        }
+      }
+    }
+    int64_t baseGaddr = (((uint64_t)2) << 40);
+    GmemAllocator allocator(gaddrMap, gmemReusedSet, clNeuronAlignment);
+    privateGmemSize = allocator.assignGaddr(opsOfMainFunc, liveRange, clNeuronReuse, baseGaddr);
+    fn.setAttr("private_gmem", Builder(context).getI64IntegerAttr(privateGmemSize));
+    fn.setAttr("shared_gmem", Builder(context).getI64IntegerAttr(sharedGmemSize));
 
     fn.walk([&](Operation *op) {
       if (gaddrMap.find(op) != gaddrMap.end()) {
         if (!isa<tpu::ReshapeOp>(op)) {
           setOpAddress(op, gaddrMap[op]);
         }
-        if (gaddrReusedSet.find(op) != gaddrReusedSet.end()) {
+        if (gmemReusedSet.find(op) != gmemReusedSet.end()) {
           auto castOp = llvm::dyn_cast<tpu::TpuOpCommonInterface>(op);
           castOp.setAttr("buffer_reused", Builder(context).getBoolAttr(true));
         }
@@ -324,9 +356,9 @@ public:
           auto dsize = getOpDtypeSize(op);
           std::string dtype = "int8";
           if (dsize == 4) {
-            dtype = "int16";
-          } else if (dsize == 2) {
             dtype = "fp32";
+          } else if (dsize == 2) {
+            dtype = "int16";
           }
           std::vector<int64_t> shape =
               op->getResult(0)->getType().cast<TensorType>().getShape();
@@ -359,6 +391,16 @@ public:
       neuronMapFile->keep();
     }
   }
+
+private:
+  bool isOpInVector(Operation *op, std::vector<Operation *> &ops) {
+    for (auto candidate : ops) {
+      if (candidate == op)
+        return true;
+    }
+    return false;
+  }
+
 };
 
 } // namespace

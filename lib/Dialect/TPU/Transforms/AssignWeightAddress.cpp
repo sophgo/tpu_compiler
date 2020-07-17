@@ -209,7 +209,7 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
     assert(((newPos % alignment_) == 0) && "Expect aligned newPos");
 
     // assign the address to weightOp
-    weightOp.setAttr("offset", rewriter.getI64IntegerAttr(curPos));
+    weightOp.setAttr("offset", rewriter.getI64IntegerAttr(curPos + (((uint64_t)1) << 40)));
 
     // Check whether the weight is used by the convolution which indicate it
     // uses the compressed weight.

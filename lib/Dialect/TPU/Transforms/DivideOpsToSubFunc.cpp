@@ -70,6 +70,15 @@ std::vector<SubFunction *> SubFunction::divideOpsToSubFunc(FuncOp *fn) {
   std::vector<Operation *> ops;
   std::vector<SubFunction *> subFuncs;
 
+  // Gather all InputOp to one SubFunction.
+  fn->walk([&](Operation *op) {
+    if (isa<tpu::InputOp>(op)) {
+      ops.push_back(op);
+    }
+  });
+  subFuncs.push_back(new SubFunction(false, ops, idx));
+  ops.clear();
+
   fn->walk([&](Operation *op) {
     if (op->getName().getDialect().str() != "tpu" ||
         isa<tpu::LoadWeightOp>(op) ||
