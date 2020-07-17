@@ -466,11 +466,7 @@ class OnnxConverter(BaseConverter):
         data_type = onnx_dtype(onnx_tensor.data_type)
 
         if data_type in [np.float32, np.float64, np.int32, np.int64]:
-            # if tensor is constant, make tensor shape dim is 1
-            if len(np_tensor.shape) == 0:
-                np_tensor = np_tensor.flatten()
-
-            self.addTensor(onnx_node.name, np_tensor.astype(data_type).flatten(), list(np_tensor.shape))
+            self.addTensor(onnx_node.name, np_tensor.astype(data_type), list(np_tensor.shape))
             self.addOperand(onnx_node.name, None, list(np_tensor.shape), TensorType.TENSOR)
 
         else:
@@ -482,7 +478,7 @@ class OnnxConverter(BaseConverter):
         onnx_tensor = onnx_node.attrs['value']
         tensor_value =  numpy_helper.to_array(onnx_tensor)
         data_type = onnx_dtype(onnx_tensor.data_type)
-        print(tensor_shape, tensor_value)
+
         if data_type in [np.float32, np.float64, np.int32, np.int64]:
             tensor_value = tensor_value.astype(data_type)
             constant_data = np.full(tuple(tensor_shape), tensor_value[0])
