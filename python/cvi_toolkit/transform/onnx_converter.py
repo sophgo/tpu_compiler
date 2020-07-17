@@ -470,7 +470,7 @@ class OnnxConverter(BaseConverter):
             if len(np_tensor.shape) == 0:
                 np_tensor = np_tensor.flatten()
 
-            self.addTensor(onnx_node.name, np_tensor.astype(np.float32).flatten(), list(np_tensor.shape))
+            self.addTensor(onnx_node.name, np_tensor.astype(data_type).flatten(), list(np_tensor.shape))
             self.addOperand(onnx_node.name, None, list(np_tensor.shape), TensorType.TENSOR)
 
         else:
@@ -478,17 +478,17 @@ class OnnxConverter(BaseConverter):
 
     def convert_constant_of_shape_op(self, onnx_node):
         assert(onnx_node.op_type == "ConstantOfShape")
-        op, input_shape, tensor_type = self.getOperand(onnx_node.inputs[0])
+        tensor_shape = self.getTensor(onnx_node.inputs[0]).tensor_data
         onnx_tensor = onnx_node.attrs['value']
-        np_tensor =  numpy_helper.to_array(onnx_tensor)
+        tensor_value =  numpy_helper.to_array(onnx_tensor)
         data_type = onnx_dtype(onnx_tensor.data_type)
-
+        print(tensor_shape, tensor_value)
         if data_type in [np.float32, np.float64, np.int32, np.int64]:
-            np_tensor = np_tensor.astype(np.float32).flatten()
-            constant_data = np.full(tuple(input_shape), np_tensor[0])
+            tensor_value = tensor_value.astype(data_type)
+            constant_data = np.full(tuple(tensor_shape), tensor_value[0])
             # add new weight tensor
-            self.addTensor(onnx_node.name, constant_data, input_shape)
-            self.addOperand(onnx_node.name, None, input_shape, TensorType.TENSOR)
+            self.addTensor(onnx_node.name, constant_data, list(constant_data.shape))
+            self.addOperand(onnx_node.name, None, list(tensor_shape.shape), TensorType.TENSOR)
         else:
             raise ValueError("Not Support {} type".format(data_type))
 
@@ -749,7 +749,9 @@ class OnnxConverter(BaseConverter):
         if tensor_type1 == TensorType.TENSOR and tensor_type2 == TensorType.TENSOR:
             data1 = self.getTensor(onnx_node.inputs[0]).tensor_data
             data2 = self.getTensor(onnx_node.inputs[1]).tensor_data
-            output_data = data1/data2
+            output_data = data1 / data2
+            if data1.dtype == data2.dtype:
+                output_data = output_data.astype(data1.dtype)
             output_shape = list(output_data.shape)
             self.addTensor(onnx_node.name, output_data, output_shape)
             self.addOperand(onnx_node.name, None, output_shape, TensorType.TENSOR)

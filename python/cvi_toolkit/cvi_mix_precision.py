@@ -59,7 +59,7 @@ if __name__ == '__main__':
     for idx, layer in enumerate(sort_bf16_layers):
         print("No.{:<4}: Layer: {:<30} SQNR: {}".format(idx, layer[0], layer[1]))
 
-    os.chdir("../")
+
     with open(args.output_bf16_table, "w") as f:
         sort_bf16_layers = sort_bf16_layers[:args.number_bf16]
         for i in sort_bf16_layers:
