@@ -156,7 +156,8 @@ private:
   flatbuffers::FlatBufferBuilder fbb_;
   std::vector<uint8_t> binBuffer_;
   std::vector<std::shared_ptr<CviTensor>> tensorMaps_;
-  size_t totalNeuronSize_ = 0;
+  int64_t privateGmemSize_ = 0;
+  int64_t sharedGmemSize_ = 0;
   int batchNum_ = 0;
 
   void addRoutine(std::string funcName);

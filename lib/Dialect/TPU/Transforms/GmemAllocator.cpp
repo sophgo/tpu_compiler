@@ -9,8 +9,13 @@ namespace mlir {
 
 #define DEBUG_TYPE "gmem-allocator"
 
-GmemAllocator::GmemAllocator(uint32_t alignment)
-    : alignment(alignment) {
+GmemAllocator::GmemAllocator(
+    std::map<Operation *, int64_t> &gaddrMap,
+    std::set<Operation *> &gmemReusedSet,
+    uint32_t alignment)
+    : gaddrMap(gaddrMap),
+      gmemReusedSet(gmemReusedSet),
+      alignment(alignment) {
   GmemBlock block;
   block.start = 0;
   block.size = 0xFFFFFFFF;
@@ -21,9 +26,9 @@ GmemAllocator::GmemAllocator(uint32_t alignment)
   album.push_back(snapshot);
 }
 
-void GmemAllocator::assignGaddr(std::vector<Operation *> &ops,
+int64_t GmemAllocator::assignGaddr(std::vector<Operation *> &ops,
                                 std::map<Operation *, std::vector<uint32_t>> &liveRange,
-                                bool neuronMemoryReuse) {
+                                bool neuronMemoryReuse, int64_t baseGaddr) {
   for (auto op : ops) {
     LLVM_DEBUG(llvm::errs() << "loop #" << album.size() - 1 << "\n");
     auto snapshot = album[album.size() - 1];
@@ -50,14 +55,19 @@ void GmemAllocator::assignGaddr(std::vector<Operation *> &ops,
   );
 
   backPropagateToAssignGaddr();
-  updateGmemReusedOpSet(ops);
+  auto totalGmemUsed = updateGmemUsedStatistic(ops);
+  // update gaddr map by adding base gaddr.
+  for (auto op : ops) {
+    gaddrMap[op] += baseGaddr;
+  }
 
   LLVM_DEBUG(
     for (auto op : ops) {
-      auto reused = (gaddrReusedSet.find(op) != gaddrReusedSet.end());
+      auto reused = (gmemReusedSet.find(op) != gmemReusedSet.end());
       llvm::errs() << "op:" << op->getName()
                   << ", name:" << getOpName(op)
                   << ", addr:" << gaddrMap[op]
+                  << ", baseGaddr:" << baseGaddr
                   << ", size:" << getTensorGmemSize(op)
                   << ", end:" << gaddrMap[op] + getTensorGmemSize(op)
                   << ", reused:" << reused
@@ -66,6 +76,7 @@ void GmemAllocator::assignGaddr(std::vector<Operation *> &ops,
                   << "\n";
     }
   );
+  return totalGmemUsed;
 }
 
 void GmemAllocator::reuseGmemBlock(std::list<GmemBlock> &snapshot, Operation *op,
@@ -195,9 +206,9 @@ void GmemAllocator::backPropagateToAssignGaddr() {
   }
 }
 
-void GmemAllocator::updateGmemReusedOpSet(std::vector<Operation *> &ops) {
+int64_t GmemAllocator::updateGmemUsedStatistic(std::vector<Operation *> &ops) {
   int64_t totalNeuronSize = 0;
-  int64_t totalNeuronMemorySize = 0;
+  int64_t totalGmemUsed = 0;
   std::vector<Operation *> tmp;
   for (int i = ops.size() - 1; i >= 0; i--) {
     auto addr_i = gaddrMap[ops[i]];
@@ -209,20 +220,26 @@ void GmemAllocator::updateGmemReusedOpSet(std::vector<Operation *> &ops) {
       auto end = std::max(addr_i + sz_i, addr_j + sz_j);
       // memory overlap
       if (end - start < sz_i + sz_j) {
-        gaddrReusedSet.insert(ops[i]);
+        gmemReusedSet.insert(ops[i]);
       }
     }
-    if (totalNeuronMemorySize < addr_i + sz_i) {
-      totalNeuronMemorySize = addr_i + sz_i;
+
+    if (totalGmemUsed < addr_i + sz_i) {
+      totalGmemUsed = addr_i + sz_i;
     }
     totalNeuronSize += sz_i;
 
     tmp.push_back(ops[i]);
   }
-  llvm::errs() << "Gmem Used: " << totalNeuronMemorySize
-               << "/" << totalNeuronSize << ", reused rate:"
-               << ((totalNeuronSize - totalNeuronMemorySize) * 100 / totalNeuronSize)
-               << "%\n";
+
+  int32_t reuseRate = 0;
+  if (totalNeuronSize) {
+    reuseRate = (int32_t)((totalNeuronSize - totalGmemUsed) * 100 / totalNeuronSize);
+  }
+
+  llvm::errs() << "Gmem Used: " << totalGmemUsed << "/" << totalNeuronSize
+               << ", gmem reused rate:" << reuseRate << "%\n";
+  return totalGmemUsed;
 }
 
 }

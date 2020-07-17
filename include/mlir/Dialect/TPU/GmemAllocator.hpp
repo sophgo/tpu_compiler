@@ -24,12 +24,14 @@ public:
 
 class GmemAllocator {
 public:
-  GmemAllocator(uint32_t alignment = 16);
-  void assignGaddr(std::vector<Operation *> &ops,
-                   std::map<Operation *, std::vector<uint32_t>> &liveRange,
-                   bool neuronMemoryReuse);
-  std::map<Operation *, int64_t> gaddrMap;
-  std::set<Operation *> gaddrReusedSet;
+  GmemAllocator(std::map<Operation *, int64_t> &gaddrMap,
+                std::set<Operation *> &gmemReusedSet,
+                uint32_t alignment = 16);
+  int64_t assignGaddr(std::vector<Operation *> &ops,
+                      std::map<Operation *, std::vector<uint32_t>> &liveRange,
+                      bool neuronMemoryReuse, int64_t baseGaddr);
+  std::map<Operation *, int64_t> &gaddrMap;
+  std::set<Operation *> &gmemReusedSet;
 
 private:
   uint32_t alignment;
@@ -41,7 +43,7 @@ private:
   void allocGmemBlock(std::list<GmemBlock> &snapshot, Operation *op);
   void mergeFreeGmemBlocks(std::list<GmemBlock> &snapshot);
   void backPropagateToAssignGaddr();
-  void updateGmemReusedOpSet(std::vector<Operation *> &ops);
+  int64_t updateGmemUsedStatistic(std::vector<Operation *> &ops);
 };
 
 } // namespace mlir

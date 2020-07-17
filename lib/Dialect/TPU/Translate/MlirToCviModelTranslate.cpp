@@ -335,6 +335,8 @@ CviModelBuilder::CviModelBuilder(ModuleOp &module) : fbb_(1024) {
   for (auto fn : module.getOps<FuncOp>()) {
     if (fn.getName() == "tpu_func") {
       mainFunc_ = fn;
+      privateGmemSize_ = fn.getAttr("private_gmem").cast<IntegerAttr>().getInt();
+      sharedGmemSize_ = fn.getAttr("shared_gmem").cast<IntegerAttr>().getInt();
       continue;
     }
 
@@ -407,12 +409,6 @@ void CviModelBuilder::parseModule() {
       int64_t offset =
           op->getAttr("gaddr") ? op->getAttr("gaddr").cast<IntegerAttr>().getInt() : -1;
       auto tensor = std::make_shared<CviTensor>(name, type, offset, false);
-      if (offset != -1) {
-        size_t len = offset + tensor->size;
-        if (totalNeuronSize_ < len) {
-          totalNeuronSize_ = len;
-        }
-      }
       if (!batchNum_) {
         batchNum_ = tensor->shape[0];
       }
@@ -591,8 +587,9 @@ FBProgram CviModelBuilder::buildProgram() {
     fbRoutineVec.push_back(rt->build());
   }
   auto fbRoutines = fbb_.CreateVector(fbRoutineVec);
-  return CreateProgram(fbb_, batchNum_, totalNeuronSize_, fbInputs, fbOutputs,
-                       fbNeuronMap, fbRoutines);
+  return CreateProgram(fbb_, batchNum_, 0, fbInputs, fbOutputs,
+                       fbNeuronMap, fbRoutines, (uint32_t)sharedGmemSize_,
+                       (uint32_t)privateGmemSize_);
 }
 
 void CviModelBuilder::storeModel(llvm::raw_ostream &output) {
