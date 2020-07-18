@@ -109,9 +109,9 @@ export TOLERANCE_INT8_RSHIFT_ONLY=0.95,0.95,0.69
 export TOLERANCE_INT8_MULTIPLER=0.96,0.95,0.72
 export TOLERANCE_BF16=0.99,0.99,0.91
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.91
+# compare failed in board if open layergroup
 export DO_LAYERGROUP=0
-export DO_NN_TOOLKIT=0
-# export BATCH_SIZE=4
+export USE_LAYERGROUP=0
 export DO_PREPROCESS=0
 fi
 
