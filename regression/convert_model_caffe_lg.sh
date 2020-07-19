@@ -37,15 +37,11 @@ mlir-opt \
     --chipname ${SET_CHIP_NAME} \
     --tpu-quant \
     --print-tpu-op-info \
-    --tpu-op-info-filename op_info_int8.csv \
-    -o int8.mlir
+    --tpu-op-info-filename op_info_int8.csv | \
 mlir-opt \
-    int8.mlir \
-    --tpu-lower --reorder-op | \
-mlir-opt \
+    --tpu-lower --reorder-op \
     --tg-fuse-leakyrelu \
-    --conv-ic-alignment | \
-mlir-opt \
+    --conv-ic-alignment \
     --group-ops | \
 mlir-opt \
     --dce \

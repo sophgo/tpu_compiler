@@ -59,16 +59,16 @@ run_generic_all()
         err=1
       fi
     done
-  fi
-  # model preprocess
-  if [ $do_preprocess -eq 1 ]; then
-    for net in ${net_list_do_preprocess[@]}
-    do
-      run_generic $net 1 1
-      if [ "$?" -ne 0 ]; then
-        err=1
-      fi
-    done
+    # model preprocess
+    if [ $do_preprocess -eq 1 ]; then
+      for net in ${net_list_do_preprocess[@]}
+      do
+        run_generic $net 1 1
+        if [ "$?" -ne 0 ]; then
+          err=1
+        fi
+      done
+    fi
   fi
   return $err
 }

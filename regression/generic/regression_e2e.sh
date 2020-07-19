@@ -83,7 +83,11 @@ cvi_npz_tool.py compare \
     --op_info op_info_int8.csv
 
 if [ ! -z $CVIMODEL_REL_PATH -a -d $CVIMODEL_REL_PATH ]; then
-  if [ $BATCH_SIZE -eq 1 ]; then
+  if [ $DO_PREPROCESS -eq 1 ]; then
+    cp ${NET}_in_fp32.npz $CVIMODEL_REL_PATH/${NET}_preprocess_in_fp32.npz
+    mv ${NET}.cvimodel $CVIMODEL_REL_PATH/${NET}_preprocess.cvimodel
+    cp ${NET}_out_all.npz $CVIMODEL_REL_PATH/${NET}_preprocess_out_all.npz
+  elif [ $BATCH_SIZE -eq 1 ]; then
     cp ${NET}_in_fp32.npz $CVIMODEL_REL_PATH
     mv ${NET}.cvimodel $CVIMODEL_REL_PATH
     cp ${NET}_out_all.npz $CVIMODEL_REL_PATH

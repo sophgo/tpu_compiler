@@ -29,6 +29,18 @@ export NET=$NET
 source $DIR/generic_models.sh
 
 WORKDIR=${NET}_bs${DO_BATCHSIZE}
+if [ $ENABLE_PREPROCESS -eq 1 ]; then
+  if [ $DO_BATCHSIZE -ne 1 ]; then
+    echo "$NET: Not support batch on preprocess for now"
+    exit 1
+  fi
+  if [ $DO_PREPROCESS -ne 1 ]; then
+    echo "$NET: Not support DO_PREPROCESS, can not ENABLE_PREPROCESS"
+    exit 1
+  fi
+  WORKDIR=${NET}_preprocess_bs${DO_BATCHSIZE}
+fi
+
 if [ ! -e $WORKDIR ]; then
   mkdir $WORKDIR
 fi
@@ -53,12 +65,10 @@ fi
 if [ $DO_E2E -eq 1 ]; then
   $DIR/regression_e2e.sh
 fi
-
 if [ $DO_NN_TOOLKIT -eq 1 ]; then
   gen_cvi_nn_tool_template.py $NET
   cvi_nn_converter.py $NET.yml
 fi
-
 if [ $DO_QUANT_MIX -eq 1 ]; then
   $DIR/regression_7_mix.sh
 fi

@@ -9,10 +9,10 @@ generic_net_list=()
 if [ -z $model_list_file ]; then
   model_list_file=$DIR/generic/model_list.txt
 fi
-while read net bs1 bs4 acc bs1_ext bs4_ext acc_ext
+while read net bs1 bs4 acc bs1_ext bs4_ext acc_ext model_preprocess
 do
   [[ $net =~ ^#.* ]] && continue
-  # echo "net='$net' bs1='$bs1' bs4='$bs4' acc='$acc' bs1_ext='$bs1_ext' bs4_ext='$bs4_ext' acc_ext='$acc_ext'"
+  # echo "net='$net' bs1='$bs1' bs4='$bs4' acc='$acc' bs1_ext='$bs1_ext' bs4_ext='$bs4_ext' acc_ext='$acc_ext' model_preprocess='$model_preprocess'"
   if [ "$bs1" = "Y" ]; then
     # echo "bs1 add $net"
     generic_net_list+=($net)
