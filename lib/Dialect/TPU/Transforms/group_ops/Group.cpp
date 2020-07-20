@@ -501,8 +501,6 @@ bool Group::backward_slice(int out_tensor_id, std::list<int>& branches, bool max
           h_slice = out_h_slice - pads[2] - pads[6];
         else
           h_slice = out_h_slice - pads[2];
-      } else if (out_h_idx + out_h_slice >= out_tensor->h()) {
-        h_slice = out_h_slice - pads[6];
       } else
         h_slice = out_h_slice;
     } else if (layer_type == IR_CROP) {

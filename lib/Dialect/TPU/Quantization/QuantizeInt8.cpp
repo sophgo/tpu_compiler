@@ -688,6 +688,102 @@ LogicalResult quantizeInt8RescaleNoWeightOps(Operation *op) {
   return success();
 }
 
+template<typename OpTy>
+LogicalResult quantizeInt8MultiplyConstOps(Operation *op) {
+  assert(getOpQuant(op) == "INT8");
+  // support per-tensor only for now
+  setOpQuantPerchannel(op, false);
+  // use rshift and INT8 multiplier
+  setOpQuantParamType(op, "RSHIFT_AND_M_I32");
+
+  TensorFile *wTF = getWeightTensorFile(op);
+  Value *wfV = getWeightFileValue(op);
+
+  // get operands
+  const unsigned nInputs = op->getNumOperands() - 4;
+  assert(nInputs == 2 && "support only 2 inputs multiply");
+  // get thresholds
+  float threshold_y = getOpThreshold(op);
+  LLVM_DEBUG(llvm::errs() << " > " << getOpName(op) << ", threshold_y = "
+               << std::to_string(threshold_y) << "\n";);
+  float threshold_x;
+  int const_idx;
+
+  for (unsigned i = 0; i < nInputs; ++i) {
+    auto formerOp = op->getOperand(i)->getDefiningOp();
+    if (isa<tpu::LoadWeightOp>(formerOp)) {
+      const_idx = i;
+      continue;
+    }
+    threshold_x = getOpThreshold(formerOp);
+    LLVM_DEBUG(llvm::errs() << "  threshold_x = "
+               << std::to_string(threshold_x) << "\n";);
+  }
+
+  auto const_opd = readAndDeleteWeightTensor<float>(op->getOperand(const_idx), wTF);
+  std::vector<int64_t> const_shape;
+  int64_t const_size;
+  getTensorShapeAndSize(op->getOperand(const_idx), const_shape, const_size);
+  assert(const_size == (int64_t)const_opd->size());
+
+  auto max_elem = *std::max_element(const_opd->begin(), const_opd->end());
+  //
+  // determine the qscale
+  //
+  float qscale = threshold_x / threshold_y;
+
+  // create tensors for rshift and multiplier
+  auto rshift = std::make_unique<std::vector<float> >(1);
+  auto multiplier = std::make_unique<std::vector<float> >(1);
+  auto max_multiplier = max_elem * qscale;
+  //
+  // decompose into int8 mulitplier and rshift
+  //
+  uint32_t multiplier_u32;
+  int8_t rshift_i8 = findRShiftAndMultiplierFromQScale(qscale,
+                         &multiplier_u32, true, max_multiplier);
+  rshift->at(0) = static_cast<float>(rshift_i8);
+  multiplier->at(0) = static_cast<float>(multiplier_u32);
+  LLVM_DEBUG(llvm::errs()
+             << "  rshift = "
+             << std::to_string(rshift->at(0))
+             << ", multiplier = "
+             << std::to_string(multiplier->at(0)) << "\n");
+
+  std::vector<float> quant_const(const_size, 0);
+  for (int i = 0; i < const_size; i++) {
+    auto float_quant = floor((*const_opd)[i] * qscale *
+                       multiplier->at(0) + 0.5);
+    quant_const[i] = std::round(float_quant);
+    if (quant_const[i] > 127)
+      quant_const[i] = 127;
+    if (quant_const[i] < -128)
+      quant_const[i] = -128;
+  }
+
+  // update op
+  addWeightTensorAndUpdateWeightOp<float>(op->getOperand(const_idx),
+      "quant", quant_const, const_shape, "INT8", wTF);
+
+  // add rshift and multiplier to weight
+  StringRef storageType = "NONE";
+  auto shape = std::vector<int64_t>{1};
+
+  auto rshift_op = addWeightTensorAndCreateWeightOp<float>(
+      op, "rshift", *rshift, shape, storageType,
+      wTF, wfV);
+  op->setOperand(4, rshift_op);
+
+  auto multiplier_op = addWeightTensorAndCreateWeightOp<float>(
+      op, "multiplier", *multiplier, shape, storageType,
+      wTF, wfV);
+  op->setOperand(5, multiplier_op);
+
+  setOpResultType(op, StandardTypes::Integer, 8);
+
+  return success();
+}
+
 ///
 /// default multiply Ops quantization method
 /// for operations that has no weight, and input operands are
@@ -879,7 +975,18 @@ LogicalResult tpu::EltwiseMulOp::quantizeInt8() {
   LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName()
                << " [" << getOpName() << "]\n";);
   Operation *op = this->getOperation();
-  return quantizeInt8MultiplyOps<tpu::EltwiseMulOp>(op);
+  bool hasConstOpd = false;
+  for (unsigned i = 0; i < 2; ++i) {
+    auto formerOp = op->getOperand(i)->getDefiningOp();
+    if (isa<tpu::LoadWeightOp>(formerOp)) {
+      hasConstOpd = true;
+      break;
+    }
+  }
+  if (hasConstOpd)
+    return quantizeInt8MultiplyConstOps<tpu::EltwiseMulOp>(op);
+  else
+    return quantizeInt8MultiplyOps<tpu::EltwiseMulOp>(op);
 }
 
 LogicalResult tpu::FullyConnectedOp::quantizeInt8() {

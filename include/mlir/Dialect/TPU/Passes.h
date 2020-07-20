@@ -36,6 +36,7 @@ std::unique_ptr<OpPassBase<ModuleOp>> createConvertFuncToMemRefPass();
 
 std::unique_ptr<OpPassBase<FuncOp>> createDecomposeNormalizePass();
 std::unique_ptr<OpPassBase<FuncOp>> createConvertBnToScalePass();
+std::unique_ptr<OpPassBase<FuncOp>> createConvertPoolMaskPass();
 std::unique_ptr<OpPassBase<FuncOp>> createConvertUpsampleToDeconvPass();
 std::unique_ptr<OpPassBase<FuncOp>> createFoldScalePass();
 std::unique_ptr<OpPassBase<FuncOp>> createMergeScaleIntoConvPass();

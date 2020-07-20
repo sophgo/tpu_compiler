@@ -2125,6 +2125,58 @@ struct LowerWeightLutOpPattern : public RewritePattern {
   }
 };
 
+
+template <typename OpTy>
+struct LowerConstEltwiseOpPattern : public RewritePattern {
+  LowerConstEltwiseOpPattern(MLIRContext *context)
+      : RewritePattern(OpTy::getOperationName(), 1, context) {}
+
+  PatternMatchResult matchAndRewrite(Operation *op,
+      PatternRewriter &rewriter) const override {
+    auto eltwiseOp = cast<OpTy>(op);
+    int opdIdx = -1;
+    for (unsigned i = 0; i < 2; ++i) {
+      auto defOp = eltwiseOp.getOperand(i)->getDefiningOp();
+      if (isa<tpu::LoadWeightOp>(defOp)) {
+        auto constDefOp = cast<tpu::LoadWeightOp>(defOp);
+        if (constDefOp.lowered())
+          return matchFailure();
+        opdIdx = i;
+        break;
+      }
+    }
+
+    if (opdIdx == -1)
+      return matchFailure();
+
+    auto defOp = eltwiseOp.getOperand(opdIdx)->getDefiningOp();
+    auto constDefOp = cast<tpu::LoadWeightOp>(defOp);
+    LLVM_DEBUG(llvm::errs() << "Lower Weight for eltwise Op: "
+                            << getOpName(constDefOp) << "\n";);
+    TensorFile *wTF = getWeightTensorFile(eltwiseOp);
+
+    if (getOpQuant(eltwiseOp) == "INT8") {
+      // lower filter
+      assert(constDefOp.storage() == "INT8");
+      std::vector<int64_t> shape;
+      int64_t size;
+      getTensorShapeAndSize(constDefOp, shape, size);
+      auto constValue = readAndDeleteWeightTensor<float>(
+                                   eltwiseOp.getOperand(opdIdx), wTF);
+      std::vector<int8_t> constValueInt8(constValue->begin(),
+                                         constValue->end());
+      // save it
+      addWeightTensorAndUpdateWeightOp<int8_t>(eltwiseOp.getOperand(opdIdx),
+          "lowered", constValueInt8, shape, "INT8", wTF);
+      constDefOp.setAttr("lowered", rewriter.getBoolAttr(true));
+    } else if (getOpQuant(op) == "BF16") {
+      // lower filter
+      llvm_unreachable("TODO BF16");
+    }
+    return matchSuccess();
+  }
+};
+
 template <typename OpTy>
 struct LowerCpuOpDefaultPattern : public RewritePattern {
   LowerCpuOpDefaultPattern(MLIRContext *context)
@@ -2171,6 +2223,7 @@ struct LowerCpuOpDefaultPattern : public RewritePattern {
     return matchSuccess();
   }
 };
+
 
 template <typename OpTy>
 struct LowerCustomOpPattern : public RewritePattern {
@@ -2247,6 +2300,7 @@ public:
         LowerWeightLutOpPattern<tpu::SigmoidOp>,
         LowerWeightLutOpPattern<tpu::SqrtOp>,
         LowerWeightLutOpPattern<tpu::TanHOp>,
+        LowerConstEltwiseOpPattern<tpu::EltwiseMulOp>,
         LowerWeightFullyConnectedOpPattern,
         LowerWeightDetectionOutputOpPattern
         >(context);

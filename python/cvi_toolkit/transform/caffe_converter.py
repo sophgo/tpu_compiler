@@ -49,6 +49,7 @@ class CaffeConverter(BaseConverter):
         self.output_tensor_file = "{}_1_06eeeb7e.npz".format(model_name)
         self.caffeop_factory = {
             'BatchNorm': lambda layer: self.convert_batchnorm_op(layer),
+            'BN': lambda layer: self.convert_bn_op(layer),
             'Concat': lambda layer: self.convert_concat_op(layer),
             'Convolution': lambda layer: self.convert_convolution_op(layer),
             'ConvolutionDepthwise': lambda layer: self.convert_convolution_op(layer),
@@ -156,6 +157,7 @@ class CaffeConverter(BaseConverter):
         else:
             value = blob.data.reshape(new_shape)
         if permute_order != None:
+            value = blob.data
             value_tensor = torch.tensor(value)
             value_tensor = value_tensor.permute(permute_order)
             value = np.array(value_tensor)
@@ -185,6 +187,30 @@ class CaffeConverter(BaseConverter):
             layer.name, operands, output_shape, **param)
         self.addOperand(layer.top[0], new_op,
                         output_shape, TensorType.ACTIVATION)
+
+    def convert_bn_op(self, layer):
+         assert(self.layerType(layer) == 'BN')
+         op, input_shape, _ = self.getOperand(layer.bottom[0])
+         operands = list()
+         operands.append(op)
+         # default comes from caffe.proto
+
+         p = layer.bn_param
+         bn_mode = p.bn_mode
+         blobs = self.layer_dict[layer.name].blobs
+         for idx, blob in enumerate(blobs):
+             blob_op = self.blob_to_weight_op(layer, idx)
+             operands.append(blob_op)
+
+         if bn_mode == 1:
+             output_shape = input_shape
+             new_op = self.CVI.add_scale_op(
+                 layer.name, operands, output_shape)
+
+             self.addOperand(layer.top[0], new_op,
+                           output_shape, TensorType.ACTIVATION)
+         else:
+           assert(0)
 
     def convert_concat_op(self, layer):
         assert(self.layerType(layer) == 'Concat')
@@ -286,7 +312,7 @@ class CaffeConverter(BaseConverter):
         filter_shape = [g, int(oc / g), int(ic / g), kernel[0], kernel[1]
                         ] if g != 1 else [oc, ic, kernel[0], kernel[1]]
         if is_deconv:
-            permute_order = [0, 2, 1, 3, 4] if g != 1 else [1, 0, 2, 3]
+            permute_order = [1, 0, 2, 3]
             filter_op = self.blob_to_weight_op(layer, 0, filter_shape, permute_order)
         else:
             filter_op = self.blob_to_weight_op(layer, 0, filter_shape)
@@ -659,6 +685,19 @@ class CaffeConverter(BaseConverter):
             new_op = self.CVI.add_pool_avg_2d_op(
                 layer.name, operands, output_shape, **pool_param)
             self.addOperand(layer.top[0], new_op, output_shape,
+                            TensorType.ACTIVATION)
+        if len(layer.top) > 1:
+            assert(kernel[0] == kernel[1] and stride[0] == stride[1] and kernel[0] == stride[0])
+            param = {
+                'scale': kernel[0]
+            }
+            operands = list()
+            operands.append(new_op)
+            operands.append(op)
+            pool_mask_name = "{}_mask".format(layer.name)
+            pool_mask_op = self.CVI.add_pool_mask_op(
+                pool_mask_name, operands, input_shape, **param)
+            self.addOperand(layer.top[1], pool_mask_op, input_shape,
                             TensorType.ACTIVATION)
 
     def convert_power_op(self, layer):
@@ -1055,9 +1094,8 @@ class CaffeConverter(BaseConverter):
         assert(self.layerType(layer) == 'Upsample')
         _, input_shape, _ = self.getOperand(layer.bottom[0])
         operands = list()
-        for bottom in layer.bottom:
-            op, _, _ = self.getOperand(bottom)
-            operands.append(op)
+        op, _, _ = self.getOperand(layer.bottom[0])
+        operands.append(op)
         assert(len(input_shape) == 4)
         scale = layer.upsample_param.scale
         assert(scale == 2)
@@ -1066,10 +1104,28 @@ class CaffeConverter(BaseConverter):
         param = {
             'scale': scale
         }
+        
+        upsample_name = layer.name
+        if len(layer.bottom) > 1:
+          upsample_name = "{}_nearst".format(layer.name)
+
         new_op = self.CVI.add_upsample_op(
-            layer.name, operands, output_shape, **param)
-        self.addOperand(layer.top[0], new_op,
-                        output_shape, TensorType.ACTIVATION)
+            upsample_name, operands, output_shape, **param)
+
+        if len(layer.bottom) == 1:
+            self.addOperand(layer.top[0], new_op,
+                            output_shape, TensorType.ACTIVATION)
+
+        if len(layer.bottom) > 1:
+            operands = list()
+            op, _, _ = self.getOperand(layer.bottom[1])
+            operands.append(op)
+            operands.append(new_op)
+            eltwise_name = layer.name
+            eltwise_mul_op = self.CVI.add_eltwise_mul_op(
+                eltwise_name, operands, output_shape)
+            self.addOperand(layer.top[0], eltwise_mul_op, output_shape,
+                            TensorType.ACTIVATION)
 
     def convert_yolo_detection_op(self, layer):
         assert(self.layerType(layer) == 'YoloDetection')

@@ -328,6 +328,13 @@ struct ForceThresholdMulOpPattern : public RewritePattern {
       return matchFailure();
     }
 
+    for (int i = 0; i < 2; i++) {
+      auto formerOp = opInst->getOperand(i)->getDefiningOp();
+      if (isa<tpu::LoadWeightOp>(formerOp)) {
+        return matchFailure();
+      }
+    }
+
     float threshold_x0 = getPreviousOpThreshold(opInst, 0);
     float threshold_x1 = getPreviousOpThreshold(opInst, 1);
     float threshold_y = getOpThreshold(opInst);

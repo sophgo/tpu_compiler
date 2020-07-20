@@ -26,6 +26,7 @@ add_llvm_library(MLIRTPU
   Transforms/ConvertBnToScale.cpp
   Transforms/ConvertScale.cpp
   Transforms/ConvertClip.cpp
+  Transforms/ConvertPoolMaskOp.cpp
   Transforms/ConvertNormalize.cpp
   Transforms/ConvertSwishToRelu.cpp
   Transforms/ConvertPermute.cpp
