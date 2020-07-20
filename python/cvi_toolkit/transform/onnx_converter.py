@@ -1133,21 +1133,24 @@ class OnnxConverter(BaseConverter):
                             output_shape, TensorType.ACTIVATION)
 
         else:
-            operands.append(op1)
-            operands.append(op2)
             if input_shape1 == input_shape2:
                 #eltwise mul
                 output_shape = input_shape1
-                mul_op = self.CVI.add_eltwise_mul_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
+                mul_op = self.CVI.add_eltwise_mul_op("{}_{}".format(onnx_node.name, onnx_node.op_type), [op1, op2], output_shape)
             else:
                 # broadcast mul
                 # TODO: only support broadcast mul channel axis now
                 # [n, c, h, w] broadcast with [n, c]
+                if np.prod(input_shape2) > np.prod(input_shape1):
+                    # swap
+                    op1, op2 = op2, op1
+                    input_shape1, input_shape2 = input_shape2, input_shape1
+
                 if len(input_shape1) != 4 or np.prod(input_shape2) != input_shape1[0] * input_shape1[1] :
                     raise RuntimeError("{} vs {}  broadcast mul not support".format(input_shape1, input_shape2))
                 axis = 1
                 output_shape = input_shape1
-                mul_op = self.CVI.add_broadcast_mul_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, axis=axis)
+                mul_op = self.CVI.add_broadcast_mul_op("{}_{}".format(onnx_node.name, onnx_node.op_type), [op1, op2], output_shape, axis=axis)
 
             self.addOperand(onnx_node.name, mul_op, output_shape, TensorType.ACTIVATION)
 
