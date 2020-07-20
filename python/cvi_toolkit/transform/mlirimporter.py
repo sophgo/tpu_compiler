@@ -30,6 +30,7 @@ class TPU_OpType(Enum):
     Eltwise_Min = 'tpu.eltwise_min'
     Eltwise_Mul = 'tpu.eltwise_mul'
     FullyConnected = 'tpu.fully_connected'
+    GRU = 'tpu.gru'
     LeakyRelu = 'tpu.leaky_relu'
     LrnOne = 'tpu.lrn_one'
     LrnTwo = 'tpu.lrn_two'
@@ -513,6 +514,18 @@ class MLIRImporter(object):
         fully_connected_name = self.module.stringAttr(op_name)
         return self.buildOp(TPU_OpType.FullyConnected.value, inputOperands, [
             tensor_output_type], name=fully_connected_name, quant=self.quant_param)
+
+    def add_gru_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+        tensor_output_type = self.module.make_ranked_tensor_type(
+            self.f32Type, output_tensor_shape)
+
+        if len(inputOperands) < 5:
+            raise ArithmeticError("input operand must great than 5. x, w, r, b, initial_h")
+
+        gru_name = self.module.stringAttr(op_name)
+
+        return self.buildOp(TPU_OpType.GRU.value, inputOperands, [
+            tensor_output_type], name=gru_name, quant=self.quant_param)
 
     def add_leaky_relu_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = self.module.make_ranked_tensor_type(
