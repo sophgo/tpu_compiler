@@ -10,5 +10,5 @@ docker run --rm -it \
     -v /data/models:/work/models \
     -v /data/dataset:/work/dataset \
     --privileged \
-    --name=cvitek \
+    --name=cvitek-$BASE_IMAGE_VERSION \
     $REPO/$IMAGE:$TAG_BASE bash
