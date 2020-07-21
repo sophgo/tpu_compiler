@@ -1189,11 +1189,16 @@ class OnnxConverter(BaseConverter):
         if isinstance(mode, bytes):
             mode = mode.decode("utf-8")
         if mode != "constant": raise RuntimeError("Todo support pad op mode {}".format(mode))
-        constant_value = onnx_node.attrs.get("value", 0.0)
+
+        # opset 11, value from second input
+        if len(onnx_node.inputs) > 2:
+            constant_value = self.getTensor(onnx_node.inputs[2]).tensor_data
+        else:
+            constant_value = onnx_node.attrs.get("value", 0.0)
 
         op, input_shape, input_type = self.getOperand(onnx_node.inputs[0])
 
-        if len(onnx_node.inputs) == 2:
+        if len(onnx_node.inputs) > 1:
             # padding data from input
             _, _, pad_data_type = self.getOperand(onnx_node.inputs[1])
             if pad_data_type == TensorType.TENSOR:
