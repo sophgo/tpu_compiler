@@ -491,7 +491,7 @@ class OnnxConverter(BaseConverter):
 
     def convert_constant_of_shape_op(self, onnx_node):
         assert(onnx_node.op_type == "ConstantOfShape")
-        tensor_shape = self.getTensor(onnx_node.inputs[0]).tensor_data
+        tensor_shape = self.getTensor(onnx_node.inputs[0]).tensor_data.astype(np.int)
         onnx_tensor = onnx_node.attrs['value']
         tensor_value =  numpy_helper.to_array(onnx_tensor)
         data_type = onnx_dtype(onnx_tensor.data_type)
