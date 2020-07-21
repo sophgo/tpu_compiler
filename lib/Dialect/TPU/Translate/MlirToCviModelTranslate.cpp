@@ -47,11 +47,6 @@
 
 #define DEBUG_TYPE "mlir-to-cvimodel"
 
-// Version shall be in schema
-#define MAJOR_VER 1
-#define MIN_VER 1
-#define SUBMIN_VER 0
-
 static llvm::cl::opt<std::string>
     clCustomRuntimeLibraries("custom-runtime-lib",
                              llvm::cl::desc("Specify a comma-delimited list of custom op runtime lib"));
@@ -521,7 +516,7 @@ FBSectionVector CviModelBuilder::buildSections() {
 }
 
 FBModel CviModelBuilder::build() {
-  Version modelVersion = Version(MAJOR_VER, MIN_VER, SUBMIN_VER);
+  Version modelVersion = Version(MajorVersion_value, MinorVersion_value, SubMinorVersion_value);
   auto fbModelName = fbb_.CreateString(modelName_);
   auto fbBuildTime = fbb_.CreateString(getStrOfCurrentTime());
 
@@ -618,8 +613,8 @@ void CviModelBuilder::storeModel(llvm::raw_ostream &output) {
   memset(header.chip, 0, sizeof(header.chip));
   strncpy(header.chip, clRunChipType.c_str(), clRunChipType.length());
   header.body_size = fbb_.GetSize();
-  header.major = MAJOR_VER;
-  header.minor = MIN_VER;
+  header.major = MajorVersion_value; // defined in cvimodel.fbs
+  header.minor = MinorVersion_value; // defined in cvimodel.fbs
 
   output.write(reinterpret_cast<char *>(&header), sizeof(CviModelHeader));
   output.write(reinterpret_cast<char *>(modelData.data()), modelData.size());
