@@ -28,6 +28,7 @@
 #include "mlir/Dialect/TPU/CustomOpParam.h"
 #include "mlir/Dialect/TPU/GPUInplementation.h"
 #include "mlir/Dialect/TPU/CpuLayer_DetectionOutput.h"
+#include "mlir/Dialect/TPU/CpuLayer_FasterRCNN.h"
 #include "mlir/Dialect/TPU/CpuLayer_RetinaFaceDetection.h"
 #include "mlir/Dialect/TPU/CpuLayer_YoloDetection.h"
 #include "mlir/Dialect/TPU/CustomOpPlugin.h"
@@ -1094,6 +1095,7 @@ LogicalResult tpu::GruOp::interpret(
   auto opdT = getOperandTensors(op, valueMapping);
   auto result = this->getResult();
   auto size = getTensorSize(result);
+
   auto resultT = std::make_unique<std::vector<float> >(size);
 
   assert(opdT.size() == 5);
@@ -1127,6 +1129,96 @@ LogicalResult tpu::GruOp::interpret(
   }
 
   valueMapping[result] = std::move(resultT);
+  return success();
+}
+
+LogicalResult tpu::FrcnDetectionOp::interpret(
+    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+  Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
+
+  auto opdT = getOperandTensors(op, valueMapping);
+  auto result = this->getResult();
+  auto size = getTensorSize(result);
+
+  auto resultT = std::make_unique<std::vector<float>>(size, 0);
+  std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
+  assert(shape.size() == 4);
+
+  std::vector<int64_t> deltas_shape, output_shape;
+  int64_t deltas_size, output_size;
+  getTensorShapeAndSize(op->getOperand(0), deltas_shape, deltas_size);
+  getTensorShapeAndSize(this->output(), output_shape, output_size);
+
+  float *bbox_deltas = (float *)opdT[0]->data();
+  float *scores = (float *)opdT[1]->data();
+  float *rois = (float *)opdT[2]->data();
+
+  float *output = (float *)resultT.get()->data();
+  auto class_num = this->class_num().getLimitedValue();
+  auto keep_topk = this->keep_topk().getLimitedValue();
+  auto nms_threshold = this->nms_threshold().convertToFloat();
+  auto obj_threshold = this->obj_threshold().convertToFloat();
+
+  int num = deltas_shape[0];
+
+  std::vector<float> boxes(num * 4, 0);
+  for (int i = 0; i < num; ++i) {
+    for (int j = 0; j < 4; ++j) {
+      boxes[i*4 + j] = rois[i*5 + j + 1];
+    }
+  }
+
+  std::vector<float> pred(num * class_num * 4, 0);
+  float *pred_data = pred.data();
+  std::vector<float> deltas(bbox_deltas, bbox_deltas + deltas_size);
+  bbox_transform_inv(boxes.data(), deltas.data(), pred_data, num, class_num);
+
+  int det_num = 0;
+  detections dets[num];
+
+  for (int i = 0; i < num; ++i) {
+    for (int j = 1; j < class_num; ++j) {
+      if (scores[i*class_num + j] > obj_threshold) {
+        dets[det_num].bbox.x1 = pred[i*class_num*4 + j*4 + 0];
+        dets[det_num].bbox.y1 = pred[i*class_num*4 + j*4 + 1];
+        dets[det_num].bbox.x2 = pred[i*class_num*4 + j*4 + 2];
+        dets[det_num].bbox.y2 = pred[i*class_num*4 + j*4 + 3];
+        dets[det_num].cls = j;
+        dets[det_num].score = scores[i*class_num + j];
+        det_num++;
+      }
+    }
+  }
+
+  nms(dets, det_num, nms_threshold);
+  detections dets_nms[det_num];
+  int det_idx = 0;
+  for (int i = 0; i < det_num; i++) {
+    if (dets[i].score > 0) {
+      dets_nms[det_idx] = dets[i];
+      det_idx ++;
+    }
+  }
+
+  if (keep_topk > det_idx)
+      keep_topk = det_idx;
+
+  long long count = 0;
+  for(int i = 0; i < keep_topk; ++i) {
+    output[count++] = dets_nms[i].bbox.x1;
+    output[count++] = dets_nms[i].bbox.y1;
+    output[count++] = dets_nms[i].bbox.x2;
+    output[count++] = dets_nms[i].bbox.y2;
+    output[count++] = dets_nms[i].cls;
+    output[count++] = dets_nms[i].score;
+    // printf("x1: %f, y1: %f, x2: %f, y2: %f, cls: %d, score: %f\n",
+    //     dets_nms[i].bbox.x1, dets_nms[i].bbox.y1, dets_nms[i].bbox.x2, dets_nms[i].bbox.y2,
+    //     dets_nms[i].cls, dets_nms[i].score);
+  }
+
+  valueMapping[result] = std::move(resultT);
+
   return success();
 }
 
@@ -2180,6 +2272,92 @@ LogicalResult tpu::PriorBoxOp::interpret(
   return success();
 }
 
+LogicalResult tpu::ProposalOp::interpret(
+    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+  Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
+
+  auto opdT = getOperandTensors(op, valueMapping);
+  auto result = this->getResult();
+  auto size = getTensorSize(result);
+  auto resultT = std::make_unique<std::vector<float>>(size);
+  std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
+  assert(shape.size() == 4);
+
+  std::vector<int64_t> score_shape;
+  int64_t score_size;
+  getTensorShapeAndSize(op->getOperand(0), score_shape, score_size);
+  int height = score_shape[2];
+  int width = score_shape[3];
+
+  float *score = (float *)opdT[0]->data();
+  float *bbox_deltas = (float *)opdT[1]->data();
+  float *output = (float *)resultT.get()->data();
+  auto net_input_h = this->net_input_h().getLimitedValue();
+  auto net_input_w = this->net_input_w().getLimitedValue();
+  auto feat_stride = this->feat_stride().getLimitedValue();
+  auto anchor_base_size = this->anchor_base_size().getLimitedValue();
+  auto rpn_obj_threshold = this->rpn_obj_threshold().convertToFloat();
+  auto rpn_nms_threshold = this->rpn_nms_threshold().convertToFloat();
+  auto rpn_nms_post_top_n = this->rpn_nms_post_top_n().getLimitedValue();
+
+  std::vector<float> anchor_scale = {8, 16, 32};
+  std::vector<float> anchor_ratio = {0.5, 1, 2};
+
+  std::vector<float> anchor_boxes;
+  generate_anchors(anchor_base_size, anchor_scale, anchor_ratio, anchor_boxes);
+
+  float thresh = rpn_obj_threshold;
+  std::vector<std::vector<float>> select_anchor;
+  std::vector<float> confidence;
+  std::vector<std::vector<float>> bbox;
+  int anchor_num = anchor_scale.size() * anchor_ratio.size();
+
+  for (int k = 0; k < anchor_num; k++) {
+    float w = anchor_boxes[4 * k + 2] - anchor_boxes[4 * k] + 1;
+    float h = anchor_boxes[4 * k + 3] - anchor_boxes[4 * k + 1] + 1;
+    float x_ctr = anchor_boxes[4 * k] + 0.5 * (w - 1);
+    float y_ctr = anchor_boxes[4 * k + 1] + 0.5 * (h - 1);
+
+    for (int i = 0; i < height; i++) {
+      for (int j = 0; j < width; j++) {
+        if (score[anchor_num * height * width + (k * height + i) * width + j] >= thresh) {
+          std::vector<float> tmp_anchor;
+          std::vector<float> tmp_bbox;
+
+          tmp_anchor.push_back(j * feat_stride+ x_ctr);
+          tmp_anchor.push_back(i * feat_stride+ y_ctr);
+          tmp_anchor.push_back(w);
+          tmp_anchor.push_back(h);
+          select_anchor.push_back(tmp_anchor);
+          confidence.push_back(score[anchor_num * height * width + (k * height + i) * width + j]);
+          tmp_bbox.push_back(bbox_deltas[(4 * k * height + i) * width + j]);
+          tmp_bbox.push_back(bbox_deltas[((4 * k +1) * height + i) * width + j]);
+          tmp_bbox.push_back(bbox_deltas[((4 * k + 2) * height + i) * width + j]);
+          tmp_bbox.push_back(bbox_deltas[((4 * k + 3) * height + i) * width + j]);
+          bbox.push_back(tmp_bbox);
+        }
+      }
+    }
+  }
+  std::vector<std::vector<float>> pred_boxes;
+  anchor_box_transform_inv(net_input_w, net_input_h, bbox, select_anchor, pred_boxes);
+  anchor_box_nms(pred_boxes, confidence, rpn_nms_threshold);
+  int num = pred_boxes.size() > rpn_nms_post_top_n ? rpn_nms_post_top_n : pred_boxes.size();
+
+  for (int i = 0; i < num; i++) {
+    output[5 * i] = 0;
+    output[5 * i + 1] = pred_boxes[i][0];
+    output[5 * i + 2] = pred_boxes[i][1];
+    output[5 * i + 3] = pred_boxes[i][2];
+    output[5 * i + 4] = pred_boxes[i][3];
+  }
+
+  valueMapping[result] = std::move(resultT);
+
+  return success();
+}
+
 LogicalResult tpu::ReluOp::interpret(
     DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();
@@ -2400,6 +2578,40 @@ LogicalResult tpu::RetinaFaceDetectionOp::interpret(
               << ", pts7= " << preds[i].x[3] << ", pts8= " << preds[i].y[3]
               << ", pts9= " << preds[i].x[4] << ", pts10= " << preds[i].y[4] << "\n";);
   }
+
+  valueMapping[result] = std::move(resultT);
+
+  return success();
+}
+
+LogicalResult tpu::ROIPoolingOp::interpret(
+    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+  Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
+
+  auto opdT = getOperandTensors(op, valueMapping);
+  auto result = this->getResult();
+  auto size = getTensorSize(result);
+  auto resultT = std::make_unique<std::vector<float>>(size, std::numeric_limits<float>::min());
+  std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
+  assert(shape.size() == 4);
+
+  std::vector<int64_t> rois_shape, data_shape;
+  int64_t rois_size, data_size;
+  getTensorShapeAndSize(op->getOperand(0), data_shape, data_size);
+  getTensorShapeAndSize(op->getOperand(1), rois_shape, rois_size);
+
+  float *data = (float *)opdT[0]->data();
+  float *rois = (float *)opdT[1]->data();
+  float *output = (float *)resultT.get()->data();
+  auto pooled_h = this->pooled_h().getLimitedValue();
+  auto pooled_w = this->pooled_w().getLimitedValue();
+  auto spatial_scale = this->spatial_scale().convertToFloat();
+
+  int ret = my_roipooling(data, rois, output, pooled_h, pooled_w, spatial_scale,
+          rois_shape[2], data_shape[1], data_shape[2], data_shape[3]);
+
+  assert(ret == 0);
 
   valueMapping[result] = std::move(resultT);
 

@@ -2142,7 +2142,8 @@ struct LowerCpuOpDefaultPattern : public RewritePattern {
     for (auto& attr : op->getAttrs()) {
       if (attr.first == "name"
          || attr.first == "layer_id"
-         || attr.first == "gaddr") {
+         || attr.first == "gaddr"
+         || attr.first == "quant") {
         continue;
       }
       param.push_back(attr);
@@ -2256,8 +2257,11 @@ public:
     OwningRewritePatternList patterns_cpuop;
     patterns_cpuop.insert<
         LowerCpuOpDefaultPattern<tpu::DetectionOutputOp>,
+        LowerCpuOpDefaultPattern<tpu::FrcnDetectionOp>,
+        LowerCpuOpDefaultPattern<tpu::ProposalOp>,
         LowerCpuOpDefaultPattern<tpu::PreprocessOp>,
         LowerCpuOpDefaultPattern<tpu::RetinaFaceDetectionOp>,
+        LowerCpuOpDefaultPattern<tpu::ROIPoolingOp>,
         LowerCpuOpDefaultPattern<tpu::SoftmaxOp>,
         LowerCpuOpDefaultPattern<tpu::TransposeOp>,
         LowerCpuOpDefaultPattern<tpu::YoloDetectionOp>,

@@ -14,6 +14,15 @@ from cvi_toolkit.calibration.tuner import Tuner
 from cvi_toolkit import preprocess
 from cvi_toolkit.data.preprocess import get_preprocess_parser
 
+def preprocess_func_faster_rcnn(image_path, args):
+    image = cv2.imread(str(image_path).rstrip())
+    image = cv2.resize(image, (800, 600))
+    image = image.astype(np.float32, copy=True)
+    image -= np.array([[[102.9801, 115.9465, 122.7717]]])
+    image = np.transpose(image, [2,0,1])
+    image = np.expand_dims(image, axis=0)
+    return image
+
 def preprocess_func_unet(image_path, args):
   image = cv2.imread(str(image_path).rstrip(), cv2.IMREAD_GRAYSCALE)
   image = image.astype(np.float32)
@@ -165,6 +174,8 @@ def main():
     p_func = preprocess_func_espcn
   elif (args.model_name == 'unet'):
     p_func = preprocess_func_unet
+  elif (args.model_name == 'faster_rcnn'):
+    p_func = preprocess_func_faster_rcnn
   else:
     assert(False)
 

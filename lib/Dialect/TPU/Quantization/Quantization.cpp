@@ -484,7 +484,8 @@ public:
       if (op->getName().getDialect().str() != "tpu"
           || isa<tpu::ReshapeOp>(op)
           || isa<tpu::InputOp>(op)
-          || isa<tpu::PreprocessOp>(op)) {
+          || isa<tpu::PreprocessOp>(op)
+          || isa<tpu::ROIPoolingOp>(op)) {
         // continue
       } else if (isa<tpu::CustomOp>(op) &&
                  !cast<tpu::CustomOp>(op).do_quant()) {
@@ -543,7 +544,8 @@ public:
           || isa<tpu::InputOp>(op)
           || isa<tpu::PreprocessOp>(op)
           || isa<tpu::QuantOp>(op)
-          || isa<tpu::ReshapeOp>(op)) {
+          || isa<tpu::ReshapeOp>(op)
+          || isa<tpu::ROIPoolingOp>(op)) {
       } else if (auto castOp = llvm::dyn_cast<tpu::CustomOp>(op)) {
         if (getOpQuant(op) != "NONE") {
           cvi::OpParam param, quant;

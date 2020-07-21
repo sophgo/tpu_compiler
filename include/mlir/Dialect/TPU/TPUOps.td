@@ -632,6 +632,49 @@ def TPU_FullyConnectedOp : TPU_Op<"fully_connected",
   let results = (outs AnyTensor:$output);
 }
 
+def TPU_FrcnDetectionOp : TPU_Op<"frcn_detection",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuOpInterpInterface>]> {
+  let summary = "Faster rcnn detection operator";
+
+  let description = [{
+
+    Inputs:
+      `inputs`          : required, input tensors.
+
+    Attributes:
+      `class_num`       : required, detection class num.
+      `obj_threshold`   : required, object threshold.
+      `nms_threshold`   : required, nms threshold.
+      `keep_topk`       : required, keep top k.
+      `name`            : required, name for calibration, comparing, or debug.
+      `layer_id`        : optional, id for profiling.
+      `chipname`        : optional, chipname.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface` : support common TPU Op interface
+      `TpuOpInterpInterface` : support interperter
+  }];
+
+
+  let arguments = (
+    ins Variadic<AnyTensor>:$inputs,
+    I32Attr:$class_num,
+    F32Attr:$obj_threshold,
+    F32Attr:$nms_threshold,
+    I32Attr:$keep_topk,
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
+  );
+
+  let results = (outs AnyTensor:$output);
+}
 
 def TPU_GruOp: TPU_Op<"gru",
       [NoSideEffect,
@@ -1489,6 +1532,54 @@ def TPU_PriorBoxOp: TPU_Op<"priorbox",
   let hasCanonicalizer = 1;
 }
 
+def TPU_ProposalOp: TPU_Op<"proposal",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>]> {
+  let summary = "Proposal operator";
+
+  let description = [{
+    Inputs:
+      `inputs`                : required, the input activation tensor.
+
+    Attributes:   
+      `name`                  : required, name for calibration, comparing, or debug.
+      `layer_id`              : optional, id for profiling.
+      `chipname`              : optional, chipname.
+      `net_input_h`           : required, net input height
+      `net_input_w`           : required, net input width
+      `feat_stride`           : required, anchor box stride size
+      `anchor_base_size`      : required, anchor box base size
+      `rpn_obj_threshold`     : required, obj threshold
+      `rpn_nms_threshold`     : required, nms threshold for generate proposal boxes
+      `rpn_nms_post_top_n`    : required, keep num boxes after nms
+
+    Result:
+      `output`                : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface`  : support common TPU Op interface
+      `TpuOpInterpInterface`  : support interperter
+  }];
+
+  let arguments = (
+    ins Variadic<AnyTensor>:$inputs,
+    I32Attr:$net_input_h,
+    I32Attr:$net_input_w,
+    I32Attr:$feat_stride,
+    I32Attr:$anchor_base_size,
+    F32Attr:$rpn_obj_threshold,
+    F32Attr:$rpn_nms_threshold,
+    I32Attr:$rpn_nms_post_top_n,
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
 def TPU_ReciprocalOp : TPU_LutOp<"reciprocal", "Reciprocal">;
 
 def TPU_ReluOp: TPU_Op<"relu",
@@ -1630,6 +1721,53 @@ def TPU_RetinaFaceDetectionOp : TPU_Op<"retinaface_detection",
     F32Attr:$nms_threshold,
     F32Attr:$confidence_threshold,
     I32Attr:$keep_topk,
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
+def TPU_ROIPoolingOp : TPU_Op<"roi_pooling",
+    [NoSideEffect,
+     DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+     DeclareOpInterfaceMethods<TpuOpInterpInterface>,
+     DeclareOpInterfaceMethods<TpuOpQuantInterface>]>  {
+
+  let summary = "ROIPooling operator";
+
+  let description = [{
+    Max pooling on ROI.
+
+    Inputs:
+      `inputs`          : required, the input activation tensor.
+
+    Attributes:
+      `pooled_h`        : required, pooled output height.
+      `pooled_w`        : required, pooled output width
+      `spatial_scale`   : required, spatial_scale
+      `quant`           : required, a QuantParam struct attributes.
+      `name`            : required, name for calibration, comparing, or debug.
+      `layer_id`        : optional, id for profiling.
+      `chipname`        : optional, chipname.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface` : support common TPU Op interface
+      `TpuOpInterpInterface` : support interperter
+      `TpuOpQuantInterface`  : support quantization
+  }];
+
+  let arguments = (
+    ins Variadic<AnyTensor>:$inputs,
+    NonNegativeI32Attr:$pooled_h,
+    NonNegativeI32Attr:$pooled_w,
+    F32Attr:$spatial_scale,
+    TPU_QuantParamAttr:$quant,
     StrAttr:$name,
     OptionalAttr<NonNegativeI32Attr>:$layer_id,
     OptionalAttr<StrAttr>:$chipname
@@ -1980,28 +2118,24 @@ def TPU_YoloDetectionOp : TPU_Op<"yolo_detection",
 
     Inputs:
       `inputs`                  : required, input tensors
+
+    Attributes:
+      `name`                    : required, name for calibration, comparing, or debug.
+      `layer_id`                : optional, id for profiling.
+      `chipname`                : optional, chipname.
       `net_input_h`             : required, net input h
       `net_input_w`             : required, net input w
       `nms_threshold`           : required, nms threshold
       `obj_threshold`           : required, confidence threshold
       `keep_topk`               : required, after nms, keep bbox num
 
-    Attributes:
-      `name`            : required, name for calibration, comparing, or debug.
-      `quant`           : required, a QuantParam struct attributes.
-      `layer_id`        : optional, id for profiling.
-      `chipname`        : optional, chipname.
-
     Result:
       `output`          : result tensor.
 
     Interfaces or Traits:
       `NoSideEffect`
-      `TPU_QuantSupportPerChannel`
-      `TPU_QuantSupportAsymmetric`
       `TpuOpCommonInterface` : support common TPU Op interface
       `TpuOpInterpInterface` : support interperter
-      `TpuOpQuantInterface`  : support quantization
   }];
 
   let arguments = (

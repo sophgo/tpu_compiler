@@ -546,8 +546,10 @@ public:
       } else if (!failed(setThresholdFromMap(op, threshold_map))) {
         // success
       } else if (isa<tpu::DetectionOutputOp>(op)
+                 || isa<tpu::FrcnDetectionOp>(op)
                  || isa<tpu::InputOp>(op)
                  || isa<tpu::PreprocessOp>(op)
+                 || isa<tpu::ProposalOp>(op)
                  || isa<tpu::RetinaFaceDetectionOp>(op)
                  || isa<tpu::SoftmaxOp>(op)
                  || isa<tpu::TransposeOp>(op)
