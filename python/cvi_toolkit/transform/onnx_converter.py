@@ -92,7 +92,8 @@ class OnnxTensor():
 
 
 class OnnxConverter(BaseConverter):
-    def __init__(self, model_name, onnx_model, mlir_file_path, batch_size=1):
+    def __init__(self, model_name, onnx_model, mlir_file_path,
+                batch_size=1, convert_preprocess=False, preprocess_args=None):
         super().__init__()
         if isinstance(onnx_model, str):
             onnx_model = onnx.load(onnx_model)
@@ -108,6 +109,12 @@ class OnnxConverter(BaseConverter):
 
         self.converted_nodes = list()
         self.converted_tensors = list()
+        self.convert_preprocess = convert_preprocess
+        if self.convert_preprocess:
+            if preprocess_args:
+                self.preprocess_args = preprocess_args
+            else:
+                raise RuntimeError("preprocess args not exist!")
 
         self.CVI = None
         self.init_importer()
@@ -177,6 +184,10 @@ class OnnxConverter(BaseConverter):
                     input_shape.append(self.batch_size)
                 else:
                     input_shape.append(dim.dim_value)
+            if self.convert_preprocess:
+                if self.preprocess_args.get("data_format") == "NHWC":
+                    # change to nchw
+                    input_shape = [input_shape[0], input_shape[3], input_shape[1], input_shape[2]]
             inputs.append(input_shape)
         # get output shape
         outputs = list()
@@ -283,7 +294,30 @@ class OnnxConverter(BaseConverter):
                     input_shape.append(self.batch_size)
                 else:
                     input_shape.append(dim.dim_value)
-            input_op = self.CVI.add_input_op(input.name, idx)
+
+                if self.convert_preprocess:
+                    # add preprocess
+                    if self.preprocess_args.get("data_format") == "NHWC":
+                        # change to nchw
+                        input_shape =[input_shape[0], input_shape[3], input_shape[1], input_shape[2]]
+
+            if self.convert_preprocess:
+                input_no_preprocess_op = self.CVI.add_input_op(
+                    "{}_no_preprocess".format(input.name), idx)
+                # add preprocess
+                preprocess_attr = {
+                    'mean': np.array([float(s) for s in self.preprocess_args.get('mean').split(',')], dtype=np.float32),
+                    'std':  np.array([float(s) for s in self.preprocess_args.get('std').split(',')], dtype=np.float32),
+                    'scale': self.preprocess_args.get('scale'),
+                    'raw_scale': self.preprocess_args.get('raw_scale'),
+                    'color_order': self.preprocess_args.get('rgb_order'),
+                    'data_format': self.preprocess_args.get('data_format'),
+                }
+                input_op = self.CVI.add_preprocess_op(
+                    input.name, [input_no_preprocess_op], input_shape, **preprocess_attr)
+            else:
+                input_op = self.CVI.add_input_op(input.name, idx)
+
             self.addOperand(input.name, input_op, input_shape, TensorType.ACTIVATION)
         def NoneAndRaise(node):
             raise RuntimeError("{} Op not support now".format(node.op_type))

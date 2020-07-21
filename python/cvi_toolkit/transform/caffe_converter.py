@@ -1124,7 +1124,7 @@ class CaffeConverter(BaseConverter):
                         TensorType.ACTIVATION)
 
     def do_pre_mean(self, input_name, op_name, value, order):
-        if len(value) == 0:
+        if value is None:
             return
         mean_value = [float(i) for i in value.strip().split(',')]
         assert(len(mean_value) == 3)
