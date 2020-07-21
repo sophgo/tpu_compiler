@@ -74,6 +74,9 @@ fi
 if [ $DO_QUANT_MIX -eq 1 ]; then
   $DIR/regression_7_mix.sh
 fi
+if [ $DO_FUSE_PREPROCESS -eq 1 ]; then
+  $DIR/regression_8_fuse_preprocess.sh
+fi
 popd
 
 # VERDICT
