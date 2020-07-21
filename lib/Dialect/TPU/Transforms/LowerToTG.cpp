@@ -2113,11 +2113,11 @@ struct LowerWeightLutOpPattern : public RewritePattern {
 
         // save it
         addWeightTensorAndUpdateWeightOp<uint16_t>(
-            tableOp, "lowered", table_uint16, shape, "UINT16", wTF);
+            tableOp, "lowered", table_uint16, shape, "BF16", wTF);
         tableOp.setAttr("lowered", rewriter.getBoolAttr(true));
         addWeightTensorAndUpdateWeightOp<uint16_t>(
             table_mantissaOp, "lowered", table_mantissa_uint16,
-            shape, "UINT16", wTF);
+            shape, "BF16", wTF);
         table_mantissaOp.setAttr("lowered", rewriter.getBoolAttr(true));
     }
 
