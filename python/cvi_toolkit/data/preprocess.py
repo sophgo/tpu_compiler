@@ -120,6 +120,18 @@ class preprocess(object):
         self.rgb_order = rgb_order
         self.ori_channel_order = None
 
+    def to_dict(self):
+        return {
+            'net_input_dims': self.net_input_dims,
+            'resize_dims': self.resize_dims,
+            'mean': self.mean,
+            'std': self.std,
+            'input_scale': self.input_scale,
+            'raw_scale': self.raw_scale,
+            'data_format': "n{}".format(self.data_format),
+            'rgb_order': self.rgb_order,
+        }
+
     def run(self, input, output_npz=None, pfunc=None,
             input_name=None, input_type='file',
             input_channel_order="rgb", output_channel_order="bgr",

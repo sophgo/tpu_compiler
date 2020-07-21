@@ -6,7 +6,7 @@ from cvi_toolkit.transform.tflite_converter import TFLiteConverter
 from cvi_toolkit.transform.tensorflow_converter import TFConverter
 from cvi_toolkit.transform.caffe_converter import CaffeConverter
 from cvi_toolkit.utils.log_setting import setup_logger
-from cvi_toolkit.data.preprocess import add_preprocess_parser
+from cvi_toolkit.data.preprocess import add_preprocess_parser, preprocess
 
 logger = setup_logger('root', log_level="INFO")
 CVI_SupportFramework = [
@@ -20,6 +20,15 @@ CVI_SupportFramework = [
 def Convert(args):
     if args.model_type not in CVI_SupportFramework:
         raise ValueError("Not support {} type".format(args.model_type))
+    preprocessor = preprocess()
+    preprocessor.config(net_input_dims=args.net_input_dims,
+                        resize_dims=args.image_resize_dims,
+                        mean=args.mean,
+                        mean_file=args.mean_file,
+                        input_scale=args.input_scale,
+                        raw_scale=args.raw_scale,
+                        std=args.std,
+                        rgb_order=args.model_channel_order)
     # only caffe support
     preprocess_args = {
         "swap_channel": args.swap_channel,
@@ -31,11 +40,13 @@ def Convert(args):
         "rgb_order": args.model_channel_order,
         "data_format": args.data_format,
     }
+
+    preprocessor.to_dict()
     if args.model_type == "onnx":
         onnx_model = onnx.load(args.model_path)
         c = OnnxConverter(args.model_name, onnx_model,
                           args.mlir_file_path, batch_size=args.batch_size,
-                          convert_preprocess=args.convert_preprocess, preprocess_args=preprocess_args
+                          convert_preprocess=args.convert_preprocess, preprocess_args=preprocessor.to_dict()
                         )
     elif args.model_type == "tflite":
         c = TFLiteConverter(
