@@ -132,6 +132,7 @@ class OnnxConverter(BaseConverter):
             "Gemm": lambda node: self.convert_gemm_op(node),
             "GlobalAveragePool": lambda node: self.convert_global_pool_op(node),
             "GlobalMaxPool": lambda node: self.convert_global_pool_op(node),
+            "GRU": lambda node: self.convert_gru_op(node),
             "Identity": lambda node: self.convert_skip_op(node),
             "LeakyRelu": lambda node: self.convert_leaky_relu_op(node),
             "LRN": lambda node: self.convert_lrn_op(node),
@@ -909,6 +910,53 @@ class OnnxConverter(BaseConverter):
         elif onnx_node.op_type == "GlobalMaxPool":
             pool_op = self.CVI.add_pool_max_2d_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **pool_2d_param)
         self.addOperand(onnx_node.name, pool_op, output_shape, TensorType.ACTIVATION)
+
+    def convert_gru_op(self, onnx_node):
+        assert(onnx_node.op_type == "GRU")
+        op, input_shape, _ = self.getOperand(onnx_node.inputs[0])
+        seq_length, batch_size, _ = input_shape
+        if batch_size > 1:
+            raise RuntimeError("GRU does not support batch inference so far.")
+
+        operands = list()
+        operands.append(op)
+
+        weight_name = onnx_node.inputs[1]
+        weight_tensor = self.getTensor(weight_name)
+        weight_op = self.CVI.add_load_file_op(weight_name, weight_tensor.shape)
+        operands.append(weight_op)
+
+        recurrent_name = onnx_node.inputs[2]
+        recurrent_tensor = self.getTensor(recurrent_name)
+        recurrent_op = self.CVI.add_load_file_op(recurrent_name, recurrent_tensor.shape)
+        operands.append(recurrent_op)
+
+        bias_name = onnx_node.inputs[3]
+        if len(bias_name) != 0:
+            bias_tensor = self.getTensor(bias_name)
+            bias_op = self.CVI.add_load_file_op(bias_name, bias_tensor.shape)
+            operands.append(bias_op)
+
+        if len(onnx_node.inputs[4]) != 0:
+            raise RuntimeError("GRU does not test the case of specify the sequence_lens.")
+
+        initial_h_name = onnx_node.inputs[5]
+        if len(initial_h_name) != 0:
+            _, _, tensor_type = self.getOperand(initial_h_name)
+
+            if tensor_type == TensorType.TENSOR:
+                initial_h_tensor = self.getTensor(initial_h_name)
+                initial_h_op = self.CVI.add_load_file_op(initial_h_name, initial_h_tensor.shape)
+                operands.append(initial_h_op)
+                # initial_h shape = [num_directions, batch_size, hidden_size]
+                # output shape = [seq_length, num_directions, batch_size, hidden_size]
+                output_shape = [seq_length]
+                output_shape.extend(initial_h_tensor.shape)
+            else:
+                raise RuntimeError("GRU only support initial_h from activation currently.")
+
+        gru_op = self.CVI.add_gru_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
+        self.addOperand(onnx_node.name, gru_op, output_shape, TensorType.ACTIVATION)
 
     def convert_leaky_relu_op(self, onnx_node):
         assert(onnx_node.op_type == "LeakyRelu")
