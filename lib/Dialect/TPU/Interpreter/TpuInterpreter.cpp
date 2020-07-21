@@ -1875,16 +1875,25 @@ LogicalResult tpu::PreprocessOp::interpret(
   std::vector<int64_t> shape;
   int64_t input_size, n, c, h, w;
   getTensorShapeAndSize(op->getOperand(0), shape, input_size);
-  assert(input_size == size);
   getNCHW(shape, n, c, h, w);
+
+  std::shared_ptr<std::vector<float>> input = opdT[0];
+
   // use copy for now
-  std::vector<int> orders;
+  std::vector<int> color_orders;
+  std::vector<int> transpose_orders;
   std::vector<float> means;
   std::vector<float> stds;
   if (this->color_order().hasValue()) {
     for (auto o : llvm::enumerate(this->color_order().getValue())) {
       auto attr = o.value().dyn_cast<IntegerAttr>();
-      orders.push_back(attr.getInt());
+      color_orders.push_back(attr.getInt());
+    }
+  }
+  if (this->transpose_order().hasValue()) {
+    for (auto m : llvm::enumerate(this->transpose_order().getValue())) {
+      auto attr = m.value().dyn_cast<IntegerAttr>();
+      transpose_orders.push_back(attr.getInt());
     }
   }
   if (this->mean().hasValue()) {
@@ -1899,9 +1908,40 @@ LogicalResult tpu::PreprocessOp::interpret(
       stds.push_back((float)attr.getValueAsDouble());
     }
   }
+  int64_t on, oc, oh, ow;
 
-  my_preprocess(opdT[0]->data(), resultT->data(), n, c, h, w,
-                orders, means, stds, this->raw_scale().convertToFloat(),
+  getNCHW(shape, on, oc, oh, ow);
+  // Transpose
+  std::vector<float> transpose_tmp_data(input_size);
+  transpose_tmp_data.resize(input_size);
+  if (transpose_orders.size()){
+    on = shape.at(transpose_orders.at(0));
+    oc = shape.at(transpose_orders.at(1));
+    oh = shape.at(transpose_orders.at(2));
+    ow = shape.at(transpose_orders.at(3));
+    my_permute(input->data(), transpose_tmp_data.data(), shape.size(),
+               shape.at(0),
+               shape.at(1),
+               shape.at(2),
+               shape.at(3),
+               on,
+               oc,
+               oh,
+               ow,
+               transpose_orders.at(0),
+               transpose_orders.at(1),
+               transpose_orders.at(2),
+               transpose_orders.at(3));
+  }else{
+    transpose_tmp_data.assign(input->begin(), input->end());
+  }
+
+  // crop
+  // if (transpose_orders.size) {
+  // }
+
+  my_preprocess(transpose_tmp_data.data(), resultT->data(), on, oc, oh, ow,
+                color_orders, means, stds, this->raw_scale().convertToFloat(),
                 this->scale().convertToFloat());
 
   valueMapping[result] = std::move(resultT);
