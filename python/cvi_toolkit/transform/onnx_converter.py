@@ -117,7 +117,7 @@ class OnnxConverter(BaseConverter):
             "Add": lambda node: self.convert_add_op(node),
             "AveragePool": lambda node: self.convert_avg_pool_op(node),
             "BatchNormalization": lambda node: self.convert_batchnorm_op(node),
-            "Cast": lambda node: self.convert_skip_op(node),
+            "Cast": lambda node: self.convert_cast_op(node),
             "Concat": lambda node: self.convert_concat_op(node),
             "Conv": lambda node: self.convert_conv_op(node),
             "Clip": lambda node: self.convert_clip_op(node),
@@ -454,6 +454,23 @@ class OnnxConverter(BaseConverter):
         output_shape = input_shape
         scaleop = self.CVI.add_scale_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
         self.addOperand(onnx_node.name, scaleop, output_shape, TensorType.ACTIVATION)
+
+    def convert_cast_op(self, onnx_node):
+        assert(onnx_node.op_type == "Cast")
+        op, input_shape, tensor_type = self.getOperand(onnx_node.inputs[0])
+        if tensor_type == TensorType.TENSOR:
+            dtype = onnx_node.attrs.get('to')
+            data = self.getTensor(onnx_node.inputs[0]).tensor_data
+            if dtype == "int64":
+                data = data.astype(np.int64)
+            else:
+                raise RuntimeError("{} dtype not support, please add".format(dtype))
+            output_data = data
+            output_shape = input_shape
+            self.addTensor(onnx_node.name, output_data, output_shape)
+            self.addOperand(onnx_node.name, None, output_shape, TensorType.TENSOR)
+        else:
+            self.addOperand(onnx_node.name, op, input_shape, TensorType.ACTIVATION)
 
     def convert_constant_op(self, onnx_node):
         """
@@ -1454,6 +1471,7 @@ class OnnxConverter(BaseConverter):
         else:
             axes = self.getTensor(onnx_node.inputs[3]).tensor_data
 
+        steps = [1]
         if len(onnx_node.inputs) == 5:
             # steps
             _, _, _tesnor_type = self.getOperand(onnx_node.inputs[4])
@@ -1462,8 +1480,8 @@ class OnnxConverter(BaseConverter):
                     "{} steps type be tensor, not find".format(onnx_node.name))
             else:
                 steps = self.getTensor(onnx_node.inputs[4]).tensor_data
-                assert(len(steps.flatten()) == 1)  # steps only has one value
-                if steps.flatten()[0] != 1:
+                assert(len(steps) == 1)  # steps only has one value
+                if steps[0] != 1 and step[0] != -1:
                     raise RuntimeError("only support one steps slices")
 
         assert(len(starts) == len(ends))
@@ -1473,9 +1491,11 @@ class OnnxConverter(BaseConverter):
             if len(axes) > 1:
                 raise RuntimeError("Todo: Slice not support axes > 1 case")
             else:
+                if steps[0] == -1:
+                    output_data = tensor_data[starts[0]:ends[0]:steps[0]]
+                else:
                 # slice
-                output_data = tensor_data.take(indices=range(int(starts[0]), int(ends[0])), axis=int(axes[0]))
-
+                    output_data = tensor_data.take(indices=range(int(starts[0]), int(ends[0])), axis=int(axes[0]))
                 output_shape = list(output_data.shape)
                 self.addTensor(onnx_node.name, output_data, output_shape)
                 self.addOperand(onnx_node.name, None, output_shape, TensorType.TENSOR)
