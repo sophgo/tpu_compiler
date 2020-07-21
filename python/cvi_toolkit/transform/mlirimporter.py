@@ -804,12 +804,12 @@ class MLIRImporter(object):
             'std': self.module.arrayAttr([self.module.floatAttr(x) for x in kargs['std']]),
             'scale': self.module.floatAttr(kargs['scale']),
             'raw_scale': self.module.floatAttr(kargs['raw_scale']),
-            'color_order': self.module.stringAttr(kargs['color_order']),
+            'color_order': self.module.arrayAttr([self.module.integerAttr(self.i32Type, x) for x in kargs['color_order']]),
             'data_format': self.module.stringAttr(kargs['data_format'])
         }
 
         return self.buildOp(TPU_OpType.Preprocess.value, inputOperands, [
-            tensor_output_type], name=preprocess_name, **attrs)
+            tensor_output_type], name=preprocess_name, quant=self.quant_param, **attrs)
 
     def add_prelu_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = self.module.make_ranked_tensor_type(

@@ -304,15 +304,22 @@ class OnnxConverter(BaseConverter):
             if self.convert_preprocess:
                 input_no_preprocess_op = self.CVI.add_input_op(
                     "{}_no_preprocess".format(input.name), idx)
+                color_order = np.array([0,1,2])
+                if self.preprocess_args.get('rgb_order') == "rgb":
+                    # we read image use opencv, opencv default is bgr
+                    # we need to swap to rgb
+                    color_order = np.array([2,1,0])
                 # add preprocess
                 preprocess_attr = {
                     'mean': np.array([float(s) for s in self.preprocess_args.get('mean').split(',')], dtype=np.float32),
                     'std':  np.array([float(s) for s in self.preprocess_args.get('std').split(',')], dtype=np.float32),
                     'scale': self.preprocess_args.get('scale'),
                     'raw_scale': self.preprocess_args.get('raw_scale'),
-                    'color_order': self.preprocess_args.get('rgb_order'),
+                    'color_order': color_order,
                     'data_format': self.preprocess_args.get('data_format'),
                 }
+
+
                 input_op = self.CVI.add_preprocess_op(
                     input.name, [input_no_preprocess_op], input_shape, **preprocess_attr)
             else:
