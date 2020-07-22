@@ -66,7 +66,7 @@ cvi_npz_tool.py compare \
     ${NET}_blobs.npz \
     --op_info ${NET}_op_info.csv \
     --excepts $EXCEPTS \
-    --tolerance=${TOLERANCE_FP32} -vv
+    --tolerance=0.999,0.999,0.998 -vv
 
 if [ $DO_PREPROCESS -ne 1 ]; then
   cvi_npz_tool.py to_bin ${NET}_in_fp32.npz $INPUT ${NET}_in_fp32.bin

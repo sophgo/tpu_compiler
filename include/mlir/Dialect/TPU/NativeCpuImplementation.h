@@ -100,11 +100,4 @@ int my_pad_constant(float *input, float *output,
                     std::vector<int64_t> &input_shape,
                     std::vector<int> &pads, float const_val);
 
-void gen_bf16_table(int start, int end, int table_hw, float *table,
-                           double (*activate_func)(double));
-
-void gen_bf16_slope_table(int start, int end, int table_hw,
-                                         float *table,
-                                         float *slope_table, double (*activate_func)(double));
-
 #endif // MLIR_DIALECT_TPU_NATIVE_CPU_IMPLEMENTATION_H_

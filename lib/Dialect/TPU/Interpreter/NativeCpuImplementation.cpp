@@ -1,6 +1,5 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
-#include "llvm/Support/Format.h"
 
 #include <numeric>
 #include <functional>
@@ -14,9 +13,6 @@
 
 #include "mkldnn.hpp"
 #include <math.h>
-
-// align cmodel
-#include "bmkernel/bm1880v2/1880v2_fp_convert.h"
 
 #define DEBUG_TYPE "native-cpu"
 
@@ -558,130 +554,12 @@ template <typename Dtype>
 inline Dtype sigmoid(Dtype x) {
   return 0.5 * tanh(0.5 * x) + 0.5;
 }
-
-void gen_bf16_table(int start, int end, int table_hw, float *table,
-                           double (*activate_func)(double)) {
-  int half = table_hw / 2;
-  int table_idx = 0;
-  int range = abs(end - start);
-  float interval = (float)range / (float)table_hw;
-  double x_value;
-  double y_value;
-
-  // Set idx [0 , 127] fp32 and bf16 data
-  for (int i = 0; i < half; i++) {
-    x_value = i * interval;
-    y_value = activate_func(x_value);
-    table[table_idx] = y_value;
-    table_idx++;
-  }
-  // set idx 128 fp32 and bf16 data
-  table[table_idx] = activate_func(start);
-
-  ++table_idx;
-  // set idx 129 to 256, 2's complment
-  for (int i = 1; i < half; i++) {
-    x_value = start + i * interval;
-    y_value = activate_func(x_value);
-    table[table_idx] = y_value;
-    table_idx++;
-  }
-}
-
-void gen_bf16_slope_table(int start, int end, int table_hw,
-                                         float *table,
-                                         float *slope_table, double (*activate_func)(double)) {
-  int range = abs(end - start);
-  float interval = (float)range / (float)table_hw;
-  int half = table_hw / 2;
-  for (int i = 0; i < table_hw; ++i) {
-    double x0 = table[i];
-    double x1 = table[i + 1];
-    double delta = 1.0;
-    if (i == half - 1) {
-      x1 = activate_func(end);
-    } else if (i == half) {
-      // idx = 128, x0 is -128, x1 is -129
-      x1 = activate_func(start - interval);
-      delta = -1.0;
-    } else if (i > half) {
-      x0 = table[i];
-      x1 = table[i - 1];
-      delta = -1.0;
-    }
-    float slope = (x1 - x0) / delta;
-    slope_table[i] = slope;
-  }
-}
-
-// align cmodel
-extern const int BF16_TABLE_START;
-extern const int BF16_TABLE_END;
 int my_sigmoid(float *input, float *output, int n, int c, int h, int w) {
   LLVM_DEBUG(llvm::errs() << "  n: " << n << ", c: " << c << ", h: " << h
                           << ", w: " << w << "\n";);
-  int npu_num = 32; //<! 1880v2 hardcode
 
-  //<! 1880v2 hw bf16 config
-  int table_h = 32;
-  int table_w = 8;
-  std::vector<float> y0_table;
-  std::vector<float> y0_slope_table; // use in bf16
-  int table_hw = table_h * table_w;
-  int tbl_shape = npu_num * table_hw;
-  y0_table.resize(tbl_shape);
-  y0_slope_table.resize(tbl_shape);
-  std::vector<float> y0_fp32_table(table_hw);
-  std::vector<float> y0_fp32_slope_table(table_hw);
-  std::vector<uint16_t> y0_bf16_table(table_hw);
-  std::vector<uint16_t> y0_bf16_slope_table(table_hw);
-
-  // use function pointer
-  double (*activate_func)(double);
-  activate_func = sigmoid;
-
-  gen_bf16_table(BF16_TABLE_START, BF16_TABLE_END, table_hw,
-      y0_fp32_table.data(), activate_func);
-
-  gen_bf16_slope_table(BF16_TABLE_START, BF16_TABLE_END, table_hw,
-      y0_fp32_table.data(), y0_fp32_slope_table.data(),
-      activate_func);
-
-  for (int i = 0; i < table_hw; i++) {
-    // convert fp32 to bf16
-    y0_bf16_table.data()[i] = convert_fp32_bf16(y0_fp32_table.data()[i]);
-    y0_bf16_slope_table.data()[i] = convert_fp32_bf16(y0_fp32_slope_table.data()[i]);
-  }
-
-  int shape_size =  n * c * h * w;
-  int scale = 256 / (BF16_TABLE_END - BF16_TABLE_START); // quant from interger index range from 16(-8~8)->256(lut index size)
-
-  // rounding
-  scale = convert_bf16_fp32(convert_fp32_bf16(scale));
-  for (int i = 0; i < shape_size; ++i) {
-    if (0) {
+  for (int i = 0; i < n * c * h * w; ++i) {
       output[i] = sigmoid(input[i]);
-    }
-    else {
-      float rescale_input = convert_bf16_fp32(convert_fp32_bf16(input[i])) * scale;
-      uint16_t rescale_input_bf16 = convert_fp32_bf16(rescale_input);
-
-      // get interger part to get table index and x0
-      int rescale_input_i8 = _convert_bf16_s8(rescale_input_bf16, /*int8_rnd_mode=*/1);
-
-      // get delta x (x - x0)
-      float delta_x = rescale_input - rescale_input_i8;
-
-      // get slope
-      uint16_t slope = y0_bf16_slope_table[rescale_input_i8 & 0xff];
-
-      // base y0 = f(x0)
-      uint16_t base = y0_bf16_table[rescale_input_i8 & 0xff];
-
-      // result = y0 + delta * slope
-      float r = convert_bf16_fp32(base) + delta_x * convert_bf16_fp32(slope);
-      output[i] = convert_bf16_fp32(convert_fp32_bf16(r));
-    }
   }
 
   return 0;
