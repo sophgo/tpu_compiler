@@ -1887,7 +1887,6 @@ LogicalResult tpu::PreprocessOp::interpret(
   std::vector<int> transpose_orders;
   std::vector<float> means;
   std::vector<float> stds;
-  std::vector<int> crop_shape;
   std::vector<int> crop_offset;
 
   if (this->color_order().hasValue()) {
@@ -1915,12 +1914,6 @@ LogicalResult tpu::PreprocessOp::interpret(
     }
   }
 
-  if (this->crop_shape().hasValue()) {
-    for (auto m : llvm::enumerate(this->crop_shape().getValue())) {
-      auto attr = m.value().dyn_cast<IntegerAttr>();
-      crop_shape.push_back(attr.getInt());
-    }
-  }
   if (this->crop_offset().hasValue()) {
     for (auto m : llvm::enumerate(this->crop_offset().getValue())) {
       auto attr = m.value().dyn_cast<IntegerAttr>();
@@ -1960,16 +1953,8 @@ LogicalResult tpu::PreprocessOp::interpret(
 
   // crop
   std::vector<float> crop_tmp_data;
-  int crop_size = std::accumulate(std::begin(crop_shape), std::end(crop_shape),
-                                  1, std::multiplies<>());
-  if (crop_size < input_size) {
-    if (crop_size != output_size){
-      std::stringstream err_msg;
-      err_msg << "crop_size  v.s. output_size:(" << crop_size << "v.s."
-              << output_size << ") not the same\n";
-      throw std::runtime_error(err_msg.str());
-    }
-    crop_tmp_data.resize(crop_size);
+  if (output_size < input_size) {
+    crop_tmp_data.resize(output_size);
     std::vector<int> indices(t_shape.size(), 0);
     my_crop(transpose_tmp_data.data(), crop_tmp_data.data(), t_shape.data(),
             output_shape.data(), 0, crop_offset.data(),

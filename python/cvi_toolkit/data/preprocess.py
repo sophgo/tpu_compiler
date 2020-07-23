@@ -131,7 +131,6 @@ class preprocess(object):
             'data_format': "n{}".format(self.data_format),
             'rgb_order': self.rgb_order,
             'crop_offset': self.get_center_crop_offset(),
-            'crop_shape': self.get_crop_shape(),
         }
 
     def get_center_crop_offset(self):
@@ -141,9 +140,6 @@ class preprocess(object):
         starty = h//2-(cropy//2)
         return [0, 0, startx, starty]
 
-    def get_crop_shape(self):
-        cropx, cropxy= self.net_input_dims
-        return [1, 3, cropx, cropxy]
 
     def run(self, input, output_npz=None, pfunc=None,
             input_name=None, input_type='file',

@@ -322,8 +322,6 @@ class OnnxConverter(BaseConverter):
                     transpose_order = np.array([0, 3, 1, 2])
                 if self.preprocess_args.get('net_input_dims') != self.preprocess_args.get('resize_dims'):
                     # center crop
-                    crop_shape = np.array(
-                        self.preprocess_args.get('crop_shape'))
                     crop_offset = np.array(self.preprocess_args.get('crop_offset'))
                 # add preprocess
                 preprocess_attr = {
@@ -333,7 +331,6 @@ class OnnxConverter(BaseConverter):
                     'raw_scale': self.preprocess_args.get('raw_scale'),
                     'color_order': color_order,
                     'transpose_order': transpose_order,
-                    'crop_shape': crop_shape,
                     'crop_offset': crop_offset
                 }
 
