@@ -549,6 +549,55 @@ LogicalResult tpu::DeConv2DOp::interpret(
   return doConv2DOpInterpret<tpu::DeConv2DOp>(op, valueMapping);
 }
 
+LogicalResult tpu::DilateOp::interpret(
+    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+  Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
+
+  auto opdT = getOperandTensors(op, valueMapping);
+  auto result = this->getResult();
+  auto size = getTensorSize(result);
+  auto resultT = std::make_unique<std::vector<float>>(size);
+
+  std::vector<int64_t> shape;
+  int64_t input_size, n, ic, ih, iw;
+  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  getNCHW(shape, n, ic, ih, iw);
+
+  float *input = (float *)opdT[0]->data();
+  float *output = (float *)resultT.get()->data();
+  auto fill_constant = this->fill_constant().getLimitedValue();
+
+  // get is dilate activation
+  std::vector<int32_t> ins;
+  arrayAttrToVector(this->ins().getValue(), ins);
+
+  int ins_w = 0;
+  int ins_h = 0;
+  if (ins.size()) {
+    ins_w = ins[0];
+    ins_h = 0;
+    if (ins.size() > 1) {
+      ins_h = ins[1];
+    }
+  }
+
+  // check output is valid
+  std::vector<int64_t> output_shape;
+  int64_t output_size, on, oc, oh, ow;
+  getTensorShapeAndSize(result, output_shape, output_size);
+  getNCHW(output_shape, on, oc, oh, ow);
+  assert(oh == calc_dilute_hw (ih, ins_h, 0, 0, 0) && "mismatch output shape with ins_h");
+  assert(ow == calc_dilute_hw (iw, ins_w, 0, 0, 0) && "mismatch output shape with ins_w");
+
+
+  my_dilateActivation (input, output, 0, 0, ins_h, 0, 0, 0, ins_w, 0, n, ic, ih, iw, fill_constant);
+
+  valueMapping[result] = std::move(resultT);
+
+  return success();
+}
+
 LogicalResult tpu::CropOp::interpret(
     DenseMap<Value *, std::shared_ptr<std::vector<float>>> &valueMapping) {
   Operation *op = this->getOperation();
@@ -1470,6 +1519,23 @@ static LogicalResult doPool2DOpInterpret(Operation *op, bool is_average,
   // apply qscale on output for average pooling, max poolings are bypassed
   if (is_average && getOpQuant(op) == "INT8") {
     assert(quant_rshift && quant_multiplier);
+    std::vector<float> conv_result(size);
+
+    {
+      // sumulate hw that not support Division,
+      // we add it in kernel and divide by (rightshift)
+      // it should call by "pool sum", we leverage by depthwise conv
+      int filter_shape = c * kh * kw;
+      int g = c;
+      int oc = c;
+      int dh = 1, dw = 1;
+      std::vector<float> conv_filter(filter_shape, 1);
+      int ret = mkldnn_conv(input, conv_filter.data(), NULL,
+          conv_result.data(), n, c, ih, iw, oc, oh, ow, kh, kw,
+          sh, sw, dh, dw, pt, pb, pl, pr, g);
+      assert(ret == 0);
+    }
+
     for (int64_t i = 0; i < size; ++i) {
       // multiplier is taking avg_const into account
       // restore sum value first
@@ -1477,7 +1543,8 @@ static LogicalResult doPool2DOpInterpret(Operation *op, bool is_average,
       if (is_global){
         sum = output[i];
       } else {
-        sum = std::round(output[i] * kh * kw);
+        sum = conv_result[i];
+        //sum = std::round(output[i] * kh * kw);
       }
       output[i] = (float)applyMultiplierAndRShiftAndSaturateInt8(
           sum, (uint32_t)quant_rshift->at(0),

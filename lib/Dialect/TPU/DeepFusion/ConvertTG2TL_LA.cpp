@@ -35,7 +35,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/MathExtras.h"
-#include "SimpleAnalysis.h"
+#include "mlir/Dialect/TPU/SimpleAnalysis.h"
 
 #define DEBUG_TYPE "deep-fusion-tg2tl-la"
 

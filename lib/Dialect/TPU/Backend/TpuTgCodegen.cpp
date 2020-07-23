@@ -441,6 +441,20 @@ LogicalResult tpu::TG_INT8_PT_Conv2DOp::codegen(void *ctx) {
                  oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, is_dw,
                  with_bias, do_relu);
 
+  // get is dilate activation
+  std::vector<int32_t> ins;
+  arrayAttrToVector(param().ins(), ins);
+  int ins_w = 0;
+  int ins_h = 0;
+  int ins_last_h = 0;
+  int ins_last_w = 0;
+  if (ins.size()) {
+    ins_w = ins[0];
+    if (ins.size() > 1) {
+      ins_h = ins[1];
+    }
+  }
+
   gaddr_t ga_input = getPreviousOpAddress(op);
   gaddr_t ga_output = getOpAddress(op);
   gaddr_t ga_filter = getWeightOpAddress(filter()->getDefiningOp());
@@ -504,6 +518,7 @@ LogicalResult tpu::TG_INT8_PT_Conv2DOp::codegen(void *ctx) {
       kh, kw,
       dh, dw,
       pt, pb, pl, pr, // pad (t, b, l, r)
+      //ins_w, ins_h, ins_last_h, ins_last_w,
       sh, sw,
       with_bias, // bias_term,
       0,         // do_bn,
@@ -543,6 +558,20 @@ LogicalResult tpu::TG_INT8_PC_Conv2DOp::codegen(void *ctx) {
   parseConvParam(param(), false, input(), output(), filter(), n, ic, ih, iw, oc,
                  oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, is_dw,
                  with_bias, do_relu);
+
+  // get is dilate activation
+  std::vector<int32_t> ins;
+  arrayAttrToVector(param().ins(), ins);
+  int ins_w = 0;
+  int ins_h = 0;
+  int ins_last_h = 0;
+  int ins_last_w = 0;
+  if (ins.size()) {
+    ins_w = ins[0];
+    if (ins.size() > 1) {
+      ins_h = ins[1];
+    }
+  }
 
   gaddr_t ga_input = getPreviousOpAddress(op);
   gaddr_t ga_output = getOpAddress(op);
@@ -625,6 +654,7 @@ LogicalResult tpu::TG_INT8_PC_Conv2DOp::codegen(void *ctx) {
       kh, kw,
       dh, dw,
       pt, pb, pl, pr, // pad (t, b, l, r)
+      //ins_w, ins_h, ins_last_h, ins_last_w,
       sh, sw,
       with_bias, // bias_term,
       0,         // do_bn,
@@ -812,6 +842,70 @@ LogicalResult tpu::TG_BF16_DeConv2DOp::codegen(void *ctx) {
   //CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   //Operation *op = this->getOperation();
 
+  std::string errorMsg = "unsupported tg op " + getOpName().str();
+  llvm_unreachable(errorMsg.c_str());
+}
+
+LogicalResult tpu::TG_INT8_DilateOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+  int layer_id = mlir::getOpLayerId(op);
+  gaddr_t input_gaddr = getPreviousOpAddress(op);
+
+  auto fill_constant = this->fill_constant().getLimitedValue();
+  gaddr_t output_gaddr = getOpAddress(op);
+
+  std::vector<int64_t> input_shape;
+  int64_t input_size, in, ic, ih, iw;
+  getTensorShapeAndSize(op->getOperand(0), input_shape, input_size);
+  getNCHW(input_shape, in, ic, ih, iw);
+
+  std::vector<int64_t> output_shape;
+  int64_t output_size, on, oc, oh, ow;
+  getTensorShapeAndSize(this->getResult(), output_shape, output_size);
+  getNCHW(output_shape, on, oc, oh, ow);
+
+  assert(in == on && "only support dilate h/w");
+  assert(ic == oc && "only support dilate h/w");
+
+  // get is dilate activation
+  std::vector<int32_t> ins;
+  arrayAttrToVector(this->ins().getValue(), ins);
+
+  int ins_w = 0;
+  int ins_h = 0;
+  if (ins.size()) {
+    ins_w = ins[0];
+    ins_h = 0;
+    if (ins.size() > 1) {
+      ins_h = ins[1];
+    }
+
+    dilate_fixed_forward_bmkernel(*backend_ctx, // ctx,
+        0,            // stream_id
+        0,            // inst_id
+        layer_id,
+        nullptr,      // depends
+        0,            // depends_len
+        input_gaddr,  // bottom_gaddr,
+        output_gaddr, // top_gaddr
+        in, ic, ih, iw,
+        oh, ow,
+        fill_constant,
+        ins_h, ins_w,
+        CVI_FMT_I8);
+  }
+
+  return success();
+}
+
+LogicalResult tpu::TG_BF16_DilateOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  //CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  //Operation *op = this->getOperation();
   std::string errorMsg = "unsupported tg op " + getOpName().str();
   llvm_unreachable(errorMsg.c_str());
 }

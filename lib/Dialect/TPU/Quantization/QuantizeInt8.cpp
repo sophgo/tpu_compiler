@@ -942,6 +942,7 @@ LogicalResult tpu::Conv2DOp::quantizeInt8() {
 }
 
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::CropOp)
+DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::DilateOp)
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::CustomOp)
 
 LogicalResult tpu::DeConv2DOp::quantizeInt8() {
