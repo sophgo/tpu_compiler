@@ -1870,12 +1870,16 @@ LogicalResult tpu::PreprocessOp::interpret(
                           << "]\n";);
   auto opdT = getOperandTensors(op, valueMapping);
   auto result = this->getResult();
-  auto size = getTensorSize(result);
-  auto resultT = std::make_unique<std::vector<float>>(size);
-  std::vector<int64_t> shape;
+  std::vector<int64_t> input_shape;
+  std::vector<int64_t> output_shape;
   int64_t input_size, n, c, h, w;
-  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
-  getNCHW(shape, n, c, h, w);
+  int64_t output_size, on, oc, oh, ow;
+  getTensorShapeAndSize(op->getOperand(0), input_shape, input_size);
+  getTensorShapeAndSize(result, output_shape, output_size);
+  getNCHW(input_shape, n, c, h, w);
+  getNCHW(output_shape, on, oc, oh, ow);
+
+  auto resultT = std::make_unique<std::vector<float>>(output_size);
 
   std::shared_ptr<std::vector<float>> input = opdT[0];
 
@@ -1884,6 +1888,9 @@ LogicalResult tpu::PreprocessOp::interpret(
   std::vector<int> transpose_orders;
   std::vector<float> means;
   std::vector<float> stds;
+  std::vector<int> crop_shape;
+  std::vector<int> crop_offset;
+
   if (this->color_order().hasValue()) {
     for (auto o : llvm::enumerate(this->color_order().getValue())) {
       auto attr = o.value().dyn_cast<IntegerAttr>();
@@ -1908,39 +1915,73 @@ LogicalResult tpu::PreprocessOp::interpret(
       stds.push_back((float)attr.getValueAsDouble());
     }
   }
-  int64_t on, oc, oh, ow;
 
-  getNCHW(shape, on, oc, oh, ow);
+  if (this->crop_shape().hasValue()) {
+    for (auto m : llvm::enumerate(this->crop_shape().getValue())) {
+      auto attr = m.value().dyn_cast<IntegerAttr>();
+      crop_shape.push_back(attr.getInt());
+    }
+  }
+  if (this->crop_offset().hasValue()) {
+    for (auto m : llvm::enumerate(this->crop_offset().getValue())) {
+      auto attr = m.value().dyn_cast<IntegerAttr>();
+      crop_offset.push_back(attr.getInt());
+    }
+  }
+
+
   // Transpose
   std::vector<float> transpose_tmp_data(input_size);
   transpose_tmp_data.resize(input_size);
+  int t_on, t_oc, t_oh, t_ow;
+  std::vector<int64_t> t_shape;
   if (transpose_orders.size()){
-    on = shape.at(transpose_orders.at(0));
-    oc = shape.at(transpose_orders.at(1));
-    oh = shape.at(transpose_orders.at(2));
-    ow = shape.at(transpose_orders.at(3));
-    my_permute(input->data(), transpose_tmp_data.data(), shape.size(),
-               shape.at(0),
-               shape.at(1),
-               shape.at(2),
-               shape.at(3),
-               on,
-               oc,
-               oh,
-               ow,
+    t_on = input_shape.at(transpose_orders.at(0));
+    t_oc = input_shape.at(transpose_orders.at(1));
+    t_oh = input_shape.at(transpose_orders.at(2));
+    t_ow = input_shape.at(transpose_orders.at(3));
+    my_permute(input->data(), transpose_tmp_data.data(), input_shape.size(),
+               input_shape.at(0),
+               input_shape.at(1),
+               input_shape.at(2),
+               input_shape.at(3),
+               t_on,
+               t_oc,
+               t_oh,
+               t_ow,
                transpose_orders.at(0),
                transpose_orders.at(1),
                transpose_orders.at(2),
                transpose_orders.at(3));
+    t_shape = {t_on, t_oc, t_oh, t_ow};
   }else{
     transpose_tmp_data.assign(input->begin(), input->end());
+    t_shape.assign(input_shape.begin(), input_shape.end());
   }
 
   // crop
-  // if (transpose_orders.size) {
-  // }
+  std::vector<float> crop_tmp_data;
+  int crop_size = std::accumulate(std::begin(crop_shape), std::end(crop_shape),
+                                  1, std::multiplies<>());
+  if (crop_size < input_size) {
+    if (crop_size != output_size){
+      std::stringstream err_msg;
+      err_msg << "crop_size  v.s. output_size:(" << crop_size << "v.s."
+              << output_size << ") not the same\n";
+      throw std::runtime_error(err_msg.str());
+    }
+    crop_tmp_data.resize(crop_size);
+    std::vector<int> indices(t_shape.size(), 0);
+    my_crop(transpose_tmp_data.data(), crop_tmp_data.data(), t_shape.data(),
+            crop_shape.data(), output_shape.data(), 0, crop_offset.data(),
+            indices.data());
 
-  my_preprocess(transpose_tmp_data.data(), resultT->data(), on, oc, oh, ow,
+  } else {
+    crop_tmp_data.assign(transpose_tmp_data.begin(), transpose_tmp_data.end());
+  }
+
+  // scale
+  my_preprocess(crop_tmp_data.data(), resultT->data(), on, oc, oh, ow,
                 color_orders, means, stds, this->raw_scale().convertToFloat(),
                 this->scale().convertToFloat());
 

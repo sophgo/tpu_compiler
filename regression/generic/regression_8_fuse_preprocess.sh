@@ -49,7 +49,6 @@ if [ $DO_FUSE_PREPROCESS -eq 1 ]; then
 
     # test frontend optimizations
     mlir-tpu-interpreter ${NET}_opt.mlir \
-      -debug \
       --tensor-in ${NET}_only_resize_in_fp32.npz \
       --tensor-out ${NET}_out_fp32.npz \
       --dump-all-tensor=${NET}_tensor_all_fp32.npz

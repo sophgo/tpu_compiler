@@ -41,7 +41,6 @@ def Convert(args):
         "data_format": args.data_format,
     }
 
-    preprocessor.to_dict()
     if args.model_type == "onnx":
         onnx_model = onnx.load(args.model_path)
         c = OnnxConverter(args.model_name, onnx_model,

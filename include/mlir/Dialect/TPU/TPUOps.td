@@ -1386,7 +1386,9 @@ def TPU_PreprocessOp : TPU_Op<"preprocess",
       `scale`           : required, scale value multipled to input feature maps
       `raw_scale`       : required, Multiply raw input by this scale before preprocessing.
       `color_order`     : required, color swap order
-      `transpose_order` : the data is stored in the order of
+      `crop_shape`      : required, crop shape.
+      `crop_offset`     : required, crop offset.
+      `transpose_order` : required, the data is stored in the order of
       `name`            : required, name for calibration, comparing, or debug.
       `layer_id`        : optional, id for profiling.
       `chipname`        : optional, chipname.
@@ -1410,6 +1412,8 @@ def TPU_PreprocessOp : TPU_Op<"preprocess",
     OptionalAttr<I32ArrayAttr>:$transpose_order,
     StrAttr:$name,
     OptionalAttr<I32ArrayAttr>:$color_order,
+    OptionalAttr<I32ArrayAttr>:$crop_shape,
+    OptionalAttr<I32ArrayAttr>:$crop_offset,
     TPU_QuantParamAttr:$quant,
     OptionalAttr<NonNegativeI32Attr>:$layer_id,
     OptionalAttr<StrAttr>:$chipname

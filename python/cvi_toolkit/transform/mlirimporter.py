@@ -800,6 +800,8 @@ class MLIRImporter(object):
         checkKey(kargs, 'raw_scale')
         checkKey(kargs, 'color_order')
         checkKey(kargs, 'transpose_order')
+        checkKey(kargs, 'crop_shape')
+        checkKey(kargs, 'crop_offset')
 
         preprocess_name = self.module.stringAttr(op_name)
 
@@ -811,6 +813,8 @@ class MLIRImporter(object):
             'raw_scale': self.module.floatAttr(kargs['raw_scale']),
             'color_order': self.module.arrayAttr([self.module.integerAttr(self.i32Type, x) for x in kargs['color_order']]),
             'transpose_order': self.module.arrayAttr([self.module.integerAttr(self.i32Type, x) for x in kargs['transpose_order']]),
+            'crop_shape': self.module.arrayAttr([self.module.integerAttr(self.i32Type, x) for x in kargs['crop_shape']]),
+            'crop_offset': self.module.arrayAttr([self.module.integerAttr(self.i32Type, x) for x in kargs['crop_offset']]),
         }
 
         return self.buildOp(TPU_OpType.Preprocess.value, inputOperands, [

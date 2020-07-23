@@ -185,9 +185,14 @@ class OnnxConverter(BaseConverter):
                 else:
                     input_shape.append(dim.dim_value)
             if self.convert_preprocess:
-                if self.preprocess_args.get("data_format") == "NHWC":
-                    # change to nchw
-                    input_shape = [input_shape[0], input_shape[3], input_shape[1], input_shape[2]]
+                if self.preprocess_args.get("data_format") == "nchw":
+                    resize_h, resize_w = self.preprocess_args.get(
+                        "resize_dims")
+
+                    # beacause of opencv imread data_format default is nhwc
+                    # if model data format is nchw, fused preprocess need to change it
+                    input_shape = [input_shape[0], resize_h, resize_w, input_shape[1]]
+
             inputs.append(input_shape)
         # get output shape
         outputs = list()
@@ -295,20 +300,31 @@ class OnnxConverter(BaseConverter):
                 else:
                     input_shape.append(dim.dim_value)
 
-                if self.convert_preprocess:
-                    # add preprocess
-                    if self.preprocess_args.get("data_format") == "NHWC":
-                        # change to nchw
-                        input_shape =[input_shape[0], input_shape[3], input_shape[1], input_shape[2]]
-
             if self.convert_preprocess:
+                resize_h, resize_w = self.preprocess_args.get(
+                        "resize_dims")
+
+                # add preprocess
                 input_no_preprocess_op = self.CVI.add_input_op(
                     "{}_no_preprocess".format(input.name), idx)
-                color_order = np.array([0,1,2])
+                color_order = np.array([0 ,1, 2])
+                transpose_order = np.array([0, 1, 2, 3])
+                crop_shape = np.array(
+                    self.preprocess_args.get('crop_shape'))
+                crop_offset = np.array(self.preprocess_args.get('crop_offset'))
                 if self.preprocess_args.get('rgb_order') == "rgb":
                     # we read image use opencv, opencv default is bgr
                     # we need to swap to rgb
                     color_order = np.array([2,1,0])
+                if self.preprocess_args.get('data_format') == "nchw":
+                    # opencv default is nhwc
+                    # we need to transpose to nchw
+                    transpose_order = np.array([0, 3, 1, 2])
+                if self.preprocess_args.get('net_input_dims') != self.preprocess_args.get('resize_dims'):
+                    # center crop
+                    crop_shape = np.array(
+                        self.preprocess_args.get('crop_shape'))
+                    crop_offset = np.array(self.preprocess_args.get('crop_offset'))
                 # add preprocess
                 preprocess_attr = {
                     'mean': np.array([float(s) for s in self.preprocess_args.get('mean')], dtype=np.float32),
@@ -316,12 +332,14 @@ class OnnxConverter(BaseConverter):
                     'scale': self.preprocess_args.get('input_scale'),
                     'raw_scale': self.preprocess_args.get('raw_scale'),
                     'color_order': color_order,
-                    'data_format': self.preprocess_args.get('data_format'),
+                    'transpose_order': transpose_order,
+                    'crop_shape': crop_shape,
+                    'crop_offset': crop_offset
                 }
 
-
+                output_shape = input_shape
                 input_op = self.CVI.add_preprocess_op(
-                    input.name, [input_no_preprocess_op], input_shape, **preprocess_attr)
+                    input.name, [input_no_preprocess_op], output_shape, **preprocess_attr)
             else:
                 input_op = self.CVI.add_input_op(input.name, idx)
 
