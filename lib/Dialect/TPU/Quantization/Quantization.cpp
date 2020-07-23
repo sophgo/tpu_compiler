@@ -356,6 +356,112 @@ struct TpuGenLrnTablePattern : public RewritePattern {
   }
 };
 
+struct ExtendPreprocessOpPattern : public RewritePattern {
+  ExtendPreprocessOpPattern(MLIRContext *context)
+      : RewritePattern("tpu.preprocess", 1, context) {}
+
+  PatternMatchResult matchAndRewrite(Operation *op,
+                                     PatternRewriter &rewriter) const override {
+    auto preprocessOp = cast<tpu::PreprocessOp>(op);
+
+    auto builder = OpBuilder(op);
+    auto input_op = op->getOperand(0);
+    auto result = op->getResult(0);
+    std::vector<int64_t> output_shape;
+    std::vector<int64_t> input_shape;
+    int64_t in, ic, ih, iw, on, oc, oh, ow, output_size, input_size;
+    getTensorShapeAndSize(op->getOperand(0), input_shape, input_size);
+    getTensorShapeAndSize(result, output_shape, output_size);
+    getNCHW(input_shape, in, ic, ih, iw);
+    getNCHW(output_shape, on, oc, oh, ow);
+
+    Type eltType = FloatType::getF32(builder.getContext());
+
+    // create int8 transpose
+    int64_t tn, tc, th, tw;
+    std::vector<NamedAttribute> transpose_attrs;
+    std::string tranpose_name =
+        getOpName(preprocessOp).str() + "_preprocess_tranpose";
+    std::vector<int> transpose_orders;
+    int layer_id = getOpLayerId(preprocessOp);
+    if (preprocessOp.transpose_order().hasValue()) {
+      for (auto m :
+           llvm::enumerate(preprocessOp.transpose_order().getValue())) {
+        auto attr = m.value().dyn_cast<IntegerAttr>();
+        transpose_orders.push_back(attr.getInt());
+      }
+    }
+
+    tn = input_shape[transpose_orders.at(0)];
+    tc = input_shape[transpose_orders.at(1)];
+    th = input_shape[transpose_orders.at(2)];
+    tw = input_shape[transpose_orders.at(3)];
+
+    transpose_attrs.push_back(
+        builder.getNamedAttr("name", builder.getStringAttr(tranpose_name)));
+    transpose_attrs.push_back(builder.getNamedAttr(
+        "order0", builder.getI32IntegerAttr(transpose_orders.at(0))));
+    transpose_attrs.push_back(
+        builder.getNamedAttr("quant", getDefaultQuantParam(builder)));
+    transpose_attrs.push_back(builder.getNamedAttr(
+        "order1", builder.getI32IntegerAttr(transpose_orders.at(1))));
+    transpose_attrs.push_back(builder.getNamedAttr(
+        "order2", builder.getI32IntegerAttr(transpose_orders.at(2))));
+    transpose_attrs.push_back(builder.getNamedAttr(
+        "order3", builder.getI32IntegerAttr(transpose_orders.at(3))));
+    transpose_attrs.push_back(
+        builder.getNamedAttr("layer_id", builder.getI32IntegerAttr(layer_id)));
+
+    auto transpose_type = RankedTensorType::get({tn, tc, th, tw}, eltType);
+    auto transpose_op = OpBuilder(op).create<tpu::PermuteOp>(
+        op->getLoc(), transpose_type, ArrayRef<Value *>{input_op},
+        ArrayRef<NamedAttribute>{transpose_attrs});
+    setOpThreshold(transpose_op, 127);
+    setOpQuantParamType(transpose_op, "THRESHOLD");
+    setOpQuant(transpose_op, "INT8");
+
+    // create int8 crop
+    std::string crop_name =
+        getOpName(preprocessOp).str() + "_preprocess_crop";
+    std::vector<int> crop_offset;
+    if (preprocessOp.crop_offset().hasValue()) {
+      for (auto m : llvm::enumerate(preprocessOp.crop_offset().getValue())) {
+        auto attr = m.value().dyn_cast<IntegerAttr>();
+        crop_offset.push_back(attr.getInt());
+      }
+    }
+    std::vector<int> crop_shape(4);
+    crop_shape.assign(output_shape.begin(), output_shape.end());
+    auto crop_type = RankedTensorType::get({on, oc, oh, ow}, eltType);
+    std::vector<NamedAttribute> crop_attrs;
+    crop_attrs.push_back(builder.getNamedAttr(
+        "crop_shape",
+        builder.getI32ArrayAttr(ArrayRef<int32_t>({crop_shape}))));
+    crop_attrs.push_back(builder.getNamedAttr(
+        "crop_offset",
+        builder.getI32ArrayAttr(ArrayRef<int32_t>({crop_offset}))));
+    crop_attrs.push_back(
+        builder.getNamedAttr("name", builder.getStringAttr(crop_name)));
+    crop_attrs.push_back(
+        builder.getNamedAttr("quant", getDefaultQuantParam(builder)));
+    crop_attrs.push_back(
+        builder.getNamedAttr("layer_id", builder.getI32IntegerAttr(layer_id)));
+    // we only accept first input to IR, second input shape will be attribute.
+    auto crop_op = OpBuilder(op).create<tpu::CropOp>(
+        op->getLoc(), crop_type, ArrayRef<Value *>{transpose_op},
+        ArrayRef<NamedAttribute>{crop_attrs});
+    setOpThreshold(crop_op, 127);
+    setOpQuantParamType(crop_op, "THRESHOLD");
+    setOpQuant(crop_op, "INT8");
+    // create bf16 mul
+
+    // create bf16 add
+
+    rewriter.replaceOp(preprocessOp, {crop_op.getResult()});
+    return matchSuccess();
+  }
+};
+
 class TpuQuantPass : public FunctionPass<TpuQuantPass> {
 
 public:
@@ -425,6 +531,11 @@ public:
         }
       }
     });
+
+    // unzip preprocess op
+    OwningRewritePatternList preprocess_patterns;
+    preprocess_patterns.insert<ExtendPreprocessOpPattern>(context);
+    applyPatternsGreedily(fn, preprocess_patterns);
 
     // do quant
     fn.walk([&](Operation *op) {

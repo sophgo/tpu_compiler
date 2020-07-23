@@ -785,7 +785,8 @@ LogicalResult quantizeInt8BypassOps(Operation *op) {
       || isa<tpu::LrnTwoOp>(op)
       || isa<tpu::LrnThreeOp>(op)
       || isa<tpu::LrnOp>(op)
-      || isa<tpu::TransposeOp>(op)) {
+      || isa<tpu::TransposeOp>(op)
+      || isa<tpu::PermuteOp>(op)) {
     skip_checking = true;
   }
 

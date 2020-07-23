@@ -45,10 +45,10 @@ if [ $DO_FUSE_PREPROCESS -eq 1 ]; then
       --print-tpu-op-info \
       --tpu-op-info-filename ${NET}_op_info.csv \
       ${NET}_fused_preprocess.mlir \
-      -o ${NET}_opt.mlir
+      -o ${NET}_opt_fused_preprocess.mlir
 
     # test frontend optimizations
-    mlir-tpu-interpreter ${NET}_opt.mlir \
+    mlir-tpu-interpreter ${NET}_opt_fused_preprocess.mlir \
       --tensor-in ${NET}_only_resize_in_fp32.npz \
       --tensor-out ${NET}_out_fp32.npz \
       --dump-all-tensor=${NET}_tensor_all_fp32.npz
@@ -57,8 +57,26 @@ if [ $DO_FUSE_PREPROCESS -eq 1 ]; then
       ${NET}_tensor_all_fp32.npz \
       ${NET}_blobs.npz \
       --op_info ${NET}_op_info.csv \
-      --excepts $EXCEPTS \
+      --excepts="$EXCEPTS,input" \
       --tolerance=0.999,0.999,0.998 -vv
+
+    mlir-opt \
+      ${ENABLE_CALI_OVERWRITE_THRESHOLD_FORWARD} \
+      --import-calibration-table \
+      --calibration-table ${CALI_TABLE}\
+      ${NET}_opt_fused_preprocess.mlir \
+      -o ${NET}_cali_fused_preprocess.mlir
+
+    mlir-opt \
+      -debug \
+      --assign-chip-name \
+      --chipname ${SET_CHIP_NAME} \
+      --tpu-quant \
+      --print-tpu-op-info \
+      --tpu-op-info-filename ${NET}_op_info_int8_multiplier.csv \
+      ${NET}_cali_fused_preprocess.mlir \
+      -o ${NET}_quant_int8_multiplier_fused_preprocess.mlir
+
 fi
 
 # VERDICT
