@@ -543,8 +543,7 @@ LogicalResult tpu::CropOp::interpret(
   float *input = (float *)opdT[0]->data();
   float *output = (float *)resultT.get()->data();
 
-  my_crop(input, output, input_shape1.data(), input_shape2.data(),
-          output_shape.data(), 0, crop_offset.data(), indices.data());
+  my_crop(input, output, input_shape1.data(), output_shape.data(), 0, crop_offset.data(), indices.data());
   valueMapping[result] = std::move(resultT);
 
   return success();
@@ -1973,7 +1972,7 @@ LogicalResult tpu::PreprocessOp::interpret(
     crop_tmp_data.resize(crop_size);
     std::vector<int> indices(t_shape.size(), 0);
     my_crop(transpose_tmp_data.data(), crop_tmp_data.data(), t_shape.data(),
-            crop_shape.data(), output_shape.data(), 0, crop_offset.data(),
+            output_shape.data(), 0, crop_offset.data(),
             indices.data());
 
   } else {

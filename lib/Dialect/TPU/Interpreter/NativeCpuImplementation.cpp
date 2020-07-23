@@ -1247,13 +1247,13 @@ inline int crop_offset(const std::vector<int>& indices,long int *shape) {
     return offset;
 }
 
-int my_crop(float *input, float *output, long int *shape1, int *shape2, long int *top_shape,
+int my_crop(float *input, float *output, long int *input_shape, long int *output_shape,
             int cur_dim, int *offsets, int *indices) {
   // for loop if dim is not last
   if (cur_dim + 1 < 4) {
-    for (int i = 0; i < top_shape[cur_dim]; ++i) {
+    for (int i = 0; i < output_shape[cur_dim]; ++i) {
       indices[cur_dim] = i;
-      my_crop(input, output, shape1, shape2, top_shape, cur_dim + 1, offsets,
+      my_crop(input, output, input_shape, output_shape, cur_dim + 1, offsets,
               indices);
     }
   } else {
@@ -1267,7 +1267,9 @@ int my_crop(float *input, float *output, long int *shape1, int *shape2, long int
     }
     ind_off[cur_dim] = offsets[cur_dim];
 
-    memcpy(output + crop_offset(ind_red, top_shape) , input + crop_offset(ind_off, shape1) , sizeof(float) * shape2[cur_dim]);
+    memcpy(output + crop_offset(ind_red, output_shape),
+           input + crop_offset(ind_off, input_shape),
+           sizeof(float) * output_shape[cur_dim]);
   }
   return 0;
 }
