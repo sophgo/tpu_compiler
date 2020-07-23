@@ -15,6 +15,7 @@ ImLayer::ImLayer(IR_TYPE type, Operation* op, bool fusible)
       type_(type),
       op_(op) {
   name_ = mlir::getOpName(op);
+  layer_id_ = mlir::getOpLayerId(op);
   //is_inplace_layer = op->in_place();
   is_inplace_layer = false;
 }
@@ -25,14 +26,14 @@ void ImLayer::add_in_tensor(int n, int c, int h, int w, int unit_size,
                             std::string& storage , const std::string& name,
                             tensor_type_t type) {
   std::shared_ptr<Tensor> tensor =
-      Tensor::register_tensor(n, c, h, w, unit_size, storage, name, type);
+      Tensor::register_tensor(n, c, h, w, unit_size, storage, name, type, layer_id_);
   in_tensors.push_back(tensor);
 }
 
 void ImLayer::add_in_tensor(ShapedType* shape, const std::string& name,
                             tensor_type_t type) {
   std::shared_ptr<Tensor> tensor =
-      Tensor::register_tensor(shape, name, type);
+      Tensor::register_tensor(shape, name, type, layer_id_);
   in_tensors.push_back(tensor);
 }
 
@@ -44,12 +45,12 @@ void ImLayer::add_in_tensor(Value * v, tensor_type_t type) {
     if (auto load_op = dyn_cast<tpu::LoadWeightOp>(def_op)) {
       std::string name = load_op.name();
       std::shared_ptr<Tensor> tensor =
-          Tensor::register_tensor(&shape, name, TENSOR_COEFF);
+          Tensor::register_tensor(&shape, name, TENSOR_COEFF, layer_id_);
       in_tensors.push_back(tensor);
     } else {
       std::string name = mlir::getOpName(def_op);
       std::shared_ptr<Tensor> tensor =
-          Tensor::register_tensor(&shape, name, type);
+          Tensor::register_tensor(&shape, name, type, layer_id_);
       in_tensors.push_back(tensor);
     }
   }
@@ -62,16 +63,16 @@ void ImLayer::add_out_tensor(Value * v, tensor_type_t type) {
     if (auto load_op = dyn_cast<tpu::LoadWeightOp>(def_op)) {
       std::string name = load_op.name();
       std::shared_ptr<Tensor> tensor =
-          Tensor::register_tensor(&shape, name, TENSOR_COEFF);
+          Tensor::register_tensor(&shape, name, TENSOR_COEFF, layer_id_);
       out_tensors.push_back(tensor);
     } else if (auto ret_op = dyn_cast<ReturnOp>(def_op)) {
       std::shared_ptr<Tensor> tensor =
-          Tensor::register_tensor(&shape, "return", TENSOR_NEURON);
+          Tensor::register_tensor(&shape, "return", TENSOR_NEURON, layer_id_);
       out_tensors.push_back(tensor);
     } else {
       std::string name = mlir::getOpName(def_op);
       std::shared_ptr<Tensor> tensor =
-          Tensor::register_tensor(&shape, name, type);
+          Tensor::register_tensor(&shape, name, type, layer_id_);
       out_tensors.push_back(tensor);
     }
   }
@@ -238,6 +239,21 @@ ImConv::ImConv(Operation* p) : ImLayer(IR_CONVOLUTION, p, true) {
   std::string weightOpName = weightOp.name().str();
   int32_t unit_size = getOpResultUnitSize(weightOp);
   std::string storage = getWeightStorage(weightOp);
+
+  // get is dilate activation
+  bool is_ins = false;
+  if (isa<tpu::TG_INT8_PC_Conv2DOp>(p)) {
+    auto op = dyn_cast<tpu::TG_INT8_PC_Conv2DOp>(p);
+    std::vector<int32_t> ins;
+    arrayAttrToVector(op.param().ins(), ins);
+    is_ins = !ins.empty();
+  }
+
+  if (is_ins) {
+    // ins mode cant slice h/w
+    fusible = false;
+  }
+
   if (is_dw) {
     add_in_tensor(1, oc, kh, kw, unit_size, storage, weightOpName, TENSOR_DEPTHCONV_OPD1);
   }

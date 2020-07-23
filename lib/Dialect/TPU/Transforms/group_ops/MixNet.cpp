@@ -145,6 +145,8 @@ void MixNet::add_group_end_ops(int group_idx, Group* group, int n_secs, int h_se
     std::vector<NamedAttribute> attrs;
     attrs.push_back(builder_.getNamedAttr("name",
                     builder_.getStringAttr(old_name)));
+    attrs.push_back(builder_.getNamedAttr("layer_id",
+                    builder_.getI32IntegerAttr(0))); //don't care cus pseudo ir
     auto join_op = OpBuilder(get_start_op()).create<tpu::TL_LG_JoinOp>(
                              get_start_op()->getLoc(), old_op_r->getType(),
                              ArrayRef<Value *>{operands},
@@ -1556,6 +1558,7 @@ void MixNet::_add_load_op(int tensor_id,
 
   // build tl_load instruction
   attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(name)));
+  attrs.push_back(builder_.getNamedAttr("layer_id", builder_.getI32IntegerAttr(tensor->layer_id())));
   attrs.push_back(builder_.getNamedAttr("laddr", builder_.getI64IntegerAttr(laddr)));
   attrs.push_back(builder_.getNamedAttr("align", builder_.getBoolAttr(aligned)));
   attrs.push_back(builder_.getNamedAttr("transpose", builder_.getBoolAttr(transpose)));
@@ -1624,6 +1627,7 @@ void MixNet::_add_store_op(int tensor_id, net_timestep * time_step, int timestep
   std::vector<NamedAttribute> attrs;
   Builder builder_(context_);
   attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(store_op_name)));
+  attrs.push_back(builder_.getNamedAttr("layer_id", builder_.getI32IntegerAttr(tensor->layer_id())));
   attrs.push_back(builder_.getNamedAttr("offset", builder_.getI64IntegerAttr(offset)));
   attrs.push_back(builder_.getNamedAttr("laddr", builder_.getI64IntegerAttr(laddr)));
   attrs.push_back(builder_.getNamedAttr("align", builder_.getBoolAttr(aligned)));

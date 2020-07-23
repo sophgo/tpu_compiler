@@ -70,6 +70,8 @@ class ImLayer {
 
   const std::string &name() const { return name_; }
 
+  int layer_id() const { return layer_id_; }
+
   Operation *op() const { return op_; }
 
   void set_id(int id) { id_ = id; }
@@ -111,6 +113,7 @@ class ImLayer {
   std::string type_name_;
   std::string name_;
   Operation *op_;
+  int layer_id_; // keep in mlir SSA
 };
 
 class ImConv : public ImLayer {
