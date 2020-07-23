@@ -76,6 +76,16 @@ struct TpuRefactorEltAndConvPattern : public RewritePattern {
         }
     }
 
+    if (isKernel1x1AndStrideBiggerThanOne) {
+      auto shape = eltAddOp.output()->getType().cast<TensorType>().getShape();//Refactor eltOp
+      if (shape[2] % strideH == 0 && shape[3] % strideW == 0) {
+      }
+      else {
+        // it could be not divisible
+        return matchFailure();
+      }
+    }
+
     if(isKernel1x1AndStrideBiggerThanOne) {
         LLVM_DEBUG(llvm::errs() << "Refactor elt and conv" << "\n";);
         for (auto &use : op->getResult(0)->getUses()) { //Refactor convOp
