@@ -207,6 +207,10 @@ if __name__ == '__main__':
 
     output = torch.from_numpy(res)
 
+    # tensorflow slim mobilenet has 1001 classes, all classes will be shift one
+    # the first element is empty background class
+    if output.size(1) == 1001:
+        output = output[:, 1:1001]
     loss = criterion(output, target)
 
     # measure accuracy and record loss
