@@ -383,6 +383,7 @@ LogicalResult tpu::FullyConnectedOp::quantizeBf16() {
   return quantizeBf16FullyConnectedOps(op);
 }
 
+DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::GruOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::InputOp)
 
 LogicalResult tpu::LeakyReluOp::quantizeBf16() {

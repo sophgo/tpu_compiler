@@ -32,6 +32,11 @@ static size_t write_bianry_file(std::string filename, const char *data,
 }
 #endif // DUMP_FLAG
 
+template <typename Dtype>
+inline Dtype sigmoid(Dtype x) {
+  return 0.5 * tanh(0.5 * x) + 0.5;
+}
+
 int mkldnn_conv(float *input, float *weight, float *bias,
     float *output, int n, int ic, int ih, int iw, int oc, int oh, int ow,
     int kh, int kw, int sh, int sw, int dh, int dw, int pt, int pb, int pl, int pr, int g) {
@@ -477,6 +482,91 @@ int mkldnn_ip(float *input, float *weight, float *bias,
   return 0;
 }
 
+int my_gru(float *input, float *output, 
+           float *weight, float *recurrence, float *bias, float *initial_h, 
+           int seq_len, int batch_size, int input_size, int hidden_size, 
+           bool b_bidirectional, bool b_linear_before_reset) {
+  assert(b_bidirectional == false);
+  assert(b_linear_before_reset == true);
+  assert(batch_size == 1);
+  assert(initial_h);
+  // TODO: optimize gru implementation, ex: use mkldnn
+  // weight: Concatenation of weight matrix for update, reset, and hidden gates. shape = [num_directions, 3*hidden_size, input_size]
+  // recurrence: Concatenation of recurrence weight matrix for update, reset, and hidden gates
+  // bias: Concatenation of Wb[update, reset, hidden gates] and Rb[update, reset, hidden gates], shape = [num_directions, 6*hidden_size]
+  // initial_h: [num_directions, batch_size, hidden_size]
+
+  int num_directions = b_bidirectional ? 2 : 1;
+  int gate_weight_size = hidden_size * input_size;
+  float* prev_hidden_state = initial_h; // ht
+  float* update_gate = new float[hidden_size]; // zt
+  float* reset_gate = new float[hidden_size]; // rt
+  float* hidden_gate = new float[hidden_size]; // ht
+
+  for (int t = 0; t < seq_len; ++t) {
+    // zt = sigmoid(Xt*(Wz^T) + Ht-1*(Rz^T) + Wbz + Rbz)
+    // rt = sigmoid(Xt*(Wr^T) + Ht-1*(Rr^T) + Wbr + Rbr)
+    // ht = tanh(Xt*(Wh^T) + (rt (.) (Ht-1*(Rh^T) + Rbh)) + Wbh) # when linear_before_reset != 0
+    // Wzrh: hidden_size * input_size
+    // Rzrh: hidden_size * hidden_size
+    // Xt: seq_len * batch_size * input_size
+    float* xt = input + (t * input_size);
+
+    for (int i = 0; i < hidden_size; ++i) {
+      update_gate[i] = 0;
+      reset_gate[i] = 0;
+      hidden_gate[i] = 0;
+    }
+
+    for (int i = 0; i < hidden_size; ++i) {
+      float* wz = weight + i * input_size;
+      float* wr = weight + (hidden_size + i) * input_size;
+      float* wh = weight + (2 * hidden_size + i) * input_size;
+      float* rz = recurrence + i * hidden_size;
+      float* rr = recurrence + (hidden_size + i) * hidden_size;
+
+      for (int j = 0; j < input_size; ++j) {
+        update_gate[i] += wz[j] * xt[j];
+        reset_gate[i] += wr[j] * xt[j];
+        hidden_gate[i] += wh[j] * xt[j];
+      }
+
+      for (int j = 0; j < hidden_size; ++j) {
+        update_gate[i] += rz[j] * prev_hidden_state[j];
+        reset_gate[i] += rr[j] * prev_hidden_state[j];
+      }
+
+      update_gate[i] = sigmoid(update_gate[i] + bias[i] + bias[3 * hidden_size + i]);
+      reset_gate[i] = sigmoid(reset_gate[i] + bias[hidden_size + i] + bias[4 * hidden_size + i]);
+      hidden_gate[i] += bias[2 * hidden_size + i];
+    }
+
+    // second part of hidden gate
+    // (rt (.) (Ht-1*(Rh^T) + Rbh)) + Wbh) # when linear_before_reset != 0
+    for (int i = 0; i < hidden_size; ++i) {
+      float* rh = recurrence + (2 * hidden_size + i) * hidden_size;
+      float hidden_gate_acc = 0;
+
+      for (int j = 0; j < hidden_size; ++j)
+        hidden_gate_acc += rh[j] * prev_hidden_state[j];
+
+      hidden_gate_acc += bias[5 * hidden_size + i];
+      hidden_gate[i] = tanh(hidden_gate[i] + reset_gate[i] * hidden_gate_acc);
+    }
+
+    // Ht = (1 - zt) (.) ht + zt (.) Ht-1
+    float* hidden_state = output + t * hidden_size;
+    for (int i = 0; i < hidden_size; ++i)
+      hidden_state[i] = ((1 - update_gate[i]) * hidden_gate[i]) + (update_gate[i] * prev_hidden_state[i]);
+    
+    prev_hidden_state = hidden_state;
+  }
+  delete[] update_gate;
+  delete[] reset_gate;
+  delete[] hidden_gate;
+  return 0;
+}
+
 int my_avg_pooling(float *input, float *output, int n, int c, int ih, int iw,
                    int oh, int ow, int kh, int kw, int sh, int sw, int pt,
                    int pb, int pl, int pr) {
@@ -550,10 +640,6 @@ int my_prelu(float *input, float *output, int n, int c, int h, int w,
   return 0;
 }
 
-template <typename Dtype>
-inline Dtype sigmoid(Dtype x) {
-  return 0.5 * tanh(0.5 * x) + 0.5;
-}
 int my_sigmoid(float *input, float *output, int n, int c, int h, int w) {
   LLVM_DEBUG(llvm::errs() << "  n: " << n << ", c: " << c << ", h: " << h
                           << ", w: " << w << "\n";);

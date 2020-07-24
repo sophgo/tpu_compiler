@@ -904,6 +904,7 @@ LogicalResult tpu::PReluOp::quantizeInt8() {
   return quantizeInt8PReluOps(op);
 }
 
+DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::GruOp)
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::LrnOneOp)
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::LrnTwoOp)
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::LrnThreeOp)

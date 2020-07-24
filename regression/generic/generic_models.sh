@@ -1102,6 +1102,13 @@ export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_onnx/regression_gru_toy_0
 export INPUT=input
 export OUTPUTS_FP32=output
 export OUTPUTS=output
+export DO_QUANT_INT8=0
+export DO_QUANT_BF16=0
+export DO_LAYERGROUP=0
+export DO_E2E=0
+export DO_DEEPFUSION=0
+export DO_NN_TOOLKIT=0
+export DO_QUANT_MIX=0
 fi
 
 if [ $NET = "efficientnet-lite_b0" ]; then
