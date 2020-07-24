@@ -482,7 +482,7 @@ int mkldnn_ip(float *input, float *weight, float *bias,
   return 0;
 }
 
-int my_gru(float *input, float *output, 
+int my_gru(float *input, float *output,
            float *weight, float *recurrence, float *bias, float *initial_h, 
            int seq_len, int batch_size, int input_size, int hidden_size, 
            bool b_bidirectional, bool b_linear_before_reset) {
