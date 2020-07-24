@@ -1,4 +1,5 @@
 from .base_model import model_base
+import tensorflow as tf
 import os
 import numpy as np
 try:
@@ -19,7 +20,7 @@ class TFModel(model_base):
 
     def load_model(self, model_path):
         # TF2 use savedmodel
-        self.net = tf.keras.models.load_model(model_path)
+        self.net = tf.keras.models.load_model(model_path, {'tf': tf})
         if not isinstance(self.net, tf.python.keras.engine.training.Model):
             raise RuntimeError("Not support tf type: {} now".format(type(self.net)))
 
