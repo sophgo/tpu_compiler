@@ -49,10 +49,12 @@ pushd $WORKDIR
 # run tests
 /bin/bash $FP32_INFERENCE_SCRIPT
 $DIR/regression_1_fp32.sh
-$DIR/regression_2_int8_calibration.sh
-$DIR/regression_3_int8_per_tensor.sh
-$DIR/regression_3_int8_rshift_only.sh
-$DIR/regression_3_int8_multiplier.sh
+if [ $DO_QUANT_INT8 -eq 1 ]; then
+  $DIR/regression_2_int8_calibration.sh
+  $DIR/regression_3_int8_per_tensor.sh
+  $DIR/regression_3_int8_rshift_only.sh
+  $DIR/regression_3_int8_multiplier.sh
+fi
 if [ $DO_DEEPFUSION -eq 1 ]; then
   $DIR/regression_4_int8_cmdbuf_deepfusion.sh
 fi
