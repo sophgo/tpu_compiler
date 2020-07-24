@@ -1111,7 +1111,7 @@ LogicalResult tpu::GruOp::interpret(
 
   parseGruParam(this->input(), this->weight(), seq_len, batch_size, input_size, hidden_size);
   my_gru(input->data(), resultT->data(), weight->data(), recurrence->data(), bias->data(), initial_h->data(), 
-              seq_len, batch_size, input_size, hidden_size);
+              seq_len, batch_size, input_size, hidden_size, this->bidirectional(), this->linear_before_reset());
 
   // rshift and saturate on output
   if (getOpQuant() == "NONE") {

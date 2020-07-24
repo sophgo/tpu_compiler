@@ -674,6 +674,8 @@ def TPU_GruOp: TPU_Op<"gru",
     AnyTensor:$initial_h,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
+    DefaultValuedAttr<BoolAttr, "true">:$linear_before_reset,
+    DefaultValuedAttr<BoolAttr, "false">:$bidirectional,
     OptionalAttr<NonNegativeI32Attr>:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
