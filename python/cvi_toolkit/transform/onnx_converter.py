@@ -311,9 +311,9 @@ class OnnxConverter(BaseConverter):
                     color_order = np.array([2,1,0])
                 # add preprocess
                 preprocess_attr = {
-                    'mean': np.array([float(s) for s in self.preprocess_args.get('mean').split(',')], dtype=np.float32),
-                    'std':  np.array([float(s) for s in self.preprocess_args.get('std').split(',')], dtype=np.float32),
-                    'scale': self.preprocess_args.get('scale'),
+                    'mean': np.array([float(s) for s in self.preprocess_args.get('mean')], dtype=np.float32),
+                    'std':  np.array([float(s) for s in self.preprocess_args.get('std')], dtype=np.float32),
+                    'scale': self.preprocess_args.get('input_scale'),
                     'raw_scale': self.preprocess_args.get('raw_scale'),
                     'color_order': color_order,
                     'data_format': self.preprocess_args.get('data_format'),
