@@ -305,6 +305,92 @@ LogicalResult quantizeBf16FullyConnectedOps(Operation *op) {
 }
 
 ///
+/// Gru Ops quantization method
+///
+LogicalResult quantizeBf16GruOps(Operation *op) {
+  assert(getOpQuant(op) == "BF16");
+
+  auto gruOp = cast<tpu::GruOp>(op);
+  TensorFile *wTF = getWeightTensorFile(op);
+
+  // get weight tensor
+  auto weight = readAndDeleteWeightTensor<float>(gruOp.weight(), wTF);
+  std::vector<int64_t> weightShape;
+  int64_t weightSize;
+  getTensorShapeAndSize(gruOp.weight(), weightShape, weightSize);
+
+  // get recurrence tensor
+  auto recurrence = readAndDeleteWeightTensor<float>(gruOp.recurrence(), wTF);
+  std::vector<int64_t> recurrenceShape;
+  int64_t recurrenceSize;
+  getTensorShapeAndSize(gruOp.recurrence(), recurrenceShape, recurrenceSize);
+
+  // get bias tensor
+  std::unique_ptr<std::vector<float> > bias = nullptr;
+  std::vector<int64_t> biasShape;
+  int64_t biasSize = 0;
+  if ( !isTensorNone(gruOp.bias()) ) {
+    bias = readAndDeleteWeightTensor<float>(gruOp.bias(), wTF);
+    getTensorShapeAndSize(gruOp.bias(), biasShape, biasSize);
+  }
+
+  // get initial_h tensor
+  std::unique_ptr<std::vector<float> > initial_h = nullptr;
+  std::vector<int64_t> initial_hShape;
+  int64_t initial_hSize = 0;
+  if ( !isTensorNone(gruOp.initial_h()) ) {
+    initial_h = readAndDeleteWeightTensor<float>(gruOp.initial_h(), wTF);
+    getTensorShapeAndSize(gruOp.initial_h(), initial_hShape, initial_hSize);
+  }
+
+  // create new tensors
+  auto new_weight = std::make_unique<std::vector<bfloat16> >(weightSize);
+  auto new_recurrence = std::make_unique<std::vector<bfloat16> >(recurrenceSize);
+  std::unique_ptr<std::vector<bfloat16> > new_bias = nullptr;
+  std::unique_ptr<std::vector<bfloat16> > new_initial_h = nullptr;
+
+  if (bias) {
+    new_bias = std::make_unique<std::vector<bfloat16> >(biasSize);
+  }
+
+  if (initial_h) {
+    new_initial_h = std::make_unique<std::vector<bfloat16> >(initial_hSize);
+  }
+
+  // quantization
+  FloatToBFloat16(weight->data(), new_weight->data(), weightSize);
+  FloatToBFloat16(recurrence->data(), new_recurrence->data(), recurrenceSize);
+
+  if (bias) {
+    FloatToBFloat16(bias->data(), new_bias->data(), biasSize);
+  }
+
+  if (initial_h) {
+    FloatToBFloat16(initial_h->data(), new_initial_h->data(), initial_hSize);
+  }
+
+  // update op
+  addWeightTensorAndUpdateWeightOp<bfloat16>(gruOp.getOperand(1),
+      "quant", *new_weight, weightShape, "BF16", wTF);
+  addWeightTensorAndUpdateWeightOp<bfloat16>(gruOp.getOperand(2),
+      "quant", *new_recurrence, recurrenceShape, "BF16", wTF);
+
+  if (bias) {
+    addWeightTensorAndUpdateWeightOp<bfloat16>(gruOp.getOperand(3),
+        "quant", *new_bias, biasShape, "BF16", wTF);
+  }
+
+  if (initial_h) {
+    addWeightTensorAndUpdateWeightOp<bfloat16>(gruOp.getOperand(4),
+        "quant", *new_initial_h, initial_hShape, "BF16", wTF);
+  }
+
+  setOpResultType(op, StandardTypes::BF16);
+
+  return success();
+}
+
+///
 /// LeakyRelu Ops quantization method
 ///
 LogicalResult quantizeBf16LeakyReluOps(Operation *op) {
@@ -383,7 +469,13 @@ LogicalResult tpu::FullyConnectedOp::quantizeBf16() {
   return quantizeBf16FullyConnectedOps(op);
 }
 
-DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::GruOp)
+LogicalResult tpu::GruOp::quantizeBf16() {
+  LLVM_DEBUG(llvm::errs() << "quantizeBf16: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  return quantizeBf16GruOps(op);
+}
+
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::InputOp)
 
 LogicalResult tpu::LeakyReluOp::quantizeBf16() {
