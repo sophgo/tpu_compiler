@@ -1100,7 +1100,7 @@ LogicalResult tpu::GruOp::interpret(
   assert(opdT.size() == 5);
   std::shared_ptr<std::vector<float> > input = opdT[0];
   std::shared_ptr<std::vector<float> > weight = opdT[1];
-  std::shared_ptr<std::vector<float> > recurrent = opdT[2];
+  std::shared_ptr<std::vector<float> > recurrence = opdT[2];
   std::shared_ptr<std::vector<float> > bias = opdT[3];
   std::shared_ptr<std::vector<float> > initial_h = opdT[4];
 
@@ -1110,7 +1110,7 @@ LogicalResult tpu::GruOp::interpret(
   int hidden_size = 0;
 
   parseGruParam(this->input(), this->weight(), seq_len, batch_size, input_size, hidden_size);
-  my_gru(input->data(), resultT->data(), weight->data(), recurrent->data(), bias->data(), initial_h->data(), 
+  my_gru(input->data(), resultT->data(), weight->data(), recurrence->data(), bias->data(), initial_h->data(), 
               seq_len, batch_size, input_size, hidden_size);
 
   // rshift and saturate on output

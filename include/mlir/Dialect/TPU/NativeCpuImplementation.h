@@ -17,7 +17,7 @@ int mkldnn_pool(float *input, float *output,
 int mkldnn_ip(float *input, float *weight, float *bias,
     float *output, int m, int k, int n, bool transpose);
 
-int my_gru(float *input, float *output, 
+int my_gru(float *input, float *output,
     float *weight, float *recurrence, float *bias, float *initial_h, 
     int seq_len, int batch_size, int input_size, int hidden_size, 
     bool b_bidirectional=false, bool b_linear_before_reset=true);

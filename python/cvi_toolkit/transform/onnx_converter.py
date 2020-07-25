@@ -926,10 +926,10 @@ class OnnxConverter(BaseConverter):
         weight_op = self.CVI.add_load_file_op(weight_name, weight_tensor.shape)
         operands.append(weight_op)
 
-        recurrent_name = onnx_node.inputs[2]
-        recurrent_tensor = self.getTensor(recurrent_name)
-        recurrent_op = self.CVI.add_load_file_op(recurrent_name, recurrent_tensor.shape)
-        operands.append(recurrent_op)
+        recurrence_name = onnx_node.inputs[2]
+        recurrence_tensor = self.getTensor(recurrence_name)
+        recurrence_op = self.CVI.add_load_file_op(recurrence_name, recurrence_tensor.shape)
+        operands.append(recurrence_op)
 
         bias_name = onnx_node.inputs[3]
         if len(bias_name) != 0:
