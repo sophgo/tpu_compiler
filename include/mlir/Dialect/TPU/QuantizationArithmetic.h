@@ -119,6 +119,12 @@ void quantizeActivationFromBf16ToInt8WithThreshold(float *output, float *input,
 void dequantizeActivationFromInt8ToBf16WithThreshold(float *output, float *input,
     int64_t size, float threshold);
 
+void cmodelQuantizeActivationFromBf16ToInt8WithThreshold(float *output, float *input,
+    int64_t size, float threshold);
+
+void cmodelDequantizeActivationFromInt8ToBf16WithThreshold(float *output, float *input,
+    int64_t size, float threshold);
+
 void quantizeActivationInt8PerLayerRshift(float *output, float *input,
     int64_t size, uint32_t rshift);
 

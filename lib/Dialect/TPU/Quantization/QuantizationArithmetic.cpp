@@ -7,6 +7,9 @@
 
 #define DEBUG_TYPE "quant_arithmetic"
 
+// align cmodel
+#include "bmkernel/bm1880v2/1880v2_fp_convert.h"
+
 namespace mlir {
 
 /// find max_weight for each c
@@ -559,6 +562,8 @@ int8_t applyMultiplierAndRShiftAndSaturateInt8(int32_t v,
 
 void FloatToBFloat16(const float* src, bfloat16* dst, size_t size,
     bool rounding) {
+  // HW not support rounding mode
+  rounding = false;
   // const uint16_t* p = reinterpret_cast<const uint16_t*>(src);
   const uint16_t* p = nullptr;
   /// if rounding is prefered than trancating
@@ -575,15 +580,43 @@ void FloatToBFloat16(const float* src, bfloat16* dst, size_t size,
   }
 
   uint16_t* q = reinterpret_cast<uint16_t*>(dst);
+  const uint16_t* p_head = p;
+  size_t org_size = size;
+
 #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
   for (; size != 0; p += 2, q++, size--) {
-    *q = p[0];
+    const uint32_t* u32_val = reinterpret_cast<const uint32_t*>(p);
+    uint32_t input = *u32_val;
+    uint32_t lsb = p[0] & 1;
+    uint32_t rounding_bias = 0x7fff + lsb;
+    input += rounding_bias;
+    uint16_t* rounding_p = reinterpret_cast<uint16_t*>(&input);
+
+    *q = rounding_p[0];
   }
 #else
   for (; size != 0; p += 2, q++, size--) {
-    *q = p[1];
+    const uint32_t* u32_val = reinterpret_cast<const uint32_t*>(p);
+    uint32_t input = *u32_val;
+    uint32_t lsb = p[1] & 1;
+    uint32_t rounding_bias = 0x7fff + lsb;
+    input += rounding_bias;
+    uint16_t* rounding_p = reinterpret_cast<uint16_t*>(&input);
+
+    *q = rounding_p[1];
   }
 #endif
+
+  q = reinterpret_cast<uint16_t*>(dst);
+  p = p_head;
+  size = org_size;
+  /* HW behavior */
+  for (; size != 0; p += 2, q++, size--) {
+    if (((*q) & 0x7f80) == 0x7f80) {
+      *q = 0x7f7f;
+    }
+  }
+
   if (rounding) {
     free(src_round);
   }
@@ -846,6 +879,33 @@ static inline signed char float2int8(float v, int mode = 0)
     if (int32 > 127) return 127;
     if (int32 < -128) return -128;
     return (signed char)int32;
+  }
+}
+
+/// Cmodel Quantize an Activation tensor into INT8, given threshold
+void cmodelQuantizeActivationFromBf16ToInt8WithThreshold(float *output, float *input,
+    int64_t size, float threshold) {
+  for (int64_t i = 0; i < size; ++i) {
+    float scale = 128.0 / threshold;
+    // sync with backend rounding order
+    bfloat16 in = convert_fp32_bf16(input[i]);
+    bfloat16 s = convert_fp32_bf16(scale);
+    float i_f = convert_bf16_fp32(in);
+    float s_f = convert_bf16_fp32(s);
+    bfloat16 o = convert_fp32_bf16(i_f * s_f);
+
+    output[i] = (float)(_convert_bf16_s8(o, 0));
+  }
+}
+
+/// Cmodel DeQuantize an Activation tensor from INT8, given threshold
+void cmodelDequantizeActivationFromInt8ToBf16WithThreshold(float *output, float *input,
+    int64_t size, float threshold) {
+  for (int64_t i = 0; i < size; ++i) {
+    float scale = threshold / 128.0;
+    // sync with backend rounding function
+    scale = convert_bf16_fp32(convert_fp32_bf16(scale));
+    output[i] = input[i] * scale;
   }
 }
 
