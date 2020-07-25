@@ -145,10 +145,10 @@ std::shared_ptr<ImLayer> ImLayer::create(Operation* op) {
     layer = std::make_shared<ImRelu>(op);
   } else if (isa<tpu::TG_CastOp>(op)) {
     layer = std::make_shared<ImCommon>(op, false, IR_OTHER);
-  } else if (isa<tpu::TG_INT8_QuantOp>(op) || isa<tpu::TG_BF16_QuantOp>(op)) {
-    layer = std::make_shared<ImCommon>(op, false, IR_OTHER);
   } else if (isa<tpu::GenericCpuOp>(op)) {
     layer = std::make_shared<ImCommon>(op, false, IR_OTHER);
+  } else if (isa<tpu::TG_INT8_QuantOp>(op) || isa<tpu::TG_BF16_QuantOp>(op)) {
+    layer = std::make_shared<ImQuant>(op);
   } else if (isa<tpu::QuantOp>(op) ||
              isa<tpu::InputOp>(op) ) {
     layer = std::make_shared<ImCommon>(op, true, IR_OTHER);
@@ -442,15 +442,47 @@ ImConcat::ImConcat(Operation* op) : ImLayer(IR_CONCAT, op, true) {
 
 ImActivation::ImActivation(Operation* op) : ImLayer(IR_ACTIVATION, op, true) {
 
+  // FIXME: only support sigmoid now
+
   add_in_tensor(op->getOperand(0), TENSOR_NEURON);
+  bool isBF16 = isa<tpu::TG_BF16_LutOp>(op);
+  int table_h = 16;
+  int table_w = 16; // 1880 setting
+  if (isBF16) {
+    // TODO: get chip from `chipname` field
+    table_h = 32;
+    table_w = 8; // 1880v2 setting
+  }
 
   // add y table
   auto load_y_table = cast<tpu::LoadWeightOp>(op->getOperand(1)->getDefiningOp());
   int usize = getOpResultUnitSize(load_y_table);
   std::string storage = getWeightStorage(load_y_table);
   std::string y_table_name = load_y_table.name().str();
-  add_in_tensor(1, 32, 16, 16, usize, storage, y_table_name, TENSOR_COEFF);
+  add_in_tensor(1, NPU_NUM, table_h, table_w, usize, storage, y_table_name, TENSOR_COEFF_LUT);
+  add_out_tensor(op->getResult(0), TENSOR_NEURON);
 
+  // add m_table
+  if (isBF16) {
+    // FIXME: support other bf16 activation ops
+    auto load_m_table = cast<tpu::LoadWeightOp>(op->getOperand(2)->getDefiningOp());
+    int usize = getOpResultUnitSize(load_m_table);
+    std::string storage = getWeightStorage(load_m_table);
+    std::string m_table_name = load_m_table.name().str();
+    add_in_tensor(1, NPU_NUM, table_h, table_w, usize, storage, m_table_name, TENSOR_COEFF_LUT);
+
+    // add working table
+    // NOTICE: 4 dims
+    add_imm_tensor(out_tensors[0], 1, name_ + "_imm");
+    //std::vector<int64_t> i_s(op->getResult(0)->getType().cast<TensorType>().getShape());
+    //add_in_tensor(i_s[0], i_s[1], i_s[2], i_s[3], usize, storage,
+    //    getOpName(op).str() + "_working", TENSOR_NEURON);
+  }
+}
+
+ImQuant::ImQuant(Operation* op) : ImLayer(IR_QUANT, op, true) {
+
+  add_in_tensor(op->getOperand(0), TENSOR_NEURON);
   add_out_tensor(op->getResult(0), TENSOR_NEURON);
 }
 

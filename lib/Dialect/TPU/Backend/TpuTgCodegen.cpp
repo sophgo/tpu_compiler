@@ -1904,50 +1904,8 @@ LogicalResult tpu::TG_BF16_PReluOp::codegen(void *ctx) {
 LogicalResult tpu::TG_INT8_QuantOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";
-  assert(this->from() == "BF16");
-  assert(this->to() == "INT8");
-
-  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
-  Operation *op = this->getOperation();
-
-  int layer_id = mlir::getOpLayerId(op);
-  gaddr_t ga_input = getPreviousOpAddress(op);
-  gaddr_t ga_output = getOpAddress(op);
-
-  std::vector<int64_t> shape;
-  int64_t input_size, n, c, h, w;
-  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
-  getNCHW(shape, n, c, h, w);
-
-  // quant:
-  // output[i] = (float)saturateInt8(input[i] * 128.0 / threshold);
-  float threshold = this->threshold().getValue().convertToFloat();
-  float quant = 128.0 / threshold;
-
-  // TODO: leverage scaleOp ?
-  //  quant to int8
-  mixed_precision_tg_bf16_s8(
-          *backend_ctx,//CviBackendContext &ctx,
-          0,//u32 stream_id,
-          0,//u32 inst_id,
-          layer_id,//u32 layer_id,
-          NULL,//const u32 *depends,
-          0,//u32 depends_len,
-          ga_input,//gaddr_t bottom_gaddr,
-          ga_output,//gaddr_t top_gaddr,
-          n,//int input_n,
-          c,//int input_c,
-          h,//int input_h,
-          w,//int input_w,
-          quant//float const_scale
-          );
-  return success();
-}
-
-LogicalResult tpu::TG_BF16_QuantOp::codegen(void *ctx) {
-  llvm::errs() << "TG_codegen: " << getOperationName()
-               << " [" << getOpName() << "]\n";
-
+  // FIXME: rename to dequant, from low accuricy to higher
+  // plz refre LowerToTG.cpp:867 for more details
   assert(this->from() == "INT8");
   assert(this->to() == "BF16");
 
@@ -1984,9 +1942,53 @@ LogicalResult tpu::TG_BF16_QuantOp::codegen(void *ctx) {
           w,//int input_w,
           dequant//float const_scale
           );
-
+  
   return success();
 }
+
+LogicalResult tpu::TG_BF16_QuantOp::codegen(void *ctx) {
+  llvm::errs() << "TG_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";
+
+  assert(this->from() == "BF16");
+  assert(this->to() == "INT8");
+
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  int layer_id = mlir::getOpLayerId(op);
+  gaddr_t ga_input = getPreviousOpAddress(op);
+  gaddr_t ga_output = getOpAddress(op);
+
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  getNCHW(shape, n, c, h, w);
+
+  // quant:
+  // output[i] = (float)saturateInt8(input[i] * 128.0 / threshold);
+  float threshold = this->threshold().getValue().convertToFloat();
+  float quant = 128.0 / threshold;
+  
+  //  quant to int8
+  mixed_precision_tg_bf16_s8(
+          *backend_ctx,//CviBackendContext &ctx,
+          0,//u32 stream_id,
+          0,//u32 inst_id,
+          layer_id,//u32 layer_id,
+          NULL,//const u32 *depends,
+          0,//u32 depends_len,
+          ga_input,//gaddr_t bottom_gaddr,
+          ga_output,//gaddr_t top_gaddr,
+          n,//int input_n,
+          c,//int input_c,
+          h,//int input_h,
+          w,//int input_w,
+          quant//float const_scale
+          );
+  return success();
+}
+
 
 LogicalResult tpu::TG_INT8_ReluOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()

@@ -290,7 +290,8 @@ bool Group::validate_tensor_slice() {
 
     for (auto& tensor : im_layer->in_tensors) {
       if (tensor->type() == TENSOR_COEFF || tensor->type() == TENSOR_BIAS ||
-          tensor->type() == TENSOR_COEFF_WINOGRAD || tensor->type() == TENSOR_DEPTHCONV_OPD1) {
+          tensor->type() == TENSOR_COEFF_LUT || tensor->type() == TENSOR_COEFF_WINOGRAD ||
+          tensor->type() == TENSOR_DEPTHCONV_OPD1) {
         continue;
       }
 
@@ -425,7 +426,8 @@ bool Group::backward_slice(int out_tensor_id, std::list<int>& branches, bool max
     Tensor* tensor = net_graph_->get_tensor_by_id(back_tensors[i]);
 
     if (tensor->type() == TENSOR_COEFF || tensor->type() == TENSOR_BIAS ||
-        tensor->type() == TENSOR_COEFF_WINOGRAD || tensor->type() == TENSOR_DEPTHCONV_OPD1) {
+        tensor->type() == TENSOR_COEFF_LUT || tensor->type() == TENSOR_COEFF_WINOGRAD ||
+        tensor->type() == TENSOR_DEPTHCONV_OPD1) {
       continue;
     }
 

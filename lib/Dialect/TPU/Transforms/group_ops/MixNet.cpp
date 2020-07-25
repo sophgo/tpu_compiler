@@ -1249,11 +1249,11 @@ void MixNet::_add_tl_quant_op(MixOp * mix_op,
 
   if (from == "INT8" && to == "BF16") {
     // dequant
-    const_scale = threshold / 127.0;
+    const_scale = threshold / 128.0;
   }
   else if (from == "BF16" && to == "INT8") {
     // quant
-    const_scale = 127.0 / threshold;
+    const_scale = 128.0 / threshold;
   }
 
   // attrs

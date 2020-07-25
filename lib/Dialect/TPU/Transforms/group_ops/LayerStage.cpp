@@ -401,7 +401,8 @@ void net_timestep::generate_hold_coeff_tensor() {
       tensor_type_t tensor_type = net_graph_->get_tensor_type(tensor_id);
 
       if (tensor_type == TENSOR_COEFF || tensor_type == TENSOR_BIAS ||
-          tensor_type == TENSOR_COEFF_WINOGRAD || tensor_type == TENSOR_DEPTHCONV_OPD1 ) {
+          tensor_type == TENSOR_COEFF_LUT || tensor_type == TENSOR_COEFF_WINOGRAD ||
+          tensor_type == TENSOR_DEPTHCONV_OPD1 ) {
         hold_coeff_tensor[tensor_id] = i;
 
       } else if (tensor_type == TENSOR_COEFF_NEURON || tensor_type == TENSOR_DEPTHCONV_OPD1 ||
@@ -427,8 +428,8 @@ bool net_timestep::is_tensor_hold_in_memory(int tensor_id) {
 
 bool net_timestep::is_tensor_weight(tensor_type_t tensor_type) {
   if (tensor_type == TENSOR_COEFF || tensor_type == TENSOR_BIAS ||
-      tensor_type == TENSOR_COEFF_NEURON || tensor_type == TENSOR_COEFF_WINOGRAD ||
-      tensor_type == TENSOR_NEURON_AS_COEFF) {
+      tensor_type == TENSOR_COEFF_LUT || tensor_type == TENSOR_COEFF_NEURON ||
+      tensor_type == TENSOR_COEFF_WINOGRAD || tensor_type == TENSOR_NEURON_AS_COEFF) {
     return true;
   } else {
     return false;

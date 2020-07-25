@@ -947,12 +947,14 @@ Value *tpu::QuantOp::convertToTG() {
   attrs.push_back(builder.getNamedAttr("threshold", thresholdAttr()));
 
   if (this->from() == "BF16" && this->to() == "INT8") {
-    auto newOp = OpBuilder(op).create<tpu::TG_INT8_QuantOp>(
+    // quant
+    auto newOp = OpBuilder(op).create<tpu::TG_BF16_QuantOp>(
         op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
   } else if (this->from() == "INT8" && this->to() == "BF16") {
-    auto newOp = OpBuilder(op).create<tpu::TG_BF16_QuantOp>(
+    // dequant
+    auto newOp = OpBuilder(op).create<tpu::TG_INT8_QuantOp>(
         op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
