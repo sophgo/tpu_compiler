@@ -6,6 +6,7 @@ from cvi_toolkit.transform.tflite_converter import TFLiteConverter
 from cvi_toolkit.transform.tensorflow_converter import TFConverter
 from cvi_toolkit.transform.caffe_converter import CaffeConverter
 from cvi_toolkit.utils.log_setting import setup_logger
+from cvi_toolkit.data.preprocess import add_preprocess_parser
 
 logger = setup_logger('root', log_level="INFO")
 CVI_SupportFramework = [
@@ -25,11 +26,17 @@ def Convert(args):
         "raw_scale": args.raw_scale,
         "mean": args.mean,
         "scale": args.scale,
+        "input_scale": args.input_scale,
+        "std": args.std,
+        "rgb_order": args.model_channel_order,
+        "data_format": args.data_format,
     }
     if args.model_type == "onnx":
         onnx_model = onnx.load(args.model_path)
         c = OnnxConverter(args.model_name, onnx_model,
-                          args.mlir_file_path, batch_size=args.batch_size)
+                          args.mlir_file_path, batch_size=args.batch_size,
+                          convert_preprocess=args.convert_preprocess, preprocess_args=preprocess_args
+                        )
     elif args.model_type == "tflite":
         c = TFLiteConverter(
             args.model_name, args.model_path, args.mlir_file_path)
@@ -79,23 +86,18 @@ def main():
         default="",
     )
     parser.add_argument(
-        "--raw_scale",
-        help="Do preprocess, specify the raw_scale",
-        type=float,
-        default=255.0,
-    )
-    parser.add_argument(
-        "--mean",
-        help="Do preprocess, specify the mean",
-        type=str,
-        default="",
-    )
-    parser.add_argument(
         "--scale",
         help="Do preprocess, specify the scale",
         type=float,
         default=1.0,
     )
+    parser.add_argument(
+        "--convert_preprocess",
+        help="Conbine mlir model with preprocess inference",
+        type=int,
+        default=0,
+    )
+    parser = add_preprocess_parser(parser)
     args = parser.parse_args()
     Convert(args)
 

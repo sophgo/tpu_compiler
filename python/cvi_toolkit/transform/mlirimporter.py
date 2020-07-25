@@ -43,6 +43,7 @@ class TPU_OpType(Enum):
     PoolAvg2D = 'tpu.pool_avg_2d'
     PoolMax2D  = 'tpu.pool_max_2d'
     Power = 'tpu.power'
+    Preprocess = 'tpu.preprocess'
     PriorBox = 'tpu.priorbox'
     PRelu = 'tpu.prelu'
     Reciprocal = 'tpu.reciprocal'
@@ -789,6 +790,31 @@ class MLIRImporter(object):
         return self.buildOp(TPU_OpType.PixelShuffle.value, inputOperands, [
             tensor_output_type], name=pixelshuffle_name, quant=self.quant_param, **attr_dict)
 
+
+    def add_preprocess_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+        tensor_output_type = self.module.make_ranked_tensor_type(
+            self.f32Type, output_tensor_shape)
+        checkKey(kargs, 'mean')
+        checkKey(kargs, 'std')
+        checkKey(kargs, 'scale')
+        checkKey(kargs, 'raw_scale')
+        checkKey(kargs, 'color_order')
+        checkKey(kargs, 'data_format')
+
+        preprocess_name = self.module.stringAttr(op_name)
+
+
+        attrs = {
+            'mean': self.module.arrayAttr([self.module.floatAttr(x) for x in kargs['mean']]),
+            'std': self.module.arrayAttr([self.module.floatAttr(x) for x in kargs['std']]),
+            'scale': self.module.floatAttr(kargs['scale']),
+            'raw_scale': self.module.floatAttr(kargs['raw_scale']),
+            'color_order': self.module.stringAttr(kargs['color_order']),
+            'data_format': self.module.stringAttr(kargs['data_format'])
+        }
+
+        return self.buildOp(TPU_OpType.Preprocess.value, inputOperands, [
+            tensor_output_type], name=preprocess_name, **attrs)
 
     def add_prelu_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = self.module.make_ranked_tensor_type(
