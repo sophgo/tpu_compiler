@@ -19,6 +19,7 @@ TEST_ONNX_IR = [
     "Add",
     "AveragePool",
     #"Concat",
+    "Conv",
     "GlobalMaxPool",
     "LeakyRelu",
     "LRN",
@@ -70,6 +71,7 @@ class ONNX_IR_TESTER(object):
             "Add": self.test_Add,
             "AveragePool": self.test_AveragePool,
             "Concat": self.test_Concat,
+            "Conv": self.test_Conv,
             "LeakyRelu": self.test_LeakyRelu,
             "LRN": self.test_LRN,
             "GlobalMaxPool": self.test_GlobalMaxPool,
@@ -314,6 +316,50 @@ class ONNX_IR_TESTER(object):
         )
         model_def = helper.make_model(graph_def, producer_name=test_case)
         onnx.checker.check_model(model_def)
+        self.onnx_convert_and_infernece(input_data, model_def, test_case)
+
+    def test_Conv(self):
+        test_case = 'Conv'
+        input_data = np.random.randn(1, 1, 5, 5).astype(np.float32)
+        weight_data = np.random.randn(1, 1, 3, 3).astype(np.float32)
+
+        input = helper.make_tensor_value_info(
+            'input', TensorProto.FLOAT, list(input_data.shape))
+
+        output = helper.make_tensor_value_info(
+            'output', TensorProto.FLOAT, [1, 1, 5, 5])
+
+        weight_node_def = onnx.helper.make_node(
+            'Constant',
+            inputs=[],
+            outputs=['conv_w'],
+            value=onnx.helper.make_tensor(
+                name='const_tensor',
+                data_type=onnx.TensorProto.FLOAT,
+                dims=weight_data.shape,
+                vals=weight_data.flatten().astype(int),
+            ),
+        )
+        node_def = onnx.helper.make_node(
+            "Conv",
+            inputs=['input', 'conv_w'],
+            outputs=['output'],
+            kernel_shape=[3, 3],
+            pads=[1, 1, 1, 1],
+            strides=[1, 1],
+            dilations=[1, 1],
+            group=1,
+        )
+        graph_def = helper.make_graph(
+            [weight_node_def, node_def],
+            test_case,
+            [input],
+            [output],
+        )
+
+        model_def = helper.make_model(graph_def, producer_name=test_case)
+        onnx.checker.check_model(model_def)
+
         self.onnx_convert_and_infernece(input_data, model_def, test_case)
 
     def test_GlobalMaxPool(self):
