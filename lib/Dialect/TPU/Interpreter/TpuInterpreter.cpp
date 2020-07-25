@@ -810,7 +810,7 @@ static LogicalResult doLUTOpInterpret(Operation *op, StringRef &type,
         output[i] = pow(input[i], 0.5);
       }
     } else if (type == "Sigmoid") {
-      my_sigmoid(input, output, n, c, h, w);
+      my_sigmoid(input, output, n, c, h, w, getOpQuant(op) == "BF16");
     } else if (type == "TanH") {
       for (int i = 0; i < input_size; ++i) {
         output[i] = std::tanh(input[i]);

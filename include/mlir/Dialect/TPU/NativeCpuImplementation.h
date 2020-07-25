@@ -25,7 +25,7 @@ int my_gru(float *input, float *output,
 int my_avg_pooling(float *input, float *output, int n, int c, int ih, int iw,
                    int oh, int ow, int kh, int kw, int sh, int sw, int pt,
                    int pb, int pl, int pr);
-int my_sigmoid(float *input, float *output, int n, int c, int h, int w);
+int my_sigmoid(float *input, float *output, int n, int c, int h, int w, bool is_bf16 = false);
 int my_crop(float *input, float *output, long int *shape1, int *shape2, long int *top_shape,  int cur_dim, int *offsets, int *indices);
 int my_relu(float *input, float *output,
     int n, int c, int h, int w, float negative_slope);
@@ -106,5 +106,12 @@ int my_reorg(float *input, float *output, uint32_t stride, int n, int c, int h, 
 int my_pad_constant(float *input, float *output,
                     std::vector<int64_t> &input_shape,
                     std::vector<int> &pads, float const_val);
+
+void gen_bf16_table(int start, int end, int table_hw, float *table,
+                           double (*activate_func)(double));
+
+void gen_bf16_slope_table(int start, int end, int table_hw,
+                                         float *table,
+                                         float *slope_table, double (*activate_func)(double));
 
 #endif // MLIR_DIALECT_TPU_NATIVE_CPU_IMPLEMENTATION_H_
