@@ -72,7 +72,8 @@ struct TpuRefactorOddIcConvPattern : public RewritePattern {
     int kh = filterShape[filterShape.size() - 2];
     int kw = filterShape[filterShape.size() - 1];
     int group = convOp.param().group().getValue().getLimitedValue();
-    if((kc % 2 != 0) && (group == 1)) {
+    if((kc % 2 != 0) && (group == 1) && (kc > 1)) {
+      //Support only kc is odd && isConvolutionOp && kc>=3
       int new_ic = kc + 1;
       //Fill filter data to zero
       TensorFile *wTF = getWeightTensorFile(op);
