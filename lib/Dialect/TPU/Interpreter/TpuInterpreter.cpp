@@ -963,10 +963,9 @@ static LogicalResult doEltwiseOpInterpret(Operation *op,
   // assert(input_size == size);
   getNCHW(shape, in, ic, ih, iw);
   std::vector<int64_t> output_shape;
-  int64_t output_size, oh, ow;
+  int64_t output_size, on, oc, oh, ow;
   getTensorShapeAndSize(op->getResult(0), output_shape, output_size);
-  oh = output_shape[2];
-  ow = output_shape[3];
+  getNCHW(output_shape, on, oc, oh, ow);
   auto resultReal = std::make_unique<std::vector<float> >(output_size);
 
   // get tensors
@@ -1190,7 +1189,7 @@ LogicalResult tpu::GruOp::interpret(
   int hidden_size = 0;
 
   parseGruParam(this->input(), this->weight(), seq_len, batch_size, input_size, hidden_size);
-  my_gru(input->data(), resultT->data(), weight->data(), recurrence->data(), bias->data(), initial_h->data(), 
+  my_gru(input->data(), resultT->data(), weight->data(), recurrence->data(), bias->data(), initial_h->data(),
               seq_len, batch_size, input_size, hidden_size, this->bidirectional(), this->linear_before_reset());
 
   // rshift and saturate on output
@@ -3129,6 +3128,57 @@ LogicalResult tpu::PadOp::interpret(
 
   int ret = my_pad_constant(input->data(), resultT->data(), input_shape, pads,
                             const_val);
+  assert(ret == 0);
+  valueMapping[result] = std::move(resultT);
+  return success();
+}
+
+LogicalResult tpu::ReduceMeanOp::interpret(
+    DenseMap<Value *, std::shared_ptr<std::vector<float>>> &valueMapping) {
+  Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
+
+  auto opdT = getOperandTensors(op, valueMapping);
+  std::shared_ptr<std::vector<float> > input = opdT[0];
+  auto result = this->getResult();
+  std::vector<int64_t> shape = getTensorShape(result);
+  auto size = getTensorSize(result);
+  auto resultT = std::make_unique<std::vector<float> >(size);
+
+  // parse param
+  std::vector<int32_t> axes;
+  arrayAttrToVector(this->axes().getValue(), axes);
+
+  std::vector<int64_t> input_shape = getTensorShape(this->input());
+
+  int ret = my_reduce_mean(input->data(), resultT->data(), input_shape, axes);
+
+  assert(ret == 0);
+  valueMapping[result] = std::move(resultT);
+  return success();
+}
+
+
+LogicalResult tpu::ReduceMaxOp::interpret(
+    DenseMap<Value *, std::shared_ptr<std::vector<float>>> &valueMapping) {
+  Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
+
+  auto opdT = getOperandTensors(op, valueMapping);
+  std::shared_ptr<std::vector<float> > input = opdT[0];
+  auto result = this->getResult();
+  std::vector<int64_t> shape = getTensorShape(result);
+  auto size = getTensorSize(result);
+  auto resultT = std::make_unique<std::vector<float> >(size);
+
+  // parse param
+  std::vector<int32_t> axes;
+  arrayAttrToVector(this->axes().getValue(), axes);
+
+  std::vector<int64_t> input_shape = getTensorShape(this->input());
+
+  int ret = my_reduce_max(input->data(), resultT->data(), input_shape, axes);
+
   assert(ret == 0);
   valueMapping[result] = std::move(resultT);
   return success();

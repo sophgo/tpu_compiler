@@ -486,9 +486,9 @@ inline Dtype sigmoid(Dtype x) {
   return 0.5 * tanh(0.5 * x) + 0.5;
 }
 
-int my_gru(float *input, float *output, 
-           float *weight, float *recurrence, float *bias, float *initial_h, 
-           int seq_len, int batch_size, int input_size, int hidden_size, 
+int my_gru(float *input, float *output,
+           float *weight, float *recurrence, float *bias, float *initial_h,
+           int seq_len, int batch_size, int input_size, int hidden_size,
            bool b_bidirectional, bool b_linear_before_reset) {
   assert(b_bidirectional == false);
   assert(b_linear_before_reset == true);
@@ -562,7 +562,7 @@ int my_gru(float *input, float *output,
     float* hidden_state = output + t * hidden_size;
     for (int i = 0; i < hidden_size; ++i)
       hidden_state[i] = ((1 - update_gate[i]) * hidden_gate[i]) + (update_gate[i] * prev_hidden_state[i]);
-    
+
     prev_hidden_state = hidden_state;
   }
   delete[] update_gate;
@@ -829,7 +829,7 @@ int my_pspnet_bn(float *input, float *slope, float *bias, float* mean, float* va
   else {
     llvm_unreachable("unsupported setting");
   }
-  
+
   return 0;
 }
 
@@ -841,7 +841,7 @@ void my_interp(const int channels,
 
   assert(x1 >= 0 && y1 >= 0 && height1 > 0 && width1 > 0 && x2 >= 0 && y2 >= 0 && height2 > 0 && width2 > 0);
   assert(Width1 >= width1 + x1 && Height1 >= height1 + y1 && Width2 >= width2 + x2 && Height2 >= height2 + y2);
-  
+
   // special case: just copy
   if (height1 == height2 && width1 == width2) {
     for (int h2 = 0; h2 < height2; ++h2) {
@@ -889,7 +889,7 @@ void my_interp(const int channels,
         float* pos2 = &data2[channels * ((y2 + h2) * Width2 + (x2 + w2))];
         for (int c = 0; c < channels; ++c) {
           pos2[0] =
-            h0lambda * (w0lambda * pos1[0]            + w1lambda * pos1[channels * w1p]) + 
+            h0lambda * (w0lambda * pos1[0]            + w1lambda * pos1[channels * w1p]) +
             h1lambda * (w0lambda * pos1[channels * h1p * Width1] + w1lambda * pos1[channels * (h1p * Width1 + w1p)]);
           pos1++;
           pos2++;
@@ -900,7 +900,7 @@ void my_interp(const int channels,
         float* pos2 = &data2[(y2 + h2) * Width2 + (x2 + w2)];
         for (int c = 0; c < channels; ++c) {
           pos2[0] =
-            h0lambda * (w0lambda * pos1[0]            + w1lambda * pos1[w1p]) + 
+            h0lambda * (w0lambda * pos1[0]            + w1lambda * pos1[w1p]) +
             h1lambda * (w0lambda * pos1[h1p * Width1] + w1lambda * pos1[h1p * Width1 + w1p]);
           pos1 += Width1 * Height1;
           pos2 += Width2 * Height2;
@@ -1792,6 +1792,61 @@ int my_roipooling(float *data, float *rois, float *output, int pooled_h, int poo
     }
     rois += 5;
   }
+}
 
+inline int count(std::vector<int64_t> &shape, int start_axis, int end_axis) {
+    int64_t count = 1;
+    for (int i = start_axis; i < end_axis; ++i) {
+      count *= shape[i];
+    }
+    return count;
+}
+
+int my_reduce_mean(float *input, float *output,
+                     std::vector<int64_t> &input_shape,
+                     std::vector<int> &axes) {
+  int dim = input_shape.size();
+  assert(axes.size() > 0);
+  int axis = axes[0];
+  // only support one axis, if has two axis, should be continous
+
+  int total = count(input_shape, 0, input_shape.size());
+  int n = count(input_shape, 0, axis);
+  int c = input_shape[axis];
+  int hw = total / (n*c);
+
+  for (int nidx = 0; nidx < n; nidx++) {
+    for (int inner_idx = 0; inner_idx < hw; inner_idx++) {
+      for (int cidx = 0; cidx < c; cidx++) {
+        output[nidx * hw + inner_idx] += input[nidx * c * hw + cidx * hw + inner_idx];
+      }
+      output[nidx * hw + inner_idx] /= c;
+    }
+  }
+  return 0;
+}
+
+int my_reduce_max(float *input, float *output,
+                     std::vector<int64_t> &input_shape,
+                     std::vector<int> &axes) {
+  int dim = input_shape.size();
+  assert(axes.size() > 0);
+  int axis = axes[0];
+  // only support one axis, if has two axis, should be continous
+  int total = count(input_shape, 0, input_shape.size());
+  int n = count(input_shape, 0, axis);
+  int c = input_shape[axis];
+  int hw = total / (n*c);
+
+  for (int nidx = 0; nidx < n; nidx++) {
+    for (int inner_idx = 0; inner_idx < hw; inner_idx++) {
+      for (int cidx = 0; cidx < c; cidx++) {
+        float tmp = input[nidx * c * hw + cidx * hw + inner_idx];
+        if (cidx == 0)
+          output[nidx * hw + inner_idx] = tmp;
+        output[nidx * hw + inner_idx] = std::max(tmp, output[nidx * hw + inner_idx]);
+      }
+    }
+  }
   return 0;
 }

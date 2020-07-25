@@ -2694,6 +2694,37 @@ LogicalResult tpu::TG_BF16_PadOp::codegen(void *ctx) {
   return success();
 }
 
+LogicalResult tpu::TG_INT8_ReduceMeanOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  assert(0);
+
+  return success();
+}
+
+LogicalResult tpu::TG_INT8_ReduceMaxOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  assert(0);
+
+  return success();
+}
+
+LogicalResult tpu::TG_BF16_ReduceMeanOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  assert(0);
+
+  return success();
+}
+
+LogicalResult tpu::TG_BF16_ReduceMaxOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  assert(0);
+
+  return success();
+}
 
 // MemRefType dummy
 LogicalResult tpu::TG_MemRef_INT8_BroadcastMulOp::codegen(void *ctx) {
@@ -2877,6 +2908,22 @@ LogicalResult tpu::TG_MemRef_INT8_ReorgOp::codegen(void *ctx) {
 }
 
 LogicalResult tpu::TG_MemRef_BF16_ReorgOp::codegen(void *ctx) {
+  return success();
+}
+
+LogicalResult tpu::TG_MemRef_INT8_ReduceMeanOp::codegen(void *ctx) {
+  return success();
+}
+
+LogicalResult tpu::TG_MemRef_INT8_ReduceMaxOp::codegen(void *ctx) {
+  return success();
+}
+
+LogicalResult tpu::TG_MemRef_BF16_ReduceMeanOp::codegen(void *ctx) {
+  return success();
+}
+
+LogicalResult tpu::TG_MemRef_BF16_ReduceMaxOp::codegen(void *ctx) {
   return success();
 }
 

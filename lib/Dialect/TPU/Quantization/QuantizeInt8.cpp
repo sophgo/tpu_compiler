@@ -1090,6 +1090,20 @@ LogicalResult tpu::TanHOp::quantizeInt8() {
   return quantizeInt8LutOps<tpu::TanHOp>(op);
 }
 
+LogicalResult tpu::ReduceMeanOp::quantizeInt8() {
+  LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  return quantizeInt8RescaleNoWeightOps<tpu::ReduceMeanOp>(op);
+}
+
+LogicalResult tpu::ReduceMaxOp::quantizeInt8() {
+  LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  return quantizeInt8RescaleNoWeightOps<tpu::ReduceMaxOp>(op);
+}
+
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::UpsampleOp)
 
 #define DECLARE_QUANTIZE_INT8_DISABLED_METHOD(OP) \

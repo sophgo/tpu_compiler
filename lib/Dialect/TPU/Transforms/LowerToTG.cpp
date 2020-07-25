@@ -1430,6 +1430,63 @@ Value* tpu::UpsampleOp::convertToTG() {
   llvm_unreachable("unsupported type");
 }
 
+Value* tpu::ReduceMeanOp::convertToTG() {
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  auto builder = Builder(op->getContext());
+
+  std::vector<Value *> operands;
+  operands.push_back(input());
+
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder.getNamedAttr("axes", axesAttr()));
+  attrs.push_back(builder.getNamedAttr("name", nameAttr()));
+  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
+
+  if (getOpQuant() == "INT8") {
+    auto newOp = OpBuilder(op).create<tpu::TG_INT8_ReduceMeanOp>(op->getLoc(),
+        getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  } else if (getOpQuant() == "BF16") {
+    auto newOp = OpBuilder(op).create<tpu::TG_BF16_ReduceMeanOp>(op->getLoc(),
+        getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  }
+  llvm_unreachable("unsupported type");
+}
+
+Value* tpu::ReduceMaxOp::convertToTG() {
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  auto builder = Builder(op->getContext());
+
+  std::vector<Value *> operands;
+  operands.push_back(input());
+
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder.getNamedAttr("axes", axesAttr()));
+  attrs.push_back(builder.getNamedAttr("name", nameAttr()));
+  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
+
+  if (getOpQuant() == "INT8") {
+    assert(getOpQuantParamType() == "NONE");
+    auto newOp = OpBuilder(op).create<tpu::TG_INT8_ReduceMaxOp>(op->getLoc(),
+        getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  } else if (getOpQuant() == "BF16") {
+    auto newOp = OpBuilder(op).create<tpu::TG_BF16_ReduceMaxOp>(op->getLoc(),
+        getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  }
+  llvm_unreachable("unsupported type");
+}
+
 template<typename OpTy>
 struct DefaultToTGPattern : public RewritePattern {
   DefaultToTGPattern(MLIRContext *context)
@@ -2444,7 +2501,9 @@ public:
         DefaultToTGPattern<tpu::SqrtOp>,
         DefaultToTGPattern<tpu::SwapChannelOp>,
         DefaultToTGPattern<tpu::TanHOp>,
-        DefaultToTGPattern<tpu::UpsampleOp>
+        DefaultToTGPattern<tpu::UpsampleOp>,
+        DefaultToTGPattern<tpu::ReduceMeanOp>,
+        DefaultToTGPattern<tpu::ReduceMaxOp>
         >(context);
     applyPatternsGreedily(fn, patterns);
 

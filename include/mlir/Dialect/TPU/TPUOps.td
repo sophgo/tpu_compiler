@@ -1661,7 +1661,7 @@ def TPU_ProposalOp: TPU_Op<"proposal",
     Inputs:
       `inputs`                : required, the input activation tensor.
 
-    Attributes:   
+    Attributes:
       `name`                  : required, name for calibration, comparing, or debug.
       `layer_id`              : optional, id for profiling.
       `chipname`              : optional, chipname.
@@ -2431,6 +2431,105 @@ def TPU_PoolMaskOp: TPU_Op<"pool_mask",
   let hasCanonicalizer = 1;
 }
 
+def TPU_ReduceMaxOp: TPU_Op<"reduce_max",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
+       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
+       DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
+  let summary = "ReduceMax operator";
+
+  let description = [{
+    Perform ReduceMax on input.
+
+    Inputs:
+      `input`           : required, the input activation tensor.
+
+    Attributes:
+      `name`            : required, name for calibration, comparing, or debug.
+      `axes`            : along which axis to do reduce
+      `keepdims`        : whether to keep the reduce dim
+      `const_val`       : A scalar value to be used if the mode
+                          chosen is `constant` (by default it is 0).
+      `layer_id`        : optional, id for profiling.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface` : support common TPU Op interface
+      `TpuOpInterpInterface` : support interperter
+      `TpuOpQuantInterface`  : support quantization
+      `TpuOpLowerInterface`  : support lower to TPU TG Ops
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    TPU_QuantParamAttr:$quant,
+    StrAttr:$name,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_scale,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_zeropoint,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_rshift,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_multiplier,
+    OptionalAttr<I32ArrayAttr>:$axes,
+    DefaultValuedAttr<BoolAttr, "false">:$keepdims,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
+def TPU_ReduceMeanOp: TPU_Op<"reduce_mean",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
+       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
+       DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
+  let summary = "ReduceMean operator";
+
+  let description = [{
+    Perform ReduceMean on input.
+
+    Inputs:
+      `input`           : required, the input activation tensor.
+
+    Attributes:
+      `name`            : required, name for calibration, comparing, or debug.
+      `axes`            : along which axis to do reduce
+      `keepdims`        : whether to keep the reduce dim
+      `const_val`       : A scalar value to be used if the mode
+                          chosen is `constant` (by default it is 0).
+      `layer_id`        : optional, id for profiling.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface` : support common TPU Op interface
+      `TpuOpInterpInterface` : support interperter
+      `TpuOpQuantInterface`  : support quantization
+      `TpuOpLowerInterface`  : support lower to TPU TG Ops
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    TPU_QuantParamAttr:$quant,
+    StrAttr:$name,
+    OptionalAttr<I32ArrayAttr>:$axes,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_scale,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_zeropoint,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_rshift,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_multiplier,
+    DefaultValuedAttr<BoolAttr, "false">:$keepdims,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
+  );
+
+  let results = (outs AnyTensor:$output);
+}
 
 include "mlir/Dialect/TPU/TPUSupportOps.td"
 include "mlir/Dialect/TPU/TPUTGOps.td"
