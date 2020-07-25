@@ -1300,6 +1300,7 @@ int my_preprocess(float *input, float *output,
                   int n, int c, int h, int w,
                   const std::vector<int>& channel_order,
                   const std::vector<float>&mean,
+                  const std::vector<float>&std,
                   float raw_scale, float input_scale) {
   int csz = h * w;
   int isz = c * h * w;
@@ -1322,13 +1323,13 @@ int my_preprocess(float *input, float *output,
   for (int i = 0; i < count; i++) {
     float val = *p++;
     if (raw_scale != 0) {
-      val *= raw_scale;
+      val *= (raw_scale / 255);
     }
     if (mean.size()) {
       val -= mean[(i / csz) % c];
     }
-    if (input_scale != 1.0f) {
-      val *= input_scale;
+    if (std.size()) {
+      val /= std[(i / csz) % c];
     }
     *q++ = val;
   }

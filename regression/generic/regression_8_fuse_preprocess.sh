@@ -9,7 +9,7 @@ if [ $DO_FUSE_PREPROCESS -eq 1 ]; then
     # make image data only resize
     cvi_preprocess.py  \
       --image_file $REGRESSION_PATH/data/cat.jpg \
-      --net_input_dims ${IMAGE_RESIZE_DIMS} \
+      --net_input_dims ${NET_INPUT_DIMS} \
       --image_resize_dims ${IMAGE_RESIZE_DIMS} \
       --raw_scale 255 \
       --mean 0,0,0 \
@@ -35,6 +35,30 @@ if [ $DO_FUSE_PREPROCESS -eq 1 ]; then
       --convert_preprocess 1 \
       --mlir_file_path ${NET}_fused_preprocess.mlir
 
+    mlir-opt \
+      --fuse-relu \
+      --assign-layer-id \
+      ${MLIR_OPT_FE_PRE} \
+      --canonicalize \
+      ${MLIR_OPT_FE_POST} \
+      --print-tpu-op-info \
+      --tpu-op-info-filename ${NET}_op_info.csv \
+      ${NET}_fused_preprocess.mlir \
+      -o ${NET}_opt.mlir
+
+    # test frontend optimizations
+    mlir-tpu-interpreter ${NET}_opt.mlir \
+      -debug \
+      --tensor-in ${NET}_only_resize_in_fp32.npz \
+      --tensor-out ${NET}_out_fp32.npz \
+      --dump-all-tensor=${NET}_tensor_all_fp32.npz
+
+    cvi_npz_tool.py compare \
+      ${NET}_tensor_all_fp32.npz \
+      ${NET}_blobs.npz \
+      --op_info ${NET}_op_info.csv \
+      --excepts $EXCEPTS \
+      --tolerance=0.999,0.999,0.998 -vv
 fi
 
 # VERDICT

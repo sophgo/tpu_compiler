@@ -1880,6 +1880,7 @@ LogicalResult tpu::PreprocessOp::interpret(
   // use copy for now
   std::vector<int> orders;
   std::vector<float> means;
+  std::vector<float> stds;
   if (this->color_order().hasValue()) {
     for (auto o : llvm::enumerate(this->color_order().getValue())) {
       auto attr = o.value().dyn_cast<IntegerAttr>();
@@ -1892,9 +1893,15 @@ LogicalResult tpu::PreprocessOp::interpret(
       means.push_back((float)attr.getValueAsDouble());
     }
   }
+  if (this->std().hasValue()) {
+    for (auto s : llvm::enumerate(this->std().getValue())) {
+      auto attr = s.value().dyn_cast<FloatAttr>();
+      stds.push_back((float)attr.getValueAsDouble());
+    }
+  }
 
   my_preprocess(opdT[0]->data(), resultT->data(), n, c, h, w,
-                orders, means, this->raw_scale().convertToFloat(),
+                orders, means, stds, this->raw_scale().convertToFloat(),
                 this->scale().convertToFloat());
 
   valueMapping[result] = std::move(resultT);
@@ -2885,7 +2892,7 @@ LogicalResult ModuleInterpreter::doRun(std::vector<int64_t> input_shape, std::ve
   else {
     // dont care input_shape
     // we concat all input as 1 * 1 * 1 * n IN ORDER, and we split by mlir function input and reshape it
-    // e.g: input is func @tpu_func(%arg0: tensor<1x30720x1xf32>, %arg1: tensor<1x7680x1xf32>, %arg2: tensor<1x1920x1xf32>, %arg3: tensor<1x480x1xf32>, %arg4: tensor<1x120x1xf32>) -> tensor<1x40920x1xf32> 
+    // e.g: input is func @tpu_func(%arg0: tensor<1x30720x1xf32>, %arg1: tensor<1x7680x1xf32>, %arg2: tensor<1x1920x1xf32>, %arg3: tensor<1x480x1xf32>, %arg4: tensor<1x120x1xf32>) -> tensor<1x40920x1xf32>
     // and the possible input_vec.size is: 1x30720x1 + 1x7680x1 + 1x1920x1 + 1x480x1 + 1x120x1
     // check concat size is equal
     int64_t input_size = (int64_t)input_vec.size();
@@ -2899,7 +2906,7 @@ LogicalResult ModuleInterpreter::doRun(std::vector<int64_t> input_shape, std::ve
     // input size SHOULD be equal with all inputs shape accumulate in function
     if (input_size != total_input_size) {
       std::stringstream err_msg;
-      err_msg << "input size(" << input_size 
+      err_msg << "input size(" << input_size
         << ") not the same with mlir require("<<total_input_size<<")\n";
       throw std::runtime_error(err_msg.str());
     }
