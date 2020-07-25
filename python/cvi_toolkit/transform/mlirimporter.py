@@ -522,10 +522,15 @@ class MLIRImporter(object):
         if len(inputOperands) < 5:
             raise ArithmeticError("input operand must great than 5. x, w, r, b, initial_h")
 
+        gru_param = {
+            'linear_before_reset': self.module.boolAttr(kargs['linear_before_reset']),
+            'bidirectional': self.module.boolAttr(kargs['bidirectional'])
+        }
+
         gru_name = self.module.stringAttr(op_name)
 
         return self.buildOp(TPU_OpType.GRU.value, inputOperands, [
-            tensor_output_type], name=gru_name, quant=self.quant_param)
+            tensor_output_type], name=gru_name, quant=self.quant_param, **gru_param)
 
     def add_leaky_relu_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = self.module.make_ranked_tensor_type(

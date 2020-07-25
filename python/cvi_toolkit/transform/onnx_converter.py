@@ -921,6 +921,13 @@ class OnnxConverter(BaseConverter):
         operands = list()
         operands.append(op)
 
+        linear_before_reset = True if onnx_node.attrs.get("linear_before_reset", 1) == 1 else False
+        bidirectional = True if onnx_node.attrs.get("direction", 'forward') == 'bidirectional' else False
+        gru_param = {
+            'linear_before_reset': bool(linear_before_reset),
+            'bidirectional': bool(bidirectional),
+        }
+
         weight_name = onnx_node.inputs[1]
         weight_tensor = self.getTensor(weight_name)
         weight_op = self.CVI.add_load_file_op(weight_name, weight_tensor.shape)
@@ -955,7 +962,7 @@ class OnnxConverter(BaseConverter):
             else:
                 raise RuntimeError("GRU only support initial_h from activation currently.")
 
-        gru_op = self.CVI.add_gru_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
+        gru_op = self.CVI.add_gru_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **gru_param)
         self.addOperand(onnx_node.name, gru_op, output_shape, TensorType.ACTIVATION)
 
     def convert_leaky_relu_op(self, onnx_node):
