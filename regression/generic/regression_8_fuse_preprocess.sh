@@ -9,12 +9,13 @@ if [ $DO_FUSE_PREPROCESS -eq 1 ]; then
     # make image data only resize
     cvi_preprocess.py  \
       --image_file $REGRESSION_PATH/data/cat.jpg \
-      --net_input_dims ${NET_INPUT_DIMS} \
+      --net_input_dims ${IMAGE_RESIZE_DIMS} \
       --image_resize_dims ${IMAGE_RESIZE_DIMS} \
       --raw_scale 255 \
       --mean 0,0,0 \
       --std 1,1,1 \
       --input_scale 1 \
+      --data_format nhwc \
       --npz_name ${NET}_only_resize_in_fp32.npz \
       --input_name input
 

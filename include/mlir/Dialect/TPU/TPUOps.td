@@ -1386,7 +1386,7 @@ def TPU_PreprocessOp : TPU_Op<"preprocess",
       `scale`           : required, scale value multipled to input feature maps
       `raw_scale`       : required, Multiply raw input by this scale before preprocessing.
       `color_order`     : required, color swap order
-      `data_format`     : required, An string from: "NHWC", "NCHW". Defaults to "NCHW"
+      `transpose_order` : the data is stored in the order of
       `name`            : required, name for calibration, comparing, or debug.
       `layer_id`        : optional, id for profiling.
       `chipname`        : optional, chipname.
@@ -1407,7 +1407,7 @@ def TPU_PreprocessOp : TPU_Op<"preprocess",
     OptionalAttr<F32ArrayAttr>:$std,
     F32Attr:$raw_scale,
     F32Attr:$scale,
-    StrAttr:$data_format,
+    OptionalAttr<I32ArrayAttr>:$transpose_order,
     StrAttr:$name,
     OptionalAttr<I32ArrayAttr>:$color_order,
     TPU_QuantParamAttr:$quant,

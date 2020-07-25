@@ -14,6 +14,8 @@ def parse_args():
     parser.add_argument('--npz_name', help='output npz name, default: input_fp32.npz', default='input_fp32.npz')
     parser.add_argument(
         '--input_name', help='input data name, default: input', default='input')
+    parser.add_argument(
+        '--output_data_format', help='output data format, default: hwc, chw', default='hwc')
     args = parser.parse_args()
 
     return args
@@ -29,7 +31,8 @@ if __name__ == "__main__":
                         input_scale=args.input_scale,
                         raw_scale=args.raw_scale,
                         std=args.std,
-                        rgb_order=args.model_channel_order)
+                        rgb_order=args.model_channel_order,
+                        data_format=args.data_format)
     preprocessor.run(args.image_file, output_npz=args.npz_name,
-                     input_name=args.input_name)
+                     input_name=args.input_name, output_data_format=args.output_data_format)
 

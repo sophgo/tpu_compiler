@@ -799,7 +799,7 @@ class MLIRImporter(object):
         checkKey(kargs, 'scale')
         checkKey(kargs, 'raw_scale')
         checkKey(kargs, 'color_order')
-        checkKey(kargs, 'data_format')
+        checkKey(kargs, 'transpose_order')
 
         preprocess_name = self.module.stringAttr(op_name)
 
@@ -810,7 +810,7 @@ class MLIRImporter(object):
             'scale': self.module.floatAttr(kargs['scale']),
             'raw_scale': self.module.floatAttr(kargs['raw_scale']),
             'color_order': self.module.arrayAttr([self.module.integerAttr(self.i32Type, x) for x in kargs['color_order']]),
-            'data_format': self.module.stringAttr(kargs['data_format'])
+            'transpose_order': self.module.arrayAttr([self.module.integerAttr(self.i32Type, x) for x in kargs['transpose_order']]),
         }
 
         return self.buildOp(TPU_OpType.Preprocess.value, inputOperands, [
