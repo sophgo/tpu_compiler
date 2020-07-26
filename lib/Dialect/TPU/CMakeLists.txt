@@ -18,6 +18,7 @@ add_llvm_library(MLIRTPU
   IR/DialectRegistration.cpp
   IR/TPUOperationSupport.cpp
   IR/TPUTensorSupport.cpp
+  Analysis/GenFakeWeightNpz.cpp
   Analysis/TpuOpPrint.cpp
   Analysis/TpuOpStats.cpp
   Transforms/CompressActivation.cpp

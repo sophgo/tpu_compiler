@@ -71,6 +71,12 @@ std::shared_ptr<Tensor> Tensor::register_tensor(ShapedType *s_type, const std::s
   int n = 0, c = 0, h = 0, w = 0;
   std::vector<int64_t> shape = s_type->getShape();
   switch (s_type->getRank()) {
+    case 5:
+      n = shape[0];
+      c = shape[1] * shape[2];
+      h = shape[3];
+      w = shape[4];
+      break;
     case 4:
       w = shape[3];
     case 3:
