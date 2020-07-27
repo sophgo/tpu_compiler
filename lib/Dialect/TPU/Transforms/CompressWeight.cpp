@@ -150,7 +150,7 @@ public:
     // Split output channel in unit of lane number for df only
     int oc_step = MInfo::lane_num;
     // not split for lg
-    if (TensorTyOp::getOperationName() == "tpu.tl_lg_conv_2d")
+    if (TensorTyOp::getOperationName() == "tpu.tl_lg_int8_conv_2d")
       oc_step = oc;
 
     auto buffer =
@@ -314,7 +314,7 @@ void CompressWeightPass::runOnFunction() {
   OwningRewritePatternList patterns;
   patterns.insert<
       CompressConvolutionWeightPattern<tpu::TL_LW_Conv2DOp>,
-      CompressConvolutionWeightPattern<tpu::TL_LG_Conv2DOp>
+      CompressConvolutionWeightPattern<tpu::TL_LG_INT8_Conv2DOp>
       >(&getContext(), compressedWeigtInfos);
   applyPatternsGreedily(getFunction(), patterns);
 

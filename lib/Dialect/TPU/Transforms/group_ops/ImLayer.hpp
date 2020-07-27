@@ -116,7 +116,6 @@ class ImLayer {
 class ImConv : public ImLayer {
  public:
   explicit ImConv(Operation *op);
-  bool conv1x1_to_fc;
 };
 
 class ImPooling : public ImLayer {

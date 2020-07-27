@@ -59,7 +59,7 @@ static void parseTLLeakyReluParam(Operation *op,
     int8_t &pos_rshift, int8_t &pos_m_i8,
     int8_t &neg_rshift, int8_t &neg_m_i8,
     float & negative_slope) {
-  auto lreluOp = llvm::dyn_cast<tpu::TL_LG_LeakyReluOp>(op);
+  auto lreluOp = llvm::dyn_cast<tpu::TL_LG_INT8_LeakyReluOp>(op);
   assert(lreluOp);
 
   if (lreluOp.m_i8_pos().hasValue()) {
@@ -86,7 +86,7 @@ static void parseTLConvLeakyParam(Operation *op,
     int8_t &pos_rshift, int8_t &pos_m_i8,
     int8_t &neg_rshift, int8_t &neg_m_i8,
     float & negative_slope) {
-  auto lreluOp = llvm::dyn_cast<tpu::TL_LG_Conv2DOp>(op);
+  auto lreluOp = llvm::dyn_cast<tpu::TL_LG_INT8_Conv2DOp>(op);
   assert(lreluOp);
 
   if (lreluOp.m_i8_pos().hasValue()) {
@@ -109,7 +109,7 @@ static void parseTLConvLeakyParam(Operation *op,
   negative_slope = lreluOp.negative_slope().getValue().convertToFloat();
 }
 
-LogicalResult tpu::TL_LG_Conv2DOp::codegen(void *ctx) {
+LogicalResult tpu::TL_LG_INT8_Conv2DOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
@@ -168,7 +168,15 @@ LogicalResult tpu::TL_LG_Conv2DOp::codegen(void *ctx) {
   return success();
 }
 
-LogicalResult tpu::TL_LG_DeConv2DOp::codegen(void *ctx) {
+LogicalResult tpu::TL_LG_BF16_Conv2DOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  assert(0);
+  return success();
+}
+
+
+LogicalResult tpu::TL_LG_INT8_DeConv2DOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
@@ -216,8 +224,14 @@ LogicalResult tpu::TL_LG_DeConv2DOp::codegen(void *ctx) {
   return success();
 }
 
+LogicalResult tpu::TL_LG_BF16_DeConv2DOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  assert(0);
+  return success();
+}
 
-LogicalResult tpu::TL_LG_EltwiseAddOp::codegen(void *ctx) {
+LogicalResult tpu::TL_LG_INT8_EltwiseAddOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);
 
@@ -252,12 +266,12 @@ LogicalResult tpu::TL_LG_EltwiseAddOp::codegen(void *ctx) {
   bool do_quant_rescale = false;
   int8_t rshift;
   int8_t m_i8_input[2];
-  if (this->rshift().hasValue() && this->m_i8_inputs().hasValue()) {
+  if (this->rshift().hasValue() && this->m_i8().hasValue()) {
     do_quant_rescale = true;
     rshift = this->rshift().getValue().getLimitedValue();
 
     std::vector<int32_t> m_i8_inputs_array;
-    arrayAttrToVector(this->m_i8_inputs().getValue(), m_i8_inputs_array);
+    arrayAttrToVector(this->m_i8().getValue(), m_i8_inputs_array);
     assert(m_i8_inputs_array.size() == op->getNumOperands());
     assert(m_i8_inputs_array.size() >= 2);
     m_i8_input[0] = static_cast<int8_t>(m_i8_inputs_array[0]);
@@ -295,7 +309,14 @@ LogicalResult tpu::TL_LG_EltwiseAddOp::codegen(void *ctx) {
   return success();
 }
 
-LogicalResult tpu::TL_LG_EltwiseMulOp::codegen(void *ctx) {
+LogicalResult tpu::TL_LG_BF16_EltwiseAddOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  assert(0);
+  return success();
+}
+
+LogicalResult tpu::TL_LG_INT8_EltwiseMulOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);
 
@@ -325,10 +346,10 @@ LogicalResult tpu::TL_LG_EltwiseMulOp::codegen(void *ctx) {
   bool do_quant_rescale = false;
   int8_t rshift;
   int32_t m_i32;
-  if (this->rshift().hasValue() && this->m_i32().hasValue()) {
+  if (this->rshift().hasValue() && this->m_i32_output().hasValue()) {
     do_quant_rescale = true;
     rshift = this->rshift().getValue().getLimitedValue();
-    m_i32 = this->m_i32().getValue().getLimitedValue();
+    m_i32 = this->m_i32_output().getValue().getLimitedValue();
   }
 
   // op code PROD = 0; SUM = 1; MAX = 2;
@@ -354,7 +375,14 @@ LogicalResult tpu::TL_LG_EltwiseMulOp::codegen(void *ctx) {
   return success();
 }
 
-LogicalResult tpu::TL_LG_LrnOp::codegen(void *ctx) {
+LogicalResult tpu::TL_LG_BF16_EltwiseMulOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+
+  return success();
+}
+
+LogicalResult tpu::TL_LG_INT8_LrnOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);
 
@@ -392,7 +420,14 @@ LogicalResult tpu::TL_LG_LrnOp::codegen(void *ctx) {
                       m_i8);
 }
 
-LogicalResult tpu::TL_LG_LutOp::codegen(void *ctx) {
+LogicalResult tpu::TL_LG_BF16_LrnOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+
+  return success();
+}
+
+LogicalResult tpu::TL_LG_INT8_LutOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);
 
@@ -423,7 +458,14 @@ LogicalResult tpu::TL_LG_LutOp::codegen(void *ctx) {
 
 }
 
-LogicalResult tpu::TL_LG_QuantOp::codegen(void *ctx) {
+LogicalResult tpu::TL_LG_BF16_LutOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  assert(0);
+  return success();
+}
+
+LogicalResult tpu::TL_LG_INT8_QuantOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);
 
@@ -471,7 +513,14 @@ LogicalResult tpu::TL_LG_QuantOp::codegen(void *ctx) {
   return success();
 }
 
-LogicalResult tpu::TL_LG_ConcatOp::codegen(void *ctx) {
+LogicalResult tpu::TL_LG_BF16_QuantOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  assert(0);
+  return success();
+}
+
+LogicalResult tpu::TL_LG_INT8_ConcatOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);
 
@@ -545,6 +594,12 @@ LogicalResult tpu::TL_LG_ConcatOp::codegen(void *ctx) {
 
 }
 
+LogicalResult tpu::TL_LG_BF16_ConcatOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  assert(0);
+  return success();
+}
 
 LogicalResult tpu::TL_LG_LoadNeuronOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TL Load Neuron codegen.\n";);
@@ -825,6 +880,13 @@ LogicalResult tpu::TL_LG_INT8_PoolAvg2DOp::codegen(void *ctx) {
   return success();
 }
 
+LogicalResult tpu::TL_LG_BF16_PoolAvg2DOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  assert(0);
+  return success();
+}
+
 LogicalResult tpu::TL_LG_INT8_PoolMax2DOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TL int8 pool max codegen.\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
@@ -857,7 +919,14 @@ LogicalResult tpu::TL_LG_INT8_PoolMax2DOp::codegen(void *ctx) {
   return success();
 }
 
-LogicalResult tpu::TL_LG_BroadcastMulOp::codegen(void *ctx) {
+LogicalResult tpu::TL_LG_BF16_PoolMax2DOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  assert(0);
+  return success();
+}
+
+LogicalResult tpu::TL_LG_INT8_BroadcastMulOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
@@ -897,7 +966,14 @@ LogicalResult tpu::TL_LG_BroadcastMulOp::codegen(void *ctx) {
   return success();
 }
 
-LogicalResult tpu::TL_LG_UpsampleOp::codegen(void *ctx) {
+LogicalResult tpu::TL_LG_BF16_BroadcastMulOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  assert(0);
+  return success();
+}
+
+LogicalResult tpu::TL_LG_INT8_UpsampleOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
@@ -928,7 +1004,14 @@ LogicalResult tpu::TL_LG_UpsampleOp::codegen(void *ctx) {
   return success();
 }
 
-LogicalResult tpu::TL_LG_LeakyReluOp::codegen(void *ctx) {
+LogicalResult tpu::TL_LG_BF16_UpsampleOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  assert(0);
+  return success();
+}
+
+LogicalResult tpu::TL_LG_INT8_LeakyReluOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
@@ -962,14 +1045,21 @@ LogicalResult tpu::TL_LG_LeakyReluOp::codegen(void *ctx) {
   return success();
 }
 
-LogicalResult tpu::TL_LG_PReluOp::codegen(void *ctx) {
+LogicalResult tpu::TL_LG_BF16_LeakyReluOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  assert(0);
+  return success();
+}
+
+LogicalResult tpu::TL_LG_INT8_PReluOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
   int8_t r_i8_pos, m_i8_pos, r_i8_neg;
-  auto prelu_op = llvm::dyn_cast<tpu::TL_LG_PReluOp>(op);
+  auto prelu_op = llvm::dyn_cast<tpu::TL_LG_INT8_PReluOp>(op);
   assert(prelu_op);
 
   if (prelu_op.m_i8_pos().hasValue()) {
@@ -1013,7 +1103,14 @@ LogicalResult tpu::TL_LG_PReluOp::codegen(void *ctx) {
   return success();
 }
 
-LogicalResult tpu::TL_LG_PadOp::codegen(void *ctx) {
+LogicalResult tpu::TL_LG_BF16_PReluOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  assert(0);
+  return success();
+}
+
+LogicalResult tpu::TL_LG_INT8_PadOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
@@ -1044,7 +1141,14 @@ LogicalResult tpu::TL_LG_PadOp::codegen(void *ctx) {
   return success();
 }
 
-LogicalResult tpu::TL_LG_CropOp::codegen(void *ctx) {
+LogicalResult tpu::TL_LG_BF16_PadOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  assert(0);
+  return success();
+}
+
+LogicalResult tpu::TL_LG_INT8_CropOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
@@ -1073,7 +1177,14 @@ LogicalResult tpu::TL_LG_CropOp::codegen(void *ctx) {
   return success();
 }
 
-LogicalResult tpu::TL_LG_ReluOp::codegen(void *ctx) {
+LogicalResult tpu::TL_LG_BF16_CropOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  assert(0);
+  return success();
+}
+
+LogicalResult tpu::TL_LG_INT8_ReluOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
@@ -1098,4 +1209,12 @@ LogicalResult tpu::TL_LG_ReluOp::codegen(void *ctx) {
   );
   return success();
 }
+
+LogicalResult tpu::TL_LG_BF16_ReluOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  assert(0);
+  return success();
+}
+
 }

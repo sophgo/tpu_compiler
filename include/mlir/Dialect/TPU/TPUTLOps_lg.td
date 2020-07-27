@@ -76,11 +76,11 @@ def TPU_TensorTypeAttr:StrEnumAttr<
 // TL op definitions.
 //===----------------------------------------------------------------------===//
 
-def TPU_TL_LG_Conv2DOp : TPU_Op<"tl_lg_conv_2d",
+class TPU_TL_LG_Conv2DOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
        DeclareOpInterfaceMethods<TpuTLOpCodegenInterface>]> {
-  let summary = "TL Convolution operator";
+  let summary = "TL Convolution"  # opQuant # "operator";
 
   let description = [{
   }];
@@ -118,7 +118,10 @@ def TPU_TL_LG_Conv2DOp : TPU_Op<"tl_lg_conv_2d",
   let results = (outs AnyTensor:$output);
 }
 
-def TPU_TL_LG_DeConv2DOp : TPU_Op<"tl_lg_deconv_2d",
+def TPU_TL_LG_INT8_Conv2DOp : TPU_TL_LG_Conv2DOp<"tl_lg_int8_conv_2d", "Int8">;
+def TPU_TL_LG_BF16_Conv2DOp : TPU_TL_LG_Conv2DOp<"tl_lg_bf16_conv_2d", "Bf16">;
+
+class TPU_TL_LG_DeConv2DOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
        DeclareOpInterfaceMethods<TpuTLOpCodegenInterface>]> {
@@ -157,11 +160,14 @@ def TPU_TL_LG_DeConv2DOp : TPU_Op<"tl_lg_deconv_2d",
   let results = (outs AnyTensor:$output);
 }
 
-def TPU_TL_LG_EltwiseAddOp : TPU_Op<"tl_lg_eltwise_add",
+def TPU_TL_LG_INT8_DeConv2DOp : TPU_TL_LG_DeConv2DOp<"tl_lg_int8_deconv_2d", "Int8">;
+def TPU_TL_LG_BF16_DeConv2DOp : TPU_TL_LG_DeConv2DOp<"tl_lg_bf16_deconv_2d", "Bf16">;
+
+class TPU_TL_LG_EltwiseOp<string mnemonic, string opQuant, string opType> : TPU_Op<mnemonic,
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
        DeclareOpInterfaceMethods<TpuTLOpCodegenInterface>]> {
-  let summary = "TL Eltwise Add operator";
+  let summary = "TL LG " #opQunat# "Eltwise" #opType# "operator";
 
   let description = [{
   }];
@@ -170,7 +176,8 @@ def TPU_TL_LG_EltwiseAddOp : TPU_Op<"tl_lg_eltwise_add",
     ins AnyTensor:$input,
     AnyTensor:$addend,
     OptionalAttr<I8Attr>:$rshift,
-    OptionalAttr<I32ArrayAttr>:$m_i8_inputs,
+    OptionalAttr<I32ArrayAttr>:$m_i8,
+    OptionalAttr<I32Attr>:$m_i32_output,
     DefaultValuedAttr<BoolAttr, "false">:$do_relu,
     OptionalAttr<I32ArrayAttr>:$la_input,
     I32Attr:$la_working,
@@ -190,35 +197,10 @@ def TPU_TL_LG_EltwiseAddOp : TPU_Op<"tl_lg_eltwise_add",
   let results = (outs AnyTensor:$output);
 }
 
-def TPU_TL_LG_EltwiseMulOp : TPU_Op<"tl_lg_eltwise_mul",
-      [NoSideEffect,
-       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuTLOpCodegenInterface>]> {
-  let summary = "TL Eltwise mul operator";
-
-  let description = [{
-  }];
-
-  let arguments = (
-    ins AnyTensor:$input,
-    AnyTensor:$addend,
-    OptionalAttr<I8Attr>:$rshift,
-    OptionalAttr<I32Attr>:$m_i32,
-    DefaultValuedAttr<BoolAttr, "false">:$do_relu,
-    OptionalAttr<I32ArrayAttr>:$la_input,
-    I32Attr:$la_working,
-    I32Attr:$la_output,
-    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
-    OptionalAttr<NonNegativeI64Attr>:$gaddr,
-    DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
-    DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
-    StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
-    OptionalAttr<StrAttr>:$chipname
-  );
-
-  let results = (outs AnyTensor:$output);
-}
+def TPU_TL_LG_INT8_EltwiseAddOp : TPU_TL_LG_EltwiseOp<"tL_lg_int8_eltwise_add", "Int8", "Add">;
+def TPU_TL_LG_BF16_EltwiseAddOp : TPU_TL_LG_EltwiseOp<"tL_lg_bf16_eltwise_add", "Bf16", "Add">;
+def TPU_TL_LG_INT8_EltwiseMulOp : TPU_TL_LG_EltwiseOp<"tL_lg_int8_eltwise_mul", "Int8", "Mul">;
+def TPU_TL_LG_BF16_EltwiseMulOp : TPU_TL_LG_EltwiseOp<"tL_lg_bf16_eltwise_mul", "Bf16", "Mul">;
 
 class TPU_TL_LG_Pool2DOp<string mnemonic, string opQuant, string opType> : TPU_Op<mnemonic,
       [NoSideEffect,
@@ -246,10 +228,12 @@ class TPU_TL_LG_Pool2DOp<string mnemonic, string opQuant, string opType> : TPU_O
 
   let results = (outs AnyTensor:$output);
 }
-def TPU_TL_LG_INT8_PoolAvg2DOp : TPU_TL_LG_Pool2DOp<"tl_int8_pool_avg_2d", "Int8", "Avg">;
-def TPU_TL_LG_INT8_PoolMax2DOp : TPU_TL_LG_Pool2DOp<"tl_int8_pool_max_2d", "Int8", "Max">;
+def TPU_TL_LG_INT8_PoolAvg2DOp : TPU_TL_LG_Pool2DOp<"tl_lg_int8_pool_avg_2d", "Int8", "Avg">;
+def TPU_TL_LG_INT8_PoolMax2DOp : TPU_TL_LG_Pool2DOp<"tl_lg_int8_pool_max_2d", "Int8", "Max">;
+def TPU_TL_LG_BF16_PoolAvg2DOp : TPU_TL_LG_Pool2DOp<"tl_lg_bf16_pool_avg_2d", "Bf16", "Avg">;
+def TPU_TL_LG_BF16_PoolMax2DOp : TPU_TL_LG_Pool2DOp<"tl_lg_bf16_pool_max_2d", "Bf16", "Max">;
 
-def TPU_TL_LG_LrnOp : TPU_Op<"tl_lg_lrn",
+class TPU_TL_LG_LrnOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
        DeclareOpInterfaceMethods<TpuTLOpCodegenInterface>]> {
@@ -283,7 +267,10 @@ def TPU_TL_LG_LrnOp : TPU_Op<"tl_lg_lrn",
   let results = (outs AnyTensor:$output);
 }
 
-def TPU_TL_LG_LutOp : TPU_Op<"tl_lg_lut",
+def TPU_TL_LG_INT8_LrnOp : TPU_TL_LG_LrnOp<"tl_lg_int8_lrn", "Int8">;
+def TPU_TL_LG_BF16_LrnOp : TPU_TL_LG_LrnOp<"tl_lg_bf16_lrn", "Bf16">;
+
+class TPU_TL_LG_LutOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
        DeclareOpInterfaceMethods<TpuTLOpCodegenInterface>]> {
@@ -314,7 +301,10 @@ def TPU_TL_LG_LutOp : TPU_Op<"tl_lg_lut",
   let results = (outs AnyTensor:$output);
 }
 
-def TPU_TL_LG_QuantOp : TPU_Op<"tl_lg_quant",
+def TPU_TL_LG_INT8_LutOp : TPU_TL_LG_LutOp<"tl_lg_int8_lut", "Int8">;
+def TPU_TL_LG_BF16_LutOp : TPU_TL_LG_LutOp<"tl_lg_bf16_lut", "Bf16">;
+
+class TPU_TL_LG_QuantOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
        DeclareOpInterfaceMethods<TpuTLOpCodegenInterface>]> {
@@ -343,7 +333,10 @@ def TPU_TL_LG_QuantOp : TPU_Op<"tl_lg_quant",
   let results = (outs AnyTensor:$output);
 }
 
-def TPU_TL_LG_ConcatOp : TPU_Op<"tl_lg_concat",
+def TPU_TL_LG_INT8_QuantOp : TPU_TL_LG_QuantOp<"tl_lg_int8_quant", "Int8">;
+def TPU_TL_LG_BF16_QuantOp : TPU_TL_LG_QuantOp<"tl_lg_bf16_quant", "Bf16">;
+
+class TPU_TL_LG_ConcatOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
        DeclareOpInterfaceMethods<TpuTLOpCodegenInterface>]> {
@@ -371,6 +364,8 @@ def TPU_TL_LG_ConcatOp : TPU_Op<"tl_lg_concat",
   let results = (outs AnyTensor:$output);
 }
 
+def TPU_TL_LG_INT8_ConcatOp : TPU_TL_LG_ConcatOp<"tl_lg_int8_concat", "Int8">;
+def TPU_TL_LG_BF16_ConcatOp : TPU_TL_LG_ConcatOp<"tl_lg_bf16_concat", "Bf16">;
 
 def TPU_TL_LG_LoadNeuronOp : TPU_Op<"tl_lg_load_neuron",
       [NoSideEffect,
@@ -477,7 +472,7 @@ def TPU_TL_LG_JoinOp : TPU_Op<"tl_lg_join",
   let results = (outs AnyTensor:$output);
 }
 
-def TPU_TL_LG_BroadcastMulOp : TPU_Op<"tl_lg_broadcast_mul",
+class TPU_TL_LG_BroadcastMulOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
        DeclareOpInterfaceMethods<TpuTLOpCodegenInterface>]> {
@@ -506,7 +501,10 @@ def TPU_TL_LG_BroadcastMulOp : TPU_Op<"tl_lg_broadcast_mul",
   let results = (outs AnyTensor:$output);
 }
 
-def TPU_TL_LG_UpsampleOp : TPU_Op<"tl_lg_upsample",
+def TPU_TL_LG_INT8_BroadcastMulOp : TPU_TL_LG_BroadcastMulOp<"tl_lg_int8_broadcast_mul", "Int8">;
+def TPU_TL_LG_BF16_BroadcastMulOp : TPU_TL_LG_BroadcastMulOp<"tl_lg_bf16_broadcast_mul", "Bf16">;
+
+class TPU_TL_LG_UpsampleOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
        DeclareOpInterfaceMethods<TpuTLOpCodegenInterface>]> {
@@ -532,7 +530,10 @@ def TPU_TL_LG_UpsampleOp : TPU_Op<"tl_lg_upsample",
   let results = (outs AnyTensor:$output);
 }
 
-def TPU_TL_LG_LeakyReluOp : TPU_Op<"tl_lg_leaky_relu",
+def TPU_TL_LG_INT8_UpsampleOp : TPU_TL_LG_UpsampleOp<"tl_lg_int8_upsample", "Int8">;
+def TPU_TL_LG_BF16_UpsampleOp : TPU_TL_LG_UpsampleOp<"tl_lg_bf16_upsample", "Bf16">;
+
+class TPU_TL_LG_LeakyReluOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
        DeclareOpInterfaceMethods<TpuTLOpCodegenInterface>]> {
@@ -561,7 +562,10 @@ def TPU_TL_LG_LeakyReluOp : TPU_Op<"tl_lg_leaky_relu",
   let results = (outs AnyTensor:$output);
 }
 
-def TPU_TL_LG_PReluOp : TPU_Op<"tl_lg_prelu",
+def TPU_TL_LG_INT8_LeakyReluOp : TPU_TL_LG_LeakyReluOp<"tl_lg_int8_leaky_relu", "Int8">;
+def TPU_TL_LG_BF16_LeakyReluOp : TPU_TL_LG_LeakyReluOp<"tl_lg_bf16_leaky_relu", "Bf16">;
+
+class TPU_TL_LG_PReluOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
        DeclareOpInterfaceMethods<TpuTLOpCodegenInterface>]> {
@@ -590,6 +594,10 @@ def TPU_TL_LG_PReluOp : TPU_Op<"tl_lg_prelu",
   let results = (outs AnyTensor:$output);
 }
 
+
+def TPU_TL_LG_INT8_PReluOp : TPU_TL_LG_PReluOp<"tl_lg_int8_prelu", "Int8">;
+def TPU_TL_LG_BF16_PReluOp : TPU_TL_LG_PReluOp<"tl_lg_bf16_prelu", "Bf16">;
+
 def TPU_TL_LG_CopyOp : TPU_Op<"tl_lg_copy",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
@@ -615,7 +623,7 @@ def TPU_TL_LG_CopyOp : TPU_Op<"tl_lg_copy",
   let results = (outs AnyTensor:$output);
 }
 
-def TPU_TL_LG_PadOp : TPU_Op<"tl_lg_pad",
+class TPU_TL_LG_PadOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
        DeclareOpInterfaceMethods<TpuTLOpCodegenInterface>]> {
@@ -660,7 +668,11 @@ def TPU_TL_LG_PadOp : TPU_Op<"tl_lg_pad",
   let results = (outs AnyTensor:$output);
 }
 
-def TPU_TL_LG_CropOp : TPU_Op<"tl_lg_crop",
+
+def TPU_TL_LG_INT8_PadOp : TPU_TL_LG_PadOp<"tl_lg_int8_pad", "Int8">;
+def TPU_TL_LG_BF16_PadOp : TPU_TL_LG_PadOp<"tl_lg_bf16_pad", "Bf16">;
+
+class TPU_TL_LG_CropOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
        DeclareOpInterfaceMethods<TpuTLOpCodegenInterface>]> {
@@ -701,7 +713,10 @@ def TPU_TL_LG_CropOp : TPU_Op<"tl_lg_crop",
   let results = (outs AnyTensor:$output);
 }
 
-def TPU_TL_LG_ReluOp : TPU_Op<"tl_lg_relu",
+def TPU_TL_LG_INT8_CropOp : TPU_TL_LG_CropOp<"tl_lg_int8_crop", "Int8">;
+def TPU_TL_LG_BF16_CropOp : TPU_TL_LG_CropOp<"tl_lg_bf16_crop", "Bf16">;
+
+class TPU_TL_LG_ReluOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
        DeclareOpInterfaceMethods<TpuTLOpCodegenInterface>]> {
@@ -739,5 +754,8 @@ def TPU_TL_LG_ReluOp : TPU_Op<"tl_lg_relu",
 
   let results = (outs AnyTensor:$output);
 }
+
+def TPU_TL_LG_INT8_ReluOp : TPU_TL_LG_ReluOp<"tl_lg_int8_relu", "Int8">;
+def TPU_TL_LG_BF16_ReluOp : TPU_TL_LG_ReluOp<"tl_lg_bf16_relu", "Bf16">;
 
 #endif // TPU_TL_OPS_LG
