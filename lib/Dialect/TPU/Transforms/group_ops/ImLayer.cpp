@@ -232,6 +232,10 @@ ImConv::ImConv(Operation* p) : ImLayer(IR_CONVOLUTION, p, true) {
     // which occupies too much memory. it has no benefit to
     // do fusion in such case.
     fusible = false;
+  } else if (g > 1 && false == is_dw) {
+    // if group conv convert to lg_conv, bias will be not eu_num aligned.
+    // test by resnext50
+    fusible = false;
   }
 
   int w_ic = ic;

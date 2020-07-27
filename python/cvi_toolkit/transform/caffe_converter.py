@@ -1109,7 +1109,6 @@ class CaffeConverter(BaseConverter):
         for bottom in layer.bottom:
             op, _, _ = self.getOperand(bottom)
             operands.append(op)
-        operands.append(op)
         p = layer.retinaface_detection_param
         nms_threshold = p.nms_threshold
         confidence_threshold = p.confidence_threshold
