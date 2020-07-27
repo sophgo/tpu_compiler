@@ -53,6 +53,26 @@ public:
     fn.walk([&](Operation *op) {
       if (auto castOp = llvm::dyn_cast<tpu::WeightFileOp>(op)) {
         npzFileName = castOp.filename();
+      } else if (auto castOp = llvm::dyn_cast<tpu::InputOp>(op)) {
+        cnpy::npz_t input_npz;
+        std::string op_name = castOp.name().str();
+        auto resultShape = getTensorShape(castOp.getResult());
+        std::vector<size_t> shape;
+        for (int i = 0; i < (int)resultShape.size(); ++i) {
+          shape.push_back(resultShape[i]);
+        }
+        auto count = std::accumulate(resultShape.begin(), resultShape.end(), 1,
+                                std::multiplies<int>());
+        std::vector<float> data(count);
+        std::normal_distribution<float> d{0, 0.88};
+        for (int i = 0; i < (int)count; i++) {
+          float rand = d(gen);
+          rand = rand < -2 ? -2 : rand;
+          rand = rand > 2 ? 2 : rand;
+          data[i] = rand;
+        }
+        cnpy::npz_add_array<float>(input_npz, op_name, (float *)data.data(), shape);
+        cnpy::npz_save_all("input.npz", input_npz);
       } else if (auto castOp = llvm::dyn_cast<tpu::LoadWeightOp>(op)) {
         std::string op_name = castOp.name().str();
         llvm::errs() << op_name << "\n";
@@ -67,23 +87,28 @@ public:
             op->getResult(0)->getType().template cast<TensorType>().getElementType();
         if (elementType.isF32()) {
           std::vector<float> data(count);
-          std::normal_distribution<float> d{0.3, 0.2};
+          std::normal_distribution<float> d{0, 0.2};
           for (int i = 0; i < (int)count; i++) {
             float rand = d(gen);
-            rand = rand < 0 ? 0 : rand;
+            rand = rand < -1 ? -1 : rand;
             rand = rand > 1 ? 1 : rand;
             data[i] = rand;
           }
           cnpy::npz_add_array<float>(npz, op_name, (float *)data.data(), shape);
         } else if (elementType.isBF16()) {
           std::vector<uint16_t> data(count);
-          std::normal_distribution<float> d{0.3, 0.2};
+          std::normal_distribution<float> d{0, 0.2};
           for (int i = 0; i < (int)count; i++) {
             float rand = d(gen);
-            rand = rand < 0 ? 0 : rand;
+            rand = rand < -1 ? -1 : rand;
             rand = rand > 1 ? 1 : rand;
-            uint16_t ui16 = (uint16_t)((*(uint32_t *)&rand) >> 16);
-            data[i] = ui16;
+            uint32_t* u32_val = reinterpret_cast<uint32_t*>(&rand);
+            uint32_t input = *u32_val;
+            uint32_t lsb = (input >> 16) & 1;
+            uint32_t rounding_bias = 0x7fff + lsb;
+            input += rounding_bias;
+            uint16_t bf_val = (uint16_t)(input >> 16);
+            data[i] = bf_val;
           }
           cnpy::npz_add_array<uint16_t>(npz, op_name, (uint16_t *)data.data(), shape);
         } else if (elementType.isInteger(8)) {
