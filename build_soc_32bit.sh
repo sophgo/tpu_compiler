@@ -68,6 +68,23 @@ export TOOLCHAIN_FILE_PATH=$MLIR_SRC_PATH/externals/cviruntime/scripts/toolchain
 export PATH=$ARM_TOOLCHAIN_GCC_PATH/bin:$PATH
 
 #
+# Setup soc CHIP_ID
+#
+if [ -z "$1" ]; then
+  CHIP_ID=cv183x
+else
+  if [ "$1" = "cv183x" ]; then
+    CHIP_ID=cv183x
+  elif [ "$1" = "cv182x" ]; then
+    CHIP_ID=cv182x
+  else
+    echo "incorrect CHIP_ID=$1 on soc build, please assign cv183x or cv182x"
+    exit 1;
+  fi
+fi
+echo "CHIP_ID=$CHIP_ID"
+
+#
 # install path
 #
 export FLATBUFFERS_SOC_PATH=$INSTALL_SOC_PATH_32BIT/flatbuffers
@@ -151,7 +168,7 @@ if [ ! -e $BUILD_SOC_PATH_32BIT/build_cviruntime ]; then
 fi
 
 pushd $BUILD_SOC_PATH_32BIT/build_cviruntime
-cmake -G Ninja -DCHIP=BM1880v2 -DRUNTIME=SOC $BUILD_FLAG \
+cmake -G Ninja -DCHIP=$CHIP_ID -DRUNTIME=SOC $BUILD_FLAG \
     -DCMAKE_SYSROOT=$AARCH_SYSROOT_PATH \
     -DCMAKE_TOOLCHAIN_FILE=$TOOLCHAIN_FILE_PATH \
     -DCVIKERNEL_PATH=$CVIKERNEL_SOC_PATH \
