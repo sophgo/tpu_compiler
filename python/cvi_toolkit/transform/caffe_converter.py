@@ -62,6 +62,7 @@ class CaffeConverter(BaseConverter):
             'Flatten': lambda layer: self.convert_flatten_op(layer),
             'InnerProduct': lambda layer: self.convert_inner_product_op(layer),
             'Input': lambda layer: self.convert_input_op(layer),
+            'Interp': lambda layer: self.convert_interp_op(layer),
             'LRN': lambda layer: self.convert_lrn_op(layer),
             'Normalize': lambda layer: self.convert_normalize_op(layer),
             'Permute': lambda layer: self.convert_permute_op(layer),
@@ -196,8 +197,30 @@ class CaffeConverter(BaseConverter):
          # default comes from caffe.proto
 
          p = layer.bn_param
-         bn_mode = p.bn_mode
+         bn_mode = 0;
+         if hasattr(p, 'bn_mode'):
+             bn_mode = p.bn_mode
+
+         param = {
+             'variance_epsilon': 1e-5,
+             #'momentum': 0.9,
+             'frozen': False
+         }
+
+         if layer.HasField('bn_param'):
+             if layer.bn_param.HasField('eps'):
+                 param['variance_epsilon'] = layer.bn_param.eps
+
+             #if layer.bn_param.HasField('momentum'):
+             #    param['momentum'] = layer.bn_param.momentum
+
+             if layer.bn_param.HasField('frozen'):
+                 param['frozen'] = layer.bn_param.frozen
+
+             assert(param['frozen'] == True and "only support frozen = false now")
+
          blobs = self.layer_dict[layer.name].blobs
+
          for idx, blob in enumerate(blobs):
              blob_op = self.blob_to_weight_op(layer, idx)
              operands.append(blob_op)
@@ -210,7 +233,12 @@ class CaffeConverter(BaseConverter):
              self.addOperand(layer.top[0], new_op,
                            output_shape, TensorType.ACTIVATION)
          else:
-           assert(0)
+             output_shape = input_shape
+             new_op = self.CVI.add_batchnorm_op(
+                 layer.name, operands, output_shape, **param)
+
+             self.addOperand(layer.top[0], new_op,
+                             output_shape, TensorType.ACTIVATION)
 
     def convert_concat_op(self, layer):
         assert(self.layerType(layer) == 'Concat')
@@ -338,7 +366,8 @@ class CaffeConverter(BaseConverter):
             'group': g,
             'is_dw': is_dw,
             'with_bias': with_bias,
-            'do_relu': False
+            'do_relu': False,
+            'ins': [],
         }
         if not is_deconv:
             new_op = self.CVI.add_conv_op(
@@ -523,6 +552,94 @@ class CaffeConverter(BaseConverter):
     def convert_input_op(self, layer):
         assert(self.layerType(layer) == 'Input')
         # do nothing
+
+    def convert_interp_op(self, layer):
+        assert(self.layerType(layer) == 'Interp')
+        #
+        # all settings:
+        #
+        #height:33 width:65 (1, 1024, 1, 1)->(1, 1024, 33, 65)
+        #shrink_factor:2 (1, 3, 1025, 2049)->(1, 3, 513, 1025)
+        #zoom_factor: 2(1, 256, 33, 65)->(1, 256, 65, 129)
+        #pad_beg:0
+        #pad_end:0
+        # plz refer \interp_layer.cpp:30 for more parsing priority info
+
+        op, input_shape, _ = self.getOperand(layer.bottom[0])
+        output_shape = list(input_shape)
+        p = layer.interp_param
+        operands = list()
+        operands.append(op)
+
+        assert (len(input_shape) == 4 and "current only support 4 dims")
+        assert ((p.pad_beg >= 0 and p.pad_end >= 0) and "pad only support positive")
+
+        # append pad
+        after_h = input_shape[2] + p.pad_beg + p.pad_end
+        after_w = input_shape[3] + p.pad_beg + p.pad_end
+
+        # only deal with > case
+        def shrink(after_h, after_w, p):
+            assert(p.shrink_factor >= 1 and "p.shrink_factor should > 1")
+            after_h = math.floor((after_h - 1) / p.shrink_factor) + 1
+            after_w = math.floor((after_w - 1) / p.shrink_factor) + 1
+            return after_h, after_w
+
+        def zoom(after_h, after_w, p):
+            assert(p.zoom_factor >= 1 and "p.zoom_factor should > 1")
+            after_h = after_h + math.floor((after_h - 1) * (p.zoom_factor - 1))
+            after_w = after_w + math.floor((after_w - 1) * (p.zoom_factor - 1))
+            return after_h, after_w
+
+        shrink_factor = 0
+        zoom_factor = 0
+        height = 0
+        width = 0
+
+        if hasattr(p, 'shrink_factor'):
+            if p.shrink_factor > 1:
+                shrink_factor = p.shrink_factor
+
+        if hasattr(p, 'zoom_factor'):
+            if p.zoom_factor > 1:
+                zoom_factor = p.zoom_factor
+        if hasattr(p, 'height'):
+            height = p.height
+        if hasattr(p, 'width'):
+            width = p.width
+
+        if shrink_factor and not zoom_factor:
+            after_h, after_w = shrink(after_h, after_w, p)
+        elif zoom_factor and not shrink_factor:
+            after_h, after_w = zoom(after_h, after_w, p)
+        elif height and width:
+            assert((p.height > 0 and p.width > 0) and "height/width must > 0")
+            after_h = p.height
+            after_w = p.width
+        elif shrink_factor and zoom_factor:
+            after_h, after_w = shrink(after_h, after_w, p)
+            after_h, after_w = zoom(after_h, after_w, p)
+        else:
+            print("param is ", p)
+            assert(0 and "not support interp type")
+
+        output_shape[2] = after_h
+        output_shape[3] = after_w
+
+        mlir_p = {
+                'height': p.height,
+                'pad_beg': p.pad_beg,
+                'pad_end': p.pad_end,
+                'shrink_factor': p.shrink_factor,
+                'width': p.width,
+                'zoom_factor': p.zoom_factor,
+                }
+
+        new_op = self.CVI.add_interp_op(
+            layer.name, operands, output_shape, **mlir_p)
+
+        self.addOperand(layer.top[0], new_op,
+                        output_shape, TensorType.ACTIVATION)
 
     def convert_lrn_op(self, layer):
         assert(self.layerType(layer) == 'LRN')
@@ -1104,7 +1221,7 @@ class CaffeConverter(BaseConverter):
         param = {
             'scale': scale
         }
-        
+
         upsample_name = layer.name
         if len(layer.bottom) > 1:
           upsample_name = "{}_nearst".format(layer.name)
@@ -1130,7 +1247,7 @@ class CaffeConverter(BaseConverter):
     def convert_yolo_detection_op(self, layer):
         assert(self.layerType(layer) == 'YoloDetection')
         _, input_shape, _ = self.getOperand(layer.bottom[0])
-        
+
         operands = list()
         for bottom in layer.bottom:
             op, _, _ = self.getOperand(bottom)

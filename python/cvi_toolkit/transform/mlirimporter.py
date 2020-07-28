@@ -12,6 +12,7 @@ logger = setup_logger('root')
 class TPU_OpType(Enum):
     Weight_file = 'tpu.weight_file'
     Input  = 'tpu.input'
+    Interp  = 'tpu.interp'
     Load_Weight = 'tpu.load_weight'
 
     BatchNorm = 'tpu.batch_norm'
@@ -192,6 +193,23 @@ class MLIRImporter(object):
         return self.buildOp(TPU_OpType.BroadcastAdd.value, inputOperands, [
             tensor_output_type], name=broadcast_add_name, axis=axis_attr, quant=self.quant_param)
 
+    def add_interp_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+        tensor_output_type = self.module.make_ranked_tensor_type(
+            self.f32Type, output_tensor_shape)
+
+        mlir_attrs = {}
+        for key in kargs:
+            checkType(kargs[key], int)
+            mlir_attrs[key] = self.module.integerAttr(self.i32Type, kargs[key])
+
+        name = self.module.stringAttr(op_name)
+
+        inputOpernads = self.add_quant_reg(inputOperands)
+
+        return self.buildOp(TPU_OpType.Interp.value, inputOperands, [
+            tensor_output_type], name=name, **mlir_attrs,
+            quant=self.quant_param)
+
     def add_batchnorm_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = self.module.make_ranked_tensor_type(
             self.f32Type, output_tensor_shape)
@@ -202,6 +220,10 @@ class MLIRImporter(object):
 
         batchnorm_name = self.module.stringAttr(op_name)
         variance_epsilon_attr = self.module.floatAttr(variance_epsilon)
+
+        none = self.add_none_op()
+        for i in range(5 - len(inputOperands)):
+            inputOperands.append(none)
 
         return self.buildOp(TPU_OpType.BatchNorm.value, inputOperands, [
             tensor_output_type], name=batchnorm_name, variance_epsilon=variance_epsilon_attr)
@@ -268,6 +290,7 @@ class MLIRImporter(object):
         checkKey(kargs, 'is_dw')
         checkKey(kargs, 'with_bias')
         checkKey(kargs, 'do_relu')
+        checkKey(kargs, 'ins')
 
         conv_name = self.module.stringAttr(op_name)
         conv_param = {
@@ -284,6 +307,8 @@ class MLIRImporter(object):
             'is_dw': self.module.boolAttr(kargs['is_dw']),
             'with_bias': self.module.boolAttr(kargs['with_bias']),
             'do_relu': self.module.boolAttr(kargs['do_relu']),
+            'ins': self.module.arrayAttr(
+                [self.module.integerAttr(self.i32Type, x) for x in kargs['ins']])
           }
 
         dict_attr = self.module.dictAttr(**conv_param)
@@ -424,6 +449,7 @@ class MLIRImporter(object):
         checkKey(kargs, 'is_dw')
         checkKey(kargs, 'with_bias')
         checkKey(kargs, 'do_relu')
+        checkKey(kargs, 'ins')
 
         deconv_name = self.module.stringAttr(op_name)
         deconv_param = {
@@ -440,6 +466,8 @@ class MLIRImporter(object):
             'is_dw': self.module.boolAttr(kargs['is_dw']),
             'with_bias': self.module.boolAttr(kargs['with_bias']),
             'do_relu': self.module.boolAttr(kargs['do_relu']),
+            'ins': self.module.arrayAttr(
+                [self.module.integerAttr(self.i32Type, x) for x in kargs['ins']]),
         }
 
         dict_attr = self.module.dictAttr(**deconv_param)

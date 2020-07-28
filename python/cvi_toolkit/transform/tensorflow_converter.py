@@ -469,6 +469,7 @@ class TFConverter(BaseConverter):
             'is_dw': False,
             'with_bias': node.config['use_bias'],
             'do_relu': do_relu,
+            'ins': [],
         }
         on = shape[0]
         oc = filter_shape[0] # feature map size
@@ -567,6 +568,7 @@ class TFConverter(BaseConverter):
             'is_dw': True,
             'with_bias': node.config['use_bias'],
             'do_relu': False,
+            'ins': [],
         }
         on = shape[0]
 

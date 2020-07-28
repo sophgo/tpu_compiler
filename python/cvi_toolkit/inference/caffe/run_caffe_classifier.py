@@ -127,13 +127,18 @@ def main(argv):
       if args.label_file:
          labels = np.loadtxt(args.label_file, str, delimiter='\t')
          top_k = predictions[ix].flatten().argsort()[-1:-6:-1]
-         print(labels[top_k])
          print(top_k)
+         if max(top_k) > 1000:
+             pass # no need to show top_k > 1000
+         else:
+             print(labels[top_k])
          prob = np.squeeze(predictions[ix].flatten())
          idx = np.argsort(-prob)
          for i in range(5):
              label = idx[i]
-             print('%d - %.2f - %s' % (idx[i], prob[label], labels[label]))
+             # TODO: non-classifier case's label i invalid
+             if label < 1000:
+                 print('%d - %.2f - %s' % (idx[i], prob[label], labels[label]))
 
 if __name__ == '__main__':
     main(sys.argv)

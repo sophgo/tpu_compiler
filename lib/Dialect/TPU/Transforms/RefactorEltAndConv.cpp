@@ -106,6 +106,7 @@ struct TpuRefactorEltAndConvPattern : public RewritePattern {
                     convOp.param().is_dw(),
                     convOp.param().with_bias(),
                     convOp.param().do_relu(),
+                    convOp.param().ins(),
                     rewriter.getContext()));//rewrite strideH
         }
         auto shape = eltAddOp.output()->getType().cast<TensorType>().getShape();//Refactor eltOp

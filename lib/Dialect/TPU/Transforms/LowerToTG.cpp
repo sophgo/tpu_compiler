@@ -76,6 +76,7 @@ Value* tpu::BroadcastMulOp::convertToTG() {
           builder.getBoolAttr(true),    // is_dw
           builder.getBoolAttr(false),   // with_bias
           builder.getBoolAttr(this->do_relu()),   // do_relu
+          builder.getI32ArrayAttr(ArrayRef<int32_t>({})), // [0]ins_w/[1]ins_h
           builder.getContext())));
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
   attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
@@ -256,6 +257,7 @@ Value* tpu::Conv2DOp::convertToTG() {
               param().is_dw(),
               param().with_bias(),
               param().do_relu(),
+              param().ins(),
               builder.getContext())));
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
   attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
@@ -651,6 +653,16 @@ Value *tpu::FullyConnectedOp::convertToTG() {
     return newOp.getResult();
   }
   llvm_unreachable("unsupported type");
+}
+
+Value* tpu::InterpOp::convertToTG() {
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  auto builder = Builder(op->getContext());
+  TensorFile *wTF = getWeightTensorFile(op);
+  llvm_unreachable("unsupported type");
+  return NULL;
 }
 
 Value *tpu::LrnOp::convertToTG() {
@@ -1123,6 +1135,39 @@ Value *tpu::SwapChannelOp::convertToTG() {
     return newOp.getResult();
   }
   llvm_unreachable("unsupported type");
+}
+
+Value* tpu::TileInterpOp::convertToTG() {
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  auto builder = Builder(op->getContext());
+
+  std::vector<Value *> operands;
+  operands.push_back(input());
+
+  std::vector<NamedAttribute> attrs;
+
+  // keep info to tg
+  attrs.push_back(builder.getNamedAttr("resp",
+        builder.getArrayAttr(resp().getValue())));
+  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
+
+  if (getOpQuant() == "INT8") {
+    assert(getOpQuantParamType() == "RSHIFT_AND_M_I8");
+    auto newOp = OpBuilder(op).create<tpu::TG_INT8_TileInterpOp>(
+        op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  } else if (getOpQuant() == "BF16") {
+    auto newOp = OpBuilder(op).create<tpu::TG_BF16_TileInterpOp>(
+        op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  }
+  llvm_unreachable("unsupported type");
+
+  return NULL;
 }
 
 Value *tpu::PixelShuffleOp::convertToTG() {
@@ -2337,6 +2382,7 @@ public:
         DefaultToTGPattern<tpu::EltwiseMinOp>,
         DefaultToTGPattern<tpu::EltwiseMulOp>,
         DefaultToTGPattern<tpu::FullyConnectedOp>,
+        DefaultToTGPattern<tpu::InterpOp>,
         DefaultToTGPattern<tpu::LrnOp>,
         DefaultToTGPattern<tpu::LeakyReluOp>,
         DefaultToTGPattern<tpu::PadOp>,

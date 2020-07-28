@@ -208,6 +208,7 @@ struct TpuDecomposeNormalizePattern : public RewritePattern {
         rewriter.getBoolAttr(is_dw),
         rewriter.getBoolAttr(with_bias),
         rewriter.getBoolAttr(false),
+        rewriter.getI32ArrayAttr(ArrayRef<int32_t>({})), // [0]ins_w/[1]ins_h
         rewriter.getContext())));
     attrs_conv.push_back(rewriter.getNamedAttr("quant",
                          getDefaultQuantParam(rewriter)));
