@@ -2007,6 +2007,7 @@ void MixNet::_add_tl_pad_op(MixOp * mix_op,
     if (h_end >= in_tensor->h()) {
       real_h_slice = in_tensor->h() - real_h_idx;
       pads[2] = 0; // pad_top = 0;
+      pads[6] = h_end - in_tensor->h(); // pad_bottom
     } else {
       real_h_slice = h_end - real_h_idx;
       if (in_tensor->h_idx == 0)
@@ -2016,6 +2017,8 @@ void MixNet::_add_tl_pad_op(MixOp * mix_op,
         pads[6] = 0; // pad_bottom = 0;
       }
     }
+    if (in_tensor->h_idx < 0)
+      pads[2] = -in_tensor->h_idx;
     bottom_dim[2] = real_h_slice;
   }
 

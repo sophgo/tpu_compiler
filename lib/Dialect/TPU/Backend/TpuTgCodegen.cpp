@@ -1077,8 +1077,16 @@ LogicalResult tpu::TG_INT8_EltwiseMulOp::codegen(void *ctx) {
   assert(!do_early_stride());
 
   gaddr_t ga_inputs[2];
-  ga_inputs[0] = getPreviousOpAddress(op, 0);
-  ga_inputs[1] = getPreviousOpAddress(op, 1);
+
+  for (int i = 0; i < 2; i++) {
+    auto defOp = op->getOperand(i)->getDefiningOp();
+    if (isa<tpu::LoadWeightOp>(defOp)) {
+      ga_inputs[i] = getWeightOpAddress(defOp);
+    } else {
+      ga_inputs[i] = getOpAddress(defOp);
+    }
+  }
+
   gaddr_t ga_output = getOpAddress(op);
   int layer_id = mlir::getOpLayerId(op);
 

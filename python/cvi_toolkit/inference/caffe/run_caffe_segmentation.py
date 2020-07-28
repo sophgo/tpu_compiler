@@ -48,6 +48,11 @@ def make_parser():
         help="Dump all blobs including inplace blobs (takes much longer time)"
     )
     parser.add_argument(
+        "--output",
+        type=str, default='',
+        help="Indicate output name"
+    )
+    parser.add_argument(
         "--dump_weights",
         help="Dump all weights into a file in npz format"
     )
@@ -108,8 +113,8 @@ if __name__ == '__main__':
     ##--decoder: Change the name of output blobs according to your prototxts--
 
     if (args.draw_image != ''):
-        output_shape = outputs['Deconvolution23_deconv'].data.shape
-        prediction = outputs['Deconvolution23_deconv'].data[0].argmax(axis=0)
+        output_shape = outputs[args.output].data.shape
+        prediction = outputs[args.output].data[0].argmax(axis=0)
  
         prediction = np.squeeze(prediction)
         prediction = np.resize(prediction, (3, output_shape[2], output_shape[3]))

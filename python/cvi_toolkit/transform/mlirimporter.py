@@ -42,6 +42,7 @@ class TPU_OpType(Enum):
     PixelShuffle = 'tpu.pixelshuffle'
     PoolAvg2D = 'tpu.pool_avg_2d'
     PoolMax2D  = 'tpu.pool_max_2d'
+    PoolMask = 'tpu.pool_mask'
     Power = 'tpu.power'
     Preprocess = 'tpu.preprocess'
     PriorBox = 'tpu.priorbox'
@@ -639,6 +640,17 @@ class MLIRImporter(object):
         return self.buildOp(TPU_OpType.Pad.value, inputOperands, [
             tensor_output_type], name=pad_name, quant=self.quant_param, pads=pads_attr, const_val=const_val_attr)
 
+    def add_pool_mask_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+        tensor_output_type = self.module.make_ranked_tensor_type(
+            self.f32Type, output_tensor_shape)
+
+        checkKey(kargs, 'scale')
+        pool_mask_name = self.module.stringAttr(op_name)
+        pool_mask_param = {
+            'scale': self.module.integerAttr(self.i32Type, kargs['scale'])
+        }
+        return self.buildOp(TPU_OpType.PoolMask.value, inputOperands, [
+            tensor_output_type], name=pool_mask_name, **pool_mask_param)
 
     def add_pool_avg_2d_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = self.module.make_ranked_tensor_type(

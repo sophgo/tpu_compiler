@@ -79,7 +79,6 @@ class CaffeModel(model_base):
                     continue
                 if layer.type == "Slice":
                     continue
-                assert(len(self.net.top_names[name]) == 1)
                 if layer.type == "Input":
                     blobs_dict[name] = input_data
                 top_map[self.net.top_names[name][0]] = name

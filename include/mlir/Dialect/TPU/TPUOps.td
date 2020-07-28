@@ -2069,6 +2069,46 @@ def TPU_PadOp: TPU_Op<"pad",
   let hasCanonicalizer = 1;
 }
 
+def TPU_PoolMaskOp: TPU_Op<"pool_mask",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>]> {
+  let summary = "pooling mask operator";
+
+  let description = [{
+    Perform padding on input.
+
+    Inputs:
+      `input`           : required, the input activation tensor.
+
+    Attributes:
+      `scale`           : required, scale for upsampling.
+      `name`            : required, name for calibration, comparing, or debug.
+      `layer_id`        : optional, id for profiling.
+      `chipname`        : optional, chipname.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface` : support common TPU Op interface
+      `TpuOpInterpInterface` : support interperter
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    AnyTensor:$pool_res,
+    NonNegativeI32Attr:$scale,
+    StrAttr:$name,
+    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
+  );
+
+  let results = (outs AnyTensor:$output);
+  let hasCanonicalizer = 1;
+}
+
+
 include "mlir/Dialect/TPU/TPUSupportOps.td"
 include "mlir/Dialect/TPU/TPUTGOps.td"
 include "mlir/Dialect/TPU/TPUTLOps_Simple.td"
