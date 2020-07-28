@@ -91,6 +91,15 @@ struct SinkCpuOPToReturnOpPattern : public RewritePattern {
   }
 };
 
+static bool hasMoreUser(Operation *op) {
+  int user = 0;
+  for (auto &use : op->getResult(0)->getUses()) {
+    user++;
+  }
+
+  return (user > 1);
+}
+
 template<typename OpTy>
 struct MoveCpuOPToCloseUserPattern : public RewritePattern {
   MoveCpuOPToCloseUserPattern(MLIRContext *context)
@@ -114,6 +123,11 @@ struct MoveCpuOPToCloseUserPattern : public RewritePattern {
           !isa<tpu::ReshapeOp>(opd)) {
         continue;
       }
+
+      if (hasMoreUser(opd)) {
+        continue;
+      }
+
       opd->moveBefore(insertPoint);
       insertPoint = opd;
     }

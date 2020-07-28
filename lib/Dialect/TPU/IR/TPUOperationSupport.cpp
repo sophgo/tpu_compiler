@@ -210,9 +210,12 @@ llvm::StringRef getOpQuant(Operation *op) {
   if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpQuantInterface>(op)) {
     return tpuOp.getOpQuant();
   } else if (isa<tpu::DetectionOutputOp>(op)
+             || isa<tpu::FrcnDetectionOp>(op)
              || isa<tpu::RetinaFaceDetectionOp>(op)
              || isa<tpu::PreprocessOp>(op)
              || isa<tpu::PriorBoxOp>(op)
+             || isa<tpu::ProposalOp>(op)
+             || isa<tpu::ROIPoolingOp>(op)
              || isa<tpu::SoftmaxOp>(op)
              || isa<tpu::TransposeOp>(op)
              || isa<tpu::YoloDetectionOp>(op)

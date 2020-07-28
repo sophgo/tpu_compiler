@@ -325,7 +325,8 @@ public:
           }
         }
         GmemAllocator allocator(gaddrMap, gmemReusedSet, clNeuronAlignment);
-        auto gmemUsed = allocator.assignGaddr(opsOfSubFunc, liveRange, clNeuronReuse, 0);
+        auto gmemUsed = allocator.assignGaddr(opsOfSubFunc, liveRange, clNeuronReuse, sharedGmemSize);
+        sharedGmemSize += gmemUsed;
         if (sharedGmemSize < gmemUsed) {
           sharedGmemSize = gmemUsed;
         }

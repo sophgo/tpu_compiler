@@ -31,6 +31,7 @@ class TPU_OpType(Enum):
     Eltwise_Min = 'tpu.eltwise_min'
     Eltwise_Mul = 'tpu.eltwise_mul'
     FullyConnected = 'tpu.fully_connected'
+    FrcnDetection = 'tpu.frcn_detection'
     GRU = 'tpu.gru'
     LeakyRelu = 'tpu.leaky_relu'
     LrnOne = 'tpu.lrn_one'
@@ -48,11 +49,13 @@ class TPU_OpType(Enum):
     Preprocess = 'tpu.preprocess'
     PriorBox = 'tpu.priorbox'
     PRelu = 'tpu.prelu'
+    Proposal = 'tpu.proposal'
     Reciprocal = 'tpu.reciprocal'
     Reshape = 'tpu.reshape'
     Relu = 'tpu.relu'
     Reorg = 'tpu.reorg'
     RetinaFaceDetection = 'tpu.retinaface_detection'
+    ROIPooling = 'tpu.roi_pooling'
     Scale = 'tpu.scale'
     ShuffelChannel = 'tpu.shuffle_channel'
     Sigmoid = 'tpu.sigmoid'
@@ -545,6 +548,25 @@ class MLIRImporter(object):
         return self.buildOp(TPU_OpType.FullyConnected.value, inputOperands, [
             tensor_output_type], name=fully_connected_name, quant=self.quant_param)
 
+    def add_frcn_detection_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+        tensor_output_type = self.module.make_ranked_tensor_type(
+            self.f32Type, output_tensor_shape)
+
+        checkKey(kargs, 'class_num')
+        checkKey(kargs, 'nms_threshold')
+        checkKey(kargs, 'obj_threshold')
+        checkKey(kargs, 'keep_topk')
+
+        name_attr=self.module.stringAttr(op_name)
+        param = {
+            'class_num': self.module.integerAttr(self.i32Type, kargs['class_num']),
+            'nms_threshold': self.module.floatAttr(kargs['nms_threshold']),
+            'obj_threshold': self.module.floatAttr(kargs['obj_threshold']),
+            'keep_topk': self.module.integerAttr(self.i32Type, kargs['keep_topk'])
+        }
+        return self.buildOp(TPU_OpType.FrcnDetection.value, inputOperands, [
+            tensor_output_type], name=name_attr, **param)
+
     def add_gru_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = self.module.make_ranked_tensor_type(
             self.f32Type, output_tensor_shape)
@@ -873,6 +895,34 @@ class MLIRImporter(object):
         return self.buildOp(TPU_OpType.PRelu.value, inputOperands, [
             tensor_output_type], name=prelu_name, quant=self.quant_param)
 
+
+    def add_proposal_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+        tensor_output_type = self.module.make_ranked_tensor_type(
+            self.f32Type, output_tensor_shape)
+        
+        proposal_op = self.module.stringAttr(op_name)
+        checkKey(kargs, 'net_input_h')
+        checkKey(kargs, 'net_input_w')
+        checkKey(kargs, 'feat_stride')
+        checkKey(kargs, 'anchor_base_size')
+        checkKey(kargs, 'rpn_obj_threshold')
+        checkKey(kargs, 'rpn_nms_threshold')
+        checkKey(kargs, 'rpn_nms_post_top_n')
+
+        proposal_name = self.module.stringAttr(op_name)
+        attr_dict = {
+            'net_input_h': self.module.integerAttr(self.i32Type, kargs['net_input_h']),
+            'net_input_w': self.module.integerAttr(self.i32Type, kargs['net_input_w']),
+            'feat_stride': self.module.integerAttr(self.i32Type, kargs['feat_stride']),
+            'anchor_base_size': self.module.integerAttr(self.i32Type, kargs['anchor_base_size']),
+            'rpn_obj_threshold': self.module.floatAttr(kargs['rpn_obj_threshold']),
+            'rpn_nms_threshold': self.module.floatAttr(kargs['rpn_nms_threshold']),
+            'rpn_nms_post_top_n': self.module.integerAttr(self.i32Type, kargs['rpn_nms_post_top_n']),
+        }
+        return self.buildOp(TPU_OpType.Proposal.value, inputOperands, [
+            tensor_output_type], name=proposal_name, quant=self.quant_param, **attr_dict)
+
+
     def add_reciprocal_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = self.module.make_ranked_tensor_type(
             self.f32Type, output_tensor_shape)
@@ -929,6 +979,24 @@ class MLIRImporter(object):
         reshape_name = self.module.stringAttr(op_name)
         return self.buildOp(TPU_OpType.Reshape.value, inputOperands, [
             tensor_output_type], name=reshape_name)
+
+    def add_roipooling_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+        tensor_output_type = self.module.make_ranked_tensor_type(
+            self.f32Type, output_tensor_shape)
+        
+        roipooling_op = self.module.stringAttr(op_name)
+        checkKey(kargs, 'pooled_h')
+        checkKey(kargs, 'pooled_w')
+        checkKey(kargs, 'spatial_scale')
+
+        roipooling_name = self.module.stringAttr(op_name)
+        attr_dict = {
+            'pooled_h': self.module.integerAttr(self.i32Type, kargs['pooled_h']),
+            'pooled_w': self.module.integerAttr(self.i32Type, kargs['pooled_w']),
+            'spatial_scale': self.module.floatAttr(kargs['spatial_scale'])
+        }
+        return self.buildOp(TPU_OpType.ROIPooling.value, inputOperands, [
+            tensor_output_type], name=roipooling_name, quant=self.quant_param, **attr_dict)
 
     def add_scale_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = self.module.make_ranked_tensor_type(

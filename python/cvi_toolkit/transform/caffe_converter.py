@@ -60,6 +60,7 @@ class CaffeConverter(BaseConverter):
             'DummyData': lambda layer: self.convert_dummydata_op(layer),
             'Eltwise': lambda layer: self.convert_eltwise_op(layer),
             'Flatten': lambda layer: self.convert_flatten_op(layer),
+            'FrcnDetection': lambda layer: self.convert_frcn_detection_op(layer),
             'InnerProduct': lambda layer: self.convert_inner_product_op(layer),
             'Input': lambda layer: self.convert_input_op(layer),
             'Interp': lambda layer: self.convert_interp_op(layer),
@@ -70,10 +71,12 @@ class CaffeConverter(BaseConverter):
             'Power': lambda layer: self.convert_power_op(layer),
             'PReLU': lambda layer: self.convert_prelu_op(layer),
             'PriorBox': lambda layer: self.convert_priorbox_op(layer),
+            'Proposal': lambda layer: self.convert_proposal_op(layer),
             'ReLU': lambda layer: self.convert_relu_op(layer),
             'Reorg': lambda layer: self.convert_reorg_op(layer),
             'Reshape': lambda layer: self.convert_reshape_op(layer),
             'RetinaFaceDetection': lambda layer: self.convert_retinaface_detection_op(layer),
+            'ROIPooling': lambda layer: self.convert_roipooling_op(layer),
             'Scale': lambda layer: self.convert_scale_op(layer),
             'ShuffleChannel': lambda layer: self.convert_shufflechannel_op(layer),
             'Sigmoid': lambda layer: self.convert_sigmoid_op(layer),
@@ -510,6 +513,31 @@ class CaffeConverter(BaseConverter):
         new_op = self.CVI.add_reshape_op(layer.name, operands, output_shape)
         self.addOperand(layer.top[0], new_op,
                         output_shape, TensorType.ACTIVATION)
+    
+    def convert_frcn_detection_op(self, layer):
+        assert(self.layerType(layer) == 'FrcnDetection')
+        operands = list()
+        for bottom in layer.bottom:
+            op, _, _ = self.getOperand(bottom)
+            operands.append(op)
+        p = layer.frcn_detection_param
+        class_num = p.class_num
+        obj_threshold = p.obj_threshold
+        nms_threshold = p.nms_threshold
+        keep_topk = p.keep_topk
+        param = {
+            'class_num': class_num,
+            'obj_threshold': obj_threshold,
+            'nms_threshold': nms_threshold,
+            'keep_topk': keep_topk
+        }
+
+        output_shape = [1, 1, keep_topk, 6]
+
+        new_op = self.CVI.add_frcn_detection_op(
+            layer.name, operands, output_shape, **param)
+        self.addOperand(layer.top[0], new_op, output_shape,
+                        TensorType.ACTIVATION)
 
     def convert_inner_product_op(self, layer):
         assert(self.layerType(layer) == 'InnerProduct')
@@ -910,6 +938,35 @@ class CaffeConverter(BaseConverter):
             layer.name, operands, output_shape, **param)
         self.addOperand(layer.top[0], new_op,
                         output_shape, TensorType.ACTIVATION)
+    
+    def convert_proposal_op(self, layer):
+        assert(self.layerType(layer) == 'Proposal')
+        operands = list()
+        for bottom in layer.bottom:
+            op, _, _ = self.getOperand(bottom)
+            operands.append(op)
+        p = layer.proposal_param
+        feat_stride = p.feat_stride
+        anchor_base_size = p.anchor_base_size
+        rpn_obj_threshold = p.rpn_obj_threshold
+        rpn_nms_threshold = p.rpn_nms_threshold
+        rpn_nms_post_top_n = p.rpn_nms_post_top_n
+        net_input_h = p.net_input_h
+        net_input_w = p.net_input_w
+        param = {
+            'net_input_h': net_input_h,
+            'net_input_w': net_input_w,
+            'feat_stride': feat_stride,
+            'anchor_base_size': anchor_base_size,
+            'rpn_obj_threshold': rpn_obj_threshold,
+            'rpn_nms_threshold': rpn_nms_threshold,
+            'rpn_nms_post_top_n': rpn_nms_post_top_n
+        }
+        output_shape = [1, 1, rpn_nms_post_top_n, 5]
+        new_op = self.CVI.add_proposal_op(
+            layer.name, operands, output_shape, **param)
+        self.addOperand(layer.top[0], new_op,
+                        output_shape, TensorType.ACTIVATION)
 
     def convert_relu_op(self, layer):
         assert(self.layerType(layer) == 'ReLU')
@@ -1067,6 +1124,29 @@ class CaffeConverter(BaseConverter):
             layer.name, operands, output_shape, **param)
         self.addOperand(layer.top[0], new_op, output_shape,
                         TensorType.ACTIVATION)
+
+    def convert_roipooling_op(self, layer):
+        assert(self.layerType(layer) == 'ROIPooling')
+        operands = list()
+        assert(len(layer.bottom) == 2)
+        op0, bottom0_shape, _ = self.getOperand(layer.bottom[0])
+        op1, bottom1_shape, _ = self.getOperand(layer.bottom[1])
+        operands.append(op0)
+        operands.append(op1)
+        p = layer.roi_pooling_param
+        pooled_h = p.pooled_h
+        pooled_w = p.pooled_w
+        spatial_scale = p.spatial_scale
+        param = {
+            'pooled_h': pooled_h,
+            'pooled_w': pooled_w,
+            'spatial_scale': spatial_scale
+        }
+        output_shape = [bottom1_shape[2], bottom0_shape[1], pooled_h, pooled_w]
+        new_op = self.CVI.add_roipooling_op(
+            layer.name, operands, output_shape, **param)
+        self.addOperand(layer.top[0], new_op,
+                        output_shape, TensorType.ACTIVATION)
 
     def convert_scale_op(self, layer):
         assert(self.layerType(layer) == 'Scale')

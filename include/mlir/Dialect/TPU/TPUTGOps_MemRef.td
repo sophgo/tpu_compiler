@@ -1030,7 +1030,6 @@ class TPU_TG_MemRef_ReorgOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       `gaddr`           : optional, address in global memory, normally the
                                      offset within the memory region.
       `buffer_reused`   : optional, whether buffer is reused.
-
       `name`            : required, name for comparing, or debug.
       `layer_id`        : optional, id for profiling.
       `chipname`        : optional, chipname.
