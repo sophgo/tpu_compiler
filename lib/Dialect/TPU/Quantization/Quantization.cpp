@@ -363,7 +363,8 @@ struct ExtendPreprocessOpPattern : public RewritePattern {
   PatternMatchResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
     auto preprocessOp = cast<tpu::PreprocessOp>(op);
-
+    TensorFile *wTF = getWeightTensorFile(op);
+    Value *wfV = getWeightFileValue(op);
     auto builder = OpBuilder(op);
     auto input_op = op->getOperand(0);
     auto result = op->getResult(0);
@@ -480,15 +481,102 @@ struct ExtendPreprocessOpPattern : public RewritePattern {
     auto swapaxis_op = OpBuilder(op).create<tpu::SwapChannelOp>(
         op->getLoc(), swapaxis_type, ArrayRef<Value *>{crop_op},
         ArrayRef<NamedAttribute>{swapaxis_attrs});
-    setOpThreshold(swapaxis_op, 127);
+    setOpThreshold(swapaxis_op, 255);
     setOpQuantParamType(swapaxis_op, "THRESHOLD");
     setOpQuant(swapaxis_op, "INT8");
 
-    // create bf16 mul
+    // create bf16 scale
+    // ((x * raw_scale / 255.0) - mean / std) * scale
+    // => x * scale / std - mean * scale /std
+    std::string scale_name =
+        getOpName(preprocessOp).str() + "_preprocess_scale";
+    auto scale_type = RankedTensorType::get({on, oc, oh, ow}, eltType);
+    float raw_scale = preprocessOp.raw_scale().convertToFloat();
+    float scale = preprocessOp.scale().convertToFloat();
+    std::vector<float> means;
+    std::vector<float> stds;
 
-    // create bf16 add
+    for (auto m : llvm::enumerate(preprocessOp.mean().getValue())) {
+      auto attr = m.value().dyn_cast<FloatAttr>();
+      means.push_back((float)attr.getValueAsDouble());
+    }
+    for (auto s : llvm::enumerate(preprocessOp.std().getValue())) {
+      auto attr = s.value().dyn_cast<FloatAttr>();
+      stds.push_back((float)attr.getValueAsDouble());
+    }
 
-    rewriter.replaceOp(preprocessOp, {swapaxis_op.getResult()});
+    std::vector<float> scale_value(3), bias_value(3);
+    auto scale_weight_type = RankedTensorType::get({oc, 1, 1, 1, 1}, eltType);
+    auto bias_weight_type = RankedTensorType::get({oc}, eltType);
+    std::vector<NamedAttribute> scale_weight_attrs, bias_weight_attrs;
+    for (size_t i = 0; i < scale_value.size(); ++i) {
+      scale_value[i] = (scale * raw_scale) / (stds[i] * 255.0);
+      bias_value[i] = -(means[i] / stds[i]) * scale;
+    }
+
+    wTF->addTensor<float>(scale_name + "_0", scale_value.data(),
+                          scale_weight_type);
+    wTF->addTensor<float>(scale_name + "_1", bias_value.data(),
+                          bias_weight_type);
+
+    scale_weight_attrs.push_back(
+        builder.getNamedAttr("name", builder.getStringAttr(scale_name + "_0")));
+    bias_weight_attrs.push_back(
+        builder.getNamedAttr("name", builder.getStringAttr(scale_name + "_1")));
+    auto scale_weight_op = OpBuilder(op).create<tpu::LoadWeightOp>(
+        op->getLoc(), scale_weight_type, ArrayRef<Value *>{wfV},
+        ArrayRef<NamedAttribute>{scale_weight_attrs});
+    auto bias_weight_op = OpBuilder(op).create<tpu::LoadWeightOp>(
+        op->getLoc(), scale_weight_type, ArrayRef<Value *>{wfV},
+        ArrayRef<NamedAttribute>{bias_weight_attrs});
+
+    std::vector<Value *> scale_operands;
+    scale_operands.push_back(swapaxis_op);
+    scale_operands.push_back(scale_weight_op);
+    scale_operands.push_back(bias_weight_op);
+
+    auto NoneOp = builder.create<tpu::NoneOp>(
+        op->getLoc(), builder.getNoneType());
+    scale_operands.push_back(NoneOp.getResult()); // quant_scale
+    scale_operands.push_back(NoneOp.getResult()); // quant_zeropoint
+    scale_operands.push_back(NoneOp.getResult()); // quant_rshift
+    scale_operands.push_back(NoneOp.getResult());  // quant_multiplier
+
+    std::vector<NamedAttribute> scale_attrs;
+    scale_attrs.push_back(
+        builder.getNamedAttr("name", builder.getStringAttr(scale_name)));
+    scale_attrs.push_back(builder.getNamedAttr("param",
+        tpu::ConvParam::get(
+            builder.getI32IntegerAttr(1),
+            builder.getI32IntegerAttr(1),
+            builder.getStringAttr("VALID"),
+            builder.getI32IntegerAttr(1),
+            builder.getI32IntegerAttr(1),
+            builder.getI32IntegerAttr(0), // pd_t
+            builder.getI32IntegerAttr(0), // pd_b
+            builder.getI32IntegerAttr(0), // pd_l
+            builder.getI32IntegerAttr(0), // pd_r
+            builder.getI32IntegerAttr(oc),
+            builder.getBoolAttr(true),
+            builder.getBoolAttr(true),
+            builder.getBoolAttr(false),
+            builder.getI32ArrayAttr(ArrayRef<int32_t>({})), // [0]ins_w/[1]ins_h
+            builder.getContext())));
+    scale_attrs.push_back(
+        builder.getNamedAttr("quant", getDefaultQuantParam(builder)));
+
+    scale_attrs.push_back(
+        builder.getNamedAttr("layer_id", builder.getI32IntegerAttr(layer_id)));
+
+    auto scale_op = OpBuilder(op).create<tpu::Conv2DOp>(
+        op->getLoc(), scale_type, ArrayRef<Value *>{scale_operands},
+        ArrayRef<NamedAttribute>{scale_attrs});
+    setOpThreshold(scale_op, getOpThreshold(op));
+    setOpQuantParamType(scale_op, "THRESHOLD");
+    setOpQuant(scale_op, "BF16");
+    // to int8 as input, use input quantize threshold
+
+    rewriter.replaceOp(preprocessOp, {scale_op.getResult()});
     return matchSuccess();
   }
 };
