@@ -72,9 +72,25 @@ if [ $DO_FUSE_PREPROCESS -eq 1 ]; then
       --chipname ${SET_CHIP_NAME} \
       --tpu-quant \
       --print-tpu-op-info \
-      --tpu-op-info-filename ${NET}_op_info_int8_multiplier.csv \
+      --tpu-op-info-filename ${NET}_op_info_int8_multiplier_fused_preprocess.csv \
       ${NET}_cali_fused_preprocess.mlir \
       -o ${NET}_quant_int8_multiplier_fused_preprocess.mlir
+
+    # test fused preprocess int8 interpreter
+    mlir-tpu-interpreter ${NET}_quant_int8_multiplier_fused_preprocess.mlir \
+        --tensor-in ${NET}_only_resize_in_fp32.npz \
+        --tensor-out ${NET}_out_int8_multiplier_fused_preprocess.npz \
+        --dump-all-tensor=${NET}_tensor_all_int8_multiplier_fused_preprocess.npz
+
+    cvi_npz_tool.py compare \
+        ${NET}_tensor_all_int8_multiplier_fused_preprocess.npz \
+        ${NET}_blobs.npz \
+        --op_info ${NET}_op_info_int8_multiplier_fused_preprocess.csv \
+        --dequant \
+        --excepts="$EXCEPTS,input" \
+        --tolerance=$TOLERANCE_INT8_MULTIPLER_FUSE_PREPROCESS \
+        -vv \
+        --stats_int8_tensor
 
 fi
 

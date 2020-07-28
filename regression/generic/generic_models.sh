@@ -38,6 +38,7 @@ export SET_CHIP_NAME="cv183x"
 export SWAP_CHANNEL=0,1,2
 export YOLO_PREPROCESS="false"
 export BGRAY=0
+export DO_FUSE_PREPROCESS=0
 
 if [ -z "$DO_BATCHSIZE" ]; then
   BATCH_SIZE=1
@@ -1089,6 +1090,8 @@ export DO_LAYERGROUP=1
 # export TOLERANCE_BF16=0.99,0.99,0.94
 # export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
 export DO_PREPROCESS=0
+export DO_FUSE_PREPROCESS=1
+export TOLERANCE_INT8_MULTIPLER_FUSE_PREPROCESS=0.99,0.98,0.86
 fi
 
 if [ $NET = "efficientnet_b0" ]; then
