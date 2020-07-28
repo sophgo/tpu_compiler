@@ -8,6 +8,20 @@
 #define DEBUG_TYPE "group_ops"
 
 namespace mlir {
+
+// TODO: refine type
+static Type getElementType(MLIRContext *context, int size) {
+  Builder builder(context);
+  switch(size){
+    case 1:
+      return builder.getIntegerType(8);
+    case 2:
+      return builder.getBF16Type();
+    case 4:
+      return builder.getF32Type();
+  }
+}
+
 void MixOp::add_bottom_name(std::string bottom_name) {
   operands_.push_back(bottom_name);
 }
@@ -438,7 +452,7 @@ void MixNet::_add_tl_convolution_op(MixOp* mix_op,
   operands.push_back(bias_op->getResult(0));
 
   // build tl_conv operation
-  auto op = OpBuilder(get_start_op()).create<tpu::TL_LG_Conv2DOp>(
+  auto op = OpBuilder(get_start_op()).create<tpu::TL_LG_INT8_Conv2DOp>(
                       get_start_op()->getLoc(), output_type,
                       ArrayRef<Value *>{operands},
                       ArrayRef<NamedAttribute>{attrs});
@@ -638,7 +652,7 @@ void MixNet::_add_tl_deconvolution_op(MixOp* mix_op,
   operands.push_back(bias_op->getResult(0));
 
   // build tl_deconv operation
-  auto op = OpBuilder(get_start_op()).create<tpu::TL_LG_DeConv2DOp>(
+  auto op = OpBuilder(get_start_op()).create<tpu::TL_LG_INT8_DeConv2DOp>(
                       get_start_op()->getLoc(), output_type,
                       ArrayRef<Value *>{operands},
                       ArrayRef<NamedAttribute>{attrs});
@@ -742,11 +756,11 @@ void MixNet::_add_tl_eltwise_add_op(MixOp* mix_op,
 
 
   attrs.push_back(builder_.getNamedAttr("rshift", old_op.rshiftAttr()));
-  attrs.push_back(builder_.getNamedAttr("m_i8_inputs", old_op.m_i8_inputsAttr()));
+  attrs.push_back(builder_.getNamedAttr("m_i8", old_op.m_i8_inputsAttr()));
 
   // setup input operation
   std::vector<Value *> operands;
-  for( uint32_t i = 0; i < nInputs; i++) {
+  for( int i = 0; i < nInputs; i++) {
     Operation * input_op =
       get_op_from_name(mix_op->bottom_name(i))->getDefiningOp();
     input_op->getResult(0)->setType(input_type);
@@ -754,7 +768,7 @@ void MixNet::_add_tl_eltwise_add_op(MixOp* mix_op,
   }
 
   // build eltwiseadd operation
-  auto op = OpBuilder(get_start_op()).create<tpu::TL_LG_EltwiseAddOp>(
+  auto op = OpBuilder(get_start_op()).create<tpu::TL_LG_INT8_EltwiseAddOp>(
                       get_start_op()->getLoc(), output_type,
                       ArrayRef<Value *>{operands},
                       ArrayRef<NamedAttribute>{attrs});
@@ -823,11 +837,11 @@ void MixNet::_add_tl_eltwise_mul_op(MixOp* mix_op,
       old_input_type.getElementType());
 
   attrs.push_back(builder_.getNamedAttr("rshift", old_op.rshiftAttr()));
-  attrs.push_back(builder_.getNamedAttr("m_i32", old_op.m_i32_outputAttr()));
+  attrs.push_back(builder_.getNamedAttr("m_i32_output", old_op.m_i32_outputAttr()));
 
   // setup input operation
   std::vector<Value *> operands;
-  for( uint32_t i = 0; i < nInputs; i++) {
+  for( int i = 0; i < nInputs; i++) {
     Operation * input_op =
       get_op_from_name(mix_op->bottom_name(i))->getDefiningOp();
     input_op->getResult(0)->setType(input_type);
@@ -835,7 +849,7 @@ void MixNet::_add_tl_eltwise_mul_op(MixOp* mix_op,
   }
 
   // build eltwise_mul operation
-  auto op = OpBuilder(get_start_op()).create<tpu::TL_LG_EltwiseMulOp>(
+  auto op = OpBuilder(get_start_op()).create<tpu::TL_LG_INT8_EltwiseMulOp>(
                       get_start_op()->getLoc(), output_type,
                       ArrayRef<Value *>{operands},
                       ArrayRef<NamedAttribute>{attrs});
@@ -1020,7 +1034,6 @@ void MixNet::_add_tl_broadcast_mul_op(MixOp * mix_op,
   bottom_dim[2] = in_tensor->h_slice;
 
   std::string name = mix_op->name();
-  int layer_id = mix_op->get_layer_id();
   uint32_t la_input = net_graph_->get_tensor_local_offset(in_tensors[0]);
   uint32_t la_scale = net_graph_->get_tensor_local_offset(in_tensors[1]);
   uint32_t la_bias = net_graph_->get_tensor_local_offset(in_tensors[2]);
@@ -1067,7 +1080,7 @@ void MixNet::_add_tl_broadcast_mul_op(MixOp * mix_op,
   operands.push_back(bias_op->getResult(0));
 
   // build tl_broadcast operation
-  auto op = OpBuilder(get_start_op()).create<tpu::TL_LG_BroadcastMulOp>(
+  auto op = OpBuilder(get_start_op()).create<tpu::TL_LG_INT8_BroadcastMulOp>(
                       get_start_op()->getLoc(), input_type,
                       ArrayRef<Value *>{operands},
                       ArrayRef<NamedAttribute>{attrs});
@@ -1182,7 +1195,7 @@ void MixNet::_add_tl_activation_op(MixOp * mix_op,
     operands.push_back(NoneOp.getResult());
   }
 
-  auto op = OpBuilder(get_start_op()).create<tpu::TL_LG_LutOp>(
+  auto op = OpBuilder(get_start_op()).create<tpu::TL_LG_INT8_LutOp>(
                       get_start_op()->getLoc(), output_type,
                       ArrayRef<Value *>{operands},
                       ArrayRef<NamedAttribute>{attrs});
@@ -1281,7 +1294,7 @@ void MixNet::_add_tl_quant_op(MixOp * mix_op,
   input_op->getResult(0)->setType(input_type);
   operands.push_back(input_op->getResult(0));
 
-  auto op = OpBuilder(get_start_op()).create<tpu::TL_LG_QuantOp>(
+  auto op = OpBuilder(get_start_op()).create<tpu::TL_LG_INT8_QuantOp>(
                       get_start_op()->getLoc(), output_type,
                       ArrayRef<Value *>{operands},
                       ArrayRef<NamedAttribute>{attrs});
@@ -1376,7 +1389,7 @@ void MixNet::_add_tl_lrn_op(MixOp * mix_op,
     operands.push_back(input_op->getResult(0));
   }
 
-  auto op = OpBuilder(get_start_op()).create<tpu::TL_LG_LrnOp>(
+  auto op = OpBuilder(get_start_op()).create<tpu::TL_LG_INT8_LrnOp>(
                       get_start_op()->getLoc(), output_type,
                       ArrayRef<Value *>{operands},
                       ArrayRef<NamedAttribute>{attrs});
@@ -1683,7 +1696,6 @@ void MixNet::_add_tl_upsample_op(MixOp * mix_op,
   }
 
   std::string name = mix_op->name();
-  int layer_id = mix_op->get_layer_id();
   uint32_t la_input = net_graph_->get_tensor_local_offset(in_tensors[0]);
   uint32_t la_output = net_graph_->get_tensor_local_offset(out_tensors[0]);
 
@@ -1692,7 +1704,7 @@ void MixNet::_add_tl_upsample_op(MixOp * mix_op,
   attrs.push_back(builder_.getNamedAttr("name",
                            builder_.getStringAttr(name)));
   attrs.push_back(builder_.getNamedAttr("layer_id",
-                           builder_.getI32IntegerAttr(layer_id)));
+                           builder_.getI32IntegerAttr(getOpLayerId(old_op))));
   attrs.push_back(builder_.getNamedAttr("la_input",
                            builder_.getI32IntegerAttr(la_input)));
   attrs.push_back(builder_.getNamedAttr("la_output",
@@ -1722,7 +1734,7 @@ void MixNet::_add_tl_upsample_op(MixOp * mix_op,
   operands.push_back(input_op->getResult(0));
 
   // build tl_upsample operation
-  auto op = OpBuilder(get_start_op()).create<tpu::TL_LG_UpsampleOp>(
+  auto op = OpBuilder(get_start_op()).create<tpu::TL_LG_INT8_UpsampleOp>(
                       get_start_op()->getLoc(), output_type,
                       ArrayRef<Value *>{operands},
                       ArrayRef<NamedAttribute>{attrs});
@@ -1754,14 +1766,13 @@ void MixNet::_add_tl_leaky_relu_op(MixOp * mix_op,
   top_dim[2] = out_tensor->h_slice;
 
   std::string name = mix_op->name();
-  int layer_id = mix_op->get_layer_id();
   uint32_t la_input = net_graph_->get_tensor_local_offset(in_tensors[0]);
   uint32_t la_output = net_graph_->get_tensor_local_offset(out_tensors[0]);
 
   attrs.push_back(builder_.getNamedAttr("name",
                            builder_.getStringAttr(name)));
   attrs.push_back(builder_.getNamedAttr("layer_id",
-                           builder_.getI32IntegerAttr(layer_id)));
+                           leaky_relu_op.layer_idAttr()));
   attrs.push_back(builder_.getNamedAttr("la_input",
                            builder_.getI32IntegerAttr(la_input)));
   attrs.push_back(builder_.getNamedAttr("la_output",
@@ -1797,7 +1808,7 @@ void MixNet::_add_tl_leaky_relu_op(MixOp * mix_op,
   operands.push_back(input_op->getResult(0));
 
   // build tl_leaky operation
-  auto op = OpBuilder(get_start_op()).create<tpu::TL_LG_LeakyReluOp>(
+  auto op = OpBuilder(get_start_op()).create<tpu::TL_LG_INT8_LeakyReluOp>(
                       get_start_op()->getLoc(), output_type,
                       ArrayRef<Value *>{operands},
                       ArrayRef<NamedAttribute>{attrs});
@@ -1831,7 +1842,6 @@ void MixNet::_add_tl_prelu_op(MixOp * mix_op,
   top_dim[2] = out_tensor->h_slice;
 
   std::string name = mix_op->name();
-  int layer_id = mix_op->get_layer_id();
   uint32_t la_input = net_graph_->get_tensor_local_offset(in_tensors[0]);
   uint32_t la_slope = net_graph_->get_tensor_local_offset(in_tensors[1]);
   uint32_t la_output = net_graph_->get_tensor_local_offset(out_tensors[0]);
@@ -1839,7 +1849,7 @@ void MixNet::_add_tl_prelu_op(MixOp * mix_op,
   attrs.push_back(builder_.getNamedAttr("name",
                            builder_.getStringAttr(name)));
   attrs.push_back(builder_.getNamedAttr("layer_id",
-                           builder_.getI32IntegerAttr(layer_id)));
+                           prelu_op.layer_idAttr()));
   attrs.push_back(builder_.getNamedAttr("la_input",
                            builder_.getI32IntegerAttr(la_input)));
   attrs.push_back(builder_.getNamedAttr("la_output",
@@ -1874,7 +1884,7 @@ void MixNet::_add_tl_prelu_op(MixOp * mix_op,
   operands.push_back(slope_op->getResult(0));
 
   // build tl_prelu operation
-  auto op = OpBuilder(get_start_op()).create<tpu::TL_LG_PReluOp>(
+  auto op = OpBuilder(get_start_op()).create<tpu::TL_LG_INT8_PReluOp>(
                       get_start_op()->getLoc(), output_type,
                       ArrayRef<Value *>{operands},
                       ArrayRef<NamedAttribute>{attrs});
@@ -1914,7 +1924,6 @@ void MixNet::_add_tl_concat_op(MixOp * mix_op,
   top_dim[2] = out_tensor->h_slice;
 
   std::string name = mix_op->name();
-  int layer_id = mix_op->get_layer_id();
   uint32_t la_output = net_graph_->get_tensor_local_offset(out_tensors[0]);
   int axis = old_op.axis().getLimitedValue();;
 
@@ -1924,7 +1933,7 @@ void MixNet::_add_tl_concat_op(MixOp * mix_op,
   attrs.push_back(builder_.getNamedAttr("name",
                            builder_.getStringAttr(name)));
   attrs.push_back(builder_.getNamedAttr("layer_id",
-                           builder_.getI32IntegerAttr(layer_id)));
+                           old_op.layer_idAttr()));
   attrs.push_back(builder_.getNamedAttr("la_input",
                            builder_.getI32ArrayAttr(ArrayRef<int32_t>({la_input}))));
   attrs.push_back(builder_.getNamedAttr("la_output",
@@ -1956,7 +1965,7 @@ void MixNet::_add_tl_concat_op(MixOp * mix_op,
                             top_dim[2], top_dim[3]},
                             old_input_type.getElementType());
 
-  auto op = OpBuilder(get_start_op()).create<tpu::TL_LG_ConcatOp>(
+  auto op = OpBuilder(get_start_op()).create<tpu::TL_LG_INT8_ConcatOp>(
                       get_start_op()->getLoc(), output_type,
                       ArrayRef<Value *>{operands},
                       ArrayRef<NamedAttribute>{attrs});
@@ -2023,7 +2032,6 @@ void MixNet::_add_tl_pad_op(MixOp * mix_op,
   }
 
   std::string name = mix_op->name();
-  int layer_id = mix_op->get_layer_id();
   uint32_t la_input = net_graph_->get_tensor_local_offset(in_tensors[0]);
   uint32_t la_output = net_graph_->get_tensor_local_offset(out_tensors[0]);
 
@@ -2039,7 +2047,7 @@ void MixNet::_add_tl_pad_op(MixOp * mix_op,
   attrs.push_back(builder_.getNamedAttr("name",
                            builder_.getStringAttr(name)));
   attrs.push_back(builder_.getNamedAttr("layer_id",
-                           builder_.getI32IntegerAttr(layer_id)));
+                           builder_.getI32IntegerAttr(getOpLayerId(old_op))));
   attrs.push_back(builder_.getNamedAttr("align",
                            builder_.getBoolAttr(true)));
   attrs.push_back(builder_.getNamedAttr("la_input",
@@ -2071,7 +2079,7 @@ void MixNet::_add_tl_pad_op(MixOp * mix_op,
   operands.push_back(input_op->getResult(0));
 
   // build tl_crop operation
-  auto op = OpBuilder(get_start_op()).create<tpu::TL_LG_PadOp>(
+  auto op = OpBuilder(get_start_op()).create<tpu::TL_LG_INT8_PadOp>(
                       get_start_op()->getLoc(), output_type,
                       ArrayRef<Value *>{operands},
                       ArrayRef<NamedAttribute>{attrs});
@@ -2130,7 +2138,6 @@ void MixNet::_add_tl_crop_op(MixOp * mix_op,
   }
 
   std::string name = mix_op->name();
-  int layer_id = mix_op->get_layer_id();
   uint32_t la_input = net_graph_->get_tensor_local_offset(in_tensors[0]);
   uint32_t la_output = net_graph_->get_tensor_local_offset(out_tensors[0]);
 
@@ -2146,7 +2153,7 @@ void MixNet::_add_tl_crop_op(MixOp * mix_op,
   attrs.push_back(builder_.getNamedAttr("name",
                            builder_.getStringAttr(name)));
   attrs.push_back(builder_.getNamedAttr("layer_id",
-                           builder_.getI32IntegerAttr(layer_id)));
+                           builder_.getI32IntegerAttr(getOpLayerId(old_op))));
   attrs.push_back(builder_.getNamedAttr("align",
                            builder_.getBoolAttr(true)));
   attrs.push_back(builder_.getNamedAttr("la_input",
@@ -2176,7 +2183,7 @@ void MixNet::_add_tl_crop_op(MixOp * mix_op,
   operands.push_back(input_op->getResult(0));
 
   // build tl_crop operation
-  auto op = OpBuilder(get_start_op()).create<tpu::TL_LG_CropOp>(
+  auto op = OpBuilder(get_start_op()).create<tpu::TL_LG_INT8_CropOp>(
                       get_start_op()->getLoc(), output_type,
                       ArrayRef<Value *>{operands},
                       ArrayRef<NamedAttribute>{attrs});
@@ -2229,7 +2236,6 @@ void MixNet::_add_tl_relu_op(MixOp * mix_op,
   }
 
   std::string name = mix_op->name();
-  int layer_id = mix_op->get_layer_id();
   uint32_t la_input = net_graph_->get_tensor_local_offset(in_tensors[0]);
   uint32_t la_output = net_graph_->get_tensor_local_offset(out_tensors[0]);
 
@@ -2239,7 +2245,7 @@ void MixNet::_add_tl_relu_op(MixOp * mix_op,
   attrs.push_back(builder_.getNamedAttr("name",
                            builder_.getStringAttr(name)));
   attrs.push_back(builder_.getNamedAttr("layer_id",
-                           builder_.getI32IntegerAttr(layer_id)));
+                           builder_.getI32IntegerAttr(getOpLayerId(old_op))));
   attrs.push_back(builder_.getNamedAttr("align",
                            builder_.getBoolAttr(true)));
   attrs.push_back(builder_.getNamedAttr("la_input",
@@ -2260,7 +2266,7 @@ void MixNet::_add_tl_relu_op(MixOp * mix_op,
   operands.push_back(input_op->getResult(0));
 
   // build tl_crop operation
-  auto op = OpBuilder(get_start_op()).create<tpu::TL_LG_ReluOp>(
+  auto op = OpBuilder(get_start_op()).create<tpu::TL_LG_INT8_ReluOp>(
                       get_start_op()->getLoc(), output_type,
                       ArrayRef<Value *>{operands},
                       ArrayRef<NamedAttribute>{attrs});

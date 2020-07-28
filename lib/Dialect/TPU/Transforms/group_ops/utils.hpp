@@ -81,34 +81,6 @@ static inline void printFunction(FuncOp * fn) {
   llvm::errs() << res;
 }
 
-static int getOperandStorageSize(Operation *p) {
-  auto op = cast<tpu::LoadWeightOp>(p);
-
-  if (op.storage() == "INT8" || op.storage() == "UINT8" ) {
-    return 1;
-  } else if (op.storage() == "BF16" || op.storage() == "INT16" ||
-             op.storage() == "UINT16" ) {
-    return 2;
-  } else if(op.storage() == "FP32" || op.storage() == "INT32" ||
-            op.storage() == "UINT32") {
-    return 4;
-  } else {
-    assert(0);
-  }
-}
-
-static Type getElementType(MLIRContext *context, int size) {
-  Builder builder(context);
-  switch(size){
-    case 1:
-      return builder.getIntegerType(8);
-    case 2:
-      return builder.getIntegerType(16);
-    case 4:
-      return builder.getIntegerType(32);
-  }
-}
-
 static inline bool isValidTpuOp(Operation *op)
 {
   return (!isa<tpu::LoadWeightOp>(op) && !isa<tpu::WeightFileOp>(op) &&
