@@ -121,6 +121,11 @@ LogicalResult quantizeBf16ConvOps(Operation *op) {
   return success();
 }
 
+double my_mish_caffe_wrapper (double x) {
+  return my_mish_caffe(x);
+}
+
+
 ///
 /// Lut Ops quantization method
 ///
@@ -163,6 +168,9 @@ LogicalResult quantizeBF16LutOps(Operation *op) {
   double (*activate_func)(double);
   if (OpTy::getOperationName() == "tpu.sigmoid") {
     activate_func = sigmoid;
+  }
+  else if (OpTy::getOperationName() == "tpu.mish") {
+    activate_func = my_mish_caffe_wrapper;
   }
 
   gen_bf16_table(BF16_TABLE_START, BF16_TABLE_END, table_hw,
@@ -438,6 +446,14 @@ DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::LrnOneOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::LrnTwoOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::LrnThreeOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::LrnOp)
+
+LogicalResult tpu::MishOp::quantizeBf16() {
+  LLVM_DEBUG(llvm::errs() << "quantizeBf16: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  return quantizeBF16LutOps<tpu::MishOp>(op);
+}
+
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::PadOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::PermuteOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::PixelShuffleOp)

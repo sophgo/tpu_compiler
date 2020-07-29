@@ -9,7 +9,7 @@ import time
 import cv2
 import caffe
 from cvi_toolkit.model import CaffeModel
-from cvi_toolkit.utils.yolov3_util import preprocess, postprocess_v2, postprocess_v3, postprocess_v3_tiny, draw
+from cvi_toolkit.utils.yolov3_util import preprocess, postprocess_v2, postprocess_v3, postprocess_v3_tiny, postprocess_v4, draw
 
 def check_files(args):
     if not os.path.isfile(args.model_def):
@@ -55,6 +55,8 @@ def parse_args():
                         help="Set batch size")
     parser.add_argument("--yolov3", type=str, default='yes',
                         help="yolov2 or yolov3")
+    parser.add_argument("--yolov4", type=str, default='false',
+                        help="yolov4")
     parser.add_argument("--spp_net", type=str, default="false",
                         help="yolov3 spp")
     parser.add_argument("--tiny", type=str, default="false",
@@ -123,6 +125,13 @@ def main(argv):
                 out_feat['layer113-conv'] = outputs['layer113-conv'].data
                 batched_predictions = postprocess_v3(out_feat, image.shape, net_input_dims,
                                         obj_threshold, nms_threshold, spp_net, args.batch_size)
+    elif args.yolov4 == 'true':
+        out_feat['layer139-conv'] = outputs['layer139-conv'].data
+        out_feat['layer150-conv'] = outputs['layer150-conv'].data
+        out_feat['layer161-conv'] = outputs['layer161-conv'].data
+        batched_predictions = postprocess_v4(out_feat, image.shape, net_input_dims,
+                obj_threshold, nms_threshold, spp_net, args.batch_size)
+
     else:
         out_feat['conv22'] = outputs['conv22'].data
         batched_predictions = postprocess_v2(out_feat, image.shape, net_input_dims,

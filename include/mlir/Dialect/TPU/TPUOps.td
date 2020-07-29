@@ -1113,6 +1113,54 @@ def TPU_NormalizeOp: TPU_Op<"normalize",
   let hasCanonicalizer = 1;
 }
 
+def TPU_MishOp : TPU_LutOp<"mish", "yolov4 mish op"> {
+
+  let description = [{
+    elements of the bottom do activation, reference bottom.
+    Performs activation operation on input.
+    In Int8, we use lookup table find output
+
+    Inputs:
+      `inputs`          : required, variadic input tensors.
+      `table`           : optional, the quantize lookup table,which is reused by INT8 and BF16.
+      `table_mantissa`  : optional, the quantize lookup table,only used by BF16 .
+
+    Attributes:
+      `quant`           : required, a QuantParam struct attributes.
+      `name`            : required, name for calibration, comparing, or debug.
+      `mish_threshold`  : optional, mish activation used
+      `layer_id`        : optional, id for profiling.
+      `has_table`       : optional, if has lookup table.
+      `chipname`        : optional, chipname.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TPU_QuantPerTensorOnly`
+      `TPU_QuantSupportAsymmetric`
+      `TpuOpCommonInterface` : support common TPU Op interface
+      `TpuOpInterpInterface` : support interperter
+      `TpuOpQuantInterface`  : support quantization
+      `TpuOpLowerInterface`  : support lower to TPU TG Ops
+  }];
+
+  let arguments = (
+    ins Variadic<AnyTensor>:$inputs,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$table,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$table_mantissa,
+    OptionalAttr<BoolAttr>:$has_table,
+    StrAttr:$name,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
+    DefaultValuedAttr<F32Attr, "20.0">:$mish_threshold,
+    TPU_QuantParamAttr:$quant,
+    OptionalAttr<StrAttr>:$chipname
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
 def TPU_PermuteOp: TPU_Op<"permute",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,

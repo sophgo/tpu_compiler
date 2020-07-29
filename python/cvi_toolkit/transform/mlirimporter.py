@@ -39,6 +39,7 @@ class TPU_OpType(Enum):
     LrnThree = 'tpu.lrn_three'
     Lrn = 'tpu.lrn'
     Normalize = 'tpu.normalize'
+    Mish = 'tpu.mish'
     Pad = 'tpu.pad'
     Permute = 'tpu.permute'
     PixelShuffle = 'tpu.pixelshuffle'
@@ -668,6 +669,18 @@ class MLIRImporter(object):
         }
         return self.buildOp(TPU_OpType.Normalize.value, inputOperands, [
             tensor_output_type], name=name_attr, **param)
+
+    def add_mish_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+        tensor_output_type = self.module.make_ranked_tensor_type(
+            self.f32Type, output_tensor_shape)
+
+        mish_name = self.module.stringAttr(op_name)
+        none = self.add_none_op()
+        # We assigne 4 reg for mish quant table
+        for i in range(2):
+            inputOperands.append(none)
+        return self.buildOp(TPU_OpType.Mish.value, inputOperands, [
+            tensor_output_type], name=mish_name, quant=self.quant_param)
 
     def add_pad_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         """

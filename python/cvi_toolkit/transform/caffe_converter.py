@@ -66,6 +66,7 @@ class CaffeConverter(BaseConverter):
             'Interp': lambda layer: self.convert_interp_op(layer),
             'LRN': lambda layer: self.convert_lrn_op(layer),
             'Normalize': lambda layer: self.convert_normalize_op(layer),
+            'Mish': lambda layer: self.convert_mish_op(layer),
             'Permute': lambda layer: self.convert_permute_op(layer),
             'Pooling': lambda layer: self.convert_pooling_op(layer),
             'Power': lambda layer: self.convert_power_op(layer),
@@ -719,6 +720,17 @@ class CaffeConverter(BaseConverter):
         output_shape = input_shape
         new_op = self.CVI.add_normalize_op(
             layer.name, operands, output_shape, **param)
+        self.addOperand(layer.top[0], new_op,
+                        output_shape, TensorType.ACTIVATION)
+
+    def convert_mish_op(self, layer):
+        assert(self.layerType(layer) == 'Mish')
+        op, input_shape, _ = self.getOperand(layer.bottom[0])
+        operands = list()
+        operands.append(op)
+        output_shape = input_shape
+        new_op = self.CVI.add_mish_op(
+            layer.name, operands, output_shape)
         self.addOperand(layer.top[0], new_op,
                         output_shape, TensorType.ACTIVATION)
 

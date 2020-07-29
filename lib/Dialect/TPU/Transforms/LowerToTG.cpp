@@ -791,6 +791,38 @@ Value* tpu::LeakyReluOp::convertToTG() {
   llvm_unreachable("unsupported type");
 }
 
+Value* tpu::MishOp::convertToTG() {
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  auto builder = Builder(op->getContext());
+
+  int nInputs = 3; // input and table
+  std::vector<Value *> operands;
+  for (auto i = 0; i < nInputs; ++i) {
+    operands.push_back(op->getOperand(i));
+  }
+
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder.getNamedAttr("name", nameAttr()));
+  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
+
+  if (getOpQuant() == "INT8") {
+    auto newOp = OpBuilder(op).create<tpu::TG_INT8_LutOp>(
+        op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  } else if (getOpQuant() == "BF16") {
+    attrs.push_back(builder.getNamedAttr(
+        "method", builder.getStringAttr("slope")));
+    auto newOp = OpBuilder(op).create<tpu::TG_BF16_LutOp>(
+        op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  }
+  llvm_unreachable("unsupported type");
+}
+
 Value* tpu::PermuteOp::convertToTG() {
   LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
                << " [" << getOpName() << "]\n";);
@@ -2437,6 +2469,7 @@ public:
         LowerWeightLrnOpPattern,
         LowerWeightLutOpPattern<tpu::ReciprocalOp>,
         LowerWeightPReluOpPattern,
+        LowerWeightLutOpPattern<tpu::MishOp>,
         LowerWeightLutOpPattern<tpu::SigmoidOp>,
         LowerWeightLutOpPattern<tpu::SqrtOp>,
         LowerWeightLutOpPattern<tpu::TanHOp>,
@@ -2482,6 +2515,7 @@ public:
         DefaultToTGPattern<tpu::InterpOp>,
         DefaultToTGPattern<tpu::LrnOp>,
         DefaultToTGPattern<tpu::LeakyReluOp>,
+        DefaultToTGPattern<tpu::MishOp>,
         DefaultToTGPattern<tpu::PadOp>,
         DefaultToTGPattern<tpu::PermuteOp>,
         DefaultToTGPattern<tpu::PixelShuffleOp>,

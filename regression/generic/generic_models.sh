@@ -1068,6 +1068,44 @@ if [ $DO_PREPROCESS -eq 1 ]; then
 fi
 fi
 
+if [ $NET = "yolo_v4" ]; then
+export MODEL_DEF=$MODEL_PATH/object_detection/yolo_v4/caffe/yolov4.prototxt
+export MODEL_DAT=$MODEL_PATH/object_detection/yolo_v4/caffe/yolov4.caffemodel
+export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_caffe/regression_yolo_v4_0_caffe.sh
+export ENABLE_CALI_OVERWRITE_THRESHOLD_FORWARD="--enable-cali-overwrite-threshold-forward-relu"
+export IMAGE_PATH=$REGRESSION_PATH/data/dog.jpg
+export EVAL_SCRIPT=$REGRESSION_PATH/data/eval/accuracy_yolo_v3.sh
+export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/yolo_v4_calibration_table_autotune
+export CALI_TABLE_PREPROCESS=$REGRESSION_PATH/data/cali_tables/yolo_v4_calibration_table_autotune_preprocess
+export YOLO_PREPROCESS="true"
+export YOLO_V4="true"
+export INPUT=input
+export MODEL_CHANNEL_ORDER="rgb"
+export SWAP_CHANNEL=2,1,0
+export IMAGE_RESIZE_DIMS=608,608
+export NET_INPUT_DIMS=608,608
+export RAW_SCALE=1.0
+export MEAN=0,0,0
+export INPUT_SCALE=1.0
+export TOLERANCE_INT8_PER_TENSOR=0.89,0.86,0.51
+export TOLERANCE_INT8_RSHIFT_ONLY=0.92,0.90,0.58
+export TOLERANCE_INT8_MULTIPLER=0.65,0.61,0.01
+# mish layer
+export EXCEPTS="layer136-act,layer137-act,layer138-act,layer142-act,layer148-act,layer149-act,layer153-act"
+export DO_QUANT_BF16=0
+export TOLERANCE_BF16=0.99,0.99,0.93
+export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.93
+export DO_DEEPFUSION=0
+export DO_MEMOPT=1
+export DO_LAYERGROUP=1
+export SPP_NET="false"
+export TINY="false"
+if [ $DO_PREPROCESS -eq 1 ]; then
+  export EXCEPTS=data
+fi
+fi
+
+
 if [ $NET = "resnet18" ]; then
 export MODEL_TYPE="onnx"
 export MODEL_DEF=$MODEL_PATH/imagenet/resnet/onnx/resnet18.onnx

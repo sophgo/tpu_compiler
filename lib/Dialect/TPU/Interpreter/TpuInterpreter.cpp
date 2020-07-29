@@ -894,6 +894,11 @@ static LogicalResult doLUTOpInterpret(Operation *op, StringRef &type,
       for (int i = 0; i < input_size; ++i) {
         output[i] = std::tanh(input[i]);
       }
+    }
+    else if (type == "Mish") {
+      auto castOp = dyn_cast<tpu::MishOp>(op);
+      float mish_threshold = castOp.mish_threshold().convertToFloat();
+      my_mish(input, output, n, c, h, w, getOpQuant(op) == "BF16", mish_threshold);
     } else {
       llvm_unreachable("not support LUT op type");
     }
@@ -945,6 +950,15 @@ LogicalResult tpu::TanHOp::interpret(
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name()
                           << "]\n";);
   StringRef type = "TanH";
+  return doLUTOpInterpret(op, type, valueMapping);
+}
+
+LogicalResult tpu::MishOp::interpret(
+    DenseMap<Value *, std::shared_ptr<std::vector<float>>> &valueMapping) {
+  Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name()
+                          << "]\n";);
+  StringRef type = "Mish";
   return doLUTOpInterpret(op, type, valueMapping);
 }
 

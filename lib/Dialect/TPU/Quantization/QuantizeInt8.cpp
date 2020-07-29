@@ -24,6 +24,7 @@
 #include "mlir/Dialect/TPU/TPUOperationSupport.h"
 #include "mlir/Dialect/TPU/TPUTensorSupport.h"
 #include "mlir/Dialect/TPU/QuantizationArithmetic.h"
+#include "mlir/Dialect/TPU/NativeCpuImplementation.h"
 #include "mlir/Dialect/StandardOps/Ops.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
@@ -527,6 +528,16 @@ LogicalResult quantizeInt8LutOps(Operation *op) {
                            ? 127
                            : (lutOutputI32 < -128) ? -128 : lutOutputI32;
         y0_table[n * table_hw + idx] = lutOutputI32;
+      } else if (OpTy::getOperationName() == "tpu.mish") {
+        index = lutInput * threshold_x / 127.0;
+        auto castOp = dyn_cast<tpu::MishOp>(op);
+        float mish_threshold = castOp.mish_threshold().convertToFloat();
+        float lutOutput = my_mish_caffe(index, mish_threshold) * 127.0 / threshold_y;
+        int lutOutputI32 = std::floor(lutOutput + 0.5);
+        lutOutputI32 = (lutOutputI32 > 127)
+                           ? 127
+                           : (lutOutputI32 < -128) ? -128 : lutOutputI32;
+        y0_table[n * table_hw + idx] = lutOutputI32;
       } else {
         assert(false && "not support now");
       }
@@ -590,6 +601,7 @@ LogicalResult quantizeInt8RescaleNoWeightOps(Operation *op) {
     }
   }
   if (bypass && OpTy::getOperationName() != "tpu.pool_avg_2d"
+             && OpTy::getOperationName() != "tpu.concat"
              && OpTy::getOperationName() != "tpu.eltwise_max"
              && OpTy::getOperationName() != "tpu.eltwise_min"
              && OpTy::getOperationName() != "tpu.eltwise_add") {
@@ -1020,6 +1032,14 @@ DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::LrnOneOp)
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::LrnTwoOp)
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::LrnThreeOp)
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::LrnOp)
+
+LogicalResult tpu::MishOp::quantizeInt8() {
+  LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  return quantizeInt8LutOps<tpu::MishOp>(op);
+}
+
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::PadOp)
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::PreprocessOp)
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::TileInterpOp)

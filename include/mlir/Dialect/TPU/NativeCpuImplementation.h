@@ -99,6 +99,9 @@ int my_permute(float *input, float *output, const int input_shape_size,
     int in, int ic, int ih, int iw,int on, int oc, int oh, int ow,
     int order0,int order1,int order2,int order3);
 
+float my_mish_caffe(float x_val, float mish_threshold = 20.0);
+int my_mish(float *input, float *output, int n, int c, int h, int w, bool is_bf16 = false, float mish_threshold = 20.0);
+
 int my_normalize(float *input,float *scale, float *output,
     bool across_spatial,bool channel_shared,
     int n, int c, int h, int w);

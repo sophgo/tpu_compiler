@@ -1522,6 +1522,91 @@ int my_permute(float *input, float *output, const int input_shape_size,
   return 0 ;
 }
 
+// mish, copy from caffe
+inline float tanh_activate (float x) {
+  return (2 / (1 + expf(-2 * x)) - 1);
+}
+
+inline float softplus_activate (float x, float threshold) {
+  if (x > threshold) return x;                // too large
+  else if (x < -threshold) return expf(x);    // too small
+  return logf(expf(x) + 1);
+}
+
+float my_mish_caffe(float x_val, float mish_threshold) {
+  return x_val * tanh_activate(softplus_activate(x_val, mish_threshold));
+}
+
+int my_mish(float *input, float *output, int n, int c, int h, int w, bool is_bf16, float mish_threshold) {
+  LLVM_DEBUG(llvm::errs() << "  n: " << n << ", c: " << c << ", h: " << h
+                          << ", w: " << w << "\n";);
+  int npu_num = 32; //<! 1880v2 hardcode
+
+  //<! 1880v2 hw bf16 config
+  int table_h = 32;
+  int table_w = 8;
+  std::vector<float> y0_table;
+  std::vector<float> y0_slope_table; // use in bf16
+  int table_hw = table_h * table_w;
+  int tbl_shape = npu_num * table_hw;
+  y0_table.resize(tbl_shape);
+  y0_slope_table.resize(tbl_shape);
+  std::vector<float> y0_fp32_table(table_hw);
+  std::vector<float> y0_fp32_slope_table(table_hw);
+  std::vector<uint16_t> y0_bf16_table(table_hw);
+  std::vector<uint16_t> y0_bf16_slope_table(table_hw);
+
+  // use function pointer
+  double (*activate_func)(double);
+  activate_func = sigmoid;
+
+  gen_bf16_table(BF16_TABLE_START, BF16_TABLE_END, table_hw,
+      y0_fp32_table.data(), activate_func);
+
+  gen_bf16_slope_table(BF16_TABLE_START, BF16_TABLE_END, table_hw,
+      y0_fp32_table.data(), y0_fp32_slope_table.data(),
+      activate_func);
+
+  for (int i = 0; i < table_hw; i++) {
+    // convert fp32 to bf16
+    y0_bf16_table.data()[i] = convert_fp32_bf16(y0_fp32_table.data()[i]);
+    y0_bf16_slope_table.data()[i] = convert_fp32_bf16(y0_fp32_slope_table.data()[i]);
+  }
+
+  int shape_size =  n * c * h * w;
+  int scale = 256 / (BF16_TABLE_END - BF16_TABLE_START); // quant from interger index range from 16(-8~8)->256(lut index size)
+
+  // rounding
+  scale = convert_bf16_fp32(convert_fp32_bf16(scale));
+
+  for (int i = 0; i < shape_size; ++i) {
+    if (!is_bf16) {
+      output[i] = my_mish_caffe(input[i], mish_threshold);
+    }
+    else {
+      float rescale_input = convert_bf16_fp32(convert_fp32_bf16(input[i])) * scale;
+      uint16_t rescale_input_bf16 = convert_fp32_bf16(rescale_input);
+
+      // get interger part to get table index and x0
+      int rescale_input_i8 = _convert_bf16_s8(rescale_input_bf16, /*int8_rnd_mode=*/1);
+
+      // get delta x (x - x0)
+      float delta_x = rescale_input - rescale_input_i8;
+
+      // get slope
+      uint16_t slope = y0_bf16_slope_table[rescale_input_i8 & 0xff];
+
+      // base y0 = f(x0)
+      uint16_t base = y0_bf16_table[rescale_input_i8 & 0xff];
+
+      // result = y0 + delta * slope
+      float r = convert_bf16_fp32(base) + delta_x * convert_bf16_fp32(slope);
+      output[i] = convert_bf16_fp32(convert_fp32_bf16(r));
+    }
+  }
+
+  return 0;
+}
 int my_normalize(float *input,float *scale, float *output,
     bool across_spatial,bool channel_shared,
     int n, int c, int h, int w){

@@ -337,6 +337,31 @@ def postprocess_v3_tiny(batched_features, image_shape, net_input_dims,
 
     return batch_out
 
+def postprocess_v4(batched_features, image_shape, net_input_dims,
+                obj_threshold, nms_threshold, spp_net, batch=1):
+    i = 0
+    batch_out = {}
+
+    def _batched_feature_generator_v4(batched_features, batch=1):
+        layer139_conv = batched_features['layer139-conv']
+        layer150_conv = batched_features['layer150-conv']
+
+        for i in range(batch):
+            yield [layer139_conv[i], layer150_conv[i]]
+
+
+    for feature in _batched_feature_generator_v4(batched_features, batch):
+        pred = _postprocess_v3(feature, image_shape, net_input_dims,
+                            obj_threshold, nms_threshold, True)
+
+        if not pred:
+            batch_out[i] = []
+        else:
+            batch_out[i] = pred
+
+        i += 1
+
+    return batch_out
 
 def draw(image, predictions, label_file=None, verbose=False):
     image = np.copy(image)

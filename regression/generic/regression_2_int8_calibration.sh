@@ -15,8 +15,13 @@ if [ $DO_CALIBRATION -eq 1 ]; then
   # Calibration
   # imagenet : --dataset $DATASET_PATH/imagenet/img_val_extracted
   # wider    : --dataset $DATASET_PATH/widerface/WIDER_val
+  DATASET=$DATASET_PATH/imagenet/img_val_extracted
+  if [ $NET = "yolo_v4" ]; then
+     DATASET=$DATASET_PATH/coco/val2017
+  fi
+
   gen_data_list.py \
-      $DATASET_PATH/imagenet/img_val_extracted \
+      $DATASET \
       $CALIBRATION_IMAGE_COUNT \
       cali_list_imagenet.txt
   if [ $DO_PREPROCESS -ne 1 ]; then
