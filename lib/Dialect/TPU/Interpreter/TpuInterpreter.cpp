@@ -57,6 +57,11 @@
 #include <algorithm>
 #include <unordered_map>
 
+//#include <float.h>
+//#include <mlir/Dialect/TPU/typedef.h>
+// align cmodel
+#include "bmkernel/bm1880v2/1880v2_fp_convert.h"
+
 namespace mlir {
 
 static DeviceMode dm;
@@ -3193,14 +3198,18 @@ LogicalResult tpu::QuantOp::interpret(
     float threshold = this->threshold().getValue().convertToFloat();
     LLVM_DEBUG(llvm::errs() << "  quantization, threshold = "
                << std::to_string(threshold) << "\n";);
-    dequantizeActivationFromInt8ToBf16WithThreshold(resultT->data(), input, size, threshold);
+    cmodelDequantizeActivationFromInt8ToBf16WithThreshold(output, input, size, threshold);
+    auto tensor_bf16 = std::make_unique<std::vector<bfloat16>>(resultT->size());
+    FloatToBFloat16(resultT->data(), tensor_bf16->data(),
+                    resultT->size()); // with rounding
+    BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
   } else if (this->from() == "BF16" && this->to() == "INT8") {
     float *input = (float *)opdT[0]->data();
     float *output = (float *)resultT->data();
     float threshold = this->threshold().getValue().convertToFloat();
     LLVM_DEBUG(llvm::errs() << "  quantization, threshold = "
                << std::to_string(threshold) << "\n";);
-    quantizeActivationFromBf16ToInt8WithThreshold(output, input, size, threshold);
+    cmodelQuantizeActivationFromBf16ToInt8WithThreshold(output, input, size, threshold);
   } else {
     llvm_unreachable("unsupported type");
   }
@@ -3365,9 +3374,15 @@ LogicalResult ModuleInterpreter::doRun(std::vector<int64_t> input_shape, std::ve
   // set device mode
   dm = this->device;
 
+  // align cmodel bf16 setting
+  int round_mode = set_store_feround();
+
   // inference
   if (failed(runFunctions()))
     return failure();
+
+  // restore
+  fesetround(round_mode);
 
   // get results
   assert(results);
