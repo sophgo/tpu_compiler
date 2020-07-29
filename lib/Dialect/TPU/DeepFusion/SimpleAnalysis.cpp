@@ -33,7 +33,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/MathExtras.h"
-#include "SimpleAnalysis.h"
+#include "mlir/Dialect/TPU/SimpleAnalysis.h"
 
 using namespace mlir;
 
@@ -109,6 +109,9 @@ uint64_t SimpleConv2DMemoryUsageAnalysis(tpu::TG_INT8_PC_Conv2DOp &op,
     struct SimpleMemoryUsageAnalysis_details *details);
 template
 uint64_t SimpleConv2DMemoryUsageAnalysis(tpu::TG_INT8_PC_DeConv2DOp &op,
+    struct SimpleMemoryUsageAnalysis_details *details);
+template
+uint64_t SimpleConv2DMemoryUsageAnalysis(tpu::Conv2DOp &op,
     struct SimpleMemoryUsageAnalysis_details *details);
 
 template <typename OpTy>

@@ -35,7 +35,7 @@ void my_dilateActivation (float* input, float* output,
     int ins_h,   int ins_h_l,
     int pad_w_l, int pad_w_r,
     int ins_w,   int ins_w_l,
-    int n, int c, int h, int w);
+    int n, int c, int h, int w, int fill_constant = 0);
 
 int my_relu(float *input, float *output,
     int n, int c, int h, int w, float negative_slope);

@@ -32,6 +32,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/FormatVariadic.h"
 #include <math.h> // ceilf/floorf
+#include "mlir/Dialect/TPU/SimpleAnalysis.h"
 
 #define DEBUG_TYPE "convert_conv"
 
@@ -1068,6 +1069,40 @@ struct TpuMergeInterpToConv2DPattern : public RewritePattern {
         int is1x1Input = ih == 1 && ih == iw;
         int loop = std::max(maxInsertHAtOnce.size(), maxInsertWAtOnce.size());
 
+        auto calc_dilute_hw = [&](int h, int ins_h, int ins_h_l, int pad_h_b, int pad_h_t) mutable -> int {
+          return (h - 1) * (ins_h + 1) + ins_h_l +
+            1 + pad_h_t + pad_h_b;
+        };
+
+        auto calc_output_hw = [&](int hw, int khw, int stride) mutable -> int {
+          return (hw - khw)/stride + 1;
+        };
+
+        auto createConvAttr = [&](
+          std::vector<int64_t> kernel, std::vector<int64_t> stride,
+          std::vector<int64_t> dilation, std::vector<int64_t> padding,
+          int g, bool is_dw, bool with_bias, std::vector<int32_t> ins) mutable ->
+          std::vector<NamedAttribute> {
+            std::vector<NamedAttribute> attrs;
+            attrs.push_back(rewriter.getNamedAttr("param",
+                  tpu::ConvParam::get(rewriter.getI32IntegerAttr(stride[0]),
+                    rewriter.getI32IntegerAttr(stride[1]),
+                    rewriter.getStringAttr("VALID"),
+                    rewriter.getI32IntegerAttr(dilation[0]),
+                    rewriter.getI32IntegerAttr(dilation[1]),
+                    rewriter.getI32IntegerAttr(padding[0]), // top
+                    rewriter.getI32IntegerAttr(padding[1]), // bottom
+                    rewriter.getI32IntegerAttr(padding[2]),
+                    rewriter.getI32IntegerAttr(padding[3]),
+                    rewriter.getI32IntegerAttr(g),
+                    rewriter.getBoolAttr(is_dw),
+                    rewriter.getBoolAttr(with_bias),
+                    rewriter.getBoolAttr(false),
+                    rewriter.getI32ArrayAttr(ArrayRef<int32_t>({ins})), // [0]ins_w/[1]ins_h
+                    rewriter.getContext())));
+            return attrs;
+          };
+
         auto createConv2D = [&](Value* input, int d, bool isNonDivisible = false) mutable -> 
           std::tuple<std::vector<Value *>, std::vector<NamedAttribute>, RankedTensorType > {
 
@@ -1078,7 +1113,7 @@ struct TpuMergeInterpToConv2DPattern : public RewritePattern {
           rheightInt = 1;
           rwidthInt = 1;
           std::vector<int64_t> kernel(2), stride(2), dilation(2), padding(4);
-          std::vector<int32_t> ins(2);
+          std::vector<int32_t> ins(2), _ins(2);
 
           // TODO: support d not integer case, e.g: d = 1.3
           stride[0] = 1; // sh
@@ -1114,6 +1149,7 @@ struct TpuMergeInterpToConv2DPattern : public RewritePattern {
 
           ins[0] = rwidthInt - 1; // hw ins_w
           ins[1] = rheightInt - 1; // hw ins_h
+          _ins = ins;
 
           padding[0] = padding[1] = rheightInt - 1; // padding top/bottom
           padding[2] = padding[3] = rwidthInt - 1; // padding left/right
@@ -1211,6 +1247,97 @@ struct TpuMergeInterpToConv2DPattern : public RewritePattern {
           auto filterValue = addWeightTensorAndCreateWeightOp<float>(op, std::to_string(d) + "_filter",
               filter, filter_shape, "NONE", wTF, wfV);
 
+          // it could Dilated in activation in hw once `ins` set
+          // the final output should be input->Dilated(ins_w/ins_h)->conv
+          std::vector<int64_t> top_dim(2); // [0] is h, [1] is w
+          _oc = ic; //depthwise case
+          std::string prefix = llvm::formatv("_{0}_", std::to_string(d)).str();
+
+          if (!is1x1Input) {
+            // to check memory usage per lane
+            // create fake op for check
+            std::vector<Value *> operands;
+            operands.push_back(input);
+            operands.push_back(filterValue);
+            operands.push_back(NoneOp.getResult()); // bias
+            operands.push_back(NoneOp.getResult()); // quant_scale
+            operands.push_back(NoneOp.getResult()); // quant_zeropoint
+            operands.push_back(NoneOp.getResult()); // quant_rshift
+            operands.push_back(NoneOp.getResult()); // quant_multiplier
+
+            std::vector<NamedAttribute> attrs = 
+              createConvAttr(kernel, stride, dilation, padding, g, is_dw, with_bias, ins);
+            attrs.push_back(rewriter.getNamedAttr("name",
+                rewriter.getStringAttr("fakeop")));
+
+            int ih_ext = calc_dilute_hw(_ih, ins[1], 0, padding[0], padding[1]);
+            int iw_ext = calc_dilute_hw(_iw, ins[0], 0, padding[2], padding[3]);
+            top_dim[0] = calc_output_hw(ih_ext, kh, stride[0]); // oh
+            top_dim[1] = calc_output_hw(iw_ext, kw, stride[1]); // ow
+            RankedTensorType dilateOutput = RankedTensorType::get(
+                {in, _oc, top_dim[0], top_dim[1]},
+                input_type.getElementType());
+
+            auto fakeOp = rewriter.create<tpu::Conv2DOp>(loc,
+                dilateOutput,
+                ArrayRef<Value *>{operands},
+                ArrayRef<NamedAttribute>{attrs});
+
+            // FIXME: no need init every travel
+            std::string getRunChipType = "cv183x";
+            MInfo Machineinfo;
+            //get_cvichip_name(getRunChipType); FIXME: get chip info
+            Machineinfo.getChipInfo(getRunChipType.c_str());
+            uint64_t totalPerLane = SimpleConv2DMemoryUsageAnalysis(fakeOp, NULL);
+
+            // depthwse with ins SHOULD not slice h/w
+            // just slice ic, <n, ic, ih, iw> -> <n, 1, ih, iw>
+            int chunkPerLane = (ic + MInfo::lane_num) / MInfo::lane_num;
+            // TODO: slice h/w under ins case
+            bool isInsInConv = false;
+            if (!isInsInConv || totalPerLane / chunkPerLane > MInfo::lmem_per_lane) {
+              // if lmem not enough
+              LLVM_DEBUG(llvm::errs() << _interpOp.nameAttr().getValue() <<
+                  ", lmem not enough, dynamic add dilate op\n");
+
+              // create dilateOp if need
+              top_dim[0] = calc_dilute_hw(_ih, ins[1], 0, 0, 0);
+              top_dim[1] = calc_dilute_hw(_iw, ins[0], 0, 0, 0);
+
+              // init output
+              RankedTensorType output = RankedTensorType::get(
+                  {in, _oc, top_dim[0], top_dim[1]},
+                  input_type.getElementType());
+
+              // init input
+              operands.clear();
+              operands.push_back(input);
+
+              // init attr
+              std::vector<NamedAttribute> attrs;
+              attrs.push_back(rewriter.getNamedAttr("ins",
+                  rewriter.getI32ArrayAttr(ArrayRef<int32_t>({ins}))));// [0]ins_w/[1]ins_h
+              attrs.push_back(rewriter.getNamedAttr("name",
+                    rewriter.getStringAttr(prefix + "_dilate_" + _interpOp.nameAttr().getValue().str())));
+              attrs.push_back(rewriter.getNamedAttr("fill_constant",
+                    rewriter.getI32IntegerAttr(0))); // default insert 0
+              attrs.push_back(
+                  rewriter.getNamedAttr("quant", getDefaultQuantParam(rewriter)));
+
+              if (_interpOp.layer_id().hasValue()) {
+                attrs.push_back(rewriter.getNamedAttr("layer_id",
+                      _interpOp.layer_idAttr()));
+              }
+
+              auto dilateOp = rewriter.create<tpu::DilateOp>(loc,
+                  output,
+                  ArrayRef<Value *>{operands},
+                  ArrayRef<NamedAttribute>{attrs});
+              input = dilateOp.getResult();
+              ins = {0, 0}; // no dilate in conv
+            }
+          }
+
           // prepare output operands
           std::vector<Value *> operands;
           operands.push_back(input);
@@ -1221,21 +1348,10 @@ struct TpuMergeInterpToConv2DPattern : public RewritePattern {
           operands.push_back(NoneOp.getResult()); // quant_rshift
           operands.push_back(NoneOp.getResult()); // quant_multiplier
 
+
+          // prepare attr
+#if 0
           std::vector<NamedAttribute> attrs;
-          std::string prefix = llvm::formatv("_{0}_", std::to_string(d)).str();
-          if (loop - 1 == d) {
-            // last one replace the interp name for compare
-            prefix = "";
-          }
-
-          attrs.push_back(rewriter.getNamedAttr("name",
-                rewriter.getStringAttr(prefix + _interpOp.nameAttr().getValue().str())));
-
-          if (_interpOp.layer_id().hasValue()) {
-            attrs.push_back(rewriter.getNamedAttr("layer_id",
-                  _interpOp.layer_idAttr()));
-          }
-
           attrs.push_back(rewriter.getNamedAttr("param",
                 tpu::ConvParam::get(rewriter.getI32IntegerAttr(stride[0]),
                   rewriter.getI32IntegerAttr(stride[1]),
@@ -1252,24 +1368,29 @@ struct TpuMergeInterpToConv2DPattern : public RewritePattern {
                   rewriter.getBoolAttr(false),
                   rewriter.getI32ArrayAttr(ArrayRef<int32_t>({ins})), // [0]ins_w/[1]ins_h
                   rewriter.getContext())));
+#else
+            std::vector<NamedAttribute> attrs = 
+              createConvAttr(kernel, stride, dilation, padding, g, is_dw, with_bias, ins);
+#endif
+
+          if (loop - 1 == d) {
+            // last one replace the interp name for compare
+            prefix = "";
+          }
+
+          attrs.push_back(rewriter.getNamedAttr("name",
+                rewriter.getStringAttr(prefix + _interpOp.nameAttr().getValue().str())));
+
+          if (_interpOp.layer_id().hasValue()) {
+            attrs.push_back(rewriter.getNamedAttr("layer_id",
+                  _interpOp.layer_idAttr()));
+          }
 
           attrs.push_back(
               rewriter.getNamedAttr("quant", getDefaultQuantParam(rewriter)));
 
-          auto calc_dilute_hw = [&](int h, int ins_h, int ins_h_l, int pad_h_b, int pad_h_t) mutable -> int {
-            return (h - 1) * (ins_h + 1) + ins_h_l +
-              1 + pad_h_t + pad_h_b;
-          };
-
-          auto calc_output_hw = [&](int hw, int khw, int stride) mutable -> int {
-            return (hw - khw)/stride + 1;
-          };
-
-          // it could Dilated in activation in hw once `ins` set
-          // the final output should be input->Dilated(ins_w/ins_h)->conv
-          std::vector<int64_t> top_dim(2); // [0] is h, [1] is w
-          _oc = ic; //depthwise case
-
+          
+          
           // prepare output shape
           if (is1x1Input) {
             // upsample
@@ -1277,8 +1398,8 @@ struct TpuMergeInterpToConv2DPattern : public RewritePattern {
             top_dim[1] = _iw * stride[1];
           }
           else {
-            int ih_ext = calc_dilute_hw(_ih, ins[1], 0, padding[0], padding[1]);
-            int iw_ext = calc_dilute_hw(_iw, ins[0], 0, padding[2], padding[3]);
+            int ih_ext = calc_dilute_hw(_ih, _ins[1], 0, padding[0], padding[1]);
+            int iw_ext = calc_dilute_hw(_iw, _ins[0], 0, padding[2], padding[3]);
             top_dim[0] = calc_output_hw(ih_ext, kh, stride[0]); // oh
             top_dim[1] = calc_output_hw(iw_ext, kw, stride[1]); // ow
           }

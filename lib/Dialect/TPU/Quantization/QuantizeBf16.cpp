@@ -396,6 +396,7 @@ LogicalResult tpu::Conv2DOp::quantizeBf16() {
 }
 
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::CropOp)
+DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::DilateOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::CustomOp)
 
 LogicalResult tpu::DeConv2DOp::quantizeBf16() {

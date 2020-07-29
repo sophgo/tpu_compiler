@@ -115,6 +115,7 @@ if (${USE_GPU})
   target_link_libraries(MLIRTPU
     MLIRIR
     MLIRStandardOps
+    MLIRTPUDeepFusion
     LLVMSupport
     backend
     MLIRGPUOps
@@ -126,6 +127,7 @@ else()
   target_link_libraries(MLIRTPU
     MLIRIR
     MLIRStandardOps
+    MLIRTPUDeepFusion
     LLVMSupport
     backend
     ${tpu_LINKER_LIBS}

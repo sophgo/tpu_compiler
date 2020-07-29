@@ -1385,7 +1385,7 @@ void my_dilateActivation (float* input, float* output,
     int ins_h,   int ins_h_l,
     int pad_w_l, int pad_w_r,
     int ins_w,   int ins_w_l,
-    int n, int c, int h, int w) {
+    int n, int c, int h, int w, int fill_constant) {
   int oh = calc_dilute_hw(h, ins_h, ins_h_l, pad_h_t, pad_h_b);
   int ow = calc_dilute_hw(w, ins_w, ins_w_l, pad_w_l, pad_w_r);
   assert(!ins_h_l && !ins_w_l);
@@ -1395,7 +1395,7 @@ void my_dilateActivation (float* input, float* output,
         for (int _ow = 0; _ow < ow; _ow++) {
           int out_idx = (((in * c + ic) * oh) + _oh) * ow + _ow;
           int in_nc = (in * c + ic) * h * w;
-          output[out_idx] = 0; //dilate
+          output[out_idx] = fill_constant; //dilate
           if (_ow % (ins_w+1) == 0 && _oh % (ins_h+1) == 0) {
             output[out_idx] = input[in_nc + (_oh / (ins_h+1)) * w + _ow / (ins_w+1)];
           }
