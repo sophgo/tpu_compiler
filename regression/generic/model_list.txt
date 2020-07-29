@@ -33,8 +33,8 @@ yolo_v3_spp               N        N        N        Y        N        N        
 # yolo_v4                   N        N        N        Y        N        N          N
 faster_rcnn               N        N        N        Y        N        N          N
 icnet                     N        N        N        Y        N        N          N
-# erfnet                    N        N        N        Y        N        N          N
-# enet                      N        N        N        Y        N        N          N
+erfnet                    Y        N        N        N        Y        N          N
+enet                      Y        N        N        N        Y        N          N
 fcn-8s                    N        N        N        Y        N        N          N
 
 # onnx

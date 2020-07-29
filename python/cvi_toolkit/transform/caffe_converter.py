@@ -221,8 +221,7 @@ class CaffeConverter(BaseConverter):
 
              if layer.bn_param.HasField('frozen'):
                  param['frozen'] = layer.bn_param.frozen
-
-             assert(param['frozen'] == True and "only support frozen = false now")
+                 assert(param['frozen'] == True and "only support frozen = false now")
 
          blobs = self.layer_dict[layer.name].blobs
 
