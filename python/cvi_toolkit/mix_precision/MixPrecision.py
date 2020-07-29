@@ -66,6 +66,14 @@ class MixPrecisior(object):
         sqnr = 10 * np.log10(var_gt_zero_mean / var_noise_zero_mean)
         return sqnr
 
+    def get_layer_name_list(self, exclude_list=[]):
+        layer_name_list = []
+        for layer in self.fp32_cali_model.op_info:
+            if layer['name'] not in exclude_list:
+                layer_name_list.append(layer['name'])
+
+        return layer_name_list
+
     def run(self):
         sqnr_list = list()
         predictions_gt = list()
@@ -97,9 +105,9 @@ class MixPrecisior(object):
             if layer['type'] in self.skip_ops:
                 continue
             pbar.set_description("Processing {}".format(layer['name']))
-            layer_name = layer['name']
+            bf16_layer_name_list = self.get_layer_name_list(layer['name'])
             bf16_tmp_txt = "bf16_tmp_file.txt"
-            self.create_bf16_layer_files(bf16_tmp_txt, [layer_name])
+            self.create_bf16_layer_files(bf16_tmp_txt, bf16_layer_name_list)
 
             bf16_tmp_mlir = "bf16_tmp.mlir"
             gen_bf16_mlir(self.fp32_cali_mlir_file ,bf16_tmp_mlir, bf16_tmp_txt, "tmp_quant_op_info.csv")
@@ -115,9 +123,9 @@ class MixPrecisior(object):
                 pred_tensor = all_tensor[self.bf16_model.op_info[-1]['name']].flatten()
                 sqnr += self.cal_sqnr(predictions_gt[idx], pred_tensor)
 
-            # print("Layer: {}, SQNR: {}\n\n".format(layer_name, sqnr / len(self.image_txt_list)))
+            # print("Layer: {}, SQNR: {}\n\n".format(layer['name'], sqnr / len(self.image_txt_list)))
 
-            sqnr_list.append((layer_name, sqnr / len(self.image_txt_list)))
+            sqnr_list.append((layer['name'], sqnr / len(self.image_txt_list)))
 
         # remove tmp file
         shutil.rmtree(bf16_txt, ignore_errors=True)
@@ -125,4 +133,4 @@ class MixPrecisior(object):
         shutil.rmtree(bf16_tmp_txt, ignore_errors=True)
         shutil.rmtree(bf16_tmp_mlir, ignore_errors=True)
 
-        return sorted(sqnr_list, key=lambda x: x[1], reverse=True)
+        return sorted(sqnr_list, key=lambda x: x[1], reverse=False)
