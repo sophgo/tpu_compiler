@@ -226,6 +226,14 @@ ImConv::ImConv(Operation* p) : ImLayer(IR_CONVOLUTION, p, true) {
                do_relu, do_ic_align,
                fuse_leaky);
 
+  if (g == 1 && ic > 4095) {
+    // hw limitation: ic should be smaller than 4096, otherwise
+    // we need to split ic and output fp32 patial sum tensor,
+    // which occupies too much memory. it has no benefit to
+    // do fusion in such case.
+    fusible = false;
+  }
+
   int w_ic = ic;
   if (do_ic_align && (ic % 2 != 0)) {
     w_ic += 1;

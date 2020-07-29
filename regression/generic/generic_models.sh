@@ -1506,27 +1506,21 @@ export MODEL_DEF=$MODEL_PATH/segmentation/fcn-8s/caffe/deploy.prototxt
 export MODEL_DAT=$MODEL_PATH/segmentation/fcn-8s/caffe/fcn-8s-pascalcontext.caffemodel
 export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_caffe/regression_fcn-8s_0_caffe.sh
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/fcn-8s_calibration_table
-export CALI_TABLE_PREPROCESS=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table_preprocess
 export NET_INPUT_DIMS=500,500
 export IMAGE_RESIZE_DIMS=500,500
 export RAW_SCALE=255.0
 export MEAN=104.01,116.67,122.68  # from ilsvrc_2012_mean.npy
 export INPUT_SCALE=1.0
 export INPUT=input
-export DO_QUANT_INT8_PER_TENSOR=1
-export DO_QUANT_INT8_RFHIFT_ONLY=1
-export TOLERANCE_INT8_PER_TENSOR=0.92,0.91,0.43
-export TOLERANCE_INT8_RSHIFT_ONLY=0.95,0.95,0.7
-export TOLERANCE_INT8_MULTIPLER=0.96,0.95,0.73
+export DO_QUANT_INT8_PER_TENSOR=0
+export DO_QUANT_INT8_RFHIFT_ONLY=0
+export TOLERANCE_INT8_RSHIFT_ONLY=0.92,0.92,0.44
+export TOLERANCE_INT8_MULTIPLER=0.92,0.92,0.44
 export TOLERANCE_BF16=0.99,0.99,0.89
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.9
 export DO_LAYERGROUP=1
 export DO_NN_TOOLKIT=1
-if [ $DO_PREPROCESS -eq 1 ]; then
-  export EXCEPTS=data,prob,res2c_relu,res3d_relu,res4f_relu
-else
-  export EXCEPTS=prob,res2c_relu,res3d_relu,res4f_relu
-fi
+export DO_PREPROCESS=0
 fi
 
 if [ $NET = "espcn_tf" ]; then
