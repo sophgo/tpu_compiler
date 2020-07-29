@@ -44,11 +44,11 @@ fi
 # assign layer_id right away, and apply all frontend optimizations
 # Notes: convert-bn-to-scale has to be done before canonicalizer
 mlir-opt \
+    --assign-layer-id \
     ${MLIR_OPT_FE_PRE} \
     --canonicalize \
     ${MLIR_OPT_FE_POST} \
     --fuse-relu \
-    --assign-layer-id \
     --print-tpu-op-info \
     --tpu-op-info-filename ${NET}_op_info.csv \
     ${NET}.mlir \
