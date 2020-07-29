@@ -693,6 +693,8 @@ class OnnxConverter(BaseConverter):
         assert(onnx_node.op_type == "Conv")
         if len(onnx_node.attrs['kernel_shape']) == 1:
             return self.convert_conv1d_op(onnx_node)
+        if len(onnx_node.attrs['kernel_shape']) == 3:
+            return self.convert_conv3d_op(onnx_node)
 
         dilations = onnx_node.attrs.get("dilations", [1, 1])
         group = onnx_node.attrs.get("group", 1)
@@ -771,6 +773,30 @@ class OnnxConverter(BaseConverter):
         output_shape = [on, oc, oh, ow]
         conv_op = self.CVI.add_conv_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **conv_param)
         self.addOperand(onnx_node.name, conv_op, output_shape, TensorType.ACTIVATION)
+
+    def convert_conv3d_op(self, onnx_node):
+        assert(onnx_node.op_type == "Conv")
+        dilations = onnx_node.attrs.get("dilations", [1,1,1])
+        group = onnx_node.attrs.get("group", 1)
+        pads = onnx_node.attrs.get("pads",[0,0,0,0,0,0])
+        strides = onnx_node.attrs.get("strides",[1,1,1])
+        raise RuntimeError("TODO: Conv3d IR")
+        conv_param = {
+            'stride_h':  1,
+            'stride_w':  strides[0],
+            'padding': "SAME" if pads[0] > 0 else "VALID",
+            'dilation_h': 1,
+            'dilation_w': dilations[0],
+            'padding_t': 0,
+            'padding_b': 0,
+            'padding_l': pads[0],
+            'padding_r': pads[1],
+            'group': group,
+            'is_dw': False,
+            'with_bias': len(onnx_node.inputs) > 2,
+            'do_relu': False,
+            'ins': [],
+        }
 
     def convert_clip_op(self, onnx_node):
         assert(onnx_node.op_type == "Clip")
