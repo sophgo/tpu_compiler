@@ -36,9 +36,9 @@ class ImmTensor;
 class Tensor {
  public:
   Tensor(int id, int n, int c, int h, int w, int unit_size, const std::string& name,
-         tensor_type_t type);
+         tensor_type_t type, int layer_id);
   Tensor(int id, int n, int c, int h, int w, int unit_size, std::string &storage,
-         const std::string& name, tensor_type_t type);
+         const std::string& name, tensor_type_t type, int layer_id);
 
   int n() const { return dims_[0]; }
   int c() const { return dims_[1]; }
@@ -56,6 +56,8 @@ class Tensor {
   const std::string& storage() { return storage_; }
 
   int id() const { return id_; }
+
+  int layer_id() const { return layer_id_; }
 
   virtual uint32_t lmem_size();
 
@@ -80,10 +82,10 @@ class Tensor {
   void set_h_slice_skip_last() { this->h_slice_skip_last = true; }
 
   static std::shared_ptr<Tensor> register_tensor(int n, int c, int h, int w, int unit_size, std::string& storage,
-                                            const std::string& name, tensor_type_t type);
+                                            const std::string& name, tensor_type_t type, int layer_id);
 
   static std::shared_ptr<Tensor> register_tensor(ShapedType *s_type, const std::string& name,
-                                            tensor_type_t type);
+                                            tensor_type_t type, int layer_id);
 
   static std::shared_ptr<Tensor> register_imm_tensor(const std::shared_ptr<Tensor> associate, int count,
                                                 const std::string& name);
@@ -118,12 +120,13 @@ class Tensor {
   std::string name_;
   std::string storage_;
   static std::map<std::string, int> map_name_to_id_;
+  int layer_id_; // keep in mlir SSA
 };
 
 class ImmTensor : public Tensor {
  public:
   ImmTensor(int id, std::shared_ptr<Tensor> associate, int count, const std::string& name)
-      : Tensor(id, 0, 0, 0, 0, 0, name, TENSOR_IMM),
+      : Tensor(id, 0, 0, 0, 0, 0, name, TENSOR_IMM, associate->layer_id()),
         associate_(associate),
         count_(count) {
     dims_[0] = associate->n();
