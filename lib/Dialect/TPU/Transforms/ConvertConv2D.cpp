@@ -299,7 +299,7 @@ std::pair<std::vector<Value *>, std::vector<NamedAttribute> > getTwiceWDeConv(
   kernel[1] = w;
   padding[0] = padding[1] = 0;
   dilation[0] = dilation[1] = 1;
-  stride[0] = 1; 
+  stride[0] = 1;
   stride[1] = 2; // set w to twice
 
   std::vector<NamedAttribute> attrs;
@@ -377,7 +377,7 @@ std::pair<std::vector<Value *>, std::vector<NamedAttribute> > getTileInterp(
 
   // construct tile_interp
   auto input = castOp.getResult();
-  
+
   auto NoneOp = OpBuilder(op).create<tpu::NoneOp>(rewriter.getUnknownLoc(),
       rewriter.getNoneType());
 
@@ -534,7 +534,7 @@ std::pair<std::vector<Value *>, std::vector<NamedAttribute> > getHWaxisWeight(
 
   // construct eltwise
   auto input = castOp.getResult();
-  
+
   auto NoneOp = OpBuilder(op).create<tpu::NoneOp>(rewriter.getUnknownLoc(),
       rewriter.getNoneType());
 
@@ -615,7 +615,7 @@ std::pair<std::vector<Value *>, std::vector<NamedAttribute> > getConv(
 
   // construct eltwise
   auto input = castOp.getResult();
-  
+
   auto NoneOp = OpBuilder(op).create<tpu::NoneOp>(rewriter.getUnknownLoc(),
       rewriter.getNoneType());
 
@@ -953,7 +953,7 @@ struct TpuMergeInterpToConv2DPattern : public RewritePattern {
         scale[0] = (std::make_pair(maxFloatDividend, floatDividend));
       }
 
-      // w 
+      // w
       if ((ceilf(rwidth) == rwidth && floorf(rwidth) == rwidth)) {
         // integer case
         rwidthInt = int(rwidth);
@@ -1103,7 +1103,7 @@ struct TpuMergeInterpToConv2DPattern : public RewritePattern {
             return attrs;
           };
 
-        auto createConv2D = [&](Value* input, int d, bool isNonDivisible = false) mutable -> 
+        auto createConv2D = [&](Value* input, int d, bool isNonDivisible = false) mutable ->
           std::tuple<std::vector<Value *>, std::vector<NamedAttribute>, RankedTensorType > {
 
           if (_ih == 1 || _iw == 1) {
@@ -1265,7 +1265,7 @@ struct TpuMergeInterpToConv2DPattern : public RewritePattern {
             operands.push_back(NoneOp.getResult()); // quant_rshift
             operands.push_back(NoneOp.getResult()); // quant_multiplier
 
-            std::vector<NamedAttribute> attrs = 
+            std::vector<NamedAttribute> attrs =
               createConvAttr(kernel, stride, dilation, padding, g, is_dw, with_bias, ins);
             attrs.push_back(rewriter.getNamedAttr("name",
                 rewriter.getStringAttr("fakeop")));
@@ -1369,7 +1369,7 @@ struct TpuMergeInterpToConv2DPattern : public RewritePattern {
                   rewriter.getI32ArrayAttr(ArrayRef<int32_t>({ins})), // [0]ins_w/[1]ins_h
                   rewriter.getContext())));
 #else
-            std::vector<NamedAttribute> attrs = 
+            std::vector<NamedAttribute> attrs =
               createConvAttr(kernel, stride, dilation, padding, g, is_dw, with_bias, ins);
 #endif
 
@@ -1389,8 +1389,8 @@ struct TpuMergeInterpToConv2DPattern : public RewritePattern {
           attrs.push_back(
               rewriter.getNamedAttr("quant", getDefaultQuantParam(rewriter)));
 
-          
-          
+
+
           // prepare output shape
           if (is1x1Input) {
             // upsample
@@ -1473,108 +1473,7 @@ struct TpuMergeInterpToConv2DPattern : public RewritePattern {
         }
       }
     }
- 
-    return matchSuccess();
-  }
-};
 
-
-struct TpuSplitConv2DPattern : public RewritePattern {
-  TpuSplitConv2DPattern(MLIRContext *context)
-      : RewritePattern("tpu.conv_2d", 1, context) {}
-
-  PatternMatchResult matchAndRewrite(Operation *op,
-                                     PatternRewriter &rewriter) const override {
-    auto convOp = cast<tpu::Conv2DOp>(op);
-    LLVM_DEBUG(llvm::errs() << convOp.getOperationName() << ":"
-                            << getOpName(op)<< "\n";);
-    auto param = convOp.param();
-    auto pt = param.padding_t().getValue().getLimitedValue();
-    auto pb = param.padding_b().getValue().getLimitedValue();
-    auto pl = param.padding_l().getValue().getLimitedValue();
-    auto pr = param.padding_r().getValue().getLimitedValue();
-
-    const int PAD_H_MAX = 15;
-    const int PAD_W_MAX = 15;
-    if (pt <= PAD_H_MAX && pb <= PAD_H_MAX &&
-        pl <= PAD_W_MAX && pr <= PAD_W_MAX)
-      return matchFailure();
-
-    std::vector<NamedAttribute> attrs;
-    std::vector<Value *> operands;
-    operands.push_back(op->getOperand(0));
-
-    auto name = convOp.name().str();
-    name = name + "_" + "pad";
-    attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(name)));
-
-    SmallVector<Attribute, 8> padsAttr;
-    int pad_h_begin = pt;
-    int pad_w_begin = pl;
-
-    int pad_h_end = pb;
-    int pad_w_end = pr;
-
-    auto padAttr = rewriter.getI32IntegerAttr(0);
-    padsAttr.push_back(padAttr); // pad_n_begin;
-    padsAttr.push_back(padAttr); // pad_c_begin;
-
-    padAttr = rewriter.getI32IntegerAttr(pad_h_begin);
-    padsAttr.push_back(padAttr);
-
-    padAttr = rewriter.getI32IntegerAttr(pad_w_begin);
-    padsAttr.push_back(padAttr);
-
-    padAttr = rewriter.getI32IntegerAttr(0);
-    padsAttr.push_back(padAttr); // pad_n_end;
-    padsAttr.push_back(padAttr); // pad_c_end;
-
-    padAttr = rewriter.getI32IntegerAttr(pad_h_end);
-    padsAttr.push_back(padAttr);
-
-    padAttr = rewriter.getI32IntegerAttr(pad_w_end);
-    padsAttr.push_back(padAttr);
-
-
-    attrs.push_back(rewriter.getNamedAttr("pads",
-                                      rewriter.getArrayAttr(padsAttr)));
-    attrs.push_back(rewriter.getNamedAttr("const_val",
-                                      rewriter.getF32FloatAttr(0)));
-    attrs.push_back(rewriter.getNamedAttr("quant",
-                                      getDefaultQuantParam(rewriter)));
-
-    auto input_type = convOp.input()->getType().dyn_cast<TensorType>();
-    auto input_shape = input_type.getShape();
-    int64_t output_h = input_shape[2] + pt + pb;
-    int64_t output_w = input_shape[3] + pl + pr;
-
-    auto output_type = RankedTensorType::get(
-                          {input_shape[0], input_shape[1],
-                           output_h, output_w},
-                           input_type.getElementType());
-
-    rewriter.setInsertionPoint(op);
-    auto padOp = rewriter.create<tpu::PadOp>(op->getLoc(),
-                           ArrayRef<mlir::Type>{output_type}, operands, attrs);
-    // rewrite pad
-    convOp.setAttr("param",
-           tpu::ConvParam::get(
-                convOp.param().stride_h(),
-                convOp.param().stride_w(),
-                convOp.param().padding(),
-                convOp.param().dilation_h(),
-                convOp.param().dilation_w(),
-                rewriter.getI32IntegerAttr(0),
-                rewriter.getI32IntegerAttr(0),
-                rewriter.getI32IntegerAttr(0),
-                rewriter.getI32IntegerAttr(0),
-                convOp.param().group(),
-                convOp.param().is_dw(),
-                convOp.param().with_bias(),
-                convOp.param().do_relu(),
-                convOp.param().ins(),
-                rewriter.getContext()));
-    op->setOperand(0, padOp.getResult());
     return matchSuccess();
   }
 };
@@ -1602,7 +1501,6 @@ private:
 void tpu::Conv2DOp::getCanonicalizationPatterns(
     OwningRewritePatternList &results, MLIRContext *context) {
   results.insert<TpuMergeSwapChannelToConv2DPattern,
-                 TpuSplitConv2DPattern,
                  TpuConvertDilationWeightPattern >(context);
 }
 

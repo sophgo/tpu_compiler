@@ -1,4 +1,3 @@
-//===- ConvertToBinary.cpp - MLIR SPIR-V module to binary conversion ------===//
 //
 // Copyright 2019 The MLIR Authors.
 //
