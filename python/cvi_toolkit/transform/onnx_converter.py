@@ -520,6 +520,8 @@ class OnnxConverter(BaseConverter):
             data = self.getTensor(onnx_node.inputs[0]).tensor_data
             if dtype == "int64":
                 data = data.astype(np.int64)
+            elif dtype == "int32":
+                data = data.astype(np.int32)
             else:
                 raise RuntimeError("{} dtype not support, please add".format(dtype))
             output_data = data
