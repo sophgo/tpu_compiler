@@ -579,18 +579,27 @@ LogicalResult quantizeInt8RescaleNoWeightOps(Operation *op) {
   TensorFile *wTF = getWeightTensorFile(op);
   Value *wfV = getWeightFileValue(op);
 
-  // get operands
-  unsigned nInputs = op->getNumOperands() - 4;
-  if (isa<tpu::ClipOp>(op)) {
-    nInputs = 1; // clip ONLY one input
-  }
-
   bool bypass = true;
   float bypass_eps = 1e-5;
   // get thresholds
   float threshold_y = getOpThreshold(op);
   LLVM_DEBUG(llvm::errs() << " > " << getOpName(op) << ", threshold_y = "
                           << std::to_string(threshold_y) << "\n";);
+
+  // get operands
+  unsigned nInputs = op->getNumOperands() - 4;
+  if (isa<tpu::ClipOp>(op)) {
+    nInputs = 1; // clip ONLY one input
+
+    // update its min/max
+    auto castOp = dyn_cast<tpu::ClipOp>(op);
+    auto rewriter = Builder(castOp.getContext());
+    int min = castOp.min().convertToFloat() * 127.0 / threshold_y;
+    int max = castOp.max().convertToFloat() * 127.0 / threshold_y;
+    castOp.setAttr("min", rewriter.getF32FloatAttr(min));
+    castOp.setAttr("max", rewriter.getF32FloatAttr(max));
+  }
+
   std::vector<float> threshold_x(nInputs);
   for (unsigned i = 0; i < nInputs; ++i) {
     threshold_x[i] = getPreviousOpThreshold(op, i);

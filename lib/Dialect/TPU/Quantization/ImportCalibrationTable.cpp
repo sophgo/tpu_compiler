@@ -666,7 +666,8 @@ public:
     patterns.insert<
         ForceThresholdClipOpPattern<tpu::ClipOp>
         >(context);
-    applyPatternsGreedily(fn, patterns);
+    //move to ConvertClip.cpp for mix precision
+    //applyPatternsGreedily(fn, patterns);
 
     // apply input overwrite preprocess threshold
     LLVM_DEBUG(llvm::errs() << "Default preprocess threshold overwrite\n";);
