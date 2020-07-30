@@ -29,14 +29,14 @@ TEST_ONNX_IR = [
     "Neg",
     "Relu",
     "PRelu",
-    "Reciprocal",
+#    "Reciprocal",
     "Slice",
     "Sigmoid",
     "Sub",
     "Sum",
-    "Transpose",
+#    "Transpose",
 ]
-chip = "cv183x"
+chip = os.environ['SET_CHIP_NAME']
 
 NOT_SUPPORT_CMDBUF_TEST_IR = ["Relu"]
 NOT_SUPPORT_BF16_TEST_IR = ["Relu", "LRN", "Max", "Min", "PRelu", "Reciprocal", "Slice", "Transpose", "Sum"]

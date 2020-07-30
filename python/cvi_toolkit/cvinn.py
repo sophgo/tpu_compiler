@@ -16,11 +16,12 @@ from pathlib import Path
 
 
 logger = setup_logger('root')
+runchip = os.environ['SET_CHIP_NAME']
 
 class cvinn(object):
     def __init__(self):
         pass
-    def convert_model(self, model_type: str, model_file: str,  mlirfile: str, weight_file: str = None, tpu_op_info=None, batch_size=1, chip="cv183x"):
+    def convert_model(self, model_type: str, model_file: str,  mlirfile: str, weight_file: str = None, tpu_op_info=None, batch_size=1, chip=runchip):
         mlirori = "ori_{}".format(mlirfile)
         if model_type == 'caffe':
             if weight_file == None:

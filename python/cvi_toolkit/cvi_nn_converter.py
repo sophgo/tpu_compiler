@@ -18,6 +18,7 @@ logger = setup_logger('root', log_level="INFO")
 net = cvinn()
 cvi_data_tool = cvi_data()
 preprocessor = preprocess()
+runchip = os.environ['SET_CHIP_NAME']
 
 def check_file_exist(filename):
     if not os.path.exists(filename):
@@ -41,7 +42,7 @@ def parse(config: dict):
 
     model_name = output_file.split('.')[0].split('/')[-1]
     Convert_model = config.get('Convert_model', None)
-    chip = config.get('chip', 'cv183x')
+    chip = config.get('chip', runchip)
     if Convert_model:
         t = Convert_model
         model_type = t.get('framework_type')

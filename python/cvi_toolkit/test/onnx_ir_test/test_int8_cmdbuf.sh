@@ -11,7 +11,7 @@ echo "test case: $1"
 mlir-opt ${1}.mlir \
     --assign-layer-id \
     --assign-chip-name \
-     --chipname cv183x \
+     --chipname $SET_CHIP_NAME \
     --convert-bn-to-scale \
     --canonicalize \
     --eltwise-early-stride \

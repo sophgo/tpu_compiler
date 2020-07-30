@@ -5,6 +5,7 @@ DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 NET=$1
 
 source $DIR/onnx_models.sh
+source $DIR/generic_models.sh
 
 # remove previous result
 rm -rf onnx_test

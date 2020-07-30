@@ -1,4 +1,5 @@
 import logging
+import os
 import subprocess
 from .log_setting import setup_logger
 
@@ -7,6 +8,7 @@ import logging
 from pathlib import Path
 
 logger = setup_logger('root')
+runchip = os.environ['SET_CHIP_NAME']
 
 std_log_flag = logger.level <= logging.DEBUG
 
@@ -33,7 +35,7 @@ def mlir_translate(model_file, weight_file, mlirfile, batch_size=1):
     checkReturnValue(ret, "mlir_translate")
     return ret.returncode
 
-def mlir_opt(mlirfile, opt_mlirfile, op_info_csv, chip="cv183x"):
+def mlir_opt(mlirfile, opt_mlirfile, op_info_csv, chip=runchip):
     ret = subprocess.run(["mlir-opt",
                     "--assign-layer-id",
                     "--assign-chip-name",
