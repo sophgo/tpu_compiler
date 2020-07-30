@@ -19,18 +19,31 @@ if [ $DO_CALIBRATION -eq 1 ]; then
       $DATASET_PATH/imagenet/img_val_extracted \
       $CALIBRATION_IMAGE_COUNT \
       cali_list_imagenet.txt
-
-  run_calibration.py \
-      ${NET}_opt.mlir \
-      cali_list_imagenet.txt \
-      --output_file=${CALI_TABLE} \
-      --image_resize_dims ${IMAGE_RESIZE_DIMS} \
-      --net_input_dims ${NET_INPUT_DIMS} \
-      --raw_scale ${RAW_SCALE} \
-      --mean ${MEAN} \
-      --std ${STD} \
-      --input_scale ${INPUT_SCALE} \
-      --input_num=${CALIBRATION_IMAGE_COUNT}
+  if [ $DO_PREPROCESS -ne 1 ]; then
+    run_calibration.py \
+        ${NET}_opt.mlir \
+        cali_list_imagenet.txt \
+        --output_file=${CALI_TABLE} \
+        --image_resize_dims ${IMAGE_RESIZE_DIMS} \
+        --net_input_dims ${NET_INPUT_DIMS} \
+        --raw_scale ${RAW_SCALE} \
+        --mean ${MEAN} \
+        --std ${STD} \
+        --input_scale ${INPUT_SCALE} \
+        --input_num=${CALIBRATION_IMAGE_COUNT}
+  else
+    run_calibration.py \
+        ${NET}_opt.mlir \
+        cali_list_imagenet.txt \
+        --output_file=${CALI_TABLE_PREPROCESS} \
+        --image_resize_dims ${IMAGE_RESIZE_DIMS} \
+        --net_input_dims ${NET_INPUT_DIMS} \
+        --raw_scale 255 \
+        --mean 0,0,0 \
+        --std 1,1,1 \
+        --input_scale 1 \
+        --input_num=${CALIBRATION_IMAGE_COUNT}
+  fi
 fi
 
 if [ ! -f $CALI_TABLE ]; then
