@@ -93,7 +93,7 @@ class TPU_ConvOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
     TPU_ConvParamAttr:$param,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -158,7 +158,7 @@ class TPU_EltwiseOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
     DefaultValuedAttr<I32Attr, "1">:$early_stride_w,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -213,7 +213,7 @@ class TPU_LutOp<string mnemonic,  string opSummary> : TPU_Op<mnemonic,
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$table_mantissa,
     OptionalAttr<BoolAttr>:$has_table,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     TPU_QuantParamAttr:$quant,
     OptionalAttr<StrAttr>:$chipname
   );
@@ -269,7 +269,7 @@ def TPU_BatchNormOp: TPU_Op<"batch_norm",
     TPU_TensorOfOrNone<[F32, BF16, I16, I8]>:$bias,
     DefaultValuedAttr<F32Attr, "1.0e-5">:$variance_epsilon,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -328,7 +328,7 @@ def TPU_BroadcastMulOp: TPU_Op<"broadcast_mul",
     DefaultValuedAttr<BoolAttr, "false">:$do_relu,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -371,7 +371,7 @@ def TPU_CastOp: TPU_Op<"cast",
     StrAttr:$name,
     StrAttr:$from,
     StrAttr:$to,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -429,7 +429,7 @@ def TPU_ConcatOp: TPU_Op<"concat",
     DefaultValuedAttr<I32Attr, "1">:$axis,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -507,7 +507,7 @@ def TPU_CropOp: TPU_Op<"crop",
     OptionalAttr<I32ArrayAttr>:$crop_offset,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
   let results = (outs AnyTensor:$output);
@@ -564,7 +564,7 @@ def TPU_DetectionOutputOp : TPU_Op<"detectionoutput",
     I32Attr:$keep_top_k,
     F32Attr:$confidence_threshold,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -610,7 +610,7 @@ def TPU_DilateOp: TPU_Op<"dilate",
     OptionalAttr<I32ArrayAttr>:$ins,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -674,7 +674,7 @@ def TPU_FullyConnectedOp : TPU_Op<"fully_connected",
     DefaultValuedAttr<BoolAttr, "false">:$do_relu,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -718,7 +718,7 @@ def TPU_FrcnDetectionOp : TPU_Op<"frcn_detection",
     F32Attr:$nms_threshold,
     I32Attr:$keep_topk,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -768,7 +768,7 @@ def TPU_GruOp: TPU_Op<"gru",
     StrAttr:$name,
     DefaultValuedAttr<BoolAttr, "true">:$linear_before_reset,
     DefaultValuedAttr<BoolAttr, "false">:$bidirectional,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -801,7 +801,7 @@ def TPU_InputOp: TPU_Op<"input",
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -868,7 +868,7 @@ def TPU_InterpOp: TPU_Op<"interp",
     DefaultValuedAttr<NonNegativeI32Attr, "0">:$zoom_factor,
     DefaultValuedAttr<NonNegativeI32Attr, "0">:$pad_beg,
     DefaultValuedAttr<NonNegativeI32Attr, "0">:$pad_end,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -942,7 +942,7 @@ def TPU_LeakyReluOp: TPU_Op<"leaky_relu",
     F32Attr:$negative_slope,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -986,7 +986,7 @@ class TPU_LrnPartOp<string mnemonic,  string opSummary> : TPU_Op<mnemonic,
     DefaultValuedAttr<F32Attr, "1.0">:$k,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -1059,7 +1059,7 @@ def TPU_LrnOp: TPU_Op<"lrn",
     I32Attr:$quant_data1,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -1104,7 +1104,7 @@ def TPU_NormalizeOp: TPU_Op<"normalize",
     DefaultValuedAttr<BoolAttr, "true">:$across_spatial,
     DefaultValuedAttr<BoolAttr, "true">:$channel_shared,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -1154,7 +1154,7 @@ def TPU_PermuteOp: TPU_Op<"permute",
     NonNegativeI32Attr:$order3,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -1199,7 +1199,7 @@ def TPU_PixelShuffleOp: TPU_Op<"pixelshuffle",
     NonNegativeI32Attr:$upscale_factor,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -1248,7 +1248,7 @@ def TPU_ClipOp: TPU_Op<"clip",
     DefaultValuedAttr<F32Attr, "999">:$max,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -1306,7 +1306,7 @@ def TPU_PoolAvg2DOp : TPU_Op<"pool_avg_2d",
     TPU_PoolParamAttr:$param,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -1355,7 +1355,7 @@ def TPU_PoolMax2DOp : TPU_Op<"pool_max_2d",
     TPU_PoolParamAttr:$param,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -1399,7 +1399,7 @@ def TPU_CustomOp : TPU_Op<"custom_op",
     DefaultValuedAttr<BoolAttr, "false">:$do_quant,
     DefaultValuedAttr<StrAttr, "none">:$threshold_overwrite,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -1451,7 +1451,7 @@ def TPU_PowerOp: TPU_Op<"power",
     DefaultValuedAttr<F32Attr, "0.0">:$shift,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -1522,7 +1522,7 @@ def TPU_PReluOp : TPU_Op<"prelu",
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_neg_multiplier,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -1575,7 +1575,7 @@ def TPU_PreprocessOp : TPU_Op<"preprocess",
     OptionalAttr<I32ArrayAttr>:$color_order,
     OptionalAttr<I32ArrayAttr>:$crop_offset,
     TPU_QuantParamAttr:$quant,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -1642,7 +1642,7 @@ def TPU_PriorBoxOp: TPU_Op<"priorbox",
     F32Attr:$step,
     DefaultValuedAttr<F32Attr, "0.5">:$offset,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -1692,7 +1692,7 @@ def TPU_ProposalOp: TPU_Op<"proposal",
     F32Attr:$rpn_nms_threshold,
     I32Attr:$rpn_nms_post_top_n,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -1744,7 +1744,7 @@ def TPU_ReluOp: TPU_Op<"relu",
     OptionalAttr<F32Attr>:$maximum,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -1795,7 +1795,7 @@ def TPU_ReorgOp : TPU_Op<"reorg",
     NonNegativeI32Attr:$stride,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -1841,7 +1841,7 @@ def TPU_RetinaFaceDetectionOp : TPU_Op<"retinaface_detection",
     F32Attr:$confidence_threshold,
     I32Attr:$keep_topk,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -1888,7 +1888,7 @@ def TPU_ROIPoolingOp : TPU_Op<"roi_pooling",
     F32Attr:$spatial_scale,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -1932,7 +1932,7 @@ def TPU_ScaleOp: TPU_Op<"scale",
     TPU_TensorOfOrNone<[F32, BF16, I16, I8]>:$bias,
     DefaultValuedAttr<BoolAttr, "false">:$do_relu,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -1983,7 +1983,7 @@ def TPU_ShuffleChannelOp: TPU_Op<"shuffle_channel",
     NonNegativeI32Attr:$group,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -2038,7 +2038,7 @@ def TPU_SliceOp: TPU_Op<"slice",
     I32Attr:$offset,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -2079,7 +2079,7 @@ def TPU_SoftmaxOp: TPU_Op<"softmax",
     ins AnyTensor:$input,
     DefaultValuedAttr<I32Attr, "1">:$axis,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -2130,7 +2130,7 @@ def TPU_SwapChannelOp: TPU_Op<"swap_channel",
     OptionalAttr<I32ArrayAttr>:$channel_order,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -2199,7 +2199,7 @@ class TPU_TileOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
     TPU_QuantParamAttr:$quant,
     OptionalAttr<I32ArrayAttr>:$resp,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -2239,7 +2239,7 @@ def TPU_TransposeOp : TPU_Op<"transpose",
     ins AnyTensor:$input,
     StrAttr:$name,
     TPU_QuantParamAttr:$quant,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -2288,7 +2288,7 @@ def TPU_UpsampleOp: TPU_Op<"upsample",
     NonNegativeI32Attr:$scale,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -2337,7 +2337,7 @@ def TPU_YoloDetectionOp : TPU_Op<"yolo_detection",
     DefaultValuedAttr<BoolAttr, "false">:$spp_net,
     DefaultValuedAttr<BoolAttr, "false">:$tiny,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -2384,7 +2384,7 @@ def TPU_PadOp: TPU_Op<"pad",
     StrAttr:$name,
     OptionalAttr<I32ArrayAttr>:$pads,
     DefaultValuedAttr<F32Attr, "0">:$const_val,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -2423,7 +2423,7 @@ def TPU_PoolMaskOp: TPU_Op<"pool_mask",
     AnyTensor:$pool_res,
     NonNegativeI32Attr:$scale,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -2474,7 +2474,7 @@ def TPU_ReduceMaxOp: TPU_Op<"reduce_max",
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_multiplier,
     OptionalAttr<I32ArrayAttr>:$axes,
     DefaultValuedAttr<BoolAttr, "false">:$keepdims,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -2524,7 +2524,7 @@ def TPU_ReduceMeanOp: TPU_Op<"reduce_mean",
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_rshift,
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_multiplier,
     DefaultValuedAttr<BoolAttr, "false">:$keepdims,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 

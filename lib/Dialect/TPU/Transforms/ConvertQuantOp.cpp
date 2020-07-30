@@ -60,9 +60,9 @@ struct ConvertQuantOpPattern : public RewritePattern {
                        + "_cast";
       std::vector<NamedAttribute> cast_attrs;
       cast_attrs.push_back(builder.getNamedAttr("name", builder.getStringAttr(name)));
-      cast_attrs.push_back(builder.getNamedAttr("layer_id", quantOp.layer_idAttr()));
       cast_attrs.push_back(builder.getNamedAttr("from", builder.getStringAttr("FP32")));
       cast_attrs.push_back(builder.getNamedAttr("to", builder.getStringAttr("BF16")));
+      cast_attrs.push_back(builder.getNamedAttr("layer_id", quantOp.layer_idAttr()));
       std::vector<Value *> operands(op->getOperands().begin(),
                                   op->getOperands().end());
 
@@ -73,17 +73,17 @@ struct ConvertQuantOpPattern : public RewritePattern {
 
       std::vector<NamedAttribute> quant_attrs;
       quant_attrs.push_back(builder.getNamedAttr("name", builder.getStringAttr(name + "_quant")));
-      quant_attrs.push_back(builder.getNamedAttr("layer_id", quantOp.layer_idAttr()));
       quant_attrs.push_back(builder.getNamedAttr("threshold", quantOp.thresholdAttr()));
       quant_attrs.push_back(builder.getNamedAttr("from", builder.getStringAttr("BF16")));
       quant_attrs.push_back(builder.getNamedAttr("to", builder.getStringAttr("INT8")));
+      quant_attrs.push_back(builder.getNamedAttr("layer_id", quantOp.layer_idAttr()));
       std::vector<Value *> opds;
       opds.push_back(result);
 
       auto newOp = OpBuilder(op).create<tpu::QuantOp>(op->getLoc(),
         quantOp.getResult()->getType(), ArrayRef<Value *>{opds},
         ArrayRef<NamedAttribute>{quant_attrs});
-      
+
       rewriter.replaceOp(op, {newOp});
     } else if (quantOp.from() == "INT8" && quantOp.to() == "NONE") {
       // op (int8) -> dequant (fp32) ==> op (int8) -> dequant (bf16) -> cast (fp32)
@@ -91,13 +91,13 @@ struct ConvertQuantOpPattern : public RewritePattern {
                        + "_cast";
       std::vector<NamedAttribute> quant_attrs;
       quant_attrs.push_back(builder.getNamedAttr("name", quantOp.nameAttr()));
-      quant_attrs.push_back(builder.getNamedAttr("layer_id", quantOp.layer_idAttr()));
       quant_attrs.push_back(builder.getNamedAttr("threshold", quantOp.thresholdAttr()));
       quant_attrs.push_back(builder.getNamedAttr("from", builder.getStringAttr("INT8")));
       quant_attrs.push_back(builder.getNamedAttr("to", builder.getStringAttr("BF16")));
+      quant_attrs.push_back(builder.getNamedAttr("layer_id", quantOp.layer_idAttr()));
       std::vector<Value *> operands(op->getOperands().begin(),
                                   op->getOperands().end());
-      
+
       auto newOp = OpBuilder(op).create<tpu::QuantOp>(op->getLoc(),
         result_type, ArrayRef<Value *>{operands},
         ArrayRef<NamedAttribute>{quant_attrs});
@@ -105,16 +105,16 @@ struct ConvertQuantOpPattern : public RewritePattern {
 
       std::vector<NamedAttribute> cast_attrs;
       cast_attrs.push_back(builder.getNamedAttr("name", builder.getStringAttr(name)));
-      cast_attrs.push_back(builder.getNamedAttr("layer_id", quantOp.layer_idAttr()));
       cast_attrs.push_back(builder.getNamedAttr("from", builder.getStringAttr("BF16")));
       cast_attrs.push_back(builder.getNamedAttr("to", builder.getStringAttr("FP32")));
+      cast_attrs.push_back(builder.getNamedAttr("layer_id", quantOp.layer_idAttr()));
       std::vector<Value *> opds;
       opds.push_back(result);
 
       auto castOp = OpBuilder(op).create<tpu::CastOp>(op->getLoc(),
         quantOp.getResult()->getType(), ArrayRef<Value *>{opds},
         ArrayRef<NamedAttribute>{cast_attrs});
-      
+
       rewriter.replaceOp(op, {castOp});
     } else {
       LLVM_DEBUG(llvm::errs() << "No need to convert from int8/bf16 to bf16/int8" << "\n";);

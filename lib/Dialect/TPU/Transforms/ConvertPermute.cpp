@@ -91,10 +91,7 @@ struct TpuPermuteToReshapePattern : public RewritePattern {
     std::string op_name = permuteOp.name().str();
     attrs.push_back(
         rewriter.getNamedAttr("name", rewriter.getStringAttr(op_name)));
-    if (permuteOp.layer_id().hasValue()) {
-      attrs.push_back(
-          rewriter.getNamedAttr("layer_id", permuteOp.layer_idAttr()));
-    }
+
     rewriter.replaceOpWithNewOp<tpu::ReshapeOp>(
         permuteOp, permuteOp.getResult()->getType(),
         ArrayRef<Value *>{operands}, ArrayRef<NamedAttribute>{attrs});

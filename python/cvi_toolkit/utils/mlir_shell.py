@@ -37,11 +37,11 @@ def mlir_translate(model_file, weight_file, mlirfile, batch_size=1):
 
 def mlir_opt(mlirfile, opt_mlirfile, op_info_csv, chip=runchip):
     ret = subprocess.run(["mlir-opt",
-                    "--assign-layer-id",
                     "--assign-chip-name",
                     "--chipname={}".format(chip),
                     "--convert-bn-to-scale",
                     "--canonicalize",
+                    "--assign-layer-id",
                     "--print-tpu-op-info",
                     "--tpu-op-info-filename", op_info_csv,
                     mlirfile,

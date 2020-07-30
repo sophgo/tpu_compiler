@@ -102,11 +102,6 @@ struct TpuUpsampleOpPattern : public RewritePattern {
 
     std::vector<NamedAttribute> attrs;
     attrs.push_back(rewriter.getNamedAttr("name", upsampleOp.nameAttr()));
-
-    if (upsampleOp.layer_id().hasValue()) {
-      attrs.push_back(rewriter.getNamedAttr("layer_id",
-                                            upsampleOp.layer_idAttr()));
-    }
     attrs.push_back(rewriter.getNamedAttr("param",
                     tpu::ConvParam::get(rewriter.getI32IntegerAttr(stride[0]),
                                         rewriter.getI32IntegerAttr(stride[1]),

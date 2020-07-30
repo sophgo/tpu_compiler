@@ -68,9 +68,6 @@ struct TpuMergeCropPattern : public RewritePattern {
         }
 
         attrs.push_back(rewriter.getNamedAttr("name", crop1Op.nameAttr()));
-        if (crop1Op.layer_idAttr())
-          attrs.push_back(rewriter.getNamedAttr("layer_id",
-                                                crop1Op.layer_idAttr()));
         attrs.push_back(rewriter.getNamedAttr("crop_shape",
                                               crop1Op.crop_shapeAttr()));
         attrs.push_back(rewriter.getNamedAttr("crop_offset",
@@ -167,7 +164,7 @@ struct TpuFusePadPattern : public RewritePattern {
                 rewriter.getContext()));
   }
 
-  template <class T> 
+  template <class T>
   bool noPaddingPool(T &poolOp) const {
     auto param = poolOp.param();
     auto pt = param.padding_t().getValue().getLimitedValue();

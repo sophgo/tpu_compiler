@@ -304,12 +304,6 @@ std::pair<std::vector<Value *>, std::vector<NamedAttribute> > getTwiceWDeConv(
 
   std::vector<NamedAttribute> attrs;
   attrs.push_back(rewriter.getNamedAttr("name", castOp.nameAttr()));
-
-  if (castOp.layer_id().hasValue()) {
-    attrs.push_back(rewriter.getNamedAttr("layer_id",
-          castOp.layer_idAttr()));
-  }
-
   attrs.push_back(rewriter.getNamedAttr("param",
         tpu::ConvParam::get(rewriter.getI32IntegerAttr(stride[0]),
           rewriter.getI32IntegerAttr(stride[1]),
@@ -407,13 +401,6 @@ std::pair<std::vector<Value *>, std::vector<NamedAttribute> > getTileInterp(
 
   attrs.push_back(rewriter.getNamedAttr("resp",
                             rewriter.getArrayAttr(padsAttr)));
-
-  // assign layer id if gived
-  if (castOp.layer_id().hasValue()) {
-    attrs.push_back(rewriter.getNamedAttr("layer_id",
-          castOp.layer_idAttr()));
-  }
-
   attrs.push_back(rewriter.getNamedAttr("quant", getDefaultQuantParam(rewriter)));
 
   return std::make_pair(operands, attrs);
@@ -548,12 +535,6 @@ std::pair<std::vector<Value *>, std::vector<NamedAttribute> > getHWaxisWeight(
 
   std::vector<NamedAttribute> attrs;
   attrs.push_back(rewriter.getNamedAttr("name", castOp.nameAttr()));
-
-  if (castOp.layer_id().hasValue()) {
-    attrs.push_back(rewriter.getNamedAttr("layer_id",
-          castOp.layer_idAttr()));
-  }
-
   attrs.push_back(rewriter.getNamedAttr("quant", getDefaultQuantParam(rewriter)));
 
   return std::make_pair(operands, attrs);
@@ -631,10 +612,6 @@ std::pair<std::vector<Value *>, std::vector<NamedAttribute> > getConv(
   std::vector<NamedAttribute> attrs;
   attrs.push_back(rewriter.getNamedAttr("name", castOp.nameAttr()));
 
-  if (castOp.layer_id().hasValue()) {
-    attrs.push_back(rewriter.getNamedAttr("layer_id",
-          castOp.layer_idAttr()));
-  }
   std::vector<int64_t> dilation(2);
   dilation[0] = dilation[1] = 1;
   int padding = 0;
@@ -909,11 +886,6 @@ struct TpuMergeInterpToConv2DPattern : public RewritePattern {
 
       attrs.push_back(rewriter.getNamedAttr("quant",
             getDefaultQuantParam(rewriter)));
-
-      if (_interpOp.layer_id().hasValue()) {
-        attrs.push_back(rewriter.getNamedAttr("layer_id",
-              _interpOp.layer_idAttr()));
-      }
 
       rewriter.replaceOpWithNewOp<tpu::Conv2DOp>(
           _interpOp, _interpOp.getResult()->getType(),
@@ -1324,11 +1296,6 @@ struct TpuMergeInterpToConv2DPattern : public RewritePattern {
               attrs.push_back(
                   rewriter.getNamedAttr("quant", getDefaultQuantParam(rewriter)));
 
-              if (_interpOp.layer_id().hasValue()) {
-                attrs.push_back(rewriter.getNamedAttr("layer_id",
-                      _interpOp.layer_idAttr()));
-              }
-
               auto dilateOp = rewriter.create<tpu::DilateOp>(loc,
                   output,
                   ArrayRef<Value *>{operands},
@@ -1380,24 +1347,15 @@ struct TpuMergeInterpToConv2DPattern : public RewritePattern {
 
           attrs.push_back(rewriter.getNamedAttr("name",
                 rewriter.getStringAttr(prefix + _interpOp.nameAttr().getValue().str())));
-
-          if (_interpOp.layer_id().hasValue()) {
-            attrs.push_back(rewriter.getNamedAttr("layer_id",
-                  _interpOp.layer_idAttr()));
-          }
-
           attrs.push_back(
               rewriter.getNamedAttr("quant", getDefaultQuantParam(rewriter)));
-
-
 
           // prepare output shape
           if (is1x1Input) {
             // upsample
             top_dim[0] = _ih * stride[0];
             top_dim[1] = _iw * stride[1];
-          }
-          else {
+          } else {
             int ih_ext = calc_dilute_hw(_ih, _ins[1], 0, padding[0], padding[1]);
             int iw_ext = calc_dilute_hw(_iw, _ins[0], 0, padding[2], padding[3]);
             top_dim[0] = calc_output_hw(ih_ext, kh, stride[0]); // oh

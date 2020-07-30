@@ -153,10 +153,7 @@ struct TpuFoldScalePattern : public RewritePattern {
     std::vector<NamedAttribute> attrs;
     attrs.push_back(rewriter.getNamedAttr("name",
                     rewriter.getStringAttr(op_name)));
-    if (laterScaleOp.layer_id().hasValue()) {
-      attrs.push_back(rewriter.getNamedAttr("layer_id",
-                                            laterScaleOp.layer_idAttr()));
-    }
+
     rewriter.replaceOpWithNewOp<tpu::ScaleOp>(
         laterScaleOp, formerScaleOp.getResult()->getType(),
         ArrayRef<Value *>{newOperands}, ArrayRef<NamedAttribute>{attrs});
@@ -476,10 +473,7 @@ struct TpuConvertScaleToDWConvPattern : public RewritePattern {
             rewriter.getContext())));
     attrs.push_back(rewriter.getNamedAttr("quant",
                                           getDefaultQuantParam(rewriter)));
-    if (scaleOp.layer_id().hasValue()) {
-      attrs.push_back(rewriter.getNamedAttr("layer_id",
-                                            scaleOp.layer_idAttr()));
-    }
+
     rewriter.replaceOpWithNewOp<tpu::Conv2DOp>(
         scaleOp, scaleOp.getResult()->getType(),
         ArrayRef<Value *>{operands}, ArrayRef<NamedAttribute>{attrs});

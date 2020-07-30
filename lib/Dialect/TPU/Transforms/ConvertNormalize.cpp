@@ -122,7 +122,6 @@ struct TpuDecomposeNormalizePattern : public RewritePattern {
     attrs_power.push_back(builder_.getNamedAttr("rshift", builder_.getF32FloatAttr(0.0)));
 
     attrs_power.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name()+"_power")));
-    attrs_power.push_back(rewriter.getNamedAttr("layer_id", normalizeOp.layer_idAttr()));
 
     auto power_op = rewriter.create<tpu::PowerOp>(
         builder_.getUnknownLoc(), result_type,
@@ -142,8 +141,6 @@ struct TpuDecomposeNormalizePattern : public RewritePattern {
     std::vector<NamedAttribute> attrs_eltwise_power;
     attrs_eltwise_power.push_back(rewriter.getNamedAttr("name",
                       rewriter.getStringAttr(op_name+"_eltwise_prod_power")));
-    attrs_eltwise_power.push_back(rewriter.getNamedAttr("layer_id",
-                                  normalizeOp.layer_idAttr()));
     attrs_eltwise_power.push_back(rewriter.getNamedAttr("quant",
                                   getDefaultQuantParam(rewriter)));
 
@@ -191,8 +188,6 @@ struct TpuDecomposeNormalizePattern : public RewritePattern {
     std::vector<NamedAttribute> attrs_conv;
     attrs_conv.push_back(rewriter.getNamedAttr("name",
                          rewriter.getStringAttr(op_name+"_conv")));
-    attrs_conv.push_back(rewriter.getNamedAttr("layer_id",
-                         normalizeOp.layer_idAttr()));
     attrs_conv.push_back(rewriter.getNamedAttr("param",
     tpu::ConvParam::get(
         rewriter.getI32IntegerAttr(stride[0]),
@@ -226,8 +221,6 @@ struct TpuDecomposeNormalizePattern : public RewritePattern {
     std::vector<NamedAttribute> attrs_sqrt;
     attrs_sqrt.push_back(rewriter.getNamedAttr("name",
                          rewriter.getStringAttr(op_name + "_sqrt")));
-    attrs_sqrt.push_back(rewriter.getNamedAttr("layer_id",
-                         normalizeOp.layer_idAttr()));
     attrs_sqrt.push_back(rewriter.getNamedAttr("has_table",
                          rewriter.getBoolAttr(false)));
     attrs_sqrt.push_back(rewriter.getNamedAttr("quant",
@@ -245,8 +238,6 @@ struct TpuDecomposeNormalizePattern : public RewritePattern {
     std::vector<NamedAttribute> attrs_reciprocal;
     attrs_reciprocal.push_back(rewriter.getNamedAttr("name",
                                rewriter.getStringAttr(op_name+"_reciprocal")));
-    attrs_reciprocal.push_back(rewriter.getNamedAttr("layer_id",
-                               normalizeOp.layer_idAttr()));
     attrs_reciprocal.push_back(rewriter.getNamedAttr("has_table",
                                rewriter.getBoolAttr(false)));
     attrs_reciprocal.push_back(rewriter.getNamedAttr("quant",
@@ -269,8 +260,6 @@ struct TpuDecomposeNormalizePattern : public RewritePattern {
     std::vector<NamedAttribute> attrs_eltwise_mul;
     attrs_eltwise_mul.push_back(rewriter.getNamedAttr("name",
                              rewriter.getStringAttr(op_name+"_eltwise_add")));
-    attrs_eltwise_mul.push_back(rewriter.getNamedAttr("layer_id",
-                                normalizeOp.layer_idAttr()));
     attrs_eltwise_mul.push_back(rewriter.getNamedAttr("quant",
                                 getDefaultQuantParam(rewriter)));
 
@@ -301,8 +290,6 @@ struct TpuDecomposeNormalizePattern : public RewritePattern {
     std::vector<NamedAttribute> scale_attrs;
     scale_attrs.push_back(rewriter.getNamedAttr("name",
                           rewriter.getStringAttr(op_name + "_scale")));
-    scale_attrs.push_back(rewriter.getNamedAttr("layer_id",
-                          normalizeOp.layer_idAttr()));
     auto scale_op = rewriter.create<tpu::ScaleOp>(
         loc, result_type, ArrayRef<Value *>{operands_scale},
         ArrayRef<NamedAttribute>{scale_attrs});

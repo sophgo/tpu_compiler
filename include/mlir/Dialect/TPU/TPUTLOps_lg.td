@@ -111,7 +111,7 @@ class TPU_TL_LG_Conv2DOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     DefaultValuedAttr<BoolAttr, "false">:$fused_leaky,
     OptionalAttr<BoolAttr>:$compressed_weight,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -153,7 +153,7 @@ class TPU_TL_LG_DeConv2DOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
     DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -190,7 +190,7 @@ class TPU_TL_LG_EltwiseOp<string mnemonic, string opQuant, string opType> : TPU_
     DefaultValuedAttr<I32Attr, "1">:$early_stride_h,
     DefaultValuedAttr<I32Attr, "1">:$early_stride_w,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -222,7 +222,7 @@ class TPU_TL_LG_Pool2DOp<string mnemonic, string opQuant, string opType> : TPU_O
     DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
     DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -260,7 +260,7 @@ class TPU_TL_LG_LrnOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
     DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -294,7 +294,7 @@ class TPU_TL_LG_LutOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
     DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -326,7 +326,7 @@ class TPU_TL_LG_QuantOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
     DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -356,7 +356,7 @@ class TPU_TL_LG_ConcatOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
     DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     StrAttr:$name,
     OptionalAttr<StrAttr>:$chipname
   );
@@ -387,7 +387,7 @@ def TPU_TL_LG_LoadNeuronOp : TPU_Op<"tl_lg_load_neuron",
     StrAttr:$name,
     DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
     DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -417,7 +417,7 @@ def TPU_TL_LG_LoadCoeffOp : TPU_Op<"tl_lg_load_coeff",
     StrAttr:$name,
     DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
     DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -443,7 +443,7 @@ def TPU_TL_LG_StoreOp : TPU_Op<"tl_lg_store",
     StrAttr:$name,
     DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
     DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -465,7 +465,7 @@ def TPU_TL_LG_JoinOp : TPU_Op<"tl_lg_join",
     StrAttr:$name,
     DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
     DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -494,7 +494,7 @@ class TPU_TL_LG_BroadcastMulOp<string mnemonic, string opQuant> : TPU_Op<mnemoni
     DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
     DefaultValuedAttr<BoolAttr, "false">:$do_relu,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -523,7 +523,7 @@ class TPU_TL_LG_UpsampleOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
     DefaultValuedAttr<BoolAttr, "false">:$do_relu,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -555,7 +555,7 @@ class TPU_TL_LG_LeakyReluOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
     DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -587,7 +587,7 @@ class TPU_TL_LG_PReluOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
     DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -616,7 +616,7 @@ def TPU_TL_LG_CopyOp : TPU_Op<"tl_lg_copy",
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
     DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -661,7 +661,7 @@ class TPU_TL_LG_PadOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
     DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -706,7 +706,7 @@ class TPU_TL_LG_CropOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
     DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -748,7 +748,7 @@ class TPU_TL_LG_ReluOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
     DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 

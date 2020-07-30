@@ -45,7 +45,6 @@ struct TpuClipAsRelu6Pattern : public RewritePattern {
                                      PatternRewriter &rewriter) const override {
 
     auto clipOp = llvm::dyn_cast<tpu::ClipOp>(op);
-
     if (!clipOp) {
       return matchFailure();
     }
@@ -71,10 +70,8 @@ struct TpuClipAsRelu6Pattern : public RewritePattern {
     // duplicate name for not mess up calibration table name
     std::string formerOpName = formerOp->getAttrOfType<StringAttr>("name").getValue().str();
     std::vector<NamedAttribute> attrs;
-    attrs.push_back(
-        rewriter.getNamedAttr("name", rewriter.getStringAttr(formerOpName)));
+    attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(formerOpName)));
     attrs.push_back(rewriter.getNamedAttr("quant", getDefaultQuantParam(rewriter)));
-
     // insert relu before clip op
     auto reluOp = rewriter.create<tpu::ReluOp>(loc,
         clipOp.getOperand(0)->getType(),
@@ -91,13 +88,13 @@ struct TpuClipAsRelu6Pattern : public RewritePattern {
     operands.push_back(NoneOp.getResult()); // quant_rshift
     operands.push_back(NoneOp.getResult()); // quant_multiplier
 
-    auto _clipOp = rewriter.create<tpu::ClipOp>(loc,
+    auto newOp = rewriter.create<tpu::ClipOp>(loc,
         op->getResult(0)->getType(),
         operands,
         op->getAttrs());
 
     // replace to relu->clip
-    rewriter.replaceOp(op, {_clipOp});
+    rewriter.replaceOp(op, {newOp});
 
     return matchSuccess();
   }

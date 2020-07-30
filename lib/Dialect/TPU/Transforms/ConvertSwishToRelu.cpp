@@ -77,10 +77,6 @@ struct TpuConvertSwishToReLUPattern : public RewritePattern {
 
     attrs.push_back(rewriter.getNamedAttr("quant",
                                           getDefaultQuantParam(rewriter)));
-    if (eltmulOp.layer_id().hasValue()) {
-      attrs.push_back(
-          rewriter.getNamedAttr("layer_id", eltmulOp.layer_idAttr()));
-    }
     rewriter.replaceOpWithNewOp<tpu::ReluOp>(
         eltmulOp, eltmulOp.getResult()->getType(), ArrayRef<Value *>{operands},
         ArrayRef<NamedAttribute>{attrs});

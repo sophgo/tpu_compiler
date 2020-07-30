@@ -23,10 +23,10 @@ cvi_model_convert.py \
 
 mlir-opt fp32.mlir \
     --fuse-relu \
-    --assign-layer-id \
     --convert-bn-to-scale \
     --canonicalize \
     --eltwise-early-stride \
+    --assign-layer-id \
     --print-tpu-op-info \
     --tpu-op-info-filename op_info.csv | \
 mlir-opt \

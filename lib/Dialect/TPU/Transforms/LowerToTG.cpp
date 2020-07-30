@@ -2349,11 +2349,7 @@ struct LowerCpuOpDefaultPattern : public RewritePattern {
     attrs.push_back(builder.getNamedAttr("name", castOp.nameAttr()));
     attrs.push_back(builder.getNamedAttr("operation_name", operationAttr));
     attrs.push_back(builder.getNamedAttr("param", paramAttr));
-    if (castOp.layer_id().hasValue()) {
-      int32_t layer_id = castOp.layer_id().getValue().getSExtValue();
-      attrs.push_back(builder.getNamedAttr("layer_id",
-          builder.getI32IntegerAttr(layer_id)));
-    }
+    attrs.push_back(builder.getNamedAttr("layer_id", castOp.layer_idAttr()));
 
     std::vector<Value *> operands(op->getOperands().begin(),
                                   op->getOperands().end());

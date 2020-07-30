@@ -99,7 +99,7 @@ struct TpuPoolMaskOpPattern : public RewritePattern {
     operands.clear();
     name = layer_name + "_" + "scale_0";
     attrs.push_back(rewriter.getNamedAttr("name",
-                      rewriter.getStringAttr(name)));
+                             rewriter.getStringAttr(name)));
     operands.push_back(upsample_op_0);
     operands.push_back(scale_value_0);
     operands.push_back(bias_value_0);
@@ -113,7 +113,7 @@ struct TpuPoolMaskOpPattern : public RewritePattern {
     attrs.push_back(rewriter.getNamedAttr("quant",
                              getDefaultQuantParam(rewriter)));
     attrs.push_back(rewriter.getNamedAttr("name",
-                      rewriter.getStringAttr(name)));
+                             rewriter.getStringAttr(name)));
     operands.push_back(op->getOperand(1));
     operands.push_back(scale_op_0);
     operands.push_back(NoneOp.getResult()); // quant_scale
@@ -143,7 +143,7 @@ struct TpuPoolMaskOpPattern : public RewritePattern {
     attrs.push_back(rewriter.getNamedAttr("quant",
                              getDefaultQuantParam(rewriter)));
     attrs.push_back(rewriter.getNamedAttr("name",
-                      rewriter.getStringAttr(name)));
+                             rewriter.getStringAttr(name)));
     operands.push_back(eltwise_op_0);
     operands.push_back(scale_value_1);
     operands.push_back(bias_value_1);
@@ -157,7 +157,7 @@ struct TpuPoolMaskOpPattern : public RewritePattern {
     attrs.push_back(rewriter.getNamedAttr("quant",
                              getDefaultQuantParam(rewriter)));
     attrs.push_back(rewriter.getNamedAttr("name",
-                      rewriter.getStringAttr(name)));
+                             rewriter.getStringAttr(name)));
     operands.push_back(scale_op_1);
     auto relu_op_0 = rewriter.create<tpu::ReluOp>(op->getLoc(),
                            ArrayRef<mlir::Type>{output_type}, operands, attrs);
@@ -197,7 +197,7 @@ struct TpuPoolMaskOpPattern : public RewritePattern {
     attrs.push_back(rewriter.getNamedAttr("quant",
                              getDefaultQuantParam(rewriter)));
     attrs.push_back(rewriter.getNamedAttr("name",
-                      rewriter.getStringAttr(name)));
+                             rewriter.getStringAttr(name)));
     operands.push_back(relu_op_0);
     operands.push_back(const_value);
     operands.push_back(NoneOp.getResult()); // quant_scale
@@ -214,7 +214,7 @@ struct TpuPoolMaskOpPattern : public RewritePattern {
     attrs.push_back(rewriter.getNamedAttr("quant",
                              getDefaultQuantParam(rewriter)));
     attrs.push_back(rewriter.getNamedAttr("name",
-                      rewriter.getStringAttr(name)));
+                             rewriter.getStringAttr(name)));
     attrs.push_back(rewriter.getNamedAttr("param",
                     tpu::PoolParam::get(
                          rewriter.getI32IntegerAttr(scale),
@@ -242,7 +242,6 @@ struct TpuPoolMaskOpPattern : public RewritePattern {
                              getDefaultQuantParam(rewriter)));
     attrs.push_back(rewriter.getNamedAttr("scale",
                       rewriter.getI32IntegerAttr(scale)));
-
     auto upsample_op_1 = rewriter.create<tpu::UpsampleOp>(op->getLoc(),
                            ArrayRef<mlir::Type>{output_type}, operands, attrs);
 
@@ -274,7 +273,7 @@ struct TpuPoolMaskOpPattern : public RewritePattern {
     attrs.push_back(rewriter.getNamedAttr("quant",
                              getDefaultQuantParam(rewriter)));
     attrs.push_back(rewriter.getNamedAttr("name",
-                      rewriter.getStringAttr(name)));
+                             rewriter.getStringAttr(name)));
     operands.push_back(scale_op_2);
     operands.push_back(eltwise_mul_op_0);
     operands.push_back(NoneOp.getResult()); // quant_scale
@@ -300,7 +299,7 @@ struct TpuPoolMaskOpPattern : public RewritePattern {
     operands.clear();
     name = layer_name + "_" + "scale3";
     attrs.push_back(rewriter.getNamedAttr("name",
-                      rewriter.getStringAttr(name)));
+                             rewriter.getStringAttr(name)));
     operands.push_back(eltwise_op_1);
     operands.push_back(scale_value_3);
     operands.push_back(bias_value_3);
@@ -314,7 +313,7 @@ struct TpuPoolMaskOpPattern : public RewritePattern {
     attrs.push_back(rewriter.getNamedAttr("quant",
                              getDefaultQuantParam(rewriter)));
     attrs.push_back(rewriter.getNamedAttr("name",
-                      rewriter.getStringAttr(name)));
+                             rewriter.getStringAttr(name)));
     operands.push_back(scale_op_3);
     auto relu_op_1 = rewriter.create<tpu::ReluOp>(op->getLoc(),
                            ArrayRef<mlir::Type>{output_type}, operands, attrs);
@@ -333,7 +332,7 @@ struct TpuPoolMaskOpPattern : public RewritePattern {
     operands.clear();
     name = layer_name;
     attrs.push_back(rewriter.getNamedAttr("name",
-                      rewriter.getStringAttr(name)));
+                             rewriter.getStringAttr(name)));
     operands.push_back(relu_op_1);
     operands.push_back(scale_value_4);
     operands.push_back(bias_value_4);

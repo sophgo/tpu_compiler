@@ -75,7 +75,7 @@ def TPU_TL_LA_Conv2DOp : TPU_Op<"tl_la_conv_2d",
     OptionalAttr<I8Attr>:$rshift_neg,
     OptionalAttr<I8Attr>:$m_i8_neg,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<BoolAttr>:$do_ic_alignment,
     OptionalAttr<StrAttr>:$chipname
   );
@@ -130,7 +130,7 @@ def TPU_TL_LW_Conv2DOp : TPU_Op<"tl_lw_conv_2d",
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<BoolAttr>:$do_ic_alignment,
     OptionalAttr<I32Attr>:$tiled_oc_step,
     OptionalAttr<BoolAttr>:$compressed_weight,
@@ -165,7 +165,7 @@ def TPU_TL_BroadcastMulOp : TPU_Op<"tl_broadcast_mul",
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -201,7 +201,7 @@ class TPU_TL_EltwiseOp<string mnemonic, string opQuant, string opType> : TPU_Op<
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -260,7 +260,7 @@ class TPU_TL_Pool2DOp<string mnemonic, string opQuant, string opType> : TPU_Op<m
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -314,7 +314,7 @@ def TPU_TL_LutOp : TPU_Op<"tl_lut",
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
-    OptionalAttr<NonNegativeI32Attr>:$layer_id,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 

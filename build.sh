@@ -111,6 +111,9 @@ cmake --build . --target install
 popd
 
 # build mlir-tpu
+# -DLLVM_INCLUDE_TESTS=OFF \
+# -DLLVM_INCLUDE_TOOLS=OFF \
+# -DLLVM_PARALLEL_LINK_JOBS=1 \
 pushd $BUILD_PATH
 cmake -G Ninja -DLLVM_BUILD_EXAMPLES=OFF \
     -DLLVM_TARGETS_TO_BUILD="host" \
