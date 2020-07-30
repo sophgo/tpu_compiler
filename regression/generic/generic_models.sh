@@ -1618,7 +1618,6 @@ export BGRAY="true"
 fi
 
 if [ $NET = "icnet" ]; then
-export MODEL_TYPE="caffe"
 export MODEL_DEF=$MODEL_PATH/segmentation/ICNet/caffe/icnet_cityscapes_bnnomerge.prototxt
 export MODEL_DAT=$MODEL_PATH/segmentation/ICNet/caffe/icnet_cityscapes_trainval_90k_bnnomerge.caffemodel
 export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/generic/regression_0_caffe.sh
@@ -1634,11 +1633,12 @@ export CALIBRATION_IMAGE_COUNT=30
 export DO_CALIBRATION=0
 export TOLERANCE_INT8_PER_TENSOR=0.99,0.98,0.91
 export TOLERANCE_INT8_RSHIFT_ONLY=0.99,0.98,0.91
-export TOLERANCE_INT8_MULTIPLER=0.99,0.98,0.91
+export TOLERANCE_INT8_MULTIPLER=0.85,0.84,0.41
 export DO_QUANT_BF16=0
 export TOLERANCE_BF16=0.99,0.98,0.97
 export DO_CMDBUF_BF16=0
 export DO_LAYERGROUP=1
+export DO_DEEPFUSION=0
 export DO_PREPROCESS=0
 export EVAL_MODEL_TYPE="isbi"
 export DO_ACCURACY_CAFFE=0
