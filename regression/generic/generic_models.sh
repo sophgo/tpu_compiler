@@ -1356,6 +1356,27 @@ export DO_NN_TOOLKIT=0
 export DO_PREPROCESS=0
 fi
 
+if [ $NET = "gaitset" ]; then
+export MODEL_TYPE="onnx"
+export MODEL_DEF=$MODEL_PATH/pose/gaitnet/onnx/gaitset.onnx
+export MODEL_DAT=""
+export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table
+export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_onnx/regression_gaitset_0_onnx.sh
+export NET_INPUT_DIMS=64,64
+export MEAN=0,0,0
+export INPUT_SCALE=1.0
+export STD=1,1,1
+export RAW_SCALE=1.0
+export INPUT=input
+export TOLERANCE_INT8_PER_TENSOR=0.91,0.91,0.58
+export TOLERANCE_INT8_RSHIFT_ONLY=0.91,0.91,0.58
+export TOLERANCE_INT8_MULTIPLER=0.70,0.70,-0.10
+export TOLERANCE_BF16=0.99,0.99,0.89
+export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.9
+export DO_PREPROCESS=0
+export BGRAY=1
+fi
+
 if [ $NET = "resnet50_tf" ]; then
 export MODEL_TYPE="tensorflow"
 export MODEL_DEF=$MODEL_PATH/imagenet/resnet/tensorflow/resnet50

@@ -23,6 +23,15 @@ def preprocess_func_faster_rcnn(image_path, args):
     image = np.expand_dims(image, axis=0)
     return image
 
+def preprocess_func_gaitset(image_path, args):
+  image = cv2.imread(str(image_path).rstrip(), cv2.IMREAD_GRAYSCALE)
+  image = image.astype(np.float32)
+  image = cv2.resize(image, (64, 64))
+  x = image / 255.0
+  x = np.expand_dims(x, axis=0)
+  x = np.expand_dims(x, axis=1)
+  return x
+
 def preprocess_func_unet(image_path, args):
   image = cv2.imread(str(image_path).rstrip(), cv2.IMREAD_GRAYSCALE)
   image = image.astype(np.float32)
@@ -176,6 +185,8 @@ def main():
     p_func = preprocess_func_unet
   elif (args.model_name == 'faster_rcnn'):
     p_func = preprocess_func_faster_rcnn
+  elif (args.model_name == 'gaitset'):
+    p_func = preprocess_func_gaitset
   else:
     assert(False)
 

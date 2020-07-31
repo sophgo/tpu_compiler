@@ -65,6 +65,8 @@ class TPU_OpType(Enum):
     Tanh = 'tpu.tanh'
     Upsample = 'tpu.upsample'
     YoloDetection = 'tpu.yolo_detection'
+    ReduceMean = 'tpu.reduce_mean'
+    ReduceMax = 'tpu.reduce_max'
 
 def checkKey(dict, key):
     if key not in dict:
@@ -1089,6 +1091,40 @@ class MLIRImporter(object):
         }
         return self.buildOp(TPU_OpType.Upsample.value, inputOperands, [
             tensor_output_type], name=upsample_name, quant=self.quant_param, **upsample_param)
+
+    def add_reduce_mean_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+        tensor_output_type = self.module.make_ranked_tensor_type(
+            self.f32Type, output_tensor_shape)
+        checkKey(kargs, 'axes')
+
+        reduce_name = self.module.stringAttr(op_name)
+        axes = self.module.arrayAttr([self.module.integerAttr(self.i32Type, x) for x in kargs['axes']])
+        reduce_param = {
+            'axes': axes
+        }
+        none = self.add_none_op()
+        for i in range( 5 - len(inputOperands)):
+            inputOperands.append(none)
+        return self.buildOp(TPU_OpType.ReduceMean.value, inputOperands, [
+                tensor_output_type], name=reduce_name, quant=self.quant_param, **reduce_param)
+
+    def add_reduce_max_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+        tensor_output_type = self.module.make_ranked_tensor_type(
+            self.f32Type, output_tensor_shape)
+        checkKey(kargs, 'axes')
+
+        reduce_name = self.module.stringAttr(op_name)
+        axes = self.module.arrayAttr([self.module.integerAttr(self.i32Type, x) for x in kargs['axes']])
+        reduce_param = {
+            'axes': axes
+        }
+
+        none = self.add_none_op()
+        for i in range( 5 - len(inputOperands)):
+            inputOperands.append(none)
+
+        return self.buildOp(TPU_OpType.ReduceMax.value, inputOperands, [
+                tensor_output_type], name=reduce_name, quant=self.quant_param, **reduce_param)
 
     def add_yolo_detection_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type=self.module.make_ranked_tensor_type(

@@ -582,7 +582,8 @@ public:
         BypassThresholdDefaultPattern<tpu::PixelShuffleOp>,
         BypassThresholdDefaultPattern<tpu::SliceOp>,
         BypassThresholdDefaultPattern<tpu::ShuffleChannelOp>,
-        BypassThresholdDefaultPattern<tpu::SwapChannelOp>
+        BypassThresholdDefaultPattern<tpu::SwapChannelOp>,
+        BypassThresholdDefaultPattern<tpu::ReduceMaxOp>
         >(context);
     applyPatternsGreedily(fn, patterns);
 

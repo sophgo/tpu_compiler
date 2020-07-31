@@ -130,6 +130,13 @@ void gen_bf16_table(int start, int end, int table_hw, float *table,
 void gen_bf16_slope_table(int start, int end, int table_hw,
                                          float *table,
                                          float *slope_table, double (*activate_func)(double));
+int my_reduce_mean(float *input, float *output,
+                     std::vector<int64_t> &input_shape,
+                     std::vector<int> &axes);
+
+int my_reduce_max(float *input, float *output,
+                     std::vector<int64_t> &input_shape,
+                     std::vector<int> &axes);
 
 int my_roipooling(float *data, float *rois, float *output, int pooled_h, int pooled_w,
                   float spatial_scale, int num_rois, int channel, int height, int width);

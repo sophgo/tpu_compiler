@@ -1,3 +1,6 @@
+# ONNX Node define:
+# https://github.com/onnx/onnx/blob/master/onnx/onnx.proto
+
 from .mlirimporter import MLIRImporter, checkKey
 from .BaseConverter import BaseConverter, TensorType
 from onnx import numpy_helper, mapping
@@ -167,6 +170,8 @@ class OnnxConverter(BaseConverter):
             "Transpose": lambda node: self.convert_transpose_op(node),
             "Unsqueeze": lambda node: self.convert_unsqueeze_op(node),
             "Upsample": lambda node: self.convert_upsample_op(node),
+            "ReduceMean": lambda node: self.convert_reduce_mean_op(node),
+            "ReduceMax": lambda node: self.convert_reduce_max_op(node),
         }
 
     def __del__(self):
@@ -1111,29 +1116,54 @@ class OnnxConverter(BaseConverter):
         weight_name = "{}_add_weight".format(onnx_node.name)
         weight_tensor = self.getTensor(onnx_node.inputs[1]).tensor_data
 
-        # in onnx matmul data is put in (K,N), but mlir put in (N, K)
-        weight_tensor = np.ascontiguousarray(np.transpose(weight_tensor, (1, 0)))
-        weight_shape = list(weight_tensor.shape)
-        print(weight_shape)
-        self.addTensor(weight_name, weight_tensor, weight_shape)
-        weight_op = self.CVI.add_load_file_op(weight_name, weight_tensor.shape)
-        operands.append(weight_op)
+        # batched matmul like (bs, K, M ) * (bs, M, N) = (bs, K, N)
+        if len(weight_tensor.shape) == 3 and len(input_shape) == 3:
+            # in onnx matmul data is put in (K,N), but mlir put in (N, K)
+            weight_tensor = np.ascontiguousarray(np.transpose(weight_tensor, (0, 2, 1)))
+            weight_shape = list(weight_tensor.shape)
+            self.addTensor(weight_name, weight_tensor, weight_shape)
+            weight_op = self.CVI.add_load_file_op(weight_name, weight_tensor.shape)
+            operands.append(weight_op)
 
-        bias_tensor = np.full(weight_tensor.shape[0], 0)
-        bias_name = "{}_add_bias".format(onnx_node.name)
-        self.addTensor(bias_name, bias_tensor, bias_tensor.shape)
-        bias_op = self.CVI.add_load_file_op(bias_name, bias_tensor.shape)
-        operands.append(bias_op)
+            bias_tensor = np.full(weight_tensor.shape[0], 0)
+            bias_name = "{}_add_bias".format(onnx_node.name)
+            self.addTensor(bias_name, bias_tensor, bias_tensor.shape)
+            bias_op = self.CVI.add_load_file_op(bias_name, bias_tensor.shape)
+            operands.append(bias_op)
 
-        M = input_shape[0]
-        K = input_shape[1]
-        if input_shape[1] != weight_tensor.shape[1]:
-            raise RuntimeError("{} vs {} can not matmul".format(input_shape, weight_tensor.shape))
-        N = weight_tensor.shape[0]
-        output_shape = [M, N]
-        print(output_shape)
-        fc_op = self.CVI.add_fully_connected_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
-        self.addOperand(onnx_node.name, fc_op, output_shape, TensorType.ACTIVATION)
+            B = input_shape[0]
+            M = input_shape[1]
+            K = input_shape[2]
+            if input_shape[2] != weight_tensor.shape[2]:
+                raise RuntimeError("{} vs {} can not matmul".format(input_shape, weight_tensor.shape))
+            N = weight_tensor.shape[1]
+            output_shape = [B, M, N]
+            fc_op = self.CVI.add_fully_connected_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
+            self.addOperand(onnx_node.name, fc_op, output_shape, TensorType.ACTIVATION)
+        else:
+            # in onnx matmul data is put in (K,N), but mlir put in (N, K)
+            weight_tensor = np.ascontiguousarray(np.transpose(weight_tensor, (1, 0)))
+            weight_shape = list(weight_tensor.shape)
+            print(weight_shape)
+            self.addTensor(weight_name, weight_tensor, weight_shape)
+            weight_op = self.CVI.add_load_file_op(weight_name, weight_tensor.shape)
+            operands.append(weight_op)
+
+            bias_tensor = np.full(weight_tensor.shape[0], 0)
+            bias_name = "{}_add_bias".format(onnx_node.name)
+            self.addTensor(bias_name, bias_tensor, bias_tensor.shape)
+            bias_op = self.CVI.add_load_file_op(bias_name, bias_tensor.shape)
+            operands.append(bias_op)
+
+            M = input_shape[0]
+            K = input_shape[1]
+            if input_shape[1] != weight_tensor.shape[1]:
+                raise RuntimeError("{} vs {} can not matmul".format(input_shape, weight_tensor.shape))
+            N = weight_tensor.shape[0]
+            output_shape = [M, N]
+            print(output_shape)
+            fc_op = self.CVI.add_fully_connected_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
+            self.addOperand(onnx_node.name, fc_op, output_shape, TensorType.ACTIVATION)
 
     def convert_maxpool_op(self, onnx_node):
         assert(onnx_node.op_type == "MaxPool")
@@ -2026,6 +2056,78 @@ class OnnxConverter(BaseConverter):
             upsample_op = self.CVI.add_upsample_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **attr)
             self.addOperand(onnx_node.name, upsample_op, output_shape, TensorType.ACTIVATION)
 
+    def convert_reduce_mean_op(self, onnx_node):
+        assert(onnx_node.op_type == "ReduceMean")
+        checkKey(onnx_node.attrs, 'axes')
+        checkKey(onnx_node.attrs, 'keepdims')
+        axes = onnx_node.attrs['axes']
+        keepdims = onnx_node.attrs['keepdims']
+        op0, input_shape0, tensor_type0 = self.getOperand(onnx_node.inputs[0])
+        output_shape = input_shape0
+
+        print("reduce mean, input: ", input_shape0, "axes: ", axes, "keepdims: ", keepdims)
+        #
+        axis = 0
+        if len(axes) == 1 and axes[0] == 3:
+            # remove the last dimension
+            if keepdims == 0:
+                output_shape = input_shape0[:-1]
+            else:
+                output_shape = input_shape0[:-1]
+                output_shape.extend([1])
+        elif len(axes) == 2 and axes[0] == 2 and axes[1] == 3:
+            if keepdims == 0:
+                output_shape = input_shape0[:-2]
+            else:
+                output_shape = input_shape0[:-2]
+                output_shape.extend([1,1])
+        else:
+            raise RuntimeError("axes type not support for now")
+
+        attr = {
+            'axes': axes
+        }
+        print("output shape: ", output_shape)
+        operands = list()
+        operands.append(op0)
+        reduce_mean_op = self.CVI.add_reduce_mean_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **attr)
+        self.addOperand(onnx_node.name, reduce_mean_op, output_shape, TensorType.ACTIVATION)
+
+    def convert_reduce_max_op(self, onnx_node):
+        assert(onnx_node.op_type == "ReduceMax")
+        checkKey(onnx_node.attrs, 'axes')
+        axes = onnx_node.attrs['axes']
+        keepdims = onnx_node.attrs['keepdims']
+        op0, input_shape0, tensor_type0 = self.getOperand(onnx_node.inputs[0])
+        output_shape = input_shape0
+        print("reduce max, input: ", input_shape0, "axes: ", axes, "keepdims: ", keepdims)
+        #
+        if len(axes) == 1 and axes[0] == 3:
+            # remove the last dimension
+            if keepdims == 0:
+                output_shape = input_shape0[:-1]
+            else:
+                output_shape = input_shape0[:-1]
+                output_shape.extend([1])
+        elif len(axes) == 1 and axes[0] == 1:
+            if keepdims == 0:
+                output_shape = (input_shape0[0:1])
+                output_shape.extend(input_shape0[2:])
+            else:
+                output_shape = input_shape0[0:1]
+                output_shape.extend([1,])
+                output_shape.extend(input_shape0[2:])
+        else:
+            raise RuntimeError("axes type not support: ", axes)
+
+        attr = {
+            'axes': axes
+        }
+        print("output shape: ", output_shape)
+        operands = list()
+        operands.append(op0)
+        reduce_mean_op = self.CVI.add_reduce_max_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **attr)
+        self.addOperand(onnx_node.name, reduce_mean_op, output_shape, TensorType.ACTIVATION)
 
     def run(self):
         self.convert_node()
