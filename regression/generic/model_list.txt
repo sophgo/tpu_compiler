@@ -15,7 +15,7 @@ shufflenet_v2             Y        N        N        N        Y        Y        
 densenet_121              N        N        N        Y        Y        Y          N
 densenet_201              N        N        N        Y        Y        N          N
 senet_res50               N        N        N        Y        Y        Y          N
-# resnext50                 N        N        N        Y        Y        N          N
+resnext50                 N        N        N        Y        Y        N          N
 arcface_res50             Y        N        N        N        Y        N          Y
 retinaface_mnet25         Y        Y        N        N        N        N          N
 retinaface_mnet25_600     N        N        N        Y        N        N          N
