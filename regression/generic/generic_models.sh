@@ -96,10 +96,12 @@ export MODEL_DEF=$MODEL_PATH/imagenet/resnext/caffe/resnext50-deploy.prototxt
 export MODEL_DAT=$MODEL_PATH/imagenet/resnext/caffe/resnext50.caffemodel
 export LABEL_FILE=$MODEL_PATH/imagenet/resnext/caffe/corresp.txt
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table
+export CALI_TABLE_PREPROCESS=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table_preprocess
 export NET_INPUT_DIMS=224,224
 export IMAGE_RESIZE_DIMS=256,256
 export RAW_SCALE=255.0
 export MODEL_CHANNEL_ORDER="rgb"
+export SWAP_CHANNEL=2,1,0
 export MEAN=0.0,0.0,0.0
 export INPUT_SCALE=1.0
 export INPUT=data
@@ -110,7 +112,9 @@ export TOLERANCE_INT8_RSHIFT_ONLY=0.95,0.95,0.69
 export TOLERANCE_INT8_MULTIPLER=0.96,0.95,0.72
 export TOLERANCE_BF16=0.99,0.99,0.91
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.91
-export DO_PREPROCESS=0
+if [ $DO_PREPROCESS -eq 1 ]; then
+  export EXCEPTS=data,stage4_unit3_relu1,stage4_unit3_relu1,prob
+fi
 fi
 
 if [ $NET = "vgg16" ]; then
