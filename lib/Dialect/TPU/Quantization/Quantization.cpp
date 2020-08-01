@@ -453,11 +453,42 @@ struct ExtendPreprocessOpPattern : public RewritePattern {
     setOpThreshold(crop_op, 127);
     setOpQuantParamType(crop_op, "THRESHOLD");
     setOpQuant(crop_op, "INT8");
+
+    // swapaxis, rgb to bgr or bgr to rgb
+    std::string swapaxis_name =
+        getOpName(preprocessOp).str() + "_preprocess_swapaxis";
+    std::vector<int> color_orders;
+    if (preprocessOp.color_order().hasValue()) {
+      for (auto o : llvm::enumerate(preprocessOp.color_order().getValue())) {
+        auto attr = o.value().dyn_cast<IntegerAttr>();
+        color_orders.push_back(attr.getInt());
+      }
+    }
+    auto swapaxis_type = RankedTensorType::get({on, oc, oh, ow}, eltType);
+    std::vector<NamedAttribute> swapaxis_attrs;
+
+    swapaxis_attrs.push_back(
+        builder.getNamedAttr("name", builder.getStringAttr(swapaxis_name)));
+    swapaxis_attrs.push_back(builder.getNamedAttr(
+        "channel_order",
+        builder.getI32ArrayAttr(ArrayRef<int32_t>({color_orders}))));
+    swapaxis_attrs.push_back(
+        builder.getNamedAttr("quant", getDefaultQuantParam(builder)));
+    swapaxis_attrs.push_back(
+        builder.getNamedAttr("layer_id", builder.getI32IntegerAttr(layer_id)));
+    // we only accept first input to IR, second input shape will be attribute.
+    auto swapaxis_op = OpBuilder(op).create<tpu::SwapChannelOp>(
+        op->getLoc(), swapaxis_type, ArrayRef<Value *>{crop_op},
+        ArrayRef<NamedAttribute>{swapaxis_attrs});
+    setOpThreshold(swapaxis_op, 127);
+    setOpQuantParamType(swapaxis_op, "THRESHOLD");
+    setOpQuant(swapaxis_op, "INT8");
+
     // create bf16 mul
 
     // create bf16 add
 
-    rewriter.replaceOp(preprocessOp, {crop_op.getResult()});
+    rewriter.replaceOp(preprocessOp, {swapaxis_op.getResult()});
     return matchSuccess();
   }
 };
