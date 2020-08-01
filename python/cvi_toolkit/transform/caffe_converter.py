@@ -80,6 +80,7 @@ class CaffeConverter(BaseConverter):
             'Scale': lambda layer: self.convert_scale_op(layer),
             'ShuffleChannel': lambda layer: self.convert_shufflechannel_op(layer),
             'Sigmoid': lambda layer: self.convert_sigmoid_op(layer),
+            'Silence': lambda layer: self.convert_silence_op(layer),
             'Slice': lambda layer: self.convert_slice_op(layer),
             'Softmax': lambda layer: self.convert_softmax_op(layer),
             'Split': lambda layer: self.convert_split_op(layer),
@@ -513,7 +514,7 @@ class CaffeConverter(BaseConverter):
         new_op = self.CVI.add_reshape_op(layer.name, operands, output_shape)
         self.addOperand(layer.top[0], new_op,
                         output_shape, TensorType.ACTIVATION)
-    
+
     def convert_frcn_detection_op(self, layer):
         assert(self.layerType(layer) == 'FrcnDetection')
         operands = list()
@@ -698,7 +699,7 @@ class CaffeConverter(BaseConverter):
             'channel_shared': p.channel_shared,
         }
         assert(False == p.across_spatial)
-        assert(len(input_shape) == 4)
+        assert(len(input_shape) > 1)
         c = input_shape[1]
         # scale
         scale_shape = [1, c]
@@ -938,7 +939,7 @@ class CaffeConverter(BaseConverter):
             layer.name, operands, output_shape, **param)
         self.addOperand(layer.top[0], new_op,
                         output_shape, TensorType.ACTIVATION)
-    
+
     def convert_proposal_op(self, layer):
         assert(self.layerType(layer) == 'Proposal')
         operands = list()
@@ -1082,22 +1083,27 @@ class CaffeConverter(BaseConverter):
                 assert(0 == input_count % explicit_count)
                 inferred_dim = input_count / explicit_count
                 output_shape[start_axis + inferred_axis] = int(inferred_dim)
-        else:
-            # only support input shape size is 2 && output shape size is 3 case
-            assert(len(top_dims) == 3)
-            output_shape = [0, 0, 0]
-            inference_dim = 0
+        elif num_dims == 2:
+            output_shape = list()
+            inference_dim = -1
             for i in range(len(top_dims)):
                 dim = top_dims[i]
                 if dim == 0:
-                    output_shape[i] = int(input_shape[i])
+                    output_shape.append(int(input_shape[i]))
                     input_count /= output_shape[i]
                 elif dim == -1:
+                    assert(inference_dim == -1)
                     inference_dim = i
+                    output_shape.append(int(0))
                 else:
-                    output_shape[i] = int(top_dims[i])
-                    input_count /= top_dims[i]
-            output_shape[inference_dim] = int(input_count)
+                    output_shape.append(int(top_dims[i]))
+                    input_count /= output_shape[i]
+            if inference_dim != -1:
+                output_shape[inference_dim] = int(input_count)
+            else:
+                assert(input_count == 1)
+        else:
+            raise RuntimeError("ReshapeOp only support input shape = 2 or 4 now")
         new_op = self.CVI.add_reshape_op(layer.name, operands, output_shape)
         self.addOperand(layer.top[0], new_op, output_shape,
                         TensorType.ACTIVATION)
@@ -1211,6 +1217,10 @@ class CaffeConverter(BaseConverter):
         self.addOperand(layer.top[0], new_op,
                         output_shape, TensorType.ACTIVATION)
 
+    def convert_silence_op(self, layer):
+        assert(self.layerType(layer) == 'Silence')
+        # do nothing now
+
     def convert_slice_op(self, layer):
         assert(self.layerType(layer) == 'Slice')
         op, input_shape, _ = self.getOperand(layer.bottom[0])
@@ -1219,7 +1229,6 @@ class CaffeConverter(BaseConverter):
         assert(len(input_shape) == 4)
         p = layer.slice_param
         axis = p.axis
-        assert(axis == 1)  # only support channel slice
         bottom_slice_axis = input_shape[axis]
         top_size = len(layer.top)
         slice_num = len(p.slice_point)

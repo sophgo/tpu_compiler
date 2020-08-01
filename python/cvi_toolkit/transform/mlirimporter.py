@@ -781,7 +781,7 @@ class MLIRImporter(object):
             'scale': self.module.floatAttr(kargs['scale']),
             'shift': self.module.floatAttr(kargs['shift']),
         }
-        return self.buildOp(TPU_OpType.Permute.value, inputOperands, [
+        return self.buildOp(TPU_OpType.Power.value, inputOperands, [
             tensor_output_type], name=name_attr, quant=self.quant_param, **param)
 
     def add_priorbox_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
@@ -901,7 +901,7 @@ class MLIRImporter(object):
     def add_proposal_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = self.module.make_ranked_tensor_type(
             self.f32Type, output_tensor_shape)
-        
+
         proposal_op = self.module.stringAttr(op_name)
         checkKey(kargs, 'net_input_h')
         checkKey(kargs, 'net_input_w')
@@ -985,7 +985,7 @@ class MLIRImporter(object):
     def add_roipooling_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = self.module.make_ranked_tensor_type(
             self.f32Type, output_tensor_shape)
-        
+
         roipooling_op = self.module.stringAttr(op_name)
         checkKey(kargs, 'pooled_h')
         checkKey(kargs, 'pooled_w')

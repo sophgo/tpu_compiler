@@ -544,8 +544,13 @@ ImSlice::ImSlice(Operation *op): ImLayer(IR_SLICE, op, false) {
   }
 
   // optimization for batch 1, set as inplace layer
-  if ((dst_shape[0] == 1) && (axis == 1))
-    is_inplace_layer = true;
+  is_inplace_layer = true;
+  for (int i = 0; i < axis; i++) {
+    if (dst_shape[i] != 1) {
+      is_inplace_layer = false;
+      break;
+    }
+  }
   add_in_tensor(op->getOperand(0), TENSOR_NEURON);
   add_out_tensor(op->getResult(0), TENSOR_NEURON);
 }

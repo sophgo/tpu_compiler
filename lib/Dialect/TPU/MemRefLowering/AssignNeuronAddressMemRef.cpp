@@ -137,6 +137,31 @@ AssignNeuronAddressMemRefPass::findTpuOpFromDeallocOp(Operation *op) {
   return firstUseOp;
 }
 
+static bool isSliceOpSkip(Operation *op) {
+  if (auto sliceOp = llvm::dyn_cast<tpu::TG_INT8_SliceOp>(op)) {
+    auto type = sliceOp.getResult()->getType().template cast<TensorType>();
+    int axis = sliceOp.axis().getLimitedValue();
+    std::vector<int64_t> shape = type.getShape();
+    for (int index = 0; index < axis; index++) {
+      if (shape[index] != 1) {
+        return false;
+      }
+    }
+  } else if (auto sliceOp = llvm::dyn_cast<tpu::TG_BF16_SliceOp>(op)) {
+    auto type = sliceOp.getResult()->getType().template cast<TensorType>();
+    int axis = sliceOp.axis().getLimitedValue();
+    std::vector<int64_t> shape = type.getShape();
+    for (int index = 0; index < axis; index++) {
+      if (shape[index] != 1) {
+        return false;
+      }
+    }
+  } else {
+    return false;
+  }
+  return true;
+}
+
 bool AssignNeuronAddressMemRefPass::isBypassMemoryReuse(Operation *op) {
   // FIXME: skip fc_reshape
   // Can replace AllocOp with ViewOp ?
@@ -145,12 +170,7 @@ bool AssignNeuronAddressMemRefPass::isBypassMemoryReuse(Operation *op) {
     return true;
   } else if (dyn_cast<tpu::TG_INT8_SliceOp>(op) ||
              dyn_cast<tpu::TG_BF16_SliceOp>(op)) {
-    auto resultType = op->getResult(0)->getType();
-    auto tensorType = resultType.dyn_cast<RankedTensorType>();
-    auto batch = tensorType.getShape()[0];
-
-    // Avoid copy when batch = 1
-    if (batch == 1) {
+    if (isSliceOpSkip(op)) {
       return true;
     }
   }
@@ -203,8 +223,7 @@ bool AssignNeuronAddressMemRefPass::isMemoryAliasedOpHandled(Operation *op) {
     auto resultType = op->getOperand(op->getNumOperands()-1)->getType();
     auto memRefType = resultType.dyn_cast<MemRefType>();
     std::vector<int64_t> shape = memRefType.getShape();
-    auto batch = shape[0];
-    if (batch != 1) {
+    if (false == isSliceOpSkip(op)) {
       return false;
     }
 
@@ -250,7 +269,6 @@ bool AssignNeuronAddressMemRefPass::isMemoryAliasedOpHandled(Operation *op) {
       axis = tpuOp.axis().getLimitedValue();
       offset = tpuOp.offset().getLimitedValue();
     }
-    assert(axis==1);
     offset *= dataTypeSize;
     for (uint64_t i = axis + 1; i < shape.size(); ++i) {
       offset *= shape[i];

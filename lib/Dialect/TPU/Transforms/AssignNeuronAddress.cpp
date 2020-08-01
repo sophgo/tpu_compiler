@@ -123,6 +123,31 @@ struct TlLgLoadNeuronAddressPattern : public RewritePattern {
   }
 };
 
+static bool isSliceOpSkip(Operation *op) {
+  if (auto sliceOp = llvm::dyn_cast<tpu::TG_INT8_SliceOp>(op)) {
+    auto type = sliceOp.getResult()->getType().template cast<TensorType>();
+    int axis = sliceOp.axis().getLimitedValue();
+    std::vector<int64_t> shape = type.getShape();
+    for (int index = 0; index < axis; index++) {
+      if (shape[index] != 1) {
+        return false;
+      }
+    }
+  } else if (auto sliceOp = llvm::dyn_cast<tpu::TG_BF16_SliceOp>(op)) {
+    auto type = sliceOp.getResult()->getType().template cast<TensorType>();
+    int axis = sliceOp.axis().getLimitedValue();
+    std::vector<int64_t> shape = type.getShape();
+    for (int index = 0; index < axis; index++) {
+      if (shape[index] != 1) {
+        return false;
+      }
+    }
+  } else {
+    return false;
+  }
+  return true;
+}
+
 template <typename OpTy>
 struct TgSliceAddressPattern : public RewritePattern {
   TgSliceAddressPattern(MLIRContext *context)
@@ -136,10 +161,10 @@ struct TgSliceAddressPattern : public RewritePattern {
     }
     int axis = castOp.axis().getLimitedValue();
     int offset = castOp.offset().getLimitedValue();
-    assert((axis == 1) && "axis should be 1");
 
     std::vector<int64_t> shape = getTensorShape(castOp.input());
-    if (shape[0] != 1) {
+
+    if (false == isSliceOpSkip(op)) {
       return matchFailure();
     }
 
@@ -180,22 +205,9 @@ struct TlLgStoreAddressNeuronPattern : public RewritePattern {
   }
 };
 
-
 static bool isInPlaceOp(Operation *op) {
-  if (auto sliceOp = llvm::dyn_cast<tpu::TG_INT8_SliceOp>(op)) {
-    auto type = sliceOp.getResult()->getType().template cast<TensorType>();
-    int axis = sliceOp.axis().getLimitedValue();
-    std::vector<int64_t> shape = type.getShape();
-    if (shape[0] == 1 && axis == 1) {
-      return true;
-    }
-  } else if (auto sliceOp = llvm::dyn_cast<tpu::TG_BF16_SliceOp>(op)) {
-    auto type = sliceOp.getResult()->getType().template cast<TensorType>();
-    int axis = sliceOp.axis().getLimitedValue();
-    std::vector<int64_t> shape = type.getShape();
-    if (shape[0] == 1 && axis == 1) {
-      return true;
-    }
+  if (isSliceOpSkip(op)) {
+    return true;
   } else if (auto leakyReluOp = llvm::dyn_cast<tpu::TG_INT8_LeakyReluOp>(op)) {
     auto fusePrev = leakyReluOp.fuse_prev();
     if (fusePrev) {

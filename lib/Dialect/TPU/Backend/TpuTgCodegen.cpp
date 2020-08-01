@@ -1493,7 +1493,7 @@ LogicalResult tpu::TG_BF16_InterpOp::codegen(void *ctx) {
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
   int layer_id = mlir::getOpLayerId(op);
-  
+
   std::string errorMsg = "unsupported tg op " + getOpName().str() + "\n";
   llvm_unreachable(errorMsg.c_str());
   return success();
@@ -2058,7 +2058,7 @@ LogicalResult tpu::TG_INT8_QuantOp::codegen(void *ctx) {
           w,//int input_w,
           dequant//float const_scale
           );
-  
+
   return success();
 }
 
@@ -2085,7 +2085,7 @@ LogicalResult tpu::TG_BF16_QuantOp::codegen(void *ctx) {
   // output[i] = (float)saturateInt8(input[i] * 128.0 / threshold);
   float threshold = this->threshold().getValue().convertToFloat();
   float quant = 128.0 / threshold;
-  
+
   //  quant to int8
   mixed_precision_tg_bf16_s8(
           *backend_ctx,//CviBackendContext &ctx,
@@ -2500,8 +2500,14 @@ LogicalResult tpu::TG_INT8_SliceOp::codegen(void *ctx) {
   for (auto &dim : input_shape) {
     input_shape_fix.push_back((int)dim);
   }
+  int index = 0;
+  for (;index < axis; index++) {
+    if (input_shape[index] != 1) {
+      break;
+    }
+  }
 
-  if (axis == 1 && input_shape[0] == 1) {
+  if (index == axis) {
     LLVM_DEBUG(llvm::errs() << "  no copy\n";);
     return success();
   }
@@ -2531,7 +2537,9 @@ LogicalResult tpu::TG_BF16_SliceOp::codegen(void *ctx) {
     input_shape_fix.push_back((int)dim);
   }
 
-  if (axis == 1 && input_shape[0] == 1) {
+  int index = 0;
+  for (;index < axis && input_shape[index] == 1; index++);
+  if (index == axis) {
     LLVM_DEBUG(llvm::errs() << "  no copy\n";);
     return success();
   }
