@@ -68,7 +68,6 @@ if [ $DO_FUSE_PREPROCESS -eq 1 ]; then
       -o ${NET}_cali_fused_preprocess.mlir
 
     mlir-opt \
-      -debug \
       --assign-chip-name \
       --chipname ${SET_CHIP_NAME} \
       --tpu-quant \

@@ -435,11 +435,17 @@ struct ForceThresholdPreprocessOpPattern : public RewritePattern {
     } else {
       return matchFailure();
     }
+    if (getOpQuantParamType(opInst) == "THRESHOLD") {
+      if (threshold_x == 255) {
+        // assigned already
+        return matchFailure();
+      }
+    }
 
     auto formerOp = opInst->getOperand(0)->getDefiningOp();
     if (auto cast_op = llvm::dyn_cast_or_null<tpu::InputOp>(formerOp)) {
       setOpThreshold(opInst, threshold_x);
-      setOpThreshold(formerOp, threshold_y);
+      setOpThreshold(formerOp, 255);
 
     } else {
       return matchFailure();
