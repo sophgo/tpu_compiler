@@ -183,46 +183,17 @@ static std::string getWeightStorage(Operation *p) {
   return op.storage();
 }
 
-static void getConvParam( Operation *p,
-                          int &n, int &ic, int &ih, int &iw,
-                          int &oc, int &oh, int &ow, int &g,
-                          int &kh, int &kw,
-                          bool &is_dw, bool &with_bias,
-                          bool &do_relu,
-                          bool &do_ic_align,
-                          bool &fuse_leaky) {
-  if (isa<tpu::TG_INT8_PC_Conv2DOp>(p)) {
-    auto op = dyn_cast<tpu::TG_INT8_PC_Conv2DOp>(p);
-    int sh, sw, pt, pb, pl, pr, dh, dw;
-    bool is_deconv = isa<tpu::TG_INT8_PC_DeConv2DOp>(op.getOperation());
-    parseConvParam(op.param(), is_deconv, op.input(), op.output(), op.filter(),
-                    n, ic, ih, iw, oc, oh, ow, g,
-                    kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, is_dw, with_bias, do_relu);
-    do_ic_align = op.do_ic_alignment().hasValue() ?
-                  op.do_ic_alignment().getValue() : false;
-    fuse_leaky = op.fused_leaky();
-  } else if (isa<tpu::TG_BF16_Conv2DOp>(p)) {
-    auto op = dyn_cast<tpu::TG_BF16_Conv2DOp>(p);
-    int sh, sw, pt, pb, pl, pr, dh, dw;
-    bool is_deconv = isa<tpu::TG_BF16_DeConv2DOp>(op.getOperation());
-    parseConvParam(op.param(), is_deconv, op.input(), op.output(), op.filter(),
-                    n, ic, ih, iw, oc, oh, ow, g,
-                    kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, is_dw, with_bias, do_relu);
-    do_ic_align = op.do_ic_alignment().hasValue() ?
-                  op.do_ic_alignment().getValue() : false;
-    fuse_leaky = op.fused_leaky();
-  } else {
-    assert("Only support INT8/BF16 Conv in LayerGroup");
-  }
-}
-
 ImConv::ImConv(Operation* p) : ImLayer(IR_CONVOLUTION, p, true) {
   bool is_dw, with_bias, do_relu;
   int n, ic, ih, iw, oc, oh, ow, g, kh, kw;
+  int sh, sw, pt, pb, pl, pr, dh, dw;
   bool do_ic_align = false;
   bool fuse_leaky = false;
+  bool bint8 = isa<tpu::TG_INT8_PC_Conv2DOp>(p);
   getConvParam(p, n, ic, ih, iw, oc, oh, ow,
-               g, kh, kw, is_dw, with_bias,
+               g, kh, kw, sh, sw,
+               pt, pb, pl, pr, dh, dw,
+               is_dw, with_bias,
                do_relu, do_ic_align,
                fuse_leaky);
 
@@ -250,7 +221,6 @@ ImConv::ImConv(Operation* p) : ImLayer(IR_CONVOLUTION, p, true) {
   auto weightOp = cast<tpu::LoadWeightOp>(p->getOperand(1)->getDefiningOp());
   std::string weightOpName = weightOp.name().str();
   int32_t unit_size = getOpResultUnitSize(weightOp);
-  std::string storage = getWeightStorage(weightOp);
 
   // get is dilate activation
   bool is_ins = false;
@@ -266,28 +236,48 @@ ImConv::ImConv(Operation* p) : ImLayer(IR_CONVOLUTION, p, true) {
     fusible = false;
   }
 
+  std::string weight_storage = getWeightStorage(weightOp);
   if (is_dw) {
-    add_in_tensor(1, oc, kh, kw, unit_size, storage, weightOpName, TENSOR_DEPTHCONV_OPD1);
+    add_in_tensor(1, oc, kh, kw, unit_size,
+                  weight_storage, weightOpName, TENSOR_DEPTHCONV_OPD1);
   }
   else {
     // tensor shape in local memory should be (1, oc, kh*kw, ic/g)
-    add_in_tensor(w_ic / g, oc, kh, kw, unit_size, storage, weightOpName, TENSOR_COEFF);
+    add_in_tensor(w_ic / g, oc, kh, kw, unit_size,
+                 weight_storage, weightOpName, TENSOR_COEFF);
   }
 
   // add bias tensor
-  int perchannel_size = with_bias ? 9 : 5;
-  auto load_bias = cast<tpu::LoadWeightOp>(p->getOperand(2)->getDefiningOp());
-  std::string bias_name = load_bias.name().str();
-  std::string bias_storage = getWeightStorage(load_bias);
-  int bias_usize = getOpResultUnitSize(load_bias);
+  if (bint8) {
+    int perchannel_size = with_bias ? 9 : 5;
+    auto load_bias = cast<tpu::LoadWeightOp>(p->getOperand(2)->getDefiningOp());
+    std::string bias_name = load_bias.name().str();
+    std::string bias_storage = getWeightStorage(load_bias);
+    int bias_usize = getOpResultUnitSize(load_bias);
 
-  if (is_dw)
-    add_in_tensor(1, oc, 1, perchannel_size, bias_usize, storage, bias_name, TENSOR_BIAS);
-  else {
-    // bias tensor start address must from tpu0, but input and result
-    // can start from tpux, so we use the shape (g, oc/g, 1, 9), not
-    // (1, oc, 1, 9)
-    add_in_tensor(g, oc/g, 1, perchannel_size, bias_usize, storage, bias_name, TENSOR_BIAS);
+    if (is_dw)
+      add_in_tensor(1, oc, 1, perchannel_size, bias_usize,
+                    bias_storage, bias_name, TENSOR_BIAS);
+    else {
+      // bias tensor start address must from tpu0, but input and result
+      // can start from tpux, so we use the shape (g, oc/g, 1, 9), not
+      // (1, oc, 1, 9)
+      add_in_tensor(g, oc/g, 1, perchannel_size, bias_usize,
+                    bias_storage, bias_name, TENSOR_BIAS);
+    }
+  } else if (!bint8 && with_bias) {
+    // bf16 with bias
+    auto load_bias = cast<tpu::LoadWeightOp>(p->getOperand(2)->getDefiningOp());
+    std::string bias_name = load_bias.name().str();
+    std::string bias_storage = "INT16";
+    int bias_usize = 2;
+
+    if (is_dw)
+      add_in_tensor(2, oc, 1, 1, bias_usize,
+                    bias_storage, bias_name, TENSOR_BIAS);
+    else
+      add_in_tensor(g*2, oc/g, 1, 1, bias_usize,
+                    bias_storage, bias_name, TENSOR_BIAS);
   }
 
   // add out tensor
@@ -297,42 +287,16 @@ ImConv::ImConv(Operation* p) : ImLayer(IR_CONVOLUTION, p, true) {
   }
 }
 
-static void getDeconvParam( Operation *p,
-                            int &n, int &ic, int &ih, int &iw,
-                            int &oc, int &oh, int &ow, int &g,
-                            int &kh, int &kw,
-                            bool &is_dw, bool &with_bias,
-                            bool &do_relu,
-                            bool &do_ic_align) {
-  if (isa<tpu::TG_INT8_PC_DeConv2DOp>(p)) {
-    auto op = dyn_cast<tpu::TG_INT8_PC_DeConv2DOp>(p);
-    int sh, sw, pt, pb, pl, pr, dh, dw;
-    bool is_deconv = isa<tpu::TG_INT8_PC_DeConv2DOp>(op.getOperation());
-    parseConvParam(op.param(), is_deconv, op.input(), op.output(), op.filter(),
-                    n, ic, ih, iw, oc, oh, ow, g,
-                    kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, is_dw, with_bias, do_relu);
-    do_ic_align = op.do_ic_alignment().hasValue() ?
-                  op.do_ic_alignment().getValue() : false;
-  } else if (isa<tpu::TG_BF16_DeConv2DOp>(p)) {
-    auto op = dyn_cast<tpu::TG_BF16_DeConv2DOp>(p);
-    int sh, sw, pt, pb, pl, pr, dh, dw;
-    bool is_deconv = isa<tpu::TG_BF16_DeConv2DOp>(op.getOperation());
-    parseConvParam(op.param(), is_deconv, op.input(), op.output(), op.filter(),
-                    n, ic, ih, iw, oc, oh, ow, g,
-                    kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, is_dw, with_bias, do_relu);
-    do_ic_align = op.do_ic_alignment().hasValue() ?
-                  op.do_ic_alignment().getValue() : false;
-  } else {
-    assert("Only support INT8/BF16 DeConv in LayerGroup");
-  }
-}
-
 ImDeconv::ImDeconv(Operation* p) : ImLayer(IR_DECONVOLUTION, p, true) {
   bool is_dw, with_bias, do_relu;
   int n, ic, ih, iw, oc, oh, ow, g, kh, kw;
-  bool do_ic_align;
-  getDeconvParam(p, n, ic, ih, iw, oc, oh, ow,
-                 g, kh, kw, is_dw, with_bias, do_relu, do_ic_align);
+  int sh, sw, pt, pb, pl, pr, dh, dw;
+  bool do_ic_align, fused_leaky;
+  getConvParam(p, n, ic, ih, iw, oc, oh, ow,
+                 g, kh, kw, sh, sw,
+                 pt, pb, pl, pr, dh, dw,
+                 is_dw, with_bias,
+                 do_relu, do_ic_align, fused_leaky);
 
   // handle ic align for double conv
   int w_ic = ic;
@@ -346,14 +310,14 @@ ImDeconv::ImDeconv(Operation* p) : ImLayer(IR_DECONVOLUTION, p, true) {
   auto weightOp = cast<tpu::LoadWeightOp>(p->getOperand(1)->getDefiningOp());
   std::string weightOpName = weightOp.name().str();
   int32_t unit_size = getOpResultUnitSize(weightOp);
-  std::string storage = getWeightStorage(weightOp);
+  std::string weight_storage = getWeightStorage(weightOp);
 
   if (is_dw) {
-    add_in_tensor(1, oc, kh, kw, unit_size, storage,
+    add_in_tensor(1, oc, kh, kw, unit_size, weight_storage,
                   weightOpName, TENSOR_DEPTHCONV_OPD1);
   } else {
     // tensor shape in local memory should be (1, oc, kh*kw, ic/g)
-    add_in_tensor(w_ic / g, oc, kh, kw, unit_size, storage,
+    add_in_tensor(w_ic / g, oc, kh, kw, unit_size, weight_storage,
                   weightOpName, TENSOR_COEFF);
   }
 
@@ -366,14 +330,14 @@ ImDeconv::ImDeconv(Operation* p) : ImLayer(IR_DECONVOLUTION, p, true) {
 
   if (is_dw) {
     add_in_tensor(1, oc, 1, perchannel_size, bias_usize,
-                  storage, bias_name, TENSOR_BIAS);
+                  bias_storage, bias_name, TENSOR_BIAS);
   } else {
     // bias tensor start address must from tpu0,
     // but the same as input and result that
     // start address can start from tpux,
     // so here we use the shape (g, oc/g, 1, 9), not (1, oc, 1, 9)
     add_in_tensor(g, oc/g, 1, perchannel_size, bias_usize,
-                  storage, bias_name, TENSOR_BIAS);
+                  bias_storage, bias_name, TENSOR_BIAS);
   }
 
   // add out tensor
@@ -449,13 +413,8 @@ ImConcat::ImConcat(Operation* op) : ImLayer(IR_CONCAT, op, true) {
   // only support axis = 1 for fuse
   auto concat_op = dyn_cast<tpu::TG_INT8_ConcatOp>(op);
   int axis = 0;
-  if (isa<tpu::TG_INT8_ConcatOp>(op)) {
-    auto concat_op = dyn_cast<tpu::TG_INT8_ConcatOp>(op);
-    axis = concat_op.axis().getLimitedValue();
-  } else if (isa<tpu::TG_BF16_ConcatOp>(op)){
-    auto concat_op = dyn_cast<tpu::TG_BF16_ConcatOp>(op);
-    axis = concat_op.axis().getLimitedValue();
-  }
+
+  getConcatParam(op, axis);
 
   if (axis != 1)
     fusible = false;
@@ -534,14 +493,7 @@ ImShuffleChannel::ImShuffleChannel(Operation *op): ImLayer(IR_SHUFFLECHANNEL, op
 ImSlice::ImSlice(Operation *op): ImLayer(IR_SLICE, op, false) {
   std::vector<int64_t> dst_shape = getTensorShape(op->getResult(0));
   int axis = 0;
-
-  if (isa<tpu::TG_INT8_SliceOp>(op)) {
-    auto slice_op = dyn_cast<tpu::TG_INT8_SliceOp>(op);
-    axis = slice_op.axis().getLimitedValue();
-  } else if (isa<tpu::TG_BF16_SliceOp>(op)) {
-    auto slice_op = dyn_cast<tpu::TG_BF16_SliceOp>(op);
-    axis = slice_op.axis().getLimitedValue();
-  }
+  getSliceParam(op, axis);
 
   // optimization for batch 1, set as inplace layer
   is_inplace_layer = true;
@@ -595,13 +547,7 @@ ImBroadcastMul::ImBroadcastMul(Operation *op): ImLayer(IR_BROADCAST_MUL, op, tru
 
 ImUpsample::ImUpsample(Operation *op): ImLayer(IR_UPSAMPLE, op, true) {
   int scale = 0;
-  if (isa<tpu::TG_INT8_UpsampleOp>(op)) {
-    auto upsample_op = dyn_cast<tpu::TG_INT8_UpsampleOp>(op);
-    scale = upsample_op.scale().getLimitedValue();
-  } else if (isa<tpu::TG_BF16_UpsampleOp>(op)) {
-    auto upsample_op = dyn_cast<tpu::TG_BF16_UpsampleOp>(op);
-    scale = upsample_op.scale().getLimitedValue();
-  }
+  getUpsampleParam(op, scale);
   // ins_h/ins_w can not exceed 16 for average pooling in tl_upsample
   // which has only 4 bits in hw
   if (scale >= 16)

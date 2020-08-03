@@ -381,6 +381,24 @@ void GroupOptimizer::build_fn(MLIRContext * context) {
       LGLoweringPattern<tpu::TG_INT8_CropOp>,
       LGLoweringPattern<tpu::TG_INT8_ReluOp>,
       LGLoweringPattern<tpu::TG_INT8_QuantOp>,
+      // BF16
+      LGLoweringPattern<tpu::TG_BF16_Conv2DOp>,
+      LGLoweringPattern<tpu::TG_BF16_DeConv2DOp>,
+      LGLoweringPattern<tpu::TG_BF16_EltwiseAddOp>,
+      LGLoweringPattern<tpu::TG_BF16_EltwiseMulOp>,
+      LGLoweringPattern<tpu::TG_BF16_EltwiseMaxOp>,
+      LGLoweringPattern<tpu::TG_BF16_EltwiseMinOp>,
+      LGLoweringPattern<tpu::TG_BF16_PoolAvg2DOp>,
+      LGLoweringPattern<tpu::TG_BF16_PoolMax2DOp>,
+      LGLoweringPattern<tpu::TG_BF16_LutOp>,
+      LGLoweringPattern<tpu::TG_BF16_LrnOp>,
+      LGLoweringPattern<tpu::TG_BF16_BroadcastMulOp>,
+      LGLoweringPattern<tpu::TG_BF16_UpsampleOp>,
+      LGLoweringPattern<tpu::TG_BF16_LeakyReluOp>,
+      LGLoweringPattern<tpu::TG_BF16_ConcatOp>,
+      LGLoweringPattern<tpu::TG_BF16_PadOp>,
+      LGLoweringPattern<tpu::TG_BF16_CropOp>,
+      LGLoweringPattern<tpu::TG_BF16_ReluOp>,
       LGLoweringPattern<tpu::TG_BF16_QuantOp>
       >(fn_, context, this);
   applyPatternsGreedily(*fn_, patterns_pack);

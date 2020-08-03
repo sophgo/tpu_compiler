@@ -171,7 +171,44 @@ LogicalResult tpu::TL_LG_INT8_Conv2DOp::codegen(void *ctx) {
 LogicalResult tpu::TL_LG_BF16_Conv2DOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);
-  assert(0);
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  bool is_dw, with_bias, do_relu;
+  int n, ic, ih, iw, oc, oh, ow, g, kh, kw;
+  int sh, sw, pt, pb, pl, pr, dh, dw;
+  parseConvParam(param(), false, input(), output(), filter(),
+                 n, ic, ih, iw, oc, oh, ow, g,
+                 kh, kw, sh, sw, pt, pb, pl, pr,
+                 dh, dw, is_dw, with_bias, do_relu);
+
+  laddr_t la_input = this->la_input().getLimitedValue();
+  laddr_t la_output = this->la_output().getLimitedValue();
+  laddr_t la_weight = this->la_filter().getLimitedValue();
+  laddr_t la_working = this->la_working().getLimitedValue();
+
+  laddr_t la_bias = 0;
+  if (with_bias)
+    la_bias = this->la_bias().getLimitedValue();
+
+  // pad is not "SAME", can not get from conv param
+  int ph_t = this->pad_top_h().getLimitedValue();
+  int ph_b = this->pad_bottom_h().getLimitedValue();
+  int pw_l = this->pad_left_w().getLimitedValue();
+  int pw_r = this->pad_right_w().getLimitedValue();
+  int layer_id = mlir::getOpLayerId(op);
+
+  cvi_backend_bf16_tl_conv(
+    *backend_ctx,
+    layer_id,
+    la_input, la_output, la_weight, la_working, la_bias,
+    n, ic, ih, iw,
+    g, oc, oh, ow, kh, kw, dh,
+    dw, ph_t, ph_b, pw_l, pw_r, sh, sw,
+    with_bias,
+    do_relu
+    );
+
   return success();
 }
 
@@ -844,8 +881,8 @@ LogicalResult tpu::TL_LG_CopyOp::codegen(void *ctx) {
 }
 
 LogicalResult tpu::TL_LG_INT8_PoolAvg2DOp::codegen(void *ctx) {
-  LLVM_DEBUG(llvm::errs() << "TL int8 pool avg codegen.\n";);
-
+  LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
   int layer_id = mlir::getOpLayerId(op);
@@ -888,7 +925,8 @@ LogicalResult tpu::TL_LG_BF16_PoolAvg2DOp::codegen(void *ctx) {
 }
 
 LogicalResult tpu::TL_LG_INT8_PoolMax2DOp::codegen(void *ctx) {
-  LLVM_DEBUG(llvm::errs() << "TL int8 pool max codegen.\n";);
+  LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
   int layer_id = mlir::getOpLayerId(op);
@@ -921,8 +959,32 @@ LogicalResult tpu::TL_LG_INT8_PoolMax2DOp::codegen(void *ctx) {
 
 LogicalResult tpu::TL_LG_BF16_PoolMax2DOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
-               << " [" << getOpName() << "]\n";);
-  assert(0);
+              << " [" << getOpName() << "]\n";);
+
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+  int layer_id = mlir::getOpLayerId(op);
+  TensorFile *wTF = getWeightTensorFile(op);
+
+  bool is_global, do_relu, count_include_pad;
+  int n, c, ih, iw, oh, ow, kh, kw, sh, sw, pt, pb, pl, pr;
+  parsePoolParam(param(), input(), output(),
+                 n, c, ih, iw, oh, ow,
+                 kh, kw, sh, sw, pt, pb, pl, pr,
+                 is_global, do_relu, count_include_pad);
+
+  laddr_t la_input = this->la_input().getLimitedValue();
+  laddr_t la_output = this->la_output().getLimitedValue();
+
+  cvi_backend_tl_bf16_pooling( *backend_ctx,
+                                layer_id,
+                                la_input, la_output,
+                                n, c, ih, iw,
+                                n, c, oh, ow,
+                                kh, kw, sh, sw,
+                                pt, pb, pl, pr,
+                                false/*is_avg_pooling,*/);
+
   return success();
 }
 

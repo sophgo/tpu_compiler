@@ -88,7 +88,7 @@ class TPU_TL_LG_Conv2DOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
   let arguments = (
     ins AnyTensor:$input,
     AnyTensor:$filter,
-    AnyTensor:$pc_info,
+    TPU_TensorOfOrNone<[I32,I16,I8]>:$pc_info,
     TPU_ConvParamAttr:$param,
     I32Attr:$la_input,
     I32Attr:$la_filter,
