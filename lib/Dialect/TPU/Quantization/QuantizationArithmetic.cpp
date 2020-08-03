@@ -567,7 +567,12 @@ void FloatToBFloat16(const float* src, bfloat16* dst, size_t size,
   if (rounding) {
     src_round = (float *)malloc(size * sizeof(float));
     for (size_t i = 0; i < size; i++) {
-      src_round[i] = src[i] * 1.001957f;
+      float value = src[i];
+      uint32_t* u32_val = reinterpret_cast<uint32_t*>(&value);
+      uint32_t lsb = (*u32_val >> 16) & 1;
+      *u32_val += (0x7fff + lsb); // rounding_bias
+      float *ret = reinterpret_cast<float*>(u32_val);
+      src_round[i] = *ret;
     }
     p = reinterpret_cast<const uint16_t*>(src_round);
   } else {
@@ -584,6 +589,9 @@ void FloatToBFloat16(const float* src, bfloat16* dst, size_t size,
     *q = p[1];
   }
 #endif
+  if ((*q & 0x7f80) == 0x7f80) {
+    *q = 0x7f7f;
+  }
   if (rounding) {
     free(src_round);
   }
