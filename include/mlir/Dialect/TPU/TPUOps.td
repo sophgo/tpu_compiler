@@ -2096,7 +2096,8 @@ def TPU_SliceOp: TPU_Op<"slice",
 def TPU_SoftmaxOp: TPU_Op<"softmax",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>]> {
+       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
+       DeclareOpInterfaceMethods<TpuOpQuantInterface>]> {
   let summary = "Softmax operator";
 
   let description = [{
@@ -2128,6 +2129,7 @@ def TPU_SoftmaxOp: TPU_Op<"softmax",
     DefaultValuedAttr<I32Attr, "1">:$axis,
     StrAttr:$name,
     DefaultValuedAttr<I32Attr, "-1">:$layer_id,
+    TPU_QuantParamAttr:$quant,
     OptionalAttr<StrAttr>:$chipname
   );
 

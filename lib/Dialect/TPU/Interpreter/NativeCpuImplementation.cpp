@@ -171,8 +171,8 @@ int mkldnn_deconv(float *input, float *weight, float *bias,
   }
 
   // TODO - padding
-  assert(pt == 0);
-  assert(pl == 0);
+  // assert(pt == 0);
+  // assert(pl == 0);
   int ph_t = pt;
   int pw_l = pl;
   int ph_b = pb;
@@ -1817,65 +1817,69 @@ int my_pad_constant(float *input, float *output,
 }
 
 int my_roipooling(float *data, float *rois, float *output, int pooled_h, int pooled_w,
-                  float spatial_scale, int num_rois, int channel, int height, int width) {
-  for (int n = 0; n < num_rois; ++n) {
-    int roi_batch_ind = rois[0];
-    int roi_start_w = std::round(rois[1] * spatial_scale);
-    int roi_start_h = std::round(rois[2] * spatial_scale);
-    int roi_end_w = std::round(rois[3] * spatial_scale);
-    int roi_end_h = std::round(rois[4] * spatial_scale);
-    assert(roi_batch_ind >= 0);
+                  float spatial_scale, int batch, int num_rois, int channel, int height, int width) {
+  for (int b = 0; b < batch; ++b) {
+    auto batched_rois = rois + b * num_rois * 5;
+    auto batched_output = output + b * num_rois * channel * pooled_h * pooled_w;
+    for (int n = 0; n < num_rois; ++n) {
+      int roi_batch_ind = batched_rois[0];
+      int roi_start_w = std::round(batched_rois[1] * spatial_scale);
+      int roi_start_h = std::round(batched_rois[2] * spatial_scale);
+      int roi_end_w = std::round(batched_rois[3] * spatial_scale);
+      int roi_end_h = std::round(batched_rois[4] * spatial_scale);
+      assert(roi_batch_ind < batch);
 
-    int roi_height = std::max(roi_end_h - roi_start_h + 1, 1);
-    int roi_width = std::max(roi_end_w - roi_start_w + 1, 1);
-    const float bin_size_h = static_cast<float>(roi_height)
-                             / static_cast<float>(pooled_h);
-    const float bin_size_w = static_cast<float>(roi_width)
-                             / static_cast<float>(pooled_w);
+      int roi_height = std::max(roi_end_h - roi_start_h + 1, 1);
+      int roi_width = std::max(roi_end_w - roi_start_w + 1, 1);
+      const float bin_size_h = static_cast<float>(roi_height)
+                              / static_cast<float>(pooled_h);
+      const float bin_size_w = static_cast<float>(roi_width)
+                              / static_cast<float>(pooled_w);
 
-    float* batch_data = data + roi_batch_ind * channel * height * width;
+      float* batch_data = data + roi_batch_ind * channel * height * width;
 
-    for (int c = 0; c < channel; ++c) {
-      for (int ph = 0; ph < pooled_h; ++ph) {
-        for (int pw = 0; pw < pooled_w; ++pw) {
-          // Compute pooling region for this output unit:
-          //  start (included) = floor(ph * roi_height / pooled_height_)
-          //  end (excluded) = ceil((ph + 1) * roi_height / pooled_height_)
-          int hstart = static_cast<int>(std::floor(static_cast<float>(ph)
-                                              * bin_size_h));
-          int wstart = static_cast<int>(std::floor(static_cast<float>(pw)
-                                              * bin_size_w));
-          int hend = static_cast<int>(std::ceil(static_cast<float>(ph + 1)
-                                           * bin_size_h));
-          int wend = static_cast<int>(std::ceil(static_cast<float>(pw + 1)
-                                           * bin_size_w));
+      for (int c = 0; c < channel; ++c) {
+        for (int ph = 0; ph < pooled_h; ++ph) {
+          for (int pw = 0; pw < pooled_w; ++pw) {
+            // Compute pooling region for this output unit:
+            //  start (included) = floor(ph * roi_height / pooled_height_)
+            //  end (excluded) = ceil((ph + 1) * roi_height / pooled_height_)
+            int hstart = static_cast<int>(std::floor(static_cast<float>(ph)
+                                                * bin_size_h));
+            int wstart = static_cast<int>(std::floor(static_cast<float>(pw)
+                                                * bin_size_w));
+            int hend = static_cast<int>(std::ceil(static_cast<float>(ph + 1)
+                                            * bin_size_h));
+            int wend = static_cast<int>(std::ceil(static_cast<float>(pw + 1)
+                                            * bin_size_w));
 
-          hstart = std::min(std::max(hstart + roi_start_h, 0), height);
-          hend = std::min(std::max(hend + roi_start_h, 0), height);
-          wstart = std::min(std::max(wstart + roi_start_w, 0), width);
-          wend = std::min(std::max(wend + roi_start_w, 0), width);
+            hstart = std::min(std::max(hstart + roi_start_h, 0), height);
+            hend = std::min(std::max(hend + roi_start_h, 0), height);
+            wstart = std::min(std::max(wstart + roi_start_w, 0), width);
+            wend = std::min(std::max(wend + roi_start_w, 0), width);
 
-          bool is_empty = (hend <= hstart) || (wend <= wstart);
+            bool is_empty = (hend <= hstart) || (wend <= wstart);
 
-          const int pool_index = ph * pooled_w + pw;
-          if (is_empty) {
-            output[pool_index] = 0;
-          }
+            const int pool_index = ph * pooled_w + pw;
+            if (is_empty) {
+              batched_output[pool_index] = 0;
+            }
 
-          for (int h = hstart; h < hend; ++h) {
-            for (int w = wstart; w < wend; ++w) {
-              const int index = h * width + w;
-              if (batch_data[index] > output[pool_index]) {
-                output[pool_index] = batch_data[index];
+            for (int h = hstart; h < hend; ++h) {
+              for (int w = wstart; w < wend; ++w) {
+                const int index = h * width + w;
+                if (batch_data[index] > batched_output[pool_index]) {
+                  batched_output[pool_index] = batch_data[index];
+                }
               }
             }
           }
         }
+        batch_data += height * width;
+        batched_output += pooled_h * pooled_w;
       }
-      batch_data += height * width;
-      output += pooled_h * pooled_w;
+      batched_rois += 5;
     }
-    rois += 5;
   }
   return 0;
 }

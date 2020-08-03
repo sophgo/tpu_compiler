@@ -1066,7 +1066,7 @@ class MLIRImporter(object):
             'axis': self.module.integerAttr(self.i32Type, kargs['axis'])
         }
         return self.buildOp(TPU_OpType.Softmax.value, inputOperands, [
-            tensor_output_type], name=softmax_name, **softmax_param)
+            tensor_output_type], name=softmax_name, quant=self.quant_param, **softmax_param)
 
     def add_swap_channel_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = self.module.make_ranked_tensor_type(
