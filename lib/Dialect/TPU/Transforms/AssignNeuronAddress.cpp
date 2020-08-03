@@ -318,10 +318,10 @@ public:
       }
     });
 
+    int64_t sharedGmemOffset = 0;
     int64_t sharedGmemSize = 0;
     int64_t privateGmemSize = 0;
     std::map<Operation *, int64_t> gaddrMap;
-    std::set<Operation *> gmemReusedSet;
     std::vector<Operation *> opsOfMainFunc;
     auto subFunctions = SubFunction::divideOpsToSubFunc(&fn);
     for (auto subFn : subFunctions) {
@@ -336,11 +336,13 @@ public:
             }
           }
         }
-        GmemAllocator allocator(gaddrMap, gmemReusedSet, clNeuronAlignment);
-        auto gmemUsed = allocator.assignGaddr(opsOfSubFunc, liveRange, clNeuronReuse, sharedGmemSize);
-        sharedGmemSize += gmemUsed;
-        if (sharedGmemSize < gmemUsed) {
-          sharedGmemSize = gmemUsed;
+        GmemAllocator allocator(gaddrMap, clNeuronAlignment);
+        auto gmemUsed = allocator.assignGaddr(opsOfSubFunc, liveRange, clNeuronReuse, sharedGmemOffset);
+        if (!clNeuronReuse) {
+          sharedGmemOffset += gmemUsed;
+        }
+        if (sharedGmemSize < sharedGmemOffset + gmemUsed) {
+          sharedGmemSize = sharedGmemOffset + gmemUsed;
         }
       } else {
         for (auto op : subFn->ops) {
@@ -351,10 +353,14 @@ public:
       }
     }
     int64_t baseGaddr = (((uint64_t)2) << 40);
-    GmemAllocator allocator(gaddrMap, gmemReusedSet, clNeuronAlignment);
+    GmemAllocator allocator(gaddrMap, clNeuronAlignment);
     privateGmemSize = allocator.assignGaddr(opsOfMainFunc, liveRange, clNeuronReuse, baseGaddr);
+
     fn.setAttr("private_gmem", Builder(context).getI64IntegerAttr(privateGmemSize));
     fn.setAttr("shared_gmem", Builder(context).getI64IntegerAttr(sharedGmemSize));
+
+    std::set<Operation *> gmemReusedSet;
+    GmemAllocator::markGmemReusedOp(ops, gaddrMap, gmemReusedSet, clNeuronAlignment);
 
     fn.walk([&](Operation *op) {
       if (gaddrMap.find(op) != gaddrMap.end()) {

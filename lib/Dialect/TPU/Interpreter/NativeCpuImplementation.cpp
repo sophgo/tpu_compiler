@@ -1792,6 +1792,7 @@ int my_roipooling(float *data, float *rois, float *output, int pooled_h, int poo
     }
     rois += 5;
   }
+  return 0;
 }
 
 inline int count(std::vector<int64_t> &shape, int start_axis, int end_axis) {

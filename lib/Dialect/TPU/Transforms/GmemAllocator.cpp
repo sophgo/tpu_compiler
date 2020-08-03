@@ -9,12 +9,34 @@ namespace mlir {
 
 #define DEBUG_TYPE "gmem-allocator"
 
+static uint32_t getTensorGmemSize(Operation *op, uint32_t alignment) {
+  uint32_t dsize = 1;
+  auto type = op->getResult(0)->getType().template cast<TensorType>();
+  std::vector<int64_t> shape = type.getShape();
+  auto count =
+      std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
+  auto elementType = type.getElementType();
+  if (elementType.isF32()) {
+    dsize = sizeof(float);
+  } else if (elementType.isInteger(8)) {
+    dsize = sizeof(int8_t);
+  } else if (elementType.isBF16()) {
+    dsize = sizeof(uint16_t);
+  } else {
+    llvm_unreachable("unsupported data type");
+  }
+  uint32_t size = (uint32_t)count * dsize;
+  // pad to alignment
+  if (size % alignment) {
+    size = size + alignment - (size % alignment);
+  }
+  return size;
+}
+
 GmemAllocator::GmemAllocator(
     std::map<Operation *, int64_t> &gaddrMap,
-    std::set<Operation *> &gmemReusedSet,
     uint32_t alignment)
     : gaddrMap(gaddrMap),
-      gmemReusedSet(gmemReusedSet),
       alignment(alignment) {
   GmemBlock block;
   block.start = 0;
@@ -63,14 +85,12 @@ int64_t GmemAllocator::assignGaddr(std::vector<Operation *> &ops,
 
   LLVM_DEBUG(
     for (auto op : ops) {
-      auto reused = (gmemReusedSet.find(op) != gmemReusedSet.end());
       llvm::errs() << "op:" << op->getName()
                   << ", name:" << getOpName(op)
                   << ", addr:" << gaddrMap[op]
                   << ", baseGaddr:" << baseGaddr
-                  << ", size:" << getTensorGmemSize(op)
-                  << ", end:" << gaddrMap[op] + getTensorGmemSize(op)
-                  << ", reused:" << reused
+                  << ", size:" << getTensorGmemSize(op, alignment)
+                  << ", end:" << gaddrMap[op] + getTensorGmemSize(op, alignment)
                   << ", range:" << liveRange[op][0]
                   << " ~ " << liveRange[op][1]
                   << "\n";
@@ -96,30 +116,6 @@ void GmemAllocator::reuseGmemBlock(std::list<GmemBlock> &snapshot, Operation *op
   mergeFreeGmemBlocks(snapshot);
 }
 
-uint32_t GmemAllocator::getTensorGmemSize(Operation *op) {
-  uint32_t dsize = 1;
-  auto type = op->getResult(0)->getType().template cast<TensorType>();
-  std::vector<int64_t> shape = type.getShape();
-  auto count =
-      std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
-  auto elementType = type.getElementType();
-  if (elementType.isF32()) {
-    dsize = sizeof(float);
-  } else if (elementType.isInteger(8)) {
-    dsize = sizeof(int8_t);
-  } else if (elementType.isBF16()) {
-    dsize = sizeof(uint16_t);
-  } else {
-    llvm_unreachable("unsupported data type");
-  }
-  uint32_t size = (uint32_t)count * dsize;
-  // pad to alignment
-  if (size % alignment) {
-    size = size + alignment - (size % alignment);
-  }
-  return size;
-}
-
 void GmemAllocator::allocGmemBlock(std::list<GmemBlock> &snapshot, Operation *op) {
   auto last = --snapshot.end();
   auto selected = last;
@@ -135,7 +131,7 @@ void GmemAllocator::allocGmemBlock(std::list<GmemBlock> &snapshot, Operation *op
   }
 
   gaddrMap[op] = -1;
-  auto gsize = getTensorGmemSize(op);
+  auto gsize = getTensorGmemSize(op, alignment);
 
   if (selected->size > gsize) {
     // Occupy this free block firstly.
@@ -209,27 +205,13 @@ void GmemAllocator::backPropagateToAssignGaddr() {
 int64_t GmemAllocator::updateGmemUsedStatistic(std::vector<Operation *> &ops) {
   int64_t totalNeuronSize = 0;
   int64_t totalGmemUsed = 0;
-  std::vector<Operation *> tmp;
   for (int i = ops.size() - 1; i >= 0; i--) {
     auto addr_i = gaddrMap[ops[i]];
-    auto sz_i = getTensorGmemSize(ops[i]);
-    for (int j = 0; j < (int)tmp.size(); j++) {
-      auto addr_j = gaddrMap[tmp[j]];
-      auto sz_j = getTensorGmemSize(tmp[j]);
-      auto start = std::min(addr_i, addr_j);
-      auto end = std::max(addr_i + sz_i, addr_j + sz_j);
-      // memory overlap
-      if (end - start < sz_i + sz_j) {
-        gmemReusedSet.insert(ops[i]);
-      }
-    }
-
+    auto sz_i = getTensorGmemSize(ops[i], alignment);
     if (totalGmemUsed < addr_i + sz_i) {
       totalGmemUsed = addr_i + sz_i;
     }
     totalNeuronSize += sz_i;
-
-    tmp.push_back(ops[i]);
   }
 
   int32_t reuseRate = 0;
@@ -240,6 +222,30 @@ int64_t GmemAllocator::updateGmemUsedStatistic(std::vector<Operation *> &ops) {
   llvm::errs() << "Gmem Used: " << totalGmemUsed << "/" << totalNeuronSize
                << ", gmem reused rate:" << reuseRate << "%\n";
   return totalGmemUsed;
+}
+
+void GmemAllocator::markGmemReusedOp(
+    std::vector<Operation *> &ops,
+    std::map<Operation *, int64_t> &gaddrMap,
+    std::set<Operation *> &gmemReusedSet,
+    uint32_t alignment) {
+
+  std::vector<Operation *> tmp;
+  for (int i = ops.size() - 1; i >= 0; i--) {
+    auto addr_i = gaddrMap[ops[i]];
+    auto sz_i = getTensorGmemSize(ops[i], alignment);
+    for (int j = 0; j < (int)tmp.size(); j++) {
+      auto addr_j = gaddrMap[tmp[j]];
+      auto sz_j = getTensorGmemSize(tmp[j], alignment);
+      auto start = std::min(addr_i, addr_j);
+      auto end = std::max(addr_i + sz_i, addr_j + sz_j);
+      // memory overlap
+      if (end - start < sz_i + sz_j) {
+        gmemReusedSet.insert(ops[i]);
+      }
+    }
+    tmp.push_back(ops[i]);
+  }
 }
 
 }
