@@ -43,7 +43,7 @@ if [ $DO_FUSE_PREPROCESS -eq 1 ]; then
       --canonicalize \
       ${MLIR_OPT_FE_POST} \
       --print-tpu-op-info \
-      --tpu-op-info-filename ${NET}_op_info.csv \
+      --tpu-op-info-filename ${NET}_op_info_fuesd_preprocess.csv \
       ${NET}_fused_preprocess.mlir \
       -o ${NET}_opt_fused_preprocess.mlir
 
@@ -56,7 +56,7 @@ if [ $DO_FUSE_PREPROCESS -eq 1 ]; then
     cvi_npz_tool.py compare \
       ${NET}_tensor_all_fp32.npz \
       ${NET}_blobs.npz \
-      --op_info ${NET}_op_info.csv \
+      --op_info ${NET}_op_info_fuesd_preprocess.csv  \
       --excepts="$EXCEPTS,input" \
       --tolerance=0.999,0.999,0.998 -vv
 
@@ -71,6 +71,7 @@ if [ $DO_FUSE_PREPROCESS -eq 1 ]; then
       --assign-chip-name \
       --chipname ${SET_CHIP_NAME} \
       --tpu-quant \
+      --convert-quant-op \
       --print-tpu-op-info \
       --tpu-op-info-filename ${NET}_op_info_int8_multiplier_fused_preprocess.csv \
       ${NET}_cali_fused_preprocess.mlir \
@@ -91,6 +92,55 @@ if [ $DO_FUSE_PREPROCESS -eq 1 ]; then
         --tolerance=$TOLERANCE_INT8_MULTIPLER_FUSE_PREPROCESS \
         -vv \
         --stats_int8_tensor
+
+    # cvimodel
+    mlir-opt \
+      ${NET}_quant_int8_multiplier_fused_preprocess.mlir \
+      --tpu-lower --reorder-op | \
+    mlir-opt \
+        --tg-fuse-leakyrelu \
+        --conv-ic-alignment | \
+    mlir-opt \
+        --group-ops | \
+    mlir-opt \
+        --dce \
+        --deep-fusion-tg2tl-la \
+        --deep-fusion-tl-la2lw | \
+    mlir-opt \
+        --compress-weight | \
+    mlir-opt \
+        --assign-weight-address \
+        --tpu-weight-address-align=16 \
+        --tpu-weight-map-filename=weight_map_int8_lg_fused_preprocess.csv \
+        --tpu-weight-bin-filename=weight.bin | \
+    mlir-opt \
+        --tpu-generate-compressed-weight \
+        --assign-neuron-address \
+        --tpu-neuron-address-align=16 \
+        --tpu-neuron-map-filename=neuron_map_lg_fused_preprocess.csv \
+        -o int8_layergroup_addr.mlir
+    mlir-opt \
+        --divide-ops-to-func \
+        int8_layergroup_addr.mlir \
+        -o int8_layergroup_func.mlir
+
+    mlir-translate \
+        --mlir-to-cvimodel \
+        --weight-file weight.bin \
+        int8_layergroup_func.mlir \
+        -o ${NET}_fused_preprocess.cvimodel
+
+    model_runner \
+        --dump-all-tensors \
+        --input ${NET}_only_resize_in_fp32.npz \
+        --model ${NET}_fused_preprocess.cvimodel \
+        --batch-num $BATCH_SIZE \
+        --output ${NET}_cmdbuf_out_all_int8_multiplier_fused_preprocess.npz
+
+    cvi_npz_tool.py compare \
+        ${NET}_cmdbuf_out_all_int8_multiplier_fused_preprocess.npz \
+        ${NET}_tensor_all_int8_multiplier_fused_preprocess.npz \
+        --op_info ${NET}_op_info_int8_multiplier_fused_preprocess.csv
 
 fi
 

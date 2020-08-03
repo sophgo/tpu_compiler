@@ -217,6 +217,7 @@ def gen_bf16_mlir(mlir_src, mlir_target, bf16_layer_table, op_info_csv):
     checkReturnValue(ret, "mlir-opt, --quant-int8-mix-bf16-layers-from-file")
     if ret.returncode != 0:
         return ret.returncode
+    return 0
 
 def run_cvimodel(input_file, cvi_model, output_tensor, all_tensors=True):
 
