@@ -311,7 +311,7 @@ class OnnxConverter(BaseConverter):
 
                 # add preprocess
                 input_no_preprocess_op = self.CVI.add_input_op(
-                    "{}_no_preprocess".format(input.name), idx)
+                    input.name, idx)
                 color_order = np.array([0 ,1, 2])
                 transpose_order = np.array([0, 1, 2, 3])
                 crop_shape = np.array(
@@ -341,7 +341,7 @@ class OnnxConverter(BaseConverter):
 
                 output_shape = input_shape
                 input_op = self.CVI.add_preprocess_op(
-                    input.name, [input_no_preprocess_op], output_shape, **preprocess_attr)
+                    "{}_preprocess".format(input.name), [input_no_preprocess_op], output_shape, **preprocess_attr)
             else:
                 input_op = self.CVI.add_input_op(input.name, idx)
 
