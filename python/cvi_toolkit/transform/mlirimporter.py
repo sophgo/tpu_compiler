@@ -583,6 +583,9 @@ class MLIRImporter(object):
         }
 
         gru_name = self.module.stringAttr(op_name)
+        none = self.add_none_op()
+        for i in range(4):#add 4 redundant input
+            inputOperands.append(none)
 
         return self.buildOp(TPU_OpType.GRU.value, inputOperands, [
             tensor_output_type], name=gru_name, quant=self.quant_param, **gru_param)

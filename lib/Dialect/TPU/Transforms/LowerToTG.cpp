@@ -1506,12 +1506,49 @@ Value* tpu::ReduceMaxOp::convertToTG() {
 
   if (getOpQuant() == "INT8") {
     assert(getOpQuantParamType() == "NONE");
-    auto newOp = OpBuilder(op).create<tpu::TG_INT8_ReduceMaxOp>(op->getLoc(),
+
+  auto newOp = OpBuilder(op).create<tpu::TG_INT8_ReduceMaxOp>(op->getLoc(),
         getResult()->getType(), ArrayRef<Value *>{operands},
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
   } else if (getOpQuant() == "BF16") {
     auto newOp = OpBuilder(op).create<tpu::TG_BF16_ReduceMaxOp>(op->getLoc(),
+        getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  }
+  llvm_unreachable("unsupported type");
+}
+
+Value* tpu::GruOp::convertToTG() {
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  auto builder = Builder(op->getContext());
+  auto castOp = cast<tpu::GruOp>(op);
+  //  TensorFile *wTF = getWeightTensorFile(op);
+
+  std::vector<Value *> operands;
+  const int nInputs =  !isTensorNone(castOp.bias()) ? 9 : 8;
+  //input + weight + recurrence + bias? + initial_h
+  for (auto i = 0; i < nInputs; ++i) {
+    operands.push_back(op->getOperand(i));
+  }
+
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder.getNamedAttr("linear_before_reset", linear_before_resetAttr()));
+  attrs.push_back(builder.getNamedAttr("bidirectional", bidirectionalAttr()));
+  attrs.push_back(builder.getNamedAttr("name", nameAttr()));
+  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
+
+  if (getOpQuant() == "INT8") {
+    assert(getOpQuantParamType() == "NONE");
+    auto newOp = OpBuilder(op).create<tpu::TG_INT8_GruOp>(op->getLoc(),
+        getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  } else if (getOpQuant() == "BF16") {
+    auto newOp = OpBuilder(op).create<tpu::TG_BF16_GruOp>(op->getLoc(),
         getResult()->getType(), ArrayRef<Value *>{operands},
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
@@ -1988,7 +2025,7 @@ struct LowerWeightConv2DOpPattern : public RewritePattern {
         memcpy(bias_uint32.data(), bias_bf16.data(), sz * sizeof(uint32_t));
 
         // save it
-        // after expand to FB32 and transpose, this is not FB32 anymore
+        // after expand to FP32 and transpose, this is not FP32 anymore
         // it is 2 stripes of UINT16(BF16)
         // we save it as UINT32, to carry the eltment bitwidth, so we don`t need
         // to change the shape
@@ -2104,7 +2141,7 @@ struct LowerWeightFullyConnectedOpPattern : public RewritePattern {
         memcpy(bias_uint32.data(), bias_bf16.data(), sz * sizeof(uint32_t));
 
         // save it
-        // after expand to FB32 and transpose, this is not FB32 anymore
+        // after expand to FP32 and transpose, this is not FP32 anymore
         // it is 2 stripes of UINT16(BF16)
         // we save it as UINT32, to carry the eltment bitwidth, so we don`t need
         // to change the shape
@@ -2115,6 +2152,200 @@ struct LowerWeightFullyConnectedOpPattern : public RewritePattern {
       }
     }
 
+    return matchSuccess();
+  }
+};
+
+struct LowerWeightGruOpPattern : public RewritePattern {
+  LowerWeightGruOpPattern(MLIRContext *context)
+      : RewritePattern("tpu.gru", 1, context) {}
+
+  PatternMatchResult matchAndRewrite(Operation *op,
+      PatternRewriter &rewriter) const override {
+    auto gruOp = cast<tpu::GruOp>(op);
+    auto weightOp = cast<tpu::LoadWeightOp>(gruOp.weight()->getDefiningOp());
+    auto recurrenceOp = cast<tpu::LoadWeightOp>(gruOp.recurrence()->getDefiningOp());
+    auto initial_hOp = cast<tpu::LoadWeightOp>(gruOp.initial_h()->getDefiningOp());
+
+    if (weightOp.lowered()) {
+      // lowered already
+      return matchFailure();
+    }
+    LLVM_DEBUG(llvm::errs() << "Lower Weight for GruOp: "
+                            << getOpName(op) << "\n";);
+    TensorFile *wTF = getWeightTensorFile(op);
+
+     if (getOpQuant(op) == "BF16") {
+      // lower filter
+      {
+        assert(weightOp.storage() == "BF16");
+        std::vector<int64_t> shape;
+        int64_t size;
+        getTensorShapeAndSize(gruOp.weight(), shape, size);
+        auto filter = readAndDeleteWeightTensor<bfloat16>(gruOp.weight(), wTF);
+        std::vector<uint16_t> filter_bf16(filter->begin(), filter->end());
+        // transpose h,n
+        assert(shape.size() == 3);
+
+        // save it
+        StringRef storageType = "BF16";
+        addWeightTensorAndUpdateWeightOp<uint16_t>(gruOp.weight(),
+            "lowered", filter_bf16, shape, storageType, wTF);
+        weightOp.setAttr("lowered", rewriter.getBoolAttr(true));
+      }
+
+      // lower recurrence
+      {
+        assert(recurrenceOp.storage() == "BF16");
+        std::vector<int64_t> shape;
+        int64_t size;
+        getTensorShapeAndSize(gruOp.recurrence(), shape, size);
+        auto filter = readAndDeleteWeightTensor<bfloat16>(gruOp.recurrence(), wTF);
+        std::vector<uint16_t> filter_bf16(filter->begin(), filter->end());
+        // transpose h,n
+        assert(shape.size() == 3);
+
+        // save it
+        StringRef storageType = "BF16";
+        addWeightTensorAndUpdateWeightOp<uint16_t>(gruOp.recurrence(),
+            "lowered", filter_bf16, shape, storageType, wTF);
+        recurrenceOp.setAttr("lowered", rewriter.getBoolAttr(true));
+      }
+
+      // lower bias
+      if ( !isTensorNone(gruOp.bias()) ) {
+        auto biasOp = cast<tpu::LoadWeightOp>(gruOp.bias()->getDefiningOp());
+        assert(biasOp.storage() == "BF16");
+        // NOTE: for 1880v2, bias is fp32, rather than bf16
+        // however, for simplicity, in quantizeBf16, we quantize all tensor into bf16
+        // before lowering to hardware, we need to expand the bf16 to fp32 first
+        // then transpose into 2 stripes of uint16_t
+        std::vector<int64_t> shape;
+        int64_t size;
+        getTensorShapeAndSize(gruOp.bias(), shape, size);
+        auto bias = readAndDeleteWeightTensor<bfloat16>(gruOp.bias(), wTF);
+        std::vector<uint16_t> bias_bf16(bias->begin(), bias->end());
+        // rather than expand to fp32, then transpose, we simply add a new stripe
+        // of uint16_t with all 0x0000
+        size_t sz = bias_bf16.size();
+        for (size_t i = 0; i < sz; ++i) {
+          bias_bf16.push_back(0x0000);
+        }
+        // then copy into uint32_t
+        std::vector<uint32_t> bias_uint32(sz);
+        memcpy(bias_uint32.data(), bias_bf16.data(), sz * sizeof(uint32_t));
+
+        // save it
+        // after expand to FP32 and transpose, this is not FP32 anymore
+        // it is 2 stripes of UINT16(BF16)
+        // we save it as UINT32, to carry the eltment bitwidth, so we don`t need
+        // to change the shape
+        StringRef storageType = "UINT32";
+        addWeightTensorAndUpdateWeightOp<uint32_t>(gruOp.bias(),
+            "lowered", bias_uint32, shape, storageType, wTF);
+        biasOp.setAttr("lowered", rewriter.getBoolAttr(true));
+      }
+
+      // lower initial_h
+      {
+        assert(initial_hOp.storage() == "BF16");
+        std::vector<int64_t> shape;
+        int64_t size;
+        getTensorShapeAndSize(gruOp.initial_h(), shape, size);
+        auto filter = readAndDeleteWeightTensor<bfloat16>(gruOp.initial_h(), wTF);
+        std::vector<uint16_t> filter_bf16(filter->begin(), filter->end());
+        // transpose h,n
+        assert(shape.size() == 3);
+
+        // save it
+        StringRef storageType = "BF16";
+        addWeightTensorAndUpdateWeightOp<uint16_t>(gruOp.initial_h(),
+            "lowered", filter_bf16, shape, storageType, wTF);
+        initial_hOp.setAttr("lowered", rewriter.getBoolAttr(true));
+      }
+
+       // lower sigmoid table
+      if ( !isTensorNone(gruOp.sigmoid_table()) )
+      {
+        auto tableOp = cast<tpu::LoadWeightOp>(gruOp.getOperand(5)->getDefiningOp());
+        auto table_mantissaOp = cast<tpu::LoadWeightOp>(gruOp.getOperand(6)->getDefiningOp());
+
+
+        if (tableOp.lowered()) {
+          // lowered already
+          return matchFailure();
+        }
+
+        // lower filter
+        assert(tableOp.storage() == "BF16");
+        assert(table_mantissaOp.storage() == "BF16");
+        std::vector<int64_t> shape;
+        int64_t size;
+        getTensorShapeAndSize(gruOp.sigmoid_table(), shape, size);
+        auto table = readAndDeleteWeightTensor<float>(tableOp, wTF);
+        auto table_mantissa = readAndDeleteWeightTensor<float>(table_mantissaOp,
+                                                              wTF);
+        std::vector<uint16_t> table_uint16(table->begin(), table->end());
+        std::vector<uint16_t> table_mantissa_uint16(table_mantissa->begin(),
+                                                    table_mantissa->end());
+        // 1880 support 256 lookup table
+        // because of 1880 hardware search table only on each local memory
+        // we dupicate table to limit number <32>
+        assert(shape[2] * shape[3] == 256);
+        assert(shape[1] == 32);
+
+        // save it
+        addWeightTensorAndUpdateWeightOp<uint16_t>(
+            tableOp, "lowered", table_uint16, shape, "BF16", wTF);
+        tableOp.setAttr("lowered", rewriter.getBoolAttr(true));
+        addWeightTensorAndUpdateWeightOp<uint16_t>(
+            table_mantissaOp, "lowered", table_mantissa_uint16,
+            shape, "BF16", wTF);
+        table_mantissaOp.setAttr("lowered", rewriter.getBoolAttr(true));
+      }
+
+      // lower tanh  table-
+      if ( !isTensorNone(gruOp.tanh_table()) )
+      {
+        auto tableOp = cast<tpu::LoadWeightOp>(gruOp.getOperand(7)->getDefiningOp());
+        auto table_mantissaOp = cast<tpu::LoadWeightOp>(gruOp.getOperand(8)->getDefiningOp());
+
+
+        if (tableOp.lowered()) {
+          // lowered already
+          return matchFailure();
+        }
+
+        // lower filter
+        assert(tableOp.storage() == "BF16");
+        assert(table_mantissaOp.storage() == "BF16");
+        std::vector<int64_t> shape;
+        int64_t size;
+        getTensorShapeAndSize(gruOp.tanh_table(), shape, size);
+        auto table = readAndDeleteWeightTensor<float>(tableOp, wTF);
+        auto table_mantissa = readAndDeleteWeightTensor<float>(table_mantissaOp,
+                                                              wTF);
+        std::vector<uint16_t> table_uint16(table->begin(), table->end());
+        std::vector<uint16_t> table_mantissa_uint16(table_mantissa->begin(),
+                                                    table_mantissa->end());
+        // 1880 support 256 lookup table
+        // because of 1880 hardware search table only on each local memory
+        // we dupicate table to limit number <32>
+        assert(shape[2] * shape[3] == 256);
+        assert(shape[1] == 32);
+
+        // save it
+        addWeightTensorAndUpdateWeightOp<uint16_t>(
+            tableOp, "lowered", table_uint16, shape, "BF16", wTF);
+        tableOp.setAttr("lowered", rewriter.getBoolAttr(true));
+        addWeightTensorAndUpdateWeightOp<uint16_t>(
+            table_mantissaOp, "lowered", table_mantissa_uint16,
+            shape, "BF16", wTF);
+        table_mantissaOp.setAttr("lowered", rewriter.getBoolAttr(true));
+      }
+    } else {
+      assert(0 && "Not supported type isn't bf16");
+    }
     return matchSuccess();
   }
 };
@@ -2475,7 +2706,8 @@ public:
         LowerWeightLutOpPattern<tpu::TanHOp>,
         LowerConstEltwiseOpPattern<tpu::EltwiseMulOp>,
         LowerWeightFullyConnectedOpPattern,
-        LowerWeightDetectionOutputOpPattern
+        LowerWeightDetectionOutputOpPattern,
+        LowerWeightGruOpPattern
         >(context);
     applyPatternsGreedily(fn, patterns_lower);
 
@@ -2533,7 +2765,8 @@ public:
         DefaultToTGPattern<tpu::TanHOp>,
         DefaultToTGPattern<tpu::UpsampleOp>,
         DefaultToTGPattern<tpu::ReduceMeanOp>,
-        DefaultToTGPattern<tpu::ReduceMaxOp>
+        DefaultToTGPattern<tpu::ReduceMaxOp>,
+        DefaultToTGPattern<tpu::GruOp>
         >(context);
     applyPatternsGreedily(fn, patterns);
 

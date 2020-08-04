@@ -387,11 +387,9 @@ class TPU_TG_InterpOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
        DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
   let summary = "TG " # opQuant # " Interp operator.";
-
   let description = [{
     Inputs:
       `input`           : required, the input activation memref.
-
     Attributes:
       `rshift_pos`      : optional, rshift for positive, an int8 value.
       `m_i8_pos`        : optional, multiplier for positive, an int8 value.
@@ -444,9 +442,72 @@ class TPU_TG_InterpOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 
   let results = (outs AnyTensor:$output);
 }
+
 def TPU_TG_INT8_InterpOp : TPU_TG_InterpOp<"tg_int8_interp", "Int8">;
 def TPU_TG_BF16_InterpOp : TPU_TG_InterpOp<"tg_bf16_interp", "Bf16">;
 
+class TPU_TG_GruOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
+  let summary = "TG " # opQuant # " GRU operator.";
+
+  let description = [{
+    Inputs:
+      `input`           : required, the input activation memref.
+      `weight`          : required, parameter weight memref for update, reset, and hidden gates.
+      `recurrence`       : required, recurrence weight memref for update, reset, and hidden gates.
+      `bias`            : required, bias vectors memref for update, reset, and hidden gates.
+      `initial_h`       : required, initial value of the hidden.
+
+
+    Attributes:
+      `do_relu`         : required, whether to do relu on result.
+      `rshift`          : optional, rshift for positive, an int8 value.
+      `region`          : required, the memory region to reside in, could be
+                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
+                          (backend does not support `INPUT`, `OUTPUT` for now)
+      `gaddr`           : optional, address in global memory, normally the
+                          offset within the memory region.
+      `buffer_reused`   : optional, whether buffer is reused.
+      `name`            : required, name for comparing, or debug.
+      `layer_id`        : optional, id for profiling.
+      `chipname`        : optional, chipname.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface`    : support common TPU TG Op interface.
+      `TpuTGOpCodegenInterface` : support generate TPU instuctions.
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    AnyTensor:$weight,
+    AnyTensor:$recurrence,
+    TPU_TensorOfOrNone<[I32, F32, BF16, I16, I8]>:$bias,
+    AnyTensor:$initial_h,
+    AnyTensor:$sigmoid_table,
+    AnyTensor:$sigmoid_table_mantissa,
+    AnyTensor:$tanh_table,
+    AnyTensor:$tanh_table_mantissa,
+    DefaultValuedAttr<BoolAttr, "true">:$linear_before_reset,
+    DefaultValuedAttr<BoolAttr, "false">:$bidirectional,
+    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
+    OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    OptionalAttr<BoolAttr>:$buffer_reused,
+    StrAttr:$name,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
+def TPU_TG_INT8_GruOp : TPU_TG_GruOp<"tg_int8_gru", "Int8">;
+def TPU_TG_BF16_GruOp : TPU_TG_GruOp<"tg_bf16_gru", "Bf16">;
 
 class TPU_TG_LeakyReluOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,

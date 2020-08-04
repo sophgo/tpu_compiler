@@ -496,6 +496,8 @@ void ConvertTgOpToMemRefPass::runOnFunction() {
       AddTypeConvertedForNotLowedOpPattern<tpu::TG_BF16_SwapChannelOp>,
       AddTypeConvertedForNotLowedOpPattern<tpu::TG_INT8_UpsampleOp>,
       AddTypeConvertedForNotLowedOpPattern<tpu::TG_BF16_UpsampleOp>,
+      AddTypeConvertedForNotLowedOpPattern<tpu::TG_INT8_GruOp>,
+      AddTypeConvertedForNotLowedOpPattern<tpu::TG_BF16_GruOp>,
       AddTypeConvertedForNotLowedOpPattern<tpu::TL_LA_Conv2DOp>,
       AddTypeConvertedForNotLowedOpPattern<tpu::TL_LW_Conv2DOp>,
       AddTypeConvertedForNotLowedOpPattern<tpu::TL_EltwiseAddOp>,
@@ -577,6 +579,8 @@ void ConvertTgOpToMemRefPass::runOnFunction() {
   target.addLegalOp<tpu::TL_MemRef_LutOp>();
   target.addLegalOp<tpu::TL_MemRef_PoolAvg2DOp>();
   target.addLegalOp<tpu::TL_MemRef_BroadcastMulOp>();
+  target.addLegalOp<tpu::TG_MemRef_INT8_GruOp>();
+  target.addLegalOp<tpu::TG_MemRef_BF16_GruOp>();
 
   target.addLegalOp<tpu::TG_MemRef_CastOp>();
   target.addLegalOp<tpu::TG_MemRef_LoadWeightOp>();
@@ -654,6 +658,8 @@ void ConvertTgOpToMemRefPass::runOnFunction() {
       convertTgOpToMemRefPattern<tpu::TL_LutOp, tpu::TL_MemRef_LutOp>,
       convertTgOpToMemRefPattern<tpu::TL_PoolAvg2DOp, tpu::TL_MemRef_PoolAvg2DOp>,
       convertTgOpToMemRefPattern<tpu::TL_BroadcastMulOp, tpu::TL_MemRef_BroadcastMulOp>,
+      convertTgOpToMemRefPattern<tpu::TG_INT8_GruOp, tpu::TG_MemRef_INT8_GruOp>,
+      convertTgOpToMemRefPattern<tpu::TG_BF16_GruOp, tpu::TG_MemRef_BF16_GruOp>,
       convertMemRefToTensorOpPattern,
       convertTensorStoreOpPattern
       >(context);

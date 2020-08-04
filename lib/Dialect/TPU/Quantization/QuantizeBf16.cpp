@@ -168,6 +168,8 @@ LogicalResult quantizeBF16LutOps(Operation *op) {
   double (*activate_func)(double);
   if (OpTy::getOperationName() == "tpu.sigmoid") {
     activate_func = sigmoid;
+  } else if (OpTy::getOperationName() == "tpu.tanh") {
+    activate_func = tanh;
   }
   else if (OpTy::getOperationName() == "tpu.mish") {
     activate_func = my_mish_caffe_wrapper;
@@ -268,6 +270,7 @@ LogicalResult quantizeBf16GruOps(Operation *op) {
 
   auto gruOp = cast<tpu::GruOp>(op);
   TensorFile *wTF = getWeightTensorFile(op);
+  Value *wfV = getWeightFileValue(op);
 
   // get weight tensor
   auto weight = readAndDeleteWeightTensor<float>(gruOp.weight(), wTF);
@@ -340,6 +343,111 @@ LogicalResult quantizeBf16GruOps(Operation *op) {
     addWeightTensorAndUpdateWeightOp<bfloat16>(gruOp.getOperand(4),
         "quant", *new_initial_h, initial_hShape, "BF16", wTF);
   }
+
+  LLVM_DEBUG(llvm::dbgs() << "GenSigmoidLut: " << "]\n";);
+  // Add lut table information
+
+  int npu_num = 32; //Use one lane only
+
+  //<! 1880v2 hw bf16 config
+  int table_h = 32;
+  int table_w = 8;
+  std::vector<float> y0_sigmoid_table;
+  std::vector<float> y0_sigmoid_slope_table; // use in bf16
+  int table_hw = table_h * table_w;
+  int tbl_shape = npu_num * table_hw;
+  y0_sigmoid_table.resize(tbl_shape);
+  y0_sigmoid_slope_table.resize(tbl_shape);
+  std::vector<float> y0_fp32_table(table_hw);
+  std::vector<float> y0_fp32_slope_table(table_hw);
+  std::vector<uint16_t> y0_bf16_table(table_hw);
+  std::vector<uint16_t> y0_bf16_slope_table(table_hw);
+  StringRef storageType = "BF16";
+
+  // use function pointer
+  LLVM_DEBUG(llvm::dbgs() << "use function pointer: " << "]\n";);
+  double (*activate_func)(double);
+  activate_func = sigmoid;
+
+  gen_bf16_table(BF16_TABLE_START, BF16_TABLE_END, table_hw,
+                 y0_fp32_table.data(), activate_func);
+
+  gen_bf16_slope_table(BF16_TABLE_START, BF16_TABLE_END, table_hw,
+                       y0_fp32_table.data(), y0_fp32_slope_table.data(),
+                       activate_func);
+  // for(int i = 0; i < table_hw; i++) {
+  //   LLVM_DEBUG(llvm::dbgs() << "sigmoid data[" << i<< "]: " <<  y0_fp32_table[i]<< "]\n";);
+  //   LLVM_DEBUG(llvm::dbgs() << "sigmoid data[" << i<< "]: " <<  y0_fp32_slope_table[i]<< "]\n";);
+  // }
+
+  LLVM_DEBUG(llvm::dbgs() << "convert fp32 to bf16: " << "]\n";);
+  // convert fp32 to bf16
+  FloatToBFloat16(y0_fp32_table.data(),
+                  y0_bf16_table.data(), table_hw);
+  FloatToBFloat16(y0_fp32_slope_table.data(),
+                  y0_bf16_slope_table.data(), table_hw);
+
+  // copy bf16 data to float table
+  LLVM_DEBUG(llvm::dbgs() << "copy bf16 data to float table: " << "]\n";);
+  for (int i = 0; i < npu_num; ++i){
+    std::copy(y0_bf16_table.data(), y0_bf16_table.data() + table_hw,
+              y0_sigmoid_table.data() + i * table_hw);
+    std::copy(y0_bf16_slope_table.data(),
+              y0_bf16_slope_table.data() + table_hw,
+              y0_sigmoid_slope_table.data() + i * table_hw);
+  }
+
+  // update op
+  LLVM_DEBUG(llvm::dbgs() << "update op: " << "]\n";);
+  auto shape = std::vector<int64_t>{1, npu_num, table_h, table_w};
+  auto y0_sigmoid_table_op = addWeightTensorAndCreateWeightOp<float>(
+      op, "sigmoid_table", y0_sigmoid_table, shape, storageType, wTF, wfV);
+  auto mantissa_sigmoid_table_op = addWeightTensorAndCreateWeightOp<float>(
+      op, "sigmoid_table_mantissa", y0_sigmoid_slope_table, shape, storageType, wTF, wfV);
+  gruOp.setOperand(5, y0_sigmoid_table_op);
+  gruOp.setOperand(6, mantissa_sigmoid_table_op);
+
+  //Add lut table information - tanh
+  LLVM_DEBUG(llvm::dbgs() << "GenTanhLut: " << "]\n";);
+  activate_func = tanh;
+  std::vector<float> y0_tanh_table;
+  std::vector<float> y0_tanh_slope_table; // use in bf16
+  y0_tanh_table.resize(tbl_shape);
+  y0_tanh_slope_table.resize(tbl_shape);
+
+  gen_bf16_table(BF16_TABLE_START, BF16_TABLE_END, table_hw,
+                 y0_fp32_table.data(), activate_func);
+
+  gen_bf16_slope_table(BF16_TABLE_START, BF16_TABLE_END, table_hw,
+                       y0_fp32_table.data(), y0_fp32_slope_table.data(),
+                       activate_func);
+  //  for(int i = 0; i < table_hw; i++) {
+  //   LLVM_DEBUG(llvm::dbgs() << "tanh data[" << i<< "]: " <<  y0_fp32_table[i]<< "]\n";);
+  //   LLVM_DEBUG(llvm::dbgs() << "tanh data[" << i<< "]: " <<  y0_fp32_slope_table[i]<< "]\n";);
+  // }
+
+  // convert fp32 to bf16
+  FloatToBFloat16(y0_fp32_table.data(),
+                  y0_bf16_table.data(), table_hw);
+  FloatToBFloat16(y0_fp32_slope_table.data(),
+                  y0_bf16_slope_table.data(), table_hw);
+
+  // copy bf16 data to float table
+  for (int i = 0; i < npu_num; ++i){
+    std::copy(y0_bf16_table.data(), y0_bf16_table.data() + table_hw,
+              y0_tanh_table.data() + i * table_hw);
+    std::copy(y0_bf16_slope_table.data(),
+              y0_bf16_slope_table.data() + table_hw,
+              y0_tanh_slope_table.data() + i * table_hw);
+  }
+
+  // update op
+  auto y0_tanh_table_op = addWeightTensorAndCreateWeightOp<float>(
+      op, "tanh_table", y0_tanh_table, shape, storageType, wTF, wfV);
+  auto mantissa_tanh_table_op = addWeightTensorAndCreateWeightOp<float>(
+      op, "tanh_table_mantissa", y0_tanh_slope_table, shape, storageType, wTF, wfV);
+  gruOp.setOperand(7, y0_tanh_table_op);
+  gruOp.setOperand(8, mantissa_tanh_table_op);
 
   setOpResultType(op, StandardTypes::BF16);
 
@@ -477,11 +585,17 @@ LogicalResult tpu::SigmoidOp::quantizeBf16() {
   return quantizeBF16LutOps<tpu::SigmoidOp>(op);
 }
 
+LogicalResult tpu::TanHOp::quantizeBf16() {
+  LLVM_DEBUG(llvm::errs() << "quantizeBf16: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  return quantizeBF16LutOps<tpu::TanHOp>(op);
+}
+// DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::TanHOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::SliceOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::SqrtOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::SoftmaxOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::SwapChannelOp)
-DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::TanHOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::UpsampleOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::TileInterpOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::InterpOp)

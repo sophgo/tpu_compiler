@@ -729,11 +729,12 @@ def TPU_GruOp: TPU_Op<"gru",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
        DeclareOpInterfaceMethods<TpuOpInterpInterface>,
-       DeclareOpInterfaceMethods<TpuOpQuantInterface>]> {
+       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
+       DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
   let summary = "GRU operator";
 
   let description = [{
-    Performs scale on input.
+    Performs gru on input.
 
     Inputs:
       `input`           : required, the input activation tensor.
@@ -764,6 +765,10 @@ def TPU_GruOp: TPU_Op<"gru",
     AnyTensor:$recurrence,
     TPU_TensorOfOrNone<[F32, BF16, I16, I8]>:$bias,
     AnyTensor:$initial_h,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$sigmoid_table,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$sigmoid_table_mantissa,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$tanh_table,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$tanh_table_mantissa,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
     DefaultValuedAttr<BoolAttr, "true">:$linear_before_reset,

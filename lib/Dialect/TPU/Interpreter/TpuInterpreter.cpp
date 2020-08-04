@@ -1190,7 +1190,7 @@ LogicalResult tpu::GruOp::interpret(
 
   auto resultT = std::make_unique<std::vector<float> >(size);
 
-  assert(opdT.size() == 5);
+  assert(opdT.size() == 9);
   std::shared_ptr<std::vector<float> > input = opdT[0];
   std::shared_ptr<std::vector<float> > weight = opdT[1];
   std::shared_ptr<std::vector<float> > recurrence = opdT[2];
