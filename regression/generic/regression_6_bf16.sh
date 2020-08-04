@@ -41,17 +41,36 @@ if [ $DO_QUANT_BF16 -eq 1 ]; then
         ${NET}_quant_bf16.mlir \
         -o ${NET}_quant_bf16_tg.mlir
 
-    # assign weight address & neuron address
-    mlir-opt \
-        --assign-weight-address \
-        --tpu-weight-address-align=16 \
-        --tpu-weight-map-filename=${NET}_weight_map_bf16.csv \
-        --tpu-weight-bin-filename=weight_bf16.bin \
-        --assign-neuron-address \
-        --tpu-neuron-address-align=16 \
-        --tpu-neuron-map-filename=${NET}_neuron_map_bf16.csv \
-        ${NET}_quant_bf16_tg.mlir \
-        -o ${NET}_quant_bf16_addr.mlir
+    if [ $DO_LG_WITH_BF16 -eq 1 ]; then
+        mlir-opt \
+            --group-ops \
+            ${NET}_quant_bf16_tg.mlir \
+            -o ${NET}_quant_bf16_lg.mlir
+
+        # assign weight address & neuron address
+        mlir-opt \
+            --assign-weight-address \
+            --tpu-weight-address-align=16 \
+            --tpu-weight-map-filename=${NET}_weight_map_bf16.csv \
+            --tpu-weight-bin-filename=weight_bf16.bin \
+            --assign-neuron-address \
+            --tpu-neuron-address-align=16 \
+            --tpu-neuron-map-filename=${NET}_neuron_map_bf16.csv \
+            ${NET}_quant_bf16_lg.mlir \
+            -o ${NET}_quant_bf16_addr.mlir
+    else
+        # assign weight address & neuron address
+        mlir-opt \
+            --assign-weight-address \
+            --tpu-weight-address-align=16 \
+            --tpu-weight-map-filename=${NET}_weight_map_bf16.csv \
+            --tpu-weight-bin-filename=weight_bf16.bin \
+            --assign-neuron-address \
+            --tpu-neuron-address-align=16 \
+            --tpu-neuron-map-filename=${NET}_neuron_map_bf16.csv \
+            ${NET}_quant_bf16_tg.mlir \
+            -o ${NET}_quant_bf16_addr.mlir
+    fi
 
     # backend translate into cmdbuf
     mlir-opt \

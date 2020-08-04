@@ -366,44 +366,29 @@ bool Group::backward_slice(int out_tensor_id, std::list<int>& branches, bool max
   IR_TYPE layer_type = im_layer->type();
 
   bool is_dw, with_bias, do_relu;
-  int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh = 1, dw;
-  bool is_deconv = false;
-  if (layer_type == IR_CONVOLUTION || layer_type == IR_DECONVOLUTION) {
-    if (isa<tpu::TG_INT8_PC_Conv2DOp>(im_layer->op())) {
-      auto op = cast<tpu::TG_INT8_PC_Conv2DOp>(im_layer->op());
-      is_deconv = false;
-      parseConvParam(op.param(), is_deconv, op.input(), op.output(), op.filter(),
-                     n, ic, ih, iw, oc, oh, ow, g,
-                     kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, is_dw, with_bias, do_relu);
-     } else {
-      auto op = cast<tpu::TG_INT8_PC_DeConv2DOp>(im_layer->op());
-      is_deconv = true;
-      parseConvParam(op.param(), is_deconv, op.input(), op.output(), op.filter(),
-                     n, ic, ih, iw, oc, oh, ow, g,
-                     kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, is_dw, with_bias, do_relu);
+  int n, ic, ih, iw, oc, oh, ow, g, kh, kw;
+  int sh, sw, pt, pb, pl, pr, dh = 1, dw;
 
-     }
+  if (layer_type == IR_CONVOLUTION ||
+      layer_type == IR_DECONVOLUTION) {
+    bool do_ic_align = false;
+    bool fused_leaky = false;
+    getConvParam(im_layer->op(),
+                 n, ic, ih, iw, oc, oh, ow, g,
+                 kh, kw, sh, sw, pt, pb, pl, pr,
+                 dh, dw, is_dw, with_bias, do_relu,
+                 do_ic_align, fused_leaky);
+
     if (dh > 1) {
       kh = dh * (kh - 1) + 1;
     }
   } else if (layer_type == IR_POOLING) {
-    if (isa<tpu::TG_INT8_PoolAvg2DOp>(im_layer->op())) {
-      auto op = cast<tpu::TG_INT8_PoolAvg2DOp>(im_layer->op());
-      bool is_global, do_relu, count_include_pad;
-      int n, c, ih, iw, oh, ow, kw, sw, pb, pl, pr;
-      parsePoolParam(op.param(), op.input(), op.output(),
-                    n, c, ih, iw, oh, ow,
+    bool is_global = false;
+    bool count_include_pad;
+    getPoolingParam(im_layer->op(),
+                    n, ic, ih, iw, oh, ow,
                     kh, kw, sh, sw, pt, pb, pl, pr,
                     is_global, do_relu, count_include_pad);
-    } else if (isa<tpu::TG_INT8_PoolMax2DOp>(im_layer->op())) {
-      auto op = cast<tpu::TG_INT8_PoolMax2DOp>(im_layer->op());
-      bool is_global, do_relu, count_include_pad;
-      int n, c, ih, iw, oh, ow, kw, sw, pb, pl, pr;
-      parsePoolParam(op.param(), op.input(), op.output(),
-                    n, c, ih, iw, oh, ow,
-                    kh, kw, sh, sw, pt, pb, pl, pr,
-                    is_global, do_relu, count_include_pad);
-    }
   }
 
   Tensor* out_tensor = net_graph_->get_tensor_by_id(out_tensor_id);
@@ -420,13 +405,15 @@ bool Group::backward_slice(int out_tensor_id, std::list<int>& branches, bool max
   }
 
   int h_slice, h_idx;
-  const std::vector<int>& back_tensors = net_graph_->get_in_tensors_of_layer(id);
+  const std::vector<int>& back_tensors =
+        net_graph_->get_in_tensors_of_layer(id);
 
   for (uint32_t i = 0; i < back_tensors.size(); ++i) {
     Tensor* tensor = net_graph_->get_tensor_by_id(back_tensors[i]);
 
     if (tensor->type() == TENSOR_COEFF || tensor->type() == TENSOR_BIAS ||
-        tensor->type() == TENSOR_COEFF_LUT || tensor->type() == TENSOR_COEFF_WINOGRAD ||
+        tensor->type() == TENSOR_COEFF_LUT ||
+        tensor->type() == TENSOR_COEFF_WINOGRAD ||
         tensor->type() == TENSOR_DEPTHCONV_OPD1) {
       continue;
     }
@@ -472,8 +459,8 @@ bool Group::backward_slice(int out_tensor_id, std::list<int>& branches, bool max
       h_idx = (if_insert_h_t + sh - 1) / sh;
       h_slice = (if_insert_h_b + sh - 1) / sh - h_idx;
     } else if (layer_type == IR_UPSAMPLE) {
-      auto op = cast<tpu::TG_INT8_UpsampleOp>(im_layer->op());
-      int size = op.scale().getLimitedValue();
+      int size = 1;
+      getUpsampleParam(im_layer->op(), size);
 
       if (out_h_slice % size) {
         LLVM_DEBUG(llvm::errs() << "FAIL: fractional upsample input h slice" << "\n";);
@@ -486,8 +473,10 @@ bool Group::backward_slice(int out_tensor_id, std::list<int>& branches, bool max
       h_idx = out_h_idx;
       h_slice = out_h_slice;
       if (auto op = dyn_cast<tpu::TG_INT8_EltwiseAddOp>(im_layer->op())) {
-        if (op.do_early_stride() == true) {
-          int h_stride = op.early_stride_h().getLimitedValue();
+        bool do_early_stride = false;
+        int h_stride = 0, w_stride = 0;
+        getEltwiseAddParam(im_layer->op(), do_early_stride, h_stride, w_stride);
+        if (do_early_stride) {
           h_idx = out_h_idx * h_stride;
           h_slice = out_h_slice * h_stride;
         }
@@ -495,8 +484,14 @@ bool Group::backward_slice(int out_tensor_id, std::list<int>& branches, bool max
     } else if (layer_type == IR_PAD) {
       h_slice = out_h_slice;
       std::vector<int32_t> pads;
-      auto pad_op = cast<tpu::TG_INT8_PadOp>(im_layer->op());
-      arrayAttrToVector(pad_op.pads().getValue(), pads);
+      if (isa<tpu::TG_INT8_PadOp>(im_layer->op())) {
+        auto pad_op = cast<tpu::TG_INT8_PadOp>(im_layer->op());
+        arrayAttrToVector(pad_op.pads().getValue(), pads);
+      } else if (isa<tpu::TG_BF16_PadOp>(im_layer->op())) {
+        auto pad_op = cast<tpu::TG_BF16_PadOp>(im_layer->op());
+        arrayAttrToVector(pad_op.pads().getValue(), pads);
+      }
+
       h_idx = out_h_idx ? out_h_idx - pads[2] : 0;
       if (out_h_idx == 0) {
         if (out_h_slice == out_tensor->h())
@@ -507,8 +502,14 @@ bool Group::backward_slice(int out_tensor_id, std::list<int>& branches, bool max
         h_slice = out_h_slice;
     } else if (layer_type == IR_CROP) {
       std::vector<int32_t> crop_offsets;
-      auto crop_op = cast<tpu::TG_INT8_CropOp>(im_layer->op());
-      arrayAttrToVector(crop_op.crop_offset().getValue(), crop_offsets);
+      if (isa<tpu::TG_INT8_CropOp>(im_layer->op())) {
+        auto crop_op = cast<tpu::TG_INT8_CropOp>(im_layer->op());
+        arrayAttrToVector(crop_op.crop_offset().getValue(), crop_offsets);
+      } else if(isa<tpu::TG_BF16_CropOp>(im_layer->op())) {
+        auto crop_op = cast<tpu::TG_BF16_CropOp>(im_layer->op());
+        arrayAttrToVector(crop_op.crop_offset().getValue(), crop_offsets);
+      }
+
       h_idx = out_h_idx ? out_h_idx + crop_offsets[2] : 0;
       if (out_h_idx == 0) {
         h_slice = out_h_slice + crop_offsets[2];
