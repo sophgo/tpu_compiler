@@ -2103,8 +2103,12 @@ void MixNet::_add_tl_concat_op(MixOp * mix_op,
                            builder_.getI32IntegerAttr(axis)));
   // std::set quant value
   if (auto tmp = dyn_cast<tpu::TG_INT8_ConcatOp>(op)) {
-    attrs.push_back(builder_.getNamedAttr("r_i8", tmp.rshiftAttr()));
-    attrs.push_back(builder_.getNamedAttr("m_i8", tmp.m_i8_inputsAttr()));
+    if (tmp.rshift().hasValue()) {
+      attrs.push_back(builder_.getNamedAttr("r_i8", tmp.rshiftAttr()));
+    }
+    if (tmp.m_i8_inputs().hasValue()) {
+      attrs.push_back(builder_.getNamedAttr("m_i8", tmp.m_i8_inputsAttr()));
+    }
   }
 
   // setup operands
