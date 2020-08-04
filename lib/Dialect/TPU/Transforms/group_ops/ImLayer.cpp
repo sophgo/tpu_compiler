@@ -269,7 +269,7 @@ ImConv::ImConv(Operation* p) : ImLayer(IR_CONVOLUTION, p, true) {
     // bf16 with bias
     auto load_bias = cast<tpu::LoadWeightOp>(p->getOperand(2)->getDefiningOp());
     std::string bias_name = load_bias.name().str();
-    std::string bias_storage = "INT16";
+    std::string bias_storage = "UINT16";
     int bias_usize = 2;
 
     if (is_dw)

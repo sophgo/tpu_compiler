@@ -758,13 +758,17 @@ LogicalResult tpu::TL_LG_LoadCoeffOp::codegen(void *ctx) {
   if (out_type.getElementType().isBF16()) {
     from = CVI_FMT_BF16;
     to = CVI_FMT_BF16;
-  }
-  else if (out_type.getElementType().isInteger(8)) {
+  } else if (out_type.getElementType().isInteger(8)) {
     // int8
     from = CVI_FMT_I8;
     to = CVI_FMT_I8;
-  }
-  else {
+  } else if (out_type.getElementType().isInteger(16)) {
+    // int16
+    from = CVI_FMT_I8;
+    to = CVI_FMT_I8;
+    local_w *= 2;
+    global_w *= 2;
+  } else {
     llvm_unreachable("current `from/to` only support int8/bf16");
   }
 
