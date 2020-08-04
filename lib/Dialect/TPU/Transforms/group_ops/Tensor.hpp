@@ -73,7 +73,7 @@ class Tensor {
     h_loop_ = h_loop;
   }
 
-  int get_group_id() { return group; }
+  int get_group_id() const { return group; }
   int get_n_loop() { return n_loop_; }
   int get_h_loop() { return h_loop_; }
 

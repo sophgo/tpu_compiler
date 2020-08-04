@@ -59,7 +59,7 @@ class MixNet {
   void add_tl_layer(int group_idx, int layer_id,
                     net_timestep* time_step, int timestep_idx,
                     bool is_h_split, int n_loop, int h_loop);
-  void add_transport_op(const TENSOR_STEP& tensor,
+  void add_transport_op(int group_idx, const TENSOR_STEP& tensor,
                         net_timestep* time_step, int timestep_idx);
 
 
@@ -188,10 +188,10 @@ class MixNet {
                        int timestep_idx,
                        bool is_h_split);
 
-  void _add_load_op(int tensor_id,
+  void _add_load_op(int group_idx, int tensor_id,
                     net_timestep* time_step, int timestep_idx);
 
-  void _add_store_op(int tensor_id,
+  void _add_store_op(int group_idx, int tensor_id,
                      net_timestep* time_step, int timestep_idx);
 
   NetGraph* net_graph_;

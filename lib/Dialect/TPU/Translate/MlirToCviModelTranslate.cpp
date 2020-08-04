@@ -302,8 +302,8 @@ void CviTpuRoutine::codeGen() {
       cvi_backend_set_layer_id(backend_ctx, layer_id);
       tgOp.codegen((void *)backend_ctx);
     } else if (auto tlOp = llvm::dyn_cast<tpu::TpuTLOpCodegenInterface>(op)) {
-      //int layer_id = mlir::getOpLayerId(op);
-      //cvi_backend_set_layer_id(backend_ctx, layer_id);
+      int layer_id = mlir::getOpLayerId(op);
+      cvi_backend_set_layer_id(backend_ctx, layer_id);
       // enable parallel
       if (tlOp.getEnableParallel() && !isa<tpu::TL_LG_INT8_LrnOp>(op)) {
         cvi_backend_parallel_enable(backend_ctx);
