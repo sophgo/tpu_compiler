@@ -314,7 +314,7 @@ void GroupOptimizer::lower_to_tl(Operation *op, int gid) {
           }
 
           mix_net_.add_transport_op(
-              cur_tensors[i], group->time_step, step_id);
+              gid, cur_tensors[i], group->time_step, step_id);
         }
 
         mix_net_.parallel_end();
