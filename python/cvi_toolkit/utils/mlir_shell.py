@@ -23,18 +23,6 @@ def checkReturnValue(ret, func: str):
     else:
         logger.error("error occured: {}, func: {}\nmsg: {}".format(ret.returncode, func, ret))
 
-def mlir_translate(model_file, weight_file, mlirfile, batch_size=1):
-
-    ret = subprocess.run(["mlir-translate", "--caffe-to-mlir", model_file,
-                    "--caffemodel", weight_file,
-                    "-o", mlirfile
-                    ], **std_output_flag)
-    # add multibatch fail
-    # "--static-batchsize",batch_size,
-
-    checkReturnValue(ret, "mlir_translate")
-    return ret.returncode
-
 def mlir_opt(mlirfile, opt_mlirfile, op_info_csv, chip=runchip):
     ret = subprocess.run(["mlir-opt",
                     "--assign-chip-name",
