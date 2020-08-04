@@ -337,6 +337,7 @@ void MixNet::_add_tl_convolution_op(MixOp* mix_op,
   int sh, sw, pt, pb, pl, pr, dh, dw;
   bool do_ic_align = false, fused_leaky = false;
   bool is_deconv = false;
+  bool bInt8ConvOp = isa<tpu::TG_INT8_PC_Conv2DOp>(op);
 
   getConvParam( op,
                 n, ic, ih, iw, oc, oh, ow, g,
@@ -344,6 +345,7 @@ void MixNet::_add_tl_convolution_op(MixOp* mix_op,
                 is_dw, with_bias, do_relu,
                 do_ic_align, fused_leaky);
 
+  bool has_bias_op = (bInt8ConvOp || (!bInt8ConvOp && with_bias));
   auto old_input_type = op->getOperand(0)->getType().cast<RankedTensorType>();
 
   int real_h_idx, real_h_slice;
@@ -405,7 +407,7 @@ void MixNet::_add_tl_convolution_op(MixOp* mix_op,
   uint32_t weight_laddr = (net_graph_->get_tensor_local_offset(in_tensors[1]));
   uint32_t output_laddr = (net_graph_->get_tensor_local_offset(out_tensors[0]));
   int bias_laddr = 0;
-  if (with_bias)
+  if (has_bias_op)
     bias_laddr = net_graph_->get_tensor_local_offset(in_tensors[2]);
   int working_laddr = 0;
 
@@ -486,7 +488,7 @@ void MixNet::_add_tl_convolution_op(MixOp* mix_op,
     get_op_from_name(mix_op->bottom_name(1))->getDefiningOp();
   operands.push_back(filter_op->getResult(0));
   // setup bias operation
-  if (with_bias) {
+  if (has_bias_op) {
     Operation * bias_op =
       get_op_from_name(mix_op->bottom_name(2))->getDefiningOp();
     operands.push_back(bias_op->getResult(0));
@@ -524,6 +526,7 @@ void MixNet::_add_tl_deconvolution_op(MixOp* mix_op,
   int sh, sw, pt, pb, pl, pr, dh, dw;
   bool do_ic_align = false, fused_leaky = false;
   bool is_deconv = true;
+  bool bInt8ConvOp = isa<tpu::TG_INT8_PC_DeConv2DOp>(op);
 
   getConvParam( op,
                 n, ic, ih, iw, oc, oh, ow, g,
@@ -531,6 +534,7 @@ void MixNet::_add_tl_deconvolution_op(MixOp* mix_op,
                 is_dw, with_bias, do_relu,
                 do_ic_align, fused_leaky);
 
+  bool has_bias_op = (bInt8ConvOp || (!bInt8ConvOp && with_bias));
   auto old_input_type = op->getOperand(0)->getType().cast<RankedTensorType>();
   Tensor* in_tensor = im_layer->in_tensors[0].get();
 
@@ -626,7 +630,9 @@ void MixNet::_add_tl_deconvolution_op(MixOp* mix_op,
   uint32_t input_laddr = (net_graph_->get_tensor_local_offset(in_tensors[0]));
   uint32_t weight_laddr = (net_graph_->get_tensor_local_offset(in_tensors[1]));
   uint32_t output_laddr = (net_graph_->get_tensor_local_offset(out_tensors[0]));
-  int bias_laddr = net_graph_->get_tensor_local_offset(in_tensors[2]);
+  int bias_laddr = 0;
+  if (has_bias_op)
+    bias_laddr = net_graph_->get_tensor_local_offset(in_tensors[2]);
 
 
   RankedTensorType input_type = RankedTensorType::get(
@@ -705,9 +711,15 @@ void MixNet::_add_tl_deconvolution_op(MixOp* mix_op,
     get_op_from_name(mix_op->bottom_name(1))->getDefiningOp();
   operands.push_back(filter_op->getResult(0));
   // setup bias operation
-  Operation * bias_op =
-    get_op_from_name(mix_op->bottom_name(2))->getDefiningOp();
-  operands.push_back(bias_op->getResult(0));
+  if (has_bias_op) {
+    Operation * bias_op =
+      get_op_from_name(mix_op->bottom_name(2))->getDefiningOp();
+    operands.push_back(bias_op->getResult(0));
+  } else {
+    auto none_op = OpBuilder(get_start_op()).create<tpu::NoneOp>(
+                            builder_.getUnknownLoc(), builder_.getNoneType());
+    operands.push_back(none_op.getResult());
+  }
 
   // build tl_deconv operation
   if (isa<tpu::TG_INT8_PC_DeConv2DOp>(op)) {
@@ -1122,6 +1134,7 @@ void MixNet::_add_tl_broadcast_mul_op(
   Operation* op = im_layer->op();
   auto op_input_type =
     op->getOperand(0)->getType().cast<RankedTensorType>();
+  bool bInt8Op = isa<tpu::TG_INT8_BroadcastMulOp>(op);
 
   Tensor* in_tensor = net_graph_->get_tensor_by_id(in_tensors[0]);
   net_graph_->get_tensor_dim(in_tensors[0], bottom_dim);
@@ -1175,9 +1188,15 @@ void MixNet::_add_tl_broadcast_mul_op(
     get_op_from_name(mix_op->bottom_name(1))->getDefiningOp();
   operands.push_back(scale_op->getResult(0));
   // setup bias operation
-  Operation * bias_op =
-    get_op_from_name(mix_op->bottom_name(2))->getDefiningOp();
-  operands.push_back(bias_op->getResult(0));
+  if (bInt8Op) {
+    Operation * bias_op =
+      get_op_from_name(mix_op->bottom_name(2))->getDefiningOp();
+    operands.push_back(bias_op->getResult(0));
+  } else {
+    auto none_op = OpBuilder(get_start_op()).create<tpu::NoneOp>(
+                            builder_.getUnknownLoc(), builder_.getNoneType());
+    operands.push_back(none_op.getResult());
+  }
 
   // build tl_broadcast operation
   if (isa<tpu::TG_INT8_BroadcastMulOp>(op)) {

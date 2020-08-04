@@ -133,7 +133,7 @@ class TPU_TL_LG_DeConv2DOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
   let arguments = (
     ins AnyTensor:$input,
     AnyTensor:$filter,
-    AnyTensor:$pc_info,
+    TPU_TensorOfOrNone<[I32,I16,I8]>:$pc_info,
     TPU_ConvParamAttr:$param,
     I32Attr:$la_input,
     I32Attr:$la_filter,
@@ -484,7 +484,7 @@ class TPU_TL_LG_BroadcastMulOp<string mnemonic, string opQuant> : TPU_Op<mnemoni
   let arguments = (
     ins AnyTensor:$input,
     AnyTensor:$scale,
-    AnyTensor:$pc_info,
+    TPU_TensorOfOrNone<[I32,I16,I8]>:$pc_info,
     I32Attr:$la_input,
     I32Attr:$la_scale,
     I32Attr:$la_output,

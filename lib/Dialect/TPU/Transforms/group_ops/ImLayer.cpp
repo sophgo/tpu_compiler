@@ -189,7 +189,7 @@ ImConv::ImConv(Operation* p) : ImLayer(IR_CONVOLUTION, p, true) {
   int sh, sw, pt, pb, pl, pr, dh, dw;
   bool do_ic_align = false;
   bool fuse_leaky = false;
-  bool bint8 = isa<tpu::TG_INT8_PC_Conv2DOp>(p);
+  bool bInt8ConvOp = isa<tpu::TG_INT8_PC_Conv2DOp>(p);
   getConvParam(p, n, ic, ih, iw, oc, oh, ow,
                g, kh, kw, sh, sw,
                pt, pb, pl, pr, dh, dw,
@@ -248,7 +248,7 @@ ImConv::ImConv(Operation* p) : ImLayer(IR_CONVOLUTION, p, true) {
   }
 
   // add bias tensor
-  if (bint8) {
+  if (bInt8ConvOp) {
     int perchannel_size = with_bias ? 9 : 5;
     auto load_bias = cast<tpu::LoadWeightOp>(p->getOperand(2)->getDefiningOp());
     std::string bias_name = load_bias.name().str();
@@ -265,7 +265,7 @@ ImConv::ImConv(Operation* p) : ImLayer(IR_CONVOLUTION, p, true) {
       add_in_tensor(g, oc/g, 1, perchannel_size, bias_usize,
                     bias_storage, bias_name, TENSOR_BIAS);
     }
-  } else if (!bint8 && with_bias) {
+  } else if (!bInt8ConvOp && with_bias) {
     // bf16 with bias
     auto load_bias = cast<tpu::LoadWeightOp>(p->getOperand(2)->getDefiningOp());
     std::string bias_name = load_bias.name().str();
@@ -292,6 +292,7 @@ ImDeconv::ImDeconv(Operation* p) : ImLayer(IR_DECONVOLUTION, p, true) {
   int n, ic, ih, iw, oc, oh, ow, g, kh, kw;
   int sh, sw, pt, pb, pl, pr, dh, dw;
   bool do_ic_align, fused_leaky;
+  bool bInt8ConvOp = isa<tpu::TG_INT8_PC_DeConv2DOp>(p);
   getConvParam(p, n, ic, ih, iw, oc, oh, ow,
                  g, kh, kw, sh, sw,
                  pt, pb, pl, pr, dh, dw,
@@ -322,22 +323,37 @@ ImDeconv::ImDeconv(Operation* p) : ImLayer(IR_DECONVOLUTION, p, true) {
   }
 
   // add bias tensor
-  int perchannel_size = with_bias ? 9 : 5;
-  auto load_bias = cast<tpu::LoadWeightOp>(p->getOperand(2)->getDefiningOp());
-  std::string bias_name = load_bias.name().str();
-  std::string bias_storage = getWeightStorage(load_bias);
-  int bias_usize = getOpResultUnitSize(load_bias);
+  if (bInt8ConvOp) {
+    int perchannel_size = with_bias ? 9 : 5;
+    auto load_bias = cast<tpu::LoadWeightOp>(p->getOperand(2)->getDefiningOp());
+    std::string bias_name = load_bias.name().str();
+    std::string bias_storage = getWeightStorage(load_bias);
+    int bias_usize = getOpResultUnitSize(load_bias);
 
-  if (is_dw) {
-    add_in_tensor(1, oc, 1, perchannel_size, bias_usize,
-                  bias_storage, bias_name, TENSOR_BIAS);
-  } else {
-    // bias tensor start address must from tpu0,
-    // but the same as input and result that
-    // start address can start from tpux,
-    // so here we use the shape (g, oc/g, 1, 9), not (1, oc, 1, 9)
-    add_in_tensor(g, oc/g, 1, perchannel_size, bias_usize,
-                  bias_storage, bias_name, TENSOR_BIAS);
+    if (is_dw) {
+      add_in_tensor(1, oc, 1, perchannel_size, bias_usize,
+                    bias_storage, bias_name, TENSOR_BIAS);
+    } else {
+      // bias tensor start address must from tpu0,
+      // but the same as input and result that
+      // start address can start from tpux,
+      // so here we use the shape (g, oc/g, 1, 9), not (1, oc, 1, 9)
+      add_in_tensor(g, oc/g, 1, perchannel_size, bias_usize,
+                    bias_storage, bias_name, TENSOR_BIAS);
+    }
+  } else if(!bInt8ConvOp && with_bias) {
+    // bf16 with bias
+    auto load_bias = cast<tpu::LoadWeightOp>(p->getOperand(2)->getDefiningOp());
+    std::string bias_name = load_bias.name().str();
+    std::string bias_storage = "UINT16";
+    int bias_usize = 2;
+
+    if (is_dw)
+      add_in_tensor(2, oc, 1, 1, bias_usize,
+                    bias_storage, bias_name, TENSOR_BIAS);
+    else
+      add_in_tensor(g*2, oc/g, 1, 1, bias_usize,
+                    bias_storage, bias_name, TENSOR_BIAS);
   }
 
   // add out tensor
@@ -530,19 +546,23 @@ ImLrn::ImLrn(Operation *op): ImLayer(IR_LRN, op, true) {
 
 ImBroadcastMul::ImBroadcastMul(Operation *op): ImLayer(IR_BROADCAST_MUL, op, true) {
   auto input_type = op->getOperand(0)->getType().dyn_cast<TensorType>();
+  bool isInt8Op = isa<tpu::TG_INT8_BroadcastMulOp>(op);
   auto input_shape = input_type.getShape();
   add_in_tensor(op->getOperand(0), TENSOR_NEURON);
   add_in_tensor(op->getOperand(1), TENSOR_NEURON);
   add_out_tensor(op->getResult(0), TENSOR_NEURON);
+
   // add bias tensor
-  bool with_bias = false;
-  int perchannel_size = with_bias ? 9 : 5;
-  auto load_bias = cast<tpu::LoadWeightOp>(op->getOperand(2)->getDefiningOp());
-  std::string bias_name = load_bias.name().str();
-  std::string bias_storage = getWeightStorage(load_bias);
-  int bias_usize = getOpResultUnitSize(load_bias);
-  add_in_tensor(input_shape[0], input_shape[1], 1, perchannel_size, bias_usize, bias_storage,
-                bias_name, TENSOR_BIAS);
+  if (isInt8Op) {
+    bool with_bias = false;
+    int perchannel_size = with_bias ? 9 : 5;
+    auto load_bias = cast<tpu::LoadWeightOp>(op->getOperand(2)->getDefiningOp());
+    std::string bias_name = load_bias.name().str();
+    std::string bias_storage = getWeightStorage(load_bias);
+    int bias_usize = getOpResultUnitSize(load_bias);
+    add_in_tensor(input_shape[0], input_shape[1], 1, perchannel_size, bias_usize, bias_storage,
+                  bias_name, TENSOR_BIAS);
+  }
 }
 
 ImUpsample::ImUpsample(Operation *op): ImLayer(IR_UPSAMPLE, op, true) {
