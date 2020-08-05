@@ -604,7 +604,8 @@ public:
           || isa<tpu::ReshapeOp>(op)
           || isa<tpu::InputOp>(op)
           || isa<tpu::PreprocessOp>(op)
-          || isa<tpu::ROIPoolingOp>(op)) {
+          || isa<tpu::ROIPoolingOp>(op)
+          || isa<tpu::SoftmaxOp>(op)) {
         // continue
       } else if (isa<tpu::CustomOp>(op) &&
                  !cast<tpu::CustomOp>(op).do_quant()) {
@@ -664,7 +665,8 @@ public:
           || isa<tpu::PreprocessOp>(op)
           || isa<tpu::QuantOp>(op)
           || isa<tpu::ReshapeOp>(op)
-          || isa<tpu::ROIPoolingOp>(op)) {
+          || isa<tpu::ROIPoolingOp>(op)
+          || isa<tpu::SoftmaxOp>(op)) {
       } else if (auto castOp = llvm::dyn_cast<tpu::CustomOp>(op)) {
         if (getOpQuant(op) != "NONE") {
           cvi::OpParam param, quant;

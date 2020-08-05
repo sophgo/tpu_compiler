@@ -142,6 +142,6 @@ int my_reduce_max(float *input, float *output,
                      std::vector<int> &axes);
 
 int my_roipooling(float *data, float *rois, float *output, int pooled_h, int pooled_w,
-                  float spatial_scale, int num_rois, int channel, int height, int width);
+                  float spatial_scale, int batch, int num_rois, int channel, int height, int width);
 
 #endif // MLIR_DIALECT_TPU_NATIVE_CPU_IMPLEMENTATION_H_

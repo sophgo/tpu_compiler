@@ -518,6 +518,7 @@ class CaffeConverter(BaseConverter):
 
     def convert_frcn_detection_op(self, layer):
         assert(self.layerType(layer) == 'FrcnDetection')
+        _, input_shape, _ = self.getOperand(layer.bottom[2])
         operands = list()
         for bottom in layer.bottom:
             op, _, _ = self.getOperand(bottom)
@@ -534,7 +535,7 @@ class CaffeConverter(BaseConverter):
             'keep_topk': keep_topk
         }
 
-        output_shape = [1, 1, keep_topk, 6]
+        output_shape = [input_shape[0], 1, keep_topk, 6]
 
         new_op = self.CVI.add_frcn_detection_op(
             layer.name, operands, output_shape, **param)
@@ -954,6 +955,7 @@ class CaffeConverter(BaseConverter):
 
     def convert_proposal_op(self, layer):
         assert(self.layerType(layer) == 'Proposal')
+        _, input_shape, _ = self.getOperand(layer.bottom[0])
         operands = list()
         for bottom in layer.bottom:
             op, _, _ = self.getOperand(bottom)
@@ -975,7 +977,7 @@ class CaffeConverter(BaseConverter):
             'rpn_nms_threshold': rpn_nms_threshold,
             'rpn_nms_post_top_n': rpn_nms_post_top_n
         }
-        output_shape = [1, 1, rpn_nms_post_top_n, 5]
+        output_shape = [input_shape[0], 1, rpn_nms_post_top_n, 5]
         new_op = self.CVI.add_proposal_op(
             layer.name, operands, output_shape, **param)
         self.addOperand(layer.top[0], new_op,
@@ -1131,7 +1133,7 @@ class CaffeConverter(BaseConverter):
         nms_threshold = p.nms_threshold
         confidence_threshold = p.confidence_threshold
         keep_topk = p.keep_topk
-        output_shape = [1, 1, keep_topk, 15]
+        output_shape = [input_shape[0], 1, keep_topk, 15]
         param = {
             'nms_threshold': nms_threshold,
             'confidence_threshold': confidence_threshold,
@@ -1159,7 +1161,7 @@ class CaffeConverter(BaseConverter):
             'pooled_w': pooled_w,
             'spatial_scale': spatial_scale
         }
-        output_shape = [bottom1_shape[2], bottom0_shape[1], pooled_h, pooled_w]
+        output_shape = [bottom1_shape[0] * bottom1_shape[2], bottom0_shape[1], pooled_h, pooled_w]
         new_op = self.CVI.add_roipooling_op(
             layer.name, operands, output_shape, **param)
         self.addOperand(layer.top[0], new_op,
@@ -1364,7 +1366,7 @@ class CaffeConverter(BaseConverter):
             "spp_net": spp_net,
             "tiny": tiny
         }
-        output_shape = [1, 1, p.keep_topk, 6]
+        output_shape = [input_shape[0], 1, p.keep_topk, 6]
         new_op = self.CVI.add_yolo_detection_op(
             layer.name, operands, output_shape, **param)
         self.addOperand(layer.top[0], new_op,

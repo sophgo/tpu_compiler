@@ -1237,10 +1237,8 @@ LogicalResult tpu::FrcnDetectionOp::interpret(
   std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
   assert(shape.size() == 4);
 
-  std::vector<int64_t> deltas_shape, output_shape;
-  int64_t deltas_size, output_size;
-  getTensorShapeAndSize(op->getOperand(0), deltas_shape, deltas_size);
-  getTensorShapeAndSize(this->output(), output_shape, output_size);
+  std::vector<int64_t> rois_shape;
+  rois_shape = getTensorShape(op->getOperand(2));
 
   float *bbox_deltas = (float *)opdT[0]->data();
   float *scores = (float *)opdT[1]->data();
@@ -1252,61 +1250,69 @@ LogicalResult tpu::FrcnDetectionOp::interpret(
   auto nms_threshold = this->nms_threshold().convertToFloat();
   auto obj_threshold = this->obj_threshold().convertToFloat();
 
-  int num = deltas_shape[0];
+  int batch = rois_shape[0];
+  int num = rois_shape[2];
 
-  std::vector<float> boxes(num * 4, 0);
-  for (int i = 0; i < num; ++i) {
-    for (int j = 0; j < 4; ++j) {
-      boxes[i*4 + j] = rois[i*5 + j + 1];
-    }
-  }
+  for (int b = 0; b < batch; ++b) {
+    auto batched_bbox_deltas = bbox_deltas + b * num * class_num * 4;
+    auto batched_scores = scores + b * num * class_num;
+    auto batched_rois = rois + b * num * 5;
 
-  std::vector<float> pred(num * class_num * 4, 0);
-  float *pred_data = pred.data();
-  std::vector<float> deltas(bbox_deltas, bbox_deltas + deltas_size);
-  bbox_transform_inv(boxes.data(), deltas.data(), pred_data, num, class_num);
-
-  int det_num = 0;
-  detections dets[num];
-
-  for (int i = 0; i < num; ++i) {
-    for (int j = 1; j < class_num; ++j) {
-      if (scores[i*class_num + j] > obj_threshold) {
-        dets[det_num].bbox.x1 = pred[i*class_num*4 + j*4 + 0];
-        dets[det_num].bbox.y1 = pred[i*class_num*4 + j*4 + 1];
-        dets[det_num].bbox.x2 = pred[i*class_num*4 + j*4 + 2];
-        dets[det_num].bbox.y2 = pred[i*class_num*4 + j*4 + 3];
-        dets[det_num].cls = j;
-        dets[det_num].score = scores[i*class_num + j];
-        det_num++;
+    std::vector<float> boxes(num * 4, 0);
+    for (int i = 0; i < num; ++i) {
+      for (int j = 0; j < 4; ++j) {
+        boxes[i*4 + j] = batched_rois[i*5 + j + 1];
       }
     }
-  }
 
-  nms(dets, det_num, nms_threshold);
-  detections dets_nms[det_num];
-  int det_idx = 0;
-  for (int i = 0; i < det_num; i++) {
-    if (dets[i].score > 0) {
-      dets_nms[det_idx] = dets[i];
-      det_idx ++;
+    std::vector<float> pred(num * class_num * 4, 0);
+    float *pred_data = pred.data();
+    std::vector<float> deltas(batched_bbox_deltas, batched_bbox_deltas + num * class_num * 4);
+    bbox_transform_inv(boxes.data(), deltas.data(), pred_data, num, class_num);
+
+    int det_num = 0;
+    detections dets[num];
+
+    for (int i = 0; i < num; ++i) {
+      for (int j = 1; j < class_num; ++j) {
+        if (batched_scores[i*class_num + j] > obj_threshold) {
+          dets[det_num].bbox.x1 = pred[i*class_num*4 + j*4 + 0];
+          dets[det_num].bbox.y1 = pred[i*class_num*4 + j*4 + 1];
+          dets[det_num].bbox.x2 = pred[i*class_num*4 + j*4 + 2];
+          dets[det_num].bbox.y2 = pred[i*class_num*4 + j*4 + 3];
+          dets[det_num].cls = j;
+          dets[det_num].score = batched_scores[i*class_num + j];
+          det_num++;
+        }
+      }
     }
-  }
 
-  if (keep_topk > det_idx)
-      keep_topk = det_idx;
+    nms(dets, det_num, nms_threshold);
+    detections dets_nms[det_num];
+    int det_idx = 0;
+    for (int i = 0; i < det_num; i++) {
+      if (dets[i].score > 0) {
+        dets_nms[det_idx] = dets[i];
+        det_idx ++;
+      }
+    }
 
-  long long count = 0;
-  for(int i = 0; i < keep_topk; ++i) {
-    output[count++] = dets_nms[i].bbox.x1;
-    output[count++] = dets_nms[i].bbox.y1;
-    output[count++] = dets_nms[i].bbox.x2;
-    output[count++] = dets_nms[i].bbox.y2;
-    output[count++] = dets_nms[i].cls;
-    output[count++] = dets_nms[i].score;
-    // printf("x1: %f, y1: %f, x2: %f, y2: %f, cls: %d, score: %f\n",
-    //     dets_nms[i].bbox.x1, dets_nms[i].bbox.y1, dets_nms[i].bbox.x2, dets_nms[i].bbox.y2,
-    //     dets_nms[i].cls, dets_nms[i].score);
+    if (keep_topk > det_idx)
+        keep_topk = det_idx;
+
+    long long count = 0;
+    auto batched_output = output + b * shape[1] * shape[2] * shape[3];
+    for(int i = 0; i < keep_topk; ++i) {
+      batched_output[count++] = dets_nms[i].bbox.x1;
+      batched_output[count++] = dets_nms[i].bbox.y1;
+      batched_output[count++] = dets_nms[i].bbox.x2;
+      batched_output[count++] = dets_nms[i].bbox.y2;
+      batched_output[count++] = dets_nms[i].cls;
+      batched_output[count++] = dets_nms[i].score;
+      // printf("x1: %f, y1: %f, x2: %f, y2: %f, cls: %d, score: %f\n",
+      //     dets_nms[i].bbox.x1, dets_nms[i].bbox.y1, dets_nms[i].bbox.x2, dets_nms[i].bbox.y2,
+      //     dets_nms[i].cls, dets_nms[i].score);
+    }
   }
 
   valueMapping[result] = std::move(resultT);
@@ -2458,9 +2464,12 @@ LogicalResult tpu::ProposalOp::interpret(
   std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
   assert(shape.size() == 4);
 
-  std::vector<int64_t> score_shape;
+  std::vector<int64_t> score_shape, bbox_shape;
   int64_t score_size;
   getTensorShapeAndSize(op->getOperand(0), score_shape, score_size);
+  bbox_shape = getTensorShape(op->getOperand(1));
+  int batch = score_shape[0];
+  int channel = score_shape[1];
   int height = score_shape[2];
   int width = score_shape[3];
 
@@ -2482,49 +2491,55 @@ LogicalResult tpu::ProposalOp::interpret(
   generate_anchors(anchor_base_size, anchor_scale, anchor_ratio, anchor_boxes);
 
   float thresh = rpn_obj_threshold;
-  std::vector<std::vector<float>> select_anchor;
-  std::vector<float> confidence;
-  std::vector<std::vector<float>> bbox;
-  int anchor_num = anchor_scale.size() * anchor_ratio.size();
 
-  for (int k = 0; k < anchor_num; k++) {
-    float w = anchor_boxes[4 * k + 2] - anchor_boxes[4 * k] + 1;
-    float h = anchor_boxes[4 * k + 3] - anchor_boxes[4 * k + 1] + 1;
-    float x_ctr = anchor_boxes[4 * k] + 0.5 * (w - 1);
-    float y_ctr = anchor_boxes[4 * k + 1] + 0.5 * (h - 1);
+  for (int b = 0; b < batch; ++b) {
+    auto batched_score = score + b * channel * height * width;
+    auto batched_bbox_deltas = bbox_deltas + b * bbox_shape[1] * bbox_shape[2] * bbox_shape[3];
+    std::vector<std::vector<float>> select_anchor;
+    std::vector<float> confidence;
+    std::vector<std::vector<float>> bbox;
+    int anchor_num = anchor_scale.size() * anchor_ratio.size();
 
-    for (int i = 0; i < height; i++) {
-      for (int j = 0; j < width; j++) {
-        if (score[anchor_num * height * width + (k * height + i) * width + j] >= thresh) {
-          std::vector<float> tmp_anchor;
-          std::vector<float> tmp_bbox;
+    for (int k = 0; k < anchor_num; k++) {
+      float w = anchor_boxes[4 * k + 2] - anchor_boxes[4 * k] + 1;
+      float h = anchor_boxes[4 * k + 3] - anchor_boxes[4 * k + 1] + 1;
+      float x_ctr = anchor_boxes[4 * k] + 0.5 * (w - 1);
+      float y_ctr = anchor_boxes[4 * k + 1] + 0.5 * (h - 1);
 
-          tmp_anchor.push_back(j * feat_stride+ x_ctr);
-          tmp_anchor.push_back(i * feat_stride+ y_ctr);
-          tmp_anchor.push_back(w);
-          tmp_anchor.push_back(h);
-          select_anchor.push_back(tmp_anchor);
-          confidence.push_back(score[anchor_num * height * width + (k * height + i) * width + j]);
-          tmp_bbox.push_back(bbox_deltas[(4 * k * height + i) * width + j]);
-          tmp_bbox.push_back(bbox_deltas[((4 * k +1) * height + i) * width + j]);
-          tmp_bbox.push_back(bbox_deltas[((4 * k + 2) * height + i) * width + j]);
-          tmp_bbox.push_back(bbox_deltas[((4 * k + 3) * height + i) * width + j]);
-          bbox.push_back(tmp_bbox);
+      for (int i = 0; i < height; i++) {
+        for (int j = 0; j < width; j++) {
+          if (batched_score[anchor_num * height * width + (k * height + i) * width + j] >= thresh) {
+            std::vector<float> tmp_anchor;
+            std::vector<float> tmp_bbox;
+
+            tmp_anchor.push_back(j * feat_stride+ x_ctr);
+            tmp_anchor.push_back(i * feat_stride+ y_ctr);
+            tmp_anchor.push_back(w);
+            tmp_anchor.push_back(h);
+            select_anchor.push_back(tmp_anchor);
+            confidence.push_back(batched_score[anchor_num * height * width + (k * height + i) * width + j]);
+            tmp_bbox.push_back(batched_bbox_deltas[(4 * k * height + i) * width + j]);
+            tmp_bbox.push_back(batched_bbox_deltas[((4 * k +1) * height + i) * width + j]);
+            tmp_bbox.push_back(batched_bbox_deltas[((4 * k + 2) * height + i) * width + j]);
+            tmp_bbox.push_back(batched_bbox_deltas[((4 * k + 3) * height + i) * width + j]);
+            bbox.push_back(tmp_bbox);
+          }
         }
       }
     }
-  }
-  std::vector<std::vector<float>> pred_boxes;
-  anchor_box_transform_inv(net_input_w, net_input_h, bbox, select_anchor, pred_boxes);
-  anchor_box_nms(pred_boxes, confidence, rpn_nms_threshold);
-  int num = pred_boxes.size() > rpn_nms_post_top_n ? rpn_nms_post_top_n : pred_boxes.size();
+    std::vector<std::vector<float>> pred_boxes;
+    anchor_box_transform_inv(net_input_w, net_input_h, bbox, select_anchor, pred_boxes);
+    anchor_box_nms(pred_boxes, confidence, rpn_nms_threshold);
+    int num = pred_boxes.size() > rpn_nms_post_top_n ? rpn_nms_post_top_n : pred_boxes.size();
 
-  for (int i = 0; i < num; i++) {
-    output[5 * i] = 0;
-    output[5 * i + 1] = pred_boxes[i][0];
-    output[5 * i + 2] = pred_boxes[i][1];
-    output[5 * i + 3] = pred_boxes[i][2];
-    output[5 * i + 4] = pred_boxes[i][3];
+    auto batched_output = output + b * shape[1] * shape[2] * shape[3];
+    for (int i = 0; i < num; i++) {
+      batched_output[5 * i] = b;
+      batched_output[5 * i + 1] = pred_boxes[i][0];
+      batched_output[5 * i + 2] = pred_boxes[i][1];
+      batched_output[5 * i + 3] = pred_boxes[i][2];
+      batched_output[5 * i + 4] = pred_boxes[i][3];
+    }
   }
 
   valueMapping[result] = std::move(resultT);
@@ -2629,8 +2644,10 @@ LogicalResult tpu::RetinaFaceDetectionOp::interpret(
 
   auto opT = getOperandTensors(op, valueMapping);
   auto result = this->getResult();
-  auto size = getTensorSize(result);
-  auto resultT = std::make_unique<std::vector<float>>(size);
+  std::vector<int64_t> output_shape;
+  int64_t output_size;
+  getTensorShapeAndSize(result, output_shape, output_size);
+  auto resultT = std::make_unique<std::vector<float>>(output_size);
   auto output_data = resultT->data();
 
   auto confidence_threshold = this->confidence_threshold().convertToFloat();
@@ -2660,97 +2677,102 @@ LogicalResult tpu::RetinaFaceDetectionOp::interpret(
   int input_count = opT.size();
   assert(input_count == 9);
 
-  std::vector<FaceInfo> infos;
-  for (size_t i = 0; i < feature_stride_fpn.size(); ++i) {
-    int stride = feature_stride_fpn[i];
+  auto batch = output_shape[0];
 
-    auto landmark_data = opT[input_count-3*i-1]->data();
-    size_t landmark_count = opT[input_count-3*i-1]->size();
+  for (int b = 0; b < batch; ++b) {
+    std::vector<FaceInfo> infos;
+    for (size_t i = 0; i < feature_stride_fpn.size(); ++i) {
+      int stride = feature_stride_fpn[i];
 
-    auto bbox_data = opT[input_count-3*i-2]->data();
-    size_t bbox_count = opT[input_count-3*i-2]->size();
+      size_t landmark_count = opT[input_count-3*i-1]->size() / batch;
+      auto landmark_data = opT[input_count-3*i-1]->data() + b * landmark_count;
 
-    auto score_data = opT[input_count-3*i-3]->data();
-    size_t score_count = opT[input_count-3*i-3]->size();
+      size_t bbox_count = opT[input_count-3*i-2]->size() / batch;
+      auto bbox_data = opT[input_count-3*i-2]->data() + b * bbox_count;
 
-    auto shape = getTensorShape(op->getOperand(input_count-3*i-1));
-    assert(shape.size() == 4);
+      size_t score_count = opT[input_count-3*i-3]->size() / batch;
+      auto score_data = opT[input_count-3*i-3]->data() + b * score_count;
 
-    size_t height = shape[2];
-    size_t width = shape[3];
+      auto shape = getTensorShape(op->getOperand(input_count-3*i-1));
+      assert(shape.size() == 4);
 
-    std::vector<float> score(score_data + score_count / 2, score_data + score_count);
-    std::vector<float> bbox(bbox_data, bbox_data + bbox_count);
-    std::vector<float> landmark(landmark_data, landmark_data + landmark_count);
+      size_t height = shape[2];
+      size_t width = shape[3];
 
-    int count = height * width;
-    std::string key = "stride" + std::to_string(stride);
-    auto anchors_fpn = um_anchors_fpn[key];
-    auto num_anchors = um_num_anchors[key];
+      std::vector<float> score(score_data + score_count / 2, score_data + score_count);
+      std::vector<float> bbox(bbox_data, bbox_data + bbox_count);
+      std::vector<float> landmark(landmark_data, landmark_data + landmark_count);
 
-    std::vector<AnchorBox> anchors = anchors_plane(height, width, stride, anchors_fpn);
+      int count = height * width;
+      std::string key = "stride" + std::to_string(stride);
+      auto anchors_fpn = um_anchors_fpn[key];
+      auto num_anchors = um_num_anchors[key];
 
-    for(size_t num = 0; num < num_anchors; ++num) {
-      for(size_t j = 0; j < count; ++j) {
-        float confidence = score[j+count*num];
-        if (confidence <= confidence_threshold)
-          continue;
+      std::vector<AnchorBox> anchors = anchors_plane(height, width, stride, anchors_fpn);
 
-        float dx = bbox[j+count*(0+num*4)];
-        float dy = bbox[j+count*(1+num*4)];
-        float dw = bbox[j+count*(2+num*4)];
-        float dh = bbox[j+count*(3+num*4)];
-        std::vector<float> bbox_deltas{dx,dy,dw,dh};
-        auto bbox = bbox_pred(anchors[j+count*num], bbox_deltas);
+      for(size_t num = 0; num < num_anchors; ++num) {
+        for(size_t j = 0; j < count; ++j) {
+          float confidence = score[j+count*num];
+          if (confidence <= confidence_threshold)
+            continue;
 
-        std::vector<float> landmark_deltas(10,0);
-        for(size_t k = 0; k < 5; ++k) {
-          landmark_deltas[k] = landmark[j+count*(num*10+k*2)];
-          landmark_deltas[k+5] = landmark[j+count*(num*10+k*2+1)];
+          float dx = bbox[j+count*(0+num*4)];
+          float dy = bbox[j+count*(1+num*4)];
+          float dw = bbox[j+count*(2+num*4)];
+          float dh = bbox[j+count*(3+num*4)];
+          std::vector<float> bbox_deltas{dx,dy,dw,dh};
+          auto bbox = bbox_pred(anchors[j+count*num], bbox_deltas);
+
+          std::vector<float> landmark_deltas(10,0);
+          for(size_t k = 0; k < 5; ++k) {
+            landmark_deltas[k] = landmark[j+count*(num*10+k*2)];
+            landmark_deltas[k+5] = landmark[j+count*(num*10+k*2+1)];
+          }
+
+          auto pts = landmark_pred(anchors[j+count*num], landmark_deltas);
+
+          FaceInfo info;
+          info.x1 = bbox[0];
+          info.y1 = bbox[1];
+          info.x2 = bbox[2];
+          info.y2 = bbox[3];
+          info.score = confidence;
+          for(int idx = 0; idx < 5; ++idx) {
+              info.x[idx] = pts[idx];
+              info.y[idx] = pts[idx+5];
+          }
+
+          infos.push_back(info);
         }
-
-        auto pts = landmark_pred(anchors[j+count*num], landmark_deltas);
-
-        FaceInfo info;
-        info.x1 = bbox[0];
-        info.y1 = bbox[1];
-        info.x2 = bbox[2];
-        info.y2 = bbox[3];
-        info.score = confidence;
-        for(int idx = 0; idx < 5; ++idx) {
-            info.x[idx] = pts[idx];
-            info.y[idx] = pts[idx+5];
-        }
-
-        infos.push_back(info);
       }
     }
-  }
 
-  auto preds = nms(infos, nms_threshold);
-  if (keep_topk > preds.size())
-      keep_topk = preds.size();
+    auto preds = nms(infos, nms_threshold);
+    if (keep_topk > preds.size())
+        keep_topk = preds.size();
 
-  long long count = 0;
-  for(int i = 0; i < keep_topk; ++i) {
-    output_data[count++] = preds[i].x1;
-    output_data[count++] = preds[i].y1;
-    output_data[count++] = preds[i].x2;
-    output_data[count++] = preds[i].y2;
-    output_data[count++] = preds[i].score;
-    for(int j = 0; j < 5; ++j) {
-      output_data[count++] = preds[i].x[j];
-      output_data[count++] = preds[i].y[j];
+    long long count = 0;
+    auto batch_output_data = output_data + b * output_size / batch;
+    for(int i = 0; i < keep_topk; ++i) {
+      batch_output_data[count++] = preds[i].x1;
+      batch_output_data[count++] = preds[i].y1;
+      batch_output_data[count++] = preds[i].x2;
+      batch_output_data[count++] = preds[i].y2;
+      batch_output_data[count++] = preds[i].score;
+      for(int j = 0; j < 5; ++j) {
+        batch_output_data[count++] = preds[i].x[j];
+        batch_output_data[count++] = preds[i].y[j];
+      }
+
+      LLVM_DEBUG(llvm::errs() << "x1= " << preds[i].x1 << ",y1= " << preds[i].y1
+                << ",x2= " << preds[i].x2 << ",y2= " << preds[i].y2
+                << ", score= " << preds[i].score
+                << ", pts1= " << preds[i].x[0] << ", pts2= " << preds[i].y[0]
+                << ", pts3= " << preds[i].x[1] << ", pts4= " << preds[i].y[1]
+                << ", pts5= " << preds[i].x[2] << ", pts6= " << preds[i].y[2]
+                << ", pts7= " << preds[i].x[3] << ", pts8= " << preds[i].y[3]
+                << ", pts9= " << preds[i].x[4] << ", pts10= " << preds[i].y[4] << "\n";);
     }
-
-    LLVM_DEBUG(llvm::errs() << "x1= " << preds[i].x1 << ",y1= " << preds[i].y1
-              << ",x2= " << preds[i].x2 << ",y2= " << preds[i].y2
-              << ", score= " << preds[i].score
-              << ", pts1= " << preds[i].x[0] << ", pts2= " << preds[i].y[0]
-              << ", pts3= " << preds[i].x[1] << ", pts4= " << preds[i].y[1]
-              << ", pts5= " << preds[i].x[2] << ", pts6= " << preds[i].y[2]
-              << ", pts7= " << preds[i].x[3] << ", pts8= " << preds[i].y[3]
-              << ", pts9= " << preds[i].x[4] << ", pts10= " << preds[i].y[4] << "\n";);
   }
 
   valueMapping[result] = std::move(resultT);
@@ -2782,7 +2804,7 @@ LogicalResult tpu::ROIPoolingOp::interpret(
   auto pooled_w = this->pooled_w().getLimitedValue();
   auto spatial_scale = this->spatial_scale().convertToFloat();
 
-  int ret = my_roipooling(data, rois, output, pooled_h, pooled_w, spatial_scale,
+  int ret = my_roipooling(data, rois, output, pooled_h, pooled_w, spatial_scale, rois_shape[0],
           rois_shape[2], data_shape[1], data_shape[2], data_shape[3]);
 
   assert(ret == 0);
@@ -3206,8 +3228,11 @@ LogicalResult tpu::YoloDetectionOp::interpret(
   auto opT = getOperandTensors(op, valueMapping);
   auto result = this->getResult();
   auto size = getTensorSize(result);
+  auto output_shape = getTensorShape(result);
   auto resultT = std::make_unique<std::vector<float>>(size);
   auto output_data = resultT->data();
+
+  auto batch = output_shape[0];
 
   auto net_input_h = this->net_input_h().getLimitedValue();
   auto net_input_w = this->net_input_w().getLimitedValue();
@@ -3229,57 +3254,60 @@ LogicalResult tpu::YoloDetectionOp::interpret(
     {81,82,  135,169,  344,319} // layer16-conv (13*13)
   };
 
-  std::vector<std::vector<int>> grid_size;
-  std::vector<std::vector<float>> features;
+  for (int b = 0; b < batch; ++b) {
+    std::vector<std::vector<int>> grid_size;
+    std::vector<std::vector<float>> features;
 
-  for (int i = 0; i < input_count; ++i) {
-    auto shape = getTensorShape(op->getOperand(i));
-    grid_size.push_back(std::vector<int>{shape[2], shape[3]});
-    auto data = opT[i]->data();
-    auto size = opT[i]->size();
-    std::vector<float> bottom_data(data, data + size);
-    features.push_back(bottom_data);
-  }
-
-  detection det_raw[MAX_DET_RAW];
-  detection dets[MAX_DET];
-  int det_raw_idx = 0;
-  for (int i = 0; i < features.size(); i++) {
-    if (!tiny) {
-      process_feature(det_raw, &det_raw_idx, features[i].data(), grid_size[i],
-        &anchors[i][0], {net_input_h, net_input_w}, 80, obj_threshold);
-    } else {
-      process_feature(det_raw, &det_raw_idx, features[i].data(), grid_size[i],
-        &tiny_anchors[i][0], {net_input_h, net_input_w}, 80, obj_threshold);
+    for (int i = 0; i < input_count; ++i) {
+      auto shape = getTensorShape(op->getOperand(i));
+      grid_size.push_back(std::vector<int>{shape[2], shape[3]});
+      auto data = opT[i]->data() + b * shape[1] * shape[2] * shape[3];
+      auto size = opT[i]->size() / batch;
+      std::vector<float> bottom_data(data, data + size);
+      features.push_back(bottom_data);
     }
-  }
-  nms(det_raw, det_raw_idx, nms_threshold);
-  int det_idx = 0;
-  for (int i = 0; i < det_raw_idx; i++) {
-    if (det_raw[i].score > 0) {
-      dets[det_idx] = det_raw[i];
-      det_idx ++;
-    } else {
-      //std::cout << "erased: " << det_raw[i].cls << std::endl;
+
+    detection det_raw[MAX_DET_RAW];
+    detection dets[MAX_DET];
+    int det_raw_idx = 0;
+    for (int i = 0; i < features.size(); i++) {
+      if (!tiny) {
+        process_feature(det_raw, &det_raw_idx, features[i].data(), grid_size[i],
+          &anchors[i][0], {net_input_h, net_input_w}, 80, obj_threshold);
+      } else {
+        process_feature(det_raw, &det_raw_idx, features[i].data(), grid_size[i],
+          &tiny_anchors[i][0], {net_input_h, net_input_w}, 80, obj_threshold);
+      }
     }
-  }
+    nms(det_raw, det_raw_idx, nms_threshold);
+    int det_idx = 0;
+    for (int i = 0; i < det_raw_idx; i++) {
+      if (det_raw[i].score > 0) {
+        dets[det_idx] = det_raw[i];
+        det_idx ++;
+      } else {
+        //std::cout << "erased: " << det_raw[i].cls << std::endl;
+      }
+    }
 
-  if (keep_topk > det_idx)
-      keep_topk = det_idx;
+    if (keep_topk > det_idx)
+        keep_topk = det_idx;
 
-  long long count = 0;
-  for(int i = 0; i < keep_topk; ++i) {
-    output_data[count++] = dets[i].bbox.x;
-    output_data[count++] = dets[i].bbox.y;
-    output_data[count++] = dets[i].bbox.w;
-    output_data[count++] = dets[i].bbox.h;
-    output_data[count++] = dets[i].cls;
-    output_data[count++] = dets[i].score;
+    long long count = 0;
+    auto batched_output_data = output_data + b * output_shape[1] * output_shape[2] * output_shape[3];
+    for(int i = 0; i < keep_topk; ++i) {
+      batched_output_data[count++] = dets[i].bbox.x;
+      batched_output_data[count++] = dets[i].bbox.y;
+      batched_output_data[count++] = dets[i].bbox.w;
+      batched_output_data[count++] = dets[i].bbox.h;
+      batched_output_data[count++] = dets[i].cls;
+      batched_output_data[count++] = dets[i].score;
 
-    LLVM_DEBUG(llvm::errs() << "x= " << dets[i].bbox.x << ",y= " << dets[i].bbox.y
-              << ",w= " << dets[i].bbox.w << ",h= " << dets[i].bbox.h
-              << ", class= " << dets[i].cls
-              << ", score= " << dets[i].score<< "\n";);
+      LLVM_DEBUG(llvm::errs() << "x= " << dets[i].bbox.x << ",y= " << dets[i].bbox.y
+                << ",w= " << dets[i].bbox.w << ",h= " << dets[i].bbox.h
+                << ", class= " << dets[i].cls
+                << ", score= " << dets[i].score<< "\n";);
+    }
   }
 
   valueMapping[result] = std::move(resultT);
