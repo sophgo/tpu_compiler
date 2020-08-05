@@ -660,6 +660,7 @@ void gen_bf16_table(int start, int end, int table_hw, float *table,
     table[table_idx] = y_value;
     table_idx++;
   }
+
   // set idx 128 fp32 and bf16 data
   table[table_idx] = activate_func(start);
 
@@ -683,12 +684,10 @@ void gen_bf16_slope_table(int start, int end, int table_hw,
     double x0 = table[i];
     double x1 = table[i + 1];
     double delta = 1.0;
-    if (i == half - 1) {
-      x1 = activate_func(end);
-    } else if (i == half) {
-      // idx = 128, x0 is -128, x1 is -129
-      x1 = activate_func(start - interval);
-      delta = -1.0;
+    if (i == half - 1 || i == half) {
+      // 127/128, force set to 0
+      x1 = 0;
+      x0 = 0;
     } else if (i > half) {
       x0 = table[i];
       x1 = table[i - 1];
@@ -696,6 +695,15 @@ void gen_bf16_slope_table(int start, int end, int table_hw,
     }
     float slope = (x1 - x0) / delta;
     slope_table[i] = slope;
+
+    // check real value(bf16) has slope
+    // cuz we only support bf16, some part of mantissa(16bit)
+    // will cut to zero, the real slope value(bf16(x1) - bf16(x0)
+    // could be no slope(slope = 0), we adjust it for real case
+    if (convert_fp32_bf16(x1) == convert_fp32_bf16(x0)) {
+      // no slope
+      slope_table[i] = 0;
+    }
   }
 }
 
