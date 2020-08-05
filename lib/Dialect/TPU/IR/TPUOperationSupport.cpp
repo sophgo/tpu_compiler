@@ -507,7 +507,7 @@ void parseConvParam(const tpu::ConvParam &p, bool is_deconv,
 
 
   g = p.group().getValue().getLimitedValue();
-  if (g != 1) {
+  if (g != 1 || f_s.size() == 5) {
     if (g == oc) {
       is_dw = true;
     } else {

@@ -288,8 +288,10 @@ class CaffeConverter(BaseConverter):
         p = layer.convolution_param
         oc = p.num_output
         g = 1
+        is_dw = False
         if self.layerType(layer) == 'ConvolutionDepthwise':
             g = oc
+            is_dw = True
         else:
             g = p.group
         is_deconv = True if self.layerType(layer) == 'Deconvolution' else False
@@ -339,11 +341,12 @@ class CaffeConverter(BaseConverter):
                                                       dilation[0])
             ofmap[1] = self.calcDeConv2DSpatialOutput(ifmap[1], kernel[1], stride[1], padding[1],
                                                       dilation[1])
-        is_dw = True if g == oc else False
+        if g > 1 and g == oc and g == ic:
+            is_dw = True
 
         # filter op
         filter_shape = [g, int(oc / g), int(ic / g), kernel[0], kernel[1]
-                        ] if g != 1 else [oc, ic, kernel[0], kernel[1]]
+                        ] if (g != 1 or is_dw) else [oc, ic, kernel[0], kernel[1]]
         if is_deconv:
             permute_order = [1, 0, 2, 3]
             filter_op = self.blob_to_weight_op(layer, 0, filter_shape, permute_order)
@@ -1249,7 +1252,7 @@ class CaffeConverter(BaseConverter):
         slices = list()
         if slice_num > 0:
             assert(slice_num == top_size - 1)
-            assert(top_size < bottom_slice_axis)
+            assert(top_size <= bottom_slice_axis)
             prev = 0
             for i in range(slice_num):
                 assert(p.slice_point[i] > prev)

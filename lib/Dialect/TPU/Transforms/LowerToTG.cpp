@@ -1690,8 +1690,7 @@ struct PackWeightConv2DOpPattern : public RewritePattern {
     std::vector<int64_t> filter_shape(filter_type.getShape());
     int64_t oc;
     auto g = convOp.param().group().getValue().getLimitedValue();
-    if (g != 1) {
-      assert(filter_shape.size() == 5);
+    if (g != 1 || filter_shape.size() == 5) {
       oc = filter_shape[0] * filter_shape[1];
     } else {
       assert(filter_shape.size() == 4);
