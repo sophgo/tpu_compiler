@@ -39,10 +39,10 @@ if [ $DO_FUSE_PREPROCESS -eq 1 ] && [ $BATCH_SIZE -eq 1 ]; then
 
     mlir-opt \
       --fuse-relu \
-      --assign-layer-id \
       ${MLIR_OPT_FE_PRE} \
       --canonicalize \
       ${MLIR_OPT_FE_POST} \
+      --assign-layer-id \
       --print-tpu-op-info \
       --tpu-op-info-filename ${NET}_op_info_fuesd_preprocess.csv \
       ${NET}_fused_preprocess.mlir \
