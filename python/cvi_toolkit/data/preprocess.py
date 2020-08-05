@@ -257,6 +257,8 @@ class preprocess(object):
             output=output[:,0:1,:,:]
 
         if output_npz:
+            if self.batch > 1:
+                output = np.repeat(output, self.batch, axis=0)
             # Must convert to npz file as input
             np.savez(output_npz, **{input_name if input_name else "input": output})
 

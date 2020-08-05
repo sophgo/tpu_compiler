@@ -5,7 +5,7 @@ DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 
 CHECK_NON_OPT_VERSION=0
 
-if [ $DO_FUSE_PREPROCESS -eq 1 ]; then
+if [ $DO_FUSE_PREPROCESS -eq 1 ] && [ $BATCH_SIZE -eq 1 ]; then
     # make image data only resize
     cvi_preprocess.py  \
       --image_file $REGRESSION_PATH/data/cat.jpg \
@@ -16,6 +16,7 @@ if [ $DO_FUSE_PREPROCESS -eq 1 ]; then
       --std 1,1,1 \
       --input_scale 1 \
       --data_format nhwc \
+      --batch_size $BATCH_SIZE \
       --npz_name ${NET}_only_resize_in_fp32.npz \
       --input_name input
 
@@ -112,7 +113,7 @@ if [ $DO_FUSE_PREPROCESS -eq 1 ]; then
         --assign-weight-address \
         --tpu-weight-address-align=16 \
         --tpu-weight-map-filename=weight_map_int8_lg_fused_preprocess.csv \
-        --tpu-weight-bin-filename=weight.bin | \
+        --tpu-weight-bin-filename=weight_fused_process.bin | \
     mlir-opt \
         --tpu-generate-compressed-weight \
         --assign-neuron-address \
@@ -126,7 +127,7 @@ if [ $DO_FUSE_PREPROCESS -eq 1 ]; then
 
     mlir-translate \
         --mlir-to-cvimodel \
-        --weight-file weight.bin \
+        --weight-file weight_fused_process.bin \
         int8_layergroup_func.mlir \
         -o ${NET}_fused_preprocess.cvimodel
 

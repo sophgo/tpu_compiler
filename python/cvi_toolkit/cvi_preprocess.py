@@ -16,6 +16,8 @@ def parse_args():
         '--input_name', help='input data name, default: input', default='input')
     parser.add_argument(
         '--output_data_format', help='output data format, default: hwc, chw', default='hwc')
+    parser.add_argument("--batch_size", type=int, default=1,
+                        help="preprocess store batch size")
     args = parser.parse_args()
 
     return args
@@ -32,7 +34,8 @@ if __name__ == "__main__":
                         raw_scale=args.raw_scale,
                         std=args.std,
                         rgb_order=args.model_channel_order,
-                        data_format=args.data_format)
+                        data_format=args.data_format,
+                        batch=args.batch_size)
     preprocessor.run(args.image_file, output_npz=args.npz_name,
                      input_name=args.input_name, output_data_format=args.output_data_format)
 
