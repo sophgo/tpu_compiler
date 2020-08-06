@@ -451,39 +451,9 @@ struct ExtendPreprocessOpPattern : public RewritePattern {
     auto crop_op = OpBuilder(op).create<tpu::CropOp>(
         op->getLoc(), crop_type, ArrayRef<Value *>{transpose_op},
         ArrayRef<NamedAttribute>{crop_attrs});
-    setOpThreshold(crop_op, 127);
+    setOpThreshold(crop_op, 255);
     setOpQuantParamType(crop_op, "THRESHOLD");
     setOpQuant(crop_op, "INT8");
-
-    // swapaxis, rgb to bgr or bgr to rgb
-    std::string swapaxis_name =
-        getOpName(preprocessOp).str() + "_preprocess_swapaxis";
-    std::vector<int> color_orders;
-    if (preprocessOp.color_order().hasValue()) {
-      for (auto o : llvm::enumerate(preprocessOp.color_order().getValue())) {
-        auto attr = o.value().dyn_cast<IntegerAttr>();
-        color_orders.push_back(attr.getInt());
-      }
-    }
-    auto swapaxis_type = RankedTensorType::get({on, oc, oh, ow}, eltType);
-    std::vector<NamedAttribute> swapaxis_attrs;
-
-    swapaxis_attrs.push_back(
-        builder.getNamedAttr("name", builder.getStringAttr(swapaxis_name)));
-    swapaxis_attrs.push_back(builder.getNamedAttr(
-        "channel_order",
-        builder.getI32ArrayAttr(ArrayRef<int32_t>({color_orders}))));
-    swapaxis_attrs.push_back(
-        builder.getNamedAttr("quant", getDefaultQuantParam(builder)));
-    swapaxis_attrs.push_back(
-        builder.getNamedAttr("layer_id", builder.getI32IntegerAttr(layer_id)));
-    // we only accept first input to IR, second input shape will be attribute.
-    auto swapaxis_op = OpBuilder(op).create<tpu::SwapChannelOp>(
-        op->getLoc(), swapaxis_type, ArrayRef<Value *>{crop_op},
-        ArrayRef<NamedAttribute>{swapaxis_attrs});
-    setOpThreshold(swapaxis_op, 255);
-    setOpQuantParamType(swapaxis_op, "THRESHOLD");
-    setOpQuant(swapaxis_op, "INT8");
 
     // create bf16 scale
     // ((x * raw_scale / 255.0) - mean / std) * scale
@@ -504,6 +474,13 @@ struct ExtendPreprocessOpPattern : public RewritePattern {
       auto attr = s.value().dyn_cast<FloatAttr>();
       stds.push_back((float)attr.getValueAsDouble());
     }
+    std::vector<int> color_orders;
+    if (preprocessOp.color_order().hasValue()) {
+      for (auto o : llvm::enumerate(preprocessOp.color_order().getValue())) {
+        auto attr = o.value().dyn_cast<IntegerAttr>();
+        color_orders.push_back(attr.getInt());
+      }
+    }
 
     std::vector<float> scale_value(3), bias_value(3);
     auto scale_weight_type = RankedTensorType::get({oc, 1, 1, 1, 1}, eltType);
@@ -512,6 +489,24 @@ struct ExtendPreprocessOpPattern : public RewritePattern {
     for (size_t i = 0; i < scale_value.size(); ++i) {
       scale_value[i] = (scale * raw_scale) / (stds[i] * 255.0);
       bias_value[i] = -(means[i] / stds[i]) * scale;
+    }
+    std::vector<float> tmp_scale_value(scale_value.begin(), scale_value.end());
+    std::vector<float> tmp_bias_value(bias_value.begin(), bias_value.end());
+
+    // swap op do after scale(because it's can be fuesd with first conv)
+    // change weight order here
+    if (color_orders.size()){
+      assert(color_orders.size() == 3 && "color_order must be 3");
+      std::vector<float> tmp_scale_value(scale_value.begin(),
+      scale_value.end()); std::vector<float>
+      tmp_bias_value(bias_value.begin(), bias_value.end());
+
+      for(size_t i = 0; i < color_orders.size(); ++i){
+        auto it = std::find(color_orders.begin(), color_orders.end(), i);
+        int index = std::distance(color_orders.begin(), it);
+        scale_value[i] = tmp_scale_value[index];
+        bias_value[i] = tmp_bias_value[index];
+      }
     }
 
     wTF->addTensor<float>(scale_name + "_0", scale_value.data(),
@@ -527,11 +522,11 @@ struct ExtendPreprocessOpPattern : public RewritePattern {
         op->getLoc(), scale_weight_type, ArrayRef<Value *>{wfV},
         ArrayRef<NamedAttribute>{scale_weight_attrs});
     auto bias_weight_op = OpBuilder(op).create<tpu::LoadWeightOp>(
-        op->getLoc(), scale_weight_type, ArrayRef<Value *>{wfV},
+        op->getLoc(), bias_weight_type, ArrayRef<Value *>{wfV},
         ArrayRef<NamedAttribute>{bias_weight_attrs});
 
     std::vector<Value *> scale_operands;
-    scale_operands.push_back(swapaxis_op);
+    scale_operands.push_back(crop_op);
     scale_operands.push_back(scale_weight_op);
     scale_operands.push_back(bias_weight_op);
 
@@ -571,12 +566,38 @@ struct ExtendPreprocessOpPattern : public RewritePattern {
     auto scale_op = OpBuilder(op).create<tpu::Conv2DOp>(
         op->getLoc(), scale_type, ArrayRef<Value *>{scale_operands},
         ArrayRef<NamedAttribute>{scale_attrs});
+
+    // to int8 as input, use input quantize threshold
     setOpThreshold(scale_op, getOpThreshold(op));
     setOpQuantParamType(scale_op, "THRESHOLD");
     setOpQuant(scale_op, "BF16");
-    // to int8 as input, use input quantize threshold
 
-    rewriter.replaceOp(preprocessOp, {scale_op.getResult()});
+
+    // swapaxis, rgb to bgr or bgr to rgb
+    std::string swapaxis_name =
+        getOpName(preprocessOp).str() + "_preprocess_swapaxis";
+
+    auto swapaxis_type = RankedTensorType::get({on, oc, oh, ow}, eltType);
+    std::vector<NamedAttribute> swapaxis_attrs;
+
+    swapaxis_attrs.push_back(
+        builder.getNamedAttr("name", builder.getStringAttr(swapaxis_name)));
+    swapaxis_attrs.push_back(builder.getNamedAttr(
+        "channel_order",
+        builder.getI32ArrayAttr(ArrayRef<int32_t>({color_orders}))));
+    swapaxis_attrs.push_back(
+        builder.getNamedAttr("quant", getDefaultQuantParam(builder)));
+    swapaxis_attrs.push_back(
+        builder.getNamedAttr("layer_id", builder.getI32IntegerAttr(layer_id)));
+    // we only accept first input to IR, second input shape will be attribute.
+    auto swapaxis_op = OpBuilder(op).create<tpu::SwapChannelOp>(
+        op->getLoc(), swapaxis_type, ArrayRef<Value *>{scale_op},
+        ArrayRef<NamedAttribute>{swapaxis_attrs});
+    setOpThreshold(swapaxis_op, getOpThreshold(op));
+    setOpQuantParamType(swapaxis_op, "THRESHOLD");
+    setOpQuant(swapaxis_op, "INT8");
+
+    rewriter.replaceOp(preprocessOp, {swapaxis_op.getResult()});
     return matchSuccess();
   }
 };
