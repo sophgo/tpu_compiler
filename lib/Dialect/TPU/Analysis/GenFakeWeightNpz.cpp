@@ -18,8 +18,9 @@
 // This file implements the TPU dialect OP pass.
 //
 //===----------------------------------------------------------------------===//
-
+#include <cmath>
 #include <random>
+#include <sstream>
 #include "mlir/Dialect/TPU/TPUDialect.h"
 #include "mlir/Dialect/TPU/TPUTensorSupport.h"
 #include "mlir/Dialect/TPU/TPUOperationSupport.h"
@@ -36,6 +37,11 @@ using namespace mlir;
 
 namespace {
 
+static llvm::cl::opt<std::string> clPseudoCaliTableFilename(
+    "pseudo-calibration-table",
+    llvm::cl::desc("save pseudo calibration table file"),
+    llvm::cl::init("-"));
+
 class GenPseudoWeightNpzPass : public FunctionPass<GenPseudoWeightNpzPass> {
 public:
   explicit GenPseudoWeightNpzPass() {}
@@ -50,7 +56,28 @@ public:
     std::mt19937 gen{rd()};
     StringRef npzFileName;
 
+    std::unique_ptr<llvm::ToolOutputFile> caliTableFile = nullptr;
+    if (clPseudoCaliTableFilename != "-") {
+      std::string errorMessage;
+      caliTableFile = openOutputFile(clPseudoCaliTableFilename, &errorMessage);
+      if (!caliTableFile) {
+        llvm::errs() << errorMessage << "\n";
+        exit(1);
+      }
+    }
+
     fn.walk([&](Operation *op) {
+      if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpCommonInterface>(op)) {
+        if (caliTableFile) {
+          auto name = tpuOp.getOpName();
+          std::normal_distribution<float> d{0.01, 12.0};
+          float rand = d(gen);
+          std::stringstream ss;
+          ss << std::fixed << std::setprecision(6) << std::fabs(rand);
+          auto &os = caliTableFile->os();
+          os << name << " " << ss.str() << "\n";
+        }
+      }
       if (auto castOp = llvm::dyn_cast<tpu::WeightFileOp>(op)) {
         npzFileName = castOp.filename();
       } else if (auto castOp = llvm::dyn_cast<tpu::InputOp>(op)) {
@@ -127,6 +154,10 @@ public:
       }
     });
     cnpy::npz_save_all(npzFileName.str(), npz);
+
+    if (caliTableFile) {
+      caliTableFile->keep();
+    }
   }
 };
 

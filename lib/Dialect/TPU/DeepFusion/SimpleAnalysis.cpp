@@ -49,6 +49,11 @@ uint64_t SimpleConv2DMemoryUsageAnalysis(OpTy &op,
   uint64_t inputNeuronSizePerLane = MInfo::getSizePerLane(n, ic, ih, iw, true);
   uint64_t outputNeuronSizePerLane = MInfo::getSizePerLane(n, oc, oh, ow, true);
   uint64_t filterSizePerLane = 0;
+
+  if (ic > 4095) {
+    // TODO, need to support deep fusion conv with ic > 4095
+    return MInfo::lmem_per_lane + 1;
+  }
   // filter working size *2 for double buffer
   if (g != oc) {
     if(g != 1) { // TODO, not support group convolution now.
