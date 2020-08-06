@@ -3012,6 +3012,39 @@ LogicalResult tpu::SwapChannelOp::interpret(
   return success();
 }
 
+LogicalResult tpu::TileOp::interpret(
+    DenseMap<Value *, std::shared_ptr<std::vector<float>>> &valueMapping) {
+  Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
+
+  auto opdT = getOperandTensors(op, valueMapping);
+  auto result = this->getResult();
+  auto size = getTensorSize(result);
+  auto resultT = std::make_unique<std::vector<float>>(size);
+  float *input = (float *)opdT[0]->data();
+  float *output = (float *)resultT.get()->data();
+
+  // input
+  std::vector<int64_t> input_shape;
+  int64_t input_size;
+  getTensorShapeAndSize(op->getOperand(0), input_shape, input_size);
+
+  // output
+  std::vector<int64_t> output_shape;
+  int64_t output_size;
+  getTensorShapeAndSize(this->output(), output_shape, output_size);
+
+  // get scale info
+  std::vector<int32_t> resp;
+  arrayAttrToVector(this->resp().getValue(), resp);
+
+  my_tile(input, output, input_shape, output_shape, resp);
+
+  valueMapping[result] = std::move(resultT);
+
+  return success();
+}
+
 LogicalResult tpu::TileInterpOp::interpret(
     DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();

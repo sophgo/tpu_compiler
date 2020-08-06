@@ -97,6 +97,7 @@ class CaffeConverter(BaseConverter):
             'Softmax': lambda layer: self.convert_softmax_op(layer),
             'Split': lambda layer: self.convert_split_op(layer),
             'TanH': lambda layer: self.convert_tanh_op(layer),
+            'Tile': lambda layer: self.convert_tile_op(layer),
             'Upsample': lambda layer: self.convert_upsample_op(layer),
             'YoloDetection': lambda layer: self.convert_yolo_detection_op(layer),
         }
@@ -1354,6 +1355,25 @@ class CaffeConverter(BaseConverter):
         output_shape = input_shape
         new_op = self.CVI.add_tanh_op(
             layer.name, operands, output_shape)
+        self.addOperand(layer.top[0], new_op,
+                        output_shape, TensorType.ACTIVATION)
+    
+    def convert_tile_op(self, layer):
+        assert(self.layerType(layer) == 'Tile')
+        op, input_shape, _ = self.getOperand(layer.bottom[0])
+        operands = list()
+        operands.append(op)
+        assert(len(input_shape) == 4)
+        axis = layer.tile_param.axis
+        tiles = layer.tile_param.tiles
+        output_shape = input_shape
+        output_shape[axis] = output_shape[axis] * tiles
+        param = {
+            'axis': axis,
+            'tiles': tiles
+        }
+        new_op = self.CVI.add_tile_op(
+            layer.name, operands, output_shape, **param)
         self.addOperand(layer.top[0], new_op,
                         output_shape, TensorType.ACTIVATION)
 

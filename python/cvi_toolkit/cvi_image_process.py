@@ -24,6 +24,8 @@ if __name__ == '__main__':
     parser.add_argument('--batch', type=int, default=1)
     parser.add_argument('--yolo', type=str, default='false')
     parser.add_argument('--save', type=str)
+    parser.add_argument('--name', type=str, default='data')
+    parser.add_argument('--gray', type=str, default='false')
     args = parser.parse_args()
     resize_dims = [int(dim) for dim in args.resize_dims.strip().split(',')]
     net_input_dims = [int(dim) for dim in args.net_input_dims.strip().split(',')]
@@ -60,7 +62,10 @@ if __name__ == '__main__':
 
         x[paste_h:paste_h + rescale_h, paste_w: paste_w + rescale_w, :] = resized_img
         x = np.transpose(x, (2, 0, 1))      # row to col, (HWC -> CHW)
+    if args.gray == "true":
+        x = x[0]
 
     x = np.expand_dims(x, axis=0)
     x = np.tile(x, (args.batch, 1, 1, 1))
-    np.savez(args.save, x)
+    dict_x = {args.name:x}
+    np.savez(args.save, **dict_x)

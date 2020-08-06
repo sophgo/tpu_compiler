@@ -589,7 +589,8 @@ public:
         BypassThresholdDefaultPattern<tpu::SliceOp>,
         BypassThresholdDefaultPattern<tpu::ShuffleChannelOp>,
         BypassThresholdDefaultPattern<tpu::SwapChannelOp>,
-        BypassThresholdDefaultPattern<tpu::ReduceMaxOp>
+        BypassThresholdDefaultPattern<tpu::ReduceMaxOp>,
+        BypassThresholdDefaultPattern<tpu::TileOp>
         >(context);
     applyPatternsGreedily(fn, patterns);
 

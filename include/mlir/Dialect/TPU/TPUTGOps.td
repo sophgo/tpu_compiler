@@ -1033,7 +1033,7 @@ def TPU_TG_INT8_ShuffleChannelOp : TPU_TG_ShuffleChannelOp<"tg_int8_shufflechann
 def TPU_TG_BF16_ShuffleChannelOp : TPU_TG_ShuffleChannelOp<"tg_bf16_shufflechannel", "Bf16">;
 
 
-class TPU_TG_TileOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
+class TPU_TG_TileComOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
        DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
@@ -1078,9 +1078,10 @@ class TPU_TG_TileOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 
   let results = (outs AnyTensor:$output);
 }
-
-def TPU_TG_INT8_TileInterpOp : TPU_TG_TileOp<"tg_int8_tile_interp", "Int8">;
-def TPU_TG_BF16_TileInterpOp : TPU_TG_TileOp<"tg_bf16_tile_interp", "Bf16">;
+def TPU_TG_INT8_TileOp : TPU_TG_TileComOp<"tg_int8_tile", "Int8">;
+def TPU_TG_BF16_TileOp : TPU_TG_TileComOp<"tg_bf16_tile", "Bf16">;
+def TPU_TG_INT8_TileInterpOp : TPU_TG_TileComOp<"tg_int8_tile_interp", "Int8">;
+def TPU_TG_BF16_TileInterpOp : TPU_TG_TileComOp<"tg_bf16_tile_interp", "Bf16">;
 
 class TPU_TG_PixelShuffleOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,

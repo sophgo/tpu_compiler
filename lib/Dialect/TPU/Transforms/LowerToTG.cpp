@@ -1221,6 +1221,38 @@ Value *tpu::SwapChannelOp::convertToTG() {
   llvm_unreachable("unsupported type");
 }
 
+Value* tpu::TileOp::convertToTG() {
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  auto builder = Builder(op->getContext());
+
+  std::vector<Value *> operands;
+  operands.push_back(input());
+
+  std::vector<NamedAttribute> attrs;
+
+  // keep info to tg
+  attrs.push_back(builder.getNamedAttr("name", nameAttr()));
+  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
+  attrs.push_back(builder.getNamedAttr("resp", respAttr()));
+
+  if (getOpQuant() == "INT8") {
+    auto newOp = OpBuilder(op).create<tpu::TG_INT8_TileOp>(
+        op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  } else if (getOpQuant() == "BF16") {
+    auto newOp = OpBuilder(op).create<tpu::TG_BF16_TileOp>(
+        op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  }
+  llvm_unreachable("unsupported type");
+
+  return NULL;
+}
+
 Value* tpu::TileInterpOp::convertToTG() {
   LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
                << " [" << getOpName() << "]\n";);
@@ -2775,6 +2807,7 @@ public:
         DefaultToTGPattern<tpu::SqrtOp>,
         DefaultToTGPattern<tpu::SwapChannelOp>,
         DefaultToTGPattern<tpu::TanHOp>,
+        DefaultToTGPattern<tpu::TileOp>,
         DefaultToTGPattern<tpu::UpsampleOp>,
         DefaultToTGPattern<tpu::ReduceMeanOp>,
         DefaultToTGPattern<tpu::ReduceMaxOp>,

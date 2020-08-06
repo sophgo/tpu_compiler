@@ -2194,7 +2194,7 @@ def TPU_SwapChannelOp: TPU_Op<"swap_channel",
 }
 def TPU_TanHOp : TPU_LutOp<"tanh", "TanH">;
 
-class TPU_TileOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
+class TPU_TileComOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
        DeclareOpInterfaceMethods<TpuOpInterpInterface>,
@@ -2260,9 +2260,10 @@ class TPU_TileOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
   );
 
   let results = (outs AnyTensor:$output);
+  let hasCanonicalizer = 1;
 }
-
-def TPU_TileInterpOp : TPU_TileOp<"tile_interp", "interp">;
+def TPU_TileOp : TPU_TileComOp<"tile", "Tile">;
+def TPU_TileInterpOp : TPU_TileComOp<"tile_interp", "interp">;
 
 def TPU_TransposeOp : TPU_Op<"transpose",
       [NoSideEffect,

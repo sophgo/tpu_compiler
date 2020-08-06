@@ -144,4 +144,6 @@ int my_reduce_max(float *input, float *output,
 int my_roipooling(float *data, float *rois, float *output, int pooled_h, int pooled_w,
                   float spatial_scale, int batch, int num_rois, int channel, int height, int width);
 
+int my_tile(float *input, float *output, std::vector<int64_t> &input_shape,
+            std::vector<int64_t> &output_shape, std::vector<int32_t> &resp);
 #endif // MLIR_DIALECT_TPU_NATIVE_CPU_IMPLEMENTATION_H_

@@ -2374,6 +2374,60 @@ LogicalResult tpu::TG_BF16_SwapChannelOp::codegen(void *ctx) {
   return success();
 }
 
+LogicalResult tpu::TG_INT8_TileOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  // backend not ok now
+#if 0
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  std::vector<int64_t> input_shape = getTensorShape(input());
+  std::vector<int64_t> output_shape = getTensorShape(this->getResult());
+
+  gaddr_t input_gaddr = getPreviousOpAddress(op);
+  gaddr_t output_gaddr = getOpAddress(op);
+  int layer_id = mlir::getOpLayerId(op);
+  std::vector<int32_t> resp;
+  arrayAttrToVector(this->resp().getValue(), resp);
+  tile_forward_kernel(*backend_ctx, 0, 0, layer_id, nullptr, 0,
+                      input_gaddr, output_gaddr,
+                      input_shape.size(), input_shape.data(),
+                      output_shape.size(), output_shape.data(),
+                      resp.size(), resp.data(), CVI_FMT_I8);
+#endif
+  std::string errorMsg = "unsupported tg op " + getOpName().str() + "\n";
+  llvm_unreachable(errorMsg.c_str());
+  return success();
+}
+
+LogicalResult tpu::TG_BF16_TileOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  // backend not ok now
+#if 0
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  std::vector<int64_t> input_shape = getTensorShape(input());
+  std::vector<int64_t> output_shape = getTensorShape(this->getResult());
+
+  gaddr_t input_gaddr = getPreviousOpAddress(op);
+  gaddr_t output_gaddr = getOpAddress(op);
+  int layer_id = mlir::getOpLayerId(op);
+  std::vector<int32_t> resp;
+  arrayAttrToVector(this->resp().getValue(), resp);
+  tile_forward_kernel(*backend_ctx, 0, 0, layer_id, nullptr, 0,
+                      input_gaddr, output_gaddr,
+                      input_shape.size(), input_shape.data(),
+                      output_shape.size(), output_shape.data(),
+                      resp.size(), resp.data(), CVI_FMT_BF16);
+#endif
+  std::string errorMsg = "unsupported tg op " + getOpName().str() + "\n";
+  llvm_unreachable(errorMsg.c_str());
+  return success();
+}
+
 LogicalResult tpu::TG_INT8_TileInterpOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);

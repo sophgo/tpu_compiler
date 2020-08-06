@@ -64,6 +64,7 @@ class TPU_OpType(Enum):
     Softmax = 'tpu.softmax'
     SwapChannel = 'tpu.swap_channel'
     Tanh = 'tpu.tanh'
+    Tile = 'tpu.tile'
     Upsample = 'tpu.upsample'
     YoloDetection = 'tpu.yolo_detection'
     ReduceMean = 'tpu.reduce_mean'
@@ -1109,6 +1110,28 @@ class MLIRImporter(object):
             inputOperands.append(none)
         return self.buildOp(TPU_OpType.Tanh.value, inputOperands, [
             tensor_output_type], name=tanh_name, quant=self.quant_param)
+    
+    def add_tile_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+        tensor_output_type = self.module.make_ranked_tensor_type(
+            self.f32Type, output_tensor_shape)
+        
+        checkKey(kargs, 'axis')
+        checkKey(kargs, 'tiles')
+
+        tile_name = self.module.stringAttr(op_name)
+        resp = [1,1,1,1]
+        resp[kargs['axis']] = kargs['tiles']
+        resp = self.module.arrayAttr([self.module.integerAttr(self.i32Type, x) for x in resp])
+        tile_param = {
+            'resp': resp
+        }
+
+        none = self.add_none_op()
+        for i in range(4):
+            inputOperands.append(none)
+
+        return self.buildOp(TPU_OpType.Tile.value, inputOperands, [
+            tensor_output_type], name=tile_name, quant=self.quant_param, **tile_param)
 
     def add_upsample_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = self.module.make_ranked_tensor_type(
