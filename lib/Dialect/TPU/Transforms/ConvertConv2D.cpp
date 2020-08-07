@@ -115,6 +115,8 @@ struct TpuMergeSwapChannelToConv2DPattern : public RewritePattern {
     std::vector<NamedAttribute> attrs;
     attrs.push_back(
         rewriter.getNamedAttr("name", rewriter.getStringAttr(tensor_name)));
+    attrs.push_back(rewriter.getNamedAttr(
+        "storage", rewriter.getStringAttr(filter_op.storage().str())));
     auto new_filter_op = rewriter.create<tpu::LoadWeightOp>(
         loc, filter_type, ArrayRef<Value *>{wfV},
         ArrayRef<NamedAttribute>{attrs});
