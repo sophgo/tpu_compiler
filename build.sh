@@ -120,13 +120,17 @@ cmake -G Ninja -DLLVM_BUILD_EXAMPLES=OFF \
     -DLLVM_ENABLE_RTTI=ON -DLLVM_ENABLE_EH=ON \
     -DOCAMLFIND=NO \
     $BUILD_FLAG \
+    -DLLVM_INCLUDE_TESTS=OFF \
+    -DLLVM_INCLUDE_TOOLS=OFF \
     -DMKLDNN_PATH=$MKLDNN_PATH \
     -DCAFFE_PATH=$CAFFE_PATH \
     -DCVIKERNEL_PATH=$CVIKERNEL_PATH \
     -DCMAKE_INSTALL_PREFIX=$MLIR_PATH \
     -DPYBIND11_PYTHON_VERSION=$PYTHON_VERSION \
     $TPU_BASE/llvm-project/llvm
-cmake --build . --target check-mlir
+# speed up compilation time. if want to check-mlir
+# please mark -DLLVM_INCLUDE_TESTS and -DLLVM_INCLUDE_TOOLS.
+# cmake --build . --target check-mlir
 cmake --build . --target pymlir
 cmake --build . --target pybind
 cmake --build . --target install
@@ -244,15 +248,16 @@ cmake --build . --target install
 popd
 cp $MLIR_SRC_PATH/externals/profiling/tool/performance.html $PROFILING_PATH/bin/
 
+# stop generating python3_package, as we release tar.gz for now
 # build python package
-pushd $MLIR_SRC_PATH
-if [ $PYTHON_VERSION == "2" ]; then
-  echo "Not support build python2 package"
-elif [ $PYTHON_VERSION == "3" ]; then
-  python3 setup/python3/setup.py bdist_wheel --dist-dir=$INSTALL_PATH/python3_package/ --plat-name="linux_x86_64"
-  python3 setup/python3/setup.py clean
-fi
-popd
+#pushd $MLIR_SRC_PATH
+#if [ $PYTHON_VERSION == "2" ]; then
+#  echo "Not support build python2 package"
+#elif [ $PYTHON_VERSION == "3" ]; then
+#  python3 setup/python3/setup.py bdist_wheel --dist-dir=$INSTALL_PATH/python3_package/ --plat-name="linux_x86_64"
+#  python3 setup/python3/setup.py clean
+#fi
+#popd
 
 # Clean up some files for release build
 if [ "$1" = "RELEASE" ]; then
