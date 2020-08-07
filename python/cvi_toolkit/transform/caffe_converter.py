@@ -871,16 +871,41 @@ class CaffeConverter(BaseConverter):
         if p.shift == 0 and p.power == 1 and p.scale == 1:
             # do nothing
             return self.addOperand(layer.top[0], op, input_shape, TensorType.ACTIVATION)
-        param = {
-            'power': p.power,
-            'scale': p.scale,
-            'shift': p.shift,
-        }
-        output_shape = input_shape
-        new_op = self.CVI.add_power_op(
-            layer.name, operands, output_shape, **param)
-        self.addOperand(layer.top[0], new_op,
-                        output_shape, TensorType.ACTIVATION)
+        if p.power != 1.0:
+            param = {
+                'power': p.power,
+                'scale': p.scale,
+                'shift': p.shift,
+            }
+            output_shape = input_shape
+            new_op = self.CVI.add_power_op(
+                layer.name, operands, output_shape, **param)
+            self.addOperand(layer.top[0], new_op,
+                            output_shape, TensorType.ACTIVATION)
+        else:
+            # convert to scale op
+            # weight scale
+            scale_name = layer.name + "_0"
+            c = input_shape[1]
+            scale_shape = [c]
+            scale_data = np.array([p.scale for i in range(c)], dtype=float)
+            self.addTensor(scale_name, scale_data, scale_shape)
+            scale_op = self.CVI.add_load_file_op(scale_name, scale_shape)
+            operands.append(scale_op)
+            # weight bias
+            if p.shift != 0.0:
+                bias_name = layer.name + "_1"
+                bias_shape = [c]
+                bias_data = np.array([p.shift for i in range(c)], dtype=float)
+                self.addTensor(bias_name, bias_data, bias_shape)
+                bias_op = self.CVI.add_load_file_op(bias_name, bias_shape)
+                operands.append(bias_op)
+            else:
+                operands.append(self.noneOp())
+            output_shape = input_shape
+            new_op = self.CVI.add_scale_op(layer.name, operands, output_shape)
+            self.addOperand(layer.top[0], new_op, output_shape,
+                            TensorType.ACTIVATION)
 
     def convert_prelu_op(self, layer):
         assert(self.layerType(layer) == 'PReLU')

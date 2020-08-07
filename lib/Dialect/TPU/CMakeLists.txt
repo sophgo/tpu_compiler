@@ -46,6 +46,7 @@ add_llvm_library(MLIRTPU
   Transforms/ConvertConv2D.cpp
   Transforms/ConvertUpsampleToDeconv.cpp
   Transforms/ConvertQuantOp.cpp
+  Transforms/ConvertPower.cpp
   Transforms/LowerToTG.cpp
   Transforms/group_ops/GroupOps.cpp
   Transforms/group_ops/NetGraph.cpp

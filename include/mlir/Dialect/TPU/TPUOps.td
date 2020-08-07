@@ -1509,6 +1509,7 @@ def TPU_PowerOp: TPU_Op<"power",
   );
 
   let results = (outs AnyTensor:$output);
+  let hasCanonicalizer = 1;
 }
 
 def TPU_PReluOp : TPU_Op<"prelu",
