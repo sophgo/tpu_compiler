@@ -158,6 +158,8 @@ class OnnxConverter(BaseConverter):
             "Relu": lambda node: self.convert_relu_op(node),
             "Reshape": lambda node: self.convert_reshape_op(node),
             "Resize": lambda node: self.convert_resize_op(node),
+            "ReduceMean": lambda node: self.convert_reduce_mean_op(node),
+            "ReduceMax": lambda node: self.convert_reduce_max_op(node),
             "Shape": lambda node: self.convert_shape_op(node),
             "Sigmoid" :lambda node: self.convert_activation_op(node),
             "Slice": lambda node: self.convert_slice_op(node),
@@ -170,8 +172,7 @@ class OnnxConverter(BaseConverter):
             "Transpose": lambda node: self.convert_transpose_op(node),
             "Unsqueeze": lambda node: self.convert_unsqueeze_op(node),
             "Upsample": lambda node: self.convert_upsample_op(node),
-            "ReduceMean": lambda node: self.convert_reduce_mean_op(node),
-            "ReduceMax": lambda node: self.convert_reduce_max_op(node),
+
         }
 
     def __del__(self):
