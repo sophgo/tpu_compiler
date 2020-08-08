@@ -73,6 +73,7 @@ if [ $DO_FUSE_PREPROCESS -eq 1 ] && [ $BATCH_SIZE -eq 1 ]; then
       --chipname ${SET_CHIP_NAME} \
       --tpu-quant \
       --convert-quant-op \
+      --canonicalize \
       --print-tpu-op-info \
       --tpu-op-info-filename ${NET}_op_info_int8_multiplier_fused_preprocess.csv \
       ${NET}_cali_fused_preprocess.mlir \
