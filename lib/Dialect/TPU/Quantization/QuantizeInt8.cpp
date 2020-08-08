@@ -906,6 +906,7 @@ LogicalResult quantizeInt8BypassOps(Operation *op) {
       || isa<tpu::PermuteOp>(op)
       || isa<tpu::ROIPoolingOp>(op)
       || isa<tpu::SwapChannelOp>(op)
+      || isa<tpu::CropOp>(op)
       || isa<tpu::SoftmaxOp>(op)) {
     skip_checking = true;
   }
