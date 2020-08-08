@@ -8,7 +8,8 @@ import shutil
 
 
 
-from cvi_toolkit import cvinn, preprocess
+from cvi_toolkit import preprocess
+from cvi_toolkit.cvinn import cvinn
 from cvi_toolkit.numpy_helper import npz_extract, npz_rename
 from cvi_toolkit import cvi_data
 from cvi_toolkit.utils.log_setting import setup_logger
