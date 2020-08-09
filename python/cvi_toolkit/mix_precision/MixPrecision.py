@@ -97,7 +97,7 @@ class MixPrecisior(object):
             all_tensor = self.bf16_model.get_all_tensor()
             pred_tensor = all_tensor[self.bf16_model.op_info[-1]['name']].flatten()
             predictions_gt.append(pred_tensor)
-
+        del self.bf16_model
         print("bf16 inference done")
 
         pbar = tqdm(self.fp32_cali_model.op_info)
@@ -123,6 +123,7 @@ class MixPrecisior(object):
                 pred_tensor = all_tensor[self.bf16_model.op_info[-1]['name']].flatten()
                 sqnr += self.cal_sqnr(predictions_gt[idx], pred_tensor)
 
+            del self.bf16_model
             # print("Layer: {}, SQNR: {}\n\n".format(layer['name'], sqnr / len(self.image_txt_list)))
 
             sqnr_list.append((layer['name'], sqnr / len(self.image_txt_list)))
