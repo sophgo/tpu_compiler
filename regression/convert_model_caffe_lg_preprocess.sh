@@ -34,6 +34,7 @@ mlir-opt fp32.mlir \
     --print-tpu-op-info \
     --tpu-op-info-filename op_info.csv | \
 mlir-opt \
+    ${ENABLE_CALI_OVERWRITE_THRESHOLD_FORWARD} \
     --import-calibration-table \
     --calibration-table $9 | \
 mlir-opt \
