@@ -55,7 +55,9 @@ def Convert(args):
                         args.mlir_file_path, batch_size=args.batch_size)
     elif args.model_type == "caffe":
         c = CaffeConverter(args.model_name, args.model_path, args.model_dat,
-                           args.mlir_file_path, batch_size=args.batch_size, preprocess=preprocess_args)
+                           args.mlir_file_path, batch_size=args.batch_size, preprocess=preprocess_args,
+                           convert_preprocess=args.convert_preprocess, preprocess_args=preprocessor.to_dict()
+        )
     c.run()
 
 

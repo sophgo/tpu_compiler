@@ -23,7 +23,8 @@ class CaffeTensor():
 
 
 class CaffeConverter(BaseConverter):
-    def __init__(self, model_name, prototxt, caffemodel, mlir_file_path, batch_size=1, preprocess=None):
+    def __init__(self, model_name, prototxt, caffemodel, mlir_file_path, batch_size=1, preprocess=None,
+                 convert_preprocess=False, preprocess_args=None):
         super().__init__()
         self.model_name = model_name
         self.prototxt = prototxt
@@ -47,6 +48,16 @@ class CaffeConverter(BaseConverter):
         self.output_shapes = list()
         self.CVI = None
         self.output_tensor_file = "{}_1_06eeeb7e.npz".format(model_name)
+
+
+        self.convert_preprocess = convert_preprocess
+        if self.convert_preprocess:
+            if preprocess_args:
+                self.preprocess_args = preprocess_args
+            else:
+                raise RuntimeError("preprocess args not exist!")
+
+
         self.caffeop_factory = {
             'BatchNorm': lambda layer: self.convert_batchnorm_op(layer),
             'BN': lambda layer: self.convert_bn_op(layer),
@@ -115,9 +126,19 @@ class CaffeConverter(BaseConverter):
     def init_importer(self):
         self.input_shapes = list()
         for i in self.inputs:
-            i_shape = list(self.blobs[i].shape)
-            i_shape[0] = self.batch_size
-            self.input_shapes.append(i_shape)
+            input_shape = list(self.blobs[i].shape)
+            input_shape[0] = self.batch_size
+            if self.convert_preprocess:
+                if self.preprocess_args.get("data_format") == "nchw":
+                    resize_h, resize_w = self.preprocess_args.get(
+                        "resize_dims")
+
+                    # beacause of opencv imread data_format default is nhwc
+                    # if model data format is nchw, fused preprocess need to change it
+                    input_shape = [input_shape[0], resize_h,
+                                   resize_w, input_shape[1]]
+
+            self.input_shapes.append(input_shape)
         # get output shape
         self.output_shapes = list()
         for o in self.outputs:
@@ -1519,11 +1540,52 @@ class CaffeConverter(BaseConverter):
 
         # add input op
         for idx, name in enumerate(self.inputs):
-            input_shape = self.input_shapes[idx]
-            input_op = self.CVI.add_input_op(name, idx)
+            input_shape = list(self.blobs[name].shape)
+            input_shape[0] = self.batch_size
+            if self.convert_preprocess:
+                resize_h, resize_w = self.preprocess_args.get(
+                        "resize_dims")
+
+                # add preprocess
+                input_no_preprocess_op = self.CVI.add_input_op(
+                    name, idx)
+                color_order = np.array([0 ,1, 2])
+                transpose_order = np.array([0, 1, 2, 3])
+                crop_shape = np.array(
+                    self.preprocess_args.get('crop_shape'))
+                crop_offset = np.array(self.preprocess_args.get('crop_offset'))
+                if self.preprocess_args.get('rgb_order') == "rgb":
+                    # we read image use opencv, opencv default is bgr
+                    # we need to swap to rgb
+                    color_order = np.array([2,1,0])
+                if self.preprocess_args.get('data_format') == "nchw":
+                    # opencv default is nhwc
+                    # we need to transpose to nchw
+                    transpose_order = np.array([0, 3, 1, 2])
+                if self.preprocess_args.get('net_input_dims') != self.preprocess_args.get('resize_dims'):
+                    # center crop
+                    crop_offset = np.array(self.preprocess_args.get('crop_offset'))
+                # add preprocess
+                preprocess_attr = {
+                    'mean': np.array([float(s) for s in self.preprocess_args.get('mean')], dtype=np.float32),
+                    'std':  np.array([float(s) for s in self.preprocess_args.get('std')], dtype=np.float32),
+                    'scale': self.preprocess_args.get('input_scale'),
+                    'raw_scale': self.preprocess_args.get('raw_scale'),
+                    'color_order': color_order,
+                    'transpose_order': transpose_order,
+                    'crop_offset': crop_offset
+                }
+
+                output_shape = input_shape
+                input_op = self.CVI.add_preprocess_op(
+                    "{}_preprocess".format(name), [input_no_preprocess_op], output_shape, **preprocess_attr)
+            else:
+                input_op = self.CVI.add_input_op(name, idx)
+
             self.addOperand(name, input_op, input_shape, TensorType.ACTIVATION)
             # only first input do preprocess
-            if idx == 0:
+            if idx == 0 and not self.convert_preprocess:
+                # convert_preprocess is new version fuesd_preprocess
                 self.do_preprocess(name)
 
         for layer in self.layers:
