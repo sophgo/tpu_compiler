@@ -2093,8 +2093,16 @@ LogicalResult tpu::TG_INT8_QuantOp::codegen(void *ctx) {
                << " [" << getOpName() << "]\n";
   // FIXME: rename to dequant, from low accuricy to higher
   // plz refre LowerToTG.cpp:867 for more details
+  cvi_backend_fmt_t from, to;
   assert(this->from() == "INT8");
-  assert(this->to() == "BF16");
+  from = CVI_FMT_I8;
+  if (this->to() == "NONE") {
+    to = CVI_FMT_F32;
+  }
+  else {
+    to = CVI_FMT_BF16;
+    assert(this->to() == "BF16");
+  }
 
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
@@ -2113,14 +2121,11 @@ LogicalResult tpu::TG_INT8_QuantOp::codegen(void *ctx) {
   float threshold = this->threshold().getValue().convertToFloat();
   float dequant = threshold / 128.0;
 
-  // dequant to bf16
-  mixed_precision_tg_s8_bf16(
+  // dequant to bf16/fp32
+  mixed_precision_dequant(
           *backend_ctx,//CviBackendContext &ctx,
-          0,//u32 stream_id,
-          0,//u32 inst_id,
           layer_id,//u32 layer_id,
-          NULL,//const u32 *depends,
-          0,//u32 depends_len,
+          from, to,
           ga_input,//gaddr_t bottom_gaddr,
           ga_output,//gaddr_t top_gaddr,
           n,//int input_n,
@@ -2137,8 +2142,16 @@ LogicalResult tpu::TG_BF16_QuantOp::codegen(void *ctx) {
   llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";
 
-  assert(this->from() == "BF16");
+  cvi_backend_fmt_t from, to;
+  if (this->from() == "NONE") {
+    from = CVI_FMT_F32;
+  }
+  else {
+    from = CVI_FMT_BF16;
+    assert(this->from() == "BF16");
+  }
   assert(this->to() == "INT8");
+  to = CVI_FMT_I8;
 
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
@@ -2158,13 +2171,10 @@ LogicalResult tpu::TG_BF16_QuantOp::codegen(void *ctx) {
   float quant = 128.0 / threshold;
 
   //  quant to int8
-  mixed_precision_tg_bf16_s8(
+  mixed_precision_quant(
           *backend_ctx,//CviBackendContext &ctx,
-          0,//u32 stream_id,
-          0,//u32 inst_id,
           layer_id,//u32 layer_id,
-          NULL,//const u32 *depends,
-          0,//u32 depends_len,
+          from, to,
           ga_input,//gaddr_t bottom_gaddr,
           ga_output,//gaddr_t top_gaddr,
           n,//int input_n,

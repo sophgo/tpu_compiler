@@ -1041,6 +1041,18 @@ Value *tpu::QuantOp::convertToTG() {
         op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
+  } else if (this->from() == "NONE" && this->to() == "INT8") {
+    // quant fp32->int8
+    auto newOp = OpBuilder(op).create<tpu::TG_BF16_QuantOp>(
+        op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  } else if (this->from() == "INT8" && this->to() == "NONE") {
+    // dequant int8->fp32
+    auto newOp = OpBuilder(op).create<tpu::TG_INT8_QuantOp>(
+        op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
   } else {
     std::vector<NamedAttribute> param;
     param.push_back(builder.getNamedAttr("from", fromAttr()));

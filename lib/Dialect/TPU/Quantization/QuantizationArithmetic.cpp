@@ -860,21 +860,50 @@ static inline signed char float2int8(float v, int mode = 0)
 /// Quantize an Activation tensor into INT8, given threshold
 void quantizeActivationInt8WithThreshold(float *output, float *input,
     int64_t size, float threshold) {
+
+  float scale = 128.0 / threshold;
+  bfloat16 bf_scale, bf_tmp;
+  bf_scale = FloatToBFloat16(scale);
+  scale = BFloat16ToFloat(bf_scale);
+
   for (int64_t i = 0; i < size; ++i) {
-    float scale = 128.0 / threshold;
     // note this is using std::round() rather than floor(v+0.5f)
     // to compliance with NEON implemention on runtime
     //output[i] = (float)saturateInt8(input[i] * 128.0 / threshold);
-    output[i] = (float)float2int8(input[i] * scale, 0);
+    float f_tmp = input[i];
+
+    // remove [17:31] mantissa part
+    FloatToBFloat16(&f_tmp, &bf_tmp, 1, false);
+
+    f_tmp = BFloat16ToFloat(bf_tmp);
+    f_tmp = f_tmp * scale;
+    // align backend
+    bf_tmp = FloatToBFloat16(f_tmp);
+    f_tmp = BFloat16ToFloat(bf_tmp);
+    output[i] = (float)float2int8(f_tmp, 1);
   }
 }
 
 /// DeQuantize an Activation tensor from INT8, given threshold
 void dequantizeActivationInt8WithThreshold(float *output, float *input,
     int64_t size, float threshold) {
+
+  float scale = threshold / 128.0;
+  bfloat16 bf_scale, bf_tmp;
+  bf_scale = FloatToBFloat16(scale);
+  scale = BFloat16ToFloat(bf_scale);
+
   for (int64_t i = 0; i < size; ++i) {
-    float scale = threshold / 128.0;
-    output[i] = input[i] * scale;
+    // i8->bf16
+    bf_tmp = FloatToBFloat16(input[i]);
+    float fp_tmp = BFloat16ToFloat(bf_tmp);
+
+    // bf16 mul scale
+    fp_tmp = fp_tmp * scale;
+
+    // bf16 -> fp32
+    bf_tmp = FloatToBFloat16(fp_tmp);
+    output[i] = BFloat16ToFloat(bf_tmp);
   }
 }
 
