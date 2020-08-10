@@ -125,7 +125,8 @@ struct TpuPoolMaskOpPattern : public RewritePattern {
                            ArrayRef<mlir::Type>{output_type}, operands, attrs);
 
     // m = 1 * w + 1
-    const float MIN_FLOAT = 1.0e-6;
+    const float MIN_FLOAT = 1.0e-9;
+    const int MULTIPLIER = 1000000000;
     std::vector<float> const_scale_1(output_shape[1], 1);
     std::vector<float> const_bias_1(output_shape[1], MIN_FLOAT);
 
@@ -319,7 +320,7 @@ struct TpuPoolMaskOpPattern : public RewritePattern {
                            ArrayRef<mlir::Type>{output_type}, operands, attrs);
 
     // c = 1000000 * b + 0
-    std::vector<float> const_scale_4(output_shape[1], 1.0e+6);
+    std::vector<float> const_scale_4(output_shape[1], MULTIPLIER);
     std::vector<float> const_bias_4(output_shape[1], 0);
     auto scale_value_4 = addWeightTensorAndCreateWeightOp<float>(relu_op_1,
                                  "scale", const_scale_4, const_shape,
