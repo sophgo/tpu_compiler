@@ -240,7 +240,7 @@ public:
     for (auto it = map.begin(); it != map.end(); it++) {
       auto arr = it->second;
       assert (arr.type == 'f'); // support float only for now
-      assert(arr.word_size = sizeof(float));
+      assert(arr.word_size == sizeof(float));
       auto count = arr.num_bytes() / arr.word_size;
       std::vector<T> *tensor = new std::vector<T>(count);
       memcpy(tensor->data(), arr.data_holder->data(), arr.num_bytes());

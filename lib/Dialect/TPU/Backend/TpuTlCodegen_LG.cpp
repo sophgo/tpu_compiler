@@ -560,21 +560,19 @@ LogicalResult tpu::TL_LG_INT8_QuantOp::codegen(void *ctx) {
   cvi_backend_fmt_t from, to;
   if (this->from() == "BF16") {
     from = CVI_FMT_BF16;
-  }
-  else if (this->from() == "INT8") {
+  } else if (this->from() == "INT8") {
     from = CVI_FMT_I8;
-  }
-  else {
+  } else if (this->from() == "UINT8") {
+    from = CVI_FMT_U8;
+  } else {
     llvm_unreachable("current `from` only support int8/bf16");
   }
 
   if (this->to() == "BF16") {
     to = CVI_FMT_BF16;
-  }
-  else if (this->to() == "INT8") {
+  } else if (this->to() == "INT8") {
     to = CVI_FMT_I8;
-  }
-  else {
+  } else {
     llvm_unreachable("current `to` only support int8/bf16");
   }
 

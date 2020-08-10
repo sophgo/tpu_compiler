@@ -435,7 +435,7 @@ LogicalResult doConv2DOpInterpret(Operation *op,
       // no need to dilate
     }
     else {
-      
+
       int oh = calc_dilute_hw(ih, ins_h, 0, 0, 0);
       int ow = calc_dilute_hw(iw, ins_w, 0, 0, 0);
       int size = n * ic * oh * ow;
@@ -3037,7 +3037,6 @@ LogicalResult tpu::TileInterpOp::interpret(
   oh = output_shape[2];
   ow = output_shape[3];
 
-  
   // get scale info
   std::vector<int32_t> resp;
   arrayAttrToVector(this->resp().getValue(), resp);
@@ -3346,7 +3345,8 @@ LogicalResult tpu::QuantOp::interpret(
     BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
   } else if (this->from() == "BF16" && this->to() == "NONE") {
     resultT->assign(opdT[0]->begin(), opdT[0]->end());
-  } else if (this->from() == "INT8" && this->to() == "BF16") {
+  } else if (this->from() == "INT8" ||
+             this->from() == "UINT8" && this->to() == "BF16") {
     float *input = (float *)opdT[0]->data();
     float *output = (float *)resultT->data();
     float threshold = this->threshold().getValue().convertToFloat();
