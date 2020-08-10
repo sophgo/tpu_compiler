@@ -33,6 +33,7 @@ def add_preprocess_parser(parser):
     parser.add_argument("--model_channel_order", type=str, help="channel order of model inference used, default: bgr", default="bgr")
     parser.add_argument("--data_format", type=str, help="input image data dim order, default: nchw", default="nchw")
     parser.add_argument("--bgray", type=int, default=0, help="whether the input image is gray, channel size is 1")
+    parser.add_argument("--astype", type=str, help="store npz type, default is float32", default="float32")
     return parser
 
 
@@ -59,7 +60,8 @@ class preprocess(object):
                      npy_input=None,
                      letter_box=False,
                      batch=1,
-                     bgray=0):
+                     bgray=0,
+                     astype="float32"):
         print("preprocess :\n         \
             \tnet_input_dims: {}\n    \
             \tresize_dims   : {}\n    \
@@ -74,10 +76,11 @@ class preprocess(object):
             \tletter_box    : {}\n    \
             \tbatch_size    : {}\n    \
             \tbgray         : {}\n    \
+            \tastype        : {}\n    \
         ".format(net_input_dims, resize_dims, mean, \
                 mean_file, std, input_scale, raw_scale, \
-                 data_format, rgb_order, npy_input,
-                letter_box, batch, bgray
+                 data_format, rgb_order, npy_input, \
+                letter_box, batch, bgray, astype,
         ))
         self.npy_input = npy_input
         self.letter_box = letter_box
@@ -92,6 +95,7 @@ class preprocess(object):
             self.resize_dims = self.net_input_dims
 
         self.raw_scale = raw_scale
+        self.astype = astype
 
         if mean:
             self.mean = np.array([float(s) for s in mean.split(',')], dtype=np.float32)
@@ -255,6 +259,13 @@ class preprocess(object):
         if self.bgray:
             # if is grayscale, then output only one channel
             output=output[:,0:1,:,:]
+
+        if self.astype == "float32":
+            pass
+        elif self.astype == "uint8":
+            output = output.astype(np.uint8)
+        else:
+            raise RuntimeError("Not support {} type".format(self.astype))
 
         if output_npz:
             if self.batch > 1:

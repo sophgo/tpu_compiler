@@ -6,7 +6,7 @@ DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 CHECK_NON_OPT_VERSION=0
 
 if [ $DO_FUSE_PREPROCESS -eq 1 ] && [ $BATCH_SIZE -eq 1 ]; then
-    # make image data only resize
+    # make image data only resize, for interpreter, use fp32
     cvi_preprocess.py  \
       --image_file $REGRESSION_PATH/data/cat.jpg \
       --net_input_dims ${IMAGE_RESIZE_DIMS} \
@@ -19,6 +19,23 @@ if [ $DO_FUSE_PREPROCESS -eq 1 ] && [ $BATCH_SIZE -eq 1 ]; then
       --batch_size $BATCH_SIZE \
       --npz_name ${NET}_only_resize_in_fp32.npz \
       --input_name input
+
+
+    # for uint8 dtype, for model runner(cmodel)
+    cvi_preprocess.py  \
+      --image_file $REGRESSION_PATH/data/cat.jpg \
+      --net_input_dims ${IMAGE_RESIZE_DIMS} \
+      --image_resize_dims ${IMAGE_RESIZE_DIMS} \
+      --raw_scale 255 \
+      --mean 0,0,0 \
+      --std 1,1,1 \
+      --input_scale 1 \
+      --data_format nhwc \
+      --astype uint8 \
+      --batch_size $BATCH_SIZE \
+      --npz_name ${NET}_only_resize_in_uint8.npz \
+      --input_name input
+
 
     cvi_model_convert.py \
       --model_path $MODEL_DEF \
@@ -134,7 +151,7 @@ if [ $DO_FUSE_PREPROCESS -eq 1 ] && [ $BATCH_SIZE -eq 1 ]; then
 
     model_runner \
         --dump-all-tensors \
-        --input ${NET}_only_resize_in_fp32.npz \
+        --input ${NET}_only_resize_in_uint8.npz \
         --model ${NET}_fused_preprocess.cvimodel \
         --batch-num $BATCH_SIZE \
         --output ${NET}_cmdbuf_out_all_int8_multiplier_fused_preprocess.npz
