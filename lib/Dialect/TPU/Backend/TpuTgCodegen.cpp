@@ -2094,12 +2094,19 @@ LogicalResult tpu::TG_INT8_QuantOp::codegen(void *ctx) {
   // FIXME: rename to dequant, from low accuricy to higher
   // plz refre LowerToTG.cpp:867 for more details
   cvi_backend_fmt_t from, to;
-  assert(this->from() == "INT8");
-  from = CVI_FMT_I8;
+  if (this->from() == "INT8") {
+    from = CVI_FMT_I8;
+  } else if (this->from() == "UINT8") {
+    from = CVI_FMT_U8;
+  } else {
+    std::stringstream err_msg;
+    err_msg << " not support " << this->from().str() << "type\n";
+    throw std::runtime_error(err_msg.str());
+  }
+
   if (this->to() == "NONE") {
     to = CVI_FMT_F32;
-  }
-  else {
+  } else {
     to = CVI_FMT_BF16;
     assert(this->to() == "BF16");
   }

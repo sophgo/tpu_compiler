@@ -1374,7 +1374,7 @@ void MixNet::_add_tl_quant_op(MixOp * mix_op,
   uint32_t la_input = net_graph_->get_tensor_local_offset(in_tensors[0]);
   uint32_t la_output = net_graph_->get_tensor_local_offset(out_tensors[0]);
 
-  if (from == "INT8" && to == "BF16") {
+  if (from == "INT8" || from == "UINT8" && to == "BF16") {
     // dequant
     const_scale = threshold / 128.0;
   }

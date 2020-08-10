@@ -153,10 +153,14 @@ static void insertQuantOp(Operation *op) {
         name = getOpName(prev_op).str() + "_quant";
         layer_id = getOpLayerId(op);
       } else if (prev_quant == "INT8") {
+        if (curr_quant == "UINT8") {
+          continue;
+        }
         threshold = getOpThreshold(prev_op);
         name = getOpName(prev_op).str() + "_dequant";
         layer_id = getOpLayerId(prev_op);
       } else if (curr_quant == "BF16") {
+        threshold = getOpThreshold(prev_op);
         name = getOpName(prev_op).str() + "_quant";
         layer_id = getOpLayerId(op);
       } else if (prev_quant == "BF16") {
@@ -206,7 +210,7 @@ static void insertQuantOp(Operation *op) {
       op->setOperand(i, quantOp.getResult());
 
       LLVM_DEBUG(llvm::errs() << "  opd " << i << ", " << name << ", "
-                  << prev_quant << " => " << curr_quant << "\n";);
+                  << prev_quant << " => " << curr_quant <<  " threshold: "<< threshold<<"\n";);
     }
   }
 }
@@ -417,7 +421,7 @@ struct ExtendPreprocessOpPattern : public RewritePattern {
     auto transpose_op = OpBuilder(op).create<tpu::PermuteOp>(
         op->getLoc(), transpose_type, ArrayRef<Value *>{input_op},
         ArrayRef<NamedAttribute>{transpose_attrs});
-    setOpThreshold(transpose_op, 127);
+    setOpThreshold(transpose_op, 128);
     setOpQuantParamType(transpose_op, "THRESHOLD");
     setOpQuant(transpose_op, "INT8");
 
@@ -451,8 +455,8 @@ struct ExtendPreprocessOpPattern : public RewritePattern {
     auto crop_op = OpBuilder(op).create<tpu::CropOp>(
         op->getLoc(), crop_type, ArrayRef<Value *>{transpose_op},
         ArrayRef<NamedAttribute>{crop_attrs});
-    setOpThreshold(crop_op, 255);
     setOpQuantParamType(crop_op, "THRESHOLD");
+    setOpThreshold(crop_op, 255);
     setOpQuant(crop_op, "INT8");
 
     // create bf16 scale
@@ -799,7 +803,7 @@ public:
           castOp.setAttr("quant", DictionaryAttr::get(newQuant, context));
         }
       } else if (auto quantOp = llvm::dyn_cast<tpu::TpuOpQuantInterface>(op)) {
-        if (getOpQuant(op) == "INT8") {
+        if (getOpQuant(op) == "INT8" || getOpQuant(op) == "UINT8") {
           auto ret = quantOp.quantizeInt8();
           assert(!failed(ret));
         } else if (getOpQuant(op) == "BF16") {
@@ -816,6 +820,7 @@ public:
     fn.walk([&](Operation *op) {
       if ((op->getName().getDialect().str() != "tpu"
            && !isa<ReturnOp>(op))
+          || isa<tpu::InputOp>(op)
           || isa<tpu::WeightFileOp>(op)
           || isa<tpu::LoadWeightOp>(op)
           || isa<tpu::NoneOp>(op)) {

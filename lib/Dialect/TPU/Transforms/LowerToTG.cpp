@@ -317,7 +317,7 @@ Value* tpu::CropOp::convertToTG() {
   attrs.push_back(builder.getNamedAttr("crop_shape", crop_shapeAttr()));
   attrs.push_back(builder.getNamedAttr("crop_offset", crop_offsetAttr()));
 
-  if (getOpQuant() == "INT8") {
+  if (getOpQuant() == "INT8" || getOpQuant() == "UINT8") {
     // create op
     auto newOp = OpBuilder(op).create<tpu::TG_INT8_CropOp>(op->getLoc(),
         getResult()->getType(), ArrayRef<Value *>{operands},
@@ -840,7 +840,7 @@ Value* tpu::PermuteOp::convertToTG() {
   attrs.push_back(builder.getNamedAttr("order2", order2Attr()));
   attrs.push_back(builder.getNamedAttr("order3", order3Attr()));
 
-  if (getOpQuant() == "INT8") {
+  if (getOpQuant() == "INT8" || getOpQuant() == "UINT8") {
     auto newOp = OpBuilder(op).create<tpu::TG_INT8_PermuteOp>(op->getLoc(),
         getResult()->getType(), ArrayRef<Value *>{operands},
         ArrayRef<NamedAttribute>{attrs});
@@ -1035,7 +1035,8 @@ Value *tpu::QuantOp::convertToTG() {
         op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
-  } else if (this->from() == "INT8" && this->to() == "BF16") {
+  } else if (this->from() == "INT8" ||
+             this->from() == "UINT8" && this->to() == "BF16") {
     // dequant
     auto newOp = OpBuilder(op).create<tpu::TG_INT8_QuantOp>(
         op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},

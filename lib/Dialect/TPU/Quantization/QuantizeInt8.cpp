@@ -889,7 +889,7 @@ LogicalResult quantizeInt8MultiplyOps(Operation *op) {
 /// operation handles on INT8 and pass through directly
 ///
 LogicalResult quantizeInt8BypassOps(Operation *op) {
-  assert(getOpQuant(op) == "INT8");
+  assert(getOpQuant(op) == "INT8" || getOpQuant(op) == "UINT8");
   // support per-tensor only for now
   setOpQuantPerchannel(op, false);
   // use rshift and INT8 multiplier
