@@ -611,14 +611,20 @@ struct TpuTpuQuantClipPassPattern : public RewritePattern {
     auto builder = OpBuilder(op);
 
     if (auto clipOp = llvm::dyn_cast<tpu::ClipOp>(op)) {
+
+      // check quant type
+      auto formerOp = clipOp.getOperand(0)->getDefiningOp();
+      auto curr_quant = getOpQuant(op);
+      auto prev_quant = getOpQuant(formerOp);
+      auto next_quant = getOpQuant(op->getResult(0)->getDefiningOp());
+
       // check threshold_max/threshold_min has assigned
       auto threshold_max = clipOp.quant().threshold_max().getValue().convertToFloat();
       auto threshold_min = clipOp.quant().threshold_min().getValue().convertToFloat();
-      if (threshold_max == 0 && threshold_min == 0) {
+      if (threshold_max == 0 && threshold_min == 0 && curr_quant == "INT8") {
         assert(0 && "you MUST do import-calibration-table before\n");
       }
 
-      auto formerOp = clipOp.getOperand(0)->getDefiningOp();
       std::string formerOpName = formerOp->getAttrOfType<StringAttr>("name").getValue().str();
       if (!formerOp->getResult(0)->hasOneUse()) {
         LLVM_DEBUG(llvm::errs() << "Not overwrtie more users op: " << formerOpName << ", not remove it\n";);
@@ -645,10 +651,6 @@ struct TpuTpuQuantClipPassPattern : public RewritePattern {
         LLVM_DEBUG(llvm::errs() << "cant fuse previous op " << formerOpName << ", not remove it\n";);
         return matchFailure();
       }
-
-      auto curr_quant = getOpQuant(op);
-      auto prev_quant = getOpQuant(formerOp);
-      auto next_quant = getOpQuant(op->getResult(0)->getDefiningOp());
 
       // always overwrite threshold for high accuracy
       if (curr_quant == "BF16" && prev_quant == "INT8" && next_quant == "INT8") {
