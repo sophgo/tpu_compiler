@@ -41,7 +41,7 @@
 
 #define DEBUG_TYPE "convert_to_tg"
 
-static llvm::cl::opt<bool>
+extern llvm::cl::opt<bool>
     clUseTPUQuantOp("use-tpu-quant-op",
                 llvm::cl::desc("Quant op inference by tpu instead of cpu"),
                 llvm::cl::init(false));
