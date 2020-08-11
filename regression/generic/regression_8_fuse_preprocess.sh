@@ -100,7 +100,8 @@ if [ $DO_FUSE_PREPROCESS -eq 1 ] && [ $BATCH_SIZE -eq 1 ]; then
     mlir-tpu-interpreter ${NET}_quant_int8_multiplier_fused_preprocess.mlir \
         --tensor-in ${NET}_only_resize_in_fp32.npz \
         --tensor-out ${NET}_out_int8_multiplier_fused_preprocess.npz \
-        --dump-all-tensor=${NET}_tensor_all_int8_multiplier_fused_preprocess.npz
+        --dump-all-tensor=${NET}_tensor_all_int8_multiplier_fused_preprocess.npz \
+        --use-tpu-quant-op
 
     cvi_npz_tool.py compare \
         ${NET}_tensor_all_int8_multiplier_fused_preprocess.npz \
@@ -115,6 +116,7 @@ if [ $DO_FUSE_PREPROCESS -eq 1 ] && [ $BATCH_SIZE -eq 1 ]; then
     # cvimodel
     mlir-opt \
       ${NET}_quant_int8_multiplier_fused_preprocess.mlir \
+      --use-tpu-quant-op \
       --tpu-lower --reorder-op | \
     mlir-opt \
         --tg-fuse-leakyrelu \
