@@ -633,13 +633,28 @@ class OnnxConverter(BaseConverter):
         axis = onnx_node.attrs['axis']
         if tensor_type1 == TensorType.TENSOR and tensor_type2 == TensorType.TENSOR:
             tensor_datas = list()
+            tensor_datas_shape = list()
+            for i in onnx_node.inputs:
+                t_d = self.getTensor(i).tensor_data
+                # predict all shape, concat shape lens should all equal
+                tensor_datas_shape.append(len(t_d.shape))
+            # get frequency counts for unique values in an array
+            x = np.array(tensor_datas_shape)
+            y = np.bincount(x)
+            ii = np.nonzero(y)[0]
+            dim_size = np.vstack((ii,y[ii])).T[0][0] # [0][0] is most frequency shape
+
             for i in onnx_node.inputs:
                 # FIXME: if tensor data is from weight, and it's shape just one
                 #        match with other input shape, use squeeze
                 t_d = self.getTensor(i).tensor_data
                 if len(t_d.shape) == 1 and t_d[0] == -1:
-                    t_d = np.expand_dims(t_d, axis=0)
+                    if dim_size == len(t_d.shape):
+                        pass # no need to expaned dims cuz all dim_size are same
+                    else:
+                        t_d = np.expand_dims(t_d, axis=0)
                     print(t_d)
+                print(t_d.shape, "t_d", onnx_node.name)
                 tensor_datas.append(t_d)
 
              # handle input0 shape(1, 1), intput1 shape (1,)
@@ -647,6 +662,7 @@ class OnnxConverter(BaseConverter):
               shape = np.array(tensor_datas[1]).shape
               tensor_datas[0] = (np.array(tensor_datas[0]).reshape(shape)).tolist()
 
+            print(tensor_datas, "axis is", axis)
             n_t = np.concatenate(tuple(tensor_datas), axis=axis)
             self.addTensor(onnx_node.name, n_t, list(n_t.shape))
             self.addOperand(onnx_node.name, None, list(n_t.shape), TensorType.TENSOR)
