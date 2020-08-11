@@ -572,6 +572,73 @@ int my_gru(float *input, float *output,
   return 0;
 }
 
+int my_lstm(float *input, float *output,
+           float *weight, float *recurrence, float *bias, float *initial_h, float *initial_c,
+           int seq_len, int batch_size, int input_size, int hidden_size,
+           bool b_bidirectional) {
+  assert(b_bidirectional == false);
+  assert(batch_size == 1);
+  // refer to the implementation of onnx backend
+  // https://github.com/onnx/onnx/blob/v1.7.0/onnx/backend/test/case/node/lstm.py#L65-L86
+  int num_direction = b_bidirectional ? 2 : 1;
+  float* prev_hidden_state = initial_h; // ht_minus_1
+  float* prev_cell_state = initial_c; // Ct_minus_1
+  float* cell_state= output + (seq_len * num_direction * batch_size * hidden_size); // Ct
+
+  int iofc_size = hidden_size * 4;
+  float* wx_plus_b_plus_rx_plus_b = new float[iofc_size];
+  float* input_gate = wx_plus_b_plus_rx_plus_b; // it
+  float* output_gate = wx_plus_b_plus_rx_plus_b + hidden_size; // ot
+  float* forget_gate = wx_plus_b_plus_rx_plus_b + hidden_size * 2; // ft
+  float* cell_gate = wx_plus_b_plus_rx_plus_b + hidden_size * 3; // ct
+  float* wb = bias;
+  float* rb = bias + iofc_size;
+
+  for (int t = 0; t < seq_len; ++t) {
+    // it = sigmoid(Xt*(Wi^T) + Ht-1*(Ri^T) + Wbi + Rbi)
+    // ot = sigmoid(Xt*(Wo^T) + Ht-1*(Ro^T) + Wbo + Rbo)
+    // ft = sigmoid(Xt*(Wf^T) + Ht-1*(Rf^T) + Wbf + Rbf)
+    // ct = tanh(Xt*(Wc^T) + Ht-1*(Rc^T) + Wbc + Rbc)
+    // Ct = ft (.) Ct-1 + it (.) ct
+    // Ht = ot (.) tanh(Ct)
+    // Wiofc: 4 * hidden_size * input_size
+    // Riofc: 4 * hidden_size * hidden_size
+    // Xt: seq_len * batch_size * input_size
+    float* xt = input + t * input_size;
+
+    for (int i = 0; i < iofc_size; ++i) {
+      float* w = weight + i * input_size;
+      float* r = recurrence + i * hidden_size;
+
+      wx_plus_b_plus_rx_plus_b[i] = wb[i] + rb[i];
+
+      for (int j = 0; j < input_size; ++j)
+        wx_plus_b_plus_rx_plus_b[i] += w[j] * xt[j];
+
+      for (int j = 0; j < hidden_size; ++j)
+        wx_plus_b_plus_rx_plus_b[i] += r[j] * prev_hidden_state[j];
+    }
+
+    float* hidden_state= output + (t * num_direction * batch_size * hidden_size); // ht
+
+    for (int i = 0; i < hidden_size; ++i) {
+      input_gate[i] = sigmoid(input_gate[i]);
+      output_gate[i] = sigmoid(output_gate[i]);
+      forget_gate[i] = sigmoid(forget_gate[i]);
+      cell_gate[i] = tanh(cell_gate[i]);
+      cell_state[i] = forget_gate[i] * prev_cell_state[i] + input_gate[i] * cell_gate[i];
+      hidden_state[i] = output_gate[i] * tanh(cell_state[i]);
+    }
+
+    prev_hidden_state = hidden_state;
+    prev_cell_state = cell_state;
+  }
+
+  delete[] wx_plus_b_plus_rx_plus_b;
+
+  return 0;
+}
+
 int my_avg_pooling(float *input, float *output, int n, int c, int ih, int iw,
                    int oh, int ow, int kh, int kw, int sh, int sw, int pt,
                    int pb, int pl, int pr) {

@@ -22,6 +22,11 @@ int my_gru(float *input, float *output,
     int seq_len, int batch_size, int input_size, int hidden_size,
     bool b_bidirectional=false, bool b_linear_before_reset=true);
 
+int my_lstm(float *input, float *output,
+    float *weight, float *recurrence, float *bias, float *initial_h, float *initial_c,
+    int seq_len, int batch_size, int input_size, int hidden_size,
+    bool b_bidirectional=false);
+
 int my_avg_pooling(float *input, float *output, int n, int c, int ih, int iw,
                    int oh, int ow, int kh, int kw, int sh, int sw, int pt,
                    int pb, int pl, int pr);

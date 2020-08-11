@@ -1225,6 +1225,52 @@ LogicalResult tpu::GruOp::interpret(
   return success();
 }
 
+LogicalResult tpu::LstmOp::interpret(
+    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+  Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
+
+  auto opdT = getOperandTensors(op, valueMapping);
+  auto result = this->getResult();
+  auto size = getTensorSize(result);
+
+  auto resultT = std::make_unique<std::vector<float> >(size);
+
+  assert(opdT.size() == 6);
+  std::shared_ptr<std::vector<float> > input = opdT[0];
+  std::shared_ptr<std::vector<float> > weight = opdT[1];
+  std::shared_ptr<std::vector<float> > recurrence = opdT[2];
+  std::shared_ptr<std::vector<float> > bias = opdT[3];
+  std::shared_ptr<std::vector<float> > initial_h = opdT[4];
+  std::shared_ptr<std::vector<float> > initial_c = opdT[5];
+
+  int seq_len = 0;
+  int batch_size = 0;
+  int input_size = 0;
+  int hidden_size = 0;
+
+  parseLstmParam(this->input(), this->weight(), seq_len, batch_size, input_size, hidden_size);
+  my_lstm(input->data(), resultT->data(), weight->data(), recurrence->data(), bias->data(), initial_h->data(), initial_c->data(),
+              seq_len, batch_size, input_size, hidden_size, this->bidirectional());
+
+  // rshift and saturate on output
+  if (getOpQuant() == "NONE") {
+    // do nothing
+  } else if (getOpQuant() == "INT8") {
+    // gru doesn not implement int8 quantization so far
+    assert(0);
+  } else if (getOpQuant() == "BF16") {
+    auto tensor_bf16 = std::make_unique<std::vector<bfloat16> >(resultT->size());
+    FloatToBFloat16(resultT->data(), tensor_bf16->data(), resultT->size()); // with rounding
+    BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
+  } else {
+    llvm_unreachable("unsupported type");
+  }
+
+  valueMapping[result] = std::move(resultT);
+  return success();
+}
+
 LogicalResult tpu::FrcnDetectionOp::interpret(
     DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();

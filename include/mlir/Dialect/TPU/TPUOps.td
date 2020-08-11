@@ -1071,6 +1071,57 @@ def TPU_LrnOp: TPU_Op<"lrn",
   let results = (outs AnyTensor:$output);
 }
 
+def TPU_LstmOp: TPU_Op<"lstm",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
+       DeclareOpInterfaceMethods<TpuOpQuantInterface>]> {
+  let summary = "LSTM operator";
+
+  let description = [{
+    Performs scale on input.
+
+    Inputs:
+      `input`           : required, the input activation tensor.
+      `weight`          : required, parameter weight tesnor for input, output, forget, and cell gates.
+      `recurrence`       : required, recurrence weight tesnor for input, output, forget, and cell gates.
+      `bias`            : required, bias vectors for input, output, forget, and cell gates.
+      `initial_h`       : required, initial value of the hidden.
+      `initial_c`       : required, initial value of the cell.
+
+    Attributes:
+      `name`            : required, name for calibration, comparing, or debug.
+      `layer_id`        : optional, id for profiling.
+      `chipname`        : optional, chipname.
+
+    Result:
+      `output`          : result tensor with hidden and cell.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface` : support common TPU Op interface
+      `TpuOpInterpInterface` : support interperter
+      `TpuOpQuantInterface`  : support quantization
+      `TpuOpLowerInterface`  : support lower to TPU TG Ops
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    AnyTensor:$weight,
+    AnyTensor:$recurrence,
+    TPU_TensorOfOrNone<[F32, BF16, I16, I8]>:$bias,
+    AnyTensor:$initial_h,
+    AnyTensor:$initial_c,
+    TPU_QuantParamAttr:$quant,
+    StrAttr:$name,
+    DefaultValuedAttr<BoolAttr, "false">:$bidirectional,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
 def TPU_NormalizeOp: TPU_Op<"normalize",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
