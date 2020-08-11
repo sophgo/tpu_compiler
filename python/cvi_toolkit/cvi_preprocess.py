@@ -35,7 +35,8 @@ if __name__ == "__main__":
                         std=args.std,
                         rgb_order=args.model_channel_order,
                         data_format=args.data_format,
-                        batch=args.batch_size)
+                        batch=args.batch_size,
+                        astype=args.astype)
     preprocessor.run(args.image_file, output_npz=args.npz_name,
                      input_name=args.input_name, output_data_format=args.output_data_format)
 

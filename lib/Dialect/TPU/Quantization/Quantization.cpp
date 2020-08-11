@@ -423,7 +423,7 @@ struct ExtendPreprocessOpPattern : public RewritePattern {
         ArrayRef<NamedAttribute>{transpose_attrs});
     setOpThreshold(transpose_op, 128);
     setOpQuantParamType(transpose_op, "THRESHOLD");
-    setOpQuant(transpose_op, "INT8");
+    setOpQuant(transpose_op, "UINT8");
 
     // create int8 crop
     std::string crop_name =
@@ -456,8 +456,8 @@ struct ExtendPreprocessOpPattern : public RewritePattern {
         op->getLoc(), crop_type, ArrayRef<Value *>{transpose_op},
         ArrayRef<NamedAttribute>{crop_attrs});
     setOpQuantParamType(crop_op, "THRESHOLD");
-    setOpThreshold(crop_op, 255);
-    setOpQuant(crop_op, "INT8");
+    setOpThreshold(crop_op, 128);
+    setOpQuant(crop_op, "UINT8");
 
     // create bf16 scale
     // ((x * raw_scale / 255.0) - mean / std) * scale

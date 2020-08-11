@@ -98,7 +98,7 @@ def checkAttrType(attr):
     raise AttributeError("unsupported attributes type")
 
 class MLIRImporter(object):
-    def __init__(self, inputs_shape, outputs_shape):
+    def __init__(self, inputs_shape, outputs_shape, input_type="FP32"):
         """
             input_shape: List[List], put module input shape. ex: [[1, 3, 224, 224]]
             output_shape: List, put module output shape. ex: [1, 1000]
@@ -117,6 +117,7 @@ class MLIRImporter(object):
             self.output_shape_list.append(output)
 
         self.boolType = self.module.make_type("i1")
+        self.i8Type = self.module.make_type("i8")
         self.i32Type = self.module.make_type("i32")
         self.f32Type = self.module.make_type("f32")
         self.NoneType = self.module.make_none_type()
@@ -132,7 +133,8 @@ class MLIRImporter(object):
             'threshold_min': self.module.floatAttr(0)
         }
         self.quant_param = self.module.dictAttr(**quant_param)
-        self.declare_func()
+        self.input_type = input_type
+        self.declare_func(input_type=input_type)
 
     def __del__(self):
         logger.debug('Close mlir builder context')
@@ -160,7 +162,19 @@ class MLIRImporter(object):
     def add_input_op(self, name, index):
         name = self.module.stringAttr(name)
         assert (index < len(self.func_args))
-        return pybind.op(TPU_OpType.Input.value, [self.func_args[index]], [self.tensor_inputs_type[index]], name=name, quant=self.quant_param)
+
+        quant_param = {
+            'is_asymmetric': self.module.boolAttr(False),
+            'is_perchannel': self.module.boolAttr(False),
+            'mode': self.module.stringAttr("NONE"),
+            'param_type': self.module.stringAttr("NONE"),
+            'threshold_max': self.module.floatAttr(0),
+            'threshold_min': self.module.floatAttr(0)
+        }
+        if self.input_type == "UINT8":
+            quant_param['mode'] = self.module.stringAttr("INT8")
+        quant_param_attr = self.module.dictAttr(**quant_param)
+        return pybind.op(TPU_OpType.Input.value, [self.func_args[index]], [self.tensor_inputs_type[index]], name=name, quant=quant_param_attr)
 
     def add_weight_file_op(self, name):
         filename = self.module.stringAttr(name)
@@ -1202,12 +1216,16 @@ class MLIRImporter(object):
 
         return ret
 
-    def declare_func(self):
+    def declare_func(self, input_type:str="FP32"):
         self.tensor_inputs_type = list()
-        for input_shape in self.input_shape_list:
-            self.tensor_inputs_type.append(self.module.make_ranked_tensor_type(
-                self.f32Type, input_shape))
-
+        if input_type == "FP32":
+            for input_shape in self.input_shape_list:
+                self.tensor_inputs_type.append(self.module.make_ranked_tensor_type(
+                    self.f32Type, input_shape))
+        elif input_type == "UINT8":
+            for input_shape in self.input_shape_list:
+                self.tensor_inputs_type.append(self.module.make_ranked_tensor_type(
+                    self.i8Type, input_shape))
         self.tensor_outputs_type = list()
         for output_shape in self.output_shape_list:
             self.tensor_outputs_type.append(self.module.make_ranked_tensor_type(

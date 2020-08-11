@@ -214,7 +214,7 @@ class OnnxConverter(BaseConverter):
             outputs.append(output_shape)
 
         # init importer
-        self.CVI = MLIRImporter(inputs, outputs)
+        self.CVI = MLIRImporter(inputs, outputs, "UINT8" if self.convert_preprocess else "FP32")
 
     def remove_tensor_from_input_nodes(self):
         def find_name_in_tensor_list(name):
