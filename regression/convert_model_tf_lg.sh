@@ -36,6 +36,7 @@ mlir-opt fp32.mlir \
     -o opt.mlir
 mlir-opt \
     opt.mlir \
+    ${ENABLE_CALI_OVERWRITE_THRESHOLD_FORWARD} \
     --import-calibration-table \
     --calibration-table $4 | \
 mlir-opt \
