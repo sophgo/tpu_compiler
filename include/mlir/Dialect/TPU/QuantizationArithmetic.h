@@ -108,10 +108,10 @@ void quantizeWeightInt8Multiplier(float *filter, float *bias,
     float *rshift_per_channel, float *multiplier_per_channel);
 
 void quantizeActivationInt8WithThreshold(float *output, float *input,
-    int64_t size, float threshold);
+    int64_t size, float threshold, bool tpu_mode=false);
 
 void dequantizeActivationInt8WithThreshold(float *output, float *input,
-    int64_t size, float threshold);
+    int64_t size, float threshold, bool tpu_mode=false);
 
 void quantizeActivationFromBf16ToInt8WithThreshold(float *output, float *input,
     int64_t size, float threshold);

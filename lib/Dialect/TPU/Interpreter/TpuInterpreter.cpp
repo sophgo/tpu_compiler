@@ -3378,8 +3378,8 @@ LogicalResult tpu::QuantOp::interpret(
     BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
   } else if (this->from() == "BF16" && this->to() == "NONE") {
     resultT->assign(opdT[0]->begin(), opdT[0]->end());
-  } else if (this->from() == "INT8" ||
-             this->from() == "UINT8" && this->to() == "BF16") {
+  } else if ((this->from() == "INT8" ||
+             this->from() == "UINT8") && this->to() == "BF16") {
     float *input = (float *)opdT[0]->data();
     float *output = (float *)resultT->data();
     float threshold = this->threshold().getValue().convertToFloat();

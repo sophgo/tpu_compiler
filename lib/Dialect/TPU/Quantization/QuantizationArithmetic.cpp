@@ -839,7 +839,7 @@ static inline signed char float2int8(float v, int mode = 0)
     int int32 = 0;
     float fraction, integer;
     float abs_v = std::abs(v);
-    fraction = std::modf(abs_v, &integer); 
+    fraction = std::modf(abs_v, &integer);
     int32 = (int)integer;
     if (fraction > 0.5) {
       int32 = int32 + 1;
@@ -859,51 +859,65 @@ static inline signed char float2int8(float v, int mode = 0)
 
 /// Quantize an Activation tensor into INT8, given threshold
 void quantizeActivationInt8WithThreshold(float *output, float *input,
-    int64_t size, float threshold) {
+    int64_t size, float threshold, bool tpu_mode) {
 
   float scale = 128.0 / threshold;
-  bfloat16 bf_scale, bf_tmp;
-  bf_scale = FloatToBFloat16(scale);
-  scale = BFloat16ToFloat(bf_scale);
+  if (tpu_mode) {
+    bfloat16 bf_scale, bf_tmp;
+    bf_scale = FloatToBFloat16(scale);
+    scale = BFloat16ToFloat(bf_scale);
 
-  for (int64_t i = 0; i < size; ++i) {
-    // note this is using std::round() rather than floor(v+0.5f)
-    // to compliance with NEON implemention on runtime
-    //output[i] = (float)saturateInt8(input[i] * 128.0 / threshold);
-    float f_tmp = input[i];
+    for (int64_t i = 0; i < size; ++i) {
+      // note this is using std::round() rather than floor(v+0.5f)
+      // to compliance with NEON implemention on runtime
+      // output[i] = (float)saturateInt8(input[i] * 128.0 / threshold);
+      float f_tmp = input[i];
+      // remove [17:31] mantissa part
+      FloatToBFloat16(&f_tmp, &bf_tmp, 1, false);
 
-    // remove [17:31] mantissa part
-    FloatToBFloat16(&f_tmp, &bf_tmp, 1, false);
-
-    f_tmp = BFloat16ToFloat(bf_tmp);
-    f_tmp = f_tmp * scale;
-    // align backend
-    bf_tmp = FloatToBFloat16(f_tmp);
-    f_tmp = BFloat16ToFloat(bf_tmp);
-    output[i] = (float)float2int8(f_tmp, 1);
+      f_tmp = BFloat16ToFloat(bf_tmp);
+      f_tmp = f_tmp * scale;
+      // align backend
+      bf_tmp = FloatToBFloat16(f_tmp);
+      f_tmp = BFloat16ToFloat(bf_tmp);
+      output[i] = (float)float2int8(f_tmp, 1);
+    }
+  } else {
+    for (int64_t i = 0; i < size; ++i) {
+      float scale = 128.0 / threshold;
+      // note this is using std::round() rather than floor(v+0.5f)
+      // to compliance with NEON implemention on runtime
+      // output[i] = (float)saturateInt8(input[i] * 128.0 / threshold);
+      output[i] = (float)float2int8(input[i] * scale, 0);
+    }
   }
 }
-
 /// DeQuantize an Activation tensor from INT8, given threshold
 void dequantizeActivationInt8WithThreshold(float *output, float *input,
-    int64_t size, float threshold) {
-
+    int64_t size, float threshold, bool tpu_mode) {
   float scale = threshold / 128.0;
-  bfloat16 bf_scale, bf_tmp;
-  bf_scale = FloatToBFloat16(scale);
-  scale = BFloat16ToFloat(bf_scale);
+  if (tpu_mode) {
+    bfloat16 bf_scale, bf_tmp;
+    bf_scale = FloatToBFloat16(scale);
+    scale = BFloat16ToFloat(bf_scale);
 
-  for (int64_t i = 0; i < size; ++i) {
-    // i8->bf16
-    bf_tmp = FloatToBFloat16(input[i]);
-    float fp_tmp = BFloat16ToFloat(bf_tmp);
+    for (int64_t i = 0; i < size; ++i) {
+      // i8->bf16
+      bf_tmp = FloatToBFloat16(input[i]);
+      float fp_tmp = BFloat16ToFloat(bf_tmp);
 
-    // bf16 mul scale
-    fp_tmp = fp_tmp * scale;
+      // bf16 mul scale
+      fp_tmp = fp_tmp * scale;
 
-    // bf16 -> fp32
-    bf_tmp = FloatToBFloat16(fp_tmp);
-    output[i] = BFloat16ToFloat(bf_tmp);
+      // bf16 -> fp32
+      bf_tmp = FloatToBFloat16(fp_tmp);
+      output[i] = BFloat16ToFloat(bf_tmp);
+    }
+  } else {
+    for (int64_t i = 0; i < size; ++i) {
+      float scale = threshold / 128.0;
+      output[i] = input[i] * scale;
+    }
   }
 }
 

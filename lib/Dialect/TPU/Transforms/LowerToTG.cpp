@@ -41,6 +41,11 @@
 
 #define DEBUG_TYPE "convert_to_tg"
 
+static llvm::cl::opt<bool>
+    clUseTPUQuantOp("use-tpu-quant-op",
+                llvm::cl::desc("Quant op inference by tpu instead of cpu"),
+                llvm::cl::init(false));
+
 namespace mlir {
 
 Value* tpu::BroadcastMulOp::convertToTG() {
@@ -1035,20 +1040,22 @@ Value *tpu::QuantOp::convertToTG() {
         op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
-  } else if (this->from() == "INT8" ||
-             this->from() == "UINT8" && this->to() == "BF16") {
+  } else if ((this->from() == "INT8" ||
+             this->from() == "UINT8") && this->to() == "BF16") {
     // dequant
     auto newOp = OpBuilder(op).create<tpu::TG_INT8_QuantOp>(
         op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
-  } else if (this->from() == "NONE" && this->to() == "INT8") {
+  } else if ((this->from() == "NONE" && this->to() == "INT8") &&
+             clUseTPUQuantOp) {
     // quant fp32->int8
     auto newOp = OpBuilder(op).create<tpu::TG_BF16_QuantOp>(
         op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
-  } else if (this->from() == "INT8" && this->to() == "NONE") {
+  } else if ((this->from() == "INT8" && this->to() == "NONE") &&
+             clUseTPUQuantOp) {
     // dequant int8->fp32
     auto newOp = OpBuilder(op).create<tpu::TG_INT8_QuantOp>(
         op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
