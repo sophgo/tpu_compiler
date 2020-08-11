@@ -11,7 +11,7 @@ if [ ! -f "$ONNX_BLOBS_NPZ" ]; then
       --model_path $MODEL_DEF \
       --batch_size $BATCH_SIZE \
       --dump_tensor $ONNX_BLOBS_NPZ \
-      --input_file $REGRESSION_PATH/data/gru_toy_in_fp32.npz \
+      --input_file $REGRESSION_PATH/data/lstm_toy_in_fp32.npz \
       --output_file onnx_out.npz
 fi
 

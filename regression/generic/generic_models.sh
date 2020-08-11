@@ -1172,6 +1172,24 @@ export TOLERANCE_MIX_PRECISION=0.76,0.60,0.27
 export MIX_PRECISION_BF16_LAYER_NUM=50
 fi
 
+if [ $NET = "lstm_toy" ]; then
+export MODEL_TYPE="onnx"
+export MODEL_DEF=$MODEL_PATH/toy/lstm_toy.onnx
+export MODEL_DAT=""
+export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_onnx/regression_lstm_toy_0_onnx.sh
+export INPUT=input
+export OUTPUTS_FP32=output
+export OUTPUTS=output
+export DO_QUANT_INT8=0
+export DO_QUANT_BF16=0
+export TOLERANCE_BF16=0.99,0.99,0.92
+export DO_LAYERGROUP=0
+export DO_E2E=0
+export DO_DEEPFUSION=0
+export DO_NN_TOOLKIT=0
+export DO_QUANT_MIX=0
+fi
+
 if [ $NET = "gru_toy" ]; then
 export MODEL_TYPE="onnx"
 export MODEL_DEF=$MODEL_PATH/toy/gru_toy.onnx

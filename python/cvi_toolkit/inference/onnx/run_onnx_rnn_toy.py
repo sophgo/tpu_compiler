@@ -68,7 +68,7 @@ def main(argv):
         for x in model.graph.node:
             if x.op_type == 'Split':
                 continue
-            elif x.op_type == 'GRU':
+            elif x.op_type == 'GRU' or x.op_type == 'LSTM':
                 for intermediate_tensor_name in x.output:
                     intermediate_layer_value_info = helper.ValueInfoProto()
                     intermediate_layer_value_info.name = intermediate_tensor_name
