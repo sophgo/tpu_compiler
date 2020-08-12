@@ -294,6 +294,8 @@ if [ $DO_PREPROCESS -eq 1 ]; then
 else
   export EXCEPTS=prob
 fi
+export DO_FUSE_PREPROCESS=1
+export TOLERANCE_INT8_MULTIPLER_FUSE_PREPROCESS=0.94,0.94,0.67
 fi
 
 if [ $NET = "mobilenet_v3" ]; then
