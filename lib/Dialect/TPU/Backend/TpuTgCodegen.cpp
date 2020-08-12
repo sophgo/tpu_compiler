@@ -517,7 +517,7 @@ LogicalResult tpu::TG_INT8_PT_Conv2DOp::codegen(void *ctx) {
       kh, kw,
       dh, dw,
       pt, pb, pl, pr, // pad (t, b, l, r)
-      //ins_w, ins_h, ins_last_h, ins_last_w,
+      0, 0, //ins_h, ins_w
       sh, sw,
       with_bias, // bias_term,
       0,         // do_bn,
@@ -653,7 +653,7 @@ LogicalResult tpu::TG_INT8_PC_Conv2DOp::codegen(void *ctx) {
       kh, kw,
       dh, dw,
       pt, pb, pl, pr, // pad (t, b, l, r)
-      //ins_w, ins_h, ins_last_h, ins_last_w,
+      0, 0, //ins_h, ins_w
       sh, sw,
       with_bias, // bias_term,
       0,         // do_bn,
@@ -746,7 +746,7 @@ LogicalResult tpu::TG_INT8_PT_DeConv2DOp::codegen(void *ctx) {
   std::string errorMsg = "unsupported tg op " + getOpName().str();
   llvm_unreachable(errorMsg.c_str());
 }
-
+#if 0
 LogicalResult tpu::TG_INT8_PC_DeConv2DOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);
@@ -834,6 +834,87 @@ LogicalResult tpu::TG_INT8_PC_DeConv2DOp::codegen(void *ctx) {
 
   return success();
 }
+#else
+LogicalResult tpu::TG_INT8_PC_DeConv2DOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  bool is_dw, with_bias, do_relu;
+  int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw;
+  parseConvParam(param(), false, input(), output(), filter(),
+                 n, ic, ih, iw, oc, oh, ow, g,
+                 kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, is_dw, with_bias, do_relu);
+
+  gaddr_t ga_input = getPreviousOpAddress(op);
+  gaddr_t ga_output = getOpAddress(op);
+  gaddr_t ga_filter = getWeightOpAddress(filter()->getDefiningOp());
+  gaddr_t ga_pc_info = getWeightOpAddress(pc_info()->getDefiningOp());
+  int layer_id = mlir::getOpLayerId(op);
+
+  if (this->fuse_next()) {
+    assert(0);
+  }
+
+  int kh_ext = (kh - 1) * dh + 1;
+  int kw_ext = (kw - 1) * dw + 1;
+  int ins_h = sh - 1;
+  int ins_w = sw - 1;
+  int pad_t = kh_ext - pt - 1;
+  int pad_l = kw_ext - pl - 1;
+  int pad_b = oh + pt - (ih - 1) * sh - 1;
+  int pad_r = ow + pr - (iw - 1) * sw - 1;
+  int stride_h = 1;
+  int stride_w = 1;
+  bool do_chl_quan = true;
+
+  cvi_backend_tg_int8_conv(
+      *backend_ctx,
+      layer_id,   // layer_id,
+      ga_input,   // input_data_gaddr,
+      ga_output,  // output_data_gaddr,
+      ga_filter,  // weight_data_gaddr,
+      ga_pc_info, // bias_data_gaddr,
+      GA_INVALID, // bn_mean_data_gaddr,
+      GA_INVALID, // bn_variance_data_gaddr,
+      GA_INVALID, // scale_gaddr,
+      GA_INVALID, // scale_bias_gaddr,
+      n, ic, ih, iw,
+      g, // group,
+      oc,
+      kh, kw,
+      dh, dw,
+      pad_t, pad_b, pad_l, pad_r,
+      ins_h, ins_w,
+      stride_h, stride_w,
+      with_bias, // bias_term,
+      0,         // do_bn,
+      0,         // do_scale,
+      0,         // do_scale_bias,
+      do_relu ? 1 : 0, // do_activation,
+      0,         // bn_scale,
+      0,         // eps,
+      0,         // param.activation(), method, 0 -> RELU, all others are invalide for now
+      nullptr,   // activation_arg,
+      GA_INVALID, // global_slope_gaddr,
+      false,     // channel_shared,
+      0,         // activation_gt_scale,
+      0,         // activation_gt_rshift,
+      0,         // activation_le_scale,
+      0,         // activation_le_rshift,
+      0,         // (int)rshift[0], //right_shift_width,
+      0,         // bn_right_shift_width,
+      0,         // scale_right_shift_width,
+      do_chl_quan,      // do_chl_quan
+      false,
+      false,
+      false
+      );
+
+  return success();
+}
+#endif
 
 LogicalResult tpu::TG_BF16_DeConv2DOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
