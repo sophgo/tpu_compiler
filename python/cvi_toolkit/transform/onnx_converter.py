@@ -146,6 +146,7 @@ class OnnxConverter(BaseConverter):
             "Identity": lambda node: self.convert_skip_op(node),
             "LeakyRelu": lambda node: self.convert_leaky_relu_op(node),
             "LRN": lambda node: self.convert_lrn_op(node),
+            "LSTM": lambda node: self.convert_lstm_op(node),
             "MatMul": lambda node: self.convert_matmul_op(node),
             "MaxPool": lambda node: self.convert_maxpool_op(node),
             "Max" : lambda node: self.convert_max_op(node),
@@ -1104,6 +1105,81 @@ class OnnxConverter(BaseConverter):
             lrn_op = self.CVI.add_lrn_op("{}_{}".format(
                 onnx_node.name, onnx_node.op_type), operands, output_shape, **lrn_param)
             self.addOperand(onnx_node.name, lrn_op, output_shape, TensorType.ACTIVATION)
+
+    def convert_lstm_op(self, onnx_node):
+        assert(onnx_node.op_type == "LSTM")
+        assert(len(onnx_node.inputs) == 7)
+        op, input_shape, _ = self.getOperand(onnx_node.inputs[0])
+        seq_length, batch_size, _ = input_shape
+        hidden_size = onnx_node.attrs.get("hidden_size")
+        if batch_size > 1:
+            raise RuntimeError("LSTM does not support batch inference so far.")
+
+        operands = list()
+        operands.append(op)
+        bidirectional = True if onnx_node.attrs.get("direction", 'forward') == 'bidirectional' else False
+        num_direction = 1 if not bidirectional else 2
+        lstm_param = {
+            'bidirectional': bool(bidirectional),
+        }
+
+        weight_name = onnx_node.inputs[1]
+        weight_tensor = self.getTensor(weight_name)
+        weight_op = self.CVI.add_load_file_op(weight_name, weight_tensor.shape)
+        operands.append(weight_op)
+
+        recurrence_name = onnx_node.inputs[2]
+        recurrence_tensor = self.getTensor(recurrence_name)
+        recurrence_op = self.CVI.add_load_file_op(recurrence_name, recurrence_tensor.shape)
+        operands.append(recurrence_op)
+
+        bias_name = onnx_node.inputs[3]
+        if len(bias_name) != 0:
+            bias_tensor = self.getTensor(bias_name)
+            bias_op = self.CVI.add_load_file_op(bias_name, bias_tensor.shape)
+            operands.append(bias_op)
+
+        if len(onnx_node.inputs[4]) != 0:
+            raise RuntimeError("LSTM does not test the case of specify the sequence_lens.")
+
+        initial_h_name = onnx_node.inputs[5]
+        if len(initial_h_name) != 0:
+            _, _, tensor_type = self.getOperand(initial_h_name)
+
+            if tensor_type == TensorType.TENSOR:
+                initial_h_tensor = self.getTensor(initial_h_name)
+                initial_h_op = self.CVI.add_load_file_op(initial_h_name, initial_h_tensor.shape)
+                operands.append(initial_h_op)
+                # initial_h shape = [num_directions, batch_size, hidden_size]
+            else:
+                raise RuntimeError("LSTM only support initial_h from activation currently.")
+
+        initial_c_name = onnx_node.inputs[6]
+        if len(initial_c_name) != 0:
+            _, _, tensor_type = self.getOperand(initial_c_name)
+
+            if tensor_type == TensorType.TENSOR:
+                initial_c_tensor = self.getTensor(initial_c_name)
+                initial_c_op = self.CVI.add_load_file_op(initial_c_name, initial_c_tensor.shape)
+                operands.append(initial_c_op)
+            else:
+                raise RuntimeError("LSTM only support initial_c from activation currently.")
+
+        # output = all the intermediate output values of the hidden + output value of the cell
+        output_shape = [seq_length + 1, num_direction, batch_size, hidden_size]
+
+        lstm_op = self.CVI.add_lstm_op("{}_{}_cell_hidden".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **lstm_param)
+        self.addOperand("{}_cell_hidden".format(onnx_node.name), lstm_op, output_shape, TensorType.ACTIVATION)
+
+        attr = {"axis": 0, "offset": 0}
+        output_shape = [seq_length, num_direction, batch_size, hidden_size]
+        slice_op_hidden = self.CVI.add_slice_op("{}_{}".format(onnx_node.outputs[0], onnx_node.op_type), [lstm_op], output_shape, **attr)
+        self.addOperand(onnx_node.outputs[0], slice_op_hidden, output_shape, TensorType.ACTIVATION)
+
+        attr = {"axis": 0, "offset": seq_length}
+        output_shape = [num_direction, batch_size, hidden_size]
+        slice_op_cell = self.CVI.add_slice_op("{}_{}".format(onnx_node.outputs[2], onnx_node.op_type), [lstm_op], output_shape, **attr)
+        self.addOperand(onnx_node.outputs[2], slice_op_cell, output_shape, TensorType.ACTIVATION)
 
     def convert_matmul_op(self, onnx_node):
         assert(onnx_node.op_type == "MatMul")

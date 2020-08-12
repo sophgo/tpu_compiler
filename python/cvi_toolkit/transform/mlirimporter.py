@@ -38,6 +38,7 @@ class TPU_OpType(Enum):
     LrnTwo = 'tpu.lrn_two'
     LrnThree = 'tpu.lrn_three'
     Lrn = 'tpu.lrn'
+    LSTM = 'tpu.lstm'
     Normalize = 'tpu.normalize'
     Mish = 'tpu.mish'
     Pad = 'tpu.pad'
@@ -674,6 +675,22 @@ class MLIRImporter(object):
         lrn_param['norm_region'] = self.module.integerAttr(self.i32Type, 0)
         return self.buildOp(TPU_OpType.Lrn.value, operands, [
             tensor_output_type], name=lrn_name_main, quant=self.quant_param, **lrn_param)
+
+    def add_lstm_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+        tensor_output_type = self.module.make_ranked_tensor_type(
+            self.f32Type, output_tensor_shape)
+
+        if len(inputOperands) < 6:
+            raise ArithmeticError("input operand must great than 6. x, w, r, b, initial_h, initial_c")
+
+        lstm_param = {
+            'bidirectional': self.module.boolAttr(kargs['bidirectional'])
+        }
+
+        lstm_name = self.module.stringAttr(op_name)
+
+        return self.buildOp(TPU_OpType.LSTM.value, inputOperands, [
+            tensor_output_type], name=lstm_name, quant=self.quant_param, **lstm_param)
 
     def add_normalize_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = self.module.make_ranked_tensor_type(
