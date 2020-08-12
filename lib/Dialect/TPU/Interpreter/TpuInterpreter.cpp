@@ -3396,6 +3396,8 @@ LogicalResult tpu::QuantOp::interpret(
                << std::to_string(threshold) << "\n";);
     quantizeActivationFromBf16ToInt8WithThreshold(output, input, size, threshold);
   } else {
+    LLVM_DEBUG(llvm::errs() << "  From:  "
+                            << this->from().str() << "  To: " << this->to().str() << "\n";);
     llvm_unreachable("unsupported type");
   }
 

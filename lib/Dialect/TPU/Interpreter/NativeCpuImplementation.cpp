@@ -1726,6 +1726,9 @@ int my_preprocess(float *input, float *output,
     if (std.size()) {
       val /= std[(i / csz) % c];
     }
+    if (input_scale != 0) {
+      val *= input_scale;
+    }
     *q++ = val;
   }
   return 0;
@@ -1962,7 +1965,7 @@ int my_tile(float *input, float *output, std::vector<int64_t> &input_shape,
       break;
     }
   }
-  
+
   int outer_count = std::accumulate(input_shape.begin(), input_shape.begin() + axis,
                         1, std::multiplies<int>());
   int inner_count = std::accumulate(input_shape.begin() + axis, input_shape.end(),
