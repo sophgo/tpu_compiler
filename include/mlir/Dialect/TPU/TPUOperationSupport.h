@@ -92,6 +92,10 @@ void parseFullyConnectedParam(
     Value *input, Value *output, Value *filter,
     int &m, int &k, int &n);
 
+void parseLstmParam(
+    Value *input, Value *recurrence,
+    int &seq_len, int &batch_size, int &input_size, int& hidden_size);
+
 void parseGruParam(
     Value *input, Value *recurrence,
     int &seq_len, int &batch_size, int &input_size, int& hidden_size);

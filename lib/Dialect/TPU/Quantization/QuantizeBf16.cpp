@@ -554,6 +554,7 @@ DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::LrnOneOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::LrnTwoOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::LrnThreeOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::LrnOp)
+DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::LstmOp)
 
 LogicalResult tpu::MishOp::quantizeBf16() {
   LLVM_DEBUG(llvm::errs() << "quantizeBf16: " << getOperationName() << " ["

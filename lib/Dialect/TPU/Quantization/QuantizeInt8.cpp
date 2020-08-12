@@ -1043,6 +1043,7 @@ DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::LrnOneOp)
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::LrnTwoOp)
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::LrnThreeOp)
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::LrnOp)
+DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::LstmOp)
 
 LogicalResult tpu::MishOp::quantizeInt8() {
   LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName()

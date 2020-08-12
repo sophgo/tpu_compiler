@@ -611,4 +611,19 @@ void parseGruParam(
   hidden_size = w_s[1] / 3;
 }
 
+void parseLstmParam(
+    Value *input, Value *weight,
+    int &seq_len, int &batch_size, int &input_size, int& hidden_size) {
+  auto input_type = input->getType().cast<TensorType>();
+  std::vector<int64_t> i_s(input_type.getShape());
+
+  auto weight_type = weight->getType().cast<TensorType>();
+  std::vector<int64_t> w_s(weight_type.getShape());
+
+  seq_len = i_s[0];
+  batch_size = 1;
+  input_size = w_s[2];
+  hidden_size = w_s[1] / 4;
+}
+
 } // namespace
