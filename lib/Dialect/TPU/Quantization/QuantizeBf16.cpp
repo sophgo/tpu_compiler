@@ -478,6 +478,125 @@ LogicalResult quantizeBf16LeakyReluOps(Operation *op) {
 }
 
 ///
+/// Lstm Ops quantization method
+///
+LogicalResult quantizeBf16LstmOps(Operation *op) {
+  assert(getOpQuant(op) == "BF16");
+
+  auto lstmOp = cast<tpu::LstmOp>(op);
+  TensorFile *wTF = getWeightTensorFile(op);
+
+  // get weight tensor
+  auto weight = readAndDeleteWeightTensor<float>(lstmOp.weight(), wTF);
+  std::vector<int64_t> weightShape;
+  int64_t weightSize;
+  getTensorShapeAndSize(lstmOp.weight(), weightShape, weightSize);
+
+  // get recurrence tensor
+  auto recurrence = readAndDeleteWeightTensor<float>(lstmOp.recurrence(), wTF);
+  std::vector<int64_t> recurrenceShape;
+  int64_t recurrenceSize;
+  getTensorShapeAndSize(lstmOp.recurrence(), recurrenceShape, recurrenceSize);
+
+  // get bias tensor
+  std::unique_ptr<std::vector<float> > bias = nullptr;
+  std::vector<int64_t> biasShape;
+  int64_t biasSize = 0;
+  if ( !isTensorNone(lstmOp.bias()) ) {
+    bias = readAndDeleteWeightTensor<float>(lstmOp.bias(), wTF);
+    getTensorShapeAndSize(lstmOp.bias(), biasShape, biasSize);
+  }
+
+  // get initial_h tensor
+  std::unique_ptr<std::vector<float> > initial_h = nullptr;
+  std::vector<int64_t> initial_hShape;
+  int64_t initial_hSize = 0;
+  if ( !isTensorNone(lstmOp.initial_h()) ) {
+    initial_h = readAndDeleteWeightTensor<float>(lstmOp.initial_h(), wTF);
+    getTensorShapeAndSize(lstmOp.initial_h(), initial_hShape, initial_hSize);
+  }
+
+  // get initial_c tensor
+  std::unique_ptr<std::vector<float> > initial_c = nullptr;
+  std::vector<int64_t> initial_cShape;
+  int64_t initial_cSize = 0;
+
+  auto initial_h_weightOp = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
+                  lstmOp.initial_h()->getDefiningOp());
+  auto initial_c_weightOp = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
+                  lstmOp.initial_c()->getDefiningOp());
+
+  bool b_initial_h_is_same_as_initial_c = false;
+  assert(initial_h_weightOp.name() == initial_c_weightOp.name());
+  if ( !isTensorNone(lstmOp.initial_c()) && initial_h_weightOp.name() == initial_c_weightOp.name())
+    b_initial_h_is_same_as_initial_c = true;
+
+  if ( !isTensorNone(lstmOp.initial_c())) {
+    if (initial_h_weightOp.name() == initial_c_weightOp.name()) {
+      b_initial_h_is_same_as_initial_c = true;
+    }
+    else {
+      initial_c = readAndDeleteWeightTensor<float>(lstmOp.initial_c(), wTF);
+      getTensorShapeAndSize(lstmOp.initial_c(), initial_cShape, initial_cSize);
+    }
+  }
+
+  // create new tensors
+  auto new_weight = std::make_unique<std::vector<bfloat16> >(weightSize);
+  auto new_recurrence = std::make_unique<std::vector<bfloat16> >(recurrenceSize);
+  std::unique_ptr<std::vector<bfloat16> > new_bias = nullptr;
+  std::unique_ptr<std::vector<bfloat16> > new_initial_h = nullptr;
+  std::unique_ptr<std::vector<bfloat16> > new_initial_c = nullptr;
+
+  if (bias)
+    new_bias = std::make_unique<std::vector<bfloat16> >(biasSize);
+
+  if (initial_h)
+    new_initial_h = std::make_unique<std::vector<bfloat16> >(initial_hSize);
+
+  if (initial_c)
+    new_initial_c = std::make_unique<std::vector<bfloat16> >(initial_cSize);
+
+  // quantization
+  FloatToBFloat16(weight->data(), new_weight->data(), weightSize);
+  FloatToBFloat16(recurrence->data(), new_recurrence->data(), recurrenceSize);
+
+  if (bias)
+    FloatToBFloat16(bias->data(), new_bias->data(), biasSize);
+
+  if (initial_h)
+    FloatToBFloat16(initial_h->data(), new_initial_h->data(), initial_hSize);
+
+  if (initial_c)
+    FloatToBFloat16(initial_c->data(), new_initial_c->data(), initial_cSize);
+
+  // update op
+  addWeightTensorAndUpdateWeightOp<bfloat16>(lstmOp.getOperand(1),
+      "quant", *new_weight, weightShape, "BF16", wTF);
+  addWeightTensorAndUpdateWeightOp<bfloat16>(lstmOp.getOperand(2),
+      "quant", *new_recurrence, recurrenceShape, "BF16", wTF);
+
+  if (bias)
+    addWeightTensorAndUpdateWeightOp<bfloat16>(lstmOp.getOperand(3),
+        "quant", *new_bias, biasShape, "BF16", wTF);
+
+  if (initial_h)
+    addWeightTensorAndUpdateWeightOp<bfloat16>(lstmOp.getOperand(4),
+        "quant", *new_initial_h, initial_hShape, "BF16", wTF);
+
+  if (initial_c)
+    addWeightTensorAndUpdateWeightOp<bfloat16>(lstmOp.getOperand(5),
+        "quant", *new_initial_c, initial_cShape, "BF16", wTF);
+  else if (b_initial_h_is_same_as_initial_c)
+    addWeightTensorAndUpdateWeightOp<bfloat16>(lstmOp.getOperand(5),
+          "quant", *new_initial_h, initial_hShape, "BF16", wTF);
+
+  setOpResultType(op, StandardTypes::BF16);
+
+  return success();
+}
+
+///
 /// bypass Ops quantization method
 ///
 LogicalResult quantizeBf16BypassOps(Operation *op) {
@@ -554,7 +673,13 @@ DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::LrnOneOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::LrnTwoOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::LrnThreeOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::LrnOp)
-DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::LstmOp)
+
+LogicalResult tpu::LstmOp::quantizeBf16() {
+  LLVM_DEBUG(llvm::errs() << "quantizeBf16: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  return quantizeBf16LstmOps(op);
+}
 
 LogicalResult tpu::MishOp::quantizeBf16() {
   LLVM_DEBUG(llvm::errs() << "quantizeBf16: " << getOperationName() << " ["
