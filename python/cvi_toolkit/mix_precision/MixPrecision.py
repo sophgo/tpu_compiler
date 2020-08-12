@@ -20,7 +20,11 @@ class MixPrecisior(object):
         self.fp32_cali_mlir_file = mlir_file
         self.fp32_cali_model = pymlir.module()
         self.fp32_cali_model.load(mlir_file)
-        self.op_layer = self.get_op_info()
+        self.op_layer_list = self.get_op_info_list(self.fp32_cali_model)
+        self.op_info = self.fp32_cali_model.op_info
+        # clean pybind model
+        del self.fp32_cali_model
+
         self.skip_ops = skip_op
 
         self.preprocess_func = precrocess_func
@@ -36,9 +40,8 @@ class MixPrecisior(object):
     def set_preprocess_func(self, precrocess_func):
         self.precrocess_func = precrocess_func
 
-    def get_op_info(self):
-        op_info = self.fp32_cali_model.op_info
-        return [o['name'] for o in op_info]
+    def get_op_info_list(self, mlir_model):
+        return [o['name'] for o in mlir_model.op_info]
 
     def create_bf16_layer_files(self, bf16_file, layers, exclude_layers = []):
         with open(bf16_file, 'w') as f:
@@ -68,7 +71,7 @@ class MixPrecisior(object):
 
     def get_layer_name_list(self, exclude_list=[]):
         layer_name_list = []
-        for layer in self.fp32_cali_model.op_info:
+        for layer in self.op_info:
             if layer['name'] not in exclude_list:
                 layer_name_list.append(layer['name'])
 
@@ -81,7 +84,7 @@ class MixPrecisior(object):
         bf16_txt = "bf16_info_file.txt"
 
         # set all layer for bf16
-        self.create_bf16_layer_files(bf16_txt, self.op_layer)
+        self.create_bf16_layer_files(bf16_txt, self.op_layer_list)
 
         bf16_mlir = "bf16.mlir"
         bf16_quant_tpu_op_info = "bf16_quant_op_info.csv"
@@ -100,7 +103,7 @@ class MixPrecisior(object):
         del self.bf16_model
         print("bf16 inference done")
 
-        pbar = tqdm(self.fp32_cali_model.op_info)
+        pbar = tqdm(self.op_info)
         for layer in pbar:
             if layer['type'] in self.skip_ops:
                 continue
