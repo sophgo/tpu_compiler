@@ -150,7 +150,8 @@ class CaffeConverter(BaseConverter):
                     o_shape[2] = layer.detection_output_param.keep_top_k
                     break
             self.output_shapes.append(o_shape)
-        self.CVI = MLIRImporter(self.input_shapes, self.output_shapes)
+        self.CVI = MLIRImporter(self.input_shapes, self.output_shapes,
+                                "UINT8" if self.convert_preprocess else "FP32")
 
     def addTensor(self, op_name, tensor_data, tensor_shape):
         self.converted_tensors.append(CaffeTensor(
@@ -1357,7 +1358,7 @@ class CaffeConverter(BaseConverter):
             layer.name, operands, output_shape)
         self.addOperand(layer.top[0], new_op,
                         output_shape, TensorType.ACTIVATION)
-    
+
     def convert_tile_op(self, layer):
         assert(self.layerType(layer) == 'Tile')
         op, input_shape, _ = self.getOperand(layer.bottom[0])
