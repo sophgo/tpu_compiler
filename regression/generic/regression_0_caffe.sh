@@ -19,7 +19,7 @@ if [ ! -f "$CAFFE_BLOBS_NPZ" ]; then
       --label_file $LABEL_FILE \
       --dump_blobs $CAFFE_BLOBS_NPZ \
       --dump_weights ${NET}_weights.npz \
-      $REGRESSION_PATH/data/cat.jpg \
+      $IMAGE_PATH \
       caffe_out.npy
 fi
 

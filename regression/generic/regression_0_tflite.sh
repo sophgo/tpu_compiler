@@ -17,7 +17,7 @@ if [ ! -f "$TFLITE_BLOBS_NPZ" ]; then
       --batch_size $BATCH_SIZE \
       --input_scale ${INPUT_SCALE} \
       --dump_tensor $TFLITE_BLOBS_NPZ \
-      --input_file $REGRESSION_PATH/data/cat.jpg \
+      --input_file $IMAGE_PATH \
       --model_channel_order $MODEL_CHANNEL_ORDER \
       --data_format $DATA_FORMAT \
       --model_type tflite \
