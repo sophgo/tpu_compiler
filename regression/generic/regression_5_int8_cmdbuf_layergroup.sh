@@ -3,6 +3,8 @@ set -e
 
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 
+echo "$0 net=$NET"
+
 mlir-opt \
     --group-ops \
     ${NET}_quant_int8_multiplier_tg_opt.mlir \

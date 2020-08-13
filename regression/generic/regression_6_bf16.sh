@@ -3,6 +3,7 @@ set -e
 
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 
+echo "$0 net=$NET"
 
 # quantization
 if [ $DO_QUANT_BF16 -eq 1 ]; then

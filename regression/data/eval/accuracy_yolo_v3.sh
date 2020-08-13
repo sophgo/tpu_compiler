@@ -18,7 +18,9 @@ $EVAL_CAFFE_FUNC \
 
 EVAL_FUNC=eval_yolo.py
 
-if [ $DO_PREPROCESS -eq 1 ]; then
+if [ $DO_FUSED_PREPROCESS -eq 1 ]; then
+  echo "$0 DO_FUSED_PREPROCESS under refactor yet, exit"
+  exit 1
   $EVAL_FUNC \
       --model=${NET}.mlir \
       --net_input_dims ${NET_INPUT_DIMS} \
@@ -74,7 +76,9 @@ if [ $DO_QUANT_INT8_RFHIFT_ONLY -eq 1 ]; then
 fi
 
 if [ $DO_QUANT_INT8_MULTIPLER -eq 1 ]; then
-  if [ $DO_PREPROCESS -eq 1 ]; then
+  if [ $DO_FUSED_PREPROCESS -eq 1 ]; then
+    echo "$0 DO_FUSED_PREPROCESS under refactor yet, exit"
+    exit 1
     $EVAL_FUNC \
         --model=${NET}_quant_int8_multiplier.mlir \
         --net_input_dims ${NET_INPUT_DIMS} \

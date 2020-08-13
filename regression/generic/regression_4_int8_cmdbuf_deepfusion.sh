@@ -3,6 +3,8 @@ set -e
 
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 
+echo "$0 net=$NET"
+
 COMPARE_ALL=1
 
 COMPRESS_WEIGHT=1
@@ -59,53 +61,6 @@ mlir-opt \
     ${NET}_quant_int8_multiplier_tl_lw.mlir \
     -o ${NET}_quant_int8_multiplier_tl_lw_1.mlir
 
-# cat for logging
-# echo "cat ${NET}_quant_int8_multiplier_tl_lw_1.mlir"
-# cat ${NET}_quant_int8_multiplier_tl_lw_1.mlir
-
-#if [ $DO_MEMOPT -eq 1 ]; then
-#  # function argument lower to MemRefType
-#  mlir-opt \
-#      --convert-func-to-memref \
-#      ${NET}_quant_int8_multiplier_tl_lw.mlir \
-#      -o ${NET}_quant_int8_multiplier_tl_lw_memref.mlir
-#
-#  # op lower to MemRefType
-#  mlir-opt \
-#      --convert-tg-op-to-memref \
-#      ${NET}_quant_int8_multiplier_tl_lw_memref.mlir \
-#      -o ${NET}_quant_int8_multiplier_tl_lw_op_memref.mlir
-#
-#  # memory space w/ global memory reuse
-#  mlir-opt \
-#      --enable-reuse-global-memory=true \
-#      --assign-neuron-address-memref \
-#      --tpu-neuron-address-align-memref=16 \
-#      --tpu-neuron-map-filename-memref=neuron_map_memref_reused.csv \
-#      ${NET}_quant_int8_multiplier_tl_lw_op_memref.mlir \
-#      -o ${NET}_quant_int8_multiplier_tl_lw_op_memref_addr.mlir
-#
-#  # tg op back to TensorType
-#  mlir-opt \
-#      --convert-tg-op-to-tensor \
-#      ${NET}_quant_int8_multiplier_tl_lw_op_memref_addr.mlir \
-#      -o ${NET}_quant_int8_multiplier_tl_lw_op_tensor_addr.mlir
-#
-#  # function argument back to TensorType
-#  mlir-opt \
-#      --convert-func-to-tensor \
-#      ${NET}_quant_int8_multiplier_tl_lw_op_tensor_addr.mlir \
-#      -o ${NET}_quant_int8_multiplier_tl_lw.mlir
-#fi
-
-# generate cmdbuf
-# mlir-translate \
-#    --divide-ops-to-func \
-#    --mlir-to-cvimodel \
-#    --weight-file weight_int8_multiplier.bin \
-#    ${NET}_quant_int8_multiplier_tl_la.mlir \
-#    -o ${NET}_int8_la.cvimodel
-
 mlir-opt \
     --divide-ops-to-func \
     ${NET}_quant_int8_multiplier_tl_lw_1.mlir \
@@ -150,10 +105,6 @@ if [ $COMPARE_ALL -eq 1 ]; then
       ${NET}_tensor_all_int8_multiplier.npz \
       --op_info ${NET}_op_info_int8_multiplier.csv
 fi
-
-# if [ ! -z $CVIMODEL_REL_PATH -a -d $CVIMODEL_REL_PATH ]; then
-#   mv ${NET}_int8_lw.cvimodel $CVIMODEL_REL_PATH
-# fi
 
 # VERDICT
 echo $0 PASSED

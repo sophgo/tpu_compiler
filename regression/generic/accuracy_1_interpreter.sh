@@ -15,13 +15,6 @@ else
   return 1
 fi
 
-if [ $DO_PREPROCESS -eq 1 ]; then
-  RAW_SCALE=255.0
-  MODEL_CHANNEL_ORDER="bgr"
-  MEAN=0,0,0
-  INPUT_SCALE=1.0
-fi
-
 if [ $DO_ACCURACY_FP32_INTERPRETER -eq 1 ]; then
   echo "Eval fp32 with interpreter"
   if [ "$EVAL_MODEL_TYPE" = "imagenet" ]; then
@@ -109,7 +102,9 @@ if [ $DO_QUANT_INT8_MULTIPLER -eq 1 ]; then
     _EVAL_FUNC=eval_retinaface_on_widerface.py
 
     #rm ${NET}_interpreter_result_int8 -rf
-    if [ $DO_PREPROCESS -eq 1 ]; then
+    if [ $DO_FUSED_PREPROCESS -eq 1 ]; then
+      echo "$0 DO_FUSED_PREPROCESS under refactor yet, exit"
+      exit 1
       $_EVAL_FUNC \
           --model ${NET}_quant_int8_multiplier.mlir \
           --net_input_dims $NET_INPUT_DIMS \
@@ -134,7 +129,9 @@ if [ $DO_QUANT_INT8_MULTIPLER -eq 1 ]; then
 
   elif [ "$EVAL_MODEL_TYPE" = "lfw" ]; then
     _EVAL_FUNC=eval_arcface.py
-    if [ $DO_PREPROCESS -eq 1 ];then
+    if [ $DO_FUSED_PREPROCESS -eq 1 ];then
+      echo "$0 DO_FUSED_PREPROCESS under refactor yet, exit"
+      exit 1
       $_EVAL_FUNC \
         --model=${NET}_quant_int8_multiplier.mlir \
         --dataset=$DATASET_PATH/lfw/lfw \
@@ -151,7 +148,9 @@ if [ $DO_QUANT_INT8_MULTIPLER -eq 1 ]; then
 
   elif [ "$EVAL_MODEL_TYPE" = "coco" ]; then
     _EVAL_FUNC=$EVAL_SCRIPT_INT8
-    if [ $DO_PREPROCESS -eq 1 ]; then
+    if [ $DO_FUSED_PREPROCESS -eq 1 ]; then
+      echo "$0 DO_FUSED_PREPROCESS under refactor yet, exit"
+      exit 1
       $_EVAL_FUNC \
         --model=${NET}_quant_int8_multiplier.mlir \
         --net_input_dims ${NET_INPUT_DIMS} \

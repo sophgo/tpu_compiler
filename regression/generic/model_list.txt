@@ -1,12 +1,12 @@
 #
-# Name                   bs1      bs4      acc    bs1_ext  bs4_ext  acc_ext   model_preprocess
+# Name                   bs1      bs4      acc    bs1_ext  bs4_ext  acc_ext   fused_preprocess
 #
 
 # caffe
-resnet50                  Y        Y        N        N        N        Y          Y
+resnet50                  Y        Y        N        N        N        Y          N
 vgg16                     N        N        N        Y        Y        N          N
 mobilenet_v1              Y        N        Y        N        Y        Y          N
-mobilenet_v2              Y        Y        N        N        N        N          Y
+mobilenet_v2              Y        Y        N        N        N        N          N
 googlenet                 N        N        N        Y        Y        Y          N
 inception_v3              N        N        N        Y        Y        N          N
 inception_v4              Y        N        N        N        Y        Y          N
@@ -16,7 +16,7 @@ densenet_121              N        N        N        Y        Y        Y        
 densenet_201              N        N        N        Y        Y        N          N
 senet_res50               N        N        N        Y        Y        Y          N
 resnext50                 N        N        N        Y        Y        N          N
-arcface_res50             Y        N        N        N        Y        N          Y
+arcface_res50             Y        N        N        N        Y        N          N
 retinaface_mnet25         Y        Y        N        N        N        N          N
 retinaface_mnet25_600     N        N        N        Y        N        N          N
 retinaface_res50          N        N        N        Y        N        N          N
@@ -28,7 +28,7 @@ yolo_v2_416               N        N        N        Y        N        N        
 yolo_v3_608               N        N        N        Y        N        Y          N
 yolo_v3_416               Y        N        N        N        Y        Y          N
 yolo_v3_320               N        N        N        Y        Y        N          N
-yolo_v3_tiny              Y        N        N        N        N        N          Y
+yolo_v3_tiny              Y        N        N        N        N        N          N
 yolo_v3_spp               N        N        N        Y        N        N          N
 yolo_v4                   N        N        N        Y        N        N          N
 faster_rcnn               N        N        N        Y        N        N          N

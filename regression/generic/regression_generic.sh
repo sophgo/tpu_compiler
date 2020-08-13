@@ -15,30 +15,27 @@ fi
 if [ -z "$2" ]; then
   DO_BATCHSIZE=1
 else
+  echo "$0 DO_BATCHSIZE=$DO_BATCHSIZE"
   DO_BATCHSIZE=$2
 fi
 
 if [ -z "$3" ]; then
-  ENABLE_PREPROCESS=0
+  DO_FUSE_PREPROCESS=0
 else
-  ENABLE_PREPROCESS=$3
+  echo "$0 DO_FUSE_PREPROCESS"
+  DO_FUSE_PREPROCESS=$3
 fi
 export DO_BATCHSIZE=$DO_BATCHSIZE
-export ENABLE_PREPROCESS=$ENABLE_PREPROCESS
+export DO_FUSE_PREPROCESS=$DO_FUSE_PREPROCESS
 export NET=$NET
 source $DIR/generic_models.sh
 
 WORKDIR=${NET}_bs${DO_BATCHSIZE}
-if [ $ENABLE_PREPROCESS -eq 1 ]; then
+if [ $DO_FUSE_PREPROCESS -eq 1 ]; then
   if [ $DO_BATCHSIZE -ne 1 ]; then
     echo "$NET: Not support batch on preprocess for now"
     exit 1
   fi
-  if [ $DO_PREPROCESS -ne 1 ]; then
-    echo "$NET: Not support DO_PREPROCESS, can not ENABLE_PREPROCESS"
-    exit 1
-  fi
-  WORKDIR=${NET}_preprocess_bs${DO_BATCHSIZE}
 fi
 
 if [ ! -e $WORKDIR ]; then
@@ -78,6 +75,10 @@ if [ $DO_FUSE_PREPROCESS -eq 1 ]; then
   $DIR/regression_8_fuse_preprocess.sh
 fi
 popd
+
+unset DO_BATCHSIZE
+unset DO_FUSE_PREPROCESS
+unset NET
 
 # VERDICT
 echo $0 PASSED
