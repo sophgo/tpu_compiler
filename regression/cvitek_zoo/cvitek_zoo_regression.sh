@@ -42,9 +42,6 @@ $REGRESSION_PATH/generic/regression_6_bf16.sh
 if [ $DO_DEEPFUSION -eq 1 ]; then
   $REGRESSION_PATH/generic/regression_4_int8_cmdbuf_deepfusion.sh
 fi
-if [ $DO_MEMOPT -eq 1 ]; then
-  $REGRESSION_PATH/generic/regression_4_int8_cmdbuf_memopt.sh
-fi
 if [ $DO_LAYERGROUP -eq 1 ]; then
   $REGRESSION_PATH/generic/regression_5_int8_cmdbuf_layergroup.sh
 fi

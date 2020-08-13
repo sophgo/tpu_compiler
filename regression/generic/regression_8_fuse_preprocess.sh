@@ -3,6 +3,8 @@ set -e
 
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 
+echo "$0 net=$NET"
+
 CHECK_NON_OPT_VERSION=0
 
 if [ $DO_FUSE_PREPROCESS -eq 1 ] ; then

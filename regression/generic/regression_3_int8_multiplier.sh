@@ -3,6 +3,7 @@ set -e
 
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 
+echo "$0 net=$NET"
 
 COMPARE_ALL=1
 
@@ -12,26 +13,14 @@ if [ $DO_QUANT_INT8_MULTIPLER -eq 1 ]; then
   ###############################################################################
   # quantization 3: per-channel int8 with multiplier
   ###############################################################################
-  if [ $DO_PREPROCESS -eq 1 ]; then
-    mlir-opt \
-        --assign-chip-name \
-        --chipname ${SET_CHIP_NAME} \
-        --tpu-quant \
-        --convert-quant-op \
-        --print-tpu-op-info \
-        --tpu-op-info-filename ${NET}_op_info_int8_multiplier.csv \
-        ${NET}_cali.mlir \
-        -o ${NET}_quant_int8_multiplier.mlir
-  else
-    mlir-opt \
-        --assign-chip-name \
-        --chipname ${SET_CHIP_NAME} \
-        --tpu-quant \
-        --print-tpu-op-info \
-        --tpu-op-info-filename ${NET}_op_info_int8_multiplier.csv \
-        ${NET}_cali.mlir \
-        -o ${NET}_quant_int8_multiplier.mlir
-  fi
+  mlir-opt \
+      --assign-chip-name \
+      --chipname ${SET_CHIP_NAME} \
+      --tpu-quant \
+      --print-tpu-op-info \
+      --tpu-op-info-filename ${NET}_op_info_int8_multiplier.csv \
+      ${NET}_cali.mlir \
+      -o ${NET}_quant_int8_multiplier.mlir
 
   mlir-tpu-interpreter ${NET}_quant_int8_multiplier.mlir \
       --tensor-in ${NET}_in_fp32.npz \

@@ -306,8 +306,8 @@ if [ "$1" = "RELEASE" ]; then
   cp -a $MLIR_SRC_PATH/regression/convert_model_onnx_df.sh $INSTALL_PATH/regression/
   cp -a $MLIR_SRC_PATH/regression/convert_model_caffe_lg.sh $INSTALL_PATH/regression/
   cp -a $MLIR_SRC_PATH/regression/convert_model_onnx_lg.sh $INSTALL_PATH/regression/
-  cp -a $MLIR_SRC_PATH/regression/convert_model_caffe_df_preprocess.sh $INSTALL_PATH/regression/
-  cp -a $MLIR_SRC_PATH/regression/convert_model_caffe_lg_preprocess.sh $INSTALL_PATH/regression/
+  # cp -a $MLIR_SRC_PATH/regression/convert_model_caffe_df_preprocess.sh $INSTALL_PATH/regression/
+  # cp -a $MLIR_SRC_PATH/regression/convert_model_caffe_lg_preprocess.sh $INSTALL_PATH/regression/
   cp -a $MLIR_SRC_PATH/regression/generate_all_cvimodels.sh $INSTALL_PATH/regression/
   cp -a $MLIR_SRC_PATH/regression/run_regression.sh $INSTALL_PATH/regression/
 
@@ -327,13 +327,13 @@ if [ "$1" = "RELEASE" ]; then
   cp cvimodel_release/retinaface_mnet25_600_with_detection.cvimodel cvimodel_samples/
   cp cvimodel_release/arcface_res50.cvimodel cvimodel_samples/
 
-  cp cvimodel_release/mobilenet_v2_preprocess.cvimodel cvimodel_samples/
-  cp cvimodel_release/yolo_v3_416_with_detection_preprocess.cvimodel cvimodel_samples/
+  # cp cvimodel_release/mobilenet_v2_preprocess.cvimodel cvimodel_samples/
+  # cp cvimodel_release/yolo_v3_416_with_detection_preprocess.cvimodel cvimodel_samples/
   # cp cvimodel_release/alphapose_preprocess.cvimodel cvimodel_samples/
-  cp cvimodel_release/retinaface_mnet25_with_detection_preprocess.cvimodel cvimodel_samples/
-  cp cvimodel_release/retinaface_res50_with_detection_preprocess.cvimodel cvimodel_samples/
-  cp cvimodel_release/retinaface_mnet25_600_with_detection_preprocess.cvimodel cvimodel_samples/
-  cp cvimodel_release/arcface_res50_preprocess.cvimodel cvimodel_samples/
+  # cp cvimodel_release/retinaface_mnet25_with_detection_preprocess.cvimodel cvimodel_samples/
+  # cp cvimodel_release/retinaface_res50_with_detection_preprocess.cvimodel cvimodel_samples/
+  # cp cvimodel_release/retinaface_mnet25_600_with_detection_preprocess.cvimodel cvimodel_samples/
+  # cp cvimodel_release/arcface_res50_preprocess.cvimodel cvimodel_samples/
 
   if [ "$BUILD_CVITEK_ZOO" = "1" ]; then
     $MLIR_SRC_PATH/regression/cvitek_zoo/cvitek_zoo_generate_cvimodels.sh

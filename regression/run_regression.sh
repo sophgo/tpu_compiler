@@ -59,16 +59,14 @@ run_generic_all()
         err=1
       fi
     done
-    # model preprocess
-    if [ $do_preprocess -eq 1 ]; then
-      for net in ${net_list_do_preprocess[@]}
-      do
-        run_generic $net 1 1
-        if [ "$?" -ne 0 ]; then
-          err=1
-        fi
-      done
-    fi
+    # fused preprocess
+    for net in ${net_list_do_preprocess[@]}
+    do
+      run_generic $net 1 1
+      if [ "$?" -ne 0 ]; then
+        err=1
+      fi
+    done
   fi
   return $err
 }
@@ -96,9 +94,7 @@ run_generic_all_parallel()
     do
       echo "run_generic $net 4 0" >> regression.txt
     done
-  fi
-  # do preprocess
-  if [ $do_preprocess -eq 1 ]; then
+    # fused preprocess
     for net in ${net_list_do_preprocess[@]}
     do
       echo "run_generic $net 1 1" >> regression.txt
@@ -204,7 +200,6 @@ run_extra=0
 bs=1
 run_accuracy=0
 run_onnx_test=1
-do_preprocess=1
 
 while getopts "n:b:a:f:e" opt
 do
@@ -245,10 +240,10 @@ if [ -z $model_list_file ]; then
   model_list_file=$SCRIPT_DIR/generic/model_list.txt
 fi
 
-while read net bs1 bs4 acc bs1_ext bs4_ext acc_ext model_preprocess
+while read net bs1 bs4 acc bs1_ext bs4_ext acc_ext fused_preprocess
 do
   [[ $net =~ ^#.* ]] && continue
-  # echo "net='$net' bs1='$bs1' bs4='$bs4' acc='$acc' bs1_ext='$bs1_ext' bs4_ext='$bs4_ext' acc_ext='$acc_ext'"
+  # echo "net='$net' bs1='$bs1' bs4='$bs4' acc='$acc' bs1_ext='$bs1_ext' bs4_ext='$bs4_ext' acc_ext='$acc_ext' fused_preprocess='$fused_preprocess'"
   if [ "$bs1" = "Y" ]; then
     # echo "bs1 add $net"
     net_list_generic+=($net)
@@ -273,8 +268,8 @@ do
     # echo "acc_ext add $net"
     net_list_accuracy_extra+=($net)
   fi
-  if [ "$model_preprocess" = "Y" ]; then
-    # echo "do_preprocess add $net"
+  if [ "$fused_preprocess" = "Y" ]; then
+    # echo "fused_preprocess add $net"
     net_list_do_preprocess+=($net)
   fi
 done < ${model_list_file}

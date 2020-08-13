@@ -3,6 +3,7 @@ set -e
 
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 
+echo "$0 net=$NET"
 
 COMPARE_ALL=1
 

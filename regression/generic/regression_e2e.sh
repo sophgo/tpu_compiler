@@ -3,51 +3,25 @@ set -e
 
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 
+echo "$0 net=$NET"
+
 if [ $MODEL_TYPE = "caffe" ]; then
-  if [ $DO_PREPROCESS -eq 1 ]; then
-    if [ $USE_LAYERGROUP = "1" ]; then
-      $REGRESSION_PATH/convert_model_caffe_lg_preprocess.sh \
-          ${MODEL_DEF} \
-          ${MODEL_DAT} \
-          ${NET} \
-          ${BATCH_SIZE} \
-          ${RAW_SCALE} \
-          ${MEAN} \
-          ${INPUT_SCALE} \
-          ${SWAP_CHANNEL} \
-          ${CALI_TABLE_PREPROCESS} \
-          ${NET}.cvimodel
-    else
-      $REGRESSION_PATH/convert_model_caffe_df_preprocess.sh \
-          ${MODEL_DEF} \
-          ${MODEL_DAT} \
-          ${NET} \
-          ${BATCH_SIZE} \
-          ${RAW_SCALE} \
-          ${MEAN} \
-          ${INPUT_SCALE} \
-          ${SWAP_CHANNEL} \
-          ${CALI_TABLE_PREPROCESS} \
-          ${NET}.cvimodel
-    fi
+  if [ $USE_LAYERGROUP = "1" ]; then
+    $REGRESSION_PATH/convert_model_caffe_lg.sh \
+        ${MODEL_DEF} \
+        ${MODEL_DAT} \
+        ${NET} \
+        ${BATCH_SIZE} \
+        ${CALI_TABLE} \
+        ${NET}.cvimodel
   else
-    if [ $USE_LAYERGROUP = "1" ]; then
-      $REGRESSION_PATH/convert_model_caffe_lg.sh \
-          ${MODEL_DEF} \
-          ${MODEL_DAT} \
-          ${NET} \
-          ${BATCH_SIZE} \
-          ${CALI_TABLE} \
-          ${NET}.cvimodel
-    else
-      $REGRESSION_PATH/convert_model_caffe_df.sh \
-          ${MODEL_DEF} \
-          ${MODEL_DAT} \
-          ${NET} \
-          ${BATCH_SIZE} \
-          ${CALI_TABLE} \
-          ${NET}.cvimodel
-    fi
+    $REGRESSION_PATH/convert_model_caffe_df.sh \
+        ${MODEL_DEF} \
+        ${MODEL_DAT} \
+        ${NET} \
+        ${BATCH_SIZE} \
+        ${CALI_TABLE} \
+        ${NET}.cvimodel
   fi
 elif [ $MODEL_TYPE = "onnx" ]; then
   if [ $USE_LAYERGROUP = "1" ]; then
@@ -83,11 +57,7 @@ cvi_npz_tool.py compare \
     --op_info op_info_int8.csv
 
 if [ ! -z $CVIMODEL_REL_PATH -a -d $CVIMODEL_REL_PATH ]; then
-  if [ $DO_PREPROCESS -eq 1 ]; then
-    cp ${NET}_in_fp32.npz $CVIMODEL_REL_PATH/${NET}_preprocess_in_fp32.npz
-    mv ${NET}.cvimodel $CVIMODEL_REL_PATH/${NET}_preprocess.cvimodel
-    cp ${NET}_out_all.npz $CVIMODEL_REL_PATH/${NET}_preprocess_out_all.npz
-  elif [ $BATCH_SIZE -eq 1 ]; then
+  if [ $BATCH_SIZE -eq 1 ]; then
     cp ${NET}_in_fp32.npz $CVIMODEL_REL_PATH
     mv ${NET}.cvimodel $CVIMODEL_REL_PATH
     cp ${NET}_out_all.npz $CVIMODEL_REL_PATH
