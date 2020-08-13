@@ -52,79 +52,75 @@ struct TpuRefactorEltAndConvPattern : public RewritePattern {
     int strideH, strideW;
 
     for (auto &use : op->getResult(0)->getUses()) {
-        nextOp = use.getOwner();
-        LLVM_DEBUG(llvm::errs() << nextOp->getName() << "\n");
-        // if (matchPattern(nextOp, m_Op<tpu::Conv2DOp>())) {
-        if (auto convOp = dyn_cast<tpu::Conv2DOp>(nextOp)) {
-            // auto allocOp = dyn_cast<AllocOp>(opInst)
-            auto filter_type = convOp.filter()->getType().template cast<TensorType>();
-            std::vector<int64_t> f_s(filter_type.getShape());
-            int kh = f_s[f_s.size() - 2];
-            int kw = f_s[f_s.size() - 1];
-            strideH = convOp.param().stride_h().getValue().getLimitedValue();
-            strideW = convOp.param().stride_w().getValue().getLimitedValue();
-            LLVM_DEBUG(llvm::errs() << convOp.getOperationName()
-                                    << ":" << getOpName(convOp)<< "\n");
-            if((kh == 1) && (kw == 1) && (strideH > 1) && (strideW > 1)) {
-               LLVM_DEBUG(llvm::errs() << "Find \n");
-                //do nothing
-            } else {
-                isKernel1x1AndStrideBiggerThanOne = false;
-            }
+      nextOp = use.getOwner();
+      LLVM_DEBUG(llvm::errs() << nextOp->getName() << "\n");
+      // if (matchPattern(nextOp, m_Op<tpu::Conv2DOp>())) {
+      if (auto convOp = dyn_cast<tpu::Conv2DOp>(nextOp)) {
+        // auto allocOp = dyn_cast<AllocOp>(opInst)
+        auto filter_type = convOp.filter()->getType().template cast<TensorType>();
+        std::vector<int64_t> f_s(filter_type.getShape());
+        int kh = f_s[f_s.size() - 2];
+        int kw = f_s[f_s.size() - 1];
+        strideH = convOp.param().stride_h().getValue().getLimitedValue();
+        strideW = convOp.param().stride_w().getValue().getLimitedValue();
+        LLVM_DEBUG(llvm::errs() << convOp.getOperationName()
+                                << ":" << getOpName(convOp)<< "\n");
+        if((kh == 1) && (kw == 1) && (strideH > 1) && (strideW > 1)) {
+            LLVM_DEBUG(llvm::errs() << "Find \n");
+            //do nothing
         } else {
-            isKernel1x1AndStrideBiggerThanOne = false;
+          // if one of uses is not 1x1 conv,
+          // we cannot do early stride.
+          return matchFailure();
         }
-    }
-
-    if (isKernel1x1AndStrideBiggerThanOne) {
-      auto shape = eltAddOp.output()->getType().cast<TensorType>().getShape();//Refactor eltOp
-      if (shape[2] % strideH == 0 && shape[3] % strideW == 0) {
-      }
-      else {
-        // it could be not divisible
+      } else {
+        // if one of uses is not 1x1 conv,
+        // we cannot do early stride.
         return matchFailure();
       }
     }
 
-    if(isKernel1x1AndStrideBiggerThanOne) {
-        LLVM_DEBUG(llvm::errs() << "Refactor elt and conv" << "\n";);
-        for (auto &use : op->getResult(0)->getUses()) { //Refactor convOp
-            nextOp = use.getOwner();
-            auto convOp = dyn_cast<tpu::Conv2DOp>(nextOp);
-            convOp.setAttr("param",
-                tpu::ConvParam::get(
-                    rewriter.getI32IntegerAttr(1),
-                    rewriter.getI32IntegerAttr(1),
-                    convOp.param().padding(),
-                    convOp.param().dilation_h(),
-                    convOp.param().dilation_w(),
-                    convOp.param().padding_t(),
-                    convOp.param().padding_b(),
-                    convOp.param().padding_l(),
-                    convOp.param().padding_r(),
-                    convOp.param().group(),
-                    convOp.param().is_dw(),
-                    convOp.param().with_bias(),
-                    convOp.param().do_relu(),
-                    convOp.param().ins(),
-                    rewriter.getContext()));//rewrite strideH
-        }
-        auto shape = eltAddOp.output()->getType().cast<TensorType>().getShape();//Refactor eltOp
-        int on = shape[0];
-        int oc = shape[1];
-        assert(shape[2] % strideH == 0);
-        assert(shape[3] % strideW == 0);
-        int oh = shape[2] / strideH;
-        int ow = shape[3] / strideW;
-
-        eltAddOp.setAttr("do_early_stride", rewriter.getBoolAttr(true));
-        eltAddOp.setAttr("early_stride_h", rewriter.getI32IntegerAttr(strideH));
-        eltAddOp.setAttr("early_stride_w", rewriter.getI32IntegerAttr(strideW));
-        auto type = RankedTensorType::get({on, oc, oh, ow},
-                                    FloatType::getF32(rewriter.getContext()));
-        eltAddOp.getResult()->setType(type);//rewrite inputShape
+    auto shape = eltAddOp.output()->getType().cast<TensorType>().getShape();//Refactor eltOp
+    if (shape[2] % strideH != 0 || shape[3] % strideW != 0) {
+      // padding case, stop
+      return matchFailure();
     }
-    return matchFailure();
+
+    LLVM_DEBUG(llvm::errs() << "Refactor elt and conv" << "\n";);
+    for (auto &use : op->getResult(0)->getUses()) { //Refactor convOp
+      nextOp = use.getOwner();
+      auto convOp = dyn_cast<tpu::Conv2DOp>(nextOp);
+      convOp.setAttr("param",
+          tpu::ConvParam::get(
+              rewriter.getI32IntegerAttr(1), // stride_h,
+              rewriter.getI32IntegerAttr(1), // stride_w,
+              convOp.param().padding(),
+              convOp.param().dilation_h(),
+              convOp.param().dilation_w(),
+              convOp.param().padding_t(),
+              convOp.param().padding_b(),
+              convOp.param().padding_l(),
+              convOp.param().padding_r(),
+              convOp.param().group(),
+              convOp.param().is_dw(),
+              convOp.param().with_bias(),
+              convOp.param().do_relu(),
+              convOp.param().ins(),
+              rewriter.getContext()));//rewrite strideH
+    }
+
+    int on = shape[0];
+    int oc = shape[1];
+    int oh = shape[2] / strideH;
+    int ow = shape[3] / strideW;
+
+    eltAddOp.setAttr("do_early_stride", rewriter.getBoolAttr(true));
+    eltAddOp.setAttr("early_stride_h", rewriter.getI32IntegerAttr(strideH));
+    eltAddOp.setAttr("early_stride_w", rewriter.getI32IntegerAttr(strideW));
+    auto type = RankedTensorType::get({on, oc, oh, ow},
+                                FloatType::getF32(rewriter.getContext()));
+    eltAddOp.getResult()->setType(type);//rewrite inputShape
+    return matchSuccess();
   }
 };
 
