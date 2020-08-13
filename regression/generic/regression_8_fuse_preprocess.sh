@@ -7,8 +7,8 @@ CHECK_NON_OPT_VERSION=0
 
 if [ $DO_FUSE_PREPROCESS -eq 1 ] && [ $BATCH_SIZE -eq 1 ]; then
     # make image data only resize, for interpreter, use fp32
-    cvi_preprocess.py  \
-      --image_file $REGRESSION_PATH/data/cat.jpg \
+    cvi_preprocess.py \
+      --image_file $IMAGE_PATH \
       --net_input_dims ${IMAGE_RESIZE_DIMS} \
       --image_resize_dims ${IMAGE_RESIZE_DIMS} \
       --raw_scale 255 \
@@ -23,7 +23,7 @@ if [ $DO_FUSE_PREPROCESS -eq 1 ] && [ $BATCH_SIZE -eq 1 ]; then
 
     # for uint8 dtype, for model runner(cmodel)
     cvi_preprocess.py  \
-      --image_file $REGRESSION_PATH/data/cat.jpg \
+      --image_file $IMAGE_PATH \
       --net_input_dims ${IMAGE_RESIZE_DIMS} \
       --image_resize_dims ${IMAGE_RESIZE_DIMS} \
       --raw_scale 255 \
