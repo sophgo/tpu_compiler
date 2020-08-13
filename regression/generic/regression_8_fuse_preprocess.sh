@@ -5,7 +5,7 @@ DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 
 CHECK_NON_OPT_VERSION=0
 
-if [ $DO_FUSE_PREPROCESS -eq 1 ] && [ $BATCH_SIZE -eq 1 ]; then
+if [ $DO_FUSE_PREPROCESS -eq 1 ] ; then
     # make image data only resize, for interpreter, use fp32
     cvi_preprocess.py  \
       --image_file $REGRESSION_PATH/data/cat.jpg \
