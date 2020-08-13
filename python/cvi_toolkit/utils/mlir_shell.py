@@ -8,14 +8,19 @@ import logging
 from pathlib import Path
 
 logger = setup_logger('root')
-runchip = os.environ['SET_CHIP_NAME']
 
 std_log_flag = logger.level <= logging.DEBUG
-
 if std_log_flag:
     std_output_flag = {'capture_output': True}
 else:
     std_output_flag = {'stdout': subprocess.DEVNULL, 'stderr': subprocess.STDOUT}
+
+def get_chip_name():
+    runchip = os.environ.get('SET_CHIP_NAME', None)
+    if not runchip:
+        log.warning("no found SET_CHIP_NAME environment value, set 183x as default")
+        return "cv183x"
+    return runchip
 
 def checkReturnValue(ret, func: str):
     if ret.returncode == 0:
@@ -23,7 +28,9 @@ def checkReturnValue(ret, func: str):
     else:
         logger.error("error occured: {}, func: {}\nmsg: {}".format(ret.returncode, func, ret))
 
-def mlir_opt(mlirfile, opt_mlirfile, op_info_csv, chip=runchip):
+def mlir_opt(mlirfile, opt_mlirfile, op_info_csv, chip=None):
+    if not chip:
+        chip = get_chip_name()
     ret = subprocess.run(["mlir-opt",
                     "--assign-chip-name",
                     "--chipname={}".format(chip),

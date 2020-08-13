@@ -6,7 +6,7 @@ from .calibration.kld_calibrator import KLD_Calibrator_v2
 from .calibration.tuner import Tuner_v2
 from .utils.mlir_shell import checkReturnValue, mlir_opt, \
                                 mlir_import_calibration, mlir_tpu_quant, mlir_lower_opt, mlir_gen_cvimodel, \
-                                mlir_calibration, run_cvimodel
+    mlir_calibration, run_cvimodel, gen_bf16_mlir, get_chip_name
 from .utils.log_setting import setup_logger
 
 import subprocess
@@ -16,7 +16,7 @@ from pathlib import Path
 
 
 logger = setup_logger('root')
-runchip = os.environ['SET_CHIP_NAME']
+runchip = get_chip_name()
 
 class cvinn(object):
     def __init__(self):
