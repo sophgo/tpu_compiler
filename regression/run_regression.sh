@@ -8,14 +8,13 @@ run_generic()
 {
   local net=$1
   local bs=$2
-  local preprocess=$3
-  echo "generic regression $net batch=$bs preprocess=$preprocess"
-  regression_generic.sh $net $bs $preprocess > $1\_bs$bs.log 2>&1 | true
+  echo "generic regression $net batch=$bs"
+  regression_generic.sh $net $bs > $1\_bs$bs.log 2>&1 | true
   if [ "${PIPESTATUS[0]}" -ne "0" ]; then
-    echo "$net batch=$bs preprocess=$preprocess generic regression FAILED" >> verdict.log
+    echo "$net batch=$bs generic regression FAILED" >> verdict.log
     return 1
   else
-    echo "$net batch=$bs preprocess=$preprocess generic regression PASSED" >> verdict.log
+    echo "$net batch=$bs generic regression PASSED" >> verdict.log
     return 0
   fi
 }
@@ -28,7 +27,7 @@ run_generic_all()
   # bs = 1
   for net in ${net_list_generic[@]}
   do
-    run_generic $net 1 0
+    run_generic $net 1
     if [ "$?" -ne 0 ]; then
       err=1
     fi
@@ -36,7 +35,7 @@ run_generic_all()
   # bs = 4
   for net in ${net_list_batch[@]}
   do
-    run_generic $net 4 0
+    run_generic $net 4
     if [ "$?" -ne 0 ]; then
       err=1
     fi
@@ -46,7 +45,7 @@ run_generic_all()
     # bs = 1
     for net in ${net_list_generic_extra[@]}
     do
-      run_generic $net 1 0
+      run_generic $net 1
       if [ "$?" -ne 0 ]; then
         err=1
       fi
@@ -54,15 +53,7 @@ run_generic_all()
     # bs = 4
     for net in ${net_list_batch_extra[@]}
     do
-      run_generic $net 4 0
-      if [ "$?" -ne 0 ]; then
-        err=1
-      fi
-    done
-    # fused preprocess
-    for net in ${net_list_do_preprocess[@]}
-    do
-      run_generic $net 1 1
+      run_generic $net 4
       if [ "$?" -ne 0 ]; then
         err=1
       fi
@@ -78,26 +69,21 @@ run_generic_all_parallel()
   rm -f regression.txt
   for net in ${net_list_generic[@]}
   do
-    echo "run_generic $net 1 0" >> regression.txt
+    echo "run_generic $net 1" >> regression.txt
   done
   for net in ${net_list_batch[@]}
   do
-    echo "run_generic $net 4 0" >> regression.txt
+    echo "run_generic $net 4" >> regression.txt
   done
   # extra
   if [ $run_extra -eq 1 ]; then
     for net in ${net_list_generic_extra[@]}
     do
-      echo "run_generic $net 1 0" >> regression.txt
+      echo "run_generic $net 1" >> regression.txt
     done
     for net in ${net_list_batch_extra[@]}
     do
-      echo "run_generic $net 4 0" >> regression.txt
-    done
-    # fused preprocess
-    for net in ${net_list_do_preprocess[@]}
-    do
-      echo "run_generic $net 1 1" >> regression.txt
+      echo "run_generic $net 4" >> regression.txt
     done
   fi
   cat regression.txt
@@ -234,16 +220,15 @@ net_list_accuracy=()
 net_list_generic_extra=()
 net_list_batch_extra=()
 net_list_accuracy_extra=()
-net_list_do_preprocess=()
 
 if [ -z $model_list_file ]; then
   model_list_file=$SCRIPT_DIR/generic/model_list.txt
 fi
 
-while read net bs1 bs4 acc bs1_ext bs4_ext acc_ext fused_preprocess
+while read net bs1 bs4 acc bs1_ext bs4_ext acc_ext
 do
   [[ $net =~ ^#.* ]] && continue
-  # echo "net='$net' bs1='$bs1' bs4='$bs4' acc='$acc' bs1_ext='$bs1_ext' bs4_ext='$bs4_ext' acc_ext='$acc_ext' fused_preprocess='$fused_preprocess'"
+  # echo "net='$net' bs1='$bs1' bs4='$bs4' acc='$acc' bs1_ext='$bs1_ext' bs4_ext='$bs4_ext' acc_ext='$acc_ext'"
   if [ "$bs1" = "Y" ]; then
     # echo "bs1 add $net"
     net_list_generic+=($net)
@@ -268,10 +253,6 @@ do
     # echo "acc_ext add $net"
     net_list_accuracy_extra+=($net)
   fi
-  if [ "$fused_preprocess" = "Y" ]; then
-    # echo "fused_preprocess add $net"
-    net_list_do_preprocess+=($net)
-  fi
 done < ${model_list_file}
 
 # printf '%s\n' "${net_list_generic[@]}"
@@ -280,7 +261,6 @@ done < ${model_list_file}
 # printf '%s\n' "${net_list_generic_extra[@]}"
 # printf '%s\n' "${net_list_batch_extra[@]}"
 # printf '%s\n' "${net_list_accuracy_extra[@]}"
-# printf '%s\n' "${net_list_do_preprocess[@]}"
 
 pushd regression_out
 echo "" > verdict.log
@@ -290,7 +270,7 @@ if [ ! -z "$network" ]; then
   if [ ! -e $CVIMODEL_REL_PATH ]; then
     mkdir $CVIMODEL_REL_PATH
   fi
-  run_generic $network $bs 0
+  run_generic $network $bs
   ERR=$?
   if [ $ERR -eq 0 ]; then
     echo $network TEST PASSED
