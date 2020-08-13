@@ -9,7 +9,8 @@ import time
 import cv2
 import caffe
 from cvi_toolkit.model import CaffeModel
-from cvi_toolkit.utils.yolov3_util import preprocess, postprocess_v2, postprocess_v3, postprocess_v3_tiny, postprocess_v4, draw
+from cvi_toolkit.utils.yolov3_util import postprocess_v2, postprocess_v3, postprocess_v3_tiny, postprocess_v4, draw
+from cvi_toolkit.data.preprocess import get_preprocess_parser, preprocess
 
 def check_files(args):
     if not os.path.isfile(args.model_def):
@@ -26,12 +27,11 @@ def check_files(args):
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Eval YOLO networks.')
+    parser = get_preprocess_parser(parser)
     parser.add_argument('--model_def', type=str, default='',
                         help="Model definition file")
     parser.add_argument('--pretrained_model', type=str, default='',
                         help='Load weights from previously saved parameters.')
-    parser.add_argument("--net_input_dims", default='416,416',
-                        help="'height,width' dimensions of net input tensors.")
     parser.add_argument("--input_file", type=str, default='',
                         help="Input image for testing")
     parser.add_argument("--label_file", type=str, default='',
@@ -68,7 +68,19 @@ def parse_args():
 
 def main(argv):
     args = parse_args()
-
+    preprocessor = preprocess()
+    preprocessor.config(net_input_dims=args.net_input_dims,
+                        resize_dims=args.image_resize_dims,
+                        mean="0,0,0",
+                        mean_file=args.mean_file,
+                        input_scale=args.input_scale,
+                        raw_scale=1.0,
+                        std="1,1,1",
+                        rgb_order="rgb",
+                        data_format=args.data_format,
+                        batch=args.batch_size,
+                        astype=args.astype,
+                        aspect_ratio=1)
     # Make Detector
     net_input_dims = [int(s) for s in args.net_input_dims.split(',')]
     obj_threshold = float(args.obj_threshold)
@@ -84,9 +96,10 @@ def main(argv):
     print("tiny", tiny)
 
     image = cv2.imread(args.input_file)
-    image_x = preprocess(image, net_input_dims)
+    image_x = preprocessor.run(image, input_type="tensor", input_channel_order="bgr",
+            output_channel_order="rgb", input_data_format="hwc", output_data_format="chw")
 
-    image_x = np.expand_dims(image_x, axis=0)
+
     inputs = image_x
     for i in range(1, args.batch_size):
       inputs = np.append(inputs, image_x, axis=0)

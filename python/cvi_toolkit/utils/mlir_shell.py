@@ -201,7 +201,7 @@ def mlir_calibration(mlirfile_fp32, dataset, threshold_table, auto_tune=False):
                         "--auto_tune"
                         ], **std_output_flag)
     else:
-         subprocess.run(["cvi_calibration_tool",
+        subprocess.run(["cvi_calibration_tool",
                         mlirfile_fp32,
                         dataset,
                         "--output_file", threshold_table,

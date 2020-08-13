@@ -20,6 +20,21 @@ def center_crop(img, crop_dim):
     img = img[:, crop[0]:crop[2], crop[1]:crop[3]]
     return img
 
+
+def get_aspect_ratio_img(img, net_h, net_w, img_h, img_w):
+    scale = min(float(net_w) / img_w, float(net_h) / img_h)
+    rescale_w = int(img_w * scale)
+    rescale_h = int(img_h * scale)
+
+    resized_img = cv2.resize(img, (rescale_w, rescale_h), interpolation=cv2.INTER_LINEAR)
+    new_image = np.full((net_h, net_w, 3), 0, dtype=np.float32)
+    offset_w = (net_w - rescale_w) // 2
+    offset_h = (net_h - rescale_h) // 2
+
+    new_image[offset_h: offset_h + rescale_h,
+              offset_w: offset_w + rescale_w, :] = resized_img
+    return new_image
+
 def add_preprocess_parser(parser):
     if not isinstance(parser, argparse.ArgumentParser):
         raise RuntimeError("parser is invaild")
@@ -34,6 +49,8 @@ def add_preprocess_parser(parser):
     parser.add_argument("--data_format", type=str, help="input image data dim order, default: nchw", default="nchw")
     parser.add_argument("--bgray", type=int, default=0, help="whether the input image is gray, channel size is 1")
     parser.add_argument("--astype", type=str, help="store npz type, default is float32", default="float32")
+    parser.add_argument("--aspect_ratio", type=int,
+                        help="image resize to network input keeping with aspect ratio, the flag will ignore --image_resize_dims value", default=0)
     return parser
 
 
@@ -61,6 +78,7 @@ class preprocess(object):
                      letter_box=False,
                      batch=1,
                      bgray=0,
+                     aspect_ratio=0,
                      astype="float32"):
         print("preprocess :\n         \
             \tnet_input_dims: {}\n    \
@@ -76,11 +94,12 @@ class preprocess(object):
             \tletter_box    : {}\n    \
             \tbatch_size    : {}\n    \
             \tbgray         : {}\n    \
+            \taspect_ratio  : {}\n    \
             \tastype        : {}\n    \
         ".format(net_input_dims, resize_dims, mean, \
                 mean_file, std, input_scale, raw_scale, \
                  data_format, rgb_order, npy_input, \
-                letter_box, batch, bgray, astype,
+                 letter_box, batch, bgray, aspect_ratio, astype,
         ))
         self.npy_input = npy_input
         self.letter_box = letter_box
@@ -88,7 +107,7 @@ class preprocess(object):
         self.bgray = bgray
 
         self.net_input_dims = [int(s) for s in net_input_dims.split(',')]
-        if resize_dims != None :
+        if resize_dims != None and not aspect_ratio:
             self.resize_dims = [int(s) for s in resize_dims.split(',')]
             self.resize_dims = [ max(x,y) for (x,y) in zip(self.resize_dims, self.net_input_dims)]
         else :
@@ -96,7 +115,7 @@ class preprocess(object):
 
         self.raw_scale = raw_scale
         self.astype = astype
-
+        self.aspect_ratio = aspect_ratio
         if mean:
             self.mean = np.array([float(s) for s in mean.split(',')], dtype=np.float32)
             if self.resize_dims != None :
@@ -210,6 +229,15 @@ class preprocess(object):
             if input_data_format == "hwc":
                 x = np.transpose(x, (2, 0, 1))
 
+            if self.aspect_ratio:
+                # get aspect ratio resize
+                x = np.transpose(x, (1, 2, 0))
+                x = get_aspect_ratio_img(x, self.net_input_dims[0], self.net_input_dims[1], x.shape[0], x.shape[1])
+                x = np.transpose(x, (2, 0, 1))
+            else:
+                # Take center crop.
+                x = center_crop(x, self.net_input_dims)
+
             # if source data order is different with handle order
             # swap source data order
             # only handle rgb to bgr , bgr to rgb
@@ -230,8 +258,6 @@ class preprocess(object):
             if self.std is not None:
                 x /= self.std[:,np.newaxis, np.newaxis]
 
-            # Take center crop.
-            x = center_crop(x, self.net_input_dims)
 
             # if We need output order is not the same with preprocess order
             # swap it
