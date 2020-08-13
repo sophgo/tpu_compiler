@@ -13,13 +13,14 @@ from cvi_toolkit.cvinn import cvinn
 from cvi_toolkit.numpy_helper import npz_extract, npz_rename
 from cvi_toolkit import cvi_data
 from cvi_toolkit.utils.log_setting import setup_logger
+from cvi_toolkit.utils.mlir_shell import get_chip_name
 
 logger = setup_logger('root', log_level="INFO")
 
 net = cvinn()
 cvi_data_tool = cvi_data()
 preprocessor = preprocess()
-runchip = os.environ['SET_CHIP_NAME']
+
 
 def check_file_exist(filename):
     if not os.path.exists(filename):
@@ -43,6 +44,7 @@ def parse(config: dict):
 
     model_name = output_file.split('.')[0].split('/')[-1]
     Convert_model = config.get('Convert_model', None)
+    runchip = get_chip_name()
     chip = config.get('chip', runchip)
     if Convert_model:
         t = Convert_model

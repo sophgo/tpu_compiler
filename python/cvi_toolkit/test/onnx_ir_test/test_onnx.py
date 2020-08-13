@@ -5,7 +5,7 @@ from cvi_toolkit.transform.onnx_converter import OnnxConverter
 from cvi_toolkit.model.mlir_model import MLIRModel
 from cvi_toolkit.utils.mlir_shell import mlir_import_calibration, mlir_tpu_quant, \
     mlir_lower_opt, mlir_build_cvimodel_no_opt, mlir_opt, \
-                                        run_cvimodel
+    run_cvimodel, get_chip_name
 from cvi_toolkit.numpy_helper import npz_compare
 from onnx import helper
 from onnx import AttributeProto, TensorProto, GraphProto
@@ -36,7 +36,7 @@ TEST_ONNX_IR = [
     "Sum",
 #    "Transpose",
 ]
-chip = os.environ['SET_CHIP_NAME']
+chip = get_chip_name()
 
 NOT_SUPPORT_CMDBUF_TEST_IR = ["Relu"]
 NOT_SUPPORT_BF16_TEST_IR = ["Relu", "LRN", "Max", "Min", "PRelu", "Reciprocal", "Slice", "Transpose", "Sum"]

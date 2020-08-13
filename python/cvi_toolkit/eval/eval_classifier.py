@@ -195,7 +195,7 @@ if __name__ == '__main__':
                              output_channel_order=args.model_channel_order)
     elif args.model_type == "onnx":
         x = preprocessor.run(x, input_type='tensor',
-                             output_channel_order="rgb")
+                             output_channel_order=args.model_channel_order)
     elif args.model_type == "mlir":
         x = preprocessor.run(x, input_type='tensor',
                              output_channel_order=args.model_channel_order)
