@@ -446,6 +446,8 @@ export DO_QUANT_BF16=0
 # accuracy setting
 export EVAL_MODEL_TYPE="lfw"
 #export DO_ACCURACY_CAFFE=0
+export DO_FUSED_PREPROCESS=1
+export EXCEPTS=data
 fi
 
 if [ $NET = "retinaface_mnet25_600" ]; then
@@ -475,6 +477,8 @@ export DATASET=$DATASET_PATH/widerface/WIDER_val/images
 export ANNOTATION=$DATASET_PATH/widerface/wider_face_split
 #export DO_ACCURACY_CAFFE=0
 #export DO_ACCURACY_ONNX=0
+export DO_FUSED_PREPROCESS=1
+export EXCEPTS=data
 fi
 
 if [ $NET = "retinaface_mnet25" ]; then
@@ -1040,6 +1044,7 @@ export TOLERANCE_INT8_MULTIPLER=0.95,0.95,0.66
 export DO_QUANT_BF16=0
 # export TOLERANCE_BF16=0.99,0.99,0.94
 # export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
+export DO_FUSED_PREPROCESS=1
 fi
 
 if [ $NET = "espcn_3x" ]; then
