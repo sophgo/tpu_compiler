@@ -26,6 +26,7 @@ export DO_LAYERGROUP=1
 export USE_LAYERGROUP=1
 export DO_E2E=1
 export DO_FUSED_PREPROCESS=0
+export DO_FUSED_POSTPROCESS=0
 export DO_ACCURACY_CAFFE=1
 export DO_ACCURACY_ONNX=0
 export DO_ACCURACY_FP32_INTERPRETER=0
@@ -479,6 +480,8 @@ export ANNOTATION=$DATASET_PATH/widerface/wider_face_split
 #export DO_ACCURACY_ONNX=0
 export DO_FUSED_PREPROCESS=1
 export EXCEPTS=data
+export DO_FUSED_POSTPROCESS=1
+export MODEL_DEF_FUSED_POSTPROCESS=$MODEL_PATH/face_detection/retinaface/caffe/mnet_600_with_detection.prototxt
 fi
 
 if [ $NET = "retinaface_mnet25" ]; then
@@ -508,6 +511,8 @@ export DATASET=$DATASET_PATH/widerface/WIDER_val/images
 export ANNOTATION=$DATASET_PATH/widerface/wider_face_split
 #export DO_ACCURACY_CAFFE=0
 #export DO_ACCURACY_ONNX=0
+export DO_FUSED_POSTPROCESS=1
+export MODEL_DEF_FUSED_POSTPROCESS=$MODEL_PATH/face_detection/retinaface/caffe/mnet_320_with_detection.prototxt
 fi
 
 if [ $NET = "retinaface_res50" ]; then
@@ -537,6 +542,8 @@ export DATASET=$DATASET_PATH/widerface/WIDER_val/images
 export ANNOTATION=$DATASET_PATH/widerface/wider_face_split
 #export DO_ACCURACY_CAFFE=0
 #export DO_ACCURACY_ONNX=0
+export DO_FUSED_POSTPROCESS=1
+export MODEL_DEF_FUSED_POSTPROCESS=$MODEL_PATH/face_detection/retinaface/caffe/R50-0000_with_detection.prototxt
 fi
 
 if [ $NET = "ssd300" ]; then
@@ -703,6 +710,8 @@ export TOLERANCE_BF16=0.99,0.99,0.94
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
 export SPP_NET="false"
 export TINY="false"
+export DO_FUSED_POSTPROCESS=1
+export MODEL_DEF_FUSED_POSTPROCESS=$MODEL_PATH/object_detection/yolo_v3/caffe/416/yolov3_416_with_detection.prototxt
 fi
 
 if [ $NET = "yolo_v3_416_onnx" ]; then
@@ -744,6 +753,8 @@ export TOLERANCE_BF16=0.99,0.99,0.94
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
 export SPP_NET="false"
 export TINY="false"
+export DO_FUSED_POSTPROCESS=1
+export MODEL_DEF_FUSED_POSTPROCESS=$MODEL_PATH/object_detection/yolo_v3/caffe/yolov3_320_with_detection.prototxt
 fi
 
 if [ $NET = "yolo_v3_160" ]; then
