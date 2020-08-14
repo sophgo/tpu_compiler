@@ -3,9 +3,6 @@ set -e
 
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 
-
-CHECK_NON_OPT_VERSION=0
-
 # translate from caffe model
 mlir-translate \
     --caffe-to-mlir $MODEL_PATH/imagenet/shufflenet_v2/caffe/shufflenet_v2_x0.5.prototxt \
