@@ -840,7 +840,6 @@ class MLIRImporter(object):
         checkKey(kargs, 'min_size_size')
         checkKey(kargs, 'max_size')
         checkKey(kargs, 'max_size_size')
-        checkKey(kargs, 'aspect_ratio0')
         checkKey(kargs, 'aspect_ratios_size')
         checkKey(kargs, 'flip')
         checkKey(kargs, 'clip')
@@ -857,7 +856,6 @@ class MLIRImporter(object):
             'min_size_size': self.module.integerAttr(self.i32Type, kargs['min_size_size']),
             'max_size': self.module.floatAttr(kargs['max_size']),
             'max_size_size': self.module.integerAttr(self.i32Type, kargs['max_size_size']),
-            'aspect_ratio0': self.module.floatAttr(kargs['aspect_ratio0']),
             'aspect_ratios_size': self.module.integerAttr(self.i32Type, kargs['aspect_ratios_size']),
             'flip': self.module.boolAttr(kargs['flip']),
             'clip': self.module.boolAttr(kargs['clip']),
@@ -868,6 +866,8 @@ class MLIRImporter(object):
             'step': self.module.floatAttr(kargs['step']),
             'offset': self.module.floatAttr(kargs['offset']),
         }
+        if 'aspect_ratio0' in kargs:
+            param['aspect_ratio0'] = self.module.floatAttr(kargs['aspect_ratio0'])
         if 'aspect_ratio1' in kargs:
             param['aspect_ratio1'] = self.module.floatAttr(kargs['aspect_ratio1'])
         return self.buildOp(TPU_OpType.PriorBox.value, inputOperands, [
@@ -1127,11 +1127,11 @@ class MLIRImporter(object):
             inputOperands.append(none)
         return self.buildOp(TPU_OpType.Tanh.value, inputOperands, [
             tensor_output_type], name=tanh_name, quant=self.quant_param)
-    
+
     def add_tile_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = self.module.make_ranked_tensor_type(
             self.f32Type, output_tensor_shape)
-        
+
         checkKey(kargs, 'axis')
         checkKey(kargs, 'tiles')
 
