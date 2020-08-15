@@ -969,7 +969,6 @@ class CaffeConverter(BaseConverter):
             'min_size_size': min_size_size,
             'max_size': max_size,
             'max_size_size': max_size_size,
-            'aspect_ratio0': p.aspect_ratio[0],
             'aspect_ratios_size': aspect_ratio_size,
             'flip': p.flip,
             'clip': p.clip,
@@ -980,7 +979,9 @@ class CaffeConverter(BaseConverter):
             'step': p.step,
             'offset': p.offset,
         }
-        if aspect_ratio_size == 2:
+        if aspect_ratio_size > 0:
+            param['aspect_ratio0'] = p.aspect_ratio[0]
+        if aspect_ratio_size > 1:
             param['aspect_ratio1'] = p.aspect_ratio[1]
 
         aspect_ratios_ = list()

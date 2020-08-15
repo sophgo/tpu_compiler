@@ -2327,9 +2327,9 @@ LogicalResult tpu::PriorBoxOp::interpret(
   float step_h_;
 
   float offset_;
-
-  aspect_ratios.push_back(this->aspect_ratio0().convertToFloat()) ;
-  if(aspect_ratios_size==2)
+  if(aspect_ratios_size > 0)
+    aspect_ratios.push_back(this->aspect_ratio0().getValue().convertToFloat()) ;
+  if(aspect_ratios_size > 1)
     aspect_ratios.push_back(this->aspect_ratio1().getValue().convertToFloat()) ;
 
   int max_size_size=this->max_size_size().getLimitedValue();

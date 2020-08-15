@@ -172,10 +172,12 @@ struct TpuConvertPriorBoxPattern : public RewritePattern {
     float step_w = step;
     float step_h = step;
 
-    aspect_ratios.push_back(priorboxOp.aspect_ratio0().convertToFloat()) ;
-    if(aspect_ratios_size == 2) {
-      auto aspectRatio1 = priorboxOp.aspect_ratio1();
-      aspect_ratios.push_back(aspectRatio1.getValue().convertToFloat()) ;
+    if(aspect_ratios_size > 0) {
+      aspect_ratios.push_back(priorboxOp.aspect_ratio0().getValue().convertToFloat());
+    }
+
+    if(aspect_ratios_size > 1) {
+      aspect_ratios.push_back(priorboxOp.aspect_ratio1().getValue().convertToFloat());
     }
 
     int max_size_size=priorboxOp.max_size_size().getLimitedValue();

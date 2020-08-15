@@ -1703,7 +1703,6 @@ def TPU_PriorBoxOp: TPU_Op<"priorbox",
       `min_size_size`      : required.
       `max_size`           : required.
       `max_size_size`      : required.
-      `aspect_ratio0`      : required.
       `aspect_ratios_size` : required.
       `flip`               : required.
       `clip`               : required.
@@ -1735,7 +1734,7 @@ def TPU_PriorBoxOp: TPU_Op<"priorbox",
     I32Attr:$min_size_size,
     F32Attr:$max_size,
     I32Attr:$max_size_size,
-    F32Attr:$aspect_ratio0,
+    OptionalAttr<F32Attr>:$aspect_ratio0,
     OptionalAttr<F32Attr>:$aspect_ratio1,
     I32Attr:$aspect_ratios_size,
     DefaultValuedAttr<BoolAttr, "true">:$flip,
