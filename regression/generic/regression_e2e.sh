@@ -5,6 +5,9 @@ DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 
 echo "$0 net=$NET"
 
+if [ -z $MODEL_DAT ]; then
+  MODEL_DAT="-"
+fi
 $REGRESSION_PATH/convert_model.sh \
     -i ${MODEL_DEF} \
     -d ${MODEL_DAT} \
