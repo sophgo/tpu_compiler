@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+
+import sys
 import onnx
 import argparse
 from cvi_toolkit.transform.onnx_converter import OnnxConverter
@@ -115,4 +117,5 @@ def main():
 
 
 if __name__ == "__main__":
+    print(sys.argv)
     main()

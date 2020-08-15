@@ -5,44 +5,14 @@ DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 
 echo "$0 net=$NET"
 
-if [ $MODEL_TYPE = "caffe" ]; then
-  if [ $USE_LAYERGROUP = "1" ]; then
-    $REGRESSION_PATH/convert_model_caffe_lg.sh \
-        ${MODEL_DEF} \
-        ${MODEL_DAT} \
-        ${NET} \
-        ${BATCH_SIZE} \
-        ${CALI_TABLE} \
-        ${NET}.cvimodel
-  else
-    $REGRESSION_PATH/convert_model_caffe_df.sh \
-        ${MODEL_DEF} \
-        ${MODEL_DAT} \
-        ${NET} \
-        ${BATCH_SIZE} \
-        ${CALI_TABLE} \
-        ${NET}.cvimodel
-  fi
-elif [ $MODEL_TYPE = "onnx" ]; then
-  if [ $USE_LAYERGROUP = "1" ]; then
-    $REGRESSION_PATH/convert_model_onnx_lg.sh \
-        ${MODEL_DEF} \
-        ${NET} \
-        ${BATCH_SIZE} \
-        ${CALI_TABLE} \
-        ${NET}.cvimodel
-  else
-    $REGRESSION_PATH/convert_model_onnx_df.sh \
-        ${MODEL_DEF} \
-        ${NET} \
-        ${BATCH_SIZE} \
-        ${CALI_TABLE} \
-        ${NET}.cvimodel
-  fi
-else
-  echo "Invalid MODEL_TYPE=$MODEL_TYPE"
-  return 1
-fi
+$REGRESSION_PATH/convert_model.sh \
+    -i ${MODEL_DEF} \
+    -d ${MODEL_DAT} \
+    -t ${MODEL_TYPE} \
+    -b ${BATCH_SIZE} \
+    -q ${CALI_TABLE} \
+    -l ${USE_LAYERGROUP} \
+    -o ${NET}.cvimodel
 
 model_runner \
     --dump-all-tensors \

@@ -31,70 +31,29 @@ do
   NET=$net
   source $DIR/generic/generic_models.sh
   echo "NET=$NET MODEL_TYPE=$MODEL_TYPE"
-  if [ $MODEL_TYPE = "caffe" ]; then
-    if [ $USE_LAYERGROUP = "1" ]; then
-      $DIR/convert_model_caffe_lg.sh \
-        ${MODEL_DEF} \
-        ${MODEL_DAT} \
-        ${NET} \
-        1 \
-        ${CALI_TABLE} \
-        ${NET}.cvimodel
-      mv ${NET}.cvimodel ..
-    else
-      $DIR/convert_model_caffe_df.sh \
-        ${MODEL_DEF} \
-        ${MODEL_DAT} \
-        ${NET} \
-        1 \
-        ${CALI_TABLE} \
-        ${NET}.cvimodel
-      mv ${NET}.cvimodel ..
-    fi
-    # generate with detection version if DO_FUSED_POSTPROCESS is set
-    if [ $DO_FUSED_POSTPROCESS = "1" ]; then
-      if [ $USE_LAYERGROUP = "1" ]; then
-        $DIR/convert_model_caffe_lg.sh \
-          ${MODEL_DEF_FUSED_POSTPROCESS} \
-          ${MODEL_DAT} \
-          ${NET} \
-          1 \
-          ${CALI_TABLE} \
-          ${NET}_with_detection.cvimodel
-        mv ${NET}_with_detection.cvimodel ..
-      else
-        $DIR/convert_model_caffe_df.sh \
-          ${MODEL_DEF_FUSED_POSTPROCESS} \
-          ${MODEL_DAT} \
-          ${NET} \
-          1 \
-          ${CALI_TABLE} \
-          ${NET}_with_detection.cvimodel
-        mv ${NET}_with_detection.cvimodel ..
-      fi
-    fi
-  elif [ $MODEL_TYPE = "onnx" ]; then
-    if [ $USE_LAYERGROUP = "1" ]; then
-      $DIR/convert_model_onnx_lg.sh \
-        ${MODEL_DEF} \
-        ${NET} \
-        1 \
-        ${CALI_TABLE} \
-        ${NET}.cvimodel
-    else
-      $DIR/convert_model_onnx_df.sh \
-        ${MODEL_DEF} \
-        ${NET} \
-        1 \
-        ${CALI_TABLE} \
-        ${NET}.cvimodel
-    fi
-    mv ${NET}.cvimodel ..
-  elif [ $MODEL_TYPE = "tensorflow" ]; then
-    echo "Not supported MODEL_TYPE=$MODEL_TYPE"
-  else
-    echo "Invalid MODEL_TYPE=$MODEL_TYPE"
-    err=1
+  if [ -z $MODEL_DAT ]; then
+    MODEL_DAT="-"
+  fi
+  $DIR/convert_model.sh \
+      -i ${MODEL_DEF} \
+      -d ${MODEL_DAT} \
+      -t ${MODEL_TYPE} \
+      -b 1 \
+      -q ${CALI_TABLE} \
+      -l ${USE_LAYERGROUP} \
+      -o ${NET}.cvimodel
+  mv ${NET}.cvimodel ..
+  # generate with detection version if DO_FUSED_POSTPROCESS is set
+  if [ $DO_FUSED_POSTPROCESS = "1" ]; then
+    $DIR/convert_model.sh \
+        -i ${MODEL_DEF_FUSED_POSTPROCESS} \
+        -d ${MODEL_DAT} \
+        -t ${MODEL_TYPE} \
+        -b 1 \
+        -q ${CALI_TABLE} \
+        -l ${USE_LAYERGROUP} \
+        -o ${NET}_with_detection.cvimodel
+    mv ${NET}_with_detection.cvimodel ..
   fi
   rm -f ./*
   popd
