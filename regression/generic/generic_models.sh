@@ -32,7 +32,6 @@ export DO_ACCURACY_FUSED_PREPROCESS=0
 export EVAL_MODEL_TYPE="imagenet"
 export LABEL_FILE=$REGRESSION_PATH/data/synset_words.txt
 export DO_NN_TOOLKIT=0
-export SET_CHIP_NAME="cv183x"
 export SWAP_CHANNEL=0,1,2
 export YOLO_PREPROCESS="false"
 export BGRAY=0

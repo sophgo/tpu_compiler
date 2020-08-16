@@ -46,3 +46,4 @@ export PYTHONPATH=$MLIR_PATH/caffe/python:$PYTHONPATH
 export PYTHONPATH=$MLIR_PATH/flatbuffers/python:$PYTHONPATH
 
 export GLOG_minloglevel=2
+export SET_CHIP_NAME="cv183x"

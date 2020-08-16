@@ -20,7 +20,6 @@ export DO_DEEPFUSION=1
 export DO_LAYERGROUP=0
 export DO_QUANT_MIX=0
 export DO_E2E=1
-export SET_CHIP_NAME="cv183x"
 
 if [ -z "$DO_BATCHSIZE" ]; then
   BATCH_SIZE=1
