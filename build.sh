@@ -311,27 +311,26 @@ if [ "$1" = "RELEASE" ]; then
 
   # generate models for release and samples
   pushd $BUILD_PATH
+
   $MLIR_SRC_PATH/regression/generate_all_cvimodels.sh
   mkdir -p cvimodel_samples
 
-  cp cvimodel_release/mobilenet_v2.cvimodel cvimodel_samples/
-  cp cvimodel_release/yolo_v3_416_with_detection.cvimodel cvimodel_samples/
-  cp cvimodel_release/alphapose.cvimodel cvimodel_samples/
-  cp cvimodel_release/retinaface_mnet25_with_detection.cvimodel cvimodel_samples/
-  cp cvimodel_release/retinaface_res50_with_detection.cvimodel cvimodel_samples/
-  cp cvimodel_release/retinaface_mnet25_600_with_detection.cvimodel cvimodel_samples/
-  cp cvimodel_release/arcface_res50.cvimodel cvimodel_samples/
+  sample_models_list=(
+    mobilenet_v2.cvimodel
+    mobilenet_v2_fused_preprocess.cvimodel
+    yolo_v3_416_with_detection.cvimodel
+    alphapose.cvimodel
+    alphapose_fused_preprocess.cvimodel
+    retinaface_mnet25_600_with_detection.cvimodel
+    retinaface_mnet25_600_fused_preprocess_with_detection.cvimodel
+    arcface_res50.cvimodel
+    arcface_res50_fused_preprocess.cvimodel
+  )
 
-  # cp cvimodel_release/mobilenet_v2_preprocess.cvimodel cvimodel_samples/
-  # cp cvimodel_release/yolo_v3_416_with_detection_preprocess.cvimodel cvimodel_samples/
-  # cp cvimodel_release/alphapose_preprocess.cvimodel cvimodel_samples/
-  # cp cvimodel_release/retinaface_mnet25_with_detection_preprocess.cvimodel cvimodel_samples/
-  # cp cvimodel_release/retinaface_res50_with_detection_preprocess.cvimodel cvimodel_samples/
-  # cp cvimodel_release/retinaface_mnet25_600_with_detection_preprocess.cvimodel cvimodel_samples/
-  # cp cvimodel_release/arcface_res50_preprocess.cvimodel cvimodel_samples/
+  for sample_model in ${sample_models_list[@]}
+  do
+    cp cvimodel_release/${sample_model} cvimodel_samples/
+  done
 
-  if [ "$BUILD_CVITEK_ZOO" = "1" ]; then
-    $MLIR_SRC_PATH/regression/cvitek_zoo/cvitek_zoo_generate_cvimodels.sh
-  fi
   popd
 fi

@@ -18,14 +18,13 @@ usage()
   echo -e "\t-o Output cvimodel file"
   echo -e "\t-l Do layergroup optimization                  [default: 1]"
   echo -e "\t-p Do fused preprocess                         [default: 0]"
-  echo -e "\t-x Fused preprocess net_input_dims in h,w"
+  echo -e "\t-x Fused preprocess net input dims in h,w"
   echo -e "\t-r Fused preprocess raw scale                  [default: 255.0]"
   echo -e "\t-m Fused preprocess mean                       [default: 0.0,0.0,0.0]"
   echo -e "\t-s Fused preprocess std                        [default: 1.0,1.0,1.0]"
   echo -e "\t-a Fused preprocess input scale                [default: 1.0,1.0,1.0]"
   echo -e "\t-w Fused preprocess channel order (rgb|bgr)    [default: bgr]"
-  echo -e "\t-c Fused preprocess do crop                    [default: 0] "
-  echo -e "\t-y Fused preprocess crop image size            [default: [none], use net dim]"
+  echo -e "\t-y Fused preprocess image resize dims          [default: [none], use net dim]"
   echo -e "\t-f Fused preprocess crop offset                [default: [none], center]"
   echo -e "\t-h help"
   exit 1
@@ -37,7 +36,7 @@ do_fused_preprocess="0"
 do_crop="0"
 chip_ver="cv183x"
 
-while getopts "i:d:t:b:q:v:o:l:pz:r:m:s:a:w:cy:f:h" opt
+while getopts "i:d:t:b:q:v:o:l:pz:r:m:s:a:w:y:f:h" opt
 do
   case "$opt" in
     i ) model_def="$OPTARG" ;;
@@ -55,8 +54,7 @@ do
     s ) std="$OPTARG" ;;
     a ) input_scale="$OPTARG" ;;
     w ) channel_order="$OPTARG" ;;
-    c ) do_crop="1" ;;
-    y ) input_image_size="$OPTARG" ;;
+    y ) image_resize_dims="$OPTARG" ;;
     f ) crop_offset="$OPTARG" ;;
     h ) usage ;;
   esac
@@ -65,8 +63,6 @@ done
 fused_preprocess_opt=""
 if [ $do_fused_preprocess = "1" ]; then
   fused_preprocess_opt="--convert_preprocess 1 "
-  # no cropping for now
-  fused_preprocess_opt+="--image_resize_dims ${net_input_dims} "
   fused_preprocess_opt+="--net_input_dims ${net_input_dims} "
   if [ ! -z "$raw_scale" ]; then
     fused_preprocess_opt+="--raw_scale ${raw_scale} "
@@ -86,8 +82,11 @@ if [ $do_fused_preprocess = "1" ]; then
   if [ ! -z "$channel_order" ]; then
     fused_preprocess_opt+="--model_channel_order ${channel_order} "
   fi
-  if [ $do_crop = "1" ]; then
-    echo "convert_model.sh NOT support crop yet"
+  if [ ! -z $image_resize_dims ]; then
+    fused_preprocess_opt+="--image_resize_dims ${image_resize_dims} "
+  fi
+  if [ ! -z $crop_offset ]; then
+    echo "convert_model.sh NOT support crop_offset yet"
     exit 1
   fi
 fi
