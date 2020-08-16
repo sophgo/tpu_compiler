@@ -35,7 +35,7 @@ yolo_v3_spp               N        N        N        Y        N        N
 # icnet                     N        N        N        Y        N        N
 # erfnet                    N        N        N        Y        N        N
 # enet                      N        N        N        Y        N        N
-fcn-8s                    N        N        N        Y        N        N
+# fcn-8s                    N        N        N        Y        N        N
 
 # onnx
 resnet18                  N        N        N        Y        Y        N
