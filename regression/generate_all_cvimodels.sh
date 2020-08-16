@@ -41,6 +41,7 @@ do
       -b 1 \
       -q ${CALI_TABLE} \
       -l ${USE_LAYERGROUP} \
+      -v ${SET_CHIP_NAME} \
       -o ${NET}.cvimodel
   mv ${NET}.cvimodel ..
   # generate with detection version if DO_FUSED_POSTPROCESS is set
@@ -52,6 +53,7 @@ do
         -b 1 \
         -q ${CALI_TABLE} \
         -l ${USE_LAYERGROUP} \
+        -v ${SET_CHIP_NAME} \
         -o ${NET}_with_detection.cvimodel
     mv ${NET}_with_detection.cvimodel ..
   fi

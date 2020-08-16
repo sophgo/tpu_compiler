@@ -15,6 +15,7 @@ $REGRESSION_PATH/convert_model.sh \
     -b ${BATCH_SIZE} \
     -q ${CALI_TABLE} \
     -l ${USE_LAYERGROUP} \
+    -v ${SET_CHIP_NAME} \
     -o ${NET}.cvimodel
 
 model_runner \
