@@ -27,10 +27,7 @@ export USE_LAYERGROUP=1
 export DO_E2E=1
 export DO_FUSED_PREPROCESS=0
 export DO_FUSED_POSTPROCESS=0
-export DO_ACCURACY_CAFFE=1
-export DO_ACCURACY_ONNX=0
 export DO_ACCURACY_FP32_INTERPRETER=0
-export DO_ACCURACY_INTERPRETER=1
 export DO_ACCURACY_FUSED_PREPROCESS=0
 export EVAL_MODEL_TYPE="imagenet"
 export LABEL_FILE=$REGRESSION_PATH/data/synset_words.txt
@@ -306,9 +303,6 @@ export MLIR_OPT_FE_INT8_MULTIPLER_PRE="--tpu-quant-clip"
 export BF16_QUANT_LAYERS_FILE=${NET}_bf16_quant_layers
 export DO_CMDBUF_BF16=0
 export DO_E2E=1
-export DO_ACCURACY_CAFFE=0
-export DO_ACCURACY_ONNX=1
-export DO_QUANT_INT8_MULTIPLER=1
 fi
 
 if [ $NET = "shufflenet_v2" ]; then
@@ -446,7 +440,6 @@ export DO_QUANT_INT8_RFHIFT_ONLY=0
 export DO_QUANT_BF16=0
 # accuracy setting
 export EVAL_MODEL_TYPE="lfw"
-#export DO_ACCURACY_CAFFE=0
 export DO_FUSED_PREPROCESS=1
 export EXCEPTS=data
 fi
@@ -476,8 +469,6 @@ export OBJ_THRESHOLD=0.005
 export NMS_THRESHOLD=0.45
 export DATASET=$DATASET_PATH/widerface/WIDER_val/images
 export ANNOTATION=$DATASET_PATH/widerface/wider_face_split
-#export DO_ACCURACY_CAFFE=0
-#export DO_ACCURACY_ONNX=0
 export DO_FUSED_PREPROCESS=1
 export EXCEPTS=data
 export DO_FUSED_POSTPROCESS=1
@@ -509,8 +500,6 @@ export OBJ_THRESHOLD=0.005
 export NMS_THRESHOLD=0.45
 export DATASET=$DATASET_PATH/widerface/WIDER_val/images
 export ANNOTATION=$DATASET_PATH/widerface/wider_face_split
-#export DO_ACCURACY_CAFFE=0
-#export DO_ACCURACY_ONNX=0
 export DO_FUSED_POSTPROCESS=1
 export MODEL_DEF_FUSED_POSTPROCESS=$MODEL_PATH/face_detection/retinaface/caffe/mnet_320_with_detection.prototxt
 fi
@@ -540,8 +529,6 @@ export OBJ_THRESHOLD=0.005
 export NMS_THRESHOLD=0.45
 export DATASET=$DATASET_PATH/widerface/WIDER_val/images
 export ANNOTATION=$DATASET_PATH/widerface/wider_face_split
-#export DO_ACCURACY_CAFFE=0
-#export DO_ACCURACY_ONNX=0
 export DO_FUSED_POSTPROCESS=1
 export MODEL_DEF_FUSED_POSTPROCESS=$MODEL_PATH/face_detection/retinaface/caffe/R50-0000_with_detection.prototxt
 fi
@@ -968,8 +955,6 @@ export EXCEPTS=424_Mul,388_Sigmoid
 export TOLERANCE_INT8_MULTIPLER=0.76,0.60,0.26
 export TOLERANCE_BF16=0.99,0.99,0.91
 export DO_CMDBUF_BF16=0
-export DO_ACCURACY_CAFFE=0
-export DO_ACCURACY_ONNX=1
 # export DO_QUANT_MIX=1
 # export TOLERANCE_MIX_PRECISION=0.76,0.60,0.27
 # export MIX_PRECISION_BF16_LAYER_NUM=50
@@ -1029,8 +1014,6 @@ export OUTPUTS_FP32=output
 export OUTPUTS=output
 export TOLERANCE_INT8_MULTIPLER=0.95,0.95,0.7
 export TOLERANCE_BF16=0.99,0.99,0.91
-export DO_ACCURACY_CAFFE=0
-export DO_ACCURACY_ONNX=1
 fi
 
 if [ $NET = "alphapose" ]; then
@@ -1101,8 +1084,6 @@ export DO_QUANT_BF16=0
 export TOLERANCE_BF16=0.99,0.98,0.97
 export DO_CMDBUF_BF16=0
 export EVAL_MODEL_TYPE="isbi"
-export DO_ACCURACY_CAFFE=0
-export DO_ACCURACY_ONNX=1
 export BGRAY=1
 fi
 
@@ -1432,6 +1413,4 @@ export TOLERANCE_BF16=0.99,0.98,0.97
 export DO_CMDBUF_BF16=0
 export DO_DEEPFUSION=0
 export EVAL_MODEL_TYPE="isbi"
-export DO_ACCURACY_CAFFE=0
-export DO_ACCURACY_ONNX=0
 fi

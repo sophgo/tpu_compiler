@@ -19,8 +19,6 @@ export DO_CMDBUF_BF16=1
 export DO_DEEPFUSION=1
 export DO_LAYERGROUP=0
 export DO_QUANT_MIX=0
-export DO_ACCURACY_CAFFE=1
-export DO_ACCURACY_INTERPRETER=1
 export DO_E2E=1
 export SET_CHIP_NAME="cv183x"
 
@@ -59,6 +57,4 @@ export DO_E2E=0
 # accuracy setting
 export EVAL_MODEL_TYPE="RGBIRliveness"
 export RGBIR_VAL_LIST=$DATASET_PATH/RGBIRliveness/wisecore_rgbir_val_list_noCleanOutFace.txt
-#export DO_ACCURACY_CAFFE=0
-#export DO_ACCURACY_ONNX=0
 fi
