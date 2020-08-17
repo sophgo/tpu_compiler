@@ -1752,10 +1752,10 @@ struct PackWeightConv2DOpPattern : public RewritePattern {
     // get tensor
     std::unique_ptr<std::vector<float> > bias = nullptr;
     if ( !isTensorNone(convOp.bias()) ) {
-      bias = readAndDeleteWeightTensor<float>(convOp.bias(), wTF);
+      bias = readWeightTensor<float>(convOp.bias(), wTF);
     }
-    auto rshift = readAndDeleteWeightTensor<float>(convOp.quant_rshift(), wTF);
-    auto multiplier = readAndDeleteWeightTensor<float>(convOp.quant_multiplier(), wTF);
+    auto rshift = readWeightTensor<float>(convOp.quant_rshift(), wTF);
+    auto multiplier = readWeightTensor<float>(convOp.quant_multiplier(), wTF);
 
     // pack the weights
     std::vector<int64_t> packedShape;
