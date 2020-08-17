@@ -1597,7 +1597,9 @@ class CaffeConverter(BaseConverter):
                     'raw_scale': self.preprocess_args.get('raw_scale'),
                     'color_order': color_order,
                     'transpose_order': transpose_order,
-                    'crop_offset': crop_offset
+                    'crop_offset': crop_offset,
+                    'pads': [0,0,0,0],
+                    'pad_const_val': 0,
                 }
 
                 output_shape = input_shape
