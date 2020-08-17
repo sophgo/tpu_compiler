@@ -71,10 +71,10 @@ def main(argv):
     preprocessor = preprocess()
     preprocessor.config(net_input_dims=args.net_input_dims,
                         resize_dims=args.image_resize_dims,
-                        mean="0,0,0",
+                        mean=args.mean,
                         mean_file=args.mean_file,
                         input_scale=args.input_scale,
-                        raw_scale=1.0,
+                        raw_scale=args.raw_scale,
                         std="1,1,1",
                         rgb_order="rgb",
                         data_format=args.data_format,

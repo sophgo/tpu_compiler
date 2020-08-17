@@ -570,8 +570,8 @@ void parsePoolParam(const tpu::PoolParam &p,
   pl = p.padding_l().getValue().getLimitedValue();
   pr = p.padding_r().getValue().getLimitedValue();
   is_global = false;
-  if (kh == ih && kw == iw) {
-    assert(oh == 1 && ow == 1);
+  if (kh == ih && kw == iw && oh == 1 && ow == 1) {
+    //assert(oh == 1 && ow == 1);
     is_global = true;
   }
   do_relu = p.do_relu().getValue();

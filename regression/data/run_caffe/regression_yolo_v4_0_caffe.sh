@@ -14,6 +14,9 @@ if [ ! -f "$CAFFE_BLOBS_NPZ" ]; then
       --net_input_dims $NET_INPUT_DIMS \
       --obj_threshold 0.3 \
       --nms_threshold 0.5 \
+      --raw_scale $RAW_SCALE \
+      --mean $MEAN \
+      --input_scale $INPUT_SCALE \
       --dump_blobs $CAFFE_BLOBS_NPZ \
       --dump_weights ${NET}_weights.npz \
       --batch_size $BATCH_SIZE \
