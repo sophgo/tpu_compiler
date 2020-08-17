@@ -481,7 +481,7 @@ class OnnxConverter(BaseConverter):
             'count_include_pad': count_include_pad,
         }
         oh = calcPool2DFloor(input_shape[2], pool_avg_2d_param['kernel_h'], pool_avg_2d_param['stride_h'], pool_avg_2d_param['padding_t'], pool_avg_2d_param['padding_b'])
-        ow = calcPool2DFloor(input_shape[2], pool_avg_2d_param['kernel_w'], pool_avg_2d_param['stride_w'], pool_avg_2d_param['padding_l'], pool_avg_2d_param['padding_r'])
+        ow = calcPool2DFloor(input_shape[3], pool_avg_2d_param['kernel_w'], pool_avg_2d_param['stride_w'], pool_avg_2d_param['padding_l'], pool_avg_2d_param['padding_r'])
         output_shape = [int(on), int(oc), oh, ow]
         pool_avg_op = self.CVI.add_pool_avg_2d_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **pool_avg_2d_param)
         self.addOperand(onnx_node.name, pool_avg_op, output_shape, TensorType.ACTIVATION)
