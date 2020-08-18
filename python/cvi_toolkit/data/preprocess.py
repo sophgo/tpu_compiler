@@ -40,15 +40,14 @@ def get_aspect_ratio_img(img, net_h, net_w, img_h, img_w, no_pad=False):
     return new_image
 
 
-def get_aspect_ratio_pads(net_h, net_w, img_h, img_w):
-    rescale_h, rescale_w = get_aspect_ratio_wh(net_h, net_w, img_h, img_w)
+def get_aspect_ratio_pads(net_h, net_w, rescale_h, rescale_w):
+
     offset_w = (net_w - rescale_w) // 2
     offset_h = (net_h - rescale_h) // 2
     pad_l = offset_w
     pad_r = net_w - offset_w - rescale_w
     pad_t = offset_h
     pad_b = net_h - offset_h - rescale_h
-
     return [0, 0, pad_t, pad_l, 0, 0, pad_b, pad_r]
 
 def _get_aspect_ratio_img(img, net_h, net_w, img_h, img_w):
