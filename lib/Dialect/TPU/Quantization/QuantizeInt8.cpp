@@ -907,7 +907,8 @@ LogicalResult quantizeInt8BypassOps(Operation *op) {
       || isa<tpu::ROIPoolingOp>(op)
       || isa<tpu::SwapChannelOp>(op)
       || isa<tpu::CropOp>(op)
-      || isa<tpu::SoftmaxOp>(op)) {
+      || isa<tpu::SoftmaxOp>(op)
+      || isa<tpu::PoolMax2DOp>(op)) {
     skip_checking = true;
   }
 
