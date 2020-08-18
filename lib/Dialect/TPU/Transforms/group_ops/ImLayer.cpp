@@ -241,9 +241,13 @@ ImConv::ImConv(Operation* p) : ImLayer(IR_CONVOLUTION, p, true) {
     // do fusion in such case.
     fusible = false;
   } else if (g > 1 && false == is_dw) {
-    // if group conv convert to lg_conv, bias will be not eu_num aligned.
-    // test by resnext50
-    fusible = false;
+    // for group conv
+    // if oc / g > 32, then we will have two bias at one lane without
+    // EU_NUM align,
+    // so we can only specify the align type to bias memory layout
+    // but skip the oc/g>32 cases.
+    if (oc/g > NPU_NUM)
+      fusible = false;
   }
 
   int w_ic = ic;
@@ -296,11 +300,10 @@ ImConv::ImConv(Operation* p) : ImLayer(IR_CONVOLUTION, p, true) {
       add_in_tensor(1, oc, 1, perchannel_size, bias_usize,
                     bias_storage, bias_name, TENSOR_BIAS);
     else {
-      // bias tensor start address must from tpu0, but input and result
-      // can start from tpux, so we use the shape (g, oc/g, 1, 9), not
-      // (1, oc, 1, 9)
-      add_in_tensor(g, oc/g, 1, perchannel_size, bias_usize,
-                    bias_storage, bias_name, TENSOR_BIAS);
+      // if is group conv, bias need to align.
+      tensor_type_t bias_type = (g > 1) ? TENSOR_DEPTHCONV_OPD1 : TENSOR_BIAS;
+      add_in_tensor(1, oc, 1, perchannel_size, bias_usize,
+                    bias_storage, bias_name, bias_type);
     }
   } else if (!bInt8ConvOp && with_bias) {
     // bf16 with bias
@@ -371,12 +374,10 @@ ImDeconv::ImDeconv(Operation* p) : ImLayer(IR_DECONVOLUTION, p, true) {
       add_in_tensor(1, oc, 1, perchannel_size, bias_usize,
                     bias_storage, bias_name, TENSOR_BIAS);
     } else {
-      // bias tensor start address must from tpu0,
-      // but the same as input and result that
-      // start address can start from tpux,
-      // so here we use the shape (g, oc/g, 1, 9), not (1, oc, 1, 9)
-      add_in_tensor(g, oc/g, 1, perchannel_size, bias_usize,
-                    bias_storage, bias_name, TENSOR_BIAS);
+      // if is group conv, bias need to align.
+      tensor_type_t bias_type = (g > 1) ? TENSOR_DEPTHCONV_OPD1 : TENSOR_BIAS;
+      add_in_tensor(1, oc, 1, perchannel_size, bias_usize,
+                    bias_storage, bias_name, bias_type);
     }
   } else if(!bInt8ConvOp && with_bias) {
     // bf16 with bias
