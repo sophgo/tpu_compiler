@@ -2791,7 +2791,8 @@ LogicalResult tpu::TG_INT8_UpsampleOp::codegen(void *ctx) {
   int64_t input_size, n, c, h, w;
   getTensorShapeAndSize(op->getOperand(0), shape, input_size);
   getNCHW(shape, n, c, h, w);
-  int32_t scale = this->scale().getLimitedValue();
+  int32_t scale_h = this->scale_h().getLimitedValue();
+  int32_t scale_w = this->scale_w().getLimitedValue();
 
   gaddr_t ga_input = getPreviousOpAddress(op);
   gaddr_t ga_output = getOpAddress(op);
@@ -2810,8 +2811,8 @@ LogicalResult tpu::TG_INT8_UpsampleOp::codegen(void *ctx) {
       c,
       h,
       w,
-      scale,
-      scale
+      scale_h,
+      scale_w
   );
 
   return success();
@@ -2827,7 +2828,8 @@ LogicalResult tpu::TG_BF16_UpsampleOp::codegen(void *ctx) {
   int64_t input_size, n, c, h, w;
   getTensorShapeAndSize(op->getOperand(0), shape, input_size);
   getNCHW(shape, n, c, h, w);
-  int32_t scale = this->scale().getLimitedValue();
+  int32_t scale_h = this->scale_h().getLimitedValue();
+  int32_t scale_w = this->scale_w().getLimitedValue();
 
   gaddr_t ga_input = getPreviousOpAddress(op);
   gaddr_t ga_output = getOpAddress(op);
@@ -2846,8 +2848,8 @@ LogicalResult tpu::TG_BF16_UpsampleOp::codegen(void *ctx) {
       c,
       h,
       w,
-      scale,
-      scale
+      scale_h,
+      scale_w
   );
 
   return success();

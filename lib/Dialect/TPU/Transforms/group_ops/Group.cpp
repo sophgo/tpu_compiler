@@ -459,16 +459,17 @@ bool Group::backward_slice(int out_tensor_id, std::list<int>& branches, bool max
       h_idx = (if_insert_h_t + sh - 1) / sh;
       h_slice = (if_insert_h_b + sh - 1) / sh - h_idx;
     } else if (layer_type == IR_UPSAMPLE) {
-      int size = 1;
-      getUpsampleParam(im_layer->op(), size);
+      int size_h = 1;
+      int size_w = 1;
+      getUpsampleParam(im_layer->op(), size_h, size_w);
 
-      if (out_h_slice % size) {
+      if (out_h_slice % size_h) {
         LLVM_DEBUG(llvm::errs() << "FAIL: fractional upsample input h slice" << "\n";);
         return false;
       }
 
-      h_idx = out_h_idx / size;
-      h_slice = out_h_slice / size;
+      h_idx = out_h_idx / size_h;
+      h_slice = out_h_slice / size_h;
     } else if ( layer_type == IR_ELTWISE ) {
       h_idx = out_h_idx;
       h_slice = out_h_slice;

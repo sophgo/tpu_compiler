@@ -113,7 +113,9 @@ struct TpuTileToUpsamplePattern : public RewritePattern {
     attrs.push_back(
         rewriter.getNamedAttr("name", rewriter.getStringAttr(op_name)));
     attrs.push_back(
-        rewriter.getNamedAttr("scale", rewriter.getI32IntegerAttr(tile1)));
+        rewriter.getNamedAttr("scale_h", rewriter.getI32IntegerAttr(tile1)));
+    attrs.push_back(
+        rewriter.getNamedAttr("scale_w", rewriter.getI32IntegerAttr(tile1)));
     attrs.push_back(
         rewriter.getNamedAttr("quant", getDefaultQuantParam(rewriter)));
     auto upsampleOp = rewriter.create<tpu::UpsampleOp>(

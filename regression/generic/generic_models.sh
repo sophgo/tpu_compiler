@@ -914,6 +914,7 @@ export TOLERANCE_INT8_RSHIFT_ONLY=0.92,0.90,0.58
 export TOLERANCE_INT8_MULTIPLER=0.65,0.61,0.01
 # mish layer
 export EXCEPTS="layer136-act,layer137-act,layer138-act,layer142-act,layer148-act,layer149-act,layer153-act"
+export OUTPUTS="layer139-conv,layer150-conv,layer161-conv"
 export DO_QUANT_BF16=0
 export TOLERANCE_BF16=0.99,0.99,0.93
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.93
@@ -921,6 +922,44 @@ export DO_DEEPFUSION=0
 export SPP_NET="false"
 export TINY="false"
 fi
+
+if [ $NET = "yolo_v4_tiny" ]; then
+export MODEL_TYPE="onnx"
+export MODEL_DAT=""
+export MODEL_DEF=$MODEL_PATH/object_detection/yolo_v4/onnx/yolov4_1_3_416_416_static.onnx
+export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_onnx/regression_yolo_v4_tiny_0_onnx.sh
+export IMAGE_PATH=$REGRESSION_PATH/data/dog.jpg
+export EVAL_SCRIPT=$REGRESSION_PATH/data/eval/accuracy_yolo_v3.sh
+export DO_CALIBRATION=0
+export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/yolo_v4_tiny_calibration_table_autotune
+export YOLO_PREPROCESS="false"
+export YOLO_V4="true"
+export INPUT=input
+export MODEL_CHANNEL_ORDER="rgb"
+export SWAP_CHANNEL=2,1,0
+export IMAGE_RESIZE_DIMS=416,416
+export NET_INPUT_DIMS=416,416
+export OUTPUTS="layer30-conv,layer37-conv"
+export RAW_SCALE=1.0
+export MEAN=0,0,0
+export INPUT_SCALE=1.0
+export TOLERANCE_INT8_PER_TENSOR=0.89,0.86,0.51
+export TOLERANCE_INT8_RSHIFT_ONLY=0.92,0.90,0.58
+export TOLERANCE_INT8_MULTIPLER=0.65,0.1,0.005
+#export EXCEPTS="layer6-act,layer7-route,layer9-route,layer10-maxpool,layer11-act,layer17-route,layer18-maxpool,layer27-act"
+export DO_QUANT_BF16=0
+export TOLERANCE_BF16=0.99,0.99,0.93
+export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.93
+export DO_DEEPFUSION=0
+export DO_MEMOPT=1
+export DO_LAYERGROUP=1
+export SPP_NET="false"
+export TINY="true"
+if [ $DO_PREPROCESS -eq 1 ]; then
+  export EXCEPTS=data
+fi
+fi
+
 
 
 if [ $NET = "resnet18" ]; then
@@ -1227,6 +1266,30 @@ export TOLERANCE_BF16=0.99,0.99,0.89
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.9
 export BGRAY=1
 fi
+
+if [ $NET = "bisenetv2" ]; then
+export MODEL_TYPE="onnx"
+export MODEL_DEF=$MODEL_PATH/segmentation/bisenetv2/onnx/bisenetv2.onnx
+export MODEL_DAT=""
+export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table
+export IMAGE_PATH=$REGRESSION_PATH/data/cityscapes_munich_000298_000019_leftImg8bit.png
+export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_onnx/regression_bisenetv2_0_onnx.sh
+# https://github.com/CoinCheung/BiSeNet/blob/master/tools/demo.py
+export NET_INPUT_DIMS=1024,2048
+export MEAN=0.3257,0.3690,0.3223
+export INPUT_SCALE=1.0
+export STD=0.2112,0.2148,0.2115
+export RAW_SCALE=1.0
+export INPUT=input
+export TOLERANCE_INT8_PER_TENSOR=0.91,0.91,0.58
+export TOLERANCE_INT8_RSHIFT_ONLY=0.91,0.91,0.58
+export TOLERANCE_INT8_MULTIPLER=0.70,0.70,-0.10
+export TOLERANCE_BF16=0.99,0.99,0.89
+export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.9
+export DO_PREPROCESS=0
+export BGRAY=0
+fi
+
 
 if [ $NET = "resnet50_tf" ]; then
 export MODEL_TYPE="tensorflow"

@@ -89,6 +89,24 @@ static Type getOpType(mlir::Value* v) {
   return v->getType().cast<RankedTensorType>().getElementType();
 }
 
+static bool is_channel_align(Operation* op) {
+  // ONLY shift channel offset align NPU_NUM
+  std::vector<int32_t> crop_offsets;
+  if (auto crop_op = dyn_cast<tpu::TG_INT8_CropOp>(op)) {
+    arrayAttrToVector(crop_op.crop_offset().getValue(), crop_offsets);
+  }
+  else if(auto crop_op = dyn_cast<tpu::TG_BF16_CropOp>(op)) {
+    arrayAttrToVector(crop_op.crop_offset().getValue(), crop_offsets);
+  }
+  else  {
+    llvm_unreachable("unsupported op");
+  }
+
+  // offset should be n/c/h/w
+  bool _is_channel_align = crop_offsets[1] % NPU_NUM == 0;
+  return _is_channel_align;
+}
+
 std::shared_ptr<ImLayer> ImLayer::create(Operation* op) {
   std::shared_ptr<ImLayer> layer;
   if (isa<tpu::TG_INT8_PC_Conv2DOp>(op) ||
@@ -144,7 +162,14 @@ std::shared_ptr<ImLayer> ImLayer::create(Operation* op) {
     layer = std::make_shared<ImPad>(op);
   } else if (isa<tpu::TG_INT8_CropOp>(op) ||
              isa<tpu::TG_BF16_CropOp>(op)) {
-    layer = std::make_shared<ImCrop>(op);
+    if (is_channel_align(op)) {
+      layer = std::make_shared<ImCrop>(op);
+    }
+    else {
+      LLVM_DEBUG(llvm::errs()
+          << "Not support crop with channel setting, : " << getOpName(op) << "\n";);
+      layer = std::make_shared<ImCommon>(op, false, IR_OTHER);
+    }
   } else if (isa<tpu::TG_INT8_ReluOp>(op) ||
              isa<tpu::TG_BF16_ReluOp>(op)) {
     layer = std::make_shared<ImRelu>(op);
@@ -579,11 +604,12 @@ ImBroadcastMul::ImBroadcastMul(Operation *op): ImLayer(IR_BROADCAST_MUL, op, tru
 }
 
 ImUpsample::ImUpsample(Operation *op): ImLayer(IR_UPSAMPLE, op, true) {
-  int scale = 0;
-  getUpsampleParam(op, scale);
+  int scale_h = 0;
+  int scale_w = 0;
+  getUpsampleParam(op, scale_h, scale_w);
   // ins_h/ins_w can not exceed 16 for average pooling in tl_upsample
   // which has only 4 bits in hw
-  if (scale >= 16)
+  if (scale_h >= 16 || scale_w >= 16)
     fusible = false;
   add_in_tensor(op->getOperand(0), TENSOR_NEURON);
   add_out_tensor(op->getResult(0), TENSOR_NEURON);

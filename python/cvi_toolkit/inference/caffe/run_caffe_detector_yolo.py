@@ -9,8 +9,11 @@ import time
 import cv2
 import caffe
 from cvi_toolkit.model import CaffeModel
-from cvi_toolkit.utils.yolov3_util import postprocess_v2, postprocess_v3, postprocess_v3_tiny, postprocess_v4, draw
 from cvi_toolkit.data.preprocess import get_preprocess_parser, preprocess
+from cvi_toolkit.utils.yolov3_util import draw
+from cvi_toolkit.utils.yolov3_util import postprocess_v2
+from cvi_toolkit.utils.yolov3_util import postprocess_v3, postprocess_v3_tiny
+from cvi_toolkit.utils.yolov3_util import postprocess_v4, postprocess_v4_tiny
 
 def check_files(args):
     if not os.path.isfile(args.model_def):
@@ -139,11 +142,19 @@ def main(argv):
                 batched_predictions = postprocess_v3(out_feat, image.shape, net_input_dims,
                                         obj_threshold, nms_threshold, spp_net, args.batch_size)
     elif args.yolov4 == 'true':
-        out_feat['layer139-conv'] = outputs['layer139-conv'].data
-        out_feat['layer150-conv'] = outputs['layer150-conv'].data
-        out_feat['layer161-conv'] = outputs['layer161-conv'].data
-        batched_predictions = postprocess_v4(out_feat, image.shape, net_input_dims,
-                obj_threshold, nms_threshold, spp_net, args.batch_size)
+        if tiny:
+            #out_feat['layer30-conv'] = outputs['layer30-conv'].data
+            #out_feat['layer37-conv'] = outputs['layer37-conv'].data
+            out_feat[0] = outputs['layer30-conv'].data
+            out_feat[1] = outputs['layer37-conv'].data
+            batched_predictions = postprocess_v4_tiny(out_feat, image.shape, net_input_dims,
+                                    obj_threshold, nms_threshold, args.batch_size)
+        else:
+            out_feat['layer139-conv'] = outputs['layer139-conv'].data
+            out_feat['layer150-conv'] = outputs['layer150-conv'].data
+            out_feat['layer161-conv'] = outputs['layer161-conv'].data
+            batched_predictions = postprocess_v4(out_feat, image.shape, net_input_dims,
+                    obj_threshold, nms_threshold, spp_net, args.batch_size)
 
     else:
         out_feat['conv22'] = outputs['conv22'].data

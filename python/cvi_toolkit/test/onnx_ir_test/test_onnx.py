@@ -29,7 +29,7 @@ TEST_ONNX_IR = [
     "Neg",
     "Relu",
     "PRelu",
-#    "Reciprocal",
+    "Reciprocal",
     "Slice",
     "Sigmoid",
     "Sub",

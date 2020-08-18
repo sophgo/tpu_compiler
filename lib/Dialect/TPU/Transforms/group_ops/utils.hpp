@@ -227,13 +227,15 @@ static void getSliceParam(Operation * op,
 }
 
 static void getUpsampleParam(Operation * op,
-                             int &scale) {
+                             int &scale_h, int &scale_w) {
   if (isa<tpu::TG_INT8_UpsampleOp>(op)) {
     auto upsample_op = dyn_cast<tpu::TG_INT8_UpsampleOp>(op);
-    scale = upsample_op.scale().getLimitedValue();
+    scale_h = upsample_op.scale_h().getLimitedValue();
+    scale_w = upsample_op.scale_w().getLimitedValue();
   } else if (isa<tpu::TG_BF16_UpsampleOp>(op)) {
     auto upsample_op = dyn_cast<tpu::TG_BF16_UpsampleOp>(op);
-    scale = upsample_op.scale().getLimitedValue();
+    scale_h = upsample_op.scale_h().getLimitedValue();
+    scale_w = upsample_op.scale_w().getLimitedValue();
   } else {
     assert(!"Only support INT8/BF16 Upsample in LayerGroup");
   }

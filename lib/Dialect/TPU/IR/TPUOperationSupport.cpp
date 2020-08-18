@@ -391,12 +391,18 @@ LogicalResult setOpAddress(Operation *op, uint64_t gaddr) {
   }
 }
 
+uint64_t getWeightOpAddress(Operation *op);
 uint64_t getPreviousOpAddress(Operation *op, uint index = 0) {
   if ( op->getNumOperands() < (index + 1) ) {
     llvm_unreachable("index exceeds the number of operations");
   }
   auto formerOp = op->getOperand(index)->getDefiningOp();
-  return getOpAddress(formerOp);
+  if (isa<tpu::LoadWeightOp>(formerOp)) {
+    return getWeightOpAddress(formerOp);
+  }
+  else {
+    return getOpAddress(formerOp);
+  }
 }
 
 uint64_t getWeightOpAddress(Operation *op) {
@@ -498,6 +504,14 @@ void parseConvParam(const tpu::ConvParam &p, bool is_deconv,
     iw = 1;
     oc = o_s[1];
     oh = 1;
+    ow = 1;
+  } else if (i_s.size() == 3) {
+    n = i_s[0];
+    ic = i_s[1];
+    ih = i_s[2];
+    iw = 1;
+    oc = o_s[1];
+    oh = o_s[2];
     ow = 1;
   } else{
     llvm_unreachable("unsupported shape size");

@@ -903,6 +903,10 @@ static LogicalResult doLUTOpInterpret(Operation *op, StringRef &type,
       auto castOp = dyn_cast<tpu::MishOp>(op);
       float mish_threshold = castOp.mish_threshold().convertToFloat();
       my_mish(input, output, n, c, h, w, getOpQuant(op) == "BF16", mish_threshold);
+    } else if (type == "Exp") {
+      for (int i = 0; i < input_size; ++i) {
+        my_exp(input, output, n, c, h, w, getOpQuant(op) == "BF16");
+      }
     } else {
       llvm_unreachable("not support LUT op type");
     }
@@ -963,6 +967,15 @@ LogicalResult tpu::MishOp::interpret(
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name()
                           << "]\n";);
   StringRef type = "Mish";
+  return doLUTOpInterpret(op, type, valueMapping);
+}
+
+LogicalResult tpu::ExpOp::interpret(
+    DenseMap<Value *, std::shared_ptr<std::vector<float>>> &valueMapping) {
+  Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name()
+                          << "]\n";);
+  StringRef type = "Exp";
   return doLUTOpInterpret(op, type, valueMapping);
 }
 
@@ -3222,16 +3235,17 @@ LogicalResult tpu::UpsampleOp::interpret(
   getTensorShapeAndSize(this->output(), output_shape, output_size);
   oh = output_shape[2];
   ow = output_shape[3];
-  int64_t scale = this->scale().getLimitedValue();
-  assert(oh == ih * scale);
-  assert(ow == iw * scale);
+  int64_t scale_h = this->scale_h().getLimitedValue();
+  int64_t scale_w = this->scale_w().getLimitedValue();
+  assert(oh == ih * scale_h);
+  assert(ow == iw * scale_w);
 
   // get tensors
   assert(opdT.size() == 1);
   std::shared_ptr<std::vector<float> > input = opdT[0];
 
   // compute in fp32
-  int ret = my_upsample(input->data(), resultT->data(), n, c, ih, iw, scale);
+  int ret = my_upsample(input->data(), resultT->data(), n, c, ih, iw, scale_h, scale_w);
   assert(ret == 0);
 
   valueMapping[result] = std::move(resultT);

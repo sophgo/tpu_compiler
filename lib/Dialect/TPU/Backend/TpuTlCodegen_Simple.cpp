@@ -240,7 +240,17 @@ LogicalResult tpu::TL_EltwiseAddOp::codegen(void *ctx) {
     }
   }
 
-  gaddr_t ga_input = tl_load_flag() ? getPreviousOpAddress(op, augend_idx) : GA_INVALID;
+  gaddr_t ga_input = GA_INVALID;
+  if (tl_load_flag()) {
+    auto weightOp = op->getOperand(augend_idx)->getDefiningOp();
+    if (isa<tpu::LoadWeightOp>(weightOp)) {
+      // load from weight
+      ga_input = getWeightOpAddress(weightOp);
+    }
+    else {
+      ga_input = getPreviousOpAddress(op, augend_idx);
+    }
+  }
   gaddr_t ga_addend = getPreviousOpAddress(op, 1 - augend_idx);
   gaddr_t ga_output = tl_store_flag() ? getOpAddress(op) : GA_INVALID;
   int layer_id = mlir::getOpLayerId(op);

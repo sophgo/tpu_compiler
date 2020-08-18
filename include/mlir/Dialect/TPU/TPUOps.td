@@ -682,6 +682,8 @@ def TPU_FullyConnectedOp : TPU_Op<"fully_connected",
   let results = (outs AnyTensor:$output);
 }
 
+def TPU_ExpOp : TPU_LutOp<"exp", "Exp">;
+
 def TPU_FrcnDetectionOp : TPU_Op<"frcn_detection",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
@@ -2375,7 +2377,8 @@ def TPU_UpsampleOp: TPU_Op<"upsample",
       `input`           : required, the input activation tensor.
 
     Attributes:
-      `scale`           : required, scale for upsampling.
+      `scale_h`         : required, scale align h for upsampling.
+      `scale_w`         : required, scale align w for upsampling.
       `quant`           : required, a QuantParam struct attributes, to carrying
                           threshold, although the quantization is bypassed.
       `name`            : required, name for calibration, comparing, or debug.
@@ -2399,7 +2402,8 @@ def TPU_UpsampleOp: TPU_Op<"upsample",
 
   let arguments = (
     ins AnyTensor:$input,
-    NonNegativeI32Attr:$scale,
+    NonNegativeI32Attr:$scale_h,
+    NonNegativeI32Attr:$scale_w,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
     DefaultValuedAttr<I32Attr, "-1">:$layer_id,

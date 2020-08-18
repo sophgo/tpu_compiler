@@ -111,7 +111,7 @@ struct BackwardOverwriteThresholdConcatPattern : public OpRewritePattern<tpu::Co
         setOpThreshold(formerOp, threshold_y);
       } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::ReluOp>(formerOp)) {
         setOpThreshold(formerOp, threshold_y);
-      }  else if (auto cast_op = llvm::dyn_cast_or_null<tpu::UpsampleOp>(formerOp)) {
+      } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::UpsampleOp>(formerOp)) {
         setOpThreshold(formerOp, threshold_y);
       } else {
         llvm::errs() << formerOp->getName() << ": behavior not defined\n";
@@ -153,6 +153,9 @@ struct BackendOverwriteThresholdDefaultPattern : public RewritePattern {
     if (threshold_x == threshold_y) {
       return matchFailure();
     }
+    if (auto cast_op = llvm::dyn_cast_or_null<tpu::ReshapeOp>(formerOp)) {
+      return matchFailure(); // we skip reshape
+    }
     if (auto cast_op = llvm::dyn_cast_or_null<tpu::BroadcastMulOp>(formerOp)) {
       setOpThreshold(formerOp, threshold_y);
     } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::ConcatOp>(formerOp)) {
@@ -187,8 +190,6 @@ struct BackendOverwriteThresholdDefaultPattern : public RewritePattern {
       setOpThreshold(formerOp, threshold_y);
     } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::PermuteOp>(formerOp)) {
       setOpThreshold(formerOp, threshold_y);
-    } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::PermuteOp>(formerOp)) {
-      setOpThreshold(formerOp, threshold_y);
     } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::PReluOp>(formerOp)) {
       setOpThreshold(formerOp, threshold_y);
     } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::ScaleOp>(formerOp)) {
@@ -201,6 +202,12 @@ struct BackendOverwriteThresholdDefaultPattern : public RewritePattern {
       setOpThreshold(formerOp, threshold_y);
     } else if (auto cast_op =
                    llvm::dyn_cast_or_null<tpu::PoolAvg2DOp>(formerOp)) {
+      setOpThreshold(formerOp, threshold_y);
+    } else if (auto cast_op =
+                   llvm::dyn_cast_or_null<tpu::CropOp>(formerOp)) {
+      setOpThreshold(formerOp, threshold_y);
+    } else if (auto cast_op =
+                   llvm::dyn_cast_or_null<tpu::ExpOp>(formerOp)) {
       setOpThreshold(formerOp, threshold_y);
     } else {
       llvm::errs() << formerOp->getName() << ": behavior not defined\n";

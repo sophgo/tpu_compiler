@@ -170,6 +170,8 @@ LogicalResult quantizeBF16LutOps(Operation *op) {
     activate_func = sigmoid;
   } else if (OpTy::getOperationName() == "tpu.tanh") {
     activate_func = tanh;
+  } else if (OpTy::getOperationName() == "tpu.exp") {
+    activate_func = exp;
   }
   else if (OpTy::getOperationName() == "tpu.mish") {
     activate_func = my_mish_caffe_wrapper;
@@ -716,6 +718,13 @@ LogicalResult tpu::TanHOp::quantizeBf16() {
                           << getOpName() << "]\n";);
   Operation *op = this->getOperation();
   return quantizeBF16LutOps<tpu::TanHOp>(op);
+}
+
+LogicalResult tpu::ExpOp::quantizeBf16() {
+  LLVM_DEBUG(llvm::errs() << "quantizeBf16: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  return quantizeBF16LutOps<tpu::ExpOp>(op);
 }
 // DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::TanHOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::SliceOp)

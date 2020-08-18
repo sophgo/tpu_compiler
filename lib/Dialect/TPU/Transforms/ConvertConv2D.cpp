@@ -644,8 +644,8 @@ std::pair<std::vector<Value *>, std::vector<NamedAttribute> > getConv(
 // \floatDividend if gived, it should be find one divisor that the range should be in
 // floatDividend < x < 2 * floatDividend
 // e.g: getDivisors(32, 5) should be 4 * 8, 5< 8 < 10
-std::pair<std::vector<int>, int> getDivisors(int n, int floatDividend = 0) {
-  std::vector<int> divisors;
+std::pair<std::vector<std::pair<int, int> >, int> getDivisors(int n, int floatDividend = 0) {
+  std::vector<std::pair<int, int> > divisors;
   int insertMax = 14;
   auto div = [&](int n) mutable -> int {
     // FIXME: depends by hw, 14 is the max size of insert number
@@ -692,7 +692,7 @@ std::pair<std::vector<int>, int> getDivisors(int n, int floatDividend = 0) {
       break;
     }
 
-    divisors.push_back(d);
+    divisors.push_back(std::make_pair(d, 1));
     n = n / d;
   }
 
@@ -902,8 +902,9 @@ struct TpuMergeInterpToConv2DPattern : public RewritePattern {
       float rheight = 0.f;
       int rwidthInt = 0;
       int rheightInt = 0;
-      std::vector<int> maxInsertWAtOnce;
-      std::vector<int> maxInsertHAtOnce;
+      // keep Dividend / Divisor for later non-divisable
+      std::vector<std::pair<int, int> > maxInsertWAtOnce;
+      std::vector<std::pair<int, int> > maxInsertHAtOnce;
       // seperate Dividend, Divisor as scale to deal with float case
       // scale[0] as h, scale[1] for w
       // pair is Dividend / Divisor
@@ -921,9 +922,14 @@ struct TpuMergeInterpToConv2DPattern : public RewritePattern {
         std::tie(maxInsertHAtOnce, maxFloatDividend) = getDivisors(rheightInt);
       }
       else {
+        // 2047 / 63 = 89 * 23 / 7 * 9
         // float case: e.g: 6->33 = 6 * (2/5)
         floatDividend = ih - 1;
         std::tie(maxInsertHAtOnce, maxFloatDividend) = getDivisors(oh - 1, floatDividend);
+        if (!maxInsertHAtOnce.size()) {
+          // TODO: seperate all divisor 
+          maxInsertHAtOnce.push_back(std::make_pair(oh, ih - 1));
+        }
         scale[0] = (std::make_pair(maxFloatDividend, floatDividend));
       }
 
@@ -941,6 +947,10 @@ struct TpuMergeInterpToConv2DPattern : public RewritePattern {
         // NOTICE: float part SHOULD BE 1<x<2
         floatDividend = iw - 1;
         std::tie(maxInsertWAtOnce, maxFloatDividend) = getDivisors(ow - 1, floatDividend);
+        if (!maxInsertWAtOnce.size()) {
+          // TODO: seperate all divisor 
+          maxInsertWAtOnce.push_back(std::make_pair(ow, iw - 1));
+        }
         scale[1] = (std::make_pair(maxFloatDividend, floatDividend));
       }
 
@@ -1103,12 +1113,29 @@ struct TpuMergeInterpToConv2DPattern : public RewritePattern {
             }
           }
           else {
+            int divisor, dividend;
             if (d < maxInsertHAtOnce.size()) { // star with 0
-              rheightInt = maxInsertHAtOnce[d];
+              std::tie(dividend, divisor) = maxInsertHAtOnce[d];
+              float rheight = dividend / (float)divisor;
+              if ((ceilf(rheight) == rheight && floorf(rheight) == rheight)) {
+                rheightInt = rheight;//divisible
+              }
+              else {
+                stride[0] = divisor; // sh
+                rheightInt = dividend - 1; // hw ins_w
+              }
             }
 
             if (d < maxInsertWAtOnce.size()) { // star with 0
-              rwidthInt = maxInsertWAtOnce[d];
+              std::tie(dividend, divisor) = maxInsertWAtOnce[d];
+              float rwidth = dividend / (float)divisor;
+              if ((ceilf(rwidth) == rwidth && floorf(rwidth) == rwidth)) {
+                rwidthInt = rwidth; //divisible
+              }
+              else {
+                stride[1] = divisor;
+                rwidthInt = dividend - 1; // hw ins_w
+              }
             }
           }
 

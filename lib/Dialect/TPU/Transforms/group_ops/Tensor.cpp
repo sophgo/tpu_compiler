@@ -70,7 +70,7 @@ std::shared_ptr<Tensor> Tensor::register_tensor(int n, int c, int h, int w, int 
 
 std::shared_ptr<Tensor> Tensor::register_tensor(ShapedType *s_type, const std::string& name,
                                            tensor_type_t type, int layer_id) {
-  int n = 0, c = 0, h = 0, w = 0;
+  int n = 0, c = 0, h = 0, w = 1;
   std::vector<int64_t> shape = s_type->getShape();
   switch (s_type->getRank()) {
     case 5:

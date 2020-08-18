@@ -17,7 +17,7 @@ if [ $DO_CALIBRATION -eq 1 ]; then
   # imagenet : --dataset $DATASET_PATH/imagenet/img_val_extracted
   # wider    : --dataset $DATASET_PATH/widerface/WIDER_val
   DATASET=$DATASET_PATH/imagenet/img_val_extracted
-  if [ $NET = "yolo_v4" ]; then
+  if [ $NET = "yolo_v4" ] || [ $NET = "yolo_v4_tiny" ]; then
      DATASET=$DATASET_PATH/coco/val2017
   fi
 

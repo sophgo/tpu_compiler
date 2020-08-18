@@ -1400,7 +1400,8 @@ class CaffeConverter(BaseConverter):
         output_shape = [input_shape[0], input_shape[1],
                         scale * input_shape[2], scale * input_shape[3]]
         param = {
-            'scale': scale
+            'scale_h': scale,
+            'scale_w': scale
         }
 
         upsample_name = layer.name

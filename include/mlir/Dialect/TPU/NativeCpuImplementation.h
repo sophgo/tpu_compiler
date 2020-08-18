@@ -17,6 +17,8 @@ int mkldnn_pool(float *input, float *output,
 int mkldnn_ip(float *input, float *weight, float *bias,
     float *output, int m, int k, int n, bool transpose);
 
+int my_exp(float *input, float *output, int n, int c, int h, int w, bool is_bf16 = false);
+
 int my_gru(float *input, float *output,
     float *weight, float *recurrence, float *bias, float *initial_h,
     int seq_len, int batch_size, int input_size, int hidden_size,
@@ -91,7 +93,7 @@ int my_div(float *input, float *output, int in, int ic,
                     float divisor);
 
 int my_upsample(float *input, float *output, int n, int c, int ih, int iw,
-                int scale);
+                int scale_h, int scale_w);
 
 int my_softmax2D(float *input, float *output, int n, int c);
 int my_softmax4D(float *input, float *output, int axis, const std::vector<int64_t>& shape);

@@ -11,7 +11,7 @@ import onnxruntime
 import cv2
 import caffe
 from cvi_toolkit.model import OnnxModel
-from cvi_toolkit.utils.yolov3_util import preprocess, postprocess_v2, postprocess_v3, draw
+from cvi_toolkit.utils.yolov3_util import preprocess, postprocess_v2, postprocess_v3, postprocess_v4_tiny, draw
 
 def check_files(args):
     if not os.path.isfile(args.model_def):
@@ -46,6 +46,8 @@ def parse_args():
                         help="Set batch size")
     parser.add_argument("--yolov3", type=str, default='yes',
                         help="yolov2 or yolov3")
+    parser.add_argument("--yolov4-tiny", type=str, default='false',
+                        help="set to yolov4")
 
     args = parser.parse_args()
     check_files(args)
@@ -59,10 +61,12 @@ def main(argv):
     obj_threshold = float(args.obj_threshold)
     nms_threshold = float(args.nms_threshold)
     yolov3 = True if args.yolov3 == 'yes' else False
+    yolov4_tiny = True if args.yolov4_tiny == 'yes' else False
     print("net_input_dims", net_input_dims)
     print("obj_threshold", obj_threshold)
     print("nms_threshold", nms_threshold)
     print("yolov3", yolov3)
+    print("yolov4_tiny", yolov4_tiny)
 
     image = cv2.imread(args.input_file)
     image_x = preprocess(image, net_input_dims)
@@ -77,11 +81,15 @@ def main(argv):
     ort_outs = ort_session.run(None, ort_inputs)
 
     out_feat = {}
-    out_feat['layer82-conv'] = ort_outs[0]
-    out_feat['layer94-conv'] = ort_outs[1]
-    out_feat['layer106-conv'] = ort_outs[2]
-    batched_predictions = postprocess_v3(out_feat, image.shape, net_input_dims,
+    if yolov4_tiny:
+        batched_predictions = postprocess_v4_tiny(ort_outs, image.shape, net_input_dims,
                                 obj_threshold, nms_threshold, args.batch_size)
+    else:
+        out_feat['layer82-conv'] = ort_outs[0]
+        out_feat['layer94-conv'] = ort_outs[1]
+        out_feat['layer106-conv'] = ort_outs[2]
+        batched_predictions = postprocess_v3(out_feat, image.shape, net_input_dims,
+                                    obj_threshold, nms_threshold, args.batch_size)
     print(batched_predictions[0])
     if args.draw_image:
         image = draw(image, batched_predictions[0], args.label_file)

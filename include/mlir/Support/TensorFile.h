@@ -264,6 +264,18 @@ public:
     }
     if (incIndex) {
       auto fileInc = TensorFile::incrementName(filename);
+      auto first_element = map.begin();
+      cnpy::NpyArray &arr = first_element->second;
+      if (arr.shape.size() == 0) {
+        // first should be create somthing cuz cnpy save flow
+        llvm::StringRef name = first_element->first;
+        llvm::errs() << name << "save dummy for prevent open npz file under append mode fail\n";
+        deleteTensor<float>(name);
+        std::vector<float> fake_data (1);
+        std::vector<int64_t> shape(1, 1);
+        addTensor(name, fake_data.data(), shape);
+      }
+
       cnpy::npz_save_all(fileInc, map);
       filename = StringRef(fileInc);
       //llvm::errs() << "save weight TensorFile to " << filename << "\n";

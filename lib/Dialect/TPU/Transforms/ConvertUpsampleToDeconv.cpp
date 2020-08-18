@@ -57,15 +57,16 @@ struct TpuUpsampleOpPattern : public RewritePattern {
     auto input = op->getOperand(0);
     auto input_type = input->getType().cast<RankedTensorType>();
     auto input_shape = input_type.getShape();
-    auto scale = upsampleOp.scale().getLimitedValue();
+    auto scale_h = upsampleOp.scale_h().getLimitedValue();
+    auto scale_w = upsampleOp.scale_w().getLimitedValue();
     int g = input_shape[1];
     int oc = input_shape[1] / g;
     int ic = input_shape[1] / g;
-    int h = scale;
-    int w = scale;
+    int h = scale_h;
+    int w = scale_w;
 
     // stride exceed hw limitation, can not convert
-    if (scale >= MAX_CONV_STRIDE) {
+    if (scale_h >= MAX_CONV_STRIDE || scale_w >= MAX_CONV_STRIDE) {
      return matchFailure();
     }
 
@@ -94,11 +95,11 @@ struct TpuUpsampleOpPattern : public RewritePattern {
 
     bool is_dw = true;
     bool with_bias = false;
-    std::vector<int64_t> kernel(2), stride(2), padding(2), dilation(2);
-    kernel[0] = kernel[1] = scale;
+    std::vector<int64_t> stride(2), padding(2), dilation(2);
     padding[0] = padding[1] = 0;
     dilation[0] = dilation[1] = 1;
-    stride[0] = stride[1] = scale;
+    stride[0] = scale_h;
+    stride[1] = scale_w;
 
     std::vector<NamedAttribute> attrs;
     attrs.push_back(rewriter.getNamedAttr("name", upsampleOp.nameAttr()));

@@ -1318,7 +1318,8 @@ class TPU_TG_UpsampleOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 
   let arguments = (
     ins AnyTensor:$input,
-    I32Attr:$scale,
+    I32Attr:$scale_h,
+    I32Attr:$scale_w,
     DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,

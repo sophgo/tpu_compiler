@@ -30,6 +30,7 @@ class TPU_OpType(Enum):
     Eltwise_Max = 'tpu.eltwise_max'
     Eltwise_Min = 'tpu.eltwise_min'
     Eltwise_Mul = 'tpu.eltwise_mul'
+    Exp = 'tpu.exp'
     FullyConnected = 'tpu.fully_connected'
     FrcnDetection = 'tpu.frcn_detection'
     GRU = 'tpu.gru'
@@ -554,6 +555,20 @@ class MLIRImporter(object):
         eltwise_mul = self.module.stringAttr(op_name)
         return self.buildOp(TPU_OpType.Eltwise_Mul.value, inputOperands, [
             tensor_output_type], name=eltwise_mul, quant=self.quant_param)
+
+    def add_exp_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+        tensor_output_type = self.module.make_ranked_tensor_type(
+            self.f32Type, output_tensor_shape)
+
+        op_name = self.module.stringAttr(op_name)
+        none = self.add_none_op()
+
+        # We assigne 4 reg for lut quant table
+        for i in range(2):
+            inputOperands.append(none)
+
+        return self.buildOp(TPU_OpType.Exp.value, inputOperands, [
+            tensor_output_type], name=op_name, quant=self.quant_param)
 
     def add_fully_connected_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = self.module.make_ranked_tensor_type(
@@ -1157,11 +1172,13 @@ class MLIRImporter(object):
     def add_upsample_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = self.module.make_ranked_tensor_type(
             self.f32Type, output_tensor_shape)
-        checkKey(kargs, 'scale')
+        checkKey(kargs, 'scale_h')
+        checkKey(kargs, 'scale_w')
 
         upsample_name = self.module.stringAttr(op_name)
         upsample_param = {
-            'scale': self.module.integerAttr(self.i32Type, kargs['scale'])
+            'scale_h': self.module.integerAttr(self.i32Type, kargs['scale_h']),
+            'scale_w': self.module.integerAttr(self.i32Type, kargs['scale_w'])
         }
         return self.buildOp(TPU_OpType.Upsample.value, inputOperands, [
             tensor_output_type], name=upsample_name, quant=self.quant_param, **upsample_param)

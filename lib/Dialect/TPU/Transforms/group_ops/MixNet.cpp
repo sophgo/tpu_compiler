@@ -1788,8 +1788,9 @@ void MixNet::_add_tl_upsample_op(MixOp * mix_op,
   const Tensor* out_tensor = net_graph_->get_tensor_by_id(out_tensors[0]);
   Operation *op = im_layer->op();
   auto old_input_type = op->getOperand(0)->getType().cast<RankedTensorType>();
-  int scale = 1;
-  getUpsampleParam(op, scale);
+  int scale_h = 1;
+  int scale_w = 1;
+  getUpsampleParam(op, scale_h, scale_w);
 
   int bottom_dim[4];
   int top_dim[4];
@@ -1819,7 +1820,7 @@ void MixNet::_add_tl_upsample_op(MixOp * mix_op,
       real_h_slice = h_end - real_h_idx;
     }
     bottom_dim[2] = real_h_slice;
-    top_dim[2] = bottom_dim[2] * scale;
+    top_dim[2] = bottom_dim[2] * scale_h;
   }
 
   std::string name = mix_op->name();
@@ -1836,8 +1837,10 @@ void MixNet::_add_tl_upsample_op(MixOp * mix_op,
                            builder_.getI32IntegerAttr(la_input)));
   attrs.push_back(builder_.getNamedAttr("la_output",
                            builder_.getI32IntegerAttr(la_output)));
-  attrs.push_back(builder_.getNamedAttr("scale",
-                           builder_.getI32IntegerAttr(scale)));
+  attrs.push_back(builder_.getNamedAttr("scale_h",
+                           builder_.getI32IntegerAttr(scale_h)));
+  attrs.push_back(builder_.getNamedAttr("scale_w",
+                           builder_.getI32IntegerAttr(scale_w)));
 
 
 

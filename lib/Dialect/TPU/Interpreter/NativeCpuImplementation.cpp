@@ -482,6 +482,19 @@ int mkldnn_ip(float *input, float *weight, float *bias,
   return 0;
 }
 
+int my_exp(float *input, float *output, int n, int c, int h, int w, bool is_bf16) {
+  LLVM_DEBUG(
+    llvm::errs() << "  n: " << n << ", c: " << c
+                 << ", h: " << h << ", w: " << w << "\n";
+  );
+
+  for (int i = 0; i < n * c * h * w; ++i) {
+    output[i] = exp(input[i]);
+  }
+
+  return 0;
+}
+
 template <typename Dtype>
 inline Dtype sigmoid(Dtype x) {
   return 0.5 * tanh(0.5 * x) + 0.5;
@@ -1281,17 +1294,17 @@ int my_clip(float *input, float *output, int in, int ic, int ih, int iw,
 }
 
 int my_upsample(float *input, float *output, int n, int c, int ih, int iw,
-                    int scale) {
-  int h = ih * scale;
-  int w = iw * scale;
+                    int scale_h, int scale_w) {
+  int h = ih * scale_h;
+  int w = iw * scale_w;
   for (int ni = 0; ni < n; ni++) {
     for (int ci = 0; ci < c; ci++) {
       for (int hi = 0; hi < h; hi++) {
         for (int wi = 0; wi < w; wi++) {
-          int nwi = wi/scale;
-          int nhi = hi/scale;
+          int nwi = wi/scale_w;
+          int nhi = hi/scale_h;
           int out_idx = (((ni * c + ci) * h) + hi) * w + wi;
-          int in_idx = (((ni * c + ci) * (h / scale)) + nhi) * (w / scale) + nwi;
+          int in_idx = (((ni * c + ci) * (h / scale_h)) + nhi) * (w / scale_w) + nwi;
           output[out_idx] = input[in_idx];
         }
       }

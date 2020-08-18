@@ -104,6 +104,7 @@ class OnnxConverter(BaseConverter):
         self.model_name = model_name
         self.input_nodes = onnx_model.graph.input
         self.output_nodes = onnx_model.graph.output
+        self.output_shapes = list()
         self.nodes = onnx_model.graph.node
         self.tensors = onnx_model.graph.initializer
         self.mlir_file_path = mlir_file_path
@@ -136,6 +137,8 @@ class OnnxConverter(BaseConverter):
             "DepthToSpace": lambda node: self.convert_depth_to_space_op(node),
             "Div": lambda node: self.convert_div_op(node),
             "Dropout": lambda node: self.convert_skip_op(node),
+            "Equal": lambda node: self.convert_equal_op(node),
+            "Exp" :lambda node: self.convert_activation_op(node),
             "Expand": lambda node: self.convert_expand_op(node),
             "Flatten": lambda node: self.convert_flatten_op(node),
             "Gather": lambda node: self.convert_gather_op(node),
@@ -171,6 +174,7 @@ class OnnxConverter(BaseConverter):
             "Sum": lambda node: self.convert_sum_op(node),
             "Tanh": lambda node: self.convert_activation_op(node),
             "Transpose": lambda node: self.convert_transpose_op(node),
+            "Where": lambda node: self.convert_where_op(node),
             "Unsqueeze": lambda node: self.convert_unsqueeze_op(node),
             "Upsample": lambda node: self.convert_upsample_op(node),
 
@@ -213,6 +217,8 @@ class OnnxConverter(BaseConverter):
                 else:
                     output_shape.append(dim.dim_value)
             outputs.append(output_shape)
+            # keep mlir function output
+            self.output_shapes.append(output_shape)
 
         # init importer
         self.CVI = MLIRImporter(inputs, outputs, "UINT8" if self.convert_preprocess else "FP32")
@@ -361,8 +367,15 @@ class OnnxConverter(BaseConverter):
         # add return op
         return_op = list()
         # Set output
-        for output in self.output_nodes:
-            op, _, _ = self.getOperand(output.name)
+        for idx, output in enumerate(self.output_nodes):
+            op, shape, _ = self.getOperand(output.name)
+            if shape != self.output_shapes[idx]:
+                # reshape back
+                assert(np.prod(shape) == np.prod(self.output_shapes[idx]))
+                op = self.CVI.add_reshape_op("{}_reshaped".format(output.name),
+                                                  [op], self.output_shapes[idx])
+                self.addOperand(output.name, op, self.output_shapes[idx], TensorType.ACTIVATION)
+
             return_op.append(op)
 
         self.CVI.add_return_op(return_op)
@@ -381,6 +394,8 @@ class OnnxConverter(BaseConverter):
                 tensor_data = 1.0 / (1.0 + np.exp(np.negative(tensor_data)))
             elif onnx_node.op_type == "Tanh":
                 tensor_data = np.tanh(tensor_data)
+            elif onnx_node.op_type == "Exp":
+                tensor_data = np.exp(tensor_data)
             self.addTensor(onnx_node.name, tensor_data, output_shape)
             self.addOperand(onnx_node.name, None, output_shape, TensorType.TENSOR)
         else:
@@ -388,9 +403,19 @@ class OnnxConverter(BaseConverter):
                 activation_op = self.CVI.add_sigmoid_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
             elif onnx_node.op_type == "Tanh":
                 activation_op = self.CVI.add_tanh_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
+            elif onnx_node.op_type == "Exp":
+                activation_op = self.CVI.add_exp_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
+
             self.addOperand(onnx_node.name, activation_op, output_shape, TensorType.ACTIVATION)
 
     def convert_add_op(self, onnx_node):
+        #if len(onnx_node.inputs) == 1:
+        #    # no need to deal with, add fake op for fused later
+        #    op1, input_shape1, tensor_type1 = self.getOperand(onnx_node.inputs[0])
+        #    output_shape = input_shape1
+        #    self.addOperand(onnx_node.name, op1, output_shape, TensorType.ACTIVATION)
+        #    return
+
         assert(len(onnx_node.inputs) == 2)
         op1, input_shape1, tensor_type1 = self.getOperand(onnx_node.inputs[0])
         op2, input_shape2, tensor_type2 = self.getOperand(onnx_node.inputs[1])
@@ -434,6 +459,20 @@ class OnnxConverter(BaseConverter):
 
                 scale_op = self.CVI.add_scale_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
                 self.addOperand(onnx_node.name, scale_op, output_shape, TensorType.ACTIVATION)
+            elif input_shape1 == input_shape2:
+                print(onnx_node.name, "add onnx_node.name")
+                # add const, leverage eltwise_add
+                operands.append(op1)
+                bias_name = "{}_add_bias".format(onnx_node.name)
+                add_value = self.getTensor(onnx_node.inputs[1]).tensor_data
+                self.addTensor(bias_name, add_value, add_value.shape)
+                op3 = self.CVI.add_load_file_op(bias_name, add_value.shape)
+                operands.append(op3)
+
+                output_shape = input_shape1
+
+                add_op = self.CVI.add_eltwise_add_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
+                self.addOperand(onnx_node.name, add_op, output_shape, TensorType.ACTIVATION)
             else:
                 raise RuntimeError("{} vs {} shape broadcast error".format(input_shape1, input_shape2))
 
@@ -531,6 +570,8 @@ class OnnxConverter(BaseConverter):
                 data = data.astype(np.int64)
             elif dtype == "int32":
                 data = data.astype(np.int32)
+            elif dtype == "float32":
+                data = data.astype(np.float32)
             else:
                 raise RuntimeError("{} dtype not support, please add".format(dtype))
             output_data = data
@@ -624,7 +665,8 @@ class OnnxConverter(BaseConverter):
 
             for idx, op_shape in enumerate(in_shapes):
                 if idx == 0:
-                    output_shape = op_shape
+                    # copy rather than referece
+                    output_shape = list(op_shape)
                 else:
                     for dim, value in enumerate(op_shape):
                         if dim == axis:
@@ -865,7 +907,8 @@ class OnnxConverter(BaseConverter):
             self.addTensor(onnx_node.name, output_data, output_shape)
             self.addOperand(onnx_node.name, None, output_shape, TensorType.TENSOR)
 
-        elif len(input_shape2) ==1 and input_shape2[0] == 1:
+        elif (len(input_shape2) ==1 and input_shape2[0] == 1) or \
+            (len(input_shape2) == 0):
             # div(x) = input * (1/x) = scale(1/x) = input * (1/x) + 0
             operands = list()
             operands.append(op1)
@@ -889,6 +932,27 @@ class OnnxConverter(BaseConverter):
             self.addOperand(onnx_node.name, scale_op, output_shape, TensorType.ACTIVATION)
 
         else:
+            raise RuntimeError("not implement yet, shape1 {}, shape2 {}",
+                input_shape1, input_shape2)
+
+    def convert_equal_op(self, onnx_node):
+        assert(onnx_node.op_type == "Equal")
+        assert(len(onnx_node.inputs) == 2)
+
+        op0, input_shape0, tensor_type0 = self.getOperand(onnx_node.inputs[0])
+        op1, input_shape1, tensor_type1 = self.getOperand(onnx_node.inputs[1])
+
+        assert(input_shape0 == input_shape1)
+
+        if tensor_type0 == TensorType.TENSOR and tensor_type1 == TensorType.TENSOR:
+            # both are weight, do it offline
+            tensor_data0 = self.getTensor(onnx_node.inputs[0]).tensor_data
+            tensor_data1 = self.getTensor(onnx_node.inputs[1]).tensor_data
+            tensor_data = np.equal(tensor_data0, tensor_data1)
+
+            self.addTensor(onnx_node.name, tensor_data, list(tensor_data.shape))
+            self.addOperand(onnx_node.name, None, list(tensor_data.shape), TensorType.TENSOR)
+        else:
             raise RuntimeError("not implement yet")
 
     def convert_expand_op(self, onnx_node):
@@ -900,14 +964,64 @@ class OnnxConverter(BaseConverter):
             operands = list()
             operands.append(op0)
             tensor_data = self.getTensor(onnx_node.inputs[1]).tensor_data
-            assert(len(tensor_data)==4)
-            assert(input_shape0[2] == 1 and input_shape0[3] == 1)
-            assert(input_shape0[0] == tensor_data[0] and input_shape0[1] == tensor_data[1])
-            assert(tensor_data[2] == tensor_data[3])
-            output_shape = list(tensor_data)
-            attr={
-                'scale': int(tensor_data[2])
-            }
+            if len(tensor_data) == 6 and tensor_data[4] == input_shape0[4]:
+                assert(input_shape0[3::2] == [1, 1])
+                assert(np.any(tensor_data[:3] - input_shape0[:3]) == False)
+                # input shape like 1, 128, 13, 1, 13, 1
+                # new shape like 1. 128.  13.   2.  13.   2
+                # input chould reshape (1*128*13, 1, 13, 1) -> (1*128*13, 1, 13, 1)
+                # and seperate w-expand than h expand
+                # 1. (1*128*13, 1, 13, 1) -> (1*128*13, 1, 13, 2)
+                # 2. reshape from (1*128*13, 1, 13, 2) to (1*128*13, 1, 1, 13 * 2)
+                # 3. (1*128*13, 1, 1, 13 * 2) -> (1*128*13, 1, 2, 13 * 2)
+
+                # reshape input
+                input_shape = [int(np.prod(tensor_data[:3]))] + input_shape0[3:]
+                reshape_op = self.CVI.add_reshape_op("{}_{}".format(onnx_node.name, "reshape"),
+                    operands, input_shape)
+
+                self.addOperand(onnx_node.name, reshape_op, input_shape, TensorType.ACTIVATION)
+
+                operands = list()
+                operands.append(reshape_op)
+
+                attr={
+                    'scale_h': 1,
+                    'scale_w': int(tensor_data[5])
+                }
+                output_shape = input_shape
+                output_shape[3] *= attr['scale_w']
+                # 1, extend w
+                upsample_op = self.CVI.add_upsample_op("{}_{}_w".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **attr)
+                self.addOperand(onnx_node.name, upsample_op, output_shape, TensorType.ACTIVATION)
+                # 2, reshape (h,w) to (1, hw)
+                input_shape = output_shape[:2] + [1, np.prod(output_shape[2:])]
+                reshape_op = self.CVI.add_reshape_op("{}_{}".format(onnx_node.name, "reshape_w"),
+                    [upsample_op], input_shape)
+
+                self.addOperand(onnx_node.name, reshape_op, input_shape, TensorType.ACTIVATION)
+
+                # 3, extend h
+                operands = list()
+                operands.append(reshape_op)
+
+                attr={
+                    'scale_h': int(tensor_data[3]),
+                    'scale_w': 1
+                }
+                output_shape = input_shape
+                output_shape[2] *= attr['scale_h']
+
+            else:
+                assert(len(tensor_data)==4)
+                assert(input_shape0[2] == 1 and input_shape0[3] == 1)
+                assert(input_shape0[0] == tensor_data[0] and input_shape0[1] == tensor_data[1])
+                assert(tensor_data[2] == tensor_data[3])
+                output_shape = list(tensor_data)
+                attr={
+                    'scale_h': int(tensor_data[2]),
+                    'scale_w': int(tensor_data[2])
+                }
             upsample_op = self.CVI.add_upsample_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **attr)
             self.addOperand(onnx_node.name, upsample_op, output_shape, TensorType.ACTIVATION)
         else:
@@ -1358,7 +1472,7 @@ class OnnxConverter(BaseConverter):
             mul_value = self.getTensor(onnx_node.inputs[1]).tensor_data
 
             if len(mul_value.flatten()) == 1:
-                weight_data = np.full(channel, mul_value[0]) # broadcast via channel
+                weight_data = np.full(channel, mul_value.flatten()[0]) # broadcast via channel
             elif len(mul_value.flatten()) == channel:
                 weight_data = mul_value
             else:
@@ -1396,7 +1510,14 @@ class OnnxConverter(BaseConverter):
                     op1, op2 = op2, op1
                     input_shape1, input_shape2 = input_shape2, input_shape1
 
-                if len(input_shape1) != 4 or np.prod(input_shape2) != input_shape1[0] * input_shape1[1] :
+                if len(input_shape1) == 3 and len(input_shape2) == 3 and \
+                  input_shape2[2] == 1:
+                    # hoist shape, [1, 507, 80] vs [1, 507, 1] could reshape to
+                    # 1, 507, 80, 1 and 1, 507, 1, 1
+                    input_shape1.append(1)
+                    input_shape2.append(1)
+
+                elif len(input_shape1) != 4 or np.prod(input_shape2) != input_shape1[0] * input_shape1[1] :
                     raise RuntimeError("{} vs {}  broadcast mul not support".format(input_shape1, input_shape2))
                 axis = 1
                 output_shape = input_shape1
@@ -1920,7 +2041,7 @@ class OnnxConverter(BaseConverter):
                 weight_op = self.CVI.add_load_file_op(
                     weight_name, weight_shape)
 
-                bias_data = np.full(input_shape0[1], -1 * constant_data[0])
+                bias_data = np.full(input_shape0[1], -1 * constant_data.flatten()[0])
                 bias_name = "{}_add_bias".format(onnx_node.name)
                 bias_shape = list(bias_data.shape)
                 self.addTensor(bias_name, bias_data, bias_shape)
@@ -2016,8 +2137,38 @@ class OnnxConverter(BaseConverter):
                     'order2': transpose_perm[2],
                     'order3': transpose_perm[3],
                 }
+
+                is_0231 = transpose_perm == [0, 1, 3, 2]
+                permute_0231_shape = list(output_shape)
+                if is_0231:
+                    # try to reshape it, current support
+                    # 0231 : (N, C, H, W) -> (N, H, W, C)
+                    # that could be reshaps as
+                    # <n,c,h,w> -> <n*c, h, 1, w> -permute-> <n*c, 1, w, h>
+                    # reshape
+                    reshape = [np.prod(input_shape[:2]), input_shape[2], 1, input_shape[3]]
+                    reshape_op = self.CVI.add_reshape_op("{}_{}_for_0231".format(
+                        onnx_node.name, onnx_node.op_type), operands, reshape)
+
+                    # permute 0231
+                    attr = {
+                        'order0': 0,
+                        'order1': 2,
+                        'order2': 3,
+                        'order3': 1,
+                    }
+                    operands = [reshape_op]
+                    output_shape = [reshape[0], 1, input_shape[3], input_shape[2]]
+                    # reshape back
+
                 permute_op = self.CVI.add_permute_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **attr)
                 self.addOperand(onnx_node.name, permute_op, output_shape, TensorType.ACTIVATION)
+
+                if is_0231:
+                    reshape_op = self.CVI.add_reshape_op("{}_{}_back_for_0231".format(
+                        onnx_node.name, onnx_node.op_type), [permute_op], permute_0231_shape)
+                    self.addOperand(onnx_node.name, reshape_op, output_shape, TensorType.ACTIVATION)
+
             elif len(transpose_perm) == 3:
                 """
                     Our tpu only support 4 dim transpose, we reshape 3dim to 4
@@ -2089,6 +2240,27 @@ class OnnxConverter(BaseConverter):
             else:
                 raise RuntimeError("only support dim 4 transpose and pixel shuffle case")
 
+    def convert_where_op(self, onnx_node):
+        assert(onnx_node.op_type == "Where")
+        print(len(onnx_node.inputs))
+        op0, input_shape0, tensor_type0 = self.getOperand(onnx_node.inputs[0])
+        op1, input_shape1, tensor_type1 = self.getOperand(onnx_node.inputs[1])
+        op2, input_shape2, tensor_type2 = self.getOperand(onnx_node.inputs[2])
+
+        if tensor_type0 == TensorType.TENSOR and tensor_type1 == TensorType.TENSOR and \
+            tensor_type2 == TensorType.TENSOR:
+            # both are weight, do it offline
+            tensor_data0 = self.getTensor(onnx_node.inputs[0]).tensor_data
+            tensor_data1 = self.getTensor(onnx_node.inputs[1]).tensor_data
+            tensor_data2 = self.getTensor(onnx_node.inputs[2]).tensor_data
+            tensor_data = np.where(tensor_data0, tensor_data1, tensor_data2)
+
+            self.addTensor(onnx_node.name, tensor_data, list(tensor_data.shape))
+            self.addOperand(onnx_node.name, None, list(tensor_data.shape), TensorType.TENSOR)
+        else:
+            raise RuntimeError("not support tensor_type x in activation")
+
+
     def convert_unsqueeze_op(self, onnx_node):
         """Unsqueeze """
         assert(onnx_node.op_type == "Unsqueeze")
@@ -2129,7 +2301,8 @@ class OnnxConverter(BaseConverter):
             oh = int(input_shape1[2] * scale_factor[2])
             ow = int(input_shape1[3] * scale_factor[3])
             attr={
-                'scale': int(scale_factor[2])
+                'scale_h': int(scale_factor[2]),
+                'scale_w': int(scale_factor[2])
             }
             output_shape = [on, oc, oh, ow]
             upsample_op = self.CVI.add_upsample_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **attr)
