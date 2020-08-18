@@ -244,8 +244,6 @@ class preprocess(object):
             if self.crop_method is CropMethod.CENTOR:
                 image = cv2.resize(image, (self.resize_dims[1], self.resize_dims[0])) # w,h
 
-            image = image.astype(np.float32)
-
             if not self.bgray:
                 # opencv read image data format is hwc
                 # tranpose to chw
@@ -305,7 +303,7 @@ class preprocess(object):
                 logger.debug("ori image channel order is {}, but we handle order is {}, swap it".format(self.ori_channel_order, self.rgb_order))
                 x = x[[2,1,0], :, :]
 
-
+            x = x.astype(np.float32)
             x = x * (self.raw_scale / 255.0)
             # preprocess
             if self.mean_file.size != 0 :
