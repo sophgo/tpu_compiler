@@ -134,11 +134,17 @@ class CaffeConverter(BaseConverter):
                     resize_h, resize_w = self.preprocess_args.get(
                         "resize_dims")
 
-                    # beacause of opencv imread data_format default is nhwc
-                    # if model data format is nchw, fused preprocess need to change it
-                    input_shape = [input_shape[0], resize_h,
-                                   resize_w, input_shape[1]]
 
+                    if self.preprocess_args.get("crop_method") == "aspect_ratio":
+                        aspect_h = self.preprocess_args.get("input_shape")[0]
+                        aspect_w = self.preprocess_args.get("input_shape")[1]
+                        input_shape = [input_shape[0], aspect_h,
+                                       aspect_w, input_shape[1]]
+                    else:
+                        # beacause of opencv imread data_format default is nhwc
+                        # if model data format is nchw, fused preprocess need to change it
+                        input_shape = [input_shape[0], resize_h,
+                                    resize_w, input_shape[1]]
             self.input_shapes.append(input_shape)
         # get output shape
         self.output_shapes = list()
@@ -1526,33 +1532,6 @@ class CaffeConverter(BaseConverter):
         self.addOperand(input_name, new_op, output_shape,
                         TensorType.ACTIVATION)
 
-    def do_preprocess(self, input_name):
-        if self.preprocess == None:
-            return
-        order = None
-        if "swap_channel" in self.preprocess and len(self.preprocess["swap_channel"]) != 0:
-            order = [int(i)
-                     for i in self.preprocess["swap_channel"].strip().split(',')]
-            assert(len(order) == 3 or len(order) == 0)
-            need_order = False
-            for i, data in enumerate(order):
-                if i != data:
-                    need_order = True
-                    break
-            if need_order == False:
-                order = None
-        if "raw_scale" in self.preprocess:
-            self.do_pre_scale(input_name, "pre_raw_scale",
-                              self.preprocess['raw_scale']/255.0)
-        if "mean" in self.preprocess:
-            self.do_pre_mean(input_name, "pre_mean",
-                             self.preprocess['mean'], order)
-        if "scale" in self.preprocess:
-            self.do_pre_scale(input_name, "pre_scale",
-                              self.preprocess['scale'])
-        if order != None:
-            self.do_pre_swap_channel(input_name, "pre_swap_channel", order)
-
     def convert_graph(self):
         """convert all to mlir"""
         # add weight op
@@ -1567,9 +1546,6 @@ class CaffeConverter(BaseConverter):
             input_shape = list(self.blobs[name].shape)
             input_shape[0] = self.batch_size
             if self.convert_preprocess:
-                resize_h, resize_w = self.preprocess_args.get(
-                        "resize_dims")
-
                 # add preprocess
                 input_no_preprocess_op = self.CVI.add_input_op(
                     name, idx)
@@ -1589,6 +1565,9 @@ class CaffeConverter(BaseConverter):
                 if self.preprocess_args.get('net_input_dims') != self.preprocess_args.get('resize_dims'):
                     # center crop
                     crop_offset = np.array(self.preprocess_args.get('crop_offset'))
+                pads=[0,0,0,0]
+                if self.preprocess_args.get('crop_method') == "aspect_ratio":
+                    pads = self.preprocess_args.get('pads', [0,0,0,0])
                 # add preprocess
                 preprocess_attr = {
                     'mean': np.array([float(s) for s in self.preprocess_args.get('mean')], dtype=np.float32),
@@ -1598,7 +1577,7 @@ class CaffeConverter(BaseConverter):
                     'color_order': color_order,
                     'transpose_order': transpose_order,
                     'crop_offset': crop_offset,
-                    'pads': [0,0,0,0],
+                    'pads': pads,
                     'pad_const_val': 0,
                 }
 
@@ -1609,10 +1588,6 @@ class CaffeConverter(BaseConverter):
                 input_op = self.CVI.add_input_op(name, idx)
 
             self.addOperand(name, input_op, input_shape, TensorType.ACTIVATION)
-            # only first input do preprocess
-            if idx == 0 and not self.convert_preprocess:
-                # convert_preprocess is new version fuesd_preprocess
-                self.do_preprocess(name)
 
         for layer in self.layers:
             is_test_phase = True
