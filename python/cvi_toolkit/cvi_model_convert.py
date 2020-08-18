@@ -30,7 +30,9 @@ def Convert(args):
                         input_scale=args.input_scale,
                         raw_scale=args.raw_scale,
                         std=args.std,
-                        rgb_order=args.model_channel_order)
+                        rgb_order=args.model_channel_order,
+                        crop_method=args.crop_method,
+                        only_aspect_ratio_img=args.only_aspect_ratio_img)
     # only caffe support
     preprocess_args = {
         "swap_channel": args.swap_channel,
@@ -43,11 +45,13 @@ def Convert(args):
         "data_format": args.data_format,
     }
 
+    input_shape = [int(i) for i in args.input_shape.split(",")]
+
     if args.model_type == "onnx":
         onnx_model = onnx.load(args.model_path)
         c = OnnxConverter(args.model_name, onnx_model,
                           args.mlir_file_path, batch_size=args.batch_size,
-                          convert_preprocess=args.convert_preprocess, preprocess_args=preprocessor.to_dict()
+                          convert_preprocess=args.convert_preprocess, preprocess_args=preprocessor.to_dict(input_h=input_shape[1], input_w=input_shape[2])
                         )
     elif args.model_type == "tflite":
         c = TFLiteConverter(
@@ -58,7 +62,8 @@ def Convert(args):
     elif args.model_type == "caffe":
         c = CaffeConverter(args.model_name, args.model_path, args.model_dat,
                            args.mlir_file_path, batch_size=args.batch_size, preprocess=preprocess_args,
-                           convert_preprocess=args.convert_preprocess, preprocess_args=preprocessor.to_dict()
+                           convert_preprocess=args.convert_preprocess, preprocess_args=preprocessor.to_dict(
+                               input_h=input_shape[1], input_w=input_shape[2])
         )
     c.run()
 
@@ -110,6 +115,15 @@ def main():
         help="Conbine mlir model with preprocess inference",
         type=int,
         default=0,
+    )
+    parser.add_argument(
+        "--input_shape",
+        help="""Only fused aspect ratio preprocess need set this config,
+                Fusing aspect ratio preprocess need to caculate padding size with each input shape,
+                can ignore if don't use fusing aspect ratio preprocess
+        """,
+        type=str,
+        default="0,0,0,0"
     )
     parser = add_preprocess_parser(parser)
     args = parser.parse_args()
