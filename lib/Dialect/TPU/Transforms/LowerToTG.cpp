@@ -874,7 +874,7 @@ Value* tpu::PadOp::convertToTG() {
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
   attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
 
-  if (getOpQuant() == "INT8") {
+  if (getOpQuant() == "INT8" || getOpQuant() == "UINT8") {
     assert(getOpQuantParamType() == "NONE");
     auto newOp = OpBuilder(op).create<tpu::TG_INT8_PadOp>(op->getLoc(),
         getResult()->getType(), ArrayRef<Value *>{operands},

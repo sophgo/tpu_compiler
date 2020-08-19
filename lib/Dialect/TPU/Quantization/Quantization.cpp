@@ -425,6 +425,42 @@ struct ExtendPreprocessOpPattern : public RewritePattern {
     setOpQuantParamType(transpose_op, "THRESHOLD");
     setOpQuant(transpose_op, "UINT8");
 
+    // create uint8 pad
+    int64_t pn, pc, ph, pw;
+    std::vector<NamedAttribute> pad_attrs;
+    std::string pad_name =
+        getOpName(preprocessOp).str() + "_preprocess_pad";
+    std::vector<int> pads;
+    for (auto m : llvm::enumerate(preprocessOp.pads().getValue())) {
+      auto attr = m.value().dyn_cast<IntegerAttr>();
+      pads.push_back(attr.getInt());
+    }
+    float const_val = preprocessOp.const_val().convertToFloat();
+
+    pn = pads[0] + pads[4] + tn;
+    pc = pads[1] + pads[5] + tc;
+    ph = pads[2] + pads[6] + th;
+    pw = pads[3] + pads[7] + tw;
+
+    pad_attrs.push_back(
+        builder.getNamedAttr("name", builder.getStringAttr(pad_name)));
+    pad_attrs.push_back(builder.getNamedAttr(
+        "pads", builder.getI32ArrayAttr(ArrayRef<int32_t>({pads}))));
+    pad_attrs.push_back(
+        builder.getNamedAttr("const_val", builder.getF32FloatAttr(const_val)));
+    pad_attrs.push_back(
+        builder.getNamedAttr("quant", getDefaultQuantParam(builder)));
+    pad_attrs.push_back(
+        builder.getNamedAttr("layer_id", builder.getI32IntegerAttr(layer_id)));
+
+    auto pad_type = RankedTensorType::get({pn, pc, ph, pw}, eltType);
+    auto pad_op = OpBuilder(op).create<tpu::PadOp>(
+        op->getLoc(), pad_type, ArrayRef<Value *>{transpose_op},
+        ArrayRef<NamedAttribute>{pad_attrs});
+    setOpThreshold(pad_op, 128);
+    setOpQuantParamType(pad_op, "THRESHOLD");
+    setOpQuant(pad_op, "UINT8");
+
     // create int8 crop
     std::string crop_name =
         getOpName(preprocessOp).str() + "_preprocess_crop";
@@ -453,7 +489,7 @@ struct ExtendPreprocessOpPattern : public RewritePattern {
         builder.getNamedAttr("layer_id", builder.getI32IntegerAttr(layer_id)));
     // we only accept first input to IR, second input shape will be attribute.
     auto crop_op = OpBuilder(op).create<tpu::CropOp>(
-        op->getLoc(), crop_type, ArrayRef<Value *>{transpose_op},
+        op->getLoc(), crop_type, ArrayRef<Value *>{pad_op},
         ArrayRef<NamedAttribute>{crop_attrs});
     setOpQuantParamType(crop_op, "THRESHOLD");
     setOpThreshold(crop_op, 128);
@@ -497,7 +533,7 @@ struct ExtendPreprocessOpPattern : public RewritePattern {
     std::vector<float> tmp_scale_value(scale_value.begin(), scale_value.end());
     std::vector<float> tmp_bias_value(bias_value.begin(), bias_value.end());
 
-    // swap op do after scale(because it's can be fuesd with first conv)
+    // swap op do after scale(because it can be fuesd with first conv)
     // change weight order here
     if (color_orders.size()){
       assert(color_orders.size() == 3 && "color_order must be 3");
