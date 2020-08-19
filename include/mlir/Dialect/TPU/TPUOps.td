@@ -1654,6 +1654,10 @@ def TPU_PreprocessOp : TPU_Op<"preprocess",
       `raw_scale`       : required, Multiply raw input by this scale before preprocessing.
       `color_order`     : required, color swap order
       `crop_offset`     : required, crop offset.
+      `pads`            : tensor containing the number of start and end
+                          pad values for axis
+      `const_val`       : A scalar value to be used if the mode
+                          chosen is `constant` (by default it is 0).
       `transpose_order` : required, the data is stored in the order of
       `name`            : required, name for calibration, comparing, or debug.
       `layer_id`        : optional, id for profiling.
@@ -1679,6 +1683,8 @@ def TPU_PreprocessOp : TPU_Op<"preprocess",
     StrAttr:$name,
     OptionalAttr<I32ArrayAttr>:$color_order,
     OptionalAttr<I32ArrayAttr>:$crop_offset,
+    OptionalAttr<I32ArrayAttr>:$pads,
+    DefaultValuedAttr<F32Attr, "0">:$const_val,
     TPU_QuantParamAttr:$quant,
     DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
