@@ -40,6 +40,16 @@ def get_aspect_ratio_img(img, net_h, net_w, img_h, img_w, no_pad=False):
     return new_image
 
 
+def get_aspect_ratio_pads(net_h, net_w, img_h, img_w):
+    rescale_h, rescale_w = get_aspect_ratio_wh(net_h, net_w, img_h, img_w)
+    offset_w = (net_w - rescale_w) // 2
+    offset_h = (net_h - rescale_h) // 2
+    pad_l = offset_w
+    pad_r = net_w - offset_w - rescale_w
+    pad_t = offset_h
+    pad_b = net_h - offset_h - rescale_h
+
+    return [0, 0, pad_t, pad_l, 0, 0, pad_b, pad_r]
 def _get_aspect_ratio_img(img, net_h, net_w, img_h, img_w):
     rescale_h, rescale_w = get_aspect_ratio_wh(
          net_h, net_w, img_h, img_w)
@@ -168,18 +178,41 @@ class preprocess(object):
         self.rgb_order = rgb_order
         self.ori_channel_order = None
 
-    def to_dict(self):
-        return {
-            'net_input_dims': self.net_input_dims,
-            'resize_dims': self.resize_dims,
-            'mean': self.mean,
-            'std': self.std,
-            'input_scale': self.input_scale,
-            'raw_scale': self.raw_scale,
-            'data_format': "n{}".format(self.data_format),
-            'rgb_order': self.rgb_order,
-            'crop_offset': self.get_center_crop_offset(),
-        }
+    def to_dict(self, input_w=0, input_h=0):
+        if self.crop_method is CropMethod.CENTOR:
+            return {
+                'net_input_dims': self.net_input_dims,
+                'resize_dims': self.resize_dims,
+                'mean': self.mean,
+                'std': self.std,
+                'input_scale': self.input_scale,
+                'raw_scale': self.raw_scale,
+                'data_format': "n{}".format(self.data_format),
+                'rgb_order': self.rgb_order,
+                'crop_offset': self.get_center_crop_offset(),
+                'pads': [0,0,0,0],
+                'pad_const_val': 0,
+                'crop_method': CropMethod.CENTOR.value
+            }
+        elif self.crop_method is CropMethod.ASPECT_RATIO:
+            return {
+                'net_input_dims': self.net_input_dims,
+                'resize_dims': self.resize_dims,
+                'mean': self.mean,
+                'std': self.std,
+                'input_scale': self.input_scale,
+                'raw_scale': self.raw_scale,
+                'data_format': "n{}".format(self.data_format),
+                'rgb_order': self.rgb_order,
+                'crop_offset': [0,0,0,0],
+                'pads': get_aspect_ratio_pads(self.net_input_dims[0], self.net_input_dims[1], input_h, input_w),
+                'pad_const_val': 0,
+                'crop_method': CropMethod.ASPECT_RATIO.value,
+                'input_shape': [input_h, input_w]
+            }
+        else:
+            raise RuntimeError(
+                 "Not Existed crop method {}".format(crop_method))
 
     def get_center_crop_offset(self):
         w, h = self.resize_dims
