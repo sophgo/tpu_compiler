@@ -7,6 +7,20 @@ import struct
 def bf16_to_fp32(bf16_value):
     return struct.unpack('<f', struct.pack('<HH', 0, bf16_value))[0]
 
+def get_npz_shape(args):
+    if (len(args) < 2):
+        print("Usage: {} get_shape in.npz name1".format(sys.argv[0]))
+        exit(-1)
+    npz_in = np.load(args[0])
+    shape = npz_in[args[1]].shape
+    ret = ""
+    for i in shape:
+        if i is shape[-1]:
+            ret = ret + "{}".format(i)
+        else:
+            ret = ret + "{},".format(i)
+    print(ret)
+    exit(0)
 
 def npz_rename(args):
     if len(args) < 2:
