@@ -1565,9 +1565,10 @@ class CaffeConverter(BaseConverter):
                 if self.preprocess_args.get('net_input_dims') != self.preprocess_args.get('resize_dims'):
                     # center crop
                     crop_offset = np.array(self.preprocess_args.get('crop_offset'))
-                pads=[0,0,0,0]
+                pads=[0,0,0,0,0,0,0,0]
                 if self.preprocess_args.get('crop_method') == "aspect_ratio":
-                    pads = self.preprocess_args.get('pads', [0,0,0,0])
+                    pads = self.preprocess_args.get(
+                        'pads', [0, 0, 0, 0, 0, 0, 0, 0])
                 # add preprocess
                 preprocess_attr = {
                     'mean': np.array([float(s) for s in self.preprocess_args.get('mean')], dtype=np.float32),
