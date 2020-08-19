@@ -107,7 +107,8 @@ class ONNX_IR_TESTER(object):
         self.converter.run()
         del self.converter
         gc.collect()
-
+        batch_size = input_data.shape[0]
+        print(batch_size)
         onnx_out = onnx_inference(input_data, model_def, model_name, input_cb)
         self.mlir_model = None
         self.mlir_model = MLIRModel()
@@ -173,7 +174,8 @@ class ONNX_IR_TESTER(object):
                     inputs = {"input": tensors['input']}
                 np.savez(input_file, **inputs)
 
-                ret = run_cvimodel(input_file, cvimodel, output_tensor_npz, all_tensors=True)
+                ret = run_cvimodel(
+                    input_file, cvimodel, output_tensor_npz, all_tensors=True, batch_size=batch_size)
                 if ret < 0: raise RuntimeError("run_cvimodel failed")
                 npz_compare([output_tensor_npz,ref_npz])
 
@@ -224,7 +226,8 @@ class ONNX_IR_TESTER(object):
 
                 np.savez(input_file, **inputs)
 
-                ret = run_cvimodel(input_file, cvimodel, output_tensor_npz, all_tensors=True)
+                ret = run_cvimodel(
+                    input_file, cvimodel, output_tensor_npz, all_tensors=True, batch_size=batch_size)
                 if ret < 0: raise RuntimeError("run_cvimodel failed")
                 npz_compare([output_tensor_npz, ref_npz, "--op_info", bf16_csv, "--tolerance", "0.9,0.9,0.9", "-vv"])
 
@@ -398,14 +401,16 @@ class ONNX_IR_TESTER(object):
 
     def test_Conv2d(self):
         test_case = 'Conv2d'
-        input_data = np.random.randn(1, 1, 5, 5).astype(np.float32)
-        weight_data = np.random.randn(1, 1, 3, 3).astype(np.float32)
+        batch_size = 4
+        input_data = np.random.randn(batch_size, 3, 5, 5).astype(np.float32)
+        weight_data = np.random.randn(3, 3, 3, 3).astype(np.float32)
+        bias_data = np.random.randn(3).astype(np.float32)
 
         input = helper.make_tensor_value_info(
             'input', TensorProto.FLOAT, list(input_data.shape))
 
         output = helper.make_tensor_value_info(
-            'output', TensorProto.FLOAT, [1, 1, 5, 5])
+            'output', TensorProto.FLOAT, [batch_size, 3, 5, 5])
 
         weight_node_def = onnx.helper.make_node(
             'Constant',
@@ -415,12 +420,23 @@ class ONNX_IR_TESTER(object):
                 name='const_tensor',
                 data_type=onnx.TensorProto.FLOAT,
                 dims=weight_data.shape,
-                vals=weight_data.flatten().astype(int),
+                vals=weight_data.flatten(),
+            ),
+        )
+        bias_node_def = onnx.helper.make_node(
+            'Constant',
+            inputs=[],
+            outputs=['conv_b'],
+            value=onnx.helper.make_tensor(
+                name='const_tensor',
+                data_type=onnx.TensorProto.FLOAT,
+                dims=bias_data.shape,
+                vals=bias_data.flatten(),
             ),
         )
         node_def = onnx.helper.make_node(
             "Conv",
-            inputs=['input', 'conv_w'],
+            inputs=['input', 'conv_w', 'conv_b'],
             outputs=['output'],
             kernel_shape=[3, 3],
             pads=[1, 1, 1, 1],
@@ -429,7 +445,7 @@ class ONNX_IR_TESTER(object):
             group=1,
         )
         graph_def = helper.make_graph(
-            [weight_node_def, node_def],
+            [weight_node_def, bias_node_def, node_def],
             test_case,
             [input],
             [output],
