@@ -80,7 +80,7 @@ def main(argv):
                         data_format=args.data_format,
                         batch=args.batch_size,
                         astype=args.astype,
-                        aspect_ratio=1)
+                        crop_method="aspect_ratio")
     # Make Detector
     net_input_dims = [int(s) for s in args.net_input_dims.split(',')]
     obj_threshold = float(args.obj_threshold)

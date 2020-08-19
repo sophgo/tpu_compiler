@@ -8,6 +8,11 @@ from cvi_toolkit.utils.log_setting import setup_logger
 logger = setup_logger('preprocess')
 
 
+class CropMethod(Enum):
+    CENTOR = "centor"
+    ASPECT_RATIO = "aspect_ratio"
+
+
 def center_crop(img, crop_dim):
     # Take center crop.
     center = np.array(img.shape[1:]) / 2.0
@@ -22,10 +27,7 @@ def center_crop(img, crop_dim):
 
 
 def get_aspect_ratio_img(img, net_h, net_w, img_h, img_w):
-    scale = min(float(net_w) / img_w, float(net_h) / img_h)
-    rescale_w = int(img_w * scale)
-    rescale_h = int(img_h * scale)
-
+    rescale_h, rescale_w = get_aspect_ratio_wh(img, net_h, net_w, img_h, img_w)
     resized_img = cv2.resize(img, (rescale_w, rescale_h), interpolation=cv2.INTER_LINEAR)
     new_image = np.full((net_h, net_w, 3), 0, dtype=np.float32)
     offset_w = (net_w - rescale_w) // 2
@@ -34,6 +36,13 @@ def get_aspect_ratio_img(img, net_h, net_w, img_h, img_w):
     new_image[offset_h: offset_h + rescale_h,
               offset_w: offset_w + rescale_w, :] = resized_img
     return new_image
+
+
+def get_aspect_ratio_wh(img, net_h, net_w, img_h, img_w):
+    scale = min(float(net_w) / img_w, float(net_h) / img_h)
+    rescale_w = int(img_w * scale)
+    rescale_h = int(img_h * scale)
+    return rescale_h, rescale_w
 
 def add_preprocess_parser(parser):
     if not isinstance(parser, argparse.ArgumentParser):
@@ -49,8 +58,9 @@ def add_preprocess_parser(parser):
     parser.add_argument("--data_format", type=str, help="input image data dim order, default: nchw", default="nchw")
     parser.add_argument("--bgray", type=int, default=0, help="whether the input image is gray, channel size is 1")
     parser.add_argument("--astype", type=str, help="store npz type, default is float32", default="float32")
-    parser.add_argument("--aspect_ratio", type=int,
-                        help="image resize to network input keeping with aspect ratio, the flag will ignore --image_resize_dims value", default=0)
+    parser.add_argument("--crop_method", type=str,
+                        help="crop method when image_resize_dims not same with net_input_dims, \
+                        ,ex: centor or aspect_ratio, if aspect_ratio the flag will ignore --image_resize_dims value", default="centor")
     return parser
 
 
@@ -78,7 +88,7 @@ class preprocess(object):
                      letter_box=False,
                      batch=1,
                      bgray=0,
-                     aspect_ratio=0,
+                     crop_method="centor",
                      astype="float32"):
         print("preprocess :\n         \
             \tnet_input_dims: {}\n    \
@@ -94,12 +104,12 @@ class preprocess(object):
             \tletter_box    : {}\n    \
             \tbatch_size    : {}\n    \
             \tbgray         : {}\n    \
-            \taspect_ratio  : {}\n    \
+            \tcrop_method   : {}\n    \
             \tastype        : {}\n    \
         ".format(net_input_dims, resize_dims, mean, \
                 mean_file, std, input_scale, raw_scale, \
                  data_format, rgb_order, npy_input, \
-                 letter_box, batch, bgray, aspect_ratio, astype,
+                 letter_box, batch, bgray, crop_method, astype,
         ))
         self.npy_input = npy_input
         self.letter_box = letter_box
@@ -107,7 +117,7 @@ class preprocess(object):
         self.bgray = bgray
 
         self.net_input_dims = [int(s) for s in net_input_dims.split(',')]
-        if resize_dims != None and not aspect_ratio:
+        if resize_dims != None and crop_method != "aspect_ratio":
             self.resize_dims = [int(s) for s in resize_dims.split(',')]
             self.resize_dims = [ max(x,y) for (x,y) in zip(self.resize_dims, self.net_input_dims)]
         else :
@@ -115,7 +125,12 @@ class preprocess(object):
 
         self.raw_scale = raw_scale
         self.astype = astype
-        self.aspect_ratio = aspect_ratio
+        if crop_method == "centor":
+            self.crop_method = CropMethod.CENTOR
+        elif crop_method == "aspect_ratio":
+            self.crop_method = CropMethod.ASPECT_RATIO
+        else:
+            raise RuntimeError("Not Existed crop method {}".format(crop_method))
         if mean:
             self.mean = np.array([float(s) for s in mean.split(',')], dtype=np.float32)
             if self.resize_dims != None :
@@ -229,7 +244,7 @@ class preprocess(object):
             if input_data_format == "hwc":
                 x = np.transpose(x, (2, 0, 1))
 
-            if self.aspect_ratio:
+            if self.crop_method is CropMethod.ASPECT_RATIO:
                 # get aspect ratio resize
                 x = np.transpose(x, (1, 2, 0))
                 x = get_aspect_ratio_img(x, self.net_input_dims[0], self.net_input_dims[1], x.shape[0], x.shape[1])
