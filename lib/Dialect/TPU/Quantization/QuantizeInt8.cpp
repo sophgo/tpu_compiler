@@ -56,7 +56,7 @@ LogicalResult quantizeInt8ConvOps(Operation *op) {
   auto convOp = cast<OpTy>(op);
 
   // get filter tensor
-  auto filter = readAndDeleteWeightTensor<float>(convOp.filter(), wTF);
+  auto filter = readWeightTensor<float>(convOp.filter(), wTF);
   std::vector<int64_t> filterShape;
   int64_t filterSize;
   getTensorShapeAndSize(convOp.filter(), filterShape, filterSize);
@@ -80,7 +80,7 @@ LogicalResult quantizeInt8ConvOps(Operation *op) {
   std::vector<int64_t> biasShape;
   int64_t biasSize = 0;
   if ( !isTensorNone(convOp.bias()) ) {
-    bias = readAndDeleteWeightTensor<float>(convOp.bias(), wTF);
+    bias = readWeightTensor<float>(convOp.bias(), wTF);
     getTensorShapeAndSize(convOp.bias(), biasShape, biasSize);
     assert(biasSize == oc);
     assert(biasSize == (int64_t)bias->size());
@@ -129,15 +129,15 @@ LogicalResult quantizeInt8ConvOps(Operation *op) {
   } else {
     assert(0);
   }
-
+  std::string quant_value = std::to_string(threshold_y) + "_quant";
   // update op
   addWeightTensorAndUpdateWeightOp<float>(convOp.getOperand(1),
-      "quant", *new_filter, filterShape, "INT8", wTF);
+      quant_value, *new_filter, filterShape, "INT8", wTF);
   if (bias) {
     // for per_channel quant, bias store as INT32, per layer use INT16
     StringRef storageType = isOpQuantPerchannel(op) ? "INT32" : "INT16";
     addWeightTensorAndUpdateWeightOp<float>(convOp.getOperand(2),
-        "quant", *new_bias, biasShape, storageType, wTF);
+        quant_value, *new_bias, biasShape, storageType, wTF);
   }
 
   // add rshift and multiplier (if present) to weight
