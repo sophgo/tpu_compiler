@@ -100,7 +100,6 @@ def parse(config: dict):
         raw_scale = t.get('raw_scale', 255.0)
         data_format = t.get('data_format')
         resize_dims = t.get('image_resize_dim')
-        letter_box = t.get('LetterBox', False)
 
         rgb_order = t.get('RGB_order',"bgr")
         npy_input = t.get('npy_input', None)
@@ -126,8 +125,7 @@ def parse(config: dict):
                     raw_scale=raw_scale,
                     data_format=data_format,
                     rgb_order=rgb_order,
-                    npy_input=npy_input,
-                    letter_box=letter_box)
+                    npy_input=npy_input)
 
         ret = preprocessor.run(input_file, output_npz=output_npz,
                                output_channel_order=rgb_order)

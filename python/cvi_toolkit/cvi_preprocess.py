@@ -36,7 +36,9 @@ if __name__ == "__main__":
                         rgb_order=args.model_channel_order,
                         data_format=args.data_format,
                         batch=args.batch_size,
-                        astype=args.astype)
+                        astype=args.astype,
+                        crop_method=args.crop_method,
+                        only_aspect_ratio_img=args.only_aspect_ratio_img)
     preprocessor.run(args.image_file, output_npz=args.npz_name,
                      input_name=args.input_name, output_data_format=args.output_data_format)
 
