@@ -226,12 +226,13 @@ def gen_bf16_mlir(mlir_src, mlir_target, bf16_layer_table, op_info_csv):
         return ret.returncode
     return 0
 
-def run_cvimodel(input_file, cvi_model, output_tensor, all_tensors=True):
+def run_cvimodel(input_file, cvi_model, output_tensor, all_tensors=True,
+                 batch_size=1):
 
     cmd = ["model_runner",
             "--input", input_file,
             "--model", cvi_model,
-            "--batch-num", "1",
+            "--batch-num", str(batch_size),
             "--output", output_tensor]
     if all_tensors:
         cmd.append("--dump-all-tensors")
