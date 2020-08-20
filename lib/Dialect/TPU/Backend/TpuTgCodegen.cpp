@@ -45,8 +45,8 @@
 
 using namespace mlir;
 
-extern int BF16_TABLE_START;
-extern int BF16_TABLE_END;
+extern float BF16_TABLE_START;
+extern float BF16_TABLE_END;
 
 #include "backend/backend_tg_api.h"
 #include "backend/backend_tl_api.h"
@@ -2023,10 +2023,15 @@ LogicalResult tpu::TG_BF16_LutOp::codegen(void *ctx) {
         *backend_ctx, layer_id, input_gaddr, output_gaddr, table_data_lut,
         table_data_mantissa_lut, n, c, h, w, CVK_FMT_BF16);
   } else if (lut_method == "slope") {
+    // 256 stand for lookup table index
+    // we re-range [min, max] to table index
+    float scale = 256.0 / (this->max_range().convertToFloat() - this->min_range().convertToFloat());
     cvi_backend_tg_bf16_lut_interpolation_kernel(
         *backend_ctx, layer_id, input_gaddr, output_gaddr, table_data_lut,
-        table_data_mantissa_lut, n, c, h, w, BF16_TABLE_START, BF16_TABLE_END,
-        16);
+        table_data_mantissa_lut, n, c, h, w,
+        this->min_range().convertToFloat(),
+        this->max_range().convertToFloat(),
+        scale);
   } else {
     std::string errorMsg = "unsupported lut method op: (manntissa or slope)" + lut_method + "\n";
     llvm_unreachable(errorMsg.c_str());

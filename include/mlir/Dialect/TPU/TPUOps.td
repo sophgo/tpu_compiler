@@ -257,6 +257,9 @@ class TPU_LutOp<string mnemonic,  string opSummary> : TPU_Op<mnemonic,
     Attributes:
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
+      `max_range`       : required, we cut to max_range and outlier saturate it
+      `min_range`       : required, we cut to min_range and outlier saturate it
+      `layer_id`        : optional, id for profiling.
       `has_table`       : optional, if has lookup table.
       `chipname`        : optional, chipname.
 
@@ -279,6 +282,9 @@ class TPU_LutOp<string mnemonic,  string opSummary> : TPU_Op<mnemonic,
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$table_mantissa,
     OptionalAttr<BoolAttr>:$has_table,
     StrAttr:$name,
+    DefaultValuedAttr<F32Attr, "8">:$max_range,
+    DefaultValuedAttr<F32Attr, "-8">:$min_range,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     TPU_QuantParamAttr:$quant,
     OptionalAttr<StrAttr>:$chipname
   );
@@ -1275,6 +1281,8 @@ def TPU_MishOp : TPU_LutOp<"mish", "yolov4 mish op"> {
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
       `mish_threshold`  : optional, mish activation used
+      `max_range`       : required, we cut to max_range and outlier saturate it
+      `min_range`       : required, we cut to min_range and outlier saturate it
       `has_table`       : optional, if has lookup table.
       `chipname`        : optional, chipname.
 
@@ -1295,6 +1303,8 @@ def TPU_MishOp : TPU_LutOp<"mish", "yolov4 mish op"> {
     ins Variadic<AnyTensor>:$inputs,
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$table,
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$table_mantissa,
+    DefaultValuedAttr<F32Attr, "8">:$max_range,
+    DefaultValuedAttr<F32Attr, "-8">:$min_range,
     OptionalAttr<BoolAttr>:$has_table,
     StrAttr:$name,
     DefaultValuedAttr<F32Attr, "20.0">:$mish_threshold,
@@ -2151,6 +2161,56 @@ def TPU_ScaleOp: TPU_Op<"scale",
   let results = (outs AnyTensor:$output);
 
   let hasCanonicalizer = 1;
+}
+
+def TPU_SoftPlusOp : TPU_LutOp<"softplus", "SoftPlus"> {
+
+  let description = [{
+    softplus = lambda x: np.log1p(np.exp(x))
+    which means SmoothReLU
+    threshold values above this revert to a linear function
+
+    Inputs:
+      `inputs`          : required, variadic input tensors.
+      `table`           : optional, the quantize lookup table,which is reused by INT8 and BF16.
+      `table_mantissa`  : optional, the quantize lookup table,only used by BF16 .
+
+    Attributes:
+      `quant`           : required, a QuantParam struct attributes.
+      `name`            : required, name for calibration, comparing, or debug.
+      `mish_threshold`  : optional, mish activation used
+      `max_range`       : required, we cut to max_range and outlier saturate it
+      `min_range`       : required, we cut to min_range and outlier saturate it
+      `has_table`       : optional, if has lookup table.
+      `chipname`        : optional, chipname.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TPU_QuantPerTensorOnly`
+      `TPU_QuantSupportAsymmetric`
+      `TpuOpCommonInterface` : support common TPU Op interface
+      `TpuOpInterpInterface` : support interperter
+      `TpuOpQuantInterface`  : support quantization
+      `TpuOpLowerInterface`  : support lower to TPU TG Ops
+  }];
+
+  let arguments = (
+    ins Variadic<AnyTensor>:$inputs,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$table,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$table_mantissa,
+    DefaultValuedAttr<F32Attr, "8">:$max_range,
+    DefaultValuedAttr<F32Attr, "-8">:$min_range,
+    OptionalAttr<BoolAttr>:$has_table,
+    StrAttr:$name,
+    DefaultValuedAttr<F32Attr, "20.0">:$threshold,
+    TPU_QuantParamAttr:$quant,
+    OptionalAttr<StrAttr>:$chipname
+  );
+
+  let results = (outs AnyTensor:$output);
 }
 
 def TPU_ShuffleChannelOp: TPU_Op<"shuffle_channel",

@@ -147,6 +147,7 @@ def main():
   parser.add_argument('model_file', metavar='model_file', help='Model file')
   parser.add_argument('image_list_file', metavar='image_list_file', help='Input image list file')
   parser.add_argument('--output_file', metavar='output_file', help='Output file')
+  parser.add_argument('--output_density_table', metavar='output_density_table', help='Output density file for look-up table')
   parser.add_argument('--model_name', metavar='model_name', help='Model name', default='generic')
   parser.add_argument('--calibrator', metavar='calibrator', help='Calibration method', default='KLD')
   parser.add_argument('--math_lib_path', metavar='math_path', help='Calibration math library path', default='calibration_math.so')
@@ -204,6 +205,12 @@ def main():
   else:
     threshold_table = '{}_threshold_table'.format(args.model_name)
   calibrator.dump_threshold_table(threshold_table, thresholds)
+
+  # export density table for hw look-up table
+  density_table = args.output_density_table if args.output_density_table else '{}_density_table'.format(args.model_name)
+
+  calibrator.dump_density_table(density_table, calibrator.get_raw_min(), thresholds)
+
 
   def autotune_preprocess(image_path):
     return p_func(image_path, None)

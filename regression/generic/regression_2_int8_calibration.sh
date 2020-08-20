@@ -35,7 +35,8 @@ run_calibration.py \
     --mean ${MEAN} \
     --std ${STD} \
     --input_scale ${INPUT_SCALE} \
-    --input_num=${CALIBRATION_IMAGE_COUNT}
+    --input_num=${CALIBRATION_IMAGE_COUNT} \
+    --output_density_table=${DENSITY_TABLE}
 
 if [ ! -f $CALI_TABLE ]; then
   echo "CALI_TABLE=$CALI_TABLE not exist"

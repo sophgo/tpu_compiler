@@ -551,6 +551,16 @@ LogicalResult quantizeInt8LutOps(Operation *op) {
                            ? 127
                            : (lutOutputI32 < -128) ? -128 : lutOutputI32;
         y0_table[n * table_hw + idx] = lutOutputI32;
+      } else if (OpTy::getOperationName() == "tpu.softplus") {
+        index = lutInput * threshold_x / 127.0;
+        auto castOp = dyn_cast<tpu::SoftPlusOp>(op);
+        float threshold = castOp.threshold().convertToFloat();
+        float lutOutput = softplus_activate(index, threshold) * 127.0 / threshold_y;
+        int lutOutputI32 = std::floor(lutOutput + 0.5);
+        lutOutputI32 = (lutOutputI32 > 127)
+                           ? 127
+                           : (lutOutputI32 < -128) ? -128 : lutOutputI32;
+        y0_table[n * table_hw + idx] = lutOutputI32;
       } else {
         assert(false && "not support now");
       }
@@ -1365,6 +1375,13 @@ LogicalResult tpu::SigmoidOp::quantizeInt8() {
 }
 
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::SliceOp)
+
+LogicalResult tpu::SoftPlusOp::quantizeInt8() {
+  LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  return quantizeInt8LutOps<tpu::SoftPlusOp>(op);
+}
 
 LogicalResult tpu::SqrtOp::quantizeInt8() {
   LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName()

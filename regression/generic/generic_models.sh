@@ -38,7 +38,9 @@ export BGRAY=0
 export PREPROCESS_CROPMETHOD="centor"
 export TOLERANCE_FP32=0.999,0.999,0.998
 export DO_QUANT_BF16=1
+export DO_ADJUST_LUT=0
 export DO_NOT_BF16_UNDER_182x=0
+export DENSITY_TABLE="density_table"
 
 if [ -z "$DO_BATCHSIZE" ]; then
   BATCH_SIZE=1
@@ -924,12 +926,13 @@ export TOLERANCE_INT8_MULTIPLER=0.65,0.61,0.01
 # mish layer
 export EXCEPTS="layer136-act,layer137-act,layer138-act,layer142-act,layer148-act,layer149-act,layer153-act"
 export OUTPUTS="layer139-conv,layer150-conv,layer161-conv"
-export DO_QUANT_BF16=0
-export TOLERANCE_BF16=0.99,0.99,0.96
-export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
+export DO_QUANT_BF16=1
+export TOLERANCE_BF16=0.99,0.99,0.94
+export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
 export DO_DEEPFUSION=0
 export SPP_NET="false"
 export TINY="false"
+export DENSITY_TABLE=$REGRESSION_PATH/data/density_tables/${NET}_density_table
 fi
 
 if [ $NET = "yolo_v4_with_detection" ]; then
@@ -1191,6 +1194,8 @@ export TOLERANCE_INT8_RSHIFT_ONLY=0.97,0.96,0.80
 export TOLERANCE_INT8_MULTIPLER=0.98,0.97,0.81
 export TOLERANCE_BF16=0.99,0.99,0.96
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.98
+export DO_ADJUST_LUT=1
+export ADJUST_LUT_TBL="#10_Tanh -12.0 1.0\n10_Tanh -5.5 5.5"
 fi
 
 if [ $NET = "unet" ]; then

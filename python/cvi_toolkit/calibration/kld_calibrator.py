@@ -48,6 +48,7 @@ class KLD_Calibrator(object):
         self.calibration_math = CDLL(args.math_lib_path)
         self.calibration_math.kl_diversity.restype = c_float
         self.calibration_math.kl_diversity_hist.restype = c_float
+        self.data_min = {}
         self.args = args
 
     def KLD_hist(self, data, width):
@@ -55,7 +56,7 @@ class KLD_Calibrator(object):
             data.ctypes.data_as(POINTER(c_int)), c_float(width),
             c_longlong(self.histogram_bin_num))
 
-    def do_find_max(self):
+    def do_find_min_max(self):
         data_max = {}
         idx = 0
         for line in self.all_lines:
@@ -68,6 +69,7 @@ class KLD_Calibrator(object):
             for item in data:
                 if item not in data_max:
                     data_max[item] = 0
+                    self.data_min[item] = 0
 
                 t = np.abs(data[item].flatten())
                 t = t[t!=0]
@@ -76,12 +78,16 @@ class KLD_Calibrator(object):
                     if is_all_zero(t):
                         warn_zeros(item)
                     data_max[item] = max(data_max[item], np.max(t))
+                    self.data_min[item] = min(self.data_min[item], np.min(data[item].flatten()))
 
             idx += 1
             if idx >= self.input_num:
                 break
 
-        return data_max
+        return self.data_min, data_max
+
+    def get_raw_min(self):
+        return self.data_min
 
     def do_histogram(self, data_max):
         data_hist = {}
@@ -120,7 +126,7 @@ class KLD_Calibrator(object):
         return data_hist, width_hist
 
     def do_calibration(self):
-        data_max = self.do_find_max()
+        self.data_min, data_max = self.do_find_min_max()
         data_hist, width_hist = self.do_histogram(data_max)
 
         thresholds = {}
@@ -139,6 +145,17 @@ class KLD_Calibrator(object):
                     line += ' ' + str(num)
                 outfile.write(line)
                 outfile.write('\n')
+
+    def dump_density_table(self, density_table, low, high):
+        op_layer = self.module.op_info
+        with open(density_table, 'w') as outfile:
+            for op_dict in op_layer:
+                line = op_dict['name']
+                for num in high[op_dict['name']]:
+                    line += ' ' + str(low[op_dict['name']]) + ' ' + str(num)
+                outfile.write(line)
+                outfile.write('\n')
+
 
 
 class KLD_Calibrator_v2(object):
@@ -168,7 +185,7 @@ class KLD_Calibrator_v2(object):
             data.ctypes.data_as(POINTER(c_int)), c_float(width),
             c_longlong(self.histogram_bin_num))
 
-    def do_find_max(self):
+    def do_find_min_max(self):
         data_max = {}
         idx = 0
         for line in self.all_lines:
@@ -181,6 +198,7 @@ class KLD_Calibrator_v2(object):
             for item in data:
                 if item not in data_max:
                     data_max[item] = 0
+                    self.data_min[item] = 0
 
                 t = np.abs(data[item].flatten())
                 t = t[t!=0]
@@ -189,12 +207,16 @@ class KLD_Calibrator_v2(object):
                     if is_all_zero(t):
                         warn_zeros(item)
                     data_max[item] = max(data_max[item], np.max(t))
+                    self.data_min[item] = min(self.data_min[item], np.min(data[item].flatten()))
 
             idx += 1
             if idx >= self.input_num:
                 break
 
-        return data_max
+        return self.data_min, data_max
+
+    def get_raw_min(self):
+        return self.data_min
 
     def do_histogram(self, data_max):
         data_hist = {}
@@ -237,7 +259,7 @@ class KLD_Calibrator_v2(object):
         return data_hist, width_hist
 
     def do_calibration(self, threshold_table=None):
-        data_max = self.do_find_max()
+        self.data_min, data_max = self.do_find_min_max()
         data_hist, width_hist = self.do_histogram(data_max)
 
         thresholds = {}

@@ -13,6 +13,7 @@ mlir-opt \
     --assign-chip-name \
     --chipname ${SET_CHIP_NAME} \
     --tpu-quant --quant-full-bf16 \
+    --set-lut-min-max-from-file ${DENSITY_TABLE} \
     --print-tpu-op-info \
     --tpu-op-info-filename ${NET}_op_info_bf16.csv \
     ${NET}_opt_fp32.mlir \

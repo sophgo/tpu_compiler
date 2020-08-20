@@ -715,8 +715,8 @@ LogicalResult tpu::TL_LG_BF16_LutOp::codegen(void *ctx) {
   getTensorShapeAndSize(op->getOperand(0), shape, input_size);
   getNCHW(shape, n, c, h, w);
 
-  const int table_thresh_min = -8;
-  const int table_thresh_max = 8;
+  float table_thresh_min = this->min_range().convertToFloat();
+  float table_thresh_max = this->max_range().convertToFloat();
   auto lut_method = method().getValue().str();
   // method 0: mantissa, 1: slope
   int method = 0;

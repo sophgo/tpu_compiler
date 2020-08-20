@@ -41,6 +41,8 @@ int my_lut_interpolation(float *input, float *output, int n, int c, int h, int w
 int my_sigmoid(float *input, float *output, int n, int c, int h, int w, bool is_bf16 = false);
 int my_exp(float *input, float *output, int n, int c, int h, int w, bool is_bf16 = false);
 int my_reciprocal(float *input, float *output, int n, int c, int h, int w, bool is_bf16 = false);
+int my_sigmoid(float *input, float *output, int n, int c, int h, int w,
+    float* y0_bf16_table, float* y0_bf16_slope_table, bool is_bf16 = false);
 int my_crop(float *input, float *output, long int *input_shape, long int *output_shape,  int cur_dim, int *offsets, int *indices);
 
 int calc_dilute_hw (int h, int ins_h, int ins_h_l, int pad_h_b, int pad_h_t);
@@ -105,7 +107,11 @@ int my_upsample(float *input, float *output, int n, int c, int ih, int iw,
 int my_softmax2D(float *input, float *output, int n, int c, bool is_bf16);
 int my_softmax4D(float *input, float *output, int axis, const std::vector<int64_t>& shape, bool is_bf16);
 int my_softmax3D(float *input, float *output, int axis, const std::vector<int64_t>& shape, bool is_bf16);
-
+int my_softplus(float *input, float *output, int n, int c, int h, int w,
+    float* y0_bf16_table, float* y0_bf16_slope_table, bool is_bf16,
+    float threshold);
+int my_tanh(float *input, float *output, int n, int c, int h, int w,
+    float* y0_table, float* slope_table, bool is_bf16);
 int my_tanh(float *input, float *output,
     int n, int c, int h, int w);
 
@@ -113,6 +119,8 @@ int my_permute(float *input, float *output, int in, int ic, int ih, int iw,
                int order0, int order1, int order2, int order3);
 
 float my_mish_caffe(float x_val, float mish_threshold = 20.0);
+
+float my_mish_caffe_tanh_part(float x_val, float mish_threshold = 20.0);
 
 int my_mish(std::vector<float> &input,
     std::vector<float> &output, int n, int c, int h, int w,
@@ -201,4 +209,5 @@ void pool3d_float_ref(float *input, float *output,
     int pad_d0, int pad_d1,
     int pad_top, int pad_bot, int pad_left, int pad_right);
 
+float softplus_activate (float x, float threshold = 20);
 #endif // MLIR_DIALECT_TPU_NATIVE_CPU_IMPLEMENTATION_H_

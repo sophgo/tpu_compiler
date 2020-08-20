@@ -60,8 +60,8 @@ static llvm::cl::opt<std::string>
 
 extern llvm::cl::opt<std::string> clRunChipType;
 
-extern int BF16_TABLE_START;
-extern int BF16_TABLE_END;
+extern float BF16_TABLE_START;
+extern float BF16_TABLE_END;
 
 typedef struct {
   char magic[8];

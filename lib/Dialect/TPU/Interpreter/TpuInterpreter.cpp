@@ -58,6 +58,8 @@
 #include <unordered_map>
 
 extern llvm::cl::opt<bool> clUseTPUQuantOp;
+extern float BF16_TABLE_START;
+extern float BF16_TABLE_END;
 namespace mlir {
 
 static DeviceMode dm;
@@ -888,6 +890,9 @@ static LogicalResult doLUTOpInterpret(Operation *op, StringRef &type,
   float *input = (float *)opdT[0]->data();
   float *output = (float *)resultT.get()->data();
   std::shared_ptr<std::vector<float> > y0_table_op = opdT[1];
+  std::shared_ptr<std::vector<float> > slope_table = opdT[2];
+  float* y0_bf16_table;
+  float* y0_bf16_slope_table;
 
   if (getOpQuant(op) == "INT8") {
     for (int i = 0; i < size; ++i) {
@@ -898,6 +903,8 @@ static LogicalResult doLUTOpInterpret(Operation *op, StringRef &type,
     int64_t input_size, n, c, h, w;
     getTensorShapeAndSize(op->getOperand(0), shape, input_size);
     getNCHW(shape, n, c, h, w);
+    float _bf16_table_start = BF16_TABLE_START;
+    float _bf16_table_end = BF16_TABLE_END;
 
     if (type == "Reciprocal") {
       for (int i = 0; i < input_size; ++i) {
@@ -908,18 +915,52 @@ static LogicalResult doLUTOpInterpret(Operation *op, StringRef &type,
         output[i] = pow(input[i], 0.5);
       }
     } else if (type == "Sigmoid") {
-      my_sigmoid(input, output, n, c, h, w, getOpQuant(op) == "BF16");
+      auto castOp = dyn_cast<tpu::SigmoidOp>(op);
+      BF16_TABLE_START = castOp.min_range().convertToFloat();
+      BF16_TABLE_END = castOp.max_range().convertToFloat();
+
+      y0_bf16_table = y0_table_op == nullptr ? nullptr : y0_table_op->data();
+      y0_bf16_slope_table = slope_table == nullptr ? nullptr : slope_table->data();
+      my_sigmoid(input, output, n, c, h, w,
+          y0_bf16_table, y0_bf16_slope_table,
+          getOpQuant(op) == "BF16");
     } else if (type == "TanH") {
-      for (int i = 0; i < input_size; ++i) {
-        output[i] = std::tanh(input[i]);
-      }
-    }
-    else if (type == "Mish") {
+      auto castOp = dyn_cast<tpu::TanHOp>(op);
+      BF16_TABLE_START = castOp.min_range().convertToFloat();
+      BF16_TABLE_END = castOp.max_range().convertToFloat();
+
+      y0_bf16_table = y0_table_op == nullptr ? nullptr : y0_table_op->data();
+      y0_bf16_slope_table = slope_table == nullptr ? nullptr : slope_table->data();
+
+      my_tanh(input, output, n, c, h, w,
+          y0_bf16_table, y0_bf16_slope_table,
+          getOpQuant(op) == "BF16");
+    } else if (type == "Mish") {
       auto castOp = dyn_cast<tpu::MishOp>(op);
+      BF16_TABLE_START = castOp.min_range().convertToFloat();
+      BF16_TABLE_END = castOp.max_range().convertToFloat();
+
+      y0_bf16_table = y0_table_op == nullptr ? nullptr : y0_table_op->data();
+      y0_bf16_slope_table = slope_table == nullptr ? nullptr : slope_table->data();
+
       float mish_threshold = castOp.mish_threshold().convertToFloat();
-      my_mish(input, output, n, c, h, w, getOpQuant(op) == "BF16", mish_threshold);
+      my_mish(input, output, n, c, h, w, y0_bf16_table, y0_bf16_slope_table,
+          getOpQuant(op) == "BF16", mish_threshold);
     } else if (type == "Exp") {
       my_exp(input, output, n, c, h, w, getOpQuant(op) == "BF16");
+    } else if (type == "SoftPlus") {
+      auto castOp = dyn_cast<tpu::SoftPlusOp>(op);
+      BF16_TABLE_START = castOp.min_range().convertToFloat();
+      BF16_TABLE_END = castOp.max_range().convertToFloat();
+
+      y0_bf16_table = y0_table_op == nullptr ? nullptr : y0_table_op->data();
+      y0_bf16_slope_table = slope_table == nullptr ? nullptr : slope_table->data();
+
+      float threshold = castOp.threshold().convertToFloat();
+
+      my_softplus(input, output, n, c, h, w,
+          y0_bf16_table, y0_bf16_slope_table,
+          getOpQuant(op) == "BF16", threshold);
     } else {
       llvm_unreachable("not support LUT op type");
     }
@@ -931,6 +972,8 @@ static LogicalResult doLUTOpInterpret(Operation *op, StringRef &type,
       BFloat16ToFloat(tensor_bf16->data(), output, size);
     }
 
+    BF16_TABLE_START = _bf16_table_start;
+    BF16_TABLE_END = _bf16_table_end;
   }else{
     llvm_unreachable("not support method");
   }
@@ -3305,6 +3348,15 @@ LogicalResult tpu::SoftmaxOp::interpret(
 
   valueMapping[result] = std::move(resultT);
   return success();
+}
+
+LogicalResult tpu::SoftPlusOp::interpret(
+    DenseMap<Value *, std::shared_ptr<std::vector<float>>> &valueMapping) {
+  Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name()
+                          << "]\n";);
+  StringRef type = "SoftPlus";
+  return doLUTOpInterpret(op, type, valueMapping);
 }
 
 LogicalResult tpu::SoftmaxCpuOp::interpret(

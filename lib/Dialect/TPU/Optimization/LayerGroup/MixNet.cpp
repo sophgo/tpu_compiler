@@ -1318,10 +1318,14 @@ void MixNet::_add_tl_activation_op(MixOp * mix_op,
   std::string method;
   Builder builder_(context_);
   std::vector<NamedAttribute> attrs;
+  float table_thresh_min;
+  float table_thresh_max;
 
   if (auto old_op = dyn_cast<tpu::TG_INT8_LutOp>(im_layer->op())) {
     old_input_type =
       old_op.getOperand(0)->getType().cast<RankedTensorType>();
+    table_thresh_min = old_op.min_range().convertToFloat();
+    table_thresh_max = old_op.max_range().convertToFloat();
 
   }
   else if (auto old_op = dyn_cast<tpu::TG_BF16_LutOp>(im_layer->op())) {
@@ -1330,6 +1334,8 @@ void MixNet::_add_tl_activation_op(MixOp * mix_op,
     is_int8 = 0;
     lut_nr = 2; // y0 + mantissa
     bf16Type = FloatType::getBF16(builder_.getContext()); // for td define
+    table_thresh_min = old_op.min_range().convertToFloat();
+    table_thresh_max = old_op.max_range().convertToFloat();
     attrs.push_back(builder_.getNamedAttr("method", old_op.methodAttr()));
   }
   else {
@@ -1368,6 +1374,11 @@ void MixNet::_add_tl_activation_op(MixOp * mix_op,
                            builder_.getI32IntegerAttr(la_y_table)));
   attrs.push_back(builder_.getNamedAttr("la_working",
                            builder_.getI32IntegerAttr(la_working)));
+
+  attrs.push_back(builder_.getNamedAttr("max_range",
+                           builder_.getF32FloatAttr(table_thresh_max)));
+  attrs.push_back(builder_.getNamedAttr("min_range",
+                           builder_.getF32FloatAttr(table_thresh_min)));
 
   // setup input/output type
   RankedTensorType input_type = RankedTensorType::get(

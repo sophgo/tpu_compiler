@@ -42,7 +42,7 @@
 #include <fstream>
 #include <bmkernel/bm1880v2/1880v2_fp_convert.h>
 #include "mlir/Dialect/TPU/MachineInfo.h"
-
+#include <regex>
 
 #define DEBUG_TYPE "quantization"
 
@@ -130,6 +130,12 @@ static llvm::cl::opt<std::string> clSkipFuseClipLayersByFile(
     "skip-fuse-clip-layers-from-file",
     llvm::cl::desc("skip fuse clips from file"),
     llvm::cl::cat(clOptionsCategory));
+
+static llvm::cl::opt<std::string> clSetLutMinMaxByFile(
+    "set-lut-min-max-from-file",
+    llvm::cl::desc("Set bf16 lut min/max range from file"),
+    llvm::cl::cat(clOptionsCategory));
+
 
 static void insertQuantOp(Operation *op) {
   auto builder = OpBuilder(op);
@@ -758,6 +764,189 @@ struct ExtendPreprocessOpPattern : public RewritePattern {
   }
 };
 
+void setBF16LutMinMaxPattern(FuncOp& fn) {
+
+  // parsing min / max ragne from file
+  std::map<std::string, std::pair<float, float>> lutminmax_map;
+  std::ifstream infile(clSetLutMinMaxByFile);
+  std::string line;
+  std::regex min_max_pattern("[a-zA-Z0-9.:_/-]+ [-0-9.e]+ [-0-9.e]+");
+  while (std::getline(infile, line)) {
+    std::istringstream iss(line);
+    std::string name;
+    if (std::regex_match(line, min_max_pattern)) {
+      float min, max;
+      if (!(iss >> name >> min >> max)) { break; }
+      LLVM_DEBUG(llvm::errs() << "  name " << name << ", min = "
+                   << std::to_string(min) << ", max = "
+                   << std::to_string(max) << "\n";);
+      lutminmax_map[name] = std::make_pair(min, max);
+    }
+  }
+
+  if (lutminmax_map.size()) {
+    fn.walk([&](Operation *op) {
+      if ((isa<tpu::ExpOp>(op)
+            || isa<tpu::MishOp>(op)
+            || isa<tpu::ReciprocalOp>(op)
+            || isa<tpu::SigmoidOp>(op)
+            || isa<tpu::SqrtOp>(op)
+            || isa<tpu::TanHOp>(op)
+            ) && getOpQuant(op) == "BF16") {
+        std::string op_name = mlir::getOpName(op).str();
+        auto builder = OpBuilder(op);
+        if (lutminmax_map.find(op_name) == lutminmax_map.end()) {
+          LLVM_DEBUG(llvm::errs() << "not to find " << op_name << " in table\n";);
+        }
+        else {
+          // symmetric / asymmetric case
+          // symmetric: 0 symmetric such as -8 ~ 8
+          // asymmetric: -16 ~ 0, add bias that set to symmetric and we could rewrite to -8 ~8
+          std::pair<float, float> min_max = lutminmax_map[op_name];
+          float min, max;
+          std::tie(min, max) = min_max;
+          float is_symmetric = min + max;
+
+          std::vector<NamedAttribute> attrs;
+          attrs.push_back(builder.getNamedAttr("quant", getDefaultQuantParam(builder)));
+          //attrs.push_back(builder.getNamedAttr("layer_id", op->layer_idAttr()));
+
+          auto loc = op->getLoc();
+          auto NoneOp = builder.create<tpu::NoneOp>(loc, builder.getNoneType());
+          Operation *_op = op;
+
+          if (is_symmetric) {
+            // add bias to shift 0 as symmetric
+            float zero_point = (max + min) / 2;
+            max = max - zero_point;
+            min = -1.0 * max;
+            float bias = -1.0 * zero_point;
+
+            // add eltwise op, second input as bias, broadcast bias to hw
+            // NOTICE: insert one is float32, quant as bf16
+            // TODO: leverage add const
+            std::vector<int64_t> shape;
+            int64_t input_size;
+            getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+
+            // add fp32 weight to npz
+            std::unique_ptr<std::vector<float> >eltwise_second =
+              std::make_unique<std::vector<float> >(input_size, bias);
+
+            TensorFile *wTF = getWeightTensorFile(op);
+            Value *wfV = getWeightFileValue(op);
+            StringRef storageType = "NONE";
+            auto shuffix = "bias_zero_point_";
+            auto name = op_name + "_" + shuffix + std::to_string(bias);
+            auto weight_op = addWeightTensorAndCreateWeightOp<float>(
+                op, shuffix, *eltwise_second, shape, storageType,
+                wTF, wfV);
+
+            attrs.push_back(builder.getNamedAttr("name",
+                  builder.getStringAttr(name)));
+
+            std::vector<Value *> operands;
+            operands.push_back(op->getOperand(0));
+            operands.push_back(weight_op);
+
+            operands.push_back(NoneOp.getResult());  // quant_scale
+            operands.push_back(NoneOp.getResult());  // quant_zeropoint
+            operands.push_back(NoneOp.getResult());  // quant_rshift
+            operands.push_back(NoneOp.getResult());  // quant_multiplier
+
+            auto eltwiseAddOp = builder.create<tpu::EltwiseAddOp>(
+                loc, op->getResult(0)->getType(),
+                ArrayRef<Value *>{operands},
+                ArrayRef<NamedAttribute>{attrs});
+            setOpQuant(eltwiseAddOp, "BF16");
+            attrs.pop_back();
+
+            // eltwise_add->lut->others
+            op->setOperand(0, eltwiseAddOp.getResult());
+            LLVM_DEBUG(llvm::errs() << "add zero_point : " << bias << ",";);
+          }
+
+          if (isa<tpu::MishOp>(op)) {
+            // for high accuracy, we rewrite mish as x * tanh(softplus(x))
+            // softplus
+            auto name = op_name + "_softplus";
+            attrs.push_back(builder.getNamedAttr("name",
+                  builder.getStringAttr(name)));
+            auto softplusOp = builder.create<tpu::SoftPlusOp>(
+                loc, op->getResult(0)->getType(),
+                op->getOperands(),
+                ArrayRef<NamedAttribute>{attrs});
+            setOpQuant(softplusOp, "BF16");
+            attrs.pop_back();
+
+            // tanh
+            std::vector<Value *> operands;
+            operands.push_back(softplusOp.getResult());
+            operands.push_back(NoneOp.getResult());  // quant_scale
+            operands.push_back(NoneOp.getResult());  // quant_zeropoint
+            operands.push_back(NoneOp.getResult());  // quant_rshift
+            operands.push_back(NoneOp.getResult());  // quant_multiplier
+
+            name = op_name + "_tanh";
+            attrs.push_back(builder.getNamedAttr("name",
+                  builder.getStringAttr(name)));
+            auto tanhOp = builder.create<tpu::TanHOp>(
+                loc, softplusOp.getResult()->getType(),
+                operands,
+                ArrayRef<NamedAttribute>{attrs});
+            setOpQuant(tanhOp, "BF16");
+            attrs.pop_back();
+            _op = tanhOp;
+
+            // eltwise
+            operands.clear();
+            operands.push_back(op->getOperand(0));
+            operands.push_back(tanhOp.getResult());
+            operands.push_back(NoneOp.getResult());  // quant_scale
+            operands.push_back(NoneOp.getResult());  // quant_zeropoint
+            operands.push_back(NoneOp.getResult());  // quant_rshift
+            operands.push_back(NoneOp.getResult());  // quant_multiplier
+
+            // collect all dependency before insert new relation
+            SmallVector<Operation*, 4> uses;
+            for (auto &use : op->getResult(0)->getUses()) {
+              // before: a->c
+              // after : a->b->c
+              Operation *owner = use.getOwner();
+              uses.push_back(owner);
+            }
+
+            builder.setInsertionPointAfter(op);
+
+            name = op_name;
+            attrs.push_back(builder.getNamedAttr("name",
+                  builder.getStringAttr(name)));
+
+            auto eltwiseMulOp = builder.create<tpu::EltwiseMulOp>(
+                loc, op->getResult(0)->getType(),
+                ArrayRef<Value *>{operands},
+                ArrayRef<NamedAttribute>{attrs});
+
+            setOpQuant(eltwiseMulOp, "BF16");
+            attrs.pop_back();
+
+            // lut->mul(lut, x)->others
+            for (auto &owner: uses) {
+              owner->replaceUsesOfWith(op->getResult(0), eltwiseMulOp);
+            }
+          }
+
+          LLVM_DEBUG(llvm::errs() << "is_symmetric: " << op_name << " min/max "
+              << min << " / " << max << "\n";);
+          std::tie(min, max) = min_max;
+          _op->setAttr(llvm::StringRef("min_range"), builder.getF32FloatAttr(min));
+          _op->setAttr(llvm::StringRef("max_range"), builder.getF32FloatAttr(max));
+        }
+      }
+    });
+  }
+}
+
 struct TpuTpuQuantClipPassPattern : public RewritePattern {
   TpuTpuQuantClipPassPattern(MLIRContext *context)
       : RewritePattern("tpu.clip", 1, context) {}
@@ -1065,6 +1254,9 @@ public:
     OwningRewritePatternList preprocess_patterns;
     preprocess_patterns.insert<ExtendPreprocessOpPattern>(context);
     applyPatternsGreedily(fn, preprocess_patterns);
+
+    // set bf16 lut min/max range
+    setBF16LutMinMaxPattern(fn);
 
     // do quant
     fn.walk([&](Operation *op) {

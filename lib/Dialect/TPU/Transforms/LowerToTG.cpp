@@ -1061,6 +1061,12 @@ Value* tpu::MishOp::convertToTG() {
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
 
+  // get default/assign value
+  attrs.push_back(builder.getNamedAttr("max_range",
+      builder.getF32FloatAttr(max_range().convertToFloat())));
+  attrs.push_back(builder.getNamedAttr("min_range",
+      builder.getF32FloatAttr(min_range().convertToFloat())));
+
   if (getOpQuant() == "INT8") {
     auto newOp = OpBuilder(op).create<tpu::TG_INT8_LutOp>(
         op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
@@ -1374,6 +1380,12 @@ Value *tpu::ReciprocalOp::convertToTG() {
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
 
+  // get default/assign value
+  attrs.push_back(builder.getNamedAttr("max_range",
+      builder.getF32FloatAttr(max_range().convertToFloat())));
+  attrs.push_back(builder.getNamedAttr("min_range",
+      builder.getF32FloatAttr(min_range().convertToFloat())));
+
   if (getOpQuant() == "INT8") {
     auto newOp = OpBuilder(op).create<tpu::TG_INT8_LutOp>(
         op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
@@ -1660,6 +1672,12 @@ Value *tpu::SigmoidOp::convertToTG() {
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
 
+  // get default/assign value
+  attrs.push_back(builder.getNamedAttr("max_range",
+      builder.getF32FloatAttr(max_range().convertToFloat())));
+  attrs.push_back(builder.getNamedAttr("min_range",
+      builder.getF32FloatAttr(min_range().convertToFloat())));
+
   if (getOpQuant() == "INT8") {
     auto newOp = OpBuilder(op).create<tpu::TG_INT8_LutOp>(
         op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
@@ -1723,6 +1741,12 @@ Value *tpu::SqrtOp::convertToTG() {
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
 
+  // get default/assign value
+  attrs.push_back(builder.getNamedAttr("max_range",
+      builder.getF32FloatAttr(max_range().convertToFloat())));
+  attrs.push_back(builder.getNamedAttr("min_range",
+      builder.getF32FloatAttr(min_range().convertToFloat())));
+
   if (getOpQuant() == "INT8") {
     auto newOp = OpBuilder(op).create<tpu::TG_INT8_LutOp>(
         op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
@@ -1754,6 +1778,12 @@ Value* tpu::TanHOp::convertToTG() {
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
 
+  // get default/assign value
+  attrs.push_back(builder.getNamedAttr("max_range",
+      builder.getF32FloatAttr(max_range().convertToFloat())));
+  attrs.push_back(builder.getNamedAttr("min_range",
+      builder.getF32FloatAttr(min_range().convertToFloat())));
+  
   if (getOpQuant() == "INT8") {
     auto newOp = OpBuilder(op).create<tpu::TG_INT8_LutOp>(
         op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
@@ -2018,6 +2048,43 @@ Value* tpu::SoftmaxOp::convertToTG() {
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
   }
+}
+
+Value* tpu::SoftPlusOp::convertToTG() {
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  auto builder = Builder(op->getContext());
+
+  int nInputs = 3; // input and table
+  std::vector<Value *> operands;
+  for (auto i = 0; i < nInputs; ++i) {
+    operands.push_back(op->getOperand(i));
+  }
+
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder.getNamedAttr("name", nameAttr()));
+
+  // get default/assign value
+  attrs.push_back(builder.getNamedAttr("max_range",
+      builder.getF32FloatAttr(max_range().convertToFloat())));
+  attrs.push_back(builder.getNamedAttr("min_range",
+      builder.getF32FloatAttr(min_range().convertToFloat())));
+  
+  if (getOpQuant() == "INT8") {
+    auto newOp = OpBuilder(op).create<tpu::TG_INT8_LutOp>(
+        op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  } else if (getOpQuant() == "BF16") {
+    attrs.push_back(builder.getNamedAttr(
+        "method", builder.getStringAttr("slope")));
+    auto newOp = OpBuilder(op).create<tpu::TG_BF16_LutOp>(
+        op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  }
+  llvm_unreachable("unsupported type");
 }
 
 Value* tpu::SquareOp::convertToTG() {
@@ -3658,7 +3725,7 @@ struct LowerWeightLutOpPattern : public RewritePattern {
         assert(table_mantissaOp.storage() == "BF16");
         std::vector<int64_t> shape;
         int64_t size;
-        getTensorShapeAndSize(lutOp.table(), shape, size);
+        getTensorShapeAndSize(tableOp, shape, size);
         auto table = readAndDeleteWeightTensor<float>(tableOp, wTF);
         auto table_mantissa = readAndDeleteWeightTensor<float>(table_mantissaOp,
                                                                wTF);
@@ -3988,6 +4055,7 @@ public:
         LowerWeightLutOpPattern<tpu::SqrtOp>,
         LowerWeightLutOpPattern<tpu::TanHOp>,
         LowerWeightLutOpPattern<tpu::ExpOp>,
+        LowerWeightLutOpPattern<tpu::SoftPlusOp>,
         LowerConstEltwiseOpPattern<tpu::EltwiseAddOp>,
         LowerConstEltwiseOpPattern<tpu::EltwiseMulOp>,
         LowerConstEltwiseOpPattern<tpu::EltwiseAddOp>,
@@ -4064,6 +4132,7 @@ public:
         DefaultToTGPattern<tpu::GruOp>,
         DefaultToTGPattern<tpu::LstmOp>,
         DefaultToTGPattern<tpu::SoftmaxOp>,
+        DefaultToTGPattern<tpu::SoftPlusOp>,
         DefaultToTGPattern<tpu::SquareOp>,
         DefaultToTGPattern<tpu::QuadraticSumOp>,
         DefaultToTGPattern<tpu::ZeroMaskOp>,

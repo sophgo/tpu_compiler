@@ -42,8 +42,8 @@
 
 #define DEBUG_TYPE "quantize_bf16"
 
-extern const int BF16_TABLE_START = -8;
-extern const int BF16_TABLE_END = 8;
+float BF16_TABLE_START;
+float BF16_TABLE_END;
 
 
 double sigmoid(double x) {
@@ -118,9 +118,15 @@ LogicalResult quantizeBf16ConvOps(Operation *op, int spatial_dims) {
   return success();
 }
 
+static float revert_threshold;
 double my_mish_caffe_wrapper (double x) {
-  return my_mish_caffe(x);
+  return my_mish_caffe(x, revert_threshold);
 }
+
+double softplus_activate_wrapper (double x) {
+  return softplus_activate(x, revert_threshold);
+}
+
 
 ///
 /// Reciprocal quantization method
@@ -238,6 +244,9 @@ LogicalResult quantizeBF16LutOps(Operation *op) {
   Value *wfV = getWeightFileValue(op);
   auto lutOp = cast<OpTy>(op);
 
+  BF16_TABLE_START = lutOp.min_range().convertToFloat();
+  BF16_TABLE_END = lutOp.max_range().convertToFloat();
+
   // quantization
   float threshold_x = getPreviousOpThreshold(op);
   float threshold_y = getOpThreshold(op);
@@ -260,19 +269,36 @@ LogicalResult quantizeBF16LutOps(Operation *op) {
   std::vector<float> y0_fp32_slope_table(table_hw);
   std::vector<uint16_t> y0_bf16_table(table_hw);
   std::vector<uint16_t> y0_bf16_slope_table(table_hw);
+  float _bf16_table_start = BF16_TABLE_START;
+  float _bf16_table_end = BF16_TABLE_END;
 
   // use function pointer
   double (*activate_func)(double);
   if (OpTy::getOperationName() == "tpu.sigmoid") {
     activate_func = sigmoid;
   } else if (OpTy::getOperationName() == "tpu.tanh") {
+    auto castOp = dyn_cast<tpu::TanHOp>(op);
+    BF16_TABLE_START = castOp.min_range().convertToFloat();
+    BF16_TABLE_END = castOp.max_range().convertToFloat();
     activate_func = tanh;
   } else if (OpTy::getOperationName() == "tpu.exp") {
     activate_func = exp;
   }
   else if (OpTy::getOperationName() == "tpu.mish") {
+    auto castOp = dyn_cast<tpu::MishOp>(op);
+    BF16_TABLE_START = castOp.min_range().convertToFloat();
+    BF16_TABLE_END = castOp.max_range().convertToFloat();
+    revert_threshold = castOp.mish_threshold().convertToFloat();
     activate_func = my_mish_caffe_wrapper;
   }
+  else if (OpTy::getOperationName() == "tpu.softplus") {
+    auto castOp = dyn_cast<tpu::SoftPlusOp>(op);
+    BF16_TABLE_START = castOp.min_range().convertToFloat();
+    BF16_TABLE_END = castOp.max_range().convertToFloat();
+    revert_threshold = castOp.threshold().convertToFloat();
+    activate_func = softplus_activate_wrapper;
+  }
+
 
   gen_bf16_table(BF16_TABLE_START, BF16_TABLE_END, table_hw,
                  y0_fp32_table.data(), activate_func);
@@ -308,6 +334,8 @@ LogicalResult quantizeBF16LutOps(Operation *op) {
 
   setOpResultType(op->getResult(0), StandardTypes::BF16);
 
+  BF16_TABLE_START = _bf16_table_start;
+  BF16_TABLE_END = _bf16_table_end;
   return success();
 }
 
@@ -1092,6 +1120,13 @@ LogicalResult tpu::SoftmaxOp::quantizeBf16() {
                << " [" << getOpName() << "]\n";);
   Operation *op = this->getOperation();
   return quantizeBf16SoftmaxOps(op);
+}
+
+LogicalResult tpu::SoftPlusOp::quantizeBf16() {
+  LLVM_DEBUG(llvm::errs() << "quantizeBf16: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  return quantizeBF16LutOps<tpu::SoftPlusOp>(op);
 }
 
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::SoftmaxCpuOp)

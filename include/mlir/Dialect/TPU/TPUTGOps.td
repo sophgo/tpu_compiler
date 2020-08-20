@@ -892,6 +892,8 @@ class TPU_TG_LutOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       `buffer_reused`   : optional, whether buffer is reused.
       `name`            : required, name for comparing, or debug.
       `method`          : optional(bf16 required)lookup table method, mantissa or slope
+      `max_range`       : reauired, we cut to max_range and outlier saturate it
+      `min_range`       : reauired, we cut to min_range and outlier saturate it
       `chipname`        : optional, chipname.
 
     Result:
@@ -912,6 +914,9 @@ class TPU_TG_LutOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
     OptionalAttr<StrAttr>:$method,
+    DefaultValuedAttr<F32Attr, "8">:$max_range,
+    DefaultValuedAttr<F32Attr, "-8">:$min_range,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 

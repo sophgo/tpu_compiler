@@ -315,6 +315,9 @@ class TPU_TL_LG_LutOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
   let description = [{
     `slope_lut` means we use interpolation method to get high accuracy under bf16
     and it could defined as 'mantissa' part for sqrt/reciprocal op
+    Attributes:
+      `max_range`       : optional, we cut to min_range and outlier saturate it
+      `min_range`       : optional, we cut to min_range and outlier saturate it
   }];
 
   let arguments = (
@@ -328,6 +331,8 @@ class TPU_TL_LG_LutOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     I32Attr:$la_y_table,
     DefaultValuedAttr<I32Attr, "0">:$la_slope_lut,
     OptionalAttr<StrAttr>:$method,
+    DefaultValuedAttr<F32Attr, "8">:$max_range,
+    DefaultValuedAttr<F32Attr, "-8">:$min_range,
     DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
     DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,

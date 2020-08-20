@@ -774,8 +774,8 @@ int my_prelu(float *input, float *output, int n, int c, int h, int w,
 }
 
 // align cmodel
-extern const int BF16_TABLE_START;
-extern const int BF16_TABLE_END;
+extern float BF16_TABLE_START;
+extern float BF16_TABLE_END;
 void gen_bf16_table(int start, int end, int table_hw, float *table,
                            double (*activate_func)(double)) {
   int half = table_hw / 2;
@@ -899,7 +899,6 @@ void bf16_gen_reciprocal_mantissa(int start, int end, int table_hw, uint16_t *ta
     idx++;
   }
 }
-
 
 // <! gen invert sqrt
 static double _gen_sqrt(int base, int p) {
@@ -1031,7 +1030,7 @@ int my_lut_interpolation(float *input, float *output, int n, int c, int h, int w
                          float thresh_min, float thresh_max, bool isExpFunc) {
   LLVM_DEBUG(llvm::errs() << "  n: " << n << ", c: " << c << ", h: " << h
                           << ", w: " << w << "\n";);
-  int npu_num = 32; //<! 1880v2 hardcode
+  int npu_num = MInfo::lane_num; //<! 1880v2 hardcode
 
   //<! 1880v2 hw bf16 config
   int table_h = 32;
@@ -1100,6 +1099,78 @@ int my_lut_interpolation(float *input, float *output, int n, int c, int h, int w
 
   return 0;
 }
+// \y0_bf16_slope_table and \y0_bf16_table occupy sizeof(float) and its content quanted as bf16 layout
+static void hw_lut(float *input, float *output,
+    int n, int c, int h, int w,
+    float* y0_bf16_table, float* y0_bf16_slope_table,
+    double (*activate_func)(double)) {
+  int shape_size =  n * c * h * w;
+
+  float scale = 256 / (BF16_TABLE_END - BF16_TABLE_START); // quant from interger index range from 16(-8~8)->256(lut index size)
+
+  // rounding
+  scale = convert_bf16_fp32(convert_fp32_bf16(scale));
+  //std::for_each(std::execution::par, input.begin(), input.end(), [&](const size_t& i) {
+  for (int i = 0; i < shape_size; ++i) {
+    float reOffset_input = convert_bf16_fp32(convert_fp32_bf16(input[i]));
+
+    float rescale_input = convert_bf16_fp32(convert_fp32_bf16(reOffset_input)) * scale;
+    //float rescale_input = convert_bf16_fp32(convert_fp32_bf16(input[i])) * scale;
+    uint16_t rescale_input_bf16 = convert_fp32_bf16(rescale_input);
+
+    // get interger part to get table index and x0
+    int rescale_input_i8 = _convert_bf16_s8(rescale_input_bf16, /*int8_rnd_mode=*/1);
+
+    // get delta x (x - x0)
+    float delta_x = rescale_input - rescale_input_i8;
+
+    // get slope
+    uint16_t slope = y0_bf16_slope_table[rescale_input_i8 & 0xff];
+
+    // base y0 = f(x0)
+    uint16_t base = y0_bf16_table[rescale_input_i8 & 0xff];
+
+    // result = y0 + delta * slope
+    float r = convert_bf16_fp32(base) + delta_x * convert_bf16_fp32(slope);
+
+    output[i] = convert_bf16_fp32(convert_fp32_bf16(r));
+  }
+
+  //});
+}
+
+int my_tanh(float *input, float *output, int n, int c, int h, int w,
+    float* y0_bf16_table, float* y0_bf16_slope_table, bool is_bf16) {
+  if (!is_bf16) {
+    // fp32
+    int shape_size =  n * c * h * w;
+    for (int i = 0; i < shape_size; ++i) {
+      output[i] = std::tanh(input[i]);
+    }
+  }
+  else {
+    hw_lut(input, output, n, c, h, w, y0_bf16_table, y0_bf16_slope_table, std::tanh);
+  }
+  return 0;
+}
+
+int my_sigmoid(float *input, float *output, int n, int c, int h, int w,
+    float* y0_bf16_table, float* y0_bf16_slope_table, bool is_bf16) {
+  LLVM_DEBUG(llvm::errs() << "  n: " << n << ", c: " << c << ", h: " << h
+                          << ", w: " << w << "\n";);
+
+  if (!is_bf16) {
+    int shape_size =  n * c * h * w;
+    for (int i = 0; i < shape_size; ++i) {
+      output[i] = sigmoid(input[i]);
+    }
+  }
+  else {
+    hw_lut(input, output, n, c, h, w, y0_bf16_table, y0_bf16_slope_table, sigmoid);
+  }
+
+  return 0;
+}
 
 int my_sigmoid(float *input, float *output, int n, int c, int h, int w, bool is_bf16) {
   double (*activate_func)(double);
@@ -1152,59 +1223,6 @@ int my_reciprocal(float *input, float *output, int n, int c, int h, int w, bool 
       float mantissaFloatValue = convert_bf16_fp32(table_data_mantissa_lut_bf16[bf16InputValue & 0xff]);
       output[i] = convert_bf16_fp32(convert_fp32_bf16(exponentFloatValue * mantissaFloatValue));
     }
-  }
-
-  return 0;
-}
-
-// \y0_bf16_slope_table and \y0_bf16_table occupy sizeof(float) and its content quanted as bf16 layout
-static void hw_lut(float *input, float *output,
-    int n, int c, int h, int w,
-    float* y0_bf16_table, float* y0_bf16_slope_table,
-    double (*activate_func)(double)) {
-  int shape_size =  n * c * h * w;
-  float scale = 256 / (BF16_TABLE_END - BF16_TABLE_START); // quant from interger index range from 16(-8~8)->256(lut index size)
-
-  // rounding
-  scale = convert_bf16_fp32(convert_fp32_bf16(scale));
-  //std::for_each(std::execution::par, input.begin(), input.end(), [&](const size_t& i) {
-  for (int i = 0; i < shape_size; ++i) {
-    float rescale_input = convert_bf16_fp32(convert_fp32_bf16(input[i])) * scale;
-    uint16_t rescale_input_bf16 = convert_fp32_bf16(rescale_input);
-
-    // get interger part to get table index and x0
-    int rescale_input_i8 = _convert_bf16_s8(rescale_input_bf16, /*int8_rnd_mode=*/1);
-
-    // get delta x (x - x0)
-    float delta_x = rescale_input - rescale_input_i8;
-
-    // get slope
-    uint16_t slope = y0_bf16_slope_table[rescale_input_i8 & 0xff];
-
-    // base y0 = f(x0)
-    uint16_t base = y0_bf16_table[rescale_input_i8 & 0xff];
-
-    // result = y0 + delta * slope
-    float r = convert_bf16_fp32(base) + delta_x * convert_bf16_fp32(slope);
-    output[i] = convert_bf16_fp32(convert_fp32_bf16(r));
-  }
-  //});
-
-}
-
-int my_sigmoid(float *input, float *output, int n, int c, int h, int w,
-    float* y0_bf16_table, float* y0_bf16_slope_table, bool is_bf16) {
-  LLVM_DEBUG(llvm::errs() << "  n: " << n << ", c: " << c << ", h: " << h
-                          << ", w: " << w << "\n";);
-
-  if (!is_bf16) {
-    int shape_size =  n * c * h * w;
-    for (int i = 0; i < shape_size; ++i) {
-      output[i] = sigmoid(input[i]);
-    }
-  }
-  else {
-    hw_lut(input, output, n, c, h, w, y0_bf16_table, y0_bf16_slope_table, sigmoid);
   }
 
   return 0;
@@ -1822,6 +1840,37 @@ int my_softmax3D(float *input, float *output, int axis, const std::vector<int64_
   return 0;
 }
 
+static float revert_threshold;
+float softplus_activate (float x, float threshold) {
+  if (x > threshold) return x;                // too large
+  else if (x < -threshold) return expf(x);    // too small
+  return logf(expf(x) + 1);
+}
+
+double my_softplus_wrapper(double x_val) {
+  return softplus_activate(x_val, revert_threshold);
+}
+
+int my_softplus(float *input, float *output, int n, int c, int h, int w,
+    float* y0_bf16_table, float* y0_bf16_slope_table, bool is_bf16,
+    float threshold) {
+  if (!is_bf16) {
+    // fp32
+    int shape_size =  n * c * h * w;
+    for (int i = 0; i < shape_size; ++i) {
+      output[i] = softplus_activate(input[i], threshold);
+    }
+  }
+  else {
+    revert_threshold = threshold;
+    double (*activate_func)(double);
+    activate_func = my_softplus_wrapper;
+    hw_lut(input, output, n, c, h, w, y0_bf16_table, y0_bf16_slope_table, activate_func);
+  }
+  return 0;
+}
+
+
 inline int crop_offset(const std::vector<int>& indices,long int *shape) {
   int offset = 0;
   for (int i = 0; i < 4; ++i) {
@@ -1991,19 +2040,16 @@ inline float tanh_activate (float x) {
   return (2 / (1 + expf(-2 * x)) - 1);
 }
 
-inline float softplus_activate (float x, float threshold) {
-  if (x > threshold) return x;                // too large
-  else if (x < -threshold) return expf(x);    // too small
-  return logf(expf(x) + 1);
+float my_mish_caffe_tanh_part(float x_val, float mish_threshold) {
+  return tanh_activate(softplus_activate(x_val, mish_threshold));
 }
 
 float my_mish_caffe(float x_val, float mish_threshold) {
-  return x_val * tanh_activate(softplus_activate(x_val, mish_threshold));
+  return x_val * my_mish_caffe_tanh_part(x_val, mish_threshold);
 }
 
-static float my_mish_wrapper_threshold;
 double my_mish_wrapper(double x_val) {
-  return my_mish_caffe(x_val, my_mish_wrapper_threshold);
+  return my_mish_caffe(x_val, revert_threshold);
 }
 
 int my_mish(float *input, float *output, int n, int c, int h, int w, bool is_bf16, float mish_threshold) {
@@ -2027,7 +2073,7 @@ int my_mish(float *input, float *output, int n, int c, int h, int w, bool is_bf1
 
   // use function pointer
   double (*activate_func)(double);
-  my_mish_wrapper_threshold = mish_threshold;
+  revert_threshold = mish_threshold;
   activate_func = my_mish_wrapper;
 
   gen_bf16_table(BF16_TABLE_START, BF16_TABLE_END, table_hw,
@@ -2077,6 +2123,26 @@ int my_mish(float *input, float *output, int n, int c, int h, int w, bool is_bf1
 
   return 0;
 }
+
+int my_mish(float *input, float *output, int n, int c, int h, int w,
+    float* y0_bf16_table, float* y0_bf16_slope_table, bool is_bf16,
+    float mish_threshold) {
+  if (!is_bf16) {
+    // fp32
+    int shape_size =  n * c * h * w;
+    for (int i = 0; i < shape_size; ++i) {
+      output[i] = my_mish_caffe(input[i], mish_threshold);
+    }
+  }
+  else {
+    double (*activate_func)(double);
+    revert_threshold = mish_threshold;
+    activate_func = my_mish_wrapper;
+    hw_lut(input, output, n, c, h, w, y0_bf16_table, y0_bf16_slope_table, activate_func);
+  }
+  return 0;
+}
+
 int my_normalize(float *input,float *scale, float *output,
     bool across_spatial,bool channel_shared,
     int n, int c, int h, int w){
