@@ -36,6 +36,7 @@ export SWAP_CHANNEL=0,1,2
 export YOLO_PREPROCESS="false"
 export BGRAY=0
 export DO_LG_WITH_BF16=0
+export PREPROCESS_CROPMETHOD="centor"
 
 if [ -z "$DO_BATCHSIZE" ]; then
   BATCH_SIZE=1

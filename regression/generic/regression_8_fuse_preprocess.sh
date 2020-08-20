@@ -17,6 +17,8 @@ cvi_preprocess.py \
     --data_format nhwc \
     --batch_size $BATCH_SIZE \
     --npz_name ${NET}_only_resize_in_fp32.npz \
+    --crop_method=${PREPROCESS_CROPMETHOD} \
+    --only_aspect_ratio_img 1 \
     --input_name input
 
 
@@ -32,8 +34,12 @@ cvi_preprocess.py  \
     --data_format nhwc \
     --astype uint8 \
     --batch_size $BATCH_SIZE \
+    --crop_method=${PREPROCESS_CROPMETHOD} \
     --npz_name ${NET}_only_resize_in_uint8.npz \
+    --only_aspect_ratio_img 1 \
     --input_name input
+
+input_shape=`cvi_npz_tool.py get_shape ${NET}_only_resize_in_fp32.npz input`
 
 cvi_model_convert.py \
     --model_path $MODEL_DEF \
@@ -46,10 +52,12 @@ cvi_model_convert.py \
     --raw_scale ${RAW_SCALE} \
     --mean ${MEAN} \
     --std ${STD} \
-    --batch_size $BATCH_SIZE \
     --input_scale ${INPUT_SCALE} \
     --model_channel_order $MODEL_CHANNEL_ORDER \
+    --batch_size $BATCH_SIZE \
     --convert_preprocess 1 \
+    --crop_method=${PREPROCESS_CROPMETHOD} \
+    --input_shape=${input_shape} \
     --mlir_file_path ${NET}_fused_preprocess.mlir
 
 mlir-opt \
@@ -73,7 +81,7 @@ cvi_npz_tool.py compare \
     ${NET}_tensor_all_fp32.npz \
     ${NET}_blobs.npz \
     --op_info ${NET}_op_info_fuesd_preprocess.csv  \
-    --excepts="$EXCEPTS,input" \
+    --excepts="$EXCEPTS,input,data" \
     --tolerance=0.999,0.999,0.998 -vv
 
 mlir-opt \
@@ -106,7 +114,7 @@ cvi_npz_tool.py compare \
     ${NET}_blobs.npz \
     --op_info ${NET}_op_info_int8_multiplier_fused_preprocess.csv \
     --dequant \
-    --excepts="$EXCEPTS,input" \
+    --excepts="$EXCEPTS,input,data" \
     --tolerance=$TOLERANCE_INT8_MULTIPLER \
     -vv \
     --stats_int8_tensor
