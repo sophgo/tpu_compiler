@@ -645,6 +645,8 @@ export TOLERANCE_INT8_RSHIFT_ONLY=0.92,0.90,0.58
 export TOLERANCE_INT8_MULTIPLER=0.89,0.90,0.49
 export TOLERANCE_BF16=0.99,0.99,0.93
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.93
+export DO_FUSED_PREPROCESS=1
+export PREPROCESS_CROPMETHOD="aspect_ratio"
 fi
 
 if [ $NET = "yolo_v3_608" ]; then
@@ -671,6 +673,8 @@ export TOLERANCE_BF16=0.99,0.99,0.93
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.93
 export SPP_NET="false"
 export TINY="false"
+export DO_FUSED_PREPROCESS=1
+export PREPROCESS_CROPMETHOD="aspect_ratio"
 fi
 
 if [ $NET = "yolo_v3_416" ]; then
