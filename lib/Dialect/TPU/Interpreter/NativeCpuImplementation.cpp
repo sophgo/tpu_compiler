@@ -1247,22 +1247,41 @@ int my_swap_channel(float *input, float *output, int n, int c, int h, int w, int
 }
 
 int my_pixelshuffle(float *input, float *output, int in, int ic, int ih, int iw,
-                    int on, int oc, int oh, int ow, int upscale_factor){
+                    int on, int oc, int oh, int ow, int upscale_factor, bool dcr_mode){
   int i_index = 0, o_index = 0, new_c = 0, new_h = 0, new_w = 0, r = upscale_factor;
   LLVM_DEBUG(llvm::errs() << "  in: " << in << ", ic: " << ic << ", ih: " << ih
                           << ", iw: " << iw << "\n";);
   LLVM_DEBUG(llvm::errs() << "  on: " << on << ", oc: " << oc << ", oh: " << oh
                           << ", ow: " << ow << "\n";);
-  for (int n = 0; n < in; n++) {
-    for (int c = 0; c < ic; c++) {
-      for (int h = 0; h < ih; h++) {
-        for (int w = 0; w < iw; w++) {
-          new_c = static_cast<int>(floor(c / (r * r)));
-          new_h = h * r + (static_cast<int>(floor(c / r))) % r;
-          new_w = w * r + (c % (r * r)) % r;
-          o_index = n * (oc * oh * ow) + new_c * (oh * ow) + new_h * ow + new_w;
-          output[o_index] = input[i_index];
-          i_index++;
+  if(dcr_mode){
+    for (int n = 0; n < in; n++) {
+      for (int c = 0; c < ic; c++) {
+        for (int h = 0; h < ih; h++) {
+          for (int w = 0; w < iw; w++) {
+            new_c = c % oc;
+            new_h = h * r + static_cast<int>(floor((c / oc) / r));
+            new_w = w * r + ((c / oc) % r);
+            o_index =
+                n * (oc * oh * ow) + new_c * (oh * ow) + new_h * ow + new_w;
+            output[o_index] = input[i_index];
+            i_index++;
+          }
+        }
+      }
+    }
+  } else {
+    for (int n = 0; n < in; n++) {
+      for (int c = 0; c < ic; c++) {
+        for (int h = 0; h < ih; h++) {
+          for (int w = 0; w < iw; w++) {
+            new_c = static_cast<int>(floor(c / (r * r)));
+            new_h = h * r + (static_cast<int>(floor(c / r))) % r;
+            new_w = w * r + (c % (r * r)) % r;
+            o_index =
+                n * (oc * oh * ow) + new_c * (oh * ow) + new_h * ow + new_w;
+            output[o_index] = input[i_index];
+            i_index++;
+          }
         }
       }
     }

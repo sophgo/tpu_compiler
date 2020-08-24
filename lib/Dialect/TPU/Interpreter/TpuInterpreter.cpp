@@ -1906,7 +1906,12 @@ LogicalResult tpu::PixelShuffleOp::interpret(
   int in, ic, ih, iw, on, oc, oh, ow;
 
   int upscale_factor = this->upscale_factor().getLimitedValue();
+  std::string mode = this->mode().str();
+  bool dcr_mode = false;
 
+  if(mode == "DCR"){
+    dcr_mode = true;
+  }
   in = input_shape[0];
   ic = input_shape[1];
   ih = input_shape[2];
@@ -1923,8 +1928,8 @@ LogicalResult tpu::PixelShuffleOp::interpret(
   assert(iw * upscale_factor == ow);
 
   std::shared_ptr<std::vector<float>> input = opdT[0];
-  my_pixelshuffle(input->data(), resultT->data(), in, ic, ih, iw, on,
-                          oc, oh, ow, upscale_factor);
+  my_pixelshuffle(input->data(), resultT->data(), in, ic, ih, iw, on, oc, oh,
+                  ow, upscale_factor, dcr_mode);
   valueMapping[result] = std::move(resultT);
 
   return success();

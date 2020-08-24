@@ -21,6 +21,7 @@ TEST_ONNX_IR = [
     #"Concat",
     "Conv2d", # Conv with 2d case
     # "Conv3d", # Conv with 3d case
+    "DepthToSpace",
     "GlobalMaxPool",
     "LeakyRelu",
     "LRN",
@@ -38,7 +39,7 @@ TEST_ONNX_IR = [
 ]
 chip = get_chip_name()
 
-NOT_SUPPORT_CMDBUF_TEST_IR = []
+NOT_SUPPORT_CMDBUF_TEST_IR = ["DepthToSpace"]
 NOT_SUPPORT_BF16_TEST_IR = ["Relu", "LRN", "Max", "Min", "PRelu", "Reciprocal", "Slice", "Transpose", "Sum"]
 
 def make_test_calibration_table(tensors, table_name):
@@ -74,6 +75,7 @@ class ONNX_IR_TESTER(object):
             "Concat": self.test_Concat,
             "Conv2d": self.test_Conv2d,
             "Conv3d": self.test_Conv3d,
+            "DepthToSpace": self.test_DepthToSpace,
             "LeakyRelu": self.test_LeakyRelu,
             "LRN": self.test_LRN,
             "GlobalMaxPool": self.test_GlobalMaxPool,
@@ -495,6 +497,31 @@ class ONNX_IR_TESTER(object):
             [output],
         )
 
+        model_def = helper.make_model(graph_def, producer_name=test_case)
+        onnx.checker.check_model(model_def)
+
+        self.onnx_convert_and_infernece(input_data, model_def, test_case)
+
+    def test_DepthToSpace(self):
+        test_case = 'DepthToSpace'
+        input_data = np.arange(51200).reshape(1, 640, 10, 8).astype(np.float32)
+        input = helper.make_tensor_value_info(
+            'input', TensorProto.FLOAT, list(input_data.shape))
+        output = helper.make_tensor_value_info(
+            'output', TensorProto.FLOAT, [1, 160, 20, 16])
+        node_def = onnx.helper.make_node(
+            "DepthToSpace",
+            mode='DCR',
+            blocksize=2,
+            inputs=['input'],
+            outputs=['output'],
+        )
+        graph_def = helper.make_graph(
+            [node_def],
+            test_case,
+            [input],
+            [output],
+        )
         model_def = helper.make_model(graph_def, producer_name=test_case)
         onnx.checker.check_model(model_def)
 

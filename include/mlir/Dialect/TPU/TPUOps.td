@@ -1287,6 +1287,7 @@ def TPU_PixelShuffleOp: TPU_Op<"pixelshuffle",
 
     Attributes:
       `upscale_factor`: optional, upscale factor.
+      `mode`: optional, string, Use CRD for column-row-depth order, DCR for depth-column-row order re-arrangement.
       `chipname`  : optional, chipname.
 
 
@@ -1306,6 +1307,7 @@ def TPU_PixelShuffleOp: TPU_Op<"pixelshuffle",
     NonNegativeI32Attr:$upscale_factor,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
+    DefaultValuedAttr<StrAttr, "CRD">:$mode,
     DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );

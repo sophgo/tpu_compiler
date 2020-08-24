@@ -910,9 +910,13 @@ class MLIRImporter(object):
         tensor_output_type = self.module.make_ranked_tensor_type(
           self.f32Type, output_tensor_shape)
 
+        checkKey(kargs, 'upscale_factor')
+        checkKey(kargs, 'mode')
+
         pixelshuffle_name = self.module.stringAttr(op_name)
         attr_dict = {
-            'upscale_factor': self.module.integerAttr(self.i32Type, kargs['upscale_factor'])
+            'upscale_factor': self.module.integerAttr(self.i32Type, kargs['upscale_factor']),
+            'mode': self.module.stringAttr(kargs['mode'])
         }
         return self.buildOp(TPU_OpType.PixelShuffle.value, inputOperands, [
             tensor_output_type], name=pixelshuffle_name, quant=self.quant_param, **attr_dict)

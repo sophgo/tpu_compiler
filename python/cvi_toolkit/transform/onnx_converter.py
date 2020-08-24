@@ -943,7 +943,7 @@ class OnnxConverter(BaseConverter):
         assert(onnx_node.op_type == "DepthToSpace")
         op, input_shape, _ = self.getOperand(onnx_node.inputs[0])
         upscale_factor = onnx_node.attrs['blocksize']
-
+        mode = onnx_node.attrs.get("mode", "DCR")
         on = input_shape[0]
         oc = input_shape[1] / upscale_factor**2
         oh = upscale_factor * input_shape[2]
@@ -951,7 +951,8 @@ class OnnxConverter(BaseConverter):
         output_shape = [on, int(oc), oh, ow]
         operands = [op]
         attr={
-            'upscale_factor': upscale_factor
+            'upscale_factor': upscale_factor,
+            'mode': mode,
         }
         pixel_shuffle_op = self.CVI.add_pixelshuffle_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **attr)
         self.addOperand(onnx_node.name, pixel_shuffle_op, output_shape, TensorType.ACTIVATION)
@@ -2218,7 +2219,8 @@ class OnnxConverter(BaseConverter):
                 output_shape = [on, oc, oh, ow]
                 operands = [op]
                 attr={
-                    'upscale_factor': upscale_factor
+                    'upscale_factor': upscale_factor,
+                    'mode': "CRD"
                 }
                 pixel_shuffle_op = self.CVI.add_pixelshuffle_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **attr)
                 self.addOperand(onnx_node.name, pixel_shuffle_op, output_shape, TensorType.ACTIVATION)
