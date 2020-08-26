@@ -1304,8 +1304,28 @@ Value *tpu::PixelShuffleOp::convertToTG() {
   std::vector<Value *> operands;
   operands.push_back(input());
 
+  if (this->mode().str() == "DCR") {
+    // use cpu op
+    std::vector<NamedAttribute> param;
+    param.push_back(builder.getNamedAttr("mode", modeAttr()));
+    param.push_back(
+        builder.getNamedAttr("upscale_factor", upscale_factorAttr()));
+    auto paramAttr = builder.getDictionaryAttr(param);
+    auto operationAttr = builder.getStringAttr(getOperationName());
+    std::vector<NamedAttribute> cpu_attrs;
+    cpu_attrs.push_back(builder.getNamedAttr("name", nameAttr()));
+    cpu_attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
+    cpu_attrs.push_back(builder.getNamedAttr("operation_name", operationAttr));
+    cpu_attrs.push_back(builder.getNamedAttr("param", paramAttr));
+    auto newOp = OpBuilder(op).create<tpu::GenericCpuOp>(
+        op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{cpu_attrs});
+    return newOp.getResult();
+  }
+
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder.getNamedAttr("upscale_factor", upscale_factorAttr()));
+  attrs.push_back(builder.getNamedAttr("mode", modeAttr()));
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
   attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
 
