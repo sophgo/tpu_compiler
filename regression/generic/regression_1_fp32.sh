@@ -42,7 +42,7 @@ cvi_npz_tool.py compare \
     ${NET}_blobs.npz \
     --op_info ${NET}_op_info.csv \
     --excepts $EXCEPTS \
-    --tolerance=0.999,0.999,0.998 -vv
+    --tolerance=${TOLERANCE_FP32} -vv
 
 # VERDICT
 echo $0 PASSED

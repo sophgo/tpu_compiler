@@ -3295,6 +3295,7 @@ public:
         LowerCpuOpDefaultPattern<tpu::TransposeOp>,
         LowerCpuOpDefaultPattern<tpu::YoloDetectionOp>,
         LowerCpuOpDefaultPattern<tpu::SoftmaxCpuOp>,
+        LowerCpuOpDefaultPattern<tpu::InterpOp>,
         LowerCustomOpPattern<tpu::CustomOp>
         >(context);
     applyPatternsGreedily(fn, patterns_cpuop);
