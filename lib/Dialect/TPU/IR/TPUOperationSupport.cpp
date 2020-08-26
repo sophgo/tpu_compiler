@@ -391,20 +391,6 @@ LogicalResult setOpAddress(Operation *op, uint64_t gaddr) {
   }
 }
 
-uint64_t getWeightOpAddress(Operation *op);
-uint64_t getPreviousOpAddress(Operation *op, uint index = 0) {
-  if ( op->getNumOperands() < (index + 1) ) {
-    llvm_unreachable("index exceeds the number of operations");
-  }
-  auto formerOp = op->getOperand(index)->getDefiningOp();
-  if (isa<tpu::LoadWeightOp>(formerOp)) {
-    return getWeightOpAddress(formerOp);
-  }
-  else {
-    return getOpAddress(formerOp);
-  }
-}
-
 uint64_t getWeightOpAddress(Operation *op) {
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(op)) {
     return cast_op.offset().getValue().getLimitedValue();
@@ -412,6 +398,18 @@ uint64_t getWeightOpAddress(Operation *op) {
     std::string errorMsg = std::string(__func__) + " failed, Op " +
                            op->getName().getStringRef().str() + "\n";
     llvm_unreachable(errorMsg.c_str());
+  }
+}
+
+uint64_t getPreviousOpAddress(Operation *op, uint index = 0) {
+  if (op->getNumOperands() < (index + 1)) {
+    llvm_unreachable("index exceeds the number of operations");
+  }
+  auto formerOp = op->getOperand(index)->getDefiningOp();
+  if (isa<tpu::LoadWeightOp>(formerOp)) {
+    return getWeightOpAddress(formerOp);
+  } else {
+    return getOpAddress(formerOp);
   }
 }
 

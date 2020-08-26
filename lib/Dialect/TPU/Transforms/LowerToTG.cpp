@@ -2790,6 +2790,7 @@ public:
         LowerWeightLutOpPattern<tpu::SqrtOp>,
         LowerWeightLutOpPattern<tpu::TanHOp>,
         LowerWeightLutOpPattern<tpu::ExpOp>,
+        LowerConstEltwiseOpPattern<tpu::EltwiseAddOp>,
         LowerConstEltwiseOpPattern<tpu::EltwiseMulOp>,
         LowerConstEltwiseOpPattern<tpu::EltwiseAddOp>,
         LowerWeightFullyConnectedOpPattern,
