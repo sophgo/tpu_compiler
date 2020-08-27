@@ -521,6 +521,8 @@ LogicalResult tpu::TL_LG_INT8_LutOp::codegen(void *ctx) {
   int64_t input_size, n, c, h, w;
   getTensorShapeAndSize(op->getOperand(0), shape, input_size);
   getNCHW(shape, n, c, h, w);
+  int thresh_min = -8;
+  int thresh_max = 8;
 
   cvi_backend_tl_lut( *backend_ctx,
                       layer_id,
@@ -529,6 +531,8 @@ LogicalResult tpu::TL_LG_INT8_LutOp::codegen(void *ctx) {
                       la_working,
                       la_y_table,
                       la_slope_lut,
+                      thresh_min,
+                      thresh_max,
                       n, c, h, w);
   return success();
 
