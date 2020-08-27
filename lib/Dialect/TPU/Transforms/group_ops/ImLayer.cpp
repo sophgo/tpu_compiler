@@ -441,8 +441,9 @@ ImConcat::ImConcat(Operation* op) : ImLayer(IR_CONCAT, op, true) {
   // only support axis = 1 for fuse
   auto concat_op = dyn_cast<tpu::TG_INT8_ConcatOp>(op);
   int axis = 0;
+  bool do_relu = false;
 
-  getConcatParam(op, axis);
+  getConcatParam(op, axis, do_relu);
 
   if (axis != 1)
     fusible = false;

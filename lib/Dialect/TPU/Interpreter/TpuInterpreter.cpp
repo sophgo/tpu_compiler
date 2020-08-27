@@ -384,6 +384,9 @@ LogicalResult tpu::ConcatOp::interpret(
     }
   }
   resultT.get()->assign(tmp_resultT.get()->begin(), tmp_resultT.get()->end());
+  if (do_relu()) {
+    my_relu(resultT->data(), resultT->data(), 1, 1, 1, size, 0.0f);
+  }
 
   valueMapping[result] = std::move(resultT);
   return success();

@@ -2104,7 +2104,8 @@ void MixNet::_add_tl_concat_op(MixOp * mix_op,
 
   // attrs
   int axis = 0;
-  getConcatParam(op, axis);
+  bool do_relu = false;
+  getConcatParam(op, axis, do_relu);
 
   Builder builder_(context_);
   std::vector<NamedAttribute> attrs;
@@ -2118,6 +2119,8 @@ void MixNet::_add_tl_concat_op(MixOp * mix_op,
                            builder_.getI32IntegerAttr(la_output)));
   attrs.push_back(builder_.getNamedAttr("la_working",
                            builder_.getI32IntegerAttr(0)));
+  attrs.push_back(builder_.getNamedAttr("do_relu",
+                           builder_.getBoolAttr(do_relu)));
   attrs.push_back(builder_.getNamedAttr("axis",
                            builder_.getI32IntegerAttr(axis)));
   // std::set quant value

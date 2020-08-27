@@ -662,6 +662,7 @@ LogicalResult tpu::TL_LG_INT8_ConcatOp::codegen(void *ctx) {
                       la_input,
                       la_output,
                       la_working,
+                      do_relu(),
                       r_i8,
                       m_i8);
   return success();

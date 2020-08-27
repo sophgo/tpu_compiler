@@ -314,6 +314,7 @@ LogicalResult tpu::TG_INT8_ConcatOp::codegen(void *ctx) {
       axis,            // int concat_axis,
       output_dim_size, // int output_dim_size,
       output_dim,      // int *output_dim,
+      do_relu(),
       do_quant_rescale ? nInputs : 0,     // const int need_quantize_num,
       do_quant_rescale ? rshift_int : 0,  // const int *right_shift_width,
       do_quant_rescale ? m_int : nullptr  // const int *threshold_x_quantized
@@ -375,6 +376,7 @@ LogicalResult tpu::TG_BF16_ConcatOp::codegen(void *ctx) {
       axis,            // int concat_axis,
       output_dim_size, // int output_dim_size,
       output_dim,      // int *output_dim,
+      do_relu(),
       0,               // int need_quantize_num
       nullptr          // threshold_x_quantized,
       );

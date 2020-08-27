@@ -326,6 +326,22 @@ export TOLERANCE_BF16=0.99,0.99,0.94
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
 fi
 
+if [ $NET = "shufflenet_v1" ]; then
+# just for test concat relu
+export MODEL_DEF=$MODEL_PATH/imagenet/shufflenet_v1/caffe/shufflenet_1x_g3_deploy.prototxt
+export MODEL_DAT=$MODEL_PATH/imagenet/shufflenet_v1/caffe/shufflenet_1x_g3.caffemodel
+export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table
+export NET_INPUT_DIMS=224,224
+export IMAGE_RESIZE_DIMS=256,256
+export RAW_SCALE=255.0
+export MEAN=103.94,116.78,123.68
+export INPUT_SCALE=0.017
+export INPUT=input
+export OUTPUTS_FP32=fc1000
+export OUTPUTS=fc1000
+export TOLERANCE_INT8_MULTIPLER=0.96,0.96,0.74
+fi
+
 if [ $NET = "squeezenet" ]; then
 export MODEL_DEF=$MODEL_PATH/imagenet/squeezenet/caffe/deploy_v1.1.prototxt
 export MODEL_DAT=$MODEL_PATH/imagenet/squeezenet/caffe/squeezenet_v1.1.caffemodel

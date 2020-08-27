@@ -199,13 +199,15 @@ static void getConvParam( Operation *p,
 }
 
 static void getConcatParam(Operation *op,
-                           int &axis) {
+                           int &axis, bool &do_relu) {
   if (isa<tpu::TG_INT8_ConcatOp>(op)) {
     auto concat_op = dyn_cast<tpu::TG_INT8_ConcatOp>(op);
     axis = concat_op.axis().getLimitedValue();
+    do_relu = concat_op.do_relu();
   } else if (isa<tpu::TG_BF16_ConcatOp>(op)){
     auto concat_op = dyn_cast<tpu::TG_BF16_ConcatOp>(op);
     axis = concat_op.axis().getLimitedValue();
+    do_relu = concat_op.do_relu();
   } else {
     assert(!"Only support INT8/BF16 Concat in LayerGroup");
   }

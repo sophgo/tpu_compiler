@@ -148,6 +148,7 @@ Value* tpu::ConcatOp::convertToTG() {
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
   attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
+  attrs.push_back(builder.getNamedAttr("do_relu", builder.getBoolAttr(do_relu())));
   attrs.push_back(builder.getNamedAttr("axis", axisAttr()));
 
   if (getOpQuant() == "INT8") {

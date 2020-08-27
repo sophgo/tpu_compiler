@@ -37,6 +37,24 @@ using namespace mlir;
 
 namespace {
 
+static bool supportRelu(Operation *op) {
+  if (matchPattern(op, m_Op<tpu::Conv2DOp>()) ||
+      matchPattern(op, m_Op<tpu::DeConv2DOp>()) ||
+      matchPattern(op, m_Op<tpu::EltwiseAddOp>()) ||
+      matchPattern(op, m_Op<tpu::EltwiseMaxOp>()) ||
+      matchPattern(op, m_Op<tpu::EltwiseMinOp>()) ||
+      matchPattern(op, m_Op<tpu::EltwiseMulOp>()) ||
+      matchPattern(op, m_Op<tpu::FullyConnectedOp>()) ||
+      matchPattern(op, m_Op<tpu::BroadcastMulOp>()) ||
+      matchPattern(op, m_Op<tpu::PoolAvg2DOp>()) ||
+      matchPattern(op, m_Op<tpu::ConcatOp>()) ||
+      matchPattern(op, m_Op<tpu::ScaleOp>()) ||
+      matchPattern(op, m_Op<tpu::ConcatOp>())) {
+    return true;
+  }
+  return false;
+}
+
 struct TpuFuseReluPattern : public RewritePattern {
   TpuFuseReluPattern(MLIRContext *context)
       : RewritePattern("tpu.relu", 1, context) {}
@@ -153,9 +171,10 @@ struct TpuFuseReluPattern : public RewritePattern {
               rewriter.getContext()));
       poolOp.setAttr("name", rewriter.getStringAttr(reluOp.getOpName()));
     }  else if (matchPattern(formerOp, m_Op<tpu::ConcatOp>())) {
-      // TODO: need to fuse
-      //assert(false);
-      return matchFailure();
+      auto concatOp = cast<tpu::ConcatOp>(formerOp);
+      assert(!concatOp.do_relu() && "done relu");
+      concatOp.setAttr("do_relu", rewriter.getBoolAttr(true));
+      concatOp.setAttr("name", rewriter.getStringAttr(reluOp.getOpName()));
     } else if (matchPattern(formerOp, m_Op<tpu::ScaleOp>())) {
       //assert(false);
       // TODO: convert to conv
@@ -190,8 +209,14 @@ struct TpuMoveReluAheadConcatPattern : public RewritePattern {
     auto concatOp = cast<tpu::ConcatOp>(formerOp);
     LLVM_DEBUG(llvm::errs() << reluOp.getOperationName() << ":"
                             << getOpName(reluOp) << ", after concat" << "\n";);
-
     size_t nInputs = concatOp.getNumInputs();
+    for (uint32_t i = 0; i < nInputs; i ++) {
+      auto inOp = formerOp->getOperand(i)->getDefiningOp();
+      if (false == supportRelu(inOp)) {
+        return matchFailure();
+      }
+    }
+
     rewriter.setInsertionPoint(formerOp);
     for (unsigned i = 0; i < nInputs; i++) {
       std::vector<NamedAttribute> attrs;
