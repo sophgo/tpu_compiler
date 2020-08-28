@@ -1048,6 +1048,24 @@ Value *tpu::QuantOp::convertToTG() {
         op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
+  } else if (((this->from() == "BF16" && this->to() == "NONE") ||
+              (this->from() == "NONE" && this->to() == "BF16")) &&
+             clUseTPUQuantOp) {
+    // dequant bf16<->fp32
+    std::string from = this->from() == "NONE" ? "FP32" : this->from();
+    std::string to = this->to() == "NONE" ? "FP32" : this->to();
+
+    attrs.clear();
+    attrs.push_back(builder.getNamedAttr("name", nameAttr()));
+    attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
+    attrs.push_back(builder.getNamedAttr("from", builder.getStringAttr(from)));
+    attrs.push_back(builder.getNamedAttr("to", builder.getStringAttr(to)));
+
+    auto newOp = OpBuilder(op).create<tpu::TG_CastOp>(
+      op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
+      ArrayRef<NamedAttribute>{attrs});
+
+    return newOp.getResult();
   } else if ((this->from() == "NONE" && this->to() == "INT8") &&
              clUseTPUQuantOp) {
     // quant fp32->int8
