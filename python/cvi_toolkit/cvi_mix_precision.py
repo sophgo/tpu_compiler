@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import csv
 import argparse
-import os
+import os, math
 import numpy as np
 import time
 
@@ -31,6 +31,41 @@ def parse_args():
     return args
 
 
+def cal_sqnr(signal_gt, signal_target):
+    gt_value = signal_gt.flatten()
+    target = signal_target.flatten()
+    noise = gt_value - target
+
+    avg_gt = np.sum(gt_value) / gt_value.size
+    avg_noise = np.sum(noise) / noise.size
+
+    gt_zero_mean = gt_value - avg_gt
+    noise_zero_mean = noise - avg_noise
+
+    var_gt_zero_mean = np.var(gt_zero_mean)
+    var_noise_zero_mean = np.var(noise_zero_mean)
+
+    if var_noise_zero_mean == 0.0:
+        return 2^31 - 1
+
+    sqnr = 10 * np.log10(var_gt_zero_mean / var_noise_zero_mean)
+    return sqnr
+
+
+def generic_loss(bf16_preds, int8_dequant_preds):
+    ret = 0
+    neuron_count = 0
+
+    for op_name in bf16_preds:
+        bf16_pred = bf16_preds[op_name].flatten()
+        int8_dequant_pred = int8_dequant_preds[op_name].flatten()
+        loss = cal_sqnr(bf16_pred, int8_dequant_pred)
+        if not math.isinf(loss):
+            ret += -loss * bf16_pred.size
+            neuron_count += bf16_pred.size
+
+    return ret / neuron_count
+
 
 if __name__ == '__main__':
     args = parse_args()
@@ -48,16 +83,16 @@ if __name__ == '__main__':
         # read with opencv, bgr, hwc
         p_func = lambda input_tensor: preprocessor.run(input_tensor, input_channel_order="bgr", input_data_format="hwc",
                         output_channel_order=args.model_channel_order, input_type='tensor')
+
+        mix_precisior = MixPrecisior(args.fp32_cali_mlir_file, generic_loss, args.image_list_file,
+                                        precrocess_func=p_func, input_num=args.input_num)
+        
     else:
         assert(False)
 
-
-    mix_precisior = MixPrecisior(args.fp32_cali_mlir_file, args.image_list_file, precrocess_func=p_func, input_num=args.input_num)
-
-
     sort_bf16_layers = mix_precisior.run()
     for idx, layer in enumerate(sort_bf16_layers):
-        print("No.{:<4}: Layer: {:<30} SQNR: {}".format(idx, layer[0], layer[1]))
+        print("No.{:<4}: Layer: {:<30} Loss: {}".format(idx, layer[0], layer[1]))
 
 
     with open(args.output_bf16_table, "w") as f:
