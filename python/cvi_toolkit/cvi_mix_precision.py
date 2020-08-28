@@ -46,7 +46,7 @@ def cal_sqnr(signal_gt, signal_target):
     var_noise_zero_mean = np.var(noise_zero_mean)
 
     if var_noise_zero_mean == 0.0:
-        return 2^31 - 1
+        return math.inf
 
     sqnr = 10 * np.log10(var_gt_zero_mean / var_noise_zero_mean)
     return sqnr
@@ -64,7 +64,10 @@ def generic_loss(bf16_preds, int8_dequant_preds):
             ret += -loss * bf16_pred.size
             neuron_count += bf16_pred.size
 
-    return ret / neuron_count
+    if ret == 0 and neuron_count == 0:
+        return -math.inf
+    else:
+        return ret / neuron_count
 
 
 if __name__ == '__main__':
