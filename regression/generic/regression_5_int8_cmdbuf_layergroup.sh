@@ -33,7 +33,7 @@ mlir-opt \
 
 mlir-opt \
     --assign-neuron-address \
-    --tpu-neuron-address-align=16 \
+    --tpu-neuron-address-align=64 \
     --tpu-neuron-map-filename=neuron_map_lg.csv \
     ${NET}_quant_int8_multiplier_layergroup_lw_addr.mlir \
     -o ${NET}_quant_int8_multiplier_layergroup_lw_addr_1.mlir

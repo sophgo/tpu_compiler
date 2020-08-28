@@ -57,7 +57,7 @@ if [ $DO_QUANT_INT8_PER_TENSOR -eq 1 ]; then
       --tpu-weight-map-filename=${NET}_weight_map_int8_per_tensor.csv \
       --tpu-weight-bin-filename=weight_int8_per_tensor.bin \
       --assign-neuron-address \
-      --tpu-neuron-address-align=16 \
+      --tpu-neuron-address-align=64 \
       --tpu-neuron-map-filename=${NET}_neuron_map_int8_per_tensor.csv \
       ${NET}_quant_int8_per_tensor_tg_opt.mlir \
       -o ${NET}_quant_int8_per_tensor_addr.mlir

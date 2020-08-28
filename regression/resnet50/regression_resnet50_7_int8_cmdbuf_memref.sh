@@ -85,7 +85,7 @@ mlir-opt \
     --tpu-weight-map-filename=weight_map.csv \
     --tpu-weight-bin-filename=weight_int8_multiplier.bin \
     --assign-neuron-address \
-    --tpu-neuron-address-align=16 \
+    --tpu-neuron-address-align=64 \
     --tpu-neuron-map-filename=neuron_map.csv \
     resnet50_quant_int8_multiplier_tg_func_roundtrip.mlir \
     -o resnet50_quant_int8_multiplier_addr.mlir
@@ -149,7 +149,7 @@ mlir-opt \
     --tpu-weight-map-filename=weight_map_reused.csv \
     --tpu-weight-bin-filename=weight_int8_multiplier.bin \
     --assign-neuron-address \
-    --tpu-neuron-address-align=16 \
+    --tpu-neuron-address-align=64 \
     --tpu-neuron-map-filename=neuron_map_reused.csv \
     resnet50_quant_int8_multiplier_tg_func_roundtrip_reused.mlir \
     -o resnet50_quant_int8_multiplier_addr_reused.mlir

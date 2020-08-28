@@ -46,7 +46,7 @@ if [ $COMPARE_INT8_PER_LAYER -eq 1 ]; then
         --tpu-weight-map-filename=weight_map.csv \
         --tpu-weight-bin-filename=weight_int8_per_layer.bin \
         --assign-neuron-address \
-        --tpu-neuron-address-align=16 \
+        --tpu-neuron-address-align=64 \
         --tpu-neuron-map-filename=neuron_map.csv \
         shufflenet_quant_int8_per_layer_tg_opt.mlir \
         -o shufflenet_quant_int8_per_layer_addr.mlir
@@ -103,7 +103,7 @@ mlir-opt \
     --tpu-weight-map-filename=shufflenet_weight_map_int8_multiplier.csv \
     --tpu-weight-bin-filename=weight_int8_multiplier.bin \
     --assign-neuron-address \
-    --tpu-neuron-address-align=16 \
+    --tpu-neuron-address-align=64 \
     --tpu-neuron-map-filename=shufflenet_neuron_map_int8_multiplier.csv \
     shufflenet_quant_int8_multiplier_tg_opt.mlir \
     -o shufflenet_quant_int8_multiplier_addr.mlir

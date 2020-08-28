@@ -89,7 +89,7 @@ mlir-opt \
     --tpu-weight-map-filename=mobilenet_v2_preprocess_weight_map_int8_multiplier.csv \
     --tpu-weight-bin-filename=weight_int8_multiplier.bin \
     --assign-neuron-address \
-    --tpu-neuron-address-align=16 \
+    --tpu-neuron-address-align=64 \
     --tpu-neuron-map-filename=mobilenet_v2_preprocess_neuron_map_int8_multiplier.csv \
     mobilenet_v2_preprocess_quant_int8_multiplier_tg.mlir \
     -o mobilenet_v2_preprocess_quant_int8_multiplier_addr.mlir

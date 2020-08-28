@@ -34,7 +34,7 @@ mlir-opt \
     --tpu-weight-map-filename=weight_map.csv \
     --tpu-weight-bin-filename=weight.bin \
     --assign-neuron-address \
-    --tpu-neuron-address-align=16 \
+    --tpu-neuron-address-align=64 \
     --tpu-neuron-map-filename=neuron_map.csv \
     bmface_v3_quant_int8_tg.mlir \
     -o bmface_v3_quant_int8_cmdbuf.mlir

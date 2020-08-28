@@ -143,7 +143,7 @@ mlir-opt \
   mlir-opt \
     --tpu-generate-compressed-weight \
     --assign-neuron-address \
-    --tpu-neuron-address-align=16 \
+    --tpu-neuron-address-align=64 \
     --tpu-neuron-map-filename=neuron_map_lg_fused_preprocess.csv \
     -o int8_layergroup_addr.mlir
 

@@ -27,7 +27,7 @@ mlir-opt \
     --tpu-weight-map-filename=weight_map_bf16.csv \
     --tpu-weight-bin-filename=weight_bf16.bin \
     --assign-neuron-address \
-    --tpu-neuron-address-align=16 \
+    --tpu-neuron-address-align=64 \
     --tpu-neuron-map-filename=neuron_map_bf16.csv \
     resnet50_quant_bf16_tg.mlir \
     -o resnet50_quant_bf16_addr.mlir

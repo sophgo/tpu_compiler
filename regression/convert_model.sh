@@ -155,7 +155,7 @@ mlir-opt \
     --tpu-generate-compressed-weight \
     --assign-neuron-address \
     --tpu-neuron-memory-reuse \
-    --tpu-neuron-address-align=16 \
+    --tpu-neuron-address-align=64 \
     --tpu-neuron-map-filename=neuron_map.csv \
     --divide-ops-to-func | \
 mlir-translate \

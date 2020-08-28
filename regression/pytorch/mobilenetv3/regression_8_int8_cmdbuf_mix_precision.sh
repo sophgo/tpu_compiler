@@ -52,7 +52,7 @@ mlir-opt \
     --tpu-weight-map-filename=${NET}_weight_map_int8_multiplier.csv \
     --tpu-weight-bin-filename=weight_int8_multiplier.bin \
     --assign-neuron-address \
-    --tpu-neuron-address-align=16 \
+    --tpu-neuron-address-align=64 \
     --tpu-neuron-map-filename=${NET}_neuron_map_int8_multiplier.csv \
     ${NET}_quant_int8_multiplier_tg_opt_addr.mlir \
     -o ${NET}_quant_int8_multiplier_addr.mlir

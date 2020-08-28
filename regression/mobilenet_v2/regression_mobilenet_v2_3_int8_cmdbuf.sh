@@ -24,7 +24,7 @@ mlir-opt \
     --tpu-weight-map-filename=weight_map.csv \
     --tpu-weight-bin-filename=weight_int8_per_layer.bin \
     --assign-neuron-address \
-    --tpu-neuron-address-align=16 \
+    --tpu-neuron-address-align=64 \
     --tpu-neuron-map-filename=neuron_map.csv \
     --assign-layer-id \
     mobilenet_v2_quant_int8_per_layer.mlir \
@@ -70,7 +70,7 @@ mlir-opt \
     --tpu-weight-map-filename=weight_map.csv \
     --tpu-weight-bin-filename=weight_int8_multiplier.bin \
     --assign-neuron-address \
-    --tpu-neuron-address-align=16 \
+    --tpu-neuron-address-align=64 \
     --tpu-neuron-map-filename=neuron_map.csv \
     --assign-layer-id \
     mobilenet_v2_quant_int8_multiplier.mlir \
