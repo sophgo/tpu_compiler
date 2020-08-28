@@ -339,7 +339,7 @@ export INPUT_SCALE=0.017
 export INPUT=input
 export OUTPUTS_FP32=fc1000
 export OUTPUTS=fc1000
-export TOLERANCE_INT8_MULTIPLER=0.96,0.96,0.74
+export TOLERANCE_INT8_MULTIPLER=0.96,0.96,0.72
 fi
 
 if [ $NET = "squeezenet" ]; then

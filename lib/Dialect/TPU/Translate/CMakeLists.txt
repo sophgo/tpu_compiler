@@ -28,7 +28,6 @@ if(0)
 endif()
 
 add_llvm_library(MLIRTPUTranslate
-  CaffeToMlirTranslate.cpp
   MlirToBackendTranslate.cpp
   MlirToCviModelTranslate.cpp
 

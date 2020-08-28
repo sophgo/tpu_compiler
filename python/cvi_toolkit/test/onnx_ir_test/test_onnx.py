@@ -38,7 +38,7 @@ TEST_ONNX_IR = [
 ]
 chip = get_chip_name()
 
-NOT_SUPPORT_CMDBUF_TEST_IR = ["Relu"]
+NOT_SUPPORT_CMDBUF_TEST_IR = []
 NOT_SUPPORT_BF16_TEST_IR = ["Relu", "LRN", "Max", "Min", "PRelu", "Reciprocal", "Slice", "Transpose", "Sum"]
 
 def make_test_calibration_table(tensors, table_name):
@@ -768,25 +768,42 @@ class ONNX_IR_TESTER(object):
 
     def test_Relu(self):
         test_case = 'Relu'
-        input_shape = [1, 3, 224, 224]
-        node_def = helper.make_node(
-            "Relu", # node name
-            ['input'], # inputs
-            ['output'], # outputs
-        )
+        input_shape = [1, 3, 27, 27]
+        output_shape = [1, 6, 27, 27]
 
         input = helper.make_tensor_value_info('input', TensorProto.FLOAT, input_shape)
-        output = helper.make_tensor_value_info('output', TensorProto.FLOAT, input_shape)
-        # Create the graph (GraphProto)
+        output = helper.make_tensor_value_info(
+            'output', TensorProto.FLOAT, output_shape)
+
+        x1_def = helper.make_node(
+            'Neg',  # node name
+            ['input'],  # inputs
+            ['X1'],  # outputs
+        )
+
+        #test three input
+        concat_def = helper.make_node(
+            'Concat',  # node name
+            ['input', 'X1'],  # inputs
+            ['X2'],  # outputs
+            axis = 1
+        )
+
+        relu_def = helper.make_node(
+            'Relu',
+            ['X2'],
+            ['output'],
+        )
+
         graph_def = helper.make_graph(
-            [node_def],
+            [x1_def, concat_def, relu_def],
             test_case,
             [input],
             [output],
         )
-
-        # Create the model (ModelProto)
         model_def = helper.make_model(graph_def, producer_name=test_case)
+        onnx.checker.check_model(model_def)
+
         input_data = np.random.rand(input_shape[0], input_shape[1],
                         input_shape[2], input_shape[3]).astype(np.float32)
 

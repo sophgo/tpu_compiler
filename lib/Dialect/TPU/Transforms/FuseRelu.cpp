@@ -46,7 +46,6 @@ static bool supportRelu(Operation *op) {
       matchPattern(op, m_Op<tpu::EltwiseMulOp>()) ||
       matchPattern(op, m_Op<tpu::FullyConnectedOp>()) ||
       matchPattern(op, m_Op<tpu::BroadcastMulOp>()) ||
-      matchPattern(op, m_Op<tpu::PoolAvg2DOp>()) ||
       matchPattern(op, m_Op<tpu::ConcatOp>()) ||
       matchPattern(op, m_Op<tpu::ScaleOp>()) ||
       matchPattern(op, m_Op<tpu::ConcatOp>())) {
@@ -153,24 +152,7 @@ struct TpuFuseReluPattern : public RewritePattern {
       assert(!bcastOp.do_relu() && "done relu");
       bcastOp.setAttr("do_relu", rewriter.getBoolAttr(true));
       bcastOp.setAttr("name", rewriter.getStringAttr(reluOp.getOpName()));
-    }  else if (matchPattern(formerOp, m_Op<tpu::PoolAvg2DOp>())) {
-      auto poolOp = cast<tpu::PoolAvg2DOp>(formerOp);
-      assert(poolOp.param().do_relu().getValue() == false && "done relu");
-      poolOp.setAttr("param",
-          tpu::PoolParam::get(
-              poolOp.param().kernel_h(),
-              poolOp.param().kernel_w(),
-              poolOp.param().padding_t(),
-              poolOp.param().padding_b(),
-              poolOp.param().padding_l(),
-              poolOp.param().padding_r(),
-              poolOp.param().stride_h(),
-              poolOp.param().stride_w(),
-              rewriter.getBoolAttr(true),
-              rewriter.getBoolAttr(true),
-              rewriter.getContext()));
-      poolOp.setAttr("name", rewriter.getStringAttr(reluOp.getOpName()));
-    }  else if (matchPattern(formerOp, m_Op<tpu::ConcatOp>())) {
+    } else if (matchPattern(formerOp, m_Op<tpu::ConcatOp>())) {
       auto concatOp = cast<tpu::ConcatOp>(formerOp);
       assert(!concatOp.do_relu() && "done relu");
       concatOp.setAttr("do_relu", rewriter.getBoolAttr(true));
