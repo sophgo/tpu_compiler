@@ -145,17 +145,10 @@ mlir-opt \
     --assign-neuron-address \
     --tpu-neuron-address-align=64 \
     --tpu-neuron-map-filename=neuron_map_lg_fused_preprocess.csv \
-    -o int8_layergroup_addr.mlir
-
-mlir-opt \
-    --divide-ops-to-func \
-    int8_layergroup_addr.mlir \
-    -o int8_layergroup_func.mlir
-
+    --divide-ops-to-func | \
 mlir-translate \
     --mlir-to-cvimodel \
     --weight-file weight_fused_process.bin \
-    int8_layergroup_func.mlir \
     -o ${NET}_fused_preprocess.cvimodel
 
 model_runner \
@@ -170,6 +163,84 @@ cvi_npz_tool.py compare \
     ${NET}_tensor_all_int8_multiplier_fused_preprocess.npz \
     --op_info ${NET}_op_info_int8_multiplier_fused_preprocess.csv
 
+if [ $DO_FUSED_POSTPROCESS -eq 1 ]; then
+    cvi_model_convert.py \
+        --model_path $MODEL_DEF_FUSED_POSTPROCESS \
+        --model_dat=$MODEL_DAT \
+        --model_name ${NET} \
+        --model_type $MODEL_TYPE \
+        --batch_size $BATCH_SIZE \
+        --image_resize_dims ${IMAGE_RESIZE_DIMS} \
+        --net_input_dims ${NET_INPUT_DIMS} \
+        --raw_scale ${RAW_SCALE} \
+        --mean ${MEAN} \
+        --std ${STD} \
+        --input_scale ${INPUT_SCALE} \
+        --model_channel_order $MODEL_CHANNEL_ORDER \
+        --batch_size $BATCH_SIZE \
+        --convert_preprocess 1 \
+        --crop_method=${PREPROCESS_CROPMETHOD} \
+        --input_shape=${input_shape} \
+        --mlir_file_path ${NET}_fused_preprocess_with_detection.mlir
+
+    mlir-opt \
+        --fuse-relu \
+        ${MLIR_OPT_FE_PRE} \
+        --canonicalize \
+        ${MLIR_OPT_FE_POST} \
+        --assign-layer-id \
+        --print-tpu-op-info \
+        --tpu-op-info-filename ${NET}_op_info_fuesd_preprocess_with_detection.csv \
+        ${NET}_fused_preprocess_with_detection.mlir \
+        -o ${NET}_opt_fused_preprocess_with_detection.mlir
+
+    mlir-opt \
+        ${ENABLE_CALI_OVERWRITE_THRESHOLD_FORWARD} \
+        --import-calibration-table \
+        --calibration-table ${CALI_TABLE}\
+        ${NET}_opt_fused_preprocess_with_detection.mlir \
+        -o ${NET}_cali_fused_preprocess_with_detection.mlir
+
+    mlir-opt \
+        ${NET}_cali_fused_preprocess_with_detection.mlir \
+        --assign-chip-name \
+        --chipname ${SET_CHIP_NAME} \
+        --tpu-quant \
+        --convert-quant-op \
+        --canonicalize \
+        --print-tpu-op-info \
+        --tpu-op-info-filename ${NET}_op_info_int8_multiplier_fused_preprocess.csv | \
+    mlir-opt \
+        --use-tpu-quant-op \
+        --tpu-lower --reorder-op | \
+    mlir-opt \
+        --tg-fuse-leakyrelu \
+        --conv-ic-alignment | \
+    mlir-opt \
+        --group-ops | \
+    mlir-opt \
+        --dce \
+        --deep-fusion-tg2tl-la \
+        --deep-fusion-tl-la2lw | \
+    mlir-opt \
+        --compress-weight | \
+    mlir-opt \
+        --assign-weight-address \
+        --tpu-weight-address-align=16 \
+        --tpu-weight-map-filename=weight_map_int8_lg_fused_preprocess.csv \
+        --tpu-weight-bin-filename=weight_fused_process.bin | \
+    mlir-opt \
+        --tpu-generate-compressed-weight \
+        --assign-neuron-address \
+        --tpu-neuron-address-align=16 \
+        --tpu-neuron-map-filename=neuron_map_lg_fused_preprocess.csv \
+        --divide-ops-to-func | \
+    mlir-translate \
+        --mlir-to-cvimodel \
+        --weight-file weight_fused_process.bin \
+        -o ${NET}_fused_preprocess_with_detection.cvimodel
+fi
+
 if [ ! -z $CVIMODEL_REL_PATH -a -d $CVIMODEL_REL_PATH ]; then
   if [ $BATCH_SIZE -eq 1 ]; then
     cp ${NET}_only_resize_in_uint8.npz \
@@ -177,6 +248,10 @@ if [ ! -z $CVIMODEL_REL_PATH -a -d $CVIMODEL_REL_PATH ]; then
     mv ${NET}_fused_preprocess.cvimodel $CVIMODEL_REL_PATH
     cp ${NET}_cmdbuf_out_all_int8_multiplier_fused_preprocess.npz \
         $CVIMODEL_REL_PATH/${NET}_fused_preprocess_out_all.npz
+
+    if [ $DO_FUSED_POSTPROCESS -eq 1 ]; then
+        mv ${NET}_fused_preprocess_with_detection.cvimodel $CVIMODEL_REL_PATH
+    fi
   else
     cp ${NET}_only_resize_in_uint8.npz \
         $CVIMODEL_REL_PATH/${NET}_bs${BATCH_SIZE}_fused_preprocess_in_uint8.npz
@@ -184,6 +259,10 @@ if [ ! -z $CVIMODEL_REL_PATH -a -d $CVIMODEL_REL_PATH ]; then
         $CVIMODEL_REL_PATH/${NET}_bs${BATCH_SIZE}_fused_preprocess.cvimodel
     cp ${NET}_cmdbuf_out_all_int8_multiplier_fused_preprocess.npz \
         $CVIMODEL_REL_PATH/${NET}_bs${BATCH_SIZE}_fused_preprocess_out_all.npz
+    if [ $DO_FUSED_POSTPROCESS -eq 1 ]; then
+        mv ${NET}_fused_preprocess.cvimodel \
+            $CVIMODEL_REL_PATH/${NET}_bs${BATCH_SIZE}_fused_preprocess_with_detection.cvimodel
+    fi
   fi
 fi
 
