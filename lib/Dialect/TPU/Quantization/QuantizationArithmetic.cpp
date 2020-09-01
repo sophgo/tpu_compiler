@@ -583,15 +583,22 @@ void FloatToBFloat16(const float* src, bfloat16* dst, size_t size,
 #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
   for (; size != 0; p += 2, q++, size--) {
     *q = p[0];
+    /* HW behavior */
+    // infinity set to max finite positive value
+    if ((*q & 0x7f80) == 0x7f80) {
+      *q = 0x7f7f;
+    }
   }
 #else
   for (; size != 0; p += 2, q++, size--) {
     *q = p[1];
+    /* HW behavior */
+    // infinity set to max finite positive value
+    if ((*q & 0x7f80) == 0x7f80) {
+      *q = 0x7f7f;
+    }
   }
 #endif
-  if ((*q & 0x7f80) == 0x7f80) {
-    *q = 0x7f7f;
-  }
   if (rounding) {
     free(src_round);
   }
