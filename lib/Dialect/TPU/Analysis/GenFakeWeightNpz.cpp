@@ -52,6 +52,7 @@ public:
     Builder builder(context);
 
     cnpy::npz_t npz;
+    cnpy::npz_t input_npz;
     std::random_device rd{};
     std::mt19937 gen{rd()};
     StringRef npzFileName;
@@ -81,7 +82,6 @@ public:
       if (auto castOp = llvm::dyn_cast<tpu::WeightFileOp>(op)) {
         npzFileName = castOp.filename();
       } else if (auto castOp = llvm::dyn_cast<tpu::InputOp>(op)) {
-        cnpy::npz_t input_npz;
         std::string op_name = castOp.name().str();
         auto resultShape = getTensorShape(castOp.getResult());
         std::vector<size_t> shape;
@@ -99,7 +99,6 @@ public:
           data[i] = rand;
         }
         cnpy::npz_add_array<float>(input_npz, op_name, (float *)data.data(), shape);
-        cnpy::npz_save_all("input.npz", input_npz);
       } else if (auto castOp = llvm::dyn_cast<tpu::LoadWeightOp>(op)) {
         std::string op_name = castOp.name().str();
         llvm::errs() << op_name << "\n";
@@ -154,6 +153,7 @@ public:
       }
     });
     cnpy::npz_save_all(npzFileName.str(), npz);
+    cnpy::npz_save_all("input.npz", input_npz);
 
     if (caliTableFile) {
       caliTableFile->keep();

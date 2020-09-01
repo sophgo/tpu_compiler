@@ -1,4 +1,7 @@
 #include <numeric>
+#include <ctime>
+#include <iomanip>
+#include <stdlib.h>
 #include "mlir/Dialect/TPU/TPUDialect.h"
 #include "mlir/Dialect/TPU/TPUOperationSupport.h"
 #include "mlir/Dialect/TPU/TPUTensorSupport.h"
@@ -133,7 +136,19 @@ Value* getWeightFileValue(Operation *op) {
     fn.walk([&](tpu::WeightFileOp op) {
        wfV = op.getResult();
     });
-    assert(wfV && "wfV is nullptr");
+    if (!wfV) {
+      auto builder = OpBuilder(op);
+      auto elementType = mlir::FloatType::getF32(builder.getContext());
+      auto weightFileName =
+          TensorFile::generateName("unknown", (int)random());
+      auto weight_type = MemRefType::get({0x80000000}, elementType);
+      auto weight_attr = builder.getStringAttr(weightFileName);
+      auto weightOp = builder.create<tpu::WeightFileOp>(builder.getUnknownLoc(),
+                                                  weight_type, weight_attr);
+      weightOp.getOperation()->moveBefore(op);
+      wfV = weightOp.getResult();
+    }
+    // assert(wfV && "wfV is nullptr");
     return wfV;
   } else {
     llvm_unreachable("no FuncOp found");

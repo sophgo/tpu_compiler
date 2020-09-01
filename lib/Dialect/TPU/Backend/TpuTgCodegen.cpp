@@ -994,25 +994,15 @@ LogicalResult tpu::TG_INT8_EltwiseAddOp::codegen(void *ctx) {
   }
   std::vector<int>coeffs(input_number, 1);
 
-  bmnet_eltwise_fixed_forward_bmkernel(
-      *backend_ctx,
-      0,            // stream_id,
-      0,            // inst_id,
-      layer_id,     // layer_id,
-      nullptr,      // depends
-      0,            // depends_len
-      ga_inputs,    // gaddr_t ga_input[],
-      ga_output,    // gaddr_t ga_output,
-      input_number, // int input_size,
-      1,            // int op,  0, prod, 1, sum, 2, max
-      n, c, h, w,
-      do_relu, // bool do_relu,
-      0.0f,    // float relu_slope,
-      do_early_stride, early_stride_h, early_stride_w,
-      do_quant_rescale ? rshift_int : 0, // int right_shift_width,
+   cvi_backend_tg_int8_eltwise_add_kernel(
+      *backend_ctx, layer_id,
+      ga_inputs, ga_output,
+      input_number, n, c, h, w,
+      do_relu, do_early_stride,
+      early_stride_h, early_stride_w,
+      do_quant_rescale ? rshift_int : 0,
       do_quant_rescale ? m_int : nullptr,
       coeffs.data());
-
   return success();
 }
 
@@ -1074,23 +1064,13 @@ LogicalResult tpu::TG_INT8_EltwiseMaxOp::codegen(void *ctx) {
     }
   }
   const int coeffs[2] = {1, 1};
-
-  bmnet_eltwise_fixed_forward_bmkernel(
-      *backend_ctx,
-      0,            // stream_id,
-      0,            // inst_id,
-      layer_id,     // layer_id,
-      nullptr,      // depends
-      0,            // depends_len
-      ga_inputs,    // gaddr_t ga_input[],
-      ga_output,    // gaddr_t ga_output,
-      input_number, // int input_size,
-      2,            // int op,  0, prod, 1, sum, 2, max
-      n, c, h, w,
-      do_relu, // bool do_relu,
-      0.0f,    // float relu_slope,
-      do_early_stride, early_stride_h, early_stride_w,
-      do_quant_rescale ? rshift_int : 0, // int right_shift_width,
+  cvi_backend_tg_int8_eltwise_max_kernel(
+      *backend_ctx, layer_id,
+      ga_inputs, ga_output,
+      2, n, c, h, w,
+      do_relu, do_early_stride,
+      early_stride_h, early_stride_w,
+      do_quant_rescale ? rshift_int : 0,
       do_quant_rescale ? m_int : nullptr,
       coeffs);
 
@@ -1155,23 +1135,13 @@ LogicalResult tpu::TG_INT8_EltwiseMinOp::codegen(void *ctx) {
     }
   }
   const int coeffs[2] = {1, 1};
-
-  bmnet_eltwise_fixed_forward_bmkernel(
-      *backend_ctx,
-      0,            // stream_id,
-      0,            // inst_id,
-      layer_id,     // layer_id,
-      nullptr,      // depends
-      0,            // depends_len
-      ga_inputs,    // gaddr_t ga_input[],
-      ga_output,    // gaddr_t ga_output,
-      input_number, // int input_size,
-      3,            // int op,  0, prod, 1, sum, 2, max, 3, min
-      n, c, h, w,
-      do_relu, // bool do_relu,
-      0.0f,    // float relu_slope,
-      do_early_stride, early_stride_h, early_stride_w,
-      do_quant_rescale ? rshift_int : 0, // int right_shift_width,
+  cvi_backend_tg_int8_eltwise_min_kernel(
+      *backend_ctx, layer_id,
+      ga_inputs, ga_output,
+      2, n, c, h, w,
+      do_relu, do_early_stride,
+      early_stride_h, early_stride_w,
+      do_quant_rescale ? rshift_int : 0,
       do_quant_rescale ? m_int : nullptr,
       coeffs);
 
@@ -1219,26 +1189,15 @@ LogicalResult tpu::TG_INT8_EltwiseMulOp::codegen(void *ctx) {
   int rshift_int = static_cast<int>(rshift);
   int32_t m_int = static_cast<int32_t>(m_i32_output);
   const int coeffs[2] = {1, 1};
-
-  bmnet_eltwise_fixed_forward_bmkernel(
-      *backend_ctx,
-      0,            // stream_id,
-      0,            // inst_id,
-      layer_id,     // layer_id,
-      nullptr,      // depends
-      0,            // depends_len
-      ga_inputs,    // gaddr_t ga_input[],
-      ga_output,    // gaddr_t ga_output,
-      2,            // int input_size,
-      0,            // int op,  0, prod, 1, sum, 2, max
-      n, c, h, w,
-      do_relu,      // bool do_relu,
-      0.0f,         // float relu_slope,
-      false, 1, 1,
-      rshift_int,   // int right_shift_width,
+  cvi_backend_tg_int8_eltwise_mul_kernel(
+      *backend_ctx, layer_id,
+      ga_inputs, ga_output,
+      2, n, c, h, w,
+      do_relu, false,
+      1, 1,
+      rshift_int,
       &m_int,
-      coeffs
-      );
+      coeffs);
 
   return success();
 }
