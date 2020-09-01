@@ -68,14 +68,9 @@ class CviTensor {
 public:
   CviTensor(std::string name, TensorType &type, int64_t offset, bool isWeight);
 
-  void setBf16QuantInfo(float scale) {
-    quant_type = QuantType_BF16;
-    qscale = scale;
-  }
-
-  void setInt8SymQuantInfo(float scale) {
+  void setInt8SymQuantInfo(float threshold) {
     quant_type = QuantType_INT8_SYM;
-    qscale = scale;
+    qscale = 128.0 / threshold;
   }
 
   void setInt8AsymQuantInfo(float max, float min, float zero) {

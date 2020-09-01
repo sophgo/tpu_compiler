@@ -408,6 +408,15 @@ void CviModelBuilder::parseModule() {
       int64_t offset =
           op->getAttr("gaddr") ? op->getAttr("gaddr").cast<IntegerAttr>().getInt() : -1;
       auto tensor = std::make_shared<CviTensor>(name, type, offset, false);
+      if (auto castOp = llvm::dyn_cast<tpu::GenericCpuOp>(op)) {
+        if (castOp.operation_name() == "tpu.quant" &&
+            castOp.param().get("from").cast<StringAttr>().getValue() == "NONE" &&
+            castOp.param().get("to").cast<StringAttr>().getValue() == "INT8") {
+          float threshold = (float)castOp.param().get("threshold").
+                            cast<FloatAttr>().getValue().convertToFloat();
+          tensor->setInt8SymQuantInfo(threshold);
+        }
+      }
       if (!batchNum_) {
         batchNum_ = tensor->shape[0];
       }
@@ -568,8 +577,10 @@ FBTensorVector CviModelBuilder::buildNeuronMap() {
     auto fbName = fbb_.CreateString(tensor->name);
     auto fbShapeVec = fbb_.CreateVector(shape);
     auto fbShape = CreateShape(fbb_, fbShapeVec);
+    auto fbQuant = CreateQuantInfo(fbb_, tensor->quant_type,
+                                   0, 0, 0, tensor->qscale);
     auto fbTensor = CreateTensor(fbb_, 0, fbName, tensor->offset, tensor->dtype, fbShape,
-                                 0, 0, tensor->overwritten);
+                                 0, fbQuant, tensor->overwritten);
     tensorVec.push_back(fbTensor);
   }
   return fbb_.CreateVector(tensorVec);
