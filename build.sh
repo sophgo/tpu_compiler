@@ -319,6 +319,7 @@ if [ "$1" = "RELEASE" ]; then
     mobilenet_v2.cvimodel
     mobilenet_v2_fused_preprocess.cvimodel
     yolo_v3_416_with_detection.cvimodel
+    yolo_v3_416_fused_preprocess_with_detection.cvimodel
     alphapose.cvimodel
     alphapose_fused_preprocess.cvimodel
     retinaface_mnet25_600_with_detection.cvimodel
