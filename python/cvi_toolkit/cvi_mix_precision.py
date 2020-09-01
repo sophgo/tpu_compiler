@@ -79,14 +79,15 @@ if __name__ == '__main__':
                     input_scale=args.input_scale,
                     raw_scale=args.raw_scale,
                     std=args.std,
-                    rgb_order=args.model_channel_order)
+                    rgb_order=args.model_channel_order,
+                    crop_method=args.crop_method)
         # read with opencv, bgr, hwc
         p_func = lambda input_tensor: preprocessor.run(input_tensor, input_channel_order="bgr", input_data_format="hwc",
                         output_channel_order=args.model_channel_order, input_type='tensor')
 
         mix_precisior = MixPrecisior(args.fp32_cali_mlir_file, generic_loss, args.image_list_file,
                                         precrocess_func=p_func, input_num=args.input_num)
-        
+
     else:
         assert(False)
 
