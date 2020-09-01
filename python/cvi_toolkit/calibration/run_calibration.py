@@ -10,7 +10,7 @@ import numpy as np
 
 from cvi_toolkit.calibration.kld_calibrator import KLD_Calibrator
 from cvi_toolkit.calibration.asym_calibrator import Asym_Calibrator
-from cvi_toolkit.calibration.tuner import Tuner
+from cvi_toolkit.calibration.tuner import Tuner_v2
 from cvi_toolkit import preprocess
 from cvi_toolkit.data.preprocess import get_preprocess_parser
 
@@ -156,6 +156,7 @@ def main():
   parser.add_argument('--auto_tune', action='store_true', help='Enable auto tune or not')
   parser.add_argument('--binary_path', metavar='binary_path', help='MLIR binary path')
   parser.add_argument('--tune_iteration', metavar='iteration',type=int, help='The number of data using in tuning process', default=10)
+  parser.add_argument('--dataset_file_path', metavar='dataset_file_path', type=str, help='file path that recode dataset images path')
   parser.add_argument('--custom_op_plugin', metavar='custom_op_plugin', help='set file path of custom op plugin', default='')
   parser = get_preprocess_parser(existed_parser=parser)
   args = parser.parse_args()
@@ -204,10 +205,13 @@ def main():
     threshold_table = '{}_threshold_table'.format(args.model_name)
   calibrator.dump_threshold_table(threshold_table, thresholds)
 
+  def autotune_preprocess(image_path):
+    return p_func(image_path, None)
+
   if args.auto_tune == True:
     args.input_threshold_table = threshold_table
-    tune = Tuner(args, preprocess_generic)
-    tune.run_tune(args)
+    tuner = Tuner_v2(args.model_file, threshold_table, args.dataset_file_path, tune_iteration=args.tune_iteration,preprocess_func=autotune_preprocess)
+    tuner.run_tune()
 
 if __name__ == '__main__':
   main()
