@@ -131,7 +131,8 @@ struct TpuTileToUpsamplePattern : public RewritePattern {
 
 void tpu::TileOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
                                               MLIRContext *context) {
-  results.insert<TpuTileToUpsamplePattern>(context);
+  // directly use backend tile op
+  // results.insert<TpuTileToUpsamplePattern>(context);
 }
 
 void tpu::TileInterpOp::getCanonicalizationPatterns(
