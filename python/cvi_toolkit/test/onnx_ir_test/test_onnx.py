@@ -30,7 +30,8 @@ TEST_ONNX_IR = [
     "Neg",
     "Relu",
     "PRelu",
-    "Reciprocal",
+    "Resize",
+#    "Reciprocal",
     "Slice",
     "Sigmoid",
     "Sub",
@@ -40,7 +41,7 @@ TEST_ONNX_IR = [
 chip = get_chip_name()
 
 NOT_SUPPORT_CMDBUF_TEST_IR = ["DepthToSpace"]
-NOT_SUPPORT_BF16_TEST_IR = ["Relu", "LRN", "Max", "Min", "PRelu", "Reciprocal", "Slice", "Transpose", "Sum"]
+NOT_SUPPORT_BF16_TEST_IR = ["Relu", "LRN", "Max", "Min", "PRelu", "Reciprocal", "Resize", "Slice", "Transpose", "Sum"]
 
 def make_test_calibration_table(tensors, table_name):
     # simple calibration table
@@ -85,6 +86,7 @@ class ONNX_IR_TESTER(object):
             "PRelu": self.test_PRelu,
             "Reciprocal": self.test_Reciprocal,
             "Relu": self.test_Relu,
+            "Resize": self.test_Resize,
             "Slice": self.test_Slice,
             "Sigmoid": self.test_Sigmoid,
             "Sub": self.test_Sub,
@@ -293,80 +295,6 @@ class ONNX_IR_TESTER(object):
         input_data = np.random.rand(input_shape[0], input_shape[1],
                                     input_shape[2], input_shape[3]).astype(np.float32)
 
-        onnx.checker.check_model(model_def)
-        self.onnx_convert_and_infernece(input_data, model_def, test_case)
-
-    def test_ReduceMean(self):
-        test_case="ReduceMean"
-        input_shape = [1, 3, 4, 128]
-        output_shape = [1, 3, 4, 1]
-
-        input = helper.make_tensor_value_info(
-            'input', TensorProto.FLOAT, input_shape)
-        output = helper.make_tensor_value_info(
-            'output', TensorProto.FLOAT, output_shape)
-
-        x1_node = helper.make_node(
-            'Neg',
-            ['input'],
-            ['X1'],
-        )
-
-        reduce_node = helper.make_node(
-            'ReduceMean',
-            ['X1'],
-            ['output'],
-            keepdims=1,
-            axes=[3,],
-        )
-
-        graph_def = helper.make_graph(
-            [x1_node, reduce_node],
-            test_case,
-            [input],
-            [output]
-        )
-
-        model_def = helper.make_model(graph_def, producer_name = test_case)
-        input_data = np.random.rand(input_shape[0], input_shape[1],
-                                    input_shape[2], input_shape[3]).astype(np.float32)
-        onnx.checker.check_model(model_def)
-        self.onnx_convert_and_infernece(input_data, model_def, test_case)
-
-    def test_ReduceMax(self):
-        test_case="ReduceMax"
-        input_shape = [1, 128, 4, 4]
-        output_shape = [1, 1, 4, 4]
-
-        input = helper.make_tensor_value_info(
-            'input', TensorProto.FLOAT, input_shape)
-        output = helper.make_tensor_value_info(
-            'output', TensorProto.FLOAT, output_shape)
-
-        x1_node = helper.make_node(
-            'Neg',
-            ['input'],
-            ['X1'],
-        )
-
-        reduce_node = helper.make_node(
-            'ReduceMax',
-            ['X1'],
-            ['output'],
-            keepdims=1,
-            axes=[1,],
-        )
-
-        graph_def = helper.make_graph(
-            [x1_node, reduce_node],
-            test_case,
-            [input],
-            [output]
-        )
-
-        model_def = helper.make_model(graph_def, producer_name = test_case)
-        input_data = np.random.rand(input_shape[0], input_shape[1],
-                                    input_shape[2], input_shape[3]).astype(np.float32)
         onnx.checker.check_model(model_def)
         self.onnx_convert_and_infernece(input_data, model_def, test_case)
 
@@ -837,6 +765,148 @@ class ONNX_IR_TESTER(object):
         onnx.checker.check_model(model_def)
         self.onnx_convert_and_infernece(input_data, model_def, test_case)
 
+    def test_ReduceMean(self):
+        test_case = "ReduceMean"
+        input_shape = [1, 3, 4, 128]
+        output_shape = [1, 3, 4, 1]
+
+        input = helper.make_tensor_value_info(
+            'input', TensorProto.FLOAT, input_shape)
+        output = helper.make_tensor_value_info(
+            'output', TensorProto.FLOAT, output_shape)
+
+        x1_node = helper.make_node(
+            'Neg',
+            ['input'],
+            ['X1'],
+        )
+
+        reduce_node = helper.make_node(
+            'ReduceMean',
+            ['X1'],
+            ['output'],
+            keepdims=1,
+            axes=[3, ],
+        )
+
+        graph_def = helper.make_graph(
+            [x1_node, reduce_node],
+            test_case,
+            [input],
+            [output]
+        )
+
+        model_def = helper.make_model(graph_def, producer_name=test_case)
+        input_data = np.random.rand(input_shape[0], input_shape[1],
+                                    input_shape[2], input_shape[3]).astype(np.float32)
+        onnx.checker.check_model(model_def)
+        self.onnx_convert_and_infernece(input_data, model_def, test_case)
+
+    def test_ReduceMax(self):
+        test_case = "ReduceMax"
+        input_shape = [1, 128, 4, 4]
+        output_shape = [1, 1, 4, 4]
+
+        input = helper.make_tensor_value_info(
+            'input', TensorProto.FLOAT, input_shape)
+        output = helper.make_tensor_value_info(
+            'output', TensorProto.FLOAT, output_shape)
+
+        x1_node = helper.make_node(
+            'Neg',
+            ['input'],
+            ['X1'],
+        )
+
+        reduce_node = helper.make_node(
+            'ReduceMax',
+            ['X1'],
+            ['output'],
+            keepdims=1,
+            axes=[1, ],
+        )
+
+        graph_def = helper.make_graph(
+            [x1_node, reduce_node],
+            test_case,
+            [input],
+            [output]
+        )
+
+        model_def = helper.make_model(graph_def, producer_name=test_case)
+        input_data = np.random.rand(input_shape[0], input_shape[1],
+                                    input_shape[2], input_shape[3]).astype(np.float32)
+        onnx.checker.check_model(model_def)
+        self.onnx_convert_and_infernece(input_data, model_def, test_case)
+
+    def test_Resize(self):
+        test_case = "test_Resize"
+        input_shape = [1, 96, 3, 4]
+        output_shape = [1, 96, 6, 8]
+
+        input = helper.make_tensor_value_info(
+            'input', TensorProto.FLOAT, input_shape)
+        output = helper.make_tensor_value_info(
+            'output', TensorProto.FLOAT, output_shape)
+
+
+        roi = np.array([], dtype=np.float32)
+        scales = np.array([], dtype=np.float32)
+        sizes = np.array([1, 96, 6, 8], dtype=np.int64)
+
+        roi_node_def = onnx.helper.make_node(
+            'Constant',
+            inputs=[],
+            outputs=['roi'],
+            value=onnx.helper.make_tensor(
+                name='const_tensor',
+                data_type=onnx.TensorProto.FLOAT,
+                dims=roi.shape,
+                vals=roi.flatten(),
+            ),
+        )
+        scales_node_def = onnx.helper.make_node(
+            'Constant',
+            inputs=[],
+            outputs=['scales'],
+            value=onnx.helper.make_tensor(
+                name='const_tensor',
+                data_type=onnx.TensorProto.FLOAT,
+                dims=scales.shape,
+                vals=scales.flatten(),
+            ),
+        )
+        sizes_node_def = onnx.helper.make_node(
+            'Constant',
+            inputs=[],
+            outputs=['sizes'],
+            value=onnx.helper.make_tensor(
+                name='const_tensor',
+                data_type=onnx.TensorProto.INT64,
+                dims=sizes.shape,
+                vals=sizes.flatten(),
+            ),
+        )
+        resize_node = helper.make_node(
+            'Resize',
+            inputs=['input', 'roi', 'scales', 'sizes'],
+            outputs=['output'],
+            mode='nearest',
+        )
+
+        graph_def = helper.make_graph(
+            [roi_node_def, scales_node_def, sizes_node_def, resize_node],
+            test_case,
+            [input],
+            [output]
+        )
+
+        model_def = helper.make_model(graph_def, producer_name=test_case)
+        input_data = np.random.rand(input_shape[0], input_shape[1],
+                                    input_shape[2], input_shape[3]).astype(np.float32)
+        onnx.checker.check_model(model_def)
+        self.onnx_convert_and_infernece(input_data, model_def, test_case)
+
     def test_Slice(self):
         test_case = 'Slice'
         x = np.random.randn(1, 20, 10, 5).astype(np.float32)
@@ -1289,9 +1359,10 @@ if __name__ == "__main__":
             print("TEST {} Finish".format(i))
 
         for i in TEST_ONNX_IR:
-            tester.set_quant_mode(mode="bf16")
-            tester.test_function.get(i)()
-            pass_list_bf16.append(i)
+            if i not in NOT_SUPPORT_BF16_TEST_IR:
+                tester.set_quant_mode(mode="bf16")
+                tester.test_function.get(i)()
+                pass_list_bf16.append(i)
 
         print("INT8 {} PASS {}".format("="*4, "="*4))
         for i in pass_list_i8:

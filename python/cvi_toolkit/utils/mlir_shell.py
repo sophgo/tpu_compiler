@@ -26,6 +26,7 @@ def checkReturnValue(ret, func: str):
     if ret.returncode == 0:
         logger.debug("{} run success".format(func))
     else:
+        logger.error("[!Error]cmd: {}".format(" ".join(ret.args)))
         logger.error("error occured: {}, func: {}\nmsg: {}".format(ret.returncode, func, ret))
 
 def mlir_opt(mlirfile, opt_mlirfile, op_info_csv, chip=None):

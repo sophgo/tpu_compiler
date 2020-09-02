@@ -1839,8 +1839,7 @@ class OnnxConverter(BaseConverter):
 
         if len(scale_factor) != 4:
             raise RuntimeError("scale_factor length should be 4")
-        if scale_factor[0] != input_shape1[0] and scale_factor[1] != input_shape1[1]:
-            raise RuntimeError("Not support n,c upsample")
+
 
         if mode == b'linear':
             coordinate_transformation_mode = \
@@ -1880,18 +1879,21 @@ class OnnxConverter(BaseConverter):
 
         elif mode == b"nearest":
             operands = list()
+            use_size = len(self.getTensor(onnx_node.inputs[2]).tensor_data) == 0
             operands.append(op1)
             ic = input_shape1[1]
+            ih = input_shape1[2]
+            iw = input_shape1[3]
             on = int(input_shape1[0])
             oc = int(input_shape1[1])
-            oh = int(input_shape1[2] * scale_factor[2])
-            ow = int(input_shape1[3] * scale_factor[3])
+            oh = int(scale_factor[2]) if use_size else int(input_shape1[2] * scale_factor[2])
+            ow = int(scale_factor[3]) if use_size else int(input_shape1[3] * scale_factor[3])
             group = ic
             output_shape = [int(on), int(oc), int(oh), int(ow)]
             # use deconv(depthwise)
             deconv_param = {
-                'stride_h':  scale_factor[2],
-                'stride_w':  scale_factor[3],
+                'stride_h':  int(oh / ih),
+                'stride_w':  int(ow / iw),
                 'padding': "VALID",
                 'dilation_h': 1,
                 'dilation_w': 1,
@@ -1907,7 +1909,8 @@ class OnnxConverter(BaseConverter):
             }
 
             # deconv weight all one
-            weight_shape = [group, int(oc/group), int(ic/group), int(scale_factor[2]), int(scale_factor[3])]
+            weight_shape = [group, int(
+                oc/group), int(ic/group), int(oh / ih), int(ow / iw)]
             tensor_data = np.full(weight_shape, 1)
             weight_name = "{}_add_weight".format(onnx_node.name)
             self.addTensor(weight_name, tensor_data, tensor_data.shape)
