@@ -196,6 +196,8 @@ struct ConvertTgOpToTensorPass : public FunctionPass<ConvertTgOpToTensorPass> {
     target.addLegalOp<tpu::TG_BF16_PadOp>();
     target.addLegalOp<tpu::TG_INT8_GruOp>();
     target.addLegalOp<tpu::TG_BF16_GruOp>();
+    target.addLegalOp<tpu::TG_INT8_LstmOp>();
+    target.addLegalOp<tpu::TG_BF16_LstmOp>();
     target.addLegalOp<tpu::TG_INT8_SoftmaxOp>();
     target.addLegalOp<tpu::TG_BF16_SoftmaxOp>();
     target.addLegalOp<tpu::TL_LA_Conv2DOp>();
@@ -282,6 +284,8 @@ struct ConvertTgOpToTensorPass : public FunctionPass<ConvertTgOpToTensorPass> {
         convertTgOpToTensorPattern<tpu::TL_MemRef_BroadcastMulOp, tpu::TL_BroadcastMulOp>,
         convertTgOpToTensorPattern<tpu::TG_MemRef_INT8_GruOp, tpu::TG_INT8_GruOp>,
         convertTgOpToTensorPattern<tpu::TG_MemRef_BF16_GruOp, tpu::TG_BF16_GruOp>,
+        convertTgOpToTensorPattern<tpu::TG_MemRef_INT8_LstmOp, tpu::TG_INT8_LstmOp>,
+        convertTgOpToTensorPattern<tpu::TG_MemRef_BF16_LstmOp, tpu::TG_BF16_LstmOp>,
         convertTgOpToTensorPattern<tpu::TG_MemRef_INT8_SoftmaxOp, tpu::TG_INT8_SoftmaxOp>,
         convertTgOpToTensorPattern<tpu::TG_MemRef_BF16_SoftmaxOp, tpu::TG_BF16_SoftmaxOp>,
         convertTypeConvertedOpPattern<tpu::TG_TensorToMemRefOp>,

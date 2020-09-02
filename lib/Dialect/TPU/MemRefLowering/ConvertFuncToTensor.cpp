@@ -174,6 +174,8 @@ struct ConvertFuncToTensorPass
     target.addLegalOp<tpu::TG_BF16_UpsampleOp>();
     target.addLegalOp<tpu::TG_INT8_GruOp>();
     target.addLegalOp<tpu::TG_BF16_GruOp>();
+    target.addLegalOp<tpu::TG_INT8_LstmOp>();
+    target.addLegalOp<tpu::TG_BF16_LstmOp>();
     target.addLegalOp<tpu::TG_INT8_SoftmaxOp>();
     target.addLegalOp<tpu::TG_BF16_SoftmaxOp>();
 

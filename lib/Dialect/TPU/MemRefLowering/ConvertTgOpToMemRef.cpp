@@ -498,6 +498,8 @@ void ConvertTgOpToMemRefPass::runOnFunction() {
       AddTypeConvertedForNotLowedOpPattern<tpu::TG_BF16_UpsampleOp>,
       AddTypeConvertedForNotLowedOpPattern<tpu::TG_INT8_GruOp>,
       AddTypeConvertedForNotLowedOpPattern<tpu::TG_BF16_GruOp>,
+      AddTypeConvertedForNotLowedOpPattern<tpu::TG_INT8_LstmOp>,
+      AddTypeConvertedForNotLowedOpPattern<tpu::TG_BF16_LstmOp>,
       AddTypeConvertedForNotLowedOpPattern<tpu::TG_INT8_SoftmaxOp>,
       AddTypeConvertedForNotLowedOpPattern<tpu::TG_BF16_SoftmaxOp>,
       AddTypeConvertedForNotLowedOpPattern<tpu::TL_LA_Conv2DOp>,
@@ -583,6 +585,8 @@ void ConvertTgOpToMemRefPass::runOnFunction() {
   target.addLegalOp<tpu::TL_MemRef_BroadcastMulOp>();
   target.addLegalOp<tpu::TG_MemRef_INT8_GruOp>();
   target.addLegalOp<tpu::TG_MemRef_BF16_GruOp>();
+  target.addLegalOp<tpu::TG_MemRef_INT8_LstmOp>();
+  target.addLegalOp<tpu::TG_MemRef_BF16_LstmOp>();
   target.addLegalOp<tpu::TG_MemRef_INT8_SoftmaxOp>();
   target.addLegalOp<tpu::TG_MemRef_BF16_SoftmaxOp>();
 
@@ -664,6 +668,8 @@ void ConvertTgOpToMemRefPass::runOnFunction() {
       convertTgOpToMemRefPattern<tpu::TL_BroadcastMulOp, tpu::TL_MemRef_BroadcastMulOp>,
       convertTgOpToMemRefPattern<tpu::TG_INT8_GruOp, tpu::TG_MemRef_INT8_GruOp>,
       convertTgOpToMemRefPattern<tpu::TG_BF16_GruOp, tpu::TG_MemRef_BF16_GruOp>,
+      convertTgOpToMemRefPattern<tpu::TG_INT8_LstmOp, tpu::TG_MemRef_INT8_LstmOp>,
+      convertTgOpToMemRefPattern<tpu::TG_BF16_LstmOp, tpu::TG_MemRef_BF16_LstmOp>,
       convertTgOpToMemRefPattern<tpu::TG_INT8_SoftmaxOp, tpu::TG_MemRef_INT8_SoftmaxOp>,
       convertTgOpToMemRefPattern<tpu::TG_BF16_SoftmaxOp, tpu::TG_MemRef_BF16_SoftmaxOp>,
       convertMemRefToTensorOpPattern,

@@ -600,6 +600,7 @@ LogicalResult quantizeBf16LstmOps(Operation *op) {
 
   auto lstmOp = cast<tpu::LstmOp>(op);
   TensorFile *wTF = getWeightTensorFile(op);
+  Value *wfV = getWeightFileValue(op);
 
   // get weight tensor
   auto weight = readAndDeleteWeightTensor<float>(lstmOp.weight(), wTF);
@@ -643,8 +644,6 @@ LogicalResult quantizeBf16LstmOps(Operation *op) {
 
   bool b_initial_h_is_same_as_initial_c = false;
   assert(initial_h_weightOp.name() == initial_c_weightOp.name());
-  if ( !isTensorNone(lstmOp.initial_c()) && initial_h_weightOp.name() == initial_c_weightOp.name())
-    b_initial_h_is_same_as_initial_c = true;
 
   if ( !isTensorNone(lstmOp.initial_c())) {
     if (initial_h_weightOp.name() == initial_c_weightOp.name()) {
@@ -705,6 +704,111 @@ LogicalResult quantizeBf16LstmOps(Operation *op) {
   else if (b_initial_h_is_same_as_initial_c)
     addWeightTensorAndUpdateWeightOp<bfloat16>(lstmOp.getOperand(5),
           "quant", *new_initial_h, initial_hShape, "BF16", wTF);
+  
+  LLVM_DEBUG(llvm::dbgs() << "GenSigmoidLut: " << "]\n";);
+  // Add lut table information
+
+  int npu_num = 32;
+
+  //<! 1880v2 hw bf16 config
+  int table_h = 32;
+  int table_w = 8;
+  std::vector<float> y0_sigmoid_table;
+  std::vector<float> y0_sigmoid_slope_table; // use in bf16
+  int table_hw = table_h * table_w;
+  int tbl_shape = npu_num * table_hw;
+  y0_sigmoid_table.resize(tbl_shape);
+  y0_sigmoid_slope_table.resize(tbl_shape);
+  std::vector<float> y0_fp32_table(table_hw);
+  std::vector<float> y0_fp32_slope_table(table_hw);
+  std::vector<uint16_t> y0_bf16_table(table_hw);
+  std::vector<uint16_t> y0_bf16_slope_table(table_hw);
+  StringRef storageType = "BF16";
+
+  // use function pointer
+  LLVM_DEBUG(llvm::dbgs() << "use function pointer: " << "]\n";);
+  double (*activate_func)(double);
+  activate_func = sigmoid;
+
+  gen_bf16_table(BF16_TABLE_START, BF16_TABLE_END, table_hw,
+                 y0_fp32_table.data(), activate_func);
+
+  gen_bf16_slope_table(BF16_TABLE_START, BF16_TABLE_END, table_hw,
+                       y0_fp32_table.data(), y0_fp32_slope_table.data(),
+                       activate_func);
+  // for(int i = 0; i < table_hw; i++) {
+  //   LLVM_DEBUG(llvm::dbgs() << "sigmoid data[" << i<< "]: " <<  y0_fp32_table[i]<< "]\n";);
+  //   LLVM_DEBUG(llvm::dbgs() << "sigmoid data[" << i<< "]: " <<  y0_fp32_slope_table[i]<< "]\n";);
+  // }
+
+  LLVM_DEBUG(llvm::dbgs() << "convert fp32 to bf16: " << "]\n";);
+  // convert fp32 to bf16
+  FloatToBFloat16(y0_fp32_table.data(),
+                  y0_bf16_table.data(), table_hw);
+  FloatToBFloat16(y0_fp32_slope_table.data(),
+                  y0_bf16_slope_table.data(), table_hw);
+
+  // copy bf16 data to float table
+  LLVM_DEBUG(llvm::dbgs() << "copy bf16 data to float table: " << "]\n";);
+  for (int i = 0; i < npu_num; ++i){
+    std::copy(y0_bf16_table.data(), y0_bf16_table.data() + table_hw,
+              y0_sigmoid_table.data() + i * table_hw);
+    std::copy(y0_bf16_slope_table.data(),
+              y0_bf16_slope_table.data() + table_hw,
+              y0_sigmoid_slope_table.data() + i * table_hw);
+  }
+
+  // update op
+  LLVM_DEBUG(llvm::dbgs() << "update op: " << "]\n";);
+  auto shape = std::vector<int64_t>{1, npu_num, table_h, table_w};
+  auto y0_sigmoid_table_op = addWeightTensorAndCreateWeightOp<float>(
+      op, "sigmoid_table", y0_sigmoid_table, shape, storageType, wTF, wfV);
+  auto mantissa_sigmoid_table_op = addWeightTensorAndCreateWeightOp<float>(
+      op, "sigmoid_slope_table", y0_sigmoid_slope_table, shape, storageType, wTF, wfV);
+  lstmOp.setOperand(6, y0_sigmoid_table_op);
+  lstmOp.setOperand(7, mantissa_sigmoid_table_op);
+
+  //Add lut table information - tanh
+  LLVM_DEBUG(llvm::dbgs() << "GenTanhLut: " << "]\n";);
+  activate_func = tanh;
+  std::vector<float> y0_tanh_table;
+  std::vector<float> y0_tanh_slope_table; // use in bf16
+  y0_tanh_table.resize(tbl_shape);
+  y0_tanh_slope_table.resize(tbl_shape);
+
+  gen_bf16_table(BF16_TABLE_START, BF16_TABLE_END, table_hw,
+                 y0_fp32_table.data(), activate_func);
+
+  gen_bf16_slope_table(BF16_TABLE_START, BF16_TABLE_END, table_hw,
+                       y0_fp32_table.data(), y0_fp32_slope_table.data(),
+                       activate_func);
+  //  for(int i = 0; i < table_hw; i++) {
+  //   LLVM_DEBUG(llvm::dbgs() << "tanh data[" << i<< "]: " <<  y0_fp32_table[i]<< "]\n";);
+  //   LLVM_DEBUG(llvm::dbgs() << "tanh data[" << i<< "]: " <<  y0_fp32_slope_table[i]<< "]\n";);
+  // }
+
+  // convert fp32 to bf16
+  FloatToBFloat16(y0_fp32_table.data(),
+                  y0_bf16_table.data(), table_hw);
+  FloatToBFloat16(y0_fp32_slope_table.data(),
+                  y0_bf16_slope_table.data(), table_hw);
+
+  // copy bf16 data to float table
+  for (int i = 0; i < npu_num; ++i){
+    std::copy(y0_bf16_table.data(), y0_bf16_table.data() + table_hw,
+              y0_tanh_table.data() + i * table_hw);
+    std::copy(y0_bf16_slope_table.data(),
+              y0_bf16_slope_table.data() + table_hw,
+              y0_tanh_slope_table.data() + i * table_hw);
+  }
+
+  // update op
+  auto y0_tanh_table_op = addWeightTensorAndCreateWeightOp<float>(
+      op, "tanh_table", y0_tanh_table, shape, storageType, wTF, wfV);
+  auto mantissa_tanh_table_op = addWeightTensorAndCreateWeightOp<float>(
+      op, "tanh_slope_table", y0_tanh_slope_table, shape, storageType, wTF, wfV);
+  lstmOp.setOperand(8, y0_tanh_table_op);
+  lstmOp.setOperand(9, mantissa_tanh_table_op);
 
   setOpResultType(op, StandardTypes::BF16);
 

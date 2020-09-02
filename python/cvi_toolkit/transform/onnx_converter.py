@@ -1348,7 +1348,10 @@ class OnnxConverter(BaseConverter):
             if tensor_type == TensorType.TENSOR:
                 initial_c_tensor = self.getTensor(initial_c_name)
                 initial_c_op = self.CVI.add_load_file_op(initial_c_name, initial_c_tensor.shape)
-                operands.append(initial_c_op)
+                if initial_h_name == initial_c_name :
+                    operands.append(initial_h_op)
+                else :
+                    operands.append(initial_c_op)
             else:
                 raise RuntimeError("LSTM only support initial_c from activation currently.")
 

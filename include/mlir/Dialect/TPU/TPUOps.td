@@ -1078,7 +1078,8 @@ def TPU_LstmOp: TPU_Op<"lstm",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
        DeclareOpInterfaceMethods<TpuOpInterpInterface>,
-       DeclareOpInterfaceMethods<TpuOpQuantInterface>]> {
+       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
+       DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
   let summary = "LSTM operator";
 
   let description = [{
@@ -1115,6 +1116,10 @@ def TPU_LstmOp: TPU_Op<"lstm",
     TPU_TensorOfOrNone<[F32, BF16, I16, I8]>:$bias,
     AnyTensor:$initial_h,
     AnyTensor:$initial_c,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$sigmoid_table,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$sigmoid_slope_table,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$tanh_table,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$tanh_slope_table,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
     DefaultValuedAttr<BoolAttr, "false">:$bidirectional,
