@@ -243,6 +243,21 @@ static void findInPlaceOpMaxUsePosition(Operation *op, uint32_t& maxPosition) {
   }
 }
 
+static bool needAssignNeuronForOp(Operation *op) {
+  if (!isa<tpu::GenericCpuOp>(op) &&
+      !isa<tpu::InputOp>(op)) {
+    return true;
+  }
+  for (auto &use : op->getResult(0)->getUses()) {
+    Operation *next = use.getOwner();
+    if (isa<tpu::GenericCpuOp>(next) ||
+        isa<ReturnOp>(next)) {
+      return false;
+    }
+  }
+  return true;
+}
+
 class AssignNeuronAddressPass : public FunctionPass<AssignNeuronAddressPass> {
 public:
   explicit AssignNeuronAddressPass() {}
@@ -331,7 +346,7 @@ public:
           if (isOpInVector(op, ops)) {
             if (!isOpInVector(op, subFn->outputs)) {
               opsOfSubFunc.push_back(op);
-            } else {
+            } else if (needAssignNeuronForOp(op)) {
               opsOfMainFunc.push_back(op);
             }
           }
@@ -346,7 +361,7 @@ public:
         }
       } else {
         for (auto op : subFn->ops) {
-          if (isOpInVector(op, ops)) {
+          if (isOpInVector(op, ops) && needAssignNeuronForOp(op)) {
             opsOfMainFunc.push_back(op);
           }
         }

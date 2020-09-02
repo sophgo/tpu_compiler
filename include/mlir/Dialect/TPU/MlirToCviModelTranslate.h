@@ -92,7 +92,7 @@ public:
   float max_value;
   float min_value;
   float zero_point;
-  float qscale;
+  float qscale = 0.0f;
 
   bool is_weight = false;
   bool overwritten = false;

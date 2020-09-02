@@ -232,6 +232,9 @@ void GmemAllocator::markGmemReusedOp(
 
   std::vector<Operation *> tmp;
   for (int i = ops.size() - 1; i >= 0; i--) {
+    if (gaddrMap.find(ops[i]) == gaddrMap.end())
+      continue;
+
     auto addr_i = gaddrMap[ops[i]];
     auto sz_i = getTensorGmemSize(ops[i], alignment);
     for (int j = 0; j < (int)tmp.size(); j++) {
