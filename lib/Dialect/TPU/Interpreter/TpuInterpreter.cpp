@@ -3064,6 +3064,61 @@ LogicalResult tpu::SoftmaxOp::interpret(
     assert(ret == 0);
   }
 
+  if (getOpQuant() == "NONE") {
+    // do nothing
+  } else if (getOpQuant() == "INT8") {
+    // softmax doesn not implement int8 quantization so far
+    assert(0);
+  } else if (getOpQuant() == "BF16") {
+    auto tensor_bf16 = std::make_unique<std::vector<bfloat16> >(resultT->size());
+    FloatToBFloat16(resultT->data(), tensor_bf16->data(), resultT->size()); // with rounding
+    BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
+  } else {
+    llvm_unreachable("unsupported type");
+  }
+
+  valueMapping[result] = std::move(resultT);
+  return success();
+}
+
+LogicalResult tpu::SoftmaxCpuOp::interpret(
+    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+  Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
+
+  auto opdT = getOperandTensors(op, valueMapping);
+  auto result = this->getResult();
+  std::vector<int64_t> shape = getTensorShape(result);
+  auto size = getTensorSize(result);
+  auto resultT = std::make_unique<std::vector<float> >(size);
+
+  // parse param
+  int axis = this->axis().getLimitedValue();
+
+  if (shape.size() == 2) {
+    int ret = my_softmax2D(opdT[0]->data(), resultT->data(), shape[0], shape[1]);
+    assert(ret == 0);
+  } else if (shape.size() == 4) {
+    int ret = my_softmax4D(opdT[0]->data(), resultT->data(), axis, shape);
+    assert(ret == 0);
+  } else if (shape.size() == 3) {
+    int ret = my_softmax3D(opdT[0]->data(), resultT->data(), axis, shape);
+    assert(ret == 0);
+  }
+
+  if (getOpQuant() == "NONE") {
+    // do nothing
+  } else if (getOpQuant() == "INT8") {
+    // softmax doesn not implement int8 quantization so far
+    assert(0);
+  } else if (getOpQuant() == "BF16") {
+    auto tensor_bf16 = std::make_unique<std::vector<bfloat16> >(resultT->size());
+    FloatToBFloat16(resultT->data(), tensor_bf16->data(), resultT->size()); // with rounding
+    BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
+  } else {
+    llvm_unreachable("unsupported type");
+  }
+
   valueMapping[result] = std::move(resultT);
   return success();
 }

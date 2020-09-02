@@ -490,8 +490,6 @@ class TPU_TG_MemRef_GruOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       `initial_h`       : required, initial value of the hidden.
 
     Attributes:
-      `do_relu`         : required, whether to do relu on result.
-      `rshift`          : optional, rshift for positive, an int8 value.
       `region`          : required, the memory region to reside in, could be
                           one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
                           (backend does not support `INPUT`, `OUTPUT` for now)
@@ -517,6 +515,10 @@ class TPU_TG_MemRef_GruOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     MemRefOf<[AnyFloat, AnyInteger]>:$recurrence,
     TPU_MemRefOfOrNone<[F32, BF16, I16, I8]>:$bias,
     MemRefOf<[AnyFloat, AnyInteger]>:$initial_h,
+    MemRefOf<[AnyFloat, AnyInteger]>:$sigmoid_table,
+    MemRefOf<[AnyFloat, AnyInteger]>:$sigmoid_slope_table,
+    MemRefOf<[AnyFloat, AnyInteger]>:$tanh_table,
+    MemRefOf<[AnyFloat, AnyInteger]>:$tanh_slope_table,
     MemRefOf<[AnyFloat, AnyInteger]>:$output,
     DefaultValuedAttr<BoolAttr, "true">:$linear_before_reset,
     DefaultValuedAttr<BoolAttr, "false">:$bidirectional,
@@ -1266,6 +1268,56 @@ class TPU_TG_MemRef_SliceOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 def TPU_TG_MemRef_INT8_SliceOp : TPU_TG_MemRef_SliceOp<"tg_memref_int8_slice", "Int8">;
 def TPU_TG_MemRef_BF16_SliceOp : TPU_TG_MemRef_SliceOp<"tg_memref_bf16_slice", "Bf16">;
 
+class TPU_TG_MemRef_SoftmaxOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
+  let summary = "TG " # opQuant # " softmax operator.";
+
+  let description = [{
+    Perform softmax on input.
+
+    Inputs:
+      `input`           : required, the input activation tensor.
+      `exponential_table`           : required, the exponential table.
+      `exponential_slope_table`           : required, the exponential slope table.
+      `reciprocal_table`           : required, the reciprocal table.
+      `reciprocal_mantissa_table`           : required, the reciprocal mantissa table.
+
+    Attributes:
+      `axis`            : optional, the axis for softmax to perform.
+      `name`            : required, name for calibration, comparing, or debug.
+      `layer_id`        : optional, id for profiling.
+      `chipname`        : optional, chipname.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface`    : support common TPU TG Op interface.
+      `TpuTGOpCodegenInterface` : support generate TPU instuctions.
+  }];
+
+  let arguments = (
+    ins MemRefOf<[AnyFloat, AnyInteger]>:$input,
+    MemRefOf<[AnyFloat, AnyInteger]>:$exponential_table,
+    MemRefOf<[AnyFloat, AnyInteger]>:$exponential_slope_table,
+    MemRefOf<[AnyFloat, AnyInteger]>:$reciprocal_table,
+    MemRefOf<[AnyFloat, AnyInteger]>:$reciprocal_mantissa_table,
+    MemRefOf<[AnyFloat, AnyInteger]>:$output,
+    DefaultValuedAttr<I32Attr, "1">:$axis,
+    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
+    OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    OptionalAttr<BoolAttr>:$buffer_reused,
+    OptionalAttr<BoolAttr>:$gaddr_updated,
+    StrAttr:$name,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
+  );
+}
+def TPU_TG_MemRef_INT8_SoftmaxOp : TPU_TG_MemRef_SoftmaxOp<"tg_memref_int8_softmax", "Int8">;
+def TPU_TG_MemRef_BF16_SoftmaxOp : TPU_TG_MemRef_SoftmaxOp<"tg_memref_bf16_softmax", "Bf16">;
 
 class TPU_TG_MemRef_SwapChannelOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,

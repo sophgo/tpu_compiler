@@ -524,6 +524,8 @@ LogicalResult tpu::TL_LG_INT8_LutOp::codegen(void *ctx) {
   int thresh_min = -8;
   int thresh_max = 8;
 
+  const int table_thresh_min = -8;
+  const int table_thresh_max = 8;
   cvi_backend_tl_lut( *backend_ctx,
                       layer_id,
                       la_input,
@@ -531,8 +533,8 @@ LogicalResult tpu::TL_LG_INT8_LutOp::codegen(void *ctx) {
                       la_working,
                       la_y_table,
                       la_slope_lut,
-                      thresh_min,
-                      thresh_max,
+                      table_thresh_min,
+                      table_thresh_max,
                       n, c, h, w);
   return success();
 

@@ -1135,7 +1135,8 @@ LogicalResult quantizeInt8BypassOps(Operation *op) {
       || isa<tpu::SwapChannelOp>(op)
       || isa<tpu::CropOp>(op)
       || isa<tpu::SoftmaxOp>(op)
-      || isa<tpu::PoolMax2DOp>(op)) {
+      || isa<tpu::PoolMax2DOp>(op)
+      || isa<tpu::SoftmaxCpuOp>(op)) {
     skip_checking = true;
   }
 
@@ -1359,6 +1360,7 @@ LogicalResult tpu::SqrtOp::quantizeInt8() {
 
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::SwapChannelOp)
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::SoftmaxOp)
+DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::SoftmaxCpuOp)
 
 LogicalResult tpu::TanHOp::quantizeInt8() {
   LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName()

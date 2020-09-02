@@ -1123,6 +1123,9 @@ class MLIRImporter(object):
         softmax_param = {
             'axis': self.module.integerAttr(self.i32Type, kargs['axis'])
         }
+        none = self.add_none_op()
+        for i in range(4):#add 4 redundant input
+            inputOperands.append(none)
         return self.buildOp(TPU_OpType.Softmax.value, inputOperands, [
             tensor_output_type], name=softmax_name, quant=self.quant_param, **softmax_param)
 

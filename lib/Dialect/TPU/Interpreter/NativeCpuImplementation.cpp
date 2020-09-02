@@ -765,26 +765,91 @@ void gen_bf16_slope_table(int start, int end, int table_hw,
     double x0 = table[i];
     double x1 = table[i + 1];
     double delta = 1.0;
-    if (i == half - 1 || i == half) {
-      // 127/128, force set to 0
-      x1 = 0;
-      x0 = 0;
-    } else if (i > half) {
-      x0 = table[i];
-      x1 = table[i - 1];
-      delta = -1.0;
-    }
-    float slope = (x1 - x0) / delta;
-    slope_table[i] = slope;
 
-    // check real value(bf16) has slope
-    // cuz we only support bf16, some part of mantissa(16bit)
-    // will cut to zero, the real slope value(bf16(x1) - bf16(x0)
-    // could be no slope(slope = 0), we adjust it for real case
-    if (convert_fp32_bf16(x1) == convert_fp32_bf16(x0)) {
-      // no slope
-      slope_table[i] = 0;
+    bool isSameBf16Value = false;
+    unsigned int intX0 = convert_fp32_bf16(x0);
+    unsigned int intX1 = convert_fp32_bf16(x1);
+    if(intX0 == intX1) {
+      isSameBf16Value = true;
     }
+
+    float slope;
+    if(isSameBf16Value || (i == half - 1) || (i == half)) {
+      //Sean : DONNOT allow same bf16 value with non-zero slope
+      //Sean : DONNOT allow extrapolation method
+      slope = 0;
+    } else {
+      if (i > half) {
+        x0 = table[i];
+        x1 = table[i - 1];
+        delta = -1.0;
+      }
+      slope = (x1 - x0) / delta;
+    }
+    slope_table[i] = slope;
+  }
+}
+
+// <! gen reciprocal f(x) = 1/x
+static double _gen_reciprocal(int base, int p) {
+  // y = x ^ -1
+  double f = (double) (pow(base, -1 * p));
+  return f;
+}
+
+
+void bf16_gen_reciprocal(int start, int end, int table_hw, uint16_t *table_data) {
+
+  int exp_start = start;
+  int half = table_hw / 2;
+  uint64_t idx = 0;
+
+  // prepare channel 0
+  double s = 0.0;
+  // 0^-1 is invalid, use positive/negtive max value: 0x7F7F / 0xFF7F
+  table_data[idx] = 0x7F7F; //<! convert to 0x7F7F
+
+  idx++;
+
+  // > 0, exp from 0 -62 -61 ..  62  63
+  for (int i = 0; i < half - 1; i++) {
+    int shift = (exp_start + i);
+    float exp = shift;
+
+    double s = _gen_reciprocal(2, exp);
+    //FloatToBFloat16((float*)&s,&table_data[idx],(size_t)1);
+    table_data[idx] = convert_fp32_bf16(s);
+    idx++;
+  }
+
+  table_data[idx] = 0xFF7F; //<! convert to 0x7F7F
+  idx++;
+
+  // < 0, exp from 0 -62 -61 ..  62  63
+  for (int i = 0; i < half - 1; i++) {
+    int shift = (exp_start + i);
+    float exp = shift;
+
+    double s = -1 * _gen_reciprocal(2, exp);
+    //table_data[idx] = convert_fp32_bf16(s);
+    //FloatToBFloat16((float*)&s,&table_data[idx],(size_t)1);
+    table_data[idx] = convert_fp32_bf16(s);
+    idx++;
+  }
+}
+
+void bf16_gen_reciprocal_mantissa(int start, int end, int table_hw, uint16_t *table_mantissa) {
+  int half = table_hw/2;
+
+  int idx = 0;
+  double d;
+  for (int i = 0; i < half; i++) {
+    d = 1 + i * 1 / 128.0;
+    d = (double) pow(d, -1);
+    table_mantissa[128+idx] = convert_fp32_bf16(d);
+    //13=2^3x1.625=(2^2)x(2^1x1.625)
+    table_mantissa[idx] = convert_fp32_bf16(d);
+    idx++;
   }
 }
 
@@ -1332,6 +1397,21 @@ int my_upsample(float *input, float *output, int n, int c, int ih, int iw,
   return 0;
 }
 
+float my_exp(float input) {
+  int tableLength = 256;
+  float expTable[tableLength];
+  float tableStart = 0;
+  float tableEnd = -8;
+  for(int i = 0; i < tableLength; i++) {
+    float index = i * (tableEnd - tableStart) / tableLength;
+    expTable[i] = exp(index);
+  }
+  input = input > tableStart ? tableStart : input < tableEnd ?  tableEnd : input;
+  int tableIndex = int(-1.0 * (input * 32.0));
+  tableIndex = tableIndex > 255 ? 255 : tableIndex;
+  return expTable[tableIndex];
+}
+
 int my_softmax2D(float *input, float *output, int n, int c) {
 #ifdef DUMP_FLAG
   static int dump_idx = 0;
@@ -1364,7 +1444,6 @@ int my_softmax2D(float *input, float *output, int n, int c) {
     }
   }
   free(ex);
-
 #ifdef DUMP_FLAG
   if (dump_idx == 0) {
     write_bianry_file(prefix + std::string("_out.bin"),
@@ -1374,6 +1453,7 @@ int my_softmax2D(float *input, float *output, int n, int c) {
 #endif // DUMP_FLAG
   return 0;
 }
+
 
 int my_softmax4D(float *input, float *output, int axis, const std::vector<int64_t>& shape) {
   int iter = 0;

@@ -769,9 +769,9 @@ def TPU_GruOp: TPU_Op<"gru",
     TPU_TensorOfOrNone<[F32, BF16, I16, I8]>:$bias,
     AnyTensor:$initial_h,
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$sigmoid_table,
-    TPU_TensorOfOrNone<[F32, BF16, I8]>:$sigmoid_table_mantissa,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$sigmoid_slope_table,
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$tanh_table,
-    TPU_TensorOfOrNone<[F32, BF16, I8]>:$tanh_table_mantissa,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$tanh_slope_table,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
     DefaultValuedAttr<BoolAttr, "true">:$linear_before_reset,
@@ -2164,7 +2164,8 @@ def TPU_SoftmaxOp: TPU_Op<"softmax",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
        DeclareOpInterfaceMethods<TpuOpInterpInterface>,
-       DeclareOpInterfaceMethods<TpuOpQuantInterface>]> {
+       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
+       DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
   let summary = "Softmax operator";
 
   let description = [{
@@ -2172,6 +2173,61 @@ def TPU_SoftmaxOp: TPU_Op<"softmax",
 
     Inputs:
       `input`           : required, the input activation tensor.
+      `exponential_table`           : optional, the exponential table.
+      `exponential_slope_table`           : optional, the exponential slope table.
+      `reciprocal_table`           : optional, the reciprocal table.
+      `reciprocal_mantissa_table`           : optional, the reciprocal mantissa table.
+
+    Attributes:
+      `axis`            : optional, the axis for softmax to perform.
+      `name`            : required, name for calibration, comparing, or debug.
+      `layer_id`        : optional, id for profiling.
+      `chipname`        : optional, chipname.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface` : support common TPU Op interface
+      `TpuOpInterpInterface` : support interperter
+      `TpuOpQuantInterface`  : CPU Op still needs threshold for quant/dequant
+                               of the next/prev Ops.
+      No `TpuOpLowerInterface`  : CPU Op no lowering to TPU TG Ops
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$exponential_table,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$exponential_slope_table,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$reciprocal_table,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$reciprocal_mantissa_table,
+    DefaultValuedAttr<I32Attr, "1">:$axis,
+    StrAttr:$name,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
+    TPU_QuantParamAttr:$quant,
+    OptionalAttr<StrAttr>:$chipname
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
+def TPU_SoftmaxCpuOp: TPU_Op<"softmax_cpu",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
+       DeclareOpInterfaceMethods<TpuOpQuantInterface>]> {
+  let summary = "SoftmaxCpu operator";
+
+  let description = [{
+    Perform softmax on input.
+
+    Inputs:
+      `input`           : required, the input activation tensor.
+      `exponential_table`           : optional, the exponential table.
+      `exponential_slope_table`           : optional, the exponential slope table.
+      `reciprocal_table`           : optional, the reciprocal table.
+      `reciprocal_mantissa_table`           : optional, the reciprocal mantissa table.
 
     Attributes:
       `axis`            : optional, the axis for softmax to perform.

@@ -140,6 +140,10 @@ void gen_bf16_table(int start, int end, int table_hw, float *table,
 void gen_bf16_slope_table(int start, int end, int table_hw,
                                          float *table,
                                          float *slope_table, double (*activate_func)(double));
+
+void bf16_gen_reciprocal(int start, int end, int table_hw, uint16_t *table_data);
+void bf16_gen_reciprocal_mantissa(int start, int end, int table_hw, uint16_t *table_mantissa);
+
 int my_reduce_mean(float *input, float *output,
                      std::vector<int64_t> &input_shape,
                      std::vector<int> &axes);

@@ -216,7 +216,7 @@ llvm::StringRef getOpQuant(Operation *op) {
              || isa<tpu::PriorBoxOp>(op)
              || isa<tpu::ProposalOp>(op)
              || isa<tpu::ROIPoolingOp>(op)
-             || isa<tpu::SoftmaxOp>(op)
+             || isa<tpu::SoftmaxCpuOp>(op)
              || isa<tpu::TransposeOp>(op)
              || isa<tpu::YoloDetectionOp>(op)
              || isa<tpu::CastOp>(op)

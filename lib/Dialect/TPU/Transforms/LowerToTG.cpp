@@ -1680,6 +1680,46 @@ Value* tpu::GruOp::convertToTG() {
   llvm_unreachable("unsupported type");
 }
 
+Value* tpu::SoftmaxOp::convertToTG() {
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  auto builder = Builder(op->getContext());
+  auto castOp = cast<tpu::SoftmaxOp>(op);
+  //  TensorFile *wTF = getWeightTensorFile(op);
+
+  std::vector<Value *> operands;
+  const int nInputs =  5;
+  //act + exp/rep table
+  for (auto i = 0; i < nInputs; ++i) {
+    operands.push_back(op->getOperand(i));
+  }
+
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder.getNamedAttr("name", nameAttr()));
+  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
+  attrs.push_back(builder.getNamedAttr("axis", axisAttr()));
+
+  if (getOpQuant() == "INT8") {
+    assert(getOpQuantParamType() == "NONE");
+    auto newOp = OpBuilder(op).create<tpu::TG_INT8_SoftmaxOp>(op->getLoc(),
+        getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  } else if (getOpQuant() == "BF16") {
+    auto newOp = OpBuilder(op).create<tpu::TG_BF16_SoftmaxOp>(op->getLoc(),
+        getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  } else {
+    // Return same opValue
+    auto newOp = OpBuilder(op).create<tpu::SoftmaxCpuOp>(op->getLoc(),
+        getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  }
+}
+
 template<typename OpTy>
 struct DefaultToTGPattern : public RewritePattern {
   DefaultToTGPattern(MLIRContext *context)
@@ -2467,6 +2507,109 @@ struct LowerWeightGruOpPattern : public RewritePattern {
         table_mantissaOp.setAttr("lowered", rewriter.getBoolAttr(true));
       }
     } else {
+      return matchFailure();
+      assert(0 && "Not supported type isn't bf16");
+    }
+    return matchSuccess();
+  }
+};
+
+struct LowerWeightSoftmaxOpPattern : public RewritePattern {
+  LowerWeightSoftmaxOpPattern(MLIRContext *context)
+      : RewritePattern("tpu.softmax", 1, context) {}
+
+  PatternMatchResult matchAndRewrite(Operation *op,
+      PatternRewriter &rewriter) const override {
+    auto softmaxOp = cast<tpu::SoftmaxOp>(op);
+    if (getOpQuant(op) != "BF16") {
+      return matchFailure();
+    }
+    if(auto exponential_tableOp = llvm::dyn_cast<tpu::LoadWeightOp>(softmaxOp.exponential_table()->getDefiningOp())) {
+      if (exponential_tableOp.lowered()) {
+        // lowered already
+        return matchFailure();
+      }
+    }
+
+    LLVM_DEBUG(llvm::errs() << "Lower Weight for SoftmaxOp: "
+                            << getOpName(op) << "\n";);
+    TensorFile *wTF = getWeightTensorFile(op);
+
+     if (getOpQuant(op) == "BF16") {
+
+       // lower sigmoid table
+      auto exponentialTableOp = cast<tpu::LoadWeightOp>(softmaxOp.getOperand(1)->getDefiningOp());
+      auto exponentialSlopeTableOp = cast<tpu::LoadWeightOp>(softmaxOp.getOperand(2)->getDefiningOp());
+
+
+      if (exponentialTableOp.lowered()) {
+        // lowered already
+        return matchFailure();
+      }
+
+      // lower filter
+      assert(exponentialTableOp.storage() == "BF16");
+      assert(exponentialSlopeTableOp.storage() == "BF16");
+      std::vector<int64_t> shape;
+      int64_t size;
+      getTensorShapeAndSize(softmaxOp.exponential_table(), shape, size);
+      auto table = readAndDeleteWeightTensor<float>(exponentialTableOp, wTF);
+      auto tableSlope = readAndDeleteWeightTensor<float>(exponentialSlopeTableOp,
+                                                            wTF);
+      std::vector<uint16_t> table_uint16(table->begin(), table->end());
+      std::vector<uint16_t> tableSlope_uint16(tableSlope->begin(),
+                                                  tableSlope->end());
+      // 1880 support 256 lookup table
+      // because of 1880 hardware search table only on each local memory
+      // we dupicate table to limit number <32>
+      assert(shape[2] * shape[3] == 256);
+      assert(shape[1] == 32);
+
+      // save it
+      addWeightTensorAndUpdateWeightOp<uint16_t>(
+          exponentialTableOp, "lowered", table_uint16, shape, "BF16", wTF);
+      exponentialTableOp.setAttr("lowered", rewriter.getBoolAttr(true));
+      addWeightTensorAndUpdateWeightOp<uint16_t>(
+          exponentialSlopeTableOp, "lowered", tableSlope_uint16,
+          shape, "BF16", wTF);
+      exponentialSlopeTableOp.setAttr("lowered", rewriter.getBoolAttr(true));
+
+      // lower tanh  table-
+        auto reciprocalOp = cast<tpu::LoadWeightOp>(softmaxOp.getOperand(3)->getDefiningOp());
+        auto reciprocal_mantissaOp = cast<tpu::LoadWeightOp>(softmaxOp.getOperand(4)->getDefiningOp());
+
+
+      if (reciprocalOp.lowered()) {
+        // lowered already
+        return matchFailure();
+      }
+
+      // lower filter
+      assert(reciprocalOp.storage() == "BF16");
+      assert(reciprocal_mantissaOp.storage() == "BF16");
+      getTensorShapeAndSize(softmaxOp.reciprocal_table(), shape, size);
+      auto reciprocalTable = readAndDeleteWeightTensor<float>(reciprocalOp, wTF);
+      auto table_mantissa = readAndDeleteWeightTensor<float>(reciprocal_mantissaOp,
+                                                            wTF);
+      std::vector<uint16_t> reciprocal_table_uint16(reciprocalTable->begin(), reciprocalTable->end());
+      std::vector<uint16_t> reciprocal_table_mantissa_uint16(table_mantissa->begin(),
+                                                  table_mantissa->end());
+      // 1880 support 256 lookup table
+      // because of 1880 hardware search table only on each local memory
+      // we dupicate table to limit number <32>
+      assert(shape[2] * shape[3] == 256);
+      assert(shape[1] == 32);
+
+      // save it
+      addWeightTensorAndUpdateWeightOp<uint16_t>(
+          reciprocalOp, "lowered", reciprocal_table_uint16, shape, "BF16", wTF);
+      reciprocalOp.setAttr("lowered", rewriter.getBoolAttr(true));
+      addWeightTensorAndUpdateWeightOp<uint16_t>(
+          reciprocal_mantissaOp, "lowered", reciprocal_table_mantissa_uint16,
+          shape, "BF16", wTF);
+      reciprocal_mantissaOp.setAttr("lowered", rewriter.getBoolAttr(true));
+    } else {
+      return matchFailure();
       assert(0 && "Not supported type isn't bf16");
     }
     return matchSuccess();
@@ -2833,7 +2976,8 @@ public:
         LowerConstEltwiseOpPattern<tpu::EltwiseAddOp>,
         LowerWeightFullyConnectedOpPattern,
         LowerWeightDetectionOutputOpPattern,
-        LowerWeightGruOpPattern
+        LowerWeightGruOpPattern,
+        LowerWeightSoftmaxOpPattern
         >(context);
     applyPatternsGreedily(fn, patterns_lower);
 
@@ -2846,9 +2990,9 @@ public:
         LowerCpuOpDefaultPattern<tpu::PreprocessOp>,
         LowerCpuOpDefaultPattern<tpu::RetinaFaceDetectionOp>,
         LowerCpuOpDefaultPattern<tpu::ROIPoolingOp>,
-        LowerCpuOpDefaultPattern<tpu::SoftmaxOp>,
         LowerCpuOpDefaultPattern<tpu::TransposeOp>,
         LowerCpuOpDefaultPattern<tpu::YoloDetectionOp>,
+        LowerCpuOpDefaultPattern<tpu::SoftmaxCpuOp>,
         LowerCustomOpPattern<tpu::CustomOp>
         >(context);
     applyPatternsGreedily(fn, patterns_cpuop);
@@ -2894,10 +3038,11 @@ public:
         DefaultToTGPattern<tpu::UpsampleOp>,
         DefaultToTGPattern<tpu::ReduceMeanOp>,
         DefaultToTGPattern<tpu::ReduceMaxOp>,
-        DefaultToTGPattern<tpu::GruOp>
+        DefaultToTGPattern<tpu::GruOp>,
+        DefaultToTGPattern<tpu::SoftmaxOp>
         >(context);
     applyPatternsGreedily(fn, patterns);
-
+LLVM_DEBUG(llvm::errs() << "Done lower: " << "]\n";);
     // check if every one is not lowered
     fn.walk([&](Operation *op) {
       if (op->getName().getDialect().str() != "tpu"
@@ -2917,7 +3062,7 @@ public:
         llvm_unreachable(("lower didn't handle " + opName).c_str());
       }
     });
-
+LLVM_DEBUG(llvm::errs() << "Done walk: " << "]\n";);
     // TODO: this is temporary
     // fold reshape
     patterns.clear();

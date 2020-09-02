@@ -572,6 +572,7 @@ public:
                  || isa<tpu::ProposalOp>(op)
                  || isa<tpu::RetinaFaceDetectionOp>(op)
                  || isa<tpu::SoftmaxOp>(op)
+                 || isa<tpu::SoftmaxCpuOp>(op)
                  || isa<tpu::TransposeOp>(op)
                  || isa<tpu::YoloDetectionOp>(op)
                  /*|| isa<tpu::CustomOp>(op)*/) {

@@ -349,7 +349,7 @@ LogicalResult quantizeBf16GruOps(Operation *op) {
   LLVM_DEBUG(llvm::dbgs() << "GenSigmoidLut: " << "]\n";);
   // Add lut table information
 
-  int npu_num = 32; //Use one lane only
+  int npu_num = 32;
 
   //<! 1880v2 hw bf16 config
   int table_h = 32;
@@ -405,7 +405,7 @@ LogicalResult quantizeBf16GruOps(Operation *op) {
   auto y0_sigmoid_table_op = addWeightTensorAndCreateWeightOp<float>(
       op, "sigmoid_table", y0_sigmoid_table, shape, storageType, wTF, wfV);
   auto mantissa_sigmoid_table_op = addWeightTensorAndCreateWeightOp<float>(
-      op, "sigmoid_table_mantissa", y0_sigmoid_slope_table, shape, storageType, wTF, wfV);
+      op, "sigmoid_slope_table", y0_sigmoid_slope_table, shape, storageType, wTF, wfV);
   gruOp.setOperand(5, y0_sigmoid_table_op);
   gruOp.setOperand(6, mantissa_sigmoid_table_op);
 
@@ -447,9 +447,122 @@ LogicalResult quantizeBf16GruOps(Operation *op) {
   auto y0_tanh_table_op = addWeightTensorAndCreateWeightOp<float>(
       op, "tanh_table", y0_tanh_table, shape, storageType, wTF, wfV);
   auto mantissa_tanh_table_op = addWeightTensorAndCreateWeightOp<float>(
-      op, "tanh_table_mantissa", y0_tanh_slope_table, shape, storageType, wTF, wfV);
+      op, "tanh_slope_table", y0_tanh_slope_table, shape, storageType, wTF, wfV);
   gruOp.setOperand(7, y0_tanh_table_op);
   gruOp.setOperand(8, mantissa_tanh_table_op);
+
+  setOpResultType(op, StandardTypes::BF16);
+
+  return success();
+}
+
+///
+/// softmax Ops quantization method
+///
+LogicalResult quantizeBf16SoftmaxOps(Operation *op) {
+  assert(getOpQuant(op) == "BF16");
+  auto softmaxOp = cast<tpu::SoftmaxOp>(op);
+  TensorFile *wTF = getWeightTensorFile(op);
+  Value *wfV = getWeightFileValue(op);
+
+  LLVM_DEBUG(llvm::dbgs() << "GenExponentialLut: " << "]\n";);
+  // Add lut table information
+
+  int npu_num = 32;
+
+  //<! 1880v2 hw bf16 config
+  int table_h = 32;
+  int table_w = 8;
+  std::vector<float> y0_exponential_table;
+  std::vector<float> y0_exponential_slope_table; // use in bf16
+  int table_hw = table_h * table_w;
+  int tbl_shape = npu_num * table_hw;
+  y0_exponential_table.resize(tbl_shape);
+  y0_exponential_slope_table.resize(tbl_shape);
+  std::vector<float> y0_fp32_table(table_hw);
+  std::vector<float> y0_fp32_slope_table(table_hw);
+  std::vector<float> y0_fp32_mantissa_table(table_hw);
+  std::vector<uint16_t> y0_bf16_table(table_hw);
+  std::vector<uint16_t> y0_bf16_slope_table(table_hw);
+  std::vector<uint16_t> y0_bf16_mantissa_table(table_hw);
+  StringRef storageType = "BF16";
+
+  // use function pointer
+  LLVM_DEBUG(llvm::dbgs() << "use function pointer: " << "]\n";);
+  double (*activate_func)(double);
+  activate_func = exp;
+  const int expTableStart = -16;
+  const int expTableEnd = 0;
+
+  gen_bf16_table(expTableStart, expTableEnd, table_hw,
+                 y0_fp32_table.data(), activate_func);
+
+  gen_bf16_slope_table(expTableStart, expTableEnd, table_hw,
+                       y0_fp32_table.data(), y0_fp32_slope_table.data(),
+                       activate_func);
+  // for(int i = 0; i < table_hw; i++) {
+  //   LLVM_DEBUG(llvm::dbgs() << "exponential data[" << i<< "]: " <<  y0_fp32_table[i]<< "]\n";);
+  //   LLVM_DEBUG(llvm::dbgs() << "exponential data[" << i<< "]: " <<  y0_fp32_slope_table[i]<< "]\n";);
+  // }
+
+  LLVM_DEBUG(llvm::dbgs() << "convert fp32 to bf16: " << "]\n";);
+  // convert fp32 to bf16
+  FloatToBFloat16(y0_fp32_table.data(),
+                  y0_bf16_table.data(), table_hw);
+  FloatToBFloat16(y0_fp32_slope_table.data(),
+                  y0_bf16_slope_table.data(), table_hw);
+
+  // copy bf16 data to float table
+  LLVM_DEBUG(llvm::dbgs() << "copy bf16 data to float table: " << "]\n";);
+  for (int i = 0; i < npu_num; ++i){
+    std::copy(y0_bf16_table.data(), y0_bf16_table.data() + table_hw,
+              y0_exponential_table.data() + i * table_hw);
+    std::copy(y0_bf16_slope_table.data(),
+              y0_bf16_slope_table.data() + table_hw,
+              y0_exponential_slope_table.data() + i * table_hw);
+  }
+
+  // update op
+  LLVM_DEBUG(llvm::dbgs() << "update op: " << "]\n";);
+  auto shape = std::vector<int64_t>{1, npu_num, table_h, table_w};
+  auto y0_exponential_table_op = addWeightTensorAndCreateWeightOp<float>(
+      op, "exponential_table", y0_exponential_table, shape, storageType, wTF, wfV);
+  auto mantissa_exponential_table_op = addWeightTensorAndCreateWeightOp<float>(
+      op, "exponential_slope_table", y0_exponential_slope_table, shape, storageType, wTF, wfV);
+  softmaxOp.setOperand(1, y0_exponential_table_op);
+  softmaxOp.setOperand(2, mantissa_exponential_table_op);
+
+  //Add lut table information - reciprocal
+  LLVM_DEBUG(llvm::dbgs() << "GenReciprocalLut: " << "]\n";);
+
+  std::vector<float> y0_reciprocal_table;
+  std::vector<float> y0_reciprocal_mantissa_table; // use in bf16
+  std::vector<uint16_t> table_data_lut_bf16(table_hw);
+  std::vector<uint16_t> table_data_mantissa_lut_bf16(table_hw);
+  y0_reciprocal_table.resize(tbl_shape);
+  y0_reciprocal_mantissa_table.resize(tbl_shape);
+
+  const int expStart = -62;
+  const int expEnd = 63;
+  bf16_gen_reciprocal(expStart, expEnd, table_hw, table_data_lut_bf16.data());
+  bf16_gen_reciprocal_mantissa(expStart, expEnd, table_hw, table_data_mantissa_lut_bf16.data());
+
+  // copy bf16 data to float table
+  for (int i = 0; i < npu_num; ++i){
+    std::copy(table_data_lut_bf16.data(), table_data_lut_bf16.data() + table_hw,
+              y0_reciprocal_table.data() + i * table_hw);
+    std::copy(table_data_mantissa_lut_bf16.data(),
+              table_data_mantissa_lut_bf16.data() + table_hw,
+              y0_reciprocal_mantissa_table.data() + i * table_hw);
+  }
+
+  // update op
+  auto y0_reciprocal_table_op = addWeightTensorAndCreateWeightOp<float>(
+      op, "reciprocal_table", y0_reciprocal_table, shape, storageType, wTF, wfV);
+  auto mantissa_reciprocal_table_op = addWeightTensorAndCreateWeightOp<float>(
+      op, "reciprocal_mantissa_table", y0_reciprocal_mantissa_table, shape, storageType, wTF, wfV);
+  softmaxOp.setOperand(3, y0_reciprocal_table_op);
+  softmaxOp.setOperand(4, mantissa_reciprocal_table_op);
 
   setOpResultType(op, StandardTypes::BF16);
 
@@ -729,7 +842,15 @@ LogicalResult tpu::ExpOp::quantizeBf16() {
 // DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::TanHOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::SliceOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::SqrtOp)
-DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::SoftmaxOp)
+
+LogicalResult tpu::SoftmaxOp::quantizeBf16() {
+  LLVM_DEBUG(llvm::errs() << "quantizeBf16: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  return quantizeBf16SoftmaxOps(op);
+}
+
+DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::SoftmaxCpuOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::SwapChannelOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::UpsampleOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::TileOp)

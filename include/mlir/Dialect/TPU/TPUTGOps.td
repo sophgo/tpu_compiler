@@ -458,13 +458,15 @@ class TPU_TG_GruOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       `input`           : required, the input activation memref.
       `weight`          : required, parameter weight memref for update, reset, and hidden gates.
       `recurrence`       : required, recurrence weight memref for update, reset, and hidden gates.
-      `bias`            : required, bias vectors memref for update, reset, and hidden gates.
+      `bias`            : optional, bias vectors memref for update, reset, and hidden gates.
       `initial_h`       : required, initial value of the hidden.
+      'sigmoid_table'           : required, the sigmoid_table memref.
+      'sigmoid_slope_table'           : required, the sigmoid_slope_table memref.
+      'tanh_table'           : required, the tanh_table memref.
+      'tanh_slope_table'           : required, the tanh_slope_table memref.
 
 
     Attributes:
-      `do_relu`         : required, whether to do relu on result.
-      `rshift`          : optional, rshift for positive, an int8 value.
       `region`          : required, the memory region to reside in, could be
                           one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
                           (backend does not support `INPUT`, `OUTPUT` for now)
@@ -491,9 +493,9 @@ class TPU_TG_GruOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     TPU_TensorOfOrNone<[I32, F32, BF16, I16, I8]>:$bias,
     AnyTensor:$initial_h,
     AnyTensor:$sigmoid_table,
-    AnyTensor:$sigmoid_table_mantissa,
+    AnyTensor:$sigmoid_slope_table,
     AnyTensor:$tanh_table,
-    AnyTensor:$tanh_table_mantissa,
+    AnyTensor:$tanh_slope_table,
     DefaultValuedAttr<BoolAttr, "true">:$linear_before_reset,
     DefaultValuedAttr<BoolAttr, "false">:$bidirectional,
     DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
@@ -1237,6 +1239,58 @@ class TPU_TG_SliceOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 }
 def TPU_TG_INT8_SliceOp : TPU_TG_SliceOp<"tg_int8_slice", "Int8">;
 def TPU_TG_BF16_SliceOp : TPU_TG_SliceOp<"tg_bf16_slice", "Bf16">;
+
+class TPU_TG_SoftmaxOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
+  let summary = "TG " # opQuant # " softmax operator.";
+
+  let description = [{
+    Perform softmax on input.
+
+    Inputs:
+      `input`           : required, the input activation tensor.
+      `exponential_table`           : required, the exponential table.
+      `exponential_slope_table`           : required, the exponential slope table.
+      `reciprocal_table`           : required, the reciprocal table.
+      `reciprocal_mantissa_table`           : required, the reciprocal mantissa table.
+
+    Attributes:
+      `axis`            : optional, the axis for softmax to perform.
+      `name`            : required, name for calibration, comparing, or debug.
+      `layer_id`        : optional, id for profiling.
+      `chipname`        : optional, chipname.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface`    : support common TPU TG Op interface.
+      `TpuTGOpCodegenInterface` : support generate TPU instuctions.
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    AnyTensor:$exponential_table,
+    AnyTensor:$exponential_slope_table,
+    AnyTensor:$reciprocal_table,
+    AnyTensor:$reciprocal_mantissa_table,
+    DefaultValuedAttr<I32Attr, "1">:$axis,
+    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
+    OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    OptionalAttr<BoolAttr>:$buffer_reused,
+    OptionalAttr<BoolAttr>:$gaddr_updated,
+    StrAttr:$name,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
+    OptionalAttr<StrAttr>:$chipname
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+def TPU_TG_INT8_SoftmaxOp : TPU_TG_SoftmaxOp<"tg_int8_softmax", "Int8">;
+def TPU_TG_BF16_SoftmaxOp : TPU_TG_SoftmaxOp<"tg_bf16_softmax", "Bf16">;
 
 class TPU_TG_SwapChannelOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,

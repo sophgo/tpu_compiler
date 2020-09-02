@@ -32,7 +32,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include <llvm/Support/Debug.h>
 #include "mlir/Dialect/TPU/QuantizationArithmetic.h"
-
+#include "mlir/Dialect/TPU/NativeCpuImplementation.h"
 
 #include <float.h>
 #include <bmkernel/bm_kernel.h>
@@ -57,102 +57,6 @@ namespace {
 #define TBL_SHAPE_INT8 (TABLE_HW_INT8*NPU_NUM)
 #define TABLE_HW_BF16 (TABLE_H_BF16*TABLE_W_BF16)
 #define TBL_SHAPE_BF16 (TABLE_HW_BF16*NPU_NUM)
-
-// <! gen reciprocal f(x) = 1/x
-static double _gen_reciprocal(int base, int p) {
-  // y = x ^ -1
-  double f = (double) (pow(base, -1 * p));
-  return f;
-}
-
-
-void bf16_gen_reciprocal(uint16_t *table_data) {
-
-  int exp_start = EXP_START;
-  int half = TABLE_HW_BF16/2;
-  int table_hw = TABLE_HW_BF16;
-  uint64_t idx = 0;
-
-  // prepare channel 0
-  double s = 0.0;
-  // 0^-1 is invalid, use positive/negtive max value: 0x7F7F / 0xFF7F
-  table_data[idx] = 0x7F80; //<! convert to 0x7F7F
-
-  idx++;
-
-  // > 0, exp from 0 -62 -61 ..  62  63
-  for (int i = 0; i < half - 1; i++) {
-    int shift = (exp_start + i);
-    bool is_odd = (shift % 2);
-    float exp = shift;
-    if (is_odd) {
-      exp = exp - 1;
-    }
-
-    double s = _gen_reciprocal(2, exp);
-    //FloatToBFloat16((float*)&s,&table_data[idx],(size_t)1);
-    table_data[idx] = convert_fp32_bf16(s);
-    idx++;
-  }
-
-  s = _gen_reciprocal(2, -0);
-  //table_data[idx] = convert_fp32_bf16(s);
-  FloatToBFloat16((float*)&s,&table_data[idx],(size_t)1);
-  table_data[idx] = 0x7F80; //<! convert to 0x7F7F
-
-  idx++;
-
-  // < 0, exp from 0 -62 -61 ..  62  63
-  for (int i = 0; i < half - 1; i++) {
-    int shift = (exp_start + i);
-    bool is_odd = (shift % 2);
-    float exp = shift;
-    if (is_odd) {
-      exp = exp - 1;
-    }
-
-    double s = -1 * _gen_reciprocal(-2, exp);
-    //table_data[idx] = convert_fp32_bf16(s);
-    //FloatToBFloat16((float*)&s,&table_data[idx],(size_t)1);
-    table_data[idx] = convert_fp32_bf16(s);
-    idx++;
-  }
-
-  // duplicate channel #1 to #31
-  //TODO: tensor copy
-  for (uint32_t i = 1; i < NPU_NUM; i++) {
-    memcpy(&table_data[i * table_hw], &table_data[0], sizeof(uint16_t) * table_hw);
-  }
-}
-
-void bf16_gen_reciprocal_mantissa(uint16_t* table_mantissa) {
-
-
-  int half = TABLE_HW_BF16/2;
-  int table_hw = TABLE_HW_BF16;
-
-  int idx = 0;
-  double d;
-  for (int i = 0; i < half; i++) {
-    d = 1 + i * 1 / 128.0;
-    d = (double) pow(d, -1);
-    //FloatToBFloat16((float*)&d,&table_mantissa[128+idx],(size_t)1);
-    table_mantissa[128+idx] = convert_fp32_bf16(d);
-    //13=2^3x1.625=(2^2)x(2^1x1.625)
-    d = 2 * (1 + i * 1 / 128.0);
-    d = (double) pow(d, -1);
-    //FloatToBFloat16((float*)&d,&table_mantissa[idx],(size_t)1);
-    table_mantissa[idx] = convert_fp32_bf16(d);
-    idx++;
-  }
-
-
-  // duplicate channel #1 to #31
-  //TODO: tensor copy
-  for (int i = 1; i < NPU_NUM; i++) {
-    memcpy(&table_mantissa[table_hw * i], &table_mantissa[0], sizeof(uint16_t) * table_hw);
-  }
-}
 
 struct TpuGenReciprocalTablePattern : public RewritePattern {
   TpuGenReciprocalTablePattern(MLIRContext *context)
@@ -201,11 +105,16 @@ struct TpuGenReciprocalTablePattern : public RewritePattern {
   }else if(reciprocalOp.getOpQuant() == "BF16"){
     LLVM_DEBUG(llvm::errs() << " op name: " << reciprocalOp.name()
                             << "gen BF16 sqrt table." << "\n");
-    bf16_gen_reciprocal(table_data_lut_bf16.data());
+    bf16_gen_reciprocal(EXP_START, EXP_END, TABLE_HW_BF16, table_data_lut_bf16.data());
     LLVM_DEBUG(llvm::errs() << " op name: " << reciprocalOp.name()
                             << "gen BF16 sqrt mantissa table." << "\n");
 
-    bf16_gen_reciprocal_mantissa(table_data_mantissa_lut_bf16.data());
+    bf16_gen_reciprocal_mantissa(EXP_START, EXP_END, TABLE_HW_BF16, table_data_mantissa_lut_bf16.data());
+
+    for (uint32_t i = 1; i < NPU_NUM; i++) {
+      memcpy(table_data_mantissa_lut_bf16.data() + i * TABLE_HW_BF16, table_data_mantissa_lut_bf16.data(), sizeof(uint16_t) * TABLE_HW_BF16);
+      memcpy(table_data_lut_bf16.data() + i * TABLE_HW_BF16, table_data_lut_bf16.data(), sizeof(uint16_t) * TABLE_HW_BF16);
+    }
 
     std::copy(table_data_lut_bf16.data(), table_data_lut_bf16.data() + TBL_SHAPE_BF16,
               table_data_lut.data() );

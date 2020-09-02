@@ -87,6 +87,12 @@ static llvm::cl::opt<bool> clQuantMixEltwiseMul(
     llvm::cl::init(false),
     llvm::cl::cat(clOptionsCategory));
 
+static llvm::cl::opt<bool> clQuantMixSoftmax(
+    "quant-bf16-softmax",
+    llvm::cl::desc("Enable bf16 Softmax Ops"),
+    llvm::cl::init(false),
+    llvm::cl::cat(clOptionsCategory));
+
 static llvm::cl::list<std::string> clQuantLayer(
     "quant-int8-mix-bf16-layers",
     llvm::cl::desc("Enable bf16 mix-presion on specify layer"),
@@ -214,6 +220,38 @@ static void insertQuantOp(Operation *op) {
     }
   }
 }
+
+struct TpuConvertSoftmaxToSoftmaxCpu : public RewritePattern {
+  TpuConvertSoftmaxToSoftmaxCpu(MLIRContext *context)
+      : RewritePattern("tpu.softmax", 1, context) {}
+      PatternMatchResult matchAndRewrite(Operation *op,
+                                     PatternRewriter &rewriter) const override {
+    if(!clQuantMixSoftmax){
+      auto builder = Builder(op->getContext());
+      auto castOp = cast<tpu::SoftmaxOp>(op);
+      //  TensorFile *wTF = getWeightTensorFile(op);
+
+      std::vector<Value *> operands;
+      const int nInputs =  1;
+      for (auto i = 0; i < nInputs; ++i) {
+        operands.push_back(op->getOperand(i));
+      }
+
+        // Return same opValue
+      auto loc = op->getLoc();
+      auto newOp = rewriter.create<tpu::SoftmaxCpuOp>(loc,
+        op->getResult(0)->getType(),
+        operands,
+        op->getAttrs());
+
+      // replace to relu->clip
+      rewriter.replaceOp(op, {newOp});
+      return matchSuccess();
+    }
+
+    return matchFailure();
+  }
+};
 
 struct TpuGenLrnTablePattern : public RewritePattern {
   TpuGenLrnTablePattern(MLIRContext *context)
@@ -747,10 +785,12 @@ public:
           || isa<tpu::InputOp>(op)
           || isa<tpu::PreprocessOp>(op)
           || isa<tpu::ROIPoolingOp>(op)
-          || isa<tpu::SoftmaxOp>(op)) {
+          || isa<tpu::SoftmaxCpuOp>(op)) {
         // continue
       } else if (isa<tpu::CustomOp>(op) &&
                  !cast<tpu::CustomOp>(op).do_quant()) {
+        // continue
+      } else if ((!clQuantMixSoftmax) && isa<tpu::SoftmaxOp>(op)) {
         // continue
       } else if (auto quantOp = llvm::dyn_cast<tpu::TpuOpQuantInterface>(op)) {
         if (clQuantMixTable) {
@@ -779,6 +819,9 @@ public:
             setOpQuant(op, "BF16");
           }
           if (clQuantMixEltwiseMul && isa<tpu::EltwiseMulOp>(op)) {
+            setOpQuant(op, "BF16");
+          }
+          if (clQuantMixSoftmax && isa<tpu::SoftmaxOp>(op)) {
             setOpQuant(op, "BF16");
           }
 
@@ -815,7 +858,7 @@ public:
           || isa<tpu::QuantOp>(op)
           || isa<tpu::ReshapeOp>(op)
           || isa<tpu::ROIPoolingOp>(op)
-          || isa<tpu::SoftmaxOp>(op)) {
+          || isa<tpu::SoftmaxCpuOp>(op)) {
       } else if (auto castOp = llvm::dyn_cast<tpu::CustomOp>(op)) {
         if (getOpQuant(op) != "NONE") {
           cvi::OpParam param, quant;
@@ -845,6 +888,8 @@ public:
         } else if (getOpQuant(op) == "BF16") {
           auto ret = quantOp.quantizeBf16();
           assert(!failed(ret));
+        } else if (isa<tpu::SoftmaxOp>(op)) {
+          //do nothing
         } else {
           llvm::errs() << "assert:" << op->getName() << "\n";
           assert(false);
@@ -913,6 +958,12 @@ public:
     patterns.clear();
     patterns.insert<
       TpuGenLrnTablePattern
+    >(context);
+    applyPatternsGreedily(fn, patterns);
+
+    patterns.clear();
+    patterns.insert<
+      TpuConvertSoftmaxToSoftmaxCpu
     >(context);
     applyPatternsGreedily(fn, patterns);
   }

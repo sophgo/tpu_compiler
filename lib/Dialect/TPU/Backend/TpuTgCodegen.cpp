@@ -1661,9 +1661,9 @@ LogicalResult tpu::TG_BF16_GruOp::codegen(void *ctx) {
   gaddr_t recurrence_gaddr = getWeightOpAddress(recurrence()->getDefiningOp());
   gaddr_t initial_h_gaddr = getWeightOpAddress(initial_h()->getDefiningOp());
   gaddr_t sigmoid_table_data_lut_gaddr = getWeightOpAddress(sigmoid_table()->getDefiningOp());
-  gaddr_t sigmoid_table_mantissa_data_lut_gaddr = getWeightOpAddress(sigmoid_table_mantissa()->getDefiningOp());
+  gaddr_t sigmoid_slope_table_data_lut_gaddr = getWeightOpAddress(sigmoid_slope_table()->getDefiningOp());
   gaddr_t tanh_table_data_lut_gaddr = getWeightOpAddress(tanh_table()->getDefiningOp());
-  gaddr_t tanh_table_mantissa_data_lut_gaddr = getWeightOpAddress(tanh_table_mantissa()->getDefiningOp());
+  gaddr_t tanh_slope_table_data_lut_gaddr = getWeightOpAddress(tanh_slope_table()->getDefiningOp());
   int layer_id = mlir::getOpLayerId(op);
 
   LLVM_DEBUG(llvm::errs() << "input_gaddr: " << input_gaddr << "\n"
@@ -1672,9 +1672,9 @@ LogicalResult tpu::TG_BF16_GruOp::codegen(void *ctx) {
                                                        << "ga_bias: " << ga_bias << "\n"
                                                        << "initial_h_gaddr: " << initial_h_gaddr << "\n"
                                                        << "sigmoid_table_data_lut_gaddr: " << sigmoid_table_data_lut_gaddr << "\n"
-                                                       << "sigmoid_table_mantissa_data_lut_gaddr: " << sigmoid_table_mantissa_data_lut_gaddr << "\n"
+                                                       << "sigmoid_slope_table_data_lut_gaddr: " << sigmoid_slope_table_data_lut_gaddr << "\n"
                                                        << "tanh_table_data_lut_gaddr: " << tanh_table_data_lut_gaddr << "\n"
-                                                       << "tanh_table_mantissa_data_lut_gaddr: " << tanh_table_mantissa_data_lut_gaddr << "\n"
+                                                       << "tanh_slope_table_data_lut_gaddr: " << tanh_slope_table_data_lut_gaddr << "\n"
                                                        << "output_gaddr: " << output_gaddr << "\n"
                                                        << "seq_len: " << seq_len << "\n"
                                                        << "batchSize: " << batchSize << "\n"
@@ -1688,8 +1688,8 @@ LogicalResult tpu::TG_BF16_GruOp::codegen(void *ctx) {
   bf16_gru_kernel(*backend_ctx, layer_id,
                                      input_gaddr, weight_gaddr, recurrence_gaddr,
                                      ga_bias, initial_h_gaddr,
-                                     sigmoid_table_data_lut_gaddr, sigmoid_table_mantissa_data_lut_gaddr,
-                                     tanh_table_data_lut_gaddr, tanh_table_mantissa_data_lut_gaddr,
+                                     sigmoid_table_data_lut_gaddr, sigmoid_slope_table_data_lut_gaddr,
+                                     tanh_table_data_lut_gaddr, tanh_slope_table_data_lut_gaddr,
                                      output_gaddr,
                                      seq_len, batchSize, inputSize, hiddenSize,
                                      with_bias, is_linear_before_reset, is_bidirectional);
@@ -1698,6 +1698,68 @@ LogicalResult tpu::TG_BF16_GruOp::codegen(void *ctx) {
 
 LogicalResult tpu::TG_INT8_GruOp::codegen(void *ctx) {
   assert(0);
+  return success();
+}
+
+LogicalResult tpu::TG_INT8_SoftmaxOp::codegen(void *ctx) {
+  assert(0);
+  return success();
+}
+
+LogicalResult tpu::TG_BF16_SoftmaxOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  int axis = this->axis().getLimitedValue();
+
+  std::vector<int64_t> shape;
+  int64_t tensorSize, outer_size, inner_size, garbage1, garbage2;
+  getTensorShapeAndSize(op->getOperand(0), shape, tensorSize);
+  int dimension = shape.size();
+  if (shape.size() == 2) {
+    outer_size = shape[0];
+    inner_size = shape[1];
+  } else if (shape.size() == 4) {
+    assert(axis == 1 && "Support only axis = 1 (Align c)");
+    if(shape[2] * shape[3] == 1) {
+      outer_size = shape[0]; //n
+      inner_size = shape[1]; //c
+    } else {
+      // assert(0);
+    }
+  } else if (shape.size() == 3) {
+    assert(axis == 2 && "Support only axis = 2");
+    outer_size = shape[0] * shape[1]; //c * h
+    inner_size = shape[2]; //w
+  }
+
+
+  gaddr_t input_gaddr = getPreviousOpAddress(op);
+  gaddr_t output_gaddr = getOpAddress(op);
+  gaddr_t exponential_table_data_lut_gaddr = getWeightOpAddress(exponential_table()->getDefiningOp());
+  gaddr_t exponential_slope_table_data_lut_gaddr = getWeightOpAddress(exponential_slope_table()->getDefiningOp());
+  gaddr_t reciprocal_table_data_lut_gaddr = getWeightOpAddress(reciprocal_table()->getDefiningOp());
+  gaddr_t reciprocal_mantissa_table_data_lut_gaddr = getWeightOpAddress(reciprocal_mantissa_table()->getDefiningOp());
+  int layer_id = mlir::getOpLayerId(op);
+
+  LLVM_DEBUG(llvm::errs() << "input_gaddr: " << input_gaddr << "\n"
+                                                       << "exponential_table_data_lut_gaddr: " << exponential_table_data_lut_gaddr << "\n"
+                                                       << "exponential_slope_table_data_lut_gaddr: " << exponential_slope_table_data_lut_gaddr << "\n"
+                                                       << "reciprocal_table_data_lut_gaddr: " << reciprocal_table_data_lut_gaddr << "\n"
+                                                       << "reciprocal_mantissa_table_data_lut_gaddr: " << reciprocal_mantissa_table_data_lut_gaddr << "\n"
+                                                       << "output_gaddr: " << output_gaddr << "\n"
+                                                       << "outer_size: " << outer_size << "\n"
+                                                       << "inner_size: " << inner_size << "\n"
+                                                       << "\n";);
+
+  bf16_softmax_kernel(*backend_ctx, layer_id,
+                                            input_gaddr,
+                                            exponential_table_data_lut_gaddr, exponential_slope_table_data_lut_gaddr,
+                                            reciprocal_table_data_lut_gaddr, reciprocal_mantissa_table_data_lut_gaddr,
+                                            output_gaddr,
+                                            shape.data(), axis, dimension);
   return success();
 }
 
@@ -3002,6 +3064,14 @@ LogicalResult tpu::TG_MemRef_INT8_GruOp::codegen(void *ctx) {
 }
 
 LogicalResult tpu::TG_MemRef_BF16_GruOp::codegen(void *ctx) {
+  return success();
+}
+
+LogicalResult tpu::TG_MemRef_INT8_SoftmaxOp::codegen(void *ctx) {
+  return success();
+}
+
+LogicalResult tpu::TG_MemRef_BF16_SoftmaxOp::codegen(void *ctx) {
   return success();
 }
 
