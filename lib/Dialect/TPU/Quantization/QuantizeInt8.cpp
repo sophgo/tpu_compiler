@@ -1217,7 +1217,8 @@ LogicalResult tpu::EltwiseAddOp::quantizeInt8() {
     }
   }
   if(ConstOpd){
-    return quantizeInt8MultiplyEltwiseAddOps(op);
+    // yolo tiny v4 case
+    return quantizeInt8AddConstOps<tpu::EltwiseAddOp>(op);
   }else{
     return quantizeInt8RescaleNoWeightOps<tpu::EltwiseAddOp>(op);
   }
