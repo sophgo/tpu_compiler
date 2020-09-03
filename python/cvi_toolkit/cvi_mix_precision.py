@@ -6,6 +6,7 @@ import numpy as np
 import time
 
 from cvi_toolkit.data.preprocess import get_preprocess_parser, preprocess
+from cvi_toolkit.utils.yolov3_util import preprocess as _preprocess_yolov3
 from cvi_toolkit.utils.mlir_shell import gen_bf16_mlir
 from cvi_toolkit.mix_precision.MixPrecision import MixPrecisior
 
@@ -57,8 +58,8 @@ def generic_loss(bf16_preds, int8_dequant_preds):
     neuron_count = 0
 
     for op_name in bf16_preds:
-        bf16_pred = bf16_preds[op_name].flatten()
-        int8_dequant_pred = int8_dequant_preds[op_name].flatten()
+        bf16_pred = bf16_preds[op_name]
+        int8_dequant_pred = int8_dequant_preds[op_name]
         loss = cal_sqnr(bf16_pred, int8_dequant_pred)
         if not math.isinf(loss):
             ret += -loss * bf16_pred.size
@@ -68,6 +69,37 @@ def generic_loss(bf16_preds, int8_dequant_preds):
         return -math.inf
     else:
         return ret / neuron_count
+
+
+def yolo_bbox_loc(pred):
+    num_boxes_per_cell = 3
+    num_of_class = 80
+
+    grid_size = pred.shape[2]
+    out = np.transpose(pred, (0, 2, 3, 1))
+    out = np.reshape(out, (grid_size, grid_size, num_boxes_per_cell, 5 + num_of_class))
+    return out[..., 0:4]
+
+
+def yolo_loss(bf16_preds, int8_dequant_preds):
+    ret = 0
+    effective_loss = 0
+
+    for op_name in bf16_preds:
+        bf16_pred = yolo_bbox_loc(bf16_preds[op_name])
+        int8_dequant_pred = yolo_bbox_loc(int8_dequant_preds[op_name])
+        loss = cal_sqnr(bf16_pred, int8_dequant_pred)
+        if not math.isinf(loss):
+            ret += -loss
+            effective_loss += 1
+
+    return ret / effective_loss
+
+
+def preprocess_yolov3(bgr_img, net_input_dims):
+    y = _preprocess_yolov3(bgr_img, net_input_dims)
+    y = np.expand_dims(y, axis=0)
+    return y
 
 
 if __name__ == '__main__':
@@ -90,7 +122,14 @@ if __name__ == '__main__':
 
         mix_precisior = MixPrecisior(args.fp32_cali_mlir_file, generic_loss, args.image_list_file,
                                         precrocess_func=p_func, input_num=args.input_num)
-
+    elif (args.model_name == 'yolo_v3_320'):
+        p_func = lambda input_tensor: preprocess_yolov3(input_tensor, [320, 320])
+        mix_precisior = MixPrecisior(args.fp32_cali_mlir_file, yolo_loss, args.image_list_file,
+                                        precrocess_func=p_func, input_num=args.input_num)
+    elif (args.model_name == 'yolo_v3_416'):
+        p_func = lambda input_tensor: preprocess_yolov3(input_tensor, [416, 416])
+        mix_precisior = MixPrecisior(args.fp32_cali_mlir_file, yolo_loss, args.image_list_file,
+                                        precrocess_func=p_func, input_num=args.input_num) 
     else:
         assert(False)
 
