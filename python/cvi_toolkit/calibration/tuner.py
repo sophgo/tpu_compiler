@@ -221,6 +221,10 @@ class Tuner_v2(object):
         self.out_table = os.path.join(self.output_path, "tune_threshold_table")
         self.int8_model = os.path.join(self.output_path, 'tune-int8.mlir')
         self.cali_model = "{}_cali.mlir".format(model_file.split(".")[0])
+        self.skip_op = ['tpu.cast', 'tpu.crop', 'tpu.input', 
+                        'tpu.pad', 'tpu.permute', 'tpu.pixelshuffle', 
+                        'tpu.quant', 'tpu.reshape', 'tpu.shuffle_channel', 
+                        'tpu.slice', 'tpu.swap_channel', 'tpu.transpose', 'tpu.upsample']
 
         self.thresholds = parse_threshold_table(input_threshold_table)
 
@@ -236,8 +240,12 @@ class Tuner_v2(object):
     def run_tune(self):
         time_start = time.time()
         last_best = ''
-        for info in self.fp32_module.op_info:
-            if info['type'] in ['tpu.input']:
+        self.run_calibration(self.thresholds)
+        tmp_int8_module = pymlir.module()
+        tmp_int8_module.load(self.int8_model)
+
+        for info in tmp_int8_module.op_info:
+            if info['type'] in self.skip_op:
                 continue
 
             op_name = info["name"]
@@ -257,6 +265,8 @@ class Tuner_v2(object):
 
         time_end = time.time()
         print("Tune time {}".format(time_end - time_start))
+        del tmp_int8_module
+
 
     def run_calibration(self, thresholds):
         with open(self.out_table, 'w') as f:
