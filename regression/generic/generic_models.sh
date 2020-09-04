@@ -1196,11 +1196,32 @@ export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.9
 # export BATCH_SIZE=4
 fi
 
+if [ $NET = "segnet" ]; then
+# not ready now, precision loss too large
+export MODEL_DEF=$MODEL_PATH/segmentation/segnet/caffe/segnet_model_driving_webdemo_fix.prototxt
+export MODEL_DAT=$MODEL_PATH/segmentation/segnet/caffe/segnet_weights_driving_webdemo.caffemodel
+export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_caffe/regression_segmentation_0_caffe.sh
+export IMAGE_PATH=$REGRESSION_PATH/data/camvid.png
+export COLOURS_LUT=$REGRESSION_PATH/data/camvid12_lut.png
+export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table
+export INPUT=input
+export OUTPUTS=conv1_1_D
+export NET_INPUT_DIMS=360,480
+export TOLERANCE_INT8_MULTIPLER=0.98,0.98,0.85
+export DO_QUANT_BF16=0
+export DO_DEEPFUSION=0
+export DO_LAYERGROUP=0
+export USE_LAYERGROUP=0
+export EXCEPTS=upsample5,relu5_3_D,relu5_2_D,relu5_1_D,upsample4,relu4_3_D,relu4_2_D,relu4_1_D,upsample3,relu3_3_D,relu3_2_D,relu3_1_D,upsample2,relu2_2_D,relu2_1_D,upsample1,relu1_2_D,conv1_1_D
+fi
+
 if [ $NET = "erfnet" ]; then
 export MODEL_DEF=$MODEL_PATH/segmentation/erfnet/caffe/erfnet_deploy_mergebn.prototxt
 export MODEL_DAT=$MODEL_PATH/segmentation/erfnet/caffe/erfnet_cityscapes_mergebn.caffemodel
 export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_caffe/regression_segmentation_0_caffe.sh
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/erfnet_calibration_table
+export IMAGE_PATH=$REGRESSION_PATH/data/city.png
+export COLOURS_LUT=$REGRESSION_PATH/data/city_lut.png
 export DO_CALIBRATION=0
 export NET_INPUT_DIMS=512,1024
 export IMAGE_RESIZE_DIMS=512,1024
@@ -1228,6 +1249,8 @@ if [ $NET = "enet" ]; then
 export MODEL_DEF=$MODEL_PATH/segmentation/enet/caffe/enet_deploy_final.prototxt
 export MODEL_DAT=$MODEL_PATH/segmentation/enet/caffe/cityscapes_weights.caffemodel
 export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_caffe/regression_segmentation_0_caffe.sh
+export IMAGE_PATH=$REGRESSION_PATH/data/city.png
+export COLOURS_LUT=$REGRESSION_PATH/data/city_lut.png
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/enet_calibration_table
 export DO_CALIBRATION=0
 export NET_INPUT_DIMS=512,1024

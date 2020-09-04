@@ -1190,6 +1190,9 @@ class MLIRImporter(object):
             'scale_h': self.module.integerAttr(self.i32Type, kargs['scale_h']),
             'scale_w': self.module.integerAttr(self.i32Type, kargs['scale_w'])
         }
+        if len(inputOperands) < 2:
+            none = self.add_none_op()
+            inputOperands.append(none)
         return self.buildOp(TPU_OpType.Upsample.value, inputOperands, [
             tensor_output_type], name=upsample_name, quant=self.quant_param, **upsample_param)
 

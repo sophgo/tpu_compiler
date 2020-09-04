@@ -82,7 +82,7 @@ if __name__ == '__main__':
     input_data = cv2.resize(input_data, (net_input_dims[1], net_input_dims[0]))
     input_data = input_data.transpose((2, 0, 1))
     input_data = np.asarray([input_data])
-   
+
     inputs = input_data
     for i in range(1, args.batch_size):
       inputs = np.append(inputs, input_data, axis=0)
@@ -114,8 +114,10 @@ if __name__ == '__main__':
 
     if (args.draw_image != ''):
         output_shape = outputs[args.output].data.shape
-        prediction = outputs[args.output].data[0].argmax(axis=0)
- 
+        prediction = outputs[args.output].data
+        if caffemodel.net.layer_dict[args.output].type != "ArgMax":
+            prediction = prediction[0].argmax(axis=0)
+
         prediction = np.squeeze(prediction)
         prediction = np.resize(prediction, (3, output_shape[2], output_shape[3]))
         prediction = prediction.transpose(1, 2, 0).astype(np.uint8)

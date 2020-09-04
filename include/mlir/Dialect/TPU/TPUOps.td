@@ -2379,6 +2379,7 @@ def TPU_UpsampleOp: TPU_Op<"upsample",
 
   let arguments = (
     ins AnyTensor:$input,
+    TPU_TensorOfOrNone<[F32, BF16, I16, I8]>:$mask,
     NonNegativeI32Attr:$scale_h,
     NonNegativeI32Attr:$scale_w,
     TPU_QuantParamAttr:$quant,
@@ -2518,7 +2519,6 @@ def TPU_PoolMaskOp: TPU_Op<"pool_mask",
   );
 
   let results = (outs AnyTensor:$output);
-  let hasCanonicalizer = 1;
 }
 
 def TPU_ReduceMaxOp: TPU_Op<"reduce_max",

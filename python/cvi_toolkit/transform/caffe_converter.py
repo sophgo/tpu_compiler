@@ -231,7 +231,7 @@ class CaffeConverter(BaseConverter):
          # default comes from caffe.proto
 
          p = layer.bn_param
-         bn_mode = 0;
+         bn_mode = 0
          if hasattr(p, 'bn_mode'):
              bn_mode = p.bn_mode
 
@@ -1395,10 +1395,15 @@ class CaffeConverter(BaseConverter):
         op, _, _ = self.getOperand(layer.bottom[0])
         operands.append(op)
         assert(len(input_shape) == 4)
-        scale = layer.upsample_param.scale
+        p = layer.upsample_param
+        scale = p.scale
         assert(scale == 2)
         output_shape = [input_shape[0], input_shape[1],
                         scale * input_shape[2], scale * input_shape[3]]
+        if p.HasField('upsample_w'):
+            output_shape[3] = p.upsample_w
+        if p.HasField('upsample_h'):
+            output_shape[2] = p.upsample_h
         param = {
             'scale_h': scale,
             'scale_w': scale
@@ -1406,25 +1411,15 @@ class CaffeConverter(BaseConverter):
 
         upsample_name = layer.name
         if len(layer.bottom) > 1:
-          upsample_name = "{}_nearst".format(layer.name)
+          op_mask, _, _ = self.getOperand(layer.bottom[1])
+          operands.append(op_mask)
+        else:
+          operands.append(self.noneOp())
 
         new_op = self.CVI.add_upsample_op(
             upsample_name, operands, output_shape, **param)
-
-        if len(layer.bottom) == 1:
-            self.addOperand(layer.top[0], new_op,
+        self.addOperand(layer.top[0], new_op,
                             output_shape, TensorType.ACTIVATION)
-
-        if len(layer.bottom) > 1:
-            operands = list()
-            op, _, _ = self.getOperand(layer.bottom[1])
-            operands.append(op)
-            operands.append(new_op)
-            eltwise_name = layer.name
-            eltwise_mul_op = self.CVI.add_eltwise_mul_op(
-                eltwise_name, operands, output_shape)
-            self.addOperand(layer.top[0], eltwise_mul_op, output_shape,
-                            TensorType.ACTIVATION)
 
     def convert_yolo_detection_op(self, layer):
         assert(self.layerType(layer) == 'YoloDetection')

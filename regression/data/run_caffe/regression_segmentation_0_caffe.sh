@@ -18,14 +18,14 @@ if [ ! -f "$CAFFE_BLOBS_NPZ" ]; then
       --dump_weights ${NET}_weights.npz \
       --output ${OUTPUTS} \
       --batch_size $BATCH_SIZE \
-      --input_file $REGRESSION_PATH/data/city.png \
-      --colours $REGRESSION_PATH/data/city_lut.png \
-      --draw_image city_out.jpg
+      --input_file $IMAGE_PATH \
+      --colours $COLOURS_LUT \
+      --draw_image segmentation_out.jpg
 fi
 
 # extract input and output
-cvi_npz_tool.py extract $CAFFE_BLOBS_NPZ ${NET}_in_fp32.npz data
-cvi_npz_tool.py extract $CAFFE_BLOBS_NPZ ${NET}_out_fp32_ref.npz ${OUTPUTS} 
+cvi_npz_tool.py extract $CAFFE_BLOBS_NPZ ${NET}_in_fp32.npz ${INPUT}
+cvi_npz_tool.py extract $CAFFE_BLOBS_NPZ ${NET}_out_fp32_ref.npz ${OUTPUTS}
 
 # fix input data consistency
 # because jpeg decoder may introduce difference, use save file to overwrite
