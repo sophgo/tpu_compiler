@@ -987,6 +987,11 @@ LogicalResult quantizeInt8AddConstOps(Operation *op) {
   qscales[0] = qscale;
   qscales[1] = 127.0 / (float)max_elem;
   float max_qscale = *std::max_element(std::begin(qscales), std::end(qscales));
+  if(max_qscale > 127){
+    llvm::errs() << "[Warning!] qscale( "<< max_qscale <<") > max_multiplier (127)\n";
+    llvm::errs() << "[Warning! set qscale 126.99]\n";
+    max_qscale = 126.99;
+  }
   rshift_i8 = findRShiftAndMultiplierFromQScale(max_qscale);
   multiplier_i8 = findMultiplierI8FromQScaleAndRShift(qscales[0], rshift_i8);
 
