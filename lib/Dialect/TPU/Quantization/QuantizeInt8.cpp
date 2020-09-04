@@ -1147,8 +1147,9 @@ LogicalResult quantizeInt8BypassOps(Operation *op) {
   if (!skip_checking) {
     float threshold_x = getPreviousOpThreshold(op);
     float threshold_y = getOpThreshold(op);
-    if (threshold_x != threshold_y) {
+    if (threshold_x - threshold_y > 0.001) {
       LLVM_DEBUG(llvm::errs() << "QuantizeInt8 Bypass pattern, threshold not match"
+                   << ", op name: " << getOpName(op)
                    << ", x = " << std::to_string(threshold_x)
                    << ", y = " << std::to_string(threshold_y) << "\n";);
       assert(false);
