@@ -39,13 +39,19 @@ using namespace mlir;
 
 template <typename OpTy>
 uint64_t SimpleConv2DMemoryUsageAnalysis(OpTy &op,
-    struct SimpleMemoryUsageAnalysis_details *details) {
+    struct SimpleMemoryUsageAnalysis_details *details,
+    int batch_size) {
   bool is_dw, with_bias, do_relu;
   int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw;
   bool is_deconv = isa<tpu::TG_INT8_PC_DeConv2DOp>(op.getOperation());
   parseConvParam(op.param(), is_deconv, op.input(), op.output(), op.filter(),
                  n, ic, ih, iw, oc, oh, ow, g,
                  kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, is_dw, with_bias, do_relu);
+
+  if (batch_size != -1) {
+    n = batch_size;
+    assert((batch_size <= n) && "batch_size error");
+  }
   uint64_t inputNeuronSizePerLane = MInfo::getSizePerLane(n, ic, ih, iw, true);
   uint64_t outputNeuronSizePerLane = MInfo::getSizePerLane(n, oc, oh, ow, true);
   uint64_t filterSizePerLane = 0;
@@ -110,21 +116,29 @@ uint64_t SimpleConv2DMemoryUsageAnalysis(OpTy &op,
 
 template
 uint64_t SimpleConv2DMemoryUsageAnalysis(tpu::TG_INT8_PC_Conv2DOp &op,
-    struct SimpleMemoryUsageAnalysis_details *details);
+    struct SimpleMemoryUsageAnalysis_details *details = nullptr,
+    int batch_size = -1);
 template
 uint64_t SimpleConv2DMemoryUsageAnalysis(tpu::TG_INT8_PC_DeConv2DOp &op,
-    struct SimpleMemoryUsageAnalysis_details *details);
+    struct SimpleMemoryUsageAnalysis_details *details = nullptr,
+    int batch_size = -1);
 template
 uint64_t SimpleConv2DMemoryUsageAnalysis(tpu::Conv2DOp &op,
-    struct SimpleMemoryUsageAnalysis_details *details);
+    struct SimpleMemoryUsageAnalysis_details *details = nullptr,
+    int batch_size = -1);
 
 template <typename OpTy>
 uint64_t SimpleEltwiseMemoryUsageAnalysis(OpTy &op,
-    struct SimpleMemoryUsageAnalysis_details *details) {
+    struct SimpleMemoryUsageAnalysis_details *details, int batch_size) {
   std::vector<int64_t> shape;
   int64_t input_size, n, c, h, w;
   getTensorShapeAndSize(op.getOperand(0), shape, input_size);
   getNCHW(shape, n, c, h, w);
+
+  if (batch_size != -1) {
+    n = batch_size;
+    assert((batch_size <= n) && "batch_size error");
+  }
   bool do_relu = op.do_relu();
 
   uint64_t inputNeuronSizePerLane = MInfo::getSizePerLane(n, c, h, w, true);
@@ -167,18 +181,26 @@ uint64_t SimpleEltwiseMemoryUsageAnalysis(OpTy &op,
 
 template
 uint64_t SimpleEltwiseMemoryUsageAnalysis(tpu::TG_INT8_EltwiseAddOp &op,
-    struct SimpleMemoryUsageAnalysis_details *details);
+    struct SimpleMemoryUsageAnalysis_details *details = nullptr,
+    int batch_size = -1);
 template
 uint64_t SimpleEltwiseMemoryUsageAnalysis(tpu::TG_INT8_EltwiseMulOp &op,
-    struct SimpleMemoryUsageAnalysis_details *details);
+    struct SimpleMemoryUsageAnalysis_details *details = nullptr,
+    int batch_size = -1);
 
 template <typename OpTy>
 uint64_t SimpleLutMemoryUsageAnalysis(OpTy &op,
-    struct SimpleMemoryUsageAnalysis_details *details) {
+    struct SimpleMemoryUsageAnalysis_details *details,
+    int batch_size) {
   std::vector<int64_t> shape;
   int64_t input_size, n, c, h, w;
   getTensorShapeAndSize(op.getOperand(0), shape, input_size);
   getNCHW(shape, n, c, h, w);
+
+  if (batch_size != -1) {
+    n = batch_size;
+    assert((batch_size <= n) && "batch_size error");
+  }
 
   uint64_t inputNeuronSizePerLane = MInfo::getSizePerLane(n, c, h, w, true);
   uint64_t outputNeuronSizePerLane = MInfo::getSizePerLane(n, c, h, w, true);
@@ -210,16 +232,22 @@ uint64_t SimpleLutMemoryUsageAnalysis(OpTy &op,
 
 template
 uint64_t SimpleLutMemoryUsageAnalysis(tpu::TG_INT8_LutOp &op,
-    struct SimpleMemoryUsageAnalysis_details *details);
+    struct SimpleMemoryUsageAnalysis_details *details = nullptr,
+    int batch_size = -1);
 
 template <typename OpTy>
 uint64_t SimpleBroadcastMulMemoryUsageAnalysis(OpTy &op,
-    struct SimpleMemoryUsageAnalysis_details *details) {
+    struct SimpleMemoryUsageAnalysis_details *details,
+    int batch_size) {
   std::vector<int64_t> shape;
   int64_t input_size, n, c, h, w;
   getTensorShapeAndSize(op.getOperand(0), shape, input_size);
   getNCHW(shape, n, c, h, w);
 
+  if (batch_size != -1) {
+    n = batch_size;
+    assert((batch_size <= n) && "batch_size error");
+  }
   uint64_t inputNeuronSizePerLane = MInfo::getSizePerLane(n, c, h, w, true);
   uint64_t outputNeuronSizePerLane = MInfo::getSizePerLane(n, c, h, w, true);
   uint64_t filterSizePerLane = MInfo::getSizePerLane(1, c, 1, 1, true);
@@ -247,16 +275,22 @@ uint64_t SimpleBroadcastMulMemoryUsageAnalysis(OpTy &op,
 
 template
 uint64_t SimpleBroadcastMulMemoryUsageAnalysis(tpu::TG_INT8_BroadcastMulOp &op,
-    struct SimpleMemoryUsageAnalysis_details *details);
+    struct SimpleMemoryUsageAnalysis_details *details = nullptr,
+    int batch_size = -1);
 
 template <typename OpTy>
 uint64_t SimpleIOMemoryUsageAnalysis(OpTy &op,
-    struct SimpleMemoryUsageAnalysis_details *details) {
+    struct SimpleMemoryUsageAnalysis_details *details,
+    int batch_size) {
   std::vector<int64_t> shape;
   int64_t input_size, n, c, h, w;
   getTensorShapeAndSize(op.getOperand(), shape, input_size);
   getNCHW(shape, n, c, h, w);
 
+  if (batch_size != -1) {
+    n = batch_size;
+    assert((batch_size <= n) && "batch_size error");
+  }
   int64_t output_size, on, oc, oh, ow;
   getTensorShapeAndSize(op.getResult(), shape, output_size);
   getNCHW(shape, on, oc, oh, ow);
@@ -290,7 +324,9 @@ uint64_t SimpleIOMemoryUsageAnalysis(OpTy &op,
 
 template
 uint64_t SimpleIOMemoryUsageAnalysis(tpu::TG_INT8_PoolMax2DOp &op,
-    struct SimpleMemoryUsageAnalysis_details *details);
+    struct SimpleMemoryUsageAnalysis_details *details = nullptr,
+    int batch_size = -1);
 template
 uint64_t SimpleIOMemoryUsageAnalysis(tpu::TG_INT8_PoolAvg2DOp &op,
-    struct SimpleMemoryUsageAnalysis_details *details);
+    struct SimpleMemoryUsageAnalysis_details *details = nullptr,
+    int batch_size = -1);

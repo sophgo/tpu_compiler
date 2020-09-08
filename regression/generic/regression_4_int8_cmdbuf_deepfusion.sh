@@ -16,7 +16,6 @@ COMPRESS_WEIGHT=1
 # deepfusion, simple version first
 ################################
 mlir-opt \
-    --deep-fusion-simple \
     --deep-fusion-simple-stats=${NET}_deepfusion_stats.csv \
     ${NET}_quant_int8_multiplier_addr.mlir \
     -o ${NET}_opt_deepfusion.mlir
@@ -26,6 +25,7 @@ mlir-opt \
 ################################
 
 mlir-opt \
+    --deep-fusion-group-slice \
     --deep-fusion-tg2tl-la \
     ${NET}_quant_int8_multiplier_addr.mlir \
     -o ${NET}_quant_int8_multiplier_tl_la.mlir

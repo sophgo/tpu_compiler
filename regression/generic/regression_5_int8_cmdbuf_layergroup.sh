@@ -12,6 +12,7 @@ mlir-opt \
 
 mlir-opt \
     --dce \
+    --deep-fusion-group-slice \
     --deep-fusion-tg2tl-la \
     --deep-fusion-tl-la2lw \
     ${NET}_quant_int8_multiplier_layergroup.mlir \

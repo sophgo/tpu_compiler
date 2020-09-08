@@ -696,7 +696,7 @@ struct TpuTL_LutOp_AssignLayoutPattern : public RewritePattern {
         op.setAttr("lm_layout", rewriter.getStringAttr("IWO"));
       }
     } else {
-       op.setAttr("lm_layout", rewriter.getStringAttr("IWO"));
+      op.setAttr("lm_layout", rewriter.getStringAttr("IWO"));
     }
     LLVM_DEBUG(llvm::errs() << "TL_LA2LW: layer ID " << getOpLayerId(opInst)
                  << ", LUT LM_LAYOUT " << op.lm_layout()
@@ -844,11 +844,12 @@ struct TpuTL_BroadcastMulOp_AssignLayoutPattern : public RewritePattern {
         op.setAttr("tl_store_flag", rewriter.getBoolAttr(false));
         next_op.setAttr("tl_load_flag", rewriter.getBoolAttr(false));
       } else {
-       op.setAttr("lm_layout", rewriter.getStringAttr("IWO"));
+        op.setAttr("lm_layout", rewriter.getStringAttr("IWO"));
       }
     } else {
       op.setAttr("lm_layout", rewriter.getStringAttr("IWO"));
     }
+    
     LLVM_DEBUG(llvm::errs() << "TL_LA2LW: layer ID " << getOpLayerId(opInst)
                  << ", EltMul LM_LAYOUT " << op.lm_layout()
                  << ", LD " << op.tl_load_flag()

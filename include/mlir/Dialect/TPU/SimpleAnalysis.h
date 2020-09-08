@@ -45,20 +45,25 @@ struct SimpleMemoryUsageAnalysis_details {
 
 template <typename OpTy>
 uint64_t SimpleConv2DMemoryUsageAnalysis(OpTy &op,
-    struct SimpleMemoryUsageAnalysis_details *details);
+    struct SimpleMemoryUsageAnalysis_details *details = nullptr,
+    int batch_size = -1);
 
 template <typename OpTy>
 uint64_t SimpleEltwiseMemoryUsageAnalysis(OpTy &op,
-    struct SimpleMemoryUsageAnalysis_details *details);
+    struct SimpleMemoryUsageAnalysis_details *details = nullptr,
+    int batch_size = -1);
 
 template <typename OpTy>
 uint64_t SimpleLutMemoryUsageAnalysis(OpTy &op,
-    struct SimpleMemoryUsageAnalysis_details *details);
+    struct SimpleMemoryUsageAnalysis_details *details = nullptr,
+    int batch_size = -1);
 
 template <typename OpTy>
 uint64_t SimpleBroadcastMulMemoryUsageAnalysis(OpTy &op,
-    struct SimpleMemoryUsageAnalysis_details *details);
+    struct SimpleMemoryUsageAnalysis_details *details = nullptr,
+    int batch_size = -1);
 
 template <typename OpTy>
 uint64_t SimpleIOMemoryUsageAnalysis(OpTy &op,
-    struct SimpleMemoryUsageAnalysis_details *details);
+    struct SimpleMemoryUsageAnalysis_details *details = nullptr,
+    int batch_size = -1);

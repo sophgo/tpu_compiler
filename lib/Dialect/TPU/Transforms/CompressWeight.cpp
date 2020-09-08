@@ -79,6 +79,15 @@ public:
         return Pattern::matchFailure();
       }
     }
+
+    if (auto load_op = dyn_cast<tpu::LoadWeightOp>
+                                  (convOp.filter()->getDefiningOp())) {
+      if (load_op.compressed()) {
+        convOp.setAttr("compressed_weight", rewriter.getBoolAttr(true));
+        return Pattern::matchFailure();
+      }
+    }
+
     // Not support group convolution and depthwise convolution
     if (convOp.param().group().getValue().getLimitedValue() > 1) {
       LLVM_DEBUG(llvm::dbgs()
@@ -235,6 +244,11 @@ public:
       if (auto load_op = dyn_cast<tpu::TL_LG_LoadCoeffOp>
                                   (convOp.filter()->getDefiningOp())) {
         load_op.setAttr("compressed_weight", rewriter.getBoolAttr(true));
+      }
+
+      if (auto load_op = dyn_cast<tpu::LoadWeightOp>
+                                  (convOp.filter()->getDefiningOp())) {
+        load_op.setAttr("compressed", rewriter.getBoolAttr(true));
       }
 
       struct CompressInfo info;

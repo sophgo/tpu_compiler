@@ -3,6 +3,7 @@ add_llvm_library(MLIRTPUDeepFusion
   ConvertTG2TL_LA.cpp
   ConvertTL_LA2LW.cpp
   SimpleAnalysis.cpp
+  DeepFusionGroupSlice.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${MLIR_MAIN_INCLUDE_DIR}/mlir/Dialect/TPU

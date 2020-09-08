@@ -159,6 +159,38 @@ struct TgSliceAddressPattern : public RewritePattern {
   }
 };
 
+
+template <typename OpTy>
+struct TgConcatAddressPattern : public RewritePattern {
+  TgConcatAddressPattern(MLIRContext *context)
+      : RewritePattern(OpTy::getOperationName(), 1, context) {}
+
+  PatternMatchResult matchAndRewrite(Operation *op,
+                                     PatternRewriter &rewriter) const override {
+    auto castOp = cast<OpTy>(op);
+    int axis = castOp.axis().getLimitedValue();
+    if (axis != 0) {
+      return matchFailure();
+    }
+    auto concatGAddr = castOp.getGAddr();
+    int64_t offset = 0;
+    for (auto opd : op->getOperands()) {
+      auto defOp = opd->getDefiningOp();
+      std::vector<int64_t> shape = getTensorShape(defOp->getResult(0));
+      int32_t dsize = getOpDtypeSize(defOp);
+      int64_t isz = 1;
+      for (unsigned i = 0; i < shape.size(); i++) {
+        isz *= shape[i];
+      }
+      auto updatedGAddr = concatGAddr + offset;
+      setOpAddress(defOp, updatedGAddr);
+      offset += isz * dsize;
+    }
+    return matchSuccess();
+  }
+};
+
+
 template <typename OpTy>
 struct TlLgStoreAddressNeuronPattern : public RewritePattern {
   TlLgStoreAddressNeuronPattern(MLIRContext *context)
@@ -392,7 +424,9 @@ public:
 
     OwningRewritePatternList patterns;
     patterns.insert<TgSliceAddressPattern<tpu::TG_INT8_SliceOp>,
-                    TgSliceAddressPattern<tpu::TG_BF16_SliceOp>
+                    TgSliceAddressPattern<tpu::TG_BF16_SliceOp>,
+                    TgConcatAddressPattern<tpu::TG_INT8_ConcatOp>,
+                    TgConcatAddressPattern<tpu::TG_BF16_ConcatOp>
                    >(context);
     applyPatternsGreedily(fn, patterns);
     patterns.clear();

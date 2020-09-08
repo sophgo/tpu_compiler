@@ -354,17 +354,21 @@ LogicalResult tpu::TG_CastOp::codegen(void *ctx) {
 LogicalResult tpu::TG_INT8_ConcatOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);
+  int axis = this->axis().getLimitedValue();
+  if (axis == 0) {
+    return success();
+  }
+
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
+  int layer_id = getOpLayerId(op);
   unsigned nInputs = op->getNumOperands();
   auto ga_inputs = new gaddr_t[nInputs];
   for ( unsigned i = 0; i < nInputs; i++) {
     ga_inputs[i] = getPreviousOpAddress(op, i);
   }
   gaddr_t ga_output = getOpAddress(op);
-  int axis = this->axis().getLimitedValue();
-  int layer_id = getOpLayerId(op);
 
   // prepare shape info
   #define SHAPE_DIM 4
