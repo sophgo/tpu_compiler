@@ -47,7 +47,6 @@ struct TpuRefactorEltAndConvPattern : public RewritePattern {
     LLVM_DEBUG(llvm::errs() << eltAddOp.getOperationName()
                             << ":" << getOpName(eltAddOp)<< "\n";);
 
-    bool isKernel1x1AndStrideBiggerThanOne = true;
     Operation *nextOp = nullptr;
     int strideH, strideW;
 

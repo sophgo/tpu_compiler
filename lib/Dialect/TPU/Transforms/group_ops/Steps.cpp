@@ -90,11 +90,10 @@ void ClusterSteps::rearrange_steps() {
 
   // move store tensor to next step.
   for (int i = stores_.size() - 1; i >= 0; i--) {
-    TensorStep& cur = stores_[i];
     if (stores_[i].empty()) {
       continue;
     }
-    if (i == stores_.size() - 1) {
+    if (i == (int)stores_.size() - 1) {
       append(-1, null, stores_[i]);
     } else {
       stores_[i + 1].insert(stores_[i + 1].end(), stores_[i].begin(), stores_[i].end());
@@ -296,8 +295,9 @@ void ClusterSteps::assign(Group* cluster) {
         }
         if (is_concat_in_place) {
           for (auto ignore_unit : ignore_pair) {
-            ImConcat* im_layer = (ImConcat*)net_graph_->get_layer_by_id(to_layers[ignore_unit.first]);
-            im_layer->ignored_bottoms.insert(ignore_unit.second);
+            auto im_layer = const_cast<ImLayer *>(net_graph_->get_layer_by_id(to_layers[ignore_unit.first]));
+            ImConcat* im_concat_layer = dynamic_cast<ImConcat *>(im_layer);
+            im_concat_layer->ignored_bottoms.insert(ignore_unit.second);
           }
         }
       } else {
@@ -608,15 +608,15 @@ void ClusterSteps::to_timestep_with_tsm(net_timestep* time_step) {
     // i + 4 TSM to DDR
 
     // DMA
-    for (int j = 0; j < ddr_to_tsm_[i].size(); j++) {
+    for (int j = 0; j < (int)ddr_to_tsm_[i].size(); j++) {
       int tid = ddr_to_tsm_[i][j];
       step[i].tensor_step.push_back(std::make_pair(tid, TIMESTEP_DDR_TO_TSM));
     }
-    for (int j = 0; j < tsm_to_lmem_[i].size(); j++) {
+    for (int j = 0; j < (int)tsm_to_lmem_[i].size(); j++) {
       int tid = tsm_to_lmem_[i][j];
       step[i + 1].tensor_step.push_back(std::make_pair(tid, TIMESTEP_TSM_TO_LMEM));
     }
-    for (int j = 0; j < loads_[i].size(); j++) {
+    for (int j = 0; j < (int)loads_[i].size(); j++) {
       int tid = loads_[i][j];
       step[i + 1].tensor_step.push_back(std::make_pair(tid, TIMESTEP_LOAD));
     }
@@ -625,21 +625,21 @@ void ClusterSteps::to_timestep_with_tsm(net_timestep* time_step) {
     step[i + 2].layer_id = layers_[i];
 
     // DMA
-    for (int j = 0; j < stores_[i].size(); j++) {
+    for (int j = 0; j < (int)stores_[i].size(); j++) {
       int tid = stores_[i][j];
       step[i + 3].tensor_step.push_back(std::make_pair(tid, TIMESTEP_STORE));
     }
-    for (int j = 0; j < lmem_to_tsm_[i].size(); j++) {
+    for (int j = 0; j < (int)lmem_to_tsm_[i].size(); j++) {
       int tid = lmem_to_tsm_[i][j];
       step[i + 3].tensor_step.push_back(std::make_pair(tid, TIMESTEP_LMEM_TO_TSM));
     }
-    for (int j = 0; j < tsm_to_ddr_[i].size(); j++) {
+    for (int j = 0; j < (int)tsm_to_ddr_[i].size(); j++) {
       int tid = tsm_to_ddr_[i][j];
       step[i + 4].tensor_step.push_back(std::make_pair(tid, TIMESTEP_TSM_TO_DDR));
     }
   }
 
-  for (int i = 0; i < step.size(); i++) {
+  for (int i = 0; i < (int)step.size(); i++) {
     int layer_id = step[i].layer_id;
 
     if ((layer_id == -1) && (step[i].tensor_step.empty())) {

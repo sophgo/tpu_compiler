@@ -4,6 +4,8 @@ endif(NOT tpu_LINKER_LIBS)
 list(APPEND tpu_LINKER_LIBS
   mkldnn)
 
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Werror -Wno-pedantic")
+
 if(NOT DEFINED FLATBUFFERS_PATH)
   set(FLATBUFFERS_PATH $ENV{FLATBUFFERS_PATH})
 endif()
@@ -60,6 +62,7 @@ add_llvm_library(MLIRTPU
   Transforms/group_ops/LMemManager.cpp
   Transforms/group_ops/MixNet.cpp
   Transforms/group_ops/DeadCodeEliminate.cpp
+  Transforms/group_ops/utils.cpp
   Interpreter/TpuInterpreter.cpp
   Interpreter/NativeCpuImplementation.cpp
   Interpreter/CpuLayer_DetectionOutput.cpp

@@ -514,8 +514,8 @@ int my_gru(float *input, float *output,
   // bias: Concatenation of Wb[update, reset, hidden gates] and Rb[update, reset, hidden gates], shape = [num_directions, 6*hidden_size]
   // initial_h: [num_directions, batch_size, hidden_size]
 
-  int num_directions = b_bidirectional ? 2 : 1;
-  int gate_weight_size = hidden_size * input_size;
+  // int num_directions = b_bidirectional ? 2 : 1;
+  // int gate_weight_size = hidden_size * input_size;
   float* prev_hidden_state = initial_h; // ht
   float* update_gate = new float[hidden_size]; // zt
   float* reset_gate = new float[hidden_size]; // rt
@@ -758,8 +758,8 @@ void gen_bf16_table(int start, int end, int table_hw, float *table,
 void gen_bf16_slope_table(int start, int end, int table_hw,
                                          float *table,
                                          float *slope_table, double (*activate_func)(double)) {
-  int range = abs(end - start);
-  float interval = (float)range / (float)table_hw;
+  // int range = abs(end - start);
+  // float interval = (float)range / (float)table_hw;
   int half = table_hw / 2;
   for (int i = 0; i < table_hw; ++i) {
     double x0 = table[i];
@@ -1526,14 +1526,14 @@ int my_softmax3D(float *input, float *output, int axis, const std::vector<int64_
 }
 
 inline int crop_offset(const std::vector<int>& indices,long int *shape) {
-    int offset = 0;
-    for (int i = 0; i < 4; ++i) {
-      offset *= shape[i];
-      if (indices.size() > i) {
-        offset += indices[i];
-      }
+  int offset = 0;
+  for (int i = 0; i < 4; ++i) {
+    offset *= shape[i];
+    if ((int)indices.size() > i) {
+      offset += indices[i];
     }
-    return offset;
+  }
+  return offset;
 }
 
 int my_crop(float *input, float *output, long int *input_shape, long int *output_shape,
@@ -1964,7 +1964,7 @@ int my_pad_constant(float *input, float *output,
   int ic = input_shape[1];
   int ih = input_shape[2];
   int iw = input_shape[3];
-  int on = pads[0] + pads[4] + in;
+  // int on = pads[0] + pads[4] + in;
   int oc = pads[1] + pads[5] + ic;
   int oh = pads[2] + pads[6] + ih;
   int ow = pads[3] + pads[7] + iw;
@@ -2086,7 +2086,6 @@ inline int count(std::vector<int64_t> &shape, int start_axis, int end_axis) {
 int my_reduce_mean(float *input, float *output,
                      std::vector<int64_t> &input_shape,
                      std::vector<int> &axes) {
-  int dim = input_shape.size();
   assert(axes.size() > 0);
   int axis = axes[0];
   // only support one axis, if has two axis, should be continous
@@ -2110,7 +2109,6 @@ int my_reduce_mean(float *input, float *output,
 int my_reduce_max(float *input, float *output,
                      std::vector<int64_t> &input_shape,
                      std::vector<int> &axes) {
-  int dim = input_shape.size();
   assert(axes.size() > 0);
   int axis = axes[0];
   // only support one axis, if has two axis, should be continous

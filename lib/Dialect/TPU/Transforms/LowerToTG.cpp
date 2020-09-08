@@ -41,7 +41,7 @@
 
 #define DEBUG_TYPE "convert_to_tg"
 
-extern llvm::cl::opt<bool>
+llvm::cl::opt<bool>
     clUseTPUQuantOp("use-tpu-quant-op",
                 llvm::cl::desc("Quant op inference by tpu instead of cpu"),
                 llvm::cl::init(false));
@@ -703,9 +703,11 @@ Value *tpu::FullyConnectedOp::convertToTG() {
 Value* tpu::InterpOp::convertToTG() {
   LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
                << " [" << getOpName() << "]\n";);
+  /*
   Operation *op = this->getOperation();
   auto builder = Builder(op->getContext());
   TensorFile *wTF = getWeightTensorFile(op);
+  */
   llvm_unreachable("unsupported type");
   return NULL;
 }

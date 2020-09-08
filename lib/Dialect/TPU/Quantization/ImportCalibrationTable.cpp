@@ -520,8 +520,8 @@ public:
     llvm::errs() << "Calibration Table File : " << clCalibrationTableFilename << "\n";
     std::ifstream infile(clCalibrationTableFilename);
     std::string line;
-    std::regex sym_pattern("[a-zA-Z0-9.:_\/-]+ [-0-9.e]+");
-    std::regex asym_pattern("[a-zA-Z0-9.:_\/-]+ [-0-9.e]+ [-0-9.e]+");
+    std::regex sym_pattern("[a-zA-Z0-9.:_\\/-]+ [-0-9.e]+");
+    std::regex asym_pattern("[a-zA-Z0-9.:_\\/-]+ [-0-9.e]+ [-0-9.e]+");
     while (std::getline(infile, line)) {
       std::istringstream iss(line);
       std::string name;

@@ -326,7 +326,6 @@ LogicalResult tpu::TL_EltwiseMulOp::codegen(void *ctx) {
   getTensorShapeAndSize(op->getOperand(0), shape, input_size);
   getNCHW(shape, n, c, h, w);
   bool do_relu = this->do_relu();
-  int nInputs = op->getNumOperands();
   assert(op->getNumOperands() == 2 && "support 2 inputs only");
 
   gaddr_t ga_input = tl_load_flag() ? getPreviousOpAddress(op, augend_idx) : GA_INVALID; //Closest op
@@ -341,7 +340,6 @@ LogicalResult tpu::TL_EltwiseMulOp::codegen(void *ctx) {
   laddr_t la_output = this->la_output().getLimitedValue();
   laddr_t la_working = this->la_working().getLimitedValue();
 
-  bool do_quant_rescale = false;
   int8_t rshift = this->rshift().getLimitedValue();
 
   // op code PROD = 0; SUM = 1; MAX = 2;
@@ -455,11 +453,9 @@ LogicalResult tpu::TL_PoolAvg2DOp::codegen(void *ctx) {
 
   laddr_t la_input = LA_INVALID;
   laddr_t la_output = LA_INVALID;
-  laddr_t la_working = LA_INVALID;
   if (this->lm_layout() != "NONE") {
     la_input = this->la_input().getLimitedValue();
     la_output = this->la_output().getLimitedValue();
-    la_working = this->la_working().getLimitedValue();
   }
 
   LLVM_DEBUG(

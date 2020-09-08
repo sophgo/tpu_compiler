@@ -51,7 +51,7 @@ struct TpuConvertLoadeweightConcatToLoadweightPattern : public RewritePattern {
 
     unsigned input_loadweight_num = concatOp.getOperands().size()-4;
 
-    for(int i=0;i<input_loadweight_num;i++){
+    for(int i=0; i < (int)input_loadweight_num; i++){
         auto formerOp = concatOp.getOperand(i)->getDefiningOp();
         if (!isa<tpu::LoadWeightOp>(formerOp)){
           return matchFailure();
@@ -60,14 +60,12 @@ struct TpuConvertLoadeweightConcatToLoadweightPattern : public RewritePattern {
     LLVM_DEBUG(llvm::errs() << concatOp.getOperationName() << ":"
                             << getOpName(op)<< "\n";);
 
-    uint32_t  c, h, w;
+    uint32_t h, w;
     int tmp_w=0;
     auto result = concatOp.getResult();
     // LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";);
     auto tensorType = result->getType().cast<TensorType>();
     std::vector<int64_t> shape = tensorType.getShape();
-    auto size = std::accumulate(std::begin(shape), std::end(shape),
-                                1, std::multiplies<>());
     auto resultT = std::make_unique<std::vector<float> >(0);
 
     std::vector<std::unique_ptr<std::vector<float>>>
@@ -90,11 +88,9 @@ struct TpuConvertLoadeweightConcatToLoadweightPattern : public RewritePattern {
       auto tensorType = concatOp.getOperand(i)->getType().cast<TensorType>();
       std::vector<int64_t> shape =  tensorType.getShape();
       assert(3 == shape.size() && "only do 3 dim concat opt now");
-      c = shape[0];
       h = shape[1];
       w = shape[2];
 
-      //llvm::errs() << "shape c:" << c <<"\n";
       //llvm::errs() << "shape h:" << h << " w:"<< w <<"\n";
 
       float *input_data = (float *)inputloadweight[i]->data();

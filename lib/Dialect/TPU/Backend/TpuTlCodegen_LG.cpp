@@ -314,7 +314,6 @@ LogicalResult tpu::TL_LG_INT8_EltwiseAddOp::codegen(void *ctx) {
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
   int layer_id = mlir::getOpLayerId(op);
-  TensorFile *wTF = getWeightTensorFile(op);
 
   std::vector<int64_t> shape;
   int64_t input_size, n, c, h, w;
@@ -330,20 +329,18 @@ LogicalResult tpu::TL_LG_INT8_EltwiseAddOp::codegen(void *ctx) {
   ow = shape[3];
 
   std::vector<int32_t> la_input_array;
-  laddr_t la_input[nInputs];
+  auto la_input = new laddr_t[nInputs];
   arrayAttrToVector(this->la_input().getValue(), la_input_array);
-  for (unsigned i = 0; i < nInputs; ++i) {
+  for (int i = 0; i < nInputs; ++i) {
       la_input[i] = la_input_array[i];
   }
 
   laddr_t la_output = this->la_output().getLimitedValue();
   laddr_t la_working = this->la_working().getLimitedValue();
 
-  bool do_quant_rescale = false;
   int8_t rshift;
   int8_t m_i8_input[2];
   if (this->rshift().hasValue() && this->m_i8().hasValue()) {
-    do_quant_rescale = true;
     rshift = this->rshift().getValue().getLimitedValue();
 
     std::vector<int32_t> m_i8_inputs_array;
@@ -381,7 +378,7 @@ LogicalResult tpu::TL_LG_INT8_EltwiseAddOp::codegen(void *ctx) {
                           coeffs,
                           0,
                           do_early_stride, early_stride_h, early_stride_w);
-
+  delete[] la_input;
   return success();
 }
 
@@ -399,7 +396,6 @@ LogicalResult tpu::TL_LG_INT8_EltwiseMulOp::codegen(void *ctx) {
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
   int layer_id = mlir::getOpLayerId(op);
-  TensorFile *wTF = getWeightTensorFile(op);
 
   std::vector<int64_t> shape;
   int64_t input_size, n, c, h, w;
@@ -410,20 +406,18 @@ LogicalResult tpu::TL_LG_INT8_EltwiseMulOp::codegen(void *ctx) {
   assert(op->getNumOperands() == 2 && "support 2 inputs only");
 
   std::vector<int32_t> la_input_array;
-  laddr_t la_input[nInputs];
+  auto la_input = new laddr_t[nInputs];
   arrayAttrToVector(this->la_input().getValue(), la_input_array);
-  for (unsigned i = 0; i < nInputs; ++i) {
-      la_input[i] = la_input_array[i];
+  for (int i = 0; i < nInputs; ++i) {
+    la_input[i] = la_input_array[i];
   }
 
   laddr_t la_output = this->la_output().getLimitedValue();
   laddr_t la_working = this->la_working().getLimitedValue();
 
-  bool do_quant_rescale = false;
   int8_t rshift;
   int32_t m_i32;
   if (this->rshift().hasValue() && this->m_i32_output().hasValue()) {
-    do_quant_rescale = true;
     rshift = this->rshift().getValue().getLimitedValue();
     m_i32 = this->m_i32_output().getValue().getLimitedValue();
   }
@@ -447,7 +441,7 @@ LogicalResult tpu::TL_LG_INT8_EltwiseMulOp::codegen(void *ctx) {
                           coeffs,
                           m_i32,
                           0, 0, 0);
-
+  delete[] la_input;
   return success();
 }
 
@@ -494,6 +488,7 @@ LogicalResult tpu::TL_LG_INT8_LrnOp::codegen(void *ctx) {
                       sum_rshift_i8,
                       lrn_rshift_i8,
                       m_i8);
+  return success();
 }
 
 LogicalResult tpu::TL_LG_BF16_LrnOp::codegen(void *ctx) {
@@ -611,18 +606,17 @@ LogicalResult tpu::TL_LG_INT8_ConcatOp::codegen(void *ctx) {
   int axis = this->axis().getLimitedValue();
 
   std::vector<int32_t> la_input_array;
-  laddr_t la_input[nInputs];
+  auto la_input = new laddr_t[nInputs];
   arrayAttrToVector(this->la_input().getValue(), la_input_array);
   for (unsigned i = 0; i < nInputs; ++i) {
-      la_input[i] = static_cast<laddr_t>(la_input_array[i]);
-    }
+    la_input[i] = static_cast<laddr_t>(la_input_array[i]);
+  }
 
   laddr_t la_output = this->la_output().getLimitedValue();
   laddr_t la_working = this->la_working().getLimitedValue();
 
-
   #define SHAPE_DIM 4
-  int32_t input_dims[nInputs * SHAPE_DIM];
+  auto input_dims = new int32_t[nInputs * SHAPE_DIM];
   for ( unsigned i = 0; i < nInputs; i++) {
     std::vector<int64_t> shape;
     int64_t size;
@@ -632,24 +626,18 @@ LogicalResult tpu::TL_LG_INT8_ConcatOp::codegen(void *ctx) {
     input_dims[i] = shape[axis];
   }
   int output_dim[SHAPE_DIM];
-  int output_dim_size;
-  {
-    std::vector<int64_t> shape;
-    int64_t size;
-    getTensorShapeAndSize(this->getResult(), shape, size);
-    output_dim[0] = shape[0];
-    output_dim[1] = shape[1];
-    output_dim[2] = shape[2];
-    output_dim[3] = shape[3];
-    output_dim_size = shape.size();
-  }
+  std::vector<int64_t> shape;
+  int64_t size;
+  getTensorShapeAndSize(this->getResult(), shape, size);
+  output_dim[0] = shape[0];
+  output_dim[1] = shape[1];
+  output_dim[2] = shape[2];
+  output_dim[3] = shape[3];
 
   // prepare quant info
-  bool do_quant_rescale = false;
   int8_t r_i8;
-  int8_t m_i8[nInputs];
+  auto m_i8 = new int8_t[nInputs];
   if (this->r_i8().hasValue() && this->m_i8().hasValue()) {
-    do_quant_rescale = true;
     r_i8 = this->r_i8().getValue().getLimitedValue();
 
     std::vector<int32_t> m_i8_array;
@@ -671,6 +659,9 @@ LogicalResult tpu::TL_LG_INT8_ConcatOp::codegen(void *ctx) {
                       do_relu(),
                       r_i8,
                       m_i8);
+  delete[] input_dims;
+  delete[] m_i8;
+  delete[] la_input;
   return success();
 
 }
@@ -686,18 +677,17 @@ LogicalResult tpu::TL_LG_BF16_ConcatOp::codegen(void *ctx) {
   int axis = this->axis().getLimitedValue();
 
   std::vector<int32_t> la_input_array;
-  laddr_t la_input[nInputs];
+  auto la_input = new laddr_t[nInputs];
   arrayAttrToVector(this->la_input().getValue(), la_input_array);
   for (unsigned i = 0; i < nInputs; ++i) {
-      la_input[i] = static_cast<laddr_t>(la_input_array[i]);
-    }
+    la_input[i] = static_cast<laddr_t>(la_input_array[i]);
+  }
 
   laddr_t la_output = this->la_output().getLimitedValue();
   laddr_t la_working = this->la_working().getLimitedValue();
 
-
   #define SHAPE_DIM 4
-  int32_t input_dims[nInputs * SHAPE_DIM];
+  auto input_dims = new int32_t[nInputs * SHAPE_DIM];
   for ( unsigned i = 0; i < nInputs; i++) {
     std::vector<int64_t> shape;
     int64_t size;
@@ -707,17 +697,13 @@ LogicalResult tpu::TL_LG_BF16_ConcatOp::codegen(void *ctx) {
     input_dims[i] = shape[axis];
   }
   int output_dim[SHAPE_DIM];
-  int output_dim_size;
-  {
-    std::vector<int64_t> shape;
-    int64_t size;
-    getTensorShapeAndSize(this->getResult(), shape, size);
-    output_dim[0] = shape[0];
-    output_dim[1] = shape[1];
-    output_dim[2] = shape[2];
-    output_dim[3] = shape[3];
-    output_dim_size = shape.size();
-  }
+  std::vector<int64_t> shape;
+  int64_t size;
+  getTensorShapeAndSize(this->getResult(), shape, size);
+  output_dim[0] = shape[0];
+  output_dim[1] = shape[1];
+  output_dim[2] = shape[2];
+  output_dim[3] = shape[3];
 
   cvi_backend_tl_bf16_concat( *backend_ctx,
                       layer_id,
@@ -727,6 +713,8 @@ LogicalResult tpu::TL_LG_BF16_ConcatOp::codegen(void *ctx) {
                       la_input,
                       la_output,
                       la_working);
+  delete[] la_input;
+  delete[] input_dims;
   return success();
 }
 
@@ -737,7 +725,7 @@ LogicalResult tpu::TL_LG_LoadNeuronOp::codegen(void *ctx) {
   int layer_id = 0;
 
   std::vector<int64_t> shape;
-  int64_t input_size, n, c, h, w;
+  int64_t n, c, h, w;
   shape = getTensorShape(op->getOperand(0));
   getNCHW(shape, n, c, h, w);
 
@@ -807,7 +795,7 @@ LogicalResult tpu::TL_LG_LoadCoeffOp::codegen(void *ctx) {
   int layer_id = 0;
 
   std::vector<int64_t> shape;
-  int64_t input_size, n, c, h, w;
+  int64_t n, c, h, w;
   int64_t r_n, r_c, r_h, r_w;
   shape = getTensorShape(op->getResult(0));
   getNCHW(shape, r_n, r_c, r_h, r_w);
@@ -884,7 +872,7 @@ LogicalResult tpu::TL_LG_StoreOp::codegen(void *ctx) {
   int layer_id = 0;
 
   std::vector<int64_t> shape;
-  int64_t input_size, n, c, h, w;
+  int64_t n, c, h, w;
   shape = getTensorShape(op->getOperand(0));
   getNCHW(shape, n, c, h, w);
 
@@ -958,7 +946,7 @@ LogicalResult tpu::TL_LG_CopyOp::codegen(void *ctx) {
   int layer_id = 0;
 
   std::vector<int64_t> shape;
-  int64_t input_size, n, c, h, w;
+  int64_t n, c, h, w;
   shape = getTensorShape(op->getOperand(0));
   getNCHW(shape, n, c, h, w);
 
@@ -983,7 +971,6 @@ LogicalResult tpu::TL_LG_INT8_PoolAvg2DOp::codegen(void *ctx) {
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
   int layer_id = mlir::getOpLayerId(op);
-  TensorFile *wTF = getWeightTensorFile(op);
 
   bool is_global, do_relu, count_include_pad;
   int n, c, ih, iw, oh, ow, kh, kw, sh, sw, pt, pb, pl, pr;
@@ -1020,7 +1007,6 @@ LogicalResult tpu::TL_LG_BF16_PoolAvg2DOp::codegen(void *ctx) {
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
   int layer_id = mlir::getOpLayerId(op);
-  TensorFile *wTF = getWeightTensorFile(op);
 
   bool is_global, do_relu, count_include_pad;
   int n, c, ih, iw, oh, ow, kh, kw, sh, sw, pt, pb, pl, pr;
@@ -1049,7 +1035,6 @@ LogicalResult tpu::TL_LG_INT8_PoolMax2DOp::codegen(void *ctx) {
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
   int layer_id = mlir::getOpLayerId(op);
-  TensorFile *wTF = getWeightTensorFile(op);
 
   bool is_global, do_relu, count_include_pad;
   int n, c, ih, iw, oh, ow, kh, kw, sh, sw, pt, pb, pl, pr;
@@ -1083,7 +1068,6 @@ LogicalResult tpu::TL_LG_BF16_PoolMax2DOp::codegen(void *ctx) {
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
   int layer_id = mlir::getOpLayerId(op);
-  TensorFile *wTF = getWeightTensorFile(op);
 
   bool is_global, do_relu, count_include_pad;
   int n, c, ih, iw, oh, ow, kh, kw, sh, sw, pt, pb, pl, pr;

@@ -112,7 +112,7 @@ static void gen_sqrt_mantissa(uint16_t* table_mantissa, uint64_t table_size) {
 
   int idx = 0;
   double d;
-  for (int i = 0; i < half; i++) {
+  for (uint32_t i = 0; i < half; i++) {
     d = 1 + i * 1 / 128.0;
     d = (double) pow(d, 0.5);
    // FloatToBFloat16((float*)&d,&table_mantissa[idx+128],(size_t)1);

@@ -6,8 +6,9 @@ namespace mlir {
 
 
 GroupOptimizer::GroupOptimizer(NetGraph* net_graph, FuncOp * fn, MLIRContext * context)
-    : net_graph_(net_graph), fn_(fn), context_(context),
-      mix_net_(net_graph, fn, context) {}
+    : net_graph_(net_graph),
+      mix_net_(net_graph, fn, context),
+      fn_(fn), context_(context) {}
 
 GroupOptimizer::~GroupOptimizer() {
   for (auto group : groups_) {
@@ -174,7 +175,7 @@ int GroupOptimizer::calc_group_out_tensors_size(Group* target, const std::vector
   for (auto Group : Groups) {
     std::vector<int> out_tensors = Group.get_group_out_tensors();
 
-    for (int j = 0; j < static_cast<uint32_t>(out_tensors.size()); ++j) {
+    for (int j = 0; j < (int32_t)out_tensors.size(); ++j) {
       Tensor* tensor = net_graph_->get_tensor_by_id(out_tensors[j]);
       total_data_size += tensor->gmem_size();
     }

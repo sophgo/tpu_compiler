@@ -186,7 +186,7 @@ LogicalResult tpu::TG_INT8_ConcatOp::codegen(void *ctx) {
   Operation *op = this->getOperation();
 
   unsigned nInputs = op->getNumOperands();
-  gaddr_t ga_inputs[nInputs];
+  auto ga_inputs = new gaddr_t[nInputs];
   for ( unsigned i = 0; i < nInputs; i++) {
     ga_inputs[i] = getPreviousOpAddress(op, i);
   }
@@ -196,7 +196,7 @@ LogicalResult tpu::TG_INT8_ConcatOp::codegen(void *ctx) {
 
   // prepare shape info
   #define SHAPE_DIM 4
-  int32_t input_dims[nInputs * SHAPE_DIM];
+  auto input_dims = new int32_t[nInputs * SHAPE_DIM];
   for ( unsigned i = 0; i < nInputs; i++) {
     std::vector<int64_t> shape;
     int64_t size;
@@ -207,21 +207,19 @@ LogicalResult tpu::TG_INT8_ConcatOp::codegen(void *ctx) {
   }
   int output_dim[SHAPE_DIM];
   int output_dim_size;
-  {
-    std::vector<int64_t> shape;
-    int64_t size;
-    getTensorShapeAndSize(this->getResult(), shape, size);
-    output_dim[0] = shape[0];
-    output_dim[1] = shape[1];
-    output_dim[2] = shape[2];
-    output_dim[3] = shape[3];
-    output_dim_size = shape.size();
-  }
+  std::vector<int64_t> shape;
+  int64_t size;
+  getTensorShapeAndSize(this->getResult(), shape, size);
+  output_dim[0] = shape[0];
+  output_dim[1] = shape[1];
+  output_dim[2] = shape[2];
+  output_dim[3] = shape[3];
+  output_dim_size = shape.size();
 
   // prepare quant info
   bool do_quant_rescale = false;
   int8_t rshift;
-  int8_t m_i8_input[nInputs];
+  auto m_i8_input = new int32_t[nInputs];
   if (this->rshift().hasValue() && this->m_i8_inputs().hasValue()) {
     do_quant_rescale = true;
     rshift = this->rshift().getValue().getLimitedValue();
@@ -235,8 +233,8 @@ LogicalResult tpu::TG_INT8_ConcatOp::codegen(void *ctx) {
   }
 
   // TODO: should change on backend API, rather than doing cast
-  int rshift_int[nInputs];
-  int m_int[nInputs];
+  auto rshift_int = new int32_t[nInputs];
+  auto m_int = new int32_t[nInputs];
   if (do_quant_rescale) {
     for (unsigned i = 0; i < nInputs; ++i) {
       rshift_int[i] = static_cast<int>(rshift);
@@ -264,6 +262,11 @@ LogicalResult tpu::TG_INT8_ConcatOp::codegen(void *ctx) {
       do_quant_rescale ? m_int : nullptr  // const int *threshold_x_quantized
       );
 
+  delete[] ga_inputs;
+  delete[] m_i8_input;
+  delete[] rshift_int;
+  delete[] m_int;
+  delete[] input_dims;
   return success();
 }
 
@@ -274,7 +277,7 @@ LogicalResult tpu::TG_BF16_ConcatOp::codegen(void *ctx) {
   Operation *op = this->getOperation();
 
   int nInputs = op->getNumOperands();
-  gaddr_t ga_inputs[nInputs];
+  auto ga_inputs = new gaddr_t[nInputs];
   for ( int i = 0; i < nInputs; i++) {
     ga_inputs[i] = getPreviousOpAddress(op, i);
   }
@@ -284,7 +287,7 @@ LogicalResult tpu::TG_BF16_ConcatOp::codegen(void *ctx) {
 
   // prepare shape info
   #define SHAPE_DIM 4
-  int32_t input_dims[nInputs * SHAPE_DIM];
+  auto input_dims = new int32_t[nInputs * SHAPE_DIM];
   for ( int i = 0; i < nInputs; i++) {
     std::vector<int64_t> shape;
     int64_t size;
@@ -293,18 +296,17 @@ LogicalResult tpu::TG_BF16_ConcatOp::codegen(void *ctx) {
     // TODO: but only 1 is set for each input
     input_dims[i] = shape[axis];
   }
+
   int output_dim[SHAPE_DIM];
   int output_dim_size;
-  {
-    std::vector<int64_t> shape;
-    int64_t size;
-    getTensorShapeAndSize(this->getResult(), shape, size);
-    output_dim[0] = shape[0];
-    output_dim[1] = shape[1];
-    output_dim[2] = shape[2];
-    output_dim[3] = shape[3];
-    output_dim_size = shape.size();
-  }
+  std::vector<int64_t> shape;
+  int64_t size;
+  getTensorShapeAndSize(this->getResult(), shape, size);
+  output_dim[0] = shape[0];
+  output_dim[1] = shape[1];
+  output_dim[2] = shape[2];
+  output_dim[3] = shape[3];
+  output_dim_size = shape.size();
 
   bf16_concat_fixed_forward_bmkernel(
       *backend_ctx,
@@ -325,6 +327,8 @@ LogicalResult tpu::TG_BF16_ConcatOp::codegen(void *ctx) {
       nullptr          // threshold_x_quantized,
       );
 
+  delete[] ga_inputs;
+  delete[] input_dims;
   return success();
 }
 
@@ -385,20 +389,6 @@ LogicalResult tpu::TG_INT8_PT_Conv2DOp::codegen(void *ctx) {
   parseConvParam(param(), false, input(), output(), filter(), n, ic, ih, iw, oc,
                  oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, is_dw,
                  with_bias, do_relu);
-
-  // get is dilate activation
-  std::vector<int32_t> ins;
-  arrayAttrToVector(param().ins(), ins);
-  int ins_w = 0;
-  int ins_h = 0;
-  int ins_last_h = 0;
-  int ins_last_w = 0;
-  if (ins.size()) {
-    ins_w = ins[0];
-    if (ins.size() > 1) {
-      ins_h = ins[1];
-    }
-  }
 
   gaddr_t ga_input = getPreviousOpAddress(op);
   gaddr_t ga_output = getOpAddress(op);
@@ -504,20 +494,6 @@ LogicalResult tpu::TG_INT8_PC_Conv2DOp::codegen(void *ctx) {
                  oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, is_dw,
                  with_bias, do_relu);
 
-  // get is dilate activation
-  std::vector<int32_t> ins;
-  arrayAttrToVector(param().ins(), ins);
-  int ins_w = 0;
-  int ins_h = 0;
-  int ins_last_h = 0;
-  int ins_last_w = 0;
-  if (ins.size()) {
-    ins_w = ins[0];
-    if (ins.size() > 1) {
-      ins_h = ins[1];
-    }
-  }
-
   gaddr_t ga_input = getPreviousOpAddress(op);
   gaddr_t ga_output = getOpAddress(op);
   gaddr_t ga_filter = getWeightOpAddress(filter()->getDefiningOp());
@@ -547,8 +523,7 @@ LogicalResult tpu::TG_INT8_PC_Conv2DOp::codegen(void *ctx) {
       fused_leakyrelu_neg_m_i8   = static_cast<int>(neg_m_i8);
       fused_negative_slope       = negativeSlope;
       do_relu = true;
-  }
-  else {
+  } else {
     // for deepfusion case
     if (this->fuse_next()) {
       Operation *nextOp = getNextOp(op);
@@ -961,8 +936,8 @@ LogicalResult tpu::TG_INT8_EltwiseAddOp::codegen(void *ctx) {
   }
 
   int32_t input_number = op->getNumOperands();
-  gaddr_t ga_inputs[input_number];
-  for(size_t i = 0; i < input_number; i++){
+  auto ga_inputs = new gaddr_t[input_number];
+  for(int32_t i = 0; i < input_number; i++){
     ga_inputs[i] = getPreviousOpAddress(op, i);
   }
   gaddr_t ga_output = getOpAddress(op);
@@ -970,7 +945,7 @@ LogicalResult tpu::TG_INT8_EltwiseAddOp::codegen(void *ctx) {
 
   bool do_quant_rescale = false;
   int8_t rshift;
-  int8_t m_i8_input[input_number];
+  auto m_i8_input = new int8_t[input_number];
   if (this->rshift().hasValue() && this->m_i8_inputs().hasValue()) {
     do_quant_rescale = true;
     rshift = this->rshift().getValue().getLimitedValue();
@@ -978,18 +953,18 @@ LogicalResult tpu::TG_INT8_EltwiseAddOp::codegen(void *ctx) {
     std::vector<int32_t> m_i8_inputs_array;
     arrayAttrToVector(this->m_i8_inputs().getValue(), m_i8_inputs_array);
     assert(m_i8_inputs_array.size() == op->getNumOperands());
-    for (size_t i = 0; i < input_number; i++ ){
+    for (int32_t i = 0; i < input_number; i++ ){
       m_i8_input[i] = static_cast<int8_t>(m_i8_inputs_array[i]);
     }
   }
 
   // TODO: should change on backend API, rather than doing cast
   int rshift_int;
-  int m_int[input_number];
+  auto m_int = new int32_t[input_number];
   if (do_quant_rescale) {
     rshift_int = static_cast<int>(rshift);
-    for (size_t i = 0; i < input_number; i++ ){
-    m_int[i] = static_cast<int>(m_i8_input[i]);
+    for (int i = 0; i < input_number; i++ ){
+      m_int[i] = static_cast<int>(m_i8_input[i]);
     }
   }
   std::vector<int>coeffs(input_number, 1);
@@ -1003,6 +978,10 @@ LogicalResult tpu::TG_INT8_EltwiseAddOp::codegen(void *ctx) {
       do_quant_rescale ? rshift_int : 0,
       do_quant_rescale ? m_int : nullptr,
       coeffs.data());
+
+  delete[] m_i8_input;
+  delete[] m_int;
+  delete[] ga_inputs;
   return success();
 }
 
@@ -1032,8 +1011,8 @@ LogicalResult tpu::TG_INT8_EltwiseMaxOp::codegen(void *ctx) {
   }
 
   int32_t input_number = op->getNumOperands();
-  gaddr_t ga_inputs[input_number];
-  for(size_t i = 0; i < input_number; i++){
+  auto ga_inputs = new gaddr_t[input_number];
+  for(int32_t i = 0; i < input_number; i++){
     ga_inputs[i] = getPreviousOpAddress(op, i);
   }
   gaddr_t ga_output = getOpAddress(op);
@@ -1041,7 +1020,7 @@ LogicalResult tpu::TG_INT8_EltwiseMaxOp::codegen(void *ctx) {
 
   bool do_quant_rescale = false;
   int8_t rshift;
-  int8_t m_i8_input[input_number];
+  auto m_i8_input = new int8_t [input_number];
   if (this->rshift().hasValue() && this->m_i8_inputs().hasValue()) {
     do_quant_rescale = true;
     rshift = this->rshift().getValue().getLimitedValue();
@@ -1049,17 +1028,17 @@ LogicalResult tpu::TG_INT8_EltwiseMaxOp::codegen(void *ctx) {
     std::vector<int32_t> m_i8_inputs_array;
     arrayAttrToVector(this->m_i8_inputs().getValue(), m_i8_inputs_array);
     assert(m_i8_inputs_array.size() == op->getNumOperands());
-    for (size_t i = 0; i < input_number; i++ ){
+    for (int i = 0; i < input_number; i++ ){
       m_i8_input[i] = static_cast<int8_t>(m_i8_inputs_array[i]);
     }
   }
 
   // TODO: should change on backend API, rather than doing cast
   int rshift_int;
-  int m_int[input_number];
+  auto m_int = new int[input_number];
   if (do_quant_rescale) {
     rshift_int = static_cast<int>(rshift);
-    for (size_t i = 0; i < input_number; i++ ){
+    for (int i = 0; i < input_number; i++ ){
     m_int[i] = static_cast<int>(m_i8_input[i]);
     }
   }
@@ -1074,6 +1053,9 @@ LogicalResult tpu::TG_INT8_EltwiseMaxOp::codegen(void *ctx) {
       do_quant_rescale ? m_int : nullptr,
       coeffs);
 
+  delete[] ga_inputs;
+  delete[] m_i8_input;
+  delete[] m_int;
   return success();
 }
 
@@ -1103,8 +1085,8 @@ LogicalResult tpu::TG_INT8_EltwiseMinOp::codegen(void *ctx) {
   }
 
   int32_t input_number = op->getNumOperands();
-  gaddr_t ga_inputs[input_number];
-  for(size_t i = 0; i < input_number; i++){
+  auto ga_inputs = new gaddr_t[input_number];
+  for(int32_t i = 0; i < input_number; i++){
     ga_inputs[i] = getPreviousOpAddress(op, i);
   }
   gaddr_t ga_output = getOpAddress(op);
@@ -1112,7 +1094,7 @@ LogicalResult tpu::TG_INT8_EltwiseMinOp::codegen(void *ctx) {
 
   bool do_quant_rescale = false;
   int8_t rshift;
-  int8_t m_i8_input[input_number];
+  auto m_i8_input = new int8_t[input_number];
   if (this->rshift().hasValue() && this->m_i8_inputs().hasValue()) {
     do_quant_rescale = true;
     rshift = this->rshift().getValue().getLimitedValue();
@@ -1120,18 +1102,18 @@ LogicalResult tpu::TG_INT8_EltwiseMinOp::codegen(void *ctx) {
     std::vector<int32_t> m_i8_inputs_array;
     arrayAttrToVector(this->m_i8_inputs().getValue(), m_i8_inputs_array);
     assert(m_i8_inputs_array.size() == op->getNumOperands());
-    for (size_t i = 0; i < input_number; i++ ){
+    for (int32_t i = 0; i < input_number; i++ ){
       m_i8_input[i] = static_cast<int8_t>(m_i8_inputs_array[i]);
     }
   }
 
   // TODO: should change on backend API, rather than doing cast
   int rshift_int;
-  int m_int[input_number];
+  auto m_int = new int32_t[input_number];
   if (do_quant_rescale) {
     rshift_int = static_cast<int>(rshift);
-    for (size_t i = 0; i < input_number; i++ ){
-    m_int[i] = static_cast<int>(m_i8_input[i]);
+    for (int32_t i = 0; i < input_number; i++ ){
+      m_int[i] = static_cast<int>(m_i8_input[i]);
     }
   }
   const int coeffs[2] = {1, 1};
@@ -1145,6 +1127,9 @@ LogicalResult tpu::TG_INT8_EltwiseMinOp::codegen(void *ctx) {
       do_quant_rescale ? m_int : nullptr,
       coeffs);
 
+  delete[] ga_inputs;
+  delete[] m_i8_input;
+  delete[] m_int;
   return success();
 }
 
@@ -1159,10 +1144,8 @@ LogicalResult tpu::TG_INT8_EltwiseMulOp::codegen(void *ctx) {
   getTensorShapeAndSize(op->getOperand(0), shape, input_size);
   getNCHW(shape, n, c, h, w);
   std::vector<int64_t> output_shape;
-  int64_t output_size, oh, ow;
+  int64_t output_size;
   getTensorShapeAndSize(op->getResult(0), output_shape, output_size);
-  oh = output_shape[2];
-  ow = output_shape[3];
   bool do_relu = this->do_relu();
   assert(!do_early_stride());
 
@@ -1227,7 +1210,7 @@ LogicalResult tpu::TG_BF16_EltwiseAddOp::codegen(void *ctx) {
   }
 
   int32_t input_number = op->getNumOperands();
-  gaddr_t ga_inputs[input_number];
+  auto ga_inputs = new gaddr_t[input_number];
   for (int i = 0; i < input_number; i++) {
     ga_inputs[i] = getPreviousOpAddress(op, i);
   }
@@ -1250,6 +1233,7 @@ LogicalResult tpu::TG_BF16_EltwiseAddOp::codegen(void *ctx) {
       do_early_stride, early_stride_h, early_stride_w,
       coeffs.data());
 
+  delete[] ga_inputs;
   return success();
 }
 
@@ -1284,10 +1268,8 @@ LogicalResult tpu::TG_BF16_EltwiseMulOp::codegen(void *ctx) {
   getTensorShapeAndSize(op->getOperand(0), shape, input_size);
   getNCHW(shape, n, c, h, w);
   std::vector<int64_t> output_shape;
-  int64_t output_size, oh, ow;
+  int64_t output_size;
   getTensorShapeAndSize(op->getResult(0), output_shape, output_size);
-  oh = output_shape[2];
-  ow = output_shape[3];
   bool do_relu = this->do_relu();
   assert(!do_early_stride());
 
@@ -1463,23 +1445,26 @@ LogicalResult tpu::TG_BF16_GenericTpuOp::codegen(void *ctx) {
 }
 
 LogicalResult tpu::TG_INT8_InterpOp::codegen(void *ctx) {
+  /*
   LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
   int layer_id = mlir::getOpLayerId(op);
+  */
   std::string errorMsg = "unsupported tg op " + getOpName().str() + "\n";
   llvm_unreachable(errorMsg.c_str());
   return success();
 }
 
 LogicalResult tpu::TG_BF16_InterpOp::codegen(void *ctx) {
+  /*
   LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
   int layer_id = mlir::getOpLayerId(op);
-
+  */
   std::string errorMsg = "unsupported tg op " + getOpName().str() + "\n";
   llvm_unreachable(errorMsg.c_str());
   return success();
@@ -2456,7 +2441,7 @@ LogicalResult tpu::TG_INT8_TileOp::codegen(void *ctx) {
   cvi_backend_tg_tile_kernel(*backend_ctx,
       input_gaddr, input_n, input_c, input_h, input_w, CVI_FMT_I8,
       output_gaddr, output_n, output_c, output_h, output_w, CVI_FMT_I8,
-      resp.data(), resp.size(), layer_id); 
+      resp.data(), resp.size(), layer_id);
 
   return success();
 }
@@ -2489,6 +2474,7 @@ LogicalResult tpu::TG_BF16_TileOp::codegen(void *ctx) {
 }
 
 LogicalResult tpu::TG_INT8_TileInterpOp::codegen(void *ctx) {
+  /*
   LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
@@ -2501,18 +2487,19 @@ LogicalResult tpu::TG_INT8_TileInterpOp::codegen(void *ctx) {
   int layer_id = mlir::getOpLayerId(op);
   std::vector<int32_t> resp;
   arrayAttrToVector(this->resp().getValue(), resp);
-
+  */
   std::string errorMsg = "unsupported tg op " + getOpName().str() + "\n";
   llvm_unreachable(errorMsg.c_str());
   return success();
 }
 
 LogicalResult tpu::TG_BF16_TileInterpOp::codegen(void *ctx) {
+  /*
   LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
-
+  */
   std::string errorMsg = "unsupported tg op " + getOpName().str() + "\n";
   llvm_unreachable(errorMsg.c_str());
 

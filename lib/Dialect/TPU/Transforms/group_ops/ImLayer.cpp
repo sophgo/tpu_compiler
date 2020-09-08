@@ -246,7 +246,7 @@ ImConv::ImConv(Operation* p) : ImLayer(IR_CONVOLUTION, p, true) {
     // EU_NUM align,
     // so we can only specify the align type to bias memory layout
     // but skip the oc/g>32 cases.
-    if (oc/g > NPU_NUM)
+    if (oc/g > (int)NPU_NUM)
       fusible = false;
   }
 
@@ -427,7 +427,7 @@ ImInnerproduct::ImInnerproduct(Operation* op) : ImLayer(IR_INNERPRODUCT, op) {
 
 ImEltwise::ImEltwise(Operation* op) : ImLayer(IR_ELTWISE, op, true) {
   // skip rshift and multiplier
-  int nInputs = op->getNumOperands();
+  uint32_t nInputs = op->getNumOperands();
   for (uint32_t i = 0; i < nInputs; ++i) {
     add_in_tensor(op->getOperand(i), TENSOR_NEURON);
   }
@@ -448,7 +448,7 @@ ImCommon::ImCommon(Operation* op, bool inplace_compute, IR_TYPE type) : ImLayer(
       isa<tpu::TG_BF16_EltwiseMinOp>(op))
       fusible = false;
   // skip rshift and multiplier
-  int nInputs = op->getNumOperands();
+  uint32_t nInputs = op->getNumOperands();
   for (uint32_t i = 0; i < nInputs; ++i) {
     if (BlockArgument::classof(op->getOperand(i))) {
       auto shape = op->getResult(0)->getType().dyn_cast<TensorType>();
@@ -465,7 +465,6 @@ ImCommon::ImCommon(Operation* op, bool inplace_compute, IR_TYPE type) : ImLayer(
 
 ImConcat::ImConcat(Operation* op) : ImLayer(IR_CONCAT, op, true) {
   // only support axis = 1 for fuse
-  auto concat_op = dyn_cast<tpu::TG_INT8_ConcatOp>(op);
   int axis = 0;
   bool do_relu = false;
 

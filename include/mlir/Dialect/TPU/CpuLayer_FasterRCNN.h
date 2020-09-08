@@ -80,7 +80,7 @@ void _scale_enum(std::vector<float> ratio_anchors, std::vector<float> anchor_sca
 
 void generate_anchors(int anchor_base_size, std::vector<float> anchor_scale,
                     std::vector<float> anchor_ratio, std::vector<float> &anchor_boxes) {
-  std::vector<float> base_anchor = {0, 0, anchor_base_size - 1, anchor_base_size - 1};
+  std::vector<float> base_anchor = {0, 0, (float)anchor_base_size - 1, (float)anchor_base_size - 1};
   std::vector<float> ratio_anchors;
   _ratio_enum(base_anchor, anchor_ratio, ratio_anchors);
   _scale_enum(ratio_anchors, anchor_scale, anchor_boxes);
@@ -111,10 +111,10 @@ void anchor_box_transform_inv(float img_width, float img_height, std::vector<std
 
 void anchor_box_nms(std::vector<std::vector<float>> &pred_boxes, std::vector<float> &confidence, float nms_threshold)
 {
-  for (int i = 0; i < pred_boxes.size()-1; i++)
+  for (int i = 0; i < (int)pred_boxes.size()-1; i++)
   {
     float s1 = (pred_boxes[i][2] - pred_boxes[i][0] + 1) *(pred_boxes[i][3] - pred_boxes[i][1] + 1);
-    for (int j = i + 1; j < pred_boxes.size(); j++)
+    for (int j = i + 1; j < (int)pred_boxes.size(); j++)
     {
       float s2 = (pred_boxes[j][2] - pred_boxes[j][0] + 1) *(pred_boxes[j][3] - pred_boxes[j][1] + 1);
 
@@ -170,13 +170,13 @@ void bbox_transform_inv(const float* boxes, const float* deltas, float* pred, in
 
       pred[i*class_num*4 + j*4 + 0] = pred_ctr_x - pred_w / 2;
       pred[i*class_num*4 + j*4 + 1] = pred_ctr_y - pred_h / 2;
-      pred[i*class_num*4 + j*4 + 2] = pred_ctr_x + pred_w / 2; 
+      pred[i*class_num*4 + j*4 + 2] = pred_ctr_x + pred_w / 2;
       pred[i*class_num*4 + j*4 + 3] = pred_ctr_y + pred_h / 2;
     }
   }
 }
 
-void nms(detections *dets, int num, float nms_threshold) 
+void nms(detections *dets, int num, float nms_threshold)
 {
   for (int i = 0; i < num; i++) {
     if (dets[i].score == 0) {

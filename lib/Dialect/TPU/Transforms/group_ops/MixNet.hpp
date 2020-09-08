@@ -23,11 +23,11 @@ public:
   void set_param();
   void set_type(std::string type) { type_ = type; }
   std::string bottom_name(int idx) {
-    assert(idx < operands_.size());
+    assert(idx < (int)operands_.size());
     return operands_[idx];
   }
   std::string top_name(int idx) {
-    assert(idx < results_.size());
+    assert(idx < (int)results_.size());
     return results_[idx];
   }
 

@@ -248,10 +248,8 @@ std::pair<std::vector<Value *>, std::vector<NamedAttribute> > getTwiceWDeConv(
 
   // output
   std::vector<int64_t> output_shape;
-  int64_t output_size, oh, ow;
+  int64_t output_size;
   getTensorShapeAndSize(op->getResult(0), output_shape, output_size);
-  oh = output_shape[2];
-  ow = output_shape[3];
 
   // get weight
   TensorFile *wTF = getWeightTensorFile(op);
@@ -557,14 +555,11 @@ std::pair<std::vector<Value *>, std::vector<NamedAttribute> > getConv(
 
   // output
   std::vector<int64_t> output_shape;
-  int64_t output_size, oh, ow;
   int kh = 1;
   int kw = 2;
   int stride_h = 2;
   int stride_w = 2;
-  if (is_x) {
-  }
-  else {
+  if (is_x == 0) {
     kh = 2;
     kw = 1;
     stride_w = 1;
@@ -573,8 +568,6 @@ std::pair<std::vector<Value *>, std::vector<NamedAttribute> > getConv(
 
   output_shape.push_back(in);
   output_shape.push_back(ic);
-  oh = (ih - kh) / stride_h + 1;
-  ow = (iw - kw) / stride_w + 1;
   output_shape.push_back(ih);
   output_shape.push_back(iw);
 
@@ -797,7 +790,7 @@ struct TpuMergeInterpToConv2DPattern : public RewritePattern {
         filter_size = shrink_factor * shrink_factor;
         //filter_val = 1 / (float)filter_size;
         filter_val = 1; // nearnest
-        filter_shape = {oc, ic, shrink_factor, shrink_factor};
+        filter_shape = {oc, ic, (int64_t)shrink_factor, (int64_t)shrink_factor};
         stride_h = shrink_factor;
         stride_w = shrink_factor;
       }
@@ -927,7 +920,7 @@ struct TpuMergeInterpToConv2DPattern : public RewritePattern {
         floatDividend = ih - 1;
         std::tie(maxInsertHAtOnce, maxFloatDividend) = getDivisors(oh - 1, floatDividend);
         if (!maxInsertHAtOnce.size()) {
-          // TODO: seperate all divisor 
+          // TODO: seperate all divisor
           maxInsertHAtOnce.push_back(std::make_pair(oh, ih - 1));
         }
         scale[0] = (std::make_pair(maxFloatDividend, floatDividend));
@@ -948,7 +941,7 @@ struct TpuMergeInterpToConv2DPattern : public RewritePattern {
         floatDividend = iw - 1;
         std::tie(maxInsertWAtOnce, maxFloatDividend) = getDivisors(ow - 1, floatDividend);
         if (!maxInsertWAtOnce.size()) {
-          // TODO: seperate all divisor 
+          // TODO: seperate all divisor
           maxInsertWAtOnce.push_back(std::make_pair(ow, iw - 1));
         }
         scale[1] = (std::make_pair(maxFloatDividend, floatDividend));
@@ -1018,7 +1011,7 @@ struct TpuMergeInterpToConv2DPattern : public RewritePattern {
             tile_interp.getOperand(0)->getType(),
             ArrayRef<Value *>{operands},
             ArrayRef<NamedAttribute>{attrs});
-
+        (void)depthWithConvW; // why defined but not used?
         // y accumulate
         is_x = false;
         std::tie(operands, attrs) = getHWaxisWeight(tile_interp, is_x, op, rewriter);
@@ -1114,7 +1107,7 @@ struct TpuMergeInterpToConv2DPattern : public RewritePattern {
           }
           else {
             int divisor, dividend;
-            if (d < maxInsertHAtOnce.size()) { // star with 0
+            if (d < (int)maxInsertHAtOnce.size()) { // star with 0
               std::tie(dividend, divisor) = maxInsertHAtOnce[d];
               float rheight = dividend / (float)divisor;
               if ((ceilf(rheight) == rheight && floorf(rheight) == rheight)) {
@@ -1126,7 +1119,7 @@ struct TpuMergeInterpToConv2DPattern : public RewritePattern {
               }
             }
 
-            if (d < maxInsertWAtOnce.size()) { // star with 0
+            if (d < (int)maxInsertWAtOnce.size()) { // star with 0
               std::tie(dividend, divisor) = maxInsertWAtOnce[d];
               float rwidth = dividend / (float)divisor;
               if ((ceilf(rwidth) == rwidth && floorf(rwidth) == rwidth)) {

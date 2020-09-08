@@ -63,10 +63,10 @@ struct TpuRefactorOddIcConvPattern : public RewritePattern {
       return matchFailure();
     }
     newFilterShape[1] +=1;
-    int in = shape[0];
-    int ic = shape[1];
-    int ih = shape[2];
-    int iw = shape[3];
+    // int in = shape[0];
+    // int ic = shape[1];
+    // int ih = shape[2];
+    // int iw = shape[3];
     int kn = filterShape[0];
     int kc = filterShape[1];
     int kh = filterShape[filterShape.size() - 2];

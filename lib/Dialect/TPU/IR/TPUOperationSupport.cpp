@@ -372,6 +372,7 @@ uint64_t getOpAddress(Operation *op) {
                            op->getName().getStringRef().str() + "\n";
     llvm_unreachable(errorMsg.c_str());
   }
+  return 0;
 }
 
 LogicalResult setOpAddress(Operation *op, uint64_t gaddr) {
@@ -389,6 +390,7 @@ LogicalResult setOpAddress(Operation *op, uint64_t gaddr) {
                            op->getName().getStringRef().str() + "\n";
     llvm_unreachable(errorMsg.c_str());
   }
+  return failure();
 }
 
 uint64_t getWeightOpAddress(Operation *op) {
@@ -399,6 +401,7 @@ uint64_t getWeightOpAddress(Operation *op) {
                            op->getName().getStringRef().str() + "\n";
     llvm_unreachable(errorMsg.c_str());
   }
+  return 0;
 }
 
 uint64_t getPreviousOpAddress(Operation *op, uint index = 0) {
@@ -434,25 +437,7 @@ LogicalResult setOpBufferReused(Operation *op, bool flag) {
                            op->getName().getStringRef().str() + "\n";
     llvm_unreachable(errorMsg.c_str());
   }
-}
-
-/***********************************************************
- * TPU Ops parameter helpers
- ***********************************************************/
- #define calcConv2DSpatialOutput(_i_, _k_, _s_, _p_, _d_) \
-    (((_i_) + 2 * (_p_) - ((_k_+ (_d_-1)*(_k_-1)) - 1) - 1) / (_s_) + 1)
-
-static int64_t findPadForSamePadding(int64_t i, int64_t o, int64_t k, int64_t s, int64_t d) {
-  if (k == 1) {
-    return 0;
-  }
-  for (int64_t p = 1; p <= (k - 1 +((d-1)*(k-1))); ++p) {
-    if (calcConv2DSpatialOutput(i, k, s, p, d) == o) {
-      return p;
-    }
-  }
-  assert(false);
-  return 0;
+  return failure();
 }
 
 tpu::QuantParam getDefaultQuantParam(Builder &builder) {
@@ -541,10 +526,7 @@ void parseConvParam(const tpu::ConvParam &p, bool is_deconv,
         assert(oc == f_s[0]);
         assert(ic/g == f_s[1]);
       }
-
     }
-
-
   } else {
     assert(f_s.size() == 4);
     assert(oc == f_s[0]);
@@ -553,7 +535,6 @@ void parseConvParam(const tpu::ConvParam &p, bool is_deconv,
   }
   do_relu = p.do_relu().getValue();
   with_bias = p.with_bias().getValue();
-
 }
 
 void parsePoolParam(const tpu::PoolParam &p,

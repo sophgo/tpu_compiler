@@ -336,7 +336,6 @@ void MixNet::_add_tl_convolution_op(MixOp* mix_op,
   int n, ic, ih, iw, oc, oh, ow, g, kh, kw;
   int sh, sw, pt, pb, pl, pr, dh, dw;
   bool do_ic_align = false, fused_leaky = false;
-  bool is_deconv = false;
   bool bInt8ConvOp = isa<tpu::TG_INT8_PC_Conv2DOp>(op);
 
   getConvParam( op,
@@ -525,7 +524,6 @@ void MixNet::_add_tl_deconvolution_op(MixOp* mix_op,
   int n, ic, ih, iw, oc, oh, ow, g, kh, kw;
   int sh, sw, pt, pb, pl, pr, dh, dw;
   bool do_ic_align = false, fused_leaky = false;
-  bool is_deconv = true;
   bool bInt8ConvOp = isa<tpu::TG_INT8_PC_DeConv2DOp>(op);
 
   getConvParam( op,
@@ -971,10 +969,8 @@ void MixNet::_add_tl_pooling_op(MixOp * mix_op,
   const ImLayer* im_layer = net_graph_->get_layer_by_id(mix_op->get_layer_id());
   const Tensor* in_tensor = net_graph_->get_tensor_by_id(in_tensors[0]);
   const Tensor* out_tensor = net_graph_->get_tensor_by_id(out_tensors[0]);
-  bool is_avg = isa<tpu::TG_INT8_PoolAvg2DOp>(im_layer->op());
   Operation *op = im_layer->op();
   auto old_input_type = op->getOperand(0)->getType().cast<RankedTensorType>();
-  int nInputs = op->getNumOperands();
   Builder builder_(context_);
   std::vector<NamedAttribute> attrs;
   // parse param
@@ -1245,7 +1241,6 @@ void MixNet::_add_tl_activation_op(MixOp * mix_op,
   bottom_dim[2] = in_tensor->h_slice;
 
   std::string name = mix_op->name();
-  int layer_id = mix_op->get_layer_id();
   uint32_t la_input = net_graph_->get_tensor_local_offset(in_tensors[0]);
   uint32_t la_output = net_graph_->get_tensor_local_offset(out_tensors[0]);
   uint32_t la_y_table = net_graph_->get_tensor_local_offset(in_tensors[1]);
@@ -1302,11 +1297,10 @@ void MixNet::_add_tl_activation_op(MixOp * mix_op,
      bf16Type = FloatType::getBF16(builder_.getContext()); // for td define
   }
 
-  uint32_t i;
+  int32_t i;
   for (i = 0; i < lut_nr ; i++) {
     // + 1 means shift after 0(input)
     input_op = get_op_from_name(mix_op->bottom_name(i + 1))->getDefiningOp();
-    auto shape = input_op->getResult(0)->getType().cast<TensorType>().getShape();
     if (!is_int8) {
       auto shape = input_op->getResult(0)->getType().cast<TensorType>().getShape();
       auto type = RankedTensorType::get(shape, bf16Type);
@@ -1343,7 +1337,6 @@ void MixNet::_add_tl_quant_op(MixOp * mix_op,
       net_graph_->get_layer_by_id(mix_op->get_layer_id());
 
   // it MUST quant op
-  auto quant_inter = llvm::dyn_cast<tpu::TpuOpQuantInterface>(im_layer->op());
   RankedTensorType old_input_type, old_output_type;
 
   if (auto quantOp = dyn_cast<tpu::TG_INT8_QuantOp>(im_layer->op())) {
@@ -1370,7 +1363,6 @@ void MixNet::_add_tl_quant_op(MixOp * mix_op,
   bottom_dim[2] = in_tensor->h_slice;
 
   std::string name = mix_op->name();
-  int layer_id = mix_op->get_layer_id();
   uint32_t la_input = net_graph_->get_tensor_local_offset(in_tensors[0]);
   uint32_t la_output = net_graph_->get_tensor_local_offset(out_tensors[0]);
 
@@ -1452,7 +1444,6 @@ void MixNet::_add_tl_lrn_op(MixOp * mix_op,
   const mem_buffer_value_t* imm = time_step->get_mem_buffer_value(&key);
 
   std::string name = mix_op->name();
-  int layer_id = mix_op->get_layer_id();
   uint32_t la_input = net_graph_->get_tensor_local_offset(in_tensors[0]);
   uint32_t la_output = net_graph_->get_tensor_local_offset(out_tensors[0]);
   uint32_t la_sqrt = net_graph_->get_tensor_local_offset(in_tensors[1]);
@@ -1545,7 +1536,7 @@ void MixNet::_add_load_op(int group_idx,
                           net_timestep* time_step,
                           int timestep_idx) {
   int tensor_dim[4];
-  int local_shape[4], global_shape[4];
+  int local_shape[4];
   uint64_t laddr = 0;
   bool aligned = false;
   bool transpose = false;
@@ -1573,11 +1564,6 @@ void MixNet::_add_load_op(int group_idx,
       local_shape[1] = (tensor_dim[1]);
       local_shape[2] = (tensor_dim[2]);
       local_shape[3] = (tensor_dim[3]);
-
-      global_shape[0] = (tensor_dim[0]);
-      global_shape[1] = (tensor_dim[1]);
-      global_shape[2] = (tensor_dim[2]);
-      global_shape[3] = (tensor_dim[3]);
     }
     else {
       // to match mlir requirement for conv weight, shape is
@@ -1586,11 +1572,6 @@ void MixNet::_add_load_op(int group_idx,
       local_shape[1] = tensor_dim[0];
       local_shape[2] = tensor_dim[2];
       local_shape[3] = tensor_dim[3];
-
-      global_shape[0] = tensor_dim[1];
-      global_shape[1] = tensor_dim[0];
-      global_shape[2] = tensor_dim[2];
-      global_shape[3] = tensor_dim[3];
     }
 
     aligned = (false);
@@ -1608,11 +1589,6 @@ void MixNet::_add_load_op(int group_idx,
     local_shape[2] = (tensor_dim[2]);
     local_shape[3] = (tensor_dim[3]);
 
-    global_shape[0] = (tensor_dim[0]);
-    global_shape[1] = (tensor_dim[1]);
-    global_shape[2] = (tensor_dim[2]);
-    global_shape[3] = (tensor_dim[3]);
-
     aligned = (false);
     transpose = (false);
     tensor_type_str = "BIAS";
@@ -1624,11 +1600,6 @@ void MixNet::_add_load_op(int group_idx,
     local_shape[1] = (tensor_dim[1]);
     local_shape[2] = (tensor_dim[2]);
     local_shape[3] = (tensor_dim[3]);
-
-    global_shape[0] = (tensor_dim[0]);
-    global_shape[1] = (tensor_dim[1]);
-    global_shape[2] = (tensor_dim[2]);
-    global_shape[3] = (tensor_dim[3]);
 
     aligned = (true);
     transpose = (false);
@@ -1660,12 +1631,6 @@ void MixNet::_add_load_op(int group_idx,
     local_shape[1] = (tensor_dim[1]);
     local_shape[2] = (h_slice);
     local_shape[3] = (tensor_dim[3]);
-
-    global_shape[0] = (tensor_dim[0]);
-    global_shape[1] = (tensor_dim[1]);
-    global_shape[2] = (tensor_dim[2]);
-    global_shape[3] = (tensor_dim[3]);
-
 
     if (tensor_type == TENSOR_NEURON || tensor_type == TENSOR_NEURON_WINOGRAD) {
       aligned = (true);
@@ -1715,9 +1680,8 @@ void MixNet::_add_load_op(int group_idx,
 // do not support concat optimization
 void MixNet::_add_store_op(int group_idx, int tensor_id, net_timestep * time_step, int timestep_idx) {
   int tensor_dim[4];
-  int local_shape[4], global_shape[4];
+  int global_shape[4];
   Tensor* tensor = net_graph_->get_tensor_by_id(tensor_id);
-  const std::vector<int>& dst_layers = net_graph_->get_tensor_to_layer(tensor_id);
   uint32_t laddr = net_graph_->get_tensor_local_offset(tensor_id);
   bool aligned = true;
   bool transpose = false;
@@ -1725,7 +1689,6 @@ void MixNet::_add_store_op(int group_idx, int tensor_id, net_timestep * time_ste
   net_graph_->get_tensor_dim(tensor_id, tensor_dim);
 
   int n_idx = tensor->n_idx;
-  int n_slice = tensor->n_slice;
   int h_idx = tensor->h_idx;
   int h_slice = tensor->h_slice;
   int h_end = h_idx + h_slice;
@@ -1736,11 +1699,6 @@ void MixNet::_add_store_op(int group_idx, int tensor_id, net_timestep * time_ste
   tensor_name += _get_postfix_name(tensor->get_group_id(), tensor->get_n_loop(), tensor->get_h_loop());
   Value *src_opd = get_op_from_name(tensor_name);
   std::string store_op_name = tensor_name + "_st";
-
-  local_shape[0] = (n_slice);
-  local_shape[1] = (tensor_dim[1]);
-  local_shape[2] = (h_slice);
-  local_shape[3] = (tensor_dim[3]);
 
   global_shape[0] = (tensor_dim[0]);
   global_shape[1] = (tensor_dim[1]);
@@ -2087,7 +2045,6 @@ void MixNet::_add_tl_concat_op(MixOp * mix_op,
   std::vector<int32_t> la_input(op_num);
   std::vector<int32_t> input_dim_c(op_num);
   for (int i = 0; i < op_num; i++) {
-    Tensor* in_tensor = net_graph_->get_tensor_by_id(in_tensors[i]);
     net_graph_->get_tensor_dim(in_tensors[i], bottom_dim);
     input_dim_c[i] = bottom_dim[1];
     la_input[i] = net_graph_->get_tensor_local_offset(in_tensors[i]);
@@ -2138,7 +2095,7 @@ void MixNet::_add_tl_concat_op(MixOp * mix_op,
 
   // setup operands
   std::vector<Value *> operands;
-  for( uint32_t i = 0; i < op_num; i++) {
+  for (int32_t i = 0; i < op_num; i++) {
     Operation * input_op =
       get_op_from_name(mix_op->bottom_name(i))->getDefiningOp();
 

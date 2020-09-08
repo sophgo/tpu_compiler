@@ -11,7 +11,12 @@ namespace mlir {
 #define TBD_LADDR 0xFFFFFFFF
 
 LmemManager::LmemManager(NetGraph* net_graph) : net_graph_(net_graph) {
-  LMEM_BLOCK block = {.start = 0, .size = LOCAL_MEM_SIZE, .tid = -1, .step = 0, .busy = false};
+  LMEM_BLOCK block;
+  block.start = 0;
+  block.size = LOCAL_MEM_SIZE;
+  block.tid = -1;
+  block.step = 0;
+  block.busy = false;
 
   block_list.push_back(block);
   block_record_.push_back(block_list);
@@ -164,7 +169,7 @@ bool LmemManager::alloc_block(std::list<LMEM_BLOCK>& block_list, int tid, int st
 
   auto last = --block_list.end();
   auto avail_it = last;
-  uint64_t max_free_size = 0;
+  int max_free_size = 0;
 
   // find max free block size.
   for (auto iter = block_list.begin(); iter != last; ++iter) {
@@ -198,8 +203,8 @@ bool LmemManager::alloc_block(std::list<LMEM_BLOCK>& block_list, int tid, int st
     iter->busy = true;
 
     // correct the offset of subsequent tensors.
-    uint64_t offset = iter->start + iter->size;
-    if (offset >= LOCAL_MEM_SIZE) {
+    int offset = iter->start + iter->size;
+    if ((uint32_t)offset >= LOCAL_MEM_SIZE) {
       LLVM_DEBUG(llvm::errs()
         << "offset " << offset << " of tensor: " << iter->tid
         << " larger than " << LOCAL_MEM_SIZE << "\n";);
@@ -213,7 +218,7 @@ bool LmemManager::alloc_block(std::list<LMEM_BLOCK>& block_list, int tid, int st
   }
 
   last = --block_list.end();
-  if (last->start >= LOCAL_MEM_SIZE) {
+  if ((uint32_t)last->start >= LOCAL_MEM_SIZE) {
     LLVM_DEBUG(llvm::errs() << "lmem overflow: "
                             << last->start - LOCAL_MEM_SIZE << "\n";);
     return false;
@@ -241,7 +246,7 @@ bool LmemManager::figure_out_tensors_real_addr(net_timestep* time_step) {
   for (int i = block_record_.size() - 1; i >= 0; --i) {
     std::list<LMEM_BLOCK>& block_list = block_record_[i];
 
-    uint32_t offset = 0;
+    int32_t offset = 0;
     for (auto iter = block_list.begin(); iter != block_list.end(); ++iter) {
       if (iter->busy) {
         Tensor* tensor = net_graph_->get_tensor_by_id(iter->tid);
@@ -283,7 +288,7 @@ bool LmemManager::figure_out_tensors_real_addr(net_timestep* time_step) {
     }
   }
 
-  if (total_lmem_occupied > LOCAL_MEM_SIZE) {
+  if (total_lmem_occupied > (uint32_t)LOCAL_MEM_SIZE) {
     LLVM_DEBUG(llvm::errs() << "total needed lmem size: "
                             << total_lmem_occupied << "\n";);
     return false;

@@ -65,13 +65,10 @@ struct TpuConvertSwishToReLUPattern : public RewritePattern {
     getTensorShapeAndSize(eltmulOp.getOperand(0), shape, input_size);
     getNCHW(shape, n, c, h, w);
 
-    StringRef storageType = "FP32";
-
     std::vector<Value *> operands;
     operands.push_back(eltmulOp.getOperand(0));
 
     std::vector<NamedAttribute> attrs;
-    float negative_slope = 0.0f;
     attrs.push_back(rewriter.getNamedAttr("name",
                     rewriter.getStringAttr(op_name)));
 

@@ -63,7 +63,7 @@ void NetGraph::parse_graph(FuncOp * fn){
 }
 
 const ImLayer * NetGraph::get_layer_by_op(Operation * op) {
-  for ( int i = 0; i < ImLayer::layers.size(); i++) {
+  for (int i = 0; i < (int)ImLayer::layers.size(); i++) {
     auto& layer = ImLayer::layers[i];
     if (layer->name() == getOpName(op).str()) {
       return layer.get();
@@ -265,7 +265,7 @@ bool NetGraph::is_concat_special_case(int layer_id, int tid, int cluster_size) {
       mul *= in_shape[i] * out_shape[i];
     }
     if (in_shape.size() == out_shape.size()) {
-      for (int i = axis + 1; i < out_shape.size(); i++) {
+      for (int i = axis + 1; i < (int)out_shape.size(); i++) {
         if (in_shape[i] != out_shape[i]) {
           mul *= 2;
         }

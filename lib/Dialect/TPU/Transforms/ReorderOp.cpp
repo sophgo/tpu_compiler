@@ -94,9 +94,9 @@ struct SinkCpuOPToReturnOpPattern : public RewritePattern {
 static bool hasMoreUser(Operation *op) {
   int user = 0;
   for (auto &use : op->getResult(0)->getUses()) {
+    (void)use;
     user++;
   }
-
   return (user > 1);
 }
 

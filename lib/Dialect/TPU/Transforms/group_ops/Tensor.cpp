@@ -14,10 +14,10 @@ Tensor::Tensor(int id, int n, int c, int h, int w, int unit_size, const std::str
       h_slice_skip_first(false),
       h_slice_skip_last(false),
       id_(id),
-      layer_id_(layer_id),
       unit_size_(unit_size),
       type_(type),
-      name_(name) {
+      name_(name),
+      layer_id_(layer_id) {
   dims_[0] = n;
   dims_[1] = c;
   dims_[2] = h;
@@ -37,11 +37,11 @@ Tensor::Tensor(int id, int n, int c, int h, int w, int unit_size, std::string& s
       h_slice_skip_first(false),
       h_slice_skip_last(false),
       id_(id),
-      layer_id_(layer_id),
       unit_size_(unit_size),
       type_(type),
       name_(name),
-      storage_(storage) {
+      storage_(storage),
+      layer_id_(layer_id) {
   dims_[0] = n;
   dims_[1] = c;
   dims_[2] = h;
@@ -81,10 +81,19 @@ std::shared_ptr<Tensor> Tensor::register_tensor(ShapedType *s_type, const std::s
       break;
     case 4:
       w = shape[3];
+      h = shape[2];
+      c = shape[1];
+      n = shape[0];
+      break;
     case 3:
       h = shape[2];
+      c = shape[1];
+      n = shape[0];
+      break;
     case 2:
       c = shape[1];
+      n = shape[0];
+      break;
     case 1:
       n = shape[0];
       break;

@@ -90,7 +90,7 @@ void getCompressParameter(
   {
     // center shift
     int64_t exp_accum = 0;
-    uint16_t *bf16_in = (uint16_t *)ibuf;
+    auto bf16_in = reinterpret_cast<const uint16_t *>(ibuf);
     size_t inum = (isz >> 1), cnt = 0;
     for (size_t i = 0; i < inum; i++)
     {
@@ -111,10 +111,10 @@ void getCompressParameter(
 }
 
 // -- streaming operation handler --
-static inline void init_stream(StreamBuffer *bs, const uint8_t *buf, int buf_size, bool read_only)
+static inline void init_stream(StreamBuffer *bs, uint8_t *buf, int buf_size, bool read_only)
 {
   bs->bit_pos = 0;
-  bs->stream = (uint8_t *)buf;
+  bs->stream = (uint8_t *)(buf);
   bs->buf_size = buf_size;
   if (!read_only)
     memset((uint8_t *)buf, 0, sizeof(uint8_t) * buf_size);

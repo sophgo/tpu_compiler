@@ -17,6 +17,7 @@ namespace cvi {
 class CustomOp {
 public:
   CustomOp(OpParam &param) : param(param) {}
+  virtual ~CustomOp() {}
 
   virtual void
   interpretInt8(std::vector<std::shared_ptr<std::vector<float>>> &operand_tensors,

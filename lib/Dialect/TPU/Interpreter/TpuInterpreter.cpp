@@ -1035,7 +1035,7 @@ static LogicalResult doEltwiseOpInterpret(Operation *op,
   // compute in fp32
   int ret = 0;
   for (size_t ni = 0; ni < nInputs; ++ni) {
-    for (size_t i = 0; i < in * ic * ih * iw; ++i) {
+    for (size_t i = 0; i < (size_t)(in * ic * ih * iw); ++i) {
       if (ni == 0) { // first input
         output[i] = input[ni][i];
       } else {
@@ -1308,10 +1308,10 @@ LogicalResult tpu::FrcnDetectionOp::interpret(
   float *rois = (float *)opdT[2]->data();
 
   float *output = (float *)resultT.get()->data();
-  auto class_num = this->class_num().getLimitedValue();
-  auto keep_topk = this->keep_topk().getLimitedValue();
-  auto nms_threshold = this->nms_threshold().convertToFloat();
-  auto obj_threshold = this->obj_threshold().convertToFloat();
+  int32_t class_num = this->class_num().getLimitedValue();
+  int32_t keep_topk = this->keep_topk().getLimitedValue();
+  float nms_threshold = this->nms_threshold().convertToFloat();
+  float obj_threshold = this->obj_threshold().convertToFloat();
 
   int batch = rois_shape[0];
   int num = rois_shape[2];
@@ -1334,10 +1334,10 @@ LogicalResult tpu::FrcnDetectionOp::interpret(
     bbox_transform_inv(boxes.data(), deltas.data(), pred_data, num, class_num);
 
     int det_num = 0;
-    detections dets[num];
+    auto dets = new detections[num];
 
     for (int i = 0; i < num; ++i) {
-      for (int j = 1; j < class_num; ++j) {
+      for (int j = 1; j < (int)class_num; ++j) {
         if (batched_scores[i*class_num + j] > obj_threshold) {
           dets[det_num].bbox.x1 = pred[i*class_num*4 + j*4 + 0];
           dets[det_num].bbox.y1 = pred[i*class_num*4 + j*4 + 1];
@@ -1351,7 +1351,7 @@ LogicalResult tpu::FrcnDetectionOp::interpret(
     }
 
     nms(dets, det_num, nms_threshold);
-    detections dets_nms[det_num];
+    auto dets_nms = new detections[det_num];
     int det_idx = 0;
     for (int i = 0; i < det_num; i++) {
       if (dets[i].score > 0) {
@@ -1376,6 +1376,8 @@ LogicalResult tpu::FrcnDetectionOp::interpret(
       //     dets_nms[i].bbox.x1, dets_nms[i].bbox.y1, dets_nms[i].bbox.x2, dets_nms[i].bbox.y2,
       //     dets_nms[i].cls, dets_nms[i].score);
     }
+    delete[] dets_nms;
+    delete[] dets;
   }
 
   valueMapping[result] = std::move(resultT);
@@ -1420,8 +1422,6 @@ LogicalResult tpu::InterpOp::interpret(
   getTensorShapeAndSize(op->getOperand(0), shape, input_size);
   getNCHW(shape, in, ic, ih, iw);
 
-  int num_ = in;
-  int channels_ = ic;
   int height_in_ = ih;
   int width_in_ = iw;
   int height_in_eff_ = height_in_ + pad_beg_ + pad_end_;
@@ -2760,7 +2760,7 @@ LogicalResult tpu::RetinaFaceDetectionOp::interpret(
 
   um_anchors_fpn.clear();
   auto anchors = generate_anchors_fpn(false, cfg);
-  for (int i = 0; i < feature_stride_fpn.size(); ++i) {
+  for (int i = 0; i < (int)feature_stride_fpn.size(); ++i) {
     std::string key = "stride" + std::to_string(feature_stride_fpn[i]);
     um_anchors_fpn[key] = anchors[i];
     um_num_anchors[key] = anchors[i].size();
@@ -2802,8 +2802,8 @@ LogicalResult tpu::RetinaFaceDetectionOp::interpret(
 
       std::vector<AnchorBox> anchors = anchors_plane(height, width, stride, anchors_fpn);
 
-      for(size_t num = 0; num < num_anchors; ++num) {
-        for(size_t j = 0; j < count; ++j) {
+      for (int num = 0; num < num_anchors; ++num) {
+        for (int j = 0; j < (int)count; ++j) {
           float confidence = score[j+count*num];
           if (confidence <= confidence_threshold)
             continue;
@@ -2816,7 +2816,7 @@ LogicalResult tpu::RetinaFaceDetectionOp::interpret(
           auto bbox = bbox_pred(anchors[j+count*num], bbox_deltas);
 
           std::vector<float> landmark_deltas(10,0);
-          for(size_t k = 0; k < 5; ++k) {
+          for (int k = 0; k < 5; ++k) {
             landmark_deltas[k] = landmark[j+count*(num*10+k*2)];
             landmark_deltas[k+5] = landmark[j+count*(num*10+k*2+1)];
           }
@@ -2845,7 +2845,7 @@ LogicalResult tpu::RetinaFaceDetectionOp::interpret(
 
     long long count = 0;
     auto batch_output_data = output_data + b * output_size / batch;
-    for(int i = 0; i < keep_topk; ++i) {
+    for(int i = 0; i < (int)keep_topk; ++i) {
       batch_output_data[count++] = preds[i].x1;
       batch_output_data[count++] = preds[i].y1;
       batch_output_data[count++] = preds[i].x2;
@@ -3414,12 +3414,12 @@ LogicalResult tpu::YoloDetectionOp::interpret(
 
   auto batch = output_shape[0];
 
-  auto net_input_h = this->net_input_h().getLimitedValue();
-  auto net_input_w = this->net_input_w().getLimitedValue();
-  auto obj_threshold = this->obj_threshold().convertToFloat();
-  auto nms_threshold = this->nms_threshold().convertToFloat();
-  auto keep_topk = this->keep_topk().getLimitedValue();
-  auto tiny = this->tiny();
+  int net_input_h = this->net_input_h().getLimitedValue();
+  int net_input_w = this->net_input_w().getLimitedValue();
+  float obj_threshold = this->obj_threshold().convertToFloat();
+  float nms_threshold = this->nms_threshold().convertToFloat();
+  int keep_topk = this->keep_topk().getLimitedValue();
+  bool tiny = this->tiny();
 
   int input_count = opT.size();
 
@@ -3440,7 +3440,7 @@ LogicalResult tpu::YoloDetectionOp::interpret(
 
     for (int i = 0; i < input_count; ++i) {
       auto shape = getTensorShape(op->getOperand(i));
-      grid_size.push_back(std::vector<int>{shape[2], shape[3]});
+      grid_size.push_back(std::vector<int>{(int)shape[2], (int)shape[3]});
       auto data = opT[i]->data() + b * shape[1] * shape[2] * shape[3];
       auto size = opT[i]->size() / batch;
       std::vector<float> bottom_data(data, data + size);
@@ -3450,7 +3450,7 @@ LogicalResult tpu::YoloDetectionOp::interpret(
     detection det_raw[MAX_DET_RAW];
     detection dets[MAX_DET];
     int det_raw_idx = 0;
-    for (int i = 0; i < features.size(); i++) {
+    for (int i = 0; i < (int)features.size(); i++) {
       if (!tiny) {
         process_feature(det_raw, &det_raw_idx, features[i].data(), grid_size[i],
           &anchors[i][0], {net_input_h, net_input_w}, 80, obj_threshold);
@@ -3475,7 +3475,7 @@ LogicalResult tpu::YoloDetectionOp::interpret(
 
     long long count = 0;
     auto batched_output_data = output_data + b * output_shape[1] * output_shape[2] * output_shape[3];
-    for(int i = 0; i < keep_topk; ++i) {
+    for(int i = 0; i < (int)keep_topk; ++i) {
       batched_output_data[count++] = dets[i].bbox.x;
       batched_output_data[count++] = dets[i].bbox.y;
       batched_output_data[count++] = dets[i].bbox.w;
@@ -3530,7 +3530,6 @@ LogicalResult tpu::QuantOp::interpret(
   } else if ((this->from() == "INT8" ||
              this->from() == "UINT8") && this->to() == "BF16") {
     float *input = (float *)opdT[0]->data();
-    float *output = (float *)resultT->data();
     float threshold = this->threshold().getValue().convertToFloat();
     LLVM_DEBUG(llvm::errs() << "  quantization, threshold = "
                << std::to_string(threshold) << "\n";);
@@ -3652,10 +3651,10 @@ LogicalResult ModuleInterpreter::doRun(std::vector<int64_t> input_shape, std::ve
     if (input_shape != shape){
       std::string i_s;
       std::string r_s;
-      for(int i = 0; i < input_shape.size(); i++){
+      for(int i = 0; i < (int)input_shape.size(); i++){
         i_s = i_s + std::to_string(input_shape.at(i)) + " ";
       }
-      for (int i = 0; i < shape.size(); i++) {
+      for (int i = 0; i < (int)shape.size(); i++) {
         r_s = r_s + std::to_string(shape.at(i)) + " ";
       }
       std::stringstream err_msg;

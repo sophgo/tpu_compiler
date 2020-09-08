@@ -227,7 +227,6 @@ LogicalResult quantizeInt8MultiplyEltwiseAddOps(Operation *op) {
   qscales[1] = 127.0 / (float)max_elem;
 
   // decompose into int8 mulitplier and rshift
-  uint32_t multiplier_u32;
   uint32_t multiplier_i8;
   auto shape_multiplier = std::vector<int64_t>{1};
 

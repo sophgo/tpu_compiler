@@ -20,7 +20,7 @@ bool Group::is_group_out_tensor(int tid) {
     return true;
   }
 
-  for (int i = 0; i < to_layers.size(); i++) {
+  for (int i = 0; i < (int)to_layers.size(); i++) {
     int id = to_layers[i];
 
     if (find(layers_.begin(), layers_.end(), id) == layers_.end()) {
@@ -135,14 +135,14 @@ bool Group::check_valid() {
   bmerr_t status = assign_steps();
   if (status != BM_SUCCESS) {
     LLVM_DEBUG(llvm::errs() << "invalid layer group: ";);
-    for (int i = 0; i < layers_.size(); i++)
+    for (int i = 0; i < (int)layers_.size(); i++)
       LLVM_DEBUG(llvm::errs() << " " << layers_[i];);
     LLVM_DEBUG(llvm::errs() << "\n";);
     return false;
   }
 
   LLVM_DEBUG(llvm::errs() << "valid layer group: ";);
-  for (int i = 0; i < layers_.size(); i++)
+  for (int i = 0; i < (int)layers_.size(); i++)
     LLVM_DEBUG(llvm::errs() << " " << layers_[i];);
   LLVM_DEBUG(llvm::errs() << "\n";);
 
