@@ -2201,7 +2201,7 @@ struct LowerWeightConv2DOpPattern : public RewritePattern {
       // lower bias
       if ( !isTensorNone(convOp.bias()) ) {
         auto biasOp = cast<tpu::LoadWeightOp>(convOp.bias()->getDefiningOp());
-        assert(biasOp.storage() == "BF16");
+        assert(biasOp.storage() == "FP32");
         // NOTE: for 1880v2, bias is fp32, rather than bf16
         // however, for simplicity, in quantizeBf16, we quantize all tensor into bf16
         // before lowering to hardware, we need to expand the bf16 to fp32 first
@@ -2209,17 +2209,26 @@ struct LowerWeightConv2DOpPattern : public RewritePattern {
         std::vector<int64_t> shape;
         int64_t size;
         getTensorShapeAndSize(convOp.bias(), shape, size);
-        auto bias = readAndDeleteWeightTensor<bfloat16>(convOp.bias(), wTF);
-        std::vector<uint16_t> bias_bf16(bias->begin(), bias->end());
-        // rather than expand to fp32, then transpose, we simply add a new stripe
-        // of uint16_t with all 0x0000
-        size_t sz = bias_bf16.size();
+        auto bias = readAndDeleteWeightTensor<float>(convOp.bias(), wTF);
+        //Split into high/low part
+        std::vector<uint16_t> bias_fp32_high;
+        std::vector<uint16_t> bias_fp32_low;
+        size_t sz = bias->size();
+        LLVM_DEBUG(llvm::errs() << "Lower bias for Conv2D size : "
+                            << sz << "\n";);
+        float *biasFloatPtr = bias->data();
         for (size_t i = 0; i < sz; ++i) {
-          bias_bf16.push_back(0x0000);
+          unsigned short *temp_short_ptr = reinterpret_cast<unsigned short *>(biasFloatPtr + i);
+          bias_fp32_high.push_back(temp_short_ptr[1]);
+          bias_fp32_low.push_back(temp_short_ptr[0]);
         }
+        std::vector<uint16_t> bias_reshape_fp32;
+        bias_reshape_fp32.reserve(2 * sz);
+        bias_reshape_fp32.insert(bias_reshape_fp32.end(), bias_fp32_high.begin(), bias_fp32_high.end());
+        bias_reshape_fp32.insert(bias_reshape_fp32.end(), bias_fp32_low.begin(), bias_fp32_low.end());
         // then copy into uint32_t
         std::vector<uint32_t> bias_uint32(sz);
-        memcpy(bias_uint32.data(), bias_bf16.data(), sz * sizeof(uint32_t));
+        memcpy(bias_uint32.data(), bias_reshape_fp32.data(), sz * sizeof(uint32_t));
 
         // save it
         // after expand to FP32 and transpose, this is not FP32 anymore
@@ -2315,9 +2324,10 @@ struct LowerWeightFullyConnectedOpPattern : public RewritePattern {
       }
 
       // lower bias
+      // lower bias
       if ( !isTensorNone(fcOp.bias()) ) {
         auto biasOp = cast<tpu::LoadWeightOp>(fcOp.bias()->getDefiningOp());
-        assert(biasOp.storage() == "BF16");
+        assert(biasOp.storage() == "FP32");
         // NOTE: for 1880v2, bias is fp32, rather than bf16
         // however, for simplicity, in quantizeBf16, we quantize all tensor into bf16
         // before lowering to hardware, we need to expand the bf16 to fp32 first
@@ -2325,17 +2335,26 @@ struct LowerWeightFullyConnectedOpPattern : public RewritePattern {
         std::vector<int64_t> shape;
         int64_t size;
         getTensorShapeAndSize(fcOp.bias(), shape, size);
-        auto bias = readAndDeleteWeightTensor<bfloat16>(fcOp.bias(), wTF);
-        std::vector<uint16_t> bias_bf16(bias->begin(), bias->end());
-        // rather than expand to fp32, then transpose, we simply add a new stripe
-        // of uint16_t with all 0x0000
-        size_t sz = bias_bf16.size();
+        auto bias = readAndDeleteWeightTensor<float>(fcOp.bias(), wTF);
+        //Split into high/low part
+        std::vector<uint16_t> bias_fp32_high;
+        std::vector<uint16_t> bias_fp32_low;
+        size_t sz = bias->size();
+        LLVM_DEBUG(llvm::errs() << "Lower bias for Conv2D size : "
+                            << sz << "\n";);
+        float *biasFloatPtr = bias->data();
         for (size_t i = 0; i < sz; ++i) {
-          bias_bf16.push_back(0x0000);
+          unsigned short *temp_short_ptr = reinterpret_cast<unsigned short *>(biasFloatPtr + i);
+          bias_fp32_high.push_back(temp_short_ptr[1]);
+          bias_fp32_low.push_back(temp_short_ptr[0]);
         }
+        std::vector<uint16_t> bias_reshape_fp32;
+        bias_reshape_fp32.reserve(2 * sz);
+        bias_reshape_fp32.insert(bias_reshape_fp32.end(), bias_fp32_high.begin(), bias_fp32_high.end());
+        bias_reshape_fp32.insert(bias_reshape_fp32.end(), bias_fp32_low.begin(), bias_fp32_low.end());
         // then copy into uint32_t
         std::vector<uint32_t> bias_uint32(sz);
-        memcpy(bias_uint32.data(), bias_bf16.data(), sz * sizeof(uint32_t));
+        memcpy(bias_uint32.data(), bias_reshape_fp32.data(), sz * sizeof(uint32_t));
 
         // save it
         // after expand to FP32 and transpose, this is not FP32 anymore
@@ -2410,9 +2429,10 @@ struct LowerWeightGruOpPattern : public RewritePattern {
       }
 
       // lower bias
+      // lower bias
       if ( !isTensorNone(gruOp.bias()) ) {
         auto biasOp = cast<tpu::LoadWeightOp>(gruOp.bias()->getDefiningOp());
-        assert(biasOp.storage() == "BF16");
+        assert(biasOp.storage() == "FP32");
         // NOTE: for 1880v2, bias is fp32, rather than bf16
         // however, for simplicity, in quantizeBf16, we quantize all tensor into bf16
         // before lowering to hardware, we need to expand the bf16 to fp32 first
@@ -2420,17 +2440,26 @@ struct LowerWeightGruOpPattern : public RewritePattern {
         std::vector<int64_t> shape;
         int64_t size;
         getTensorShapeAndSize(gruOp.bias(), shape, size);
-        auto bias = readAndDeleteWeightTensor<bfloat16>(gruOp.bias(), wTF);
-        std::vector<uint16_t> bias_bf16(bias->begin(), bias->end());
-        // rather than expand to fp32, then transpose, we simply add a new stripe
-        // of uint16_t with all 0x0000
-        size_t sz = bias_bf16.size();
+        auto bias = readAndDeleteWeightTensor<float>(gruOp.bias(), wTF);
+        //Split into high/low part
+        std::vector<uint16_t> bias_fp32_high;
+        std::vector<uint16_t> bias_fp32_low;
+        size_t sz = bias->size();
+        LLVM_DEBUG(llvm::errs() << "Lower bias for Conv2D size : "
+                            << sz << "\n";);
+        float *biasFloatPtr = bias->data();
         for (size_t i = 0; i < sz; ++i) {
-          bias_bf16.push_back(0x0000);
+          unsigned short *temp_short_ptr = reinterpret_cast<unsigned short *>(biasFloatPtr + i);
+          bias_fp32_high.push_back(temp_short_ptr[1]);
+          bias_fp32_low.push_back(temp_short_ptr[0]);
         }
+        std::vector<uint16_t> bias_reshape_fp32;
+        bias_reshape_fp32.reserve(2 * sz);
+        bias_reshape_fp32.insert(bias_reshape_fp32.end(), bias_fp32_high.begin(), bias_fp32_high.end());
+        bias_reshape_fp32.insert(bias_reshape_fp32.end(), bias_fp32_low.begin(), bias_fp32_low.end());
         // then copy into uint32_t
         std::vector<uint32_t> bias_uint32(sz);
-        memcpy(bias_uint32.data(), bias_bf16.data(), sz * sizeof(uint32_t));
+        memcpy(bias_uint32.data(), bias_reshape_fp32.data(), sz * sizeof(uint32_t));
 
         // save it
         // after expand to FP32 and transpose, this is not FP32 anymore
@@ -2606,9 +2635,10 @@ struct LowerWeightLstmOpPattern : public RewritePattern {
       }
 
       // lower bias
+      // lower bias
       if ( !isTensorNone(lstmOp.bias()) ) {
         auto biasOp = cast<tpu::LoadWeightOp>(lstmOp.bias()->getDefiningOp());
-        assert(biasOp.storage() == "BF16");
+        assert(biasOp.storage() == "FP32");
         // NOTE: for 1880v2, bias is fp32, rather than bf16
         // however, for simplicity, in quantizeBf16, we quantize all tensor into bf16
         // before lowering to hardware, we need to expand the bf16 to fp32 first
@@ -2616,17 +2646,26 @@ struct LowerWeightLstmOpPattern : public RewritePattern {
         std::vector<int64_t> shape;
         int64_t size;
         getTensorShapeAndSize(lstmOp.bias(), shape, size);
-        auto bias = readAndDeleteWeightTensor<bfloat16>(lstmOp.bias(), wTF);
-        std::vector<uint16_t> bias_bf16(bias->begin(), bias->end());
-        // rather than expand to fp32, then transpose, we simply add a new stripe
-        // of uint16_t with all 0x0000
-        size_t sz = bias_bf16.size();
+        auto bias = readAndDeleteWeightTensor<float>(lstmOp.bias(), wTF);
+        //Split into high/low part
+        std::vector<uint16_t> bias_fp32_high;
+        std::vector<uint16_t> bias_fp32_low;
+        size_t sz = bias->size();
+        LLVM_DEBUG(llvm::errs() << "Lower bias for Conv2D size : "
+                            << sz << "\n";);
+        float *biasFloatPtr = bias->data();
         for (size_t i = 0; i < sz; ++i) {
-          bias_bf16.push_back(0x0000);
+          unsigned short *temp_short_ptr = reinterpret_cast<unsigned short *>(biasFloatPtr + i);
+          bias_fp32_high.push_back(temp_short_ptr[1]);
+          bias_fp32_low.push_back(temp_short_ptr[0]);
         }
+        std::vector<uint16_t> bias_reshape_fp32;
+        bias_reshape_fp32.reserve(2 * sz);
+        bias_reshape_fp32.insert(bias_reshape_fp32.end(), bias_fp32_high.begin(), bias_fp32_high.end());
+        bias_reshape_fp32.insert(bias_reshape_fp32.end(), bias_fp32_low.begin(), bias_fp32_low.end());
         // then copy into uint32_t
         std::vector<uint32_t> bias_uint32(sz);
-        memcpy(bias_uint32.data(), bias_bf16.data(), sz * sizeof(uint32_t));
+        memcpy(bias_uint32.data(), bias_reshape_fp32.data(), sz * sizeof(uint32_t));
 
         // save it
         // after expand to FP32 and transpose, this is not FP32 anymore

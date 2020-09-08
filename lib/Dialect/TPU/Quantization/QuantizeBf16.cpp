@@ -97,23 +97,16 @@ LogicalResult quantizeBf16ConvOps(Operation *op) {
 
   // create new tensors
   auto new_filter = std::make_unique<std::vector<bfloat16> >(filterSize);
-  std::unique_ptr<std::vector<bfloat16> > new_bias = nullptr;
-  if (bias) {
-    new_bias = std::make_unique<std::vector<bfloat16> >(biasSize);
-  }
 
   // quantization
   FloatToBFloat16(filter->data(), new_filter->data(), filterSize);
-  if (bias) {
-    FloatToBFloat16(bias->data(), new_bias->data(), biasSize);
-  }
 
   // update op
   addWeightTensorAndUpdateWeightOp<bfloat16>(convOp.getOperand(1),
       "quant", *new_filter, filterShape, "BF16", wTF);
   if (bias) {
-    addWeightTensorAndUpdateWeightOp<bfloat16>(convOp.getOperand(2),
-        "quant", *new_bias, biasShape, "BF16", wTF);
+    addWeightTensorAndUpdateWeightOp<float>(convOp.getOperand(2),
+        "quant", *bias, biasShape, "FP32", wTF);
   }
 
   setOpResultType(op, StandardTypes::BF16);
@@ -240,23 +233,16 @@ LogicalResult quantizeBf16FullyConnectedOps(Operation *op) {
 
   // create new tensors
   auto new_filter = std::make_unique<std::vector<bfloat16> >(filterSize);
-  std::unique_ptr<std::vector<bfloat16> > new_bias = nullptr;
-  if (bias) {
-    new_bias = std::make_unique<std::vector<bfloat16> >(biasSize);
-  }
 
   // quantization
   FloatToBFloat16(filter->data(), new_filter->data(), filterSize);
-  if (bias) {
-    FloatToBFloat16(bias->data(), new_bias->data(), biasSize);
-  }
 
   // update op
   addWeightTensorAndUpdateWeightOp<bfloat16>(fcOp.getOperand(1),
       "quant", *new_filter, filterShape, "BF16", wTF);
   if (bias) {
-    addWeightTensorAndUpdateWeightOp<bfloat16>(fcOp.getOperand(2),
-        "quant", *new_bias, biasShape, "BF16", wTF);
+    addWeightTensorAndUpdateWeightOp<float>(fcOp.getOperand(2),
+        "quant", *bias, biasShape, "FP32", wTF);
   }
 
   setOpResultType(op, StandardTypes::BF16);
@@ -307,12 +293,7 @@ LogicalResult quantizeBf16GruOps(Operation *op) {
   // create new tensors
   auto new_weight = std::make_unique<std::vector<bfloat16> >(weightSize);
   auto new_recurrence = std::make_unique<std::vector<bfloat16> >(recurrenceSize);
-  std::unique_ptr<std::vector<bfloat16> > new_bias = nullptr;
   std::unique_ptr<std::vector<bfloat16> > new_initial_h = nullptr;
-
-  if (bias) {
-    new_bias = std::make_unique<std::vector<bfloat16> >(biasSize);
-  }
 
   if (initial_h) {
     new_initial_h = std::make_unique<std::vector<bfloat16> >(initial_hSize);
@@ -321,10 +302,6 @@ LogicalResult quantizeBf16GruOps(Operation *op) {
   // quantization
   FloatToBFloat16(weight->data(), new_weight->data(), weightSize);
   FloatToBFloat16(recurrence->data(), new_recurrence->data(), recurrenceSize);
-
-  if (bias) {
-    FloatToBFloat16(bias->data(), new_bias->data(), biasSize);
-  }
 
   if (initial_h) {
     FloatToBFloat16(initial_h->data(), new_initial_h->data(), initial_hSize);
@@ -337,8 +314,8 @@ LogicalResult quantizeBf16GruOps(Operation *op) {
       "quant", *new_recurrence, recurrenceShape, "BF16", wTF);
 
   if (bias) {
-    addWeightTensorAndUpdateWeightOp<bfloat16>(gruOp.getOperand(3),
-        "quant", *new_bias, biasShape, "BF16", wTF);
+    addWeightTensorAndUpdateWeightOp<float>(gruOp.getOperand(3),
+        "quant", *bias, biasShape, "FP32", wTF);
   }
 
   if (initial_h) {
@@ -658,12 +635,8 @@ LogicalResult quantizeBf16LstmOps(Operation *op) {
   // create new tensors
   auto new_weight = std::make_unique<std::vector<bfloat16> >(weightSize);
   auto new_recurrence = std::make_unique<std::vector<bfloat16> >(recurrenceSize);
-  std::unique_ptr<std::vector<bfloat16> > new_bias = nullptr;
   std::unique_ptr<std::vector<bfloat16> > new_initial_h = nullptr;
   std::unique_ptr<std::vector<bfloat16> > new_initial_c = nullptr;
-
-  if (bias)
-    new_bias = std::make_unique<std::vector<bfloat16> >(biasSize);
 
   if (initial_h)
     new_initial_h = std::make_unique<std::vector<bfloat16> >(initial_hSize);
@@ -674,9 +647,6 @@ LogicalResult quantizeBf16LstmOps(Operation *op) {
   // quantization
   FloatToBFloat16(weight->data(), new_weight->data(), weightSize);
   FloatToBFloat16(recurrence->data(), new_recurrence->data(), recurrenceSize);
-
-  if (bias)
-    FloatToBFloat16(bias->data(), new_bias->data(), biasSize);
 
   if (initial_h)
     FloatToBFloat16(initial_h->data(), new_initial_h->data(), initial_hSize);
@@ -691,8 +661,8 @@ LogicalResult quantizeBf16LstmOps(Operation *op) {
       "quant", *new_recurrence, recurrenceShape, "BF16", wTF);
 
   if (bias)
-    addWeightTensorAndUpdateWeightOp<bfloat16>(lstmOp.getOperand(3),
-        "quant", *new_bias, biasShape, "BF16", wTF);
+    addWeightTensorAndUpdateWeightOp<float>(lstmOp.getOperand(3),
+        "quant", *bias, biasShape, "FP32", wTF);
 
   if (initial_h)
     addWeightTensorAndUpdateWeightOp<bfloat16>(lstmOp.getOperand(4),
