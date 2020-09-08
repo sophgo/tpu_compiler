@@ -1687,8 +1687,8 @@ Value* tpu::SoftmaxOp::convertToTG() {
                << " [" << getOpName() << "]\n";);
   Operation *op = this->getOperation();
   auto builder = Builder(op->getContext());
-  auto castOp = cast<tpu::SoftmaxOp>(op);
-  //  TensorFile *wTF = getWeightTensorFile(op);
+  // auto castOp = cast<tpu::SoftmaxOp>(op);
+  // TensorFile *wTF = getWeightTensorFile(op);
 
   std::vector<Value *> operands;
   const int nInputs =  5;

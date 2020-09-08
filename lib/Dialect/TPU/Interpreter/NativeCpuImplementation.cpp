@@ -805,7 +805,7 @@ void bf16_gen_reciprocal(int start, int end, int table_hw, uint16_t *table_data)
   uint64_t idx = 0;
 
   // prepare channel 0
-  double s = 0.0;
+  // double s = 0.0;
   // 0^-1 is invalid, use positive/negtive max value: 0x7F7F / 0xFF7F
   table_data[idx] = 0x7F7F; //<! convert to 0x7F7F
 

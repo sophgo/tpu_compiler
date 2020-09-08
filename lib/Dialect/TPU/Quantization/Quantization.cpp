@@ -227,9 +227,9 @@ struct TpuConvertSoftmaxToSoftmaxCpu : public RewritePattern {
       PatternMatchResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
     if(!clQuantMixSoftmax){
-      auto builder = Builder(op->getContext());
-      auto castOp = cast<tpu::SoftmaxOp>(op);
-      //  TensorFile *wTF = getWeightTensorFile(op);
+      // auto builder = Builder(op->getContext());
+      // auto castOp = cast<tpu::SoftmaxOp>(op);
+      // TensorFile *wTF = getWeightTensorFile(op);
 
       std::vector<Value *> operands;
       const int nInputs =  1;

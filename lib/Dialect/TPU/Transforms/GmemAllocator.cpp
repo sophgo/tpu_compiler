@@ -42,7 +42,6 @@ GmemAllocator::GmemAllocator(
   block.start = 0;
   block.size = 0xFFFFFFFF;
   block.op = nullptr;
-  block.busy = false;
   std::list<GmemBlock> snapshot;
   snapshot.push_back(block);
   album.push_back(snapshot);
@@ -71,7 +70,7 @@ int64_t GmemAllocator::assignGaddr(std::vector<Operation *> &ops,
                     << (blk.op ? blk.op->getName().getStringRef() : llvm::StringRef("null"))
                     << (blk.op ? getOpName(blk.op) : llvm::StringRef("null"))
                     << ", start:" << blk.start << ", size:" << blk.size
-                    << ", busy:" << blk.busy << "\n";
+                    << ", free:" << (blk.op ? false : true) << "\n";
       }
     }
   );
@@ -109,7 +108,6 @@ void GmemAllocator::reuseGmemBlock(std::list<GmemBlock> &snapshot, Operation *op
     // is same as current op's start position
     if (liveRange[blk.op][1] <= liveRange[op][0]) {
       blk.op = nullptr;
-      blk.busy = false;
     }
   }
   // merge contiguous free blocks into one
@@ -124,7 +122,7 @@ void GmemAllocator::allocGmemBlock(std::list<GmemBlock> &snapshot, Operation *op
   // TODO, we can try other policy here.
   uint32_t max_free_size = 0;
   for (auto iter = snapshot.begin(); iter != last; ++iter) {
-    if (!iter->busy && iter->size > max_free_size) {
+    if (!iter->op && iter->size > max_free_size) {
       selected = iter;
       max_free_size = iter->size;
     }
@@ -141,16 +139,13 @@ void GmemAllocator::allocGmemBlock(std::list<GmemBlock> &snapshot, Operation *op
     blk.start = selected->start + gsize;
     blk.size = selected->size - gsize;
     blk.op = nullptr;
-    blk.busy = false;
 
     selected->op = op;
     selected->size = gsize;
-    selected->busy = true;
     snapshot.insert(++selected, blk);
   } else {
     selected->op = op;
     selected->size = gsize;
-    selected->busy = true;
 
     // Enlarge the block to match the size of tensor,
     // and correct the offset of subsequent blocks.
@@ -166,7 +161,7 @@ void GmemAllocator::mergeFreeGmemBlocks(std::list<GmemBlock> &snapshot) {
   auto iter = snapshot.begin();
   while (iter != snapshot.end()) {
     auto cur = iter++;
-    while (iter != snapshot.end() && !cur->busy && !iter->busy) {
+    while (iter != snapshot.end() && !cur->op && !iter->op) {
       cur->size += iter->size;
       snapshot.erase(iter++);
     }
@@ -179,7 +174,7 @@ void GmemAllocator::backPropagateToAssignGaddr() {
 
     int64_t offset = 0;
     for (auto &blk : snapshot) {
-      if (!blk.busy) {
+      if (!blk.op) {
         blk.start = offset;
         offset += blk.size;
         continue;

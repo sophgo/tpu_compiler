@@ -19,7 +19,6 @@ public:
   int64_t start;
   uint64_t size;
   Operation *op;
-  bool busy;
 };
 
 class GmemAllocator {

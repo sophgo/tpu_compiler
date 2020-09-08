@@ -516,8 +516,6 @@ LogicalResult tpu::TL_LG_INT8_LutOp::codegen(void *ctx) {
   int64_t input_size, n, c, h, w;
   getTensorShapeAndSize(op->getOperand(0), shape, input_size);
   getNCHW(shape, n, c, h, w);
-  int thresh_min = -8;
-  int thresh_max = 8;
 
   const int table_thresh_min = -8;
   const int table_thresh_max = 8;

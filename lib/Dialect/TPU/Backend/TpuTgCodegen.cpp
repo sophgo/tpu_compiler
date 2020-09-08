@@ -1700,7 +1700,7 @@ LogicalResult tpu::TG_BF16_SoftmaxOp::codegen(void *ctx) {
   int axis = this->axis().getLimitedValue();
 
   std::vector<int64_t> shape;
-  int64_t tensorSize, outer_size, inner_size, garbage1, garbage2;
+  int64_t tensorSize, outer_size, inner_size;
   getTensorShapeAndSize(op->getOperand(0), shape, tensorSize);
   int dimension = shape.size();
   if (shape.size() == 2) {
