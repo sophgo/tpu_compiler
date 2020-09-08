@@ -7,6 +7,7 @@ import time
 
 from cvi_toolkit.data.preprocess import get_preprocess_parser, preprocess
 from cvi_toolkit.utils.yolov3_util import preprocess as _preprocess_yolov3
+from cvi_toolkit.utils.math_function import cal_sigmoid, cal_sqnr
 from cvi_toolkit.utils.mlir_shell import gen_bf16_mlir
 from cvi_toolkit.mix_precision.MixPrecision import MixPrecisior
 
@@ -32,27 +33,6 @@ def parse_args():
     return args
 
 
-def cal_sqnr(signal_gt, signal_target):
-    gt_value = signal_gt.flatten()
-    target = signal_target.flatten()
-    noise = gt_value - target
-
-    avg_gt = np.sum(gt_value) / gt_value.size
-    avg_noise = np.sum(noise) / noise.size
-
-    gt_zero_mean = gt_value - avg_gt
-    noise_zero_mean = noise - avg_noise
-
-    var_gt_zero_mean = np.var(gt_zero_mean)
-    var_noise_zero_mean = np.var(noise_zero_mean)
-
-    if var_noise_zero_mean == 0.0:
-        return math.inf
-
-    sqnr = 10 * np.log10(var_gt_zero_mean / var_noise_zero_mean)
-    return sqnr
-
-
 def generic_loss(bf16_preds, int8_dequant_preds):
     ret = 0
     neuron_count = 0
@@ -71,23 +51,42 @@ def generic_loss(bf16_preds, int8_dequant_preds):
         return ret / neuron_count
 
 
-def yolo_bbox_loc(pred):
-    num_boxes_per_cell = 3
-    num_of_class = 80
-
-    grid_size = pred.shape[2]
-    out = np.transpose(pred, (0, 2, 3, 1))
-    out = np.reshape(out, (grid_size, grid_size, num_boxes_per_cell, 5 + num_of_class))
-    return out[..., 0:4]
-
-
-def yolo_loss(bf16_preds, int8_dequant_preds):
+def yolo_loss(bf16_preds, int8_dequant_preds, yolo_w, yolo_h, yolo_config):
     ret = 0
     effective_loss = 0
 
-    for op_name in bf16_preds:
-        bf16_pred = yolo_bbox_loc(bf16_preds[op_name])
-        int8_dequant_pred = yolo_bbox_loc(int8_dequant_preds[op_name])
+    def yolo_bbox_loc(pred, yolo_w, yolo_h, anchors=None):
+        num_boxes_per_cell = 3
+        num_of_class = 80
+
+        grid_size = pred.shape[2]
+        out = np.transpose(pred, (0, 2, 3, 1))
+        out = np.reshape(out, (grid_size, grid_size, num_boxes_per_cell, 5 + num_of_class))
+
+        if anchors == None:
+            return out[..., 0:4]
+        
+        anchors_tensor = np.array(anchors).reshape(1, 1, 3, 2)
+        box_xy = cal_sigmoid(out[..., :2])
+        box_wh = np.exp(out[..., 2:4]) * anchors_tensor
+
+        col = np.tile(np.arange(0, grid_size), grid_size).reshape(-1, grid_size)
+        row = np.tile(np.arange(0, grid_size).reshape(-1, 1), grid_size)
+
+        col = col.reshape(grid_size, grid_size, 1, 1).repeat(3, axis=-2)
+        row = row.reshape(grid_size, grid_size, 1, 1).repeat(3, axis=-2)
+        grid = np.concatenate((col, row), axis=-1)
+
+        box_xy += grid
+        box_xy /= (grid_size, grid_size)
+        box_wh /= (yolo_w, yolo_h)
+
+        boxes = np.concatenate((box_xy, box_wh), axis=-1)
+        return boxes.flatten()
+
+    for op_name, anchors in yolo_config:
+        bf16_pred = yolo_bbox_loc(bf16_preds[op_name], yolo_w, yolo_h, anchors)
+        int8_dequant_pred = yolo_bbox_loc(int8_dequant_preds[op_name], yolo_w, yolo_h, anchors)
         loss = cal_sqnr(bf16_pred, int8_dequant_pred)
         if not math.isinf(loss):
             ret += -loss
@@ -123,13 +122,32 @@ if __name__ == '__main__':
         mix_precisior = MixPrecisior(args.fp32_cali_mlir_file, generic_loss, args.image_list_file,
                                         precrocess_func=p_func, input_num=args.input_num)
     elif (args.model_name == 'yolo_v3_320'):
-        p_func = lambda input_tensor: preprocess_yolov3(input_tensor, [320, 320])
-        mix_precisior = MixPrecisior(args.fp32_cali_mlir_file, yolo_loss, args.image_list_file,
-                                        precrocess_func=p_func, input_num=args.input_num)
+        preprocess = lambda input_tensor: preprocess_yolov3(input_tensor, [320, 320])
+        yolo_config = [('layer82-conv_dequant', [116, 90, 156, 198, 373, 326]), 
+            ('layer94-conv_dequant', [30, 61, 62, 45, 59, 119]), 
+            ('layer106-conv_dequant', [10, 13, 16, 30, 33, 23])]
+        yolov3_320_loss = lambda bf16, int8_dequant: yolo_loss(bf16, int8_dequant, 320, 320, yolo_config)
+
+        mix_precisior = MixPrecisior(args.fp32_cali_mlir_file, yolov3_320_loss, args.image_list_file,
+                                        precrocess_func=preprocess, input_num=args.input_num)
+    elif (args.model_name == 'mobilenet_yolo_v3_320'):
+        preprocess = lambda input_tensor: preprocess_yolov3(input_tensor, [320, 320])
+        yolo_config = [('layer35-conv_dequant', [116, 90, 156, 198, 373, 326]), 
+            ('layer48-conv_dequant', [30, 61, 62, 45, 59, 119]), 
+            ('layer61-conv_dequant', [10, 13, 16, 30, 33, 23])]
+        yolov3_320_loss = lambda bf16, int8_dequant: yolo_loss(bf16, int8_dequant, 320, 320, yolo_config)
+
+        mix_precisior = MixPrecisior(args.fp32_cali_mlir_file, yolov3_320_loss, args.image_list_file,
+                                        precrocess_func=preprocess, input_num=args.input_num)
     elif (args.model_name == 'yolo_v3_416'):
-        p_func = lambda input_tensor: preprocess_yolov3(input_tensor, [416, 416])
-        mix_precisior = MixPrecisior(args.fp32_cali_mlir_file, yolo_loss, args.image_list_file,
-                                        precrocess_func=p_func, input_num=args.input_num) 
+        preprocess = lambda input_tensor: preprocess_yolov3(input_tensor, [416, 416])
+        yolo_config = [('layer82-conv_dequant', [116, 90, 156, 198, 373, 326]), 
+            ('layer94-conv_dequant', [30, 61, 62, 45, 59, 119]), 
+            ('layer106-conv_dequant', [10, 13, 16, 30, 33, 23])]
+        yolov3_416_loss = lambda bf16, int8_dequant: yolo_loss(bf16, int8_dequant, 416, 416, yolo_config)
+
+        mix_precisior = MixPrecisior(args.fp32_cali_mlir_file, yolov3_416_loss, args.image_list_file,
+                                        precrocess_func=preprocess, input_num=args.input_num) 
     else:
         assert(False)
 
