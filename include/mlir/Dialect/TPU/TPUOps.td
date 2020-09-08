@@ -2429,6 +2429,8 @@ def TPU_YoloDetectionOp : TPU_Op<"yolo_detection",
     I32Attr:$keep_topk,
     DefaultValuedAttr<BoolAttr, "false">:$spp_net,
     DefaultValuedAttr<BoolAttr, "false">:$tiny,
+    DefaultValuedAttr<I32Attr, "80">:$class_num,
+    DefaultValuedAttr<StrAttr, "">:$anchors,
     StrAttr:$name,
     OptionalAttr<StrAttr>:$chipname
   );

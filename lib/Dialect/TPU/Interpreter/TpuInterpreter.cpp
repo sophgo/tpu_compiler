@@ -3420,19 +3420,42 @@ LogicalResult tpu::YoloDetectionOp::interpret(
   float nms_threshold = this->nms_threshold().convertToFloat();
   int keep_topk = this->keep_topk().getLimitedValue();
   bool tiny = this->tiny();
+  int class_num = this->class_num().getLimitedValue();
+  std::string str_anchors = this->anchors();
+  std::vector<float> vec_anchors;
+  std::stringstream iss(str_anchors);
+  std::string s;
+  while (std::getline(iss, s, ',')) {
+    vec_anchors.push_back(atof(s.c_str()));
+  }
 
   int input_count = opT.size();
 
-  const float anchors[3][6] = {
-    {10,13,   16,30,    33,23},      // layer106-conv (52*52)
-    {30,61,   62,45,    59,119},     // layer94-conv  (26*26)
-    {116,90,  156,198,  373,326}     // layer82-conv  (13*13)
-  };
+  if (tiny) {
+    if (vec_anchors.size() == 0) {
+      vec_anchors = {
+        10,14,  23,27,  37,58,    // layer23-conv (26*26)
+        81,82,  135,169,  344,319 // layer16-conv (13*13)
+      };
+    }
+  } else {
+    if (vec_anchors.size() == 0) {
+      vec_anchors = {
+        10,13,   16,30,    33,23,      // layer106-conv (52*52)
+        30,61,   62,45,    59,119,     // layer94-conv  (26*26)
+        116,90,  156,198,  373,326     // layer82-conv  (13*13)
+      };
+    }
+  }
 
-  const float tiny_anchors[2][6] = {
-    {10,14,  23,27,  37,58},    // layer23-conv (26*26)
-    {81,82,  135,169,  344,319} // layer16-conv (13*13)
-  };
+  float anchors[input_count][6];
+  assert((int)vec_anchors.size() == input_count * 6);
+
+  for (int i = 0; i < input_count; ++i) {
+    for (int j = 0; j < 6; ++j) {
+      anchors[i][j] = vec_anchors[i*6+j];
+    }
+  }
 
   for (int b = 0; b < batch; ++b) {
     std::vector<std::vector<int>> grid_size;
@@ -3450,14 +3473,9 @@ LogicalResult tpu::YoloDetectionOp::interpret(
     detection det_raw[MAX_DET_RAW];
     detection dets[MAX_DET];
     int det_raw_idx = 0;
-    for (int i = 0; i < (int)features.size(); i++) {
-      if (!tiny) {
-        process_feature(det_raw, &det_raw_idx, features[i].data(), grid_size[i],
-          &anchors[i][0], {net_input_h, net_input_w}, 80, obj_threshold);
-      } else {
-        process_feature(det_raw, &det_raw_idx, features[i].data(), grid_size[i],
-          &tiny_anchors[i][0], {net_input_h, net_input_w}, 80, obj_threshold);
-      }
+    for (size_t i = 0; i < features.size(); i++) {
+      process_feature(det_raw, &det_raw_idx, features[i].data(), grid_size[i],
+        &anchors[i][0], {net_input_h, net_input_w}, class_num, obj_threshold);
     }
     nms(det_raw, det_raw_idx, nms_threshold);
     int det_idx = 0;
