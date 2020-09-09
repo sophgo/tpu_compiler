@@ -158,6 +158,12 @@ cp -ar  $CVI_PY_TOOLKIT/retinaface/ $TPU_PYTHON_PATH/
 pushd $TPU_PYTHON_PATH/retinaface; make; popd
 cp -ar $TPU_PYTHON_PATH/retinaface/* $TPU_PYTHON_PATH/
 
+# Build rcnn cython 
+pushd $TPU_PYTHON_PATH/rcnn/cython
+python3 setup.py build_ext --inplace
+python3 setup.py clean
+popd
+
 # TFLite flatbuffer Schema
 ${FLATBUFFERS_PATH}/bin/flatc \
     -o $TPU_PYTHON_PATH --python \
