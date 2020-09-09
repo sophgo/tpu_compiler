@@ -53,12 +53,18 @@ def turn_data_hwio_to_oihw(data):
         raise RuntimeError(
             "Shape is wrong type with {}, it's must be np.ndarray".format(type(data)))
     if len(data.shape) != 4:
-        logger.warning("Shape length is {}, change hwio to oihw dim must be 4".format(len(data.shape)))
         return data
 
     data = np.transpose(data, (3, 2, 0, 1))
     data = np.ascontiguousarray(data)
     return data
+
+def turn_shape_hwio_to_oihw(shape):
+    if isinstance(shape, tuple):
+        shape = list(shape)
+    if len(shape) != 4:
+        return shape
+    return [shape[i] for i in [3, 2, 0, 1]]
 
 # generate onnx model from torch
 def to_onnx(torch_model, input, model_path, inputs_list, outputs_list):

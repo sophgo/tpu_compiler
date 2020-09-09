@@ -1382,7 +1382,7 @@ export DO_QUANT_BF16=0
 export DO_E2E=0
 export DO_DEEPFUSION=0
 export DO_NN_TOOLKIT=1
-export EXCEPTS=predictions # softmax
+export EXCEPTS=StatefulPartitionedCall/resnet50/predictions/Softmax # softmax
 # export TOLERANCE_BF16=0.99,0.99,0.94
 # export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
 fi
@@ -1448,11 +1448,10 @@ export MEAN=103.939,116.779,123.68 # in BGR
 export STD=1,1,1
 export INPUT_SCALE=1.0
 export INPUT=input
-export TOLERANCE_INT8_MULTIPLER=0.99,0.99,0.90
+export TOLERANCE_INT8_MULTIPLER=0.99,0.99,0.8
 export DO_QUANT_BF16=0
 export DO_E2E=0
 export DO_DEEPFUSION=0
-export EXCEPTS=block_15_project_BN
 fi
 
 if [ $NET = "densenet121_tf" ]; then
@@ -1491,7 +1490,7 @@ export MEAN=127.5,127.5,127.5 # in BGR
 export STD=127.5,127.5,127.5
 export INPUT_SCALE=1.0
 export INPUT=input
-export TOLERANCE_INT8_MULTIPLER=0.86,0.83,0.38
+export TOLERANCE_INT8_MULTIPLER=0.85,0.82,0.37
 export DO_QUANT_BF16=0
 export DO_E2E=0
 export DO_DEEPFUSION=0

@@ -476,6 +476,7 @@ LogicalResult doConv2DOpInterpret(Operation *op,
     if (getOpQuant(op) == "INT8" && isOpQuantPerchannel(op) &&
         getOpQuantParamType(op) == "RSHIFT_AND_M_I32") {
       if (bias_data) {
+        assert(with_bias && "with_bias value is false");
         do_bias_later = true;
         bias_data = nullptr;
         if (do_relu) {

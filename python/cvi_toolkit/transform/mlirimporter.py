@@ -576,6 +576,10 @@ class MLIRImporter(object):
         if len(inputOperands) < 2:
             raise ArithmeticError("input operand must great than 2")
 
+        if len(inputOperands) == 2:
+            none = self.add_none_op()
+            inputOperands.append(none)
+            # No bias
         inputOpernads = self.add_quant_reg(inputOperands)
 
         fully_connected_name = self.module.stringAttr(op_name)

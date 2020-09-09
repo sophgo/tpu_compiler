@@ -1843,7 +1843,6 @@ class OnnxConverter(BaseConverter):
         if len(scale_factor) != 4:
             raise RuntimeError("scale_factor length should be 4")
 
-
         if mode == b'linear':
             coordinate_transformation_mode = \
               onnx_node.attrs.get("coordinate_transformation_mode", "half_pixel")

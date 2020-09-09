@@ -10,8 +10,12 @@ try:
     if not IS_TF2:
         print("WANING, tf version is {}, we support TF2".format(
             version.parse(tf.__version__)))
+    tf_session = tf.compat.v1.Session
+    tf_reset_default_graph = tf.compat.v1.reset_default_graph
 except ImportError as error:
     tf = None
+
+from ..utils.tf_utils import from_saved_model, tf_node_name
 
 
 class TFModel(model_base):
@@ -20,34 +24,45 @@ class TFModel(model_base):
 
     def load_model(self, model_path):
         # TF2 use savedmodel
-        self.net = tf.keras.models.load_model(model_path, {'tf': tf})
-        if not isinstance(self.net, tf.python.keras.engine.training.Model):
-            raise RuntimeError("Not support tf type: {} now".format(type(self.net)))
+        self.net = tf.saved_model.load(model_path)
+        self.tf_graph, self.inputs, self.outputs = from_saved_model(model_path)
+
 
     def inference(self, input):
-        return self.net.predict(input)
+        return self.net(input)
 
     def get_all_tensor(self, input_data):
-        output_names = [l.name for l in self.net.layers]
-        all_tensor_model = tf.keras.Model(inputs=self.net.inputs, outputs=self.net.outputs + [l.output for l in self.net.layers])
-        output_values = all_tensor_model.predict(input_data)
-        all_tensor_model_names = [l.name for l in all_tensor_model.layers]
-        # all_tensor_model_outputs = [l.output for l in all_tensor_model.layers]
-        all_tensor_dict = dict(
-            zip(all_tensor_model_names, output_values[len(self.net.outputs):]))
-        # data [output1, output2 ... input1 ... ]
-        all_tensor_dict['input'] = output_values[len(self.net.outputs)]
+        all_op_info = self.get_op_info()
+
+        valid_op = all_op_info[:]
+        tf_reset_default_graph()
+        with tf.Graph().as_default() as graph:
+            tf.import_graph_def(self.tf_graph, name='')
+        with tf_session(graph=graph) as sess:
+            output_tensor_list = list()
+            input_tensor = sess.graph.get_tensor_by_name(self.inputs[0])
+            for op in all_op_info:
+                try:
+                    output_tensor_list.append(
+                        sess.graph.get_tensor_by_name("{}:0".format(op)))
+                except KeyError as key_err:
+                    print("skip op {}".format(op))
+                    valid_op.remove(op)
+            output = sess.run(tuple(output_tensor_list), feed_dict={input_tensor: input_data})
+
+        all_tensor_dict = dict(zip(valid_op, output))
+        all_tensor_dict['input'] = all_tensor_dict[tf_node_name(self.inputs[0])]
+        all_tensor_dict['output'] = output[-1]
+        tf_reset_default_graph()
+
         return all_tensor_dict
 
     def get_all_weights(self):
-        weight_tensor = dict()
-        for layer in self.net.layers:
-            config = layer.get_config()
-            ws = layer.get_weights()
-            if len(ws) != 0:
-                for idx, w in enumerate(ws):
-                    weight_tensor['{}_{}'.format(layer.name, idx)] = w
-        return weight_tensor
+        pass
 
     def get_op_info(self):
-        return [l.name for l in self.net.layers]
+        with tf.Graph().as_default() as graph:
+            tf.import_graph_def(self.tf_graph, name='')
+        with tf_session(graph=graph):
+            node_list = graph.get_operations()
+        return [i.name for i in node_list]
