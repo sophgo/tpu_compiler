@@ -37,6 +37,7 @@ export YOLO_PREPROCESS="false"
 export BGRAY=0
 export DO_LG_WITH_BF16=0
 export PREPROCESS_CROPMETHOD="centor"
+export TOLERANCE_FP32=0.999,0.999,0.998
 
 if [ -z "$DO_BATCHSIZE" ]; then
   BATCH_SIZE=1
@@ -1253,7 +1254,7 @@ fi
 
 if [ $NET = "gaitset" ]; then
 export MODEL_TYPE="onnx"
-export MODEL_DEF=$MODEL_PATH/pose/gaitnet/onnx/gaitset.onnx
+export MODEL_DEF=$MODEL_PATH/pose/gaitset/onnx/gaitset.onnx
 export MODEL_DAT=""
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table
 export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_onnx/regression_gaitset_0_onnx.sh
@@ -1276,10 +1277,12 @@ export MODEL_TYPE="onnx"
 export MODEL_DEF=$MODEL_PATH/segmentation/bisenetv2/onnx/bisenetv2.onnx
 export MODEL_DAT=""
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table
-export IMAGE_PATH=$REGRESSION_PATH/data/cityscapes_munich_000298_000019_leftImg8bit.png
+export IMAGE_PATH=$REGRESSION_PATH/data/munich_000299_000019_leftImg8bit.png
 export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_onnx/regression_bisenetv2_0_onnx.sh
 # https://github.com/CoinCheung/BiSeNet/blob/master/tools/demo.py
 export NET_INPUT_DIMS=1024,2048
+export IMAGE_RESIZE_DIMS=1024,2048
+export CALIBRATION_IMAGE_COUNT=30
 export MEAN=0.3257,0.3690,0.3223
 export INPUT_SCALE=1.0
 export STD=0.2112,0.2148,0.2115
@@ -1290,8 +1293,12 @@ export TOLERANCE_INT8_RSHIFT_ONLY=0.91,0.91,0.58
 export TOLERANCE_INT8_MULTIPLER=0.70,0.70,-0.10
 export TOLERANCE_BF16=0.99,0.99,0.89
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.9
+export TOLERANCE_FP32=0.999,0.999,0.993
 export DO_PREPROCESS=0
 export BGRAY=0
+export DO_CALIBRATION=0
+export EXCEPTS=368_Relu,374_Relu,383_Relu,392_Relu,395_Relu,398_Relu,399_MaxPool,400_Concat,408_BatchNormalization,413_BatchNormalization,415_BatchNormalization,419_Relu,425_Relu,427_BatchNormalization,429_Relu,434_BatchNormalization,439_BatchNormalization,441_BatchNormalization,445_Relu,451_Relu,455_Relu,453_BatchNormalization,460_BatchNormalization,465_BatchNormalization,467_BatchNormalization,471_Relu,477_Relu,479_BatchNormalization,481_Relu,487_Relu,489_BatchNormalization,491_Relu,497_Relu,502_ReduceMean,501_Relu,499_BatchNormalization,503_BatchNormalization,518_BatchNormalization,507_Add,510_Relu,519_Conv,521_BatchNormalization,526_BatchNormalization,524_AveragePool,543_Sigmoid,546_Mul,545_Sigmoid,544_Mul,560_Add,566_Relu,567_Conv,583_Relu,584_Conv,600_Relu,601_Conv,617_Relu,618_Conv,634_Relu,635_Conv,371_Relu,377_Relu,380_Relu,386_Relu,389_Relu,403_Relu,406_Relu,411_Relu,417_BatchNormalization,422_Relu,432_Relu,437_Relu,443_BatchNormalization,448_Relu,458_Relu,463_Relu,469_BatchNormalization,474_Relu,484_Relu,494_Relu,506_Relu,528_BatchNormalization,529_Conv,563_Relu
+# just compare last one
 fi
 
 

@@ -45,6 +45,7 @@ add_llvm_library(MLIRTPU
   Transforms/GmemAllocator.cpp
   Transforms/ConvertPriorBoxToLoadWeight.cpp
   Transforms/ReorderOp.cpp
+  Transforms/ConvertInterp.cpp
   Transforms/ConvertConv2D.cpp
   Transforms/ConvertUpsampleToDeconv.cpp
   Transforms/ConvertTile.cpp

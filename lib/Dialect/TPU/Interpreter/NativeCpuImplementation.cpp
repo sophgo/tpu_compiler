@@ -2084,25 +2084,45 @@ inline int count(std::vector<int64_t> &shape, int start_axis, int end_axis) {
 }
 
 int my_reduce_mean(float *input, float *output,
-                     std::vector<int64_t> &input_shape,
+                     std::vector<int64_t> &org_input_shape,
                      std::vector<int> &axes) {
   assert(axes.size() > 0);
-  int axis = axes[0];
-  // only support one axis, if has two axis, should be continous
+  auto input_shape = org_input_shape;
+  int size = count(input_shape, 0, input_shape.size());
+  std::vector<float> tmp (size, 0);
+  float* _output = tmp.data();
 
-  int total = count(input_shape, 0, input_shape.size());
-  int n = count(input_shape, 0, axis);
-  int c = input_shape[axis];
-  int hw = total / (n*c);
+  for (int i = 0; i < (int)axes.size(); i++) {
+    int dim = input_shape.size();
+    int axis = axes[i];
+    assert(dim > axis);
 
-  for (int nidx = 0; nidx < n; nidx++) {
-    for (int inner_idx = 0; inner_idx < hw; inner_idx++) {
-      for (int cidx = 0; cidx < c; cidx++) {
-        output[nidx * hw + inner_idx] += input[nidx * c * hw + cidx * hw + inner_idx];
+    int inner = count(input_shape, axis + 1, input_shape.size());
+    int next_inner = inner * input_shape[axis];
+    int outer = count(input_shape, 0, axis);
+
+    for (int i = 0; i < outer; i++) { 
+      std::vector<float> inner_sum (inner, 0);
+      for (int s = 0; s < input_shape[axis]; s++) {
+        for (int j = 0; j < inner; j++) {
+          inner_sum[j] += input[i * next_inner + s * inner + j];                                               
+        }
       }
-      output[nidx * hw + inner_idx] /= c;
+
+      // mean
+      for (int j = 0; j < inner; j++) {
+        _output[i * inner + j]  = inner_sum[j] / input_shape[axis];
+      }
     }
+
+    input_shape[axis] = 1;
+    input = _output;
   }
+
+  // export
+  size = count(input_shape, 0, input_shape.size());
+  std::copy(_output, _output + size, output);
+
   return 0;
 }
 
