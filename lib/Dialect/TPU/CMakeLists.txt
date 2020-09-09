@@ -11,6 +11,7 @@ if(NOT DEFINED FLATBUFFERS_PATH)
 endif()
 
 include_directories(${FLATBUFFERS_PATH}/include)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/Backend/include)
 
 add_llvm_library(MLIRTPU
   IR/TPUCompressUtil.cpp
@@ -83,7 +84,65 @@ add_llvm_library(MLIRTPU
   Backend/TpuTlCodegen_LG.cpp
   Plugin/CustomOpPlugin.cpp
   Backend/MachineInfo.cpp
-
+  Backend/Kernel/shuffle_channel_kernel.cpp
+  Backend/Kernel/activation_kernel.cpp
+  Backend/Kernel/conv_kernel.cpp
+  Backend/Kernel/bf16_eltwise_kernel.cpp
+  Backend/Kernel/pooling_bmkernel.cpp
+  Backend/Kernel/bf16_fc_kernel.cpp
+  Backend/Kernel/mixed_precision.cpp
+  Backend/Kernel/tl_upsample.cpp
+  Backend/Kernel/dilate_bmkernel.cpp
+  Backend/Kernel/concat_bmkernel.cpp
+  Backend/Kernel/tl_crop.cpp
+  Backend/Kernel/bf16_concat_kernel.cpp
+  Backend/Kernel/tl_scale.cpp
+  Backend/Kernel/bf16_lstm.cpp
+  Backend/Kernel/tl_quant.cpp
+  Backend/Kernel/TgEltwiseKernel.cpp
+  Backend/Kernel/tl_lrn.cpp
+  Backend/Kernel/cast_kernel.cpp
+  Backend/Kernel/bf16_relu_bmkernel.cpp
+  Backend/Kernel/tl_leaky_relu.cpp
+  Backend/Kernel/tl_conv.cpp
+  Backend/Kernel/dma_legacy_bmkernel.cpp
+  Backend/Kernel/permute_kernel.cpp
+  Backend/Kernel/crop_bmkernel.cpp
+  Backend/Kernel/bf16_prelu_kernel.cpp
+  Backend/Kernel/lut.cpp
+  Backend/Kernel/bf16_scale_kernel.cpp
+  Backend/Kernel/tl_relu.cpp
+  Backend/Kernel/pad_kernel.cpp
+  Backend/Kernel/scale_kernel.cpp
+  Backend/Kernel/tiling.cpp
+  Backend/Kernel/tile_kernel.cpp
+  Backend/Kernel/tl_lut.cpp
+  Backend/Kernel/fc_parallel_bmkernel.cpp
+  Backend/Kernel/tl_broadcast_mul.cpp
+  Backend/Kernel/power_kernel.cpp
+  Backend/Kernel/swap_channel_kernel.cpp
+  Backend/Kernel/bf16_softmax.cpp
+  Backend/Kernel/tl_tdma.cpp
+  Backend/Kernel/lrn_kernel.cpp
+  Backend/Kernel/tl_pad.cpp
+  Backend/Kernel/reorg_kernel.cpp
+  Backend/Kernel/tl_eltwise.cpp
+  Backend/Kernel/tensor_common.cpp
+  Backend/Kernel/tl_deconv.cpp
+  Backend/Kernel/tl_concat.cpp
+  Backend/Kernel/src_deconv_bmkernel.cpp
+  Backend/Kernel/pixel_shuffle_kernel.cpp
+  Backend/Kernel/tl_pooling.cpp
+  Backend/Kernel/bf16_tiling.cpp
+  Backend/Kernel/bf16_gru.cpp
+  Backend/Kernel/src_tl_api.cpp
+  Backend/Kernel/relu_bmkernel.cpp
+  Backend/Kernel/bf16_conv_kernel.cpp
+  Backend/Kernel/bf16_pooling_kernel.cpp
+  Backend/Kernel/upsample_kernel.cpp
+  Backend/Kernel/slice_kernel.cpp
+  Backend/Kernel/tl_prelu.cpp
+  Backend/Kernel/BM1880v2BackendContext.cpp
   ADDITIONAL_HEADER_DIRS
   ${MLIR_MAIN_INCLUDE_DIR}/mlir/Dialect/TPU
 )
@@ -123,7 +182,7 @@ if (${USE_GPU})
     MLIRStandardOps
     MLIRTPUDeepFusion
     LLVMSupport
-    backend
+    cvikernel
     MLIRGPUOps
     ${tpu_LINKER_LIBS}
     ${GPU_LINKER_LIBS}
@@ -135,7 +194,7 @@ else()
     MLIRStandardOps
     MLIRTPUDeepFusion
     LLVMSupport
-    backend
+    cvikernel
     ${tpu_LINKER_LIBS}
   )
 endif()
@@ -146,7 +205,6 @@ add_dependencies(MLIRTPU
   MLIRTPUAttributeIncGen
   MLIRIR
   LLVMSupport
-  CViBackend
 )
 add_subdirectory(Translate)
 add_subdirectory(DeepFusion)

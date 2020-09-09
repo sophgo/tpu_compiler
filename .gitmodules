@@ -13,9 +13,6 @@
 [submodule "externals/cmodel"]
 	path = externals/cmodel
 	url = ../cmodel.git
-[submodule "externals/backend"]
-	path = externals/backend
-	url = ../backend.git
 [submodule "externals/cvimath"]
 	path = externals/cvimath
 	url = ../cvimath.git

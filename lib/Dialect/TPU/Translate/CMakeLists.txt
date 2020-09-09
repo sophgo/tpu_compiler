@@ -39,8 +39,5 @@ target_link_libraries(MLIRTPUTranslate
   MLIRIR
   MLIRTPU
   MLIRSupport
-  backend
+  cvikernel
   ${translate_LINKER_LIBS})
-
-add_dependencies(MLIRTPUTranslate
-  CViBackend)

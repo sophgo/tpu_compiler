@@ -13,7 +13,4 @@ target_link_libraries(MLIRTPUMemRefLowering
   MLIRIR
   MLIRTPU
   MLIRSupport
-  backend)
-
-add_dependencies(MLIRTPUTranslate
-  CViBackend)
+  cvikernel)

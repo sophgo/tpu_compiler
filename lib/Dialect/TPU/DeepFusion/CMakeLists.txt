@@ -12,7 +12,4 @@ target_link_libraries(MLIRTPUDeepFusion
   MLIRIR
   MLIRTPU
   MLIRSupport
-  backend)
-
-add_dependencies(MLIRTPUTranslate
-  CViBackend)
+  cvikernel)
