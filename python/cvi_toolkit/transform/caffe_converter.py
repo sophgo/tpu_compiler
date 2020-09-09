@@ -1435,16 +1435,16 @@ class CaffeConverter(BaseConverter):
             op, _, _ = self.getOperand(bottom)
             operands.append(op)
         p = layer.yolo_detection_param
-        spp_net = p.spp_net if p.HasField("spp_net") else False
-        tiny = p.tiny if p.HasField("tiny") else False
         param = {
             'net_input_h': p.net_input_h,
             "net_input_w": p.net_input_w,
             "nms_threshold": p.nms_threshold,
             "obj_threshold": p.obj_threshold,
             "keep_topk": p.keep_topk,
-            "spp_net": spp_net,
-            "tiny": tiny
+            "spp_net": p.spp_net,
+            "tiny": p.tiny,
+            "class_num": p.class_num,
+            "anchors": p.anchors
         }
         output_shape = [input_shape[0], 1, p.keep_topk, 6]
         new_op = self.CVI.add_yolo_detection_op(
