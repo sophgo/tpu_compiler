@@ -19,11 +19,11 @@
 //#define LOCAL_MEM_SIZE (1 << LOCAL_MEM_ADDRWIDTH)
 
 
-void bf16_leakyrelu_forward_kernel(const CviBackendContext &ctx, uint32_t layer_id,
+void cvi_backend_tg_bf16_leakyrelu_kernel(const CviBackendContext &ctx, uint32_t layer_id,
                                       gaddr_t ga_bottom, gaddr_t ga_top, float ga_negative_slope,
                                       int input_n, int input_c, int input_h, int input_w) {
   LLVM_DEBUG(llvm::errs() << llvm::format(
-      "bmnet_bf16_leakyrelu_forward_kernel:\n"
+      "bmnet_cvi_backend_tg_bf16_leakyrelu_kernel:\n"
       "    layer_id %d\n"
       "    bottom = %lx, top = %lx, negative_slope = %f\n"
       "    nchw = (%d, %d, %d, %d)\n",

@@ -14,14 +14,14 @@
 #define DEBUG_TYPE "bmnet_bm1880_bmkernel_dilate"
 #define DEBUG_SPLIT "bmnet_bm1880_bmkernel_dilate_split"
 
-void dilate_fixed_forward_bmkernel(const CviBackendContext &ctx,
+void cvi_backend_tg_fixed_dilate_kernel(const CviBackendContext &ctx,
                                  uint32_t stream_id, uint32_t inst_id, uint32_t layer_id,
                                  const uint32_t *depends, uint32_t depends_len,
                                  gaddr_t bottom_gaddr, gaddr_t top_gaddr,
                                  int n, int c, int ih, int iw,
                                  int oh, int ow, int fill_constant,
                                  int ins_h, int ins_w,
-                                 cvi_backend_fmt_t _fmt) {
+                                 cvk_fmt_t _fmt) {
 
   cvk_fmt_t fmt = cvi_to_cvk_fmt(_fmt);
 

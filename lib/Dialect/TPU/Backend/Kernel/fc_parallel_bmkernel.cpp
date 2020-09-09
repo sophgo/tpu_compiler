@@ -428,14 +428,14 @@ static void fc_slicing_multi_dimention(
   }    // for (uint32_t offst_N = 0; offset_N < N; offset_N += tiled_N)
 }
 
-void cvi_backend_tg_int8_fc(
+void cvi_backend_tg_fixed_fc(
     const CviBackendContext &ctx, uint32_t layer_id, gaddr_t ga_ifmap,
     gaddr_t ga_weight, gaddr_t ga_bias, gaddr_t ga_ofmap, int input_row,
     int input_col, int output_col, bool do_bias, bool do_relu, bool weight_tp,
     int quant_rshift, uint32_t quant_multiplier) {
 
   LLVM_DEBUG(llvm::errs() << llvm::format(
-             "cvi_backend_tg_int8_fc\n"
+             "cvi_backend_tg_fixed_fc\n"
              "    in (%d, %d), out (%d), do_bias %d, do_relu %d, "
              "weight_tp %d, quant_rshift %d\n",
              input_row, input_col, output_col, do_bias, do_relu, weight_tp,
@@ -449,7 +449,7 @@ void cvi_backend_tg_int8_fc(
       do_bias, do_relu, weight_tp, quant_rshift, quant_multiplier);
 }
 
-void bmnet_fc_fixed_forward_bmkernel(
+void cvi_backend_tg_fixed_fc_kernel(
     const CviBackendContext &ctx, uint32_t stream_id, uint32_t inst_id, uint32_t layer_id, const uint32_t *depends,
     uint32_t depends_len, gaddr_t bottom_data_gaddr, gaddr_t weight_data_gaddr, gaddr_t bias_data_gaddr,
     gaddr_t top_data_gaddr, int in_row, int in_col, int out_col, int have_bias, int do_activation,
@@ -457,7 +457,7 @@ void bmnet_fc_fixed_forward_bmkernel(
     int activation_gt_scale, int activation_gt_rshift, int activation_le_scale,
     int activation_le_rshift, bool weight_tp, int left_shift_width, int right_shift_width,
     int threshold_x_quantized_len, const int *threshold_x_quantized, const int *right_shift_array) {
-  LLVM_DEBUG(llvm::errs() << llvm::format("bmnet_fc_fixed_forward_bmkernel\n"
+  LLVM_DEBUG(llvm::errs() << llvm::format("cvi_backend_tg_fixed_fc_kernel\n"
                                         "    in (%d, %d), out (%d), has_bias %d, do_activation %d, "
                                         "activation_method %d, weight_tp %d\n",
                                         in_row, in_col, out_col, have_bias, do_activation,
@@ -465,7 +465,7 @@ void bmnet_fc_fixed_forward_bmkernel(
 
   assert(!weight_tp && "weight transpose deprecated");
 
-  cvi_backend_tg_int8_fc(ctx, layer_id, bottom_data_gaddr, weight_data_gaddr,
+  cvi_backend_tg_fixed_fc(ctx, layer_id, bottom_data_gaddr, weight_data_gaddr,
       bias_data_gaddr, top_data_gaddr, in_row, in_col, out_col,
       have_bias ? true : false,
       do_activation ? true : false,

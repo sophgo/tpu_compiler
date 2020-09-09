@@ -120,7 +120,7 @@ void cvi_backend_tl_load_stride(
     int Local_N, int Local_C, int Local_H, int Local_W,
     int Global_C, int Global_H, int Global_W,
     bool DoTranspose, bool DoAligned, bool isNeuron,
-    cvi_backend_fmt_t from, cvi_backend_fmt_t to,
+    cvk_fmt_t from, cvk_fmt_t to,
     bool bCompressed) {
   LLVM_DEBUG(
     llvm::errs() << llvm::format("cvi_backend_tl_load_stride:\n"
@@ -216,7 +216,7 @@ void cvi_backend_tl_store_stride(
     int Local_N, int Local_C, int Local_H, int Local_W,
     int Global_C, int Global_H, int Global_W,
     bool DoTranspose, bool DoAligned, bool isNeuron,
-    cvi_backend_fmt_t from, cvi_backend_fmt_t to) {
+    cvk_fmt_t from, cvk_fmt_t to) {
   LLVM_DEBUG(
     llvm::errs() << llvm::format("cvi_backend_tl_store_stride:\n"
                                   "    layer_id %d\n"

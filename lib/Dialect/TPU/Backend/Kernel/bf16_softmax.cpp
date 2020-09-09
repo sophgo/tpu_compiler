@@ -644,7 +644,7 @@ void bf16_softmax_kernel_4d(const CviBackendContext &ctx, uint32_t layer_id,
     ctx.lmem_free_tensor(tl_input);
 }
 
-void bf16_softmax_kernel(const CviBackendContext &ctx, uint32_t layer_id,
+void cvi_backend_tg_bf16_softmax_kernel(const CviBackendContext &ctx, uint32_t layer_id,
                                             gaddr_t ga_input,
                                             gaddr_t ga_exponential_table_data_lut, gaddr_t ga_exponential_slope_table_data_lut,
                                             gaddr_t ga_reciprocal_table_data_lut, gaddr_t ga_reciprocal_table_mantissa_data_lut,

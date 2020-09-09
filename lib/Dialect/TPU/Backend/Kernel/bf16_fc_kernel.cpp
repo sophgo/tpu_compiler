@@ -340,7 +340,7 @@ static void fc_slicing_multi_dimention(
 
 }
 
-void bf16_fc_forward_kernel(
+void cvi_backend_tg_bf16_fc_kernel(
     const CviBackendContext &ctx,
     uint32_t layer_id,
     gaddr_t bottom_data_gaddr,
@@ -354,7 +354,7 @@ void bf16_fc_forward_kernel(
     int do_activation,
     int activation_method)
 {
-  LLVM_DEBUG(llvm::errs() << llvm::format("bf16_fc_forward_kernel\n"
+  LLVM_DEBUG(llvm::errs() << llvm::format("cvi_backend_tg_bf16_fc_kernel\n"
                                "    bottom_gaddr 0x%lx, weight_gaddr 0x%lx, bias_gaddr 0x%lx, top_gaddr 0x%lx\n"
                                "    in (%d, %d), out (%d)\n"
                                "    has_bias %d, do_activation %d, activation_method %d\n",

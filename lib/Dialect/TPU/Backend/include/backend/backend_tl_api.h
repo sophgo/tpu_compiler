@@ -29,7 +29,7 @@ void cvi_backend_tl_load_stride(
     int Local_N, int Local_C, int Local_H,
     int Local_W, int Global_C, int Global_H, int Global_W,
     bool DoTranspose, bool DoAligned, bool isNeuron,
-    cvi_backend_fmt_t from, cvi_backend_fmt_t to,
+    cvk_fmt_t from, cvk_fmt_t to,
     bool bCompressed);
 
 void cvi_backend_tl_store_stride(
@@ -38,7 +38,7 @@ void cvi_backend_tl_store_stride(
     int Local_N, int Local_C, int Local_H,
     int Local_W, int Global_C, int Global_H, int Global_W,
     bool DoTranspose, bool DoAligned, bool isNeuron,
-    cvi_backend_fmt_t from, cvi_backend_fmt_t to);
+    cvk_fmt_t from, cvk_fmt_t to);
 
 void cvi_backend_tl_copy(
     const CviBackendContext &ctx, uint32_t layer_id,
@@ -333,7 +333,7 @@ void cvi_backend_tl_bf16_relu(
 void cvi_backend_tl_quant(
     const CviBackendContext &ctx, uint32_t layer_id,
     laddr_t la_input, laddr_t la_output,
-    cvi_backend_fmt_t from, cvi_backend_fmt_t to,
+    cvk_fmt_t from, cvk_fmt_t to,
     float const_scale,
     int n, int c, int h, int w);
 #endif /* CVI_BACKEND_TL_API */

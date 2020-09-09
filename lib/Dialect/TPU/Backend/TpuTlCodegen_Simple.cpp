@@ -38,7 +38,7 @@
 #include "llvm/Support/ToolOutputFile.h"
 #include "mlir/Support/FileUtilities.h"
 #include "mlir/Support/TensorFile.h"
-
+#include "cvikernel/cvikernel.h"
 #include <fstream>
 
 #define DEBUG_TYPE "mlir-to-cmdbuf"

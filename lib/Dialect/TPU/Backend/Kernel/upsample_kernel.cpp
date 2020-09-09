@@ -318,7 +318,7 @@ void cvi_backend_tg_upsample(
   } // for (uint32_t n_pos = 0; n_pos < input_n; n_pos += n_step)
 }
 
-void upsample_fixed_bmkernel(const CviBackendContext &ctx, uint32_t stream_id, uint32_t inst_id,
+void cvi_backend_tg_fixed_upsample_kernel(const CviBackendContext &ctx, uint32_t stream_id, uint32_t inst_id,
                              uint32_t layer_id, const uint32_t *depends, uint32_t depends_len, gaddr_t ga_ifmap,
                              gaddr_t ga_ofmap, int input_n, int input_c, int input_h, int input_w,
                              int h_factor, int w_factor) {
@@ -327,7 +327,7 @@ void upsample_fixed_bmkernel(const CviBackendContext &ctx, uint32_t stream_id, u
                           CVK_FMT_I8);
 }
 
-void bf16_upsample_fixed_bmkernel(const CviBackendContext &ctx, uint32_t stream_id, uint32_t inst_id,
+void cvi_backend_tg_bf16_upsample_kernel(const CviBackendContext &ctx, uint32_t stream_id, uint32_t inst_id,
                                   uint32_t layer_id, const uint32_t *depends, uint32_t depends_len,
                                   gaddr_t ga_ifmap, gaddr_t ga_ofmap, int input_n, int input_c,
                                   int input_h, int input_w, int h_factor, int w_factor) {

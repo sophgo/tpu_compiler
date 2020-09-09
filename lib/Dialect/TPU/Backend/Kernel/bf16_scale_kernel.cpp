@@ -19,7 +19,7 @@
 // #define LOCAL_MEM_ADDRWIDTH (ctx.hw.local_mem_shift)
 // #define LOCAL_MEM_SIZE (1 << LOCAL_MEM_ADDRWIDTH)
 
-void bf16_scale_forward_kernel(const CviBackendContext &ctx, uint32_t stream_id,
+void cvi_backend_tg_bf16_scale_kernel(const CviBackendContext &ctx, uint32_t stream_id,
                                uint32_t inst_id, uint32_t layer_id,
                                const uint32_t *depends, uint32_t depends_len,
                                gaddr_t input_gaddr, gaddr_t scale_gaddr, gaddr_t bias_gaddr, gaddr_t output_gaddr,
@@ -40,7 +40,7 @@ void bf16_scale_forward_kernel(const CviBackendContext &ctx, uint32_t stream_id,
     assert(0 && "TODO: Scale Const");
   }
   LLVM_DEBUG(llvm::errs() << llvm::format(
-      "bmnet_bf16_scale_forward_kernel:\n"
+      "bmnet_cvi_backend_tg_bf16_scale_kernel:\n"
       "    layer_id %d\n"
       "    bottom = %lx, scale_gaddr = 0x%lx, bias_gaddr = 0x%lx, top = %lx\n"
       "    nchw = (%d, %d, %d, %d)\n"

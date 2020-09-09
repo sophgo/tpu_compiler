@@ -194,7 +194,7 @@ static void elt_one_step(const CviBackendContext &ctx, uint32_t layer_id, int op
 
 // Adopt the tiling style used in bmnet_arithmetic_fixed_forward_bmkernel.
 // We should unify the tensor arithemetics.
-static void _bf16_eltwise_forward_kernel(const CviBackendContext &ctx, uint32_t layer_id, int op, gaddr_t ga_input[],
+static void _cvi_backend_tg_bf16_eltwise_kernel(const CviBackendContext &ctx, uint32_t layer_id, int op, gaddr_t ga_input[],
                                             gaddr_t ga_output, int input_size, int input_n, int input_c,
                                             int input_h, int input_w,
                                             bool do_relu, float relu_slope,
@@ -227,7 +227,7 @@ static void _bf16_eltwise_forward_kernel(const CviBackendContext &ctx, uint32_t 
   cvk_tl_shape_t tl_shape = ctx.shape_t4(input_n, input_c, input_h, input_w);
   int total_tiu_lmem_size = blob_num * ctx.lmem_tensor_to_size(tl_shape, CVK_FMT_BF16, /*eu_align=*/1);
 
-  LLVM_DEBUG(llvm::errs() << llvm::format("_bf16_eltwise_forward_kernel:\n"
+  LLVM_DEBUG(llvm::errs() << llvm::format("_cvi_backend_tg_bf16_eltwise_kernel:\n"
                                "Input    shape (%d, %d, %d, %d)\n"
                                "Output   shape (%d, %d, %d, %d)\n"
                                "    input_size %d, do_relu %d, relu_slope %f\n"
@@ -367,7 +367,7 @@ static void _bf16_eltwise_forward_kernel(const CviBackendContext &ctx, uint32_t 
   }
 }
 
-void bf16_eltwise_forward_kernel(const CviBackendContext &ctx,
+void cvi_backend_tg_bf16_eltwise_kernel(const CviBackendContext &ctx,
                                  uint32_t layer_id, gaddr_t ga_input[], gaddr_t ga_output,
                                  int input_size, int op, int input_n, int input_c,
                                  int input_h, int input_w,
@@ -375,7 +375,7 @@ void bf16_eltwise_forward_kernel(const CviBackendContext &ctx,
                                  bool do_early_stride, int stride_h, int stride_w,
                                  const float coeffs[]) {
   LLVM_DEBUG(
-      llvm::errs() << llvm::format("bf16_eltwise_forward_kernel\n"
+      llvm::errs() << llvm::format("cvi_backend_tg_bf16_eltwise_kernel\n"
                                "    shape (%d, %d, %d, %d)\n"
                                "    input_size %d, do_relu %d, relu_slope %f\n"
                                "    ga_input ",
@@ -398,7 +398,7 @@ void bf16_eltwise_forward_kernel(const CviBackendContext &ctx,
       assert(do_relu == 0 && "currenlly not support relu");
     case ELTWISE_PROD:  // production
     case ELTWISE_SUM:  // sum
-      _bf16_eltwise_forward_kernel(ctx, layer_id, op, ga_input, ga_output, input_size, input_n, input_c,
+      _cvi_backend_tg_bf16_eltwise_kernel(ctx, layer_id, op, ga_input, ga_output, input_size, input_n, input_c,
                                    input_h, input_w, do_relu, relu_slope,
                                    do_early_stride, stride_h, stride_w, coeffs);
       break;

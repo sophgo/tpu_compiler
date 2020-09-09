@@ -11,13 +11,13 @@
 #include <llvm/Support/Format.h>
 #include <llvm/Support/raw_ostream.h>
 
-void swap_channel_forward_kernel(const CviBackendContext &ctx, uint32_t stream_id,
+void cvi_backend_tg_swap_channel_kernel(const CviBackendContext &ctx, uint32_t stream_id,
                                  uint32_t inst_id, uint32_t layer_id, const uint32_t *depends,
                                  uint32_t depends_len, gaddr_t input_gaddr,
                                  gaddr_t output_gaddr, int input_dim_size,
-                                 int *input_dim, int * channel_order, cvi_backend_fmt_t fmt) {
+                                 int *input_dim, int * channel_order, cvk_fmt_t fmt) {
   assert(input_dim_size == 4 && input_dim[1] == 3 && "paramter error");
-  uint32_t fmt_size = ((fmt == CVI_FMT_BF16) ? sizeof(uint16_t) : sizeof(uint8_t));
+  uint32_t fmt_size = ((fmt == CVK_FMT_BF16) ? sizeof(uint16_t) : sizeof(uint8_t));
   uint32_t n = input_dim[0];
   uint32_t c = input_dim[1];
   uint32_t h = input_dim[2];

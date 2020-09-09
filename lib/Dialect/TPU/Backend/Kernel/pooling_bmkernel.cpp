@@ -379,7 +379,7 @@ static void adjust_pad(pooling_t *s) {
   }
 }
 
-void bmnet_pooling_fixed_forward_bmkernel(
+void cvi_backend_tg_fixed_pooling_kernel(
     const CviBackendContext &ctx, uint32_t stream_id, uint32_t inst_id, uint32_t layer_id, const uint32_t *depends,
     uint32_t depends_len, gaddr_t ifmap_gaddr, gaddr_t ofmap_gaddr, gaddr_t index_gaddr,
     gaddr_t o_findex_gaddr, int n, int c, int h, int w, int kh, int kw, int pad_top, int pad_bot,

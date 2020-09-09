@@ -235,7 +235,7 @@ bool do_split(const CviBackendContext &ctx, int n, int ic, int ih, int iw, int o
   return false;
 }
 
-void node_depthwise_deconv_fixed_forward_bmkernel(
+void node_depthwise_cvi_backend_tg_int8_deconv_kernel(
     const CviBackendContext &ctx, uint32_t stream_id, uint32_t inst_id, uint32_t layer_id, const uint32_t *depends,
     uint32_t depends_len, gaddr_t ga_ifmap, gaddr_t ga_ofmap, gaddr_t ga_weight, gaddr_t ga_bias,
     int input_n, int input_c, int input_h, int input_w, int groups, int output_c, int output_h,
@@ -434,7 +434,7 @@ void node_depthwise_deconv_fixed_forward_bmkernel(
   }
 }
 
-void deconv_fixed_forward_bmkernel(
+void cvi_backend_tg_fixed_deconv_kernel(
     const CviBackendContext &ctx, uint32_t stream_id, uint32_t inst_id, uint32_t layer_id, const uint32_t *depends,
     uint32_t depends_len, gaddr_t ga_ifmap, gaddr_t ga_ofmap, gaddr_t ga_weight, gaddr_t ga_bias,
     int input_n, int input_c, int input_h, int input_w, int groups, int output_c, int output_h,
@@ -443,7 +443,7 @@ void deconv_fixed_forward_bmkernel(
     int right_shift_width, bool use_winograd, int right_shift_array_len, gaddr_t ga_per_channel) {
 
     LLVM_DEBUG(llvm::errs() << llvm::format(
-             "deconv_fixed_forward_bmkernel:\n"
+             "cvi_backend_tg_fixed_deconv_kernel:\n"
              "    layer_id %d\n"
              "    bottom = %lx, top = %lx, weight = %lx, bias = %lx\n"
              "    bottom shape = (%d, %d, %d, %d)\n"
@@ -456,7 +456,7 @@ void deconv_fixed_forward_bmkernel(
              pad_w_left, pad_w_right, stride_h, stride_w););
 
   if (input_c == groups && output_c == groups && groups != 1) {
-    node_depthwise_deconv_fixed_forward_bmkernel(
+    node_depthwise_cvi_backend_tg_int8_deconv_kernel(
         ctx, stream_id, inst_id, layer_id, depends, depends_len, ga_ifmap, ga_ofmap, ga_weight,
         ga_bias, input_n, input_c, input_h, input_w, groups, output_c, output_h, output_w, kh, kw,
         dh, dw, pad_h_top, pad_h_bottom, pad_w_left, pad_w_right, stride_h, stride_w, do_bias,

@@ -14,14 +14,14 @@
 #define DEBUG_TYPE "bmnet_bm1880_bmkernel_crop"
 #define DEBUG_SPLIT "bmnet_bm1880_bmkernel_crop_split"
 
-void crop_fixed_forward_bmkernel(const CviBackendContext &ctx, uint32_t stream_id,
+void cvi_backend_tg_fixed_crop_kernel(const CviBackendContext &ctx, uint32_t stream_id,
                                  uint32_t inst_id, uint32_t layer_id,
                                  const uint32_t *depends, uint32_t depends_len,
                                  gaddr_t bottom_gaddr, gaddr_t top_gaddr, int *input1_dim,
                                  int *input2_dim, int *output_dim, int *offsets,
-                                 cvi_backend_fmt_t fmt) {
+                                 cvk_fmt_t fmt) {
 
-  int data_size = (fmt == CVI_FMT_BF16) ? sizeof(uint16_t) : sizeof(uint8_t);
+  int data_size = (fmt == CVK_FMT_BF16) ? sizeof(uint16_t) : sizeof(uint8_t);
   int offset_n = offsets[0];
   int offset_c = offsets[1];
   int offset_h = offsets[2];
@@ -55,11 +55,11 @@ void crop_fixed_forward_bmkernel(const CviBackendContext &ctx, uint32_t stream_i
       (uint32_t)output_n * data_size, (uint32_t)output_c * data_size,
       (uint32_t)output_h * data_size, (uint32_t)output_w * data_size};
 
-  if (fmt == CVI_FMT_I8) {
+  if (fmt == CVK_FMT_I8) {
     // crop the bottom to top from global to global
     tdma_g2g_tensor_copy(ctx, src_gaddr, output_shape, src_gstride, CVK_FMT_I8, top_gaddr,
                          output_shape, dst_gstride, CVK_FMT_I8);
-  } else if (fmt == CVI_FMT_BF16) {
+  } else if (fmt == CVK_FMT_BF16) {
     tdma_g2g_tensor_copy(ctx, src_gaddr, output_shape, src_gstride, CVK_FMT_BF16,
                          top_gaddr, output_shape, dst_gstride, CVK_FMT_BF16);
   }

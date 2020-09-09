@@ -1161,7 +1161,7 @@ void cvi_backend_tg_permute(
   }
 }
 
-void permute_fixed_forward_kernel(
+void cvi_backend_tg_fixed_premute_kernel(
     const CviBackendContext& ctx, uint32_t stream_id, uint32_t inst_id,
     uint32_t layer_id, const uint32_t* depends, uint32_t depends_len,
     gaddr_t ga_ifmap, gaddr_t ga_ofmap, int input_n, int input_c, int input_h,
@@ -1173,7 +1173,7 @@ void permute_fixed_forward_kernel(
                          order_w, do_permute, CVK_FMT_I8);
 }
 
-void bf16_permute_fixed_forward_kernel(
+void cvi_backend_tg_bf16_premute_kernel(
     const CviBackendContext& ctx, uint32_t stream_id, uint32_t inst_id,
     uint32_t layer_id, const uint32_t* depends, uint32_t depends_len,
     gaddr_t ga_ifmap, gaddr_t ga_ofmap, int input_n, int input_c, int input_h,

@@ -52,7 +52,7 @@ static void find_best_slice(const CviBackendContext &ctx, int n, int c, int h,
   }
 }
 
-void lrn_fixed_forward_kernel(const CviBackendContext &ctx, uint32_t stream_id,
+void cvi_backend_tg_fixed_lrn_kernel(const CviBackendContext &ctx, uint32_t stream_id,
                               uint32_t inst_id, uint32_t layer_id, const uint32_t *depends,
                               uint32_t depends_len, gaddr_t input_gaddr,
                               gaddr_t output_gaddr, gaddr_t sqr_lut_gaddr,

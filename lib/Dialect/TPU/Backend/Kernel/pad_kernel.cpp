@@ -21,11 +21,11 @@
 // oh = x2_begin + x2_end + ih
 // ow = x3_begin + x3_end + iw
 
-void pad_forward_kernel(
+void cvi_backend_tg_pad_kernel(
     const CviBackendContext& ctx,
     uint32_t layer_id, gaddr_t ga_ifmap, gaddr_t ga_ofmap, int input_n,
     int input_c, int input_h, int input_w, int *pads, float const_val,
-    cvi_backend_fmt_t fmt) {
+    cvk_fmt_t fmt) {
 
   ctx.set_layer_id(layer_id);
 
@@ -62,13 +62,13 @@ void pad_forward_kernel(
 
   auto src_gaddr = ga_ifmap;
   auto dst_gaddr = ga_ofmap + dst_shape.w * pads[2] + pads[3];
-  if (fmt == CVI_FMT_I8) {
+  if (fmt == CVK_FMT_I8) {
     tdma_g2g_tensor_copy(
         ctx,
         src_gaddr, src_shape, src_gstride, CVK_FMT_I8,
         dst_gaddr, src_shape, dst_gstride, CVK_FMT_I8
         );
-  } else if (fmt == CVI_FMT_BF16) {
+  } else if (fmt == CVK_FMT_BF16) {
     tdma_g2g_tensor_copy(
     ctx,
     src_gaddr, src_shape, src_gstride, CVK_FMT_BF16,

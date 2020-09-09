@@ -19,7 +19,7 @@
 void cvi_backend_tl_quant(
     const CviBackendContext &ctx, uint32_t layer_id,
     laddr_t la_input, laddr_t la_output,
-    cvi_backend_fmt_t from, cvi_backend_fmt_t to,
+    cvk_fmt_t from, cvk_fmt_t to,
     float const_scale,
     int n, int c, int h, int w) {
 
@@ -32,13 +32,13 @@ void cvi_backend_tl_quant(
                  << ", la_o = " << la_output
                  << "\n";
   );
-  assert((from == CVI_FMT_I8 || from == CVI_FMT_U8 || from == CVI_FMT_BF16) &&
+  assert((from == CVK_FMT_I8 || from == CVK_FMT_U8 || from == CVK_FMT_BF16) &&
          "`from` only support int8/bf16");
-  assert((to == CVI_FMT_I8 || to == CVI_FMT_BF16) && "`to` only support int8/bf16");
+  assert((to == CVK_FMT_I8 || to == CVK_FMT_BF16) && "`to` only support int8/bf16");
   assert((from != to) && "`from` and `to` not equal");
 
   int is_dequant =
-      ((from == CVI_FMT_I8 || from == CVI_FMT_U8) && to == CVI_FMT_BF16);
+      ((from == CVK_FMT_I8 || from == CVK_FMT_U8) && to == CVK_FMT_BF16);
 
   cvk_tl_t *tl_input = new cvk_tl_t;
   cvk_tl_t *tl_output = new cvk_tl_t;

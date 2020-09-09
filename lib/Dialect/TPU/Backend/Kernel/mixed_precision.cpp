@@ -279,7 +279,7 @@ void mixed_precision_tg_bf16_s8(const CviBackendContext &ctx, uint32_t stream_id
 
 void mixed_precision_quant(const CviBackendContext &ctx,
     uint32_t layer_id,
-    cvi_backend_fmt_t from, cvi_backend_fmt_t to,
+    cvk_fmt_t from, cvk_fmt_t to,
     gaddr_t bottom_gaddr, gaddr_t top_gaddr,
     int input_n, int input_c, int input_h, int input_w, float const_scale
     ) {
@@ -327,7 +327,7 @@ void mixed_precision_tg_s8_bf16(const CviBackendContext &ctx, uint32_t stream_id
 
 void mixed_precision_dequant(const CviBackendContext &ctx,
     uint32_t layer_id,
-    cvi_backend_fmt_t from, cvi_backend_fmt_t to,
+    cvk_fmt_t from, cvk_fmt_t to,
     gaddr_t bottom_gaddr, gaddr_t top_gaddr,
     int input_n, int input_c, int input_h, int input_w, float const_scale
     ) {

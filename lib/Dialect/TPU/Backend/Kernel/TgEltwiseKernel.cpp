@@ -568,7 +568,7 @@ void TgInt8EltwiseMulKernel::compute(int32_t step_idx) {
   }
 }
 
-void cvi_backend_tg_int8_eltwise_add_kernel(
+void cvi_backend_tg_fixed_eltwise_add_kernel(
     const CviBackendContext &ctx, uint32_t layer_id,
     gaddr_t ga_inputs[], gaddr_t ga_output,
     int32_t operand_num, int32_t n, int32_t c,
@@ -587,7 +587,7 @@ void cvi_backend_tg_int8_eltwise_add_kernel(
   kernel.schedule();
 }
 
-void cvi_backend_tg_int8_eltwise_max_kernel(
+void cvi_backend_tg_fixed_eltwise_max_kernel(
     const CviBackendContext &ctx, uint32_t layer_id,
     gaddr_t ga_inputs[], gaddr_t ga_output,
     int32_t operand_num, int32_t n, int32_t c,
@@ -606,7 +606,7 @@ void cvi_backend_tg_int8_eltwise_max_kernel(
   kernel.schedule();
 }
 
-void cvi_backend_tg_int8_eltwise_min_kernel(
+void cvi_backend_tg_fixed_eltwise_min_kernel(
     const CviBackendContext &ctx, uint32_t layer_id,
     gaddr_t ga_inputs[], gaddr_t ga_output,
     int32_t operand_num, int32_t n, int32_t c,
@@ -625,7 +625,7 @@ void cvi_backend_tg_int8_eltwise_min_kernel(
   kernel.schedule();
 }
 
-void cvi_backend_tg_int8_eltwise_mul_kernel(
+void cvi_backend_tg_fixed_eltwise_mul_kernel(
     const CviBackendContext &ctx, uint32_t layer_id,
     gaddr_t ga_inputs[], gaddr_t ga_output,
     int32_t operand_num, int32_t n, int32_t c,

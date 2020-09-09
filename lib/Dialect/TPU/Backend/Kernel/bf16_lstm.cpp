@@ -17,7 +17,7 @@
 
 #define ASSERT(x) assert(x)
 
-void bf16_lstm_kernel(const CviBackendContext &ctx, uint32_t layer_id,
+void cvi_backend_tg_bf16_lstm_kernel(const CviBackendContext &ctx, uint32_t layer_id,
                                             gaddr_t ga_input, gaddr_t ga_weight, gaddr_t ga_recurrence,
                                             gaddr_t ga_bias, gaddr_t ga_initial_h, gaddr_t ga_initial_c,
                                             gaddr_t ga_sigmoid_table_data_lut, gaddr_t ga_sigmoid_slope_table_data_lut,

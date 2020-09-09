@@ -116,16 +116,16 @@ static void one_step(
   }
 }
 
-void bmnet_power_fixed_forward_bmkernel(
+void cvi_backend_tg_fixed_power_kernel(
     const CviBackendContext &ctx, uint32_t stream_id,
     uint32_t inst_id, uint32_t layer_id, const uint32_t *depends, uint32_t depends_len,
     gaddr_t input_gaddr, gaddr_t output_gaddr,
     int input_n, int input_c, int input_h, int input_w,
     const int power, const gaddr_t scale_gaddr, const gaddr_t shift_gaddr,
-    int right_shift_width, gaddr_t mulpy_offset, cvi_backend_fmt_t fmt) {
+    int right_shift_width, gaddr_t mulpy_offset, cvk_fmt_t fmt) {
 
   LLVM_DEBUG(llvm::errs() << llvm::format(
-                  ">bmnet_power_fixed_forward_bmkernel:\n"
+                  ">cvi_backend_tg_fixed_power_kernel:\n"
                   "    layer_id %d\n"
                   "    input gaddr 0x%lx, shape (%d, %d, %d, %d)\n"
                   "    output gaddr 0x%lx, scale_gaddr 0x%lx, shift_gaddr 0x%lx\n"
@@ -137,7 +137,7 @@ void bmnet_power_fixed_forward_bmkernel(
 
   assert(power >= 0);
   // FIXME: support int8
-  assert(fmt == CVI_FMT_I8);
+  assert(fmt == CVK_FMT_I8);
 
   // tiling input
   int blob_num = 1;

@@ -38,10 +38,10 @@
 #include "llvm/Support/ToolOutputFile.h"
 #include "mlir/Support/FileUtilities.h"
 #include "mlir/Support/TensorFile.h"
-
+#include "cvikernel/cvikernel.h"
 #include <fstream>
 
-#include "backend/backend_common.h" // cvi_backend_fmt_t
+#include "backend/backend_common.h" // cvk_fmt_t
 
 #define DEBUG_TYPE "mlir-to-cmdbuf"
 
@@ -556,21 +556,21 @@ LogicalResult tpu::TL_LG_INT8_QuantOp::codegen(void *ctx) {
   getTensorShapeAndSize(op->getOperand(0), shape, input_size);
   getNCHW(shape, n, c, h, w);
 
-  cvi_backend_fmt_t from, to;
+  cvk_fmt_t from, to;
   if (this->from() == "BF16") {
-    from = CVI_FMT_BF16;
+    from = CVK_FMT_BF16;
   } else if (this->from() == "INT8") {
-    from = CVI_FMT_I8;
+    from = CVK_FMT_I8;
   } else if (this->from() == "UINT8") {
-    from = CVI_FMT_U8;
+    from = CVK_FMT_U8;
   } else {
     llvm_unreachable("current `from` only support int8/bf16");
   }
 
   if (this->to() == "BF16") {
-    to = CVI_FMT_BF16;
+    to = CVK_FMT_BF16;
   } else if (this->to() == "INT8") {
-    to = CVI_FMT_I8;
+    to = CVK_FMT_I8;
   } else {
     llvm_unreachable("current `to` only support int8/bf16");
   }
@@ -746,17 +746,17 @@ LogicalResult tpu::TL_LG_LoadNeuronOp::codegen(void *ctx) {
   bool aligned = this->align();
   bool isNeuron = true;
 
-  cvi_backend_fmt_t from, to;
+  cvk_fmt_t from, to;
   RankedTensorType in_type = this->getOperand()->getType().cast<RankedTensorType>();
   RankedTensorType out_type = this->getResult()->getType().cast<RankedTensorType>();
 
   // convert type to `cvi_backend_fmt`
   if (in_type.getElementType().isBF16()) {
-    from = CVI_FMT_BF16;
+    from = CVK_FMT_BF16;
   }
   else if (in_type.getElementType().isInteger(8)) {
     // int8
-    from = CVI_FMT_I8;
+    from = CVK_FMT_I8;
   }
   else {
     llvm_unreachable("current `from` only support int8/bf16");
@@ -764,11 +764,11 @@ LogicalResult tpu::TL_LG_LoadNeuronOp::codegen(void *ctx) {
 
   // convert type to `cvi_backend_fmt`
   if (out_type.getElementType().isBF16()) {
-    to = CVI_FMT_BF16;
+    to = CVK_FMT_BF16;
   }
   else if (out_type.getElementType().isInteger(8)) {
     // int8
-    to = CVI_FMT_I8;
+    to = CVK_FMT_I8;
   }
   else {
     llvm_unreachable("current `to` only support int8/bf16");
@@ -828,23 +828,23 @@ LogicalResult tpu::TL_LG_LoadCoeffOp::codegen(void *ctx) {
   if (this->compressed_weight().hasValue())
     bcompressed = this->compressed_weight().getValue();
 
-  cvi_backend_fmt_t from, to;
+  cvk_fmt_t from, to;
   // Coeff dont need to quant, just check result type
   RankedTensorType out_type = this->getResult()->getType().cast<RankedTensorType>();
 
   // convert type to `cvi_backend_fmt`
   if (out_type.getElementType().isBF16() ||
       out_type.getElementType().isInteger(16)) {
-    from = CVI_FMT_BF16;
-    to = CVI_FMT_BF16;
+    from = CVK_FMT_BF16;
+    to = CVK_FMT_BF16;
   } else if (out_type.getElementType().isInteger(8)) {
     // int8
-    from = CVI_FMT_I8;
-    to = CVI_FMT_I8;
+    from = CVK_FMT_I8;
+    to = CVK_FMT_I8;
   } else if (out_type.getElementType().isInteger(16)) {
     // int16
-    from = CVI_FMT_I8;
-    to = CVI_FMT_I8;
+    from = CVK_FMT_I8;
+    to = CVK_FMT_I8;
     local_w *= 2;
     global_w *= 2;
   } else {
@@ -892,17 +892,17 @@ LogicalResult tpu::TL_LG_StoreOp::codegen(void *ctx) {
   bool aligned = this->align();
   bool isNeuron = true;
 
-  cvi_backend_fmt_t from, to;
+  cvk_fmt_t from, to;
   RankedTensorType in_type = this->getOperand()->getType().cast<RankedTensorType>();
   RankedTensorType out_type = this->getResult()->getType().cast<RankedTensorType>();
 
   // convert type to `cvi_backend_fmt`
   if (in_type.getElementType().isBF16()) {
-    from = CVI_FMT_BF16;
+    from = CVK_FMT_BF16;
   }
   else if (in_type.getElementType().isInteger(8)) {
     // int8
-    from = CVI_FMT_I8;
+    from = CVK_FMT_I8;
   }
   else {
     llvm_unreachable("current `from` only support int8/bf16");
@@ -910,11 +910,11 @@ LogicalResult tpu::TL_LG_StoreOp::codegen(void *ctx) {
 
   // convert type to `cvi_backend_fmt`
   if (out_type.getElementType().isBF16()) {
-    to = CVI_FMT_BF16;
+    to = CVK_FMT_BF16;
   }
   else if (out_type.getElementType().isInteger(8)) {
     // int8
-    to = CVI_FMT_I8;
+    to = CVK_FMT_I8;
   }
   else {
     llvm_unreachable("current `to` only support int8/bf16");

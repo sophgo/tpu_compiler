@@ -16,7 +16,7 @@
 #define MAX_W (1 << 11)
 // align to EU_NUM point, return in unit of byte
 
-void bmnet_scale_fixed_forward_bmkernel(const CviBackendContext &ctx, uint32_t stream_id,
+void cvi_backend_tg_fixed_scale_kernel(const CviBackendContext &ctx, uint32_t stream_id,
                                         uint32_t inst_id, uint32_t layer_id, const uint32_t *depends,
                                         uint32_t depends_len, gaddr_t input_gaddr, gaddr_t scale_gaddr,
                                         gaddr_t bias_gaddr, gaddr_t output_gaddr, int input_n,
@@ -336,7 +336,7 @@ void bmnet_scale_fixed_forward_bmkernel(const CviBackendContext &ctx, uint32_t s
 }
 
 // wrapper for quantize for int 8, INT8_PER_LAYER
-void scale_fixed_forward_qi8(const CviBackendContext &ctx, uint32_t stream_id,
+void cvi_backend_tg_fixed_scale_qi8_kernel(const CviBackendContext &ctx, uint32_t stream_id,
                                         uint32_t inst_id, uint32_t layer_id, const uint32_t *depends,
                                         uint32_t depends_len, gaddr_t input_gaddr, gaddr_t scale_gaddr,
                                         gaddr_t bias_gaddr, gaddr_t output_gaddr, int input_n,
@@ -355,7 +355,7 @@ void scale_fixed_forward_qi8(const CviBackendContext &ctx, uint32_t stream_id,
   // For tdma
   ctx.set_layer_id(layer_id);
 
-  bmnet_scale_fixed_forward_bmkernel(ctx,
+  cvi_backend_tg_fixed_scale_kernel(ctx,
       stream_id,
       inst_id,
       layer_id,
@@ -379,7 +379,7 @@ void scale_fixed_forward_qi8(const CviBackendContext &ctx, uint32_t stream_id,
 }
 
 // wrapper for quantize for int 32, INT8_32_MULTIPLER
-void scale_fixed_forward_qi32(const CviBackendContext &ctx, uint32_t stream_id,
+void cvi_backend_tg_fixed_scale_qi32_kernel(const CviBackendContext &ctx, uint32_t stream_id,
                                         uint32_t inst_id, uint32_t layer_id, const uint32_t *depends,
                                         uint32_t depends_len, gaddr_t input_gaddr, gaddr_t scale_gaddr,
                                         gaddr_t bias_gaddr, gaddr_t output_gaddr, int input_n,
@@ -394,7 +394,7 @@ void scale_fixed_forward_qi32(const CviBackendContext &ctx, uint32_t stream_id,
   // For tdma
   ctx.set_layer_id(layer_id);
 
-  bmnet_scale_fixed_forward_bmkernel(ctx,
+  cvi_backend_tg_fixed_scale_kernel(ctx,
       stream_id,
       inst_id,
       layer_id,

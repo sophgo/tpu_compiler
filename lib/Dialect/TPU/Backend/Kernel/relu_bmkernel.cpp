@@ -26,14 +26,14 @@
 
 //namespace bmnet {
 
-void bmnet_relu_fixed_forward_bmkernel(const CviBackendContext &ctx, uint32_t stream_id,
+void cvi_backend_tg_fixed_relu_kernel(const CviBackendContext &ctx, uint32_t stream_id,
                                        uint32_t inst_id, uint32_t layer_id, const uint32_t *depends,
                                        uint32_t depends_len, uint64_t bottom_gaddr, uint64_t top_gaddr,
                                        float negative_slope, int input_n, int input_c, int input_h,
                                        int input_w, int threshold_x_quantized_len,
                                        const int *threshold_x_quantized,
                                        const int *right_shift_array,
-                                       cvi_backend_fmt_t fmt) {
+                                       cvk_fmt_t fmt) {
   // for (int i = 0; i < threshold_x_quantized_len; i++) {
   //  VLOG(3) << "threshold_x_quantized/right_shift_array[" << i << "]:" << threshold_x_quantized[i]
   //          << "/" << right_shift_array[i];
@@ -82,15 +82,15 @@ void bmnet_relu_fixed_forward_bmkernel(const CviBackendContext &ctx, uint32_t st
     p13.b_is_const = 1;
     p13.layer_id = layer_id;
 
-    if (fmt == CVI_FMT_BF16) {
+    if (fmt == CVK_FMT_BF16) {
       p13.b_const.val = ctx.convert_fp32_to_bf16(0);
     }
     else {
       p13.b_const.val = (0);
-      if (fmt == CVI_FMT_I8) {
+      if (fmt == CVK_FMT_I8) {
         p13.b_const.is_signed = 1;
       }
-      else if (fmt == CVI_FMT_U8) {
+      else if (fmt == CVK_FMT_U8) {
         p13.b_const.is_signed = 0;
       }
       else {
@@ -100,7 +100,7 @@ void bmnet_relu_fixed_forward_bmkernel(const CviBackendContext &ctx, uint32_t st
     }
 
 
-    if (fmt == CVI_FMT_BF16) {
+    if (fmt == CVK_FMT_BF16) {
       ctx.tiu_max(&p13);
       ctx.tdma_store_bf16(tl_input, top_gaddr + gaddr_offset);
     }
@@ -117,11 +117,11 @@ void bmnet_relu_fixed_forward_bmkernel(const CviBackendContext &ctx, uint32_t st
   }
 }
 
-void bmnet_prelu_fixed_forward_bmkernel(
+void cvi_backend_tg_fixed_prelu_kernel(
     const CviBackendContext &ctx, uint32_t layer_id, uint64_t bottom_gaddr,
     uint64_t top_gaddr, uint64_t negative_scope_gaddr, int input_n, int input_c,
     int input_h, int input_w, int threshold_x_quantized_len,
-    const int *threshold_x_quantized, const int *right_shift_array, cvi_backend_fmt_t fmt) {
+    const int *threshold_x_quantized, const int *right_shift_array, cvk_fmt_t fmt) {
 
 
   #if 0
@@ -147,7 +147,7 @@ void bmnet_prelu_fixed_forward_bmkernel(
   cvk_tl_shape_t slope_shape;
   cvk_tl_t *slope;
 
-  if (fmt == CVI_FMT_I8){
+  if (fmt == CVK_FMT_I8){
     tl_shape =
         ctx.shape_t4(input_n, input_c, input_h, input_w);
     tl_input =
@@ -160,7 +160,7 @@ void bmnet_prelu_fixed_forward_bmkernel(
     slope =
         ctx.lmem_alloc_tensor(slope_shape, CVK_FMT_I8, /*eu_align=*/1);
     ctx.tdma_load(slope, negative_scope_gaddr);
-  } else if (fmt == CVI_FMT_BF16){
+  } else if (fmt == CVK_FMT_BF16){
     tl_shape =
       ctx.shape_t4(input_n, input_c, input_h, input_w);
     tl_input =
@@ -258,12 +258,12 @@ void bmnet_prelu_fixed_forward_bmkernel(
   ctx.lmem_free_tensor(tl_input);
 }
 
-void bmnet_prelu_fixed_forward_bmkernel(
+void cvi_backend_tg_fixed_prelu_kernel(
     const CviBackendContext &ctx, uint32_t layer_id, uint64_t bottom_gaddr,
     uint64_t top_gaddr, uint64_t negative_scope_gaddr, int input_n, int input_c,
     int input_h, int input_w,
     int GT_right_shift_width,int GT_scale,
-    int LE_right_shift_width, cvi_backend_fmt_t fmt) {
+    int LE_right_shift_width, cvk_fmt_t fmt) {
 
   int nsecs = 1, hsecs = 1;
   cvk_tg_stride_t gstride =
@@ -504,12 +504,12 @@ static void tl_leaky_relu(const CviBackendContext &ctx, uint32_t layer_id,
   }
 }
 
-void bmnet_leakyrelu_fixed_forward_bmkernel(
+void cvi_backend_tg_fixed_leakyrelu_kernel(
     const CviBackendContext &ctx, uint32_t stream_id, uint32_t inst_id, uint32_t layer_id, const uint32_t *depends,
     uint32_t depends_len, uint64_t input_gaddr, uint64_t output_gaddr, int input_n, int input_c, int input_h,
     int input_w, int GT_right_shift_width, int LE_right_shift_width, int GT_scale, int LE_scale,
     int threshold_x_quantized_len, const int *threshold_x_quantized, const int *right_shift_array) {
-  LLVM_DEBUG(llvm::errs() << llvm::format("bmnet_leakyrelu_fixed_forward_bmkernel:\n"
+  LLVM_DEBUG(llvm::errs() << llvm::format("cvi_backend_tg_fixed_leakyrelu_kernel:\n"
                                         "  layer_id %d\n"
                                         "  input_gddr: %lx, output_gaddr: %lx\n"
                                         "  input (%d, %d, %d, %d)\n"
@@ -692,13 +692,13 @@ void bmnet_leakyrelu_fixed_forward_bmkernel(
   }
 }
 #else
-void bmnet_leakyrelu_fixed_forward_bmkernel(const CviBackendContext &ctx, uint32_t stream_id,
+void cvi_backend_tg_fixed_leakyrelu_kernel(const CviBackendContext &ctx, uint32_t stream_id,
                                             uint32_t inst_id, const uint32_t *depends, uint32_t depends_len,
                                             uint64_t input_gaddr, uint64_t output_gaddr, int input_n,
                                             int input_c, int input_h, int input_w,
                                             int GT_right_shift_width, int LE_right_shift_width,
                                             int GT_scale, int LE_scale) {
-  LLVM_DEBUG(llvm::errs() << "bmnet_leakyrelu_fixed_forward_bmkernel"
+  LLVM_DEBUG(llvm::errs() << "cvi_backend_tg_fixed_leakyrelu_kernel"
                         << llvm::format(": "
                                         "input_gddr: %lx, output_gaddr:%lx\n"
                                         "GT_scale:%d, LE_scale:%d\n"

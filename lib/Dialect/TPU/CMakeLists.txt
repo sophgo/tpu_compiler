@@ -137,7 +137,6 @@ add_llvm_library(MLIRTPU
   Backend/Kernel/bf16_gru.cpp
   Backend/Kernel/src_tl_api.cpp
   Backend/Kernel/relu_bmkernel.cpp
-  Backend/Kernel/bf16_conv_kernel.cpp
   Backend/Kernel/bf16_pooling_kernel.cpp
   Backend/Kernel/upsample_kernel.cpp
   Backend/Kernel/slice_kernel.cpp

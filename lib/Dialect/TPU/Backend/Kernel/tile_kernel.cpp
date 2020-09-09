@@ -51,10 +51,10 @@ static void tile_w(const CviBackendContext &ctx,
 int cvi_backend_tg_tile_kernel(const CviBackendContext &ctx,
     gaddr_t input_gaddr,
     int input_n, int input_c, int input_h, int input_w,
-    cvi_backend_fmt_t bk_input_fmt,
+    cvk_fmt_t bk_input_fmt,
     gaddr_t output_gaddr,
     int output_n, int output_c, int output_h, int output_w,
-    cvi_backend_fmt_t bk_output_fmt,
+    cvk_fmt_t bk_output_fmt,
     int* tile_factors, int tile_factors_len,
     uint32_t layer_id) {
 

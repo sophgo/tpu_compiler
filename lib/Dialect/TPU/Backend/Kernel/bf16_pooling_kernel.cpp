@@ -363,7 +363,7 @@ static void adjust_pad(pooling_t *s) {
   }
 }
 
-void bf16_pooling_forward_kernel(const CviBackendContext &ctx, uint32_t layer_id,
+void cvi_backend_tg_bf16_pooling_kernel(const CviBackendContext &ctx, uint32_t layer_id,
                                  gaddr_t ifmap_gaddr, gaddr_t ofmap_gaddr, gaddr_t index_gaddr,
                                  gaddr_t o_findex_gaddr, int n, int c, int h, int w, int kh, int kw,
                                  int pad_top, int pad_bot, int pad_left, int pad_right,
@@ -371,7 +371,7 @@ void bf16_pooling_forward_kernel(const CviBackendContext &ctx, uint32_t layer_id
                                  float avg_const,  // default(passing 0.0f) is 1/kh*kw
                                  int do_relu, const bool ceil_mode) {
   LLVM_DEBUG(llvm::errs() << llvm::format(
-      "bf16_pooling_forward_kernel:\n"
+      "cvi_backend_tg_bf16_pooling_kernel:\n"
       "    ifmap_gaddr 0x%lx, ofmap_gaddr 0x%lx, index_gaddr 0x%lx, o_findex_gaddr 0x%lx\n"
       "    shape (%d, %d, %d, %d), kh %d, kw %d\n"
       "    pad_top %d, pad_bot %d, pad_left %d, pad_right %d, stride_h %d, stride_w %d\n"

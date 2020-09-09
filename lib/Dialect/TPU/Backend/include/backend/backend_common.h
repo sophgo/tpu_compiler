@@ -8,21 +8,7 @@
 #ifndef CVI_BACKEND_COMMON
 #define CVI_BACKEND_COMMON
 
-typedef enum CVI_BACKEND_FMT_E {
-  CVI_FMT_F32 = 0,
-  CVI_FMT_F16,
-  CVI_FMT_I32,
-  CVI_FMT_I16,
-  CVI_FMT_I8,
-  CVI_FMT_I4,
-  CVI_FMT_I2,
-  CVI_FMT_I1,
-  CVI_FMT_U32,
-  CVI_FMT_U16,
-  CVI_FMT_U8,
-  CVI_FMT_BF16,
-  CVI_FMT_INVALID
-} cvi_backend_fmt_t;
+#include "cvikernel/cvikernel.h"
 
 enum CVI_CHIP_INFO_E {
   CVI_CHIP_VERSION = 0,

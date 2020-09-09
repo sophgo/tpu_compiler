@@ -4876,7 +4876,7 @@ bool Conv::canNoTile() {
 //    Without it, the compiler has to implement inter-layer outstanding.
 void Conv::convNoTile() {
   LLVM_DEBUG(llvm::errs() << llvm::format(
-      "cvi_backend_tg_int8_conv w/ one tiu:\n"
+      "cvi_backend_tg_fixed_conv_kernel w/ one tiu:\n"
       "    layer_id %d\n"
       "    bottom = %lx, top = %lx, weight = %lx, bias = %lx\n"
       "    nchw = (%d, %d, %d, %d), group = %d, oc = (%d)\n"
@@ -5144,7 +5144,7 @@ void Conv::doConvByTilePolicy() {
   cModelDebug_.dump();
 }
 
-void cvi_backend_tg_int8_conv(
+void cvi_backend_tg_fixed_conv_kernel(
     const CviBackendContext &ctx, uint32_t layer_id, gaddr_t ga_ifmap,
     gaddr_t ga_ofmap, gaddr_t ga_weight, gaddr_t ga_bias, gaddr_t ga_bn_mean,
     gaddr_t ga_bn_variance, gaddr_t ga_scale, gaddr_t ga_scale_bias,
@@ -5163,7 +5163,7 @@ void cvi_backend_tg_int8_conv(
     bool store_compr_act, bool load_compr_act) {
   // this message is too long for llvm::format, so seperate it
   LLVM_DEBUG(llvm::errs() << llvm::format(
-             "cvi_backend_tg_int8_conv:\n"
+             "cvi_backend_tg_fixed_conv_kernel:\n"
              "    layer_id %d\n"
              "    bottom = %lx, top = %lx, weight = %lx, bias = %lx\n"
              "    nchw = (%d, %d, %d, %d), group = %d, oc = (%d)\n"
@@ -5286,7 +5286,7 @@ void Conv::configCModelDebug() {
   // cModelDebug_.assignOutput(1, {2, 0, 1152, 15, 34});
 }
 
-void cvi_backend_tg_bf16_conv(
+void cvi_backend_tg_bf16_conv_kernel(
     const CviBackendContext &ctx, uint32_t layer_id, gaddr_t ga_ifmap,
     gaddr_t ga_ofmap, gaddr_t ga_weight, gaddr_t ga_bias, gaddr_t ga_bn_mean,
     gaddr_t ga_bn_variance, gaddr_t ga_scale, gaddr_t ga_scale_bias,
@@ -5300,7 +5300,7 @@ void cvi_backend_tg_bf16_conv(
 
   // this message is too long for llvm::format, so seperate it
   LLVM_DEBUG(llvm::errs() << llvm::format(
-             "cvi_backend_tg_bf16_conv:\n"
+             "cvi_backend_tg_bf16_conv_kernel:\n"
              "    layer_id %d\n"
              "    bottom = %lx, top = %lx, weight = %lx, bias = %lx\n"
              "    nchw = (%d, %d, %d, %d), group = %d, oc = (%d)\n"

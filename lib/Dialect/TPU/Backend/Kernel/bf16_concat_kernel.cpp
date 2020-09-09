@@ -64,7 +64,7 @@ static int split_concat_forward(const CviBackendContext &ctx,
   return -1;
 }
 
-void bf16_concat_fixed_forward_bmkernel(const CviBackendContext &ctx, uint32_t stream_id,
+void cvi_backend_tg_bf16_concat_kernel(const CviBackendContext &ctx, uint32_t stream_id,
                                          uint32_t inst_id, uint32_t layer_id, const uint32_t *depends,
                                          uint32_t depends_len, gaddr_t input_gaddrs[],
                                          gaddr_t output_gaddr, int input_dims[], int input_num,
@@ -72,7 +72,7 @@ void bf16_concat_fixed_forward_bmkernel(const CviBackendContext &ctx, uint32_t s
                                          bool do_relu, const int need_quantize_num,
                                          const int *threshold_x_quantized) {
   LLVM_DEBUG(llvm::errs() << llvm::format(
-                  "bf16_concat_fixed_forward_bmkernel:\n"
+                  "cvi_backend_tg_bf16_concat_kernel:\n"
                   "    output_gaddr 0x%lx\n"
                   "    input_num %d, concat_axis %d, output_dim_size %d, need_quantize_num %d\n",
                   output_gaddr, input_num, concat_axis, output_dim_size, need_quantize_num););
@@ -473,5 +473,5 @@ void bf16_concat_fixed_forward_bmkernel(const CviBackendContext &ctx, uint32_t s
     }
   }
 
-  LLVM_DEBUG(llvm::errs() << "<= bmnet_concat_fixed_forward_bmkernel");
+  LLVM_DEBUG(llvm::errs() << "<= cvi_backend_tg_fixed_concat_kernel");
 }

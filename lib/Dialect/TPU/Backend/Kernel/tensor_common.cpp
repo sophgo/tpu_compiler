@@ -231,21 +231,21 @@ void *cvi_backend_get_cvk_ctx(const CviBackendContext &ctx) {
   return ctx.get_cvk_ctx();
 }
 
-cvk_fmt_t cvi_to_cvk_fmt(cvi_backend_fmt_t cvi_backend_fmt) {
+cvk_fmt_t cvi_to_cvk_fmt(cvk_fmt_t cvi_backend_fmt) {
   switch (cvi_backend_fmt) {
-    case CVI_FMT_F32:   return CVK_FMT_F32;
-    case CVI_FMT_F16:   return CVK_FMT_F16;
-    case CVI_FMT_I32:   return CVK_FMT_I32;
-    case CVI_FMT_I16:   return CVK_FMT_I16;
-    case CVI_FMT_I8:    return CVK_FMT_I8;
-    case CVI_FMT_I4:    return CVK_FMT_I4;
-    case CVI_FMT_I2:    return CVK_FMT_I2;
-    case CVI_FMT_I1:    return CVK_FMT_I1;
-    case CVI_FMT_U32:   return CVK_FMT_U32;
-    case CVI_FMT_U16:   return CVK_FMT_U16;
-    case CVI_FMT_U8:    return CVK_FMT_U8;
-    case CVI_FMT_BF16:  return CVK_FMT_BF16;
-    default: assert(0 && "not support type in cvi_backend_fmt_t");
+    case CVK_FMT_F32:   return CVK_FMT_F32;
+    case CVK_FMT_F16:   return CVK_FMT_F16;
+    case CVK_FMT_I32:   return CVK_FMT_I32;
+    case CVK_FMT_I16:   return CVK_FMT_I16;
+    case CVK_FMT_I8:    return CVK_FMT_I8;
+    case CVK_FMT_I4:    return CVK_FMT_I4;
+    case CVK_FMT_I2:    return CVK_FMT_I2;
+    case CVK_FMT_I1:    return CVK_FMT_I1;
+    case CVK_FMT_U32:   return CVK_FMT_U32;
+    case CVK_FMT_U16:   return CVK_FMT_U16;
+    case CVK_FMT_U8:    return CVK_FMT_U8;
+    case CVK_FMT_BF16:  return CVK_FMT_BF16;
+    default: assert(0 && "not support type in cvk_fmt_t");
   }
   return CVK_FMT_INVALID;
 }
