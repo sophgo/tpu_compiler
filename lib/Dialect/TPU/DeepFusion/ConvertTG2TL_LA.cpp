@@ -63,14 +63,14 @@ struct TpuTG2TLConv2DOpPattern : public RewritePattern {
     uint64_t totalPerLane = SimpleConv2DMemoryUsageAnalysis(op, nullptr);
     if (totalPerLane > MInfo::lmem_per_lane) {
       LLVM_DEBUG(llvm::errs() << "TG2TL_LA: " << op.name()
-                   << ", layer ID " << op.layer_id()
+                   << ", layer ID " << getOpLayerId(opInst)
                    << ", SKIP, lmem " << totalPerLane
                    << " needed\n";);
       return matchFailure();
     }
 
     LLVM_DEBUG(llvm::errs() << "TG2TL_LA: " << op.name()
-                 << ", layer ID " << op.layer_id() << "\n";);
+                 << ", layer ID " << getOpLayerId(opInst) << "\n";);
 
     // break leaky relu fuse
     if (opInst->getResult(0)->hasOneUse()) {
@@ -90,7 +90,6 @@ struct TpuTG2TLConv2DOpPattern : public RewritePattern {
     std::vector<NamedAttribute> attrs;
     attrs.push_back(rewriter.getNamedAttr("param", op.paramAttr()));
     attrs.push_back(rewriter.getNamedAttr("name", op.nameAttr()));
-    attrs.push_back(rewriter.getNamedAttr("layer_id", op.layer_idAttr()));
     if(op.do_ic_alignment().hasValue()){
       attrs.push_back(rewriter.getNamedAttr("do_ic_alignment", rewriter.getBoolAttr(op.do_ic_alignment().getValue())));
     }
@@ -128,7 +127,7 @@ struct TpuTG2TLElewiseOpPattern : public RewritePattern {
     uint64_t totalPerLane = SimpleEltwiseMemoryUsageAnalysis(op, nullptr);
     if (totalPerLane > MInfo::lmem_per_lane) {
       LLVM_DEBUG(llvm::errs() << "TG2TL_LA: " << op.name()
-                   << ", layer ID " << op.layer_id()
+                   << ", layer ID " << getOpLayerId(opInst)
                    << ", SKIP, lmem " << totalPerLane
                    << " needed\n";);
       return matchFailure();
@@ -157,7 +156,7 @@ struct TpuTG2TLElewiseOpPattern : public RewritePattern {
             SimpleConv2DMemoryUsageAnalysis(convOp, nullptr);
         if (totalPerLane > MInfo::lmem_per_lane) {
           LLVM_DEBUG(llvm::errs() << "TG2TL_LA: " << op.name()
-                     << ", layer ID " << op.layer_id()
+                     << ", layer ID " << getOpLayerId(opInst)
                      << ", operandOp " << convOp.name()
                      << ", SKIP, lmem " << totalPerLane
                      << " needed\n";);
@@ -168,7 +167,7 @@ struct TpuTG2TLElewiseOpPattern : public RewritePattern {
 
     if (1) {
       LLVM_DEBUG(llvm::errs() << "TG2TL_LA: " << op.name()
-                   << ", layer ID " << op.layer_id() << "\n";);
+                   << ", layer ID " << getOpLayerId(opInst) << "\n";);
 
       assert(op.getNumOperands() == 2 && "support 2 inputs only");
       std::vector<Value *> newOperands;
@@ -199,7 +198,6 @@ struct TpuTG2TLElewiseOpPattern : public RewritePattern {
       attrs.push_back(rewriter.getNamedAttr("tl_store_flag", rewriter.getBoolAttr(true)));
 
       attrs.push_back(rewriter.getNamedAttr("name", op.nameAttr()));
-      attrs.push_back(rewriter.getNamedAttr("layer_id", op.layer_idAttr()));
 
       if(op.m_i32_output().hasValue())
         attrs.push_back(rewriter.getNamedAttr("m_i32_output", op.m_i32_outputAttr()));
@@ -224,7 +222,7 @@ struct TpuTG2TLLutOpPattern : public RewritePattern {
     uint64_t totalPerLane = SimpleLutMemoryUsageAnalysis(op, nullptr);
     if (totalPerLane > MInfo::lmem_per_lane) {
       LLVM_DEBUG(llvm::errs() << "TG2TL_LA: " << op.name()
-                   << ", layer ID " << op.layer_id()
+                   << ", layer ID " << getOpLayerId(opInst)
                    << ", SKIP, lmem " << totalPerLane
                    << " needed\n";);
       return matchFailure();
@@ -238,7 +236,7 @@ struct TpuTG2TLLutOpPattern : public RewritePattern {
             SimpleConv2DMemoryUsageAnalysis(convOp, nullptr);
         if (totalPerLane > MInfo::lmem_per_lane) {
           LLVM_DEBUG(llvm::errs() << "TG2TL_LA: " << op.name()
-                     << ", layer ID " << op.layer_id()
+                     << ", layer ID " << getOpLayerId(opInst)
                      << ", operandOp " << convOp.name()
                      << ", SKIP, lmem " << totalPerLane
                      << " needed\n";);
@@ -249,7 +247,7 @@ struct TpuTG2TLLutOpPattern : public RewritePattern {
 
     if (1) {
       LLVM_DEBUG(llvm::errs() << "TG2TL_LA: " << op.name()
-                   << ", layer ID " << op.layer_id() << "\n";);
+                   << ", layer ID " << getOpLayerId(opInst) << "\n";);
 
       assert(op.getNumOperands() == 3);
       std::vector<Value *> newOperands;
@@ -268,7 +266,6 @@ struct TpuTG2TLLutOpPattern : public RewritePattern {
       attrs.push_back(rewriter.getNamedAttr("tl_store_flag", rewriter.getBoolAttr(true)));
 
       attrs.push_back(rewriter.getNamedAttr("name", op.nameAttr()));
-      attrs.push_back(rewriter.getNamedAttr("layer_id", op.layer_idAttr()));
 
       rewriter.replaceOpWithNewOp<tpu::TL_LutOp>(
           op, op.getResult()->getType(),
@@ -290,7 +287,7 @@ struct TpuTG2TLBroadcastMulOpPattern : public RewritePattern {
     uint64_t totalPerLane = SimpleBroadcastMulMemoryUsageAnalysis(op, nullptr);
     if (totalPerLane > MInfo::lmem_per_lane) {
       LLVM_DEBUG(llvm::errs() << "TG2TL_LA: " << op.name()
-                   << ", layer ID " << op.layer_id()
+                   << ", layer ID " << getOpLayerId(opInst)
                    << ", SKIP, lmem " << totalPerLane
                    << " needed\n";);
       return matchFailure();
@@ -304,7 +301,7 @@ struct TpuTG2TLBroadcastMulOpPattern : public RewritePattern {
             SimpleConv2DMemoryUsageAnalysis(convOp, nullptr);
         if (totalPerLane > MInfo::lmem_per_lane) {
           LLVM_DEBUG(llvm::errs() << "TG2TL_LA: " << op.name()
-                     << ", layer ID " << op.layer_id()
+                     << ", layer ID " << getOpLayerId(opInst)
                      << ", operandOp " << convOp.name()
                      << ", SKIP, lmem " << totalPerLane
                      << " needed\n";);
@@ -315,7 +312,7 @@ struct TpuTG2TLBroadcastMulOpPattern : public RewritePattern {
 
     if (1) {
       LLVM_DEBUG(llvm::errs() << "TG2TL_LA: " << op.name()
-                   << ", layer ID " << op.layer_id() << "\n";);
+                   << ", layer ID " << getOpLayerId(opInst) << "\n";);
 
       assert(op.getNumOperands() == 3);
       std::vector<Value *> newOperands;
@@ -351,7 +348,6 @@ struct TpuTG2TLBroadcastMulOpPattern : public RewritePattern {
             rewriter.getI32ArrayAttr(ArrayRef<int32_t>({})), // [0]ins_w/[1]ins_h
             rewriter.getContext())));
       attrs.push_back(rewriter.getNamedAttr("name", op.nameAttr()));
-      attrs.push_back(rewriter.getNamedAttr("layer_id", op.layer_idAttr()));
 
       rewriter.replaceOpWithNewOp<tpu::TL_BroadcastMulOp>(
           op, op.getResult()->getType(),
@@ -374,7 +370,7 @@ struct TpuTG2TLPoolOpPattern : public RewritePattern {
     uint64_t totalPerLane = SimpleIOMemoryUsageAnalysis(op, nullptr);
     if (totalPerLane > MInfo::lmem_per_lane) {
       LLVM_DEBUG(llvm::errs() << "TG2TL_LA: " << op.name()
-                   << ", layer ID " << op.layer_id()
+                   << ", layer ID " << getOpLayerId(opInst)
                    << ", SKIP, lmem " << totalPerLane
                    << " needed\n";);
       return matchFailure();
@@ -389,7 +385,7 @@ struct TpuTG2TLPoolOpPattern : public RewritePattern {
             SimpleConv2DMemoryUsageAnalysis(convOp, nullptr);
         if (totalPerLane > MInfo::lmem_per_lane) {
           LLVM_DEBUG(llvm::errs() << "TG2TL_LA: " << op.name()
-                     << ", layer ID " << op.layer_id()
+                     << ", layer ID " << getOpLayerId(opInst)
                      << ", operandOp " << convOp.name()
                      << ", SKIP, lmem " << totalPerLane
                      << " needed\n";);
@@ -400,7 +396,7 @@ struct TpuTG2TLPoolOpPattern : public RewritePattern {
 
     if (1) {
       LLVM_DEBUG(llvm::errs() << "TG2TL_LA: " << op.name()
-                   << ", layer ID " << op.layer_id() << "\n";);
+                   << ", layer ID " << getOpLayerId(opInst) << "\n";);
 
       std::vector<Value *> newOperands;
       newOperands.push_back(op.getOperand());
@@ -424,7 +420,6 @@ struct TpuTG2TLPoolOpPattern : public RewritePattern {
       attrs.push_back(rewriter.getNamedAttr("tl_store_flag", rewriter.getBoolAttr(true)));
 
       attrs.push_back(rewriter.getNamedAttr("name", op.nameAttr()));
-      attrs.push_back(rewriter.getNamedAttr("layer_id", op.layer_idAttr()));
 
       rewriter.replaceOpWithNewOp<OpTy2>(
           op, op.getResult()->getType(),

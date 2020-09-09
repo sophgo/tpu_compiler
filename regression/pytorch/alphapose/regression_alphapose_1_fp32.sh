@@ -13,7 +13,6 @@ cvi_model_convert.py \
 
 
 mlir-opt \
-    --assign-layer-id \
     --convert-bn-to-scale \
     --canonicalize \
     --print-tpu-op-info \

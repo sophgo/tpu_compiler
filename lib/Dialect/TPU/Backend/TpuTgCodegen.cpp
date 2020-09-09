@@ -69,7 +69,7 @@ LogicalResult tpu::TG_INT8_BroadcastMulOp::codegen(void *ctx) {
   gaddr_t ga_output = getOpAddress(op);
   gaddr_t ga_scale = getOpAddress(filter()->getDefiningOp());
   gaddr_t ga_pc_info = getWeightOpAddress(pc_info()->getDefiningOp());
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
 
   scale_fixed_forward_qi32(
       *backend_ctx, // ctx
@@ -121,7 +121,7 @@ LogicalResult tpu::TG_BF16_BroadcastMulOp::codegen(void *ctx) {
   gaddr_t ga_scale = getOpAddress(filter()->getDefiningOp());
   // FIXME: support bias
   //gaddr_t ga_pc_info = getWeightOpAddress(pc_info()->getDefiningOp());
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
 
   bf16_scale_forward_kernel(
       *backend_ctx, // ctx
@@ -162,7 +162,7 @@ LogicalResult tpu::TG_CastOp::codegen(void *ctx) {
 
   gaddr_t input_gaddr = getPreviousOpAddress(op);
   gaddr_t output_gaddr = getOpAddress(op);
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
 
   if (from() == "FP32" && to() == "BF16") {
     convert_fp32_bf16_kernel(*backend_ctx, 0, 0, layer_id, nullptr, 0,
@@ -192,7 +192,7 @@ LogicalResult tpu::TG_INT8_ConcatOp::codegen(void *ctx) {
   }
   gaddr_t ga_output = getOpAddress(op);
   int axis = this->axis().getLimitedValue();
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
 
   // prepare shape info
   #define SHAPE_DIM 4
@@ -283,7 +283,7 @@ LogicalResult tpu::TG_BF16_ConcatOp::codegen(void *ctx) {
   }
   gaddr_t ga_output = getOpAddress(op);
   int axis = this->axis().getLimitedValue();
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
 
   // prepare shape info
   #define SHAPE_DIM 4
@@ -337,7 +337,7 @@ LogicalResult tpu::TG_INT8_CropOp::codegen(void *ctx) {
                << " [" << getOpName() << "]\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
   gaddr_t input_gaddr = getPreviousOpAddress(op);
 
   gaddr_t output_gaddr = getOpAddress(op);
@@ -400,7 +400,7 @@ LogicalResult tpu::TG_INT8_PT_Conv2DOp::codegen(void *ctx) {
   }
   assert(pt_rshift().hasValue());
   int8_t rshift = pt_rshift().getValue().getLimitedValue();
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
   bool do_ic_alignment = this->do_ic_alignment().hasValue()
                          ? this->do_ic_alignment().getValue() : false;
 
@@ -498,7 +498,7 @@ LogicalResult tpu::TG_INT8_PC_Conv2DOp::codegen(void *ctx) {
   gaddr_t ga_output = getOpAddress(op);
   gaddr_t ga_filter = getWeightOpAddress(filter()->getDefiningOp());
   gaddr_t ga_pc_info = getWeightOpAddress(pc_info()->getDefiningOp());
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
   bool do_ic_alignment = this->do_ic_alignment().hasValue()
                             ? this->do_ic_alignment().getValue() : false;
 
@@ -623,7 +623,7 @@ LogicalResult tpu::TG_BF16_Conv2DOp::codegen(void *ctx) {
     assert(!isTensorNone(pc_info()));
     ga_bias =  getWeightOpAddress(pc_info()->getDefiningOp());
   }
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
 
   bmnet_bf16_conv_forward_kernel(
       *backend_ctx,
@@ -684,7 +684,7 @@ LogicalResult tpu::TG_INT8_PC_DeConv2DOp::codegen(void *ctx) {
   gaddr_t ga_output = getOpAddress(op);
   gaddr_t ga_filter = getWeightOpAddress(filter()->getDefiningOp());
   gaddr_t ga_pc_info = getWeightOpAddress(pc_info()->getDefiningOp());
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
 
   // check if fused with a leakyrelu
   int fused_leakyrelu_pos_rshift = 0;
@@ -772,7 +772,7 @@ LogicalResult tpu::TG_INT8_PC_DeConv2DOp::codegen(void *ctx) {
   gaddr_t ga_output = getOpAddress(op);
   gaddr_t ga_filter = getWeightOpAddress(filter()->getDefiningOp());
   gaddr_t ga_pc_info = getWeightOpAddress(pc_info()->getDefiningOp());
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
 
   if (this->fuse_next()) {
     assert(0);
@@ -852,7 +852,7 @@ LogicalResult tpu::TG_INT8_DilateOp::codegen(void *ctx) {
                << " [" << getOpName() << "]\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
   gaddr_t input_gaddr = getPreviousOpAddress(op);
 
   auto fill_constant = this->fill_constant().getLimitedValue();
@@ -941,7 +941,7 @@ LogicalResult tpu::TG_INT8_EltwiseAddOp::codegen(void *ctx) {
     ga_inputs[i] = getPreviousOpAddress(op, i);
   }
   gaddr_t ga_output = getOpAddress(op);
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
 
   bool do_quant_rescale = false;
   int8_t rshift;
@@ -1016,7 +1016,7 @@ LogicalResult tpu::TG_INT8_EltwiseMaxOp::codegen(void *ctx) {
     ga_inputs[i] = getPreviousOpAddress(op, i);
   }
   gaddr_t ga_output = getOpAddress(op);
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
 
   bool do_quant_rescale = false;
   int8_t rshift;
@@ -1090,7 +1090,7 @@ LogicalResult tpu::TG_INT8_EltwiseMinOp::codegen(void *ctx) {
     ga_inputs[i] = getPreviousOpAddress(op, i);
   }
   gaddr_t ga_output = getOpAddress(op);
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
 
   bool do_quant_rescale = false;
   int8_t rshift;
@@ -1161,7 +1161,7 @@ LogicalResult tpu::TG_INT8_EltwiseMulOp::codegen(void *ctx) {
   }
 
   gaddr_t ga_output = getOpAddress(op);
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
 
   assert(this->rshift().hasValue());
   int8_t rshift = this->rshift().getValue().getLimitedValue();
@@ -1215,7 +1215,7 @@ LogicalResult tpu::TG_BF16_EltwiseAddOp::codegen(void *ctx) {
     ga_inputs[i] = getPreviousOpAddress(op, i);
   }
   gaddr_t ga_output = getOpAddress(op);
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
 
   // only need two coeff now, here just for safety coding
   std::vector<float> coeffs(input_number, 1.0f);
@@ -1277,7 +1277,7 @@ LogicalResult tpu::TG_BF16_EltwiseMulOp::codegen(void *ctx) {
   ga_inputs[0] = getPreviousOpAddress(op, 0);
   ga_inputs[1] = getPreviousOpAddress(op, 1);
   gaddr_t ga_output = getOpAddress(op);
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
 
   const float coeffs[2] = {1.0, 1.0};
 
@@ -1315,7 +1315,7 @@ LogicalResult tpu::TG_INT8_FullyConnectedOp::codegen(void *ctx) {
     ga_bias = getWeightOpAddress(bias()->getDefiningOp());
     with_bias = true;
   }
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
 
   int8_t rshift_int8 = rshift().getValue().getLimitedValue();
   int rshift = static_cast<int>(rshift_int8);
@@ -1372,7 +1372,7 @@ LogicalResult tpu::TG_BF16_FullyConnectedOp::codegen(void *ctx) {
     ga_bias = getWeightOpAddress(bias()->getDefiningOp());
     with_bias = true;
   }
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
 
   bf16_fc_forward_kernel(
       *backend_ctx,
@@ -1397,7 +1397,7 @@ LogicalResult tpu::TG_INT8_GenericTpuOp::codegen(void *ctx) {
                << " [" << getOpName() << "]\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
   auto op_name = operation_name().str();
   auto operandShapes = getOperandShapes(op);
   auto resultShape = getTensorShape(getResult());
@@ -1423,7 +1423,7 @@ LogicalResult tpu::TG_BF16_GenericTpuOp::codegen(void *ctx) {
                << " [" << getOpName() << "]\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
   auto op_name = operation_name().str();
   auto operandShapes = getOperandShapes(op);
   auto resultShape = getTensorShape(getResult());
@@ -1450,7 +1450,7 @@ LogicalResult tpu::TG_INT8_InterpOp::codegen(void *ctx) {
                << " [" << getOpName() << "]\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
   */
   std::string errorMsg = "unsupported tg op " + getOpName().str() + "\n";
   llvm_unreachable(errorMsg.c_str());
@@ -1463,7 +1463,7 @@ LogicalResult tpu::TG_BF16_InterpOp::codegen(void *ctx) {
                << " [" << getOpName() << "]\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
   */
   std::string errorMsg = "unsupported tg op " + getOpName().str() + "\n";
   llvm_unreachable(errorMsg.c_str());
@@ -1492,7 +1492,7 @@ LogicalResult tpu::TG_INT8_LeakyReluOp::codegen(void *ctx) {
   getNCHW(shape, n, c, h, w);
   gaddr_t ga_input = getPreviousOpAddress(op);
   gaddr_t ga_output = getOpAddress(op);
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
 
   bmnet_leakyrelu_fixed_forward_bmkernel(
     *backend_ctx,         // ctx
@@ -1536,7 +1536,7 @@ LogicalResult tpu::TG_BF16_LeakyReluOp::codegen(void *ctx) {
   getNCHW(shape, n, c, h, w);
   gaddr_t ga_input = getPreviousOpAddress(op);
   gaddr_t ga_output = getOpAddress(op);
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
   float ga_negative_slope = this->negative_slope().convertToFloat();
 
   bf16_leakyrelu_forward_kernel(
@@ -1567,7 +1567,7 @@ LogicalResult tpu::TG_INT8_LrnOp::codegen(void *ctx) {
   gaddr_t output_gaddr = getOpAddress(op);
   gaddr_t power_lut_gaddr = getWeightOpAddress(power_lut()->getDefiningOp());
   gaddr_t sqr_lut_gaddr = getWeightOpAddress(sqr_lut()->getDefiningOp());
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
   lrn_fixed_forward_kernel(
       *backend_ctx, 0, 0, layer_id, nullptr, 0, input_gaddr, output_gaddr,
       sqr_lut_gaddr, power_lut_gaddr, n, c, h, w,
@@ -1601,7 +1601,7 @@ LogicalResult tpu::TG_INT8_LutOp::codegen(void *ctx) {
   gaddr_t input_gaddr = getPreviousOpAddress(op);
   gaddr_t output_gaddr = getOpAddress(op);
   gaddr_t y0_table_gaddr = getWeightOpAddress(table()->getDefiningOp());
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
 
   lut_fixed_forward_bmkernel(*backend_ctx,
                              0,        // stream_id,
@@ -1649,7 +1649,7 @@ LogicalResult tpu::TG_BF16_GruOp::codegen(void *ctx) {
   gaddr_t sigmoid_slope_table_data_lut_gaddr = getWeightOpAddress(sigmoid_slope_table()->getDefiningOp());
   gaddr_t tanh_table_data_lut_gaddr = getWeightOpAddress(tanh_table()->getDefiningOp());
   gaddr_t tanh_slope_table_data_lut_gaddr = getWeightOpAddress(tanh_slope_table()->getDefiningOp());
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
 
   LLVM_DEBUG(llvm::errs() << "input_gaddr: " << input_gaddr << "\n"
                           << "weight_gaddr: " << weight_gaddr << "\n"
@@ -1719,7 +1719,7 @@ LogicalResult tpu::TG_BF16_LstmOp::codegen(void *ctx) {
   gaddr_t sigmoid_slope_table_data_lut_gaddr = getWeightOpAddress(sigmoid_slope_table()->getDefiningOp());
   gaddr_t tanh_table_data_lut_gaddr = getWeightOpAddress(tanh_table()->getDefiningOp());
   gaddr_t tanh_slope_table_data_lut_gaddr = getWeightOpAddress(tanh_slope_table()->getDefiningOp());
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
 
   LLVM_DEBUG(llvm::errs() << "input_gaddr: " << input_gaddr << "\n"
                                                        << "weight_gaddr: " << weight_gaddr << "\n"
@@ -1797,7 +1797,7 @@ LogicalResult tpu::TG_BF16_SoftmaxOp::codegen(void *ctx) {
   gaddr_t exponential_slope_table_data_lut_gaddr = getWeightOpAddress(exponential_slope_table()->getDefiningOp());
   gaddr_t reciprocal_table_data_lut_gaddr = getWeightOpAddress(reciprocal_table()->getDefiningOp());
   gaddr_t reciprocal_mantissa_table_data_lut_gaddr = getWeightOpAddress(reciprocal_mantissa_table()->getDefiningOp());
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
 
   LLVM_DEBUG(llvm::errs() << "input_gaddr: " << input_gaddr << "\n"
                                                        << "exponential_table_data_lut_gaddr: " << exponential_table_data_lut_gaddr << "\n"
@@ -1835,7 +1835,7 @@ LogicalResult tpu::TG_BF16_LutOp::codegen(void *ctx) {
   gaddr_t table_data_mantissa_lut = getWeightOpAddress(table_mantissa()->getDefiningOp());
 
 
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
   auto lut_method = method().getValue().str();
   LLVM_DEBUG(llvm::errs() << "lut method:" << lut_method << " [" << getOpName()
                           << "]\n";);
@@ -1883,7 +1883,7 @@ LogicalResult tpu::TG_INT8_PermuteOp::codegen(void *ctx) {
 
   gaddr_t input_gaddr = getPreviousOpAddress(op);
   gaddr_t output_gaddr = getOpAddress(op);
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
   // Check if we need to reorder the data or keep it.
   bool need_permute_ = false;
   int num_axes_ = i_s.size();
@@ -1942,7 +1942,7 @@ LogicalResult tpu::TG_BF16_PermuteOp::codegen(void *ctx) {
 
   gaddr_t input_gaddr = getPreviousOpAddress(op);
   gaddr_t output_gaddr = getOpAddress(op);
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
   // Check if we need to reorder the data or keep it.
   bool need_permute_ = false;
   int num_axes_ = i_s.size();
@@ -1988,7 +1988,7 @@ LogicalResult tpu::TG_INT8_PoolAvg2DOp::codegen(void *ctx) {
 
   gaddr_t ga_input = getPreviousOpAddress(op);
   gaddr_t ga_output = getOpAddress(op);
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
 
   assert(this->rshift().hasValue());
   int8_t rshift = this->rshift().getValue().getLimitedValue();
@@ -2041,7 +2041,7 @@ LogicalResult tpu::TG_INT8_PoolMax2DOp::codegen(void *ctx) {
 
   gaddr_t ga_input = getPreviousOpAddress(op);
   gaddr_t ga_output = getOpAddress(op);
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
 
   assert(!this->rshift().hasValue());
   assert(!this->m_i8().hasValue());
@@ -2089,7 +2089,7 @@ LogicalResult tpu::TG_BF16_PoolAvg2DOp::codegen(void *ctx) {
 
   gaddr_t ga_input = getPreviousOpAddress(op);
   gaddr_t ga_output = getOpAddress(op);
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
 
   bf16_pooling_forward_kernel(
       *backend_ctx,
@@ -2127,7 +2127,7 @@ LogicalResult tpu::TG_BF16_PoolMax2DOp::codegen(void *ctx) {
 
   gaddr_t ga_input = getPreviousOpAddress(op);
   gaddr_t ga_output = getOpAddress(op);
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
 
   bf16_pooling_forward_kernel(
       *backend_ctx,
@@ -2163,7 +2163,7 @@ LogicalResult tpu::TG_INT8_PReluOp::codegen(void *ctx) {
   gaddr_t ga_output = getOpAddress(op);
   gaddr_t negative_scope_gaddr =
       getWeightOpAddress(negative_slope()->getDefiningOp());
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
 
   assert(this->rshift_pos().hasValue());
   int8_t rshift_pos = this->rshift_pos().getValue().getLimitedValue();
@@ -2217,7 +2217,7 @@ LogicalResult tpu::TG_INT8_QuantOp::codegen(void *ctx) {
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
   gaddr_t ga_input = getPreviousOpAddress(op);
   gaddr_t ga_output = getOpAddress(op);
 
@@ -2266,7 +2266,7 @@ LogicalResult tpu::TG_BF16_QuantOp::codegen(void *ctx) {
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
   gaddr_t ga_input = getPreviousOpAddress(op);
   gaddr_t ga_output = getOpAddress(op);
 
@@ -2310,7 +2310,7 @@ LogicalResult tpu::TG_INT8_ReluOp::codegen(void *ctx) {
 
   gaddr_t ga_input = getPreviousOpAddress(op);
   gaddr_t ga_output = getOpAddress(op);
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
 
   bmnet_relu_fixed_forward_bmkernel(
       *backend_ctx,
@@ -2355,7 +2355,7 @@ LogicalResult tpu::TG_INT8_ReorgOp::codegen(void *ctx) {
 
   gaddr_t input_gaddr = getPreviousOpAddress(op);
   gaddr_t output_gaddr = getOpAddress(op);
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
 
   reorg_forward_kernel(*backend_ctx, 0, 0, layer_id, nullptr, 0,
                                        input_gaddr, output_gaddr, n, c,
@@ -2378,7 +2378,7 @@ LogicalResult tpu::TG_BF16_ReorgOp::codegen(void *ctx) {
 
   gaddr_t input_gaddr = getPreviousOpAddress(op);
   gaddr_t output_gaddr = getOpAddress(op);
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
 
   bf16_reorg_forward_kernel(*backend_ctx, layer_id,
                             input_gaddr, output_gaddr,
@@ -2402,7 +2402,7 @@ LogicalResult tpu::TG_INT8_ShuffleChannelOp::codegen(void *ctx) {
 
   gaddr_t input_gaddr = getPreviousOpAddress(op);
   gaddr_t output_gaddr = getOpAddress(op);
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
   shuffle_channel_forward_kernel(*backend_ctx, 0, 0, layer_id, nullptr, 0,
                                        input_gaddr, output_gaddr, n, c,
                                        frame_size, group, CVI_FMT_I8);
@@ -2424,7 +2424,7 @@ LogicalResult tpu::TG_BF16_ShuffleChannelOp::codegen(void *ctx) {
 
   gaddr_t input_gaddr = getPreviousOpAddress(op);
   gaddr_t output_gaddr = getOpAddress(op);
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
   shuffle_channel_forward_kernel(*backend_ctx, 0, 0, layer_id, nullptr, 0,
                                        input_gaddr, output_gaddr, n, c,
                                        frame_size, group, CVI_FMT_BF16);
@@ -2445,7 +2445,7 @@ LogicalResult tpu::TG_INT8_SwapChannelOp::codegen(void *ctx) {
 
   gaddr_t input_gaddr = getPreviousOpAddress(op);
   gaddr_t output_gaddr = getOpAddress(op);
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
   std::vector<int32_t> order;
   arrayAttrToVector(this->channel_order().getValue(), order);
   swap_channel_forward_kernel(*backend_ctx, 0, 0, layer_id, nullptr, 0,
@@ -2470,7 +2470,7 @@ LogicalResult tpu::TG_BF16_SwapChannelOp::codegen(void *ctx) {
 
   gaddr_t input_gaddr = getPreviousOpAddress(op);
   gaddr_t output_gaddr = getOpAddress(op);
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
   swap_channel_forward_kernel(*backend_ctx, 0, 0, layer_id, nullptr, 0,
                                        input_gaddr, output_gaddr,  (int)input_shape_fix.size(),
                                        input_shape_fix.data(), order.data(), CVI_FMT_BF16);
@@ -2489,7 +2489,7 @@ LogicalResult tpu::TG_INT8_TileOp::codegen(void *ctx) {
 
   gaddr_t input_gaddr = getPreviousOpAddress(op);
   gaddr_t output_gaddr = getOpAddress(op);
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
   std::vector<int32_t> resp;
   arrayAttrToVector(this->resp().getValue(), resp);
 
@@ -2529,7 +2529,7 @@ LogicalResult tpu::TG_BF16_TileOp::codegen(void *ctx) {
 
   gaddr_t input_gaddr = getPreviousOpAddress(op);
   gaddr_t output_gaddr = getOpAddress(op);
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
   std::vector<int32_t> resp;
   arrayAttrToVector(this->resp().getValue(), resp);
   tile_forward_kernel(*backend_ctx, 0, 0, layer_id, nullptr, 0,
@@ -2554,7 +2554,7 @@ LogicalResult tpu::TG_INT8_TileInterpOp::codegen(void *ctx) {
 
   gaddr_t input_gaddr = getPreviousOpAddress(op);
   gaddr_t output_gaddr = getOpAddress(op);
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
   std::vector<int32_t> resp;
   arrayAttrToVector(this->resp().getValue(), resp);
   */
@@ -2594,7 +2594,7 @@ LogicalResult tpu::TG_INT8_PixelShuffleOp::codegen(void *ctx) {
 
   gaddr_t input_gaddr = getPreviousOpAddress(op);
   gaddr_t output_gaddr = getOpAddress(op);
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
   pixel_shuffle_fixed_bmkernel(
       *backend_ctx, //const CviBackendContext &ctx,
       0, //u32 stream_id,
@@ -2631,7 +2631,7 @@ LogicalResult tpu::TG_BF16_PixelShuffleOp::codegen(void *ctx) {
 
   gaddr_t input_gaddr = getPreviousOpAddress(op);
   gaddr_t output_gaddr = getOpAddress(op);
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
 
   bf16_pixel_shuffle_fixed_bmkernel(
       *backend_ctx, //const CviBackendContext &ctx,
@@ -2679,7 +2679,7 @@ LogicalResult tpu::TG_BF16_ClipOp::codegen(void *ctx) {
   gaddr_t input_gaddr = getPreviousOpAddress(op);
   gaddr_t output_gaddr = getOpAddress(op);
 
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
   bool do_relu = false;
   float coeffs[2];
   gaddr_t ga_inputs[1];
@@ -2773,7 +2773,7 @@ LogicalResult tpu::TG_INT8_SliceOp::codegen(void *ctx) {
   int offset = this->offset().getLimitedValue();
   gaddr_t input_gaddr = getPreviousOpAddress(op);
   gaddr_t output_gaddr = getOpAddress(op);
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
   std::vector<int64_t> output_shape = getTensorShape(this->getResult());
   slice_forward_kernel(*backend_ctx, 0, 0, layer_id, nullptr, 0, input_gaddr,
                        output_gaddr, (int)input_shape.size(),
@@ -2805,7 +2805,7 @@ LogicalResult tpu::TG_BF16_SliceOp::codegen(void *ctx) {
   int offset = this->offset().getLimitedValue();
   gaddr_t input_gaddr = getPreviousOpAddress(op);
   gaddr_t output_gaddr = getOpAddress(op);
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
   std::vector<int64_t> output_shape = getTensorShape(this->getResult());
   slice_forward_kernel(*backend_ctx, 0, 0, layer_id, nullptr, 0, input_gaddr,
                        output_gaddr, (int)input_shape.size(),
@@ -2830,7 +2830,7 @@ LogicalResult tpu::TG_INT8_UpsampleOp::codegen(void *ctx) {
 
   gaddr_t ga_input = getPreviousOpAddress(op);
   gaddr_t ga_output = getOpAddress(op);
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
 
   upsample_fixed_bmkernel(
       *backend_ctx,
@@ -2867,7 +2867,7 @@ LogicalResult tpu::TG_BF16_UpsampleOp::codegen(void *ctx) {
 
   gaddr_t ga_input = getPreviousOpAddress(op);
   gaddr_t ga_output = getOpAddress(op);
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
 
   bf16_upsample_fixed_bmkernel(
       *backend_ctx,
@@ -2907,7 +2907,7 @@ LogicalResult tpu::TG_INT8_PadOp::codegen(void *ctx) {
 
   gaddr_t ga_input = getPreviousOpAddress(op);
   gaddr_t ga_output = getOpAddress(op);
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
 
   pad_forward_kernel(
       *backend_ctx,
@@ -2944,7 +2944,7 @@ LogicalResult tpu::TG_BF16_PadOp::codegen(void *ctx) {
 
   gaddr_t ga_input = getPreviousOpAddress(op);
   gaddr_t ga_output = getOpAddress(op);
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
 
   pad_forward_kernel(
       *backend_ctx,

@@ -70,7 +70,7 @@ LogicalResult tpu::TL_LA_Conv2DOp::codegen(void *ctx) {
   gaddr_t ga_output = getOpAddress(op);
   gaddr_t ga_filter = getWeightOpAddress(filter()->getDefiningOp());
   gaddr_t ga_pc_info = getWeightOpAddress(pc_info()->getDefiningOp());
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
   bool do_ic_alignment = (this->do_ic_alignment().hasValue()) ? this->do_ic_alignment().getValue() : false;
 
   LLVM_DEBUG(llvm::errs() << "    TL_LA_Conv2DOp, layer_id = " << layer_id << "\n";);
@@ -123,7 +123,7 @@ LogicalResult tpu::TL_LW_Conv2DOp::codegen(void *ctx) {
     }
   }
 
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
 
   LLVM_DEBUG(
     llvm::errs() << "    TL_LW_Conv2DOp,  layer_id = " << layer_id;
@@ -253,7 +253,7 @@ LogicalResult tpu::TL_EltwiseAddOp::codegen(void *ctx) {
   }
   gaddr_t ga_addend = getPreviousOpAddress(op, 1 - augend_idx);
   gaddr_t ga_output = tl_store_flag() ? getOpAddress(op) : GA_INVALID;
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
 
   laddr_t la_input = LA_INVALID;
   laddr_t la_output = LA_INVALID;
@@ -306,7 +306,7 @@ LogicalResult tpu::TL_EltwiseMulOp::codegen(void *ctx) {
 
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
 
   int augend_idx = 0;
   auto prev_op = op->getOperand(0)->getDefiningOp();
@@ -399,7 +399,7 @@ LogicalResult tpu::TL_LutOp::codegen(void *ctx) {
   gaddr_t ga_input = tl_load_flag() ? getPreviousOpAddress(op) : GA_INVALID;
   gaddr_t ga_output = tl_store_flag() ? getOpAddress(op) : GA_INVALID;
   gaddr_t y0_table_gaddr = getWeightOpAddress(table()->getDefiningOp());
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
 
   laddr_t la_input = LA_INVALID;
   laddr_t la_output = LA_INVALID;
@@ -449,7 +449,7 @@ LogicalResult tpu::TL_PoolAvg2DOp::codegen(void *ctx) {
 
   gaddr_t ga_input = tl_load_flag() ? getPreviousOpAddress(op) : GA_INVALID;
   gaddr_t ga_output = tl_store_flag() ? getOpAddress(op) : GA_INVALID;
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
 
   laddr_t la_input = LA_INVALID;
   laddr_t la_output = LA_INVALID;
@@ -509,7 +509,7 @@ LogicalResult tpu::TL_BroadcastMulOp::codegen(void *ctx) {
   gaddr_t ga_output = tl_store_flag() ? getOpAddress(op) : GA_INVALID;
   gaddr_t ga_scale = getOpAddress(filter()->getDefiningOp());
   gaddr_t ga_pc_info = getWeightOpAddress(pc_info()->getDefiningOp());
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
 
   laddr_t la_input = LA_INVALID;
   laddr_t la_output = LA_INVALID;

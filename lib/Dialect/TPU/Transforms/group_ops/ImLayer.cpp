@@ -15,7 +15,7 @@ ImLayer::ImLayer(IR_TYPE type, Operation* op, bool fusible)
       type_(type),
       op_(op) {
   name_ = mlir::getOpName(op);
-  layer_id_ = mlir::getOpLayerId(op);
+  layer_id_ = getOpLayerId(op);
   //is_inplace_layer = op->in_place();
   is_inplace_layer = false;
 }

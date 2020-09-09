@@ -11,7 +11,6 @@ mlir-translate \
 
 # apply frontend optimizations
 mlir-opt \
-    --assign-layer-id \
     --convert-bn-to-scale \
     --canonicalize \
     --print-tpu-op-info \

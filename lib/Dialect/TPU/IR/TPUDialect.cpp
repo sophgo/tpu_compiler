@@ -94,20 +94,12 @@ namespace mlir {
 //
 #define DECLARE_GET_OP_NAME_METHOD(OP) \
     StringRef OP::getOpName() {return name();}
+
 #define DECLARE_GET_LAYER_ID_METHOD(OP) \
-    int OP::getOpLayerId() { \
-      if (layer_id() != -1) { \
-        return layer_id().getLimitedValue(); \
-      } else { \
-        llvm::errs() << name() << " has no layer_id assigned, return -1 as layer_id\n"; \
-        return -1; \
-      } \
-    }
-#define DECLARE_SET_LAYER_ID_METHOD(OP) \
-    LogicalResult OP::setOpLayerId(int id) { \
-      setAttr("layer_id", \
-          Builder(getOperation()->getContext()).getI32IntegerAttr(id)); \
-      return success(); \
+    int OP::getLayerId() { \
+      auto op = getOperation(); \
+      auto loc = op->getLoc().cast<FileLineColLoc>(); \
+      return loc.getLine() - 5; \
     }
 
 #define DECLARE_GET_CHIP_NAME_METHOD(OP) \
@@ -129,7 +121,6 @@ namespace mlir {
 #define DECLARE_ALL_COMMON_INTERFACE_METHODS(OP) \
     DECLARE_GET_OP_NAME_METHOD(OP) \
     DECLARE_GET_LAYER_ID_METHOD(OP) \
-    DECLARE_SET_LAYER_ID_METHOD(OP) \
     DECLARE_GET_CHIP_NAME_METHOD(OP) \
     DECLARE_SET_CHIP_NAME_METHOD(OP)
 

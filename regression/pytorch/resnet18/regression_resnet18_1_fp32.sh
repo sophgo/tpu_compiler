@@ -12,7 +12,6 @@ cvi_model_convert.py \
     --mlir_file_path resnet18.mlir
 
 mlir-opt \
-    --assign-layer-id \
     --canonicalize \
     --convert-bn-to-scale \
     --print-tpu-op-info \

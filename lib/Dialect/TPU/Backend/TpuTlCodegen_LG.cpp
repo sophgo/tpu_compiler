@@ -134,7 +134,7 @@ LogicalResult tpu::TL_LG_INT8_Conv2DOp::codegen(void *ctx) {
   int ph_b = this->pad_bottom_h().getLimitedValue();
   int pw_l = this->pad_left_w().getLimitedValue();
   int pw_r = this->pad_right_w().getLimitedValue();
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
 
   int8_t pos_rshift = 0, pos_m_i8 = 0;
   int8_t neg_rshift = 0, neg_m_i8 = 0;
@@ -196,7 +196,7 @@ LogicalResult tpu::TL_LG_BF16_Conv2DOp::codegen(void *ctx) {
   int ph_b = this->pad_bottom_h().getLimitedValue();
   int pw_l = this->pad_left_w().getLimitedValue();
   int pw_r = this->pad_right_w().getLimitedValue();
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
 
   cvi_backend_bf16_tl_conv(
     *backend_ctx,
@@ -241,7 +241,7 @@ LogicalResult tpu::TL_LG_INT8_DeConv2DOp::codegen(void *ctx) {
   int ins_last_h = this->ins_last_h().getLimitedValue();
   int ins_w = this->ins_w().getLimitedValue();
   int ins_last_w = this->ins_last_w().getLimitedValue();
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
 
   cvi_backend_tl_deconv(
     *backend_ctx,
@@ -291,7 +291,7 @@ LogicalResult tpu::TL_LG_BF16_DeConv2DOp::codegen(void *ctx) {
   int ins_last_h = this->ins_last_h().getLimitedValue();
   int ins_w = this->ins_w().getLimitedValue();
   int ins_last_w = this->ins_last_w().getLimitedValue();
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
 
   cvi_backend_tl_bf16_deconv(
     *backend_ctx,
@@ -313,7 +313,7 @@ LogicalResult tpu::TL_LG_INT8_EltwiseAddOp::codegen(void *ctx) {
 
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
 
   std::vector<int64_t> shape;
   int64_t input_size, n, c, h, w;
@@ -395,7 +395,7 @@ LogicalResult tpu::TL_LG_INT8_EltwiseMulOp::codegen(void *ctx) {
 
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
 
   std::vector<int64_t> shape;
   int64_t input_size, n, c, h, w;
@@ -458,7 +458,7 @@ LogicalResult tpu::TL_LG_INT8_LrnOp::codegen(void *ctx) {
 
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
 
   laddr_t la_input = this->la_input().getLimitedValue();
   laddr_t la_output = this->la_output().getLimitedValue();
@@ -504,7 +504,7 @@ LogicalResult tpu::TL_LG_INT8_LutOp::codegen(void *ctx) {
 
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
 
   laddr_t la_input = this->la_input().getLimitedValue();
   laddr_t la_output = this->la_output().getLimitedValue();
@@ -546,7 +546,7 @@ LogicalResult tpu::TL_LG_INT8_QuantOp::codegen(void *ctx) {
 
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
 
   laddr_t la_input = this->la_input().getLimitedValue();
   laddr_t la_output = this->la_output().getLimitedValue();
@@ -600,7 +600,7 @@ LogicalResult tpu::TL_LG_INT8_ConcatOp::codegen(void *ctx) {
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
   unsigned nInputs = op->getNumOperands();
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
   int axis = this->axis().getLimitedValue();
 
   std::vector<int32_t> la_input_array;
@@ -671,7 +671,7 @@ LogicalResult tpu::TL_LG_BF16_ConcatOp::codegen(void *ctx) {
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
   unsigned nInputs = op->getNumOperands();
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
   int axis = this->axis().getLimitedValue();
 
   std::vector<int32_t> la_input_array;
@@ -968,7 +968,7 @@ LogicalResult tpu::TL_LG_INT8_PoolAvg2DOp::codegen(void *ctx) {
                << " [" << getOpName() << "]\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
 
   bool is_global, do_relu, count_include_pad;
   int n, c, ih, iw, oh, ow, kh, kw, sh, sw, pt, pb, pl, pr;
@@ -1004,7 +1004,7 @@ LogicalResult tpu::TL_LG_BF16_PoolAvg2DOp::codegen(void *ctx) {
                << " [" << getOpName() << "]\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
 
   bool is_global, do_relu, count_include_pad;
   int n, c, ih, iw, oh, ow, kh, kw, sh, sw, pt, pb, pl, pr;
@@ -1032,7 +1032,7 @@ LogicalResult tpu::TL_LG_INT8_PoolMax2DOp::codegen(void *ctx) {
                << " [" << getOpName() << "]\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
 
   bool is_global, do_relu, count_include_pad;
   int n, c, ih, iw, oh, ow, kh, kw, sh, sw, pt, pb, pl, pr;
@@ -1065,7 +1065,7 @@ LogicalResult tpu::TL_LG_BF16_PoolMax2DOp::codegen(void *ctx) {
 
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
 
   bool is_global, do_relu, count_include_pad;
   int n, c, ih, iw, oh, ow, kh, kw, sh, sw, pt, pb, pl, pr;
@@ -1105,7 +1105,7 @@ LogicalResult tpu::TL_LG_INT8_BroadcastMulOp::codegen(void *ctx) {
   laddr_t la_output = this->la_output().getLimitedValue();
   laddr_t la_scale = this->la_scale().getLimitedValue();
   laddr_t la_bias = this->la_bias().getLimitedValue();
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
 
   cvi_backend_tl_broadcast_mul(
       *backend_ctx, // ctx
@@ -1150,7 +1150,7 @@ LogicalResult tpu::TL_LG_INT8_UpsampleOp::codegen(void *ctx) {
   laddr_t la_input = this->la_input().getLimitedValue();
   laddr_t la_output = this->la_output().getLimitedValue();
   auto scale = this->scale().getLimitedValue();
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
 
   cvi_backend_tl_upsample(
       *backend_ctx,
@@ -1192,7 +1192,7 @@ LogicalResult tpu::TL_LG_INT8_LeakyReluOp::codegen(void *ctx) {
 
   laddr_t la_input = this->la_input().getLimitedValue();
   laddr_t la_output = this->la_output().getLimitedValue();
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
 
   cvi_backend_tl_leaky_relu(
       *backend_ctx,
@@ -1249,7 +1249,7 @@ LogicalResult tpu::TL_LG_INT8_PReluOp::codegen(void *ctx) {
   laddr_t la_input = this->la_input().getLimitedValue();
   laddr_t la_output = this->la_output().getLimitedValue();
   laddr_t la_slope = this->la_slope().getLimitedValue();
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
 
   cvi_backend_tl_prelu(
       *backend_ctx,
@@ -1286,7 +1286,7 @@ LogicalResult tpu::TL_LG_INT8_PadOp::codegen(void *ctx) {
   laddr_t la_output = this->la_output().getLimitedValue();
 
   // parse param
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
   std::vector<int32_t> pads;
   auto const_val = this->const_val().convertToFloat();
   arrayAttrToVector(this->pads().getValue(), pads);
@@ -1317,7 +1317,7 @@ LogicalResult tpu::TL_LG_BF16_PadOp::codegen(void *ctx) {
   laddr_t la_output = this->la_output().getLimitedValue();
 
   // parse param
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
   std::vector<int32_t> pads;
   auto const_val = this->const_val().convertToFloat();
   arrayAttrToVector(this->pads().getValue(), pads);
@@ -1348,7 +1348,7 @@ LogicalResult tpu::TL_LG_INT8_CropOp::codegen(void *ctx) {
   laddr_t la_output = this->la_output().getLimitedValue();
 
   // parse param
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
   std::vector<int32_t> crop_offsets;
   arrayAttrToVector(this->crop_offsets().getValue(), crop_offsets);
 
@@ -1385,7 +1385,7 @@ LogicalResult tpu::TL_LG_INT8_ReluOp::codegen(void *ctx) {
   laddr_t la_output = this->la_output().getLimitedValue();
 
   // parse param
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
 
   cvi_backend_tl_relu(
       *backend_ctx,
@@ -1411,7 +1411,7 @@ LogicalResult tpu::TL_LG_BF16_ReluOp::codegen(void *ctx) {
   laddr_t la_output = this->la_output().getLimitedValue();
 
   // parse param
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
 
   cvi_backend_tl_bf16_relu(
       *backend_ctx,

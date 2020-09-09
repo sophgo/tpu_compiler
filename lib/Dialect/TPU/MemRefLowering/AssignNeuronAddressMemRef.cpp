@@ -434,7 +434,7 @@ void AssignNeuronAddressMemRefPass::handleAllocOp(Operation *opInst) {
   NeuronInfo neuronInfo;
   neuronInfo.op = tpuOp;
   neuronInfo.name = tpuOpIf.getOpName();
-  neuronInfo.layerId = tpuOpIf.getOpLayerId();
+  neuronInfo.layerId = tpuOpIf.getLayerId();
   neuronInfo.offset = curPos;
   neuronInfo.size = allocatedSize;
   usedList.push_back(neuronInfo);

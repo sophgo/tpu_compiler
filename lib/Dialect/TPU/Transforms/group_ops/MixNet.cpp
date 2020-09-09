@@ -152,8 +152,6 @@ void MixNet::add_group_end_ops(int group_idx, Group* group, int n_secs, int h_se
     std::vector<NamedAttribute> attrs;
     attrs.push_back(builder_.getNamedAttr("name",
                     builder_.getStringAttr(old_name)));
-    attrs.push_back(builder_.getNamedAttr("layer_id",
-                    builder_.getI32IntegerAttr(0))); //don't care cus pseudo ir
     auto join_op = OpBuilder(get_start_op()).create<tpu::TL_LG_JoinOp>(
                              get_start_op()->getLoc(), old_op_r->getType(),
                              ArrayRef<Value *>{operands},
@@ -434,8 +432,6 @@ void MixNet::_add_tl_convolution_op(MixOp* mix_op,
                            builder_.getI32IntegerAttr(weight_laddr)));
   attrs.push_back(builder_.getNamedAttr("la_bias",
                            builder_.getI32IntegerAttr(bias_laddr)));
-  attrs.push_back(builder_.getNamedAttr("layer_id", // updated to group id for pmu debug
-                           builder_.getI32IntegerAttr(in_tensor->get_group_id())));
   attrs.push_back(builder_.getNamedAttr("pad_top_h",
                            builder_.getI32IntegerAttr(top_pad_h)));
   attrs.push_back(builder_.getNamedAttr("pad_bottom_h",
@@ -674,8 +670,6 @@ void MixNet::_add_tl_deconvolution_op(MixOp* mix_op,
                            builder_.getI32IntegerAttr(bias_laddr)));
   attrs.push_back(builder_.getNamedAttr("la_working",
                            builder_.getI32IntegerAttr(0)));
-  attrs.push_back(builder_.getNamedAttr("layer_id", // updated to group id for pmu debug
-                           builder_.getI32IntegerAttr(in_tensor->get_group_id())));
   attrs.push_back(builder_.getNamedAttr("ins_h",
                            builder_.getI32IntegerAttr(ins_h)));
   attrs.push_back(builder_.getNamedAttr("ins_last_h",
@@ -804,8 +798,6 @@ void MixNet::_add_tl_eltwise_add_op(MixOp* mix_op,
                            builder_.getI32IntegerAttr(working_laddr)));
   attrs.push_back(builder_.getNamedAttr("do_relu",
                            builder_.getBoolAttr(do_relu)));
-  attrs.push_back(builder_.getNamedAttr("layer_id", // updated to group id for pmu debug
-                           builder_.getI32IntegerAttr(in_tensor->get_group_id())));
 
   top_dim[2] = bottom_dim[2];
   top_dim[3] = bottom_dim[3];
@@ -913,8 +905,6 @@ void MixNet::_add_tl_eltwise_mul_op(MixOp* mix_op,
                            builder_.getI32IntegerAttr(working_laddr)));
   attrs.push_back(builder_.getNamedAttr("do_relu",
                            builder_.getBoolAttr(do_relu)));
-  attrs.push_back(builder_.getNamedAttr("layer_id", // updated to group id for pmu debug
-                           builder_.getI32IntegerAttr(in_tensor->get_group_id())));
   if (auto add_op = dyn_cast<tpu::TG_INT8_EltwiseMulOp>(op)) {
     attrs.push_back(builder_.getNamedAttr("rshift", add_op.rshiftAttr()));
     attrs.push_back(builder_.getNamedAttr("m_i32_output", add_op.m_i32_outputAttr()));
@@ -1064,8 +1054,6 @@ void MixNet::_add_tl_pooling_op(MixOp * mix_op,
                            builder_.getI32IntegerAttr(la_input)));
   attrs.push_back(builder_.getNamedAttr("la_output",
                            builder_.getI32IntegerAttr(la_output)));
-  attrs.push_back(builder_.getNamedAttr("layer_id", // updated to group id for pmu debug
-                           builder_.getI32IntegerAttr(in_tensor->get_group_id())));
 
   if(auto tmp_op = dyn_cast<tpu::TG_INT8_PoolAvg2DOp>(im_layer->op())) {
     attrs.push_back(builder_.getNamedAttr("rshift", tmp_op.rshiftAttr()));
@@ -1162,8 +1150,6 @@ void MixNet::_add_tl_broadcast_mul_op(
                            builder_.getI32IntegerAttr(la_scale)));
   attrs.push_back(builder_.getNamedAttr("la_bias",
                            builder_.getI32IntegerAttr(la_bias)));
-  attrs.push_back(builder_.getNamedAttr("layer_id",
-                           builder_.getI32IntegerAttr(in_tensor->get_group_id())));
   bool do_relu = false;
   if(auto tmp_op = dyn_cast<tpu::TG_INT8_BroadcastMulOp>(op)) {
     do_relu = tmp_op.param().do_relu().getValue();
@@ -1259,8 +1245,6 @@ void MixNet::_add_tl_activation_op(MixOp * mix_op,
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder_.getNamedAttr("name",
                            builder_.getStringAttr(name)));
-  attrs.push_back(builder_.getNamedAttr("layer_id", // updated to group id for pmu debug
-                           builder_.getI32IntegerAttr(in_tensor->get_group_id())));
   attrs.push_back(builder_.getNamedAttr("la_input",
                            builder_.getI32IntegerAttr(la_input)));
   attrs.push_back(builder_.getNamedAttr("la_output",
@@ -1380,8 +1364,6 @@ void MixNet::_add_tl_quant_op(MixOp * mix_op,
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder_.getNamedAttr("name",
                            builder_.getStringAttr(name)));
-  attrs.push_back(builder_.getNamedAttr("layer_id", // updated to group id for pmu debug
-                           builder_.getI32IntegerAttr(in_tensor->get_group_id())));
   attrs.push_back(builder_.getNamedAttr("la_input",
                            builder_.getI32IntegerAttr(la_input)));
   attrs.push_back(builder_.getNamedAttr("la_output",
@@ -1460,8 +1442,6 @@ void MixNet::_add_tl_lrn_op(MixOp * mix_op,
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder_.getNamedAttr("name",
                            builder_.getStringAttr(name)));
-  attrs.push_back(builder_.getNamedAttr("layer_id", // updated to group id for pmu debug
-                           builder_.getI32IntegerAttr(in_tensor->get_group_id())));
   attrs.push_back(builder_.getNamedAttr("la_input",
                            builder_.getI32IntegerAttr(la_input)));
   attrs.push_back(builder_.getNamedAttr("la_output",
@@ -1648,8 +1628,6 @@ void MixNet::_add_load_op(int group_idx,
 
   // build tl_load instruction
   attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(name)));
-  attrs.push_back(builder_.getNamedAttr("layer_id", // updated to group id for pmu debug
-                           builder_.getI32IntegerAttr(group_idx)));
   attrs.push_back(builder_.getNamedAttr("laddr", builder_.getI64IntegerAttr(laddr)));
   attrs.push_back(builder_.getNamedAttr("align", builder_.getBoolAttr(aligned)));
   attrs.push_back(builder_.getNamedAttr("transpose", builder_.getBoolAttr(transpose)));
@@ -1711,8 +1689,6 @@ void MixNet::_add_store_op(int group_idx, int tensor_id, net_timestep * time_ste
   std::vector<NamedAttribute> attrs;
   Builder builder_(context_);
   attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(store_op_name)));
-  attrs.push_back(builder_.getNamedAttr("layer_id", // updated to group id for pmu debug
-                           builder_.getI32IntegerAttr(group_idx)));
   attrs.push_back(builder_.getNamedAttr("offset", builder_.getI64IntegerAttr(offset)));
   attrs.push_back(builder_.getNamedAttr("laddr", builder_.getI64IntegerAttr(laddr)));
   attrs.push_back(builder_.getNamedAttr("align", builder_.getBoolAttr(aligned)));
@@ -1789,8 +1765,6 @@ void MixNet::_add_tl_upsample_op(MixOp * mix_op,
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder_.getNamedAttr("name",
                            builder_.getStringAttr(name)));
-  attrs.push_back(builder_.getNamedAttr("layer_id", // updated to group id for pmu debug
-                           builder_.getI32IntegerAttr(in_tensor->get_group_id())));
   attrs.push_back(builder_.getNamedAttr("la_input",
                            builder_.getI32IntegerAttr(la_input)));
   attrs.push_back(builder_.getNamedAttr("la_output",
@@ -1899,8 +1873,6 @@ void MixNet::_add_tl_leaky_relu_op(MixOp * mix_op,
 
   attrs.push_back(builder_.getNamedAttr("name",
                            builder_.getStringAttr(name)));
-  attrs.push_back(builder_.getNamedAttr("layer_id", // updated to group id for pmu debug
-                           builder_.getI32IntegerAttr(in_tensor->get_group_id())));
   attrs.push_back(builder_.getNamedAttr("la_input",
                            builder_.getI32IntegerAttr(la_input)));
   attrs.push_back(builder_.getNamedAttr("la_output",
@@ -1974,8 +1946,6 @@ void MixNet::_add_tl_prelu_op(MixOp * mix_op,
 
   attrs.push_back(builder_.getNamedAttr("name",
                            builder_.getStringAttr(name)));
-  attrs.push_back(builder_.getNamedAttr("layer_id", // updated to group id for pmu debug
-                           builder_.getI32IntegerAttr(in_tensor->get_group_id())));
   attrs.push_back(builder_.getNamedAttr("la_input",
                            builder_.getI32IntegerAttr(la_input)));
   attrs.push_back(builder_.getNamedAttr("la_output",
@@ -2071,8 +2041,6 @@ void MixNet::_add_tl_concat_op(MixOp * mix_op,
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder_.getNamedAttr("name",
                            builder_.getStringAttr(name)));
-  attrs.push_back(builder_.getNamedAttr("layer_id", // updated to group id for pmu debug
-                           builder_.getI32IntegerAttr(in_tensor->get_group_id())));
   attrs.push_back(builder_.getNamedAttr("la_input",
                            builder_.getI32ArrayAttr(ArrayRef<int32_t>({la_input}))));
   attrs.push_back(builder_.getNamedAttr("la_output",
@@ -2204,8 +2172,6 @@ void MixNet::_add_tl_pad_op(MixOp * mix_op,
 
   attrs.push_back(builder_.getNamedAttr("name",
                            builder_.getStringAttr(name)));
-  attrs.push_back(builder_.getNamedAttr("layer_id", // updated to group id for pmu debug
-                           builder_.getI32IntegerAttr(in_tensor->get_group_id())));
   attrs.push_back(builder_.getNamedAttr("align",
                            builder_.getBoolAttr(true)));
   attrs.push_back(builder_.getNamedAttr("la_input",
@@ -2320,8 +2286,6 @@ void MixNet::_add_tl_crop_op(MixOp * mix_op,
 
   attrs.push_back(builder_.getNamedAttr("name",
                            builder_.getStringAttr(name)));
-  attrs.push_back(builder_.getNamedAttr("layer_id", // updated to group id for pmu debug
-                           builder_.getI32IntegerAttr(in_tensor->get_group_id())));
   attrs.push_back(builder_.getNamedAttr("align",
                            builder_.getBoolAttr(true)));
   attrs.push_back(builder_.getNamedAttr("la_input",
@@ -2419,8 +2383,6 @@ void MixNet::_add_tl_relu_op(MixOp * mix_op,
 
   attrs.push_back(builder_.getNamedAttr("name",
                            builder_.getStringAttr(name)));
-  attrs.push_back(builder_.getNamedAttr("layer_id", // updated to group id for pmu debug
-                           builder_.getI32IntegerAttr(in_tensor->get_group_id())));
   attrs.push_back(builder_.getNamedAttr("align",
                            builder_.getBoolAttr(true)));
   attrs.push_back(builder_.getNamedAttr("la_input",

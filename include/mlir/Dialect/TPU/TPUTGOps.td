@@ -54,7 +54,6 @@ class TPU_TG_ConcatOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
                           offset within the memory region.
       `buffer_reused`   : optional, whether buffer is reused.
       `name`            : required, name for comparing, or debug.
-      `layer_id`        : optional, id for profiling.
       `chipname`        : optional, chipname.
 
     Result:
@@ -77,7 +76,6 @@ class TPU_TG_ConcatOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -111,7 +109,6 @@ class TPU_TG_ConvOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
                           offset within the memory region.
       `buffer_reused`   : optional, whether buffer is reused.
       `name`            : required, name for comparing, or debug.
-      `layer_id`        : optional, id for profiling.
       `fuse_prev`       : optional, if present, be fused with the prev TG op,
                           and current Op shouldn't generate any code anymore.
       `fuse_next`       : optional, if present, fuse with the next TG op.
@@ -136,7 +133,6 @@ class TPU_TG_ConvOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<BoolAttr>:$do_ic_alignment,
     DefaultValuedAttr<BoolAttr, "false">:$fuse_prev,
     DefaultValuedAttr<BoolAttr, "false">:$fuse_next,
@@ -184,7 +180,6 @@ class TPU_TG_CropOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
                           offset within the memory region.
       `buffer_reused`   : optional, whether buffer is reused.
       `name`            : required, name for comparing, or debug.
-      `layer_id`        : optional, id for profiling.
       `chipname`        : optional, chipname.
 
     Result:
@@ -204,7 +199,6 @@ class TPU_TG_CropOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -234,7 +228,6 @@ class TPU_TG_DilateOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
                           offset within the memory region.
       `buffer_reused`   : optional, whether buffer is reused.
       `name`            : required, name for comparing, or debug.
-      `layer_id`        : optional, id for profiling.
       `chipname`        : optional, chipname.
 
     Result:
@@ -254,7 +247,6 @@ class TPU_TG_DilateOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -288,7 +280,6 @@ class TPU_TG_EltwiseOp<string mnemonic, string opQuant, string opType> : TPU_Op<
                           offset within the memory region.
       `buffer_reused`   : optional, whether buffer is reused.
       `name`            : required, name for comparing, or debug.
-      `layer_id`        : optional, id for profiling.
       `chipname`        : optional, chipname.
 
     Result:
@@ -314,7 +305,6 @@ class TPU_TG_EltwiseOp<string mnemonic, string opQuant, string opType> : TPU_Op<
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<BoolAttr>:$load_compr_act,
     OptionalAttr<BoolAttr>:$store_compr_act,
     OptionalAttr<StrAttr>:$chipname
@@ -352,7 +342,6 @@ class TPU_TG_FullyConnectedOp<string mnemonic, string opQuant> : TPU_Op<mnemonic
                           offset within the memory region.
       `buffer_reused`   : optional, whether buffer is reused.
       `name`            : required, name for comparing, or debug.
-      `layer_id`        : optional, id for profiling.
       `chipname`        : optional, chipname.
 
     Result:
@@ -374,7 +363,6 @@ class TPU_TG_FullyConnectedOp<string mnemonic, string opQuant> : TPU_Op<mnemonic
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -409,7 +397,6 @@ class TPU_TG_InterpOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       `zoom_factor`     : optional, enlarge h/w to larger one, leverage deconv
       `pad_beg`         : optional, padding twice in h/w
       `pad_end`         : optional, padding twice in h/w
-      `layer_id`        : optional, id for profiling.
       `chipname`        : optional, chipname.
 
     Result:
@@ -437,7 +424,6 @@ class TPU_TG_InterpOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     DefaultValuedAttr<NonNegativeI32Attr, "0">:$zoom_factor,
     DefaultValuedAttr<NonNegativeI32Attr, "0">:$pad_beg,
     DefaultValuedAttr<NonNegativeI32Attr, "0">:$pad_end,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -474,7 +460,6 @@ class TPU_TG_GruOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
                           offset within the memory region.
       `buffer_reused`   : optional, whether buffer is reused.
       `name`            : required, name for comparing, or debug.
-      `layer_id`        : optional, id for profiling.
       `chipname`        : optional, chipname.
 
     Result:
@@ -502,7 +487,6 @@ class TPU_TG_GruOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -540,7 +524,6 @@ class TPU_TG_LstmOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
                           offset within the memory region.
       `buffer_reused`   : optional, whether buffer is reused.
       `name`            : required, name for comparing, or debug.
-      `layer_id`        : optional, id for profiling.
       `chipname`        : optional, chipname.
 
     Result:
@@ -568,7 +551,6 @@ class TPU_TG_LstmOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -600,7 +582,6 @@ class TPU_TG_LeakyReluOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
                           offset within the memory region.
       `buffer_reused`   : optional, whether buffer is reused.
       `name`            : required, name for comparing, or debug.
-      `layer_id`        : optional, id for profiling.
       `fuse_prev`       : optional, if present, be fused with the prev TG op,
                           and current Op shouldn't generate any code anymore.
       `fuse_next`       : optional, if present, fuse with the next TG op.
@@ -626,7 +607,6 @@ class TPU_TG_LeakyReluOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     DefaultValuedAttr<BoolAttr, "false">:$fuse_prev,
     DefaultValuedAttr<BoolAttr, "false">:$fuse_next,
     OptionalAttr<StrAttr>:$chipname
@@ -662,7 +642,6 @@ class TPU_TG_LrnOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
                                      offset within the memory region.
 
       `name`            : required, name for comparing, or debug.
-      `layer_id`        : optional, id for profiling.
       `chipname`        : optional, chipname.
 
     Result:
@@ -687,7 +666,6 @@ class TPU_TG_LrnOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -715,7 +693,6 @@ class TPU_TG_LutOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
                           offset within the memory region.
       `buffer_reused`   : optional, whether buffer is reused.
       `name`            : required, name for comparing, or debug.
-      `layer_id`        : optional, id for profiling.
       `method`          : optional(bf16 required)lookup table method, mantissa or slope
       `chipname`        : optional, chipname.
 
@@ -737,7 +714,6 @@ class TPU_TG_LutOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
     OptionalAttr<StrAttr>:$method,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -769,7 +745,6 @@ class TPU_TG_PermuteOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
                           offset within the memory region.
       `buffer_reused`   : optional, whether buffer is reused.
       `name`            : required, name for comparing, or debug.
-      `layer_id`        : optional, id for profiling.
       `chipname`        : optional, chipname.
 
     Result:
@@ -791,7 +766,6 @@ class TPU_TG_PermuteOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -822,7 +796,6 @@ class TPU_TG_Pool2DOp<string mnemonic, string opQuant, string opType> : TPU_Op<m
                           offset within the memory region.
       `buffer_reused`   : optional, whether buffer is reused.
       `name`            : required, name for comparing, or debug.
-      `layer_id`        : optional, id for profiling.
       `chipname`        : optional, chipname.
 
     Result:
@@ -843,7 +816,6 @@ class TPU_TG_Pool2DOp<string mnemonic, string opQuant, string opType> : TPU_Op<m
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -874,7 +846,6 @@ class TPU_TG_PReluOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
                           one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
                           (backend does not support `INPUT`, `OUTPUT` for now)
       `name`            : required, name for comparing, or debug.
-      `layer_id`        : optional, id for profiling.
       `rshift_pos`     : optional, rshift for positive, an int8 value.
       `m_i8_pos`       : optional, multiplier for positive, an int8 value.
       `rshift_neg`     : required, rshift for negative, an int8 value.
@@ -899,7 +870,6 @@ class TPU_TG_PReluOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -928,7 +898,6 @@ class TPU_TG_QuantOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
                           offset within the memory region.
       `buffer_reused`   : optional, whether buffer is reused.
       `name`            : required, name for comparing, or debug.
-      `layer_id`        : optional, id for profiling.
       `chipname`        : optional, chipname.
 
     Result:
@@ -949,7 +918,6 @@ class TPU_TG_QuantOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -976,7 +944,6 @@ class TPU_TG_ReluOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
                           one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
                           (backend does not support `INPUT`, `OUTPUT` for now)
       `name`            : required, name for comparing, or debug.
-      `layer_id`        : optional, id for profiling.
       `chipname`        : optional, chipname.
 
     Result:
@@ -994,7 +961,6 @@ class TPU_TG_ReluOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -1024,7 +990,6 @@ class TPU_TG_ReorgOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       `buffer_reused`   : optional, whether buffer is reused.
 
       `name`            : required, name for comparing, or debug.
-      `layer_id`        : optional, id for profiling.
       `chipname`        : optional, chipname.
 
     Result:
@@ -1043,7 +1008,6 @@ class TPU_TG_ReorgOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -1073,7 +1037,6 @@ class TPU_TG_ShuffleChannelOp<string mnemonic, string opQuant> : TPU_Op<mnemonic
       `buffer_reused`   : optional, whether buffer is reused.
 
       `name`            : required, name for comparing, or debug.
-      `layer_id`        : optional, id for profiling.
       `chipname`        : optional, chipname.
 
     Result:
@@ -1092,7 +1055,6 @@ class TPU_TG_ShuffleChannelOp<string mnemonic, string opQuant> : TPU_Op<mnemonic
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -1122,7 +1084,6 @@ class TPU_TG_TileComOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       `buffer_reused`   : optional, whether buffer is reused.
 
       `name`            : required, name for comparing, or debug.
-      `layer_id`        : optional, id for profiling.
       `chipname`        : optional, chipname.
 
     Result:
@@ -1141,7 +1102,6 @@ class TPU_TG_TileComOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -1172,7 +1132,6 @@ class TPU_TG_PixelShuffleOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       `buffer_reused`   : optional, whether buffer is reused.
 
       `name`            : required, name for comparing, or debug.
-      `layer_id`        : optional, id for profiling.
       `chipname`        : optional, chipname.
 
     Result:
@@ -1192,7 +1151,6 @@ class TPU_TG_PixelShuffleOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     OptionalAttr<BoolAttr>:$buffer_reused,
     DefaultValuedAttr<StrAttr, "CRD">:$mode,
     StrAttr:$name,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -1222,7 +1180,6 @@ class TPU_TG_ClipOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
                                      offset within the memory region.
 
       `name`            : required, name for comparing, or debug.
-      `layer_id`        : optional, id for profiling.
       `chipname`        : optional, chipname.
 
     Result:
@@ -1242,7 +1199,6 @@ class TPU_TG_ClipOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -1276,7 +1232,6 @@ class TPU_TG_SliceOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       `buffer_reused`   : optional, whether buffer is reused.
 
       `name`            : required, name for comparing, or debug.
-      `layer_id`        : optional, id for profiling.
       `chipname`        : optional, chipname.
 
     Result:
@@ -1297,7 +1252,6 @@ class TPU_TG_SliceOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     OptionalAttr<BoolAttr>:$buffer_reused,
     OptionalAttr<BoolAttr>:$gaddr_updated,
     StrAttr:$name,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -1325,7 +1279,6 @@ class TPU_TG_SoftmaxOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     Attributes:
       `axis`            : optional, the axis for softmax to perform.
       `name`            : required, name for calibration, comparing, or debug.
-      `layer_id`        : optional, id for profiling.
       `chipname`        : optional, chipname.
 
     Result:
@@ -1349,7 +1302,6 @@ class TPU_TG_SoftmaxOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     OptionalAttr<BoolAttr>:$buffer_reused,
     OptionalAttr<BoolAttr>:$gaddr_updated,
     StrAttr:$name,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -1377,7 +1329,6 @@ class TPU_TG_SwapChannelOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       `buffer_reused`   : optional, whether buffer is reused.
 
       `name`            : required, name for comparing, or debug.
-      `layer_id`        : optional, id for profiling.
       `chipname`        : optional, chipname.
 
     Result:
@@ -1396,7 +1347,6 @@ class TPU_TG_SwapChannelOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -1425,7 +1375,6 @@ class TPU_TG_UpsampleOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
                           offset within the memory region.
       `buffer_reused`   : optional, whether buffer is reused.
       `name`            : required, name for comparing, or debug.
-      `layer_id`        : optional, id for profiling.
       `chipname`        : optional, chipname.
 
     Result:
@@ -1445,7 +1394,6 @@ class TPU_TG_UpsampleOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -1469,7 +1417,6 @@ class TPU_TG_GenericTpuOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     Attributes:
       `param`           : required
       `name`            : required
-      `layer_id`        : optional, id for profiling.
       `chipname`        : optional, chipname.
 
     Result:
@@ -1482,7 +1429,6 @@ class TPU_TG_GenericTpuOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     StrAttr:$operation_name,
     DictionaryAttr:$param,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -1505,7 +1451,6 @@ def TPU_GenericCpuOp : TPU_Op<"generic_cpu_op",
     Attributes:
       `param`           : required
       `name`            : required
-      `layer_id`        : optional, id for profiling.
       `chipname`        : optional, chipname.
 
     Result:
@@ -1519,7 +1464,6 @@ def TPU_GenericCpuOp : TPU_Op<"generic_cpu_op",
     StrAttr:$operation_name,
     DictionaryAttr:$param,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -1542,7 +1486,6 @@ def TPU_TG_CallOp : TPU_Op <"tg_call",
   let arguments = (ins
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     StrAttr:$name,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     FlatSymbolRefAttr:$callee,
     Variadic<AnyType>:$arguments,
     OptionalAttr<StrAttr>:$chipname
@@ -1573,7 +1516,6 @@ def TPU_TG_CastOp : TPU_Op<"tg_cast",
                           offset within the memory region.
       `buffer_reused`   : optional, whether buffer is reused.
       `name`            : required, name for comparing, or debug.
-      `layer_id`        : optional, id for profiling.
       `chipname`        : optional, chipname.
 
     Result:
@@ -1593,7 +1535,6 @@ def TPU_TG_CastOp : TPU_Op<"tg_cast",
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -1624,7 +1565,6 @@ class TPU_TG_PadOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       `const_val`       : A scalar value to be used if the mode
                           chosen is `constant` (by default it is 0).
       `name`            : required, name for comparing, or debug.
-      `layer_id`        : optional, id for profiling.
       `chipname`        : optional, chipname.
 
     Result:
@@ -1644,7 +1584,6 @@ class TPU_TG_PadOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     OptionalAttr<I32ArrayAttr>:$pads,
     DefaultValuedAttr<F32Attr, "0">:$const_val,
     StrAttr:$name,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -1672,7 +1611,6 @@ class TPU_TG_ReduceMeanOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       `buffer_reused`   : optional, whether buffer is reused.
       `axes`            : along which axis to do reduce
       `name`            : required, name for comparing, or debug.
-      `layer_id`        : optional, id for profiling.
       `chipname`        : optional, chipname.
 
     Result:
@@ -1691,7 +1629,6 @@ class TPU_TG_ReduceMeanOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     OptionalAttr<BoolAttr>:$buffer_reused,
     OptionalAttr<I32ArrayAttr>:$axes,
     StrAttr:$name,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -1719,7 +1656,6 @@ class TPU_TG_ReduceMaxOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       `buffer_reused`   : optional, whether buffer is reused.
       `axes`            : along which axis to do reduce
       `name`            : required, name for comparing, or debug.
-      `layer_id`        : optional, id for profiling.
       `chipname`        : optional, chipname.
 
     Result:
@@ -1738,7 +1674,6 @@ class TPU_TG_ReduceMaxOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     OptionalAttr<BoolAttr>:$buffer_reused,
     OptionalAttr<I32ArrayAttr>:$axes,
     StrAttr:$name,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 

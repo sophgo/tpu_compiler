@@ -13,7 +13,6 @@ mlir-translate \
 
 if [ $CHECK_NON_OPT_VERSION -eq 1 ]; then
   mlir-opt \
-      --assign-layer-id \
       --print-tpu-op-info \
       --tpu-op-info-filename resnet50_op_info.csv \
       resnet50.mlir \
@@ -34,7 +33,6 @@ fi
 # assign layer_id right away, and apply all frontend optimizations
 # Notes: convert-bn-to-scale has to be done before canonicalizer
 mlir-opt \
-    --assign-layer-id \
     --print-tpu-op-info \
     --tpu-op-info-filename resnet50_op_info.csv \
     --convert-bn-to-scale \

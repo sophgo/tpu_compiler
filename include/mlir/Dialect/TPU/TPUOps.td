@@ -66,7 +66,6 @@ class TPU_ConvOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
                           and do_relu.
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
-      `layer_id`        : optional, id for profiling.
       `chipname`        : optional, chipname.
 
     Result:
@@ -93,7 +92,6 @@ class TPU_ConvOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
     TPU_ConvParamAttr:$param,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -130,7 +128,6 @@ class TPU_EltwiseOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
       `do_relu`         : required, if need to preform relu on result.
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
-      `layer_id`        : optional, id for profiling.
       `chipname`        : optional, chipname.
 
     Result:
@@ -158,7 +155,6 @@ class TPU_EltwiseOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
     DefaultValuedAttr<I32Attr, "1">:$early_stride_w,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -190,7 +186,6 @@ class TPU_LutOp<string mnemonic,  string opSummary> : TPU_Op<mnemonic,
     Attributes:
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
-      `layer_id`        : optional, id for profiling.
       `has_table`       : optional, if has lookup table.
       `chipname`        : optional, chipname.
 
@@ -213,7 +208,6 @@ class TPU_LutOp<string mnemonic,  string opSummary> : TPU_Op<mnemonic,
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$table_mantissa,
     OptionalAttr<BoolAttr>:$has_table,
     StrAttr:$name,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     TPU_QuantParamAttr:$quant,
     OptionalAttr<StrAttr>:$chipname
   );
@@ -247,7 +241,6 @@ def TPU_BatchNormOp: TPU_Op<"batch_norm",
       `variance_epsilon`: required, eps for variance.
       `name`            : required, name for calibration, comparing, or debug.
       `frozon`          : optional, pspnet BN layer used
-      `layer_id`        : optional, id for profiling.
       `chipname`        : optional, chipname.
 
     Result:
@@ -269,7 +262,6 @@ def TPU_BatchNormOp: TPU_Op<"batch_norm",
     TPU_TensorOfOrNone<[F32, BF16, I16, I8]>:$bias,
     DefaultValuedAttr<F32Attr, "1.0e-5">:$variance_epsilon,
     StrAttr:$name,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -301,7 +293,6 @@ def TPU_BroadcastMulOp: TPU_Op<"broadcast_mul",
       `do_relu`         : required, if need to preform relu on result.
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
-      `layer_id`        : optional, id for profiling.
       `chipname`        : optional, chipname.
 
     Result:
@@ -328,7 +319,6 @@ def TPU_BroadcastMulOp: TPU_Op<"broadcast_mul",
     DefaultValuedAttr<BoolAttr, "false">:$do_relu,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -352,7 +342,6 @@ def TPU_CastOp: TPU_Op<"cast",
       `name`            : required, name for calibration, comparing, or debug.
       `from`            : required, input data type.
       `to`              : required, output data type.
-      `layer_id`        : optional, id for profiling.
       `chipname`        : optional, chipname.
 
 
@@ -371,7 +360,6 @@ def TPU_CastOp: TPU_Op<"cast",
     StrAttr:$name,
     StrAttr:$from,
     StrAttr:$to,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -404,7 +392,6 @@ def TPU_ConcatOp: TPU_Op<"concat",
       `axis`            : required, the axis the concat is applying
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
-      `layer_id`        : optional, id for profiling.
       `chipname`        : optional, chipname.
 
     Result:
@@ -430,7 +417,6 @@ def TPU_ConcatOp: TPU_Op<"concat",
     DefaultValuedAttr<I32Attr, "1">:$axis,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -484,7 +470,6 @@ def TPU_CropOp: TPU_Op<"crop",
       `name`            : required, name for calibration, comparing, or debug.
       `crop_shape`      : required, crop shape.
       `crop_offset`     : required, crop offset.
-      `layer_id`        : optional, id for profiling.
       `chipname`        : optional, chipname.
 
     Result:
@@ -508,7 +493,6 @@ def TPU_CropOp: TPU_Op<"crop",
     OptionalAttr<I32ArrayAttr>:$crop_offset,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
   let results = (outs AnyTensor:$output);
@@ -538,7 +522,6 @@ def TPU_DetectionOutputOp : TPU_Op<"detectionoutput",
 
     Attributes:
       `name`            : required, name for calibration, comparing, or debug.
-      `layer_id`        : optional, id for profiling.
       `chipname`        : optional, chipname.
 
     Result:
@@ -565,7 +548,6 @@ def TPU_DetectionOutputOp : TPU_Op<"detectionoutput",
     I32Attr:$keep_top_k,
     F32Attr:$confidence_threshold,
     StrAttr:$name,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -591,7 +573,6 @@ def TPU_DilateOp: TPU_Op<"dilate",
       `name`            : required, name for calibration, comparing, or debug.
       `fill_constant`   : required, fill the dilated value
       `ins`             : required, ins[0] means ins_w, ins[1] means ins_h
-      `layer_id`        : optional, id for profiling.
       `chipname`        : optional, chipname.
 
     Result:
@@ -611,7 +592,6 @@ def TPU_DilateOp: TPU_Op<"dilate",
     OptionalAttr<I32ArrayAttr>:$ins,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -648,7 +628,6 @@ def TPU_FullyConnectedOp : TPU_Op<"fully_connected",
       `do_relu`         : required, if need to preform relu on result.
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
-      `layer_id`        : optional, id for profiling.
       `chipname`        : optional, chipname.
 
     Result:
@@ -675,7 +654,6 @@ def TPU_FullyConnectedOp : TPU_Op<"fully_connected",
     DefaultValuedAttr<BoolAttr, "false">:$do_relu,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -701,7 +679,6 @@ def TPU_FrcnDetectionOp : TPU_Op<"frcn_detection",
       `nms_threshold`   : required, nms threshold.
       `keep_topk`       : required, keep top k.
       `name`            : required, name for calibration, comparing, or debug.
-      `layer_id`        : optional, id for profiling.
       `chipname`        : optional, chipname.
 
     Result:
@@ -721,7 +698,6 @@ def TPU_FrcnDetectionOp : TPU_Op<"frcn_detection",
     F32Attr:$nms_threshold,
     I32Attr:$keep_topk,
     StrAttr:$name,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -748,7 +724,6 @@ def TPU_GruOp: TPU_Op<"gru",
 
     Attributes:
       `name`            : required, name for calibration, comparing, or debug.
-      `layer_id`        : optional, id for profiling.
       `chipname`        : optional, chipname.
 
     Result:
@@ -776,7 +751,6 @@ def TPU_GruOp: TPU_Op<"gru",
     StrAttr:$name,
     DefaultValuedAttr<BoolAttr, "true">:$linear_before_reset,
     DefaultValuedAttr<BoolAttr, "false">:$bidirectional,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -800,7 +774,6 @@ def TPU_InputOp: TPU_Op<"input",
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
 
-      `layer_id`        : optional, id for profiling.
       `chipname`        : optional, chipname.
   }];
 
@@ -809,7 +782,6 @@ def TPU_InputOp: TPU_Op<"input",
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -844,7 +816,6 @@ def TPU_InterpOp: TPU_Op<"interp",
       `pad_beg`         : optional, padding twice in h/w
       `pad_end`         : optional, padding twice in h/w
 
-      `layer_id`        : optional, id for profiling.
       `chipname`        : optional, chipname.
 
     Result:
@@ -876,7 +847,6 @@ def TPU_InterpOp: TPU_Op<"interp",
     DefaultValuedAttr<NonNegativeI32Attr, "0">:$zoom_factor,
     DefaultValuedAttr<NonNegativeI32Attr, "0">:$pad_beg,
     DefaultValuedAttr<NonNegativeI32Attr, "0">:$pad_end,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -921,7 +891,6 @@ def TPU_LeakyReluOp: TPU_Op<"leaky_relu",
       `negative_slope`  : required, the negative_slope.
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
-      `layer_id`        : optional, id for profiling.
       `chipname`        : optional, chipname.
 
     Result:
@@ -950,7 +919,6 @@ def TPU_LeakyReluOp: TPU_Op<"leaky_relu",
     F32Attr:$negative_slope,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -978,7 +946,6 @@ class TPU_LrnPartOp<string mnemonic,  string opSummary> : TPU_Op<mnemonic,
       `k`               : optional, k.
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
-      `layer_id`        : optional, id for profiling.
       `chipname`        : optional, chipname.
 
     Result:
@@ -994,7 +961,6 @@ class TPU_LrnPartOp<string mnemonic,  string opSummary> : TPU_Op<mnemonic,
     DefaultValuedAttr<F32Attr, "1.0">:$k,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -1034,7 +1000,6 @@ def TPU_LrnOp: TPU_Op<"lrn",
       `quant_data1`     : optional, auto generate
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
-      `layer_id`        : optional, id for profiling.
       `chipname`        : optional, chipname.
 
     Result:
@@ -1067,7 +1032,6 @@ def TPU_LrnOp: TPU_Op<"lrn",
     I32Attr:$quant_data1,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -1095,7 +1059,6 @@ def TPU_LstmOp: TPU_Op<"lstm",
 
     Attributes:
       `name`            : required, name for calibration, comparing, or debug.
-      `layer_id`        : optional, id for profiling.
       `chipname`        : optional, chipname.
 
     Result:
@@ -1123,7 +1086,6 @@ def TPU_LstmOp: TPU_Op<"lstm",
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
     DefaultValuedAttr<BoolAttr, "false">:$bidirectional,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -1148,7 +1110,6 @@ def TPU_NormalizeOp: TPU_Op<"normalize",
       `across_spatial`  : required, normalize cross channel or not.
       `channel_shared`  : required, scale cross channel or not.
       `name`            : required, name for calibration, comparing, or debug.
-      `layer_id`        : optional, id for profiling.
       `chipname`        : optional, chipname.
 
     Result:
@@ -1168,7 +1129,6 @@ def TPU_NormalizeOp: TPU_Op<"normalize",
     DefaultValuedAttr<BoolAttr, "true">:$across_spatial,
     DefaultValuedAttr<BoolAttr, "true">:$channel_shared,
     StrAttr:$name,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -1193,7 +1153,6 @@ def TPU_MishOp : TPU_LutOp<"mish", "yolov4 mish op"> {
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
       `mish_threshold`  : optional, mish activation used
-      `layer_id`        : optional, id for profiling.
       `has_table`       : optional, if has lookup table.
       `chipname`        : optional, chipname.
 
@@ -1216,7 +1175,6 @@ def TPU_MishOp : TPU_LutOp<"mish", "yolov4 mish op"> {
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$table_mantissa,
     OptionalAttr<BoolAttr>:$has_table,
     StrAttr:$name,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     DefaultValuedAttr<F32Attr, "20.0">:$mish_threshold,
     TPU_QuantParamAttr:$quant,
     OptionalAttr<StrAttr>:$chipname
@@ -1266,7 +1224,6 @@ def TPU_PermuteOp: TPU_Op<"permute",
     NonNegativeI32Attr:$order3,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -1313,7 +1270,6 @@ def TPU_PixelShuffleOp: TPU_Op<"pixelshuffle",
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
     DefaultValuedAttr<StrAttr, "CRD">:$mode,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -1362,7 +1318,6 @@ def TPU_ClipOp: TPU_Op<"clip",
     DefaultValuedAttr<F32Attr, "999">:$max,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -1395,7 +1350,6 @@ def TPU_PoolAvg2DOp : TPU_Op<"pool_avg_2d",
                           filter size, stride, padding, and do_relu.
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
-      `layer_id`        : optional, id for profiling.
       `chipname`        : optional, chipname.
 
     Result:
@@ -1420,7 +1374,6 @@ def TPU_PoolAvg2DOp : TPU_Op<"pool_avg_2d",
     TPU_PoolParamAttr:$param,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -1446,7 +1399,6 @@ def TPU_PoolMax2DOp : TPU_Op<"pool_max_2d",
                           filter size, stride, padding, and do_relu.
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
-      `layer_id`        : optional, id for profiling.
       `chipname`        : optional, chipname.
 
     Result:
@@ -1469,7 +1421,6 @@ def TPU_PoolMax2DOp : TPU_Op<"pool_max_2d",
     TPU_PoolParamAttr:$param,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -1496,7 +1447,6 @@ def TPU_CustomOp : TPU_Op<"custom_op",
       `name`            : required, name for calibration, comparing, or debug.
       `do_quant`         : required, quantize to int8/bf16 or not.
       `threshold_overwrite` : required, overwrite threshold backward/forward or not.
-      `layer_id`        : optional, id for profiling.
       `chipname`        : optional, chipname.
 
     Result:
@@ -1513,7 +1463,6 @@ def TPU_CustomOp : TPU_Op<"custom_op",
     DefaultValuedAttr<BoolAttr, "false">:$do_quant,
     DefaultValuedAttr<StrAttr, "none">:$threshold_overwrite,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -1540,7 +1489,6 @@ def TPU_PowerOp: TPU_Op<"power",
       `shift`           : required
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
-      `layer_id`        : optional, id for profiling.
       `chipname`        : optional, chipname.
 
     Result:
@@ -1565,7 +1513,6 @@ def TPU_PowerOp: TPU_Op<"power",
     DefaultValuedAttr<F32Attr, "0.0">:$shift,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -1608,7 +1555,6 @@ def TPU_PReluOp : TPU_Op<"prelu",
     Attributes:
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
-      `layer_id`        : optional, id for profiling.
       `chipname`        : optional, chipname.
 
     Result:
@@ -1637,7 +1583,6 @@ def TPU_PReluOp : TPU_Op<"prelu",
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_neg_multiplier,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -1670,7 +1615,6 @@ def TPU_PreprocessOp : TPU_Op<"preprocess",
                           chosen is `constant` (by default it is 0).
       `transpose_order` : required, the data is stored in the order of
       `name`            : required, name for calibration, comparing, or debug.
-      `layer_id`        : optional, id for profiling.
       `chipname`        : optional, chipname.
 
     Result:
@@ -1696,7 +1640,6 @@ def TPU_PreprocessOp : TPU_Op<"preprocess",
     OptionalAttr<I32ArrayAttr>:$pads,
     DefaultValuedAttr<F32Attr, "0">:$const_val,
     TPU_QuantParamAttr:$quant,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -1732,7 +1675,6 @@ def TPU_PriorBoxOp: TPU_Op<"priorbox",
 
     Attributes:
       `name`            : required, name for calibration, comparing, or debug.
-      `layer_id`        : optional, id for profiling.
       `chipname`        : optional, chipname.
 
     Result:
@@ -1762,7 +1704,6 @@ def TPU_PriorBoxOp: TPU_Op<"priorbox",
     F32Attr:$step,
     DefaultValuedAttr<F32Attr, "0.5">:$offset,
     StrAttr:$name,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -1783,7 +1724,6 @@ def TPU_ProposalOp: TPU_Op<"proposal",
 
     Attributes:
       `name`                  : required, name for calibration, comparing, or debug.
-      `layer_id`              : optional, id for profiling.
       `chipname`              : optional, chipname.
       `net_input_h`           : required, net input height
       `net_input_w`           : required, net input width
@@ -1812,7 +1752,6 @@ def TPU_ProposalOp: TPU_Op<"proposal",
     F32Attr:$rpn_nms_threshold,
     I32Attr:$rpn_nms_post_top_n,
     StrAttr:$name,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -1842,7 +1781,6 @@ def TPU_ReluOp: TPU_Op<"relu",
       `maximum`         : optional, the maximum value for ReluM when present.
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
-      `layer_id`        : optional, id for profiling.
       `chipname`        : optional, chipname.
 
     Result:
@@ -1864,7 +1802,6 @@ def TPU_ReluOp: TPU_Op<"relu",
     OptionalAttr<F32Attr>:$maximum,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -1892,7 +1829,6 @@ def TPU_ReorgOp : TPU_Op<"reorg",
       `stride`          : required, channel / height / width stride.
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
-      `layer_id`        : optional, id for profiling.
       `chipname`        : optional, chipname.
 
     Result:
@@ -1915,7 +1851,6 @@ def TPU_ReorgOp : TPU_Op<"reorg",
     NonNegativeI32Attr:$stride,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -1940,7 +1875,6 @@ def TPU_RetinaFaceDetectionOp : TPU_Op<"retinaface_detection",
     Attributes:
       `name`            : required, name for calibration, comparing, or debug.
       `quant`           : required, a QuantParam struct attributes.
-      `layer_id`        : optional, id for profiling.
       `chipname`        : optional, chipname.
 
     Result:
@@ -1961,7 +1895,6 @@ def TPU_RetinaFaceDetectionOp : TPU_Op<"retinaface_detection",
     F32Attr:$confidence_threshold,
     I32Attr:$keep_topk,
     StrAttr:$name,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -1988,7 +1921,6 @@ def TPU_ROIPoolingOp : TPU_Op<"roi_pooling",
       `spatial_scale`   : required, spatial_scale
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
-      `layer_id`        : optional, id for profiling.
       `chipname`        : optional, chipname.
 
     Result:
@@ -2008,7 +1940,6 @@ def TPU_ROIPoolingOp : TPU_Op<"roi_pooling",
     F32Attr:$spatial_scale,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -2032,7 +1963,6 @@ def TPU_ScaleOp: TPU_Op<"scale",
     Attributes:
       `do_relu`         : required, if need to preform relu on result.
       `name`            : required, name for calibration, comparing, or debug.
-      `layer_id`        : optional, id for profiling.
       `chipname`        : optional, chipname.
 
     Result:
@@ -2052,7 +1982,6 @@ def TPU_ScaleOp: TPU_Op<"scale",
     TPU_TensorOfOrNone<[F32, BF16, I16, I8]>:$bias,
     DefaultValuedAttr<BoolAttr, "false">:$do_relu,
     StrAttr:$name,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -2080,7 +2009,6 @@ def TPU_ShuffleChannelOp: TPU_Op<"shuffle_channel",
       `group`           : required, channel group.
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
-      `layer_id`        : optional, id for profiling.
       `chipname`        : optional, chipname.
 
     Result:
@@ -2103,7 +2031,6 @@ def TPU_ShuffleChannelOp: TPU_Op<"shuffle_channel",
     NonNegativeI32Attr:$group,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -2134,7 +2061,6 @@ def TPU_SliceOp: TPU_Op<"slice",
       `quant`           : required, a QuantParam struct attributes, to carrying
                           threshold, although the quantization is bypassed.
       `name`            : required, name for calibration, comparing, or debug.
-      `layer_id`        : optional, id for profiling.
       `chipname`        : optional, chipname.
 
     Result:
@@ -2158,7 +2084,6 @@ def TPU_SliceOp: TPU_Op<"slice",
     I32Attr:$offset,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -2186,7 +2111,6 @@ def TPU_SoftmaxOp: TPU_Op<"softmax",
     Attributes:
       `axis`            : optional, the axis for softmax to perform.
       `name`            : required, name for calibration, comparing, or debug.
-      `layer_id`        : optional, id for profiling.
       `chipname`        : optional, chipname.
 
     Result:
@@ -2209,7 +2133,6 @@ def TPU_SoftmaxOp: TPU_Op<"softmax",
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$reciprocal_mantissa_table,
     DefaultValuedAttr<I32Attr, "1">:$axis,
     StrAttr:$name,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     TPU_QuantParamAttr:$quant,
     OptionalAttr<StrAttr>:$chipname
   );
@@ -2237,7 +2160,6 @@ def TPU_SoftmaxCpuOp: TPU_Op<"softmax_cpu",
     Attributes:
       `axis`            : optional, the axis for softmax to perform.
       `name`            : required, name for calibration, comparing, or debug.
-      `layer_id`        : optional, id for profiling.
       `chipname`        : optional, chipname.
 
     Result:
@@ -2256,7 +2178,6 @@ def TPU_SoftmaxCpuOp: TPU_Op<"softmax_cpu",
     ins AnyTensor:$input,
     DefaultValuedAttr<I32Attr, "1">:$axis,
     StrAttr:$name,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     TPU_QuantParamAttr:$quant,
     OptionalAttr<StrAttr>:$chipname
   );
@@ -2285,7 +2206,6 @@ def TPU_SwapChannelOp: TPU_Op<"swap_channel",
       `channel_order` : optional, channel swap order
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
-      `layer_id`        : optional, id for profiling.
       `chipname`        : optional, chipname.
 
     Result:
@@ -2308,7 +2228,6 @@ def TPU_SwapChannelOp: TPU_Op<"swap_channel",
     OptionalAttr<I32ArrayAttr>:$channel_order,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -2350,7 +2269,6 @@ class TPU_TileComOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
       `quant`           : required, a QuantParam struct attributes, to carrying
                           threshold, although the quantization is bypassed.
       `name`            : required, name for calibration, comparing, or debug.
-      `layer_id`        : optional, id for profiling.
       `chipname`        : optional, chipname.
 
     Result:
@@ -2377,7 +2295,6 @@ class TPU_TileComOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
     TPU_QuantParamAttr:$quant,
     OptionalAttr<I32ArrayAttr>:$resp,
     StrAttr:$name,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -2401,7 +2318,6 @@ def TPU_TransposeOp : TPU_Op<"transpose",
 
     Attributes:
       `name`            : required, name for calibration, comparing, or debug.
-      `layer_id`        : optional, id for profiling.
       `chipname`        : optional, chipname.
 
     Result:
@@ -2418,7 +2334,6 @@ def TPU_TransposeOp : TPU_Op<"transpose",
     ins AnyTensor:$input,
     StrAttr:$name,
     TPU_QuantParamAttr:$quant,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -2445,7 +2360,6 @@ def TPU_UpsampleOp: TPU_Op<"upsample",
       `quant`           : required, a QuantParam struct attributes, to carrying
                           threshold, although the quantization is bypassed.
       `name`            : required, name for calibration, comparing, or debug.
-      `layer_id`        : optional, id for profiling.
       `chipname`        : optional, chipname.
 
     Result:
@@ -2469,7 +2383,6 @@ def TPU_UpsampleOp: TPU_Op<"upsample",
     NonNegativeI32Attr:$scale_w,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -2491,7 +2404,6 @@ def TPU_YoloDetectionOp : TPU_Op<"yolo_detection",
 
     Attributes:
       `name`                    : required, name for calibration, comparing, or debug.
-      `layer_id`                : optional, id for profiling.
       `chipname`                : optional, chipname.
       `net_input_h`             : required, net input h
       `net_input_w`             : required, net input w
@@ -2518,7 +2430,6 @@ def TPU_YoloDetectionOp : TPU_Op<"yolo_detection",
     DefaultValuedAttr<BoolAttr, "false">:$spp_net,
     DefaultValuedAttr<BoolAttr, "false">:$tiny,
     StrAttr:$name,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -2545,7 +2456,6 @@ def TPU_PadOp: TPU_Op<"pad",
                           pad values for axis
       `const_val`       : A scalar value to be used if the mode
                           chosen is `constant` (by default it is 0).
-      `layer_id`        : optional, id for profiling.
       `chipname`        : optional, chipname.
 
     Result:
@@ -2565,7 +2475,6 @@ def TPU_PadOp: TPU_Op<"pad",
     StrAttr:$name,
     OptionalAttr<I32ArrayAttr>:$pads,
     DefaultValuedAttr<F32Attr, "0">:$const_val,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -2587,7 +2496,6 @@ def TPU_PoolMaskOp: TPU_Op<"pool_mask",
     Attributes:
       `scale`           : required, scale for upsampling.
       `name`            : required, name for calibration, comparing, or debug.
-      `layer_id`        : optional, id for profiling.
       `chipname`        : optional, chipname.
 
     Result:
@@ -2604,7 +2512,6 @@ def TPU_PoolMaskOp: TPU_Op<"pool_mask",
     AnyTensor:$pool_res,
     NonNegativeI32Attr:$scale,
     StrAttr:$name,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -2632,7 +2539,6 @@ def TPU_ReduceMaxOp: TPU_Op<"reduce_max",
       `keepdims`        : whether to keep the reduce dim
       `const_val`       : A scalar value to be used if the mode
                           chosen is `constant` (by default it is 0).
-      `layer_id`        : optional, id for profiling.
 
     Result:
       `output`          : result tensor.
@@ -2655,7 +2561,6 @@ def TPU_ReduceMaxOp: TPU_Op<"reduce_max",
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_multiplier,
     OptionalAttr<I32ArrayAttr>:$axes,
     DefaultValuedAttr<BoolAttr, "false">:$keepdims,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -2682,7 +2587,6 @@ def TPU_ReduceMeanOp: TPU_Op<"reduce_mean",
       `keepdims`        : whether to keep the reduce dim
       `const_val`       : A scalar value to be used if the mode
                           chosen is `constant` (by default it is 0).
-      `layer_id`        : optional, id for profiling.
 
     Result:
       `output`          : result tensor.
@@ -2705,7 +2609,6 @@ def TPU_ReduceMeanOp: TPU_Op<"reduce_mean",
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_rshift,
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_multiplier,
     DefaultValuedAttr<BoolAttr, "false">:$keepdims,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
     OptionalAttr<StrAttr>:$chipname
   );
 

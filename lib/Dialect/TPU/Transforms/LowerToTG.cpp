@@ -84,7 +84,6 @@ Value* tpu::BroadcastMulOp::convertToTG() {
           builder.getI32ArrayAttr(ArrayRef<int32_t>({})), // [0]ins_w/[1]ins_h
           builder.getContext())));
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
-  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
   if (getOpQuant() == "INT8") {
     // somehow, existing backend implementation is using per-channel mode
     // to do a per-tensor operation. which means, it needs to copy 1 rshift
@@ -123,7 +122,6 @@ Value *tpu::CastOp::convertToTG() {
   attrs.push_back(builder.getNamedAttr("from", fromAttr()));
   attrs.push_back(builder.getNamedAttr("to", toAttr()));
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
-  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
 
   auto newOp = OpBuilder(op).create<tpu::TG_CastOp>(
       op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
@@ -147,7 +145,6 @@ Value* tpu::ConcatOp::convertToTG() {
 
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
-  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
   attrs.push_back(builder.getNamedAttr("do_relu", builder.getBoolAttr(do_relu())));
   attrs.push_back(builder.getNamedAttr("axis", axisAttr()));
 
@@ -233,7 +230,6 @@ Value* tpu::Conv2DOp::convertToTG() {
     auto resultType = RankedTensorType::get(shape, type.getElementType());
 
     attrs.push_back(builder.getNamedAttr("name", builder.getStringAttr(name().str() + "_pad")));
-    attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
     attrs.push_back(builder.getNamedAttr("const_val", builder.getF32FloatAttr(0)));
     attrs.push_back(builder.getNamedAttr("pads", builder.getI32ArrayAttr(ArrayRef<int32_t>({pads}))));
     if (getOpQuant() == "INT8") {
@@ -272,7 +268,6 @@ Value* tpu::Conv2DOp::convertToTG() {
               param().ins(),
               builder.getContext())));
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
-  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
   if (getOpQuant() == "INT8") {
     if (isOpQuantPerchannel()) {
       // per-channel, rshift and mulitplier are in weight .bin
@@ -319,7 +314,6 @@ Value* tpu::CropOp::convertToTG() {
 
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
-  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
   attrs.push_back(builder.getNamedAttr("crop_shape", crop_shapeAttr()));
   attrs.push_back(builder.getNamedAttr("crop_offset", crop_offsetAttr()));
 
@@ -355,7 +349,6 @@ Value* tpu::DeConv2DOp::convertToTG() {
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder.getNamedAttr("param", paramAttr()));
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
-  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
   if (getOpQuant() == "INT8") {
     if (isOpQuantPerchannel()) {
       // per-channel, rshift and mulitplier are in weight .bin
@@ -399,7 +392,6 @@ Value* tpu::DilateOp::convertToTG() {
 
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
-  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
   attrs.push_back(builder.getNamedAttr("fill_constant", fill_constantAttr()));
   attrs.push_back(builder.getNamedAttr("ins", insAttr()));
 
@@ -435,7 +427,6 @@ Value* tpu::EltwiseAddOp::convertToTG() {
 
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
-  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
   attrs.push_back(builder.getNamedAttr("do_relu",
       builder.getBoolAttr(do_relu())));
   if (do_early_stride()) {
@@ -500,7 +491,6 @@ Value* tpu::EltwiseMaxOp::convertToTG() {
 
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
-  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
   attrs.push_back(builder.getNamedAttr("do_relu",  builder.getBoolAttr(do_relu())));
 
   if (do_early_stride()) {
@@ -564,7 +554,6 @@ Value* tpu::EltwiseMinOp::convertToTG() {
 
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
-  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
   attrs.push_back(builder.getNamedAttr("do_relu", builder.getBoolAttr(do_relu())));
 
   if (do_early_stride()) {
@@ -628,7 +617,6 @@ Value* tpu::EltwiseMulOp::convertToTG() {
 
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
-  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
 
   if (getOpQuant() == "INT8") {
     assert(getOpQuantParamType() == "RSHIFT_AND_M_I32");
@@ -676,7 +664,6 @@ Value *tpu::FullyConnectedOp::convertToTG() {
   attrs.push_back(builder.getNamedAttr("do_relu",
       builder.getBoolAttr(do_relu())));
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
-  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
 
   if (getOpQuant() == "INT8") {
     assert(getOpQuantParamType() == "RSHIFT_ONLY");
@@ -730,7 +717,6 @@ Value *tpu::LrnOp::convertToTG() {
   attrs.push_back(builder.getNamedAttr("quant_data0", quant_data0Attr()));
   attrs.push_back(builder.getNamedAttr("quant_data1", quant_data1Attr()));
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
-  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
 
   if (getOpQuant() == "INT8") {
     auto newOp = OpBuilder(op).create<tpu::TG_INT8_LrnOp>(
@@ -753,7 +739,6 @@ Value* tpu::LeakyReluOp::convertToTG() {
 
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
-  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
   attrs.push_back(builder.getNamedAttr("negative_slope", negative_slopeAttr()));
 
   if (getOpQuant() == "INT8") {
@@ -813,7 +798,6 @@ Value* tpu::MishOp::convertToTG() {
 
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
-  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
 
   if (getOpQuant() == "INT8") {
     auto newOp = OpBuilder(op).create<tpu::TG_INT8_LutOp>(
@@ -842,7 +826,6 @@ Value* tpu::PermuteOp::convertToTG() {
 
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
-  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
   attrs.push_back(builder.getNamedAttr("order0", order0Attr()));
   attrs.push_back(builder.getNamedAttr("order1", order1Attr()));
   attrs.push_back(builder.getNamedAttr("order2", order2Attr()));
@@ -875,7 +858,6 @@ Value* tpu::PadOp::convertToTG() {
   attrs.push_back(builder.getNamedAttr("pads", padsAttr()));
   attrs.push_back(builder.getNamedAttr("const_val", const_valAttr()));
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
-  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
 
   if (getOpQuant() == "INT8" || getOpQuant() == "UINT8") {
     assert(getOpQuantParamType() == "NONE");
@@ -905,7 +887,6 @@ Value* tpu::PoolAvg2DOp::convertToTG() {
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder.getNamedAttr("param", paramAttr()));
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
-  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
 
   if (getOpQuant() == "INT8") {
     assert(getOpQuantParamType() == "RSHIFT_AND_M_I8");
@@ -947,7 +928,6 @@ Value* tpu::PoolMax2DOp::convertToTG() {
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder.getNamedAttr("param", paramAttr()));
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
-  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
 
   if (getOpQuant() == "INT8") {
     assert(getOpQuantParamType() == "NONE");
@@ -987,7 +967,6 @@ Value *tpu::PReluOp::convertToTG() {
 
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
-  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
   if (getOpQuant() == "INT8") {
     auto rshift_pos =
         readAndDeleteWeightTensor<float>(quant_pos_rshift(), wTF);
@@ -1032,7 +1011,6 @@ Value *tpu::QuantOp::convertToTG() {
 
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
-  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
   attrs.push_back(builder.getNamedAttr("from", fromAttr()));
   attrs.push_back(builder.getNamedAttr("to", toAttr()));
   attrs.push_back(builder.getNamedAttr("threshold", thresholdAttr()));
@@ -1059,7 +1037,6 @@ Value *tpu::QuantOp::convertToTG() {
 
     attrs.clear();
     attrs.push_back(builder.getNamedAttr("name", nameAttr()));
-    attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
     attrs.push_back(builder.getNamedAttr("from", builder.getStringAttr(from)));
     attrs.push_back(builder.getNamedAttr("to", builder.getStringAttr(to)));
 
@@ -1091,7 +1068,6 @@ Value *tpu::QuantOp::convertToTG() {
     auto operationAttr = builder.getStringAttr(getOperationName());
     std::vector<NamedAttribute> attrs;
     attrs.push_back(builder.getNamedAttr("name", nameAttr()));
-    attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
     attrs.push_back(builder.getNamedAttr("operation_name", operationAttr));
     attrs.push_back(builder.getNamedAttr("param", paramAttr));
     auto newOp = OpBuilder(op).create<tpu::GenericCpuOp>(
@@ -1114,7 +1090,6 @@ Value *tpu::ReciprocalOp::convertToTG() {
   }
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
-  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
 
   if (getOpQuant() == "INT8") {
     auto newOp = OpBuilder(op).create<tpu::TG_INT8_LutOp>(
@@ -1144,7 +1119,6 @@ Value *tpu::ReluOp::convertToTG() {
 
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
-  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
   if (getOpQuant() == "INT8") {
     // no need to quant
     auto newOp = OpBuilder(op).create<tpu::TG_INT8_ReluOp>(
@@ -1172,7 +1146,6 @@ Value *tpu::ReorgOp::convertToTG() {
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder.getNamedAttr("stride", strideAttr()));
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
-  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
 
   if (getOpQuant() == "INT8") {
     assert(getOpQuantParamType() == "NONE");
@@ -1202,7 +1175,6 @@ Value *tpu::ShuffleChannelOp::convertToTG() {
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder.getNamedAttr("group", groupAttr()));
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
-  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
 
   if (getOpQuant() == "INT8") {
     assert(getOpQuantParamType() == "NONE");
@@ -1231,7 +1203,6 @@ Value *tpu::SwapChannelOp::convertToTG() {
 
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
-  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
   attrs.push_back(builder.getNamedAttr("channel_order", channel_orderAttr()));
 
   if (getOpQuant() == "INT8") {
@@ -1262,7 +1233,6 @@ Value* tpu::TileOp::convertToTG() {
 
   // keep info to tg
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
-  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
   attrs.push_back(builder.getNamedAttr("resp", respAttr()));
 
   if (getOpQuant() == "INT8") {
@@ -1295,7 +1265,6 @@ Value* tpu::TileInterpOp::convertToTG() {
   // keep info to tg
   attrs.push_back(builder.getNamedAttr("resp",
         builder.getArrayAttr(resp().getValue())));
-  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
 
   if (getOpQuant() == "INT8") {
     assert(getOpQuantParamType() == "RSHIFT_AND_M_I8");
@@ -1334,7 +1303,6 @@ Value *tpu::PixelShuffleOp::convertToTG() {
     auto operationAttr = builder.getStringAttr(getOperationName());
     std::vector<NamedAttribute> cpu_attrs;
     cpu_attrs.push_back(builder.getNamedAttr("name", nameAttr()));
-    cpu_attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
     cpu_attrs.push_back(builder.getNamedAttr("operation_name", operationAttr));
     cpu_attrs.push_back(builder.getNamedAttr("param", paramAttr));
     auto newOp = OpBuilder(op).create<tpu::GenericCpuOp>(
@@ -1347,7 +1315,6 @@ Value *tpu::PixelShuffleOp::convertToTG() {
   attrs.push_back(builder.getNamedAttr("upscale_factor", upscale_factorAttr()));
   attrs.push_back(builder.getNamedAttr("mode", modeAttr()));
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
-  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
 
   if (getOpQuant() == "INT8") {
     assert(getOpQuantParamType() == "NONE");
@@ -1378,7 +1345,6 @@ Value *tpu::ClipOp::convertToTG() {
   attrs.push_back(builder.getNamedAttr("min", minAttr()));
   attrs.push_back(builder.getNamedAttr("max", maxAttr()));
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
-  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
 
   if (getOpQuant() == "INT8") {
     assert(getOpQuantParamType() == "RSHIFT_AND_M_I8");
@@ -1410,7 +1376,6 @@ Value *tpu::SigmoidOp::convertToTG() {
 
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
-  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
 
   if (getOpQuant() == "INT8") {
     auto newOp = OpBuilder(op).create<tpu::TG_INT8_LutOp>(
@@ -1443,7 +1408,6 @@ Value* tpu::SliceOp::convertToTG() {
       builder.getI32IntegerAttr(axis().getLimitedValue())));
   attrs.push_back(builder.getNamedAttr("offset", offsetAttr()));
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
-  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
 
   if (getOpQuant() == "INT8") {
     assert(getOpQuantParamType() == "NONE");
@@ -1475,7 +1439,6 @@ Value *tpu::SqrtOp::convertToTG() {
 
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
-  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
 
   if (getOpQuant() == "INT8") {
     auto newOp = OpBuilder(op).create<tpu::TG_INT8_LutOp>(
@@ -1507,7 +1470,6 @@ Value* tpu::TanHOp::convertToTG() {
 
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
-  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
 
   if (getOpQuant() == "INT8") {
     auto newOp = OpBuilder(op).create<tpu::TG_INT8_LutOp>(
@@ -1539,7 +1501,6 @@ Value* tpu::ExpOp::convertToTG() {
 
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
-  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
 
   if (getOpQuant() == "INT8") {
     auto newOp = OpBuilder(op).create<tpu::TG_INT8_LutOp>(
@@ -1571,7 +1532,6 @@ Value* tpu::UpsampleOp::convertToTG() {
   attrs.push_back(builder.getNamedAttr("scale_h", scale_hAttr()));
   attrs.push_back(builder.getNamedAttr("scale_w", scale_wAttr()));
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
-  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
 
   if (getOpQuant() == "INT8") {
     assert(getOpQuantParamType() == "NONE");
@@ -1600,7 +1560,6 @@ Value* tpu::ReduceMeanOp::convertToTG() {
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder.getNamedAttr("axes", axesAttr()));
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
-  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
 
   if (getOpQuant() == "INT8") {
     auto newOp = OpBuilder(op).create<tpu::TG_INT8_ReduceMeanOp>(op->getLoc(),
@@ -1628,7 +1587,6 @@ Value* tpu::ReduceMaxOp::convertToTG() {
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder.getNamedAttr("axes", axesAttr()));
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
-  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
 
   if (getOpQuant() == "INT8") {
     assert(getOpQuantParamType() == "NONE");
@@ -1665,7 +1623,6 @@ Value* tpu::GruOp::convertToTG() {
   attrs.push_back(builder.getNamedAttr("linear_before_reset", linear_before_resetAttr()));
   attrs.push_back(builder.getNamedAttr("bidirectional", bidirectionalAttr()));
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
-  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
 
   if (getOpQuant() == "INT8") {
     assert(getOpQuantParamType() == "NONE");
@@ -1700,7 +1657,6 @@ Value* tpu::LstmOp::convertToTG() {
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder.getNamedAttr("bidirectional", bidirectionalAttr()));
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
-  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
 
   if (getOpQuant() == "INT8") {
     assert(getOpQuantParamType() == "NONE");
@@ -1731,7 +1687,6 @@ Value* tpu::SoftmaxOp::convertToTG() {
 
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
-  attrs.push_back(builder.getNamedAttr("layer_id", layer_idAttr()));
   attrs.push_back(builder.getNamedAttr("axis", axisAttr()));
 
   if (getOpQuant() == "INT8") {
@@ -3166,7 +3121,6 @@ struct LowerCpuOpDefaultPattern : public RewritePattern {
     std::vector<NamedAttribute> attrs;
     for (auto& attr : op->getAttrs()) {
       if (attr.first == "name"
-         || attr.first == "layer_id"
          || attr.first == "gaddr"
          || attr.first == "quant") {
         continue;
@@ -3179,7 +3133,6 @@ struct LowerCpuOpDefaultPattern : public RewritePattern {
     attrs.push_back(builder.getNamedAttr("name", castOp.nameAttr()));
     attrs.push_back(builder.getNamedAttr("operation_name", operationAttr));
     attrs.push_back(builder.getNamedAttr("param", paramAttr));
-    attrs.push_back(builder.getNamedAttr("layer_id", castOp.layer_idAttr()));
 
     std::vector<Value *> operands(op->getOperands().begin(),
                                   op->getOperands().end());
@@ -3210,7 +3163,6 @@ struct LowerCustomOpPattern : public RewritePattern {
     attrs.push_back(builder.getNamedAttr("name", castOp.nameAttr()));
     attrs.push_back(builder.getNamedAttr("operation_name", castOp.operation_nameAttr()));
     attrs.push_back(builder.getNamedAttr("param", castOp.paramAttr()));
-    attrs.push_back(builder.getNamedAttr("layer_id", castOp.layer_idAttr()));
 
     std::vector<Value *> operands(op->getOperands().begin(),
                                   op->getOperands().end());

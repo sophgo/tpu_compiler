@@ -143,7 +143,7 @@ public:
     LLVM_DEBUG(llvm::dbgs()
                << "StoreCompressedConvolutionActivationPattern: op "
                << convOp.name()
-               << ", layer ID " << convOp.layer_id()
+               << ", layer ID " << getOpLayerId(op)
                << ", store compressed activation\n");
 
     return Pattern::matchSuccess();
@@ -175,7 +175,7 @@ public:
     LLVM_DEBUG(llvm::dbgs()
                << "LoadCompressedConvolutionActivationPattern: op "
                << convOp.name()
-               << ", layer ID " << convOp.layer_id()
+               << ", layer ID " << getOpLayerId(op)
                << ", load compressed activation\n");
 
     return Pattern::matchSuccess();

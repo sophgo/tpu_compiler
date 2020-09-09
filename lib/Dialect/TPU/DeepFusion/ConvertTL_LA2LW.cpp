@@ -58,7 +58,7 @@ struct TpuTL_LA_Conv2DOpPattern : public RewritePattern {
                    n, ic, ih, iw, oc, oh, ow, g,
                    kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, is_dw, with_bias, do_relu);
 
-    LLVM_DEBUG(llvm::errs() << "TL_LA2LW: layer ID " << op.layer_id()
+    LLVM_DEBUG(llvm::errs() << "TL_LA2LW: layer ID " << getOpLayerId(opInst)
                  << ", convert to LW\n";);
 
     assert(op.getNumOperands() == 3 && "support 3 inputs only");
@@ -70,7 +70,6 @@ struct TpuTL_LA_Conv2DOpPattern : public RewritePattern {
     std::vector<NamedAttribute> attrs;
     attrs.push_back(rewriter.getNamedAttr("param", op.paramAttr()));
     attrs.push_back(rewriter.getNamedAttr("name", op.nameAttr()));
-    attrs.push_back(rewriter.getNamedAttr("layer_id", op.layer_idAttr()));
     if(op.do_ic_alignment().hasValue()){
       attrs.push_back(rewriter.getNamedAttr("do_ic_alignment", rewriter.getBoolAttr(op.do_ic_alignment().getValue())));
     }
@@ -169,7 +168,7 @@ struct TpuTL_LW_Conv2DOp_MarkShortPathPattern : public RewritePattern {
     }
 
     if (!op.getResult()->hasOneUse()) {
-      LLVM_DEBUG(llvm::errs() << "TL_LA2LW: layer ID " << op.layer_id()
+      LLVM_DEBUG(llvm::errs() << "TL_LA2LW: layer ID " << getOpLayerId(opInst)
                  << ", Conv2D " << op.name()
                  << " has more than one Use " << op.getResult()->hasOneUse() << "\n";);
       op.setAttr("in_short_path", rewriter.getBoolAttr(false));
@@ -217,7 +216,7 @@ struct TpuTL_LW_Conv2DOp_AssignLayoutPattern : public RewritePattern {
     }
 
     if (!op.getResult()->hasOneUse()) {
-      LLVM_DEBUG(llvm::errs() << "TL_LA2LW: layer ID " << op.layer_id()
+      LLVM_DEBUG(llvm::errs() << "TL_LA2LW: layer ID " << getOpLayerId(opInst)
                  << ", Conv2D " << op.name()
                  << " has more than one Use " << op.getResult()->hasOneUse() << "\n";);
       std::vector<Operation *> conv_ops;
@@ -252,11 +251,11 @@ struct TpuTL_LW_Conv2DOp_AssignLayoutPattern : public RewritePattern {
           }
           lut_ops.push_back(next_opInst);
         } else {
-          LLVM_DEBUG(llvm::errs() << "TL_LA2LW: layer ID " << op.layer_id()
+          LLVM_DEBUG(llvm::errs() << "TL_LA2LW: layer ID " << getOpLayerId(opInst)
                      << ", next_op is not conv or eltwise\n";);
         }
       }
-      LLVM_DEBUG(llvm::errs() << "TL_LA2LW: layer ID " << op.layer_id()
+      LLVM_DEBUG(llvm::errs() << "TL_LA2LW: layer ID " << getOpLayerId(opInst)
                  << ", flow conv2D operation :" <<conv_ops.size()
                  << " flow elta operation :" << elta_ops.size() << "\n";);
       if (conv_ops.size() == 2) {
@@ -457,7 +456,7 @@ struct TpuTL_LW_Conv2DOp_AssignLayoutPattern : public RewritePattern {
       op.setAttr("lm_layout", rewriter.getStringAttr("IWO"));
     }
 
-    LLVM_DEBUG(llvm::errs() << "TL_LA2LW: layer ID " << op.layer_id()
+    LLVM_DEBUG(llvm::errs() << "TL_LA2LW: layer ID " << getOpLayerId(opInst)
                  << ", Conv LM_LAYOUT " << op.lm_layout()
                  << ", LD " << op.tl_load_flag()
                  << ", ST " << op.tl_store_flag()
@@ -621,7 +620,7 @@ struct TpuTL_EltwiseAddOp_AssignLayoutPattern : public RewritePattern {
         llvm_unreachable("unsupported layout");
       }
     }
-    LLVM_DEBUG(llvm::errs() << "TL_LA2LW: layer ID " << op.layer_id()
+    LLVM_DEBUG(llvm::errs() << "TL_LA2LW: layer ID " << getOpLayerId(opInst)
                  << ", EltA LM_LAYOUT " << op.lm_layout()
                  << ", LD " << op.tl_load_flag()
                  << ", ST " << op.tl_store_flag()
@@ -699,7 +698,7 @@ struct TpuTL_LutOp_AssignLayoutPattern : public RewritePattern {
     } else {
        op.setAttr("lm_layout", rewriter.getStringAttr("IWO"));
     }
-    LLVM_DEBUG(llvm::errs() << "TL_LA2LW: layer ID " << op.layer_id()
+    LLVM_DEBUG(llvm::errs() << "TL_LA2LW: layer ID " << getOpLayerId(opInst)
                  << ", LUT LM_LAYOUT " << op.lm_layout()
                  << ", LD " << op.tl_load_flag()
                  << ", ST " << op.tl_store_flag()
@@ -796,7 +795,7 @@ struct TpuTL_EltwiseMulOp_AssignLayoutPattern : public RewritePattern {
         op.setAttr("lm_layout", rewriter.getStringAttr("IWO"));
       }
     }
-    LLVM_DEBUG(llvm::errs() << "TL_LA2LW: layer ID " << op.layer_id()
+    LLVM_DEBUG(llvm::errs() << "TL_LA2LW: layer ID " << getOpLayerId(opInst)
                  << ", EltMul LM_LAYOUT " << op.lm_layout()
                  << ", LD " << op.tl_load_flag()
                  << ", ST " << op.tl_store_flag()
@@ -850,7 +849,7 @@ struct TpuTL_BroadcastMulOp_AssignLayoutPattern : public RewritePattern {
     } else {
       op.setAttr("lm_layout", rewriter.getStringAttr("IWO"));
     }
-    LLVM_DEBUG(llvm::errs() << "TL_LA2LW: layer ID " << op.layer_id()
+    LLVM_DEBUG(llvm::errs() << "TL_LA2LW: layer ID " << getOpLayerId(opInst)
                  << ", EltMul LM_LAYOUT " << op.lm_layout()
                  << ", LD " << op.tl_load_flag()
                  << ", ST " << op.tl_store_flag()
@@ -906,7 +905,7 @@ struct TpuTL_PoolAvg2DOp_AssignLayoutPattern : public RewritePattern {
     } else {
        op.setAttr("lm_layout", rewriter.getStringAttr("IWO"));
     }
-    LLVM_DEBUG(llvm::errs() << "TL_LA2LW: layer ID " << op.layer_id()
+    LLVM_DEBUG(llvm::errs() << "TL_LA2LW: layer ID " << getOpLayerId(opInst)
                  << ", AvgPool2D LM_LAYOUT " << op.lm_layout()
                  << ", LD " << op.tl_load_flag()
                  << ", ST " << op.tl_store_flag()
@@ -971,7 +970,7 @@ struct TpuTL_LW_Conv2DOp_AssignLAddrPattern : public RewritePattern {
         llvm_unreachable("unsupported layout");
       }
 
-      LLVM_DEBUG(llvm::errs() << "TL_LA2LW: layer ID " << op.layer_id()
+      LLVM_DEBUG(llvm::errs() << "TL_LA2LW: layer ID " << getOpLayerId(opInst)
                    << ", Conv, " << op.lm_layout()
                    << ", la_i=" << op.la_input()
                    << ", la_o=" << op.la_output()
@@ -1026,7 +1025,7 @@ struct TpuTL_EltwiseOp_AssignLAddrPattern : public RewritePattern {
         llvm_unreachable("unsupported layout");
       }
 
-      LLVM_DEBUG(llvm::errs() << "TL_LA2LW: layer ID " << op.layer_id()
+      LLVM_DEBUG(llvm::errs() << "TL_LA2LW: layer ID " << getOpLayerId(opInst)
                    << OpTy::getOperationName() << op.lm_layout()
                    << ", la_i=" << op.la_input()
                    << ", la_o=" << op.la_output()
@@ -1079,7 +1078,7 @@ struct TpuTL_Default_AssignLAddrPattern : public RewritePattern {
         assert(0);
       }
 
-      LLVM_DEBUG(llvm::errs() << "TL_LA2LW: layer ID " << op.layer_id()
+      LLVM_DEBUG(llvm::errs() << "TL_LA2LW: layer ID " << getOpLayerId(opInst)
                    << ", LUT, " << op.lm_layout()
                    << ", la_i=" << op.la_input()
                    << ", la_o=" << op.la_output()

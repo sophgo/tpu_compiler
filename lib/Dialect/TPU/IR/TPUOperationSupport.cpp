@@ -169,17 +169,9 @@ llvm::StringRef getPreviousOpName(Operation *op, uint index = 0) {
 
 int getOpLayerId(Operation *op) {
   if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpCommonInterface>(op)) {
-    return tpuOp.getOpLayerId();
-  } else {
-    std::string errorMsg = std::string(__func__) + " failed, Op " +
-                           op->getName().getStringRef().str() + "\n";
-    llvm_unreachable(errorMsg.c_str());
-  }
-}
-
-LogicalResult setOpLayerId(Operation *op, int id) {
-  if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpCommonInterface>(op)) {
-    return tpuOp.setOpLayerId(id);
+    // get op id according the line number of op's position.
+    auto loc = op->getLoc().cast<FileLineColLoc>();
+    return loc.getLine() - 5;
   } else {
     std::string errorMsg = std::string(__func__) + " failed, Op " +
                            op->getName().getStringRef().str() + "\n";

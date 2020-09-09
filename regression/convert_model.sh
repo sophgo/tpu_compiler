@@ -126,7 +126,6 @@ mlir-opt ${name}.mlir \
     --convert-bn-to-scale \
     --canonicalize \
     --eltwise-early-stride \
-    --assign-layer-id \
     --print-tpu-op-info \
     --tpu-op-info-filename op_info.csv | \
 mlir-opt \

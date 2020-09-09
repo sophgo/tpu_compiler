@@ -13,7 +13,6 @@ cvi_model_convert.py \
 
 # MUST 1st prioity than pass_xxx_scale
 mlir-opt \
-    --assign-layer-id \
     --skip-mult-used-scale-op \
     --canonicalize \
     --convert-bn-to-scale \

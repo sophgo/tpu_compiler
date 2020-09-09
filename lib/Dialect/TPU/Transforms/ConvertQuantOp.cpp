@@ -62,7 +62,6 @@ struct ConvertQuantOpPattern : public RewritePattern {
       cast_attrs.push_back(builder.getNamedAttr("name", builder.getStringAttr(name)));
       cast_attrs.push_back(builder.getNamedAttr("from", builder.getStringAttr("FP32")));
       cast_attrs.push_back(builder.getNamedAttr("to", builder.getStringAttr("BF16")));
-      cast_attrs.push_back(builder.getNamedAttr("layer_id", quantOp.layer_idAttr()));
       std::vector<Value *> operands(op->getOperands().begin(),
                                   op->getOperands().end());
 
@@ -76,7 +75,6 @@ struct ConvertQuantOpPattern : public RewritePattern {
       quant_attrs.push_back(builder.getNamedAttr("threshold", quantOp.thresholdAttr()));
       quant_attrs.push_back(builder.getNamedAttr("from", builder.getStringAttr("BF16")));
       quant_attrs.push_back(builder.getNamedAttr("to", builder.getStringAttr("INT8")));
-      quant_attrs.push_back(builder.getNamedAttr("layer_id", quantOp.layer_idAttr()));
       std::vector<Value *> opds;
       opds.push_back(result);
 
@@ -94,7 +92,6 @@ struct ConvertQuantOpPattern : public RewritePattern {
       quant_attrs.push_back(builder.getNamedAttr("threshold", quantOp.thresholdAttr()));
       quant_attrs.push_back(builder.getNamedAttr("from", builder.getStringAttr("INT8")));
       quant_attrs.push_back(builder.getNamedAttr("to", builder.getStringAttr("BF16")));
-      quant_attrs.push_back(builder.getNamedAttr("layer_id", quantOp.layer_idAttr()));
       std::vector<Value *> operands(op->getOperands().begin(),
                                   op->getOperands().end());
 
@@ -107,7 +104,6 @@ struct ConvertQuantOpPattern : public RewritePattern {
       cast_attrs.push_back(builder.getNamedAttr("name", builder.getStringAttr(name)));
       cast_attrs.push_back(builder.getNamedAttr("from", builder.getStringAttr("BF16")));
       cast_attrs.push_back(builder.getNamedAttr("to", builder.getStringAttr("FP32")));
-      cast_attrs.push_back(builder.getNamedAttr("layer_id", quantOp.layer_idAttr()));
       std::vector<Value *> opds;
       opds.push_back(result);
 

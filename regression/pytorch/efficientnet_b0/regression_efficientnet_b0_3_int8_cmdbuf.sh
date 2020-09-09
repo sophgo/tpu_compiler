@@ -26,7 +26,6 @@ mlir-opt \
     --assign-neuron-address \
     --tpu-neuron-address-align=64 \
     --tpu-neuron-map-filename=neuron_map.csv \
-    --assign-layer-id \
     efficientnet_b0_quant_int8_multiplier_tg.mlir \
     -o  efficientnet_b0_quant_int8_multiplier_cmdbuf.mlir
 

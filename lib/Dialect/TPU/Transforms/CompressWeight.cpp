@@ -69,6 +69,7 @@ public:
     if (convOp.compressed_weight().hasValue())
       return Pattern::matchFailure();
 
+    auto op = convOp.getOperation();
     // for layer group, several conv may refer to one load coeff op
     // no need to compress every time.
     if (auto load_op = dyn_cast<tpu::TL_LG_LoadCoeffOp>
@@ -82,7 +83,7 @@ public:
     // Not support group convolution and depthwise convolution
     if (convOp.param().group().getValue().getLimitedValue() > 1) {
       LLVM_DEBUG(llvm::dbgs()
-                 << "CompressWeight: layer ID " << convOp.layer_id()
+                 << "CompressWeight: layer ID " << getOpLayerId(op)
                  << ", " << convOp.name()
                  << ", groups " << convOp.param().group().getValue().getLimitedValue()
                  << ", not support group convolution\n");
@@ -99,7 +100,7 @@ public:
     // Not support bfloat16 yet.
     if (filterElementType.isBF16()) {
       LLVM_DEBUG(llvm::dbgs()
-                 << "CompressWeight: layer ID " << convOp.layer_id()
+                 << "CompressWeight: layer ID " << getOpLayerId(op)
                  << ", " << convOp.name()
                  << ", not support bfloat16\n");
       return Pattern::matchFailure();
@@ -110,7 +111,7 @@ public:
     // Only support int8 or bf16
     if (filterDataTypeSize != 1 && !filterElementType.isBF16()) {
       LLVM_DEBUG(llvm::dbgs()
-                 << "CompressWeight: layer ID " << convOp.layer_id()
+                 << "CompressWeight: layer ID " << getOpLayerId(op)
                  << ", " << convOp.name()
                  << ", only support int8 or bf16\n");
       return Pattern::matchFailure();
@@ -126,7 +127,7 @@ public:
            "filter size should be equal");
 
     LLVM_DEBUG(llvm::dbgs()
-               << "CompressWeight: layer ID " << convOp.layer_id()
+               << "CompressWeight: layer ID " << getOpLayerId(op)
                << ", " << convOp.name() << "\n"
                << "  filter(" << filterShape[0]
                << ", " << filterShape[1]

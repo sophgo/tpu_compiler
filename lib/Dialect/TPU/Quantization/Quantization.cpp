@@ -153,25 +153,20 @@ static void insertQuantOp(Operation *op) {
           builder.getStringAttr(curr_quant)));
       float threshold = 0.0f;
       std::string name;
-      int layer_id = -1;
       if (curr_quant == "INT8") {
         threshold = getOpThreshold(prev_op);
         name = getOpName(prev_op).str() + "_quant";
-        layer_id = getOpLayerId(op);
       } else if (prev_quant == "INT8") {
         if (curr_quant == "UINT8") {
           continue;
         }
         threshold = getOpThreshold(prev_op);
         name = getOpName(prev_op).str() + "_dequant";
-        layer_id = getOpLayerId(prev_op);
       } else if (curr_quant == "BF16") {
         threshold = getOpThreshold(prev_op);
         name = getOpName(prev_op).str() + "_quant";
-        layer_id = getOpLayerId(op);
       } else if (prev_quant == "BF16") {
         name = getOpName(prev_op).str() + "_dequant";
-        layer_id = getOpLayerId(prev_op);
       }
       // app recognizes _quant as network output
       //name = name + "_" + prev_quant.str() + "_" + curr_quant.str();
@@ -197,8 +192,6 @@ static void insertQuantOp(Operation *op) {
           builder.getF32FloatAttr(threshold)));
       attrs.push_back(builder.getNamedAttr("name",
           builder.getStringAttr(name)));
-      attrs.push_back(builder.getNamedAttr("layer_id",
-          builder.getI32IntegerAttr(layer_id)));
 
       auto shape = op->getOperand(i)->getType().cast<TensorType>().getShape();
       Type eltType;
@@ -422,7 +415,6 @@ struct ExtendPreprocessOpPattern : public RewritePattern {
     std::string tranpose_name =
         getOpName(preprocessOp).str() + "_preprocess_tranpose";
     std::vector<int> transpose_orders;
-    int layer_id = getOpLayerId(preprocessOp);
     if (preprocessOp.transpose_order().hasValue()) {
       for (auto m :
            llvm::enumerate(preprocessOp.transpose_order().getValue())) {
@@ -448,8 +440,6 @@ struct ExtendPreprocessOpPattern : public RewritePattern {
         "order2", builder.getI32IntegerAttr(transpose_orders.at(2))));
     transpose_attrs.push_back(builder.getNamedAttr(
         "order3", builder.getI32IntegerAttr(transpose_orders.at(3))));
-    transpose_attrs.push_back(
-        builder.getNamedAttr("layer_id", builder.getI32IntegerAttr(layer_id)));
 
     auto transpose_type = RankedTensorType::get({tn, tc, th, tw}, eltType);
     auto transpose_op = OpBuilder(op).create<tpu::PermuteOp>(
@@ -484,8 +474,6 @@ struct ExtendPreprocessOpPattern : public RewritePattern {
         builder.getNamedAttr("const_val", builder.getF32FloatAttr(const_val)));
     pad_attrs.push_back(
         builder.getNamedAttr("quant", getDefaultQuantParam(builder)));
-    pad_attrs.push_back(
-        builder.getNamedAttr("layer_id", builder.getI32IntegerAttr(layer_id)));
 
     auto pad_type = RankedTensorType::get({pn, pc, ph, pw}, eltType);
     auto pad_op = OpBuilder(op).create<tpu::PadOp>(
@@ -519,8 +507,6 @@ struct ExtendPreprocessOpPattern : public RewritePattern {
         builder.getNamedAttr("name", builder.getStringAttr(crop_name)));
     crop_attrs.push_back(
         builder.getNamedAttr("quant", getDefaultQuantParam(builder)));
-    crop_attrs.push_back(
-        builder.getNamedAttr("layer_id", builder.getI32IntegerAttr(layer_id)));
     // we only accept first input to IR, second input shape will be attribute.
     auto crop_op = OpBuilder(op).create<tpu::CropOp>(
         op->getLoc(), crop_type, ArrayRef<Value *>{pad_op},
@@ -634,9 +620,6 @@ struct ExtendPreprocessOpPattern : public RewritePattern {
     scale_attrs.push_back(
         builder.getNamedAttr("quant", getDefaultQuantParam(builder)));
 
-    scale_attrs.push_back(
-        builder.getNamedAttr("layer_id", builder.getI32IntegerAttr(layer_id)));
-
     auto scale_op = OpBuilder(op).create<tpu::Conv2DOp>(
         op->getLoc(), scale_type, ArrayRef<Value *>{scale_operands},
         ArrayRef<NamedAttribute>{scale_attrs});
@@ -661,8 +644,6 @@ struct ExtendPreprocessOpPattern : public RewritePattern {
         builder.getI32ArrayAttr(ArrayRef<int32_t>({color_orders}))));
     swapaxis_attrs.push_back(
         builder.getNamedAttr("quant", getDefaultQuantParam(builder)));
-    swapaxis_attrs.push_back(
-        builder.getNamedAttr("layer_id", builder.getI32IntegerAttr(layer_id)));
     // we only accept first input to IR, second input shape will be attribute.
     auto swapaxis_op = OpBuilder(op).create<tpu::SwapChannelOp>(
         op->getLoc(), swapaxis_type, ArrayRef<Value *>{scale_op},

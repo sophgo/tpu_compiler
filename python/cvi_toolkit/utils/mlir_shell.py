@@ -37,7 +37,6 @@ def mlir_opt(mlirfile, opt_mlirfile, op_info_csv, chip=None):
                     "--chipname={}".format(chip),
                     "--convert-bn-to-scale",
                     "--canonicalize",
-                    "--assign-layer-id",
                     "--print-tpu-op-info",
                     "--tpu-op-info-filename", op_info_csv,
                     mlirfile,

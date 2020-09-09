@@ -11,7 +11,6 @@ mlir-translate \
 
 # assign layer_id right away, and output op_info
 mlir-opt \
-    --assign-layer-id \
     --print-tpu-op-info \
     --tpu-op-info-filename shufflenet_op_info.csv \
     --convert-bn-to-scale \

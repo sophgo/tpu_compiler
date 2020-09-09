@@ -47,28 +47,9 @@ public:
   explicit AssignLayerIdPass() {}
 
   void runOnFunction() override {
-    auto fn = getFunction();
-    auto *context = &getContext();
-    Builder builder(context);
-
-    uint32_t layer_id = 0;
-    fn.walk([&](Operation *op) {
-      if (op->getName().getDialect().str() != "tpu"
-          || isa<tpu::WeightFileOp>(op)
-          || isa<tpu::LoadWeightOp>(op)
-          || isa<tpu::NoneOp>(op)) {
-        // no need to assign
-      } else if ( !failed(setOpLayerId(op, layer_id)) ) {
-        LLVM_DEBUG(llvm::errs() << " layer_id: "
-                                << llvm::format("%04d", layer_id)
-                                << " -> " << mlir::getOpName(op)
-                                << " : " << op->getName() << "\n";);
-        layer_id ++;
-      } else {
-        llvm::errs() << "addLayerIdAttr didn't handle " << op->getName() << "\n";
-        assert(false);
-      }
-    });
+    // do nothing now.
+    // layer id could be gotten by line number of Op's position.
+    // so no need to assign layer id explicitly.
   }
 };
 

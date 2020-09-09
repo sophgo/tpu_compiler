@@ -11,7 +11,6 @@ mlir-translate \
 
 # assign layer_id right away, and output op_info
 mlir-opt \
-    --assign-layer-id \
     --convert-bn-to-scale \
     --canonicalize \
     --print-tpu-op-info \

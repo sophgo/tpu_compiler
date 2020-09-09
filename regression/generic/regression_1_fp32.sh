@@ -24,7 +24,6 @@ mlir-opt \
     --canonicalize \
     ${MLIR_OPT_FE_POST} \
     --fuse-relu \
-    --assign-layer-id \
     --print-tpu-op-info \
     --tpu-op-info-filename ${NET}_op_info.csv \
     ${NET}.mlir \

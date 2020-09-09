@@ -20,7 +20,6 @@ mlir-opt \
     --assign-neuron-address \
     --tpu-neuron-address-align=64 \
     --tpu-neuron-map-filename=neuron_map.csv \
-    --assign-layer-id \
     resnet18_quant_int8_multiplier_tg.mlir \
     -o  resnet18_quant_int8_multiplier_cmdbuf.mlir
 
