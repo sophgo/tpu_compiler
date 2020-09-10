@@ -178,6 +178,8 @@ struct ConvertFuncToTensorPass
     target.addLegalOp<tpu::TG_BF16_LstmOp>();
     target.addLegalOp<tpu::TG_INT8_SoftmaxOp>();
     target.addLegalOp<tpu::TG_BF16_SoftmaxOp>();
+    target.addLegalOp<tpu::TG_INT8_ZeroMaskOp>();
+    target.addLegalOp<tpu::TG_BF16_ZeroMaskOp>();
 
     target.addDynamicallyLegalOp<FuncOp>(
         [&](FuncOp op) { return converter.isSignatureLegal(op.getType()); });

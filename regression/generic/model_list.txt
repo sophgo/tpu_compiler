@@ -36,6 +36,7 @@ faster_rcnn               N        N        N        Y        N        N
 icnet                     N        N        N        Y        N        N
 erfnet                    N        N        N        Y        N        N
 enet                      N        N        N        Y        N        N
+segnet                    N        N        N        Y        N        N
 fcn-8s                    N        N        N        Y        N        N
 
 # onnx

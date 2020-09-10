@@ -561,7 +561,8 @@ public:
                  isa<tpu::ReshapeOp>(op) ||
                  isa<tpu::SliceOp>(op) ||
                  isa<tpu::ShuffleChannelOp>(op) ||
-                 isa<tpu::SwapChannelOp>(op)) {
+                 isa<tpu::SwapChannelOp>(op) ||
+                 isa<tpu::ZeroMaskOp>(op)) {
         // do not assign
       } else if (!failed(setThresholdFromMap(op, threshold_map))) {
         // success
@@ -598,7 +599,8 @@ public:
         BypassThresholdDefaultPattern<tpu::ShuffleChannelOp>,
         BypassThresholdDefaultPattern<tpu::SwapChannelOp>,
         BypassThresholdDefaultPattern<tpu::ReduceMaxOp>,
-        BypassThresholdDefaultPattern<tpu::TileOp>
+        BypassThresholdDefaultPattern<tpu::TileOp>,
+        BypassThresholdDefaultPattern<tpu::ZeroMaskOp>
         >(context);
     applyPatternsGreedily(fn, patterns);
 

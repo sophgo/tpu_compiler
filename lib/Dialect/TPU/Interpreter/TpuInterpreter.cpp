@@ -1013,7 +1013,7 @@ static LogicalResult doEltwiseOpInterpret(Operation *op,
   // apply qscale on input tensors before f32 compute
   std::vector<std::vector<float> > input_copy(nInputs);
   if (type == "ADD" || type == "MAX" || type == "MIN") {
-    if (getOpQuant(op) == "INT8") {
+    if (getOpQuant(op) == "INT8" && getOpQuantParamType(op) != "NONE") {
       for (unsigned i = 0; i < nInputs; ++i) {
         // make copy
         input_copy[i].assign(opdT[i]->begin(),
@@ -1064,23 +1064,34 @@ static LogicalResult doEltwiseOpInterpret(Operation *op,
   if (getOpQuant(op) == "NONE") {
     // do nothing
   } else if (getOpQuant(op) == "INT8") {
-    if (type == "ADD" || type == "MAX" || type == "MIN") {
-      // apply rshift and saturate
-      for (int i = 0; i < input_size; ++i) {
-        output[i] =
-            (float)applyRShiftAndSaturateInt8(output[i], (uint32_t)quant_rshift->at(0));
+    if (getOpQuantParamType(op) != "NONE") {
+      if (type == "ADD" || type == "MAX" || type == "MIN") {
+        // apply rshift and saturate
+        for (int i = 0; i < input_size; ++i) {
+
+          output[i] = (float)applyRShiftAndSaturateInt8(
+              output[i], (uint32_t)quant_rshift->at(0));
+        }
+      } else if (type == "MUL") {
+        // apply qscale on output (both rshift and saturate)
+        for (int i = 0; i < input_size; ++i) {
+          output[i] = (float)applyMultiplierAndRShiftAndSaturateInt8(
+              output[i], (uint32_t)quant_rshift->at(0),
+              (uint32_t)quant_multiplier->at(0), true);
+        }
       }
-    } else if (type == "MUL") {
-      // apply qscale on output (both rshift and saturate)
-      for (int i = 0; i < input_size; ++i) {
-        output[i] = (float)applyMultiplierAndRShiftAndSaturateInt8(
-            output[i], (uint32_t)quant_rshift->at(0),
-            (uint32_t)quant_multiplier->at(0), true);
+    }
+    for (int i = 0; i < input_size; ++i) {
+      if (output[i] > 127.0) {
+        output[i] = 127.0;
+      } else if (output[i] < -128.0) {
+        output[i] = -128.0;
       }
     }
   } else if (getOpQuant(op) == "BF16") {
-    auto tensor_bf16 = std::make_unique<std::vector<bfloat16> >(resultT->size());
-    FloatToBFloat16(resultT->data(), tensor_bf16->data(), resultT->size()); // with rounding
+    auto tensor_bf16 = std::make_unique<std::vector<bfloat16>>(resultT->size());
+    FloatToBFloat16(resultT->data(), tensor_bf16->data(),
+                    resultT->size()); // with rounding
     BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
   } else {
     assert(false);
@@ -3511,6 +3522,25 @@ LogicalResult tpu::YoloDetectionOp::interpret(
 
   valueMapping[result] = std::move(resultT);
 
+  return success();
+}
+
+LogicalResult tpu::ZeroMaskOp::interpret(
+    DenseMap<Value *, std::shared_ptr<std::vector<float>>> &valueMapping) {
+  Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
+
+  auto opdT = getOperandTensors(op, valueMapping);
+  std::shared_ptr<std::vector<float> > input = opdT[0];
+  auto result = this->getResult();
+  auto size = getTensorSize(result);
+  auto resultT = std::make_unique<std::vector<float> >(size);
+
+  for (uint32_t i = 0; i < size; i++) {
+    resultT->at(i) = (input->at(i) == 0.0 ? 1.0 : 0.0);
+  }
+
+  valueMapping[result] = std::move(resultT);
   return success();
 }
 

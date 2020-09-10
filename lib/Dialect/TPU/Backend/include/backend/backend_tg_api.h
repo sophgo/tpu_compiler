@@ -146,6 +146,13 @@ void cvi_backend_tg_fixed_lut_kernel(
     gaddr_t bottom_gaddr, gaddr_t top_gaddr, gaddr_t sg_lut_gaddr,
     int input_n, int input_c, int input_h, int input_w, cvk_fmt_t fmt);
 
+// y = x * multiplier + const_val
+void cvi_backend_tg_fixed_mac_const_kernel(
+    const CviBackendContext &ctx, uint32_t stream_id, uint32_t inst_id,
+    uint32_t layer_id, const uint32_t *depends, uint32_t depends_len,
+    gaddr_t input_gaddr, gaddr_t output_gaddr, int input_n, int input_c,
+    int input_h, int input_w, int multiplier, int const_val, bool do_relu);
+
 void cvi_backend_tg_fixed_crop_kernel(
     const CviBackendContext &ctx, uint32_t stream_id, uint32_t inst_id,
     uint32_t layer_id, const uint32_t *depends, uint32_t depends_len,

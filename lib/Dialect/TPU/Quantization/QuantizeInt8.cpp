@@ -826,6 +826,16 @@ LogicalResult quantizeInt8RescaleNoWeightOps(Operation *op) {
   return success();
 }
 
+template<typename T>
+static bool checkFloatNeedQuant(const std::vector<T> &data_v) {
+  for (auto &data: data_v) {
+    if (data != std::floor(data) || data > 127 || data < -127) {
+      return true;
+    }
+  }
+  return false;
+}
+
 template<typename OpTy>
 LogicalResult quantizeInt8MultiplyConstOps(Operation *op) {
   assert(getOpQuant(op) == "INT8");
@@ -868,18 +878,22 @@ LogicalResult quantizeInt8MultiplyConstOps(Operation *op) {
   //
   // determine the qscale
   //
-  float qscale = threshold_x / threshold_y;
+  float qscale = 0;
+  bool need_quant = checkFloatNeedQuant(*const_opd);
+  if (need_quant) {
+    qscale = max_elem * threshold_x / threshold_y / 127.0;
+  } else {
+    qscale = threshold_x / threshold_y;
+  }
 
   // create tensors for rshift and multiplier
   auto rshift = std::make_unique<std::vector<float> >(1);
   auto multiplier = std::make_unique<std::vector<float> >(1);
-  auto max_multiplier = max_elem * qscale;
-  //
-  // decompose into int8 mulitplier and rshift
-  //
+
+  // create tensors for rshift and multiplier
   uint32_t multiplier_u32;
   int8_t rshift_i8 = findRShiftAndMultiplierFromQScale(qscale,
-                         &multiplier_u32, true, max_multiplier);
+                         &multiplier_u32, true);
   rshift->at(0) = static_cast<float>(rshift_i8);
   multiplier->at(0) = static_cast<float>(multiplier_u32);
   LLVM_DEBUG(llvm::errs()
@@ -889,14 +903,19 @@ LogicalResult quantizeInt8MultiplyConstOps(Operation *op) {
              << std::to_string(multiplier->at(0)) << "\n");
 
   std::vector<float> quant_const(const_size, 0);
-  for (int i = 0; i < const_size; i++) {
-    auto float_quant = floor((*const_opd)[i] * qscale *
-                       multiplier->at(0) + 0.5);
-    quant_const[i] = std::round(float_quant);
-    if (quant_const[i] > 127)
-      quant_const[i] = 127;
-    if (quant_const[i] < -128)
-      quant_const[i] = -128;
+  if (need_quant) {
+    for (int i = 0; i < const_size; i++) {
+      float float_quant = floor((*const_opd)[i] * 127.0 / max_elem + 0.5);
+      quant_const[i] = std::round(float_quant);
+      if (quant_const[i] > 127)
+        quant_const[i] = 127.0;
+      if (quant_const[i] < -128)
+        quant_const[i] = -128.0;
+    }
+  } else {
+    for (int i = 0; i < const_size; i++) {
+      quant_const[i] = (*const_opd)[i];
+    }
   }
 
   // update op
@@ -919,6 +938,40 @@ LogicalResult quantizeInt8MultiplyConstOps(Operation *op) {
 
   setOpResultType(op->getResult(0), StandardTypes::Integer, 8);
 
+  return success();
+}
+
+template<typename OpTy>
+LogicalResult quantizeInt8OpsWithSkip(Operation *op) {
+  assert(getOpQuant(op) == "INT8");
+  // support per-tensor only for now
+  setOpQuantPerchannel(op, false);
+  // use rshift and INT8 multiplier
+  setOpQuantParamType(op, "NONE");
+
+  TensorFile *wTF = getWeightTensorFile(op);
+
+  // get operands
+  const unsigned nInputs = op->getNumOperands() - 4;
+  for (unsigned i = 0; i < nInputs; ++i) {
+    auto formerOp = op->getOperand(i);
+    if (false == isa<tpu::LoadWeightOp>(formerOp->getDefiningOp())) {
+      continue;
+    }
+    auto const_opd = readAndDeleteWeightTensor<float>(formerOp, wTF);
+    std::vector<int64_t> const_shape;
+    int64_t const_size;
+    getTensorShapeAndSize(formerOp, const_shape, const_size);
+    assert(const_size == (int64_t)const_opd->size());
+    std::vector<float> quant_const(const_size, 0);
+    for (int i = 0; i < const_size; i++) {
+      quant_const[i] = std::floor((*const_opd)[i]);
+    }
+    addWeightTensorAndUpdateWeightOp<float>(formerOp,
+      "quant", quant_const, const_shape, "INT8", wTF);
+  }
+
+  setOpResultType(op, StandardTypes::Integer, 8);
   return success();
 }
 
@@ -1141,7 +1194,8 @@ LogicalResult quantizeInt8BypassOps(Operation *op) {
       || isa<tpu::SoftmaxOp>(op)
       || isa<tpu::PadOp>(op)
       || isa<tpu::PoolMax2DOp>(op)
-      || isa<tpu::SoftmaxCpuOp>(op)) {
+      || isa<tpu::SoftmaxCpuOp>(op)
+      || isa<tpu::ZeroMaskOp>(op)) {
     skip_checking = true;
   }
 
@@ -1212,8 +1266,8 @@ LogicalResult tpu::DeConv2DOp::quantizeInt8() {
 }
 
 LogicalResult tpu::EltwiseAddOp::quantizeInt8() {
-  LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName()
-               << " [" << getOpName() << "]\n";);
+  LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
   Operation *op = this->getOperation();
   bool ConstOpd = false;
   for (unsigned i = 0; i < 2; ++i) {
@@ -1223,10 +1277,14 @@ LogicalResult tpu::EltwiseAddOp::quantizeInt8() {
       break;
     }
   }
-  if(ConstOpd){
+  if (this->quant_skip() == true) {
+    return quantizeInt8OpsWithSkip<tpu::EltwiseAddOp>(op);
+  }
+
+  if (ConstOpd) {
     // yolo tiny v4 case
     return quantizeInt8AddConstOps<tpu::EltwiseAddOp>(op);
-  }else{
+  } else {
     return quantizeInt8RescaleNoWeightOps<tpu::EltwiseAddOp>(op);
   }
 }
@@ -1246,8 +1304,8 @@ LogicalResult tpu::EltwiseMinOp::quantizeInt8() {
 }
 
 LogicalResult tpu::EltwiseMulOp::quantizeInt8() {
-  LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName()
-               << " [" << getOpName() << "]\n";);
+  LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
   Operation *op = this->getOperation();
   bool hasConstOpd = false;
   for (unsigned i = 0; i < 2; ++i) {
@@ -1257,10 +1315,14 @@ LogicalResult tpu::EltwiseMulOp::quantizeInt8() {
       break;
     }
   }
-  if (hasConstOpd)
+  if (this->quant_skip() == true) {
+    return quantizeInt8OpsWithSkip<tpu::EltwiseMulOp>(op);
+  }
+  if (hasConstOpd) {
     return quantizeInt8MultiplyConstOps<tpu::EltwiseMulOp>(op);
-  else
+  } else {
     return quantizeInt8MultiplyOps<tpu::EltwiseMulOp>(op);
+  }
 }
 
 LogicalResult tpu::FullyConnectedOp::quantizeInt8() {
@@ -1396,6 +1458,7 @@ LogicalResult tpu::ReduceMaxOp::quantizeInt8() {
 }
 
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::UpsampleOp)
+DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::ZeroMaskOp)
 
 #define DECLARE_QUANTIZE_INT8_DISABLED_METHOD(OP) \
   LogicalResult OP::quantizeInt8() { \

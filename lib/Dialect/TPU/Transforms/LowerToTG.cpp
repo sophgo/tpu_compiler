@@ -421,9 +421,9 @@ Value* tpu::DilateOp::convertToTG() {
   return nullptr;
 }
 
-Value* tpu::EltwiseAddOp::convertToTG() {
-  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
-               << " [" << getOpName() << "]\n";);
+Value *tpu::EltwiseAddOp::convertToTG() {
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
   Operation *op = this->getOperation();
   auto builder = Builder(op->getContext());
   TensorFile *wTF = getWeightTensorFile(op);
@@ -437,49 +437,48 @@ Value* tpu::EltwiseAddOp::convertToTG() {
 
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
-  attrs.push_back(builder.getNamedAttr("do_relu",
-      builder.getBoolAttr(do_relu())));
+  attrs.push_back(
+      builder.getNamedAttr("do_relu", builder.getBoolAttr(do_relu())));
   if (do_early_stride()) {
-    attrs.push_back(builder.getNamedAttr("do_early_stride",
-        builder.getBoolAttr(do_early_stride())));
-    attrs.push_back(builder.getNamedAttr("early_stride_h",
-                                         early_stride_hAttr()));
-    attrs.push_back(builder.getNamedAttr("early_stride_w",
-                                         early_stride_wAttr()));
+    attrs.push_back(builder.getNamedAttr(
+        "do_early_stride", builder.getBoolAttr(do_early_stride())));
+    attrs.push_back(
+        builder.getNamedAttr("early_stride_h", early_stride_hAttr()));
+    attrs.push_back(
+        builder.getNamedAttr("early_stride_w", early_stride_wAttr()));
   }
 
   if (getOpQuant() == "INT8") {
-    if (getOpQuantParamType() == "NONE") {
-      // the quant is bypassed (threshold for input and output are the same)
-      // do nothing
-    } else {
-      assert(getOpQuantParamType() == "RSHIFT_AND_M_I8");
+    int8_t rshift_i8 = 0;
+    std::vector<int32_t> m_i8_inputs(nInputs, 1);
+    if (getOpQuantParamType() == "RSHIFT_AND_M_I8") {
       // ADD
       // rshift
       auto rshift = readAndDeleteWeightTensor<float>(quant_rshift(), wTF);
       assert(rshift->size() == 1);
-      attrs.push_back(builder.getNamedAttr("rshift",
-          builder.getI8IntegerAttr(static_cast<int8_t>(rshift->at(0)))));
+      rshift_i8 = static_cast<int8_t>(rshift->at(0));
 
       // m_i8_inputs
-      auto multiplier = readAndDeleteWeightTensor<float>(quant_multiplier(),
-                                                       wTF);
-      std::vector<int32_t> m_i8_inputs_array(nInputs);
+      auto multiplier =
+          readAndDeleteWeightTensor<float>(quant_multiplier(), wTF);
       for (unsigned i = 0; i < nInputs; ++i) {
-        m_i8_inputs_array[i] = static_cast<int32_t>(multiplier->at(i));
+        m_i8_inputs[i] = static_cast<int32_t>(multiplier->at(i));
       }
-      attrs.push_back(builder.getNamedAttr("m_i8_inputs",
-          builder.getI32ArrayAttr(ArrayRef<int32_t>({m_i8_inputs_array}))));
     }
+    attrs.push_back(
+        builder.getNamedAttr("rshift", builder.getI8IntegerAttr(rshift_i8)));
+    attrs.push_back(builder.getNamedAttr(
+        "m_i8_inputs",
+        builder.getI32ArrayAttr(ArrayRef<int32_t>({m_i8_inputs}))));
 
     // create op
-    auto newOp = OpBuilder(op).create<tpu::TG_INT8_EltwiseAddOp>(op->getLoc(),
-        getResult()->getType(), ArrayRef<Value *>{operands},
+    auto newOp = OpBuilder(op).create<tpu::TG_INT8_EltwiseAddOp>(
+        op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
   } else if (getOpQuant() == "BF16") {
-    auto newOp = OpBuilder(op).create<tpu::TG_BF16_EltwiseAddOp>(op->getLoc(),
-        getResult()->getType(), ArrayRef<Value *>{operands},
+    auto newOp = OpBuilder(op).create<tpu::TG_BF16_EltwiseAddOp>(
+        op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
   }
@@ -612,9 +611,9 @@ Value* tpu::EltwiseMinOp::convertToTG() {
   llvm_unreachable("unsupported type");
 }
 
-Value* tpu::EltwiseMulOp::convertToTG() {
-  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
-               << " [" << getOpName() << "]\n";);
+Value *tpu::EltwiseMulOp::convertToTG() {
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
   Operation *op = this->getOperation();
   auto builder = Builder(op->getContext());
   TensorFile *wTF = getWeightTensorFile(op);
@@ -629,29 +628,35 @@ Value* tpu::EltwiseMulOp::convertToTG() {
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
 
   if (getOpQuant() == "INT8") {
-    assert(getOpQuantParamType() == "RSHIFT_AND_M_I32");
-    // MUL
-    // rshift
-    auto rshift = readAndDeleteWeightTensor<float>(quant_rshift(), wTF);
-    assert(rshift->size() == 1);
-    attrs.push_back(builder.getNamedAttr("rshift",
-        builder.getI8IntegerAttr(static_cast<int8_t>(rshift->at(0)))));
+    int8_t rshift_i8 = 0;
+    int32_t m_i32_output = 0x7FFFFFFF;
+    if (getOpQuantParamType() == "RSHIFT_AND_M_I32") {
+      // MUL
+      // rshift
+      auto rshift = readAndDeleteWeightTensor<float>(quant_rshift(), wTF);
+      assert(rshift->size() == 1);
+      rshift_i8 = static_cast<int8_t>(rshift->at(0));
 
-    // m_i8_output
-    auto multiplier = readAndDeleteWeightTensor<float>(quant_multiplier(),
-                                                     wTF);
-    assert(multiplier->size() == 1);
-    attrs.push_back(builder.getNamedAttr("m_i32_output",
-        builder.getI32IntegerAttr(static_cast<int32_t>(multiplier->at(0)))));
+      // m_i8_output
+      auto multiplier =
+          readAndDeleteWeightTensor<float>(quant_multiplier(), wTF);
+      assert(multiplier->size() == 1);
+      m_i32_output = static_cast<int32_t>(multiplier->at(0));
+    }
+
+    attrs.push_back(
+        builder.getNamedAttr("rshift", builder.getI8IntegerAttr(rshift_i8)));
+    attrs.push_back(builder.getNamedAttr(
+        "m_i32_output", builder.getI32IntegerAttr(m_i32_output)));
 
     // create op
-    auto newOp = OpBuilder(op).create<tpu::TG_INT8_EltwiseMulOp>(op->getLoc(),
-        getResult()->getType(), ArrayRef<Value *>{operands},
+    auto newOp = OpBuilder(op).create<tpu::TG_INT8_EltwiseMulOp>(
+        op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
   } else if (getOpQuant() == "BF16") {
-    auto newOp = OpBuilder(op).create<tpu::TG_BF16_EltwiseMulOp>(op->getLoc(),
-        getResult()->getType(), ArrayRef<Value *>{operands},
+    auto newOp = OpBuilder(op).create<tpu::TG_BF16_EltwiseMulOp>(
+        op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
   }
@@ -1030,6 +1035,32 @@ Value *tpu::PReluOp::convertToTG() {
     auto newOp = OpBuilder(op).create<tpu::TG_BF16_PReluOp>(
 
         op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  }
+  llvm_unreachable("unsupported type");
+}
+
+Value* tpu::ZeroMaskOp::convertToTG() {
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  auto builder = Builder(op->getContext());
+
+  std::vector<Value *> operands;
+  operands.push_back(input());
+
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder.getNamedAttr("name", nameAttr()));
+
+  if (getOpQuant() == "INT8" || getOpQuant() == "UINT8") {
+    auto newOp = OpBuilder(op).create<tpu::TG_INT8_ZeroMaskOp>(op->getLoc(),
+        getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  } else if (getOpQuant() == "BF16") {
+    auto newOp = OpBuilder(op).create<tpu::TG_BF16_ZeroMaskOp>(op->getLoc(),
+        getResult()->getType(), ArrayRef<Value *>{operands},
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
   }
@@ -3443,7 +3474,8 @@ public:
         DefaultToTGPattern<tpu::ReduceMaxOp>,
         DefaultToTGPattern<tpu::GruOp>,
         DefaultToTGPattern<tpu::LstmOp>,
-        DefaultToTGPattern<tpu::SoftmaxOp>
+        DefaultToTGPattern<tpu::SoftmaxOp>,
+        DefaultToTGPattern<tpu::ZeroMaskOp>
         >(context);
     applyPatternsGreedily(fn, patterns);
     LLVM_DEBUG(llvm::errs() << "Done lower: " << "]\n");

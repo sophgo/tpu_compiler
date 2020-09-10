@@ -90,6 +90,7 @@ add_llvm_library(MLIRTPU
   Backend/Kernel/concat_bmkernel.cpp
   Backend/Kernel/conv_kernel.cpp
   Backend/Kernel/crop_bmkernel.cpp
+  Backend/Kernel/mac_const_kernel.cpp
   Backend/Kernel/dilate_bmkernel.cpp
   Backend/Kernel/dma_legacy_bmkernel.cpp
   Backend/Kernel/fc_parallel_bmkernel.cpp

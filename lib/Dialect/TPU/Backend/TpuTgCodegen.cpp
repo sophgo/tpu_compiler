@@ -2918,6 +2918,34 @@ LogicalResult tpu::TG_BF16_ReduceMaxOp::codegen(void *ctx) {
   return success();
 }
 
+LogicalResult tpu::TG_INT8_ZeroMaskOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  std::vector<int64_t> input_shape = getTensorShape(input());
+
+  gaddr_t input_gaddr = getPreviousOpAddress(op);
+  gaddr_t output_gaddr = getOpAddress(op);
+  int layer_id = getOpLayerId(op);
+  // y = relu(x * 1 + 1)
+  cvi_backend_tg_fixed_mac_const_kernel(
+      *backend_ctx, 0, 0, layer_id, nullptr, 0, input_gaddr, output_gaddr,
+      (int)input_shape[0], (int)input_shape[1], (int)input_shape[2],
+      (int)input_shape[3], 1, 1, true);
+  return success();
+}
+
+LogicalResult tpu::TG_BF16_ZeroMaskOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
+  // backend not ok now
+  std::string errorMsg = "unsupported tg op " + getOpName().str() + "\n";
+  llvm_unreachable(errorMsg.c_str());
+  return success();
+}
+
 // MemRefType dummy
 LogicalResult tpu::TG_MemRef_INT8_BroadcastMulOp::codegen(void *ctx) {
   return success();
@@ -3196,6 +3224,14 @@ LogicalResult tpu::TG_MemRef_INT8_PadOp::codegen(void *ctx) {
 }
 
 LogicalResult tpu::TG_MemRef_BF16_PadOp::codegen(void *ctx) {
+  return success();
+}
+
+LogicalResult tpu::TG_MemRef_INT8_ZeroMaskOp::codegen(void *ctx) {
+  return success();
+}
+
+LogicalResult tpu::TG_MemRef_BF16_ZeroMaskOp::codegen(void *ctx) {
   return success();
 }
 

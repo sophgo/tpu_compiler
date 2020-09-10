@@ -1674,4 +1674,45 @@ class TPU_TG_ReduceMaxOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 def TPU_TG_INT8_ReduceMaxOp : TPU_TG_PadOp<"tg_int8_reduce_max", "Int8">;
 def TPU_TG_BF16_ReduceMaxOp : TPU_TG_PadOp<"tg_bf16_reduce_max", "Bf16">;
 
+class TPU_TG_ZeroMaskOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
+  let summary = "zero mask operator";
+
+  let description = [{
+    if input[x] < 0, output[x] = 0; if input[x] = 0, output[x] = 1
+
+    Inputs:
+      `input`           : required, the input activation tensor.
+
+    Attributes:
+      `name`            : required, name for calibration, comparing, or debug.
+      `chipname`        : optional, chipname.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface` : support common TPU Op interface
+      `TpuOpInterpInterface` : support interperter
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
+    OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    OptionalAttr<BoolAttr>:$buffer_reused,
+    StrAttr:$name,
+    OptionalAttr<StrAttr>:$chipname
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
+def TPU_TG_INT8_ZeroMaskOp : TPU_TG_ZeroMaskOp<"tg_int8_zero_mask", "Int8">;
+def TPU_TG_BF16_ZeroMaskOp : TPU_TG_ZeroMaskOp<"tg_bf16_zero_mask", "Bf16">;
+
+
 #endif // TPU_TG_OPS
