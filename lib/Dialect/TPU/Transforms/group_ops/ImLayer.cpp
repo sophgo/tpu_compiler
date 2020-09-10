@@ -44,8 +44,9 @@ void ImLayer::add_in_tensor(Value * v, tensor_type_t type) {
       && !isa<ReturnOp>(def_op)) {
     if (auto load_op = dyn_cast<tpu::LoadWeightOp>(def_op)) {
       std::string name = load_op.name();
+      std::string storage = load_op.storage();
       std::shared_ptr<Tensor> tensor =
-          Tensor::register_tensor(&shape, name, TENSOR_COEFF, layer_id_);
+          Tensor::register_tensor(&shape, name, type, layer_id_, storage);
       in_tensors.push_back(tensor);
     } else {
       std::string name = mlir::getOpName(def_op);
@@ -59,16 +60,10 @@ void ImLayer::add_in_tensor(Value * v, tensor_type_t type) {
 void ImLayer::add_out_tensor(Value * v, tensor_type_t type) {
   auto def_op = v->getDefiningOp();
   auto shape = v->getType().dyn_cast<TensorType>();
-  if (!isa<tpu::NoneOp>(def_op) && !isa<tpu::WeightFileOp>(def_op)) {
+  if (!isa<tpu::NoneOp>(def_op) && !isa<tpu::WeightFileOp>(def_op)
+      && !isa<ReturnOp>(def_op)) {
     if (auto load_op = dyn_cast<tpu::LoadWeightOp>(def_op)) {
-      std::string name = load_op.name();
-      std::shared_ptr<Tensor> tensor =
-          Tensor::register_tensor(&shape, name, TENSOR_COEFF, layer_id_);
-      out_tensors.push_back(tensor);
-    } else if (auto ret_op = dyn_cast<ReturnOp>(def_op)) {
-      std::shared_ptr<Tensor> tensor =
-          Tensor::register_tensor(&shape, "return", TENSOR_NEURON, layer_id_);
-      out_tensors.push_back(tensor);
+      assert(0);
     } else {
       std::string name = mlir::getOpName(def_op);
       std::shared_ptr<Tensor> tensor =
@@ -406,12 +401,7 @@ ImPooling::ImPooling(Operation* op) : ImLayer(IR_POOLING, op, true) {
 ImInnerproduct::ImInnerproduct(Operation* op) : ImLayer(IR_INNERPRODUCT, op) {
 
   add_in_tensor(op->getOperand(0), TENSOR_NEURON);
-
-  // weight
-  auto weightOp = cast<tpu::LoadWeightOp>(op->getOperand(1)->getDefiningOp());
-  std::string weightOpName = weightOp.name().str();
-  auto s_type = op->getOperand(1)->getType().dyn_cast<TensorType>();
-  add_in_tensor(&s_type, weightOpName, TENSOR_COEFF);
+  add_in_tensor(op->getOperand(1), TENSOR_COEFF);
 
   // if bias is not noneop
   if (!isa<tpu::NoneOp>(op->getOperand(2)->getDefiningOp())) {
@@ -426,10 +416,12 @@ ImInnerproduct::ImInnerproduct(Operation* op) : ImLayer(IR_INNERPRODUCT, op) {
 }
 
 ImEltwise::ImEltwise(Operation* op) : ImLayer(IR_ELTWISE, op, true) {
-  // skip rshift and multiplier
   uint32_t nInputs = op->getNumOperands();
   for (uint32_t i = 0; i < nInputs; ++i) {
-    add_in_tensor(op->getOperand(i), TENSOR_NEURON);
+    //
+    bool isCoeffLoad = isa<tpu::LoadWeightOp>(op->getOperand(i)->getDefiningOp());
+    tensor_type_t t_type = isCoeffLoad ? TENSOR_COEFF : TENSOR_NEURON;
+    add_in_tensor(op->getOperand(i), t_type);
   }
 
   add_out_tensor(op->getResult(0), TENSOR_NEURON);
@@ -514,7 +506,7 @@ ImActivation::ImActivation(Operation* op) : ImLayer(IR_ACTIVATION, op, true) {
 
     // add working table
     // NOTICE: 4 dims
-    add_imm_tensor(out_tensors[0], 1, name_ + "_imm");
+    add_imm_tensor(out_tensors[0], 2, name_ + "_imm");
     //std::vector<int64_t> i_s(op->getResult(0)->getType().cast<TensorType>().getShape());
     //add_in_tensor(i_s[0], i_s[1], i_s[2], i_s[3], usize, storage,
     //    getOpName(op).str() + "_working", TENSOR_NEURON);
@@ -522,19 +514,13 @@ ImActivation::ImActivation(Operation* op) : ImLayer(IR_ACTIVATION, op, true) {
 }
 
 ImQuant::ImQuant(Operation* op) : ImLayer(IR_QUANT, op, true) {
-
   add_in_tensor(op->getOperand(0), TENSOR_NEURON);
   add_out_tensor(op->getResult(0), TENSOR_NEURON);
 }
 
 ImPRelu::ImPRelu(Operation* op) : ImLayer(IR_PRELU, op, true) {
   add_in_tensor(op->getOperand(0), TENSOR_NEURON);
-
-  auto load_slope = cast<tpu::LoadWeightOp>(op->getOperand(1)->getDefiningOp());
-  std::string weightOpName = load_slope.name().str();
-  auto s_type = op->getOperand(1)->getType().dyn_cast<TensorType>();
-  add_in_tensor(&s_type, weightOpName, TENSOR_DEPTHCONV_OPD1);
-
+  add_in_tensor(op->getOperand(1), TENSOR_DEPTHCONV_OPD1);
   add_out_tensor(op->getResult(0), TENSOR_NEURON);
 }
 
@@ -565,21 +551,30 @@ ImLrn::ImLrn(Operation *op): ImLayer(IR_LRN, op, true) {
   add_in_tensor(op->getOperand(0), TENSOR_NEURON);
   add_out_tensor(op->getResult(0), TENSOR_NEURON);
 
+  int working_size = 5;
+  int table_h = 16;
+  int table_w = 16;
+  if (isa<tpu::TG_BF16_LrnOp>(op)) {
+    working_size = 2;
+    table_h = 32;
+    table_w = 8;
+  }
+
   // add sqr weight
   auto load_sqr = cast<tpu::LoadWeightOp>(op->getOperand(1)->getDefiningOp());
   int usize = getOpResultUnitSize(load_sqr);
   std::string storage = getWeightStorage(load_sqr);
   std::string sqr_name = load_sqr.name().str();
-  add_in_tensor(1, 32, 16, 16, usize, storage, sqr_name, TENSOR_COEFF);
+  add_in_tensor(1, 32, table_h, table_w, usize, storage, sqr_name, TENSOR_COEFF_LUT);
 
   // add power weight
   auto load_pow = cast<tpu::LoadWeightOp>(op->getOperand(2)->getDefiningOp());
   usize = getOpResultUnitSize(load_pow);
   storage = getWeightStorage(load_pow);
   std::string pow_name = load_pow.name().str();
-  add_in_tensor(1, 32, 16, 16, usize, storage, pow_name, TENSOR_COEFF);
+  add_in_tensor(1, 32, table_h, table_w, usize, storage, pow_name, TENSOR_COEFF_LUT);
 
-  add_imm_tensor(in_tensors[0], 5, name_ + "_imm");
+  add_imm_tensor(in_tensors[0], working_size, name_ + "_imm");
 }
 
 ImBroadcastMul::ImBroadcastMul(Operation *op): ImLayer(IR_BROADCAST_MUL, op, true) {

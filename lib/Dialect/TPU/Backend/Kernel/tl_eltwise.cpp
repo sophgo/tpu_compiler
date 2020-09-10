@@ -531,3 +531,192 @@ void cvi_backend_tl_eltwise(
     assert(0);
   }
 }
+
+
+void cvi_backend_bf16_tl_eltwise(
+    const CviBackendContext &ctx, uint32_t layer_id,
+    laddr_t *la_input, laddr_t la_output, laddr_t la_working,
+    int input_n, int input_c, int input_h, int input_w,
+    int input_size, int op,
+    bool use_default_coeff,
+    bool do_relu, float relu_slope,
+    const int *coeffs,
+    bool do_early_stride,
+    int stride_h, int stride_w) {
+
+  LLVM_DEBUG(
+      llvm::errs() << llvm::format("cvi_backend_bf16_tl_eltwise:\n"
+                                "  layer_id %d\n"
+                                "  in(%d, %d, %d, %d), intput_size %d\n"
+                                "  use_default_coeff %d, op %d, do_relu %d, relu_slop %.2f\n"
+                                "  do_early_stride %d, stride_h %d, stride_w %d\n",
+                                layer_id, input_n, input_c, input_h, input_w, input_size,
+                                use_default_coeff, op, do_relu, relu_slope, do_early_stride,
+                                stride_h, stride_w));
+
+  int oh = (do_early_stride) ? input_h / stride_h : input_h;
+  int ow = (do_early_stride) ? input_w / stride_w : input_w;
+
+  cvk_tl_shape_t origin_shape = {
+      static_cast<uint32_t>(input_n),
+      static_cast<uint32_t>(input_c),
+      static_cast<uint32_t>(input_h),
+      static_cast<uint32_t>(input_w)};
+  cvk_tl_stride_t bottom_stride = ctx.tl_default_stride(origin_shape, CVK_FMT_BF16, 1);
+  if (do_early_stride) {
+    bottom_stride = {bottom_stride.n, bottom_stride.c , (uint32_t)(input_w * stride_h), (uint32_t)stride_w};
+  }
+
+  cvk_tl_shape_t shape = {
+      static_cast<uint32_t>(input_n),
+      static_cast<uint32_t>(input_c),
+      static_cast<uint32_t>(oh),
+      static_cast<uint32_t>(ow)};
+  cvk_tl_stride_t top_stride = ctx.tl_default_stride(shape, CVK_FMT_BF16, 1);
+
+  bool fused_relu = (do_relu && (relu_slope == 0.0f)) ? true : false;
+
+  auto ic_step = input_c;
+  if (input_c > MAX_TIU_CHL) {
+    int i = 2;
+    do {
+      ic_step = align_up(ceiling_func(input_c, i++), NPU_NUM * EU_NUM);
+    } while (ic_step > MAX_TIU_CHL);
+
+    llvm::errs() << "tl_eltwise input_c(" << input_c
+                  << ") is larger than " << MAX_TIU_CHL
+                  << ", need to split it with step "
+                  << ic_step << "\n";
+  }
+
+  for (int32_t ic_pos = 0; ic_pos < input_c; ic_pos += ic_step) {
+    auto cur_ic = std::min(ic_step, input_c - ic_pos);
+    cvk_tl_t input[2];
+    cvk_tl_t output;
+
+    shape.c = cur_ic;
+    input[0].start_address = la_input[0] + (ic_pos / NPU_NUM) * bottom_stride.c;
+    input[0].fmt = CVK_FMT_BF16;
+    input[0].shape = shape;
+    input[0].stride = bottom_stride;
+
+    output.start_address = la_output + (ic_pos / NPU_NUM) * top_stride.c;
+    output.fmt = CVK_FMT_BF16;
+    output.shape = shape;
+    output.stride = top_stride;
+
+    switch (op) {
+      case 0: {  // production
+        assert(input_size == 2 && "Support only input_size = 2");
+        input[1].start_address = la_input[1] + (ic_pos / NPU_NUM) * bottom_stride.c;
+        input[1].fmt = CVK_FMT_BF16;
+        input[1].shape = shape;
+        input[1].stride = bottom_stride;
+
+        cvk_tiu_mul_param_t p1 = {0};
+        p1.res_high = nullptr;
+        p1.res_low = &output;
+        p1.a = &input[0];
+        p1.b = &input[1];
+        p1.b_is_const = 0;
+        p1.relu_enable = 0;
+        p1.layer_id = layer_id;
+        ctx.tiu_mul(&p1);
+        break;
+      }
+      case 1: {  // sum
+        cvk_tl_t working;
+        working.start_address = la_working + (ic_pos / NPU_NUM) * top_stride.c;
+        working.fmt = CVK_FMT_BF16;
+        working.shape = shape;
+        working.stride = top_stride;
+
+        cvk_tl_t *res_high = &working;
+        cvk_tl_t *res_low = &output;
+        bool out_is_higher_addr = false;
+        if (la_output > la_working) {
+          out_is_higher_addr = true;
+          res_high = &output;
+          res_low = &working;
+        }
+        // res_high->stride = ctx.tl_default_stride(shape, CVK_FMT_I8, 1);
+
+        if (use_default_coeff) {
+          cvk_tiu_mul_param_t p = {0};
+          p.res_high = res_high;
+          p.res_low = res_low;
+          p.a = &input[0];
+          p.b_const.val = ctx.convert_fp32_to_bf16(coeffs[0]);
+          p.b_const.is_signed = true;
+          p.b_is_const = true;
+          p.rshift_bits = 0;
+          p.layer_id = layer_id;
+          p.relu_enable = 0;
+          ctx.tiu_mul(&p);
+
+          for (int i = 1; i < input_size - 1; ++i) {
+            input[1].start_address = la_input[i] + (ic_pos / NPU_NUM) * bottom_stride.c;;
+            input[1].fmt = CVK_FMT_BF16;
+            input[1].shape = shape;
+            input[1].stride = bottom_stride;  // EU-aligned
+
+            cvk_tiu_mac_param_t p3 = {0};
+            p3.res_high = res_high;
+            p3.res_low = res_low;
+            p3.a = &input[1];
+            p3.res_is_int8 = false;
+            p3.b_const.val = ctx.convert_fp32_to_bf16(coeffs[i]);
+            p3.b_is_const = 1;
+            p3.b_const.is_signed = true;
+            p3.lshift_bits = 0;
+            p3.rshift_bits = 0;
+            p3.layer_id = layer_id;
+            p3.relu_enable = 0;
+            ctx.tiu_mac(&p3);
+          }
+          input[1].start_address = la_input[input_size - 1] + (ic_pos / NPU_NUM) * bottom_stride.c;
+          input[1].fmt = CVK_FMT_BF16;
+          input[1].shape = shape;
+          input[1].stride = bottom_stride;  // EU-aligned
+
+          cvk_tiu_mac_param_t p3 = {0};
+          p3.res_high = res_high;
+          p3.res_low = res_low;
+          p3.a = &input[1];
+          p3.res_is_int8 = false;
+          p3.b_const.val = ctx.convert_fp32_to_bf16(coeffs[input_size - 1]);
+          p3.b_is_const = 1;
+          p3.b_const.is_signed = true;
+          p3.lshift_bits = 0;
+          p3.rshift_bits = 0;
+          p3.layer_id = layer_id;
+          p3.relu_enable = fused_relu;
+          ctx.tiu_mac(&p3);
+
+          if (out_is_higher_addr) {
+            ctx.parallel_disable();
+            cvk_tdma_l2l_tensor_copy_param_t p10 = {0};
+            p10.dst = &output;
+            p10.src = res_low;
+            p10.layer_id = layer_id;
+            ctx.tdma_l2l_bf16_tensor_copy(&p10);
+          }
+        } else {
+          // Not support
+          assert(0);
+        }
+
+        break;
+      }
+      case 2: {  // max
+        // Not support
+        assert(0);
+        break;
+      }
+    }
+  }
+  if (do_relu && !fused_relu) {
+    // Not support
+    assert(0);
+  }
+}

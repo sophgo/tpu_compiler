@@ -665,6 +665,8 @@ class TPU_TG_LrnOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
+    DefaultValuedAttr<F32Attr, "1.0">:$alpha,
+    DefaultValuedAttr<F32Attr, "1.0">:$k,
     StrAttr:$name,
     OptionalAttr<StrAttr>:$chipname
   );

@@ -209,3 +209,102 @@ void cvi_backend_tl_broadcast_mul(
     ctx.tiu_depthwise_convolution(&param);
   }
 }
+
+
+void cvi_backend_bf16_tl_broadcast_mul(
+      const CviBackendContext &ctx, uint32_t layer_id,
+      laddr_t input_laddr, laddr_t scale_laddr,
+      laddr_t bias_laddr, laddr_t output_laddr, int input_n,
+      int input_c, int input_h, int input_w,
+      int do_activation,
+      int activation_method,
+      float activation_arg[],
+      bool do_bias) {
+  LLVM_DEBUG(llvm::errs() << llvm::format(
+      "cvi_backend_bf16_tl_broadcast_mul:\n"
+      "input_laddr 0x%lx scale_laddr 0x%lx, "
+      "bias_laddr:0x%lx, output_laddr:0x%lx, "
+      "input_n %d input_c %d input_h %d input_w %d "
+      "\n",
+      input_laddr, scale_laddr, bias_laddr, output_laddr, input_n, input_c,
+      input_h, input_w););
+
+  // output
+  cvk_tl_shape_t tl_output_shape = {
+                          static_cast<uint32_t>(input_n),
+                          static_cast<uint32_t>(input_c),
+                          static_cast<uint32_t>(input_h),
+                          static_cast<uint32_t>(input_w)};
+  cvk_tl_t tl_output;
+  tl_output.start_address = output_laddr;
+  tl_output.fmt = CVK_FMT_BF16;
+  tl_output.shape = tl_output_shape;
+  tl_output.stride = ctx.tl_default_stride(tl_output_shape, CVK_FMT_BF16, 1);
+
+
+#define RELU (0)
+  bool fused_relu = (do_activation && activation_method == RELU &&
+                    (activation_arg[0] == 0.0f));
+  LLVM_DEBUG(llvm::errs() << "fused_relu is " << fused_relu;);
+
+  // input
+  cvk_tl_shape_t tl_input_shape = {
+                          static_cast<uint32_t>(input_n),
+                          static_cast<uint32_t>(input_c),
+                          static_cast<uint32_t>(input_h),
+                          static_cast<uint32_t>(input_w)};
+  cvk_tl_t tl_input;
+  tl_input.start_address = input_laddr;
+  tl_input.fmt = CVK_FMT_BF16;
+  tl_input.shape = tl_input_shape;
+  tl_input.stride = ctx.tl_default_stride(tl_input_shape, CVK_FMT_BF16, 1);
+
+  // scale
+  cvk_tl_shape_t tl_scale_shape;
+  cvk_tl_t tl_scale;
+  tl_scale_shape.n = 1;
+  tl_scale_shape.c = input_c;
+  tl_scale_shape.h = 1;
+  tl_scale_shape.w = 1;
+  tl_scale.start_address = scale_laddr;
+  tl_scale.fmt = CVK_FMT_BF16;
+  tl_scale.shape = tl_scale_shape;
+  tl_scale.stride = ctx.tl_default_stride(tl_scale_shape, CVK_FMT_BF16, 1);
+
+  cvk_tl_t tl_bias;
+  cvk_tl_shape_t tl_bias_shape;
+  tl_bias_shape.n = 1;
+  tl_bias_shape.c = input_c;
+  tl_bias_shape.h = 1;
+  tl_bias_shape.w = 1;
+  tl_bias.start_address = bias_laddr;
+  tl_bias.fmt = CVK_FMT_BF16;
+  tl_bias.shape = tl_bias_shape;
+  tl_bias.stride = ctx.tl_default_stride(tl_bias_shape, CVK_FMT_BF16, 1);
+
+  /*
+   * Res(n, c, h, w) = A(n, c, h, w) * B(1,c,1,1) + Bias(1,c,1,1)
+   * Use depthwise-conv to implement linear-arithmatic MAC
+   * (channel-wise mac).
+   */
+  cvk_tiu_depthwise_pt_convolution_param_t param = {0};
+  param.ofmap = &tl_output;
+  param.ifmap = &tl_input;
+  param.weight = &tl_scale;
+  param.bias = do_bias ? &tl_bias : nullptr;
+  param.ins_h = 0;
+  param.ins_last_h = 0;
+  param.ins_w = 0;
+  param.ins_last_w = 0;
+  param.pad_top = 0;
+  param.pad_bottom = 0;
+  param.pad_left = 0;
+  param.pad_right = 0;
+  param.stride_h = 1;
+  param.stride_w = 1;
+  param.dilation_h = 1;
+  param.dilation_w = 1;
+  param.relu_enable = fused_relu;
+  param.layer_id = layer_id;
+  ctx.tiu_pt_depthwise_convolution(&param);
+}

@@ -3,7 +3,8 @@
 
 namespace mlir {
 
-Tensor::Tensor(int id, int n, int c, int h, int w, int unit_size, const std::string& name,
+Tensor::Tensor(int id, int n, int c, int h, int w,
+               int unit_size, const std::string& name,
                tensor_type_t type, int layer_id)
     : laddr(0),
       n_idx(-1),
@@ -26,7 +27,8 @@ Tensor::Tensor(int id, int n, int c, int h, int w, int unit_size, const std::str
   group = 1;
 }
 
-Tensor::Tensor(int id, int n, int c, int h, int w, int unit_size, std::string& storage, const std::string& name,
+Tensor::Tensor(int id, int n, int c, int h, int w, int unit_size,
+               std::string& storage, const std::string& name,
                tensor_type_t type, int layer_id)
     : laddr(0),
       n_idx(-1),
@@ -50,8 +52,9 @@ Tensor::Tensor(int id, int n, int c, int h, int w, int unit_size, std::string& s
   group = 1;
 }
 
-std::shared_ptr<Tensor> Tensor::register_tensor(int n, int c, int h, int w, int unit_size, std::string & storage,
-                                           const std::string& name, tensor_type_t type, int layer_id) {
+std::shared_ptr<Tensor> Tensor::register_tensor(
+        int n, int c, int h, int w, int unit_size, std::string & storage,
+        const std::string& name, tensor_type_t type, int layer_id) {
   int id;
   std::shared_ptr<Tensor> tensor;
   auto iter = map_name_to_id_.find(name);
@@ -61,15 +64,18 @@ std::shared_ptr<Tensor> Tensor::register_tensor(int n, int c, int h, int w, int 
   } else {
     id = max_tensor_id++;
     map_name_to_id_[name] = id;
-    tensor = std::make_shared<Tensor>(id, n, c, h, w, unit_size, storage, name, type, layer_id);
+    tensor = std::make_shared<Tensor>(id, n, c, h, w, unit_size,
+                                      storage, name, type, layer_id);
     map_id_to_tensor[id] = tensor;
   }
 
   return tensor;
 }
 
-std::shared_ptr<Tensor> Tensor::register_tensor(ShapedType *s_type, const std::string& name,
-                                           tensor_type_t type, int layer_id) {
+std::shared_ptr<Tensor> Tensor::register_tensor(
+                                ShapedType *s_type, const std::string& name,
+                                tensor_type_t type, int layer_id,
+                                std::string storage) {
   int n = 0, c = 0, h = 0, w = 1;
   std::vector<int64_t> shape = s_type->getShape();
   switch (s_type->getRank()) {
@@ -103,8 +109,6 @@ std::shared_ptr<Tensor> Tensor::register_tensor(ShapedType *s_type, const std::s
   }
 
   int unit_size = s_type->getElementTypeBitWidth()/8;
-  //  TODO: update storage
-  std::string storage = "INT8";
 
   return register_tensor(n, c, h, w, unit_size, storage, name, type, layer_id);
 }

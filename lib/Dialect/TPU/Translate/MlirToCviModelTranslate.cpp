@@ -305,13 +305,15 @@ void CviTpuRoutine::codeGen() {
       int layer_id = mlir::getOpLayerId(op);
       cvi_backend_set_layer_id(backend_ctx, layer_id);
       // enable parallel
-      if (tlOp.getEnableParallel() && !isa<tpu::TL_LG_INT8_LrnOp>(op)) {
+      if (tlOp.getEnableParallel() && !isa<tpu::TL_LG_INT8_LrnOp>(op)
+          && !isa<tpu::TL_LG_BF16_LrnOp>(op)) {
         cvi_backend_parallel_enable(backend_ctx);
       }
       // tl codegen
       tlOp.codegen((void *)backend_ctx);
       // disable parallel
-      if (tlOp.getDisableParallel() && !isa<tpu::TL_LG_INT8_LrnOp>(op)) {
+      if (tlOp.getDisableParallel() && !isa<tpu::TL_LG_INT8_LrnOp>(op)
+          && !isa<tpu::TL_LG_BF16_LrnOp>(op)) {
         cvi_backend_parallel_disable(backend_ctx);
       }
     }

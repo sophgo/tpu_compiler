@@ -165,4 +165,28 @@ void getEltwiseReluParam(Operation * op,
   }
 }
 
+void getLrnParam(Operation * op,
+                  uint32_t &local_size,
+                  int &sum_rshift, int &lrn_rshift,
+                  int &quant_data0, int &quant_data1,
+                  float &alpha, float &k) {
+  if (auto lrn_op = dyn_cast<tpu::TG_INT8_LrnOp>(op)) {
+    local_size = lrn_op.local_size().getLimitedValue();
+    sum_rshift = lrn_op.sum_rshift().getLimitedValue();
+    lrn_rshift = lrn_op.lrn_rshift().getLimitedValue();
+    quant_data0 = lrn_op.quant_data0().getLimitedValue();
+    quant_data1 = lrn_op.quant_data1().getLimitedValue();
+  } else if(auto lrn_op = dyn_cast<tpu::TG_BF16_LrnOp>(op)) {
+    local_size = lrn_op.local_size().getLimitedValue();
+    alpha = lrn_op.alpha().convertToFloat();
+    k = lrn_op.k().convertToFloat();
+    sum_rshift = 0;
+    lrn_rshift = 0;
+    quant_data0 = 0;
+    quant_data1 = 0;
+  } else {
+    assert(!"Unsupport eltwise add op in Layergroup.");
+  }
+}
+
 }

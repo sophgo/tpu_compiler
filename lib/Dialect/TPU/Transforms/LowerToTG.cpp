@@ -705,26 +705,52 @@ Value *tpu::LrnOp::convertToTG() {
   Operation *op = this->getOperation();
   auto builder = Builder(op->getContext());
 
-  int nInputs = 3; // input, sqr table, power table
-  std::vector<Value *> operands;
-  for (auto i = 0; i < nInputs; ++i) {
-    operands.push_back(op->getOperand(i));
-  }
-  std::vector<NamedAttribute> attrs;
-  attrs.push_back(builder.getNamedAttr("local_size", local_sizeAttr()));
-  attrs.push_back(builder.getNamedAttr("sum_rshift", sum_rshiftAttr()));
-  attrs.push_back(builder.getNamedAttr("lrn_rshift", lrn_rshiftAttr()));
-  attrs.push_back(builder.getNamedAttr("quant_data0", quant_data0Attr()));
-  attrs.push_back(builder.getNamedAttr("quant_data1", quant_data1Attr()));
-  attrs.push_back(builder.getNamedAttr("name", nameAttr()));
-
   if (getOpQuant() == "INT8") {
+    int nInputs = 3; // input, sqr table, power table
+    std::vector<Value *> operands;
+    for (auto i = 0; i < nInputs; ++i) {
+      operands.push_back(op->getOperand(i));
+    }
+
+    std::vector<NamedAttribute> attrs;
+    attrs.push_back(builder.getNamedAttr("local_size", local_sizeAttr()));
+    attrs.push_back(builder.getNamedAttr("sum_rshift", sum_rshiftAttr()));
+    attrs.push_back(builder.getNamedAttr("lrn_rshift", lrn_rshiftAttr()));
+    attrs.push_back(builder.getNamedAttr("quant_data0", quant_data0Attr()));
+    attrs.push_back(builder.getNamedAttr("quant_data1", quant_data1Attr()));
+    attrs.push_back(builder.getNamedAttr("name", nameAttr()));
+
+
     auto newOp = OpBuilder(op).create<tpu::TG_INT8_LrnOp>(
         op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
+  } else if (getOpQuant() == "BF16") {
+
+    int nInputs = 3; // input
+    std::vector<Value *> operands;
+    for (auto i = 0; i < nInputs; ++i) {
+      operands.push_back(op->getOperand(i));
+    }
+
+    std::vector<NamedAttribute> attrs;
+    attrs.push_back(builder.getNamedAttr("local_size", local_sizeAttr()));
+    attrs.push_back(builder.getNamedAttr("alpha", alphaAttr()));
+    attrs.push_back(builder.getNamedAttr("k", kAttr()));
+    attrs.push_back(builder.getNamedAttr("name", nameAttr()));
+    attrs.push_back(builder.getNamedAttr("sum_rshift", builder.getI32IntegerAttr(0)));
+    attrs.push_back(builder.getNamedAttr("lrn_rshift", builder.getI32IntegerAttr(0)));
+    attrs.push_back(builder.getNamedAttr("quant_data0", builder.getI32IntegerAttr(0)));
+    attrs.push_back(builder.getNamedAttr("quant_data1", builder.getI32IntegerAttr(0)));
+
+    auto newOp = OpBuilder(op).create<tpu::TG_BF16_LrnOp>(
+        op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
   }
+
   llvm_unreachable("unsupported type");
+  return NULL;
 }
 
 Value* tpu::LeakyReluOp::convertToTG() {
@@ -2906,7 +2932,17 @@ struct LowerWeightPReluOpPattern : public RewritePattern {
     } else if (getOpQuant(op) == "BF16") {
       // lower filter
       {
-        llvm_unreachable("TODO BF16");
+        assert(filterOp.storage() == "BF16");
+        std::vector<int64_t> shape;
+        int64_t size;
+        getTensorShapeAndSize(filterOp, shape, size);
+        auto filter = readAndDeleteWeightTensor<bfloat16>(prOp.filter(), wTF);
+        std::vector<uint16_t> filter_bf16(filter->begin(), filter->end());
+
+        // save it
+        addWeightTensorAndUpdateWeightOp<uint16_t>(prOp.filter(),
+            "lowered", filter_bf16, shape, "BF16", wTF);
+        filterOp.setAttr("lowered", rewriter.getBoolAttr(true));
       }
     }
     return matchSuccess();
@@ -2940,37 +2976,77 @@ struct LowerWeightLrnOpPattern : public RewritePattern {
   PatternMatchResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
     auto lrnOp = cast<tpu::LrnOp>(op);
-    assert(getOpQuant(op) == "INT8" && "only support int8 now");
-    auto sqTableOp =
-        cast<tpu::LoadWeightOp>(lrnOp.getOperand(1)->getDefiningOp());
-    auto powerTableOp =
-        cast<tpu::LoadWeightOp>(lrnOp.getOperand(2)->getDefiningOp());
-    if (sqTableOp.lowered() && powerTableOp.lowered()) {
-      // lowered already
-      return matchFailure();
+    if (getOpQuant(op) == "INT8") {
+      assert(getOpQuant(op) == "INT8" && "only support int8 now");
+      auto sqTableOp =
+          cast<tpu::LoadWeightOp>(lrnOp.getOperand(1)->getDefiningOp());
+      auto powerTableOp =
+          cast<tpu::LoadWeightOp>(lrnOp.getOperand(2)->getDefiningOp());
+      if (sqTableOp.lowered() && powerTableOp.lowered()) {
+        // lowered already
+        return matchFailure();
+      }
+      assert(sqTableOp.storage() == "UINT8");
+      assert(powerTableOp.storage() == "UINT8");
+      assert(sqTableOp.lowered() == false && powerTableOp.lowered() == false);
+
+      TensorFile *wTF = getWeightTensorFile(op);
+
+      std::vector<int64_t> shape;
+      int64_t size;
+      // update sq table
+      getTensorShapeAndSize(sqTableOp, shape, size);
+      auto sqTable = readAndDeleteWeightTensor<float>(sqTableOp, wTF);
+      std::vector<uint8_t> sqTable_uint8(sqTable->begin(), sqTable->end());
+      addWeightTensorAndUpdateWeightOp<uint8_t>(sqTableOp, "lowered", sqTable_uint8,
+                                              shape, "UINT8", wTF);
+      sqTableOp.setAttr("lowered", rewriter.getBoolAttr(true));
+      // update powerTableOp
+      getTensorShapeAndSize(powerTableOp, shape, size);
+      auto powerTable = readAndDeleteWeightTensor<float>(powerTableOp, wTF);
+      std::vector<uint8_t> powerTable_uint8(powerTable->begin(), powerTable->end());
+      addWeightTensorAndUpdateWeightOp<uint8_t>(
+          powerTableOp, "lowered", powerTable_uint8, shape, "UINT8", wTF);
+      powerTableOp.setAttr("lowered", rewriter.getBoolAttr(true));
+    } else if (getOpQuant(op) == "BF16") {
+      assert(getOpQuant(op) == "BF16");
+      auto powerExpTableOp =
+          cast<tpu::LoadWeightOp>(lrnOp.getOperand(1)->getDefiningOp());
+      auto powerMantissaTableOp =
+          cast<tpu::LoadWeightOp>(lrnOp.getOperand(2)->getDefiningOp());
+      if (powerExpTableOp.lowered() && powerMantissaTableOp.lowered()) {
+        // lowered already
+        return matchFailure();
+      }
+      assert(powerExpTableOp.storage() == "BF16");
+      assert(powerMantissaTableOp.storage() == "BF16");
+      assert(powerExpTableOp.lowered() == false && powerMantissaTableOp.lowered() == false);
+
+      TensorFile *wTF = getWeightTensorFile(op);
+
+      std::vector<int64_t> shape;
+      int64_t size;
+      // update power exp table
+      getTensorShapeAndSize(powerExpTableOp, shape, size);
+      auto powerExpTable =
+            readAndDeleteWeightTensor<float>(powerExpTableOp, wTF);
+      std::vector<uint16_t>  powerExpTable_bf16(powerExpTable->begin(),
+                                                powerExpTable->end());
+      addWeightTensorAndUpdateWeightOp<uint16_t>(
+          powerExpTableOp, "lowered",
+          powerExpTable_bf16, shape, "BF16", wTF);
+      powerExpTableOp.setAttr("lowered", rewriter.getBoolAttr(true));
+      // update power mantissa table
+      getTensorShapeAndSize(powerMantissaTableOp, shape, size);
+      auto powerMantissaTable =
+            readAndDeleteWeightTensor<float>(powerMantissaTableOp, wTF);
+      std::vector<uint16_t> powerMantissaTable_bf16(powerMantissaTable->begin(),
+                                                    powerMantissaTable->end());
+      addWeightTensorAndUpdateWeightOp<uint16_t>(
+          powerMantissaTableOp, "lowered",
+          powerMantissaTable_bf16, shape, "BF16", wTF);
+      powerMantissaTableOp.setAttr("lowered", rewriter.getBoolAttr(true));
     }
-    assert(sqTableOp.storage() == "UINT8");
-    assert(powerTableOp.storage() == "UINT8");
-    assert(sqTableOp.lowered() == false && powerTableOp.lowered() == false);
-
-    TensorFile *wTF = getWeightTensorFile(op);
-
-    std::vector<int64_t> shape;
-    int64_t size;
-    // update sq table
-    getTensorShapeAndSize(sqTableOp, shape, size);
-    auto sqTable = readAndDeleteWeightTensor<float>(sqTableOp, wTF);
-    std::vector<uint8_t> sqTable_uint8(sqTable->begin(), sqTable->end());
-    addWeightTensorAndUpdateWeightOp<uint8_t>(sqTableOp, "lowered", sqTable_uint8,
-                                             shape, "UINT8", wTF);
-    sqTableOp.setAttr("lowered", rewriter.getBoolAttr(true));
-    // update powerTableOp
-    getTensorShapeAndSize(powerTableOp, shape, size);
-    auto powerTable = readAndDeleteWeightTensor<float>(powerTableOp, wTF);
-    std::vector<uint8_t> powerTable_uint8(powerTable->begin(), powerTable->end());
-    addWeightTensorAndUpdateWeightOp<uint8_t>(
-        powerTableOp, "lowered", powerTable_uint8, shape, "UINT8", wTF);
-    powerTableOp.setAttr("lowered", rewriter.getBoolAttr(true));
     return matchSuccess();
   }
 };
@@ -2983,10 +3059,8 @@ struct LowerWeightLutOpPattern : public RewritePattern {
   PatternMatchResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
     auto lutOp = cast<OpTy>(op);
-
     auto tableOp = cast<tpu::LoadWeightOp>(lutOp.getOperand(1)->getDefiningOp());
     auto table_mantissaOp = cast<tpu::LoadWeightOp>(lutOp.getOperand(2)->getDefiningOp());
-
 
     if (tableOp.lowered()) {
       // lowered already

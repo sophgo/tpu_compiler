@@ -140,6 +140,17 @@ void cvi_backend_tl_eltwise(
     bool do_relu, float relu_slope, const int *coeffs, const int i32Multiplier,
     bool do_early_stride, int stride_h, int stride_w);
 
+void cvi_backend_bf16_tl_eltwise(
+    const CviBackendContext &ctx, uint32_t layer_id,
+    laddr_t *la_input, laddr_t la_output, laddr_t la_working,
+    int input_n, int input_c, int input_h, int input_w,
+    int input_size, int op,
+    bool use_default_coeff,
+    bool do_relu, float relu_slope,
+    const int *coeffs,
+    bool do_early_stride,
+    int stride_h, int stride_w);
+
 void cvi_backend_tl_pooling(
     const CviBackendContext &ctx, uint32_t layer_id,
     laddr_t ifmap_laddr, laddr_t ofmap_laddr,
@@ -166,6 +177,13 @@ void cvi_backend_tl_lrn(
     int input_n, int input_c, int input_h, int input_w, int size,
     int8_t sum_rshift_i8, int8_t lrn_rshift_i8,
     int8_t *m_i8);
+
+void cvi_backend_bf16_tl_lrn(
+    const CviBackendContext &ctx, uint32_t layer_id,
+    laddr_t ifmap_laddr, laddr_t ofmap_laddr, laddr_t power_exp_table,
+    laddr_t power_mantissa_table, laddr_t working_laddr,
+    int input_n, int input_c, int input_h, int input_w, int size,
+    float alpha, float k);
 
 void cvi_backend_tl_lut_LA(
     const CviBackendContext &ctx, uint32_t layer_id,
@@ -280,6 +298,16 @@ void cvi_backend_tl_broadcast_mul(
     const int *i8_multiplier, // INT8_PER_LAYER
     bool do_bias);
 
+void cvi_backend_bf16_tl_broadcast_mul(
+    const CviBackendContext &ctx, uint32_t layer_id,
+    laddr_t input_laddr, laddr_t scale_laddr,
+    laddr_t bias_laddr, laddr_t output_laddr, int input_n,
+    int input_c, int input_h, int input_w,
+    int do_activation,
+    int activation_method,
+    float activation_arg[],
+    bool do_bias);
+
 void cvi_backend_tl_upsample(
     const CviBackendContext &ctx, uint32_t layer_id,
     laddr_t input_laddr,
@@ -294,6 +322,13 @@ void cvi_backend_tl_leaky_relu(
     int input_h, int input_w,
     int GT_right_shift_width, int LE_right_shift_width,
     int GT_scale, int LE_scale);
+
+void cvi_backend_bf16_tl_leaky_relu(
+    const CviBackendContext &ctx,uint32_t layer_id,
+    laddr_t input_laddr, laddr_t output_laddr,
+    int input_n, int input_c,
+    int input_h, int input_w,
+    float neg_slope);
 
 void cvi_backend_tl_pad(
     const CviBackendContext &ctx, uint32_t layer_id,

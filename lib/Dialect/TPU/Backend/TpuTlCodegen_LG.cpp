@@ -449,6 +449,59 @@ LogicalResult tpu::TL_LG_BF16_EltwiseMulOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);
 
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+  int layer_id = mlir::getOpLayerId(op);
+
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  getNCHW(shape, n, c, h, w);
+  bool do_relu = this->do_relu();
+  int nInputs = op->getNumOperands();
+  assert(op->getNumOperands() == 2 && "support 2 inputs only");
+
+  int64_t output_size, oh, ow;
+  getTensorShapeAndSize(op->getResult(0), shape, output_size);
+  oh = shape[2];
+  ow = shape[3];
+
+  std::vector<int32_t> la_input_array;
+  laddr_t la_input[nInputs];
+  arrayAttrToVector(this->la_input().getValue(), la_input_array);
+  for (int i = 0; i < nInputs; ++i) {
+      la_input[i] = la_input_array[i];
+  }
+
+  laddr_t la_output = this->la_output().getLimitedValue();
+  laddr_t la_working = this->la_working().getLimitedValue();
+
+  bool do_early_stride = this->do_early_stride();
+  int32_t early_stride_h = this->early_stride_h().getLimitedValue();
+  int32_t early_stride_w = this->early_stride_w().getLimitedValue();
+  if (do_early_stride) {
+    assert(oh == h / early_stride_h);
+    assert(ow == w / early_stride_w);
+  }
+
+  // op code PROD = 0; SUM = 1; MAX = 2;
+  int op_code = 0;
+  const int coeffs[2] = {1, 1};
+
+  cvi_backend_bf16_tl_eltwise(*backend_ctx,
+                              layer_id, /*u32 layer_id,*/
+                              la_input,
+                              la_output,
+                              la_working,
+                              n, c, h, w, nInputs,
+                              op_code,
+                              true, /*use_default_coeff,*/
+                              do_relu,
+                              0, /*relu_slope,*/
+                              coeffs,
+                              do_early_stride,
+                              early_stride_h, early_stride_w);
+
   return success();
 }
 
@@ -494,6 +547,34 @@ LogicalResult tpu::TL_LG_INT8_LrnOp::codegen(void *ctx) {
 LogicalResult tpu::TL_LG_BF16_LrnOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);
+
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+  int layer_id = mlir::getOpLayerId(op);
+
+  laddr_t la_input = this->la_input().getLimitedValue();
+  laddr_t la_output = this->la_output().getLimitedValue();
+  laddr_t la_working = this->la_working().getLimitedValue();
+  laddr_t la_power_exp_table = this->la_sqrt().getLimitedValue();
+  laddr_t la_power_mantissa_table = this->la_power().getLimitedValue();
+  int local_size = this->local_size().getLimitedValue();
+  float alpha = this->alpha().convertToFloat();
+  float k = this->k().convertToFloat();
+
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  getNCHW(shape, n, c, h, w);
+
+  cvi_backend_bf16_tl_lrn( *backend_ctx,
+                          layer_id,
+                          la_input,
+                          la_output,
+                          la_power_exp_table,
+                          la_power_mantissa_table,
+                          la_working,
+                          n, c, h, w, local_size,
+                          alpha, k);
 
   return success();
 }
@@ -1132,7 +1213,35 @@ LogicalResult tpu::TL_LG_INT8_BroadcastMulOp::codegen(void *ctx) {
 LogicalResult tpu::TL_LG_BF16_BroadcastMulOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);
-  assert(0);
+
+ CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  getNCHW(shape, n, c, h, w);
+  bool do_relu = this->do_relu();
+
+  laddr_t la_input = this->la_input().getLimitedValue();
+  laddr_t la_output = this->la_output().getLimitedValue();
+  laddr_t la_scale = this->la_scale().getLimitedValue();
+  laddr_t la_bias = this->la_bias().getLimitedValue();
+  int layer_id = mlir::getOpLayerId(op);
+
+  cvi_backend_bf16_tl_broadcast_mul(
+      *backend_ctx, // ctx
+      layer_id,     // layer_id
+      la_input,     // input_addr
+      la_scale,    // scale_addr
+      la_bias,      // pack_addr
+      la_output,    // output_addr
+      n, c, h, w,
+      do_relu,      // do_activation,
+      0,            // activation_method
+      nullptr,      // activation_arg
+      false);        // with_bias
+
   return success();
 }
 
@@ -1211,7 +1320,32 @@ LogicalResult tpu::TL_LG_INT8_LeakyReluOp::codegen(void *ctx) {
 LogicalResult tpu::TL_LG_BF16_LeakyReluOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);
-  assert(0);
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  auto lreluOp = llvm::dyn_cast<tpu::TL_LG_BF16_LeakyReluOp>(op);
+  float negative_slope = lreluOp.negative_slope().convertToFloat();
+
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  getNCHW(shape, n, c, h, w);
+
+  laddr_t la_input = this->la_input().getLimitedValue();
+  laddr_t la_output = this->la_output().getLimitedValue();
+  int layer_id = mlir::getOpLayerId(op);
+
+  cvi_backend_bf16_tl_leaky_relu(
+      *backend_ctx,
+      layer_id, //layer_id,
+      la_input,
+      la_output,
+      n,
+      c,
+      h,
+      w,
+      negative_slope);
+
   return success();
 }
 
@@ -1269,7 +1403,29 @@ LogicalResult tpu::TL_LG_INT8_PReluOp::codegen(void *ctx) {
 LogicalResult tpu::TL_LG_BF16_PReluOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);
-  assert(0);
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  auto input_shape = getTensorShape(op->getOperand(0));
+  int64_t n, c, h, w;
+  getNCHW(input_shape, n, c, h, w);
+
+  laddr_t la_input = this->la_input().getLimitedValue();
+  laddr_t la_output = this->la_output().getLimitedValue();
+  laddr_t la_slope = this->la_slope().getLimitedValue();
+  int layer_id = mlir::getOpLayerId(op);
+
+  cvi_backend_tl_bf16_prelu(
+      *backend_ctx,
+      layer_id, //layer_id,
+      la_input,
+      la_output,
+      la_slope,
+      n,
+      c,
+      h,
+      w);
+
   return success();
 }
 
@@ -1367,7 +1523,29 @@ LogicalResult tpu::TL_LG_INT8_CropOp::codegen(void *ctx) {
 LogicalResult tpu::TL_LG_BF16_CropOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);
-  assert(0);
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  auto input_shape = getTensorShape(op->getOperand(0));
+  auto output_shape = getTensorShape(op->getResult(0));
+
+  laddr_t la_input = this->la_input().getLimitedValue();
+  laddr_t la_output = this->la_output().getLimitedValue();
+
+  // parse param
+  int layer_id = mlir::getOpLayerId(op);
+  std::vector<int32_t> crop_offsets;
+  arrayAttrToVector(this->crop_offsets().getValue(), crop_offsets);
+
+  cvi_backend_tl_bf16_crop(
+      *backend_ctx,
+      layer_id, //layer_id,
+      input_shape.data(),
+      output_shape.data(),
+      la_input,
+      la_output,
+      crop_offsets.data()
+  );
   return success();
 }
 

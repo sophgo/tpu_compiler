@@ -725,6 +725,9 @@ int my_prelu(float *input, float *output, int n, int c, int h, int w,
   return 0;
 }
 
+// align cmodel
+extern const int BF16_TABLE_START;
+extern const int BF16_TABLE_END;
 void gen_bf16_table(int start, int end, int table_hw, float *table,
                            double (*activate_func)(double)) {
   int half = table_hw / 2;
@@ -853,9 +856,132 @@ void bf16_gen_reciprocal_mantissa(int start, int end, int table_hw, uint16_t *ta
   }
 }
 
-// align cmodel
-extern const int BF16_TABLE_START;
-extern const int BF16_TABLE_END;
+
+// <! gen invert sqrt
+static double _gen_sqrt(int base, int p) {
+  // y = x ^ 0.5
+  double f = (double) (pow(base, p * 0.5));
+  return f;
+}
+
+void bf16_gen_sqrt(int start, int table_hw, uint16_t *table_data) {
+  //<! 32*8 table, duplicate `channel` times;
+
+  int half = table_hw / 2;
+  uint64_t idx = 0;
+  assert(half == 128);
+
+  // prepare channel 0
+  float s = 0.0;
+  table_data[idx] = convert_fp32_bf16(s);
+  idx++;
+
+  // > 0, exp from 0 -62 -61 ..  62  63
+  for (int i = 0; i < half; i++) {
+    int shift = (start + i);
+    bool is_odd = (shift % 2);
+    float exp = shift;
+    if (is_odd) {
+      exp = exp - 1;
+    }
+
+    double s = _gen_sqrt(2, exp);
+    //table_data[idx] = convert_fp32_bf16(s);
+    //FloatToBFloat16((float*)&s,&table_data[idx],(size_t)1);
+    table_data[idx] = convert_fp32_bf16(s);
+    idx++;
+  }
+}
+
+void bf16_gen_sqrt_mantissa(int table_hw, uint16_t* table_mantissa) {
+
+  uint32_t half = table_hw  / 2;
+  assert(half == 128);
+
+  int idx = 0;
+  double d;
+  for (uint32_t i = 0; i < half; i++) {
+    d = 1 + i * 1 / 128.0;
+    d = (double) pow(d, 0.5);
+    table_mantissa[128+idx] = convert_fp32_bf16(d);
+    LLVM_DEBUG(llvm::errs() <<","<< "table_mantissa["<<idx+128<<"] = " <<table_mantissa[128+idx];);
+
+    d = 2 * (1 + i * 1 / 128.0);
+
+    d = (double) pow(d, 0.5);
+    table_mantissa[idx] = convert_fp32_bf16(d);
+    LLVM_DEBUG(llvm::errs() <<","<< "table_mantissa["<<idx<<"] = " <<table_mantissa[idx];);
+    idx++;
+  }
+}
+
+// gen power exp table
+void bf16_gen_power_exp_table(uint16_t *table_data, float beta,
+                              int start, int table_hw) {
+  int exp_start = start;
+  int half = table_hw/2;
+  uint64_t idx = 0;
+
+  table_data[idx] = 0x1; // power(0)
+  idx++;
+
+  // > 0, exp from -62 -61 ..  62  63
+  for (int i = 0; i < half - 1; i++) {
+    int shift = (exp_start + i);
+    bool is_odd = (shift % 2);
+    float exp = shift;
+    if (is_odd) {
+      exp = exp - 1;
+    }
+
+    double s = (double)(pow(2, (exp*(-beta))));
+    //FloatToBFloat16((float*)&s,&table_data[idx],(size_t)1);
+    table_data[idx] = convert_fp32_bf16(s);
+    idx++;
+  }
+
+  table_data[idx] = 1; // power(-0)
+  idx++;
+
+  // < 0, exp from 0 -62 -61 ..  62  63
+  for (int i = 0; i < half - 1; i++) {
+    int shift = (exp_start + i);
+    bool is_odd = (shift % 2);
+    float exp = shift;
+    if (is_odd) {
+      exp = exp - 1;
+    }
+
+    double s = -1 * (double)(pow(2, (exp*(-beta))));
+    table_data[idx] = convert_fp32_bf16(s);
+    idx++;
+  }
+}
+
+void bf16_gen_power_mantissa_table(uint16_t* table_mantissa, float beta,
+                                   int table_hw) {
+  int half = table_hw / 2;
+  assert(half == 128);
+
+  int idx = 0;
+  double d;
+  for (int i = 0; i < half; i++) {
+    d = 1 + i * 1 / 128.0;
+    d = (double) pow(d, (0-beta));
+    table_mantissa[128+idx] = convert_fp32_bf16(d);
+    LLVM_DEBUG(llvm::errs() <<","<< "table_mantissa["<<idx+128
+                            <<"] = " <<table_mantissa[128+idx];);
+
+    //13=2^3x1.625=(2^2)x(2^1x1.625)
+    d = 2 * (1 + i * 1 / 128.0);
+    d = (double) pow(d, (0-beta));
+    table_mantissa[idx] = convert_fp32_bf16(d);
+    LLVM_DEBUG(llvm::errs() <<","<< "table_mantissa["<<idx
+                            <<"] = " <<table_mantissa[idx];);
+    idx++;
+  }
+}
+
 int my_sigmoid(float *input, float *output, int n, int c, int h, int w, bool is_bf16) {
   LLVM_DEBUG(llvm::errs() << "  n: " << n << ", c: " << c << ", h: " << h
                           << ", w: " << w << "\n";);
@@ -2101,11 +2227,11 @@ int my_reduce_mean(float *input, float *output,
     int next_inner = inner * input_shape[axis];
     int outer = count(input_shape, 0, axis);
 
-    for (int i = 0; i < outer; i++) { 
+    for (int i = 0; i < outer; i++) {
       std::vector<float> inner_sum (inner, 0);
       for (int s = 0; s < input_shape[axis]; s++) {
         for (int j = 0; j < inner; j++) {
-          inner_sum[j] += input[i * next_inner + s * inner + j];                                               
+          inner_sum[j] += input[i * next_inner + s * inner + j];
         }
       }
 

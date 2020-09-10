@@ -203,11 +203,14 @@ void cvi_backend_tl_lut(
     input_w = w;
     cvk_tl_t _tl_ifmap, _tl_ofmap_slope, _tl_ofmap_y0, _tl_table_answer, _tl_table_answer_slope;
     cvk_tl_t *tl_ifmap, *tl_ofmap_slope, *tl_ofmap_y0, *tl_table_answer, *tl_table_answer_slope;
+    cvk_tl_t _tl_tmp;
+    cvk_tl_t *tl_tmp;
     tl_ifmap = &_tl_ifmap;
     tl_ofmap_slope = &_tl_ofmap_slope;
     tl_ofmap_y0 = &_tl_ofmap_y0;
     tl_table_answer = &_tl_table_answer;
     tl_table_answer_slope = &_tl_table_answer_slope;
+    tl_tmp = &_tl_tmp;
 
     // input
     tl_ifmap->start_address = la_input;
@@ -224,6 +227,15 @@ void cvi_backend_tl_lut(
     tl_ofmap_slope->fmt = tl_ifmap->fmt;
     tl_ofmap_slope->shape = tl_ifmap->shape;
     tl_ofmap_slope->stride = tl_ifmap->stride;
+
+    // working 2
+    int c_per_npu = ceiling_func(c, NPU_NUM);
+    int csize_local = c_per_npu * tl_ifmap->stride.c;
+    int working_size = n * csize_local;
+    tl_tmp->start_address = la_working + working_size;
+    tl_tmp->fmt = tl_ifmap->fmt;
+    tl_tmp->shape = tl_ifmap->shape;
+    tl_tmp->stride = tl_ifmap->stride;
 
     // 1880v2 hw setting
     int const table_n = 1;
@@ -250,7 +262,7 @@ void cvi_backend_tl_lut(
     if(!isSync){
       cvk_tiu_add_param_t p90 = {0};
       p90.res_high = nullptr;
-      p90.res_low = tl_ifmap;
+      p90.res_low = tl_tmp;
       p90.a_high = nullptr;
       p90.a_low = tl_ifmap;
       p90.b_is_const = true;
@@ -265,8 +277,8 @@ void cvi_backend_tl_lut(
     // scale input for remap its idx(-x~x) to (-127~127), dirty tl_ifmap
     cvk_tiu_mul_param_t p4 = {0};
     p4.res_high = NULL;
-    p4.res_low = tl_ifmap;
-    p4.a = tl_ifmap;
+    p4.res_low = tl_tmp;
+    p4.a = isSync ? tl_ifmap : tl_tmp;
     p4.b_is_const = 1;
     p4.b_const.val = ctx.convert_fp32_to_bf16((float)lut_index_num / (float)range);
     p4.rshift_bits = 0;
@@ -289,7 +301,7 @@ void cvi_backend_tl_lut(
       ctx.tl_default_stride(_tl_ofmap_x0_int8_shape, CVK_FMT_I8, /*eu_align=*/int8_eu_align);
     dst.int8_rnd_mode = 1;
     p3.dst = &dst;
-    p3.src = tl_ifmap;
+    p3.src = tl_tmp;
     ctx.tdma_l2l_bf16_tensor_copy(&p3);
     dst.int8_rnd_mode = 0; // reset
 
@@ -303,9 +315,9 @@ void cvi_backend_tl_lut(
     // (x - x0)
     cvk_tiu_sub_param_t p5 = {0};
     p5.res_high = 0;
-    p5.res_low = tl_ifmap;
+    p5.res_low = tl_tmp;
     p5.a_high = 0;
-    p5.a_low = tl_ifmap;
+    p5.a_low = tl_tmp;
     p5.b_high = 0;
     p5.b_low = tl_ofmap_slope;
     p5.rshift_bits = 0;
@@ -341,7 +353,7 @@ void cvi_backend_tl_lut(
     p7.res_high = 0;
     p7.res_low = tl_ofmap_y0;
     p7.res_is_int8 = 0;
-    p7.a = tl_ifmap;
+    p7.a = tl_tmp;
     p7.b_is_const = 0;
     p7.b = tl_ofmap_slope;
     p7.lshift_bits = 0; // lshift_bits;

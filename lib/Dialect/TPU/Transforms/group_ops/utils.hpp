@@ -160,6 +160,11 @@ void getPoolingParam(Operation *op, int &n, int &c, int &ih, int &iw, int &oh,
 void getEltwiseAddParam(Operation *op, bool &do_early_stride, int &h_stride,
                                int &w_stride);
 
-void getEltwiseReluParam(Operation *op, bool &do_relu);
-} // namespace mlir
+void getEltwiseReluParam(Operation * op, bool &do_relu);
+
+void getLrnParam(Operation * op, uint32_t &local_size,
+                  int &sum_rshift, int &lrn_rshift,
+                  int &quant_data0, int &quant_data1,
+                  float &alpha, float &k);
+}
 #endif

@@ -80,15 +80,11 @@ void MixNet::parallel_end() {
     Operation * cur_op = parallel_list_[i];
     if ( i == 0 ) {
       auto op = llvm::dyn_cast<tpu::TpuTLOpCodegenInterface>(cur_op);
-      auto tmp = llvm::dyn_cast<tpu::TpuOpCommonInterface>(cur_op);
-      LLVM_DEBUG(llvm::errs() << "add parallel enable for inst: " << getOpName(tmp) << "\n";);
       op.setEnableParallel(true);
     }
 
     if ( i == (op_size - 1)) {
       auto op = llvm::dyn_cast<tpu::TpuTLOpCodegenInterface>(cur_op);
-      auto tmp = llvm::dyn_cast<tpu::TpuOpCommonInterface>(cur_op);
-      LLVM_DEBUG(llvm::errs() << "add parallel disable for inst: " << getOpName(tmp) << "\n";);
       op.setDisableParallel(true);
     }
   }
@@ -1411,10 +1407,9 @@ void MixNet::_add_tl_lrn_op(MixOp * mix_op,
   int bottom_dim[4];
   const ImLayer* im_layer =
       net_graph_->get_layer_by_id(mix_op->get_layer_id());
-  auto lrn_op = dyn_cast<tpu::TG_INT8_LrnOp>(im_layer->op());
+  Operation* op = im_layer->op();
   auto op_input_type =
-    lrn_op.getOperand(0)->getType().cast<RankedTensorType>();
-
+    op->getOperand(0)->getType().cast<RankedTensorType>();
 
   Tensor* in_tensor = net_graph_->get_tensor_by_id(in_tensors[0]);
   net_graph_->get_tensor_dim(in_tensors[0], bottom_dim);
@@ -1431,12 +1426,12 @@ void MixNet::_add_tl_lrn_op(MixOp * mix_op,
   uint32_t la_sqrt = net_graph_->get_tensor_local_offset(in_tensors[1]);
   uint32_t la_power = net_graph_->get_tensor_local_offset(in_tensors[2]);
   uint32_t la_working = imm->local_mem_offset;
-  uint32_t local_size = lrn_op.local_size().getLimitedValue();
-  int sum_rshift = lrn_op.sum_rshift().getLimitedValue();
-  int lrn_rshift = lrn_op.lrn_rshift().getLimitedValue();
-  int quant_data0 = lrn_op.quant_data0().getLimitedValue();
-  int quant_data1 = lrn_op.quant_data1().getLimitedValue();
 
+  uint32_t local_size;
+  int sum_rshift, lrn_rshift, quant_data0, quant_data1;
+  float alpha, k;
+  getLrnParam(op, local_size, sum_rshift, lrn_rshift,
+              quant_data0, quant_data1, alpha, k);
   // attrs
   Builder builder_(context_);
   std::vector<NamedAttribute> attrs;
@@ -1452,18 +1447,22 @@ void MixNet::_add_tl_lrn_op(MixOp * mix_op,
                            builder_.getI32IntegerAttr(la_power)));
   attrs.push_back(builder_.getNamedAttr("la_working",
                            builder_.getI32IntegerAttr(la_working)));
-  attrs.push_back(builder_.getNamedAttr("local_size",
-                           builder_.getI32IntegerAttr(local_size)));
   // attrs.push_back(builder_.getNamedAttr("norm_region",
   //                          builder_.getI32IntegerAttr(norm_region)));
+  attrs.push_back(builder_.getNamedAttr("local_size",
+                          builder_.getI32IntegerAttr(local_size)));
   attrs.push_back(builder_.getNamedAttr("sum_rshift",
-                           builder_.getI32IntegerAttr(sum_rshift)));
+                          builder_.getI32IntegerAttr(sum_rshift)));
   attrs.push_back(builder_.getNamedAttr("lrn_rshift",
-                           builder_.getI32IntegerAttr(lrn_rshift)));
+                          builder_.getI32IntegerAttr(lrn_rshift)));
   attrs.push_back(builder_.getNamedAttr("quant_data0",
-                           builder_.getI32IntegerAttr(quant_data0)));
+                          builder_.getI32IntegerAttr(quant_data0)));
   attrs.push_back(builder_.getNamedAttr("quant_data1",
-                           builder_.getI32IntegerAttr(quant_data1)));
+                          builder_.getI32IntegerAttr(quant_data1)));
+  attrs.push_back(builder_.getNamedAttr("alpha",
+                          builder_.getF32FloatAttr(alpha)));
+  attrs.push_back(builder_.getNamedAttr("k",
+                          builder_.getF32FloatAttr(k)));
 
   // setup input/output type
   RankedTensorType input_type = RankedTensorType::get(
@@ -1487,12 +1486,22 @@ void MixNet::_add_tl_lrn_op(MixOp * mix_op,
     operands.push_back(input_op->getResult(0));
   }
 
-  auto op = OpBuilder(get_start_op()).create<tpu::TL_LG_INT8_LrnOp>(
-                      get_start_op()->getLoc(), output_type,
-                      ArrayRef<Value *>{operands},
-                      ArrayRef<NamedAttribute>{attrs});
+  if (isa<tpu::TG_INT8_LrnOp>(op)) {
+    auto op = OpBuilder(get_start_op()).create<tpu::TL_LG_INT8_LrnOp>(
+                        get_start_op()->getLoc(), output_type,
+                        ArrayRef<Value *>{operands},
+                        ArrayRef<NamedAttribute>{attrs});
 
-  add_opd_to_list(mix_op->name(), op.getResult(), true);
+    add_opd_to_list(mix_op->name(), op.getResult(), true);
+  } else if (isa<tpu::TG_BF16_LrnOp>(op)) {
+    auto op = OpBuilder(get_start_op()).create<tpu::TL_LG_BF16_LrnOp>(
+                    get_start_op()->getLoc(), output_type,
+                    ArrayRef<Value *>{operands},
+                    ArrayRef<NamedAttribute>{attrs});
+
+    add_opd_to_list(mix_op->name(), op.getResult(), true);
+  }
+
 }
 
 
@@ -1561,6 +1570,7 @@ void MixNet::_add_load_op(int group_idx,
       tensor_type_str = "LUT_COEFF";
     }
     dtype = COEFF;
+    attrs.push_back(builder_.getNamedAttr("storage", builder_.getStringAttr(storage)));
   } else if (tensor_type == TENSOR_BIAS) {
     laddr = net_graph_->get_tensor_local_offset(tensor_id);
 
@@ -1573,6 +1583,7 @@ void MixNet::_add_load_op(int group_idx,
     transpose = (false);
     tensor_type_str = "BIAS";
     dtype = COEFF;
+    attrs.push_back(builder_.getNamedAttr("storage", builder_.getStringAttr(storage)));
   } else if (tensor_type == TENSOR_DEPTHCONV_OPD1) {
     laddr = net_graph_->get_tensor_local_offset(tensor_id);
 
@@ -1585,6 +1596,7 @@ void MixNet::_add_load_op(int group_idx,
     transpose = (false);
     tensor_type_str = "CONV_DEPTH_OPD1";
     dtype = COEFF;
+    attrs.push_back(builder_.getNamedAttr("storage", builder_.getStringAttr(storage)));
   } else {
     int n_idx = tensor->n_idx;
     int n_slice = tensor->n_slice;
@@ -1632,7 +1644,6 @@ void MixNet::_add_load_op(int group_idx,
   attrs.push_back(builder_.getNamedAttr("align", builder_.getBoolAttr(aligned)));
   attrs.push_back(builder_.getNamedAttr("transpose", builder_.getBoolAttr(transpose)));
   attrs.push_back(builder_.getNamedAttr("tensor_type", builder_.getStringAttr(tensor_type_str)));
-  attrs.push_back(builder_.getNamedAttr("storage", builder_.getStringAttr(storage)));
 
   // setup input operation
   std::vector<Value *> operands;
@@ -1828,16 +1839,6 @@ static void add_leaky_attrs(Builder &builder,
     attrs.push_back(builder.getNamedAttr("negative_slope",
                                           leaky_op.negative_slopeAttr()));
   } else if (auto leaky_op = dyn_cast<tpu::TG_BF16_LeakyReluOp>(op)) {
-    if (leaky_op.rshift_pos().hasValue()) {
-      attrs.push_back(builder.getNamedAttr("rshift_pos",
-                                            leaky_op.rshift_posAttr()));
-      attrs.push_back(builder.getNamedAttr("m_i8_pos",
-                                            leaky_op.m_i8_posAttr()));
-    }
-    attrs.push_back(builder.getNamedAttr("rshift_neg",
-                                          leaky_op.rshift_negAttr()));
-    attrs.push_back(builder.getNamedAttr("m_i8_neg",
-                                          leaky_op.m_i8_negAttr()));
     attrs.push_back(builder.getNamedAttr("negative_slope",
                                           leaky_op.negative_slopeAttr()));
   }

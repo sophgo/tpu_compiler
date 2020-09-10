@@ -144,6 +144,14 @@ void gen_bf16_slope_table(int start, int end, int table_hw,
 void bf16_gen_reciprocal(int start, int end, int table_hw, uint16_t *table_data);
 void bf16_gen_reciprocal_mantissa(int start, int end, int table_hw, uint16_t *table_mantissa);
 
+void bf16_gen_sqrt(int start, int table_hw, uint16_t *table_data);
+void bf16_gen_sqrt_mantissa(int table_hw, uint16_t *table_mantissa);
+
+void bf16_gen_power_exp_table(uint16_t *table_data, float beta,
+                              int start, int table_hw);
+void bf16_gen_power_mantissa_table(uint16_t* table_mantissa, float beta,
+                                   int table_hw);
+
 int my_reduce_mean(float *input, float *output,
                      std::vector<int64_t> &input_shape,
                      std::vector<int> &axes);

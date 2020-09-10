@@ -112,9 +112,6 @@ LogicalResult tpu::TG_BF16_BroadcastMulOp::codegen(void *ctx) {
   int64_t input_size_1;
   std::vector<int64_t> shape_1;
   getTensorShapeAndSize(op->getOperand(1), shape_1, input_size_1);
-  assert(shape_1[0] == 1 && shape_1[1] == c &&
-         shape_1[2] == 1 && shape_1[3] == 1 &&
-         "boradcast means second shape MUST be <1, c, 1, 1>");
 
   gaddr_t ga_input = getPreviousOpAddress(op);
   gaddr_t ga_output = getOpAddress(op);
@@ -372,10 +369,38 @@ LogicalResult tpu::TG_INT8_CropOp::codegen(void *ctx) {
 LogicalResult tpu::TG_BF16_CropOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);
-  //CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
-  //Operation *op = this->getOperation();
-  std::string errorMsg = "unsupported tg op " + getOpName().str();
-  llvm_unreachable(errorMsg.c_str());
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+  int layer_id = mlir::getOpLayerId(op);
+  gaddr_t input_gaddr = getPreviousOpAddress(op);
+
+  gaddr_t output_gaddr = getOpAddress(op);
+  std::vector<int64_t> input_shape1 = getTensorShape(op->getOperand(0));
+  std::vector<int64_t> output_shape = getTensorShape(this->getResult());
+
+  // prepare data
+  std::vector<int> i1_s;
+  std::vector<int> i2_s;
+  std::vector<int> o_s;
+  std::vector<int> offsets;
+
+  i1_s.assign(input_shape1.begin(), input_shape1.end());
+  arrayAttrToVector(this->crop_shape().getValue(), i2_s);
+  o_s.assign(output_shape.begin(), output_shape.end());
+  arrayAttrToVector(this->crop_offset().getValue(), offsets);
+
+  cvi_backend_tg_fixed_crop_kernel(*backend_ctx, // ctx,
+                              0,            // stream_id
+                              0,            // inst_id
+                              layer_id,
+                              nullptr,      // depends
+                              0,            // depends_len
+                              input_gaddr,  // bottom_gaddr,
+                              output_gaddr, // top_gaddr
+                              i1_s.data(), i2_s.data(), o_s.data(),
+                              offsets.data(), CVK_FMT_BF16);
+
+  return success();
 }
 
 LogicalResult tpu::TG_INT8_PT_Conv2DOp::codegen(void *ctx) {
@@ -2185,10 +2210,30 @@ LogicalResult tpu::TG_INT8_PReluOp::codegen(void *ctx) {
 LogicalResult tpu::TG_BF16_PReluOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);
-  // CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
-  // Operation *op = this->getOperation();
-  std::string errorMsg = "unsupported tg op " + getOpName().str() + "\n";
-  llvm_unreachable(errorMsg.c_str());
+
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  getNCHW(shape, n, c, h, w);
+  gaddr_t ga_input = getPreviousOpAddress(op);
+  gaddr_t ga_neg_slope = getWeightOpAddress(op->getOperand(1)->getDefiningOp());
+  gaddr_t ga_output = getOpAddress(op);
+  int layer_id = mlir::getOpLayerId(op);
+
+  cvi_backend_tg_bf16_prelu_kernel(
+    *backend_ctx,        // ctx
+    layer_id,            // layer_id,
+    ga_input,            // input_gaddr
+    ga_output,           // output_gaddr
+    ga_neg_slope,        // ga_negative_slope
+    n,                   // input_n
+    c,                   // input_c
+    h,                   // input_h
+    w                   // input_w
+  );
+  return success();
 }
 
 LogicalResult tpu::TG_INT8_QuantOp::codegen(void *ctx) {
@@ -2335,10 +2380,35 @@ LogicalResult tpu::TG_INT8_ReluOp::codegen(void *ctx) {
 LogicalResult tpu::TG_BF16_ReluOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);
-  // CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
-  // Operation *op = this->getOperation();
-  std::string errorMsg = "unsupported tg op " + getOpName().str() + "\n";
-  llvm_unreachable(errorMsg.c_str());
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  getNCHW(shape, n, c, h, w);
+
+  gaddr_t ga_input = getPreviousOpAddress(op);
+  gaddr_t ga_output = getOpAddress(op);
+  int layer_id = mlir::getOpLayerId(op);
+
+  cvi_backend_tg_fixed_relu_kernel(
+      *backend_ctx,
+      0, //u32 stream_id,
+      0, //u32 inst_id
+      layer_id,
+      NULL,
+      0, //
+      ga_input,             // input_data_gaddr,
+      ga_output,            // output_data_gaddr,
+      -1, // float negative_slope,
+      n, c, h, w,
+      0,
+      NULL, // *threshold_x_quantized,
+      NULL, // *right_shift_array,
+      CVK_FMT_BF16);
+
+  return success();
 }
 
 LogicalResult tpu::TG_INT8_ReorgOp::codegen(void *ctx) {

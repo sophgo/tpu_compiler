@@ -249,4 +249,224 @@ void cvi_backend_tl_lrn(
 
 }
 
+void cvi_backend_bf16_tl_lrn(
+    const CviBackendContext &ctx, uint32_t layer_id,
+    laddr_t ifmap_laddr, laddr_t ofmap_laddr, laddr_t power_exp_table,
+    laddr_t power_mantissa_table, laddr_t working_laddr,
+    int input_n, int input_c, int input_h, int input_w, int size,
+    float alpha, float k) {
+  LLVM_DEBUG(llvm::errs() << llvm::format(
+            "cvi_backend_bf16_tl_lrn:\n"
+            "    ifmap_laddr 0x%lx, ofmap_laddr 0x%lx"
+            "    power_exp_table 0x%lx, power_mantissa_table 0x%lx, working_laddr 0x%lx"
+            "    in(%d, %d, %d, %d), size %d\n"
+            "    alpha %f k %f\n",
+            ifmap_laddr, ofmap_laddr, power_exp_table, power_mantissa_table,
+            working_laddr, input_n,input_c, input_h, input_w, size, alpha, k
+            ));
+
+  int move_counts = (size - 1) / 2;
+  cvk_tl_shape_t lshape =
+          {static_cast<uint32_t>(input_n), static_cast<uint32_t>(input_c),
+           static_cast<uint32_t>(input_h), static_cast<uint32_t>(input_w)};
+
+  // cvk_tl_shape_t table_shape = {1, 32, 32, 8};
+  cvk_tl_shape_t table_shape =
+          {1, static_cast<uint32_t>(NPU_NUM), 32, 8};
+
+  cvk_tl_t bottom;
+  bottom.start_address = ifmap_laddr;
+  bottom.fmt = CVK_FMT_BF16;
+  bottom.shape = lshape;
+  bottom.stride = ctx.tl_default_stride(lshape, CVK_FMT_BF16, 1);
+
+  cvk_tl_t top;
+  cvk_tl_t *tmp = &top;
+  top.start_address = ofmap_laddr;
+  top.fmt = CVK_FMT_BF16;
+  top.shape = lshape;
+  top.stride = ctx.tl_default_stride(lshape, CVK_FMT_BF16, 1);
+
+  cvk_tl_t power_exp_lut;
+  power_exp_lut.start_address = power_exp_table;
+  power_exp_lut.fmt = CVK_FMT_BF16;
+  power_exp_lut.shape = table_shape;
+  power_exp_lut.stride = ctx.tl_default_stride(table_shape, CVK_FMT_BF16, 1);
+
+  cvk_tl_t power_mantissa_lut;
+  power_mantissa_lut.start_address = power_mantissa_table;
+  power_mantissa_lut.fmt = CVK_FMT_BF16;
+  power_mantissa_lut.shape = table_shape;
+  power_mantissa_lut.stride = ctx.tl_default_stride(table_shape, CVK_FMT_BF16, 1);
+
+  cvk_tl_t sum;
+  sum.start_address = working_laddr;
+  sum.fmt = CVK_FMT_BF16;
+  sum.shape = lshape;
+  sum.stride = ctx.tl_default_stride(lshape, CVK_FMT_BF16, 1);
+
+  int c_per_npu = ceiling_func(input_c, NPU_NUM);
+  int csize_local = c_per_npu * bottom.stride.c;
+  int working_size = input_n * csize_local;
+
+  cvk_tl_t shift_sum;
+  shift_sum.start_address = sum.start_address + working_size;
+  shift_sum.fmt = CVK_FMT_BF16;
+  shift_sum.shape = lshape;
+  shift_sum.stride = ctx.tl_default_stride(lshape, CVK_FMT_BF16, 1);
+
+  // y = x * ( k + sum(ax^2))^(-beta)
+  // sum = x^2
+  cvk_tiu_mul_param_t p0 = {0};
+  p0.res_high = nullptr;
+  p0.res_low = &sum;
+  p0.a = &bottom;
+  p0.b = &bottom;
+  p0.b_is_const = 0;
+  p0.rshift_bits = 0;
+  p0.layer_id = layer_id;
+  p0.relu_enable = 0;
+  ctx.tiu_mul(&p0);
+
+  // sum = a(x^2)
+  cvk_tiu_mul_param_t p1 = {0};
+  p1.res_high = nullptr;
+  p1.res_low = &sum;
+  p1.a = &sum;
+  p1.b_const.val = ctx.convert_fp32_to_bf16(alpha/size);
+  p1.b_const.is_signed = 1;
+  p1.b_is_const = 1;
+  p1.rshift_bits = 0;
+  p1.layer_id = layer_id;
+  p1.relu_enable = 0;
+  ctx.tiu_mul(&p1);
+
+  // tmp = sum * 1.0
+  cvk_tiu_mul_param_t p2 = {0};
+  p2.res_high = nullptr;
+  p2.res_low = tmp;
+  p2.a = &sum;
+  p2.b_const.val = ctx.convert_fp32_to_bf16(1.0);
+  p2.b_const.is_signed = 1;
+  p2.b_is_const = 1;
+  p2.rshift_bits = 0;
+  p2.layer_id = layer_id;
+  p2.relu_enable = 0;
+  ctx.tiu_mul(&p2);
+
+  // tmp = sum(ax^2)
+  for (int step = 1; step <= move_counts && step < input_c; step++) {
+    // sum shift c left -> shift_sum
+    cvk_tdma_l2l_tensor_lrn_shift_param_t lrn_shift_p = {0};
+    lrn_shift_p.dst = &shift_sum;
+    lrn_shift_p.src = tmp;
+    lrn_shift_p.right_shift = false;
+    lrn_shift_p.lrn_step = step;
+    ctx.tdma_l2l_tensor_lrn_shift(&lrn_shift_p);
+
+    // sum = shift_sum + sum
+    cvk_tiu_mac_param_t p3 = {0};
+    p3.res_high = nullptr;
+    p3.res_low = &sum;
+    p3.res_is_int8 = 0;
+    p3.a = &shift_sum;
+    p3.b_const.val = ctx.convert_fp32_to_bf16(1.0);
+    p3.b_is_const = 1;
+    p3.b_const.is_signed = 1;
+    p3.lshift_bits = 0;
+    p3.rshift_bits = 0;
+    p3.layer_id = layer_id;
+    p3.relu_enable = 0;
+    ctx.tiu_mac(&p3);
+
+    // sum shift c right -> shift_sum
+    lrn_shift_p.dst = &shift_sum;
+    lrn_shift_p.src = tmp;
+    lrn_shift_p.right_shift = true;
+    lrn_shift_p.lrn_step = step;
+    ctx.tdma_l2l_tensor_lrn_shift(&lrn_shift_p);
+
+    // sum = shift_sum + sum
+    cvk_tiu_mac_param_t p4 = {0};
+    p4.res_high = nullptr;
+    p4.res_low = &sum;
+    p4.res_is_int8 = 0;
+    p4.a = &shift_sum;
+    p4.b_const.val = ctx.convert_fp32_to_bf16(1.0);
+    p4.b_is_const = 1;
+    p4.b_const.is_signed = 1;
+    p4.lshift_bits = 0;
+    p4.rshift_bits = 0;
+    p4.relu_enable = 0;
+    ctx.tiu_mac(&p4);
+  }
+
+  // sum = (k + sum(ax^2))
+  cvk_tiu_add_param_t p5 = {0};
+  p5.res_high = nullptr;
+  p5.res_low = &sum;
+  p5.a_high = nullptr;
+  p5.a_low = &sum;
+  p5.b_is_const = true;
+  p5.b_const.val = ctx.convert_fp32_to_bf16(k);
+  p5.rshift_bits = 0;
+  p5.layer_id = layer_id;
+  p5.relu_enable = false;
+  ctx.tiu_add(&p5);
+
+  // (k+sum(ax^2))^(-beta) = tmp^(-beta)
+  // we find the exp and mantissa for tmp, and mul them
+  // ==> lut: exp * lut: mantissa
+
+  cvk_tdma_l2l_tensor_copy_param_t p6;
+  // move high 8 bits to low 8 bit so
+  // that we can do table lookup for exp
+  memset(&p6, 0x00, sizeof(cvk_tdma_l2l_tensor_copy_param_t));
+  p6.dst = &shift_sum;
+  p6.src = &sum;
+  p6.mv_lut_base = false;
+  p6.mv_lut_idx = true;
+  p6.layer_id = layer_id;
+  ctx.tdma_l2l_bf16_tensor_copy(&p6);
+
+  // tmp = lut: exp
+  cvk_tiu_lookup_table_param_t p7 = {0};
+  p7.ofmap = tmp;
+  p7.ifmap = &shift_sum;
+  p7.table = &power_exp_lut;
+  p7.layer_id = layer_id;
+  ctx.tiu_lookup_table(&p7);
+
+  // shift_sum = lut: mantissa
+  cvk_tiu_lookup_table_param_t p8 = {0};
+  p8.ofmap = &shift_sum;
+  p8.ifmap = &sum;
+  p8.table = &power_mantissa_lut;
+  p8.layer_id = layer_id;
+  ctx.tiu_lookup_table(&p8);
+
+  // (1+sum(ax^2))^(-beta) = tmp * shift_sum
+  cvk_tiu_mul_param_t p9 = {0};
+  p9.res_high = nullptr;
+  p9.res_low = &top;
+  p9.a = tmp;
+  p9.b = &shift_sum;
+  p9.b_is_const = 0;
+  p9.rshift_bits = 0;
+  p9.layer_id = layer_id;
+  p9.relu_enable = 0;
+  ctx.tiu_mul(&p9);
+
+  // x * (1+sum(ax^2))^(-beta) = top * bottom
+  cvk_tiu_mul_param_t p10 = {0};
+  p10.res_high = nullptr;
+  p10.res_low = &top;
+  p10.a = &top;
+  p10.b = &bottom;
+  p10.b_is_const = 0;
+  p10.rshift_bits = 0;
+  p10.layer_id = layer_id;
+  p10.relu_enable = 0;
+  ctx.tiu_mul(&p10);
+}
 
