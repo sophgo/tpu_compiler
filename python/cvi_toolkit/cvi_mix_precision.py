@@ -27,6 +27,7 @@ def parse_args():
     parser.add_argument('--model_name', metavar='model_name', help='Model name', default='generic')
     parser.add_argument('--number_bf16', metavar='number of swich int8 to bf16', help='number of bf16 layer', type=int, default=10)
     parser.add_argument('--input_num', metavar='input_num', help='Calibration data number', type=int, default=10)
+    parser.add_argument('--loss_table', metavar='loss_table', help='Loss table', type=str, default='loss_table')
     parser = get_preprocess_parser(existed_parser=parser)
     args = parser.parse_args()
 
@@ -152,8 +153,11 @@ if __name__ == '__main__':
         assert(False)
 
     sort_bf16_layers = mix_precisior.run()
-    for idx, layer in enumerate(sort_bf16_layers):
-        print("No.{:<4}: Layer: {:<30} Loss: {}".format(idx, layer[0], layer[1]))
+    with open(args.loss_table, "w") as f:
+        for idx, layer in enumerate(sort_bf16_layers):
+            loss_msg = "No.{:<4}: Layer: {:<50}\t\tLoss: {}".format(idx, layer[0], layer[1])
+            f.write("{}\n".format(loss_msg))
+            print(loss_msg)
 
 
     with open(args.output_bf16_table, "w") as f:
