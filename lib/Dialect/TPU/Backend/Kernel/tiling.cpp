@@ -41,60 +41,104 @@ int bitsize_of_fmt(uint32_t fmt) {
       return -1;
   }
 }
-
 #endif
+
+int getFmtSize(cvk_fmt_t fmt) {
+  return bitsize_of_fmt(fmt) / 8;  // byte
+}
 
 // \return rest
 void tiling_packing(const CviBackendContext &ctx, int require_shape, int coeff_lane_shape,
                     int blob_num, cvk_fmt_t fmt,
-                    std::vector<std::pair<cvk_tl_shape_t, gaddr_t> > *tiling_info) {
+                    std::vector<std::pair<cvk_tl_shape_t, gaddr_t> > *tiling_info,
+                    enum TilingDim tiling_along,
+                    cvk_tg_shape_t* shape) {
 
   assert(fmt == CVK_FMT_BF16 || fmt == CVK_FMT_I8);
+  assert(blob_num > 0 && "blob number should >= 1(contain itself)");
 
   int data_type_size = bitsize_of_fmt(fmt) / 8;  // byte
   int coeff_lane_size = coeff_lane_shape * data_type_size;
   gaddr_t gaddr_offset = 0;
 
-  // available size per lane = LOCAL_MEM_SIZE - coeff_lane_size
-  int height = require_shape / (NPU_NUM * EU_NUM);
-  if (require_shape + coeff_lane_shape * NPU_NUM >= (NPU_NUM * EU_NUM) && height) {
-    do {
-      // Find height
-      height = require_shape / (NPU_NUM * EU_NUM);
+  if (tiling_along == TilingDimNH) {
+    int input_n = shape->n;
+    int input_c = shape->c;
+    int input_h = shape->h;
+    int input_w = shape->w;
+    int nsecs = 1, hsecs = 1;
+
+    uint32_t global_Nstride = static_cast<uint32_t>(input_c) * input_h * input_w;
+
+    if (fmt == CVK_FMT_BF16) {
+      blob_num *= 2; // bf16 takes twice size than int8
+    }
+
+    _split_nh(ctx, input_n, input_c, input_h, input_w, blob_num,
+        coeff_lane_shape, &nsecs, &hsecs);
+
+    int nslice = input_n / nsecs;
+    int hslice = input_h / hsecs;
+    int nresidual = input_n - nslice * nsecs;
+    int hresidual = input_h - hslice * hsecs;
+
+    for (int nidx = 0, nstart = 0; nidx < nsecs; nidx++) {
+      int sec_len_n = nslice + (nidx < nresidual);
+      for (int hidx = 0, hstart = 0; hidx < hsecs; hidx++) {
+        int sec_len_h = hslice + (hidx < hresidual);
+        uint64_t offset = (nstart * global_Nstride + hstart * input_w) * data_type_size;
+
+        tiling_info->push_back(
+            std::make_pair(
+              ctx.shape_t4(sec_len_n, input_c, sec_len_h, input_w),
+              offset));
+
+        hstart += sec_len_h;
+      }
+      nstart += sec_len_n;
+    }
+  }
+  else if (tiling_along == TilingDimAll) {
+    // available size per lane = LOCAL_MEM_SIZE - coeff_lane_size
+    int height = require_shape / (NPU_NUM * EU_NUM);
+    if (require_shape + coeff_lane_shape * NPU_NUM >= (NPU_NUM * EU_NUM) && height) {
       do {
-        cvk_tl_shape_t tmp_shape = ctx.shape_t4(1, 1, height, EU_NUM);
-        int required_size = blob_num * ctx.lmem_tensor_to_size(tmp_shape, fmt, /*eu_align=*/1);
+        // Find height
+        height = require_shape / (NPU_NUM * EU_NUM);
+        do {
+          cvk_tl_shape_t tmp_shape = ctx.shape_t4(1, 1, height, EU_NUM);
+          int required_size = blob_num * ctx.lmem_tensor_to_size(tmp_shape, fmt, /*eu_align=*/1);
 
-        if (required_size <= LOCAL_MEM_SIZE - coeff_lane_size) break;
-      } while (--height);
+          if (required_size <= LOCAL_MEM_SIZE - coeff_lane_size) break;
+        } while (--height);
 
-      int step_shape = height * NPU_NUM * EU_NUM;
+        int step_shape = height * NPU_NUM * EU_NUM;
 
-      LLVM_DEBUG(llvm::errs() << llvm::format(
-          "    step_shape %d, require_shape %d, gaddr_offset 0x%lx\n",
-          step_shape, require_shape, gaddr_offset););
+        LLVM_DEBUG(llvm::errs() << llvm::format(
+            "    step_shape %d, require_shape %d, gaddr_offset 0x%lx\n",
+            step_shape, require_shape, gaddr_offset););
 
-      tiling_info->push_back(
-          std::make_pair(ctx.shape_t4(1, NPU_NUM, height, EU_NUM), gaddr_offset));
+        tiling_info->push_back(
+            std::make_pair(ctx.shape_t4(1, NPU_NUM, height, EU_NUM), gaddr_offset));
 
-      // Update step
+        // Update step
+        require_shape -= step_shape;
+        gaddr_offset += step_shape * data_type_size;
+      } while (require_shape >= ((NPU_NUM * EU_NUM)));
+    }
+
+    // Use one lane to handle remaining
+    if (require_shape) {
+      int step_shape = require_shape;
+
+      tiling_info->push_back(std::make_pair(ctx.shape_t4(1, 1, 1, step_shape), gaddr_offset));
+
+      LLVM_DEBUG(llvm::errs() << llvm::format("    (r)step_shape %d, require_shape %d, gaddr_offset 0x%lx\n",
+                                   step_shape, require_shape, gaddr_offset));
       require_shape -= step_shape;
       gaddr_offset += step_shape * data_type_size;
-    } while (require_shape >= ((NPU_NUM * EU_NUM)));
+    }
   }
-
-  // Use one lane to handle remaining
-  if (require_shape) {
-    int step_shape = require_shape;
-
-    tiling_info->push_back(std::make_pair(ctx.shape_t4(1, 1, 1, step_shape), gaddr_offset));
-
-    LLVM_DEBUG(llvm::errs() << llvm::format("    (r)step_shape %d, require_shape %d, gaddr_offset 0x%lx\n",
-                                 step_shape, require_shape, gaddr_offset));
-    require_shape -= step_shape;
-    gaddr_offset += step_shape * data_type_size;
-  }
-
   assert(tiling_info->size());
 }
 

@@ -9,16 +9,19 @@ from cvi_toolkit.utils.mlir_shell import mlir_import_calibration, mlir_tpu_quant
 from cvi_toolkit.numpy_helper import npz_compare
 from onnx import helper
 from onnx import AttributeProto, TensorProto, GraphProto
+import yaml
 import onnxruntime
 import numpy as np
 import os
 import sys
 import gc
 
+script_path = os.path.dirname(os.path.abspath(__file__))
+
 TEST_ONNX_IR = [
     "Add",
     "AveragePool",
-    #"Concat",
+#    "Concat",
     "Conv2d", # Conv with 2d case
     # "Conv3d", # Conv with 3d case
     "DepthToSpace",
@@ -112,6 +115,9 @@ class ONNX_IR_TESTER(object):
         del self.converter
         gc.collect()
         batch_size = input_data.shape[0]
+        if callable(input_cb):
+            batch_size = input_cb(model_name, "batch", input_data)
+
         print(batch_size)
         onnx_out = onnx_inference(input_data, model_def, model_name, input_cb)
         self.mlir_model = None
@@ -908,75 +914,85 @@ class ONNX_IR_TESTER(object):
         self.onnx_convert_and_infernece(input_data, model_def, test_case)
 
     def test_Slice(self):
-        test_case = 'Slice'
-        x = np.random.randn(1, 20, 10, 5).astype(np.float32)
-        input_shape = list(x.shape)
-        y = x[0:3, 0:10]
-        output_shape = y.shape
-        starts = np.array([0, 0], dtype=np.int64)
-        ends = np.array([1, 10], dtype=np.int64)
-        axes = np.array([0, 1], dtype=np.int64)
-        input = helper.make_tensor_value_info('input', TensorProto.FLOAT, input_shape)
-        output = helper.make_tensor_value_info(
-            'output', TensorProto.FLOAT, output_shape)
+        _test_case = 'Slice'
+        testbench_path = os.path.join(script_path,
+            "cvi_toolkit/test/onnx_ir_test/testbenchs/slice.yaml")
+        with open(testbench_path, "r") as stream:
+            testbenchs = yaml.load(stream)
+            for _t in testbenchs:
+                t = testbenchs[_t]
+                input_shape = [int(i) for i in t['input_shape'].split(",")]
+                test_case = _test_case + _t
 
-        neg_node = helper.make_node(
-            'Neg',  # node name
-            ['input'],  # inputs
-            ['input_neg'],  # outputs
-        )
-        start_node = onnx.helper.make_node(
-            'Constant',
-            inputs=[],
-            outputs=['starts'],
-            value=onnx.helper.make_tensor(
-                name='const_tensor',
-                data_type=onnx.TensorProto.INT64,
-                dims=starts.shape,
-                vals=starts.flatten().astype(int),
-            ),
-        )
-        ends_node = onnx.helper.make_node(
-            'Constant',
-            inputs=[],
-            outputs=['ends'],
-            value=onnx.helper.make_tensor(
-                name='const_tensor',
-                data_type=onnx.TensorProto.INT64,
-                dims=ends.shape,
-                vals=ends.flatten().astype(int),
-            ),
-        )
-        axes_node = onnx.helper.make_node(
-            'Constant',
-            inputs=[],
-            outputs=['axes'],
-            value=onnx.helper.make_tensor(
-                name='const_tensor',
-                data_type=onnx.TensorProto.INT64,
-                dims=axes.shape,
-                vals=axes.flatten().astype(int),
-            ),
-        )
-        node_def = helper.make_node(
-            'Slice',  # node name
-            ['input_neg', 'starts', 'ends', 'axes'],  # inputs
-            ['output'],  # outputs
-        )
+                x = np.random.randn(np.prod(input_shape)).reshape(input_shape).astype(np.float32)
+                y = x[0:3, 0:33, 0:15, 0:5]
+                output_shape = y.shape
+                starts = np.array([0, 0, 0, 0], dtype=np.int64)
+                ends = np.array(y.shape, dtype=np.int64)
+                axes = np.array([0, 1, 2, 3], dtype=np.int64)
+                input = helper.make_tensor_value_info('input', TensorProto.FLOAT, input_shape)
+                output = helper.make_tensor_value_info(
+                    'output', TensorProto.FLOAT, output_shape)
+                print("input", input_shape, "output", output_shape)
 
-        graph_def = helper.make_graph(
-            [neg_node, start_node, ends_node, axes_node, node_def],
-            test_case,
-            [input],
-            [output],
-        )
-        model_def = helper.make_model(graph_def, producer_name=test_case)
+                #neg_node = helper.make_node(
+                #    'Neg',  # node name
+                #    ['input'],  # inputs
+                #    ['input_neg'],  # outputs
+                #)
+                start_node = onnx.helper.make_node(
+                    'Constant',
+                    inputs=[],
+                    outputs=['starts'],
+                    value=onnx.helper.make_tensor(
+                        name='const_tensor',
+                        data_type=onnx.TensorProto.INT64,
+                        dims=starts.shape,
+                        vals=starts.flatten().astype(int),
+                    ),
+                )
+                ends_node = onnx.helper.make_node(
+                    'Constant',
+                    inputs=[],
+                    outputs=['ends'],
+                    value=onnx.helper.make_tensor(
+                        name='const_tensor',
+                        data_type=onnx.TensorProto.INT64,
+                        dims=ends.shape,
+                        vals=ends.flatten().astype(int),
+                    ),
+                )
+                axes_node = onnx.helper.make_node(
+                    'Constant',
+                    inputs=[],
+                    outputs=['axes'],
+                    value=onnx.helper.make_tensor(
+                        name='const_tensor',
+                        data_type=onnx.TensorProto.INT64,
+                        dims=axes.shape,
+                        vals=axes.flatten().astype(int),
+                    ),
+                )
+                node_def = helper.make_node(
+                    'Slice',  # node name
+                    ['input', 'starts', 'ends', 'axes'],  # inputs
+                    ['output'],  # outputs
+                )
 
-        input_data = np.random.rand(input_shape[0], input_shape[1],
-                        input_shape[2], input_shape[3]).astype(np.float32)
+                graph_def = helper.make_graph(
+                    #[neg_node, start_node, ends_node, axes_node, node_def],
+                    [start_node, ends_node, axes_node, node_def],
+                    test_case,
+                    [input],
+                    [output],
+                )
+                model_def = helper.make_model(graph_def, producer_name=test_case)
 
-        onnx.checker.check_model(model_def)
-        self.onnx_convert_and_infernece(input_data, model_def, test_case)
+                input_data = np.random.rand(input_shape[0], input_shape[1],
+                                input_shape[2], input_shape[3]).astype(np.float32)
+
+                onnx.checker.check_model(model_def)
+                self.onnx_convert_and_infernece(input_data, model_def, test_case)
 
     def test_Sigmoid(self):
         test_case = 'Sigmoid'
@@ -1248,6 +1264,8 @@ class ONNX_IR_TESTER(object):
                             key = 'input_{}'.format(_idx)
                             cvimodel_inputs[key] = input[key]
                         return cvimodel_inputs
+                    elif phase == 'batch':
+                        return 1 # TODO: support batch concat
 
                 return _input_cb
 
