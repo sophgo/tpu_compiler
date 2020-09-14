@@ -3301,7 +3301,7 @@ LogicalResult tpu::UpsampleOp::interpret(
   assert(ow == iw * scale_w);
 
   // get tensors
-  assert(opdT.size() == 1);
+  // assert(opdT.size() == 1);
   std::shared_ptr<std::vector<float> > input = opdT[0];
 
   // compute in fp32
