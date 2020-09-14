@@ -2,18 +2,15 @@ from .base_model import model_base
 import tensorflow as tf
 import os
 import numpy as np
-try:
-    from packaging import version
-    import tensorflow as tf
-    # check Tf2.0
-    IS_TF2 = version.parse("2.0.0") < version.parse(tf.__version__)
-    if not IS_TF2:
-        print("WANING, tf version is {}, we support TF2".format(
-            version.parse(tf.__version__)))
-    tf_session = tf.compat.v1.Session
-    tf_reset_default_graph = tf.compat.v1.reset_default_graph
-except ImportError as error:
-    tf = None
+
+import tensorflow as tf
+IS_TF2 = tf.__version__.startswith("2.")
+if not IS_TF2:
+    raise ImportError("Tensorflow use 2.0 or more, now version is {}".format(
+        tf.__version__))
+tf_session = tf.compat.v1.Session
+tf_reset_default_graph = tf.compat.v1.reset_default_graph
+
 
 from ..utils.tf_utils import from_saved_model, tf_node_name
 

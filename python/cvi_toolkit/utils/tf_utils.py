@@ -1,15 +1,14 @@
-try:
-    from packaging import version
-    import tensorflow as tf
-    # check Tf2.0
-    IS_TF2 = version.parse("2.0.0") < version.parse(tf.__version__)
+import tensorflow as tf
+IS_TF2 = tf.__version__.startswith("2.")
+if not IS_TF2:
+    raise ImportError("Tensorflow use 2.0 or more, now version is {}".format(
+        tf.__version__))
 
-    from tensorflow.python.framework.convert_to_constants import convert_variables_to_constants_v2
-    tf_reset_default_graph = tf.compat.v1.reset_default_graph
-    tf_session = tf.compat.v1.Session
-    extract_sub_graph = tf.compat.v1.graph_util.extract_sub_graph
-except ImportError as error:
-    tf = None
+from tensorflow.python.framework.convert_to_constants import convert_variables_to_constants_v2
+tf_reset_default_graph = tf.compat.v1.reset_default_graph
+tf_session = tf.compat.v1.Session
+extract_sub_graph = tf.compat.v1.graph_util.extract_sub_graph
+
 
 from .log_setting import setup_logger
 import logging

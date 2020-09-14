@@ -10,14 +10,15 @@ from .utils import calcConv2DSpatial, calcPool2DFloor, calcPool2DCeil, \
 from ..utils.log_setting import setup_logger
 from ..utils.tf_utils import *
 
-try:
-    from packaging import version
-    import tensorflow as tf
-    IS_TF2 = version.parse("2.0.0") < version.parse(tf.__version__)
-    from tensorflow.python.framework import tensor_util
 
-except ImportError as error:
-    tf = None
+import tensorflow as tf
+IS_TF2 = tf.__version__.startswith("2.")
+if not IS_TF2:
+    raise ImportError("Tensorflow use 2.0 or more, now version is {}".format(
+        tf.__version__))
+from tensorflow.python.framework import tensor_util
+
+
 
 
 
