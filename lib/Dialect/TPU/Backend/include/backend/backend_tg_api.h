@@ -54,14 +54,19 @@ void cvi_backend_tg_fixed_fc_kernel(
     int activation_le_rshift, bool weight_tp, int left_shift_width, int right_shift_width,
     int threshold_x_quantized_len, const int *threshold_x_quantized, const int *right_shift_array);
 
-void cvi_backend_tg_fixed_pooling_kernel(
-    const CviBackendContext &ctx, uint32_t stream_id, uint32_t inst_id, uint32_t layer_id,
-    const uint32_t *depends,
-    uint32_t depends_len, gaddr_t ifmap_gaddr, gaddr_t ofmap_gaddr, gaddr_t index_gaddr,
-    gaddr_t o_findex_gaddr, int n, int c, int h, int w, int kh, int kw, int pad_top, int pad_bot,
-    int pad_left, int pad_right, int stride_h, int stride_w, int is_avg_pooling,
-    float avg_const,  // default(passing 0.0f) is 1/kh*kw
-    int do_relu, int right_shift_width, const int *threshold_x_quantized, const bool ceil_mode);
+void cvi_backend_tg_fixed_max_pooling_kernel(
+    const CviBackendContext &ctx, uint32_t layer_id,
+    gaddr_t ga_input, gaddr_t ga_output,
+    int n, int c, int h, int w, int kh, int kw, int pad_top, int pad_bot,
+    int pad_left, int pad_right, int stride_h, int stride_w,
+    bool do_relu, bool ceil_mode);
+
+void cvi_backend_tg_fixed_avg_pooling_kernel(
+    const CviBackendContext &ctx, uint32_t layer_id,
+    gaddr_t ga_input, gaddr_t ga_output,
+    int n, int c, int h, int w, int kh, int kw, int pad_top, int pad_bot,
+    int pad_left, int pad_right, int stride_h, int stride_w,
+    bool do_relu, int rshift, int multiplier, bool ceil_mode);
 
 void cvi_backend_tg_fixed_relu_kernel(
     const CviBackendContext &ctx, uint32_t stream_id,

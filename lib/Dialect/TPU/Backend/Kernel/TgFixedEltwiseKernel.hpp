@@ -2,6 +2,9 @@
  * Copyright (C) Cvitek Co., Ltd. 2019-2020. All rights reserved.
  *
  */
+#ifndef TG_FIXED_ELTWISE_KERNEL_HPP
+#define TG_FIXED_ELTWISE_KERNEL_HPP
+
 #include "CviBackendContext.h"
 #include <llvm/Support/Debug.h>
 #include <llvm/Support/Format.h>
@@ -16,7 +19,7 @@ typedef struct {
   int32_t w;
   uint64_t input_offset;
   uint64_t output_offset;
-} TILE;
+} EltwiseTile;
 
 class TgInt8EltwiseKernel {
 public:
@@ -73,7 +76,7 @@ protected:
   int32_t input_flip = 0;
   int32_t output_flip = 0;
 
-  std::vector<TILE> tiles;
+  std::vector<EltwiseTile> tiles;
 };
 
 class TgInt8EltwiseAddKernel : public TgInt8EltwiseKernel {
@@ -111,3 +114,5 @@ public:
 protected:
   void compute(int32_t step_idx);
 };
+
+#endif

@@ -2024,26 +2024,18 @@ LogicalResult tpu::TG_INT8_PoolAvg2DOp::codegen(void *ctx) {
   int rshift_int = static_cast<int>(rshift);
   int m_int = static_cast<int>(m_i8);
 
-  cvi_backend_tg_fixed_pooling_kernel(
+  cvi_backend_tg_fixed_avg_pooling_kernel(
       *backend_ctx,
-      0, // stream_id,
-      0, // inst_id,
       layer_id, // layer_id,
-      nullptr, // depends
-      0, // depends_len
       ga_input,            // input_data_gaddr,
       ga_output,           // output_data_gaddr,
-      GA_INVALID, // index_data_gaddr,
-      GA_INVALID, // o_findex_data_gaddr,
       n, c, ih, iw,
       kh, kw,
       pt, pb, pl, pr, // pad (t, b, l, r)
       sh, sw,
-      1,              // is_avg_pooling,
-      0.0f,           // float avg_const,  // default(passing 0.0f) is 1/kh*kw
       do_relu,        // int do_relu,
       rshift_int,     // int right_shift_width,
-      &m_int,         // &threshold_x_quantized,
+      m_int,         // &threshold_x_quantized,
       true);
 
   return success();
@@ -2072,26 +2064,16 @@ LogicalResult tpu::TG_INT8_PoolMax2DOp::codegen(void *ctx) {
   assert(!this->m_i8().hasValue());
 
 
-  cvi_backend_tg_fixed_pooling_kernel(
+  cvi_backend_tg_fixed_max_pooling_kernel(
       *backend_ctx,
-      0, // stream_id,
-      0, // inst_id,
       layer_id, // layer_id,
-      nullptr, // depends
-      0, // depends_len
       ga_input,            // input_data_gaddr,
       ga_output,           // output_data_gaddr,
-      GA_INVALID, // index_data_gaddr,
-      GA_INVALID, // o_findex_data_gaddr,
       n, c, ih, iw,
       kh, kw,
       pt, pb, pl, pr, // pad (t, b, l, r)
       sh, sw,
-      0,              // is_avg_pooling,
-      0.0f,           // float avg_const,  // default(passing 0.0f) is 1/kh*kw
       do_relu,        // int do_relu,
-      0,              // int right_shift_width,
-      nullptr,        // &threshold_x_quantized,
       true);
 
   return success();

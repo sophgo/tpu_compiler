@@ -5,7 +5,7 @@
  * Description:
  */
 
-#include "TgEltwiseKernel.hpp"
+#include "TgFixedEltwiseKernel.hpp"
 
 #define DEBUG_TYPE "TgInt8EltwiseKernel"
 
@@ -74,7 +74,7 @@ void TgInt8EltwiseKernel::doTileForNormalCase() {
   cvk_tl_shape_t shape = ctx.shape_t4(1, NPU_NUM, cur_h, EU_NUM);
   allocLmem(shape, shape);
 
-  TILE tile;
+  EltwiseTile tile;
   int32_t loop = remain / (NPU_NUM * EU_NUM * max_h);
   remain %= NPU_NUM * EU_NUM * max_h;
   for (int32_t i = 0; i < loop; i++) {
@@ -137,7 +137,7 @@ void TgInt8EltwiseKernel::doTileForStrideCase() {
   assert(lmem_required <= (uint32_t)LOCAL_MEM_SIZE);
   allocLmem(input_shape, output_shape);
 
-  TILE tile;
+  EltwiseTile tile;
   for (int n_pos = 0; n_pos < n; n_pos += n_step) {
     int cur_n = std::min(n - n_pos, n_step);
     for (int c_pos = 0; c_pos < c; c_pos += c_step) {

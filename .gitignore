@@ -1,7 +1,6 @@
 .vscode/
 *.npy
 *.npz
-*.mlir
 *.bin
 *.csv
 *.pyc
