@@ -8,7 +8,7 @@ from .utils import calcConv2DSpatial, calcPool2DFloor, calcPool2DCeil, \
     get_shape_size, get_TF_SAME_Padding, turn_shape_nhwc_to_nchw, turn_data_hwio_to_oihw, \
     turn_shape_hwio_to_oihw
 from ..utils.log_setting import setup_logger
-from ..utils.tf_utils import *
+from ..utils.tf_utils import tf_node_name, get_tf_node_attr, get_tf_shape_attr, from_saved_model, tf_session
 
 
 import tensorflow as tf
@@ -19,16 +19,13 @@ if not IS_TF2:
 from tensorflow.python.framework import tensor_util
 
 
-
-
-
 import logging
 import numpy as np
 import operator
 import functools
 
-logger = setup_logger('root')
-log_flag = logger.level <= logging.INFO
+logger = logging.getLogger(__name__)
+log_flag = False
 
 class TFNode():
     def __init__(self, node):
@@ -45,6 +42,7 @@ class TFNode():
             return
 
         assert(self.name == self.outputs[0])
+        self.shape = list(node.outputs[0].shape)
 
         ignored_attr = {"unknown_rank", "_class", "Tshape", "use_cudnn_on_gpu", "Index", "Tpaddings",
                         "TI", "Tparams", "Tindices", "Tlen", "Tdim", "Tin", "dynamic_size", "Tmultiples",
@@ -54,12 +52,13 @@ class TFNode():
                         "parallel_iterations", "_num_original_outputs", "output_types", "output_shapes",
                         "key_dtype", "value_dtype", "Tin", "Tout", "capacity", "component_types", "shapes",
                         "Toutput_types"}
-        self.shape = list(node.outputs[0].shape)
+
         for a in node.node_def.attr:
             if a == "dtype":
                 self.attr[a] = get_tf_node_attr(node, "dtype")
             elif a == "T":
-                dtype = get_tf_node_attr(node, a)
+                # dtype = get_tf_node_attr(node, a)
+                pass
             elif a in {"output_type", "output_dtype", "out_type", "Tidx", "out_idx"}:
                 # Tidx is used by Range
                 # out_idx is used by ListDiff
@@ -125,39 +124,29 @@ class TFConverter(BaseConverter):
         self.output_tensor_file = "{}_1_06eeeb7e.npz".format(model_name)
         self.tensorflowop_factory = {
             "Add": lambda node: self.convert_add_op(node),
-            "AddV2": lambda node: self.convert_add_v2_op(node),
-            "Activation": lambda node: self.convert_activation_op(node),
+            "AddV2": lambda node: self.convert_add_op(node),
             "AvgPool": lambda node: self.convert_avg_pool_op(node),
-            "AveragePooling2D": lambda node: self.convert_avg_pool_op(node),
-            "BatchNormalization": lambda node: self.convert_batchnorm_op(node),
             "BiasAdd": lambda node: self.convert_biasadd_op(node),
-            "FusedBatchNormV3": lambda node: self.convert_batchnorm_v2_op(node),
+            "FusedBatchNormV3": lambda node: self.convert_batchnorm_op(node),
             "Conv2D": lambda node: self.convert_conv_op(node),
-            "Concatenate": lambda node: self.convert_concat_op(node),
             "ConcatV2": lambda node: self.convert_concat_op(node),
-            "DepthwiseConv2D": lambda node: self.convert_depthwise_conv_op(node),
             "DepthwiseConv2dNative": lambda node: self.convert_depthwise_conv_op(node),
-            "Dense": lambda node: self.convert_fc_op(node),
+            "DepthToSpace": lambda node: self.convert_depth_to_space_op(node),
             "Dropout":  lambda node: self.convert_skip_op(node),
-            "Flatten": lambda node: self.convert_flatten_op(node),
-            "GlobalAveragePooling2D": lambda node: self.convert_global_avg_pool_op(node),
             "Identity": lambda node: self.convert_skip_op(node),
-            "MatMul": lambda node: self.convert_fc_v2_op(node),
-            "MaxPooling2D": lambda node: self.convert_maxpool_op(node),
+            "MatMul": lambda node: self.convert_fc_op(node),
             "MaxPool": lambda node: self.convert_maxpool_op(node),
             "Mean": lambda node: self.convert_mean_op(node),
             "NoOp": lambda node: None,
             "Pad": lambda node: self.convert_pad_op(node),
             "Pack": lambda node: self.convert_skip_op(node),
             "Placeholder": lambda node: None,
-            "ReLU": lambda node: self.convert_activation_op(node),
             "Relu": lambda node: self.convert_relu_op(node),
             "Relu6": lambda node:self.convert_relu6_op(node),
             "Reshape": lambda node: self.convert_reshape_op(node),
             "Shape": lambda node: self.convert_skip_op(node),
             "Softmax": lambda node: self.convert_softmax_op(node),
             "StridedSlice": lambda node: self.convert_skip_op(node),
-            "ZeroPadding2D": lambda node: self.convert_pad_op(node),
         }
 
     def filter_input_without_placeholder(self):
@@ -244,13 +233,14 @@ class TFConverter(BaseConverter):
         with tf_session(graph=graph):
             node_list = graph.get_operations()
             for node in node_list:
-                attr = dict()
                 n = TFNode(node)
                 # n.print_info()
                 if n.op_type == "Const" and n.has_tensor_data:  # weight
                     self.addTensor(
                         n.name, turn_data_hwio_to_oihw(n.tensor_data), \
                         turn_shape_hwio_to_oihw(n.shape), None)
+                    self.addOperand(
+                        n.name, None, turn_shape_hwio_to_oihw(n.shape), TensorType.TENSOR)
                 else:
                     self.converted_nodes.append(n)
 
@@ -290,63 +280,14 @@ class TFConverter(BaseConverter):
             f.write(mlir_txt)
         print("Save mlir file: {}".format(self.mlir_file_path))
 
-    def convert_activation_op(self, node):
-        op, input_shape, _ = self.getOperand(node.inputs[0])
-        operands = list()
-        operands.append(op)
-        output_shape = input_shape
-        if node.op_type == "Activation":
-            if node.config['activation'] == "relu":
-                activation_op = self.CVI.add_relu_op("{}".format(node.name), operands, output_shape)
-            elif node.config['activation'] == "softmax":
-                axis = len(input_shape) - 1
-
-                for i in range(len(output_shape)):
-                    if output_shape[axis] == 1:
-                        axis = axis -1
-                softmax_param = {
-                    'axis': axis,
-                }
-                activation_op = self.CVI.add_softmax_op(node.name, operands, output_shape, **softmax_param)
-            else:
-                raise RuntimeError("No support {} activation".format(node.config['activation']))
-        elif node.op_type == "ReLU":
-            max_value = node.config['max_value']
-            if int(max_value) == 6:
-                # relu6
-                relu_op = self.CVI.add_relu_op(
-                    "{}_relu".format(node.name), operands, output_shape)
-                clip_param = {
-                    "min": 0.0,
-                    "max": 6.0,
-                }
-                activation_op = self.CVI.add_clip_op(
-                    "{}".format(node.name), [relu_op], output_shape, **clip_param)
-            else:
-                activation_op = self.CVI.add_relu_op("{}".format(node.name), operands, output_shape)
-        else:
-            raise RuntimeError("No support {} activation".format(node.op_type))
-        self.addOperand(node.name, activation_op, output_shape, TensorType.ACTIVATION)
-
     def convert_add_op(self, node):
-        assert(node.op_type == "Add")
+        assert(node.op_type in ["AddV2", "Add"])
         op1, input_shape1, _ = self.getOperand(node.inputs[0])
-        op2, input_shape2, _ = self.getOperand(node.inputs[1])
-        if input_shape1 != input_shape2:
-            raise AttributeError("{} v.s. {} shape not same".format(input_shape1, input_shape2))
+        op2, input_shape2, tensor_type = self.getOperand(node.inputs[1])
 
-        operands = list()
-        operands.append(op1)
-        operands.append(op2)
-        output_shape = input_shape1
+        if tensor_type == TensorType.TENSOR:
+            return self.convert_biasadd_op(node)
 
-        add_op = self.CVI.add_eltwise_add_op("{}".format(node.name), operands, output_shape)
-        self.addOperand(node.name, add_op, output_shape, TensorType.ACTIVATION)
-
-    def convert_add_v2_op(self, node):
-        assert(node.op_type == "AddV2")
-        op1, input_shape1, _ = self.getOperand(node.inputs[0])
-        op2, input_shape2, _ = self.getOperand(node.inputs[1])
         if input_shape1 != input_shape2:
             raise AttributeError("{} v.s. {} shape not same".format(
                 input_shape1, input_shape2))
@@ -422,51 +363,6 @@ class TFConverter(BaseConverter):
                         output_shape, TensorType.ACTIVATION)
 
     def convert_batchnorm_op(self, node):
-        assert(node.op_type == "BatchNormalization")
-        op, input_shape, _ = self.getOperand(node.inputs[0])
-        operands = list()
-        operands.append(op)
-        epsilon = node.config['epsilon']
-
-        weights = node.proto.get_weights()
-        # we fuse batchnorm and scale at here
-        if node.config.get('scale') == False:
-            gamma_value = 1.0
-        else:
-            gamma_value = weights[0]
-            weights = weights[1:]
-
-        if node.config.get('center') == False:
-            beta_value = 0.0
-        else:
-            beta_value = weights[0]
-            weights = weights[1:]
-
-        mean_value =  weights[0]
-        var_value =  weights[1]
-
-        scale_name = "{}_0".format(node.name)
-        scale_value = ((1.0 / np.sqrt(
-                    var_value + epsilon)) * gamma_value)
-
-        scale_op = self.CVI.add_load_file_op(scale_name, scale_value.shape)
-        # add new weight tensor
-        self.addTensor(scale_name, scale_value, scale_value.shape, None)
-
-        offset_name =  "{}_1".format(node.name)
-        offset_value = (-mean_value * scale_value) + beta_value
-        offset_op = self.CVI.add_load_file_op(offset_name, offset_value.shape)
-        # add new bias tensor
-        self.addTensor(offset_name, offset_value, offset_value.shape, None)
-
-        operands.append(scale_op)
-        operands.append(offset_op)
-
-        output_shape = input_shape
-        scaleop = self.CVI.add_scale_op("{}".format(node.name, node.op_type), operands, output_shape)
-        self.addOperand(node.name, scaleop, output_shape, TensorType.ACTIVATION)
-
-    def convert_batchnorm_v2_op(self, node):
         assert(node.op_type == "FusedBatchNormV3")
         op, input_shape, _ = self.getOperand(node.inputs[0])
         operands = list()
@@ -499,7 +395,7 @@ class TFConverter(BaseConverter):
 
         # check output if same with tf graph
         assert(output_shape[1:] != node.shape[1:])
-        scaleop = self.CVI.add_scale_op("{}".format(node.name, node.op_type), operands, output_shape)
+        scaleop = self.CVI.add_scale_op(node.name, operands, output_shape)
         self.addOperand(node.name, scaleop, output_shape, TensorType.ACTIVATION)
 
     def convert_biasadd_op(self, node):
@@ -746,54 +642,27 @@ class TFConverter(BaseConverter):
         self.addOperand(node.name, depthwise_conv_op, output_shape,
                         TensorType.ACTIVATION)
 
+    def convert_depth_to_space_op(self, node):
+        assert(node.op_type == "DepthToSpace")
+        op, input_shape, _ = self.getOperand(node.inputs[0])
+        upscale_factor = node.attr.get("block_size")
+        mode = "DCR"
+        on = input_shape[0]
+        oc = input_shape[1] / upscale_factor**2
+        oh = upscale_factor * input_shape[2]
+        ow = upscale_factor * input_shape[3]
+        if oc == 1:
+            # FIXME: because output channel is 1, use CRD(tpu)
+            mode = "CRD"
+        output_shape = [on, int(oc), oh, ow]
+        attr = {
+            'upscale_factor': upscale_factor,
+            'mode': mode,
+        }
+        pixel_shuffle_op = self.CVI.add_pixelshuffle_op(node.name, [op], output_shape, **attr)
+        self.addOperand(node.name, pixel_shuffle_op, output_shape, TensorType.ACTIVATION)
+
     def convert_fc_op(self, node):
-        assert(node.op_type == "Dense")
-        op, shape, _ = self.getOperand(node.inputs[0])
-        operands = list()
-        operands.append(op)
-
-        # filter
-        filter_data = node.proto.get_weights()[0]
-        filter_data = np.ascontiguousarray(np.transpose(filter_data, (1, 0)))
-        filter_shape = filter_data.shape
-        filter_name = "{}_add_weight".format(node.name)
-        filter_op = self.createLoadWeightOp(
-            filter_name, filter_data, filter_shape)
-        operands.append(filter_op)
-
-        # bias
-        do_bias = node.config['use_bias']
-        if do_bias:
-            bias_data = node.proto.get_weights()[1]
-            bias_shape = bias_data.shape
-            bias_name = "{}_add_bias".format(node.name)
-            bias_op = self.createLoadWeightOp(bias_name, bias_data, bias_shape)
-            operands.append(bias_op)
-
-        M = shape[0]
-        K = shape[1]
-        N = bias_shape[0]
-        output_shape = [M, N]
-        fc_op = self.CVI.add_fully_connected_op("{}_fc".format(node.name), operands, output_shape)
-        self.addOperand("{}_fc".format(node.name), fc_op,
-                        output_shape, TensorType.ACTIVATION)
-        activation_operands = [fc_op]
-        if node.config['activation'] == "softmax":
-            softmax_param = {
-                'axis': len(output_shape) - 1,
-            }
-            activation_op = self.CVI.add_softmax_op(
-               node.name, activation_operands, output_shape, **softmax_param)
-        elif node.config['activation'] == "relu":
-            activation_op = self.CVI.add_relu_op(node.name, activation_operands, output_shape)
-        else:
-            raise RuntimeError(
-                "TODO Activation is {}".format(node.config['activation']))
-
-        self.addOperand(node.name, activation_op, output_shape,
-                            TensorType.ACTIVATION)
-
-    def convert_fc_v2_op(self, node):
         assert(node.op_type == "MatMul")
         op, input_shape, _ = self.getOperand(node.inputs[0])
         operands = [op]
@@ -810,49 +679,16 @@ class TFConverter(BaseConverter):
         do_bias = len(node.inputs) > 2
         if do_bias:
             bias_tensor = self.getTensor(node.inputs[2])
-            bias_shape = bias_tensor.shape
             bias_op = self.CVI.add_load_file_op(
                 node.inputs[2], bias_tensor.shape)
             operands.append(bias_op)
 
         M = input_shape[0]
-        K = input_shape[1]
         N = filter_shape[0]
         output_shape = [M, N]
         fc_op = self.CVI.add_fully_connected_op(node.name, operands, output_shape)
         self.addOperand(node.name, fc_op,
                         output_shape, TensorType.ACTIVATION)
-
-    def convert_flatten_op(self, node):
-        """
-        In Tensorflow, flatten channels_last means [n,h,w,c] -> [n,hwc]
-        But In milr, our order is [n,c,h,w] -> [n,chw]
-        tranpose [nchw] -> [nhwc] than reshape to [n,hwc]
-        if input dim less than 4, ignore
-        """
-        assert(node.op_type == "Flatten")
-        op, input_shape, _ = self.getOperand(node.inputs[0])
-        data_format = node.config.get('data_format')
-
-        if data_format != "channels_last":
-            raise RuntimeError("Not support {} data_format".format(data_format))
-        if len(input_shape) > 4:
-            raise RuntimeError("Todo, input dim is {} dim (only support <4 case)".format(len(input_shape)))
-        elif len(input_shape) == 4:
-            attr = {
-                        'order0': 0,
-                        'order1': 2,
-                        'order2': 3,
-                        'order3': 1,
-            }
-            permute_shape = [input_shape[0], input_shape[2], input_shape[3], input_shape[1]]
-            op = self.CVI.add_permute_op("{}_transpose".format(
-                node.name), [op], permute_shape, **attr)
-
-        reduce_shape = functools.reduce(operator.mul, input_shape[1:])
-        output_shape = [input_shape[0], reduce_shape]
-        reshape_op = self.CVI.add_reshape_op(node.name, [op], output_shape)
-        self.addOperand(node.name, reshape_op, output_shape, TensorType.ACTIVATION)
 
     def convert_global_avg_pool_op(self, node):
         assert(node.op_type == "GlobalAveragePooling2D")
@@ -883,7 +719,7 @@ class TFConverter(BaseConverter):
 
     def convert_maxpool_op(self, node):
         assert(node.op_type == "MaxPool")
-        op, shape, tensor_type = self.getOperand(node.inputs[0])
+        op, input_shape, _ = self.getOperand(node.inputs[0])
 
         operands = list()
         operands.append(op)
@@ -895,9 +731,9 @@ class TFConverter(BaseConverter):
         padding_method = node.attr.get("padding").decode('utf-8')
         if padding_method == "SAME":
             padding_along_h = get_TF_SAME_Padding(
-                input_shape[2], filter_shape[2], stride_h)
+                input_shape[2], ksize_h, stride_h)
             padding_along_w = get_TF_SAME_Padding(
-                input_shape[3], filter_shape[3], stride_w)
+                input_shape[3], ksize_w, stride_w)
             padding_t = padding_along_h // 2
             padding_l = padding_along_w // 2
             padding_b = padding_along_h - padding_t
@@ -920,11 +756,11 @@ class TFConverter(BaseConverter):
             'do_relu': False,
         }
 
-        on = shape[0]
-        oc = shape[1]
-        oh = calcPool2DFloor(shape[2], ksize_h, stride_h,
+        on = input_shape[0]
+        oc = input_shape[1]
+        oh = calcPool2DFloor(input_shape[2], ksize_h, stride_h,
                              padding_b, padding_t)
-        ow = calcPool2DFloor(shape[3], ksize_w, stride_w,
+        ow = calcPool2DFloor(input_shape[3], ksize_w, stride_w,
                              padding_r, padding_l)
         output_shape = [int(on), int(oc), int(oh), int(ow)]
         assert(output_shape[1:] != node.shape[1:])
@@ -1029,7 +865,7 @@ class TFConverter(BaseConverter):
         op, output_shape, _ = self.getOperand(node.inputs[0])
         axis = len(output_shape) - 1
 
-        for i in range(len(output_shape)):
+        for _ in range(len(output_shape)):
             if output_shape[axis] == 1:
                 axis = axis - 1
         softmax_param = {
