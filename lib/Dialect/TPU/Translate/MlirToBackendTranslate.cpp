@@ -107,8 +107,7 @@ static LogicalResult translateModule(ModuleOp module, llvm::raw_ostream &output)
   if (!module)
     return failure();
 
-  std::vector<int8_t> weight_data;
-  backend_ctx = cvi_backend_create_context_chip(weight_data, clRunChipType.c_str());
+  backend_ctx = cvi_backend_create_context(clRunChipType.c_str());
 
   for (FuncOp function : module.getOps<FuncOp>()) {
     LLVM_DEBUG(llvm::errs() << "run " << function.getName() << "\n";);

@@ -72,9 +72,6 @@ void tdma_g2l_tensor_copy(const CviBackendContext &ctx, cvk_tl_t **tl_bslice,
 void apply_qi8(const CviBackendContext &ctx, cvk_tl_t *ifmap, uint32_t layer_id, int do_relu,
                int right_shift_width, int threshold_x_quantized);
 
-// cvk_fmt_t convert to cvk_fmt_t for kernel used
-cvk_fmt_t cvi_to_cvk_fmt(cvk_fmt_t cvi_backend_fmt);
-
 /*
  * \brief fill fp32 range to 0
  *

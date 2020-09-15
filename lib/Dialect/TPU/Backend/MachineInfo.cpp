@@ -53,10 +53,9 @@ void MInfo::runOnFunction() {
 }
 void MInfo::getChipInfo(const char *name) {
 
-  std::vector<int8_t> weight_data;
   CviBackendContext *backend_ctx = nullptr;
+  backend_ctx = cvi_backend_create_context(name);
 
-  backend_ctx = cvi_backend_create_context_chip(weight_data, name);
   version = cvi_backend_chip_context(backend_ctx, CVI_CHIP_VERSION);
   eu_num = cvi_backend_chip_context(backend_ctx, CVI_CHIP_EU_NUM);
   lane_num = cvi_backend_chip_context(backend_ctx, CVI_CHIP_LANE_NUM);

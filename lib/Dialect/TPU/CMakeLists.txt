@@ -83,7 +83,7 @@ add_llvm_library(MLIRTPU
   Backend/TpuTlCodegen_LG.cpp
   Plugin/CustomOpPlugin.cpp
   Backend/MachineInfo.cpp
-  Backend/Kernel/BM1880v2BackendContext.cpp
+  Backend/Kernel/CviBackendContext.cpp
   Backend/Kernel/TgFixedEltwiseKernel.cpp
   Backend/Kernel/TgFixedPoolingKernel.cpp
   Backend/Kernel/cast_kernel.cpp

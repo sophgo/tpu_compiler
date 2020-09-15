@@ -22,10 +22,9 @@ void cvi_backend_tg_fixed_lut_kernel(const CviBackendContext &ctx, uint32_t stre
                                           uint32_t inst_id, uint32_t layer_id, const uint32_t *depends,
                                           uint32_t depends_len, gaddr_t bottom_gaddr, gaddr_t top_gaddr,
                                           gaddr_t sg_lut_gaddr, int input_n, int input_c,
-                                          int input_h, int input_w, cvk_fmt_t backend_fmt) {
+                                          int input_h, int input_w, cvk_fmt_t fmt) {
 
   ctx.set_layer_id(layer_id);
-  cvk_fmt_t fmt = cvi_to_cvk_fmt(backend_fmt);
 
   int table_w, table_h;
 

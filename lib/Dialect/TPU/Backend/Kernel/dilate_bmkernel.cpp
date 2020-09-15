@@ -21,9 +21,7 @@ void cvi_backend_tg_fixed_dilate_kernel(const CviBackendContext &ctx,
                                  int n, int c, int ih, int iw,
                                  int oh, int ow, int fill_constant,
                                  int ins_h, int ins_w,
-                                 cvk_fmt_t _fmt) {
-
-  cvk_fmt_t fmt = cvi_to_cvk_fmt(_fmt);
+                                 cvk_fmt_t fmt) {
 
   int data_size = (fmt == CVK_FMT_BF16) ? sizeof(uint16_t) : sizeof(uint8_t);
   assert((fmt == CVK_FMT_BF16 || fmt == CVK_FMT_I8 || fmt == CVK_FMT_U8) &&

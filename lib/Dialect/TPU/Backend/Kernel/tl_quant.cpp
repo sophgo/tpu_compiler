@@ -42,18 +42,14 @@ void cvi_backend_tl_quant(
 
   cvk_tl_t *tl_input = new cvk_tl_t;
   cvk_tl_t *tl_output = new cvk_tl_t;
-  cvk_fmt_t _from, _to;
-
-  _from = cvi_to_cvk_fmt(from);
-  _to = cvi_to_cvk_fmt(to);
 
   tl_input->start_address = la_input;
-  tl_input->fmt = _from;
+  tl_input->fmt = from;
   tl_input->shape = ctx.shape_t4(n, c, h, w);
   tl_input->stride = ctx.tl_default_stride(tl_input->shape, tl_input->fmt, /*eu_align=*/1);
 
   tl_output->start_address = la_output;
-  tl_output->fmt = _to;
+  tl_output->fmt = to;
   tl_output->shape = ctx.shape_t4(n, c, h, w);
   tl_output->stride = ctx.tl_default_stride(tl_output->shape, tl_output->fmt, /*eu_align=*/1);
 
@@ -79,8 +75,8 @@ void cvi_backend_tl_quant(
     p.layer_id = layer_id;
 
     ctx.tiu_mul(&p);
-  }
-  else {
+
+  } else {
     // quant, bf16->int8
     // move to high accurcy to calculate quant/dequant
     cvk_tiu_mul_param_t p = {0};

@@ -21,7 +21,7 @@ void tiling_packing(const CviBackendContext &ctx, int require_shape, int coeff_l
 void _split_nh(const CviBackendContext &ctx, int n, int c, int h, int w, int blob_num,
                uint32_t reserved, int *n_slices, int *h_slices);
 
-void _split_cnh(const BM188xBackendContext &ctx, int n, int c, int h, int w, int blob_num,
+void _split_cnh(const CviBackendContext &ctx, int n, int c, int h, int w, int blob_num,
                 uint32_t reserved, int *c_slices, int *n_slices, int *h_slices);
 
 int __split(const CviBackendContext &ctx, int blob_num, int count);

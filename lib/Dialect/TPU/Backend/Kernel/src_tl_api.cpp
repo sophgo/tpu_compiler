@@ -139,32 +139,28 @@ void cvi_backend_tl_load_stride(
   tl_shape.h = Local_H;
   tl_shape.w = Local_W;
 
-  cvk_fmt_t _from, _to;
-  _from = cvi_to_cvk_fmt(from);
-  _to = cvi_to_cvk_fmt(to);
-
   // quant emit once data type change(e.g int8->bf16 or bf16->int8)
   int is_quant = 0;
   int is_bf16 = 0;
 
-  if (_from == CVK_FMT_BF16 || _to == CVK_FMT_BF16) {
+  if (from == CVK_FMT_BF16 || to == CVK_FMT_BF16) {
     // TODO: support other format
     assert(!bCompressed && "not support bf16 + compress yet");
   }
 
-  if ((_from == CVK_FMT_BF16 && _to == CVK_FMT_I8) &&
-      _from == CVK_FMT_I8 && _to == CVK_FMT_BF16) {
+  if ((from == CVK_FMT_BF16 && to == CVK_FMT_I8) &&
+      from == CVK_FMT_I8 && to == CVK_FMT_BF16) {
     // TODO: support U8/BF16 quant
     is_quant = 1;
   }
 
-  if (_from == CVK_FMT_BF16 && _to == CVK_FMT_BF16) {
+  if (from == CVK_FMT_BF16 && to == CVK_FMT_BF16) {
     is_bf16 = 1;
   }
 
   cvk_tl_t tl_data;
   tl_data.start_address = la_dst;
-  tl_data.fmt = _from;
+  tl_data.fmt = from;
   tl_data.shape = tl_shape;
   tl_data.stride = ctx.tl_default_stride(tl_shape, tl_data.fmt, DoAligned ? 1 : 0);
 
@@ -173,14 +169,14 @@ void cvi_backend_tl_load_stride(
       ctx.tg_default_stride(
           {(uint32_t)Local_N, (uint32_t)Global_C,
           (uint32_t)Global_H, (uint32_t)Global_W},
-      _from);
+      from);
 
   if (!bCompressed) {
     // normal data
     cvk_tg_t ga_data = {0};
     ga_data.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(ga_src);
     ga_data.start_address = ga_src;
-    ga_data.fmt = _to;
+    ga_data.fmt = to;
     ga_data.shape = {tl_data.shape.n, tl_data.shape.c,
                       tl_data.shape.h, tl_data.shape.w};
     ga_data.stride = ga_stride;
@@ -198,7 +194,7 @@ void cvi_backend_tl_load_stride(
     cvk_cmpr_tg_t ga_data = {0};
     ga_data.t.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(ga_src);
     ga_data.t.start_address = ga_src;
-    ga_data.t.fmt = _to;
+    ga_data.t.fmt = to;
     ga_data.t.shape = {tl_data.shape.n, tl_data.shape.c,
                       tl_data.shape.h, tl_data.shape.w};
     ga_data.t.stride = ga_stride;
@@ -234,33 +230,29 @@ void cvi_backend_tl_store_stride(
   tl_shape.h = Local_H;
   tl_shape.w = Local_W;
 
-  cvk_fmt_t _from, _to;
-  _from = cvi_to_cvk_fmt(from);
-  _to = cvi_to_cvk_fmt(to);
-
   // quant emit once data type change(e.g int8->bf16 or bf16->int8)
   int is_quant = 0;
   int is_bf16 = 0;
 
-  if ((_from == CVK_FMT_BF16 && _to == CVK_FMT_I8) &&
-      _from == CVK_FMT_I8 && _to == CVK_FMT_BF16) {
+  if ((from == CVK_FMT_BF16 && to == CVK_FMT_I8) &&
+      from == CVK_FMT_I8 && to == CVK_FMT_BF16) {
     // TODO: support U8/BF16 quant
     is_quant = 1;
   }
 
-  if (_from == CVK_FMT_BF16 && _to == CVK_FMT_BF16) {
+  if (from == CVK_FMT_BF16 && to == CVK_FMT_BF16) {
     is_bf16 = 1;
   }
 
   cvk_tl_t tl_data;
   tl_data.start_address = la_src;
-  tl_data.fmt = _from;
+  tl_data.fmt = from;
   tl_data.shape = tl_shape;
   tl_data.stride = ctx.tl_default_stride(tl_shape, tl_data.fmt, DoAligned ? 1 : 0);
 
   cvk_tg_stride_t ts_stride =
       ctx.tg_default_stride({(uint32_t)Local_N, (uint32_t)Global_C,
-          (uint32_t)Global_H, (uint32_t)Global_W}, _to);
+          (uint32_t)Global_H, (uint32_t)Global_W}, to);
 
   // We need another API to pass memory region from TPU dialect codegen.
   if (is_quant || is_bf16) {

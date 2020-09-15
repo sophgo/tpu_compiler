@@ -51,17 +51,15 @@ static void tile_w(const CviBackendContext &ctx,
 int cvi_backend_tg_tile_kernel(const CviBackendContext &ctx,
     gaddr_t input_gaddr,
     int input_n, int input_c, int input_h, int input_w,
-    cvk_fmt_t bk_input_fmt,
+    cvk_fmt_t input_fmt,
     gaddr_t output_gaddr,
     int output_n, int output_c, int output_h, int output_w,
-    cvk_fmt_t bk_output_fmt,
+    cvk_fmt_t output_fmt,
     int* tile_factors, int tile_factors_len,
     uint32_t layer_id) {
 
   cvk_tg_shape_t input_shape = {(uint32_t)input_n, (uint32_t)input_c, (uint32_t)input_h, (uint32_t)input_w};
   cvk_tg_shape_t output_shape = {(uint32_t)output_n, (uint32_t)output_c, (uint32_t)output_h, (uint32_t)output_w};
-  cvk_fmt_t input_fmt = cvi_to_cvk_fmt(bk_input_fmt);
-  cvk_fmt_t output_fmt = cvi_to_cvk_fmt(bk_output_fmt);
 
   // g2g
   assert(input_fmt == output_fmt && "only support input fmt = outpu fmt");

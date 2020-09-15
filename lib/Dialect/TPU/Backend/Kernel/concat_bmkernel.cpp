@@ -22,20 +22,6 @@
 #define DEBUG_TYPE "bmnet_bm1880v2_bmkernel_concat"
 #define DEBUG_SPLIT "bmnet_bm1880v2_bmkernel_concat_split"
 
-//namespace bmnet {
-/*
-static int get_csize_local(const BackendContext &ctx, int h, int w)
-{
-  int unit_size = ctx.hw.unit_size;
-  ASSERT(unit_size > 0);
-  return ALIGN(h * w * BF16_SIZE, ctx.hw.eu_num) * unit_size;
-}
-
-static int tensor_size_lmem(const CviBackendContext &ctx, int n, int c, int h, int w) {
-  return n * ALIGN(c, NPU_NUM) * get_csize_local(ctx, h, w);
-}
-*/
-
 static int concat_size_lmem(const CviBackendContext &ctx,
                             const cvk_tg_shape_t p) {
   return tensor_size_lmem(ctx, p.n, p.c, p.h, p.w);

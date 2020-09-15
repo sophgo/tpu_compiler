@@ -43,11 +43,7 @@ static inline uint64_t align_up(uint64_t x, uint64_t n)
 
 class CviBackendContext;
 
-CviBackendContext *cvi_backend_create_context(
-    std::vector<int8_t> &weight_data);
-
-CviBackendContext *cvi_backend_create_context_chip(
-    std::vector<int8_t> &weight_data, const char *runchip);
+CviBackendContext *cvi_backend_create_context(const char *runchip);
 
 void cvi_backend_submit(
     CviBackendContext *ctx);

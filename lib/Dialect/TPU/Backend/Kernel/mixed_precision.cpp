@@ -288,7 +288,7 @@ void mixed_precision_quant(const CviBackendContext &ctx,
       0, layer_id, NULL,
       0, bottom_gaddr, top_gaddr,
       input_n, input_c, input_h, input_w, const_scale,
-      cvi_to_cvk_fmt(from), cvi_to_cvk_fmt(to));
+      from, to);
 }
 
 /**
@@ -336,5 +336,5 @@ void mixed_precision_dequant(const CviBackendContext &ctx,
       0, layer_id, NULL,
       0, bottom_gaddr, top_gaddr,
       input_n, input_c, input_h, input_w, const_scale,
-      cvi_to_cvk_fmt(from), cvi_to_cvk_fmt(to));
+      from, to);
 }

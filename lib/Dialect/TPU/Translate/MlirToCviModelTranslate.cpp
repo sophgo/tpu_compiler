@@ -293,8 +293,7 @@ CviTpuRoutine::CviTpuRoutine(flatbuffers::FlatBufferBuilder &fbb, FuncOp &fn,
 }
 
 void CviTpuRoutine::codeGen() {
-  std::vector<int8_t> weight_data;
-  auto backend_ctx = cvi_backend_create_context_chip(weight_data, clRunChipType.c_str());
+  auto backend_ctx = cvi_backend_create_context(clRunChipType.c_str());
 
   for (auto op : ops) {
     if (auto tgOp = llvm::dyn_cast<tpu::TpuTGOpCodegenInterface>(op)) {
