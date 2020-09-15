@@ -75,8 +75,8 @@ void TgInt8PoolingKernel::doTileForNormalCase() {
   int32_t step_c, step_oh, step_ow;
 
   // determin the shape of tile.
-  for (step_ow = ow; step_ow > 0; step_ow--) {
-    for (step_oh = oh; step_oh > 0; step_oh--) {
+  for (step_ow = stride_w > 15 ? 1 : ow; step_ow > 0; step_ow--) {
+    for (step_oh = stride_h > 15 ? 1 : oh; step_oh > 0; step_oh--) {
       for (step_c = std::min(c, MAX_CHANNEL); step_c > 0; step_c -= NPU_NUM) {
         if (step_c != c) {
           step_c = align_up(step_c, NPU_NUM);
