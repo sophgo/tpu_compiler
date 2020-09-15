@@ -1108,9 +1108,15 @@ class CaffeConverter(BaseConverter):
             num_axes_replaced = end_axis - start_axis
             num_axes_retained = num_dims - num_axes_replaced
             num_new_axes = len(top_dims)
+            has_inferred = False
+            for dim in top_dims:
+                if dim == -1:
+                    has_inferred = True
+                    break
             if start_axis == 0 and top_dims[0] != 0 and \
-               top_dims[0] != -1 and top_dims[0] != input_shape[0]:
-                top_dims[0] = 0
+               top_dims[0] != -1 and has_inferred == False and \
+               top_dims[0] != input_shape[0]:
+                top_dims[0] = -1
 
             copy_axes = list()
             inferred_axis = -1
