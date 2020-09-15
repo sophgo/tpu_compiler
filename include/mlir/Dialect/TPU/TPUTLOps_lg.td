@@ -108,7 +108,7 @@ class TPU_TL_LG_Conv2DOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     OptionalAttr<I8Attr>:$m_i8_pos,
     OptionalAttr<I8Attr>:$rshift_neg,
     OptionalAttr<I8Attr>:$m_i8_neg,
-    DefaultValuedAttr<BoolAttr, "false">:$fused_leaky,
+    DefaultValuedAttr<BoolAttr, "false">:$do_leaky_relu,
     OptionalAttr<BoolAttr>:$compressed_weight,
     StrAttr:$name,
     OptionalAttr<StrAttr>:$chipname

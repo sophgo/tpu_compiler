@@ -72,14 +72,6 @@ struct TpuTG2TLConv2DOpPattern : public RewritePattern {
     LLVM_DEBUG(llvm::errs() << "TG2TL_LA: " << op.name()
                  << ", layer ID " << getOpLayerId(opInst) << "\n";);
 
-    // break leaky relu fuse
-    if (opInst->getResult(0)->hasOneUse()) {
-      auto next_op = getNextOp(opInst);
-      if (auto lreluOp = dyn_cast<tpu::TG_INT8_LeakyReluOp>(next_op)) {
-        lreluOp.setAttr("fuse_prev", rewriter.getBoolAttr(false));
-      }
-    }
-
     // convert to TL_LA_Conv2DOp
     assert(op.getNumOperands() == 3 && "support 3 inputs only");
     std::vector<Value *> newOperands;
@@ -94,8 +86,8 @@ struct TpuTG2TLConv2DOpPattern : public RewritePattern {
       attrs.push_back(rewriter.getNamedAttr("do_ic_alignment", rewriter.getBoolAttr(op.do_ic_alignment().getValue())));
     }
 
-    if (op.fuse_next()) {
-      attrs.push_back(rewriter.getNamedAttr("do_leaky_relu", op.fuse_nextAttr()));
+    if (op.do_leaky_relu()) {
+      attrs.push_back(rewriter.getNamedAttr("do_leaky_relu", op.do_leaky_reluAttr()));
       if (op.rshift_pos().hasValue())
         attrs.push_back(rewriter.getNamedAttr("rshift_pos", op.rshift_posAttr()));
       if (op.m_i8_pos().hasValue())

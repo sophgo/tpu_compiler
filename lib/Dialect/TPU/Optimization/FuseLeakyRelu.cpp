@@ -41,18 +41,26 @@ struct TpuTgFusePattern : public RewritePattern {
 
   PatternMatchResult matchAndRewrite(Operation *op,
       PatternRewriter &rewriter) const override {
-    auto nextOp = cast<NextOpTy>(op);
-    assert(nextOp);
-    if (nextOp.fuse_prev()) {
-      // fused already
-      return matchFailure();
-    }
+    auto leakyReluOp = cast<NextOpTy>(op);
+    assert(leakyReluOp);
 
     auto prevOpInst = op->getOperand(0)->getDefiningOp();
     if (matchPattern(prevOpInst, m_Op<PrevOpTy>())) {
-      auto prevOp = cast<PrevOpTy>(prevOpInst);
-      nextOp.setAttr("fuse_prev", rewriter.getBoolAttr(true));
-      prevOp.setAttr("fuse_next", rewriter.getBoolAttr(true));
+      auto convOp = cast<PrevOpTy>(prevOpInst);
+      convOp.setAttr("do_leaky_relu", rewriter.getBoolAttr(true));
+      convOp.setAttr("negative_slope", leakyReluOp.negative_slopeAttr());
+      if (leakyReluOp.rshift_pos().hasValue())
+        convOp.setAttr("rshift_pos", leakyReluOp.rshift_posAttr());
+      if (leakyReluOp.m_i8_pos().hasValue())
+        convOp.setAttr("m_i8_pos", leakyReluOp.m_i8_posAttr());
+      if (leakyReluOp.rshift_neg().hasValue())
+        convOp.setAttr("rshift_neg", leakyReluOp.rshift_negAttr());
+      if (leakyReluOp.m_i8_neg().hasValue())
+        convOp.setAttr("m_i8_neg", leakyReluOp.m_i8_negAttr());
+
+      // remove the relu Op
+      convOp.setAttr("name", leakyReluOp.nameAttr());
+      rewriter.replaceOp(op, {op->getOperand(0)});
       return matchSuccess();
     }
 
@@ -70,8 +78,7 @@ public:
     auto *context = &getContext();
     patterns.insert<
         TpuTgFusePattern<tpu::TG_INT8_LeakyReluOp, tpu::TG_INT8_PT_Conv2DOp>,
-        TpuTgFusePattern<tpu::TG_INT8_LeakyReluOp, tpu::TG_INT8_PC_Conv2DOp>,
-        TpuTgFusePattern<tpu::TG_BF16_LeakyReluOp, tpu::TG_BF16_Conv2DOp>
+        TpuTgFusePattern<tpu::TG_INT8_LeakyReluOp, tpu::TG_INT8_PC_Conv2DOp>
         >(context);
     applyPatternsGreedily(fn, patterns);
   }

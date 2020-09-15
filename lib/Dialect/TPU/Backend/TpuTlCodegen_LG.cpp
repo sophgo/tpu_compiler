@@ -140,7 +140,7 @@ LogicalResult tpu::TL_LG_INT8_Conv2DOp::codegen(void *ctx) {
   int8_t neg_rshift = 0, neg_m_i8 = 0;
   float neg_slope = 0.0;
 
-  if (this->fused_leaky())
+  if (this->do_leaky_relu())
     parseTLConvLeakyParam(op, pos_rshift, pos_m_i8,
                           neg_rshift, neg_m_i8, neg_slope);
 

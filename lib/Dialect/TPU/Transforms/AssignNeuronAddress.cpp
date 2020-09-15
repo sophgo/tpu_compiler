@@ -79,32 +79,6 @@ static int32_t getOpDtypeSize(Operation *op) {
 }
 
 template <typename OpTy>
-struct TgLeakyReluAddressPattern : public RewritePattern {
-  TgLeakyReluAddressPattern(MLIRContext *context)
-      : RewritePattern(OpTy::getOperationName(), 1, context) {}
-
-  PatternMatchResult matchAndRewrite(Operation *op,
-                                     PatternRewriter &rewriter) const override {
-    auto castOp = cast<OpTy>(op);
-    if (castOp.gaddr().hasValue()) {
-      return matchFailure();
-    }
-    if (!castOp.fuse_prev()) {
-      return matchFailure();
-    }
-
-    auto opd = op->getOperand(0)->getDefiningOp();
-    if (opd->getAttr("buffer_reused")) {
-      castOp.setAttr("buffer_reused", rewriter.getBoolAttr(true));
-    }
-
-    auto curPos = getPreviousOpAddress(castOp);
-    setOpAddress(op, curPos);
-    return matchSuccess();
-  }
-};
-
-template <typename OpTy>
 struct TlLgLoadNeuronAddressPattern : public RewritePattern {
   TlLgLoadNeuronAddressPattern(MLIRContext *context)
       : RewritePattern(OpTy::getOperationName(), 1, context) {}
@@ -208,16 +182,6 @@ struct TlLgStoreAddressNeuronPattern : public RewritePattern {
 static bool isInPlaceOp(Operation *op) {
   if (isSliceOpSkip(op)) {
     return true;
-  } else if (auto leakyReluOp = llvm::dyn_cast<tpu::TG_INT8_LeakyReluOp>(op)) {
-    auto fusePrev = leakyReluOp.fuse_prev();
-    if (fusePrev) {
-      return true;
-    }
-  } else if (auto leakyReluOp = llvm::dyn_cast<tpu::TG_BF16_LeakyReluOp>(op)) {
-    auto fusePrev = leakyReluOp.fuse_prev();
-    if (fusePrev) {
-      return true;
-    }
   } else if (isa<tpu::ReshapeOp>(op)) {
     return true;
   }
@@ -415,9 +379,7 @@ public:
     applyPatternsGreedily(fn, patterns);
     patterns.clear();
     patterns.insert<TlLgStoreAddressNeuronPattern<tpu::TL_LG_StoreOp>,
-                    TlLgLoadNeuronAddressPattern<tpu::TL_LG_LoadNeuronOp>,
-                    TgLeakyReluAddressPattern<tpu::TG_INT8_LeakyReluOp>,
-                    TgLeakyReluAddressPattern<tpu::TG_BF16_LeakyReluOp>
+                    TlLgLoadNeuronAddressPattern<tpu::TL_LG_LoadNeuronOp>
                    >(context);
     applyPatternsGreedily(fn, patterns);
 

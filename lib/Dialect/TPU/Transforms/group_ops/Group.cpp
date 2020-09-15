@@ -372,12 +372,12 @@ bool Group::backward_slice(int out_tensor_id, std::list<int>& branches, bool max
   if (layer_type == IR_CONVOLUTION ||
       layer_type == IR_DECONVOLUTION) {
     bool do_ic_align = false;
-    bool fused_leaky = false;
+    bool do_leaky_relu = false;
     getConvParam(im_layer->op(),
                  n, ic, ih, iw, oc, oh, ow, g,
                  kh, kw, sh, sw, pt, pb, pl, pr,
                  dh, dw, is_dw, with_bias, do_relu,
-                 do_ic_align, fused_leaky);
+                 do_ic_align, do_leaky_relu);
 
     if (dh > 1) {
       kh = dh * (kh - 1) + 1;

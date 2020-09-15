@@ -91,6 +91,12 @@ void parseFullyConnectedParam(
     Value *input, Value *output, Value *filter,
     int &m, int &k, int &n);
 
+template<typename OpTy>
+void parseLeakyReluParam(Operation *op,
+    int8_t &pos_rshift, int8_t &pos_m_i8,
+    int8_t &neg_rshift, int8_t &neg_m_i8,
+    float &negative_slope);
+
 void parseLstmParam(
     Value *input, Value *recurrence,
     int &seq_len, int &batch_size, int &input_size, int& hidden_size);

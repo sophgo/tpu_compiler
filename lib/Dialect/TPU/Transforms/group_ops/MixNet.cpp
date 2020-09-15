@@ -296,7 +296,7 @@ static void add_fused_leaky_attrs(Builder &builder, Operation * op,
     if (conv_op.m_i8_neg().hasValue())
       attrs.push_back(builder.getNamedAttr("m_i8_neg",
                       conv_op.m_i8_negAttr()));
-    attrs.push_back(builder.getNamedAttr("fused_leaky",
+    attrs.push_back(builder.getNamedAttr("do_leaky_relu",
                     builder.getBoolAttr(true)));
   } else if (auto conv_op = dyn_cast<tpu::TG_BF16_Conv2DOp>(op)) {
     if (conv_op.negative_slope().hasValue())
@@ -314,7 +314,7 @@ static void add_fused_leaky_attrs(Builder &builder, Operation * op,
     if (conv_op.m_i8_neg().hasValue())
       attrs.push_back(builder.getNamedAttr("m_i8_neg",
                       conv_op.m_i8_negAttr()));
-    attrs.push_back(builder.getNamedAttr("fused_leaky",
+    attrs.push_back(builder.getNamedAttr("do_leaky_relu",
                     builder.getBoolAttr(true)));
   }
 
@@ -329,14 +329,15 @@ void MixNet::_add_tl_convolution_op(MixOp* mix_op,
   bool is_dw, with_bias, do_relu;
   int n, ic, ih, iw, oc, oh, ow, g, kh, kw;
   int sh, sw, pt, pb, pl, pr, dh, dw;
-  bool do_ic_align = false, fused_leaky = false;
+  bool do_ic_align = false;
+  bool do_leaky_relu = false;
   bool bInt8ConvOp = isa<tpu::TG_INT8_PC_Conv2DOp>(op);
 
   getConvParam( op,
                 n, ic, ih, iw, oc, oh, ow, g,
                 kh, kw, sh, sw, pt, pb, pl, pr, dh, dw,
                 is_dw, with_bias, do_relu,
-                do_ic_align, fused_leaky);
+                do_ic_align, do_leaky_relu);
 
   bool has_bias_op = (bInt8ConvOp || (!bInt8ConvOp && with_bias));
   auto old_input_type = op->getOperand(0)->getType().cast<RankedTensorType>();
@@ -458,7 +459,7 @@ void MixNet::_add_tl_convolution_op(MixOp* mix_op,
       attrs.push_back(builder_.getNamedAttr("do_ic_alignment",
                            builder_.getBoolAttr(do_ic_align)));
   }
-  if(fused_leaky) {
+  if(do_leaky_relu) {
     add_fused_leaky_attrs(builder_, op, attrs);
     mem_buffer_key_t key = {timestep_idx, im_layer->imm_tensors[0].get()->id(), true};
     const mem_buffer_value_t* imm = time_step->get_mem_buffer_value(&key);
@@ -515,14 +516,15 @@ void MixNet::_add_tl_deconvolution_op(MixOp* mix_op,
   bool is_dw, with_bias, do_relu;
   int n, ic, ih, iw, oc, oh, ow, g, kh, kw;
   int sh, sw, pt, pb, pl, pr, dh, dw;
-  bool do_ic_align = false, fused_leaky = false;
+  bool do_ic_align = false;
+  bool do_leaky_relu = false;
   bool bInt8ConvOp = isa<tpu::TG_INT8_PC_DeConv2DOp>(op);
 
   getConvParam( op,
                 n, ic, ih, iw, oc, oh, ow, g,
                 kh, kw, sh, sw, pt, pb, pl, pr, dh, dw,
                 is_dw, with_bias, do_relu,
-                do_ic_align, fused_leaky);
+                do_ic_align, do_leaky_relu);
 
   bool has_bias_op = (bInt8ConvOp || (!bInt8ConvOp && with_bias));
   auto old_input_type = op->getOperand(0)->getType().cast<RankedTensorType>();

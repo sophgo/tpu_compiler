@@ -326,13 +326,13 @@ ImDeconv::ImDeconv(Operation* p) : ImLayer(IR_DECONVOLUTION, p, true) {
   bool is_dw, with_bias, do_relu;
   int n, ic, ih, iw, oc, oh, ow, g, kh, kw;
   int sh, sw, pt, pb, pl, pr, dh, dw;
-  bool do_ic_align, fused_leaky;
+  bool do_ic_align, do_leaky_relu;
   bool bInt8ConvOp = isa<tpu::TG_INT8_PC_DeConv2DOp>(p);
   getConvParam(p, n, ic, ih, iw, oc, oh, ow,
                  g, kh, kw, sh, sw,
                  pt, pb, pl, pr, dh, dw,
                  is_dw, with_bias,
-                 do_relu, do_ic_align, fused_leaky);
+                 do_relu, do_ic_align, do_leaky_relu);
 
   // handle ic align for double conv
   int w_ic = ic;

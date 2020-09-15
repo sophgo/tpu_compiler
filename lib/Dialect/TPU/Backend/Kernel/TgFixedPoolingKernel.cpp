@@ -1,8 +1,5 @@
 /*
  * Copyright (C) Cvitek Co., Ltd. 2019-2020. All rights reserved.
- *
- * File Name: eltwise_bmkernel.cpp
- * Description:
  */
 
 #include "TgFixedPoolingKernel.hpp"
@@ -251,7 +248,8 @@ void TgInt8PoolingKernel::compute(int32_t step_idx, int32_t flip) {
       "output<%d,%d,%d,%d>, pad<%d,%d,%d,%d>, "
       "kh:%d, kw:%d, sh:%d, sw:%d\n",
       step_idx, flip, flip,
-      input.start_address, output.start_address, input.shape.n, input.shape.c, input.shape.h, input.shape.w,
+      input.start_address, output.start_address, input.shape.n,
+      input.shape.c, input.shape.h, input.shape.w,
       output.shape.n, output.shape.c, output.shape.h, output.shape.w,
       tile.pad[0], tile.pad[1], tile.pad[2], tile.pad[3],
       kh, kw, stride_h, stride_w));

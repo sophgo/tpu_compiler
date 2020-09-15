@@ -1,8 +1,5 @@
 /*
  * Copyright (C) Cvitek Co., Ltd. 2019-2020. All rights reserved.
- *
- * File Name: eltwise_bmkernel.cpp
- * Description:
  */
 
 #include "TgFixedEltwiseKernel.hpp"

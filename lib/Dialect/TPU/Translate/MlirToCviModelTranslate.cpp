@@ -427,10 +427,6 @@ void CviModelBuilder::parseModule() {
       }
 
       bool overwritten = false;
-      if (op->getAttr("fuse_next") && !op->getAttr("fused_leaky")) {
-        overwritten = true;
-      }
-
       if (op->getAttr("tl_store_flag") &&
           !op->getAttr("tl_store_flag").cast<BoolAttr>().getValue()) {
         overwritten = true;

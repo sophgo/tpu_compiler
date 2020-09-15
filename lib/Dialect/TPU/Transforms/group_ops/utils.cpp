@@ -11,7 +11,7 @@ void getConvParam(Operation *p,
                   bool &is_dw, bool &with_bias,
                   bool &do_relu,
                   bool &do_ic_align,
-                  bool &fuse_leaky) {
+                  bool &do_leaky_relu) {
   if (auto op = dyn_cast<tpu::TG_INT8_PC_Conv2DOp>(p)) {
     bool is_deconv = false;
     parseConvParam(op.param(), is_deconv, op.input(), op.output(), op.filter(),
@@ -19,7 +19,7 @@ void getConvParam(Operation *p,
                     kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, is_dw, with_bias, do_relu);
     do_ic_align = op.do_ic_alignment().hasValue() ?
                   op.do_ic_alignment().getValue() : false;
-    fuse_leaky = op.fused_leaky();
+    do_leaky_relu = op.do_leaky_relu();
   } else if (auto op = dyn_cast<tpu::TG_BF16_Conv2DOp>(p)) {
     bool is_deconv = false;
     parseConvParam(op.param(), is_deconv, op.input(), op.output(), op.filter(),
@@ -27,7 +27,7 @@ void getConvParam(Operation *p,
                     kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, is_dw, with_bias, do_relu);
     do_ic_align = op.do_ic_alignment().hasValue() ?
                   op.do_ic_alignment().getValue() : false;
-    fuse_leaky = op.fused_leaky();
+    do_leaky_relu = op.do_leaky_relu();
   } else if (auto op = dyn_cast<tpu::TG_INT8_PC_DeConv2DOp>(p)) {
     bool is_deconv = true;
     parseConvParam(op.param(), is_deconv, op.input(), op.output(), op.filter(),
@@ -35,7 +35,7 @@ void getConvParam(Operation *p,
                     kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, is_dw, with_bias, do_relu);
     do_ic_align = op.do_ic_alignment().hasValue() ?
                   op.do_ic_alignment().getValue() : false;
-    fuse_leaky = op.fused_leaky();
+    do_leaky_relu = op.do_leaky_relu();
   }else if (auto op = dyn_cast<tpu::TG_BF16_DeConv2DOp>(p)) {
     bool is_deconv = true;
     parseConvParam(op.param(), is_deconv, op.input(), op.output(), op.filter(),
@@ -43,7 +43,7 @@ void getConvParam(Operation *p,
                     kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, is_dw, with_bias, do_relu);
     do_ic_align = op.do_ic_alignment().hasValue() ?
                   op.do_ic_alignment().getValue() : false;
-    fuse_leaky = op.fused_leaky();
+    do_leaky_relu = op.do_leaky_relu();
   } else {
     assert(!"Only support INT8/BF16 Conv in LayerGroup");
   }

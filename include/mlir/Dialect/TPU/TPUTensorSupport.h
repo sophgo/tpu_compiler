@@ -42,16 +42,6 @@ void getNCHW(std::vector<int64_t> &shape, int64_t &n, int64_t &c, int64_t &h,
              int64_t &w);
 std::vector<std::vector<int64_t>> getOperandShapes(Operation *op);
 
-void parseTgConvLeakyParam(Operation *op,
-    int8_t &pos_rshift, int8_t &pos_m_i8,
-    int8_t &neg_rshift, int8_t &neg_m_i8,
-    float &negative_slope);
-
-void parseTgLeakyReluParam(Operation *op,
-    int8_t &pos_rshift, int8_t &pos_m_i8,
-    int8_t &neg_rshift, int8_t &neg_m_i8,
-    float &negative_slope);
-
 /******************************************************************************
  * Weight helpers
  *****************************************************************************/

@@ -216,9 +216,6 @@ class TPU_TG_MemRef_ConvOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
                           offset within the memory region.
       `buffer_reused`   : optional, whether buffer is reused.
       `name`            : required, name for comparing, or debug.
-      `fuse_prev`       : optional, if present, be fused with the prev TG op,
-                          and current Op shouldn't generate any code anymore.
-      `fuse_next`       : optional, if present, fuse with the next TG op.
       `chipname`        : optional, chipname.
 
     Result:
@@ -241,8 +238,6 @@ class TPU_TG_MemRef_ConvOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
-    DefaultValuedAttr<BoolAttr, "false">:$fuse_prev,
-    DefaultValuedAttr<BoolAttr, "false">:$fuse_next,
     OptionalAttr<StrAttr>:$chipname
 
   );
@@ -633,9 +628,6 @@ class TPU_TG_MemRef_LeakyReluOp<string mnemonic, string opQuant> : TPU_Op<mnemon
                           offset within the memory region.
       `buffer_reused`   : optional, whether buffer is reused.
       `name`            : required, name for comparing, or debug.
-      `fuse_prev`       : optional, if present, be fused with the prev TG op,
-                          and current Op shouldn't generate any code anymore.
-      `fuse_next`       : optional, if present, fuse with the next TG op.
       `chipname`        : optional, chipname.
 
     Result:
@@ -659,8 +651,6 @@ class TPU_TG_MemRef_LeakyReluOp<string mnemonic, string opQuant> : TPU_Op<mnemon
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
-    DefaultValuedAttr<BoolAttr, "false">:$fuse_prev,
-    DefaultValuedAttr<BoolAttr, "false">:$fuse_next,
     OptionalAttr<StrAttr>:$chipname
   );
 }

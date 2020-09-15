@@ -200,13 +200,6 @@ bool AssignNeuronAddressMemRefPass::isBypassMemoryReuse(Operation *op) {
     }
   }
 
-  // Bypass fuse-prev
-  if (auto leakyReluOp = dyn_cast<tpu::TG_MemRef_INT8_LeakyReluOp>(op)) {
-    return leakyReluOp.fuse_prev();
-  } else if (auto leakyReluOp = dyn_cast<tpu::TG_MemRef_BF16_LeakyReluOp>(op)) {
-    return leakyReluOp.fuse_prev();
-  }
-
   return false;
 }
 

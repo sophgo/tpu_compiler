@@ -109,9 +109,6 @@ class TPU_TG_ConvOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
                           offset within the memory region.
       `buffer_reused`   : optional, whether buffer is reused.
       `name`            : required, name for comparing, or debug.
-      `fuse_prev`       : optional, if present, be fused with the prev TG op,
-                          and current Op shouldn't generate any code anymore.
-      `fuse_next`       : optional, if present, fuse with the next TG op.
       `chipname`        : optional, chipname.
 
     Result:
@@ -134,14 +131,12 @@ class TPU_TG_ConvOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
     OptionalAttr<BoolAttr>:$do_ic_alignment,
-    DefaultValuedAttr<BoolAttr, "false">:$fuse_prev,
-    DefaultValuedAttr<BoolAttr, "false">:$fuse_next,
     OptionalAttr<F32Attr>:$negative_slope,
     OptionalAttr<I8Attr>:$rshift_pos,
     OptionalAttr<I8Attr>:$m_i8_pos,
     OptionalAttr<I8Attr>:$rshift_neg,
     OptionalAttr<I8Attr>:$m_i8_neg,
-    DefaultValuedAttr<BoolAttr, "false">:$fused_leaky,
+    DefaultValuedAttr<BoolAttr, "false">:$do_leaky_relu,
     OptionalAttr<BoolAttr>:$load_compr_act,
     OptionalAttr<BoolAttr>:$store_compr_act,
     OptionalAttr<StrAttr>:$chipname
@@ -582,9 +577,6 @@ class TPU_TG_LeakyReluOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
                           offset within the memory region.
       `buffer_reused`   : optional, whether buffer is reused.
       `name`            : required, name for comparing, or debug.
-      `fuse_prev`       : optional, if present, be fused with the prev TG op,
-                          and current Op shouldn't generate any code anymore.
-      `fuse_next`       : optional, if present, fuse with the next TG op.
       `chipname`        : optional, chipname.
 
     Result:
@@ -598,7 +590,7 @@ class TPU_TG_LeakyReluOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 
   let arguments = (
     ins AnyTensor:$input,
-    F32Attr:$negative_slope,
+    OptionalAttr<F32Attr>:$negative_slope,
     OptionalAttr<I8Attr>:$rshift_pos,
     OptionalAttr<I8Attr>:$m_i8_pos,
     OptionalAttr<I8Attr>:$rshift_neg,
@@ -607,8 +599,6 @@ class TPU_TG_LeakyReluOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
-    DefaultValuedAttr<BoolAttr, "false">:$fuse_prev,
-    DefaultValuedAttr<BoolAttr, "false">:$fuse_next,
     OptionalAttr<StrAttr>:$chipname
   );
 
