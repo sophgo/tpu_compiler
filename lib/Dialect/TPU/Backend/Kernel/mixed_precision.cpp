@@ -179,7 +179,7 @@ static void _mixed_precision_ss_8bit_dequant(const CviBackendContext &ctx, uint3
       cvk_tl_shape_t gap_shape = ctx.shape_t4(1, c, 1, coeff_lane_shape);
       tl_gap = ctx.lmem_alloc_tensor(gap_shape, ofmap_fmt, /*eu_align=*/0);
 
-      tl_ofmap_fp32->start_address = tl_ofmap_laddr + 2;// +2 means put start with heigh 16bit
+      tl_ofmap_fp32->start_address = tl_ofmap_laddr + 2;// +2 means put start point at higher 16bit
       tl_ofmap_fp32->shape = slice_shape; // fake
       tl_ofmap_fp32->stride = tl_fp32_stride(ctx, tl_ofmap_fp32);
     }
@@ -206,7 +206,7 @@ static void _mixed_precision_ss_8bit_dequant(const CviBackendContext &ctx, uint3
     // mul scale(dequant)
     cvk_tiu_mul_param_t p = {0};
     p.res_high = NULL;
-    p.res_low = tl_ofmap;
+    p.res_low = (fmt_d == CVK_FMT_F32) ? tl_ofmap_fp32 : tl_ofmap;
     p.a = tl_ofmap;
     p.b_is_const = 1;
     p.b_const.val = ctx.convert_fp32_to_bf16(const_scale);
@@ -217,13 +217,6 @@ static void _mixed_precision_ss_8bit_dequant(const CviBackendContext &ctx, uint3
 
     // emit
     if (fmt_d == CVK_FMT_F32) {
-      // move to output
-      cvk_tiu_copy_param_t param = {0};
-      param.src = tl_ofmap;
-      param.dst = tl_ofmap_fp32;
-      param.layer_id = layer_id;
-      ctx.tiu_copy(&param);
-
       tl_ofmap_fp32->start_address = tl_ofmap_laddr;
       tl_ofmap_fp32->shape = output_shape;
       tl_ofmap_fp32->stride = ctx.tl_default_stride(tl_ofmap_fp32->shape, tl_ofmap_fp32->fmt, /*eu_align=*/0);
