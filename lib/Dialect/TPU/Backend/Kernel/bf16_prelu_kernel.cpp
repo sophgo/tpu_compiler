@@ -97,7 +97,7 @@ void cvi_backend_tg_bf16_prelu_kernel(const CviBackendContext &ctx, uint32_t lay
 
       // load with stride, because needs to split h.
       cvk_tg_stride_t stride = {
-          global_Nstride,
+          (uint32_t)(global_Nstride * sizeof(uint16_t)),
           (uint32_t)(input_h * input_w * sizeof(uint16_t)),
           (uint32_t)(input_w * sizeof(uint16_t))
       };
