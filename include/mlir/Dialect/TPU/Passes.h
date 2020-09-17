@@ -85,6 +85,9 @@ std::unique_ptr<OpPassBase<FuncOp>> createCompressActivationPass();
 std::unique_ptr<OpPassBase<FuncOp>> createCompressWeightPass();
 std::unique_ptr<OpPassBase<FuncOp>> createMInfo();
 
+std::unique_ptr<OpPassBase<FuncOp>> createFullyConnectedTilePass();
+
+
 } // namespace mlir
 
 #endif // MLIR_DIALECT_TPU_PASSES_H_

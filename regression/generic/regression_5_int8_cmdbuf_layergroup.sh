@@ -18,6 +18,7 @@ mlir-opt \
     -o ${NET}_quant_int8_multiplier_layergroup_lw.mlir
 
 mlir-opt \
+    --fully-connected-tile \
     --compress-weight \
     ${NET}_quant_int8_multiplier_layergroup_lw.mlir \
     -o ${NET}_quant_int8_multiplier_layergroup_lw_compressed.mlir

@@ -6,11 +6,13 @@
  */
 
 #include "CviBackendContext.h"
+#include "TgFixedFcKernel.h"
 #include <llvm/Support/Debug.h>
 #include <llvm/Support/Format.h>
 #include <llvm/Support/raw_ostream.h>
 #include <iostream>
 #include <cmath>
+
 
 #define DEBUG_TYPE "cvi_backend_fc_kernel"
 
@@ -62,11 +64,7 @@ static void matrix_multiplication(const CviBackendContext &ctx,
                                   cvk_tiu_matrix_multiplication_param_t &p) {
   // No need to adjust shape/stride
   if (p.res->shape.w >= static_cast<uint32_t>(EU_NUM)) {
-    LLVM_DEBUG(llvm::errs() << llvm::format(
-        "  L(%d, %d), R(%d, %d)\n", p.left->shape.n,
-        p.left->shape.col, p.right->shape.n, p.right->shape.col));
     ctx.tiu_matrix_multiplication(&p);
-
     return;
   }
 
@@ -90,7 +88,7 @@ static void matrix_multiplication(const CviBackendContext &ctx,
   p2.bias = p.bias ? &tl_bias : nullptr;
 
   LLVM_DEBUG(llvm::errs() << llvm::format(
-      "  Modified L(%d, %d), R(%d, %d)\n", p2.left->shape.n,
+      "    Modified L(%d, %d), R(%d, %d)\n", p2.left->shape.n,
       p2.left->shape.col, p2.right->shape.n,
       p2.right->shape.col));
 
@@ -102,13 +100,7 @@ static void matrix_multiplication(
     cvk_tiu_matrix_multiplication_qm_param_t &p) {
   // No need to adjust shape/stride
   if (p.res->shape.w >= static_cast<uint32_t>(EU_NUM)) {
-    LLVM_DEBUG(llvm::dbgs() << llvm::format(
-        "  L(%d, %d), R(%d, %d)\n",
-        p.left->shape.n, p.left->shape.col, p.right->shape.n,
-        p.right->shape.col));
-
     ctx.tiu_matrix_multiplication_qm(&p);
-
     return;
   }
 
@@ -128,20 +120,65 @@ static void matrix_multiplication(
   p2.bias = p.bias ? &tl_bias : nullptr;
 
   LLVM_DEBUG(llvm::dbgs() << llvm::format(
-      "  Modified L(%d, %d), R(%d, %d)\n",
+      "    Modified L(%d, %d), R(%d, %d)\n",
       p2.left->shape.n, p2.left->shape.col, p2.right->shape.n,
       p2.right->shape.col));
 
   ctx.tiu_matrix_multiplication_qm(&p2);
 }
 
-static void fc_slicing_multi_dimention(
+//
+// Weight (K, N)
+//
+// -------------
+// | A00 | A01 |              A00
+// ------|------ K    =>      A10
+// | A10 | A11 |              A01
+// -------------              A11
+//       N
+//
+static void loadCompressedWeight(const CviBackendContext &ctx,
+                                 gaddr_t ga_weight, cvk_ml_t &tl_weight,
+                                 uint32_t width_N, unsigned loadIndex,
+                                 std::vector<int> compr_weight_poss) {
+  assert(loadIndex < compr_weight_poss.size());
+
+  cvk_cmpr_mg_t tg_src = {0};
+  tg_src.m.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(ga_weight);
+  tg_src.m.start_address = ga_weight + compr_weight_poss[loadIndex];
+  tg_src.m.fmt = tl_weight.fmt;
+  tg_src.m.shape = {tl_weight.shape.n, tl_weight.shape.col};
+  tg_src.m.stride = {width_N};
+
+  cvk_tdma_g2l_matrix_copy_decompressed_param_t param = {0};
+  param.src = &tg_src;
+  param.dst = &tl_weight;
+
+  LLVM_DEBUG(llvm::dbgs()
+      << "    tdma g2l decompress\n      "
+      << "src " << llvm::format_hex(param.src->m.start_address, 10)
+      << "(" << llvm::format_hex(ga_weight, 10)
+      << " + " << llvm::format_hex(compr_weight_poss[loadIndex], 10)
+      << "), shape (" << param.src->m.shape.row
+      << ", " << param.src->m.shape.col << ")\n      "
+      << "dst " << llvm::format_hex(param.dst->start_address, 10)
+      << ", shape (n=" << param.dst->shape.n
+      << ", c=" << param.dst->shape.c
+      << ", w=" << param.dst->shape.w
+      << ", col=" << param.dst->shape.col << ")\n");
+
+  ctx.tdma_g2l_matrix_copy_decompressed(&param);
+}
+
+static void fc_slicing_multi_dimension(
     const CviBackendContext &ctx, uint32_t layer_id, gaddr_t ga_ifmap,
     gaddr_t ga_weight, gaddr_t ga_bias, gaddr_t ga_ofmap,
     uint32_t input_row_num, uint32_t input_col_num, uint32_t weight_col_num,
     bool do_bias, bool do_relu, bool weight_tp, int quant_rshift,
-    uint32_t quant_multiplier) {
-  // Y(M, K) = L(M, K) * R(K, N) + B(1, N)
+    uint32_t quant_multiplier, bool compressed_weight,
+    std::vector<int> compr_weight_poss) {
+
+  // Y(M, N) = L(M, K) * R(K, N) + B(1, N)
   uint32_t M = static_cast<uint32_t>(input_row_num);
   uint32_t K = static_cast<uint32_t>(input_col_num);
   uint32_t N = static_cast<uint32_t>(weight_col_num);
@@ -279,16 +316,20 @@ static void fc_slicing_multi_dimention(
   // tiled_L(input) reload is reload once tiled_weight moves right.
   //
   // for each tiled N
+  unsigned loadWeightIndex = 0;
   for (uint32_t offset_N = 0; offset_N < N; offset_N += tiled_N) {
     // Y = [Y0, Y1, ... Yn-1]
 
     // Actual width
     uint32_t width_N = ((offset_N + tiled_N) <= N) ? tiled_N : (N - offset_N);
-    width_N = ALIGN(width_N, 16); //Align 16 for better performance
+    uint32_t width_N_org = width_N;
+
+    // Disable now, need to separate tiu shape and tdma shape
+    // width_N = ALIGN(width_N, 16); //Align 16 for better performance
 
     // for each tiled K
     for (uint32_t offset_K = 0; offset_K < K; offset_K += tiled_K) {
-      // Y(M, K) = L(M, K) * R(K, N) + B(1, N)
+      // Y(M, N) = L(M, K) * R(K, N) + B(1, N)
       // tiled_Y(M, tiled_K) = tiled_L(M, tiled_K) * tiled_R(tiled_K, tiled_N) +
       //                       tiled_B(1, tiled_N)
       //
@@ -332,9 +373,33 @@ static void fc_slicing_multi_dimention(
       tl_tiled_R.stride =
           ctx.ml_default_stride(tl_tiled_R.shape, tl_tiled_R.fmt, 1);
       required_size += tl_tiled_R.shape.n * tl_tiled_R.stride.n;
-      ctx.tdma_load_stride(&tl_tiled_R, ga_weight + offset_K * N + offset_N,
-                           {N}  // original column width
-                           );
+
+      LLVM_DEBUG(llvm::dbgs() << llvm::format(
+          "  [offset_k=%d][offset_n=%d] L(%d, %d), R(%d, %d)\n",
+          offset_K, offset_N, tl_tiled_L.shape.n, tl_tiled_L.shape.col,
+          tl_tiled_R.shape.n, tl_tiled_R.shape.col));
+
+      if (!compressed_weight) {
+        ctx.tdma_load_stride(&tl_tiled_R, ga_weight + offset_K * N + offset_N,
+                            {N}  // original column width
+                            );
+        LLVM_DEBUG(llvm::dbgs()
+            << "  tdma g2l\n    "
+            << "src " << llvm::format_hex(ga_weight + offset_K * N + offset_N, 10)
+            << "(" << llvm::format_hex(ga_weight, 10)
+            << " + " << llvm::format_hex(offset_K * N + offset_N, 10)
+            << "), shape (" << tl_tiled_R.shape.n
+            << ", " << tl_tiled_R.shape.col << ")\n    "
+            << "dst " << llvm::format_hex(tl_tiled_R.start_address, 10)
+            << ", shape(n=" << tl_tiled_R.shape.n
+            << ", c=" << tl_tiled_R.shape.c
+            << ", w=" << tl_tiled_R.shape.w
+            << ", col=" << tl_tiled_R.shape.col << ")\n");
+      } else {
+        loadCompressedWeight(ctx, ga_weight, tl_tiled_R, width_N_org,
+                             loadWeightIndex, compr_weight_poss);
+        loadWeightIndex++;
+      }
 
       // Load tiled B from gobale memory at last time, bias
       // we need temporary shape to load lower 8bit and upper 8bit
@@ -384,14 +449,7 @@ static void fc_slicing_multi_dimention(
         p.ps32_mode = ps32_mode;
         p.quan_m = quant_multiplier;
         p.layer_id = layer_id;
-
-        LLVM_DEBUG(llvm::errs() << llvm::format(
-            "  offset_N %d, offset_K %d, L(%d, %d), R(%d, %d)\n",
-            offset_N, offset_K, p.left->shape.n, p.left->shape.col,
-            p.right->shape.n, p.right->shape.col));
-
         matrix_multiplication(ctx, p);
-
       } else {
         cvk_tiu_matrix_multiplication_param_t p = {0};
         p.res = &tl_tiled_Y;
@@ -405,12 +463,6 @@ static void fc_slicing_multi_dimention(
         p.relu_enable = relu_enable;
         p.ps32_mode = ps32_mode;
         p.layer_id = layer_id;
-
-        LLVM_DEBUG(llvm::errs() << llvm::format(
-            "  offset_N %d, offset_K %d, L(%d, %d), R(%d, %d)\n",
-            offset_N, offset_K, p.left->shape.n, p.left->shape.col,
-            p.right->shape.n, p.right->shape.col));
-
         matrix_multiplication(ctx, p);
       }
 
@@ -423,30 +475,278 @@ static void fc_slicing_multi_dimention(
                               {N} // original column width
         );
       }
-
     }  // for (uint32_t offset_K = 0; offset_K < K; offset_K += tiled_K)
-  }    // for (uint32_t offst_N = 0; offset_N < N; offset_N += tiled_N)
+  }    // for (uint32_t offset_N = 0; offset_N < N; offset_N += tiled_N)
+}
+
+
+// Y(M, N) = L(M, K) * R(K, N) + B(1, N)
+int TgFcKernel::getLmSizePerLane(int tileM, int tileK, int tileN, bool hasB) {
+  const int npuNum = NPU_NUM;
+  const int euNum = EU_NUM / dataTypeSize;  // bf16: 1/2 eu num
+
+  //int opd0w = 16;
+  //int opd0c = llvm::divideCeil(tileK, opd0w);
+
+  //int opd1w = tileK - opd0w * (opd0c - 1);
+  //if (input_col < opd0w) {
+  //  opd0c = 1;
+  //  opd1w = opd0w;
+  //}
+
+  //int opd0n = tileM;
+  //int opd0h = 1;
+  //int Rrow = opd0w * (opd0c - 1) + opd1w;
+
+  //int res0c = 32;
+  //int res0h = 1;
+  //int res0w = llvm::divideCeil(tileN, res0c);
+
+  //int opd1h = 1;
+  //int opd1c = res0c;
+
+  int tileLSize = tileM * euNum * llvm::divideCeil(tileK, euNum * npuNum) *
+                  dataTypeSize;
+
+  int tileRSize = tileK * euNum * llvm::divideCeil(tileN, euNum * npuNum) *
+                  dataTypeSize;
+
+  int tileBSize = hasB ?
+      (2 * euNum * llvm::divideCeil(tileN, euNum * npuNum) * dataTypeSize) : 0;
+
+  // Partial sum 32bit, 2x(bf16), 4x(int8)
+  int tileYSize = tileM * euNum * llvm::divideCeil(tileN, euNum * npuNum) *
+                  dataTypeSize;
+  if (tileK < input_col)
+    tileYSize *= 4 / dataTypeSize;
+
+  LLVM_DEBUG(llvm::dbgs()
+      << "    TgFcKernel::getLmSizePerLane:\n      "
+      << "M " << input_row
+      << ", K " << input_col
+      << ", N " << output_col << "\n      "
+      << "tileL(" << tileM
+      << ", " << tileK << ")\n      "
+      << "tileR(" << tileK
+      << ", " << tileN << ")\n      "
+      << "tileY(" << tileM
+      << ", " << tileN << ")\n      "
+      << "tileYSize " << tileYSize
+      << ", tileLSize " << tileLSize
+      << ", tileRSize " << tileRSize
+      << ", tileBSize " << tileBSize << "\n");
+
+  return tileLSize + tileRSize + tileYSize + tileBSize;
+}
+
+TgFcKernel::TileInfo TgFcKernel::getTileSizes() {
+  // Y(M, N) = L(M, K) * R(K, N) + B(1, N)
+  int M = input_row;
+  int K = input_col;
+  int N = output_col;
+
+  int eu_align = 1;
+
+  LLVM_DEBUG(llvm::errs() << llvm::format(
+      "  getTileSizes:\n"
+      "    Y(%d, %d) = L(%d, %d) * R(%d, %d) + B(%d, %d)\n",
+      M, N, M, K, K, N, 1, N));
+
+  // Split N <= max total eu number
+  // 1/2 EU in BF16
+  int total_eu = (fmt == CVK_FMT_BF16) ? (EU_NUM / 2) : EU_NUM;
+  total_eu *= NPU_NUM;
+  int tiled_N = (N >= total_eu) ? total_eu : N;
+
+  // Split K based on lane size
+  int lane_size = LOCAL_MEM_SIZE;
+  int max_k = (1 << 12) - 1;  // 1880v2: 12 bit
+  int tiled_K = (K >= max_k) ? max_k : K;
+
+  // Tiled Y
+  cvk_ml_t tl_tiled_Y = {0};
+  tl_tiled_Y.fmt = fmt;
+
+  // Tiled L
+  cvk_ml_t tl_tiled_L = {0};
+  tl_tiled_L.fmt = fmt;
+
+  // Tiled R
+  cvk_ml_t tl_tiled_R = {0};
+  tl_tiled_R.fmt = fmt;
+
+  // Tiled B
+  cvk_ml_t tl_tiled_B = {0};
+  if (with_bias) {
+    // TIU opd2_n = 1, H/W use b_stride to read upper 8-bit
+    // But bmk demand n = 2, but assign opd2_n = 1.
+    // Let dma load and tiu use different shape.
+    tl_tiled_B.fmt = fmt;
+    tl_tiled_B.shape = ctx.ml_default_shape(2, tiled_N, fmt);  // 16bit
+    tl_tiled_B.stride = ctx.ml_default_stride(tl_tiled_B.shape, tl_tiled_B.fmt,
+                                              eu_align);
+  }
+
+  // Tiled local memory layout:
+  //   Y at fixed position since last tiled ones may be smaller
+  //
+  //   tiled Y, [7:0]
+  //   tiled Y, [15:8]
+  //   tiled Y, [23:16]
+  //   tiled Y, [31:24]
+  //   tiled L
+  //   tiled R
+  //   tiled B, [7:0], if existed
+  //   tiled B, [15:8], if existed
+
+  // Find max tiled K
+  int required_size = 0;
+  do {
+    required_size = 0;  // Start of LMEM
+
+    // Not split M since we don't want to reload L(weight)
+    // or reload partial result of different M.
+    //
+    // Y(M, N) = L(M, K) * R(K, N) + B(1, N)
+    // tiled_Y(M, tiled_N) = tiled_L(M, tiled_K) * tiled_R(tiled_K, tiled_N) +
+    //                       tiled_B(1, tiled_N)
+
+    // tiled Y, 32bit
+    tl_tiled_Y.start_address = required_size;
+    tl_tiled_Y.shape = ctx.ml_default_shape(M, tiled_N, fmt);
+    tl_tiled_Y.stride = ctx.ml_default_stride(tl_tiled_Y.shape, tl_tiled_Y.fmt,
+                                              eu_align);
+    if (tiled_K < K) {
+      required_size += ctx.lmem_ps32_matrix_to_size(tl_tiled_Y.shape, fmt,
+                                                    eu_align);
+    } else {
+      required_size += ctx.lmem_matrix_to_size(tl_tiled_Y.shape, fmt,
+                                               eu_align);
+    }
+
+    // tiled L
+    tl_tiled_L.start_address = required_size;
+    tl_tiled_L.shape = ctx.ml_default_shape(M, tiled_K, fmt);
+    tl_tiled_L.stride = ctx.ml_default_stride(tl_tiled_L.shape, tl_tiled_L.fmt,
+                                              eu_align);
+    required_size += ctx.lmem_matrix_to_size(tl_tiled_L.shape, fmt, eu_align);
+
+    // tiled R
+    tl_tiled_R.start_address = required_size;
+    tl_tiled_R.shape = ctx.ml_default_shape(tiled_K, tiled_N, fmt);
+    tl_tiled_R.stride = ctx.ml_default_stride(tl_tiled_R.shape, tl_tiled_R.fmt,
+                                              eu_align);
+    required_size += ctx.lmem_matrix_to_size(tl_tiled_R.shape, fmt, eu_align);
+
+    // tiled B, 16bit
+    if (with_bias) {
+      tl_tiled_B.start_address = required_size;
+      required_size += ctx.lmem_matrix_to_size(tl_tiled_B.shape, fmt, eu_align);
+    }
+
+    if (required_size <= lane_size) {
+      // LLVM_DEBUG(llvm::errs() << llvm::format(
+      //     "    tiled_Y %d, tiled_L %d, tiled_R %d, tiled_B %d, required_size %d\n",
+      //     ctx.lmem_ps32_matrix_to_size(tl_tiled_Y.shape, fmt, eu_align),
+      //     ctx.lmem_matrix_to_size(tl_tiled_L.shape, fmt, eu_align),
+      //     ctx.lmem_matrix_to_size(tl_tiled_R.shape, fmt, eu_align),
+      //     ctx.lmem_matrix_to_size(tl_tiled_B.shape, fmt, eu_align),
+      //     required_size););
+      break;
+    }
+
+  } while (--tiled_K);
+
+  TileInfo tileInfo = {0};
+
+  if (!tiled_K) {
+    LLVM_DEBUG(llvm::dbgs() << "  Unable to tile\n");
+    return tileInfo;
+  }
+
+  LLVM_DEBUG(llvm::errs() << llvm::format(
+      "    tiled_Y(%d, %d) = tiled_L(%d, %d) * tiled_R(%d, %d) "
+      "+ tiled_B(%d, %d), required_size %d kB\n",
+      M, tiled_N, M, tiled_K, tiled_K, tiled_N, 1, tiled_N,
+      required_size / 1024));
+
+  LLVM_DEBUG(llvm::dbgs()
+      << "    tiled_L(" << M
+      << ", " << tiled_K
+      << ") = (n=" << tl_tiled_L.shape.n
+      << ", c=" << tl_tiled_L.shape.c
+      << ", w=" << tl_tiled_L.shape.w
+      << ", col=" << tl_tiled_L.shape.col << ")\n    "
+      << "tiled_R(" << tiled_K
+      << ", " << tiled_N
+      << ") = (n=" << tl_tiled_R.shape.n
+      << ", c=" << tl_tiled_R.shape.c
+      << ", w=" << tl_tiled_R.shape.w
+      << ", col=" << tl_tiled_R.shape.col << ")\n    "
+      << "tiled_Y(" << M << ", " << tiled_N
+      << ") = (n=" << tl_tiled_Y.shape.n
+      << ", c=" << tl_tiled_Y.shape.c
+      << ", w=" << tl_tiled_Y.shape.w
+      << ", col=" << tl_tiled_Y.shape.col << ")\n    "
+      << "tileYSize " << ctx.lmem_ps32_matrix_to_size(tl_tiled_Y.shape, fmt, eu_align)
+      << ", tileLSize " << ctx.lmem_matrix_to_size(tl_tiled_L.shape, fmt, eu_align)
+      << ", tileRSize " << ctx.lmem_matrix_to_size(tl_tiled_R.shape, fmt, eu_align)
+      << ", tileBSize " << ctx.lmem_matrix_to_size(tl_tiled_B.shape, fmt, eu_align)
+      << "\n");
+
+  tileInfo.m_step = M;
+  tileInfo.n_step = tiled_N;
+  tileInfo.k_step = tiled_K;
+
+  int tmp = getLmSizePerLane(M, tiled_K, tiled_N, with_bias);
+
+  if (tmp != (int)required_size) {
+    LLVM_DEBUG(llvm::dbgs() << tmp << " != " << required_size << "\n");
+    assert(tmp == (int)required_size);
+  }
+
+  return tileInfo;
 }
 
 void cvi_backend_tg_fixed_fc(
     const CviBackendContext &ctx, uint32_t layer_id, gaddr_t ga_ifmap,
     gaddr_t ga_weight, gaddr_t ga_bias, gaddr_t ga_ofmap, int input_row,
     int input_col, int output_col, bool do_bias, bool do_relu, bool weight_tp,
-    int quant_rshift, uint32_t quant_multiplier) {
+    int quant_rshift, uint32_t quant_multiplier, bool compressed_weight,
+    std::vector<int> compr_weight_poss) {
 
   LLVM_DEBUG(llvm::errs() << llvm::format(
              "cvi_backend_tg_fixed_fc\n"
              "    in (%d, %d), out (%d), do_bias %d, do_relu %d, "
-             "weight_tp %d, quant_rshift %d\n",
+             "weight_tp %d, quant_rshift %d, compressed_weight %d\n",
              input_row, input_col, output_col, do_bias, do_relu, weight_tp,
-             quant_rshift, quant_multiplier));
+             quant_rshift, quant_multiplier, compressed_weight));
+
+#if 0
+  auto fcKernel(std::make_unique<TgFcKernel>(ctx));
+  fcKernel->ga_ifmap = ga_ifmap;
+  fcKernel->ga_weight = ga_weight;
+  fcKernel->ga_bias = ga_bias;
+  fcKernel->ga_ofmap = ga_ofmap;
+  fcKernel->input_row = input_row;
+  fcKernel->input_col = input_col;
+  fcKernel->output_col = output_col;
+  fcKernel->with_bias = do_bias;
+  fcKernel->do_relu = do_relu;
+  fcKernel->quant_rshift = quant_rshift;
+  fcKernel->quant_multiplier = quant_multiplier;
+
+  TgFcKernel::TileInfo tileInfo = fcKernel->getTileSizes();
+  assert(tileInfo.m_step && tileInfo.k_step && tileInfo.n_step);
+#endif
 
   ctx.set_layer_id(layer_id); // pmu used
 
-  fc_slicing_multi_dimention(ctx, layer_id, ga_ifmap, ga_weight, ga_bias,
+  fc_slicing_multi_dimension(ctx, layer_id, ga_ifmap, ga_weight, ga_bias,
       ga_ofmap, static_cast<uint32_t>(input_row),
       static_cast<uint32_t>(input_col), static_cast<uint32_t>(output_col),
-      do_bias, do_relu, weight_tp, quant_rshift, quant_multiplier);
+      do_bias, do_relu, weight_tp, quant_rshift, quant_multiplier,
+      compressed_weight, compr_weight_poss);
 }
 
 void cvi_backend_tg_fixed_fc_kernel(
@@ -456,7 +756,8 @@ void cvi_backend_tg_fixed_fc_kernel(
     int activation_method, gaddr_t activation_ga_slope, int activation_channel_shared,
     int activation_gt_scale, int activation_gt_rshift, int activation_le_scale,
     int activation_le_rshift, bool weight_tp, int left_shift_width, int right_shift_width,
-    int threshold_x_quantized_len, const int *threshold_x_quantized, const int *right_shift_array) {
+    int threshold_x_quantized_len, const int *threshold_x_quantized, const int *right_shift_array,
+    bool compressed_weight, std::vector<int> compr_weight_poss) {
   LLVM_DEBUG(llvm::errs() << llvm::format("cvi_backend_tg_fixed_fc_kernel\n"
                                         "    in (%d, %d), out (%d), has_bias %d, do_activation %d, "
                                         "activation_method %d, weight_tp %d\n",
@@ -470,5 +771,6 @@ void cvi_backend_tg_fixed_fc_kernel(
       have_bias ? true : false,
       do_activation ? true : false,
       weight_tp, right_shift_width,
-      right_shift_array ? right_shift_array[0] : 0);
+      right_shift_array ? right_shift_array[0] : 0,
+      compressed_weight, compr_weight_poss);
 }

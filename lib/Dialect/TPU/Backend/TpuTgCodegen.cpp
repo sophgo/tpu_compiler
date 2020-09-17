@@ -1225,6 +1225,16 @@ LogicalResult tpu::TG_INT8_FullyConnectedOp::codegen(void *ctx) {
   int8_t rshift_int8 = rshift().getValue().getLimitedValue();
   int rshift = static_cast<int>(rshift_int8);
 
+  auto fcOp = dyn_cast<tpu::TG_INT8_FullyConnectedOp>(op);
+
+  bool compressed_weight = false;
+  if (fcOp.compressed_weight().hasValue())
+    compressed_weight = fcOp.compressed_weight().getValue();
+
+  std::vector<int> compr_weight_poss;
+  if (fcOp.compr_weight_poss().hasValue())
+    arrayAttrToVector(fcOp.compr_weight_poss().getValue(), compr_weight_poss);
+
   cvi_backend_tg_fixed_fc_kernel(
       *backend_ctx,
       0, // stream_id,
@@ -1253,7 +1263,9 @@ LogicalResult tpu::TG_INT8_FullyConnectedOp::codegen(void *ctx) {
       (int)rshift, // rshift
       0,     //int threshold_x_quantized_len,
       nullptr, //const int *threshold_x_quantized,
-      nullptr  //const int *right_shift_array
+      nullptr, //const int *right_shift_array
+      compressed_weight,
+      compr_weight_poss
       );
 
   return success();

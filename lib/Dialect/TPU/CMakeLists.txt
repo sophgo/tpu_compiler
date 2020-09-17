@@ -78,6 +78,7 @@ add_llvm_library(MLIRTPU
   Quantization/GenSqrtTable.cpp
   Quantization/GenReciprocalTable.cpp
   Optimization/FuseLeakyRelu.cpp
+  Optimization/FullyConnectedTile.cpp
   Backend/TpuTgCodegen.cpp
   Backend/TpuTlCodegen_Simple.cpp
   Backend/TpuTlCodegen_LG.cpp
@@ -85,6 +86,7 @@ add_llvm_library(MLIRTPU
   Backend/MachineInfo.cpp
   Backend/Kernel/CviBackendContext.cpp
   Backend/Kernel/TgFixedEltwiseKernel.cpp
+  Backend/Kernel/TgFixedFcKernel.cpp
   Backend/Kernel/TgFixedPoolingKernel.cpp
   Backend/Kernel/cast_kernel.cpp
   Backend/Kernel/concat_bmkernel.cpp
@@ -93,7 +95,6 @@ add_llvm_library(MLIRTPU
   Backend/Kernel/mac_const_kernel.cpp
   Backend/Kernel/dilate_bmkernel.cpp
   Backend/Kernel/dma_legacy_bmkernel.cpp
-  Backend/Kernel/fc_parallel_bmkernel.cpp
   Backend/Kernel/lrn_kernel.cpp
   Backend/Kernel/lut.cpp
   Backend/Kernel/mixed_precision.cpp

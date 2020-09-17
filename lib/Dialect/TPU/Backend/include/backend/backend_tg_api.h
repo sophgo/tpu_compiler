@@ -52,7 +52,8 @@ void cvi_backend_tg_fixed_fc_kernel(
     int activation_method, gaddr_t activation_ga_slope, int activation_channel_shared,
     int activation_gt_scale, int activation_gt_rshift, int activation_le_scale,
     int activation_le_rshift, bool weight_tp, int left_shift_width, int right_shift_width,
-    int threshold_x_quantized_len, const int *threshold_x_quantized, const int *right_shift_array);
+    int threshold_x_quantized_len, const int *threshold_x_quantized, const int *right_shift_array,
+    bool compressed_weight, std::vector<int> compr_weight_poss);
 
 void cvi_backend_tg_fixed_max_pooling_kernel(
     const CviBackendContext &ctx, uint32_t layer_id,
