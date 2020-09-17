@@ -971,7 +971,7 @@ LogicalResult quantizeInt8OpsWithSkip(Operation *op) {
       "quant", quant_const, const_shape, "INT8", wTF);
   }
 
-  setOpResultType(op, StandardTypes::Integer, 8);
+  setOpResultType(op->getResult(0), StandardTypes::Integer, 8);
   return success();
 }
 
