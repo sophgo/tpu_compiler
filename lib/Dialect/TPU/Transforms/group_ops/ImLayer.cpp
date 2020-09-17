@@ -185,6 +185,9 @@ std::shared_ptr<ImLayer> ImLayer::create(Operation* op) {
   } else if (isa<tpu::QuantOp>(op) ||
              isa<tpu::InputOp>(op) ) {
     layer = std::make_shared<ImCommon>(op, true, IR_OTHER);
+  } else if (isa<tpu::TG_INT8_ZeroMaskOp>(op) ||
+             isa<tpu::TG_BF16_ZeroMaskOp>(op)) {
+    layer = std::make_shared<ImZeroMask>(op);
   } else {
     LLVM_DEBUG(llvm::errs()
       << "Not support ImLayer: " << getOpName(op) << "\n";);
@@ -420,6 +423,10 @@ ImEltwise::ImEltwise(Operation* op) : ImLayer(IR_ELTWISE, op, true) {
   for (uint32_t i = 0; i < nInputs; ++i) {
     //
     bool isCoeffLoad = isa<tpu::LoadWeightOp>(op->getOperand(i)->getDefiningOp());
+    if (isCoeffLoad) {
+      // not support weight to split now
+      fusible = false;
+    }
     tensor_type_t t_type = isCoeffLoad ? TENSOR_COEFF : TENSOR_NEURON;
     add_in_tensor(op->getOperand(i), t_type);
   }
@@ -628,5 +635,11 @@ ImCrop::ImCrop(Operation *op): ImLayer(IR_CROP, op, true) {
 ImRelu::ImRelu(Operation *op): ImLayer(IR_RELU, op, true) {
   add_in_tensor(op->getOperand(0), TENSOR_NEURON);
   add_out_tensor(op->getResult(0), TENSOR_NEURON);
+}
+
+ImZeroMask::ImZeroMask(Operation *op): ImLayer(IR_ZERO_MASK, op, true) {
+  add_in_tensor(op->getOperand(0), TENSOR_NEURON);
+  add_out_tensor(op->getResult(0), TENSOR_NEURON);
+  add_imm_tensor(out_tensors[0], 1, name_ + "_imm");
 }
 }

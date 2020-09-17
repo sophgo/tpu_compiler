@@ -371,4 +371,10 @@ void cvi_backend_tl_quant(
     cvk_fmt_t from, cvk_fmt_t to,
     float const_scale,
     int n, int c, int h, int w);
+
+// output = input * multiplier + const_val
+void cvi_backend_tl_mac_const(const CviBackendContext &ctx, uint32_t layer_id,
+                              gaddr_t input_addr, gaddr_t output_addr,
+                              gaddr_t working_addr, int n, int c, int h, int w,
+                              int multiplier, int const_val, bool do_relu);
 #endif /* CVI_BACKEND_TL_API */

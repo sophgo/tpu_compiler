@@ -1601,4 +1601,33 @@ LogicalResult tpu::TL_LG_BF16_ReluOp::codegen(void *ctx) {
   return success();
 }
 
+LogicalResult tpu::TL_LG_INT8_ZeroMaskOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  getNCHW(shape, n, c, h, w);
+
+  laddr_t la_input = this->la_input().getLimitedValue();
+  laddr_t la_output = this->la_output().getLimitedValue();
+  laddr_t la_working = this->la_working().getLimitedValue();
+  int layer_id = getOpLayerId(op);
+
+  cvi_backend_tl_mac_const(*backend_ctx,
+                           layer_id, // layer_id,
+                           la_input, la_output, la_working, n, c, h, w, 1, 1,
+                           true);
+  return success();
+}
+
+LogicalResult tpu::TL_LG_BF16_ZeroMaskOp::codegen(void *ctx) {
+  std::string errorMsg = "unsupported tg op " + getOpName().str() + "\n";
+  llvm_unreachable(errorMsg.c_str());
+
+  return success();
+}
 }

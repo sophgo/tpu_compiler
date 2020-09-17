@@ -131,6 +131,7 @@ add_llvm_library(MLIRTPU
   Backend/Kernel/tl_scale.cpp
   Backend/Kernel/tl_tdma.cpp
   Backend/Kernel/tl_upsample.cpp
+  Backend/Kernel/tl_mac_const.cpp
   Backend/Kernel/bf16_concat_kernel.cpp
   Backend/Kernel/bf16_eltwise_kernel.cpp
   Backend/Kernel/bf16_fc_kernel.cpp

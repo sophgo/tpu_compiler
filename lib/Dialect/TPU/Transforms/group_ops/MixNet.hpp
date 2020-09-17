@@ -188,6 +188,13 @@ class MixNet {
                        int timestep_idx,
                        bool is_h_split);
 
+  void _add_tl_zero_mask_op(MixOp * mix_op,
+                            const std::vector<int>& in_tensors,
+                            const std::vector<int>& out_tensors,
+                            net_timestep* time_step,
+                            int timestep_idx,
+                            bool is_h_split);
+
   void _add_load_op(int group_idx, int tensor_id,
                     net_timestep* time_step, int timestep_idx);
 

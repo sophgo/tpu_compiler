@@ -21,7 +21,7 @@ void cvi_backend_tg_fixed_mac_const_kernel(
     int input_h, int input_w, int multiplier, int const_val, bool do_relu) {
 
   int require_shape = input_n * input_c * input_h * input_w;
-  int blob_num = 2; // 2 means we allocate input/output
+  int blob_num = 3; // 3 means we allocate input/output/output_high
   int coeff_lane_shape = 0;
 
   std::vector<std::pair<cvk_tl_shape_t, gaddr_t> > tiling_info;
@@ -36,8 +36,10 @@ void cvi_backend_tg_fixed_mac_const_kernel(
     gaddr_t gaddr_offset = tiling_info[i].second;
 
     cvk_tl_shape_t tl_shape = ctx.shape_t4(n, c, h, w);
-    cvk_tl_t *tl_output = ctx.lmem_alloc_tensor(tl_shape, CVK_FMT_I8, /*eu_align=*/1);
     cvk_tl_t *tl_input = ctx.lmem_alloc_tensor(tl_shape, CVK_FMT_I8, /*eu_align=*/1);
+    cvk_tl_t *tl_output = ctx.lmem_alloc_tensor(tl_shape, CVK_FMT_I8, /*eu_align=*/1);
+    cvk_tl_t *tl_output_h = ctx.lmem_alloc_tensor(tl_shape, CVK_FMT_I8, /*eu_align=*/1);
+
 
     ctx.tdma_load(tl_input, input_gaddr + gaddr_offset);
     // clear input_high 8 bit
@@ -47,8 +49,14 @@ void cvi_backend_tg_fixed_mac_const_kernel(
     param.constant = (uint16_t)const_val;
     ctx.tdma_tg2l_tensor_fill_constant(&param);
 
+    cvk_tdma_g2l_tensor_fill_constant_param_t param2 = {0};
+    param2.dst = tl_output_h;
+    param2.layer_id = layer_id;
+    param2.constant = (uint16_t)0;
+    ctx.tdma_tg2l_tensor_fill_constant(&param2);
+
     cvk_tiu_mac_param_t p = {0};
-    p.res_high = tl_input;
+    p.res_high = tl_output_h;
     p.res_low = tl_output;
     p.a = tl_input;
     p.res_is_int8 = 1;
@@ -62,8 +70,9 @@ void cvi_backend_tg_fixed_mac_const_kernel(
     ctx.tiu_mac(&p);
 
     ctx.tdma_store(tl_output, output_gaddr + gaddr_offset);
-    ctx.lmem_free_tensor(tl_input);
+    ctx.lmem_free_tensor(tl_output_h);
     ctx.lmem_free_tensor(tl_output);
+    ctx.lmem_free_tensor(tl_input);
 
   }
   return;
