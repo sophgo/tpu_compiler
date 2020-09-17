@@ -984,17 +984,6 @@ public:
             break;
           }
         }
-
-        // remove quant
-        for (uint32_t i = 0; i < _op->getNumResults(); ++i) {
-          for (auto &use : _op->getResult(i)->getUses()) {
-            name = use.getOwner()->getName().getStringRef().str();
-            if (name == "tpu.quant") {
-              // replace user with non-quant reshape op
-              use.getOwner()->replaceAllUsesWith(_op);
-            }
-          }
-        }
       }
 
       auto eltType = _op->getOperand(0)->getType().cast<TensorType>().getElementType();
