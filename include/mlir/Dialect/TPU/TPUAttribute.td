@@ -201,4 +201,16 @@ def TPU_PoolParamAttr : StructAttr<"PoolParam", TPU_Dialect, [
   let description = "Structure of dimension parameters for pool op";
 }
 
+//===----------------------------------------------------------------------===//
+// FC tile parameters structure.
+//===----------------------------------------------------------------------===//
+def TPU_FcTileParamAttr : StructAttr<"FcTileParam", TPU_Dialect, [
+    StructFieldAttr<"tile_step", I32ArrayAttr>,
+    StructFieldAttr<"n_poss", I32ArrayAttr>,
+    StructFieldAttr<"k_poss", I32ArrayAttr>,
+    StructFieldAttr<"n_sizes", I32ArrayAttr>,
+    StructFieldAttr<"k_sizes", I32ArrayAttr>]> {
+  let description = "Structure of tile parameters for fc op";
+}
+
 #endif // TPU_ATTRIBUTE

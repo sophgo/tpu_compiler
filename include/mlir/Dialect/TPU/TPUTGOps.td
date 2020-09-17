@@ -357,6 +357,9 @@ class TPU_TG_FullyConnectedOp<string mnemonic, string opQuant> : TPU_Op<mnemonic
     DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
+    OptionalAttr<TPU_FcTileParamAttr>:$tile_param,
+    OptionalAttr<BoolAttr>:$compressed_weight,
+    OptionalAttr<I32ArrayAttr>:$compr_weight_poss,
     StrAttr:$name,
     OptionalAttr<StrAttr>:$chipname
   );
