@@ -913,10 +913,10 @@ public:
           assert(plugin);
           if (getOpQuant(op) == "INT8") {
             plugin->int8Quant(operation_name.c_str(), param, &quant, prevThreshold);
-            setOpResultType(op, StandardTypes::Integer, 8);
+            setOpResultType(op->getResult(0), StandardTypes::Integer, 8);
           } else if (getOpQuant(op) == "BF16") {
             plugin->bf16Quant(operation_name.c_str(), param, &quant, prevThreshold);
-            setOpResultType(op, StandardTypes::BF16);
+            setOpResultType(op->getResult(0), StandardTypes::BF16);
           }
           std::vector<NamedAttribute> newParam, newQuant;
           convertOpParamToAttributes(builder, param, newParam);

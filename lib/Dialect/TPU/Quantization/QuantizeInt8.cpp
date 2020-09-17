@@ -170,7 +170,7 @@ LogicalResult quantizeInt8ConvOps(Operation *op) {
   } else {
     assert(0);
   }
-  setOpResultType(op, StandardTypes::Integer, 8);
+  setOpResultType(op->getResult(0), StandardTypes::Integer, 8);
 
   return success();
 }
@@ -279,7 +279,7 @@ LogicalResult quantizeInt8MultiplyEltwiseAddOps(Operation *op) {
       op, "multiplier", *multiplier, shape_multiplier, storageType, wTF, wfV);
   op->setOperand(5, multiplier_op);
 
-  setOpResultType(op, StandardTypes::Integer, 8);
+  setOpResultType(op->getResult(0), StandardTypes::Integer, 8);
 
   return success();
 }
@@ -359,7 +359,7 @@ LogicalResult quantizeInt8FullyConnectedOps(Operation *op) {
       wTF, wfV);
   fcOp.setOperand(5, rshift_op);
 
-  setOpResultType(op, StandardTypes::Integer, 8);
+  setOpResultType(op->getResult(0), StandardTypes::Integer, 8);
 
   return success();
 }
@@ -447,7 +447,7 @@ LogicalResult quantizeInt8LeakyReluOps(Operation *op) {
       wTF, wfV);
   lreluOp.setOperand(8, multiplier_neg_op);
 
-  setOpResultType(op, StandardTypes::Integer, 8);
+  setOpResultType(op->getResult(0), StandardTypes::Integer, 8);
 
   return success();
 }
@@ -551,7 +551,7 @@ LogicalResult quantizeInt8PReluOps(Operation *op) {
       op, "rshift_neg", rshift_neg, shape, storageType, wTF, wfV);
   preluOp.setOperand(8, rshift_neg_op);
 
-  setOpResultType(op, StandardTypes::Integer, 8);
+  setOpResultType(op->getResult(0), StandardTypes::Integer, 8);
 
   return success();
 }
@@ -671,7 +671,7 @@ LogicalResult quantizeInt8LutOps(Operation *op) {
   lutOp.setOperand(1, y0_table_op);
   lutOp.setOperand(2, mantissa_table_op);
 
-  setOpResultType(op, StandardTypes::Integer, 8);
+  setOpResultType(op->getResult(0), StandardTypes::Integer, 8);
 
   return success();
 }
@@ -735,7 +735,7 @@ LogicalResult quantizeInt8RescaleNoWeightOps(Operation *op) {
     LLVM_DEBUG(llvm::errs() << " < " << getOpName(op)
                             << ",  quantization bypassed\n";);
     setOpQuantParamType(op, "NONE");
-    setOpResultType(op, StandardTypes::Integer, 8);
+    setOpResultType(op->getResult(0), StandardTypes::Integer, 8);
 
     return success();
   }
@@ -821,7 +821,7 @@ LogicalResult quantizeInt8RescaleNoWeightOps(Operation *op) {
       wTF, wfV);
   op->setOperand(nInputs + 3, multiplier_op);
 
-  setOpResultType(op, StandardTypes::Integer, 8);
+  setOpResultType(op->getResult(0), StandardTypes::Integer, 8);
 
   return success();
 }
@@ -917,7 +917,7 @@ LogicalResult quantizeInt8MultiplyConstOps(Operation *op) {
       wTF, wfV);
   op->setOperand(5, multiplier_op);
 
-  setOpResultType(op, StandardTypes::Integer, 8);
+  setOpResultType(op->getResult(0), StandardTypes::Integer, 8);
 
   return success();
 }
@@ -1031,7 +1031,7 @@ LogicalResult quantizeInt8AddConstOps(Operation *op) {
       wTF, wfV);
   op->setOperand(5, multiplier_op);
 
-  setOpResultType(op, StandardTypes::Integer, 8);
+  setOpResultType(op->getResult(0), StandardTypes::Integer, 8);
 
   return success();
 }
@@ -1108,7 +1108,7 @@ LogicalResult quantizeInt8MultiplyOps(Operation *op) {
       wTF, wfV);
   op->setOperand(5, multiplier_op);
 
-  setOpResultType(op, StandardTypes::Integer, 8);
+  setOpResultType(op->getResult(0), StandardTypes::Integer, 8);
 
   return success();
 }
@@ -1162,7 +1162,7 @@ LogicalResult quantizeInt8BypassOps(Operation *op) {
     }
   }
 
-  setOpResultType(op, StandardTypes::Integer, 8);
+  setOpResultType(op->getResult(0), StandardTypes::Integer, 8);
 
   return success();
 }

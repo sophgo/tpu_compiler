@@ -109,7 +109,7 @@ LogicalResult quantizeBf16ConvOps(Operation *op) {
         "quant", *bias, biasShape, "FP32", wTF);
   }
 
-  setOpResultType(op, StandardTypes::BF16);
+  setOpResultType(op->getResult(0), StandardTypes::BF16);
 
   return success();
 }
@@ -166,7 +166,7 @@ LogicalResult quantizeBF16ReciprocalOps(Operation *op) {
       op, "reciprocal_mantissa_table", y0_reciprocal_mantissa_table, shape, storageType, wTF, wfV);
   op->setOperand(1, y0_reciprocal_table_op);
   op->setOperand(2, mantissa_reciprocal_table_op);
-  setOpResultType(op, StandardTypes::BF16);
+  setOpResultType(op->getResult(0), StandardTypes::BF16);
   return success();
 }
 
@@ -219,7 +219,7 @@ LogicalResult quantizeBF16SqrtOps(Operation *op) {
   op->setOperand(1, y0_sqrt_table_op);
   op->setOperand(2, mantissa_sqrt_table_op);
 
-  setOpResultType(op, StandardTypes::BF16);
+  setOpResultType(op->getResult(0), StandardTypes::BF16);
   return success();
 }
 
@@ -306,7 +306,7 @@ LogicalResult quantizeBF16LutOps(Operation *op) {
   lutOp.setOperand(1, y0_table_op);
   lutOp.setOperand(2, mantissa_table_op);
 
-  setOpResultType(op, StandardTypes::BF16);
+  setOpResultType(op->getResult(0), StandardTypes::BF16);
 
   return success();
 }
@@ -349,7 +349,7 @@ LogicalResult quantizeBf16FullyConnectedOps(Operation *op) {
         "quant", *bias, biasShape, "FP32", wTF);
   }
 
-  setOpResultType(op, StandardTypes::BF16);
+  setOpResultType(op->getResult(0), StandardTypes::BF16);
 
   return success();
 }
@@ -532,7 +532,7 @@ LogicalResult quantizeBf16GruOps(Operation *op) {
   gruOp.setOperand(7, y0_tanh_table_op);
   gruOp.setOperand(8, mantissa_tanh_table_op);
 
-  setOpResultType(op, StandardTypes::BF16);
+  setOpResultType(op->getResult(0), StandardTypes::BF16);
 
   return success();
 }
@@ -645,7 +645,7 @@ LogicalResult quantizeBf16SoftmaxOps(Operation *op) {
   softmaxOp.setOperand(3, y0_reciprocal_table_op);
   softmaxOp.setOperand(4, mantissa_reciprocal_table_op);
 
-  setOpResultType(op, StandardTypes::BF16);
+  setOpResultType(op->getResult(0), StandardTypes::BF16);
 
   return success();
 }
@@ -668,7 +668,7 @@ LogicalResult quantizeBf16LeakyReluOps(Operation *op) {
   BFloat16ToFloat(&bf16_quant_negative_slope, &quant_negative_slope, 1);
   lreluOp.setAttr("negative_slope", builder.getF32FloatAttr(quant_negative_slope));
 
-  setOpResultType(op, StandardTypes::BF16);
+  setOpResultType(op->getResult(0), StandardTypes::BF16);
 
   return success();
 }
@@ -905,7 +905,7 @@ LogicalResult quantizeBf16PReluOps(Operation *op) {
   addWeightTensorAndUpdateWeightOp<bfloat16>(op->getOperand(1),
       "quant", *quant_neg_slope, neg_slope_shape, "BF16", wTF);
 
-  setOpResultType(op, StandardTypes::BF16);
+  setOpResultType(op->getResult(0), StandardTypes::BF16);
 
   return success();
 }
@@ -916,7 +916,7 @@ LogicalResult quantizeBf16PReluOps(Operation *op) {
 LogicalResult quantizeBf16BypassOps(Operation *op) {
   assert(getOpQuant(op) == "BF16");
 
-  setOpResultType(op, StandardTypes::BF16);
+  setOpResultType(op->getResult(0), StandardTypes::BF16);
 
   return success();
 }

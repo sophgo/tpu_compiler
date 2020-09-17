@@ -409,7 +409,11 @@ void CviModelBuilder::parseModule() {
       int64_t offset =
           op->getAttr("gaddr") ? op->getAttr("gaddr").cast<IntegerAttr>().getInt() : -1;
       auto tensor = std::make_shared<CviTensor>(name, type, offset, false);
-      if (auto castOp = llvm::dyn_cast<tpu::GenericCpuOp>(op)) {
+      if (auto castOp = llvm::dyn_cast<tpu::InputOp>(op)) {
+        float threshold = (float)castOp.quant().threshold_max().
+                          getValue().convertToFloat();
+        tensor->setInt8SymQuantInfo(threshold);
+      } else if (auto castOp = llvm::dyn_cast<tpu::GenericCpuOp>(op)) {
         if (castOp.operation_name() == "tpu.quant" &&
             castOp.param().get("from").cast<StringAttr>().getValue() == "NONE" &&
             castOp.param().get("to").cast<StringAttr>().getValue() == "INT8") {

@@ -233,8 +233,8 @@ LogicalResult setOpQuant(Operation *op, llvm::StringRef mode) {
   }
 }
 
-void setOpResultType(Operation *op, StandardTypes::Kind kind, int width) {
-  auto builder = Builder(op->getContext());
+void setOpResultType(Value *value, StandardTypes::Kind kind, int width) {
+  auto builder = Builder(value->getContext());
   Type eltType;
   if (kind == StandardTypes::F32) {
     eltType = FloatType::getF32(builder.getContext());
@@ -246,9 +246,9 @@ void setOpResultType(Operation *op, StandardTypes::Kind kind, int width) {
   } else {
     llvm_unreachable("unsupported type");
   }
-  auto shape = op->getResult(0)->getType().cast<TensorType>().getShape();
+  auto shape = value->getType().cast<TensorType>().getShape();
   auto type = RankedTensorType::get(shape, eltType);
-  op->getResult(0)->setType(type);
+  value->setType(type);
 }
 
 llvm::StringRef getOpQuantParamType(Operation *op) {

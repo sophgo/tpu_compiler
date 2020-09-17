@@ -69,7 +69,7 @@ uint64_t getWeightOpAddress(Operation *op);
 
 Operation* getNextOp(Operation *op);
 
-void setOpResultType(Operation *op, StandardTypes::Kind kind, int width = 0);
+void setOpResultType(Value *value, StandardTypes::Kind kind, int width = 0);
 
 LogicalResult setOpBufferReused(Operation *op, bool flag);
 

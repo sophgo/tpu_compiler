@@ -46,6 +46,16 @@ llvm::cl::opt<bool>
                 llvm::cl::desc("Quant op inference by tpu instead of cpu"),
                 llvm::cl::init(false));
 
+llvm::cl::opt<bool> clDequantResultsToFp32(
+    "dequant-results-to-fp32",
+    llvm::cl::desc("Dequant all outputs of network from int8 to fp32"),
+    llvm::cl::init(true));
+
+llvm::cl::opt<bool> clQuantInputsToInt8(
+    "quant-inputs-to-int8",
+    llvm::cl::desc("Quant all inputs of network from fp32 to int8"),
+    llvm::cl::init(true));
+
 namespace mlir {
 
 Value* tpu::BroadcastMulOp::convertToTG() {
@@ -3269,25 +3279,89 @@ struct LowerCustomOpPattern : public RewritePattern {
   }
 };
 
+template <typename OpTy>
+struct LowerFunctionTypePattern: public RewritePattern {
+  LowerFunctionTypePattern(MLIRContext *context)
+      : RewritePattern(OpTy::getOperationName(), 1, context) {}
+
+  PatternMatchResult matchAndRewrite(Operation *op,
+                                     PatternRewriter &rewriter) const override {
+    auto quantOp = cast<OpTy>(op);
+    auto prevOp = op->getOperand(0)->getDefiningOp();
+    auto nextOp = getNextOp(op);
+    if (!isa<tpu::InputOp>(prevOp) && !isa<ReturnOp>(nextOp)) {
+      return matchFailure();
+    }
+
+    auto fn = op->getParentOfType<FuncOp>();
+    assert(fn);
+    // change the argType of FuncOp
+    if (isa<tpu::InputOp>(prevOp)) {
+      if (quantOp.from() == "NONE" && quantOp.to() == "INT8" && !clQuantInputsToInt8) {
+        // remove quantOp and change argType
+        // and inputOp's type to int8
+        auto argument = prevOp->getOperand(0);
+        setOpResultType(argument, StandardTypes::Integer, 8);
+        setOpResultType(prevOp->getResult(0), StandardTypes::Integer, 8);
+        prevOp->setAttr("name", quantOp.nameAttr());
+        rewriter.replaceOp(op, {op->getOperand(0)});
+      }
+    } else if (isa<ReturnOp>(nextOp) && !clDequantResultsToFp32) {
+      // change the returnType of FuncOp
+      if (quantOp.from() == "INT8" && quantOp.to() == "NONE") {
+        rewriter.replaceOp(op, {op->getOperand(0)});
+      }
+    } else {
+      return matchFailure();
+    }
+
+    // alter the function type to match the real type
+    // of InputOp and ReturnOp
+    std::vector<mlir::Type> arguments;
+    std::vector<mlir::Type> returns;
+    assert(fn);
+    Block &entryBlock = fn.front();
+    auto returnOp = dyn_cast<ReturnOp>(entryBlock.back()).getOperation();
+    for (uint32_t i = 0; i < entryBlock.getNumArguments(); ++i) {
+      arguments.push_back(entryBlock.getArgument(i)->getType());
+    }
+    for (uint32_t i = 0; i < returnOp->getNumOperands(); ++i) {
+      returns.push_back(returnOp->getOperand(i)->getType());
+    }
+    auto fnType = rewriter.getFunctionType(
+          llvm::ArrayRef<mlir::Type>{arguments},
+          llvm::ArrayRef<mlir::Type>{returns});
+    fn.setType(fnType);
+
+    return matchSuccess();
+  }
+};
+
 class TpuLowerPass : public FunctionPass<TpuLowerPass> {
 public:
   void runOnFunction() override {
     auto *context = &getContext();
     auto fn = getFunction();
 
+    OwningRewritePatternList patterns;
+    patterns.insert<
+        LowerFunctionTypePattern<tpu::QuantOp>
+        >(context);
+    applyPatternsGreedily(fn, patterns);
+
     // first, merge conv rshift/multiplier/bias into one packed tensor
-    OwningRewritePatternList patterns_pack;
-    patterns_pack.insert<
+    patterns.clear();
+    patterns.insert<
         PackWeightConv2DOpPattern<tpu::Conv2DOp>,
         PackWeightConv2DOpPattern<tpu::DeConv2DOp>,
         PackWeightBroadcastMulOpPattern
         >(context);
-    applyPatternsGreedily(fn, patterns_pack);
+    applyPatternsGreedily(fn, patterns);
 
     // second, do weight lower on weight tensors
     // lower means transpose and save as storageType (int8/bf16,etc)
-    OwningRewritePatternList patterns_lower;
-    patterns_lower.insert<
+    patterns.clear();
+    patterns.insert<
         LowerWeightConv2DOpPattern<tpu::Conv2DOp>,
         LowerWeightConv2DOpPattern<tpu::DeConv2DOp>,
         LowerWeightLrnOpPattern,
@@ -3307,11 +3381,11 @@ public:
         LowerWeightLstmOpPattern,
         LowerWeightSoftmaxOpPattern
         >(context);
-    applyPatternsGreedily(fn, patterns_lower);
+    applyPatternsGreedily(fn, patterns);
 
     // do cpu op lowering
-    OwningRewritePatternList patterns_cpuop;
-    patterns_cpuop.insert<
+    patterns.clear();
+    patterns.insert<
         LowerCpuOpDefaultPattern<tpu::DetectionOutputOp>,
         LowerCpuOpDefaultPattern<tpu::FrcnDetectionOp>,
         LowerCpuOpDefaultPattern<tpu::ProposalOp>,
@@ -3324,10 +3398,10 @@ public:
         LowerCpuOpDefaultPattern<tpu::InterpOp>,
         LowerCustomOpPattern<tpu::CustomOp>
         >(context);
-    applyPatternsGreedily(fn, patterns_cpuop);
+    applyPatternsGreedily(fn, patterns);
 
     // do op lower
-    OwningRewritePatternList patterns;
+    patterns.clear();
     patterns.insert<
         DefaultToTGPattern<tpu::BroadcastMulOp>,
         DefaultToTGPattern<tpu::CastOp>,
@@ -3372,7 +3446,8 @@ public:
         DefaultToTGPattern<tpu::SoftmaxOp>
         >(context);
     applyPatternsGreedily(fn, patterns);
-LLVM_DEBUG(llvm::errs() << "Done lower: " << "]\n";);
+    LLVM_DEBUG(llvm::errs() << "Done lower: " << "]\n");
+
     // check if every one is not lowered
     fn.walk([&](Operation *op) {
       if (op->getName().getDialect().str() != "tpu"
@@ -3392,7 +3467,7 @@ LLVM_DEBUG(llvm::errs() << "Done lower: " << "]\n";);
         llvm_unreachable(("lower didn't handle " + opName).c_str());
       }
     });
-LLVM_DEBUG(llvm::errs() << "Done walk: " << "]\n";);
+
     // TODO: this is temporary
     // fold reshape
     patterns.clear();
