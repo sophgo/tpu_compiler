@@ -193,7 +193,7 @@ void bf16_softmax_kernel_2d(const CviBackendContext &ctx, uint32_t layer_id,
     }
 
     cvk_tl_shape_t lut_working_shape = {
-         static_cast<uint32_t>(outer_size), static_cast<uint32_t>(parallelC),
+         static_cast<uint32_t>(outer_size * 2), static_cast<uint32_t>(parallelC),
          static_cast<uint32_t>(1), static_cast<uint32_t>(bf16_euWorkingOneLane)};
     cvk_tl_t *tl_lut_working =
          ctx.lmem_alloc_tensor(lut_working_shape, CVK_FMT_BF16, eu_align);
@@ -569,8 +569,11 @@ void bf16_softmax_kernel_4d(const CviBackendContext &ctx, uint32_t layer_id,
                 p5.layer_id = layer_id;
                 ctx.tiu_sub(&p5);
             }
+            cvk_tl_shape_t lut_working_shape = {
+            static_cast<uint32_t>(2), static_cast<uint32_t>(tileHeightSize * w),
+            static_cast<uint32_t>(1), static_cast<uint32_t>(c)};
             cvk_tl_t *tl_lut_working =
-                ctx.lmem_alloc_tensor(input_transposed_shape, CVK_FMT_BF16, eu_align);
+                ctx.lmem_alloc_tensor(lut_working_shape, CVK_FMT_BF16, eu_align);
             ASSERT(tl_lut_working);
 
             cvk_tl_t *tl_lut_result =
@@ -707,11 +710,11 @@ void bf16_softmax_kernel_4d(const CviBackendContext &ctx, uint32_t layer_id,
 }
 
 void cvi_backend_tg_bf16_softmax_kernel(const CviBackendContext &ctx, uint32_t layer_id,
-                                            gaddr_t ga_input,
-                                            gaddr_t ga_exponential_table_data_lut, gaddr_t ga_exponential_slope_table_data_lut,
-                                            gaddr_t ga_reciprocal_table_data_lut, gaddr_t ga_reciprocal_table_mantissa_data_lut,
-                                            gaddr_t ga_output,
-                                            int64_t* shape, int axis, int dimension) {
+                                        gaddr_t ga_input,
+                                        gaddr_t ga_exponential_table_data_lut, gaddr_t ga_exponential_slope_table_data_lut,
+                                        gaddr_t ga_reciprocal_table_data_lut, gaddr_t ga_reciprocal_table_mantissa_data_lut,
+                                        gaddr_t ga_output,
+                                        int64_t* shape, int axis, int dimension) {
     int outer_size, inner_size;
     bool doTranspose = false;
     if (dimension == 2) {
@@ -735,17 +738,17 @@ void cvi_backend_tg_bf16_softmax_kernel(const CviBackendContext &ctx, uint32_t l
     }
     if(doTranspose) {
         bf16_softmax_kernel_4d(ctx, layer_id,
-                                            ga_input,
-                                            ga_exponential_table_data_lut, ga_exponential_slope_table_data_lut,
-                                            ga_reciprocal_table_data_lut, ga_reciprocal_table_mantissa_data_lut,
-                                            ga_output,
-                                            shape, axis, dimension);
+                               ga_input,
+                               ga_exponential_table_data_lut, ga_exponential_slope_table_data_lut,
+                               ga_reciprocal_table_data_lut, ga_reciprocal_table_mantissa_data_lut,
+                               ga_output,
+                               shape, axis, dimension);
     } else {
         bf16_softmax_kernel_2d(ctx, layer_id,
-                                            ga_input,
-                                            ga_exponential_table_data_lut, ga_exponential_slope_table_data_lut,
-                                            ga_reciprocal_table_data_lut, ga_reciprocal_table_mantissa_data_lut,
-                                            ga_output,
-                                            outer_size, inner_size);
+                               ga_input,
+                               ga_exponential_table_data_lut, ga_exponential_slope_table_data_lut,
+                               ga_reciprocal_table_data_lut, ga_reciprocal_table_mantissa_data_lut,
+                               ga_output,
+                               outer_size, inner_size);
     }
 }

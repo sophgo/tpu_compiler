@@ -276,7 +276,7 @@ void cvi_backend_tg_bf16_gru_kernel(const CviBackendContext &ctx, uint32_t layer
 
         //working
         cvk_tl_shape_t reshape_temp4_shape = {
-                static_cast<uint32_t>(1), static_cast<uint32_t>(2 * hidden_size),
+                static_cast<uint32_t>(2), static_cast<uint32_t>(2 * hidden_size),
                 static_cast<uint32_t>(1), static_cast<uint32_t>(1)};
         cvk_tl_t *tl_temp4 =
                 ctx.lmem_alloc_tensor(reshape_temp4_shape, CVK_FMT_BF16, 1); //weight EU_ALIGN = False
@@ -353,7 +353,7 @@ void cvi_backend_tg_bf16_gru_kernel(const CviBackendContext &ctx, uint32_t layer
 
         //working
         cvk_tl_shape_t reshape_temp6_shape = {
-                static_cast<uint32_t>(1), static_cast<uint32_t>(hidden_size),
+                static_cast<uint32_t>(2), static_cast<uint32_t>(hidden_size),
                 static_cast<uint32_t>(1), static_cast<uint32_t>(1)};
         cvk_tl_t *tl_temp6 =
                 ctx.lmem_alloc_tensor(reshape_temp6_shape, CVK_FMT_BF16, 1); //weight EU_ALIGN = False
