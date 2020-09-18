@@ -148,6 +148,7 @@ void cvi_backend_tl_eltwise_op(
   cvk_tg_stride_t gstride = {(uint32_t)(c * h * w), (uint32_t)(h * w), (uint32_t)w}; //inputStride
   cvk_tg_stride_t gstride_output = {(uint32_t)(c * oh * ow), (uint32_t)(oh * ow), (uint32_t)ow}; //outputStride
   cvk_tl_stride_t default_stride = ctx.tl_default_stride(ctx.shape_t4(n, c, h, w), CVK_FMT_I8, 1);
+  cvk_tl_stride_t output_default_stride = ctx.tl_default_stride(ctx.shape_t4(n, c, oh, ow), CVK_FMT_I8, 1);
   uint32_t n_stride = default_stride.n;
 
   ctx.parallel_disable();
@@ -289,7 +290,7 @@ void cvi_backend_tl_eltwise_op(
         // form output tl tensor on position
         cvk_tl_t tl_output_pos;
         tl_output_pos.start_address = tl_output->start_address
-                                  + n_pos * n_stride
+                                  + n_pos * output_default_stride.n
                                   + (c_pos / NPU_NUM) * align_up(oh * ow, EU_NUM)
                                   + h_pos * inputTileShapeW / stride_w;
         tl_output_pos.fmt = CVK_FMT_I8;
