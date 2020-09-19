@@ -4,7 +4,7 @@ import sys
 import onnx
 import argparse
 from cvi_toolkit.transform.onnx_converter import OnnxConverter
-from cvi_toolkit.transform.tflite_converter import TFLiteConverter
+from cvi_toolkit.transform.tflite_converter_int8 import TFLiteConverter
 from cvi_toolkit.transform.tensorflow_converter import TFConverter
 from cvi_toolkit.transform.caffe_converter import CaffeConverter
 from cvi_toolkit.utils.log_setting import setup_logger
