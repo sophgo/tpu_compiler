@@ -190,15 +190,9 @@ if __name__ == '__main__':
     # Pytorch ToTensor will make tesnor range to [0, 1]
     # recover to [0, 255]
     x = images[0].numpy() * 255
-    if args.model_type == "caffe":
-        x = preprocessor.run(x, input_type='tensor',
-                             output_channel_order=args.model_channel_order)
-    elif args.model_type == "onnx":
-        x = preprocessor.run(x, input_type='tensor',
-                             output_channel_order=args.model_channel_order)
-    elif args.model_type == "mlir":
-        x = preprocessor.run(x, input_type='tensor',
-                             output_channel_order=args.model_channel_order)
+   
+    x = preprocessor.run(x, input_type='tensor',
+                            output_channel_order=args.model_channel_order)
 
     # run inference
 
