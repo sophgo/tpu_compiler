@@ -89,7 +89,7 @@ def main(argv):
         out_feat['layer94-conv'] = ort_outs[1]
         out_feat['layer106-conv'] = ort_outs[2]
         batched_predictions = postprocess_v3(out_feat, image.shape, net_input_dims,
-                                    obj_threshold, nms_threshold, args.batch_size)
+                                    obj_threshold, nms_threshold, False, args.batch_size)
     print(batched_predictions[0])
     if args.draw_image:
         image = draw(image, batched_predictions[0], args.label_file)
