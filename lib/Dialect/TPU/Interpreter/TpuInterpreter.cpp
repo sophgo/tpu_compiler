@@ -905,9 +905,7 @@ static LogicalResult doLUTOpInterpret(Operation *op, StringRef &type,
       float mish_threshold = castOp.mish_threshold().convertToFloat();
       my_mish(input, output, n, c, h, w, getOpQuant(op) == "BF16", mish_threshold);
     } else if (type == "Exp") {
-      for (int i = 0; i < input_size; ++i) {
-        my_exp(input, output, n, c, h, w, getOpQuant(op) == "BF16");
-      }
+      my_exp(input, output, n, c, h, w, getOpQuant(op) == "BF16");
     } else {
       llvm_unreachable("not support LUT op type");
     }
