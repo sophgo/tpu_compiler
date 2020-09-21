@@ -13,13 +13,16 @@ from ..utils.log_setting import setup_logger
 from tflite.ActivationFunctionType import ActivationFunctionType
 from tflite.AddOptions import AddOptions
 from tflite.BuiltinOperator import BuiltinOperator
+from tflite.ConcatenationOptions import ConcatenationOptions
 from tflite.Conv2DOptions import Conv2DOptions
 from tflite.DepthwiseConv2DOptions import DepthwiseConv2DOptions
+from tflite.LeakyReluOptions import LeakyReluOptions
 from tflite.Model import Model
 from tflite.Padding import Padding
 from tflite.Pool2DOptions import Pool2DOptions
 from tflite.PadOptions import PadOptions
 from tflite.QuantizationParameters import QuantizationParameters
+from tflite.ResizeNearestNeighborOptions import ResizeNearestNeighborOptions
 from tflite.Tensor import Tensor as TFL_TENSOR
 from tflite.TensorType import TensorType as TFL_TENSORTYPE
 
@@ -130,7 +133,7 @@ class TFLiteConverter(BaseConverter):
 
         self.converted_nodes = list()
         self.converted_tensors = list()
-        
+
         self.quantization_attr = dict()
 
         self.valueMap = dict() # {op_name: (mlir op, shape)}
@@ -141,13 +144,16 @@ class TFLiteConverter(BaseConverter):
             "ADD": lambda node: self.convert_add_op(node),
             "AVERAGE_POOL_2D": lambda node: self.convert_avg_pool_op(node),
             "CONV_2D": lambda node: self.convert_conv_op(node),
+            "CONCATENATION": lambda node: self.convert_concat_op(node),
             "DEPTHWISE_CONV_2D": lambda node: self.convert_depthwise_conv_op(node),
             "DEQUANTIZE": lambda node: self.convert_skip_op(node),
             "FULLY_CONNECTED": lambda node: self.convert_fc_op(node),
+            "LEAKY_RELU": lambda node: self.convert_leaky_relu_op(node),
             "MAX_POOL_2D": lambda node: self.convert_maxpool_op(node),
             "MEAN": lambda node: self.convert_mean_op(node),
             "PAD": lambda node: self.convert_pad_op(node),
             "QUANTIZE": lambda node: self.convert_quant_op(node),
+            "RESIZE_NEAREST_NEIGHBOR": lambda node: self.convert_resize_op(node),
             "RESHAPE": lambda node: self.convert_reshape_op(node),
             "SOFTMAX": lambda node: self.convert_softmax_op(node),
         }
@@ -162,7 +168,6 @@ class TFLiteConverter(BaseConverter):
         # get output shape
         outputs = list()
         for output_id in self.output_nodes:
-            print(output_id)
             output_shape, _ = self.get_tensor_shape_and_data(output_id)
             outputs.append(output_shape)
 
@@ -313,7 +318,7 @@ class TFLiteConverter(BaseConverter):
             return relu_op
         else:
             raise RuntimeError("Not support {} activation".format(activation))
-        
+
 
     def convert_add_op(self, node):
         assert(node.op_type == "ADD")
@@ -332,7 +337,9 @@ class TFLiteConverter(BaseConverter):
         # get quantization attr
         add_quant_attr = add_tensor.Quantization()
         add_quant_max = add_quant_attr.MaxAsNumpy()
-        self.quantization_attr[node.outputs] = add_quant_max[0]
+        add_quant_min = add_quant_attr.MinAsNumpy()
+        threshold = max(abs(add_quant_max[0]), abs(add_quant_min[0]))
+        self.quantization_attr[node.outputs] = threshold
 
         op_build_info = node.proto.BuiltinOptions()
         # Parse the Table of options.
@@ -344,7 +351,7 @@ class TFLiteConverter(BaseConverter):
             # DO relu
             relu_op = self.CVI.add_relu_op(
                 "{}_relu".format(node.name), [add_op], output_shape)
-            self.quantization_attr["{}_relu".format(node.name)] = add_quant_max[0]
+            self.quantization_attr["{}_relu".format(node.name)] = threshold
             self.addOperand(node.name, relu_op, output_shape,
                             TensorType.ACTIVATION)
         else:
@@ -378,58 +385,22 @@ class TFLiteConverter(BaseConverter):
         self.addOperand(node.name, pool_avg_op,
                         output_shape, TensorType.ACTIVATION)
 
-    def convert_pad_op(self, node):
-        assert(node.op_type == "PAD")
-        # first input is activate, second is tensor
-        assert(len(node.inputs) == 2)
-        op, input_shape, _ = self.getOperand(str(node.inputs[0]))
-
-        pad_tensor = self.tflite_graph.Tensors(node.outputs)
-        pad_name = pad_tensor.Name().decode('utf-8')
-        # get quantization attr
-        pad_quant_attr = pad_tensor.Quantization()
-        pad_quant_max = pad_quant_attr.MaxAsNumpy()
-        self.quantization_attr[node.outputs] = pad_quant_max[0]
-
-        # Parse the Table of options.
-        op_build_info = node.proto.BuiltinOptions()
-        pad_table = PadOptions()
-        pad_table.Init(op_build_info.Bytes, op_build_info.Pos)
-        padding_attr_tensor_idx = node.inputs[1]
-        padding_attr_shape, padding_data = self.get_tensor_shape_and_data(
-            padding_attr_tensor_idx, data_type=np.int32)
-
-        print(padding_data, padding_attr_shape)
-
-        padding_data = padding_data[[0, 3, 1, 2], :]  # ohwc -> ochw
-        padding_data = padding_data.flatten('F')
-        dims = len(input_shape)
-        pads_param = {
-            "pads": padding_data.tolist(),
-            "const_val": 0,
-        }
-        output_shape = np.sum(
-            [input_shape, padding_data[:dims], padding_data[dims:]], axis=0)
-        output_shape = [int(i) for i in output_shape]
-
-        pads_op = self.CVI.add_pad_op(
-            node.name, [op], output_shape, **pads_param)
-        self.addOperand(node.name, pads_op, output_shape,
-                        TensorType.ACTIVATION)
 
     def convert_conv_op(self, node):
         assert(node.op_type == "CONV_2D")
 
         op, shape, _ = self.getOperand(str(node.inputs[0]))
         operands = [op]
-    
+
         conv_tensor = self.tflite_graph.Tensors(node.outputs)
         conv_name = conv_tensor.Name().decode('utf-8')
         # get quantization attr
         conv_quant_attr = conv_tensor.Quantization()
         conv_quant_max = conv_quant_attr.MaxAsNumpy()
-        self.quantization_attr[node.outputs] = conv_quant_max[0]
-       
+        conv_quant_min = conv_quant_attr.MinAsNumpy()
+        threshold = max(abs(conv_quant_max[0]), abs(conv_quant_min[0]))
+        self.quantization_attr[node.outputs] = threshold
+
 
         # filter
         filter_tensor_idx = node.inputs[1]
@@ -558,11 +529,55 @@ class TFLiteConverter(BaseConverter):
             node.name), operands, output_shape, **conv_param)
 
         conv_op = self.add_activation_op("{}".format(
-            node.name), conv_op, output_shape, conv_table.FusedActivationFunction(), threshold=conv_quant_max[0])
-        
+            node.name), conv_op, output_shape, conv_table.FusedActivationFunction(), threshold=threshold)
+
         self.addOperand(node.name, conv_op, output_shape,
                         TensorType.ACTIVATION)
 
+    def convert_concat_op(self, node):
+        assert(node.op_type == "CONCATENATION")
+        op1, input_shape1, _ = self.getOperand(str(node.inputs[0]))
+        op2, input_shape2, _ = self.getOperand(str(node.inputs[1]))
+        assert(len(input_shape1) == 4 and len(input_shape2) == 4)
+        operands = list()
+        operands.append(op1)
+        operands.append(op2)
+        op_build_info = node.proto.BuiltinOptions()
+        concat_table = ConcatenationOptions()
+        concat_table.Init(op_build_info.Bytes, op_build_info.Pos)
+
+        axis = concat_table.Axis()
+        if(axis == -1 or axis == 3):
+            axis = 1 # in tflite is nhwc, but in mlir is nchw
+
+
+        concat_tensor = self.tflite_graph.Tensors(node.outputs)
+
+        # get quantization attr
+        concat_quant_attr = concat_tensor.Quantization()
+        concat_quant_max = concat_quant_attr.MaxAsNumpy()
+        concat_quant_min = concat_quant_attr.MinAsNumpy()
+        threshold = max(abs(concat_quant_max[0]), abs(concat_quant_min[0]))
+        self.quantization_attr[node.outputs] = threshold
+
+        output_shape = list()
+
+        for idx, op_shape in enumerate([input_shape1, input_shape2]):
+            if idx == 0:
+                # copy rather than referece
+                output_shape = list(op_shape)
+            else:
+                for dim, value in enumerate(op_shape):
+                    if dim == axis:
+                        output_shape[dim] += value
+                    else:
+                        if output_shape[dim] != value:
+                            raise ValueError("axis is {}, {} v.s {} shape can not be concat".format(
+                                axis, output_shape, op_shape))
+
+        concat_op = self.CVI.add_concat_op(node.name, operands, output_shape, axis=axis)
+        self.addOperand(node.name, concat_op, output_shape,
+                        TensorType.ACTIVATION)
 
     def convert_depthwise_conv_op(self, node):
         assert(node.op_type == "DEPTHWISE_CONV_2D")
@@ -691,7 +706,9 @@ class TFLiteConverter(BaseConverter):
         # get quantization attr
         fc_quant_attr = fc_tensor.Quantization()
         fc_quant_max = fc_quant_attr.MaxAsNumpy()
-        self.quantization_attr[node.outputs] = fc_quant_max[0]
+        fc_quant_min = fc_quant_attr.MinAsNumpy()
+        threshold = max(abs(fc_quant_max[0]), abs(fc_quant_min[0]))
+        self.quantization_attr[node.outputs] = threshold
 
         # filter
         filter_tensor_idx = node.inputs[1]
@@ -808,12 +825,14 @@ class TFLiteConverter(BaseConverter):
         # get quantization attr
         mean_quant_attr = mean_tensor.Quantization()
         mean_quant_max = mean_quant_attr.MaxAsNumpy()
-        self.quantization_attr[node.outputs] = mean_quant_max[0]
+        mean_quant_min = mean_quant_attr.MinAsNumpy()
+        threshold = max(abs(mean_quant_max[0]), abs(mean_quant_min[0]))
+        self.quantization_attr[node.outputs] = threshold
+
 
         mean_tensor_idx = node.inputs[1]
         mean_shape, mean_attr_data = self.get_tensor_shape_and_data(
             mean_tensor_idx, data_type=np.int32)
-        print(mean_attr_data, mean_shape)
         on = input_shape[0]
         oc = input_shape[1]
         pool_avg_2d_param = {
@@ -834,22 +853,108 @@ class TFLiteConverter(BaseConverter):
         self.addOperand(node.name, pool_avg_op,
                         output_shape, TensorType.ACTIVATION)
 
+    def convert_leaky_relu_op(self, node):
+        assert(node.op_type == "LEAKY_RELU")
+        # first input is activate, second is tensor
+        assert(len(node.inputs) == 1)
+        op, input_shape, _ = self.getOperand(str(node.inputs[0]))
+
+        l_relu_tensor = self.tflite_graph.Tensors(node.outputs)
+
+        # get quantization attr
+        l_relu_quant_attr = l_relu_tensor.Quantization()
+        l_relu_quant_max = l_relu_quant_attr.MaxAsNumpy()
+        l_relu_quant_min = l_relu_quant_attr.MinAsNumpy()
+        threshold = max(abs(l_relu_quant_max[0]), abs(l_relu_quant_min[0]))
+        self.quantization_attr[node.outputs] = threshold
+
+        # Parse the Table of options.
+        op_build_info = node.proto.BuiltinOptions()
+        l_relu_table = LeakyReluOptions()
+        l_relu_table.Init(op_build_info.Bytes, op_build_info.Pos)
+        negative_slope = l_relu_table.Alpha()
+        param = {
+            'negative_slope': negative_slope
+        }
+        output_shape = input_shape
+
+        l_relus_op = self.CVI.add_leaky_relu_op(
+            node.name, [op], output_shape, **param)
+        self.addOperand(node.name, l_relus_op, output_shape,
+                        TensorType.ACTIVATION)
+
+    def convert_pad_op(self, node):
+        assert(node.op_type == "PAD")
+        # first input is activate, second is tensor
+        assert(len(node.inputs) == 2)
+        op, input_shape, _ = self.getOperand(str(node.inputs[0]))
+
+        pad_tensor = self.tflite_graph.Tensors(node.outputs)
+
+        # get quantization attr
+        pad_quant_attr = pad_tensor.Quantization()
+        pad_quant_max = pad_quant_attr.MaxAsNumpy()
+        pad_quant_min = pad_quant_attr.MinAsNumpy()
+        threshold = max(abs(pad_quant_max[0]), abs(pad_quant_min[0]))
+        self.quantization_attr[node.outputs] = threshold
+
+        # Parse the Table of options.
+        op_build_info = node.proto.BuiltinOptions()
+        pad_table = PadOptions()
+        pad_table.Init(op_build_info.Bytes, op_build_info.Pos)
+        padding_attr_tensor_idx = node.inputs[1]
+        padding_attr_shape, padding_data = self.get_tensor_shape_and_data(
+            padding_attr_tensor_idx, data_type=np.int32)
+
+
+        padding_data = padding_data[[0, 3, 1, 2], :]  # ohwc -> ochw
+        padding_data = padding_data.flatten('F')
+        dims = len(input_shape)
+        pads_param = {
+            "pads": padding_data.tolist(),
+            "const_val": 0,
+        }
+        output_shape = np.sum(
+            [input_shape, padding_data[:dims], padding_data[dims:]], axis=0)
+        output_shape = [int(i) for i in output_shape]
+
+        pads_op = self.CVI.add_pad_op(
+            node.name, [op], output_shape, **pads_param)
+        self.addOperand(node.name, pads_op, output_shape,
+                        TensorType.ACTIVATION)
+
+
+    def convert_quant_op(self, node):
+        op, input_shape, _ = self.getOperand(node.inputs[0])
+
+        tensor = self.tflite_graph.Tensors(node.outputs)
+
+        # get quantization attr
+        quant_attr = tensor.Quantization()
+        quant_max = quant_attr.MaxAsNumpy()
+        # back to fp32, convert it to input name
+        if(quant_max != 0):
+            self.quantization_attr[node.inputs[0]] = quant_max[0]
+        # skip this op
+        self.addOperand(node.name, op, input_shape, TensorType.ACTIVATION)
+
     def convert_reshape_op(self, node):
         op, input_shape, _ = self.getOperand(node.inputs[0])
         operands = list()
         operands.append(op)
-        output_shape_idx =  node.inputs[1]
+        output_shape_idx = node.inputs[1]
         target_shape, output_shape = self.get_tensor_shape_and_data(
             output_shape_idx, data_type=np.int32)
 
         if len(output_shape) == 3:
             # hwc -> chw
             output_shape = [output_shape[2], output_shape[0], output_shape[1]]
-            output_shape.insert(0, input_shape[0]) # add batch size
+            output_shape.insert(0, input_shape[0])  # add batch size
 
         elif len(output_shape) == 4:
             # nhwc -> nchw
-            output_shape = [output_shape[0], output_shape[2], output_shape[3], output_shape[1]]
+            output_shape = [output_shape[0], output_shape[2],
+                            output_shape[3], output_shape[1]]
 
         if -1 in output_shape:
             total_tensor_size = get_shape_size(input_shape)
@@ -859,27 +964,79 @@ class TFLiteConverter(BaseConverter):
                 if output_shape[i] == 0:
                     output_shape[i] = self.batch_size
                 if i != remain_dim:
-                    tmp_size*=output_shape[i]
-                remain_size  = total_tensor_size / tmp_size
+                    tmp_size *= output_shape[i]
+                remain_size = total_tensor_size / tmp_size
                 if not remain_size.is_integer():
-                    raise RuntimeError("{} not divide exactly by {}".format(total_tensor_size, tmp_size))
+                    raise RuntimeError("{} not divide exactly by {}".format(
+                        total_tensor_size, tmp_size))
                 output_shape[remain_dim] = int(remain_size)
 
         reshape_op = self.CVI.add_reshape_op(node.name, operands, output_shape)
-        self.addOperand(node.name, reshape_op, output_shape, TensorType.ACTIVATION)
+        self.addOperand(node.name, reshape_op,
+                        output_shape, TensorType.ACTIVATION)
 
-    def convert_quant_op(self, node):
-        op, input_shape, _ = self.getOperand(node.inputs[0])
+    def convert_resize_op(self, node):
+        assert(node.op_type == "RESIZE_NEAREST_NEIGHBOR")
+        # first input is activate, second is tensor
+        assert(len(node.inputs) == 2)
+        op, input_shape, _ = self.getOperand(str(node.inputs[0]))
+        resize_tensor = self.tflite_graph.Tensors(node.outputs)
 
-        tensor = self.tflite_graph.Tensors(node.outputs)
-     
         # get quantization attr
-        quant_attr = tensor.Quantization()
-        quant_max = quant_attr.MaxAsNumpy()
-        # back to fp32, convert it to input name 
-        self.quantization_attr[node.inputs[0]] = quant_max[0]
-        # skip this op
-        self.addOperand(node.name, op, input_shape, TensorType.ACTIVATION)
+        resize_quant_attr = resize_tensor.Quantization()
+        resize_quant_max = resize_quant_attr.MaxAsNumpy()
+        resize_quant_min = resize_quant_attr.MinAsNumpy()
+        threshold = max(abs(resize_quant_max[0]), abs(resize_quant_min[0]))
+        self.quantization_attr[node.outputs] = threshold
+
+        # Parse the Table of options.
+        op_build_info = node.proto.BuiltinOptions()
+        resize_table = ResizeNearestNeighborOptions()
+        resize_table.Init(op_build_info.Bytes, op_build_info.Pos)
+        resizeding_attr_tensor_idx = node.inputs[1]
+        _, resizeding_data = self.get_tensor_shape_and_data(
+            resizeding_attr_tensor_idx, data_type=np.int32)
+
+        operands = list()
+        operands.append(op)
+        ic = input_shape[1]
+        ih = input_shape[2]
+        iw = input_shape[3]
+        on = int(input_shape[0])
+        oc = int(input_shape[1])
+        oh = int(resizeding_data[0])
+        ow = int(resizeding_data[1])
+        group = ic
+        output_shape = [int(on), int(oc), int(oh), int(ow)]
+        # use deconv(depthwise)
+        deconv_param = {
+            'stride_h':  int(oh / ih),
+            'stride_w':  int(ow / iw),
+            'padding': "VALID",
+            'dilation_h': 1,
+            'dilation_w': 1,
+            'padding_t': 0,
+            'padding_b': 0,
+            'padding_l': 0,
+            'padding_r': 0,
+            'group': ic,
+            'is_dw': False,
+            'with_bias': False,
+            'do_relu': False,
+            'ins': [],
+        }
+
+        # deconv weight all one
+        weight_shape = [group, int(
+            oc/group), int(ic/group), int(oh / ih), int(ow / iw)]
+        tensor_data = np.full(weight_shape, 1)
+        weight_name = "{}_add_weight".format(node.name)
+        self.addTensor(weight_name, tensor_data, tensor_data.shape, None)
+        weight_op = self.CVI.add_load_file_op(weight_name, tensor_data.shape)
+        operands.append(weight_op)
+
+        deconv_op = self.CVI.add_deconv_op(node.name, operands, output_shape, **deconv_param)
+        self.addOperand(node.name, deconv_op, output_shape, TensorType.ACTIVATION)
 
     def convert_skip_op(self, node):
         op, input_shape, _ = self.getOperand(node.inputs[0])
