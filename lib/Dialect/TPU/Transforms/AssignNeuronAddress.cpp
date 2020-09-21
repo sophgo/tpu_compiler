@@ -286,8 +286,14 @@ public:
           liveRange[joinOp] = {getOpLine(op), 0xFFFFFFFF};
         }
         updateOperandLiveRange(op, endPosition);
-      } else if (isa<tpu::InputOp>(op) ||
-                 isa<tpu::GenericCpuOp>(op) ||
+      } else if (isa<tpu::InputOp>(op)) {
+        auto nextOp = getNextOp(op);
+        if (!isa<tpu::GenericCpuOp>(nextOp)) {
+          ops.push_back(op);
+          liveRange[op] = {getOpLine(op), 0xFFFFFFFF};
+          updateOperandLiveRange(op, endPosition);
+        }
+      } else if (isa<tpu::GenericCpuOp>(op) ||
                  llvm::dyn_cast<tpu::TpuTGOpCodegenInterface>(op)) {
         ops.push_back(op);
         liveRange[op] = {getOpLine(op), 0xFFFFFFFF};
@@ -301,7 +307,9 @@ public:
     int64_t sharedGmemSize = 0;
     int64_t privateGmemSize = 0;
     std::map<Operation *, int64_t> gaddrMap;
-    std::vector<Operation *> opsOfMainFunc;
+    std::vector<Operation *> opsOfTpuMainFunc;
+    std::vector<Operation *> opsOfCpuMainFunc;
+
     auto subFunctions = SubFunction::divideOpsToSubFunc(&fn);
     for (auto subFn : subFunctions) {
       if (subFn->tpu) {
@@ -311,7 +319,9 @@ public:
             if (!isOpInVector(op, subFn->outputs)) {
               opsOfSubFunc.push_back(op);
             } else if (needAssignNeuronForOp(op)) {
-              opsOfMainFunc.push_back(op);
+              opsOfTpuMainFunc.push_back(op);
+            } else {
+              opsOfCpuMainFunc.push_back(op);
             }
           }
         }
@@ -325,15 +335,21 @@ public:
         }
       } else {
         for (auto op : subFn->ops) {
-          if (isOpInVector(op, ops) && needAssignNeuronForOp(op)) {
-            opsOfMainFunc.push_back(op);
+          if (isOpInVector(op, ops)) {
+            if (needAssignNeuronForOp(op)) {
+              opsOfTpuMainFunc.push_back(op);
+            } else {
+              opsOfCpuMainFunc.push_back(op);
+            }
           }
         }
       }
     }
     int64_t baseGaddr = (((uint64_t)2) << 40);
     GmemAllocator allocator(gaddrMap, clNeuronAlignment);
-    privateGmemSize = allocator.assignGaddr(opsOfMainFunc, liveRange, clNeuronReuse, baseGaddr);
+    privateGmemSize = allocator.assignGaddr(opsOfCpuMainFunc, liveRange, clNeuronReuse, baseGaddr);
+    GmemAllocator allocator1(gaddrMap, clNeuronAlignment);
+    privateGmemSize += allocator1.assignGaddr(opsOfTpuMainFunc, liveRange, clNeuronReuse, baseGaddr + privateGmemSize);
 
     fn.setAttr("private_gmem", Builder(context).getI64IntegerAttr(privateGmemSize));
     fn.setAttr("shared_gmem", Builder(context).getI64IntegerAttr(sharedGmemSize));
