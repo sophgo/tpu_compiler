@@ -1921,6 +1921,11 @@ float my_mish_caffe(float x_val, float mish_threshold) {
   return x_val * tanh_activate(softplus_activate(x_val, mish_threshold));
 }
 
+static float my_mish_wrapper_threshold;
+double my_mish_wrapper(double x_val) {
+  return my_mish_caffe(x_val, my_mish_wrapper_threshold);
+}
+
 int my_mish(float *input, float *output, int n, int c, int h, int w, bool is_bf16, float mish_threshold) {
   LLVM_DEBUG(llvm::errs() << "  n: " << n << ", c: " << c << ", h: " << h
                           << ", w: " << w << "\n";);
@@ -1942,7 +1947,8 @@ int my_mish(float *input, float *output, int n, int c, int h, int w, bool is_bf1
 
   // use function pointer
   double (*activate_func)(double);
-  activate_func = sigmoid;
+  my_mish_wrapper_threshold = mish_threshold;
+  activate_func = my_mish_wrapper;
 
   gen_bf16_table(BF16_TABLE_START, BF16_TABLE_END, table_hw,
       y0_fp32_table.data(), activate_func);
