@@ -21,20 +21,16 @@ void *cvi_backend_get_cvk_ctx(const CviBackendContext &ctx);
  */
 void cvi_backend_tg_fixed_conv_kernel(
     const CviBackendContext &ctx, uint32_t layer_id, gaddr_t ga_ifmap,
-    gaddr_t ga_ofmap, gaddr_t ga_weight, gaddr_t ga_bias, gaddr_t ga_bn_mean,
-    gaddr_t ga_bn_variance, gaddr_t ga_scale, gaddr_t ga_scale_bias,
+    gaddr_t ga_ofmap, gaddr_t ga_weight, gaddr_t ga_bias,
     int input_n, int input_c, int input_h, int input_w, int groups,
     int output_c, uint16_t kh, uint16_t kw, uint16_t dilation_h,
     uint16_t dilation_w, uint8_t pad_top, uint8_t pad_bottom,
     uint8_t pad_left, uint8_t pad_right, uint8_t insert_h, uint8_t insert_w,
-    uint8_t stride_h, uint8_t stride_w, int do_bias,
-    int do_bn, int do_scale, int do_scale_bias, int do_activation,
-    float bn_scale, float bn_eps, int activation_method, float activation_arg[],
-    gaddr_t activation_ga_slope, bool activation_channel_shared,
-    int activation_gt_scale, int activation_gt_rshift, int activation_le_scale,
-    int activation_le_rshift, int right_shift_width, int bn_right_shift_width,
-    int scale_right_shift_width, bool do_chl_quan, bool do_ic_alignment,
-    bool store_compr_act, bool load_compr_act);
+    uint8_t stride_h, uint8_t stride_w, int do_bias, int do_activation,
+    float activation_arg[], int activation_gt_scale, int activation_gt_rshift,
+    int activation_le_scale, int activation_le_rshift, int right_shift_width,
+    bool do_chl_quan, bool do_ic_alignment, bool store_compr_act,
+    bool load_compr_act);
 
 void cvi_backend_tg_fixed_concat_kernel(
     const CviBackendContext &ctx, uint32_t stream_id, uint32_t inst_id,
@@ -252,15 +248,12 @@ void cvi_backend_tg_fixed_eltwise_mul_kernel(
 //////////////// bf16 kernel API /////////////////
 void cvi_backend_tg_bf16_conv_kernel(
     const CviBackendContext &ctx, uint32_t layer_id, gaddr_t ga_ifmap,
-    gaddr_t ga_ofmap, gaddr_t ga_weight, gaddr_t ga_bias, gaddr_t ga_bn_mean,
-    gaddr_t ga_bn_variance, gaddr_t ga_scale, gaddr_t ga_scale_bias,
+    gaddr_t ga_ofmap, gaddr_t ga_weight, gaddr_t ga_bias,
     int input_n, int input_c, int input_h, int input_w, int groups,
     int output_c, uint16_t kh, uint16_t kw, uint16_t dilation_h,
     uint16_t dilation_w, uint8_t pad_top, uint8_t pad_bottom, uint8_t pad_left,
     uint8_t pad_right, uint8_t stride_h, uint8_t stride_w, int do_bias,
-    int do_bn, int do_scale, int do_scale_bias, int do_activation,
-    float bn_scale, float bn_eps, int activation_method, float activation_arg[],
-    gaddr_t activation_ga_slope);
+    int do_activation);
 
 void cvi_backend_tg_bf16_concat_kernel(
     const CviBackendContext &ctx, uint32_t stream_id, uint32_t inst_id,

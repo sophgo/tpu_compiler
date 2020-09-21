@@ -1133,10 +1133,6 @@ struct Conv_ARGS {
   gaddr_t ga_ofmap;
   gaddr_t ga_weight;
   gaddr_t ga_bias;
-  gaddr_t ga_bn_mean;
-  gaddr_t ga_bn_variance;
-  gaddr_t ga_scale;
-  gaddr_t ga_scale_bias;
   int input_n;
   int input_c;
   int input_h;
@@ -1156,23 +1152,13 @@ struct Conv_ARGS {
   uint8_t stride_h;
   uint8_t stride_w;
   bool do_bias;
-  bool do_bn;
-  bool do_scale;
-  bool do_scale_bias;
   bool do_activation;
-  float bn_scale;
-  float bn_eps;
-  int activation_method;
   float *activation_arg;
-  gaddr_t activation_ga_slope;
-  bool activation_channel_shared;
   int activation_gt_scale;
   int activation_gt_rshift;
   int activation_le_scale;  // slope; TODO
   int activation_le_rshift;
   int right_shift_width;
-  int bn_right_shift_width;
-  int scale_right_shift_width;
   bool do_chl_quan;
   uint32_t layer_id;
   bool do_ic_alignment;
@@ -1633,10 +1619,6 @@ void Conv::initializeTile() {
 }
 
 void Conv::initializeFusedActivation() {
-  // Remove batch norm fusion
-  assert(!args_.do_bn && !args_.do_scale &&
-         !args_.do_scale_bias);
-
   // Check conv+relu or conv+leaky relu
   args_.fused_conv_relu = false;
   args_.do_leaky_relu = false;
@@ -2793,12 +2775,8 @@ bool Conv::determineTileSize(bool useDoubleBuffer) {
   int32_t groups = args_.groups;
   int32_t output_c = args_.output_c;
   int32_t do_bias = args_.do_bias;
-  int32_t do_bn = args_.do_bn;
-  int32_t do_scale = args_.do_scale;
-  int32_t do_scale_bias = args_.do_scale_bias;
   bool do_chl_quan = args_.do_chl_quan;
   int32_t do_activation = args_.do_activation;
-  int32_t activation_method = args_.activation_method;
   float *activation_arg = args_.activation_arg;
   uint16_t kh = args_.kh;
   uint16_t kw = args_.kw;
@@ -2894,7 +2872,6 @@ bool Conv::determineTileSize(bool useDoubleBuffer) {
             std::min((num_oc_step - slice_oc) * npu_num, oc);
 
         // We may need to put EU-alignment info in one place
-        cvk_tl_shape_t coeff_shape_i8 = ctx_.shape_t4(1, oc_step, 1, 1);
         cvk_tl_shape_t coeff_shape_i16 = ctx_.shape_t4(2, oc_step, 1, 1);
 
         uint32_t coeff_oc_step_size = 0;
@@ -2911,35 +2888,6 @@ bool Conv::determineTileSize(bool useDoubleBuffer) {
                                       args_.tiu_fmt, /*eu_align=*/0);
           }
         } else if (do_bias) {
-          // 16 bit
-          coeff_oc_step_size += ctx_.lmem_tensor_to_size(coeff_shape_i16,
-                                    args_.tiu_fmt, /*eu_align=*/0);
-        }
-
-        // prelu needs extra tl_slope compared to leaky relu.
-        if (do_activation && activation_method == PRELU) {
-          // weight of depthwise conv is aligned
-          coeff_oc_step_size += ctx_.lmem_tensor_to_size(coeff_shape_i8,
-                                    args_.tiu_fmt, /*eu_align=*/1);
-        }
-
-        if (do_bn) {
-          // weight of depthwise conv is aligned
-          coeff_oc_step_size += ctx_.lmem_tensor_to_size(coeff_shape_i8,
-                                    args_.tiu_fmt, /*eu_align=*/1);
-
-          // 16 bit
-          coeff_oc_step_size += ctx_.lmem_tensor_to_size(coeff_shape_i16,
-                                    args_.tiu_fmt, /*eu_align=*/0);
-        }
-
-        if (do_scale) {
-          // weight of depthwise conv is aligned
-          coeff_oc_step_size += ctx_.lmem_tensor_to_size(coeff_shape_i8,
-                                    args_.tiu_fmt, /*eu_align=*/1);
-        }
-
-        if (do_scale_bias) {
           // 16 bit
           coeff_oc_step_size += ctx_.lmem_tensor_to_size(coeff_shape_i16,
                                     args_.tiu_fmt, /*eu_align=*/0);
@@ -2973,13 +2921,10 @@ bool Conv::determineTileSize(bool useDoubleBuffer) {
           // executes.
           total_needed *= bufferMultiplier;
 
-          // Both prelu and leaky relu need tl_neg, tl_relu.
+          // Leaky relu need tl_neg, tl_relu.
           // tl_relu, tl_neg are not from tmda and not final output.
           // One copy is enough.
-          if (do_activation &&
-              ((activation_method == PRELU) ||
-               (activation_method == RELU && activation_arg &&
-               activation_arg[0] != 0.0f))) {
+          if (do_activation && activation_arg && activation_arg[0] != 0.0f) {
             total_needed += 2 * ofmap_size;  // tl_relu + tl_neg
           }
 
@@ -3076,12 +3021,8 @@ bool Conv::determinePs32TileSize(bool useDoubleBuffer) {
   int32_t groups = args_.groups;
   int32_t output_c = args_.output_c;
   int32_t do_bias = args_.do_bias;
-  int32_t do_bn = args_.do_bn;
-  int32_t do_scale = args_.do_scale;
-  int32_t do_scale_bias = args_.do_scale_bias;
   bool do_chl_quan = args_.do_chl_quan;
   int32_t do_activation = args_.do_activation;
-  int32_t activation_method = args_.activation_method;
   float *activation_arg = args_.activation_arg;
   uint16_t kh = args_.kh;
   uint16_t kw = args_.kw;
@@ -3165,7 +3106,6 @@ bool Conv::determinePs32TileSize(bool useDoubleBuffer) {
           std::min((oh_step - 1) * stride_h + kh_extent, ih);
 
       // We may need to put EU-alignment info in one place
-      cvk_tl_shape_t coeff_shape_i8 = ctx_.shape_t4(1, oc_step, 1, 1);
       cvk_tl_shape_t coeff_shape_i16 = ctx_.shape_t4(2, oc_step, 1, 1);
 
       uint32_t coeff_oc_step_size = 0;
@@ -3182,35 +3122,6 @@ bool Conv::determinePs32TileSize(bool useDoubleBuffer) {
                                     args_.tiu_fmt, /*eu_align=*/0);
         }
       } else if (do_bias) {
-        // 16 bit
-        coeff_oc_step_size += ctx_.lmem_tensor_to_size(coeff_shape_i16,
-                                  args_.tiu_fmt, /*eu_align=*/0);
-      }
-
-      // prelu needs extra tl_slope compared to leaky relu.
-      if (do_activation && activation_method == PRELU) {
-        // weight of depthwise conv is aligned
-        coeff_oc_step_size += ctx_.lmem_tensor_to_size(coeff_shape_i8,
-                                  args_.tiu_fmt, /*eu_align=*/1);
-      }
-
-      if (do_bn) {
-        // weight of depthwise conv is aligned
-        coeff_oc_step_size += ctx_.lmem_tensor_to_size(coeff_shape_i8,
-                                  args_.tiu_fmt, /*eu_align=*/1);
-
-        // 16 bit
-        coeff_oc_step_size += ctx_.lmem_tensor_to_size(coeff_shape_i16,
-                                  args_.tiu_fmt, /*eu_align=*/0);
-      }
-
-      if (do_scale) {
-        // weight of depthwise conv is aligned
-        coeff_oc_step_size += ctx_.lmem_tensor_to_size(coeff_shape_i8,
-                                  args_.tiu_fmt, /*eu_align=*/1);
-      }
-
-      if (do_scale_bias) {
         // 16 bit
         coeff_oc_step_size += ctx_.lmem_tensor_to_size(coeff_shape_i16,
                                   args_.tiu_fmt, /*eu_align=*/0);
@@ -3244,13 +3155,10 @@ bool Conv::determinePs32TileSize(bool useDoubleBuffer) {
         // executes.
         total_needed *= bufferMultiplier;
 
-        // Both prelu and leaky relu need tl_neg, tl_relu.
+        // Leaky relu need tl_neg, tl_relu.
         // tl_relu, tl_neg are not from tmda and not final output.
         // One copy is enough.
-        if (do_activation &&
-            ((activation_method == PRELU) ||
-             (activation_method == RELU && activation_arg &&
-             activation_arg[0] != 0.0f))) {
+        if (do_activation && activation_arg && activation_arg[0] != 0.0f) {
           total_needed += 2 * ofmap_size;  // tl_relu + tl_neg
         }
 
@@ -3619,12 +3527,8 @@ bool Conv::determineDwTileSize(bool useDoubleBuffer) {
   //int groups = args_.groups;
   //int output_c = args_.output_c;
   int do_bias = args_.do_bias;
-  int do_bn = args_.do_bn;
-  int do_scale = args_.do_scale;
-  int do_scale_bias = args_.do_scale_bias;
   //bool do_chl_quan = args_.do_chl_quan;
   int do_activation = args_.do_activation;
-  int activation_method = args_.activation_method;
   float *activation_arg = args_.activation_arg;
   uint16_t kh = args_.kh;
   uint16_t kw = args_.kw;
@@ -3673,40 +3577,10 @@ bool Conv::determineDwTileSize(bool useDoubleBuffer) {
   int ic_step = 1;
 
   // We may need to put EU-alignment info in one place
-  cvk_tl_shape_t coeff_shape_i8 = ctx_.shape_t4(1, oc_step, 1, 1);
   cvk_tl_shape_t coeff_shape_i16 = ctx_.shape_t4(2, oc_step, 1, 1);
 
   uint32_t coeff_oc_step_size = 0;
   if (do_bias) {
-    // 16 bit
-    coeff_oc_step_size += ctx_.lmem_tensor_to_size(coeff_shape_i16,
-                              args_.tiu_fmt, /*eu_align=*/0);
-  }
-
-  // prelu needs extra tl_slope compared to leaky relu.
-  if (do_activation && activation_method == PRELU) {
-    // weight of depthwise conv is aligned
-    coeff_oc_step_size += ctx_.lmem_tensor_to_size(coeff_shape_i8,
-                              args_.tiu_fmt, /*eu_align=*/1);
-  }
-
-  if (do_bn) {
-    // weight of depthwise conv is aligned
-    coeff_oc_step_size += ctx_.lmem_tensor_to_size(coeff_shape_i8,
-                              args_.tiu_fmt, /*eu_align=*/1);
-
-    // 16 bit
-    coeff_oc_step_size += ctx_.lmem_tensor_to_size(coeff_shape_i16,
-                              args_.tiu_fmt, /*eu_align=*/0);
-  }
-
-  if (do_scale) {
-    // weight of depthwise conv is aligned
-    coeff_oc_step_size += ctx_.lmem_tensor_to_size(coeff_shape_i8,
-                              args_.tiu_fmt, /*eu_align=*/1);
-  }
-
-  if (do_scale_bias) {
     // 16 bit
     coeff_oc_step_size += ctx_.lmem_tensor_to_size(coeff_shape_i16,
                               args_.tiu_fmt, /*eu_align=*/0);
@@ -3757,11 +3631,10 @@ bool Conv::determineDwTileSize(bool useDoubleBuffer) {
         // Double buffers so that TDMA load and store can run during TIU executes.
         total_needed *= bufferMultiplier;
 
-        // Both prelu and leaky relu need tl_neg, tl_relu.
+        // Leaky relu need tl_neg, tl_relu.
         // tl_relu, tl_neg are not from tmda and not final output.
         // One copy is enough.
-        if (do_activation && ((activation_method == PRELU) ||
-                              (activation_method == RELU && activation_arg && activation_arg[0] != 0.0f))) {
+        if (do_activation && activation_arg && activation_arg[0] != 0.0f) {
           total_needed += 2 * ofmap_size;  // tl_relu + tl_neg
         }
 
@@ -3796,12 +3669,8 @@ void Conv::dwConv() {
   //int groups = args_.groups;
   int output_c = args_.output_c;
   bool do_bias = args_.do_bias;
-  bool do_bn = args_.do_bn;
-  bool do_scale = args_.do_scale;
-  bool do_scale_bias = args_.do_scale_bias;
   bool do_chl_quan = args_.do_chl_quan;
   bool do_activation = args_.do_activation;
-  int activation_method = args_.activation_method;
   float *activation_arg = args_.activation_arg;
   uint16_t kh = args_.kh;
   uint16_t kw = args_.kw;
@@ -3819,19 +3688,11 @@ void Conv::dwConv() {
   gaddr_t ga_ofmap = args_.ga_ofmap;
   gaddr_t ga_weight = args_.ga_weight;
   gaddr_t ga_bias = args_.ga_bias;
-  gaddr_t ga_bn_mean = args_.ga_bn_mean;
-  gaddr_t ga_scale_bias = args_.ga_scale_bias;
-  gaddr_t activation_ga_slope = args_.activation_ga_slope;
-  gaddr_t ga_bn_variance = args_.ga_bn_variance;
-  gaddr_t ga_scale = args_.ga_scale;
-  bool activation_channel_shared = args_.activation_channel_shared;
   int activation_gt_rshift = args_.activation_gt_rshift;
   int activation_gt_scale = args_.activation_gt_scale;
   int activation_le_scale = args_.activation_le_scale;
   int activation_le_rshift = args_.activation_le_rshift;
   int right_shift_width = args_.right_shift_width;
-  int bn_right_shift_width = args_.bn_right_shift_width;
-  int scale_right_shift_width = args_.scale_right_shift_width;
   uint32_t layer_id = args_.layer_id;
 
   int oc = output_c;
@@ -3870,23 +3731,12 @@ void Conv::dwConv() {
   }
 
   bool fused_conv_relu =
-      (!do_scale && !do_bn &&
-       (do_activation && activation_method == RELU && (!activation_arg || (activation_arg[0] == 0.0f))))
-          ? true
-          : false;
-
-  bool fused_conv_bn_relu =
-      (!do_scale && do_bn &&
-       (do_activation && activation_method == RELU && (!activation_arg && (activation_arg[0] == 0.0f))))
+      ((do_activation && (!activation_arg || (activation_arg[0] == 0.0f))))
           ? true
           : false;
 
   cvk_tl_t *tl_weight[2] = {nullptr, nullptr}, *tl_bias[2] = {nullptr, nullptr};
   cvk_tl_t *tl_chl_quan[2] = {nullptr, nullptr};
-  cvk_tl_t *tl_bn_mean[2] = {nullptr, nullptr},
-                          *tl_bn_variance[2] = {nullptr, nullptr};
-  cvk_tl_t *tl_scale[2] = {nullptr, nullptr}, *tl_scale_bias[2] = {nullptr, nullptr};
-  cvk_tl_t *tl_slope[2] = {nullptr, nullptr};
   cvk_tl_t *tl_ifmap[2] = {nullptr};
   cvk_tl_t *tl_ofmap[2] = {nullptr};
   cvk_tl_t *tl_neg = nullptr, *tl_relu = nullptr;
@@ -3935,7 +3785,6 @@ void Conv::dwConv() {
                                       /*eu_align=*/1);
   ASSERT(tl_weight[0] && tl_weight[1] && tl_ifmap[0] && tl_ifmap[1] && tl_ofmap[0] && tl_ofmap[1]);
 
-  cvk_tl_shape_t coeff_shape_i8 = ctx_.shape_t4(1, oc_step, 1, 1);
   cvk_tl_shape_t coeff_shape_i16 = ctx_.shape_t4(2, oc_step, 1, 1);
 
   if (do_chl_quan) {
@@ -3961,47 +3810,13 @@ void Conv::dwConv() {
     ASSERT(tl_bias[0] && tl_bias[1]);
   }
 
-  // Both prelu and leaky relu needs tl_neg, tl_relu.
-  if (do_activation && ((activation_method == PRELU) ||
-                        (activation_method == RELU && activation_arg && activation_arg[0] != 0.0f))) {
+  // Leaky relu needs tl_neg, tl_relu.
+  if (do_activation && activation_arg && activation_arg[0] != 0.0f) {
     tl_neg = ctx_.lmem_alloc_tensor(ctx_.shape_t4(n_step, oc_step, oh_step, ow_step), args_.tiu_fmt,
                                    /*eu_align=*/1);
     tl_relu = ctx_.lmem_alloc_tensor(ctx_.shape_t4(n_step, oc_step, oh_step, ow_step), args_.tiu_fmt,
                                     /*eu_align=*/1);
     ASSERT(tl_neg && tl_relu);
-  }
-
-  // prelu needs extra tl_slope
-  if (do_activation && activation_method == PRELU) {
-    // weight of depthwise conv is aligned
-    tl_slope[0] = ctx_.lmem_alloc_tensor(coeff_shape_i8, args_.tiu_fmt, /*eu_align=*/1);
-    tl_slope[1] = ctx_.lmem_alloc_tensor(coeff_shape_i8, args_.tiu_fmt, /*eu_align=*/1);
-    ASSERT(tl_slope[0] && tl_slope[1]);
-  }
-
-  if (do_bn) {
-    // weight of depthwise conv is aligned
-    tl_bn_variance[0] = ctx_.lmem_alloc_tensor(coeff_shape_i8, args_.tiu_fmt, /*eu_align=*/1);
-    tl_bn_variance[1] = ctx_.lmem_alloc_tensor(coeff_shape_i8, args_.tiu_fmt, /*eu_align=*/1);
-
-    // 16 bit
-    tl_bn_mean[0] = ctx_.lmem_alloc_tensor(coeff_shape_i16, args_.tiu_fmt, /*eu_align=*/0);
-    tl_bn_mean[1] = ctx_.lmem_alloc_tensor(coeff_shape_i16, args_.tiu_fmt, /*eu_align=*/0);
-    ASSERT(tl_bn_variance[0] && tl_bn_variance[1] && tl_bn_mean[0] && tl_bn_mean[1]);
-  }
-
-  if (do_scale) {
-    // weight of depthwise conv is aligned
-    tl_scale[0] = ctx_.lmem_alloc_tensor(coeff_shape_i8, args_.tiu_fmt, /*eu_algn=*/1);
-    tl_scale[1] = ctx_.lmem_alloc_tensor(coeff_shape_i8, args_.tiu_fmt, /*eu_algn=*/1);
-    ASSERT(tl_scale[0] && tl_scale[1]);
-  }
-
-  if (do_scale_bias) {
-    // 16 bit
-    tl_scale_bias[0] = ctx_.lmem_alloc_tensor(coeff_shape_i16, args_.tiu_fmt, /*eu_align=*/0);
-    tl_scale_bias[1] = ctx_.lmem_alloc_tensor(coeff_shape_i16, args_.tiu_fmt, /*eu_align=*/0);
-    ASSERT(tl_scale_bias[0] && tl_scale_bias[1]);
   }
 
   // split groups
@@ -4020,7 +3835,6 @@ void Conv::dwConv() {
       uint64_t coeff_offset = ig * oc + oc_pos;
 
       // Actual shape for tdma, tiu
-      coeff_shape_i8 = ctx_.shape_t4(1, cur_oc, 1, 1);
       coeff_shape_i16 = ctx_.shape_t4(2, cur_oc, 1, 1);
 
       if (do_chl_quan) {
@@ -4063,93 +3877,6 @@ void Conv::dwConv() {
               bias_gstride);
         else {
           assert(0 && "dw-conv bias only support i8/bf16");
-        }
-      }
-
-      if (do_activation && activation_method == PRELU) {
-        // weight of depthwise conv is aligned
-        // bmk does not keep eu-align info, user need to update stride if shape changed
-        tl_slope[coeff_flip]->shape = coeff_shape_i8;
-        tl_slope[coeff_flip]->stride =
-            ctx_.tl_default_stride(tl_slope[coeff_flip]->shape, args_.tiu_fmt, /*eu_align=*/1);
-
-        if (args_.tiu_fmt == CVK_FMT_I8)
-          ctx_.tdma_load(
-              tl_slope[coeff_flip], activation_ga_slope + coeff_offset);
-        else if (args_.tiu_fmt == CVK_FMT_BF16)
-          ctx_.tdma_load_bf16(
-              tl_slope[coeff_flip],
-              activation_ga_slope + coeff_offset * weight_gstride_w);
-        else {
-          assert(0 && "dw-conv prelu only supports i8/bf16");
-        }
-      }
-
-      if (do_bn) {
-        // weight of depthwise conv is aligned
-        // bmk does not keep eu-align info, user need to update stride if shape changed
-        tl_bn_variance[coeff_flip]->shape = coeff_shape_i8;
-        tl_bn_variance[coeff_flip]->stride =
-            ctx_.tl_default_stride(tl_bn_variance[coeff_flip]->shape, args_.tiu_fmt, /*eu_align=*/1);
-
-        if (args_.tiu_fmt == CVK_FMT_I8)
-          ctx_.tdma_load(
-              tl_bn_variance[coeff_flip], ga_bn_variance + coeff_offset);
-        else if (args_.tiu_fmt == CVK_FMT_BF16)
-          ctx_.tdma_load_bf16(
-              tl_bn_variance[coeff_flip],
-              ga_bn_variance + coeff_offset * weight_gstride_w);
-        else {
-          assert(0 && "dw-conv bn only supports i8/bf16");
-        }
-
-        // 16 bit
-        tl_bn_mean[coeff_flip]->shape = coeff_shape_i16;
-        tl_bn_mean[coeff_flip]->stride =
-            ctx_.tl_default_stride(tl_bn_mean[coeff_flip]->shape, args_.tiu_fmt, /*eu_align=*/0);
-        if (args_.tiu_fmt == CVK_FMT_I8)
-          ctx_.tdma_load_stride(
-              tl_bn_mean[coeff_flip], ga_bn_mean + coeff_offset, bias_gstride);
-        else if (args_.tiu_fmt == CVK_FMT_BF16)
-          ctx_.tdma_load_stride_bf16(
-              tl_bn_mean[coeff_flip],
-              ga_bn_mean + coeff_offset * weight_gstride_w, bias_gstride);
-        else {
-          assert(0 && "dw-conv bn-mean only supports i8/bf16");
-        }
-      }
-
-      if (do_scale) {
-        // weight of depthwise conv is aligned
-        // bmk does not keep eu-align info, user need to update stride if shape changed
-        tl_scale[coeff_flip]->shape = coeff_shape_i8;
-        tl_scale[coeff_flip]->stride =
-            ctx_.tl_default_stride(tl_scale[coeff_flip]->shape, args_.tiu_fmt, /*eu_align=*/1);
-        if (args_.tiu_fmt == CVK_FMT_I8)
-          ctx_.tdma_load(tl_scale[coeff_flip], ga_scale + coeff_offset);
-        else if (args_.tiu_fmt == CVK_FMT_BF16)
-          ctx_.tdma_load_bf16(
-              tl_scale[coeff_flip], ga_scale + coeff_offset * weight_gstride_w);
-        else {
-          assert(0 && "dw-conv scale only supports i8/bf16");
-        }
-      }
-
-      if (do_scale_bias) {
-        // 16 bit
-        // bmk does not keep eu-align info, user need to update stride if shape changed
-        tl_scale_bias[coeff_flip]->shape = coeff_shape_i16;
-        tl_scale_bias[coeff_flip]->stride =
-            ctx_.tl_default_stride(tl_scale_bias[coeff_flip]->shape, args_.tiu_fmt, /*eu_align=*/0);
-        if (args_.tiu_fmt == CVK_FMT_I8)
-          ctx_.tdma_load_stride(tl_scale_bias[coeff_flip],
-                              ga_scale_bias + coeff_offset, bias_gstride);
-        else if (args_.tiu_fmt == CVK_FMT_BF16)
-          ctx_.tdma_load_stride_bf16(
-              tl_scale_bias[coeff_flip],
-              ga_scale_bias + coeff_offset * weight_gstride_w, bias_gstride);
-        else {
-          assert(0 && "dw-conv scale-bias only supports i8/bf16");
         }
       }
 
@@ -4366,250 +4093,106 @@ void Conv::dwConv() {
               ctx_.tiu_pt_depthwise_convolution(&param);
             }
 
-            cvk_tiu_depthwise_pt_convolution_param_t param = {0};
-            param.ins_h = 0;
-            param.ins_w = 0;
-            param.ins_last_h = 0;
-            param.ins_last_w = 0;
-            param.pad_top = 0;
-            param.pad_bottom = 0;
-            param.pad_left = 0;
-            param.pad_right = 0;
-            param.stride_h = 1;
-            param.stride_w = 1;
-            param.dilation_h = 1;
-            param.dilation_w = 1;
-            param.relu_enable = 0;
-            param.layer_id = layer_id;
-            if (do_bn) {
-              // out(n,c,h,w) = in(n,c,h,w) * variance(1,c,1,1) + mean(1,c,1,1)
-              param.ofmap = tl_ofmap[flip];
-              param.ifmap = tl_ofmap[flip];
-              param.weight = tl_bn_variance[coeff_flip];
-              param.bias = tl_bn_mean[coeff_flip];
-              param.rshift_bits = bn_right_shift_width;
-              param.relu_enable = fused_conv_bn_relu;
-              ctx_.tiu_pt_depthwise_convolution(&param);
-            }
-            if (do_scale && do_scale_bias) {
-              // computing x * scale + bias
-              param.ofmap = tl_ofmap[flip];
-              param.ifmap = tl_ofmap[flip];
-              param.weight = tl_scale[coeff_flip];
-              param.bias = tl_scale_bias[coeff_flip];
-              param.rshift_bits = scale_right_shift_width;
-              ctx_.tiu_pt_depthwise_convolution(&param);
-            } else if (do_scale) {
-              param.ofmap = tl_ofmap[flip];
-              param.ifmap = tl_ofmap[flip];
-              param.weight = tl_scale[coeff_flip];
-              param.bias = nullptr;
-              param.rshift_bits = scale_right_shift_width;
-              ctx_.tiu_pt_depthwise_convolution(&param);
-            } else if (do_scale_bias) {
-              ASSERT(0);  // TODO(zakk)
-            }
-
             if (do_activation) {
-              switch (activation_method) {
-                case RELU:
-                  if (!activation_arg || activation_arg[0] == 0.0f) {
-                    // relu
-                    if (!fused_conv_relu && !fused_conv_bn_relu) {
-                      // should not come here !
-                      ASSERT(0);
+              if (activation_arg && activation_arg[0] != 0.0f) {
+                // leaky relu
 
-                      cvk_tiu_max_param_t p13 = {0};
-                      p13.max = tl_ofmap[flip];
-                      p13.a = tl_ofmap[flip];
-                      p13.b_is_const = 1;
-                      p13.b_const.is_signed = 1;
-                      p13.b_const.val = 0;
-                      p13.layer_id = layer_id;
-                      ctx_.tiu_max(&p13);
-                    }
-                  } else {
-                    // leaky relu
+                // bmk does not keep eu-align info, user need to update
+                // stride if shape changed
+                tl_relu->shape = tl_ofmap[flip]->shape;
+                tl_relu->stride =
+                    ctx_.tl_default_stride(tl_relu->shape, args_.tiu_fmt,
+                                          /*eu_align=*/1);
 
-                    // bmk does not keep eu-align info, user need to update
-                    // stride if shape changed
-                    tl_relu->shape = tl_ofmap[flip]->shape;
-                    tl_relu->stride =
-                        ctx_.tl_default_stride(tl_relu->shape, args_.tiu_fmt,
-                                              /*eu_align=*/1);
+                tl_neg->shape = tl_ofmap[flip]->shape;
+                tl_neg->stride =
+                    ctx_.tl_default_stride(tl_neg->shape, args_.tiu_fmt,
+                                          /*eu_align=*/1);
 
-                    tl_neg->shape = tl_ofmap[flip]->shape;
-                    tl_neg->stride =
-                        ctx_.tl_default_stride(tl_neg->shape, args_.tiu_fmt,
-                                              /*eu_align=*/1);
+                bool isIgnorePosPart = (activation_gt_scale == 0);
+                bool isSlopeSmallerThanOne = ((activation_le_scale >> activation_le_rshift) == 0);
 
-                    bool isIgnorePosPart = (activation_gt_scale == 0);
-                    bool isSlopeSmallerThanOne = ((activation_le_scale >> activation_le_rshift) == 0);
-
-                    if(isIgnorePosPart) {
-                      cvk_tiu_mul_param_t p4 = {0};
-                      p4.res_high = nullptr;
-                      p4.res_low = tl_relu;
-                      p4.a = tl_ofmap[flip];
-                      p4.b_const.val = activation_le_scale;
-                      p4.b_const.is_signed = true;
-                      p4.b_is_const = 1;
-                      p4.rshift_bits = activation_le_rshift;
-                      p4.layer_id = layer_id;
-                      p4.relu_enable = 0;
-                      ctx_.tiu_mul(&p4);
-
-                      if(isSlopeSmallerThanOne) {
-                        cvk_tiu_max_param_t p1 = {0};
-                        p1.max = tl_ofmap[flip];
-                        p1.a = tl_ofmap[flip];
-                        p1.b = tl_relu;
-                        p1.b_is_const = 0;
-                        p1.layer_id = layer_id;
-                        ctx_.tiu_max(&p1);
-                      } else {
-                        cvk_tiu_min_param_t p1 = {0};
-                        p1.min = tl_ofmap[flip];
-                        p1.a = tl_ofmap[flip];
-                        p1.b = tl_relu;
-                        p1.b_is_const = 0;
-                        p1.layer_id = layer_id;
-                        ctx_.tiu_min(&p1);
-                      }
-                    } else {
-                      cvk_tiu_max_param_t p1 = {0};
-                      p1.max = tl_relu;
-                      p1.a = tl_ofmap[flip];
-                      p1.b_is_const = 1;
-                      p1.b_const.is_signed = 1;
-                      p1.b_const.val = 0;
-                      p1.layer_id = layer_id;
-                      ctx_.tiu_max(&p1);
-
-                      cvk_tiu_mul_param_t p2 = {0};
-                      p2.res_high = nullptr;
-                      p2.res_low = tl_relu;
-                      p2.a = tl_relu;
-                      p2.b_const.val = activation_gt_scale;
-                      p2.b_const.is_signed = true;
-                      p2.b_is_const = 1;
-                      p2.rshift_bits = activation_gt_rshift;
-                      p2.layer_id = layer_id;
-                      p2.relu_enable = 0;
-                      ctx_.tiu_mul(&p2);
-
-                      cvk_tiu_min_param_t p3 = {0};
-                      p3.min = tl_neg;
-                      p3.a = tl_ofmap[flip];
-                      p3.b_is_const = 1;
-                      p3.b_const.val = 0;
-                      p3.b_const.is_signed = 1;
-                      p3.layer_id = layer_id;
-                      ctx_.tiu_min(&p3);
-
-                      cvk_tiu_mul_param_t p4 = {0};
-                      p4.res_high = nullptr;
-                      p4.res_low = tl_neg;
-                      p4.a = tl_neg;
-                      p4.b_const.val = activation_le_scale;
-                      p4.b_const.is_signed = true;
-                      p4.b_is_const = 1;
-                      p4.rshift_bits = activation_le_rshift;
-                      p4.layer_id = layer_id;
-                      p4.relu_enable = 0;
-                      ctx_.tiu_mul(&p4);
-
-                      cvk_tiu_or_int8_param_t p5 = {0};
-                      p5.res = tl_ofmap[flip];
-                      p5.a = tl_relu;
-                      p5.b = tl_neg;
-                      p5.layer_id = layer_id;
-                      ctx_.tiu_or_int8(&p5);
-                    }
-                  }
-                  break;
-                case PRELU: {
-                  ASSERT(!activation_channel_shared);
-
-                  // bmk does not keep eu-align info, user need to update stride
-                  // if shape changed
-                  tl_relu->shape = tl_ofmap[flip]->shape;
-                  tl_relu->stride =
-                      ctx_.tl_default_stride(tl_relu->shape, args_.tiu_fmt,
-                                            /*eu_align=*/1);
-
-                  tl_neg->shape = tl_ofmap[flip]->shape;
-                  tl_neg->stride =
-                      ctx_.tl_default_stride(tl_neg->shape, args_.tiu_fmt,
-                                            /*eu_align=*/1);
-
-                  // 0. relu = relu(tl_ofmap)
-                  // 1. relu = (relu * gt_scale) >> gt_rshift
-                  // 2. neg = neg(0, botom)
-                  // 3. neg (n,c,h,w) = (neg(n,c,h,w) * slope(1,c,1,1)) >> le_rshift
-                  // 4. tl_ofmap = or relu, neg
-                  cvk_tiu_max_param_t p2 = {0};
-                  p2.max = tl_relu;
-                  p2.a = tl_ofmap[flip];
-                  p2.b_is_const = 1;
-                  p2.b_const.is_signed = 1;
-                  p2.b_const.val = 0;
-                  p2.layer_id = layer_id;
-                  ctx_.tiu_max(&p2);
-
-                  cvk_tiu_mul_param_t p3 = {0};
-                  p3.res_high = nullptr;
-                  p3.res_low = tl_relu;
-                  p3.a = tl_relu;
-                  p3.b_const.val = activation_gt_scale;
-                  p3.b_const.is_signed = true;
-                  p3.b_is_const = 1;
-                  p3.rshift_bits = activation_gt_rshift;
-                  p3.layer_id = layer_id;
-                  p3.relu_enable = 0;
-                  ctx_.tiu_mul(&p3);
-
-                  cvk_tiu_min_param_t p4 = {0};
-                  p4.min = tl_neg;
+                if(isIgnorePosPart) {
+                  cvk_tiu_mul_param_t p4 = {0};
+                  p4.res_high = nullptr;
+                  p4.res_low = tl_relu;
                   p4.a = tl_ofmap[flip];
+                  p4.b_const.val = activation_le_scale;
+                  p4.b_const.is_signed = true;
                   p4.b_is_const = 1;
-                  p4.b_const.val = 0;
-                  p4.b_const.is_signed = 1;
+                  p4.rshift_bits = activation_le_rshift;
                   p4.layer_id = layer_id;
-                  ctx_.tiu_min(&p4);
+                  p4.relu_enable = 0;
+                  ctx_.tiu_mul(&p4);
 
-                  cvk_tiu_depthwise_pt_convolution_param_t p5 = {0};
-                  p5.ins_h = 0;
-                  p5.ins_w = 0;
-                  p5.ins_last_h = 0;
-                  p5.ins_last_w = 0;
-                  p5.pad_top = 0;
-                  p5.pad_bottom = 0;
-                  p5.pad_left = 0;
-                  p5.pad_right = 0;
-                  p5.stride_h = 1;
-                  p5.stride_w = 1;
-                  p5.dilation_h = 1;
-                  p5.dilation_w = 1;
-                  p5.ofmap = tl_neg;
-                  p5.ifmap = tl_neg;
-                  p5.weight = tl_slope[coeff_flip];
-                  p5.bias = nullptr;
-                  p5.rshift_bits = activation_le_rshift;
-                  p5.relu_enable = 0;
+                  if(isSlopeSmallerThanOne) {
+                    cvk_tiu_max_param_t p1 = {0};
+                    p1.max = tl_ofmap[flip];
+                    p1.a = tl_ofmap[flip];
+                    p1.b = tl_relu;
+                    p1.b_is_const = 0;
+                    p1.layer_id = layer_id;
+                    ctx_.tiu_max(&p1);
+                  } else {
+                    cvk_tiu_min_param_t p1 = {0};
+                    p1.min = tl_ofmap[flip];
+                    p1.a = tl_ofmap[flip];
+                    p1.b = tl_relu;
+                    p1.b_is_const = 0;
+                    p1.layer_id = layer_id;
+                    ctx_.tiu_min(&p1);
+                  }
+                } else {
+                  cvk_tiu_max_param_t p1 = {0};
+                  p1.max = tl_relu;
+                  p1.a = tl_ofmap[flip];
+                  p1.b_is_const = 1;
+                  p1.b_const.is_signed = 1;
+                  p1.b_const.val = 0;
+                  p1.layer_id = layer_id;
+                  ctx_.tiu_max(&p1);
+
+                  cvk_tiu_mul_param_t p2 = {0};
+                  p2.res_high = nullptr;
+                  p2.res_low = tl_relu;
+                  p2.a = tl_relu;
+                  p2.b_const.val = activation_gt_scale;
+                  p2.b_const.is_signed = true;
+                  p2.b_is_const = 1;
+                  p2.rshift_bits = activation_gt_rshift;
+                  p2.layer_id = layer_id;
+                  p2.relu_enable = 0;
+                  ctx_.tiu_mul(&p2);
+
+                  cvk_tiu_min_param_t p3 = {0};
+                  p3.min = tl_neg;
+                  p3.a = tl_ofmap[flip];
+                  p3.b_is_const = 1;
+                  p3.b_const.val = 0;
+                  p3.b_const.is_signed = 1;
+                  p3.layer_id = layer_id;
+                  ctx_.tiu_min(&p3);
+
+                  cvk_tiu_mul_param_t p4 = {0};
+                  p4.res_high = nullptr;
+                  p4.res_low = tl_neg;
+                  p4.a = tl_neg;
+                  p4.b_const.val = activation_le_scale;
+                  p4.b_const.is_signed = true;
+                  p4.b_is_const = 1;
+                  p4.rshift_bits = activation_le_rshift;
+                  p4.layer_id = layer_id;
+                  p4.relu_enable = 0;
+                  ctx_.tiu_mul(&p4);
+
+                  cvk_tiu_or_int8_param_t p5 = {0};
+                  p5.res = tl_ofmap[flip];
+                  p5.a = tl_relu;
+                  p5.b = tl_neg;
                   p5.layer_id = layer_id;
-                  ctx_.tiu_pt_depthwise_convolution(&p5);
-
-                  cvk_tiu_or_int8_param_t p6 = {0};
-                  p6.res = tl_ofmap[flip];
-                  p6.a = tl_relu;
-                  p6.b = tl_neg;
-                  p6.layer_id = layer_id;
-                  ctx_.tiu_or_int8(&p6);
-                } break;
-                default:
-                  ASSERT(0);
-              }  // switch (activation_method)
+                  ctx_.tiu_or_int8(&p5);
+                }
+              }
             }    // if (do_activation)
 
             ga_ofmap_cur[flip] =
@@ -4670,27 +4253,7 @@ void Conv::dwConv() {
   //
   // Release resource in reverse order
   //
-  if (do_scale_bias) {
-    ctx_.lmem_free_tensor(tl_scale_bias[1]);
-    ctx_.lmem_free_tensor(tl_scale_bias[0]);
-  }
-  if (do_scale) {
-    ctx_.lmem_free_tensor(tl_scale[1]);
-    ctx_.lmem_free_tensor(tl_scale[0]);
-  }
-  if (do_bn) {
-    ctx_.lmem_free_tensor(tl_bn_mean[1]);
-    ctx_.lmem_free_tensor(tl_bn_mean[0]);
-    ctx_.lmem_free_tensor(tl_bn_variance[1]);
-    ctx_.lmem_free_tensor(tl_bn_variance[0]);
-  }
-  if (do_activation && activation_method == PRELU) {
-    ctx_.lmem_free_tensor(tl_slope[1]);
-    ctx_.lmem_free_tensor(tl_slope[0]);
-  }
-  if (do_activation && ((activation_method == PRELU) ||
-                        (activation_method == RELU && activation_arg &&
-                         activation_arg[0] != 0.0f))) {
+  if (do_activation && activation_arg && activation_arg[0] != 0.0f) {
     ctx_.lmem_free_tensor(tl_relu);
     ctx_.lmem_free_tensor(tl_neg);
   }
@@ -4734,12 +4297,8 @@ bool Conv::canNoTile() {
   int groups = args_.groups;
   int output_c = args_.output_c;
   int do_bias = args_.do_bias;
-  int do_bn = args_.do_bn;
-  int do_scale = args_.do_scale;
-  int do_scale_bias = args_.do_scale_bias;
   // bool do_chl_quan = args_.do_chl_quan;
   int do_activation = args_.do_activation;
-  int activation_method = args_.activation_method;
   float *activation_arg = args_.activation_arg;
   uint16_t kh = args_.kh;
   uint16_t kw = args_.kw;
@@ -4769,9 +4328,6 @@ bool Conv::canNoTile() {
   assert(static_cast<uint32_t>(oh) == output_height());
   assert(static_cast<uint32_t>(ow) == output_width());
 
-  cvk_tl_shape_t coeff_shape_i8 = ctx_.shape_t4(1, oc, 1, 1);
-  cvk_tl_shape_t coeff_shape_i16 = ctx_.shape_t4(2, oc, 1, 1);
-
   uint32_t coeff_size = 0;
 
   if (do_bias) {
@@ -4783,35 +4339,6 @@ bool Conv::canNoTile() {
     cvk_tl_shape_t coeff_shape_5byte =
         ctx_.shape_t4(1, oc, 1, 5);
     coeff_size += ctx_.lmem_tensor_to_size(coeff_shape_5byte,
-                      args_.tiu_fmt, /*eu_align=*/0);
-  }
-
-  // prelu needs extra tl_slope compared to leaky relu.
-  if (do_activation && activation_method == PRELU) {
-    // weight of depthwise conv is aligned
-    coeff_size += ctx_.lmem_tensor_to_size(coeff_shape_i8,
-                      args_.tiu_fmt, /*eu_align=*/1);
-  }
-
-  if (do_bn) {
-    // weight of depthwise conv is aligned
-    coeff_size += ctx_.lmem_tensor_to_size(coeff_shape_i8,
-                      args_.tiu_fmt, /*eu_align=*/1);
-
-    // 16 bit
-    coeff_size += ctx_.lmem_tensor_to_size(coeff_shape_i16,
-                      args_.tiu_fmt, /*eu_align=*/0);
-  }
-
-  if (do_scale) {
-    // weight of depthwise conv is aligned
-    coeff_size += ctx_.lmem_tensor_to_size(coeff_shape_i8,
-                      args_.tiu_fmt, /*eu_align=*/1);
-  }
-
-  if (do_scale_bias) {
-    // 16 bit
-    coeff_size += ctx_.lmem_tensor_to_size(coeff_shape_i16,
                       args_.tiu_fmt, /*eu_align=*/0);
   }
 
@@ -4833,11 +4360,9 @@ bool Conv::canNoTile() {
 
   total_needed += coeff_size;
 
-  // Both prelu and leaky relu need tl_neg, tl_relu.
+  // Leaky relu need tl_neg, tl_relu.
   // tl_relu, tl_neg are not from tmda and not final output.
-  if (do_activation && ((activation_method == PRELU) ||
-                        (activation_method == RELU && activation_arg &&
-                         activation_arg[0] != 0.0f))) {
+  if (do_activation && activation_arg && activation_arg[0] != 0.0f) {
     total_needed += 2 * ofmap_size;  // tl_relu + tl_neg
   }
 
@@ -4890,12 +4415,12 @@ void Conv::convNoTile() {
   LLVM_DEBUG(llvm::errs() << llvm::format(
       "    activation_gt_scale = %d, activation_gt_scale = %d\n"
       "    activation_le_rshift = %d, activation_le_scale = %d\n"
-      "    do_scale = %d, do_activation = %d, activation_method %d\n"
+      "    do_activation = %d\n"
       "    do_ic_alignment = %d\n"
       "    store_compr_act %d, load_compr_act %d\n",
       args_.activation_gt_scale, args_.activation_gt_scale,
-      args_.activation_le_rshift, args_.activation_le_scale, args_.do_scale,
-      args_.do_activation, args_.activation_method, args_.do_ic_alignment,
+      args_.activation_le_rshift, args_.activation_le_scale,
+      args_.do_activation, args_.do_ic_alignment,
       args_.store_compr_act, args_.load_compr_act));
 
   allocateAllLocalMem();
@@ -5146,21 +4671,15 @@ void Conv::doConvByTilePolicy() {
 
 void cvi_backend_tg_fixed_conv_kernel(
     const CviBackendContext &ctx, uint32_t layer_id, gaddr_t ga_ifmap,
-    gaddr_t ga_ofmap, gaddr_t ga_weight, gaddr_t ga_bias, gaddr_t ga_bn_mean,
-    gaddr_t ga_bn_variance, gaddr_t ga_scale, gaddr_t ga_scale_bias,
-    int input_n, int input_c, int input_h, int input_w, int groups,
-    int output_c, uint16_t kh, uint16_t kw, uint16_t dilation_h,
-    uint16_t dilation_w, uint8_t pad_top, uint8_t pad_bottom, uint8_t pad_left,
-    uint8_t pad_right, uint8_t insert_h, uint8_t insert_w,
-    uint8_t stride_h, uint8_t stride_w, int do_bias,
-    int do_bn, int do_scale, int do_scale_bias, int do_activation,
-    float bn_scale, float bn_eps, int activation_method,
-    float activation_arg[], gaddr_t activation_ga_slope,
-    bool activation_channel_shared, int activation_gt_scale,
-    int activation_gt_rshift, int activation_le_scale, int activation_le_rshift,
-    int right_shift_width, int bn_right_shift_width,
-    int scale_right_shift_width, bool do_chl_quan, bool do_ic_alignment,
-    bool store_compr_act, bool load_compr_act) {
+    gaddr_t ga_ofmap, gaddr_t ga_weight, gaddr_t ga_bias, int input_n,
+    int input_c, int input_h, int input_w, int groups, int output_c,
+    uint16_t kh, uint16_t kw, uint16_t dilation_h, uint16_t dilation_w,
+    uint8_t pad_top, uint8_t pad_bottom, uint8_t pad_left, uint8_t pad_right,
+    uint8_t insert_h, uint8_t insert_w, uint8_t stride_h, uint8_t stride_w,
+    int do_bias, int do_activation, float activation_arg[],
+    int activation_gt_scale, int activation_gt_rshift, int activation_le_scale,
+    int activation_le_rshift, int right_shift_width, bool do_chl_quan,
+    bool do_ic_alignment, bool store_compr_act, bool load_compr_act) {
   // this message is too long for llvm::format, so seperate it
   LLVM_DEBUG(llvm::errs() << llvm::format(
              "cvi_backend_tg_fixed_conv_kernel:\n"
@@ -5176,11 +4695,11 @@ void cvi_backend_tg_fixed_conv_kernel(
   LLVM_DEBUG(llvm::errs() << llvm::format(
              "    activation_gt_rshift = %d, activation_gt_scale = %d\n"
              "    activation_le_rshift = %d, activation_le_scale = %d\n"
-             "    do_scale = %d, do_activation = %d, activation_method %d\n"
+             "    do_activation = %d\n"
              "    do_ic_alignment = %d\n"
              "    store_compr_act %d, load_compr_act %d\n",
              activation_gt_rshift, activation_gt_scale, activation_le_rshift,
-             activation_le_scale, do_scale, do_activation, activation_method,
+             activation_le_scale, do_activation,
              do_ic_alignment, store_compr_act, load_compr_act));
 
   //
@@ -5192,10 +4711,6 @@ void cvi_backend_tg_fixed_conv_kernel(
   conv->args_.ga_ofmap = ga_ofmap;
   conv->args_.ga_weight = ga_weight;
   conv->args_.ga_bias = ga_bias;
-  conv->args_.ga_bn_mean = ga_bn_mean;
-  conv->args_.ga_bn_variance = ga_bn_variance;
-  conv->args_.ga_scale = ga_scale;
-  conv->args_.ga_scale_bias = ga_scale_bias;
   conv->args_.input_n = input_n;
   conv->args_.input_c = input_c;
   conv->args_.input_h = input_h;
@@ -5215,23 +4730,13 @@ void cvi_backend_tg_fixed_conv_kernel(
   conv->args_.stride_h = stride_h;
   conv->args_.stride_w = stride_w;
   conv->args_.do_bias = static_cast<bool>(do_bias);
-  conv->args_.do_bn = static_cast<bool>(do_bn);
-  conv->args_.do_scale = static_cast<bool>(do_scale);
-  conv->args_.do_scale_bias = static_cast<bool>(do_scale_bias);
   conv->args_.do_activation = static_cast<bool>(do_activation);
-  conv->args_.bn_scale = bn_scale;
-  conv->args_.bn_eps = bn_eps;
-  conv->args_.activation_method = activation_method;
   conv->args_.activation_arg = activation_arg;
-  conv->args_.activation_ga_slope = activation_ga_slope;
-  conv->args_.activation_channel_shared = activation_channel_shared;
   conv->args_.activation_gt_scale = activation_gt_scale;
   conv->args_.activation_gt_rshift = activation_gt_rshift;
   conv->args_.activation_le_scale = activation_le_scale;
   conv->args_.activation_le_rshift = activation_le_rshift;
   conv->args_.right_shift_width = right_shift_width;
-  conv->args_.bn_right_shift_width = bn_right_shift_width;
-  conv->args_.scale_right_shift_width = scale_right_shift_width;
   conv->args_.do_chl_quan = do_chl_quan;
   conv->args_.layer_id = layer_id;
   conv->args_.do_ic_alignment = do_ic_alignment;
@@ -5288,15 +4793,12 @@ void Conv::configCModelDebug() {
 
 void cvi_backend_tg_bf16_conv_kernel(
     const CviBackendContext &ctx, uint32_t layer_id, gaddr_t ga_ifmap,
-    gaddr_t ga_ofmap, gaddr_t ga_weight, gaddr_t ga_bias, gaddr_t ga_bn_mean,
-    gaddr_t ga_bn_variance, gaddr_t ga_scale, gaddr_t ga_scale_bias,
+    gaddr_t ga_ofmap, gaddr_t ga_weight, gaddr_t ga_bias,
     int input_n, int input_c, int input_h, int input_w, int groups,
     int output_c, uint16_t kh, uint16_t kw, uint16_t dilation_h,
     uint16_t dilation_w, uint8_t pad_top, uint8_t pad_bottom, uint8_t pad_left,
     uint8_t pad_right, uint8_t stride_h, uint8_t stride_w, int do_bias,
-    int do_bn, int do_scale, int do_scale_bias, int do_activation,
-    float bn_scale, float bn_eps, int activation_method, float activation_arg[],
-    gaddr_t activation_ga_slope) {
+    int do_activation) {
 
   // this message is too long for llvm::format, so seperate it
   LLVM_DEBUG(llvm::errs() << llvm::format(
@@ -5311,8 +4813,8 @@ void cvi_backend_tg_bf16_conv_kernel(
              dilation_h, dilation_w, pad_top, pad_bottom, pad_left,
              pad_right, stride_h, stride_w));
   LLVM_DEBUG(llvm::errs() << llvm::format(
-             "    do_scale = %d, do_activation = %d, activation_method %d\n",
-             do_scale, do_activation, activation_method));
+             "    do_activation = %d\n",
+             do_activation));
 
   //
   // Convolution initialization
@@ -5323,10 +4825,6 @@ void cvi_backend_tg_bf16_conv_kernel(
   conv->args_.ga_ofmap = ga_ofmap;
   conv->args_.ga_weight = ga_weight;
   conv->args_.ga_bias = ga_bias;
-  conv->args_.ga_bn_mean = ga_bn_mean;
-  conv->args_.ga_bn_variance = ga_bn_variance;
-  conv->args_.ga_scale = ga_scale;
-  conv->args_.ga_scale_bias = ga_scale_bias;
   conv->args_.input_n = input_n;
   conv->args_.input_c = input_c;
   conv->args_.input_h = input_h;
@@ -5346,15 +4844,7 @@ void cvi_backend_tg_bf16_conv_kernel(
   conv->args_.stride_h = stride_h;
   conv->args_.stride_w = stride_w;
   conv->args_.do_bias = static_cast<bool>(do_bias);
-  conv->args_.do_bn = static_cast<bool>(do_bn);
-  conv->args_.do_scale = static_cast<bool>(do_scale);
-  conv->args_.do_scale_bias = static_cast<bool>(do_scale_bias);
   conv->args_.do_activation = static_cast<bool>(do_activation);
-  conv->args_.bn_scale = bn_scale;
-  conv->args_.bn_eps = bn_eps;
-  conv->args_.activation_method = activation_method;
-  conv->args_.activation_arg = activation_arg;
-  conv->args_.activation_ga_slope = activation_ga_slope;
   conv->args_.layer_id = layer_id;
 
   // Mix-precision tdma load/store from dialect

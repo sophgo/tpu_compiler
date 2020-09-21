@@ -464,10 +464,6 @@ LogicalResult tpu::TG_INT8_PT_Conv2DOp::codegen(void *ctx) {
       ga_output, // output_data_gaddr,
       ga_filter, // weight_data_gaddr,
       ga_bias,   // bias_data_gaddr,
-      GA_INVALID, // bn_mean_data_gaddr,
-      GA_INVALID, // bn_variance_data_gaddr,
-      GA_INVALID, // scale_gaddr,
-      GA_INVALID, // scale_bias_gaddr,
       n, ic, ih, iw,
       g, // group,
       oc,
@@ -477,23 +473,13 @@ LogicalResult tpu::TG_INT8_PT_Conv2DOp::codegen(void *ctx) {
       0, 0, //ins_h, ins_w
       sh, sw,
       with_bias, // bias_term,
-      0,         // do_bn,
-      0,         // do_scale,
-      0,         // do_scale_bias,
       do_relu ? 1 : 0, // do_activation,
-      1.0f,      // bn_scale,
-      1e-5,      // eps,
-      0,         // param.activation(), method, 0 -> RELU, all others are invalide for now
       do_relu ? & fused_negative_slope : nullptr,   // activation_arg,
-      GA_INVALID, //global_slope_gaddr,
-      false,     //channel_shared,
       fused_leakyrelu_pos_m_i8,           // activation_gt_scale,
       fused_leakyrelu_pos_rshift,         // activation_gt_rshift,
       fused_leakyrelu_neg_m_i8,           // activation_le_scale,
       fused_leakyrelu_neg_rshift,         // activation_le_rshift,
       (int)rshift, // right_shift_width,
-      0,         //bn_right_shift_width,
-      0,         //scale_right_shift_width,
       false,     // do_chl_quan
       do_ic_alignment,
       false,     // store_compr_act
@@ -558,10 +544,6 @@ LogicalResult tpu::TG_INT8_PC_Conv2DOp::codegen(void *ctx) {
       ga_output,  // output_data_gaddr,
       ga_filter,  // weight_data_gaddr,
       ga_pc_info, // bias_data_gaddr,
-      GA_INVALID, // bn_mean_data_gaddr,
-      GA_INVALID, // bn_variance_data_gaddr,
-      GA_INVALID, // scale_gaddr,
-      GA_INVALID, // scale_bias_gaddr,
       n, ic, ih, iw,
       g, // group,
       oc,
@@ -571,23 +553,13 @@ LogicalResult tpu::TG_INT8_PC_Conv2DOp::codegen(void *ctx) {
       0, 0, //ins_h, ins_w
       sh, sw,
       with_bias, // bias_term,
-      0,         // do_bn,
-      0,         // do_scale,
-      0,         // do_scale_bias,
       do_relu ? 1 : 0, // do_activation,
-      1.0f,      // bn_scale,
-      1e-5,      // eps,
-      0,         // param.activation(), method, 0 -> RELU, all others are invalide for now
       do_relu ? & fused_negative_slope : nullptr,   // activation_arg,
-      GA_INVALID, // global_slope_gaddr,
-      false,     // channel_shared,
       fused_leakyrelu_pos_m_i8,           // activation_gt_scale,
       fused_leakyrelu_pos_rshift,         // activation_gt_rshift,
       fused_leakyrelu_neg_m_i8,           // activation_le_scale,
       fused_leakyrelu_neg_rshift,         // activation_le_rshift,
       0,         // (int)rshift[0], //right_shift_width,
-      0,         // bn_right_shift_width,
-      0,         // scale_right_shift_width,
       true,      // do_chl_quan
       do_ic_alignment,
       storeComprAct,
@@ -626,10 +598,6 @@ LogicalResult tpu::TG_BF16_Conv2DOp::codegen(void *ctx) {
       ga_output,
       ga_filter,
       ga_bias,
-      GA_INVALID, // ga_bn_mean
-      GA_INVALID, // ga_bn_variance
-      GA_INVALID, // ga_scale
-      GA_INVALID, // ga_scale_bias
       n, ic, ih, iw,
       g, // group
       oc,
@@ -638,15 +606,7 @@ LogicalResult tpu::TG_BF16_Conv2DOp::codegen(void *ctx) {
       pt, pb, pl, pr, // pad (t, b, l, r)
       sh, sw,
       with_bias,
-      0,         // do_bn
-      0,         // do_scale
-      0,         // do_scale_bias
-      do_relu ? 1 : 0,
-      1.0f,      // bn_scale
-      1e-5,      // eps
-      0,         // param.activation(), method, 0 -> RELU, all others are invalid for now
-      nullptr,   // activation_arg,
-      GA_INVALID //global_slope_gaddr
+      do_relu ? 1 : 0
       );
 
   return success();
@@ -703,10 +663,6 @@ LogicalResult tpu::TG_INT8_PC_DeConv2DOp::codegen(void *ctx) {
       ga_output,  // output_data_gaddr,
       ga_filter,  // weight_data_gaddr,
       ga_pc_info, // bias_data_gaddr,
-      GA_INVALID, // bn_mean_data_gaddr,
-      GA_INVALID, // bn_variance_data_gaddr,
-      GA_INVALID, // scale_gaddr,
-      GA_INVALID, // scale_bias_gaddr,
       n, ic, ih, iw,
       g, // group,
       oc,
@@ -716,23 +672,13 @@ LogicalResult tpu::TG_INT8_PC_DeConv2DOp::codegen(void *ctx) {
       ins_h, ins_w,
       stride_h, stride_w,
       with_bias, // bias_term,
-      0,         // do_bn,
-      0,         // do_scale,
-      0,         // do_scale_bias,
       do_relu ? 1 : 0, // do_activation,
-      0,         // bn_scale,
-      0,         // eps,
-      0,         // param.activation(), method, 0 -> RELU, all others are invalide for now
       nullptr,   // activation_arg,
-      GA_INVALID, // global_slope_gaddr,
-      false,     // channel_shared,
       0,         // activation_gt_scale,
       0,         // activation_gt_rshift,
       0,         // activation_le_scale,
       0,         // activation_le_rshift,
       0,         // (int)rshift[0], //right_shift_width,
-      0,         // bn_right_shift_width,
-      0,         // scale_right_shift_width,
       do_chl_quan,      // do_chl_quan
       false,
       false,
