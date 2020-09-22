@@ -139,6 +139,7 @@ class TPU_TG_ConvOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     DefaultValuedAttr<BoolAttr, "false">:$do_leaky_relu,
     OptionalAttr<BoolAttr>:$load_compr_act,
     OptionalAttr<BoolAttr>:$store_compr_act,
+    OptionalAttr<TPU_ConvTileParamAttr>:$tile_param,
     OptionalAttr<StrAttr>:$chipname
   );
 

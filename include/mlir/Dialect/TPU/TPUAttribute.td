@@ -213,4 +213,19 @@ def TPU_FcTileParamAttr : StructAttr<"FcTileParam", TPU_Dialect, [
   let description = "Structure of tile parameters for fc op";
 }
 
+//===----------------------------------------------------------------------===//
+// Convolution tile parameters structure.
+//===----------------------------------------------------------------------===//
+def TPU_ConvTileParamAttr : StructAttr<"ConvTileParam", TPU_Dialect, [
+    StructFieldAttr<"n_step", I32Attr>,
+    StructFieldAttr<"oc_step", I32Attr>,
+    StructFieldAttr<"oh_step", I32Attr>,
+    StructFieldAttr<"ow_step", I32Attr>,
+    StructFieldAttr<"ih_step", I32Attr>,
+    StructFieldAttr<"iw_step", I32Attr>,
+    StructFieldAttr<"ic_step", I32Attr>,
+    StructFieldAttr<"use_double_buffer", BoolAttr>]> {
+  let description = "Structure of tile parameters for conv op";
+}
+
 #endif // TPU_ATTRIBUTE
