@@ -21,9 +21,9 @@ typedef struct {
   uint64_t output_offset;
 } EltwiseTile;
 
-class TgInt8EltwiseKernel {
+class TgEltwiseKernel {
 public:
-  TgInt8EltwiseKernel(const CviBackendContext &ctx)
+  TgEltwiseKernel(const CviBackendContext &ctx)
     : ctx(ctx) {}
 
   void init(uint32_t layer_id,
@@ -34,6 +34,14 @@ public:
     int32_t stride_w, int32_t rshift,
     const int32_t *multipliers,
     const int32_t *coeffs);
+
+  void init(uint32_t layer_id,
+    gaddr_t ga_inputs[], gaddr_t ga_output,
+    int32_t operand_num, int32_t n, int32_t c,
+    int32_t h, int32_t w, bool do_relu,
+    bool do_early_stride, int32_t stride_h,
+    int32_t stride_w,
+    const float *coeffs);
 
   void selectTilePolicy();
   void schedule();
@@ -70,8 +78,10 @@ protected:
   int32_t rshift;
   const int32_t *multipliers;
   const int32_t *coeffs;
+  const float *coeffs_float;
   int32_t layer_id;
   bool do_relu;
+  cvk_fmt_t fmt;
 
   int32_t input_flip = 0;
   int32_t output_flip = 0;
@@ -79,37 +89,82 @@ protected:
   std::vector<EltwiseTile> tiles;
 };
 
-class TgInt8EltwiseAddKernel : public TgInt8EltwiseKernel {
+class TgInt8EltwiseAddKernel : public TgEltwiseKernel {
 public:
   TgInt8EltwiseAddKernel(const CviBackendContext &ctx)
-    : TgInt8EltwiseKernel(ctx) {}
+    : TgEltwiseKernel(ctx) {}
 
 protected:
   void compute(int32_t step_idx);
 };
 
-class TgInt8EltwiseMaxKernel : public TgInt8EltwiseKernel {
+class TgInt8EltwiseMaxKernel : public TgEltwiseKernel {
 public:
   TgInt8EltwiseMaxKernel(const CviBackendContext &ctx)
-    : TgInt8EltwiseKernel(ctx) {}
+    : TgEltwiseKernel(ctx) {}
 
 protected:
   void compute(int32_t step_idx);
 };
 
-class TgInt8EltwiseMinKernel : public TgInt8EltwiseKernel {
+class TgInt8EltwiseMinKernel : public TgEltwiseKernel {
 public:
   TgInt8EltwiseMinKernel(const CviBackendContext &ctx)
-    : TgInt8EltwiseKernel(ctx) {}
+    : TgEltwiseKernel(ctx) {}
 
 protected:
   void compute(int32_t step_idx);
 };
 
-class TgInt8EltwiseMulKernel : public TgInt8EltwiseKernel {
+class TgInt8EltwiseMulKernel : public TgEltwiseKernel {
 public:
   TgInt8EltwiseMulKernel(const CviBackendContext &ctx)
-    : TgInt8EltwiseKernel(ctx) {}
+    : TgEltwiseKernel(ctx) {}
+
+protected:
+  void compute(int32_t step_idx);
+};
+
+class TgBf16EltwiseAddKernel : public TgEltwiseKernel {
+public:
+  TgBf16EltwiseAddKernel(const CviBackendContext &ctx)
+    : TgEltwiseKernel(ctx) {}
+
+protected:
+  void compute(int32_t step_idx);
+};
+
+class TgBf16EltwiseMaxKernel : public TgEltwiseKernel {
+public:
+  TgBf16EltwiseMaxKernel(const CviBackendContext &ctx)
+    : TgEltwiseKernel(ctx) {}
+
+protected:
+  void compute(int32_t step_idx);
+};
+
+class TgBf16EltwiseMinKernel : public TgEltwiseKernel {
+public:
+  TgBf16EltwiseMinKernel(const CviBackendContext &ctx)
+    : TgEltwiseKernel(ctx) {}
+
+protected:
+  void compute(int32_t step_idx);
+};
+
+class TgBf16EltwiseMulKernel : public TgEltwiseKernel {
+public:
+  TgBf16EltwiseMulKernel(const CviBackendContext &ctx)
+    : TgEltwiseKernel(ctx) {}
+
+protected:
+  void compute(int32_t step_idx);
+};
+
+class TgBf16EltwiseMinMaxKernel : public TgEltwiseKernel {
+public:
+  TgBf16EltwiseMinMaxKernel(const CviBackendContext &ctx)
+    : TgEltwiseKernel(ctx) {}
 
 protected:
   void compute(int32_t step_idx);

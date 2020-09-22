@@ -262,14 +262,6 @@ void cvi_backend_tg_bf16_concat_kernel(
     int input_num, int concat_axis, int output_dim_size, int *output_dim,
     bool do_relu, const int need_quantize_num, const int *threshold_x_quantized);
 
-void cvi_backend_tg_bf16_eltwise_kernel(
-    const CviBackendContext &ctx, uint32_t layer_id,
-    gaddr_t ga_input[], gaddr_t ga_output, int input_size, int op,
-    int input_n, int input_c, int input_h, int input_w,
-    bool do_relu, float relu_slope,
-    bool do_early_stride, int stride_h, int stride_w,
-    const float coeffs[]);
-
 void cvi_backend_tg_bf16_pooling_kernel(
     const CviBackendContext &ctx, uint32_t layer_id,
     gaddr_t ifmap_gaddr, gaddr_t ofmap_gaddr, gaddr_t index_gaddr,
@@ -370,6 +362,46 @@ void cvi_backend_tg_bf16_softmax_kernel(
     gaddr_t ga_reciprocal_table_data_lut, gaddr_t ga_reciprocal_table_mantissa_data_lut,
     gaddr_t ga_output,
     int64_t* shape, int axis, int dimension);
+
+void cvi_backend_tg_bf16_eltwise_add_kernel(
+    const CviBackendContext &ctx, uint32_t layer_id,
+    gaddr_t ga_inputs[], gaddr_t ga_output,
+    int32_t operand_num, int32_t n, int32_t c,
+    int32_t h, int32_t w, bool do_relu, bool do_early_stride,
+    int32_t stride_h, int32_t stride_w,
+    const float *coeffs);
+
+void cvi_backend_tg_bf16_eltwise_max_kernel(
+    const CviBackendContext &ctx, uint32_t layer_id,
+    gaddr_t ga_inputs[], gaddr_t ga_output,
+    int32_t operand_num, int32_t n, int32_t c,
+    int32_t h, int32_t w, bool do_relu, bool do_early_stride,
+    int32_t stride_h, int32_t stride_w,
+    const float *coeffs);
+
+void cvi_backend_tg_bf16_eltwise_min_kernel(
+    const CviBackendContext &ctx, uint32_t layer_id,
+    gaddr_t ga_inputs[], gaddr_t ga_output,
+    int32_t operand_num, int32_t n, int32_t c,
+    int32_t h, int32_t w, bool do_relu, bool do_early_stride,
+    int32_t stride_h, int32_t stride_w,
+    const float *coeffs);
+
+void cvi_backend_tg_bf16_eltwise_mul_kernel(
+    const CviBackendContext &ctx, uint32_t layer_id,
+    gaddr_t ga_inputs[], gaddr_t ga_output,
+    int32_t operand_num, int32_t n, int32_t c,
+    int32_t h, int32_t w, bool do_relu, bool do_early_stride,
+    int32_t stride_h, int32_t stride_w,
+    const float *coeffs);
+
+void cvi_backend_tg_bf16_eltwise_min_max_kernel(
+    const CviBackendContext &ctx, uint32_t layer_id,
+    gaddr_t ga_inputs[], gaddr_t ga_output,
+    int32_t operand_num, int32_t n, int32_t c,
+    int32_t h, int32_t w, bool do_relu, bool do_early_stride,
+    int32_t stride_h, int32_t stride_w,
+    const float *coeffs);
 
 
 ////////////// fixed & bf16 kernel api ////////////////

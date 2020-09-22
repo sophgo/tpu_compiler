@@ -1071,16 +1071,14 @@ LogicalResult tpu::TG_BF16_EltwiseAddOp::codegen(void *ctx) {
   // only need two coeff now, here just for safety coding
   std::vector<float> coeffs(input_number, 1.0f);
 
-  cvi_backend_tg_bf16_eltwise_kernel(
+  cvi_backend_tg_bf16_eltwise_add_kernel(
       *backend_ctx,
       layer_id,     // layer_id
       ga_inputs,    // gaddr_t ga_input[]
       ga_output,    // gaddr_t ga_output
       input_number,            // int input_size
-      1,            // int op, 0: prod, 1: sum, 2: max
       n, c, h, w,
       do_relu,      // bool do_relu
-      0.0f,         // float relu_slope
       do_early_stride, early_stride_h, early_stride_w,
       coeffs.data());
 
@@ -1132,16 +1130,14 @@ LogicalResult tpu::TG_BF16_EltwiseMulOp::codegen(void *ctx) {
 
   const float coeffs[2] = {1.0, 1.0};
 
-  cvi_backend_tg_bf16_eltwise_kernel(
+  cvi_backend_tg_bf16_eltwise_mul_kernel(
       *backend_ctx,
       layer_id,     // layer_id
       ga_inputs,    // gaddr_t ga_input[]
       ga_output,    // gaddr_t ga_output
       2,            // int input_size
-      0,            // int op, 0: prod, 1: sum, 2: max
       n, c, h, w,
       do_relu,      // bool do_relu
-      0.0f,         // float relu_slope
       false, 1, 1,
       coeffs);
 
@@ -2569,49 +2565,43 @@ LogicalResult tpu::TG_BF16_ClipOp::codegen(void *ctx) {
   // leverage min/max op rather than clip
   // FIXME: using EltwiseMaxOp/EltwiseMinOp
 
-  // op definition refer to \bf16_eltwise_kernel.cpp
+  // op definition refer to \TgFixedEltwiseKernel.cpp
   if (0) {
     coeffs[0] = {max};
-    cvi_backend_tg_bf16_eltwise_kernel(
+    cvi_backend_tg_bf16_eltwise_max_kernel(
         *backend_ctx,
         layer_id,     // layer_id
         ga_inputs,    // gaddr_t ga_input[]
         output_gaddr,    // gaddr_t ga_output
         1,            // int input_size
-        2,            // int op, 0: prod, 1: sum, 2: max
         n, c, h, w,
         do_relu,      // bool do_relu
-        0.0f,         // float relu_slope
         false, 0, 0,
         coeffs);
 
     coeffs[0] = {min};
-    cvi_backend_tg_bf16_eltwise_kernel(
+    cvi_backend_tg_bf16_eltwise_min_kernel(
         *backend_ctx,
         layer_id,     // layer_id
         ga_inputs,    // gaddr_t ga_input[]
         output_gaddr,    // gaddr_t ga_output
         1,            // int input_size
-        3,            // int op, 0: prod, 1: sum, 2: max, 3: min
         n, c, h, w,
         do_relu,      // bool do_relu
-        0.0f,         // float relu_slope
         false, 0, 0,
         coeffs);
   }
   else {
     coeffs[0] = {max};
     coeffs[1] = {min};
-    cvi_backend_tg_bf16_eltwise_kernel(
+    cvi_backend_tg_bf16_eltwise_min_max_kernel(
         *backend_ctx,
         layer_id,     // layer_id
         ga_inputs,    // gaddr_t ga_input[]
         output_gaddr,    // gaddr_t ga_output
         1,            // int input_size
-        4,            // int op, 0: prod, 1: sum, 2: max, 3: min, 4:max_min
         n, c, h, w,
         do_relu,      // bool do_relu
-        0.0f,         // float relu_slope
         false, 0, 0,
         coeffs);
   }
