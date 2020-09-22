@@ -362,25 +362,26 @@ class TFLiteConverter(BaseConverter):
         output_shape = input_shape1
 
         add_tensor = self.tflite_graph.Tensors(node.outputs)
+        tensor_attr = self.getTensorAttr(add_tensor)
+        threshold = tensor_attr['threshold']
+        add_name = tensor_attr['name']
+        tensor_shape = tensor_attr['shape'].tolist()
+        tensor_shape = [tensor_shape[i] for i in [0,3,1,2]] # nhwc -> nchw
 
-        # get quantization attr
-        add_quant_attr = add_tensor.Quantization()
-        add_quant_max = add_quant_attr.MaxAsNumpy()
-        add_quant_min = add_quant_attr.MinAsNumpy()
-        threshold = max(abs(add_quant_max[0]), abs(add_quant_min[0]))
-        self.quantization_attr[node.outputs] = threshold
+        self.quantization_attr[add_name] = threshold
 
         op_build_info = node.proto.BuiltinOptions()
         # Parse the Table of options.
         add_table = AddOptions()
         add_table.Init(op_build_info.Bytes, op_build_info.Pos)
 
-        add_op = self.CVI.add_eltwise_add_op("{}".format(node.name), operands, output_shape)
+        add_op = self.CVI.add_eltwise_add_op(node.name, operands, output_shape)
+        assert(tensor_shape[1:] == output_shape[1:])
         if add_table.FusedActivationFunction() == ActivationFunctionType.RELU:
             # DO relu
             relu_op = self.CVI.add_relu_op(
-                "{}_relu".format(node.name), [add_op], output_shape)
-            self.quantization_attr["{}_relu".format(node.name)] = threshold
+                "{}_relu".format(add_name), [add_op], output_shape)
+            self.quantization_attr["{}_relu".format(add_name)] = threshold
             self.addOperand(node.name, relu_op, output_shape,
                             TensorType.ACTIVATION)
         else:
@@ -390,8 +391,15 @@ class TFLiteConverter(BaseConverter):
     def convert_avg_pool_op(self, node):
         assert(node.op_type == "AVERAGE_POOL_2D")
         op, input_shape, _ = self.getOperand(str(node.inputs[0]))
-        operands = list()
-        operands.append(op)
+
+        avg_tensor = self.tflite_graph.Tensors(node.outputs)
+        tensor_attr = self.getTensorAttr(avg_tensor)
+        threshold = tensor_attr['threshold']
+        avg_name = tensor_attr['name']
+        tensor_shape = tensor_attr['shape'].tolist()
+        tensor_shape = [tensor_shape[i] for i in [0, 3, 1, 2]]  # nhwc -> nchw
+        self.quantization_attr[avg_name] = threshold
+
         on = input_shape[0]
         oc = input_shape[1]
         op_build_info = node.proto.BuiltinOptions()
@@ -409,8 +417,7 @@ class TFLiteConverter(BaseConverter):
             'do_relu': False,
         }
         output_shape = [int(on), int(oc), 1, 1]
-        pool_avg_op = self.CVI.add_pool_avg_2d_op("{}".format(
-            node.name, node.op_type), operands, output_shape, **pool_avg_2d_param)
+        pool_avg_op = self.CVI.add_pool_avg_2d_op(avg_name, [op], output_shape, **pool_avg_2d_param)
         self.addOperand(node.name, pool_avg_op,
                         output_shape, TensorType.ACTIVATION)
 
@@ -569,9 +576,16 @@ class TFLiteConverter(BaseConverter):
         op1, input_shape1, _ = self.getOperand(str(node.inputs[0]))
         op2, input_shape2, _ = self.getOperand(str(node.inputs[1]))
         assert(len(input_shape1) == 4 and len(input_shape2) == 4)
-        operands = list()
-        operands.append(op1)
-        operands.append(op2)
+
+        concat_tensor = self.tflite_graph.Tensors(node.outputs)
+        tensor_attr = self.getTensorAttr(concat_tensor)
+        threshold = tensor_attr['threshold']
+        conv_name = tensor_attr['name']
+        tensor_shape = tensor_attr['shape'].tolist()
+        tensor_shape = [tensor_shape[i] for i in [0, 3, 1, 2]]  # nhwc -> nchw
+
+        self.quantization_attr[conv_name] = threshold
+
         op_build_info = node.proto.BuiltinOptions()
         concat_table = ConcatenationOptions()
         concat_table.Init(op_build_info.Bytes, op_build_info.Pos)
@@ -579,16 +593,6 @@ class TFLiteConverter(BaseConverter):
         axis = concat_table.Axis()
         if(axis == -1 or axis == 3):
             axis = 1 # in tflite is nhwc, but in mlir is nchw
-
-
-        concat_tensor = self.tflite_graph.Tensors(node.outputs)
-
-        # get quantization attr
-        concat_quant_attr = concat_tensor.Quantization()
-        concat_quant_max = concat_quant_attr.MaxAsNumpy()
-        concat_quant_min = concat_quant_attr.MinAsNumpy()
-        threshold = max(abs(concat_quant_max[0]), abs(concat_quant_min[0]))
-        self.quantization_attr[node.outputs] = threshold
 
         output_shape = list()
 
@@ -604,8 +608,8 @@ class TFLiteConverter(BaseConverter):
                         if output_shape[dim] != value:
                             raise ValueError("axis is {}, {} v.s {} shape can not be concat".format(
                                 axis, output_shape, op_shape))
-
-        concat_op = self.CVI.add_concat_op(node.name, operands, output_shape, axis=axis)
+        assert(tensor_shape[1:] == output_shape[1:])
+        concat_op = self.CVI.add_concat_op(node.name, [op1, op2], output_shape, axis=axis)
         self.addOperand(node.name, concat_op, output_shape,
                         TensorType.ACTIVATION)
 
@@ -665,6 +669,7 @@ class TFLiteConverter(BaseConverter):
             padding_data = input_tensor.tensor_data
         except KeyError as k:
             # Not padding op
+            print(k)
             pass
         stride_h = depthwise_conv_table.StrideH()
         stride_w = depthwise_conv_table.StrideW()
