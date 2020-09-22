@@ -231,6 +231,35 @@ class TFLiteConverter(BaseConverter):
         else:
             return find_tensor[0]
 
+    def getTensorAttr(self, tensor):
+        if not isinstance(tensor, TFL_TENSOR):
+            raise RuntimeError("Tensor is wrong type")
+        quant_attr = tensor.Quantization()
+        tensor_name = tensor.Name().decode('utf-8')
+        tensor_type = tensor.Type()
+        tensor_shpae = tensor.ShapeAsNumpy()
+        quant_max = quant_attr.MaxAsNumpy()
+        quant_min = quant_attr.MinAsNumpy()
+        scale = quant_attr.ScaleAsNumpy()
+        zero_point = quant_attr.ZeroPointAsNumpy()
+        quant_dim = quant_attr.QuantizedDimension()
+        if(not isinstance(quant_max, int) and not isinstance(quant_max, int)):
+            threshold = max(abs(quant_max[0]), abs(quant_min[0]))
+        else:
+            threshold = 0
+
+        return {
+            "name": tensor_name,
+            "quant_max": quant_max,
+            "quant_min": quant_min,
+            "scale": scale,
+            "zero_point": zero_point,
+            "quant_dim": quant_dim,
+            "threshold": threshold,
+            "type": tensor_type,
+            "shape": tensor_shpae,
+        }
+
     def createLoadWeightOp(self, tensor_idx, tensor_name, data_type=np.float32):
         shape, data = self.get_tensor_shape_and_data(tensor_idx, data_type)
         self.addTensor(tensor_name, data, shape, None)
@@ -393,34 +422,35 @@ class TFLiteConverter(BaseConverter):
         operands = [op]
 
         conv_tensor = self.tflite_graph.Tensors(node.outputs)
-        conv_name = conv_tensor.Name().decode('utf-8')
-        # get quantization attr
-        conv_quant_attr = conv_tensor.Quantization()
-        conv_quant_max = conv_quant_attr.MaxAsNumpy()
-        conv_quant_min = conv_quant_attr.MinAsNumpy()
-        threshold = max(abs(conv_quant_max[0]), abs(conv_quant_min[0]))
-        self.quantization_attr[node.outputs] = threshold
+        tensor_attr = self.getTensorAttr(conv_tensor)
+        threshold = tensor_attr['threshold']
+        conv_name = tensor_attr['name']
+        tensor_shape = tensor_attr['shape'].tolist()
+        tensor_shape = [tensor_shape[i] for i in [0,3,1,2]] # nhwc -> nchw
 
+        self.quantization_attr[conv_name] = threshold
 
         # filter
         filter_tensor_idx = node.inputs[1]
         filter_tensor = self.tflite_graph.Tensors(filter_tensor_idx)
-        filter_type = filter_tensor.Type()
-        filter_name = filter_tensor.Name().decode('utf-8')
-        filter_shape = filter_tensor.ShapeAsNumpy()
+        filter_attr = self.getTensorAttr(filter_tensor)
+        filter_type = filter_attr['type']
+        filter_name = filter_attr['name']
+        filter_shape = filter_attr['shape']
         make_sure_type(filter_type, TFL_TENSORTYPE.INT8)
         # get quant info
-        filter_quatization_attr = filter_tensor.Quantization()
-        filter_scale = filter_quatization_attr.ScaleAsNumpy()
+        filter_scale = filter_attr['scale']
 
         if len(filter_scale) != filter_shape[0]: # perchannel
             raise RuntimeError(
                 "{} filter_scale size is not match filter_shape channel ({})".format(len(filter_scale), filter_shape))
+
         # get filter data
         filter_data = self.get_tflite_tensor_data(
             filter_tensor)
         filter_data = np.frombuffer(filter_data.tobytes(), dtype=np.int8)
         filter_data = filter_data.reshape(tuple(filter_shape))
+
         # dequant
         filter_scale = filter_scale[:, np.newaxis, np.newaxis, np.newaxis]
         filter_data = filter_data.astype(np.float32) * filter_scale
@@ -439,17 +469,18 @@ class TFLiteConverter(BaseConverter):
         if do_bias:
             bias_tensor_idx = node.inputs[2]
             bias_tensor = self.tflite_graph.Tensors(bias_tensor_idx)
-            bias_type = bias_tensor.Type()
-            bias_name = bias_tensor.Name().decode('utf-8')
-            bias_shape = bias_tensor.ShapeAsNumpy()
+            bias_attr = self.getTensorAttr(bias_tensor)
+            bias_type = bias_attr['type']
+            bias_name = bias_attr['name']
+            bias_shape = bias_attr['shape']
+
             make_sure_type(bias_type, TFL_TENSORTYPE.INT32)  # bias is int32
-            # get quant info
-            bias_quatization_attr = bias_tensor.Quantization()
-            bias_scale = bias_quatization_attr.ScaleAsNumpy()
+            bias_scale = bias_attr['scale']
 
             if len(bias_scale) != bias_shape[0]:
                 raise RuntimeError(
                     "{} scale_scale size is not match bias_shape channel ({})".format(len(bias_scale), bias_shape))
+
             # get bias data
             bias_data = self.get_tflite_tensor_data(
                 bias_tensor)
@@ -468,15 +499,13 @@ class TFLiteConverter(BaseConverter):
         conv_table = Conv2DOptions()
         conv_table.Init(op_build_info.Bytes, op_build_info.Pos)
 
-        quantizaion_parameter_option = QuantizationParameters()
-        quantizaion_parameter_option.Init(
-            op_build_info.Bytes, op_build_info.Pos)
-
-
         stride_h = conv_table.StrideH()
         stride_w = conv_table.StrideW()
+        dilation_h = conv_table.DilationHFactor()
+        dilation_w = conv_table.DilationWFactor()
+        padding = conv_table.Padding()
 
-        if conv_table.Padding() == Padding.SAME:
+        if padding == Padding.SAME:
             padding_along_h = get_TF_SAME_Padding(shape[2], filter_shape[2], stride_h)
             padding_along_w = get_TF_SAME_Padding(shape[3], filter_shape[3], stride_w)
             padding_t = padding_along_h // 2
@@ -492,9 +521,9 @@ class TFLiteConverter(BaseConverter):
         conv_param = {
             'stride_h': stride_h,
             'stride_w': stride_w,
-            'padding': "SAME" if conv_table.Padding() == Padding.SAME else "VALID",
-            'dilation_h': conv_table.DilationHFactor(),
-            'dilation_w': conv_table.DilationWFactor(),
+            'padding': "SAME" if padding == Padding.SAME else "VALID",
+            'dilation_h': dilation_h,
+            'dilation_w': dilation_w,
             'padding_t': int(padding_t),
             'padding_b': int(padding_b),
             'padding_l': int(padding_l),
@@ -525,11 +554,12 @@ class TFLiteConverter(BaseConverter):
         )
 
         output_shape = [on, oc, oh, ow]
-        conv_op = self.CVI.add_conv_op("{}".format(
-            node.name), operands, output_shape, **conv_param)
+        assert(tensor_shape[1:] == output_shape[1:])
+        conv_op = self.CVI.add_conv_op(
+            conv_name, operands, output_shape, **conv_param)
 
-        conv_op = self.add_activation_op("{}".format(
-            node.name), conv_op, output_shape, conv_table.FusedActivationFunction(), threshold=threshold)
+        conv_op = self.add_activation_op(
+            conv_name, conv_op, output_shape, conv_table.FusedActivationFunction(), threshold=threshold)
 
         self.addOperand(node.name, conv_op, output_shape,
                         TensorType.ACTIVATION)
