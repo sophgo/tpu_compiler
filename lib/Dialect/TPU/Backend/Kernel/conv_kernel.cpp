@@ -2944,7 +2944,7 @@ bool Conv::determineTileSize(bool useDoubleBuffer) {
           }
   #endif
 
-          if (total_needed < getLmSizePerLane()) {
+          if (total_needed <= getLmSizePerLane()) {
             // I try to maximize the local memory utilization,
             // but it causes large write latency, especially in cross-layer.
             // However TDMA engine can handle small data transfer efficiently.
@@ -3185,7 +3185,7 @@ bool Conv::determinePs32TileSize(bool useDoubleBuffer) {
             << ofmap_size << "\n");
 #endif
 
-        if (total_needed < getLmSizePerLane()) {
+        if (total_needed <= getLmSizePerLane()) {
           LLVM_DEBUG(llvm::dbgs()
               << "      [n_step=" << n_step
               << "][oc_step=" << oc_step
@@ -3638,7 +3638,7 @@ bool Conv::determineDwTileSize(bool useDoubleBuffer) {
           total_needed += 2 * ofmap_size;  // tl_relu + tl_neg
         }
 
-        if (total_needed < getLmSizePerLane()) {
+        if (total_needed <= getLmSizePerLane()) {
           slices_.n_step = n_step;
 
           LLVM_DEBUG(llvm::errs() << llvm::format(
@@ -4377,7 +4377,7 @@ bool Conv::canNoTile() {
   //     << ", lane_size " << getLmSizePerLane()
   //     << "\n");
 
-  if (total_needed < getLmSizePerLane()) {
+  if (total_needed <= getLmSizePerLane()) {
     slices_.n_step = n;
     slices_.oc_step = oc;
     slices_.oh_step = oh;
