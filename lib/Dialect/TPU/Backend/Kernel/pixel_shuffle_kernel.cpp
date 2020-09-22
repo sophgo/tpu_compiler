@@ -169,7 +169,7 @@ static void pixelShuffle_tensor_store(
       << "), stride(" << param.dst->stride.n
       << ", " << param.dst->stride.c << ", " << param.dst->stride.h << ")\n");
 
-  ctx.tdma_l2g_tensor_copy(&param);
+  ctx.tdma_l2g_bf16_tensor_copy(&param);
 }
 
 static void _pixel_shuffle_fixed_bmkernel_new(const CviBackendContext &ctx, uint32_t layer_id,
@@ -203,9 +203,17 @@ static void _pixel_shuffle_fixed_bmkernel_new(const CviBackendContext &ctx, uint
   if (!h_step)
     return;
 
+  // TODO: support other fmt
+  // 2 means bf16 takes 2 bytes
+  int unit_sz = fmt == CVK_FMT_BF16 ? 2 : 1;
   cvk_tg_stride_t ifmap_gstride = {
-      input_c * input_h * input_w, input_h * input_w, input_w};
-  cvk_tg_stride_t ofmap_gstride = {oc * oh * ow, oh * ow, ow};
+      input_c * input_h * input_w * unit_sz,
+      input_h * input_w * unit_sz,
+      input_w * unit_sz};
+  cvk_tg_stride_t ofmap_gstride = {
+    oc * oh * ow * unit_sz,
+    oh * ow * unit_sz,
+    ow * unit_sz};
 
   for (uint32_t n_pos = 0; n_pos < input_n; n_pos += n_step) {
     for (uint32_t c_pos = 0; c_pos < input_c; c_pos += c_step) {

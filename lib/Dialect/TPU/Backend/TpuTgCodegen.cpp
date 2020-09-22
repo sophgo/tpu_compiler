@@ -2501,9 +2501,9 @@ LogicalResult tpu::TG_BF16_PixelShuffleOp::codegen(void *ctx) {
   getTensorShapeAndSize(op->getOperand(0), shape, input_size);
   // tranform from pytorch define
   n = shape[0];
-  c = shape[1] * shape[2] * shape[3];
-  h = shape[4];
-  w = shape[5];
+  c = shape[1];
+  h = shape[2];
+  w = shape[3];
   uint32_t upscale_factor = this->upscale_factor().getLimitedValue();
 
   gaddr_t input_gaddr = getPreviousOpAddress(op);

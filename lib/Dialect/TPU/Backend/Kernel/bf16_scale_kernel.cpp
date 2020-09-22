@@ -49,7 +49,7 @@ void cvi_backend_tg_bf16_scale_kernel(const CviBackendContext &ctx, uint32_t str
       layer_id, input_gaddr, scale_gaddr, bias_gaddr, output_gaddr,
       input_n, input_c, input_h, input_w, do_bias, scale_dim, inner_dim););
 
-  assert(input_c * input_h * input_w == scale_dim * inner_dim);
+  assert(input_n * input_c * input_h * input_w == scale_dim * inner_dim);
   //input_c = scale_dim;
   if (inner_dim != input_h * input_w) {
     input_h = inner_dim;
@@ -149,7 +149,7 @@ void cvi_backend_tg_bf16_scale_kernel(const CviBackendContext &ctx, uint32_t str
 
     for (int hidx = 0, hstart = 0; hidx < hsecs; hidx++) {
       int sec_len_h = hslice + (hidx < hresidual);
-      uint64_t offset = (nstart * ts_bottom_stride.n + hstart * input_w) * sizeof(uint16_t);
+      uint64_t offset = nstart * ts_bottom_stride.n + (hstart * input_w) * sizeof(uint16_t);
 
       LLVM_DEBUG(llvm::errs() << llvm::format(
           "loop, nstart:%d,hstart:%d, sec_len_n:%d,sec_len_h:%d, offset:%lu, "
