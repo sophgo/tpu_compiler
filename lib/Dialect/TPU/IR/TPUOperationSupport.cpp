@@ -148,6 +148,14 @@ void arrayAttrToVector(const ArrayAttr &arrayAttr,
   }
 }
 
+void arrayAttrToVector(const ArrayAttr &arrayAttr, std::vector<float> &vector) {
+  vector.clear();
+  for (auto en : llvm::enumerate(arrayAttr)) {
+    auto attr = en.value().dyn_cast<FloatAttr>();
+    vector.push_back((float)attr.getValueAsDouble());
+  }
+}
+
 llvm::StringRef getOpName(Operation *op) {
   if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpCommonInterface>(op)) {
     return tpuOp.getOpName();

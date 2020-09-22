@@ -2350,7 +2350,7 @@ LogicalResult tpu::PreprocessOp::interpret(
 }
 
 LogicalResult tpu::PriorBoxOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+    DenseMap<Value *, std::shared_ptr<std::vector<float>>> &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name()
                           << "]\n";);
@@ -2359,129 +2359,52 @@ LogicalResult tpu::PriorBoxOp::interpret(
   auto size = getTensorSize(result);
   auto resultT = std::make_unique<std::vector<float>>(size);
 
-  float min_size = this->min_size().convertToFloat();
-  float max_size = this->max_size().convertToFloat();
-  int aspect_ratios_size = this->aspect_ratios_size().getLimitedValue();
-  bool flip = this->flip();
-  bool clip = this->clip();
-  float variance0 = this->variance0().convertToFloat();
-  float variance1 = this->variance1().convertToFloat();
-  float variance2 = this->variance2().convertToFloat();
-  float variance3 = this->variance3().convertToFloat();
-  float offset = this->offset().convertToFloat();
-  float step = this->step().convertToFloat();
-  std::vector<float> min_sizes_;
-  std::vector<float> max_sizes_;
+  std::vector<float> min_size;
+  arrayAttrToVector(this->min_size(), min_size);
+  std::vector<float> max_size;
+  arrayAttrToVector(this->max_size(), max_size);
   std::vector<float> aspect_ratios;
-  std::vector<float> aspect_ratios_;
-  bool flip_;
-  int num_priors_;
-  bool clip_;
-  std::vector<float> variance_;
-  int img_w_;
-  int img_h_;
-  float step_w_;
-  float step_h_;
+  arrayAttrToVector(this->aspect_ratios(), aspect_ratios);
+  std::vector<float> variance;
+  arrayAttrToVector(this->variance(), variance);
 
-  float offset_;
-  if(aspect_ratios_size > 0)
-    aspect_ratios.push_back(this->aspect_ratio0().getValue().convertToFloat()) ;
-  if(aspect_ratios_size > 1)
-    aspect_ratios.push_back(this->aspect_ratio1().getValue().convertToFloat()) ;
+  bool clip = this->clip();
+  float offset = this->offset().convertToFloat();
+  float step_w = this->step_w().convertToFloat();
+  float step_h = this->step_h().convertToFloat();
+  int num_priors = this->num_priors().getLimitedValue();
+  int img_width = this->img_w().getLimitedValue();
+  int img_height = this->img_h().getLimitedValue();
 
-  int max_size_size=this->max_size_size().getLimitedValue();
-  int min_size_size=this->min_size_size().getLimitedValue();
-
-
-  for (int i = 0; i < min_size_size; ++i) {
-    min_sizes_.push_back(min_size);
-    assert(min_sizes_.back()> 0 && "min_size must be positive.");
-    assert(i==0); //more than one min size is not support.
-  }
-
-  aspect_ratios_.clear();
-  aspect_ratios_.push_back(1.);
-  flip_ = flip;
-  for (int i = 0; i < aspect_ratios_size; ++i) {
-        float ar = aspect_ratios[i];
-        bool already_exist = false;
-        for (size_t j = 0; j < aspect_ratios_.size(); ++j) {
-          if (fabs(ar - aspect_ratios_[j]) < 1e-6) {
-            already_exist = true;
-            break;
-          }
-        }
-        if (!already_exist) {
-          aspect_ratios_.push_back(ar);
-          if (flip_) {
-            aspect_ratios_.push_back(1./ar);
-          }
-        }
-    }
-
-  num_priors_ = aspect_ratios_.size() * min_sizes_.size();
-
-  if (max_size_size > 0) {
-    max_sizes_.push_back(max_size);
-    assert(max_sizes_[0]> min_sizes_[0] && "max_size must be greater than min_size.");
-    num_priors_ += 1;
-  }
-
-  clip_ = clip;
-
-  // Must and only provide 4 variance.
-  assert(variance0> 0);
-  variance_.push_back(variance0);
-  assert(variance1> 0);
-  variance_.push_back(variance1);
-  assert(variance2> 0);
-  variance_.push_back(variance2);
-  assert(variance3> 0);
-  variance_.push_back(variance3);
-
-  img_h_ = 0;
-  img_w_ = 0;
-
-  step_h_ = step;
-  step_w_ = step;
-
-  offset_ = offset;
-
-  std::vector<int64_t> shape1 = this->getOperand(1)->getType().cast<TensorType>().getShape();
-  std::vector<int64_t> shape0 = this->getOperand(0)->getType().cast<TensorType>().getShape();
-  assert(shape1.size()==4&&shape0.size()==4);
+  std::vector<int64_t> shape1 =
+      this->getOperand(1)->getType().cast<TensorType>().getShape();
+  std::vector<int64_t> shape0 =
+      this->getOperand(0)->getType().cast<TensorType>().getShape();
+  assert(shape1.size() == 4 && shape0.size() == 4);
   const int layer_width = shape0[3];
   const int layer_height = shape0[2];
 
-  int img_width, img_height;
-  if (img_h_ == 0 || img_w_ == 0) {
+  if (img_width == 0 || img_height == 0) {
     img_width = shape1[3];
     img_height = shape1[2];
-  } else {
-    img_width = img_w_;
-    img_height = img_h_;
-  }
-  float step_w, step_h;
-  if (step_w_ == 0 || step_h_ == 0) {
-    step_w = static_cast<float>(img_width) / layer_width;
-    step_h = static_cast<float>(img_height) / layer_height;
-  } else {
-    step_w = step_w_;
-    step_h = step_h_;
   }
 
+  if (step_w == 0 || step_h == 0) {
+    step_w = static_cast<float>(img_width) / layer_width;
+    step_h = static_cast<float>(img_height) / layer_height;
+  }
 
   float *top_data = (float *)resultT->data();
 
-  int dim = layer_height * layer_width * num_priors_ * 4;
+  int dim = layer_height * layer_width * num_priors * 4;
   int idx = 0;
   for (int h = 0; h < layer_height; ++h) {
     for (int w = 0; w < layer_width; ++w) {
-      float center_x = (w + offset_) * step_w;
-      float center_y = (h + offset_) * step_h;
+      float center_x = (w + offset) * step_w;
+      float center_y = (h + offset) * step_h;
       float box_width, box_height;
-      for (int s = 0; s < min_size_size; ++s) {
-        int min_size_ = min_sizes_[s];
+      for (size_t s = 0; s < min_size.size(); ++s) {
+        int min_size_ = min_size[s];
         // first prior: aspect_ratio = 1, size = min_size
         box_width = box_height = min_size_;
         // xmin
@@ -2493,8 +2416,8 @@ LogicalResult tpu::PriorBoxOp::interpret(
         // ymax
         top_data[idx++] = (center_y + box_height / 2.) / img_height;
 
-        if (max_size_size>0) {
-          int max_size_ = max_sizes_[s];
+        if (max_size.size() > 0) {
+          int max_size_ = max_size[s];
           // second prior: aspect_ratio = 1, size = sqrt(min_size * max_size)
           box_width = box_height = sqrt(min_size_ * max_size_);
           // xmin
@@ -2508,8 +2431,8 @@ LogicalResult tpu::PriorBoxOp::interpret(
         }
 
         // rest of priors
-        for (size_t r = 0; r < aspect_ratios_.size(); ++r) {
-          float ar = aspect_ratios_[r];
+        for (size_t r = 0; r < aspect_ratios.size(); ++r) {
+          float ar = aspect_ratios[r];
           if (fabs(ar - 1.) < 1e-6) {
             continue;
           }
@@ -2528,7 +2451,7 @@ LogicalResult tpu::PriorBoxOp::interpret(
     }
   }
   // clip the prior's coordidate such that it is within [0, 1]
-  if (clip_) {
+  if (clip) {
     for (int d = 0; d < dim; ++d) {
       top_data[d] = std::min<float>(std::max<float>(top_data[d], 0.), 1.);
     }
@@ -2543,9 +2466,9 @@ LogicalResult tpu::PriorBoxOp::interpret(
   int count = 0;
   for (int h = 0; h < layer_height; ++h) {
     for (int w = 0; w < layer_width; ++w) {
-      for (int i = 0; i < num_priors_; ++i) {
+      for (int i = 0; i < num_priors; ++i) {
         for (int j = 0; j < 4; ++j) {
-          top_data[count] = variance_[j];
+          top_data[count] = variance[j];
           ++count;
         }
       }

@@ -36,6 +36,7 @@ void convertOpParamToAttributes(
 
 void arrayAttrToVector(const ArrayAttr &arrayAttr,
                        std::vector<int32_t> &vector);
+void arrayAttrToVector(const ArrayAttr &arrayAttr, std::vector<float> &vector);
 
 llvm::StringRef getOpName(Operation *op);
 llvm::StringRef getPreviousOpName(Operation *op, uint index = 0);

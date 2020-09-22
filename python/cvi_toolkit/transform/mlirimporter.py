@@ -859,39 +859,31 @@ class MLIRImporter(object):
             self.f32Type, output_tensor_shape)
 
         checkKey(kargs, 'min_size')
-        checkKey(kargs, 'min_size_size')
         checkKey(kargs, 'max_size')
-        checkKey(kargs, 'max_size_size')
-        checkKey(kargs, 'aspect_ratios_size')
-        checkKey(kargs, 'flip')
+        checkKey(kargs, 'aspect_ratios')
+        checkKey(kargs, 'variance')
         checkKey(kargs, 'clip')
-        checkKey(kargs, 'variance0')
-        checkKey(kargs, 'variance1')
-        checkKey(kargs, 'variance2')
-        checkKey(kargs, 'variance3')
-        checkKey(kargs, 'step')
+        checkKey(kargs, 'step_h')
+        checkKey(kargs, 'step_w')
+        checkKey(kargs, 'img_h')
+        checkKey(kargs, 'img_w')
         checkKey(kargs, 'offset')
+        checkKey(kargs, 'num_priors')
 
         name_attr = self.module.stringAttr(op_name)
         param = {
-            'min_size': self.module.floatAttr(kargs['min_size']),
-            'min_size_size': self.module.integerAttr(self.i32Type, kargs['min_size_size']),
-            'max_size': self.module.floatAttr(kargs['max_size']),
-            'max_size_size': self.module.integerAttr(self.i32Type, kargs['max_size_size']),
-            'aspect_ratios_size': self.module.integerAttr(self.i32Type, kargs['aspect_ratios_size']),
-            'flip': self.module.boolAttr(kargs['flip']),
+            'min_size': self.module.arrayAttr([self.module.floatAttr(x) for x in kargs['min_size']]),
+            'max_size': self.module.arrayAttr([self.module.floatAttr(x) for x in kargs['max_size']]),
+            'aspect_ratios': self.module.arrayAttr([self.module.floatAttr(x) for x in kargs['aspect_ratios']]),
+            'variance': self.module.arrayAttr([self.module.floatAttr(x) for x in kargs['variance']]),
             'clip': self.module.boolAttr(kargs['clip']),
-            'variance0': self.module.floatAttr(kargs['variance0']),
-            'variance1': self.module.floatAttr(kargs['variance1']),
-            'variance2': self.module.floatAttr(kargs['variance2']),
-            'variance3': self.module.floatAttr(kargs['variance3']),
-            'step': self.module.floatAttr(kargs['step']),
+            'step_h': self.module.floatAttr(kargs['step_h']),
+            'step_w': self.module.floatAttr(kargs['step_w']),
+            'img_h': self.module.integerAttr(self.i32Type, kargs['img_h']),
+            'img_w': self.module.integerAttr(self.i32Type, kargs['img_w']),
             'offset': self.module.floatAttr(kargs['offset']),
+            'num_priors': self.module.integerAttr(self.i32Type, kargs['num_priors']),
         }
-        if 'aspect_ratio0' in kargs:
-            param['aspect_ratio0'] = self.module.floatAttr(kargs['aspect_ratio0'])
-        if 'aspect_ratio1' in kargs:
-            param['aspect_ratio1'] = self.module.floatAttr(kargs['aspect_ratio1'])
         return self.buildOp(TPU_OpType.PriorBox.value, inputOperands, [
             tensor_output_type], name=name_attr, **param)
 

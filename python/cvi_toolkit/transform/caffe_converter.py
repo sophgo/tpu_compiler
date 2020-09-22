@@ -961,49 +961,57 @@ class CaffeConverter(BaseConverter):
         h = input_shape0[2]
         w = input_shape0[3]
         p = layer.prior_box_param
-        min_size_size = len(p.min_size)
-        max_size_size = len(p.max_size)
-        min_size = p.min_size[0]
-        max_size = 0.0
-        if max_size_size == 1:
-            max_size = p.max_size[0]
-        aspect_ratio_size = len(p.aspect_ratio)
-        assert(max_size_size <= 1 and min_size_size ==
-               1 and aspect_ratio_size <= 2)
+        min_size = [i for i in p.min_size]
+        max_size = [i for i in p.max_size]
+        aspect_ratio = [i for i in p.aspect_ratio]
+        variance = [i for i in p.variance]
+        assert(len(variance) == 4)
+
         param = {
             'min_size': min_size,
-            'min_size_size': min_size_size,
             'max_size': max_size,
-            'max_size_size': max_size_size,
-            'aspect_ratios_size': aspect_ratio_size,
-            'flip': p.flip,
+            'variance': variance,
             'clip': p.clip,
-            'variance0': p.variance[0],
-            'variance1': p.variance[1],
-            'variance2': p.variance[2],
-            'variance3': p.variance[3],
-            'step': p.step,
             'offset': p.offset,
         }
-        if aspect_ratio_size > 0:
-            param['aspect_ratio0'] = p.aspect_ratio[0]
-        if aspect_ratio_size > 1:
-            param['aspect_ratio1'] = p.aspect_ratio[1]
 
+        if p.HasField('step_h') and p.HasField('step_w'):
+            param['step_h'] = p.step_h
+            param['step_w'] = p.step_w
+        elif p.HasField('step'):
+            param['step_h'] = p.step
+            param['step_w'] = p.step
+        else:
+            param['step_h'] = 0
+            param['step_w'] = 0
+
+        if p.HasField('img_h') and p.HasField('img_w'):
+            param['img_h'] = p.img_h
+            param['img_w'] = p.img_w
+        elif p.HasField('img_size'):
+            param['img_h'] = p.img_size
+            param['img_w'] = p.img_size
+        else:
+            param['img_h'] = 0
+            param['img_w'] = 0
         aspect_ratios_ = list()
         aspect_ratios_.append(1.0)
-        for i in range(aspect_ratio_size):
-            ar = p.aspect_ratio[i]
+        for ar in aspect_ratio:
             already_exist = False
-            for j in range(len(aspect_ratios_)):
-                if math.fabs(ar - aspect_ratios_[j]) < 1e-6:
+            for j in aspect_ratios_:
+                if math.fabs(ar - j) < 1e-6:
                     already_exist = True
                     break
             if not already_exist:
                 aspect_ratios_.append(ar)
                 if p.flip:
                     aspect_ratios_.append(1.0 / ar)
-        num_priors = len(aspect_ratios_) * min_size_size + max_size_size
+        num_priors = len(aspect_ratios_) * len(min_size)
+        if len(max_size) > 0:
+            assert(len(max_size) == len(min_size))
+            num_priors += len(max_size)
+        param['num_priors'] = num_priors
+        param['aspect_ratios'] = aspect_ratios_
         output_shape = [1, 2, int(h * w * num_priors * 4)]
         new_op = self.CVI.add_priorbox_op(
             layer.name, operands, output_shape, **param)

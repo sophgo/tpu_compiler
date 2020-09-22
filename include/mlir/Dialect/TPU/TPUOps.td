@@ -1660,19 +1660,16 @@ def TPU_PriorBoxOp: TPU_Op<"priorbox",
     Inputs:
       `input`              : required, the input activation tensor.
       `min_size`           : required.
-      `min_size_size`      : required.
       `max_size`           : required.
-      `max_size_size`      : required.
-      `aspect_ratios_size` : required.
-      `flip`               : required.
+      `aspect_ratios`      : required.
       `clip`               : required.
-      `variance0`          : required.
-      `variance1`          : required.
-      `variance1`          : required.
-      `variance2`          : required.
-      `variance3`          : required.
-      `step`               : required.
+      `variance`           : required.
+      `step_h`             : required.
+      `step_w`             : required.
+      `img_h`              : required.
+      `img_w`              : required.
       `offset`             : required.
+      `num_priors`         : required.
 
     Attributes:
       `name`            : required, name for calibration, comparing, or debug.
@@ -1689,21 +1686,17 @@ def TPU_PriorBoxOp: TPU_Op<"priorbox",
 
   let arguments = (
     ins Variadic<AnyTensor>:$input,
-    F32Attr:$min_size,
-    I32Attr:$min_size_size,
-    F32Attr:$max_size,
-    I32Attr:$max_size_size,
-    OptionalAttr<F32Attr>:$aspect_ratio0,
-    OptionalAttr<F32Attr>:$aspect_ratio1,
-    I32Attr:$aspect_ratios_size,
-    DefaultValuedAttr<BoolAttr, "true">:$flip,
+    F32ArrayAttr:$min_size,
+    F32ArrayAttr:$max_size,
+    F32ArrayAttr:$aspect_ratios,
+    F32ArrayAttr:$variance,
     DefaultValuedAttr<BoolAttr, "true">:$clip,
-    F32Attr:$variance0,
-    F32Attr:$variance1,
-    F32Attr:$variance2,
-    F32Attr:$variance3,
-    F32Attr:$step,
+    F32Attr:$step_h,
+    F32Attr:$step_w,
+    I32Attr:$img_h,
+    I32Attr:$img_w,
     DefaultValuedAttr<F32Attr, "0.5">:$offset,
+    I32Attr:$num_priors,
     StrAttr:$name,
     OptionalAttr<StrAttr>:$chipname
   );
