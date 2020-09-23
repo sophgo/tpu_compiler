@@ -1697,6 +1697,7 @@ def TPU_PriorBoxOp: TPU_Op<"priorbox",
     I32Attr:$img_w,
     DefaultValuedAttr<F32Attr, "0.5">:$offset,
     I32Attr:$num_priors,
+    DefaultValuedAttr<BoolAttr, "true">:$use_default_aspect_ratio,
     StrAttr:$name,
     OptionalAttr<StrAttr>:$chipname
   );

@@ -869,6 +869,7 @@ class MLIRImporter(object):
         checkKey(kargs, 'img_w')
         checkKey(kargs, 'offset')
         checkKey(kargs, 'num_priors')
+        checkKey(kargs, 'use_default_aspect_ratio')
 
         name_attr = self.module.stringAttr(op_name)
         param = {
@@ -883,6 +884,7 @@ class MLIRImporter(object):
             'img_w': self.module.integerAttr(self.i32Type, kargs['img_w']),
             'offset': self.module.floatAttr(kargs['offset']),
             'num_priors': self.module.integerAttr(self.i32Type, kargs['num_priors']),
+            'use_default_aspect_ratio': self.module.boolAttr(kargs['use_default_aspect_ratio']),
         }
         return self.buildOp(TPU_OpType.PriorBox.value, inputOperands, [
             tensor_output_type], name=name_attr, **param)
