@@ -2453,9 +2453,7 @@ void MixNet::_add_tl_zero_mask_op(MixOp * mix_op,
   std::string name = mix_op->name();
   uint32_t la_input = net_graph_->get_tensor_local_offset(in_tensors[0]);
   uint32_t la_output = net_graph_->get_tensor_local_offset(out_tensors[0]);
-  mem_buffer_key_t key = {timestep_idx, im_layer->imm_tensors[0].get()->id(), true};
-  const mem_buffer_value_t* imm = time_step->get_mem_buffer_value(&key);
-  uint32_t la_working = imm->local_mem_offset;
+
 
   attrs.push_back(builder_.getNamedAttr("name",
                            builder_.getStringAttr(name)));
@@ -2463,8 +2461,6 @@ void MixNet::_add_tl_zero_mask_op(MixOp * mix_op,
                            builder_.getI32IntegerAttr(la_input)));
   attrs.push_back(builder_.getNamedAttr("la_output",
                            builder_.getI32IntegerAttr(la_output)));
-  attrs.push_back(builder_.getNamedAttr("la_working",
-                           builder_.getI32IntegerAttr(la_working)));
 
   // setup input/output type
   RankedTensorType input_type = RankedTensorType::get(
@@ -2485,12 +2481,19 @@ void MixNet::_add_tl_zero_mask_op(MixOp * mix_op,
 
   // build tl_zero_mask operation
   if (isa<tpu::TG_INT8_ZeroMaskOp>(op)) {
+    mem_buffer_key_t key = {timestep_idx, im_layer->imm_tensors[0].get()->id(), true};
+    const mem_buffer_value_t* imm = time_step->get_mem_buffer_value(&key);
+    uint32_t la_working = imm->local_mem_offset;
+    attrs.push_back(builder_.getNamedAttr("la_working",
+                           builder_.getI32IntegerAttr(la_working)));
     auto tl_op = OpBuilder(get_start_op()).create<tpu::TL_LG_INT8_ZeroMaskOp>(
                         get_start_op()->getLoc(), output_type,
                         ArrayRef<Value *>{operands},
                         ArrayRef<NamedAttribute>{attrs});
     add_opd_to_list(mix_op->name(), tl_op.getResult(), true);
   } else if (isa<tpu::TG_BF16_ZeroMaskOp>(op)) {
+    attrs.push_back(builder_.getNamedAttr("la_working",
+                           builder_.getI32IntegerAttr(0)));
     auto tl_op = OpBuilder(get_start_op()).create<tpu::TL_LG_BF16_ZeroMaskOp>(
                         get_start_op()->getLoc(), output_type,
                         ArrayRef<Value *>{operands},

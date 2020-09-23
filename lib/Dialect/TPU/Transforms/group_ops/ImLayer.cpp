@@ -640,6 +640,8 @@ ImRelu::ImRelu(Operation *op): ImLayer(IR_RELU, op, true) {
 ImZeroMask::ImZeroMask(Operation *op): ImLayer(IR_ZERO_MASK, op, true) {
   add_in_tensor(op->getOperand(0), TENSOR_NEURON);
   add_out_tensor(op->getResult(0), TENSOR_NEURON);
-  add_imm_tensor(out_tensors[0], 1, name_ + "_imm");
+  if(isa<tpu::TG_INT8_ZeroMaskOp>(op)) {
+    add_imm_tensor(out_tensors[0], 1, name_ + "_imm");
+  }
 }
 }

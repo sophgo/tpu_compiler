@@ -75,6 +75,8 @@ class TensorCompare():
 
     var_raw_zero_mean = np.sum(np.square(raw_zero_mean))
     var_noise_zero_mean = np.sum(np.square(noise_zero_mean))
+    if var_noise_zero_mean == 0 or var_raw_zero_mean == 0:
+      return float('inf')
     sqnr = 10 * np.log10(var_raw_zero_mean / var_noise_zero_mean)
 
     return sqnr

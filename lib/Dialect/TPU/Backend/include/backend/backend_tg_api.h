@@ -403,6 +403,11 @@ void cvi_backend_tg_bf16_eltwise_min_max_kernel(
     int32_t stride_h, int32_t stride_w,
     const float *coeffs);
 
+void cvi_backend_tg_bf16_mac_const_kernel(
+    const CviBackendContext &ctx, uint32_t stream_id, uint32_t inst_id,
+    uint32_t layer_id, const uint32_t *depends, uint32_t depends_len,
+    gaddr_t input_gaddr, gaddr_t output_gaddr, int input_n, int input_c,
+    int input_h, int input_w, float multiplier, float const_val, bool do_relu);
 
 ////////////// fixed & bf16 kernel api ////////////////
 
@@ -448,7 +453,6 @@ void cvi_backend_tg_swap_channel_kernel(
     uint32_t depends_len, gaddr_t input_gaddr,
     gaddr_t output_gaddr, int input_dim_size,
     int *input_dim, int * channel_order, cvk_fmt_t fmt);
-
 
 ////////// data format convert API (need to clear up later) /////////////////
 void mixed_precision_quant(

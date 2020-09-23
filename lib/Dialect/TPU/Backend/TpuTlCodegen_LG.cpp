@@ -1254,7 +1254,8 @@ LogicalResult tpu::TL_LG_INT8_UpsampleOp::codegen(void *ctx) {
 
   laddr_t la_input = this->la_input().getLimitedValue();
   laddr_t la_output = this->la_output().getLimitedValue();
-  auto scale = this->scale().getLimitedValue();
+  auto scale_h = this->scale_h().getLimitedValue();
+  auto scale_w = this->scale_w().getLimitedValue();
   int layer_id = getOpLayerId(op);
 
   cvi_backend_tl_upsample(
@@ -1266,8 +1267,8 @@ LogicalResult tpu::TL_LG_INT8_UpsampleOp::codegen(void *ctx) {
       c,
       h,
       w,
-      scale,
-      scale
+      scale_h,
+      scale_w
   );
   return success();
 }
@@ -1619,9 +1620,24 @@ LogicalResult tpu::TL_LG_INT8_ZeroMaskOp::codegen(void *ctx) {
 }
 
 LogicalResult tpu::TL_LG_BF16_ZeroMaskOp::codegen(void *ctx) {
-  std::string errorMsg = "unsupported tg op " + getOpName().str() + "\n";
-  llvm_unreachable(errorMsg.c_str());
+  LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
 
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  getNCHW(shape, n, c, h, w);
+
+  laddr_t la_input = this->la_input().getLimitedValue();
+  laddr_t la_output = this->la_output().getLimitedValue();
+  int layer_id = getOpLayerId(op);
+
+  cvi_backend_bf16_tl_mac_const(*backend_ctx,
+                                layer_id, // layer_id,
+                                la_input, la_output, n, c, h, w, 1000000.0f,
+                                1.0f, true);
   return success();
 }
 }

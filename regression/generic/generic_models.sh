@@ -1243,8 +1243,10 @@ export OUTPUTS=conv1_1_D
 export NET_INPUT_DIMS=360,480
 export TOLERANCE_FP32=0.999,0.999,0.978
 export TOLERANCE_INT8_MULTIPLER=0.91,0.90,0.56
-export DO_QUANT_BF16=0
+export DO_LG_WITH_BF16=1
 export EXCEPTS=upsample2,upsample1
+export TOLERANCE_BF16=0.99,0.98,0.87
+export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.95
 fi
 
 if [ $NET = "erfnet" ]; then
@@ -1295,9 +1297,9 @@ export CALIBRATION_IMAGE_COUNT=60
 export INPUT=data
 export OUTPUTS_FP32=deconv6_0_0
 export OUTPUTS=deconv6_0_0
-export DO_QUANT_BF16=0
+export DO_LG_WITH_BF16=1
 export TOLERANCE_INT8_MULTIPLER=0.69,0.62,0.1
-export TOLERANCE_BF16=0.99,0.99,0.89
+export TOLERANCE_BF16=0.93,0.91,0.64
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.9
 export EXCEPTS=conv2_7_1_a,prelu2_7_0,prelu2_7_1,prelu3_3_0,conv3_3_1_a,prelu3_3_1,prelu4_0_4,upsample4_0_4,upsample5_0_4
 # export BATCH_SIZE=4

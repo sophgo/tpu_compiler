@@ -3206,7 +3206,18 @@ struct LowerConstEltwiseOpPattern : public RewritePattern {
       constDefOp.setAttr("lowered", rewriter.getBoolAttr(true));
     } else if (getOpQuant(op) == "BF16") {
       // lower filter
-      llvm_unreachable("TODO BF16");
+      std::vector<int64_t> shape;
+      int64_t size;
+      getTensorShapeAndSize(constDefOp, shape, size);
+      auto constValue = readAndDeleteWeightTensor<float>(eltwiseOp.getOperand(opdIdx), wTF);
+      std::vector<bfloat16> constBf16(size);
+      FloatToBFloat16(constValue->data(), constBf16.data(), size);
+
+      // save it
+      addWeightTensorAndUpdateWeightOp<bfloat16>(eltwiseOp.getOperand(opdIdx),
+          "lowered", constBf16, shape, "BF16", wTF);
+      constDefOp.setAttr("lowered", rewriter.getBoolAttr(true));
+      constDefOp.setAttr("storage", rewriter.getStringAttr("BF16"));
     }
     return matchSuccess();
   }

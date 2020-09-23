@@ -2206,6 +2206,10 @@ LogicalResult tpu::PReluOp::interpret(
             resultT->at(i), (uint32_t)rshift_neg->at(0));
       }
     }
+  } else if (getOpQuant() == "BF16") {
+    auto tensor_bf16 = std::make_unique<std::vector<bfloat16> >(resultT->size());
+    FloatToBFloat16(resultT->data(), tensor_bf16->data(), resultT->size()); // with rounding
+    BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
   }
   valueMapping[result] = std::move(resultT);
 

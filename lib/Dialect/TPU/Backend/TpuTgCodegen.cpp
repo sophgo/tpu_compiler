@@ -696,6 +696,57 @@ LogicalResult tpu::TG_BF16_DeConv2DOp::codegen(void *ctx) {
 
   std::string errorMsg = "unsupported tg op " + getOpName().str();
   llvm_unreachable(errorMsg.c_str());
+#if 0
+  // not correct
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  bool is_dw, with_bias, do_relu;
+  int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw;
+  parseConvParam(param(), false, input(), output(), filter(),
+                 n, ic, ih, iw, oc, oh, ow, g,
+                 kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, is_dw, with_bias, do_relu);
+
+  gaddr_t ga_input = getPreviousOpAddress(op);
+  gaddr_t ga_output = getOpAddress(op);
+  gaddr_t ga_filter = getWeightOpAddress(filter()->getDefiningOp());
+  gaddr_t ga_bias = GA_INVALID;
+  if ( with_bias ) {
+    assert(!isTensorNone(pc_info()));
+    ga_bias =  getWeightOpAddress(pc_info()->getDefiningOp());
+  }
+  int layer_id = getOpLayerId(op);
+
+  if (this->do_leaky_relu()) {
+    assert(0);
+  }
+
+  int kh_ext = (kh - 1) * dh + 1;
+  int kw_ext = (kw - 1) * dw + 1;
+  int pad_t = kh_ext - pt - 1;
+  int pad_l = kw_ext - pl - 1;
+  int pad_b = oh + pt - (ih - 1) * sh - 1;
+  int pad_r = ow + pr - (iw - 1) * sw - 1;
+
+  cvi_backend_tg_bf16_conv_kernel(
+      *backend_ctx,
+      layer_id,   // layer_id,
+      ga_input,   // input_data_gaddr,
+      ga_output,  // output_data_gaddr,
+      ga_filter,  // weight_data_gaddr,
+      ga_bias, // bias_data_gaddr,
+      n, ic, ih, iw,
+      g, // group,
+      oc,
+      kh, kw,
+      dh, dw,
+      pad_t, pad_b, pad_l, pad_r,
+      sh, sw,
+      with_bias, // bias_term,
+      do_relu ? 1 : 0 // do_activation,
+      );
+#endif
+  return success();
 }
 
 LogicalResult tpu::TG_INT8_DilateOp::codegen(void *ctx) {
@@ -2888,9 +2939,19 @@ LogicalResult tpu::TG_INT8_ZeroMaskOp::codegen(void *ctx) {
 LogicalResult tpu::TG_BF16_ZeroMaskOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName() << " ["
                           << getOpName() << "]\n";);
-  // backend not ok now
-  std::string errorMsg = "unsupported tg op " + getOpName().str() + "\n";
-  llvm_unreachable(errorMsg.c_str());
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  std::vector<int64_t> input_shape = getTensorShape(input());
+
+  gaddr_t input_gaddr = getPreviousOpAddress(op);
+  gaddr_t output_gaddr = getOpAddress(op);
+  int layer_id = getOpLayerId(op);
+  // y = relu(x * 1000000.0 + 1)
+  cvi_backend_tg_bf16_mac_const_kernel(
+      *backend_ctx, 0, 0, layer_id, nullptr, 0, input_gaddr, output_gaddr,
+      (int)input_shape[0], (int)input_shape[1], (int)input_shape[2],
+      (int)input_shape[3], 1000000.0f, 1.0f, true);
   return success();
 }
 
