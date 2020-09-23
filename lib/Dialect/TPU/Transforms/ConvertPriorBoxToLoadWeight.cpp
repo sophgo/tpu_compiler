@@ -159,6 +159,7 @@ struct TpuConvertPriorBoxPattern : public RewritePattern {
     arrayAttrToVector(priorboxOp.variance(), variance);
 
     bool clip = priorboxOp.clip();
+    bool use_default_aspect_ratio = priorboxOp.use_default_aspect_ratio();
     float offset = priorboxOp.offset().convertToFloat();
     float step_w = priorboxOp.step_w().convertToFloat();
     float step_h = priorboxOp.step_h().convertToFloat();
@@ -202,16 +203,18 @@ struct TpuConvertPriorBoxPattern : public RewritePattern {
         float box_width, box_height;
         for (size_t s = 0; s < min_size.size(); ++s) {
           int min_size_ = (int)min_size[s];
-          // first prior: aspect_ratio = 1, size = min_size
-          box_width = box_height = min_size_;
-          // xmin
-          top_data[idx++] = (center_x - box_width / 2.) / img_width;
-          // ymin
-          top_data[idx++] = (center_y - box_height / 2.) / img_height;
-          // xmax
-          top_data[idx++] = (center_x + box_width / 2.) / img_width;
-          // ymax
-          top_data[idx++] = (center_y + box_height / 2.) / img_height;
+          if (use_default_aspect_ratio) {
+            // first prior: aspect_ratio = 1, size = min_size
+            box_width = box_height = min_size_;
+            // xmin
+            top_data[idx++] = (center_x - box_width / 2.) / img_width;
+            // ymin
+            top_data[idx++] = (center_y - box_height / 2.) / img_height;
+            // xmax
+            top_data[idx++] = (center_x + box_width / 2.) / img_width;
+            // ymax
+            top_data[idx++] = (center_y + box_height / 2.) / img_height;
+          }
 
           if (max_size.size() > 0) {
             int max_size_ = max_size[s];

@@ -995,7 +995,11 @@ class CaffeConverter(BaseConverter):
             param['img_h'] = 0
             param['img_w'] = 0
         aspect_ratios_ = list()
-        aspect_ratios_.append(1.0)
+        use_default_aspect_ratio = True
+        if p.HasField('use_default_aspect_ratio'):
+            use_default_aspect_ratio = p.use_default_aspect_ratio
+        if use_default_aspect_ratio:
+            aspect_ratios_.append(1.0)
         for ar in aspect_ratio:
             already_exist = False
             for j in aspect_ratios_:
@@ -1012,6 +1016,7 @@ class CaffeConverter(BaseConverter):
             num_priors += len(max_size)
         param['num_priors'] = num_priors
         param['aspect_ratios'] = aspect_ratios_
+        param['use_default_aspect_ratio'] = use_default_aspect_ratio
         output_shape = [1, 2, int(h * w * num_priors * 4)]
         new_op = self.CVI.add_priorbox_op(
             layer.name, operands, output_shape, **param)

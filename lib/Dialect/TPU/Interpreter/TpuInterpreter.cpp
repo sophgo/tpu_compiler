@@ -2367,6 +2367,7 @@ LogicalResult tpu::PriorBoxOp::interpret(
   arrayAttrToVector(this->variance(), variance);
 
   bool clip = this->clip();
+  bool use_default_aspect_ratio = this->use_default_aspect_ratio();
   float offset = this->offset().convertToFloat();
   float step_w = this->step_w().convertToFloat();
   float step_h = this->step_h().convertToFloat();
@@ -2403,16 +2404,18 @@ LogicalResult tpu::PriorBoxOp::interpret(
       float box_width, box_height;
       for (size_t s = 0; s < min_size.size(); ++s) {
         int min_size_ = min_size[s];
-        // first prior: aspect_ratio = 1, size = min_size
-        box_width = box_height = min_size_;
-        // xmin
-        top_data[idx++] = (center_x - box_width / 2.) / img_width;
-        // ymin
-        top_data[idx++] = (center_y - box_height / 2.) / img_height;
-        // xmax
-        top_data[idx++] = (center_x + box_width / 2.) / img_width;
-        // ymax
-        top_data[idx++] = (center_y + box_height / 2.) / img_height;
+        if (use_default_aspect_ratio) {
+          // first prior: aspect_ratio = 1, size = min_size
+          box_width = box_height = min_size_;
+          // xmin
+          top_data[idx++] = (center_x - box_width / 2.) / img_width;
+          // ymin
+          top_data[idx++] = (center_y - box_height / 2.) / img_height;
+          // xmax
+          top_data[idx++] = (center_x + box_width / 2.) / img_width;
+          // ymax
+          top_data[idx++] = (center_y + box_height / 2.) / img_height;
+        }
 
         if (max_size.size() > 0) {
           int max_size_ = max_size[s];
