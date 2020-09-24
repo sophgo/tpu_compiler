@@ -158,7 +158,7 @@ class MLIRImporter(object):
     def add_quant_reg(self, opreands):
         none = self.add_none_op()
         # We assigne 4 reg for quantization
-        for i in range(4):
+        for _ in range(4):
             opreands.append(none)
         return opreands
 
@@ -199,7 +199,7 @@ class MLIRImporter(object):
         broadcast_mul_name = self.module.stringAttr(op_name)
 
         axis_attr = self.module.integerAttr(self.i32Type, kargs['axis'])
-        inputOpernads = self.add_quant_reg(inputOperands)
+        inputOperands = self.add_quant_reg(inputOperands)
         return self.buildOp(TPU_OpType.BroadcastMul.value, inputOperands, [
             tensor_output_type], name=broadcast_mul_name, axis=axis_attr, quant=self.quant_param)
 
@@ -211,8 +211,7 @@ class MLIRImporter(object):
         broadcast_add_name = self.module.stringAttr(op_name)
 
         axis_attr = self.module.integerAttr(self.i32Type, kargs['axis'])
-        inputOpernads = self.add_quant_reg(inputOperands)
-
+        inputOperands = self.add_quant_reg(inputOperands)
         return self.buildOp(TPU_OpType.BroadcastAdd.value, inputOperands, [
             tensor_output_type], name=broadcast_add_name, axis=axis_attr, quant=self.quant_param)
 
@@ -226,9 +225,7 @@ class MLIRImporter(object):
             mlir_attrs[key] = self.module.integerAttr(self.i32Type, kargs[key])
 
         name = self.module.stringAttr(op_name)
-
-        inputOpernads = self.add_quant_reg(inputOperands)
-
+        inputOperands = self.add_quant_reg(inputOperands)
         return self.buildOp(TPU_OpType.Interp.value, inputOperands, [
             tensor_output_type], name=name, **mlir_attrs,
             quant=self.quant_param)
@@ -245,7 +242,7 @@ class MLIRImporter(object):
         variance_epsilon_attr = self.module.floatAttr(variance_epsilon)
 
         none = self.add_none_op()
-        for i in range(5 - len(inputOperands)):
+        for _ in range(5 - len(inputOperands)):
             inputOperands.append(none)
 
         return self.buildOp(TPU_OpType.BatchNorm.value, inputOperands, [
@@ -271,8 +268,7 @@ class MLIRImporter(object):
             'min': self.module.floatAttr(clip_min),
             'max': self.module.floatAttr(clip_max),
         }
-
-        inputOpernads = self.add_quant_reg(inputOperands)
+        inputOperands = self.add_quant_reg(inputOperands)
 
         return self.buildOp(TPU_OpType.Clip.value, inputOperands, [
             tensor_output_type], name=name, quant=self.quant_param, **attr_dict)
@@ -286,7 +282,7 @@ class MLIRImporter(object):
         concat_name = self.module.stringAttr(op_name)
 
         axis_attr = self.module.integerAttr(self.i32Type, kargs['axis'])
-        inputOpernads = self.add_quant_reg(inputOperands)
+        inputOperands = self.add_quant_reg(inputOperands)
         return self.buildOp(TPU_OpType.Concat.value, inputOperands, [
             tensor_output_type], name=concat_name, axis=axis_attr, quant=self.quant_param)
 
@@ -336,8 +332,9 @@ class MLIRImporter(object):
 
         dict_attr = self.module.dictAttr(**conv_param)
         none = self.add_none_op()
-        for i in range( 7 - len(inputOperands)):
+        for _ in range( 7 - len(inputOperands)):
             inputOperands.append(none)
+
         return self.buildOp(TPU_OpType.Conv2d.value, inputOperands, [
                      tensor_output_type], name=conv_name, param=dict_attr, quant=self.quant_param)
 
@@ -495,7 +492,7 @@ class MLIRImporter(object):
 
         dict_attr = self.module.dictAttr(**deconv_param)
         none = self.add_none_op()
-        for i in range(7 - len(inputOperands)):
+        for _ in range(7 - len(inputOperands)):
             inputOperands.append(none)
         return self.buildOp(TPU_OpType.DeConv2d.value, inputOperands, [
             tensor_output_type], name=deconv_name, param=dict_attr, quant=self.quant_param)
@@ -514,9 +511,8 @@ class MLIRImporter(object):
         if len(inputOperands) < 2:
             raise ArithmeticError("input operand must great than 2")
 
-        inputOpernads = self.add_quant_reg(inputOperands)
-
         eltwise_add = self.module.stringAttr(op_name)
+        inputOperands = self.add_quant_reg(inputOperands)
         return self.buildOp(TPU_OpType.Eltwise_Add.value, inputOperands, [
             tensor_output_type], name=eltwise_add, quant=self.quant_param)
 
@@ -526,9 +522,8 @@ class MLIRImporter(object):
         if len(inputOperands) < 2:
             raise ArithmeticError("input operand must great than 2")
 
-        inputOpernads = self.add_quant_reg(inputOperands)
-
         eltwise_max = self.module.stringAttr(op_name)
+        inputOperands = self.add_quant_reg(inputOperands)
         return self.buildOp(TPU_OpType.Eltwise_Max.value, inputOperands, [
             tensor_output_type], name=eltwise_max, quant=self.quant_param)
 
@@ -538,9 +533,8 @@ class MLIRImporter(object):
         if len(inputOperands) < 2:
             raise ArithmeticError("input operand must great than 2")
 
-        inputOpernads = self.add_quant_reg(inputOperands)
-
         eltwise_min = self.module.stringAttr(op_name)
+        inputOperands = self.add_quant_reg(inputOperands)
         return self.buildOp(TPU_OpType.Eltwise_Min.value, inputOperands, [
             tensor_output_type], name=eltwise_min, quant=self.quant_param)
 
@@ -550,9 +544,9 @@ class MLIRImporter(object):
         if len(inputOperands) < 2:
             raise ArithmeticError("input operand must great than 2")
 
-        inputOpernads = self.add_quant_reg(inputOperands)
 
         eltwise_mul = self.module.stringAttr(op_name)
+        inputOperands = self.add_quant_reg(inputOperands)
         return self.buildOp(TPU_OpType.Eltwise_Mul.value, inputOperands, [
             tensor_output_type], name=eltwise_mul, quant=self.quant_param)
 
@@ -564,7 +558,7 @@ class MLIRImporter(object):
         none = self.add_none_op()
 
         # We assigne 4 reg for lut quant table
-        for i in range(2):
+        for _ in range(2):
             inputOperands.append(none)
 
         return self.buildOp(TPU_OpType.Exp.value, inputOperands, [
@@ -580,9 +574,9 @@ class MLIRImporter(object):
             none = self.add_none_op()
             inputOperands.append(none)
             # No bias
-        inputOpernads = self.add_quant_reg(inputOperands)
 
         fully_connected_name = self.module.stringAttr(op_name)
+        inputOperands = self.add_quant_reg(inputOperands)
         return self.buildOp(TPU_OpType.FullyConnected.value, inputOperands, [
             tensor_output_type], name=fully_connected_name, quant=self.quant_param)
 
@@ -619,7 +613,7 @@ class MLIRImporter(object):
 
         gru_name = self.module.stringAttr(op_name)
         none = self.add_none_op()
-        for i in range(4):#add 4 redundant input
+        for _ in range(4):#add 4 redundant input
             inputOperands.append(none)
 
         return self.buildOp(TPU_OpType.GRU.value, inputOperands, [
@@ -640,7 +634,7 @@ class MLIRImporter(object):
         none = self.add_none_op()
         # quant_pos_scale, quant_pos_zeropoint, quant_neg_scale, quant_neg_zeropoint
         # quant_pos_rshift, quant_pos_multiplier, quant_neg_rshift, quant_neg_multiplier
-        for i in range( 9 - len(inputOperands)):
+        for _ in range( 9 - len(inputOperands)):
             inputOperands.append(none)
 
         return self.buildOp(TPU_OpType.LeakyRelu.value, inputOperands, [
@@ -708,7 +702,7 @@ class MLIRImporter(object):
 
         lstm_name = self.module.stringAttr(op_name)
         none = self.add_none_op()
-        for i in range(4):#add 4 redundant input
+        for _ in range(4):#add 4 redundant input
             inputOperands.append(none)
 
         return self.buildOp(TPU_OpType.LSTM.value, inputOperands, [
@@ -734,7 +728,7 @@ class MLIRImporter(object):
         mish_name = self.module.stringAttr(op_name)
         none = self.add_none_op()
         # We assigne 4 reg for mish quant table
-        for i in range(2):
+        for _ in range(2):
             inputOperands.append(none)
         return self.buildOp(TPU_OpType.Mish.value, inputOperands, [
             tensor_output_type], name=mish_name, quant=self.quant_param)
@@ -802,7 +796,7 @@ class MLIRImporter(object):
             'count_include_pad': self.module.boolAttr(kargs['count_include_pad']),
         }
         dict_attr = self.module.dictAttr(**pool_avg_2d_param)
-        inputOpernads = self.add_quant_reg(inputOperands)
+        inputOperands = self.add_quant_reg(inputOperands)
         return self.buildOp(TPU_OpType.PoolAvg2D.value, inputOperands, [
             tensor_output_type], name=pool_avg_2d_name, param=dict_attr, quant=self.quant_param)
 
@@ -963,7 +957,7 @@ class MLIRImporter(object):
         none = self.add_none_op()
         # quant_pos_scale, quant_pos_zeropoint, quant_neg_scale, quant_neg_zeropoint
         # quant_pos_rshift, quant_pos_multiplier, quant_neg_rshift, quant_neg_multiplier
-        for i in range( 10 - len(inputOperands)):
+        for _ in range( 10 - len(inputOperands)):
             inputOperands.append(none)
 
         return self.buildOp(TPU_OpType.PRelu.value, inputOperands, [
@@ -974,7 +968,6 @@ class MLIRImporter(object):
         tensor_output_type = self.module.make_ranked_tensor_type(
             self.f32Type, output_tensor_shape)
 
-        proposal_op = self.module.stringAttr(op_name)
         checkKey(kargs, 'net_input_h')
         checkKey(kargs, 'net_input_w')
         checkKey(kargs, 'feat_stride')
@@ -1005,7 +998,7 @@ class MLIRImporter(object):
 
         # table and table_mantissa all are none
         none = self.add_none_op()
-        for i in range( 3 - len(inputOperands)):
+        for _ in range( 3 - len(inputOperands)):
             inputOperands.append(none)
 
         return self.buildOp(TPU_OpType.Reciprocal.value, inputOperands, [
@@ -1058,7 +1051,6 @@ class MLIRImporter(object):
         tensor_output_type = self.module.make_ranked_tensor_type(
             self.f32Type, output_tensor_shape)
 
-        roipooling_op = self.module.stringAttr(op_name)
         checkKey(kargs, 'pooled_h')
         checkKey(kargs, 'pooled_w')
         checkKey(kargs, 'spatial_scale')
@@ -1098,7 +1090,7 @@ class MLIRImporter(object):
         sigmoid_name = self.module.stringAttr(op_name)
         none = self.add_none_op()
         # We assigne 4 reg for sigmoid quant table
-        for i in range(2):
+        for _ in range(2):
             inputOperands.append(none)
         return self.buildOp(TPU_OpType.Sigmoid.value, inputOperands, [
             tensor_output_type], name=sigmoid_name, quant=self.quant_param)
@@ -1125,7 +1117,7 @@ class MLIRImporter(object):
             'axis': self.module.integerAttr(self.i32Type, kargs['axis'])
         }
         none = self.add_none_op()
-        for i in range(4):#add 4 redundant input
+        for _ in range(4):#add 4 redundant input
             inputOperands.append(none)
         return self.buildOp(TPU_OpType.Softmax.value, inputOperands, [
             tensor_output_type], name=softmax_name, quant=self.quant_param, **softmax_param)
@@ -1150,7 +1142,7 @@ class MLIRImporter(object):
         tanh_name = self.module.stringAttr(op_name)
         none = self.add_none_op()
         # We assigne 4 reg for tanh quant table
-        for i in range(2):
+        for _ in range(2):
             inputOperands.append(none)
         return self.buildOp(TPU_OpType.Tanh.value, inputOperands, [
             tensor_output_type], name=tanh_name, quant=self.quant_param)
@@ -1171,7 +1163,7 @@ class MLIRImporter(object):
         }
 
         none = self.add_none_op()
-        for i in range(4):
+        for _ in range(4):
             inputOperands.append(none)
 
         return self.buildOp(TPU_OpType.Tile.value, inputOperands, [
@@ -1205,7 +1197,7 @@ class MLIRImporter(object):
             'axes': axes
         }
         none = self.add_none_op()
-        for i in range( 5 - len(inputOperands)):
+        for _ in range( 5 - len(inputOperands)):
             inputOperands.append(none)
         return self.buildOp(TPU_OpType.ReduceMean.value, inputOperands, [
                 tensor_output_type], name=reduce_name, quant=self.quant_param, **reduce_param)
@@ -1222,7 +1214,7 @@ class MLIRImporter(object):
         }
 
         none = self.add_none_op()
-        for i in range( 5 - len(inputOperands)):
+        for _ in range( 5 - len(inputOperands)):
             inputOperands.append(none)
 
         return self.buildOp(TPU_OpType.ReduceMax.value, inputOperands, [
@@ -1263,16 +1255,14 @@ class MLIRImporter(object):
         mlir_format = str(self.module)
         lines = mlir_format.splitlines()
 
-        reg = '%[0-9]+'
-        shape = ''
         new_strings = list()
         for i in lines:
-            filter = "\W*(std\.return)\W*"
+            filter = r"\W*(std\.return)\W*"
             ret = re.match(filter, i)
             if ret:
                 reg_filter = "%[0-9]+"
                 regs = re.findall(reg_filter, i)
-                shape_filter = "\<[0-9A-Za-z]+\>"
+                shape_filter = r"\<[0-9A-Za-z]+\>"
                 shapes = re.findall(shape_filter, i)
                 if len(regs) != len(shapes): raise RuntimeError("{} is error format, regs v.s shapes number not match.".format(i))
                 regstr = str()
