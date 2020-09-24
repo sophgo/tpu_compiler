@@ -65,7 +65,6 @@ static void parseTLLeakyReluParam(Operation *op,
   if (lreluOp.m_i8_pos().hasValue()) {
     pos_m_i8 = lreluOp.m_i8_pos().getValue().getLimitedValue();
     pos_rshift = lreluOp.rshift_pos().getValue().getLimitedValue();
-    assert(pos_m_i8);
   } else {
     pos_m_i8 = 0;
     pos_rshift = 0;
@@ -74,7 +73,6 @@ static void parseTLLeakyReluParam(Operation *op,
   if (lreluOp.m_i8_neg().hasValue()) {
     neg_m_i8 = lreluOp.m_i8_neg().getValue().getLimitedValue();
     neg_rshift = lreluOp.rshift_neg().getValue().getLimitedValue();
-    assert(neg_m_i8);
   } else {
     neg_m_i8 = 0;
     neg_rshift = 0;
@@ -92,7 +90,6 @@ static void parseTLConvLeakyParam(Operation *op,
   if (lreluOp.m_i8_pos().hasValue()) {
     pos_m_i8 = lreluOp.m_i8_pos().getValue().getLimitedValue();
     pos_rshift = lreluOp.rshift_pos().getValue().getLimitedValue();
-    assert(pos_m_i8);
   } else {
     pos_m_i8 = 0;
     pos_rshift = 0;
@@ -101,7 +98,6 @@ static void parseTLConvLeakyParam(Operation *op,
   if (lreluOp.m_i8_neg().hasValue()) {
     neg_m_i8 = lreluOp.m_i8_neg().getValue().getLimitedValue();
     neg_rshift = lreluOp.rshift_neg().getValue().getLimitedValue();
-    assert(neg_m_i8);
   } else {
     neg_m_i8 = 0;
     neg_rshift = 0;
@@ -1362,7 +1358,6 @@ LogicalResult tpu::TL_LG_INT8_PReluOp::codegen(void *ctx) {
   if (prelu_op.m_i8_pos().hasValue()) {
     m_i8_pos = prelu_op.m_i8_pos().getValue().getLimitedValue();
     r_i8_pos = prelu_op.r_i8_pos().getValue().getLimitedValue();
-    assert(m_i8_pos);
   } else {
     m_i8_pos = 0;
     r_i8_pos = 0;
@@ -1370,7 +1365,6 @@ LogicalResult tpu::TL_LG_INT8_PReluOp::codegen(void *ctx) {
 
   if (prelu_op.r_i8_neg().hasValue()) {
     r_i8_neg = prelu_op.r_i8_neg().getValue().getLimitedValue();
-    assert(r_i8_neg);
   } else {
     r_i8_neg = 0;
   }
