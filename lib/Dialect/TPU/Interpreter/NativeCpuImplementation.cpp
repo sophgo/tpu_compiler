@@ -739,18 +739,14 @@ void gen_bf16_table(int start, int end, int table_hw, float *table,
 
   // Set idx [0 , 127] fp32 and bf16 data
   for (int i = 0; i < half; i++) {
-    x_value = i * interval;
+    x_value = (start + end) / 2 + i * interval;
     y_value = activate_func(x_value);
     table[table_idx] = y_value;
     table_idx++;
   }
 
-  // set idx 128 fp32 and bf16 data
-  table[table_idx] = activate_func(start);
-
-  ++table_idx;
   // set idx 129 to 256, 2's complment
-  for (int i = 1; i < half; i++) {
+  for (int i = 0; i < half; i++) {
     x_value = start + i * interval;
     y_value = activate_func(x_value);
     table[table_idx] = y_value;

@@ -160,41 +160,48 @@ void bf16_softmax_kernel_2d(const CviBackendContext &ctx, uint32_t layer_id,
         max_pool_param.layer_id = layer_id;
         ctx.tiu_max_pooling(&max_pool_param);
 
+        LLVM_DEBUG(llvm::errs() << llvm::format(
+                "  tiu_bf16_max_pooling\n"
+                "    ifmap shape (%d, %d, %d, %d)\n"
+                "    ofmap shape (%d, %d, %d, %d)\n"
+                "    kh %d, kw %d, stride_h %d, stride_w %d\n",
+                tl_input->shape.n, tl_input->shape.c, tl_input->shape.h, tl_input->shape.w, tl_maxValue.shape.n,
+                tl_maxValue.shape.c, tl_maxValue.shape.h, tl_maxValue.shape.w, 1, inner_size, 1, 1););
         // Broadcast maxValue (n, 1, 1, 1) -> (n, NPU_NUM, 1, 1)
         // (n, 1, NPU_NUM, 1)->(n, NPU_NUM, 1, 1)
         //                 h_str = 0
         {
-        // reshape
-        cvk_tl_t tl_src;
-        tl_src.start_address = tl_maxValue.start_address;  // start of lmem
-        tl_src.fmt = CVK_FMT_BF16;
-        tl_src.shape = tl_maxValueBroadcasted->shape;
-        tl_src.stride = ctx.tl_default_stride(tl_src.shape, CVK_FMT_BF16, /*eu_align=*/1);
-        tl_src.stride.h = 0;
-        tl_src.stride.n = EU_NUM; //every element = sizeof(BF16), and eu_align  1
+            // reshape
+            cvk_tl_t tl_src;
+            tl_src.start_address = tl_maxValue.start_address;  // start of lmem
+            tl_src.fmt = CVK_FMT_BF16;
+            tl_src.shape = tl_maxValueBroadcasted->shape;
+            tl_src.stride = ctx.tl_default_stride(tl_src.shape, CVK_FMT_BF16, /*eu_align=*/1);
+            tl_src.stride.h = 0;
+            tl_src.stride.n = EU_NUM; //every element = sizeof(BF16), and eu_align  1
 
-        cvk_tl_t tl_dst;
-        tl_dst.start_address = tl_maxValueBroadcasted->start_address;  // start of lmem
-        tl_dst.fmt = CVK_FMT_BF16;
-        tl_dst.shape = {
-            static_cast<uint32_t>(workingOutputSize), static_cast<uint32_t>(NPU_NUM),
-            static_cast<uint32_t>(1), static_cast<uint32_t>(1)};
-        tl_dst.stride = ctx.tl_default_stride(tl_dst.shape, CVK_FMT_BF16, /*eu_align=*/1);
+            cvk_tl_t tl_dst;
+            tl_dst.start_address = tl_maxValueBroadcasted->start_address;  // start of lmem
+            tl_dst.fmt = CVK_FMT_BF16;
+            tl_dst.shape = {
+                static_cast<uint32_t>(workingOutputSize), static_cast<uint32_t>(NPU_NUM),
+                static_cast<uint32_t>(1), static_cast<uint32_t>(1)};
+            tl_dst.stride = ctx.tl_default_stride(tl_dst.shape, CVK_FMT_BF16, /*eu_align=*/1);
 
-        cvk_tdma_l2l_tensor_copy_param_t p2 = {0};
-        p2.src = &tl_src;
-        p2.dst = &tl_dst;
+            cvk_tdma_l2l_tensor_copy_param_t p2 = {0};
+            p2.src = &tl_src;
+            p2.dst = &tl_dst;
 
-        LLVM_DEBUG(llvm::errs() << llvm::format(
-                        "         L2L Reshape:\n"
-                        "         src addr 0x%lx, shape(%d, %d, %d, %d), stride(%d, %d, %d, %d)\n"
-                        "         dst addr 0x%lx, shape(%d, %d, %d, %d), stride(%d, %d, %d, %d)\n",
-                        p2.src->start_address, p2.src->shape.n,
-                        p2.src->shape.c, p2.src->shape.h, p2.src->shape.w, p2.src->stride.n,
-                        p2.src->stride.c, p2.src->stride.h, p2.src->stride.w, p2.dst->start_address,
-                        p2.dst->shape.n, p2.dst->shape.c, p2.dst->shape.h, p2.dst->shape.w,
-                        p2.dst->stride.n, p2.dst->stride.c, p2.dst->stride.h, p2.dst->stride.w));
-        ctx._tdma_l2l_tensor_copy(&p2);
+            LLVM_DEBUG(llvm::errs() << llvm::format(
+                            "         L2L Reshape:\n"
+                            "         src addr 0x%lx, shape(%d, %d, %d, %d), stride(%d, %d, %d, %d)\n"
+                            "         dst addr 0x%lx, shape(%d, %d, %d, %d), stride(%d, %d, %d, %d)\n",
+                            p2.src->start_address, p2.src->shape.n,
+                            p2.src->shape.c, p2.src->shape.h, p2.src->shape.w, p2.src->stride.n,
+                            p2.src->stride.c, p2.src->stride.h, p2.src->stride.w, p2.dst->start_address,
+                            p2.dst->shape.n, p2.dst->shape.c, p2.dst->shape.h, p2.dst->shape.w,
+                            p2.dst->stride.n, p2.dst->stride.c, p2.dst->stride.h, p2.dst->stride.w));
+            ctx._tdma_l2l_tensor_copy(&p2);
         }
         cvk_tl_shape_t parallel_input_shape = {
             static_cast<uint32_t>(workingOutputSize), static_cast<uint32_t>(parallelC),
@@ -252,24 +259,24 @@ void bf16_softmax_kernel_2d(const CviBackendContext &ctx, uint32_t layer_id,
             ctx.tiu_sub(&p5);
         }
 
-        cvk_tl_shape_t lut_working_shape = {
-            static_cast<uint32_t>(workingOutputSize * 2), static_cast<uint32_t>(parallelC),
-            static_cast<uint32_t>(1), static_cast<uint32_t>(bf16_euWorkingOneLane)};
-        cvk_tl_t *tl_lut_working =
-            ctx.lmem_alloc_tensor(lut_working_shape, CVK_FMT_BF16, eu_align);
-        ASSERT(tl_lut_working);
-
         cvk_tl_shape_t lut_result_shape = {
             static_cast<uint32_t>(workingOutputSize), static_cast<uint32_t>(parallelC),
             static_cast<uint32_t>(1), static_cast<uint32_t>(bf16_euWorkingOneLane)};
         cvk_tl_t *tl_lut_result =
             ctx.lmem_alloc_tensor(lut_result_shape, CVK_FMT_BF16, eu_align);
         ASSERT(tl_lut_result);
+
+        cvk_tl_shape_t lut_working_shape = {
+            static_cast<uint32_t>(workingOutputSize * 2), static_cast<uint32_t>(parallelC),
+            static_cast<uint32_t>(1), static_cast<uint32_t>(bf16_euWorkingOneLane)};
+        cvk_tl_t *tl_lut_working =
+            ctx.lmem_alloc_tensor(lut_working_shape, CVK_FMT_BF16, eu_align);
+        ASSERT(tl_lut_working);
         //lut exponential
         //tl_lut_result = exp(tl_parallel_input)
         {
-            const int table_thresh_min = -16;
-            const int table_thresh_max = 0;
+            const int table_thresh_min = -15;
+            const int table_thresh_max = 1;
             cvi_backend_tl_lut(
             ctx, layer_id,
             tl_parallel_input->start_address, tl_lut_result->start_address, tl_lut_working->start_address,
@@ -296,7 +303,7 @@ void bf16_softmax_kernel_2d(const CviBackendContext &ctx, uint32_t layer_id,
 
         //Accumulate exponential value
         {
-        cvk_tiu_average_pooling_param_t param = {0};
+            cvk_tiu_average_pooling_param_t param = {0};
             param.ofmap = &tl_maxValue;
             param.ifmap = tl_input;
             param.kh = 1;
@@ -338,63 +345,55 @@ void bf16_softmax_kernel_2d(const CviBackendContext &ctx, uint32_t layer_id,
 
         // Broadcast reciprocal value  (n, 1, 1, 1) -> (n, NPU_NUM, 1, 1)
         {
-        // reshape
-        cvk_tl_t tl_src;
-        tl_src.start_address = tl_lut_reciprocal_result->start_address;  // start of lmem
-        tl_src.fmt = CVK_FMT_BF16;
-        tl_src.shape = tl_maxValueBroadcasted->shape;
-        tl_src.stride = ctx.tl_default_stride(tl_src.shape, CVK_FMT_BF16, /*eu_align=*/1);
-        tl_src.stride.h = 0;
-        tl_src.stride.n = EU_NUM; //every element = sizeof(BF16)
+            // reshape
+            cvk_tl_t tl_src;
+            tl_src.start_address = tl_lut_reciprocal_result->start_address;  // start of lmem
+            tl_src.fmt = CVK_FMT_BF16;
+            tl_src.shape = tl_maxValueBroadcasted->shape;
+            tl_src.stride = ctx.tl_default_stride(tl_src.shape, CVK_FMT_BF16, /*eu_align=*/1);
+            tl_src.stride.h = 0;
+            tl_src.stride.n = EU_NUM; //every element = sizeof(BF16)
 
-        cvk_tl_t tl_dst;
-        tl_dst.start_address = tl_maxValueBroadcasted->start_address;  // start of lmem
-        tl_dst.fmt = CVK_FMT_BF16;
-        tl_dst.shape = {
-            static_cast<uint32_t>(workingOutputSize), static_cast<uint32_t>(NPU_NUM),
-            static_cast<uint32_t>(1), static_cast<uint32_t>(1)};
-        tl_dst.stride = ctx.tl_default_stride(tl_dst.shape, CVK_FMT_BF16, /*eu_align=*/1);
+            cvk_tl_t tl_dst;
+            tl_dst.start_address = tl_maxValueBroadcasted->start_address;  // start of lmem
+            tl_dst.fmt = CVK_FMT_BF16;
+            tl_dst.shape = {
+                static_cast<uint32_t>(workingOutputSize), static_cast<uint32_t>(NPU_NUM),
+                static_cast<uint32_t>(1), static_cast<uint32_t>(1)};
+            tl_dst.stride = ctx.tl_default_stride(tl_dst.shape, CVK_FMT_BF16, /*eu_align=*/1);
 
-        cvk_tdma_l2l_tensor_copy_param_t p2 = {0};
-        p2.src = &tl_src;
-        p2.dst = &tl_dst;
+            cvk_tdma_l2l_tensor_copy_param_t p2 = {0};
+            p2.src = &tl_src;
+            p2.dst = &tl_dst;
 
-        LLVM_DEBUG(llvm::errs() << llvm::format(
-                        "         L2L Reshape:\n"
-                        "         src addr 0x%lx, shape(%d, %d, %d, %d), stride(%d, %d, %d, %d)\n"
-                        "         dst addr 0x%lx, shape(%d, %d, %d, %d), stride(%d, %d, %d, %d)\n",
-                        p2.src->start_address, p2.src->shape.n,
-                        p2.src->shape.c, p2.src->shape.h, p2.src->shape.w, p2.src->stride.n,
-                        p2.src->stride.c, p2.src->stride.h, p2.src->stride.w, p2.dst->start_address,
-                        p2.dst->shape.n, p2.dst->shape.c, p2.dst->shape.h, p2.dst->shape.w,
-                        p2.dst->stride.n, p2.dst->stride.c, p2.dst->stride.h, p2.dst->stride.w));
-        ctx._tdma_l2l_tensor_copy(&p2);
+            LLVM_DEBUG(llvm::errs() << llvm::format(
+                            "         L2L Reshape:\n"
+                            "         src addr 0x%lx, shape(%d, %d, %d, %d), stride(%d, %d, %d, %d)\n"
+                            "         dst addr 0x%lx, shape(%d, %d, %d, %d), stride(%d, %d, %d, %d)\n",
+                            p2.src->start_address, p2.src->shape.n,
+                            p2.src->shape.c, p2.src->shape.h, p2.src->shape.w, p2.src->stride.n,
+                            p2.src->stride.c, p2.src->stride.h, p2.src->stride.w, p2.dst->start_address,
+                            p2.dst->shape.n, p2.dst->shape.c, p2.dst->shape.h, p2.dst->shape.w,
+                            p2.dst->stride.n, p2.dst->stride.c, p2.dst->stride.h, p2.dst->stride.w));
+            ctx._tdma_l2l_tensor_copy(&p2);
         }
 
         //ans = exp(input - maxInput) *  reciprocal value
         {
-            cvk_tl_t tl_reshape_parallel_input;
-            tl_reshape_parallel_input.start_address = tl_lut_result->start_address;  // start of lmem
-            tl_reshape_parallel_input.fmt = CVK_FMT_BF16;
-            tl_reshape_parallel_input.shape = tl_lut_result->shape;
-            //concate h*w to h and set w = 1. Logcally equal
-            tl_reshape_parallel_input.shape.h = tl_lut_result->shape.h*tl_lut_result->shape.w;
-            tl_reshape_parallel_input.shape.w = 1;
-            tl_reshape_parallel_input.stride = ctx.tl_default_stride(tl_reshape_parallel_input.shape, CVK_FMT_BF16, /*eu_align=*/1);
-
             cvk_tl_t tl_reshape_maxValueBroadcasted;
             tl_reshape_maxValueBroadcasted.start_address = tl_maxValueBroadcasted->start_address;  // start of lmem
             tl_reshape_maxValueBroadcasted.fmt = CVK_FMT_BF16;
-            tl_reshape_maxValueBroadcasted.shape = tl_reshape_parallel_input.shape;
-            tl_reshape_maxValueBroadcasted.stride = ctx.tl_default_stride(tl_reshape_maxValueBroadcasted.shape, CVK_FMT_BF16, /*eu_align=*/1);
+            tl_reshape_maxValueBroadcasted.shape = tl_lut_result->shape;
+            tl_reshape_maxValueBroadcasted.stride = ctx.tl_default_stride(tl_lut_result->shape, CVK_FMT_BF16, /*eu_align=*/1);
             tl_reshape_maxValueBroadcasted.stride.h = 0;//h stride =0
             tl_reshape_maxValueBroadcasted.stride.c = 0;//c stride =0
+            tl_reshape_maxValueBroadcasted.stride.w = 0;//w stride =0
             tl_reshape_maxValueBroadcasted.stride.n = EU_NUM; //every element = sizeof(BF16)
 
             cvk_tiu_mul_param_t p = {0};
             p.res_high = nullptr;
-            p.res_low = &tl_reshape_parallel_input;
-            p.a = &tl_reshape_parallel_input;
+            p.res_low = tl_lut_result;
+            p.a = tl_lut_result;
             p.b = &tl_reshape_maxValueBroadcasted;
             p.b_is_const = 0;
             p.rshift_bits = 0;
@@ -429,8 +428,8 @@ void bf16_softmax_kernel_2d(const CviBackendContext &ctx, uint32_t layer_id,
             //                            {inner_size*sizeof(uint16_t)});// original column width
         }
         ctx.lmem_free_tensor(tl_lut_reciprocal_result);
-        ctx.lmem_free_tensor(tl_lut_result);
         ctx.lmem_free_tensor(tl_lut_working);
+        ctx.lmem_free_tensor(tl_lut_result);
         ctx.lmem_free_tensor(tl_parallel_input);
         ctx.lmem_free_tensor(tl_maxValueBroadcasted);
         ctx.lmem_free_tensor(tl_input);
@@ -643,8 +642,8 @@ void bf16_softmax_kernel_4d(const CviBackendContext &ctx, uint32_t layer_id,
             //lut exponential
             //tl_lut_result = exp(tl_input)
             {
-                const int table_thresh_min = -16;
-                const int table_thresh_max = 0;
+                const int table_thresh_min = -15;
+                const int table_thresh_max = 1;
                 cvi_backend_tl_lut(
                 ctx, layer_id,
                 selected_tl_input->start_address, tl_lut_result->start_address, tl_lut_working->start_address,

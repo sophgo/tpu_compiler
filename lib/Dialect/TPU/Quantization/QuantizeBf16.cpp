@@ -34,6 +34,7 @@
 #include "mlir/Pass/Pass.h"
 #include "mlir/Support/TensorFile.h"
 #include "llvm/Support/raw_ostream.h"
+#include "mlir/Dialect/TPU/MachineInfo.h"
 
 #include <sstream>
 #include <fstream>
@@ -128,7 +129,7 @@ LogicalResult quantizeBF16ReciprocalOps(Operation *op) {
   assert(0);
   TensorFile *wTF = getWeightTensorFile(op);
   Value *wfV = getWeightFileValue(op);
-  int npu_num = 32; //<! 1880v2 hardcode
+  int npu_num = MInfo::lane_num; //<! 1880v2 hardcode
 
   //<! 1880v2 hw bf16 config
   int table_h = 32;
@@ -181,7 +182,7 @@ LogicalResult quantizeBF16SqrtOps(Operation *op) {
   assert(0);
   TensorFile *wTF = getWeightTensorFile(op);
   Value *wfV = getWeightFileValue(op);
-  int npu_num = 32; //<! 1880v2 hardcode
+  int npu_num = MInfo::lane_num; //<! 1880v2 hardcode
 
   //<! 1880v2 hw bf16 config
   int table_h = 32;
@@ -245,7 +246,7 @@ LogicalResult quantizeBF16LutOps(Operation *op) {
                           << ", threshold_y = " << std::to_string(threshold_y)
                           << ", threshold_x = " << std::to_string(threshold_x)
                           << "\n";);
-  int npu_num = 32; //<! 1880v2 hardcode
+  int npu_num = MInfo::lane_num; //<! 1880v2 hardcode
 
   //<! 1880v2 hw bf16 config
   int table_h = 32;
@@ -430,7 +431,7 @@ LogicalResult quantizeBf16GruOps(Operation *op) {
   LLVM_DEBUG(llvm::dbgs() << "GenSigmoidLut: " << "]\n";);
   // Add lut table information
 
-  int npu_num = 32;
+  int npu_num = MInfo::lane_num;
 
   //<! 1880v2 hw bf16 config
   int table_h = 32;
@@ -549,7 +550,7 @@ LogicalResult quantizeBf16SoftmaxOps(Operation *op) {
   LLVM_DEBUG(llvm::dbgs() << "GenExponentialLut: " << "]\n";);
   // Add lut table information
 
-  int npu_num = 32;
+  int npu_num = MInfo::lane_num;
 
   //<! 1880v2 hw bf16 config
   int table_h = 32;
@@ -572,8 +573,8 @@ LogicalResult quantizeBf16SoftmaxOps(Operation *op) {
   LLVM_DEBUG(llvm::dbgs() << "use function pointer: " << "]\n";);
   double (*activate_func)(double);
   activate_func = exp;
-  const int expTableStart = -16;
-  const int expTableEnd = 0;
+  const int expTableStart = -15;
+  const int expTableEnd = 1;
 
   gen_bf16_table(expTableStart, expTableEnd, table_hw,
                  y0_fp32_table.data(), activate_func);
@@ -581,6 +582,7 @@ LogicalResult quantizeBf16SoftmaxOps(Operation *op) {
   gen_bf16_slope_table(expTableStart, expTableEnd, table_hw,
                        y0_fp32_table.data(), y0_fp32_slope_table.data(),
                        activate_func);
+  y0_fp32_table[128] = 0; // Make lut exp(x) = 0 when x <= -15
   // for(int i = 0; i < table_hw; i++) {
   //   LLVM_DEBUG(llvm::dbgs() << "exponential data[" << i<< "]: " <<  y0_fp32_table[i]<< "]\n";);
   //   LLVM_DEBUG(llvm::dbgs() << "exponential data[" << i<< "]: " <<  y0_fp32_slope_table[i]<< "]\n";);
@@ -782,7 +784,7 @@ LogicalResult quantizeBf16LstmOps(Operation *op) {
   LLVM_DEBUG(llvm::dbgs() << "GenSigmoidLut: " << "]\n";);
   // Add lut table information
 
-  int npu_num = 32;
+  int npu_num = MInfo::lane_num;
 
   //<! 1880v2 hw bf16 config
   int table_h = 32;

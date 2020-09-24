@@ -208,7 +208,10 @@ def mlir_calibration(mlirfile_fp32, dataset, threshold_table, auto_tune=False):
                         ], **std_output_flag)
 
 def gen_bf16_mlir(mlir_src, mlir_target, bf16_layer_table, op_info_csv):
+    chip = get_chip_name()
     command = ["mlir-opt",
+               "--assign-chip-name",
+               "--chipname={}".format(chip),
                "--tpu-quant",
                "--quant-int8-mix-bf16-layers-from-file", bf16_layer_table,
                "--print-tpu-op-info",

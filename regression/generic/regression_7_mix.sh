@@ -33,6 +33,8 @@ if [ $DO_QUANT_MIX -eq 1 ] && [ $BATCH_SIZE -eq 1 ]; then
         --number_bf16=$MIX_PRECISION_BF16_LAYER_NUM
 
     mlir-opt \
+        --assign-chip-name \
+        --chipname ${SET_CHIP_NAME} \
         --tpu-quant \
         --quant-int8-mix-bf16-layers-from-file ${NET}_mix_precision_bf16_table \
         --tpu-op-info-filename ${NET}_op_info_mix.csv \

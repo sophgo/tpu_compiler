@@ -40,6 +40,7 @@
 #include <sstream>
 #include <fstream>
 #include <bmkernel/bm1880v2/1880v2_fp_convert.h>
+#include "mlir/Dialect/TPU/MachineInfo.h"
 
 
 #define DEBUG_TYPE "quantization"
@@ -810,6 +811,11 @@ public:
   explicit TpuQuantPass() {}
 
   void runOnFunction() override {
+    std::string getRunChipType;
+    MInfo machineInfo;
+    get_cvichip_name(getRunChipType);
+    machineInfo.getChipInfo(getRunChipType.c_str());
+    assert(MInfo::version && "refer to set-chip");
     auto fn = getFunction();
     auto *context = &getContext();
     auto builder = Builder(context);

@@ -2540,7 +2540,6 @@ struct LowerWeightGruOpPattern : public RewritePattern {
         // because of 1880 hardware search table only on each local memory
         // we dupicate table to limit number <32>
         assert(shape[2] * shape[3] == 256);
-        assert(shape[1] == 32);
 
         // save it
         addWeightTensorAndUpdateWeightOp<uint16_t>(
@@ -2580,7 +2579,6 @@ struct LowerWeightGruOpPattern : public RewritePattern {
         // because of 1880 hardware search table only on each local memory
         // we dupicate table to limit number <32>
         assert(shape[2] * shape[3] == 256);
-        assert(shape[1] == 32);
 
         // save it
         addWeightTensorAndUpdateWeightOp<uint16_t>(
@@ -2778,7 +2776,6 @@ struct LowerWeightLstmOpPattern : public RewritePattern {
         // because of 1880 hardware search table only on each local memory
         // we dupicate table to limit number <32>
         assert(shape[2] * shape[3] == 256);
-        assert(shape[1] == 32);
 
         // save it
         addWeightTensorAndUpdateWeightOp<uint16_t>(
@@ -2818,7 +2815,6 @@ struct LowerWeightLstmOpPattern : public RewritePattern {
         // because of 1880 hardware search table only on each local memory
         // we dupicate table to limit number <32>
         assert(shape[2] * shape[3] == 256);
-        assert(shape[1] == 32);
 
         // save it
         addWeightTensorAndUpdateWeightOp<uint16_t>(
@@ -2886,7 +2882,6 @@ struct LowerWeightSoftmaxOpPattern : public RewritePattern {
       // because of 1880 hardware search table only on each local memory
       // we dupicate table to limit number <32>
       assert(shape[2] * shape[3] == 256);
-      assert(shape[1] == 32);
 
       // save it
       addWeightTensorAndUpdateWeightOp<uint16_t>(
@@ -2921,7 +2916,6 @@ struct LowerWeightSoftmaxOpPattern : public RewritePattern {
       // because of 1880 hardware search table only on each local memory
       // we dupicate table to limit number <32>
       assert(shape[2] * shape[3] == 256);
-      assert(shape[1] == 32);
 
       // save it
       addWeightTensorAndUpdateWeightOp<uint16_t>(
@@ -3125,7 +3119,6 @@ struct LowerWeightLutOpPattern : public RewritePattern {
         // because of 1880 hardware search table only on each local memory
         // we dupicate table to limit number <32>
         assert(shape[2] * shape[3] == 256);
-        assert(shape[1] == 32);
 
         // save it
         addWeightTensorAndUpdateWeightOp<int8_t>(
@@ -3152,7 +3145,6 @@ struct LowerWeightLutOpPattern : public RewritePattern {
         // because of 1880 hardware search table only on each local memory
         // we dupicate table to limit number <32>
         assert(shape[2] * shape[3] == 256);
-        assert(shape[1] == 32);
 
         // save it
         addWeightTensorAndUpdateWeightOp<uint16_t>(
