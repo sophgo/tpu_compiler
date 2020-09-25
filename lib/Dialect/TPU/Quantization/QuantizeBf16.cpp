@@ -125,8 +125,6 @@ double my_mish_caffe_wrapper (double x) {
 LogicalResult quantizeBF16ReciprocalOps(Operation *op) {
   LLVM_DEBUG(llvm::dbgs() << "GenReciprocalLut: " << "]\n";);
 
-  // TODO: Not verified
-  assert(0);
   TensorFile *wTF = getWeightTensorFile(op);
   Value *wfV = getWeightFileValue(op);
   int npu_num = MInfo::lane_num; //<! 1880v2 hardcode
@@ -178,8 +176,6 @@ LogicalResult quantizeBF16ReciprocalOps(Operation *op) {
 LogicalResult quantizeBF16SqrtOps(Operation *op) {
   LLVM_DEBUG(llvm::dbgs() << "GenSqrtLut: " << "]\n";);
 
-  // TODO: Not verified
-  assert(0);
   TensorFile *wTF = getWeightTensorFile(op);
   Value *wfV = getWeightFileValue(op);
   int npu_num = MInfo::lane_num; //<! 1880v2 hardcode

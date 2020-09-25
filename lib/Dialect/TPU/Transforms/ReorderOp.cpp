@@ -155,7 +155,6 @@ public:
     auto fn = getFunction();
     OwningRewritePatternList patterns;
     auto *context = &getContext();
-
     // re-order all OPs
     fn.walk([&](Operation *op) {
       if (op->getName().getDialect().str() != "tpu"
@@ -176,6 +175,9 @@ public:
           auto opdNum = next->getNumOperands();
           for (int i = (int)opdNum - 1; i >= 0; --i) {
             auto opd = next->getOperand(i)->getDefiningOp();
+            // if def has multi use, we can not move
+            if (!opd->getResult(0)->hasOneUse())
+              continue;
             opd->moveBefore(insertPoint);
             insertPoint = opd;
           }

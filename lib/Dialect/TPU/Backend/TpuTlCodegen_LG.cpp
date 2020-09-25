@@ -610,10 +610,48 @@ LogicalResult tpu::TL_LG_INT8_LutOp::codegen(void *ctx) {
 
 }
 
+
+// two kinds of bf16 lookup table usage:
+// 1. For tanh/sigmoid, calculate y0 + slope at [-8, 8] to close result
+// 2. For reciprocal/sqrt/power, calcuate mantissa and exp, and mul them
 LogicalResult tpu::TL_LG_BF16_LutOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);
-  assert(0);
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+  int layer_id = getOpLayerId(op);
+
+  laddr_t la_input = this->la_input().getLimitedValue();
+  laddr_t la_output = this->la_output().getLimitedValue();
+  laddr_t la_working = this->la_working().getLimitedValue();
+  laddr_t la_slope_lut = this->la_slope_lut().getLimitedValue();
+  laddr_t la_y_table = this->la_y_table().getLimitedValue();
+
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  getNCHW(shape, n, c, h, w);
+
+  const int table_thresh_min = -8;
+  const int table_thresh_max = 8;
+  auto lut_method = method().getValue().str();
+  // method 0: mantissa, 1: slope
+  int method = 0;
+  if(lut_method == "mantissa")
+    method = 0;
+  else if (lut_method == "slope")
+    method = 1;
+
+  cvi_backend_bf16_tl_lut( *backend_ctx,
+                          layer_id,
+                          la_input,
+                          la_output,
+                          la_working,
+                          la_y_table,
+                          la_slope_lut,
+                          table_thresh_min,
+                          table_thresh_max,
+                          n, c, h, w, method);
   return success();
 }
 

@@ -1199,7 +1199,6 @@ void MixNet::_add_tl_broadcast_mul_op(
   }
 }
 
-// only test sigmoid
 void MixNet::_add_tl_activation_op(MixOp * mix_op,
                                   const std::vector<int>& in_tensors,
                                   const std::vector<int>& out_tensors,
@@ -1210,15 +1209,24 @@ void MixNet::_add_tl_activation_op(MixOp * mix_op,
       net_graph_->get_layer_by_id(mix_op->get_layer_id());
   RankedTensorType old_input_type;
   int is_int8 = 1;
+  int lut_nr = 1; // one lut for int8
+  Type bf16Type;
+  std::string method;
+  Builder builder_(context_);
+  std::vector<NamedAttribute> attrs;
 
   if (auto old_op = dyn_cast<tpu::TG_INT8_LutOp>(im_layer->op())) {
     old_input_type =
       old_op.getOperand(0)->getType().cast<RankedTensorType>();
+
   }
   else if (auto old_op = dyn_cast<tpu::TG_BF16_LutOp>(im_layer->op())) {
     old_input_type =
       old_op.getResult()->getType().cast<RankedTensorType>();
     is_int8 = 0;
+    lut_nr = 2; // y0 + mantissa
+    bf16Type = FloatType::getBF16(builder_.getContext()); // for td define
+    attrs.push_back(builder_.getNamedAttr("method", old_op.methodAttr()));
   }
   else {
     llvm_unreachable("unsupported type, it should be TG_INT8_LutOp/TG_BF16_LutOp");
@@ -1244,8 +1252,6 @@ void MixNet::_add_tl_activation_op(MixOp * mix_op,
   }
 
   // attrs
-  Builder builder_(context_);
-  std::vector<NamedAttribute> attrs;
   attrs.push_back(builder_.getNamedAttr("name",
                            builder_.getStringAttr(name)));
   attrs.push_back(builder_.getNamedAttr("la_input",
@@ -1276,16 +1282,7 @@ void MixNet::_add_tl_activation_op(MixOp * mix_op,
   input_op->getResult(0)->setType(input_type);
   operands.push_back(input_op->getResult(0));
 
-  int lut_nr = 1; // one lut for int8
-  Type bf16Type;
-  if (is_int8) {
-  } else {
-     lut_nr = 2; // y0 + mantissa
-     bf16Type = FloatType::getBF16(builder_.getContext()); // for td define
-  }
-
-  int32_t i;
-  for (i = 0; i < lut_nr ; i++) {
+  for (int32_t i = 0; i < lut_nr ; i++) {
     // + 1 means shift after 0(input)
     input_op = get_op_from_name(mix_op->bottom_name(i + 1))->getDefiningOp();
     if (!is_int8) {
@@ -1297,18 +1294,23 @@ void MixNet::_add_tl_activation_op(MixOp * mix_op,
   }
 
   if (is_int8) {
-    // fix occupied \slope_lut
     auto NoneOp = OpBuilder(get_start_op()).create<tpu::NoneOp>(builder_.getUnknownLoc(),
-        builder_.getNoneType());
+                  builder_.getNoneType());
     operands.push_back(NoneOp.getResult());
+    auto op = OpBuilder(get_start_op()).create<tpu::TL_LG_INT8_LutOp>(
+                        get_start_op()->getLoc(), output_type,
+                        ArrayRef<Value *>{operands},
+                        ArrayRef<NamedAttribute>{attrs});
+
+    add_opd_to_list(mix_op->name(), op.getResult(), true);
+  } else {
+    auto op = OpBuilder(get_start_op()).create<tpu::TL_LG_BF16_LutOp>(
+                    get_start_op()->getLoc(), output_type,
+                    ArrayRef<Value *>{operands},
+                    ArrayRef<NamedAttribute>{attrs});
+
+    add_opd_to_list(mix_op->name(), op.getResult(), true);
   }
-
-  auto op = OpBuilder(get_start_op()).create<tpu::TL_LG_INT8_LutOp>(
-                      get_start_op()->getLoc(), output_type,
-                      ArrayRef<Value *>{operands},
-                      ArrayRef<NamedAttribute>{attrs});
-
-  add_opd_to_list(mix_op->name(), op.getResult(), true);
 }
 
 void MixNet::_add_tl_quant_op(MixOp * mix_op,
