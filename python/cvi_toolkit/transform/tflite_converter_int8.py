@@ -8,6 +8,7 @@ from .utils import calcConv2DSpatial, calcPool2DFloor, calcPool2DCeil, \
     get_shape_size, get_TF_SAME_Padding
 
 from ..utils.log_setting import setup_logger
+log_flag = False
 
 # tflite gen by flatbuffer
 from tflite.ActivationFunctionType import ActivationFunctionType

@@ -157,7 +157,7 @@ class MLIRImporter(object):
         logger.debug('Close mlir builder context')
         self.func_ctx.__exit__(None, None, None)
 
-    def create_quant_param(self, is_asymmetric=False, is_perchannel=False, mode=TPU_MODE.FP32.value,
+    def create_quant_param(self, is_asymmetric=False, is_perchannel=False, mode=TPU_MODE.INT8.value,
                            param_type="NONE", threshold_max=0, threshold_min=0):
         quant_param = {
             'is_asymmetric': self.module.boolAttr(is_asymmetric),
@@ -239,7 +239,8 @@ class MLIRImporter(object):
         mem_ref = self.module.make_memref_type(self.f32Type, [10])
         self.weightop = self.buildOp(TPU_OpType.Weight_file.value, [], [mem_ref], filename=filename)
 
-    def add_load_file_op(self, name, output_tensor_shape, tensor_type=TPU_TensorType.FP32):
+    def add_load_file_op(self, name, output_tensor_shape, tensor_type=TPU_TensorType.FP32, storage="NONE"):
+        storage = self.module.stringAttr(storage)
         if tensor_type == TPU_TensorType.FP32:
             tensor_output_type = self.module.make_ranked_tensor_type(
                  self.f32Type, output_tensor_shape)
@@ -252,7 +253,7 @@ class MLIRImporter(object):
         else:
             raise RuntimeError("No support type {}".format(tensor_type))
         load_name = self.module.stringAttr(name)
-        return self.buildOp(TPU_OpType.Load_Weight.value, [self.weightop], [tensor_output_type], name=load_name)
+        return self.buildOp(TPU_OpType.Load_Weight.value, [self.weightop], [tensor_output_type], name=load_name, storage=storage)
 
     def add_broadcast_mul_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         assert(len(inputOperands) >= 2)
@@ -593,16 +594,33 @@ class MLIRImporter(object):
         return self.buildOp(TPU_OpType.DummyData.value, inputOperands, [
             tensor_output_type], name=name_attr)
 
-    def add_eltwise_add_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+    def add_eltwise_add_op(self, op_name, inputOperands, output_tensor_shape,  mode=TPU_MODE.FP32, do_relu=False, **kargs):
         tensor_output_type = self.module.make_ranked_tensor_type(
             self.get_input_type(inputOperands[0]), output_tensor_shape)
         if len(inputOperands) < 2:
             raise ArithmeticError("input operand must great than 2")
-
+        do_relu = self.module.boolAttr(do_relu)
         eltwise_add = self.module.stringAttr(op_name)
-        inputOperands = self.add_quant_reg(inputOperands)
+        if mode == TPU_MODE.INT8:
+            quant_param = self.create_int8_quant_param(**kargs)
+
+            # input, weight, (bias), rshift, multipiler
+            rshift, multipiler = inputOperands[-2:]
+            inputOperands = inputOperands[:-2]
+            none = self.add_none_op()
+            for _ in range(4 - len(inputOperands)):
+                inputOperands.append(none)
+            inputOperands.append(rshift)
+            inputOperands.append(multipiler)
+
+        elif mode == TPU_MODE.FP32:
+            inputOperands = self.add_quant_reg(inputOperands)
+            quant_param = self.quant_param
+        elif mode == TPU_MODE.BF16:
+            raise RuntimeError("Not support BF16")
+
         return self.buildOp(TPU_OpType.Eltwise_Add.value, inputOperands, [
-            tensor_output_type], name=eltwise_add, quant=self.quant_param)
+            tensor_output_type], name=eltwise_add, quant=quant_param, do_relu=do_relu)
 
     def add_eltwise_max_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = self.module.make_ranked_tensor_type(
@@ -652,7 +670,7 @@ class MLIRImporter(object):
         return self.buildOp(TPU_OpType.Exp.value, inputOperands, [
             tensor_output_type], name=op_name, quant=self.quant_param)
 
-    def add_fully_connected_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+    def add_fully_connected_op(self, op_name, inputOperands, output_tensor_shape, mode=TPU_MODE.FP32, **kargs):
         tensor_output_type = self.module.make_ranked_tensor_type(
             self.get_input_type(inputOperands[0]), output_tensor_shape)
         if len(inputOperands) < 2:
@@ -662,11 +680,25 @@ class MLIRImporter(object):
             none = self.add_none_op()
             inputOperands.append(none)
             # No bias
+        if mode == TPU_MODE.INT8:
+            assert(kargs['param_type'] == "RSHIFT_ONLY")
+            quant_param = self.create_int8_quant_param(**kargs)
+            rshift_op = inputOperands[-1]
+            inputOperands = inputOperands[:-1]
+            none = self.add_none_op()
 
+            for _ in range(5 - len(inputOperands)):
+                inputOperands.append(none)
+            inputOperands.append(rshift_op)
+            inputOperands.append(none)
+
+        else:
+            quant_param = self.quant_param
+            inputOperands = self.add_quant_reg(inputOperands)
         fully_connected_name = self.module.stringAttr(op_name)
-        inputOperands = self.add_quant_reg(inputOperands)
+
         return self.buildOp(TPU_OpType.FullyConnected.value, inputOperands, [
-            tensor_output_type], name=fully_connected_name, quant=self.quant_param)
+            tensor_output_type], name=fully_connected_name, quant=quant_param)
 
     def add_frcn_detection_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = self.module.make_ranked_tensor_type(
@@ -821,7 +853,7 @@ class MLIRImporter(object):
         return self.buildOp(TPU_OpType.Mish.value, inputOperands, [
             tensor_output_type], name=mish_name, quant=self.quant_param)
 
-    def add_pad_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+    def add_pad_op(self, op_name, inputOperands, output_tensor_shape, mode=TPU_MODE.FP32, ** kargs):
         """
             args:
                 pads : List[int, int, int, int]
@@ -841,9 +873,15 @@ class MLIRImporter(object):
         pad_name = self.module.stringAttr(op_name)
         pads_attr = self.module.arrayAttr([self.module.integerAttr(self.i32Type, x) for x in pads])
         const_val_attr = self.module.floatAttr(const_val)
+        if mode == TPU_MODE.INT8:
+            quant_param = self.create_int8_quant_param(**kargs)
+        elif mode == TPU_MODE.FP32:
+            quant_param = self.quant_param
+        else:
+            raise RuntimeError("No support quant mode {}".format(mode))
 
         return self.buildOp(TPU_OpType.Pad.value, inputOperands, [
-            tensor_output_type], name=pad_name, quant=self.quant_param, pads=pads_attr, const_val=const_val_attr)
+            tensor_output_type], name=pad_name, quant=quant_param, pads=pads_attr, const_val=const_val_attr)
 
     def add_pool_mask_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = self.module.make_ranked_tensor_type(
@@ -857,7 +895,7 @@ class MLIRImporter(object):
         return self.buildOp(TPU_OpType.PoolMask.value, inputOperands, [
             tensor_output_type], name=pool_mask_name, **pool_mask_param)
 
-    def add_pool_avg_2d_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+    def add_pool_avg_2d_op(self, op_name, inputOperands, output_tensor_shape, mode=TPU_MODE.FP32, **kargs):
         tensor_output_type = self.module.make_ranked_tensor_type(
             self.get_input_type(inputOperands[0]), output_tensor_shape)
         checkKey(kargs, 'kernel_h')
@@ -885,9 +923,25 @@ class MLIRImporter(object):
             'count_include_pad': self.module.boolAttr(kargs['count_include_pad']),
         }
         dict_attr = self.module.dictAttr(**pool_avg_2d_param)
-        inputOperands = self.add_quant_reg(inputOperands)
+        if mode == TPU_MODE.INT8:
+            quant_param = self.create_int8_quant_param(**kargs)
+
+            # input, weight, (bias), rshift, multipiler
+            rshift, multipiler = inputOperands[-2:]
+            inputOperands = inputOperands[:-2]
+            none = self.add_none_op()
+            for _ in range(3 - len(inputOperands)):
+                inputOperands.append(none)
+            inputOperands.append(rshift)
+            inputOperands.append(multipiler)
+        elif mode == TPU_MODE.FP32:
+            inputOperands = self.add_quant_reg(inputOperands)
+            quant_param = self.quant_param
+        elif mode == TPU_MODE.BF16:
+            raise RuntimeError("Not support BF16")
+
         return self.buildOp(TPU_OpType.PoolAvg2D.value, inputOperands, [
-            tensor_output_type], name=pool_avg_2d_name, param=dict_attr, quant=self.quant_param)
+            tensor_output_type], name=pool_avg_2d_name, param=dict_attr, quant=quant_param)
 
     def add_pool_max_2d_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
 
@@ -1218,7 +1272,7 @@ class MLIRImporter(object):
         return self.buildOp(TPU_OpType.Slice.value, inputOperands, [
             tensor_output_type], name=slice_name, quant=self.quant_param, **attr_dict)
 
-    def add_softmax_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+    def add_softmax_op(self, op_name, inputOperands, output_tensor_shape, cpu_mode=False,**kargs):
         tensor_output_type = self.module.make_ranked_tensor_type(
             self.get_input_type(inputOperands[0]), output_tensor_shape)
 
@@ -1227,9 +1281,13 @@ class MLIRImporter(object):
             'axis': self.module.integerAttr(self.i32Type, kargs['axis'])
         }
         none = self.add_none_op()
-        for _ in range(4):#add 4 redundant input
-            inputOperands.append(none)
-        return self.buildOp(TPU_OpType.Softmax.value, inputOperands, [
+        if cpu_mode:
+            op_name = TPU_OpType.Softmax.value + "_cpu"
+        else:
+            op_name = TPU_OpType.Softmax.value
+            for _ in range(4):#add 4 redundant input
+                inputOperands.append(none)
+        return self.buildOp(op_name, inputOperands, [
             tensor_output_type], name=softmax_name, quant=self.quant_param, **softmax_param)
 
     def add_swap_channel_op(self, op_name, inputOperands, output_tensor_shape, **kargs):

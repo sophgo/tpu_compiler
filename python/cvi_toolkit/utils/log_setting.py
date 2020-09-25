@@ -6,7 +6,8 @@ def setup_logger(name, log_level="INFO"):
     if name in log_name:
         return log_name[name]
 
-    formatter = logging.Formatter(datefmt='%Y/%m/%d %H:%M:%S', fmt='%(asctime)s->%(message)s')
+    formatter = logging.Formatter(
+        datefmt='%Y/%m/%d %H:%M:%S', fmt='%(asctime)s - %(levelname)s : %(message)s')
 
     handler = logging.StreamHandler()
     handler.setFormatter(formatter)
