@@ -38,7 +38,6 @@ mlir-opt \
 if [ $COMPRESS_WEIGHT -eq 1 ]; then
   # Compress weight
   mlir-opt \
-      --fully-connected-tile \
       --compress-weight \
       --tpu-compressed-weight-map-filename=${NET}_quant_int8_tl_lw_compressed_weight_stats.csv \
       ${NET}_quant_int8_multiplier_tl_lw.mlir \

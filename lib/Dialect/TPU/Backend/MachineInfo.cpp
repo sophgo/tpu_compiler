@@ -49,6 +49,11 @@ uint32_t MInfo::lane_num{0};
 uint64_t MInfo::lmem_per_lane{0};
 uint32_t MInfo::lmem_bank_num{0};
 
+int MInfo::MAX_TIU_BATCH{0};
+int MInfo::MAX_TIU_CHANNEL{0};
+int MInfo::MAX_TIU_HEIGHT{0};
+int MInfo::MAX_TIU_WIDTH{0};
+
 void MInfo::runOnFunction() {
 }
 void MInfo::getChipInfo(const char *name) {
@@ -61,6 +66,11 @@ void MInfo::getChipInfo(const char *name) {
   lane_num = cvi_backend_chip_context(backend_ctx, CVI_CHIP_LANE_NUM);
   lmem_per_lane = cvi_backend_chip_context(backend_ctx, CVI_CHIP_LMEM_SIZE);
   lmem_bank_num = cvi_backend_chip_context(backend_ctx, CVI_CHIP_LMEM_BANK);
+
+  MAX_TIU_BATCH = 4095 - 32;
+  MAX_TIU_CHANNEL = 4095 - 32;
+  MAX_TIU_HEIGHT = 4095 - 32;
+  MAX_TIU_WIDTH = 4095 - 32;
 
   LLVM_DEBUG(llvm::errs()<<" version = " << version << "\n";);
   LLVM_DEBUG(llvm::errs()<<" eu = " << eu_num << "\n";);

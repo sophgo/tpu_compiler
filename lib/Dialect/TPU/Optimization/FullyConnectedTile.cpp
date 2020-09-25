@@ -40,9 +40,8 @@
 
 #define DEBUG_TYPE "fully-connected-tile"
 
-using namespace mlir;
-
-namespace {
+namespace mlir {
+namespace tpu {
 
 class FullyConnectedModel {
 public:
@@ -244,8 +243,6 @@ struct FullyConnectedTilePass : public FunctionPass<FullyConnectedTilePass> {
   void runOnFunction() override;
 };
 
-} // anonymous namespace
-
 void FullyConnectedTilePass::runOnFunction() {
   std::string getRunChipType;
   MInfo machineInfo;
@@ -269,9 +266,17 @@ void FullyConnectedTilePass::runOnFunction() {
   applyPatternsGreedily(getFunction(), patterns);
 }
 
-std::unique_ptr<OpPassBase<FuncOp>> mlir::createFullyConnectedTilePass() {
-  return std::make_unique<FullyConnectedTilePass>();
+void PopulateFullyConnectedTilePatterns(
+    MLIRContext *context, OwningRewritePatternList *patterns, MInfo &mInfo) {
+  patterns->insert<
+      convertFullyConnectedTilePattern<tpu::TG_INT8_FullyConnectedOp>,
+      convertFullyConnectedTilePattern<tpu::TG_BF16_FullyConnectedOp>
+      >(context, mInfo);
 }
 
-static PassRegistration<FullyConnectedTilePass>
-  pass("fully-connected-tile", "Fully connected tile");
+std::unique_ptr<OpPassBase<FuncOp>> createFullyConnectedTilePass() {
+  return std::make_unique<tpu::FullyConnectedTilePass>();
+}
+
+} // namespace tpu
+} // namespace mlir

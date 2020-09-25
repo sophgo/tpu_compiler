@@ -29,6 +29,11 @@ public:
   static uint64_t lmem_per_lane;
   static uint32_t lmem_bank_num;
 
+  static int MAX_TIU_BATCH;
+  static int MAX_TIU_CHANNEL;
+  static int MAX_TIU_HEIGHT;
+  static int MAX_TIU_WIDTH;
+
   explicit MInfo() {};
   void runOnFunction();
   void getChipInfo(const char* name);
