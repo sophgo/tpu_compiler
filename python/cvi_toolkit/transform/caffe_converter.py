@@ -189,6 +189,11 @@ class CaffeConverter(BaseConverter):
             new_shape = [int(i) for i in shape]
         if new_shape == blob_shape:
             value = blob.data
+        elif not blob_shape:
+            # scalar
+            assert(len(new_shape) == 1)
+            value = np.array(
+                [blob.data for i in range(new_shape[0])], dtype=np.float32)
         else:
             value = blob.data.reshape(new_shape)
         if permute_order != None:
@@ -1266,15 +1271,13 @@ class CaffeConverter(BaseConverter):
             self.addOperand(layer.top[0], new_op, output_shape,
                             TensorType.ACTIVATION)
         else:
-            with_bias = False
-            if layer.HasField('scale_param') and layer.scale_param.HasField('bias_term'):
-                with_bias = layer.scale_param.bias_term
+            p = layer.scale_param
             # scale
-            scale_op = self.blob_to_weight_op(layer, 0)
+            scale_op = self.blob_to_weight_op(layer, 0, [input_shape[1]])
             operands.append(scale_op)
             # bias
-            if with_bias:
-                bias_op = self.blob_to_weight_op(layer, 1)
+            if p.bias_term:
+                bias_op = self.blob_to_weight_op(layer, 1, [input_shape[1]])
                 operands.append(bias_op)
             else:
                 operands.append(self.noneOp())
