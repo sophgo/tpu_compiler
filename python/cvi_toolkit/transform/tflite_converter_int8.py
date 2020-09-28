@@ -8,7 +8,6 @@ from .utils import calcConv2DSpatial, calcPool2DFloor, calcPool2DCeil, \
     get_shape_size, get_TF_SAME_Padding
 
 from ..utils.log_setting import setup_logger
-log_flag = False
 
 # tflite gen by flatbuffer
 from tflite.ActivationFunctionType import ActivationFunctionType
@@ -37,7 +36,8 @@ log_flag = False
 
 def make_sure_type(tensor_id, tensor_type):
     if tensor_id != tensor_type:
-        raise RuntimeError("{} tensor_type not match".format(tensor_id))
+        raise RuntimeError(
+            "{} tensor_type not match {}".format(tensor_id, tensor_type))
 
 
 def np_uint8_to_fp32(uint8_arr):
@@ -135,7 +135,6 @@ class TFLiteConverter(BaseConverter):
         self.converted_nodes = list()
         self.converted_tensors = list()
 
-        self.quantization_attr = dict()
 
         self.valueMap = dict() # {op_name: (mlir op, shape)}
         self.CVI = None # mlcvir pybind
@@ -235,15 +234,23 @@ class TFLiteConverter(BaseConverter):
     def getTensorAttr(self, tensor):
         if not isinstance(tensor, TFL_TENSOR):
             raise RuntimeError("Tensor is wrong type")
-        quant_attr = tensor.Quantization()
+
         tensor_name = tensor.Name().decode('utf-8')
         tensor_type = tensor.Type()
         tensor_shpae = tensor.ShapeAsNumpy()
-        quant_max = quant_attr.MaxAsNumpy()
-        quant_min = quant_attr.MinAsNumpy()
-        scale = quant_attr.ScaleAsNumpy()
-        zero_point = quant_attr.ZeroPointAsNumpy()
-        quant_dim = quant_attr.QuantizedDimension()
+        quant_attr = tensor.Quantization()
+        if quant_attr == None:
+            quant_max = 0
+            quant_min = 0
+            scale = 0
+            zero_point = 0
+            quant_dim = 0
+        else:
+            quant_max = quant_attr.MaxAsNumpy()
+            quant_min = quant_attr.MinAsNumpy()
+            scale = quant_attr.ScaleAsNumpy()
+            zero_point = quant_attr.ZeroPointAsNumpy()
+            quant_dim = quant_attr.QuantizedDimension()
         if(not isinstance(quant_max, int) and not isinstance(quant_max, int)):
             threshold = max(abs(quant_max[0]), abs(quant_min[0]))
         else:
@@ -273,10 +280,6 @@ class TFLiteConverter(BaseConverter):
             tensor_npz[i.name] = i.tensor_data.astype(np.float32)
         np.savez(self.output_tensor_file, **tensor_npz)
 
-    def WriteQuantizationTable(self):
-        with open("{}_threshold_table".format(self.model_name), "w") as writer:
-            for i in self.quantization_attr.keys():
-                writer.write("{} {}\n".format(i, self.quantization_attr[i]))
 
 
     def convert_node(self):
@@ -304,7 +307,7 @@ class TFLiteConverter(BaseConverter):
             input_tensor_idx = input
             input_shape, _ = self.get_tensor_shape_and_data(input_tensor_idx)
             input_op = self.CVI.add_input_op(str(input_tensor_idx), idx)
-            self.addOperand(input_tensor_idx, input_op, input_shape, TensorType.ACTIVATION)
+            self.addOperand(input_tensor_idx, input_op, input_shape, None)
 
         def NoneAndRaise(node):
             raise RuntimeError("{} Op not support now".format(node.op_type))
@@ -344,7 +347,6 @@ class TFLiteConverter(BaseConverter):
         elif activation == ActivationFunctionType.RELU:
             relu_op = self.CVI.add_relu_op(
                 "{}_relu".format(name), [op], shape)
-            self.quantization_attr["{}_relu".format(name)] = threshold
             return relu_op
         else:
             raise RuntimeError("Not support {} activation".format(activation))
@@ -352,8 +354,8 @@ class TFLiteConverter(BaseConverter):
 
     def convert_add_op(self, node):
         assert(node.op_type == "ADD")
-        op1, input_shape1, _ = self.getOperand(str(node.inputs[0]))
-        op2, input_shape2, _ = self.getOperand(str(node.inputs[1]))
+        op1, input_shape1, threshold_x1 = self.getOperand(str(node.inputs[0]))
+        op2, input_shape2, threshold_x2 = self.getOperand(str(node.inputs[1]))
         if input_shape1 != input_shape2:
                 raise AttributeError("{} v.s. {} shape not same".format(input_shape1, input_shape2))
 
@@ -364,30 +366,69 @@ class TFLiteConverter(BaseConverter):
 
         add_tensor = self.tflite_graph.Tensors(node.outputs)
         tensor_attr = self.getTensorAttr(add_tensor)
-        threshold = tensor_attr['threshold']
+        threshold_y = tensor_attr['threshold']
         add_name = tensor_attr['name']
         tensor_shape = tensor_attr['shape'].tolist()
         tensor_shape = [tensor_shape[i] for i in [0,3,1,2]] # nhwc -> nchw
 
-        self.quantization_attr[add_name] = threshold
+        if log_flag:
+            logger.info("{} {} threshold_x1: {}".format(
+                node.inputs[0], input_shape1, threshold_x1))
+            logger.info("{} {} threshold_x2: {}".format(
+                node.inputs[1], input_shape2, threshold_x2))
+            logger.info("{} {} threshold_y: {}".format(
+                node.outputs, tensor_shape, threshold_y))
 
         op_build_info = node.proto.BuiltinOptions()
         # Parse the Table of options.
         add_table = AddOptions()
         add_table.Init(op_build_info.Bytes, op_build_info.Pos)
 
-        add_op = self.CVI.add_eltwise_add_op(node.name, operands, output_shape)
         assert(tensor_shape[1:] == output_shape[1:])
-        if add_table.FusedActivationFunction() == ActivationFunctionType.RELU:
-            # DO relu
-            relu_op = self.CVI.add_relu_op(
-                "{}_relu".format(add_name), [add_op], output_shape)
-            self.quantization_attr["{}_relu".format(add_name)] = threshold
-            self.addOperand(node.name, relu_op, output_shape,
-                            TensorType.ACTIVATION)
-        else:
-            self.addOperand(node.name, add_op, output_shape,
-                            TensorType.ACTIVATION)
+        add_param = {
+            'do_relu': add_table.FusedActivationFunction() == ActivationFunctionType.RELU
+        }
+        CVIMlirQscale_x1 = threshold_x1/threshold_y
+        CVIMlirQscale_x2 = threshold_x2/threshold_y
+        MaxQscale = max(CVIMlirQscale_x1, CVIMlirQscale_x2)
+        rshift, _ = getRShiftAndMultiplierFromQScale(MaxQscale, qdm=False)
+        CVIMlirMultipiler_x1 = getMultiplierI8FromQScaleAndRShift(
+            CVIMlirQscale_x1, rshift)
+        CVIMlirMultipiler_x2 = getMultiplierI8FromQScaleAndRShift(
+            CVIMlirQscale_x2, rshift)
+
+        rshift_name = "{}_rshift".format(add_name)
+        rshift_data = np.array([rshift])
+        rshift_shape = list(rshift_data.shape)
+        self.addTensor(rshift_name, rshift_data, rshift_data, None)
+        rshift_op = self.CVI.add_load_file_op(
+            rshift_name, rshift_shape, tensor_type=TPU_TensorType.FP32, storage="UINT8")
+        operands.append(rshift_op)
+
+        multipiler_name = "{}_multipiler".format(add_name)
+        multipiler_data = np.array(
+            [CVIMlirMultipiler_x1, CVIMlirMultipiler_x2])
+        multipiler_shape = list(multipiler_data.shape)
+        self.addTensor(multipiler_name, multipiler_data, multipiler_data, None)
+        multipiler_op = self.CVI.add_load_file_op(
+            multipiler_name, multipiler_shape, tensor_type=TPU_TensorType.FP32, storage="UINT8")
+        operands.append(multipiler_op)
+
+        int8_quant_info = {
+            'is_asymmetric': False,
+            'is_perchannel': False,
+            'mode': TPU_MODE.INT8,
+            'param_type': "RSHIFT_AND_M_I8",
+            'threshold_max': threshold_y,
+            'threshold_min': 0
+        }
+        # add quant info to param
+        add_param.update(int8_quant_info)
+
+        add_op = self.CVI.add_eltwise_add_op(
+            add_name, operands, output_shape, **add_param)
+        self.addOperand(node.name, add_op, output_shape,
+                threshold_y)
 
     def convert_avg_pool_op(self, node):
         assert(node.op_type == "AVERAGE_POOL_2D")
@@ -399,7 +440,7 @@ class TFLiteConverter(BaseConverter):
         avg_name = tensor_attr['name']
         tensor_shape = tensor_attr['shape'].tolist()
         tensor_shape = [tensor_shape[i] for i in [0, 3, 1, 2]]  # nhwc -> nchw
-        self.quantization_attr[avg_name] = threshold
+
 
         on = input_shape[0]
         oc = input_shape[1]
@@ -420,23 +461,23 @@ class TFLiteConverter(BaseConverter):
         output_shape = [int(on), int(oc), 1, 1]
         pool_avg_op = self.CVI.add_pool_avg_2d_op(avg_name, [op], output_shape, **pool_avg_2d_param)
         self.addOperand(node.name, pool_avg_op,
-                        output_shape, TensorType.ACTIVATION)
+                        output_shape, None)
 
 
     def convert_conv_op(self, node):
         assert(node.op_type == "CONV_2D")
 
-        op, shape, _ = self.getOperand(str(node.inputs[0]))
+        op, shape, threshold_x = self.getOperand(str(node.inputs[0]))
         operands = [op]
 
         conv_tensor = self.tflite_graph.Tensors(node.outputs)
         tensor_attr = self.getTensorAttr(conv_tensor)
-        threshold = tensor_attr['threshold']
+        threshold_y = tensor_attr['threshold']
         conv_name = tensor_attr['name']
         tensor_shape = tensor_attr['shape'].tolist()
         tensor_shape = [tensor_shape[i] for i in [0,3,1,2]] # nhwc -> nchw
-
-        self.quantization_attr[conv_name] = threshold
+        tensor_type = tensor_attr['type']
+        make_sure_type(tensor_type, TFL_TENSORTYPE.INT8)
 
         # filter
         filter_tensor_idx = node.inputs[1]
@@ -459,18 +500,23 @@ class TFLiteConverter(BaseConverter):
         filter_data = np.frombuffer(filter_data.tobytes(), dtype=np.int8)
         filter_data = filter_data.reshape(tuple(filter_shape))
 
-        # dequant
-        filter_scale = filter_scale[:, np.newaxis, np.newaxis, np.newaxis]
-        filter_data = filter_data.astype(np.float32) * filter_scale
-
         # ohwi -> oihw
         filter_data = np.ascontiguousarray(
             np.transpose(filter_data, (0, 3, 1, 2)))
         filter_shape = [filter_shape[i] for i in [0, 3, 1, 2]]
 
         self.addTensor(filter_name, filter_data, filter_shape, None)
-        filter_op = self.CVI.add_load_file_op(filter_name, filter_shape)
+        filter_op = self.CVI.add_load_file_op(
+            filter_name, filter_shape, tensor_type=TPU_TensorType.FP32, storage="INT8")
         operands.append(filter_op)
+
+        Scale_x = threshold_x/127.0
+        Scale_y = threshold_y/127.0
+        # calculate rshift, multipiler
+        CVIMlirQscale = getFilterQscale(
+            filter_scale, Scale_x, Scale_y)  # [channel]
+        rshift_data, mutlipiler_data = getRShiftAndMultiplierFromQScaleArray(
+            CVIMlirQscale, qdm=True)
 
         # bias
         do_bias = len(node.inputs) == 3
@@ -494,12 +540,44 @@ class TFLiteConverter(BaseConverter):
                 bias_tensor)
             bias_data = np.frombuffer(bias_data.tobytes(), dtype=np.int32)
             bias_data = bias_data.reshape(tuple(bias_shape))
+
             # dequant
             bias_data = bias_data.astype(np.float32) * bias_scale
 
+            # B = Sw * Sx * Q(B)
+            # Q(B) = B / Sx * Sw
+            # Q(B) type is Int32
+            bias_data = bias_data / (Scale_x * filter_scale)
+
             self.addTensor(bias_name, bias_data, bias_shape, None)
-            bias_op = self.CVI.add_load_file_op(bias_name, bias_shape)
+            bias_op = self.CVI.add_load_file_op(
+                bias_name, bias_shape, tensor_type=TPU_TensorType.FP32, storage="INT32")
             operands.append(bias_op)
+
+        if log_flag:
+            logger.info("{} {} threshold_x: {}".format(
+                node.inputs[0], shape, threshold_x))
+            logger.info("{} {} threshold_y: {}".format(
+                node.outputs, tensor_shape, threshold_y))
+            for idx, (qscale, r, m, b) in enumerate(zip(CVIMlirQscale, rshift_data, mutlipiler_data, bias_scale)):
+                logger.info("idx: {} qscale: {} rshift: {} mutlipiler:{}, b:{}".format(idx, qscale, r, m, b))
+
+        # add rshift op
+        rshift_name = "{}_rshift".format(conv_name)
+        rshift_shape = list(rshift_data.shape)
+        self.addTensor(rshift_name, rshift_data, rshift_shape, None)
+        rshift_op = self.CVI.add_load_file_op(
+            rshift_name, rshift_shape, tensor_type=TPU_TensorType.FP32, storage="UINT32")
+        operands.append(rshift_op)
+
+        # add multipiler op
+        multipiler_name = "{}_multipiler".format(conv_name)
+        multipiler_shape = list(mutlipiler_data.shape)
+        self.addTensor(multipiler_name, mutlipiler_data,
+                       multipiler_shape, None)
+        mutlipiler_op = self.CVI.add_load_file_op(
+            multipiler_name, multipiler_shape, tensor_type=TPU_TensorType.FP32, storage="UINT32")
+        operands.append(mutlipiler_op)
 
 
         op_build_info = node.proto.BuiltinOptions()
@@ -526,6 +604,7 @@ class TFLiteConverter(BaseConverter):
             padding_l = 0
             padding_r = 0
 
+        do_relu = conv_table.FusedActivationFunction() == ActivationFunctionType.RELU
         conv_param = {
             'stride_h': stride_h,
             'stride_w': stride_w,
@@ -539,7 +618,7 @@ class TFLiteConverter(BaseConverter):
             'group': 1,  # Don't have group option?
             'is_dw': False,
             'with_bias': len(node.inputs) > 2,
-            'do_relu':  False,
+            'do_relu': do_relu,
             'ins': [],
         }
         on = shape[0]
@@ -563,29 +642,46 @@ class TFLiteConverter(BaseConverter):
 
         output_shape = [on, oc, oh, ow]
         assert(tensor_shape[1:] == output_shape[1:])
+
+        int8_quant_info = {
+            'is_asymmetric': False,
+            'is_perchannel': True,
+            'mode': TPU_MODE.INT8,
+            'param_type': "RSHIFT_AND_M_I32",
+            'threshold_max': threshold_y,
+            'threshold_min': 0
+        }
+
+        # add quant info to param
+        conv_param.update(int8_quant_info)
+
+        # store with int8 mode
         conv_op = self.CVI.add_conv_op(
             conv_name, operands, output_shape, **conv_param)
 
-        conv_op = self.add_activation_op(
-            conv_name, conv_op, output_shape, conv_table.FusedActivationFunction(), threshold=threshold)
-
         self.addOperand(node.name, conv_op, output_shape,
-                        TensorType.ACTIVATION)
+                        threshold_y)
 
     def convert_concat_op(self, node):
         assert(node.op_type == "CONCATENATION")
-        op1, input_shape1, _ = self.getOperand(str(node.inputs[0]))
-        op2, input_shape2, _ = self.getOperand(str(node.inputs[1]))
+        op1, input_shape1, threshold_x1 = self.getOperand(str(node.inputs[0]))
+        op2, input_shape2, threshold_x2 = self.getOperand(str(node.inputs[1]))
         assert(len(input_shape1) == 4 and len(input_shape2) == 4)
 
         concat_tensor = self.tflite_graph.Tensors(node.outputs)
         tensor_attr = self.getTensorAttr(concat_tensor)
-        threshold = tensor_attr['threshold']
-        conv_name = tensor_attr['name']
+        threshold_y = tensor_attr['threshold']
+        concat_name = tensor_attr['name']
         tensor_shape = tensor_attr['shape'].tolist()
         tensor_shape = [tensor_shape[i] for i in [0, 3, 1, 2]]  # nhwc -> nchw
 
-        self.quantization_attr[conv_name] = threshold
+        if log_flag:
+            logger.info("{} {} threshold_x1: {}".format(
+                node.input[0], input_shape1, threshold_x1))
+            logger.info("{} {} threshold_x2: {}".format(
+                node.input[1], input_shape2, threshold_x2))
+            logger.info("{} {} threshold_y: {}".format(
+                node.output, tensor_shape, threshold_y))
 
         op_build_info = node.proto.BuiltinOptions()
         concat_table = ConcatenationOptions()
@@ -609,10 +705,12 @@ class TFLiteConverter(BaseConverter):
                         if output_shape[dim] != value:
                             raise ValueError("axis is {}, {} v.s {} shape can not be concat".format(
                                 axis, output_shape, op_shape))
+
         assert(tensor_shape[1:] == output_shape[1:])
-        concat_op = self.CVI.add_concat_op(node.name, [op1, op2], output_shape, axis=axis)
+        concat_op = self.CVI.add_concat_op(
+            concat_name, [op1, op2], output_shape, axis=axis)
         self.addOperand(node.name, concat_op, output_shape,
-                        TensorType.ACTIVATION)
+                        None)
 
     def convert_depthwise_conv_op(self, node):
         assert(node.op_type == "DEPTHWISE_CONV_2D")
@@ -729,20 +827,26 @@ class TFLiteConverter(BaseConverter):
         depthwise_conv_op = self.add_activation_op("{}".format(
             node.name), depthwise_conv_op, output_shape, depthwise_conv_table.FusedActivationFunction())
         self.addOperand(node.name, depthwise_conv_op, output_shape,
-                        TensorType.ACTIVATION)
+                        None)
 
     def convert_fc_op(self, node):
         assert(node.op_type == "FULLY_CONNECTED")
-        op, shape, _ = self.getOperand(str(node.inputs[0]))
+        op, shape, threshold_x = self.getOperand(str(node.inputs[0]))
         operands = list()
         operands.append(op)
 
         fc_tensor = self.tflite_graph.Tensors(node.outputs)
         tensor_attr = self.getTensorAttr(fc_tensor)
-        threshold = tensor_attr['threshold']
+        threshold_y = tensor_attr['threshold']
         fc_name = tensor_attr['name']
         tensor_shape = tensor_attr['shape'].tolist()
-        self.quantization_attr[fc_name] = threshold
+        fc_scale = tensor_attr['scale']
+
+        if log_flag:
+            logger.info("{} {} threshold_x: {}".format(
+                node.inputs[0], shape, threshold_x))
+            logger.info("{} {} threshold_y: {}".format(
+                node.outputs, tensor_shape, threshold_y))
 
         # filter
         filter_tensor_idx = node.inputs[1]
@@ -754,6 +858,7 @@ class TFLiteConverter(BaseConverter):
         make_sure_type(filter_type, TFL_TENSORTYPE.INT8)
         # get quant info
         filter_scale = filter_attr['scale']
+        filter_max = filter_attr['quant_max']
 
         # get filter data
         filter_data = self.get_tflite_tensor_data(
@@ -761,11 +866,8 @@ class TFLiteConverter(BaseConverter):
         filter_data = np.frombuffer(filter_data.tobytes(), dtype=np.int8)
         filter_data = filter_data.reshape(tuple(filter_shape))
 
-        # dequant
-        filter_data = filter_data.astype(np.float32) * filter_scale[0]
-
         self.addTensor(filter_name, filter_data, filter_shape, None)
-        filter_op = self.CVI.add_load_file_op(filter_name, filter_shape)
+        filter_op = self.CVI.add_load_file_op(filter_name, filter_shape, storage="INT8")
         operands.append(filter_op)
         # bias
         do_bias = len(node.inputs) == 3
@@ -776,34 +878,60 @@ class TFLiteConverter(BaseConverter):
             bias_type = bias_attr['type']
             bias_name = bias_attr['name']
             bias_shape = bias_attr['shape']
-
-            make_sure_type(bias_type, TFL_TENSORTYPE.INT32)  # bias is int32
             bias_scale = bias_attr['scale']
 
+            make_sure_type(bias_type, TFL_TENSORTYPE.INT32)  # bias is int32
             # get bias data
             bias_data = self.get_tflite_tensor_data(
                 bias_tensor)
             bias_data = np.frombuffer(bias_data.tobytes(), dtype=np.int32)
             bias_data = bias_data.reshape(tuple(bias_shape))
+
             # dequant
             bias_data = bias_data.astype(np.float32) * bias_scale[0]
 
+            # quant to int16
+            bias_data = bias_data / (filter_scale * fc_scale)
+
             self.addTensor(bias_name, bias_data, bias_shape, None)
-            bias_op = self.CVI.add_load_file_op(bias_name, bias_shape)
+            bias_op = self.CVI.add_load_file_op(bias_name, bias_shape,  storage="INT16")
             operands.append(bias_op)
+
+        max_filter_value = max(filter_max)
+        # calculate rshift, fully connected use rshift only
+        rshift = getRShiftForFilter(
+            max_filter_value, threshold_x, threshold_y)
+        rshift_data = np.array([rshift])
+        rshift_name = "{}_rshift".format(fc_name)
+        rshift_shape = list(rshift_data.shape)
+        self.addTensor(rshift_name, rshift_data, rshift_shape, None)
+        rshift_op = self.CVI.add_load_file_op(
+            rshift_name, rshift_shape, tensor_type=TPU_TensorType.FP32, storage="UINT8")
+        operands.append(rshift_op)
+
+        int8_quant_info = {
+            'is_asymmetric': False,
+            'is_perchannel': False,
+            'mode': TPU_MODE.INT8,
+            'param_type': "RSHIFT_ONLY",
+            'threshold_max': threshold_y,
+            'threshold_min': 0
+        }
+        # add quant info to param
 
         M = shape[0]
         N = bias_shape[0]
         output_shape = [M, N]
         assert(output_shape, tensor_shape)
         fc_op = self.CVI.add_fully_connected_op(
-            fc_name, operands, output_shape)
-        self.addOperand(node.name, fc_op, output_shape, TensorType.ACTIVATION)
+            fc_name, operands, output_shape, **int8_quant_info)
+        self.addOperand(node.name, fc_op, output_shape, threshold_y)
 
     def convert_maxpool_op(self, node):
         assert(node.op_type == "MAX_POOL_2D")
 
-        op, shape, _ = self.getOperand(str(node.inputs[0]))
+        op, shape, threshold_x = self.getOperand(str(node.inputs[0]))
+
 
         max_tensor = self.tflite_graph.Tensors(node.outputs)
         tensor_attr = self.getTensorAttr(max_tensor)
@@ -811,7 +939,9 @@ class TFLiteConverter(BaseConverter):
         max_name = tensor_attr['name']
         tensor_shape = tensor_attr['shape'].tolist()
         tensor_shape = [tensor_shape[i] for i in [0, 3, 1, 2]]  # nhwc -> nchw
-        self.quantization_attr[max_name] = threshold
+
+        threshold_y = threshold
+
 
         op_build_info = node.proto.BuiltinOptions()
         pool_table = Pool2DOptions()
@@ -828,6 +958,16 @@ class TFLiteConverter(BaseConverter):
             'padding_l': 0,
             'do_relu': False,
         }
+        int8_quant_info = {
+            'is_asymmetric': False,
+            'is_perchannel': False,
+            'mode': TPU_MODE.INT8,
+            'param_type': "NONE",
+            'threshold_max': threshold_y,
+            'threshold_min': 0
+        }
+        # add quant info to param
+        pool_max_2d_param.update(int8_quant_info)
 
         on = shape[0]
         oc = shape[1]
@@ -839,7 +979,7 @@ class TFLiteConverter(BaseConverter):
 
         assert(tensor_shape[1:] == output_shape[1:])
         pool_max_op = self.CVI.add_pool_max_2d_op(max_name, [op], output_shape, **pool_max_2d_param)
-        self.addOperand(node.name, pool_max_op, output_shape, TensorType.ACTIVATION)
+        self.addOperand(node.name, pool_max_op, output_shape, threshold_y)
 
     def convert_mean_op(self, node):
         assert(node.op_type == "MEAN")
@@ -848,17 +988,22 @@ class TFLiteConverter(BaseConverter):
         """
         # first input is activate, second is tensor of axis
         assert(len(node.inputs) == 2)
-        op, input_shape, _ = self.getOperand(str(node.inputs[0]))
-
+        op, input_shape, threshold_x = self.getOperand(str(node.inputs[0]))
+        operands = [op]
         mean_tensor = self.tflite_graph.Tensors(node.outputs)
         tensor_attr = self.getTensorAttr(mean_tensor)
-        threshold = tensor_attr['threshold']
+        mean_shape = tensor_attr['shape']
+        threshold_y = tensor_attr['threshold']
         mean_name = tensor_attr['name']
 
-        self.quantization_attr[mean_name] = threshold
-
+        if log_flag:
+            logger.info("{} {} threshold_x: {}".format(
+                node.inputs[0], input_shape, threshold_x))
+            logger.info("{} {} threshold_y: {}".format(
+                node.outputs, mean_shape, threshold_y))
         on = input_shape[0]
         oc = input_shape[1]
+        kernel_h, kernel_w = input_shape[2:]
         pool_avg_2d_param = {
             'stride_h':  1,
             'stride_w':  1,
@@ -871,10 +1016,42 @@ class TFLiteConverter(BaseConverter):
             'do_relu': False,
             'count_include_pad': False,
         }
+        CVIMlirQscale = (threshold_x / threshold_y) / ( kernel_h * kernel_w)
+        rshift_i8, _ = getRShiftAndMultiplierFromQScale(CVIMlirQscale)
+        multipiler = getMultiplierI8FromQScaleAndRShift(CVIMlirQscale, rshift_i8)
+
+        rshift_name = "{}_rshift".format(mean_name)
+        rshift_data = np.array([rshift_i8])
+        rshift_shape = list(rshift_data.shape)
+        self.addTensor(rshift_name, rshift_data, rshift_data, None)
+        rshift_op = self.CVI.add_load_file_op(
+            rshift_name, rshift_shape, tensor_type=TPU_TensorType.FP32, storage="UINT8")
+        operands.append(rshift_op)
+
+        multipiler_name = "{}_multipiler".format(mean_name)
+        multipiler_data = np.array([multipiler])
+        multipiler_shape = list(multipiler_data.shape)
+        self.addTensor(multipiler_name, multipiler_data, multipiler_data, None)
+        multipiler_op = self.CVI.add_load_file_op(
+            multipiler_name, multipiler_shape, tensor_type=TPU_TensorType.FP32, storage="UINT32")
+        operands.append(multipiler_op)
+
+        int8_quant_info = {
+            'is_asymmetric': False,
+            'is_perchannel': False,
+            'mode': TPU_MODE.INT8,
+            'param_type': "RSHIFT_AND_M_I8",
+            'threshold_max': threshold_y,
+            'threshold_min': 0
+        }
+        # add quant info to param
+        pool_avg_2d_param.update(int8_quant_info)
+
         output_shape = [int(on), int(oc), 1, 1]
-        pool_avg_op = self.CVI.add_pool_avg_2d_op(mean_name, [op], output_shape, **pool_avg_2d_param)
+        pool_avg_op = self.CVI.add_pool_avg_2d_op(
+            mean_name, operands, output_shape, **pool_avg_2d_param)
         self.addOperand(node.name, pool_avg_op,
-                        output_shape, TensorType.ACTIVATION)
+                        output_shape, threshold_y)
 
     def convert_leaky_relu_op(self, node):
         assert(node.op_type == "LEAKY_RELU")
@@ -888,7 +1065,6 @@ class TFLiteConverter(BaseConverter):
         leaky_relu_name = tensor_attr['name']
         tensor_shape = tensor_attr['shape'].tolist()
         tensor_shape = [tensor_shape[i] for i in [0, 3, 1, 2]]  # nhwc -> nchw
-        self.quantization_attr[leaky_relu_name] = threshold
 
         # Parse the Table of options.
         op_build_info = node.proto.BuiltinOptions()
@@ -903,21 +1079,25 @@ class TFLiteConverter(BaseConverter):
         l_relus_op = self.CVI.add_leaky_relu_op(
             leaky_relu_name, [op], output_shape, **param)
         self.addOperand(node.name, l_relus_op, output_shape,
-                        TensorType.ACTIVATION)
+                        None)
 
     def convert_pad_op(self, node):
         assert(node.op_type == "PAD")
         # first input is activate, second is tensor
         assert(len(node.inputs) == 2)
-        op, input_shape, _ = self.getOperand(str(node.inputs[0]))
-
+        op, input_shape, threshold_x  = self.getOperand(str(node.inputs[0]))
         pad_tensor = self.tflite_graph.Tensors(node.outputs)
         tensor_attr = self.getTensorAttr(pad_tensor)
-        threshold = tensor_attr['threshold']
+        threshold_y = tensor_attr['threshold']
         pad_name = tensor_attr['name']
         tensor_shape = tensor_attr['shape'].tolist()
         tensor_shape = [tensor_shape[i] for i in [0, 3, 1, 2]]  # nhwc -> nchw
-        self.quantization_attr[pad_name] = threshold
+
+        if log_flag:
+            logger.info("{} {} threshold_x: {}".format(
+                node.inputs[0], input_shape, threshold_x))
+            logger.info("{} {} threshold_y: {}".format(
+                node.outputs, tensor_shape, threshold_y))
 
         # Parse the Table of options.
         op_build_info = node.proto.BuiltinOptions()
@@ -935,29 +1115,39 @@ class TFLiteConverter(BaseConverter):
             "pads": padding_data.tolist(),
             "const_val": 0,
         }
+
         output_shape = np.sum(
             [input_shape, padding_data[:dims], padding_data[dims:]], axis=0)
         output_shape = [int(i) for i in output_shape]
         assert(tensor_shape[1:] == output_shape[1:])
         pads_op = self.CVI.add_pad_op(
-            node.name, [op], output_shape, **pads_param)
+            pad_name, [op], output_shape, **pads_param)
         self.addOperand(node.name, pads_op, output_shape,
-                        TensorType.ACTIVATION)
+                        threshold_y)
 
 
     def convert_quant_op(self, node):
         op, input_shape, _ = self.getOperand(node.inputs[0])
 
-        tensor = self.tflite_graph.Tensors(node.outputs)
+        input_tensor = self.tflite_graph.Tensors(node.inputs[0])
+        input_attr = self.getTensorAttr(input_tensor)
+        output_tensor = self.tflite_graph.Tensors(node.outputs)
+        output_attr = self.getTensorAttr(output_tensor)
+        output_tensor_name = output_attr['name']
 
-        # get quantization attr
-        quant_attr = tensor.Quantization()
-        quant_max = quant_attr.MaxAsNumpy()
-        # back to fp32, convert it to input name
-        if(quant_max != 0):
-            self.quantization_attr[node.inputs[0]] = quant_max[0]
-        # skip this op
-        self.addOperand(node.name, op, input_shape, TensorType.ACTIVATION)
+        input_type = input_attr['type']
+        output_type = output_attr['type']
+        output_shape = input_shape
+        if input_type == TFL_TENSORTYPE.FLOAT32 and output_type == TFL_TENSORTYPE.INT8:
+            # get quantization attr
+            threshold = output_attr['threshold']
+            quant_op = self.CVI.add_quant_op(output_tensor_name, [
+                                 op], output_shape, "NONE", "INT8", threshold=threshold)
+            self.addOperand(node.name, quant_op, output_shape, threshold)
+        else:
+            # skip this op
+            raise RuntimeError("skip")
+            self.addOperand(node.name, op, input_shape, None)
 
     def convert_reshape_op(self, node):
         op, input_shape, _ = self.getOperand(node.inputs[0])
@@ -970,7 +1160,6 @@ class TFLiteConverter(BaseConverter):
         reshape_name = tensor_attr['name']
         tensor_shape = tensor_attr['shape'].tolist()
         tensor_shape = [tensor_shape[i] for i in [0, 3, 1, 2]]  # nhwc -> nchw
-        self.quantization_attr[reshape_name] = threshold
 
         output_shape_idx = node.inputs[1]
         _, output_shape = self.get_tensor_shape_and_data(
@@ -1003,7 +1192,7 @@ class TFLiteConverter(BaseConverter):
 
         reshape_op = self.CVI.add_reshape_op(reshape_name, operands, output_shape)
         self.addOperand(node.name, reshape_op,
-                        output_shape, TensorType.ACTIVATION)
+                        output_shape, None)
 
     def convert_resize_op(self, node):
         assert(node.op_type == "RESIZE_NEAREST_NEIGHBOR")
@@ -1017,7 +1206,6 @@ class TFLiteConverter(BaseConverter):
         resize_quant_max = resize_quant_attr.MaxAsNumpy()
         resize_quant_min = resize_quant_attr.MinAsNumpy()
         threshold = max(abs(resize_quant_max[0]), abs(resize_quant_min[0]))
-        self.quantization_attr[node.outputs] = threshold
 
         # Parse the Table of options.
         op_build_info = node.proto.BuiltinOptions()
@@ -1066,34 +1254,45 @@ class TFLiteConverter(BaseConverter):
         operands.append(weight_op)
 
         deconv_op = self.CVI.add_deconv_op(node.name, operands, output_shape, **deconv_param)
-        self.addOperand(node.name, deconv_op, output_shape, TensorType.ACTIVATION)
+        self.addOperand(node.name, deconv_op, output_shape, None)
 
     def convert_skip_op(self, node):
         op, input_shape, _ = self.getOperand(node.inputs[0])
-        self.addOperand(node.name, op, input_shape, TensorType.ACTIVATION)
+        self.addOperand(node.name, op, input_shape, None)
 
     def convert_softmax_op(self, node):
         assert(node.op_type == "SOFTMAX")
         # first input is activate
         assert(len(node.inputs) == 1)
-        op, shape, _ = self.getOperand(str(node.inputs[0]))
+        op, shape, threshold_x = self.getOperand(str(node.inputs[0]))
 
         softmax_tensor = self.tflite_graph.Tensors(node.outputs)
         tensor_attr = self.getTensorAttr(softmax_tensor)
-        threshold = tensor_attr['threshold']
+        threshold_y = tensor_attr['threshold']
+        tensor_type = tensor_attr['type']
+        tensor_shape = tensor_attr['shape']
         softmax_name = tensor_attr['name']
-        self.quantization_attr[softmax_name] = threshold
+        make_sure_type(tensor_type, TFL_TENSORTYPE.INT8)
 
+        # in mlir, softmax is use fp32
+        if log_flag:
+            logger.info("{} {} threshold_x: {}".format(
+                node.inputs[0], shape, threshold_x))
+            logger.info("{} {} threshold_y: {}".format(
+                node.outputs, tensor_shape, threshold_y))
+
+        quant_op = self.CVI.add_quant_op("{}_dequant".format(softmax_name), [
+            op], tensor_shape, "INT8", "NONE", threshold=threshold_x)
+        self.addOperand("{}_dequant".format(node.name),
+                        quant_op, tensor_shape, threshold_y)
         softmax_param = {
             'axis': len(shape) - 1,
         }
-        softmax_op = self.CVI.add_softmax_op(softmax_name, [op], shape, **softmax_param)
-        self.addOperand(node.name, softmax_op, shape, TensorType.ACTIVATION)
+        softmax_op = self.CVI.add_softmax_op(
+            softmax_name, [quant_op], shape, cpu_mode=True, **softmax_param)
+        self.addOperand(node.name, softmax_op, shape, threshold_y)
 
     def run(self):
         self.convert_node()
         self.convert_graph()
         self.TensortoNpz()
-        self.WriteQuantizationTable()
-
-

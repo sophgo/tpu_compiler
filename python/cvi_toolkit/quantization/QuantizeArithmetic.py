@@ -7,6 +7,14 @@ from ..utils.log_setting import setup_logger
 logger = setup_logger('root')
 log_flag = logger.level <= logging.INFO
 
+def saturateInt8(float_value):
+    q = floor(float_value + 0.5)
+    if q > 127:
+        q = 127
+    if q < -128:
+        q = -128
+    return np.int8(q).item()
+
 def getRShiftForFilter(max_filter, threshold_x, threshold_y):
     a = max_filter * threshold_x / threshold_y
     if a > 127:
@@ -23,13 +31,14 @@ def getRShiftForFilter(max_filter, threshold_x, threshold_y):
 
 def getFilterQscale(Sw, Sx, Sy):
     """
-        Sx:threshold_x/127
-        Sy:threshold_y/127
+        Sx: threshold_x/127
+        Sy: threshold_y/127
+        Qscale = Sw * Sx / Sy
     """
     return (Sw * Sx) / Sy
 
 
-def QuantMultipiler(double_multiplier, qdm=False):
+def QuantMultipiler(double_multiplier):
     q, shift = frexp(double_multiplier)
     q_fixed = round(q * (1 << 31))
     if q_fixed == (1 << 31):
@@ -46,11 +55,17 @@ def QuantMultipiler(double_multiplier, qdm=False):
 def getRShiftAndMultiplierFromQScale(Qscale, qdm=False, max_multiplier=127):
     """
         Qscale: 2^rshift * m0(mutlipiler)
+        qdm mode:
+            qdm is true
+            reference to [arxiv 1712.05877]
+            choose the int32 value nearest to 2^31 * M0, M0 in [0.5, 1]
+            this value is always at least 2^30 and have at least 30 bits accuracy
+            the max_multiplier argument is ignored, fixed to (1 << 31)
     """
     if qdm:
         multiplier, lshift = QuantMultipiler(Qscale)
         rshift = -lshift
-        rshift = np.int8(rshift).item()  # cast it to 8 bit
+        rshift = saturateInt8(rshift)  # cast it to 8 bit
         if rshift < 0:
             raise RuntimeError("rshift less than 0")
         return rshift, multiplier
@@ -78,4 +93,4 @@ def getRShiftAndMultiplierFromQScaleArray(QscaleArray, qdm=False):
 
 
 def getMultiplierI8FromQScaleAndRShift(Qscale, rshift):
-    return np.int8(Qscale * (1 << rshift)).item()  # cast it to 8 bit
+    return saturateInt8(Qscale * (1 << rshift))

@@ -4,7 +4,7 @@ import sys
 import onnx
 import argparse
 from cvi_toolkit.transform.onnx_converter import OnnxConverter
-from cvi_toolkit.transform.tflite_converter_int8 import TFLiteConverter
+from cvi_toolkit.transform.tflite_converter_int8 import TFLiteConverter as TFLiteInt8Converter
 from cvi_toolkit.transform.tensorflow_converter import TFConverter
 from cvi_toolkit.transform.caffe_converter import CaffeConverter
 from cvi_toolkit.utils.log_setting import setup_logger
@@ -14,7 +14,7 @@ logger = setup_logger('root', log_level="INFO")
 CVI_SupportFramework = [
     "caffe",
     "onnx",
-    "tflite",
+    "tflite_int8",
     "tensorflow",
 ]
 
@@ -53,8 +53,8 @@ def Convert(args):
                           args.mlir_file_path, batch_size=args.batch_size,
                           convert_preprocess=args.convert_preprocess, preprocess_args=preprocessor.to_dict(input_h=input_shape[1], input_w=input_shape[2])
                         )
-    elif args.model_type == "tflite":
-        c = TFLiteConverter(
+    elif args.model_type == "tflite_int8":
+        c = TFLiteInt8Converter(
             args.model_name, args.model_path, args.mlir_file_path)
     elif args.model_type == "tensorflow":
         c = TFConverter(args.model_name, args.model_path,
