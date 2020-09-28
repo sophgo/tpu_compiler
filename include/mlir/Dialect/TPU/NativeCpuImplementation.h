@@ -17,7 +17,7 @@ int mkldnn_pool(float *input, float *output,
 int mkldnn_ip(float *input, float *weight, float *bias,
     float *output, int m, int k, int n, bool transpose);
 
-int my_exp(float *input, float *output, int n, int c, int h, int w, bool is_bf16 = false);
+// int my_exp(float *input, float *output, int n, int c, int h, int w, bool is_bf16 = false);
 
 int my_gru(float *input, float *output,
     float *weight, float *recurrence, float *bias, float *initial_h,
@@ -32,8 +32,12 @@ int my_lstm(float *input, float *output,
 int my_avg_pooling(float *input, float *output, int n, int c, int ih, int iw,
                    int oh, int ow, int kh, int kw, int sh, int sw, int pt,
                    int pb, int pl, int pr);
-
+int my_lut_interpolation(float *input, float *output, int n, int c, int h, int w,
+                         bool is_bf16, double (*activate_func)(double),
+                         float thresh_min, float thresh_max, bool isExpFunc);
 int my_sigmoid(float *input, float *output, int n, int c, int h, int w, bool is_bf16 = false);
+int my_exp(float *input, float *output, int n, int c, int h, int w, bool is_bf16 = false);
+int my_reciprocal(float *input, float *output, int n, int c, int h, int w, bool is_bf16 = false);
 int my_crop(float *input, float *output, long int *input_shape, long int *output_shape,  int cur_dim, int *offsets, int *indices);
 
 int calc_dilute_hw (int h, int ins_h, int ins_h_l, int pad_h_b, int pad_h_t);
@@ -95,9 +99,9 @@ int my_div(float *input, float *output, int in, int ic,
 int my_upsample(float *input, float *output, int n, int c, int ih, int iw,
                 int scale_h, int scale_w);
 
-int my_softmax2D(float *input, float *output, int n, int c);
-int my_softmax4D(float *input, float *output, int axis, const std::vector<int64_t>& shape);
-int my_softmax3D(float *input, float *output, int axis, const std::vector<int64_t>& shape);
+int my_softmax2D(float *input, float *output, int n, int c, bool is_bf16);
+int my_softmax4D(float *input, float *output, int axis, const std::vector<int64_t>& shape, bool is_bf16);
+int my_softmax3D(float *input, float *output, int axis, const std::vector<int64_t>& shape, bool is_bf16);
 
 int my_tanh(float *input, float *output,
     int n, int c, int h, int w);

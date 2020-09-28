@@ -2992,15 +2992,16 @@ LogicalResult tpu::SoftmaxOp::interpret(
 
   // parse param
   int axis = this->axis().getLimitedValue();
+  bool isBf16 = getOpQuant() == "BF16";
 
   if (shape.size() == 2) {
-    int ret = my_softmax2D(opdT[0]->data(), resultT->data(), shape[0], shape[1]);
+    int ret = my_softmax2D(opdT[0]->data(), resultT->data(), shape[0], shape[1], isBf16);
     assert(ret == 0);
   } else if (shape.size() == 4) {
-    int ret = my_softmax4D(opdT[0]->data(), resultT->data(), axis, shape);
+    int ret = my_softmax4D(opdT[0]->data(), resultT->data(), axis, shape, isBf16);
     assert(ret == 0);
   } else if (shape.size() == 3) {
-    int ret = my_softmax3D(opdT[0]->data(), resultT->data(), axis, shape);
+    int ret = my_softmax3D(opdT[0]->data(), resultT->data(), axis, shape, isBf16);
     assert(ret == 0);
   }
 
@@ -3036,13 +3037,13 @@ LogicalResult tpu::SoftmaxCpuOp::interpret(
   int axis = this->axis().getLimitedValue();
 
   if (shape.size() == 2) {
-    int ret = my_softmax2D(opdT[0]->data(), resultT->data(), shape[0], shape[1]);
+    int ret = my_softmax2D(opdT[0]->data(), resultT->data(), shape[0], shape[1], false);
     assert(ret == 0);
   } else if (shape.size() == 4) {
-    int ret = my_softmax4D(opdT[0]->data(), resultT->data(), axis, shape);
+    int ret = my_softmax4D(opdT[0]->data(), resultT->data(), axis, shape, false);
     assert(ret == 0);
   } else if (shape.size() == 3) {
-    int ret = my_softmax3D(opdT[0]->data(), resultT->data(), axis, shape);
+    int ret = my_softmax3D(opdT[0]->data(), resultT->data(), axis, shape, false);
     assert(ret == 0);
   }
 

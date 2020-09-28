@@ -482,18 +482,18 @@ int mkldnn_ip(float *input, float *weight, float *bias,
   return 0;
 }
 
-int my_exp(float *input, float *output, int n, int c, int h, int w, bool is_bf16) {
-  LLVM_DEBUG(
-    llvm::errs() << "  n: " << n << ", c: " << c
-                 << ", h: " << h << ", w: " << w << "\n";
-  );
+// int my_exp(float *input, float *output, int n, int c, int h, int w, bool is_bf16) {
+//   LLVM_DEBUG(
+//     llvm::errs() << "  n: " << n << ", c: " << c
+//                  << ", h: " << h << ", w: " << w << "\n";
+//   );
 
-  for (int i = 0; i < n * c * h * w; ++i) {
-    output[i] = exp(input[i]);
-  }
+//   for (int i = 0; i < n * c * h * w; ++i) {
+//     output[i] = exp(input[i]);
+//   }
 
-  return 0;
-}
+//   return 0;
+// }
 
 template <typename Dtype>
 inline Dtype sigmoid(Dtype x) {
@@ -978,7 +978,9 @@ void bf16_gen_power_mantissa_table(uint16_t* table_mantissa, float beta,
   }
 }
 
-int my_sigmoid(float *input, float *output, int n, int c, int h, int w, bool is_bf16) {
+int my_lut_interpolation(float *input, float *output, int n, int c, int h, int w,
+                         bool is_bf16, double (*activate_func)(double),
+                         float thresh_min, float thresh_max, bool isExpFunc) {
   LLVM_DEBUG(llvm::errs() << "  n: " << n << ", c: " << c << ", h: " << h
                           << ", w: " << w << "\n";);
   int npu_num = 32; //<! 1880v2 hardcode
@@ -997,16 +999,17 @@ int my_sigmoid(float *input, float *output, int n, int c, int h, int w, bool is_
   std::vector<uint16_t> y0_bf16_table(table_hw);
   std::vector<uint16_t> y0_bf16_slope_table(table_hw);
 
-  // use function pointer
-  double (*activate_func)(double);
-  activate_func = sigmoid;
-
-  gen_bf16_table(BF16_TABLE_START, BF16_TABLE_END, table_hw,
+  gen_bf16_table(thresh_min, thresh_max, table_hw,
       y0_fp32_table.data(), activate_func);
 
-  gen_bf16_slope_table(BF16_TABLE_START, BF16_TABLE_END, table_hw,
+  gen_bf16_slope_table(thresh_min, thresh_max, table_hw,
       y0_fp32_table.data(), y0_fp32_slope_table.data(),
       activate_func);
+
+  if(isExpFunc) {
+    // Make lut exp(x) = 0 when x <= -15
+    y0_fp32_table[128] = 0;
+  }
 
   for (int i = 0; i < table_hw; i++) {
     // convert fp32 to bf16
@@ -1015,16 +1018,18 @@ int my_sigmoid(float *input, float *output, int n, int c, int h, int w, bool is_
   }
 
   int shape_size =  n * c * h * w;
-  int scale = 256 / (BF16_TABLE_END - BF16_TABLE_START); // quant from interger index range from 16(-8~8)->256(lut index size)
+  int scale = 256 / (thresh_max - thresh_min); // quant from interger index range from 16(-8~8)->256(lut index size)
 
   // rounding
   scale = convert_bf16_fp32(convert_fp32_bf16(scale));
+  float offset = (float)(thresh_max + thresh_min) / 2;
   for (int i = 0; i < shape_size; ++i) {
     if (!is_bf16) {
-      output[i] = sigmoid(input[i]);
+      output[i] = activate_func(input[i]);
     }
     else {
-      float rescale_input = convert_bf16_fp32(convert_fp32_bf16(input[i])) * scale;
+      float reOffset_input = convert_bf16_fp32(convert_fp32_bf16(input[i])) - offset;
+      float rescale_input = convert_bf16_fp32(convert_fp32_bf16(reOffset_input)) * scale;
       uint16_t rescale_input_bf16 = convert_fp32_bf16(rescale_input);
 
       // get interger part to get table index and x0
@@ -1042,6 +1047,50 @@ int my_sigmoid(float *input, float *output, int n, int c, int h, int w, bool is_
       // result = y0 + delta * slope
       float r = convert_bf16_fp32(base) + delta_x * convert_bf16_fp32(slope);
       output[i] = convert_bf16_fp32(convert_fp32_bf16(r));
+    }
+  }
+
+  return 0;
+}
+
+int my_sigmoid(float *input, float *output, int n, int c, int h, int w, bool is_bf16) {
+  double (*activate_func)(double);
+  activate_func = sigmoid;
+  my_lut_interpolation(input, output, n, c, h, w, is_bf16, activate_func, BF16_TABLE_START, BF16_TABLE_END, false);
+  return 0;
+}
+
+int my_exp(float *input, float *output, int n, int c, int h, int w, bool is_bf16) {
+  double (*activate_func)(double);
+  activate_func = exp;
+  const float threshMin = -15;
+  const float threshMax = 1;
+  my_lut_interpolation(input, output, n, c, h, w, is_bf16, activate_func, threshMin, threshMax, true);
+  return 0;
+}
+
+int my_reciprocal(float *input, float *output, int n, int c, int h, int w, bool is_bf16) {
+  const int expStart = -62;
+  const int expEnd = 63;
+
+  //<! 1880v2 hw bf16 config
+  int table_h = 32;
+  int table_w = 8;
+  int table_hw = table_h * table_w;
+  std::vector<uint16_t> table_data_lut_bf16(table_hw);
+  std::vector<uint16_t> table_data_mantissa_lut_bf16(table_hw);
+  bf16_gen_reciprocal(expStart, expEnd, table_hw, table_data_lut_bf16.data());
+  bf16_gen_reciprocal_mantissa(expStart, expEnd, table_hw, table_data_mantissa_lut_bf16.data());
+  int shape_size =  n * c * h * w;
+  for (int i = 0; i < shape_size; i++) {
+    if (!is_bf16) {
+      output[i] = 1 / input[i];
+    }
+    else {
+      uint16_t bf16InputValue = convert_fp32_bf16(input[i]);
+      float exponentFloatValue = convert_bf16_fp32(table_data_lut_bf16[(bf16InputValue & 0xff00) >> 8]);
+      float mantissaFloatValue = convert_bf16_fp32(table_data_mantissa_lut_bf16[bf16InputValue & 0xff]);
+      output[i] = convert_bf16_fp32(convert_fp32_bf16(exponentFloatValue * mantissaFloatValue));
     }
   }
 
@@ -1519,22 +1568,7 @@ int my_upsample(float *input, float *output, int n, int c, int ih, int iw,
   return 0;
 }
 
-float my_exp(float input) {
-  int tableLength = 256;
-  float expTable[tableLength];
-  float tableStart = 0;
-  float tableEnd = -8;
-  for(int i = 0; i < tableLength; i++) {
-    float index = i * (tableEnd - tableStart) / tableLength;
-    expTable[i] = exp(index);
-  }
-  input = input > tableStart ? tableStart : input < tableEnd ?  tableEnd : input;
-  int tableIndex = int(-1.0 * (input * 32.0));
-  tableIndex = tableIndex > 255 ? 255 : tableIndex;
-  return expTable[tableIndex];
-}
-
-int my_softmax2D(float *input, float *output, int n, int c) {
+int my_softmax2D(float *input, float *output, int n, int c, bool is_bf16) {
 #ifdef DUMP_FLAG
   static int dump_idx = 0;
   std::string prefix = std::string("softmax") + std::to_string(dump_idx);
@@ -1551,21 +1585,30 @@ int my_softmax2D(float *input, float *output, int n, int c) {
       max_input = input[i];
   }
   // do softmax
-  float *ex = (float *)malloc(c * sizeof(float));
+  float *ex = (float *)malloc(n * c * sizeof(float));
+  float *tmp = (float *)malloc(n * c * sizeof(float));
+  // sub max value
+  for(int i = 0; i < n * c; i++) {
+    tmp[i] = input[i] - max_input;
+  }
+  // do exp
+  my_exp(tmp, ex, n, c, 1, 1, is_bf16);
+
   for (int ni = 0; ni < n; ++ni) {
     float sum_of_ex = 0.0f;
     for (int ci = 0; ci < c; ++ci) {
       int i = ni * c + ci;
-      float x = input[i] - max_input;
-      ex[ci] = exp(x);
-      sum_of_ex += ex[ci];
+      sum_of_ex += ex[i];
     }
+    float reciprocalValue;
+    my_reciprocal(&sum_of_ex, &reciprocalValue, 1, 1, 1, 1, is_bf16);
     for (int ci = 0; ci < c; ++ci) {
       int i = ni * c + ci;
-      output[i] = ex[ci] / sum_of_ex;
+      output[i] = ex[i] * reciprocalValue;
     }
   }
   free(ex);
+  free(tmp);
 #ifdef DUMP_FLAG
   if (dump_idx == 0) {
     write_bianry_file(prefix + std::string("_out.bin"),
@@ -1577,7 +1620,7 @@ int my_softmax2D(float *input, float *output, int n, int c) {
 }
 
 
-int my_softmax4D(float *input, float *output, int axis, const std::vector<int64_t>& shape) {
+int my_softmax4D(float *input, float *output, int axis, const std::vector<int64_t>& shape, bool is_bf16) {
   int iter = 0;
   // Only support axis == 1 so far, which means calculate softmax along C
   assert(axis == 1);
@@ -1596,31 +1639,37 @@ int my_softmax4D(float *input, float *output, int axis, const std::vector<int64_
 
         // find softmax divisor
         float *ex = new float[shape[1]];
-        float sum_of_ex = 0.0f;
-        for (int C = 0; C < shape[1]; ++C) {
+        float *tmp = new float[shape[1]];
+        for(int C = 0; C < shape[1]; ++C) {
           iter = (N * shape[1] * shape[2] * shape[3])
             + (C * shape[2] * shape[3]) + (H * shape[3]) + W;
-
-          float x = input[iter] - max_val;
-          ex[C] = exp(x);
+          tmp[C] = input[iter] - max_val;
+        }
+        // do exp
+        my_exp(tmp, ex, 1, shape[1], 1, 1, is_bf16);
+        float sum_of_ex = 0.0f;
+        for (int C = 0; C < shape[1]; ++C) {
           sum_of_ex += ex[C];
         }
+        float reciprocalValue;
+        my_reciprocal(&sum_of_ex, &reciprocalValue, 1, 1, 1, 1, is_bf16);
 
         // calculate softmax
         for (int C = 0; C < shape[1]; ++C) {
           iter = (N * shape[1] * shape[2] * shape[3])
             + (C * shape[2] * shape[3]) + (H * shape[3]) + W;
 
-          output[iter] = ex[C] / sum_of_ex;
+          output[iter] = ex[C] * reciprocalValue;
         }
         delete[] ex;
+        delete[] tmp;
       }
     }
   }
   return 0;
 }
 
-int my_softmax3D(float *input, float *output, int axis, const std::vector<int64_t>& shape) {
+int my_softmax3D(float *input, float *output, int axis, const std::vector<int64_t>& shape, bool is_bf16) {
   assert(shape.size() == 3);
   int c = shape[0];
   int h = shape[1];
@@ -1637,7 +1686,7 @@ int my_softmax3D(float *input, float *output, int axis, const std::vector<int64_
         tmp[wi] = input[ci * w * h + hi * w + wi];
       }
 
-      int ret = my_softmax2D(tmp, tmp, 1, w);
+      int ret = my_softmax2D(tmp, tmp, 1, w, is_bf16);
       assert(ret == 0);
       for(int wi = 0; wi < w; wi++) {
         output[ci * w * h + hi * w + wi] = tmp[wi];
