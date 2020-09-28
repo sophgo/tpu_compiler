@@ -8,12 +8,17 @@ logger = setup_logger('root')
 log_flag = logger.level <= logging.INFO
 
 def saturateInt8(float_value):
-    q = floor(float_value + 0.5)
-    if q > 127:
-        q = 127
-    if q < -128:
-        q = -128
-    return np.int8(q).item()
+    if isinstance(float_value, (float, int)):
+        q = np.clip(np.floor(float_value+0.5),
+               np.iinfo(np.int8).min, np.iinfo(np.int8).max)
+        return q
+    elif isinstance(float_value, np.ndarray):
+        q = np.clip(np.floor(float_value+0.5),
+                    np.iinfo(np.int8).min, np.iinfo(np.int8).max)
+        return q
+    else:
+        raise TypeError("{} not support ".format(type(float_value)))
+
 
 def getRShiftForFilter(max_filter, threshold_x, threshold_y):
     a = max_filter * threshold_x / threshold_y
@@ -36,6 +41,12 @@ def getFilterQscale(Sw, Sx, Sy):
         Qscale = Sw * Sx / Sy
     """
     return (Sw * Sx) / Sy
+
+
+def quantizeFilterRShift(weight, threshold_y, threshold_x, rshift):
+    factor = (threshold_x / threshold_y) * (1 << rshift)
+    quant_weight = weight * factor
+    return saturateInt8(quant_weight)
 
 
 def QuantMultipiler(double_multiplier):

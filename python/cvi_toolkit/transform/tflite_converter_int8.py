@@ -7,7 +7,7 @@ from enum import Enum
 from .utils import calcConv2DSpatial, calcPool2DFloor, calcPool2DCeil, \
     get_shape_size, get_TF_SAME_Padding
 from ..quantization.QuantizeArithmetic import getFilterQscale, getRShiftAndMultiplierFromQScaleArray, getRShiftAndMultiplierFromQScale, \
-    getMultiplierI8FromQScaleAndRShift, getRShiftForFilter
+    getMultiplierI8FromQScaleAndRShift, getRShiftForFilter, quantizeFilterRShift
 
 from ..utils.log_setting import setup_logger
 
@@ -857,11 +857,29 @@ class TFLiteConverter(BaseConverter):
         filter_scale = filter_attr['scale']
         filter_max = filter_attr['quant_max']
 
+        max_filter_value = max(filter_max)
+        # calculate rshift, fully connected use rshift only
+        rshift = getRShiftForFilter(
+            max_filter_value, threshold_x, threshold_y)
+
+        if log_flag:
+            logger.info("{} {} threshold_x: {}".format(
+                node.inputs[0], shape, threshold_x))
+            logger.info("{} {} threshold_y: {}".format(
+                node.outputs, tensor_shape, threshold_y))
+            logger.info("rshift {} ".format(rshift))
+
+
         # get filter data
         filter_data = self.get_tflite_tensor_data(
             filter_tensor)
         filter_data = np.frombuffer(filter_data.tobytes(), dtype=np.int8)
         filter_data = filter_data.reshape(tuple(filter_shape))
+
+        filter_data = filter_data.astype(np.float32) * filter_scale[0]
+
+        filter_data = quantizeFilterRShift(
+            filter_data, threshold_y, threshold_x, rshift)
 
         self.addTensor(filter_name, filter_data, filter_shape, None)
         filter_op = self.CVI.add_load_file_op(filter_name, filter_shape, storage="INT8")
@@ -888,16 +906,15 @@ class TFLiteConverter(BaseConverter):
             bias_data = bias_data.astype(np.float32) * bias_scale[0]
 
             # quant to int16
-            bias_data = bias_data / (filter_scale * fc_scale)
+            bias_data = bias_data * (127 / threshold_y * (1 << rshift))
+            bias_data = np.clip(np.floor(bias_data+0.5),
+                                np.iinfo(np.int16).min, np.iinfo(np.int16).max)
 
             self.addTensor(bias_name, bias_data, bias_shape, None)
             bias_op = self.CVI.add_load_file_op(bias_name, bias_shape,  storage="INT16")
             operands.append(bias_op)
 
-        max_filter_value = max(filter_max)
-        # calculate rshift, fully connected use rshift only
-        rshift = getRShiftForFilter(
-            max_filter_value, threshold_x, threshold_y)
+
         rshift_data = np.array([rshift])
         rshift_name = "{}_rshift".format(fc_name)
         rshift_shape = list(rshift_data.shape)
