@@ -19,7 +19,7 @@ resnext50                 N        N        N        Y        Y        N
 arcface_res50             Y        N        N        N        Y        N
 retinaface_mnet25         Y        Y        N        N        N        N
 retinaface_mnet25_600     N        N        N        Y        N        N
-retinaface_res50          N        N        N        Y        N        N
+retinaface_res50          Y        Y        N        Y        N        N
 ssd300                    N        N        N        Y        Y        N
 mobilenet_ssd             Y        N        N        N        Y        N
 yolo_v1_448               N        N        N        Y        N        N

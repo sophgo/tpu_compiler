@@ -151,12 +151,14 @@ void cvi_backend_tg_bf16_concat_kernel(const CviBackendContext &ctx, uint32_t st
 
               cvk_tg_t src;
               src.start_address = input_gaddrs[i];
+              src.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(src.start_address);
               src.fmt = CVK_FMT_BF16;
               src.shape = shape_;
               src.stride = stride_src;
 
               cvk_tg_t dst;
               dst.start_address = output_gaddr + offset;
+              dst.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(dst.start_address);
               dst.fmt = CVK_FMT_BF16;
               dst.shape = shape_;
               dst.stride = stride_dst;
@@ -190,12 +192,14 @@ void cvi_backend_tg_bf16_concat_kernel(const CviBackendContext &ctx, uint32_t st
 
               cvk_tg_t src;
               src.start_address = input_gaddrs[i];
+              src.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(src.start_address);
               src.fmt = CVK_FMT_BF16;
               src.shape = shape_;
               src.stride = stride_src;
 
               cvk_tg_t dst;
               dst.start_address = output_gaddr + offset;
+              dst.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(dst.start_address);
               dst.fmt = CVK_FMT_BF16;
               dst.shape = shape_;
               dst.stride = stride_dst;
@@ -225,12 +229,14 @@ void cvi_backend_tg_bf16_concat_kernel(const CviBackendContext &ctx, uint32_t st
 
                 cvk_tg_t src;
                 src.start_address = input_gaddrs[i] + soffset;
+                src.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(src.start_address);
                 src.fmt = CVK_FMT_BF16;
                 src.shape = shape_;
                 src.stride = stride_src;
 
                 cvk_tg_t dst;
                 dst.start_address = output_gaddr + offset;
+                dst.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(dst.start_address);
                 dst.fmt = CVK_FMT_BF16;
                 dst.shape = shape_;
                 dst.stride = stride_dst;
@@ -259,12 +265,14 @@ void cvi_backend_tg_bf16_concat_kernel(const CviBackendContext &ctx, uint32_t st
 
                 cvk_tg_t src;
                 src.start_address = input_gaddrs[i] + soffset;
+                src.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(src.start_address);
                 src.fmt = CVK_FMT_BF16;
                 src.shape = shape_;
                 src.stride = stride_src;
 
                 cvk_tg_t dst;
                 dst.start_address = output_gaddr + offset;
+                dst.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(dst.start_address);
                 dst.fmt = CVK_FMT_BF16;
                 dst.shape = shape_;
                 dst.stride = stride_dst;
@@ -314,12 +322,14 @@ void cvi_backend_tg_bf16_concat_kernel(const CviBackendContext &ctx, uint32_t st
 
         cvk_tg_t src;
         src.start_address = input_gaddrs[i];
+        src.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(src.start_address);
         src.fmt = CVK_FMT_BF16;
         src.shape = shape_;
         src.stride = stride_src;
 
         cvk_tg_t dst;
         dst.start_address = output_gaddr + offset;
+        dst.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(dst.start_address);
         dst.fmt = CVK_FMT_BF16;
         dst.shape = shape_;
         dst.stride = stride_dst;
@@ -353,11 +363,14 @@ void cvi_backend_tg_bf16_concat_kernel(const CviBackendContext &ctx, uint32_t st
         stride_src = ctx.tg_default_stride(shape_, CVK_FMT_BF16);
         cvk_tg_t src;
         src.start_address = input_gaddrs[i];
+        src.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(src.start_address);
         src.fmt = CVK_FMT_BF16;
         src.shape = shape_;
         src.stride = stride_src;
+
         cvk_tg_t dst;
         dst.start_address = output_gaddr + offset;
+        dst.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(dst.start_address);
         dst.fmt = CVK_FMT_BF16;
         dst.shape = shape_;
         dst.stride = stride_dst;

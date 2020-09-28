@@ -568,9 +568,9 @@ export ANNOTATION=$DATASET_PATH/widerface/wider_face_split
 export DO_FUSED_POSTPROCESS=1
 export MODEL_DEF_FUSED_POSTPROCESS=$MODEL_PATH/face_detection/retinaface/caffe/R50-0000_with_detection.prototxt
 
-export DO_QUANT_BF16=0
-export DO_CMDBUF_BF16=0
-export DO_LG_WITH_BF16=0
+export DO_QUANT_BF16=1
+export DO_CMDBUF_BF16=1
+export DO_LG_WITH_BF16=1
 export TOLERANCE_BF16=0.99,0.99,0.87
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
 fi
