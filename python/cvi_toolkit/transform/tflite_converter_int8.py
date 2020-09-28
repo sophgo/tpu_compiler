@@ -844,11 +844,6 @@ class TFLiteConverter(BaseConverter):
         tensor_shape = tensor_attr['shape'].tolist()
         fc_scale = tensor_attr['scale']
 
-        if log_flag:
-            logger.info("{} {} threshold_x: {}".format(
-                node.inputs[0], shape, threshold_x))
-            logger.info("{} {} threshold_y: {}".format(
-                node.outputs, tensor_shape, threshold_y))
 
         # filter
         filter_tensor_idx = node.inputs[1]
@@ -1121,6 +1116,18 @@ class TFLiteConverter(BaseConverter):
         output_shape = np.sum(
             [input_shape, padding_data[:dims], padding_data[dims:]], axis=0)
         output_shape = [int(i) for i in output_shape]
+        int8_quant_info = {
+            'is_asymmetric': False,
+            'is_perchannel': False,
+            'mode': TPU_MODE.INT8,
+            'param_type': "NONE",
+            'threshold_max': threshold_y,
+            'threshold_min': 0
+        }
+
+        # add quant info to param
+        pads_param.update(int8_quant_info)
+
         assert(tensor_shape[1:] == output_shape[1:])
         pads_op = self.CVI.add_pad_op(
             pad_name, [op], output_shape, **pads_param)

@@ -943,7 +943,7 @@ class MLIRImporter(object):
         return self.buildOp(TPU_OpType.PoolAvg2D.value, inputOperands, [
             tensor_output_type], name=pool_avg_2d_name, param=dict_attr, quant=quant_param)
 
-    def add_pool_max_2d_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+    def add_pool_max_2d_op(self, op_name, inputOperands, output_tensor_shape, mode=TPU_MODE.FP32, **kargs):
 
         tensor_output_type = self.module.make_ranked_tensor_type(
             self.get_input_type(inputOperands[0]), output_tensor_shape)
@@ -971,9 +971,16 @@ class MLIRImporter(object):
             'count_include_pad': self.module.boolAttr(False), # max pool has no count_include_pad method
         }
         dict_attr = self.module.dictAttr(**pool_max_2d_param)
+        if mode == TPU_MODE.INT8:
+            quant_param = self.create_int8_quant_param(**kargs)
+        elif mode == TPU_MODE.FP32:
+            quant_param = self.quant_param
+        elif mode == TPU_MODE.BF16:
+            raise RuntimeError("Not support BF16")
+
 
         return self.buildOp(TPU_OpType.PoolMax2D.value, inputOperands, [
-            tensor_output_type], name=pool_max_2d_name, param=dict_attr, quant=self.quant_param)
+            tensor_output_type], name=pool_max_2d_name, param=dict_attr, quant=quant_param)
 
     def add_power_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = self.module.make_ranked_tensor_type(
