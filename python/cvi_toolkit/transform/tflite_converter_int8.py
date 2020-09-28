@@ -1,11 +1,13 @@
-from .mlirimporter import MLIRImporter, checkKey
-from .BaseConverter import BaseConverter, TensorType
+from .mlirimporter import MLIRImporter, checkKey, TPU_MODE, TPU_TensorType
+from .BaseConverter import BaseConverter
 from termcolor import colored, cprint
 from math import floor, ceil
 from numbers import Number
 from enum import Enum
 from .utils import calcConv2DSpatial, calcPool2DFloor, calcPool2DCeil, \
     get_shape_size, get_TF_SAME_Padding
+from ..quantization.QuantizeArithmetic import getFilterQscale, getRShiftAndMultiplierFromQScaleArray, getRShiftAndMultiplierFromQScale, \
+    getMultiplierI8FromQScaleAndRShift, getRShiftForFilter
 
 from ..utils.log_setting import setup_logger
 
