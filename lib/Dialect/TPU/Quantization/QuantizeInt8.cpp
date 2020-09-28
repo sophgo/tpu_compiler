@@ -175,114 +175,6 @@ LogicalResult quantizeInt8ConvOps(Operation *op) {
   return success();
 }
 
-///
-/// Eltwise Add Ops quantization method
-///
-LogicalResult quantizeInt8MultiplyEltwiseAddOps(Operation *op) {
-  assert(getOpQuant(op) == "INT8");
-  // support per-tensor only for now
-  setOpQuantPerchannel(op, false);
-  // use rshift and INT8 multiplier
-  setOpQuantParamType(op, "RSHIFT_AND_M_I8");
-
-  TensorFile *wTF = getWeightTensorFile(op);
-  Value *wfV = getWeightFileValue(op);
-
-  // get operands
-  const unsigned nInputs = op->getNumOperands() - 4;
-  assert(nInputs == 2 && "support only 2 inputs multiply");
-
-  // get thresholds
-  float threshold_y = getOpThreshold(op);
-  LLVM_DEBUG(llvm::errs() << " > " << getOpName(op) << ", threshold_y = "
-                          << std::to_string(threshold_y) << "\n";);
-  float threshold_x;
-  int const_idx;
-
-  for (unsigned i = 0; i < nInputs; ++i) {
-    auto formerOp = op->getOperand(i)->getDefiningOp();
-    if (isa<tpu::LoadWeightOp>(formerOp)) {
-      const_idx = i;
-    }else{
-      threshold_x = getOpThreshold(formerOp);
-      LLVM_DEBUG(llvm::errs() << "  threshold_x = "
-                              << std::to_string(threshold_x) << "\n";);
-    }
-  }
-  assert(const_idx == 1 && "weight must be second input");
-
-  auto const_opd =
-      readAndDeleteWeightTensor<float>(op->getOperand(const_idx), wTF);
-  std::vector<int64_t> const_shape;
-  int64_t const_size;
-  getTensorShapeAndSize(op->getOperand(const_idx), const_shape, const_size);
-  assert(const_size == (int64_t)const_opd->size());
-
-  auto max_elem = *std::max_element(const_opd->begin(), const_opd->end());
-
-  // determine the qscale
-  std::vector<float> qscales(nInputs);
-  float qscale = threshold_x / threshold_y;
-  qscales[0] = qscale;
-  qscales[1] = 127.0 / (float)max_elem;
-
-  // decompose into int8 mulitplier and rshift
-  uint32_t multiplier_i8;
-  auto shape_multiplier = std::vector<int64_t>{1};
-
-  auto rshift = std::make_unique<std::vector<float>>(nInputs);
-  int8_t rshift_i8 =
-      findRShiftAndMultiplierFromQScale(qscales[0], &multiplier_i8, false);
-
-  rshift->at(0) = static_cast<float>(rshift_i8);
-
-  auto multiplier = std::make_unique<std::vector<float>>(nInputs);
-  shape_multiplier = std::vector<int64_t>{nInputs};
-  multiplier->at(0) = static_cast<float>(multiplier_i8);
-
-
-  // later apply multipiler
-  std::vector<float> quant_const(const_size, 0);
-  quant_const.assign(const_opd->begin(), const_opd->end());
-  multiplier_i8 = findMultiplierI8FromQScaleAndRShift(qscales[1], rshift_i8);
-  multiplier->at(1) = static_cast<float>(multiplier_i8);
-  LLVM_DEBUG(llvm::errs() << "  rshift = " << std::to_string(rshift->at(0))
-                          << ", multiplier[0] = "
-                          << std::to_string(multiplier->at(0))
-                          << ", multiplier[1] = "
-                          << std::to_string(multiplier->at(1)) << "\n");
-
-  for (int i = 0; i < const_size; i++) {
-    auto float_quant =
-        floor((*const_opd)[i] * qscale * multiplier->at(0) + 0.5);
-    quant_const[i] = std::round(float_quant);
-    if (quant_const[i] > 127)
-      quant_const[i] = 127;
-    if (quant_const[i] < -128)
-      quant_const[i] = -128;
-  }
-
-  // update op
-  addWeightTensorAndUpdateWeightOp<float>(op->getOperand(const_idx), "quant",
-                                          quant_const, const_shape, "INT8",
-                                          wTF);
-
-  // add rshift and multiplier to weight
-  StringRef storageType = "NONE";
-  auto shape = std::vector<int64_t>{1};
-
-  auto rshift_op = addWeightTensorAndCreateWeightOp<float>(
-      op, "rshift", *rshift, shape, storageType, wTF, wfV);
-  op->setOperand(4, rshift_op);
-
-  auto multiplier_op = addWeightTensorAndCreateWeightOp<float>(
-      op, "multiplier", *multiplier, shape_multiplier, storageType, wTF, wfV);
-  op->setOperand(5, multiplier_op);
-
-  setOpResultType(op->getResult(0), StandardTypes::Integer, 8);
-
-  return success();
-}
 
 ///
 /// FC Ops quantization method
@@ -336,7 +228,7 @@ LogicalResult quantizeInt8FullyConnectedOps(Operation *op) {
   LLVM_DEBUG(llvm::errs() << " > " << getOpName(op)
                << ", threshold_y = "<< std::to_string(threshold_y)
                << ", threshold_x = " << std::to_string(threshold_x) << "\n";);
-
+  
   // quantization
   quantizeWeightInt8PerLayer(filter->data(), bias ? bias->data() : nullptr,
                              n, k, threshold_y, threshold_x,
