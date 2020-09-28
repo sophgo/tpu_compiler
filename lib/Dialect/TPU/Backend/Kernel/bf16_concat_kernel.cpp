@@ -108,7 +108,7 @@ void cvi_backend_tg_bf16_concat_kernel(const CviBackendContext &ctx, uint32_t st
         dst.stride = stride_dst;
 
         LLVM_DEBUG(llvm::errs() << llvm::format(
-                        "    [%d] 1 tdma_tg_copy:\n"
+                        "    [%d] 1 g2g:\n"
                         "         src addr 0x%lx, shape(%d, %d, %d, %d), stride(%d, %d, %d)\n"
                         "         dst addr 0x%lx, shape(%d, %d, %d, %d), stride(%d, %d, %d)\n",
                         i, src.start_address, src.shape.n, src.shape.c, src.shape.h, src.shape.w,
@@ -118,10 +118,8 @@ void cvi_backend_tg_bf16_concat_kernel(const CviBackendContext &ctx, uint32_t st
         cvk_tdma_g2g_tensor_copy_param_t p = {0};
         p.src = &src;
         p.dst = &dst;
-        //p.layer_id = layer_id;
         ctx.tdma_g2g_bf16_tensor_copy(&p);
 
-//        ctx.tdma_tg_copy(&dst, &src);
         offset += input_dims[i] * output_dim[1] * output_dim[2] * output_dim[3] * sizeof(uint16_t);
       }
     } else if (concat_axis == 1) {
@@ -165,7 +163,7 @@ void cvi_backend_tg_bf16_concat_kernel(const CviBackendContext &ctx, uint32_t st
 
               LLVM_DEBUG(
                   llvm::errs() << llvm::format(
-                      "    [%d] 2 tdma_tg_copy:\n"
+                      "    [%d] 2 g2g:\n"
                       "         src addr 0x%lx, shape(%d, %d, %d, %d), stride(%d, %d, %d)\n"
                       "         dst addr 0x%lx, shape(%d, %d, %d, %d), stride(%d, %d, %d)\n",
                       i, src.start_address, src.shape.n, src.shape.c, src.shape.h, src.shape.w,
@@ -176,9 +174,7 @@ void cvi_backend_tg_bf16_concat_kernel(const CviBackendContext &ctx, uint32_t st
               cvk_tdma_g2g_tensor_copy_param_t p = {0};
               p.src = &src;
               p.dst = &dst;
-//              p.layer_id = layer_id;
               ctx.tdma_g2g_bf16_tensor_copy(&p);
-//              ctx.tdma_tg_copy(&dst, &src);
             }
             offset += input_dims[i] * output_dim[2] * output_dim[3] * sizeof(uint16_t);
           }
@@ -206,7 +202,7 @@ void cvi_backend_tg_bf16_concat_kernel(const CviBackendContext &ctx, uint32_t st
 
               LLVM_DEBUG(
                   llvm::errs() << llvm::format(
-                      "    [%d] 3 tdma_tg_copy:\n"
+                      "    [%d] 3 g2g:\n"
                       "         src addr 0x%lx, shape(%d, %d, %d, %d), stride(%d, %d, %d)\n"
                       "         dst addr 0x%lx, shape(%d, %d, %d, %d), stride(%d, %d, %d)\n",
                       i, src.start_address, src.shape.n, src.shape.c, src.shape.h, src.shape.w,
@@ -216,10 +212,8 @@ void cvi_backend_tg_bf16_concat_kernel(const CviBackendContext &ctx, uint32_t st
               cvk_tdma_g2g_tensor_copy_param_t p = {0};
               p.src = &src;
               p.dst = &dst;
-//              p.layer_id = layer_id;
               ctx.tdma_g2g_bf16_tensor_copy(&p);
 
-//              ctx.tdma_tg_copy(&dst, &src);
               offset += input_dims[i] * sizeof(uint16_t);
             } else {
               //assert(0);
@@ -243,7 +237,7 @@ void cvi_backend_tg_bf16_concat_kernel(const CviBackendContext &ctx, uint32_t st
 
                 LLVM_DEBUG(
                     llvm::errs() << llvm::format(
-                        "    [%d] 4 tdma_tg_copy:\n"
+                        "    [%d] 4 g2g:\n"
                         "         src addr 0x%lx, shape(%d, %d, %d, %d), stride(%d, %d, %d)\n"
                         "         dst addr 0x%lx, shape(%d, %d, %d, %d), stride(%d, %d, %d)\n",
                         i, src.start_address, src.shape.n, src.shape.c, src.shape.h, src.shape.w,
@@ -251,11 +245,9 @@ void cvi_backend_tg_bf16_concat_kernel(const CviBackendContext &ctx, uint32_t st
                         dst.shape.c, dst.shape.h, dst.shape.w, dst.stride.n, dst.stride.c,
                         dst.stride.h));
 
-        //        ctx.tdma_tg_copy(&dst, &src);
                 cvk_tdma_g2g_tensor_copy_param_t p = {0};
                 p.src = &src;
                 p.dst = &dst;
-//                p.layer_id = layer_id;
                 ctx.tdma_g2g_bf16_tensor_copy(&p);
 
                 offset += 65535 * sizeof(uint16_t);
@@ -279,7 +271,7 @@ void cvi_backend_tg_bf16_concat_kernel(const CviBackendContext &ctx, uint32_t st
 
                 LLVM_DEBUG(
                     llvm::errs() << llvm::format(
-                        "    [%d] 5 tdma_tg_copy:\n"
+                        "    [%d] 5 g2g:\n"
                         "         src addr 0x%lx, shape(%d, %d, %d, %d), stride(%d, %d, %d)\n"
                         "         dst addr 0x%lx, shape(%d, %d, %d, %d), stride(%d, %d, %d)\n",
                         i, src.start_address, src.shape.n, src.shape.c, src.shape.h, src.shape.w,
@@ -287,11 +279,9 @@ void cvi_backend_tg_bf16_concat_kernel(const CviBackendContext &ctx, uint32_t st
                         dst.shape.c, dst.shape.h, dst.shape.w, dst.stride.n, dst.stride.c,
                         dst.stride.h));
 
-        //        ctx.tdma_tg_copy(&dst, &src);
                 cvk_tdma_g2g_tensor_copy_param_t p = {0};
                 p.src = &src;
                 p.dst = &dst;
-//                p.layer_id = layer_id;
                 ctx.tdma_g2g_bf16_tensor_copy(&p);
 
                 offset += (input_dims[i] % 65535) * sizeof(uint16_t);
@@ -335,7 +325,7 @@ void cvi_backend_tg_bf16_concat_kernel(const CviBackendContext &ctx, uint32_t st
         dst.stride = stride_dst;
 
         LLVM_DEBUG(llvm::errs() << llvm::format(
-                        "    [%d] 6 tdma_tg_copy:\n"
+                        "    [%d] 6 g2g:\n"
                         "         src addr 0x%lx, shape(%d, %d, %d, %d), stride(%d, %d, %d)\n"
                         "         dst addr 0x%lx, shape(%d, %d, %d, %d), stride(%d, %d, %d)\n",
                         i, src.start_address, src.shape.n, src.shape.c, src.shape.h, src.shape.w,
@@ -347,7 +337,6 @@ void cvi_backend_tg_bf16_concat_kernel(const CviBackendContext &ctx, uint32_t st
         p.dst = &dst;
         ctx.tdma_g2g_bf16_tensor_copy(&p);
 
-//        ctx.tdma_tg_copy(&dst, &src);
         offset += input_dims[i] * sizeof(uint16_t);
       }
     }  else if(concat_axis == 3) {

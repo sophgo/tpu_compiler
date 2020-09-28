@@ -54,8 +54,11 @@ static void permute_default_tensor_load(
       << "), stride(" << param.dst->stride.n
       << ", " << param.dst->stride.c << ", " << param.dst->stride.h
       << ", " << param.dst->stride.w << ")\n");
-
-  ctx._tdma_g2l_tensor_copy(&param);
+  if (tl_ifmap->fmt == CVK_FMT_BF16) {
+    ctx.tdma_g2l_bf16_tensor_copy(&param);
+  } else {
+    ctx.tdma_g2l_tensor_copy(&param);
+  }
 }
 
 
@@ -500,7 +503,11 @@ static void permute_tp_tensor_store(const CviBackendContext &ctx,
                           << param.dst->stride.n << ", " << param.dst->stride.c
                           << ", " << param.dst->stride.h << "\n");
 
-  ctx._tdma_l2g_tensor_copy(&param);
+  if (tl_ofmap->fmt == CVK_FMT_BF16) {
+    ctx.tdma_l2g_bf16_tensor_copy(&param);
+  } else {
+    ctx.tdma_l2g_tensor_copy(&param);
+  }
 }
 
 // ORDER: [0-2][0-2][0-2]3
@@ -621,8 +628,11 @@ static void permute_xxx3_tp_tensor_store(
       << ", " << param.dst->shape.w
       << "), stride(" << param.dst->stride.n
       << ", " << param.dst->stride.c << ", " << param.dst->stride.h << "\n");
-
-  ctx._tdma_l2g_tensor_copy(&param);
+  if (tl_ofmap->fmt == CVK_FMT_BF16) {
+    ctx.tdma_l2g_bf16_tensor_copy(&param);
+  } else {
+    ctx.tdma_l2g_tensor_copy(&param);
+  }
 }
 
 // (0, 1, 2, 3) -> (, , , 3)
@@ -1200,8 +1210,10 @@ void cvi_backend_tg_permute(
       tg_dst.fmt = fmt;
       tg_dst.shape = shape_;
       tg_dst.stride = stride_;
-
-      ctx.tdma_tg_copy(&tg_dst, &tg_src);
+      cvk_tdma_g2g_tensor_copy_param_t param = {0};
+      param.src = &tg_src;
+      param.dst = &tg_dst;
+      ctx.tdma_g2g_tensor_copy(&param);
     }
     return;
   }

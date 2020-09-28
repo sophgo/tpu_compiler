@@ -96,7 +96,7 @@ after_loop:
         cvk_tdma_l2l_tensor_copy_param_t p2 = {0};
         p2.src = &operand;
         p2.dst = &operand_lane;
-        ctx._tdma_l2l_tensor_copy(&p2);
+        ctx.tdma_l2l_bf16_tensor_copy(&p2);
       }
       shape_b = ctx.shape_t4(1, NPU_NUM, cur_h, cur_w);
       cvk_tl_t operand_b;

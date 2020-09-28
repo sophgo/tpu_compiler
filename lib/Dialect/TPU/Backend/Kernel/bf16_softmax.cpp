@@ -201,7 +201,7 @@ void bf16_softmax_kernel_2d(const CviBackendContext &ctx, uint32_t layer_id,
                             p2.src->stride.c, p2.src->stride.h, p2.src->stride.w, p2.dst->start_address,
                             p2.dst->shape.n, p2.dst->shape.c, p2.dst->shape.h, p2.dst->shape.w,
                             p2.dst->stride.n, p2.dst->stride.c, p2.dst->stride.h, p2.dst->stride.w));
-            ctx._tdma_l2l_tensor_copy(&p2);
+            ctx.tdma_l2l_bf16_tensor_copy(&p2);
         }
         cvk_tl_shape_t parallel_input_shape = {
             static_cast<uint32_t>(workingOutputSize), static_cast<uint32_t>(parallelC),
@@ -224,7 +224,7 @@ void bf16_softmax_kernel_2d(const CviBackendContext &ctx, uint32_t layer_id,
                             p2.src->stride.c, p2.src->stride.h, p2.src->stride.w, p2.dst->start_address,
                             p2.dst->shape.n, p2.dst->shape.c, p2.dst->shape.h, p2.dst->shape.w,
                             p2.dst->stride.n, p2.dst->stride.c, p2.dst->stride.h, p2.dst->stride.w));
-            ctx._tdma_l2l_tensor_copy(&p2);
+            ctx.tdma_l2l_bf16_tensor_copy(&p2);
         }
 
         //Input = Input - maxOfInput
@@ -298,7 +298,7 @@ void bf16_softmax_kernel_2d(const CviBackendContext &ctx, uint32_t layer_id,
                             p2.src->stride.c, p2.src->stride.h, p2.src->stride.w, p2.dst->start_address,
                             p2.dst->shape.n, p2.dst->shape.c, p2.dst->shape.h, p2.dst->shape.w,
                             p2.dst->stride.n, p2.dst->stride.c, p2.dst->stride.h, p2.dst->stride.w));
-            ctx._tdma_l2l_tensor_copy(&p2);
+            ctx.tdma_l2l_bf16_tensor_copy(&p2);
         }
 
         //Accumulate exponential value
@@ -375,7 +375,7 @@ void bf16_softmax_kernel_2d(const CviBackendContext &ctx, uint32_t layer_id,
                             p2.src->stride.c, p2.src->stride.h, p2.src->stride.w, p2.dst->start_address,
                             p2.dst->shape.n, p2.dst->shape.c, p2.dst->shape.h, p2.dst->shape.w,
                             p2.dst->stride.n, p2.dst->stride.c, p2.dst->stride.h, p2.dst->stride.w));
-            ctx._tdma_l2l_tensor_copy(&p2);
+            ctx.tdma_l2l_bf16_tensor_copy(&p2);
         }
 
         //ans = exp(input - maxInput) *  reciprocal value

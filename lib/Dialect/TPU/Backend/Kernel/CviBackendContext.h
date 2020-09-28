@@ -15,7 +15,6 @@
 #include <backend/backend_tg_api.h>
 #include "backend_tiling.h"
 #include "backend_tensor_common.h"
-#include "backend_tl_internal.h"
 
 #define MAX_CONV_IC (4095 - 32)
 #define MAX_TIU_CHL (4095 - 32)
@@ -368,10 +367,6 @@ public:
   //
   // BM kernel legacy API
   //
-  uint32_t tl_shape_to_size(cvk_tl_shape_t shape, bool aligned, cvk_fmt_t fmt);
-
-  inline uint32_t tl_address(const cvk_tl_t &tlp) const { return tlp.start_address; }
-  inline uint32_t tl_address(const cvk_tl_t *tlp) const { return tlp->start_address; }
 
   inline cvk_tl_shape_t shape_t4(int n, int c, int h, int w) const {
     return {static_cast<uint32_t>(n), static_cast<uint32_t>(c), static_cast<uint32_t>(h),
@@ -431,12 +426,6 @@ public:
 
   void tdma_store_bf16(cvk_tl_t *tlp, uint64_t ga_dst, uint8_t do_transpose = 0) const;
 
-  void tdma_tg_copy(cvk_tg_t *dst, cvk_tg_t *src, uint8_t do_transpose = 0) const;
-
-  void _tdma_tg_copy(cvk_tg_t *dst, cvk_tg_t *src) const;
-  bool _tdma_tg_copy_no_split(cvk_tg_t *dst, cvk_tg_t *src) const;
-  bool _tdma_tg_copy_split_nh(cvk_tg_t *dst, cvk_tg_t *src) const;
-
   // matrix format
   void tdma_load_stride(cvk_ml_t *tlp, uint64_t ga_src, cvk_mg_stride_t ts_stride,
                         uint8_t do_transpose = 0) const;
@@ -476,52 +465,6 @@ public:
   };
 
   void *get_cvk_ctx() const { return cvk_ctx_; }
-
-  // TODO, private tdma api, remove them later.
-  void _tdma_l2g_tensor_copy(cvk_tdma_l2g_tensor_copy_param_t *param) const {
-    if (is_one_bf16(param->src->fmt, param->dst->fmt))
-      cvk_ctx_->ops->tdma_l2g_bf16_tensor_copy(cvk_ctx_, param);
-    else
-      cvk_ctx_->ops->tdma_l2g_tensor_copy(cvk_ctx_, param);
-  }
-
-  void _tdma_l2l_tensor_copy(cvk_tdma_l2l_tensor_copy_param_t *param) const {
-    if (is_one_bf16(param->src->fmt, param->dst->fmt))
-      cvk_ctx_->ops->tdma_l2l_bf16_tensor_copy(cvk_ctx_, param);
-    else
-      cvk_ctx_->ops->tdma_l2l_tensor_copy(cvk_ctx_, param);
-  }
-
-  void _tdma_l2g_tensor_copy_nc_transposed(
-      cvk_tdma_l2g_tensor_copy_nc_transposed_param_t *param) const {
-    if (is_one_bf16(param->src->fmt, param->dst->fmt))
-      cvk_ctx_->ops->tdma_l2g_bf16_tensor_copy_nc_transposed(cvk_ctx_, param);
-    else
-      cvk_ctx_->ops->tdma_l2g_tensor_copy_nc_transposed(cvk_ctx_, param);
-  }
-
-  void _tdma_g2l_tensor_copy_nc_transposed(
-      cvk_tdma_g2l_tensor_copy_nc_transposed_param_t *param) const {
-    if (is_one_bf16(param->src->fmt, param->dst->fmt))
-      cvk_ctx_->ops->tdma_g2l_bf16_tensor_copy_nc_transposed(cvk_ctx_, param);
-    else
-      cvk_ctx_->ops->tdma_g2l_tensor_copy_nc_transposed(cvk_ctx_, param);
-  }
-
-  void _tdma_g2l_tensor_copy(cvk_tdma_g2l_tensor_copy_param_t *param) const {
-    if (is_one_bf16(param->src->fmt, param->dst->fmt))
-      this->tdma_g2l_bf16_tensor_copy(param);
-    else
-      this->tdma_g2l_tensor_copy(param);
-  }
-
-  void _tdma_l2g_tensor_copy_cw_transposed(
-      cvk_tdma_l2g_tensor_copy_cw_transposed_param_t *param) const {
-    if (is_one_bf16(param->src->fmt, param->dst->fmt))
-      cvk_ctx_->ops->tdma_l2g_bf16_tensor_copy_cw_transposed(cvk_ctx_, param);
-    else
-      cvk_ctx_->ops->tdma_l2g_tensor_copy_cw_transposed(cvk_ctx_, param);
-  }
 
 private:
 

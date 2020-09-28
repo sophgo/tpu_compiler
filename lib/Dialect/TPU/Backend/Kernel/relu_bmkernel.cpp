@@ -63,7 +63,6 @@ void cvi_backend_tg_fixed_relu_kernel(const CviBackendContext &ctx, uint32_t str
     cvk_tl_shape_t tl_shape = ctx.shape_t4(n, c, h, w);
 
     // load input
-    //cvi_backend_tl_load_tensor(ctx, layer_id, tl_ifmap, bottom_gaddr + gaddr_offset, /*eu_align=*/1);
     cvk_tl_t *tl_input;
 
     if ((cvk_fmt_t)fmt == CVK_FMT_BF16) {
