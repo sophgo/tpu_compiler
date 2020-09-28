@@ -954,6 +954,39 @@ export SPP_NET="false"
 export TINY="false"
 fi
 
+if [ $NET = "yolo_v4_540x960" ]; then
+export MODEL_DEF=$MODEL_PATH/object_detection/yolo_v4/caffe/540x960/yolov4.prototxt
+export MODEL_DAT=$MODEL_PATH/object_detection/yolo_v4/caffe/yolov4.caffemodel
+export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_caffe/regression_yolo_v4_0_caffe.sh
+export ENABLE_CALI_OVERWRITE_THRESHOLD_FORWARD="--enable-cali-overwrite-threshold-forward-relu"
+export IMAGE_PATH=$REGRESSION_PATH/data/dog.jpg
+export EVAL_SCRIPT=$REGRESSION_PATH/data/eval/accuracy_yolo_v3.sh
+export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/yolo_v4_calibration_table_autotune
+export YOLO_PREPROCESS="false"
+export YOLO_V4="true"
+export INPUT=input
+export MODEL_CHANNEL_ORDER="rgb"
+export SWAP_CHANNEL=2,1,0
+export IMAGE_RESIZE_DIMS=540,960
+export NET_INPUT_DIMS=540,960
+export RAW_SCALE=1.0
+export MEAN=0,0,0
+export INPUT_SCALE=1.0
+export TOLERANCE_INT8_PER_TENSOR=0.89,0.86,0.51
+export TOLERANCE_INT8_RSHIFT_ONLY=0.92,0.90,0.58
+export TOLERANCE_INT8_MULTIPLER=0.65,0.61,0.01
+# mish layer
+export EXCEPTS="layer136-act,layer137-act,layer138-act,layer142-act,layer148-act,layer149-act,layer153-act"
+export OUTPUTS="layer139-conv,layer150-conv,layer161-conv"
+export DO_QUANT_BF16=0
+export TOLERANCE_BF16=0.99,0.99,0.93
+export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.93
+export DO_DEEPFUSION=0
+export SPP_NET="false"
+export TINY="false"
+fi
+
+
 if [ $NET = "yolo_v4_tiny" ]; then
 export MODEL_TYPE="onnx"
 export MODEL_DAT=""

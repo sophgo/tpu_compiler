@@ -31,6 +31,7 @@ yolo_v3_320               N        N        N        Y        Y        N
 yolo_v3_tiny              Y        N        N        N        N        N
 yolo_v3_spp               N        N        N        Y        N        N
 yolo_v4                   N        N        N        Y        N        N
+yolo_v4_540x960           N        N        N        Y        N        N
 yolo_v4_tiny              N        N        N        Y        N        N
 faster_rcnn               N        N        N        Y        N        N
 icnet                     N        N        N        Y        N        N
