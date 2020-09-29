@@ -26,6 +26,7 @@ usage()
   echo -e "\t-w Fused preprocess channel order (rgb|bgr)    [default: bgr]"
   echo -e "\t-y Fused preprocess image resize dims          [default: [none], use net dim]"
   echo -e "\t-f Fused preprocess crop offset                [default: [none], center]"
+  echo -e "\t-g Do TPU Softmax inference                    [default: 0]"
   echo -e "\t-h help"
   exit 1
 }
@@ -34,9 +35,10 @@ bs="1"
 do_layergroup="1"
 do_fused_preprocess="0"
 do_crop="0"
+do_tpu_softmax="0"
 chip_ver="cv183x"
 
-while getopts "i:d:t:b:q:v:o:l:pz:r:m:s:a:w:y:f:h" opt
+while getopts "i:d:t:b:q:v:o:l:pz:r:m:s:a:w:y:g:f:h" opt
 do
   case "$opt" in
     i ) model_def="$OPTARG" ;;
@@ -56,6 +58,7 @@ do
     w ) channel_order="$OPTARG" ;;
     y ) image_resize_dims="$OPTARG" ;;
     f ) crop_offset="$OPTARG" ;;
+    g ) do_tpu_softmax="$OPTARG" ;;
     h ) usage ;;
   esac
 done
@@ -122,6 +125,11 @@ if [ $do_layergroup = "1" ]; then
   dce_opt="--dce "
 fi
 
+tpu_softmax_opt=""
+if [ $do_tpu_softmax = "1" ]; then
+  tpu_softmax_opt="--quant-bf16-softmax  "
+fi
+
 mlir-opt ${name}.mlir \
     --convert-bn-to-scale \
     --canonicalize \
@@ -135,6 +143,7 @@ mlir-opt \
     --assign-chip-name \
     --chipname $chip_ver \
     --tpu-quant \
+    ${tpu_softmax_opt} \
     --print-tpu-op-info \
     --tpu-op-info-filename op_info_int8.csv | \
 mlir-opt \
