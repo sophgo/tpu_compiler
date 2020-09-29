@@ -1088,7 +1088,19 @@ int my_reciprocal(float *input, float *output, int n, int c, int h, int w, bool 
     }
     else {
       uint16_t bf16InputValue = convert_fp32_bf16(input[i]);
-      float exponentFloatValue = convert_bf16_fp32(table_data_lut_bf16[(bf16InputValue & 0xff00) >> 8]);
+      int exponentIndex;
+      if (input[i] == 0) {
+        exponentIndex = 0;
+      }
+      else if (input[i] >= 0) {
+        exponentIndex = floor(log2(input[i]));
+        exponentIndex = exponentIndex + 62 + 1; // 62 means start with 2^-62, index from 1
+      }
+      else {
+        exponentIndex = floor(log2(-1 * input[i]));
+        exponentIndex = exponentIndex + 62 + 129; // 62 means start with 2^-62, index from 129
+      }
+      float exponentFloatValue = convert_bf16_fp32(table_data_lut_bf16[exponentIndex]);
       float mantissaFloatValue = convert_bf16_fp32(table_data_mantissa_lut_bf16[bf16InputValue & 0xff]);
       output[i] = convert_bf16_fp32(convert_fp32_bf16(exponentFloatValue * mantissaFloatValue));
     }
