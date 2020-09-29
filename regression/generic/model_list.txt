@@ -25,8 +25,8 @@ mobilenet_ssd             Y        N        N        N        Y        N
 yolo_v1_448               N        N        N        Y        N        N
 yolo_v2_1080              N        N        N        Y        N        N
 yolo_v2_416               N        N        N        Y        N        N
-yolo_v3_608               N        N        N        Y        N        Y
-yolo_v3_416               Y        N        N        N        Y        Y
+yolo_v3_608               N        N        N        Y        N        N
+yolo_v3_416               Y        N        N        N        Y        N
 yolo_v3_320               N        N        N        Y        Y        N
 yolo_v3_tiny              Y        N        N        N        N        N
 yolo_v3_spp               N        N        N        Y        N        N
