@@ -61,9 +61,6 @@ fi
 if [ $DO_FUSED_PREPROCESS -eq 1 ]; then
   $DIR/regression_8_fuse_preprocess.sh
 fi
-if [ $DO_TPU_SOFTMAX_INFERENCE -eq 1 ]; then
-  $DIR/regression_9_tpu_softmax.sh
-fi
 popd
 
 unset DO_BATCHSIZE
