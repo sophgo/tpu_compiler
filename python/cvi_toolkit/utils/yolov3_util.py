@@ -229,6 +229,33 @@ def _postprocess_v3(features, image_shape, net_input_dims, obj_threshold, nms_th
     nms_predictions = _non_maximum_suppression(correct_predictions, nms_threshold)
     return nms_predictions
 
+def _postprocess_v4(features, image_shape, net_input_dims, obj_threshold, nms_threshold, tiny=False):
+    total_predictions = []
+    yolov3_num_of_class = 80
+    if not tiny:
+        anchors = [
+            [12, 16, 19, 36, 40, 28],
+            [36, 75, 76, 55, 72, 146],
+            [142, 110, 192, 243, 459, 401],
+        ]
+    else:
+        raise ValueError('not support tiny config')
+
+    for i, feature in enumerate(features):
+        threshold_predictions = _process_feats_v3(feature, net_input_dims, anchors[i],
+                                               yolov3_num_of_class, obj_threshold)
+        total_predictions.extend(threshold_predictions)
+
+    if not total_predictions:
+        return total_predictions
+
+    correct_predictions = _correct_boxes(total_predictions, image_shape, net_input_dims)
+    correct_predictions.sort(key=lambda tup: tup[1], reverse=True)
+
+    nms_predictions = _non_maximum_suppression(correct_predictions, nms_threshold)
+    return nms_predictions
+
+
 def _batched_feature_generator_v2(batched_features, batch=1):
     conv22 = batched_features['conv22']
 
@@ -352,8 +379,8 @@ def postprocess_v4(batched_features, image_shape, net_input_dims,
 
 
     for feature in _batched_feature_generator_v4(batched_features, batch):
-        pred = _postprocess_v3(feature, image_shape, net_input_dims,
-                            obj_threshold, nms_threshold, True)
+        pred = _postprocess_v4(feature, image_shape, net_input_dims,
+                            obj_threshold, nms_threshold, False)
 
         if not pred:
             batch_out[i] = []

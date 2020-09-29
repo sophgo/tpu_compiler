@@ -3,6 +3,11 @@ set -e
 
 EVAL_CAFFE_FUNC=eval_caffe_detector_yolo.py
 
+IS_YOLO_V4=false
+if [ "$YOLO_V4" = "true" ]; then
+  IS_YOLO_V4="$YOLO_V4"
+fi
+
 $EVAL_CAFFE_FUNC \
     --model_def $MODEL_DEF \
     --pretrained_model $MODEL_DAT \
@@ -14,6 +19,7 @@ $EVAL_CAFFE_FUNC \
     --result_json=result_416.json \
     --spp_net=$SPP_NET \
     --tiny=$TINY \
+    --yolov4 $IS_YOLO_V4 \
     --count=$1
 
 EVAL_FUNC=eval_yolo.py
