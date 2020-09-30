@@ -3332,7 +3332,11 @@ struct LowerConstEltwiseOpPattern : public RewritePattern {
 
   PatternMatchResult matchAndRewrite(Operation *op,
       PatternRewriter &rewriter) const override {
+
     auto eltwiseOp = cast<OpTy>(op);
+    LLVM_DEBUG(llvm::errs()
+                   << "Lower ConstEltwiseOp Op " << eltwiseOp.getOperationName()
+                   << ":" << getOpName(eltwiseOp) << "\n";);
     int opdIdx = -1;
     for (unsigned i = 0; i < 2; ++i) {
       auto defOp = eltwiseOp.getOperand(i)->getDefiningOp();
@@ -3350,8 +3354,6 @@ struct LowerConstEltwiseOpPattern : public RewritePattern {
 
     auto defOp = eltwiseOp.getOperand(opdIdx)->getDefiningOp();
     auto constDefOp = cast<tpu::LoadWeightOp>(defOp);
-    LLVM_DEBUG(llvm::errs() << "Lower Weight for eltwise Op: "
-                            << getOpName(constDefOp) << "\n";);
     TensorFile *wTF = getWeightTensorFile(eltwiseOp);
 
     if (getOpQuant(eltwiseOp) == "INT8") {
