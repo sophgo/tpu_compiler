@@ -781,8 +781,22 @@ struct TpuTpuQuantClipPassPattern : public RewritePattern {
       }
 
       if (curr_quant == "INT8" && prev_quant == "BF16") {
-        LLVM_DEBUG(llvm::errs() << "leave for quant\n";);
-        return matchFailure();
+        // TODO: fuse relu to previous
+        LLVM_DEBUG(llvm::errs() << "leave for relu\n";);
+        std::vector<NamedAttribute> attrs;
+        attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(layer_name)));
+        attrs.push_back(builder.getNamedAttr("quant", clipOp.quant()));
+
+        auto op = rewriter.create<tpu::ReluOp>(
+            clipOp.getLoc(), clipOp.getResult()->getType(),
+            ArrayRef<Value *>{ clipOp.getOperand(0) },
+            ArrayRef<NamedAttribute>{attrs});
+
+        rewriter.replaceOp(clipOp, {op.getResult()});
+        
+        // overwrite previous one
+        setOpThreshold(formerOp, threshold_max);
+        return matchSuccess();
       }
 
       if (prev_quant == "BF16") {
