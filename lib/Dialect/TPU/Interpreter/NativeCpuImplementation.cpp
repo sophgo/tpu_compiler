@@ -1591,20 +1591,32 @@ int my_softmax2D(float *input, float *output, int n, int c, bool is_bf16) {
 #endif // DUMP_FLAG
 
   // find max and subtract the max to avoid numerical issues
-  float max_input = input[0];
-  for (int i = 0; i < n * c; ++i) {
-    if (input[i] > max_input)
-      max_input = input[i];
-  }
-  // do softmax
+  // float max_input = input[0];
+  float *max_input = (float *)malloc(n * sizeof(float));
   float *ex = (float *)malloc(n * c * sizeof(float));
   float *tmp = (float *)malloc(n * c * sizeof(float));
-  // sub max value
-  for(int i = 0; i < n * c; i++) {
-    tmp[i] = input[i] - max_input;
+  //init
+  for (int index = 0; index < n; index++)
+      max_input[index] = std::numeric_limits<float>::lowest();
+
+  for (int ni = 0; ni < n; ++ni) {
+    // find out max value
+    for (int ci = 0; ci < c; ++ci) {
+      int i = ni * c + ci;
+      if (input[i] > max_input[ni])
+        max_input[ni] = input[i];
+    }
+
+    // sub max value
+    for (int ci = 0; ci < c; ++ci) {
+      int i = ni * c + ci;
+      tmp[i] = input[i] - max_input[ni];
+    }
   }
+
   // do exp
   my_exp(tmp, ex, n, c, 1, 1, is_bf16);
+
 
   for (int ni = 0; ni < n; ++ni) {
     float sum_of_ex = 0.0f;
@@ -1621,6 +1633,7 @@ int my_softmax2D(float *input, float *output, int n, int c, bool is_bf16) {
   }
   free(ex);
   free(tmp);
+  free(max_input);
 #ifdef DUMP_FLAG
   if (dump_idx == 0) {
     write_bianry_file(prefix + std::string("_out.bin"),
