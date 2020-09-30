@@ -63,11 +63,6 @@ static llvm::cl::opt<bool> clCaliOverwriteThresholdBackwardConcat(
                    "threshold to operand ops"),
     llvm::cl::cat(clOptionsCategory), llvm::cl::init(false));
 
-static llvm::cl::opt<bool> clEnableForceTuneBroadcastmul(
-    "enable-force-tune-broadcastmul",
-    llvm::cl::desc("not apply algorithm 'new_threshold_y = threshold_x0 * threshold_x1' "
-                   "in broadcastmul op, used for auto tune"),
-    llvm::cl::cat(clOptionsCategory), llvm::cl::init(false));
 
 namespace {
 
@@ -316,67 +311,6 @@ private:
   float threshold_;
 };
 
-/// force threshold for multiply operations
-/// like eltwise_mul, broadcast_mul
-template<typename TyOp>
-struct ForceThresholdMulOpPattern : public RewritePattern {
-  ForceThresholdMulOpPattern(MLIRContext *context)
-      : RewritePattern(TyOp::getOperationName(), 1, context) {}
-
-  PatternMatchResult matchAndRewrite(Operation *opInst,
-                                     PatternRewriter &rewriter) const override {
-    auto op = cast<TyOp>(opInst);
-
-    assert(opInst->getNumOperands() == 6);
-
-    // skip pow() case
-    if (opInst->getOperand(0)->getDefiningOp()
-        == opInst->getOperand(1)->getDefiningOp()) {
-      return matchFailure();
-    }
-
-    for (int i = 0; i < 2; i++) {
-      auto formerOp = opInst->getOperand(i)->getDefiningOp();
-      if (isa<tpu::LoadWeightOp>(formerOp)) {
-        return matchFailure();
-      }
-    }
-
-    float threshold_x0 = getPreviousOpThreshold(opInst, 0);
-    float threshold_x1 = getPreviousOpThreshold(opInst, 1);
-    float threshold_y = getOpThreshold(opInst);
-    float new_threshold_y = threshold_x0 * threshold_x1;
-
-    // for EltwiseMulOp, handle swish case only, other case needs more tuning
-    if (isa<tpu::EltwiseMulOp>(opInst)) {
-      bool is_swish = false;
-      if (isa<tpu::Conv2DOp>(opInst->getOperand(0)->getDefiningOp())
-          && isa<tpu::SigmoidOp>(opInst->getOperand(1)->getDefiningOp())) {
-        is_swish = true;
-      }
-      if (!is_swish) {
-        return matchFailure();
-      }
-    }
-
-    if (getOpQuantParamType(op) == "THRESHOLD") {
-      if (threshold_y == new_threshold_y) {
-        // assigned already
-        return matchFailure();
-      }
-    }
-
-
-    setOpThreshold(opInst, new_threshold_y);
-    setOpQuantParamType(op, "THRESHOLD");
-    LLVM_DEBUG(llvm::errs() << opInst->getName() << " [" << op.name() << "] "
-                 << "set threshold by multiply threshold "
-                 << std::to_string(new_threshold_y) << "\n";);
-
-    return matchSuccess();
-  }
-};
-
 
 /// force threshold for clip operations
 /// use for rel6(relu + clip[0, 6])
@@ -604,23 +538,6 @@ public:
         BypassThresholdDefaultPattern<tpu::TileOp>,
         BypassThresholdDefaultPattern<tpu::ZeroMaskOp>
         >(context);
-    applyPatternsGreedily(fn, patterns);
-
-    // apply multiply for mul ops
-    LLVM_DEBUG(llvm::errs() << "Force multiply Ops thresholds\n";);
-    patterns.clear();
-    patterns.insert<
-        ForceThresholdMulOpPattern<tpu::EltwiseMulOp>
-        >(context);
-
-    if (clEnableForceTuneBroadcastmul) {
-        LLVM_DEBUG(llvm::errs() << "by pass Force multiply Broadcast thresholds\n";);
-    }
-    else {
-        patterns.insert<
-            ForceThresholdMulOpPattern<tpu::BroadcastMulOp>
-            >(context);
-    }
     applyPatternsGreedily(fn, patterns);
 
     if (clCaliOverwriteThresholdBackwardRelu) {
