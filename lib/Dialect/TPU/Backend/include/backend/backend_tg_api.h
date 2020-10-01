@@ -395,6 +395,11 @@ void cvi_backend_tg_bf16_eltwise_mul_kernel(
     int32_t stride_h, int32_t stride_w,
     const float *coeffs);
 
+void cvi_backend_tg_bf16_square_kernel(
+    const CviBackendContext &ctx,
+    uint32_t layer_id, gaddr_t ga_input, gaddr_t ga_output,
+    int n, int c, int h, int w, bool do_relu);
+
 void cvi_backend_tg_bf16_eltwise_min_max_kernel(
     const CviBackendContext &ctx, uint32_t layer_id,
     gaddr_t ga_inputs[], gaddr_t ga_output,

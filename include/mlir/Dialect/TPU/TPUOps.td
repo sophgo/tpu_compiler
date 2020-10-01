@@ -2182,6 +2182,46 @@ def TPU_SoftmaxCpuOp: TPU_Op<"softmax_cpu",
 
 def TPU_SqrtOp : TPU_LutOp<"sqrt", "Sqrt">;
 
+def TPU_SquareOp: TPU_Op<"square",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
+       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
+       DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
+  let summary = "Square operator";
+
+  let description = [{
+    Perform square on input.
+
+    Inputs:
+      `input`           : required, the input activation tensor.
+
+    Attributes:
+      `name`            : required, name for calibration, comparing, or debug.
+      `chipname`        : optional, chipname.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface` : support common TPU Op interface
+      `TpuOpInterpInterface` : support interperter
+      `TpuOpQuantInterface`  : CPU Op still needs threshold for quant/dequant
+                               of the next/prev Ops.
+      No `TpuOpLowerInterface`  : CPU Op no lowering to TPU TG Ops
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    StrAttr:$name,
+    TPU_QuantParamAttr:$quant,
+    OptionalAttr<StrAttr>:$chipname
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
 def TPU_SwapChannelOp: TPU_Op<"swap_channel",
     [NoSideEffect,
      DeclareOpInterfaceMethods<TpuOpCommonInterface>,

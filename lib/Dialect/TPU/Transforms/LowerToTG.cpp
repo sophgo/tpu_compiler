@@ -1776,6 +1776,23 @@ Value* tpu::SoftmaxOp::convertToTG() {
   }
 }
 
+Value* tpu::SquareOp::convertToTG() {
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  auto builder = Builder(op->getContext());
+  std::vector<Value *> operands;
+  operands.push_back(op->getOperand(0));
+
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder.getNamedAttr("name", nameAttr()));
+  assert(getOpQuant() == "BF16");
+  auto newOp = OpBuilder(op).create<tpu::TG_BF16_SquareOp>(op->getLoc(),
+      getResult()->getType(), ArrayRef<Value *>{operands},
+      ArrayRef<NamedAttribute>{attrs});
+  return newOp.getResult();
+}
+
 template<typename OpTy>
 struct DefaultToTGPattern : public RewritePattern {
   DefaultToTGPattern(MLIRContext *context)
@@ -3478,6 +3495,7 @@ public:
         DefaultToTGPattern<tpu::GruOp>,
         DefaultToTGPattern<tpu::LstmOp>,
         DefaultToTGPattern<tpu::SoftmaxOp>,
+        DefaultToTGPattern<tpu::SquareOp>,
         DefaultToTGPattern<tpu::ZeroMaskOp>
         >(context);
     applyPatternsGreedily(fn, patterns);

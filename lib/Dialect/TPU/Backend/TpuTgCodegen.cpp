@@ -1719,6 +1719,31 @@ LogicalResult tpu::TG_BF16_SoftmaxOp::codegen(void *ctx) {
   return success();
 }
 
+LogicalResult tpu::TG_BF16_SquareOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  getNCHW(shape, n, c, h, w);
+
+  gaddr_t ga_input = getPreviousOpAddress(op);
+  gaddr_t ga_output = getOpAddress(op);
+  int layer_id = getOpLayerId(op);
+
+  cvi_backend_tg_bf16_square_kernel(
+      *backend_ctx,
+      layer_id,     // layer_id
+      ga_input,    // gaddr_t ga_input[]
+      ga_output,    // gaddr_t ga_output
+      n, c, h, w,
+      false);
+  return success();
+}
+
 LogicalResult tpu::TG_BF16_LutOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);

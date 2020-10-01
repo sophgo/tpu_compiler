@@ -3064,6 +3064,38 @@ LogicalResult tpu::SoftmaxCpuOp::interpret(
   return success();
 }
 
+LogicalResult tpu::SquareOp::interpret(
+    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+  Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
+
+  auto opdT = getOperandTensors(op, valueMapping);
+  auto result = this->getResult();
+  std::vector<int64_t> shape = getTensorShape(result);
+  auto size = getTensorSize(result);
+  auto resultT = std::make_unique<std::vector<float> >(size);
+
+  assert(getOpQuant() == "BF16");
+  size_t total = std::accumulate(shape.begin(), shape.end(), 1,
+                                 std::multiplies<int64_t>());
+  float *input = opdT[0]->data();
+  float *output = resultT->data();
+  for (size_t i = 0; i < total; ++i) {
+    output[i] = input[i] * input[i];
+  }
+
+  if (getOpQuant() == "BF16") {
+    auto tensor_bf16 = std::make_unique<std::vector<bfloat16> >(resultT->size());
+    FloatToBFloat16(resultT->data(), tensor_bf16->data(), resultT->size()); // with rounding
+    BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
+  } else {
+    llvm_unreachable("unsupported type");
+  }
+
+  valueMapping[result] = std::move(resultT);
+  return success();
+}
+
 LogicalResult tpu::SwapChannelOp::interpret(
     DenseMap<Value *, std::shared_ptr<std::vector<float>>> &valueMapping) {
 

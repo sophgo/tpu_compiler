@@ -228,7 +228,7 @@ LogicalResult quantizeInt8FullyConnectedOps(Operation *op) {
   LLVM_DEBUG(llvm::errs() << " > " << getOpName(op)
                << ", threshold_y = "<< std::to_string(threshold_y)
                << ", threshold_x = " << std::to_string(threshold_x) << "\n";);
-  
+
   // quantization
   quantizeWeightInt8PerLayer(filter->data(), bias ? bias->data() : nullptr,
                              n, k, threshold_y, threshold_x,
@@ -1320,6 +1320,7 @@ LogicalResult tpu::SqrtOp::quantizeInt8() {
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::SwapChannelOp)
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::SoftmaxOp)
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::SoftmaxCpuOp)
+DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::SquareOp)
 
 LogicalResult tpu::TanHOp::quantizeInt8() {
   LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName()

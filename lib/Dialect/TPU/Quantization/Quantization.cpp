@@ -793,7 +793,7 @@ struct TpuTpuQuantClipPassPattern : public RewritePattern {
             ArrayRef<NamedAttribute>{attrs});
 
         rewriter.replaceOp(clipOp, {op.getResult()});
-        
+
         // overwrite previous one
         setOpThreshold(formerOp, threshold_max);
         return matchSuccess();
@@ -885,6 +885,9 @@ public:
             setOpQuant(op, "BF16");
           }
           if (clQuantMixSoftmax && isa<tpu::SoftmaxOp>(op)) {
+            setOpQuant(op, "BF16");
+          }
+          if (isa<tpu::SquareOp>(op)) {
             setOpQuant(op, "BF16");
           }
 
