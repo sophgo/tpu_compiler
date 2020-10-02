@@ -84,6 +84,7 @@ class TPU_OpType(Enum):
     YoloDetection = 'tpu.yolo_detection'
     ReduceMean = 'tpu.reduce_mean'
     ReduceMax = 'tpu.reduce_max'
+    MatMul = 'tpu.matmul'
 
 def checkKey(dict, key):
     if key not in dict:
@@ -1422,6 +1423,13 @@ class MLIRImporter(object):
         }
         return self.buildOp(TPU_OpType.YoloDetection.value, inputOperands, [
             tensor_output_type], name=name_attr, **param)
+
+    def add_matmul_op(self, op_name, inputOperands, output_tensor_shape):
+        tensor_output_type=self.module.make_ranked_tensor_type(
+            self.f32Type, output_tensor_shape)
+        name_attr=self.module.stringAttr(op_name)
+        return self.buildOp(TPU_OpType.MatMul.value, inputOperands, [tensor_output_type],
+            name=name_attr, quant=self.quant_param)
 
     def add_return_op(self, Operands):
         return pybind.ret(Operands)

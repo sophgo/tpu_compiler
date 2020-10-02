@@ -288,7 +288,8 @@ public:
         updateOperandLiveRange(op, endPosition);
       } else if (isa<tpu::InputOp>(op)) {
         auto nextOp = getNextOp(op);
-        if (!isa<tpu::GenericCpuOp>(nextOp)) {
+        if (!isa<tpu::GenericCpuOp>(nextOp) &&
+            !isa<tpu::ReshapeOp>(nextOp)) {
           ops.push_back(op);
           liveRange[op] = {getOpLine(op), 0xFFFFFFFF};
           updateOperandLiveRange(op, endPosition);

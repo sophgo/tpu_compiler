@@ -276,6 +276,12 @@ void cvi_backend_tg_bf16_fc_kernel(
     gaddr_t bias_data_gaddr, gaddr_t top_data_gaddr, int in_row, int in_col,
     int out_col, int have_bias, int do_activation, int activation_method);
 
+void cvi_backend_tg_bf16_matmul_kernel(
+    const CviBackendContext &ctx, uint32_t layer_id,
+    gaddr_t bottom_0_data_gaddr, gaddr_t bottom_1_data_gaddr,
+    gaddr_t top_data_gaddr, int in_row, int in_col,
+    int out_col);
+
 void cvi_backend_tg_bf16_leakyrelu_kernel(
     const CviBackendContext &ctx, uint32_t layer_id,
     gaddr_t ga_bottom, gaddr_t ga_top, float ga_negative_slope,

@@ -2689,6 +2689,42 @@ def TPU_ZeroMaskOp: TPU_Op<"zero_mask",
   let results = (outs AnyTensor:$output);
 }
 
+def TPU_MatMulOp: TPU_Op<"matmul",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
+       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
+       DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
+  let summary = "mat mul operator";
+
+  let description = [{
+
+    Inputs:
+      `input`           : required, the input activation tensor.
+
+    Attributes:
+      `name`            : required, name for calibration, comparing, or debug.
+      `chipname`        : optional, chipname.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface` : support common TPU Op interface
+      `TpuOpInterpInterface` : support interperter
+  }];
+
+  let arguments = (
+    ins Variadic<AnyTensor>:$inputs,
+    TPU_QuantParamAttr:$quant,
+    StrAttr:$name,
+    OptionalAttr<StrAttr>:$chipname
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
 include "mlir/Dialect/TPU/TPUSupportOps.td"
 include "mlir/Dialect/TPU/TPUTGOps.td"
 include "mlir/Dialect/TPU/TPUTLOps_Simple.td"

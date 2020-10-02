@@ -145,6 +145,7 @@ add_llvm_library(MLIRTPU
   Backend/Kernel/bf16_scale_kernel.cpp
   Backend/Kernel/bf16_softmax.cpp
   Backend/Kernel/bf16_tiling.cpp
+  Backend/Kernel/bf16_matmul_kernel.cpp
   ADDITIONAL_HEADER_DIRS
   ${MLIR_MAIN_INCLUDE_DIR}/mlir/Dialect/TPU
 )

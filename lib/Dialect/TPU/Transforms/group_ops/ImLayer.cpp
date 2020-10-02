@@ -118,6 +118,9 @@ std::shared_ptr<ImLayer> ImLayer::create(Operation* op) {
   } else if (isa<tpu::TG_INT8_FullyConnectedOp>(op) ||
              isa<tpu::TG_BF16_FullyConnectedOp>(op)) {
     layer = std::make_shared<ImInnerproduct>(op);
+  } else if (isa<tpu::TG_INT8_MatMulOp>(op) ||
+             isa<tpu::TG_BF16_MatMulOp>(op)) {
+    layer = std::make_shared<ImMatMul>(op);
   } else if (isa<tpu::ReshapeOp>(op)){
     layer = std::make_shared<ImCommon>(op, true, IR_OTHER);
   } else if (isa<tpu::TG_INT8_PoolAvg2DOp>(op) ||
@@ -415,6 +418,12 @@ ImInnerproduct::ImInnerproduct(Operation* op) : ImLayer(IR_INNERPRODUCT, op) {
     std::string storage = getWeightStorage(load_bias);
     add_in_tensor(2, 0, 0, shape[0], bias_usize, storage, name_ + "_bias", TENSOR_BIAS);
   }
+  add_out_tensor(op->getResult(0), TENSOR_MATRIX);
+}
+
+ImMatMul::ImMatMul(Operation* op) : ImLayer(IR_MATMUL, op) {
+  add_in_tensor(op->getOperand(0), TENSOR_NEURON);
+  add_in_tensor(op->getOperand(1), TENSOR_NEURON);
   add_out_tensor(op->getResult(0), TENSOR_MATRIX);
 }
 

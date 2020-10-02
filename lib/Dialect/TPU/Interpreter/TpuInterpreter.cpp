@@ -1206,6 +1206,71 @@ LogicalResult tpu::FullyConnectedOp::interpret(
   return success();
 }
 
+// template<typename T>
+// static void transposeFullyConnectedFilter(std::vector<T> &w,
+//     std::vector<int64_t> &s) {
+//   assert(s.size() == 2);
+//   int row = s[0];
+//   int col = s[1];
+//   std::vector<T> w_t(w.size());
+//   for (int i = 0; i < row; i++) {
+//     for (int j = 0; j < col; j++) {
+//       w_t[j * row + i] = w[i * col  + j];
+//     }
+//   }
+//   w.assign(w_t.begin(), w_t.end());
+// }
+
+LogicalResult tpu::MatMulOp::interpret(
+    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+  Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
+
+  auto opdT = getOperandTensors(op, valueMapping);
+  auto result = this->getResult();
+  auto size = getTensorSize(result);
+  auto resultT = std::make_unique<std::vector<float> >(size);
+
+  // parse param
+  int m, k, n;
+  auto input_0 = op->getOperand(0);
+  auto input_1 = op->getOperand(1);
+  parseFullyConnectedParam(input_0, output(), input_1, m, k, n);
+
+  std::shared_ptr<std::vector<float> > input = opdT[0];
+  std::shared_ptr<std::vector<float> > filter = opdT[1];
+
+  // std::vector<float> filter_data;
+  // filter_data.assign(filter->begin(), filter->end());
+  // std::vector<int64_t> filter_shape;
+  // filter_shape.push_back(k);
+  // filter_shape.push_back(n);
+  // transposeFullyConnectedFilter(filter_data, filter_shape);
+  // int ret = mkldnn_ip(input->data(), filter_data.data(),
+  //     nullptr, resultT->data(), m, k, n, false);
+
+  int ret = mkldnn_ip(input->data(), filter->data(),
+      nullptr, resultT->data(), m, k, n, false);
+  assert(ret == 0);
+
+  // rshift and saturate on output
+  if (getOpQuant() == "NONE") {
+    // do nothing
+  } else if (getOpQuant() == "INT8") {
+    assert(0 && "Not support INT8");
+  } else if (getOpQuant() == "BF16") {
+    auto tensor_bf16 = std::make_unique<std::vector<bfloat16> >(resultT->size());
+    FloatToBFloat16(resultT->data(), tensor_bf16->data(), resultT->size()); // with rounding
+    BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
+  } else {
+    llvm_unreachable("unsupported type");
+  }
+
+  valueMapping[result] = std::move(resultT);
+
+  return success();
+}
+
 LogicalResult tpu::GruOp::interpret(
     DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();

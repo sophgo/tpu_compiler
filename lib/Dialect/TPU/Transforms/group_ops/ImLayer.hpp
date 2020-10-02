@@ -59,6 +59,7 @@ typedef enum {
   IR_MULTIINPUT,
   IR_CAST,
   IR_ZERO_MASK,
+  IR_MATMUL,
   IR_OTHER,
 } IR_TYPE;
 
@@ -248,6 +249,11 @@ class ImQuant : public ImLayer {
 class ImZeroMask : public ImLayer {
  public:
   explicit ImZeroMask(Operation *op);
+};
+
+class ImMatMul : public ImLayer {
+  public:
+   explicit ImMatMul(Operation *op);
 };
 
 }

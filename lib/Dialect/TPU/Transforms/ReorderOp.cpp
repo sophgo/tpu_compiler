@@ -48,7 +48,8 @@ struct EliminateReshapeOpPattern : public RewritePattern {
                                      PatternRewriter &rewriter) const override {
     auto castOp = llvm::cast<OpTy>(op);
     auto prevOp = castOp.getOperand()->getDefiningOp();
-    if (!llvm::isa<tpu::GenericCpuOp>(prevOp)) {
+    if (!llvm::isa<tpu::GenericCpuOp>(prevOp) &&
+        !llvm::isa<tpu::InputOp>(prevOp)) {
       return matchFailure();
     }
     if (!prevOp->getResult(0)->hasOneUse()) {

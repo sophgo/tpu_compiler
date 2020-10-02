@@ -702,6 +702,31 @@ Value *tpu::FullyConnectedOp::convertToTG() {
   llvm_unreachable("unsupported type");
 }
 
+Value *tpu::MatMulOp::convertToTG() {
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  auto builder = Builder(op->getContext());
+
+  std::vector<Value *> operands;
+  operands.push_back(op->getOperand(0));
+  operands.push_back(op->getOperand(1));
+
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder.getNamedAttr("name", nameAttr()));
+
+  assert(getOpQuant() == "BF16");
+
+  if (getOpQuant() == "BF16") {
+    auto newOp = OpBuilder(op).create<tpu::TG_BF16_MatMulOp>(
+        op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  } else {
+    llvm_unreachable("unsupported type");
+  }
+}
+
 Value* tpu::InterpOp::convertToTG() {
   LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
                << " [" << getOpName() << "]\n";);
@@ -3496,7 +3521,8 @@ public:
         DefaultToTGPattern<tpu::LstmOp>,
         DefaultToTGPattern<tpu::SoftmaxOp>,
         DefaultToTGPattern<tpu::SquareOp>,
-        DefaultToTGPattern<tpu::ZeroMaskOp>
+        DefaultToTGPattern<tpu::ZeroMaskOp>,
+        DefaultToTGPattern<tpu::MatMulOp>
         >(context);
     applyPatternsGreedily(fn, patterns);
     LLVM_DEBUG(llvm::errs() << "Done lower: " << "]\n");

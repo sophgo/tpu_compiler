@@ -100,6 +100,7 @@ class CaffeConverter(BaseConverter):
             'Tile': lambda layer: self.convert_tile_op(layer),
             'Upsample': lambda layer: self.convert_upsample_op(layer),
             'YoloDetection': lambda layer: self.convert_yolo_detection_op(layer),
+            'MatMul': lambda layer: self.convert_matmul_op(layer),
         }
         # for caffe v1
         self.layer_type = {
@@ -1468,6 +1469,47 @@ class CaffeConverter(BaseConverter):
             layer.name, operands, output_shape, **param)
         self.addOperand(layer.top[0], new_op,
                         output_shape, TensorType.ACTIVATION)
+
+    def convert_matmul_op(self, layer):
+        assert(self.layerType(layer) == 'MatMul')
+        p = layer.matmul_param
+        N = p.dim_3
+        M = p.dim_1
+        K = p.dim_2
+
+        op, input_shape, _ = self.getOperand(layer.bottom[0])
+        operands = list()
+        assert(len(input_shape) == 4 or len(input_shape) == 2)
+        reshape_first = False
+        if len(input_shape) > 2:
+            reshape_first = True
+        fc_op_0 = op
+        if reshape_first:
+            fc_shape = [M, K]
+            fc_operands = [op]
+            fc_op_0 = self.CVI.add_reshape_op(
+                layer.name + '_reshape_0', fc_operands, fc_shape)
+        operands.append(fc_op_0)
+        # filter
+        op, input_shape, _ = self.getOperand(layer.bottom[1])
+        assert(len(input_shape) == 4 or len(input_shape) == 2)
+        reshape_first = False
+        if len(input_shape) > 2:
+            reshape_first = True
+        fc_op_1 = op
+        if reshape_first:
+            fc_shape = [N, K]
+            fc_operands = [op]
+            fc_op_1 = self.CVI.add_reshape_op(
+                layer.name + '_reshape_1', fc_operands, fc_shape)
+        operands.append(fc_op_1)
+
+        output_shape = [M, N]
+        new_op = self.CVI.add_matmul_op(
+            layer.name, operands, output_shape)
+        self.addOperand(layer.top[0], new_op, output_shape,
+                        TensorType.ACTIVATION)
+
 
     def do_pre_scale(self, input_name, op_name, scale):
         if scale == 1.0:

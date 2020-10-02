@@ -143,6 +143,9 @@ static void insertQuantOp(Operation *op) {
                 || isa<tpu::LoadWeightOp>(prev_op)
                 || isa<tpu::NoneOp>(prev_op)) {
       continue;
+    } else if (isa<tpu::ReshapeOp>(prev_op)) {
+      prev_op = prev_op->getOperand(0)->getDefiningOp();
+      prev_quant = getOpQuant(prev_op);
     } else {
       prev_quant = getOpQuant(prev_op);
     }

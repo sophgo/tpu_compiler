@@ -2980,6 +2980,41 @@ LogicalResult tpu::TG_BF16_ZeroMaskOp::codegen(void *ctx) {
   return success();
 }
 
+LogicalResult tpu::TG_INT8_MatMulOp::codegen(void *ctx) {
+  return success();
+}
+
+
+LogicalResult tpu::TG_BF16_MatMulOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  int m, k, n;
+  auto input_0 = op->getOperand(0);
+  auto input_1 = op->getOperand(1);
+
+  parseFullyConnectedParam(input_0, output(), input_1, m, k, n);
+  gaddr_t ga_input_0 = getPreviousOpAddress(op, 0);
+  gaddr_t ga_input_1 = getPreviousOpAddress(op, 1);
+  gaddr_t ga_output = getOpAddress(op);
+
+  int layer_id = getOpLayerId(op);
+
+  cvi_backend_tg_bf16_matmul_kernel(
+      *backend_ctx,
+      layer_id, // layer_id
+      ga_input_0, // input_data_gaddr
+      ga_input_1, // weight_data_gaddr
+      ga_output, // output_data_gaddr
+      m, // int in_row
+      k, // int in_col
+      n // in out_col,
+      );
+  return success();
+}
+
 // MemRefType dummy
 LogicalResult tpu::TG_MemRef_INT8_BroadcastMulOp::codegen(void *ctx) {
   return success();
@@ -3266,6 +3301,14 @@ LogicalResult tpu::TG_MemRef_INT8_ZeroMaskOp::codegen(void *ctx) {
 }
 
 LogicalResult tpu::TG_MemRef_BF16_ZeroMaskOp::codegen(void *ctx) {
+  return success();
+}
+
+LogicalResult tpu::TG_MemRef_INT8_MatMulOp::codegen(void *ctx) {
+  return success();
+}
+
+LogicalResult tpu::TG_MemRef_BF16_MatMulOp::codegen(void *ctx) {
   return success();
 }
 

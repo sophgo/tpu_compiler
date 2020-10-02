@@ -1225,6 +1225,7 @@ LogicalResult tpu::FullyConnectedOp::quantizeInt8() {
 }
 
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::InputOp)
+DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::MatMulOp)
 
 LogicalResult tpu::LeakyReluOp::quantizeInt8() {
   LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName()
