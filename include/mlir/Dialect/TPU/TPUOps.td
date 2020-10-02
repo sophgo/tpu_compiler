@@ -271,13 +271,13 @@ def TPU_BatchNormOp: TPU_Op<"batch_norm",
   let hasCanonicalizer = 1;
 }
 
-def TPU_BroadcastMulOp: TPU_Op<"broadcast_mul",
+class TPU_BroadcastOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
        DeclareOpInterfaceMethods<TpuOpInterpInterface>,
        DeclareOpInterfaceMethods<TpuOpQuantInterface>,
        DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
-  let summary = "Broadcast Multiply operator";
+  let summary = "Broadcast " # opSummary # " operator";
 
   let description = [{
     Performs scale on input.
@@ -325,6 +325,9 @@ def TPU_BroadcastMulOp: TPU_Op<"broadcast_mul",
 
   let results = (outs AnyTensor:$output);
 }
+def TPU_BroadcastAddOp : TPU_BroadcastOp<"broadcast_add", "Add">;
+def TPU_BroadcastSubOp : TPU_BroadcastOp<"broadcast_sub", "Sub">;
+def TPU_BroadcastMulOp : TPU_BroadcastOp<"broadcast_mul", "Mul">;
 
 def TPU_CastOp: TPU_Op<"cast",
       [NoSideEffect,

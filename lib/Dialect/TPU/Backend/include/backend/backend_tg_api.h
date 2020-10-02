@@ -420,6 +420,11 @@ void cvi_backend_tg_bf16_mac_const_kernel(
     gaddr_t input_gaddr, gaddr_t output_gaddr, int input_n, int input_c,
     int input_h, int input_w, float multiplier, float const_val, bool do_relu);
 
+void cvi_backend_tg_bf16_broadcast_sub_kernel(
+    const CviBackendContext &ctx, uint32_t layer_id,
+    gaddr_t ga_inputs[], gaddr_t ga_output, int n, int c,
+    int h, int w, int bn, int bc, int bh, int bw, bool do_relu);
+
 ////////////// fixed & bf16 kernel api ////////////////
 
 // shuffle channel, batch = shape[0], channel = shape[1], frame_size = shape[2]

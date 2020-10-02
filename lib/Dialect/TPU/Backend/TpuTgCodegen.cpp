@@ -146,6 +146,181 @@ LogicalResult tpu::TG_BF16_BroadcastMulOp::codegen(void *ctx) {
   return success();
 }
 
+LogicalResult tpu::TG_INT8_BroadcastAddOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n");
+  (void)ctx;
+  #if 0
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  getNCHW(shape, n, c, h, w);
+  bool do_relu = this->do_relu();
+
+  gaddr_t ga_input = getPreviousOpAddress(op);
+  gaddr_t ga_output = getOpAddress(op);
+  gaddr_t ga_scale = getOpAddress(filter()->getDefiningOp());
+  gaddr_t ga_pc_info = getWeightOpAddress(pc_info()->getDefiningOp());
+  int layer_id = getOpLayerId(op);
+
+  cvi_backend_tg_fixed_scale_qi32_kernel(
+      *backend_ctx, // ctx
+      0,            // stream_id
+      0,            // inst_id
+      layer_id,     // layer_id
+      nullptr,      // depends
+      0,            // depends_len
+      ga_input,     // input_addr
+      ga_scale, // scale_addr
+      ga_pc_info,   // pack_addr
+      ga_output,    // output_addr
+      n, c, h, w,
+      n * c,        // scale_dim (axis = 1  =>  n * c)
+      h * w,        // inner_dim (axis = 1  =>  h * w)
+      false,        // is_scale_const
+      0,            // const_scale
+      do_relu,      // do_activation,
+      0,            // activation_method
+      nullptr,      // activation_arg
+      false,        // with_bias
+      false         // second_is_load_weight
+      );
+  #endif
+  return success();
+}
+
+LogicalResult tpu::TG_BF16_BroadcastAddOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  (void)ctx;
+  #if 0
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  getNCHW(shape, n, c, h, w);
+  bool do_relu = this->param().do_relu().getValue();;
+
+  int64_t input_size_1;
+  std::vector<int64_t> shape_1;
+  getTensorShapeAndSize(op->getOperand(1), shape_1, input_size_1);
+
+  gaddr_t ga_input = getPreviousOpAddress(op);
+  gaddr_t ga_output = getOpAddress(op);
+  gaddr_t ga_scale = getOpAddress(filter()->getDefiningOp());
+  // FIXME: support bias
+  //gaddr_t ga_pc_info = getWeightOpAddress(pc_info()->getDefiningOp());
+  int layer_id = getOpLayerId(op);
+
+  cvi_backend_tg_bf16_scale_kernel(
+      *backend_ctx, // ctx
+      0,            // stream_id
+      0,            // inst_id
+      layer_id,     // layer_id
+      nullptr,      // depends
+      0,            // depends_len
+      ga_input,     // input_addr
+      ga_scale, // scale_addr
+      GA_INVALID,   // pack_addr
+      ga_output,    // output_addr
+      n, c, h, w,
+      n * c,        // scale_dim (axis = 1  =>  n * c)
+      h * w,        // inner_dim (axis = 1  =>  h * w)
+      false,        // is_scale_const
+      0,            // const_scale
+      do_relu,      // do_activation,
+      0,            // activation_method
+      nullptr,      // activation_arg
+      false,        // with_bias
+      false         // second_is_load_weight
+      );
+  #endif
+  return success();
+}
+
+LogicalResult tpu::TG_INT8_BroadcastSubOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n");
+  (void)ctx;
+  #if 0
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  getNCHW(shape, n, c, h, w);
+  bool do_relu = this->param().do_relu().getValue();;
+
+  gaddr_t ga_input = getPreviousOpAddress(op);
+  gaddr_t ga_output = getOpAddress(op);
+  gaddr_t ga_scale = getOpAddress(filter()->getDefiningOp());
+  gaddr_t ga_pc_info = getWeightOpAddress(pc_info()->getDefiningOp());
+  int layer_id = getOpLayerId(op);
+
+  cvi_backend_tg_fixed_scale_qi32_kernel(
+      *backend_ctx, // ctx
+      0,            // stream_id
+      0,            // inst_id
+      layer_id,     // layer_id
+      nullptr,      // depends
+      0,            // depends_len
+      ga_input,     // input_addr
+      ga_scale, // scale_addr
+      ga_pc_info,   // pack_addr
+      ga_output,    // output_addr
+      n, c, h, w,
+      n * c,        // scale_dim (axis = 1  =>  n * c)
+      h * w,        // inner_dim (axis = 1  =>  h * w)
+      false,        // is_scale_const
+      0,            // const_scale
+      do_relu,      // do_activation,
+      0,            // activation_method
+      nullptr,      // activation_arg
+      false,        // with_bias
+      false         // second_is_load_weight
+      );
+  #endif;
+  return success();
+}
+
+LogicalResult tpu::TG_BF16_BroadcastSubOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n");
+
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  int64_t input_size, n, c, h, w;
+  std::vector<int64_t> shape;
+  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  getNCHW(shape, n, c, h, w);
+
+  int64_t bn, bc, bh, bw;
+  getTensorShapeAndSize(op->getOperand(1), shape, input_size);
+  getNCHW(shape, bn, bc, bh, bw);
+
+  bool do_relu = this->do_relu();
+
+  gaddr_t ga_inputs[2];
+  ga_inputs[0] = getPreviousOpAddress(op, 0);
+  ga_inputs[1] = getPreviousOpAddress(op, 1);
+  gaddr_t ga_output = getOpAddress(op);
+  int layer_id = getOpLayerId(op);
+
+  cvi_backend_tg_bf16_broadcast_sub_kernel(
+    *backend_ctx, layer_id,
+    ga_inputs, ga_output, n, c,
+    h, w, bn, bc, bh, bw, do_relu);
+
+  return success();
+}
+
 LogicalResult tpu::TG_CastOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);

@@ -1132,6 +1132,20 @@ LogicalResult tpu::BroadcastMulOp::quantizeInt8() {
   return quantizeInt8MultiplyOps<tpu::BroadcastMulOp>(op);
 }
 
+LogicalResult tpu::BroadcastAddOp::quantizeInt8() {
+  LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  return quantizeInt8RescaleNoWeightOps<tpu::BroadcastAddOp>(op);
+}
+
+LogicalResult tpu::BroadcastSubOp::quantizeInt8() {
+  LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  return quantizeInt8RescaleNoWeightOps<tpu::BroadcastSubOp>(op);
+}
+
 LogicalResult tpu::ConcatOp::quantizeInt8() {
   LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName()
                << " [" << getOpName() << "]\n";);

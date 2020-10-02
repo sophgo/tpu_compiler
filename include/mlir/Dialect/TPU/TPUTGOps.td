@@ -317,6 +317,63 @@ def TPU_TG_BF16_EltwiseMaxOp : TPU_TG_EltwiseOp<"tg_bf16_eltwise_max", "Bf16", "
 def TPU_TG_BF16_EltwiseMinOp : TPU_TG_EltwiseOp<"tg_bf16_eltwise_min", "Bf16", "Min">;
 def TPU_TG_BF16_EltwiseMulOp : TPU_TG_EltwiseOp<"tg_bf16_eltwise_mul", "Bf16", "Mul">;
 
+class TPU_TG_BroadcastOp<string mnemonic, string opQuant, string opType> : TPU_Op<mnemonic,
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
+  let summary = "TG " # opQuant # " Broadcast " # opType # " operator.";
+
+  let description = [{
+    Inputs:
+      `inputs`          : required, the variadic activation memref.
+
+    Attributes:
+      `rshift`          : optional, rshift, an int8 value.
+      `m_i8_inputs`     : optional, multipliers for inputs. one int8 value for
+                          each input (saved as I32ArrayAttr)
+      `m_i8_output`     : optional, multiplier for output.
+      `m_i32_output`    : optional, multiplier for output, .
+      `do_relu`         : required, if need to preform relu on result.
+      `region`          : required, the memory region to reside in, could be
+                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
+                          (backend does not support `INPUT`, `OUTPUT` for now)
+      `gaddr`           : optional, address in global memory, normally the
+                          offset within the memory region.
+      `buffer_reused`   : optional, whether buffer is reused.
+      `name`            : required, name for comparing, or debug.
+      `chipname`        : optional, chipname.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface`    : support common TPU TG Op interface.
+      `TpuTGOpCodegenInterface` : support generate TPU instuctions.
+  }];
+
+  let arguments = (
+    ins Variadic<AnyTensor>:$inputs,
+    OptionalAttr<I8Attr>:$rshift,
+    OptionalAttr<I32ArrayAttr>:$m_i8_inputs,
+    OptionalAttr<I8Attr>:$m_i8_output,
+    OptionalAttr<I32Attr>:$m_i32_output,
+    DefaultValuedAttr<BoolAttr, "false">:$do_relu,
+    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
+    OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    OptionalAttr<BoolAttr>:$buffer_reused,
+    StrAttr:$name,
+    OptionalAttr<BoolAttr>:$load_compr_act,
+    OptionalAttr<BoolAttr>:$store_compr_act,
+    OptionalAttr<StrAttr>:$chipname
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+def TPU_TG_INT8_BroadcastAddOp : TPU_TG_BroadcastOp<"tg_int8_broadcast_add", "Int8", "Add">;
+def TPU_TG_INT8_BroadcastSubOp : TPU_TG_BroadcastOp<"tg_int8_broadcast_sub", "Int8", "Sub">;
+def TPU_TG_BF16_BroadcastAddOp : TPU_TG_BroadcastOp<"tg_bf16_broadcast_add", "Bf16", "Add">;
+def TPU_TG_BF16_BroadcastSubOp : TPU_TG_BroadcastOp<"tg_bf16_broadcast_sub", "Bf16", "Sub">;
 
 class TPU_TG_FullyConnectedOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,

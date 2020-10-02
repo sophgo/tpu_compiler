@@ -6,13 +6,11 @@
 
 #define DEBUG_TYPE "TgEltwiseKernel"
 
-void TgEltwiseKernel::init(uint32_t layer_id,
-    gaddr_t ga_inputs[], gaddr_t ga_output,
-    int32_t operand_num, int32_t n, int32_t c,
-    int32_t h, int32_t w, bool do_relu, bool do_early_stride,
-    int32_t stride_h, int32_t stride_w, int32_t rshift,
-    const int32_t *multipliers,
-    const int32_t *coeffs) {
+void TgEltwiseKernel::init(uint32_t layer_id, gaddr_t ga_inputs[], gaddr_t ga_output,
+                           int32_t operand_num, int32_t n, int32_t c, int32_t h,
+                           int32_t w, bool do_relu, bool do_early_stride,
+                           int32_t stride_h, int32_t stride_w, int32_t rshift,
+                           const int32_t *multipliers, const int32_t *coeffs) {
   this->layer_id = layer_id;
   this->ga_inputs = ga_inputs;
   this->ga_output = ga_output;
@@ -32,12 +30,10 @@ void TgEltwiseKernel::init(uint32_t layer_id,
   this->fmt = CVK_FMT_I8;
 }
 
-void TgEltwiseKernel::init(uint32_t layer_id,
-    gaddr_t ga_inputs[], gaddr_t ga_output,
-    int32_t operand_num, int32_t n, int32_t c,
-    int32_t h, int32_t w, bool do_relu, bool do_early_stride,
-    int32_t stride_h, int32_t stride_w,
-    const float *coeffs) {
+void TgEltwiseKernel::init(uint32_t layer_id, gaddr_t ga_inputs[], gaddr_t ga_output,
+                           int32_t operand_num, int32_t n, int32_t c, int32_t h,
+                           int32_t w, bool do_relu, bool do_early_stride,
+                           int32_t stride_h, int32_t stride_w, const float *coeffs) {
   this->layer_id = layer_id;
   this->ga_inputs = ga_inputs;
   this->ga_output = ga_output;
@@ -55,9 +51,8 @@ void TgEltwiseKernel::init(uint32_t layer_id,
   this->fmt = CVK_FMT_BF16;
 }
 
-void TgEltwiseKernel::allocLmem(
-    cvk_tl_shape_t &input_shape,
-    cvk_tl_shape_t &output_shape) {
+void TgEltwiseKernel::allocLmem(cvk_tl_shape_t &input_shape,
+                                cvk_tl_shape_t &output_shape) {
   tl_input[0] = ctx.lmem_alloc_tensor(input_shape, fmt, 1);
   tl_input[1] = ctx.lmem_alloc_tensor(input_shape, fmt, 1);
   tl_output[0] = ctx.lmem_alloc_tensor(output_shape, fmt, 1);
@@ -195,8 +190,7 @@ void TgEltwiseKernel::schedule() {
     if (i < total_steps) {
       load(i);
     }
-    if ((i - 2) >= 0 &&
-        (i - 2) % operand_num == operand_num - 1) {
+    if ((i - 2) >= 0 && (i - 2) % operand_num == operand_num - 1) {
       store(i - 2);
     }
 
@@ -219,32 +213,30 @@ void TgEltwiseKernel::load(int32_t step_idx) {
   operand.fmt = fmt;
   uint32_t elementSize = fmt == CVK_FMT_I8 ? 1 : 2;
   if (do_early_stride) {
-    cvk_tg_stride_t stride = {(uint32_t)(c * h * w * elementSize), (uint32_t)(h * w * elementSize), (uint32_t)(stride_h * w * elementSize), elementSize};
-    if(fmt == CVK_FMT_I8){
-      ctx.tdma_load_stride(&operand,
-          ga_inputs[opd_idx] + tile.input_offset, stride);
+    cvk_tg_stride_t stride = {(uint32_t)(c * h * w * elementSize),
+                              (uint32_t)(h * w * elementSize),
+                              (uint32_t)(stride_h * w * elementSize), elementSize};
+    if (fmt == CVK_FMT_I8) {
+      ctx.tdma_load_stride(&operand, ga_inputs[opd_idx] + tile.input_offset, stride);
     } else {
-      ctx.tdma_load_stride_bf16(&operand,
-          ga_inputs[opd_idx] + tile.input_offset, stride);
+      ctx.tdma_load_stride_bf16(&operand, ga_inputs[opd_idx] + tile.input_offset, stride);
     }
 
-    LLVM_DEBUG(llvm::errs() << llvm::format(
-        "load[%d], flip[%d], shape<%d,%d,%d,%d>,"
-        " stride:<%d,%d,%d,%d>, offset:%d\n",
-        step_idx, input_flip, tile.n, tile.c, tile.h, tile.w,
-        stride.n, stride.c, stride.h, stride.w,
-        tile.input_offset));
+    LLVM_DEBUG(llvm::errs() << llvm::format("load[%d], flip[%d], shape<%d,%d,%d,%d>,"
+                                            " stride:<%d,%d,%d,%d>, offset:%d\n",
+                                            step_idx, input_flip, tile.n, tile.c, tile.h,
+                                            tile.w, stride.n, stride.c, stride.h,
+                                            stride.w, tile.input_offset));
   } else {
-    if(fmt == CVK_FMT_I8){
+    if (fmt == CVK_FMT_I8) {
       ctx.tdma_load(&operand, ga_inputs[opd_idx] + tile.input_offset);
     } else {
       ctx.tdma_load_bf16(&operand, ga_inputs[opd_idx] + tile.input_offset);
     }
 
     LLVM_DEBUG(llvm::errs() << llvm::format(
-        "load[%d], flip[%d], shape<%d,%d,%d,%d>, offset:%d\n",
-        step_idx, input_flip, tile.n, tile.c,
-        tile.h, tile.w, tile.input_offset));
+                   "load[%d], flip[%d], shape<%d,%d,%d,%d>, offset:%d\n", step_idx,
+                   input_flip, tile.n, tile.c, tile.h, tile.w, tile.input_offset));
   }
   input_flip = 1 - input_flip;
 }
@@ -261,37 +253,32 @@ void TgEltwiseKernel::store(int32_t step_idx) {
   uint32_t elementSize = fmt == CVK_FMT_I8 ? 1 : 2;
   if (do_early_stride) {
     cvk_tg_stride_t stride = {
-      (uint32_t)(c * (h / stride_h) * (w / stride_w) * elementSize),
-      (uint32_t)((h / stride_h) * (w / stride_w) * elementSize),
-      (uint32_t)(w / stride_w * elementSize), elementSize
-    };
-    if(fmt == CVK_FMT_I8){
+        (uint32_t)(c * (h / stride_h) * (w / stride_w) * elementSize),
+        (uint32_t)((h / stride_h) * (w / stride_w) * elementSize),
+        (uint32_t)(w / stride_w * elementSize), elementSize};
+    if (fmt == CVK_FMT_I8) {
       ctx.tdma_store_stride(&result, ga_output + tile.output_offset, stride);
     } else {
       ctx.tdma_store_stride_bf16(&result, ga_output + tile.output_offset, stride);
     }
 
-    LLVM_DEBUG(llvm::errs() << llvm::format(
-        "store[%d], flip[%d], shape<%d,%d,%d,%d>,"
-        " stride<%d,%d,%d,%d>, offset:%d\n",
-        step_idx, 1 - output_flip,
-        result.shape.n, result.shape.c,
-        result.shape.h, result.shape.w,
-        stride.n, stride.c, stride.h, stride.w,
-        tile.output_offset));
+    LLVM_DEBUG(llvm::errs() << llvm::format("store[%d], flip[%d], shape<%d,%d,%d,%d>,"
+                                            " stride<%d,%d,%d,%d>, offset:%d\n",
+                                            step_idx, 1 - output_flip, result.shape.n,
+                                            result.shape.c, result.shape.h,
+                                            result.shape.w, stride.n, stride.c, stride.h,
+                                            stride.w, tile.output_offset));
   } else {
-    if(fmt == CVK_FMT_I8){
+    if (fmt == CVK_FMT_I8) {
       ctx.tdma_store(&result, ga_output + tile.output_offset);
     } else {
       ctx.tdma_store_bf16(&result, ga_output + tile.output_offset);
     }
 
     LLVM_DEBUG(llvm::errs() << llvm::format(
-        "store[%d], flip[%d], shape<%d,%d,%d,%d>, offset:%d\n",
-        step_idx, 1 - output_flip,
-        result.shape.n, result.shape.c,
-        result.shape.h, result.shape.w,
-        tile.output_offset));
+                   "store[%d], flip[%d], shape<%d,%d,%d,%d>, offset:%d\n", step_idx,
+                   1 - output_flip, result.shape.n, result.shape.c, result.shape.h,
+                   result.shape.w, tile.output_offset));
   }
 }
 
@@ -325,13 +312,13 @@ void TgInt8EltwiseAddKernel::compute(int32_t step_idx) {
   output_high.fmt = CVK_FMT_I8;
 
   LLVM_DEBUG(llvm::errs() << llvm::format(
-      "compute[%d], flip[%d, %d], input<%d,%d,%d,%d:"
-      "%d,%d,%d,%d>, output<%d,%d,%d,%d:%d,%d,%d,%d>\n",
-      step_idx, 1 - input_flip, output_flip,
-      input.shape.n, input.shape.c, input.shape.h, input.shape.w,
-      input.stride.n, input.stride.c, input.stride.h, input.stride.w,
-      output.shape.n, output.shape.c, output.shape.h, output.shape.w,
-      output.stride.n, output.stride.c, output.stride.h, output.stride.w));
+                 "compute[%d], flip[%d, %d], input<%d,%d,%d,%d:"
+                 "%d,%d,%d,%d>, output<%d,%d,%d,%d:%d,%d,%d,%d>\n",
+                 step_idx, 1 - input_flip, output_flip, input.shape.n, input.shape.c,
+                 input.shape.h, input.shape.w, input.stride.n, input.stride.c,
+                 input.stride.h, input.stride.w, output.shape.n, output.shape.c,
+                 output.shape.h, output.shape.w, output.stride.n, output.stride.c,
+                 output.stride.h, output.stride.w));
 
   if (opd_idx == 0) {
     // calculate first input.
@@ -409,13 +396,13 @@ void TgInt8EltwiseMaxKernel::compute(int32_t step_idx) {
   output_high.fmt = CVK_FMT_I8;
 
   LLVM_DEBUG(llvm::errs() << llvm::format(
-      "compute[%d], flip[%d, %d], input<%d,%d,%d,%d:"
-      "%d,%d,%d,%d>, output<%d,%d,%d,%d:%d,%d,%d,%d>\n",
-      step_idx, 1 - input_flip, output_flip,
-      input.shape.n, input.shape.c, input.shape.h, input.shape.w,
-      input.stride.n, input.stride.c, input.stride.h, input.stride.w,
-      output.shape.n, output.shape.c, output.shape.h, output.shape.w,
-      output.stride.n, output.stride.c, output.stride.h, output.stride.w));
+                 "compute[%d], flip[%d, %d], input<%d,%d,%d,%d:"
+                 "%d,%d,%d,%d>, output<%d,%d,%d,%d:%d,%d,%d,%d>\n",
+                 step_idx, 1 - input_flip, output_flip, input.shape.n, input.shape.c,
+                 input.shape.h, input.shape.w, input.stride.n, input.stride.c,
+                 input.stride.h, input.stride.w, output.shape.n, output.shape.c,
+                 output.shape.h, output.shape.w, output.stride.n, output.stride.c,
+                 output.stride.h, output.stride.w));
 
   if (opd_idx == 0) {
     // calculate first input.
@@ -495,13 +482,13 @@ void TgInt8EltwiseMinKernel::compute(int32_t step_idx) {
   output_high.fmt = CVK_FMT_I8;
 
   LLVM_DEBUG(llvm::errs() << llvm::format(
-      "compute[%d], flip[%d, %d], input<%d,%d,%d,%d:"
-      "%d,%d,%d,%d>, output<%d,%d,%d,%d:%d,%d,%d,%d>\n",
-      step_idx, 1 - input_flip, output_flip,
-      input.shape.n, input.shape.c, input.shape.h, input.shape.w,
-      input.stride.n, input.stride.c, input.stride.h, input.stride.w,
-      output.shape.n, output.shape.c, output.shape.h, output.shape.w,
-      output.stride.n, output.stride.c, output.stride.h, output.stride.w));
+                 "compute[%d], flip[%d, %d], input<%d,%d,%d,%d:"
+                 "%d,%d,%d,%d>, output<%d,%d,%d,%d:%d,%d,%d,%d>\n",
+                 step_idx, 1 - input_flip, output_flip, input.shape.n, input.shape.c,
+                 input.shape.h, input.shape.w, input.stride.n, input.stride.c,
+                 input.stride.h, input.stride.w, output.shape.n, output.shape.c,
+                 output.shape.h, output.shape.w, output.stride.n, output.stride.c,
+                 output.stride.h, output.stride.w));
 
   if (opd_idx == 0) {
     // calculate first input.
@@ -576,13 +563,13 @@ void TgInt8EltwiseMulKernel::compute(int32_t step_idx) {
   output.fmt = CVK_FMT_I8;
 
   LLVM_DEBUG(llvm::errs() << llvm::format(
-      "compute[%d], flip[%d, %d], input<%d,%d,%d,%d:"
-      "%d,%d,%d,%d>, output<%d,%d,%d,%d:%d,%d,%d,%d>\n",
-      step_idx, 1 - input_flip, output_flip,
-      input.shape.n, input.shape.c, input.shape.h, input.shape.w,
-      input.stride.n, input.stride.c, input.stride.h, input.stride.w,
-      output.shape.n, output.shape.c, output.shape.h, output.shape.w,
-      output.stride.n, output.stride.c, output.stride.h, output.stride.w));
+                 "compute[%d], flip[%d, %d], input<%d,%d,%d,%d:"
+                 "%d,%d,%d,%d>, output<%d,%d,%d,%d:%d,%d,%d,%d>\n",
+                 step_idx, 1 - input_flip, output_flip, input.shape.n, input.shape.c,
+                 input.shape.h, input.shape.w, input.stride.n, input.stride.c,
+                 input.stride.h, input.stride.w, output.shape.n, output.shape.c,
+                 output.shape.h, output.shape.w, output.stride.n, output.stride.c,
+                 output.stride.h, output.stride.w));
 
   if (opd_idx == 0) {
     // calculate first input.
@@ -643,13 +630,13 @@ void TgBf16EltwiseAddKernel::compute(int32_t step_idx) {
   output_high.fmt = fmt;
 
   LLVM_DEBUG(llvm::errs() << llvm::format(
-      "compute[%d], flip[%d, %d], input<%d,%d,%d,%d:"
-      "%d,%d,%d,%d>, output<%d,%d,%d,%d:%d,%d,%d,%d>\n",
-      step_idx, 1 - input_flip, output_flip,
-      input.shape.n, input.shape.c, input.shape.h, input.shape.w,
-      input.stride.n, input.stride.c, input.stride.h, input.stride.w,
-      output.shape.n, output.shape.c, output.shape.h, output.shape.w,
-      output.stride.n, output.stride.c, output.stride.h, output.stride.w));
+                 "compute[%d], flip[%d, %d], input<%d,%d,%d,%d:"
+                 "%d,%d,%d,%d>, output<%d,%d,%d,%d:%d,%d,%d,%d>\n",
+                 step_idx, 1 - input_flip, output_flip, input.shape.n, input.shape.c,
+                 input.shape.h, input.shape.w, input.stride.n, input.stride.c,
+                 input.stride.h, input.stride.w, output.shape.n, output.shape.c,
+                 output.shape.h, output.shape.w, output.stride.n, output.stride.c,
+                 output.stride.h, output.stride.w));
 
   if (opd_idx == 0) {
     // move first input.
@@ -706,14 +693,14 @@ void TgBf16EltwiseMaxKernel::compute(int32_t step_idx) {
   output_high.fmt = CVK_FMT_I8;
 
   LLVM_DEBUG(llvm::errs() << llvm::format(
-      "compute[%d], flip[%d, %d], input<%d,%d,%d,%d:"
-      "%d,%d,%d,%d>, output<%d,%d,%d,%d:%d,%d,%d,%d>\n",
-      step_idx, 1 - input_flip, output_flip,
-      input.shape.n, input.shape.c, input.shape.h, input.shape.w,
-      input.stride.n, input.stride.c, input.stride.h, input.stride.w,
-      output.shape.n, output.shape.c, output.shape.h, output.shape.w,
-      output.stride.n, output.stride.c, output.stride.h, output.stride.w));
-  if(operand_num == 1) {
+                 "compute[%d], flip[%d, %d], input<%d,%d,%d,%d:"
+                 "%d,%d,%d,%d>, output<%d,%d,%d,%d:%d,%d,%d,%d>\n",
+                 step_idx, 1 - input_flip, output_flip, input.shape.n, input.shape.c,
+                 input.shape.h, input.shape.w, input.stride.n, input.stride.c,
+                 input.stride.h, input.stride.w, output.shape.n, output.shape.c,
+                 output.shape.h, output.shape.w, output.stride.n, output.stride.c,
+                 output.stride.h, output.stride.w));
+  if (operand_num == 1) {
     cvk_tiu_max_param_t p = {0};
     p.max = &output;
     p.a = &input;
@@ -798,15 +785,15 @@ void TgBf16EltwiseMinKernel::compute(int32_t step_idx) {
   output_high.fmt = CVK_FMT_I8;
 
   LLVM_DEBUG(llvm::errs() << llvm::format(
-      "compute[%d], flip[%d, %d], input<%d,%d,%d,%d:"
-      "%d,%d,%d,%d>, output<%d,%d,%d,%d:%d,%d,%d,%d>\n",
-      step_idx, 1 - input_flip, output_flip,
-      input.shape.n, input.shape.c, input.shape.h, input.shape.w,
-      input.stride.n, input.stride.c, input.stride.h, input.stride.w,
-      output.shape.n, output.shape.c, output.shape.h, output.shape.w,
-      output.stride.n, output.stride.c, output.stride.h, output.stride.w));
+                 "compute[%d], flip[%d, %d], input<%d,%d,%d,%d:"
+                 "%d,%d,%d,%d>, output<%d,%d,%d,%d:%d,%d,%d,%d>\n",
+                 step_idx, 1 - input_flip, output_flip, input.shape.n, input.shape.c,
+                 input.shape.h, input.shape.w, input.stride.n, input.stride.c,
+                 input.stride.h, input.stride.w, output.shape.n, output.shape.c,
+                 output.shape.h, output.shape.w, output.stride.n, output.stride.c,
+                 output.stride.h, output.stride.w));
 
-  if(operand_num == 1) {
+  if (operand_num == 1) {
     cvk_tiu_min_param_t p = {0};
     p.min = &output;
     p.a = &input;
@@ -886,13 +873,13 @@ void TgBf16EltwiseMulKernel::compute(int32_t step_idx) {
   output.fmt = fmt;
 
   LLVM_DEBUG(llvm::errs() << llvm::format(
-      "compute[%d], flip[%d, %d], input<%d,%d,%d,%d:"
-      "%d,%d,%d,%d>, output<%d,%d,%d,%d:%d,%d,%d,%d>\n",
-      step_idx, 1 - input_flip, output_flip,
-      input.shape.n, input.shape.c, input.shape.h, input.shape.w,
-      input.stride.n, input.stride.c, input.stride.h, input.stride.w,
-      output.shape.n, output.shape.c, output.shape.h, output.shape.w,
-      output.stride.n, output.stride.c, output.stride.h, output.stride.w));
+                 "compute[%d], flip[%d, %d], input<%d,%d,%d,%d:"
+                 "%d,%d,%d,%d>, output<%d,%d,%d,%d:%d,%d,%d,%d>\n",
+                 step_idx, 1 - input_flip, output_flip, input.shape.n, input.shape.c,
+                 input.shape.h, input.shape.w, input.stride.n, input.stride.c,
+                 input.stride.h, input.stride.w, output.shape.n, output.shape.c,
+                 output.shape.h, output.shape.w, output.stride.n, output.stride.c,
+                 output.stride.h, output.stride.w));
 
   if (opd_idx == 0) {
     // move first input.
@@ -945,13 +932,13 @@ void TgBf16EltwiseMinMaxKernel::compute(int32_t step_idx) {
   output_high.fmt = fmt;
 
   LLVM_DEBUG(llvm::errs() << llvm::format(
-      "compute[%d], flip[%d, %d], input<%d,%d,%d,%d:"
-      "%d,%d,%d,%d>, output<%d,%d,%d,%d:%d,%d,%d,%d>\n",
-      step_idx, 1 - input_flip, output_flip,
-      input.shape.n, input.shape.c, input.shape.h, input.shape.w,
-      input.stride.n, input.stride.c, input.stride.h, input.stride.w,
-      output.shape.n, output.shape.c, output.shape.h, output.shape.w,
-      output.stride.n, output.stride.c, output.stride.h, output.stride.w));
+                 "compute[%d], flip[%d, %d], input<%d,%d,%d,%d:"
+                 "%d,%d,%d,%d>, output<%d,%d,%d,%d:%d,%d,%d,%d>\n",
+                 step_idx, 1 - input_flip, output_flip, input.shape.n, input.shape.c,
+                 input.shape.h, input.shape.w, input.stride.n, input.stride.c,
+                 input.stride.h, input.stride.w, output.shape.n, output.shape.c,
+                 output.shape.h, output.shape.w, output.stride.n, output.stride.c,
+                 output.stride.h, output.stride.w));
 
   cvk_tiu_min_param_t p7 = {0};
   p7.min = &output;
@@ -988,168 +975,133 @@ void TgBf16EltwiseMinMaxKernel::compute(int32_t step_idx) {
 }
 
 void cvi_backend_tg_fixed_eltwise_add_kernel(
-    const CviBackendContext &ctx, uint32_t layer_id,
-    gaddr_t ga_inputs[], gaddr_t ga_output,
-    int32_t operand_num, int32_t n, int32_t c,
-    int32_t h, int32_t w, bool do_relu, bool do_early_stride,
-    int32_t stride_h, int32_t stride_w, int32_t rshift,
-    const int32_t *multipliers,
-    const int32_t *coeffs) {
+    const CviBackendContext &ctx, uint32_t layer_id, gaddr_t ga_inputs[],
+    gaddr_t ga_output, int32_t operand_num, int32_t n, int32_t c, int32_t h, int32_t w,
+    bool do_relu, bool do_early_stride, int32_t stride_h, int32_t stride_w,
+    int32_t rshift, const int32_t *multipliers, const int32_t *coeffs) {
 
   TgInt8EltwiseAddKernel kernel(ctx);
-  kernel.init(
-    layer_id, ga_inputs, ga_output,
-    operand_num, n, c, h, w, do_relu, do_early_stride,
-    stride_h, stride_w, rshift, multipliers, coeffs);
+  kernel.init(layer_id, ga_inputs, ga_output, operand_num, n, c, h, w, do_relu,
+              do_early_stride, stride_h, stride_w, rshift, multipliers, coeffs);
 
   kernel.selectTilePolicy();
   kernel.schedule();
 }
 
 void cvi_backend_tg_fixed_eltwise_max_kernel(
-    const CviBackendContext &ctx, uint32_t layer_id,
-    gaddr_t ga_inputs[], gaddr_t ga_output,
-    int32_t operand_num, int32_t n, int32_t c,
-    int32_t h, int32_t w, bool do_relu, bool do_early_stride,
-    int32_t stride_h, int32_t stride_w, int32_t rshift,
-    const int32_t *multipliers,
-    const int32_t *coeffs) {
+    const CviBackendContext &ctx, uint32_t layer_id, gaddr_t ga_inputs[],
+    gaddr_t ga_output, int32_t operand_num, int32_t n, int32_t c, int32_t h, int32_t w,
+    bool do_relu, bool do_early_stride, int32_t stride_h, int32_t stride_w,
+    int32_t rshift, const int32_t *multipliers, const int32_t *coeffs) {
   assert(operand_num == 2);
   TgInt8EltwiseMaxKernel kernel(ctx);
-  kernel.init(
-    layer_id, ga_inputs, ga_output,
-    operand_num, n, c, h, w, do_relu, do_early_stride,
-    stride_h, stride_w, rshift, multipliers, coeffs);
+  kernel.init(layer_id, ga_inputs, ga_output, operand_num, n, c, h, w, do_relu,
+              do_early_stride, stride_h, stride_w, rshift, multipliers, coeffs);
 
   kernel.selectTilePolicy();
   kernel.schedule();
 }
 
 void cvi_backend_tg_fixed_eltwise_min_kernel(
-    const CviBackendContext &ctx, uint32_t layer_id,
-    gaddr_t ga_inputs[], gaddr_t ga_output,
-    int32_t operand_num, int32_t n, int32_t c,
-    int32_t h, int32_t w, bool do_relu, bool do_early_stride,
-    int32_t stride_h, int32_t stride_w, int32_t rshift,
-    const int32_t *multipliers,
-    const int32_t *coeffs) {
+    const CviBackendContext &ctx, uint32_t layer_id, gaddr_t ga_inputs[],
+    gaddr_t ga_output, int32_t operand_num, int32_t n, int32_t c, int32_t h, int32_t w,
+    bool do_relu, bool do_early_stride, int32_t stride_h, int32_t stride_w,
+    int32_t rshift, const int32_t *multipliers, const int32_t *coeffs) {
   assert(operand_num == 2);
   TgInt8EltwiseMinKernel kernel(ctx);
-  kernel.init(
-    layer_id, ga_inputs, ga_output,
-    operand_num, n, c, h, w, do_relu, do_early_stride,
-    stride_h, stride_w, rshift, multipliers, coeffs);
+  kernel.init(layer_id, ga_inputs, ga_output, operand_num, n, c, h, w, do_relu,
+              do_early_stride, stride_h, stride_w, rshift, multipliers, coeffs);
 
   kernel.selectTilePolicy();
   kernel.schedule();
 }
 
 void cvi_backend_tg_fixed_eltwise_mul_kernel(
-    const CviBackendContext &ctx, uint32_t layer_id,
-    gaddr_t ga_inputs[], gaddr_t ga_output,
-    int32_t operand_num, int32_t n, int32_t c,
-    int32_t h, int32_t w, bool do_relu, bool do_early_stride,
-    int32_t stride_h, int32_t stride_w, int32_t rshift,
-    const int32_t *multipliers,
-    const int32_t *coeffs) {
+    const CviBackendContext &ctx, uint32_t layer_id, gaddr_t ga_inputs[],
+    gaddr_t ga_output, int32_t operand_num, int32_t n, int32_t c, int32_t h, int32_t w,
+    bool do_relu, bool do_early_stride, int32_t stride_h, int32_t stride_w,
+    int32_t rshift, const int32_t *multipliers, const int32_t *coeffs) {
   assert(operand_num == 2);
   TgInt8EltwiseMulKernel kernel(ctx);
-  kernel.init(
-    layer_id, ga_inputs, ga_output,
-    operand_num, n, c, h, w, do_relu, do_early_stride,
-    stride_h, stride_w, rshift, multipliers, coeffs);
+  kernel.init(layer_id, ga_inputs, ga_output, operand_num, n, c, h, w, do_relu,
+              do_early_stride, stride_h, stride_w, rshift, multipliers, coeffs);
 
   kernel.selectTilePolicy();
   kernel.schedule();
 }
 
-void cvi_backend_tg_bf16_eltwise_add_kernel(
-    const CviBackendContext &ctx,
-    uint32_t layer_id, gaddr_t ga_inputs[], gaddr_t ga_output,
-    int32_t operand_num, int32_t n, int32_t c,
-    int32_t h, int32_t w,
-    bool do_relu,
-    bool do_early_stride, int32_t stride_h, int32_t stride_w,
-    const float coeffs[]) {
+void cvi_backend_tg_bf16_eltwise_add_kernel(const CviBackendContext &ctx,
+                                            uint32_t layer_id, gaddr_t ga_inputs[],
+                                            gaddr_t ga_output, int32_t operand_num,
+                                            int32_t n, int32_t c, int32_t h, int32_t w,
+                                            bool do_relu, bool do_early_stride,
+                                            int32_t stride_h, int32_t stride_w,
+                                            const float coeffs[]) {
   TgBf16EltwiseAddKernel kernel(ctx);
-  kernel.init(
-    layer_id, ga_inputs, ga_output,
-    operand_num, n, c, h, w, do_relu, do_early_stride,
-    stride_h, stride_w, coeffs);
+  kernel.init(layer_id, ga_inputs, ga_output, operand_num, n, c, h, w, do_relu,
+              do_early_stride, stride_h, stride_w, coeffs);
 
   kernel.selectTilePolicy();
   kernel.schedule();
 }
 
-void cvi_backend_tg_bf16_eltwise_mul_kernel(
-    const CviBackendContext &ctx,
-    uint32_t layer_id, gaddr_t ga_inputs[], gaddr_t ga_output,
-    int32_t operand_num, int32_t n, int32_t c,
-    int32_t h, int32_t w,
-    bool do_relu,
-    bool do_early_stride, int32_t stride_h, int32_t stride_w,
-    const float coeffs[]) {
+void cvi_backend_tg_bf16_eltwise_mul_kernel(const CviBackendContext &ctx,
+                                            uint32_t layer_id, gaddr_t ga_inputs[],
+                                            gaddr_t ga_output, int32_t operand_num,
+                                            int32_t n, int32_t c, int32_t h, int32_t w,
+                                            bool do_relu, bool do_early_stride,
+                                            int32_t stride_h, int32_t stride_w,
+                                            const float coeffs[]) {
   TgBf16EltwiseMulKernel kernel(ctx);
-  kernel.init(
-    layer_id, ga_inputs, ga_output,
-    operand_num, n, c, h, w, do_relu, do_early_stride,
-    stride_h, stride_w, coeffs);
+  kernel.init(layer_id, ga_inputs, ga_output, operand_num, n, c, h, w, do_relu,
+              do_early_stride, stride_h, stride_w, coeffs);
 
   kernel.selectTilePolicy();
   kernel.schedule();
 }
 
-void cvi_backend_tg_bf16_eltwise_max_kernel(
-    const CviBackendContext &ctx,
-    uint32_t layer_id, gaddr_t ga_inputs[], gaddr_t ga_output,
-    int32_t operand_num, int32_t n, int32_t c,
-    int32_t h, int32_t w,
-    bool do_relu,
-    bool do_early_stride, int32_t stride_h, int32_t stride_w,
-    const float coeffs[]) {
+void cvi_backend_tg_bf16_eltwise_max_kernel(const CviBackendContext &ctx,
+                                            uint32_t layer_id, gaddr_t ga_inputs[],
+                                            gaddr_t ga_output, int32_t operand_num,
+                                            int32_t n, int32_t c, int32_t h, int32_t w,
+                                            bool do_relu, bool do_early_stride,
+                                            int32_t stride_h, int32_t stride_w,
+                                            const float coeffs[]) {
   assert((operand_num == 1) || (operand_num == 2));
   TgBf16EltwiseMaxKernel kernel(ctx);
-  kernel.init(
-    layer_id, ga_inputs, ga_output,
-    operand_num, n, c, h, w, do_relu, do_early_stride,
-    stride_h, stride_w, coeffs);
+  kernel.init(layer_id, ga_inputs, ga_output, operand_num, n, c, h, w, do_relu,
+              do_early_stride, stride_h, stride_w, coeffs);
 
   kernel.selectTilePolicy();
   kernel.schedule();
 }
 
-void cvi_backend_tg_bf16_eltwise_min_kernel(
-    const CviBackendContext &ctx,
-    uint32_t layer_id, gaddr_t ga_inputs[], gaddr_t ga_output,
-    int32_t operand_num, int32_t n, int32_t c,
-    int32_t h, int32_t w,
-    bool do_relu,
-    bool do_early_stride, int32_t stride_h, int32_t stride_w,
-    const float coeffs[]) {
+void cvi_backend_tg_bf16_eltwise_min_kernel(const CviBackendContext &ctx,
+                                            uint32_t layer_id, gaddr_t ga_inputs[],
+                                            gaddr_t ga_output, int32_t operand_num,
+                                            int32_t n, int32_t c, int32_t h, int32_t w,
+                                            bool do_relu, bool do_early_stride,
+                                            int32_t stride_h, int32_t stride_w,
+                                            const float coeffs[]) {
   assert((operand_num == 1) || (operand_num == 2));
   TgBf16EltwiseMinKernel kernel(ctx);
-  kernel.init(
-    layer_id, ga_inputs, ga_output,
-    operand_num, n, c, h, w, do_relu, do_early_stride,
-    stride_h, stride_w, coeffs);
+  kernel.init(layer_id, ga_inputs, ga_output, operand_num, n, c, h, w, do_relu,
+              do_early_stride, stride_h, stride_w, coeffs);
 
   kernel.selectTilePolicy();
   kernel.schedule();
 }
 
-void cvi_backend_tg_bf16_eltwise_min_max_kernel(
-    const CviBackendContext &ctx,
-    uint32_t layer_id, gaddr_t ga_inputs[], gaddr_t ga_output,
-    int32_t operand_num, int32_t n, int32_t c,
-    int32_t h, int32_t w,
-    bool do_relu,
-    bool do_early_stride, int32_t stride_h, int32_t stride_w,
-    const float coeffs[]) {
+void cvi_backend_tg_bf16_eltwise_min_max_kernel(const CviBackendContext &ctx,
+                                                uint32_t layer_id, gaddr_t ga_inputs[],
+                                                gaddr_t ga_output, int32_t operand_num,
+                                                int32_t n, int32_t c, int32_t h,
+                                                int32_t w, bool do_relu,
+                                                bool do_early_stride, int32_t stride_h,
+                                                int32_t stride_w, const float coeffs[]) {
   TgBf16EltwiseMinMaxKernel kernel(ctx);
-  kernel.init(
-    layer_id, ga_inputs, ga_output,
-    operand_num, n, c, h, w, do_relu, do_early_stride,
-    stride_h, stride_w, coeffs);
+  kernel.init(layer_id, ga_inputs, ga_output, operand_num, n, c, h, w, do_relu,
+              do_early_stride, stride_h, stride_w, coeffs);
 
   kernel.selectTilePolicy();
   kernel.schedule();

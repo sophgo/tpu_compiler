@@ -978,6 +978,150 @@ LogicalResult tpu::ExpOp::interpret(
   return doLUTOpInterpret(op, type, valueMapping);
 }
 
+static LogicalResult doBroadcastOpInterpret(Operation *op,
+    StringRef &type, bool do_relu,
+    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+  auto opdT = getOperandTensors(op, valueMapping);
+  auto result = op->getResult(0);
+  auto output_size = getTensorSize(result);
+  auto resultT = std::make_unique<std::vector<float> >(output_size);
+
+  // parse param
+  std::vector<int64_t> shape;
+  int64_t input_size, n0, c0, h0, w0;
+  int64_t n1, c1, h1, w1;
+  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  assert(input_size == output_size);
+  getNCHW(shape, n0, c0, h0, w0);
+  getTensorShapeAndSize(op->getOperand(1), shape, input_size);
+  getNCHW(shape, n1, c1, h1, w1);
+
+  llvm::errs() << llvm::format("interpret, a:%d,%d,%d,%d, b:%d,%d,%d,%d\n",
+                  (int)n0, (int)c0, (int)h0, (int)w0, (int)n1, (int)c1, (int)h1, (int)w1);
+
+  // get tensors
+  uint32_t nInputs = 2;
+  float *input[2];
+  input[0] = opdT[0]->data();
+  input[1] = opdT[1]->data();
+
+  float *output = resultT->data();
+  std::shared_ptr<std::vector<float> > quant_rshift = opdT[nInputs + 2];
+  std::shared_ptr<std::vector<float> > quant_multiplier = opdT[nInputs + 3];
+
+  // apply qscale on input tensors before f32 compute
+  std::vector<std::vector<float> > input_copy(nInputs);
+  if (type == "ADD" || type == "MAX" || type == "MIN" || type == "SUB") {
+    if (getOpQuant(op) == "INT8" && getOpQuantParamType(op) != "NONE") {
+      for (unsigned i = 0; i < nInputs; ++i) {
+        // make copy
+        input_copy[i].assign(opdT[i]->begin(),
+                             opdT[i]->end());
+        input[i] = input_copy[i].data();
+      }
+      // apply multiplier
+      for (unsigned i = 0; i < nInputs; ++i) {
+        for (size_t j = 0; j < opdT[i]->size(); ++j) {
+          input[i][j] = input[i][j] * (int8_t)quant_multiplier->at(i);
+        }
+      }
+    }
+  } else if (type == "MUL") {
+    // MUL apply qscale on output put, no scaling on input
+  } else {
+    llvm_unreachable("unsupported eltwise type");
+  }
+
+  // compute in fp32
+
+  size_t idx = 0;
+  for (int n = 0; n < (int)n0; ++n) {
+    for (int c = 0; c < (int)c0; ++c) {
+      for (int h = 0; h < (int)h0; ++h) {
+        for (int w = 0; w < (int)w0; ++w) {
+          float a = input[0][w + h * w0 + c * h0 * w0 + n * c0 * h0 * w0];
+          float b = input[1][(w1 == 1 ? 0 : w) +
+                             (h1 == 1 ? 0 : h) * w1 +
+                             (c1 == 1 ? 0 : c) * h1 * w1 +
+                             (n1 == 1 ? 0 : n) * c1 * h1 * w1];
+          if (type == "ADD") {
+            output[idx++] = a + b;
+          } else if (type == "SUB") {
+            output[idx++] = a - b;
+          } else if (type == "MAX") {
+            output[idx++] = a > b ? a : b;
+          } else if (type == "MIN") {
+            output[idx++] = a < b ? a : b;
+          } else if (type == "MUL") {
+            output[idx++] = a * b;
+          } else {
+            llvm_unreachable("unsupported eltwise type");
+          }
+        }
+      }
+    }
+  }
+
+  if (do_relu) {
+    int ret = my_relu(output, output, n0, c0, h0, w0, 0.0f);
+    assert(ret == 0);
+  }
+
+  // rshift and saturate on output
+  if (getOpQuant(op) == "NONE") {
+    // do nothing
+  } else if (getOpQuant(op) == "INT8") {
+    if (getOpQuantParamType(op) != "NONE") {
+      if (type == "ADD" || type == "SUB" || type == "MAX" || type == "MIN") {
+        // apply rshift and saturate
+        for (int i = 0; i < input_size; ++i) {
+          output[i] = (float)applyRShiftAndSaturateInt8(
+              output[i], (uint32_t)quant_rshift->at(0));
+        }
+      } else if (type == "MUL") {
+        // apply qscale on output (both rshift and saturate)
+        for (int i = 0; i < input_size; ++i) {
+          output[i] = (float)applyMultiplierAndRShiftAndSaturateInt8(
+              output[i], (uint32_t)quant_rshift->at(0),
+              (uint32_t)quant_multiplier->at(0), true);
+        }
+      }
+    }
+    for (int i = 0; i < input_size; ++i) {
+      if (output[i] > 127.0) {
+        output[i] = 127.0;
+      } else if (output[i] < -128.0) {
+        output[i] = -128.0;
+      }
+    }
+  } else if (getOpQuant(op) == "BF16") {
+    auto tensor_bf16 = std::make_unique<std::vector<bfloat16>>(resultT->size());
+    FloatToBFloat16(resultT->data(), tensor_bf16->data(),
+                    resultT->size()); // with rounding
+    BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
+  } else {
+    assert(false);
+  }
+  valueMapping[result] = std::move(resultT);
+  return success();
+}
+
+LogicalResult tpu::BroadcastAddOp::interpret(
+    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+  Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
+  StringRef type = "ADD";
+  return doBroadcastOpInterpret(op, type, do_relu(), valueMapping);
+}
+
+LogicalResult tpu::BroadcastSubOp::interpret(
+    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+  Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
+  StringRef type = "SUB";
+  return doBroadcastOpInterpret(op, type, do_relu(), valueMapping);
+}
+
 static LogicalResult doEltwiseOpInterpret(Operation *op,
     StringRef &type, bool do_relu,
     DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {

@@ -119,6 +119,114 @@ Value* tpu::BroadcastMulOp::convertToTG() {
   llvm_unreachable("unsupported type");
 }
 
+Value *tpu::BroadcastAddOp::convertToTG() {
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  auto builder = Builder(op->getContext());
+  TensorFile *wTF = getWeightTensorFile(op);
+  assert(wTF);
+
+  uint32_t nInputs = 2;
+  std::vector<Value *> operands;
+  operands.push_back(op->getOperand(0));
+  operands.push_back(op->getOperand(1));
+
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder.getNamedAttr("name", nameAttr()));
+  attrs.push_back(builder.getNamedAttr("do_relu", builder.getBoolAttr(do_relu())));
+
+  if (getOpQuant() == "INT8") {
+    int8_t rshift_i8 = 0;
+    std::vector<int32_t> m_i8_inputs(nInputs, 1);
+    if (getOpQuantParamType() == "RSHIFT_AND_M_I8") {
+      // ADD
+      // rshift
+      auto rshift = readAndDeleteWeightTensor<float>(quant_rshift(), wTF);
+      assert(rshift->size() == 1);
+      rshift_i8 = static_cast<int8_t>(rshift->at(0));
+
+      // m_i8_inputs
+      auto multiplier =
+          readAndDeleteWeightTensor<float>(quant_multiplier(), wTF);
+      for (unsigned i = 0; i < nInputs; ++i) {
+        m_i8_inputs[i] = static_cast<int32_t>(multiplier->at(i));
+      }
+    }
+    attrs.push_back(
+        builder.getNamedAttr("rshift", builder.getI8IntegerAttr(rshift_i8)));
+    attrs.push_back(builder.getNamedAttr(
+        "m_i8_inputs",
+        builder.getI32ArrayAttr(ArrayRef<int32_t>({m_i8_inputs}))));
+
+    // create op
+    auto newOp = OpBuilder(op).create<tpu::TG_INT8_BroadcastAddOp>(
+        op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  } else if (getOpQuant() == "BF16") {
+    auto newOp = OpBuilder(op).create<tpu::TG_BF16_BroadcastAddOp>(
+        op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  }
+  llvm_unreachable("unsupported type");
+}
+
+Value *tpu::BroadcastSubOp::convertToTG() {
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  auto builder = Builder(op->getContext());
+  TensorFile *wTF = getWeightTensorFile(op);
+  assert(wTF);
+
+  uint32_t nInputs = 2;
+  std::vector<Value *> operands;
+  operands.push_back(op->getOperand(0));
+  operands.push_back(op->getOperand(1));
+
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder.getNamedAttr("name", nameAttr()));
+  attrs.push_back(builder.getNamedAttr("do_relu", builder.getBoolAttr(do_relu())));
+
+  if (getOpQuant() == "INT8") {
+    int8_t rshift_i8 = 0;
+    std::vector<int32_t> m_i8_inputs(nInputs, 1);
+    if (getOpQuantParamType() == "RSHIFT_AND_M_I8") {
+      // ADD
+      // rshift
+      auto rshift = readAndDeleteWeightTensor<float>(quant_rshift(), wTF);
+      assert(rshift->size() == 1);
+      rshift_i8 = static_cast<int8_t>(rshift->at(0));
+
+      // m_i8_inputs
+      auto multiplier =
+          readAndDeleteWeightTensor<float>(quant_multiplier(), wTF);
+      for (unsigned i = 0; i < nInputs; ++i) {
+        m_i8_inputs[i] = static_cast<int32_t>(multiplier->at(i));
+      }
+    }
+    attrs.push_back(
+        builder.getNamedAttr("rshift", builder.getI8IntegerAttr(rshift_i8)));
+    attrs.push_back(builder.getNamedAttr(
+        "m_i8_inputs",
+        builder.getI32ArrayAttr(ArrayRef<int32_t>({m_i8_inputs}))));
+
+    // create op
+    auto newOp = OpBuilder(op).create<tpu::TG_INT8_BroadcastSubOp>(
+        op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  } else if (getOpQuant() == "BF16") {
+    auto newOp = OpBuilder(op).create<tpu::TG_BF16_BroadcastSubOp>(
+        op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  }
+  llvm_unreachable("unsupported type");
+}
+
 Value *tpu::CastOp::convertToTG() {
   LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
                << " [" << getOpName() << "]\n";);
@@ -3473,6 +3581,8 @@ public:
     patterns.clear();
     patterns.insert<
         DefaultToTGPattern<tpu::BroadcastMulOp>,
+        DefaultToTGPattern<tpu::BroadcastAddOp>,
+        DefaultToTGPattern<tpu::BroadcastSubOp>,
         DefaultToTGPattern<tpu::CastOp>,
         DefaultToTGPattern<tpu::ClipOp>,
         DefaultToTGPattern<tpu::ConcatOp>,
